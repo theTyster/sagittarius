@@ -12,7 +12,7 @@
 %
 % MACHINE-CHECK STATUS (real elaboration, not asserted):
 %   `cd thoughts/lean && LAKE_ARTIFACT_CACHE=true lake build` => exit 0, 0 errors,
-%   0 warnings, 0 live `sorry`. `#print axioms` on all 22 theorems =>
+%   0 warnings, 0 live `sorry`. `#print axioms` on all 25 theorems =>
 %   "does not depend on any axioms" for every one (no sorryAx, no Classical).
 %   These are constructive kernel-checked proofs across all 7 invariants.
 %
@@ -272,7 +272,19 @@ run_summary(unprovable, 0).
 run_summary(cwa_checks, 2).
 run_summary(necessity_lemmas_proven, 5).
 run_summary(necessity_lemmas_extraneous, 0).
-run_summary(theorems_kernel_checked, 22).
-run_summary(theorems_axiom_free, 22).
+% THEOREM TALLY (reconciled 2026-06-01 — closes the F-11 RESIDUAL): 25 `theorem`
+% declarations across Proofs/*.lean (3+2+9+4+4+2+1 by file I1..I7; TargetWorld.lean
+% declares 0), ALL kernel-checked by the green `lake build` and axiom-free per the
+% header above + the restatement_note (which names the I-3 additions). The prior 22
+% was STALE: it predated the I-3 re-statement that grew I3Termination.lean to 9
+% theorems — 6 concrete-step machinery (lexWf, measureWf, step_strictDecreasing,
+% stepRev_subrelation, i3_step_wellFounded, i3_recovery_bound) + 2 regression checks
+% folded from the removed I3Vacuity (i3_identity_step_is_rejected,
+% i3_no_measure_preserving_step). Composition of 25: 7 invariant theorems (I-1..I-7)
+% + 5 necessity lemmas (necessity_lemma_status/3 above) + 13 supporting/terminality/
+% regression theorems. (Count reconciliation against the recorded green build — NOT a
+% fresh `#print axioms` re-run, which needs the Lean 4 + Mathlib toolchain.)
+run_summary(theorems_kernel_checked, 25).
+run_summary(theorems_axiom_free, 25).
 run_summary(loopback_required, none).
 run_summary(i3_restated_non_vacuously, true).

@@ -238,6 +238,17 @@ RESIDUAL (out of F-11 scope, PRE-EXISTING — separate follow-up, NOT blocking k
 declarations across `Proofs/*.lean` (the 3 extra are I-3 helper lemmas + regression checks). Reconcile
 the tally or document why helpers are excluded.
 
+**RESOLVED 2026-06-01.** Tally reconciled to **25** — `run_summary(theorems_kernel_checked, 25)` +
+`run_summary(theorems_axiom_free, 25)` + the header's "all 25 theorems" line, with a new in-file
+breakdown comment documenting the composition (7 invariant theorems + 5 necessity lemmas + 13
+supporting/terminality/regression theorems = 25). 25 is the verifiable count of `theorem` declarations
+(`grep -cE '^[[:space:]]*theorem ' self-spec/lean/Proofs/*.lean` ⇒ 3+2+9+4+4+2+1; `TargetWorld.lean`
+declares 0), all kernel-checked by the recorded green `lake build` and axiom-free per the header +
+`restatement_note`. The old 22 was stale — it predated the I-3 re-statement that grew
+`I3Termination.lean` to 9 theorems (6 concrete-step machinery + 2 regression checks folded from the
+removed `I3Vacuity`). This is a **count reconciliation against the recorded green build**, not a fresh
+`#print axioms` re-run (that needs the Lean 4 + Mathlib toolchain — see `docs/index.md`).
+
 ### KIMMY GATE — SATISFIED at the formal-verification layer
 
 All 7 Lean invariants are non-vacuous + adversary-survive over a non-degenerate model. The flagship
