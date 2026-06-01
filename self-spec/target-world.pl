@@ -265,19 +265,29 @@ op_run_steps(r1, 2).
 provenance(op_run_steps(r0, 3), prescriptive).
 provenance(op_run_steps(r1, 2), prescriptive).
 
-% A run that terminates NORMALLY reaches the explain step (I-1 liveness
-% antecedent). r0 completes and reaches explain; r1 hard-stops, so it does NOT
-% reach explain and is NOT a normal-termination instance — recorded via
-% op_hard_stop/1, NOT op_terminates/1. This keeps the I-1 liveness antecedent
-% ("terminating run" = normal completion) load-bearing and consistent: the
-% antecedent now genuinely filters (r1 is excluded), mirroring the Lean model
-% where `Terminates r1` holds but `ReachesExplain r1` is uninhabited and the
-% liveness theorem scopes to runs that reach the closer.
+% D-8 / I-1: explain is the UNCONDITIONAL post-loop closer — it runs on EVERY
+% path, the happy path AND every hard-stop path (crit8 + the implementation
+% confirm: explain is recorded once, last, even when a run hard-stops). So BOTH
+% runs reach a terminal state (op_terminates/1 = "halts", normal OR hard-stop)
+% AND BOTH reach the explain step. The hard-stop outcome is carried by
+% op_run_outcome(r1, hard_stop) / op_hard_stop(r1) as a DISCRIMINATOR, not as the
+% absence of termination, so the I-1 liveness antecedent does NOT filter r1 out.
+% This mirrors the corrected Lean model EXACTLY: Terminates and ReachesExplain
+% are both TOTAL (constructors r0 AND r1); I-1's non-vacuity is carried NOT by
+% the antecedent but by the explain-skipped-on-hard-stop necessity witness
+% (op_reaches_step_cf below / Lean ReachesExplainCF) + the structural terminal
+% half. [F-11 reconciliation: the prior framing (op_terminates(r0) only, r1
+% excluded via op_hard_stop) shared the original D-8 error the Lean shed in the
+% F-10 re-statement — Prolog and Lean diverged on I-1; this restores agreement.]
 op_reaches_step(r0, s_explain).
+op_reaches_step(r1, s_explain).      % D-8: explain runs on the hard-stop path too
 provenance(op_reaches_step(r0, s_explain), prescriptive).
-op_terminates(r0).                   % normal (complete) termination
+provenance(op_reaches_step(r1, s_explain), prescriptive).
+op_terminates(r0).                   % halts — normal (complete) termination
+op_terminates(r1).                   % halts — abnormal (hard-stop) termination
 provenance(op_terminates(r0), prescriptive).
-op_hard_stop(r1).                    % abnormal termination — halts mid-pipeline
+provenance(op_terminates(r1), prescriptive).
+op_hard_stop(r1).                    % hard-stop discriminator (cf. op_run_outcome(r1, hard_stop))
 provenance(op_hard_stop(r1), prescriptive).
 
 % --- Required-upstream-artifact relation (I-2) -------------------------------
@@ -391,11 +401,18 @@ provenance(op_disprove_target(a1, disproof_results), prescriptive).
 provenance(op_disprove_own_output(a1, counterexamples), prescriptive).
 
 % --- Counterfactual augmentations (necessity witnesses) ----------------------
-% The forbidden facts whose ABSENCE the I-5 / I-6 invariants rely on, restored
-% in parallel CF predicates so prove-invariants can carry a NECESSITY lemma
-% (the property FAILS once the fact is restored). Mirrors the Lean SpendCF /
-% TargetCF / RunAttemptCF augmentations. These are NOT asserted as the live
-% op_* discipline; they are the load-bearing-removal witnesses.
+% The forbidden facts whose ABSENCE the I-1 / I-5 / I-6 invariants rely on,
+% restored in parallel CF predicates so prove-invariants can carry a NECESSITY
+% lemma (the property FAILS once the fact is restored). Mirrors the Lean
+% ReachesExplainCF / SpendCF / TargetCF / RunAttemptCF augmentations. These are
+% NOT asserted as the live op_* discipline; they are the load-bearing-removal
+% witnesses.
+%   * explain-skipped-on-hard-stop: r0 still reaches explain, but there is NO r1
+%     witness — under the CF relation explain is skipped on the hard-stop path,
+%     so terminating r1 fails to reach explain (D-8 / I-1). Mirrors the Lean
+%     ReachesExplainCF (r0 constructor only, no r1).
+op_reaches_step_cf(r0, s_explain).
+provenance(op_reaches_step_cf(r0, s_explain), prescriptive).
 %   * below-reserve: a0 spends 0 against reserve 2 (C-3 / I-5).
 op_disprove_spend_cf(a0, 0).
 provenance(op_disprove_spend_cf(a0, 0), prescriptive).
@@ -414,8 +431,13 @@ provenance(op_zero_attempt_run(r1), prescriptive).
 % Translated from hypothesis.pl's claim_negation_provenance/3 (per-claim, 3-arg)
 % to the per-fact 2-arg form. The fact itself is OMITTED from target-world
 % (CWA-absent); only the marker survives so prove-invariants can decide how to
-% lift the negation. 10 counterfactual premises (8 distinct facts) are
-% `contradicts`; 2 prescriptive-fragile facts are `absent`.
+% lift the negation. 11 counterfactual premises are `contradicts`; 2
+% prescriptive-fragile facts are `absent`. Of the 11, 9 distinct facts mirror
+% hypothesis.pl's claim_negation_provenance/3; 2 (run_performs_zero_attempts for
+% the I-6 floor, explain_skipped_on_hard_stop for I-1 liveness) are
+% model-obligations-layer NECESSITY WITNESSES, each backed by a DESCRIPTIVE
+% claim (cf_v1_d_floors, cf_v1_d_explain_closer) and materialized here + in Lean
+% (RunAttemptCF, ReachesExplainCF) rather than carried as an upstream negation.
 %
 % NEGATION-PROVENANCE DISCIPLINE: an `absent` marker is NOT a proven negation.
 % CWA-absent != Lean-disproved. Carried forward so prove-invariants annotates
@@ -433,6 +455,7 @@ negation_provenance(disprove_spends_below_reserve, contradicts).          % C-3 
 negation_provenance(human_prompt_mid_run, contradicts).                   % C-6
 negation_provenance(realize_specification_runs_parallel, contradicts).    % D-9
 negation_provenance(run_performs_zero_attempts, contradicts).             % I-6 floor
+negation_provenance(explain_skipped_on_hard_stop, contradicts).           % D-8 / I-1
 
 % --- absent (CWA-fragile — merely not-yet-true; do NOT upgrade to disproof) --
 negation_provenance(workflow_artifact_exists_on_disk, absent).            % pr_v1_workflow_exists
@@ -455,6 +478,7 @@ cf_fact(disprove, spends_below_reserve).        % C-3 / I-5
 cf_fact(human, prompt_mid_run).                 % C-6
 cf_fact(realize_specification, runs_parallel).  % D-9
 cf_fact(run, performs_zero_attempts).           % I-6 (zero-attempt-run floor)
+cf_fact(explain, skipped_on_hard_stop).         % D-8 / I-1 (explain-skipped-on-hard-stop)
 
 % =============================================================================
 % FORMAL PROPERTIES — propagated VERBATIM from hypothesis.pl
@@ -564,10 +588,13 @@ tw_cursor_distance(Run, Cursor, Dist) :-
 % =============================================================================
 % Property: p_v1_i1  (I-1 liveness — every terminating run reaches explain)
 % Claims relied on: cf_v1_d_explain_closer (D-8/I-1), pr_v1_i1_liveness
-% Substrate: op_terminates/1, op_reaches_step/2, is_closer/1, stage_order/2
+% Substrate: op_terminates/1 (TOTAL — "halts", normal OR hard-stop),
+%            op_reaches_step/2 (total, D-8), is_closer/1, stage_order/2
 % -----------------------------------------------------------------------------
-% Violation: a terminating run that does NOT reach the explain step, OR explain
-% is not the unique terminal stage (has a successor).
+% Violation: a HALTING run (op_terminates — normal completion OR hard-stop) that
+% does NOT reach the explain step, OR explain is not the unique terminal stage
+% (has a successor). Per D-8 explain runs on every path, so the antecedent now
+% ranges over BOTH runs (r0 and r1) — it no longer filters the hard-stop run out.
 % =============================================================================
 i1_violation(run_does_not_reach_explain(R)) :-
     op_terminates(R),
@@ -740,7 +767,7 @@ i7_violation(adversaries_not_parallel(A)) :-
 % COUNTERFACTUAL MINIMALITY — load_bearing | extraneous
 % -----------------------------------------------------------------------------
 % A counterfactual is load_bearing iff re-introducing its forbidden fact would
-% re-violate at least one property. Each of the 9 distinct cf_facts maps to a
+% re-violate at least one property. Each of the 11 distinct cf_facts maps to a
 % §6 constraint / §7 invariant that the proposition's falsifier set names, so
 % each is load-bearing by construction (re-introducing it flips a verdict). The
 % two `absent` premises are prescriptive existence facts, not counterfactuals,

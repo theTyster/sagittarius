@@ -44,7 +44,7 @@ verdict(p_v1_i7,consistent).
 % ----- gap reasons (present iff gap) -----
 % (none — no gap verdicts)
 
-% ----- counterfactual minimality (all 9 cf_facts load-bearing) -----
+% ----- counterfactual minimality (all 11 cf_facts load-bearing) -----
 cf_status(cf_fact(control_dep,wallclock_or_random),load_bearing).
 cf_status(cf_fact(substrate,computes_logic_verdict),load_bearing).
 cf_status(cf_fact(framing,self_orchestration),load_bearing).
@@ -54,6 +54,8 @@ cf_status(cf_fact(disprove,attacks_own_output),load_bearing).
 cf_status(cf_fact(disprove,spends_below_reserve),load_bearing).
 cf_status(cf_fact(human,prompt_mid_run),load_bearing).
 cf_status(cf_fact(realize_specification,runs_parallel),load_bearing).
+cf_status(cf_fact(run,performs_zero_attempts),load_bearing).          % F-10: I-6 floor necessity witness
+cf_status(cf_fact(explain,skipped_on_hard_stop),load_bearing).        % F-11: I-1 liveness necessity witness
 
 % ----- summary counts -----
 summary(verdicts_total, 7).
@@ -61,7 +63,7 @@ summary(consistent, 7).
 summary(inconsistent, 0).
 summary(gap, 0).
 summary(extraneous_counterfactuals, 0).
-summary(counterfactuals_applied, 9).      % 9 distinct cf_facts (10 cf premises; 2 share control_decision_on_wallclock_or_random)
+summary(counterfactuals_applied, 11).     % 11 distinct cf_facts (11 contradicts + 2 absent negation_provenance; F-10 added run/performs_zero_attempts, F-11 added explain/skipped_on_hard_stop)
 summary(prescriptive_obligations, 9).     % 7 invariant obligations + 2 CWA-fragile existence/completion claims
 summary(operational_predicates_materialized, 7). % Run, Stage(index), cursor, startIdx/endIdx, recoveryBudget, DisproveAttempt, adversaries
 
@@ -97,6 +99,8 @@ negation_provenance_carry(disprove_attacks_own_output, contradicts).
 negation_provenance_carry(disprove_spends_below_reserve, contradicts).
 negation_provenance_carry(human_prompt_mid_run, contradicts).
 negation_provenance_carry(realize_specification_runs_parallel, contradicts).
+negation_provenance_carry(run_performs_zero_attempts, contradicts).          % F-10: I-6 floor necessity witness
+negation_provenance_carry(explain_skipped_on_hard_stop, contradicts).       % F-11: I-1 liveness necessity witness
 negation_provenance_carry(workflow_artifact_exists_on_disk, absent).        % CWA-FRAGILE
 negation_provenance_carry(self_verification_run_completed, absent).         % CWA-FRAGILE
 
@@ -116,7 +120,7 @@ refutation_shape(liveness_gating_failure,
 
 % ----- Pattern-3 watch (primary refutation surface for these descriptors) -----
 % A counterfactually-removed fact that the IMPLEMENTATION still asserts is a
-% Pattern-3 violation. The 9 load-bearing cf_facts above are the watch list;
+% Pattern-3 violation. The 11 load-bearing cf_facts above are the watch list;
 % measure-entailment (Stage 7) checks each against the realized Workflow.
 
 % ----- emission note (dual emission) -----

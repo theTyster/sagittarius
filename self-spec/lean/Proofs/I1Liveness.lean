@@ -77,7 +77,7 @@ theorem i1_explain_is_terminal : ∀ s : Stage, ¬ StageOrder .explain s := by
 
     This shows that D-8 ("explain runs on every path including hard-stop paths")
     is LOAD-BEARING: `negation_provenance(explain_skipped_on_hard_stop,
-    contradicts)`. Mirrors `i6_needs_one_attempt` (I-6) and `i4_needs_no_scope_narrowing` (I-4). -/
+    contradicts)`. Mirrors `i6_needs_no_zero_attempt_run` (I-6) and `i4_needs_no_scope_narrowing` (I-4). -/
 @[ontology .prescriptive, .contradicts]
 theorem i1_needs_explain_on_hard_stop :
     ∃ r : Run, Terminates r ∧ ¬ ReachesExplainCF r := by

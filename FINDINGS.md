@@ -196,7 +196,7 @@ HONEST RESIDUAL CAVEATS (the boundary of what the formal layer establishes):
   runtime artifact dependencies — a translation/behavioral concern outside the theorem.
 - Liveness verified over exactly 2 outcome classes (complete / hard_stop).
 
-### F-11 — DEFERRED: target-world.pl shares the original I-1 / D-8 error (Prolog↔Lean divergence)
+### F-11 — RESOLVED (2026-06-01): target-world.pl shared the original I-1 / D-8 error (Prolog↔Lean divergence) — now reconciled
 
 The Prolog model `self-spec/target-world.pl` still carries the ORIGINAL D-8 error the Lean just shed:
 it has `op_reaches_step(r0, s_explain)` ONLY (omits r1) and frames I-1 as "every NORMALLY-terminating
@@ -210,9 +210,37 @@ hard-stop) that fails to reach explain is a violation. DEFERRED: the `.pl` is th
 PROLOG layer (a separate verification path), NOT the Lean gate kimmy's formal NorthStar rests on; the
 fix touches the `.pl`'s internal validation machinery and warrants a careful pass, not a momentum edit.
 
+**RESOLVED 2026-06-01** (operator: "work the divergence before pointing Sagittarius at a kimmy ticket";
+full-chain scope). The whole self-spec Prolog chain was reconciled to the corrected Lean:
+- **`target-world.pl`** — added `op_reaches_step(r1, s_explain)` + `op_terminates(r1)`. `op_terminates/1`
+  is now TOTAL ("halts" = normal OR hard-stop), mirroring Lean's total `Terminates`/`ReachesExplain`;
+  the hard-stop outcome is carried by `op_run_outcome`/`op_hard_stop` as a DISCRIMINATOR (not the absence
+  of termination). Added the `explain_skipped_on_hard_stop` necessity CF — `op_reaches_step_cf(r0,
+  s_explain)` (r0-only, mirrors Lean `ReachesExplainCF`) + `cf_fact/2` + `negation_provenance(_,
+  contradicts)`. The `i1_violation` rule needed NO logic change (once `op_terminates` is total it ranges
+  over both runs); only its comment was reframed. **The cf-count `forall` F-11 flagged turned out GENERIC
+  (no hardcoded count)** — the new CF is genuinely load-bearing (verified: retract `op_reaches_step(r1,
+  s_explain)` ⇒ `i1_violation` fires `run_does_not_reach_explain(r1)`).
+- **Both stale downstream dumps regenerated.** `model_results.pl`: 9→11 `cf_status`, `summary(counterfactuals_applied)`
+  9→11 (the dump had also lagged the F-10 I-6 floor CF). `lean_proof_results.pl`: necessity lemmas 3→5
+  (+I-1 `explain_skipped_on_hard_stop`, +I-6 `run_performs_zero_attempts`); I-1 AND I-6 `proof_strategy`
+  un-staled from "single-constructor" to the two-constructor reality.
+- **One Lean doc-comment typo fixed** (`I1Liveness.lean:80`: dangling `i6_needs_one_attempt` →
+  `i6_needs_no_zero_attempt_run`; comment-only, zero build impact).
+- **Verified (swipl):** standalone load clean (0 undefined), 7/7 consistent, counts 11/11/11/2, and the
+  `cf_status` load-bearing SETS are IDENTICAL between `target-world.pl` and `model_results.pl`.
+- **How:** inline supervised model edit (the judgment core) + a reconcile/audit **Workflow** — parallel
+  disjoint-file dump regen (F-8 lesson: no worktree isolation) + an opus adversarial cross-chain audit
+  (`f11_closed: true`; all 6 checks green after the two doc fixes above).
+
+RESIDUAL (out of F-11 scope, PRE-EXISTING — separate follow-up, NOT blocking kimmy): the audit surfaced
+`run_summary(theorems_kernel_checked / axiom_free, 22)` in `lean_proof_results.pl` vs 25 actual theorem
+declarations across `Proofs/*.lean` (the 3 extra are I-3 helper lemmas + regression checks). Reconcile
+the tally or document why helpers are excluded.
+
 ### KIMMY GATE — SATISFIED at the formal-verification layer
 
 All 7 Lean invariants are non-vacuous + adversary-survive over a non-degenerate model. The flagship
 Workflow no longer rests on hollow proofs. (Behavioral test layer confirmed non-vacuous in F-7; C-2
-regression-guarded in F-6.) Remaining before a real kimmy run: the deferred `.pl` reconciliation (F-11,
-non-blocking for the Lean gate) and operator/MC go on a concrete ticket.
+regression-guarded in F-6.) The F-11 `.pl` reconciliation is now DONE (2026-06-01) — the full self-spec
+Prolog chain matches the rebuilt Lean. Remaining before a real kimmy run: operator/MC go on a concrete ticket.

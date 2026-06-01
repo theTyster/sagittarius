@@ -83,8 +83,15 @@ theorem_source(target_world_shape, "thoughts/lean/Proofs/TargetWorld.lean").
 % PROOF STRATEGY — one per proven theorem
 % =============================================================================
 proof_strategy(p_v1_i1,
-  "liveness: intro+cases on single-constructor Run/Terminates -> ReachesExplain; \c
-   terminality: exhaust (cases) on StageOrder .explain _ (no successor constructor)").
+  "liveness (i1_explain_always_runs): intro+cases on TWO-constructor Run/Terminates \c
+   (r0 AND r1) -> ReachesExplain; each branch closed by the matching constructor \c
+   (.r0 / .r1). Terminality (i1_explain_is_terminal): exhaust (intro+exhaust) on \c
+   StageOrder .explain _ — 7-edge StageOrder has no constructor with .explain as \c
+   first arg, so cases closes immediately. Necessity (i1_needs_explain_on_hard_stop, \c
+   @[ontology .prescriptive, .contradicts]): witness r1 — Terminates .r1 by \c
+   constructor; ReachesExplainCF .r1 uninhabited (no r1 ctor in ReachesExplainCF \c
+   encoding explain-skipped-on-hard-stop CF), so neg by exhaust. Three obligations \c
+   machine-checked (axiom-free, no sorry).").
 proof_strategy(p_v1_i2,
   "gating: intro+cases on Requires, each required artifact discharged by its \c
    StageOrder predecessor constructor (.s1_s2 .. .s7_se); close_world ungated by \c
@@ -121,8 +128,8 @@ proof_strategy(p_v1_i5,
    target=/=ownOutput by constructor disjointness of DisproveSurface (cases). \c
    Two necessity lemmas over SpendCF / TargetCF restore the forbidden facts").
 proof_strategy(p_v1_i6,
-  "floor: intro+cases on single-constructor Run; exhibit RunAttempt .r0 .a0 \c
-   witness for exists-attempt").
+  "floor: intro+cases on TWO-constructor Run (r0 AND r1); exhibit a per-run \c
+   witness for exists-attempt (r0 via .r0_a0/.a0, r1 via .r1_a1/.a1)").
 proof_strategy(p_v1_i7,
   "fanout: intro+cases on DisproveAttempt; exhibit distinct adv1/adv2 via \c
    AttemptAdversary .a0_adv1/.a0_adv2 (disjoint by enum) + AdversariesParallel .a0").
@@ -193,9 +200,11 @@ provenance_annotation(p_v1_i5, disprove_spends_below_reserve, contradicts).
 % NONE reduced to False (none extraneous), so NO loopback to decompose-proposition
 % is triggered on minimality grounds.
 % =============================================================================
+necessity_lemma_status(p_v1_i1, explain_skipped_on_hard_stop, proven). % i1_needs_explain_on_hard_stop
 necessity_lemma_status(p_v1_i4, scope_narrows_mid_run, proven).        % i4_needs_no_scope_narrowing
 necessity_lemma_status(p_v1_i5, disprove_spends_below_reserve, proven).% i5_needs_no_below_reserve
 necessity_lemma_status(p_v1_i5, disprove_attacks_own_output, proven).  % i5_needs_no_self_attack
+necessity_lemma_status(p_v1_i6, run_performs_zero_attempts, proven).   % i6_needs_no_zero_attempt_run
 
 % =============================================================================
 % CWA-ABSENT PREMISES — gated OUT of Lean (absent =/= disproved)
@@ -261,7 +270,7 @@ run_summary(properties_attempted, 7).
 run_summary(proven, 7).
 run_summary(unprovable, 0).
 run_summary(cwa_checks, 2).
-run_summary(necessity_lemmas_proven, 3).
+run_summary(necessity_lemmas_proven, 5).
 run_summary(necessity_lemmas_extraneous, 0).
 run_summary(theorems_kernel_checked, 22).
 run_summary(theorems_axiom_free, 22).
