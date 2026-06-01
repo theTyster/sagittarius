@@ -3,7 +3,7 @@
 **Date:** 2026-05-29
 **Mode:** Prime-relative (prime: `thoughts/hypothesis.pl`) — pipeline-terminal (Stage 7 of 7)
 **Hypothesis loaded:** yes (direct-load exception `measure_entailment_hypothesis_direct_load`)
-**Implementation under review:** `experiments/pipeline-workflow/` (`orbital-pipeline.workflow.js` + `lib/*.js` + `schemas/stage-digest.schema.js`)
+**Implementation under review:** `experiments/pipeline-workflow/` (`sagittarius.workflow.js` + `lib/*.js` + `schemas/stage-digest.schema.js`)
 **Carrier:** `thoughts/implementation_log.md` (realize-specification)
 **Test gate:** 24 proof-property tests — independently re-run: **24 pass / 0 fail / 0 skipped**
 
@@ -76,7 +76,7 @@ These two premises carried `claim_negation_provenance(_, _, absent)` in `hypothe
 
 | Claim | Premise | Stage-2 state | Stage-7 state | Evidence |
 |-------|---------|---------------|---------------|----------|
-| `pr_v1_workflow_exists` | `workflow_artifact_exists_on_disk` | `absent` (D-13 fragile) | **present** | `experiments/pipeline-workflow/orbital-pipeline.workflow.js` exists (214 lines) + 8 `lib/*.js` + schema |
+| `pr_v1_workflow_exists` | `workflow_artifact_exists_on_disk` | `absent` (D-13 fragile) | **present** | `experiments/pipeline-workflow/sagittarius.workflow.js` exists (214 lines) + 8 `lib/*.js` + schema |
 | `pr_v1_self_verified` | `self_verification_run_completed` | `absent` (open, per `a_v1_self_verify_circularity`) | **present** | this pipeline run carried §1 close-world → … → measure-entailment; one disprove-driven I-3 loopback recorded |
 
 These were intentionally *not* asserted as `impl` facts in the label-aware pass, because doing so would trip `prescriptive_negation_violations` (the strict reading: any fact with a `negation_provenance` entry that appears in impl is a Pattern-3-shaped violation). That strict reading is wrong here: the spec *wanted* these facts to come true ("must come to exist"), so their arrival is **fulfillment, not violation**. Recording them as negated-premise violations would be a false alarm. They are therefore verdicted out-of-band as satisfied existence/dogfood obligations. (Stage-2 assumption `a_v1_self_verify_circularity` explicitly directed: "do not score it entailed until stage 7" — that gate is now passed.)
@@ -85,7 +85,7 @@ These were intentionally *not* asserted as `impl` facts in the label-aware pass,
 
 The seven descriptive claims were already entailed by `existing-world.pl` as design decisions; the implementation realizes each in source:
 
-- `cf_v1_d_workflow` (D-1, deterministic Workflow not skill) → `orbital-pipeline.workflow.js` is a JS Workflow module.
+- `cf_v1_d_workflow` (D-1, deterministic Workflow not skill) → `sagittarius.workflow.js` is a JS Workflow module.
 - `cf_v1_d_separation` (D-2, mechanics/judgment split) → substrate owns `lib/*` mechanics; agent surface owns judgment.
 - `cf_v1_d_det_substitute` (D-10, work-unit-bounded effort) → deterministic step accounting; clock is a non-control backstop.
 - `cf_v1_d_parallel_map` (D-9, fan-out map) → `STAGE_SEQUENCE` + serial realize; fan-out is a per-stage agent concern.

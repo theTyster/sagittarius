@@ -1,5 +1,5 @@
 // =============================================================================
-// orbital-pipeline.realized.mjs
+// sagittarius.realized.mjs
 //
 // The Workflow-TOOL realization of the orbital-shifting seven-stage pipeline
 // (+ the always-runs `explain` closer and the mandatory `disprove` floor).
@@ -15,10 +15,10 @@
 // file — it is the proven substrate at:
 //     experiments/pipeline-workflow/lib/            (24 passing tests)
 //     experiments/pipeline-workflow/self-spec/      (7 Lean invariants, axiom-free)
-//     experiments/pipeline-workflow/orbital-pipeline.workflow.js  (the loop)
+//     experiments/pipeline-workflow/sagittarius.workflow.js  (the loop)
 // The pure mechanics below are INLINED VERBATIM from lib/ (a reviewer should be
 // able to diff them line-for-line against lib/), and `runPipeline` /
-// `runMandatoryDisprove` are the ASYNC PORT of orbital-pipeline.workflow.js with
+// `runMandatoryDisprove` are the ASYNC PORT of sagittarius.workflow.js with
 // the injected `agent.runStage` / `agent.runDisprove` seam replaced by the real
 // `runStage` / `runMandatoryDisprove` functions in this file.
 //
@@ -41,7 +41,7 @@
 // =============================================================================
 
 export const meta = {
-  name: "orbital-pipeline",
+  name: "sagittarius",
   description:
     "Deterministic Workflow realization of the orbital-shifting pipeline (Decision 2 / option B): mandatory disprove floor, then the movable-cursor 8-stage loop (close_world -> decompose -> model_obligations -> prove_invariants -> instantiate -> realize -> measure -> explain) calling each stage's named specialists directly. Branches only on agent-emitted digest fields (C-2); explain always runs last.",
   phases: [
@@ -1065,7 +1065,7 @@ const STAGE_BRIEFS = {
 // ## THE REALIZED SEAM — runStage / runMandatoryDisprove / explain.            ##
 // ##                                                                            ##
 // ## These replace the injected `agent.runStage` / `agent.runDisprove` seam     ##
-// ## from orbital-pipeline.workflow.js. They call the injected `agent()` /      ##
+// ## from sagittarius.workflow.js. They call the injected `agent()` /      ##
 // ## `parallel()` globals DIRECTLY (option B). They ASSEMBLE a STAGE DIGEST      ##
 // ## that the proven loop routes on; they NEVER compute a logic verdict in the   ##
 // ## substrate — every verdict word is read off an agent's emitted field (C-2). ##
@@ -1344,7 +1344,7 @@ async function runExplainCloser() {
 }
 
 // #############################################################################
-// ## THE LOOP — async port of orbital-pipeline.workflow.js's runPipeline.      ##
+// ## THE LOOP — async port of sagittarius.workflow.js's runPipeline.      ##
 // ##                                                                            ##
 // ## Control flow IDENTICAL to the proven reference, except: async, the seam    ##
 // ## is the real runStage / runMandatoryDisprove above (no `deps` injection),   ##
@@ -1465,7 +1465,7 @@ async function runPipeline(opts = {}) {
 // #############################################################################
 
 phase("disprove");
-log("orbital-pipeline (realized Workflow, Decision 2 / option B): mandatory disprove floor, then the movable-cursor 8-stage loop. Control branches ONLY on agent-emitted digest fields (C-2).");
+log("sagittarius (realized Workflow, Decision 2 / option B): mandatory disprove floor, then the movable-cursor 8-stage loop. Control branches ONLY on agent-emitted digest fields (C-2).");
 
 const result = await runPipeline();
 

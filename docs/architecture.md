@@ -47,12 +47,12 @@ Each is pure and separately tested, so the control flow can be TDD'd without inv
 | `digest-fold.js` | pure digest assembler; verdict carried verbatim or null | **C-2** (F-6 guard) |
 | `decision-trail.js` | the complete, auditable trail | §9.11 |
 
-The orchestration loop ([`../orbital-pipeline.workflow.js`](../orbital-pipeline.workflow.js)) wires these together and receives its **effectful collaborators by injection** — the agent surface, the clock, and the random source are passed in, never reached for. That is what lets tests substitute fakes and what lets the design *prove* no control decision depends on a clock or a coin flip (C-1 / determinism).
+The orchestration loop ([`../sagittarius.workflow.js`](../sagittarius.workflow.js)) wires these together and receives its **effectful collaborators by injection** — the agent surface, the clock, and the random source are passed in, never reached for. That is what lets tests substitute fakes and what lets the design *prove* no control decision depends on a clock or a coin flip (C-1 / determinism).
 
 ## Two realizations
 
-- [`../orbital-pipeline.workflow.js`](../orbital-pipeline.workflow.js) — the reference deterministic loop (mechanics + an abstract `agent.runStage(stage, ctx) → digest` seam). This is the artifact the 24 proof-property tests pin.
-- [`../realized/orbital-pipeline.realized.mjs`](../realized/orbital-pipeline.realized.mjs) — the **Workflow-tool** port: a self-contained `export const meta` script that inlines the mechanics verbatim and calls each stage's named specialists **directly** via `agent({ agentType: 'shifting:<name>', schema })`, fanning out with `parallel()` / `pipeline()`. (Decision B: the workflow calls the ~17 existing specialists directly; one-agent-per-stage is just its n=1 case.)
+- [`../sagittarius.workflow.js`](../sagittarius.workflow.js) — the reference deterministic loop (mechanics + an abstract `agent.runStage(stage, ctx) → digest` seam). This is the artifact the 24 proof-property tests pin.
+- [`../realized/sagittarius.realized.mjs`](../realized/sagittarius.realized.mjs) — the **Workflow-tool** port: a self-contained `export const meta` script that inlines the mechanics verbatim and calls each stage's named specialists **directly** via `agent({ agentType: 'shifting:<name>', schema })`, fanning out with `parallel()` / `pipeline()`. (Decision B: the workflow calls the ~17 existing specialists directly; one-agent-per-stage is just its n=1 case.)
 
 ## Stage → specialist map
 

@@ -36,7 +36,7 @@
 // un-skips one at a time. Open-assumption stubs carry a distinguishing skip reason.
 //
 // Runner: node:test (built-in; `node --test`). Zero-dependency — the target
-// (orbital-pipeline.workflow.js + lib/) is a Node project with no package.json yet.
+// (sagittarius.workflow.js + lib/) is a Node project with no package.json yet.
 // =============================================================================
 
 const { test } = require("node:test");
@@ -89,7 +89,7 @@ function haltDigest(stage, reason, coreObligation = false) {
 // Resolved lazily so the file loads (all-skipped) before lib/ exists.
 function lib() {
   // eslint-disable-next-line global-require
-  return require("../../orbital-pipeline.workflow.js");
+  return require("../../sagittarius.workflow.js");
 }
 
 // =============================================================================

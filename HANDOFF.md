@@ -50,7 +50,7 @@ PROPOSITION (decompose): "The orbital-shifting seven-stage pipeline can be reali
 
 INVARIANTS TO PROVE (prove-invariants), spec §7: I-1 explain-always-runs; I-2 artifact-gating; I-3 termination via well-founded measure M = (Σ remaining recovery budget over keys, endIdx − cursor) lexicographic; I-4 scope-only-widens; I-5 disprove-bounded-above; I-6 disprove-runs-at-least-once; I-7 disprove-fans-out (≥2 adversaries). Apply spec D-10 bounds: per-theorem maxHeartbeats + maxRecDepth, outer wall-clock timeout backstop, prebuilt Mathlib (~/.lean/mathlib4), Lean concurrency sub-capped.
 
-REALIZE TARGET (target codebase dir): experiments/pipeline-workflow/ — build the deterministic Workflow script (orbital-pipeline.workflow.js) + supporting lib/ modules + schemas, satisfying the instantiated §9 behavioral acceptance criteria.
+REALIZE TARGET (target codebase dir): experiments/pipeline-workflow/ — build the deterministic Workflow script (sagittarius.workflow.js) + supporting lib/ modules + schemas, satisfying the instantiated §9 behavioral acceptance criteria.
 
 BIAS DEFENSE: role-brief every sub-agent; minimal context. Per spec C-5/D-6, every disprove attempt fans out ≥2 parallel perspective-diverse adversaries, and ≥1 disprove attempt must run.
 

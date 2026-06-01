@@ -2,7 +2,7 @@
 
 Target: `experiments/pipeline-workflow/` — the deterministic, background-executable
 Workflow realizing the orbital-shifting pipeline orchestration, driven from
-`thoughts/tests/orbital_pipeline.proof_properties.test.js` (the spec/contract).
+`thoughts/tests/sagittarius.proof_properties.test.js` (the spec/contract).
 
 Runner: `node --test "thoughts/tests/**/*.test.js"` (Node 26; the bare-directory
 form `thoughts/tests/` fails with a module-resolution error on Node 26 — the glob
@@ -20,7 +20,7 @@ Modules created (pure mechanics, injected effects per D-11):
 - `lib/loop-limit.js` — `withinLoopLimit` (D-7, crit 2).
 - `lib/digest-router.js` — `routeDigest` (D-4, C-2, crit 4) — branches ONLY on digest fields.
 - `lib/decision-trail.js` — `createTrail` (D-5, crit 11).
-- `orbital-pipeline.workflow.js` — `runPipeline` orchestration loop + the single import seam re-exporting every mechanic.
+- `sagittarius.workflow.js` — `runPipeline` orchestration loop + the single import seam re-exporting every mechanic.
 
 ## Chronological per-test record
 

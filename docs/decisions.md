@@ -16,7 +16,7 @@ Falsified by: any I-1…I-7 failing; any control decision depending on wall-cloc
 
 | # | Decision | Status |
 |---|---|---|
-| D-1 | **Workflow, not skill** — orchestration is a deterministic script (for parallelism, budget, resume, verifiability). | ✅ realized in `orbital-pipeline.workflow.js` + `realized/…mjs` |
+| D-1 | **Workflow, not skill** — orchestration is a deterministic script (for parallelism, budget, resume, verifiability). | ✅ realized in `sagittarius.workflow.js` + `realized/…mjs` |
 | D-2 | **Separation of authority** — substrate owns mechanics; agents own judgment. | ✅ the spine; confirmed by `digest-router.js` inspection |
 | D-3 | **State via files, control via digest** — `*.pl` carry state; a structured digest carries control. | ✅ `schemas/stage-digest.schema.js` |
 | D-4 | **Movable-cursor control flow** — advance by default; backward only to honor a routed gap. | ✅ feeds I-3 |

@@ -7,7 +7,7 @@
 %
 % Resource ids:
 %   impl  — the implemented Workflow under experiments/pipeline-workflow/
-%           (orbital-pipeline.workflow.js + lib/*.js + schemas/*.js), the thing
+%           (sagittarius.workflow.js + lib/*.js + schemas/*.js), the thing
 %           being scored. Claims are what the SOURCE actually asserts.
 %   hyp   — the structural target the §1 proposition asserts (the descriptive +
 %           prescriptive-invariant surface), expressed in the SAME predicate
@@ -82,12 +82,12 @@ asserts(hyp, self_verification_completed(true)).
 
 % ---- Resource: impl  (experiments/pipeline-workflow/, what the SOURCE asserts) -
 % D-1 / D-2: deterministic Workflow script; mechanics in substrate, judgment in agents.
-%   orbital-pipeline.workflow.js header + module split lib/*.js (mechanics only).
+%   sagittarius.workflow.js header + module split lib/*.js (mechanics only).
 asserts(impl, orchestration_realized_as(workflow_script)).
 asserts(impl, authority_split(mechanics, substrate)).
 asserts(impl, authority_split(judgment, agents)).
 % D-8 / I-1: explain recorded post-loop, unconditional; stageSuccessor("explain")===null.
-%   orbital-pipeline.workflow.js:155 (trail.record stage explain terminal); stage-order.js:39-43.
+%   sagittarius.workflow.js:155 (trail.record stage explain terminal); stage-order.js:39-43.
 asserts(impl, terminal_stage(explain)).
 asserts(impl, stage_successor(explain, none)).
 asserts(impl, total_stage_order(close_world, explain)).   % STAGE_SEQUENCE frozen 8-chain

@@ -23,7 +23,7 @@ pass those tests, and then scored how faithfully the finished program matches
 the original claim.
 
 The finished program lives at `experiments/pipeline-workflow/`. It is real,
-runnable code: one main file (`orbital-pipeline.workflow.js`) plus nine small
+runnable code: one main file (`sagittarius.workflow.js`) plus nine small
 supporting modules and a data-shape definition. All **24** of its automated
 tests pass (independently re-run during this review — 24 passed, 0 failed, 0
 skipped). All **seven** of its core safety properties are **proven
@@ -177,7 +177,7 @@ for catching the **third (and most serious) defect** in the disprove gate.
 A mathematical proof covers all inputs but does not, by itself, run against the
 actual code. The fifth stage converted each proven property into concrete
 automated tests that *sample* the property at specific inputs and check the real
-program against it (`thoughts/tests/orbital_pipeline.proof_properties.test.js`,
+program against it (`thoughts/tests/sagittarius.proof_properties.test.js`,
 24 tests). It is worth being precise about what these tests are: they are
 **tripwires, not the guarantee**. The universal guarantee lives in the Lean
 proofs; each test checks that the real code behaves correctly at a particular
@@ -438,10 +438,10 @@ code, noted above as the recommended next step.
 - `thoughts/disproof_results.pl`, `thoughts/counterexamples.pl`,
   `thoughts/lean_disproofs/p_v1_i3.lean` — the adversarial challenge, including
   the machine-checked counter-example that refuted the first termination proof.
-- `thoughts/tests/orbital_pipeline.proof_properties.test.js`,
+- `thoughts/tests/sagittarius.proof_properties.test.js`,
   `thoughts/tests/manifest.pl` — the 24 automated tests (stage 5).
 - `experiments/pipeline-workflow/` — the finished Workflow program (stage 6):
-  `orbital-pipeline.workflow.js`, `lib/*.js`, `schemas/stage-digest.schema.js`.
+  `sagittarius.workflow.js`, `lib/*.js`, `schemas/stage-digest.schema.js`.
 - `thoughts/implementation_log.md` — the build record (stage 6).
 - `thoughts/adherence_facts.pl`, `thoughts/adherence_report.md` — the final
   faithfulness score (stage 7).

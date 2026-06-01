@@ -5,7 +5,7 @@ design spec to build the pipeline-as-a-Workflow. The full artifact chain is pers
 `self-spec/`; the plain-language account is `self-spec/explanation.md`. Outcome: **all 7 invariants
 (I-1..I-7) proven axiom-free in Lean, all 24 TDD tests green, terminal adherence clean (0 Pattern 3
 violations, 9/9 prescriptive, 7/7 descriptive, 100% structural).** The deliverable
-(`orbital-pipeline.workflow.js` + `lib/` + `schemas/`) is built and verified.
+(`sagittarius.workflow.js` + `lib/` + `schemas/`) is built and verified.
 
 These findings are requirements the **Workflow version** should fold in.
 
@@ -117,7 +117,7 @@ Updates F-5. The re-probes were run via the **Workflow tool** (dogfooding the de
 
 `foldDigest` (the pure assembler that replaced the lossy-projection AGENT) was realization-only +
 untested. Promoted to a tested mechanic `lib/digest-fold.js` (verbatim-mirrored inline in
-`realized/orbital-pipeline.realized.mjs` — 44-line body diff-clean) + lock-test
+`realized/sagittarius.realized.mjs` — 44-line body diff-clean) + lock-test
 `self-spec/tests/digest_fold.c2_regression_guard.test.js` (8 tests, green). Locks the two C-2
 violations the pre-build re-attack found: (a) `gapClass` is content-agnostic (a fixed constant
 fallback) and NEVER derived from substrate identity (`__agentType`/stage) — it keys `withinLoopLimit`,
@@ -143,7 +143,7 @@ Closes the BEHAVIORAL half of F-5 bullet 2 (the Lean re-statement is steps 2–4
 
 1b ran as a Workflow with `isolation:'worktree'` on 5 parallel mutation agents. Only **3** worktrees
 were created for the 5 agents, and the **I-6 agent's mutation (commenting out `runMandatoryDisprove`)
-LEAKED into the main-tree `orbital-pipeline.workflow.js`** — caught by a post-run determinism re-run
+LEAKED into the main-tree `sagittarius.workflow.js`** — caught by a post-run determinism re-run
 (24/24 → a deterministic 23/24 with `disprove_floor` red), reverted via `git checkout`, leftover
 locked worktrees pruned. **Implication: `isolation:'worktree'` is NOT a reliable isolation guarantee
 for parallel file-mutating agents in this runtime.** For the upcoming parallel Lean re-proofs /
@@ -154,10 +154,10 @@ every parallel batch. Directly relevant to kimmy: a mutation-heavy workflow must
 
 ### F-9 — persisted test had a stale require path
 
-`self-spec/tests/orbital_pipeline.proof_properties.test.js` required
-`../../experiments/pipeline-workflow/orbital-pipeline.workflow.js` — valid only from the original
+`self-spec/tests/sagittarius.proof_properties.test.js` required
+`../../experiments/pipeline-workflow/sagittarius.workflow.js` — valid only from the original
 dogfood location (`thoughts/tests/`), broken from the persisted `self-spec/tests/`. Fixed to
-`../../orbital-pipeline.workflow.js` (24/24 baseline restored). Implication: the persist step should
+`../../sagittarius.workflow.js` (24/24 baseline restored). Implication: the persist step should
 re-base relative import paths to the persisted location.
 
 ### F-10 — re-statement COMPLETE: all 7 invariants non-vacuous + adversary-survive

@@ -1,5 +1,5 @@
 // =============================================================================
-// orbital-pipeline.workflow.js
+// sagittarius.workflow.js
 //
 // The deterministic, background-executable Workflow entry script realizing the
 // orbital-shifting seven-stage pipeline as ONE Workflow (D-1), preserving

@@ -24,8 +24,8 @@ There is one rule the whole design exists to protect: **the substrate does the b
 ## Repo map
 
 ```
-orbital-pipeline.workflow.js   the deterministic orchestration loop (branches only on agent digests)
-realized/                      orbital-pipeline.realized.mjs — the Workflow-tool port (specialists called directly)
+sagittarius.workflow.js   the deterministic orchestration loop (branches only on agent digests)
+realized/                      sagittarius.realized.mjs — the Workflow-tool port (specialists called directly)
 lib/                           nine pure, separately-tested mechanics:
                                  stage-order, scope-set, termination-measure, loop-limit,
                                  gap-batching, disprove-reserve, digest-router, digest-fold, decision-trail
