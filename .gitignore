@@ -1,0 +1,30 @@
+# Local Claude Code instructions (mirrors orbital: a thin @README.md + local
+# operating notes; the substance lives in the committed README.md / docs/).
+CLAUDE.md
+.env
+*.local.*
+
+# Lean build artifacts (regenerable; multi-GB — never commit)
+.lake/
+lake-packages/
+*.olean
+
+# Node.js
+node_modules/
+package-lock.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs / temp
+*.log
+tmp/
+temp/
