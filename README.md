@@ -54,8 +54,10 @@ swipl -q -g "consult('self-spec/target-world.pl'), \
 **Behavioral tests (Node ≥ 18):**
 
 ```bash
-node --test self-spec/tests/
+node --test self-spec/tests/*.test.js
 # 24 proof-property tests + 8 C-2 regression-guard tests, all green
+# (Pass the glob, not the bare directory: `node --test self-spec/tests/` is
+#  treated as a module path and errors on recent Node — observed on v26.)
 ```
 
 **Lean proofs:** the proofs are recorded in `self-spec/lean_proof_results.pl` and were machine-checked axiom-free during the re-statement (full `lake build` = 8259 jobs, exit 0). Re-checking requires a Lean 4 toolchain + a (prebuilt) Mathlib — see [`docs/index.md`](docs/index.md). The toolchain config travels with the repo (`self-spec/lean/{lakefile.lean,lean-toolchain,lake-manifest.json}`).

@@ -32,5 +32,5 @@ The historical docs were written when this code lived at `orbital/experiments/pi
 ## Re-verifying
 
 - **Prolog model + dumps:** `swipl -q -g "consult('self-spec/target-world.pl'), aggregate_all(count, verdict(_,consistent), N), format('~w/7~n',[N]), halt"` → `7/7`.
-- **Behavioral suite:** `node --test self-spec/tests/` → 24 + 8 green.
+- **Behavioral suite:** `node --test self-spec/tests/*.test.js` → 24 + 8 green. (Pass the glob, not the bare directory — `node --test self-spec/tests/` is treated as a module path and errors on recent Node, e.g. v26.)
 - **Lean proofs:** recorded in `self-spec/lean_proof_results.pl`; re-checking from source needs Lean 4 + Mathlib. The dogfood built the full library (8259 jobs, exit 0) during the re-statement; this repo carries the toolchain config but not the (multi-GB, regenerable) `.lake/` build cache.
