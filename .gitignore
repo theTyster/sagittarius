@@ -1,6 +1,6 @@
-# Local Claude Code instructions (mirrors orbital: a thin @README.md + local
-# operating notes; the substance lives in the committed README.md / docs/).
-CLAUDE.md
+# Claude Code: the project CLAUDE.md IS committed (it carries repo-specific
+# operating notes not duplicated in README.md / docs/). Machine-local overrides
+# go in CLAUDE.local.md, already covered by *.local.* below.
 .env
 *.local.*
 
