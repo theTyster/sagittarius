@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sagittarius — When "looks correct" isn't</title>
+<style>
+  /* ============================================================
+     Sagittarius deck — baseline style (pass 1, text-first).
+     Theme: deep space + the warm gold of the Event Horizon
+     Telescope's black-hole image. Self-contained, no deps.
+     ============================================================ */
+  :root{
+    --bg:#080a0f;
+    --bg2:#0d1118;
+    --ink:#e9edf4;
+    --muted:#97a1b2;
+    --faint:#5b6473;
+    --gold:#f3a83c;
+    --gold-soft:#ffce86;
+    --line:#1d2330;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --serif: Georgia, "Times New Roman", serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--sans); -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  /* the faint accretion glow, top-right */
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(60vw 60vw at 82% 18%, rgba(243,168,60,.10), rgba(243,168,60,0) 60%),
+      radial-gradient(50vw 50vw at 10% 90%, rgba(90,120,200,.06), rgba(90,120,200,0) 60%);
+  }
+
+  .deck{position:relative; z-index:1; height:100vh; width:100vw}
+  .slide{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    justify-content:center; padding:8vh 9vw; opacity:0; visibility:hidden;
+    transform:translateY(14px); transition:opacity .45s ease, transform .45s ease;
+    overflow:auto;
+  }
+  .slide.active{opacity:1; visibility:visible; transform:none}
+
+  .kicker{
+    font-size:.78rem; letter-spacing:.28em; text-transform:uppercase;
+    color:var(--gold); font-weight:700; margin:0 0 1.4rem;
+  }
+  h1{font-size:clamp(2.4rem,6vw,5rem); line-height:1.02; margin:0; font-weight:800; letter-spacing:-.02em}
+  h2{font-size:clamp(1.8rem,4.4vw,3.3rem); line-height:1.07; margin:0 0 1.4rem; font-weight:780; letter-spacing:-.015em}
+  .lede{font-size:clamp(1.05rem,1.8vw,1.5rem); color:var(--muted); max-width:46ch; line-height:1.5}
+  p{font-size:clamp(1rem,1.5vw,1.32rem); line-height:1.55; max-width:62ch; color:#d4dae6}
+  strong{color:#fff}
+  .gold{color:var(--gold-soft)}
+  .sub{color:var(--muted)}
+
+  ul{list-style:none; margin:1.4rem 0 0; padding:0; max-width:64ch}
+  li{
+    position:relative; padding:.55rem 0 .55rem 1.6rem;
+    font-size:clamp(1rem,1.5vw,1.28rem); line-height:1.5; color:#d4dae6;
+    border-bottom:1px solid var(--line);
+  }
+  li:last-child{border-bottom:0}
+  li::before{content:""; position:absolute; left:0; top:1.15rem; width:.55rem; height:.55rem; border-radius:50%; background:var(--gold)}
+  li.minus::before{background:var(--faint); border-radius:1px; top:1.25rem; height:.2rem; width:.7rem}
+
+  .big-quote{font-family:var(--serif); font-size:clamp(1.6rem,3.4vw,2.8rem); line-height:1.25; max-width:24ch; font-style:italic}
+  .attrib{color:var(--faint); margin-top:1.6rem; font-size:.95rem; letter-spacing:.04em}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:1.1rem 2.6rem; margin-top:1.4rem; max-width:74ch}
+  .card{border:1px solid var(--line); border-radius:12px; padding:1.1rem 1.2rem; background:rgba(255,255,255,.015)}
+  .card h3{margin:.1rem 0 .5rem; font-size:1.06rem; color:var(--gold-soft); letter-spacing:.01em}
+  .card p{font-size:.98rem; color:var(--muted); margin:0}
+
+  .callout{
+    font-family:var(--mono); font-size:clamp(1rem,2vw,1.5rem);
+    border:1px solid var(--line); border-left:3px solid var(--gold);
+    border-radius:8px; padding:1rem 1.2rem; margin:1.6rem 0 0; max-width:60ch;
+    background:rgba(243,168,60,.04); color:var(--gold-soft);
+  }
+  .callout .eq{color:var(--ink)}
+
+  .tag{display:inline-block; font-size:.72rem; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--bg); background:var(--gold); padding:.28rem .6rem; border-radius:999px; font-weight:800}
+  .tag.miss{background:#e0604a; color:#1a0f0c}
+  .tag.hit{background:var(--gold)}
+
+  .twocol{display:grid; grid-template-columns:1fr 1fr; gap:2.6rem; max-width:80ch; margin-top:1rem}
+  .twocol h3{color:var(--gold-soft); font-size:1.04rem; margin:0 0 .4rem; letter-spacing:.03em}
+  .twocol p{font-size:1rem; color:var(--muted)}
+
+  .title-wrap{max-width:30ch}
+  .title-wrap .rule{height:3px; width:88px; background:var(--gold); margin:2rem 0 1.6rem; border-radius:2px}
+  .title-meta{color:var(--faint); margin-top:2.4rem; font-size:.92rem; letter-spacing:.06em}
+
+  /* HUD */
+  .hud{position:fixed; z-index:5; left:0; right:0; bottom:0; height:46px;
+    display:flex; align-items:center; gap:14px; padding:0 9vw;
+    color:var(--faint); font-size:.8rem; letter-spacing:.06em}
+  .progress{position:fixed; left:0; bottom:46px; height:2px; background:var(--gold);
+    width:0; transition:width .35s ease; z-index:5; box-shadow:0 0 12px rgba(243,168,60,.6)}
+  .brand{font-weight:800; letter-spacing:.22em; color:var(--muted); text-transform:uppercase; font-size:.74rem}
+  .nav{margin-left:auto; display:flex; align-items:center; gap:6px}
+  .nav button{
+    appearance:none; border:1px solid var(--line); background:transparent; color:var(--muted);
+    width:30px; height:30px; border-radius:7px; cursor:pointer; font-size:1rem; line-height:1;
+  }
+  .nav button:hover{border-color:var(--gold); color:var(--gold)}
+  .count{min-width:54px; text-align:center; font-variant-numeric:tabular-nums}
+
+  @media (max-width:720px){
+    .slide{padding:7vh 7vw}
+    .grid,.twocol{grid-template-columns:1fr}
+    .hud,.slide{padding-left:7vw; padding-right:7vw}
+  }
+  @media print{ .slide{position:relative; opacity:1; visibility:visible; transform:none; page-break-after:always; height:100vh} .hud,.progress{display:none} body{overflow:visible} }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+  <!-- 1 — TITLE -->
+  <section class="slide active">
+    <div class="title-wrap">
+      <p class="kicker">A field report</p>
+      <h1>When<br>“looks correct”<br>isn’t.</h1>
+      <div class="rule"></div>
+      <p class="lede">How a machine for checking work caught a mistake that every human reviewer would have waved through — including the expert who built it.</p>
+      <p class="title-meta">SAGITTARIUS · an experiment in earning trust from AI-generated work</p>
+    </div>
+  </section>
+
+  <!-- 2 — THE PROBLEM -->
+  <section class="slide">
+    <p class="kicker">The problem</p>
+    <h2>Plausible is not the same as correct.</h2>
+    <p>Modern AI is very good at producing work that <em>looks</em> right — code, proofs, analysis that reads cleanly and passes a glance.</p>
+    <p>But the hard part was never generating the work. It’s <strong>knowing whether the work is actually true.</strong> A confident, well-formatted, completely wrong answer is the most dangerous thing a machine can hand you.</p>
+    <p class="sub">So the real question is: how do you <span class="gold">verify</span> work — without simply trusting the same intuition that produced it?</p>
+  </section>
+
+  <!-- 3 — THE ANALOGY -->
+  <section class="slide">
+    <p class="kicker">An analogy that already worked</p>
+    <h2>How they photographed a black hole.</h2>
+    <p>To image a black hole, the Event Horizon Telescope faced the same trap: the data was faint and the team <em>already knew what a black hole should look like</em>. Wishful analysis could easily “find” the expected picture in noise.</p>
+    <p>Their defense was <strong>structural independence.</strong> Several teams were sealed off from one another and reduced the same data <em>separately</em>. Only at the very end did they compare. When isolated teams converge on the same image, the image is trustworthy — because no one could have nudged anyone else toward the expected answer.</p>
+    <p class="sub">That bias-defense-by-independence is the whole idea. The project is named <span class="gold">Sagittarius</span>, after the black hole at our galaxy’s center that they imaged this way.</p>
+  </section>
+
+  <!-- 4 — WHAT WE BUILT -->
+  <section class="slide">
+    <p class="kicker">What we built</p>
+    <h2>The same idea, for checking work.</h2>
+    <p>Instead of one clever AI doing everything, we use a plain, predictable <strong>script</strong> that hands a problem to many <strong>independent AI specialists</strong>:</p>
+    <ul>
+      <li>One specialist <strong>does</strong> the work.</li>
+      <li>Others, working separately, try their hardest to <strong>tear it down</strong> — to prove it wrong.</li>
+      <li>The work is also translated into <strong>actual mathematics and machine-checked</strong>, the way a calculator can’t lie about arithmetic.</li>
+      <li>Nothing passes unless it <strong>survives</strong> all of that.</li>
+    </ul>
+    <p class="sub">We call the orchestrating script a <span class="gold">workflow</span>. Its job is to run the steps in a fixed order — not to have opinions.</p>
+  </section>
+
+  <!-- 5 — THE ONE RULE -->
+  <section class="slide">
+    <p class="kicker">The one rule</p>
+    <h2>The clerk keeps score. The experts make the calls.</h2>
+    <p>There is exactly one line the whole design exists to protect: the script does the <strong>bookkeeping</strong> — what runs next, what’s been done, reading off results — but it <strong>never makes a judgment itself.</strong></p>
+    <p>“Is this proven? Refuted? Sound?” always belongs to the specialists. The moment the bookkeeping starts quietly deciding those things, you’ve lost the independence that made the answer trustworthy.</p>
+    <p class="sub">We named that failure the <span class="gold">Orbital Inversion</span> — a judgment that should have been handed off, but wasn’t. Watch for it later; it held under pressure.</p>
+  </section>
+
+  <!-- 6 — THE EXPERIMENT -->
+  <section class="slide">
+    <p class="kicker">The experiment</p>
+    <h2>Is this elaborate machine actually worth it?</h2>
+    <p>Fair question. Maybe a careful expert could just… do the checking themselves, and skip the whole apparatus. So we ran a clean test to find out:</p>
+    <ul>
+      <li><strong>1. Predict.</strong> A careful engineer wrote down, <em>in advance</em>, exactly what they believed the machine would find — confidence levels and all. We sealed it.</li>
+      <li><strong>2. Run.</strong> Then we turned the machine loose on the same problem.</li>
+      <li><strong>3. Compare.</strong> Prediction vs. reality. The gap between them <em>is</em> the machine’s value.</li>
+    </ul>
+    <p class="sub">If the machine only confirms what the expert already foresaw, it’s expensive theatre. If it finds what the expert missed, it’s earning its keep.</p>
+  </section>
+
+  <!-- 7 — THE TASK -->
+  <section class="slide">
+    <p class="kicker">The task we set</p>
+    <h2>Teach the system a new trick — and guarantee it can’t break anything.</h2>
+    <p>We added a new capability to our own system (a faster way to start a job partway through, instead of always from the beginning).</p>
+    <p>The catch: we wanted a <strong>mathematical guarantee</strong> that the shortcut could never let the system skip a step it actually needed. A safety rail, proven — not hoped.</p>
+    <p class="sub">So the machine’s job was to take that promised guarantee and either <span class="gold">prove it</span> or <span class="gold">show us why it can’t.</span></p>
+  </section>
+
+  <!-- 8 — THE PREDICTION -->
+  <section class="slide">
+    <p class="kicker">The sealed prediction</p>
+    <h2>What the expert bet would happen.</h2>
+    <p>The engineer’s honest forecast, written before the run:</p>
+    <ul>
+      <li><span class="tag hit">high</span>&nbsp; The early stages would go smoothly and cleanly.</li>
+      <li><span class="tag hit">likely</span>&nbsp; The system would notice the guarantee was “thin” and reach for a stronger version of it.</li>
+      <li><span class="tag">low</span>&nbsp; The final proof would close neatly. <span class="sub">(Hedged — “this is where I most expect to be wrong.”)</span></li>
+    </ul>
+    <p class="sub">Reasonable, specific, and — as it turned out — right about the <em>direction</em> and wrong about the things that mattered.</p>
+  </section>
+
+  <!-- 9 — THE HEADLINE FIND -->
+  <section class="slide">
+    <p class="kicker">What it found</p>
+    <h2>The proof proved nothing.</h2>
+    <p>Our “guarantee” was built from two checks that were supposed to be different: <em>“Is the file there?”</em> and <em>“Does it load cleanly?”</em></p>
+    <p>The machine discovered these were secretly <strong>the exact same question</strong>, written two different ways. So “both must pass” really meant “one must pass — twice.” The dangerous case we wanted to rule out <strong>couldn’t even be described</strong> in the proof.</p>
+    <div class="callout"><span class="eq">our two “different” safety checks were</span> &nbsp;identical</div>
+    <p class="sub" style="margin-top:1.4rem">The guarantee guaranteed nothing. And it <em>compiled</em>. It looked completely fine.</p>
+  </section>
+
+  <!-- 10 — WHY THAT'S THE SCARY KIND -->
+  <section class="slide">
+    <p class="kicker">Why that one matters</p>
+    <h2>A green light that’s wired to always be on.</h2>
+    <p>A safety check that passes <em>no matter what</em> isn’t a safety check — it’s a green light soldered to “on.” It tells you nothing, while looking exactly like reassurance.</p>
+    <p>This is the failure a human reviewer almost never catches. The proof builds. The tests are green. Everything <em>reads</em> as correct. Nobody re-derives the logic from scratch at 5pm on a Friday.</p>
+    <p class="sub">Only something whose <strong>only job is to attack the work</strong> bothered to ask: “does this check actually rule anything out?” The answer was no.</p>
+  </section>
+
+  <!-- 11 — THREE MORE -->
+  <section class="slide">
+    <p class="kicker">And it kept going</p>
+    <h2>Three more real defects — all hiding behind “green.”</h2>
+    <div class="grid">
+      <div class="card"><h3>A backwards safety rail</h3><p>A second guarantee we wrote down was not just weak — it was <strong>false as written</strong>. The machine produced a concrete counterexample.</p></div>
+      <div class="card"><h3>A silent inconsistency</h3><p>A data file <strong>loaded without error</strong> but referred to things it never defined — typos and renames that “passed” every surface check.</p></div>
+      <div class="card"><h3>A broken bridge</h3><p>The careful test we built on one side <strong>didn’t actually correspond</strong> to what the math on the other side was claiming.</p></div>
+      <div class="card"><h3>The pattern</h3><p>Every one looked fine. The file loaded; the proof built; the test was green. <strong>Green ≠ correct.</strong></p></div>
+    </div>
+  </section>
+
+  <!-- 12 — WHY TRUSTWORTHY -->
+  <section class="slide">
+    <p class="kicker">Why we trust the verdict</p>
+    <h2>It refused to fake it — twice, independently.</h2>
+    <p>Two specialists reached the “this proves nothing” conclusion <strong>separately</strong>, from different angles — the convergence-by-independence that made the black-hole image trustworthy.</p>
+    <p>And when one specialist couldn’t honestly close the proof, it <strong>said so</strong> — it refused to reach for a cheap trick that would turn the light green without earning it. It reported “I can’t prove this, and here’s exactly why,” and handed the problem back.</p>
+    <p class="sub">The bookkeeping never overrode that. The <span class="gold">one rule</span> held: the script kept score; the experts made every call.</p>
+  </section>
+
+  <!-- 13 — SCORECARD -->
+  <section class="slide">
+    <p class="kicker">Prediction vs. reality</p>
+    <h2>Right about the direction. Wrong about the depth.</h2>
+    <div class="twocol">
+      <div>
+        <h3>What the expert got right</h3>
+        <p>The shape of the run. That the guarantee would need strengthening. The general arc of every stage.</p>
+      </div>
+      <div>
+        <h3>What only the machine got</h3>
+        <p>The <em>specific</em> bug that made the proof empty. The false safety rail. The silent data inconsistency. The broken bridge between test and math.</p>
+      </div>
+    </div>
+    <p style="margin-top:1.8rem">The value wasn’t the headline the expert already saw coming. It was the <strong>depth underneath it</strong> — the concrete, shippable mistakes a confident human would have signed off on.</p>
+    <p class="sub" style="margin-top:1rem"><em>In fairness:</em> we even tipped the machine off toward the answer on one step. It still went deeper than the tip — and the un-tipped specialist reached the same verdict on its own.</p>
+  </section>
+
+  <!-- 14 — WHY IT MATTERS -->
+  <section class="slide">
+    <p class="kicker">Why it matters</p>
+    <h2>“It looks right” is about to stop being good enough.</h2>
+    <p>As we hand AI more work that actually matters, the gap between <em>plausible</em> and <em>correct</em> becomes the whole ballgame. The reassuring, well-formatted, subtly-empty answer is the real risk.</p>
+    <p>This is a way to make AI work <strong>earn</strong> trust instead of asking for it — by surviving independent scrutiny, adversarial attack, and machine-checked math, with a hard line between who keeps score and who makes the call.</p>
+    <p class="sub">On a problem an expert had already reasoned through carefully, the machine still caught four real mistakes they’d have shipped. That’s the case for the apparatus.</p>
+  </section>
+
+  <!-- 15 — CLOSING -->
+  <section class="slide">
+    <div class="title-wrap">
+      <p class="kicker">Where this stands</p>
+      <h2>An honest experiment — and a clear result.</h2>
+      <p class="lede">It’s early, and deliberately small in scope. But the test it was built to answer came back unambiguous: the machine found, in a verifiable way, what a careful human missed.</p>
+      <div class="rule"></div>
+      <p class="title-meta">SAGITTARIUS · independent · adversarial · proven</p>
+    </div>
+  </section>
+
+</div>
+
+<div class="progress" id="progress"></div>
+<div class="hud">
+  <span class="brand">Sagittarius</span>
+  <span class="sub" id="title-mini"></span>
+  <span class="nav">
+    <button id="prev" aria-label="Previous slide">‹</button>
+    <span class="count" id="count">1 / 1</span>
+    <button id="next" aria-label="Next slide">›</button>
+  </span>
+</div>
+
+<script>
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var i = 0;
+  var countEl = document.getElementById('count');
+  var progress = document.getElementById('progress');
+
+  function clamp(n){ return Math.max(0, Math.min(slides.length-1, n)); }
+  function show(n){
+    i = clamp(n);
+    slides.forEach(function(s,k){ s.classList.toggle('active', k===i); });
+    countEl.textContent = (i+1) + ' / ' + slides.length;
+    progress.style.width = ((i)/(slides.length-1)*100) + '%';
+    if (location.hash !== '#'+(i+1)) history.replaceState(null,'','#'+(i+1));
+  }
+  function next(){ show(i+1); }
+  function prev(){ show(i-1); }
+
+  document.addEventListener('keydown', function(e){
+    if (e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '||e.key==='l'){ e.preventDefault(); next(); }
+    else if (e.key==='ArrowLeft'||e.key==='PageUp'||e.key==='h'){ e.preventDefault(); prev(); }
+    else if (e.key==='Home'){ show(0); }
+    else if (e.key==='End'){ show(slides.length-1); }
+  });
+  document.getElementById('next').addEventListener('click', next);
+  document.getElementById('prev').addEventListener('click', prev);
+
+  // touch swipe
+  var x0=null;
+  document.addEventListener('touchstart',function(e){ x0=e.touches[0].clientX; },{passive:true});
+  document.addEventListener('touchend',function(e){
+    if(x0===null) return; var dx=e.changedTouches[0].clientX-x0;
+    if(Math.abs(dx)>50){ dx<0?next():prev(); } x0=null;
+  },{passive:true});
+
+  var start = parseInt((location.hash||'').replace('#',''),10);
+  show(isNaN(start)?0:start-1);
+})();
+</script>
+</body>
+</html>
