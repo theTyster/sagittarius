@@ -8,3 +8,5 @@ import Proofs.I4Monotone
 import Proofs.I5Reserve
 import Proofs.I6Floor
 import Proofs.I7Fanout
+-- I-8 recon-primer stubs (target-world-recon.pl formal_property rows).
+import Proofs.I8ReconSoundness

@@ -1,0 +1,48 @@
+{
+  "pl_path": "/Users/ty/Projects/mine/sagittarius/recon-upgrade/run-artifacts/existing-world-recon.pl",
+  "highest_tier_reached": 2,
+  "tier1_pass": true,
+  "tier1_transcript": "",
+  "tier2_orphans": [
+    {
+      "predicate": "negation_provenance/2",
+      "argument_index": 1,
+      "value": "recon_computes_logic_verdict",
+      "note": "not declared as falsifier/1 fact; declared falsifier atom is recon_computes_a_logic_verdict"
+    },
+    {
+      "predicate": "negation_provenance/2",
+      "argument_index": 1,
+      "value": "recon_edits_durable_artifact",
+      "note": "not declared as falsifier/1 fact"
+    },
+    {
+      "predicate": "negation_provenance/2",
+      "argument_index": 1,
+      "value": "plan_recon_inspects_artifact_content",
+      "note": "not declared as falsifier/1 fact"
+    },
+    {
+      "predicate": "negation_provenance/2",
+      "argument_index": 1,
+      "value": "frozenprefix_attach_regenerates_adopted_artifact",
+      "note": "not declared as falsifier/1 fact; declared falsifier atom is frozenprefix_attach_run_regenerates_adopted_artifact"
+    },
+    {
+      "predicate": "negation_provenance/2",
+      "argument_index": 1,
+      "value": "loopback_widens_below_frozen_prefix",
+      "note": "not declared as falsifier/1 fact"
+    },
+    {
+      "predicate": "plan_recon_never/1",
+      "argument_index": 1,
+      "value": "inspect_artifact_content",
+      "note": "not declared as recon_never/1 fact; plan_recon_never/1 values are a subset of recon_never/1 by type inference"
+    }
+  ],
+  "tier3_constraint_fires": [],
+  "tier4_spotchecks": [],
+  "tier5_uncovered_predicates": [],
+  "error": null
+}
