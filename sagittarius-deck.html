@@ -130,7 +130,7 @@
       <p class="kicker">A field report</p>
       <h1>When<br>“looks correct”<br>isn’t.</h1>
       <div class="rule"></div>
-      <p class="lede">How a machine for checking work caught a mistake that every human reviewer would have waved through — including the expert who built it.</p>
+      <p class="lede">How a machine for checking work caught a mistake confident reasoning would have waved straight through — including the LLM that drew up the plan.</p>
       <p class="title-meta">SAGITTARIUS · an experiment in earning trust from AI-generated work</p>
     </div>
   </section>
@@ -140,8 +140,9 @@
     <p class="kicker">The problem</p>
     <h2>Plausible is not the same as correct.</h2>
     <p>Modern AI is very good at producing work that <em>looks</em> right — code, proofs, analysis that reads cleanly and passes a glance.</p>
-    <p>But the hard part was never generating the work. It’s <strong>knowing whether the work is actually true.</strong> A confident, well-formatted, completely wrong answer is the most dangerous thing a machine can hand you.</p>
-    <p class="sub">So the real question is: how do you <span class="gold">verify</span> work — without simply trusting the same intuition that produced it?</p>
+    <p>But the hard part was never generating the work. It’s <strong>knowing whether the work is actually true.</strong> A large language model (LLM) is a genuine expert — and that’s the trap: its mistakes arrive with exactly the same confidence as its correct answers, so they’re <em>invisible</em>.</p>
+    <p>Worse, the error often isn’t in the work at all. It hides in <strong>what you asked for</strong> — a goal that sounds airtight but quietly asks for the wrong thing.</p>
+    <p class="sub">So the real question is: how do you <span class="gold">verify</span> work — without simply trusting the same confident intuition that produced it?</p>
   </section>
 
   <!-- 3 — THE ANALOGY -->
@@ -157,14 +158,14 @@
   <section class="slide">
     <p class="kicker">What we built</p>
     <h2>The same idea, for checking work.</h2>
-    <p>Instead of one clever AI doing everything, we use a plain, predictable <strong>script</strong> that hands a problem to many <strong>independent AI specialists</strong>:</p>
+    <p>Instead of one clever AI doing everything, a plain, predictable <strong>script</strong> — driven by an <strong>orchestrator</strong> (itself an LLM) — hands the problem to many <strong>Agent Experts</strong>: specialist LLMs, each sealed off from the others.</p>
     <ul>
-      <li>One specialist <strong>does</strong> the work.</li>
+      <li>One Agent Expert <strong>does</strong> the work.</li>
       <li>Others, working separately, try their hardest to <strong>tear it down</strong> — to prove it wrong.</li>
-      <li>The work is also translated into <strong>actual mathematics and machine-checked</strong>, the way a calculator can’t lie about arithmetic.</li>
+      <li>The work is translated into <strong>real mathematics and machine-checked</strong>, the way a calculator can’t lie about arithmetic.</li>
       <li>Nothing passes unless it <strong>survives</strong> all of that.</li>
     </ul>
-    <p class="sub">We call the orchestrating script a <span class="gold">workflow</span>. Its job is to run the steps in a fixed order — not to have opinions.</p>
+    <p class="sub">The orchestrating script is the <span class="gold">workflow</span>. Its only job is to run the steps in a fixed order and read off results — <em>not</em> to have opinions.</p>
   </section>
 
   <!-- 5 — THE ONE RULE -->
@@ -176,17 +177,29 @@
     <p class="sub">We named that failure the <span class="gold">Orbital Inversion</span> — a judgment that should have been handed off, but wasn’t. Watch for it later; it held under pressure.</p>
   </section>
 
+  <!-- TOOLS (Prolog + Lean 4) -->
+  <section class="slide">
+    <p class="kicker">How “machine-checked” works</p>
+    <h2>Two tools that can’t be talked into agreeing with you.</h2>
+    <p>“Machine-checked” isn’t a figure of speech. The Agent Experts hand the work to two pieces of mathematical software that have no confidence, no intuition, and no wish to be helpful:</p>
+    <div class="grid">
+      <div class="card"><h3>Prolog — the model builder</h3><p>A language for writing down facts and rules, then asking the computer to <em>hunt for any case that breaks them.</em> In our run it built a model of the design and searched for counterexamples — and, obeying the one rule, <strong>refused to call the weak guarantee “proven.”</strong> Not its judgment to make.</p></div>
+      <div class="card"><h3>Lean 4 — the proof checker</h3><p>You write a mathematical argument; Lean verifies <em>every single step</em> and rejects the whole thing if one is missing. It cannot be sweet-talked. In our run, this is where we tried to actually <strong>prove</strong> the guarantee — and where the trouble surfaced.</p></div>
+    </div>
+    <p class="sub">Neither tool can be moved by a confident tone. That is precisely why they’re in the loop.</p>
+  </section>
+
   <!-- 6 — THE EXPERIMENT -->
   <section class="slide">
     <p class="kicker">The experiment</p>
     <h2>Is this elaborate machine actually worth it?</h2>
-    <p>Fair question. Maybe a careful expert could just… do the checking themselves, and skip the whole apparatus. So we ran a clean test to find out:</p>
+    <p>Fair question. Maybe a single capable LLM could just… do the checking itself, and skip the whole apparatus. So we ran a clean test to find out:</p>
     <ul>
-      <li><strong>1. Predict.</strong> A careful engineer wrote down, <em>in advance</em>, exactly what they believed the machine would find — confidence levels and all. We sealed it.</li>
-      <li><strong>2. Run.</strong> Then we turned the machine loose on the same problem.</li>
-      <li><strong>3. Compare.</strong> Prediction vs. reality. The gap between them <em>is</em> the machine’s value.</li>
+      <li><strong>1. Predict.</strong> The <strong>orchestrator</strong> — itself an LLM, the same kind of model doing the work — wrote down <em>in advance</em> exactly what it expected the Agent Experts to find, confidence levels and all. We sealed it.</li>
+      <li><strong>2. Run.</strong> Then the workflow turned the Agent Experts loose on the same problem.</li>
+      <li><strong>3. Compare.</strong> Prediction vs. reality. The gap between them <em>is</em> the apparatus’s value.</li>
     </ul>
-    <p class="sub">If the machine only confirms what the expert already foresaw, it’s expensive theatre. If it finds what the expert missed, it’s earning its keep.</p>
+    <p class="sub">If the Agent Experts only confirm what one LLM already foresaw, it’s expensive theatre. If they find what it missed, the structure is earning its keep.</p>
   </section>
 
   <!-- 7 — THE TASK -->
@@ -201,12 +214,12 @@
   <!-- 8 — THE PREDICTION -->
   <section class="slide">
     <p class="kicker">The sealed prediction</p>
-    <h2>What the expert bet would happen.</h2>
-    <p>The engineer’s honest forecast, written before the run:</p>
+    <h2>What the orchestrator bet would happen.</h2>
+    <p>The orchestrator-LLM’s honest forecast, written before the run:</p>
     <ul>
       <li><span class="tag hit">high</span>&nbsp; The early stages would go smoothly and cleanly.</li>
       <li><span class="tag hit">likely</span>&nbsp; The system would notice the guarantee was “thin” and reach for a stronger version of it.</li>
-      <li><span class="tag">low</span>&nbsp; The final proof would close neatly. <span class="sub">(Hedged — “this is where I most expect to be wrong.”)</span></li>
+      <li><span class="tag">plausible</span>&nbsp; The final proof would close neatly.</li>
     </ul>
     <p class="sub">Reasonable, specific, and — as it turned out — right about the <em>direction</em> and wrong about the things that mattered.</p>
   </section>
@@ -214,20 +227,19 @@
   <!-- 9 — THE HEADLINE FIND -->
   <section class="slide">
     <p class="kicker">What it found</p>
-    <h2>The proof proved nothing.</h2>
-    <p>Our “guarantee” was built from two checks that were supposed to be different: <em>“Is the file there?”</em> and <em>“Does it load cleanly?”</em></p>
-    <p>The machine discovered these were secretly <strong>the exact same question</strong>, written two different ways. So “both must pass” really meant “one must pass — twice.” The dangerous case we wanted to rule out <strong>couldn’t even be described</strong> in the proof.</p>
-    <div class="callout"><span class="eq">our two “different” safety checks were</span> &nbsp;identical</div>
-    <p class="sub" style="margin-top:1.4rem">The guarantee guaranteed nothing. And it <em>compiled</em>. It looked completely fine.</p>
+    <h2>Proofs that fight.</h2>
+    <p>The Orchestrator created a genuine and convincing and thorough <strong>spec</strong>. This was used to create a working version of the feature. It compiled. Checked all the boxes. Tested well. Green light.</p>
+    <p>Then an agent specially created to write Lean4 proofs built a proof based on that spec. But that’s only the first step.</p>
   </section>
 
-  <!-- 10 — WHY THAT'S THE SCARY KIND -->
+  <!-- 10 — How we found it -->
   <section class="slide">
-    <p class="kicker">Why that one matters</p>
-    <h2>A green light that’s wired to always be on.</h2>
-    <p>A safety check that passes <em>no matter what</em> isn’t a safety check — it’s a green light soldered to “on.” It tells you nothing, while looking exactly like reassurance.</p>
-    <p>This is the failure a human reviewer almost never catches. The proof builds. The tests are green. Everything <em>reads</em> as correct. Nobody re-derives the logic from scratch at 5pm on a Friday.</p>
-    <p class="sub">Only something whose <strong>only job is to attack the work</strong> bothered to ask: “does this check actually rule anything out?” The answer was no.</p>
+    <p class="kicker">How it was caught</p>
+    <h2>LLM reasoning vs Math</h2>
+    <p>Our spec combined two checks meant to be different — <em>“is the file there?”</em> and <em>“does it load cleanly?”</em> A Disproval Agent attacked this claim through the Lean4 Proof as a substrate.</p>
+    <p>The Lean4 Adversary Agent discovered the spec was quietly advising two checks which were <strong>the same check</strong>. So “both must hold” really meant “one must hold — twice.” The Lean4 Adversary Agent <strong>couldn’t even write the proof down</strong> without the theorem prover flagging it.</p>
+    <div class="callout"><span class="eq">Lean couldn't be coerced into admitting that two checks were satisfying different things. </span> &nbsp;they were not.</div>
+    <p class="sub" style="margin-top:1.4rem">Lean did its job flawlessly — it faithfully proved a statement that said nothing. <strong>The bug wasn’t in the proof. It was in what we asked it to prove.</strong></p>
   </section>
 
   <!-- 11 — THREE MORE -->
@@ -246,9 +258,9 @@
   <section class="slide">
     <p class="kicker">Why we trust the verdict</p>
     <h2>It refused to fake it — twice, independently.</h2>
-    <p>Two specialists reached the “this proves nothing” conclusion <strong>separately</strong>, from different angles — the convergence-by-independence that made the black-hole image trustworthy.</p>
-    <p>And when one specialist couldn’t honestly close the proof, it <strong>said so</strong> — it refused to reach for a cheap trick that would turn the light green without earning it. It reported “I can’t prove this, and here’s exactly why,” and handed the problem back.</p>
-    <p class="sub">The bookkeeping never overrode that. The <span class="gold">one rule</span> held: the script kept score; the experts made every call.</p>
+    <p>Two Agent Experts reached the “this proves nothing” conclusion <strong>separately</strong>, from different angles — the convergence-by-independence that made the black-hole image trustworthy.</p>
+    <p>And when one Agent Expert couldn’t honestly close the proof, it <strong>said so</strong> — it refused the cheap trick that would turn the light green without earning it, reported “I can’t prove this, and here’s exactly why,” and handed the problem back.</p>
+    <p class="sub">The orchestrator never overrode that. The <span class="gold">one rule</span> held: the script kept score; the Agent Experts made every call.</p>
   </section>
 
   <!-- 13 — SCORECARD -->
@@ -257,16 +269,15 @@
     <h2>Right about the direction. Wrong about the depth.</h2>
     <div class="twocol">
       <div>
-        <h3>What the expert got right</h3>
+        <h3>What the orchestrator predicted</h3>
         <p>The shape of the run. That the guarantee would need strengthening. The general arc of every stage.</p>
       </div>
       <div>
-        <h3>What only the machine got</h3>
+        <h3>What the Agent Experts found</h3>
         <p>The <em>specific</em> bug that made the proof empty. The false safety rail. The silent data inconsistency. The broken bridge between test and math.</p>
       </div>
     </div>
-    <p style="margin-top:1.8rem">The value wasn’t the headline the expert already saw coming. It was the <strong>depth underneath it</strong> — the concrete, shippable mistakes a confident human would have signed off on.</p>
-    <p class="sub" style="margin-top:1rem"><em>In fairness:</em> we even tipped the machine off toward the answer on one step. It still went deeper than the tip — and the un-tipped specialist reached the same verdict on its own.</p>
+    <p style="margin-top:1.8rem">The value wasn’t the headline one LLM already saw coming. It was the <strong>depth underneath it</strong> — the concrete, shippable mistakes a confident expert would have signed off on.</p>
   </section>
 
   <!-- 14 — WHY IT MATTERS -->
@@ -275,7 +286,7 @@
     <h2>“It looks right” is about to stop being good enough.</h2>
     <p>As we hand AI more work that actually matters, the gap between <em>plausible</em> and <em>correct</em> becomes the whole ballgame. The reassuring, well-formatted, subtly-empty answer is the real risk.</p>
     <p>This is a way to make AI work <strong>earn</strong> trust instead of asking for it — by surviving independent scrutiny, adversarial attack, and machine-checked math, with a hard line between who keeps score and who makes the call.</p>
-    <p class="sub">On a problem an expert had already reasoned through carefully, the machine still caught four real mistakes they’d have shipped. That’s the case for the apparatus.</p>
+    <p class="sub">On a problem an LLM had already reasoned through carefully, the Agent Experts still caught four real mistakes it would have shipped. That’s the case for the apparatus.</p>
   </section>
 
   <!-- 15 — CLOSING -->
