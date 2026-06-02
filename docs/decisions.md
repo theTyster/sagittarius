@@ -8,7 +8,7 @@ The decisions, constraints, invariants, and requirements that define Sagittarius
 
 > The orbital-shifting seven-stage pipeline can be realized as one **deterministic, background-executable Workflow** that preserves invariants I-1…I-7, parallelizes its provable and testable stages **without losing determinism**, and is **verifiable by the same pipeline** — without inverting the smart-orchestrator / dumb-executor separation.
 
-Falsified by: any I-1…I-7 failing; any control decision depending on wall-clock or randomness; or the orchestration layer computing a logic verdict itself (a C-2 violation).
+Falsified by: any I-1…I-7 failing; any control decision depending on wall-clock or randomness; or the orchestration layer computing a logic verdict itself (a C-2 violation — the Orbital Inversion).
 
 **Status:** realized and self-verified. Terminal adherence: 0 Pattern-3 violations, 9/9 prescriptive, 7/7 descriptive, 100% structural (see `explanation.md` §7).
 
@@ -33,7 +33,7 @@ Falsified by: any I-1…I-7 failing; any control decision depending on wall-cloc
 ## Constraints (C-1…C-6) — hard rules the implementation must not violate
 
 - **C-1 — Determinism.** No control decision may depend on wall-clock or randomness. *(A dedicated test proves two runs with different clock+rng yield an identical decision trail.)*
-- **C-2 — No logic call in the substrate.** The orchestration layer branches only on agent-emitted signals; never computes provable/refuted/inconsistent itself. *(The #1 failure mode; regression-guarded by `digest-fold.js` + its lock-test — F-6.)*
+- **C-2 — No logic call in the substrate (the *Orbital Inversion*).** The orchestration layer branches only on agent-emitted signals; never computes provable/refuted/inconsistent itself. The failure mode is named the **Orbital Inversion**: the substrate failing to *shift* a judgment into the reasoning frame where it belongs, and making the call itself instead. *(The #1 failure mode; regression-guarded by `digest-fold.js` + its lock-test — F-6.)*
 - **C-3 — Disprove discipline.** Never attacks its own output; never spends below the reserve. *(= I-5.)*
 - **C-4 — Monotone scope.** Scope only widens, never narrows mid-run. *(= I-4.)*
 - **C-5 — Adversary cardinality.** Every disprove attempt runs ≥2 adversaries in parallel. *(= I-7.)*
@@ -66,5 +66,5 @@ All seven are **proven axiom-free in Lean** and **survive an adversary** over a 
 - **A-1 — skill-from-subagent** ("a workflow subagent can invoke a `shifting:` skill and let it drive"): came back **FALSE** in this environment (F-2) — forked skills had no `Agent` tool. Mitigation taken: the realized Workflow calls the named specialists **directly** (Decision B).
 - **A-2 — sandbox sibling import:** not exercised; the realized `.mjs` inlines the mechanics verbatim, sidestepping it.
 - **Risk — close-world fidelity / vacuous theorem:** **materialized and caught** (the I-3 vacuity defect, F-3). The disprove floor is precisely the mitigation that worked.
-- **Risk — inversion smell (C-2):** held; regression-guarded (F-6). A deferred re-attack against the *realized* code is the recommended pre-kimmy step (`explanation.md` §"recommended next step").
+- **Risk — the Orbital Inversion (C-2; formerly "inversion smell"):** held; regression-guarded (F-6). A deferred re-attack against the *realized* code is the recommended pre-kimmy step (`explanation.md` §"recommended next step").
 - **Risk — Lean parallel memory:** not stressed (proofs small against prebuilt Mathlib).

@@ -41,8 +41,8 @@ A model whose domains have **≥2 distinct inhabitants with varying values**, so
 ### digest
 The small structured object a stage returns to carry **control** (artifact ref, status, agent-emitted verdict signals, target-tagged gaps, core-obligation flag). State flows through `.pl` files; control flows through digests (D-3).
 
-### separation of authority / inversion smell
-**Separation of authority** (D-2): the substrate owns mechanics, agents own judgment. The **inversion smell** (C-2): the substrate computing a logic verdict itself instead of reading one an agent emitted. Avoiding it is the design's central discipline.
+### separation of authority / the Orbital Inversion
+**Separation of authority** (D-2): the substrate owns mechanics, agents own judgment. The **Orbital Inversion** (C-2; formerly the *inversion smell*): the substrate computing a logic verdict itself instead of reading one an agent emitted — the failure to *shift* a judgment out of the bookkeeping frame and into the reasoning frame where it belongs. Avoiding it is the design's central discipline. (The name ties the failure to orbital-*shifting*: an inversion is a shift that didn't happen.)
 
 ### Pattern 3
 A counterfactual (forbidden) fact that the *implementation still asserts* — i.e. a forbidden behavior that leaked into the code. The terminal `measure-entailment` scan found **0** Pattern-3 violations.

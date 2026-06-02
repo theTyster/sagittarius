@@ -1,6 +1,8 @@
 # Claude Code: the project CLAUDE.md IS committed (it carries repo-specific
-# operating notes not duplicated in README.md / docs/). Machine-local overrides
-# go in CLAUDE.local.md, already covered by *.local.* below.
+# operating notes not duplicated in README.md / docs/). The project .claude/
+# dir IS committed too — agents/skills developed here (e.g. .claude/agents/)
+# travel with the repo. Machine-local overrides — CLAUDE.local.md and
+# .claude/settings.local.json — are covered by *.local.* below.
 .env
 *.local.*
 

@@ -21,6 +21,15 @@ without inverting the smart-orchestrator / dumb-executor separation.*
 Falsified by: any invariant in §7 failing; any control decision that depends on wall-clock or
 randomness; or the orchestration layer making a logic judgment itself (a C-2 violation).
 
+**Recon extension (this revision).** *The same proven loop admits a **recon primer** — a pre-loop
+step that resolves where durable artifacts live and which segments run — so the loop can start
+mid-chain against a maintained repo without weakening any of I-1…I-7. The only new obligation is
+**I-8 (recon soundness)**: every honored window seeds a complete, contiguous prefix, so gating
+holds at the start. Recon reports facts and recommends a window; it never computes a verdict
+(C-7).* Falsified by: a seeded run that violates I-2 gating; recon computing a logic verdict (a
+C-2 / Orbital-Inversion violation); or a `frozenPrefix` attach run that regenerates an adopted
+artifact.
+
 ---
 
 ## 2. Goal & Definition of Done
@@ -124,6 +133,16 @@ not a smart agent — separation, not self-orchestration.
 - **D-13 — Experiment, not canonical.** Lives self-contained under
   `experiments/pipeline-workflow/`, not wired into `plugins/trajectory/`. *Why:* dogfood first;
   promotion to canonical is a separate, later decision.
+- **D-14 — Recon primer (the Orbital-Inversion-safe front door).** A pre-loop step resolves a
+  per-artifact path map + present-artifact set (existence + strict-load) and proposes a `{from,to}`
+  window; the movable cursor **seeds from it** instead of the fixed cold `(0, ∅)`. Operator
+  `from/to` is authoritative (validated for feasibility only); else **attach** (a claim is supplied
+  → judge which tail segments it needs against present artifacts) or **resume** (no claim →
+  continue from the first missing durable artifact). *Why:* lets the proven loop run claim-by-claim
+  against a maintained repo (the kimmy shape) without rebuilding its world; a `startIdx=0` plan
+  reproduces the cold run exactly, so it is a conservative extension. The judgment (which window)
+  lives in a recon **agent** (`.claude/agents/recon.md`, model:opus); the fold + guard
+  (`lib/recon-plan.js → planRecon`) is pure mechanics (D-2).
 
 ---
 
@@ -138,6 +157,11 @@ not a smart agent — separation, not self-orchestration.
 - **C-4 — Monotone scope.** Scope may only widen; it never narrows mid-run.
 - **C-5 — Adversary cardinality.** Every disprove attempt runs ≥2 adversaries in parallel.
 - **C-6 — Background autonomy.** No human prompt mid-run.
+- **C-7 — Recon reports facts, never a verdict.** The recon step may report presence (exists +
+  strict-load — mechanical observations) and recommend a window; it must never *compute* a logic
+  verdict (consistent / refuted / proven / inconsistent) nor edit a durable artifact. `planRecon`
+  reads only those agent-emitted facts plus the operator window and verifies them; it never
+  inspects artifact content. *(C-7 is C-2 / the Orbital Inversion applied to the primer.)*
 
 ---
 
@@ -160,6 +184,12 @@ These are the `formal_property` sketches §10 hands to `prove-invariants`.
   floor in D-6.)
 - **I-7 — disprove-fans-out.** Every disprove attempt spawns ≥2 adversaries in parallel.
   (Formalizes C-5.)
+- **I-8 — recon-soundness.** Every honored window seeds a **complete, contiguous prefix**: the
+  loop's seed `produced` set is exactly `{ stage_i : i < startIdx }` and every such stage is
+  present + strict-loads — so artifact-gating (I-2) holds at the seed. Refinement (attach): a
+  loopback never widens below the adopted prefix (`frozenPrefix`). Generalizes the loop's start
+  from the fixed `(0, ∅)`; I-1…I-7 are preserved (I-2 is static; I-4 already ranges over non-zero,
+  decreasing startIdx). (Formalizes D-14 / C-7.)
 
 ---
 
@@ -198,8 +228,17 @@ orchestrator MUST:
 9. hard-stop on a core-obligation refutation;
 10. hard-stop on loop-limit exhaustion;
 11. emit a complete, auditable decision trail.
+12. seed the cursor / scope / produced from the recon plan (a non-zero start runs only the windowed
+    segments; a `startIdx=0` plan reproduces the cold run);
+13. clamp an over-eager *attach* window down to the first incomplete prefix stage
+    (override-and-report), keeping the seed a complete contiguous prefix;
+14. refuse an *operator* window whose prefix is not all present (`feasible:false`) — and still run
+    `explain`;
+15. hard-stop a loopback that would widen below a frozen (attach-adopted) prefix.
 
-**Formal.** I-1…I-7 (§7) machine-checked in Lean under the D-10 bounds.
+**Formal.** I-1…I-8 (§7) machine-checked in Lean under the D-10 bounds. *(I-8's teeth may resolve
+to a behavioral acceptance criterion if the prove-invariants stage finds the abstract form a
+vacuous corollary of I-2 — recorded as an open question for the dogfood, not pre-judged.)*
 
 ---
 
