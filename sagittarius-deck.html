@@ -140,7 +140,7 @@
     <p class="kicker">The problem</p>
     <h2>Plausible is not the same as correct.</h2>
     <p>Modern AI is very good at producing work that <em>looks</em> right — code, proofs, analysis that reads cleanly and passes a glance.</p>
-    <p>But the hard part was never generating the work. It’s <strong>knowing whether the work is actually true.</strong> A large language model (LLM) is a genuine expert — and that’s the trap: its mistakes arrive with exactly the same confidence as its correct answers, so they’re <em>invisible</em>.</p>
+    <p>But the hard part was never generating the work. It’s <strong>knowing whether the work is actually right.</strong> Large Language Models (LLMs) have the same confidence level when they're right as when they are wrong. So often, LLM mistakes are <em><a class="gold" target="_blank" href="https://arxiv.org/abs/2603.15423">invisible</a></em>.</p>
     <p>Worse, the error often isn’t in the work at all. It hides in <strong>what you asked for</strong> — a goal that sounds airtight but quietly asks for the wrong thing.</p>
     <p class="sub">So the real question is: how do you <span class="gold">verify</span> work — without simply trusting the same confident intuition that produced it?</p>
   </section>
@@ -158,23 +158,23 @@
   <section class="slide">
     <p class="kicker">What we built</p>
     <h2>The same idea, for checking work.</h2>
-    <p>Instead of one clever AI doing everything, a plain, predictable <strong>script</strong> — driven by an <strong>orchestrator</strong> (itself an LLM) — hands the problem to many <strong>Agent Experts</strong>: specialist LLMs, each sealed off from the others.</p>
+    <p>Instead of one clever AI doing everything, a plain, predictable, javascript <strong>workflow</strong> — itself initialized by an LLM — hands the problem to many <strong>Agent Experts</strong>: specialist LLMs, each sealed off from the others.</p>
     <ul>
       <li>One Agent Expert <strong>does</strong> the work.</li>
       <li>Others, working separately, try their hardest to <strong>tear it down</strong> — to prove it wrong.</li>
       <li>The work is translated into <strong>real mathematics and machine-checked</strong>, the way a calculator can’t lie about arithmetic.</li>
       <li>Nothing passes unless it <strong>survives</strong> all of that.</li>
     </ul>
-    <p class="sub">The orchestrating script is the <span class="gold">workflow</span>. Its only job is to run the steps in a fixed order and read off results — <em>not</em> to have opinions.</p>
+    <p class="sub">The <span class="gold">workflow</span>’s only job is to run the steps in a fixed order and read off results — <em>not</em> to have opinions.</p>
   </section>
 
   <!-- 5 — THE ONE RULE -->
   <section class="slide">
     <p class="kicker">The one rule</p>
-    <h2>The clerk keeps score. The experts make the calls.</h2>
-    <p>There is exactly one line the whole design exists to protect: the script does the <strong>bookkeeping</strong> — what runs next, what’s been done, reading off results — but it <strong>never makes a judgment itself.</strong></p>
-    <p>“Is this proven? Refuted? Sound?” always belongs to the specialists. The moment the bookkeeping starts quietly deciding those things, you’ve lost the independence that made the answer trustworthy.</p>
-    <p class="sub">We named that failure the <span class="gold">Orbital Inversion</span> — a judgment that should have been handed off, but wasn’t. Watch for it later; it held under pressure.</p>
+    <h2>The workflow keeps score. The Agent Experts make the calls.</h2>
+    <p>There is exactly one line the whole design exists to protect: the workflow does the <strong>bookkeeping</strong> — what runs next, what’s been done, reading off results — but it <strong>never makes a judgment itself.</strong></p>
+    <p>“Is this proven? Refuted? Sound?” always belongs to the Agent Experts. The moment the workflow starts quietly deciding those things, you’ve lost the independence that made the answer trustworthy.</p>
+    <p class="sub">We named that failure the <span class="gold">Orbital Inversion</span> when a judgment passed from a proof should have been handed off, but wasn’t. Watch for it later.</p>
   </section>
 
   <!-- TOOLS (Prolog + Lean 4) -->
@@ -195,7 +195,7 @@
     <h2>Is this elaborate machine actually worth it?</h2>
     <p>Fair question. Maybe a single capable LLM could just… do the checking itself, and skip the whole apparatus. So we ran a clean test to find out:</p>
     <ul>
-      <li><strong>1. Predict.</strong> The <strong>orchestrator</strong> — itself an LLM, the same kind of model doing the work — wrote down <em>in advance</em> exactly what it expected the Agent Experts to find, confidence levels and all. We sealed it.</li>
+      <li><strong>1. Predict.</strong> The <strong>workflow</strong> — itself driven by an LLM, the same kind of model doing the work — wrote down <em>in advance</em> exactly what it expected the Agent Experts to find, confidence levels and all. We sealed it.</li>
       <li><strong>2. Run.</strong> Then the workflow turned the Agent Experts loose on the same problem.</li>
       <li><strong>3. Compare.</strong> Prediction vs. reality. The gap between them <em>is</em> the apparatus’s value.</li>
     </ul>
@@ -205,39 +205,39 @@
   <!-- 7 — THE TASK -->
   <section class="slide">
     <p class="kicker">The task we set</p>
-    <h2>Teach the system a new trick — and guarantee it can’t break anything.</h2>
-    <p>We added a new capability to our own system (a faster way to start a job partway through, instead of always from the beginning).</p>
-    <p>The catch: we wanted a <strong>mathematical guarantee</strong> that the shortcut could never let the system skip a step it actually needed. A safety rail, proven — not hoped.</p>
+    <h2>Teach the code a new trick — and guarantee it can’t break anything.</h2>
+    <p>We added a new capability to our own code (a faster way to start a job partway through, instead of always from the beginning).</p>
+    <p>The catch: we wanted a <strong>mathematical guarantee</strong> that the shortcut could never let the code skip a step it actually needed. A safety rail, proven — not hoped.</p>
     <p class="sub">So the machine’s job was to take that promised guarantee and either <span class="gold">prove it</span> or <span class="gold">show us why it can’t.</span></p>
   </section>
 
   <!-- 8 — THE PREDICTION -->
   <section class="slide">
     <p class="kicker">The sealed prediction</p>
-    <h2>What the orchestrator bet would happen.</h2>
-    <p>The orchestrator-LLM’s honest forecast, written before the run:</p>
+    <h2>What the workflow bet would happen.</h2>
+    <p>The workflow’s honest forecast, written before the run:</p>
     <ul>
       <li><span class="tag hit">high</span>&nbsp; The early stages would go smoothly and cleanly.</li>
-      <li><span class="tag hit">likely</span>&nbsp; The system would notice the guarantee was “thin” and reach for a stronger version of it.</li>
+      <li><span class="tag hit">likely</span>&nbsp; The Agent Experts would notice the guarantee was “thin” and reach for a stronger version of it.</li>
       <li><span class="tag">plausible</span>&nbsp; The final proof would close neatly.</li>
     </ul>
-    <p class="sub">Reasonable, specific, and — as it turned out — right about the <em>direction</em> and wrong about the things that mattered.</p>
+    <p class="sub">Reasonable, specific, and — as it turned out, wrong.</p>
   </section>
 
   <!-- 9 — THE HEADLINE FIND -->
   <section class="slide">
     <p class="kicker">What it found</p>
     <h2>Proofs that fight.</h2>
-    <p>The Orchestrator created a genuine and convincing and thorough <strong>spec</strong>. This was used to create a working version of the feature. It compiled. Checked all the boxes. Tested well. Green light.</p>
-    <p>Then an agent specially created to write Lean4 proofs built a proof based on that spec. But that’s only the first step.</p>
+    <p>The workflow created a genuine, convincing, and thorough <strong class="gold">spec</strong>. This was used to create a working version of the feature. It compiled. Checked all the boxes. Tested well. Green light.</p>
+    <p class="sub">Then an agent specially created to write Lean4 proofs built a proof based on that spec. But that’s only the first step.</p>
   </section>
 
   <!-- 10 — How we found it -->
   <section class="slide">
     <p class="kicker">How it was caught</p>
     <h2>LLM reasoning vs Math</h2>
-    <p>Our spec combined two checks meant to be different — <em>“is the file there?”</em> and <em>“does it load cleanly?”</em> A Disproval Agent attacked this claim through the Lean4 Proof as a substrate.</p>
-    <p>The Lean4 Adversary Agent discovered the spec was quietly advising two checks which were <strong>the same check</strong>. So “both must hold” really meant “one must hold — twice.” The Lean4 Adversary Agent <strong>couldn’t even write the proof down</strong> without the theorem prover flagging it.</p>
+    <p>Our spec combined two checks meant to be different — <em>“is the file there?”</em> and <em>“does it load cleanly?”</em> A Disproval Agent attacked this claim using a Lean4 Proof as a substrate.</p>
+    <p>The <span class="gold">Lean4 Adversary Agent</span> discovered the spec was quietly advising two checks which were <strong>the same check</strong>. So “both must hold” really meant “one must hold.” The Lean4 Adversary Agent <strong>couldn’t even write the proof down</strong> without the theorem prover flagging it.</p>
     <div class="callout"><span class="eq">Lean couldn't be coerced into admitting that two checks were satisfying different things. </span> &nbsp;they were not.</div>
     <p class="sub" style="margin-top:1.4rem">Lean did its job flawlessly — it faithfully proved a statement that said nothing. <strong>The bug wasn’t in the proof. It was in what we asked it to prove.</strong></p>
   </section>
@@ -258,9 +258,9 @@
   <section class="slide">
     <p class="kicker">Why we trust the verdict</p>
     <h2>It refused to fake it — twice, independently.</h2>
-    <p>Two Agent Experts reached the “this proves nothing” conclusion <strong>separately</strong>, from different angles — the convergence-by-independence that made the black-hole image trustworthy.</p>
-    <p>And when one Agent Expert couldn’t honestly close the proof, it <strong>said so</strong> — it refused the cheap trick that would turn the light green without earning it, reported “I can’t prove this, and here’s exactly why,” and handed the problem back.</p>
-    <p class="sub">The orchestrator never overrode that. The <span class="gold">one rule</span> held: the script kept score; the Agent Experts made every call.</p>
+    <p>Two Agent Experts reached the “this proves nothing” conclusion <strong>separately</strong>, from different angles. The same independent convergence that made the image of Saggitarius trustworthy.</p>
+    <p>One Agent Expert couldn’t honestly close the proof and was forced to <strong>say so</strong>.</p>
+    <p class="sub">The workflow never commited <span class="gold">Orbital Inversion</span>. The Agent Experts did the work. The <span class="gold">proofs</span> forced the judgement calls.</p>
   </section>
 
   <!-- 13 — SCORECARD -->
@@ -269,7 +269,7 @@
     <h2>Right about the direction. Wrong about the depth.</h2>
     <div class="twocol">
       <div>
-        <h3>What the orchestrator predicted</h3>
+        <h3>What the workflow predicted</h3>
         <p>The shape of the run. That the guarantee would need strengthening. The general arc of every stage.</p>
       </div>
       <div>
@@ -294,7 +294,7 @@
     <div class="title-wrap">
       <p class="kicker">Where this stands</p>
       <h2>An honest experiment — and a clear result.</h2>
-      <p class="lede">It’s early, and deliberately small in scope. But the test it was built to answer came back unambiguous: the machine found, in a verifiable way, what a careful human missed.</p>
+      <p class="lede">It’s early, and deliberately small in scope. But the test it was built to answer came back unambiguous: the machine found, in a verifiable way, what a frontier LLM missed.</p>
       <div class="rule"></div>
       <p class="title-meta">SAGITTARIUS · independent · adversarial · proven</p>
     </div>
