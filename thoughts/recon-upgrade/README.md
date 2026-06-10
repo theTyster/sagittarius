@@ -24,7 +24,7 @@ proven 8-stage loop can start mid-chain against a maintained repo:
 
 | File | What it is | Compared against |
 |---|---|---|
-| `sagittarius-2.realized.mjs` | **Deliverable A** — Prime + recon, free-handed. The runtime change. | `git diff realized/sagittarius.realized.mjs recon-upgrade/sagittarius-2.realized.mjs` |
+| `sagittarius-2.realized.mjs` | **Deliverable A** — Prime + recon, free-handed. The runtime change. | `git diff realized/sagittarius.realized.mjs thoughts/recon-upgrade/sagittarius-2.realized.mjs` |
 | `PREDICTION.md` | **Deliverable B** — my stab at the *entire* dogfood output: the spec amendments (D-14/C-7/I-8), then existing-world → hypothesis → target-world → Lean I-8 → tests → adherence → explain, plus an honest list of where I expect the workflow to *diverge* from this guess. | the real artifacts the run lands in `self-spec/` |
 
 ## How to read the result later

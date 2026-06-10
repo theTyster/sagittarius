@@ -6,6 +6,14 @@
 .env
 *.local.*
 
+# This repo TRACKS thoughts/ as a working area (notes, the discovery deck, the
+# recon-upgrade experiment, in-progress recon dogfood artifacts). The operator's
+# global ~/.gitignore_global ignores `thoughts/*` by convention; these two lines
+# override that for this repo. Build artifacts inside thoughts/ stay ignored —
+# the .lake/ / *.olean rules below are matched last, so they still win.
+!thoughts/
+!thoughts/**
+
 # Lean build artifacts (regenerable; multi-GB — never commit)
 .lake/
 lake-packages/

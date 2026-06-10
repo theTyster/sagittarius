@@ -255,3 +255,87 @@ All 7 Lean invariants are non-vacuous + adversary-survive over a non-degenerate 
 Workflow no longer rests on hollow proofs. (Behavioral test layer confirmed non-vacuous in F-7; C-2
 regression-guarded in F-6.) The F-11 `.pl` reconciliation is now DONE (2026-06-01) — the full self-spec
 Prolog chain matches the rebuilt Lean. Remaining before a real kimmy run: operator/MC go on a concrete ticket.
+
+## First real-ticket run findings (2026-06-03)
+
+The realized Workflow's first run against a real ticket (mind-map-dd Backend #2701, invoice inline-logo
+embed + asserting test; deployed as `mind-map-dd/.claude/workflows/sagittarius-2701.mjs`). Provenance
+**verified**: the deployed script diffs from `realized/sagittarius.realized.mjs` in exactly 3 hunks, all
+brief-text on the intended parameterization seam (`meta.name`; a `RUN_INPUTS` ticket-facts block;
+`withContext` absolute-path rewrite). **All mechanics byte-identical to the canonical proven copies.**
+Evidence: session `bf5624bb…` under the mind-map-dd project dir, `workflows/wf_85c62c48-b1b.json` +
+`subagents/workflows/wf_85c62c48-b1b/journal.jsonl`; artifacts at `wt/BE/2701/thoughts/`.
+
+### F-12 — the realization admits steps OUTSIDE the proven Step relation: livelock on canonical mechanics (refinement gap, NOT an Orbital Inversion)
+
+**Run 1 (22.8 min, 7 agents, 465k tokens): the design worked.** kb-validator found 11 tier-2 orphan
+refs; one loopback honored (D-7); agent-of-truth then *claimed* "validated through all five tiers" but
+the independent kb-validator found 2 remaining orphans → `loop_limit_exhausted` hard stop → `explain`
+still ran (I-1/D-8 honored). **The builder/validator separation caught specialist over-claiming twice
+on real work** — the bias-isolation thesis validated outside the dogfood.
+
+**Run 2 (relaunched after a RUN_INPUTS re-entry-note text edit): LIVELOCK** — a close_world ↔ decompose
+orbit (~6 agents / ~100k+ tokens per ~12-min cycle, 36 agents by cycle 5), terminable only by the
+host's 1000-agent cap. Mechanism, all on canonical mechanics:
+
+1. **Unvalidated agent-authored `targetStage`.** `foldDigest` uses `r.upstreamStage` verbatim
+   (`lib/digest-fold.js:75`); specialists emitted *skill* names (`realize-specification`), agent names,
+   even claim ids. `stageIndex()` → **-1** → `cursor = -1` → `STAGE_SEQUENCE[-1]` is a **phantom stage**
+   that runs as a clean no-op digest → advance → cursor 0 → full re-run from close_world. Also drives
+   `widenScope(scope, -1)` (outside I-4's modeled domain). D-4's "backward only" exists as comment +
+   proof, never as a guard (`sagittarius.workflow.js:135-143` and the realized port assign
+   `cursor = targetIdx` unchecked).
+2. **Loop limit defeated by freeform `gapClass`.** `withinLoopLimit` keys on agent-authored
+   `(gapClass, targetStage)` strings; run 2 re-spelled the same semantic gap fresh each cycle
+   (`missing_inline_logo_test` / `missing_logo_inline_assertion_test` / `missing_logo_inline_test` /
+   `missing_inline_logo_assertion_test`) — each spelling mints a fresh budget. **Smoking gun:**
+   `RECOVERY_KEYS` — the I-3 model's finite 4-key pool — is declared (`sagittarius.workflow.js:49`,
+   `realized/sagittarius.realized.mjs:516`) and used by the *tests* to compute budgetSum = 4
+   (`self-spec/tests/sagittarius.proof_properties.test.js:353`), but **never consulted by the budget
+   accounting**. The proof's measure and the code's accounting are different objects sharing a name.
+3. **Forward gaps honored as loopbacks.** agent-of-questions reported "no test asserts X *yet*" — work
+   stage 6 (realize) is *supposed to create* — as a gap targeting a downstream stage. No mechanical
+   guard distinguishes upstream deficiency from not-yet-done pipeline work.
+4. **Abstention evaporates at the fold.** The #2701 proposition is multi-claim (descriptive embed-state
+   + prescriptive test-exists); the sharpener abstained **5×** asking for a split, but
+   `SPECIALIST_RESULT_JSONSCHEMA` permits `status:"abstained"` with `routing:"advance"`, so decompose
+   proceeded every cycle and the clarification never surfaced. (Interacts with C-6: a background run
+   *can't* ask — but the current shape silently discards the question instead of halting with it.)
+5. **The disprove floor is near-vacuous pre-artifact.** The mandatory attempt runs before close_world,
+   so both adversaries attacked the `gate_target_descriptor` sentinel (run 1) or trivially "refuted"
+   the not-yet-realized prescriptive conjunct (run 2). I-6 is satisfied; the *intent* of the floor is not.
+
+**The headline.** `I3Termination.lean` is true and was not violated: it proves no infinite chain of
+*model* Steps (State = budget ≤ 4 × distance ≤ 7, exactly two moves). The livelock is an infinite chain
+of steps **outside** the proven relation — the realization never enforces the model's premises
+(stage-token validity, finite budget-key domain, backward-only motion) at the digest boundary. This is
+a **refinement gap**, not an Orbital Inversion (the substrate computed no verdict; it mechanically
+honored malformed control data). The re-stated I-3 proved the model admits no measure-preserving step
+(`i3_identity_step_is_rejected`); the realization manufactured one at the model's level of abstraction
+(loopback-to-phantom + advance + budget re-mint ≈ a no-op cycle).
+
+**Record corrections this finding forces:**
+- `docs/design-spec.md` D-7 "*guarantees termination, prevents oscillation*" — **falsified as stated**
+  for the realization; holds only under the unenforced well-formedness premises. (Annotated in place.)
+- `docs/decisions.md` D-7 / I-3 status lines — caveated. (Done alongside this entry.)
+- **F-6 interplay:** the C-2 re-attack correctly demanded `gapClass` be content-agnostic and never
+  identity-derived — and that fix is precisely what left the string freeform/unbounded. The two
+  constraints are compatible (a fixed *enum* is both content-agnostic and finite) but the record only
+  captured the C-2 half.
+
+**Candidate remediations (all pure mechanics, C-2-safe — premises become guards):** *(numbering
+continues after the recon branch's C-7/I-8)*
+- **C-8 (candidate) — digest-boundary well-formedness:** `gap.targetStage ∈ STAGE_SEQUENCE` else
+  structural halt (akin to `artifact_gate_unsatisfied`); schema forbids `abstained`+`advance`.
+- **I-9 (candidate) — backward-only loopback:** `targetIdx < cursor` enforced; phantom stages and
+  forward-gap loopbacks become unrepresentable.
+- **I-3 premise repair:** key the loop budget on a finite domain (`targetStage` restricted to
+  `RECOVERY_KEYS`, and/or `gapClass` as a fixed enum in the schemas), so budgetSum ≤ #keys × LOOP_LIMIT
+  holds **by construction**; then re-state I-3 with the guards as constructors and add lock-tests
+  mirroring the F-6 guard suite.
+- **D-15/D-16 (candidates, operator decisions):** abstention semantics under C-6 (hard-stop with the
+  question surfaced via explain, e.g. `clarification_required`); disprove-floor target when no
+  artifact exists yet.
+
+At time of writing run 2 was still cycling; recommended action was to stop it (it cannot pass decompose:
+the same multi-claim proposition re-abstains and the same missing-test gap re-emits every cycle).

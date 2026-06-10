@@ -110,7 +110,7 @@ The dogfood didn't just say "vacuous" — it handed back a buildable fix plan:
 - **Additive, unproven:** `self-spec/lean/Proofs/I8ReconSoundness.lean` (3 `sorry`
   stubs) + a one-line import in `self-spec/lean/Proofs.lean`. `lake build` is green
   (stubs type-check; the proofs are *not* closed). Recommendation: move this stub
-  file out of the proven tree (into `recon-upgrade/`) until the (A)/(B) re-encoding
+  file out of the proven tree (into `thoughts/recon-upgrade/`) until the (A)/(B) re-encoding
   closes it, so "the proven tree is all-proven" stays true.
 - `run-artifacts/`: 7 files (5 `.pl` strict-load; 1 validation JSON showing the
   tier-2 failure; 1 `.lean` vacuity-refutation record).
