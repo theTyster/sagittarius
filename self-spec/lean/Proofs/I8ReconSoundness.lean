@@ -5,7 +5,7 @@ import Proofs.TargetWorld
 # Proofs/I8ReconSoundness.lean — I-8 recon-primer formal properties
 
 Theorem stubs for the three `formal_property/3` rows in
-`recon-upgrade/run-artifacts/target-world-recon.pl`:
+`thoughts/recon-upgrade/run-artifacts/target-world-recon.pl`:
 
   * `p_recon_i8_seed_soundness`      — I-8 abstract weak form
   * `p_recon_clamp_wellformedstart`  — planRecon yields WellFormedStart (vacuity-independent)

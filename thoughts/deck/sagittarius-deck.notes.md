@@ -5,9 +5,9 @@ reading level for a lay audience; this file carries the precise claims, artifact
 names, verdicts, and theorem statements behind each slide — plus the honesty notes
 that don't belong in a public deck but do belong in the record.
 
-Source of truth for the run: `recon-upgrade/RESULT.md` (scored comparison),
-`recon-upgrade/PREDICTION.md` (the sealed bet), and the artifacts under
-`recon-upgrade/run-artifacts/`. Dogfood run = Workflow `recon-i8-dogfood`, task
+Source of truth for the run: `thoughts/recon-upgrade/RESULT.md` (scored comparison),
+`thoughts/recon-upgrade/PREDICTION.md` (the sealed bet), and the artifacts under
+`thoughts/recon-upgrade/run-artifacts/`. Dogfood run = Workflow `recon-i8-dogfood`, task
 `w7ze22lys`, 10 agents, ~607k subagent tokens, ~56 min, proof-half only.
 
 ---
@@ -152,9 +152,9 @@ would have passed it.
   vacuity priming. The convergence of a primed and an un-primed agent is the signal.
 - **Proven-tree hygiene.** The run left `self-spec/lean/Proofs/I8ReconSoundness.lean`
   (3 `sorry` stubs, unproven) inside the proven tree + a one-line import in
-  `self-spec/lean/Proofs/Proofs.lean`. Baseline integrity confirmed
+  `self-spec/lean/Proofs.lean`. Baseline integrity confirmed
   (`target-world.pl` → 7/7 consistent; the 7 existing proofs untouched). Recommend
-  moving the stub out to `recon-upgrade/` until the (A)/(B) re-encoding closes it.
+  moving the stub out to `thoughts/recon-upgrade/` until the (A)/(B) re-encoding closes it.
 - **Commit trail.** Checkpoint on branch `experiment/recon-primer-i8`:
   `8eb965c` (foundation), `2c4fd5f` (dogfood), `7248635` (deck baseline). `main`
   untouched at `677f836`. Nothing pushed.

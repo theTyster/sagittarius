@@ -6,7 +6,7 @@
 //
 // THIS IS "DECISION 2 / OPTION B". A Workflow `agent()` leaf cannot spawn its
 // own sub-agents (depth-1 nesting cap, confirmed false-for-nested-Agent in the
-// dogfood — see experiments/pipeline-workflow/FINDINGS.md F-2 / spec A-1). So the
+// dogfood — see thoughts/FINDINGS.md F-2 / spec A-1). So the
 // deterministic Workflow body calls each stage's NAMED specialist sub-agents
 // DIRECTLY (no `shifting:<skill>` indirection) and reproduces the per-stage
 // orchestration logic that the skills would otherwise own.

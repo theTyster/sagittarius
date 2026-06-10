@@ -31,7 +31,7 @@ The digest shape is pinned in [`../schemas/stage-digest.schema.js`](../schemas/s
 
 A cursor walks the stages. It **advances by default**, **moves backward only to honor a routed gap** (a loopback), and **halts** only on one of three forced conditions: loop-limit exceeded, budget exhausted, or a core obligation refuted. Recoverable gaps are honored automatically (within the loop limit) and logged to an auditable **decision trail** — a background run can't pause to ask a human (C-6).
 
-## The nine mechanics (`lib/`)
+## The ten mechanics (`lib/`)
 
 Each is pure and separately tested, so the control flow can be TDD'd without invoking real agents (D-11):
 
@@ -46,6 +46,7 @@ Each is pure and separately tested, so the control flow can be TDD'd without inv
 | `digest-router.js` | branch on agent-emitted digest fields only | **C-2** |
 | `digest-fold.js` | pure digest assembler; verdict carried verbatim or null | **C-2** (F-6 guard) |
 | `decision-trail.js` | the complete, auditable trail | §9.11 |
+| `recon-plan.js` | the recon/primer seed fold — `WellFormedStart` (a started run's `produced` set is a complete contiguous prefix) + `frozenPrefix` guard | **I-8** — recon soundness; spec'd & unit-tested (`tests/recon_plan.test.js`), **not yet wired into the proven loop** (the recon branch; see `../thoughts/recon-upgrade/`) |
 
 The orchestration loop ([`../sagittarius.workflow.js`](../sagittarius.workflow.js)) wires these together and receives its **effectful collaborators by injection** — the agent surface, the clock, and the random source are passed in, never reached for. That is what lets tests substitute fakes and what lets the design *prove* no control decision depends on a clock or a coin flip (C-1 / determinism).
 
@@ -72,7 +73,7 @@ Sagittarius does not contain the specialists; it *calls* them (they ship in the 
 
 ## Bias defense (the name)
 
-The Event Horizon Telescope imaged Sagittarius A\* by having **independent, isolated teams** reduce the data separately and converge only at the end — so no single team's assumptions could quietly shape the result. Sagittarius applies the same defense: every sub-agent is **role-briefed with minimal context**, and every disprove attempt fans out to **≥2 perspective-diverse adversaries** with **≥1 attempt guaranteed per run** (D-6 / C-5). The mandatory adversarial floor is not ceremony — it is what caught the vacuous termination proof (I-3) that every routine check passed clean (see [`../FINDINGS.md`](../FINDINGS.md) F-3, and `explanation.md`'s "Defect 3").
+The Event Horizon Telescope imaged Sagittarius A\* by having **independent, isolated teams** reduce the data separately and converge only at the end — so no single team's assumptions could quietly shape the result. Sagittarius applies the same defense: every sub-agent is **role-briefed with minimal context**, and every disprove attempt fans out to **≥2 perspective-diverse adversaries** with **≥1 attempt guaranteed per run** (D-6 / C-5). The mandatory adversarial floor is not ceremony — it is what caught the vacuous termination proof (I-3) that every routine check passed clean (see [`../thoughts/FINDINGS.md`](../thoughts/FINDINGS.md) F-3, and `explanation.md`'s "Defect 3").
 
 ## Parallelism (D-9)
 

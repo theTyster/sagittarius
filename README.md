@@ -13,9 +13,9 @@ It is named after **Sagittarius A\***: the [Event Horizon Telescope](https://eve
 | Formal gate (Lean) | ✅ **7/7 invariants proven non-vacuous + adversary-survive** over a non-degenerate model (kimmy gate satisfied) |
 | Prolog ↔ Lean | ✅ **F-11 reconciled** — the model + both dumps match the rebuilt Lean (the inaugural commit of this repo) |
 | Behavioral tests | ✅ **24/24** proof-property tests + **8/8** C-2 regression-guard tests green |
-| Maturity | **Experiment, pre-kimmy.** Not yet pointed at a real ticket; not promoted to the canonical pipeline (D-13). |
+| Maturity | **Experiment.** kimmy gate satisfied; **first real-ticket run done** (#2701) — surfaced **F-12** (a refinement-gap livelock, *not* an Orbital Inversion). Not promoted to the canonical pipeline (D-13). |
 
-The one open decision is *which* kimmy ticket to point it at. See [`FINDINGS.md`](FINDINGS.md) (F-1…F-11) for the full audit trail, including the three real defects the pipeline's own gates caught and fixed.
+See [`thoughts/FINDINGS.md`](thoughts/FINDINGS.md) (F-1…F-12) for the full audit trail — the three defects the dogfood's own gates caught and fixed, the pre-kimmy re-statement, the F-11 Prolog↔Lean reconciliation, and F-12 from the first real-ticket run. The open work is hardening the **digest-boundary guards** (C-8 / I-9 candidates) that real run showed the proofs assume but don't yet enforce.
 
 ## The line it holds
 
@@ -24,22 +24,27 @@ There is one rule the whole design exists to protect: **the substrate does the b
 ## Repo map
 
 ```
-sagittarius.workflow.js   the deterministic orchestration loop (branches only on agent digests)
+sagittarius.workflow.js        the deterministic orchestration loop (branches only on agent digests)
 realized/                      sagittarius.realized.mjs — the Workflow-tool port (specialists called directly)
-lib/                           nine pure, separately-tested mechanics:
+lib/                           ten pure, separately-tested mechanics:
                                  stage-order, scope-set, termination-measure, loop-limit,
-                                 gap-batching, disprove-reserve, digest-router, digest-fold, decision-trail
+                                 gap-batching, disprove-reserve, digest-router, digest-fold, decision-trail,
+                                 + recon-plan (I-8 recon/primer seed — spec'd & unit-tested, not yet wired in)
 schemas/                       stage-digest.schema.js — the control-plane data shape (D-3)
 self-spec/                     the dogfood artifact chain (the pipeline run on THIS repo's own design):
                                  existing-world.pl  hypothesis.pl  target-world.pl  model_results.pl
                                  lean/Proofs/*.lean  lean_proof_results.pl  lean_disproofs/*.lean
                                  tests/*.js  adherence_*.{pl,md}  explanation.md
+tests/                         recon_plan.test.js — unit test for the recon mechanic (kept out of
+                                 self-spec/tests/ so its 24+8 headline counts stay intact)
+.claude/agents/                recon.md — the recon agent (resolves the per-artifact path map + window)
 docs/                          design-spec.md, architecture.md, decisions.md, glossary.md, index.md
-FINDINGS.md                    F-1…F-11 — the dogfood + re-statement audit trail
-HANDOFF.md                     historical: how the dogfood run was launched (orbital-rooted)
+thoughts/                      tracked working area (NOT a gate): FINDINGS.md, HANDOFF.md, the discovery
+                                 deck/, the recon-upgrade/ experiment, in-progress recon dogfood artifacts
+                                 — see thoughts/README.md
 ```
 
-> **Path note.** `self-spec/` and the historical docs (`FINDINGS.md`, `HANDOFF.md`, `self-spec/explanation.md`) were authored when this code lived at `orbital/experiments/pipeline-workflow/`. Where they cite `thoughts/X` read `self-spec/X`; where they cite `experiments/pipeline-workflow/X` read `X` (repo root); the design spec they cite is [`docs/design-spec.md`](docs/design-spec.md). See [`docs/index.md`](docs/index.md).
+> **Path note — two different `thoughts/`.** This repo now tracks a [`thoughts/`](thoughts/) working area (notes, the deck, the recon-upgrade experiment, WIP). Separately, the **historical** docs — `thoughts/FINDINGS.md`, `thoughts/HANDOFF.md`, `docs/design-spec.md`, and everything under `self-spec/` — were authored when this code lived at `orbital/experiments/pipeline-workflow/`. Where they cite `thoughts/X` read **`self-spec/X`** (their `thoughts/` is what became `self-spec/`, *not* this repo's `thoughts/` directory); where they cite `experiments/pipeline-workflow/X` read `X` (repo root); the design spec they cite is [`docs/design-spec.md`](docs/design-spec.md). See [`docs/index.md`](docs/index.md).
 
 ## Verify it
 

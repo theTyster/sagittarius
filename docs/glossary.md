@@ -9,7 +9,7 @@ This project: the orbital-shifting pipeline realized as one deterministic Workfl
 The parent project ([github.com/theTyster/orbital](https://github.com/theTyster/orbital)) and its formal-reasoning pipeline of seven staged primitives plus an `explain` closer. Sagittarius was split out of orbital's `experiments/pipeline-workflow/`. The specialist agents Sagittarius calls still ship in orbital's plugins.
 
 ### kimmy
-The intended **first real target** for the Workflow — a feature in a separate project (`~/Projects/<company>/kimmy`). "The kimmy gate" is the bar the dogfood had to clear before being pointed at real work: all seven invariants proven non-vacuous and adversary-surviving over a non-degenerate model. The gate is satisfied; *which* kimmy ticket to run is the one open decision.
+The intended **first real target** for the Workflow — a feature in a separate project (`~/Projects/<company>/kimmy`). "The kimmy gate" is the bar the dogfood had to clear before being pointed at real work: all seven invariants proven non-vacuous and adversary-surviving over a non-degenerate model. The gate is satisfied, and the realized Workflow has since had its **first real-ticket run** (#2701) — which validated the bias-isolation thesis and surfaced F-12 (see [`../thoughts/FINDINGS.md`](../thoughts/FINDINGS.md)).
 
 ### dogfood
 Running the pipeline on **its own design document** — using orbital-shifting to build and verify the Workflow that re-implements orbital-shifting. Everything under `self-spec/` is the dogfood's artifact chain.
@@ -26,8 +26,8 @@ The central claim, decomposed into individually-checkable **claims** (`self-spec
 ### target-world
 The model of the world in which the proposition holds (`self-spec/target-world.pl`): the existing-world facts minus the counterfactual facts, plus the prescriptive obligations and the materialized operational substrate each invariant is proven against.
 
-### invariant (I-1…I-7)
-A safety property proven in Lean. See [`decisions.md`](decisions.md). The proofs concern **control flow**, not the quality of the work the Workflow drives.
+### invariant (I-1…I-7, + I-8)
+A safety property proven in Lean. See [`decisions.md`](decisions.md). The proofs concern **control flow**, not the quality of the work the Workflow drives. (I-8 — recon soundness — is spec'd for the recon branch and unit-tested, but not yet wired into the proven loop; see *recon / primer* below.)
 
 ### counterfactual (CF) / necessity lemma
 A **CF** is a forbidden fact whose *absence* an invariant relies on. A **necessity lemma** re-introduces that fact in a parallel CF predicate and proves the property **fails** once it's restored — showing the removal is *load-bearing*, not idle. Example: `ReachesExplainCF` omits the hard-stop run `r1`; the I-1 necessity lemma shows that without explain-on-hard-stop, a terminating run fails to reach explain.
@@ -53,8 +53,11 @@ A backward cursor move to **honor a routed gap** — re-running an earlier stage
 ### disprove / adversary
 The mandatory adversarial challenge: ≥1 attempt per run, each fanning out to ≥2 **perspective-diverse** adversaries in parallel (D-6 / C-5). Adversaries try to *refute* a claim or *inhabit* a theorem's negation. This floor is what gives the verification teeth.
 
+### recon / primer (I-8)
+The **Orbital-Inversion-safe front door**: a recon agent ([`../.claude/agents/recon.md`](../.claude/agents/recon.md)) resolves which pipeline artifacts already exist in a maintained repo and proposes a `{from, to}` window; the pure [`../lib/recon-plan.js`](../lib/recon-plan.js) folds that into a **`WellFormedStart`** seed — enforcing **I-8 (recon soundness):** a started run's `produced` set is always a complete contiguous prefix, with a `frozenPrefix` guard so an attach run never regenerates an adopted artifact. Lets the proven loop begin mid-chain instead of cold at `(0, ∅)`. Spec'd (D-14 / C-7 / I-8) and unit-tested, not yet wired into the proven loop (the [`../thoughts/recon-upgrade/`](../thoughts/recon-upgrade/) experiment).
+
 ### F-N (findings)
-Numbered findings in [`../FINDINGS.md`](../FINDINGS.md): F-1…F-5 from the dogfood, F-6…F-11 from the pre-kimmy re-statement. F-11 — the Prolog↔Lean I-1 reconciliation — is this repo's inaugural commit.
+Numbered findings in [`../thoughts/FINDINGS.md`](../thoughts/FINDINGS.md): F-1…F-5 from the dogfood, F-6…F-11 from the pre-kimmy re-statement, F-12 from the first real-ticket run (#2701). F-11 — the Prolog↔Lean I-1 reconciliation — is this repo's inaugural commit.
 
 ### the substrate
 orbital's `orchestration-substrate.md` contract (bias-defense table, gate-target descriptors, `upstream_gap` reverse channel). It is **canonical** when docs disagree. The digest schema ports its gate-target descriptors (forward) and gap facts (reverse) into the Workflow's control plane.
