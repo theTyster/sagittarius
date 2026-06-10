@@ -107,6 +107,11 @@ not a smart agent — separation, not self-orchestration.
   bounded above. *Why:* a guaranteed adversarial floor + bias defense through diversity.
 - **D-7 — `LOOP_LIMIT = 1`** recovery per gap-class-per-stage. *Why:* matches the substrate
   policy, guarantees termination, prevents oscillation. Tunable upward for the kimmy run.
+  *(F-12 correction, 2026-06-03: "guarantees termination, prevents oscillation" holds only under two
+  premises the realization does not yet enforce — gap descriptors carry valid stage tokens, and the
+  gap-class vocabulary is finite. The first real-ticket run livelocked on canonical mechanics by
+  violating both: agents re-spelled the same gap class each cycle and emitted skill names as
+  `targetStage`. Guards pending — see FINDINGS F-12, C-8/I-9 candidates.)*
 - **D-8 — Explain always runs**, post-loop and unconditional, on every path. *Why:* every run is
   reviewable; also stated as I-1.
 - **D-9 — Parallelism map.** Parallel: `prove-invariants` (per theorem), `instantiate-properties`
@@ -197,7 +202,7 @@ These are the `formal_property` sketches §10 hands to `prove-invariants`.
 
 - **A-1 (de-risk first) — skill-from-subagent.** A `general-purpose` workflow subagent can invoke
   a `shifting:` skill and let it drive. *If false:* call each stage's named sub-agents directly and
-  reproduce the skill's orchestration in the substrate (more work; recorded in `FINDINGS.md`).
+  reproduce the skill's orchestration in the substrate (more work; recorded in `thoughts/FINDINGS.md`).
 - **A-2 (de-risk first) — sandbox import.** The Workflow sandbox can import a sibling module.
   *If false:* inline the mechanics into the shim and add a sync-check that asserts the copy matches
   the source.
