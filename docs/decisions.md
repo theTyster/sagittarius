@@ -1,6 +1,8 @@
 # Decision log
 
-The decisions, constraints, invariants, and requirements that define Sagittarius — distilled from [`design-spec.md`](design-spec.md) and annotated with **current status** drawn from [`../FINDINGS.md`](../FINDINGS.md). The spec is canonical; this page is the navigable index with outcomes.
+The decisions, constraints, invariants, and requirements that define Sagittarius — distilled from [`design-spec.md`](design-spec.md) and annotated with **current status** drawn from [`../thoughts/FINDINGS.md`](../thoughts/FINDINGS.md). The spec is canonical; this page is the navigable index with outcomes.
+
+> **Recon branch (D-14 / C-7 / I-8).** A later spec amendment adds a recon/primer front door (so the proven loop can start mid-chain against a maintained repo) under `D-14`/`C-7`/`I-8`. It lives in [`design-spec.md`](design-spec.md) and is realized as the pure [`../lib/recon-plan.js`](../lib/recon-plan.js) mechanic (unit-tested), but is **not yet wired into the proven loop** — so the tables below still index the proven D-1…D-13 / I-1…I-7 core. See [`../thoughts/recon-upgrade/`](../thoughts/recon-upgrade/) for the self-upgrade experiment.
 
 > The spec deliberately encodes *decisions, not code* — "code changes; decisions about the code should be firmer." That is also why the design could be close-worlded and proven directly (D-12).
 
@@ -22,7 +24,7 @@ Falsified by: any I-1…I-7 failing; any control decision depending on wall-cloc
 | D-4 | **Movable-cursor control flow** — advance by default; backward only to honor a routed gap. | ✅ feeds I-3 |
 | D-5 | **Auto-recover-and-log; hard-stop only when forced** (loop-limit / budget / core-obligation refuted). | ✅ `decision-trail.js` |
 | D-6 | **Disprove policy** — ≥1 attempt/run, ≥2 perspective-diverse adversaries/attempt, bounded above. | ✅ I-5/I-6/I-7 |
-| D-7 | **`LOOP_LIMIT = 1`** recovery per gap-class-per-stage. | ✅ tunable upward for kimmy |
+| D-7 | **`LOOP_LIMIT = 1`** recovery per gap-class-per-stage. | ⚠️ **F-12: the no-oscillation claim is falsified in the realization** — the budget keys on agent-authored freeform strings (fresh spellings mint fresh budgets), so the finiteness premise is unenforced; guard pending (C-8/I-9 candidates). Tunable upward for kimmy |
 | D-8 | **Explain always runs**, post-loop, unconditional, on every path. | ✅ = I-1; **the F-11 reconciliation restored Prolog↔Lean agreement on this** |
 | D-9 | **Parallelism map** — prove/instantiate/model parallel; `realize` serial by necessity. | ✅ (F-8: don't trust worktree isolation for parallel mutators) |
 | D-10 | **Lean bounding is deterministic** — per-theorem `maxHeartbeats`(+`maxRecDepth`), wall-clock only as infra backstop; Mathlib prebuilt; concurrency sub-capped. | ✅ validated for real by the dogfood (8259-job build) |
@@ -47,13 +49,13 @@ All seven are **proven axiom-free in Lean** and **survive an adversary** over a 
 |---|---|---|
 | I-1 | **explain-always-runs** — every halting path reaches `explain`. | ✅ total `ReachesExplain`; non-vacuity via the `explain_skipped_on_hard_stop` necessity lemma + the structural terminal half. **Prolog reconciled to this in F-11.** |
 | I-2 | **artifact-gating** — no stage runs before its required upstream artifact exists. | ✅ (by-fiat encoding caveat: the 7 edges are transcribed, not behaviorally witnessed) |
-| I-3 | **termination** — `M = (Σ remaining recovery budget, endIdx − cursor)` strictly decreases under the concrete step relation. | ✅ **re-proven after the adversary refuted a vacuous first form** (the headline defect; F-3) |
+| I-3 | **termination** — `M = (Σ remaining recovery budget, endIdx − cursor)` strictly decreases under the concrete step relation. | ✅ **re-proven after the adversary refuted a vacuous first form** (the headline defect; F-3). ⚠️ **F-12: proven over a finite 4-key budget pool the realization never enforces** — `withinLoopLimit` keys on freeform agent strings and never consults `RECOVERY_KEYS`; a real-ticket run livelocked via steps outside the proven Step relation |
 | I-4 | **scope-only-widens** — startIdx non-increasing, endIdx fixed. | ✅ necessity lemma over `scope_narrows_mid_run` |
 | I-5 | **disprove-bounded-above** — spend ≥ reserve, target ≠ own output. | ✅ reserve half re-stated existential → universal; two necessity lemmas |
 | I-6 | **disprove-runs-at-least-once** — ≥1 attempt per run. | ✅ necessity lemma over `run_performs_zero_attempts` |
 | I-7 | **disprove-fans-out** — ≥2 adversaries in parallel per attempt. | ✅ (the `x ≠ y` clause genuinely constrains) |
 
-**Honest residual caveats** (the boundary of what the formal layer establishes): the proofs guarantee **control flow, not work quality**; each necessity lemma's teeth rest on a counterfactual predicate authored by constructor-omission (a standard CWA-augmentation caveat); I-2 is a by-fiat transcription; liveness is verified over exactly two outcome classes (complete / hard-stop). See `explanation.md` "What to check before kimmy."
+**Honest residual caveats** (the boundary of what the formal layer establishes): the proofs guarantee **control flow, not work quality**; each necessity lemma's teeth rest on a counterfactual predicate authored by constructor-omission (a standard CWA-augmentation caveat); I-2 is a by-fiat transcription; liveness is verified over exactly two outcome classes (complete / hard-stop); and — **materialized as F-12 on the first real-ticket run** — the proofs' digest-domain premises (stage-token validity, finite gap-class vocabulary, backward-only motion) are **not enforced as runtime guards**, so a run fed malformed agent-emitted control data walks outside the proven state space (a refinement gap, not an Orbital Inversion). See `explanation.md` "What to check before kimmy."
 
 ## Requirements
 
@@ -66,5 +68,5 @@ All seven are **proven axiom-free in Lean** and **survive an adversary** over a 
 - **A-1 — skill-from-subagent** ("a workflow subagent can invoke a `shifting:` skill and let it drive"): came back **FALSE** in this environment (F-2) — forked skills had no `Agent` tool. Mitigation taken: the realized Workflow calls the named specialists **directly** (Decision B).
 - **A-2 — sandbox sibling import:** not exercised; the realized `.mjs` inlines the mechanics verbatim, sidestepping it.
 - **Risk — close-world fidelity / vacuous theorem:** **materialized and caught** (the I-3 vacuity defect, F-3). The disprove floor is precisely the mitigation that worked.
-- **Risk — the Orbital Inversion (C-2; formerly "inversion smell"):** held; regression-guarded (F-6). A deferred re-attack against the *realized* code is the recommended pre-kimmy step (`explanation.md` §"recommended next step").
+- **Risk — the Orbital Inversion (C-2; formerly "inversion smell"):** held; regression-guarded (F-6). A deferred re-attack against the *realized* code is the recommended pre-kimmy step (`explanation.md` §"recommended next step"). **F-12 sharpened this risk's scope:** the first real-ticket run found no Inversion — but it found the adjacent failure the C-2-framed re-attack would have missed: the substrate honoring *malformed* agent-emitted control data (unvalidated `targetStage`, unbounded `gapClass`, abstain-folded-as-advance). The re-attack must cover the **digest boundary**, not just verdict-derivation.
 - **Risk — Lean parallel memory:** not stressed (proofs small against prebuilt Mathlib).
