@@ -325,17 +325,59 @@ honored malformed control data). The re-stated I-3 proved the model admits no me
 
 **Candidate remediations (all pure mechanics, C-2-safe — premises become guards):** *(numbering
 continues after the recon branch's C-7/I-8)*
-- **C-8 (candidate) — digest-boundary well-formedness:** `gap.targetStage ∈ STAGE_SEQUENCE` else
-  structural halt (akin to `artifact_gate_unsatisfied`); schema forbids `abstained`+`advance`.
-- **I-9 (candidate) — backward-only loopback:** `targetIdx < cursor` enforced; phantom stages and
-  forward-gap loopbacks become unrepresentable.
-- **I-3 premise repair:** key the loop budget on a finite domain (`targetStage` restricted to
-  `RECOVERY_KEYS`, and/or `gapClass` as a fixed enum in the schemas), so budgetSum ≤ #keys × LOOP_LIMIT
-  holds **by construction**; then re-state I-3 with the guards as constructors and add lock-tests
-  mirroring the F-6 guard suite.
+- **C-8 — digest-boundary well-formedness:** `gap.targetStage ∈ STAGE_SEQUENCE` else
+  structural halt (akin to `artifact_gate_unsatisfied`). ✅ **targetStage half LANDED (Bundle A, F-13).**
+  The `abstained`+`advance` schema-forbid is carved out to a D-15-gated ticket (operator deferred the
+  abstention *response*, 2026-06-10), so it does NOT land in Bundle A.
+- **I-9 — no forward loopback:** ✅ **LANDED (Bundle A, F-13).** **Correction to this candidate's first
+  wording:** the guard rejects a **forward** target (`targetIdx > cursor`), NOT `targetIdx < cursor`.
+  `foldDigest`'s default gap targets the current stage (`targetIdx === cursor`, in-place repair), so a
+  strict `< cursor` would hard-stop the proven `loop_limit_exhausted` path. In-place + strictly-backward
+  stay legal (bounded by `LOOP_LIMIT`); phantom (`-1`) and forward-gap loopbacks are now unrepresentable.
+- **I-3 premise repair (B1/B2, pending):** key the loop budget on a finite domain (`targetStage`
+  restricted to `RECOVERY_KEYS`, and/or `gapClass` as a fixed enum in the schemas), so budgetSum ≤
+  #keys × LOOP_LIMIT holds **by construction**; then re-state I-3 with the guards as constructors and add
+  lock-tests mirroring the F-6 guard suite. Operator domain decision (2026-06-10): the 4 `RECOVERY_KEYS`
+  interior stages, with an off-enum `gapClass`/`targetStage` → structural halt (couples to C-8).
 - **D-15/D-16 (candidates, operator decisions):** abstention semantics under C-6 (hard-stop with the
-  question surfaced via explain, e.g. `clarification_required`); disprove-floor target when no
-  artifact exists yet.
+  question surfaced via explain, e.g. `clarification_required`) — **D-15 deferred to its own ticket
+  (2026-06-10)**; disprove-floor target when no artifact exists yet (D-16, independent — blocks nothing).
 
 At time of writing run 2 was still cycling; recommended action was to stop it (it cannot pass decompose:
 the same multi-claim proposition re-abstains and the same missing-test gap re-emits every cycle).
+
+---
+
+### F-13 — Bundle A LANDED (2026-06-10): the C-8 / I-9 digest-boundary guards
+
+The first two F-12 remediations are realized + lock-tested. Both are pure mechanics at the **single**
+loopback chokepoint (`sagittarius.workflow.js` and its byte-identical mirror
+`realized/sagittarius.realized.mjs`), guarding the `cursor = targetIdx` move *before* `widenScope`:
+
+- **C-8 (targetStage validity):** `stageIndex(gap.targetStage) < 0` → structural hard-stop
+  `digest_boundary_malformed`. Kills F-12 mechanism #1 (a skill/agent/claim name folding to `-1` → a
+  phantom `STAGE_SEQUENCE[-1]` re-run from cold).
+- **I-9 (no forward loopback):** `targetIdx > cursor` → structural hard-stop `forward_loopback`. Kills
+  F-12 mechanism #3 (a "gap" for not-yet-done downstream work honored as a loopback). **In-place
+  (`=== cursor`) and strictly-backward stay legal** — the candidate's `< cursor` wording was wrong (it
+  would break `loop_limit_exhausted`); the loop_limit test uses an in-place repeat-gap.
+
+New `HARD_STOP_REASONS`: `digest_boundary_malformed`, `forward_loopback` — same substrate-mechanical
+family as `loop_limit_exhausted` (pure mechanics, NOT logic verdicts; `routeDigest` still ignores
+`artifactContent`, so the Orbital Inversion / C-2 line holds). Lock-test:
+`tests/digest_boundary_guards.test.js` (7 tests: both guards fire; two **over-tighten** guards prove
+in-place + backward survive; explain still runs once-last on both new halt paths). Kept out of
+`self-spec/tests/` (recon precedent) so the 24+8 headline is unchanged. **Gates:** 7/7 new + 12/12 recon
++ 32/32 self-spec + 7/7 Prolog, all green.
+
+**Verification weight (why Bundle A, not the whole fix).** These are *realization-boundary* guards —
+they enforce the I-3 model's UNENFORCED premises at the digest boundary. They touch **no Lean premise**
+(no `lake build`; the design workflow's adversary confirmed cascade-safe, key on namespace-locality of
+`Proofs.I3`). They are **not themselves Lean-proven invariants** — promoting C-8/I-9 from realization
+guard to proven invariant is part of the I-3 re-statement (B2).
+
+**NOT closed by Bundle A.** The DOMINANT F-12 livelock — mechanism #2, a re-spelled `gapClass` minting a
+fresh `LOOP_LIMIT` budget every cycle (the close_world↔decompose orbit) — is a **backward, in-range**
+loopback, so neither C-8 nor I-9 stops it. That needs the finite-domain budget re-key (I-3-premise / B1)
++ the I-3 Lean re-statement (B2), both gated on the frozen `GAP_CLASSES` enum (operator chose the
+4-`RECOVERY_KEYS` domain, off-enum → halt). Bundle A is the cascade-safe first landing, not the cure.

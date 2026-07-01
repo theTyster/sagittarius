@@ -12,10 +12,10 @@ It is named after **Sagittarius A\***: the [Event Horizon Telescope](https://eve
 |---|---|
 | Formal gate (Lean) | ✅ **7/7 invariants proven non-vacuous + adversary-survive** over a non-degenerate model (kimmy gate satisfied) |
 | Prolog ↔ Lean | ✅ **F-11 reconciled** — the model + both dumps match the rebuilt Lean (the inaugural commit of this repo) |
-| Behavioral tests | ✅ **24/24** proof-property tests + **8/8** C-2 regression-guard tests green |
-| Maturity | **Experiment.** kimmy gate satisfied; **first real-ticket run done** (#2701) — surfaced **F-12** (a refinement-gap livelock, *not* an Orbital Inversion). Not promoted to the canonical pipeline (D-13). |
+| Behavioral tests | ✅ **24/24** proof-property + **8/8** C-2 regression-guard (self-spec) + **7/7** F-13 digest-boundary guard + **12/12** recon (`tests/`), all green |
+| Maturity | **Experiment.** kimmy gate satisfied; **first real-ticket run done** (#2701) — surfaced **F-12** (a refinement-gap livelock, *not* an Orbital Inversion). **Bundle A guards (C-8 / I-9) since landed (F-13).** Not promoted to the canonical pipeline (D-13). |
 
-See [`thoughts/FINDINGS.md`](thoughts/FINDINGS.md) (F-1…F-12) for the full audit trail — the three defects the dogfood's own gates caught and fixed, the pre-kimmy re-statement, the F-11 Prolog↔Lean reconciliation, and F-12 from the first real-ticket run. The open work is hardening the **digest-boundary guards** (C-8 / I-9 candidates) that real run showed the proofs assume but don't yet enforce.
+See [`thoughts/FINDINGS.md`](thoughts/FINDINGS.md) (F-1…F-13) for the full audit trail — the three defects the dogfood's own gates caught and fixed, the pre-kimmy re-statement, the F-11 Prolog↔Lean reconciliation, F-12 from the first real-ticket run, and **F-13 (Bundle A: the C-8 / I-9 digest-boundary guards, landed + lock-tested)**. Bundle A kills F-12's phantom-stage and forward-loopback mechanisms; the **dominant** livelock (a re-spelled-`gapClass` re-mint) still awaits the finite-domain budget re-key — the **I-3-premise** repair (B1) + its Lean re-statement (B2).
 
 ## The line it holds
 
@@ -35,8 +35,9 @@ self-spec/                     the dogfood artifact chain (the pipeline run on T
                                  existing-world.pl  hypothesis.pl  target-world.pl  model_results.pl
                                  lean/Proofs/*.lean  lean_proof_results.pl  lean_disproofs/*.lean
                                  tests/*.js  adherence_*.{pl,md}  explanation.md
-tests/                         recon_plan.test.js — unit test for the recon mechanic (kept out of
-                                 self-spec/tests/ so its 24+8 headline counts stay intact)
+tests/                         recon_plan.test.js — unit test for the recon mechanic; and
+                                 digest_boundary_guards.test.js — F-13 lock-test for the C-8 / I-9
+                                 guards (kept out of self-spec/tests/ so the 24+8 headline stays intact)
 .claude/agents/                recon.md — the recon agent (resolves the per-artifact path map + window)
 docs/                          design-spec.md, architecture.md, decisions.md, glossary.md, index.md
 thoughts/                      tracked working area (NOT a gate): FINDINGS.md, HANDOFF.md, the discovery
@@ -63,6 +64,10 @@ node --test self-spec/tests/*.test.js
 # 24 proof-property tests + 8 C-2 regression-guard tests, all green
 # (Pass the glob, not the bare directory: `node --test self-spec/tests/` is
 #  treated as a module path and errors on recent Node — observed on v26.)
+
+node --test tests/*.test.js
+# 12 recon-plan (I-8) + 7 F-13 digest-boundary guard (C-8 / I-9) tests, all green.
+# Kept out of self-spec/tests/ so the 24+8 headline above stays intact.
 ```
 
 **Lean proofs:** the proofs are recorded in `self-spec/lean_proof_results.pl` and were machine-checked axiom-free during the re-statement (full `lake build` = 8259 jobs, exit 0). Re-checking requires a Lean 4 toolchain + a (prebuilt) Mathlib — see [`docs/index.md`](docs/index.md). The toolchain config travels with the repo (`self-spec/lean/{lakefile.lean,lean-toolchain,lake-manifest.json}`).
