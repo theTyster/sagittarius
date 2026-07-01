@@ -115,6 +115,31 @@ function runPipeline(deps = {}) {
       const gap = merged[0];
       trail.record("gap_merge", { merged, count: merged.length });
 
+      // C-8 / I-9 (F-12 digest-boundary well-formedness): turn the I-3 model's
+      // UNENFORCED premises into guards BEFORE acting on the loopback. F-12's
+      // first real-ticket run found the realization honored MALFORMED agent
+      // control data and stepped OUTSIDE the proven Step relation (livelock): a
+      // targetStage that is not a real stage folds to index -1 (a phantom
+      // STAGE_SEQUENCE[-1] re-run from cold), and a "gap" targeting a DOWNSTREAM
+      // stage is a forward jump the measure's stepLoopback (cursor jumps BACK,
+      // distance := endIdx) does not model. Both are pure mechanics — membership
+      // + an integer inequality over the in-scope cursor — so the substrate still
+      // derives NO verdict (C-2 holds). In-place (targetIdx === cursor) and
+      // strictly-backward both remain legal, bounded by LOOP_LIMIT below.
+      const targetIdx = stageIndex(gap.targetStage);
+      if (targetIdx < 0) {
+        outcome = "hard_stop";
+        reason = HARD_STOP_REASONS.DIGEST_BOUNDARY_MALFORMED;
+        trail.record("halt", { stage, reason, targetStage: gap.targetStage });
+        break;
+      }
+      if (targetIdx > cursor) {
+        outcome = "hard_stop";
+        reason = HARD_STOP_REASONS.FORWARD_LOOPBACK;
+        trail.record("halt", { stage, reason, targetStage: gap.targetStage, targetIdx, cursor });
+        break;
+      }
+
       // D-7/crit 2: cap recovery at LOOP_LIMIT per gap-class-per-stage. Once
       // exhausted, hard-stop (D-5/crit 10). The accounting is the substrate's;
       // the gap signal is agent-emitted.
@@ -131,8 +156,7 @@ function runPipeline(deps = {}) {
 
       // Honor the loopback: widen scope if the target precedes start (C-4/I-4),
       // record the loopback (consumes one recovery unit, I-3 1st component), and
-      // move the cursor backward ONLY here (D-4).
-      const targetIdx = stageIndex(gap.targetStage);
+      // move the cursor backward ONLY here (D-4). targetIdx was validated above.
       scope = widenScope(scope, targetIdx);
       trail.record("loopback", {
         from: stage,

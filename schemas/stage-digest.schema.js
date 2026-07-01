@@ -34,13 +34,25 @@ const ROUTABLE_FIELDS = Object.freeze([
 ]);
 
 /**
- * The agent-emitted hard-stop reasons that terminate-and-report (D-5).
- * The substrate NEVER computes these; it only routes on the matching field.
+ * The hard-stop reasons that terminate-and-report (D-5). Two families:
+ *   - AGENT-EMITTED: core_obligation_refuted — the substrate NEVER computes the
+ *     verdict, it only routes on the matching field (C-2).
+ *   - SUBSTRATE-MECHANICAL structural halts: loop_limit_exhausted (D-7 accounting)
+ *     and the digest-boundary well-formedness guards below (C-8 / I-9, F-12).
+ *     These are pure mechanics — membership in STAGE_SEQUENCE and an integer
+ *     inequality over the in-scope cursor — NOT logic verdicts, so C-2 holds.
  */
 const HARD_STOP_REASONS = Object.freeze({
   CORE_OBLIGATION_REFUTED: "core_obligation_refuted",
   LOOP_LIMIT_EXHAUSTED: "loop_limit_exhausted",
   BUDGET_EXHAUSTED: "budget_exhausted",
+  // C-8 (F-12): a loopback gap whose targetStage is not a real stage
+  // (stageIndex -> -1) — the phantom STAGE_SEQUENCE[-1] re-run-from-cold livelock.
+  DIGEST_BOUNDARY_MALFORMED: "digest_boundary_malformed",
+  // I-9 (F-12): a loopback gap whose target is DOWNSTREAM of the cursor (a forward
+  // "gap" for not-yet-done work). A loopback moves backward or re-runs in place,
+  // never forward — the I-3 measure's stepLoopback assumes the cursor jumps back.
+  FORWARD_LOOPBACK: "forward_loopback",
 });
 
 /**
