@@ -21,6 +21,52 @@ See [`thoughts/FINDINGS.md`](thoughts/FINDINGS.md) (F-1…F-13) for the full aud
 
 There is one rule the whole design exists to protect: **the substrate does the bookkeeping (sequencing, counting budgets, routing requests) but never makes a judgment call.** "Is this proven / refuted / inconsistent?" stays with the AI agents; the Workflow may only *read* a verdict an agent already emitted and act on it. The design calls this **separation of authority** (D-2); the forbidden failure is the **inversion smell** (C-2). A prior self-orchestration framing was refuted; structural-layer-separation is the framing that survived.
 
+## Control flow
+
+The loop below is the whole of `sagittarius.workflow.js`. The substrate walks a **movable cursor** (D-4) forward through the seven interior stages, branching **only** on the agent-emitted digest (C-2): a clean digest *advances*, a routed gap *loops back*, a refuted core obligation *hard-stops*. Every path — happy or halted — falls through to `explain`, which **always runs exactly once, last** (D-8 / I-1). The loopback edge is the one place the cursor moves backward, and it is fenced by the digest-boundary guards (C-8 / I-9, F-13) and the per-gap-class `LOOP_LIMIT` (D-7 / I-3) so the run is guaranteed to terminate.
+
+```mermaid
+flowchart TD
+    start([run]) --> disprove["mandatory disprove floor<br/>≥1 attempt, ≥2 adversaries (D-6/I-6/I-7)"]
+    disprove --> loop{"cursor &lt; explain?"}
+
+    loop -- no --> explain
+    loop -- yes --> gate{"upstream artifact<br/>present? (I-2)"}
+    gate -- no --> hs_gate["hard-stop:<br/>artifact_gate_unsatisfied"]
+    hs_gate --> explain
+
+    gate -- yes --> runstage["run stage → digest<br/>(agent owns the verdict)"]
+    runstage --> route{"routeDigest<br/>(branch on agent field only, C-2)"}
+
+    route -- "clean" --> advance["mark produced<br/>cursor += 1 (D-4)"]
+    advance --> loop
+
+    route -- "core obligation refuted" --> hs_core["hard-stop:<br/>core_obligation_refuted (D-5)"]
+    hs_core --> explain
+
+    route -- "gap → loopback" --> merge["mergeGaps: batch gaps<br/>sharing a target (crit 1)"]
+    merge --> b1{"targetStage a real stage? (C-8)"}
+    b1 -- "no (idx &lt; 0)" --> hs_mal["hard-stop:<br/>digest_boundary_malformed"]
+    hs_mal --> explain
+    b1 -- yes --> b2{"targetIdx &gt; cursor? (I-9)"}
+    b2 -- "yes (forward)" --> hs_fwd["hard-stop:<br/>forward_loopback"]
+    hs_fwd --> explain
+    b2 -- "no (in-place / backward)" --> ll{"within LOOP_LIMIT<br/>for this gap-class? (D-7)"}
+    ll -- no --> hs_ll["hard-stop:<br/>loop_limit_exhausted"]
+    hs_ll --> explain
+    ll -- yes --> back["widen scope (C-4/I-4)<br/>cursor = targetIdx (backward, D-4)"]
+    back --> loop
+
+    explain["explain — ALWAYS runs,<br/>post-loop, once, last (D-8 / I-1)"] --> done([outcome + decision trail])
+
+    classDef halt fill:#3a1414,stroke:#c0392b,color:#fbeaea;
+    classDef always fill:#14263a,stroke:#2980b9,color:#eaf2fb;
+    class hs_gate,hs_core,hs_mal,hs_fwd,hs_ll halt;
+    class explain always;
+```
+
+> **How to read it.** Red nodes are the terminate-and-report **hard-stops** — one agent-emitted (`core_obligation_refuted`) and four substrate-mechanical (the artifact gate, the two F-13 digest-boundary guards, and the loop-limit). The blue `explain` node is the sink every arrow eventually reaches. Note the guards sit **before** the cursor moves backward: the substrate refuses to step outside its proven `Step` relation rather than honor malformed control data (the F-12 lesson).
+
 ## Repo map
 
 ```
