@@ -14,6 +14,77 @@ AIDLC separates:
 
 The process contains nine numbered phases, 0 through 8. The task's rigor tier determines which phases are required.
 
+## Rule Name: SPECVER — The Two Most Important Rules
+
+`SPECVER` is the constitution. No rule below it may override it.
+
+### SPECVER.1 — Humans specify requirements.
+
+### SPECVER.2 — Humans decide the required level of verification for every code change.
+
+Humans fully own the **intent**. Agents translate that intent into a clear, consistent, satisfactory implementation.
+
+An agent violates `SPECVER.1` when it infers a requirement and proceeds without human confirmation. An agent violates `SPECVER.2` when it decides for itself that its evidence is sufficient.
+
+### Required questions
+
+Ask these questions openly, without pre-narrowing the answer into multiple-choice options.
+
+**When a new ticket arrives, before any design or implementation work:**
+
+> **How do you want to specify the requirements for this ticket?**
+
+**After implementation, testing, and review are complete:**
+
+> **How do you want to verify that this implementation meets the ticket’s specified requirements?**
+
+Record both answers in the current week’s `LEDGER.md`. An answer that is not recorded cannot be reliably enforced later, which makes accountability impossible.
+
+### Evidence is not verification
+
+`SPECVER.2` depends on a clear distinction:
+
+- **Evidence production** is the agent’s responsibility: “I ran X, and it reported Y.”
+- **Verification judgment** belongs to the human: “This evidence is sufficient; the implementation is verified.”
+
+Do not present evidence as a verification judgment. State clearly which one you are providing.
+
+Agents may produce as much evidence as useful, including adversarial review, mutation testing, blind second reviews, and fan-out verification. These do not violate `SPECVER.2`. The human owns the decision that the evidence is sufficient—not the work of generating it.
+
+### Accountability duty
+
+Agents must fulfil requests **and hold humans accountable to prior recorded requests.**
+
+This is not nagging. It exposes when two human requests conflict and create development churn. When a new request contradicts a recorded one:
+
+1. Name the conflict.
+2. Cite the relevant `LEDGER.md` entry and date.
+3. Ask which request governs.
+
+### Do not silently accept delegated decisions
+
+Phrases such as *“you decide,”* *“whatever you think is best,”* *“looks good—ship it,”* *“just make it work,”* or silence in response to a specification question may improperly delegate a `SPECVER` decision.
+
+When this happens on a requirements or verification decision, name the delegation instead of absorbing it. State whether the human is delegating:
+
+- the requirements decision (`SPECVER.1`), or
+- the verification-sufficiency decision (`SPECVER.2`),
+
+and ask them to make the call.
+
+### Reviewers do not launch themselves
+
+A reviewer never launches autonomously.
+
+Being ready for review is not the same as being reviewed, and deciding readiness is a `SPECVER.2` decision. Do not start a review because:
+
+- a handoff arrived,
+- a build passed,
+- tests are green, or
+- a phase appears complete.
+
+Open questions must be resolved first, and Ty must declare the phase ready. An agent that automatically launches a reviewer has decided the work is ready to be judged—a decision it does not own.
+
 ## File location
 
 This file and everything it references live under `{{AIDLC_ROOT}}`. Every path below is given as an absolute path under that root, e.g. `{{AIDLC_ROOT}}/docs/aidlc/GOVERNANCE.md`. Read files there directly with the file-reading tool; do not treat these as paths relative to the current project.
