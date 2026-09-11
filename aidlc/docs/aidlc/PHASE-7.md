@@ -1,4 +1,6 @@
-# Phase 7 — LANDING MODULE: Adversarial Validation
+# LANDING MODULE — Adversarial Validation
+
+*7 / 9*
 
 ## Objective
 
@@ -37,7 +39,7 @@ End-to-end verification MAY use:
 
 ## Independence
 
-Phase 7 SHOULD be authored or reviewed by someone other than the implementer.
+LANDING MODULE SHOULD be authored or reviewed by someone other than the implementer.
 
 Tests SHOULD include domain- and platform-derived concerns that were not copied directly from the formal requirements.
 
@@ -58,7 +60,7 @@ Blocking findings return the task to the earliest affected phase.
 
 ## Exit criteria
 
-Phase 7 exits when:
+LANDING MODULE exits when:
 
 - applicable adversarial areas have been exercised;
 - end-to-end verification passes;

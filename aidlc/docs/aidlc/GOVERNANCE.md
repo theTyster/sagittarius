@@ -63,7 +63,7 @@ Each task MUST identify:
 - **Implementer** — changes production artifacts.
 - **Reviewer** — independently reviews evidence and implementation.
 
-One person MAY hold multiple roles for low-risk work. Tier 3 work SHOULD separate implementer and final reviewer.
+One person MAY hold multiple roles for low-risk work. POKAYOKE-tier work SHOULD separate implementer and final reviewer.
 
 ## Tier and phase authority
 

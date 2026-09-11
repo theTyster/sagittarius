@@ -1,4 +1,6 @@
-# Phase 0 — FLYBY: Logical Exploration
+# FLYBY — Logical Exploration
+
+*0 / 9*
 
 ## Objective
 
@@ -6,7 +8,7 @@ Establish the logical shape of the problem and identify at least one verifiable 
 
 ## Required for
 
-Tiers 1, 2, and 3.
+POKAYOKE (always); AIMED, when FLYBY is a selected technique-pair.
 
 ## Inputs
 
@@ -43,7 +45,7 @@ Conditional findings MUST include evidence that their antecedents are satisfiabl
 
 ## Exit criteria
 
-Phase 0 exits when:
+FLYBY exits when:
 
 - the logical vocabulary is stable enough for the next required activity;
 - at least one root cause has discriminating evidence;
@@ -55,6 +57,6 @@ Phase 0 exits when:
 
 ## Permitted conclusion
 
-"Phase 0 bounded the logical problem and identified the recorded root cause under the stated encoding and assumptions."
+"FLYBY bounded the logical problem and identified the recorded root cause under the stated encoding and assumptions."
 
-Phase 0 does not prove that a production implementation is correct.
+FLYBY does not prove that a production implementation is correct.

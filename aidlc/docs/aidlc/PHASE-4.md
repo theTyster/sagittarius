@@ -1,8 +1,10 @@
-# Phase 4 — IGNITION: Implementation
+# IGNITION — Implementation
+
+*4 / 9*
 
 ## Objective
 
-Implement the production change against the Phase 3 tests.
+Implement the production change against the FLIGHT MANIFEST tests.
 
 ## Required for
 
@@ -10,7 +12,7 @@ All tiers.
 
 ## Inputs
 
-- exited Phase 3 tests;
+- exited FLIGHT MANIFEST tests;
 - current requirements;
 - applicable rollout and migration constraints.
 
@@ -44,9 +46,9 @@ Security- or privacy-sensitive changes MUST define applicable authorization, mas
 
 ## Exit criteria
 
-Phase 4 exits when:
+IGNITION exits when:
 
-- Phase 3 tests pass;
+- FLIGHT MANIFEST tests pass;
 - negative controls remain discriminating;
 - migration rehearsals pass where applicable;
 - rollout and rollback mechanisms exist;

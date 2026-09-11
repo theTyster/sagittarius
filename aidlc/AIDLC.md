@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The AI Development Life Cycle (AIDLC) governs AI-assisted software changes within the client.
+The AI Development Life Cycle (AIDLC) governs AI-assisted software changes.
 
 AIDLC separates:
 
@@ -12,7 +12,7 @@ AIDLC separates:
 4. how the implementation is verified;
 5. what evidence supports each claim.
 
-The process contains nine numbered phases, 0 through 8. The task's rigor tier determines which phases are required.
+The process contains nine phases, FLYBY through SPLASHDOWN. The task's rigor tier determines which phases are required.
 
 ## Rule Name: SPECVER — The Two Most Important Rules
 
@@ -133,30 +133,29 @@ Every task MUST maintain:
 
 ## Tiers
 
-AIDLC defines four rigor tiers:
+AIDLC defines three rigor tiers — none, some, all:
 
-| Tier | Codename | Required phases |
-|---|---|---|
-| 0 | TOUCHDOWN | 3, 4, 7, 8 |
-| 1 | FLYBY | Tier 0 plus Phase 0 |
-| 2 | TRAJECTORY | Tier 1 plus Phase 1 |
-| 3 | RENDEZVOUS | Phases 0 through 8 |
+| Tier | Required phases |
+|---|---|
+| 0 — WIFFLED | FLIGHT MANIFEST, IGNITION, LANDING MODULE, SPLASHDOWN |
+| 1 — AIMED | WIFFLED plus at least one selected technique-pair (see [Tiers]({{AIDLC_ROOT}}/docs/aidlc/TIERS.md)) |
+| 2 — POKAYOKE | FLYBY through SPLASHDOWN — all nine phases |
 
-See [Tiers]({{AIDLC_ROOT}}/docs/aidlc/TIERS.md) for selection and escalation rules.
+See [Tiers]({{AIDLC_ROOT}}/docs/aidlc/TIERS.md) for selection, AIMED's technique-pairs, and escalation rules.
 
 ## Phases
 
-| Phase | Codename | Purpose | Detailed rules |
-|---|---|---|---|
-| 0 | FLYBY | Explore the logical problem using SAT/SMT or equivalent analysis | [Phase 0]({{AIDLC_ROOT}}/docs/aidlc/PHASE-0.md) |
-| 1 | TRAJECTORY / ANGLING | Specify states, transitions, invariants, and liveness properties | [Phase 1]({{AIDLC_ROOT}}/docs/aidlc/PHASE-1.md) |
-| 2 | SIMULATION | State implementation-independent requirements in Lean 4 | [Phase 2]({{AIDLC_ROOT}}/docs/aidlc/PHASE-2.md) |
-| 3 | FLIGHT MANIFEST | Translate requirements into executable tests | [Phase 3]({{AIDLC_ROOT}}/docs/aidlc/PHASE-3.md) |
-| 4 | IGNITION | Implement the production change | [Phase 4]({{AIDLC_ROOT}}/docs/aidlc/PHASE-4.md) |
-| 5 | TELEMETRY | Model the implementation as built | [Phase 5]({{AIDLC_ROOT}}/docs/aidlc/PHASE-5.md) |
-| 6 | RENDEZVOUS | Prove model satisfaction and establish code/model conformance | [Phase 6]({{AIDLC_ROOT}}/docs/aidlc/PHASE-6.md) |
-| 7 | LANDING MODULE | Perform adversarial and environment-specific validation | [Phase 7]({{AIDLC_ROOT}}/docs/aidlc/PHASE-7.md) |
-| 8 | SPLASHDOWN | Finalize evidence, rollout, integration, and close-out | [Phase 8]({{AIDLC_ROOT}}/docs/aidlc/PHASE-8.md) |
+| Phase | Purpose | Detailed rules |
+|---|---|---|
+| 0 — FLYBY | Explore the logical problem using SAT/SMT or equivalent analysis | [FLYBY]({{AIDLC_ROOT}}/docs/aidlc/PHASE-0.md) |
+| 1 — TRAJECTORY / ANGLING | Specify states, transitions, invariants, and liveness properties | [TRAJECTORY / ANGLING]({{AIDLC_ROOT}}/docs/aidlc/PHASE-1.md) |
+| 2 — SIMULATION | State implementation-independent requirements in Lean 4 | [SIMULATION]({{AIDLC_ROOT}}/docs/aidlc/PHASE-2.md) |
+| 3 — FLIGHT MANIFEST | Translate requirements into executable tests | [FLIGHT MANIFEST]({{AIDLC_ROOT}}/docs/aidlc/PHASE-3.md) |
+| 4 — IGNITION | Implement the production change | [IGNITION]({{AIDLC_ROOT}}/docs/aidlc/PHASE-4.md) |
+| 5 — TELEMETRY | Model the implementation as built | [TELEMETRY]({{AIDLC_ROOT}}/docs/aidlc/PHASE-5.md) |
+| 6 — RENDEZVOUS | Prove model satisfaction and establish code/model conformance | [RENDEZVOUS]({{AIDLC_ROOT}}/docs/aidlc/PHASE-6.md) |
+| 7 — LANDING MODULE | Perform adversarial and environment-specific validation | [LANDING MODULE]({{AIDLC_ROOT}}/docs/aidlc/PHASE-7.md) |
+| 8 — SPLASHDOWN | Finalize evidence, rollout, integration, and close-out | [SPLASHDOWN]({{AIDLC_ROOT}}/docs/aidlc/PHASE-8.md) |
 
 ## Universal gates
 
@@ -208,7 +207,7 @@ A substantive change to a requirement, assumption, transition, quantification do
 
 ### Traceability is maintained continuously
 
-Traceability is not a Phase 8 documentation exercise. It MUST be updated when the linked artifacts change.
+Traceability is not a SPLASHDOWN documentation exercise. It MUST be updated when the linked artifacts change.
 
 See [Traceability]({{AIDLC_ROOT}}/docs/aidlc/TRACEABILITY.md).
 

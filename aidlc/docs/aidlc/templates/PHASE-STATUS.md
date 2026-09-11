@@ -40,7 +40,7 @@ Use:
 
 Create one section for each exited phase.
 
-### Phase N — Name
+### N — Codename
 
 - **Artifact versions:**
 - **Exit criteria satisfied:**

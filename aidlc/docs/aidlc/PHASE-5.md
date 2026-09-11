@@ -1,4 +1,6 @@
-# Phase 5 — TELEMETRY: Implementation Model
+# TELEMETRY — Implementation Model
+
+*5 / 9*
 
 ## Objective
 
@@ -6,12 +8,12 @@ Model the implementation as built and establish evidence that the model correspo
 
 ## Required for
 
-Tier 3.
+POKAYOKE (always); AIMED, when the SIMULATION → TELEMETRY → RENDEZVOUS pipeline is a selected technique-pair.
 
 ## Inputs
 
-- exited Phase 4 implementation;
-- Phase 2 requirements model;
+- exited IGNITION implementation;
+- SIMULATION requirements model;
 - implementation code and tests.
 
 ## Required artifacts
@@ -49,7 +51,7 @@ The strength of the final claim MUST match the strength and bounds of this evide
 
 ## Exit criteria
 
-Phase 5 exits when:
+TELEMETRY exits when:
 
 - the implementation model type-checks;
 - modeled operations map to production code;

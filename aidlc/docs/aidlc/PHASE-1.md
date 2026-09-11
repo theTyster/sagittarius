@@ -1,4 +1,6 @@
-# Phase 1 — TRAJECTORY / ANGLING: Specification Model
+# TRAJECTORY / ANGLING — Specification Model
+
+*1 / 9*
 
 ## Objective
 
@@ -6,11 +8,11 @@ Build an implementation-independent TLA+ specification of required states, trans
 
 ## Required for
 
-Tiers 2 and 3.
+POKAYOKE (always); AIMED, when TRAJECTORY / ANGLING is a selected technique-pair.
 
 ## Inputs
 
-- exited Phase 0 artifacts;
+- exited FLYBY artifacts;
 - ratified requirements and decisions;
 - known counterexamples;
 - deployment and concurrency concerns.
@@ -50,7 +52,7 @@ Known model defects or contradictions MUST be resolved, excluded by enforced ass
 
 ## Exit criteria
 
-Phase 1 exits when:
+TRAJECTORY / ANGLING exits when:
 
 - every ratified in-scope behavior maps to a modeled action or property;
 - all required transitions and frame conditions are represented;

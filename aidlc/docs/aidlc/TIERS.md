@@ -14,7 +14,9 @@ A tier MUST NOT be lowered after work begins without:
 - disposition of evidence indicating higher risk;
 - approval from the technical authority.
 
-## Tier 0 — TOUCHDOWN
+## WIFFLED
+
+*0 / 3 — none*
 
 ### Scope
 
@@ -22,10 +24,10 @@ Simple, low-risk changes that can be specified in prose and verified empirically
 
 ### Required phases
 
-- Phase 3 — requirement-derived tests;
-- Phase 4 — implementation;
-- Phase 7 — adversarial and end-to-end validation;
-- Phase 8 — close-out.
+- FLIGHT MANIFEST — requirement-derived tests;
+- IGNITION — implementation;
+- LANDING MODULE — adversarial and end-to-end validation;
+- SPLASHDOWN — close-out.
 
 ### Requirements source
 
@@ -38,60 +40,52 @@ Ratified prose requirements.
 - low-risk API behavior;
 - localized defects with a clear cause and no significant state interaction.
 
-## Tier 1 — FLYBY
+## AIMED
+
+*1 / 3 — some*
 
 ### Scope
 
-Tier 0 work with a bounded logical or combinatorial problem requiring SAT/SMT exploration.
+WIFFLED work where at least one formal technique is warranted, but the full POKAYOKE pipeline would be overkill. AIMED is deliberately permissive: the task owner picks which technique-pair(s) apply, rather than following a fixed phase list.
 
 ### Required phases
 
-Tier 0 plus:
+The WIFFLED floor — FLIGHT MANIFEST, IGNITION, LANDING MODULE, SPLASHDOWN — plus **at least one** selected technique-pair:
 
-- Phase 0 — logical exploration.
+- **FLYBY** — SAT/SMT logical exploration; the solver verdict serves as both the model and the check.
+- **TRAJECTORY / ANGLING** — TLA+ specification; the model-checker verdict serves as both the model and the check.
+- **SIMULATION → TELEMETRY → RENDEZVOUS** — Lean requirements model, implementation model, and satisfaction proof, run as a mini-pipeline.
+
+Each pair already bundles a model with its own check, so picking any one satisfies "a modeling layer and a proof/check layer must both be present."
+
+### Selecting and combining technique-pairs
+
+The task owner proposes which pair(s) apply; the technical authority ratifies the choice in the task charter.
+
+When more than one pair is selected (for example, TRAJECTORY / ANGLING plus the SIMULATION pipeline, or FLYBY plus the SIMULATION pipeline), the task charter MUST record how evidence and identifiers translate between the chosen layers. This translation approach — not the phase checklist — is the central design question for an AIMED task.
 
 ### Typical examples
 
-- rule-set contradictions;
-- bounded assignment problems;
-- logical precondition analysis;
-- identification of a discriminating root cause.
+- rule-set contradictions and bounded assignment problems (FLYBY alone);
+- workflows with multiple states, concurrent updates, or partial deployment (TRAJECTORY / ANGLING alone);
+- a state-transition spec paired with a Lean satisfaction proof for the same behavior (TRAJECTORY / ANGLING plus the SIMULATION pipeline);
+- a bounded logical check paired with a Lean satisfaction proof (FLYBY plus the SIMULATION pipeline).
 
-## Tier 2 — TRAJECTORY
+## POKAYOKE
 
-### Scope
-
-Work requiring explicit state-transition, ordering, concurrency, or deployment modeling.
-
-### Required phases
-
-Tier 1 plus:
-
-- Phase 1 — TLA+ specification model.
-
-Lean modeling is not required.
-
-### Typical examples
-
-- workflows with multiple states;
-- concurrent updates;
-- retry or restart behavior;
-- partial deployment;
-- migrations whose intermediate states affect correctness.
-
-## Tier 3 — RENDEZVOUS
+*2 / 3 — all*
 
 ### Scope
 
-High-risk or high-complexity work requiring the full formal pipeline.
+High-risk or high-complexity work requiring the full formal pipeline. POKAYOKE is the gold-standard reference: AIMED's technique-pairs are the same building blocks, applied selectively; POKAYOKE requires all of them, wired together.
 
 ### Required phases
 
-Phases 0 through 8.
+FLYBY through SPLASHDOWN — all nine phases.
 
 ### Escalation indicators
 
-Tier 3 SHOULD be selected when the task involves combinations of:
+POKAYOKE SHOULD be selected when the task involves combinations of:
 
 - identity resolution;
 - security or privacy;
@@ -106,6 +100,6 @@ Tier 3 SHOULD be selected when the task involves combinations of:
 
 ## Tier exit conditions
 
-A task completes its tier only when all required phases have exited.
+A task completes its tier only when all of its required phases have exited — for AIMED, that means the WIFFLED floor plus every phase in each selected technique-pair.
 
-A lower tier MUST NOT claim evidence produced only by a higher tier. For example, Tier 0 test success is not formal verification.
+A lower tier MUST NOT claim evidence produced only by a higher tier. For example, WIFFLED test success is not formal verification.

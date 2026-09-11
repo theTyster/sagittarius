@@ -1,4 +1,6 @@
-# Phase 2 — SIMULATION: Lean Requirements Model
+# SIMULATION — Lean Requirements Model
+
+*2 / 9*
 
 ## Objective
 
@@ -6,18 +8,18 @@ State implementation-independent requirements as well-typed Lean 4 propositions.
 
 ## Required for
 
-Tier 3.
+POKAYOKE (always); AIMED, when the SIMULATION → TELEMETRY → RENDEZVOUS pipeline is a selected technique-pair.
 
 ## Inputs
 
-- exited Phase 1 specification;
+- exited TRAJECTORY / ANGLING specification;
 - ratified requirements;
 - specification coverage matrix;
 - approved assumptions.
 
 ## Nature of the artifact
 
-Phase 2 defines what must be true. It MUST NOT prescribe implementation strategy unless that strategy is itself a ratified requirement.
+SIMULATION defines what must be true. It MUST NOT prescribe implementation strategy unless that strategy is itself a ratified requirement.
 
 Proof bodies MAY use `sorry`.
 
@@ -38,7 +40,7 @@ A declaration containing `sorry` is admitted and type-checked. It is not proven.
 Each requirement MUST:
 
 - map to a ratified requirement;
-- map to a Phase 1 action or property;
+- map to a TRAJECTORY / ANGLING action or property;
 - quantify over the intended domain;
 - state assumptions explicitly;
 - represent applicable normal, exceptional, and fail-closed outcomes;
@@ -50,7 +52,7 @@ The model MUST NOT use an empty domain, unreachable antecedent, `False`, or an e
 
 ## Exit criteria
 
-Phase 2 exits when:
+SIMULATION exits when:
 
 - every in-scope requirement is represented;
 - all declarations type-check;

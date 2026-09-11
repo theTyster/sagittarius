@@ -1,4 +1,6 @@
-# Phase 6 — RENDEZVOUS: Satisfaction and Conformance
+# RENDEZVOUS — Satisfaction and Conformance
+
+*6 / 9*
 
 ## Objective
 
@@ -9,11 +11,11 @@ Establish two distinct obligations:
 
 ## Required for
 
-Tier 3.
+POKAYOKE (always); AIMED, when the SIMULATION → TELEMETRY → RENDEZVOUS pipeline is a selected technique-pair.
 
 ## Obligation A — Model satisfaction
 
-Every applicable Phase 2 requirement MUST be discharged against the Phase 5 implementation model.
+Every applicable SIMULATION requirement MUST be discharged against the TELEMETRY implementation model.
 
 Any approved Lean tactic or proof term MAY be used.
 
@@ -57,7 +59,7 @@ A technical proof pass does not remove the need for this review.
 
 ## Exit criteria
 
-Phase 6 exits when:
+RENDEZVOUS exits when:
 
 - every requirement has a completed satisfaction proof;
 - no unapproved `sorry` remains in the satisfaction layer;

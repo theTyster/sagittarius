@@ -1,4 +1,6 @@
-# Phase 8 — SPLASHDOWN: Close-Out and Integration
+# SPLASHDOWN — Close-Out and Integration
+
+*8 / 9*
 
 ## Objective
 
@@ -58,13 +60,13 @@ A dependency graph alone is not a rollout plan.
 
 ## Pull requests
 
-A draft pull request MAY be used as a non-integrating workspace before Phase 8.
+A draft pull request MAY be used as a non-integrating workspace before SPLASHDOWN.
 
 A pull request MUST NOT be approved for integration until all required phase gates have exited.
 
 ## Exit criteria
 
-Phase 8 exits when:
+SPLASHDOWN exits when:
 
 - all required prior phases have exited;
 - final artifacts are internally consistent;

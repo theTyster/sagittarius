@@ -14,14 +14,14 @@
 
 ## Specification coverage
 
-Required for Tiers 2 and 3.
+Required for POKAYOKE; required for AIMED when TRAJECTORY / ANGLING is a selected technique-pair.
 
 | Requirement ID | TLA+ action or operator | Property or invariant | Scenario | Antecedent witnessed? | Known counterexample | Disposition |
 |---|---|---|---|---:|---|---|
 
 ## Lean requirements
 
-Required for Tier 3.
+Required for POKAYOKE; required for AIMED when the SIMULATION → TELEMETRY → RENDEZVOUS pipeline is a selected technique-pair.
 
 | Requirement ID | Lean declaration | Quantification reviewed? | Assumptions | Non-vacuity witness | `sorry` inventoried? |
 |---|---|---:|---|---|---:|
@@ -30,12 +30,12 @@ Required for Tier 3.
 
 Required for all tiers.
 
-| Requirement ID | Property or example tests | Negative control | Production code | Migration or configuration | Phase 7 checks |
+| Requirement ID | Property or example tests | Negative control | Production code | Migration or configuration | LANDING MODULE checks |
 |---|---|---|---|---|---|
 
 ## Formal satisfaction and conformance
 
-Required for Tier 3.
+Required for POKAYOKE; required for AIMED when the SIMULATION → TELEMETRY → RENDEZVOUS pipeline is a selected technique-pair.
 
 | Requirement ID | Implementation-model term | Satisfaction proof | Code/model mapping | Conformance evidence | Bounds |
 |---|---|---|---|---|---|

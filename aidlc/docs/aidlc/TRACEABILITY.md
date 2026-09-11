@@ -8,7 +8,7 @@ Traceability MUST be maintained during development. It MUST NOT be reconstructed
 
 ## Traceability chain
 
-The complete Tier 3 chain is:
+The complete POKAYOKE chain is:
 
 > decision → specification → requirement → test → implementation → implementation model → proof → conformance evidence → adversarial validation
 
@@ -33,20 +33,22 @@ Renaming an identifier MUST preserve a record of the old identifier when externa
 
 ## Required matrices
 
-### Tier 0
+### WIFFLED
 
-| Requirement | Tests | Implementation | Phase 7 validation |
+| Requirement | Tests | Implementation | LANDING MODULE validation |
 |---|---|---|---|
 
-### Tier 1
+### AIMED
 
-Add Phase 0 findings and logical checks.
+Add the matrix rows for whichever technique-pair(s) were selected:
 
-### Tier 2
+- FLYBY — findings and logical checks;
+- TRAJECTORY / ANGLING — TLA+ actions, properties, assumptions, and non-vacuity witnesses;
+- SIMULATION → TELEMETRY → RENDEZVOUS — Lean requirements, implementation-model correspondence, and satisfaction proofs.
 
-Add TLA+ actions, properties, assumptions, and non-vacuity witnesses.
+Also record the translation approach between any selected pairs (see `TIERS.md`).
 
-### Tier 3
+### POKAYOKE
 
 Use the complete end-to-end matrix in:
 

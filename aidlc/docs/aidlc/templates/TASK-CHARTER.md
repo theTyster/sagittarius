@@ -55,6 +55,8 @@ Describe how the change can be disabled, rolled back, or repaired.
 - **Rationale:**
 - **Required phases:**
 - **Escalation conditions:**
+- **Selected technique-pair(s) (AIMED only):**
+- **Translation approach between selected layers (AIMED only, if more than one pair):**
 
 ## Deployment expectations
 

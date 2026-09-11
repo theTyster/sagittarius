@@ -43,15 +43,15 @@ A substantive change MUST record:
 
 | Discovery | Typical return point |
 |---|---|
-| New logical counterexample | Phase 0 |
-| Missing state transition | Phase 1 |
-| Incorrect requirement or quantification | Phase 2 or earlier |
-| Missing or non-discriminating test | Phase 3 |
-| Implementation defect | Phase 4 |
-| Code/model mismatch | Phase 5 |
-| Failed satisfaction proof | Phase 2, 4, or 5 depending on cause |
+| New logical counterexample | FLYBY |
+| Missing state transition | TRAJECTORY / ANGLING |
+| Incorrect requirement or quantification | SIMULATION or earlier |
+| Missing or non-discriminating test | FLIGHT MANIFEST |
+| Implementation defect | IGNITION |
+| Code/model mismatch | TELEMETRY |
+| Failed satisfaction proof | SIMULATION, IGNITION, or TELEMETRY depending on cause |
 | Platform-specific defect | Earliest phase containing the cause |
-| Rollout incompatibility | Phase 1, 4, or 8 depending on cause |
+| Rollout incompatibility | TRAJECTORY / ANGLING, IGNITION, or SPLASHDOWN depending on cause |
 
 ## Downstream invalidation
 

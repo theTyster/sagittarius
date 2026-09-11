@@ -1,4 +1,6 @@
-# Phase 3 — FLIGHT MANIFEST: Property-Test Generation
+# FLIGHT MANIFEST — Property-Test Generation
+
+*3 / 9*
 
 ## Objective
 
@@ -12,10 +14,9 @@ All tiers.
 
 | Tier | Source |
 |---|---|
-| 0 | Ratified prose requirements |
-| 1 | Prose requirements informed by Phase 0 |
-| 2 | Requirements traced to the Phase 1 specification |
-| 3 | Phase 2 Lean requirements |
+| WIFFLED | Ratified prose requirements |
+| AIMED | Requirements traced to whichever technique-pair(s) were selected — FLYBY findings, the TRAJECTORY / ANGLING specification, and/or SIMULATION Lean requirements |
+| POKAYOKE | SIMULATION Lean requirements |
 
 ## Required artifacts
 
@@ -55,7 +56,7 @@ Implementation behavior MUST NOT become the source of expected test results.
 
 ## Exit criteria
 
-Phase 3 exits when:
+FLIGHT MANIFEST exits when:
 
 - every requirement maps to an executable test or approved exception;
 - generators reach the relevant preconditions;
