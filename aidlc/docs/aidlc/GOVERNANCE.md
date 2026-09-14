@@ -108,6 +108,39 @@ A known counterexample blocks the affected phase unless it is:
 - resolved by a ratified requirement change; or
 - accepted as residual risk by the decision authority.
 
+## Counterfactuals
+
+A counterfactual check intentionally changes an assumption, requirement, model, implementation, input, or environment to determine whether the evidence is sensitive to a material difference.
+
+For material claims, the evidence plan SHOULD include at least one discriminating counterfactual. POKAYOKE-tier work MUST include one unless the technical authority records why none is applicable.
+
+A counterfactual record MUST identify:
+
+- the artifact or assumption changed;
+- the reason the change is material;
+- the expected result, recorded before execution;
+- the observed result and evidence type;
+- the implication for the affected claim.
+
+Suitable counterfactuals include:
+
+- negating or weakening a requirement;
+- removing an assumption;
+- introducing a known implementation defect;
+- changing a fixture so that a precondition is absent or violated;
+- replacing a permitted transition with a forbidden one;
+- changing a bound, configuration, dependency, or environmental condition;
+- presenting a known-valid and known-invalid case to the same oracle.
+
+If a counterfactual expected to change a verdict does not do so, the affected evidence MUST NOT discharge the claim until the lack of discrimination is explained and accepted by the technical authority.
+
+A successful counterfactual establishes that the evidence can distinguish the tested alternatives. It does not establish that the production implementation conforms, that all relevant alternatives were considered, or that the claim holds outside the recorded bounds.
+
+A counterfactual is not a counterexample. A counterexample demonstrates a violation in the artifact under evaluation; a counterfactual evaluates how evidence responds to an intentional hypothetical change.
+
+The last distinction is particularly useful because it prevents “counterexample” and “mutation/negative-control” evidence from being conflated.
+
+
 ## Approved claim wording
 
 Preferred wording includes:
