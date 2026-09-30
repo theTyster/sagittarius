@@ -714,6 +714,10 @@ FLIGHT MANIFEST is satisfied when:
 - tests distinguish at least one representative broken behavior;
 - the traceability matrix is current.
 
+FLIGHT MANIFEST approval covers mapping, reach, and discrimination. It
+does not judge whether the tests test the right things at the right
+grain. That review belongs to LANDING MODULE.
+
 ## Phase 4 — IGNITION: Implementation
 
 ### Objective
@@ -944,6 +948,14 @@ implementer.
 Tests SHOULD include domain- and platform-derived concerns that were not
 copied directly from the formal requirements.
 
+### Test-adequacy review
+
+LANDING MODULE MUST review whether the FLIGHT MANIFEST tests test the
+right things at the right grain. For each requirement, record what
+object each assertion is a claim about, whether the test key matches the
+identity of the thing tested, and what the tests would not catch. A
+missing or misaimed test returns to FLIGHT MANIFEST (see Change control).
+
 ### Finding classification
 
 Each finding MUST be classified as: requirement defect; specification-
@@ -963,7 +975,8 @@ LANDING MODULE is satisfied when:
 - findings are classified and dispositioned;
 - blocking findings are closed;
 - operational and performance effects are accepted;
-- no open finding contradicts a normative requirement.
+- no open finding contradicts a normative requirement;
+- the test-adequacy review is recorded.
 
 ## Phase 8 — SPLASHDOWN: Close-Out and Integration
 
