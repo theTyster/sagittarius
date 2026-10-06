@@ -22,10 +22,82 @@ three sets — Specification, Implementation, Verification. The rigor tier
 selected for a ticket determines which phases are required. Work is carried
 out by tasks, each scoped to a single set.
 
+## Session flow
+
+### Session start
+
 If the current ticket has no manifest or no ratified tier, the agent MUST
 begin by drafting the ticket manifest rather than implementation. If the
 current task has no charter, the agent MUST begin by drafting the task
 charter rather than producing phase artifacts.
+
+1. Find the ticket's records, on disk or earlier in this transcript. If
+   they exist, resume from the recorded phase status.
+2. Read-only work, such as questions, code reading, or review without
+   edits, needs only a minimal manifest: the ticket, default roles, and
+   the tier "read-only", which has no phases. Before the first change to a
+   repository, configuration, or production artifact, select a real tier
+   and complete the manifest. Scratch files do not count.
+3. Otherwise, draft the manifest. It delineates the roles, the tier, and
+   the task inventory before any phase starts.
+4. Draft each task's charter. Before producing or modifying a phase's
+   artifacts, read that phase's section, its set's introduction, and the
+   ticket's tier section.
+5. Record each phase and set as it is satisfied.
+
+### Record medium
+
+AIDLC records are the ticket manifest, task charters, phase status records,
+the traceability matrix, and the evidence ledger. Disk is preferred: disk
+records explain the work later and survive a handoff. The tier decides
+where records MAY live instead.
+
+| Work | Records MAY live in | Disk is required when |
+|---|---|---|
+| Read-only | unwritten in the agent's reasoning, or the chat transcript | never |
+| WIFFLED | the chat transcript | a handoff occurs or the task owner asks |
+| AIMED | the chat transcript | a handoff occurs, the task owner asks, or formal artifacts are committed; their traceability is committed with them |
+| POKAYOKE | disk only | always, as the evidence knowledge base (see Traceability) |
+
+A handoff is any point where another session, agent, or person continues
+the ticket. Records MUST be on disk before a handoff, except a read-only
+manifest. Resuming the same transcript is not a handoff. A sub-agent that
+reports back to the session is not a handoff either; give it the records
+it needs. Whenever the transcript turns out to have been compacted or
+cleared, treat chat-only records as lost: rebuild them from the
+repository and the evidence, and note the gap. Rebuilt requirements,
+ratifications, and approvals count as proposed until confirmed again.
+Never rebuild requirements from the implementation.
+
+A WIFFLED ticket keeps every record in the WIFFLED ticket record (see
+Templates). An AIMED ticket MAY merge its records the same way: the
+manifest, with each task's charter, status, and matrix as sections.
+
+### Roles
+
+The manifest MUST assign every role. A task charter MAY override a role
+for its task.
+
+| Role | Duty | Holder |
+|---|---|---|
+| Task owner | Coordinates the task, maintains its status, and decides when SPLASHDOWN closes. | Always a human. |
+| Reviewer | Independently reviews the final evidence and implementation. | Always a human. Agents MAY assist. |
+| Decision authority | Ratifies requirements and accepts residual risk. | A human or an agent. |
+| Technical authority | Ratifies the tier and plans how the task's phases are completed. | A human or an agent. |
+| Implementer | Changes production artifacts. | Usually the session agent, directly or through sub-agents. |
+| Set approver | Records phase and set satisfaction. | A human or an agent. |
+
+**Default roles.** The human user is task owner and reviewer, and the
+session agent holds the other four roles. A manifest MAY say "roles:
+default". One holder MAY hold several roles. The task owner proposes the
+tier for the whole ticket, and the technical authority ratifies it.
+
+POKAYOKE-tier work SHOULD separate implementer and final reviewer. At
+POKAYOKE, the implementer SHOULD NOT also be the set approver, so the
+manifest names an independent agent or a human for that role instead of
+the default. Independent-review SHOULDs
+elsewhere MAY be met by an agent with no part in the implementation. The
+Reviewer role is the final human review.
 
 ## Structure: Tickets, Tasks, Sets, Phases
 
@@ -36,12 +108,13 @@ charter rather than producing phase artifacts.
 - **Task** — the unit of AIDLC ownership. A task has its own charter, its
   own phase-status record, and its own set of approvers. **A task's phase
   coverage MUST stay inside a single set.** A task MAY cover more than one
-  phase within that set.
+  phase within that set, or a slice of one phase's scope.
 - **Set** — a grouping of adjacent phases that share a kind of work:
   Specification, Implementation, or Verification (table below). Sets are
   ordered: Specification before Implementation before Verification.
 - **Phase** — one of the nine numbered activities, FLYBY through
-  SPLASHDOWN. Each phase belongs to exactly one set.
+  SPLASHDOWN. Each phase belongs to exactly one set, whatever the tier. A
+  tier that does not require a phase leaves its slot empty.
 
 ### Set → phase mapping
 
@@ -51,34 +124,18 @@ charter rather than producing phase artifacts.
 | **Implementation** | 3 — FLIGHT MANIFEST, 4 — IGNITION | Turn requirements into executable tests, then into production code. |
 | **Verification** | 5 — TELEMETRY, 6 — RENDEZVOUS, 7 — LANDING MODULE, 8 — SPLASHDOWN | Establish that the implementation matches its models and requirements, then close out. |
 
-A phase's set membership is fixed; it does not vary by tier. A tier that
-does not require a given phase simply has nothing to do in that phase's
-slot — it does not move the phase to a different set.
-
 ### One set per task
 
-A task MAY hold every phase required in its set, a subset of them, or a
-slice of a single phase's scope (e.g. one of several IGNITION tasks for
-different components). A task MUST NOT hold phases from two different sets.
-A ticket that requires phases from more than one set therefore requires
-more than one task — at least one per set touched.
-
-Consequences of this rule:
+A ticket that requires phases from more than one set requires at least one
+task per set touched. Consequences:
 
 - **WIFFLED has no Specification-set phase.** Its requirements are ratified
-  prose, recorded directly in the ticket manifest, not produced by a
-  Specification task. A WIFFLED ticket needs at least two tasks:
-  Implementation and Verification.
-- **The AIMED Lean technique-pair (SIMULATION → TELEMETRY → RENDEZVOUS)
-  crosses two sets** — SIMULATION is Specification, TELEMETRY and
-  RENDEZVOUS are Verification. Selecting it requires at least one
-  Specification task and one Verification task. The FLYBY and
-  TRAJECTORY / ANGLING technique-pairs sit entirely inside the
-  Specification set and can each be satisfied by a single task.
-- **Test-first is enforced by phase order inside the Implementation set,**
-  not by set order: FLIGHT MANIFEST must be satisfied before IGNITION
-  starts, even when one task holds both phases. See the Implementation-set
-  rules below.
+  prose, recorded in the ticket manifest. A WIFFLED ticket needs at least
+  two tasks: Implementation and Verification.
+- **The Lean technique-pair (SIMULATION → TELEMETRY → RENDEZVOUS) crosses
+  two sets.** SIMULATION is Specification; TELEMETRY and RENDEZVOUS are
+  Verification. Selecting it requires a task in each. The FLYBY and
+  TRAJECTORY / ANGLING technique-pairs each fit in one Specification task.
 - **A single phase may be split across multiple tasks.** At ticket level, a
   phase counts as satisfied only when every task assigned a slice of it has
   recorded that slice satisfied. Every phase required by the ticket's tier
@@ -89,58 +146,26 @@ Consequences of this rule:
   authoritative until the upstream task has recorded its set satisfied
   (see Change control for what happens when upstream is later reopened).
 - **SPLASHDOWN closes the ticket, not only its own task.** The task holding
-  SPLASHDOWN MUST confirm that every task in the ticket has satisfied its
-  set before SPLASHDOWN itself can be satisfied. The human task owner of
-  the SPLASHDOWN task declares "mission accomplished" (see SPLASHDOWN
-  below).
-
-## Roles and authority
-
-Each task MUST identify, in its charter:
-
-- **Task owner** — coordinates the task and maintains its status. Always a
-  human.
-- **Decision authority** — ratifies requirements and accepts residual risk.
-  Sometimes a human, sometimes the technical or implementation authority,
-  sometimes a specialized agent.
-- **Technical authority** — ratifies the tier and strategizes how the
-  task's phases will be completed. Balanced between the human and the
-  session agent currently handling the task.
-- **Implementer** — changes production artifacts. Orchestrated or directly
-  handled by the session agent currently handling the task.
-- **Reviewer** — independently reviews evidence and implementation.
-  Balanced between the human and the session agent currently handling the
-  task.
-- **Set approver** — the authority who signs off that this task's set is
-  satisfied. Named explicitly in the task charter; MAY be the task owner,
-  the technical authority, or another named approver appropriate to the
-  task's tier and risk.
-
-One owner MAY hold multiple roles for low-risk work. POKAYOKE-tier work
-SHOULD separate implementer and final reviewer.
-
-The ticket's task owner (or owners, if delegated per task) proposes the
-tier for the whole ticket. The technical authority ratifies it.
-
-A task MAY stratify across multiple phases within its set. It MUST NOT
-stratify across multiple sets. The task owner of the SPLASHDOWN task
-decides when SPLASHDOWN — and therefore the ticket — may be closed.
+  SPLASHDOWN MUST confirm that every other task in the ticket has
+  satisfied its set before SPLASHDOWN itself can be satisfied. Its own set
+  is recorded satisfied together with SPLASHDOWN.
 
 ## Tiers
 
 Tiers are selected **per ticket**, not per task. The ticket's required
-phases are then divided among its tasks, respecting the one-set-per-task
-rule. Tier completion is judged across all of the ticket's tasks together.
+phases are then divided among its tasks. Tier completion is judged across
+all of the ticket's tasks together.
 
 ### Selection rule
 
-Select a tier based on the task's complexity and potential harm, not the
-desired development speed.
+Select a tier based on the ticket's complexity and potential harm, not the
+desired development speed. The selected tier MUST be recorded in the ticket
+manifest and ratified by the technical authority.
 
-The selected tier MUST be recorded in the ticket manifest and ratified by
-the technical authority.
-
-A tier MAY be raised at any time.
+A tier MAY be raised at any time. Adding a technique-pair raises it;
+removing one lowers it. Raising is a substantive change: every started
+phase downstream of a newly required phase MUST be re-reviewed against
+that phase's output.
 
 A tier MUST NOT be lowered after work begins without:
 
@@ -148,14 +173,27 @@ A tier MUST NOT be lowered after work begins without:
 - disposition of evidence indicating higher risk;
 - approval from the technical authority.
 
+Lowering is also a substantive change. Evidence from dropped phases stays
+in the evidence ledger but earns no credit. When a Specification phase is
+dropped, FLIGHT MANIFEST and every started phase after it MUST be
+re-reviewed against the new requirements source.
+
+An AIMED or POKAYOKE manifest MUST name its formal scope: the requirements
+that go through the formal phases. Requirements outside it skip the formal
+phases but keep the ticket's tier, so WIFFLED-only relaxations do not
+apply to them. Every code path that can write state a formal requirement
+references stays inside the formal scope: specification models include
+its effect as an action or an assumption, and, when TELEMETRY is
+required, the implementation model maps it. Narrowing the formal scope
+after work begins follows the rule for lowering a tier.
+
 ### WIFFLED — 0 / 3, none
 
 **Scope.** Simple, low-risk changes that can be specified in prose and
 verified empirically.
 
 **Required phases.** FLIGHT MANIFEST, IGNITION (Implementation set);
-LANDING MODULE, SPLASHDOWN (Verification set). No Specification-set phase
-is required — see "One set per task" above.
+LANDING MODULE, SPLASHDOWN (Verification set).
 
 **Requirements source.** Ratified prose requirements, recorded in the
 ticket manifest.
@@ -182,25 +220,19 @@ LANDING MODULE, SPLASHDOWN — plus **at least one** selected technique-pair:
   Verification) — Lean requirements model, implementation model, and
   satisfaction proof, run as a mini-pipeline.
 
-Each pair already bundles a model with its own check, so picking any one
-satisfies "a modeling layer and a proof/check layer must both be present."
-
 **Selecting and combining technique-pairs.** The task owner proposes which
 pair(s) apply; the technical authority ratifies the choice in the ticket
-manifest. When more than one pair is selected (for example,
-TRAJECTORY / ANGLING plus the SIMULATION pipeline, or FLYBY plus the
-SIMULATION pipeline), the ticket manifest MUST record how evidence and
-identifiers translate between the chosen layers. This translation approach
-— not the phase checklist — is the central design question for an AIMED
-ticket.
+manifest. When more than one pair is selected, the ticket manifest MUST
+record how evidence and identifiers translate between the chosen layers.
+This translation approach — not the phase checklist — is the central
+design question for an AIMED ticket.
 
 **Typical examples.** Rule-set contradictions and bounded assignment
 problems (FLYBY alone); workflows with multiple states, concurrent
 updates, or partial deployment (TRAJECTORY / ANGLING alone); a
-state-transition spec paired with a Lean satisfaction proof for the same
-behavior (TRAJECTORY / ANGLING plus the SIMULATION pipeline); a bounded
-logical check paired with a Lean satisfaction proof (FLYBY plus the
-SIMULATION pipeline).
+state-transition spec or a bounded logical check paired with a Lean
+satisfaction proof for the same behavior (TRAJECTORY / ANGLING or FLYBY
+plus the SIMULATION pipeline).
 
 ### POKAYOKE — 2 / 3, all
 
@@ -219,6 +251,21 @@ migration; nontrivial concurrency; multiple coupled state machines;
 partial-deployment risk; inability to distinguish safe and unsafe states
 from available data; a history of local fixes causing non-local
 regressions.
+
+**Records.** POKAYOKE records live on disk, with the evidence knowledge
+base (see Traceability).
+
+**Churn controls.** These cut rework without cutting rigor. Phases add
+their own.
+
+- The formal scope SHOULD hold only the requirements that the escalation
+  indicators touch.
+- One command SHOULD rerun every formal check and every test.
+- The human reviewer SHOULD review the ratified requirements before
+  IGNITION starts. A requirement defect found after IGNITION reopens every
+  downstream set.
+- After a change, rework at least the artifacts the knowledge base reports
+  stale. The change record names any others judged affected.
 
 ### Tier satisfaction conditions
 
@@ -262,8 +309,13 @@ Technical findings SHOULD be classified as:
 - **claim** — reasoning not directly executed;
 - **decision** — approved business or technical direction.
 
-Executable evidence MUST record applicable versions, configuration,
-bounds, environment, commands, and artifact hashes.
+Executable evidence MUST record the commit and the command. On an
+uncommitted tree, record the base commit marked dirty, with a hash that
+covers the diff and any untracked files. Formal checks and model runs MUST also record their configuration,
+and their bounds or that they are unbounded. Other executable evidence
+SHOULD record its configuration and bounds. All executable evidence SHOULD
+record tool versions, environment, and artifact hashes. Review evidence
+MUST record the commit reviewed.
 
 ### Distinguish status
 
@@ -299,8 +351,8 @@ A phase is satisfied only when:
 - the task's set approver records the phase as satisfied.
 
 A set is satisfied only when every phase assigned to it within the task has
-been recorded satisfied, and the set approver named in the task charter
-records the set as satisfied.
+been recorded satisfied, and the task's set approver records the set as
+satisfied.
 
 Elapsed time, test count, model-run count, or approval of a related
 decision does not imply phase or set satisfaction.
@@ -367,36 +419,33 @@ It MUST NOT remain an informational caveat in a satisfied phase.
 
 A counterfactual check intentionally changes an assumption, requirement,
 model, implementation, input, or environment to determine whether the
-evidence is sensitive to a material difference.
+evidence is sensitive to a material difference. It is not a
+counterexample: a counterexample demonstrates a violation in the artifact
+under evaluation.
 
 For material claims, the evidence plan SHOULD include at least one
 discriminating counterfactual. POKAYOKE-tier work MUST include one unless
-the technical authority records why none is applicable.
+the technical authority records why none is applicable. Discrimination
+evidence that a phase already produces counts when its record has the
+fields below: the red run before IGNITION, a FLYBY deletion or weakening
+probe, a model run with a guard removed, a mutation test.
 
 A counterfactual record MUST identify: the artifact or assumption changed;
 the reason the change is material; the expected result, recorded before
 execution; the observed result and evidence type; the implication for the
-affected claim.
-
-Suitable counterfactuals include: negating or weakening a requirement;
-removing an assumption; introducing a known implementation defect;
-changing a fixture so that a precondition is absent or violated; replacing
-a permitted transition with a forbidden one; changing a bound,
-configuration, dependency, or environmental condition; presenting a
-known-valid and known-invalid case to the same oracle.
+affected claim. Suitable changes include: negating or weakening a
+requirement; removing an assumption; introducing a known implementation
+defect; making a fixture's precondition absent or violated; replacing a
+permitted transition with a forbidden one; changing a bound,
+configuration, dependency, or environment; presenting a known-valid and a
+known-invalid case to the same oracle.
 
 If a counterfactual expected to change a verdict does not do so, the
 affected evidence MUST NOT discharge the claim until the lack of
-discrimination is explained and accepted by the technical authority.
-
-A successful counterfactual establishes that the evidence can distinguish
-the tested alternatives. It does not establish that the production
-implementation conforms, that all relevant alternatives were considered,
-or that the claim holds outside the recorded bounds.
-
-A counterfactual is not a counterexample. A counterexample demonstrates a
-violation in the artifact under evaluation; a counterfactual evaluates how
-evidence responds to an intentional hypothetical change.
+discrimination is explained and accepted by the technical authority. A
+successful counterfactual establishes only that the evidence can
+distinguish the tested alternatives. It does not establish conformance,
+coverage of all alternatives, or validity outside the recorded bounds.
 
 ### Exceptions
 
@@ -407,16 +456,13 @@ affected claims; expiration or review condition; approving authority.
 An exception changes the permitted process claim. It does not make missing
 evidence exist.
 
-### Changes may reopen earlier phases and invalidate downstream tasks
+### Changes reopen phases; traceability stays current
 
 A substantive change to a requirement, assumption, transition,
 quantification domain, implementation, migration, or deployment rule MUST
-follow Change control (below).
-
-### Traceability is maintained continuously
-
-Traceability is not a SPLASHDOWN documentation exercise. It MUST be
-updated when the linked artifacts change. See Traceability (below).
+follow Change control (below). Traceability is not a SPLASHDOWN
+documentation exercise. It MUST be updated when the linked artifacts
+change.
 
 ### Good specifications often usher in good questions
 
@@ -430,20 +476,18 @@ contradictions to humans.
 
 Phases 0–2: FLYBY, TRAJECTORY / ANGLING, SIMULATION. A task assigned to
 this set produces implementation-independent models of required behavior.
-A WIFFLED ticket has no task in this set — its requirements are ratified
-prose in the ticket manifest instead.
-
-**Specification set is satisfied for a task when** every phase assigned to
-that task within this set has been recorded satisfied by the task's set
-approver, per the Universal gates above.
 
 ## Phase 0 — FLYBY: Logical Exploration
 
 ### Objective
 
-Establish the logical shape of the problem and identify at least one
-verifiable root cause before committing to a transition-system
-specification.
+Establish the logical shape of the problem before committing to a
+transition-system specification. For a defect, identify at least one
+verifiable root cause. For new behavior, check that the candidate
+requirements are jointly satisfiable, with every conditional antecedent
+true in some witness. Discriminate that check by adding a known
+conflicting requirement and showing UNSAT. The logical vocabulary fixes
+the identifiers that later layers reuse verbatim.
 
 ### Required for
 
@@ -466,7 +510,7 @@ POKAYOKE (always); AIMED, when FLYBY is a selected technique-pair.
 - check inventory;
 - expected and actual verdicts;
 - negative, deletion, or weakening probes;
-- root-cause findings;
+- root-cause or joint-satisfiability findings;
 - unresolved questions;
 - candidate requirement inventory.
 
@@ -491,7 +535,8 @@ satisfiable.
 FLYBY has been satisfied when:
 
 - the logical vocabulary is stable enough for the next required activity;
-- at least one root cause has discriminating evidence;
+- the root cause, or the joint satisfiability of new requirements, has
+  discriminating evidence;
 - assumptions and bounds are recorded;
 - non-discriminating checks are identified;
 - known contradictions have an owner;
@@ -502,8 +547,9 @@ FLYBY has been satisfied when:
 
 ### Permitted conclusion
 
-"FLYBY bounded the logical problem and identified the recorded root cause
-under the stated encoding and assumptions."
+"FLYBY bounded the logical problem and identified the recorded root cause,
+or showed the candidate requirements jointly satisfiable, under the stated
+encoding and assumptions."
 
 FLYBY does not prove that a production implementation is correct.
 
@@ -521,7 +567,7 @@ technique-pair.
 
 ### Inputs
 
-- FLYBY artifacts;
+- FLYBY artifacts, when FLYBY is required;
 - ratified requirements and decisions;
 - known counterexamples;
 - deployment and concurrency concerns.
@@ -559,6 +605,9 @@ antecedent.
 Known model defects or contradictions MUST be resolved, excluded by
 enforced assumptions, or accepted explicitly.
 
+Iterate with the smallest bounds that witness every credited antecedent.
+Before satisfaction, run the full recorded bounds.
+
 ### Satisfaction criteria
 
 TRAJECTORY / ANGLING is satisfied when:
@@ -588,9 +637,10 @@ pipeline is a selected technique-pair.
 
 ### Inputs
 
-- TRAJECTORY / ANGLING specification;
+- FLYBY artifacts, when FLYBY is required;
+- TRAJECTORY / ANGLING specification and coverage matrix, when
+  TRAJECTORY / ANGLING is required;
 - ratified requirements;
-- specification coverage matrix;
 - approved assumptions.
 
 ### Nature of the artifact
@@ -603,6 +653,12 @@ Proof bodies MAY use `sorry`. A declaration containing `sorry` is admitted
 and type-checked. It is not proven. Documentation MUST describe it as a
 well-typed or admitted requirement.
 
+When a TLA+ specification exists, translate it structurally: one Lean
+structure for the state variables, one relation per action, and one
+proposition per invariant over reachable states. Each liveness property
+becomes a proposition over behaviors, or stays checked by TLC alone, as
+the traceability records. Keep the TLA+ identifiers.
+
 ### Required artifacts
 
 - Lean requirements model;
@@ -610,17 +666,18 @@ well-typed or admitted requirement.
 - inventory of every `sorry`;
 - quantification review;
 - anti-vacuity evidence;
-- TLA+-to-Lean traceability;
+- TLA+-to-Lean traceability, when TRAJECTORY / ANGLING is required;
 - planned test mapping.
 
 ### Requirement rules
 
 Each requirement MUST: map to a ratified requirement; map to a
-TRAJECTORY / ANGLING action or property; quantify over the intended
-domain; state assumptions explicitly; represent applicable normal,
-exceptional, and fail-closed outcomes; include relevant frame conditions;
-have an inhabited or reachable precondition; avoid accidental dependence
-on an implementation mechanism.
+TRAJECTORY / ANGLING action or property, when TRAJECTORY / ANGLING is
+required; quantify over the intended domain; state assumptions
+explicitly; represent applicable normal, exceptional, and fail-closed
+outcomes; include relevant frame conditions; have an inhabited or
+reachable precondition; avoid accidental dependence on an implementation
+mechanism.
 
 The model MUST NOT use an empty domain, unreachable antecedent, `False`,
 or an equivalent construction to satisfy a requirement unintentionally.
@@ -647,16 +704,19 @@ requirements — formal or ratified prose — into executable tests, then into
 production code, in that order.
 
 **Test-first inside the set.** FLIGHT MANIFEST MUST be satisfied before
-IGNITION starts, including when one task holds both phases. Implementation
-behavior MUST NOT become the source of expected test results. When one
-task holds both phases at AIMED or POKAYOKE tier, use a different reviewer
-for FLIGHT MANIFEST than for IGNITION where practical.
+IGNITION starts, including when one task holds both phases. Only an
+approved emergency exception relaxes this (see Change control).
+Implementation behavior MUST NOT become the source of expected test
+results. When one task holds both phases at AIMED or POKAYOKE tier, use a
+different reviewer for FLIGHT MANIFEST than for IGNITION where practical.
 
-**Implementation set is satisfied for a task when** both assigned phases
-(or the task's slice of them) have been recorded satisfied by the task's
-set approver, per the Universal gates above.
+**Documentation.** Documentation that the change makes stale SHOULD be
+updated in the same change: READMEs, inline docs, operator notes, and
+repository maps such as CLAUDE.md. A note, carried into the integration
+record, names any update that was skipped. A skipped update never blocks
+a phase, unless the document is itself a normative artifact.
 
-## Phase 3 — FLIGHT MANIFEST: Property-Test Generation
+## Phase 3 — FLIGHT MANIFEST: Test Generation
 
 ### Objective
 
@@ -672,46 +732,70 @@ All tiers.
 | Tier | Source |
 |---|---|
 | WIFFLED | Ratified prose requirements from the ticket manifest |
-| AIMED | Requirements traced to whichever technique-pair(s) were selected — FLYBY findings, the TRAJECTORY / ANGLING specification, and/or SIMULATION Lean requirements |
-| POKAYOKE | SIMULATION Lean requirements |
+| AIMED | Requirements traced to whichever technique-pair(s) were selected — FLYBY findings, the TRAJECTORY / ANGLING specification, and/or SIMULATION Lean requirements — plus prose requirements outside the formal scope |
+| POKAYOKE | SIMULATION Lean requirements, plus prose requirements outside the formal scope |
 
 ### Required artifacts
 
 - requirement-to-test inventory;
-- property tests;
-- example tests where properties are unsuitable;
-- generators and shrinkers;
+- example tests;
+- property tests, with generators and shrinkers, where the rules below
+  call for them;
 - fixtures;
 - exceptional-path tests;
 - test bounds and runtime assumptions;
-- negative-control or mutation results.
+- discrimination evidence: red runs, and other discriminators where
+  needed.
 
 ### Rules
 
-Every normative requirement MUST map to at least one executable test
-unless an exception is approved.
+Every normative requirement MUST map to at least one executable test, a
+review check where allowed below, or an approved exception.
 
-Tests MUST demonstrate that they distinguish relevant broken behavior
-through at least one of: a known-broken baseline; a disabled feature; a
-code mutation; a generated counterexample; a deleted or weakened guard.
+An artifact with no execution path, such as prose, or a prompt with no
+eval harness, MAY use review checks in place of executable tests. A review
+check is an item derived from a requirement and written before IGNITION,
+which the unchanged artifact fails. A frame check, such as "rule X stays",
+passes on the unchanged artifact; its discriminator is a copy with the
+guarded text removed, which it fails. Record each result as code read
+evidence, with the commit reviewed.
+
+Example tests are the default. A requirement that quantifies over a large
+or structured input domain SHOULD get a property test. At POKAYOKE, Lean
+requirements that quantify over a domain SHOULD map to property tests.
+
+Tests MUST demonstrate that they distinguish relevant broken behavior:
+
+- For new or changed behavior, the red run against the unchanged code is
+  the known-broken baseline. It counts when the test fails because the
+  asserted behavior is absent. A failure from a missing symbol, an import
+  error, or broken setup does not count; add a stub and rerun. No extra
+  mutation is needed.
+- A new-behavior test that passes before IGNITION is a finding. Fix the
+  test, or treat it as a regression test.
+- A test meant to pass before IGNITION, such as a regression or frame
+  test, needs another discriminator: a negative control, a disabled
+  feature, a code mutation, a deleted or weakened guard, a known-broken
+  historical commit, or a generated counterexample. At WIFFLED, such a
+  test MAY instead be marked for the LANDING MODULE test-adequacy review,
+  which records whether it fails on relevant broken behavior.
 
 Tests MUST cover applicable: normal behavior; exceptional and fail-closed
 behavior; empty and singleton inputs; multiple related entities;
 historical or malformed data; retry and restart behavior; partial
 deployment; relevant concurrency.
 
-Implementation behavior MUST NOT become the source of expected test
-results.
-
 ### Satisfaction criteria
 
 FLIGHT MANIFEST is satisfied when:
 
-- every requirement maps to an executable test or approved exception;
-- generators reach the relevant preconditions;
-- negative controls fail as expected;
+- every requirement maps to an executable test, a review check, or an
+  approved exception;
+- tests and generators reach the relevant preconditions;
+- every new-behavior test and review check has a recorded red result,
+  and every other discriminator fails as expected or, at WIFFLED, is
+  marked for the test-adequacy review;
 - test bounds are recorded;
-- tests distinguish at least one representative broken behavior;
 - the traceability matrix is current.
 
 FLIGHT MANIFEST approval covers mapping, reach, and discrimination. It
@@ -742,6 +826,8 @@ All tiers.
 - feature flags where required;
 - rollout and rollback mechanisms;
 - passing test results;
+- documentation updates, or a note naming each one skipped, carried into
+  the integration record;
 - updated traceability.
 
 ### Rules
@@ -765,7 +851,7 @@ authorization, masking, retention, disclosure, and audit behavior.
 IGNITION is satisfied when:
 
 - FLIGHT MANIFEST tests pass;
-- negative controls remain discriminating;
+- negative controls and other discriminators remain discriminating;
 - migration rehearsals pass where applicable;
 - rollout and rollback mechanisms exist;
 - normal engineering checks pass;
@@ -784,12 +870,9 @@ assigned to this set establishes that the implementation matches its
 models and requirements, probes what the models missed, and closes out
 the ticket.
 
-**Verification set is satisfied for a task when** every phase assigned to
-that task within this set has been recorded satisfied by the task's set
-approver, per the Universal gates above. Because SPLASHDOWN additionally
-requires every other task in the ticket to have satisfied its own set (see
-"One set per task"), the task holding SPLASHDOWN is typically the last
-task in the ticket to close.
+LANDING MODULE MAY start drafting once IGNITION is in progress, like any
+later-set work. Its probes count once the Implementation set is
+satisfied, and it runs in parallel with TELEMETRY and RENDEZVOUS.
 
 ## Phase 5 — TELEMETRY: Implementation Model
 
@@ -819,8 +902,8 @@ pipeline is a selected technique-pair.
 
 ### Correspondence rules
 
-The implementation model MUST NOT be considered accurate merely because it
-was written after the code.
+The implementation model MUST NOT be considered accurate merely because of
+when it was written, before or after the code.
 
 Each modeled operation MUST map to applicable: production methods; input
 transformations; state reads and writes; exceptions and fail-closed
@@ -830,10 +913,21 @@ boundaries.
 Conformance evidence MAY include: differential tests between production
 code and model; generated tests from a shared state representation;
 bounded exhaustive comparison; transition instrumentation; reviewed
-semantic correspondence; extraction from a shared executable model.
+semantic correspondence; extraction from a shared executable model. When
+the Lean model is executable, conformance evidence SHOULD include
+differential tests of production code against it.
 
 The strength of the final claim MUST match the strength and bounds of
 this evidence.
+
+### Early drafting
+
+The TELEMETRY task SHOULD start its model draft while IGNITION is active,
+and attempt the satisfaction proofs against the draft. A proof that fights
+the draft shows, before the code is final, that the code or the
+requirement should change. A requirement change follows Change control.
+The draft is not authoritative: TELEMETRY is satisfied only after
+correspondence with the final code is shown.
 
 ### Satisfaction criteria
 
@@ -866,7 +960,11 @@ pipeline is a selected technique-pair.
 Every applicable SIMULATION requirement MUST be discharged against the
 TELEMETRY implementation model.
 
-Any approved Lean tactic or proof term MAY be used.
+Any approved Lean tactic or proof term MAY be used. When the model has
+actions, structure the satisfaction proofs as one initiation lemma per
+invariant and one preservation lemma per action and invariant. A change
+to one action then reopens its own lemmas, plus those of any
+strengthening invariant the change touches.
 
 Unapproved `sorry` declarations MUST NOT remain in the satisfaction layer.
 
@@ -953,8 +1051,11 @@ copied directly from the formal requirements.
 LANDING MODULE MUST review whether the FLIGHT MANIFEST tests test the
 right things at the right grain. For each requirement, record what
 object each assertion is a claim about, whether the test key matches the
-identity of the thing tested, and what the tests would not catch. A
-missing or misaimed test returns to FLIGHT MANIFEST (see Change control).
+identity of the thing tested, and what the tests would not catch. For
+each test that FLIGHT MANIFEST marked for this review, record whether it
+fails on relevant broken behavior. A missing or misaimed test, or a
+marked test that does not fail, returns to FLIGHT MANIFEST (see Change
+control).
 
 ### Finding classification
 
@@ -971,6 +1072,8 @@ require reopening a task in an earlier set (see Change control).
 LANDING MODULE is satisfied when:
 
 - applicable adversarial areas have been exercised;
+- when TELEMETRY is required, TELEMETRY is satisfied and its inventory of
+  unmodeled behavior has been probed;
 - end-to-end verification passes;
 - findings are classified and dispositioned;
 - blocking findings are closed;
@@ -984,7 +1087,7 @@ LANDING MODULE is satisfied when:
 
 Finalize the normative artifacts and evidence, confirm every task in the
 ticket has satisfied its set, authorize rollout, create or finalize the
-pull request, and prepare post-deployment verification.
+integration record, and prepare post-deployment verification.
 
 ### Required for
 
@@ -997,6 +1100,12 @@ The following human-facing artifacts MUST be current:
 1. final normative specification;
 2. final decision register.
 
+At WIFFLED, the ticket record's prose requirements are the final
+normative specification. Its decisions, such as the tier rationale and
+risk acceptances, plus IGNITION's implementation decision records, are
+the final decision register. At POKAYOKE, the normative specification
+MAY be generated from the knowledge base.
+
 These artifacts SHOULD use ASD-STE100 principles where practical: short,
 direct sentences; consistent terminology; one instruction or requirement
 per sentence; explicit subjects and conditions; no avoidable ambiguity.
@@ -1005,8 +1114,8 @@ per sentence; explicit subjects and conditions; no avoidable ambiguity.
 
 As applicable: completed traceability matrix; phase-satisfaction records
 for every task in the ticket; residual-risk register; rollout plan;
-rollback plan; migration plan; monitoring plan; data-repair plan; pull
-request; post-deployment verification checklist.
+rollback plan; migration plan; monitoring plan; data-repair plan;
+integration record; post-deployment verification checklist.
 
 ### Rollout-plan requirements
 
@@ -1018,27 +1127,39 @@ responsible operators.
 
 A dependency graph alone is not a rollout plan.
 
-### Pull requests
+### Integration
+
+The integration record is the pull request. Where the repository uses
+none, it is the reviewed commit, and the push or merge follows approval.
 
 A draft pull request MAY be used as a non-integrating workspace before
 SPLASHDOWN.
 
-A pull request MUST NOT be approved for integration until every task
-required by the ticket's tier has satisfied its set.
+A pull request, or its equivalent, MUST NOT be approved for integration
+until every task required by the ticket's tier, other than the SPLASHDOWN
+task, has satisfied its set, except for an emergency release (see
+Emergency changes). The human task owner approves integration once
+SPLASHDOWN's other criteria hold.
 
 ### Satisfaction criteria
 
 SPLASHDOWN is satisfied when:
 
-- every task in the ticket has satisfied its assigned set;
+- every other task in the ticket has satisfied its assigned set;
 - all phases required by the ticket's tier have been satisfied, across
   the ticket's tasks;
 - final artifacts are internally consistent;
 - residual risks are approved;
-- rollout and rollback have owners;
-- the pull request is reviewed and approved;
-- deployment authorization is recorded by a human;
-- post-deployment verification is scheduled;
+- rollout and rollback have owners, where a deployment exists;
+- the human reviewer has reviewed the final evidence and the integration
+  record, which lists the ratified tier and formal scope and every risk
+  acceptance, exception, tier lowering, and formal-scope change an agent
+  approved; a later blocking finding, substantive change, or tier move
+  voids that review;
+- deployment authorization is recorded by a human, where a deployment
+  exists;
+- post-deployment verification is scheduled, where a deployment exists;
+- the human task owner has approved integration;
 - the SPLASHDOWN task's human task owner declares "mission accomplished".
 
 ---
@@ -1086,21 +1207,23 @@ external references exist.
 
 ### AIMED
 
-Add the matrix rows for whichever technique-pair(s) were selected:
+Keep the WIFFLED table, the findings table, and the evidence metadata
+table. Add the template tables for whichever technique-pair(s) were
+selected:
 
-- FLYBY — findings and logical checks;
-- TRAJECTORY / ANGLING — TLA+ actions, properties, assumptions, and
-  non-vacuity witnesses;
-- SIMULATION → TELEMETRY → RENDEZVOUS — Lean requirements,
-  implementation-model correspondence, and satisfaction proofs.
+- FLYBY — findings and logical checks, in the findings and evidence
+  metadata tables;
+- TRAJECTORY / ANGLING — the specification coverage table;
+- SIMULATION → TELEMETRY → RENDEZVOUS — the Lean requirements and formal
+  satisfaction and conformance tables.
 
 Also record the translation approach between any selected pairs (see
 Tiers, above), and which task produced each row.
 
 ### POKAYOKE
 
-Use the complete end-to-end matrix — see the Traceability matrix template
-below.
+Use every table of the Traceability matrix template below, generated from
+the evidence knowledge base.
 
 ## Non-vacuity traceability
 
@@ -1110,9 +1233,8 @@ probe.
 
 ## Evidence metadata
 
-Formal checks, model runs, tests, and measurements SHOULD record:
-artifact version or commit; tool version; configuration; command; bounds;
-environment; expected result; actual result; date; evidence owner.
+Beyond the fields that Evidence principles requires, evidence SHOULD
+record: expected result; actual result; date; evidence owner.
 
 ## Blank cells
 
@@ -1135,6 +1257,33 @@ relationships among current artifacts, including which task owns each.
 Superseded requirements MUST NOT remain in the current normative
 specification.
 
+## Evidence knowledge base (POKAYOKE)
+
+At POKAYOKE, evidence metadata, traceability links, findings, and phase
+status MUST be kept as facts in a Prolog knowledge base in the repository,
+using the schema template below. Git keeps its history. The knowledge
+base replaces hand-kept bookkeeping:
+
+- Generate the human-readable matrices from it. Do not edit them by hand.
+- Before a phase is recorded satisfied, `check(Phase)` MUST exit 0, which
+  means no `gate(Phase, Blank)` result remains. The phase atoms are
+  `flyby`, `trajectory`, `simulation`, `flight_manifest`, `ignition`,
+  `telemetry`, `rendezvous`, `landing_module`, and `splashdown`.
+- `evidence/6`, `expected/2`, `changed/2`, and `settled/2` facts are never
+  edited or removed. A rerun adds new evidence and a `supersedes/2` fact.
+  Other facts are edited in place.
+- A substantive change adds `changed/2` facts. `stale(Artifact, Change)`
+  then lists the artifacts to redo or re-review; add a `settled/2` fact
+  for each one when done. `rerun(Evidence, Change)` lists the evidence to
+  rerun; tag each rerun with `attr(New, after, Change)`, or tag old
+  evidence that the re-review judged still valid. The affected phases'
+  gates stay blocked until both lists are empty. Artifacts outside the
+  result keep their evidence, and the query result explains why.
+  Editorial changes add no `changed/2` fact.
+
+The knowledge base is only as complete as its links. LANDING MODULE checks
+that each artifact traces to the right parents.
+
 ---
 
 # Change control
@@ -1154,7 +1303,7 @@ The following changes require impact analysis: requirement; business or
 technical decision; assumption; quantification domain; state variable;
 state transition; concurrency rule; failure behavior; migration rule;
 deployment unit or order; implementation behavior; implementation-model
-correspondence; accepted risk.
+correspondence; accepted risk; tier.
 
 Editorial changes that do not change meaning do not require phase
 re-entry.
@@ -1174,6 +1323,9 @@ A substantive change MUST record:
 8. approving authority;
 9. completion status.
 
+At POKAYOKE, the knowledge base queries `stale/2` and `rerun/2` supply
+items 5 to 7.
+
 ## Re-entry examples
 
 | Discovery | Set | Typical return point |
@@ -1184,9 +1336,11 @@ A substantive change MUST record:
 | Missing or non-discriminating test | Implementation | FLIGHT MANIFEST |
 | Implementation defect | Implementation | IGNITION |
 | Code/model mismatch | Verification | TELEMETRY |
-| Failed satisfaction proof | Specification or Implementation | SIMULATION, IGNITION, or TELEMETRY depending on cause |
+| Failed satisfaction proof | Specification, Implementation, or Verification | SIMULATION, IGNITION, or TELEMETRY depending on cause |
 | Platform-specific defect | Whichever set contains the cause | Earliest phase containing the cause |
-| Rollout incompatibility | Specification or Verification | TRAJECTORY / ANGLING, IGNITION, or SPLASHDOWN depending on cause |
+| Rollout incompatibility | Specification, Implementation, or Verification | TRAJECTORY / ANGLING, IGNITION, or SPLASHDOWN depending on cause |
+| Tier raised | The newly required phase's set | The newly required phase; started downstream phases are re-reviewed |
+| Tier lowered, dropping a Specification phase | Implementation | FLIGHT MANIFEST, against the new requirements source |
 
 ## Downstream invalidation
 
@@ -1220,6 +1374,16 @@ The exception MUST define: omitted activities; immediate compensating
 controls; affected claims; required retrospective phases; completion
 deadline; approving authority.
 
+A human MUST approve the exception, and any release before SPLASHDOWN.
+Until release, the exception MAY let IGNITION start, and be satisfied,
+before FLIGHT MANIFEST is satisfied. A release requires IGNITION satisfied
+apart from the criteria the exception waives. After release, test-first
+applies again. Retrospective tests MUST derive from the requirements, not
+from the emergency code, and take their red run against the commit before
+the emergency change. When they land, IGNITION is re-checked against
+them. Every required phase is still satisfied before SPLASHDOWN. Where
+nothing deploys, release means integration.
+
 Emergency status postpones required evidence. It does not create that
 evidence.
 
@@ -1229,19 +1393,67 @@ evidence.
 
 Use these templates verbatim, or adapt their structure, when starting or
 updating AIDLC artifacts. Every ticket MUST maintain a ticket manifest.
-Every task MUST maintain a task charter and a phase status record.
-Traceability appropriate to the ticket's tier MUST be maintained
-continuously, not reconstructed at close-out.
+Every task MUST maintain a task charter and a phase status record; Record
+medium says when they merge into one ticket record. Required matrices
+(Traceability) says which matrix tables each tier keeps.
 
-## Ticket manifest
+<wiffled_ticket_record_template>
 
-```
+# AIDLC Ticket Record (WIFFLED)
+
+- **Ticket:** ID and title
+- **Tier:** WIFFLED, because ...; ratified by, date
+- **Roles:** default, or the differences
+- **Record medium:** chat or disk
+- **Risk:** one line per applicable area, then "Others considered, none
+  apply."
+- **Deployment:** "None", or deployable units, rollback, and monitoring
+
+## Requirements
+- R1:
+
+## Tasks
+- **Implementation:** FLIGHT MANIFEST, IGNITION. Scope:
+- **Verification:** LANDING MODULE, SPLASHDOWN.
+
+## Phase log
+One line per phase or set: criteria met, evidence, approver, date.
+- FLIGHT MANIFEST:
+- IGNITION:
+- Implementation set:
+- LANDING MODULE:
+- SPLASHDOWN, with the Verification set:
+
+## Findings, decisions, and changes
+One line each: ID, kind, disposition, approver.
+-
+
+## Matrix
+| Requirement | Task | Tests | Implementation | LANDING MODULE validation |
+|---|---|---|---|---|
+
+</wiffled_ticket_record_template>
+
+<ticket_manifest_template>
+
 # AIDLC Ticket Manifest
 
 ## Ticket identity
 - **Ticket ID:**
 - **Title:**
-- **Ticket owner(s):**
+- **Record medium:** (reasoning | chat | disk), and why
+
+## Roles
+Write "default" for the default roles, or fill in the holders.
+
+| Role | Holder |
+|---|---|
+| Task owner (human) | |
+| Reviewer (human) | |
+| Decision authority | |
+| Technical authority | |
+| Implementer | |
+| Set approver | |
 
 ## Tier
 - **Tier:**
@@ -1251,17 +1463,34 @@ continuously, not reconstructed at close-out.
   - Implementation:
   - Verification:
 - **Selected technique-pair(s) (AIMED only):**
-- **Translation approach between selected layers (AIMED only, if more
-  than one pair):**
+- **Translation approach between layers (AIMED with more than one pair,
+  and POKAYOKE), e.g. TLA+ action → Lean requirement → test ID →
+  implementation unit:**
+- **Formal scope (AIMED and POKAYOKE):**
 - **Tier ratified by:**
 - **Date:**
 
-## Prose requirements (WIFFLED tickets, or any ticket's non-formal scope)
+## Prose requirements (WIFFLED tickets, or requirements outside the formal scope)
 -
 
+## Risk assessment
+One line per applicable area, then "Others considered, none apply."
+Areas: identity; security; privacy; financial; legal or compliance;
+irreversible data loss; schema or data migration; concurrency;
+distributed systems; partial deployment; historical-data compatibility;
+operational recovery.
+
+## Reversibility and deployment
+Omit when nothing deploys.
+- **Disable, roll back, or repair by:**
+- **Deployable units:**
+- **Expected migration or backfill:**
+- **Expected feature flags:**
+- **Expected monitoring:**
+
 ## Task inventory
-| Task ID | Set | Phases covered | Task owner | Set approver | Status |
-|---|---|---|---|---|---|
+| Task ID | Set | Phases covered | Role overrides | Status |
+|---|---|---|---|---|
 
 ## Required-phase coverage check
 Confirm every phase required by the ticket's tier is assigned to at least
@@ -1270,15 +1499,10 @@ one task above, and that no task spans more than one set.
 | Required phase | Assigned task(s) | Covered? |
 |---|---|---:|
 
-## Cross-set translation notes (AIMED/POKAYOKE)
-Record how identifiers and evidence translate between sets/tasks, e.g.
-TLA+ action → Lean requirement → test ID → implementation unit.
--
-```
+</ticket_manifest_template>
 
-## Task charter
+<task_charter_template>
 
-```
 # AIDLC Task Charter
 
 ## Task identity
@@ -1287,12 +1511,7 @@ TLA+ action → Lean requirement → test ID → implementation unit.
 - **Set:** (Specification | Implementation | Verification — one only)
 - **Phases covered within the set:**
 - **Title:**
-- **Task owner:**
-- **Decision authority:**
-- **Technical authority:**
-- **Implementer:**
-- **Reviewer:**
-- **Set approver:**
+- **Roles that differ from the manifest:**
 
 ## Problem
 Describe the problem, affected users, and observed harm.
@@ -1313,31 +1532,6 @@ set-satisfaction status.
 ## Affected systems and data
 -
 
-## Risk assessment
-| Risk area | Applicable? | Description |
-|---|---:|---|
-| Identity | | |
-| Security | | |
-| Privacy | | |
-| Financial | | |
-| Legal or compliance | | |
-| Irreversible data loss | | |
-| Schema or data migration | | |
-| Concurrency | | |
-| Distributed systems | | |
-| Partial deployment | | |
-| Historical-data compatibility | | |
-| Operational recovery | | |
-
-## Reversibility
-Describe how the change can be disabled, rolled back, or repaired.
-
-## Deployment expectations
-- **Deployable units:**
-- **Expected migration or backfill:**
-- **Expected feature flags:**
-- **Expected monitoring:**
-
 ## Initial evidence
 -
 
@@ -1348,11 +1542,11 @@ Describe how the change can be disabled, rolled back, or repaired.
 - **Charter approved by:**
 - **Date:**
 - **Conditions or exceptions:**
-```
 
-## Phase status record (per task)
+</task_charter_template>
 
-```
+<phase_status_template>
+
 # AIDLC Phase Status
 
 ## Task
@@ -1366,43 +1560,28 @@ Describe how the change can be disabled, rolled back, or repaired.
 Not required · Not started · Active · Blocked · Satisfied · Reopened ·
 Invalidated
 
-| Phase (within this task's set) | Required? | Status | Owner | Blocking items | Satisfaction record |
-|---|---:|---|---|---|---|
+| Phase (within this task's set) | Required? | Status | Owner | Blocking items |
+|---|---:|---|---|---|
 
 ## Current blocking items
 | ID | Phase | Finding | Owner | Required disposition |
 |---|---|---|---|---|
 
-## Phase satisfaction record
-Create one section per satisfied phase.
+## Phase satisfaction log
+| Phase | Artifact versions | Criteria met | Evidence | Non-blocking residual risks | Exceptions | Approved by | Date |
+|---|---|---|---|---|---|---|---|
 
-### Phase — Codename
-- **Artifact versions:**
-- **Satisfaction criteria satisfied:**
-- **Evidence references:**
-- **Non-blocking residual risks:**
-- **Exceptions:**
-- **Approved by:** (this task's set approver)
-- **Approval date:**
+## Set satisfaction
+- **Approved by (the task's set approver), and date:**
 
-## Set satisfaction record
-- **Set:**
-- **All assigned phases satisfied?**
-- **Approved by:** (set approver named in the task charter)
-- **Approval date:**
+## Re-entry log
+| Reopened phase | Reason | Change record | Invalidated tasks and sets | Approved by | Date |
+|---|---|---|---|---|---|
 
-## Re-entry record
-- **Reopened phase:**
-- **Reason:**
-- **Change-control record:**
-- **Invalidated downstream task(s) and set(s):**
-- **Approved by:**
-- **Date:**
-```
+</phase_status_template>
 
-## Traceability matrix
+<traceability_matrix_template>
 
-```
 # AIDLC Traceability Matrix
 
 ## Ticket
@@ -1416,29 +1595,18 @@ Create one section per satisfied phase.
 |---|---|---|---|---|---|---|
 
 ## Specification coverage
-Required for POKAYOKE; required for AIMED when TRAJECTORY / ANGLING is a
-selected technique-pair.
-
 | Requirement ID | Task | TLA+ action or operator | Property or invariant | Scenario | Antecedent witnessed? | Known counterexample | Disposition |
 |---|---|---|---|---|---:|---|---|
 
 ## Lean requirements
-Required for POKAYOKE; required for AIMED when the SIMULATION → TELEMETRY
-→ RENDEZVOUS pipeline is a selected technique-pair.
-
 | Requirement ID | Task | Lean declaration | Quantification reviewed? | Assumptions | Non-vacuity witness | `sorry` inventoried? |
 |---|---|---|---:|---|---|---:|
 
 ## Tests and implementation
-Required for all tiers.
-
-| Requirement ID | Task | Property or example tests | Negative control | Production code | Migration or configuration | LANDING MODULE checks |
+| Requirement ID | Task | Example or property tests | Discriminator | Production code | Migration or configuration | LANDING MODULE checks |
 |---|---|---|---|---|---|---|
 
 ## Formal satisfaction and conformance
-Required for POKAYOKE; required for AIMED when the SIMULATION → TELEMETRY
-→ RENDEZVOUS pipeline is a selected technique-pair.
-
 | Requirement ID | Task | Implementation-model term | Satisfaction proof | Code/model mapping | Conformance evidence | Bounds |
 |---|---|---|---|---|---|---|
 
@@ -1447,38 +1615,113 @@ Required for POKAYOKE; required for AIMED when the SIMULATION → TELEMETRY
 |---|---|---|---|---|---|---|---|
 
 ## Evidence metadata
-| Evidence ID | Task | Artifact or command | Version/hash | Tool and version | Configuration/bounds | Expected result | Actual result | Date |
+| Evidence ID | Task | Command | Commit | Tool and version | Configuration/bounds | Expected result | Actual result | Date |
 |---|---|---|---|---|---|---|---|---|
-```
 
----
+</traceability_matrix_template>
 
-# Starting a ticket / starting a task
+<evidence_kb_schema>
 
-## Starting a ticket
+    % AIDLC evidence knowledge base (SWI-Prolog). Keep it in the repository;
+    % git holds its history. Never edit or remove evidence/6, expected/2,
+    % changed/2, or settled/2 facts. A rerun adds new evidence, a
+    % supersedes/2 fact, and, when it answers a change, attr(New, after,
+    % Change). Other facts are edited in place.
+    :- dynamic([traces/2], [incremental(true)]).
+    :- dynamic artifact/3, attr/3, conditional/1, witness/2, evidence/6,
+        expected/2, supersedes/2, changed/2, settled/2, satisfied/4.
+    :- multifile artifact/3, traces/2, attr/3, conditional/1, witness/2,
+        evidence/6, expected/2, supersedes/2, changed/2, settled/2, satisfied/4.
+    :- discontiguous artifact/3, traces/2, attr/3, conditional/1, witness/2,
+        evidence/6, expected/2, supersedes/2, changed/2, settled/2, satisfied/4.
+    % artifact(Id, Kind, Task).  Kind: a kind_phase/2 kind, or decision,
+    %     assumption, finding, risk. A review check is kind test with
+    %     code_read evidence.
+    % traces(Child, Parent).     Child derives from or depends on Parent.
+    %     A finding traces to what it is about.
+    % attr(Id, Key, Value).      Any detail: text, status (open, closed),
+    %     disposition, waived, config, bounds (none if unbounded), after
+    %     (the change a rerun answers), tool_version, environment, date.
+    % conditional(Id).           Id has an antecedent that needs a witness.
+    % witness(Id, Evidence).
+    % evidence(E, Type, Subject, Commit, Command, Result).  On an uncommitted
+    %     tree, Commit is dirty(Base, Hash), Hash covering the diff and any
+    %     untracked files. A Lean proof with sorry has Result admitted, never
+    %     pass. The green run after IGNITION is new evidence; it does not
+    %     supersede the red run.
+    % expected(E, Result).       Recorded before the run.
+    % supersedes(New, Old).      New evidence, or an accepted risk, replaces Old.
+    % changed(Id, Change).       Substantive change Change touched Id.
+    % settled(Id, Change).       Id was redone or re-reviewed after Change.
+    % satisfied(Task, Phase, Approver, Date).  Removed when Phase reopens.
+    phase(P) :- member(P, [flyby, trajectory, simulation, flight_manifest,
+        ignition, telemetry, rendezvous, landing_module, splashdown]).
+    kind_phase(check, flyby).         kind_phase(tla_action, trajectory).
+    kind_phase(property, trajectory). kind_phase(requirement, simulation).
+    kind_phase(lean_req, simulation). kind_phase(test, flight_manifest).
+    kind_phase(impl, ignition).       kind_phase(impl_model, telemetry).
+    kind_phase(proof, rendezvous).    kind_phase(probe, landing_module).
+    kind(K) :- kind_phase(K, _) ; memberchk(K, [decision, assumption, finding, risk]).
+    exec(T) :- memberchk(T, [formal_check, model_run, test_run, measured]).
+    phase_of(X, P) :- artifact(X, K, _), kind_phase(K, P).
+    current(E) :- evidence(E, _, _, _, _, _), \+ supersedes(_, E).
+    :- table depends_on/2 as incremental.
+    depends_on(X, Y) :- traces(X, Y).
+    depends_on(X, Z) :- traces(X, Y), depends_on(Y, Z).
+    affected(X, C) :- changed(Y, C), ( X = Y ; depends_on(X, Y) ).
+    stale(X, C) :- affected(X, C), \+ settled(X, C).
+    rerun(E, C) :- affected(X, C), evidence(E, _, X, _, _, _), current(E),
+        \+ attr(E, after, C).
+    missing(V) :- \+ ground(V) ; memberchk(V, ['', "", none]) ;
+        V = dirty(B, H), ( missing(B) ; missing(H) ).
+    witnessed(X) :- witness(X, E), current(E), evidence(E, _, _, _, _, R),
+        expected(E, R).
+    % blank(Phase, Blank): Blank blocks Phase. Phase any blocks every phase.
+    blank(any, bad_kind(X)) :- artifact(X, K, _), \+ kind(K).
+    blank(any, bad_type(E)) :- evidence(E, T, _, _, _, _), \+ memberchk(T,
+        [formal_check, model_run, test_run, measured, code_read, claim, decision]).
+    blank(any, cycle(X)) :- depends_on(X, X).
+    blank(any, dangling(X)) :- ( traces(X, _) ; traces(_, X) ; changed(X, _)
+        ; settled(X, _) ; conditional(X) ; witness(X, _)
+        ; evidence(_, _, X, _, _, _) ), \+ artifact(X, _, _).
+    blank(any, dangling(E)) :- ( witness(_, E) ; expected(E, _)
+        ; supersedes(_, E) ; supersedes(E, _), \+ artifact(E, risk, _) ),
+        \+ evidence(E, _, _, _, _, _).
+    blank(P, orphan(X)) :- phase_of(X, P), \+ traces(X, _).
+    blank(splashdown, orphan(F)) :- artifact(F, finding, _), \+ traces(F, _).
+    blank(P, vacuous(X)) :- conditional(X), phase_of(X, P), \+ witnessed(X).
+    blank(P, surprise(E)) :- current(E), evidence(E, _, X, _, _, O),
+        expected(E, R), R \== O, phase_of(X, P).
+    blank(P, no_provenance(E)) :- current(E), evidence(E, T, X, Co, Cm, _),
+        once(( exec(T), ( missing(Co) ; missing(Cm) ) ; T == code_read, missing(Co) )),
+        phase_of(X, P).
+    blank(P, no_bounds(E)) :- current(E), evidence(E, T, X, _, _, _),
+        memberchk(T, [formal_check, model_run]),
+        \+ ( attr(E, config, _), attr(E, bounds, _) ), phase_of(X, P).
+    blank(P, stale(X, C)) :- stale(X, C), phase_of(X, P).
+    blank(P, rerun(E, C)) :- rerun(E, C), evidence(E, _, X, _, _, _), phase_of(X, P).
+    blank(P, open_finding(F)) :- artifact(F, finding, _), \+ attr(F, status, closed),
+        traces(F, X), ( Y = X ; depends_on(Y, X) ), phase_of(Y, P).
+    blank(splashdown, open_finding(F)) :- artifact(F, finding, _),
+        \+ attr(F, status, closed).
+    blank(flight_manifest, untested(R)) :- artifact(R, K, _),
+        memberchk(K, [requirement, lean_req]), \+ attr(R, waived, _),
+        \+ ( depends_on(T, R), artifact(T, test, _) ).
+    blank(flight_manifest, undiscriminated(T)) :- artifact(T, test, _),
+        \+ ( evidence(E, _, T, _, _, fail), expected(E, fail), current(E) ).
+    blank(rendezvous, unproved(R)) :- artifact(R, lean_req, _),
+        \+ ( depends_on(P, R), artifact(P, proof, _),
+             evidence(E, formal_check, P, _, _, pass), current(E) ).
+    blank(splashdown, unsatisfied(P)) :- phase(P), P \== splashdown,
+        \+ satisfied(_, P, _, _).
+    % gate(Phase, Blank): Phase MUST NOT be recorded satisfied while any exists.
+    gate(P, bad_phase(P)) :- \+ phase(P).
+    gate(P, B) :- blank(P, B), P \== any.
+    gate(P, B) :- blank(any, B), ( phase(P) ; var(P) ).
+    gate(splashdown, B) :- blank(P, B), P \== any, P \== splashdown.
+    % check(Phase): print each distinct blank, exit 1 while any remain.
+    % Run: swipl -g "check(ignition)" kb.pl
+    check(P) :- findall(B, gate(P, B), L0), sort(L0, L),
+        forall(member(B, L), ( print(B), nl )), ( L == [] -> halt(0) ; halt(1) ).
 
-1. Create the ticket manifest.
-2. Select and ratify the rigor tier for the whole ticket.
-3. Decide how many tasks are needed, and which set and phases each covers,
-   respecting the one-set-per-task rule. Record this in the task
-   inventory and confirm required-phase coverage.
-4. For AIMED/POKAYOKE, record the technique-pair selection and, if more
-   than one pair, the cross-set translation approach.
-
-## Starting a task
-
-1. Create the task charter, naming the set, the phases it covers, and its
-   set approver.
-2. Create the task's phase status record.
-3. Read the section of this document for the current phase before
-   producing or modifying that phase's artifacts.
-4. Produce the required artifacts.
-5. Record each phase's satisfaction as it is met.
-6. Record set satisfaction before treating the task's output as
-   authoritative for a downstream task.
-
-Draft artifacts MAY be prepared early. A later set MUST NOT be treated as
-authoritative before its prerequisite tasks' sets have been satisfied.
-
-When SPLASHDOWN is reached, confirm every task in the ticket has satisfied
-its set before satisfying SPLASHDOWN itself.
+</evidence_kb_schema>
