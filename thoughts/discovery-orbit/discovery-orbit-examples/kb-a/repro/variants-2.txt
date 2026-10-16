@@ -1,0 +1,52 @@
+%% B4 baseline: a(1,x,y). a(2,z,w).
+a(1, x, y).
+a(2, z, w).
+c(X) :- a(_, X, _).
+l :- not c(x).
+%% B1 share col3: a(1,x,y). a(2,z,y).
+a(1, x, y).
+a(2, z, y).
+c(X) :- a(_, X, _).
+l :- not c(x).
+%% B1r share col3, match second: a(1,z,y). a(2,x,y).
+a(1, z, y).
+a(2, x, y).
+c(X) :- a(_, X, _).
+l :- not c(x).
+%% B2 share col1: a(1,x,y). a(1,z,w).
+a(1, x, y).
+a(1, z, w).
+c(X) :- a(_, X, _).
+l :- not c(x).
+%% B2r share col1, match second: a(1,z,w). a(1,x,y).
+a(1, z, w).
+a(1, x, y).
+c(X) :- a(_, X, _).
+l :- not c(x).
+%% B3 share col1+col3: a(1,x,y). a(1,z,y).
+a(1, x, y).
+a(1, z, y).
+c(X) :- a(_, X, _).
+l :- not c(x).
+%% B5 both match key: a(1,x,y). a(2,x,w).
+a(1, x, y).
+a(2, x, w).
+c(X) :- a(_, X, _).
+l :- not c(x).
+%% B7 identical but col1: a(1,x,y). a(2,x,y).
+a(1, x, y).
+a(2, x, y).
+c(X) :- a(_, X, _).
+l :- not c(x).
+%% B8 3 facts, share nothing: a(1,x,y). a(2,z,w). a(3,u,v).
+a(1, x, y).
+a(2, z, w).
+a(3, u, v).
+c(X) :- a(_, X, _).
+l :- not c(x).
+%% B9 3 facts, match first, others share col3
+a(1, x, y).
+a(2, z, y).
+a(3, u, y).
+c(X) :- a(_, X, _).
+l :- not c(x).

@@ -1,0 +1,14 @@
+  question_waits(Q) none  swi PASS  scasp PASS  (0.11 s)
+  contested(C) [C = c2]  swi PASS  scasp PASS  (0.11 s)
+  discovery_ready true  swi PASS  scasp FAIL  (30.01 s)
+      scasp: error(exit(124)-"")
+  ENGINE DISAGREEMENT on discovery_ready
+      swi:   true
+      scasp: error(exit(124)-"")
+
+== go
+  H4 check: clean
+  lint: clean
+  stale(A) none  swi PASS  scasp PASS  (0.13 s)
+
+[exited with code 0]

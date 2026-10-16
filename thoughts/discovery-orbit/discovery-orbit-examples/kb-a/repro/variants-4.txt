@@ -1,0 +1,74 @@
+%% M1 two facts, b=2 e=0, distinct fillers
+a(1, 2, x).
+a(3, 4, z).
+c(X) :- a(_, _, X).
+l :- not c(x).
+%% M2 two facts, b=2 e=0, shared fillers
+a(p, p, x).
+a(p, p, z).
+c(X) :- a(_, _, X).
+l :- not c(x).
+%% M3 named body-only variables
+a(1, 2, x).
+a(3, 4, z).
+c(X) :- a(Y, W, X).
+l :- not c(x).
+%% M4 same variable twice (one body-only var)
+a(1, 1, x).
+a(3, 3, z).
+c(X) :- a(Y, Y, X).
+l :- not c(x).
+%% M5 two body-only vars in separate literals; two facts in r
+p(1).
+q(1).
+r(x).
+r(z).
+c(X) :- p(_), q(_), r(X).
+l :- not c(x).
+%% M6 two body-only vars in separate literals; two facts in p
+p(1).
+p(2).
+q(1).
+r(x).
+c(X) :- p(_), q(_), r(X).
+l :- not c(x).
+%% M7 two body-only vars in separate literals; one fact each
+p(1).
+q(1).
+r(x).
+c(X) :- p(_), q(_), r(X).
+l :- not c(x).
+%% M8 c/0 with constant x in body, b=2
+a(1, 2, x).
+a(3, 4, z).
+c :- a(_, _, x).
+l :- not c.
+%% M9 head var first then 2 free after (e=2): known OK
+a(x, 1, 2).
+a(z, 3, 4).
+c(X) :- a(X, _, _).
+l :- not c(x).
+%% M10 free vars in separate literal order: head var literal first
+p(1).
+q(1).
+r(x).
+r(z).
+c(X) :- r(X), p(_), q(_).
+l :- not c(x).
+%% M11 one literal with head var, two other literals each with 1 free var, two facts in p
+p(1).
+p(2).
+q(1).
+r(x).
+c(X) :- r(X), p(_), q(_).
+l :- not c(x).
+%% M12 two facts, b=2, e=0, both facts match the key
+a(1, 2, x).
+a(3, 4, x).
+c(X) :- a(_, _, X).
+l :- not c(x).
+%% M13 two facts, b=2, e=0, neither fact matches the key (l is TRUE, correct answer is a model)
+a(1, 2, z).
+a(3, 4, z).
+c(X) :- a(_, _, X).
+l :- not c(x).

@@ -1,0 +1,51 @@
+%% U1 universal key, b=1 e=0: a(1,x). a(2,z).
+a(1, x).
+a(2, z).
+r(x).
+c(X) :- a(_, X).
+e :- r(X), c(X).
+l :- not e.
+%% U2 universal key, b=1 e=1: a(1,x,y). a(2,z,w).
+a(1, x, y).
+a(2, z, w).
+r(x).
+c(X) :- a(_, X, _).
+e :- r(X), c(X).
+l :- not e.
+%% U3 universal key, b=0 e=1: a(x,1). a(z,2).
+a(x, 1).
+a(z, 2).
+r(x).
+c(X) :- a(X, _).
+e :- r(X), c(X).
+l :- not e.
+%% U4 universal key, b=2 e=0
+a(1, 2, x).
+a(3, 4, z).
+r(x).
+c(X) :- a(_, _, X).
+e :- r(X), c(X).
+l :- not e.
+%% U5 universal key, b=1 e=0, three facts
+a(1, x).
+a(2, z).
+a(3, u).
+r(x).
+c(X) :- a(_, X).
+e :- r(X), c(X).
+l :- not e.
+%% U6 universal key, b=1 e=0, r has two facts
+a(1, x).
+a(2, z).
+r(x).
+r(z).
+c(X) :- a(_, X).
+e :- r(X), c(X).
+l :- not e.
+%% U7 universal key, b=1 e=0, r(x) only, a facts share col1
+a(1, x).
+a(1, z).
+r(x).
+c(X) :- a(_, X).
+e :- r(X), c(X).
+l :- not e.

@@ -1,0 +1,33 @@
+  ENGINE DISAGREEMENT on discovery_decide
+      swi:   true
+      scasp: error(exit(124)-"")
+  no_falsifier(C) none  swi PASS  scasp FAIL  (30.01 s)
+      scasp: error(exit(124)-"")
+  ENGINE DISAGREEMENT on no_falsifier(C)
+      swi:   none
+      scasp: error(exit(124)-"")
+  model_trusted(M) [M = m_now,M = m_target,M = mx0,M = mx1,M = mx2,M = mx3]  swi PASS  scasp FAIL  (30.01 s)
+      scasp: error(exit(124)-"")
+  ENGINE DISAGREEMENT on model_trusted(M)
+      swi:   answers(['M = m_now','M = m_target','M = mx0','M = mx1','M = mx2','M = mx3'])
+      scasp: error(exit(124)-"")
+  lint_issue(Code, Id, _) none  swi PASS  scasp FAIL  (30.01 s)
+      scasp: error(exit(124)-"")
+  ENGINE DISAGREEMENT on lint_issue(Code, Id, _)
+      swi:   none
+      scasp: error(exit(124)-"")
+
+SWI engine:     157/157 expectations passed
+s(CASP) engine: 136/157 expectations passed
+Engine disagreements: 21
+Lint failures (E codes in any variant, any code in base): 0
+H4 self-check failures (variants with _<digits> atoms): 0
+s(CASP) time per query: max 30.01 s. Slowest:
+  30.01 s  m5_not_reproduced: discovery_ready
+  30.01 s  perf_12_claims_6_models: model_trusted(M)
+  30.01 s  perf_12_claims_6_models: discovery_decide
+  30.01 s  go: discovery_ready
+  30.01 s  b2_target_bad_case: discovery_ready
+0
+
+[exited with code 1]

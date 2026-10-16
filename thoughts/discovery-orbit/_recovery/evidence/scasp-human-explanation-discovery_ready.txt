@@ -1,0 +1,641 @@
+% Query
+I would like to know if
+   discovery is ready for the human to decide?
+% ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+%                         Answer 1 (0.155 sec)                          
+% ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+% Justification
+   discovery is ready for the human to decide, because
+      discovery touched the current system, because
+         attestation a1 of type reproduction records result(h1,reproduced) about log4417, by the agent at '2026-10-15T09:10:00Z'
+      there is no evidence that some current claim has no falsifier, because
+         there is no evidence that claim A not c1, c2, or c2b has no falsifier, because
+            there is no evidence that claim A not c1, c2, or c2b is current, because
+               there is no evidence that A not c1, c2, or c2b is a claim to M: N, because
+                  there is no evidence that false holds
+               there is no evidence that false holds, justified above
+            there is no evidence that false holds, justified above
+         there is no evidence that claim c1 has no falsifier, because
+            claim c1 is current, because
+               c1 is a claim to introduce: 'No order is charged below its floor price.', and
+               there is no evidence that claim c1 is superseded, because
+                  there is no evidence that claim K not equal to c2b replaces claim c1, because
+                     there is no evidence that false holds, justified above
+                  there is no evidence that claim c2b replaces claim c1, because
+                     there is no evidence that false holds, justified above
+                  there is no evidence that false holds, justified above
+            claim c1 has a falsifier, because
+               model m_target states claim c1, and
+               model m_target is trusted, because
+                  model m_target is sane, because
+                     attestation a13 of type model_result records verdict(m_target,sanity,sat) about run_target, by the agent at '2026-10-15T10:20:00Z'
+                  model m_target is derived from model m_now, and
+                  model m_now is sane, because
+                     attestation a3 of type model_result records verdict(m_now,sanity,sat) about run_now, by the agent at '2026-10-15T09:20:00Z'
+                  model m_now matches the current system on a known case, because
+                     attestation a4 of type model_result records calibration(m_now,order4417,matches) about run_now, by the agent at '2026-10-15T09:21:00Z'
+            there is no evidence that false holds, justified above
+         there is no evidence that claim c2 has no falsifier, because
+            there is no evidence that claim c2 is current, because
+               there is no evidence that c2 is a claim to O not equal to preserve: P, because
+                  there is no evidence that false holds, justified above
+               there is no evidence that c2 is a claim to preserve: Q not equal to 'Each code takes off its full amount.', because
+                  there is no evidence that false holds, justified above
+               c2 is a claim to preserve: 'Each code takes off its full amount.', and
+               claim c2 is superseded, because
+                  claim c2b replaces claim c2
+               there is no evidence that false holds, justified above
+            there is no evidence that false holds, justified above
+         there is no evidence that claim c2b has no falsifier, because
+            claim c2b is current, because
+               c2b is a claim to preserve: 'Each code takes off its full amount, down to the floor price.', and
+               there is no evidence that claim c2b is superseded, because
+                  there is no evidence that claim L not equal to c2b replaces claim c2b, because
+                     there is no evidence that false holds, justified above
+                  there is no evidence that claim c2b replaces claim c2b, because
+                     there is no evidence that false holds, justified above
+                  there is no evidence that false holds, justified above
+            claim c2b has a falsifier, because
+               model m_target states claim c2b, and
+               model m_target is trusted, justified above
+            there is no evidence that false holds, justified above
+         there is no evidence that false holds, justified above
+      there is no evidence that some question waits for the human, because
+         there is no evidence that question C not equal to q1 waits for the human, because
+            there is no evidence that question C not equal to q1 was raised by finding I, because
+               there is no evidence that false holds, justified above
+            there is no evidence that false holds, justified above
+         there is no evidence that question q1 waits for the human, because
+            there is no evidence that question q1 was raised by finding J not equal to f2, because
+               there is no evidence that false holds, justified above
+            question q1 was raised by finding f2, and
+            a human answered question q1, because
+               the human answered question q1 with floor_wins
+            there is no evidence that false holds, justified above
+         there is no evidence that false holds, justified above
+      there is no evidence that some finding needs a question, because
+         there is no evidence that finding B not f1, or f2 needs a question, and none was raised, because
+            there is no evidence that finding B not f1, or f2 needs a question for the human, because
+               there is no evidence that finding B not f1, or f2 is conflict(R), from the S, because
+                  there is no evidence that false holds, justified above
+               there is no evidence that finding B not f1, or f2 is surprise(V), from the W, because
+                  there is no evidence that false holds, justified above
+               there is no evidence that finding B not f1, or f2 is scope(T), from the U, because
+                  there is no evidence that false holds, justified above
+               there is no evidence that false holds, justified above
+            there is no evidence that false holds, justified above
+         there is no evidence that finding f1 needs a question, and none was raised, because
+            there is no evidence that finding f1 needs a question for the human, because
+               there is no evidence that finding f1 is conflict(X), from the Y not equal to model, because
+                  there is no evidence that false holds, justified above
+               there is no evidence that finding f1 is conflict(X), from the model, because
+                  there is no evidence that false holds, justified above
+               there is no evidence that finding f1 is surprise(B1), from the C1 not equal to model, because
+                  there is no evidence that false holds, justified above
+               there is no evidence that finding f1 is surprise(B1), from the model, because
+                  there is no evidence that false holds, justified above
+               there is no evidence that finding f1 is scope(Z), from the A1 not equal to model, because
+                  there is no evidence that false holds, justified above
+               there is no evidence that finding f1 is scope(Z), from the model, because
+                  there is no evidence that false holds, justified above
+               there is no evidence that false holds, justified above
+            there is no evidence that false holds, justified above
+         there is no evidence that finding f2 needs a question, and none was raised, because
+            finding f2 needs a question for the human, because
+               finding f2 is conflict([c1_floor,c2_full_codes,order4417]), from the model
+            finding f2 raised a question, because
+               question q1 was raised by finding f2
+            there is no evidence that false holds, justified above
+         there is no evidence that false holds, justified above
+      there is no evidence that some current claim is refuted, because
+         there is no evidence that claim D is refuted, because
+            there is no evidence that attestation I1 not a1, a10, a11, a12, a13, a14, a15, a16, a17, a2, a3, a4, a5, a6, a7, a8, or a9 of type J1 records verdict(D,refuted) about K1, by the L1 at M1, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a1 of type S1 not equal to reproduction records verdict(D,refuted) about T1, by the U1 at V1, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a1 of type reproduction records verdict(D,refuted) about A2 not equal to log4417, by the B2 at C2, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a1 of type reproduction records verdict(D,refuted) about log4417, by the D2 not equal to agent at E2, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a1 of type reproduction records verdict(D,refuted) about log4417, by the agent at F2 not equal to '2026-10-15T09:10:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a1 of type reproduction records verdict(D,refuted) about log4417, by the agent at '2026-10-15T09:10:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a10 of type G2 not equal to model_result records verdict(D,refuted) about H2, by the I2 at J2, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a10 of type model_result records verdict(D,refuted) about K2 not equal to run_target, by the L2 at M2, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a10 of type model_result records verdict(D,refuted) about run_target, by the R2 not equal to agent at S2, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a10 of type model_result records verdict(D,refuted) about run_target, by the agent at T2 not equal to '2026-10-15T09:45:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a10 of type model_result records verdict(D,refuted) about run_target, by the agent at '2026-10-15T09:45:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a11 of type Y2 not equal to divergence records verdict(D,refuted) about Z2, by the A3 at B3, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a11 of type divergence records verdict(D,refuted) about C3 not equal to run_target, by the D3 at E3, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a11 of type divergence records verdict(D,refuted) about run_target, by the F3 not equal to agent at G3, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a11 of type divergence records verdict(D,refuted) about run_target, by the agent at H3 not equal to '2026-10-15T09:45:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a11 of type divergence records verdict(D,refuted) about run_target, by the agent at '2026-10-15T09:45:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a12 of type M3 not equal to divergence records verdict(D,refuted) about N3, by the O3 at P3, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a12 of type divergence records verdict(D,refuted) about Q3 not equal to run_target, by the R3 at S3, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a12 of type divergence records verdict(D,refuted) about run_target, by the T3 not equal to agent at U3, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a12 of type divergence records verdict(D,refuted) about run_target, by the agent at V3 not equal to '2026-10-15T09:45:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a12 of type divergence records verdict(D,refuted) about run_target, by the agent at '2026-10-15T09:45:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a13 of type A4 not equal to model_result records verdict(D,refuted) about B4, by the C4 at D4, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a13 of type model_result records verdict(D,refuted) about E4 not equal to run_target, by the F4 at G4, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a13 of type model_result records verdict(D,refuted) about run_target, by the L4 not equal to agent at M4, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a13 of type model_result records verdict(D,refuted) about run_target, by the agent at N4 not equal to '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a13 of type model_result records verdict(D,refuted) about run_target, by the agent at '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a14 of type S4 not equal to model_result records verdict(D,refuted) about T4, by the U4 at V4, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a14 of type model_result records verdict(D,refuted) about W4 not equal to run_target, by the X4 at Y4, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a14 of type model_result records verdict(D,refuted) about run_target, by the D5 not equal to agent at E5, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a14 of type model_result records verdict(D,refuted) about run_target, by the agent at F5 not equal to '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a14 of type model_result records verdict(D,refuted) about run_target, by the agent at '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a15 of type K5 not equal to model_result records verdict(D,refuted) about L5, by the M5 at N5, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a15 of type model_result records verdict(D,refuted) about O5 not equal to run_target, by the P5 at Q5, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a15 of type model_result records verdict(D,refuted) about run_target, by the V5 not equal to agent at W5, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a15 of type model_result records verdict(D,refuted) about run_target, by the agent at X5 not equal to '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a15 of type model_result records verdict(D,refuted) about run_target, by the agent at '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a16 of type C6 not equal to model_result records verdict(D,refuted) about D6, by the E6 at F6, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a16 of type model_result records verdict(D,refuted) about G6 not equal to run_target, by the H6 at I6, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a16 of type model_result records verdict(D,refuted) about run_target, by the N6 not equal to agent at O6, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a16 of type model_result records verdict(D,refuted) about run_target, by the agent at P6 not equal to '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a16 of type model_result records verdict(D,refuted) about run_target, by the agent at '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a17 of type U6 not equal to model_result records verdict(D,refuted) about V6, by the W6 at X6, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a17 of type model_result records verdict(D,refuted) about Y6 not equal to run_target, by the Z6 at A7, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a17 of type model_result records verdict(D,refuted) about run_target, by the F7 not equal to agent at G7, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a17 of type model_result records verdict(D,refuted) about run_target, by the agent at H7 not equal to '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a17 of type model_result records verdict(D,refuted) about run_target, by the agent at '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a2 of type M7 not equal to test_result records verdict(D,refuted) about N7, by the O7 at P7, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a2 of type test_result records verdict(D,refuted) about U7 not equal to t1, by the V7 at W7, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a2 of type test_result records verdict(D,refuted) about t1, by the X7 not equal to script at Y7, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a2 of type test_result records verdict(D,refuted) about t1, by the script at Z7 not equal to '2026-10-15T09:15:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a2 of type test_result records verdict(D,refuted) about t1, by the script at '2026-10-15T09:15:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a3 of type A8 not equal to model_result records verdict(D,refuted) about B8, by the C8 at D8, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a3 of type model_result records verdict(D,refuted) about E8 not equal to run_now, by the F8 at G8, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a3 of type model_result records verdict(D,refuted) about run_now, by the L8 not equal to agent at M8, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a3 of type model_result records verdict(D,refuted) about run_now, by the agent at N8 not equal to '2026-10-15T09:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a3 of type model_result records verdict(D,refuted) about run_now, by the agent at '2026-10-15T09:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a4 of type S8 not equal to model_result records verdict(D,refuted) about T8, by the U8 at V8, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a4 of type model_result records verdict(D,refuted) about W8 not equal to run_now, by the X8 at Y8, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a4 of type model_result records verdict(D,refuted) about run_now, by the D9 not equal to agent at E9, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a4 of type model_result records verdict(D,refuted) about run_now, by the agent at F9 not equal to '2026-10-15T09:21:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a4 of type model_result records verdict(D,refuted) about run_now, by the agent at '2026-10-15T09:21:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a5 of type K9 not equal to model_result records verdict(D,refuted) about L9, by the M9 at N9, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a5 of type model_result records verdict(D,refuted) about O9 not equal to run_now, by the P9 at Q9, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a5 of type model_result records verdict(D,refuted) about run_now, by the V9 not equal to agent at W9, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a5 of type model_result records verdict(D,refuted) about run_now, by the agent at X9 not equal to '2026-10-15T09:22:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a5 of type model_result records verdict(D,refuted) about run_now, by the agent at '2026-10-15T09:22:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a6 of type C10 not equal to model_result records verdict(D,refuted) about D10, by the E10 at F10, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a6 of type model_result records verdict(D,refuted) about G10 not equal to run_now, by the H10 at I10, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a6 of type model_result records verdict(D,refuted) about run_now, by the N10 not equal to agent at O10, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a6 of type model_result records verdict(D,refuted) about run_now, by the agent at P10 not equal to '2026-10-15T09:25:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a6 of type model_result records verdict(D,refuted) about run_now, by the agent at '2026-10-15T09:25:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a7 of type U10 not equal to model_result records verdict(D,refuted) about V10, by the W10 at X10, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a7 of type model_result records verdict(D,refuted) about Y10 not equal to run_now, by the Z10 at A11, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a7 of type model_result records verdict(D,refuted) about run_now, by the F11 not equal to agent at G11, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a7 of type model_result records verdict(D,refuted) about run_now, by the agent at H11 not equal to '2026-10-15T09:25:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a7 of type model_result records verdict(D,refuted) about run_now, by the agent at '2026-10-15T09:25:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a8 of type M11 not equal to model_result records verdict(D,refuted) about N11, by the O11 at P11, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a8 of type model_result records verdict(D,refuted) about Q11 not equal to run_now, by the R11 at S11, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a8 of type model_result records verdict(D,refuted) about run_now, by the X11 not equal to agent at Y11, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a8 of type model_result records verdict(D,refuted) about run_now, by the agent at Z11 not equal to '2026-10-15T09:25:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a8 of type model_result records verdict(D,refuted) about run_now, by the agent at '2026-10-15T09:25:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a9 of type E12 not equal to reproduction records verdict(D,refuted) about F12, by the G12 at H12, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a9 of type reproduction records verdict(D,refuted) about M12 not equal to log4417, by the N12 at O12, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a9 of type reproduction records verdict(D,refuted) about log4417, by the P12 not equal to agent at Q12, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a9 of type reproduction records verdict(D,refuted) about log4417, by the agent at R12 not equal to '2026-10-15T09:35:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a9 of type reproduction records verdict(D,refuted) about log4417, by the agent at '2026-10-15T09:35:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that false holds, justified above
+         there is no evidence that false holds, justified above
+      there is no evidence that some rule survived its mutation check with no reason, because
+         there is no evidence that rule F survived its mutation check with no reason, because
+            there is no evidence that attestation N1 not a1, a10, a11, a12, a13, a14, a15, a16, a17, a2, a3, a4, a5, a6, a7, a8, or a9 of type model_result records mutation(P1,F,survived) about O1, by the Q1 at R1, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a1 of type model_result records mutation(X1,F,survived) about W1, by the Y1 at Z1, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a10 of type model_result records mutation(O2,F,survived) about N2 not equal to run_target, by the P2 at Q2, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a10 of type model_result records mutation(U2,F,survived) about run_target, by the V2 not equal to agent at W2, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a10 of type model_result records mutation(U2,F,survived) about run_target, by the agent at X2 not equal to '2026-10-15T09:45:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a10 of type model_result records mutation(U2,F,survived) about run_target, by the agent at '2026-10-15T09:45:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a11 of type model_result records mutation(J3,F,survived) about I3, by the K3 at L3, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a12 of type model_result records mutation(X3,F,survived) about W3, by the Y3 at Z3, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a13 of type model_result records mutation(I4,F,survived) about H4 not equal to run_target, by the J4 at K4, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a13 of type model_result records mutation(O4,F,survived) about run_target, by the P4 not equal to agent at Q4, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a13 of type model_result records mutation(O4,F,survived) about run_target, by the agent at R4 not equal to '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a13 of type model_result records mutation(O4,F,survived) about run_target, by the agent at '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a14 of type model_result records mutation(A5,F,survived) about Z4 not equal to run_target, by the B5 at C5, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a14 of type model_result records mutation(G5,F,survived) about run_target, by the H5 not equal to agent at I5, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a14 of type model_result records mutation(G5,F,survived) about run_target, by the agent at J5 not equal to '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a14 of type model_result records mutation(G5,F,survived) about run_target, by the agent at '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a15 of type model_result records mutation(S5,F,survived) about R5 not equal to run_target, by the T5 at U5, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a15 of type model_result records mutation(Y5,F,survived) about run_target, by the Z5 not equal to agent at A6, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a15 of type model_result records mutation(Y5,F,survived) about run_target, by the agent at B6 not equal to '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a15 of type model_result records mutation(Y5,F,survived) about run_target, by the agent at '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a16 of type model_result records mutation(K6,F,survived) about J6 not equal to run_target, by the L6 at M6, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a16 of type model_result records mutation(Q6,F,survived) about run_target, by the R6 not equal to agent at S6, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a16 of type model_result records mutation(Q6,F,survived) about run_target, by the agent at T6 not equal to '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a16 of type model_result records mutation(Q6,F,survived) about run_target, by the agent at '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a17 of type model_result records mutation(C7,F,survived) about B7 not equal to run_target, by the D7 at E7, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a17 of type model_result records mutation(I7,F,survived) about run_target, by the J7 not equal to agent at K7, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a17 of type model_result records mutation(I7,F,survived) about run_target, by the agent at L7 not equal to '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a17 of type model_result records mutation(I7,F,survived) about run_target, by the agent at '2026-10-15T10:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a2 of type model_result records mutation(R7,F,survived) about Q7, by the S7 at T7, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a3 of type model_result records mutation(I8,F,survived) about H8 not equal to run_now, by the J8 at K8, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a3 of type model_result records mutation(O8,F,survived) about run_now, by the P8 not equal to agent at Q8, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a3 of type model_result records mutation(O8,F,survived) about run_now, by the agent at R8 not equal to '2026-10-15T09:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a3 of type model_result records mutation(O8,F,survived) about run_now, by the agent at '2026-10-15T09:20:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a4 of type model_result records mutation(A9,F,survived) about Z8 not equal to run_now, by the B9 at C9, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a4 of type model_result records mutation(G9,F,survived) about run_now, by the H9 not equal to agent at I9, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a4 of type model_result records mutation(G9,F,survived) about run_now, by the agent at J9 not equal to '2026-10-15T09:21:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a4 of type model_result records mutation(G9,F,survived) about run_now, by the agent at '2026-10-15T09:21:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a5 of type model_result records mutation(S9,F,survived) about R9 not equal to run_now, by the T9 at U9, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a5 of type model_result records mutation(Y9,F,survived) about run_now, by the Z9 not equal to agent at A10, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a5 of type model_result records mutation(Y9,F,survived) about run_now, by the agent at B10 not equal to '2026-10-15T09:22:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a5 of type model_result records mutation(Y9,F,survived) about run_now, by the agent at '2026-10-15T09:22:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a6 of type model_result records mutation(K10,F,survived) about J10 not equal to run_now, by the L10 at M10, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a6 of type model_result records mutation(Q10,F,survived) about run_now, by the R10 not equal to agent at S10, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a6 of type model_result records mutation(Q10,F,survived) about run_now, by the agent at T10 not equal to '2026-10-15T09:25:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a6 of type model_result records mutation(Q10,F,survived) about run_now, by the agent at '2026-10-15T09:25:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a7 of type model_result records mutation(C11,F,survived) about B11 not equal to run_now, by the D11 at E11, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a7 of type model_result records mutation(I11,F,survived) about run_now, by the J11 not equal to agent at K11, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a7 of type model_result records mutation(I11,F,survived) about run_now, by the agent at L11 not equal to '2026-10-15T09:25:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a7 of type model_result records mutation(I11,F,survived) about run_now, by the agent at '2026-10-15T09:25:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a8 of type model_result records mutation(U11,F,survived) about T11 not equal to run_now, by the V11 at W11, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a8 of type model_result records mutation(A12,F,survived) about run_now, by the B12 not equal to agent at C12, because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a8 of type model_result records mutation(A12,F,survived) about run_now, by the agent at D12 not equal to '2026-10-15T09:25:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a8 of type model_result records mutation(A12,F,survived) about run_now, by the agent at '2026-10-15T09:25:00Z', because
+               there is no evidence that false holds, justified above
+            there is no evidence that attestation a9 of type model_result records mutation(J12,F,survived) about I12, by the K12 at L12, because
+               there is no evidence that false holds, justified above
+            there is no evidence that false holds, justified above
+         there is no evidence that false holds, justified above
+      there is no evidence that some question must be asked, because
+         there is no evidence that question E not equal to q1 must be asked now, because
+            there is no evidence that question E not equal to q1 depends on question G, because
+               there is no evidence that false holds, justified above
+            there is no evidence that E not equal to q1 is a question about claim D1: E1, because
+               there is no evidence that false holds, justified above
+            there is no evidence that false holds, justified above
+         there is no evidence that question q1 must be asked now, because
+            there is no evidence that question q1 depends on question H, because
+               there is no evidence that false holds, justified above
+            there is no evidence that q1 is a question about claim F1 not equal to c2: G1, because
+               there is no evidence that false holds, justified above
+            there is no evidence that q1 is a question about claim c2: H1 not equal to 'Order 4417: full codes give $25.00, and the floor says at least $30.00. Which one gives?', because
+               there is no evidence that false holds, justified above
+            q1 is a question about claim c2: 'Order 4417: full codes give $25.00, and the floor says at least $30.00. Which one gives?', and
+            claim c2 is contested, because
+               attestation a12 of type divergence records claim(c2) about run_target, by the agent at '2026-10-15T09:45:00Z'
+            a human answered question q1, justified above, and
+            there is no evidence that false holds, justified above
+         there is no evidence that false holds, justified above
+
+% Model
+   • discovery_ready holds
+   • there is no evidence that some_current_refuted holds
+   • there is no evidence that some_no_falsifier holds
+   • there is no evidence that some_question_waits holds
+   • there is no evidence that some_to_ask holds
+   • there is no evidence that some_unasked_finding holds
+   • there is no evidence that some_weak_rule holds
+   • touched_system holds
+   • answered holds for q1
+   • contested holds for c2
+   • there is no evidence that current holds for A not c1, c2, or c2b
+   • current holds for c1
+   • there is no evidence that current holds for c2
+   • current holds for c2b
+   • has_falsifier holds for c1
+   • has_falsifier holds for c2b
+   • has_question holds for f2
+   • model_calibrated holds for m_now
+   • model_sane holds for m_now
+   • model_sane holds for m_target
+   • model_trusted holds for m_target
+   • there is no evidence that needs_question holds for B not f1, or f2
+   • there is no evidence that needs_question holds for f1
+   • needs_question holds for f2
+   • there is no evidence that no_falsifier holds for A not c1, c2, or c2b
+   • there is no evidence that no_falsifier holds for c1
+   • there is no evidence that no_falsifier holds for c2
+   • there is no evidence that no_falsifier holds for c2b
+   • there is no evidence that question_waits holds for C not equal to q1
+   • there is no evidence that question_waits holds for q1
+   • there is no evidence that refuted holds for D
+   • there is no evidence that superseded holds for c1
+   • superseded holds for c2
+   • there is no evidence that superseded holds for c2b
+   • there is no evidence that to_ask holds for E not equal to q1
+   • there is no evidence that to_ask holds for q1
+   • there is no evidence that unasked_finding holds for B not f1, or f2
+   • there is no evidence that unasked_finding holds for f1
+   • there is no evidence that unasked_finding holds for f2
+   • there is no evidence that weak_rule holds for F
+   • there is no evidence that depends holds for E not equal to q1, and G
+   • there is no evidence that depends holds for q1, and H
+   • derived_from holds for m_target, and m_now
+   • encodes holds for m_target, and c1
+   • encodes holds for m_target, and c2b
+   • there is no evidence that raised_by holds for C not equal to q1, and I
+   • there is no evidence that raised_by holds for q1, and J not equal to f2
+   • raised_by holds for q1, and f2
+   • there is no evidence that supersedes holds for K not equal to c2b, and c1
+   • there is no evidence that supersedes holds for L not equal to c2b, and c2b
+   • there is no evidence that supersedes holds for c2b, and c1
+   • supersedes holds for c2b, and c2
+   • there is no evidence that supersedes holds for c2b, and c2b
+   • answer holds for q1, floor_wins, and human
+   • there is no evidence that claim holds for A not c1, c2, or c2b, M, and N
+   • claim holds for c1, introduce, and 'No order is charged below its floor price.'
+   • there is no evidence that claim holds for c2, O not equal to preserve, and P
+   • there is no evidence that claim holds for c2, preserve, and Q not equal to 'Each code takes off its full amount.'
+   • claim holds for c2, preserve, and 'Each code takes off its full amount.'
+   • claim holds for c2b, preserve, and 'Each code takes off its full amount, down to the floor price.'
+   • there is no evidence that finding holds for B not f1, or f2, conflict(R), and S
+   • there is no evidence that finding holds for B not f1, or f2, scope(T), and U
+   • there is no evidence that finding holds for B not f1, or f2, surprise(V), and W
+   • there is no evidence that finding holds for f1, conflict(X), and Y not equal to model
+   • there is no evidence that finding holds for f1, conflict(X), and model
+   • there is no evidence that finding holds for f1, scope(Z), and A1 not equal to model
+   • there is no evidence that finding holds for f1, scope(Z), and model
+   • there is no evidence that finding holds for f1, surprise(B1), and C1 not equal to model
+   • there is no evidence that finding holds for f1, surprise(B1), and model
+   • finding holds for f2, conflict([c1_floor,c2_full_codes,order4417]), and model
+   • there is no evidence that question holds for E not equal to q1, D1, and E1
+   • there is no evidence that question holds for q1, F1 not equal to c2, and G1
+   • there is no evidence that question holds for q1, c2, and H1 not equal to 'Order 4417: full codes give $25.00, and the floor says at least $30.00. Which one gives?'
+   • question holds for q1, c2, and 'Order 4417: full codes give $25.00, and the floor says at least $30.00. Which one gives?'
+   • there is no evidence that attest holds for I1 not a1, a10, a11, a12, a13, a14, a15, a16, a17, a2, a3, a4, a5, a6, a7, a8, or a9, J1, K1, verdict(D,refuted), L1, and M1
+   • there is no evidence that attest holds for N1 not a1, a10, a11, a12, a13, a14, a15, a16, a17, a2, a3, a4, a5, a6, a7, a8, or a9, model_result, O1, mutation(P1,F,survived), Q1, and R1
+   • there is no evidence that attest holds for a1, S1 not equal to reproduction, T1, verdict(D,refuted), U1, and V1
+   • there is no evidence that attest holds for a1, model_result, W1, mutation(X1,F,survived), Y1, and Z1
+   • there is no evidence that attest holds for a1, reproduction, A2 not equal to log4417, verdict(D,refuted), B2, and C2
+   • attest holds for a1, reproduction, log4417, result(h1,reproduced), agent, and '2026-10-15T09:10:00Z'
+   • there is no evidence that attest holds for a1, reproduction, log4417, verdict(D,refuted), D2 not equal to agent, and E2
+   • there is no evidence that attest holds for a1, reproduction, log4417, verdict(D,refuted), agent, and F2 not equal to '2026-10-15T09:10:00Z'
+   • there is no evidence that attest holds for a1, reproduction, log4417, verdict(D,refuted), agent, and '2026-10-15T09:10:00Z'
+   • there is no evidence that attest holds for a10, G2 not equal to model_result, H2, verdict(D,refuted), I2, and J2
+   • there is no evidence that attest holds for a10, model_result, K2 not equal to run_target, verdict(D,refuted), L2, and M2
+   • there is no evidence that attest holds for a10, model_result, N2 not equal to run_target, mutation(O2,F,survived), P2, and Q2
+   • there is no evidence that attest holds for a10, model_result, run_target, verdict(D,refuted), R2 not equal to agent, and S2
+   • there is no evidence that attest holds for a10, model_result, run_target, verdict(D,refuted), agent, and T2 not equal to '2026-10-15T09:45:00Z'
+   • there is no evidence that attest holds for a10, model_result, run_target, verdict(D,refuted), agent, and '2026-10-15T09:45:00Z'
+   • there is no evidence that attest holds for a10, model_result, run_target, mutation(U2,F,survived), V2 not equal to agent, and W2
+   • there is no evidence that attest holds for a10, model_result, run_target, mutation(U2,F,survived), agent, and X2 not equal to '2026-10-15T09:45:00Z'
+   • there is no evidence that attest holds for a10, model_result, run_target, mutation(U2,F,survived), agent, and '2026-10-15T09:45:00Z'
+   • there is no evidence that attest holds for a11, Y2 not equal to divergence, Z2, verdict(D,refuted), A3, and B3
+   • there is no evidence that attest holds for a11, divergence, C3 not equal to run_target, verdict(D,refuted), D3, and E3
+   • there is no evidence that attest holds for a11, divergence, run_target, verdict(D,refuted), F3 not equal to agent, and G3
+   • there is no evidence that attest holds for a11, divergence, run_target, verdict(D,refuted), agent, and H3 not equal to '2026-10-15T09:45:00Z'
+   • there is no evidence that attest holds for a11, divergence, run_target, verdict(D,refuted), agent, and '2026-10-15T09:45:00Z'
+   • there is no evidence that attest holds for a11, model_result, I3, mutation(J3,F,survived), K3, and L3
+   • there is no evidence that attest holds for a12, M3 not equal to divergence, N3, verdict(D,refuted), O3, and P3
+   • there is no evidence that attest holds for a12, divergence, Q3 not equal to run_target, verdict(D,refuted), R3, and S3
+   • attest holds for a12, divergence, run_target, claim(c2), agent, and '2026-10-15T09:45:00Z'
+   • there is no evidence that attest holds for a12, divergence, run_target, verdict(D,refuted), T3 not equal to agent, and U3
+   • there is no evidence that attest holds for a12, divergence, run_target, verdict(D,refuted), agent, and V3 not equal to '2026-10-15T09:45:00Z'
+   • there is no evidence that attest holds for a12, divergence, run_target, verdict(D,refuted), agent, and '2026-10-15T09:45:00Z'
+   • there is no evidence that attest holds for a12, model_result, W3, mutation(X3,F,survived), Y3, and Z3
+   • there is no evidence that attest holds for a13, A4 not equal to model_result, B4, verdict(D,refuted), C4, and D4
+   • there is no evidence that attest holds for a13, model_result, E4 not equal to run_target, verdict(D,refuted), F4, and G4
+   • there is no evidence that attest holds for a13, model_result, H4 not equal to run_target, mutation(I4,F,survived), J4, and K4
+   • there is no evidence that attest holds for a13, model_result, run_target, verdict(D,refuted), L4 not equal to agent, and M4
+   • there is no evidence that attest holds for a13, model_result, run_target, verdict(D,refuted), agent, and N4 not equal to '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a13, model_result, run_target, verdict(D,refuted), agent, and '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a13, model_result, run_target, mutation(O4,F,survived), P4 not equal to agent, and Q4
+   • there is no evidence that attest holds for a13, model_result, run_target, mutation(O4,F,survived), agent, and R4 not equal to '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a13, model_result, run_target, mutation(O4,F,survived), agent, and '2026-10-15T10:20:00Z'
+   • attest holds for a13, model_result, run_target, verdict(m_target,sanity,sat), agent, and '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a14, S4 not equal to model_result, T4, verdict(D,refuted), U4, and V4
+   • there is no evidence that attest holds for a14, model_result, W4 not equal to run_target, verdict(D,refuted), X4, and Y4
+   • there is no evidence that attest holds for a14, model_result, Z4 not equal to run_target, mutation(A5,F,survived), B5, and C5
+   • there is no evidence that attest holds for a14, model_result, run_target, verdict(D,refuted), D5 not equal to agent, and E5
+   • there is no evidence that attest holds for a14, model_result, run_target, verdict(D,refuted), agent, and F5 not equal to '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a14, model_result, run_target, verdict(D,refuted), agent, and '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a14, model_result, run_target, mutation(G5,F,survived), H5 not equal to agent, and I5
+   • there is no evidence that attest holds for a14, model_result, run_target, mutation(G5,F,survived), agent, and J5 not equal to '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a14, model_result, run_target, mutation(G5,F,survived), agent, and '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a15, K5 not equal to model_result, L5, verdict(D,refuted), M5, and N5
+   • there is no evidence that attest holds for a15, model_result, O5 not equal to run_target, verdict(D,refuted), P5, and Q5
+   • there is no evidence that attest holds for a15, model_result, R5 not equal to run_target, mutation(S5,F,survived), T5, and U5
+   • there is no evidence that attest holds for a15, model_result, run_target, verdict(D,refuted), V5 not equal to agent, and W5
+   • there is no evidence that attest holds for a15, model_result, run_target, verdict(D,refuted), agent, and X5 not equal to '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a15, model_result, run_target, verdict(D,refuted), agent, and '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a15, model_result, run_target, mutation(Y5,F,survived), Z5 not equal to agent, and A6
+   • there is no evidence that attest holds for a15, model_result, run_target, mutation(Y5,F,survived), agent, and B6 not equal to '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a15, model_result, run_target, mutation(Y5,F,survived), agent, and '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a16, C6 not equal to model_result, D6, verdict(D,refuted), E6, and F6
+   • there is no evidence that attest holds for a16, model_result, G6 not equal to run_target, verdict(D,refuted), H6, and I6
+   • there is no evidence that attest holds for a16, model_result, J6 not equal to run_target, mutation(K6,F,survived), L6, and M6
+   • there is no evidence that attest holds for a16, model_result, run_target, verdict(D,refuted), N6 not equal to agent, and O6
+   • there is no evidence that attest holds for a16, model_result, run_target, verdict(D,refuted), agent, and P6 not equal to '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a16, model_result, run_target, verdict(D,refuted), agent, and '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a16, model_result, run_target, mutation(Q6,F,survived), R6 not equal to agent, and S6
+   • there is no evidence that attest holds for a16, model_result, run_target, mutation(Q6,F,survived), agent, and T6 not equal to '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a16, model_result, run_target, mutation(Q6,F,survived), agent, and '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a17, U6 not equal to model_result, V6, verdict(D,refuted), W6, and X6
+   • there is no evidence that attest holds for a17, model_result, Y6 not equal to run_target, verdict(D,refuted), Z6, and A7
+   • there is no evidence that attest holds for a17, model_result, B7 not equal to run_target, mutation(C7,F,survived), D7, and E7
+   • there is no evidence that attest holds for a17, model_result, run_target, verdict(D,refuted), F7 not equal to agent, and G7
+   • there is no evidence that attest holds for a17, model_result, run_target, verdict(D,refuted), agent, and H7 not equal to '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a17, model_result, run_target, verdict(D,refuted), agent, and '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a17, model_result, run_target, mutation(I7,F,survived), J7 not equal to agent, and K7
+   • there is no evidence that attest holds for a17, model_result, run_target, mutation(I7,F,survived), agent, and L7 not equal to '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a17, model_result, run_target, mutation(I7,F,survived), agent, and '2026-10-15T10:20:00Z'
+   • there is no evidence that attest holds for a2, M7 not equal to test_result, N7, verdict(D,refuted), O7, and P7
+   • there is no evidence that attest holds for a2, model_result, Q7, mutation(R7,F,survived), S7, and T7
+   • there is no evidence that attest holds for a2, test_result, U7 not equal to t1, verdict(D,refuted), V7, and W7
+   • there is no evidence that attest holds for a2, test_result, t1, verdict(D,refuted), X7 not equal to script, and Y7
+   • there is no evidence that attest holds for a2, test_result, t1, verdict(D,refuted), script, and Z7 not equal to '2026-10-15T09:15:00Z'
+   • there is no evidence that attest holds for a2, test_result, t1, verdict(D,refuted), script, and '2026-10-15T09:15:00Z'
+   • there is no evidence that attest holds for a3, A8 not equal to model_result, B8, verdict(D,refuted), C8, and D8
+   • there is no evidence that attest holds for a3, model_result, E8 not equal to run_now, verdict(D,refuted), F8, and G8
+   • there is no evidence that attest holds for a3, model_result, H8 not equal to run_now, mutation(I8,F,survived), J8, and K8
+   • there is no evidence that attest holds for a3, model_result, run_now, verdict(D,refuted), L8 not equal to agent, and M8
+   • there is no evidence that attest holds for a3, model_result, run_now, verdict(D,refuted), agent, and N8 not equal to '2026-10-15T09:20:00Z'
+   • there is no evidence that attest holds for a3, model_result, run_now, verdict(D,refuted), agent, and '2026-10-15T09:20:00Z'
+   • there is no evidence that attest holds for a3, model_result, run_now, mutation(O8,F,survived), P8 not equal to agent, and Q8
+   • there is no evidence that attest holds for a3, model_result, run_now, mutation(O8,F,survived), agent, and R8 not equal to '2026-10-15T09:20:00Z'
+   • there is no evidence that attest holds for a3, model_result, run_now, mutation(O8,F,survived), agent, and '2026-10-15T09:20:00Z'
+   • attest holds for a3, model_result, run_now, verdict(m_now,sanity,sat), agent, and '2026-10-15T09:20:00Z'
+   • there is no evidence that attest holds for a4, S8 not equal to model_result, T8, verdict(D,refuted), U8, and V8
+   • there is no evidence that attest holds for a4, model_result, W8 not equal to run_now, verdict(D,refuted), X8, and Y8
+   • there is no evidence that attest holds for a4, model_result, Z8 not equal to run_now, mutation(A9,F,survived), B9, and C9
+   • there is no evidence that attest holds for a4, model_result, run_now, verdict(D,refuted), D9 not equal to agent, and E9
+   • there is no evidence that attest holds for a4, model_result, run_now, verdict(D,refuted), agent, and F9 not equal to '2026-10-15T09:21:00Z'
+   • there is no evidence that attest holds for a4, model_result, run_now, verdict(D,refuted), agent, and '2026-10-15T09:21:00Z'
+   • attest holds for a4, model_result, run_now, calibration(m_now,order4417,matches), agent, and '2026-10-15T09:21:00Z'
+   • there is no evidence that attest holds for a4, model_result, run_now, mutation(G9,F,survived), H9 not equal to agent, and I9
+   • there is no evidence that attest holds for a4, model_result, run_now, mutation(G9,F,survived), agent, and J9 not equal to '2026-10-15T09:21:00Z'
+   • there is no evidence that attest holds for a4, model_result, run_now, mutation(G9,F,survived), agent, and '2026-10-15T09:21:00Z'
+   • there is no evidence that attest holds for a5, K9 not equal to model_result, L9, verdict(D,refuted), M9, and N9
+   • there is no evidence that attest holds for a5, model_result, O9 not equal to run_now, verdict(D,refuted), P9, and Q9
+   • there is no evidence that attest holds for a5, model_result, R9 not equal to run_now, mutation(S9,F,survived), T9, and U9
+   • there is no evidence that attest holds for a5, model_result, run_now, verdict(D,refuted), V9 not equal to agent, and W9
+   • there is no evidence that attest holds for a5, model_result, run_now, verdict(D,refuted), agent, and X9 not equal to '2026-10-15T09:22:00Z'
+   • there is no evidence that attest holds for a5, model_result, run_now, verdict(D,refuted), agent, and '2026-10-15T09:22:00Z'
+   • there is no evidence that attest holds for a5, model_result, run_now, mutation(Y9,F,survived), Z9 not equal to agent, and A10
+   • there is no evidence that attest holds for a5, model_result, run_now, mutation(Y9,F,survived), agent, and B10 not equal to '2026-10-15T09:22:00Z'
+   • there is no evidence that attest holds for a5, model_result, run_now, mutation(Y9,F,survived), agent, and '2026-10-15T09:22:00Z'
+   • there is no evidence that attest holds for a6, C10 not equal to model_result, D10, verdict(D,refuted), E10, and F10
+   • there is no evidence that attest holds for a6, model_result, G10 not equal to run_now, verdict(D,refuted), H10, and I10
+   • there is no evidence that attest holds for a6, model_result, J10 not equal to run_now, mutation(K10,F,survived), L10, and M10
+   • there is no evidence that attest holds for a6, model_result, run_now, verdict(D,refuted), N10 not equal to agent, and O10
+   • there is no evidence that attest holds for a6, model_result, run_now, verdict(D,refuted), agent, and P10 not equal to '2026-10-15T09:25:00Z'
+   • there is no evidence that attest holds for a6, model_result, run_now, verdict(D,refuted), agent, and '2026-10-15T09:25:00Z'
+   • there is no evidence that attest holds for a6, model_result, run_now, mutation(Q10,F,survived), R10 not equal to agent, and S10
+   • there is no evidence that attest holds for a6, model_result, run_now, mutation(Q10,F,survived), agent, and T10 not equal to '2026-10-15T09:25:00Z'
+   • there is no evidence that attest holds for a6, model_result, run_now, mutation(Q10,F,survived), agent, and '2026-10-15T09:25:00Z'
+   • there is no evidence that attest holds for a7, U10 not equal to model_result, V10, verdict(D,refuted), W10, and X10
+   • there is no evidence that attest holds for a7, model_result, Y10 not equal to run_now, verdict(D,refuted), Z10, and A11
+   • there is no evidence that attest holds for a7, model_result, B11 not equal to run_now, mutation(C11,F,survived), D11, and E11
+   • there is no evidence that attest holds for a7, model_result, run_now, verdict(D,refuted), F11 not equal to agent, and G11
+   • there is no evidence that attest holds for a7, model_result, run_now, verdict(D,refuted), agent, and H11 not equal to '2026-10-15T09:25:00Z'
+   • there is no evidence that attest holds for a7, model_result, run_now, verdict(D,refuted), agent, and '2026-10-15T09:25:00Z'
+   • there is no evidence that attest holds for a7, model_result, run_now, mutation(I11,F,survived), J11 not equal to agent, and K11
+   • there is no evidence that attest holds for a7, model_result, run_now, mutation(I11,F,survived), agent, and L11 not equal to '2026-10-15T09:25:00Z'
+   • there is no evidence that attest holds for a7, model_result, run_now, mutation(I11,F,survived), agent, and '2026-10-15T09:25:00Z'
+   • there is no evidence that attest holds for a8, M11 not equal to model_result, N11, verdict(D,refuted), O11, and P11
+   • there is no evidence that attest holds for a8, model_result, Q11 not equal to run_now, verdict(D,refuted), R11, and S11
+   • there is no evidence that attest holds for a8, model_result, T11 not equal to run_now, mutation(U11,F,survived), V11, and W11
+   • there is no evidence that attest holds for a8, model_result, run_now, verdict(D,refuted), X11 not equal to agent, and Y11
+   • there is no evidence that attest holds for a8, model_result, run_now, verdict(D,refuted), agent, and Z11 not equal to '2026-10-15T09:25:00Z'
+   • there is no evidence that attest holds for a8, model_result, run_now, verdict(D,refuted), agent, and '2026-10-15T09:25:00Z'
+   • there is no evidence that attest holds for a8, model_result, run_now, mutation(A12,F,survived), B12 not equal to agent, and C12
+   • there is no evidence that attest holds for a8, model_result, run_now, mutation(A12,F,survived), agent, and D12 not equal to '2026-10-15T09:25:00Z'
+   • there is no evidence that attest holds for a8, model_result, run_now, mutation(A12,F,survived), agent, and '2026-10-15T09:25:00Z'
+   • there is no evidence that attest holds for a9, E12 not equal to reproduction, F12, verdict(D,refuted), G12, and H12
+   • there is no evidence that attest holds for a9, model_result, I12, mutation(J12,F,survived), K12, and L12
+   • there is no evidence that attest holds for a9, reproduction, M12 not equal to log4417, verdict(D,refuted), N12, and O12
+   • there is no evidence that attest holds for a9, reproduction, log4417, verdict(D,refuted), P12 not equal to agent, and Q12
+   • there is no evidence that attest holds for a9, reproduction, log4417, verdict(D,refuted), agent, and R12 not equal to '2026-10-15T09:35:00Z'
+   • there is no evidence that attest holds for a9, reproduction, log4417, verdict(D,refuted), agent, and '2026-10-15T09:35:00Z'
+% No bindings
+true
+

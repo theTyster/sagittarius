@@ -1,0 +1,50 @@
+%% X1 F C F : a(_, v(x), _), mismatch in compound
+a(f1, v(x), f3).
+a(g1, v(y), g3).
+c :- a(_, v(x), _).
+l :- not c.
+%% X2 F C : a(_, v(x))
+a(f1, v(x)).
+a(g1, v(y)).
+c :- a(_, v(x)).
+l :- not c.
+%% X3 F F C : a(_, _, v(x))
+a(f1, f2, v(x)).
+a(g1, g2, v(y)).
+c :- a(_, _, v(x)).
+l :- not c.
+%% X4 C F F : a(v(x), _, _)
+a(v(x), f2, f3).
+a(v(y), g2, g3).
+c :- a(v(x), _, _).
+l :- not c.
+%% X5 C F : a(v(x), _)
+a(v(x), f2).
+a(v(y), g2).
+c :- a(v(x), _).
+l :- not c.
+%% X6 C F, both compounds in the facts differ in functor
+a(v(x), f2).
+a(w(y), g2).
+c :- a(v(x), _).
+l :- not c.
+%% X7 K F C : a(k, _, v(x))
+a(k1, f2, v(x)).
+a(k1, g2, v(y)).
+c :- a(k1, _, v(x)).
+l :- not c.
+%% X8 F K C : a(_, k, v(x)) -- K same, compound mismatch
+a(f1, k2, v(x)).
+a(g1, k2, v(y)).
+c :- a(_, k2, v(x)).
+l :- not c.
+%% X9 F F with compound as free var position (no constants): c :- a(_, _)
+a(v(x), f2).
+a(v(y), g2).
+c :- a(_, _).
+l :- not c.
+%% X10 compound in col 1 (K-like) with 1 F after and 1 F before: F C F done as X1. now C-nested: a(_, v(_), x)
+a(f1, v(f2), x).
+a(g1, v(g2), z).
+c :- a(_, v(_), x).
+l :- not c.

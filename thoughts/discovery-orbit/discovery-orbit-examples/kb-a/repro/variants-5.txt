@@ -1,0 +1,81 @@
+%% E1 col1 differs, col2 differs: a(1,2,x). a(3,4,z).
+a(1, 2, x).
+a(3, 4, z).
+c(X) :- a(_, _, X).
+l :- not c(x).
+%% E2 col1 same, col2 differs: a(1,2,x). a(1,4,z).
+a(1, 2, x).
+a(1, 4, z).
+c(X) :- a(_, _, X).
+l :- not c(x).
+%% E3 col1 differs, col2 same: a(1,2,x). a(3,2,z).
+a(1, 2, x).
+a(3, 2, z).
+c(X) :- a(_, _, X).
+l :- not c(x).
+%% E4 both same: a(1,2,x). a(1,2,z).
+a(1, 2, x).
+a(1, 2, z).
+c(X) :- a(_, _, X).
+l :- not c(x).
+%% E2r col1 same, col2 differs, matching second: a(1,4,z). a(1,2,x).
+a(1, 4, z).
+a(1, 2, x).
+c(X) :- a(_, _, X).
+l :- not c(x).
+%% E3r col1 differs, col2 same, matching second: a(3,2,z). a(1,2,x).
+a(3, 2, z).
+a(1, 2, x).
+c(X) :- a(_, _, X).
+l :- not c(x).
+%% E5 key same: a(1,2,x). a(3,4,x)  (both match)
+a(1, 2, x).
+a(3, 4, x).
+c(X) :- a(_, _, X).
+l :- not c(x).
+%% E6 3 facts: a(1,2,x). a(1,2,z). a(1,2,w)  (only key differs)
+a(1, 2, x).
+a(1, 2, z).
+a(1, 2, w).
+c(X) :- a(_, _, X).
+l :- not c(x).
+%% E7 3 facts: a(1,2,x). a(1,2,z). a(3,4,w)
+a(1, 2, x).
+a(1, 2, z).
+a(3, 4, w).
+c(X) :- a(_, _, X).
+l :- not c(x).
+%% E8 no key at all, c/0 :- a(_, _) ; facts a(1,2). a(3,4).
+a(1, 2).
+a(3, 4).
+c :- a(_, _).
+l :- not c.
+%% E9 c/0 :- a(_, _, x) with ONE fact
+a(1, 2, x).
+c :- a(_, _, x).
+l :- not c.
+%% E10 c/0 :- a(_, _, x), two facts (M8)
+a(1, 2, x).
+a(3, 4, z).
+c :- a(_, _, x).
+l :- not c.
+%% E11 c/0 :- a(_, _, x), second fact first
+a(3, 4, z).
+a(1, 2, x).
+c :- a(_, _, x).
+l :- not c.
+%% E12 c/0 :- a(_, _, _), two facts: forall over 3 vars
+a(1, 2, x).
+a(3, 4, z).
+c :- a(_, _, _).
+l :- not c.
+%% E13 c/0 :- a(_, x), two facts (b=1)
+a(1, x).
+a(3, z).
+c :- a(_, x).
+l :- not c.
+%% E14 c/0 :- a(_, _, x), two facts, col1 same col2 differs
+a(1, 2, x).
+a(1, 4, z).
+c :- a(_, _, x).
+l :- not c.

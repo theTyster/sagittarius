@@ -1,0 +1,45 @@
+%% Z1 arity 1, compound t(_,_,x)
+a(t(1, 1, x)).
+a(t(2, 1, z)).
+c :- a(t(_, _, x)).
+l :- not c.
+%% Z2 arity 1, list [_,_,x]
+a([1, 1, x]).
+a([2, 1, z]).
+c :- a([_, _, x]).
+l :- not c.
+%% Z3 min3 shape (control, expect FAIL)
+a(1, 1, x).
+a(2, 1, z).
+c :- a(_, _, x).
+l :- not c.
+%% Z4 min3 with facts sharing column 1 (control, expect OK)
+a(1, 1, x).
+a(1, 2, z).
+c :- a(_, _, x).
+l :- not c.
+%% Z5 b=1 control (expect OK)
+a(1, x).
+a(2, z).
+c :- a(_, x).
+l :- not c.
+%% Z6 min3 with the second fact written as a rule with a true body
+a(1, 1, x).
+a(2, 1, z) :- true.
+c :- a(_, _, x).
+l :- not c.
+%% Z7 min3 where the facts are rules of a/3 with variables
+a(1, 1, x).
+a(2, Y, z) :- Y = 1.
+c :- a(_, _, x).
+l :- not c.
+%% Z8 min3 with first fact as a rule with variable in column 2
+a(1, Y, x).
+a(2, 1, z).
+c :- a(_, _, x).
+l :- not c.
+%% Z9 min3 with first column variable in both facts
+a(A, 1, x).
+a(A, 1, z).
+c :- a(_, _, x).
+l :- not c.
