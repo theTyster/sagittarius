@@ -1,0 +1,2 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-15T10:00:01Z cmd=false
+expected failure before the change

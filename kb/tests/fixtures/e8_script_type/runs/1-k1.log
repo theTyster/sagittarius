@@ -1,0 +1,2 @@
+% orbit-kb run 1 check=k1 result=pass exit=0 time=2026-10-15T10:00:00Z cmd=true
+ok

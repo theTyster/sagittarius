@@ -23,6 +23,63 @@
 - **D5.** `to_ask/1` asks only questions whose claim is still current. Without this, the
   questions of a superseded claim stay open forever, and `done` can never hold.
   `any_to_ask/0` moves from build to core.
+- **D8 (grounded cross-check, 2026-10-16).** Root cause and evidence:
+  `/tmp/claude-1000/-home-ty--dotfiles/63a00f00-8d72-4aeb-a216-cde6b882f1f4/scratchpad/perf/scasp-agent/RESULTS.md`
+  (the session scratchpad, so it may be gone).
+  - **Default.** s(CASP) runs on a query-relevant grounding of the assembled program.
+    `ORBIT_KB_SCASP_GROUND=raw` runs the assembled program unchanged. The SWI verdict
+    engine always runs the original, ungrounded program.
+  - **The grounding** contains:
+    - every rule instance that is reachable from the query and whose positive body can
+      hold, with the `not` literals ignored for reachability but their atoms grounded
+      too;
+    - builtins, evaluated while grounding;
+    - for each ground head that has a facts-only instance, that instance alone;
+    - all facts, unchanged, so that `why` still names the attestation ids;
+    - stubs for predicates that have no clauses;
+    - the `#pred` lines.
+  - **Fallback.** For an unsupported form, the grounder uses the raw program and prints
+    `NOTE: s(CASP) ran the raw program: <reason>` on stderr. The unsupported forms are a
+    `not` over a free variable, constraints, `forall`, clpq, `;`, `->`, a program that is
+    not stratified, and an instance that stays non-ground. Grounding that takes more than
+    5 s gets the same fallback. Answers never depend on whether grounding succeeded.
+  - **Relevance trimming.** The grounding keeps only facts that match an atom reachable
+    from the query, plus all `p` and `-p` facts when the program has `-p` clauses.
+    Matching ignores a trailing `_<digits>`, as the s(CASP) reader does. Stubs and `#pred`
+    lines follow the emitted program. `why` and `whynot` output is unchanged.
+  - **Cross-check cap.** On a grounded program, the M+1 cross-check run may ask for up
+    to 100 models. A raw program keeps the cap of 10.
+  - **Hazards.** In ground mode, H2 and H3 cannot occur, because no dual contains a
+    `forall`. H4 still causes a disagreement when a merged atom is under `not` or in a
+    binding. The negative controls therefore work as follows:
+    - The H2 and H3 controls under `--forall=all` that must report ENGINE DISAGREEMENT
+      run with `ORBIT_KB_SCASP_GROUND=raw`.
+    - In ground mode, the same programs under `--forall=all` must give the correct
+      answer with no disagreement.
+    - `doctor` keeps its known-answer tests (H1–H4) in ground mode.
+    - `doctor` runs the "H4 raw atoms must disagree" control in raw mode.
+    - `doctor` adds the ground-mode H4 control: `p(order_4417).` and
+      `q :- not p(order_5120).` must disagree, with E13 bypassed.
+    - `doctor` adds a grounder-corruption control: delete one `failed_after` instance
+      from the grounded H3 program. s(CASP) then also answers k1, and the cross-check must
+      report ENGINE DISAGREEMENT.
+- **D7 (review fixes, 2026-10-16).**
+  - `query`, `why`, `whynot`, `show`, and `report` exit 2 before they answer in two
+    cases: when any KB or rules file has a syntax error (E1), and when `rules.pl` has an
+    undeclared head or body predicate (E2). A broken source never yields a quiet "false".
+  - **Unsafe negation.** The SWI translation moves each `not` literal after all of the
+    positive body literals. Builtins stay in place relative to the positive literals. In
+    a stratified program this does not change the answers, and it stops `\+` from
+    floundering on unbound variables. Lint error **E14** flags a `not` literal whose
+    variable occurs in the head but in no positive body literal (unsafe negation).
+  - The cross-check asks s(CASP) for M+1 models, up to the cap, when SWI found M
+    answers. If s(CASP) returns more answers than SWI, the result is ENGINE DISAGREEMENT.
+  - `run`, `attest`, `add`, `declare`, and `subject` hold an exclusive lock
+    (`flock` on `kb.lock` in the KB directory) for the whole cycle: read, choose the id
+    or run number, write the log with an exclusive create, and append. The `subject`
+    rewrite writes a temp file in the same directory and renames it into place.
+  - E13 also checks string values.
+  - Temp files are created with `tmp_file_stream/3`.
 - **D6.** Generate stubs only for declared predicates that have no clauses in the
   assembled program. Name every anonymous variable in a query before passing it to
   s(CASP), because `--json` crashes on `_`.
@@ -416,7 +473,8 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | E9 | A `test_result` with no matching run log, where the header must match N, the check, and the result. |
 | E10 | `uses/1` is missing, is not first, or names an unknown module. |
 | E11 | The assembled program fails to compile in s(CASP), or fails to load in the SWI engine. |
-| E13 | An atom ends in `_` plus digits (H4). |
+| E13 | An atom or string ends in `_` plus digits (H4). |
+| E14 | Unsafe negation: a `not` literal's variable occurs in the head but in no positive body literal (D7). |
 | E12 | A `not` literal contains a variable that occurs nowhere else in the clause, including `_` (H1). The message gives the helper-predicate fix. |
 
 | Code | Warning |

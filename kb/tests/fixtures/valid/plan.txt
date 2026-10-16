@@ -1,0 +1,3 @@
+Plan for the widget
+1. Add a save function.
+2. Show the new save button.
