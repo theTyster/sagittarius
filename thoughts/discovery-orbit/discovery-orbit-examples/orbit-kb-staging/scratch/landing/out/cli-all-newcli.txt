@@ -1,0 +1,255 @@
+heavy: waiting for a slot (2 busy)
+CLI sha256 at start: b0465f2b34302f45; module: 20db37fba8da1c01; XDG_CACHE_HOME=/home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/tmp/xdg-5SR3Bn (empty: 0 entries)
+== base: lint, lint --strict, and every base expectation goal (stderr kept)
+$ orbit-kb lint   [base]
+Summary: 0 error(s), 0 warning(s).
+rc=0
+$ orbit-kb lint --strict  [base]
+Summary: 0 error(s), 0 warning(s).
+rc=0
+$ orbit-kb query 'discovery_ready' -n 0   [base]
+true
+rc=0
+$ orbit-kb query 'discovery_decide' -n 0   [base]
+true
+rc=0
+$ orbit-kb query 'touched_system' -n 0   [base]
+true
+rc=0
+$ orbit-kb query 'no_falsifier(C)' -n 0   [base]
+false
+rc=1
+$ orbit-kb query 'question_waits(Q)' -n 0   [base]
+false
+rc=1
+$ orbit-kb query 'unasked_finding(F)' -n 0   [base]
+false
+rc=1
+$ orbit-kb query 'finding_lead(F)' -n 0   [base]
+false
+rc=1
+$ orbit-kb query 'weak_rule(R)' -n 0   [base]
+false
+rc=1
+$ orbit-kb query 'model_trusted(M)' -n 0   [base]
+M = m_now
+M = m_target
+rc=0
+$ orbit-kb query 'model_diverges(M)' -n 0   [base]
+false
+rc=1
+$ orbit-kb query 'model_decided(M, C)' -n 0   [base]
+M = m_target, C = c2b
+M = m_target, C = c1
+rc=0
+$ orbit-kb query 'current(C)' -n 0   [base]
+C = c1
+C = c2b
+rc=0
+$ orbit-kb query 'contested(C)' -n 0   [base]
+C = c2
+rc=0
+$ orbit-kb query 'to_ask(Q)' -n 0   [base]
+false
+rc=1
+$ orbit-kb query 'refuted(C)' -n 0   [base]
+false
+rc=1
+$ orbit-kb query 'about_system(F)' -n 0   [base]
+F = f1
+rc=0
+$ orbit-kb query 'budget_spent' -n 0   [base]
+false
+rc=1
+$ orbit-kb query 'stale(A)' -n 0   [base]
+false
+rc=1
+$ orbit-kb query 'some_model_problem' -n 0   [base]
+false
+rc=1
+$ orbit-kb query 'discovery_hypothesis_touched(H)' -n 0   [base]
+H = h1
+rc=0
+$ orbit-kb query 'lint_issue(Code, Id, _)' -n 0   [base]
+false
+rc=1
+$ orbit-kb query 'attest(A, reproduction, S, _, agent, _)' -n 0   [base]
+A = a1, S = log4417
+A = a9, S = log4417
+rc=0
+$ orbit-kb query 'model_calibration(A, M, R)' -n 0   [base]
+A = a4, M = m_now, R = matches
+rc=0
+== R1 negative control analog: ED codes exit 1 (log tag removed)
+$ orbit-kb lint   [ed1]
+WD4 f1: Only a model shows this finding. It is a lead until evidence from the current system confirms it.
+WD7 h1: No result from the current system exists for this hypothesis. Reproduce it, or ask the human if it is a separate ticket.
+ED1 a1: This reproduction must point at evidence from the current system. Tag the subject with discovery_evidence(Subject, system); a model or a solver log is not system evidence.
+ED1 a9: This reproduction must point at evidence from the current system. Tag the subject with discovery_evidence(Subject, system); a model or a solver log is not system evidence.
+Summary: 2 error(s), 2 warning(s).
+rc=1
+== C1 writers
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/wr attest decision h1 hold(h1, 'Wait for the pricing team.')
+Rejected. Nothing was written.
+E8: Type decision allows only these writers: human. This attestation is by agent. Change the writer, or use another type.
+rc=1
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/wr attest decision h1 hold(h1, 'Wait for the pricing team.') --by human
+attest(a18, decision, h1, hold(h1, 'Wait for the pricing team.'), human, '2026-10-16T22:03:39Z').
+rc=0
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/wr attest approval m_target digest(current)
+Rejected. Nothing was written.
+E8: Type approval allows only these writers: human. This attestation is by agent. Change the writer, or use another type.
+rc=1
+== C2 H4
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/wr attest model_result run_target verdict(m_target, explore(order_4417), sat)
+Rejected. Nothing was written.
+E13: The atom order_4417 ends in _ and digits. s(CASP) drops that ending, so different atoms can merge (hazard H4). Fix: rename it, for example order4417. Here you can use order4417.
+rc=1
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/wr attest model_result run_now calibration(m_now, case('order_4417'), matches)
+Rejected. Nothing was written.
+E13: The atom order_4417 ends in _ and digits. s(CASP) drops that ending, so different atoms can merge (hazard H4). Fix: rename it, for example order4417. Here you can use order4417.
+rc=1
+== C4 refs
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/wr add model_run(run_target, m_ghost, 'sha256:ac17a45536f31f4c27d0f85194dc4690e2aca118122023697632ec30908b664b')
+Rejected. Nothing was written.
+E4 in argument 1 (model_run(run_target, m_ghost, 'sha256:ac17a45536f31f4c27d0f85194dc4690e2aca118122023697632ec30908b664b')): model_run/3 argument 2: m_ghost is not the id of any model fact. Add the model fact first, or fix the id.
+rc=1
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/wr add model(m_z, smt)
+Rejected. Nothing was written.
+E4 in argument 1 (model(m_z, smt)): model/2 argument 1: m_z is not the id of any subject fact. Add the subject fact first, or fix the id.
+rc=1
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/wr add derived_from(m_now, m_now) derived_from(m_now, m_target) lap_done(7) raised_by(q1, c1)
+derived_from(m_now, m_now).
+derived_from(m_now, m_target).
+lap_done(7).
+raised_by(q1, c1).
+rc=0
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/wr add model_run(log4417, m_target, 'sha256:ac17a45536f31f4c27d0f85194dc4690e2aca118122023697632ec30908b664b')
+model_run(log4417, m_target, 'sha256:ac17a45536f31f4c27d0f85194dc4690e2aca118122023697632ec30908b664b').
+rc=0
+$ orbit-kb lint   [wr]
+WD4 f1: Only a model shows this finding. It is a lead until evidence from the current system confirms it.
+WD7 h1: No result from the current system exists for this hypothesis. Reproduce it, or ask the human if it is a separate ticket.
+ED1 a1: This reproduction must point at evidence from the current system. Tag the subject with discovery_evidence(Subject, system); a model or a solver log is not system evidence.
+ED1 a9: This reproduction must point at evidence from the current system. Tag the subject with discovery_evidence(Subject, system); a model or a solver log is not system evidence.
+ED8 q1: This question must be raised by a finding or a hypothesis.
+Summary: 3 error(s), 2 warning(s).
+rc=1
+$ orbit-kb query 'discovery_ready' -n 0   [wr]
+false
+rc=1
+== C3 GO, then edit the ticket
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/go subject tk ticket.md
+sha256:5e571e9d0bdf90e0400972a7e2a8714b7bf5bdc1e81809a716fb5110d42142c0
+rc=0
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/go add ticket(tk)
+ticket(tk).
+rc=0
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/go attest approval tk digest(current) --by human
+attest(a18, approval, tk, digest('sha256:5e571e9d0bdf90e0400972a7e2a8714b7bf5bdc1e81809a716fb5110d42142c0'), human, '2026-10-16T22:03:41Z').
+rc=0
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/go attest approval tk digest(current) --by human
+Rejected. Nothing was written.
+The file of subject tk changed since its digest was recorded.
+Fix: run orbit-kb subject tk /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/go/ticket.md, then review the file again.
+rc=1
+$ orbit-kb lint   [go]
+W1 kb.pl:88: The file of subject tk changed since its digest was recorded. Refresh with orbit-kb subject tk ticket.md.
+Summary: 0 error(s), 1 warning(s).
+rc=0
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/go subject tk ticket.md
+sha256:3117a8205786fa6c98840095c73bb17a52b0e5fa7b2f0192a0aaad0e4c279c91
+rc=0
+$ orbit-kb lint   [go]
+Summary: 0 error(s), 0 warning(s).
+rc=0
+$ orbit-kb query 'stale(A)' -n 0   [go]
+A = a18
+rc=0
+$ orbit-kb query 'discovery_ready' -n 0   [go]
+true
+rc=0
+== CLI-P1 (L1) abstained disproof hides a break
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/p1 attest disproof m_target verdict(c2b, abstained)
+attest(a18, disproof, m_target, verdict(c2b, abstained), agent, '2026-10-16T22:03:42Z').
+rc=0
+$ orbit-kb query 'model_unfiled_break(C)' -n 0   [p1]
+false
+rc=1
+$ orbit-kb query 'discovery_ready' -n 0   [p1]
+true
+rc=0
+$ orbit-kb lint   [p1]
+Summary: 0 error(s), 0 warning(s).
+rc=0
+== CLI-P1b (L1) same with inconclusive
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/p1b attest disproof m_target verdict(c2b, inconclusive)
+attest(a18, disproof, m_target, verdict(c2b, inconclusive), agent, '2026-10-16T22:03:42Z').
+rc=0
+$ orbit-kb query 'discovery_ready' -n 0   [p1b]
+true
+rc=0
+$ orbit-kb lint   [p1b]
+Summary: 0 error(s), 0 warning(s).
+rc=0
+== CLI-P2 (L2) model divergence on the system log
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/p2 attest divergence log4417 model(m_now)
+attest(a18, divergence, log4417, model(m_now), agent, '2026-10-16T22:03:43Z').
+rc=0
+$ orbit-kb query 'model_diverges(M)' -n 0   [p2]
+false
+rc=1
+$ orbit-kb query 'discovery_ready' -n 0   [p2]
+true
+rc=0
+$ orbit-kb lint   [p2]
+Summary: 0 error(s), 0 warning(s).
+rc=0
+== CLI-P3 (L6a) agent-alone supersession of an undisputed claim
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/p3 add claim(c1b, introduce, 'No order is charged below its floor price after all codes.') cites(c1b, 'paid less than our minimum price') supersedes(c1b, c1) encodes(m_target, c1b)
+claim(c1b, introduce, 'No order is charged below its floor price after all codes.').
+cites(c1b, 'paid less than our minimum price').
+supersedes(c1b, c1).
+encodes(m_target, c1b).
+rc=0
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/p3 attest model_result run_target verdict(m_target, applies(c1b), sat)
+attest(a18, model_result, run_target, verdict(m_target, applies(c1b), sat), agent, '2026-10-16T22:03:43Z').
+rc=0
+$ orbit-kb query 'discovery_unratified(C)' -n 0   [p3]
+false
+rc=1
+$ orbit-kb query 'discovery_ready' -n 0   [p3]
+true
+rc=0
+$ orbit-kb lint   [p3]
+W5 kb.pl:26: Check t1 tests claim c1, but claim c1b replaces it. Point the check at the new claim.
+Summary: 0 error(s), 1 warning(s).
+rc=0
+== CLI-P4 (L4) derived_from cycle with the existing-world bad case unsat
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/p4 add derived_from(m_now, m_target)
+derived_from(m_now, m_target).
+rc=0
+$ orbit-kb query 'model_diverges(M)' -n 0   [p4]
+false
+rc=1
+$ orbit-kb query 'discovery_ready' -n 0   [p4]
+true
+rc=0
+$ orbit-kb lint   [p4]
+Summary: 0 error(s), 0 warning(s).
+rc=0
+== CLI-P5 (L13) exploration re-run
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/p5 attest model_result run_target verdict(m_target, explore(witnesses), sat)
+attest(a18, model_result, run_target, verdict(m_target, explore(witnesses), sat), agent, '2026-10-16T22:03:45Z').
+rc=0
+$ orbit-kb --dir /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/cli2/p5 attest model_result run_target verdict(m_target, explore(witnesses), unsat)
+attest(a19, model_result, run_target, verdict(m_target, explore(witnesses), unsat), agent, '2026-10-16T22:03:45Z').
+rc=0
+$ orbit-kb query 'discovery_ready' -n 0   [p5]
+false
+rc=1
+$ orbit-kb lint   [p5]
+ED6 m_target: Two solver results for the same check of this model disagree: one shows a case, one shows none.
+Summary: 1 error(s), 0 warning(s).
+rc=1
+CLI sha256 at end: b0465f2b34302f45

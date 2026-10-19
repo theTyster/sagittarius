@@ -1,4 +1,4 @@
-% orbit-kb module: discovery (contract v2.1, D5). Load it with uses([discovery]).
+% orbit-kb module: discovery (contract v2.1 through D7). Load it with uses([discovery]).
 %
 % Discovery turns a request into a ticket. It records hypotheses, models of the current
 % system and of the target, findings, and the evidence for each of them.
@@ -14,10 +14,6 @@
 % - An unsat core is one conflict finding/3 and one question. After the human answers,
 %   a core divergence goes on each claim that the answer supersedes, and only on those.
 % - GO is a core approval of the ticket subject. NO-GO and HOLD are a `decision`.
-%
-% Performance: in s(CASP), each `not` over a predicate that reads attest/6 is slow, and
-% the cost grows with the number of attestations. Rules read attest/6 only through the
-% discovery_* projections, so a faster core helper can replace them later.
 
 % --- Facts ---
 decl(fact, hypothesis(id, oneof([defect, feature, risk]), text),
@@ -77,10 +73,7 @@ attest_type(decision,
     'A NO-GO or HOLD decision by the human, with its reason or what it waits for.').
 
 % --- Rule declarations ---
-decl(rule, discovery_model_result(ref(attest), ref, term), 'A model_result attestation: its id, subject, and predicate.', 'attestation @(1) on @(2) records the model result @(3)').
-decl(rule, discovery_reproduction(ref(attest), ref, term), 'A reproduction attestation: its id, subject, and predicate.', 'attestation @(1) on @(2) records the reproduction @(3)').
-decl(rule, discovery_divergence(ref, term), 'A core divergence attestation: its subject and predicate.', 'a divergence on @(1) records @(2)').
-decl(rule, discovery_disproof_filed(ref(claim)), 'A disproof attestation names the claim.', 'a disproof of claim @(1) is filed').
+decl(rule, discovery_disproof_filed(ref(claim)), 'A disproof attestation refutes the claim.', 'a disproof of claim @(1) is filed').
 decl(rule, discovery_model_artifact(ref), 'The id is a model file, a solver log, or is tagged as model evidence.', '@(1) is a model artifact').
 decl(rule, discovery_system_evidence(ref), 'The id is tagged as system evidence and is not a model artifact.', '@(1) is evidence from the current system').
 decl(rule, discovery_hypothesis_touched(ref(hypothesis)), 'A reproduction on system evidence gives a result for the hypothesis.', 'the current system was checked for hypothesis @(1)').
@@ -93,17 +86,21 @@ decl(rule, discovery_result_model(term, ref(model)), 'The model that a model_res
 decl(rule, discovery_is_finding(ref), 'The id is a finding.', '@(1) is a finding').
 decl(rule, discovery_is_hypothesis(ref), 'The id is a hypothesis.', '@(1) is a hypothesis').
 decl(rule, discovery_ratified(ref(claim)), 'A human answered a question about the claim.', 'a human answered a question about claim @(1)').
-decl(rule, discovery_unratified(ref(claim)), 'A claim that supersedes a refuted claim with no human answer behind it.', 'claim @(1) replaces a refuted claim without a human answer').
+decl(rule, discovery_disputed(ref(claim)), 'The claim is refuted, or a claim divergence contests it.', 'claim @(1) is disputed').
+decl(rule, discovery_unratified(ref(claim)), 'A claim that supersedes a disputed claim with no human answer behind it.', 'claim @(1) replaces a disputed claim without a human answer').
 decl(rule, discovery_budget_raised(int), 'A larger lap budget replaces this one.', 'a budget larger than @(1) laps exists').
 decl(rule, discovery_ready, 'Discovery is clean and ready for the human to decide GO, NO-GO, or HOLD.', 'discovery is ready for the human to decide').
 decl(rule, discovery_decide, 'The human must decide now: discovery is ready, or the budget is spent.', 'the human must decide now').
 decl(rule, model_run_of(ref(subject), ref(model)), 'The log is a run of the model at some digest.', 'log @(1) is a run of model @(2)').
-decl(rule, model_run_current(ref(subject), ref(model)), 'The log is a run of the model at its current digest.', 'log @(1) is a current run of model @(2)').
+decl(rule, discovery_old_run(ref(subject), ref(model)), 'The log has a run of the model at a digest that is not the current one.', 'log @(1) has a run of an older digest of model @(2)').
+decl(rule, model_run_current(ref(subject), ref(model)), 'The log is a run of the model at its current digest, and at no older digest.', 'log @(1) is a current run of model @(2)').
 decl(rule, model_run_stale(ref(subject), ref(model)), 'The log is a run of the model at an older digest.', 'log @(1) is an old run of model @(2)').
 decl(rule, model_verdict(ref(attest), ref(model), term, atom), 'A verdict that counts: its attestation, model, check, and result.', 'attestation @(1) gives model @(2) the result @(4) on check @(3)').
 decl(rule, model_calibration(ref(attest), ref(model), atom), 'A calibration that counts: its attestation, model, and result.', 'attestation @(1) gives model @(2) the calibration result @(3)').
 decl(rule, model_mutation(ref(attest), ref(model), atom, atom), 'A mutation check that counts: its attestation, model, rule, and result.', 'attestation @(1): rule @(3) of model @(2) was @(4)').
-decl(rule, model_is_derived(ref(model)), 'The model is a target model derived from another model.', 'model @(1) is a target model').
+decl(rule, model_has_parent(ref(model)), 'The model is derived from some model.', 'model @(1) is derived from a model').
+decl(rule, model_root(ref(model)), 'The model is an existing-world model: it is derived from no model.', 'model @(1) is an existing-world model').
+decl(rule, model_is_derived(ref(model)), 'The model is a target model derived from an existing-world model.', 'model @(1) is a target model').
 decl(rule, model_same_tool(ref(model), ref(model)), 'The two models use the same tool.', 'models @(1) and @(2) use the same tool').
 decl(rule, model_sane(ref(model)), 'A sanity check of the model passed, and none failed.', 'model @(1) is sane').
 decl(rule, model_sanity_failed(ref(model)), 'A sanity check of the model failed or was unknown.', 'a sanity check of model @(1) failed').
@@ -138,32 +135,32 @@ decl(rule, some_unasked_finding, 'Some finding needs a question.', 'some finding
 decl(rule, some_current_refuted, 'Some current claim is refuted.', 'some current claim is refuted').
 decl(rule, some_weak_rule, 'Some rule is weak.', 'some rule survived its mutation check with no reason').
 decl(rule, some_model_problem, 'Some model diverges, is vacuous, breaks a claim with no disproof, or has solvers that disagree.', 'some model has an open problem').
-decl(rule, some_unratified_supersession, 'Some claim replaces a refuted claim with no human answer behind it.', 'some claim replaces a refuted claim without a human answer').
+decl(rule, some_unratified_supersession, 'Some claim replaces a disputed claim with no human answer behind it.', 'some claim replaces a disputed claim without a human answer').
 
-% --- Projections over attest/6 (a core helper can replace them later) ---
-discovery_model_result(A, S, P) :- attest(A, model_result, S, P, _, _).
-discovery_reproduction(A, S, P) :- attest(A, reproduction, S, P, _, _).
-discovery_divergence(S, P) :- attest(_, divergence, S, P, _, _).
-discovery_disproof_filed(C) :- attest(_, disproof, _, verdict(C, _), _, _).
+% --- A disproof names the claim (a helper, because model_unfiled_break reads it under not) ---
+discovery_disproof_filed(C) :- attest(_, disproof, _, verdict(C, refuted), _, _).
 
 % --- Evidence from the current system ---
 discovery_model_artifact(S) :- model(S, _).
 discovery_model_artifact(S) :- model_run(S, _, _).
 discovery_model_artifact(S) :- discovery_evidence(S, model).
 discovery_system_evidence(S) :- discovery_evidence(S, system), not discovery_model_artifact(S).
-touched_system :- discovery_reproduction(_, S, _), discovery_system_evidence(S).
+touched_system :- attest(_, reproduction, S, _, _, _), discovery_system_evidence(S).
 touched_system :- attest(_, test_result, K, _, _, _), discovery_system_evidence(K).
-discovery_hypothesis_touched(H) :- discovery_reproduction(_, S, result(H, _)), discovery_system_evidence(S).
+discovery_hypothesis_touched(H) :- attest(_, reproduction, S, result(H, _), _, _), discovery_system_evidence(S).
 discovery_has_outcome :- current(_).
-discovery_has_outcome :- discovery_reproduction(_, S, result(_, not_reproduced)), discovery_system_evidence(S).
+discovery_has_outcome :- attest(_, reproduction, S, result(_, not_reproduced), _, _), discovery_system_evidence(S).
 
 % --- Model verdicts count only for the current digest of their own model ---
+% A log that also has a run at an older digest does not count: reusing a log for a new
+% digest must not bring its old verdicts back.
 model_run_of(S, M) :- model_run(S, M, _).
-model_run_current(S, M) :- model_run(S, M, D), subject(M, _, D).
+discovery_old_run(S, M) :- model_run(S, M, D), subject(M, _, D1), D \= D1.
+model_run_current(S, M) :- model_run(S, M, D), subject(M, _, D), not discovery_old_run(S, M).
 model_run_stale(S, M) :- model_run(S, M, _), not model_run_current(S, M).
-model_verdict(A, M, K, R) :- discovery_model_result(A, S, verdict(M, K, R)), model_run_current(S, M).
-model_calibration(A, M, R) :- discovery_model_result(A, S, calibration(M, _, R)), model_run_current(S, M).
-model_mutation(A, M, Rule, R) :- discovery_model_result(A, S, mutation(M, Rule, R)), model_run_current(S, M).
+model_verdict(A, M, K, R) :- attest(A, model_result, S, verdict(M, K, R), _, _), model_run_current(S, M).
+model_calibration(A, M, R) :- attest(A, model_result, S, calibration(M, _, R), _, _), model_run_current(S, M).
+model_mutation(A, M, Rule, R) :- attest(A, model_result, S, mutation(M, Rule, R), _, _), model_run_current(S, M).
 discovery_result_model(verdict(M, _, _), M).
 discovery_result_model(calibration(M, _, _), M).
 discovery_result_model(mutation(M, _, _), M).
@@ -186,10 +183,14 @@ discovery_no_case(holds).
 model_sanity_failed(M) :- model_verdict(_, M, sanity, R), not discovery_sanity_ok(R).
 model_sane(M) :- model_verdict(_, M, sanity, R), discovery_sanity_ok(R), not model_sanity_failed(M).
 model_calibrated(M) :- model_calibration(_, M, matches).
-model_is_derived(M) :- derived_from(M, _).
+% A target is derived from a root. A model in a derived_from cycle is no target, so it
+% gets the existing-world bad-case check (ED9 flags the cycle).
+model_has_parent(M) :- derived_from(M, _).
+model_root(M) :- model(M, _), not model_has_parent(M).
+model_is_derived(M) :- derived_from(M, M0), model_root(M0).
 model_diverges(M) :- model_calibration(_, M, differs).
-model_diverges(M) :- discovery_divergence(M, model(M)).
-model_diverges(M) :- discovery_divergence(S, model(M)), model_run_current(S, M).
+% A model divergence counts on any subject, except a log of an older digest of the model.
+model_diverges(M) :- attest(_, divergence, S, model(M), _, _), not model_run_stale(S, M).
 % The existing-world model must reproduce the reported bad case.
 model_diverges(M) :- model_verdict(_, M, bad_case, R), discovery_no_case(R), not model_is_derived(M).
 model_same_tool(M, M0) :- model(M, T), model(M0, T).
@@ -231,17 +232,19 @@ question_waits(Q) :- raised_by(Q, _), not answered(Q).
 about_system(F) :- finding(F, root_cause(_), _).
 about_system(F) :- finding(F, trace(_), _).
 about_system(F) :- finding(F, surprise(_), _).
-finding_confirmed(F) :- discovery_reproduction(_, S, confirms(F)), discovery_system_evidence(S).
+finding_confirmed(F) :- attest(_, reproduction, S, confirms(F), _, _), discovery_system_evidence(S).
 finding_lead(F) :- finding(F, _, model), about_system(F), not finding_confirmed(F).
 
 % --- Mutation checks ---
 rule_has_reason(M, R) :- reason(M, R, _).
 weak_rule(R) :- model_mutation(_, M, R, survived), not rule_has_reason(M, R).
 
-% --- Only the human changes the scope: a refuted claim is replaced only after an answer ---
+% --- Only the human changes the scope: a disputed claim is replaced only after an answer ---
 discovery_ratified(C) :- question(Q, C, _), answered(Q).
-discovery_unratified(New) :- supersedes(New, Old), refuted(Old), not discovery_ratified(Old),
-    not discovery_ratified(New).
+discovery_disputed(C) :- refuted(C).
+discovery_disputed(C) :- contested(C).
+discovery_unratified(New) :- supersedes(New, Old), discovery_disputed(Old),
+    not discovery_ratified(Old), not discovery_ratified(New).
 
 % --- Budget: the largest budget counts, because the KB is append-only ---
 discovery_budget_raised(B) :- budget(laps, B), budget(laps, B2), B2 > B.
@@ -289,15 +292,15 @@ lint_issue('WD4', F, 'Only a model shows this finding. It is a lead until eviden
 lint_issue('WD5', A, 'This check gave unknown. It is a gap, not UNSAT, so it falsifies nothing.') :-
     model_verdict(A, _, _, unknown).
 lint_issue('WD6', A, 'The problem did not reproduce on the current system. This is a NO-GO candidate. Tell the human.') :-
-    discovery_reproduction(A, S, result(_, not_reproduced)), discovery_system_evidence(S).
+    attest(A, reproduction, S, result(_, not_reproduced), _, _), discovery_system_evidence(S).
 lint_issue('WD7', H, 'No result from the current system exists for this hypothesis. Reproduce it, or ask the human if it is a separate ticket.') :-
     hypothesis(H, _, _), not discovery_hypothesis_touched(H).
-lint_issue('WD8', A, 'This model result was made against an older digest of the model. It does not count. Run the solver again.') :-
-    discovery_model_result(A, S, P), discovery_result_model(P, M), model_run_stale(S, M).
+lint_issue('WD8', A, 'This model result is on a log of an older digest of the model. It does not count. Run the solver again, into a new log.') :-
+    attest(A, model_result, S, P, _, _), discovery_result_model(P, M), model_run_stale(S, M).
 lint_issue('ED1', A, 'This reproduction must point at evidence from the current system. Tag the subject with discovery_evidence(Subject, system); a model or a solver log is not system evidence.') :-
-    discovery_reproduction(A, S, _), not discovery_system_evidence(S).
+    attest(A, reproduction, S, _, _, _), not discovery_system_evidence(S).
 lint_issue('ED2', A, 'This model result must point at a solver log of its own model. Add model_run(Log, Model, Digest) for the log.') :-
-    discovery_model_result(A, S, P), discovery_result_model(P, M), not model_run_of(S, M).
+    attest(A, model_result, S, P, _, _), discovery_result_model(P, M), not model_run_of(S, M).
 lint_issue('ED3', M, 'This model disagrees with the current system. Fix the model before you use any of its verdicts.') :-
     model_diverges(M).
 lint_issue('ED4', A, 'This applies check shows that the claim can never apply. The claim holds only vacuously.') :-
@@ -306,7 +309,9 @@ lint_issue('ED5', C, 'A model breaks this current claim, and no disproof is file
     model_unfiled_break(C).
 lint_issue('ED6', M, 'Two solver results for the same check of this model disagree: one shows a case, one shows none.') :-
     model_solvers_disagree(M).
-lint_issue('ED7', C, 'This claim replaces a refuted claim, but no human answered a question about it. Only the human changes the scope.') :-
+lint_issue('ED7', C, 'This claim replaces a refuted or contested claim, but no human answered a question about either claim. Only the human changes the scope.') :-
     discovery_unratified(C).
 lint_issue('ED8', Q, 'This question must be raised by a finding or a hypothesis.') :-
     raised_by(Q, X), not discovery_is_finding(X), not discovery_is_hypothesis(X).
+lint_issue('ED9', M, 'This model is derived from a model that is itself derived from a model. Derive a target model only from an existing-world model.') :-
+    derived_from(M, M0), not model_root(M0).

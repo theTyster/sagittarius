@@ -1,0 +1,7 @@
+# Invented for Example A. Excerpt of the checkout and payment logs for order 4417.
+# Prices are in cents. CheckoutService.ApplyCodes logs each step.
+2026-10-14T16:02:11Z checkout order=4417 list_price=4000 floor_price=3000 codes=SAVE5:500,SAVE10:1000
+2026-10-14T16:02:11Z CheckoutService.ApplyCodes order=4417 step=1 code=SAVE5 amount=500 price=3500
+2026-10-14T16:02:11Z CheckoutService.ApplyCodes order=4417 step=1 clamp floor_price=3000 price=3500
+2026-10-14T16:02:11Z CheckoutService.ApplyCodes order=4417 step=2 code=SAVE10 amount=1000 price=2500
+2026-10-14T16:02:12Z PaymentGateway.Charge order=4417 amount=2500 currency=USD status=captured

@@ -1,0 +1,6442 @@
+{
+ "m001": {
+  "op": "delete_clause",
+  "clause": "discovery_disproof_filed(A):-attest(_,disproof,_,verdict(A,_),_,_)",
+  "detail": "-",
+  "killed_by": [
+   "b2_break_filed"
+  ]
+ },
+ "m002": {
+  "op": "delete_clause",
+  "clause": "discovery_model_artifact(A):-model(A,_)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "m003": {
+  "op": "delete_clause",
+  "clause": "discovery_model_artifact(A):-model_run(A,_,_)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "m004": {
+  "op": "delete_clause",
+  "clause": "discovery_model_artifact(A):-discovery_evidence(A,model)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "m005": {
+  "op": "delete_clause",
+  "clause": "discovery_system_evidence(A):-discovery_evidence(A,system),not discovery_model_artifact(A)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_kinds",
+   "m4_check_is_repro",
+   "m4_check_only",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_repro_only",
+   "m5_not_reproduced",
+   "m5_second_hypothesis",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m006": {
+  "op": "delete_clause",
+  "clause": "touched_system:-attest(_,reproduction,A,_,_,_),discovery_system_evidence(A)",
+  "detail": "-",
+  "killed_by": [
+   "m4_repro_only"
+  ]
+ },
+ "m007": {
+  "op": "delete_clause",
+  "clause": "touched_system:-attest(_,test_result,A,_,_,_),discovery_system_evidence(A)",
+  "detail": "-",
+  "killed_by": [
+   "m4_check_only"
+  ]
+ },
+ "m008": {
+  "op": "delete_clause",
+  "clause": "discovery_hypothesis_touched(A):-attest(_,reproduction,B,result(A,_),_,_),discovery_system_evidence(B)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m5_second_hypothesis",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m009": {
+  "op": "delete_clause",
+  "clause": "discovery_has_outcome:-current(_)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m010": {
+  "op": "delete_clause",
+  "clause": "discovery_has_outcome:-attest(_,reproduction,A,result(_,not_reproduced),_,_),discovery_system_evidence(A)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "m011": {
+  "op": "delete_clause",
+  "clause": "model_run_of(A,B):-model_run(A,B,_)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "minor_wrong_log",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m012": {
+  "op": "delete_clause",
+  "clause": "discovery_old_run(A,B):-model_run(A,B,C),subject(B,_,D),C\\=D",
+  "detail": "-",
+  "killed_by": [
+   "m3_log_reused"
+  ]
+ },
+ "m013": {
+  "op": "delete_clause",
+  "clause": "model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)",
+  "detail": "-",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "b2_break_unfiled",
+   "b2_sanity_fails",
+   "b2_solvers_disagree",
+   "b2_target_bad_case",
+   "b2_tla_sanity",
+   "b2_unknown",
+   "b2_vacuous",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf5c_reason_other_model",
+   "cf7_budget_spent",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_log_reused",
+   "m3_model_edited",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m014": {
+  "op": "delete_clause",
+  "clause": "model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)",
+  "detail": "-",
+  "killed_by": [
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "m015": {
+  "op": "delete_clause",
+  "clause": "model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "-",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b2_break_unfiled",
+   "b2_sanity_fails",
+   "b2_solvers_disagree",
+   "b2_target_bad_case",
+   "b2_tla_sanity",
+   "b2_unknown",
+   "b2_vacuous",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m016": {
+  "op": "delete_clause",
+  "clause": "model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)",
+  "detail": "-",
+  "killed_by": [
+   "b1_calibration_differs",
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m017": {
+  "op": "delete_clause",
+  "clause": "model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "-",
+  "killed_by": [
+   "cf5_survived",
+   "cf5c_reason_other_model",
+   "cf7_budget_spent",
+   "m6_budget_raised"
+  ]
+ },
+ "m018": {
+  "op": "delete_clause",
+  "clause": "model_sanity_failed(A):-model_verdict(_,A,sanity,B),not discovery_sanity_ok(B)",
+  "detail": "-",
+  "killed_by": [
+   "b2_sanity_fails"
+  ]
+ },
+ "m019": {
+  "op": "delete_clause",
+  "clause": "model_sane(A):-model_verdict(_,A,sanity,B),discovery_sanity_ok(B),not model_sanity_failed(A)",
+  "detail": "-",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m020": {
+  "op": "delete_clause",
+  "clause": "model_calibrated(A):-model_calibration(_,A,matches)",
+  "detail": "-",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m021": {
+  "op": "delete_clause",
+  "clause": "model_is_derived(A):-derived_from(A,_)",
+  "detail": "-",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "b2_target_bad_case",
+   "b2_tla_sanity",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m022": {
+  "op": "delete_clause",
+  "clause": "model_diverges(A):-model_calibration(_,A,differs)",
+  "detail": "-",
+  "killed_by": [
+   "b1_calibration_differs"
+  ]
+ },
+ "m023": {
+  "op": "delete_clause",
+  "clause": "model_diverges(A):-attest(_,divergence,A,model(A),_,_)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "m024": {
+  "op": "delete_clause",
+  "clause": "model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)",
+  "detail": "-",
+  "killed_by": [
+   "b1_divergence_on_model"
+  ]
+ },
+ "m025": {
+  "op": "delete_clause",
+  "clause": "model_diverges(A):-model_verdict(_,A,bad_case,B),discovery_no_case(B),not model_is_derived(A)",
+  "detail": "-",
+  "killed_by": [
+   "b1_bad_case_not_reproduced"
+  ]
+ },
+ "m026": {
+  "op": "delete_clause",
+  "clause": "model_same_tool(A,B):-model(A,C),model(B,C)",
+  "detail": "-",
+  "killed_by": [
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m027": {
+  "op": "delete_clause",
+  "clause": "model_trusted(A):-model_sane(A),model_calibrated(A),not model_diverges(A)",
+  "detail": "-",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "m3_rerun_new_log",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m028": {
+  "op": "delete_clause",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "-",
+  "killed_by": [
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m029": {
+  "op": "delete_clause",
+  "clause": "model_decided(A,B):-model_verdict(_,A,preserve(B),C),discovery_decided(C)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m030": {
+  "op": "delete_clause",
+  "clause": "model_decided(A,B):-model_verdict(_,A,applies(B),C),discovery_decided(C)",
+  "detail": "-",
+  "killed_by": [
+   "base"
+  ]
+ },
+ "m031": {
+  "op": "delete_clause",
+  "clause": "model_vacuous(A):-model_verdict(A,_,applies(_),B),discovery_no_case(B)",
+  "detail": "-",
+  "killed_by": [
+   "b2_vacuous"
+  ]
+ },
+ "m032": {
+  "op": "delete_clause",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,preserve(B),C),discovery_has_case(C)",
+  "detail": "-",
+  "killed_by": [
+   "b2_break_unfiled"
+  ]
+ },
+ "m033": {
+  "op": "delete_clause",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "-",
+  "killed_by": [
+   "b2_target_bad_case"
+  ]
+ },
+ "m034": {
+  "op": "delete_clause",
+  "clause": "model_unfiled_break(A):-model_breaks(_,A),current(A),not discovery_disproof_filed(A)",
+  "detail": "-",
+  "killed_by": [
+   "b2_break_unfiled",
+   "b2_target_bad_case"
+  ]
+ },
+ "m035": {
+  "op": "delete_clause",
+  "clause": "model_check_case(A,B):-model_verdict(_,A,B,C),discovery_has_case(C)",
+  "detail": "-",
+  "killed_by": [
+   "b2_solvers_disagree"
+  ]
+ },
+ "m036": {
+  "op": "delete_clause",
+  "clause": "model_check_no_case(A,B):-model_verdict(_,A,B,C),discovery_no_case(C)",
+  "detail": "-",
+  "killed_by": [
+   "b2_solvers_disagree"
+  ]
+ },
+ "m037": {
+  "op": "delete_clause",
+  "clause": "model_solvers_disagree(A):-model_check_case(A,B),model_check_no_case(A,B)",
+  "detail": "-",
+  "killed_by": [
+   "b2_solvers_disagree"
+  ]
+ },
+ "m038": {
+  "op": "delete_clause",
+  "clause": "has_falsifier(A):-check(_,A)",
+  "detail": "-",
+  "killed_by": [
+   "cf2_no_calibration",
+   "m7_ratified_contested"
+  ]
+ },
+ "m039": {
+  "op": "delete_clause",
+  "clause": "has_falsifier(A):-encodes(B,A),model_decided(B,A),model_trusted(B)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m040": {
+  "op": "delete_clause",
+  "clause": "no_falsifier(A):-current(A),not has_falsifier(A)",
+  "detail": "-",
+  "killed_by": [
+   "b2_unknown",
+   "cf2_no_calibration",
+   "cf2b_no_calibration_no_check",
+   "k_unencoded_claim",
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "m041": {
+  "op": "delete_clause",
+  "clause": "discovery_is_finding(A):-finding(A,_,_)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m5_question_from_hypothesis",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m042": {
+  "op": "delete_clause",
+  "clause": "discovery_is_hypothesis(A):-hypothesis(A,_,_)",
+  "detail": "-",
+  "killed_by": [
+   "m5_question_from_hypothesis"
+  ]
+ },
+ "m043": {
+  "op": "delete_clause",
+  "clause": "needs_question(A):-finding(A,conflict(_),_)",
+  "detail": "-",
+  "killed_by": [
+   "cf4_no_raised_by",
+   "k_kinds"
+  ]
+ },
+ "m044": {
+  "op": "delete_clause",
+  "clause": "needs_question(A):-finding(A,surprise(_),_)",
+  "detail": "-",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "m045": {
+  "op": "delete_clause",
+  "clause": "needs_question(A):-finding(A,scope(_),_)",
+  "detail": "-",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "m046": {
+  "op": "delete_clause",
+  "clause": "has_question(A):-raised_by(_,A)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_kinds",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m047": {
+  "op": "delete_clause",
+  "clause": "unasked_finding(A):-needs_question(A),not has_question(A)",
+  "detail": "-",
+  "killed_by": [
+   "cf4_no_raised_by",
+   "k_kinds"
+  ]
+ },
+ "m048": {
+  "op": "delete_clause",
+  "clause": "question_waits(A):-raised_by(A,_),not answered(A)",
+  "detail": "-",
+  "killed_by": [
+   "cf1_no_answer",
+   "m5_question_from_hypothesis"
+  ]
+ },
+ "m049": {
+  "op": "delete_clause",
+  "clause": "about_system(A):-finding(A,root_cause(_),_)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "k_kinds",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged"
+  ]
+ },
+ "m050": {
+  "op": "delete_clause",
+  "clause": "about_system(A):-finding(A,trace(_),_)",
+  "detail": "-",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "m051": {
+  "op": "delete_clause",
+  "clause": "about_system(A):-finding(A,surprise(_),_)",
+  "detail": "-",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "m052": {
+  "op": "delete_clause",
+  "clause": "finding_confirmed(A):-attest(_,reproduction,B,confirms(A),_,_),discovery_system_evidence(B)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "k_kinds",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m053": {
+  "op": "delete_clause",
+  "clause": "finding_lead(A):-finding(A,_,model),about_system(A),not finding_confirmed(A)",
+  "detail": "-",
+  "killed_by": [
+   "cf3_no_confirmation",
+   "k_kinds",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged"
+  ]
+ },
+ "m054": {
+  "op": "delete_clause",
+  "clause": "rule_has_reason(A,B):-reason(A,B,_)",
+  "detail": "-",
+  "killed_by": [
+   "cf5b_survived_with_reason",
+   "cf5c_reason_other_model"
+  ]
+ },
+ "m055": {
+  "op": "delete_clause",
+  "clause": "weak_rule(A):-model_mutation(_,B,A,survived),not rule_has_reason(B,A)",
+  "detail": "-",
+  "killed_by": [
+   "cf5_survived",
+   "cf5c_reason_other_model",
+   "cf7_budget_spent",
+   "m6_budget_raised"
+  ]
+ },
+ "m056": {
+  "op": "delete_clause",
+  "clause": "discovery_ratified(A):-question(B,A,_),answered(B)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_launder",
+   "m7_launder_contested",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m057": {
+  "op": "delete_clause",
+  "clause": "discovery_disputed(A):-refuted(A)",
+  "detail": "-",
+  "killed_by": [
+   "m7_launder"
+  ]
+ },
+ "m058": {
+  "op": "delete_clause",
+  "clause": "discovery_disputed(A):-contested(A)",
+  "detail": "-",
+  "killed_by": [
+   "m7_launder_contested"
+  ]
+ },
+ "m059": {
+  "op": "delete_clause",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "-",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "m060": {
+  "op": "delete_clause",
+  "clause": "discovery_budget_raised(A):-budget(laps,A),budget(laps,B),B>A",
+  "detail": "-",
+  "killed_by": [
+   "m6_budget_raised"
+  ]
+ },
+ "m061": {
+  "op": "delete_clause",
+  "clause": "budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)",
+  "detail": "-",
+  "killed_by": [
+   "cf7_budget_spent",
+   "m6_budget_hides"
+  ]
+ },
+ "m062": {
+  "op": "delete_clause",
+  "clause": "some_hypothesis:-hypothesis(_,_,_)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m063": {
+  "op": "delete_clause",
+  "clause": "some_untouched_hypothesis:-hypothesis(A,_,_),not discovery_hypothesis_touched(A)",
+  "detail": "-",
+  "killed_by": [
+   "m4_check_only",
+   "m5_second_hypothesis"
+  ]
+ },
+ "m064": {
+  "op": "delete_clause",
+  "clause": "some_no_falsifier:-no_falsifier(_)",
+  "detail": "-",
+  "killed_by": [
+   "b2_unknown",
+   "cf2_no_calibration",
+   "cf2b_no_calibration_no_check",
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "m065": {
+  "op": "delete_clause",
+  "clause": "some_question_waits:-question_waits(_)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "m066": {
+  "op": "delete_clause",
+  "clause": "some_unasked_finding:-unasked_finding(_)",
+  "detail": "-",
+  "killed_by": [
+   "cf4_no_raised_by",
+   "k_kinds"
+  ]
+ },
+ "m067": {
+  "op": "delete_clause",
+  "clause": "some_current_refuted:-refuted(A),current(A)",
+  "detail": "-",
+  "killed_by": [
+   "b2_break_filed",
+   "cf6_disproof"
+  ]
+ },
+ "m068": {
+  "op": "delete_clause",
+  "clause": "some_weak_rule:-weak_rule(_)",
+  "detail": "-",
+  "killed_by": [
+   "cf5_survived",
+   "cf7_budget_spent",
+   "m6_budget_raised"
+  ]
+ },
+ "m069": {
+  "op": "delete_clause",
+  "clause": "some_model_problem:-model_diverges(_)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "m070": {
+  "op": "delete_clause",
+  "clause": "some_model_problem:-model_vacuous(_)",
+  "detail": "-",
+  "killed_by": [
+   "b2_vacuous"
+  ]
+ },
+ "m071": {
+  "op": "delete_clause",
+  "clause": "some_model_problem:-model_unfiled_break(_)",
+  "detail": "-",
+  "killed_by": [
+   "b2_break_unfiled",
+   "b2_target_bad_case"
+  ]
+ },
+ "m072": {
+  "op": "delete_clause",
+  "clause": "some_model_problem:-model_solvers_disagree(_)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "m073": {
+  "op": "delete_clause",
+  "clause": "some_unratified_supersession:-discovery_unratified(_)",
+  "detail": "-",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "m074": {
+  "op": "delete_clause",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m075": {
+  "op": "delete_clause",
+  "clause": "discovery_decide:-discovery_ready",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m076": {
+  "op": "delete_clause",
+  "clause": "discovery_decide:-budget_spent",
+  "detail": "-",
+  "killed_by": [
+   "cf7_budget_spent",
+   "m6_budget_hides"
+  ]
+ },
+ "m077": {
+  "op": "delete_clause",
+  "clause": "lint_issue('WD1',A,'This finding needs a question for the human. Add the question, then raised_by(Question, Fi...",
+  "detail": "-",
+  "killed_by": [
+   "cf4_no_raised_by"
+  ]
+ },
+ "m078": {
+  "op": "delete_clause",
+  "clause": "lint_issue('WD2',A,'This model states a claim, but it is not trusted. Its verdicts do not count yet.'):-encode...",
+  "detail": "-",
+  "killed_by": [
+   "cf2_no_calibration",
+   "minor_cross_tool"
+  ]
+ },
+ "m079": {
+  "op": "delete_clause",
+  "clause": "lint_issue('WD3',A,'A rule survived the mutation check in this attestation. Find out why, then add reason(Mode...",
+  "detail": "-",
+  "killed_by": [
+   "cf5_survived",
+   "cf5c_reason_other_model"
+  ]
+ },
+ "m080": {
+  "op": "delete_clause",
+  "clause": "lint_issue('WD4',A,'Only a model shows this finding. It is a lead until evidence from the current system confi...",
+  "detail": "-",
+  "killed_by": [
+   "cf3_no_confirmation"
+  ]
+ },
+ "m081": {
+  "op": "delete_clause",
+  "clause": "lint_issue('WD5',A,'This check gave unknown. It is a gap, not UNSAT, so it falsifies nothing.'):-model_verdict...",
+  "detail": "-",
+  "killed_by": [
+   "b2_unknown"
+  ]
+ },
+ "m082": {
+  "op": "delete_clause",
+  "clause": "lint_issue('WD6',A,'The problem did not reproduce on the current system. This is a NO-GO candidate. Tell the h...",
+  "detail": "-",
+  "killed_by": [
+   "m5_not_reproduced"
+  ]
+ },
+ "m083": {
+  "op": "delete_clause",
+  "clause": "lint_issue('WD7',A,'No result from the current system exists for this hypothesis. Reproduce it, or ask the hum...",
+  "detail": "-",
+  "killed_by": [
+   "m4_check_only",
+   "m5_second_hypothesis"
+  ]
+ },
+ "m084": {
+  "op": "delete_clause",
+  "clause": "lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count. Run the ...",
+  "detail": "-",
+  "killed_by": [
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "m085": {
+  "op": "delete_clause",
+  "clause": "lint_issue('ED1',A,'This reproduction must point at evidence from the current system. Tag the subject with dis...",
+  "detail": "-",
+  "killed_by": [
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged"
+  ]
+ },
+ "m086": {
+  "op": "delete_clause",
+  "clause": "lint_issue('ED2',A,'This model result must point at a solver log of its own model. Add model_run(Log, Model, D...",
+  "detail": "-",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "m087": {
+  "op": "delete_clause",
+  "clause": "lint_issue('ED3',A,'This model disagrees with the current system. Fix the model before you use any of its verd...",
+  "detail": "-",
+  "killed_by": [
+   "b1_calibration_differs"
+  ]
+ },
+ "m088": {
+  "op": "delete_clause",
+  "clause": "lint_issue('ED4',A,'This applies check shows that the claim can never apply. The claim holds only vacuously.')...",
+  "detail": "-",
+  "killed_by": [
+   "b2_vacuous"
+  ]
+ },
+ "m089": {
+  "op": "delete_clause",
+  "clause": "lint_issue('ED5',A,'A model breaks this current claim, and no disproof is filed. File a disproof with the case...",
+  "detail": "-",
+  "killed_by": [
+   "b2_break_unfiled"
+  ]
+ },
+ "m090": {
+  "op": "delete_clause",
+  "clause": "lint_issue('ED6',A,'Two solver results for the same check of this model disagree: one shows a case, one shows ...",
+  "detail": "-",
+  "killed_by": [
+   "b2_solvers_disagree"
+  ]
+ },
+ "m091": {
+  "op": "delete_clause",
+  "clause": "lint_issue('ED7',A,'This claim replaces a refuted or contested claim, but no human answered a question about e...",
+  "detail": "-",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "m092": {
+  "op": "delete_clause",
+  "clause": "lint_issue('ED8',A,'This question must be raised by a finding or a hypothesis.'):-raised_by(A,B),not discovery...",
+  "detail": "-",
+  "killed_by": [
+   "m5_bad_raised_by"
+  ]
+ },
+ "m093": {
+  "op": "delete_literal",
+  "clause": "discovery_system_evidence(A):-discovery_evidence(A,system),not discovery_model_artifact(A)",
+  "detail": "discovery_evidence(_,system) (#1)",
+  "killed_by": [
+   "m4_untagged"
+  ]
+ },
+ "m094": {
+  "op": "delete_literal",
+  "clause": "discovery_system_evidence(A):-discovery_evidence(A,system),not discovery_model_artifact(A)",
+  "detail": "not discovery_model_artifact(_) (#2)",
+  "killed_by": []
+ },
+ "m095": {
+  "op": "delete_literal",
+  "clause": "touched_system:-attest(_,reproduction,A,_,_,_),discovery_system_evidence(A)",
+  "detail": "attest(_,reproduction,_,_,_,_) (#1)",
+  "killed_by": [
+   "m4_no_system"
+  ]
+ },
+ "m096": {
+  "op": "delete_literal",
+  "clause": "touched_system:-attest(_,reproduction,A,_,_,_),discovery_system_evidence(A)",
+  "detail": "discovery_system_evidence(_) (#2)",
+  "killed_by": [
+   "m4_no_system"
+  ]
+ },
+ "m097": {
+  "op": "delete_literal",
+  "clause": "touched_system:-attest(_,test_result,A,_,_,_),discovery_system_evidence(A)",
+  "detail": "attest(_,test_result,_,_,_,_) (#1)",
+  "killed_by": [
+   "m4_no_system"
+  ]
+ },
+ "m098": {
+  "op": "delete_literal",
+  "clause": "touched_system:-attest(_,test_result,A,_,_,_),discovery_system_evidence(A)",
+  "detail": "discovery_system_evidence(_) (#2)",
+  "killed_by": []
+ },
+ "m099": {
+  "op": "delete_literal",
+  "clause": "discovery_hypothesis_touched(A):-attest(_,reproduction,B,result(A,_),_,_),discovery_system_evidence(B)",
+  "detail": "attest(_,reproduction,_,result(_,_),_,_) (#1)",
+  "killed_by": [
+   "base",
+   "m4_check_is_repro",
+   "m4_check_only",
+   "m5_second_hypothesis"
+  ]
+ },
+ "m100": {
+  "op": "delete_literal",
+  "clause": "discovery_hypothesis_touched(A):-attest(_,reproduction,B,result(A,_),_,_),discovery_system_evidence(B)",
+  "detail": "discovery_system_evidence(_) (#2)",
+  "killed_by": []
+ },
+ "m101": {
+  "op": "delete_literal",
+  "clause": "discovery_has_outcome:-attest(_,reproduction,A,result(_,not_reproduced),_,_),discovery_system_evidence(A)",
+  "detail": "attest(_,reproduction,_,result(_,not_reproduced),_,_) (#1)",
+  "killed_by": []
+ },
+ "m102": {
+  "op": "delete_literal",
+  "clause": "discovery_has_outcome:-attest(_,reproduction,A,result(_,not_reproduced),_,_),discovery_system_evidence(A)",
+  "detail": "discovery_system_evidence(_) (#2)",
+  "killed_by": []
+ },
+ "m103": {
+  "op": "delete_literal",
+  "clause": "discovery_old_run(A,B):-model_run(A,B,C),subject(B,_,D),C\\=D",
+  "detail": "model_run(_,_,_) (#1)",
+  "killed_by": [
+   "m3_log_reused"
+  ]
+ },
+ "m104": {
+  "op": "delete_literal",
+  "clause": "discovery_old_run(A,B):-model_run(A,B,C),subject(B,_,D),C\\=D",
+  "detail": "subject(_,_,_) (#2)",
+  "killed_by": [
+   "m3_log_reused"
+  ]
+ },
+ "m105": {
+  "op": "delete_literal",
+  "clause": "discovery_old_run(A,B):-model_run(A,B,C),subject(B,_,D),C\\=D",
+  "detail": "_\\=_ (#3)",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "b2_break_unfiled",
+   "b2_sanity_fails",
+   "b2_solvers_disagree",
+   "b2_target_bad_case",
+   "b2_tla_sanity",
+   "b2_unknown",
+   "b2_vacuous",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf5c_reason_other_model",
+   "cf7_budget_spent",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_log_reused",
+   "m3_model_edited",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m106": {
+  "op": "delete_literal",
+  "clause": "model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)",
+  "detail": "model_run(_,_,_) (#1)",
+  "killed_by": [
+   "m3_log_reused",
+   "m3_rerun_new_log",
+   "minor_wrong_log"
+  ]
+ },
+ "m107": {
+  "op": "delete_literal",
+  "clause": "model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)",
+  "detail": "subject(_,_,_) (#2)",
+  "killed_by": []
+ },
+ "m108": {
+  "op": "delete_literal",
+  "clause": "model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)",
+  "detail": "not discovery_old_run(_,_) (#3)",
+  "killed_by": [
+   "m3_log_reused"
+  ]
+ },
+ "m109": {
+  "op": "delete_literal",
+  "clause": "model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)",
+  "detail": "model_run(_,_,_) (#1)",
+  "killed_by": []
+ },
+ "m110": {
+  "op": "delete_literal",
+  "clause": "model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)",
+  "detail": "not model_run_current(_,_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m3_log_reused",
+   "m3_model_edited",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m111": {
+  "op": "delete_literal",
+  "clause": "model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "attest(_,model_result,_,verdict(_,_,_),_,_) (#1)",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "b2_sanity_fails",
+   "b2_solvers_disagree",
+   "b2_target_bad_case",
+   "b2_tla_sanity",
+   "b2_unknown",
+   "b2_vacuous",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m112": {
+  "op": "delete_literal",
+  "clause": "model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "model_run_current(_,_) (#2)",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "m113": {
+  "op": "delete_literal",
+  "clause": "model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)",
+  "detail": "attest(_,model_result,_,calibration(_,_,_),_,_) (#1)",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m114": {
+  "op": "delete_literal",
+  "clause": "model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)",
+  "detail": "model_run_current(_,_) (#2)",
+  "killed_by": []
+ },
+ "m115": {
+  "op": "delete_literal",
+  "clause": "model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "attest(_,model_result,_,mutation(_,_,_),_,_) (#1)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf5c_reason_other_model",
+   "cf7_budget_spent",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m116": {
+  "op": "delete_literal",
+  "clause": "model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "model_run_current(_,_) (#2)",
+  "killed_by": []
+ },
+ "m117": {
+  "op": "delete_literal",
+  "clause": "model_sanity_failed(A):-model_verdict(_,A,sanity,B),not discovery_sanity_ok(B)",
+  "detail": "model_verdict(_,_,sanity,_) (#1)",
+  "killed_by": [
+   "b2_sanity_fails"
+  ]
+ },
+ "m118": {
+  "op": "delete_literal",
+  "clause": "model_sanity_failed(A):-model_verdict(_,A,sanity,B),not discovery_sanity_ok(B)",
+  "detail": "not discovery_sanity_ok(_) (#2)",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m119": {
+  "op": "delete_literal",
+  "clause": "model_sane(A):-model_verdict(_,A,sanity,B),discovery_sanity_ok(B),not model_sanity_failed(A)",
+  "detail": "model_verdict(_,_,sanity,_) (#1)",
+  "killed_by": [
+   "b2_sanity_fails",
+   "k_no_sanity_now",
+   "k_no_sanity_target",
+   "minor_wrong_log"
+  ]
+ },
+ "m120": {
+  "op": "delete_literal",
+  "clause": "model_sane(A):-model_verdict(_,A,sanity,B),discovery_sanity_ok(B),not model_sanity_failed(A)",
+  "detail": "discovery_sanity_ok(_) (#2)",
+  "killed_by": []
+ },
+ "m121": {
+  "op": "delete_literal",
+  "clause": "model_sane(A):-model_verdict(_,A,sanity,B),discovery_sanity_ok(B),not model_sanity_failed(A)",
+  "detail": "not model_sanity_failed(_) (#3)",
+  "killed_by": [
+   "b2_sanity_fails"
+  ]
+ },
+ "m122": {
+  "op": "delete_literal",
+  "clause": "model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)",
+  "detail": "attest(_,divergence,_,model(_),_,_) (#1)",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m123": {
+  "op": "delete_literal",
+  "clause": "model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)",
+  "detail": "model_run_current(_,_) (#2)",
+  "killed_by": []
+ },
+ "m124": {
+  "op": "delete_literal",
+  "clause": "model_diverges(A):-model_verdict(_,A,bad_case,B),discovery_no_case(B),not model_is_derived(A)",
+  "detail": "model_verdict(_,_,bad_case,_) (#1)",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m125": {
+  "op": "delete_literal",
+  "clause": "model_diverges(A):-model_verdict(_,A,bad_case,B),discovery_no_case(B),not model_is_derived(A)",
+  "detail": "discovery_no_case(_) (#2)",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m126": {
+  "op": "delete_literal",
+  "clause": "model_diverges(A):-model_verdict(_,A,bad_case,B),discovery_no_case(B),not model_is_derived(A)",
+  "detail": "not model_is_derived(_) (#3)",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "b2_tla_sanity",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m127": {
+  "op": "delete_literal",
+  "clause": "model_same_tool(A,B):-model(A,C),model(B,C)",
+  "detail": "model(_,_) (#1)",
+  "killed_by": [
+   "minor_cross_tool"
+  ]
+ },
+ "m128": {
+  "op": "delete_literal",
+  "clause": "model_same_tool(A,B):-model(A,C),model(B,C)",
+  "detail": "model(_,_) (#2)",
+  "killed_by": [
+   "minor_cross_tool"
+  ]
+ },
+ "m129": {
+  "op": "delete_literal",
+  "clause": "model_trusted(A):-model_sane(A),model_calibrated(A),not model_diverges(A)",
+  "detail": "model_sane(_) (#1)",
+  "killed_by": [
+   "k_no_sanity_now"
+  ]
+ },
+ "m130": {
+  "op": "delete_literal",
+  "clause": "model_trusted(A):-model_sane(A),model_calibrated(A),not model_diverges(A)",
+  "detail": "model_calibrated(_) (#2)",
+  "killed_by": [
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "cf2_no_calibration",
+   "cf2b_no_calibration_no_check",
+   "k_no_sanity_now",
+   "m3_log_reused",
+   "m3_model_edited",
+   "minor_cross_tool"
+  ]
+ },
+ "m131": {
+  "op": "delete_literal",
+  "clause": "model_trusted(A):-model_sane(A),model_calibrated(A),not model_diverges(A)",
+  "detail": "not model_diverges(_) (#3)",
+  "killed_by": [
+   "b1_calibration_differs",
+   "b1_divergence_on_model"
+  ]
+ },
+ "m132": {
+  "op": "delete_literal",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "model_sane(_) (#1)",
+  "killed_by": [
+   "b2_sanity_fails",
+   "k_no_sanity_target",
+   "minor_wrong_log"
+  ]
+ },
+ "m133": {
+  "op": "delete_literal",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "derived_from(_,_) (#2)",
+  "killed_by": []
+ },
+ "m134": {
+  "op": "delete_literal",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "model_same_tool(_,_) (#3)",
+  "killed_by": [
+   "minor_cross_tool"
+  ]
+ },
+ "m135": {
+  "op": "delete_literal",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "model_sane(_) (#4)",
+  "killed_by": [
+   "k_no_sanity_now"
+  ]
+ },
+ "m136": {
+  "op": "delete_literal",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "model_calibrated(_) (#5)",
+  "killed_by": [
+   "cf2_no_calibration",
+   "cf2b_no_calibration_no_check"
+  ]
+ },
+ "m137": {
+  "op": "delete_literal",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "not model_diverges(_) (#6)",
+  "killed_by": [
+   "b1_calibration_differs",
+   "b1_divergence_on_model"
+  ]
+ },
+ "m138": {
+  "op": "delete_literal",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "not model_diverges(_) (#7)",
+  "killed_by": []
+ },
+ "m139": {
+  "op": "delete_literal",
+  "clause": "model_decided(A,B):-model_verdict(_,A,preserve(B),C),discovery_decided(C)",
+  "detail": "model_verdict(_,_,preserve(_),_) (#1)",
+  "killed_by": [
+   "b2_unknown",
+   "base"
+  ]
+ },
+ "m140": {
+  "op": "delete_literal",
+  "clause": "model_decided(A,B):-model_verdict(_,A,preserve(B),C),discovery_decided(C)",
+  "detail": "discovery_decided(_) (#2)",
+  "killed_by": [
+   "b2_unknown"
+  ]
+ },
+ "m141": {
+  "op": "delete_literal",
+  "clause": "model_decided(A,B):-model_verdict(_,A,applies(B),C),discovery_decided(C)",
+  "detail": "model_verdict(_,_,applies(_),_) (#1)",
+  "killed_by": [
+   "b2_unknown",
+   "base"
+  ]
+ },
+ "m142": {
+  "op": "delete_literal",
+  "clause": "model_decided(A,B):-model_verdict(_,A,applies(B),C),discovery_decided(C)",
+  "detail": "discovery_decided(_) (#2)",
+  "killed_by": []
+ },
+ "m143": {
+  "op": "delete_literal",
+  "clause": "model_vacuous(A):-model_verdict(A,_,applies(_),B),discovery_no_case(B)",
+  "detail": "model_verdict(_,_,applies(_),_) (#1)",
+  "killed_by": [
+   "b2_vacuous",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m144": {
+  "op": "delete_literal",
+  "clause": "model_vacuous(A):-model_verdict(A,_,applies(_),B),discovery_no_case(B)",
+  "detail": "discovery_no_case(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m145": {
+  "op": "delete_literal",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,preserve(B),C),discovery_has_case(C)",
+  "detail": "model_verdict(_,_,preserve(_),_) (#1)",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "b2_target_bad_case",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m146": {
+  "op": "delete_literal",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,preserve(B),C),discovery_has_case(C)",
+  "detail": "discovery_has_case(_) (#2)",
+  "killed_by": [
+   "b2_target_bad_case",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m147": {
+  "op": "delete_literal",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "model_verdict(_,_,bad_case,_) (#1)",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m148": {
+  "op": "delete_literal",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "discovery_has_case(_) (#2)",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m149": {
+  "op": "delete_literal",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "model_is_derived(_) (#3)",
+  "killed_by": []
+ },
+ "m150": {
+  "op": "delete_literal",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "encodes(_,_) (#4)",
+  "killed_by": []
+ },
+ "m151": {
+  "op": "delete_literal",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "claim(_,introduce,_) (#5)",
+  "killed_by": [
+   "b2_target_bad_case"
+  ]
+ },
+ "m152": {
+  "op": "delete_literal",
+  "clause": "model_unfiled_break(A):-model_breaks(_,A),current(A),not discovery_disproof_filed(A)",
+  "detail": "model_breaks(_,_) (#1)",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "b2_target_bad_case",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m153": {
+  "op": "delete_literal",
+  "clause": "model_unfiled_break(A):-model_breaks(_,A),current(A),not discovery_disproof_filed(A)",
+  "detail": "current(_) (#2)",
+  "killed_by": []
+ },
+ "m154": {
+  "op": "delete_literal",
+  "clause": "model_unfiled_break(A):-model_breaks(_,A),current(A),not discovery_disproof_filed(A)",
+  "detail": "not discovery_disproof_filed(_) (#3)",
+  "killed_by": [
+   "b2_break_filed"
+  ]
+ },
+ "m155": {
+  "op": "delete_literal",
+  "clause": "model_check_case(A,B):-model_verdict(_,A,B,C),discovery_has_case(C)",
+  "detail": "model_verdict(_,_,_,_) (#1)",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m156": {
+  "op": "delete_literal",
+  "clause": "model_check_case(A,B):-model_verdict(_,A,B,C),discovery_has_case(C)",
+  "detail": "discovery_has_case(_) (#2)",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m157": {
+  "op": "delete_literal",
+  "clause": "model_check_no_case(A,B):-model_verdict(_,A,B,C),discovery_no_case(C)",
+  "detail": "model_verdict(_,_,_,_) (#1)",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m158": {
+  "op": "delete_literal",
+  "clause": "model_check_no_case(A,B):-model_verdict(_,A,B,C),discovery_no_case(C)",
+  "detail": "discovery_no_case(_) (#2)",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m159": {
+  "op": "delete_literal",
+  "clause": "model_solvers_disagree(A):-model_check_case(A,B),model_check_no_case(A,B)",
+  "detail": "model_check_case(_,_) (#1)",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m160": {
+  "op": "delete_literal",
+  "clause": "model_solvers_disagree(A):-model_check_case(A,B),model_check_no_case(A,B)",
+  "detail": "model_check_no_case(_,_) (#2)",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m161": {
+  "op": "delete_literal",
+  "clause": "has_falsifier(A):-encodes(B,A),model_decided(B,A),model_trusted(B)",
+  "detail": "encodes(_,_) (#1)",
+  "killed_by": [
+   "k_unencoded_claim"
+  ]
+ },
+ "m162": {
+  "op": "delete_literal",
+  "clause": "has_falsifier(A):-encodes(B,A),model_decided(B,A),model_trusted(B)",
+  "detail": "model_decided(_,_) (#2)",
+  "killed_by": [
+   "b2_unknown"
+  ]
+ },
+ "m163": {
+  "op": "delete_literal",
+  "clause": "has_falsifier(A):-encodes(B,A),model_decided(B,A),model_trusted(B)",
+  "detail": "model_trusted(_) (#3)",
+  "killed_by": [
+   "cf2_no_calibration",
+   "cf2b_no_calibration_no_check",
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "m164": {
+  "op": "delete_literal",
+  "clause": "no_falsifier(A):-current(A),not has_falsifier(A)",
+  "detail": "current(_) (#1)",
+  "killed_by": [
+   "b2_unknown",
+   "cf2_no_calibration",
+   "cf2b_no_calibration_no_check",
+   "k_unencoded_claim",
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "m165": {
+  "op": "delete_literal",
+  "clause": "no_falsifier(A):-current(A),not has_falsifier(A)",
+  "detail": "not has_falsifier(_) (#2)",
+  "killed_by": [
+   "b2_unknown",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m166": {
+  "op": "delete_literal",
+  "clause": "unasked_finding(A):-needs_question(A),not has_question(A)",
+  "detail": "needs_question(_) (#1)",
+  "killed_by": [
+   "cf4_no_raised_by",
+   "k_kinds"
+  ]
+ },
+ "m167": {
+  "op": "delete_literal",
+  "clause": "unasked_finding(A):-needs_question(A),not has_question(A)",
+  "detail": "not has_question(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_kinds",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m168": {
+  "op": "delete_literal",
+  "clause": "question_waits(A):-raised_by(A,_),not answered(A)",
+  "detail": "raised_by(_,_) (#1)",
+  "killed_by": [
+   "cf1_no_answer",
+   "m5_question_from_hypothesis"
+  ]
+ },
+ "m169": {
+  "op": "delete_literal",
+  "clause": "question_waits(A):-raised_by(A,_),not answered(A)",
+  "detail": "not answered(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m5_question_from_hypothesis",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m170": {
+  "op": "delete_literal",
+  "clause": "finding_confirmed(A):-attest(_,reproduction,B,confirms(A),_,_),discovery_system_evidence(B)",
+  "detail": "attest(_,reproduction,_,confirms(_),_,_) (#1)",
+  "killed_by": [
+   "cf3_no_confirmation",
+   "k_kinds",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged"
+  ]
+ },
+ "m171": {
+  "op": "delete_literal",
+  "clause": "finding_confirmed(A):-attest(_,reproduction,B,confirms(A),_,_),discovery_system_evidence(B)",
+  "detail": "discovery_system_evidence(_) (#2)",
+  "killed_by": [
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged"
+  ]
+ },
+ "m172": {
+  "op": "delete_literal",
+  "clause": "finding_lead(A):-finding(A,_,model),about_system(A),not finding_confirmed(A)",
+  "detail": "finding(_,_,model) (#1)",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "m173": {
+  "op": "delete_literal",
+  "clause": "finding_lead(A):-finding(A,_,model),about_system(A),not finding_confirmed(A)",
+  "detail": "about_system(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "k_kinds",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m174": {
+  "op": "delete_literal",
+  "clause": "finding_lead(A):-finding(A,_,model),about_system(A),not finding_confirmed(A)",
+  "detail": "not finding_confirmed(_) (#3)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "k_kinds",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m175": {
+  "op": "delete_literal",
+  "clause": "weak_rule(A):-model_mutation(_,B,A,survived),not rule_has_reason(B,A)",
+  "detail": "model_mutation(_,_,_,survived) (#1)",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5_survived",
+   "cf5c_reason_other_model",
+   "cf7_budget_spent",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m176": {
+  "op": "delete_literal",
+  "clause": "weak_rule(A):-model_mutation(_,B,A,survived),not rule_has_reason(B,A)",
+  "detail": "not rule_has_reason(_,_) (#2)",
+  "killed_by": [
+   "cf5b_survived_with_reason"
+  ]
+ },
+ "m177": {
+  "op": "delete_literal",
+  "clause": "discovery_ratified(A):-question(B,A,_),answered(B)",
+  "detail": "question(_,_,_) (#1)",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "m178": {
+  "op": "delete_literal",
+  "clause": "discovery_ratified(A):-question(B,A,_),answered(B)",
+  "detail": "answered(_) (#2)",
+  "killed_by": []
+ },
+ "m179": {
+  "op": "delete_literal",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "supersedes(_,_) (#1)",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "m180": {
+  "op": "delete_literal",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "discovery_disputed(_) (#2)",
+  "killed_by": []
+ },
+ "m181": {
+  "op": "delete_literal",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "not discovery_ratified(_) (#3)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_launder",
+   "m7_launder_contested",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m182": {
+  "op": "delete_literal",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "not discovery_ratified(_) (#4)",
+  "killed_by": []
+ },
+ "m183": {
+  "op": "delete_literal",
+  "clause": "discovery_budget_raised(A):-budget(laps,A),budget(laps,B),B>A",
+  "detail": "budget(laps,_) (#1)",
+  "killed_by": []
+ },
+ "m184": {
+  "op": "delete_literal",
+  "clause": "discovery_budget_raised(A):-budget(laps,A),budget(laps,B),B>A",
+  "detail": "budget(laps,_) (#2)",
+  "killed_by": [
+   "cf7_budget_spent",
+   "m6_budget_hides",
+   "m6_budget_raised"
+  ]
+ },
+ "m185": {
+  "op": "delete_literal",
+  "clause": "discovery_budget_raised(A):-budget(laps,A),budget(laps,B),B>A",
+  "detail": "_>_ (#3)",
+  "killed_by": [
+   "cf7_budget_spent",
+   "m6_budget_hides"
+  ]
+ },
+ "m186": {
+  "op": "delete_literal",
+  "clause": "budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)",
+  "detail": "budget(laps,_) (#1)",
+  "killed_by": [
+   "base",
+   "m6_budget_raised"
+  ]
+ },
+ "m187": {
+  "op": "delete_literal",
+  "clause": "budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)",
+  "detail": "lap_done(_) (#2)",
+  "killed_by": [
+   "base",
+   "m6_budget_raised"
+  ]
+ },
+ "m188": {
+  "op": "delete_literal",
+  "clause": "budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)",
+  "detail": "not discovery_budget_raised(_) (#3)",
+  "killed_by": [
+   "m6_budget_raised"
+  ]
+ },
+ "m189": {
+  "op": "delete_literal",
+  "clause": "some_untouched_hypothesis:-hypothesis(A,_,_),not discovery_hypothesis_touched(A)",
+  "detail": "hypothesis(_,_,_) (#1)",
+  "killed_by": [
+   "m5_second_hypothesis"
+  ]
+ },
+ "m190": {
+  "op": "delete_literal",
+  "clause": "some_untouched_hypothesis:-hypothesis(A,_,_),not discovery_hypothesis_touched(A)",
+  "detail": "not discovery_hypothesis_touched(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m191": {
+  "op": "delete_literal",
+  "clause": "some_current_refuted:-refuted(A),current(A)",
+  "detail": "refuted(_) (#1)",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m192": {
+  "op": "delete_literal",
+  "clause": "some_current_refuted:-refuted(A),current(A)",
+  "detail": "current(_) (#2)",
+  "killed_by": [
+   "m7_ratified"
+  ]
+ },
+ "m193": {
+  "op": "delete_literal",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "some_hypothesis (#1)",
+  "killed_by": []
+ },
+ "m194": {
+  "op": "delete_literal",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "touched_system (#2)",
+  "killed_by": []
+ },
+ "m195": {
+  "op": "delete_literal",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "discovery_has_outcome (#3)",
+  "killed_by": []
+ },
+ "m196": {
+  "op": "delete_literal",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_untouched_hypothesis (#4)",
+  "killed_by": [
+   "m4_check_only",
+   "m5_second_hypothesis"
+  ]
+ },
+ "m197": {
+  "op": "delete_literal",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_no_falsifier (#5)",
+  "killed_by": [
+   "b2_unknown",
+   "cf2_no_calibration",
+   "cf2b_no_calibration_no_check",
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "m198": {
+  "op": "delete_literal",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_question_waits (#6)",
+  "killed_by": []
+ },
+ "m199": {
+  "op": "delete_literal",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_unasked_finding (#7)",
+  "killed_by": [
+   "cf4_no_raised_by",
+   "k_kinds"
+  ]
+ },
+ "m200": {
+  "op": "delete_literal",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_current_refuted (#8)",
+  "killed_by": [
+   "b2_break_filed",
+   "cf6_disproof"
+  ]
+ },
+ "m201": {
+  "op": "delete_literal",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_weak_rule (#9)",
+  "killed_by": [
+   "cf5_survived",
+   "cf7_budget_spent",
+   "m6_budget_raised"
+  ]
+ },
+ "m202": {
+  "op": "delete_literal",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_model_problem (#10)",
+  "killed_by": [
+   "b2_break_unfiled",
+   "b2_solvers_disagree",
+   "b2_target_bad_case",
+   "b2_vacuous"
+  ]
+ },
+ "m203": {
+  "op": "delete_literal",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_unratified_supersession (#11)",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "m204": {
+  "op": "delete_literal",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not any_to_ask (#12)",
+  "killed_by": []
+ },
+ "m205": {
+  "op": "delete_literal",
+  "clause": "lint_issue('WD2',A,'This model states a claim, but it is not trusted. Its verdicts do not count yet.'):-encode...",
+  "detail": "encodes(_,_) (#1)",
+  "killed_by": [
+   "cf2_no_calibration",
+   "minor_cross_tool"
+  ]
+ },
+ "m206": {
+  "op": "delete_literal",
+  "clause": "lint_issue('WD2',A,'This model states a claim, but it is not trusted. Its verdicts do not count yet.'):-encode...",
+  "detail": "not model_trusted(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "minor_cross_tool",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m207": {
+  "op": "delete_literal",
+  "clause": "lint_issue('WD3',A,'A rule survived the mutation check in this attestation. Find out why, then add reason(Mode...",
+  "detail": "model_mutation(_,_,_,survived) (#1)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5c_reason_other_model",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m208": {
+  "op": "delete_literal",
+  "clause": "lint_issue('WD3',A,'A rule survived the mutation check in this attestation. Find out why, then add reason(Mode...",
+  "detail": "not rule_has_reason(_,_) (#2)",
+  "killed_by": [
+   "cf5b_survived_with_reason",
+   "cf5c_reason_other_model"
+  ]
+ },
+ "m209": {
+  "op": "delete_literal",
+  "clause": "lint_issue('WD6',A,'The problem did not reproduce on the current system. This is a NO-GO candidate. Tell the h...",
+  "detail": "attest(_,reproduction,_,result(_,not_reproduced),_,_) (#1)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m5_not_reproduced",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m210": {
+  "op": "delete_literal",
+  "clause": "lint_issue('WD6',A,'The problem did not reproduce on the current system. This is a NO-GO candidate. Tell the h...",
+  "detail": "discovery_system_evidence(_) (#2)",
+  "killed_by": []
+ },
+ "m211": {
+  "op": "delete_literal",
+  "clause": "lint_issue('WD7',A,'No result from the current system exists for this hypothesis. Reproduce it, or ask the hum...",
+  "detail": "hypothesis(_,_,_) (#1)",
+  "killed_by": [
+   "m4_check_only",
+   "m5_second_hypothesis"
+  ]
+ },
+ "m212": {
+  "op": "delete_literal",
+  "clause": "lint_issue('WD7',A,'No result from the current system exists for this hypothesis. Reproduce it, or ask the hum...",
+  "detail": "not discovery_hypothesis_touched(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m5_second_hypothesis",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m213": {
+  "op": "delete_literal",
+  "clause": "lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count. Run the ...",
+  "detail": "attest(_,model_result,_,_,_,_) (#1)",
+  "killed_by": [
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "m214": {
+  "op": "delete_literal",
+  "clause": "lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count. Run the ...",
+  "detail": "discovery_result_model(_,_) (#2)",
+  "killed_by": []
+ },
+ "m215": {
+  "op": "delete_literal",
+  "clause": "lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count. Run the ...",
+  "detail": "model_run_stale(_,_) (#3)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m3_log_reused",
+   "m3_model_edited",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m216": {
+  "op": "delete_literal",
+  "clause": "lint_issue('ED1',A,'This reproduction must point at evidence from the current system. Tag the subject with dis...",
+  "detail": "attest(_,reproduction,_,_,_,_) (#1)",
+  "killed_by": [
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged"
+  ]
+ },
+ "m217": {
+  "op": "delete_literal",
+  "clause": "lint_issue('ED1',A,'This reproduction must point at evidence from the current system. Tag the subject with dis...",
+  "detail": "not discovery_system_evidence(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m218": {
+  "op": "delete_literal",
+  "clause": "lint_issue('ED2',A,'This model result must point at a solver log of its own model. Add model_run(Log, Model, D...",
+  "detail": "attest(_,model_result,_,_,_,_) (#1)",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "m219": {
+  "op": "delete_literal",
+  "clause": "lint_issue('ED2',A,'This model result must point at a solver log of its own model. Add model_run(Log, Model, D...",
+  "detail": "discovery_result_model(_,_) (#2)",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "m220": {
+  "op": "delete_literal",
+  "clause": "lint_issue('ED2',A,'This model result must point at a solver log of its own model. Add model_run(Log, Model, D...",
+  "detail": "not model_run_of(_,_) (#3)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "minor_wrong_log",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m221": {
+  "op": "delete_literal",
+  "clause": "lint_issue('ED8',A,'This question must be raised by a finding or a hypothesis.'):-raised_by(A,B),not discovery...",
+  "detail": "raised_by(_,_) (#1)",
+  "killed_by": [
+   "m5_bad_raised_by"
+  ]
+ },
+ "m222": {
+  "op": "delete_literal",
+  "clause": "lint_issue('ED8',A,'This question must be raised by a finding or a hypothesis.'):-raised_by(A,B),not discovery...",
+  "detail": "not discovery_is_finding(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m5_question_from_hypothesis",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m223": {
+  "op": "delete_literal",
+  "clause": "lint_issue('ED8',A,'This question must be raised by a finding or a hypothesis.'):-raised_by(A,B),not discovery...",
+  "detail": "not discovery_is_hypothesis(_) (#3)",
+  "killed_by": [
+   "m5_question_from_hypothesis"
+  ]
+ },
+ "m224": {
+  "op": "drop_not",
+  "clause": "discovery_system_evidence(A):-discovery_evidence(A,system),not discovery_model_artifact(A)",
+  "detail": "not discovery_model_artifact(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_kinds",
+   "m4_check_is_repro",
+   "m4_check_only",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_repro_only",
+   "m5_not_reproduced",
+   "m5_second_hypothesis",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m225": {
+  "op": "drop_not",
+  "clause": "model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)",
+  "detail": "not discovery_old_run(_,_) (#3)",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "b2_break_unfiled",
+   "b2_sanity_fails",
+   "b2_solvers_disagree",
+   "b2_target_bad_case",
+   "b2_tla_sanity",
+   "b2_unknown",
+   "b2_vacuous",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf5c_reason_other_model",
+   "cf7_budget_spent",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_log_reused",
+   "m3_model_edited",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m226": {
+  "op": "drop_not",
+  "clause": "model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)",
+  "detail": "not model_run_current(_,_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m3_log_reused",
+   "m3_model_edited",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m227": {
+  "op": "drop_not",
+  "clause": "model_sanity_failed(A):-model_verdict(_,A,sanity,B),not discovery_sanity_ok(B)",
+  "detail": "not discovery_sanity_ok(_) (#2)",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m228": {
+  "op": "drop_not",
+  "clause": "model_sane(A):-model_verdict(_,A,sanity,B),discovery_sanity_ok(B),not model_sanity_failed(A)",
+  "detail": "not model_sanity_failed(_) (#3)",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m229": {
+  "op": "drop_not",
+  "clause": "model_diverges(A):-model_verdict(_,A,bad_case,B),discovery_no_case(B),not model_is_derived(A)",
+  "detail": "not model_is_derived(_) (#3)",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "b2_tla_sanity",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m230": {
+  "op": "drop_not",
+  "clause": "model_trusted(A):-model_sane(A),model_calibrated(A),not model_diverges(A)",
+  "detail": "not model_diverges(_) (#3)",
+  "killed_by": [
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "m3_rerun_new_log",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m231": {
+  "op": "drop_not",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "not model_diverges(_) (#6)",
+  "killed_by": [
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m232": {
+  "op": "drop_not",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "not model_diverges(_) (#7)",
+  "killed_by": [
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m233": {
+  "op": "drop_not",
+  "clause": "model_unfiled_break(A):-model_breaks(_,A),current(A),not discovery_disproof_filed(A)",
+  "detail": "not discovery_disproof_filed(_) (#3)",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "b2_target_bad_case"
+  ]
+ },
+ "m234": {
+  "op": "drop_not",
+  "clause": "no_falsifier(A):-current(A),not has_falsifier(A)",
+  "detail": "not has_falsifier(_) (#2)",
+  "killed_by": [
+   "b2_unknown",
+   "base",
+   "cf2_no_calibration",
+   "cf2b_no_calibration_no_check",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m235": {
+  "op": "drop_not",
+  "clause": "unasked_finding(A):-needs_question(A),not has_question(A)",
+  "detail": "not has_question(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_kinds",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m236": {
+  "op": "drop_not",
+  "clause": "question_waits(A):-raised_by(A,_),not answered(A)",
+  "detail": "not answered(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf1_no_answer",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m5_question_from_hypothesis",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m237": {
+  "op": "drop_not",
+  "clause": "finding_lead(A):-finding(A,_,model),about_system(A),not finding_confirmed(A)",
+  "detail": "not finding_confirmed(_) (#3)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "k_kinds",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m238": {
+  "op": "drop_not",
+  "clause": "weak_rule(A):-model_mutation(_,B,A,survived),not rule_has_reason(B,A)",
+  "detail": "not rule_has_reason(_,_) (#2)",
+  "killed_by": [
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf7_budget_spent",
+   "m6_budget_raised"
+  ]
+ },
+ "m239": {
+  "op": "drop_not",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "not discovery_ratified(_) (#3)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_launder",
+   "m7_launder_contested",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m240": {
+  "op": "drop_not",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "not discovery_ratified(_) (#4)",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "m241": {
+  "op": "drop_not",
+  "clause": "budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)",
+  "detail": "not discovery_budget_raised(_) (#3)",
+  "killed_by": [
+   "cf7_budget_spent",
+   "m6_budget_hides",
+   "m6_budget_raised"
+  ]
+ },
+ "m242": {
+  "op": "drop_not",
+  "clause": "some_untouched_hypothesis:-hypothesis(A,_,_),not discovery_hypothesis_touched(A)",
+  "detail": "not discovery_hypothesis_touched(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m4_check_only",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m243": {
+  "op": "drop_not",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_untouched_hypothesis (#4)",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m4_check_only",
+   "m5_not_reproduced",
+   "m5_second_hypothesis",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m244": {
+  "op": "drop_not",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_no_falsifier (#5)",
+  "killed_by": [
+   "b2_unknown",
+   "base",
+   "cf2_no_calibration",
+   "cf2b_no_calibration_no_check",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m3_log_reused",
+   "m3_model_edited",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m245": {
+  "op": "drop_not",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_question_waits (#6)",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m246": {
+  "op": "drop_not",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_unasked_finding (#7)",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_kinds",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m247": {
+  "op": "drop_not",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_current_refuted (#8)",
+  "killed_by": [
+   "b2_break_filed",
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf6_disproof",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m248": {
+  "op": "drop_not",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_weak_rule (#9)",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf7_budget_spent",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m6_budget_raised",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m249": {
+  "op": "drop_not",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_model_problem (#10)",
+  "killed_by": [
+   "b2_break_unfiled",
+   "b2_solvers_disagree",
+   "b2_target_bad_case",
+   "b2_vacuous",
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m250": {
+  "op": "drop_not",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not some_unratified_supersession (#11)",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_launder",
+   "m7_launder_contested",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m251": {
+  "op": "drop_not",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "not any_to_ask (#12)",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "m252": {
+  "op": "drop_not",
+  "clause": "lint_issue('WD2',A,'This model states a claim, but it is not trusted. Its verdicts do not count yet.'):-encode...",
+  "detail": "not model_trusted(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "minor_cross_tool",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m253": {
+  "op": "drop_not",
+  "clause": "lint_issue('WD3',A,'A rule survived the mutation check in this attestation. Find out why, then add reason(Mode...",
+  "detail": "not rule_has_reason(_,_) (#2)",
+  "killed_by": [
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf5c_reason_other_model"
+  ]
+ },
+ "m254": {
+  "op": "drop_not",
+  "clause": "lint_issue('WD7',A,'No result from the current system exists for this hypothesis. Reproduce it, or ask the hum...",
+  "detail": "not discovery_hypothesis_touched(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m4_check_only",
+   "m5_second_hypothesis",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m255": {
+  "op": "drop_not",
+  "clause": "lint_issue('ED1',A,'This reproduction must point at evidence from the current system. Tag the subject with dis...",
+  "detail": "not discovery_system_evidence(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m256": {
+  "op": "drop_not",
+  "clause": "lint_issue('ED2',A,'This model result must point at a solver log of its own model. Add model_run(Log, Model, D...",
+  "detail": "not model_run_of(_,_) (#3)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "minor_wrong_log",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m257": {
+  "op": "drop_not",
+  "clause": "lint_issue('ED8',A,'This question must be raised by a finding or a hypothesis.'):-raised_by(A,B),not discovery...",
+  "detail": "not discovery_is_finding(_) (#2)",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m5_question_from_hypothesis",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "m258": {
+  "op": "drop_not",
+  "clause": "lint_issue('ED8',A,'This question must be raised by a finding or a hypothesis.'):-raised_by(A,B),not discovery...",
+  "detail": "not discovery_is_hypothesis(_) (#3)",
+  "killed_by": [
+   "m5_bad_raised_by",
+   "m5_question_from_hypothesis"
+  ]
+ },
+ "x001": {
+  "op": "delete_fact",
+  "clause": "discovery_result_model(verdict(A,_,_),A)",
+  "detail": "-",
+  "killed_by": [
+   "m3_log_reused",
+   "m3_model_edited",
+   "minor_wrong_log"
+  ]
+ },
+ "x002": {
+  "op": "delete_fact",
+  "clause": "discovery_result_model(calibration(A,_,_),A)",
+  "detail": "-",
+  "killed_by": [
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "x003": {
+  "op": "delete_fact",
+  "clause": "discovery_result_model(mutation(A,_,_),A)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "x004": {
+  "op": "delete_fact",
+  "clause": "discovery_sanity_ok(sat)",
+  "detail": "-",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x005": {
+  "op": "delete_fact",
+  "clause": "discovery_sanity_ok(reached)",
+  "detail": "-",
+  "killed_by": [
+   "b2_tla_sanity"
+  ]
+ },
+ "x006": {
+  "op": "delete_fact",
+  "clause": "discovery_sanity_ok(violated)",
+  "detail": "-",
+  "killed_by": [
+   "b2_tla_sanity"
+  ]
+ },
+ "x007": {
+  "op": "delete_fact",
+  "clause": "discovery_decided(sat)",
+  "detail": "-",
+  "killed_by": [
+   "base"
+  ]
+ },
+ "x008": {
+  "op": "delete_fact",
+  "clause": "discovery_decided(unsat)",
+  "detail": "-",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x009": {
+  "op": "delete_fact",
+  "clause": "discovery_decided(reached)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "x010": {
+  "op": "delete_fact",
+  "clause": "discovery_decided(violated)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "x011": {
+  "op": "delete_fact",
+  "clause": "discovery_decided(holds)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "x012": {
+  "op": "delete_fact",
+  "clause": "discovery_has_case(sat)",
+  "detail": "-",
+  "killed_by": [
+   "b2_break_unfiled",
+   "b2_solvers_disagree",
+   "b2_target_bad_case"
+  ]
+ },
+ "x013": {
+  "op": "delete_fact",
+  "clause": "discovery_has_case(reached)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "x014": {
+  "op": "delete_fact",
+  "clause": "discovery_has_case(violated)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "x015": {
+  "op": "delete_fact",
+  "clause": "discovery_no_case(unsat)",
+  "detail": "-",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b2_solvers_disagree",
+   "b2_vacuous"
+  ]
+ },
+ "x016": {
+  "op": "delete_fact",
+  "clause": "discovery_no_case(holds)",
+  "detail": "-",
+  "killed_by": []
+ },
+ "x017": {
+  "op": "break_join",
+  "clause": "discovery_disproof_filed(A):-attest(_,disproof,_,verdict(A,_),_,_)",
+  "detail": "literal #1 attest arg 4.verdict/1",
+  "killed_by": []
+ },
+ "x018": {
+  "op": "break_join",
+  "clause": "discovery_model_artifact(A):-model(A,_)",
+  "detail": "literal #1 model arg 1",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_kinds",
+   "m4_check_is_repro",
+   "m4_check_only",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_repro_only",
+   "m5_not_reproduced",
+   "m5_second_hypothesis",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x019": {
+  "op": "break_join",
+  "clause": "discovery_model_artifact(A):-model_run(A,_,_)",
+  "detail": "literal #1 model_run arg 1",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_kinds",
+   "m4_check_is_repro",
+   "m4_check_only",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_repro_only",
+   "m5_not_reproduced",
+   "m5_second_hypothesis",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x020": {
+  "op": "break_join",
+  "clause": "discovery_model_artifact(A):-discovery_evidence(A,model)",
+  "detail": "literal #1 discovery_evidence arg 1",
+  "killed_by": []
+ },
+ "x021": {
+  "op": "break_join",
+  "clause": "discovery_system_evidence(A):-discovery_evidence(A,system),not discovery_model_artifact(A)",
+  "detail": "literal #1 discovery_evidence arg 1",
+  "killed_by": [
+   "m4_untagged"
+  ]
+ },
+ "x022": {
+  "op": "break_join",
+  "clause": "discovery_system_evidence(A):-discovery_evidence(A,system),not discovery_model_artifact(A)",
+  "detail": "literal #2 discovery_model_artifact arg 1",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_kinds",
+   "m4_check_is_repro",
+   "m4_check_only",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_repro_only",
+   "m5_not_reproduced",
+   "m5_second_hypothesis",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x023": {
+  "op": "break_join",
+  "clause": "touched_system:-attest(_,reproduction,A,_,_,_),discovery_system_evidence(A)",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": [
+   "m4_no_system"
+  ]
+ },
+ "x024": {
+  "op": "break_join",
+  "clause": "touched_system:-attest(_,test_result,A,_,_,_),discovery_system_evidence(A)",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": []
+ },
+ "x025": {
+  "op": "break_join",
+  "clause": "discovery_hypothesis_touched(A):-attest(_,reproduction,B,result(A,_),_,_),discovery_system_evidence(B)",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": []
+ },
+ "x026": {
+  "op": "break_join",
+  "clause": "discovery_hypothesis_touched(A):-attest(_,reproduction,B,result(A,_),_,_),discovery_system_evidence(B)",
+  "detail": "literal #1 attest arg 4.result/1",
+  "killed_by": [
+   "base",
+   "m4_check_is_repro",
+   "m5_second_hypothesis"
+  ]
+ },
+ "x027": {
+  "op": "break_join",
+  "clause": "discovery_has_outcome:-attest(_,reproduction,A,result(_,not_reproduced),_,_),discovery_system_evidence(A)",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": []
+ },
+ "x028": {
+  "op": "break_join",
+  "clause": "model_run_of(A,B):-model_run(A,B,_)",
+  "detail": "literal #1 model_run arg 1",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "x029": {
+  "op": "break_join",
+  "clause": "model_run_of(A,B):-model_run(A,B,_)",
+  "detail": "literal #1 model_run arg 2",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "x030": {
+  "op": "break_join",
+  "clause": "discovery_old_run(A,B):-model_run(A,B,C),subject(B,_,D),C\\=D",
+  "detail": "literal #1 model_run arg 1",
+  "killed_by": [
+   "m3_rerun_new_log"
+  ]
+ },
+ "x031": {
+  "op": "break_join",
+  "clause": "discovery_old_run(A,B):-model_run(A,B,C),subject(B,_,D),C\\=D",
+  "detail": "literal #1 model_run arg 2",
+  "killed_by": []
+ },
+ "x032": {
+  "op": "break_join",
+  "clause": "discovery_old_run(A,B):-model_run(A,B,C),subject(B,_,D),C\\=D",
+  "detail": "literal #1 model_run arg 3",
+  "killed_by": [
+   "m3_log_reused"
+  ]
+ },
+ "x033": {
+  "op": "break_join",
+  "clause": "discovery_old_run(A,B):-model_run(A,B,C),subject(B,_,D),C\\=D",
+  "detail": "literal #2 subject arg 1",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "b2_break_unfiled",
+   "b2_sanity_fails",
+   "b2_solvers_disagree",
+   "b2_target_bad_case",
+   "b2_tla_sanity",
+   "b2_unknown",
+   "b2_vacuous",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf5c_reason_other_model",
+   "cf7_budget_spent",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_log_reused",
+   "m3_model_edited",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x034": {
+  "op": "break_join",
+  "clause": "discovery_old_run(A,B):-model_run(A,B,C),subject(B,_,D),C\\=D",
+  "detail": "literal #2 subject arg 3",
+  "killed_by": [
+   "m3_log_reused"
+  ]
+ },
+ "x035": {
+  "op": "break_join",
+  "clause": "model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)",
+  "detail": "literal #1 model_run arg 1",
+  "killed_by": [
+   "m3_log_reused",
+   "m3_rerun_new_log",
+   "minor_wrong_log"
+  ]
+ },
+ "x036": {
+  "op": "break_join",
+  "clause": "model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)",
+  "detail": "literal #1 model_run arg 2",
+  "killed_by": []
+ },
+ "x037": {
+  "op": "break_join",
+  "clause": "model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)",
+  "detail": "literal #1 model_run arg 3",
+  "killed_by": []
+ },
+ "x038": {
+  "op": "break_join",
+  "clause": "model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)",
+  "detail": "literal #2 subject arg 1",
+  "killed_by": []
+ },
+ "x039": {
+  "op": "break_join",
+  "clause": "model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)",
+  "detail": "literal #3 discovery_old_run arg 1",
+  "killed_by": [
+   "m3_rerun_new_log"
+  ]
+ },
+ "x040": {
+  "op": "break_join",
+  "clause": "model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)",
+  "detail": "literal #3 discovery_old_run arg 2",
+  "killed_by": []
+ },
+ "x041": {
+  "op": "break_join",
+  "clause": "model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)",
+  "detail": "literal #1 model_run arg 1",
+  "killed_by": []
+ },
+ "x042": {
+  "op": "break_join",
+  "clause": "model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)",
+  "detail": "literal #1 model_run arg 2",
+  "killed_by": []
+ },
+ "x043": {
+  "op": "break_join",
+  "clause": "model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)",
+  "detail": "literal #2 model_run_current arg 1",
+  "killed_by": []
+ },
+ "x044": {
+  "op": "break_join",
+  "clause": "model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)",
+  "detail": "literal #2 model_run_current arg 2",
+  "killed_by": []
+ },
+ "x045": {
+  "op": "break_join",
+  "clause": "model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #1 attest arg 1",
+  "killed_by": [
+   "b2_unknown",
+   "b2_vacuous"
+  ]
+ },
+ "x046": {
+  "op": "break_join",
+  "clause": "model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "x047": {
+  "op": "break_join",
+  "clause": "model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #1 attest arg 4.verdict/1",
+  "killed_by": []
+ },
+ "x048": {
+  "op": "break_join",
+  "clause": "model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #1 attest arg 4.verdict/2",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "b2_sanity_fails",
+   "b2_solvers_disagree",
+   "b2_target_bad_case",
+   "b2_tla_sanity",
+   "b2_vacuous",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x049": {
+  "op": "break_join",
+  "clause": "model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #1 attest arg 4.verdict/3",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "b2_sanity_fails",
+   "b2_solvers_disagree",
+   "b2_target_bad_case",
+   "b2_tla_sanity",
+   "b2_unknown",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x050": {
+  "op": "break_join",
+  "clause": "model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #2 model_run_current arg 2",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "x051": {
+  "op": "break_join",
+  "clause": "model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)",
+  "detail": "literal #1 attest arg 1",
+  "killed_by": [
+   "base"
+  ]
+ },
+ "x052": {
+  "op": "break_join",
+  "clause": "model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": []
+ },
+ "x053": {
+  "op": "break_join",
+  "clause": "model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)",
+  "detail": "literal #1 attest arg 4.calibration/1",
+  "killed_by": []
+ },
+ "x054": {
+  "op": "break_join",
+  "clause": "model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)",
+  "detail": "literal #1 attest arg 4.calibration/3",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x055": {
+  "op": "break_join",
+  "clause": "model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)",
+  "detail": "literal #2 model_run_current arg 2",
+  "killed_by": []
+ },
+ "x056": {
+  "op": "break_join",
+  "clause": "model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #1 attest arg 1",
+  "killed_by": [
+   "cf5_survived",
+   "cf5c_reason_other_model"
+  ]
+ },
+ "x057": {
+  "op": "break_join",
+  "clause": "model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": []
+ },
+ "x058": {
+  "op": "break_join",
+  "clause": "model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #1 attest arg 4.mutation/1",
+  "killed_by": []
+ },
+ "x059": {
+  "op": "break_join",
+  "clause": "model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #1 attest arg 4.mutation/2",
+  "killed_by": [
+   "cf5_survived",
+   "cf5c_reason_other_model",
+   "cf7_budget_spent"
+  ]
+ },
+ "x060": {
+  "op": "break_join",
+  "clause": "model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #1 attest arg 4.mutation/3",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x061": {
+  "op": "break_join",
+  "clause": "model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #2 model_run_current arg 2",
+  "killed_by": []
+ },
+ "x062": {
+  "op": "break_join",
+  "clause": "model_sanity_failed(A):-model_verdict(_,A,sanity,B),not discovery_sanity_ok(B)",
+  "detail": "literal #1 model_verdict arg 2",
+  "killed_by": [
+   "b2_sanity_fails"
+  ]
+ },
+ "x063": {
+  "op": "break_join",
+  "clause": "model_sanity_failed(A):-model_verdict(_,A,sanity,B),not discovery_sanity_ok(B)",
+  "detail": "literal #1 model_verdict arg 4",
+  "killed_by": [
+   "b2_sanity_fails"
+  ]
+ },
+ "x064": {
+  "op": "break_join",
+  "clause": "model_sane(A):-model_verdict(_,A,sanity,B),discovery_sanity_ok(B),not model_sanity_failed(A)",
+  "detail": "literal #1 model_verdict arg 2",
+  "killed_by": [
+   "b2_sanity_fails",
+   "k_no_sanity_now",
+   "k_no_sanity_target",
+   "minor_wrong_log"
+  ]
+ },
+ "x065": {
+  "op": "break_join",
+  "clause": "model_sane(A):-model_verdict(_,A,sanity,B),discovery_sanity_ok(B),not model_sanity_failed(A)",
+  "detail": "literal #1 model_verdict arg 4",
+  "killed_by": []
+ },
+ "x066": {
+  "op": "break_join",
+  "clause": "model_sane(A):-model_verdict(_,A,sanity,B),discovery_sanity_ok(B),not model_sanity_failed(A)",
+  "detail": "literal #3 model_sanity_failed arg 1",
+  "killed_by": [
+   "b2_sanity_fails"
+  ]
+ },
+ "x067": {
+  "op": "break_join",
+  "clause": "model_calibrated(A):-model_calibration(_,A,matches)",
+  "detail": "literal #1 model_calibration arg 2",
+  "killed_by": [
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "k_no_sanity_now",
+   "minor_cross_tool"
+  ]
+ },
+ "x068": {
+  "op": "break_join",
+  "clause": "model_is_derived(A):-derived_from(A,_)",
+  "detail": "literal #1 derived_from arg 1",
+  "killed_by": [
+   "b1_bad_case_not_reproduced"
+  ]
+ },
+ "x069": {
+  "op": "break_join",
+  "clause": "model_diverges(A):-model_calibration(_,A,differs)",
+  "detail": "literal #1 model_calibration arg 2",
+  "killed_by": [
+   "b1_calibration_differs"
+  ]
+ },
+ "x070": {
+  "op": "break_join",
+  "clause": "model_diverges(A):-attest(_,divergence,A,model(A),_,_)",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": []
+ },
+ "x071": {
+  "op": "break_join",
+  "clause": "model_diverges(A):-attest(_,divergence,A,model(A),_,_)",
+  "detail": "literal #1 attest arg 4.model/1",
+  "killed_by": [
+   "b1_divergence_on_model"
+  ]
+ },
+ "x072": {
+  "op": "break_join",
+  "clause": "model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": []
+ },
+ "x073": {
+  "op": "break_join",
+  "clause": "model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)",
+  "detail": "literal #1 attest arg 4.model/1",
+  "killed_by": []
+ },
+ "x074": {
+  "op": "break_join",
+  "clause": "model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)",
+  "detail": "literal #2 model_run_current arg 2",
+  "killed_by": []
+ },
+ "x075": {
+  "op": "break_join",
+  "clause": "model_diverges(A):-model_verdict(_,A,bad_case,B),discovery_no_case(B),not model_is_derived(A)",
+  "detail": "literal #1 model_verdict arg 2",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x076": {
+  "op": "break_join",
+  "clause": "model_diverges(A):-model_verdict(_,A,bad_case,B),discovery_no_case(B),not model_is_derived(A)",
+  "detail": "literal #1 model_verdict arg 4",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x077": {
+  "op": "break_join",
+  "clause": "model_diverges(A):-model_verdict(_,A,bad_case,B),discovery_no_case(B),not model_is_derived(A)",
+  "detail": "literal #3 model_is_derived arg 1",
+  "killed_by": [
+   "b1_bad_case_not_reproduced"
+  ]
+ },
+ "x078": {
+  "op": "break_join",
+  "clause": "model_same_tool(A,B):-model(A,C),model(B,C)",
+  "detail": "literal #1 model arg 1",
+  "killed_by": [
+   "minor_cross_tool"
+  ]
+ },
+ "x079": {
+  "op": "break_join",
+  "clause": "model_same_tool(A,B):-model(A,C),model(B,C)",
+  "detail": "literal #1 model arg 2",
+  "killed_by": [
+   "minor_cross_tool"
+  ]
+ },
+ "x080": {
+  "op": "break_join",
+  "clause": "model_same_tool(A,B):-model(A,C),model(B,C)",
+  "detail": "literal #2 model arg 1",
+  "killed_by": [
+   "minor_cross_tool"
+  ]
+ },
+ "x081": {
+  "op": "break_join",
+  "clause": "model_trusted(A):-model_sane(A),model_calibrated(A),not model_diverges(A)",
+  "detail": "literal #1 model_sane arg 1",
+  "killed_by": [
+   "k_no_sanity_now"
+  ]
+ },
+ "x082": {
+  "op": "break_join",
+  "clause": "model_trusted(A):-model_sane(A),model_calibrated(A),not model_diverges(A)",
+  "detail": "literal #2 model_calibrated arg 1",
+  "killed_by": [
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "k_no_sanity_now",
+   "minor_cross_tool"
+  ]
+ },
+ "x083": {
+  "op": "break_join",
+  "clause": "model_trusted(A):-model_sane(A),model_calibrated(A),not model_diverges(A)",
+  "detail": "literal #3 model_diverges arg 1",
+  "killed_by": [
+   "k_no_derived"
+  ]
+ },
+ "x084": {
+  "op": "break_join",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "literal #1 model_sane arg 1",
+  "killed_by": [
+   "b2_sanity_fails",
+   "k_no_sanity_target",
+   "minor_wrong_log"
+  ]
+ },
+ "x085": {
+  "op": "break_join",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "literal #2 derived_from arg 1",
+  "killed_by": []
+ },
+ "x086": {
+  "op": "break_join",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "literal #2 derived_from arg 2",
+  "killed_by": []
+ },
+ "x087": {
+  "op": "break_join",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "literal #3 model_same_tool arg 1",
+  "killed_by": [
+   "minor_cross_tool"
+  ]
+ },
+ "x088": {
+  "op": "break_join",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "literal #3 model_same_tool arg 2",
+  "killed_by": [
+   "minor_cross_tool"
+  ]
+ },
+ "x089": {
+  "op": "break_join",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "literal #4 model_sane arg 1",
+  "killed_by": [
+   "k_no_sanity_now"
+  ]
+ },
+ "x090": {
+  "op": "break_join",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "literal #5 model_calibrated arg 1",
+  "killed_by": []
+ },
+ "x091": {
+  "op": "break_join",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "literal #6 model_diverges arg 1",
+  "killed_by": []
+ },
+ "x092": {
+  "op": "break_join",
+  "clause": "model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrated(B),not m...",
+  "detail": "literal #7 model_diverges arg 1",
+  "killed_by": []
+ },
+ "x093": {
+  "op": "break_join",
+  "clause": "model_decided(A,B):-model_verdict(_,A,preserve(B),C),discovery_decided(C)",
+  "detail": "literal #1 model_verdict arg 2",
+  "killed_by": [
+   "base"
+  ]
+ },
+ "x094": {
+  "op": "break_join",
+  "clause": "model_decided(A,B):-model_verdict(_,A,preserve(B),C),discovery_decided(C)",
+  "detail": "literal #1 model_verdict arg 3.preserve/1",
+  "killed_by": [
+   "base"
+  ]
+ },
+ "x095": {
+  "op": "break_join",
+  "clause": "model_decided(A,B):-model_verdict(_,A,preserve(B),C),discovery_decided(C)",
+  "detail": "literal #1 model_verdict arg 4",
+  "killed_by": [
+   "b2_unknown"
+  ]
+ },
+ "x096": {
+  "op": "break_join",
+  "clause": "model_decided(A,B):-model_verdict(_,A,applies(B),C),discovery_decided(C)",
+  "detail": "literal #1 model_verdict arg 2",
+  "killed_by": [
+   "base"
+  ]
+ },
+ "x097": {
+  "op": "break_join",
+  "clause": "model_decided(A,B):-model_verdict(_,A,applies(B),C),discovery_decided(C)",
+  "detail": "literal #1 model_verdict arg 3.applies/1",
+  "killed_by": [
+   "b2_unknown",
+   "base"
+  ]
+ },
+ "x098": {
+  "op": "break_join",
+  "clause": "model_decided(A,B):-model_verdict(_,A,applies(B),C),discovery_decided(C)",
+  "detail": "literal #1 model_verdict arg 4",
+  "killed_by": []
+ },
+ "x099": {
+  "op": "break_join",
+  "clause": "model_vacuous(A):-model_verdict(A,_,applies(_),B),discovery_no_case(B)",
+  "detail": "literal #1 model_verdict arg 1",
+  "killed_by": [
+   "b2_vacuous"
+  ]
+ },
+ "x100": {
+  "op": "break_join",
+  "clause": "model_vacuous(A):-model_verdict(A,_,applies(_),B),discovery_no_case(B)",
+  "detail": "literal #1 model_verdict arg 4",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x101": {
+  "op": "break_join",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,preserve(B),C),discovery_has_case(C)",
+  "detail": "literal #1 model_verdict arg 2",
+  "killed_by": []
+ },
+ "x102": {
+  "op": "break_join",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,preserve(B),C),discovery_has_case(C)",
+  "detail": "literal #1 model_verdict arg 3.preserve/1",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled"
+  ]
+ },
+ "x103": {
+  "op": "break_join",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,preserve(B),C),discovery_has_case(C)",
+  "detail": "literal #1 model_verdict arg 4",
+  "killed_by": [
+   "b2_target_bad_case",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x104": {
+  "op": "break_join",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "literal #1 model_verdict arg 2",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x105": {
+  "op": "break_join",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "literal #1 model_verdict arg 4",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x106": {
+  "op": "break_join",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "literal #3 model_is_derived arg 1",
+  "killed_by": []
+ },
+ "x107": {
+  "op": "break_join",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "literal #4 encodes arg 1",
+  "killed_by": []
+ },
+ "x108": {
+  "op": "break_join",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "literal #4 encodes arg 2",
+  "killed_by": []
+ },
+ "x109": {
+  "op": "break_join",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "literal #5 claim arg 1",
+  "killed_by": [
+   "b2_target_bad_case"
+  ]
+ },
+ "x110": {
+  "op": "break_join",
+  "clause": "model_unfiled_break(A):-model_breaks(_,A),current(A),not discovery_disproof_filed(A)",
+  "detail": "literal #1 model_breaks arg 2",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "b2_target_bad_case"
+  ]
+ },
+ "x111": {
+  "op": "break_join",
+  "clause": "model_unfiled_break(A):-model_breaks(_,A),current(A),not discovery_disproof_filed(A)",
+  "detail": "literal #2 current arg 1",
+  "killed_by": []
+ },
+ "x112": {
+  "op": "break_join",
+  "clause": "model_unfiled_break(A):-model_breaks(_,A),current(A),not discovery_disproof_filed(A)",
+  "detail": "literal #3 discovery_disproof_filed arg 1",
+  "killed_by": []
+ },
+ "x113": {
+  "op": "break_join",
+  "clause": "model_check_case(A,B):-model_verdict(_,A,B,C),discovery_has_case(C)",
+  "detail": "literal #1 model_verdict arg 2",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x114": {
+  "op": "break_join",
+  "clause": "model_check_case(A,B):-model_verdict(_,A,B,C),discovery_has_case(C)",
+  "detail": "literal #1 model_verdict arg 3",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x115": {
+  "op": "break_join",
+  "clause": "model_check_case(A,B):-model_verdict(_,A,B,C),discovery_has_case(C)",
+  "detail": "literal #1 model_verdict arg 4",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x116": {
+  "op": "break_join",
+  "clause": "model_check_no_case(A,B):-model_verdict(_,A,B,C),discovery_no_case(C)",
+  "detail": "literal #1 model_verdict arg 2",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x117": {
+  "op": "break_join",
+  "clause": "model_check_no_case(A,B):-model_verdict(_,A,B,C),discovery_no_case(C)",
+  "detail": "literal #1 model_verdict arg 3",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x118": {
+  "op": "break_join",
+  "clause": "model_check_no_case(A,B):-model_verdict(_,A,B,C),discovery_no_case(C)",
+  "detail": "literal #1 model_verdict arg 4",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x119": {
+  "op": "break_join",
+  "clause": "model_solvers_disagree(A):-model_check_case(A,B),model_check_no_case(A,B)",
+  "detail": "literal #1 model_check_case arg 1",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x120": {
+  "op": "break_join",
+  "clause": "model_solvers_disagree(A):-model_check_case(A,B),model_check_no_case(A,B)",
+  "detail": "literal #1 model_check_case arg 2",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x121": {
+  "op": "break_join",
+  "clause": "model_solvers_disagree(A):-model_check_case(A,B),model_check_no_case(A,B)",
+  "detail": "literal #2 model_check_no_case arg 1",
+  "killed_by": [
+   "b2_solvers_disagree",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x122": {
+  "op": "break_join",
+  "clause": "has_falsifier(A):-check(_,A)",
+  "detail": "literal #1 check arg 2",
+  "killed_by": [
+   "b2_unknown",
+   "cf2_no_calibration",
+   "k_unencoded_claim",
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "x123": {
+  "op": "break_join",
+  "clause": "has_falsifier(A):-encodes(B,A),model_decided(B,A),model_trusted(B)",
+  "detail": "literal #1 encodes arg 1",
+  "killed_by": []
+ },
+ "x124": {
+  "op": "break_join",
+  "clause": "has_falsifier(A):-encodes(B,A),model_decided(B,A),model_trusted(B)",
+  "detail": "literal #1 encodes arg 2",
+  "killed_by": [
+   "k_unencoded_claim"
+  ]
+ },
+ "x125": {
+  "op": "break_join",
+  "clause": "has_falsifier(A):-encodes(B,A),model_decided(B,A),model_trusted(B)",
+  "detail": "literal #2 model_decided arg 1",
+  "killed_by": []
+ },
+ "x126": {
+  "op": "break_join",
+  "clause": "has_falsifier(A):-encodes(B,A),model_decided(B,A),model_trusted(B)",
+  "detail": "literal #2 model_decided arg 2",
+  "killed_by": [
+   "b2_unknown"
+  ]
+ },
+ "x127": {
+  "op": "break_join",
+  "clause": "has_falsifier(A):-encodes(B,A),model_decided(B,A),model_trusted(B)",
+  "detail": "literal #3 model_trusted arg 1",
+  "killed_by": []
+ },
+ "x128": {
+  "op": "break_join",
+  "clause": "no_falsifier(A):-current(A),not has_falsifier(A)",
+  "detail": "literal #1 current arg 1",
+  "killed_by": [
+   "b2_unknown",
+   "cf2_no_calibration",
+   "cf2b_no_calibration_no_check",
+   "k_unencoded_claim",
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "x129": {
+  "op": "break_join",
+  "clause": "no_falsifier(A):-current(A),not has_falsifier(A)",
+  "detail": "literal #2 has_falsifier arg 1",
+  "killed_by": [
+   "b2_unknown",
+   "cf2_no_calibration",
+   "k_unencoded_claim",
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "x130": {
+  "op": "break_join",
+  "clause": "discovery_is_finding(A):-finding(A,_,_)",
+  "detail": "literal #1 finding arg 1",
+  "killed_by": [
+   "m5_bad_raised_by"
+  ]
+ },
+ "x131": {
+  "op": "break_join",
+  "clause": "discovery_is_hypothesis(A):-hypothesis(A,_,_)",
+  "detail": "literal #1 hypothesis arg 1",
+  "killed_by": [
+   "m5_bad_raised_by"
+  ]
+ },
+ "x132": {
+  "op": "break_join",
+  "clause": "needs_question(A):-finding(A,conflict(_),_)",
+  "detail": "literal #1 finding arg 1",
+  "killed_by": [
+   "cf4_no_raised_by",
+   "k_kinds"
+  ]
+ },
+ "x133": {
+  "op": "break_join",
+  "clause": "needs_question(A):-finding(A,surprise(_),_)",
+  "detail": "literal #1 finding arg 1",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "x134": {
+  "op": "break_join",
+  "clause": "needs_question(A):-finding(A,scope(_),_)",
+  "detail": "literal #1 finding arg 1",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "x135": {
+  "op": "break_join",
+  "clause": "has_question(A):-raised_by(_,A)",
+  "detail": "literal #1 raised_by arg 2",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "x136": {
+  "op": "break_join",
+  "clause": "unasked_finding(A):-needs_question(A),not has_question(A)",
+  "detail": "literal #1 needs_question arg 1",
+  "killed_by": [
+   "cf4_no_raised_by",
+   "k_kinds"
+  ]
+ },
+ "x137": {
+  "op": "break_join",
+  "clause": "unasked_finding(A):-needs_question(A),not has_question(A)",
+  "detail": "literal #2 has_question arg 1",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "x138": {
+  "op": "break_join",
+  "clause": "question_waits(A):-raised_by(A,_),not answered(A)",
+  "detail": "literal #1 raised_by arg 1",
+  "killed_by": [
+   "cf1_no_answer",
+   "m5_question_from_hypothesis"
+  ]
+ },
+ "x139": {
+  "op": "break_join",
+  "clause": "question_waits(A):-raised_by(A,_),not answered(A)",
+  "detail": "literal #2 answered arg 1",
+  "killed_by": [
+   "m5_question_from_hypothesis"
+  ]
+ },
+ "x140": {
+  "op": "break_join",
+  "clause": "about_system(A):-finding(A,root_cause(_),_)",
+  "detail": "literal #1 finding arg 1",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "k_kinds",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "x141": {
+  "op": "break_join",
+  "clause": "about_system(A):-finding(A,trace(_),_)",
+  "detail": "literal #1 finding arg 1",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "x142": {
+  "op": "break_join",
+  "clause": "about_system(A):-finding(A,surprise(_),_)",
+  "detail": "literal #1 finding arg 1",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "x143": {
+  "op": "break_join",
+  "clause": "finding_confirmed(A):-attest(_,reproduction,B,confirms(A),_,_),discovery_system_evidence(B)",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": [
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged"
+  ]
+ },
+ "x144": {
+  "op": "break_join",
+  "clause": "finding_confirmed(A):-attest(_,reproduction,B,confirms(A),_,_),discovery_system_evidence(B)",
+  "detail": "literal #1 attest arg 4.confirms/1",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "x145": {
+  "op": "break_join",
+  "clause": "finding_lead(A):-finding(A,_,model),about_system(A),not finding_confirmed(A)",
+  "detail": "literal #1 finding arg 1",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "x146": {
+  "op": "break_join",
+  "clause": "finding_lead(A):-finding(A,_,model),about_system(A),not finding_confirmed(A)",
+  "detail": "literal #2 about_system arg 1",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "k_kinds",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "x147": {
+  "op": "break_join",
+  "clause": "finding_lead(A):-finding(A,_,model),about_system(A),not finding_confirmed(A)",
+  "detail": "literal #3 finding_confirmed arg 1",
+  "killed_by": [
+   "k_kinds"
+  ]
+ },
+ "x148": {
+  "op": "break_join",
+  "clause": "rule_has_reason(A,B):-reason(A,B,_)",
+  "detail": "literal #1 reason arg 1",
+  "killed_by": [
+   "cf5c_reason_other_model"
+  ]
+ },
+ "x149": {
+  "op": "break_join",
+  "clause": "rule_has_reason(A,B):-reason(A,B,_)",
+  "detail": "literal #1 reason arg 2",
+  "killed_by": []
+ },
+ "x150": {
+  "op": "break_join",
+  "clause": "weak_rule(A):-model_mutation(_,B,A,survived),not rule_has_reason(B,A)",
+  "detail": "literal #1 model_mutation arg 2",
+  "killed_by": [
+   "cf5c_reason_other_model"
+  ]
+ },
+ "x151": {
+  "op": "break_join",
+  "clause": "weak_rule(A):-model_mutation(_,B,A,survived),not rule_has_reason(B,A)",
+  "detail": "literal #1 model_mutation arg 3",
+  "killed_by": [
+   "cf5_survived",
+   "cf5c_reason_other_model",
+   "cf7_budget_spent"
+  ]
+ },
+ "x152": {
+  "op": "break_join",
+  "clause": "weak_rule(A):-model_mutation(_,B,A,survived),not rule_has_reason(B,A)",
+  "detail": "literal #2 rule_has_reason arg 2",
+  "killed_by": []
+ },
+ "x153": {
+  "op": "break_join",
+  "clause": "discovery_ratified(A):-question(B,A,_),answered(B)",
+  "detail": "literal #1 question arg 1",
+  "killed_by": []
+ },
+ "x154": {
+  "op": "break_join",
+  "clause": "discovery_ratified(A):-question(B,A,_),answered(B)",
+  "detail": "literal #1 question arg 2",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "x155": {
+  "op": "break_join",
+  "clause": "discovery_disputed(A):-refuted(A)",
+  "detail": "literal #1 refuted arg 1",
+  "killed_by": []
+ },
+ "x156": {
+  "op": "break_join",
+  "clause": "discovery_disputed(A):-contested(A)",
+  "detail": "literal #1 contested arg 1",
+  "killed_by": []
+ },
+ "x157": {
+  "op": "break_join",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "literal #1 supersedes arg 1",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "x158": {
+  "op": "break_join",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "literal #1 supersedes arg 2",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "x159": {
+  "op": "break_join",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "literal #2 discovery_disputed arg 1",
+  "killed_by": []
+ },
+ "x160": {
+  "op": "break_join",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "literal #3 discovery_ratified arg 1",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "x161": {
+  "op": "break_join",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "literal #4 discovery_ratified arg 1",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "x162": {
+  "op": "break_join",
+  "clause": "discovery_budget_raised(A):-budget(laps,A),budget(laps,B),B>A",
+  "detail": "literal #1 budget arg 2",
+  "killed_by": []
+ },
+ "x163": {
+  "op": "break_join",
+  "clause": "discovery_budget_raised(A):-budget(laps,A),budget(laps,B),B>A",
+  "detail": "literal #2 budget arg 2",
+  "killed_by": [
+   "cf7_budget_spent",
+   "m6_budget_hides",
+   "m6_budget_raised"
+  ]
+ },
+ "x164": {
+  "op": "break_join",
+  "clause": "discovery_budget_raised(A):-budget(laps,A),budget(laps,B),B>A",
+  "detail": "literal #3 > arg 2",
+  "killed_by": [
+   "cf7_budget_spent",
+   "m6_budget_hides",
+   "m6_budget_raised"
+  ]
+ },
+ "x165": {
+  "op": "break_join",
+  "clause": "budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)",
+  "detail": "literal #1 budget arg 2",
+  "killed_by": [
+   "base",
+   "m6_budget_raised"
+  ]
+ },
+ "x166": {
+  "op": "break_join",
+  "clause": "budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)",
+  "detail": "literal #2 lap_done arg 1",
+  "killed_by": [
+   "base",
+   "m6_budget_raised"
+  ]
+ },
+ "x167": {
+  "op": "break_join",
+  "clause": "budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)",
+  "detail": "literal #3 discovery_budget_raised arg 1",
+  "killed_by": []
+ },
+ "x168": {
+  "op": "break_join",
+  "clause": "some_untouched_hypothesis:-hypothesis(A,_,_),not discovery_hypothesis_touched(A)",
+  "detail": "literal #1 hypothesis arg 1",
+  "killed_by": [
+   "m5_second_hypothesis"
+  ]
+ },
+ "x169": {
+  "op": "break_join",
+  "clause": "some_current_refuted:-refuted(A),current(A)",
+  "detail": "literal #1 refuted arg 1",
+  "killed_by": [
+   "m7_ratified"
+  ]
+ },
+ "x170": {
+  "op": "break_join",
+  "clause": "lint_issue('WD1',A,'This finding needs a question for the human. Add the question, then raised_by(Question, Fi...",
+  "detail": "literal #1 unasked_finding arg 1",
+  "killed_by": [
+   "cf4_no_raised_by"
+  ]
+ },
+ "x171": {
+  "op": "break_join",
+  "clause": "lint_issue('WD2',A,'This model states a claim, but it is not trusted. Its verdicts do not count yet.'):-encode...",
+  "detail": "literal #1 encodes arg 1",
+  "killed_by": [
+   "cf2_no_calibration",
+   "minor_cross_tool"
+  ]
+ },
+ "x172": {
+  "op": "break_join",
+  "clause": "lint_issue('WD2',A,'This model states a claim, but it is not trusted. Its verdicts do not count yet.'):-encode...",
+  "detail": "literal #2 model_trusted arg 1",
+  "killed_by": [
+   "minor_cross_tool"
+  ]
+ },
+ "x173": {
+  "op": "break_join",
+  "clause": "lint_issue('WD3',A,'A rule survived the mutation check in this attestation. Find out why, then add reason(Mode...",
+  "detail": "literal #1 model_mutation arg 1",
+  "killed_by": [
+   "cf5_survived",
+   "cf5c_reason_other_model"
+  ]
+ },
+ "x174": {
+  "op": "break_join",
+  "clause": "lint_issue('WD3',A,'A rule survived the mutation check in this attestation. Find out why, then add reason(Mode...",
+  "detail": "literal #1 model_mutation arg 2",
+  "killed_by": [
+   "cf5c_reason_other_model"
+  ]
+ },
+ "x175": {
+  "op": "break_join",
+  "clause": "lint_issue('WD3',A,'A rule survived the mutation check in this attestation. Find out why, then add reason(Mode...",
+  "detail": "literal #1 model_mutation arg 3",
+  "killed_by": []
+ },
+ "x176": {
+  "op": "break_join",
+  "clause": "lint_issue('WD4',A,'Only a model shows this finding. It is a lead until evidence from the current system confi...",
+  "detail": "literal #1 finding_lead arg 1",
+  "killed_by": [
+   "cf3_no_confirmation"
+  ]
+ },
+ "x177": {
+  "op": "break_join",
+  "clause": "lint_issue('WD5',A,'This check gave unknown. It is a gap, not UNSAT, so it falsifies nothing.'):-model_verdict...",
+  "detail": "literal #1 model_verdict arg 1",
+  "killed_by": [
+   "b2_unknown"
+  ]
+ },
+ "x178": {
+  "op": "break_join",
+  "clause": "lint_issue('WD6',A,'The problem did not reproduce on the current system. This is a NO-GO candidate. Tell the h...",
+  "detail": "literal #1 attest arg 1",
+  "killed_by": [
+   "m5_not_reproduced"
+  ]
+ },
+ "x179": {
+  "op": "break_join",
+  "clause": "lint_issue('WD6',A,'The problem did not reproduce on the current system. This is a NO-GO candidate. Tell the h...",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": []
+ },
+ "x180": {
+  "op": "break_join",
+  "clause": "lint_issue('WD7',A,'No result from the current system exists for this hypothesis. Reproduce it, or ask the hum...",
+  "detail": "literal #1 hypothesis arg 1",
+  "killed_by": [
+   "m4_check_only",
+   "m5_second_hypothesis"
+  ]
+ },
+ "x181": {
+  "op": "break_join",
+  "clause": "lint_issue('WD7',A,'No result from the current system exists for this hypothesis. Reproduce it, or ask the hum...",
+  "detail": "literal #2 discovery_hypothesis_touched arg 1",
+  "killed_by": [
+   "m5_second_hypothesis"
+  ]
+ },
+ "x182": {
+  "op": "break_join",
+  "clause": "lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count. Run the ...",
+  "detail": "literal #1 attest arg 1",
+  "killed_by": [
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "x183": {
+  "op": "break_join",
+  "clause": "lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count. Run the ...",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": []
+ },
+ "x184": {
+  "op": "break_join",
+  "clause": "lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count. Run the ...",
+  "detail": "literal #1 attest arg 4",
+  "killed_by": []
+ },
+ "x185": {
+  "op": "break_join",
+  "clause": "lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count. Run the ...",
+  "detail": "literal #2 discovery_result_model arg 2",
+  "killed_by": []
+ },
+ "x186": {
+  "op": "break_join",
+  "clause": "lint_issue('ED1',A,'This reproduction must point at evidence from the current system. Tag the subject with dis...",
+  "detail": "literal #1 attest arg 1",
+  "killed_by": [
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged"
+  ]
+ },
+ "x187": {
+  "op": "break_join",
+  "clause": "lint_issue('ED1',A,'This reproduction must point at evidence from the current system. Tag the subject with dis...",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": [
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged"
+  ]
+ },
+ "x188": {
+  "op": "break_join",
+  "clause": "lint_issue('ED2',A,'This model result must point at a solver log of its own model. Add model_run(Log, Model, D...",
+  "detail": "literal #1 attest arg 1",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "x189": {
+  "op": "break_join",
+  "clause": "lint_issue('ED2',A,'This model result must point at a solver log of its own model. Add model_run(Log, Model, D...",
+  "detail": "literal #1 attest arg 3",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "x190": {
+  "op": "break_join",
+  "clause": "lint_issue('ED2',A,'This model result must point at a solver log of its own model. Add model_run(Log, Model, D...",
+  "detail": "literal #1 attest arg 4",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "x191": {
+  "op": "break_join",
+  "clause": "lint_issue('ED2',A,'This model result must point at a solver log of its own model. Add model_run(Log, Model, D...",
+  "detail": "literal #2 discovery_result_model arg 2",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "x192": {
+  "op": "break_join",
+  "clause": "lint_issue('ED3',A,'This model disagrees with the current system. Fix the model before you use any of its verd...",
+  "detail": "literal #1 model_diverges arg 1",
+  "killed_by": [
+   "b1_calibration_differs"
+  ]
+ },
+ "x193": {
+  "op": "break_join",
+  "clause": "lint_issue('ED4',A,'This applies check shows that the claim can never apply. The claim holds only vacuously.')...",
+  "detail": "literal #1 model_vacuous arg 1",
+  "killed_by": [
+   "b2_vacuous"
+  ]
+ },
+ "x194": {
+  "op": "break_join",
+  "clause": "lint_issue('ED5',A,'A model breaks this current claim, and no disproof is filed. File a disproof with the case...",
+  "detail": "literal #1 model_unfiled_break arg 1",
+  "killed_by": [
+   "b2_break_unfiled"
+  ]
+ },
+ "x195": {
+  "op": "break_join",
+  "clause": "lint_issue('ED6',A,'Two solver results for the same check of this model disagree: one shows a case, one shows ...",
+  "detail": "literal #1 model_solvers_disagree arg 1",
+  "killed_by": [
+   "b2_solvers_disagree"
+  ]
+ },
+ "x196": {
+  "op": "break_join",
+  "clause": "lint_issue('ED7',A,'This claim replaces a refuted or contested claim, but no human answered a question about e...",
+  "detail": "literal #1 discovery_unratified arg 1",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "x197": {
+  "op": "break_join",
+  "clause": "lint_issue('ED8',A,'This question must be raised by a finding or a hypothesis.'):-raised_by(A,B),not discovery...",
+  "detail": "literal #1 raised_by arg 1",
+  "killed_by": [
+   "m5_bad_raised_by"
+  ]
+ },
+ "x198": {
+  "op": "break_join",
+  "clause": "lint_issue('ED8',A,'This question must be raised by a finding or a hypothesis.'):-raised_by(A,B),not discovery...",
+  "detail": "literal #1 raised_by arg 2",
+  "killed_by": [
+   "m5_bad_raised_by"
+  ]
+ },
+ "x199": {
+  "op": "break_join",
+  "clause": "lint_issue('ED8',A,'This question must be raised by a finding or a hypothesis.'):-raised_by(A,B),not discovery...",
+  "detail": "literal #2 discovery_is_finding arg 1",
+  "killed_by": [
+   "m5_bad_raised_by"
+  ]
+ },
+ "x200": {
+  "op": "break_join",
+  "clause": "lint_issue('ED8',A,'This question must be raised by a finding or a hypothesis.'):-raised_by(A,B),not discovery...",
+  "detail": "literal #3 discovery_is_hypothesis arg 1",
+  "killed_by": [
+   "m5_bad_raised_by"
+  ]
+ },
+ "x201": {
+  "op": "swap_const",
+  "clause": "discovery_disproof_filed(A):-attest(_,disproof,_,verdict(A,_),_,_)",
+  "detail": "literal #1: disproof -> divergence",
+  "killed_by": [
+   "b2_break_filed"
+  ]
+ },
+ "x202": {
+  "op": "swap_const",
+  "clause": "discovery_model_artifact(A):-discovery_evidence(A,model)",
+  "detail": "literal #1: model -> system",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_kinds",
+   "m4_check_is_repro",
+   "m4_check_only",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_repro_only",
+   "m5_not_reproduced",
+   "m5_second_hypothesis",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x203": {
+  "op": "swap_const",
+  "clause": "discovery_system_evidence(A):-discovery_evidence(A,system),not discovery_model_artifact(A)",
+  "detail": "literal #1: system -> model",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_kinds",
+   "m4_check_is_repro",
+   "m4_check_only",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_repro_only",
+   "m5_not_reproduced",
+   "m5_second_hypothesis",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x204": {
+  "op": "swap_const",
+  "clause": "touched_system:-attest(_,reproduction,A,_,_,_),discovery_system_evidence(A)",
+  "detail": "literal #1: reproduction -> model_result",
+  "killed_by": [
+   "m4_repro_only"
+  ]
+ },
+ "x205": {
+  "op": "swap_const",
+  "clause": "touched_system:-attest(_,test_result,A,_,_,_),discovery_system_evidence(A)",
+  "detail": "literal #1: test_result -> reproduction",
+  "killed_by": [
+   "m4_check_only"
+  ]
+ },
+ "x206": {
+  "op": "swap_const",
+  "clause": "discovery_hypothesis_touched(A):-attest(_,reproduction,B,result(A,_),_,_),discovery_system_evidence(B)",
+  "detail": "literal #1: reproduction -> model_result",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m5_second_hypothesis",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x207": {
+  "op": "swap_const",
+  "clause": "discovery_has_outcome:-attest(_,reproduction,A,result(_,not_reproduced),_,_),discovery_system_evidence(A)",
+  "detail": "literal #1: reproduction -> model_result",
+  "killed_by": []
+ },
+ "x208": {
+  "op": "swap_const",
+  "clause": "discovery_has_outcome:-attest(_,reproduction,A,result(_,not_reproduced),_,_),discovery_system_evidence(A)",
+  "detail": "literal #1: not_reproduced -> reproduced",
+  "killed_by": []
+ },
+ "x209": {
+  "op": "swap_const",
+  "clause": "model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #1: model_result -> reproduction",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b2_break_unfiled",
+   "b2_sanity_fails",
+   "b2_solvers_disagree",
+   "b2_target_bad_case",
+   "b2_tla_sanity",
+   "b2_unknown",
+   "b2_vacuous",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x210": {
+  "op": "swap_const",
+  "clause": "model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)",
+  "detail": "literal #1: model_result -> reproduction",
+  "killed_by": [
+   "b1_calibration_differs",
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x211": {
+  "op": "swap_const",
+  "clause": "model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "literal #1: model_result -> reproduction",
+  "killed_by": [
+   "cf5_survived",
+   "cf5c_reason_other_model",
+   "cf7_budget_spent",
+   "m6_budget_raised"
+  ]
+ },
+ "x212": {
+  "op": "swap_const",
+  "clause": "discovery_sanity_ok(sat)",
+  "detail": "fact: sat -> unsat",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x213": {
+  "op": "swap_const",
+  "clause": "discovery_sanity_ok(reached)",
+  "detail": "fact: reached -> holds",
+  "killed_by": [
+   "b2_tla_sanity"
+  ]
+ },
+ "x214": {
+  "op": "swap_const",
+  "clause": "discovery_sanity_ok(violated)",
+  "detail": "fact: violated -> holds",
+  "killed_by": [
+   "b2_tla_sanity"
+  ]
+ },
+ "x215": {
+  "op": "swap_const",
+  "clause": "discovery_decided(sat)",
+  "detail": "fact: sat -> unsat",
+  "killed_by": [
+   "base"
+  ]
+ },
+ "x216": {
+  "op": "swap_const",
+  "clause": "discovery_decided(unsat)",
+  "detail": "fact: unsat -> sat",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x217": {
+  "op": "swap_const",
+  "clause": "discovery_decided(reached)",
+  "detail": "fact: reached -> holds",
+  "killed_by": []
+ },
+ "x218": {
+  "op": "swap_const",
+  "clause": "discovery_decided(violated)",
+  "detail": "fact: violated -> holds",
+  "killed_by": []
+ },
+ "x219": {
+  "op": "swap_const",
+  "clause": "discovery_decided(holds)",
+  "detail": "fact: holds -> unsat",
+  "killed_by": []
+ },
+ "x220": {
+  "op": "swap_const",
+  "clause": "discovery_has_case(sat)",
+  "detail": "fact: sat -> unsat",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "b2_solvers_disagree",
+   "b2_target_bad_case",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x221": {
+  "op": "swap_const",
+  "clause": "discovery_has_case(reached)",
+  "detail": "fact: reached -> holds",
+  "killed_by": []
+ },
+ "x222": {
+  "op": "swap_const",
+  "clause": "discovery_has_case(violated)",
+  "detail": "fact: violated -> holds",
+  "killed_by": []
+ },
+ "x223": {
+  "op": "swap_const",
+  "clause": "discovery_no_case(unsat)",
+  "detail": "fact: unsat -> sat",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b2_sanity_fails",
+   "b2_solvers_disagree",
+   "b2_tla_sanity",
+   "b2_vacuous",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x224": {
+  "op": "swap_const",
+  "clause": "discovery_no_case(holds)",
+  "detail": "fact: holds -> unsat",
+  "killed_by": []
+ },
+ "x225": {
+  "op": "swap_const",
+  "clause": "model_sanity_failed(A):-model_verdict(_,A,sanity,B),not discovery_sanity_ok(B)",
+  "detail": "literal #1: sanity -> bad_case",
+  "killed_by": [
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x226": {
+  "op": "swap_const",
+  "clause": "model_sane(A):-model_verdict(_,A,sanity,B),discovery_sanity_ok(B),not model_sanity_failed(A)",
+  "detail": "literal #1: sanity -> bad_case",
+  "killed_by": [
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_sanity_now",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x227": {
+  "op": "swap_const",
+  "clause": "model_calibrated(A):-model_calibration(_,A,matches)",
+  "detail": "literal #1: matches -> differs",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x228": {
+  "op": "swap_const",
+  "clause": "model_diverges(A):-model_calibration(_,A,differs)",
+  "detail": "literal #1: differs -> matches",
+  "killed_by": [
+   "b2_sanity_fails",
+   "b2_tla_sanity",
+   "base",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_no_derived",
+   "k_no_sanity_target",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "minor_wrong_log",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x229": {
+  "op": "swap_const",
+  "clause": "model_diverges(A):-attest(_,divergence,A,model(A),_,_)",
+  "detail": "literal #1: divergence -> disproof",
+  "killed_by": []
+ },
+ "x230": {
+  "op": "swap_const",
+  "clause": "model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)",
+  "detail": "literal #1: divergence -> disproof",
+  "killed_by": [
+   "b1_divergence_on_model"
+  ]
+ },
+ "x231": {
+  "op": "swap_const",
+  "clause": "model_diverges(A):-model_verdict(_,A,bad_case,B),discovery_no_case(B),not model_is_derived(A)",
+  "detail": "literal #1: bad_case -> sanity",
+  "killed_by": [
+   "b1_bad_case_not_reproduced"
+  ]
+ },
+ "x232": {
+  "op": "swap_const",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "literal #1: bad_case -> sanity",
+  "killed_by": [
+   "b2_break_filed",
+   "b2_break_unfiled",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x233": {
+  "op": "swap_const",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A,B),claim(...",
+  "detail": "literal #5: introduce -> preserve",
+  "killed_by": [
+   "b2_target_bad_case"
+  ]
+ },
+ "x234": {
+  "op": "swap_const",
+  "clause": "finding_confirmed(A):-attest(_,reproduction,B,confirms(A),_,_),discovery_system_evidence(B)",
+  "detail": "literal #1: reproduction -> model_result",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "k_kinds",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "x235": {
+  "op": "swap_const",
+  "clause": "finding_lead(A):-finding(A,_,model),about_system(A),not finding_confirmed(A)",
+  "detail": "literal #1: model -> system",
+  "killed_by": [
+   "cf3_no_confirmation",
+   "k_kinds",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged"
+  ]
+ },
+ "x236": {
+  "op": "swap_const",
+  "clause": "weak_rule(A):-model_mutation(_,B,A,survived),not rule_has_reason(B,A)",
+  "detail": "literal #1: survived -> killed",
+  "killed_by": [
+   "base",
+   "cf3_no_confirmation",
+   "cf5_survived",
+   "cf5c_reason_other_model",
+   "cf7_budget_spent",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m6_budget_raised",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x237": {
+  "op": "swap_const",
+  "clause": "discovery_budget_raised(A):-budget(laps,A),budget(laps,B),B>A",
+  "detail": "literal #1: laps -> other",
+  "killed_by": [
+   "m6_budget_raised"
+  ]
+ },
+ "x238": {
+  "op": "swap_const",
+  "clause": "discovery_budget_raised(A):-budget(laps,A),budget(laps,B),B>A",
+  "detail": "literal #2: laps -> other",
+  "killed_by": [
+   "m6_budget_raised"
+  ]
+ },
+ "x239": {
+  "op": "swap_const",
+  "clause": "budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)",
+  "detail": "literal #1: laps -> other",
+  "killed_by": [
+   "cf7_budget_spent",
+   "m6_budget_hides"
+  ]
+ },
+ "x240": {
+  "op": "swap_const",
+  "clause": "lint_issue('WD3',A,'A rule survived the mutation check in this attestation. Find out why, then add reason(Mode...",
+  "detail": "literal #1: survived -> killed",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5c_reason_other_model",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "x241": {
+  "op": "swap_const",
+  "clause": "lint_issue('WD5',A,'This check gave unknown. It is a gap, not UNSAT, so it falsifies nothing.'):-model_verdict...",
+  "detail": "literal #1: unknown -> sat",
+  "killed_by": [
+   "b2_unknown",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "x242": {
+  "op": "swap_const",
+  "clause": "lint_issue('WD6',A,'The problem did not reproduce on the current system. This is a NO-GO candidate. Tell the h...",
+  "detail": "literal #1: reproduction -> model_result",
+  "killed_by": [
+   "m5_not_reproduced"
+  ]
+ },
+ "x243": {
+  "op": "swap_const",
+  "clause": "lint_issue('WD6',A,'The problem did not reproduce on the current system. This is a NO-GO candidate. Tell the h...",
+  "detail": "literal #1: not_reproduced -> reproduced",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m5_not_reproduced",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "x244": {
+  "op": "swap_const",
+  "clause": "lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count. Run the ...",
+  "detail": "literal #1: model_result -> reproduction",
+  "killed_by": [
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "x245": {
+  "op": "swap_const",
+  "clause": "lint_issue('ED1',A,'This reproduction must point at evidence from the current system. Tag the subject with dis...",
+  "detail": "literal #1: reproduction -> model_result",
+  "killed_by": [
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged",
+   "perf_12_claims_6_models"
+  ]
+ },
+ "x246": {
+  "op": "swap_const",
+  "clause": "lint_issue('ED2',A,'This model result must point at a solver log of its own model. Add model_run(Log, Model, D...",
+  "detail": "literal #1: model_result -> reproduction",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "x247": {
+  "op": "severity",
+  "clause": "lint_issue('WD1',A,'This finding needs a question for the human. Add the question, then raised_by(Question, Fi...",
+  "detail": "WD1 -> ED1",
+  "killed_by": [
+   "cf4_no_raised_by"
+  ]
+ },
+ "x248": {
+  "op": "severity",
+  "clause": "lint_issue('WD2',A,'This model states a claim, but it is not trusted. Its verdicts do not count yet.'):-encode...",
+  "detail": "WD2 -> ED2",
+  "killed_by": [
+   "cf2_no_calibration",
+   "minor_cross_tool",
+   "minor_wrong_log"
+  ]
+ },
+ "x249": {
+  "op": "severity",
+  "clause": "lint_issue('WD3',A,'A rule survived the mutation check in this attestation. Find out why, then add reason(Mode...",
+  "detail": "WD3 -> ED3",
+  "killed_by": [
+   "cf5_survived",
+   "cf5c_reason_other_model"
+  ]
+ },
+ "x250": {
+  "op": "severity",
+  "clause": "lint_issue('WD4',A,'Only a model shows this finding. It is a lead until evidence from the current system confi...",
+  "detail": "WD4 -> ED4",
+  "killed_by": [
+   "cf3_no_confirmation"
+  ]
+ },
+ "x251": {
+  "op": "severity",
+  "clause": "lint_issue('WD5',A,'This check gave unknown. It is a gap, not UNSAT, so it falsifies nothing.'):-model_verdict...",
+  "detail": "WD5 -> ED5",
+  "killed_by": [
+   "b2_unknown"
+  ]
+ },
+ "x252": {
+  "op": "severity",
+  "clause": "lint_issue('WD6',A,'The problem did not reproduce on the current system. This is a NO-GO candidate. Tell the h...",
+  "detail": "WD6 -> ED6",
+  "killed_by": [
+   "m5_not_reproduced"
+  ]
+ },
+ "x253": {
+  "op": "severity",
+  "clause": "lint_issue('WD7',A,'No result from the current system exists for this hypothesis. Reproduce it, or ask the hum...",
+  "detail": "WD7 -> ED7",
+  "killed_by": [
+   "m4_check_only",
+   "m5_second_hypothesis"
+  ]
+ },
+ "x254": {
+  "op": "severity",
+  "clause": "lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count. Run the ...",
+  "detail": "WD8 -> ED8",
+  "killed_by": [
+   "m3_log_reused",
+   "m3_model_edited"
+  ]
+ },
+ "x255": {
+  "op": "severity",
+  "clause": "lint_issue('ED1',A,'This reproduction must point at evidence from the current system. Tag the subject with dis...",
+  "detail": "ED1 -> WD1",
+  "killed_by": [
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged"
+  ]
+ },
+ "x256": {
+  "op": "severity",
+  "clause": "lint_issue('ED2',A,'This model result must point at a solver log of its own model. Add model_run(Log, Model, D...",
+  "detail": "ED2 -> WD2",
+  "killed_by": [
+   "minor_wrong_log"
+  ]
+ },
+ "x257": {
+  "op": "severity",
+  "clause": "lint_issue('ED3',A,'This model disagrees with the current system. Fix the model before you use any of its verd...",
+  "detail": "ED3 -> WD3",
+  "killed_by": [
+   "b1_calibration_differs"
+  ]
+ },
+ "x258": {
+  "op": "severity",
+  "clause": "lint_issue('ED4',A,'This applies check shows that the claim can never apply. The claim holds only vacuously.')...",
+  "detail": "ED4 -> WD4",
+  "killed_by": [
+   "b2_vacuous"
+  ]
+ },
+ "x259": {
+  "op": "severity",
+  "clause": "lint_issue('ED5',A,'A model breaks this current claim, and no disproof is filed. File a disproof with the case...",
+  "detail": "ED5 -> WD5",
+  "killed_by": [
+   "b2_break_unfiled"
+  ]
+ },
+ "x260": {
+  "op": "severity",
+  "clause": "lint_issue('ED6',A,'Two solver results for the same check of this model disagree: one shows a case, one shows ...",
+  "detail": "ED6 -> WD6",
+  "killed_by": [
+   "b2_solvers_disagree"
+  ]
+ },
+ "x261": {
+  "op": "severity",
+  "clause": "lint_issue('ED7',A,'This claim replaces a refuted or contested claim, but no human answered a question about e...",
+  "detail": "ED7 -> WD7",
+  "killed_by": [
+   "m7_launder",
+   "m7_launder_contested"
+  ]
+ },
+ "x262": {
+  "op": "severity",
+  "clause": "lint_issue('ED8',A,'This question must be raised by a finding or a hypothesis.'):-raised_by(A,B),not discovery...",
+  "detail": "ED8 -> WD8",
+  "killed_by": [
+   "m5_bad_raised_by"
+  ]
+ },
+ "x263": {
+  "op": "hand",
+  "clause": "model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "h_verdict_any_digest (finding 3)",
+  "killed_by": []
+ },
+ "x264": {
+  "op": "hand",
+  "clause": "model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)",
+  "detail": "h_calibration_any_digest (finding 3)",
+  "killed_by": []
+ },
+ "x265": {
+  "op": "hand",
+  "clause": "model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)",
+  "detail": "h_mutation_any_digest (finding 3)",
+  "killed_by": []
+ },
+ "x266": {
+  "op": "hand",
+  "clause": "model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)",
+  "detail": "h_divergence_any_subject",
+  "killed_by": []
+ },
+ "x267": {
+  "op": "hand",
+  "clause": "discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discovery_ratifie...",
+  "detail": "h_unratified_any_old (finding 7 widened, F3 form)",
+  "killed_by": []
+ },
+ "x268": {
+  "op": "hand",
+  "clause": "model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)",
+  "detail": "h_old_run_ignored (F2 undone)",
+  "killed_by": [
+   "m3_log_reused"
+  ]
+ },
+ "x269": {
+  "op": "hand",
+  "clause": "discovery_disproof_filed(A):-attest(_,disproof,_,verdict(A,_),_,_)",
+  "detail": "h_disproof_refuted_only",
+  "killed_by": []
+ },
+ "x270": {
+  "op": "hand",
+  "clause": "budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)",
+  "detail": "h_budget_ge",
+  "killed_by": []
+ },
+ "x271": {
+  "op": "hand",
+  "clause": "budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)",
+  "detail": "h_budget_first (finding 6, P13)",
+  "killed_by": [
+   "m6_budget_raised"
+  ]
+ },
+ "x272": {
+  "op": "hand",
+  "clause": "discovery_has_outcome:-current(_)",
+  "detail": "h_outcome_any (finding 5)",
+  "killed_by": []
+ },
+ "x273": {
+  "op": "hand",
+  "clause": "touched_system:-attest(_,reproduction,A,_,_,_),discovery_system_evidence(A)",
+  "detail": "h_touch_any_subject (finding 4)",
+  "killed_by": [
+   "m4_no_system"
+  ]
+ },
+ "x274": {
+  "op": "hand",
+  "clause": "finding_confirmed(A):-attest(_,reproduction,B,confirms(A),_,_),discovery_system_evidence(B)",
+  "detail": "h_confirm_any_subject (finding 4)",
+  "killed_by": [
+   "m4_confirm_by_log",
+   "m4_confirm_by_model",
+   "m4_untagged"
+  ]
+ },
+ "x275": {
+  "op": "hand",
+  "clause": "model_breaks(A,B):-model_verdict(_,A,preserve(B),C),discovery_has_case(C)",
+  "detail": "h_breaks_preserve_any_check",
+  "killed_by": [
+   "b2_target_bad_case",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x276": {
+  "op": "hand",
+  "clause": "model_vacuous(A):-model_verdict(A,_,applies(_),B),discovery_no_case(B)",
+  "detail": "h_vacuous_any_check",
+  "killed_by": [
+   "b2_vacuous",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x277": {
+  "op": "hand",
+  "clause": "model_diverges(A):-model_verdict(_,A,bad_case,B),discovery_no_case(B),not model_is_derived(A)",
+  "detail": "h_derived_no_existing_bad_case",
+  "killed_by": [
+   "b1_bad_case_not_reproduced",
+   "b1_calibration_differs",
+   "b1_divergence_on_model",
+   "b2_tla_sanity",
+   "base",
+   "cf2_no_calibration",
+   "cf3_no_confirmation",
+   "cf4_no_raised_by",
+   "cf5_survived",
+   "cf5b_survived_with_reason",
+   "cf8_draft_dormant",
+   "go",
+   "hold",
+   "k_unencoded_claim",
+   "m3_rerun_new_log",
+   "m4_check_is_repro",
+   "m5_not_reproduced",
+   "m7_ratified",
+   "m7_ratified_contested",
+   "minor_cross_tool",
+   "perf_12_claims_6_models",
+   "with_build"
+  ]
+ },
+ "x278": {
+  "op": "hand",
+  "clause": "lint_issue('ED8',A,'This question must be raised by a finding or a hypothesis.'):-raised_by(A,B),not discovery...",
+  "detail": "h_ed8_hyp_not_allowed",
+  "killed_by": [
+   "m5_question_from_hypothesis"
+  ]
+ },
+ "x279": {
+  "op": "hand",
+  "clause": "discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,not some_n...",
+  "detail": "h_ready_no_hypothesis_needed (finding 5)",
+  "killed_by": []
+ }
+}

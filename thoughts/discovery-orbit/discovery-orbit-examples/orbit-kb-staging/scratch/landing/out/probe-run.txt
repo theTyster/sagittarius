@@ -1,0 +1,368 @@
+heavy: waiting for a slot (2 busy)
+fixture: /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/fixtures/probe
+library: /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/lib
+s(CASP): --forall=prev
+module build: /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/lib/modules/build.pl
+module discovery: /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/h/modules/discovery.pl
+
+== base
+  H4 check: clean
+  lint: clean
+  discovery_ready true  swi PASS  scasp SKIPPED  (30.01 s)
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+  attest(A, model_result, _, verdict(m_target, together, unsat), _, _) [A = a10]  swi PASS  scasp PASS  (0.12 s)
+
+== pl_disproof_abstained
+  H4 check: clean
+  lint: clean
+  model_unfiled_break(C) [C = c2b]  swi FAIL  scasp FAIL  (0.13 s)
+      swi:   none
+      scasp: none
+  discovery_ready none  swi FAIL  scasp SKIPPED  (30.01 s)
+      swi:   true
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+  lint_issue('ED5', Id, _) [Id = c2b]  swi FAIL  scasp FAIL  (0.14 s)
+      swi:   none
+      scasp: none
+
+== pl_disproof_inconclusive
+  H4 check: clean
+  lint: clean
+  model_unfiled_break(C) [C = c2b]  swi FAIL  scasp FAIL  (0.14 s)
+      swi:   none
+      scasp: none
+  discovery_ready none  swi FAIL  scasp SKIPPED  (30.01 s)
+      swi:   true
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_disproof_other_claim
+  H4 check: clean
+  lint: clean
+  model_unfiled_break(C) [C = c2b]  swi PASS  scasp PASS  (0.14 s)
+  discovery_ready none  swi PASS  scasp SKIPPED  (30.01 s)
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_div_on_system_log
+  H4 check: clean
+  lint: clean
+  model_diverges(M) [M = m_now]  swi FAIL  scasp FAIL  (0.13 s)
+      swi:   none
+      scasp: none
+  discovery_ready none  swi FAIL  scasp SKIPPED  (30.01 s)
+      swi:   true
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_div_on_model_file
+  H4 check: clean
+  lint: clean
+  model_diverges(M) [M = m_now]  swi PASS  scasp PASS  (0.12 s)
+  discovery_ready none  swi PASS  scasp PASS  (3.91 s)
+
+== pl_div_model_file_fixed
+  H4 check: clean
+  lint: 1 issue(s)
+    W1 kb.pl: subject m_now: the digest differs from models/discount-now-v2.smt2, or the file is missing.
+  model_diverges(M) none  swi FAIL  scasp FAIL  (0.14 s)
+      swi:   answers(['M = m_now'])
+      scasp: answers(['M = m_now'])
+  model_trusted(M) [M = m_now,M = m_target]  swi FAIL  scasp FAIL  (0.85 s)
+      swi:   none
+      scasp: none
+
+== pl_div_run_fixed
+  H4 check: clean
+  lint: 1 issue(s)
+    W1 kb.pl: subject m_now: the digest differs from models/discount-now-v2.smt2, or the file is missing.
+  model_diverges(M) none  swi PASS  scasp PASS  (0.13 s)
+  model_trusted(M) [M = m_now,M = m_target]  swi PASS  scasp PASS  (3.15 s)
+  discovery_ready true  swi PASS  scasp SKIPPED  (30.01 s)
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+  lint_issue('WD8', Id, _) [Id = a3,Id = a4,Id = a5,Id = a6,Id = a7,Id = a8]  swi PASS  scasp PASS  (0.15 s)
+
+== pl_div_run_not_fixed
+  H4 check: clean
+  lint: clean
+  model_diverges(M) [M = m_now]  swi PASS  scasp PASS  (0.12 s)
+
+== pl_derived_self_loop
+  H4 check: clean
+  lint: clean
+  model_diverges(M) [M = m_now]  swi FAIL  scasp FAIL  (0.14 s)
+      swi:   none
+      scasp: none
+  discovery_ready none  swi FAIL  scasp SKIPPED  (30.01 s)
+      swi:   true
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_derived_cycle
+  H4 check: clean
+  lint: clean
+  model_diverges(M) [M = m_now]  swi FAIL  scasp FAIL  (0.14 s)
+      swi:   none
+      scasp: none
+  discovery_ready none  swi FAIL  scasp SKIPPED  (30.01 s)
+      swi:   true
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_no_budget_default
+  H4 check: clean
+  lint: clean
+  budget_spent true  swi FAIL  scasp FAIL  (0.13 s)
+      swi:   none
+      scasp: none
+  discovery_decide true  swi FAIL  scasp SKIPPED  (30.01 s)
+      swi:   none
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_lap_gap
+  H4 check: clean
+  lint: clean
+  budget_spent true  swi FAIL  scasp FAIL  (0.14 s)
+      swi:   none
+      scasp: none
+
+== pl_budget_lowered
+  H4 check: clean
+  lint: clean
+  budget_spent none  swi PASS  scasp PASS  (0.14 s)
+
+== pl_budget_raised_reached
+  H4 check: clean
+  lint: clean
+  budget_spent true  swi PASS  scasp PASS  (0.14 s)
+  discovery_decide true  swi PASS  scasp SKIPPED  (30.01 s)
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_agent_supersedes_unrefuted
+  H4 check: clean
+  lint: 1 issue(s)
+    W5 kb.pl: check t1 references the superseded claim c1.
+  discovery_unratified(C) [C = c1b]  swi FAIL  scasp FAIL  (0.13 s)
+      swi:   none
+      scasp: none
+  discovery_ready none  swi FAIL  scasp SKIPPED  (30.01 s)
+      swi:   true
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_stale_ratification
+  H4 check: clean
+  lint: clean
+  discovery_unratified(C) [C = c2c]  swi FAIL  scasp FAIL  (0.13 s)
+      swi:   none
+      scasp: none
+  discovery_ready none  swi FAIL  scasp SKIPPED  (30.04 s)
+      swi:   true
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_unanswered_question
+  H4 check: clean
+  lint: clean
+  discovery_unratified(C) [C = c2c]  swi PASS  scasp PASS  (0.13 s)
+  discovery_ready none  swi PASS  scasp SKIPPED  (30.01 s)
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_ratified_via_new
+  H4 check: clean
+  lint: clean
+  discovery_unratified(C) none  swi PASS  scasp PASS  (0.14 s)
+  discovery_ready true  swi PASS  scasp SKIPPED  (30.01 s)
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_ready_with_ed1
+  H4 check: clean
+  lint: clean
+  lint_issue('ED1', Id, _) [Id = a9]  swi PASS  scasp PASS  (0.14 s)
+  discovery_ready none  swi FAIL  scasp SKIPPED  (30.01 s)
+      swi:   true
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_ready_with_ed8
+  H4 check: clean
+  lint: clean
+  lint_issue('ED8', Id, _) [Id = q1]  swi PASS  scasp PASS  (0.13 s)
+  discovery_ready none  swi FAIL  scasp SKIPPED  (30.01 s)
+      swi:   true
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_tagged_both
+  H4 check: clean
+  lint: clean
+  lint_issue('ED1', Id, _) [Id = a1,Id = a9]  swi PASS  scasp PASS  (0.13 s)
+  discovery_hypothesis_touched(H) none  swi PASS  scasp PASS  (0.13 s)
+  touched_system true  swi PASS  scasp PASS  (0.13 s)
+  discovery_ready none  swi PASS  scasp PASS  (0.13 s)
+
+== pl_run_tagged_system
+  H4 check: clean
+  lint: clean
+  finding_lead(F) [F = f1]  swi PASS  scasp PASS  (0.15 s)
+  lint_issue('ED1', Id, _) [Id = a9]  swi PASS  scasp PASS  (0.13 s)
+
+== pl_model_tagged_system
+  H4 check: clean
+  lint: clean
+  finding_lead(F) [F = f1]  swi PASS  scasp PASS  (0.14 s)
+  lint_issue('ED1', Id, _) [Id = a9]  swi PASS  scasp PASS  (0.13 s)
+
+== pl_untagged_check_only
+  H4 check: clean
+  lint: clean
+  touched_system none  swi PASS  scasp PASS  (0.13 s)
+  discovery_ready none  swi PASS  scasp PASS  (0.12 s)
+
+== pl_untagged_log_hyp
+  H4 check: clean
+  lint: clean
+  discovery_hypothesis_touched(H) none  swi PASS  scasp PASS  (0.12 s)
+  lint_issue('WD7', Id, _) [Id = h1]  swi PASS  scasp PASS  (0.14 s)
+
+== pl_no_hypothesis
+  H4 check: clean
+  lint: clean
+  discovery_ready none  swi PASS  scasp PASS  (0.13 s)
+
+== pl_to_ask_blocks
+  H4 check: clean
+  lint: clean
+  to_ask(Q) [Q = q2]  swi PASS  scasp PASS  (0.12 s)
+  discovery_ready none  swi PASS  scasp SKIPPED  (30.01 s)
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_disagree_root_cause
+  H4 check: clean
+  lint: clean
+  lint_issue('ED6', Id, _) [Id = m_now]  swi PASS  scasp PASS  (0.15 s)
+  discovery_ready none  swi PASS  scasp SKIPPED  (30.01 s)
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_diverging_explorer
+  H4 check: clean
+  lint: clean
+  model_diverges(M) [M = m_x]  swi PASS  scasp PASS  (0.13 s)
+  discovery_ready none  swi PASS  scasp SKIPPED  (30.01 s)
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_explore_rerun
+  H4 check: clean
+  lint: clean
+  lint_issue('ED6', Id, _) none  swi FAIL  scasp FAIL  (0.13 s)
+      swi:   answers(['Id = m_target'])
+      scasp: answers(['Id = m_target'])
+  discovery_ready true  swi FAIL  scasp SKIPPED  (30.01 s)
+      swi:   none
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_normal_case_sat
+  H4 check: clean
+  lint: clean
+  model_diverges(M) [M = m_now]  swi FAIL  scasp FAIL  (0.13 s)
+      swi:   none
+      scasp: none
+  discovery_ready none  swi FAIL  scasp SKIPPED  (30.01 s)
+      swi:   true
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_tla_preserve_violated
+  H4 check: clean
+  lint: clean
+  model_unfiled_break(C) [C = c2b]  swi PASS  scasp PASS  (0.15 s)
+  discovery_ready none  swi PASS  scasp SKIPPED  (30.01 s)
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_tla_now_holds
+  H4 check: clean
+  lint: clean
+  model_diverges(M) [M = m_tla]  swi PASS  scasp PASS  (0.13 s)
+
+== pl_tla_target_ok
+  H4 check: clean
+  lint: clean
+  no_falsifier(C) none  swi PASS  scasp PASS  (2.31 s)
+  model_trusted(M) [M = m_now,M = m_target,M = m_tla,M = m_tlt]  swi PASS  scasp PASS  (6.55 s)
+  discovery_ready true  swi PASS  scasp SKIPPED  (30.01 s)
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_applies_unknown_only
+  H4 check: clean
+  lint: clean
+  no_falsifier(C) [C = c3]  swi PASS  scasp PASS  (1.55 s)
+  discovery_ready none  swi PASS  scasp PASS  (24.23 s)
+
+== pl_untrusted_target_falsifier
+  H4 check: clean
+  lint: clean
+  no_falsifier(C) [C = c2b]  swi PASS  scasp PASS  (0.19 s)
+  discovery_ready none  swi PASS  scasp PASS  (0.14 s)
+
+== pl_derived_from_uncalibrated
+  H4 check: clean
+  lint: clean
+  model_trusted(M) [M = m_now]  swi PASS  scasp PASS  (0.76 s)
+  no_falsifier(C) [C = c2b]  swi PASS  scasp PASS  (0.91 s)
+
+== pl_reason_other_rule
+  H4 check: clean
+  lint: clean
+  weak_rule(R) [R = clamp]  swi PASS  scasp PASS  (0.13 s)
+  lint_issue('WD3', Id, _) [Id = a17]  swi PASS  scasp PASS  (0.14 s)
+
+== pl_edit_rerun_calibration_only
+  H4 check: clean
+  lint: 1 issue(s)
+    W1 kb.pl: subject m_now: the digest differs from models/discount-now-v2.smt2, or the file is missing.
+  model_sane(M) [M = m_target]  swi PASS  scasp PASS  (0.18 s)
+  model_trusted(M) none  swi PASS  scasp PASS  (0.20 s)
+
+== pl_edit_rerun_sanity_only
+  H4 check: clean
+  lint: 1 issue(s)
+    W1 kb.pl: subject m_now: the digest differs from models/discount-now-v2.smt2, or the file is missing.
+  model_calibrated(M) none  swi PASS  scasp PASS  (0.12 s)
+  model_trusted(M) none  swi PASS  scasp PASS  (0.37 s)
+
+== pl_model_run_no_model_fact
+  H4 check: clean
+  lint: 3 issue(s)
+    E3 kb.pl: the predicate of a18 does not match the model_result shape.
+    E3 kb.pl: the predicate of a19 does not match the model_result shape.
+    E4 kb.pl: argument 2 of model_run(run_x,m_x,'sha256:ac17a45536f31f4c27d0f85194dc4690e2aca118122023697632ec30908b664b') does not match ref(model).
+  model_trusted(M) [M = m_now,M = m_target]  swi FAIL  scasp FAIL  (2.39 s)
+      swi:   answers(['M = m_now','M = m_target','M = m_x'])
+      scasp: answers(['M = m_now','M = m_target','M = m_x'])
+
+== pl_disproof_superseded
+  H4 check: clean
+  lint: clean
+  refuted(C) [C = c2]  swi PASS  scasp PASS  (0.13 s)
+  some_current_refuted none  swi PASS  scasp PASS  (0.13 s)
+  discovery_unratified(C) none  swi PASS  scasp PASS  (0.12 s)
+  discovery_ready true  swi PASS  scasp SKIPPED  (30.01 s)
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+== pl_disproof_superseded_unanswered
+  H4 check: clean
+  lint: clean
+  question_waits(Q) [Q = q1]  swi PASS  scasp PASS  (0.13 s)
+  discovery_unratified(C) [C = c2b]  swi PASS  scasp PASS  (0.14 s)
+  discovery_ready none  swi PASS  scasp PASS  (15.06 s)
+
+== pl_two_hypotheses
+  H4 check: clean
+  lint: clean
+  lint_issue('WD6', Id, _) [Id = a18]  swi PASS  scasp PASS  (0.13 s)
+  discovery_ready none  swi FAIL  scasp SKIPPED  (30.01 s)
+      swi:   true
+  CROSS-CHECK SKIPPED: s(CASP) timed out after 30 s
+
+SWI engine:     65/93 expectations passed
+s(CASP) engine: 53/93 expectations passed
+s(CASP) cross-checks skipped (timeout): 25
+Engine disagreements: 0
+Lint failures (E codes in any variant, any code in base): 3
+H4 self-check failures (variants with _<digits> atoms): 0
+s(CASP) time per query: max 30.04 s. Slowest:
+  30.04 s  pl_stale_ratification: discovery_ready
+  30.01 s  base: discovery_ready
+  30.01 s  pl_disproof_other_claim: discovery_ready
+  30.01 s  pl_disproof_superseded: discovery_ready
+  30.01 s  pl_disproof_abstained: discovery_ready

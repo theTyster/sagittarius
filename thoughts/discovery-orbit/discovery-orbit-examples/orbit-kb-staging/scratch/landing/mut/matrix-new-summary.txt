@@ -1,0 +1,176 @@
+mutants: 537; killed: 422 (78.6%)
+distinct mutants (by content): 529; killed: 416 (78.6%)
+duplicates across sets: [['m096', 'x273'], ['m108', 'x268'], ['m123', 'x266'], ['m126', 'x277'], ['m171', 'x274'], ['m180', 'x267'], ['m188', 'x271'], ['m223', 'x278']]
+
+per variant: kills / unique kills
+  base: 158 / 7 ['m030', 'x007', 'x051', 'x093', 'x094', 'x096', 'x215']
+  cf3_no_confirmation: 142 / 3 ['m080', 'x176', 'x250']
+  perf_12_claims_6_models: 141 / 0 []
+  cf5b_survived_with_reason: 138 / 1 ['m176']
+  cf5_survived: 128 / 0 []
+  cf4_no_raised_by: 119 / 3 ['m077', 'x170', 'x247']
+  m5_not_reproduced: 115 / 4 ['m082', 'x178', 'x242', 'x252']
+  m4_check_is_repro: 112 / 0 []
+  m7_ratified: 112 / 2 ['m192', 'x169']
+  cf8_draft_dormant: 110 / 0 []
+  go: 110 / 0 []
+  hold: 110 / 0 []
+  with_build: 110 / 0 []
+  cf2_no_calibration: 108 / 0 []
+  m7_ratified_contested: 106 / 0 []
+  minor_cross_tool: 58 / 9 ['m127', 'm128', 'm134', 'x078', 'x079', 'x080', 'x087', 'x088', 'x172']
+  minor_wrong_log: 55 / 14 ['m086', 'm112', 'm218', 'm219', 'x028', 'x029', 'x046', 'x050', 'x188', 'x189', 'x190', 'x191', 'x246', 'x256']
+  k_unencoded_claim: 51 / 2 ['m161', 'x124']
+  b2_tla_sanity: 44 / 4 ['x005', 'x006', 'x213', 'x214']
+  m3_rerun_new_log: 44 / 2 ['x030', 'x039']
+  k_kinds: 43 / 14 ['m044', 'm045', 'm050', 'm051', 'm172', 'x133', 'x134', 'x135', 'x137', 'x141', 'x142', 'x144', 'x145', 'x147']
+  b2_sanity_fails: 40 / 6 ['m018', 'm117', 'm121', 'x062', 'x063', 'x066']
+  b2_solvers_disagree: 34 / 6 ['m035', 'm036', 'm037', 'm090', 'x195', 'x260']
+  k_no_sanity_target: 34 / 0 []
+  m3_log_reused: 34 / 7 ['m012', 'm103', 'm104', 'm108', 'x032', 'x034', 'x268']
+  k_no_derived: 31 / 1 ['x083']
+  b2_unknown: 30 / 7 ['m081', 'm140', 'm162', 'x095', 'x126', 'x177', 'x251']
+  b2_break_unfiled: 29 / 4 ['m032', 'm089', 'x194', 'x259']
+  b2_target_bad_case: 27 / 4 ['m033', 'm151', 'x109', 'x233']
+  m4_confirm_by_log: 26 / 0 []
+  m4_confirm_by_model: 26 / 0 []
+  m3_model_edited: 25 / 0 []
+  b1_calibration_differs: 24 / 5 ['m022', 'm087', 'x069', 'x192', 'x257']
+  cf5c_reason_other_model: 24 / 3 ['x148', 'x150', 'x174']
+  cf7_budget_spent: 24 / 0 []
+  m5_second_hypothesis: 23 / 3 ['m189', 'x168', 'x181']
+  b2_vacuous: 21 / 6 ['m031', 'm070', 'm088', 'x099', 'x193', 'x258']
+  m6_budget_raised: 21 / 5 ['m060', 'm188', 'x237', 'x238', 'x271']
+  b1_bad_case_not_reproduced: 20 / 4 ['m025', 'x068', 'x077', 'x231']
+  b1_divergence_on_model: 20 / 3 ['m024', 'x071', 'x230']
+  b2_break_filed: 20 / 3 ['m001', 'm154', 'x201']
+  m4_untagged: 20 / 2 ['m093', 'x021']
+  m4_check_only: 19 / 2 ['m007', 'x205']
+  m7_launder: 19 / 1 ['m057']
+  m7_launder_contested: 19 / 1 ['m058']
+  m5_question_from_hypothesis: 13 / 4 ['m042', 'm223', 'x139', 'x278']
+  cf2b_no_calibration_no_check: 10 / 0 []
+  k_no_sanity_now: 10 / 4 ['m129', 'm135', 'x081', 'x089']
+  m5_bad_raised_by: 10 / 9 ['m092', 'm221', 'x130', 'x131', 'x197', 'x198', 'x199', 'x200', 'x262']
+  m4_repro_only: 9 / 2 ['m006', 'x204']
+  m6_budget_hides: 8 / 0 []
+  m4_no_system: 5 / 5 ['m095', 'm096', 'm097', 'x023', 'x273']
+  cf1_no_answer: 4 / 0 []
+  cf6_disproof: 3 / 0 []
+
+survivors:
+  m002	delete_clause	discovery_model_artifact(A):-model(A,_)	-
+  m003	delete_clause	discovery_model_artifact(A):-model_run(A,_,_)	-
+  m004	delete_clause	discovery_model_artifact(A):-discovery_evidence(A,model)	-
+  m010	delete_clause	discovery_has_outcome:-attest(_,reproduction,A,result(_,not_reproduced),_,_),discovery_system_eviden	-
+  m023	delete_clause	model_diverges(A):-attest(_,divergence,A,model(A),_,_)	-
+  m065	delete_clause	some_question_waits:-question_waits(_)	-
+  m069	delete_clause	some_model_problem:-model_diverges(_)	-
+  m072	delete_clause	some_model_problem:-model_solvers_disagree(_)	-
+  m094	delete_literal	discovery_system_evidence(A):-discovery_evidence(A,system),not discovery_model_artifact(A)	not discovery_model_artifact(_) (#2)
+  m098	delete_literal	touched_system:-attest(_,test_result,A,_,_,_),discovery_system_evidence(A)	discovery_system_evidence(_) (#2)
+  m100	delete_literal	discovery_hypothesis_touched(A):-attest(_,reproduction,B,result(A,_),_,_),discovery_system_evidence(	discovery_system_evidence(_) (#2)
+  m101	delete_literal	discovery_has_outcome:-attest(_,reproduction,A,result(_,not_reproduced),_,_),discovery_system_eviden	attest(_,reproduction,_,result(_,not_reproduced),_,_) (#1)
+  m102	delete_literal	discovery_has_outcome:-attest(_,reproduction,A,result(_,not_reproduced),_,_),discovery_system_eviden	discovery_system_evidence(_) (#2)
+  m107	delete_literal	model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)	subject(_,_,_) (#2)
+  m109	delete_literal	model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)	model_run(_,_,_) (#1)
+  m114	delete_literal	model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)	model_run_current(_,_) (#2)
+  m116	delete_literal	model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)	model_run_current(_,_) (#2)
+  m120	delete_literal	model_sane(A):-model_verdict(_,A,sanity,B),discovery_sanity_ok(B),not model_sanity_failed(A)	discovery_sanity_ok(_) (#2)
+  m123	delete_literal	model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)	model_run_current(_,_) (#2)
+  m133	delete_literal	model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrate	derived_from(_,_) (#2)
+  m138	delete_literal	model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrate	not model_diverges(_) (#7)
+  m142	delete_literal	model_decided(A,B):-model_verdict(_,A,applies(B),C),discovery_decided(C)	discovery_decided(_) (#2)
+  m149	delete_literal	model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A	model_is_derived(_) (#3)
+  m150	delete_literal	model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A	encodes(_,_) (#4)
+  m153	delete_literal	model_unfiled_break(A):-model_breaks(_,A),current(A),not discovery_disproof_filed(A)	current(_) (#2)
+  m178	delete_literal	discovery_ratified(A):-question(B,A,_),answered(B)	answered(_) (#2)
+  m180	delete_literal	discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discove	discovery_disputed(_) (#2)
+  m182	delete_literal	discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discove	not discovery_ratified(_) (#4)
+  m183	delete_literal	discovery_budget_raised(A):-budget(laps,A),budget(laps,B),B>A	budget(laps,_) (#1)
+  m193	delete_literal	discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,	some_hypothesis (#1)
+  m194	delete_literal	discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,	touched_system (#2)
+  m195	delete_literal	discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,	discovery_has_outcome (#3)
+  m198	delete_literal	discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,	not some_question_waits (#6)
+  m204	delete_literal	discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,	not any_to_ask (#12)
+  m210	delete_literal	lint_issue('WD6',A,'The problem did not reproduce on the current system. This is a NO-GO candidate. 	discovery_system_evidence(_) (#2)
+  m214	delete_literal	lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count	discovery_result_model(_,_) (#2)
+  x003	delete_fact	discovery_result_model(mutation(A,_,_),A)	-
+  x009	delete_fact	discovery_decided(reached)	-
+  x010	delete_fact	discovery_decided(violated)	-
+  x011	delete_fact	discovery_decided(holds)	-
+  x013	delete_fact	discovery_has_case(reached)	-
+  x014	delete_fact	discovery_has_case(violated)	-
+  x016	delete_fact	discovery_no_case(holds)	-
+  x017	break_join	discovery_disproof_filed(A):-attest(_,disproof,_,verdict(A,_),_,_)	literal #1 attest arg 4.verdict/1
+  x020	break_join	discovery_model_artifact(A):-discovery_evidence(A,model)	literal #1 discovery_evidence arg 1
+  x024	break_join	touched_system:-attest(_,test_result,A,_,_,_),discovery_system_evidence(A)	literal #1 attest arg 3
+  x025	break_join	discovery_hypothesis_touched(A):-attest(_,reproduction,B,result(A,_),_,_),discovery_system_evidence(	literal #1 attest arg 3
+  x027	break_join	discovery_has_outcome:-attest(_,reproduction,A,result(_,not_reproduced),_,_),discovery_system_eviden	literal #1 attest arg 3
+  x031	break_join	discovery_old_run(A,B):-model_run(A,B,C),subject(B,_,D),C\=D	literal #1 model_run arg 2
+  x036	break_join	model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)	literal #1 model_run arg 2
+  x037	break_join	model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)	literal #1 model_run arg 3
+  x038	break_join	model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)	literal #2 subject arg 1
+  x040	break_join	model_run_current(A,B):-model_run(A,B,C),subject(B,_,C),not discovery_old_run(A,B)	literal #3 discovery_old_run arg 2
+  x041	break_join	model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)	literal #1 model_run arg 1
+  x042	break_join	model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)	literal #1 model_run arg 2
+  x043	break_join	model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)	literal #2 model_run_current arg 1
+  x044	break_join	model_run_stale(A,B):-model_run(A,B,_),not model_run_current(A,B)	literal #2 model_run_current arg 2
+  x047	break_join	model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)	literal #1 attest arg 4.verdict/1
+  x052	break_join	model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)	literal #1 attest arg 3
+  x053	break_join	model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)	literal #1 attest arg 4.calibration/1
+  x055	break_join	model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)	literal #2 model_run_current arg 2
+  x057	break_join	model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)	literal #1 attest arg 3
+  x058	break_join	model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)	literal #1 attest arg 4.mutation/1
+  x061	break_join	model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)	literal #2 model_run_current arg 2
+  x065	break_join	model_sane(A):-model_verdict(_,A,sanity,B),discovery_sanity_ok(B),not model_sanity_failed(A)	literal #1 model_verdict arg 4
+  x070	break_join	model_diverges(A):-attest(_,divergence,A,model(A),_,_)	literal #1 attest arg 3
+  x072	break_join	model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)	literal #1 attest arg 3
+  x073	break_join	model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)	literal #1 attest arg 4.model/1
+  x074	break_join	model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)	literal #2 model_run_current arg 2
+  x085	break_join	model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrate	literal #2 derived_from arg 1
+  x086	break_join	model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrate	literal #2 derived_from arg 2
+  x090	break_join	model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrate	literal #5 model_calibrated arg 1
+  x091	break_join	model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrate	literal #6 model_diverges arg 1
+  x092	break_join	model_trusted(A):-model_sane(A),derived_from(A,B),model_same_tool(A,B),model_sane(B),model_calibrate	literal #7 model_diverges arg 1
+  x098	break_join	model_decided(A,B):-model_verdict(_,A,applies(B),C),discovery_decided(C)	literal #1 model_verdict arg 4
+  x101	break_join	model_breaks(A,B):-model_verdict(_,A,preserve(B),C),discovery_has_case(C)	literal #1 model_verdict arg 2
+  x106	break_join	model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A	literal #3 model_is_derived arg 1
+  x107	break_join	model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A	literal #4 encodes arg 1
+  x108	break_join	model_breaks(A,B):-model_verdict(_,A,bad_case,C),discovery_has_case(C),model_is_derived(A),encodes(A	literal #4 encodes arg 2
+  x111	break_join	model_unfiled_break(A):-model_breaks(_,A),current(A),not discovery_disproof_filed(A)	literal #2 current arg 1
+  x112	break_join	model_unfiled_break(A):-model_breaks(_,A),current(A),not discovery_disproof_filed(A)	literal #3 discovery_disproof_filed arg 1
+  x123	break_join	has_falsifier(A):-encodes(B,A),model_decided(B,A),model_trusted(B)	literal #1 encodes arg 1
+  x125	break_join	has_falsifier(A):-encodes(B,A),model_decided(B,A),model_trusted(B)	literal #2 model_decided arg 1
+  x127	break_join	has_falsifier(A):-encodes(B,A),model_decided(B,A),model_trusted(B)	literal #3 model_trusted arg 1
+  x149	break_join	rule_has_reason(A,B):-reason(A,B,_)	literal #1 reason arg 2
+  x152	break_join	weak_rule(A):-model_mutation(_,B,A,survived),not rule_has_reason(B,A)	literal #2 rule_has_reason arg 2
+  x153	break_join	discovery_ratified(A):-question(B,A,_),answered(B)	literal #1 question arg 1
+  x155	break_join	discovery_disputed(A):-refuted(A)	literal #1 refuted arg 1
+  x156	break_join	discovery_disputed(A):-contested(A)	literal #1 contested arg 1
+  x159	break_join	discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discove	literal #2 discovery_disputed arg 1
+  x162	break_join	discovery_budget_raised(A):-budget(laps,A),budget(laps,B),B>A	literal #1 budget arg 2
+  x167	break_join	budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)	literal #3 discovery_budget_raised arg 1
+  x175	break_join	lint_issue('WD3',A,'A rule survived the mutation check in this attestation. Find out why, then add r	literal #1 model_mutation arg 3
+  x179	break_join	lint_issue('WD6',A,'The problem did not reproduce on the current system. This is a NO-GO candidate. 	literal #1 attest arg 3
+  x183	break_join	lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count	literal #1 attest arg 3
+  x184	break_join	lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count	literal #1 attest arg 4
+  x185	break_join	lint_issue('WD8',A,'This model result is on a log of an older digest of the model. It does not count	literal #2 discovery_result_model arg 2
+  x207	swap_const	discovery_has_outcome:-attest(_,reproduction,A,result(_,not_reproduced),_,_),discovery_system_eviden	literal #1: reproduction -> model_result
+  x208	swap_const	discovery_has_outcome:-attest(_,reproduction,A,result(_,not_reproduced),_,_),discovery_system_eviden	literal #1: not_reproduced -> reproduced
+  x217	swap_const	discovery_decided(reached)	fact: reached -> holds
+  x218	swap_const	discovery_decided(violated)	fact: violated -> holds
+  x219	swap_const	discovery_decided(holds)	fact: holds -> unsat
+  x221	swap_const	discovery_has_case(reached)	fact: reached -> holds
+  x222	swap_const	discovery_has_case(violated)	fact: violated -> holds
+  x224	swap_const	discovery_no_case(holds)	fact: holds -> unsat
+  x229	swap_const	model_diverges(A):-attest(_,divergence,A,model(A),_,_)	literal #1: divergence -> disproof
+  x263	hand	model_verdict(A,B,C,D):-attest(A,model_result,E,verdict(B,C,D),_,_),model_run_current(E,B)	h_verdict_any_digest (finding 3)
+  x264	hand	model_calibration(A,B,C):-attest(A,model_result,D,calibration(B,_,C),_,_),model_run_current(D,B)	h_calibration_any_digest (finding 3)
+  x265	hand	model_mutation(A,B,C,D):-attest(A,model_result,E,mutation(B,C,D),_,_),model_run_current(E,B)	h_mutation_any_digest (finding 3)
+  x266	hand	model_diverges(A):-attest(_,divergence,B,model(A),_,_),model_run_current(B,A)	h_divergence_any_subject
+  x267	hand	discovery_unratified(A):-supersedes(A,B),discovery_disputed(B),not discovery_ratified(B),not discove	h_unratified_any_old (finding 7 widened, F3 form)
+  x269	hand	discovery_disproof_filed(A):-attest(_,disproof,_,verdict(A,_),_,_)	h_disproof_refuted_only
+  x270	hand	budget_spent:-budget(laps,A),lap_done(A),not discovery_budget_raised(A)	h_budget_ge
+  x272	hand	discovery_has_outcome:-current(_)	h_outcome_any (finding 5)
+  x279	hand	discovery_ready:-some_hypothesis,touched_system,discovery_has_outcome,not some_untouched_hypothesis,	h_ready_no_hypothesis_needed (finding 5)

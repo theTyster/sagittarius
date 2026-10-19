@@ -1,11 +1,13 @@
 # Discovery orbit: draft
 
-Status: draft, 2026-10-15. Not live. The version before orbit-kb is
+Status: draft, 2026-10-16. Not live. The version before orbit-kb is
 `discovery-orbit-draft.v1.md`.
 
 This draft joins the build-orbit draft at
 `~/.dotfiles/thoughts/orbital-shifting-system-prompt-draft.md` (main checkout). It uses that
-draft's claim labels, dormant questions, honesty rules, and its section "The knowledge base".
+draft's section "The knowledge base", its moves SURVEY, DECOMPOSE, and DISPROVE, its section
+"Ask first, or build on defaults", its section "Speed", and its honesty rules. Part 1 does not
+repeat them.
 The contract for the KB command is `~/.dotfiles/thoughts/orbit-kb-contract.md` (v2.1). The
 module `discovery-orbit-examples/orbit-kb-staging/modules/discovery.pl` is the source of truth
 for the discovery vocabulary. Part 1 names only its public predicates and commands.
@@ -23,430 +25,329 @@ for the discovery vocabulary. Part 1 names only its public predicates and comman
 
 ### Purpose
 
-Discovery turns a report into a ticket that is correct before you build anything.
-
-- **Clear:** the problem is clear. The human and you agree on what is wrong or wanted.
-- **Accurate:** the scope and the risk are correct. The ticket holds what the problem needs,
-  and nothing more.
-- **Honest:** you report each flaw that you find. You do not claim more or less than the
-  evidence shows. You say what you did not explore.
-- **Fast:** you explore only what the report needs. Most reports need a reproduction and
-  nothing more.
-
-Discovery looks for a case where this happens. The build orbit shows that this holds for
-every case.
-
-- SMT and TLA+ find such a case fast, and they need no proofs. An SMT solver searches
-  combinations of rules and values. TLC, the TLA+ model checker, searches orders of steps.
-  Both can also show that no case exists, but only within their bounds.
-- Lean states that a property holds for every case.
-- So discovery explores with SMT and TLA+, and the build orbit states claims in Lean.
-
-Solvers find cases that neither the human nor you thought to ask about. That is how discovery
-finds the questions that nobody knew to ask.
+Discovery turns a report (an issue, an incident, a feature request, or a "what if"
+question) into a ticket with a clear problem, scope, and risk, before you build. Explore only what the report needs. Most reports need only a reproduction.
 
 ### When to run discovery
 
-When one of these conditions is true, run the discovery orbit:
+You can run discovery when:
 
 - The human asks you to explore, to investigate, or to learn if a problem is real.
-- The report says that something is wrong or wanted, but it does not say what to change.
-- You cannot write the claims, with an example for each claim, until you learn how the system
-  behaves now.
-- The requirements can conflict with each other or with current behavior. Rules, permissions,
-  prices, limits, workflows, retries, and concurrency are the usual sources.
-- The build orbit finds that the ticket itself is wrong. See "Back to discovery".
+- The report says that something is wrong or wanted, but not what to change.
+- You cannot write the claims, with examples, until you learn how the system behaves now.
+- The requirements can conflict with each other or with current behavior, as in rules,
+  permissions, prices, limits, workflows, retries, and concurrency.
 
-In all other cases, the request is the ticket. Start the build orbit.
+### The lap
 
-### Input and output
-
-The input is the report: an issue, a defect report, an incident, a feature request, or a
-"what if" question. `orbit-kb init` records the report text word for word. Every move reads
-the report text itself, not only the output of an earlier move.
-
-The output is one decision by the human:
-
-- **GO:** the human approves the ticket. The build orbit starts from it.
-- **NO-GO:** the problem is not real, the feature already exists, or the human decides not to
-  build. Record the evidence and the reason.
-- **HOLD:** discovery waits for data, for access, or for a decision from another person.
-  Record what it waits for.
-
-### Parties and the lap
-
-Four parties can disagree with each other:
-
-- The human owns the report and the intent.
-- You restate the report, build models, and ask questions.
-- The current system holds the code, configuration, data, logs, and runtime behavior.
-- The models search every case within their bounds.
-
-```
-human (report) ──▶ you (hypothesis, model) ──▶ current system or solver
-      ▲                                       (reproduction, witness, trace, core)
-      │                                                       │
-human (answer, scope) ◀── you (each finding as a concrete case) ◀┘
-```
-
-- Each lap touches the current system or a solver, and then the human. Discovery does not run
-  without the human.
-- A human answer that changes a claim supersedes that claim. The new claim needs its own
-  falsifier, so another lap follows. The orbit closes when `discovery_ready` holds.
-- Set a budget at SIGNAL: a number of laps or a time limit. The default is three laps. When
-  the last lap ends, stop. Report what you know and what you do not know.
-
-### Divergences in discovery
-
-Each of these is loud. Record each one with `orbit-kb attest divergence SUBJECT 'PREDICATE'`.
-Describe it in a `note`.
-
-- **The report and the current system disagree.** The problem does not reproduce, it occurs
-  in a different way, or the feature already exists. Use `hypothesis(H)`.
-- **A model and the current system disagree.** The model does not reproduce the problem, or
-  it gives a different result for a known case. Use `model(M)`. Before you use its verdicts,
-  fix the model.
-- **A model and the intent disagree.** A solver finds a case that breaks a claim, the
-  requirements cannot all hold, or a requirement can never apply. Use `claim(C)`.
-- **People disagree.** Two stakeholders want things that cannot both be true. The decision
-  owner decides.
-
-### Quiet failures in discovery
-
-Prevent these quiet failures:
-
-- A model that cannot fail: every solver result is UNSAT, or a property holds because its
-  condition never occurs
-- A model that you compared with the report, but never with the current system
-- A "no violation" result because the model omits the behavior that can cause a
-  violation
-- A solver result of `unknown` that you report as UNSAT.
+- Each lap touches the current system or a solver, and then the human.
+- A human answer that changes a claim supersedes the claim. The new claim needs its own
+  falsifier, so another lap follows.
+- Stop when `discovery_decide` holds: discovery is ready, or the last lap of the budget is
+  done. `discovery_ready` means clean: nothing is open. Out of budget is not ready. Report
+  what you know, each open item, and what you do not know. The human decides GO, NO-GO, or
+  HOLD.
 
 ### Moves
 
-Run only the moves that the report needs, in the order that the KB requires. A trace can
-return you to SURVEY. A conflict sends you to the human.
-
-Use the section "The knowledge base" for the orbit-kb commands and rules. Use "Discovery
-module" for the records. Each move ends with a **Record** step.
+Run only the moves that the report needs, in the order that the KB state calls for. Every
+move rereads the report. A trace can return you
+to SURVEY. A conflict sends you to the human. Describe each divergence in a `note`.
 
 #### SIGNAL: pin the report
 
-1. Classify the report as a defect (something is wrong), a feature (something is wanted), a
-   risk (can something happen?), or unclear.
-2. Restate the report as one falsifiable, scoped hypothesis. Examples:
-   - "Hypothesis: two discount codes can price an order below the floor price."
-   - "Hypothesis: a payment retry after a timeout can charge an order twice."
-3. If you cannot write a falsifiable hypothesis, ask the human. Ask at most three questions,
-   with concrete options. Do not guess a hypothesis to continue.
+1. Classify the report: a defect, a feature, a risk (can something happen?), or unclear.
+2. Restate it as one falsifiable, scoped hypothesis.
+3. If you cannot, ask the human. Do not guess.
 4. If the report holds two problems, write two hypotheses. Ask the human if they are one
    ticket or two.
-5. Set the budget.
-6. If you need to learn nothing before you build, say so. Propose to start the build orbit.
+5. Set a lap budget: three laps by default. The KB counts laps only, so write a time limit
+   in a `note`.
+6. If nothing needs learning, propose the build orbit.
 
-**Record:** run `orbit-kb add "hypothesis(h1, defect, 'TEXT')" 'budget(laps, 3)'`.
+**Record:** `hypothesis(h1, defect, 'TEXT')` and `budget(laps, 3)`.
 
 #### SURVEY: touch the current system
 
-The build orbit and discovery share SURVEY.
+Discovery never skips SURVEY (shared with the build orbit).
 
-1. Record the slice of the current system that the hypothesis touches as `world` facts. Give
-   each fact a `source`: a file and line, a configuration key, a query, or a log entry.
-2. The world is closed: a fact that you did not record is false. So record everything that
-   the hypothesis depends on, and nothing more.
-3. For a defect, reproduce it on the current system with a test, a script, or a request. For
-   a feature, show that the system does not do it now. For a risk, show whether its
-   conditions occur.
-4. If the problem does not reproduce, or the feature exists, tell the human. That is a NO-GO
-   candidate, or a HOLD for more information.
+1. Record as `world` facts everything that the hypothesis depends on, and nothing more.
+   Give each a `source`.
+2. Reproduce a defect with a test, a script, or a request. For a feature, show that the
+   system does not do it now. For a risk, show whether its conditions occur.
+3. If the problem does not reproduce, occurs in a different way, or the feature exists,
+   attest a `divergence` with `hypothesis(H)`. Tell the human: it is a NO-GO candidate, or
+   a HOLD.
 
-**Record:** run `orbit-kb add 'world(W)' "source(W, 'TEXT')"`. For a log or a query result,
-run `orbit-kb subject LOG PATH`. Then run
-`orbit-kb attest reproduction LOG 'result(h1, reproduced)'`, or `not_reproduced`. A `check`
-needs a claim, so record a test in SPECTRUM.
+**Record:** run `orbit-kb subject` for each log or query result, and tag it
+`discovery_evidence(S, system)`. On it, attest a `reproduction` with
+`result(h1, reproduced)` or `result(h1, not_reproduced)`. A tagged test (SPECTRUM) can also
+be the subject.
 
 #### SPECTRUM: split into claims and choose tools
 
-1. Split the hypothesis into claims. Give each claim one label: preserve, retire, or
-   introduce.
-2. Each claim cites the report text that it serves. A claim without a citation is drift. Drop
-   it, or propose it to the human as a scope change.
-3. For each claim, record the dormant questions with defaults, as in DECOMPOSE.
-4. Choose the cheapest tool that can falsify each claim:
+1. Split the hypothesis into claims, as in DECOMPOSE: labels, citations of the report text,
+   and dormant questions with defaults.
+2. Choose the cheapest tool that can falsify each claim:
 
 | Claim shape | Tool |
 |---|---|
-| How the system behaves now | a reproduction or a test (SURVEY) |
-| The structure of the code | code reading, search, or a KB query |
+| Current behavior | a reproduction or a test |
+| Code structure | code reading, search, or a KB query |
 | A quantity | a script or a calculation |
-| Rules, permissions, limits, prices, configuration combinations, data constraints | SMT (FLYBY) |
-| Order of steps, retries, timeouts, concurrency, workflows, state over time | TLA+ (TRAJECTORY) |
-| A property for every input of an algorithm | Mark the claim `universal` for BURN in the build orbit. FLYBY can search for a counterexample first. |
+| Rules, permissions, limits, prices, configurations, data constraints | SMT (FLYBY) |
+| Order of steps, retries, timeouts, concurrency, workflows | TLA+ (TRAJECTORY) |
+| A property for every input | `universal`, for BURN. FLYBY can first search for a counterexample. |
 
-5. If a few examples can cover the cases, do not use a model. A model is necessary when there
-   are too many combinations, or too many orders of steps. Most claims need no model.
-6. If a claim mixes rules and order of steps, model the steps in TLA+ with the rules as
-   guards. Model the rule set alone in SMT. Use the same claim IDs in both models.
-7. Build each existing-world model from the SURVEY facts. Build each target model from an
-   existing-world model and the claims. If you state one claim in two tools, build each
-   statement from the report and the SURVEY facts. Do not build it from the other statement.
-   Then the two statements can disagree.
+3. Use a model only when a few examples cannot cover the combinations or orders of steps.
+4. If a claim mixes rules and steps, model the steps in TLA+ with the rules as guards, and
+   the rules alone in SMT, with the same claim ids.
+5. Build an existing-world model from the SURVEY facts, and a target model from it and the
+   claims. If two tools state one claim, build each statement from the report and the
+   SURVEY facts, not from the other statement.
 
-**Record:** run `orbit-kb add "claim(c1, introduce, 'TEXT')" "cites(c1, 'TEXT')"`. Where they
-apply, add an `example`, a `question` with `assumed`, or `universal`. For a test or a
-script, run `orbit-kb add 'check(t1, c1)'`. Then run `orbit-kb run t1 -- CMD`.
+**Record:** the claims, as in DECOMPOSE, and `universal` where it applies. For a test or a
+script, add `check(t1, c1)` and `discovery_evidence(t1, system)`, and run
+`orbit-kb run t1 -- CMD`.
 
 #### FLYBY: explore combinations with SMT
 
-Write SMT-LIB 2, so that both Z3 and cvc5 can run the file. Name each requirement with
-`:named`. Keep the domain small. Use one file for each model.
+Use Z3 through its Python API or SMT-LIB 2. Give each requirement a name, so an unsat
+core names requirements. Keep the domain small. Use one file for each model, and save
+each run's output as its log.
 
-1. **Sanity.** Run the existing-world rules with no property. The verdict must be SAT. If it
-   is UNSAT, the encoding has an error. Before you use a verdict, fix the encoding.
-2. **Calibrate.** Pin the inputs of a real case from SURVEY. The model must give the same
-   result as the current system. Do the same for two or three normal cases. Then assert the
-   reported bad case. The verdict must be SAT.
-3. **Root cause (defects only).** Change one suspected rule at a time. The root cause is a
-   change that removes the bad case and keeps every normal case.
-4. **Target.** Remove the retired rules. Add the introduced rules. Keep the preserved rules.
-   Then make sure that these results hold:
-   - The bad case is UNSAT.
-   - Each preserved property still holds: its negation is UNSAT.
-   - Each introduced rule can apply: its condition is SAT.
-   - All requirements can hold together: the result is SAT, and the witness is an example for
-     the human.
-
-   A SAT result in this step also gives the target model its `sanity` verdict.
-5. **Conflicts.** If the requirements cannot hold together, get the unsat core: the named
-   requirements that cannot hold together. Record the core as a `conflict` finding. Attest a
-   `divergence` on each claim in the core. Write one question for the human from the core:
-   "For this case, these requirements cannot all hold. Which one gives?"
-6. **Explore.** Get several different witnesses. Block each witness. Then run the file again.
-   Show the human the cases that surprise you, and the boundary cases: zero, the maximum,
-   empty, one, and many. A solver's first witness is often an edge of the domain, for
-   example a price of one cent. Before you show a witness to the human, pin realistic values.
+1. **Sanity.** The existing-world rules with no property must be SAT. UNSAT is an encoding
+   error. Fix it first.
+2. **Calibrate.** Pin the inputs of a real case from SURVEY, and of two or three normal
+   cases. The model must give the results of the current system. If not, record a
+   calibration that `differs`, or a `divergence` with `model(M)`, and fix the model. Then
+   the reported bad case must be SAT.
+3. **Root cause (defects only).** Change one suspected rule at a time. The root cause
+   removes the bad case and keeps every normal case.
+4. **Target.** Remove the retired rules, add the introduced rules, and keep the preserved
+   rules. Then the bad case and each negated preserved property are UNSAT, each introduced
+   condition is SAT, and all requirements together are SAT. That witness is an example for
+   the human, and the target's `sanity` result.
+5. **Conflicts.** If the requirements cannot hold together, record the unsat core as one
+   `conflict` finding, and ask one question: "For this case, these requirements cannot all
+   hold. Which one gives?" After the answer, attest a `divergence` with `claim(C)` only on
+   each claim that the answer superseded.
+6. **Explore.** Get several witnesses: block each one, and run again. Show the human the
+   surprising cases and the boundary cases: zero, the maximum, empty, one, and many. First
+   pin realistic values.
 7. **Mutation.** Delete each introduced rule, one at a time. The bad case must return
-   (killed). If it does not return (survived), the rule does no work in this model. Find
-   the reason. Record it with `reason(Rule, 'TEXT')`.
-8. **Second solver.** Run the final file in Z3 and in cvc5. When the file uses `push` and
-   `pop`, give cvc5 `--incremental`. The verdicts must agree. Record a disagreement as a
-   `divergence` on the model.
+   (killed). If it does not (survived), find out why, and record a `reason`.
 
-The verdicts are:
+SAT: a case exists within the encoding. UNSAT: no case exists within the encoding, its
+assumptions, and bounds. `unknown`: a gap.
 
-- SAT: a case exists within the encoding.
-- UNSAT: no case exists within the encoding, its assumptions, and its bounds.
-- unknown: a gap.
-
-Never report `unknown` as UNSAT.
-
-**Record:** run `orbit-kb subject ID PATH` for each model and each solver log. Run
-`orbit-kb add 'model(M, smt)'`. Run `orbit-kb attest model_result LOG 'PREDICATE'` for each
-verdict. Run `orbit-kb add 'finding(F, KIND, model)'` for each finding. For a target model,
-add `derived_from` and `encodes`. Add an `example` for each witness that you keep. For a case
-that breaks a claim, attest a `disproof`.
+**Record:** `orbit-kb subject` for each model file and each solver log; `model(M, smt)`;
+`model_run(LOG, M, DIGEST)`, with the digest pasted, never typed:
+`D=$(orbit-kb subject M PATH)`, then `orbit-kb add "model_run(LOG, M, '$D')"`; each result as
+a `model_result` on its log; each `finding(F, KIND, model)`; an `example` for each kept
+witness; and, for a target model, `derived_from` and `encodes`. Give each solver run a new
+log; WD8 flags a reused one. File a `disproof` for each case that breaks a claim.
 
 #### TRAJECTORY: explore sequences with TLA+
 
-1. **Model the current behavior.** Write the variables, the initial state, and one action for
-   each real operation. Name each action after its code unit. Include the failure paths that
-   matter: timeouts, retries, crashes, and duplicate messages. If you omit one, record
-   it as an `assumption`.
-2. **Sanity.** For each important state, give TLC an invariant that says the state is never
-   reached. TLC must report a violation. Its trace is the witness that the state can occur.
-   If TLC reports no violation, the model cannot reach the state. Fix the model.
-3. **Calibrate.** Write the reported good behavior as an invariant. TLC must report a
-   violation. Translate the trace into concrete steps. Match the steps against the current
-   system. The code path must exist, and the logs or a test must show the same sequence. If
-   the current system shows the problem and the model cannot reach it, the model lacks an
-   action or an order of steps. Fix the model.
-4. **Root cause (defects only).** Change one suspected action at a time, as in FLYBY.
-5. **Target.** Change the actions for the retired and introduced claims. Add an invariant for
-   each preserved and introduced claim. If a claim needs a liveness property, add one, such as
-   "every order is eventually done". State its fairness assumptions.
-6. **Mutation.** Remove each new guard, or restore each old action, one at a time. The
-   violation must return.
-7. **Why-not.** For each invariant that holds, say why:
-   - contradicts: a modeled guard forbids the bad state.
-   - absent: the model omits the behavior that can cause it.
+Run the FLYBY steps, with these changes:
 
-   Record what the model omits as a `risk`.
-8. **Explore.** Run TLC on properties that the report did not ask about, but that the domain
-   suggests. A violation is a finding. Ask the human if it is in scope.
-9. **Bounds.** Start small: two processes, and two or three items. Increase the bounds once,
-   at the end. Record the bounds and the number of distinct states in a `note` for each
-   verdict.
+1. **Model.** Write the variables, the initial state, and one action for each real
+   operation, named after its code unit. Include the failure paths that matter: timeouts,
+   retries, crashes, and duplicate messages. Record each omitted one as an `assumption`.
+2. **Sanity.** For each important state, TLC must violate an invariant that says the state
+   is never reached.
+3. **Calibrate.** TLC must violate the reported good behavior. The code path of its trace
+   must exist, and the logs or a test must show the same sequence. If the system shows the
+   problem and the model cannot reach it, add the missing action or order of steps.
+4. **Target.** Add an invariant for each preserved and introduced claim, and liveness where
+   a claim needs it, with its fairness assumptions.
+5. **Mutation.** Remove each new guard, or restore each old action. The violation must
+   return.
+6. **Why-not.** For each invariant that holds, say why: *contradicts* (a guard forbids the
+   bad state) or *absent* (the model omits the cause). Record what the model omits as a
+   `risk`.
+7. **Explore.** Check properties that the domain suggests, but that the report did not ask
+   about. A violation is a finding. Ask the human if it is in scope.
+8. **Bounds.** Start with two processes and two or three items. Increase the bounds once,
+   at the end. Note the bounds and distinct states of each result.
 
-The verdicts are:
-
-- violated, with a trace
-- holds within the stated bounds
-- not run.
-
-**Record:** as in FLYBY, with `model(M, tla)`. When TLC violates a never-reached invariant,
-record `verdict(M, sanity, reached)`.
+TLC results: violated, with a trace; holds within the stated bounds; or not run. Record
+`model(M, tla)`. A violated never-reached invariant is `verdict(M, sanity, reached)`.
 
 #### DISPROVE: attack the claims
 
-Discovery and the build orbit share DISPROVE. In discovery, use a fresh subagent that sees
-only the report, the claims, and the models. It tries other inputs, other orders of steps,
-larger bounds, removed assumptions, old or malformed data, and probes of the current system.
+DISPROVE is shared with the build orbit. In discovery, a fresh subagent sees only the
+report, the claims, and the models. It tries other inputs, orders of steps, larger bounds,
+removed assumptions, old or malformed data, and probes of the current system.
 
-**Record:** run `orbit-kb attest disproof SUBJECT 'verdict(C, refuted)'`. Use `inconclusive`
-or `abstained` when it applies. For a counterexample, add a `note` and an `example`.
+**Record:** a `disproof`. For a counterexample, add a `note` and an `example`.
 
 #### GO / NO-GO: the human decides
 
-1. When `discovery_ready` holds, give the human the discovery report.
-2. The human chooses GO, NO-GO, or HOLD. Only the human changes the scope.
-3. On GO, write the ticket in the KB and in plain prose. The build orbit starts.
+1. When `discovery_decide` holds, give the human the discovery report.
+2. The human chooses GO (approve the ticket), NO-GO (the problem is not real, the feature
+   exists, or the human decides not to build), or HOLD (wait for data, for access, or for a
+   decision by another person). Only the human changes the scope or raises the budget.
+3. On GO, write the ticket in plain prose.
 
-**Record:** on GO, run `orbit-kb subject TK PATH` for the ticket file. Then run
-`orbit-kb add 'ticket(TK)'`. After the human says GO, run
-`orbit-kb attest approval TK 'digest(current)' --by human`. On NO-GO or HOLD, run
-`orbit-kb attest decision H 'no_go(H)' --by human`, or `'hold(H, TEXT)'`. Add a `note` with
-the reason.
+**Record:** on GO, record the ticket file with `orbit-kb subject tk PATH`, add `ticket(tk)`,
+and attest the human's `approval` of tk at `digest(current)`. On NO-GO, run
+`orbit-kb attest decision h1 "no_go(h1, 'REASON')" --by human`. For HOLD, use
+`hold(h1, 'WHAT IT WAITS FOR')`.
 
 ### Asking the human
 
-- Ask only the questions that evidence raised: a conflict, a surprise, a trace, a failed
-  reproduction, or a scope boundary.
-- Show a concrete case. Give options. Mark your default.
-- Ask at most three questions in one round. Ask about conflicts first, then about surprises,
-  then about boundaries.
-- Questions that no evidence raised stay dormant, with their defaults. They go into the
-  ticket.
-- To find the questions that wait, query `question_waits(Q)`. Also run `orbit-kb show open`.
+Ask as in "Ask first, or build on defaults". Also:
 
-**Record:** for each question, run
-`orbit-kb add "question(q1, C, 'TEXT')" 'assumed(q1, VALUE)' 'raised_by(q1, F)'`. For each
-answer, run `orbit-kb add 'answer(q1, VALUE, human)' 'lap_done(N)'`. If the answer changes a
-claim, add the new claim and `supersedes(NEW, OLD)`.
+- Ask only the questions that evidence raised: a conflict, a surprise, a trace, a failed
+  reproduction, or a scope boundary. Show the concrete case.
+- Ask about conflicts first, then surprises, then boundaries.
+- Questions that no evidence raised stay dormant, with their defaults, in the ticket.
+- When stakeholders conflict, the decision owner decides.
+
+**Record:** `question`, `assumed`, and `raised_by(Q, X)`, where X is the finding or
+hypothesis that raised Q. Then each `answer(Q, VALUE, human)`, and `lap_done(N)` when the round ends.
+`question_waits(Q)` lists each raised question that has no answer.
 
 ### The discovery report
 
-Give it to the human in short, plain sentences:
+Write it from the queries. `orbit-kb report` prints only the build-orbit sections.
 
 ```
 Hypothesis:   <one sentence>
-System:       <reproduced, not reproduced, or already exists; the evidence>
-Findings:     <each as a concrete case; from the current system or from a model only>
-Decide:       <at most three questions, with options and defaults>
+System:       <reproduced, not reproduced, or exists; the evidence>
+Findings:     <concrete cases, each from the system or a model only>
+Decide:       <up to three questions, with options and defaults>
 Scope:        in: ... / out: ...
-Risk:         <what the change touches; what a wrong build can damage; how to undo it>
-Claims:       <preserve, retire, introduce; each with one example>
-Not explored: <areas and behaviors that discovery did not cover>
-Recommend:    GO, NO-GO, or HOLD, with one reason
+Risk:         <what it touches; what a wrong build can damage; how to undo it>
+Claims:       <each claim, its label, one example>
+Not explored: <what discovery did not cover>
+Recommend:    <GO, NO-GO, or HOLD, and one reason>
 ```
 
-### The ticket
+On GO, the ticket holds the report without Decide and Recommend. It also holds:
 
-On GO, the ticket holds:
-
-- The problem, with its evidence
-- The scope: in and out
-- The risk: what the change touches, what a wrong build can damage (data, money, security,
-  public interfaces), how hard it is to undo, and what the models left out
-- The claims, each with at least one example from a witness, a trace, or a reproduction
+- In the risk: the data, money, security, or interfaces at stake, and what the models omit
+- For each claim, at least one example from a witness, a trace, or a reproduction
 - The human's answers, and the dormant questions with their defaults
 - Each counterexample, with its disposition
-- The claims marked `universal`, for BURN
-- The models, with their verdicts and bounds
-- What discovery did not explore.
+- The `universal` claims, for BURN
+- The models, verdicts, and bounds.
 
 ### Handoff to the build orbit
 
-- The build orbit uses the same KB. It skips SURVEY, because the world facts exist.
-- DECOMPOSE starts from the claims of discovery. A change to a claim must cite the ticket.
-- Each witness, trace, and counterexample becomes a test case. If the current system can
-  replay a trace, the trace becomes a red test.
-- When `orbit-kb run` fails, it records a red `test_result`. The build orbit reuses it as its
-  baseline.
-- Discovery can state a claim in SMT or TLA+, and BURN can state it in Lean. Then the claim
-  has two independent statements. Run the SMT witnesses as Lean `#eval` examples. If the two
-  statements disagree on a case, record a divergence.
+- The build orbit uses the same KB, and skips SURVEY.
+- DECOMPOSE starts from the discovery claims. A change to a claim must cite the ticket.
+- Each witness, trace, and counterexample becomes a test case. A trace that the system can
+  replay becomes a red test.
+- The build orbit reuses each red `test_result` as its baseline.
+- For a claim stated in SMT or TLA+ and again in Lean, run the SMT witnesses as Lean
+  `#eval` examples. Record a divergence where the two statements disagree.
 
 ### Back to discovery
 
-The build orbit returns to discovery when a divergence shows that the problem is wrong, not
-the build. File a disclosure first. Then return to the move that the KB names:
-
-- If the hypothesis is wrong, go to SIGNAL.
-- If a claim is wrong or missing, go to SPECTRUM.
-- If a model missed a behavior, go to FLYBY or TRAJECTORY.
-- If BURN shows that the requirements conflict, go to FLYBY. Then ask the human.
-
-Only the human changes the scope.
+When a divergence shows that the problem is wrong, not the build, file a disclosure. Then go
+to SIGNAL if the hypothesis is wrong, SPECTRUM if a claim is wrong or missing, FLYBY or
+TRAJECTORY if a model missed a behavior, and FLYBY and then the human if BURN shows that the
+requirements conflict.
 
 ### Discovery module (`--uses discovery`)
 
-Start the KB with `orbit-kb init DIR --request-file F --uses discovery`. Keep the models in
-`models/` and the logs in `logs/` inside DIR. Record `scope`, `risk`, `assumption`, and
-`not_explored` as you learn them.
+Start the KB with `orbit-kb init DIR --request-file F --uses discovery`, where F holds the
+report word for word. Keep the models and the logs inside DIR. Record `scope`, `risk`,
+`assumption`, and `not_explored` as you learn them.
 
 Facts:
 
 | Fact | Meaning |
 |---|---|
-| `hypothesis(H, Kind, Text)` | The scoped restatement of the report. Kind is `defect`, `feature`, or `risk`. |
-| `budget(laps, N)` | The laps that discovery can use. |
-| `lap_done(N)` | Lap N ended with an answer from the human. |
+| `hypothesis(H, Kind, Text)` | Kind is `defect`, `feature`, or `risk`. |
+| `budget(laps, N)` | The largest lap budget counts. |
+| `lap_done(N)` | Lap N ended with a human answer. |
+| `discovery_evidence(S, From)` | S is `system` or `model` evidence. A model file or solver log is never `system` evidence. |
 | `model(M, Tool)` | Subject M is a model file. Tool is `smt` or `tla`. |
+| `model_run(Log, M, Digest)` | Solver log Log is a run of model M at that digest. Its results count only while M keeps that digest. |
 | `derived_from(Target, Existing)` | The target model changes the existing-world model. |
-| `encodes(M, Claim)` | Model M states the claim. |
-| `finding(F, Kind, From)` | What the evidence showed. Kind is `root_cause(X)`, `conflict(Core)`, `surprise(Case)`, `trace(T)`, or `scope(Item)`. From is `system` or `model`. |
-| `reason(Rule, Text)` | Why the rule survived its mutation. |
-| `raised_by(Q, F)` | Finding F raised question Q. |
+| `encodes(M, C)` | Model M states claim C. |
+| `finding(F, Kind, From)` | Kind is `root_cause(X)`, `conflict(Core)`, `surprise(Case)`, `trace(T)`, or `scope(Item)`. From is `system` or `model`. |
+| `reason(M, Rule, Text)` | Why the rule of model M survived its mutation. |
+| `raised_by(Q, X)` | Finding or hypothesis X raised question Q. |
 
-Attestation types: `reproduction`, with `result(H, reproduced)`, `result(H, not_reproduced)`,
-and `confirms(F)`. `model_result`, with `verdict(M, Kind, Result)`,
-`calibration(M, Case, matches)`, and `mutation(M, Rule, killed)`. `decision`, with `no_go(H)`
-and `hold(H, Text)`. A calibration can also be `differs`. A mutation can also be `survived`.
+Attestation types:
+
+- `reproduction`, on system evidence: `result(H, reproduced)`, `result(H, not_reproduced)`,
+  or `confirms(F)`.
+- `model_result`, on a solver log: `verdict(M, Kind, Result)`,
+  `calibration(M, Case, Result)`, or `mutation(M, Rule, Result)`. A calibration Case is
+  `example(C)` or `case(Text)`, and its Result is `matches` or `differs`. A mutation Result
+  is `killed` or `survived`.
+- `decision`, by the human only: `no_go(H, Text)` or `hold(H, Text)`. GO is a core
+  `approval`, not a decision.
 
 In a `verdict`, Kind is `sanity`, `bad_case`, `together`, `root_cause(R)`, `normal_case(N)`,
-`preserve(C)`, `applies(C)`, or `explore(T)`. Result is `sat`, `unsat`, `unknown`, `reached`,
-`violated`, or `holds`.
-
-Run a query with `-n 0` to list every binding:
+`preserve(C)`, `applies(C)`, or `explore(T)`. Result is `sat`, `unsat`, `unknown`,
+`reached`, `violated`, or `holds`.
 
 | Query | True when |
 |---|---|
-| `discovery_ready` | discovery touched the current system and no work is open, or the last lap of the budget ended |
-| `question_waits(Q)` | a finding raised Q, and the human did not answer it |
-| `no_falsifier(C)` | current claim C has no trusted model and no check |
-| `finding_lead(F)` | only a model shows finding F about the current system, and no `reproduction` has `confirms(F)` |
-| `unasked_finding(F)` | finding F needs a question, and it raised none |
-| `weak_rule(R)` | rule R survived its mutation, and no `reason` explains it |
-| `model_trusted(M)` | model M is sane, and M or the model that it changes is calibrated |
+| `discovery_ready` | clean: there is a hypothesis, and each hypothesis has a system result; a claim is current, or a hypothesis did not reproduce; no current claim is refuted or has no falsifier; no question waits or is `to_ask`; no WD1, WD3, WD7, or ED3 to ED7 |
+| `discovery_decide` | `discovery_ready`, or `budget_spent`: the last lap of the largest budget is done |
+| `no_falsifier(C)` | current claim C has no `check`, and no trusted model that encodes C gave a `preserve(C)` or `applies(C)` result other than `unknown` |
+| `model_trusted(M)` | M is sane, calibrated, and does not diverge. Or, one level only: M is sane, does not diverge, and is `derived_from` such a model of the same tool. |
 
-If `discovery_ready` is false, run `orbit-kb show open`. Then run the other queries of the table. For the full
-reason, run `orbit-kb whynot 'discovery_ready'`.
+Discovery is ready with no current claim only when a hypothesis did not reproduce: a NO-GO
+candidate (WD6).
+
+Lint codes (E: error, W: warning):
+
+| Code | Meaning | What to do |
+|---|---|---|
+| WD1 | A conflict, surprise, or scope finding raised no question. | Ask one. |
+| WD2 | A model states a claim, but is not trusted. | Make it sane and calibrated. |
+| WD3 | A rule survived its mutation, with no `reason`. | Find out why. Add a `reason`. |
+| WD4 | Only a model shows this finding. | Confirm it, or report a lead. |
+| WD5 | A result is `unknown`. | Report a gap, never UNSAT. |
+| WD6 | The problem did not reproduce. | Tell the human: a NO-GO candidate. |
+| WD7 | A hypothesis has no system result. | Reproduce it, or ask if it is another ticket. |
+| WD8 | This result's log has a run of an older model file. | Run `orbit-kb subject` on the model. Run the solver into a new log. |
+| ED1 | A reproduction is not on system evidence. | Use a log, query, or test tagged `system`. |
+| ED2 | A model result has no `model_run` for its log. | Add it. |
+| ED3 | The model disagrees with the system, or the existing-world model misses the bad case. | Fix the model. |
+| ED4 | A claim can never apply. | Fix the model, or ask the human. |
+| ED5 | A model breaks a current claim. | File a `disproof` with `refuted`. |
+| ED6 | Two results for one check disagree. | Find the cause. |
+| ED7 | A claim replaces a refuted or contested claim with no human answer. | Ask the human. |
+| ED8 | No finding or hypothesis raised this question. | Correct `raised_by`. |
+| ED9 | A model is derived from a derived model, or from itself. | Derive targets from existing-world models only. |
+
+If `discovery_ready` is false, run `orbit-kb lint` and `orbit-kb whynot 'discovery_ready'`.
+`orbit-kb show open` omits the discovery items.
 
 ### Honesty rules for discovery
 
 These rules extend the shared honesty rules.
 
-1. State the origin of each finding: the current system, or a model only. A finding from a
-   model only is a lead until you attest `confirms(F)` from the current system. Report each
-   lead, and label it as a lead.
-2. Report each solver verdict with its encoding, bounds, and assumptions. Never state a bounded
-   result as "always" or "never".
-3. A model that you did not calibrate against the current system gives no verdict about that
-   system. Only a `model_trusted` model counts.
-4. A property that holds because its condition never occurs is vacuous. It is not
-   evidence.
-5. Say what you did not explore. Record it with `not_explored`.
-6. If the report is wrong, say so, with the evidence. That is a valid result.
-7. Lint errors block GO. Before you recommend GO, fix each error that `orbit-kb lint` reports.
+1. Label each finding as from the current system, or from a model only. A model-only
+   finding is a lead until a system `reproduction` attests `confirms(F)`. Report each lead.
+   Leads do not block `discovery_ready`.
+2. Report each solver result with its encoding, bounds, and assumptions. Never state a
+   bounded result as "always" or "never".
+3. Only a trusted model gives a verdict about the current system.
+4. A model that cannot fail is not evidence: every result is UNSAT, or a property holds only
+   because its condition never occurs.
+5. Say what each model omits, and what you did not explore.
+6. A wrong report is a valid result. Say so, with the evidence.
+7. Lint errors block GO. Fix each one first.
 
 ### Sizes and speed
 
-- **Small** (most reports): SIGNAL, SURVEY, and GO. The reproduction is the evidence.
-- **Medium:** add SPECTRUM, and one FLYBY or TRAJECTORY for the claims whose shape needs it.
-- **Large:** several models, DISPROVE, and several laps with the human.
-- Ask a subagent on a fast LLM to do the searches and read the logs. Write the models yourself.
-- Set a timeout on every solver run. Run TLC with small bounds first, and with the final
-  bounds once.
+- **Small** (most reports): SIGNAL, SURVEY, one claim whose check is the reproduction, and
+  GO.
+- **Medium:** add SPECTRUM, and one FLYBY or TRAJECTORY.
+- **Large:** several models, DISPROVE, and several laps.
+- Write the models yourself. A subagent on a fast model can read the logs.
+- Set a timeout on every solver run.
 
 ---
 
@@ -454,7 +355,7 @@ These rules extend the shared honesty rules.
 
 These changes connect the two orbits. They belong to the build draft, not to this draft.
 Contract v2.1 adopted some of them. The build draft's new section "The knowledge base"
-(read 2026-10-15) covers two more.
+(read 2026-10-15, and again 2026-10-16) covers two more.
 
 ## Adopted by contract v2.1
 
@@ -468,6 +369,8 @@ Contract v2.1 adopted some of them. The build draft's new section "The knowledge
   `refuted`, so the build draft needs no clause for each attestation type.
 - **Adopted:** divergences from discovery count toward BURN. The core `contested_twice/1`
   counts every `divergence` attestation on a claim, from either orbit, and `burn(C)` reads it.
+  Since 2026-10-16, an unsat core puts a divergence only on each claim that the human's
+  answer superseded. The claim that wins is not contested by the core.
 
 ## Done in the build draft
 
@@ -489,6 +392,20 @@ Contract v2.1 adopted some of them. The build draft's new section "The knowledge
    SURVEY when discovery ran.
 4. **Place for "Discovery module".** It mirrors "Build module". When the prompts are
    assembled, it can sit next to "Build module" in the shared section.
+5. **Sections that Part 1 relies on.** To stay under 3,000 words, Part 1 points at build-draft
+   text instead of repeating it: DECOMPOSE (labels, citations, the drift rule, and dormant
+   questions), "Ask first, or build on defaults" (at most three questions, options, and a
+   marked default), SURVEY (the closed world), DISPROVE (the three verdicts), and "Speed"
+   (searches go to a subagent on a fast model). A change to one of these sections changes
+   discovery too.
+6. **Digest rule.** "Never type a digest" in "Rules for the KB" does not fit `model_run/3`,
+   which needs the digest of the model. Part 1 pastes it through the shell
+   (`D=$(orbit-kb subject M PATH)`), so the rule holds. Better fixes belong to the CLI: an
+   `orbit-kb add` form such as `digest_of(M)`, like the `digest(current)` form of
+   `orbit-kb attest`, or an `orbit-kb run` that records the digests of named inputs.
+7. **Resume step.** "When you resume, run `orbit-kb show open` first." `show open` lists only
+   the core items, and the build items when the build module is in use. For discovery, the
+   step must also run `orbit-kb lint`.
 
 ---
 
@@ -513,20 +430,22 @@ price." Budget: three laps.
 - World: `CheckoutService.ApplyCodes` clamps the price to the floor after the first code. It
   then takes off the second code.
 - Reproduction: order 4417. List price $40.00, floor $30.00, codes $5.00 and $10.00. The
-  payment log shows $25.00 (`logs/order-4417.log`).
+  payment log shows $25.00 (`logs/order-4417.log`). The log is a subject tagged
+  `discovery_evidence(log4417, system)`, and attestation a1 records `result(h1, reproduced)`
+  on it.
 
 **SPECTRUM.**
 
 - c1, introduce: "No order is charged below its floor price." Cites "paid less than our
   minimum price". Tool: SMT, because it is a price rule over combinations of codes. Check t1
-  is a test of order 4417. It fails on the current system (run 1), so it is the red baseline.
+  is a test of order 4417, tagged as system evidence. It fails on the current system (run 1),
+  so it is the red baseline.
 - c2, preserve: "Each code takes off its full amount." Cites "used two discount codes". Tool:
   SMT.
-- Dormant questions: the fixture holds none. The earlier draft had two (percentage codes, and
-  a floor per order or per item). The fixture lists `not_explored` items instead. A dormant
-  question on c1 or c2 would become `to_ask` after the unsat core below, and
-  `discovery_ready` would fail (fixture variant `cf8_dormant_on_contested`). See open
-  question 5.
+- Dormant questions: the fixture holds none. It lists `not_explored` items instead. Variant
+  `cf8_draft_dormant` adds the two questions of the earlier draft: a floor per order or per
+  item (on c1), and percentage codes (on c2b). They stay dormant, because no divergence names
+  c1 or c2b, and `discovery_ready` still holds.
 
 **FLYBY, lap 1** (`discount-now.smt2`, then `discount-target.smt2`):
 
@@ -549,7 +468,8 @@ The unsat core becomes one question:
 > (c) Allow prices below the floor.
 
 The human answers (a). c2b supersedes c2: "Each code takes off its full amount, down to the
-floor price."
+floor price." Only now does a divergence go on c2, the claim that gave (a12). c1 won, so no
+divergence names it. `contested(C)` gives only c2, which is no longer current.
 
 **FLYBY, lap 2** (`discount-target.smt2`, steps 2 to 5):
 
@@ -564,18 +484,18 @@ Z3's witness is a good boundary case: one cent below the floor. cvc5's witness i
 order. That is valid, but not useful to a human. Hence the rule: pin realistic values before
 you show a witness.
 
-Nothing waits for the human. `discovery_ready` holds.
+Nothing waits for the human. `discovery_ready` and `discovery_decide` hold.
 
 **Renamed atoms.** s(CASP) drops a trailing `_<digits>` from an atom (hazard H4). So
 `order_4417` became `order4417` in the KB, and `log_4417` became `log4417`. The solver output
 and the `note` text keep the old name. The unsat core above is solver output. Finding f2
-holds it as `[c1_floor, c2_full_codes, order4417]`.
+holds it as `[c1_floor, c2_full_codes, order4417]`, and the note on f2 keeps `order_4417`.
 
-**The KB with orbit-kb.** These commands rebuild `kb.pl` of the fixture. Run them in a folder
-with `request.txt` (the report text), `models/`, `logs/`, and `ticket.md`. Ids and
-digests come from the CLI, and the times differ. The comments show the attestation ids. The
-other five `note` facts of the fixture (on a1, a9, a11, a12, and a13) follow the pattern of
-`note(a4, ...)`.
+**The KB with orbit-kb.** These commands rebuild `kb.pl` of the fixture, with every fact,
+in the same order, and with the same ids. Run them in a folder with `request.txt` (the report
+text), `models/`, `logs/`, and `ticket.md`. The digests come from the CLI, and only the times
+differ. The comments show the attestation ids. The fixture has no a11: that id was the
+divergence on c1, which decision 2 removed. So the divergence on c2 uses `--id a12`.
 
 ```sh
 orbit-kb init kb --request-file request.txt --uses discovery
@@ -585,54 +505,68 @@ cp -r models logs ticket.md kb/ && cd kb      # the evidence files must sit insi
 orbit-kb add "hypothesis(h1, defect, 'Two discount codes can price an order below the floor price.')" 'budget(laps, 3)'
 orbit-kb add 'world(clamp_after_first_code)' "source(clamp_after_first_code, 'CheckoutService.ApplyCodes')"
 orbit-kb subject log4417 logs/order-4417.log
+orbit-kb add 'discovery_evidence(log4417, system)'
 orbit-kb attest reproduction log4417 'result(h1, reproduced)'                            # a1
+orbit-kb add "note(a1, 'The payment log shows that order 4417 was charged \$25.00. Its floor is \$30.00.')"
 
 # SPECTRUM
 orbit-kb add "claim(c1, introduce, 'No order is charged below its floor price.')" \
   "claim(c2, preserve, 'Each code takes off its full amount.')" \
   "cites(c1, 'paid less than our minimum price')" "cites(c2, 'used two discount codes')" \
-  'check(t1, c1)' \
-  "example(c1, 'Order 4417: list \$40.00, floor \$30.00, codes \$5.00 and \$10.00. Charge \$30.00.')" \
-  "scope(in, 'two or more fixed-amount codes at checkout')" "scope(out, 'gift cards')" \
+  'check(t1, c1)' 'discovery_evidence(t1, system)' \
+  "example(c1, 'Order 4417: list \$40.00, floor \$30.00, codes \$5.00 and \$10.00. Charge \$30.00.')"
+orbit-kb run t1 -- dotnet test --filter FullyQualifiedName~Pricing.Order4417IsChargedAtLeastTheFloor   # a2: run 1 fails, exit 1
+orbit-kb add "scope(in, 'two or more fixed-amount codes at checkout')" "scope(out, 'gift cards')" \
   "risk(k1, 'The change alters the price of each order whose codes cross the floor.')" \
   "assumption(s1, 'Every code takes off a fixed amount.')"
-orbit-kb run t1 -- dotnet test --filter FullyQualifiedName~Pricing.Order4417IsChargedAtLeastTheFloor   # a2: run 1 fails, exit 1
 
-# FLYBY, lap 1: the existing-world model, then the target model and the conflict
-orbit-kb subject m_now models/discount-now.smt2
-orbit-kb subject run_now logs/discount-now.log
+# FLYBY, lap 1: the existing-world model
+d=$(orbit-kb subject m_now models/discount-now.smt2)                                     # prints the digest
 orbit-kb add 'model(m_now, smt)'
-for p in 'verdict(m_now, sanity, sat)' 'calibration(m_now, order4417, matches)' \
-         'verdict(m_now, bad_case, sat)' 'verdict(m_now, root_cause(clamp_after_both_codes), unsat)' \
+orbit-kb subject run_now logs/discount-now.log
+orbit-kb add "model_run(run_now, m_now, '$d')"
+orbit-kb attest model_result run_now 'verdict(m_now, sanity, sat)'                      # a3
+orbit-kb attest model_result run_now 'calibration(m_now, example(c1), matches)'         # a4
+orbit-kb add "note(a4, 'The model gives 2500 cents for order 4417. The payment log shows 2500 cents.')"
+for p in 'verdict(m_now, bad_case, sat)' 'verdict(m_now, root_cause(clamp_after_both_codes), unsat)' \
          'verdict(m_now, normal_case(one_code), unsat)' \
          'verdict(m_now, normal_case(both_codes_above_floor), unsat)'; do
-  orbit-kb attest model_result run_now "$p"                                            # a3 to a8
+  orbit-kb attest model_result run_now "$p"                                            # a5 to a8
 done
-orbit-kb add "note(a4, 'The model gives 2500 cents for order 4417. The payment log shows 2500 cents.')" \
-  'finding(f1, root_cause(clamp_after_first_code), model)'
+orbit-kb add 'finding(f1, root_cause(clamp_after_first_code), model)'
 orbit-kb attest reproduction log4417 'confirms(f1)'                                     # a9
-orbit-kb subject m_target models/discount-target.smt2
-orbit-kb subject run_target logs/discount-target.log
+orbit-kb add "note(a9, 'The log of order 4417 shows the clamp after the first code, and no clamp after the second code.')"
+
+# FLYBY, lap 1: the target model and the conflict (a finding and a question only)
+d=$(orbit-kb subject m_target models/discount-target.smt2)
 orbit-kb add 'model(m_target, smt)' 'derived_from(m_target, m_now)'
+orbit-kb subject run_target logs/discount-target.log
+orbit-kb add "model_run(run_target, m_target, '$d')"
 orbit-kb attest model_result run_target 'verdict(m_target, together, unsat)'            # a10
-orbit-kb add 'finding(f2, conflict([c1_floor, c2_full_codes, order4417]), model)'
-orbit-kb attest divergence run_target 'claim(c1)'                                       # a11
-orbit-kb attest divergence run_target 'claim(c2)'                                       # a12
-orbit-kb add "question(q1, c2, 'Order 4417: full codes give \$25.00, and the floor says at least \$30.00. Which one gives?')" \
+orbit-kb add 'finding(f2, conflict([c1_floor, c2_full_codes, order4417]), model)' \
+  "note(f2, 'Unsat core for order 4417: c1_floor, c2_full_codes, order_4417.')" \
+  "question(q1, c2, 'Order 4417: full codes give \$25.00, and the floor says at least \$30.00. Which one gives?')" \
   'assumed(q1, floor_wins)' 'raised_by(q1, f2)'
 
-# The human answers (a), and lap 1 ends. FLYBY, lap 2
-orbit-kb add 'answer(q1, floor_wins, human)' 'lap_done(1)' \
+# The human answers (a): the floor wins, so c2 gives. Only now does a divergence go on c2.
+orbit-kb add 'answer(q1, floor_wins, human)'
+orbit-kb attest divergence run_target 'claim(c2)' --id a12                              # a12 (the fixture has no a11)
+orbit-kb add "note(a12, 'The human answered q1: the floor wins. So c2 gives, and c2b supersedes it. Finding f2 holds the unsat core.')" \
+  'lap_done(1)' \
   "claim(c2b, preserve, 'Each code takes off its full amount, down to the floor price.')" \
   'supersedes(c2b, c2)' "cites(c2b, 'used two discount codes')" \
   'encodes(m_target, c1)' 'encodes(m_target, c2b)'
-for p in 'verdict(m_target, sanity, sat)' 'verdict(m_target, bad_case, unsat)' \
-         'verdict(m_target, preserve(c2b), unsat)' 'verdict(m_target, applies(c1), sat)' \
-         'mutation(m_target, clamp, killed)'; do
-  orbit-kb attest model_result run_target "$p"                                         # a13 to a17
+
+# FLYBY, lap 2: the target model
+orbit-kb attest model_result run_target 'verdict(m_target, sanity, sat)'                # a13
+orbit-kb add "note(a13, 'Check 4 is sat, so the target rules admit an order.')"
+for p in 'verdict(m_target, bad_case, unsat)' 'verdict(m_target, preserve(c2b), unsat)' \
+         'verdict(m_target, applies(c1), sat)'; do
+  orbit-kb attest model_result run_target "$p"                                         # a14 to a16
 done
-orbit-kb add "example(c1, 'List \$40.00, floor \$30.00, codes \$5.00 and \$5.01. Charge \$30.00.')" \
-  "example(c2b, 'List \$40.00, floor \$20.00, codes \$5.00 and \$10.00. Charge \$25.00.')" \
+orbit-kb add "example(c1, 'List \$40.00, floor \$30.00, codes \$5.00 and \$5.01. Charge \$30.00.')"
+orbit-kb attest model_result run_target 'mutation(m_target, clamp, killed)'             # a17
+orbit-kb add "example(c2b, 'List \$40.00, floor \$20.00, codes \$5.00 and \$10.00. Charge \$25.00.')" \
   "example(c2b, 'List \$40.00, floor \$30.00, one code \$5.00. Charge \$35.00.')" \
   "not_explored('percentage codes')" "not_explored('codes on single items')" \
   "not_explored('refunds of orders with codes')"
@@ -646,9 +580,13 @@ orbit-kb add 'ticket(tk)'
 orbit-kb attest approval tk 'digest(current)' --by human                               # a18
 ```
 
-`expected.pl` holds the queries that the harness runs on the base KB and on 15 variants. A
+`expected.pl` holds 157 expectations: 23 on the base KB, and the rest on 51 variants. A
 variant changes the KB by a few facts, for example the missing answer of the human (`cf1`) or
-a mutation that survived (`cf5`). The harness is `orbit-kb-staging/harness/run.pl`.
+a mutation that survived (`cf5`). The three design decisions of 2026-10-16 have their own
+variants: `cf7_budget_spent` and `m6_budget_hides` (out of budget is not ready, but the human
+must decide), `cf8_draft_dormant` and the base `contested(C)` (the core divergence goes only
+on c2), and `m5_not_reproduced` (ready with no current claim). The harness is
+`orbit-kb-staging/harness/run.pl`.
 
 **Discovery report:**
 
@@ -702,12 +640,22 @@ claim is about retries and timeouts: orders of steps.
 | Mutation: remove dedupe | 1 retry | violation | violated. The same run as the calibration. |
 | Explore: charged but shown "failed" | 1 retry, dedupe | (not asked) | violated: charge, retry, give up |
 
-Records: TLC reports a violation of each never-reached invariant. Record the two sanity rows
-as `verdict(m_now, sanity, reached)`. Record the calibration as
-`calibration(m_now, order5120, matches)`, and the mutation as
-`mutation(m_target, dedupe, killed)`. The trace and the surprise are two `finding` facts from
-the `model`: a `trace` and a `surprise`. The bounds and the distinct-state counts go in `note`
-facts.
+Records: each TLC run writes its own log. Each log is a subject with a `model_run` fact for
+its model and the digest of `Checkout.tla`. TLC reports a violation of each never-reached
+invariant. Record the two sanity rows as `verdict(m_now, sanity, reached)`. Record the
+calibration run as `calibration(m_now, case('order 5120'), matches)` and as
+`verdict(m_now, bad_case, violated)`, the target runs as `verdict(m_target, bad_case, holds)`,
+and the mutation as `mutation(m_target, dedupe, killed)`. The trace and the surprise are two
+`finding` facts from the `model`: a `trace` and a `surprise`. The log of order 5120 is tagged
+`discovery_evidence(log5120, system)`. A `reproduction` on it with `confirms` confirms the
+trace. The surprise stays a lead (WD4), and it raises question 1 (WD1 if it raised none). The
+bounds and the distinct-state counts go in `note` facts. Open question 6 covers the two models
+of one file.
+
+Example B is not a fixture, and no harness checks it. It records no `applies(c1)` result and
+no check, so `no_falsifier(c1)` would hold. A TLC run that shows that the dedupe guard can
+apply (`verdict(m_target, applies(c1), reached)`), or a test that replays order 5120, closes
+that gap. Neither run exists yet.
 
 Why-not for c1: contradicts. The dedupe guard forbids a second charge. Absent: gateway
 restarts that lose the dedupe record, and two devices that pay at the same time. Both go into
@@ -736,9 +684,25 @@ Not explored: gateway restarts; two devices that pay at once; more than three re
 Recommend:    GO after you answer question 1.
 ```
 
+Question 1 waits, so `discovery_ready` is false, and the budget is not spent. This report is
+the human leg of lap 1, in the form of the discovery report. See open question 13.
+
 ---
 
 # Part 4: design notes (not part of the prompt)
+
+## One solver, any input language (2026-10-19)
+
+The model language is open: Z3's Python API, which LLMs tend to write by default, or
+SMT-LIB 2. A Python model is still one file with a digest, and its printed output is the
+log, so `model_run`, WD8, and the other rules do not change. Example A stays in SMT-LIB 2.
+
+Part 1 now uses Z3 only, and names no other solver. The step
+that ran the final file in a second solver is gone. Both solvers read the same encoding,
+so they agree on an encoding error; the second run caught only solver bugs, and it let an
+agent rerun a check until it got the result it wanted. Sanity, calibration, the bad case,
+and mutation catch encoding errors. The Example A results below still show both solvers,
+as history. ED6 still flags two results that disagree on one check of one model digest.
 
 ## Why SMT and TLA+ here, and Lean in the build orbit
 
@@ -762,7 +726,8 @@ Recommend:    GO after you answer question 1.
 - New: a risk output (decided 2026-10-13).
 - SHAKEDOWN folds into the shared DISPROVE move.
 - The stopping rule is now the `discovery_ready` query and a budget. The fixed point follows
-  from superseding claims.
+  from superseding claims. (Since 2026-10-16, the stop is `discovery_decide`. See "What
+  changed after the review".)
 - Lean leaves discovery. Universal claims go to BURN.
 
 ## What changed with orbit-kb
@@ -775,8 +740,58 @@ Recommend:    GO after you answer question 1.
 - Changes: a human answer belongs to a question (`answer/3`, `raised_by/2`), not to a finding,
   so `waits(F)` became `question_waits(Q)` and `unasked_finding(F)`. GO is a core `approval`,
   not `decision go(H)`. A calibration and a mutation have their own `model_result` shapes.
-- A reproduction that can run is a `check` with a red `test_result`. Only a log or a query is
-  a `reproduction` attestation.
+- A reproduction that can run is a `check` with a red `test_result`. Evidence that cannot
+  run, such as a log or a query result, is a `reproduction` attestation. Since 2026-10-16, the
+  subject of a `reproduction` must be tagged `discovery_evidence(S, system)`. A tagged check
+  can also be the subject.
+
+## What changed after the review (2026-10-16)
+
+The fresh-eyes review (`orbit-kb-staging/REVIEW.md`) found 15 defects in the module and the
+fixture. The module now closes them, and Part 1 follows the module.
+
+- **Split gate (decision 1, finding 6).** `discovery_ready` means clean: nothing is open.
+  `discovery_decide` holds when discovery is ready, or when the budget is spent. Out of
+  budget is not ready. The agent reports the open items, and the human decides GO, NO-GO, or
+  HOLD. The largest `budget(laps, N)` counts, because the KB is append-only.
+- **Unsat cores (decision 2, finding 8).** An unsat core is one `conflict` finding and one
+  question. Only after the human answers does a core divergence go on each claim that the
+  answer superseded. The claim that wins is not contested, so its dormant questions stay
+  dormant. The fixture lost its divergence on c1 (a11).
+- **Ready with no claim (decision 3, finding 5).** Discovery is ready with no current claim
+  only on the `not_reproduced` path, a NO-GO candidate (WD6). `discovery_ready` also needs
+  at least one hypothesis, and a result from the current system for each one (WD7, finding
+  13).
+- **Evidence tags (finding 4).** `discovery_evidence(S, system|model)` tags evidence. A model
+  file or a solver log is never system evidence. A `reproduction` on anything else is ED1.
+- **Model digests (findings 3 and 14).** `model_run(Log, Model, Digest)` binds each solver log
+  to its model and to the digest of the model file. A result counts only while the model keeps
+  that digest, and only when its log has no run of an older digest (WD8). A result whose log
+  has no `model_run` for its model is ED2.
+- **Divergent models (finding 1).** A calibration that `differs`, a `divergence` with
+  `model(M)` on any subject except a log of an older digest of M, or an existing-world model
+  that misses the bad case makes the model diverge (ED3). A model that diverges is not
+  trusted. A target is derived from an existing-world model; a `derived_from` cycle or chain
+  is ED9, and its models get the existing-world check.
+- **All results count (finding 2).** `unknown` is WD5. An `applies(C)` check with no case is
+  vacuous (ED4). A model that breaks a current claim needs a `disproof` with the verdict
+  `refuted` (ED5); `inconclusive` and `abstained` do not file it. Two results
+  that disagree on one check are ED6. A failed sanity result cancels sanity.
+- **Trust (finding 14).** A target model inherits trust one level only, from a calibrated
+  model of the same tool. TLC sanity results `reached` and `violated` both pass.
+- **Scope (finding 7).** A claim that replaces a refuted or contested claim needs a human
+  answer to a question about one of the two claims (ED7). Superseding an undisputed claim is
+  allowed, because the human approves the whole ticket at GO (ticket decision D4).
+- **Smaller fixes.** `reason/3` names the model (finding 12). `raised_by` can name a
+  hypothesis (ED8). NO-GO is `no_go(H, Text)`, with the reason in the text.
+- **Part 1 (requirement R8).** Part 1 went from 3,745 to 2,998 words. TRAJECTORY now lists
+  only how it differs from FLYBY. "Divergences in discovery" and "Quiet failures" became
+  steps of the moves, the lint table, and the honesty rules. "Input and output" moved into
+  "Purpose" and "GO / NO-GO". "The ticket" moved into "The discovery report". Part 1 points at
+  build-draft sections instead of repeating them (Part 2, item 5).
+- **Small reports.** The size "Small" was SIGNAL, SURVEY, and GO. The gate needs a current
+  claim on the reproduced path, so "Small" now includes one claim whose check is the
+  reproduction.
 
 ## s(CASP) hazards H1 to H4
 
@@ -790,6 +805,9 @@ two engines. A mismatch prints ENGINE DISAGREEMENT and exits 2. Nobody proved `p
 the cross-check is the safeguard. H4: s(CASP) drops a trailing `_<digits>` from atoms, so
 `order_4417` and `order_5120` merge. Lint error E13 finds such atoms, and the commands `add`,
 `declare`, `attest`, and `init --id` reject them. `orbit-kb doctor` tests all four hazards.
+`orbit-kb help` (read 2026-10-16) adds that s(CASP) now runs on a grounding of the program for
+each goal. H2 and H3 cannot occur in a grounded program, and `--forall=prev` applies only when
+the CLI runs the program as written.
 
 ## Sources
 
@@ -801,6 +819,8 @@ the cross-check is the safeguard. H4: s(CASP) drops a trailing `_<digits>` from 
   It supports "if the current system can replay a trace".
 - The orbit-kb contract, v2.1: `~/.dotfiles/thoughts/orbit-kb-contract.md`.
 - The s(CASP) engine tests: `discovery-orbit-examples/kb-a/RESULTS.md`.
+- The review of the module and the fixture: `orbit-kb-staging/REVIEW.md` (findings 1 to 15),
+  and the ticket for the fixes: `TICKET.md` (requirement R7 holds the three design decisions).
 - Other citations: `~/.dotfiles/thoughts/aidlc-v2-deep-explanation.md`.
 
 ## Verified (2026-10-15)
@@ -821,6 +841,8 @@ Tools: Z3 5.1.0, cvc5 1.3.4, and TLC 2.19 (08 August 2024, rev 5a47802). The com
   13 failures printed ENGINE DISAGREEMENT. The core has changed since those runs (contract
   change D5). A new run gives 58/59 on both engines. The expectation `to_ask(Q) = [q1]` of
   variant `cf1_no_answer` is stale, because q1 is on the superseded claim c2 (open question 5).
+  `expected.pl` was regenerated after the review. `cf1_no_answer` now expects no `to_ask`
+  answer, and the file holds 157 expectations.
 - The Example A command sequence ran against the installed CLI. A scratch library held the
   staging `discovery.pl`, because the installed `modules/discovery.pl` is a placeholder. Every
   command succeeded, except the red `run` (exit 1, as intended). `orbit-kb lint` printed no
@@ -835,10 +857,44 @@ Tools: Z3 5.1.0, cvc5 1.3.4, and TLC 2.19 (08 August 2024, rev 5a47802). The com
 - A variable that occurs only under `not` is existential in s(CASP). The contract reproduced
   it for every `--forall` mode (hazard H1).
 
+## Verified (2026-10-16)
+
+- `harness/check_draft.py` passes all six checks. Part 1 has 2,998 words.
+- The Example A command block ran against the installed CLI, with a scratch copy of the
+  installed library that holds the staged `discovery.pl`. The run used `false` in place of the
+  `dotnet test` command, so run 1 failed with exit 1, as in the fixture. Every other command
+  succeeded. `orbit-kb lint` reported 0 errors and 0 warnings, and `discovery_ready` was true.
+  Before GO, the new `kb.pl` equals the fixture term for term, in the same order, with the
+  same ids. Only the times differ. After GO, `discovery_decide` was true, `stale(A)` and
+  `to_ask(Q)` had no answer, `contested(C)` gave only c2, and `model_trusted(M)` gave m_now
+  and m_target.
+- CLI behavior that Part 1 states, on a copy of that KB:
+  - `orbit-kb subject` prints only the digest.
+  - `orbit-kb attest reproduction t1 'result(h1, reproduced)'` works on the tagged check t1.
+  - `decision` rejects an agent writer (E8) and `no_go(h1)` without a text (E3).
+  - A `reproduction` on the solver log `run_now` is accepted by `attest`, and lint reports
+    ED1.
+  - After an edit to `discount-now.smt2` and `orbit-kb subject m_now ...`, lint reports WD8
+    on a3 to a8 and WD2 on m_target, and `model_trusted(M)` has no answer.
+  - `orbit-kb show open` lists only "contested c2". It lists no discovery item.
+- A gap that this check found, now fixed (ticket finding F2): after the same edit, a second
+  `model_run(run_now, m_now, NewDigest)` for the old log made WD8 disappear, and
+  `model_trusted(M)` again gave m_now and m_target, from the results of the old file. The
+  module now ignores such a log (open question 10).
+
 ## Not verified
 
-- The installed library. Its `modules/discovery.pl` is still a placeholder. So
-  `--uses discovery` does not declare the discovery facts until the staging module moves there.
+- The installed library. Its `modules/discovery.pl` is still a placeholder (checked
+  2026-10-16). So `--uses discovery` does not declare the discovery facts until the staging
+  module moves there.
+- The command-block run above used the staged module before the R3, F2, and F3 changes. The
+  final module passes `harness/run.pl` on `expected.pl` and `harness/cli_conformance.sh` on
+  the fixture (see `thoughts/discovery-orbit/TICKET.md`), but the command block itself was
+  not re-run.
+- Example B is not encoded as a KB. Its record names (`case('order 5120')`, `model_run`, and
+  the verdicts) follow the module, but no tool checked them.
+- Whether Part 1 reads well when it is assembled with the build draft, now that it points at
+  build-draft sections (Part 2, item 5).
 - Whether an agent follows Part 1 as written. No agent run has used it.
 
 ## Open questions
@@ -850,16 +906,45 @@ Tools: Z3 5.1.0, cvc5 1.3.4, and TLC 2.19 (08 August 2024, rev 5a47802). The com
    the gitignored `thoughts/` folder.
 4. When TLC is too slow for large value domains, should TRAJECTORY allow Apalache, which
    checks TLA+ with an SMT solver?
-5. **Dormant questions and `to_ask`.** (a) An unsat core writes a `divergence` on each claim in
-   the core. Should that contest the claim and expose its dormant questions? Today the core
-   rule `to_ask/1` does, and `discovery_ready` fails until someone asks them (fixture variant
-   `cf8_dormant_on_contested`). Part 1 says that questions which no evidence raised stay
-   dormant. The build draft lists the same rule as its open item 6. (b) How do superseded
-   claims interact with `to_ask/1`? Contract change D5 drops the questions of a superseded
-   claim, so an unanswered question on c2 leaves `to_ask/1` when c2b supersedes c2. Variant
-   `cf1_no_answer` still expects `to_ask(q1)`. Should c2b inherit the question?
-   `question_waits/1` does not test whether the claim is current, so it still lists q1.
-6. **Model ids.** `model/2` uses the id of the subject of the model file, so one file is one
-   model. Example B has one file, `Checkout.tla`, with several configurations (`now.cfg`,
-   `target.cfg`, `target-final.cfg`). The existing world and the target are two models of
-   that file. Does `model/2` need its own id, with the file as a separate argument?
+5. **Dormant questions and `to_ask`.** (a) Closed by decision 2 (2026-10-16): the core
+   divergence goes only on each claim that the answer superseded, so the claim that wins keeps
+   its dormant questions dormant (variant `cf8_draft_dormant`). The build draft lists the same
+   rule as its open item 6. (b) Still open: contract change D5 drops the questions of a
+   superseded claim from `to_ask/1`, and `cf1_no_answer` now expects that. `question_waits/1`
+   does not test whether the claim is current, so it still lists an unanswered q1, and
+   `discovery_ready` fails. That is the guard today. Should c2b inherit the question instead?
+6. **Model ids.** `model/2` uses the id of the subject of the model file. Two subject ids can
+   name the same file (variant `b2_tla_sanity` does this), so Example B can use m_now and
+   m_target for `Checkout.tla` with different configurations (`now.cfg`, `target.cfg`,
+   `target-final.cfg`). But `model_run/3` binds results to the digest of the file. An edit to
+   `Checkout.tla` for the target also makes the results of m_now stale (WD8). Does `model/2`
+   need its own id, with the file and the configuration as separate arguments?
+7. **Discovery report.** `orbit-kb report` prints only the build-orbit sections. A
+   `report_section/3` hook for modules is requested, not built. Until it exists, the agent
+   writes the discovery report from queries.
+8. **Time budgets.** `budget` counts laps only. Part 1 puts a time limit in a `note`, which no
+   rule reads. Should the module have a time budget?
+9. **Typed digests.** `model_run/3` needs the digest that `orbit-kb subject` printed. Part 1
+   now pastes it through the shell (`D=$(orbit-kb subject M PATH)`), so the agent does not
+   type it, and a wrong digest fails loud (WD8). A cleaner fix is in the CLI: `orbit-kb run`
+   could record the digests of named inputs. Requested from the orbit-kb owner (Part 2,
+   item 6).
+10. **Reused logs.** Closed (2026-10-16, ticket finding F2): a log counts only when it has no
+    `model_run` at an older digest (`discovery_old_run/2`), so a second `model_run` for an old
+    log no longer brings its results back, and WD8 flags them. Variants `m3_log_reused` and
+    `m3_rerun_new_log`.
+11. **Scope of ED7.** Partly closed (2026-10-16, ticket finding F3 and decision D4): ED7 now
+    checks a claim that replaces a disputed claim, which is refuted or contested
+    (`discovery_disputed/1`). Superseding an undisputed claim still needs no human answer,
+    because the human approves the whole ticket at GO. Still open: should ED7 check every
+    `supersedes` fact? Variants `m7_launder_contested` and `m7_ratified_contested`.
+12. **Unread records.** No module rule reads a `divergence` with `hypothesis(H)`, or a time
+    limit in a `note`. Only the human reads them. Should WD6 or the gate read the divergence?
+    `orbit-kb show open` also omits every discovery item (Part 2, item 7).
+13. **Reports during the orbit.** Part 1 gives the discovery report when `discovery_decide`
+    holds. Example B shows the same form at the end of lap 1, while a question waits. Should
+    Part 1 allow that form for each human leg?
+14. **Budget raises.** Decision 1 says that at the end of the budget the human decides GO,
+    NO-GO, or HOLD. The module also lets a larger `budget(laps, N)` reopen the orbit (variant
+    `m6_budget_raised`). Part 1 says that only the human raises the budget, but no rule checks
+    who added it.

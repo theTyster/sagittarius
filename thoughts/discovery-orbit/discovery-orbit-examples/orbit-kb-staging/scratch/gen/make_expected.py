@@ -221,6 +221,22 @@ variant('m3_model_edited', [rep(f"subject(m_now, 'models/discount-now.smt2', '{D
 expect('m3_model_edited', 'model_trusted(M)', 'none')
 expect('m3_model_edited', 'discovery_ready', 'none')
 expect('m3_model_edited', "lint_issue('WD8', Id, _)", ['Id = a3', 'Id = a4', 'Id = a5', 'Id = a6', 'Id = a7', 'Id = a8'])
+NDN = 'sha256:be087eaf26d6d7b83f5902ffb939fe1a7844451a3d66b144f86eeb2283be0025'
+M3E = rep(f"subject(m_now, 'models/discount-now.smt2', '{DN}')", f"subject(m_now, 'models/discount-now-v2.smt2', '{NDN}')")
+variant('m3_log_reused', [M3E, f"add(model_run(run_now, m_now, '{NDN}'))"],
+        "F2: after the edit, the old log gets a second model_run at the new digest; its verdicts still do not count")
+expect('m3_log_reused', 'model_run_current(run_now, M)', 'none')
+expect('m3_log_reused', 'model_trusted(M)', 'none')
+expect('m3_log_reused', 'discovery_ready', 'none')
+expect('m3_log_reused', "lint_issue('WD8', Id, _)", ['Id = a3', 'Id = a4', 'Id = a5', 'Id = a6', 'Id = a7', 'Id = a8'])
+variant('m3_rerun_new_log', [M3E, f"add(subject(run_now2, 'logs/discount-now.log', '{DLN}'))",
+        f"add(model_run(run_now2, m_now, '{NDN}'))",
+        "add(" + mr('a20', 'run_now2', 'verdict(m_now, sanity, sat)', "'2026-10-15T10:50:00Z'") + ")",
+        "add(" + mr('a21', 'run_now2', 'calibration(m_now, example(c1), matches)', "'2026-10-15T10:51:00Z'") + ")",
+        "add(" + mr('a22', 'run_now2', 'verdict(m_now, bad_case, sat)', "'2026-10-15T10:52:00Z'") + ")"],
+        "F2 control: a new log of the edited model counts")
+expect('m3_rerun_new_log', 'model_run_current(run_now2, M)', ['M = m_now'])
+expect('m3_rerun_new_log', 'model_trusted(M)', ['M = m_now', 'M = m_target'])
 variant('minor_wrong_log', [rep(A13, mr('a13', 'run_now', 'verdict(m_target, sanity, sat)'))], "Minor (P19): a verdict about m_target cites the log of m_now")
 expect('minor_wrong_log', "lint_issue('ED2', Id, _)", ['Id = a13'])
 expect('minor_wrong_log', 'model_trusted(M)', ['M = m_now'])
@@ -291,6 +307,18 @@ variant('m7_ratified', [f"add({DISP})", "add(question(q4, c2b, 'c2b fails when t
 expect('m7_ratified', 'discovery_unratified(C)', 'none')
 expect('m7_ratified', 'some_current_refuted', 'none')
 expect('m7_ratified', 'discovery_ready', 'true')
+DIVC1 = "attest(a23, divergence, log4417, claim(c1), agent, '2026-10-15T10:50:00Z')"
+C1X = ["add(claim(c1x, introduce, 'No order is charged below its floor price after all of its codes.'))",
+       "add(supersedes(c1x, c1))", "add(cites(c1x, 'paid less than our minimum price'))", "add(check(t2, c1x))"]
+variant('m7_launder_contested', [f"add({DIVC1})"] + C1X, "F3: c1 is contested, not refuted; the agent alone supersedes it")
+expect('m7_launder_contested', 'discovery_unratified(C)', ['C = c1x'])
+expect('m7_launder_contested', 'discovery_ready', 'none')
+expect('m7_launder_contested', "lint_issue('ED7', Id, _)", ['Id = c1x'])
+variant('m7_ratified_contested', [f"add({DIVC1})", "add(question(q5, c1, 'A divergence contests c1. Restate it as c1x?'))",
+        "add(assumed(q5, restate))", "add(answer(q5, restate, human))"] + C1X,
+        "F3 control: the same supersession after a human answer about c1")
+expect('m7_ratified_contested', 'discovery_unratified(C)', 'none')
+expect('m7_ratified_contested', 'discovery_ready', 'true')
 
 # --- mutant kills ---
 variant('k_no_sanity_now', [f"delete({A3})"], "Kill: trust needs sanity (the existing model has none)")
@@ -341,12 +369,41 @@ for k in range(4):
     edits += [f"add(finding(fx{k}, conflict([x{k}]), model))", f"add(question(qx{k}, {c}, 'Scale question {k}.'))",
               f"add(assumed(qx{k}, yes))", f"add(raised_by(qx{k}, fx{k}))", f"add(answer(qx{k}, yes, human))"]
 P = 'perf_12_claims_6_models'
-variant(P, edits, f"M9: {nclaims} current claims and 6 models. Each query must take under 2 s on s(CASP)")
+variant(P, edits, f"M9: {nclaims} current claims and 6 models. A scale benchmark: the harness reports the times and does not check them")
 for g, a in [('discovery_ready', 'true'), ('discovery_decide', 'true'), ('no_falsifier(C)', 'none'),
              ('model_trusted(M)', ['M = m_now', 'M = m_target'] + [f'M = mx{k}' for k in range(4)]),
              ('model_diverges(M)', 'none'), ('question_waits(Q)', 'none'), ('finding_lead(F)', 'none'),
              ('weak_rule(R)', 'none'), ('some_model_problem', 'none'), ('lint_issue(Code, Id, _)', 'none')]:
     expect(P, g, a)
 
+# --- Minimal KBs (LANDING LM4, R7 call 3): every kb.pl line except a kept set is deleted ---
+KB_LINES = [l.rstrip('\n') for l in open(root + '/fixtures/discovery-a/kb.pl')
+            if l.strip() and not l.startswith('%') and not l.startswith('uses(')]
+KEEP = ('request(', 'hypothesis(', 'budget(', 'subject(log4417,', 'discovery_evidence(log4417,', 'attest(a1,')
+MIN = [f"delete({l[:-1]})" for l in KB_LINES if not l.startswith(KEEP)]
+A1NR = A1.replace('result(h1, reproduced)', 'result(h1, not_reproduced)')
+variant('min_reproduced', MIN, "LM4: a Small report that reproduced, with no claim: no outcome, so not ready (R7 call 3)")
+expect('min_reproduced', 'touched_system', 'true')
+expect('min_reproduced', 'discovery_has_outcome', 'none')
+expect('min_reproduced', 'discovery_ready', 'none')
+expect('min_reproduced', 'lint_issue(Code, Id, _)', 'none')
+variant('min_not_reproduced', MIN + [rep(A1, A1NR)], "LM4: no claim, and the problem did not reproduce: ready, with WD6 (R7 call 3)")
+expect('min_not_reproduced', 'discovery_has_outcome', 'true')
+expect('min_not_reproduced', 'discovery_ready', 'true')
+expect('min_not_reproduced', 'discovery_decide', 'true')
+expect('min_not_reproduced', "lint_issue('WD6', Id, _)", ['Id = a1'])
+variant('min_nr_untagged', MIN + [rep(A1, A1NR), f"delete({EVL})"], "LM4: the not_reproduced result is on an untagged log: no outcome")
+expect('min_nr_untagged', 'discovery_has_outcome', 'none')
+expect('min_nr_untagged', 'discovery_ready', 'none')
+variant('min_request_only', MIN + [f"delete({A1})", "delete(hypothesis(h1, defect, 'Two discount codes can price an order below the floor price.'))",
+        "replace(budget(laps, 3), budget(laps, 1))", "add(lap_done(1))"],
+        "LM4: only a request and one spent lap: not ready, but the human must decide")
+expect('min_request_only', 'discovery_ready', 'none')
+expect('min_request_only', 'discovery_decide', 'true')
+
+# --- Variants from the LANDING MODULE review, kept verbatim in landing_variants.pl ---
+w()
+w(open(root + '/scratch/gen/landing_variants.pl').read().rstrip('\n'))
+
 open(root + '/fixtures/discovery-a/expected.pl', 'w').write('\n'.join(out) + '\n')
-print(len([l for l in out if l.startswith('expect(')]), 'expectations;', nclaims, 'perf claims')
+print(sum(l.count('\nexpect(') + l.startswith('expect(') for l in out), 'expectations;', nclaims, 'perf claims')

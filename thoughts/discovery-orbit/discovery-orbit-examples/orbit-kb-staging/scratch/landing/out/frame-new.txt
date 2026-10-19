@@ -1,0 +1,102 @@
+heavy: waiting for a slot (2 busy)
+module: 20db37fba8da1c01
+== minimal fixture (two engines)
+fixture: /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/fixtures/minimal
+library: /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/lib
+s(CASP): --forall=prev
+module build: /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/lib/modules/build.pl
+module discovery: /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/h2/modules/discovery.pl
+
+== base
+  H4 check: clean
+  lint: clean
+  touched_system true  swi PASS  scasp PASS  (0.12 s)
+  discovery_has_outcome none  swi PASS  scasp PASS  (0.12 s)
+  discovery_ready none  swi PASS  scasp PASS  (0.12 s)
+  lint_issue(Code, Id, _) none  swi PASS  scasp PASS  (0.12 s)
+
+== nr
+  H4 check: clean
+  lint: clean
+  discovery_has_outcome true  swi PASS  scasp PASS  (0.12 s)
+  discovery_ready true  swi PASS  scasp PASS  (0.15 s)
+  discovery_decide true  swi PASS  scasp PASS  (0.15 s)
+  lint_issue('WD6', Id, _) [Id = a1]  swi PASS  scasp PASS  (0.12 s)
+
+== nr_untagged
+  H4 check: clean
+  lint: clean
+  discovery_has_outcome none  swi PASS  scasp PASS  (0.12 s)
+  discovery_ready none  swi PASS  scasp PASS  (0.12 s)
+
+== request_only
+  H4 check: clean
+  lint: clean
+  discovery_ready none  swi PASS  scasp PASS  (0.12 s)
+  discovery_decide true  swi PASS  scasp PASS  (0.12 s)
+
+SWI engine:     12/12 expectations passed
+s(CASP) engine: 12/12 expectations passed
+s(CASP) cross-checks skipped (timeout): 0
+Engine disagreements: 0
+Lint failures (E codes in any variant, any code in base): 0
+H4 self-check failures (variants with _<digits> atoms): 0
+s(CASP) time per query: max 0.15 s. Slowest:
+  0.15 s  nr: discovery_ready
+  0.15 s  nr: discovery_decide
+  0.12 s  nr: lint_issue('WD6', Id, _)
+  0.12 s  base: discovery_ready
+  0.12 s  base: lint_issue(Code, Id, _)
+minimal rc=0
+== selftest.sh
+ok    R4a only=v1 runs v1 alone and exits 0
+ok    R4b only=v1 only=v2 runs v1 and v2 alone
+ok    R5a a timeout is skipped, counted, and exits 0
+ok    R5b a wrong answer exits 1
+ok    R5c a timeout does not hide an SWI failure
+selftest: all passed
+selftest rc=0
+== only=typo
+
+SWI engine:     0/0 expectations passed
+s(CASP) engine: 0/0 expectations passed
+s(CASP) cross-checks skipped (timeout): 0
+Engine disagreements: 0
+Lint failures (E codes in any variant, any code in base): 0
+H4 self-check failures (variants with _<digits> atoms): 0
+only-typo rc=0
+== lint_cli.sh (R1) on the new module
+Summary: 0 error(s), 0 warning(s).
+ok    R1 orbit-kb lint: no E code (exit 0)
+ok    R1 control: lint reports E14 and E13 on the bad copy (exit 1)
+lint_cli rc=0
+== lint --strict on the fixture
+Summary: 0 error(s), 0 warning(s).
+strict rc=0
+== cli_conformance.sh (R2 CLI clause)
+ok    discovery_ready  want true  got true
+ok    discovery_decide  want true  got true
+ok    touched_system  want true  got true
+ok    no_falsifier(C)  want none  got none
+ok    question_waits(Q)  want none  got none
+ok    unasked_finding(F)  want none  got none
+ok    finding_lead(F)  want none  got none
+ok    weak_rule(R)  want none  got none
+ok    model_trusted(M)  want ['M = m_now', 'M = m_target']  got ['M = m_now', 'M = m_target']
+ok    model_diverges(M)  want none  got none
+ok    model_decided(M, C)  want ['M = m_target, C = c1', 'M = m_target, C = c2b']  got ['M = m_target, C = c1', 'M = m_target, C = c2b']
+ok    current(C)  want ['C = c1', 'C = c2b']  got ['C = c1', 'C = c2b']
+ok    contested(C)  want ['C = c2']  got ['C = c2']
+ok    to_ask(Q)  want none  got none
+ok    refuted(C)  want none  got none
+ok    about_system(F)  want ['F = f1']  got ['F = f1']
+ok    budget_spent  want none  got none
+ok    stale(A)  want none  got none
+ok    some_model_problem  want none  got none
+ok    discovery_hypothesis_touched(H)  want ['H = h1']  got ['H = h1']
+ok    lint_issue(Code, Id, _)  want none  got none
+ok    attest(A, reproduction, S, _, agent, _)  want ['A = a1, S = log4417', 'A = a9, S = log4417']  got ['A = a1, S = log4417', 'A = a9, S = log4417']
+ok    model_calibration(A, M, R)  want ['A = a4, M = m_now, R = matches']  got ['A = a4, M = m_now, R = matches']
+ok    control: model_trusted(M) does not match the wrong set ['M = m_now'] (got ['M = m_now', 'M = m_target'])
+cli_conformance: 23 base expectations, 0 failed, 0 cross-checks skipped
+cli_conformance rc=0

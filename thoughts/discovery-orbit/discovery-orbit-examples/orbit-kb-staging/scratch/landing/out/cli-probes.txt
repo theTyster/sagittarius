@@ -1,0 +1,57 @@
+heavy: waiting for a slot (2 busy)
+module sha256: 20db37fba8da1c01
+== CLI-P1 (L1): trusted target breaks c2b; the disprover abstained
+attest(a18, disproof, m_target, verdict(c2b, abstained), agent, '2026-10-16T21:53:09Z').
+$ orbit-kb query 'model_unfiled_break(C)' -n 0   [p1]
+false
+rc=1
+$ orbit-kb query 'discovery_ready' -n 0   [p1]
+true
+rc=0
+$ orbit-kb lint   [p1]
+Summary: 0 error(s), 0 warning(s).
+rc=0
+== CLI-P2 (L2): divergence model(m_now) recorded on the system log
+attest(a18, divergence, log4417, model(m_now), agent, '2026-10-16T21:53:10Z').
+$ orbit-kb query 'model_diverges(M)' -n 0   [p2]
+false
+rc=1
+$ orbit-kb query 'discovery_ready' -n 0   [p2]
+true
+rc=0
+$ orbit-kb lint   [p2]
+Summary: 0 error(s), 0 warning(s).
+rc=0
+== CLI-P3 (L6): the agent alone supersedes c1 (not refuted, not contested)
+claim(c1b, introduce, 'No order is charged below its floor price after all codes.').
+cites(c1b, 'paid less than our minimum price').
+supersedes(c1b, c1).
+encodes(m_target, c1b).
+attest(a18, model_result, run_target, verdict(m_target, applies(c1b), sat), agent, '2026-10-16T21:53:10Z').
+$ orbit-kb query 'discovery_unratified(C)' -n 0   [p3]
+false
+rc=1
+$ orbit-kb query 'discovery_ready' -n 0   [p3]
+true
+rc=0
+$ orbit-kb lint   [p3]
+W5 kb.pl:26: Check t1 tests claim c1, but claim c1b replaces it. Point the check at the new claim.
+Summary: 0 error(s), 1 warning(s).
+rc=0
+== CLI-P4: derived_from self-loop and cycle, raised_by a claim (kb2)
+$ orbit-kb query 'model_diverges(M)' -n 0   [kb2]
+false
+rc=1
+$ orbit-kb query 'discovery_ready' -n 0   [kb2]
+true
+rc=0
+== CLI-P5 (L13): one exploration re-run with a blocked witness
+attest(a18, model_result, run_target, verdict(m_target, explore(witnesses), sat), agent, '2026-10-16T21:53:11Z').
+attest(a19, model_result, run_target, verdict(m_target, explore(witnesses), unsat), agent, '2026-10-16T21:53:11Z').
+$ orbit-kb query 'discovery_ready' -n 0   [p5]
+false
+rc=1
+$ orbit-kb lint   [p5]
+ED6 m_target: Two solver results for the same check of this model disagree: one shows a case, one shows none.
+Summary: 1 error(s), 0 warning(s).
+rc=1

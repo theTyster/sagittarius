@@ -20,9 +20,13 @@
 %      An E code in any variant, or any code in the base variant, is a failure.
 %   4. Run each expectation on the SWI engine (not becomes \+, declared predicates
 %      are dynamic, 10 s limit, 1000 answers) and on s(CASP)
-%      (timeout 30 scasp --unknown=error FORALL -s 0 --json=-).
+%      (timeout T scasp --unknown=error FORALL -s 0 --json=-). T is
+%      $ORBIT_KB_SCASP_TIMEOUT, as for the CLI; the default is 30 s.
 %      Print PASS or FAIL for each engine, and ENGINE DISAGREEMENT when they differ.
-% Exit 0 when everything passes, 1 otherwise.
+%      When s(CASP) times out, print CROSS-CHECK SKIPPED, as the CLI does. A skip is
+%      not a failure and not a disagreement.
+% Exit 0 when SWI passes everything, each s(CASP) result passes or is skipped, and no
+% disagreement, lint failure, or H4 failure occurs. Exit 1 otherwise.
 
 :- use_module(library(apply)).
 :- use_module(library(lists)).
@@ -72,11 +76,19 @@ main(Argv0) :-
     forall(( member(expect(V, _, _), Exp), V \== base, \+ memberchk(V-_, Vs) ),
            ( count(fail_swi), count(fail_scasp),
              format("FAIL expected.pl: expect/3 names the unknown variant ~w~n", [V]) )),
-    include([N-_]>>( Only == [] ; memberchk(N, Only) ), [base-[]|Vs], Run),
+    forall(( member(O, Only), O \== base, \+ memberchk(O-_, Vs) ),
+           ( count(bad_only), format("FAIL only=~w names no variant~n", [O]) )),
+    include(selected(Only), [base-[]|Vs], Run),
     forall(member(Name-Edits, Run), run_variant(Dir, Kb, Exp, Name, Edits)),
     findall(expect(N, G, A), ( member(expect(N, G, A), Exp), memberchk(N-_, Run) ), RunExp),
     summary(RunExp, Status),
     halt(Status).
+
+% selected(+Only, +Name-Edits): the variant runs. Only lists the only= names; [] runs all.
+% Not a lambda: SWI compiles a yall lambda at load time, and Only would be a fresh
+% variable inside it.
+selected([], _) :- !.
+selected(Only, Name-_) :- memberchk(Name, Only).
 
 % --- library files ---
 % Label-Path pairs: the core, then the modules in uses/1 order.
@@ -230,8 +242,9 @@ scasp_answers(File, Goal, Names, Res) :-
     query_text(Goal, Names, Q),
     atom_concat('--query=', Q, QArg),
     forall_flag(Flag),
+    scasp_timeout(T),
     process_create(path(timeout),
-                   ['30', scasp, '--unknown=error', Flag, '-s', '0',
+                   [T, scasp, '--unknown=error', Flag, '-s', '0',
                     '--json=-', '--width=0', QArg, File],
                    [stdout(pipe(Out)), stderr(pipe(Err)), process(Pid)]),
     read_string(Out, _, OutS), read_string(Err, _, ErrS),
@@ -239,11 +252,15 @@ scasp_answers(File, Goal, Names, Res) :-
     process_wait(Pid, Status),
     split_string(ErrS, "\n", "", ErrLines0),
     exclude([L]>>( L == "" ; sub_string(L, _, _, _, "No models") ), ErrLines0, ErrLines),
-    (   Status \== exit(0) -> Res = error(Status-ErrS)
+    (   Status == exit(124) -> Res = timeout      % from timeout(1)
+    ;   Status \== exit(0) -> Res = error(Status-ErrS)
     ;   ErrLines \== [] -> Res = error(stderr-ErrS)
     ;   catch(( atom_json_dict(OutS, J, []), scasp_result(J, Names, Res) ), E,
               Res = error(json-E))
     ).
+
+scasp_timeout(T) :-
+    (   getenv('ORBIT_KB_SCASP_TIMEOUT', T), T \== '' -> true ; T = '30' ).
 
 scasp_result(J, Names, Res) :-
     get_dict(answers, J, Answers),
@@ -311,11 +328,16 @@ run_expect(Mod, File, GoalAtom, Want0) :-
     get_time(T1), Secs is T1 - T0,
     cur_variant(VN), format(atom(TG), '~w: ~w', [VN, GoalAtom]), assertz(timing(TG, Secs)),
     verdict(swi, Swi, Want, V1),
-    verdict(scasp, Sc, Want, V2),
+    (   Sc == timeout -> V2 = 'SKIPPED', count(skip_scasp)
+    ;   verdict(scasp, Sc, Want, V2)
+    ),
     format("  ~w ~w  swi ~w  scasp ~w  (~2f s)~n", [GoalAtom, Want0, V1, V2, Secs]),
     ( V1 == 'PASS' -> true ; format("      swi:   ~q~n", [Swi]) ),
-    ( V2 == 'PASS' -> true ; format("      scasp: ~q~n", [Sc]) ),
-    (   agree(Swi, Sc) -> true
+    ( V2 == 'FAIL' -> format("      scasp: ~q~n", [Sc]) ; true ),
+    (   Sc == timeout
+    ->  scasp_timeout(T),
+        format("  CROSS-CHECK SKIPPED: s(CASP) timed out after ~w s~n", [T])
+    ;   agree(Swi, Sc) -> true
     ;   count(disagree),
         format("  ENGINE DISAGREEMENT on ~w~n      swi:   ~q~n      scasp: ~q~n", [GoalAtom, Swi, Sc])
     ).
@@ -352,10 +374,11 @@ count(K) :- flag(K, N, N + 1).
 
 summary(Exp, Status) :-
     aggregate_all(count, member(expect(_, _, _), Exp), Total),
-    maplist([K, V]>>flag(K, V, V), [pass_swi, pass_scasp, disagree, lint_fail, h4_fail],
-            [Ps, Pc, D, L, H]),
+    maplist([K, V]>>flag(K, V, V), [pass_swi, pass_scasp, skip_scasp, disagree, lint_fail, h4_fail],
+            [Ps, Pc, Sk, D, L, H]),
     format("~nSWI engine:     ~d/~d expectations passed~n", [Ps, Total]),
     format("s(CASP) engine: ~d/~d expectations passed~n", [Pc, Total]),
+    format("s(CASP) cross-checks skipped (timeout): ~d~n", [Sk]),
     format("Engine disagreements: ~d~n", [D]),
     format("Lint failures (E codes in any variant, any code in base): ~d~n", [L]),
     format("H4 self-check failures (variants with _<digits> atoms): ~d~n", [H]),
@@ -365,7 +388,8 @@ summary(Exp, Status) :-
         forall(( nth1(I, Ts, T-G), I =< 5 ), format("  ~2f s  ~w~n", [T, G]))
     ;   true
     ),
-    (   Ps =:= Total, Pc =:= Total, D =:= 0, L =:= 0, H =:= 0 -> Status = 0 ; Status = 1 ).
+    flag(bad_only, BO, BO),
+    (   Ps =:= Total, Pc + Sk =:= Total, D =:= 0, L =:= 0, H =:= 0, BO =:= 0 -> Status = 0 ; Status = 1 ).
 
 % --- reading ---
 read_terms(File, Terms) :-

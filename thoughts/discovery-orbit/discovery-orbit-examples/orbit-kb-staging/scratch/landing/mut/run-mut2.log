@@ -1,0 +1,5 @@
+heavy: waiting for a slot (2 busy)
+module: 20db37fba8da1c01  fixture expected.pl: b8550a3599cd132a
+258 mutants, 36 not killed by any answer
+279 mutants, 79 not killed by any answer
+537 mutants; 422 killed
