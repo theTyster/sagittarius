@@ -61,6 +61,8 @@
 #   L   lint E1-E13, W1-W6, --strict, hook, summary            (Lint; D2; H4)                   : L0 L0b E1-E13 W1 W3-W6 LS LS2 LH1 LH2
 #   D7  review fixes: broken sources exit 2, unsafe negation, kb.lock (D7)                   : D7a-D7d RC E14 E13s
 #   SH  show   RP report   DR doctor (H1-H4 self-tests)   HP help (CLI: show, report, doctor, help) : SH1-SH7 RP1-RP6 DR1-DR3 HP1-HP3
+#   BP  burns: open, proved, changed, waived, lapsed       (Build module; D10)              : BP1-BP14
+#   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10)                : PV1-PV9
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -419,6 +421,7 @@ setup_run() {  # setup_run NAME: run the setup that prototype NAME stands for, i
     case $1 in
         mkclaim.*) mkclaim_fresh "${1#mkclaim.}" ;;
         h3)        h3_kb_fresh ;;
+        lake)      lake_fresh ;;
         *)         note "setup: there is no prototype $1"; return 1 ;;
     esac
 }
@@ -521,6 +524,19 @@ attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
 attest(d2, divergence, c1, claim(c1), human, '2026-10-15T10:00:02Z').
 attest(d3, divergence, c2, claim(c2), agent, '2026-10-15T10:00:03Z').
 EOF
+}
+kb_burndone() {  # kb_burndone DIR: kb_done plus universal(c1), so c1 needs a Lean proof (D10)
+    kb_done "$1"; printf "universal(c1).\n" >> "$1/kb.pl"
+}
+# D10: a lean_proof attestation and its log, as orbit-kb prove writes them. The proof
+# file is DIR/lean/P.lean; the digest covers it alone.
+add_proof() {  # add_proof DIR ID CLAIM [TIME]
+    local d=$1 id=$2 c=$3 tm=${4:-2026-10-15T11:00:00Z} sha dg
+    mkdir -p "$d/runs" "$d/lean"; [ -f "$d/lean/P.lean" ] || printf 'theorem t : True := trivial\n' > "$d/lean/P.lean"
+    sha="sha256:$(sha "$d/lean/P.lean")"
+    dg="sha256:$(printf '%s %s\n' "$sha" P.lean | sha256sum | cut -d' ' -f1)"
+    printf '%% orbit-kb prove claim=%s digest=%s\ntheorem t\nmodule P\nsource P.lean\nstatement True\nlean 4.35.0\ntime %s\nroot lean\nfile %s P.lean\n--- lake build output\n' "$c" "$dg" "$tm" "$sha" > "$d/runs/proof-$id.log"
+    printf "attest(%s, lean_proof, %s, proof(%s, '%s'), script, '%s').\n" "$id" "$c" "$c" "$dg" "$tm" >> "$d/kb.pl"
 }
 kb_toask() { kb_new "$1" <<'EOF'
 uses([build]).
@@ -867,6 +883,96 @@ gd_kb() {  # gd_kb DIR: a build KB with 20 claims, each with a check, a serving 
     } > "$d/kb.pl"
     for ((i = 1; i <= 20; i++)); do add_result "$d" "k$i" $((2 * i - 1)) fail; add_result "$d" "k$i" $((2 * i)) pass; done
 }
+# ---- D10: a burn needs a Lean proof (or a human waiver); done waits for it
+t_BP1() { kb_burndone "$T/k"; K=$T/k; is_true 'burn(c1)'; is_set 'burn_open(X)' 'X = c1'; is_false 'done' "c1 burns and has no proof"
+          is_true any_burn_open; is_false any_under; is_false any_over; is_false any_to_ask; }
+t_BP2() { kb_burndone "$T/k"; K=$T/k
+          printf "attest(l1, lean_result, c1, verdict(c1, stated), agent, '2026-10-15T11:00:00Z').\nattest(l2, lean_result, c1, verdict(c1, tested(1000)), agent, '2026-10-15T11:00:01Z').\n" >> $K/kb.pl
+          okb --dir "$K" lint; rc_is 0 "stated and tested are allowed lean_result verdicts"
+          is_false 'done' "stated and tested are progress, not a proof"; is_true 'burn_open(c1)'; }
+t_BP3() { kb_burndone "$T/k"; K=$T/k; printf "attest(l1, lean_result, c1, verdict(c1, proved), agent, '2026-10-15T11:00:00Z').\n" >> $K/kb.pl
+          okb --dir "$K" lint; rc_is 1 "lean_result has no proved verdict"; out_has '^E3'; }
+t_BP4() { kb_burndone "$T/k"; K=$T/k; add_proof "$K" p1 c1
+          okb --dir "$K" lint; rc_is 0 "a proof with its log lints clean"; is_true 'burn_proved(c1)'; is_false 'burn_open(c1)'; is_true 'done' "c1 is proved"; }
+t_BP5() { kb_burndone "$T/k"; K=$T/k; add_proof "$K" p1 c1; echo '-- edit' >> "$K/lean/P.lean"
+          is_set 'proof_changed(X)' 'X = p1'; is_false 'burn_proved(c1)'; is_false 'done' "a file of the proof changed"
+          okb --dir "$K" report; out_has 'Proof p1 of claim c1 no longer counts'; }
+t_BP6() { kb_burndone "$T/k"; K=$T/k; add_proof "$K" p1 c1; rm "$K/runs/proof-p1.log"
+          okb --dir "$K" lint; rc_is 1 "a proof without its log"; out_has '^E9'; is_false 'burn_proved(c1)'; is_false 'done'; }
+t_BP7() { kb_burndone "$T/k"; K=$T/k; add_proof "$K" p1 c1; sed -i '$ s/), script, /), agent, /' "$K/kb.pl"   # a valid log; only the writer is wrong
+          okb --dir "$K" lint; rc_is 1; out_has '^E8.*orbit-kb prove'; any_hasnt '^E9' "the log matches"; is_false 'burn_proved(c1)' "an agent cannot write a proof"
+          mkclaim; rejects scripttype 'prove' attest lean_proof c1 "proof(c1, 'sha256:$(printf '%064d' 0)')"
+          rejects scripttype 'prove' add "attest(p2, lean_proof, c1, proof(c1, 'sha256:$(printf '%064d' 0)'), script, '2026-10-15T10:00:00Z')"; }
+t_BP8() { kb_burndone "$T/k"; K=$T/k; okb --dir "$K" attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'Ship before the demo')" --by human; rc_is 0
+          is_true 'burn_waived(c1)'; is_false 'burn_open(c1)'; is_true 'done' "a human waived the proof"; is_false 'burn_proved(c1)'
+          okb --dir "$K" report; out_has 'c1.*NOT PROVED.*waived.*2999-01-01'; }
+t_BP9() { kb_burndone "$T/k"; K=$T/k; rejects agentwaiver 'writer|human' attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'x')"
+          printf "attest(w1, waiver, c1, waive(c1, '2999-01-01T00:00:00Z', x), agent, '2026-10-15T11:00:00Z').\n" >> $K/kb.pl
+          okb --dir "$K" lint; rc_is 1; out_has '^E8'; is_false 'burn_waived(c1)' "an agent cannot waive a proof"; is_false 'done'; }
+t_BP10() { kb_burndone "$T/k"; K=$T/k; printf "attest(w1, waiver, c1, waive(c1, '2020-01-01T00:00:00Z', 'Old deadline'), human, '2019-12-01T00:00:00Z').\n" >> $K/kb.pl
+           is_set 'waiver_lapsed(X)' 'X = w1'; is_false 'burn_waived(c1)'; is_false 'done' "the waiver is past its due time"
+           okb --dir "$K" report; out_has 'Waiver w1 of the proof of claim c1 was due at 2020-01-01'; }
+t_BP11() { kb_burndone "$T/k"; K=$T/k; printf "supersedes(c3, c1).\nclaim(c3, preserve, 'One stays true, new words').\ncites(c3, 'Do two things').\ncheck(k3, c3).\nserves(x1, c3).\n" >> $K/kb.pl
+           add_result $K k3 4 pass; is_true 'burn(c1)'; is_false 'burn_open(c1)' "a superseded claim has no open burn"; is_true 'done'; }
+t_BP12() { kb_burndone "$T/k"; K=$T/k; add_proof "$K" p1 c1
+           printf "check(k9, c1).\nconformance(k9).\n" >> $K/kb.pl; is_false 'conforms(c1)'; is_true 'done' "conformance is optional"
+           add_result $K k9 4 pass; is_true 'conforms(c1)'; is_true 'done'; }
+t_BP13() { kb_burn "$T/k"; K=$T/k; is_set 'burn_open(X)' 'X = c1|X = c3|X = c4' "contested twice, universal, and requested all need a proof"; }
+t_BP14() { mkclaim; rejects reserved 'reserved' declare 'proved(ref(claim))' --doc 'x' --kind rule; }
+
+# ---- D10: orbit-kb prove with real Lean. The Lake project is built once (prototype lake).
+# Each test copies it, so lake build has little to do. Skip when lake is missing.
+LEAN_TC=$(command -v elan >/dev/null 2>&1 && elan toolchain list 2>/dev/null | sed -n 's/^\(leanprover\/lean4:v[0-9.]*\).*/\1/p' | sort -V | tail -1)
+lake_fresh() {  # the setup behind lean_proj: a Lake project in $T/lp with one module per case, built
+    local d=$T/lp; mkdir -p "$d/Fx"
+    printf '%s\n' "$LEAN_TC" > "$d/lean-toolchain"
+    printf 'name = "fx"\ndefaultTargets = ["Fx"]\n\n[[lean_lib]]\nname = "Fx"\n' > "$d/lakefile.toml"
+    printf 'def loadSteps (n : Nat) : Nat := n\n' > "$d/Fx/Model.lean"
+    printf 'import Fx.Model\n\ntheorem load_linear (n : Nat) : loadSteps n ≤ n := Nat.le_refl n\n\ndef helper : Nat := 1\n' > "$d/Fx/Good.lean"
+    printf 'theorem with_sorry (n : Nat) : n + 0 = n := by sorry\n' > "$d/Fx/Sorry.lean"
+    printf 'theorem by_native : 2 + 2 = 4 := by native_decide\n' > "$d/Fx/Native.lean"
+    printf 'axiom cheat : 1 = 2\ntheorem by_axiom : 1 = 2 := cheat\n' > "$d/Fx/Ax.lean"
+    printf 'import Fx.Good\n\ntheorem own (n : Nat) : n = n := rfl\n' > "$d/Fx/Other.lean"
+    printf 'import Lean\nopen Lean Elab Command in\nset_option debug.skipKernelTC true in\nrun_cmd liftCoreM <| addDecl (.thmDecl { name := `bogus, levelParams := [], type := mkConst ``False, value := mkConst ``True.intro })\n' > "$d/Fx/Hack.lean"
+    printf 'theorem bad : 1 = 2 := rfl\n' > "$d/Fx/Broken.lean"
+    ( cd "$d" && lake build Fx.Good Fx.Sorry Fx.Native Fx.Ax Fx.Other Fx.Hack >/dev/null 2>&1 ) || note "setup: lake build failed"
+    K=$T/kb; kb_init "$K" build
+    oadd "claim(c1, preserve, 'Load is linear')" "cites(c1, 'Load is linear')" "universal(c1)" >/dev/null 2>&1 || note "setup: add failed: $(snip "$err")"
+}
+lean_proj() {  # lean_proj: $K is a KB with universal claim c1, $LP is the Lake project
+    if [ -z "$LEAN_TC" ] || ! command -v lake >/dev/null 2>&1; then skip_test "lake or a Lean toolchain is missing"; return 1; fi
+    use_proto lake; LP=$T/lp
+}
+prove_rejects() {  # prove_rejects LABEL MSG_RE FILE THEOREM: prove exits 1, says why, and records nothing
+    local label=$1 re=$2; shift 2
+    cp "$K/kb.pl" "$T/.kb.before"
+    okb --dir "$K" prove c1 "$@"; rc_is 1 "$label"
+    any_hasi "$re" "$label: the reason"; any_has 'Nothing was recorded' "$label"
+    same_file "$K/kb.pl" "$T/.kb.before" "$label: kb.pl"
+    ls "$K"/runs/proof-* >/dev/null 2>&1 && note "$label: a proof log exists"
+    return 0
+}
+t_PV1() { lean_proj || return 0; is_true 'burn_open(c1)'
+          okb --dir "$K" prove c1 "$LP/Fx/Good.lean" load_linear; rc_is 0 "a real proof"; out_has '^Statement: .*loadSteps n ≤ n'
+          has_fact "$K/kb.pl" "attest(a1, lean_proof, c1, proof(c1, _), script, _)"
+          okb --dir "$K" lint; rc_is 0 "lint after prove"; is_true 'burn_proved(c1)'; is_false 'burn_open(c1)'
+          grep -q '^file .* Fx/Model.lean$' "$K/runs/proof-a1.log" || note "the log covers the imported model file"
+          printf '\n-- edit\n' >> "$LP/Fx/Model.lean"; is_false 'burn_proved(c1)' "the model changed"; is_set 'proof_changed(X)' 'X = a1'
+          okb --dir "$K" prove c1 "$LP/Fx/Good.lean" load_linear; rc_is 0 "prove again after the edit"; is_true 'burn_proved(c1)'; }
+t_PV2() { lean_proj || return 0; prove_rejects sorry 'sorry' "$LP/Fx/Sorry.lean" with_sorry; }
+t_PV3() { lean_proj || return 0; prove_rejects native 'axiom.*native|native_decide' "$LP/Fx/Native.lean" by_native; }
+t_PV4() { lean_proj || return 0; prove_rejects axiom 'cheat' "$LP/Fx/Ax.lean" by_axiom; }
+t_PV5() { lean_proj || return 0; prove_rejects def 'not a theorem' "$LP/Fx/Good.lean" helper
+          prove_rejects missing 'no declaration' "$LP/Fx/Good.lean" no_such_theorem; }
+t_PV6() { lean_proj || return 0; prove_rejects othermodule 'declared in module Fx.Good' "$LP/Fx/Other.lean" load_linear
+          prove_rejects library 'declared in module Init' "$LP/Fx/Good.lean" Nat.add_comm; }
+t_PV7() { lean_proj || return 0; prove_rejects kernel 'leanchecker' "$LP/Fx/Hack.lean" bogus; }
+t_PV8() { lean_proj || return 0; prove_rejects build 'lake build' "$LP/Fx/Broken.lean" bad; }
+t_PV9() { lean_proj || return 0; okb --dir "$K" prove c9 "$LP/Fx/Good.lean" load_linear; rc_is 2 "no such claim"
+          okb --dir "$K" prove c1 "$T/nope.lean" load_linear; rc_is 2 "no such file"
+          printf 'theorem t : True := trivial\n' > "$T/loose.lean"; okb --dir "$K" prove c1 "$T/loose.lean" t; rc_is 2 "no Lake project"; any_has 'lakefile'
+          okb --dir "$K" prove c1; rc_is 2 "usage"; }
+
 t_GD() { # D8: query done on 20 claims x 2 runs is answered and cross-checked in ground mode (default timeout)
          gd_kb "$T/k"; K=$T/k
          okb --dir "$K" lint; rc_is 0 "the generated KB is valid"
@@ -1159,6 +1265,29 @@ run_test t_B18 B18 "stale: approval on the old digest after a subject refresh"
 run_test t_B19 B19 "a superseded claim is not current and not under"
 run_test t_B20 B20 "done stays false with several facts present (H1 guard)"
 run_test t_B21 B21 "D5: to_ask drops a question once its claim is superseded; done holds"
+run_test t_BP1 BP1 "D10: a burn without a proof is open, and done is false"
+run_test t_BP2 BP2 "D10: lean_result stated and tested do not close a burn"
+run_test t_BP3 BP3 "D10: lean_result has no proved verdict (E3)"
+run_test t_BP4 BP4 "D10: a lean_proof with its log closes the burn; done holds"
+run_test t_BP5 BP5 "D10: a changed proof file reopens the burn (proof_changed)"
+run_test t_BP6 BP6 "D10: a lean_proof without its log is E9 and does not count"
+run_test t_BP7 BP7 "D10: only orbit-kb prove writes lean_proof (E8, attest, add)"
+run_test t_BP8 BP8 "D10: a human waiver closes the burn; report says NOT PROVED with the due time"
+run_test t_BP9 BP9 "D10: an agent cannot waive a proof"
+run_test t_BP10 BP10 "D10: a waiver past its due time lapses; done is false"
+run_test t_BP11 BP11 "D10: a superseded claim has no open burn"
+run_test t_BP12 BP12 "D10: conformance is optional; conforms holds after its check passes"
+run_test t_BP13 BP13 "D10: each burn trigger needs a proof"
+run_test t_BP14 BP14 "D10: proved/1 is a reserved name (s(CASP) model wrapper)"
+run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
+run_test t_PV2 PV2 "D10: prove rejects sorry"
+run_test t_PV3 PV3 "D10: prove rejects native_decide"
+run_test t_PV4 PV4 "D10: prove rejects a local axiom"
+run_test t_PV5 PV5 "D10: prove rejects a def and a missing name"
+run_test t_PV6 PV6 "D10: prove rejects a theorem from another module"
+run_test t_PV7 PV7 "D10: prove rejects a declaration that skipped the kernel (leanchecker)"
+run_test t_PV8 PV8 "D10: prove rejects a file that does not build"
+run_test t_PV9 PV9 "D10: prove usage errors exit 2"
 run_test t_H3a H3a "H3: passed(K) -n 0 lists k2, k3, k4 (default flags)"
 run_test t_H3b H3b "H3: --forall=all gives ENGINE DISAGREEMENT, exit 2"
 run_test t_H3c H3c "H3: ground passed(k1) is false, passed(k4) is true"

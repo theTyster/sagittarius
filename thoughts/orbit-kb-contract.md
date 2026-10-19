@@ -80,6 +80,35 @@
     rewrite writes a temp file in the same directory and renames it into place.
   - E13 also checks string values.
   - Temp files are created with `tmp_file_stream/3`.
+- **D9 (discovery delivery, 2026-10-19).** `modules/discovery.pl` replaces the placeholder,
+  with the fixture `scripts/orbit-kb/fixtures/discovery-a/`. The reserved discovery names
+  are updated below. Open requests: a lint warning for a stale approval (LM21); a way to
+  record a digest without typing it (F5); a `report_section/3` hook for `report` and
+  `show open`. `--by human` is a claim the CLI cannot verify (LM20).
+- **D10 (a burn needs a proof, 2026-10-19).** Decision by Ty: "A burn needs a proven
+  verdict. Always. Specification clarity comes from the need to build out that proof. Not
+  merely write it in lean. Clarity comes from the demand to write it in lean _correctly_."
+  Follow-up choices by Ty, the same day: only a script records a proof; TLC does not count
+  as a proof (Lean only); a human may waive a proof with a due time; a conformance check of
+  the code against the Lean model is optional ("a smooth gradient on the requirement for
+  scaling"). The changes:
+  - `done` also needs `not any_burn_open`. `burn_open(C) :- burn(C), current(C),
+    not burn_proved(C), not burn_waived(C).`
+  - `lean_result` keeps `stated`, `refuted`, and `tested(int)`, and loses `proved`. New
+    types: `lean_proof` (`proof(ref(claim), digest)`, writers `[script]`) and `waiver`
+    (`waive(ref(claim), time, text)`, writers `[human]`).
+  - New command `orbit-kb prove CLAIM FILE THEOREM [--module M]`. It runs `lake build`, a
+    probe (`lib/lean/probe.lean`) that reports kind, module, axioms, statement, and
+    project imports, then `leanchecker`, then `lake build --no-build`. It accepts only the
+    axioms `propext`, `Classical.choice`, `Quot.sound`. It writes `runs/proof-ID.log`.
+  - Derived facts, computed at each KB load: `proof_changed(A)` (a file of the proof
+    changed, or the log is missing or wrong) and `waiver_lapsed(W)` (the due time is
+    past). The SWI engine and s(CASP) both see them as facts.
+  - Lint E9 also covers a `lean_proof` with no matching log. E8 names `orbit-kb prove`.
+  - Optional conformance: `conformance(ref(check))` and `conforms(C)`.
+  - `declare` refuses `proved`, `chs`, `assume`, `abduced`: s(CASP) uses them as model
+    wrappers, and a rule `proved/1` made `scasp --code` raise an instantiation error.
+    The rule is named `burn_proved/1`.
 - **D6.** Generate stubs only for declared predicates that have no clauses in the
   assembled program. Name every anonymous variable in a query before passing it to
   s(CASP), because `--json` crashes on `_`.
@@ -313,13 +342,20 @@ The discovery orbit and the build orbit both use the core vocabulary. Names that
 discovery module reserves must not appear in the core or the build module:
 
 - Facts: `hypothesis/3`, `budget/2`, `lap_done/1`, `model/2`,
-  `derived_from/2`, `encodes/2`, `finding/3`, `reason/2`, `raised_by/2`.
-- Rules: `model_sane/1`, `model_calibrated/1`, `model_trusted/1`, `has_falsifier/1`,
-  `no_falsifier/1`, `needs_question/1`, `has_question/1`, `unasked_finding/1`,
-  `question_waits/1`, `about_system/1`, `finding_confirmed/1`, `finding_lead/1`,
-  `rule_has_reason/1`, `weak_rule/1`, `touched_system/0`, `budget_spent/0`,
-  `discovery_ready/0`, and helpers named `some_*`.
-- Attestation types: `reproduction`, `model_result`, `calibration`, `decision`.
+  `model_run/3`, `derived_from/2`, `encodes/2`, `finding/3`, `reason/3`,
+  `raised_by/2`, `discovery_evidence/2`.
+- Gates: `discovery_ready/0` (clean) and `discovery_decide/0` (ready, or the
+  budget is spent).
+- Rules: every name that starts with `model_` (for example `model_trusted/1`,
+  `model_diverges/1`, `model_run_stale/2`, `model_verdict/4`), and
+  `has_falsifier/1`, `no_falsifier/1`, `needs_question/1`,
+  `has_question/1`, `unasked_finding/1`, `question_waits/1`,
+  `about_system/1`, `finding_confirmed/1`, `finding_lead/1`,
+  `rule_has_reason/2`, `weak_rule/1`, `touched_system/0`, `budget_spent/0`,
+  and helpers named `discovery_*` and `some_*`.
+- Attestation types: `reproduction`, `model_result`, `decision`.
+  (Calibration is a `model_result` shape, not a type.)
+- Lint codes: `WD1`–`WD8` and `ED1`–`ED9`.
 
 Core facts:
 
@@ -393,10 +429,13 @@ Facts:
 - `change(id, text)`
 - `serves(ref(change), ref(claim))`
 - `burn_requested(ref(claim))`
+- `conformance(ref(check))` (D10, optional)
 
 Attestation types:
 
-- `lean_result`: shape `verdict(ref(claim), alt([stated, refuted, tested(int), proved]))`. Writers: `[agent, script]`.
+- `lean_result`: shape `verdict(ref(claim), alt([stated, refuted, tested(int)]))`. Writers: `[agent, script]`. Progress only (D10).
+- `lean_proof`: shape `proof(ref(claim), digest)`. Writers: `[script]`. Only `orbit-kb prove` writes it (D10).
+- `waiver`: shape `waive(ref(claim), time, text)`. Writers: `[human]` (D10).
 
 Rules (no `not` over body-only variables). They use the core rules `passed/1` and
 `was_red/1`:
@@ -410,11 +449,19 @@ served(X) :- serves(X, _).
 over(X) :- change(X, _), not served(X).
 any_under :- under(_).
 any_over :- over(_).
-done :- not any_under, not any_over, not any_to_ask.
+done :- not any_under, not any_over, not any_to_ask, not any_burn_open.
 burn(C) :- contested_twice(C).
 burn(C) :- universal(C).
 burn(C) :- burn_requested(C).
+burn_proved(C) :- attest(A, lean_proof, _, proof(C, _), script, _), not proof_changed(A).
+burn_waived(C) :- attest(W, waiver, _, waive(C, _, _), human, _), not waiver_lapsed(W).
+burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C).
+any_burn_open :- burn_open(_).
+conforms(C) :- conformance(K), check(K, C), passed(K).
 ```
+
+`proof_changed/1` and `waiver_lapsed/1` are rule predicates with no clauses in the
+library. The CLI adds their facts each time it reads the KB (D10).
 
 
 ## CLI

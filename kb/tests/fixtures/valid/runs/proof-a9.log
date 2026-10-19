@@ -1,0 +1,10 @@
+% orbit-kb prove claim=c2 digest=sha256:b62e710a7a8d7d40a094ea5f7818943073dee82e6332d835b889b6e10bf099be
+theorem load_fast
+module Load
+source Load.lean
+statement True
+lean 4.35.0
+time 2026-10-15T10:03:00Z
+root lean
+file sha256:d99cf8d88e8f56504eff66ccac0da4c2e1f54d6434a641ec392af5a9592977c2 Load.lean
+--- lake build output

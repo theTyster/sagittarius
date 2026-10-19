@@ -25,14 +25,15 @@ vocabulary for one orbit:
 | Module | Orbit | Status |
 |---|---|---|
 | `build` | Build: specification, implementation, verification | Written. See section 7. |
-| `discovery` | Discovery | A placeholder that holds only a comment. A separate discovery-orbit session owns it. |
+| `discovery` | Discovery | Rules for the discovery orbit: models, findings, hypotheses, and the gates `discovery_ready` and `discovery_decide`. The discovery-orbit session owns it. Example KB: `scripts/orbit-kb/fixtures/discovery-a/`. |
 
 When an agent must record what a human asked for and then show with evidence
 that the work is done, use `orbit-kb`.
 
 We built `orbit-kb` on 2026-10-15, with SWI-Prolog 9.2.9 and s(CASP) 1.1.4. On
 2026-10-16, an independent review (D7) and a speed fix (D8) changed the tool.
-Sections 9, 11, and 15 describe both.
+Sections 9, 11, and 15 describe both. On 2026-10-19, D10 made a burn require a
+Lean proof (section 7 and `prove` in section 8).
 
 ## 2. Install and check
 
@@ -62,6 +63,10 @@ To install on Fedora:
 `orbit-kb` also uses two common tools: `flock` from util-linux, and `timeout`
 from coreutils. `doctor` does not examine them. Section 13 says what happens
 when one is missing.
+
+`orbit-kb prove` also needs Lean 4 and Lake, installed with elan. It uses
+`lake`, and the `leanchecker` binary of the project toolchain. It was tested
+with Lean 4.30.0, 4.34.0, and 4.35.0. The other commands do not need Lean.
 
 The result on this machine (12 `ok` lines and 1 `info` line):
 
@@ -449,13 +454,21 @@ Load it with `uses([build])`. Its file is `modules/build.pl`.
 |---|---|
 | `change(id, text)` | A change to the code, with the file or a short description. |
 | `serves(ref(change), ref(claim))` | The change serves the claim. |
-| `burn_requested(ref(claim))` | A human asked for a formal statement of the claim, for example in Lean. |
+| `burn_requested(ref(claim))` | A human asked for a Lean proof of the claim. |
+| `conformance(ref(check))` | The check runs the code against the Lean model of its claim. Optional. |
 
 ### Build attestation types
 
 | Type | Shape | Writers |
 |---|---|---|
-| `lean_result` | `verdict(ref(claim), alt([stated, refuted, tested(int), proved]))` | `[agent, script]` |
+| `lean_result` | `verdict(ref(claim), alt([stated, refuted, tested(int)]))` | `[agent, script]` |
+| `lean_proof` | `proof(ref(claim), digest)` | `[script]`. Only `orbit-kb prove` writes it. |
+| `waiver` | `waive(ref(claim), time, text)`. The time is the due time. The text is the reason. | `[human]` |
+
+A `lean_result` records progress only. `stated` means that the statement
+type-checks with `sorry`. `tested(N)` means that a search found no
+counterexample in N trials. Neither is a proof. `lean_result` has no `proved`
+verdict. A proof is a `lean_proof`.
 
 ### Build rules
 
@@ -467,8 +480,41 @@ Load it with `uses([build])`. Its file is `modules/build.pl`.
 | `over(X)` | Change `X` serves no claim. |
 | `any_under` | `under(C)` is true for one or more claims. |
 | `any_over` | `over(X)` is true for one or more changes. |
-| `done` | `any_under`, `any_over`, and `any_to_ask` are all false. |
-| `burn(C)` | `C` needs a formal statement: it is contested twice, it is universal, or a human asked for it. |
+| `done` | `any_under`, `any_over`, `any_to_ask`, and `any_burn_open` are all false. |
+| `burn(C)` | `C` needs a Lean proof: it is contested twice, it is universal, or a human asked for a proof. |
+| `burn_proved(C)` | A `lean_proof` of `C` by `script` exists, and no file of that proof changed (`proof_changed`). |
+| `burn_waived(C)` | A human `waiver` of `C` exists, and its due time is not past (`waiver_lapsed`). |
+| `burn_open(C)` | `burn(C)`, `C` is current, and `C` is not proved and not waived. |
+| `any_burn_open` | `burn_open(C)` is true for one or more claims. |
+| `conforms(C)` | A `conformance` check of `C` passed. `done` does not need it. |
+| `proof_changed(A)` | Computed by `orbit-kb` when it reads the KB. A file of proof `A` changed, or its log is missing or does not match. |
+| `waiver_lapsed(W)` | Computed by `orbit-kb` when it reads the KB. The due time of waiver `W` is past. |
+
+### Burns need a proof
+
+A burn is a claim that needs a Lean proof. The proof is the source of clarity:
+to write the proof, you must state the claim correctly. A statement with
+`sorry` is not enough. A search with no counterexample is not enough.
+
+A burn closes in one of two ways:
+
+1. `orbit-kb prove` records a proof. Then `burn_proved(C)` is true.
+2. A human waives the proof until a due time. Then `burn_waived(C)` is true.
+   Use `orbit-kb attest waiver C 'waive(C, DUE, REASON)' --by human`. Only a
+   human may write a waiver. `report` still shows the claim as `NOT PROVED`,
+   with the due time. When the due time is past, the burn is open again.
+
+`done` is false while a burn is open. A superseded claim has no open burn.
+
+Each proof covers a set of files: the Lean source files of the project that the
+proof imports, and the Lake configuration files. If one of these files
+changes, the proof stops counting, and the burn is open again. `report` shows
+`Proof A of claim C no longer counts.` Run `orbit-kb prove` again.
+
+A proof is about the Lean model. It is not about the shipped code. The checks
+of the claim test the code, as for every claim. To test the code against the
+Lean model, add a check, and mark it with `conformance(K)`. This step is
+optional. `conforms(C)` shows the result.
 
 ## 8. Command reference
 
@@ -486,7 +532,7 @@ Exit: 0 on success. 1 if `kb.pl` exists or the input is rejected.
 Appends facts to `kb.pl`. The final full stop is optional. Facts in one command
 can refer to each other. If one fact is wrong, nothing is written. Write a
 classical negation as `'-world(x)'`. `add` refuses types whose writers are
-`[script]`. Use `run` for those.
+`[script]`. Use `run` or `prove` for those.
 Exit: 0 on success. 1 on a rejection. The message gives the fix.
 
 ### `declare 'HEAD' --doc TEXT [--kind fact|rule] [--template T]`
@@ -541,6 +587,58 @@ for SIGTERM.
 Exit: 0 on pass. 1 on fail. 2 if the check or the command does not exist. 130
 for SIGINT. 143 for SIGTERM.
 
+### `prove CLAIM FILE THEOREM [--module M]`
+
+Checks a Lean proof of a claim. If the proof passes every check, `prove`
+records it as a `lean_proof` attestation. FILE is a `.lean` file in a Lake
+project. The project root is the nearest directory, from the directory of FILE
+upward, with `lakefile.toml` or `lakefile.lean`. The module name comes from the
+path: `Fx/Load.lean` is `Fx.Load`. If the library has another source
+directory, give the module with `--module`.
+
+`prove` does these steps. Each step runs in the project root, without the KB
+lock:
+
+1. `lake build MODULE`.
+2. `lake env lean --run probe.lean MODULE THEOREM ROOT`. The probe is
+   `lean/probe.lean` in the library. It imports the built module, and it prints
+   the facts about THEOREM: its kind, its module, its axioms, its statement,
+   and the project files that the module imports. The probe decides nothing.
+3. `orbit-kb` reads the facts. THEOREM must be a theorem. The module of FILE
+   must declare it. It must depend on no axiom other than `propext`,
+   `Classical.choice`, and `Quot.sound`. Thus `sorry` (the axiom `sorryAx`),
+   `native_decide`, and a local `axiom` all fail this step.
+4. `lake env leanchecker` replays each project module of the proof in the
+   kernel. A declaration that skipped the kernel check fails this step.
+5. `prove` computes the digest of each file of the proof. Then
+   `lake build --no-build MODULE` makes sure that no file changed during the
+   checks.
+6. `prove` takes the lock. It writes `runs/proof-ID.log`, and it appends
+   `attest(ID, lean_proof, CLAIM, proof(CLAIM, DIGEST), script, TIME)`.
+
+The log holds the theorem, the module, the source file, the statement, the
+Lean version, the axioms, the project constants that the statement uses, the
+project root, and one line `file SHA PATH` for each file of the proof. Then it
+holds the output of `lake build`. The digest in the attestation is the sha256
+of the `file` lines.
+
+`prove` prints the statement. `orbit-kb` cannot check that the statement says
+what the claim says. Read the statement, and show it to the human.
+
+```text
+$ orbit-kb prove c1 lp/Fx/Load.lean load_linear
+proof a1 of claim c1: theorem load_linear (Fx.Load)
+Statement: ∀ (n : Nat), loadSteps n ≤ n
+Log: /…/kb/runs/proof-a1.log
+Check that the statement says what claim c1 says. orbit-kb cannot check that.
+```
+
+If a check fails, `prove` prints `Not proved. Nothing was recorded.`, the
+reason, and the last 40 lines of the tool output.
+Exit: 0 when the proof is recorded. 1 when it is not a proof. 2 on a usage
+error, a missing claim or file, a missing Lake project, or a missing `lake`.
+The time is about 2 s to 6 s for a small project, most of it in Lean.
+
 ### `lint [--strict]`
 
 Examines `kb.pl`, `rules.pl`, the core, and the modules. It prints one line per
@@ -590,7 +688,8 @@ predicate (E2) in a source file.
 
 Lists parts of the KB as plain text. The default is `all`. `open` lists
 `to_ask`, `stale`, and `contested`. When the `build` module is in use, `open`
-also lists `under` and `over`. `show` runs one query for each relation, not
+also lists `under`, `over`, and `burn_open`. `claims` shows the burn state of
+each claim that burns: proved, waived (`NOT PROVED`), or open. `show` runs one query for each relation, not
 one query for each fact.
 Exit: 0. 2 on an unknown topic, or on E1 or E2 in a source file.
 
@@ -599,7 +698,10 @@ Exit: 0. 2 on an unknown topic, or on E1 or E2 in a source file.
 Prints a skeleton of a delivery report with these sections: `Delivered:`,
 `Claims:`, `Guesses:`, `Disclosures:`, `Not checked:`, `Open:`, `To land:`.
 You write `Delivered` and `To land` yourself. Step 16 of section 3 shows an
-example. Like `show`, `report` runs one query for each relation.
+example. Like `show`, `report` runs one query for each relation. For a claim
+that burns, `Claims:` adds `Burn: proved in Lean.` or `Burn: NOT PROVED.` with
+the waiver due time. `Open:` lists each open burn, each waiver past its due
+time, and each proof that no longer counts.
 Exit: 0. 2 on E1 or E2 in a source file.
 
 ### `doctor`
@@ -638,8 +740,8 @@ Exit: 0.
 The commands `add`, `declare`, `declare-attest`, `subject`, and `attest` hold
 an exclusive lock on `kb.lock` in the KB directory for the whole cycle. The
 cycle is: read `kb.pl`, choose the ID, write, and append. Thus two writers in
-two processes cannot choose the same ID. `run` takes the lock only to record
-its result (see `run`). The commands that only read the KB take no lock.
+two processes cannot choose the same ID. `run` and `prove` take the lock only
+to record their result (see `run`). The commands that only read the KB take no lock.
 
 `flock(1)` from util-linux gives the lock. A lock goes away when the process
 ends, for any reason, so a stale lock cannot occur. If `flock(1)` is not on
@@ -651,7 +753,7 @@ ends, for any reason, so a stale lock cannot occur. If `flock(1)` is not on
 | Code | Meaning |
 |---|---|
 | 0 | Success. The query is true. Lint is clean. |
-| 1 | The query has no answer. Lint found errors. `orbit-kb` rejected the input. A `run` failed. |
+| 1 | The query has no answer. Lint found errors. `orbit-kb` rejected the input. A `run` failed. `prove` found no proof. |
 | 2 | Usage error. The KB, the library, or a tool is missing. A goal is bad, or names an undeclared predicate. A source file has a syntax error (E1), or `rules.pl` has an undeclared predicate (E2), and the command must answer. `SWI ERROR`. `ENGINE DISAGREEMENT`. Internal error. |
 | 130, 143 | `run` got SIGINT (130) or SIGTERM (143). It recorded nothing. |
 
@@ -782,7 +884,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E6 | Non-ground fact in `kb.pl`. |
 | E7 | A clause in the wrong place: a `rule` predicate as a fact in `kb.pl`, or a `fact` predicate with clauses outside `kb.pl`. |
 | E8 | The writer is not permitted for the attestation type. This includes a `[script]` type whose writer is not `script`. |
-| E9 | A `test_result` with no matching run log. The log header must match N, the check, and the result. |
+| E9 | A `test_result` with no matching run log. The log header must match N, the check, and the result. Also a `lean_proof` with no matching `runs/proof-ID.log`. Its header must match the claim and the digest. |
 | E10 | `uses/1` is missing, is not first, or names an unknown module. |
 | E11 | The assembled program does not compile in s(CASP), or does not load in the SWI engine. |
 | E12 | A `not` literal holds a variable that occurs nowhere else in the clause, `_` included (hazard H1). The message gives the helper-predicate fix. |
@@ -1281,19 +1383,26 @@ Reserved names:
 - `declare` refuses these names: `decl`, `attest_type`, `uses`, `not`, `true`,
   `false`, `forall`, `call`, `is`, and the operators `=`, `\=`, `<`, `>`, `=<`,
   `>=`, `,`, `;`, `->`, `:-`, `#`, `\+`, `-`, `#=`, `#<>`, `#<`, `#>`, `#=<`,
-  `#>=`.
+  `#>=`. It also refuses `proved`, `chs`, `assume`, and `abduced`. s(CASP)
+  wraps model terms in these names, so a predicate `proved/1` makes
+  `scasp --code` fail with an instantiation error (D10).
 - The `discovery` module reserves these names. They must not appear in the
   core or in the `build` module:
   - Facts: `hypothesis/3`, `budget/2`, `lap_done/1`, `model/2`,
-    `derived_from/2`, `encodes/2`, `finding/3`, `reason/2`, `raised_by/2`.
-  - Rules: `model_sane/1`, `model_calibrated/1`, `model_trusted/1`,
+    `model_run/3`, `derived_from/2`, `encodes/2`, `finding/3`, `reason/3`,
+    `raised_by/2`, `discovery_evidence/2`.
+  - Gates: `discovery_ready/0` (clean) and `discovery_decide/0` (ready, or the
+    budget is spent).
+  - Rules: every name that starts with `model_` (for example `model_trusted/1`,
+    `model_diverges/1`, `model_run_stale/2`, `model_verdict/4`), and
     `has_falsifier/1`, `no_falsifier/1`, `needs_question/1`,
     `has_question/1`, `unasked_finding/1`, `question_waits/1`,
     `about_system/1`, `finding_confirmed/1`, `finding_lead/1`,
-    `rule_has_reason/1`, `weak_rule/1`, `touched_system/0`, `budget_spent/0`,
-    `discovery_ready/0`, and helpers named `some_*`.
-  - Attestation types: `reproduction`, `model_result`, `calibration`,
-    `decision`.
+    `rule_has_reason/2`, `weak_rule/1`, `touched_system/0`, `budget_spent/0`,
+    and helpers named `discovery_*` and `some_*`.
+  - Attestation types: `reproduction`, `model_result`, `decision`.
+    (Calibration is a `model_result` shape, not a type.)
+  - Lint codes: `WD1`–`WD8` and `ED1`–`ED9`.
 
 ### Fixture expectations: `expected.pl`
 
@@ -1306,7 +1415,8 @@ runs s(CASP) on the assembled program. It does not use the grounding of the
 CLI.
 
 Usage: `swipl harness/run.pl [FIXTURE_DIR [LIB_DIR [FORALL]]]`. The default
-`FORALL` is `--forall=prev`.
+`FORALL` is `--forall=prev`. Set `only=NAME` to run one variant. The harness
+honors `ORBIT_KB_SCASP_TIMEOUT`.
 
 A fixture is a KB directory with an `expected.pl` file. The file has two kinds
 of terms:
@@ -1317,7 +1427,7 @@ variant(cf1_no_answer, [delete(answer(q1, floor_wins, human))]).
 
 % expect(Variant, 'GOAL', Answers)
 expect(base, 'current(C)', ['C = c1', 'C = c2b']).
-expect(cf1_no_answer, 'to_ask(Q)', ['Q = q1']).
+expect(cf1_no_answer, 'to_ask(Q)', none).   % D5: q1's claim is superseded
 expect(cf1_no_answer, 'discovery_ready', none).
 ```
 
@@ -1514,6 +1624,23 @@ Changes in contract v2.1:
   - **`doctor`.** It has 12 checks. The new ones are "H4 under not, ground
     mode" and the grounder-corruption control. The H4 raw control runs in raw
     mode.
+- **D10 (a burn needs a proof, 2026-10-19).** Ty decided that a burn needs a
+  proved verdict, always. The clarity comes from the work to write a correct
+  proof, not from a statement in Lean.
+  - `done` is false while a burn is open (`any_burn_open`).
+  - `lean_result` lost its `proved` verdict. A new type `lean_proof` holds a
+    proof. Only `orbit-kb prove` writes it.
+  - `prove` builds the project, reads the axioms, and runs `leanchecker`. It
+    accepts only `propext`, `Classical.choice`, and `Quot.sound`. TLA+ and
+    TLC do not close a burn.
+  - A proof covers the project files that it imports. A change to one of them
+    reopens the burn.
+  - Only a human can waive a proof, with a due time. After the due time, the
+    burn is open again. `report` shows a waived claim as `NOT PROVED`.
+  - A check of the code against the Lean model is optional
+    (`conformance/1`, `conforms/1`).
+  - `declare` refuses `proved`, `chs`, `assume`, and `abduced`. A rule named
+    `proved/1` broke the s(CASP) compile.
 
 The speed work (also on 2026-10-16) did not change any answer:
 
@@ -1550,3 +1677,13 @@ Known gaps:
   unification bug in SWI. Only negation has an independent check.
 - The s(CASP) time limit needs the coreutils `timeout` command.
 - `orbit-kb run --type ... --expect` is deferred. It does not exist.
+- `prove` cannot check that the Lean statement says what the claim says. The
+  agent and the human must read the statement.
+- `prove` trusts the Lean toolchain of the project, its `lake`, and its
+  `leanchecker`. `leanchecker` replays the declarations in the same kernel.
+  It is not an independent checker.
+- A proof covers the project source files and the Lake configuration files. It
+  does not cover the source of a dependency in `.lake/packages`. The
+  `lake-manifest.json` file pins the dependency versions.
+- `proof_changed/1` and `waiver_lapsed/1` read the disk and the clock. So the
+  same KB can give a different answer after a file edit or after a due time.

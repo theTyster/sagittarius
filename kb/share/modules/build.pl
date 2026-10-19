@@ -18,8 +18,11 @@ decl(fact, serves(ref(change), ref(claim)),
      'The change serves the claim.',
      'change @(1) serves claim @(2)').
 decl(fact, burn_requested(ref(claim)),
-     'A human asked for a formal statement of the claim, for example in Lean.',
-     'a human asked for a formal statement of claim @(1)').
+     'A human asked for a Lean proof of the claim.',
+     'a human asked for a Lean proof of claim @(1)').
+decl(fact, conformance(ref(check)),
+     'The check runs the code against the Lean model of its claim.',
+     'check @(1) runs the code against the Lean model').
 
 % ---------------------------------------------------------------------
 % Build rule predicates
@@ -44,20 +47,49 @@ decl(rule, any_over,
      'At least one change serves no claim.',
      'some change serves no claim').
 decl(rule, done,
-     'No current claim is unfulfilled, no change is without a claim, and no question must be asked.',
+     'No current claim is unfulfilled, no change is without a claim, no question must be asked, and no burn is open.',
      'the work is done').
 decl(rule, burn(ref(claim)),
-     'The claim needs a formal statement, for example in Lean, because it was contested twice, it is universal, or a human asked.',
-     'claim @(1) needs a formal statement').
+     'The claim needs a Lean proof, because it was contested twice, it is universal, or a human asked.',
+     'claim @(1) needs a Lean proof').
+decl(rule, proof_changed(ref(attest)),
+     'A file of the proof changed after the proof, or the proof log is missing or does not match. orbit-kb computes it when it reads the KB.',
+     'a file of proof @(1) changed after the proof').
+decl(rule, waiver_lapsed(ref(attest)),
+     'The due time of the waiver is in the past. orbit-kb computes it when it reads the KB.',
+     'waiver @(1) is past its due time').
+decl(rule, burn_proved(ref(claim)),
+     'orbit-kb prove recorded a proof of the claim, and no file of that proof has changed since.',
+     'claim @(1) is proved in Lean').
+decl(rule, burn_waived(ref(claim)),
+     'A human waived the proof of the claim, and the due time of the waiver is not past.',
+     'a human waived the proof of claim @(1)').
+decl(rule, burn_open(ref(claim)),
+     'The claim is current and needs a Lean proof, but it is not proved and no human waived the proof.',
+     'claim @(1) needs a Lean proof that does not exist yet').
+decl(rule, any_burn_open,
+     'At least one burn is open.',
+     'some claim needs a Lean proof that does not exist yet').
+decl(rule, conforms(ref(claim)),
+     'A conformance check of the claim passed: the code agrees with the Lean model on its cases.',
+     'the code conforms to the Lean model of claim @(1)').
 
 % ---------------------------------------------------------------------
 % Build attestation types
 % ---------------------------------------------------------------------
 
 attest_type(lean_result,
-            verdict(ref(claim), alt([stated, refuted, tested(int), proved])),
+            verdict(ref(claim), alt([stated, refuted, tested(int)])),
             [agent, script],
-            'The verdict of a Lean statement of a claim: stated, refuted, tested in N trials, or proved.').
+            'Progress on the Lean statement of a claim: stated (it type-checks with sorry), refuted, or tested in N trials with no counterexample. None of these is a proof.').
+attest_type(lean_proof,
+            proof(ref(claim), digest),
+            [script],
+            'A Lean proof of the claim. The digest covers the files of the proof. Only orbit-kb prove writes it.').
+attest_type(waiver,
+            waive(ref(claim), time, text),
+            [human],
+            'A human waives the proof of the claim until the due time, for the reason in the text.').
 
 % ---------------------------------------------------------------------
 % Build rules
@@ -71,7 +103,17 @@ served(X) :- serves(X, _).
 over(X) :- change(X, _), not served(X).
 any_under :- under(_).
 any_over :- over(_).
-done :- not any_under, not any_over, not any_to_ask.
+done :- not any_under, not any_over, not any_to_ask, not any_burn_open.
 burn(C) :- contested_twice(C).
 burn(C) :- universal(C).
 burn(C) :- burn_requested(C).
+% A burn needs a proof. A stated or tested Lean result is progress, not
+% a proof. When orbit-kb reads the KB, it adds a proof_changed/1 fact
+% for each proof whose files changed, and a waiver_lapsed/1 fact for
+% each waiver whose due time is past. So an old proof or an old waiver
+% does not count.
+burn_proved(C) :- attest(A, lean_proof, _, proof(C, _), script, _), not proof_changed(A).
+burn_waived(C) :- attest(W, waiver, _, waive(C, _, _), human, _), not waiver_lapsed(W).
+burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C).
+any_burn_open :- burn_open(_).
+conforms(C) :- conformance(K), check(K, C), passed(K).

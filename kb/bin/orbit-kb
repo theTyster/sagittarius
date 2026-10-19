@@ -405,6 +405,7 @@ kb_command('declare-attest').
 kb_command(subject).
 kb_command(attest).
 kb_command(run).
+kb_command(prove).
 kb_command(lint).
 kb_command(query).
 kb_command(why).
@@ -446,7 +447,8 @@ writer_command(declare).
 writer_command('declare-attest').
 writer_command(subject).
 writer_command(attest).
-% run takes the lock itself, only to record the result (see cmd_run/3).
+% run and prove take the lock themselves, only to record the result
+% (see cmd_run/3 and cmd_prove/3).
 
 % ---------------------------------------------------------------------
 % The KB lock (D7)
@@ -503,6 +505,7 @@ kb_cmd('declare-attest', KB, Args, Code) :- cmd_declare_attest(KB, Args, Code).
 kb_cmd(subject, KB, Args, Code) :- cmd_subject(KB, Args, Code).
 kb_cmd(attest, KB, Args, Code) :- cmd_attest(KB, Args, Code).
 kb_cmd(run, KB, Args, Code) :- cmd_run(KB, Args, Code).
+kb_cmd(prove, KB, Args, Code) :- cmd_prove(KB, Args, Code).
 kb_cmd(lint, KB, Args, Code) :- cmd_lint(KB, Args, Code).
 kb_cmd(query, KB, Args, Code) :- cmd_query(KB, Args, false, Code).
 kb_cmd(why, KB, Args, Code) :- cmd_query(KB, Args, true, Code).
@@ -707,7 +710,30 @@ load_kb(Dir, Lib, kb(Dir, Lib, Uses, Items)) :-
             ModItems),
     directory_file_path(Dir, 'rules.pl', RulesFile),
     read_source_file(rules, RulesFile, RuleItems),
-    append([CoreItems, ModItems, KbItems, RuleItems], Items).
+    derived_items(Dir, KbItems, DerivedItems),
+    append([CoreItems, ModItems, KbItems, RuleItems, DerivedItems], Items).
+
+% derived_items(+Dir, +KbItems, -Items) (D10): facts that orbit-kb
+% computes from the disk and the clock each time it reads the KB.
+%   proof_changed(A)  proof A does not count: a file of the proof
+%                     changed, or its log is missing or does not match.
+%   waiver_lapsed(W)  the due time of waiver W is past.
+% Both engines see them as facts. The rules in modules/build.pl read
+% them under not.
+derived_items(Dir, KbItems, Items) :-
+    findall(proof_changed(A),
+            ( member(it(kb, _, _, T, _, _), KbItems), nonvar(T),
+              T = attest(A, lean_proof, _, P, _, _), atom(A),
+              \+ proof_state(Dir, A, P, ok) ),
+            Ts1),
+    utc_now(Now),
+    findall(waiver_lapsed(W),
+            ( member(it(kb, _, _, T, _, _), KbItems), nonvar(T),
+              T = attest(W, waiver, _, waive(_, Due, _), _, _), atom(W),
+              atom(Due), Due @< Now ),
+            Ts2),
+    append(Ts1, Ts2, Ts),
+    findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
 
 kb_dir(kb(D, _, _, _), D).
 kb_lib(kb(_, L, _, _), L).
@@ -802,6 +828,7 @@ src_text(core, "the core") :- !.
 src_text(module(M), S) :- !, fmt(S, "module ~w", [M]).
 src_text(kb, "kb.pl") :- !.
 src_text(rules, "rules.pl") :- !.
+src_text(derived, "orbit-kb (computed when it reads the KB)") :- !.
 src_text(S, T) :- fmt(T, "~w", [S]).
 
 % ---------------------------------------------------------------------
@@ -1034,7 +1061,8 @@ fact_diags(Ctx, it(_, F, L, T, _, _), Diags) :-
         )
     ).
 
-attest_diags(KB, ATs, Env, attest(_, Type, _, Pred, By, _), F, L, Diags) :-
+attest_diags(KB, ATs, Env, Fact0, F, L, Diags) :-
+    Fact0 = attest(_, Type, _, Pred, By, _),
     (   \+ atom(Type)
     ->  Diags = []                       % reported as a type error already
     ;   \+ atype_of(ATs, Type, _)
@@ -1049,7 +1077,8 @@ attest_diags(KB, ATs, Env, attest(_, Type, _, Pred, By, _), F, L, Diags) :-
         (   atom(By), is_list(Writers), \+ memberchk(By, Writers)
         ->  atomic_list_concat(Writers, ', ', WT),
             (   Writers == [script]
-            ->  fmt(M8, "Type ~q allows only the writer script. Only orbit-kb run writes it. This attestation is by ~q.", [Type, By])
+            ->  script_cmd(Type, SC),
+                fmt(M8, "Type ~q allows only the writer script. Only ~w writes it. This attestation is by ~q.", [Type, SC, By])
             ;   fmt(M8, "Type ~q allows only these writers: ~w. This attestation is by ~q. Change the writer, or use another type.", [Type, WT, By])
             ),
             D2 = [diag('E8', F, L, M8)]
@@ -1060,10 +1089,19 @@ attest_diags(KB, ATs, Env, attest(_, Type, _, Pred, By, _), F, L, Diags) :-
             \+ run_log_ok(KB, K, RN, R)
         ->  fmt(M9, "No run log matches this test result. Expected runs/~w-~w.log with result=~w in its first line. Only orbit-kb run writes test results.", [RN, K, R]),
             D3 = [diag('E9', F, L, M9)]
+        ;   Type == lean_proof, nonvar(Pred), Pred = proof(_, _),
+            arg(1, Fact0, Id), atom(Id), kb_dir(KB, Dir),
+            \+ proof_log_matches(Dir, Id, Pred)
+        ->  fmt(M9, "No proof log matches this lean_proof. Expected runs/proof-~w.log with the same claim and digest in its first line. Only orbit-kb prove writes proofs.", [Id]),
+            D3 = [diag('E9', F, L, M9)]
         ;   D3 = []
         ),
         append([D1, D2, D3], Diags)
     ).
+
+% script_cmd(+Type, -Command): the command that writes a script-only type.
+script_cmd(lean_proof, "orbit-kb prove") :- !.
+script_cmd(_, "orbit-kb run").
 
 run_log_path(KB, K, N, P) :-
     kb_dir(KB, Dir),
@@ -3063,10 +3101,14 @@ add_item(ATs, I, A, R) :-
         ;   nonvar(T), T = uses(_)
         ->  fmt(M, "Argument ~w is uses/1. orbit-kb init writes it. Edit the first line of kb.pl to change the modules.", [I]), R = err(M)
         ;   nonvar(T), T = attest(_, Type, _, _, _, _), atom(Type), script_only_type(ATs, Type)
-        ->  fmt(M, "Argument ~w: only orbit-kb run writes attestations of type ~q. Use orbit-kb run CHECK -- CMD.", [I, Type]), R = err(M)
+        ->  script_use(Type, Use),
+            fmt(M, "Argument ~w: only ~w writes attestations of type ~q.", [I, Use, Type]), R = err(M)
         ;   R = ok(it(new, '<arg>', I, T, VN, 0-0))
         )
     ).
+
+script_use(lean_proof, "orbit-kb prove CLAIM FILE THEOREM") :- !.
+script_use(_, "orbit-kb run CHECK -- CMD").
 
 script_only_type(ATs, Type) :-
     atype_of(ATs, Type, at(_, _, W, _, _, _, _)),
@@ -3079,7 +3121,11 @@ script_only_type(ATs, Type) :-
 reserved_name(N) :-
     memberchk(N, [decl, attest_type, uses, not, true, false, forall, call, is,
                   '=', '\\=', '<', '>', '=<', '>=', ',', ';', '->', ':-', '#', '\\+', '-',
-                  '#=', '#<>', '#<', '#>', '#=<', '#>=']).
+                  '#=', '#<>', '#<', '#>', '#=<', '#>=',
+                  % s(CASP) wraps model terms in these names. A predicate
+                  % proved/1 (or chs/1, assume/1, abduced/1) makes
+                  % scasp --code fail with an instantiation error (D10).
+                  proved, chs, assume, abduced]).
 
 cmd_declare(KB, Args, Code) :-
     parse_opts(Args, ['--doc'-value, '--kind'-value, '--template'-value], Pos, Opts),
@@ -3299,7 +3345,7 @@ cmd_attest(KB, Args, Code) :-
     ),
     opt(Opts, '--by', agent, By),
     (   By == script
-    ->  reject(["Only orbit-kb run writes attestations by script. Use orbit-kb run CHECK -- CMD."])
+    ->  reject(["Only orbit-kb run and orbit-kb prove write attestations by script."])
     ;   memberchk(By, [human, agent]) -> true
     ;   reject(["--by must be human or agent. It is " + By + "."] >> fix_lines)
     ),
@@ -3307,7 +3353,8 @@ cmd_attest(KB, Args, Code) :-
     items_decls(Items, Ds),
     items_atypes(Items, ATs),
     (   atype_of(ATs, Type, at(_, _, W, _, _, _, _)), W == [script]
-    ->  reject(["Only orbit-kb run writes attestations of type " + Type + ". Use orbit-kb run CHECK -- CMD."] >> fix_lines)
+    ->  script_use(Type, Use),
+        reject(["Only " + Use + " writes attestations of type " + Type + "."] >> fix_lines)
     ;   true
     ),
     parse_one(PredText, P),
@@ -3529,6 +3576,328 @@ create_exclusive(File, Text) :-
         % other orbit-kb processes out, so a rename is safe here.
         rename_file(Tmp, File)
     ).
+
+% ---------------------------------------------------------------------
+% prove (D10)
+% ---------------------------------------------------------------------
+
+% prove CLAIM FILE THEOREM [--module M]: build the Lake project of FILE,
+% then check THEOREM. orbit-kb records a lean_proof only when all of
+% these are true:
+%   - THEOREM is a theorem, and the module of FILE declares it;
+%   - it depends on no axiom other than propext, Classical.choice, and
+%     Quot.sound. So it has no sorry, no native_decide, and no local
+%     axiom;
+%   - leanchecker replays every module of the project that the module
+%     imports. This finds a declaration that skipped the kernel;
+%   - the built files are still up to date when the digest is taken.
+% The log runs/proof-ID.log holds the digest of each file of the proof.
+% When a file changes, the proof stops counting (proof_changed/1).
+% As run does, prove works without the KB lock and takes the lock only
+% to record.
+
+proof_axiom_ok(propext).
+proof_axiom_ok('Classical.choice').
+proof_axiom_ok('Quot.sound').
+
+% Files at the project root that also change what a proof means.
+lake_config_file('lean-toolchain').
+lake_config_file('lake-manifest.json').
+lake_config_file('lakefile.toml').
+lake_config_file('lakefile.lean').
+
+cmd_prove(KB, Args, Code) :-
+    parse_opts(Args, ['--module'-value], Pos, Opts),
+    (   Pos = [Claim, File, Thm] -> true
+    ;   usage_error("Give a claim, a Lean file, and a theorem: orbit-kb prove CLAIM FILE THEOREM [--module M].", [])
+    ),
+    (   has_build(KB) -> true
+    ;   die(2, ["prove needs the build module. Add build to uses/1 in kb.pl."])
+    ),
+    kb_items(KB, Items),
+    (   member(it(kb, _, _, T, _, _), Items), nonvar(T), T = claim(Claim, _, _)
+    ->  true
+    ;   die(2, ["There is no claim " + Claim + " in kb.pl.", "Fix: check the claim id. Nothing was recorded."] >> fix_lines)
+    ),
+    absolute_file_name(File, FileAbs0),
+    (   exists_file(FileAbs0) -> real_file(FileAbs0, FileAbs)
+    ;   die(2, ["The file " + File + " does not exist. Nothing was recorded."] >> fix_lines)
+    ),
+    lake_root(FileAbs, Root),
+    (   memberchk('--module'-Mod, Opts) -> true ; file_module(Root, FileAbs, Mod) ),
+    (   absolute_file_name(path(lake), Lake, [access(execute), file_errors(fail)]) -> true
+    ;   die(2, ["lake is not on PATH. Install Lean with elan. Nothing was recorded."])
+    ),
+    kb_lib(KB, Lib),
+    directory_file_path(Lib, 'lean/probe.lean', Probe),
+    ( exists_file(Probe) -> true ; die(2, ["The library has no lean/probe.lean: " + Probe] >> fix_lines) ),
+    kb_dir(KB, Dir),
+    directory_file_path(Dir, runs, RunsDir),
+    make_directory_path(RunsDir),
+    % 1. Build the module.
+    prove_exec(Lake, [build, Mod], Root, RunsDir, EC1, Out1),
+    (   EC1 =:= 0 -> true
+    ;   prove_reject(["lake build " + Mod + " failed (exit " + EC1 + ").",
+                      "Fix the Lean file, or give the module with --module if the name is wrong."], Out1)
+    ),
+    % 2. Read the facts about the theorem.
+    prove_exec(Lake, [env, lean, '--run', Probe, Mod, Thm, Root], Root, RunsDir, EC2, Out2),
+    (   EC2 =:= 0 -> true
+    ;   prove_reject(["The probe failed (exit " + EC2 + ")."], Out2)
+    ),
+    probe_facts(Out2, PF),
+    prove_judge(PF, Mod, Thm, FileAbs, Root, Out2),
+    % 3. Replay the project modules in the kernel.
+    findall(M, member(file(M, _), PF), PMods),
+    prove_exec(Lake, [env, leanchecker|PMods], Root, RunsDir, EC3, Out3),
+    (   EC3 =:= 0 -> true
+    ;   prove_reject(["leanchecker found a problem, or it is missing (exit " + EC3 + ").",
+                      "A declaration that skips the kernel check is not a proof."], Out3)
+    ),
+    % 4. Take the digest, then check that the build is still up to date.
+    proof_files(Root, PF, Files),
+    files_digest(Files, Digest),
+    prove_exec(Lake, [build, '--no-build', Mod], Root, RunsDir, EC4, Out4),
+    (   EC4 =:= 0 -> true
+    ;   prove_reject(["A file of the proof changed while orbit-kb checked it. Run orbit-kb prove again."], Out4)
+    ),
+    utc_now(Now),
+    stored_path(Dir, Root, StoredRoot),
+    relative_file_name(FileAbs, Root, RelFile),
+    proof_log_text(Claim, Digest, Thm, Mod, RelFile, StoredRoot, PF, Files, Now, Out1, LogText),
+    with_kb_lock(Dir, record_proof(KB, Claim, Digest, Now, LogText, Id, Log)),
+    member(statement(St), PF),
+    format("proof ~w of claim ~w: theorem ~w (~w)~n", [Id, Claim, Thm, Mod]),
+    format("Statement: ~w~n", [St]),
+    format("Log: ~w~n", [Log]),
+    format("Check that the statement says what claim ~w says. orbit-kb cannot check that.~n", [Claim]),
+    Code = 0.
+
+% prove_exec(+Exe, +Args, +Cwd, +RunsDir, -ExitCode, -Output): run a
+% command in Cwd, with its output in a private temp file.
+prove_exec(Exe, Args, Cwd, RunsDir, EC, Output) :-
+    runs_tmp(RunsDir, Tmp, OS),
+    catch(process_create(Exe, Args, [cwd(Cwd), stdin(null), stdout(stream(OS)), stderr(stream(OS)), process(P)]), E, true),
+    close(OS),
+    (   nonvar(E)
+    ->  err_text(E, ET),
+        die(2, ["Could not start " + Exe + ": " + ET, "Nothing was recorded."] >> fix_lines)
+    ;   true
+    ),
+    run_wait(P, St),
+    (   St = exit(EC) -> true
+    ;   St = killed(Sig) -> EC is 128 + Sig
+    ;   EC = 255
+    ),
+    read_file_to_string(Tmp, Output, [encoding(utf8)]).
+
+% prove_reject(+Lines, +Output): nothing is recorded. Exit 1, with the
+% last 40 lines of the output.
+prove_reject(Lines0, Output) :-
+    die_fix_lines(Lines0, Lines),
+    split_string(Output, "\n", "", OL0),
+    ( append(OL1, [""], OL0) -> true ; OL1 = OL0 ),
+    length(OL1, Len),
+    ( Len > 40 -> Skip is Len - 40, length(Drop, Skip), append(Drop, Tail, OL1) ; Tail = OL1 ),
+    (   Tail == [] -> TailLines = []
+    ;   length(Tail, TN), fmt(H, "Last ~w line(s) of output:", [TN]), TailLines = [H|Tail]
+    ),
+    append([["Not proved. Nothing was recorded."], Lines, TailLines], All),
+    throw(orbit_error(1, All)).
+
+% lake_root(+File, -Root): the nearest directory, from the directory of
+% File upward, with a lakefile.
+lake_root(File, Root) :-
+    file_directory_name(File, D),
+    (   lake_root_(D, Root) -> true
+    ;   die(2, ["No Lake project holds " + File + ". There is no lakefile.toml or lakefile.lean in its directory or above."] >> fix_lines)
+    ).
+lake_root_(D, D) :-
+    ( directory_file_path(D, 'lakefile.toml', F) ; directory_file_path(D, 'lakefile.lean', F) ),
+    exists_file(F), !.
+lake_root_(D, Root) :-
+    file_directory_name(D, P), P \== D,
+    lake_root_(P, Root).
+
+% file_module(+Root, +File, -Module): Foo/Bar.lean under Root is the
+% module Foo.Bar. A library with another srcDir needs --module.
+file_module(Root, File, Mod) :-
+    relative_file_name(File, Root, Rel),
+    (   file_name_extension(Base, lean, Rel), \+ sub_atom(Base, 0, _, _, '..')
+    ->  atomic_list_concat(Ps, '/', Base),
+        atomic_list_concat(Ps, '.', Mod)
+    ;   die(2, ["The file " + File + " is not a .lean file inside its Lake project."] >> fix_lines)
+    ).
+
+% probe_facts(+Output, -Facts): the ORBIT-PROVE lines of lean/probe.lean.
+probe_facts(Output, Facts) :-
+    split_string(Output, "\n", "", Ls),
+    findall(F, ( member(L, Ls), string_concat("ORBIT-PROVE ", R, L), probe_fact(R, F) ), Facts).
+
+probe_fact(R, F) :-
+    (   sub_string(R, B, 1, A, " ") -> sub_string(R, 0, B, _, K), sub_string(R, _, A, 0, V)
+    ;   K = R, V = ""
+    ),
+    !,
+    probe_fact(K, V, F).
+probe_fact("lean", V, lean(V)).
+probe_fact("kind", V, kind(K)) :- atom_string(K, V).
+probe_fact("module", V, module(M)) :- atom_string(M, V).
+probe_fact("axiom", V, axiom(X)) :- atom_string(X, V).
+probe_fact("statement", V, statement(V)).
+probe_fact("uses", V, uses(C, M)) :- two_words(V, C, M).
+probe_fact("file", V, file(M, P)) :- two_words(V, M, P).
+
+% two_words(+S, -A, -B): A is the first word of S, B the rest (atoms).
+two_words(S, A, B) :-
+    (   sub_string(S, X, 1, Y, " ")
+    ->  sub_string(S, 0, X, _, SA), sub_string(S, _, Y, 0, SB)
+    ;   SA = S, SB = ""
+    ),
+    !,
+    atom_string(A, SA), atom_string(B, SB).
+
+% prove_judge(+Facts, +Module, +Theorem, +File, +Root, +Output): reject
+% unless the probe facts show a proof.
+prove_judge(PF, Mod, Thm, FileAbs, Root, Out) :-
+    (   memberchk(kind(K), PF) -> true ; K = missing ),
+    (   K == theorem -> true
+    ;   K == missing
+    ->  prove_reject(["There is no declaration " + Thm + " in module " + Mod + " or its imports.",
+                      "Give the full name, with its namespace."], Out)
+    ;   prove_reject(["The declaration " + Thm + " is a " + K + ", not a theorem."], Out)
+    ),
+    (   memberchk(module(DM), PF), DM == Mod -> true
+    ;   ( memberchk(module(DM), PF) -> true ; DM = unknown ),
+        prove_reject(["The theorem " + Thm + " is declared in module " + DM + ", not in " + Mod + ".",
+                      "Prove the claim with a theorem in the file that you give."], Out)
+    ),
+    findall(X, ( member(axiom(X), PF), \+ proof_axiom_ok(X) ), Bad),
+    (   Bad == [] -> true
+    ;   memberchk(sorryAx, Bad)
+    ->  prove_reject(["The proof of " + Thm + " uses sorry (the axiom sorryAx). A statement with sorry is not a proof."], Out)
+    ;   atomic_list_concat(Bad, ', ', BT),
+        prove_reject(["The proof of " + Thm + " depends on axioms that orbit-kb does not accept: " + BT + ".",
+                      "Only propext, Classical.choice, and Quot.sound are accepted. native_decide adds an axiom."], Out)
+    ),
+    relative_file_name(FileAbs, Root, Rel),
+    (   member(file(Mod, P), PF), P == Rel -> true
+    ;   prove_reject(["The module " + Mod + " is not the file " + Rel + ". Give the module with --module."], Out)
+    ).
+
+% proof_files(+Root, +Facts, -Files): f(Sha, RelPath) for each project
+% source file of the proof and each Lake configuration file, sorted.
+proof_files(Root, PF, Files) :-
+    findall(P, member(file(_, P), PF), Ps1),
+    findall(C, ( lake_config_file(C), directory_file_path(Root, C, F), exists_file(F) ), Ps2),
+    append(Ps1, Ps2, Ps0),
+    sort(Ps0, Ps),
+    findall(f(Sha, P), ( member(P, Ps), directory_file_path(Root, P, F), sha256_file(F, Sha) ), Files).
+
+% files_digest(+Files, ?Digest): the sha256 of the lines "SHA PATH".
+files_digest(Files, Digest) :-
+    findall(L, ( member(f(Sha, P), Files), fmt(L, "~w ~w~n", [Sha, P]) ), Ls),
+    atomic_list_concat(Ls, Text),
+    sha256_text(Text, Digest).
+
+sha256_text(Text, Digest) :-
+    (   catch(( use_module(library(sha)),
+                sha:sha_hash(Text, H, [algorithm(sha256), encoding(utf8)]),
+                sha:hash_atom(H, Hex) ), _, fail)
+    ->  atom_concat('sha256:', Hex, Digest0)
+    ;   tmp_stream(txt, F, S),
+        call_cleanup(write(S, Text), close(S)),
+        sha256_file(F, Digest0)
+    ),
+    Digest = Digest0.
+
+proof_log_text(Claim, Digest, Thm, Mod, RelFile, StoredRoot, PF, Files, Now, BuildOut, Text) :-
+    ( memberchk(lean(V), PF) -> true ; V = unknown ),
+    memberchk(statement(St), PF),
+    findall(L, ( member(axiom(X), PF), fmt(L, "axiom ~w", [X]) ), AxLs),
+    findall(M, member(file(M, _), PF), PMods),
+    findall(L, ( member(uses(C, M), PF), memberchk(M, PMods), fmt(L, "uses ~w ~w", [C, M]) ), UsLs),
+    findall(L, ( member(f(Sha, P), Files), fmt(L, "file ~w ~w", [Sha, P]) ), FLs),
+    fmt(H, "% orbit-kb prove claim=~w digest=~w", [Claim, Digest]),
+    fmt(L1, "theorem ~w", [Thm]),
+    fmt(L2, "module ~w", [Mod]),
+    fmt(L3, "source ~w", [RelFile]),
+    fmt(L4, "statement ~w", [St]),
+    fmt(L5, "lean ~w", [V]),
+    fmt(L6, "time ~w", [Now]),
+    fmt(L7, "root ~w", [StoredRoot]),
+    append([[H, L1, L2, L3, L4, L5, L6], AxLs, UsLs, [L7], FLs, ["--- lake build output"]], Ls),
+    atomic_list_concat(Ls, '\n', Head),
+    atomic_list_concat([Head, '\n', BuildOut], Text).
+
+% record_proof(...): called with the KB lock held. It reads kb.pl again,
+% as record_run does.
+record_proof(KB, Claim, Digest, Now, LogText, Id, Log) :-
+    kb_dir(KB, Dir),
+    kb_lib(KB, Lib),
+    load_kb(Dir, Lib, KB2),
+    kb_items(KB2, Items),
+    (   member(it(kb, _, _, T, _, _), Items), nonvar(T), T = claim(Claim, _, _) -> true
+    ;   die(2, ["Claim " + Claim + " is no longer in kb.pl. Nothing was recorded."] >> fix_lines)
+    ),
+    items_decls(Items, Ds),
+    next_attest_id(Items, Ds, Id),
+    proof_log_path(Dir, Id, Log),
+    create_exclusive(Log, LogText),
+    Att = attest(Id, lean_proof, Claim, proof(Claim, Digest), script, Now),
+    clause_line(Att, [], Line),
+    kb_file(KB2, KbFile),
+    append_lines(KbFile, [Line]).
+
+proof_log_path(Dir, Id, P) :-
+    format(atom(Rel), "runs/proof-~w.log", [Id]),
+    directory_file_path(Dir, Rel, P).
+
+% proof_log(+Dir, +Id, -Log): Log = plog(Claim, Digest, RootAbs, Files,
+% Info) from runs/proof-ID.log. Info holds theorem(T), module(M),
+% source(F), statement(S), lean(V), time(T), axiom(A), uses(C, M).
+proof_log(Dir, Id, plog(C, D, RootAbs, Files, Info)) :-
+    proof_log_path(Dir, Id, P),
+    exists_file(P),
+    read_file_to_string(P, S, [encoding(utf8)]),
+    split_string(S, "\n", "", [H|Ls0]),
+    split_string(H, " ", "", ["%", "orbit-kb", "prove", CS, DS]),
+    string_concat("claim=", CT, CS), atom_string(C, CT),
+    string_concat("digest=", DT, DS), atom_string(D, DT),
+    ( append(Ls, ["--- lake build output"|_], Ls0) -> true ; Ls = Ls0 ),
+    findall(X, ( member(L, Ls), proof_log_line(L, X) ), Xs),
+    memberchk(root(R), Xs),
+    (   is_absolute_file_name(R) -> RootAbs = R ; directory_file_path(Dir, R, RootAbs) ),
+    findall(f(Sha, Pa), member(file(Sha, Pa), Xs), Files),
+    exclude([X]>>( X = root(_) ; X = file(_, _) ), Xs, Info).
+
+proof_log_line(L, X) :-
+    two_words(L, K, V),
+    (   memberchk(K, [theorem, module, source, root, axiom, lean, time]) -> X =.. [K, V]
+    ;   K == statement -> sub_string(L, 10, _, 0, VS), X = statement(VS)
+    ;   K == uses -> two_words(V, A, B), X = uses(A, B)
+    ;   K == file -> two_words(V, A, B), X = file(A, B)
+    ).
+
+% proof_state(+Dir, +Id, +Pred, -State): ok when the log matches the
+% attestation and every file of the proof still has its digest. Else
+% changed.
+proof_state(Dir, Id, P, State) :-
+    (   catch(( nonvar(P), P = proof(C, D),
+                proof_log(Dir, Id, plog(C0, D0, Root, Files, _)),
+                C0 == C, D0 == D, Files \== [],
+                files_digest(Files, D),
+                forall(member(f(Sha, Pa), Files),
+                       ( directory_file_path(Root, Pa, F), exists_file(F), sha256_file(F, Sha) )) ),
+              _, fail)
+    ->  State = ok
+    ;   State = changed
+    ).
+
+% proof_log_matches(+Dir, +Id, +Pred): the log exists and its header
+% names the claim and the digest of the attestation (lint E9).
+proof_log_matches(Dir, Id, proof(C, D)) :-
+    catch(( proof_log(Dir, Id, plog(C0, D0, _, _, _)), C0 == C, D0 == D ), _, fail).
 
 % ---------------------------------------------------------------------
 % lint
@@ -3877,7 +4246,8 @@ show_section(KB, Eng, claims) :-
     eng_groups(Eng, C2, N2, supersedes(N2, C2), SupBy),
     (   has_build(KB)
     ->  eng_set(Eng, X3, fulfilled(X3), FulS),
-        eng_set(Eng, X4, under(X4), UndS)
+        eng_set(Eng, X4, under(X4), UndS),
+        burn_sets(Eng, BSets)
     ;   true
     ),
     eng_groups(Eng, C5, X5, cites(C5, X5), CitesBy),
@@ -3895,6 +4265,10 @@ show_section(KB, Eng, claims) :-
              ;   St1 = ""
              ),
              say("  State: ~w~w.", [St0, St1]),
+             (   has_build(KB), burn_text(Eng, BSets, C, BT), BT \== ""
+             ->  sub_string(BT, 1, _, 0, BT1), say("  ~w", [BT1])
+             ;   true
+             ),
              eng_lookup(Eng, CitesBy, C, X, cites(C, X), Xs),
              forall(member(X, Xs), ( txt(X, XT), say("  Cites: ~w", [XT]) )),
              eng_lookup(Eng, ChecksBy, C, K, check(K, C), Ks),
@@ -3928,11 +4302,13 @@ show_section(KB, Eng, open) :-
     (   has_build(KB)
     ->  eng_all(Eng, [U], under(U), Us),
         eng_all(Eng, [O], over(O), Os),
+        eng_all(Eng, [B], burn_open(B), Bs),
         forall(member(U, Us), say("- under ~w: claim ~w is current but not fulfilled.", [U, U])),
-        forall(member(O, Os), say("- over ~w: change ~w serves no claim.", [O, O]))
-    ;   Us = [], Os = []
+        forall(member(O, Os), say("- over ~w: change ~w serves no claim.", [O, O])),
+        forall(member(B, Bs), say("- burn_open ~w: claim ~w needs a Lean proof.", [B, B]))
+    ;   Us = [], Os = [], Bs = []
     ),
-    (   Qs == [], As == [], Cs == [], Us == [], Os == [] -> say("- Nothing is open.", []) ; true ).
+    (   Qs == [], As == [], Cs == [], Us == [], Os == [], Bs == [] -> say("- Nothing is open.", []) ; true ).
 show_section(_, Eng, disclosures) :-
     say("Disclosures:", []),
     eng_all(Eng, [I, S, P, B, T], attest(I, disclosure, S, P, B, T), Ds),
@@ -3969,6 +4345,21 @@ check_state(Eng, ks(PassS, RunS), K, S) :-
     ;   eng_member(Eng, RunS, K, attest(_, test_result, _, result(K, _, _), _, _))
     ->  S = "not passed"
     ;   S = "never run"
+    ).
+
+% The burn state of a claim, for show and report: proved, waived (with
+% the due time), open, or not a burn.
+burn_sets(Eng, bs(BurnS, ProvS, WaivBy)) :-
+    eng_set(Eng, X1, burn(X1), BurnS),
+    eng_set(Eng, X2, burn_proved(X2), ProvS),
+    eng_groups(Eng, C3, D3, ( attest(W3, waiver, _, waive(C3, D3, _), human, _), not(waiver_lapsed(W3)) ), WaivBy).
+
+burn_text(Eng, bs(BurnS, ProvS, WaivBy), C, T) :-
+    (   \+ eng_member(Eng, BurnS, C, burn(C)) -> T = ""
+    ;   eng_member(Eng, ProvS, C, burn_proved(C)) -> T = " Burn: proved in Lean."
+    ;   eng_lookup(Eng, WaivBy, C, D, ( attest(W, waiver, _, waive(C, D, _), human, _), not(waiver_lapsed(W)) ), [D1|_])
+    ->  fmt(T, " Burn: NOT PROVED. A human waived the proof until ~w.", [D1])
+    ;   T = " Burn: NOT PROVED. A Lean proof is required."
     ).
 
 % Joins for show and report. A section asks the SWI engine once per
@@ -4031,13 +4422,15 @@ cmd_report(KB, Args, Code) :-
     eng_all(Eng, [C, L, T], ( claim(C, L, T), current(C) ), Cs),
     (   Cs == [] -> say("- No current claims.", []) ; true ),
     % One query per relation, then lookups (see eng_set/4).
-    ( call(Build) -> eng_set(Eng, X1, fulfilled(X1), FulS) ; true ),
+    ( call(Build) -> eng_set(Eng, X1, fulfilled(X1), FulS), burn_sets(Eng, BSets) ; true ),
     eng_groups(Eng, C2, K2, check(K2, C2), ChecksBy),
     check_sets(Eng, KSets),
     forall(member([C, L, T], Cs),
            ( txt(T, TT),
              (   call(Build)
-             ->  ( eng_member(Eng, FulS, C, fulfilled(C)) -> St = " Status: fulfilled." ; St = " Status: under. It is not fulfilled yet." )
+             ->  ( eng_member(Eng, FulS, C, fulfilled(C)) -> St0 = " Status: fulfilled." ; St0 = " Status: under. It is not fulfilled yet." ),
+                 burn_text(Eng, BSets, C, BT),
+                 string_concat(St0, BT, St)
              ;   St = ""
              ),
              eng_lookup(Eng, ChecksBy, C, K, check(K, C), Ks),
@@ -4068,11 +4461,20 @@ cmd_report(KB, Args, Code) :-
     say("Open:", []),
     eng_all(Eng, [Q4], to_ask(Q4), Q4s),
     eng_all(Eng, [A4], stale(A4), A4s),
-    (   call(Build) -> eng_all(Eng, [O4], over(O4), O4s) ; O4s = [] ),
+    (   call(Build)
+    ->  eng_all(Eng, [O4], over(O4), O4s),
+        eng_all(Eng, [B4], burn_open(B4), B4s),
+        eng_all(Eng, [W4, C4, D4], ( attest(W4, waiver, _, waive(C4, D4, _), human, _), waiver_lapsed(W4) ), L4s),
+        eng_all(Eng, [P4, C5], ( attest(P4, lean_proof, _, proof(C5, _), _, _), proof_changed(P4) ), P4s)
+    ;   O4s = [], B4s = [], L4s = [], P4s = []
+    ),
     forall(member(Q4, Q4s), say("- Ask question ~w now.", [Q4])),
     forall(member(A4, A4s), say("- Approval ~w is stale. The subject changed after the approval.", [A4])),
     forall(member(O4, O4s), say("- Change ~w serves no claim.", [O4])),
-    (   Q4s == [], A4s == [], O4s == [] -> say("- Nothing is open.", []) ; true ),
+    forall(member(B4, B4s), say("- Claim ~w needs a Lean proof. Prove it with orbit-kb prove, or ask a human for a waiver.", [B4])),
+    forall(member([W4, C4, D4], L4s), say("- Waiver ~w of the proof of claim ~w was due at ~w. The proof is due now.", [W4, C4, D4])),
+    forall(member([P4, C5], P4s), say("- Proof ~w of claim ~w no longer counts. A file of the proof changed. Run orbit-kb prove again.", [P4, C5])),
+    (   Q4s == [], A4s == [], O4s == [], B4s == [], L4s == [], P4s == [] -> say("- Nothing is open.", []) ; true ),
     say("To land:", []),
     say("- (Write the steps to land the work here.)", []),
     Code = 0.
@@ -4304,6 +4706,7 @@ help_lines(general, [
 "  subject ID PATH",
 "  attest TYPE SUBJECT 'PREDICATE' [--by human|agent] [--id ID]",
 "  run CHECK -- CMD [ARGS]",
+"  prove CLAIM FILE THEOREM [--module M]",
 "  lint [--strict]",
 "  query 'GOAL' [-n N] [--why] [--long] [--json] [--html FILE]",
 "  why 'GOAL' [-n N] [--long]",
@@ -4401,7 +4804,8 @@ help_lines(attest, [
 "--by defaults to agent. The id defaults to the next free aN. The time is now, in UTC.",
 "The predicate digest(current) becomes the recorded digest of SUBJECT.",
 "The file must still have that digest. If it changed, run orbit-kb subject first.",
-"orbit-kb checks the shape, the writer, and the references."
+"orbit-kb checks the shape, the writer, and the references.",
+"A human waives a Lean proof with: orbit-kb attest waiver CLAIM 'waive(CLAIM, DUE, REASON)' --by human."
 ]).
 help_lines(run, [
 "orbit-kb run CHECK -- CMD [ARGS]",
@@ -4413,12 +4817,27 @@ help_lines(run, [
 "On a fail, it also prints the last 40 lines of output.",
 "Exit 0 on pass, 1 on fail, 2 if the check or the command does not exist."
 ]).
+help_lines(prove, [
+"orbit-kb prove CLAIM FILE THEOREM [--module M]",
+"",
+"Check a Lean proof of a claim, and record it as a lean_proof attestation.",
+"FILE is a .lean file in a Lake project. The module is its path, such as Burn/Save.lean -> Burn.Save.",
+"orbit-kb runs lake build, reads the theorem, and runs leanchecker. It records the proof only if:",
+"  THEOREM is a theorem in the module of FILE;",
+"  it depends on no axiom other than propext, Classical.choice, and Quot.sound (so no sorry and no native_decide);",
+"  leanchecker replays the modules of the project without a problem.",
+"The log runs/proof-ID.log holds the statement and a digest of each file of the proof.",
+"If one of these files changes, the proof stops counting, and the burn is open again.",
+"A burn (burn(C)) needs a proof, or a human waiver: orbit-kb attest waiver C 'waive(C, DUE, REASON)' --by human.",
+"orbit-kb cannot check that the statement says what the claim says. Read the statement.",
+"Exit 0 when the proof is recorded, 1 when it is not a proof, 2 on a usage error or a missing tool."
+]).
 help_lines(lint, [
 "orbit-kb lint [--strict]",
 "",
 "Check the KB, the library, and rules.pl. One line per problem, then a summary.",
 "E1 syntax. E2 undeclared predicate. E3 type. E4 dangling ref. E5 duplicate id.",
-"E6 non-ground fact. E7 clause in the wrong place. E8 writer not allowed. E9 test result without its run log.",
+"E6 non-ground fact. E7 clause in the wrong place. E8 writer not allowed. E9 test result or proof without its log.",
 "E10 uses/1. E11 the program does not compile. E12 hazard H1. E13 hazard H4. E14 unsafe negation.",
 "W1 subject changed. W2 local declaration. W3 claim without cites. W4 local fact that no rule reads.",
 "W5 check on a superseded claim. W6 local rule that extends a library predicate.",
@@ -4452,7 +4871,7 @@ help_lines(show, [
 "orbit-kb show [claims|questions|open|disclosures|extensions|all]",
 "",
 "List parts of the KB as plain text. The default is all.",
-"open lists to_ask, stale, and contested, and under and over when the build module is in use."
+"open lists to_ask, stale, and contested, and under, over, and burn_open when the build module is in use."
 ]).
 help_lines(report, [
 "orbit-kb report",
