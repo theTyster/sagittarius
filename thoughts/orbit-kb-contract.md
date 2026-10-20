@@ -74,7 +74,7 @@
     variable occurs in the head but in no positive body literal (unsafe negation).
   - The cross-check asks s(CASP) for M+1 models, up to the cap, when SWI found M
     answers. If s(CASP) returns more answers than SWI, the result is ENGINE DISAGREEMENT.
-  - `run`, `attest`, `add`, `declare`, and `subject` hold an exclusive lock
+  - `run`, `attest`, `add`, `declare`, `subject`, and `uses` (D11) hold an exclusive lock
     (`flock` on `kb.lock` in the KB directory) for the whole cycle: read, choose the id
     or run number, write the log with an exclusive create, and append. The `subject`
     rewrite writes a temp file in the same directory and renames it into place.
@@ -491,7 +491,7 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | Command | Contract |
 |---|---|
 | `init DIR (--request TEXT \| --request-file F) [--uses m1,m2] [--id ID]` | Create `DIR/kb.pl` containing `uses([…]).` and `request(ID, 'TEXT').` The default ID is `r1`. Exit 1 if `kb.pl` already exists. Print the path. |
-| `uses MODULE …` | Add modules to the first term `uses([…])` of an existing `kb.pl`, under the KB lock, without loading the KB. Keep the modules in use; never remove one. Print the new line. Exit 1 on an unknown module or a bad first term (D11). |
+| `uses MODULE …` | Add modules to the first term `uses([…])` of an existing `kb.pl`, under the KB lock, without loading the KB. Keep the modules in use; never remove one. Keep the text around the term. Print the new line, and tell the agent to lint. Exit 0, also when nothing changes; 1 on an unknown module or a first term that is not `uses/1` with a list of atoms; 2 on a usage error or a failed write (D11). |
 | `add 'FACT' …` | The trailing `.` is optional. Validate against every lint error that applies to facts. Facts in the same batch may refer to each other. All or nothing. Append the facts in order and print each one. Refuse attestation types whose writers are `[script]`, and point to `orbit-kb run`. Every rejection says why and how to fix it. For an undeclared predicate, the fix is `orbit-kb declare`. |
 | `declare 'HEAD' --doc TEXT [--kind fact\|rule] [--template T]` | The default kind is `fact`. Exit 1 if that name and arity are already declared anywhere, or if a type is unknown. Append the `decl/4` line. |
 | `declare-attest TYPE 'SHAPE' --doc TEXT --writers human,agent` | Append an `attest_type/4` line. The same checks apply. |

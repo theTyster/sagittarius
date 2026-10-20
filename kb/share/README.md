@@ -33,7 +33,8 @@ that the work is done, use `orbit-kb`.
 We built `orbit-kb` on 2026-10-15, with SWI-Prolog 9.2.9 and s(CASP) 1.1.4. On
 2026-10-16, an independent review (D7) and a speed fix (D8) changed the tool.
 Sections 9, 11, and 15 describe both. On 2026-10-19, D10 made a burn require a
-Lean proof (section 7 and `prove` in section 8).
+Lean proof (section 7 and `prove` in section 8). D11 added `uses`, which adds
+a module to an existing KB (section 8).
 
 ## 2. Install and check
 
@@ -532,12 +533,16 @@ Exit: 0 on success. 1 if `kb.pl` exists or the input is rejected.
 Adds library modules to the `uses([…])` line of an existing KB, for example when
 the work moves from the discovery orbit to the build orbit (`orbit-kb uses
 build`). It keeps the modules in use and adds the new ones at the end. It never
-removes a module. It changes only the first term of `kb.pl`, under the KB lock,
-and it does not load the KB first, so it works on a KB whose facts need the new
-module. It prints the new `uses` line. `add` refuses a `uses/1` fact and names
-this command.
-Exit: 0, also when the KB already uses every module. 1 on an unknown module or a
-first term that is not `uses([…])`. 2 on a usage error.
+removes a module. It changes only the text of the first term of `kb.pl`. Comments, the full
+stop, and the other clauses stay as they are. It holds the KB lock and writes
+a temp file that it renames into place. If `kb.pl` is a symlink, it writes the
+target. It does not load the KB first, so it works on a KB whose facts need the
+new module. `build,discovery` also works. It prints the new `uses` line. Then
+run `lint`: the new module can add findings, such as ED7 of the discovery
+module. `add` refuses a `uses/1` fact and names this command.
+Exit: 0, also when the KB already uses every module. 1 on an unknown module, or
+a first term that is not `uses/1` with a list of module names. 2 on a usage
+error, or when `kb.pl` cannot be written.
 
 ### `add 'FACT' …`
 
@@ -749,7 +754,7 @@ Exit: 0.
 
 ### Locking
 
-The commands `add`, `declare`, `declare-attest`, `subject`, and `attest` hold
+The commands `add`, `declare`, `declare-attest`, `subject`, `attest`, and `uses` hold
 an exclusive lock on `kb.lock` in the KB directory for the whole cycle. The
 cycle is: read `kb.pl`, choose the ID, write, and append. Thus two writers in
 two processes cannot choose the same ID. `run` and `prove` take the lock only
@@ -1666,6 +1671,13 @@ The speed work (also on 2026-10-16) did not change any answer:
   `show` and `report`.
 - A parallel test suite. Each test has its own cache directory.
 
+- **D11 (add a module, 2026-10-19).** `orbit-kb uses MODULE …` adds modules to an
+  existing KB. Before D11, a KB started for discovery could not get the build
+  module without an edit by hand. A review found four defects in the first
+  version, now fixed: text between the term and its full stop gave a broken
+  `kb.pl`, the tests missed most mutants, the write was not atomic, and the
+  prompt lost the step to run lint. Tests U1 to U9.
+
 Known gaps:
 
 - `done` still grows about O(n²) in the number of claims, because of the scans
@@ -1699,6 +1711,5 @@ Known gaps:
   `lake-manifest.json` file pins the dependency versions.
 - `proof_changed/1` and `waiver_lapsed/1` read the disk and the clock. So the
   same KB can give a different answer after a file edit or after a due time.
-- **D11 (add a module, 2026-10-19).** `orbit-kb uses MODULE …` adds modules to an
-  existing KB. Before D11, a KB started for discovery could not get the build
-  module without an edit by hand. Tests U1 to U4.
+- `uses` rewrites `kb.pl` as UTF-8. An invalid UTF-8 byte anywhere in the
+  file becomes U+FFFD, with a warning from SWI-Prolog.

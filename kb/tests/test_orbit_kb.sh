@@ -46,7 +46,7 @@
 # Requirement map (contract v2.1 + H3/H4; section names, not line numbers, because the contract is edited):
 #   K   KB resolution: --dir, $ORBIT_KB, parent walk, exit 2   (CLI: KB resolution, exit codes) : K1-K8
 #   I   init                                                   (CLI: init)                      : I1-I8
-#   U   uses: add a module to an existing KB                   (CLI: uses)                      : U1-U4
+#   U   uses: add a module to an existing KB                   (CLI: uses)                      : U1-U9
 #   A   add: validation, all or nothing, rejections            (CLI: add; Declarations; Types)  : A1-A19
 #   D   declare, declare-attest                                (CLI: declare, declare-attest)   : D1-D6
 #   AT  attest: id, time, writers, digest(current)             (CLI: attest)                    : AT1-AT9
@@ -656,6 +656,38 @@ t_U3() { K=$T/k; kb_init "$K" build; rejects unknown 'biuld' uses biuld
 t_U4() { K=$T/k; kb_init "$K" build; rejects usesfact 'orbit-kb uses' add "uses([build, discovery])"
          okb --dir "$K" uses discovery; rc_is 0; head -1 "$K/kb.pl" | grep -Eq '^uses\(\[build, ?discovery\]\)\.$' || note "the order is kept: $(head -1 "$K/kb.pl")"; }
 
+t_U5() { # a comment before the term and text between the term and its full stop are kept; the result parses
+         K=$T/k; mkdir -p "$K"; printf '%% Discovery KB\nuses([discovery]) /* modules */ .\nrequest(r1, a).\n' > "$K/kb.pl"
+         okb --dir "$K" uses build; rc_is 0
+         printf '%% Discovery KB\nuses([discovery, build]) /* modules */ .\nrequest(r1, a).\n' > "$T/.want"; same_file "$K/kb.pl" "$T/.want" "kb.pl"
+         okb --dir "$K" lint; rc_is 0 "the rewritten kb.pl parses"; }
+t_U6() { # a first term that is not uses([atoms]) is exit 1, and kb.pl does not change
+         K=$T/k; mkdir -p "$K"; local u
+         for u in "request(r1, a)." "uses([discovery, f(x)])." "uses([discovery, \"build\"])."; do
+             printf '%s\nclaim(c1, preserve, x).\n' "$u" > "$K/kb.pl"; cp "$K/kb.pl" "$T/.kb.before"
+             okb --dir "$K" uses build; rc_is 1 "first term $u"; same_file "$K/kb.pl" "$T/.kb.before" "kb.pl after $u"
+         done; }
+t_U7() { # duplicate names and the comma form give each module once; an option is a usage error
+         K=$T/k; kb_init "$K" discovery; okb --dir "$K" uses build build build,discovery; rc_is 0
+         head -1 "$K/kb.pl" | grep -Eq '^uses\(\[discovery, ?build\]\)\.$' || note "line 1: $(head -1 "$K/kb.pl")"
+         okb --dir "$K" uses -- build; rc_is 2 "-- is not a module"
+         okb --dir "$K" uses build -h; rc_is 0 "help anywhere"; out_has 'orbit-kb uses MODULE'; }
+t_U8() { # uses holds the KB lock: while another process holds kb.lock, uses waits and writes nothing
+         command -v flock >/dev/null 2>&1 || { skip_test "flock is missing"; return 0; }
+         K=$T/k; kb_init "$K" discovery; touch "$K/kb.lock"
+         flock -x "$K/kb.lock" -c 'sleep 2' & local hold=$!; sleep 0.3
+         ( cd "$T" && exec timeout "$TMO" "$OKB" --dir "$K" uses build ) >"$T/.u" 2>&1 </dev/null & local u=$!
+         sleep 1; head -1 "$K/kb.pl" | grep -q build && note "uses wrote kb.pl while another process held the lock"
+         wait "$hold"; wait "$u" || note "uses exited $?: $(snip "$(<"$T/.u")")"
+         head -1 "$K/kb.pl" | grep -Eq '^uses\(\[discovery, ?build\]\)\.$' || note "line 1 after the lock: $(head -1 "$K/kb.pl")"; }
+t_U9() { # the new module can add lint findings, so uses tells the agent to lint
+         K=$T/k; kb_init "$K" build
+         oadd "claim(c1, preserve, 'Old')" "cites(c1, 'x')" "claim(c2, preserve, 'New')" "cites(c2, 'x')" "supersedes(c2, c1)" >/dev/null
+         echo x > "$K/s.txt"; okb --dir "$K" subject s1 "$K/s.txt" >/dev/null; okb --dir "$K" attest divergence s1 'claim(c1)' >/dev/null
+         okb --dir "$K" lint; rc_is 0 "clean before"
+         okb --dir "$K" uses discovery; rc_is 0; any_has 'orbit-kb lint' "uses says to lint"
+         okb --dir "$K" lint; rc_is 1 "ED7 after uses discovery"; out_has '^ED7'; }
+
 # ================================================================ A: add
 t_A1() { mkclaim; oadd "claim(c2, preserve, 'Loading stays fast')" "cites(c2, 'fast')"; rc_is 0; any_has 'claim\(c2'; any_has 'cites\(c2'
          fact_count "$K/kb.pl" "claim(_,_,_)" 2; has_goal "$K/kb.pl" "kb_line(A, claim(c2,_,_)), kb_line(B, cites(c2,_)), A < B" "order"; }
@@ -1215,6 +1247,11 @@ run_test t_U1 U1 "uses build: a discovery KB gets the build module; only line 1 
 run_test t_U2 U2 "uses: a module already in use writes nothing"
 run_test t_U3 U3 "uses: unknown module exits 1, no module exits 2"
 run_test t_U4 U4 "uses: add refuses uses/1 and names orbit-kb uses; the order is kept"
+run_test t_U5 U5 "uses: a comment and text before the full stop are kept; kb.pl parses"
+run_test t_U6 U6 "uses: a bad first term is exit 1 and kb.pl does not change"
+run_test t_U7 U7 "uses: duplicates and the comma form; -- is a usage error; -h anywhere"
+run_test t_U8 U8 "uses: waits for the KB lock"
+run_test t_U9 U9 "uses: says to lint; a new module can add lint findings (ED7)"
 run_test t_A1 A1 "add appends valid facts in order and prints them"
 run_test t_A2 A2 "add rejects an undeclared predicate and names declare"
 run_test t_A3 A3 "after declare the same fact is accepted"

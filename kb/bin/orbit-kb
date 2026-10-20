@@ -425,7 +425,7 @@ top(Argv0, Code) :-
         ;   Cmd == doctor
         ->  cmd_doctor(Args, Code)
         ;   Cmd == uses
-        ->  (   memberchk(Arg, Args), memberchk(Arg, ['--help', '-h'])
+        ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
             ->  cmd_help([uses], Code)
             ;   resolve_kb(DirOpt, Dir),
                 with_kb_lock(Dir, cmd_uses(Dir, Args, Code))
@@ -3040,7 +3040,13 @@ cmd_init(Args, Code) :-
 % until the module is in uses/1. It never removes a module.
 
 cmd_uses(Dir, Args, Code) :-
-    parse_opts(Args, [], Pos, _),
+    parse_opts(Args, [], Pos0, _),
+    (   member(A, Pos0), sub_atom(A, 0, 1, _, '-')
+    ->  usage_error("uses takes module names only, not ~w.", [A])
+    ;   true
+    ),
+    % "build,discovery" is accepted too, as in init --uses.
+    findall(M, ( member(A, Pos0), atomic_list_concat(Ps, ',', A), member(M, Ps), M \== '' ), Pos),
     (   Pos == []
     ->  usage_error("Name one or more modules: orbit-kb uses MODULE ...", [])
     ;   true
@@ -3052,17 +3058,19 @@ cmd_uses(Dir, Args, Code) :-
         die(1, ["The module " + M + " does not exist.", "Known modules: " + KT + ".", "Fix: use a known module name."] >> fix_lines)
     ;   true
     ),
-    directory_file_path(Dir, 'kb.pl', KbFile),
-    read_file_to_string(KbFile, S, [encoding(utf8)]),
-    catch(setup_call_cleanup(open_string(S, In),
-                             ( read_term(In, T, [module(orbit_ops), subterm_positions(Pos0)]),
-                               arg(1, Pos0, Start), arg(2, Pos0, End) ),
-                             close(In)),
+    directory_file_path(Dir, 'kb.pl', KbFile0),
+    % Write the file that a symlink points to, as add does, not the link.
+    ( catch(read_link(KbFile0, _, KbFile), _, fail) -> true ; KbFile = KbFile0 ),
+    catch(( read_file_to_string(KbFile, S, [encoding(utf8)]),
+            setup_call_cleanup(open_string(S, In),
+                               ( read_term(In, T, [module(orbit_ops), subterm_positions(TPos)]),
+                                 arg(1, TPos, Start), arg(2, TPos, End) ),
+                               close(In)) ),
           _, fail),
     !,
-    (   nonvar(T), T = uses(Old), is_list(Old)
+    (   nonvar(T), T = uses(Old), is_list(Old), maplist(atom, Old)
     ->  true
-    ;   die(1, [KbFile + " does not start with uses([...]).", "Fix: run orbit-kb lint and correct E10."] >> fix_lines)
+    ;   die(1, [KbFile0 + " does not start with uses([...]) and a list of module names.", "Fix: run orbit-kb lint and correct E10."] >> fix_lines)
     ),
     findall(M, ( member(M, Pos), \+ memberchk(M, Old) ), New0),
     list_to_set(New0, New),
@@ -3070,15 +3078,17 @@ cmd_uses(Dir, Args, Code) :-
     ->  atomic_list_concat(Old, ', ', OT),
         format("The KB already uses ~w. Nothing was written.~n", [OT])
     ;   append(Old, New, Uses),
-        sub_string(S, End, _, 0, Rest0),
-        ( sub_string(Rest0, 0, 1, _, ".") -> sub_string(Rest0, 1, _, 0, Rest) ; Rest = Rest0 ),
+        % Replace only the text of the term. The text before it and after
+        % it (the full stop, a comment, the other clauses) stays as it is.
         sub_string(S, 0, Start, _, Before),
-        clause_line(uses(Uses), [], L1),
-        atomic_list_concat([Before, L1, Rest], Out),
-        atom_concat(KbFile, '.uses-tmp', Tmp),
-        setup_call_cleanup(open(Tmp, write, W, [encoding(utf8)]), write(W, Out), close(W)),
-        rename_file(Tmp, KbFile),
-        format("~w~n", [L1])
+        sub_string(S, End, _, 0, Rest),
+        term_text(uses(Uses), UT),
+        atomic_list_concat([Before, UT, Rest], Out),
+        catch(write_atomic(KbFile, Out), E,
+              ( err_text(E, ET),
+                die(2, ["Could not write " + KbFile + ": " + ET, "Nothing was changed.", "Fix: check that the KB directory is writable."] >> fix_lines) )),
+        format("~w.~n", [UT]),
+        format(user_error, "Run orbit-kb lint next. The new module can add lint findings to the KB.~n", [])
     ),
     Code = 0.
 cmd_uses(Dir, _, _) :-
@@ -4829,8 +4839,9 @@ help_lines(uses, [
 "Add library modules to the uses([...]) line of the KB, such as build or discovery.",
 "Use it when the work moves to another orbit: discovery to build, or back.",
 "It keeps the modules that the KB uses now, and adds the new ones at the end.",
-"It does not remove a module. It prints the new uses line.",
-"Exit: 0 (also when the KB already uses every module). 1 on an unknown module or a bad first line. 2 on a usage error."
+"It does not remove a module. It prints the new uses line. Then run orbit-kb lint:",
+"the new module can add lint findings, such as ED7 of discovery.",
+"Exit: 0 (also when the KB already uses every module). 1 on an unknown module or a bad first term. 2 on a usage error."
 ]).
 help_lines(add, [
 "orbit-kb add 'FACT' ...",

@@ -88,7 +88,7 @@ is typed, and every reference must point to a real fact. Run `orbit-kb help` for
   `orbit-kb lint`, because `show open` omits the discovery items. Do not rely on what you
   remember.
 - When the work moves to the other orbit, add its module: `orbit-kb uses build` or
-  `orbit-kb uses discovery`.
+  `orbit-kb uses discovery`. Then run `orbit-kb lint`. The new module can add findings.
 - If the schema does not fit, declare what you need with `orbit-kb declare`, and write
   one sentence about it. This is normal. `orbit-kb lint` lists your extensions so that a
   human can review them.
