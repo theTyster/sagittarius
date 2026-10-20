@@ -739,7 +739,8 @@ has used the discovery orbit or the merged prompt.
 3. **TLA+.** Partly resolved on 2026-10-19: TLC does not close a burn. Only a Lean proof
    does. Still open: keep TLC as a counterexample search for ordering and concurrency
    claims, or drop TLA+ from the build orbit?
-4. **Plausible.** Is it available in the sharlean Lean libraries?
+4. **Plausible.** Resolved on 2026-10-20: `sharlean list` shows `plausible` (Lean 4.34.0)
+   in `~/.lean`.
 5. **A KB for every change request.** The draft says yes, sized to the ticket.
 6. **The three-question cap**, and the rule that a contested claim exposes all of its
    dormant questions.

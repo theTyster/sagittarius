@@ -114,8 +114,9 @@ the M checks fail on mutants of the merged text.
 - LANDING MODULE: light. Each M check also fails on a mutant of the merged text
   (`--discriminate-merged`, 7 of 7). Two check defects found and fixed before the green
   run (a wrapped reference in M15; a non-failing mutant for M11).
-- SPLASHDOWN: Ty asked to finish and commit on 2026-10-19. Ty's review of finding F1 is
-  still open.
+- SPLASHDOWN: Ty asked to finish and commit on 2026-10-19. Ty chose the cleaner fix
+  of F1 (see the change below), so F1 is closed. Ty's final review of the merged draft
+  and the declaration of "mission accomplished" are still open.
 
 ## Matrix
 
@@ -134,7 +135,7 @@ the M checks fail on mutants of the merged text.
 | R11 | Implementation | M10 | Discovery orbit | |
 | R12 | Implementation | M11 | Discovery orbit; Discovery module | |
 | R13 | Implementation | M12 | Design notes | |
-| R14 | Implementation | M9 | The knowledge base; Rules for the KB; Handoff; When the human says that it is wrong | |
+| R14 | Implementation | M9 | Rules for the KB; Handoff; When the human says that it is wrong; `orbit-kb uses` (D11) | review of 96fcf61: 4 defects fixed in ad2369e; tests U1 to U9 |
 | R15 | Implementation | M13 | Commands | |
 | R16 | Implementation | M14 | Core vocabulary | |
 | R17 | Implementation | M15 | all sections | |
@@ -145,4 +146,14 @@ Ty asked for the cleaner fix of F1. `orbit-kb uses MODULE …` (orbit-kb D11) ad
 module to an existing KB. The prompt no longer allows an edit by hand. The Part 1
 sentence is now "Run `orbit-kb uses build` first." M9 checks the new wording. Tests
 U1 to U4 fail on the CLI before D11 and pass after it. All 17 merge checks, 7 merged
-mutants, and 5 frame mutants pass.
+mutants, and 5 frame mutants pass. An independent review of 96fcf61 found four defects
+(a broken kb.pl with exit 0, weak tests, an unsafe write, and the lost lint step). Commit
+ad2369e fixes them, adds tests U5 to U9, and puts "Then run `orbit-kb lint`" back in the
+prompt. All 8 mutants of the review fail a U test. Suite 208 of 208.
+
+Discovery harness (2026-10-20, a copy of `orbit-kb-staging`, current library,
+`heavy swipl harness/run.pl` under `timeout 1200`): stopped by the timeout before the
+end (exit 124). In the part that ran, 231 PASS lines and no FAIL. Some s(CASP)
+cross-checks were skipped at the 30 s limit, because the harness runs s(CASP) on the raw
+program. `harness/verify_delivery.sh`: the module and the fixture are byte-identical, and
+lint is clean. This is a partial run, not a full one.

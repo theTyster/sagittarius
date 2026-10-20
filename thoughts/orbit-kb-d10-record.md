@@ -1,7 +1,7 @@
 # AIDLC ticket record (AIMED): orbit-kb D10, a burn needs a Lean proof
 
 Written on 2026-10-19, before a compaction, so that this work survives it.
-Status: D10 is built and tested. This record is committed with it (next step 1).
+Status: D10 is built, tested, and committed (ff5dc24).
 Ty asked for two next steps: commit D10, then merge the discovery draft (Part 1)
 into the build draft.
 
@@ -123,52 +123,15 @@ probe.lean, Load.lean, and proof-a9.log.
     `lake-manifest.json` is.
   - Burn state depends on the disk and the clock.
 
-## Next steps, in order
+## Outcome (2026-10-20)
 
-1. Commit D10 and the D9 doc edits as one commit, with a pathspec. Never use
-   `git add -A`. The paths:
-   - `shared/link/.local/bin/orbit-kb`
-   - `shared/link/.local/share/orbit-kb/modules/build.pl`
-   - `shared/link/.local/share/orbit-kb/lean/probe.lean`
-   - `shared/link/.local/share/orbit-kb/README.md`
-   - `scripts/orbit-kb/test_orbit_kb.sh`
-   - `scripts/orbit-kb/fixtures/valid/kb.pl`
-   - `scripts/orbit-kb/fixtures/valid/lean/Load.lean`
-   - `scripts/orbit-kb/fixtures/valid/runs/proof-a9.log`
-   - `thoughts/orbit-kb-contract.md`
-   - `thoughts/orbit-kb-d10-record.md` (this file)
-   - `README.md`
-   - Optional: `CLAUDE.md`, if the orbit-kb map row adds `lean/probe.lean`.
-
-   The message is `feat(claude): ...`. Put no attribution lines in the commit.
-   Ty's own commits use none.
-2. Do not commit `thoughts/orbital-shifting-system-prompt-draft.md` in step 1. It
-   holds Ty's uncommitted edits (Roles, The orbit, Parallax) next to the D10 burn
-   edits. Ask Ty, or commit it with the merge in step 3.
-3. Merge the discovery draft into the build draft:
-   - The source is `thoughts/discovery-orbit/discovery-orbit-draft.md`, committed in
-     d46dd23 (sha256 starts `02e849801181c307`). Take only Part 1, from line 22
-     (`# Part 1: prompt text`) to line 354 (`# Part 2`).
-   - Part 2 lists the changes that the build draft needs: the scope line, a
-     back-to-discovery step, SURVEY and DISPROVE marked as shared, a "Discovery
-     module" subsection next to "Build module", the build sections that Part 1
-     points at, the digest rule, and the resume step.
-   - Part 1 points at these build sections, so keep them consistent: "The knowledge
-     base", DECOMPOSE, "Ask first, or build on defaults", SURVEY, DISPROVE, "Speed",
-     and the shared honesty rules.
-   - Z3 only. Do not add cvc5.
-   - Check the merge with `python3 -I thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/harness/check_draft.py DRAFT MODULE`.
-     It checks that the discovery module tables match `discovery.pl` (sha256
-     starts `41866cf20122a9cf`). It reads only the text between the lines
-     `# Part 1` and `# Part 2`, so it cannot read the merged prompt as it is.
-     Run it on a temp file: the line `# Part 1`, then the merged discovery text,
-     then the line `# Part 2`. Give MODULE as
-     `shared/link/.local/share/orbit-kb/modules/discovery.pl`.
-   - Keep Ty's uncommitted edits.
-   - Tell the discovery session (cross-session address
-     `uds:/run/user/1000/cc-socks/1237059.sock`, name `aidlc-discovery-set`) when
-     the merge is done. It was told that the merge waits for Ty's go-ahead.
-4. Before the commit and after the merge, run the suite and `orbit-kb doctor` again.
+- Step 1 is done: commit ff5dc24 holds D10 and the D9 doc edits.
+- The merge of the discovery draft is done: commit 9673ab9. Its record is
+  `thoughts/orbital-shifting-merge-record.md`.
+- The merge found that a discovery KB could not get the build module. D11 adds
+  `orbit-kb uses` (commits 96fcf61 and ad2369e, after an independent review).
+- Open: Ty has not ratified the AIMED tier of this record. No Lean SIMULATION or
+  TELEMETRY phase ran.
 
 ## Standing rules
 
