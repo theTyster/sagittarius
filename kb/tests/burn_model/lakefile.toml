@@ -1,0 +1,10 @@
+name = "burn_model"
+version = "0.1.0"
+defaultTargets = ["BurnModel", "conform"]
+
+[[lean_lib]]
+name = "BurnModel"
+
+[[lean_exe]]
+name = "conform"
+root = "Conform"

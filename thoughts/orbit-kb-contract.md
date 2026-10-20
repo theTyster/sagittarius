@@ -110,6 +110,31 @@
   - `declare` refuses `proved`, `chs`, `assume`, `abduced`: s(CASP) uses them as model
     wrappers, and a rule `proved/1` made `scasp --code` raise an instantiation error.
     The rule is named `burn_proved/1`.
+- **D10 follow-up (review fixes, 2026-10-20).** Decisions by Ty on 2026-10-20: the
+  threat model is trust ("we expect trust between the agents, the human, and the code"),
+  so `prove` checks the proof of an honest agent that can make mistakes and does not
+  resist an agent that cheats on purpose; the cheating holes are documented limits
+  (README section 15). A claim that supersedes a burning claim inherits the burn. The
+  changes (review: `thoughts/orbit-kb-d10-review-2026-10-20.md`):
+  - S1: `burn(C)` holds when C has a burn reason (contested twice, universal, burn
+    requested), or when C reaches, through one or more `supersedes` steps, a claim that
+    has one. S2: a `supersedes` cycle, including `supersedes(C, C)`, is lint error E15,
+    and `done` is false while it exists. S3: the rules do not recurse through
+    `supersedes`; the CLI computes `supersedes_closure/2` and `supersede_cycle/1` when it
+    reads the KB.
+  - E16: `rules.pl` cannot add clauses to `done`, the burn rules, or the computed facts.
+    The engines do not read such clauses, nor a `rules.pl` clause whose head is a fact
+    predicate (E7), nor a `kb.pl` fact of a protected predicate (E7).
+  - The `time` type checks the values. A waiver whose due time is not a valid time
+    counts as lapsed.
+  - Proof log and digest. The log has `absent PATH` lines for the Lake configuration
+    files (`lakefile.lean`, `lakefile.toml`, `lean-toolchain`, `lake-manifest.json`)
+    that do not exist. The digest is the sha256 of these lines, each ended by a newline:
+    `claim C`, `theorem T`, `module M`, `statement S` (from the log), then `SHA PATH`
+    for each `file` line in order, then `absent PATH` for each `absent` line in order.
+    A proof counts (`proof_changed` is false) only when the log header names the claim
+    and the digest of the attestation, the log lines give that digest, every file
+    still has its sha256, and every absent file is still absent.
 - **D6.** Generate stubs only for declared predicates that have no clauses in the
   assembled program. Name every anonymous variable in a query before passing it to
   s(CASP), because `--json` crashes on `_`.
@@ -329,7 +354,7 @@ attest_type(Type, Shape, Writers, Doc).
 | `alt(Shapes)` | a value that matches one shape. An atom entry matches itself. A compound entry matches by name and arity, and each of its arguments is a type. |
 | `text`, `atom` | an atom |
 | `int` | an integer |
-| `time` | an atom `YYYY-MM-DDTHH:MM:SSZ` |
+| `time` | an atom `YYYY-MM-DDTHH:MM:SSZ` with real values: month 01-12, a day of that month (leap years too), hour 00-23, minute and second 00-59 (D10 follow-up) |
 | `digest` | an atom `sha256:` followed by 64 lowercase hex characters |
 | `by` | `human`, `agent`, or `script` |
 | `term` | any ground term (the escape hatch) |
@@ -417,8 +442,14 @@ passed(K) :- attest(_, test_result, _, result(K, R, pass), _, _), not failed_aft
 failed_after(K, R) :- attest(_, test_result, _, result(K, R2, fail), _, _), R2 > R.
 was_red(K) :- attest(_, test_result, _, result(K, R1, fail), _, _),
               attest(_, test_result, _, result(K, R2, pass), _, _), R1 < R2.
+any_supersede_cycle :- supersede_cycle(_).
 lint_issue(Code, Id, Message)          % declared; no core clauses (module hook)
 ```
+
+`supersedes_closure(New, Old)` (New reaches Old through one or more `supersedes` facts)
+and `supersede_cycle(C)` (C reaches itself) are rule predicates with no clauses in the
+library. The CLI adds their facts each time it reads the KB, from the ground
+`supersedes/2` facts of `kb.pl` (D10 follow-up, S3).
 
 An earlier pass followed by a later fail does not count, because `passed(K)` requires
 that no fail comes after the pass.
@@ -450,10 +481,13 @@ served(X) :- serves(X, _).
 over(X) :- change(X, _), not served(X).
 any_under :- under(_).
 any_over :- over(_).
-done :- not any_under, not any_over, not any_to_ask, not any_burn_open.
-burn(C) :- contested_twice(C).
-burn(C) :- universal(C).
-burn(C) :- burn_requested(C).
+done :- not any_under, not any_over, not any_to_ask, not any_burn_open,
+        not any_supersede_cycle.
+burn_reason(C) :- contested_twice(C).
+burn_reason(C) :- universal(C).
+burn_reason(C) :- burn_requested(C).
+burn(C) :- burn_reason(C).
+burn(C) :- supersedes_closure(C, O), burn_reason(O).
 burn_proved(C) :- attest(A, lean_proof, _, proof(C, _), script, _), not proof_changed(A).
 burn_waived(C) :- attest(W, waiver, _, waive(C, _, _), human, _), not waiver_lapsed(W).
 burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C).
@@ -462,7 +496,8 @@ conforms(C) :- conformance(K), check(K, C), passed(K).
 ```
 
 `proof_changed/1` and `waiver_lapsed/1` are rule predicates with no clauses in the
-library. The CLI adds their facts each time it reads the KB (D10).
+library. The CLI adds their facts each time it reads the KB (D10). `waiver_lapsed(W)`
+also holds when the due time of W is not a valid `time` (D10 follow-up).
 
 
 ## CLI
@@ -519,11 +554,13 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | E6 | Non-ground fact in `kb.pl` (D2). |
 | E7 | A clause in the wrong place (D2): a `rule` predicate asserted as a fact in `kb.pl`, or a `fact` predicate with clauses outside `kb.pl`. |
 | E8 | Attestation writer not allowed for its type. This includes a `[script]` type whose By is not `script`. |
-| E9 | A `test_result` with no matching run log, where the header must match N, the check, and the result. |
+| E9 | A `test_result` with no matching run log, where the header must match N, the check, and the result. A `lean_proof` with no matching `runs/proof-ID.log`: the header must name the claim and the digest, and the digest of the log lines (D10 follow-up) must equal it. |
 | E10 | `uses/1` is missing, is not first, or names an unknown module. |
 | E11 | The assembled program fails to compile in s(CASP), or fails to load in the SWI engine. |
 | E13 | An atom or string ends in `_` plus digits (H4). |
 | E14 | Unsafe negation: a `not` literal's variable occurs in the head but in no positive body literal (D7). |
+| E15 | A `supersedes` fact on a cycle, including `supersedes(C, C)` (D10 follow-up). `add` refuses it. |
+| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `proof_changed`, `waiver_lapsed`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle` (D10 follow-up). The engines ignore the clause. |
 | E12 | A `not` literal contains a variable that occurs nowhere else in the clause, including `_` (H1). The message gives the helper-predicate fix. |
 
 | Code | Warning |
@@ -533,7 +570,7 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | W3 | A claim with no `cites`. |
 | W4 | A local fact predicate that no rule reads (no reader). |
 | W5 | A superseded claim that a `check` still references. |
-| W6 | A local rule that adds clauses to a core or module predicate (an extension). |
+| W6 | A local rule that adds clauses to a core or module predicate (an extension), other than a protected one (E16). |
 
 ## Style
 

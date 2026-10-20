@@ -191,8 +191,8 @@ writes it).
 | `fulfilled(C)` | a check of C passed; for `retire` and `introduce`, it failed first; C is not refuted |
 | `under(C)` | current claim C is not fulfilled |
 | `over(X)` | change X serves no claim |
-| `done` | nothing is under, nothing is over, nothing is to ask, and no burn is open |
-| `burn(C)` | C is contested twice, says "for every input", or the human asked for a proof |
+| `done` | nothing is under, nothing is over, nothing is to ask, no burn is open, and no claim is in a supersede cycle |
+| `burn(C)` | C is contested twice, says "for every input", or the human asked for a proof; or C supersedes such a claim, directly or through other claims |
 | `burn_open(C)` | C burns, and it has no current proof and no current human waiver |
 
 ### Discovery module (`--uses discovery`)
@@ -356,7 +356,8 @@ human.
 ### BURN: prove the claim in Lean
 
 Burn a claim when `burn(C)` holds: the claim was contested twice, the claim is universal
-("for every input"), or the human asks.
+("for every input"), or the human asks. A claim that supersedes a burning claim burns too.
+A restated claim needs its own proof.
 
 A burn needs a proof. Always. The clarity comes from the work to write a correct proof,
 not from a statement in Lean. A statement with `sorry` is not a proof. "No counterexample

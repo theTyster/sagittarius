@@ -325,10 +325,16 @@ For each query, `orbit-kb` assembles one program in this order:
 2. The modules that `uses/1` names, from `modules/<name>.pl`.
 3. `kb.pl`.
 4. `rules.pl`.
-5. Stubs `p(_, …, _) :- false.` for each declared predicate with no clauses.
-6. `#pred` lines, made from the templates of the declarations.
+5. The facts that `orbit-kb` computes when it reads the KB: `proof_changed/1`,
+   `waiver_lapsed/1`, `supersedes_closure/2`, and `supersede_cycle/1`.
+6. Stubs `p(_, …, _) :- false.` for each declared predicate with no clauses.
+7. `#pred` lines, made from the templates of the declarations.
 
-The SWI engine loads this program as it is. By default, s(CASP) gets a
+Two kinds of clause that lint rejects do not reach the engines (D10
+follow-up, F8): a clause in `rules.pl` whose head is a fact predicate (E7) or a
+protected library predicate (E16), and a fact in `kb.pl` of a protected library
+predicate (E7). The protected predicates are `done`, the burn rules, and the
+computed facts (section 10, E16). The SWI engine loads this program as it is. By default, s(CASP) gets a
 grounding of this program for the goal (section 11).
 
 ## 5. The type system
@@ -368,7 +374,7 @@ attest_type(Type, Shape, Writers, Doc).
 | `alt(Shapes)` | A value that matches one shape. An atom entry matches itself. A compound entry matches by name and arity, and each of its arguments is a type. |
 | `text`, `atom` | An atom. |
 | `int` | An integer. |
-| `time` | An atom `YYYY-MM-DDTHH:MM:SSZ`. |
+| `time` | An atom `YYYY-MM-DDTHH:MM:SSZ` with real values: month 01 to 12, a day of that month (29 February only in a leap year), hour 00 to 23, minute and second 00 to 59. |
 | `digest` | An atom `sha256:` and 64 lowercase hex characters. |
 | `by` | `human`, `agent`, or `script`. |
 | `term` | A ground term of any shape (the escape hatch). |
@@ -437,6 +443,9 @@ The core (`core.pl`) is always loaded. It does not mention software.
 | `to_ask(Q)` | No human answered `Q`, its claim is current, and one of these is true: a question that `Q` depends on is defeated, or the claim is contested. |
 | `any_to_ask` | `to_ask(Q)` is true for one or more questions. |
 | `stale(A)` | Human approval `A` names a digest that differs from the recorded digest of its subject. |
+| `supersedes_closure(N, O)` | Computed by `orbit-kb` when it reads the KB. Claim `N` replaces claim `O` through one or more `supersedes` facts. |
+| `supersede_cycle(C)` | Computed by `orbit-kb` when it reads the KB. Claim `C` replaces itself through one or more `supersedes` facts. Lint E15 reports it. |
+| `any_supersede_cycle` | `supersede_cycle(C)` is true for one or more claims. |
 | `passed(K)` | Check `K` passed in a run, and no run with a higher number failed. |
 | `failed_after(K, R)` | Check `K` failed in a run with a number higher than `R`. |
 | `was_red(K)` | Check `K` failed in a run before a run in which it passed. |
@@ -481,15 +490,16 @@ verdict. A proof is a `lean_proof`.
 | `over(X)` | Change `X` serves no claim. |
 | `any_under` | `under(C)` is true for one or more claims. |
 | `any_over` | `over(X)` is true for one or more changes. |
-| `done` | `any_under`, `any_over`, `any_to_ask`, and `any_burn_open` are all false. |
-| `burn(C)` | `C` needs a Lean proof: it is contested twice, it is universal, or a human asked for a proof. |
+| `done` | `any_under`, `any_over`, `any_to_ask`, `any_burn_open`, and `any_supersede_cycle` are all false. |
+| `burn_reason(C)` | `C` is contested twice, it is universal, or a human asked for a proof. |
+| `burn(C)` | `C` needs a Lean proof: `burn_reason(C)`, or `C` replaces a claim with a burn reason, directly or through other claims (`supersedes_closure`). |
 | `burn_proved(C)` | A `lean_proof` of `C` by `script` exists, and no file of that proof changed (`proof_changed`). |
 | `burn_waived(C)` | A human `waiver` of `C` exists, and its due time is not past (`waiver_lapsed`). |
 | `burn_open(C)` | `burn(C)`, `C` is current, and `C` is not proved and not waived. |
 | `any_burn_open` | `burn_open(C)` is true for one or more claims. |
 | `conforms(C)` | A `conformance` check of `C` passed. `done` does not need it. |
 | `proof_changed(A)` | Computed by `orbit-kb` when it reads the KB. A file of proof `A` changed, or its log is missing or does not match. |
-| `waiver_lapsed(W)` | Computed by `orbit-kb` when it reads the KB. The due time of waiver `W` is past. |
+| `waiver_lapsed(W)` | Computed by `orbit-kb` when it reads the KB. The due time of waiver `W` is past, or it is not a valid time. |
 
 ### Burns need a proof
 
@@ -501,11 +511,17 @@ A burn closes in one of two ways:
 
 1. `orbit-kb prove` records a proof. Then `burn_proved(C)` is true.
 2. A human waives the proof until a due time. Then `burn_waived(C)` is true.
-   Use `orbit-kb attest waiver C 'waive(C, DUE, REASON)' --by human`. Only a
-   human may write a waiver. `report` still shows the claim as `NOT PROVED`,
-   with the due time. When the due time is past, the burn is open again.
+   Use `orbit-kb attest waiver C 'waive(C, DUE, REASON)' --by human`. The
+   writer must be `human`. The writer says human; `orbit-kb` cannot verify it.
+   `report` still shows the claim as `NOT PROVED`, with the due time. When the
+   due time is past, the burn is open again. A due time that is not a valid
+   time counts as past.
 
-`done` is false while a burn is open. A superseded claim has no open burn.
+`done` is false while a burn is open. A superseded claim has no open burn. But
+a claim that replaces a burning claim inherits the burn, also through a chain
+of `supersedes` facts. So a restated claim needs its own proof. A `supersedes`
+cycle, also `supersedes(C, C)`, is lint error E15, and `done` is false while it
+exists. `add` refuses a `supersedes` fact that makes a cycle.
 
 Each proof covers a set of files: the Lean source files of the project that the
 proof imports, and the Lake configuration files. If one of these files
@@ -626,7 +642,9 @@ lock:
    `Classical.choice`, and `Quot.sound`. Thus `sorry` (the axiom `sorryAx`),
    `native_decide`, and a local `axiom` all fail this step.
 4. `lake env leanchecker` replays each project module of the proof in the
-   kernel. A declaration that skipped the kernel check fails this step.
+   kernel. A declaration that skipped the kernel check fails this step. The
+   project modules are the modules under the project root and outside
+   `.lake/`. A dependency is not replayed.
 5. `prove` computes the digest of each file of the proof. Then
    `lake build --no-build MODULE` makes sure that no file changed during the
    checks.
@@ -635,9 +653,16 @@ lock:
 
 The log holds the theorem, the module, the source file, the statement, the
 Lean version, the axioms, the project constants that the statement uses, the
-project root, and one line `file SHA PATH` for each file of the proof. Then it
+project root, one line `file SHA PATH` for each file of the proof, and one line
+`absent PATH` for each Lake configuration file that does not exist. Then it
 holds the output of `lake build`. The digest in the attestation is the sha256
-of the `file` lines.
+of these lines, each with a newline: `claim C`, `theorem T`, `module M`,
+`statement S`, then `SHA PATH` for each file, then `absent PATH` for each
+absent file. So the digest binds the claim, the theorem, and the statement of
+the log to its files. A proof counts only when the log header names the claim
+and the digest of the attestation, the lines of the log give that digest, each
+file still has its sha256, and each absent file is still absent. A log copied
+for another claim, or an edited log, does not count (lint E9).
 
 `prove` prints the statement. `orbit-kb` cannot check that the statement says
 what the claim says. Read the statement, and show it to the human.
@@ -901,12 +926,14 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E6 | Non-ground fact in `kb.pl`. |
 | E7 | A clause in the wrong place: a `rule` predicate as a fact in `kb.pl`, or a `fact` predicate with clauses outside `kb.pl`. |
 | E8 | The writer is not permitted for the attestation type. This includes a `[script]` type whose writer is not `script`. |
-| E9 | A `test_result` with no matching run log. The log header must match N, the check, and the result. Also a `lean_proof` with no matching `runs/proof-ID.log`. Its header must match the claim and the digest. |
+| E9 | A `test_result` with no matching run log. The log header must match N, the check, and the result. Also a `lean_proof` with no matching `runs/proof-ID.log`. Its header must match the claim and the digest, and the claim, theorem, module, statement, file, and absent lines of the log must give the digest. |
 | E10 | `uses/1` is missing, is not first, or names an unknown module. |
 | E11 | The assembled program does not compile in s(CASP), or does not load in the SWI engine. |
 | E12 | A `not` literal holds a variable that occurs nowhere else in the clause, `_` included (hazard H1). The message gives the helper-predicate fix. |
 | E13 | An atom or a string ends in `_` and digits (hazard H4). |
 | E14 | Unsafe negation: a variable of a `not` literal occurs in the head, but in no positive body literal. |
+| E15 | A `supersedes` fact on a cycle: a claim replaces itself, directly (`supersedes(C, C)`) or through other claims. `done` is false while the cycle exists. `add` refuses such a fact. |
+| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `proof_changed`, `waiver_lapsed`, `supersedes_closure`, `supersede_cycle`, or `any_supersede_cycle`. The engines ignore the clause. |
 
 | Code | Warning |
 |---|---|
@@ -915,7 +942,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | W3 | A claim with no `cites`. |
 | W4 | A local fact predicate that no rule reads. |
 | W5 | A superseded claim that a `check` still references. |
-| W6 | A local rule that adds clauses to a core or module predicate (an extension). |
+| W6 | A local rule that adds clauses to a core or module predicate (an extension). For a protected predicate, it is E16 instead. |
 
 Built-ins that E2 permits: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `#=`, `#<>`,
 `#<`, `#>`, `#=<`, `#>=`, `true`, `false`, `forall/2`. Lint unwraps `not G`
@@ -1671,6 +1698,36 @@ The speed work (also on 2026-10-16) did not change any answer:
   `show` and `report`.
 - A parallel test suite. Each test has its own cache directory.
 
+- **D10 follow-up (review fixes, 2026-10-20).** An independent review of D10 and
+  the Lean phases found these defects. Record:
+  `thoughts/orbit-kb-d10-record.md`, section "D10 follow-up fixes".
+  - **Restated claims (F11, Ty's decision).** A claim that replaces a burning
+    claim inherits the burn, also through a chain. The new rule
+    `burn(C) :- supersedes_closure(C, O), burn_reason(O).` reads a derived
+    fact, so the program does not recurse through `supersedes/2`.
+  - **Supersede cycles (L-F2, L-F8).** `orbit-kb` computes
+    `supersedes_closure/2` and `supersede_cycle/1` when it reads the KB. A cycle
+    is lint E15, `done` is false while it exists (`any_supersede_cycle`), and
+    `add` refuses a fact that makes one. Both engines finish on every KB.
+  - **`rules.pl` (F8).** A clause for `done`, a burn rule, or a computed fact
+    is E16, not W6. Such clauses, E7 fact clauses in `rules.pl`, and protected
+    facts in `kb.pl` do not reach the engines.
+  - **Times (F9, F10).** The `time` type checks the values. A waiver with an
+    invalid due time counts as lapsed.
+  - **Proof logs (F6, F7).** The digest also covers the claim, theorem,
+    module, and statement lines, and the absent Lake configuration files. A
+    copied or edited log does not count, and E9 reports it. A configuration
+    file that appears after the proof reopens the burn.
+  - **Tests (F12).** SC1 to SC11 and PV10 to PV12 kill the mutants of the
+    review (MD, MX, MC, MF, MN, MS, MT) and of the fixes.
+  - **Docs (F13).** The limits of `prove` under the trust threat model are
+    listed under "Known limits" below.
+  - **A hang at exit (found by the conformance runs).** About 1 in 2800 calls
+    printed the answer and then never ended: a halt hook of a foreign library
+    waited on a mutex (`eu-stack`: `cleanup` under `PL_halt`). It is probably
+    also the cause of finding F6 of the Lean phases (the same symptom). Now the CLI flushes its output,
+    removes its temp files, and then replaces itself with `sh -c 'exit N'`, so
+    no halt hook runs. If that fails, it calls `halt/1` as before.
 - **D11 (add a module, 2026-10-19).** `orbit-kb uses MODULE …` adds modules to an
   existing KB. Before D11, a KB started for discovery could not get the build
   module without an edit by hand. A review found four defects in the first
@@ -1707,9 +1764,43 @@ Known gaps:
   `leanchecker`. `leanchecker` replays the declarations in the same kernel.
   It is not an independent checker.
 - A proof covers the project source files and the Lake configuration files. It
-  does not cover the source of a dependency in `.lake/packages`. The
-  `lake-manifest.json` file pins the dependency versions.
+  does not cover the source of a dependency in `.lake/packages`. For a `git`
+  dependency, `lake-manifest.json` names a revision, so a change of version
+  changes the digest. For a `"type": "path"` dependency (a sharlean project),
+  the manifest has no revision, so a change in the dependency does not reopen
+  the burn.
 - `proof_changed/1` and `waiver_lapsed/1` read the disk and the clock. So the
   same KB can give a different answer after a file edit or after a due time.
+
+Known limits of `prove` (D10 follow-up, 2026-10-20). `prove` checks the proof of
+an honest agent that can make mistakes; it does not resist an agent that cheats
+on purpose. Ty decided this threat model on 2026-10-20: the agents, the human,
+and the code trust each other. These holes need adversarial Lean on purpose, so
+they are documented, not fixed:
+
+- F1. leanchecker and the digest cover only the files under the project root
+  and outside `ROOT/.lake/`. A module behind a symlink to outside the root, in
+  a path dependency, or under a `srcDir` inside `.lake/` is not replayed and
+  not hashed. (`lake env leanchecker --fresh MODULE` replays everything, but it
+  takes about 34 s.)
+- F2. The probe runs project code (`initialize` blocks, `@[delab]`
+  extensions). Such code can print forged `ORBIT-PROVE` lines.
+- F3. `lake env` puts `ROOT/.lake/build/bin` first on `PATH`. A planted
+  `leanchecker` or `lean` there passes every check. A proof file can plant it
+  with `#eval` at build time.
+- F4. Axioms are allowed by name only. A `prelude` file can declare an axiom
+  named `propext` with any statement.
+- F5. The printed statement can be forged with notation (`app_unexpander`).
+  Only the `uses` lines of the log show the real constants. Read them.
+- L-F5. `query` answers before lint runs. A hand-edited `kb.pl` fact that lint
+  rejects can still change `done`, for example an attestation with a malformed
+  predicate. Only a hand edit makes such facts: `add` and `attest` refuse them.
+  The cases that close a burn are handled: a protected fact in `kb.pl` and an
+  E7 or E16 clause in `rules.pl` do not reach the engines, a proof whose id is
+  not an atom counts as changed, and a waiver with an invalid due time counts
+  as lapsed.
+- A file that a proof reads with `include_str` (or another elaborator that
+  reads the disk) is not in the digest. A change to it does not reopen the
+  burn. Only the Lean sources and the Lake configuration files are hashed.
 - `uses` rewrites `kb.pl` as UTF-8. An invalid UTF-8 byte anywhere in the
   file becomes U+FFFD, with a warning from SWI-Prolog.

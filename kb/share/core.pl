@@ -157,6 +157,15 @@ decl(rule, failed_after(ref(check), int),
 decl(rule, was_red(ref(check)),
      'The check failed in a run before a run in which it passed.',
      'check @(1) failed before it passed').
+decl(rule, supersedes_closure(ref(claim), ref(claim)),
+     'The first claim replaces the second claim through one or more supersedes facts. orbit-kb computes it when it reads the KB.',
+     'claim @(1) replaces claim @(2), directly or through other claims').
+decl(rule, supersede_cycle(ref(claim)),
+     'The claim replaces itself through one or more supersedes facts. orbit-kb computes it when it reads the KB.',
+     'claim @(1) is in a supersede cycle').
+decl(rule, any_supersede_cycle,
+     'At least one claim is in a supersede cycle.',
+     'some claim is in a supersede cycle').
 decl(rule, lint_issue(atom, ref, text),
      'A lint result that a module adds, with a code, an id, and a message.',
      'lint issue @(1) on @(2): @(3)').
@@ -207,4 +216,10 @@ passed(K) :- attest(_, test_result, _, result(K, R, pass), _, _), not failed_aft
 failed_after(K, R) :- attest(_, test_result, _, result(K, R2, fail), _, _), R2 > R.
 was_red(K) :- attest(_, test_result, _, result(K, R1, fail), _, _),
               attest(_, test_result, _, result(K, R2, pass), _, _), R1 < R2.
+% supersedes_closure/2 and supersede_cycle/1 have no clauses here. When
+% orbit-kb reads the KB, it adds their facts: the transitive closure of
+% the supersedes/2 facts of kb.pl, and each claim that reaches itself.
+% Thus no rule recurses through supersedes/2, and both engines finish on
+% every KB. Lint E15 reports a cycle.
+any_supersede_cycle :- supersede_cycle(_).
 % lint_issue/3 has no clauses here. Modules add them (the module lint hook).

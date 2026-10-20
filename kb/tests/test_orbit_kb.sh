@@ -63,7 +63,8 @@
 #   D7  review fixes: broken sources exit 2, unsafe negation, kb.lock (D7)                   : D7a-D7d RC E14 E13s
 #   SH  show   RP report   DR doctor (H1-H4 self-tests)   HP help (CLI: show, report, doctor, help) : SH1-SH7 RP1-RP6 DR1-DR3 HP1-HP3
 #   BP  burns: open, proved, changed, waived, lapsed       (Build module; D10)              : BP1-BP14
-#   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10)                : PV1-PV9
+#   SC  D10 follow-up: inherited burns, supersede cycles, rules.pl, times, proof logs (D10 follow-up) : SC1-SC11
+#   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10, D10 follow-up) : PV1-PV12
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -530,12 +531,14 @@ kb_burndone() {  # kb_burndone DIR: kb_done plus universal(c1), so c1 needs a Le
     kb_done "$1"; printf "universal(c1).\n" >> "$1/kb.pl"
 }
 # D10: a lean_proof attestation and its log, as orbit-kb prove writes them. The proof
-# file is DIR/lean/P.lean; the digest covers it alone.
+# file is DIR/lean/P.lean. The digest covers the claim, theorem, module, and statement
+# lines and the one file (contract D10 follow-up: "claim C", "theorem T", "module M",
+# "statement S", then "SHA PATH" per file, then "absent PATH" per absent config file).
 add_proof() {  # add_proof DIR ID CLAIM [TIME]
     local d=$1 id=$2 c=$3 tm=${4:-2026-10-15T11:00:00Z} sha dg
     mkdir -p "$d/runs" "$d/lean"; [ -f "$d/lean/P.lean" ] || printf 'theorem t : True := trivial\n' > "$d/lean/P.lean"
     sha="sha256:$(sha "$d/lean/P.lean")"
-    dg="sha256:$(printf '%s %s\n' "$sha" P.lean | sha256sum | cut -d' ' -f1)"
+    dg="sha256:$(printf 'claim %s\ntheorem t\nmodule P\nstatement True\n%s %s\n' "$c" "$sha" P.lean | sha256sum | cut -d' ' -f1)"
     printf '%% orbit-kb prove claim=%s digest=%s\ntheorem t\nmodule P\nsource P.lean\nstatement True\nlean 4.35.0\ntime %s\nroot lean\nfile %s P.lean\n--- lake build output\n' "$c" "$dg" "$tm" "$sha" > "$d/runs/proof-$id.log"
     printf "attest(%s, lean_proof, %s, proof(%s, '%s'), script, '%s').\n" "$id" "$c" "$c" "$dg" "$tm" >> "$d/kb.pl"
 }
@@ -961,12 +964,92 @@ t_BP10() { kb_burndone "$T/k"; K=$T/k; printf "attest(w1, waiver, c1, waive(c1, 
            is_set 'waiver_lapsed(X)' 'X = w1'; is_false 'burn_waived(c1)'; is_false 'done' "the waiver is past its due time"
            okb --dir "$K" report; out_has 'Waiver w1 of the proof of claim c1 was due at 2020-01-01'; }
 t_BP11() { kb_burndone "$T/k"; K=$T/k; printf "supersedes(c3, c1).\nclaim(c3, preserve, 'One stays true, new words').\ncites(c3, 'Do two things').\ncheck(k3, c3).\nserves(x1, c3).\n" >> $K/kb.pl
-           add_result $K k3 4 pass; is_true 'burn(c1)'; is_false 'burn_open(c1)' "a superseded claim has no open burn"; is_true 'done'; }
+           add_result $K k3 4 pass; is_true 'burn(c1)'; is_false 'burn_open(c1)' "a superseded claim has no open burn"
+           is_true 'burn_open(c3)' "c3 inherits the burn of c1 (D10 follow-up, S1)"; is_false 'done'; }
 t_BP12() { kb_burndone "$T/k"; K=$T/k; add_proof "$K" p1 c1
            printf "check(k9, c1).\nconformance(k9).\n" >> $K/kb.pl; is_false 'conforms(c1)'; is_true 'done' "conformance is optional"
            add_result $K k9 4 pass; is_true 'conforms(c1)'; is_true 'done'; }
 t_BP13() { kb_burn "$T/k"; K=$T/k; is_set 'burn_open(X)' 'X = c1|X = c3|X = c4' "contested twice, universal, and requested all need a proof"; }
 t_BP14() { mkclaim; rejects reserved 'reserved' declare 'proved(ref(claim))' --doc 'x' --kind rule; }
+
+# ---- D10 follow-up (2026-10-20): restated claims, supersede cycles, rules.pl, times, logs
+sc_restate() {  # sc_restate: kb_burndone, then c3 restates the universal claim c1 (c3 has no trigger of its own)
+    kb_burndone "$T/k"; K=$T/k
+    printf "supersedes(c3, c1).\nclaim(c3, preserve, 'One stays true, new words').\ncites(c3, 'Do two things').\ncheck(k3, c3).\nserves(x1, c3).\n" >> $K/kb.pl
+    add_result $K k3 4 pass
+}
+t_SC1() { sc_restate; is_true 'burn(c3)' "c3 supersedes the burning claim c1, so c3 inherits the burn (S1)"
+          is_set 'burn_open(X)' 'X = c3'; is_false 'done' "the inherited burn of c3 is open"
+          okb --dir "$K" lint; rc_is 0 "a restated claim is not a lint error"; out_hasnt '^E[0-9]'
+          add_proof "$K" p1 c3; is_false 'burn_open(c3)'; is_true 'done' "a proof of c3 closes the inherited burn"; }
+t_SC2() { sc_restate
+          printf "supersedes(c4, c3).\nclaim(c4, preserve, 'One stays true, newer words').\ncites(c4, 'Do two things').\ncheck(k4, c4).\nserves(x1, c4).\n" >> $K/kb.pl
+          add_result $K k4 5 pass
+          is_set 'supersedes_closure(N, c1)' 'N = c3|N = c4' "the closure has every claim that reaches c1"
+          is_true 'burn(c4)' "c4 reaches c1 in two steps (S1)"; is_set 'burn_open(X)' 'X = c4'; is_false 'done'
+          is_false 'supersede_cycle(X)' "a chain is not a cycle"; }
+t_SC3() { kb_burndone "$T/k"; K=$T/k; printf "supersedes(c1, c1).\n" >> $K/kb.pl
+          okb --dir "$K" lint; rc_is 1 "supersedes(c1, c1) is a lint error (S2)"; out_has '^E15 .*kb.pl'
+          is_true 'supersede_cycle(c1)'; is_false 'done' "a supersede cycle makes done false (S2)"; any_hasnt 'ENGINE DISAGREEMENT'
+          is_false 'burn_open(C)' "both engines answer; c1 is not current"; any_hasnt 'ENGINE DISAGREEMENT'
+          okb --dir "$K" report; rc_is 0; out_has 'cycle'; }
+t_SC4() { kb_burndone "$T/k"; K=$T/k; printf "supersedes(c1, c2).\nsupersedes(c2, c1).\n" >> $K/kb.pl
+          okb --dir "$K" lint; rc_is 1 "a two-claim cycle is a lint error (S2)"
+          [ "$(printf '%s\n' "$out" | grep -c '^E15 ')" = 2 ] || note "want E15 on both supersedes facts: $(snip "$out")"
+          is_set 'supersede_cycle(X)' 'X = c1|X = c2'; is_true 'burn(c2)' "c2 reaches the universal claim c1"
+          q 'done'; rc_is 1 "done is false, and both engines finish (S3)"; any_hasnt 'ENGINE DISAGREEMENT'
+          q 'burn_open(C)' -n 0; rc_is 1 "no claim of the cycle is current"; any_hasnt 'ENGINE DISAGREEMENT'
+          q 'burn(C)' -n 0; rc_is 0; any_hasnt 'ENGINE DISAGREEMENT'; }
+t_SC5() { kb_burndone "$T/k"; K=$T/k; rejects selfsup 'cycle' add 'supersedes(c1, c1)'
+          oadd 'supersedes(c2, c1)'; rc_is 0 "a plain supersedes fact"
+          rejects cycle2 'cycle' add 'supersedes(c1, c2)'; }
+t_SC6() { kb_burndone "$T/k"; K=$T/k; printf 'burn_proved(c1).\ndone.\nburn_waived(C) :- claim(C, _, _).\n' > $K/rules.pl
+          okb --dir "$K" lint; rc_is 1 "rules.pl cannot close a burn (F8)"
+          [ "$(printf '%s\n' "$out" | grep -c '^E16 rules.pl')" = 3 ] || note "want E16 on each of the 3 clauses: $(snip "$out")"
+          out_hasnt '^W6' "E16, not W6"; is_false 'done' "the engines ignore the protected clauses of rules.pl"; is_true 'burn_open(c1)'; }
+t_SC7() { kb_burndone "$T/k"; K=$T/k
+          printf "attest(w9, waiver, c1, waive(c1, '2999-01-01T00:00:00Z', 'x'), human, '2026-10-15T11:00:00Z').\n" > $K/rules.pl
+          okb --dir "$K" lint; rc_is 1; out_has '^E7 rules.pl'; is_false 'burn_waived(c1)' "a waiver in rules.pl does not count"; is_false 'done'
+          rm $K/rules.pl; printf 'burn_proved(c1).\n' >> $K/kb.pl
+          okb --dir "$K" lint; rc_is 1; out_has '^E7 .*kb.pl'; is_false 'done' "a burn_proved fact in kb.pl does not count"; }
+t_SC8() { kb_burndone "$T/k"; K=$T/k; local t
+          for t in 2026-99-99T99:99:99Z 2026-13-01T00:00:00Z 2026-00-10T00:00:00Z 2026-04-31T00:00:00Z 2027-02-29T00:00:00Z \
+                   2100-02-29T00:00:00Z 2026-10-20T24:00:00Z 2026-10-20T23:60:00Z 2026-10-20T23:59:60Z; do
+              rejects "time $t" 'time' attest waiver c1 "waive(c1, '$t', 'x')" --by human
+          done
+          okb --dir "$K" attest waiver c1 "waive(c1, '2028-02-29T23:59:59Z', 'leap day')" --by human; rc_is 0 "2028 is a leap year"
+          okb --dir "$K" attest waiver c1 "waive(c1, '2400-02-29T00:00:00Z', 'leap day')" --by human; rc_is 0 "2400 is a leap year"
+          printf "attest(w9, waiver, c1, waive(c1, '2999-02-30T00:00:00Z', x), human, '2026-10-15T11:00:00Z').\n" >> $K/kb.pl
+          okb --dir "$K" lint; rc_is 1; out_has '^E3 .*kb.pl'; }
+t_SC9() { kb_burndone "$T/k"; K=$T/k
+          printf "attest(w1, waiver, c1, waive(c1, never, x), human, '2026-10-15T11:00:00Z').\nattest(w2, waiver, c1, waive(c1, 2020, x), human, '2026-10-15T11:00:00Z').\nattest(w3, waiver, c1, waive(c1, '2999-02-30T00:00:00Z', x), human, '2026-10-15T11:00:00Z').\n" >> $K/kb.pl
+          is_set 'waiver_lapsed(X)' 'X = w1|X = w2|X = w3' "an invalid due time counts as lapsed (F9)"
+          is_false 'burn_waived(c1)'; is_false 'done'; }
+t_SC10() { kb_burndone "$T/k"; K=$T/k; local soon past
+           soon=$(date -u -d '+1 day' +%Y-%m-%dT%H:%M:%SZ); past=$(date -u -d '-2 minutes' +%Y-%m-%dT%H:%M:%SZ)
+           printf "attest(w1, waiver, c1, waive(c1, '%s', x), human, '2026-10-15T11:00:00Z').\n" "$soon" >> $K/kb.pl
+           is_true 'done' "a waiver due tomorrow counts"
+           printf "attest(w2, waiver, c1, waive(c1, '%s', x), human, '2026-10-15T11:00:00Z').\n" "$past" >> $K/kb.pl
+           is_set 'waiver_lapsed(X)' 'X = w2' "only the waiver due 2 minutes ago lapsed (the clock is now)"; }
+t_SC11() { kb_burndone "$T/k"; K=$T/k; printf "universal(c2).\n" >> $K/kb.pl; add_proof "$K" p1 c1; local dg sha2
+           dg=$(sed -n '1s/.*digest=//p' "$K/runs/proof-p1.log")
+           # a copy of the log for c2, with the claim edited in its header (F6)
+           sed '1s/claim=c1/claim=c2/' "$K/runs/proof-p1.log" > "$K/runs/proof-p2.log"
+           printf "attest(p2, lean_proof, c2, proof(c2, '%s'), script, '2026-10-15T11:00:00Z').\n" "$dg" >> $K/kb.pl
+           # an unedited copy for c2 (MX)
+           cp "$K/runs/proof-p1.log" "$K/runs/proof-p3.log"
+           printf "attest(p3, lean_proof, c2, proof(c2, '%s'), script, '2026-10-15T11:00:00Z').\n" "$dg" >> $K/kb.pl
+           is_set 'proof_changed(X)' 'X = p2|X = p3' "a log copied for another claim does not count"; is_true 'burn_open(c2)'; is_false 'done'
+           okb --dir "$K" lint; rc_is 1; [ "$(printf '%s\n' "$out" | grep -c '^E9 ')" = 2 ] || note "want E9 on p2 and p3: $(snip "$out")"
+           # an edited statement line (MD)
+           sed -i 's/^statement True$/statement False/' "$K/runs/proof-p1.log"
+           is_true 'proof_changed(p1)' "an edited statement line does not count"; is_true 'burn_open(c1)'
+           okb --dir "$K" lint; rc_is 1; [ "$(printf '%s\n' "$out" | grep -c '^E9 ')" = 3 ] || note "want E9 on p1 too: $(snip "$out")"
+           sed -i 's/^statement False$/statement True/' "$K/runs/proof-p1.log"; is_false 'proof_changed(p1)' "the log is restored"
+           # an edited file, and its sha256 edited in the log to match (MD)
+           echo '-- edit' >> "$K/lean/P.lean"; sha2="sha256:$(sha "$K/lean/P.lean")"
+           sed -i "s/^file sha256:[0-9a-f]* P.lean$/file $sha2 P.lean/" "$K/runs/proof-p1.log"
+           is_true 'proof_changed(p1)' "the digest no longer matches the file lines"; }
 
 # ---- D10: orbit-kb prove with real Lean. The Lake project is built once (prototype lake).
 # Each test copies it, so lake build has little to do. Skip when lake is missing.
@@ -1020,6 +1103,25 @@ t_PV9() { lean_proj || return 0; okb --dir "$K" prove c9 "$LP/Fx/Good.lean" load
           okb --dir "$K" prove c1 "$T/nope.lean" load_linear; rc_is 2 "no such file"
           printf 'theorem t : True := trivial\n' > "$T/loose.lean"; okb --dir "$K" prove c1 "$T/loose.lean" t; rc_is 2 "no Lake project"; any_has 'lakefile'
           okb --dir "$K" prove c1; rc_is 2 "usage"; }
+# D10 follow-up: the log records the statement (MS) and the absent config files (F7); a
+# config file that changes, or appears, reopens the burn (MC, F7).
+t_PV10() { lean_proj || return 0
+           okb --dir "$K" prove c1 "$LP/Fx/Good.lean" load_linear; rc_is 0 "a real proof"
+           grep -qx 'statement ∀ (n : Nat), loadSteps n ≤ n' "$K/runs/proof-a1.log" || note "the log records the statement of the theorem"
+           grep -qx 'theorem load_linear' "$K/runs/proof-a1.log" || note "the log records the theorem"
+           grep -qx 'absent lakefile.lean' "$K/runs/proof-a1.log" || note "the log records the absent lakefile.lean"
+           is_true 'burn_proved(c1)'
+           printf 'import Lake\nopen Lake DSL\npackage fx\n@[default_target] lean_lib Fx\n' > "$LP/lakefile.lean"
+           is_set 'proof_changed(X)' 'X = a1' "a lakefile.lean that appears after the proof"
+           rm "$LP/lakefile.lean"; is_true 'burn_proved(c1)' "the project is as it was"
+           printf '# a comment\n' >> "$LP/lakefile.toml"; is_set 'proof_changed(X)' 'X = a1' "an edit of lakefile.toml"; }
+# MF: the module of --module must be the module of FILE.
+t_PV11() { lean_proj || return 0; prove_rejects modfile 'not the file' "$LP/Fx/Other.lean" load_linear --module Fx.Good; }
+# MN: a file that changes while prove checks it (here during leanchecker) is not a proof.
+t_PV12() { lean_proj || return 0; local real; real=$(command -v lake); mkdir -p "$T/bin"
+           printf '#!/bin/sh\nif [ "$1 $2" = "env leanchecker" ]; then printf "\\n-- touched\\n" >> "%s/Fx/Model.lean"; fi\nexec "%s" "$@"\n' "$LP" "$real" > "$T/bin/lake"
+           chmod +x "$T/bin/lake"
+           PATH="$T/bin:$PATH" prove_rejects changed 'changed while' "$LP/Fx/Good.lean" load_linear; }
 
 t_GD() { # D8: query done on 20 claims x 2 runs is answered and cross-checked in ground mode (default timeout)
          gd_kb "$T/k"; K=$T/k
@@ -1336,6 +1438,17 @@ run_test t_BP11 BP11 "D10: a superseded claim has no open burn"
 run_test t_BP12 BP12 "D10: conformance is optional; conforms holds after its check passes"
 run_test t_BP13 BP13 "D10: each burn trigger needs a proof"
 run_test t_BP14 BP14 "D10: proved/1 is a reserved name (s(CASP) model wrapper)"
+run_test t_SC1 SC1 "D10 follow-up: a claim that supersedes a burning claim inherits the burn (F11, S1)"
+run_test t_SC2 SC2 "D10 follow-up: the burn passes along a supersede chain (S1)"
+run_test t_SC3 SC3 "D10 follow-up: supersedes(c1, c1) is E15, and done is false (L-F2, S2)"
+run_test t_SC4 SC4 "D10 follow-up: a two-claim supersede cycle: E15, done false, both engines finish (S2, S3)"
+run_test t_SC5 SC5 "D10 follow-up: add refuses a supersede cycle"
+run_test t_SC6 SC6 "D10 follow-up: rules.pl clauses for the burn rules are E16 and do not count (F8)"
+run_test t_SC7 SC7 "D10 follow-up: an E7 waiver in rules.pl or burn_proved fact in kb.pl does not count (F8)"
+run_test t_SC8 SC8 "D10 follow-up: the time type checks month, day, leap years, hour, minute, second (F10)"
+run_test t_SC9 SC9 "D10 follow-up: a waiver with an invalid due time counts as lapsed (F9)"
+run_test t_SC10 SC10 "D10 follow-up: waivers compare with the clock (MT)"
+run_test t_SC11 SC11 "D10 follow-up: a log copied for another claim or edited does not count (F6, MX, MD)"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"
@@ -1345,6 +1458,9 @@ run_test t_PV6 PV6 "D10: prove rejects a theorem from another module"
 run_test t_PV7 PV7 "D10: prove rejects a declaration that skipped the kernel (leanchecker)"
 run_test t_PV8 PV8 "D10: prove rejects a file that does not build"
 run_test t_PV9 PV9 "D10: prove usage errors exit 2"
+run_test t_PV10 PV10 "D10 follow-up: the log has the statement and absent config files; a config change reopens (F7, MS, MC)"
+run_test t_PV11 PV11 "D10 follow-up: prove rejects a --module that is not the module of FILE (MF)"
+run_test t_PV12 PV12 "D10 follow-up: prove rejects a file that changes during the checks (MN)"
 run_test t_H3a H3a "H3: passed(K) -n 0 lists k2, k3, k4 (default flags)"
 run_test t_H3b H3b "H3: --forall=all gives ENGINE DISAGREEMENT, exit 2"
 run_test t_H3c H3c "H3: ground passed(k1) is false, passed(k4) is true"

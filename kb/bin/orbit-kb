@@ -163,6 +163,27 @@ main :-
     ;   true
     ),
     build_state,
+    exit_now(Code).
+
+% exit_now(+Code): end the process with exit status Code. halt/1 runs the
+% halt hooks of the foreign libraries. One of them can deadlock: in the
+% D10 follow-up (2026-10-20), about 1 in 2800 calls of query hung after
+% the answer was printed, with the main thread in a mutex wait in a
+% cleanup hook under PL_halt (eu-stack: cleanup <- run_on_halt <-
+% PL_cleanup <- PL_halt) and the GC thread idle. Here the output is
+% flushed, the temp files are removed, and the s(CASP) runs are stopped,
+% so no hook has work left. The process replaces itself with
+% "sh -c 'exit Code'", which runs no hook. Any problem falls back to
+% halt/1.
+exit_now(Code) :-
+    (   integer(Code), Code >= 0, Code =< 255,
+        catch(use_module(library(unix), [exec/1]), _, fail),
+        absolute_file_name(path(sh), Sh, [access(execute), file_errors(fail)])
+    ->  format(atom(Arg), "exit ~d", [Code]),
+        Cmd =.. [Sh, '-c', Arg],
+        catch(exec(Cmd), _, true)
+    ;   true
+    ),
     halt(Code).
 
 % A saved state starts with other defaults than "swipl SCRIPT". Set the
@@ -723,23 +744,68 @@ load_kb(Dir, Lib, kb(Dir, Lib, Uses, Items)) :-
 % computes from the disk and the clock each time it reads the KB.
 %   proof_changed(A)  proof A does not count: a file of the proof
 %                     changed, or its log is missing or does not match.
-%   waiver_lapsed(W)  the due time of waiver W is past.
-% Both engines see them as facts. The rules in modules/build.pl read
-% them under not.
+%   waiver_lapsed(W)  the due time of waiver W is past, or it is not a
+%                     valid time (D10 follow-up, F9).
+% And from the supersedes/2 facts of kb.pl (D10 follow-up, S3):
+%   supersedes_closure(New, Old)  New reaches Old through one or more
+%                     supersedes facts.
+%   supersede_cycle(C)  C reaches itself.
+% Both engines see them as facts. The rules in core.pl and
+% modules/build.pl read them, so no rule recurses through supersedes/2.
+% An id that is not an atom still gets its fact (lint E3 reports it).
 derived_items(Dir, KbItems, Items) :-
     findall(proof_changed(A),
             ( member(it(kb, _, _, T, _, _), KbItems), nonvar(T),
-              T = attest(A, lean_proof, _, P, _, _), atom(A),
+              T = attest(A, lean_proof, _, P, _, _), ground(A),
               \+ proof_state(Dir, A, P, ok) ),
             Ts1),
     utc_now(Now),
     findall(waiver_lapsed(W),
             ( member(it(kb, _, _, T, _, _), KbItems), nonvar(T),
-              T = attest(W, waiver, _, waive(_, Due, _), _, _), atom(W),
-              atom(Due), Due @< Now ),
+              T = attest(W, waiver, _, Pred, _, _), ground(W),
+              \+ ( nonvar(Pred), Pred = waive(_, Due, _), is_time(Due), \+ Due @< Now ) ),
             Ts2),
-    append(Ts1, Ts2, Ts),
+    supersede_derived(KbItems, Ts3),
+    append([Ts1, Ts2, Ts3], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
+
+% supersede_derived(+KbItems, -Facts): the supersedes_closure/2 and
+% supersede_cycle/1 facts of the ground supersedes/2 facts.
+supersede_derived(KbItems, Facts) :-
+    supersede_edges(KbItems, Edges),
+    supersede_closure(Edges, Pairs),
+    findall(supersedes_closure(N, O), member(N-O, Pairs), F1),
+    findall(supersede_cycle(C), member(C-C, Pairs), F2),
+    append(F1, F2, Facts).
+
+supersede_edges(Items, Edges) :-
+    findall(N-O, ( member(it(Src, _, _, T, _, _), Items), ( Src == kb ; Src == new ),
+                   nonvar(T), T = supersedes(N, O), ground(N-O) ),
+            Edges0),
+    sort(Edges0, Edges).
+
+% supersede_closure(+Edges, -Pairs): the sorted pairs N-O such that a
+% path of one or more edges leads from N to O. A depth-first search from
+% each source, so it ends on every graph, also with cycles.
+supersede_closure(Edges, Pairs) :-
+    findall(N, member(N-_, Edges), Ns0),
+    sort(Ns0, Ns),
+    findall(N-O, ( member(N, Ns), reach_from(Edges, N, Os), member(O, Os) ), Pairs0),
+    sort(Pairs0, Pairs).
+
+reach_from(Edges, N, Os) :-
+    findall(M, member(N-M, Edges), Next),
+    reach_walk(Next, Edges, [], Os0),
+    sort(Os0, Os).
+
+reach_walk([], _, Seen, Seen).
+reach_walk([X|Xs], Edges, Seen, Out) :-
+    (   memberchk(X, Seen)
+    ->  reach_walk(Xs, Edges, Seen, Out)
+    ;   findall(M, member(X-M, Edges), Next),
+        append(Next, Xs, Todo),
+        reach_walk(Todo, Edges, [X|Seen], Out)
+    ).
 
 kb_dir(kb(D, _, _, _), D).
 kb_lib(kb(_, L, _, _), L).
@@ -894,7 +960,7 @@ val_errs(id, V, _, Es) :- !, ( atom(V) -> Es = [] ; bad_value("an id (an atom)",
 val_errs(text, V, _, Es) :- !, ( atom(V) -> Es = [] ; bad_value("text in single quotes", V, Es) ).
 val_errs(atom, V, _, Es) :- !, ( atom(V) -> Es = [] ; bad_value("an atom", V, Es) ).
 val_errs(int, V, _, Es) :- !, ( integer(V) -> Es = [] ; bad_value("an integer", V, Es) ).
-val_errs(time, V, _, Es) :- !, ( is_time(V) -> Es = [] ; bad_value("a UTC time such as '2026-10-15T12:00:00Z'", V, Es) ).
+val_errs(time, V, _, Es) :- !, ( is_time(V) -> Es = [] ; bad_value("a valid UTC time such as '2026-10-15T12:00:00Z' (month 01-12, a day of that month, hour 00-23, minute and second 00-59)", V, Es) ).
 val_errs(digest, V, _, Es) :- !, ( is_digest(V) -> Es = [] ; bad_value("a digest 'sha256:' plus 64 lowercase hex characters", V, Es) ).
 val_errs(by, V, _, Es) :- !, ( memberchk(V, [human, agent, script]) -> Es = [] ; bad_value("human, agent, or script", V, Es) ).
 val_errs(term, V, _, Es) :- !,
@@ -975,11 +1041,25 @@ bad_value(What, V, ['E3'-M]) :-
 has_string(V) :- string(V), !.
 has_string(V) :- compound(V), arg(_, V, A), has_string(A), !.
 
+% is_time(+A): A is a UTC time YYYY-MM-DDTHH:MM:SSZ with real values:
+% month 1-12, a day of that month (leap years too), hour 0-23, minute
+% and second 0-59 (D10 follow-up, F10).
 is_time(A) :-
     atom(A),
     atom_codes(A, Cs),
     Cs = [Y1, Y2, Y3, Y4, 0'-, M1, M2, 0'-, D1, D2, 0'T, H1, H2, 0':, I1, I2, 0':, S1, S2, 0'Z],
-    maplist(is_digit_code, [Y1, Y2, Y3, Y4, M1, M2, D1, D2, H1, H2, I1, I2, S1, S2]).
+    maplist(is_digit_code, [Y1, Y2, Y3, Y4, M1, M2, D1, D2, H1, H2, I1, I2, S1, S2]),
+    number_codes(Y, [Y1, Y2, Y3, Y4]), number_codes(Mo, [M1, M2]), number_codes(D, [D1, D2]),
+    number_codes(H, [H1, H2]), number_codes(Mi, [I1, I2]), number_codes(S, [S1, S2]),
+    between(1, 12, Mo),
+    month_days(Y, Mo, MD), between(1, MD, D),
+    between(0, 23, H), between(0, 59, Mi), between(0, 59, S).
+
+month_days(Y, 2, D) :- !, ( leap_year(Y) -> D = 29 ; D = 28 ).
+month_days(_, M, 30) :- memberchk(M, [4, 6, 9, 11]), !.
+month_days(_, _, 31).
+
+leap_year(Y) :- Y mod 4 =:= 0, ( Y mod 100 =\= 0 -> true ; Y mod 400 =:= 0 ).
 
 is_digit_code(C) :- integer(C), C >= 0'0, C =< 0'9.
 
@@ -1127,6 +1207,22 @@ run_log_ok(KB, K, N, R) :-
     fmt(CS0, "check=~w", [K]), CS == CS0,
     fmt(RS0, "result=~w", [R]), RS == RS0.
 
+% E15 (D10 follow-up, S2): each supersedes/2 fact on a cycle. A claim
+% that replaces itself, directly or through other claims, is not
+% current, so its burn would close with no proof.
+e15_diags(FactItems, Diags) :-
+    supersede_edges(FactItems, Edges),
+    supersede_closure(Edges, Pairs),
+    findall(diag('E15', F, L, M),
+            ( member(it(_, F, L, T, _, _), FactItems), nonvar(T),
+              T = supersedes(N, O), ground(N-O),
+              ord_memberchk(O-N, Pairs),
+              (   N == O
+              ->  fmt(M, "supersedes(~q, ~q): a claim cannot replace itself. Remove this fact. done is false while a supersede cycle exists.", [N, O])
+              ;   fmt(M, "supersedes(~q, ~q) is part of a supersede cycle: ~q also replaces ~q, directly or through other claims. A claim cannot replace itself. Remove one supersedes fact of the cycle. done is false while the cycle exists.", [N, O, O, N])
+              ) ),
+            Diags).
+
 % E5 over the facts in order. Only diagnostics at a later item.
 e5_diags(FactItems, Ds, Diags) :-
     empty_assoc(Seen),
@@ -1232,6 +1328,10 @@ head_diags(Ds, Src, F, L, H0, Diags) :-
             (   Kind == fact
             ->  fmt(M, "~q/~w is a fact predicate. Its facts belong in kb.pl only, but this clause is in ~w. Declare a rule predicate for computed values.", [N, A, F]),
                 Diags = [diag('E7', F, L, M)]
+            ;   Src == rules, ( DSrc == core ; DSrc = module(_) ), protected_pi(N/A)
+            ->  src_text(DSrc, ST),
+                fmt(M, "rules.pl adds clauses to ~q/~w from ~w. rules.pl cannot change done, the burn rules, or the facts that orbit-kb computes. The engines ignore this clause. Remove it.", [N, A, ST]),
+                Diags = [diag('E16', F, L, M)]
             ;   Src == rules, ( DSrc == core ; DSrc = module(_) )
             ->  src_text(DSrc, ST),
                 fmt(M, "rules.pl adds clauses to ~q/~w from ~w. This is an extension. Review it.", [N, A, ST]),
@@ -1239,6 +1339,43 @@ head_diags(Ds, Src, F, L, H0, Diags) :-
             ;   Diags = []
             )
         )
+    ).
+
+% protected_pi(?PI) (D10 follow-up, F8): the library rule predicates that
+% decide done and the burns, and the facts that orbit-kb computes. A
+% clause for one of them in rules.pl is E16, and the engines ignore it.
+protected_pi(done/0).
+protected_pi(burn/1).
+protected_pi(burn_reason/1).
+protected_pi(burn_proved/1).
+protected_pi(burn_waived/1).
+protected_pi(burn_open/1).
+protected_pi(any_burn_open/0).
+protected_pi(proof_changed/1).
+protected_pi(waiver_lapsed/1).
+protected_pi(supersedes_closure/2).
+protected_pi(supersede_cycle/1).
+protected_pi(any_supersede_cycle/0).
+
+% answer_items(+Items, +Decls, -Items2) (D10 follow-up, F8): the items that
+% the engines read. A clause that lint rejects and that could close a
+% burn does not reach them: a rules.pl clause whose head is a fact
+% predicate (E7) or a protected library predicate (E16), and a kb.pl
+% fact of a protected library predicate (E7).
+answer_items(Items, Ds, Items2) :-
+    exclude(ignored_item(Ds), Items, Items2).
+
+ignored_item(Ds, it(Src, _, _, T, _, _)) :-
+    ( Src == rules ; Src == kb ),
+    nonvar(T), \+ meta_term(T), T \= #(_), T \= (:- _),
+    clause_parts(T, H0, _), nonvar(H0),
+    ( H0 = -(H), callable(H) -> true ; H = H0 ),
+    callable(H),
+    functor(H, N, A),
+    decl_of(Ds, N, A, d(_, _, Kind, _, _, _, DSrc, _, _)),
+    (   protected_pi(N/A), ( DSrc == core ; DSrc = module(_) )
+    ->  true
+    ;   Src == rules, Kind == fact
     ).
 
 body_goal_diag(_, F, L, HN, G, diag('E2', F, L, M)) :-
@@ -1393,7 +1530,8 @@ e13_diags(_, []).
 %   LoadErrs: list of le(File, Line, Message)
 %   Graph:    list of PI-CalleePIs
 
-build_engine(Items, Ds, eng(M, Global, Unsup, LoadErrs, Graph)) :-
+build_engine(Items0, Ds, eng(M, Global, Unsup, LoadErrs, Graph)) :-
+    answer_items(Items0, Ds, Items),
     gensym(orbit_eng_, M),
     set_module(M:base(system)),
     forall(member(d(N, A, _, _, _, _, _, _, _), Ds),
@@ -1585,7 +1723,8 @@ explicit_pred_pi(it(_, _, _, T, _, _), N/A) :-
     callable(H), functor(H, N, A).
 
 % assemble(+Items, +Decls, +ExtraTerms, -File, -LineMap)
-assemble(Items, Ds, Extra, File, LineMap) :-
+assemble(Items0, Ds, Extra, File, LineMap) :-
+    answer_items(Items0, Ds, Items),
     findall(Line-loc(F, L),
             ( member(it(Src, F, L, T, VN, _), Items),
               \+ ( Src == kb, nonvar(T), T = uses(_) ),
@@ -3128,7 +3267,9 @@ validate_new(KB, NewItems, Problems) :-
     e5_diags(All, Ds, D2a),
     include([diag(_, F, _, _)]>>(F == '<arg>'), D2a, D2),
     findall(D, ( member(I, NewItems), e13_diags(I, D0), member(D, D0) ), D3),
-    append([D1, D2, D3], Problems).
+    e15_diags(All, D4a),
+    include([diag(_, F, _, _)]>>(F == '<arg>'), D4a, D4),
+    append([D1, D2, D3, D4], Problems).
 
 problem_lines(Problems, NewItems, Lines) :-
     findall(S, ( member(diag(C, _, L, M), Problems),
@@ -3658,10 +3799,16 @@ create_exclusive(File, Text) :-
 %     Quot.sound. So it has no sorry, no native_decide, and no local
 %     axiom;
 %   - leanchecker replays every module of the project that the module
-%     imports. This finds a declaration that skipped the kernel;
+%     imports, under the project root and outside .lake/. This finds a
+%     declaration that skipped the kernel;
 %   - the built files are still up to date when the digest is taken.
-% The log runs/proof-ID.log holds the digest of each file of the proof.
-% When a file changes, the proof stops counting (proof_changed/1).
+% The log runs/proof-ID.log holds the digest of each file of the proof,
+% and the configuration files that do not exist. The digest also covers
+% the claim, theorem, module, and statement lines (proof_digest/7). When
+% a file changes, or an absent configuration file appears, the proof
+% stops counting (proof_changed/1).
+% prove checks the proof of an honest agent that can make mistakes. It
+% does not resist an agent that cheats on purpose (README section 15).
 % As run does, prove works without the KB lock and takes the lock only
 % to record.
 
@@ -3724,8 +3871,9 @@ cmd_prove(KB, Args, Code) :-
                       "A declaration that skips the kernel check is not a proof."], Out3)
     ),
     % 4. Take the digest, then check that the build is still up to date.
-    proof_files(Root, PF, Files),
-    files_digest(Files, Digest),
+    proof_files(Root, PF, Files, Absent),
+    memberchk(statement(St0), PF),
+    proof_digest(Claim, Thm, Mod, St0, Files, Absent, Digest),
     prove_exec(Lake, [build, '--no-build', Mod], Root, RunsDir, EC4, Out4),
     (   EC4 =:= 0 -> true
     ;   prove_reject(["A file of the proof changed while orbit-kb checked it. Run orbit-kb prove again."], Out4)
@@ -3733,7 +3881,7 @@ cmd_prove(KB, Args, Code) :-
     utc_now(Now),
     stored_path(Dir, Root, StoredRoot),
     relative_file_name(FileAbs, Root, RelFile),
-    proof_log_text(Claim, Digest, Thm, Mod, RelFile, StoredRoot, PF, Files, Now, Out1, LogText),
+    proof_log_text(Claim, Digest, Thm, Mod, RelFile, StoredRoot, PF, Files, Absent, Now, Out1, LogText),
     with_kb_lock(Dir, record_proof(KB, Claim, Digest, Now, LogText, Id, Log)),
     member(statement(St), PF),
     format("proof ~w of claim ~w: theorem ~w (~w)~n", [Id, Claim, Thm, Mod]),
@@ -3854,19 +4002,32 @@ prove_judge(PF, Mod, Thm, FileAbs, Root, Out) :-
     ;   prove_reject(["The module " + Mod + " is not the file " + Rel + ". Give the module with --module."], Out)
     ).
 
-% proof_files(+Root, +Facts, -Files): f(Sha, RelPath) for each project
-% source file of the proof and each Lake configuration file, sorted.
-proof_files(Root, PF, Files) :-
+% proof_files(+Root, +Facts, -Files, -Absent): f(Sha, RelPath) for each
+% project source file of the proof and each Lake configuration file,
+% sorted; Absent is the sorted list of the configuration files that do
+% not exist (D10 follow-up, F7: a file that appears later changes what
+% the proof means, so it reopens the burn).
+proof_files(Root, PF, Files, Absent) :-
     findall(P, member(file(_, P), PF), Ps1),
     findall(C, ( lake_config_file(C), directory_file_path(Root, C, F), exists_file(F) ), Ps2),
+    findall(C, ( lake_config_file(C), directory_file_path(Root, C, F), \+ exists_file(F) ), Ab0),
+    sort(Ab0, Absent),
     append(Ps1, Ps2, Ps0),
     sort(Ps0, Ps),
     findall(f(Sha, P), ( member(P, Ps), directory_file_path(Root, P, F), sha256_file(F, Sha) ), Files).
 
-% files_digest(+Files, ?Digest): the sha256 of the lines "SHA PATH".
-files_digest(Files, Digest) :-
+% proof_digest(+Claim, +Theorem, +Module, +Statement, +Files, +Absent,
+% ?Digest) (D10 follow-up, F6): the sha256 of these lines, each ended by
+% a newline: "claim C", "theorem T", "module M", "statement S", then
+% "SHA PATH" for each file, then "absent PATH" for each absent
+% configuration file. So the digest binds the claim, the theorem, and
+% the statement of the log to its files.
+proof_digest(C, T, M, St, Files, Absent, Digest) :-
+    fmt(H, "claim ~w~ntheorem ~w~nmodule ~w~nstatement ~w~n", [C, T, M, St]),
     findall(L, ( member(f(Sha, P), Files), fmt(L, "~w ~w~n", [Sha, P]) ), Ls),
-    atomic_list_concat(Ls, Text),
+    findall(L, ( member(P, Absent), fmt(L, "absent ~w~n", [P]) ), As),
+    append([[H], Ls, As], All),
+    atomic_list_concat(All, Text),
     sha256_text(Text, Digest).
 
 sha256_text(Text, Digest) :-
@@ -3880,13 +4041,14 @@ sha256_text(Text, Digest) :-
     ),
     Digest = Digest0.
 
-proof_log_text(Claim, Digest, Thm, Mod, RelFile, StoredRoot, PF, Files, Now, BuildOut, Text) :-
+proof_log_text(Claim, Digest, Thm, Mod, RelFile, StoredRoot, PF, Files, Absent, Now, BuildOut, Text) :-
     ( memberchk(lean(V), PF) -> true ; V = unknown ),
     memberchk(statement(St), PF),
     findall(L, ( member(axiom(X), PF), fmt(L, "axiom ~w", [X]) ), AxLs),
     findall(M, member(file(M, _), PF), PMods),
     findall(L, ( member(uses(C, M), PF), memberchk(M, PMods), fmt(L, "uses ~w ~w", [C, M]) ), UsLs),
     findall(L, ( member(f(Sha, P), Files), fmt(L, "file ~w ~w", [Sha, P]) ), FLs),
+    findall(L, ( member(P, Absent), fmt(L, "absent ~w", [P]) ), ALs),
     fmt(H, "% orbit-kb prove claim=~w digest=~w", [Claim, Digest]),
     fmt(L1, "theorem ~w", [Thm]),
     fmt(L2, "module ~w", [Mod]),
@@ -3895,7 +4057,7 @@ proof_log_text(Claim, Digest, Thm, Mod, RelFile, StoredRoot, PF, Files, Now, Bui
     fmt(L5, "lean ~w", [V]),
     fmt(L6, "time ~w", [Now]),
     fmt(L7, "root ~w", [StoredRoot]),
-    append([[H, L1, L2, L3, L4, L5, L6], AxLs, UsLs, [L7], FLs, ["--- lake build output"]], Ls),
+    append([[H, L1, L2, L3, L4, L5, L6], AxLs, UsLs, [L7], FLs, ALs, ["--- lake build output"]], Ls),
     atomic_list_concat(Ls, '\n', Head),
     atomic_list_concat([Head, '\n', BuildOut], Text).
 
@@ -3923,9 +4085,9 @@ proof_log_path(Dir, Id, P) :-
     directory_file_path(Dir, Rel, P).
 
 % proof_log(+Dir, +Id, -Log): Log = plog(Claim, Digest, RootAbs, Files,
-% Info) from runs/proof-ID.log. Info holds theorem(T), module(M),
+% Absent, Info) from runs/proof-ID.log. Info holds theorem(T), module(M),
 % source(F), statement(S), lean(V), time(T), axiom(A), uses(C, M).
-proof_log(Dir, Id, plog(C, D, RootAbs, Files, Info)) :-
+proof_log(Dir, Id, plog(C, D, RootAbs, Files, Absent, Info)) :-
     proof_log_path(Dir, Id, P),
     exists_file(P),
     read_file_to_string(P, S, [encoding(utf8)]),
@@ -3938,35 +4100,49 @@ proof_log(Dir, Id, plog(C, D, RootAbs, Files, Info)) :-
     memberchk(root(R), Xs),
     (   is_absolute_file_name(R) -> RootAbs = R ; directory_file_path(Dir, R, RootAbs) ),
     findall(f(Sha, Pa), member(file(Sha, Pa), Xs), Files),
-    exclude([X]>>( X = root(_) ; X = file(_, _) ), Xs, Info).
+    findall(Pa, member(absent(Pa), Xs), Absent),
+    exclude([X]>>( X = root(_) ; X = file(_, _) ; X = absent(_) ), Xs, Info).
 
 proof_log_line(L, X) :-
     two_words(L, K, V),
-    (   memberchk(K, [theorem, module, source, root, axiom, lean, time]) -> X =.. [K, V]
+    (   memberchk(K, [theorem, module, source, root, axiom, lean, time, absent]) -> X =.. [K, V]
     ;   K == statement -> sub_string(L, 10, _, 0, VS), X = statement(VS)
     ;   K == uses -> two_words(V, A, B), X = uses(A, B)
     ;   K == file -> two_words(V, A, B), X = file(A, B)
     ).
 
+% proof_log_consistent(+Log, +Claim, +Digest) (D10 follow-up, F6): the
+% header names Claim and Digest, and the digest of the claim, theorem,
+% module, statement, file, and absent lines of the log is Digest. So a
+% log copied for another claim, or an edited line, does not match.
+proof_log_consistent(plog(C0, D0, _, Files, Absent, Info), C, D) :-
+    C0 == C, D0 == D, Files \== [],
+    memberchk(theorem(T), Info), memberchk(module(M), Info), memberchk(statement(St), Info),
+    proof_digest(C, T, M, St, Files, Absent, D).
+
 % proof_state(+Dir, +Id, +Pred, -State): ok when the log matches the
-% attestation and every file of the proof still has its digest. Else
-% changed.
+% attestation (proof_log_consistent/3), every file of the proof still
+% has its digest, and every absent configuration file is still absent.
+% Else changed.
 proof_state(Dir, Id, P, State) :-
     (   catch(( nonvar(P), P = proof(C, D),
-                proof_log(Dir, Id, plog(C0, D0, Root, Files, _)),
-                C0 == C, D0 == D, Files \== [],
-                files_digest(Files, D),
+                proof_log(Dir, Id, Log),
+                proof_log_consistent(Log, C, D),
+                Log = plog(_, _, Root, Files, Absent, _),
                 forall(member(f(Sha, Pa), Files),
-                       ( directory_file_path(Root, Pa, F), exists_file(F), sha256_file(F, Sha) )) ),
+                       ( directory_file_path(Root, Pa, F), exists_file(F), sha256_file(F, Sha) )),
+                forall(member(Pa, Absent),
+                       ( directory_file_path(Root, Pa, F), \+ exists_file(F) )) ),
               _, fail)
     ->  State = ok
     ;   State = changed
     ).
 
-% proof_log_matches(+Dir, +Id, +Pred): the log exists and its header
-% names the claim and the digest of the attestation (lint E9).
+% proof_log_matches(+Dir, +Id, +Pred): the log exists, its header names
+% the claim and the digest of the attestation, and its lines give that
+% digest (lint E9).
 proof_log_matches(Dir, Id, proof(C, D)) :-
-    catch(( proof_log(Dir, Id, plog(C0, D0, _, _, _)), C0 == C, D0 == D ), _, fail).
+    catch(( proof_log(Dir, Id, Log), proof_log_consistent(Log, C, D) ), _, fail).
 
 % ---------------------------------------------------------------------
 % lint
@@ -4024,6 +4200,7 @@ lint_diags(KB, Diags, IssueLines, IssueErrors) :-
     Ctx = fctx(KB, Ds, ATs, Env),
     findall(D, ( member(I, Facts), fact_diags(Ctx, I, D0), member(D, D0) ), DF),
     e5_diags(Facts, Ds, D5),
+    e15_diags(Facts, D15),
     % rules in core, modules, rules.pl
     findall(D, ( member(I, Items), I = it(Src, _, _, _, _, _), Src \== kb,
                  rule_item_diags(Ds, I, D0), member(D, D0) ),
@@ -4040,7 +4217,7 @@ lint_diags(KB, Diags, IssueLines, IssueErrors) :-
     e11_diags(Items, Ds, E2PIs, code(CodeJob, ProgFile, LineMap), D11, Eng),
     % warnings
     w_diags(KB, Items, Ds, Facts, DW),
-    append([D1, D10, DD, DA, DF, D5, DR, D13, D11, DW], Diags0),
+    append([D1, D10, DD, DA, DF, D5, D15, DR, D13, D11, DW], Diags0),
     % keep errors in a stable order; drop exact repeats
     list_to_set(Diags0, Diags),
     lint_issues(Eng, Ds, IssueLines, IssueErrors).
@@ -4368,6 +4545,8 @@ show_section(KB, Eng, open) :-
     forall(member(Q, Qs), say("- to_ask ~w: ask question ~w now.", [Q, Q])),
     forall(member(A, As), say("- stale ~w: approval ~w names an old digest.", [A, A])),
     forall(member(C, Cs), say("- contested ~w: a divergence names claim ~w.", [C, C])),
+    eng_all(Eng, [Y], supersede_cycle(Y), Ys),
+    forall(member(Y, Ys), say("- supersede_cycle ~w: claim ~w replaces itself (lint E15).", [Y, Y])),
     (   has_build(KB)
     ->  eng_all(Eng, [U], under(U), Us),
         eng_all(Eng, [O], over(O), Os),
@@ -4377,7 +4556,7 @@ show_section(KB, Eng, open) :-
         forall(member(B, Bs), say("- burn_open ~w: claim ~w needs a Lean proof.", [B, B]))
     ;   Us = [], Os = [], Bs = []
     ),
-    (   Qs == [], As == [], Cs == [], Us == [], Os == [], Bs == [] -> say("- Nothing is open.", []) ; true ).
+    (   Qs == [], As == [], Cs == [], Ys == [], Us == [], Os == [], Bs == [] -> say("- Nothing is open.", []) ; true ).
 show_section(_, Eng, disclosures) :-
     say("Disclosures:", []),
     eng_all(Eng, [I, S, P, B, T], attest(I, disclosure, S, P, B, T), Ds),
@@ -4530,6 +4709,7 @@ cmd_report(KB, Args, Code) :-
     say("Open:", []),
     eng_all(Eng, [Q4], to_ask(Q4), Q4s),
     eng_all(Eng, [A4], stale(A4), A4s),
+    eng_all(Eng, [Y4], supersede_cycle(Y4), Y4s),
     (   call(Build)
     ->  eng_all(Eng, [O4], over(O4), O4s),
         eng_all(Eng, [B4], burn_open(B4), B4s),
@@ -4539,11 +4719,12 @@ cmd_report(KB, Args, Code) :-
     ),
     forall(member(Q4, Q4s), say("- Ask question ~w now.", [Q4])),
     forall(member(A4, A4s), say("- Approval ~w is stale. The subject changed after the approval.", [A4])),
+    forall(member(Y4, Y4s), say("- Claim ~w is in a supersede cycle. It replaces itself, so it is not current. Remove a supersedes fact (lint E15).", [Y4])),
     forall(member(O4, O4s), say("- Change ~w serves no claim.", [O4])),
     forall(member(B4, B4s), say("- Claim ~w needs a Lean proof. Prove it with orbit-kb prove, or ask a human for a waiver.", [B4])),
     forall(member([W4, C4, D4], L4s), say("- Waiver ~w of the proof of claim ~w was due at ~w. The proof is due now.", [W4, C4, D4])),
     forall(member([P4, C5], P4s), say("- Proof ~w of claim ~w no longer counts. A file of the proof changed. Run orbit-kb prove again.", [P4, C5])),
-    (   Q4s == [], A4s == [], O4s == [], B4s == [], L4s == [], P4s == [] -> say("- Nothing is open.", []) ; true ),
+    (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], L4s == [], P4s == [] -> say("- Nothing is open.", []) ; true ),
     say("To land:", []),
     say("- (Write the steps to land the work here.)", []),
     Code = 0.
@@ -4885,7 +5066,8 @@ help_lines(attest, [
 "The predicate digest(current) becomes the recorded digest of SUBJECT.",
 "The file must still have that digest. If it changed, run orbit-kb subject first.",
 "orbit-kb checks the shape, the writer, and the references.",
-"A human waives a Lean proof with: orbit-kb attest waiver CLAIM 'waive(CLAIM, DUE, REASON)' --by human."
+"A human waives a Lean proof with: orbit-kb attest waiver CLAIM 'waive(CLAIM, DUE, REASON)' --by human.",
+"orbit-kb cannot verify --by human. The writer says human."
 ]).
 help_lines(run, [
 "orbit-kb run CHECK -- CMD [ARGS]",
@@ -4905,10 +5087,14 @@ help_lines(prove, [
 "orbit-kb runs lake build, reads the theorem, and runs leanchecker. It records the proof only if:",
 "  THEOREM is a theorem in the module of FILE;",
 "  it depends on no axiom other than propext, Classical.choice, and Quot.sound (so no sorry and no native_decide);",
-"  leanchecker replays the modules of the project without a problem.",
+"  leanchecker replays the project modules of the proof without a problem.",
+"  (It replays only the modules under the project root and outside .lake/. Dependencies are not replayed.)",
 "The log runs/proof-ID.log holds the statement and a digest of each file of the proof.",
-"If one of these files changes, the proof stops counting, and the burn is open again.",
+"It also lists the Lake configuration files that do not exist.",
+"If one of these files changes, or an absent one appears, the proof stops counting, and the burn is open again.",
+"prove checks the proof of an honest agent that can make mistakes. It does not resist an agent that cheats on purpose.",
 "A burn (burn(C)) needs a proof, or a human waiver: orbit-kb attest waiver C 'waive(C, DUE, REASON)' --by human.",
+"A claim that replaces a burning claim (supersedes) burns too, and needs its own proof.",
 "orbit-kb cannot check that the statement says what the claim says. Read the statement.",
 "Exit 0 when the proof is recorded, 1 when it is not a proof, 2 on a usage error or a missing tool."
 ]).
@@ -4919,6 +5105,7 @@ help_lines(lint, [
 "E1 syntax. E2 undeclared predicate. E3 type. E4 dangling ref. E5 duplicate id.",
 "E6 non-ground fact. E7 clause in the wrong place. E8 writer not allowed. E9 test result or proof without its log.",
 "E10 uses/1. E11 the program does not compile. E12 hazard H1. E13 hazard H4. E14 unsafe negation.",
+"E15 supersede cycle (a claim replaces itself). E16 rules.pl changes done, a burn rule, or a computed fact.",
 "W1 subject changed. W2 local declaration. W3 claim without cites. W4 local fact that no rule reads.",
 "W5 check on a superseded claim. W6 local rule that extends a library predicate.",
 "Module lint_issue/3 results follow. Exit 1 on errors, or on warnings with --strict."
@@ -4951,7 +5138,7 @@ help_lines(show, [
 "orbit-kb show [claims|questions|open|disclosures|extensions|all]",
 "",
 "List parts of the KB as plain text. The default is all.",
-"open lists to_ask, stale, and contested, and under, over, and burn_open when the build module is in use."
+"open lists to_ask, stale, contested, and supersede_cycle, and under, over, and burn_open when the build module is in use."
 ]).
 help_lines(report, [
 "orbit-kb report",

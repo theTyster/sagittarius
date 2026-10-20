@@ -1,4 +1,4 @@
-% orbit-kb prove claim=c2 digest=sha256:b62e710a7a8d7d40a094ea5f7818943073dee82e6332d835b889b6e10bf099be
+% orbit-kb prove claim=c2 digest=sha256:61a95f6078d59e0d588a035e9ac4e184e584117cddeef91f4312f48f7be33f94
 theorem load_fast
 module Load
 source Load.lean

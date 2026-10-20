@@ -45,4 +45,4 @@ attest(a5, disclosure, q2, guess(q2), agent, '2026-10-15T10:01:00Z').
 attest(a6, disclosure, c1, unverified('Speed was not measured on a slow disk'), agent, '2026-10-15T10:01:01Z').
 attest(a7, disproof, c1, verdict(c1, inconclusive), agent, '2026-10-15T10:01:02Z').
 attest(a8, approval, s1, digest('sha256:224ec9cfbb085e97d0465037874bd0fb464ff058038597b5e793d378a4d477d9'), human, '2026-10-15T10:02:00Z').
-attest(a9, lean_proof, c2, proof(c2, 'sha256:b62e710a7a8d7d40a094ea5f7818943073dee82e6332d835b889b6e10bf099be'), script, '2026-10-15T10:03:00Z').
+attest(a9, lean_proof, c2, proof(c2, 'sha256:61a95f6078d59e0d588a035e9ac4e184e584117cddeef91f4312f48f7be33f94'), script, '2026-10-15T10:03:00Z').

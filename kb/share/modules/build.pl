@@ -4,7 +4,8 @@
 % the code, the Lean results, and the rules that decide when the build
 % is done. The file format and the H1 rule are the same as in core.pl.
 % The rules below use the core rules passed/1, was_red/1, refuted/1,
-% current/1, to_ask/1, and contested_twice/1.
+% current/1, to_ask/1, contested_twice/1, supersedes_closure/2, and
+% any_supersede_cycle/0.
 
 
 % ---------------------------------------------------------------------
@@ -47,16 +48,19 @@ decl(rule, any_over,
      'At least one change serves no claim.',
      'some change serves no claim').
 decl(rule, done,
-     'No current claim is unfulfilled, no change is without a claim, no question must be asked, and no burn is open.',
+     'No current claim is unfulfilled, no change is without a claim, no question must be asked, no burn is open, and no claim is in a supersede cycle.',
      'the work is done').
+decl(rule, burn_reason(ref(claim)),
+     'The claim was contested twice, it is universal, or a human asked for a Lean proof.',
+     'claim @(1) has a reason to need a Lean proof').
 decl(rule, burn(ref(claim)),
-     'The claim needs a Lean proof, because it was contested twice, it is universal, or a human asked.',
+     'The claim needs a Lean proof, because it has a burn reason, or it replaces a claim with a burn reason, directly or through other claims.',
      'claim @(1) needs a Lean proof').
 decl(rule, proof_changed(ref(attest)),
      'A file of the proof changed after the proof, or the proof log is missing or does not match. orbit-kb computes it when it reads the KB.',
      'a file of proof @(1) changed after the proof').
 decl(rule, waiver_lapsed(ref(attest)),
-     'The due time of the waiver is in the past. orbit-kb computes it when it reads the KB.',
+     'The due time of the waiver is in the past, or it is not a valid time. orbit-kb computes it when it reads the KB.',
      'waiver @(1) is past its due time').
 decl(rule, burn_proved(ref(claim)),
      'orbit-kb prove recorded a proof of the claim, and no file of that proof has changed since.',
@@ -103,15 +107,22 @@ served(X) :- serves(X, _).
 over(X) :- change(X, _), not served(X).
 any_under :- under(_).
 any_over :- over(_).
-done :- not any_under, not any_over, not any_to_ask, not any_burn_open.
-burn(C) :- contested_twice(C).
-burn(C) :- universal(C).
-burn(C) :- burn_requested(C).
+done :- not any_under, not any_over, not any_to_ask, not any_burn_open,
+        not any_supersede_cycle.
+burn_reason(C) :- contested_twice(C).
+burn_reason(C) :- universal(C).
+burn_reason(C) :- burn_requested(C).
+% A claim that replaces a burning claim inherits the burn (Ty, 2026-10-20).
+% supersedes_closure/2 is a derived fact (core.pl), so burn/1 does not
+% recurse through supersedes/2.
+burn(C) :- burn_reason(C).
+burn(C) :- supersedes_closure(C, O), burn_reason(O).
 % A burn needs a proof. A stated or tested Lean result is progress, not
 % a proof. When orbit-kb reads the KB, it adds a proof_changed/1 fact
 % for each proof whose files changed, and a waiver_lapsed/1 fact for
-% each waiver whose due time is past. So an old proof or an old waiver
-% does not count.
+% each waiver whose due time is past or not a valid time. So an old
+% proof or an old waiver does not count. rules.pl cannot add clauses to
+% these rules (lint E16; the engines ignore such clauses).
 burn_proved(C) :- attest(A, lean_proof, _, proof(C, _), script, _), not proof_changed(A).
 burn_waived(C) :- attest(W, waiver, _, waive(C, _, _), human, _), not waiver_lapsed(W).
 burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C).
