@@ -331,12 +331,12 @@ FRAME.update({
     (3, "Reading the answers"): "92d1e9437b9007a5",
     (3, "Build module"): "ec81bcdbaf954d91",
     (3, "DECOMPOSE"): "15423d06f98a9cd4",
-    (3, "Ask first, or build on defaults"): "754828c22d36e58b",
+    (3, "Ask first, or build on defaults"): "26093cc65d0b2327",  # 2026-10-20: question order (Ty)
     (3, "BUILD"): "09bb6749a4bfa783",
     (3, "CHECK"): "5fd56d5ec6006d6c",
-    (3, "BURN"): "843fc0dab6034e44",
+    (3, "BURN"): "f6232a1326d5c0e8",  # 2026-10-20: TLC sentence removed (Ty)
     (3, "EXPLAIN"): "99730112906726eb",
-    (2, "Delivery"): "a6bd431905407107",
+    (2, "Delivery"): "811098dea8a8bdf5",  # 2026-10-20: landing by judgment (Ty)
     (2, "Speed"): "72ffb6113f4f62a2",
 })
 

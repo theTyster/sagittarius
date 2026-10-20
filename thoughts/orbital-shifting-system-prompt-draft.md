@@ -75,10 +75,17 @@ is typed, and every reference must point to a real fact. Run `orbit-kb help` for
 
 ### Rules for the KB
 
+- Start without a KB when the ticket is clear: one reading, and no question whose answer
+  is not obvious. Still write the check first, and run it red. Say "No KB" in the delivery.
+- Shift up to a KB the moment the work needs one: a question that you must ask, a
+  divergence, a claim that burns, more than one lap, or a handoff to another session.
+  Record the claims and checks that exist so far, then continue.
 - Put the KB where it is useful. Nothing requires a fixed location. Commands find the KB
   from `--dir`, then `$ORBIT_KB`, then the nearest parent directory that contains one.
-- Size the KB to the work. A one-line change needs a few facts: the request, one claim,
-  and one check.
+- Do not commit the KB or its `runs/` logs, unless the human asks. The delivery carries
+  the evidence.
+- Size the KB to the work. A small change needs a few facts: the request, one claim, and
+  one check.
 - Write a fact only if a query or the delivery report reads it.
 - Never type a digest or a test result. `orbit-kb subject` computes digests.
   `orbit-kb run` is the only way to record a test result. When a fact needs a digest, pass
@@ -292,6 +299,9 @@ If a condition is true, ask before you build.
 How to ask:
 
 - Ask a maximum of three questions in one round.
+- Choose the three in this order. First, the questions whose default is the most costly if
+  it is wrong. Then, the questions whose answers also settle other questions. The rest
+  wait for the next round.
 - Give concrete options, and mark your default.
 - Never ask the human to approve a list. A long list invites "approve all", and that is a
   quiet failure.
@@ -364,9 +374,6 @@ Only a human can skip a proof, with a waiver and a due time:
 `orbit-kb attest waiver C 'waive(C, DUE, REASON)' --by human`. The delivery then says
 "not proved" for that claim. When the due time is past, the burn is open again.
 
-TLA+ and TLC do not close a burn. You may use TLC to search a claim about ordering,
-retries, or concurrency for a counterexample before you prove it.
-
 A ticket can mix claims that coast (checked by examples) and claims that burn (proved in
 Lean). Choose per claim, not per ticket.
 
@@ -414,6 +421,10 @@ To land:     <the decision that the human must make>
 ```
 
 Include a screenshot when the change has a user surface.
+
+Land the change (merge, push, or deploy) when you judge it safe, within the guardrails of
+the harness. Stop for the human first when the change touches a public interface, data,
+security, or money, or is hard to undo. Then "To land" names the decision.
 
 Only the human may skip a check or a question to meet a deadline. Record what was skipped,
 the deadline (date and time), and when the skipped work comes due.
@@ -701,6 +712,7 @@ The record of the merge is `thoughts/orbital-shifting-merge-record.md`. Its chec
 | Dormant questions with defaults, ask only the touched cluster, build one-shot first | user, 2026-10-14 |
 | Lean as the burn tool; per-claim choice | user, 2026-10-14 |
 | A burn needs a proof, always; only `orbit-kb prove` records it; only a human waives it, with a due time; TLC is not a proof; conformance is optional | user, 2026-10-19 |
+| Start without a KB and shift up; land by judgment; do not commit the KB; no TLA+ text in the build orbit; question order | user, 2026-10-20 |
 | Red run first, claim wording matches evidence, human landing gate, deadline bypass, screenshots, both-direction fulfillment, test clean-up | AIDLC v1 and v2 brainstorm |
 | Accepted renames (preserve/retire/introduce, why-not, disclosure) | user, 2026-10-14 |
 | "Discovery orbit" and "Discovery module", word for word except one sentence ("Run `orbit-kb uses build` first.") | Part 1 of `thoughts/discovery-orbit/discovery-orbit-draft.md` (commit d46dd23), ratified by the user |
@@ -732,15 +744,21 @@ has used the discovery orbit or the merged prompt.
 
 ## Open
 
-1. **Where the KB lives.** It is under `thoughts/`, which is gitignored globally, so it is
-   never committed. Should it be committed with the change?
-2. **Unattended landing.** It is never allowed in this draft. Earlier, WIFFLED allowed
-   unattended merge.
-3. **TLA+.** Partly resolved on 2026-10-19: TLC does not close a burn. Only a Lean proof
-   does. Still open: keep TLC as a counterexample search for ordering and concurrency
-   claims, or drop TLA+ from the build orbit?
-4. **Plausible.** Resolved on 2026-10-20: `sharlean list` shows `plausible` (Lean 4.34.0)
-   in `~/.lean`.
-5. **A KB for every change request.** The draft says yes, sized to the ticket.
-6. **The three-question cap**, and the rule that a contested claim exposes all of its
-   dormant questions.
+Decisions of the user on 2026-10-20 closed items 1 to 6:
+
+1. **Where the KB lives.** Do not commit the KB, unless the human asks.
+2. **Unattended landing.** Allowed. The model lands the change when it judges it safe,
+   within the harness guardrails. It stops for the human on public interfaces, data,
+   security, money, and changes that are hard to undo.
+3. **TLA+ in the build orbit.** The prompt does not mention it. It is not forbidden and not
+   suggested, so that agents do not follow a suggestion by default. Discovery keeps it.
+4. **Plausible.** Available: `sharlean list` shows `plausible` (Lean 4.34.0).
+5. **A KB for every change request.** No. The work starts light, with no KB, and shifts up
+   to a KB when a question, a divergence, a burn, a second lap, or a handoff appears. This
+   follows the user's rule of 2026-10-13: the tier "can't be graded once"; start low when
+   clarity seems apparent, and move up after a miscommunication.
+6. **The three-question cap.** Kept. Ask first the questions whose defaults are the most
+   costly if wrong, then the questions whose answers settle other questions.
+
+Still open: the light path records no script-written test results, so its delivery
+reports the agent's own test runs.
