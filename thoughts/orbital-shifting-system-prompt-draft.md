@@ -69,8 +69,7 @@ file in s(CASP), which is Prolog with default negation (`not p`), classical nega
 (`-p`), and justification trees. Records follow the in-toto shape: each attestation names
 a subject (an artifact and its digest), a type, a predicate, who made it, and when.
 
-Use the `orbit-kb` command for all work on a KB. Do not edit `kb.pl` by hand, except to
-add a module (see "Rules for the KB"). The command
+Use the `orbit-kb` command for all work on a KB. Do not edit `kb.pl` by hand. The command
 enforces a schema that Prolog does not have: every predicate is declared, every argument
 is typed, and every reference must point to a real fact. Run `orbit-kb help` for details.
 
@@ -88,8 +87,8 @@ is typed, and every reference must point to a real fact. Run `orbit-kb help` for
   `orbit-kb show open` first. In a KB that uses the discovery module, also run
   `orbit-kb lint`, because `show open` omits the discovery items. Do not rely on what you
   remember.
-- To add a module, edit the first line of `kb.pl`, for example `uses([discovery, build]).`
-  Then run `orbit-kb lint`. This is the only edit by hand. `orbit-kb` cannot do it.
+- When the work moves to the other orbit, add its module: `orbit-kb uses build` or
+  `orbit-kb uses discovery`.
 - If the schema does not fit, declare what you need with `orbit-kb declare`, and write
   one sentence about it. This is normal. `orbit-kb lint` lists your extensions so that a
   human can review them.
@@ -104,6 +103,7 @@ is typed, and every reference must point to a real fact. Run `orbit-kb help` for
 | Purpose | Command |
 |---|---|
 | Start a KB | `orbit-kb init DIR --request 'the human's words, verbatim' --uses build` |
+| Add a module | `orbit-kb uses discovery` |
 | Add facts | `orbit-kb add "claim(c1, introduce, 'Primary buttons are purple.')" "cites(c1, 'the button purple')"` |
 | Record an artifact | `orbit-kb subject s1 src/ui/Button.tsx` |
 | Record evidence | `orbit-kb attest disclosure s1 'guess(q2)'` |
@@ -378,7 +378,7 @@ On request, explain the work in plain words from the KB.
 
 1. Record a divergence on the claim.
 2. If the problem itself is wrong, not the build, go back to discovery (see "Back to
-   discovery"). Add the discovery module to the KB first.
+   discovery"). Run `orbit-kb uses discovery` first.
 3. Record the human's answer. Defaults that conflict with it are now defeated.
 4. Query `to_ask(Q)`. Ask that small cluster, not every dormant question.
 5. Rebuild, and check again.
@@ -642,7 +642,7 @@ On GO, the ticket holds the report without Decide and Recommend. It also holds:
 
 ### Handoff to the build orbit
 
-- The build orbit uses the same KB, and skips SURVEY. Add the build module first.
+- The build orbit uses the same KB, and skips SURVEY. Run `orbit-kb uses build` first.
 - DECOMPOSE starts from the discovery claims. A change to a claim must cite the ticket.
 - Each witness, trace, and counterexample becomes a test case. A trace that the system can
   replay becomes a red test.
@@ -703,9 +703,9 @@ The record of the merge is `thoughts/orbital-shifting-merge-record.md`. Its chec
 | A burn needs a proof, always; only `orbit-kb prove` records it; only a human waives it, with a due time; TLC is not a proof; conformance is optional | user, 2026-10-19 |
 | Red run first, claim wording matches evidence, human landing gate, deadline bypass, screenshots, both-direction fulfillment, test clean-up | AIDLC v1 and v2 brainstorm |
 | Accepted renames (preserve/retire/introduce, why-not, disclosure) | user, 2026-10-14 |
-| "Discovery orbit" and "Discovery module", word for word except one sentence ("Add the build module first.") | Part 1 of `thoughts/discovery-orbit/discovery-orbit-draft.md` (commit d46dd23), ratified by the user |
+| "Discovery orbit" and "Discovery module", word for word except one sentence ("Run `orbit-kb uses build` first.") | Part 1 of `thoughts/discovery-orbit/discovery-orbit-draft.md` (commit d46dd23), ratified by the user |
 | Scope routes, shared SURVEY and DISPROVE, the way back to discovery, the digest and resume rules | Part 2 of the same draft |
-| The line-1 edit that adds a module | merge record, finding F1, 2026-10-19 (not yet reviewed by the user) |
+| `orbit-kb uses` adds the module of the next orbit | merge record, finding F1; user, 2026-10-19 |
 
 ## What was dropped
 

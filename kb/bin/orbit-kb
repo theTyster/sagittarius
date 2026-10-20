@@ -424,6 +424,12 @@ top(Argv0, Code) :-
         ->  cmd_init(Args, Code)
         ;   Cmd == doctor
         ->  cmd_doctor(Args, Code)
+        ;   Cmd == uses
+        ->  (   memberchk(Arg, Args), memberchk(Arg, ['--help', '-h'])
+            ->  cmd_help([uses], Code)
+            ;   resolve_kb(DirOpt, Dir),
+                with_kb_lock(Dir, cmd_uses(Dir, Args, Code))
+            )
         ;   kb_command(Cmd)
         ->  (   memberchk(Arg, Args), memberchk(Arg, ['--help', '-h'])
             ->  cmd_help([Cmd], Code)
@@ -3027,6 +3033,59 @@ cmd_init(Args, Code) :-
     Code = 0.
 
 % ---------------------------------------------------------------------
+% uses: add modules to an existing KB
+% ---------------------------------------------------------------------
+% It rewrites only the first term of kb.pl, uses([...]). It does not
+% load the KB first, because a KB that needs a module is not valid
+% until the module is in uses/1. It never removes a module.
+
+cmd_uses(Dir, Args, Code) :-
+    parse_opts(Args, [], Pos, _),
+    (   Pos == []
+    ->  usage_error("Name one or more modules: orbit-kb uses MODULE ...", [])
+    ;   true
+    ),
+    lib_dir(Lib),
+    lib_modules(Lib, Known),
+    (   member(M, Pos), \+ memberchk(M, Known)
+    ->  atomic_list_concat(Known, ', ', KT),
+        die(1, ["The module " + M + " does not exist.", "Known modules: " + KT + ".", "Fix: use a known module name."] >> fix_lines)
+    ;   true
+    ),
+    directory_file_path(Dir, 'kb.pl', KbFile),
+    read_file_to_string(KbFile, S, [encoding(utf8)]),
+    catch(setup_call_cleanup(open_string(S, In),
+                             ( read_term(In, T, [module(orbit_ops), subterm_positions(Pos0)]),
+                               arg(1, Pos0, Start), arg(2, Pos0, End) ),
+                             close(In)),
+          _, fail),
+    !,
+    (   nonvar(T), T = uses(Old), is_list(Old)
+    ->  true
+    ;   die(1, [KbFile + " does not start with uses([...]).", "Fix: run orbit-kb lint and correct E10."] >> fix_lines)
+    ),
+    findall(M, ( member(M, Pos), \+ memberchk(M, Old) ), New0),
+    list_to_set(New0, New),
+    (   New == []
+    ->  atomic_list_concat(Old, ', ', OT),
+        format("The KB already uses ~w. Nothing was written.~n", [OT])
+    ;   append(Old, New, Uses),
+        sub_string(S, End, _, 0, Rest0),
+        ( sub_string(Rest0, 0, 1, _, ".") -> sub_string(Rest0, 1, _, 0, Rest) ; Rest = Rest0 ),
+        sub_string(S, 0, Start, _, Before),
+        clause_line(uses(Uses), [], L1),
+        atomic_list_concat([Before, L1, Rest], Out),
+        atom_concat(KbFile, '.uses-tmp', Tmp),
+        setup_call_cleanup(open(Tmp, write, W, [encoding(utf8)]), write(W, Out), close(W)),
+        rename_file(Tmp, KbFile),
+        format("~w~n", [L1])
+    ),
+    Code = 0.
+cmd_uses(Dir, _, _) :-
+    directory_file_path(Dir, 'kb.pl', KbFile),
+    die(1, ["Could not read the first term of " + KbFile + ".", "Fix: run orbit-kb lint and correct E1 or E10."] >> fix_lines).
+
+% ---------------------------------------------------------------------
 % Writing to kb.pl
 % ---------------------------------------------------------------------
 
@@ -3099,7 +3158,7 @@ add_item(ATs, I, A, R) :-
         ;   nonvar(T), T = attest_type(_, _, _, _)
         ->  fmt(M, "Argument ~w is an attestation type. Use orbit-kb declare-attest instead.", [I]), R = err(M)
         ;   nonvar(T), T = uses(_)
-        ->  fmt(M, "Argument ~w is uses/1. orbit-kb init writes it. Edit the first line of kb.pl to change the modules.", [I]), R = err(M)
+        ->  fmt(M, "Argument ~w is uses/1. orbit-kb init writes it. To add a module, run orbit-kb uses MODULE.", [I]), R = err(M)
         ;   nonvar(T), T = attest(_, Type, _, _, _, _), atom(Type), script_only_type(ATs, Type)
         ->  script_use(Type, Use),
             fmt(M, "Argument ~w: only ~w writes attestations of type ~q.", [I, Use, Type]), R = err(M)
@@ -4700,6 +4759,7 @@ help_lines(general, [
 "",
 "Commands:",
 "  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID]",
+"  uses MODULE ...",
 "  add 'FACT' ...",
 "  declare 'HEAD' --doc TEXT [--kind fact|rule] [--template T]",
 "  declare-attest TYPE 'SHAPE' --doc TEXT --writers human,agent",
@@ -4762,6 +4822,15 @@ help_lines(init, [
 "The default ID is r1. --uses names library modules, such as build.",
 "orbit-kb init does not overwrite a kb.pl. It exits 1 if kb.pl exists.",
 "It prints the path of the new kb.pl."
+]).
+help_lines(uses, [
+"orbit-kb uses MODULE ...",
+"",
+"Add library modules to the uses([...]) line of the KB, such as build or discovery.",
+"Use it when the work moves to another orbit: discovery to build, or back.",
+"It keeps the modules that the KB uses now, and adds the new ones at the end.",
+"It does not remove a module. It prints the new uses line.",
+"Exit: 0 (also when the KB already uses every module). 1 on an unknown module or a bad first line. 2 on a usage error."
 ]).
 help_lines(add, [
 "orbit-kb add 'FACT' ...",

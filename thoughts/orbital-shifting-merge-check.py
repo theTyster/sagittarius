@@ -36,7 +36,7 @@ CHECKER = os.path.join(ROOT, "thoughts/discovery-orbit/discovery-orbit-examples/
 
 # The one edit of Part 1 that the merge makes (finding F1 of the record): new text -> old text.
 PART1_EDITS = [
-    ("- The build orbit uses the same KB, and skips SURVEY. Add the build module first.",
+    ("- The build orbit uses the same KB, and skips SURVEY. Run `orbit-kb uses build` first.",
      "- The build orbit uses the same KB, and skips SURVEY."),
 ]
 
@@ -210,18 +210,16 @@ def m8_resume(text, prompt):
 def m9_module_handoff(text, prompt):
     rules = kb_rules(prompt)
     bad = []
-    mod = next((x for x in bullets(rules) if "first line" in x and "uses([" in x), "")
-    if not (mod and "orbit-kb lint" in mod):
-        bad.append("no rule to add a module on line 1, then lint")
+    if not any("orbit-kb uses" in x for x in bullets(rules)):
+        bad.append("Rules for the KB do not say how to add a module")
     kbsec = section(prompt, "The knowledge base", 2, own=True) or ""
-    m = re.search(r"Do not edit `kb\.pl` by hand[^.]*\.", kbsec)
-    if not (m and "except" in m.group(0)):
-        bad.append("the no-hand-edit rule has no stated exception")
+    if "except" in kbsec:
+        bad.append("the no-hand-edit rule still has an exception")
     hand = section(prompt, "Handoff to the build orbit", 3) or ""
-    if "build module" not in hand:
+    if "orbit-kb uses build" not in hand:
         bad.append("the handoff does not add the build module")
     wrong = section(prompt, "When the human says that it is wrong", 2) or ""
-    if "discovery module" not in wrong:
+    if "orbit-kb uses discovery" not in wrong:
         bad.append("the way back to discovery does not add the discovery module")
     return not bad, "; ".join(bad) or "both handoffs add the module of the new orbit"
 
@@ -379,7 +377,7 @@ MERGED_MUTANTS = [
     ("M11", "a Facts row loses an argument",
      lambda t: t.replace("| `model_run(Log, M, Digest)` |", "| `model_run(Log, M)` |")),
     ("M9", "the module rule leaves Rules for the KB",
-     lambda t: re.sub(r"\n- To add a module,.*?(?=\n- |\n\n)", "", t, flags=re.S)),
+     lambda t: re.sub(r"\n- When the work moves to the other orbit.*?(?=\n- |\n\n)", "", t, flags=re.S)),
     ("M3", "the discovery step comes after the rebuild steps",
      lambda t: re.sub(r"(\n2\. If the problem itself is wrong.*?)(\n3\. .*?)(?=\n4\. )",
                       lambda m: m.group(2).replace("\n3. ", "\n2. ") + m.group(1).replace("\n2. ", "\n3. "),
@@ -387,7 +385,7 @@ MERGED_MUTANTS = [
     ("M10", "a second solver is named",
      lambda t: t.replace("Use Z3 through its Python API", "Use Z3 or cvc5 through its Python API")),
     ("M15", "a section reference does not resolve",
-     lambda t: t.replace('(see "Rules for the KB")', '(see "Rules for KBs")')),
+     lambda t: t.replace("as in \"Ask first, or build on defaults\"", "as in \"Ask first\"")),
     ("M15", "a wrapped section reference does not resolve",
      lambda t: re.sub(r'\(see "Back to(\s+)discovery"\)', r'(see "Back to\1orbit")', t)),
 ]

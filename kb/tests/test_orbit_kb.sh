@@ -46,6 +46,7 @@
 # Requirement map (contract v2.1 + H3/H4; section names, not line numbers, because the contract is edited):
 #   K   KB resolution: --dir, $ORBIT_KB, parent walk, exit 2   (CLI: KB resolution, exit codes) : K1-K8
 #   I   init                                                   (CLI: init)                      : I1-I8
+#   U   uses: add a module to an existing KB                   (CLI: uses)                      : U1-U4
 #   A   add: validation, all or nothing, rejections            (CLI: add; Declarations; Types)  : A1-A19
 #   D   declare, declare-attest                                (CLI: declare, declare-attest)   : D1-D6
 #   AT  attest: id, time, writers, digest(current)             (CLI: attest)                    : AT1-AT9
@@ -640,6 +641,21 @@ t_I6() { K=$T/new; okb init "$K" --request "it's \"quoted\" ok"; rc_is 0; has_fa
 t_I7() { K=$T/new; okb init "$K"; rc_is 2 "init without a request is a usage error"; [ -e "$K/kb.pl" ] && note "kb.pl exists after a usage error"; }
 t_I8() { K=$T/new; okb init "$K" --request a; okb --dir "$K" lint; rc_is 0 "a fresh KB has no lint error"; okb --dir "$K" query 'current(X)'; rc_is 1 "no claims yet"; }
 
+# ================================================================ U: uses
+t_U1() { K=$T/k; kb_init "$K" discovery; oadd "claim(c1, introduce, 'Floor')" "cites(c1, 'floor')" >/dev/null
+         rejects nobuild 'change/2' add "change(x1, 'Edit')"
+         sed 1d "$K/kb.pl" > "$T/.tail.before"
+         okb --dir "$K" uses build; rc_is 0; out_has '^uses\(\[discovery, ?build\]\)\.$'
+         head -1 "$K/kb.pl" | grep -Eq '^uses\(\[discovery, ?build\]\)\.$' || note "line 1: $(head -1 "$K/kb.pl")"
+         sed 1d "$K/kb.pl" > "$T/.tail.after"; same_file "$T/.tail.before" "$T/.tail.after" "the rest of kb.pl"
+         oadd "change(x1, 'Edit')"; rc_is 0 "a build fact after uses build"; okb --dir "$K" lint; rc_is 0; }
+t_U2() { K=$T/k; kb_init "$K" build; cp "$K/kb.pl" "$T/.kb.before"
+         okb --dir "$K" uses build; rc_is 0; out_has 'already uses'; same_file "$K/kb.pl" "$T/.kb.before" "nothing written" ; }
+t_U3() { K=$T/k; kb_init "$K" build; rejects unknown 'biuld' uses biuld
+         okb --dir "$K" uses; rc_is 2 "no module named"; }
+t_U4() { K=$T/k; kb_init "$K" build; rejects usesfact 'orbit-kb uses' add "uses([build, discovery])"
+         okb --dir "$K" uses discovery; rc_is 0; head -1 "$K/kb.pl" | grep -Eq '^uses\(\[build, ?discovery\]\)\.$' || note "the order is kept: $(head -1 "$K/kb.pl")"; }
+
 # ================================================================ A: add
 t_A1() { mkclaim; oadd "claim(c2, preserve, 'Loading stays fast')" "cites(c2, 'fast')"; rc_is 0; any_has 'claim\(c2'; any_has 'cites\(c2'
          fact_count "$K/kb.pl" "claim(_,_,_)" 2; has_goal "$K/kb.pl" "kb_line(A, claim(c2,_,_)), kb_line(B, cites(c2,_)), A < B" "order"; }
@@ -1195,6 +1211,10 @@ run_test t_I5 I5 "init --request-file"
 run_test t_I6 I6 "init keeps quotes in the request and lints clean"
 run_test t_I7 I7 "init without a request is a usage error"
 run_test t_I8 I8 "fresh KB: lint clean, no claims"
+run_test t_U1 U1 "uses build: a discovery KB gets the build module; only line 1 changes"
+run_test t_U2 U2 "uses: a module already in use writes nothing"
+run_test t_U3 U3 "uses: unknown module exits 1, no module exits 2"
+run_test t_U4 U4 "uses: add refuses uses/1 and names orbit-kb uses; the order is kept"
 run_test t_A1 A1 "add appends valid facts in order and prints them"
 run_test t_A2 A2 "add rejects an undeclared predicate and names declare"
 run_test t_A3 A3 "after declare the same fact is accepted"

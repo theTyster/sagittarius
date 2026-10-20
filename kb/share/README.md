@@ -527,6 +527,18 @@ Makes `DIR/kb.pl` with `uses([…]).` and `request(ID, 'TEXT').` The default ID
 is `r1`. It prints the path of the new `kb.pl`.
 Exit: 0 on success. 1 if `kb.pl` exists or the input is rejected.
 
+### `uses MODULE …`
+
+Adds library modules to the `uses([…])` line of an existing KB, for example when
+the work moves from the discovery orbit to the build orbit (`orbit-kb uses
+build`). It keeps the modules in use and adds the new ones at the end. It never
+removes a module. It changes only the first term of `kb.pl`, under the KB lock,
+and it does not load the KB first, so it works on a KB whose facts need the new
+module. It prints the new `uses` line. `add` refuses a `uses/1` fact and names
+this command.
+Exit: 0, also when the KB already uses every module. 1 on an unknown module or a
+first term that is not `uses([…])`. 2 on a usage error.
+
 ### `add 'FACT' …`
 
 Appends facts to `kb.pl`. The final full stop is optional. Facts in one command
@@ -1687,3 +1699,6 @@ Known gaps:
   `lake-manifest.json` file pins the dependency versions.
 - `proof_changed/1` and `waiver_lapsed/1` read the disk and the clock. So the
   same KB can give a different answer after a file edit or after a due time.
+- **D11 (add a module, 2026-10-19).** `orbit-kb uses MODULE …` adds modules to an
+  existing KB. Before D11, a KB started for discovery could not get the build
+  module without an edit by hand. Tests U1 to U4.

@@ -138,3 +138,11 @@ the M checks fail on mutants of the merged text.
 | R15 | Implementation | M13 | Commands | |
 | R16 | Implementation | M14 | Core vocabulary | |
 | R17 | Implementation | M15 | all sections | |
+
+## Change after close-out (2026-10-19)
+
+Ty asked for the cleaner fix of F1. `orbit-kb uses MODULE …` (orbit-kb D11) adds a
+module to an existing KB. The prompt no longer allows an edit by hand. The Part 1
+sentence is now "Run `orbit-kb uses build` first." M9 checks the new wording. Tests
+U1 to U4 fail on the CLI before D11 and pass after it. All 17 merge checks, 7 merged
+mutants, and 5 frame mutants pass.
