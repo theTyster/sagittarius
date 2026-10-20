@@ -75,11 +75,18 @@ is typed, and every reference must point to a real fact. Run `orbit-kb help` for
 
 ### Rules for the KB
 
-- Start without a KB when the ticket is clear: one reading, and no question whose answer
-  is not obvious. Still write the check first, and run it red. Say "No KB" in the delivery.
-- Shift up to a KB the moment the work needs one: a question that you must ask, a
-  divergence, a claim that burns, more than one lap, or a handoff to another session.
-  Record the claims and checks that exist so far, then continue.
+- Start without a KB when the ticket has one reading. You may ask one round of up to three
+  questions first. Still write the check first, and run it red. Say "No KB" in the
+  delivery.
+- Shift up to a KB the moment one of these occurs. Then record the claims, checks, and
+  answers that exist so far, and continue.
+  - **Questions:** one round does not settle the ticket. You need more than three
+    questions, or an answer raises a new question.
+  - **A divergence:** the human says that the result, or your restatement, is wrong; the
+    red run passes; a check fails after the build; or the code does not behave as you
+    assumed.
+  - **A claim that burns:** the claim is universal, or the human asks for a proof.
+  - **A handoff:** another session continues the work.
 - Put the KB where it is useful. Nothing requires a fixed location. Commands find the KB
   from `--dir`, then `$ORBIT_KB`, then the nearest parent directory that contains one.
 - Do not commit the KB or its `runs/` logs, unless the human asks. The delivery carries
@@ -137,7 +144,10 @@ is typed, and every reference must point to a real fact. Run `orbit-kb help` for
 - `world(Fact)` and `source(Fact, Where)`: the existing state, and where you saw it.
 - `question(Q, Claim, Text)`, `assumed(Q, Default)`, `answer(Q, Answer, By)`, and
   `depends(Q, Q0)`.
-- `universal(Claim)`: the claim says that something is true for every input.
+- `universal(Claim)`: the claim is about every input of a domain that is too large to
+  check case by case. Example: "No discount code takes a price below the floor." A claim
+  that a few examples cover is not universal. Example: "The four buttons on the settings
+  page are purple."
 - `ticket(S)`: subject S holds the ratified ticket.
 - `check(K, Claim)`: an executable check of a claim.
 - `scope`, `risk`, `assumption`, `not_explored`, and `note`: context that the human reads.
@@ -713,6 +723,7 @@ The record of the merge is `thoughts/orbital-shifting-merge-record.md`. Its chec
 | Lean as the burn tool; per-claim choice | user, 2026-10-14 |
 | A burn needs a proof, always; only `orbit-kb prove` records it; only a human waives it, with a due time; TLC is not a proof; conformance is optional | user, 2026-10-19 |
 | Start without a KB and shift up; land by judgment; do not commit the KB; no TLA+ text in the build orbit; question order | user, 2026-10-20 |
+| The four shift-up triggers, the divergence signals, one free round of questions, the meaning of universal | user, 2026-10-20 |
 | Red run first, claim wording matches evidence, human landing gate, deadline bypass, screenshots, both-direction fulfillment, test clean-up | AIDLC v1 and v2 brainstorm |
 | Accepted renames (preserve/retire/introduce, why-not, disclosure) | user, 2026-10-14 |
 | "Discovery orbit" and "Discovery module", word for word except one sentence ("Run `orbit-kb uses build` first.") | Part 1 of `thoughts/discovery-orbit/discovery-orbit-draft.md` (commit d46dd23), ratified by the user |
@@ -753,8 +764,11 @@ Decisions of the user on 2026-10-20 closed items 1 to 6:
 3. **TLA+ in the build orbit.** The prompt does not mention it. It is not forbidden and not
    suggested, so that agents do not follow a suggestion by default. Discovery keeps it.
 4. **Plausible.** Available: `sharlean list` shows `plausible` (Lean 4.34.0).
-5. **A KB for every change request.** No. The work starts light, with no KB, and shifts up
-   to a KB when a question, a divergence, a burn, a second lap, or a handoff appears. This
+5. **A KB for every change request.** No. The work starts light, with no KB, and may ask
+   one round of up to three questions. It shifts up to a KB when one round of questions
+   does not settle the ticket, at a divergence, at a claim that burns, or at a handoff.
+   A second lap is not a trigger of its own: a new lap starts from a divergence, a
+   question, or a handoff. This
    follows the user's rule of 2026-10-13: the tier "can't be graded once"; start low when
    clarity seems apparent, and move up after a miscommunication.
 6. **The three-question cap.** Kept. Ask first the questions whose defaults are the most
