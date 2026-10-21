@@ -547,7 +547,9 @@ security, or money, or is hard to undo. Then "To land" names the decision.
 Only the human may skip work, for example to meet a deadline. A skip is a waiver, with a
 due time when the work comes back: `orbit-kb attest waiver X "waive(X, 'DUE', 'why')" --by
 human`, where X is a claim (its burn), a check, or a question. Until the due time, the
-waived item does not block `done`. After it, the item blocks `done` again. On the light
+waived item does not block `done`. A waived check covers its claim: the claim is not under,
+but it is not fulfilled either, and the delivery says so. After the due time, the item
+blocks `done` again. On the light
 path, write the skip and its due time in the delivery. List every waiver in the delivery.
 
 ## Speed

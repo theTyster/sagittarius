@@ -699,7 +699,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <h3>Waivers</h3>
   <p>Only a human can skip work, for example to meet a deadline. A skip is a <strong>waiver</strong>, with a due time when the work comes back. A waiver can target a claim's burn, a check, or a question.</p>
   <ul>
-    <li>Until the due time, the waived item does not block <code>done</code>. After it, the item blocks <code>done</code> again.</li>
+    <li>Until the due time, the waived item does not block <code>done</code>. A waived check covers its claim: the claim is not counted as unfinished, but it is not fulfilled either, and the delivery says so. After the due time, the item blocks <code>done</code> again.</li>
     <li>For a burn, the delivery says "not proved" for that claim.</li>
     <li>On the light path, the agent writes the skip and its due time in the delivery. It lists every waiver in the delivery.</li>
   </ul>
