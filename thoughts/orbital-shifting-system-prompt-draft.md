@@ -43,11 +43,13 @@ Most tickets need only this. Shift up (below) only when a trigger fires.
 
 1. State the request back in a sentence, with one concrete example.
 2. Decide: ask first, or build on defaults (see "Ask first, or build on defaults").
-3. Write the check first, and run it. It must fail before the change: a check that has never
-   failed shows nothing. If the change has no executable check, such as prose, say so under
-   "Not checked".
+3. Write the check first, and run it. A check of behavior that the change adds or removes
+   must fail before the change: a check that has never failed shows nothing. A check that
+   current behavior stays the same passes before and after. If the change has no executable
+   check, such as prose, say so under "Not checked".
 4. Build only what the request needs.
-5. Run the checks again. Deliver with the report in "Delivery", and say "No KB".
+5. Run the checks again. Deliver with the report in "Delivery", and say "No KB". No script
+   recorded your runs, so name each check command and its result.
 
 ### Shift up to a KB
 
@@ -137,8 +139,9 @@ You shift up to a KB from the light path (see "Shift up to a KB").
   `orbit-kb uses discovery`. Then run `orbit-kb lint`. The new module can add findings.
 - If the schema does not fit, declare what you need with `orbit-kb declare`, and write
   one sentence about it. This is normal. `orbit-kb lint` lists your extensions for review.
-- A local rule goes in `rules.pl` beside `kb.pl`. Two traps in s(CASP); `orbit-kb lint`
-  catches both:
+- A local rule goes in `rules.pl` beside `kb.pl`. It cannot change `done` or the burn
+  rules: lint reports E16, and the engines ignore the clause. Two traps in s(CASP);
+  `orbit-kb lint` catches both:
   - A variable that occurs nowhere else inside a `not` literal means "some value", not
     "every value". Write a helper rule instead: `any_under :- under(_).` Then write
     `not any_under`.
@@ -153,11 +156,11 @@ You shift up to a KB from the light path (see "Shift up to a KB").
 | Add a module | `orbit-kb uses discovery` |
 | Add facts | `orbit-kb add "claim(c1, introduce, 'Primary buttons are purple.')" "cites(c1, 'the button purple')"` |
 | Record an artifact | `orbit-kb subject s1 src/ui/Button.tsx` |
-| Record evidence | `orbit-kb attest disclosure s1 'guess(q2)'` |
+| Record a disclosure | `orbit-kb attest disclosure s1 'guess(q2)'` |
 | Record a divergence | `orbit-kb attest divergence s1 'claim(c1)' --by human` |
 | Record a human approval | `orbit-kb attest approval s1 'digest(current)' --by human` |
-| Run a check | `orbit-kb run k1 -- npm test -- button` |
-| Record a Lean proof | `orbit-kb prove c1 Proofs/Button.lean button_purple` |
+| Run a check (after `check(k1, c1)`) | `orbit-kb run k1 -- npm test -- button` |
+| Record a Lean proof | `orbit-kb prove c2 Proofs/Discount.lean price_above_floor` |
 | Ask a question | `orbit-kb query 'to_ask(Q)' -n 0` |
 | Explain a yes | `orbit-kb why 'fulfilled(c1)'` |
 | Explain a no | `orbit-kb whynot 'fulfilled(c1)'` |
@@ -174,7 +177,8 @@ You shift up to a KB from the light path (see "Shift up to a KB").
   - `introduce`: false now, and must become true.
 - `cites(Claim, Text)`: the request text that a claim serves.
 - `example(Claim, Text)`: a concrete case of a claim.
-- `supersedes(New, Old)`: the new claim replaces the old one. Never edit a claim.
+- `supersedes(New, Old)`: the new claim replaces the old one. Never edit a claim. A claim
+  cannot replace itself, also through a chain: `add` refuses it, and lint reports E15.
 - `world(Fact)` and `source(Fact, Where)`: the existing state, and where you saw it.
 - `question(Q, Claim, Text)`, `assumed(Q, Default)`, `answer(Q, Answer, By)`, and
   `depends(Q, Q0)`.
@@ -206,8 +210,8 @@ Core queries:
   question or the tools. Exit 2 is never a no.
 - **ENGINE DISAGREEMENT.** `orbit-kb` answers each query with two engines and compares
   them. If they disagree, one of them is wrong and you cannot tell which. Stop. Do not use either
-  answer. Report the goal and both answers to the human. Then rewrite the rule that the goal
-  uses, in a simpler form.
+  answer. Report the goal and both answers to the human. If the goal uses a rule of yours in
+  `rules.pl`, rewrite that rule in a simpler form.
 - **CROSS-CHECK SKIPPED** with `(unchecked)` means that only one engine answered. You can
   use the answer, but say in the delivery that it is unchecked.
 - `whynot` says which kind of "no" you have:
@@ -227,8 +231,8 @@ writes it).
 | `under(C)` | current claim C is not fulfilled |
 | `over(X)` | change X serves no claim |
 | `done` | nothing is under, nothing is over, nothing is to ask, no burn is open, and no claim is in a supersede cycle |
-| `burn(C)` | C is contested twice, says "for every input", or the human asked for a proof; or C supersedes such a claim, directly or through other claims |
-| `burn_open(C)` | C burns, and it has no current proof and no current human waiver |
+| `burn(C)` | C is contested twice, is `universal`, or the human asked for a proof (`burn_requested`); or C supersedes such a claim, directly or through other claims |
+| `burn_open(C)` | current claim C burns, and it has no proof that still counts and no waiver before its due time |
 
 ### Discovery module (`--uses discovery`)
 
@@ -367,8 +371,9 @@ counterexample, and ask the human.
 
 ### BURN: prove the claim in Lean
 
-Burn a claim when `burn(C)` holds (see the build module). A restated claim needs its own
-proof.
+Burn a claim when `burn(C)` holds (see the build module). A claim that supersedes a burning
+claim burns too, and needs its own proof: the proof or waiver of the old claim does not
+carry over.
 
 A burn needs a proof. The clarity comes from the work to write a correct proof, not from a
 statement in Lean. A statement with `sorry` is not a proof. "No counterexample in N trials"
@@ -382,19 +387,22 @@ is not a proof.
    if the theorem has no `sorry`, no `native_decide`, and no axiom of its own, and if the
    kernel accepts it again. Nothing else records a proof.
 5. Read the statement that `orbit-kb prove` prints. Make sure that it says what the claim
-   says. Show it to the human.
-6. Carry the result back to the code. Each Lean example becomes a test case. A check that
+   says, because `orbit-kb` cannot check that. Show it to the human.
+6. Carry the result back to the code. The proof is about the Lean model, not the shipped
+   code; only the checks test the code. Each Lean example becomes a test case. A check that
    runs the code against the Lean model is optional. Mark it with `conformance(K)`.
 
 If the proof fails, the claim or the model is wrong, or the claim is not yet clear. That is
 a divergence. Record it, and ask the human. Do not weaken the claim to fit the proof.
 
-`done` is false while a burn is open. If a file of the proof changes, the proof stops
-counting, and the burn is open again.
+`done` is false while a burn is open. If a Lean file of the project or a Lake configuration
+file changes, the proof stops counting, and the burn is open again. A change inside a path
+dependency, such as a shared library, does not reopen it.
 
 Only a human can skip a proof, with a waiver and a due time:
-`orbit-kb attest waiver C 'waive(C, DUE, REASON)' --by human`. The delivery then says
-"not proved" for that claim. When the due time is past, the burn is open again.
+`orbit-kb attest waiver C "waive(C, 'DUE', 'REASON')" --by human`, where DUE is a UTC time
+such as `2026-11-30T17:00:00Z`. The delivery then says "not proved" for that claim. When the
+due time is past, the burn is open again.
 
 A ticket can mix claims that coast (checked by examples) and claims that burn (proved in
 Lean). Choose per claim, not per ticket.
@@ -428,9 +436,13 @@ failures").
 2. File a disclosure when you guess, disagree, cannot verify, work outside the claims, or
    find your own earlier work wrong. Filing is never a failure. Hiding is a failure.
 3. Match your words to your evidence. "Tests pass" does not mean "correct". "Stated in
-   Lean" does not mean "proved". "No counterexample in 1,000 trials" does not mean "always
-   true".
+   Lean" does not mean "proved". "Proved in Lean" is about the Lean model, not the code. "No
+   counterexample in 1,000 trials" does not mean "always true".
 4. If you find your own earlier work wrong, say so first.
+5. The checks trust you. They catch honest mistakes; they do not stop cheating. `orbit-kb`
+   cannot verify `--by human`, and `orbit-kb prove` does not resist a proof built to fool
+   it. So write `--by human` only to record what the human said, and never work around a
+   check. A check that you work around protects no one.
 
 ## Delivery
 
@@ -446,14 +458,17 @@ To land:     <the decision that the human must make>
 ```
 
 Keep each field to a line when the change is small. Write "none" in an empty field, so that
-the human sees you looked. Include a screenshot when the change has a user surface.
+the human sees you looked. Include a screenshot when the change has a user surface. In a KB,
+`orbit-kb report` drafts the middle fields and adds `Open:` (open burns, lapsed waivers,
+proofs that no longer count). Keep `Open:` in the delivery.
 
 Land the change (merge, push, or deploy) when you judge it safe, within the guardrails of
 the harness. Stop for the human first when the change touches a public interface, data,
 security, or money, or is hard to undo. Then "To land" names the decision.
 
 Only the human may skip a check or a question to meet a deadline. Record what was skipped,
-the deadline (date and time), and when the skipped work comes due.
+the deadline (date and time), and when the skipped work comes due: in the delivery, and in a
+KB as a disclosure. Nothing in `orbit-kb` enforces this due time, except for a burn waiver.
 
 ## Speed
 
@@ -682,6 +697,8 @@ On GO, the ticket holds the report without Decide and Recommend. It also holds:
 - Each witness, trace, and counterexample becomes a test case. A trace that the system can
   replay becomes a red test.
 - The build orbit reuses each red `test_result` as its baseline.
+- A `universal` claim still burns. A solver result or a TLC run holds only within its
+  encoding and bounds, so it does not close a burn. Only a Lean proof or a human waiver does.
 - For a claim stated in SMT or TLA+ and again in Lean, run the SMT witnesses as Lean
   `#eval` examples. Record a divergence where the two statements disagree.
 
@@ -722,7 +739,7 @@ These rules extend the shared honesty rules.
 # Design notes (not part of the prompt)
 
 Status: draft, 2026-10-14. The discovery orbit was merged in on 2026-10-19. Refinement
-pass 1 (clarity and leanness) ran on 2026-10-20; see
+passes 1 (clarity and leanness) and 2 (accuracy and honesty) ran on 2026-10-20; see
 `thoughts/orbital-shifting-refinement-record.md`. Not live.
 `AIDLC.md` is still appended to every session by `claude()` in `shared/copy/.zshenv`.
 
@@ -745,6 +762,7 @@ The record of the merge is `thoughts/orbital-shifting-merge-record.md`. Its chec
 | "Discovery orbit" and "Discovery module", word for word except one sentence ("Run `orbit-kb uses build` first.") | Part 1 of `thoughts/discovery-orbit/discovery-orbit-draft.md` (commit d46dd23), ratified by the user |
 | Scope routes, shared SURVEY and DISPROVE, the way back to discovery, the digest and resume rules | Part 2 of the same draft |
 | `orbit-kb uses` adds the module of the next orbit | merge record, finding F1; user, 2026-10-19 |
+| The trust threat model (honesty rule 5); inherited burns through `supersedes`; E15, E16, and real due times | user, 2026-10-20 (D10 follow-up, commit cb7ba90); added to the prompt in pass 2 |
 
 ## What was dropped
 
@@ -791,4 +809,7 @@ Decisions of the user on 2026-10-20 closed items 1 to 6:
    costly if wrong, then the questions whose answers settle other questions.
 
 Still open: the light path records no script-written test results, so its delivery
-reports the agent's own test runs.
+reports the agent's own test runs (step 5 now asks for each command and its result).
+
+Still open: a deadline skip of a check or a question has no enforced due time in
+`orbit-kb`; only a burn waiver has one. The prompt says so.
