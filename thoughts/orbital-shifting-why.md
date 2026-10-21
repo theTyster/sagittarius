@@ -55,6 +55,20 @@ important.
 Working together, the specificity of lean and the structure of Prolog help provide two lenses that
 the LLM and the human can use to determine the intent of the session.
 
+## The bet, and asks for the last loop
+
+Ty, 2026-10-21: "My bet is that this version will stand the test of time and continue being used
+even if harnesses evolve in other ways, This pattern offers, when it really needs it, a level of
+rigor that can guarantee correctness."
+
+Asks for the final polish loop (after 7:20 PM, 2026-10-21):
+
+1. Explain what Orbital Shifting is as a tool and how to use it: a system prompt, a CLI
+   (`orbit-kb`), and a few dependencies (Prolog, Lean).
+2. Slides that describe the lightest possible path and the most rigorous possible path, to make
+   clear the gradient that Orbital Shifting provides.
+3. This is the biggest ask: use more sub-agents, or defer parts to later loops.
+
 ## Ty's note on use
 
 "I'm mostly providing it so that _you_ have more context and some more quotables. I don't think all
