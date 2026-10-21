@@ -35,6 +35,7 @@ script is `thoughts/orbital-shifting-merge-check.py`.
 | The trust threat model (honesty rule 5); inherited burns through `supersedes`; E15, E16, and real due times | user, 2026-10-20 (D10 follow-up, commit cb7ba90); added to the prompt in pass 2 |
 | "Shift down" after the cause of a shift is resolved; a change request with open details stays in the build orbit | refinement loop plan ("rigour should scale fluidly"), pass 3 |
 | Ratification of "Shift down" | user, 2026-10-21 |
+| "Shift down" renamed "Leaning back" and rewritten: rigor follows each trigger separately; leaning back keeps the KB; say so in one line. "A check fails after the build" became "a check still fails when the build is done". From two Haiku test runs, which read "shift down" as "leave the KB" | user, 2026-10-21 |
 | One meaning of "check": an executable test of one claim, with a pass or fail result. The impartial party is "the formal artifacts"; the CHECK move is now FULFILL; other uses became "verify", "lint", or "review" | user, 2026-10-21 ("when definitions collide, ambiguity only serves confusion") |
 | Two orbits (discovery, then build; build without discovery when the request is clear), one diagram, "we orbit to achieve understanding" | user, 2026-10-21 |
 | The tiny discovery orbit, with no KB; the "When to run" list no longer pulls against the build route | user, 2026-10-21 ("Making changes to the discovery prompt is ok") |

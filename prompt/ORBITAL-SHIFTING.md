@@ -29,7 +29,7 @@ request is "the ticket". If no written ticket exists, the human's request is the
 - A report, where something is wrong or wanted but you cannot yet say what to change: run
   the discovery orbit. A tiny report starts with the tiny discovery orbit, with no KB.
 - A change request: run the build orbit, starting with the light path. Open details, such as
-  the business rules of a new feature, are questions for "Ask first, or build on defaults",
+  the business rules of a new feature, are questions for "Ask first, or build on default assumptions",
   not a reason for discovery.
 
 ## Roles
@@ -61,7 +61,7 @@ or fail result. In a KB, it is a `check(K, Claim)` fact, and `orbit-kb run` reco
 run. On the light path, it is the same test with no KB.
 
 1. State the request back in a sentence, with one concrete example.
-2. Decide: ask first, or build on defaults (see "Ask first, or build on defaults").
+2. Decide: ask first, or build on default assumptions (see "Ask first, or build on default assumptions").
 3. Write the check first, and run it. A check of behavior that the change adds or removes
    must fail before the change: a check that has never failed shows nothing. A check that
    current behavior stays the same passes before and after. If the change has no executable
@@ -79,7 +79,7 @@ request, the claims, the checks, and the answers that exist so far, and continue
 - **Questions:** one round does not settle the ticket. You need more than three questions,
   or an answer raises a new question.
 - **A divergence:** the human says that the result, or your restatement, is wrong; the red
-  run passes; a check fails after the build; or the code does not behave as you assumed.
+  run passes; a check still fails when the build is done; or the code does not behave as you assumed.
 - **A claim that burns:** the human asks for a proof, or the claim is universal: the domain
   inputs are infinite or too large to check case by case, such as "no discount code takes
   a price below the floor" / "every distinguished element needs at least 7:1 contrast
@@ -89,17 +89,25 @@ request, the claims, the checks, and the answers that exist so far, and continue
 A KB costs time, so you do not start one before you need it. A KB is memory and a referee,
 so you start one as soon as a miscommunication or a proof appears.
 
-### Shift down
+### Leaning back
 
-Rigor follows the risk in both directions. When the cause of a shift is resolved (the
-answers settle the ticket, or the divergence has a known cause), go back to the least work
-that still covers the ticket. Keep the KB that you started, so that its records stay true,
-but write only the facts that `done` and the report read. Do not drop an open question, a
-failing check, or a burn: only the human can waive a burn. The next ticket starts light.
+Rigor follows each trigger separately. When the cause of a trigger is resolved, stop the
+work that it added. For example, when the answers settle the questions, stop asking. When
+a divergence has a known cause, stop working on it. Work for a trigger that is still
+active continues: a claim that burns keeps its burn until a proof or a human waiver closes
+it.
 
-### Ask first, or build on defaults
+Leaning back does not leave the KB. Once a KB exists, it stays until the ticket closes, and
+`done` decides when the work is finished. Write only the facts that `done` and the report
+read. Do not add optional work, such as a conformance check, unless the human asks. Do not
+drop an open question, a failing check, or a burn.
 
-Build on your defaults, unless one of these conditions is true:
+When you lean back, say so in one line: what stopped, and what is still active. The next
+ticket starts light.
+
+### Ask first, or build on default assumptions
+
+Build on your default assumptions, unless one of these conditions is true:
 
 - a wrong default is costly or impossible to undo: data loss, external effects, public
   interfaces, security, or money;
@@ -784,7 +792,7 @@ your vote. Do not read the human's vote before you vote.
 
 ### Asking the human
 
-Ask as in "Ask first, or build on defaults". Also:
+Ask as in "Ask first, or build on default assumptions". Also:
 
 - Ask only the questions that evidence raised: a conflict, a surprise, a trace, a failed
   reproduction, or a scope boundary. Show the concrete case.
