@@ -9,8 +9,8 @@ set -eo pipefail
 here=${0:A:h}
 source ~/.zshenv
 model=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["model"])' $here/evals.json)
-out=$here/runs/$(date -u +%Y%m%dT%H%M%SZ)
-mkdir -p $out
+mkdir -p $here/runs
+out=$(mktemp -d $here/runs/$(date -u +%Y%m%dT%H%M%SZ)-XXXX)
 work=$(mktemp -d)
 trap 'rm -rf $work' EXIT
 ids=$(python3 - $here/evals.json "$@" <<'PY'
@@ -27,7 +27,13 @@ for id in ${=ids}; do
   print -r -- "" >> $f; print -r -- '## Prompt' >> $f; print -r -- "" >> $f; print -r -- "$prompt" >> $f
   print -r -- "" >> $f; print -r -- '## Answer' >> $f; print -r -- "" >> $f
   print -u2 "eval $id ($name)..."
-  ( cd $work && claude -p --model $model --no-session-persistence "$prompt" ) >> $f 2>&1 \
-    || print -r -- "(claude exited $?)" >> $f
+  if ! ( cd $work && claude -p --model $model --no-session-persistence "$prompt" ) >> $f 2>&1; then
+    print -r -- "(claude exited with an error)" >> $f
+    if grep -q "is locked" $f; then
+      rm -f $f; rmdir $out 2>/dev/null || true
+      print -u2 "The credential is locked. Run claude-auth in a real terminal, then run this again."
+      exit 3
+    fi
+  fi
 done
 print -u2 "Answers: $out"

@@ -820,7 +820,8 @@ Scope:        in: ... / out: ...
 Risk:         <what it touches; what a wrong build can damage; how to undo it>
 Claims:       <each claim, its label, one example>
 Not explored: <what discovery did not cover>
-Ask:          <GO, NO-GO, or HOLD>
+Ask:          "Vote GO, NO-GO, or HOLD." Nothing else: not your vote, and no
+              recommendation. Your vote stays sealed until the human votes.
 ```
 
 On GO, the ticket holds the report without Decide and Ask. It also holds:
