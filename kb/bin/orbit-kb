@@ -1391,7 +1391,7 @@ head_diags(Ds, Src, F, L, H0, Diags) :-
                 Diags = [diag('E7', F, L, M)]
             ;   Src == rules, ( DSrc == core ; DSrc = module(_) ), protected_pi(N/A)
             ->  src_text(DSrc, ST),
-                fmt(M, "rules.pl adds clauses to ~q/~w from ~w. rules.pl cannot change done, the burn rules, the waiver rules, or the facts that orbit-kb computes. The engines ignore this clause. Remove it.", [N, A, ST]),
+                fmt(M, "rules.pl adds clauses to ~q/~w from ~w. rules.pl cannot change done, the burn rules, the waiver rules, the vote rules, or the facts that orbit-kb computes. The engines ignore this clause. Remove it.", [N, A, ST]),
                 Diags = [diag('E16', F, L, M)]
             ;   Src == rules, ( DSrc == core ; DSrc = module(_) )
             ->  src_text(DSrc, ST),
@@ -1419,6 +1419,16 @@ protected_pi(question_waived/1).
 protected_pi(supersedes_closure/2).
 protected_pi(supersede_cycle/1).
 protected_pi(any_supersede_cycle/0).
+% D14: the weighted vote of the discovery module.
+protected_pi(vote_cast/3).
+protected_pi(discovery_vote_raised/1).
+protected_pi(vote_round/1).
+protected_pi(human_vote/1).
+protected_pi(agent_vote/1).
+protected_pi(artifact_vote/1).
+protected_pi(discovery_gate_agreed/0).
+protected_pi(gate/1).
+protected_pi(gate_split/0).
 
 % answer_items(+Items, +Decls, -Items2) (D10 follow-up, F8): the items that
 % the engines read. A clause that lint rejects and that could close a
@@ -3649,11 +3659,26 @@ cmd_attest(KB, Args, Code) :-
         reject(PL)
     ;   true
     ),
+    late_vote_check(Items, Type, By, Pred),
     clause_line(T, [], Line),
     kb_file(KB, KbFile),
     append_lines(KbFile, [Line]),
     format("~w~n", [Line]),
     Code = 0.
+
+% late_vote_check(+Items, +Type, +By, +Pred) (D14): the agent's vote is
+% sealed, so it must come before the human's vote. An agent vote in a
+% round in which the human already voted is refused. This guards an
+% honest mistake only: the agent can still read the human vote, or edit
+% kb.pl by hand.
+late_vote_check(Items, vote, agent, vote(R, _)) :-
+    member(it(kb, _, _, T, _, _), Items), nonvar(T),
+    T = attest(_, vote, _, vote(R1, _), human, _), R1 == R, !,
+    reject([ "The human already voted in round " + R + ", so an agent vote in this round cannot be sealed.",
+             "Fix: do not vote in this round. Say what you think in the discussion after the reveal.",
+             "In the next round, vote before the human: vote(N, CHOICE) with a larger N."
+           ] >> fix_lines).
+late_vote_check(_, _, _, _).
 
 % digest(current): the recorded digest of the subject. The file on disk
 % must still have that digest, so an approval never names a file that
@@ -4517,6 +4542,40 @@ group_by_key_in_order(Pairs, Assoc) :-
 % ---------------------------------------------------------------------
 
 has_build(KB) :- kb_uses(KB, U), memberchk(build, U).
+has_discovery(KB) :- kb_uses(KB, U), memberchk(discovery, U).
+
+% vote_section(+Eng) (D14): the Vote: section of report. The agent's vote
+% and the formal artifacts' vote are sealed until the human votes in the
+% current round. A query can still read them: this is the honest path,
+% not a lock.
+vote_section(Eng) :-
+    say("Vote:", []),
+    ( eng_all(Eng, [Rq], request(Rq, _), [Rq1|_]) -> true ; Rq1 = 'REQUEST' ),
+    eng_all(Eng, [R], vote_round(R), Rs),
+    (   Rs == []
+    ->  say("- No vote yet. The agent votes first, and seals the vote: orbit-kb attest vote ~w 'vote(1, CHOICE)'. CHOICE is go, no_go, or hold.", [Rq1])
+    ;   Rs = [R1|_],
+        eng_all(Eng, [H], human_vote(H), Hs),
+        eng_all(Eng, [A], agent_vote(A), As),
+        (   Hs == []
+        ->  say("- Round ~w. The human has not voted. The other votes stay sealed until the human votes.", [R1]),
+            (   As == []
+            ->  say("- The agent has not voted. Vote first: orbit-kb attest vote ~w 'vote(~w, CHOICE)'.", [Rq1, R1])
+            ;   say("- The agent voted. Its vote is sealed.", [])
+            ),
+            say("- Record the human vote: orbit-kb attest vote ~w 'vote(~w, CHOICE)' --by human.", [Rq1, R1])
+        ;   atomic_list_concat(Hs, ', ', HT),
+            ( As == [] -> AT = 'no vote' ; atomic_list_concat(As, ', ', AT) ),
+            ( eng_all(Eng, [V], artifact_vote(V), [V1|_]) -> true ; V1 = 'no vote' ),
+            say("- Round ~w. Human (0.4): ~w. Agent (0.3): ~w. Formal artifacts (0.3): ~w.", [R1, HT, AT, V1]),
+            eng_all(Eng, [G], gate(G), Gs0), sort(Gs0, Gs), atomic_list_concat(Gs, ', ', GT),
+            say("- Outcome: ~w.", [GT]),
+            (   eng_true(Eng, gate_split)
+            ->  say("- The vote is split. The outcome is hold, and another orbit follows. Record the disagreement as a divergence, with a note: orbit-kb attest divergence H 'hypothesis(H)'.", [])
+            ;   true
+            )
+        )
+    ).
 
 kb_engine(KB, Eng) :-
     kb_items(KB, Items),
@@ -4823,6 +4882,7 @@ cmd_report(KB, Args, Code) :-
              ) )),
     forall(member([P4, C5], P4s), say("- Proof ~w of claim ~w no longer counts. A file of the proof changed. Run orbit-kb prove again.", [P4, C5])),
     (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], L4s == [], P4s == [] -> say("- Nothing is open.", []) ; true ),
+    ( has_discovery(KB) -> vote_section(Eng) ; true ),
     say("To land:", []),
     say("- (Write the steps to land the work here.)", []),
     Code = 0.
@@ -5168,6 +5228,13 @@ help_lines(attest, [
 "  orbit-kb attest waiver c1 \"waive(c1, '2026-11-30T17:00:00Z', 'why')\" --by human",
 "A waived check covers its claim for done, but the claim is not fulfilled, and a burn still needs a proof.",
 "A waived question need not be asked. When the due time is past, the item blocks done again. report lists every waiver.",
+"A vote (discovery module) records a choice at the GO / NO-GO gate: go, no_go, or hold.",
+"The first number is the round: 1 at the first gate, then 1 more after each HOLD.",
+"The agent votes first, and the vote stays sealed. Then the human votes:",
+"  orbit-kb attest vote r1 'vote(1, go)'",
+"  orbit-kb attest vote r1 'vote(1, hold)' --by human",
+"An agent vote in a round in which the human already voted is refused.",
+"Read the outcome with orbit-kb query 'gate(V)' and orbit-kb query gate_split.",
 "orbit-kb cannot verify --by human. The writer says human."
 ]).
 help_lines(run, [
@@ -5207,7 +5274,7 @@ help_lines(lint, [
 "E1 syntax. E2 undeclared predicate. E3 type. E4 dangling ref. E5 duplicate id.",
 "E6 non-ground fact. E7 clause in the wrong place. E8 writer not allowed. E9 test result or proof without its log.",
 "E10 uses/1. E11 the program does not compile. E12 hazard H1. E13 hazard H4. E14 unsafe negation.",
-"E15 supersede cycle (a claim replaces itself). E16 rules.pl changes done, a burn or waiver rule, or a computed fact.",
+"E15 supersede cycle (a claim replaces itself). E16 rules.pl changes done, a burn, waiver, or vote rule, or a computed fact.",
 "W1 subject changed. W2 local declaration. W3 claim without cites. W4 local fact that no rule reads.",
 "W5 check on a superseded claim. W6 local rule that extends a library predicate.",
 "Module lint_issue/3 results follow. Exit 1 on errors, or on warnings with --strict."
@@ -5220,7 +5287,9 @@ help_lines(query, [
 "Output: one line per answer, as true or X = v, Y = w. No answer prints false.",
 "--why adds the s(CASP) explanation (short form). --long gives the full explanation.",
 "--json prints the s(CASP) JSON. --html FILE writes the explanation as HTML.",
-"Exit 0 on an answer, 1 on no answer, 2 on a bad goal or ENGINE DISAGREEMENT."
+"Exit 0 on an answer, 1 on no answer, 2 on a bad goal or ENGINE DISAGREEMENT.",
+"Discovery vote (D14): 'gate(V)' is the outcome, and has no answer until the human votes.",
+"gate_split holds when no other role agrees with the human. 'artifact_vote(V)' is the vote of the formal artifacts."
 ]).
 help_lines(why, [
 "orbit-kb why 'GOAL' [-n N] [--long]",
@@ -5247,6 +5316,8 @@ help_lines(report, [
 "",
 "Print a delivery report skeleton with these sections:",
 "Delivered, Claims, Guesses, Disclosures, Not checked, Open, To land.",
+"With the discovery module, a Vote section comes before To land. It shows the agent's vote",
+"and the formal artifacts' vote only after the human votes in the current round.",
 "Fill in Delivered and To land yourself."
 ]).
 help_lines(doctor, [

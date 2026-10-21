@@ -964,6 +964,117 @@ t_RF6() { mkclaim; local n=0 v
 t_RF7() { mkclaim; oadd "attest(d1, disproof, c1, verdict(c1, refuted('delete then save loses data')), agent, '2026-10-15T10:00:00Z')"; rc_is 0
           okb --dir "$K" why 'refuted(c1)'; rc_is 0; any_hasf 'delete then save loses data' "why shows the counterexample"; }
 
+# ---- D14 (2026-10-21): GO / NO-GO / HOLD is a weighted vote (discovery module)
+# V1: attest type vote, vote(Round, Choice), writers agent and human; one vote per writer per
+# round (a second is ED10); the largest round counts. V2: artifact_vote/1 by rule.
+# V3: gate/1 needs the human plus one other role, else hold; gate_split/0; no answer before the
+# human votes. V4: report seals the agent's vote and the artifacts' vote until the human votes;
+# WD9 flags a human vote with no agent vote in its round; attest refuses a late agent vote.
+# V6: WD6 and discovery_has_outcome no longer recommend NO-GO.
+da_copy() { copy_fixture discovery-a "$T/k"; K=$T/k; }   # discovery-a: discovery_ready, current claims
+vt_add() {  # vt_add ID BY ROUND CHOICE: append a vote to kb.pl
+    printf "attest(%s, vote, r1, vote(%s, %s), %s, '2026-10-15T12:00:00Z').\n" "$1" "$3" "$4" "$2" >> "$K/kb.pl"
+}
+kb_noshow() {  # kb_noshow DIR: a discovery KB that is ready because h1 did not reproduce; no claim
+    kb_new "$1" <<'EOF'
+uses([discovery]).
+request(r1, 'Orders are charged twice.').
+hypothesis(h1, defect, 'A retry charges an order twice.').
+budget(laps, 3).
+subject(log1, 'logs/pay.log', 'sha256:0000000000000000000000000000000000000000000000000000000000000000').
+discovery_evidence(log1, system).
+attest(a1, reproduction, log1, result(h1, not_reproduced), agent, '2026-10-15T09:10:00Z').
+EOF
+    mkdir -p "$1/logs"; echo 'no double charge' > "$1/logs/pay.log"
+    sed -i "s/sha256:0*/sha256:$(sha "$1/logs/pay.log")/" "$1/kb.pl"
+}
+t_VT1() { da_copy
+          okb --dir "$K" attest vote r1 'vote(1, go)'; rc_is 0 "an agent vote"
+          okb --dir "$K" attest vote r1 'vote(1, hold)' --by human; rc_is 0 "a human vote"
+          has_goal "$K/kb.pl" "kb(attest(_, vote, r1, vote(1, hold), human, _))" "the human vote is stored"
+          okb --dir "$K" lint; rc_is 0 "two votes lint clean"; out_hasnt '^E'
+          rejects "a choice that is not go, no_go, or hold" 'E3|must match|oneof|go' attest vote r1 'vote(1, maybe)'
+          rejects "a vote with no round" 'E3|must match' attest vote r1 'vote(go)'
+          rejects "a script vote" 'script|human|agent' attest vote r1 'vote(1, go)' --by script
+          vt_add v9 script 1 go; okb --dir "$K" lint; rc_is 1 "a script vote in kb.pl"; out_has '^E8 '; }
+t_VT2() { da_copy; vt_add v1 agent 1 go; vt_add v2 agent 1 hold; vt_add v3 human 1 go
+          okb --dir "$K" lint; rc_is 1 "two agent votes in one round"
+          [ "$(printf '%s\n' "$out" | grep -c '^ED10 ')" = 2 ] || note "want ED10 on both agent votes: $(snip "$out")"
+          out_has '^ED10 v1' ; out_has '^ED10 v2'
+          da_copy; vt_add v1 agent 1 go; vt_add v2 human 1 hold; vt_add v3 agent 2 no_go; vt_add v4 human 2 no_go
+          okb --dir "$K" lint; rc_is 0 "one vote per writer per round"; out_hasnt '^ED10'
+          is_set 'vote_round(R)' 'R = 2' "the largest round counts"
+          is_set 'human_vote(V)' 'V = no_go' "round 2 replaces the human vote of round 1"
+          is_set 'agent_vote(V)' 'V = no_go' "round 2 replaces the agent vote of round 1"
+          da_copy; vt_add v1 agent 1 go; vt_add v2 human 1 hold; vt_add v3 agent 2 no_go
+          is_false 'human_vote(V)' "the human has not voted in round 2"; is_false 'gate(V)' "no gate before the human votes in round 2"; }
+t_VT3() { da_copy; is_set 'artifact_vote(V)' 'V = go' "ready with a current claim"
+          grep -v "^answer(q1, floor_wins, human)\.$" "$K/kb.pl" > "$K/kb.new" && mv "$K/kb.new" "$K/kb.pl"
+          is_false 'discovery_ready' "setup: q1 waits"; is_set 'artifact_vote(V)' 'V = hold' "not ready"
+          kb_noshow "$T/n"; K=$T/n; okb --dir "$K" lint; rc_is 0 "setup lints"
+          is_true 'discovery_ready' "setup: ready, nothing reproduced"; is_set 'artifact_vote(V)' 'V = no_go' "ready because no hypothesis reproduced"
+          printf "claim(c0, introduce, 'In a cycle.').\ncites(c0, 'charged twice').\nsupersedes(c0, c0).\n" >> "$K/kb.pl"
+          is_false 'current(c0)' "setup: a claim that is not current"; is_set 'artifact_vote(V)' 'V = no_go' "a claim that is not current does not make it go"
+          printf "claim(c1, introduce, 'No double charge.').\ncites(c1, 'charged twice').\ncheck(t1, c1).\n" >> "$K/kb.pl"
+          is_set 'artifact_vote(V)' 'V = go' "a current claim with a falsifier makes it go"
+          printf "lap_done(3).\nhypothesis(h2, risk, 'Untouched.').\n" >> "$K/kb.pl"
+          is_true 'discovery_decide' "setup: budget spent"; is_false 'discovery_ready'; is_set 'artifact_vote(V)' 'V = hold' "budget spent is not ready"
+          kb_noshow "$T/n2"; K=$T/n2; printf "hypothesis(h2, risk, 'Untouched.').\n" >> "$K/kb.pl"
+          is_false 'discovery_ready' "setup: h2 untouched"; is_set 'artifact_vote(V)' 'V = hold' "not ready with no current claim is hold, not no_go"; }
+vt_gate() {  # vt_gate HUMAN AGENT GATE SPLIT: on discovery-a (artifacts vote go). - is no vote.
+    da_copy; [ "$2" = - ] || vt_add v1 agent 1 "$2"; [ "$1" = - ] || vt_add v2 human 1 "$1"
+    local lbl="human $1, agent $2, artifacts go"
+    if [ "$3" = - ]; then is_false 'gate(V)' "$lbl: no gate"; else is_set 'gate(V)' "V = $3" "$lbl: gate"; fi
+    if [ "$4" = y ]; then is_true 'gate_split' "$lbl: split"; else is_false 'gate_split' "$lbl: no split"; fi
+}
+t_VT4() { vt_gate - - - n; vt_gate - go - n; vt_gate go go go n; vt_gate go - go n
+          vt_gate go hold go n; vt_gate go no_go go n; vt_gate hold hold hold n; vt_gate no_go no_go no_go n
+          vt_gate hold go hold y; vt_gate no_go go hold y; vt_gate no_go hold hold y; vt_gate hold no_go hold y; vt_gate no_go - hold y; }
+t_VT5() { kb_noshow "$T/n"; K=$T/n; vt_add v1 agent 1 go; vt_add v2 human 1 no_go
+          is_set 'gate(V)' 'V = no_go' "human and artifacts agree on no_go"; is_false 'gate_split'
+          vt_add v3 agent 2 hold; vt_add v4 human 2 go
+          is_set 'gate(V)' 'V = hold' "round 2: human go against agent hold and artifacts no_go"; is_true 'gate_split'; }
+vt_section() { printf '%s\n' "$out" | awk '/^Vote:/{f=1;next} /^[A-Z][A-Za-z ]*:/{f=0} f'; }
+t_VT6() { da_copy; okb --dir "$K" report; rc_is 0; local g; g=$(vt_section)
+          [ -n "$g" ] || note "report has a Vote: section in a discovery KB: $(snip "$out")"
+          vt_add v1 agent 1 no_go; okb --dir "$K" report; rc_is 0; g=$(vt_section)
+          printf '%s\n' "$g" | grep -qi 'sealed' || note "the agent vote is sealed: [$g]"
+          printf '%s\n' "$g" | grep -Eqi 'no_go|no-go|\bgo\b' && note "before the human votes, no choice is shown: [$g]"
+          vt_add v2 human 1 go; okb --dir "$K" report; rc_is 0; g=$(vt_section)
+          printf '%s\n' "$g" | grep -Eq 'gent.*no_go' || note "after the human votes, the agent vote shows: [$g]"
+          printf '%s\n' "$g" | grep -Eq 'uman.*go' || note "the human vote shows: [$g]"
+          printf '%s\n' "$g" | grep -Eqi 'artifacts.*go' || note "the artifacts vote shows: [$g]"
+          printf '%s\n' "$g" | grep -Eqi 'outcome.*go' || note "the outcome shows: [$g]"
+          da_copy; vt_add v1 agent 1 go; vt_add v2 human 1 hold; okb --dir "$K" report; rc_is 0; g=$(vt_section)
+          printf '%s\n' "$g" | grep -Eqi 'divergence' || note "a split names a divergence: [$g]"
+          kb_new "$T/b" <<'EOF'
+uses([build]).
+request(r1, 'Plain').
+EOF
+          K=$T/b; okb --dir "$K" report; rc_is 0; out_hasnt '^Vote:' "no Vote: section without discovery"; }
+t_VT7() { da_copy; vt_add v2 human 1 go; okb --dir "$K" lint; rc_is 0 "a warning only"
+          out_has '^WD9 v2' "a human vote with no agent vote in its round"
+          da_copy; vt_add v1 agent 1 go; vt_add v2 human 1 go; okb --dir "$K" lint; out_hasnt '^WD9'
+          da_copy; vt_add v1 agent 1 go; vt_add v2 human 1 go; vt_add v3 human 2 go; okb --dir "$K" lint; out_has '^WD9 v3' "round 2 has no agent vote"
+          da_copy; okb --dir "$K" attest vote r1 'vote(1, go)' --by human; rc_is 0
+          rejects "a late agent vote" 'seal|human' attest vote r1 'vote(1, go)'
+          okb --dir "$K" attest vote r1 'vote(2, go)'; rc_is 0 "an agent vote in a new round"; }
+t_VT8() { da_copy; printf 'gate(go).\nartifact_vote(go) :- some_hypothesis.\ngate_split :- some_hypothesis.\nhuman_vote(go).\n' > "$K/rules.pl"
+          okb --dir "$K" lint; rc_is 1 "rules.pl cannot change the vote rules"
+          [ "$(printf '%s\n' "$out" | grep -c '^E16 rules.pl')" = 4 ] || note "want E16 on each of the 4 clauses: $(snip "$out")"
+          is_false 'gate(V)' "the engines ignore the clauses"; is_false 'gate_split'; is_false 'human_vote(V)'; is_set 'artifact_vote(V)' 'V = go'; }
+t_VT9() { da_copy; sed -i 's/result(h1, reproduced)/result(h1, not_reproduced)/' "$K/kb.pl"
+          okb --dir "$K" lint; out_has '^WD6 a1: .*Tell the human what you tried\.' "the new WD6 text"
+          any_hasnt 'NO-GO candidate' "WD6 recommends nothing"
+          okb --dir "$K" why discovery_has_outcome; rc_is 0; any_hasnt 'NO-GO' "the template is neutral"; }
+t_VT10() { da_copy; okb help attest; rc_is 0; local line
+           line=$(printf '%s\n%s\n' "$out" "$err" | grep -E '^ *orbit-kb attest vote ' | head -n1)
+           [ -n "$line" ] || { note "help attest has no example line that starts with orbit-kb attest vote"; return; }
+           line=${line#*orbit-kb attest vote }
+           eval "set -- $line" 2>/dev/null || { note "the example does not parse in a shell: $line"; return; }
+           okb --dir "$K" attest vote "$@"; rc_is 0 "the help example runs as typed: $line"
+           okb help query; any_has 'gate' "help query names gate"; }
+
 # ---- D10: a burn needs a Lean proof (or a human waiver); done waits for it
 t_BP1() { kb_burndone "$T/k"; K=$T/k; is_true 'burn(c1)'; is_set 'burn_open(X)' 'X = c1'; is_false 'done' "c1 burns and has no proof"
           is_true any_burn_open; is_false any_under; is_false any_over; is_false any_to_ask; }
@@ -1527,6 +1638,16 @@ run_test t_RF4 RF4 "R3: a bare refuted is E3 and the message shows refuted('...'
 run_test t_RF5 RF5 "R1: refuted takes one text argument"
 run_test t_RF6 RF6 "R4: inconclusive, abstained, stated, tested(N) are unchanged"
 run_test t_RF7 RF7 "R5: why prints the counterexample"
+run_test t_VT1 VT1 "D14 V1: vote attestations by agent and human; bad shapes and writers fail"
+run_test t_VT2 VT2 "D14 V1: one vote per writer per round (ED10); the largest round counts"
+run_test t_VT3 VT3 "D14 V2: artifact_vote is go, no_go, or hold by rule"
+run_test t_VT4 VT4 "D14 V3: gate needs the human plus one other role; gate_split"
+run_test t_VT5 VT5 "D14 V3: no_go wins with the artifacts; a later round replaces the earlier"
+run_test t_VT6 VT6 "D14 V4: report seals the votes until the human votes"
+run_test t_VT7 VT7 "D14 V4: WD9 and a late agent vote is refused"
+run_test t_VT8 VT8 "D14 V2/V3: rules.pl cannot change the vote rules (E16)"
+run_test t_VT9 VT9 "D14 V6: WD6 and the discovery_has_outcome template do not recommend NO-GO"
+run_test t_VT10 VT10 "D14: help attest has a vote example that runs; help query names gate"
 run_test t_B8 B8 "under and over (a change that serves nothing is over)"
 run_test t_B9 B9 "done is true when everything is clear"
 run_test t_B10 B10 "done is false with an open claim among several facts (H1)"

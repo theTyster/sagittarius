@@ -333,8 +333,8 @@ For each query, `orbit-kb` assembles one program in this order:
 Two kinds of clause that lint rejects do not reach the engines (D10
 follow-up, F8): a clause in `rules.pl` whose head is a fact predicate (E7) or a
 protected library predicate (E16), and a fact in `kb.pl` of a protected library
-predicate (E7). The protected predicates are `done`, the burn rules, and the
-computed facts (section 10, E16). The SWI engine loads this program as it is. By default, s(CASP) gets a
+predicate (E7). The protected predicates are `done`, the burn rules, the vote
+rules of the discovery module, and the computed facts (section 10, E16). The SWI engine loads this program as it is. By default, s(CASP) gets a
 grounding of this program for the goal (section 11).
 
 ## 5. The type system
@@ -623,6 +623,8 @@ Appends `attest(ID, TYPE, SUBJECT, PREDICATE, BY, TIME)`. `--by` defaults to
 `orbit-kb` checks the shape, the writer, and the references. The predicate
 `digest(current)` becomes the recorded digest of SUBJECT. The file must still
 have that digest. If the file changed, run `orbit-kb subject` first.
+A `vote` (discovery module, D14) by the agent is refused when the human already
+voted in the same round, because that vote can no longer be sealed.
 Exit: 0 on success. 1 on a rejection.
 
 ### `run CHECK -- CMD [ARGS]`
@@ -777,6 +779,11 @@ with the check and the due time. `Waivers:` lists every waiver: its id, the kind
 and id of its target, its due time, and whether it is in force or lapsed.
 `Open:` lists each open burn, each waiver past its due time (of a claim, a
 check, or a question), and each proof that no longer counts.
+With the `discovery` module, a `Vote:` section comes before `To land:` (D14).
+Until the human votes in the current round, it says only whether the agent
+voted, and it does not show the agent's choice or the formal artifacts' vote.
+After the human votes, it shows the three votes with their weights, the
+outcome (`gate`), and, on a split, a reminder to record a divergence.
 Exit: 0. 2 on E1 or E2 in a source file.
 
 ### `doctor`
@@ -966,7 +973,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E13 | An atom or a string ends in `_` and digits (hazard H4). |
 | E14 | Unsafe negation: a variable of a `not` literal occurs in the head, but in no positive body literal. |
 | E15 | A `supersedes` fact on a cycle: a claim replaces itself, directly (`supersedes(C, C)`) or through other claims. `done` is false while the cycle exists. `add` refuses such a fact. |
-| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, or `any_supersede_cycle`. The engines ignore the clause. |
+| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engines ignore the clause. |
 
 | Code | Warning |
 |---|---|
@@ -1477,9 +1484,46 @@ Reserved names:
     `about_system/1`, `finding_confirmed/1`, `finding_lead/1`,
     `rule_has_reason/2`, `weak_rule/1`, `touched_system/0`, `budget_spent/0`,
     and helpers named `discovery_*` and `some_*`.
-  - Attestation types: `reproduction`, `model_result`, `decision`.
+  - The vote (D14): `vote_cast/3`, `vote_round/1`, `human_vote/1`,
+    `agent_vote/1`, `artifact_vote/1`, `gate/1`, `gate_split/0`.
+  - Attestation types: `reproduction`, `model_result`, `decision`, `vote`.
     (Calibration is a `model_result` shape, not a type.)
-  - Lint codes: `WD1`–`WD8` and `ED1`–`ED9`.
+  - Lint codes: `WD1`–`WD9` and `ED1`–`ED10`.
+
+### The GO / NO-GO vote (D14)
+
+At the end of discovery, three roles vote `go`, `no_go`, or `hold`: the human
+(weight 0.4), the agent (0.3), and the formal artifacts (0.3).
+
+- `attest(ID, vote, SUBJECT, vote(Round, Choice), BY, TIME)`, writers `agent`
+  and `human`. The subject is the request. Round 1 is the first gate. After a
+  HOLD, the next gate is round 2, and so on. Only the largest round with a vote
+  counts (`vote_round/1`). A second vote by one writer in one round is ED10.
+- `artifact_vote(V)`: `go` when `discovery_ready` holds and a claim is
+  current; `no_go` when `discovery_ready` holds and no claim is current (so a
+  hypothesis did not reproduce); `hold` otherwise. It reads the KB as it is
+  now, not as it was when the others voted.
+- `gate(V)`: a choice wins only with more than half of the weight, and the
+  human's vote must be part of it. With these weights, that is the human plus
+  at least one other role. Any other result is `hold`. `gate` has no answer
+  until the human votes in the current round.
+- `gate_split`: the human voted, and no other role agrees. The outcome is
+  `hold`. Record the disagreement as a `divergence` with `hypothesis(H)`.
+- Sealing. The agent votes first. `report` does not show the agent's choice
+  or the formal artifacts' vote until the human votes. `attest` refuses an
+  agent vote in a round in which the human already voted. WD9 warns about a
+  human vote with no agent vote in its round.
+- Limit. Sealing guards an honest mistake only. The CLI cannot hide data from
+  the agent: `query 'agent_vote(V)'` or `kb.pl` shows the vote, and a hand edit
+  can add a vote in any order. WD9 checks that an agent vote exists in the
+  round, not that it came first.
+
+```sh
+orbit-kb attest vote r1 'vote(1, go)'               # the agent, before the report
+orbit-kb attest vote r1 'vote(1, hold)' --by human  # the human, after the report
+orbit-kb query 'gate(V)'                            # V = hold
+orbit-kb query gate_split                           # true: record a divergence
+```
 
 ### Fixture expectations: `expected.pl`
 
@@ -1812,6 +1856,12 @@ Known gaps:
   is not `to_ask` (`question_waived`). Every waiver has a due time, and
   `report` lists every waiver. The Lean burn model covers claim waivers only;
   its conformance KBs have no check or question waiver.
+- **D14 (2026-10-21).** GO / NO-GO / HOLD is a weighted vote of the human
+  (0.4), the agent (0.3), and the formal artifacts (0.3). Ty decided it. A
+  win needs the human's vote. The `vote` type, `artifact_vote`, `gate`, and
+  `gate_split` are in the discovery module (section 12). WD6 no longer calls
+  a failed reproduction a NO-GO candidate: it says to tell the human what you
+  tried.
 
 Known limits of `prove` (D10 follow-up, 2026-10-20). `prove` checks the proof of
 an honest agent that can make mistakes; it does not resist an agent that cheats

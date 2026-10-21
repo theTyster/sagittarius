@@ -14,6 +14,9 @@
 % - An unsat core is one conflict finding/3 and one question. After the human answers,
 %   a core divergence goes on each claim that the answer supersedes, and only on those.
 % - GO is a core approval of the ticket subject. NO-GO and HOLD are a `decision`.
+% - D14: GO, NO-GO, or HOLD is a weighted vote: the human 0.4, the agent 0.3, the formal
+%   artifacts 0.3. The agent and the human each attest a `vote`. orbit-kb computes the
+%   vote of the formal artifacts (artifact_vote/1) and the outcome (gate/1).
 
 % --- Facts ---
 decl(fact, hypothesis(id, oneof([defect, feature, risk]), text),
@@ -71,13 +74,19 @@ attest_type(decision,
     alt([no_go(ref(hypothesis), text), hold(ref(hypothesis), text)]),
     [human],
     'A NO-GO or HOLD decision by the human, with its reason or what it waits for.').
+% D14: one vote per writer per round. Round 1 is the first gate. After a HOLD, the next
+% gate is round 2, and so on. Only the largest round counts.
+attest_type(vote,
+    vote(int, oneof([go, no_go, hold])),
+    [agent, human],
+    'A vote at the GO / NO-GO gate: the round, then go, no_go, or hold. The agent votes first.').
 
 % --- Rule declarations ---
 decl(rule, discovery_disproof_filed(ref(claim)), 'A disproof attestation refutes the claim.', 'a disproof of claim @(1) is filed').
 decl(rule, discovery_model_artifact(ref), 'The id is a model file, a solver log, or is tagged as model evidence.', '@(1) is a model artifact').
 decl(rule, discovery_system_evidence(ref), 'The id is tagged as system evidence and is not a model artifact.', '@(1) is evidence from the current system').
 decl(rule, discovery_hypothesis_touched(ref(hypothesis)), 'A reproduction on system evidence gives a result for the hypothesis.', 'the current system was checked for hypothesis @(1)').
-decl(rule, discovery_has_outcome, 'Some claim is current, or a hypothesis did not reproduce.', 'discovery has a ticket or a NO-GO candidate').
+decl(rule, discovery_has_outcome, 'Some claim is current, or a hypothesis did not reproduce.', 'some claim is current, or some hypothesis did not reproduce').
 decl(rule, discovery_sanity_ok(atom), 'A result that passes a sanity check.', '@(1) passes a sanity check').
 decl(rule, discovery_decided(atom), 'A solver result that is not unknown.', '@(1) is a decided result').
 decl(rule, discovery_has_case(atom), 'A solver result that shows a case.', '@(1) shows a case').
@@ -135,6 +144,18 @@ decl(rule, some_unasked_finding, 'Some finding needs a question.', 'some finding
 decl(rule, some_current_refuted, 'Some current claim is refuted.', 'some current claim is refuted').
 decl(rule, some_weak_rule, 'Some rule is weak.', 'some rule survived its mutation check with no reason').
 decl(rule, some_model_problem, 'Some model diverges, is vacuous, breaks a claim with no disproof, or has solvers that disagree.', 'some model has an open problem').
+decl(rule, vote_cast(by, int, atom), 'A vote: its writer, round, and choice.', 'the @(1) voted @(3) in round @(2)').
+decl(rule, discovery_vote_raised(int), 'A vote exists in a larger round than this one.', 'a vote exists in a round after round @(1)').
+decl(rule, vote_round(int), 'The current round: the largest round with a vote.', 'round @(1) is the current round of the vote').
+decl(rule, human_vote(atom), 'The vote of the human in the current round.', 'the human votes @(1)').
+decl(rule, agent_vote(atom), 'The vote of the agent in the current round.', 'the agent votes @(1)').
+decl(rule, discovery_some_current, 'Some claim is current.', 'some claim is current').
+decl(rule, artifact_vote(atom), 'The vote of the formal artifacts: go when discovery is ready with a current claim, no_go when it is ready with no current claim, else hold.', 'the formal artifacts vote @(1)').
+decl(rule, discovery_gate_agreed, 'The human and at least one other role vote the same.', 'the human and another role agree').
+decl(rule, gate(atom), 'The outcome of the vote: a choice of the human and at least one other role, else hold. No answer until the human votes.', 'the outcome of the vote is @(1)').
+decl(rule, gate_split, 'The human voted, and no other role agrees with the human. The outcome is hold; record a divergence.', 'the vote is split, so the outcome is hold').
+decl(rule, discovery_agent_voted(int), 'The agent voted in this round.', 'the agent voted in round @(1)').
+decl(rule, discovery_vote_twin(ref(attest)), 'Another vote by the same writer is in the same round.', 'vote @(1) has a second vote by its writer in its round').
 decl(rule, some_unratified_supersession, 'Some claim replaces a disputed claim with no human answer behind it.', 'some claim replaces a disputed claim without a human answer').
 
 % --- A disproof names the claim (a helper, because model_unfiled_break reads it under not) ---
@@ -264,6 +285,28 @@ some_model_problem :- model_unfiled_break(_).
 some_model_problem :- model_solvers_disagree(_).
 some_unratified_supersession :- discovery_unratified(_).
 
+% --- D14: the weighted vote (human 0.4, agent 0.3, formal artifacts 0.3) ---
+% A choice wins only with more than half of the weight, and the human's vote must be part
+% of it. With these weights, a choice wins only when the human and at least one other role
+% vote for it. Any other result is hold.
+vote_cast(W, R, C) :- attest(_, vote, _, vote(R, C), W, _).
+discovery_vote_raised(R) :- vote_cast(_, R, _), vote_cast(_, R2, _), R2 > R.
+vote_round(R) :- vote_cast(_, R, _), not discovery_vote_raised(R).
+human_vote(C) :- vote_cast(human, R, C), vote_round(R).
+agent_vote(C) :- vote_cast(agent, R, C), vote_round(R).
+discovery_some_current :- current(_).
+artifact_vote(go) :- discovery_ready, discovery_some_current.
+artifact_vote(no_go) :- discovery_ready, not discovery_some_current.
+artifact_vote(hold) :- not discovery_ready.
+discovery_gate_agreed :- human_vote(C), agent_vote(C).
+discovery_gate_agreed :- human_vote(C), artifact_vote(C).
+gate(C) :- human_vote(C), agent_vote(C).
+gate(C) :- human_vote(C), artifact_vote(C).
+gate(hold) :- human_vote(_), not discovery_gate_agreed.
+gate_split :- human_vote(_), not discovery_gate_agreed.
+discovery_agent_voted(R) :- vote_cast(agent, R, _).
+discovery_vote_twin(A) :- attest(A, vote, _, vote(R, _), W, _), attest(B, vote, _, vote(R, _), W, _), A \= B.
+
 % --- The gate: clean only ---
 discovery_ready :- some_hypothesis, touched_system, discovery_has_outcome,
     not some_untouched_hypothesis,
@@ -291,12 +334,14 @@ lint_issue('WD4', F, 'Only a model shows this finding. It is a lead until eviden
     finding_lead(F).
 lint_issue('WD5', A, 'This check gave unknown. It is a gap, not UNSAT, so it falsifies nothing.') :-
     model_verdict(A, _, _, unknown).
-lint_issue('WD6', A, 'The problem did not reproduce on the current system. This is a NO-GO candidate. Tell the human.') :-
+lint_issue('WD6', A, 'The problem did not reproduce on the current system. Tell the human what you tried.') :-
     attest(A, reproduction, S, result(_, not_reproduced), _, _), discovery_system_evidence(S).
 lint_issue('WD7', H, 'No result from the current system exists for this hypothesis. Reproduce it, or ask the human if it is a separate ticket.') :-
     hypothesis(H, _, _), not discovery_hypothesis_touched(H).
 lint_issue('WD8', A, 'This model result is on a log of an older digest of the model. It does not count. Run the solver again, into a new log.') :-
     attest(A, model_result, S, P, _, _), discovery_result_model(P, M), model_run_stale(S, M).
+lint_issue('WD9', A, 'The human voted in this round, and the agent did not vote first. The agent vote must be sealed before the human votes.') :-
+    attest(A, vote, _, vote(R, _), human, _), not discovery_agent_voted(R).
 lint_issue('ED1', A, 'This reproduction must point at evidence from the current system. Tag the subject with discovery_evidence(Subject, system); a model or a solver log is not system evidence.') :-
     attest(A, reproduction, S, _, _, _), not discovery_system_evidence(S).
 lint_issue('ED2', A, 'This model result must point at a solver log of its own model. Add model_run(Log, Model, Digest) for the log.') :-
@@ -315,3 +360,5 @@ lint_issue('ED8', Q, 'This question must be raised by a finding or a hypothesis.
     raised_by(Q, X), not discovery_is_finding(X), not discovery_is_hypothesis(X).
 lint_issue('ED9', M, 'This model is derived from a model that is itself derived from a model. Derive a target model only from an existing-world model.') :-
     derived_from(M, M0), not model_root(M0).
+lint_issue('ED10', A, 'Its writer has another vote in this round. Keep one vote per writer in each round. After a HOLD, vote in the next round.') :-
+    discovery_vote_twin(A).
