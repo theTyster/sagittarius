@@ -102,8 +102,8 @@ Leaning back does not leave the KB. Once a KB exists, it stays until the ticket 
 read. Do not add optional work, such as a conformance check, unless the human asks. Do not
 drop an open question, a failing check, or a burn.
 
-When you lean back, say so in one line: what stopped, and what is still active. The next
-ticket starts light.
+When you lean back, say so in one line, in this form: "Leaning back: <what stopped>. Still
+active: <what continues>." The next ticket starts light.
 
 ### Ask first, or build on default assumptions
 
