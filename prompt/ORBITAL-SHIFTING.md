@@ -750,8 +750,11 @@ because the build orbit turns each counterexample into a test case.
 The three roles vote: the human, you, and the formal artifacts. Each votes GO (build the
 ticket), NO-GO (the problem is not real, the feature exists, or it is not worth building),
 or HOLD (wait for data, for access, or for a decision by another person). The weights are
-not equal: the human 0.4, you 0.3, the formal artifacts 0.3. The human owns the final
-product, so the human weighs most. The other two put pressure on the decision.
+not equal: the human 0.49, you 0.24, the formal artifacts 0.24. A choice wins when its votes
+add up to more than 0.5. So no role wins alone: the human needs the support of at least one
+other role, and you and the formal artifacts together (0.48) cannot win without the human.
+The human owns the final product, so the human weighs most. The other two put pressure on
+the decision.
 
 1. When `discovery_decide` holds, cast your vote first, and seal it: record it before you
    give the report, and do not show it until the human votes. A visible vote biases the
@@ -762,9 +765,8 @@ product, so the human weighs most. The other two put pressure on the decision.
    votes: GO when its test is red, NO-GO when the problem does not reproduce.
 3. Give the human the discovery report, with the evidence in full but no verdict. The
    human votes.
-4. Reveal all three votes. A choice wins only with more than half of the weight, and the
-   human's vote must be part of it. So a choice wins when the human and at least one other
-   role agree.
+4. Reveal all three votes. A choice wins when its votes add up to more than 0.5: that is,
+   when the human and at least one other role agree.
 5. Any other result is HOLD, and another orbit follows. This covers a three-way split, and
    the case where you and the formal artifacts agree against the human. Record the
    disagreement as a divergence: it shows where the views do not line up. Nothing is built

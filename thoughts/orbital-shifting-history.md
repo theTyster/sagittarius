@@ -208,7 +208,7 @@ per-ticket tiers, phase approvals, traceability matrices, the seven-stage order,
 model of the process (the design notes list these as dropped).
 
 **What it adds.** Rigor that follows the risk in both directions. The human, the agent, and
-the formal artifacts vote on discovery results, with weights 0.4, 0.3, and 0.3. A
+the formal artifacts vote on discovery results, with weights 0.49, 0.24, and 0.24. A
 divergence is recorded as good news. A burn needs a proof.
 
 **Shown so far.** Twelve one-shot planning evals on Haiku pass on the live prompt, in two of

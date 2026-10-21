@@ -44,6 +44,7 @@ script is `thoughts/orbital-shifting-merge-check.py`.
 | `refuted(Counterexample)` in `disproof` and `lean_result` | user, 2026-10-21; CLI changed the same day |
 | A skip is a waiver on a claim, a check, or a question, with a due time; no separate bypass record | user, 2026-10-21 ("a bypass and a waiver seem too similar") |
 | GO / NO-GO / HOLD is a weighted vote: human 0.4, agent 0.3, formal artifacts 0.3; the agent's vote is sealed until the human votes; a win needs the human's vote; a split, or the human outvoted, is HOLD plus another orbit and a divergence | user, 2026-10-21 (replaces "no recommendation at the gate", the same day) |
+| Weights become human 0.49, agent 0.24, formal artifacts 0.24, and a win is more than 0.5: no role wins alone, nothing wins without the human, and the human needs one supporter. Outcomes unchanged | user, 2026-10-21 |
 | `universal` has one definition: the burn trigger | user, 2026-10-21 |
 | A red reproduction test is a check and enough evidence for the tiny discovery orbit | user, 2026-10-21 |
 

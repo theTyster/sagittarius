@@ -14,8 +14,8 @@
 % - An unsat core is one conflict finding/3 and one question. After the human answers,
 %   a core divergence goes on each claim that the answer supersedes, and only on those.
 % - GO is a core approval of the ticket subject. NO-GO and HOLD are a `decision`.
-% - D14: GO, NO-GO, or HOLD is a weighted vote: the human 0.4, the agent 0.3, the formal
-%   artifacts 0.3. The agent and the human each attest a `vote`. orbit-kb computes the
+% - D14: GO, NO-GO, or HOLD is a weighted vote: the human 0.49, the agent 0.24, the formal
+%   artifacts 0.24. The agent and the human each attest a `vote`. orbit-kb computes the
 %   vote of the formal artifacts (artifact_vote/1) and the outcome (gate/1).
 
 % --- Facts ---
@@ -285,10 +285,11 @@ some_model_problem :- model_unfiled_break(_).
 some_model_problem :- model_solvers_disagree(_).
 some_unratified_supersession :- discovery_unratified(_).
 
-% --- D14: the weighted vote (human 0.4, agent 0.3, formal artifacts 0.3) ---
-% A choice wins only with more than half of the weight, and the human's vote must be part
-% of it. With these weights, a choice wins only when the human and at least one other role
-% vote for it. Any other result is hold.
+% --- D14: the weighted vote (human 0.49, agent 0.24, formal artifacts 0.24) ---
+% A choice wins when its votes add up to more than 0.5. No role wins alone (0.49 < 0.5),
+% and the agent and the artifacts together cannot win (0.48 < 0.5). So a choice wins only
+% when the human and at least one other role vote for it; the rules below encode that
+% directly. Any other result is hold.
 vote_cast(W, R, C) :- attest(_, vote, _, vote(R, C), W, _).
 discovery_vote_raised(R) :- vote_cast(_, R, _), vote_cast(_, R2, _), R2 > R.
 vote_round(R) :- vote_cast(_, R, _), not discovery_vote_raised(R).

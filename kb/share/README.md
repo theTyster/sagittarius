@@ -1493,7 +1493,7 @@ Reserved names:
 ### The GO / NO-GO vote (D14)
 
 At the end of discovery, three roles vote `go`, `no_go`, or `hold`: the human
-(weight 0.4), the agent (0.3), and the formal artifacts (0.3).
+(weight 0.49), the agent (0.24), and the formal artifacts (0.24).
 
 - `attest(ID, vote, SUBJECT, vote(Round, Choice), BY, TIME)`, writers `agent`
   and `human`. The subject is the request. Round 1 is the first gate. After a
@@ -1503,9 +1503,9 @@ At the end of discovery, three roles vote `go`, `no_go`, or `hold`: the human
   current; `no_go` when `discovery_ready` holds and no claim is current (so a
   hypothesis did not reproduce); `hold` otherwise. It reads the KB as it is
   now, not as it was when the others voted.
-- `gate(V)`: a choice wins only with more than half of the weight, and the
-  human's vote must be part of it. With these weights, that is the human plus
-  at least one other role. Any other result is `hold`. `gate` has no answer
+- `gate(V)`: a choice wins when its votes add up to more than 0.5. No role
+  wins alone, and the agent and the formal artifacts together have 0.48, so a
+  win is the human plus at least one other role. Any other result is `hold`. `gate` has no answer
   until the human votes in the current round.
 - `gate_split`: the human voted, and no other role agrees. The outcome is
   `hold`. Record the disagreement as a `divergence` with `hypothesis(H)`.
@@ -1858,7 +1858,8 @@ Known gaps:
   its conformance KBs have no check or question waiver.
 - **D14 (2026-10-21).** GO / NO-GO / HOLD is a weighted vote of the human
   (0.4), the agent (0.3), and the formal artifacts (0.3). Ty decided it. A
-  win needs the human's vote. The `vote` type, `artifact_vote`, `gate`, and
+  win needs the human's vote. Reweighted the same day to 0.49, 0.24, and 0.24,
+  so the weights alone carry that rule; the outcomes do not change. The `vote` type, `artifact_vote`, `gate`, and
   `gate_split` are in the discovery module (section 12). WD6 no longer calls
   a failed reproduction a NO-GO candidate: it says to tell the human what you
   tried.
