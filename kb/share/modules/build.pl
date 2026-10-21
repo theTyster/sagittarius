@@ -83,9 +83,9 @@ decl(rule, conforms(ref(claim)),
 % ---------------------------------------------------------------------
 
 attest_type(lean_result,
-            verdict(ref(claim), alt([stated, refuted, tested(int)])),
+            verdict(ref(claim), alt([stated, refuted(text), tested(int)])),
             [agent, script],
-            'Progress on the Lean statement of a claim: stated (it type-checks with sorry), refuted, or tested in N trials with no counterexample. None of these is a proof.').
+            'Progress on the Lean statement of a claim: stated (it type-checks with sorry), refuted (with the counterexample as text), or tested in N trials with no counterexample. None of these is a proof.').
 attest_type(lean_proof,
             proof(ref(claim), digest),
             [script],

@@ -425,7 +425,7 @@ The core (`core.pl`) is always loaded. It does not mention software.
 |---|---|---|
 | `disclosure` | `alt([guess(ref(question)), unverified(text), disagreement(text), out_of_scope(text), self_error(text), other(text)])` | `[agent, human]` |
 | `divergence` | `alt([claim(ref(claim)), hypothesis(term), model(term)])`. Put the description in a `note/2`. | `[human, agent]` |
-| `disproof` | `verdict(ref(claim), oneof([refuted, inconclusive, abstained]))` | `[agent]` |
+| `disproof` | `verdict(ref(claim), alt([refuted(text), inconclusive, abstained]))`. Put the counterexample in the text of `refuted`. | `[agent]` |
 | `approval` | `digest(digest)` | `[human]` |
 | `test_result` | `result(ref(check), int, oneof([pass, fail]))` | `[script]` |
 
@@ -437,7 +437,7 @@ The core (`core.pl`) is always loaded. It does not mention software.
 | `current(C)` | `C` is a claim and is not superseded. |
 | `answered(Q)` | A human answered `Q`. |
 | `defeated(Q)` | A human answer to `Q` differs from its default. |
-| `refuted(C)` | An attestation gives `verdict(C, refuted)`. |
+| `refuted(C)` | An attestation gives `verdict(C, refuted(_))`. The text is the counterexample. A bare `refuted` is rejected (E3). |
 | `contested(C)` | One or more `divergence` attestations name `claim(C)`. |
 | `contested_twice(C)` | Two or more different `divergence` attestations name `claim(C)`. |
 | `to_ask(Q)` | No human answered `Q`, its claim is current, and one of these is true: a question that `Q` depends on is defeated, or the claim is contested. |
@@ -471,7 +471,7 @@ Load it with `uses([build])`. Its file is `modules/build.pl`.
 
 | Type | Shape | Writers |
 |---|---|---|
-| `lean_result` | `verdict(ref(claim), alt([stated, refuted, tested(int)]))` | `[agent, script]` |
+| `lean_result` | `verdict(ref(claim), alt([stated, refuted(text), tested(int)]))` | `[agent, script]` |
 | `lean_proof` | `proof(ref(claim), digest)` | `[script]`. Only `orbit-kb prove` writes it. |
 | `waiver` | `waive(ref(claim), time, text)`. The time is the due time. The text is the reason. | `[human]` |
 

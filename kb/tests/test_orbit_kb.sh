@@ -64,6 +64,7 @@
 #   SH  show   RP report   DR doctor (H1-H4 self-tests)   HP help (CLI: show, report, doctor, help) : SH1-SH7 RP1-RP6 DR1-DR3 HP1-HP3
 #   BP  burns: open, proved, changed, waived, lapsed       (Build module; D10)              : BP1-BP14
 #   SC  D10 follow-up: inherited burns, supersede cycles, rules.pl, times, proof logs (D10 follow-up) : SC1-SC11
+#   RF  refuted(Counterexample) in disproof and lean_result (2026-10-21) : RF1-RF7
 #   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10, D10 follow-up) : PV1-PV12
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
@@ -712,7 +713,7 @@ t_A13() { mkclaim; oadd "-world(door_open)"; rc_is 0 "a ground negative fact"; h
 t_A14() { mkclaim; rejects arity '' add "claim(c2, preserve)"; any_has 'E2|arity|claim/3|declared'; }
 t_A15() { mkclaim; rejects syntax '' add "claim(c2 preserve, x)"; }
 t_A16() { mkclaim; rejects badtime '' add "attest(a1, disclosure, c1, unverified(x), agent, 'yesterday')"; }
-t_A17() { mkclaim; rejects badwriter 'writer|allow|agent|human' add "attest(a1, disproof, c1, verdict(c1, refuted), human, '2026-10-15T10:00:00Z')"; }
+t_A17() { mkclaim; rejects badwriter 'writer|allow|agent|human' add "attest(a1, disproof, c1, verdict(c1, refuted('x fails')), human, '2026-10-15T10:00:00Z')"; }
 
 # ================================================================ D: declare
 t_D1() { mkclaim; okb --dir "$K" declare 'gizmo(id, text)' --doc 'A gizmo.' --template '@(1) is a gizmo called @(2)'; rc_is 0
@@ -799,7 +800,7 @@ t_B3() { kb_intro "$T/k"; K=$T/k; add_result $K k2 1 pass; is_true 'fulfilled(c2
 t_B4() { kb_intro "$T/k"; K=$T/k; add_result $K k2 1 pass; add_result $K k2 2 fail; is_false 'passed(k2)'; is_false 'fulfilled(c2)'; is_true 'under(c2)'; }
 t_B5() { kb_intro "$T/k"; K=$T/k; add_result $K k2 1 pass; add_result $K k2 2 fail; add_result $K k2 3 pass; is_true 'passed(k2)'; is_true 'fulfilled(c2)'; }
 t_B6() { kb_intro "$T/k"; K=$T/k; add_result $K k1 1 fail; add_result $K k1 2 pass; add_result $K k1 3 fail; is_false 'fulfilled(c1)'; is_true 'under(c1)'; }
-t_B7() { kb_intro "$T/k"; K=$T/k; add_result $K k2 1 pass; echo "attest(d1, disproof, c2, verdict(c2, refuted), agent, '2026-10-15T10:00:30Z')." >> $K/kb.pl
+t_B7() { kb_intro "$T/k"; K=$T/k; add_result $K k2 1 pass; echo "attest(d1, disproof, c2, verdict(c2, refuted('save loses data')), agent, '2026-10-15T10:00:30Z')." >> $K/kb.pl
          is_true 'refuted(c2)'; is_false 'fulfilled(c2)'; is_true 'under(c2)'; }
 t_B8() { kb_overunder "$T/k"; K=$T/k; is_set 'under(X)' 'X = c1'; is_set 'over(X)' 'X = x2'; is_set 'served(X)' 'X = x1|X = x3'; is_set 'fulfilled(X)' 'X = c2'; }
 t_B9() { kb_done "$T/k"; K=$T/k; is_true "done"; is_false any_under; is_false any_over; is_false any_to_ask; }
@@ -934,6 +935,34 @@ gd_kb() {  # gd_kb DIR: a build KB with 20 claims, each with a check, a serving 
     } > "$d/kb.pl"
     for ((i = 1; i <= 20; i++)); do add_result "$d" "k$i" $((2 * i - 1)) fail; add_result "$d" "k$i" $((2 * i)) pass; done
 }
+# ---- RF: the refuted verdict carries its counterexample (2026-10-21)
+# R1: refuted(Counterexample) with text, in disproof and lean_result. R2: refuted(C) holds for it.
+# R3: a bare refuted is E3 and the message shows the new form. R4: the other verdicts are unchanged.
+# R5: why prints the counterexample.
+t_RF1() { mkclaim; oadd "attest(d1, disproof, c1, verdict(c1, refuted('delete then save loses data')), agent, '2026-10-15T10:00:00Z')"; rc_is 0 "disproof with a counterexample"
+          oadd "attest(l1, lean_result, c1, verdict(c1, refuted('n = 0')), agent, '2026-10-15T10:00:01Z')"; rc_is 0 "lean_result with a counterexample"
+          has_goal "$K/kb.pl" "kb(attest(d1, disproof, c1, verdict(c1, refuted('delete then save loses data')), agent, _))" "the fact is stored with its text"
+          okb --dir "$K" lint; rc_is 0 "lint is clean"; }
+t_RF2() { mkclaim; oadd "attest(d1, disproof, c1, verdict(c1, refuted('boom')), agent, '2026-10-15T10:00:00Z')"
+          q 'refuted(X)' -n 0; rc_is 0; out_has 'X = c1'; }
+t_RF3() { mkclaim; add_result "$K" k1 1 fail; add_result "$K" k1 2 pass; is_true 'fulfilled(c1)' "before the refutation"
+          oadd "attest(l1, lean_result, c1, verdict(c1, refuted('n = 0')), agent, '2026-10-15T10:00:01Z')"; rc_is 0
+          is_true 'refuted(c1)'; is_false 'fulfilled(c1)'; is_true 'under(c1)'; }
+t_RF4() { mkclaim; rejects "bare refuted in disproof" 'E3|must match' add "attest(d1, disproof, c1, verdict(c1, refuted), agent, '2026-10-15T10:00:00Z')"
+          any_hasf "verdict(c1, refuted('the counterexample'))" "the message shows the whole new form"
+          rejects "bare refuted in lean_result" 'E3|must match' add "attest(l1, lean_result, c1, verdict(c1, refuted), agent, '2026-10-15T10:00:00Z')"
+          any_hasf "refuted('the counterexample')" "the message shows the new form"
+          rejects "bare refuted from attest" 'E3|must match' attest disproof c1 'verdict(c1, refuted)'; }
+t_RF5() { mkclaim
+          rejects "refuted with an integer" 'text|E3' add "attest(d1, disproof, c1, verdict(c1, refuted(5)), agent, '2026-10-15T10:00:00Z')"
+          rejects "refuted with two arguments" 'must match|E3' add "attest(d1, disproof, c1, verdict(c1, refuted(a, b)), agent, '2026-10-15T10:00:00Z')"; }
+t_RF6() { mkclaim; local n=0 v
+          for v in inconclusive abstained; do n=$((n+1)); oadd "attest(d$n, disproof, c1, verdict(c1, $v), agent, '2026-10-15T10:00:0${n}Z')"; rc_is 0 "disproof $v"; done
+          for v in stated 'tested(7)'; do n=$((n+1)); oadd "attest(l$n, lean_result, c1, verdict(c1, $v), agent, '2026-10-15T10:00:0${n}Z')"; rc_is 0 "lean_result $v"; done
+          is_false 'refuted(c1)' "none of these refutes"; okb --dir "$K" lint; rc_is 0; }
+t_RF7() { mkclaim; oadd "attest(d1, disproof, c1, verdict(c1, refuted('delete then save loses data')), agent, '2026-10-15T10:00:00Z')"; rc_is 0
+          okb --dir "$K" why 'refuted(c1)'; rc_is 0; any_hasf 'delete then save loses data' "why shows the counterexample"; }
+
 # ---- D10: a burn needs a Lean proof (or a human waiver); done waits for it
 t_BP1() { kb_burndone "$T/k"; K=$T/k; is_true 'burn(c1)'; is_set 'burn_open(X)' 'X = c1'; is_false 'done' "c1 burns and has no proof"
           is_true any_burn_open; is_false any_under; is_false any_over; is_false any_to_ask; }
@@ -1410,6 +1439,13 @@ run_test t_B4 B4 "pass then later fail is not fulfilled"
 run_test t_B5 B5 "pass, fail, pass is passed"
 run_test t_B6 B6 "fail, pass, fail is not fulfilled"
 run_test t_B7 B7 "a refuted claim is not fulfilled"
+run_test t_RF1 RF1 "R1: disproof and lean_result accept refuted(text)"
+run_test t_RF2 RF2 "R2: refuted(C) holds for refuted(text)"
+run_test t_RF3 RF3 "R2: a lean_result refuted(text) refutes the claim"
+run_test t_RF4 RF4 "R3: a bare refuted is E3 and the message shows refuted('...')"
+run_test t_RF5 RF5 "R1: refuted takes one text argument"
+run_test t_RF6 RF6 "R4: inconclusive, abstained, stated, tested(N) are unchanged"
+run_test t_RF7 RF7 "R5: why prints the counterexample"
 run_test t_B8 B8 "under and over (a change that serves nothing is over)"
 run_test t_B9 B9 "done is true when everything is clear"
 run_test t_B10 B10 "done is false with an open claim among several facts (H1)"

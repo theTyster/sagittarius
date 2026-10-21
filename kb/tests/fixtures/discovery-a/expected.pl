@@ -101,7 +101,7 @@ expect(cf5c_reason_other_model, 'lint_issue(''WD3'', Id, _)', ['Id = a17']).
 
 % --- CF6 (decision 4): a solver counterexample refutes c2b ---
 variant(cf6_disproof, [
-    add(attest(a18, disproof, m_target, verdict(c2b, refuted), agent, '2026-10-15T10:40:00Z')),
+    add(attest(a18, disproof, m_target, verdict(c2b, refuted('the model found a case that breaks the claim')), agent, '2026-10-15T10:40:00Z')),
     add(note(a18, 'Without the domain bound floor <= list, Z3 finds an order whose floor is above its list price. The clamp then charges more than the list price.')),
     add(example(c2b, 'List $20.00, floor $30.00, one code $5.00. Charge $30.00, above the list price.'))]).
 expect(cf6_disproof, 'refuted(C)', ['C = c2b']).
@@ -206,7 +206,7 @@ expect(b2_break_unfiled, 'lint_issue(''ED5'', Id, _)', ['Id = c2b']).
 variant(b2_break_filed, [
     replace(attest(a15, model_result, run_target, verdict(m_target, preserve(c2b), unsat), agent, '2026-10-15T10:20:00Z'),
             attest(a15, model_result, run_target, verdict(m_target, preserve(c2b), sat), agent, '2026-10-15T10:20:00Z')),
-    add(attest(a18, disproof, m_target, verdict(c2b, refuted), agent, '2026-10-15T10:40:00Z'))]).
+    add(attest(a18, disproof, m_target, verdict(c2b, refuted('the model found a case that breaks the claim')), agent, '2026-10-15T10:40:00Z'))]).
 expect(b2_break_filed, 'model_unfiled_break(C)', none).
 expect(b2_break_filed, 'some_current_refuted', true).
 expect(b2_break_filed, 'discovery_ready', none).
@@ -391,13 +391,13 @@ expect(m6_budget_raised, 'discovery_decide', none).
 variant(m6_budget_hides, [
     replace(budget(laps, 3), budget(laps, 1)),
     delete(answer(q1, floor_wins, human)),
-    add(attest(a18, disproof, m_target, verdict(c2b, refuted), agent, '2026-10-15T10:40:00Z'))]).
+    add(attest(a18, disproof, m_target, verdict(c2b, refuted('the model found a case that breaks the claim')), agent, '2026-10-15T10:40:00Z'))]).
 expect(m6_budget_hides, 'discovery_ready', none).
 expect(m6_budget_hides, 'discovery_decide', true).
 
 % --- M7 (P16): c2b is refuted; the agent alone supersedes it ---
 variant(m7_launder, [
-    add(attest(a18, disproof, m_target, verdict(c2b, refuted), agent, '2026-10-15T10:40:00Z')),
+    add(attest(a18, disproof, m_target, verdict(c2b, refuted('the model found a case that breaks the claim')), agent, '2026-10-15T10:40:00Z')),
     add(claim(c2c, preserve, 'Each code takes off its full amount, down to the floor price, when the floor is at most the list price.')),
     add(supersedes(c2c, c2b)),
     add(cites(c2c, 'used two discount codes')),
@@ -409,7 +409,7 @@ expect(m7_launder, 'lint_issue(''ED7'', Id, _)', ['Id = c2c']).
 
 % --- M7: the same supersession after a human answer about c2b ---
 variant(m7_ratified, [
-    add(attest(a18, disproof, m_target, verdict(c2b, refuted), agent, '2026-10-15T10:40:00Z')),
+    add(attest(a18, disproof, m_target, verdict(c2b, refuted('the model found a case that breaks the claim')), agent, '2026-10-15T10:40:00Z')),
     add(question(q4, c2b, 'c2b fails when the floor is above the list price. Restrict it?')),
     add(assumed(q4, restrict)),
     add(answer(q4, restrict, human)),
@@ -994,7 +994,7 @@ expect(pl_agent_supersedes_unrefuted, 'discovery_ready', true).
 variant(pl_unanswered_question, [
     add(question(q5, c2b, 'c2b fails when the floor is above the list price. Restrict it?')),
     add(assumed(q5, restrict)),
-    add(attest(a18, disproof, m_target, verdict(c2b, refuted), agent, '2026-10-15T11:00:00Z')),
+    add(attest(a18, disproof, m_target, verdict(c2b, refuted('the model found a case that breaks the claim')), agent, '2026-10-15T11:00:00Z')),
     add(claim(c2c, preserve, 'Each code takes off its full amount, down to the floor price, when the floor is at most the list price.')),
     add(cites(c2c, 'used two discount codes')),
     add(supersedes(c2c, c2b)),
@@ -1005,7 +1005,7 @@ expect(pl_unanswered_question, 'discovery_ready', none).
 
 % L6d. A human answer about the NEW claim ratifies it (decl of discovery_unratified; kills m175).
 variant(pl_ratified_via_new, [
-    add(attest(a18, disproof, m_target, verdict(c2b, refuted), agent, '2026-10-15T11:00:00Z')),
+    add(attest(a18, disproof, m_target, verdict(c2b, refuted('the model found a case that breaks the claim')), agent, '2026-10-15T11:00:00Z')),
     add(claim(c2c, preserve, 'Each code takes off its full amount, down to the floor price, when the floor is at most the list price.')),
     add(cites(c2c, 'used two discount codes')),
     add(supersedes(c2c, c2b)),
@@ -1209,7 +1209,7 @@ expect(pl_edit_rerun_sanity_only, 'model_trusted(M)', none).
 
 % L20. A disproof on a claim that is no longer current does not block (core current/1).
 variant(pl_disproof_superseded, [
-    add(attest(a18, disproof, m_target, verdict(c2, refuted), agent, '2026-10-15T11:00:00Z'))]).
+    add(attest(a18, disproof, m_target, verdict(c2, refuted('the model found a case that breaks the claim')), agent, '2026-10-15T11:00:00Z'))]).
 expect(pl_disproof_superseded, 'refuted(C)', ['C = c2']).
 expect(pl_disproof_superseded, 'some_current_refuted', none).
 expect(pl_disproof_superseded, 'discovery_unratified(C)', none).
@@ -1217,7 +1217,7 @@ expect(pl_disproof_superseded, 'discovery_ready', true).
 
 variant(pl_disproof_superseded_unanswered, [
     delete(answer(q1, floor_wins, human)),
-    add(attest(a18, disproof, m_target, verdict(c2, refuted), agent, '2026-10-15T11:00:00Z'))]).
+    add(attest(a18, disproof, m_target, verdict(c2, refuted('the model found a case that breaks the claim')), agent, '2026-10-15T11:00:00Z'))]).
 expect(pl_disproof_superseded_unanswered, 'question_waits(Q)', ['Q = q1']).
 expect(pl_disproof_superseded_unanswered, 'discovery_unratified(C)', ['C = c2b']).
 expect(pl_disproof_superseded_unanswered, 'discovery_ready', none).

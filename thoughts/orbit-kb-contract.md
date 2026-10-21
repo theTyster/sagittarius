@@ -85,6 +85,7 @@
   are updated below. Open requests: a lint warning for a stale approval (LM21); a way to
   record a digest without typing it (F5); a `report_section/3` hook for `report` and
   `show open`. `--by human` is a claim the CLI cannot verify (LM20).
+- **D12 (the refuted verdict carries its counterexample, 2026-10-21).** Decision by Ty: "make a slot for the counterexample in the refuted verdict." The verdict is `refuted(Counterexample)`, where the argument is `text`, in both `disproof` (`alt([refuted(text), inconclusive, abstained])`) and `lean_result` (`alt([stated, refuted(text), tested(int)])`). The core rule is `refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).` `discovery_disproof_filed/1` reads `refuted(_)` too. A bare `refuted` is E3. The message shows the new form, such as `verdict(c1, refuted('the counterexample'))`. `inconclusive`, `abstained`, `stated`, and `tested(N)` do not change. A KB with a bare `refuted` fails lint (E3) until its author adds the text. `why` prints the text. `report` and `show` do not print refutations, so they do not change. Tests: RF1 to RF7.
 - **D11 (add a module, 2026-10-19).** Decision by Ty: a cleaner fix than an edit by hand for the handoff between orbits. `orbit-kb uses MODULE …` adds a module to an existing KB.
 - **D10 (a burn needs a proof, 2026-10-19).** Decision by Ty: "A burn needs a proven
   verdict. Always. Specification clarity comes from the need to build out that proof. Not
@@ -95,7 +96,7 @@
   scaling"). The changes:
   - `done` also needs `not any_burn_open`. `burn_open(C) :- burn(C), current(C),
     not burn_proved(C), not burn_waived(C).`
-  - `lean_result` keeps `stated`, `refuted`, and `tested(int)`, and loses `proved`. New
+  - `lean_result` keeps `stated`, `refuted` (now `refuted(text)`, D12), and `tested(int)`, and loses `proved`. New
     types: `lean_proof` (`proof(ref(claim), digest)`, writers `[script]`) and `waiver`
     (`waive(ref(claim), time, text)`, writers `[human]`).
   - New command `orbit-kb prove CLAIM FILE THEOREM [--module M]`. It runs `lake build`, a
@@ -418,7 +419,7 @@ Core attestation types:
 
 - `disclosure`: shape `alt([guess(ref(question)), unverified(text), disagreement(text), out_of_scope(text), self_error(text), other(text)])`. Writers: `[agent, human]`.
 - `divergence`: shape `alt([claim(ref(claim)), hypothesis(term), model(term)])`. Writers: `[human, agent]`. Put the description in a `note/2`.
-- `disproof`: shape `verdict(ref(claim), oneof([refuted, inconclusive, abstained]))`. Writers: `[agent]`.
+- `disproof`: shape `verdict(ref(claim), alt([refuted(text), inconclusive, abstained]))`. The text of `refuted` is the counterexample (D12). Writers: `[agent]`.
 - `approval`: shape `digest(digest)`. Writers: `[human]`.
 - `test_result`: shape `result(ref(check), int, oneof([pass, fail]))`. Writers:
   `[script]` (moved from build in v2.1).
@@ -430,7 +431,7 @@ superseded(C) :- supersedes(_, C).
 current(C) :- claim(C, _, _), not superseded(C).
 answered(Q) :- answer(Q, _, human).
 defeated(Q) :- assumed(Q, A), answer(Q, B, human), A \= B.
-refuted(C) :- attest(_, _, _, verdict(C, refuted), _, _).
+refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).
 contested(C) :- attest(_, divergence, _, claim(C), _, _).
 contested_twice(C) :- attest(D1, divergence, _, claim(C), _, _),
                       attest(D2, divergence, _, claim(C), _, _), D1 \= D2.
@@ -465,7 +466,7 @@ Facts:
 
 Attestation types:
 
-- `lean_result`: shape `verdict(ref(claim), alt([stated, refuted, tested(int)]))`. Writers: `[agent, script]`. Progress only (D10).
+- `lean_result`: shape `verdict(ref(claim), alt([stated, refuted(text), tested(int)]))`. Writers: `[agent, script]`. Progress only (D10).
 - `lean_proof`: shape `proof(ref(claim), digest)`. Writers: `[script]`. Only `orbit-kb prove` writes it (D10).
 - `waiver`: shape `waive(ref(claim), time, text)`. Writers: `[human]` (D10).
 

@@ -63,6 +63,7 @@ inductive AType where
 /-- The verdict in `verdict(C, V)`. `lean_result` and `disproof` share the shape. -/
 inductive Verdict where
   | stated
+  /-- `refuted(T)`; the counterexample text `T` plays no part in any rule. -/
   | refuted
   | tested (n : Nat)
   | inconclusive
@@ -159,7 +160,8 @@ def defeated (q : Atom) : Bool :=
   db.assumed.any fun x => x.1 == q &&
     db.answer.any fun y => y.1 == q && y.2.2 == .human && x.2 != y.2.1
 
-/-- `refuted(C) :- attest(_, _, _, verdict(C, refuted), _, _).` -/
+/-- `refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).` The counterexample text
+is not modelled: `Verdict.refuted` stands for `refuted(T)` with any text `T`. -/
 def refuted (c : Atom) : Bool := db.attest.any fun a => a.pred == .verdict c .refuted
 
 /-- `contested(C) :- attest(_, divergence, _, claim(C), _, _).` -/

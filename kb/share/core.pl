@@ -184,9 +184,9 @@ attest_type(divergence,
             [human, agent],
             'A view does not agree with a claim, a hypothesis, or a model; a note holds the description.').
 attest_type(disproof,
-            verdict(ref(claim), oneof([refuted, inconclusive, abstained])),
+            verdict(ref(claim), alt([refuted(text), inconclusive, abstained])),
             [agent],
-            'The verdict of an attempt to break a claim.').
+            'The verdict of an attempt to break a claim. A refuted verdict carries the counterexample as text.').
 attest_type(approval,
             digest(digest),
             [human],
@@ -204,7 +204,7 @@ superseded(C) :- supersedes(_, C).
 current(C) :- claim(C, _, _), not superseded(C).
 answered(Q) :- answer(Q, _, human).
 defeated(Q) :- assumed(Q, A), answer(Q, B, human), A \= B.
-refuted(C) :- attest(_, _, _, verdict(C, refuted), _, _).
+refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).
 contested(C) :- attest(_, divergence, _, claim(C), _, _).
 contested_twice(C) :- attest(D1, divergence, _, claim(C), _, _),
                       attest(D2, divergence, _, claim(C), _, _), D1 \= D2.

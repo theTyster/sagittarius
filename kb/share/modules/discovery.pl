@@ -138,7 +138,7 @@ decl(rule, some_model_problem, 'Some model diverges, is vacuous, breaks a claim 
 decl(rule, some_unratified_supersession, 'Some claim replaces a disputed claim with no human answer behind it.', 'some claim replaces a disputed claim without a human answer').
 
 % --- A disproof names the claim (a helper, because model_unfiled_break reads it under not) ---
-discovery_disproof_filed(C) :- attest(_, disproof, _, verdict(C, refuted), _, _).
+discovery_disproof_filed(C) :- attest(_, disproof, _, verdict(C, refuted(_)), _, _).
 
 % --- Evidence from the current system ---
 discovery_model_artifact(S) :- model(S, _).

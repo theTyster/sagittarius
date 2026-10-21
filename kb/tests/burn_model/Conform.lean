@@ -174,7 +174,7 @@ def lS : Label → String
 
 def vS : Verdict → String
   | .stated => "stated"
-  | .refuted => "refuted"
+  | .refuted => "refuted('counterexample')"
   | .tested n => s!"tested({n})"
   | .inconclusive => "inconclusive"
   | .abstained => "abstained"

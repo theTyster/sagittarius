@@ -1003,12 +1003,42 @@ val_errs(alt(Entries), V, Env, Es) :- !,
     ;   maplist(term_text, Entries, ETs),
         atomic_list_concat(ETs, ', ', J),
         term_text(V, VT),
-        fmt(M, "It must match one of: ~w. It is ~w.", [J, VT]),
+        (   bare_label_example(Entries, V, Ex)
+        ->  term_text(Ex, ExT),
+            fmt(M, "It must match one of: ~w. It is ~w. The label ~w takes an argument: write ~w.", [J, VT, V, ExT])
+        ;   fmt(M, "It must match one of: ~w. It is ~w.", [J, VT])
+        ),
         Es = ['E3'-M]
     ).
 val_errs(T, _, _, ['E3'-M]) :-
     term_text(T, TT),
     fmt(M, "Its declared type ~w is unknown.", [TT]).
+
+% bare_label_example(+Entries, +V, -Example): V is an atom that names a compound
+% entry of an alt, such as refuted for refuted(text). Example is that entry with
+% a sample argument in each place, such as refuted('the counterexample').
+bare_label_example(Entries, V, Ex) :-
+    atom(V),
+    member(E, Entries), compound(E), compound_name_arity(E, V, _), !,
+    E =.. [_|Ts],
+    maplist(sample_arg(V), Ts, As),
+    Ex =.. [V|As].
+
+sample_arg(refuted, text, 'the counterexample') :- !.
+sample_arg(_, text, 'some text') :- !.
+sample_arg(_, int, 1) :- !.
+sample_arg(_, ref(N), N) :- !.
+sample_arg(_, T, T).
+
+% bare_label_whole(+Shape, +Pred, -Whole): Pred has a bare label where Shape wants
+% an alt entry with arguments. Whole is Pred with a sample in that place.
+bare_label_whole(S, V, Whole) :-
+    compound(S), compound(V),
+    S =.. [N|Ts], V =.. [N|Vs],
+    nth1(I, Ts, alt(Entries)), nth1(I, Vs, Bare),
+    bare_label_example(Entries, Bare, Ex),
+    nth1(I, Vs, Bare, Rest), nth1(I, Vs2, Ex, Rest),
+    Whole =.. [N|Vs2].
 
 shape_val_errs(_, V, _, []) :- var(V), !.
 shape_val_errs(S, V, Env, Es) :- is_type_term(S), !, val_errs(S, V, Env, Es).
@@ -1021,7 +1051,13 @@ shape_val_errs(S, V, Env, Es) :- compound(S), !,
     compound_name_arity(S, N, A),
     (   compound(V), compound_name_arity(V, N, A)
     ->  S =.. [_|Ts], V =.. [_|Vs],
-        args_errs(Ts, Vs, Env, Es)
+        args_errs(Ts, Vs, Env, Es0),
+        (   Es0 \== [], bare_label_whole(S, V, Whole)
+        ->  term_text(Whole, WT),
+            fmt(HM, "Write the whole predicate as ~w.", [WT]),
+            append(Es0, ['E3'-HM], Es)
+        ;   Es = Es0
+        )
     ;   term_text(S, ST), term_text(V, VT),
         fmt(M, "It must have the form ~w. It is ~w.", [ST, VT]),
         Es = ['E3'-M]
