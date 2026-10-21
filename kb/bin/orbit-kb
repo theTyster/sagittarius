@@ -915,6 +915,12 @@ is_type_term(T) :- compound(T), ( T = ref(_) ; T = oneof(_) ; T = alt(_) ), !.
 % type_errs(+Type, +FactNames, -Errors): Errors is a list of strings.
 type_errs(T, _, ["A type is a variable."]) :- var(T), !.
 type_errs(T, _, []) :- atom(T), simple_type(T), !.
+type_errs(ref(Ns), K, Es) :- is_list(Ns), !,
+    (   Ns \== [], maplist(atom, Ns)
+    ->  findall(E, ( member(N, Ns), \+ memberchk(N, K),
+                     fmt(E, "ref(~q) names ~q, which is no declared fact predicate.", [Ns, N]) ), Es)
+    ;   Es = ["ref([...]) needs a list of fact names, such as ref([claim, check])."]
+    ).
 type_errs(ref(N), K, Es) :- !,
     (   atom(N), memberchk(N, K)
     ->  Es = []
@@ -932,7 +938,7 @@ type_errs(alt(L), K, Es) :- !,
     ).
 type_errs(T, _, [E]) :-
     term_text(T, S),
-    fmt(E, "~w is not a known type. The known types are id, ref(Name), ref, oneof([...]), alt([...]), text, atom, int, time, digest, by, and term.", [S]).
+    fmt(E, "~w is not a known type. The known types are id, ref(Name), ref([Name, ...]), ref, oneof([...]), alt([...]), text, atom, int, time, digest, by, and term.", [S]).
 
 entry_errs(S, _, ["A shape is a variable."]) :- var(S), !.
 entry_errs(S, _, []) :- atom(S), !.
@@ -975,6 +981,16 @@ val_errs(ref, V, env(_, _, IdA, _), Es) :- !,
     ;   get_assoc(V, IdA, _)
     ->  Es = []
     ;   fmt(M, "~q is not an existing id. Add the fact that defines it first, or fix the id.", [V]),
+        Es = ['E4'-M]
+    ).
+% ref([N1, N2, ...]) (D13): the id of a fact of any one of the names.
+val_errs(ref(Ns), V, env(_, _, _, FAA), Es) :- is_list(Ns), !,
+    (   \+ atom(V)
+    ->  bad_value("an id (an atom)", V, Es)
+    ;   member(N, Ns), get_assoc(N-V, FAA, _)
+    ->  Es = []
+    ;   kinds_text(Ns, KT),
+        fmt(M, "~q is not the id of any ~w fact. It must be the id of a ~w. Add that fact first, or fix the id.", [V, KT, KT]),
         Es = ['E4'-M]
     ).
 val_errs(ref(N), V, env(_, _, _, FAA), Es) :- !,
@@ -1027,6 +1043,7 @@ bare_label_example(Entries, V, Ex) :-
 sample_arg(refuted, text, 'the counterexample') :- !.
 sample_arg(_, text, 'some text') :- !.
 sample_arg(_, int, 1) :- !.
+sample_arg(_, ref([N|_]), N) :- !.
 sample_arg(_, ref(N), N) :- !.
 sample_arg(_, T, T).
 
@@ -1069,6 +1086,14 @@ args_errs(Ts, Vs, Env, Es) :-
                    val_errs(T, V, Env, Es1), member(C-M0, Es1),
                    fmt(M, "In argument ~w: ~w", [I, M0]) ),
             Es).
+
+% kinds_text(+Names, -Text): "claim, check, or question".
+kinds_text([N], T) :- !, fmt(T, "~w", [N]).
+kinds_text([A, B], T) :- !, fmt(T, "~w or ~w", [A, B]).
+kinds_text(Ns, T) :-
+    append(Init, [Last], Ns),
+    atomic_list_concat(Init, ', ', IT),
+    fmt(T, "~w, or ~w", [IT, Last]).
 
 bad_value(What, V, ['E3'-M]) :-
     term_text(V, VT),
@@ -1366,7 +1391,7 @@ head_diags(Ds, Src, F, L, H0, Diags) :-
                 Diags = [diag('E7', F, L, M)]
             ;   Src == rules, ( DSrc == core ; DSrc = module(_) ), protected_pi(N/A)
             ->  src_text(DSrc, ST),
-                fmt(M, "rules.pl adds clauses to ~q/~w from ~w. rules.pl cannot change done, the burn rules, or the facts that orbit-kb computes. The engines ignore this clause. Remove it.", [N, A, ST]),
+                fmt(M, "rules.pl adds clauses to ~q/~w from ~w. rules.pl cannot change done, the burn rules, the waiver rules, or the facts that orbit-kb computes. The engines ignore this clause. Remove it.", [N, A, ST]),
                 Diags = [diag('E16', F, L, M)]
             ;   Src == rules, ( DSrc == core ; DSrc = module(_) )
             ->  src_text(DSrc, ST),
@@ -1389,6 +1414,8 @@ protected_pi(burn_open/1).
 protected_pi(any_burn_open/0).
 protected_pi(proof_changed/1).
 protected_pi(waiver_lapsed/1).
+protected_pi(check_waived/1).
+protected_pi(question_waived/1).
 protected_pi(supersedes_closure/2).
 protected_pi(supersede_cycle/1).
 protected_pi(any_supersede_cycle/0).
@@ -4543,6 +4570,7 @@ show_section(KB, Eng, claims) :-
              (   has_build(KB)
              ->  ( eng_member(Eng, FulS, C, fulfilled(C)) -> St1 = ", fulfilled"
                  ; eng_member(Eng, UndS, C, under(C)) -> St1 = ", under"
+                 ; eng_true(Eng, check_waived(C)) -> St1 = ", not fulfilled (a human waived a check of it)"
                  ; St1 = "" )
              ;   St1 = ""
              ),
@@ -4572,7 +4600,8 @@ show_section(_, Eng, questions) :-
              forall(member(A, As), ( term_text(A, AT), say("  Default: ~w.", [AT]) )),
              eng_lookup2(Eng, AnsBy, Q, [B, W], answer(Q, B, W), Bs),
              forall(member([B, W], Bs), ( term_text(B, BT), say("  Answer by ~w: ~w.", [W, BT]) )),
-             ( eng_member(Eng, AskS, Q, to_ask(Q)) -> say("  Ask it now.", []) ; true ) )).
+             ( eng_member(Eng, AskS, Q, to_ask(Q)) -> say("  Ask it now.", []) ; true ),
+             ( eng_true(Eng, question_waived(Q)) -> say("  A human waived it (see the waivers in orbit-kb report).", []) ; true ) )).
 show_section(KB, Eng, open) :-
     say("Open:", []),
     eng_all(Eng, [Q], to_ask(Q), Qs),
@@ -4693,6 +4722,15 @@ eng_lookup2(Eng, By, K, VT, G, Vs) :-
     ;   eng_all(Eng, VT, G, Vs)
     ).
 
+% waiver_kind(+Eng, +X, -Kind) (D13): the kind of the target of a waiver:
+% claim, check, question, or "unknown id".
+waiver_kind(Eng, X, K) :-
+    (   eng_true(Eng, claim(X, _, _)) -> K = claim
+    ;   eng_true(Eng, check(X, _)) -> K = check
+    ;   eng_true(Eng, question(X, _, _)) -> K = question
+    ;   K = 'unknown id'
+    ).
+
 cmd_report(KB, Args, Code) :-
     parse_opts(Args, [], Pos, _),
     ( Pos == [] -> true ; usage_error("report takes no arguments.", []) ),
@@ -4712,7 +4750,11 @@ cmd_report(KB, Args, Code) :-
     forall(member([C, L, T], Cs),
            ( txt(T, TT),
              (   call(Build)
-             ->  ( eng_member(Eng, FulS, C, fulfilled(C)) -> St0 = " Status: fulfilled." ; St0 = " Status: under. It is not fulfilled yet." ),
+             ->  (   eng_member(Eng, FulS, C, fulfilled(C)) -> St0 = " Status: fulfilled."
+                 ;   eng_all(Eng, [WK, WD], ( check(WK, C), attest(WW, waiver, _, waive(WK, WD, _), human, _), not(waiver_lapsed(WW)) ), [[WK1, WD1]|_])
+                 ->  fmt(St0, " Status: not fulfilled. A human waived check ~w until ~w, so the claim does not block done until then.", [WK1, WD1])
+                 ;   St0 = " Status: under. It is not fulfilled yet."
+                 ),
                  burn_text(Eng, BSets, C, BT),
                  string_concat(St0, BT, St)
              ;   St = ""
@@ -4736,6 +4778,20 @@ cmd_report(KB, Args, Code) :-
     (   Ds == [] -> say("- None.", []) ; true ),
     forall(member([I, S0, P, B], Ds),
            ( term_text(P, PT), say("- ~w: ~w, about ~w, by ~w.", [I, PT, S0, B]) )),
+    (   call(Build)
+    ->  say("Waivers:", []),
+        eng_all(Eng, [W6, X6, D6, B6], attest(W6, waiver, _, waive(X6, D6, _), B6, _), W6s),
+        (   W6s == [] -> say("- None.", []) ; true ),
+        forall(member([W6, X6, D6, B6], W6s),
+               ( waiver_kind(Eng, X6, Kind6),
+                 ( atom(D6) -> DT6 = D6 ; term_text(D6, DT6) ),
+                 (   B6 \== human -> St6 = "it does not count, because a human did not write it (E8)"
+                 ;   eng_true(Eng, waiver_lapsed(W6)) -> St6 = "lapsed, so the item blocks done again"
+                 ;   St6 = "in force"
+                 ),
+                 say("- ~w: ~w ~w, due ~w, ~w.", [W6, Kind6, X6, DT6, St6]) ))
+    ;   true
+    ),
     say("Not checked:", []),
     findall([C3, T3], ( member([C3, _, T3], Cs),
                         \+ ( eng_lookup(Eng, ChecksBy, C3, K3, check(K3, C3), [_|_]) ) ),
@@ -4758,7 +4814,13 @@ cmd_report(KB, Args, Code) :-
     forall(member(Y4, Y4s), say("- Claim ~w is in a supersede cycle. It replaces itself, so it is not current. Remove a supersedes fact (lint E15).", [Y4])),
     forall(member(O4, O4s), say("- Change ~w serves no claim.", [O4])),
     forall(member(B4, B4s), say("- Claim ~w needs a Lean proof. Prove it with orbit-kb prove, or ask a human for a waiver.", [B4])),
-    forall(member([W4, C4, D4], L4s), say("- Waiver ~w of the proof of claim ~w was due at ~w. The proof is due now.", [W4, C4, D4])),
+    forall(member([W4, C4, D4], L4s),
+           ( waiver_kind(Eng, C4, K4),
+             (   K4 == claim -> say("- Waiver ~w of the proof of claim ~w was due at ~w. The proof is due now.", [W4, C4, D4])
+             ;   K4 == check -> say("- Waiver ~w of check ~w was due at ~w. The check must pass now.", [W4, C4, D4])
+             ;   K4 == question -> say("- Waiver ~w of question ~w was due at ~w. Ask the question now, if it is still open.", [W4, C4, D4])
+             ;   say("- Waiver ~w of ~w was due at ~w.", [W4, C4, D4])
+             ) )),
     forall(member([P4, C5], P4s), say("- Proof ~w of claim ~w no longer counts. A file of the proof changed. Run orbit-kb prove again.", [P4, C5])),
     (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], L4s == [], P4s == [] -> say("- Nothing is open.", []) ; true ),
     say("To land:", []),
@@ -5075,7 +5137,7 @@ help_lines(declare, [
 "orbit-kb declare 'HEAD' --doc TEXT [--kind fact|rule] [--template T]",
 "",
 "Declare a local predicate in kb.pl. HEAD is name(type1, ..., typeN).",
-"Types: id, ref(Name), ref, oneof([a, b]), alt([shape, ...]), text, atom, int, time, digest, by, term.",
+"Types: id, ref(Name), ref([Name, ...]), ref, oneof([a, b]), alt([shape, ...]), text, atom, int, time, digest, by, term.",
 "The default kind is fact. Use --kind rule for a predicate that rules.pl computes.",
 "The template is the English text for explanations. @(1), @(2), ... stand for the arguments.",
 "orbit-kb refuses a name and arity that is already declared anywhere."
@@ -5102,7 +5164,10 @@ help_lines(attest, [
 "The predicate digest(current) becomes the recorded digest of SUBJECT.",
 "The file must still have that digest. If it changed, run orbit-kb subject first.",
 "orbit-kb checks the shape, the writer, and the references.",
-"A human waives a Lean proof with: orbit-kb attest waiver CLAIM 'waive(CLAIM, DUE, REASON)' --by human.",
+"A waiver is human only. Its target is a claim (it waives the Lean proof), a check, or a question:",
+"  orbit-kb attest waiver c1 \"waive(c1, '2026-11-30T17:00:00Z', 'why')\" --by human",
+"A waived check covers its claim for done, but the claim is not fulfilled, and a burn still needs a proof.",
+"A waived question need not be asked. When the due time is past, the item blocks done again. report lists every waiver.",
 "orbit-kb cannot verify --by human. The writer says human."
 ]).
 help_lines(run, [
@@ -5129,7 +5194,8 @@ help_lines(prove, [
 "It also lists the Lake configuration files that do not exist.",
 "If one of these files changes, or an absent one appears, the proof stops counting, and the burn is open again.",
 "prove checks the proof of an honest agent that can make mistakes. It does not resist an agent that cheats on purpose.",
-"A burn (burn(C)) needs a proof, or a human waiver: orbit-kb attest waiver C 'waive(C, DUE, REASON)' --by human.",
+"A burn (burn(C)) needs a proof, or a human waiver of the claim (see orbit-kb help attest):",
+"  orbit-kb attest waiver c1 \"waive(c1, '2026-11-30T17:00:00Z', 'why')\" --by human",
 "A claim that replaces a burning claim (supersedes) burns too, and needs its own proof.",
 "orbit-kb cannot check that the statement says what the claim says. Read the statement.",
 "Exit 0 when the proof is recorded, 1 when it is not a proof, 2 on a usage error or a missing tool."
@@ -5141,7 +5207,7 @@ help_lines(lint, [
 "E1 syntax. E2 undeclared predicate. E3 type. E4 dangling ref. E5 duplicate id.",
 "E6 non-ground fact. E7 clause in the wrong place. E8 writer not allowed. E9 test result or proof without its log.",
 "E10 uses/1. E11 the program does not compile. E12 hazard H1. E13 hazard H4. E14 unsafe negation.",
-"E15 supersede cycle (a claim replaces itself). E16 rules.pl changes done, a burn rule, or a computed fact.",
+"E15 supersede cycle (a claim replaces itself). E16 rules.pl changes done, a burn or waiver rule, or a computed fact.",
 "W1 subject changed. W2 local declaration. W3 claim without cites. W4 local fact that no rule reads.",
 "W5 check on a superseded claim. W6 local rule that extends a library predicate.",
 "Module lint_issue/3 results follow. Exit 1 on errors, or on warnings with --strict."

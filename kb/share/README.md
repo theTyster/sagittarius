@@ -369,6 +369,7 @@ attest_type(Type, Shape, Writers, Doc).
 |---|---|
 | `id` | An atom. It must be unique across all `id`-typed values in the KB. |
 | `ref(Name)` | The ID (first argument) of a `Name` fact that exists. |
+| `ref([Name, ...])` | The ID of a fact of one of the names, such as `ref([claim, check, question])`. Another ID is E4, and the message names the allowed kinds. |
 | `ref` | The ID of a fact of any kind. |
 | `oneof(List)` | One atom of `List`. |
 | `alt(Shapes)` | A value that matches one shape. An atom entry matches itself. A compound entry matches by name and arity, and each of its arguments is a type. |
@@ -440,7 +441,8 @@ The core (`core.pl`) is always loaded. It does not mention software.
 | `refuted(C)` | An attestation gives `verdict(C, refuted(_))`. The text is the counterexample. A bare `refuted` is rejected (E3). |
 | `contested(C)` | One or more `divergence` attestations name `claim(C)`. |
 | `contested_twice(C)` | Two or more different `divergence` attestations name `claim(C)`. |
-| `to_ask(Q)` | No human answered `Q`, its claim is current, and one of these is true: a question that `Q` depends on is defeated, or the claim is contested. |
+| `to_ask(Q)` | No human answered `Q`, no human waived `Q` (`question_waived`), its claim is current, and one of these is true: a question that `Q` depends on is defeated, or the claim is contested. |
+| `question_waived(Q)` | Declared with no core clause. The build module adds it: a human `waiver` of question `Q` exists, and its due time is not past (D13). |
 | `any_to_ask` | `to_ask(Q)` is true for one or more questions. |
 | `stale(A)` | Human approval `A` names a digest that differs from the recorded digest of its subject. |
 | `supersedes_closure(N, O)` | Computed by `orbit-kb` when it reads the KB. Claim `N` replaces claim `O` through one or more `supersedes` facts. |
@@ -473,7 +475,7 @@ Load it with `uses([build])`. Its file is `modules/build.pl`.
 |---|---|---|
 | `lean_result` | `verdict(ref(claim), alt([stated, refuted(text), tested(int)]))` | `[agent, script]` |
 | `lean_proof` | `proof(ref(claim), digest)` | `[script]`. Only `orbit-kb prove` writes it. |
-| `waiver` | `waive(ref(claim), time, text)`. The time is the due time. The text is the reason. | `[human]` |
+| `waiver` | `waive(ref([claim, check, question]), time, text)`. The target is a claim, a check, or a question (D13). The time is the due time. The text is the reason. | `[human]` |
 
 A `lean_result` records progress only. `stated` means that the statement
 type-checks with `sorry`. `tested(N)` means that a search found no
@@ -485,7 +487,8 @@ verdict. A proof is a `lean_proof`.
 | Query | True when |
 |---|---|
 | `fulfilled(C)` | A check of `C` passed, and nothing refutes `C`. If the label of `C` is not `preserve`, the check must also have failed before it passed (`was_red`). |
-| `under(C)` | `C` is current and not fulfilled. |
+| `under(C)` | `C` is current, not fulfilled, and no human waived a check of `C` (`check_waived`). |
+| `check_waived(C)` | A human `waiver` of a check of `C` exists, and its due time is not past. `C` does not block `done`, but it is not fulfilled (D13). |
 | `served(X)` | Change `X` serves one or more claims. |
 | `over(X)` | Change `X` serves no claim. |
 | `any_under` | `under(C)` is true for one or more claims. |
@@ -507,11 +510,12 @@ A burn is a claim that needs a Lean proof. The proof is the source of clarity:
 to write the proof, you must state the claim correctly. A statement with
 `sorry` is not enough. A search with no counterexample is not enough.
 
-A burn closes in one of two ways:
+A burn closes in one of two ways. A waiver of a check of the claim does not
+close a burn (see "Waivers" below).
 
 1. `orbit-kb prove` records a proof. Then `burn_proved(C)` is true.
 2. A human waives the proof until a due time. Then `burn_waived(C)` is true.
-   Use `orbit-kb attest waiver C 'waive(C, DUE, REASON)' --by human`. The
+   Use `orbit-kb attest waiver c1 "waive(c1, '2026-11-30T17:00:00Z', 'why')" --by human`. The
    writer must be `human`. The writer says human; `orbit-kb` cannot verify it.
    `report` still shows the claim as `NOT PROVED`, with the due time. When the
    due time is past, the burn is open again. A due time that is not a valid
@@ -527,6 +531,30 @@ Each proof covers a set of files: the Lean source files of the project that the
 proof imports, and the Lake configuration files. If one of these files
 changes, the proof stops counting, and the burn is open again. `report` shows
 `Proof A of claim C no longer counts.` Run `orbit-kb prove` again.
+
+### Waivers
+
+A human can waive a claim, a check, or a question until a due time (D13). The
+same `waiver` type does all three. Only a waiver by `human` counts. An agent
+waiver is E8, and it does not count. Every waiver needs a due time: the time to
+come back to the item.
+
+| Target | Effect while the waiver is in force |
+|---|---|
+| claim `C` | `burn_waived(C)`: the burn of `C` is closed. `C` must still be fulfilled or have a waived check. |
+| check `K` of claim `C` | `check_waived(C)`: `C` is not `under`, so it does not block `done`. `C` is not `fulfilled`. A burn of `C` still needs a proof or a waiver of `C`. |
+| question `Q` | `question_waived(Q)`: `Q` is not `to_ask`. It is not answered. |
+
+```
+orbit-kb attest waiver k1 "waive(k1, '2026-11-30T17:00:00Z', 'The CI runner is down')" --by human
+orbit-kb attest waiver q1 "waive(q1, '2026-11-30T17:00:00Z', 'Ask the owner after the demo')" --by human
+```
+
+When the due time is past, or when it is not a valid time, the waiver lapses
+(`waiver_lapsed`). Then the item blocks `done` again. `report` lists every
+waiver in `Waivers:`, with its target, kind, due time, and state (`in force`,
+`lapsed`, or not by a human). So a waived item is never silent in the delivery.
+`rules.pl` cannot add clauses to `check_waived` or `question_waived` (E16).
 
 A proof is about the Lean model. It is not about the shipped code. The checks
 of the claim test the code, as for every claim. To test the code against the
@@ -731,19 +759,24 @@ predicate (E2) in a source file.
 Lists parts of the KB as plain text. The default is `all`. `open` lists
 `to_ask`, `stale`, and `contested`. When the `build` module is in use, `open`
 also lists `under`, `over`, and `burn_open`. `claims` shows the burn state of
-each claim that burns: proved, waived (`NOT PROVED`), or open. `show` runs one query for each relation, not
+each claim that burns: proved, waived (`NOT PROVED`), or open. It shows a claim
+with a waived check as `not fulfilled`, and `questions` marks a waived question. `show` runs one query for each relation, not
 one query for each fact.
 Exit: 0. 2 on an unknown topic, or on E1 or E2 in a source file.
 
 ### `report`
 
 Prints a skeleton of a delivery report with these sections: `Delivered:`,
-`Claims:`, `Guesses:`, `Disclosures:`, `Not checked:`, `Open:`, `To land:`.
+`Claims:`, `Guesses:`, `Disclosures:`, `Waivers:` (with the `build` module),
+`Not checked:`, `Open:`, `To land:`.
 You write `Delivered` and `To land` yourself. Step 16 of section 3 shows an
 example. Like `show`, `report` runs one query for each relation. For a claim
 that burns, `Claims:` adds `Burn: proved in Lean.` or `Burn: NOT PROVED.` with
-the waiver due time. `Open:` lists each open burn, each waiver past its due
-time, and each proof that no longer counts.
+the waiver due time. A claim with a waived check shows `Status: not fulfilled`
+with the check and the due time. `Waivers:` lists every waiver: its id, the kind
+and id of its target, its due time, and whether it is in force or lapsed.
+`Open:` lists each open burn, each waiver past its due time (of a claim, a
+check, or a question), and each proof that no longer counts.
 Exit: 0. 2 on E1 or E2 in a source file.
 
 ### `doctor`
@@ -933,7 +966,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E13 | An atom or a string ends in `_` and digits (hazard H4). |
 | E14 | Unsafe negation: a variable of a `not` literal occurs in the head, but in no positive body literal. |
 | E15 | A `supersedes` fact on a cycle: a claim replaces itself, directly (`supersedes(C, C)`) or through other claims. `done` is false while the cycle exists. `add` refuses such a fact. |
-| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `proof_changed`, `waiver_lapsed`, `supersedes_closure`, `supersede_cycle`, or `any_supersede_cycle`. The engines ignore the clause. |
+| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, or `any_supersede_cycle`. The engines ignore the clause. |
 
 | Code | Warning |
 |---|---|
@@ -1771,6 +1804,14 @@ Known gaps:
   the burn.
 - `proof_changed/1` and `waiver_lapsed/1` read the disk and the clock. So the
   same KB can give a different answer after a file edit or after a due time.
+- **D13 (2026-10-21).** A `waiver` can target a check or a question, not only
+  a claim. Ty decided that a deadline "bypass" and a burn waiver are not
+  different enough to need two records. A waived check covers its claim for
+  `done` (`check_waived`, read by `under`), but the claim is not fulfilled,
+  and a burn still needs a proof or a waiver of the claim. A waived question
+  is not `to_ask` (`question_waived`). Every waiver has a due time, and
+  `report` lists every waiver. The Lean burn model covers claim waivers only;
+  its conformance KBs have no check or question waiver.
 
 Known limits of `prove` (D10 follow-up, 2026-10-20). `prove` checks the proof of
 an honest agent that can make mistakes; it does not resist an agent that cheats

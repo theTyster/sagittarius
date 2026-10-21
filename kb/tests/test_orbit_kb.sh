@@ -65,6 +65,7 @@
 #   BP  burns: open, proved, changed, waived, lapsed       (Build module; D10)              : BP1-BP14
 #   SC  D10 follow-up: inherited burns, supersede cycles, rules.pl, times, proof logs (D10 follow-up) : SC1-SC11
 #   RF  refuted(Counterexample) in disproof and lean_result (2026-10-21) : RF1-RF7
+#   WV  waivers of a check or a question (D13, 2026-10-21)     (Build module; D13)              : WV1-WV10
 #   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10, D10 follow-up) : PV1-PV12
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
@@ -1080,6 +1081,86 @@ t_SC11() { kb_burndone "$T/k"; K=$T/k; printf "universal(c2).\n" >> $K/kb.pl; ad
            sed -i "s/^file sha256:[0-9a-f]* P.lean$/file $sha2 P.lean/" "$K/runs/proof-p1.log"
            is_true 'proof_changed(p1)' "the digest no longer matches the file lines"; }
 
+# ---- D13 (2026-10-21): a human waiver can target a claim, a check, or a question
+kb_waive() {  # kb_waive DIR: c1 is under (k1 never ran), q1 must be asked (c2 is contested), c2 is fulfilled
+    kb_new "$1" <<'EOF'
+uses([build]).
+request(r1, 'Waive things').
+claim(c1, introduce, 'Claim one').
+claim(c2, preserve, 'Claim two').
+cites(c1, 'Waive things').
+cites(c2, 'Waive things').
+check(k1, c1).
+check(k2, c2).
+change(x1, 'Edit one').
+serves(x1, c1).
+serves(x1, c2).
+question(q1, c2, 'Is it two').
+attest(d1, divergence, c2, claim(c2), agent, '2026-10-15T10:00:00Z').
+EOF
+    add_result "$1" k2 1 pass
+}
+wv_add() {  # wv_add ID TARGET DUE [BY]: append a waiver to kb.pl
+    printf "attest(%s, waiver, %s, waive(%s, '%s', 'Come back later'), %s, '2026-10-15T11:00:00Z').\n" "$1" "$2" "$2" "$3" "${4:-human}" >> "$K/kb.pl"
+}
+t_WV1() { kb_waive "$T/k"; K=$T/k
+          is_true 'under(c1)' "setup"; is_true 'to_ask(q1)' "setup"; is_false 'done' "setup"
+          okb --dir "$K" attest waiver k1 "waive(k1, '2999-01-01T00:00:00Z', 'Check later')" --by human; rc_is 0 "a waiver on a check"
+          okb --dir "$K" attest waiver q1 "waive(q1, '2999-01-01T00:00:00Z', 'Ask later')" --by human; rc_is 0 "a waiver on a question"
+          okb --dir "$K" attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'Prove later')" --by human; rc_is 0 "a waiver on a claim"
+          okb --dir "$K" lint; rc_is 0 "the three waivers lint clean"
+          rejects "waiver on a change" 'E4' attest waiver x1 "waive(x1, '2999-01-01T00:00:00Z', 'x')" --by human
+          any_hasi 'claim.*check.*question' "the message names the three allowed kinds"
+          rejects "waiver on the request" 'E4' attest waiver r1 "waive(r1, '2999-01-01T00:00:00Z', 'x')" --by human
+          rejects "waiver on an unknown id" 'E4' attest waiver c1 "waive(nope, '2999-01-01T00:00:00Z', 'x')" --by human
+          rejects "waiver on a non-atom" 'E3' attest waiver c1 "waive(5, '2999-01-01T00:00:00Z', 'x')" --by human
+          wv_add w9 x1 2999-01-01T00:00:00Z; okb --dir "$K" lint; rc_is 1 "a waiver on a change in kb.pl"; out_has '^E4 .*kb.pl'; }
+t_WV2() { kb_waive "$T/k"; K=$T/k; wv_add w1 k1 2999-01-01T00:00:00Z
+          is_false 'under(c1)' "a waived check covers its claim (W3)"; is_false 'fulfilled(c1)' "a waived check does not fulfil (W3)"
+          is_false any_under; is_false 'done' "q1 must still be asked"
+          wv_add w2 q1 2999-01-01T00:00:00Z; is_true 'done' "the check and the question are waived"
+          printf "claim(c3, preserve, 'Claim three').\ncites(c3, 'Waive things').\ncheck(k3, c3).\nserves(x1, c3).\n" >> $K/kb.pl
+          is_set 'under(X)' 'X = c3' "the waiver of k1 covers c1 only, not c3"; is_false 'done'; }
+t_WV3() { kb_waive "$T/k"; K=$T/k; printf "universal(c1).\n" >> $K/kb.pl; wv_add w1 k1 2999-01-01T00:00:00Z; wv_add w2 q1 2999-01-01T00:00:00Z
+          is_false 'under(c1)'; is_true 'burn_open(c1)' "a check waiver does not close a burn (W3)"; is_false 'burn_waived(c1)'; is_false 'done'
+          wv_add w3 c1 2999-01-01T00:00:00Z; is_false 'burn_open(c1)' "a claim waiver closes the burn (W2)"; is_true 'done'; }
+t_WV4() { kb_waive "$T/k"; K=$T/k; wv_add w1 q1 2999-01-01T00:00:00Z
+          is_false 'to_ask(q1)' "a waived question is not to_ask (W4)"; is_false any_to_ask; is_true 'under(c1)' "a question waiver does not cover a claim"
+          is_false 'answered(q1)' "a waiver is not an answer"; }
+t_WV5() { kb_waive "$T/k"; K=$T/k; wv_add w1 k1 2020-01-01T00:00:00Z; wv_add w2 q1 2020-01-01T00:00:00Z
+          printf "attest(w3, waiver, k1, waive(k1, never, x), human, '2026-10-15T11:00:00Z').\nattest(w4, waiver, q1, waive(q1, '2999-02-30T00:00:00Z', x), human, '2026-10-15T11:00:00Z').\n" >> $K/kb.pl
+          is_set 'waiver_lapsed(X)' 'X = w1|X = w2|X = w3|X = w4' "past and invalid due times lapse (W5)"
+          is_true 'under(c1)' "a lapsed check waiver does not cover"; is_true 'to_ask(q1)' "a lapsed question waiver does not count"; is_false 'done'; }
+t_WV6() { kb_waive "$T/k"; K=$T/k
+          rejects "agent waiver on a check" 'writer|human' attest waiver k1 "waive(k1, '2999-01-01T00:00:00Z', 'x')"
+          rejects "agent waiver on a question" 'writer|human' attest waiver q1 "waive(q1, '2999-01-01T00:00:00Z', 'x')"
+          wv_add w1 k1 2999-01-01T00:00:00Z agent; wv_add w2 q1 2999-01-01T00:00:00Z agent
+          okb --dir "$K" lint; rc_is 1; [ "$(printf '%s\n' "$out" | grep -c '^E8 ')" = 2 ] || note "want E8 on both agent waivers: $(snip "$out")"
+          is_true 'under(c1)' "an agent waiver does not count (W5)"; is_true 'to_ask(q1)'; is_false 'done'; }
+t_WV7() { kb_waive "$T/k"; K=$T/k; wv_add w1 c1 2999-01-01T00:00:00Z; wv_add w2 c2 2999-01-01T00:00:00Z
+          is_true 'under(c1)' "a claim waiver does not cover the checks of the claim (W2)"; is_true 'to_ask(q1)' "a claim waiver does not cover its questions"
+          is_true 'burn_waived(c1)' "a claim waiver closes a burn as before"; is_false 'burn_waived(k1)'; }
+t_WV8() { kb_waive "$T/k"; K=$T/k; wv_add w1 k1 2999-01-01T00:00:00Z; wv_add w2 q1 2020-01-01T00:00:00Z; wv_add w3 c2 2999-06-01T00:00:00Z
+          okb --dir "$K" report; rc_is 0; local g; g=$(printf '%s\n' "$out" | awk '/^Waivers:/{f=1;next} /^[A-Z][A-Za-z ]*:/{f=0} f')
+          printf '%s\n' "$g" | grep -Eq 'w1.*check k1.*2999-01-01T00:00:00Z.*in force' || note "w1 (check, in force) in Waivers: [$g]"
+          printf '%s\n' "$g" | grep -Eq 'w2.*question q1.*2020-01-01T00:00:00Z.*lapsed' || note "w2 (question, lapsed) in Waivers: [$g]"
+          printf '%s\n' "$g" | grep -Eq 'w3.*claim c2.*2999-06-01T00:00:00Z.*in force' || note "w3 (claim, in force) in Waivers: [$g]"
+          out_has 'c1.*waived' "the claim line says that a check of c1 is waived"
+          out_has 'Waiver w2 of question q1 was due at 2020-01-01' "Open lists the lapsed question waiver"
+          kb_waive "$T/k2"; K=$T/k2; okb --dir "$K" report; rc_is 0; g=$(printf '%s\n' "$out" | awk '/^Waivers:/{f=1;next} /^[A-Z][A-Za-z ]*:/{f=0} f')
+          printf '%s\n' "$g" | grep -q 'None' || note "no waivers: the section says None: [$g]"; }
+t_WV9() { kb_waive "$T/k"; K=$T/k; printf 'check_waived(C) :- claim(C, _, _).\nquestion_waived(Q) :- question(Q, _, _).\n' > $K/rules.pl
+          okb --dir "$K" lint; rc_is 1 "rules.pl cannot waive a check or a question (W7)"
+          [ "$(printf '%s\n' "$out" | grep -c '^E16 rules.pl')" = 2 ] || note "want E16 on each of the 2 clauses: $(snip "$out")"
+          is_true 'under(c1)' "the engines ignore the clauses"; is_true 'to_ask(q1)'; is_false 'done'; }
+t_WV10() { kb_waive "$T/k"; K=$T/k; okb help attest; rc_is 0; local line
+           line=$(printf '%s\n%s\n' "$out" "$err" | grep -E '^ *orbit-kb attest waiver ' | head -n1)
+           [ -n "$line" ] || { note "help attest has no example line that starts with orbit-kb attest waiver"; return; }
+           any_hasi 'check' "help names checks"; any_hasi 'question' "help names questions"
+           line=${line#*orbit-kb attest waiver }
+           eval "set -- $line" 2>/dev/null || { note "the example does not parse in a shell: $line"; return; }
+           okb --dir "$K" attest waiver "$@"; rc_is 0 "the help example runs as typed: $line"; }
+
 # ---- D10: orbit-kb prove with real Lean. The Lake project is built once (prototype lake).
 # Each test copies it, so lake build has little to do. Skip when lake is missing.
 LEAN_TC=$(command -v elan >/dev/null 2>&1 && elan toolchain list 2>/dev/null | sed -n 's/^\(leanprover\/lean4:v[0-9.]*\).*/\1/p' | sort -V | tail -1)
@@ -1485,6 +1566,16 @@ run_test t_SC8 SC8 "D10 follow-up: the time type checks month, day, leap years, 
 run_test t_SC9 SC9 "D10 follow-up: a waiver with an invalid due time counts as lapsed (F9)"
 run_test t_SC10 SC10 "D10 follow-up: waivers compare with the clock (MT)"
 run_test t_SC11 SC11 "D10 follow-up: a log copied for another claim or edited does not count (F6, MX, MD)"
+run_test t_WV1 WV1 "D13: a waiver targets a claim, a check, or a question; any other id is E4 (W1)"
+run_test t_WV2 WV2 "D13: a check waiver covers its claim for done, but does not fulfil it (W3)"
+run_test t_WV3 WV3 "D13: a check waiver does not close a burn; a claim waiver does (W2, W3)"
+run_test t_WV4 WV4 "D13: a question waiver makes the question not to_ask (W4)"
+run_test t_WV5 WV5 "D13: a lapsed or invalid check or question waiver blocks done again (W5)"
+run_test t_WV6 WV6 "D13: an agent waiver of a check or a question is E8 and does not count (W5)"
+run_test t_WV7 WV7 "D13: a claim waiver does not cover its checks or questions (W2)"
+run_test t_WV8 WV8 "D13: report lists every waiver with target, kind, due time, and lapse (W6)"
+run_test t_WV9 WV9 "D13: rules.pl clauses for check_waived and question_waived are E16 (W7)"
+run_test t_WV10 WV10 "D13: the waiver example in help attest is typable in a shell"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"

@@ -33,7 +33,7 @@ decl(rule, fulfilled(ref(claim)),
      'A check of the claim passed with no later fail, it failed first unless the label is preserve, and nothing refutes the claim.',
      'claim @(1) is fulfilled').
 decl(rule, under(ref(claim)),
-     'The claim is current, but it is not fulfilled.',
+     'The claim is current, but it is not fulfilled, and no human waived a check of it.',
      'claim @(1) is current but not fulfilled').
 decl(rule, served(ref(change)),
      'The change serves at least one claim.',
@@ -74,6 +74,9 @@ decl(rule, burn_open(ref(claim)),
 decl(rule, any_burn_open,
      'At least one burn is open.',
      'some claim needs a Lean proof that does not exist yet').
+decl(rule, check_waived(ref(claim)),
+     'A human waived a check of the claim, and the due time of the waiver is not past. The claim is covered for done, but it is not fulfilled.',
+     'a human waived a check of claim @(1)').
 decl(rule, conforms(ref(claim)),
      'A conformance check of the claim passed: the code agrees with the Lean model on its cases.',
      'the code conforms to the Lean model of claim @(1)').
@@ -91,9 +94,9 @@ attest_type(lean_proof,
             [script],
             'A Lean proof of the claim. The digest covers the files of the proof. Only orbit-kb prove writes it.').
 attest_type(waiver,
-            waive(ref(claim), time, text),
+            waive(ref([claim, check, question]), time, text),
             [human],
-            'A human waives the proof of the claim until the due time, for the reason in the text.').
+            'A human waives an item until the due time, for the reason in the text: the proof of a claim, a check (its claim is covered for done, not fulfilled), or a question (it need not be asked).').
 
 % ---------------------------------------------------------------------
 % Build rules
@@ -102,7 +105,7 @@ attest_type(waiver,
 fulfilled(C) :- claim(C, preserve, _), check(K, C), passed(K), not refuted(C).
 fulfilled(C) :- claim(C, L, _), L \= preserve, check(K, C), passed(K), was_red(K),
                 not refuted(C).
-under(C) :- current(C), not fulfilled(C).
+under(C) :- current(C), not fulfilled(C), not check_waived(C).
 served(X) :- serves(X, _).
 over(X) :- change(X, _), not served(X).
 any_under :- under(_).
@@ -128,3 +131,13 @@ burn_waived(C) :- attest(W, waiver, _, waive(C, _, _), human, _), not waiver_lap
 burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C).
 any_burn_open :- burn_open(_).
 conforms(C) :- conformance(K), check(K, C), passed(K).
+% D13 (Ty, 2026-10-21): a waiver can also target a check or a question.
+% A waiver on a check covers its claim for done (under/1), but the claim
+% is not fulfilled, and a burn of the claim still needs a proof or a
+% waiver on the claim. A waiver on a question closes it (to_ask/1 in
+% core.pl reads question_waived/1). A lapsed waiver (waiver_lapsed/1)
+% does not count. rules.pl cannot add clauses to these rules (lint E16).
+check_waived(C) :- check(K, C), attest(W, waiver, _, waive(K, _, _), human, _),
+                   not waiver_lapsed(W).
+question_waived(Q) :- question(Q, _, _), attest(W, waiver, _, waive(Q, _, _), human, _),
+                      not waiver_lapsed(W).

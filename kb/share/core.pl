@@ -140,8 +140,11 @@ decl(rule, contested_twice(ref(claim)),
      'Two or more different divergence attestations name the claim.',
      'claim @(1) is contested two or more times').
 decl(rule, to_ask(ref(question)),
-     'Ask this question now, because no human answered it, its claim is current, and its claim is contested or a question that it depends on is defeated.',
+     'Ask this question now, because no human answered it, no human waived it, its claim is current, and its claim is contested or a question that it depends on is defeated.',
      'question @(1) must be asked now').
+decl(rule, question_waived(ref(question)),
+     'A human waived the question, and the due time of the waiver is not past. The build module adds the clause.',
+     'a human waived question @(1)').
 decl(rule, any_to_ask,
      'At least one question must be asked now.',
      'some question must be asked now').
@@ -208,8 +211,12 @@ refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).
 contested(C) :- attest(_, divergence, _, claim(C), _, _).
 contested_twice(C) :- attest(D1, divergence, _, claim(C), _, _),
                       attest(D2, divergence, _, claim(C), _, _), D1 \= D2.
-to_ask(Q) :- question(Q, C, _), current(C), depends(Q, P), defeated(P), not answered(Q).
-to_ask(Q) :- question(Q, C, _), current(C), contested(C), not answered(Q).
+to_ask(Q) :- question(Q, C, _), current(C), depends(Q, P), defeated(P), not answered(Q),
+             not question_waived(Q).
+to_ask(Q) :- question(Q, C, _), current(C), contested(C), not answered(Q),
+             not question_waived(Q).
+% question_waived/1 has no clause here. The build module adds it (D13):
+% a waiver attestation is a type of that module.
 any_to_ask :- to_ask(_).
 stale(A) :- attest(A, approval, S, digest(D0), human, _), subject(S, _, D1), D0 \= D1.
 passed(K) :- attest(_, test_result, _, result(K, R, pass), _, _), not failed_after(K, R).

@@ -85,6 +85,14 @@
   are updated below. Open requests: a lint warning for a stale approval (LM21); a way to
   record a digest without typing it (F5); a `report_section/3` hook for `report` and
   `show open`. `--by human` is a claim the CLI cannot verify (LM20).
+- **D13 (a waiver can target a check or a question, 2026-10-21).** Decision by Ty: a deadline "bypass" and a burn "waiver" are not semantically distinct enough, so widen the waiver instead of adding a new record. "The only annoyance is that a time must be entered for when we'll come back to it. But, that seems like an ok pattern for now." The `waiver` shape is `waive(ref([claim, check, question]), time, text)`. The new type `ref([N1, ...])` accepts the id of a fact of any of the names; another id is E4 (a non-atom is E3), and the message names the allowed kinds. Writers stay `[human]`; an agent waiver is E8 and does not count. Rules (safe for both engines, no variable only under `not`):
+  - W2: a waiver on a claim closes its burn (`burn_waived/1`, unchanged). It does not cover the checks or the questions of the claim. The Lean burn model and its requirements do not change.
+  - W3: `check_waived(C) :- check(K, C), attest(W, waiver, _, waive(K, _, _), human, _), not waiver_lapsed(W).` and `under(C) :- current(C), not fulfilled(C), not check_waived(C).` A waived check covers its claim for `done`. It does not make `fulfilled(C)` true, and it does not touch burns.
+  - W4: `question_waived(Q) :- question(Q, _, _), attest(W, waiver, _, waive(Q, _, _), human, _), not waiver_lapsed(W).` (build module; core declares `question_waived/1` with no clause, as for `lint_issue/3`). Both `to_ask/1` clauses add `not question_waived(Q)`.
+  - W5: `waiver_lapsed(W)` is computed as before for every waiver, so a lapsed or invalid due time makes the item block `done` again.
+  - W6: `report` has a `Waivers:` section (with the build module) that lists every waiver: id, kind and id of the target, due time, and `in force`, `lapsed`, or not by a human. `Claims:` shows a claim with a waived check as `Status: not fulfilled` with the check and the due time. `Open:` names the kind of a lapsed waiver. `show claims` and `show questions` mark waived items.
+  - W7: `check_waived/1` and `question_waived/1` are protected (E16).
+  - The help text of `attest` and `prove` gives a waiver example that a shell accepts: `orbit-kb attest waiver c1 "waive(c1, '2026-11-30T17:00:00Z', 'why')" --by human`. Tests: WV1 to WV10.
 - **D12 (the refuted verdict carries its counterexample, 2026-10-21).** Decision by Ty: "make a slot for the counterexample in the refuted verdict." The verdict is `refuted(Counterexample)`, where the argument is `text`, in both `disproof` (`alt([refuted(text), inconclusive, abstained])`) and `lean_result` (`alt([stated, refuted(text), tested(int)])`). The core rule is `refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).` `discovery_disproof_filed/1` reads `refuted(_)` too. A bare `refuted` is E3. The message shows the new form, such as `verdict(c1, refuted('the counterexample'))`. `inconclusive`, `abstained`, `stated`, and `tested(N)` do not change. A KB with a bare `refuted` fails lint (E3) until its author adds the text. `why` prints the text. `report` and `show` do not print refutations, so they do not change. Tests: RF1 to RF7.
 - **D11 (add a module, 2026-10-19).** Decision by Ty: a cleaner fix than an edit by hand for the handoff between orbits. `orbit-kb uses MODULE …` adds a module to an existing KB.
 - **D10 (a burn needs a proof, 2026-10-19).** Decision by Ty: "A burn needs a proven
@@ -350,6 +358,7 @@ attest_type(Type, Shape, Writers, Doc).
 |---|---|
 | `id` | an atom; unique across all `id`-typed values in the KB |
 | `ref(Name)` | the id (first argument) of an existing `Name` fact |
+| `ref([Name, ...])` | the id of an existing fact of one of the names (D13) |
 | `ref` | any existing id |
 | `oneof(List)` | one atom of `List` |
 | `alt(Shapes)` | a value that matches one shape. An atom entry matches itself. A compound entry matches by name and arity, and each of its arguments is a type. |
@@ -435,8 +444,11 @@ refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).
 contested(C) :- attest(_, divergence, _, claim(C), _, _).
 contested_twice(C) :- attest(D1, divergence, _, claim(C), _, _),
                       attest(D2, divergence, _, claim(C), _, _), D1 \= D2.
-to_ask(Q) :- question(Q, C, _), current(C), depends(Q, P), defeated(P), not answered(Q).
-to_ask(Q) :- question(Q, C, _), current(C), contested(C), not answered(Q).
+to_ask(Q) :- question(Q, C, _), current(C), depends(Q, P), defeated(P), not answered(Q),
+             not question_waived(Q).
+to_ask(Q) :- question(Q, C, _), current(C), contested(C), not answered(Q),
+             not question_waived(Q).
+% question_waived/1: no clause in core; the build module adds it (D13).
 any_to_ask :- to_ask(_).
 stale(A) :- attest(A, approval, S, digest(D0), human, _), subject(S, _, D1), D0 \= D1.
 passed(K) :- attest(_, test_result, _, result(K, R, pass), _, _), not failed_after(K, R).
@@ -468,7 +480,7 @@ Attestation types:
 
 - `lean_result`: shape `verdict(ref(claim), alt([stated, refuted(text), tested(int)]))`. Writers: `[agent, script]`. Progress only (D10).
 - `lean_proof`: shape `proof(ref(claim), digest)`. Writers: `[script]`. Only `orbit-kb prove` writes it (D10).
-- `waiver`: shape `waive(ref(claim), time, text)`. Writers: `[human]` (D10).
+- `waiver`: shape `waive(ref([claim, check, question]), time, text)`. Writers: `[human]` (D10, D13).
 
 Rules (no `not` over body-only variables). They use the core rules `passed/1` and
 `was_red/1`:
@@ -477,7 +489,7 @@ Rules (no `not` over body-only variables). They use the core rules `passed/1` an
 fulfilled(C) :- claim(C, preserve, _), check(K, C), passed(K), not refuted(C).
 fulfilled(C) :- claim(C, L, _), L \= preserve, check(K, C), passed(K), was_red(K),
                 not refuted(C).
-under(C) :- current(C), not fulfilled(C).
+under(C) :- current(C), not fulfilled(C), not check_waived(C).
 served(X) :- serves(X, _).
 over(X) :- change(X, _), not served(X).
 any_under :- under(_).
@@ -494,6 +506,10 @@ burn_waived(C) :- attest(W, waiver, _, waive(C, _, _), human, _), not waiver_lap
 burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C).
 any_burn_open :- burn_open(_).
 conforms(C) :- conformance(K), check(K, C), passed(K).
+check_waived(C) :- check(K, C), attest(W, waiver, _, waive(K, _, _), human, _),
+                   not waiver_lapsed(W).
+question_waived(Q) :- question(Q, _, _), attest(W, waiver, _, waive(Q, _, _), human, _),
+                      not waiver_lapsed(W).
 ```
 
 `proof_changed/1` and `waiver_lapsed/1` are rule predicates with no clauses in the
@@ -561,7 +577,7 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | E13 | An atom or string ends in `_` plus digits (H4). |
 | E14 | Unsafe negation: a `not` literal's variable occurs in the head but in no positive body literal (D7). |
 | E15 | A `supersedes` fact on a cycle, including `supersedes(C, C)` (D10 follow-up). `add` refuses it. |
-| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `proof_changed`, `waiver_lapsed`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle` (D10 follow-up). The engines ignore the clause. |
+| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle` (D10 follow-up). The engines ignore the clause. |
 | E12 | A `not` literal contains a variable that occurs nowhere else in the clause, including `_` (H1). The message gives the helper-predicate fix. |
 
 | Code | Warning |
