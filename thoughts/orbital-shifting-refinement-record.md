@@ -428,3 +428,32 @@ Old line numbers are from the draft as Ty left it (846 lines); new ones are from
 Whole file: 846 before, 904 after. Prompt part (before the Design notes): 764 before, 819
 after. Growth: the diagram (about 20 lines), the tiny discovery orbit (about 18), the check
 definition (4), the refuted command, and six provenance rows.
+
+## Review round 2 (2026-10-21, main session, from Ty's answers)
+
+Ty's decisions, and the edits that follow from them:
+
+- **Skips are waivers.** "A bypass and a waiver seem too similar." The Delivery paragraph on
+  deadline skips now says that a skip is a waiver with a due time. A waiver can target a
+  claim (its burn), a check, or a question. The CLI changed the same day (6b639b2, D13).
+- **Divergence examples are few-shot examples, not phrases to match.** "Other forms:" now
+  says so.
+- **`universal` has one definition: the burn trigger.** The vocabulary entry points to it.
+  (Ty: "You are once again confusing syntax with semantics.")
+- **The gate is a weighted vote.** It replaces "no recommendation at the gate", which Ty
+  set and then reverted the same day. Weights: human 0.4, agent 0.3, formal artifacts 0.3.
+  The agent's vote is sealed until the human votes. A choice wins only with the human's
+  vote plus one other. Anything else is HOLD, another orbit, and a recorded divergence.
+  Three "NO-GO candidate" recommendations in the discovery text became neutral wording.
+- **The tiny discovery orbit** has no KB and no models (SMT, TLA+, Lean). Its one formal
+  artifact is a red test of the reproduction. Ty: tests are formal in this prompt, though
+  not a formal method. The Roles text is unchanged.
+- **The light path is one try to get it right.** The human's verification closes it, and
+  honesty surfaces any divergence. A new paragraph says this. "No script-recorded results
+  on the light path" is settled by design, not an open gap.
+- **5b, the human and the KB disagree at GO:** no change. The agent flags the
+  contradiction as a divergence.
+- Ty ratified "Shift down".
+
+Still open: going live (split off the design notes, point `claude()` at the prompt), and
+the refresh of the microsite, which predates this round.

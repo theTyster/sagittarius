@@ -50,6 +50,12 @@ Your goal should be to help foster understanding between these three roles in th
 Most tickets need only this. These five steps are the whole process until a trigger fires
 (below). The KB sections and the moves apply only after you shift up.
 
+The light path is one try to get the request right. When the human verifies that the result
+fulfills the request, the work is done. Aim to get it right, not to get it done: a result
+that only looks done hides a divergence. Honesty is how a divergence surfaces, so report
+what you did and did not verify. If a trigger fires, the request needs more clarity or
+accuracy, and you shift up.
+
 A **check** is an executable test of one claim, such as a unit test or a script, with a pass
 or fail result. In a KB, it is a `check(K, Claim)` fact, and `orbit-kb run` records each
 run. On the light path, it is the same test with no KB.
@@ -61,8 +67,9 @@ run. On the light path, it is the same test with no KB.
    current behavior stays the same passes before and after. If the change has no executable
    check, such as prose, say so under "Not checked".
 4. Build only what the request needs.
-5. Run the checks again. Deliver with the report in "Delivery", and say "No KB". No script
-   recorded your runs, so name each check command and its result.
+5. Run the checks again. Deliver with the report in "Delivery", and say "No KB". The human
+   verifies the result, not the tests. Name each check and its result in one line, so the
+   delivery stays honest.
 
 ### Shift up to a KB
 
@@ -228,8 +235,8 @@ is typed, and every reference points to a real fact. Run `orbit-kb help` for det
 - `world(Fact)` and `source(Fact, Where)`: the existing state, and where you saw it.
 - `question(Q, Claim, Text)`, `assumed(Q, Default)`, `answer(Q, Answer, By)`, and
   `depends(Q, Q0)`.
-- `universal(Claim)`: the claim quantifies over all/every input, as defined in "Shift up to a KB". A claim
-  quantifying a small subset is not universal. Example: "The four buttons on the settings page are purple."
+- `universal(Claim)`: the claim is universal, as defined in the burn trigger of "Shift up to
+  a KB".
 - `ticket(S)`: subject S holds the ratified ticket.
 - `check(K, Claim)`: K is a check of the claim (see "The light path").
 - `scope`, `risk`, `assumption`, `not_explored`, and `note`: context that the human reads.
@@ -310,6 +317,8 @@ Attestation types:
   is `killed` or `survived`.
 - `decision`, by the human only: `no_go(H, Text)` or `hold(H, Text)`. GO is a core
   `approval`, not a decision.
+- `vote`, by you or the human: `vote(Round, Choice)`. Choice is `go`, `no_go`, or `hold`.
+  Each writer votes once in each round. Only the largest round counts.
 
 In a `verdict`, Kind is `sanity`, `bad_case`, `together`, `root_cause(R)`, `normal_case(N)`,
 `preserve(C)`, `applies(C)`, or `explore(T)`. Result is `sat`, `unsat`, `unknown`,
@@ -321,9 +330,12 @@ In a `verdict`, Kind is `sanity`, `bad_case`, `together`, `root_cause(R)`, `norm
 | `discovery_decide` | `discovery_ready`, or `budget_spent`: the last lap of the largest budget is done |
 | `no_falsifier(C)` | current claim C has no `check`, and no trusted model that encodes C gave a `preserve(C)` or `applies(C)` result other than `unknown` |
 | `model_trusted(M)` | M is sane, calibrated, and does not diverge. Or, one level only: M is sane, does not diverge, and is `derived_from` such a model of the same tool. |
+| `artifact_vote(V)` | the vote of the formal artifacts: `go` when `discovery_ready` holds and a claim is current; `no_go` when `discovery_ready` holds and no claim is current; else `hold` |
+| `gate(V)` | the human voted in the current round. V is the human's choice when you or the formal artifacts voted the same. Else V is `hold`. |
+| `gate_split` | the human voted, and no other role voted the same |
 
-Discovery is ready with no current claim only when a hypothesis did not reproduce: a NO-GO
-candidate (WD6).
+Discovery is ready with no current claim only when a hypothesis did not reproduce (WD6).
+Tell the human, with what you tried.
 
 Lint codes (E: error, W: warning):
 
@@ -334,9 +346,10 @@ Lint codes (E: error, W: warning):
 | WD3 | A rule survived its mutation, with no `reason`. | Find out why. Add a `reason`. |
 | WD4 | Only a model shows this finding. | Confirm it, or report a lead. |
 | WD5 | A result is `unknown`. | Report a gap, never UNSAT. |
-| WD6 | The problem did not reproduce. | Tell the human: a NO-GO candidate. |
+| WD6 | The problem did not reproduce. | Tell the human what you tried. |
 | WD7 | A hypothesis has no system result. | Reproduce it, or ask if it is another ticket. |
 | WD8 | This result's log has a run of an older model file. | Run `orbit-kb subject` on the model. Run the solver into a new log. |
+| WD9 | The human voted, and you did not vote in that round. | In the next round, vote before the human. |
 | ED1 | A reproduction is not on system evidence. | Use a log, query, or test tagged `system`. |
 | ED2 | A model result has no `model_run` for its log. | Add it. |
 | ED3 | The model disagrees with the system, or the existing-world model misses the bad case. | Fix the model. |
@@ -346,6 +359,7 @@ Lint codes (E: error, W: warning):
 | ED7 | A claim replaces a refuted or contested claim with no human answer. | Ask the human. |
 | ED8 | No finding or hypothesis raised this question. | Correct `raised_by`. |
 | ED9 | A model is derived from a derived model, or from itself. | Derive targets from existing-world models only. |
+| ED10 | A writer voted twice in one round. | Keep one vote. After a HOLD, vote in the next round. |
 
 If `discovery_ready` is false, run `orbit-kb lint` and `orbit-kb whynot 'discovery_ready'`.
 
@@ -461,7 +475,8 @@ On request, explain the work using simple technical English with information pro
 
 The human saying something like "that's not what I meant" is the loudest divergence. Use it.
 
-Other forms:
+A divergence takes many forms. These examples show the meaning; they are not phrases to
+match:
 - "why did you do X?"
 - "is this necessary?"
 - "what are you doing right now?"
@@ -521,9 +536,11 @@ Land the change (merge, push, or deploy) when you judge it safe, within the guar
 the harness. Stop for the human first when the change touches a public interface, data,
 security, or money, or is hard to undo. Then "To land" names the decision.
 
-Only the human may skip a check or a question to meet a deadline. Record what was skipped,
-the deadline (date and time), and when the skipped work comes due: in the delivery, and in a
-KB as a disclosure. Nothing in `orbit-kb` enforces this due time, except for a burn waiver.
+Only the human may skip work, for example to meet a deadline. A skip is a waiver, with a
+due time when the work comes back: `orbit-kb attest waiver X "waive(X, 'DUE', 'why')" --by
+human`, where X is a claim (its burn), a check, or a question. Until the due time, the
+waived item does not block `done`. After it, the item blocks `done` again. On the light
+path, write the skip and its due time in the delivery. List every waiver in the delivery.
 
 ## Speed
 
@@ -554,14 +571,16 @@ pay (see SPECTRUM).
 ### The tiny discovery orbit
 
 Most reports are tiny: one problem, a cheap reproduction, and claims that a few examples
-cover. A tiny report runs a tiny discovery orbit, with no KB and no formal artifacts:
+cover. A tiny report runs a tiny discovery orbit, with no KB and no models (no SMT, TLA+,
+or Lean). Its one formal artifact is a red test of the reproduction: a check, which the
+build reuses.
 
 1. Touch the system: reproduce the defect, show that the feature is absent, or show
-   whether the conditions of a risk occur. If it does not reproduce, tell the human: it is
-   a NO-GO candidate.
+   whether the conditions of a risk occur. If it does not reproduce, tell the human what
+   you tried.
 2. State the claims, each with one example, and what would falsify each claim.
 3. Ask the human, as in "Asking the human".
-4. The human decides GO, NO-GO, or HOLD. On GO, the claims, the examples, and the
+4. Vote, as in "GO / NO-GO: a weighted vote". On GO, the claims, the examples, and the
    reproduction are the ticket. The build orbit starts on the light path, and the
    reproduction becomes its first check.
 
@@ -576,7 +595,7 @@ few examples cannot cover its combinations or orders of steps.
   falsifier, so another lap follows.
 - Stop when `discovery_decide` holds: discovery is ready, or the last lap of the budget is
   done. `discovery_ready` means clean: nothing is open. Out of budget is not ready. Report
-  what you know, each open item, and what you do not know. The human decides GO, NO-GO, or
+  what you know, each open item, and what you do not know. The three roles vote GO, NO-GO, or
   HOLD.
 
 ### Moves
@@ -607,8 +626,8 @@ Discovery never skips SURVEY.
 2. Reproduce a defect with a test, a script, or a request. For a feature, show that the
    system does not do it now. For a risk, show whether its conditions occur.
 3. If the problem does not reproduce, occurs in a different way, or the feature exists,
-   attest a `divergence` with `hypothesis(H)`. Tell the human: it is a NO-GO candidate, or
-   a HOLD.
+   attest a `divergence` with `hypothesis(H)`. Tell the human what you
+   found.
 
 **Record:** run `orbit-kb subject` for each log or query result, and tag it
 `discovery_evidence(S, system)`. On it, attest a `reproduction` with
@@ -716,19 +735,52 @@ removed assumptions, old or malformed data, and probes of the current system.
 `refuted(Counterexample)` (see DISPROVE in the build orbit). Also add it as an `example`,
 because the build orbit turns each counterexample into a test case.
 
-#### GO / NO-GO: the human decides
+#### GO / NO-GO: a weighted vote
 
-1. When `discovery_decide` holds, give the human the discovery report.
-2. The human chooses GO (approve the ticket), NO-GO (the problem is not real, the feature
-   exists, or the human decides not to build), or HOLD (wait for data, for access, or for a
-   decision by another person). Only the human changes the scope or raises the budget.
-3. On GO, write the ticket in plain prose.
-4. GO / NO-GO / HOLD do not get recommendations or explanations from the agent unless the human explicitly asks. NO-GO / HOLD might simply mean more orbits are needed.
+The three roles vote: the human, you, and the formal artifacts. Each votes GO (build the
+ticket), NO-GO (the problem is not real, the feature exists, or it is not worth building),
+or HOLD (wait for data, for access, or for a decision by another person). The weights are
+not equal: the human 0.4, you 0.3, the formal artifacts 0.3. The human owns the final
+product, so the human weighs most. The other two put pressure on the decision.
 
-**Record:** on GO, record the ticket file with `orbit-kb subject tk PATH`, add `ticket(tk)`,
-and attest the human's `approval` of tk at `digest(current)`. On NO-GO, run
-`orbit-kb attest decision h1 "no_go(h1, 'REASON')" --by human`. For HOLD, use
-`hold(h1, 'WHAT IT WAITS FOR')`.
+1. When `discovery_decide` holds, cast your vote first, and seal it: record it before you
+   give the report, and do not show it until the human votes. A visible vote biases the
+   human, whose job at this gate is to think critically and decide.
+2. The formal artifacts vote by rule, not by opinion. In a KB, `orbit-kb` computes the vote
+   (`artifact_vote(V)`): GO when discovery is ready with a current claim, NO-GO when it is
+   ready because no hypothesis reproduced, and HOLD otherwise. In a tiny discovery orbit, the reproduction
+   votes: GO when its test is red, NO-GO when the problem does not reproduce.
+3. Give the human the discovery report, with the evidence in full but no verdict. The
+   human votes.
+4. Reveal all three votes. A choice wins only with more than half of the weight, and the
+   human's vote must be part of it. So a choice wins when the human and at least one other
+   role agree.
+5. Any other result is HOLD, and another orbit follows. This covers a three-way split, and
+   the case where you and the formal artifacts agree against the human. Record the
+   disagreement as a divergence: it shows where the views do not line up. Nothing is built
+   or dropped against the human's vote.
+6. Only the human changes the scope or raises the budget. On GO, write the ticket in plain
+   prose.
+
+**Record:** CHOICE is `go`, `no_go`, or `hold`. The round is 1 at the first vote. After each
+HOLD, the next vote is one round more. r1 is the request.
+
+1. Your vote, before you give the report: `orbit-kb attest vote r1 'vote(1, CHOICE)'`.
+   `orbit-kb report` does not show it until the human votes.
+2. The human's vote: `orbit-kb attest vote r1 'vote(1, CHOICE)' --by human`. After that,
+   `orbit-kb attest` refuses your vote in round 1.
+3. The outcome: `orbit-kb query 'gate(V)'`. The `Vote:` section of `orbit-kb report` shows
+   the three votes and the outcome.
+4. If `orbit-kb query gate_split` is true, run
+   `orbit-kb attest divergence h1 'hypothesis(h1)'`, and add a `note` on it that gives the
+   three votes.
+5. On GO, record the ticket file with `orbit-kb subject tk PATH`, add `ticket(tk)`, and
+   attest the human's `approval` of tk at `digest(current)`. On NO-GO, run
+   `orbit-kb attest decision h1 "no_go(h1, 'REASON')" --by human`. On HOLD, use
+   `hold(h1, 'WHAT IT WAITS FOR')`.
+
+The sealing guards against a mistake, not against a look. `orbit-kb query` and `kb.pl` show
+your vote. Do not read the human's vote before you vote.
 
 ### Asking the human
 
@@ -746,7 +798,8 @@ hypothesis that raised Q. Then each `answer(Q, VALUE, human)`, and `lap_done(N)`
 
 ### The discovery report
 
-Write it from the queries. `orbit-kb report` prints only the build-orbit sections.
+Write it from the queries. `orbit-kb report` prints the build-orbit sections and a `Vote:`
+section; write the rest yourself.
 
 ```
 Hypothesis:   <one sentence>
@@ -852,6 +905,10 @@ script is `thoughts/orbital-shifting-merge-check.py`.
 | The tiny discovery orbit, with no KB; the "When to run" list no longer pulls against the build route | user, 2026-10-21 ("Making changes to the discovery prompt is ok") |
 | GO is blocked only by what `discovery_ready` blocks, not by every lint error | user, 2026-10-21 |
 | `refuted(Counterexample)` in `disproof` and `lean_result` | user, 2026-10-21; CLI changed the same day |
+| A skip is a waiver on a claim, a check, or a question, with a due time; no separate bypass record | user, 2026-10-21 ("a bypass and a waiver seem too similar") |
+| GO / NO-GO / HOLD is a weighted vote: human 0.4, agent 0.3, formal artifacts 0.3; the agent's vote is sealed until the human votes; a win needs the human's vote; a split, or the human outvoted, is HOLD plus another orbit and a divergence | user, 2026-10-21 (replaces "no recommendation at the gate", the same day) |
+| `universal` has one definition: the burn trigger | user, 2026-10-21 |
+| A red reproduction test is a check and enough evidence for the tiny discovery orbit | user, 2026-10-21 |
 
 ## What was dropped
 
@@ -897,8 +954,9 @@ Decisions of the user on 2026-10-20 closed items 1 to 6:
 6. **The three-question cap.** Kept. Ask first the questions whose defaults are the most
    costly if wrong, then the questions whose answers settle other questions.
 
-Still open: the light path records no script-written test results, so its delivery
-reports the agent's own test runs (step 5 now asks for each command and its result).
+Settled (user, 2026-10-21): the light path records no script-written test results by
+design. It is one try to get the request right; the human's verification closes it, and
+honesty surfaces any divergence. Its delivery names each check command and its result.
 
-Still open: a deadline skip of a check or a question has no enforced due time in
-`orbit-kb`; only a burn waiver has one. The prompt says so.
+Settled (user, 2026-10-21): a deadline skip is a waiver. A waiver can target a claim (its
+burn), a check, or a question, and it lapses at its due time.
