@@ -5,116 +5,389 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Orbital Shifting</title>
 <style>
+/* Layout: a deep-space deck. Fixed bar on top, one slide per viewport, orbit motif in the corner.
+   Without JavaScript the slides stack as a normal scrolling page. */
 :root{
-  color-scheme: light dark;
-  --bg:#fafaf7; --fg:#1d1f24; --muted:#5b6070; --card:#ffffff; --line:#d9dce3;
-  --accent:#3b5bdb; --good:#2b8a3e; --bad:#c92a2a; --warn:#b36b00;
+  color-scheme: dark;
+  --bg:#060a18; --bg2:#0c1534; --fg:#e8edff; --muted:#aab5d8;
+  --card:rgba(18,28,66,.62); --line:#2b3a6c; --bar:rgba(6,10,24,.82);
+  --accent:#62e3f7; --amber:#ffb454; --good:#74e8ae; --bad:#ff9a9a; --warn:#ffb454; --mid:#b9adff;
+  --svgfill:rgba(10,18,46,.9); --glow:5px; --code:#bfeaff;
+  --starc:rgba(255,255,255,.95); --star-op:1; --orbit-op:.2;
+  --neb1:rgba(70,100,230,.26); --neb2:rgba(0,200,220,.12); --neb3:rgba(255,160,70,.07);
+  --display:"Avenir Next","Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
 }
-@media (prefers-color-scheme: dark){
-  :root{ --bg:#14161b; --fg:#e8e9ee; --muted:#9aa0b0; --card:#1d2027; --line:#343845;
-    --accent:#8ea2ff; --good:#69db7c; --bad:#ff8787; --warn:#ffc078; }
+@media (prefers-color-scheme: light){
+  :root{
+    color-scheme: light;
+    --bg:#f1f4fb; --bg2:#e4eaf8; --fg:#121a36; --muted:#475274;
+    --card:rgba(255,255,255,.82); --line:#c6d0e8; --bar:rgba(241,244,251,.88);
+    --accent:#0a6a88; --amber:#8a5200; --good:#17703f; --bad:#a82828; --warn:#8a5200; --mid:#5645c4;
+    --svgfill:rgba(255,255,255,.95); --glow:0px; --code:#0a5069;
+    --starc:rgba(40,60,140,.0); --star-op:0; --orbit-op:.14;
+    --neb1:rgba(90,120,230,.14); --neb2:rgba(0,170,200,.08); --neb3:rgba(255,170,80,.08);
+  }
 }
 *{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--fg);
-  font:17px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);
-  padding:.5rem 1rem}
-header.top strong{display:block;font-size:.95rem}
-nav ol{list-style:none;margin:.3rem 0 0;padding:0;display:flex;flex-wrap:wrap;gap:.3rem}
-nav a{display:inline-block;min-width:2rem;text-align:center;padding:.15rem .5rem;border:1px solid var(--line);
-  border-radius:.4rem;color:var(--fg);text-decoration:none;font-size:.85rem;background:var(--card)}
-nav a:hover,nav a[aria-current="true"]{border-color:var(--accent);color:var(--accent);font-weight:600}
+html{font-size:clamp(15px,.85vw + 5px,24px);scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;color:var(--fg);font:1rem/1.55 var(--display);overflow-x:hidden;
+  background:
+    radial-gradient(ellipse 70% 60% at 85% -10%,var(--neb1),transparent 70%),
+    radial-gradient(ellipse 60% 50% at -5% 105%,var(--neb2),transparent 70%),
+    radial-gradient(ellipse 40% 30% at 60% 110%,var(--neb3),transparent 70%),
+    linear-gradient(180deg,var(--bg),var(--bg2) 140%);
+  background-color:var(--bg);background-attachment:fixed}
+/* starfield */
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--star-op);
+  background:
+    radial-gradient(1px 1px at 23px 41px,var(--starc),transparent) 0 0/197px 173px,
+    radial-gradient(1.4px 1.4px at 91px 12px,var(--starc),transparent) 0 0/251px 229px,
+    radial-gradient(1px 1px at 140px 120px,rgba(180,220,255,.8),transparent) 0 0/313px 277px,
+    radial-gradient(1.8px 1.8px at 60px 200px,rgba(255,226,180,.9),transparent) 0 0/409px 383px;
+  animation:twinkle 9s ease-in-out infinite alternate}
+@keyframes twinkle{from{opacity:calc(var(--star-op) * .7)}to{opacity:var(--star-op)}}
+/* orbit motif: three tilted ellipses and a small body, bottom right */
+body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--orbit-op);
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800' fill='none'%3E%3Cg transform='rotate(-24 400 400)' stroke='%2362e3f7' stroke-width='1.2'%3E%3Cellipse cx='400' cy='400' rx='380' ry='150'/%3E%3Cellipse cx='400' cy='400' rx='290' ry='108' stroke-dasharray='3 9'/%3E%3Cellipse cx='400' cy='400' rx='200' ry='70'/%3E%3C/g%3E%3Ccircle cx='400' cy='400' r='34' fill='%23ffb454' fill-opacity='.5'/%3E%3Ccircle cx='712' cy='292' r='7' fill='%2362e3f7'/%3E%3C/svg%3E") no-repeat right -22vmin bottom -26vmin/92vmin}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:.3rem}
+
+/* top bar and progress */
+header.top{position:sticky;top:0;z-index:6;display:flex;flex-wrap:wrap;align-items:center;gap:.3rem 1.2rem;
+  padding:.55rem 1.1rem;background:var(--bar);border-bottom:1px solid var(--line);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+header.top strong{display:flex;align-items:center;gap:.6rem;font-size:.82rem;font-weight:600;letter-spacing:.02em;min-width:0}
+header.top strong::before{content:"";flex:none;width:1.15rem;height:.62rem;border:1.5px solid var(--accent);border-radius:50%;
+  transform:rotate(-24deg);box-shadow:0 0 8px color-mix(in srgb,var(--accent) 50%,transparent);
+  background:radial-gradient(circle at 50% 50%,var(--amber) 0 22%,transparent 26%)}
+nav{flex:1;min-width:0}
+nav ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.3rem;justify-content:flex-end}
+nav a{display:inline-flex;align-items:center;min-width:1.9rem;justify-content:center;padding:.12rem .45rem;border:1px solid var(--line);
+  border-radius:99px;color:var(--muted);text-decoration:none;font:.76rem var(--mono);background:var(--card);transition:border-color .2s,color .2s}
+nav a:hover,nav a[aria-current="true"]{border-color:var(--accent);color:var(--accent)}
+nav a[aria-current="true"]{font-weight:700;box-shadow:0 0 10px color-mix(in srgb,var(--accent) 35%,transparent)}
 nav .t{display:none}
-@media (min-width:900px){ nav .t{display:inline} nav a{text-align:left} }
-main{max-width:46rem;margin:0 auto;padding:1rem 1rem 4rem}
-.slide{padding-block:1.5rem;border-bottom:1px solid var(--line);scroll-margin-top:7rem}
-.slide:last-child{border-bottom:0}
-h1{font-size:2rem;margin:.2em 0}
-h2{font-size:1.5rem;margin:.1em 0 .6em}
-h3{font-size:1.1rem;margin:1.1em 0 .4em}
-.num{color:var(--muted);font-size:.85rem;letter-spacing:.05em;text-transform:uppercase}
-.lead{font-size:1.15rem}
-.card{background:var(--card);border:1px solid var(--line);border-radius:.6rem;padding:.8rem 1rem;margin:.8rem 0}
-.card h3{margin:.1em 0 .3em;font-size:1rem}
-blockquote{margin:.8rem 0;padding:.4rem 1rem;border-left:4px solid var(--accent);background:var(--card)}
-blockquote p{margin:.4em 0}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:.8rem}
-code{font:.9em ui-monospace,Menlo,Consolas,monospace;background:var(--card);border:1px solid var(--line);
-  border-radius:.25rem;padding:0 .25rem;overflow-wrap:anywhere}
+@media (min-width:900px){ nav .t{display:inline;white-space:pre} html:not(.js) nav a{border-radius:.5rem} html.js nav a:not([aria-current="true"]) .t{display:none} }
+.progress{display:none}
+html.js .progress{display:block;position:fixed;top:0;left:0;right:0;height:3px;z-index:20}
+.progress i{display:block;height:100%;transform-origin:0 50%;transform:scaleX(0);transition:transform .5s ease;
+  background:linear-gradient(90deg,var(--accent),var(--amber));box-shadow:0 0 10px var(--accent)}
+
+/* slides */
+main{position:relative;z-index:1}
+.slide{position:relative;z-index:1;display:flex;flex-direction:column;gap:.85rem;outline:none;
+  padding-block:1.6rem 1.8rem;padding-inline:max(1.1rem,calc((100% - 62rem)/2));scroll-margin-top:4rem;
+  border-bottom:1px solid var(--line)}
+.slide:last-of-type{border-bottom:0}
+.slide>*{flex:none;margin:0;max-width:100%}
+.slide p,.slide li{max-width:80ch}
+.slide blockquote p,.slide .card p,.slide .card li{max-width:none}
+.slide ul,.slide ol{padding-left:1.3rem;display:flex;flex-direction:column;gap:.45rem}
+.slide li::marker{color:var(--accent)}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.12;margin:0}
+h1{font-size:clamp(2.1rem,3.4vw + .8rem,3.6rem);font-weight:700;letter-spacing:-.02em}
+h2{font-size:clamp(1.9rem,2.8vw + .7rem,3rem);font-weight:700;letter-spacing:-.015em}
+h1,h2{background:linear-gradient(100deg,var(--fg) 40%,var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.08em}
+h3{font-size:1.15rem;font-weight:650;color:var(--accent);margin-top:.5rem}
+.num{font:.74rem var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--amber)}
+.lead{font-size:1.25rem;line-height:1.4;font-weight:450}
+strong{font-weight:650}
+.card{background:var(--card);border:1px solid var(--line);border-radius:.9rem;padding:.85rem 1.1rem;
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.card h3{margin:0 0 .3rem;font-size:1.02rem;color:var(--fg)}
+.card p{margin:.4em 0 0}
+.card p:first-of-type{margin-top:0}
+.card ul{margin:0}
+blockquote{margin:0;padding:1rem 1.3rem 1rem 3.2rem;position:relative;border:1px solid var(--line);border-radius:.9rem;
+  background:var(--card)}
+blockquote::before{content:"\201C";position:absolute;left:.8rem;top:-.1rem;font:4rem/1.2 Georgia,serif;color:var(--accent);opacity:.8}
+blockquote p{margin:.45em 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:.85rem}
+.eras{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,19rem),1fr));gap:.85rem}
+.eras .card{font-size:.92rem}
+code{font:.88em var(--mono);color:var(--code);background:color-mix(in srgb,var(--accent) 10%,transparent);
+  border:1px solid color-mix(in srgb,var(--accent) 22%,transparent);border-radius:.3rem;padding:0 .3rem;overflow-wrap:anywhere}
 .tbl{overflow-x:auto}
 table{border-collapse:collapse;width:100%}
-th,td{text-align:left;vertical-align:top;padding:.3rem .6rem;border-bottom:1px solid var(--line)}
-th{font-size:.85rem;color:var(--muted)}
-.diagram{overflow-x:auto}
-.diagram svg{width:100%;min-width:600px;height:auto;display:block}
-svg text{fill:var(--fg);font:13px system-ui,sans-serif}
-svg .box{fill:var(--card);stroke:var(--line);stroke-width:1.5}
-svg .hum{stroke:var(--accent);stroke-width:2}
-svg .chk{stroke:var(--good);stroke-width:2}
-svg .bad{stroke:var(--bad);stroke-width:2}
+th,td{text-align:left;vertical-align:top;padding:.4rem .7rem;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+th{font:.72rem var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.diagram{overflow-x:auto;border:1px solid var(--line);border-radius:.9rem;background:var(--card);padding:.6rem}
+.diagram svg{width:100%;min-width:600px;height:auto;max-height:44vh;display:block}
+svg text{fill:var(--fg);font:13px var(--display)}
+svg .box{fill:var(--svgfill);stroke:var(--line);stroke-width:1.5}
+svg .hum{stroke:var(--accent);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--accent))}
+svg .chk{stroke:var(--good);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--good))}
+svg .bad{stroke:var(--bad);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--bad))}
 svg .arr{stroke:var(--muted);stroke-width:2;fill:none}
 svg .sub{fill:var(--muted);font-size:11px}
-svg .band{fill:var(--muted);font-size:12px;font-weight:600;letter-spacing:.04em}
-.sources{font-size:.85rem;color:var(--muted)}
-.hint{font-size:.85rem;color:var(--muted)}
-/* Slide mode, only when JavaScript runs. Without it the page scrolls. */
-html.js .slide{display:none;border-bottom:0}
-html.js .slide.active{display:block}
-html.js .controls{display:flex}
-.controls{display:none;gap:.5rem;align-items:center;justify-content:space-between;margin-top:1rem}
-.controls button{font:inherit;padding:.4rem 1rem;border:1px solid var(--line);border-radius:.4rem;
-  background:var(--card);color:var(--fg);cursor:pointer}
-.controls button:hover{border-color:var(--accent)}
+svg .gap{stroke:var(--warn);stroke-width:2;stroke-dasharray:5 4}
+svg .mid{stroke:var(--mid);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--mid))}
+svg .band{fill:var(--amber);font:600 12px var(--mono);letter-spacing:.14em}
+.sources,.hint{font-size:.82rem;color:var(--muted)}
+.sources{margin-top:1rem}
+
+/* expanders: open by default so the page reads in full without JavaScript */
+details.more{border:1px solid var(--line);border-radius:.9rem;background:var(--card)}
+details.more>summary{cursor:pointer;list-style:none;padding:.55rem 1.1rem;font:.78rem var(--mono);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:.6rem}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary::before{content:"+";display:inline-grid;place-items:center;width:1.2rem;height:1.2rem;border:1px solid var(--accent);border-radius:50%}
+details.more[open]>summary::before{content:"\2212"}
+details.more>.body{display:flex;flex-direction:column;gap:1rem;padding:.2rem 1.1rem 1.1rem}
+details.more>.body>*{flex:none;margin:0;max-width:100%}
+details.more>.body.dup>h3:first-child{display:none}
+
+/* controls: only when JavaScript runs */
+.controls{display:none}
+html.js .controls{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.5rem 1.1rem;
+  background:var(--bar);border-top:1px solid var(--line);position:relative;z-index:6}
+.controls button{font:.82rem var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:.4rem 1.1rem;border:1px solid var(--line);
+  border-radius:99px;background:var(--card);color:var(--fg);cursor:pointer;transition:border-color .2s}
+.controls button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
 .controls button:disabled{opacity:.4;cursor:default}
+.controls .ctr{display:flex;flex-direction:column;align-items:center;gap:.05rem;text-align:center}
+#pos{font:.8rem var(--mono);color:var(--fg)}
+.keys{font-size:.72rem;color:var(--muted)}
+#more{margin-left:.8rem;color:var(--amber);font:.72rem var(--mono);letter-spacing:.08em;text-transform:uppercase;min-height:1em}
+@media (max-width:700px){ .keys{display:none} }
+.nojs{display:block}
+html.js .nojs{display:none}
+
+/* slide mode */
+html.js,html.js body{height:100%;overflow:hidden}
+html.js body{display:flex;flex-direction:column}
+html.js main{flex:1;min-height:0}
+html.js .slide{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;justify-content:safe center;border:0;
+  opacity:0;visibility:hidden;transform:translateY(14px) scale(.995);
+  transition:opacity .45s ease,transform .45s ease,visibility 0s .45s}
+html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opacity .45s ease,transform .45s ease,visibility 0s}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  body::before{animation:none}
+  html.js .slide,html.js .slide.active,.progress i{transition:none}
+}
+@media (max-width:600px){
+  .lead{font-size:1.15rem}
+  .slide{padding-block:1.4rem 2rem}
+}
+
+/* print: one slide per page, plain colors */
+@page{size:13.333in 7.5in;margin:.4in}
+@media print{
+  html,html.js,html.js body{height:auto;overflow:visible;font-size:11pt}
+  body,body.x{background:#fff!important;color:#111}
+  body::before,body::after,header.top,.controls,.progress,.nojs{display:none!important}
+  :root{--fg:#111;--muted:#444;--card:#fff;--line:#bbb;--accent:#0a5069;--amber:#7a4a00;--good:#17703f;--bad:#a82828;--warn:#7a4a00;--mid:#4a3bb0;--svgfill:#fff;--glow:0px;--code:#0a5069}
+  html.js main{position:static}
+  html.js .slide,html.js .slide.active{position:static;opacity:1;visibility:visible;transform:none;overflow:visible;
+    break-after:page;page-break-after:always;min-height:0;padding:0;justify-content:flex-start}
+  .slide:last-of-type{break-after:auto}
+  h1,h2{background:none;color:#111;-webkit-text-fill-color:#111}
+  .card,details.more,.diagram{backdrop-filter:none;-webkit-backdrop-filter:none;break-inside:avoid}
+  .diagram svg{max-height:none}
+}
 </style>
 </head>
 <body>
+<div class="progress" aria-hidden="true"><i id="bar"></i></div>
 <header class="top">
-  <strong>Orbital Shifting: the current draft</strong>
+  <strong>Orbital Shifting: a backgrounder and the current prompt</strong>
   <nav aria-label="Slide index">
     <ol>
-      <li><a href="#s1"><span>1</span><span class="t"> Problem</span></a></li>
-      <li><a href="#s2"><span>2</span><span class="t"> Roles</span></a></li>
-      <li><a href="#s3"><span>3</span><span class="t"> Parallax</span></a></li>
-      <li><a href="#s4"><span>4</span><span class="t"> Light path</span></a></li>
-      <li><a href="#s5"><span>5</span><span class="t"> Build orbit</span></a></li>
-      <li><a href="#s6"><span>6</span><span class="t"> Discovery</span></a></li>
-      <li><a href="#s7"><span>7</span><span class="t"> The vote</span></a></li>
-      <li><a href="#s8"><span>8</span><span class="t"> Burns</span></a></li>
-      <li><a href="#s9"><span>9</span><span class="t"> Trust and honesty</span></a></li>
+      <li><a href="#s1"><span>1</span><span class="t"> Wrong spec</span></a></li>
+      <li><a href="#s2"><span>2</span><span class="t"> Philosophy</span></a></li>
+      <li><a href="#s3"><span>3</span><span class="t"> Timeline</span></a></li>
+      <li><a href="#s4"><span>4</span><span class="t"> Roles</span></a></li>
+      <li><a href="#s5"><span>5</span><span class="t"> Parallax</span></a></li>
+      <li><a href="#s6"><span>6</span><span class="t"> Light path</span></a></li>
+      <li><a href="#s7"><span>7</span><span class="t"> Build orbit</span></a></li>
+      <li><a href="#s8"><span>8</span><span class="t"> Discovery</span></a></li>
+      <li><a href="#s9"><span>9</span><span class="t"> The vote</span></a></li>
+      <li><a href="#s10"><span>10</span><span class="t"> Burns</span></a></li>
+      <li><a href="#s11"><span>11</span><span class="t"> Trust and honesty</span></a></li>
     </ol>
   </nav>
 </header>
 
 <main>
 
-<section class="slide" id="s1">
-  <div class="num">1 of 9</div>
-  <h1>The problem</h1>
-  <p class="lead">A human, an agent, and the code can drift apart without any noise.</p>
-  <p>The human asks for one thing. The agent builds a second thing. The checks cover a third thing. Nobody says so.</p>
-  <div class="card">
-    <h3>Why this matters</h3>
-    <p>A loud failure is easy to fix. A quiet failure is the worst failure. A check can pass while the result is wrong.</p>
+<section class="slide" id="s1" tabindex="-1">
+  <div class="num">1 of 11 · Background</div>
+  <h1>The wrong-spec problem</h1>
+  <p class="lead">An agent can build exactly what it was told and still build the wrong thing.</p>
+  <p>An <strong>agent</strong> is an AI that does the work, such as Claude Code. A <strong>spec</strong> (short for specification) is what the agent builds from: the request, the ticket, and the tests. A <strong>ticket</strong> is the written request for a change.</p>
+  <p>If the spec is wrong, the work is wrong, and the agent may not know it. A spec goes wrong in three ways:</p>
+  <div class="grid">
+    <div class="card"><h3>Wrong</h3>The spec does not match how things really are.</div>
+    <div class="card"><h3>Incomplete</h3>The spec leaves out a case that matters.</div>
+    <div class="card"><h3>Read two ways</h3>The human and the agent read the same words and see different things.</div>
   </div>
-  <p>The goal of Orbital Shifting is alignment. The human, the agent, and the formal records agree on what to build. They agree on when it is done. Alignment is always possible before a change lands, even when a full proof is not.</p>
-  <p>The agent delivers changes that are <strong>fast</strong>, <strong>clear</strong>, <strong>accurate</strong>, and <strong>honest</strong>.</p>
+  <p>The human is the source of intent. The human is not always the source of clarity. People do not always say what they want in a way that has one reading.</p>
+  <details class="more" open><summary>The two examples</summary><div class="body">
+  <h3>Example 1: the purple button</h3>
+  <p>The human says: "Make the button purple." The agent restates the request as a claim: "Primary buttons are purple." Its example: the Submit button on the checkout page shows the color <code>#6B3FA0</code>.</p>
+  <div class="tbl card">
+    <table>
+      <tr><th>What the human meant</th><th>What the agent built</th><th>What the tests checked</th></tr>
+      <tr><td>Only the one button on the checkout page.</td><td>Every primary button, on every page.</td><td>That Submit is purple. It is. All tests pass.</td></tr>
+    </table>
+  </div>
+  <p>Nothing failed, so nobody noticed. The agent built what it understood. The tests checked what the agent understood. The human sees the result and says: "That is not what I meant." That is a late and costly way to find the gap. If the agent had said its claim and example back at the start, the human could have said "No, only that button" in one line.</p>
+  <h3>Example 2: the discount code</h3>
+  <p>The human says: "Add discount codes to checkout." The agent builds codes, and the tests try several sample codes. They all pass. But the request never said what happens when codes are combined, or when a code takes the price below the lowest price allowed (the "floor").</p>
+  <p>The real claim is "no discount code takes a price below the floor." That claim is about every code, not only the sample codes. A test shows a claim for the cases that it tries. Only a proof shows a claim for all cases. See slide 10.</p>
+  <div class="card">
+    <h3>Why more tests do not fix this</h3>
+    <p>The tests come from the same spec. A test that is written from a wrong spec passes. A check that passes while the result is wrong is a <strong>quiet failure</strong>, and a quiet failure is the worst kind. A loud failure is easy to fix.</p>
+  </div>
+  </div></details>
+  <p>So the question is not only "does the code match the spec?" It is also "does the spec match what the human means?" Orbital Shifting is a process that asks the second question early and often.</p>
+</section>
+
+<section class="slide" id="s2" tabindex="-1">
+  <div class="num">2 of 11 · Background</div>
+  <h2>The core philosophy</h2>
+  <p class="lead">Alignment: the human, the agent, and the formal records agree on what to build and on when it is done.</p>
+  <p>Alignment is always possible before a change lands, even when a full proof is not. The agent delivers changes that are <strong>fast</strong>, <strong>clear</strong>, <strong>accurate</strong>, and <strong>honest</strong>.</p>
   <div class="grid">
     <div class="card"><h3>Clear</h3>The request has one reading. The human and the agent share it.</div>
     <div class="card"><h3>Accurate</h3>The delivered change does what the request means. It does no less and no more.</div>
     <div class="card"><h3>Honest</h3>The agent says what it guessed, what it did not verify, and what went wrong. It does not claim more than its evidence shows.</div>
     <div class="card"><h3>Fast</h3>The agent does only the work that the request needs. Speed comes from skipping work that is not needed. It never comes from hiding work that was skipped.</div>
   </div>
-  <h3>The word "check"</h3>
-  <div class="card">
-    <p>A <strong>check</strong> is an executable test of one claim, such as a unit test or a script, with a pass or fail result. This site uses the word only in this sense.</p>
-    <p>Other ideas have other words. The impartial party is "the formal artifacts". The agent can "verify", "lint", and "review".</p>
+  <h3>Three parties that can disagree</h3>
+  <div class="grid">
+    <div class="card"><h3>The human</h3>Owns the intent and the final product.</div>
+    <div class="card"><h3>The agent</h3>Owns the build. It makes the request clear enough to build.</div>
+    <div class="card"><h3>The formal artifacts</h3>Machine-checkable records: the knowledge base, the tests, and the Lean code. They are impartial. They can disagree with the human and the agent.</div>
   </div>
+  <p>The goal is to help these three parties understand each other. Slide 4 gives the roles in full.</p>
+  <details class="more" open><summary>Five ideas</summary><div class="body dup">
+  <h3>Five ideas</h3>
+  <div class="grid">
+    <div class="card"><h3 style="color:var(--good)">Divergence is good, and it is loud</h3>The parties see the intent from different positions (this is called parallax). Where their views do not line up, there is a <strong>divergence</strong>: a failing check, or a human who says "that is not what I meant". A divergence means clarity is being achieved. The agent records every one.</div>
+    <div class="card"><h3 style="color:var(--bad)">Silence is the danger</h3>Silence, negative space, emptiness, and vacuity are often the predators of clarity, accuracy, and honesty. A check that cannot fail shows nothing.</div>
+    <div class="card"><h3>Rigor starts light</h3>Most requests need only a short process. The agent adds more rigor when a signal shows that it is needed. It removes it again when the cause is resolved.</div>
+    <div class="card"><h3>Rigor shifts with the task</h3>Rigor follows the risk, up and down. The agent does not grade a task once at the start.</div>
+    <div class="card"><h3>We orbit to achieve understanding</h3>We write solutions to problems. We do not write to achieve understanding. We orbit to achieve understanding: we go around the loop of human, agent, and formal artifacts until their views agree.</div>
+  </div>
+  </div></details>
+  <details class="more" open><summary>Words used on this site</summary><div class="body dup">
+  <h3>Words used on this site</h3>
+  <div class="card">
+    <ul>
+      <li><strong>Claim:</strong> one statement that the change must make true, such as "Primary buttons are purple."</li>
+      <li><strong>Check:</strong> an executable test of one claim, such as a unit test or a script, with a pass or fail result. This site uses the word only in this sense. Other ideas have other words: the impartial party is "the formal artifacts", and the agent can "verify", "lint", and "review".</li>
+      <li><strong>Knowledge base (KB):</strong> a folder of facts about one piece of work: the request, the claims, and the check results. A tool, <code>orbit-kb</code>, keeps it and checks it. The agent starts one only when it needs one.</li>
+      <li><strong>Lean:</strong> a language for writing proofs. A program checks each proof step by step.</li>
+      <li><strong>Proof:</strong> an argument, checked by a computer, that a claim is true for all cases. A test shows it only for the cases that it tries.</li>
+    </ul>
+  </div>
+  </div></details>
 </section>
 
-<section class="slide" id="s2">
-  <div class="num">2 of 9</div>
+<section class="slide" id="s3" tabindex="-1">
+  <div class="num">3 of 11 · Background</div>
+  <h2>How the process got here</h2>
+  <p>Ty, the author, came to this process in four steps over about six months in 2026. The first step was a set of plugins. A <strong>plugin</strong> is an add-on for Claude Code that gives it new skills and sub-agents. Dates marked "inferred" come from the history of the files, not from a direct record.</p>
+  <div class="diagram">
+    <svg viewBox="0 0 780 305" role="img" aria-labelledby="tt td">
+      <title id="tt">Timeline, April to October 2026</title>
+      <desc id="td">From 2 April to 13 June 2026: the orbital plugins. From 13 June to 4 September: a gap with two inferred parts, manual prompting with long prompts until about 5 August, then raw Claude from about 10 August. From 4 September to 21 October: the AIDLC. From 21 October: Orbital Shifting is live. Key dates: 2 April first plugin commit; 15 May switch to the orbital plugins; 13 June the pipeline plugins are turned off; 10 August the last plugin is removed; 4 September the AIDLC begins; 13 October the decision to start light and shift up; 21 October Orbital Shifting goes live.</desc>
+      <text x="30" y="30" class="band">2026</text>
+      <text x="79" y="92" text-anchor="middle" class="sub">Apr</text>
+      <text x="180" y="92" text-anchor="middle" class="sub">May</text>
+      <text x="280" y="92" text-anchor="middle" class="sub">Jun</text>
+      <text x="380" y="92" text-anchor="middle" class="sub">Jul</text>
+      <text x="482" y="92" text-anchor="middle" class="sub">Aug</text>
+      <text x="583" y="92" text-anchor="middle" class="sub">Sep</text>
+      <text x="681" y="92" text-anchor="middle" class="sub">Oct</text>
+      <path class="arr" d="M129 98V104M231 98V104M329 98V104M431 98V104M533 98V104M632 98V104"/>
+      <text x="750" y="68" text-anchor="end" font-weight="600">3 Orbital Shifting, live</text>
+      <rect class="box hum" x="33" y="104" width="237" height="40" rx="8"/>
+      <text x="151" y="129" text-anchor="middle" font-weight="600">1 The orbital plugins</text>
+      <rect class="box gap" x="270" y="104" width="175" height="40" rx="8"/>
+      <text x="357" y="120" text-anchor="middle" font-weight="600">Gap: manual</text>
+      <text x="357" y="135" text-anchor="middle" class="sub">long prompts (inferred)</text>
+      <rect class="box gap" x="461" y="104" width="82" height="40" rx="8"/>
+      <text x="502" y="120" text-anchor="middle" font-weight="600">Raw Claude</text>
+      <text x="502" y="135" text-anchor="middle" class="sub">(inferred)</text>
+      <rect class="box mid" x="543" y="104" width="155" height="40" rx="8"/>
+      <text x="620" y="129" text-anchor="middle" font-weight="600">2 The AIDLC</text>
+      <rect class="box chk" x="698" y="104" width="52" height="40" rx="8"/>
+      <text x="724" y="129" text-anchor="middle" font-weight="600">3</text>
+
+      <path class="arr" d="M33 144V160M270 144V160M543 144V160"/>
+      <text x="33" y="173" style="font-size:12px">2 Apr: first commit</text>
+      <text x="270" y="173" style="font-size:12px">13 Jun: pipeline plugins off</text>
+      <text x="543" y="173" style="font-size:12px">4 Sep: AIDLC begins</text>
+      <path class="arr" d="M175 144V195M461 144V195"/>
+      <text x="175" y="208" style="font-size:12px">15 May: switch to the orbital plugins</text>
+      <text x="461" y="208" style="font-size:12px">10 Aug: last plugin removed</text>
+      <path class="arr" d="M672 144V230"/>
+      <text x="672" y="243" text-anchor="end" style="font-size:12px">13 Oct: start light, shift up</text>
+      <path class="arr" d="M698 144V265"/>
+      <text x="698" y="278" text-anchor="end" style="font-size:12px">21 Oct: Orbital Shifting goes live</text>
+    </svg>
+  </div>
+  <details class="more" open><summary>The steps in detail</summary><div class="body">
+  <div class="eras">
+    <div class="card">
+      <h3>1. The orbital plugins</h3>
+      <p><strong>2 April to 13 June 2026</strong> (the last plugin left on 10 August).</p>
+      <p><strong>What it was.</strong> A seven-stage formal pipeline for one ticket. It wrote the code as a Prolog knowledge base, split the request into a hypothesis, built a model, proved properties in Lean, made tests from the proofs, had sub-agents make the tests pass, and scored the result. The main plugin had 17 specialist sub-agents.</p>
+      <p><strong>What it taught.</strong> Treat the spec as a hypothesis, and try to disprove it before there is code. That idea stayed. But the tools were good and there was one level of rigor for all work, which was too strict. The pipeline also lost sight of the original request after its second stage.</p>
+      <p><strong>Why the next step.</strong> The machinery ran on every ticket. Work on the plugin fell from 96 commits in May to 13 in June, and Ty turned the plugins off one by one.</p>
+    </div>
+    <div class="card">
+      <h3>The gap: manual prompting, then raw Claude</h3>
+      <p><strong>About 13 June to 4 September (inferred).</strong></p>
+      <p><strong>What it was.</strong> Ty ran the process by hand, with long and detailed prompts. This was a test: had the process reached a local optimum, a point where small changes help no more? Then Ty removed the process entirely (10 August) and worked with raw Claude, with no plugin and no process prompt.</p>
+      <p><strong>What it taught.</strong> The old process could definitely be made more efficient. It added too much machinery to the development lifecycle. But plain Claude gave no protection against the wrong-spec problem.</p>
+      <p><strong>Why the next step.</strong> Ty wanted to keep the goal and cut the cost. The next try was a governance prompt that scales with the task.</p>
+    </div>
+    <div class="card">
+      <h3>2. The AIDLC</h3>
+      <p><strong>4 September to 21 October 2026.</strong></p>
+      <p><strong>What it was.</strong> The AI Development Life Cycle: a system prompt for every work session, an attempt to scale the process back. It had nine phases and three rigor tiers: no formal methods, some, or all. The rigor tier for a ticket decided which phases were required.</p>
+      <p><strong>What it kept and dropped.</strong> It kept the wrong-spec idea, labeled claims, evidence that names its type, and counterexamples that block work. It dropped the fixed seven-stage order, and it dropped formal tools for small work.</p>
+      <p><strong>What it taught.</strong> A tier chosen once at the start does not work. Nobody knows how much must be formal until a miscommunication happens. The prompt also grew: from about 51 KB before the slimming of 5 October to about 67 KB after it.</p>
+      <p><strong>Why the next step.</strong> The v2 plan (13 and 14 October) asked for rigor that starts light and moves up after a miscommunication. The AIDLC structure could not give that without a rewrite.</p>
+    </div>
+    <div class="card">
+      <h3>3. Orbital Shifting</h3>
+      <p><strong>Live since 21 October 2026.</strong></p>
+      <p><strong>What it is.</strong> The philosophy and tools come back in step by step, with more flexibility. The core is a light path of five steps with no KB. Four signals shift the work up to a KB: too many questions, a divergence, a claim that needs a proof, or a handoff. When the cause is resolved, the work shifts back down.</p>
+      <p><strong>What it brings back.</strong> A survey of current behavior, labeled claims, disproving claims, counterexamples as tests, and Lean proofs for claims that must hold for all inputs.</p>
+      <p><strong>What it drops.</strong> Sets, tasks, charters, extra roles, per-ticket tiers, phase approvals, traceability matrices, and the fixed seven-stage order.</p>
+      <p><strong>Still open.</strong> It went live on 21 October, so it has no long track record yet.</p>
+    </div>
+  </div>
+  </div></details>
+  <details class="more" open><summary>Key dates</summary><div class="body dup">
+  <h3>Key dates</h3>
+  <div class="tbl card">
+    <table>
+      <tr><th>Date (2026)</th><th>Event</th></tr>
+      <tr><td>2 April</td><td>First commit of the plugin repository.</td></tr>
+      <tr><td>15 May</td><td>Ty switches to the orbital plugins and raises the effort level of Claude.</td></tr>
+      <tr><td>8 to 13 June</td><td>Plugins are turned off, the orchestrator first and the pipeline next.</td></tr>
+      <tr><td>10 August</td><td>The plugin marketplace is removed. No orbital plugin remains.</td></tr>
+      <tr><td>4 September</td><td>First commit of the AIDLC.</td></tr>
+      <tr><td>13 October</td><td>Decision: start light, and move up after a miscommunication.</td></tr>
+      <tr><td>15 and 16 October</td><td>The <code>orbit-kb</code> tool is built and committed.</td></tr>
+      <tr><td>19 October</td><td>A claim that must hold for all inputs needs a Lean proof.</td></tr>
+      <tr><td>20 October</td><td>The trust model: the tool guards against honest mistakes, not cheating. Three rounds of refinement.</td></tr>
+      <tr><td>21 October</td><td>Orbital Shifting goes live in place of the AIDLC.</td></tr>
+    </table>
+  </div>
+  </div></details>
+</section>
+
+<section class="slide" id="s4" tabindex="-1">
+  <div class="num">4 of 11 · Details</div>
   <h2>The three roles</h2>
   <p>Each role owns one thing. The text below is Ty's text, word for word.</p>
   <blockquote>
@@ -131,8 +404,8 @@ html.js .controls{display:flex}
   <p>Humans care about proofs when proofs are necessary. Agents worry about tests. The human does not review test results.</p>
 </section>
 
-<section class="slide" id="s3">
-  <div class="num">3 of 9</div>
+<section class="slide" id="s5" tabindex="-1">
+  <div class="num">5 of 11 · Details</div>
   <h2>Parallax and the two orbits</h2>
   <p>Each party sees the intent from a different position: the human's words, the agent's claims, the formal artifacts, and the code.</p>
   <p>These views triangulate the intent. Where they do not line up, there is a <strong>divergence</strong>. A divergence is a failing check, a counterexample, or a human who says "that is not what I meant".</p>
@@ -207,10 +480,13 @@ html.js .controls{display:flex}
       <text x="212" y="396" text-anchor="middle" class="sub">a clear request skips discovery</text>
     </svg>
   </div>
+  <details class="more" open><summary>How a lap works</summary><div class="body">
   <ul>
     <li>Each lap passes through the formal artifacts and through the human. So no one party grades its own work. In a tiny discovery orbit, the system itself stands in for the formal artifacts.</li>
     <li>The orbit closes when a full lap changes nothing. The restatement, the formal artifacts, and the human agree. Another lap would only add cost. Most tickets close in one lap.</li>
   </ul>
+  </div></details>
+  <details class="more" open><summary>Where a request goes</summary><div class="body dup">
   <h3>Where a request goes</h3>
   <div class="grid">
     <div class="card"><h3>A question</h3>Answer directly.</div>
@@ -218,10 +494,11 @@ html.js .controls{display:flex}
     <div class="card"><h3>A report</h3>Something is wrong or wanted, but you cannot yet say what to change. Run the discovery orbit. A tiny report starts with the tiny discovery orbit.</div>
     <div class="card"><h3>A change request</h3>Run the build orbit, starting with the light path. Open details are questions to ask, not a reason for discovery.</div>
   </div>
+  </div></details>
 </section>
 
-<section class="slide" id="s4">
-  <div class="num">4 of 9</div>
+<section class="slide" id="s6" tabindex="-1">
+  <div class="num">6 of 11 · Details</div>
   <h2>The light path: one try to get it right</h2>
   <p>Most tickets need only the light path. These five steps are the whole process until a trigger fires.</p>
   <div class="card">
@@ -241,14 +518,19 @@ html.js .controls{display:flex}
   <div class="grid">
     <div class="card"><h3>Questions</h3>One round does not settle the ticket. The agent needs more than three questions, or an answer raises a new question.</div>
     <div class="card"><h3>A divergence</h3>The human says the result, or the restatement, is wrong. Or the red run passes. Or a check fails after the build. Or the code does not behave as assumed.</div>
-    <div class="card"><h3>A claim that burns</h3>The human asks for a proof. Or the claim is universal: the domain inputs are infinite or too large to check case by case.</div>
+    <div class="card"><h3>A claim that burns</h3>A claim "burns" when it needs a proof. The human asks for a proof. Or the claim is universal: the domain inputs are infinite or too large to check case by case. See slide 10.</div>
     <div class="card"><h3>A handoff</h3>Another session continues the work.</div>
   </div>
   <p>A KB costs time, so the agent does not start one before it needs one. A KB is memory and a referee, so the agent starts one as soon as a miscommunication or a proof appears.</p>
+  <details class="more" open><summary>Shift down</summary><div class="body dup">
   <h3>Shift down</h3>
   <p>Rigor follows the risk in both directions. Ty ratified this rule. When the cause of a shift is resolved, the agent goes back to the least work that still covers the ticket. It keeps the KB, but writes only the facts that <code>done</code> and the report read. It never drops an open question, a failing check, or a burn. Only the human can waive a burn. The next ticket starts light.</p>
+  </div></details>
+  <details class="more" open><summary>Ask first, or build on defaults</summary><div class="body dup">
   <h3>Ask first, or build on defaults</h3>
   <p>The agent builds on its defaults. It asks first only if a wrong default is costly or impossible to undo (data loss, external effects, public interfaces, security, or money), or if two defaults are equally likely and the build is large. It asks at most three questions in one round, with concrete options and a marked default. It does not ask the human to approve a list.</p>
+  </div></details>
+  <details class="more" open><summary>Two examples</summary><div class="body dup">
   <h3>Two examples</h3>
   <div class="card">
     <p><strong>A small change.</strong> A claim: "Primary buttons are purple." An example: "Submit on /checkout renders #6B3FA0". The agent starts light, with no KB. It writes a check and sees it fail. It builds the change, runs the check again, and delivers.</p>
@@ -256,20 +538,23 @@ html.js .controls{display:flex}
   <div class="card">
     <p><strong>An ambiguous change.</strong> "Add discount codes to checkout." The agent asks one round of up to three questions, most costly default first. If the answers raise new questions, it shifts up to a KB. The claim "no discount code takes a price below the floor" is universal. It burns, so it needs a proof.</p>
   </div>
+  </div></details>
 </section>
 
-<section class="slide" id="s5">
-  <div class="num">5 of 9</div>
+<section class="slide" id="s7" tabindex="-1">
+  <div class="num">7 of 11 · Details</div>
   <h2>The build orbit</h2>
   <p>The build orbit delivers a solution. It starts on the light path. After a shift up, it works in a KB with the moves below.</p>
+  <details class="more" open><summary>The KB</summary><div class="body dup">
   <h3>The KB</h3>
   <ul>
-    <li>The KB is a directory with a <code>kb.pl</code> file in s(CASP). The agent uses the <code>orbit-kb</code> command for all work on it. It never edits <code>kb.pl</code> by hand.</li>
+    <li>The KB is a directory with a <code>kb.pl</code> file in s(CASP), a logic-programming language. The agent uses the <code>orbit-kb</code> command for all work on it. It never edits <code>kb.pl</code> by hand.</li>
     <li>The KB is memory between laps and between sessions. When the agent resumes, it runs <code>orbit-kb show open</code> first.</li>
     <li>The agent never types a digest or a test result. <code>orbit-kb run</code> is the only way to record a test result.</li>
     <li>Size the KB to the work. Do not commit it, unless the human asks.</li>
-    <li>Two engines answer each query and the command compares them. If they disagree, stop and report both answers.</li>
+    <li>Two logic engines answer each query and the command compares them. If they disagree, stop and report both answers.</li>
   </ul>
+  </div></details>
   <h3>The moves</h3>
   <p>A move is a unit of work on the KB. The light path does the same work in brief, with no records. After a shift up, the agent runs only the moves that the ticket needs. Every move reads the ticket text itself.</p>
   <div class="grid">
@@ -278,22 +563,25 @@ html.js .controls{display:flex}
     <div class="card"><h3>BUILD</h3>Write the checks first, and add a screenshot check for a user surface. Run each <code>retire</code> and <code>introduce</code> check red. Build only what the claims need. Never edit a check to make it pass.</div>
     <div class="card"><h3>FULFILL</h3>Review with fresh eyes, from both directions. Under: a claim that is not fulfilled. Over: a change that serves no claim. Then open questions and clean-up.</div>
     <div class="card"><h3>DISPROVE</h3>Try to break a claim within a small budget. The verdict is <code>refuted(Counterexample)</code>, <code>inconclusive</code>, or <code>abstained</code>. Do not weaken a claim to absorb a counterexample.</div>
-    <div class="card"><h3>BURN</h3>Prove a burning claim in Lean. See slide 8.</div>
+    <div class="card"><h3>BURN</h3>Prove a burning claim in Lean. See slide 10.</div>
     <div class="card"><h3>EXPLAIN</h3>On request, explain the work in simple technical English, from the KB.</div>
   </div>
   <p>The ticket is done when <code>done</code> holds: nothing is under, nothing is over, nothing is to ask, no burn is open, and no claim is in a supersede cycle. Then the agent stops. It does not polish beyond the claims.</p>
+  <details class="more" open><summary>When the human says it is wrong</summary><div class="body dup">
   <h3>When the human says it is wrong</h3>
   <p>"That is not what I meant" is the loudest divergence. Other forms are "why did you do X?" and "is this necessary?". These are examples of the meaning, not phrases to match. The agent shifts up if it is on the light path, and records the divergence on the claim. Then it decides which is wrong: the build, or the problem itself. If the problem is wrong, it goes back to discovery. It records the human's answer and asks only the small cluster of questions that are now due. Then it rebuilds and runs the checks again.</p>
+  </div></details>
 </section>
 
-<section class="slide" id="s6">
-  <div class="num">6 of 9</div>
+<section class="slide" id="s8" tabindex="-1">
+  <div class="num">8 of 11 · Details</div>
   <h2>The discovery orbit</h2>
   <p>Discovery turns a report into a ticket with a clear problem, scope, and risk, before the agent builds. Most reports need only a reproduction.</p>
   <div class="card">
     <h3>Example report</h3>
     "Users say sync loses their edits sometimes." Something is wrong, but nobody can yet say what to change. This report takes the discovery orbit, not the build orbit.
   </div>
+  <details class="more" open><summary>When to run discovery</summary><div class="body dup">
   <h3>When to run discovery</h3>
   <ul>
     <li>The human asks the agent to explore, to investigate, or to learn if a problem is real.</li>
@@ -301,29 +589,32 @@ html.js .controls{display:flex}
     <li>The agent cannot write the claims, with examples, until it learns how the system behaves now.</li>
   </ul>
   <p>A change request with open details stays in the build orbit. Inside discovery, requirements that can conflict with each other or with current behavior are where models pay. Examples are rules, permissions, prices, limits, workflows, retries, and concurrency.</p>
+  </div></details>
   <h3>The tiny discovery orbit</h3>
   <p>Most reports are tiny: one problem, a cheap reproduction, and claims that a few examples cover. A tiny report runs a tiny discovery orbit. It has <strong>no KB and no models</strong> (no SMT, TLA+, or Lean). Its one formal artifact is a <strong>red test of the reproduction</strong>: a check, which the build reuses.</p>
   <ol>
     <li>Touch the system: reproduce the defect, show that the feature is absent, or show whether the conditions of a risk occur. If it does not reproduce, tell the human what you tried.</li>
     <li>State the claims, each with one example, and what would falsify each claim.</li>
     <li>Ask the human.</li>
-    <li>Vote GO, NO-GO, or HOLD (slide 7). On GO, the claims, the examples, and the reproduction are the ticket. The build orbit starts on the light path, and the reproduction becomes its first check.</li>
+    <li>Vote GO, NO-GO, or HOLD (slide 9). On GO, the claims, the examples, and the reproduction are the ticket. The build orbit starts on the light path, and the reproduction becomes its first check.</li>
   </ol>
+  <details class="more" open><summary>The full discovery orbit</summary><div class="body dup">
   <h3>The full discovery orbit</h3>
   <p>The agent shifts up to the full orbit, in a KB, on any trigger of the light path. It also shifts up when a claim needs a model, because a few examples cannot cover its combinations or orders of steps.</p>
   <ul>
     <li>Each lap touches the current system or a solver, and then the human. The default budget is three laps.</li>
     <li>The agent pins the report as one falsifiable hypothesis, then touches the system to reproduce it. If the problem does not reproduce, the agent tells the human what it tried.</li>
-    <li>It chooses the cheapest tool that can falsify each claim. A reproduction or a test comes first. SMT is for rules, permissions, limits, and prices. TLA+ is for order of steps, retries, and concurrency. A property for every input is <code>universal</code>, for BURN.</li>
+    <li>It chooses the cheapest tool that can falsify each claim. A reproduction or a test comes first. SMT (a solver that finds cases that fit a set of rules) is for rules, permissions, limits, and prices. TLA+ (a language that models order of steps, checked by a tool) is for order of steps, retries, and concurrency. A property for every input is <code>universal</code>, for BURN.</li>
     <li>A finding from a model only is a lead, until a reproduction on the system confirms it. Only a trusted model gives a verdict about the current system.</li>
     <li>The agent stops when discovery is ready, or the last lap of the budget is done. Out of budget is not ready. The agent reports what it knows, each open item, and what it does not know. Then the three roles vote.</li>
   </ul>
   <p>The moves are SIGNAL, SURVEY, SPECTRUM, FLYBY (SMT), TRAJECTORY (TLA+), and DISPROVE. The agent asks the human only the questions that evidence raised. It asks about conflicts first, then surprises, then boundaries. When stakeholders conflict, the decision owner decides.</p>
   <p>A wrong report is a valid result. The agent says so, with the evidence. When a divergence shows that the problem is wrong, not the build, the work goes back to discovery.</p>
+  </div></details>
 </section>
 
-<section class="slide" id="s7">
-  <div class="num">7 of 9</div>
+<section class="slide" id="s9" tabindex="-1">
+  <div class="num">9 of 11 · Details</div>
   <h2>The vote: GO, NO-GO, or HOLD</h2>
   <p>At the end of discovery, three roles vote: the human, the agent, and the formal artifacts.</p>
   <div class="tbl card">
@@ -339,6 +630,7 @@ html.js .controls{display:flex}
     <div class="card"><h3>NO-GO</h3>The problem is not real, the feature exists, or it is not worth building.</div>
     <div class="card"><h3>HOLD</h3>Wait for data, for access, or for a decision by another person.</div>
   </div>
+  <details class="more" open><summary>The steps</summary><div class="body dup">
   <h3>The steps</h3>
   <ol>
     <li>The agent casts its vote first and seals it. It records the vote before it gives the report.</li>
@@ -347,7 +639,9 @@ html.js .controls{display:flex}
     <li>A choice wins only with more than half of the weight, and the human's vote must be part of it. So a choice wins when the human and at least one other role agree.</li>
     <li>Any other result is HOLD. Another orbit follows, and the agent records the disagreement as a divergence.</li>
   </ol>
+  </div></details>
   <p><strong>Nothing is built or dropped against the human's vote.</strong> Only the human changes the scope or raises the budget. On GO, the agent writes the ticket in plain prose.</p>
+  <details class="more" open><summary>Examples</summary><div class="body dup">
   <h3>Examples</h3>
   <div class="tbl card">
     <table>
@@ -359,10 +653,11 @@ html.js .controls{display:flex}
     </table>
   </div>
   <p>The first rows follow from the weights: 0.4 + 0.3 = 0.7, which is more than half. In a three-way split, no choice has more than half.</p>
+  </div></details>
 </section>
 
-<section class="slide" id="s8">
-  <div class="num">8 of 9</div>
+<section class="slide" id="s10" tabindex="-1">
+  <div class="num">10 of 11 · Details</div>
   <h2>Burns</h2>
   <p>Humans care about proofs when proofs are necessary. Agents worry about tests. A claim <strong>burns</strong> when a test cannot be enough.</p>
   <p>A claim burns when it is <code>universal</code>, when the human asks for a proof, or when it was contested twice. A claim that supersedes a burning claim burns too.</p>
@@ -372,14 +667,17 @@ html.js .controls{display:flex}
     <p>Examples: "no discount code takes a price below the floor"; "every distinguished element needs at least 7:1 contrast with whatever it overlays".</p>
     <p>A claim that a few examples cover is not universal. Example: "Primary buttons are purple."</p>
   </div>
+  <details class="more" open><summary>The rules</summary><div class="body dup">
   <h3>The rules</h3>
   <ul>
     <li>A burn needs a proof. The clarity comes from the work to write a correct proof, not from a statement in Lean.</li>
-    <li>Only <code>orbit-kb prove</code> records a proof. It accepts the theorem only if there is no <code>sorry</code>, no <code>native_decide</code>, and no axiom of its own, and the kernel accepts it again.</li>
+    <li>Only <code>orbit-kb prove</code> records a proof. It accepts the theorem only if there is no <code>sorry</code> (the Lean mark for a missing proof), no <code>native_decide</code> (a Lean shortcut), and no axiom of its own (an assumption with no proof), and the kernel (the small core of Lean that checks proofs) accepts it again.</li>
     <li>A statement with <code>sorry</code> is not a proof. "No counterexample in N trials" is not a proof. A solver result or a TLC run is not a proof: it holds only within its encoding and bounds.</li>
     <li>While a burn is open, <code>done</code> is false. If a Lean file of the project or a Lake configuration file changes, the proof stops counting.</li>
     <li>A claim that supersedes a burning claim needs its own proof. The old proof or waiver does not carry over.</li>
   </ul>
+  </div></details>
+  <details class="more" open><summary>The steps</summary><div class="body dup">
   <h3>The steps</h3>
   <ol>
     <li>Write a Lean model of the behavior, and state the claim as a theorem.</li>
@@ -389,11 +687,13 @@ html.js .controls{display:flex}
     <li>Read the statement that <code>orbit-kb prove</code> prints. Make sure it says what the claim says. Show it to the human.</li>
     <li>Carry the result back to the code. Each Lean example becomes a test case.</li>
   </ol>
+  </div></details>
   <div class="grid">
     <div class="card"><h3 style="color:var(--good)">A proof shows</h3>The theorem holds for the Lean model. The kernel accepted it.</div>
     <div class="card"><h3 style="color:var(--bad)">A proof does not show</h3>That the shipped code matches the model. Only the checks test the code. It also does not show that the statement says what the claim says. The human reads that statement.</div>
   </div>
   <p>If the proof fails, the claim or the model is wrong, or the claim is not yet clear. That is a divergence. The agent records it and asks the human. It does not weaken the claim to fit the proof.</p>
+  <details class="more" open><summary>Waivers</summary><div class="body dup">
   <h3>Waivers</h3>
   <p>Only a human can skip work, for example to meet a deadline. A skip is a <strong>waiver</strong>, with a due time when the work comes back. A waiver can target a claim's burn, a check, or a question.</p>
   <ul>
@@ -402,10 +702,11 @@ html.js .controls{display:flex}
     <li>On the light path, the agent writes the skip and its due time in the delivery. It lists every waiver in the delivery.</li>
   </ul>
   <p>A ticket can mix claims that coast on examples and claims that burn. The agent chooses per claim, not per ticket.</p>
+  </div></details>
 </section>
 
-<section class="slide" id="s9">
-  <div class="num">9 of 9</div>
+<section class="slide" id="s11" tabindex="-1">
+  <div class="num">11 of 11 · Details</div>
   <h2>Trust and honesty in delivery</h2>
   <h3>The trust threat model</h3>
   <p>The formal artifacts trust the agent. They catch honest mistakes. They do not stop cheating.</p>
@@ -414,6 +715,7 @@ html.js .controls{display:flex}
     <div class="card"><h3>What the agent does</h3>It writes <code>--by human</code> only to record what the human said. It never works around a check, a lint rule, or <code>orbit-kb prove</code>.</div>
   </div>
   <p>The reason: a safeguard that the agent works around protects no one. The prompt states this limit openly.</p>
+  <details class="more" open><summary>Honesty rules</summary><div class="body dup">
   <h3>Honesty rules</h3>
   <ol>
     <li>Every default is a guess. The delivery lists the guesses that a human might disagree with.</li>
@@ -422,6 +724,8 @@ html.js .controls{display:flex}
     <li>If the agent finds its own earlier work wrong, it says so first.</li>
   </ol>
   <p>In discovery, the agent also labels each finding as from the system or from a model only. It reports each solver result with its encoding, bounds, and assumptions. It says what each model omits.</p>
+  </div></details>
+  <details class="more" open><summary>The delivery</summary><div class="body dup">
   <h3>The delivery</h3>
   <p>The delivery has six fields, in short, plain sentences:</p>
   <div class="tbl card">
@@ -440,78 +744,150 @@ html.js .controls{display:flex}
     <li>The delivery includes a screenshot when the change has a user surface.</li>
     <li>The agent lists every waiver in the delivery.</li>
   </ul>
+  </div></details>
   <h3>Landing</h3>
-  <p>The agent lands the change (merge, push, or deploy) when it judges it safe, within the guardrails of the harness. It stops for the human first when the change touches a public interface, data, security, or money, or is hard to undo. Then "To land" names the decision.</p>
+  <p>The agent lands the change (merge, push, or deploy) when it judges it safe, within the guardrails of the harness (the tools and limits that Claude Code runs under). It stops for the human first when the change touches a public interface, data, security, or money, or is hard to undo. Then "To land" names the decision.</p>
+  <p class="sources">Sources: slides 1 and 2 and slides 4 to 11 come from the live prompt, <code>shared/link/.claude/orbital-shifting/ORBITAL-SHIFTING.md</code> (live since 2026-10-21), its design notes <code>thoughts/orbital-shifting-system-prompt-draft.md</code>, and <code>thoughts/orbital-shifting-refinement-record.md</code>. Slide 3 comes from <code>thoughts/orbital-shifting-history.md</code>, the plugin repository, and the dotfiles git history.</p>
 </section>
 
+<p class="hint nojs" style="padding-inline:1.1rem;text-align:center">Without JavaScript, scroll.</p>
+</main>
 <div class="controls" id="controls">
   <button id="prev" type="button">Previous</button>
-  <span class="hint" id="pos"></span>
+  <div class="ctr"><span><span id="pos"></span><span id="more"></span></span><span class="keys">Arrows, PageUp and PageDown, Home, End to move. F for full screen. D for details.</span></div>
   <button id="next" type="button">Next</button>
 </div>
-<p class="hint" style="text-align:center">Keys: Left and Right arrows, PageUp and PageDown, Home, End. Without JavaScript, scroll.</p>
-
-<p class="sources">Sources: every statement comes from <code>thoughts/orbital-shifting-system-prompt-draft.md</code> (the draft after review round 2, 2026-10-21) and <code>thoughts/orbital-shifting-refinement-record.md</code>.</p>
-</main>
 
 <script>
 (function(){
   var slides=[].slice.call(document.querySelectorAll('.slide'));
   var links=[].slice.call(document.querySelectorAll('nav a'));
-  var pos=document.getElementById('pos'),prev=document.getElementById('prev'),next=document.getElementById('next');
+  var pos=document.getElementById('pos'),prev=document.getElementById('prev'),next=document.getElementById('next'),bar=document.getElementById('bar');
+  var details=[].slice.call(document.querySelectorAll('details.more'));
   var cur=0;
   document.documentElement.className+=' js';
+  details.forEach(function(d){d.open=false;});
   function show(i,push){
     cur=Math.max(0,Math.min(slides.length-1,i));
-    slides.forEach(function(s,k){s.classList.toggle('active',k===cur);});
+    slides.forEach(function(s,k){
+      s.classList.toggle('active',k===cur);
+      if(k===cur){s.removeAttribute('aria-hidden');}else{s.setAttribute('aria-hidden','true');}
+    });
     links.forEach(function(a,k){ if(k===cur)a.setAttribute('aria-current','true'); else a.removeAttribute('aria-current');});
     pos.textContent=(cur+1)+' / '+slides.length;
+    bar.style.transform='scaleX('+((cur+1)/slides.length)+')';
     prev.disabled=cur===0; next.disabled=cur===slides.length-1;
     if(push){ try{history.replaceState(null,'','#s'+(cur+1));}catch(e){} }
-    window.scrollTo(0,0);
+    slides[cur].scrollTop=0; hint();
+    try{slides[cur].focus({preventScroll:true});}catch(e){}
   }
+  function hint(){
+    var s=slides[cur],m=document.getElementById('more');
+    m.textContent=(s.scrollHeight-s.clientHeight-s.scrollTop>24)?'scroll for more':'';
+  }
+  slides.forEach(function(s){s.addEventListener('scroll',hint,{passive:true});});
+  window.addEventListener('resize',hint);
+  document.addEventListener('toggle',hint,true);
   function fromHash(){
     var m=/^#s(\d+)$/.exec(location.hash);
     return m?parseInt(m[1],10)-1:0;
+  }
+  function toggleDetails(){
+    var ds=[].slice.call(slides[cur].querySelectorAll('details.more'));
+    var anyClosed=ds.some(function(d){return !d.open;});
+    ds.forEach(function(d){d.open=anyClosed;});
+  }
+  function fullscreen(){
+    var d=document,e=d.documentElement;
+    try{ if(d.fullscreenElement){d.exitFullscreen();} else if(e.requestFullscreen){e.requestFullscreen();} }catch(x){}
   }
   links.forEach(function(a,k){ a.addEventListener('click',function(e){e.preventDefault();show(k,true);}); });
   prev.addEventListener('click',function(){show(cur-1,true);});
   next.addEventListener('click',function(){show(cur+1,true);});
   document.addEventListener('keydown',function(e){
     if(e.altKey||e.ctrlKey||e.metaKey)return;
-    var k=e.key;
+    var k=e.key,t=e.target&&e.target.tagName;
+    var onControl=(t==='SUMMARY'||t==='BUTTON'||t==='A');
     if(k==='ArrowRight'||k==='PageDown'){e.preventDefault();show(cur+1,true);}
     else if(k==='ArrowLeft'||k==='PageUp'){e.preventDefault();show(cur-1,true);}
     else if(k==='Home'){e.preventDefault();show(0,true);}
     else if(k==='End'){e.preventDefault();show(slides.length-1,true);}
+    else if(k===' '&&!onControl){e.preventDefault();show(cur+(e.shiftKey?-1:1),true);}
+    else if(k==='f'||k==='F'){e.preventDefault();fullscreen();}
+    else if(k==='d'||k==='D'){e.preventDefault();toggleDetails();}
   });
+  var tx=null,ty=null;
+  document.addEventListener('touchstart',function(e){var t=e.changedTouches[0];tx=t.clientX;ty=t.clientY;},{passive:true});
+  document.addEventListener('touchend',function(e){
+    if(tx===null)return; var t=e.changedTouches[0],dx=t.clientX-tx,dy=t.clientY-ty; tx=null;
+    if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*2){show(cur+(dx<0?1:-1),true);}
+  },{passive:true});
   window.addEventListener('hashchange',function(){show(fromHash(),false);});
+  var wasOpen=null;
+  window.addEventListener('beforeprint',function(){wasOpen=details.map(function(d){return d.open;});details.forEach(function(d){d.open=true;});});
+  window.addEventListener('afterprint',function(){if(wasOpen)details.forEach(function(d,k){d.open=wasOpen[k];});});
   show(fromHash(),false);
 })();
 </script>
 <!--
-Fact-check note. Every statement was checked against
-thoughts/orbital-shifting-system-prompt-draft.md and the Review round 1 and 2 sections of
-thoughts/orbital-shifting-refinement-record.md.
-Statements not matched: none found.
-Wording that goes past the draft's exact words (paraphrase or illustration, not new rules):
-- Slide 2 "The human does not review test results" and slide 4 "It is not a test report for the human
+Fact-check note. Slides 1, 2, and 4 to 11 were checked against the live prompt
+(shared/link/.claude/orbital-shifting/ORBITAL-SHIFTING.md), thoughts/orbital-shifting-system-prompt-draft.md,
+and the Review round 1 and 2 sections of thoughts/orbital-shifting-refinement-record.md.
+Slide 3 was checked against thoughts/orbital-shifting-history.md, which has the evidence (commit hashes).
+Slide numbers below are the new numbers (11 slides).
+
+Statements with no exact match in the live prompt (paraphrase, illustration, gloss, or other source):
+- Slide 1 "wrong, incomplete, read two ways": the three-way split is from the task brief. The live prompt
+  has only "the human is not always the source of clarity" (Roles).
+- Slide 1 purple-button story: the claim "Primary buttons are purple" and the example #6B3FA0 are the
+  prompt's. The human's words "Make the button purple" echo the cites example 'the button purple'. The
+  "only the checkout button" meaning and the table are an illustration.
+- Slide 1 discount-code story: the floor claim is the prompt's. "Combined codes" and "sample codes
+  pass" are an illustration from the refinement record scenario.
+- Slide 1 "a late and costly way to find the gap": from the v2 brainstorm (cost to repair grows through the
+  phases, thoughts/aidlc-v2-deep-explanation-ste.md), not the live prompt.
+- Slide 1 "only a proof shows a claim for all cases": a paraphrase of the burn rules. The prompt says a
+  burn needs a proof and "no counterexample in N trials is not a proof".
+- Slide 2 glossary entries for claim, KB, Lean, and proof are plain-language glosses. The prompt says
+  "directory with a kb.pl file" and does not define Lean or proof.
+- Slide 2 "Rigor starts light / shifts with the task / does not grade a task once": from The light path,
+  Shift down, and the draft's Open item 5 (Ty's rule of 2026-10-13).
+- Slide 2 "go around the loop until their views agree" paraphrases "The orbit closes when a full lap
+  changes nothing".
+- Slide 3 inferred dates: manual-prompting phase (about 13 June to 5 August), raw Claude phase (from 10
+  August), and the end of the gap (4 September). Ty's account is authoritative for the order and the
+  reasons. The dates come from the plugin on/off commits.
+- Slide 3 "the cost of machinery is why use fell": the commit counts are fact (96 in May, 13 in June).
+  The reason is Ty's account, not a commit message.
+- Slide 3 "the pipeline lost sight of the original request after its second stage": from the v2 brainstorm
+  section 1.2, which reports a finding from the plugin repository. Not re-checked in the plugin code.
+- Slide 3 "AIDLC kept / dropped" and "Orbital Shifting brings back / drops" lists: from the AIDLC prompt,
+  the design notes ("What was dropped"), and the history file. "Brings back" is a summary of the
+  design-notes provenance table.
+- Slide 3 AIDLC size (51 KB to 67 KB): file sizes from git (15a3b04 parent and the current file).
+- Slide 3 "no long track record yet": an inference. The draft's "not verified" note predates going live.
+- Slide 3 "about six months", "Ty (they/them)": from the dates and the task brief.
+- Glosses added to the nuts-and-bolts slides: s(CASP), "logic engines", SMT, TLA+, sorry, native_decide
+  (a "Lean shortcut"), axiom, kernel, harness. The prompt uses these words and does not define them.
+- Slide 6 "A claim burns when it needs a proof" is a short gloss. Slide 10 has the full rules.
+Wording that goes past the draft's exact words (carried over from the earlier version):
+- Slide 4 "The human does not review test results" and slide 6 "It is not a test report for the human
   to review" come from Ty's emphasis in the refresh request; the draft says "The human verifies the
   result, not the tests".
-- Slide 2 "Agents worry about tests" and slide 8 "Humans care about proofs when proofs are necessary":
+- Slide 4 "Agents worry about tests" and slide 10 "Humans care about proofs when proofs are necessary":
   Ty's emphasis, not draft text.
-- Slide 4 "Add discount codes to checkout." is the scenario from the refinement record, not the draft.
+- Slide 6 "Add discount codes to checkout." is the scenario from the refinement record, not the draft.
   The draft has only the floor claim.
-- Slide 4 "A small change": the claim and example are the draft's (Command table, DECOMPOSE); the
+- Slide 6 "A small change": the claim and example are the draft's (Command table, DECOMPOSE); the
   light-path story around them is an illustration.
-- Slide 7 example table: the results follow from the weights and the win rule, and are not
-  listed in the draft. The case "GO, NO-GO, HOLD" follows the "three-way split" rule.
-- Slide 7 "A visible vote biases the human" and "thinks critically and decides" paraphrase step 1.
-- Slide 3 diagram: the lap row and the two-orbit row follow the draft's diagram; the converge box is
+- Slide 9 example table: the results follow from the weights and the win rule, and are not listed in
+  the draft. The case "GO, NO-GO, HOLD" follows the "three-way split" rule.
+- Slide 9 "A visible vote biases the human" and "thinks critically and decides" paraphrase step 1.
+- Slide 5 diagram: the lap row and the two-orbit row follow the draft's diagram; the converge box is
   split into "agree" and "differ", as in the draft.
-- Slide 1 "Other ideas have other words ... verify, lint, review": from the review round 1 audit and
-  design notes; the draft itself shows the terms in use, not a list.
-- Slide 8 "contested twice" burn comes from the burn(C) query in the draft.
+- Slide 2 and slide 4 "Other ideas have other words ... verify, lint, review": from the review round 1
+  audit and design notes; the draft itself shows the terms in use, not a list.
+- Slide 10 "contested twice" burn comes from the burn(C) query in the draft.
 No orbit-kb vote command is quoted, by request.
 -->
 </body>
