@@ -292,3 +292,139 @@ Open findings for Ty (deduplicated):
 10. The discovery orbit (about 230 lines, ratified text) was not shortened; the prompt is
     still about 750 lines. No agent run has yet used the merged prompt (passes 1 and 3,
     Design notes "Not verified").
+
+## Review round 1 (2026-10-21)
+
+Source: Ty's review notes of 2026-10-21. Ty's uncommitted edits to the draft were kept,
+except four small fixes (item 7). The "deadline skip" paragraph in Delivery was not
+touched; Ty has a pending question about it.
+
+### Changes and reasons
+
+1. **One meaning of "check".** Ty: "when definitions collide, ambiguity only serves
+   confusion." A check is now defined once, below the light path intro: an executable test
+   of one claim, with a pass or fail result; in a KB a `check(K, Claim)` fact whose runs
+   `orbit-kb run` records; on the light path the same test with no KB. Every other use was
+   renamed (audit below). Ty's sentence "A check is only valuable if it can fail" is kept
+   as is; it fits the defined meaning. No second sentence was added: discovery honesty
+   rule 4 already says the same of models.
+2. **Two orbits and one diagram.** "The orbit" now states the two orbits after Parallax:
+   discovery makes a problem clear, build delivers a solution; discovery, when it runs,
+   comes first; a clear change request goes straight to build. Ty's reminder is included:
+   "We write solutions to problems. We do not write to achieve understanding; we orbit to
+   achieve understanding." The old lap diagram was merged into one fenced diagram with
+   three parts: one lap, the views converging, and the two orbits in order with the direct
+   path into build.
+3. **Tiny discovery orbit.** New subsection in the discovery orbit: touch the system, state
+   the claims with examples and falsifiers, ask the human, get GO / NO-GO / HOLD; no KB and
+   no formal artifacts. It shifts up to the full orbit on the light path's triggers (by
+   reference, no new list), or when a claim needs a model. Scope routes a tiny report there.
+   "When to run" no longer lists prices and limits as a reason to start discovery (pass 3
+   open finding); that text now says where models pay inside discovery, and that a change
+   request with open details stays in the build orbit. Scope's change-request route names
+   business rules as an example of open details. Sizes gained "Tiny"; "Small" now says it
+   uses a KB. "Small report" was avoided so that "small" keeps its size meaning.
+4. **Lint and GO.** Discovery honesty rule 7 now says that what blocks `discovery_ready`
+   blocks GO (today WD1, WD3, WD7, ED3 to ED7), and to read
+   `orbit-kb whynot 'discovery_ready'` because the lint rules can change.
+5. **Counterexample slot.** `refuted` became `refuted(Counterexample)` in the build module
+   `lean_result` line, ED5, core DISPROVE (with the command
+   `orbit-kb attest disproof c1 "verdict(c1, refuted('price 0 with code X'))"`), BURN step
+   3, and discovery DISPROVE (the counterexample goes in the verdict; the `note` was dropped;
+   the `example` stays, because the build orbit turns counterexamples into test cases).
+   Verified against the current CLI in a scratch KB: both attestations accept
+   `refuted('...')`, `refuted(c1)` holds, and a bare `refuted` is rejected with E3.
+6. **Shift down ratified.** Removed from "Still open"; the pass-3 row no longer says "not
+   yet ratified"; new provenance row (user, 2026-10-21). Rows were also added for items 1
+   to 5.
+7. **Typos in Ty's edits.** "atleast" → "at least"; "The Human communicating" → "The human
+   saying"; "simple technical english" → "simple technical English"; "without Decide and
+   Recommend" → "without Decide and Ask".
+
+Also: the Parallax paragraph and one BURN line were reflowed to the file's line width.
+
+### "check" audit (prompt part, and design notes for consistency)
+
+Old line numbers are from the draft as Ty left it (846 lines); new ones are from the result.
+
+| Old | New | Old use | Meaning | New term |
+|---|---|---|---|---|
+| 10 | 10 | "what you did not check" | verify | "what you did not verify" |
+| 27 | 27 | "no checks" (advice route) | check | kept |
+| — | 53 | — | — | new definition of **check** |
+| 54–57 | 59–62 | light path step 3; "Not checked" | check | kept |
+| 59–60 | 64–65 | "Run the checks again"; "each check command" | check | kept |
+| 65 | 70 | "the checks" recorded on shift-up | check | kept |
+| 70 | 75 | "a check fails after the build" | check | kept |
+| 72 | 77 | "too large to check case by case" (Ty's edit) | one check per case | kept: fits the meaning, and it is Ty's text |
+| 86 | 91 | "failing check" | check | kept |
+| 110, 112 | 131 | diagram party "checks (KB queries, tests, Lean)" | impartial party | "formal artifacts (KB queries, checks, Lean)" |
+| 115 | 149 | "an impartial check" | impartial party | "the formal artifacts (in a tiny discovery orbit, the system itself)" |
+| 117 | 151 | "the checks ... agree" | impartial party | "the formal artifacts" |
+| 121 | 116 | Parallax "the checks" as a view | impartial party | "the formal artifacts" |
+| 122 | 117 | "a failing check" | check | kept |
+| 127–128 | 154–155 | Quiet failures (Ty's sentence) | check | kept word for word |
+| 148 | 175 | "one check" | check | kept |
+| 181 | 208 | "Run a check" | check | kept |
+| 186 | 213 | "Check the KB" | lint | "Lint the KB" |
+| 207 | 234 | "an executable check of a claim" | check | "K is a check of the claim (see "The light path")" |
+| 232–233 | 259 | CROSS-CHECK SKIPPED; "say ... it is unchecked" | engine cross-check | CLI name and `(unchecked)` kept; "say ... that only one engine answered" |
+| 241 | 268 | `conformance(Check)` | check (CLI type `ref(check)`) | kept |
+| 247 | 274 | "a check of C passed" | check | kept |
+| 295 | 322 | "has no `check`" | check | kept |
+| 318 | 345 | ED6 "Two results for one check disagree" | a solver verdict kind | "Two solver results of the same kind, for one model, disagree" (matches the CLI text) |
+| 349 | 376 | "/checkout" | URL | kept |
+| 354 | 381 | "Write the checks first"; "screenshot check" | check | kept |
+| 356–357 | 383–384 | red run of each check | check | kept |
+| 360 | 387 | "Do not edit a check" | check | kept |
+| 363 | 390 | "### CHECK: fulfillment in both directions" | move | "### FULFILL" |
+| 365 | 392 | "Check with fresh eyes" | review | "Review with fresh eyes" |
+| 407 | 436 | "`orbit-kb` cannot check that" | verify | "cannot verify that" |
+| 409 | 438 | "only the checks test the code"; conformance check | check | kept |
+| 424 | 453 | "coast (checked by examples)" | verify | "covered by checks of examples" |
+| 443 | 472 | "the checks so far" | check | kept |
+| 449 | 478 | "Rebuild, and check again" | verb | "run the checks again" |
+| 455 | 484 | "A check that cannot fail is not evidence" | check | kept |
+| 467 | 496 | "The checks trust you" | all safeguards | "The formal artifacts trust you" |
+| 470 | 499 | "never work around a check. A check that you work around..." | all safeguards | "a check, a lint rule, or `orbit-kb prove`. A safeguard that you work around..." |
+| 478 | 508 | "how it was checked" | verify (may be a proof) | "how it was verified" |
+| 481 | 511 | "Not checked: what no check covered" | check | kept; `orbit-kb report` prints this field name |
+| 494 | 524 | deadline skip "a check" | check | kept; paragraph not touched |
+| — | 566 | — | — | tiny orbit: "the reproduction becomes its first check" |
+| 590 | 641 | `check(t1, c1)` | check | kept |
+| 650 | 701 | TLC "Check properties" | verb (model checking) | "Run TLC on properties" |
+| 756 | 812 | "one claim whose check is the reproduction" | check | kept |
+| 773 | 828 | design notes "Its checks are merge-check.py" | verification script | "Its verification script is" |
+| 810 | 871 | design notes "cross-checks with s(CASP)" | engine cross-check | kept |
+| 842 | 903 | design notes "deadline skip of a check" | check | kept |
+| 846 | — | design notes "failing check" (Shift down open item) | check | item removed (ratified) |
+
+### Scenarios after the change (on paper)
+
+1. **Trivial (purple buttons):** light path as before; the definition makes step 3 plainer.
+   No regression.
+2. **Ambiguous (discount codes):** Scope and "When to run" now agree that a change request
+   with business rules stays in the build orbit. Shift up, burn, and DISPROVE as before;
+   a counterexample is now recorded inside `refuted(...)`. Improved.
+3. **Divergence after delivery:** same steps; "run the checks again". No regression.
+4. **Report (sync loses edits):** discovery. The agent may start the tiny orbit, but
+   "sometimes" plus concurrency means a claim needs a model (orders of steps), which is a
+   stated shift-up condition, so it moves to the full orbit and TRAJECTORY. Slight risk: an
+   agent tries one cheap reproduction first; that is the same as SURVEY, so no work is lost.
+5. **Non-software (job offers):** advice route unchanged. No regression.
+
+### Open
+
+- Ty's "too large to check case by case" uses "check" as a verb; it fits the definition
+  (one check per case), so it stayed.
+- The tiny orbit says "no formal artifacts", yet its reproduction can be a script. The text
+  treats the reproduction as touching the system, and it becomes a check only in the build.
+- GO with the budget spent: `discovery_decide` lets the human decide while
+  `discovery_ready` is false, and rule 7 says those blockers block GO. This tension existed
+  before (with the stricter "lint errors" rule) and is not resolved here.
+
+### Line count
+
+Whole file: 846 before, 904 after. Prompt part (before the Design notes): 764 before, 819
+after. Growth: the diagram (about 20 lines), the tiny discovery orbit (about 18), the check
+definition (4), the refuted command, and six provenance rows.
