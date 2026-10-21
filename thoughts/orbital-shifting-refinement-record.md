@@ -166,3 +166,129 @@ No decision changed in meaning.
 
 Whole file: 794 before, 815 after. Prompt part (before the Design notes): 721 before, 738
 after. Growth is the trust rule, the cb7ba90 facts, and the "what is not checked" clauses.
+
+## Pass 3 (speed and fluid rigor)
+
+Baseline copy: `/tmp/claude-1000/-home-ty--dotfiles/63a00f00-8d72-4aeb-a216-cde6b882f1f4/scratchpad/baseline-pass3.md`.
+
+### Problems found in the baseline
+
+1. **No way down.** The prompt said how to shift up, but not that rigor may drop again
+   after a scare. An agent that shifted up for a small divergence (the wrong purple) would
+   run every move to the end.
+2. **Scenario 2 could route to discovery.** Scope sent "a clear change request" to the
+   build orbit. "Add discount codes" is not clear, and discovery's "When to run" lists
+   prices. An agent could start the discovery orbit where Ty expects a question round.
+3. **The burn trigger was hard to notice.** The trigger said "the claim is universal", but
+   the definition was about 130 lines below, in Core vocabulary. On the light path the
+   agent has no reason to read that far.
+4. **Light-path ceremony was implied.** "Moves: on the light path you do the same work in
+   your head" can be read as "run CHECK with a fresh subagent, DECOMPOSE dormant questions,
+   and so on, without records". The Speed section also sent all searches and test runs to a
+   subagent, even for a one-line change.
+5. **KB words on the light path.** Honesty rule 2 said "file a disclosure", which has no
+   meaning without a KB, or for the advice route.
+6. **Advice route was silent on questions.** "Answer directly" could stop a useful question
+   in scenario 5.
+7. Small repeats: "You shift up to a KB from the light path" (KB section) and "Most tickets
+   close in one lap" (Orbit) restated the light path.
+
+### Changes
+
+- New subsection "Shift down" (5 lines): when the cause of a shift is resolved, go back to
+  the least work that still covers the ticket; keep the KB and write only what `done` and
+  the report read; never drop an open question, a failing check, or a burn (only the human
+  waives a burn); the next ticket starts light. Reason: problem 1. Keeping the KB avoids a
+  half-recorded divergence and needs no new rule about abandoning one.
+- Scope: "A change request" (not "clear"): open details are questions for "Ask first", not a
+  reason for discovery. Discovery is for a report where "you cannot yet say what to change".
+  Reason: problem 2. The discovery text is unchanged.
+- The burn trigger now carries the definition of universal and the discount example; Core
+  vocabulary points to it and keeps the purple-button counterexample. Reason: problem 3.
+  No net growth.
+- Light path intro: the five steps are the whole process until a trigger fires; the KB
+  sections and the moves apply only after a shift. Moves intro says the light path does not
+  run them. Speed: only long mechanical work goes to a subagent; a small task needs none.
+  Reason: problem 4.
+- Honesty rule 2: disclose in a KB with `orbit-kb attest disclosure`, and always in the
+  delivery or the answer. Reason: problem 5.
+- Advice route: "Ask first only if an answer would change your advice." Reason: problem 6.
+- Shift-up text names `orbit-kb init`, so the first step after a trigger is concrete.
+- Cut the two repeats in problem 7.
+- Design notes: status line, a provenance row for "Shift down" and the scope wording (marked
+  not ratified), and an Open item for "Shift down".
+
+Invariants: Roles text identical (diffed). The four triggers, the three-question cap, the
+question order, the burn and waiver rules, landing, the KB commit rule, and the TLA+ rule
+are unchanged in meaning. No new `orbit-kb` command, option, or predicate; `init` exists.
+
+### Scenario results
+
+| Scenario | Baseline | New text |
+|---|---|---|
+| 1 Trivial | Pass, but the agent could read "same work in your head" and Speed as a call for a fresh-subagent CHECK and dormant questions. | Pass. Five steps are the whole process. No subagent, no moves, red run first, one-line delivery fields. |
+| 2 Ambiguous | Unsure: "clear change request" versus discovery's "prices". The universal test sat far from the trigger. | Pass. Build orbit; one round of up to three money-first questions; new questions shift up; the floor claim matches the trigger text and burns. |
+| 3 Divergence | Pass, but a small misread pulled the whole KB process to the end. | Pass. Shift up, record, decide build versus problem; when the cause is known, shift down inside the KB. |
+| 4 Report | Pass. | Pass. Scope wording "cannot yet say what to change" fits it better. |
+| 5 Non-software | Pass, but "answer directly" could suppress a question, and "file a disclosure" was KB-shaped. | Pass. One question only if it changes the advice; guesses go in the answer. |
+
+### Findings not fixed
+
+- "A check fails after the build" is a divergence trigger (Ty's list). Read literally, every
+  red test during normal work starts a KB. "Shift down" makes this cheap, but Ty may mean
+  "a check still fails when you think the build is done".
+- Discovery's "When to run discovery" still lists prices and limits as a reason to run it.
+  Scope now settles scenario 2, but the two texts pull in different directions for
+  feature requests with business rules. The discovery text is ratified, so left as is.
+- "Shift down" and the scope wording are this pass's reading of Ty's "rigour should scale
+  fluidly". Ty has not ratified them.
+- The prompt part is still about 750 lines. A new agent on the light path now knows it can
+  stop after the light path, but the whole text loads every session.
+
+### Line count
+
+Whole file: 815 before, 830 after. Prompt part (before the Design notes): 738 before, 748
+after. Growth is the "Shift down" subsection and the inline definition of universal; the
+repeats cut offset part of it.
+
+## Summary of the loop
+
+Passes 1 to 3 ran on 2026-10-20. Whole file: 779 lines before pass 1, 830 after pass 3.
+Prompt part: 708 before, 748 after.
+
+Main changes:
+
+- **Pass 1 (clarity):** a separate light path with five steps, the shift-up triggers beside
+  it, and "Ask first" moved up; four scope routes, including advice; duplicate lists merged;
+  reasons added to bare rules; a divergence command added to the table.
+- **Pass 2 (accuracy and honesty):** red-first only for added or removed behavior; the trust
+  threat model as honesty rule 5; proofs are about the Lean model, not the code; cb7ba90
+  facts (E15, E16, inherited burns, real due times, working waiver command); `Open:` kept in
+  the delivery; TLC and solver results do not close a burn.
+- **Pass 3 (speed and fluid rigor):** "Shift down"; a change request with open details stays
+  in the build orbit; the universal test sits at the trigger; the light path is stated to be
+  the whole process; no subagent for small tasks.
+
+Open findings for Ty (deduplicated):
+
+1. Ratify or change "Shift down" and the scope wording for change requests with open
+   details (pass 3).
+2. "A check fails after the build" as a trigger: literal (every red test) or "still fails
+   when done"? (pass 3)
+3. Discovery's "When to run" (prices, limits) versus the scope route; and whether tiny
+   reports need a light discovery path instead of a KB from the start (passes 1 and 3).
+4. The light path has no script-recorded test results; the delivery names the agent's own
+   runs (passes 1 and 2, Design notes "Still open").
+5. Deadline skips of a check or a question have no enforced due time; only a burn waiver
+   does (pass 2, Design notes).
+6. CLI doc: `orbit-kb help attest` and `help prove` show `waive(C, DUE, REASON)`; as a shell
+   argument DUE must be quoted (pass 2).
+7. Discovery honesty rule 7 ("lint errors block GO") is stricter than `discovery_ready`
+   (ED3 to ED7 only) (pass 2).
+8. "TLC is not a proof" appears only in the discovery handoff; Ty may want a generic
+   "bounded results are not proofs" in BURN (pass 2).
+9. Minor: a build-orbit `refuted` verdict has no slot for the counterexample; `prove` limits
+   beyond path dependencies are only in the README (pass 2).
+10. The discovery orbit (about 230 lines, ratified text) was not shortened; the prompt is
+    still about 750 lines. No agent run has yet used the merged prompt (passes 1 and 3,
+    Design notes "Not verified").
