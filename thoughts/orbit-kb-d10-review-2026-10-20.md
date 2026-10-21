@@ -163,3 +163,8 @@ ENGINE DISAGREEMENT; every installed toolchain (4.29.0 to 4.35.0) has `leancheck
   place of `AIDLC.md`; the push.
 - A full rerun of the discovery harness stopped at its 20-minute limit (231 PASS, 0 FAIL in
   the part that ran). Recorded in `thoughts/orbital-shifting-merge-record.md`.
+
+## Status (2026-10-20, evening)
+
+D10 is finished: cb7ba90 closes F6 to F13, F11, L-F2 and L-F8, and documents F1 to F5 and L-F5
+as limits. Suite 222/222, check.sh ALL PASS. Not pushed.
