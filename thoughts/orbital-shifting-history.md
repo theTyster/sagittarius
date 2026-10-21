@@ -28,7 +28,7 @@ Sources:
 | Era | Dates | One line |
 |---|---|---|
 | 1. The orbital plugins | 2026-04-02 to 2026-06-13 (heavy use); removed 2026-08-10 | A seven-stage formal pipeline: Prolog, Lean 4, proofs, tests. Strong tools. One level of rigor for all work. |
-| Gap: by hand, then raw Claude | 2026-06-13 to 2026-08-28 | Ty ran the method by hand with long prompts (Prolog KBs, Lean verification, TLA+ refutation in the work hub). Then, from 2026-08-10, plain Claude. This tested if the process had reached a local optimum. It had not. |
+| Gap: by hand, then raw Claude | 2026-06-13 to 2026-08-28 | Ty ran the method by hand with long prompts (Prolog KBs, Lean verification, TLA+ refutation in the work hub). Then, from 2026-08-10, plain Claude. It showed that the philosophy was sound but the process had reached a local optimum. |
 | 2. The AIDLC | 2026-08-28 (ticket #1200, in the work hub); global 2026-09-04 to 2026-10-21 | A governance prompt with 3 rigor tiers. An attempt to scale back. |
 | 3. Orbital Shifting | live 2026-10-21 | The method comes back as a short light path. It adds a knowledge base (KB) and proofs only when a signal shows they are needed. |
 
@@ -129,10 +129,11 @@ instead of plugins.
 | 2026-08-10 | The plugins are removed completely. Raw Claude: the dotfiles change only the model, the effort, shell helpers, a statusline, and a `simple-english` skill until the AIDLC. | dotfiles 0ee2e6e, 57c42d5, a37cce5, aa28c08, 1277d2e |
 | 2026-08-28 | The gap ends with ticket #1200 (next section). | hub 2d31b4f7 |
 
-**What it taught.** Plain Claude, with no process, still worked. So the old process was not at
-an optimum: it could be made more efficient, and it carried too much machinery. But raw Claude
-gave no protection against the wrong-spec problem. The test showed what to cut. It did not
-show that all process should go.
+**What it taught.** The old philosophy was sound, but the process had reached a local
+optimum (Ty's words). Running it by hand did not make it better, and plain Claude still
+worked, so small changes would not help: the process needed a different shape, with less
+machinery. Raw Claude gave no protection against the wrong-spec problem, so the answer was
+not "no process". The test showed what to cut, not that all process should go.
 
 **Why the next era followed.** Ty wanted to keep the goal (alignment, clarity, accuracy) and
 cut the cost. The next attempt was a governance prompt that scales with the task.
