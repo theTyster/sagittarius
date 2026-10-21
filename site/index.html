@@ -10,8 +10,9 @@
 :root{
   color-scheme: dark;
   --bg:#060a18; --bg2:#0c1534; --fg:#e8edff; --muted:#aab5d8;
-  --card:rgba(18,28,66,.62); --line:#2b3a6c; --bar:rgba(6,10,24,.82);
+  --card:rgba(18,28,66,.55); --line:#2b3a6c; --bar:rgba(6,10,24,.82);
   --accent:#62e3f7; --amber:#ffb454; --good:#74e8ae; --bad:#ff9a9a; --warn:#ffb454; --mid:#b9adff;
+  --purple:#a78bfa; --hl:rgba(255,180,84,.30);
   --svgfill:rgba(10,18,46,.9); --glow:5px; --code:#bfeaff;
   --starc:rgba(255,255,255,.95); --star-op:1; --orbit-op:.2;
   --neb1:rgba(70,100,230,.26); --neb2:rgba(0,200,220,.12); --neb3:rgba(255,160,70,.07);
@@ -22,8 +23,9 @@
   :root{
     color-scheme: light;
     --bg:#f1f4fb; --bg2:#e4eaf8; --fg:#121a36; --muted:#475274;
-    --card:rgba(255,255,255,.82); --line:#c6d0e8; --bar:rgba(241,244,251,.88);
+    --card:rgba(255,255,255,.8); --line:#c6d0e8; --bar:rgba(241,244,251,.88);
     --accent:#0a6a88; --amber:#8a5200; --good:#17703f; --bad:#a82828; --warn:#8a5200; --mid:#5645c4;
+    --purple:#7c3aed; --hl:rgba(255,190,90,.45);
     --svgfill:rgba(255,255,255,.95); --glow:0px; --code:#0a5069;
     --starc:rgba(40,60,140,.0); --star-op:0; --orbit-op:.14;
     --neb1:rgba(90,120,230,.14); --neb2:rgba(0,170,200,.08); --neb3:rgba(255,170,80,.08);
@@ -76,68 +78,123 @@ html.js .progress{display:block;position:fixed;top:0;left:0;right:0;height:3px;z
 
 /* slides */
 main{position:relative;z-index:1}
-.slide{position:relative;z-index:1;display:flex;flex-direction:column;gap:.85rem;outline:none;
+.slide{position:relative;z-index:1;display:flex;flex-direction:column;gap:1rem;outline:none;
   padding-block:1.6rem 1.8rem;padding-inline:max(1.1rem,calc((100% - 62rem)/2));scroll-margin-top:4rem;
   border-bottom:1px solid var(--line)}
 .slide:last-of-type{border-bottom:0}
 .slide>*{flex:none;margin:0;max-width:100%}
-.slide p,.slide li{max-width:80ch}
-.slide blockquote p,.slide .card p,.slide .card li{max-width:none}
-.slide ul,.slide ol{padding-left:1.3rem;display:flex;flex-direction:column;gap:.45rem}
+.slide p,.slide li{max-width:72ch}
+.slide ul,.slide ol{padding-left:1.3rem;display:flex;flex-direction:column;gap:.5rem}
 .slide li::marker{color:var(--accent)}
 h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.12;margin:0}
 h1{font-size:clamp(2.1rem,3.4vw + .8rem,3.6rem);font-weight:700;letter-spacing:-.02em}
-h2{font-size:clamp(1.9rem,2.8vw + .7rem,3rem);font-weight:700;letter-spacing:-.015em}
+h2{font-size:clamp(1.8rem,2.6vw + .7rem,2.8rem);font-weight:700;letter-spacing:-.015em}
 h1,h2{background:linear-gradient(100deg,var(--fg) 40%,var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.08em}
-h3{font-size:1.15rem;font-weight:650;color:var(--accent);margin-top:.5rem}
-.num{font:.74rem var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--amber)}
-.lead{font-size:1.25rem;line-height:1.4;font-weight:450}
+h3{font-size:1.1rem;font-weight:650;color:var(--accent)}
+.num{display:flex;align-items:center;gap:.5rem;font:.74rem var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--amber)}
+.num .ic{width:1.2rem;height:1.2rem}
+.lead{font-size:1.3rem;line-height:1.4;font-weight:450}
 strong{font-weight:650}
-.card{background:var(--card);border:1px solid var(--line);border-radius:.9rem;padding:.85rem 1.1rem;
-  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-.card h3{margin:0 0 .3rem;font-size:1.02rem;color:var(--fg)}
-.card p{margin:.4em 0 0}
-.card p:first-of-type{margin-top:0}
-.card ul{margin:0}
-blockquote{margin:0;padding:1rem 1.3rem 1rem 3.2rem;position:relative;border:1px solid var(--line);border-radius:.9rem;
-  background:var(--card)}
-blockquote::before{content:"\201C";position:absolute;left:.8rem;top:-.1rem;font:4rem/1.2 Georgia,serif;color:var(--accent);opacity:.8}
-blockquote p{margin:.45em 0}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:.85rem}
-.eras{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,19rem),1fr));gap:.85rem}
-.eras .card{font-size:.92rem}
+mark{color:inherit;background:linear-gradient(transparent 58%,var(--hl) 58%);padding:0 .08em}
+.muted{color:var(--muted)}
+.big{font-size:clamp(1.35rem,1.5vw + .8rem,2rem);font-weight:600;line-height:1.28;text-wrap:balance;max-width:34ch}
+.big em{font-style:normal;color:var(--accent)}
+
+/* icons: a sprite of 24px stroke symbols */
+.ic{display:inline-block;width:1.15em;height:1.15em;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round;vertical-align:-.2em}
+svg .ico{fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* tiles: one idea each, icon on top, no nested boxes */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13.5rem),1fr));gap:.9rem}
+.tiles.wide{grid-template-columns:repeat(auto-fit,minmax(min(100%,19rem),1fr))}
+.tile{--tone:var(--accent);display:flex;flex-direction:column;gap:.35rem;padding:.85rem 1rem .95rem;border-radius:.8rem;
+  background:var(--card);border-top:3px solid var(--tone);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.tile>.ic{width:1.8rem;height:1.8rem;color:var(--tone)}
+.tile h3{color:var(--fg);font-size:1.05rem}
+.tile p{margin:0;max-width:none}
+.tile .muted{font-size:.94rem}
+.t-good{--tone:var(--good)} .t-bad{--tone:var(--bad)} .t-amber{--tone:var(--amber)} .t-mid{--tone:var(--mid)}
+.split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:1.4rem;align-items:start}
+.split>*{display:flex;flex-direction:column;gap:.7rem;min-width:0}
+.split>*>*{margin:0}
+
+/* numbered steps with round counters */
+ol.steps{list-style:none;padding:0;counter-reset:s;gap:.6rem}
+ol.steps>li{counter-increment:s;display:grid;grid-template-columns:1.9rem 1fr;gap:.7rem;align-items:start}
+ol.steps>li::before{content:counter(s);display:grid;place-items:center;width:1.75rem;height:1.75rem;border-radius:50%;
+  border:1.5px solid var(--accent);color:var(--accent);font:600 .8rem var(--mono);margin-top:-.1rem}
+
+/* dated list: the counter becomes a colored dot per era */
+ol.dates{gap:.45rem}
+ol.dates>li{grid-template-columns:1.2rem 1fr}
+ol.dates>li::before{content:"";width:.7rem;height:.7rem;margin-top:.45rem;border-color:var(--line);background:var(--line)}
+ol.dates>li.e1::before{border-color:var(--accent);background:var(--accent)}
+ol.dates>li.e0::before{border-color:var(--amber);background:transparent;border-style:dashed}
+ol.dates>li.e2::before{border-color:var(--mid);background:var(--mid)}
+ol.dates>li.e3::before{border-color:var(--good);background:var(--good)}
+ol.dates>li>span{display:block;padding-left:7.6rem;text-indent:-7.6rem}
+ol.dates b{display:inline-block;min-width:7.6rem;text-indent:0;font:600 .85rem var(--mono);color:var(--amber)}
+
+/* chips */
+.chips{display:flex;flex-wrap:wrap;gap:.5rem;padding:0;margin:0;list-style:none}
+.chip{display:inline-flex;align-items:center;gap:.45rem;padding:.3rem .8rem;border:1px solid var(--line);border-radius:99px;
+  background:var(--card);font-size:.92rem}
+.chip .ic{color:var(--accent)}
+
+/* pull quote: a rule on the left, no box */
+blockquote{margin:0;padding:.15rem 0 .15rem 1.1rem;border-left:4px solid var(--accent);font-size:1.12rem}
+blockquote p{margin:.4em 0}
+blockquote.small{font-size:1rem}
+blockquote.small p{max-width:none}
 code{font:.88em var(--mono);color:var(--code);background:color-mix(in srgb,var(--accent) 10%,transparent);
   border:1px solid color-mix(in srgb,var(--accent) 22%,transparent);border-radius:.3rem;padding:0 .3rem;overflow-wrap:anywhere}
 .tbl{overflow-x:auto}
 table{border-collapse:collapse;width:100%}
-th,td{text-align:left;vertical-align:top;padding:.4rem .7rem;border-bottom:1px solid var(--line)}
+th,td{text-align:left;vertical-align:top;padding:.45rem .7rem;border-bottom:1px solid var(--line)}
 tr:last-child td{border-bottom:0}
 th{font:.72rem var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.diagram{overflow-x:auto;border:1px solid var(--line);border-radius:.9rem;background:var(--card);padding:.6rem}
-.diagram svg{width:100%;min-width:600px;height:auto;max-height:44vh;display:block}
+
+/* a sample report, as the agent writes it */
+.report{margin:0;font:.88rem/1.7 var(--mono);background:var(--card);border-radius:.8rem;padding:.9rem 1.2rem;
+  border-left:3px solid var(--good);overflow-x:auto;white-space:pre}
+.report b{color:var(--accent);font-weight:600}
+.report i{color:var(--muted);font-style:normal}
+
+/* diagrams: drawn on the page, no frame */
+figure.diagram{margin:0;overflow-x:auto}
+figure.diagram svg{width:100%;min-width:600px;height:auto;max-height:48vh;display:block}
+figure.diagram figcaption{font-size:.85rem;color:var(--muted);margin-top:.35rem;max-width:72ch}
 svg text{fill:var(--fg);font:13px var(--display)}
 svg .box{fill:var(--svgfill);stroke:var(--line);stroke-width:1.5}
 svg .hum{stroke:var(--accent);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--accent))}
 svg .chk{stroke:var(--good);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--good))}
 svg .bad{stroke:var(--bad);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--bad))}
-svg .arr{stroke:var(--muted);stroke-width:2;fill:none}
-svg .sub{fill:var(--muted);font-size:11px}
-svg .gap{stroke:var(--warn);stroke-width:2;stroke-dasharray:5 4}
 svg .mid{stroke:var(--mid);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--mid))}
+svg .amb{stroke:var(--amber);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--amber))}
+svg .arr{stroke:var(--muted);stroke-width:2;fill:none}
+svg .arr.up{stroke:var(--amber);stroke-dasharray:6 4}
+svg .sub{fill:var(--muted);font-size:11.5px}
+svg .gap{stroke:var(--warn);stroke-width:2;stroke-dasharray:5 4}
 svg .band{fill:var(--amber);font:600 12px var(--mono);letter-spacing:.14em}
+svg .lbl{font-size:12px}
+svg .b{font-weight:600}
+svg .big{font-size:44px;font-weight:700}
+svg .pb{fill:var(--purple)}
+svg .gb{fill:var(--line)}
+svg .ln{fill:var(--line)}
+svg .tg{fill:var(--good)} svg .tb{fill:var(--bad)} svg .ta{fill:var(--accent)} svg .tm{fill:var(--muted)} svg .tam{fill:var(--amber)}
 .sources,.hint{font-size:.82rem;color:var(--muted)}
-.sources{margin-top:1rem}
 
-/* expanders: open by default so the page reads in full without JavaScript */
-details.more{border:1px solid var(--line);border-radius:.9rem;background:var(--card)}
-details.more>summary{cursor:pointer;list-style:none;padding:.55rem 1.1rem;font:.78rem var(--mono);letter-spacing:.1em;
+/* expanders: open by default so the page reads in full without JavaScript. Flat: a dashed rule, no box. */
+details.more{border-top:1px dashed var(--line)}
+details.more>summary{cursor:pointer;list-style:none;padding:.6rem 0 .3rem;font:.76rem var(--mono);letter-spacing:.1em;
   text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:.6rem}
 details.more>summary::-webkit-details-marker{display:none}
 details.more>summary::before{content:"+";display:inline-grid;place-items:center;width:1.2rem;height:1.2rem;border:1px solid var(--accent);border-radius:50%}
 details.more[open]>summary::before{content:"\2212"}
-details.more>.body{display:flex;flex-direction:column;gap:1rem;padding:.2rem 1.1rem 1.1rem}
+details.more>.body{display:flex;flex-direction:column;gap:.8rem;padding:.4rem 0 .4rem}
 details.more>.body>*{flex:none;margin:0;max-width:100%}
-details.more>.body.dup>h3:first-child{display:none}
 
 /* controls: only when JavaScript runs */
 .controls{display:none}
@@ -177,266 +234,362 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 @page{size:13.333in 7.5in;margin:.4in}
 @media print{
   html,html.js,html.js body{height:auto;overflow:visible;font-size:11pt}
-  body,body.x{background:#fff!important;color:#111}
+  body{background:#fff!important;color:#111}
   body::before,body::after,header.top,.controls,.progress,.nojs{display:none!important}
-  :root{--fg:#111;--muted:#444;--card:#fff;--line:#bbb;--accent:#0a5069;--amber:#7a4a00;--good:#17703f;--bad:#a82828;--warn:#7a4a00;--mid:#4a3bb0;--svgfill:#fff;--glow:0px;--code:#0a5069}
+  :root{--fg:#111;--muted:#444;--card:#fff;--line:#bbb;--accent:#0a5069;--amber:#7a4a00;--good:#17703f;--bad:#a82828;--warn:#7a4a00;--mid:#4a3bb0;--purple:#6d28d9;--hl:#ffe2a8;--svgfill:#fff;--glow:0px;--code:#0a5069}
   html.js main{position:static}
   html.js .slide,html.js .slide.active{position:static;opacity:1;visibility:visible;transform:none;overflow:visible;
     break-after:page;page-break-after:always;min-height:0;padding:0;justify-content:flex-start}
   .slide:last-of-type{break-after:auto}
   h1,h2{background:none;color:#111;-webkit-text-fill-color:#111}
-  .card,details.more,.diagram{backdrop-filter:none;-webkit-backdrop-filter:none;break-inside:avoid}
-  .diagram svg{max-height:none}
+  .tile{backdrop-filter:none;-webkit-backdrop-filter:none;border:1px solid #bbb;border-top:3px solid var(--tone)}
+  .tile,figure.diagram{break-inside:avoid}
+  figure.diagram svg{max-height:none}
 }
 </style>
 </head>
 <body>
+<!-- Icon sprite. Each symbol is a 24px stroke icon; color comes from currentColor. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-human" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></symbol>
+  <symbol id="i-agent" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9.5 13v2M14.5 13v2M2 13v3M22 13v3"/><circle cx="12" cy="3.5" r="1"/></symbol>
+  <symbol id="i-formal" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 14l2 2 4-4.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 3c.5 3.5 6 5.5 6 11a6 6 0 0 1-12 0c0-2.8 1.6-4.2 2.4-6.2C9.6 9.4 11 10.6 11 12.6 12.4 11 12.6 6.6 12 3z"/></symbol>
+  <symbol id="i-orbit" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10.5" ry="4.5" transform="rotate(-24 12 12)"/><circle cx="12" cy="12" r="3"/><circle cx="20.6" cy="8.3" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></symbol>
+  <symbol id="i-hammer" viewBox="0 0 24 24"><path d="M13 7l4 4M4 20l8.5-8.5"/><path d="M10.5 5.5l3-3 8 8-3 3z"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 4v16M7 20h10M4 7h16"/><path d="M6 7l-3 6h6zM18 7l-3 6h6z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-feather" viewBox="0 0 24 24"><path d="M20 4C12 4 6 10 6 18M20 4c-1 8-6 13-14 14M4 20l2-2M9.5 14.5h6"/></symbol>
+  <symbol id="i-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.9-.9 1.6v.4"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></symbol>
+  <symbol id="i-handoff" viewBox="0 0 24 24"><path d="M4 8h14l-3-3M20 16H6l3 3"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-split" viewBox="0 0 24 24"><path d="M12 21v-8M12 13L5 4M12 13l7-9"/><path d="M4 8V4h4M20 8V4h-4"/></symbol>
+  <symbol id="i-loud" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9.5l4 5M21 9.5l-4 5"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-lens" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.4-4.4"/></symbol>
+  <symbol id="i-speech" viewBox="0 0 24 24"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M8 10.5h8"/></symbol>
+  <symbol id="i-forall" viewBox="0 0 24 24"><path d="M5 4l7 16 7-16M8.2 11.5h7.6"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M3 7.5l9-4.5 9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5l9 4.5 9-4.5M12 12v9"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="13" rx="5"/><path d="M12 11v9M4 11h3M17 11h3M4 17h3M17 17h3M9 4l1.5 3M15 4l-1.5 3"/></symbol>
+  <symbol id="i-path" viewBox="0 0 24 24"><circle cx="5" cy="18" r="2"/><circle cx="19" cy="6" r="2"/><path d="M7 18h6a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h6"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+  <symbol id="i-lean" viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></symbol>
+</svg>
 <div class="progress" aria-hidden="true"><i id="bar"></i></div>
 <header class="top">
   <strong>Orbital Shifting: a backgrounder and the current prompt</strong>
   <nav aria-label="Slide index">
     <ol>
       <li><a href="#s1"><span>1</span><span class="t"> Wrong spec</span></a></li>
-      <li><a href="#s2"><span>2</span><span class="t"> Philosophy</span></a></li>
-      <li><a href="#s3"><span>3</span><span class="t"> Timeline</span></a></li>
-      <li><a href="#s4"><span>4</span><span class="t"> Roles</span></a></li>
-      <li><a href="#s5"><span>5</span><span class="t"> Parallax</span></a></li>
-      <li><a href="#s6"><span>6</span><span class="t"> Light path</span></a></li>
-      <li><a href="#s7"><span>7</span><span class="t"> Build orbit</span></a></li>
-      <li><a href="#s8"><span>8</span><span class="t"> Discovery</span></a></li>
-      <li><a href="#s9"><span>9</span><span class="t"> The vote</span></a></li>
-      <li><a href="#s10"><span>10</span><span class="t"> Burns</span></a></li>
-      <li><a href="#s11"><span>11</span><span class="t"> Trust and honesty</span></a></li>
+      <li><a href="#s2"><span>2</span><span class="t"> Purple button</span></a></li>
+      <li><a href="#s3"><span>3</span><span class="t"> Tests and proofs</span></a></li>
+      <li><a href="#s4"><span>4</span><span class="t"> Philosophy</span></a></li>
+      <li><a href="#s5"><span>5</span><span class="t"> Roles</span></a></li>
+      <li><a href="#s6"><span>6</span><span class="t"> Loud and quiet</span></a></li>
+      <li><a href="#s7"><span>7</span><span class="t"> Timeline</span></a></li>
+      <li><a href="#s8"><span>8</span><span class="t"> Key dates</span></a></li>
+      <li><a href="#s9"><span>9</span><span class="t"> The eras</span></a></li>
+      <li><a href="#s10"><span>10</span><span class="t"> Parallax</span></a></li>
+      <li><a href="#s11"><span>11</span><span class="t"> Routes</span></a></li>
+      <li><a href="#s12"><span>12</span><span class="t"> Light path</span></a></li>
+      <li><a href="#s13"><span>13</span><span class="t"> Shifting</span></a></li>
+      <li><a href="#s14"><span>14</span><span class="t"> Build orbit</span></a></li>
+      <li><a href="#s15"><span>15</span><span class="t"> Discovery</span></a></li>
+      <li><a href="#s16"><span>16</span><span class="t"> The vote</span></a></li>
+      <li><a href="#s17"><span>17</span><span class="t"> Burns</span></a></li>
+      <li><a href="#s18"><span>18</span><span class="t"> Trust</span></a></li>
+      <li><a href="#s19"><span>19</span><span class="t"> Delivery</span></a></li>
     </ol>
   </nav>
 </header>
 
 <main>
 
+<!-- ============ BACKGROUND ============ -->
+
 <section class="slide" id="s1" tabindex="-1">
-  <div class="num">1 of 11 · Background</div>
+  <div class="num"><svg class="ic"><use href="#i-target"/></svg>1 of 19 · Background</div>
   <h1>The wrong-spec problem</h1>
-  <p class="lead">An agent can build exactly what it was told and still build the wrong thing.</p>
-  <p>An <strong>agent</strong> is an AI that does the work, such as Claude Code. A <strong>spec</strong> (short for specification) is what the agent builds from: the request, the ticket, and the tests. A <strong>ticket</strong> is the written request for a change.</p>
-  <p>If the spec is wrong, the work is wrong, and the agent may not know it. A spec goes wrong in three ways:</p>
-  <div class="grid">
-    <div class="card"><h3>Wrong</h3>The spec does not match how things really are.</div>
-    <div class="card"><h3>Incomplete</h3>The spec leaves out a case that matters.</div>
-    <div class="card"><h3>Read two ways</h3>The human and the agent read the same words and see different things.</div>
+  <p class="big">An agent can build <em>exactly</em> what it was told, and still build the wrong thing.</p>
+  <p>An <strong>agent</strong> is an AI that does the work, such as Claude Code. A <strong>spec</strong> is what it builds from: the request, the ticket, and the tests. If the spec is wrong, the work is wrong, and the agent may not know it.</p>
+  <div class="tiles">
+    <div class="tile t-bad"><svg class="ic"><use href="#i-x"/></svg><h3>Wrong</h3><p class="muted">The spec does not match how things really are.</p></div>
+    <div class="tile t-amber"><svg class="ic"><use href="#i-question"/></svg><h3>Incomplete</h3><p class="muted">The spec leaves out a case that matters.</p></div>
+    <div class="tile t-mid"><svg class="ic"><use href="#i-split"/></svg><h3>Read two ways</h3><p class="muted">The human and the agent read the same words and see different things.</p></div>
   </div>
-  <p>The human is the source of intent. The human is not always the source of clarity. People do not always say what they want in a way that has one reading.</p>
-  <details class="more" open><summary>The two examples</summary><div class="body">
-  <h3>Example 1: the purple button</h3>
-  <p>The human says: "Make the button purple." The agent restates the request as a claim: "Primary buttons are purple." Its example: the Submit button on the checkout page shows the color <code>#6B3FA0</code>.</p>
-  <div class="tbl card">
-    <table>
-      <tr><th>What the human meant</th><th>What the agent built</th><th>What the tests checked</th></tr>
-      <tr><td>Only the one button on the checkout page.</td><td>Every primary button, on every page.</td><td>That Submit is purple. It is. All tests pass.</td></tr>
-    </table>
-  </div>
-  <p>Nothing failed, so nobody noticed. The agent built what it understood. The tests checked what the agent understood. The human sees the result and says: "That is not what I meant." That is a late and costly way to find the gap. If the agent had said its claim and example back at the start, the human could have said "No, only that button" in one line.</p>
-  <h3>Example 2: the discount code</h3>
-  <p>The human says: "Add discount codes to checkout." The agent builds codes, and the tests try several sample codes. They all pass. But the request never said what happens when codes are combined, or when a code takes the price below the lowest price allowed (the "floor").</p>
-  <p>The real claim is "no discount code takes a price below the floor." That claim is about every code, not only the sample codes. A test shows a claim for the cases that it tries. Only a proof shows a claim for all cases. See slide 10.</p>
-  <div class="card">
-    <h3>Why more tests do not fix this</h3>
-    <p>The tests come from the same spec. A test that is written from a wrong spec passes. A check that passes while the result is wrong is a <strong>quiet failure</strong>, and a quiet failure is the worst kind. A loud failure is easy to fix.</p>
-  </div>
-  </div></details>
-  <p>So the question is not only "does the code match the spec?" It is also "does the spec match what the human means?" Orbital Shifting is a process that asks the second question early and often.</p>
+  <p>The human is the source of intent. <mark>The human is not always the source of clarity.</mark></p>
 </section>
 
 <section class="slide" id="s2" tabindex="-1">
-  <div class="num">2 of 11 · Background</div>
-  <h2>The core philosophy</h2>
-  <p class="lead">Alignment: the human, the agent, and the formal records agree on what to build and on when it is done.</p>
-  <p>Alignment is always possible before a change lands, even when a full proof is not. The agent delivers changes that are <strong>fast</strong>, <strong>clear</strong>, <strong>accurate</strong>, and <strong>honest</strong>.</p>
-  <div class="grid">
-    <div class="card"><h3>Clear</h3>The request has one reading. The human and the agent share it.</div>
-    <div class="card"><h3>Accurate</h3>The delivered change does what the request means. It does no less and no more.</div>
-    <div class="card"><h3>Honest</h3>The agent says what it guessed, what it did not verify, and what went wrong. It does not claim more than its evidence shows.</div>
-    <div class="card"><h3>Fast</h3>The agent does only the work that the request needs. Speed comes from skipping work that is not needed. It never comes from hiding work that was skipped.</div>
-  </div>
-  <h3>Three parties that can disagree</h3>
-  <div class="grid">
-    <div class="card"><h3>The human</h3>Owns the intent and the final product.</div>
-    <div class="card"><h3>The agent</h3>Owns the build. It makes the request clear enough to build.</div>
-    <div class="card"><h3>The formal artifacts</h3>Machine-checkable records: the knowledge base, the tests, and the Lean code. They are impartial. They can disagree with the human and the agent.</div>
-  </div>
-  <p>The goal is to help these three parties understand each other. Slide 4 gives the roles in full.</p>
-  <details class="more" open><summary>Five ideas</summary><div class="body dup">
-  <h3>Five ideas</h3>
-  <div class="grid">
-    <div class="card"><h3 style="color:var(--good)">Divergence is good, and it is loud</h3>The parties see the intent from different positions (this is called parallax). Where their views do not line up, there is a <strong>divergence</strong>: a failing check, or a human who says "that is not what I meant". A divergence means clarity is being achieved. The agent records every one.</div>
-    <div class="card"><h3 style="color:var(--bad)">Silence is the danger</h3>Silence, negative space, emptiness, and vacuity are often the predators of clarity, accuracy, and honesty. A check that cannot fail shows nothing.</div>
-    <div class="card"><h3>Rigor starts light</h3>Most requests need only a short process. The agent adds more rigor when a signal shows that it is needed. It removes it again when the cause is resolved.</div>
-    <div class="card"><h3>Rigor shifts with the task</h3>Rigor follows the risk, up and down. The agent does not grade a task once at the start.</div>
-    <div class="card"><h3>We orbit to achieve understanding</h3>We write solutions to problems. We do not write to achieve understanding. We orbit to achieve understanding: we go around the loop of human, agent, and formal artifacts until their views agree.</div>
-  </div>
-  </div></details>
-  <details class="more" open><summary>Words used on this site</summary><div class="body dup">
-  <h3>Words used on this site</h3>
-  <div class="card">
-    <ul>
-      <li><strong>Claim:</strong> one statement that the change must make true, such as "Primary buttons are purple."</li>
-      <li><strong>Check:</strong> an executable test of one claim, such as a unit test or a script, with a pass or fail result. This site uses the word only in this sense. Other ideas have other words: the impartial party is "the formal artifacts", and the agent can "verify", "lint", and "review".</li>
-      <li><strong>Knowledge base (KB):</strong> a folder of facts about one piece of work: the request, the claims, and the check results. A tool, <code>orbit-kb</code>, keeps it and checks it. The agent starts one only when it needs one.</li>
-      <li><strong>Lean:</strong> a language for writing proofs. A program checks each proof step by step.</li>
-      <li><strong>Proof:</strong> an argument, checked by a computer, that a claim is true for all cases. A test shows it only for the cases that it tries.</li>
-    </ul>
-  </div>
-  </div></details>
+  <div class="num"><svg class="ic"><use href="#i-eye"/></svg>2 of 19 · Background</div>
+  <h2>Example: "Make the button purple"</h2>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 250" role="img" aria-label="Three views of one request. The human meant only the checkout button. The agent made every primary button purple. The test checked only the checkout button, so it passed. All checks pass, and the human says: that is not what I meant.">
+      <text x="20" y="20" class="band">WHAT THE HUMAN MEANT</text>
+      <text x="260" y="20" class="band">WHAT THE AGENT BUILT</text>
+      <text x="500" y="20" class="band">WHAT THE TEST CHECKED</text>
+      <!-- human: only checkout -->
+      <g>
+        <rect class="box hum" x="20" y="34" width="60" height="80" rx="6"/><rect class="ln" x="30" y="46" width="40" height="4" rx="2"/><rect class="ln" x="30" y="56" width="28" height="4" rx="2"/><rect class="pb" x="30" y="86" width="40" height="14" rx="4"/>
+        <rect class="box" x="92" y="34" width="60" height="80" rx="6"/><rect class="ln" x="102" y="46" width="40" height="4" rx="2"/><rect class="ln" x="102" y="56" width="28" height="4" rx="2"/><rect class="gb" x="102" y="86" width="40" height="14" rx="4"/>
+        <rect class="box" x="164" y="34" width="60" height="80" rx="6"/><rect class="ln" x="174" y="46" width="40" height="4" rx="2"/><rect class="ln" x="174" y="56" width="28" height="4" rx="2"/><rect class="gb" x="174" y="86" width="40" height="14" rx="4"/>
+        <text x="50" y="132" text-anchor="middle" class="sub">/checkout</text><text x="122" y="132" text-anchor="middle" class="sub">/account</text><text x="194" y="132" text-anchor="middle" class="sub">/home</text>
+        <text x="122" y="160" text-anchor="middle" class="b">One button</text>
+      </g>
+      <!-- agent: all purple -->
+      <g>
+        <rect class="box" x="260" y="34" width="60" height="80" rx="6"/><rect class="ln" x="270" y="46" width="40" height="4" rx="2"/><rect class="ln" x="270" y="56" width="28" height="4" rx="2"/><rect class="pb" x="270" y="86" width="40" height="14" rx="4"/>
+        <rect class="box" x="332" y="34" width="60" height="80" rx="6"/><rect class="ln" x="342" y="46" width="40" height="4" rx="2"/><rect class="ln" x="342" y="56" width="28" height="4" rx="2"/><rect class="pb" x="342" y="86" width="40" height="14" rx="4"/>
+        <rect class="box" x="404" y="34" width="60" height="80" rx="6"/><rect class="ln" x="414" y="46" width="40" height="4" rx="2"/><rect class="ln" x="414" y="56" width="28" height="4" rx="2"/><rect class="pb" x="414" y="86" width="40" height="14" rx="4"/>
+        <text x="290" y="132" text-anchor="middle" class="sub">/checkout</text><text x="362" y="132" text-anchor="middle" class="sub">/account</text><text x="434" y="132" text-anchor="middle" class="sub">/home</text>
+        <text x="362" y="160" text-anchor="middle" class="b">Every primary button</text>
+      </g>
+      <!-- test: checkout only, passes -->
+      <g>
+        <rect class="box chk" x="560" y="34" width="60" height="80" rx="6"/><rect class="ln" x="570" y="46" width="40" height="4" rx="2"/><rect class="ln" x="570" y="56" width="28" height="4" rx="2"/><rect class="pb" x="570" y="86" width="40" height="14" rx="4"/>
+        <circle cx="620" cy="34" r="12" class="box chk"/><use href="#i-check" x="611" y="25" width="18" height="18" class="ico" style="stroke:var(--good)"/>
+        <text x="590" y="132" text-anchor="middle" class="sub">/checkout</text>
+        <text x="590" y="160" text-anchor="middle" class="b">Submit is purple</text>
+      </g>
+      <!-- outcome -->
+      <rect class="box chk" x="260" y="186" width="440" height="44" rx="10"/>
+      <use href="#i-check" x="276" y="197" width="22" height="22" class="ico" style="stroke:var(--good)"/>
+      <text x="306" y="213" class="b">All checks pass. Nothing fails, so nobody notices.</text>
+      <rect class="box bad" x="20" y="186" width="204" height="44" rx="10"/>
+      <use href="#i-x" x="34" y="197" width="22" height="22" class="ico" style="stroke:var(--bad)"/>
+      <text x="62" y="213" class="b">"Not what I meant."</text>
+      <path class="arr" d="M258 208H230"/>
+    </svg>
+    <figcaption>The agent built what it understood. The test checked what the agent understood. Only the human saw the gap, and only at the end.</figcaption>
+  </figure>
+  <p>The fix costs one line, if it comes early. The agent says its claim back with one concrete example: <q>Primary buttons are purple. Example: Submit on /checkout shows #6B3FA0.</q> The human answers: <q>No, only that button.</q></p>
 </section>
 
 <section class="slide" id="s3" tabindex="-1">
-  <div class="num">3 of 11 · Background</div>
-  <h2>How the process got here</h2>
-  <p>Ty, the author, came to this process in four steps over about six months in 2026. The first step was a set of plugins. A <strong>plugin</strong> is an add-on for Claude Code that gives it new skills and sub-agents. Dates marked "inferred" come from the history of the files, not from a direct record.</p>
-  <div class="diagram">
-    <svg viewBox="0 0 780 305" role="img" aria-labelledby="tt td">
-      <title id="tt">Timeline, April to October 2026</title>
-      <desc id="td">From 2 April to 13 June 2026: the orbital plugins. From 13 June to 4 September: a gap with two inferred parts, manual prompting with long prompts until about 5 August, then raw Claude from about 10 August. From 4 September to 21 October: the AIDLC. From 21 October: Orbital Shifting is live. Key dates: 2 April first plugin commit; 15 May switch to the orbital plugins; 13 June the pipeline plugins are turned off; 10 August the last plugin is removed; 4 September the AIDLC begins; 13 October the decision to start light and shift up; 21 October Orbital Shifting goes live.</desc>
-      <text x="30" y="30" class="band">2026</text>
-      <text x="79" y="92" text-anchor="middle" class="sub">Apr</text>
-      <text x="180" y="92" text-anchor="middle" class="sub">May</text>
-      <text x="280" y="92" text-anchor="middle" class="sub">Jun</text>
-      <text x="380" y="92" text-anchor="middle" class="sub">Jul</text>
-      <text x="482" y="92" text-anchor="middle" class="sub">Aug</text>
-      <text x="583" y="92" text-anchor="middle" class="sub">Sep</text>
-      <text x="681" y="92" text-anchor="middle" class="sub">Oct</text>
-      <path class="arr" d="M129 98V104M231 98V104M329 98V104M431 98V104M533 98V104M632 98V104"/>
-      <text x="750" y="68" text-anchor="end" font-weight="600">3 Orbital Shifting, live</text>
-      <rect class="box hum" x="33" y="104" width="237" height="40" rx="8"/>
-      <text x="151" y="129" text-anchor="middle" font-weight="600">1 The orbital plugins</text>
-      <rect class="box gap" x="270" y="104" width="175" height="40" rx="8"/>
-      <text x="357" y="120" text-anchor="middle" font-weight="600">Gap: manual</text>
-      <text x="357" y="135" text-anchor="middle" class="sub">long prompts (inferred)</text>
-      <rect class="box gap" x="461" y="104" width="82" height="40" rx="8"/>
-      <text x="502" y="120" text-anchor="middle" font-weight="600">Raw Claude</text>
-      <text x="502" y="135" text-anchor="middle" class="sub">(inferred)</text>
-      <rect class="box mid" x="543" y="104" width="155" height="40" rx="8"/>
-      <text x="620" y="129" text-anchor="middle" font-weight="600">2 The AIDLC</text>
-      <rect class="box chk" x="698" y="104" width="52" height="40" rx="8"/>
-      <text x="724" y="129" text-anchor="middle" font-weight="600">3</text>
-
-      <path class="arr" d="M33 144V160M270 144V160M543 144V160"/>
-      <text x="33" y="173" style="font-size:12px">2 Apr: first commit</text>
-      <text x="270" y="173" style="font-size:12px">13 Jun: pipeline plugins off</text>
-      <text x="543" y="173" style="font-size:12px">4 Sep: AIDLC begins</text>
-      <path class="arr" d="M175 144V195M461 144V195"/>
-      <text x="175" y="208" style="font-size:12px">15 May: switch to the orbital plugins</text>
-      <text x="461" y="208" style="font-size:12px">10 Aug: last plugin removed</text>
-      <path class="arr" d="M672 144V230"/>
-      <text x="672" y="243" text-anchor="end" style="font-size:12px">13 Oct: start light, shift up</text>
-      <path class="arr" d="M698 144V265"/>
-      <text x="698" y="278" text-anchor="end" style="font-size:12px">21 Oct: Orbital Shifting goes live</text>
+  <div class="num"><svg class="ic"><use href="#i-forall"/></svg>3 of 19 · Background</div>
+  <h2>Discount codes: why more tests do not help</h2>
+  <p>"Add discount codes to checkout." The real claim is <mark>no discount code takes a price below the floor</mark> (the lowest price allowed). That claim is about every code, every cart, and every combination.</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 230" role="img" aria-label="Every possible cart and code is a large field of points. The tests try four sample points, and all pass. One combination that no test tried takes the price below the floor. A proof covers the whole field.">
+      <defs><pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="8" cy="8" r="1.8" class="tm" opacity=".45"/></pattern></defs>
+      <text x="20" y="20" class="band">EVERY CART AND CODE</text>
+      <rect x="20" y="30" width="420" height="160" rx="12" fill="url(#dots)" class="box" style="fill:url(#dots)"/>
+      <g class="ico" style="stroke:var(--good)">
+        <circle cx="104" cy="72" r="7"/><circle cx="152" cy="104" r="7"/><circle cx="88" cy="136" r="7"/><circle cx="200" cy="88" r="7"/>
+      </g>
+      <circle cx="104" cy="72" r="3" class="tg"/><circle cx="152" cy="104" r="3" class="tg"/><circle cx="88" cy="136" r="3" class="tg"/><circle cx="200" cy="88" r="3" class="tg"/>
+      <circle cx="376" cy="152" r="8" class="ico" style="stroke:var(--bad)"/><circle cx="376" cy="152" r="3.5" class="tb"/>
+      <text x="20" y="212" class="lbl" style="fill:var(--good)">● codes the tests try: all pass</text>
+      <text x="440" y="212" text-anchor="end" class="lbl" style="fill:var(--bad)">● an untried combination: below the floor</text>
+      <text x="470" y="20" class="band">A PROOF</text>
+      <rect class="box chk" x="470" y="30" width="230" height="160" rx="12"/>
+      <text x="585" y="104" text-anchor="middle" class="big" style="fill:var(--good)">∀</text>
+      <text x="585" y="140" text-anchor="middle" class="b">covers every case</text>
+      <text x="585" y="160" text-anchor="middle" class="sub">of the model, checked by Lean</text>
     </svg>
-  </div>
-  <details class="more" open><summary>The steps in detail</summary><div class="body">
-  <div class="eras">
-    <div class="card">
-      <h3>1. The orbital plugins</h3>
-      <p><strong>2 April to 13 June 2026</strong> (the last plugin left on 10 August).</p>
-      <p><strong>What it was.</strong> A seven-stage formal pipeline for one ticket. It wrote the code as a Prolog knowledge base, split the request into a hypothesis, built a model, proved properties in Lean, made tests from the proofs, had sub-agents make the tests pass, and scored the result. The main plugin had 17 specialist sub-agents.</p>
-      <p><strong>What it taught.</strong> Treat the spec as a hypothesis, and try to disprove it before there is code. That idea stayed. But the tools were good and there was one level of rigor for all work, which was too strict. The pipeline also lost sight of the original request after its second stage.</p>
-      <p><strong>Why the next step.</strong> The machinery ran on every ticket. Work on the plugin fell from 96 commits in May to 13 in June, and Ty turned the plugins off one by one.</p>
-    </div>
-    <div class="card">
-      <h3>The gap: manual prompting, then raw Claude</h3>
-      <p><strong>About 13 June to 4 September (inferred).</strong></p>
-      <p><strong>What it was.</strong> Ty ran the process by hand, with long and detailed prompts. This was a test: had the process reached a local optimum, a point where small changes help no more? Then Ty removed the process entirely (10 August) and worked with raw Claude, with no plugin and no process prompt.</p>
-      <p><strong>What it taught.</strong> The old process could definitely be made more efficient. It added too much machinery to the development lifecycle. But plain Claude gave no protection against the wrong-spec problem.</p>
-      <p><strong>Why the next step.</strong> Ty wanted to keep the goal and cut the cost. The next try was a governance prompt that scales with the task.</p>
-    </div>
-    <div class="card">
-      <h3>2. The AIDLC</h3>
-      <p><strong>4 September to 21 October 2026.</strong></p>
-      <p><strong>What it was.</strong> The AI Development Life Cycle: a system prompt for every work session, an attempt to scale the process back. It had nine phases and three rigor tiers: no formal methods, some, or all. The rigor tier for a ticket decided which phases were required.</p>
-      <p><strong>What it kept and dropped.</strong> It kept the wrong-spec idea, labeled claims, evidence that names its type, and counterexamples that block work. It dropped the fixed seven-stage order, and it dropped formal tools for small work.</p>
-      <p><strong>What it taught.</strong> A tier chosen once at the start does not work. Nobody knows how much must be formal until a miscommunication happens. The prompt also grew: from about 51 KB before the slimming of 5 October to about 67 KB after it.</p>
-      <p><strong>Why the next step.</strong> The v2 plan (13 and 14 October) asked for rigor that starts light and moves up after a miscommunication. The AIDLC structure could not give that without a rewrite.</p>
-    </div>
-    <div class="card">
-      <h3>3. Orbital Shifting</h3>
-      <p><strong>Live since 21 October 2026.</strong></p>
-      <p><strong>What it is.</strong> The philosophy and tools come back in step by step, with more flexibility. The core is a light path of five steps with no KB. Four signals shift the work up to a KB: too many questions, a divergence, a claim that needs a proof, or a handoff. When the cause is resolved, the work shifts back down.</p>
-      <p><strong>What it brings back.</strong> A survey of current behavior, labeled claims, disproving claims, counterexamples as tests, and Lean proofs for claims that must hold for all inputs.</p>
-      <p><strong>What it drops.</strong> Sets, tasks, charters, extra roles, per-ticket tiers, phase approvals, traceability matrices, and the fixed seven-stage order.</p>
-      <p><strong>Still open.</strong> It went live on 21 October, so it has no long track record yet.</p>
-    </div>
-  </div>
-  </div></details>
-  <details class="more" open><summary>Key dates</summary><div class="body dup">
-  <h3>Key dates</h3>
-  <div class="tbl card">
-    <table>
-      <tr><th>Date (2026)</th><th>Event</th></tr>
-      <tr><td>2 April</td><td>First commit of the plugin repository.</td></tr>
-      <tr><td>15 May</td><td>Ty switches to the orbital plugins and raises the effort level of Claude.</td></tr>
-      <tr><td>8 to 13 June</td><td>Plugins are turned off, the orchestrator first and the pipeline next.</td></tr>
-      <tr><td>10 August</td><td>The plugin marketplace is removed. No orbital plugin remains.</td></tr>
-      <tr><td>4 September</td><td>First commit of the AIDLC.</td></tr>
-      <tr><td>13 October</td><td>Decision: start light, and move up after a miscommunication.</td></tr>
-      <tr><td>15 and 16 October</td><td>The <code>orbit-kb</code> tool is built and committed.</td></tr>
-      <tr><td>19 October</td><td>A claim that must hold for all inputs needs a Lean proof.</td></tr>
-      <tr><td>20 October</td><td>The trust model: the tool guards against honest mistakes, not cheating. Three rounds of refinement.</td></tr>
-      <tr><td>21 October</td><td>Orbital Shifting goes live in place of the AIDLC.</td></tr>
-    </table>
-  </div>
-  </div></details>
+    <figcaption>A test shows a claim for the cases that it tries. A proof shows it for all cases.</figcaption>
+  </figure>
+  <p class="big">The tests come from the same spec. <em>A test written from a wrong spec passes.</em></p>
+  <p>A check that passes while the result is wrong is a <strong>quiet failure</strong>, the worst kind. So the question is not only "does the code match the spec?" It is also <mark>"does the spec match what the human means?"</mark> Orbital Shifting asks the second question early and often.</p>
 </section>
 
 <section class="slide" id="s4" tabindex="-1">
-  <div class="num">4 of 11 · Details</div>
-  <h2>The three roles</h2>
-  <p>Each role owns one thing. The text below is Ty's text, word for word.</p>
-  <blockquote>
+  <div class="num"><svg class="ic"><use href="#i-orbit"/></svg>4 of 19 · Background</div>
+  <h2>The core philosophy</h2>
+  <p class="big">Alignment: the human, the agent, and the formal records <em>agree</em> on what to build and on when it is done.</p>
+  <p>Alignment is always possible before a change lands, even when a full proof is not. The agent delivers changes that are:</p>
+  <div class="tiles">
+    <div class="tile"><svg class="ic"><use href="#i-bolt"/></svg><h3>Fast</h3><p class="muted">Skip work that is not needed. Never hide work that was skipped.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-lens"/></svg><h3>Clear</h3><p class="muted">The request has one reading, and both sides share it.</p></div>
+    <div class="tile t-good"><svg class="ic"><use href="#i-target"/></svg><h3>Accurate</h3><p class="muted">The change does what the request means. No less, no more.</p></div>
+    <div class="tile t-amber"><svg class="ic"><use href="#i-speech"/></svg><h3>Honest</h3><p class="muted">Say what was guessed, not verified, or wrong. Claim no more than the evidence.</p></div>
+  </div>
+  <details class="more" open><summary>Words used on this site</summary><div class="body">
+    <ul>
+      <li><strong>Claim:</strong> one statement that the change must make true, such as "Primary buttons are purple."</li>
+      <li><strong>Check:</strong> an executable test of one claim, with a pass or fail result. This site uses the word only in this sense.</li>
+      <li><strong>Knowledge base (KB):</strong> a folder of facts about one piece of work. A tool, <code>orbit-kb</code>, keeps it and checks it.</li>
+      <li><strong>Lean:</strong> a language for proofs. A program checks each proof step by step.</li>
+      <li><strong>Proof:</strong> an argument, checked by a computer, that a claim is true for all cases.</li>
+    </ul>
+  </div></details>
+</section>
+
+<section class="slide" id="s5" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-human"/></svg>5 of 19 · Background</div>
+  <h2>Three roles, and no one grades their own work</h2>
+  <figure class="diagram">
+    <svg viewBox="0 0 680 300" role="img" aria-label="A triangle of three roles. The human owns the intent and the final product. The agent owns the build. The formal artifacts are impartial and can disagree with both. Edges: the agent restates and asks the human; the agent queries, checks, and proves through the artifacts; the artifacts give the human evidence.">
+      <defs><marker id="ah5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+      <path class="arr" marker-start="url(#ah5)" marker-end="url(#ah5)" d="M270 92L168 196"/>
+      <path class="arr" marker-start="url(#ah5)" marker-end="url(#ah5)" d="M410 92L512 196"/>
+      <path class="arr" marker-start="url(#ah5)" marker-end="url(#ah5)" d="M232 236H448"/>
+      <text x="196" y="132" text-anchor="end" class="lbl">restates, asks,</text>
+      <text x="196" y="148" text-anchor="end" class="lbl">delivers</text>
+      <text x="484" y="132" class="lbl">evidence it</text>
+      <text x="484" y="148" class="lbl">can read</text>
+      <text x="340" y="228" text-anchor="middle" class="lbl">queries, checks, proves</text>
+      <text x="340" y="256" text-anchor="middle" class="sub">the artifacts can disagree with both</text>
+      <rect class="box hum" x="240" y="14" width="200" height="82" rx="12"/>
+      <use href="#i-human" x="266" y="34" width="26" height="26" class="ico" style="stroke:var(--accent)"/>
+      <text x="300" y="52" class="b">The human</text>
+      <text x="300" y="72" class="sub">owns the intent</text>
+      <text x="300" y="86" class="sub">and the final product</text>
+      <rect class="box" x="30" y="196" width="200" height="82" rx="12"/>
+      <use href="#i-agent" x="56" y="214" width="26" height="26" class="ico" style="stroke:var(--fg)"/>
+      <text x="90" y="232" class="b">The agent</text>
+      <text x="90" y="252" class="sub">owns the build</text>
+      <rect class="box chk" x="450" y="196" width="210" height="82" rx="12"/>
+      <use href="#i-formal" x="466" y="214" width="26" height="26" class="ico" style="stroke:var(--good)"/>
+      <text x="500" y="232" class="b">Formal artifacts</text>
+      <text x="500" y="252" class="sub">KB, tests, Lean</text>
+      <text x="500" y="266" class="sub">impartial</text>
+    </svg>
+    <figcaption>The goal is to help these three roles understand each other.</figcaption>
+  </figure>
+  <p><mark>Humans care about proofs when proofs are necessary. Agents worry about tests.</mark> The human verifies the result, not the test results.</p>
+  <details class="more" open><summary>The roles, in Ty's words</summary><div class="body">
+  <blockquote class="small">
     <p><strong>1.</strong> The human owns the intent. The human is the source of intent. The human is not always the source of clarity. Ultimately, the human is the owner of the final product.</p>
     <p><strong>2.</strong> You (<strong>the LLM</strong>) own the build. You make the request clear enough to build, and then you or another agent builds it.</p>
     <p><strong>3.</strong> The <strong>formal artifacts</strong> knowledge base (KB), the tests, and Lean code are impartial. They can disagree with you and with the human. They are the substrate that orbital shifting runs through. Use them appropriately and strategically. Remember that speed to delivery is always something that should be weighed.</p>
     <p>Your goal should be to help foster understanding between these three roles in the orbit.</p>
   </blockquote>
-  <div class="grid">
-    <div class="card"><h3>The human</h3>Only the human knows what is wanted. The human can still be unclear, so the agent helps. The human owns the final product.</div>
-    <div class="card"><h3>The agent</h3>The agent turns the request into something that can be built. The agent worries about tests.</div>
-    <div class="card"><h3>The formal artifacts</h3>They can disagree with both. So no one party grades its own work.</div>
-  </div>
-  <p>Humans care about proofs when proofs are necessary. Agents worry about tests. The human does not review test results.</p>
+  </div></details>
 </section>
 
-<section class="slide" id="s5" tabindex="-1">
-  <div class="num">5 of 11 · Details</div>
-  <h2>Parallax and the two orbits</h2>
-  <p>Each party sees the intent from a different position: the human's words, the agent's claims, the formal artifacts, and the code.</p>
-  <p>These views triangulate the intent. Where they do not line up, there is a <strong>divergence</strong>. A divergence is a failing check, a counterexample, or a human who says "that is not what I meant".</p>
-  <div class="grid">
-    <div class="card"><h3 style="color:var(--good)">Divergence is clarity</h3>A divergence is loud. It means clarity is being achieved. The agent records every divergence.</div>
-    <div class="card"><h3 style="color:var(--bad)">Silence is the danger</h3>Silence, negative space, emptiness, and vacuity are often the predators of clarity, accuracy, and honesty.</div>
+<section class="slide" id="s6" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-loud"/></svg>6 of 19 · Background</div>
+  <h2>Loud is good. Quiet is the danger.</h2>
+  <div class="split">
+    <div class="tile t-good"><svg class="ic"><use href="#i-loud"/></svg><h3>A divergence is loud</h3>
+      <p>A failing check. A counterexample. A human who says <q>that is not what I meant</q>.</p>
+      <p class="muted">It means clarity is being achieved. The agent records every one.</p></div>
+    <div class="tile t-bad"><svg class="ic"><use href="#i-mute"/></svg><h3>Silence is the danger</h3>
+      <p>A check that cannot fail. An empty field. A claim that nobody tested.</p>
+      <p class="muted">Silence, negative space, emptiness, and vacuity are often the predators of clarity, accuracy, and honesty.</p></div>
   </div>
-  <blockquote><p>A check is only valuable if it can fail.</p></blockquote>
-  <h3>Two orbits</h3>
-  <p>A <strong>discovery orbit</strong> makes a problem clear. A <strong>build orbit</strong> delivers a solution.</p>
-  <p>When discovery runs, it comes before build. Build does not always need discovery: a clear change request goes straight to build.</p>
-  <blockquote><p>We write solutions to problems. We do not write to achieve understanding; we orbit to achieve understanding.</p></blockquote>
-  <div class="diagram">
-    <svg viewBox="0 0 640 450" role="img" aria-labelledby="dt dd">
-      <title id="dt">Parallax and the two orbits</title>
-      <desc id="dd">Top: one lap in either orbit, from the human to you to the formal artifacts to you and back to the human. Middle: the human's words, your claims, and the formal artifacts converge. If they agree, the orbit closes. If they differ, there is a divergence: record it and lap again. Bottom: a report goes through the discovery orbit and, on GO, into the build orbit. A change request goes straight to the build orbit. The build orbit ends in delivery.</desc>
-      <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+  <p class="big">A check is only valuable <em>if it can fail.</em></p>
+  <ul class="chips" aria-label="Three more ideas">
+    <li class="chip"><svg class="ic"><use href="#i-feather"/></svg>Rigor starts light</li>
+    <li class="chip"><svg class="ic"><use href="#i-layers"/></svg>Rigor follows the risk, up and down</li>
+    <li class="chip"><svg class="ic"><use href="#i-orbit"/></svg>We orbit to achieve understanding</li>
+  </ul>
+</section>
 
+<section class="slide" id="s7" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-cal"/></svg>7 of 19 · Background</div>
+  <h2>How the process got here</h2>
+  <p>Ty, the author, reached this process in 2026 by trying a lot of tools. <mark>The process on top kept changing. The two lanes underneath did not.</mark></p>
+  <figure class="diagram">
+    <svg viewBox="0 0 760 246" role="img" aria-label="Lanes from January to October 2026. Process: Claude Code from January, the orbital plugins from 2 April, the method by hand from 13 June, raw Claude from 10 August, the AIDLC from 28 August, Orbital Shifting from 21 October. Machine: the Linux laptop, a MacBook Pro from late February, the Linux laptop again from 14 September. Lean: in use from April through October, never dropped. Hoggwood Health: client work ships every month.">
+      <text x="130" y="16" class="band">2026</text>
+      <g class="sub" text-anchor="middle">
+        <text x="160.5" y="36" class="sub">Jan</text><text x="221.5" y="36" class="sub">Feb</text><text x="282.5" y="36" class="sub">Mar</text><text x="343.5" y="36" class="sub">Apr</text><text x="404.5" y="36" class="sub">May</text>
+        <text x="465.5" y="36" class="sub">Jun</text><text x="526.5" y="36" class="sub">Jul</text><text x="587.5" y="36" class="sub">Aug</text><text x="648.5" y="36" class="sub">Sep</text><text x="709.5" y="36" class="sub">Oct</text>
+      </g>
+      <path class="arr" style="stroke-width:1;opacity:.5" d="M191 42V100M252 42V100M313 42V100M374 42V100M435 42V100M496 42V100M557 42V100M618 42V100M679 42V100"/>
+      <!-- process lane -->
+      <text x="10" y="76" class="b">Process</text><text x="10" y="91" class="sub">changed</text>
+      <rect class="box" x="152" y="52" width="161" height="44" rx="8"/><text x="232" y="79" text-anchor="middle" class="lbl">Claude Code</text>
+      <rect class="box hum" x="315" y="52" width="143" height="44" rx="8"/><text x="386" y="72" text-anchor="middle" class="b">Orbital</text><text x="386" y="88" text-anchor="middle" class="b">plugins</text>
+      <rect class="box gap" x="460" y="52" width="113" height="44" rx="8"/><text x="516" y="72" text-anchor="middle" class="b">By hand</text><text x="516" y="88" text-anchor="middle" class="sub">long prompts</text>
+      <rect class="box gap" x="575" y="52" width="34" height="44" rx="8"/><text x="592" y="79" text-anchor="middle" class="sub">raw</text>
+      <rect class="box mid" x="611" y="52" width="106" height="44" rx="8"/><text x="664" y="79" text-anchor="middle" class="b">AIDLC</text>
+      <rect class="box chk" x="719" y="52" width="24" height="44" rx="6"/>
+      <text x="743" y="112" text-anchor="end" class="lbl" style="fill:var(--good)">Orbital Shifting ↑</text>
+      <!-- machine lane -->
+      <text x="10" y="136" class="b">Machine</text>
+      <rect x="152" y="124" width="76" height="18" rx="9" class="ln"/><text x="190" y="137" text-anchor="middle" class="sub">Linux</text>
+      <rect x="230" y="124" width="413" height="18" rx="9" class="ln" opacity=".55"/><text x="436" y="137" text-anchor="middle" class="sub">MacBook Pro</text>
+      <rect x="645" y="124" width="98" height="18" rx="9" class="ln"/><text x="694" y="137" text-anchor="middle" class="sub">Linux</text>
+      <!-- lean lane -->
+      <text x="10" y="172" class="b">Lean</text><text x="10" y="187" class="sub">never dropped</text>
+      <path d="M315 172H743" stroke="var(--amber)" stroke-width="3" stroke-linecap="round"/>
+      <g class="tam"><circle cx="315" cy="172" r="5"/><circle cx="339" cy="172" r="5"/><circle cx="459" cy="172" r="5"/><circle cx="470" cy="172" r="5"/><circle cx="514" cy="172" r="5"/><circle cx="610" cy="172" r="5"/><circle cx="638" cy="172" r="5"/><circle cx="714" cy="172" r="5"/></g>
+      <text x="459" y="194" text-anchor="middle" class="sub">lean-lsp MCP</text>
+      <text x="610" y="194" text-anchor="middle" class="sub">#1200 spec</text>
+      <text x="714" y="194" text-anchor="middle" class="sub">burns</text>
+      <!-- client lane -->
+      <text x="10" y="220" class="b">Delivery</text><text x="10" y="235" class="sub">constant</text>
+      <rect x="152" y="208" width="591" height="22" rx="11" style="fill:var(--accent);opacity:.22"/>
+      <text x="447" y="224" text-anchor="middle" class="b">Hoggwood Health: client work ships every month</text>
+    </svg>
+    <figcaption>The philosophy held the whole way, so the quality of the client work held. What changed was how much of the method a tool ran, and which tool.</figcaption>
+  </figure>
+</section>
+
+<section class="slide" id="s8" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-cal"/></svg>8 of 19 · Background</div>
+  <h2>Key dates</h2>
+  <ol class="steps dates">
+    <li><span><b>12 Jan</b> Claude Code arrives on the Linux laptop.</span></li>
+    <li><span><b>Late Feb</b> Ty moves to a MacBook Pro.</span></li>
+    <li class="e1"><span><b>2 Apr</b> First commit of the orbital plugins, then called <code>logic-focused-claude</code>. Lean is in the toolbox from the first week.</span></li>
+    <li class="e1"><span><b>15 May</b> The full orbital suite: <code>shifting</code>, <code>telemetry</code>, <code>trajectory</code>. Effort goes to the maximum.</span></li>
+    <li class="e0"><span><b>13 Jun</b> The pipeline plugins go off. The Lean skills and the lean-lsp MCP server come on.</span></li>
+    <li class="e0"><span><b>Jun to Aug</b> The method by hand. Long prompts drive Prolog knowledge bases, Lean verification, and TLA+ refutation in the client work hub.</span></li>
+    <li class="e0"><span><b>10 Aug</b> The last plugin is removed. Raw Claude, with no process at all.</span></li>
+    <li class="e2"><span><b>28 Aug</b> Ticket #1200 becomes the first ticket under the AIDLC, with a Lean formalization at its core. <code>AIDLC.md</code> is written on 31 August.</span></li>
+    <li class="e2"><span><b>4 Sep</b> The AIDLC becomes the system prompt for every session.</span></li>
+    <li class="e2"><span><b>14 Sep</b> Back on the Linux laptop, with <code>~/.claude</code> and the client work copied over as they were.</span></li>
+    <li class="e3"><span><b>13 Oct</b> The decision: start light, and shift up after a miscommunication.</span></li>
+    <li class="e3"><span><b>15 to 20 Oct</b> <code>orbit-kb</code> is built. A burn needs a Lean proof. The trust model.</span></li>
+    <li class="e3"><span><b>21 Oct</b> Orbital Shifting goes live in place of the AIDLC.</span></li>
+  </ol>
+</section>
+
+<section class="slide" id="s9" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-path"/></svg>9 of 19 · Background</div>
+  <h2>Four steps, one idea that stayed</h2>
+  <p class="big">Treat the spec as a <em>hypothesis</em>, and try to disprove it before there is code.</p>
+  <div class="tiles wide">
+    <div class="tile"><svg class="ic"><use href="#i-layers"/></svg><h3>1. The orbital plugins</h3>
+      <p>A seven-stage formal pipeline for every ticket: Prolog, a model, Lean proofs, tests, sub-agents, a score. Seventeen sub-agents.</p>
+      <p class="muted"><strong>Taught:</strong> the tools were strong, but one level of rigor for all work was too strict.</p></div>
+    <div class="tile t-amber"><svg class="ic"><use href="#i-speech"/></svg><h3>The gap: by hand, then raw Claude</h3>
+      <p>The same method, run by hand with long prompts. Then a stretch with no process at all.</p>
+      <p class="muted"><strong>Taught:</strong> the old process was not at a local optimum. It carried too much machinery. Raw Claude had no guard against a wrong spec.</p></div>
+    <div class="tile t-mid"><svg class="ic"><use href="#i-scale"/></svg><h3>2. The AIDLC</h3>
+      <p>Born on ticket #1200. A governance prompt with phases and three rigor tiers, chosen per ticket.</p>
+      <p class="muted"><strong>Taught:</strong> a tier chosen once at the start does not work. Nobody knows how much must be formal until a miscommunication happens.</p></div>
+    <div class="tile t-good"><svg class="ic"><use href="#i-orbit"/></svg><h3>3. Orbital Shifting</h3>
+      <p>A light path first. A KB and proofs come in only when a signal shows they are needed, and rigor leans back when the cause is resolved.</p>
+      <p class="muted"><strong>Live:</strong> since 21 October 2026.</p></div>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+
+<section class="slide" id="s10" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-eye"/></svg>10 of 19 · How it works</div>
+  <h2>Parallax and the two orbits</h2>
+  <p>Each party sees the intent from a different position. Like two eyes, the views <mark>triangulate</mark> the intent. Where they do not line up, there is a divergence.</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 640 450" role="img" aria-label="Top: one lap, from the human to the agent to the formal artifacts to the agent and back to the human. Middle: the human's words, the agent's claims, and the formal artifacts converge. If they agree, the orbit closes. If they differ, record a divergence and lap again. Bottom: a report goes through the discovery orbit and, on GO, into the build orbit. A clear change request goes straight to the build orbit.">
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
       <text x="10" y="18" class="band">ONE LAP, IN EITHER ORBIT</text>
       <rect class="box hum" x="10" y="28" width="114" height="62" rx="10"/>
       <text x="67" y="52" text-anchor="middle" font-weight="600">Human</text>
       <text x="67" y="70" text-anchor="middle" class="sub">intent</text>
       <rect class="box" x="138" y="28" width="114" height="62" rx="10"/>
-      <text x="195" y="52" text-anchor="middle" font-weight="600">You</text>
+      <text x="195" y="52" text-anchor="middle" font-weight="600">Agent</text>
       <text x="195" y="70" text-anchor="middle" class="sub">claims, examples</text>
       <rect class="box chk" x="266" y="28" width="114" height="62" rx="10"/>
       <text x="323" y="48" text-anchor="middle" font-weight="600">Formal artifacts</text>
       <text x="323" y="65" text-anchor="middle" class="sub">KB queries,</text>
       <text x="323" y="78" text-anchor="middle" class="sub">checks, Lean</text>
       <rect class="box" x="394" y="28" width="114" height="62" rx="10"/>
-      <text x="451" y="52" text-anchor="middle" font-weight="600">You</text>
+      <text x="451" y="52" text-anchor="middle" font-weight="600">Agent</text>
       <text x="451" y="70" text-anchor="middle" class="sub">findings or build</text>
       <rect class="box hum" x="522" y="28" width="108" height="62" rx="10"/>
       <text x="576" y="52" text-anchor="middle" font-weight="600">Human</text>
@@ -445,12 +598,11 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <path class="arr" marker-end="url(#ah)" d="M252 59H264"/>
       <path class="arr" marker-end="url(#ah)" d="M380 59H392"/>
       <path class="arr" marker-end="url(#ah)" d="M508 59H520"/>
-
       <text x="10" y="128" class="band">THE VIEWS CONVERGE</text>
       <rect class="box hum" x="10" y="140" width="190" height="34" rx="8"/>
       <text x="105" y="162" text-anchor="middle">the human's words</text>
       <rect class="box" x="10" y="182" width="190" height="34" rx="8"/>
-      <text x="105" y="204" text-anchor="middle">your claims</text>
+      <text x="105" y="204" text-anchor="middle">the agent's claims</text>
       <rect class="box chk" x="10" y="224" width="190" height="34" rx="8"/>
       <text x="105" y="246" text-anchor="middle">the formal artifacts</text>
       <path class="arr" d="M200 157H250V199M200 199H250M200 241H250V199"/>
@@ -461,7 +613,6 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <rect class="box bad" x="292" y="206" width="338" height="52" rx="8"/>
       <text x="461" y="224" text-anchor="middle" font-weight="600">They differ: a divergence</text>
       <text x="461" y="241" text-anchor="middle" class="sub">Record it, and lap again.</text>
-
       <text x="10" y="298" class="band">THE TWO ORBITS, IN ORDER</text>
       <text x="10" y="338" class="sub">report</text>
       <path class="arr" marker-end="url(#ah)" d="M50 334H92"/>
@@ -479,277 +630,318 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <path class="arr" marker-end="url(#ah)" d="M92 402H332"/>
       <text x="212" y="396" text-anchor="middle" class="sub">a clear request skips discovery</text>
     </svg>
-  </div>
-  <details class="more" open><summary>How a lap works</summary><div class="body">
-  <ul>
-    <li>Each lap passes through the formal artifacts and through the human. So no one party grades its own work. In a tiny discovery orbit, the system itself stands in for the formal artifacts.</li>
-    <li>The orbit closes when a full lap changes nothing. The restatement, the formal artifacts, and the human agree. Another lap would only add cost. Most tickets close in one lap.</li>
-  </ul>
-  </div></details>
-  <details class="more" open><summary>Where a request goes</summary><div class="body dup">
-  <h3>Where a request goes</h3>
-  <div class="grid">
-    <div class="card"><h3>A question</h3>Answer directly.</div>
-    <div class="card"><h3>Advice or a decision</h3>Answer directly. Lay out the options, say what you assumed and what you do not know. No KB, no checks, no delivery block.</div>
-    <div class="card"><h3>A report</h3>Something is wrong or wanted, but you cannot yet say what to change. Run the discovery orbit. A tiny report starts with the tiny discovery orbit.</div>
-    <div class="card"><h3>A change request</h3>Run the build orbit, starting with the light path. Open details are questions to ask, not a reason for discovery.</div>
-  </div>
-  </div></details>
-</section>
-
-<section class="slide" id="s6" tabindex="-1">
-  <div class="num">6 of 11 · Details</div>
-  <h2>The light path: one try to get it right</h2>
-  <p>Most tickets need only the light path. These five steps are the whole process until a trigger fires.</p>
-  <div class="card">
-    <p>The light path is <strong>one try to get the request right</strong>. When the human verifies that the result fulfills the request, the work is done.</p>
-    <p><strong>Get it right, not get it done.</strong> A result that only looks done hides a divergence. Honesty is how a divergence surfaces. So the agent reports what it did and did not verify. If a trigger fires, the request needs more clarity or accuracy, and the agent shifts up.</p>
-  </div>
-  <ol>
-    <li>State the request back in a sentence, with one concrete example.</li>
-    <li>Decide: ask first, or build on assumptions.</li>
-    <li>Write the check first, and run it. A check of behavior that the change adds or removes must fail before the change. A check that current behavior stays the same passes before and after. If the change has no executable check, such as prose, say so under "Not checked".</li>
-    <li>Build only what the request needs.</li>
-    <li>Run the checks again. Deliver with the report, and say "No KB".</li>
-  </ol>
-  <p>The human verifies the result, not the tests. The report names each check and its result in one line. That keeps the delivery honest. It is not a test report for the human to review.</p>
-  <h3>The four triggers</h3>
-  <p>When one trigger fires, the agent shifts up. It starts a KB, records the request, the claims, the checks, and the answers so far, and continues in the KB.</p>
-  <div class="grid">
-    <div class="card"><h3>Questions</h3>One round does not settle the ticket. The agent needs more than three questions, or an answer raises a new question.</div>
-    <div class="card"><h3>A divergence</h3>The human says the result, or the restatement, is wrong. Or the red run passes. Or a check still fails when the build is done. Or the code does not behave as assumed.</div>
-    <div class="card"><h3>A claim that burns</h3>A claim "burns" when it needs a proof. The human asks for a proof. Or the claim is universal: the domain inputs are infinite or too large to check case by case. See slide 10.</div>
-    <div class="card"><h3>A handoff</h3>Another session continues the work.</div>
-  </div>
-  <p>A KB costs time, so the agent does not start one before it needs one. A KB is memory and a referee, so the agent starts one as soon as a miscommunication or a proof appears.</p>
-  <details class="more" open><summary>Leaning back</summary><div class="body dup">
-  <h3>Leaning back</h3>
-  <p>Rigor follows each trigger separately. When the cause of a trigger is resolved, the agent stops the work that trigger added. When the answers settle the questions, it stops asking. When a divergence has a known cause, it stops working on it. Work for a trigger that is still active continues: a claim that burns keeps its burn until a proof or a human waiver closes it.</p>
-  <p>Leaning back does not leave the KB. Once a KB exists, it stays until the ticket closes, and <code>done</code> decides when the work is finished. The agent writes only the facts that <code>done</code> and the report read, and adds no optional work unless the human asks. It never drops an open question, a failing check, or a burn.</p>
-  <p>When the agent leans back, it says so in one line, in this form: <q>Leaning back: &lt;what stopped&gt;. Still active: &lt;what continues&gt;.</q> The next ticket starts light.</p>
-  </div></details>
-  <details class="more" open><summary>Ask first, or build on default assumptions</summary><div class="body dup">
-  <h3>Ask first, or build on assumptions</h3>
-  <p>The agent builds on its defaults. It asks first only if a wrong default is costly or impossible to undo (data loss, external effects, public interfaces, security, or money), or if two defaults are equally likely and the build is large. It asks at most three questions in one round, with concrete options and a marked default. It does not ask the human to approve a list.</p>
-  </div></details>
-  <details class="more" open><summary>Two examples</summary><div class="body dup">
-  <h3>Two examples</h3>
-  <div class="card">
-    <p><strong>A small change.</strong> A claim: "Primary buttons are purple." An example: "Submit on /checkout renders #6B3FA0". The agent starts light, with no KB. It writes a check and sees it fail. It builds the change, runs the check again, and delivers.</p>
-  </div>
-  <div class="card">
-    <p><strong>An ambiguous change.</strong> "Add discount codes to checkout." The agent asks one round of up to three questions, most costly default first. If the answers raise new questions, it shifts up to a KB. The claim "no discount code takes a price below the floor" is universal. It burns, so it needs a proof.</p>
-  </div>
-  </div></details>
-</section>
-
-<section class="slide" id="s7" tabindex="-1">
-  <div class="num">7 of 11 · Details</div>
-  <h2>The build orbit</h2>
-  <p>The build orbit delivers a solution. It starts on the light path. After a shift up, it works in a KB with the moves below.</p>
-  <details class="more" open><summary>The KB</summary><div class="body dup">
-  <h3>The KB</h3>
-  <ul>
-    <li>The KB is a directory with a <code>kb.pl</code> file in s(CASP), a logic-programming language. The agent uses the <code>orbit-kb</code> command for all work on it. It never edits <code>kb.pl</code> by hand.</li>
-    <li>The KB is memory between laps and between sessions. When the agent resumes, it runs <code>orbit-kb show open</code> first.</li>
-    <li>The agent never types a digest or a test result. <code>orbit-kb run</code> is the only way to record a test result.</li>
-    <li>Size the KB to the work. Do not commit it, unless the human asks.</li>
-    <li>Two logic engines answer each query and the command compares them. If they disagree, stop and report both answers.</li>
-  </ul>
-  </div></details>
-  <h3>The moves</h3>
-  <p>A move is a unit of work on the KB. The light path does the same work in brief, with no records. After a shift up, the agent runs only the moves that the ticket needs. Every move reads the ticket text itself.</p>
-  <div class="grid">
-    <div class="card"><h3>SURVEY</h3>Record the current behavior that the claims depend on. For a defect, reproduce it first. Skip it when discovery ran, or when the change site is obvious.</div>
-    <div class="card"><h3>DECOMPOSE</h3>Split the ticket into claims: <code>preserve</code>, <code>retire</code>, or <code>introduce</code>. Each claim cites the ticket text and has concrete examples. Questions stay dormant, with defaults.</div>
-    <div class="card"><h3>BUILD</h3>Write the checks first, and add a screenshot check for a user surface. Run each <code>retire</code> and <code>introduce</code> check red. Build only what the claims need. Never edit a check to make it pass.</div>
-    <div class="card"><h3>FULFILL</h3>Review with fresh eyes, from both directions. Under: a claim that is not fulfilled. Over: a change that serves no claim. Then open questions and clean-up.</div>
-    <div class="card"><h3>DISPROVE</h3>Try to break a claim within a small budget. The verdict is <code>refuted(Counterexample)</code>, <code>inconclusive</code>, or <code>abstained</code>. Do not weaken a claim to absorb a counterexample.</div>
-    <div class="card"><h3>BURN</h3>Prove a burning claim in Lean. See slide 10.</div>
-    <div class="card"><h3>EXPLAIN</h3>On request, explain the work in simple technical English, from the KB.</div>
-  </div>
-  <p>The ticket is done when <code>done</code> holds: nothing is under, nothing is over, nothing is to ask, no burn is open, and no claim is in a supersede cycle. Then the agent stops. It does not polish beyond the claims.</p>
-  <details class="more" open><summary>When the human says it is wrong</summary><div class="body dup">
-  <h3>When the human says it is wrong</h3>
-  <p>"That is not what I meant" is the loudest divergence. Other forms are "why did you do X?" and "is this necessary?". These are examples of the meaning, not phrases to match. The agent shifts up if it is on the light path, and records the divergence on the claim. Then it decides which is wrong: the build, or the problem itself. If the problem is wrong, it goes back to discovery. It records the human's answer and asks only the small cluster of questions that are now due. Then it rebuilds and runs the checks again.</p>
-  </div></details>
-</section>
-
-<section class="slide" id="s8" tabindex="-1">
-  <div class="num">8 of 11 · Details</div>
-  <h2>The discovery orbit</h2>
-  <p>Discovery turns a report into a ticket with a clear problem, scope, and risk, before the agent builds. Most reports need only a reproduction.</p>
-  <div class="card">
-    <h3>Example report</h3>
-    "Users say sync loses their edits sometimes." Something is wrong, but nobody can yet say what to change. This report takes the discovery orbit, not the build orbit.
-  </div>
-  <details class="more" open><summary>When to run discovery</summary><div class="body dup">
-  <h3>When to run discovery</h3>
-  <ul>
-    <li>The human asks the agent to explore, to investigate, or to learn if a problem is real.</li>
-    <li>The report says that something is wrong or wanted, but not what to change.</li>
-    <li>The agent cannot write the claims, with examples, until it learns how the system behaves now.</li>
-  </ul>
-  <p>A change request with open details stays in the build orbit. Inside discovery, requirements that can conflict with each other or with current behavior are where models pay. Examples are rules, permissions, prices, limits, workflows, retries, and concurrency.</p>
-  </div></details>
-  <h3>The tiny discovery orbit</h3>
-  <p>Most reports are tiny: one problem, a cheap reproduction, and claims that a few examples cover. A tiny report runs a tiny discovery orbit. It has <strong>no KB and no models</strong> (no SMT, TLA+, or Lean). Its one formal artifact is a <strong>red test of the reproduction</strong>: a check, which the build reuses.</p>
-  <ol>
-    <li>Touch the system: reproduce the defect, show that the feature is absent, or show whether the conditions of a risk occur. If it does not reproduce, tell the human what you tried.</li>
-    <li>State the claims, each with one example, and what would falsify each claim.</li>
-    <li>Ask the human.</li>
-    <li>Vote GO, NO-GO, or HOLD (slide 9). On GO, the claims, the examples, and the reproduction are the ticket. The build orbit starts on the light path, and the reproduction becomes its first check.</li>
-  </ol>
-  <details class="more" open><summary>The full discovery orbit</summary><div class="body dup">
-  <h3>The full discovery orbit</h3>
-  <p>The agent shifts up to the full orbit, in a KB, on any trigger of the light path. It also shifts up when a claim needs a model, because a few examples cannot cover its combinations or orders of steps.</p>
-  <ul>
-    <li>Each lap touches the current system or a solver, and then the human. The default budget is three laps.</li>
-    <li>The agent pins the report as one falsifiable hypothesis, then touches the system to reproduce it. If the problem does not reproduce, the agent tells the human what it tried.</li>
-    <li>It chooses the cheapest tool that can falsify each claim. A reproduction or a test comes first. SMT (a solver that finds cases that fit a set of rules) is for rules, permissions, limits, and prices. TLA+ (a language that models order of steps, checked by a tool) is for order of steps, retries, and concurrency. A property for every input is <code>universal</code>, for BURN.</li>
-    <li>A finding from a model only is a lead, until a reproduction on the system confirms it. Only a trusted model gives a verdict about the current system.</li>
-    <li>The agent stops when discovery is ready, or the last lap of the budget is done. Out of budget is not ready. The agent reports what it knows, each open item, and what it does not know. Then the three roles vote.</li>
-  </ul>
-  <p>The moves are SIGNAL, SURVEY, SPECTRUM, FLYBY (SMT), TRAJECTORY (TLA+), and DISPROVE. The agent asks the human only the questions that evidence raised. It asks about conflicts first, then surprises, then boundaries. When stakeholders conflict, the decision owner decides.</p>
-  <p>A wrong report is a valid result. The agent says so, with the evidence. When a divergence shows that the problem is wrong, not the build, the work goes back to discovery.</p>
-  </div></details>
-</section>
-
-<section class="slide" id="s9" tabindex="-1">
-  <div class="num">9 of 11 · Details</div>
-  <h2>The vote: GO, NO-GO, or HOLD</h2>
-  <p>At the end of discovery, three roles vote: the human, the agent, and the formal artifacts.</p>
-  <div class="tbl card">
-    <table>
-      <tr><th>Voter</th><th>Weight</th><th>How it votes</th></tr>
-      <tr><td>The human</td><td>0.4</td><td>Thinks critically and decides. The human owns the final product, so the human weighs most.</td></tr>
-      <tr><td>The agent</td><td>0.3</td><td>Votes first, and seals the vote until the human votes. A visible vote biases the human.</td></tr>
-      <tr><td>The formal artifacts</td><td>0.3</td><td>Vote by rule, not by opinion. In a KB, the tool computes the vote. In a tiny orbit, the reproduction votes: GO when its test is red, NO-GO when the problem does not reproduce.</td></tr>
-    </table>
-  </div>
-  <div class="grid">
-    <div class="card"><h3>GO</h3>Build the ticket.</div>
-    <div class="card"><h3>NO-GO</h3>The problem is not real, the feature exists, or it is not worth building.</div>
-    <div class="card"><h3>HOLD</h3>Wait for data, for access, or for a decision by another person.</div>
-  </div>
-  <details class="more" open><summary>The steps</summary><div class="body dup">
-  <h3>The steps</h3>
-  <ol>
-    <li>The agent casts its vote first and seals it. It records the vote before it gives the report.</li>
-    <li>The agent gives the human the discovery report, with the evidence in full but no verdict. The human votes.</li>
-    <li>All three votes are revealed.</li>
-    <li>A choice wins only with more than half of the weight, and the human's vote must be part of it. So a choice wins when the human and at least one other role agree.</li>
-    <li>Any other result is HOLD. Another orbit follows, and the agent records the disagreement as a divergence.</li>
-  </ol>
-  </div></details>
-  <p><strong>Nothing is built or dropped against the human's vote.</strong> Only the human changes the scope or raises the budget. On GO, the agent writes the ticket in plain prose.</p>
-  <details class="more" open><summary>Examples</summary><div class="body dup">
-  <h3>Examples</h3>
-  <div class="tbl card">
-    <table>
-      <tr><th>Human</th><th>Agent</th><th>Formal artifacts</th><th>Result</th></tr>
-      <tr><td>GO</td><td>GO</td><td>NO-GO</td><td>GO (0.7)</td></tr>
-      <tr><td>GO</td><td>NO-GO</td><td>GO</td><td>GO (0.7)</td></tr>
-      <tr><td>NO-GO</td><td>GO</td><td>GO</td><td>HOLD. The agent and the formal artifacts agree against the human. Record a divergence.</td></tr>
-      <tr><td>GO</td><td>NO-GO</td><td>HOLD</td><td>HOLD. A three-way split.</td></tr>
-    </table>
-  </div>
-  <p>The first rows follow from the weights: 0.4 + 0.3 = 0.7, which is more than half. In a three-way split, no choice has more than half.</p>
-  </div></details>
-</section>
-
-<section class="slide" id="s10" tabindex="-1">
-  <div class="num">10 of 11 · Details</div>
-  <h2>Burns</h2>
-  <p>Humans care about proofs when proofs are necessary. Agents worry about tests. A claim <strong>burns</strong> when a test cannot be enough.</p>
-  <p>A claim burns when it is <code>universal</code>, when the human asks for a proof, or when it was contested twice. A claim that supersedes a burning claim burns too.</p>
-  <div class="card">
-    <h3>Universal has one definition</h3>
-    <p>A claim is universal when the domain inputs are infinite or too large to check case by case. This is the burn trigger.</p>
-    <p>Examples: "no discount code takes a price below the floor"; "every distinguished element needs at least 7:1 contrast with whatever it overlays".</p>
-    <p>A claim that a few examples cover is not universal. Example: "Primary buttons are purple."</p>
-  </div>
-  <details class="more" open><summary>The rules</summary><div class="body dup">
-  <h3>The rules</h3>
-  <ul>
-    <li>A burn needs a proof. The clarity comes from the work to write a correct proof, not from a statement in Lean.</li>
-    <li>Only <code>orbit-kb prove</code> records a proof. It accepts the theorem only if there is no <code>sorry</code> (the Lean mark for a missing proof), no <code>native_decide</code> (a Lean shortcut), and no axiom of its own (an assumption with no proof), and the kernel (the small core of Lean that checks proofs) accepts it again.</li>
-    <li>A statement with <code>sorry</code> is not a proof. "No counterexample in N trials" is not a proof. A solver result or a TLC run is not a proof: it holds only within its encoding and bounds.</li>
-    <li>While a burn is open, <code>done</code> is false. If a Lean file of the project or a Lake configuration file changes, the proof stops counting.</li>
-    <li>A claim that supersedes a burning claim needs its own proof. The old proof or waiver does not carry over.</li>
-  </ul>
-  </div></details>
-  <details class="more" open><summary>The steps</summary><div class="body dup">
-  <h3>The steps</h3>
-  <ol>
-    <li>Write a Lean model of the behavior, and state the claim as a theorem.</li>
-    <li>Add <code>#eval</code> examples, and show them to the human as a table.</li>
-    <li>Search for a counterexample before you try a proof. If you find one, record <code>refuted(Counterexample)</code> and ask the human.</li>
-    <li>Prove the theorem, and record it with <code>orbit-kb prove</code>.</li>
-    <li>Read the statement that <code>orbit-kb prove</code> prints. Make sure it says what the claim says. Show it to the human.</li>
-    <li>Carry the result back to the code. Each Lean example becomes a test case.</li>
-  </ol>
-  </div></details>
-  <div class="grid">
-    <div class="card"><h3 style="color:var(--good)">A proof shows</h3>The theorem holds for the Lean model. The kernel accepted it.</div>
-    <div class="card"><h3 style="color:var(--bad)">A proof does not show</h3>That the shipped code matches the model. Only the checks test the code. It also does not show that the statement says what the claim says. The human reads that statement.</div>
-  </div>
-  <p>If the proof fails, the claim or the model is wrong, or the claim is not yet clear. That is a divergence. The agent records it and asks the human. It does not weaken the claim to fit the proof.</p>
-  <details class="more" open><summary>Waivers</summary><div class="body dup">
-  <h3>Waivers</h3>
-  <p>Only a human can skip work, for example to meet a deadline. A skip is a <strong>waiver</strong>, with a due time when the work comes back. A waiver can target a claim's burn, a check, or a question.</p>
-  <ul>
-    <li>Until the due time, the waived item does not block <code>done</code>. A waived check covers its claim: the claim is not counted as unfinished, but it is not fulfilled either, and the delivery says so. After the due time, the item blocks <code>done</code> again.</li>
-    <li>For a burn, the delivery says "not proved" for that claim.</li>
-    <li>On the light path, the agent writes the skip and its due time in the delivery. It lists every waiver in the delivery.</li>
-  </ul>
-  <p>A ticket can mix claims that coast on examples and claims that burn. The agent chooses per claim, not per ticket.</p>
-  </div></details>
+    <figcaption>Each lap passes through the formal artifacts and through the human. The orbit closes when a full lap changes nothing; most tickets close in one lap.</figcaption>
+  </figure>
+  <blockquote><p>We write solutions to problems. We do not write to achieve understanding; <strong>we orbit to achieve understanding.</strong></p></blockquote>
 </section>
 
 <section class="slide" id="s11" tabindex="-1">
-  <div class="num">11 of 11 · Details</div>
-  <h2>Trust and honesty in delivery</h2>
-  <h3>The trust threat model</h3>
-  <p>The formal artifacts trust the agent. They catch honest mistakes. They do not stop cheating.</p>
-  <div class="grid">
-    <div class="card"><h3>What is not verified</h3><code>orbit-kb</code> cannot verify <code>--by human</code>. And <code>orbit-kb prove</code> does not resist a proof built to fool it.</div>
-    <div class="card"><h3>What the agent does</h3>It writes <code>--by human</code> only to record what the human said. It never works around a check, a lint rule, or <code>orbit-kb prove</code>.</div>
-  </div>
-  <p>The reason: a safeguard that the agent works around protects no one. The prompt states this limit openly.</p>
-  <details class="more" open><summary>Honesty rules</summary><div class="body dup">
-  <h3>Honesty rules</h3>
-  <ol>
-    <li>Every default is a guess. The delivery lists the guesses that a human might disagree with.</li>
-    <li>The agent discloses when it guesses, disagrees, cannot verify, works outside the claims, or finds its own earlier work wrong. Disclosing is never a failure. Hiding is a failure.</li>
-    <li>The agent matches its words to its evidence. "Tests pass" does not mean "correct". "Stated in Lean" does not mean "proved". "Proved in Lean" is about the Lean model, not the code. "No counterexample in 1,000 trials" does not mean "always true".</li>
-    <li>If the agent finds its own earlier work wrong, it says so first.</li>
+  <div class="num"><svg class="ic"><use href="#i-path"/></svg>11 of 19 · How it works</div>
+  <h2>Where a request goes</h2>
+  <figure class="diagram">
+    <svg viewBox="0 0 700 270" role="img" aria-label="Four kinds of request. A question, or a request for advice or a decision, gets a direct answer with no KB. A report, where something is wrong but nobody can say what to change, goes to the discovery orbit, tiny first. A change request goes to the build orbit, light path first. Discovery leads to build on GO.">
+      <defs><marker id="ah10" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+      <text x="20" y="18" class="band">THE REQUEST</text>
+      <text x="420" y="18" class="band">THE ROUTE</text>
+      <rect class="box" x="20" y="30" width="230" height="44" rx="10"/>
+      <use href="#i-question" x="34" y="41" width="22" height="22" class="ico" style="stroke:var(--accent)"/>
+      <text x="64" y="57" class="b">A question</text>
+      <rect class="box" x="20" y="86" width="230" height="44" rx="10"/>
+      <use href="#i-speech" x="34" y="97" width="22" height="22" class="ico" style="stroke:var(--accent)"/>
+      <text x="64" y="113" class="b">Advice or a decision</text>
+      <rect class="box" x="20" y="150" width="230" height="44" rx="10"/>
+      <use href="#i-bug" x="34" y="161" width="22" height="22" class="ico" style="stroke:var(--accent)"/>
+      <text x="64" y="170" class="b">A report</text>
+      <text x="64" y="186" class="sub">"sync loses edits sometimes"</text>
+      <rect class="box" x="20" y="214" width="230" height="44" rx="10"/>
+      <use href="#i-hammer" x="34" y="225" width="22" height="22" class="ico" style="stroke:var(--accent)"/>
+      <text x="64" y="233" class="b">A change request</text>
+      <text x="64" y="249" class="sub">"make the button purple"</text>
+      <path class="arr" marker-end="url(#ah10)" d="M250 52H330V70H418"/><path class="arr" marker-end="url(#ah10)" d="M250 108H330V82H418"/>
+      <path class="arr" marker-end="url(#ah10)" d="M250 172H418"/>
+      <path class="arr" marker-end="url(#ah10)" d="M250 236H418"/>
+      <rect class="box" x="420" y="54" width="260" height="44" rx="10"/>
+      <text x="436" y="73" class="b">Answer directly</text>
+      <text x="436" y="89" class="sub">options, assumptions, unknowns. No KB.</text>
+      <rect class="box hum" x="420" y="150" width="260" height="44" rx="10"/>
+      <use href="#i-compass" x="434" y="161" width="22" height="22" class="ico" style="stroke:var(--accent)"/>
+      <text x="464" y="170" class="b">Discovery orbit</text>
+      <text x="464" y="186" class="sub">tiny first, for a tiny report</text>
+      <rect class="box chk" x="420" y="214" width="260" height="44" rx="10"/>
+      <use href="#i-hammer" x="434" y="225" width="22" height="22" class="ico" style="stroke:var(--good)"/>
+      <text x="464" y="233" class="b">Build orbit</text>
+      <text x="464" y="249" class="sub">light path first</text>
+      <path class="arr" marker-end="url(#ah10)" d="M550 194V212"/>
+      <text x="558" y="208" class="sub">GO</text>
+    </svg>
+  </figure>
+  <p>A report says something is wrong or wanted, but not what to change. A change request with open details stays in the build orbit: <mark>open details are questions to ask, not a reason for discovery.</mark></p>
+</section>
+
+<section class="slide" id="s12" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-feather"/></svg>12 of 19 · How it works</div>
+  <h2>The light path: one try to get it right</h2>
+  <p>Most tickets need only these five steps. They are the whole process until a trigger fires.</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 760 210" role="img" aria-label="Five steps in a row: restate with an example; ask or assume; write the check and see it fail; build only what is needed; run the checks and deliver with No KB. Then the human verifies the result. From any step, a trigger can shift the work up to a KB.">
+      <defs><marker id="ah11" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker>
+        <marker id="ah11a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--amber)"/></marker></defs>
+      <rect class="box amb" x="160" y="10" width="440" height="34" rx="17"/>
+      <use href="#i-db" x="174" y="16" width="22" height="22" class="ico" style="stroke:var(--amber)"/>
+      <text x="204" y="32" class="b">A trigger fires: shift up to a KB</text>
+      <path class="arr up" marker-end="url(#ah11a)" d="M180 92V48M300 92V48M420 92V48M540 92V48"/>
+      <g>
+        <circle class="box hum" cx="60" cy="120" r="26"/><use href="#i-speech" x="48" y="108" width="24" height="24" class="ico" style="stroke:var(--accent)"/>
+        <circle class="box hum" cx="180" cy="120" r="26"/><use href="#i-question" x="168" y="108" width="24" height="24" class="ico" style="stroke:var(--accent)"/>
+        <circle class="box bad" cx="300" cy="120" r="26"/><use href="#i-x" x="288" y="108" width="24" height="24" class="ico" style="stroke:var(--bad)"/>
+        <circle class="box" cx="420" cy="120" r="26"/><use href="#i-hammer" x="408" y="108" width="24" height="24" class="ico" style="stroke:var(--fg)"/>
+        <circle class="box chk" cx="540" cy="120" r="26"/><use href="#i-check" x="528" y="108" width="24" height="24" class="ico" style="stroke:var(--good)"/>
+        <path class="arr" marker-end="url(#ah11)" d="M86 120H152"/><path class="arr" marker-end="url(#ah11)" d="M206 120H272"/><path class="arr" marker-end="url(#ah11)" d="M326 120H392"/><path class="arr" marker-end="url(#ah11)" d="M446 120H512"/><path class="arr" marker-end="url(#ah11)" d="M566 120H632"/>
+        <rect class="box hum" x="634" y="96" width="116" height="48" rx="24"/>
+        <use href="#i-human" x="646" y="108" width="24" height="24" class="ico" style="stroke:var(--accent)"/>
+        <text x="676" y="125" class="b">verifies</text>
+      </g>
+      <text x="60" y="166" text-anchor="middle" class="b">1 Restate</text><text x="60" y="182" text-anchor="middle" class="sub">one sentence,</text><text x="60" y="196" text-anchor="middle" class="sub">one example</text>
+      <text x="180" y="166" text-anchor="middle" class="b">2 Ask or assume</text><text x="180" y="182" text-anchor="middle" class="sub">at most 3 questions</text>
+      <text x="300" y="166" text-anchor="middle" class="b">3 Check first</text><text x="300" y="182" text-anchor="middle" class="sub">see it fail</text>
+      <text x="420" y="166" text-anchor="middle" class="b">4 Build</text><text x="420" y="182" text-anchor="middle" class="sub">only what is needed</text>
+      <text x="540" y="166" text-anchor="middle" class="b">5 Deliver</text><text x="540" y="182" text-anchor="middle" class="sub">re-run checks,</text><text x="540" y="196" text-anchor="middle" class="sub">say "No KB"</text>
+    </svg>
+  </figure>
+  <p class="big">Get it <em>right</em>, not get it done.</p>
+  <p>A result that only looks done hides a divergence. Honesty is how a divergence surfaces, so the agent reports what it did and did not verify.</p>
+  <details class="more" open><summary>The steps in full</summary><div class="body">
+  <ol class="steps">
+    <li>State the request back in a sentence, with one concrete example.</li>
+    <li>Decide: ask first, or build on assumptions. Ask first only if a wrong default is costly or impossible to undo (data loss, external effects, public interfaces, security, money), or two defaults are equally likely and the build is large. At most three questions in one round, with options and a marked default.</li>
+    <li>Write the check first, and run it. A check of behavior that the change adds or removes must fail before the change. A check that current behavior stays the same passes before and after. If there is no executable check, say so under "Not checked".</li>
+    <li>Build only what the request needs.</li>
+    <li>Run the checks again. Deliver with the report, and say "No KB". The report names each check and its result in one line; it is not a test report for the human to review.</li>
   </ol>
-  <p>In discovery, the agent also labels each finding as from the system or from a model only. It reports each solver result with its encoding, bounds, and assumptions. It says what each model omits.</p>
   </div></details>
-  <details class="more" open><summary>The delivery</summary><div class="body dup">
-  <h3>The delivery</h3>
-  <p>The delivery has six fields, in short, plain sentences:</p>
-  <div class="tbl card">
-    <table>
-      <tr><td><code>Delivered:</code></td><td>one sentence</td></tr>
-      <tr><td><code>Claims:</code></td><td>each claim: fulfilled or not, and how it was verified</td></tr>
-      <tr><td><code>Guesses:</code></td><td>defaults that a human might disagree with</td></tr>
-      <tr><td><code>Disclosures:</code></td><td>unverified parts, disagreements, work outside the claims</td></tr>
-      <tr><td><code>Not checked:</code></td><td>what no check covered</td></tr>
-      <tr><td><code>To land:</code></td><td>the decision that the human must make</td></tr>
-    </table>
+</section>
+
+<section class="slide" id="s13" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-layers"/></svg>13 of 19 · How it works</div>
+  <h2>Shift up on a signal. Lean back when it is resolved.</h2>
+  <div class="tiles">
+    <div class="tile"><svg class="ic"><use href="#i-question"/></svg><h3>Questions</h3><p class="muted">One round does not settle it: more than three questions, or an answer raises a new one.</p></div>
+    <div class="tile t-bad"><svg class="ic"><use href="#i-split"/></svg><h3>A divergence</h3><p class="muted">"That is wrong." The red run passes. A check still fails when the build is done. The code does not behave as assumed.</p></div>
+    <div class="tile t-amber"><svg class="ic"><use href="#i-flame"/></svg><h3>A claim burns</h3><p class="muted">It needs a proof. See slide 17.</p></div>
+    <div class="tile t-mid"><svg class="ic"><use href="#i-handoff"/></svg><h3>A handoff</h3><p class="muted">Another session continues the work.</p></div>
   </div>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 200" role="img" aria-label="Rigor follows each trigger separately. In the KB, the questions trigger stops when the answers settle them, the divergence trigger stops when its cause is known, and the burn stays active until a proof or a human waiver closes it. The KB stays until done holds. The next ticket starts light.">
+      <text x="20" y="18" class="band">IN THE KB: EACH TRIGGER ON ITS OWN CLOCK</text>
+      <rect class="box amb" x="20" y="28" width="600" height="132" rx="12"/>
+      <text x="36" y="62" class="lbl">Questions</text>
+      <rect x="140" y="50" width="170" height="16" rx="8" class="tam" opacity=".85"/><rect x="310" y="50" width="290" height="16" rx="8" class="ln" opacity=".6"/>
+      <text x="318" y="46" class="sub">answers settle them: lean back</text>
+      <text x="36" y="102" class="lbl">Divergence</text>
+      <rect x="180" y="90" width="200" height="16" rx="8" class="tb" opacity=".8"/><rect x="380" y="90" width="220" height="16" rx="8" class="ln" opacity=".6"/>
+      <text x="388" y="86" class="sub">cause known: lean back</text>
+      <text x="36" y="142" class="lbl">Burn</text>
+      <rect x="140" y="130" width="460" height="16" rx="8" class="tam" opacity=".85"/>
+      <text x="598" y="126" text-anchor="end" class="sub">active until a proof or a waiver</text>
+      <rect class="box chk" x="636" y="72" width="70" height="44" rx="10"/>
+      <text x="671" y="99" text-anchor="middle" class="b">done</text>
+      <path class="arr" d="M620 94H634"/>
+      <text x="671" y="140" text-anchor="middle" class="sub">next ticket</text>
+      <text x="671" y="154" text-anchor="middle" class="sub">starts light</text>
+      <text x="20" y="186" class="sub">The KB stays until done holds. Leaning back adds no optional work and drops nothing open.</text>
+    </svg>
+  </figure>
+  <p>When the agent leans back, it says so in one line: <code>Leaning back: &lt;what stopped&gt;. Still active: &lt;what continues&gt;.</code></p>
+  <details class="more" open><summary>Why not start with a KB?</summary><div class="body">
+  <p>A KB costs time, so the agent does not start one before it needs one. A KB is memory and a referee, so the agent starts one as soon as a miscommunication or a proof appears. On a shift up, it records the request, the claims, the checks, and the answers so far, and continues in the KB.</p>
+  </div></details>
+</section>
+
+<section class="slide" id="s14" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-hammer"/></svg>14 of 19 · How it works</div>
+  <h2>The build orbit, in a KB</h2>
+  <p>After a shift up, the agent works in the KB with moves. It runs only the moves the ticket needs, and every move reads the ticket text itself.</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 760 230" role="img" aria-label="The main moves in order: SURVEY, DECOMPOSE, BUILD, FULFILL, then done. DISPROVE attacks claims from DECOMPOSE. BURN proves a burning claim in Lean. Any divergence goes back to DECOMPOSE, or to discovery if the problem itself is wrong.">
+      <defs><marker id="ah13a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--amber)"/></marker><marker id="ah13" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+      <rect class="box" x="10" y="60" width="120" height="58" rx="10"/><text x="70" y="85" text-anchor="middle" class="b">SURVEY</text><text x="70" y="103" text-anchor="middle" class="sub">current behavior</text>
+      <rect class="box hum" x="160" y="60" width="130" height="58" rx="10"/><text x="225" y="85" text-anchor="middle" class="b">DECOMPOSE</text><text x="225" y="103" text-anchor="middle" class="sub">claims + examples</text>
+      <rect class="box" x="320" y="60" width="120" height="58" rx="10"/><text x="380" y="85" text-anchor="middle" class="b">BUILD</text><text x="380" y="103" text-anchor="middle" class="sub">checks red first</text>
+      <rect class="box" x="470" y="60" width="130" height="58" rx="10"/><text x="535" y="85" text-anchor="middle" class="b">FULFILL</text><text x="535" y="103" text-anchor="middle" class="sub">under? over?</text>
+      <rect class="box chk" x="630" y="60" width="120" height="58" rx="10"/><text x="690" y="85" text-anchor="middle" class="b">done</text><text x="690" y="103" text-anchor="middle" class="sub">then stop</text>
+      <path class="arr" marker-end="url(#ah13)" d="M130 89H158"/><path class="arr" marker-end="url(#ah13)" d="M290 89H318"/><path class="arr" marker-end="url(#ah13)" d="M440 89H468"/><path class="arr" marker-end="url(#ah13)" d="M600 89H628"/>
+      <rect class="box bad" x="160" y="160" width="130" height="50" rx="10"/><text x="225" y="182" text-anchor="middle" class="b">DISPROVE</text><text x="225" y="198" text-anchor="middle" class="sub">try to break a claim</text>
+      <rect class="box amb" x="320" y="160" width="120" height="50" rx="10"/><text x="380" y="182" text-anchor="middle" class="b">BURN</text><text x="380" y="198" text-anchor="middle" class="sub">prove it in Lean</text>
+      <path class="arr" marker-end="url(#ah13)" d="M225 118V158"/>
+      <path class="arr" marker-end="url(#ah13)" d="M290 185H318"/>
+      <path class="arr up" d="M535 60V30H225V58" marker-end="url(#ah13a)"/>
+      <text x="380" y="24" text-anchor="middle" class="sub">a divergence: back to claims (or to discovery, if the problem is wrong)</text>
+      <text x="470" y="190" class="sub">EXPLAIN, on request: plain English, from the KB</text>
+    </svg>
+  </figure>
+  <div class="tiles">
+    <div class="tile t-good"><svg class="ic"><use href="#i-check"/></svg><h3><code>done</code> holds when</h3><p class="muted">nothing is under, nothing is over, nothing is to ask, no burn is open, and no claim is in a supersede cycle.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-db"/></svg><h3>The KB</h3><p class="muted">Memory between laps and sessions. Only <code>orbit-kb</code> writes it; only <code>orbit-kb run</code> records a test result. Not committed unless asked.</p></div>
+  </div>
+  <details class="more" open><summary>The moves in full</summary><div class="body">
   <ul>
-    <li>An empty field says "none". Then the human sees that the agent looked.</li>
-    <li>With a KB, <code>orbit-kb report</code> drafts the middle fields and adds <code>Open:</code> (open burns, lapsed waivers, proofs that no longer count). The agent keeps <code>Open:</code> in the delivery.</li>
-    <li>The delivery includes a screenshot when the change has a user surface.</li>
-    <li>The agent lists every waiver in the delivery.</li>
+    <li><strong>SURVEY:</strong> record the current behavior that the claims depend on. For a defect, reproduce it first. Skip it when discovery ran, or when the change site is obvious.</li>
+    <li><strong>DECOMPOSE:</strong> split the ticket into claims: <code>preserve</code>, <code>retire</code>, or <code>introduce</code>. Each cites the ticket text and has concrete examples. Questions stay dormant, with defaults.</li>
+    <li><strong>BUILD:</strong> write the checks first, plus a screenshot check for a user surface. Run each <code>retire</code> and <code>introduce</code> check red. Never edit a check to make it pass.</li>
+    <li><strong>FULFILL:</strong> review with fresh eyes, both ways. Under: a claim not fulfilled. Over: a change that serves no claim.</li>
+    <li><strong>DISPROVE:</strong> try to break a claim on a small budget. The verdict is <code>refuted(Counterexample)</code>, <code>inconclusive</code>, or <code>abstained</code>. Do not weaken a claim to absorb a counterexample.</li>
+    <li><strong>BURN:</strong> prove a burning claim in Lean (slide 17). <strong>EXPLAIN:</strong> on request.</li>
+    <li>Two logic engines answer each KB query, and the tool compares them. If they disagree, stop and report both answers.</li>
   </ul>
   </div></details>
+</section>
+
+<section class="slide" id="s15" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-compass"/></svg>15 of 19 · How it works</div>
+  <h2>The discovery orbit</h2>
+  <p>Discovery turns a report into a ticket with a clear problem, scope, and risk, before anything is built. <mark>Most reports need only a reproduction.</mark></p>
+  <figure class="diagram">
+    <svg viewBox="0 0 760 150" role="img" aria-label="The tiny discovery orbit: touch the system and get a red reproduction test; state claims with examples and what would falsify them; ask the human; vote. On GO, the build orbit starts on the light path and the reproduction is its first check.">
+      <defs><marker id="ah14a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--amber)"/></marker><marker id="ah14" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+      <text x="10" y="16" class="band">THE TINY DISCOVERY ORBIT · NO KB, NO MODELS</text>
+      <rect class="box bad" x="10" y="32" width="150" height="62" rx="10"/><use href="#i-bug" x="22" y="42" width="22" height="22" class="ico" style="stroke:var(--bad)"/><text x="50" y="58" class="b">Reproduce</text><text x="22" y="82" class="sub">a red test</text>
+      <rect class="box" x="190" y="32" width="150" height="62" rx="10"/><use href="#i-speech" x="202" y="42" width="22" height="22" class="ico" style="stroke:var(--fg)"/><text x="230" y="58" class="b">Claims</text><text x="202" y="82" class="sub">examples, falsifiers</text>
+      <rect class="box hum" x="370" y="32" width="150" height="62" rx="10"/><use href="#i-human" x="382" y="42" width="22" height="22" class="ico" style="stroke:var(--accent)"/><text x="410" y="58" class="b">Ask</text><text x="382" y="82" class="sub">the human</text>
+      <rect class="box mid" x="550" y="32" width="90" height="62" rx="10"/><use href="#i-scale" x="562" y="42" width="22" height="22" class="ico" style="stroke:var(--mid)"/><text x="590" y="58" class="b">Vote</text><text x="562" y="82" class="sub">slide 16</text>
+      <path class="arr" marker-end="url(#ah14)" d="M160 63H188"/><path class="arr" marker-end="url(#ah14)" d="M340 63H368"/><path class="arr" marker-end="url(#ah14)" d="M520 63H548"/><path class="arr" marker-end="url(#ah14)" d="M640 63H668"/>
+      <rect class="box chk" x="670" y="32" width="80" height="62" rx="10"/><text x="710" y="58" text-anchor="middle" class="b">Build</text><text x="710" y="82" text-anchor="middle" class="sub">on GO</text>
+      <path class="arr up" d="M85 94V124H710V96" marker-end="url(#ah14a)"/>
+      <text x="400" y="142" text-anchor="middle" class="sub">the red reproduction becomes the build's first check</text>
+    </svg>
+  </figure>
+  <div class="split">
+    <div class="tile"><svg class="ic"><use href="#i-feather"/></svg><h3>Tiny</h3><p class="muted">One problem, a cheap reproduction, claims that a few examples cover. If it does not reproduce, tell the human what was tried.</p></div>
+    <div class="tile t-amber"><svg class="ic"><use href="#i-db"/></svg><h3>Full, in a KB</h3><p class="muted">On any light-path trigger, or when a claim needs a model because a few examples cannot cover its combinations. Three laps by default.</p></div>
+  </div>
+  <details class="more" open><summary>The full discovery orbit</summary><div class="body">
+  <ul>
+    <li>Pin the report as one falsifiable hypothesis, then touch the system to reproduce it.</li>
+    <li>Choose the cheapest tool that can falsify each claim: a reproduction or a test first; SMT (a solver for rules, permissions, limits, prices); TLA+ (a model checker for order of steps, retries, concurrency). A property for every input is <code>universal</code>, for BURN.</li>
+    <li>A finding from a model only is a lead, until a reproduction on the system confirms it.</li>
+    <li>Ask only the questions that evidence raised: conflicts first, then surprises, then boundaries. When stakeholders conflict, the decision owner decides.</li>
+    <li>Stop when discovery is ready, or the budget is spent. Out of budget is not ready: report what is known and not known. Then vote.</li>
+    <li>A wrong report is a valid result. Say so, with the evidence.</li>
+  </ul>
+  <p class="muted">Moves: SIGNAL, SURVEY, SPECTRUM, FLYBY (SMT), TRAJECTORY (TLA+), DISPROVE.</p>
+  </div></details>
+</section>
+
+<section class="slide" id="s16" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-scale"/></svg>16 of 19 · How it works</div>
+  <h2>The vote: GO, NO-GO, or HOLD</h2>
+  <p>At the end of discovery, three roles vote. A choice wins with more than half of the weight, <mark>and the human's vote must be part of it.</mark></p>
+  <figure class="diagram">
+    <svg viewBox="0 0 730 230" role="img" aria-label="Weights: human 0.4, agent 0.3, formal artifacts 0.3. The line at one half is the bar to win. Example one: the human and the artifacts agree, 0.7, GO. Example two: the agent and the artifacts agree against the human, 0.6, but without the human it is HOLD.">
+      <text x="20" y="18" class="band">THE WEIGHTS</text>
+      <rect class="box hum" x="120" y="30" width="240" height="38" rx="6"/><text x="240" y="54" text-anchor="middle" class="b">Human 0.4</text>
+      <rect class="box" x="360" y="30" width="180" height="38" rx="6"/><text x="450" y="54" text-anchor="middle" class="b">Agent 0.3 · sealed</text>
+      <rect class="box chk" x="540" y="30" width="180" height="38" rx="6"/><text x="630" y="54" text-anchor="middle" class="b">Artifacts 0.3</text>
+      <path d="M420 80V200" stroke="var(--amber)" stroke-width="2" stroke-dasharray="5 4"/>
+      <text x="420" y="216" text-anchor="middle" class="sub" style="fill:var(--amber)">half: a win needs more</text>
+      <text x="20" y="104" class="b">GO</text><text x="20" y="120" class="sub">human + artifacts</text>
+      <rect class="box hum" x="120" y="92" width="240" height="30" rx="6"/><rect class="box chk" x="360" y="92" width="180" height="30" rx="6"/>
+      <text x="550" y="112" class="b" style="fill:var(--good)">0.7 ✓</text>
+      <text x="20" y="160" class="b">HOLD</text><text x="20" y="176" class="sub">agent + artifacts</text>
+      <rect class="box" x="120" y="148" width="180" height="30" rx="6"/><rect class="box chk" x="300" y="148" width="180" height="30" rx="6"/>
+      <text x="490" y="168" class="b" style="fill:var(--amber)">0.6, but no human: HOLD</text>
+    </svg>
+    <figcaption>Any result without a winner is HOLD: another orbit follows, and the agent records the disagreement as a divergence.</figcaption>
+  </figure>
+  <div class="tiles">
+    <div class="tile"><svg class="ic"><use href="#i-lock"/></svg><h3>The agent votes first, sealed</h3><p class="muted">It records its vote before it gives the report. A visible vote biases the human.</p></div>
+    <div class="tile t-good"><svg class="ic"><use href="#i-formal"/></svg><h3>The artifacts vote by rule</h3><p class="muted">In a KB, the tool computes it. In a tiny orbit: GO when the reproduction is red, NO-GO when the problem does not reproduce.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-human"/></svg><h3>The human decides</h3><p class="muted">Nothing is built or dropped against the human's vote. Only the human changes scope or budget.</p></div>
+  </div>
+</section>
+
+<section class="slide" id="s17" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-flame"/></svg>17 of 19 · How it works</div>
+  <h2>Burns: when a test cannot be enough</h2>
+  <p>A claim <strong>burns</strong> when it is <code>universal</code>, when the human asks for a proof, or when it was contested twice. <mark>Universal</mark> has one meaning: the domain inputs are infinite or too large to check case by case.</p>
+  <div class="split">
+    <div class="tile t-amber"><svg class="ic"><use href="#i-flame"/></svg><h3>Burns</h3><p>"No discount code takes a price below the floor."</p><p>"Every distinguished element has at least 7:1 contrast with whatever it overlays."</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-check"/></svg><h3>Does not burn</h3><p>"Primary buttons are purple." A few examples cover it.</p></div>
+  </div>
+  <figure class="diagram">
+    <svg viewBox="0 0 740 150" role="img" aria-label="A burning claim closes in one of two ways. A Lean proof recorded by orbit-kb prove: no sorry, no native_decide, no new axiom, and the kernel accepts it again. Or a human waiver with a due time, after which the burn blocks done again.">
+      <defs><marker id="ah16" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+      <rect class="box amb" x="10" y="48" width="150" height="54" rx="10"/><use href="#i-flame" x="22" y="63" width="24" height="24" class="ico" style="stroke:var(--amber)"/><text x="54" y="80" class="b">Burning claim</text>
+      <path class="arr" marker-end="url(#ah16)" d="M160 66L248 34"/><path class="arr" marker-end="url(#ah16)" d="M160 84L248 116"/>
+      <rect class="box chk" x="250" y="8" width="300" height="52" rx="10"/><use href="#i-forall" x="262" y="22" width="24" height="24" class="ico" style="stroke:var(--good)"/>
+      <text x="296" y="30" class="b">Lean proof, via orbit-kb prove</text><text x="296" y="48" class="sub">no sorry, no native_decide, no new axiom</text>
+      <rect class="box hum" x="250" y="90" width="300" height="52" rx="10"/><use href="#i-clock" x="262" y="104" width="24" height="24" class="ico" style="stroke:var(--accent)"/>
+      <text x="296" y="112" class="b">Human waiver, with a due time</text><text x="296" y="130" class="sub">the delivery says "not proved"</text>
+      <path class="arr" marker-end="url(#ah16)" d="M550 34L618 66"/><path class="arr" marker-end="url(#ah16)" d="M550 116L618 84"/>
+      <rect class="box chk" x="620" y="48" width="110" height="54" rx="10"/><text x="675" y="80" text-anchor="middle" class="b">burn closed</text>
+    </svg>
+  </figure>
+  <details class="more" open><summary>The rules and the steps</summary><div class="body">
+  <ul>
+    <li>A statement with <code>sorry</code> is not a proof. "No counterexample in N trials" is not a proof. A solver result or a TLC run holds only within its encoding and bounds.</li>
+    <li>If a Lean file or a Lake configuration file changes, the proof stops counting. A claim that supersedes a burning claim needs its own proof.</li>
+    <li>A proof shows the theorem holds for the Lean model. It does not show the shipped code matches the model (only checks test the code), or that the statement says what the claim says (the human reads that).</li>
+    <li>If the proof fails, the claim or the model is wrong, or not yet clear. That is a divergence: record it and ask. Do not weaken the claim to fit the proof.</li>
+  </ul>
+  <ol class="steps">
+    <li>Write a Lean model of the behavior, and state the claim as a theorem.</li>
+    <li>Add <code>#eval</code> examples, and show them to the human as a table.</li>
+    <li>Search for a counterexample first. If one turns up, record <code>refuted(Counterexample)</code> and ask the human.</li>
+    <li>Prove it, and record it with <code>orbit-kb prove</code>. Read back the printed statement and show it to the human.</li>
+    <li>Carry each Lean example back to the code as a test case.</li>
+  </ol>
+  <p><strong>Waivers.</strong> Only a human can skip work. A skip is a waiver with a due time; it can target a burn, a check, or a question. A waived check covers its claim (not unfinished, but not fulfilled either, and the delivery says so). After the due time, the item blocks <code>done</code> again.</p>
+  </div></details>
+</section>
+
+<section class="slide" id="s18" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-shield"/></svg>18 of 19 · How it works</div>
+  <h2>Trust and honesty</h2>
+  <p class="big">The formal artifacts catch <em>honest mistakes</em>. They do not stop cheating, and the prompt says so.</p>
+  <div class="split">
+    <div class="tile t-amber"><svg class="ic"><use href="#i-lock"/></svg><h3>Known limits</h3><p class="muted"><code>orbit-kb</code> cannot verify <code>--by human</code>. <code>orbit-kb prove</code> does not resist a proof built to fool it.</p></div>
+    <div class="tile t-good"><svg class="ic"><use href="#i-shield"/></svg><h3>So the agent</h3><p class="muted">writes <code>--by human</code> only for what the human said, and never works around a check, a lint rule, or <code>orbit-kb prove</code>. A safeguard that is worked around protects no one.</p></div>
+  </div>
+  <h3>Match the words to the evidence</h3>
+  <div class="tbl">
+    <table>
+      <tr><th>Evidence</th><th>Do not say</th></tr>
+      <tr><td>Tests pass</td><td>"correct"</td></tr>
+      <tr><td>Stated in Lean</td><td>"proved"</td></tr>
+      <tr><td>Proved in Lean</td><td>"the code is proved" (the proof is about the model)</td></tr>
+      <tr><td>No counterexample in 1,000 trials</td><td>"always true"</td></tr>
+    </table>
+  </div>
+  <ul class="chips" aria-label="Other honesty rules">
+    <li class="chip"><svg class="ic"><use href="#i-speech"/></svg>Every default is a guess: list the risky ones</li>
+    <li class="chip"><svg class="ic"><use href="#i-loud"/></svg>Disclosing is never a failure; hiding is</li>
+    <li class="chip"><svg class="ic"><use href="#i-x"/></svg>Found your own work wrong? Say so first</li>
+  </ul>
+</section>
+
+<section class="slide" id="s19" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-box"/></svg>19 of 19 · How it works</div>
+  <h2>The delivery</h2>
+  <p>Six fields, in short plain sentences. An empty field says "none", so the human sees that the agent looked. An example from the light path:</p>
+<pre class="report" aria-label="A sample delivery"><b>Delivered:</b>    Submit on /checkout is purple.
+<b>Claims:</b>       Submit on /checkout renders #6B3FA0: fulfilled (check red, then green).
+<b>Guesses:</b>      Only this button, not every primary button.
+<b>Disclosures:</b>  none
+<b>Not checked:</b>  dark mode
+<b>To land:</b>      none; merged.
+<i>No KB.</i></pre>
+  <div class="tiles">
+    <div class="tile"><svg class="ic"><use href="#i-db"/></svg><h3>With a KB</h3><p class="muted"><code>orbit-kb report</code> drafts the middle fields and adds <code>Open:</code> (open burns, lapsed waivers, proofs that no longer count).</p></div>
+    <div class="tile t-amber"><svg class="ic"><use href="#i-clock"/></svg><h3>Waivers</h3><p class="muted">Every waiver is listed, with its due time.</p></div>
+    <div class="tile t-mid"><svg class="ic"><use href="#i-eye"/></svg><h3>Screenshots</h3><p class="muted">Included when the change has a user surface.</p></div>
+  </div>
   <h3>Landing</h3>
-  <p>The agent lands the change (merge, push, or deploy) when it judges it safe, within the guardrails of the harness (the tools and limits that Claude Code runs under). It stops for the human first when the change touches a public interface, data, security, or money, or is hard to undo. Then "To land" names the decision.</p>
-  <p class="sources">Sources: slides 1 and 2 and slides 4 to 11 come from the live prompt, <code>shared/link/.claude/orbital-shifting/ORBITAL-SHIFTING.md</code> (live since 2026-10-21), its design notes <code>thoughts/orbital-shifting-system-prompt-draft.md</code>, and <code>thoughts/orbital-shifting-refinement-record.md</code>. Slide 3 comes from <code>thoughts/orbital-shifting-history.md</code>, the plugin repository, and the dotfiles git history.</p>
+  <p>The agent lands the change when it judges it safe, within the harness guardrails. <mark>It stops for the human first</mark> when the change touches a public interface, data, security, or money, or is hard to undo. Then "To land" names the decision.</p>
+  <p class="sources">Sources: the live prompt, <code>shared/link/.claude/orbital-shifting/ORBITAL-SHIFTING.md</code> (live since 2026-10-21), its design notes <code>thoughts/orbital-shifting-system-prompt-draft.md</code>, and <code>thoughts/orbital-shifting-refinement-record.md</code>. Slides 7 to 9 come from <code>thoughts/orbital-shifting-history.md</code>.</p>
 </section>
 
 <p class="hint nojs" style="padding-inline:1.1rem;text-align:center">Without JavaScript, scroll.</p>
@@ -832,64 +1024,42 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 })();
 </script>
 <!--
-Fact-check note. Slides 1, 2, and 4 to 11 were checked against the live prompt
+Fact-check note. Slides 1 to 6 and 9 to 18 were checked against the live prompt
 (shared/link/.claude/orbital-shifting/ORBITAL-SHIFTING.md), thoughts/orbital-shifting-system-prompt-draft.md,
-and the Review round 1 and 2 sections of thoughts/orbital-shifting-refinement-record.md.
-Slide 3 was checked against thoughts/orbital-shifting-history.md, which has the evidence (commit hashes).
-Slide numbers below are the new numbers (11 slides).
+and the review sections of thoughts/orbital-shifting-refinement-record.md.
+Slides 7 to 9 come from thoughts/orbital-shifting-history.md, which has the evidence (commit hashes).
+Slide numbers below are for the 18-slide version (2026-10-21 polish).
 
-Statements with no exact match in the live prompt (paraphrase, illustration, gloss, or other source):
-- Slide 1 "wrong, incomplete, read two ways": the three-way split is from the task brief. The live prompt
-  has only "the human is not always the source of clarity" (Roles).
-- Slide 1 purple-button story: the claim "Primary buttons are purple" and the example #6B3FA0 are the
-  prompt's. The human's words "Make the button purple" echo the cites example 'the button purple'. The
-  "only the checkout button" meaning and the table are an illustration.
-- Slide 1 discount-code story: the floor claim is the prompt's. "Combined codes" and "sample codes
-  pass" are an illustration from the refinement record scenario.
-- Slide 1 "a late and costly way to find the gap": from the v2 brainstorm (cost to repair grows through the
-  phases, thoughts/aidlc-v2-deep-explanation-ste.md), not the live prompt.
-- Slide 1 "only a proof shows a claim for all cases": a paraphrase of the burn rules. The prompt says a
-  burn needs a proof and "no counterexample in N trials is not a proof".
-- Slide 2 glossary entries for claim, KB, Lean, and proof are plain-language glosses. The prompt says
-  "directory with a kb.pl file" and does not define Lean or proof.
-- Slide 2 "Rigor starts light / shifts with the task / does not grade a task once": from The light path,
-  Leaning back, and the draft's Open item 5 (Ty's rule of 2026-10-13).
-- Slide 2 "go around the loop until their views agree" paraphrases "The orbit closes when a full lap
-  changes nothing".
-- Slide 3 inferred dates: manual-prompting phase (about 13 June to 5 August), raw Claude phase (from 10
-  August), and the end of the gap (4 September). Ty's account is authoritative for the order and the
-  reasons. The dates come from the plugin on/off commits.
-- Slide 3 "the cost of machinery is why use fell": the commit counts are fact (96 in May, 13 in June).
-  The reason is Ty's account, not a commit message.
-- Slide 3 "the pipeline lost sight of the original request after its second stage": from the v2 brainstorm
-  section 1.2, which reports a finding from the plugin repository. Not re-checked in the plugin code.
-- Slide 3 "AIDLC kept / dropped" and "Orbital Shifting brings back / drops" lists: from the AIDLC prompt,
-  the design notes ("What was dropped"), and the history file. "Brings back" is a summary of the
-  design-notes provenance table.
-- Slide 3 AIDLC size (51 KB to 67 KB): file sizes from git (15a3b04 parent and the current file).
-- Slide 3 "no long track record yet": an inference. The draft's "not verified" note predates going live.
-- Slide 3 "about six months", "Ty (they/them)": from the dates and the task brief.
-- Glosses added to the nuts-and-bolts slides: s(CASP), "logic engines", SMT, TLA+, sorry, native_decide
-  (a "Lean shortcut"), axiom, kernel, harness. The prompt uses these words and does not define them.
-- Slide 6 "A claim burns when it needs a proof" is a short gloss. Slide 10 has the full rules.
-Wording that goes past the draft's exact words (carried over from the earlier version):
-- Slide 4 "The human does not review test results" and slide 6 "It is not a test report for the human
-  to review" come from Ty's emphasis in the refresh request; the draft says "The human verifies the
-  result, not the tests".
-- Slide 4 "Agents worry about tests" and slide 10 "Humans care about proofs when proofs are necessary":
-  Ty's emphasis, not draft text.
-- Slide 6 "Add discount codes to checkout." is the scenario from the refinement record, not the draft.
-  The draft has only the floor claim.
-- Slide 6 "A small change": the claim and example are the draft's (Command table, DECOMPOSE); the
-  light-path story around them is an illustration.
-- Slide 9 example table: the results follow from the weights and the win rule, and are not listed in
-  the draft. The case "GO, NO-GO, HOLD" follows the "three-way split" rule.
-- Slide 9 "A visible vote biases the human" and "thinks critically and decides" paraphrase step 1.
-- Slide 5 diagram: the lap row and the two-orbit row follow the draft's diagram; the converge box is
-  split into "agree" and "differ", as in the draft.
-- Slide 2 and slide 4 "Other ideas have other words ... verify, lint, review": from the review round 1
-  audit and design notes; the draft itself shows the terms in use, not a list.
-- Slide 10 "contested twice" burn comes from the burn(C) query in the draft.
+Illustrations, glosses, and wording with no exact match in the live prompt:
+- Slides 7 to 9 (timeline): dates and events from thoughts/orbital-shifting-history.md, corrected
+  2026-10-21 from the excavation of ~/.claude, transcripts, and the work hub. Hedges were dropped from the
+  slides at Ty's request ("we're trying to tell a story"); the history file's "Left open" list keeps the
+  three soft points (the exact Mac move day, the lean-lsp day, the by-hand/raw boundary). The Lean dots
+  mark dated Lean work; "client work ships every month" rests on commits in every month Jan to Oct and on
+  Ty's account of steady quality.
+- Slide 1 "wrong, incomplete, read two ways": from the task brief. The prompt has "the human is not always
+  the source of clarity" (Roles).
+- Slide 2 purple-button diagram: the claim "Primary buttons are purple" and #6B3FA0 are the prompt's. The
+  "only the checkout button" meaning, the three pages, and the human's reply are an illustration.
+- Slide 3 discount diagram: the floor claim is the prompt's. "Combined codes" and "sample codes pass" are an
+  illustration from the refinement-record scenario. "Only a proof shows a claim for all cases" paraphrases
+  the burn rules ("no counterexample in N trials is not a proof").
+- Slide 4 tile wording compresses the four goals; glossary entries are plain-language glosses.
+- Slide 5 triangle edge labels ("restates, asks, delivers"; "queries, checks, proves"; "evidence it can
+  read") summarize the lap diagram and the role text. The blockquote is Ty's text, word for word.
+- Slide 6 "a check that cannot fail / an empty field / a claim nobody tested" illustrate "silence";
+  "an empty field says none" is from the delivery rules.
+- Slide 10 routing: "options, assumptions, unknowns" is the prompt's advice route.
+- Slide 11 step 2 detail compresses "Ask first, or build on default assumptions".
+- Slide 12 per-trigger bars are an illustration of "rigor follows each trigger separately"; bar lengths
+  mean nothing.
+- Slide 13 move diagram: the order SURVEY, DECOMPOSE, BUILD, FULFILL is the prompt's; the DISPROVE and
+  BURN placement and the divergence arrow summarize "When the human says it is wrong".
+- Slide 15: the 0.6 HOLD example follows from the win rule (the human's vote must be part of a win).
+- Slide 17 "Do not say" table restates honesty rule 3 ("Tests pass does not mean correct" and so on).
+- Slide 18 sample delivery is an illustration in the six-field format; "No KB" comes from light-path step 5.
+- Ty's emphasis, not draft text: "Humans care about proofs when proofs are necessary. Agents worry about
+  tests." (slide 5) and "the human verifies the result, not the test results".
 No orbit-kb vote command is quoted, by request.
 -->
 </body>
