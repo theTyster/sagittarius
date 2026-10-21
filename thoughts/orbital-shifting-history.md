@@ -28,7 +28,7 @@ Sources:
 | Era | Dates | One line |
 |---|---|---|
 | 1. The orbital plugins | 2026-04-02 to 2026-06-13 (heavy use); removed 2026-08-10 | A seven-stage formal pipeline: Prolog, Lean 4, proofs, tests. Strong tools. One level of rigor for all work. |
-| Gap: by hand, then raw Claude | 2026-06-13 to 2026-08-28 | Ty ran the method by hand with long prompts (Prolog KBs, Lean verification, TLA+ refutation in the work hub). Then, from 2026-08-10, plain Claude. It showed that the philosophy was sound but the process had reached a local optimum. |
+| Gap: by hand, then raw Claude | 2026-06-13 to 2026-08-28 | Ty ran the method by hand with long prompts (Prolog KBs, Lean verification, TLA+ refutation in the work hub). Then, for about a week from 2026-08-11, plain Claude. It showed that the philosophy was sound but the process had reached a local optimum. |
 | 2. The AIDLC | 2026-08-28 (ticket #1200, in the work hub); global 2026-09-04 to 2026-10-21 | A governance prompt with 3 rigor tiers. An attempt to scale back. |
 | 3. Orbital Shifting | live 2026-10-21 | The method comes back as a short light path. It adds a knowledge base (KB) and proofs only when a signal shows they are needed. |
 
@@ -42,7 +42,7 @@ can still be much better. The gap was a test for this.
 | Date | Event | Evidence |
 |---|---|---|
 | 2026-01-12 | Claude Code first runs on the Linux laptop (tad-fed). | `firstStartTime` in `~/.claude.json`; first `history.jsonl` entry |
-| Late 2026-02 | Ty moves to a MacBook Pro. Linux use drops from 676 history entries in February to 17 in March (short visits on 03-19, 04-27, 06-10, 06-14, 07-21). | `history.jsonl`; commits with a Mac hostname e-mail from 2026-05-12 to 2026-09-12 |
+| 2026-02-20 | Ty moves to a MacBook Pro (the Mac had been in use before the laptop arrived in 2025-12). The last full Linux day is 02-20: `ssh wbp`, relinking dotfiles, `shutdown now`. The first Mac-only work is 02-24. Linux has only short visits after that (03-19, 04-26, 06-10, 07-20). | `last -x`; `~/.zsh_history`; Backend commits 02-19 23:20 and 02-24 06:22; Mac hostname `WBP.local` in commits to 09-12 |
 | 2026-09-14 | Back on the Linux laptop. `~/.claude` and the client work are copied over as they were. The last `/Users/ty` transcript day is 09-13; the first `/home/ty` day is 09-14. | transcript `cwd` per day; file times in the copied work tree; plugins reinstalled 09-14 |
 
 ### Era 1: the orbital plugins
@@ -121,12 +121,14 @@ instead of plugins.
 | Date | Event | Evidence |
 |---|---|---|
 | 2026-06-08 to 06-16 | Sixteen Prolog-KB refresh commits and a triage workflow in the work hub. | hub commit subjects |
-| 2026-06-18 | Lean verification for a client ticket (#2686). | hub, four commits |
+| 2026-06-18 | Lean verification for a client ticket (#2686): nine commits in 24 minutes, the first Lean proofs in the hub. | hub commits 14:29–14:53 |
 | 2026-07-09 to 07-20 | A Prolog-KB refresh workflow; a repair program and a microsite with Lean and Prolog code. | hub commit subjects |
 | 2026-07-24 | Ticket #1200 is estimated. | hub, `ESTIMATE-2026-07-24.md` (commit 31e40bad) |
 | 2026-07-29 to 08-02 | An adversarial refutation pass over a spec's axioms finds a false axiom and ends with a TLC-checked lifecycle. | hub commit subjects |
 | 2026-08-05 | `shifting` comes on and is replaced by only the agents plugin on the same day. This is the last trace of the plugins. | dotfiles 259efe9, 36a914e |
-| 2026-08-10 | The plugins are removed completely. Raw Claude: the dotfiles change only the model, the effort, shell helpers, a statusline, and a `simple-english` skill until the AIDLC. | dotfiles 0ee2e6e, 57c42d5, a37cce5, aa28c08, 1277d2e |
+| 2026-08-10 | The plugins are removed completely. The last process-style hub commit is 08-10 23:42. | dotfiles 0ee2e6e; hub |
+| 2026-08-11 to 08-18 | Raw Claude, about one week. Hub commit subjects switch from `prefix:` style (94% of 173 commits in July and early August) to plain sentences (2 of 12 with a prefix). | hub commit subjects; dotfiles 57c42d5, a37cce5 |
+| 2026-08-19 to 08-24 | Formal work comes back on its own (TLA+ models in a triage workflow). On 08-24 the hub (renamed from `client-hub`) states "SPECVER is the constitution": humans specify requirements and choose the verification level. | hub `CLAUDE.md`; `PLAN.md` mtime 08-21 |
 | 2026-08-28 | The gap ends with ticket #1200 (next section). | hub 2d31b4f7 |
 
 **What it taught.** The old philosophy was sound, but the process had reached a local
@@ -148,12 +150,13 @@ The AI Development Life Cycle (AIDLC) is a system prompt that `claude()` in
 | 2026-08-28 | Ticket #1200, the first ticket under the AIDLC: SPECVER.1 for a Lean formalization of the eligibility service. | hub 2d31b4f7 |
 | 2026-08-31 | `AIDLC.md` (158 lines, 4 tiers, 8 phases) is committed in the work hub, always in context. | hub 7360be78 |
 | 2026-09-04 | The AIDLC becomes the global system prompt. First dotfiles commit: a main prompt, a docs tree with one file for each of the 9 phases, and 4 tiers. Ty works ticket #1200 with a 10,000-character planning prompt the same day. | dotfiles e57a5f9; hub 275b26e7; session transcript |
-| 2026-09-15 | The `hoggwood` plugin is installed; the first production commits tagged 1200. | `installed_plugins.json`; Backend git log |
-| 2026-09-10 | Rules added for specification verification (SPECVER). | dotfiles 3eb2bd2 |
+| 2026-09-09 | The #1200 Lean model reaches 182 theorems with no `sorry` and no axioms. | hub |
+| 2026-09-10 | The hub's SPECVER rules are ported into the AIDLC. | dotfiles 3eb2bd2 |
 | 2026-09-11 | Phase and tier names lose their numbers. Four tiers become three: WIFFLED (no formal methods), AIMED (some), POKAYOKE (all nine phases). | dotfiles d0eb853 |
+| 2026-09-15 | The `hoggwood` plugin is back in the plugin list (the hub used it from 07-16); the first production commits tagged 1200. | `installed_plugins.json`; Backend git log |
 | 2026-09-14 | A counterfactuals section is added. | dotfiles e1d3e39 |
-| 2026-09-24 | The 17-file tree becomes one self-contained prompt. Work is grouped into three sets: Specification, Implementation, Verification. | dotfiles 8b2d093 |
-| 2026-10-05 | A revision to "slim AIDLC overhead" for simple work. A TLA+ process model and flow diagrams are added. The same day, Ty speaks the WIFFLED spec. | dotfiles 15a3b04; `thoughts/aidlc-spec-session-2026-10-05.md` |
+| 2026-09-24 | **First renovation.** The 17-file tree (45 KB) becomes one self-contained prompt (1,471 lines, 50.6 KB). Work is grouped into three sets (Specification, Implementation, Verification); a ticket holds tasks, each in one set, with a named set approver. | dotfiles 8b2d093 |
+| 2026-10-05 | **Second renovation**, to "cut process overhead for simple work without weakening its gates". It adds roles, record rules, XML templates, a TLA+ process model (35 of 35 checks), and flow diagrams. The prompt grows to 1,727 lines and 67.2 KB. The same day, Ty speaks the WIFFLED spec (4,905 words). | dotfiles 15a3b04; `thoughts/aidlc-revision-2026-10.md`; `thoughts/aidlc-spec-session-2026-10-05.md` |
 | 2026-10-13 and 2026-10-14 | The v2 brainstorm. Key ideas: the tier cannot be graded once, so a ratchet moves it up after a miscommunication; signals trigger a move up; only the human can bypass work, with a deadline. | `thoughts/aidlc-v2-deep-explanation-ste.md`, sections 3.1 to 3.3 (written 2026-10-14; research ran 2026-10-13) |
 
 **What it kept from the plugin era.** The wrong-spec idea. Claims with labels. Counterexamples
@@ -224,6 +227,6 @@ not a result.
 
 ## Left open
 
-- The exact day of the move to the MacBook Pro (late February, from `history.jsonl` volume).
-- The day the lean-lsp MCP server was added (Ty: about when the plugins went off, 06-13).
-- The boundary between "by hand" and "raw Claude": the plugin removal on 08-10 is used.
+- The day the lean-lsp MCP server was added. No file dates it. Ty: about when the plugins went
+  off (06-13); Lean setup follows on 06-14 and the first hub proofs on 06-18; it is in use by
+  08-07 and has a permission rule by 08-10.
