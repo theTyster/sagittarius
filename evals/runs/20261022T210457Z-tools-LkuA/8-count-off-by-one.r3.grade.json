@@ -1,0 +1,55 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 6 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "kb_exists",
+      "passed": false,
+      "evidence": "no kb.pl under the work directory"
+    },
+    {
+      "text": "help_before_write",
+      "passed": false,
+      "evidence": "no orbit-kb write ran"
+    },
+    {
+      "text": "lint_clean",
+      "passed": false,
+      "evidence": "no KB to check"
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:divergence_recorded",
+      "passed": false,
+      "evidence": "no KB to check"
+    },
+    {
+      "text": "python:from duration import parse_duration as p; assert (p('2d'), p('1d2h')) == (172800, 93600), (p('2d'), p('1d2h'))",
+      "passed": true,
+      "evidence": "ok"
+    },
+    {
+      "text": "unittest_pass",
+      "passed": true,
+      "evidence": "OK"
+    }
+  ],
+  "commands": []
+}

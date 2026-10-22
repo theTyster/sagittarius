@@ -1,0 +1,17 @@
+% orbit-kb run 2 check=k2 result=fail exit=1 time=2026-10-22T21:06:38Z cmd=python3 -m unittest test_account.WithdrawTest.test_boundary_allowed
+E
+======================================================================
+ERROR: test_boundary_allowed (test_account.WithdrawTest.test_boundary_allowed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/mutants/b/test_account.py", line 15, in test_boundary_allowed
+    self.assertEqual(withdraw(50, 150, 100), -100)
+                     ~~~~~~~~^^^^^^^^^^^^^^
+  File "/tmp/mutants/b/account.py", line 11, in withdraw
+    raise Refused("over the overdraft limit")
+account.Refused: over the overdraft limit
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
