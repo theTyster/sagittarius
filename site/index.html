@@ -540,7 +540,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <g class="tam"><circle cx="315" cy="172" r="4"/><circle cx="339" cy="172" r="5"/><circle cx="465" cy="172" r="5"/><circle cx="514" cy="172" r="4"/><circle cx="610" cy="172" r="4"/><circle cx="634" cy="172" r="5"/><circle cx="714" cy="172" r="5"/></g>
       <text x="339" y="194" text-anchor="middle" class="sub">Mathlib</text>
       <text x="465" y="194" text-anchor="middle" class="sub">lean-lsp</text>
-      <text x="610" y="194" text-anchor="end" class="sub">#1200: 182 theorems</text>
+      <text x="634" y="194" text-anchor="end" class="sub">#1200: 182 theorems</text>
       <text x="714" y="162" text-anchor="middle" class="sub">burns</text>
       <!-- client lane -->
       <text x="10" y="220" class="b">Delivery</text><text x="10" y="235" class="sub">constant</text>
@@ -556,9 +556,9 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <h2>Five chapters</h2>
   <div class="tiles chapters">
     <div class="tile"><span class="when">2 Apr</span><svg class="ic"><use href="#i-layers"/></svg><h3>The orbital plugins</h3>
-      <p class="muted">A seven-stage pipeline with 17 sub-agents. An early lesson: ten of ten theorems proven, and the code could still ship broken.</p></div>
+      <p class="muted">A Prolog plugin that grows into a seven-stage pipeline with 17 sub-agents. Lesson: ten of ten theorems proven, and the code could still ship broken.</p></div>
     <div class="tile t-amber"><span class="when">13 Jun</span><svg class="ic"><use href="#i-speech"/></svg><h3>By hand</h3>
-      <p class="muted">Plugins off, lean-lsp on. Nine Lean proofs land in 24 minutes. A refutation pass over 51 axioms finds a false one.</p></div>
+      <p class="muted">The pipeline off, lean&#8209;lsp on. Nine Lean commits land in 24 minutes. A refutation pass over 51 axioms finds a false one.</p></div>
     <div class="tile t-amber"><span class="when">11 Aug</span><svg class="ic"><use href="#i-mute"/></svg><h3>Raw Claude</h3>
       <p class="muted">One week with no process. Then the formal work comes back, and the hub's new rule is: humans specify, and choose the verification level.</p></div>
     <div class="tile t-mid"><span class="when">28 Aug</span><svg class="ic"><use href="#i-scale"/></svg><h3>The AIDLC</h3>
@@ -589,7 +589,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <p class="muted"><strong>Taught:</strong> a tier chosen once at the start does not work. Nobody knows how much must be formal until a miscommunication happens.</p></div>
     <div class="tile t-good"><svg class="ic"><use href="#i-orbit"/></svg><h3>3. Orbital Shifting</h3>
       <p>A light path first. A KB and proofs come in only when a signal shows they are needed, and rigor leans back when the cause is resolved.</p>
-      <p class="muted"><strong>Live:</strong> since 21 October 2026.</p></div>
+      <p class="muted"><strong>Live:</strong> since 21 October 2026. The name is reused from the old pipeline plugin, <code>shifting@orbital</code>.</p></div>
   </div>
 </section>
 
@@ -616,7 +616,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
         <rect x="170" y="130" width="400" height="26" rx="4" style="fill:var(--mid);opacity:.75"/><text x="578" y="148" class="lbl">67 KB</text>
       </g>
       <g>
-        <title>21 Oct: Orbital Shifting, 880 lines, 48.3 KB</title>
+        <title>21 Oct: Orbital Shifting, one file, about 880 lines, 48 KB</title>
         <text x="20" y="190" class="b" style="fill:var(--good)">21 Oct</text><text x="20" y="205" class="sub">Orbital Shifting</text>
         <rect x="170" y="178" width="287" height="26" rx="4" style="fill:var(--good);opacity:.75"/><text x="465" y="196" class="lbl">48 KB</text>
       </g>
@@ -761,7 +761,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <use href="#i-feather" x="22" y="42" width="22" height="22" class="ico" style="stroke:var(--amber)"/>
       <text x="52" y="58" class="b">System prompt</text>
       <text x="22" y="82" class="sub">ORBITAL-SHIFTING.md</text>
-      <text x="22" y="98" class="sub">plain text, 880 lines</text>
+      <text x="22" y="98" class="sub">one plain-text file</text>
       <text x="90" y="128" text-anchor="middle" class="sub">appended to each session</text>
       <rect class="box" x="200" y="30" width="150" height="80" rx="10"/>
       <use href="#i-agent" x="212" y="42" width="22" height="22" class="ico" style="stroke:var(--fg)"/>
@@ -1317,21 +1317,21 @@ spelled "that's"). The tier-drift diagram (slide 11), the bridge diagram (slide 
 (slide 13) illustrate that account; dot counts and bar heights mean nothing.
 Slides 14 and 15 come from the live prompt (Commands table), claude() and _orbital_system_prompt in
 shared/copy/.zshenv, and section 2 of shared/link/.local/share/orbit-kb/README.md (install steps, Lean only
-for prove). "880 lines" is wc -l of the prompt (882 on 2026-10-21). The command sequence on slide 15 is an
+for prove). The command sequence on slide 15 is an
 illustration in the documented command forms.
 Slide numbers below are for the 26-slide version (2026-10-21 polish, after the Why and tool slides).
 
 Illustrations, glosses, and wording with no exact match in the live prompt:
 - Slide 8 chapter moments and slide 10 AIDLC beats: from the second excavation (pass 3), recorded in
   thoughts/orbital-shifting-history.md. "Ten of ten theorems proven, and the code could still ship broken"
-  is from a 2026-05-07 memory note; "nine Lean proofs in 24 minutes" is nine hub commits on 06-18;
+  is from a 2026-05-07 memory note; "nine Lean commits in 24 minutes" is nine hub commits on 06-18 (14:29 to 14:53);
   "182 theorems, no sorry, no axioms" is the #1200 Lean model on 09-09. Slide 10 sizes are git blob sizes
   (17-file tree at ad2ae50 = 40,081 bytes; 8b2d093 = 50,564; 15a3b04 = 67,201; ORBITAL-SHIFTING.md now =
   48,299).
 - Slides 7 to 9 (timeline): dates and events from thoughts/orbital-shifting-history.md, corrected
   2026-10-21 from the excavation of ~/.claude, transcripts, and the work hub. Hedges were dropped from the
-  slides at Ty's request ("we're trying to tell a story"); the history file's "Left open" list keeps the
-  three soft points (the exact Mac move day, the lean-lsp day, the by-hand/raw boundary). The Lean dots
+  slides at Ty's request ("we're trying to tell a story"); the third excavation (2026-10-21 evening)
+  dated the lean-lsp install (Mac about 06-13 per Ty, Linux 10-09) and the plugin-repo beats. The Lean dots
   mark dated Lean work; "client work kept shipping" rests on commits in every month Jan to Oct and on
   Ty's account of steady quality.
 - Slide 1 "wrong, incomplete, read two ways": from the task brief. The prompt has "the human is not always

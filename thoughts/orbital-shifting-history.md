@@ -1,6 +1,6 @@
 # The path to Orbital Shifting: a history
 
-Written 2026-10-21; timeline corrected the same day from a second excavation (session
+Written 2026-10-21; timeline corrected the same day from a second and a third excavation (session
 transcripts, `~/.claude`, and the client work repositories). It covers Ty's AI development
 process in three eras and the gap between the first two. Each entry gives its evidence.
 
@@ -44,6 +44,7 @@ can still be much better. The gap was a test for this.
 | 2026-01-12 | Claude Code first runs on the Linux laptop (tad-fed). | `firstStartTime` in `~/.claude.json`; first `history.jsonl` entry |
 | 2026-02-20 | Ty moves to a MacBook Pro (the Mac had been in use before the laptop arrived in 2025-12). The last full Linux day is 02-20: `ssh wbp`, relinking dotfiles, `shutdown now`. The first Mac-only work is 02-24. Linux has only short visits after that (03-19, 04-26, 06-10, 07-20). | `last -x`; `~/.zsh_history`; Backend commits 02-19 23:20 and 02-24 06:22; Mac hostname `WBP.local` in commits to 09-12 |
 | 2026-09-14 | Back on the Linux laptop. `~/.claude` and the client work are copied over as they were. The last `/Users/ty` transcript day is 09-13; the first `/home/ty` day is 09-14. | transcript `cwd` per day; file times in the copied work tree; plugins reinstalled 09-14 |
+| 2026-10-09 | The lean-lsp MCP server is installed on Linux. Its config lives in `~/.claude.json`, outside `~/.claude`, so the 09-14 copy left it behind. Ty, 10:51: "didn't realize i didn't have it on this machine yet." The first lean-lsp tool call is at 10:54. | `history.jsonl`; first `mcp__lean-lsp` tool use in the transcripts |
 
 ### Era 1: the orbital plugins
 
@@ -52,14 +53,15 @@ can still be much better. The gap was a test for this.
 | 2026-04-02 | First commit of the plugin repository, then named `logic-focused-claude`. | orbital repo, 0a9e8b3 "Initial release of logic-focused-claude plugin" |
 | 2026-04-08 | The reasoning pipeline merges in. Version 2.0.0. | orbital repo, c70bb82 |
 | 2026-05-05 | The dotfiles start to track Claude settings. `logic-focused`, `utilities`, and `multi-plan` plugins are already enabled by 2026-05-15. | dotfiles 3155ace, bde79f1 (adds `multi-plan`, 2026-05-06) |
-| 2026-05-07 | The `multi-plan` skill is retired. `single-ticket-pipeline` is renamed `pipeline`. | orbital repo, 2e316fa |
-| 2026-05-15 | Ty switches to `shifting@orbital`, `telemetry@orbital`, and `trajectory@orbital`. Effort goes from medium to xhigh. | dotfiles d560af0 |
+| 2026-05-07 | The `multi-plan` skill is retired. `single-ticket-pipeline` is renamed `pipeline`. The marketplace is renamed from `logic-focused-claude` to `orbital-shift` (and to `orbital` on 05-11). The pipeline plugin is already called Orbital Shifting: the 2026-10-21 prompt reuses this name. | orbital repo, 2e316fa, c5ff23e, f6ce37a |
+| 2026-05-15 | Ty switches to `shifting@orbital`, `telemetry@orbital`, and `trajectory@orbital`. Effort goes from medium to xhigh. The same day, eight specialist agents and the `check-chain` gatekeeper hook land, which gives `shifting` its 17 sub-agents. | dotfiles d560af0; orbital repo, 131090a |
 | 2026-05-18 | The pipeline is in regular use ("dogfooded since 2026-05-18"). | orbital repo, 3aa6f9b (a commit message) |
 | 2026-05-25 to 2026-05-27 | A fifth plugin, `mission-control`, is built in 14 steps. | orbital repo, d7e035e to 5147b9d |
+| 2026-05-28 to 2026-06-01 | A "pipeline-workflow" experiment is spun out to its own repository, `sagittarius`. This is the last real feature work. | orbital repo, 7f345ac |
 | 2026-05-29 | The dotfiles point the `orbital` marketplace at the local working copy. Effort goes to high. | dotfiles 933a113 |
 | 2026-06-08 | `trajectory@orbital` (the orchestrator) is turned off. `mission-control` is removed. | dotfiles a3f007e |
 | 2026-06-10 | Last feature commit in the plugin repository. | orbital repo, 29e898e |
-| 2026-06-13 | `shifting` and `telemetry` are turned off. `scaffolding@orbital` and the Lean 4 skills plugin come on. The lean-lsp MCP server is added at the same time (Ty's account; the config in `~/.claude.json` is undated, and it is documented by 2026-07-10). | dotfiles 02d1d18 |
+| 2026-06-13 | `shifting` and `telemetry` are turned off. `scaffolding@orbital` and the Lean 4 skills plugin come on. The lean-lsp MCP server is added at the same time (Ty's account). It is documented by 07-10, used by hub executors by 08-07, and has a permission rule by 08-10. | dotfiles 02d1d18, 614d408, 57c42d5; hub eca351e7 |
 | 2026-07-01 | A GitHub Pages deck is added. The repository is nearly idle. | orbital repo, c569ad9 |
 | 2026-08-05 | The agents are split into their own plugin (the last commit in the repository). `shifting@orbital` is turned on for a short time, then replaced by `agents@orbital` the same day. | orbital repo, f1bfcd5; dotfiles 259efe9, 36a914e |
 | 2026-08-10 | The `orbital` marketplace is removed from the settings. No orbital plugin remains. | dotfiles 0ee2e6e |
@@ -189,7 +191,7 @@ structure could not give that without a rewrite.
 | 2026-10-16 | `orbit-kb` is committed. An independent review (D7) and a speed fix (D8) follow. | dotfiles ec39fec; `thoughts/orbit-kb-perf-results-2026-10-16.md` |
 | 2026-10-19 | A burn needs a proof (decision D10): a claim that must hold for all inputs needs a Lean proof that the tool checks, or a human waiver with a due time. The discovery orbit merges into the draft. | dotfiles ff5dc24, 9673ab9; `thoughts/orbit-kb-d10-record.md` |
 | 2026-10-20 | The trust threat model: the tool guards against honest mistakes, not against cheating. Three refinement passes (clarity, honesty, speed). The shift-up triggers are defined. The microsite is first added. | dotfiles cb7ba90, 830e6f5, 504f759, 5ff08ee, b6e3499, 55cf96d; `thoughts/orbital-shifting-refinement-record.md` |
-| 2026-10-21 | Review rounds. A check gets one meaning. Two orbits and the tiny discovery orbit. The weighted GO / NO-GO / HOLD vote. The prompt goes live in place of the AIDLC. | dotfiles bda97c5, add071d, 1ecad99, e009cfe |
+| 2026-10-21 | Review rounds. A check gets one meaning. Two orbits and the tiny discovery orbit. The weighted GO / NO-GO / HOLD vote. The prompt goes live in place of the AIDLC at 15:08. Haiku planning evals follow that afternoon. | dotfiles bda97c5, add071d, 1ecad99, e009cfe, 1efe36d, 2acfc7f |
 
 **What it is.** A prompt of 869 lines (47.6 KB) at
 `shared/link/.claude/orbital-shifting/ORBITAL-SHIFTING.md`. The core is a five-step light
@@ -227,6 +229,7 @@ not a result.
 
 ## Left open
 
-- The day the lean-lsp MCP server was added. No file dates it. Ty: about when the plugins went
-  off (06-13); Lean setup follows on 06-14 and the first hub proofs on 06-18; it is in use by
-  08-07 and has a permission rule by 08-10.
+- Nothing material. The Mac-era lean-lsp day rests on Ty's account (about 06-13); the earliest
+  file that names it is 07-10, and nothing contradicts 06-13. The Linux install is 10-09.
+- The "raw" box on the site's slide 7 spans 08-11 to 08-27: the raw week (08-11 to 08-18) and
+  the return of formal work (08-19 to 08-24) before #1200. The slide's chapter tile says the same.
