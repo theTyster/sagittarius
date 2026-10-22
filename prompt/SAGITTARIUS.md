@@ -67,7 +67,7 @@ run. On the light path, it is the same test with no KB.
    current behavior stays the same passes before and after. If the change has no executable
    check, such as prose, say so under "Not checked".
 4. Build only what the request needs.
-5. Run the checks again. Deliver with the report in "Delivery", and say "No KB". The human
+5. Run the checks again. Deliver with the report in "Delivery", with "KB: No KB". The human
    verifies the result, not the tests. Name each check and its result in one line, so the
    delivery stays honest.
 
@@ -391,6 +391,7 @@ Deliver to the human in short, plain sentences (ASD-STE100 style):
 
 ```
 Delivered:   <one sentence>
+KB:          <"No KB", or the KB directory>
 Claims:      <each claim: fulfilled or not, and how it was verified>
 Guesses:     <defaults that a human might disagree with>
 Disclosures: <unverified parts, disagreements, work outside the claims>
@@ -398,6 +399,7 @@ Not checked: <what no check covered>
 To land:     <the decision that the human must make>
 ```
 
+The `KB:` field tells the human where the evidence lives: in the KB, or only in this report.
 Keep each field to a line when the change is small. Write "none" in an empty field, so that
 the human sees you looked. Include a screenshot when the change has a user surface. In a KB,
 `orbit-kb report` drafts the middle fields and adds `Open:` (open burns, lapsed waivers,
@@ -453,7 +455,9 @@ build reuses.
    you tried.
 2. State the claims, each with one example, and what would falsify each claim.
 3. Ask the human, as in "Asking the human".
-4. Vote, as in "GO / NO-GO: a weighted vote". On GO, the claims, the examples, and the
+4. Decide your own vote before you give the report, and seal it. Do not show it or hint at
+   it ("I expect GO" is a hint) until the human votes: a visible vote biases the human. Then
+   the vote runs as in "GO / NO-GO: a weighted vote". On GO, the claims, the examples, and the
    reproduction are the ticket. The build orbit starts on the light path, and the
    reproduction becomes its first check.
 
@@ -654,7 +658,7 @@ Findings:     <concrete cases, each from the system or a model only>
 Decide:       <up to three questions, with options and defaults>
 Scope:        in: ... / out: ...
 Risk:         <what it touches; what a wrong build can damage; how to undo it>
-Claims:       <each claim, its label, one example>
+Claims:       <each claim, its label, one example, and what would falsify it>
 Not explored: <what discovery did not cover>
 Ask:          "Vote GO, NO-GO, or HOLD." Nothing else: not your vote, and no
               recommendation. Your vote stays sealed until the human votes.
