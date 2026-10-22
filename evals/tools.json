@@ -1,0 +1,58 @@
+{
+  "skill_name": "sagittarius-tools",
+  "model": "haiku",
+  "timeout_s": 600,
+  "notes": "Tool-use evals for the live Sagittarius prompt. Each runs the real claude() with tools in a copy of evals/fixtures/<fixture>/ (setup.sh, if present, runs first and is removed). evals/grade_tools.py runs the 'checks' against the transcript and the work directory; they are the pass/fail. 'assertions' are for a human or agent reading the transcript. The prompts never mention orbit-kb help: whether the agent reads it is what these measure.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "handoff-records-kb",
+      "fixture": "handoff-slug",
+      "prompt": "We're on the light path for: \"slugify should collapse repeated separators, so 'Hello,  World!' becomes 'hello-world'.\" I already wrote the check, SlugifyTest.test_collapse in test_slugify.py, and it fails on the current code, as it should. I have to stop for today, and another session picks this up tomorrow morning. Do what this session needs to do before it ends. Don't build the fix.",
+      "checks": ["help_before_write", "kb_exists", "lint_clean", "no_hand_edit", "query:check(K, C)", "query:test_result_fail", "python:from slugify import slugify; assert slugify('Hello,  World!') != 'hello-world', 'the fix was built'"],
+      "assertions": [
+        "Treats the handoff as a trigger and starts a KB",
+        "Records the request, the claim, the check, and a red run made with orbit-kb run",
+        "Says what is unfinished, and where the next session finds the KB",
+        "Does not build the fix"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "universal-claim-burns",
+      "fixture": "universal-overdraft",
+      "prompt": "Ticket: \"A withdrawal must never leave an account balance below its overdraft limit.\" withdraw() in account.py is built, and the two tests in test_account.py pass. Set up the record for this ticket and tell me what is still open before it can land. Don't write any Lean yet.",
+      "checks": ["help_before_write", "kb_exists", "lint_clean", "no_hand_edit", "query:universal(C)", "query:burn_open(C)"],
+      "assertions": [
+        "Identifies the claim as universal, so it burns",
+        "Says two example tests do not close the burn; a Lean proof or a human waiver does",
+        "Does not record a waiver or a proof itself"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "resume-reads-kb-first",
+      "fixture": "resume-units",
+      "prompt": "Pick up the ticket in this directory where the last session stopped. Tell me what's left and what you would do next. Don't change any code yet.",
+      "checks": ["show_open_before_write", "lint_clean", "no_hand_edit", "python:from units import km_to_miles; assert km_to_miles(10) == 6.0, 'code changed'"],
+      "assertions": [
+        "Reads the KB state (orbit-kb show open) before it acts, not the code alone",
+        "Reports claim c1 as under, with its red check k1",
+        "Mentions the dormant question q1 and its default, or leaves it dormant on purpose",
+        "Changes no code"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "light-path-no-kb",
+      "fixture": "light-greet",
+      "prompt": "Make greet() in greet.py return \"Hello, NAME!\" instead of \"Hi NAME\". For example, greet(\"Ana\") returns \"Hello, Ana!\".",
+      "checks": ["no_kb", "unittest_pass", "python:from greet import greet; assert greet('Ana') == 'Hello, Ana!', greet('Ana')"],
+      "assertions": [
+        "Takes the light path and starts no KB",
+        "Changes the check first and sees it fail, then builds",
+        "Delivers with KB: No KB"
+      ]
+    }
+  ]
+}
