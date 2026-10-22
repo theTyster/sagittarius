@@ -1,0 +1,33 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "model": "haiku",
+    "prompt": "live",
+    "prompt_sha256": "2b28f66502d190c30d7ff0ad980b17425a52faf5c4de1514a4f8df81da682ac5",
+    "runs": 2,
+    "commit": "87882ff",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 4,
+      "name": "light-path-no-kb",
+      "runs": 2,
+      "passed_runs": 2,
+      "passed": true,
+      "checks": {
+        "session_ran": "2/2",
+        "no_blocked_calls": "2/2",
+        "no_memory_writes": "2/2",
+        "no_kb": "2/2",
+        "unittest_pass": "2/2",
+        "python:from greet import greet; assert greet('Ana') == 'Hello, Ana!', greet('Ana')": "2/2"
+      },
+      "rubric": {
+        "Takes the light path and starts no KB": "2/2",
+        "Changes the check first and sees it fail, then builds": "2/2",
+        "Delivers with KB: No KB": "2/2"
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Takes the light path and starts no KB",
+      "passed": true,
+      "evidence": "The agent made no orbit-kb calls and created no KB. It edited the test and greet.py directly, and its delivery reports \"KB: No KB\" with \"Triggers: none\"."
+    },
+    {
+      "assertion": "Changes the check first and sees it fail, then builds",
+      "passed": true,
+      "evidence": "The agent changed test_greet.py to expect \"Hello, Ana!\" and ran unittest, which gave \"FAILED (failures=1)\". Only after that did it edit greet.py, and the tests then passed."
+    },
+    {
+      "assertion": "Delivers with KB: No KB",
+      "passed": true,
+      "evidence": "The final message has the line \"KB: No KB\" directly after the Delivered line."
+    }
+  ],
+  "judge": "opus"
+}

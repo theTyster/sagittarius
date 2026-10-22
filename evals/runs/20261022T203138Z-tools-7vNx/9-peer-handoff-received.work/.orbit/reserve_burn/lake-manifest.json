@@ -1,0 +1,12 @@
+{"version": "1.1.0",
+ "packagesDir": ".lake/packages",
+ "packages":
+ [{"type": "path",
+   "scope": "",
+   "name": "plausible",
+   "manifestFile": "lake-manifest.json",
+   "inherited": false,
+   "dir": "/home/ty/.lean/plausible",
+   "configFile": "lakefile.toml"}],
+ "name": "reserve_burn",
+ "lakeDir": ".lake"}

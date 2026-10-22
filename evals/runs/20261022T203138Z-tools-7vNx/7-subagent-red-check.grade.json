@@ -1,0 +1,85 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 11 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "kb_exists",
+      "passed": false,
+      "evidence": "no kb.pl under the work directory"
+    },
+    {
+      "text": "help_before_write",
+      "passed": true,
+      "evidence": "first help at call 0, first write (init) at call 5"
+    },
+    {
+      "text": "lint_clean",
+      "passed": false,
+      "evidence": "no KB to check"
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:test_result_fail",
+      "passed": false,
+      "evidence": "no KB to check"
+    },
+    {
+      "text": "python:from datetime import date; from schedule import due_date; assert due_date(date(2026, 11, 25), 1) == date(2026, 11, 26), 'code changed'",
+      "passed": true,
+      "evidence": "ok"
+    }
+  ],
+  "commands": [
+    "help",
+    "help core",
+    "help build",
+    "help core",
+    "help build",
+    "init",
+    "add",
+    "run",
+    "run",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "attest disclosure",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "attest divergence",
+    "add",
+    "attest disclosure",
+    "attest disclosure",
+    "lint",
+    "query",
+    "query",
+    "query",
+    "whynot",
+    "report",
+    "add",
+    "lint"
+  ]
+}

@@ -1,0 +1,12 @@
+name = "reserve_burn"
+defaultTargets = ["Reserveburn"]
+
+[leanOptions]
+autoImplicit = false
+
+[[lean_lib]]
+name = "Reserveburn"
+
+[[require]]
+name = "plausible"
+path = "/home/ty/.lean/plausible"

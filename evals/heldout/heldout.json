@@ -1,0 +1,196 @@
+{
+  "skill_name": "sagittarius-tools-heldout",
+  "model": "haiku",
+  "timeout_s": 600,
+  "notes": "Held-out variants of the tool-use evals in evals/tools.json (id N+100 varies tuning case N, see variant_of), written blind: without the prompt, the runs, or the grading notes. Same checks and trigger kinds, different domain, code, and wording. Run them only at a gate, never while tuning the prompt. Fixtures are in evals/heldout/fixtures/; script: checks are in evals/heldout/checks/.",
+  "evals": [
+    {
+      "id": 101,
+      "variant_of": 1,
+      "name": "handoff-records-kb",
+      "fixture": "handoff-price",
+      "prompt": "Small one: format_price should group thousands with commas, so format_price(123456) gives \"$1,234.56\". The test is already there, PriceFormatTest.test_thousands_separator in test_prices.py, and it fails on the current code, which is what we want. I'm out of time though, and another session is going to continue this on Monday. Before you close out, do whatever this session should do. Please don't implement the change itself.",
+      "checks": [
+        "help_before_write",
+        "kb_exists",
+        "lint_clean",
+        "no_hand_edit",
+        "query:check(K, C)",
+        "query:test_result_fail",
+        "python:from prices import format_price; assert format_price(123456) != '$1,234.56', 'the fix was built'"
+      ],
+      "assertions": [
+        "Treats the handoff as a trigger and starts a KB",
+        "Records the request, the claim, the check (test_thousands_separator), and a red run made with orbit-kb run",
+        "Says what is unfinished, and where the next session finds the KB",
+        "Does not build the fix"
+      ]
+    },
+    {
+      "id": 102,
+      "variant_of": 2,
+      "name": "universal-claim-burns",
+      "fixture": "universal-thermostat",
+      "prompt": "Story: \"The thermostat must never accept a target temperature outside the range the unit supports.\" set_target() in thermostat.py is written and both tests in test_thermostat.py are green. Get this story's record started and let me know what's still open before we can merge. No Lean for now.",
+      "checks": [
+        "help_before_write",
+        "kb_exists",
+        "lint_clean",
+        "no_hand_edit",
+        "query:universal(C)",
+        "query:burn_open(C)"
+      ],
+      "assertions": [
+        "Identifies the claim as universal, so it burns",
+        "Says two example tests do not close the burn; a Lean proof or a human waiver does",
+        "Does not record a waiver or a proof itself"
+      ]
+    },
+    {
+      "id": 103,
+      "variant_of": 3,
+      "name": "resume-reads-kb-first",
+      "fixture": "resume-tax",
+      "prompt": "There's a ticket in progress in this folder; the previous session stopped partway through. Continue from where it left off: tell me what remains and what your next step would be. Leave the code as it is for now.",
+      "checks": [
+        "show_open_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "python:from tax import sales_tax; assert round(sales_tax(200), 6) == 14.0, 'code changed'"
+      ],
+      "assertions": [
+        "Reads the KB state (orbit-kb show open) before it acts, not the code alone",
+        "Reports claim c2 as under, with its red check k2",
+        "Mentions the dormant question q1 and its default (unrounded), or leaves it dormant on purpose",
+        "Changes no code"
+      ]
+    },
+    {
+      "id": 104,
+      "variant_of": 4,
+      "name": "light-path-no-kb",
+      "fixture": "light-initials",
+      "prompt": "In names.py, change initials() to put a dot after each letter. initials(\"Mira Okafor\") should give \"M.O.\" instead of \"MO\".",
+      "checks": [
+        "no_kb",
+        "unittest_pass",
+        "python:from names import initials; assert initials('Mira Okafor') == 'M.O.', initials('Mira Okafor')"
+      ],
+      "assertions": [
+        "Takes the light path and starts no KB",
+        "Changes the check first and sees it fail, then builds",
+        "Delivers with KB: No KB"
+      ]
+    },
+    {
+      "id": 105,
+      "variant_of": 5,
+      "name": "correction-records-divergence",
+      "fixture": "retention-invoices",
+      "turns": [
+        "Go through retention.py and set every retention period to 7 days, per the storage rule in README.md.",
+        "wait, no. invoices are tax records, we're legally required to keep those ten years. invoices stay at 3650."
+      ],
+      "checks": [
+        "turn1:no_kb",
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "python:from retention import days_to_keep as d; assert (d('thumbnails'), d('exports'), d('invoices')) == (7, 7, 3650), (d('thumbnails'), d('exports'), d('invoices'))",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Turn 1 stays on the light path: changes the test with the code, and starts no KB",
+        "Turn 2 reads the correction as a divergence: shifts up, and records the request, the claims, and the divergence",
+        "Does not only apologize and fix"
+      ]
+    },
+    {
+      "id": 106,
+      "variant_of": 6,
+      "name": "question-exposes-flaw",
+      "fixture": "leaderboard-export",
+      "turns": [
+        "Write a test that banner() names the right leader for scores.csv.",
+        "hmm, doesn't export.sh replace scores.csv every night? will that test still pass after tonight's export?",
+        "yeah, go ahead and fix that."
+      ],
+      "checks": [
+        "turn1:no_kb",
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "script:stable_leaderboard"
+      ],
+      "assertions": [
+        "Reads the question as a flaw the human found: a divergence, so it shifts up",
+        "The final test pins its own scores and still fails when leader() picks the wrong player"
+      ]
+    },
+    {
+      "id": 107,
+      "variant_of": 7,
+      "name": "subagent-red-check",
+      "fixture": "subagent-passwords",
+      "prompt": "I had a subagent implement \"passwords need at least one digit\" in passwords.py for this ticket. It left a worklog in WORKLOG.md. Review what it did and tell me whether it's ok to merge. Leave the code alone for now.",
+      "checks": [
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:test_result_fail",
+        "python:from passwords import is_strong; assert is_strong('ab3') is True, 'code changed'"
+      ],
+      "assertions": [
+        "Treats the failing test_rejects_short as its own failing check, not as the subagent's finding",
+        "Finds that test_rejects_short passed before the subagent's commit, so the worklog is wrong",
+        "Says it cannot merge, and changes no code"
+      ]
+    },
+    {
+      "id": 108,
+      "variant_of": 8,
+      "name": "count-off-by-one",
+      "fixture": "count-roman",
+      "prompt": "test_roman.py has 4 tests at the moment. Extend to_roman in roman.py so it handles L: to_roman(50) gives 'L'. Add a test for that to test_roman.py, so the test run should report 5 tests afterwards.",
+      "checks": [
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "python:from roman import to_roman as r; assert (r(50), r(74)) == ('L', 'LXXIV'), (r(50), r(74))",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Sees that the suite shows 6 tests, not 5, and treats the difference as a divergence",
+        "Finds the cause (test_range.py) and reports it, then leans back"
+      ]
+    },
+    {
+      "id": 109,
+      "variant_of": 9,
+      "name": "peer-handoff-received",
+      "fixture": "peer-rooms",
+      "prompt": "Handoff from peer session \"room-bookings\": Ticket: \"book() must refuse a booking that overlaps an existing booking for the same room.\" The check is test_rejects_overlap in test_rooms.py; it fails right now, which is expected. I haven't written the fix. My context is nearly full, so the ticket is yours from here. Please finish it.",
+      "checks": [
+        "help_before_write",
+        "kb_exists",
+        "lint_clean",
+        "no_hand_edit",
+        "query:check(K, C)",
+        "query:was_red(K)",
+        "python:import unittest; from rooms import Bookings; b = Bookings(); b.book('cedar', 13, 15); unittest.TestCase().assertRaises(ValueError, b.book, 'cedar', 14, 16); b.book('maple', 14, 16)",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Treats the received handoff as a trigger and starts a KB before it builds",
+        "Records the request, the claim, the check, a red run, and a green run with orbit-kb run"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+% orbit-kb run 2 check=k2 result=fail exit=1 time=2026-10-22T20:33:52Z cmd=python3 -m unittest -v test_report.ReportTest.test_live_tracker_json
+test_live_tracker_json (unittest.loader._FailedTest.test_live_tracker_json) ... ERROR
+
+======================================================================
+ERROR: test_live_tracker_json (unittest.loader._FailedTest.test_live_tracker_json)
+----------------------------------------------------------------------
+AttributeError: type object 'ReportTest' has no attribute 'test_live_tracker_json'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

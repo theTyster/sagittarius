@@ -1,0 +1,9 @@
+{
+  "spec": "tools.json",
+  "model": "haiku",
+  "prompt": "live",
+  "prompt_sha256": "2b28f66502d190c30d7ff0ad980b17425a52faf5c4de1514a4f8df81da682ac5",
+  "runs": 2,
+  "commit": "87882ff",
+  "dirty": false
+}
