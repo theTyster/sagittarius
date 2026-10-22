@@ -100,7 +100,7 @@ def memory_writes(calls, workdir):
     home_claude = os.path.expanduser("~/.claude")
     found = [n + ": " + str(i.get("file_path") or i.get("command", ""))[:120] for n, i in calls
              if (n in ("Write", "Edit") and str(i.get("file_path", "")).startswith((home_claude, "~/.claude")))
-             or (n == "Bash" and ".claude/" in i.get("command", "") and re.search(r"(>|tee|mkdir|cp|mv)", i.get("command", "")))]
+             or (n == "Bash" and re.search(r"(>>?|\btee(\s+-a)?)\s*\S*\.claude/|\b(mkdir|cp|mv|touch|install)\b[^;&|]*\.claude/", i.get("command", "")))]
     proj = os.path.join(home_claude, "projects", re.sub(r"[/.]", "-", os.path.realpath(workdir)))
     mem = os.path.join(proj, "memory")
     if os.path.isdir(mem) and os.listdir(mem):

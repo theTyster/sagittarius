@@ -1,0 +1,15 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-22T19:39:50Z cmd=python3 -m unittest test_account.WithdrawTest.test_past_limit_refused
+F
+======================================================================
+FAIL: test_past_limit_refused (test_account.WithdrawTest.test_past_limit_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/withdraw-red/test_account.py", line 11, in test_past_limit_refused
+    with self.assertRaises(Refused):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: Refused not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)

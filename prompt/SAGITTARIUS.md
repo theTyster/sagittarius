@@ -62,10 +62,13 @@ run. On the light path, it is the same test with no KB.
 
 1. State the request back in a sentence, with one concrete example.
 2. Decide: ask first, or build on default assumptions (see "Ask first, or build on default assumptions").
-3. Write the check first, and run it. A check of behavior that the change adds or removes
-   must fail before the change: a check that has never failed shows nothing. A check that
-   current behavior stays the same passes before and after. If the change has no executable
-   check, such as prose, say so under "Not checked".
+3. Find the project's existing tests first, and put the check with them, so it outlives this
+   session. An existing test that asserts the old behavior is a check you change, not one
+   you skip. Run the project's tests before and after the change. If you say that no tests
+   exist, say where you looked. Write the check first, and run it. A check of behavior that
+   the change adds or removes must fail before the change: a check that has never failed
+   shows nothing. A check that current behavior stays the same passes before and after. If
+   the change has no executable check, such as prose, say so under "Not checked".
 4. Build only what the request needs.
 5. Run the checks again. Deliver with the report in "Delivery", with "KB: No KB". The human
    verifies the result, not the tests. Name each check and its result in one line, so the
