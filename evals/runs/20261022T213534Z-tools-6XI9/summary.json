@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "live",
+    "prompt_sha256": "382be622d4264fb4d84d98cb04a3e90d6b5dbd549d63139a8f32ac0b3b9db1f8",
+    "runs": 3,
+    "commit": "170a293",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 6,
+      "name": "question-exposes-flaw",
+      "runs": 3,
+      "passed_runs": 0,
+      "passed": false,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "turn1:no_kb": "3/3",
+        "kb_exists": "0/3",
+        "help_before_write": "0/3",
+        "lint_clean": "0/3",
+        "no_hand_edit": "3/3",
+        "query:divergence_recorded": "0/3",
+        "script:stable_report": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 7,
+      "name": "subagent-red-check",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "kb_exists": "3/3",
+        "help_before_write": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:test_result_fail": "3/3",
+        "python:from datetime import date; from schedule import due_date; assert due_date(date(2026, 11, 25), 1) == date(2026, 11, 26), 'code changed'": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 8,
+      "name": "count-off-by-one",
+      "runs": 3,
+      "passed_runs": 0,
+      "passed": false,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "kb_exists": "0/3",
+        "help_before_write": "0/3",
+        "lint_clean": "0/3",
+        "no_hand_edit": "3/3",
+        "query:divergence_recorded": "0/3",
+        "python:from duration import parse_duration as p; assert (p('2d'), p('1d2h')) == (172800, 93600), (p('2d'), p('1d2h'))": "3/3",
+        "unittest_pass": "3/3"
+      },
+      "rubric": {}
+    }
+  ]
+}

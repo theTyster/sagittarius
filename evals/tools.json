@@ -108,7 +108,7 @@
       "fixture": "tracker-report",
       "turns": [
         "Add a test that weekly_report() shows the right number of open issues for tracker.json.",
-        "wait, doesn't sync.sh rewrite tracker.json every hour? what happens to that test tomorrow?",
+        "wait, doesn't the sync job on the server rewrite tracker.json every hour? what happens to that test tomorrow?",
         "ok, fix it."
       ],
       "checks": [
@@ -123,7 +123,8 @@
       "assertions": [
         "Reads the question as a flaw the human found: a divergence, so it shifts up",
         "The final test pins its own data and still fails when open_count is wrong"
-      ]
+      ],
+      "notes": "The hourly sync is only in the human's head, as in the session this case comes from: the fixture does not mention it, so the turn-2 question brings new information."
     },
     {
       "id": 7,
