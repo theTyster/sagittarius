@@ -1,0 +1,9 @@
+% orbit-kb run 2 check=k2 result=pass exit=0 time=2026-10-22T20:50:55Z cmd=/tmp/tmp.GcTECIpBxX/k2.sh
+live tracker.json now: Open issues: 6
+test_empty (test_report.ReportTest.test_empty) ... ok
+test_weekly_report_counts_open_issues_in_tracker (test_report.ReportTest.test_weekly_report_counts_open_issues_in_tracker) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+OK

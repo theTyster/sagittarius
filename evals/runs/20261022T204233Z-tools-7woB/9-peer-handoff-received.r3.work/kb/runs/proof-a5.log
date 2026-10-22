@@ -1,0 +1,23 @@
+% orbit-kb prove claim=c1 digest=sha256:9ad7abd0fada5cee198b6e74921bfabf0455a265176c81666772328d639b4123
+theorem reserve_refuses_iff
+module Leanmodel.Basic
+source Leanmodel/Basic.lean
+statement ∀ (stock reserved qty : Int), reserve stock reserved qty = none ↔ reserved + qty > stock
+lean 4.34.0
+time 2026-10-22T20:48:03Z
+axiom propext
+uses reserve Leanmodel.Basic
+root /tmp/tmp.DoGLmnoIV7/lean_model
+file sha256:eeae11adbfeffdc0b678781375bbe1f0954995c96267f04f4e494c9cbbe9c146 Leanmodel/Basic.lean
+file sha256:d282f62177817bdb2e26aec8a408f86de571322598bf37f701ef9cbdaf0df182 lake-manifest.json
+file sha256:8522bf8f533360ea9346eb5003e2994e82550c019ef40485ebc0a0343b0de13c lakefile.toml
+file sha256:8733782dc070a99b312039cda424f601b80f3be6f6f512627da5ba25adc27632 lean-toolchain
+absent lakefile.lean
+--- lake build output
+ℹ [2/2] Replayed Leanmodel.Basic
+info: Leanmodel/Basic.lean:13:0: some 2
+info: Leanmodel/Basic.lean:14:0: none
+info: Leanmodel/Basic.lean:15:0: some 5
+info: Leanmodel/Basic.lean:16:0: none
+info: Leanmodel/Basic.lean:17:0: 5
+Build completed successfully (2 jobs).

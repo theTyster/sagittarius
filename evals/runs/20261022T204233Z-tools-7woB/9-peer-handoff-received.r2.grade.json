@@ -1,0 +1,84 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 21 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "help_before_write",
+      "passed": true,
+      "evidence": "first help at call 0, first write (init) at call 4"
+    },
+    {
+      "text": "kb_exists",
+      "passed": true,
+      "evidence": "/tmp/tmp.6kIfbpyyMI/kb"
+    },
+    {
+      "text": "lint_clean",
+      "passed": true,
+      "evidence": "Summary: 0 error(s), 0 warning(s)."
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:check(K, C)",
+      "passed": true,
+      "evidence": "exit 0: K = k1, C = c1"
+    },
+    {
+      "text": "query:was_red(K)",
+      "passed": true,
+      "evidence": "exit 0: K = k1"
+    },
+    {
+      "text": "python:import unittest; from inventory import Inventory; i = Inventory({'apple': 5}); i.reserve('apple', 4); unittest.TestCase().assertRaises(ValueError, i.reserve, 'apple', 2)",
+      "passed": true,
+      "evidence": "ok"
+    },
+    {
+      "text": "unittest_pass",
+      "passed": true,
+      "evidence": "OK"
+    }
+  ],
+  "commands": [
+    "help",
+    "help core",
+    "help build",
+    "help build",
+    "init kb",
+    "add",
+    "add",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "add",
+    "help prove",
+    "prove c",
+    "attest disclosure",
+    "attest disclosure",
+    "attest disclosure",
+    "attest disclosure",
+    "attest disclosure",
+    "lint",
+    "query done",
+    "show open",
+    "report"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "spec": "tools.json",
+  "model": "opus",
+  "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/706527c2-79a2-4b3f-af49-502570421914/scratchpad/edited.md",
+  "prompt_sha256": "2b28f66502d190c30d7ff0ad980b17425a52faf5c4de1514a4f8df81da682ac5",
+  "runs": 3,
+  "commit": "3501306",
+  "dirty": false
+}

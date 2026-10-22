@@ -1,0 +1,5 @@
+name = "burn"
+defaultTargets = ["Burn"]
+
+[[lean_lib]]
+name = "Burn"

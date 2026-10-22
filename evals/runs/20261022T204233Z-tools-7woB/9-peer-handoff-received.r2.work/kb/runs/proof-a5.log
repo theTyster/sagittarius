@@ -1,0 +1,30 @@
+% orbit-kb prove claim=c1 digest=sha256:df4d1fc8c5777d0f4f4af52f695e66f7d915762771214df906087d59cc82a855
+theorem Burn.c1
+module Burn.Reserve
+source Burn/Reserve.lean
+statement (∀ (inv : Burn.Inv) (sku : String) (qty : Int),     inv.reserved sku + qty > inv.stock sku → ∃ e, Burn.reserve inv sku qty = Except.error e) ∧   (∀ (inv : Burn.Inv) (sku : String) (qty : Int) (inv' : Burn.Inv) (t : Int),       Burn.reserve inv sku qty = Except.ok (inv', t) →         inv'.stock = inv.stock ∧           t = inv.reserved sku + qty ∧             inv'.reserved sku = t ∧               inv'.reserved sku ≤ inv'.stock sku ∧ ∀ (s : String), s ≠ sku → inv'.reserved s = inv.reserved s) ∧     ∀ (inv : Burn.Inv) (ops : List (String × Int)), Burn.Valid inv → Burn.Valid (Burn.run inv ops)
+lean 4.35.0
+time 2026-10-22T20:48:26Z
+axiom propext
+axiom Quot.sound
+uses Burn.Inv Burn.Reserve
+uses Burn.Inv.reserved Burn.Reserve
+uses Burn.Inv.stock Burn.Reserve
+uses Burn.reserve Burn.Reserve
+uses Burn.Valid Burn.Reserve
+uses Burn.run Burn.Reserve
+root /tmp/tmp.6kIfbpyyMI/burn
+file sha256:b0691c43b470ca7e2fc4babf045638ef0135a17c2312256c48ec49ba994c33cc Burn/Reserve.lean
+file sha256:1adfa13b15e8873e22b296c47bc0b4832096e9c5dbfb8a52494af0c3721c689b lake-manifest.json
+file sha256:4e3334bd836602191082702e86c5664a81786aba92c7ce37899ecdfce9d68818 lakefile.toml
+file sha256:ca5f1f601d34c49079e38d7e7041eb0f2a9c227fbc1df0f404820069a052330c lean-toolchain
+absent lakefile.lean
+--- lake build output
+ℹ [2/2] Replayed Burn.Reserve
+info: Burn/Reserve.lean:38:0: "ok 2"
+info: Burn/Reserve.lean:39:0: "ValueError"
+info: Burn/Reserve.lean:40:0: 4
+info: Burn/Reserve.lean:41:0: "ValueError"
+info: Burn/Reserve.lean:42:0: "ok 5"
+info: Burn/Reserve.lean:46:0: 0
+Build completed successfully (2 jobs).

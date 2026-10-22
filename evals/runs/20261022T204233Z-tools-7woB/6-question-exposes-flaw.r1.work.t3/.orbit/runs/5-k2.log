@@ -1,0 +1,9 @@
+% orbit-kb run 5 check=k2 result=pass exit=0 time=2026-10-22T20:45:38Z cmd=sh .orbit/checks/k2.sh /tmp/tmp.5wZf40CmzA
+Ran 3 tests in 0.001s
+
+FAILED (failures=1)
+drift Open: suite failed (good)
+Ran 3 tests in 0.001s
+
+FAILED (failures=1)
+drift status key: suite failed (good)

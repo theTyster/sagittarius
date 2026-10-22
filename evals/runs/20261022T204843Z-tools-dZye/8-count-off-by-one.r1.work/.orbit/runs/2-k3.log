@@ -1,0 +1,1 @@
+% orbit-kb run 2 check=k3 result=pass exit=0 time=2026-10-22T20:53:05Z cmd=sh -c test "$(python3 -m unittest -v test_duration 2>&1 | grep -c " \.\.\. ")" -eq 7

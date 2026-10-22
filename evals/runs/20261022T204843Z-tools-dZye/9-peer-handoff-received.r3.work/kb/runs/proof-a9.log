@@ -1,0 +1,28 @@
+% orbit-kb prove claim=c1 digest=sha256:1fe2ada53ea7bcdff591d7babd047d5bda6c0ce796f94d30b93b6f015bbf6a20
+theorem Stock.c1_claim
+module Burn.Reserve
+source Burn/Reserve.lean
+statement (∀ (inv : Stock.Inv) (sku : String) (qty : Int),     Stock.reserve inv sku qty = none ↔ inv.reserved sku + qty > inv.stock sku) ∧   ∀ (calls : List (String × Int)) (inv : Stock.Inv), Stock.ok inv → Stock.ok (Stock.runAll inv calls)
+lean 4.34.0
+time 2026-10-22T20:55:19Z
+axiom propext
+axiom Quot.sound
+uses Stock.Inv Burn.Reserve
+uses Stock.reserve Burn.Reserve
+uses Stock.Inv.reserved Burn.Reserve
+uses Stock.Inv.stock Burn.Reserve
+uses Stock.ok Burn.Reserve
+uses Stock.runAll Burn.Reserve
+root /tmp/tmp.s3uJZs3bhO/proof
+file sha256:ef9eedecf5440c3611db78ff1e239eed0ef279d076d6620d9803ce845354d4a0 Burn/Reserve.lean
+file sha256:e4aab1167da1d3f88d589afb4ef65dc08be1486cc99f115f92e43c6f90beb5e2 lake-manifest.json
+file sha256:4e3334bd836602191082702e86c5664a81786aba92c7ce37899ecdfce9d68818 lakefile.toml
+file sha256:8733782dc070a99b312039cda424f601b80f3be6f6f512627da5ba25adc27632 lean-toolchain
+absent lakefile.lean
+--- lake build output
+ℹ [2/2] Replayed Burn.Reserve
+info: Burn/Reserve.lean:30:0: some 2
+info: Burn/Reserve.lean:31:0: none
+info: Burn/Reserve.lean:32:0: some 5
+info: Burn/Reserve.lean:33:0: none
+Build completed successfully (2 jobs).

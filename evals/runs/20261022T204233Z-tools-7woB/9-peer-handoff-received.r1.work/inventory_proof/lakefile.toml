@@ -1,0 +1,12 @@
+name = "inventory_proof"
+defaultTargets = ["Inventoryproof"]
+
+[leanOptions]
+autoImplicit = false
+
+[[lean_lib]]
+name = "Inventoryproof"
+
+[[require]]
+name = "plausible"
+path = "/home/ty/.lean/plausible"

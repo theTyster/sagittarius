@@ -1,0 +1,6 @@
+% orbit-kb run 6 check=k3 result=pass exit=0 time=2026-10-22T20:53:33Z cmd=sh kb/checks/k3.sh
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.000s
+
+OK

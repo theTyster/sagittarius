@@ -1,0 +1,44 @@
+% orbit-kb run 3 check=k3 result=fail exit=1 time=2026-10-22T20:51:37Z cmd=/tmp/tmp.DzrBfDsfl6/.orbit/checks/k3.sh
+E
+======================================================================
+ERROR: test_weekly_report_matches_live_tracker (unittest.loader._FailedTest.test_weekly_report_matches_live_tracker)
+----------------------------------------------------------------------
+AttributeError: type object 'ReportTest' has no attribute 'test_weekly_report_matches_live_tracker'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+FAIL: live test on real tracker.json
+E
+======================================================================
+ERROR: test_weekly_report_matches_live_tracker (unittest.loader._FailedTest.test_weekly_report_matches_live_tracker)
+----------------------------------------------------------------------
+AttributeError: type object 'ReportTest' has no attribute 'test_weekly_report_matches_live_tracker'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+FAIL: live test on changed tracker.json
+E
+======================================================================
+ERROR: test_weekly_report_matches_live_tracker (unittest.loader._FailedTest.test_weekly_report_matches_live_tracker)
+----------------------------------------------------------------------
+AttributeError: type object 'ReportTest' has no attribute 'test_weekly_report_matches_live_tracker'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+FAIL: mutant (counts closed) was not caught
+E
+======================================================================
+ERROR: test_weekly_report_matches_live_tracker (unittest.loader._FailedTest.test_weekly_report_matches_live_tracker)
+----------------------------------------------------------------------
+AttributeError: type object 'ReportTest' has no attribute 'test_weekly_report_matches_live_tracker'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

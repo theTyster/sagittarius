@@ -1,0 +1,25 @@
+% orbit-kb prove claim=c1 digest=sha256:733d8d51c755f8564438b7bfe4590c581e48bf9b6e408e01c1b993765a18320f
+theorem reserve_refuses_over_stock
+module Leanproof.Reserve
+source Leanproof/Reserve.lean
+statement ∀ (stock reserved qty : Nat),   (reserve stock reserved qty = none ↔ reserved + qty > stock) ∧     ∀ (t : Nat), reserve stock reserved qty = some t → t = reserved + qty ∧ t ≤ stock
+lean 4.34.0
+time 2026-10-22T20:54:51Z
+axiom propext
+axiom Classical.choice
+axiom Quot.sound
+uses reserve Leanproof.Reserve
+root /tmp/tmp.YjH07ImWZ1/lean_proof
+file sha256:0484b59bb1113231756dc41c5b28818075b59dd0a6cfe54625e77db81ccb147b Leanproof/Reserve.lean
+file sha256:66e711a0986b63a4916180e60a762824bc92e15139e388b9bae963f56098ee08 lake-manifest.json
+file sha256:79ae4aa10604b2feae7e827461ba5d056464e8fbf38aa58523e54bfa4b26abc6 lakefile.toml
+file sha256:8733782dc070a99b312039cda424f601b80f3be6f6f512627da5ba25adc27632 lean-toolchain
+absent lakefile.lean
+--- lake build output
+ℹ [16/16] Built Leanproof.Reserve (515ms)
+info: Leanproof/Reserve.lean:16:0: some 2
+info: Leanproof/Reserve.lean:17:0: none
+info: Leanproof/Reserve.lean:18:0: some 5
+info: Leanproof/Reserve.lean:19:0: none
+info: Leanproof/Reserve.lean:20:0: 5
+Build completed successfully (16 jobs).

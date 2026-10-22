@@ -1,0 +1,15 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-22T20:52:26Z cmd=python3 -m unittest test_schedule.DueDateTest.test_skips_weekend
+F
+======================================================================
+FAIL: test_skips_weekend (test_schedule.DueDateTest.test_skips_weekend)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.o7Nb2B3SQR/base/test_schedule.py", line 15, in test_skips_weekend
+    self.assertEqual(due_date(date(2026, 11, 6), 1), date(2026, 11, 9))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 11, 7) != datetime.date(2026, 11, 9)
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)

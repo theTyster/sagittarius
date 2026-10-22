@@ -1,0 +1,12 @@
+name = "lean_proof"
+defaultTargets = ["Leanproof"]
+
+[leanOptions]
+autoImplicit = false
+
+[[lean_lib]]
+name = "Leanproof"
+
+[[require]]
+name = "plausible"
+path = "/home/ty/.lean/plausible"

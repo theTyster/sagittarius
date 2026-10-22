@@ -1,0 +1,7 @@
+% orbit-kb run 1 check=k1 result=pass exit=0 time=2026-10-22T20:43:31Z cmd=python -B -m unittest -q test_pipeline.PipelineTest.test_summarize_model -k summarize --verbose
+test_summarize_model (test_pipeline.PipelineTest.test_summarize_model) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

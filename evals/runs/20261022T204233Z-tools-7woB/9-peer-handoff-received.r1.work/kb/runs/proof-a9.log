@@ -1,0 +1,30 @@
+% orbit-kb prove claim=c1 digest=sha256:1e0dd62d87199c4bfe57eb2998ee9b1a66cc5801f38f2c9c168a83b1eb6af0ff
+theorem c1_reserve_within_stock
+module Inventoryproof
+source Inventoryproof.lean
+statement ∀ (stock : Stock) (ops : List (String × Nat)),   (∀ (r : Reserved) (sku : String) (qty : Nat), reserve stock r sku qty = none ↔ r sku + qty > stock sku) ∧     ∀ (s : String), runAll stock empty ops s ≤ stock s
+lean 4.34.0
+time 2026-10-22T20:47:43Z
+axiom propext
+axiom Quot.sound
+uses Stock Inventoryproof
+uses Reserved Inventoryproof
+uses reserve Inventoryproof
+uses runAll Inventoryproof
+uses empty Inventoryproof
+root /tmp/tmp.e1GyDLDeoO/inventory_proof
+file sha256:b067ef625aa379260cba7a4a688292db8eec333e56838acf62e634933fb55a10 Inventoryproof.lean
+file sha256:480ad90fb959983b0c58cb9e7642f648ff50f63e0c68f20205b9077dd9a8065f lake-manifest.json
+file sha256:9dc874beae9e2b94dd9b253244e53bf3cf563723e187baf8c43f317db1d3ed35 lakefile.toml
+file sha256:8733782dc070a99b312039cda424f601b80f3be6f6f512627da5ba25adc27632 lean-toolchain
+absent lakefile.lean
+--- lake build output
+⚠ [16/17] Replayed Inventoryproof
+info: Inventoryproof.lean:23:0: some 2
+info: Inventoryproof.lean:24:0: 4
+info: Inventoryproof.lean:25:0: true
+info: Inventoryproof.lean:26:0: 5
+info: Inventoryproof.lean:27:0: true
+info: Inventoryproof.lean:33:2: Unable to find a counter-example
+warning: Inventoryproof.lean:31:0: declaration uses `sorry`
+Build completed successfully (17 jobs).

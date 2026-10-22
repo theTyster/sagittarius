@@ -1,0 +1,9 @@
+% orbit-kb run 2 check=k2 result=pass exit=0 time=2026-10-22T20:51:03Z cmd=.orbit-kb/scripts/sync_sim.sh
+live report after simulated sync: Open issues: 1
+test_empty (test_report.ReportTest.test_empty) ... ok
+test_weekly_report_tracker_snapshot (test_report.ReportTest.test_weekly_report_tracker_snapshot) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK

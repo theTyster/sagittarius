@@ -1,0 +1,1 @@
+-- inventory_proof: first module. Replace with real content.

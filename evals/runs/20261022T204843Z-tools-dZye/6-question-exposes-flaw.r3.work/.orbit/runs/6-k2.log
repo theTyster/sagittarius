@@ -1,0 +1,6 @@
+% orbit-kb run 6 check=k2 result=pass exit=0 time=2026-10-22T20:51:49Z cmd=sh -c S=$(mktemp -d); trap "rm -rf $S" EXIT; cp report.py test_report.py $S/; cd $S; printf "[{\"id\":1,\"state\":\"open\"},{\"id\":2,\"state\":\"closed\"}]" > tracker.json; python3 -m unittest test_report.ReportTest.test_weekly_report_counts_open_issues_in_tracker
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+OK

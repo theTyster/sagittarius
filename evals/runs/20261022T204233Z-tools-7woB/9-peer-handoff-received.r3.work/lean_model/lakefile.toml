@@ -1,0 +1,12 @@
+name = "lean_model"
+defaultTargets = ["Leanmodel"]
+
+[leanOptions]
+autoImplicit = false
+
+[[lean_lib]]
+name = "Leanmodel"
+
+[[require]]
+name = "plausible"
+path = "/home/ty/.lean/plausible"
