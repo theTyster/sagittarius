@@ -1,0 +1,60 @@
+orbit-kb help core: facts, attestation types, and queries that every KB has
+
+Write facts with: orbit-kb add "claim(c1, introduce, 'Primary buttons are purple.')"
+Quote text with single marks. Do not edit kb.pl by hand.
+
+Facts
+  request(Id, Text)              the human's words, word for word
+  claim(Id, Label, Text)         Label is preserve (true now, must stay true),
+                                 retire (true now, must become false),
+                                 or introduce (false now, must become true)
+  cites(Claim, Text)             the request text that the claim serves
+  example(Claim, Text)           a concrete case of the claim
+  supersedes(New, Old)           New replaces Old. Never edit a claim.
+                                 A claim cannot replace itself, also through a chain.
+                                 add refuses it, and lint reports E15.
+  universal(Claim)               the claim is about every input; it burns (orbit-kb help build)
+  check(K, Claim)                K is an executable check of the claim
+  world(Fact), source(Fact, Where)   the current state, and where you saw it.
+                                 A fact that you did not record is false.
+  question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By), depends(Q, Q0)
+  ticket(S)                      subject S holds the ratified ticket
+  scope(in|out, Text), risk(Id, Text), assumption(Id, Text), not_explored(Text), note(Id, Text)
+
+Artifacts and records
+  orbit-kb subject s1 PATH       record an artifact and compute its digest
+  orbit-kb attest TYPE SUBJECT 'PREDICATE' [--by human|agent]
+  Never type a digest. Put it through the shell:
+    D=$(orbit-kb subject M PATH)   then use '$D' in the fact.
+  The predicate digest(current) means the recorded digest of the subject.
+
+Attestation types
+  disclosure   guess(Q) | unverified(Text) | disagreement(Text) | out_of_scope(Text)
+               | self_error(Text) | other(Text)                      agent or human
+  divergence   claim(C) | hypothesis(H) | model(M)                   human or agent
+               Put the description in a note.
+  disproof     verdict(C, refuted(Text) | inconclusive | abstained)  agent
+               Put the counterexample in the text of refuted.
+  approval     digest(current)                                       human only
+  test_result  written by orbit-kb run only
+
+Queries (orbit-kb query 'current(C)' -n 0)
+  current(C)         claim C is not superseded
+  defeated(Q)        a human answer differs from the default of Q
+  to_ask(Q)          Q is unanswered, its claim is current, and the claim is contested
+                     or a question that Q depends on is defeated
+  contested(C)       one or more divergences name C
+  contested_twice(C) two or more divergences name C
+  refuted(C)         a verdict says that C is refuted
+  passed(K)          the latest run of K passed
+  was_red(K)         K failed before it passed
+  stale(A)           approval A is for a digest that is no longer current
+
+Local rules go in rules.pl beside kb.pl. They cannot change done or the burn rules
+(lint reports E16). Two traps in s(CASP) (orbit-kb help answers, hazards H1 and H4):
+  - A variable that occurs nowhere else inside a not literal means "some value".
+    Write a helper rule: any_under :- under(_).   Then: not any_under.
+  - An atom that ends in an underscore and digits, such as order_4417, merges with its
+    neighbors. Write order4417.
+If the schema does not fit, declare what you need: orbit-kb declare ... --doc TEXT.
+Write one sentence about why. lint lists your extensions for review.

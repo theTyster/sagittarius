@@ -1,0 +1,108 @@
+orbit-kb help discovery: the discovery module (orbit-kb uses discovery)
+
+Start: orbit-kb init DIR --request-file F --uses discovery   (F holds the report word for word)
+Keep the models and the logs inside DIR. Record scope, risk, assumption, and not_explored.
+Sections: FACTS, ATTESTATIONS, QUERIES, then one recipe for each move (SIGNAL, SURVEY,
+SPECTRUM, FLYBY, TRAJECTORY, DISPROVE, GATE, ASKING, HANDOFF).
+
+FACTS
+  hypothesis(H, Kind, Text)       Kind is defect, feature, or risk
+  budget(laps, N)                 the largest lap budget counts
+  lap_done(N)                     lap N ended with a human answer
+  discovery_evidence(S, From)     From is system or model. A model file or solver log is never system.
+  model(M, Tool)                  M is a model file. Tool is smt or tla.
+  model_run(Log, M, Digest)       Log is a run of model M at that digest. It counts while M keeps it.
+  derived_from(Target, Existing)  the target model changes the existing-world model
+  encodes(M, C)                   model M states claim C
+  finding(F, Kind, From)          Kind: root_cause(X) | conflict(Core) | surprise(Case) | trace(T) | scope(Item)
+  reason(M, Rule, Text)           why the rule of model M survived its mutation
+  raised_by(Q, X)                 finding or hypothesis X raised question Q
+
+ATTESTATIONS
+  reproduction  on system evidence: result(H, reproduced) | result(H, not_reproduced) | confirms(F)
+  model_result  on a solver log: verdict(M, Kind, Result) | calibration(M, Case, Result)
+                | mutation(M, Rule, Result)
+                Kind: sanity, bad_case, together, root_cause(R), normal_case(N), preserve(C),
+                      applies(C), explore(T)
+                Result: sat, unsat, unknown, reached, violated, holds
+                Case: example(C) or case(Text); its Result is matches or differs
+                mutation Result: killed or survived
+  decision      human only: no_go(H, Text) | hold(H, Text). GO is a core approval.
+  vote          vote(Round, go|no_go|hold). Each writer votes once in each round.
+                Only the largest round counts.
+
+QUERIES
+  discovery_ready   clean: a hypothesis exists and each has a system result; a claim is
+                    current or a hypothesis did not reproduce; no current claim is refuted or
+                    has no falsifier; no question waits or is to_ask; no WD1, WD3, WD7, ED3-ED7
+  discovery_decide  discovery_ready, or budget_spent (the last lap of the largest budget is done)
+  no_falsifier(C)   current claim C has no check, and no trusted model gave a preserve(C)
+                    or applies(C) result other than unknown
+  model_trusted(M)  M is sane, calibrated, and does not diverge; or, one level only,
+                    sane, not diverging, and derived_from such a model of the same tool
+  artifact_vote(V)  go when discovery_ready and a claim is current; no_go when discovery_ready
+                    and no claim is current; else hold
+  gate(V), gate_split   the outcome of the vote (see GATE)
+  question_waits(Q) a raised question that has no answer
+If discovery_ready is false: orbit-kb lint, and orbit-kb whynot 'discovery_ready'.
+Ready with no current claim happens only when a hypothesis did not reproduce (WD6).
+
+SIGNAL: pin the report
+  orbit-kb add "hypothesis(h1, defect, 'TEXT')" "budget(laps, 3)"
+  The KB counts laps only. Write a time limit in a note.
+
+SURVEY: touch the current system
+  Record world facts, each with a source. Reproduce with a test, a script, or a request.
+  D=$(orbit-kb subject e1 LOG)         then:  orbit-kb add "discovery_evidence(e1, system)"
+  orbit-kb attest reproduction e1 'result(h1, reproduced)'     (or not_reproduced)
+  If it does not reproduce: orbit-kb attest divergence e1 'hypothesis(h1)'
+  A tagged test can be the subject.
+
+SPECTRUM: claims and tools
+  Record the claims (orbit-kb help core) and universal(C) where it applies.
+  For a test or script: orbit-kb add "check(t1, c1)" "discovery_evidence(t1, system)"
+  then orbit-kb run t1 -- CMD
+
+FLYBY (SMT) and TRAJECTORY (TLA+): record
+  orbit-kb subject m1 model.smt ; orbit-kb subject log1 run1.log     (a new log for each run)
+  orbit-kb add "model(m1, smt)"
+  D=$(orbit-kb subject m1 model.smt) ; orbit-kb add "model_run(log1, m1, '$D')"
+  orbit-kb attest model_result log1 'verdict(m1, sanity, sat)'
+  orbit-kb add "finding(f1, conflict('CORE'), model)" "example(c1, 'witness')"
+  For a target model: derived_from(Target, Existing) and encodes(Target, C).
+  Record a disproof for each case that breaks a claim.
+  TLC results: violated (with a trace), holds within the stated bounds, or not run.
+  A violated never-reached invariant is verdict(M, sanity, reached). Use model(M, tla).
+
+DISPROVE: record
+  orbit-kb attest disproof c1 "verdict(c1, refuted('price 0 with code X'))"
+  Also add the counterexample as an example(...): the build orbit makes it a test case.
+
+GATE: the GO / NO-GO vote (r1 is the request; round 1 first, +1 after each HOLD)
+  1. Your vote, sealed, before you give the report:
+       orbit-kb attest vote r1 'vote(1, go)'
+  2. The human's vote:
+       orbit-kb attest vote r1 'vote(1, hold)' --by human
+     After that, attest refuses your vote in round 1.
+  3. The outcome: orbit-kb query 'gate(V)'. The Vote: section of orbit-kb report shows it.
+  4. If orbit-kb query gate_split is true:
+       orbit-kb attest divergence h1 'hypothesis(h1)'   and add a note with the three votes.
+  5. On GO: orbit-kb subject tk PATH ; orbit-kb add "ticket(tk)" ;
+       orbit-kb attest approval tk 'digest(current)' --by human
+     On NO-GO: orbit-kb attest decision h1 "no_go(h1, 'REASON')" --by human
+     On HOLD:  hold(h1, 'WHAT IT WAITS FOR')
+  The seal guards against a mistake, not a look. query and kb.pl show your vote.
+  Do not read the human's vote before you vote.
+
+ASKING: record
+  question, assumed, raised_by(Q, X) (X is the finding or hypothesis that raised Q).
+  Then answer(Q, VALUE, human), and lap_done(N) when the round ends.
+
+HANDOFF to the build orbit
+  orbit-kb uses build ; orbit-kb lint. The build orbit skips SURVEY.
+  DECOMPOSE starts from the discovery claims. Each witness, trace, and counterexample
+  becomes a test case. The build orbit reuses each red test_result as its baseline.
+  A universal claim always burns. A solver or TLC result holds only within its bounds;
+  only a Lean proof or a human waiver closes a burn.
+  For a claim in SMT or TLA+ and again in Lean, run the SMT witnesses as Lean #eval
+  examples. Record a divergence where the two disagree.

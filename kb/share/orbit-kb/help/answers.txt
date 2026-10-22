@@ -1,0 +1,31 @@
+orbit-kb help answers: how to read what orbit-kb says
+
+Exit codes
+  0  yes. The query is true. Lint is clean.
+  1  no. The query has no answer, lint found errors, or the input was rejected.
+  2  something is wrong with the question or the tools. Exit 2 is never a no.
+
+Two engines answer each query: SWI-Prolog gives the verdict, s(CASP) gives the explanation.
+  ENGINE DISAGREEMENT   The engines differ, and you cannot tell which is wrong.
+                        Stop. Do not use either answer. Give the human the goal and both
+                        answers. If the goal uses a rule of yours in rules.pl, write
+                        that rule in a simpler form.
+  CROSS-CHECK SKIPPED / (unchecked)   Only one engine answered. You can use the answer,
+                        but say in the delivery that only one engine answered.
+  NOTE: s(CASP) ran the raw program   The grounder was too slow. The answers do not change.
+
+whynot 'GOAL' starts with one word:
+  holds        GOAL has an answer.
+  absent       nothing records it (not p). The survey can have missed it.
+  contradicts  the KB records that it is false (-p).
+
+Hazards in s(CASP) (orbit-kb doctor tests all four)
+  H1  A variable that occurs only inside a not literal means "some value", not "every value".
+      Use a helper rule. Lint error E12.
+  H2  The default --forall algorithm can give wrong answers.
+  H3  Arithmetic under negation fails with the default algorithm.
+  H4  A final _ and digits are dropped from atoms. order_4417 and order_5120 merge.
+      Write order4417. Lint error E13.
+
+Resume work in a KB: orbit-kb show open. In a KB that uses discovery, also orbit-kb lint,
+because show open omits the discovery items.

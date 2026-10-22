@@ -811,11 +811,20 @@ The self-tests H1 to H4 run with s(CASP) on the grounded program, as a query
 does. The H4 raw control runs with `ORBIT_KB_SCASP_GROUND=raw`.
 Exit: 0 if all checks pass. 2 if an item is missing or a self-test fails.
 
-### `help [COMMAND]`
+### `help [COMMAND|TOPIC]`
 
-Shows the general help, or the help for one command. The general help gives
-the hazards H1–H4 in short form, and it says how grounding changes them.
-Exit: 0.
+Shows the general help, the help for one command, or one topic. The general
+help starts with a "How to use" block (the order of the commands, and the
+topics). It then gives the hazards H1–H4 in short form, and says how
+grounding changes them.
+
+The topics are plain files in `help/` beside this README: `core`, `build`,
+`discovery` (with one recipe for each move), `codes` (the lint codes), and
+`answers` (exit codes and engine disagreement). They exist so that an agent
+loads the syntax when a move needs it. The agent prompt
+(`prompt/SAGITTARIUS.md`) holds only the rules that come before the first
+command, and tells the agent to run `orbit-kb help`. Test HP4 to HP6 check
+the topics. Exit: 0. An unknown name exits 2.
 
 ### Locking
 

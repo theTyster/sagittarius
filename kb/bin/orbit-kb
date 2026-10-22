@@ -3242,6 +3242,7 @@ cmd_init(Args, Code) :-
                        format(S, "~w~n~w~n", [L1, L2]),
                        close(S)),
     format("~w~n", [KbFile]),
+    format(user_error, "Next: add the claims and the checks. Vocabulary: orbit-kb help core.~n", []),
     Code = 0.
 
 % ---------------------------------------------------------------------
@@ -3300,7 +3301,13 @@ cmd_uses(Dir, Args, Code) :-
               ( err_text(E, ET),
                 die(2, ["Could not write " + KbFile + ": " + ET, "Nothing was changed.", "Fix: check that the KB directory is writable."] >> fix_lines) )),
         format("~w.~n", [UT]),
-        format(user_error, "Run orbit-kb lint next. The new module can add lint findings to the KB.~n", [])
+        format(user_error, "Run orbit-kb lint next. The new module can add lint findings to the KB.~n", []),
+        (   memberchk(discovery, New)
+        ->  format(user_error, "Next: orbit-kb lint. Recipes for each move: orbit-kb help discovery.~n", [])
+        ;   memberchk(build, New)
+        ->  format(user_error, "Next: orbit-kb lint. Facts, queries, and burns: orbit-kb help build.~n", [])
+        ;   true
+        )
     ),
     Code = 0.
 cmd_uses(Dir, _, _) :-
@@ -5098,11 +5105,37 @@ cmd_help([], 0) :- !,
 cmd_help([C|_], Code) :-
     (   help_lines(C, Ls)
     ->  print_lines(user_output, Ls), Code = 0
-    ;   usage_error("There is no help for ~w. It is not a command.", [C])
+    ;   help_topic_file(C, File)
+    ->  read_file_to_string(File, S, [encoding(utf8)]),
+        format("~s", [S]), Code = 0
+    ;   usage_error("There is no help for ~w. It is not a command or a topic. Topics: ~w.", [C, 'core, build, discovery, codes, answers'])
     ).
+
+% A topic is the file help/TOPIC.txt in the library directory.
+help_topic_file(Topic, File) :-
+    memberchk(Topic, [core, build, discovery, codes, answers]),
+    lib_dir(Lib),
+    atomic_list_concat([Lib, '/help/', Topic, '.txt'], File),
+    exists_file(File).
 
 help_lines(general, [
 "orbit-kb: write, check, and query s(CASP) knowledge bases (KBs).",
+"",
+"How to use (read this first; the topics hold the details):",
+"  1. orbit-kb init DIR --request 'the human's words' --uses build   (or --uses discovery)",
+"  2. orbit-kb add 'claim(...)' 'cites(...)' 'check(k1, c1)'          write facts; never edit kb.pl",
+"  3. orbit-kb run k1 -- CMD       run each check; it must fail first for retire and introduce",
+"  4. build the change, then orbit-kb run again",
+"  5. orbit-kb lint                the fix for each finding is in its message",
+"  6. orbit-kb show open           what is left; run it first when you resume a KB",
+"  7. orbit-kb report              draft the delivery",
+"  Topics:",
+"    orbit-kb help core      facts, claim labels, attestation types, and core queries",
+"    orbit-kb help build     build-module facts and queries, burns, proofs, waivers",
+"    orbit-kb help discovery discovery-module facts, verdicts, queries, and the recipe for each move",
+"    orbit-kb help codes     each lint code and what to do",
+"    orbit-kb help answers   exit codes, ENGINE DISAGREEMENT, CROSS-CHECK SKIPPED, whynot",
+"  Never type a digest or a test result: orbit-kb subject and orbit-kb run write them.",
 "",
 "Usage: orbit-kb [--dir DIR] COMMAND [ARGS]",
 "",
@@ -5123,7 +5156,7 @@ help_lines(general, [
 "  show [claims|questions|open|disclosures|extensions|all]",
 "  report",
 "  doctor",
-"  help [COMMAND]",
+"  help [COMMAND|TOPIC]",
 "",
 "Finding the KB. orbit-kb uses the first of these:",
 "  1. the option --dir DIR;",
@@ -5334,7 +5367,8 @@ help_lines(doctor, [
 "Exit 2 if something is missing or a self-test fails."
 ]).
 help_lines(help, [
-"orbit-kb help [COMMAND]",
+"orbit-kb help [COMMAND|TOPIC]",
 "",
-"Show general help, or help for one command."
+"Show general help, or help for one command or one topic.",
+"Topics: core, build, discovery, codes, answers."
 ]).

@@ -1,0 +1,56 @@
+orbit-kb help build: the build module (orbit-kb uses build)
+
+Facts
+  change(X, Text)       a change that you made
+  serves(X, Claim)      the claim that change X serves
+  burn_requested(Claim) the human asked for a proof
+  conformance(Check)    an optional check that runs the code against the Lean model
+
+Attestation types
+  lean_result   stated | refuted(Counterexample) | tested(N)    progress on a Lean model
+  lean_proof    written by orbit-kb prove only
+  waiver        human only: waive(Target, 'DUE', 'REASON')
+
+Queries
+  fulfilled(C)  a check of C passed; for retire and introduce, it failed first; C is not refuted
+  under(C)      current claim C is not fulfilled
+  over(X)       change X serves no claim
+  done          nothing is under, nothing is over, nothing is to ask, no burn is open,
+                and no claim is in a supersede cycle
+  burn(C)       C is contested twice, is universal, or the human asked for a proof;
+                or C supersedes such a claim, directly or through other claims
+  burn_open(C)  current claim C burns, and has no proof that still counts and no waiver
+                before its due time
+
+Checks
+  orbit-kb add "check(k1, c1)"
+  orbit-kb run k1 -- npm test -- button     run it; the output goes to runs/N-k1.log
+  Run each retire and introduce check against the current code first. It must fail.
+  Do not edit a check to make it pass. If a claim was wrong, add a claim that supersedes it.
+
+Burns: prove the claim in Lean
+  A statement with sorry is not a proof. "No counterexample in N trials" is not a proof.
+  1. Write a Lean model of the behavior. State the claim as a theorem.
+  2. Add #eval examples. Show them to the human as a table.
+  3. Search for a counterexample (for example Plausible) before you prove.
+     If you find one, record lean_result with verdict(C, refuted('THE CASE')) and ask the human.
+  4. Prove the theorem. Then: orbit-kb prove C FILE THEOREM
+     It records the proof only if the theorem has no sorry, no native_decide, and no
+     axiom of its own, and if the kernel accepts it again. Nothing else records a proof.
+  5. Read the statement that prove prints. Check that it says what the claim says.
+     orbit-kb cannot check that. Show it to the human.
+  6. Carry the result back to the code. The proof is about the Lean model, not the code.
+     Each Lean example becomes a test case.
+  A claim that supersedes a burning claim needs its own proof.
+  A change in a Lean file of the project, or in a Lake file, reopens the burn.
+  A change inside a path dependency (a shared library) does not.
+
+Waivers (the human only; the human sets the due time)
+  orbit-kb attest waiver C "waive(C, '2026-11-30T17:00:00Z', 'why')" --by human
+  C is a claim (its proof), a check, or a question.
+  Until the due time the item does not block done. A waived check covers its claim,
+  but the claim is not fulfilled. After the due time the item blocks done again.
+  report lists every waiver. The delivery says "not proved" for a waived burn.
+
+Verdicts for disproof (orbit-kb help core): refuted(Text), inconclusive, abstained.
+Do not weaken a claim to absorb a counterexample. Record it, and ask the human.

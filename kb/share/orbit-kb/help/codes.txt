@@ -1,0 +1,49 @@
+orbit-kb help codes: lint codes (E: error, exit 1; W: warning)
+Each message ends with the fix. Read it. orbit-kb lint --strict makes warnings errors.
+
+Core
+  E1   syntax error. Query, why, whynot, show, and report exit 2.
+  E2   undeclared predicate or wrong arity. Declare it: orbit-kb declare.
+  E3   type error (also a label outside oneof)
+  E4   dangling reference: the id does not exist
+  E5   duplicate id
+  E6   non-ground fact in kb.pl
+  E7   a clause in the wrong place (a rule as a fact in kb.pl, or a fact outside kb.pl)
+  E8   this writer may not write this attestation type
+  E9   a test_result or lean_proof with no matching run log. Use orbit-kb run / prove.
+  E10  uses/1 is missing, not first, or names an unknown module
+  E11  the program does not compile in s(CASP) or does not load in SWI
+  E12  a variable only inside not (hazard H1). Use a helper rule: orbit-kb help answers
+  E13  an atom ends in underscore and digits (hazard H4). Write order4417.
+  E14  unsafe negation: a not variable is in the head but in no positive body literal
+  E15  supersedes cycle. add refuses it. done is false while it exists.
+  E16  rules.pl adds clauses to a protected predicate (done, burn rules, vote rules). Ignored.
+  W1   subject digest differs from the file. Run orbit-kb subject again.
+  W2   a local declaration, listed for review
+  W3   a claim with no cites. Cite the request text, or drop the claim (drift).
+  W4   a local fact predicate that no rule reads
+  W5   a superseded claim that a check still references
+  W6   a local rule extends a core or module predicate
+
+Discovery module
+  WD1  a conflict, surprise, or scope finding raised no question. Ask one.
+  WD2  a model states a claim but is not trusted. Make it sane and calibrated.
+  WD3  a rule survived its mutation, with no reason. Find out why. Add a reason.
+  WD4  only a model shows this finding. Confirm it on the system, or report a lead.
+  WD5  a result is unknown. Report a gap, never UNSAT.
+  WD6  the problem did not reproduce. Tell the human what you tried.
+  WD7  a hypothesis has no system result. Reproduce it, or ask if it is another ticket.
+  WD8  this result's log has a run of an older model file. Run orbit-kb subject on the
+       model. Run the solver into a new log.
+  WD9  the human voted and you did not vote in that round. Vote before the human next round.
+  ED1  a reproduction is not on system evidence. Use a log, query, or test tagged system.
+  ED2  a model result has no model_run for its log. Add it.
+  ED3  the model disagrees with the system, or the existing-world model misses the bad case.
+  ED4  a claim can never apply. Fix the model, or ask the human.
+  ED5  a model breaks a current claim. File a disproof with refuted(Counterexample).
+  ED6  two solver results of the same kind, for one model, disagree. Find the cause.
+  ED7  a claim replaces a refuted or contested claim with no human answer. Ask the human.
+  ED8  no finding or hypothesis raised this question. Correct raised_by.
+  ED9  a model is derived from a derived model, or from itself. Derive from existing-world models.
+  ED10 a writer voted twice in one round. Keep one vote. After a HOLD, vote in the next round.
+What blocks discovery_ready blocks GO. The list can change: read orbit-kb whynot 'discovery_ready'.

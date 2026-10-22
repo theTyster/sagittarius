@@ -1547,6 +1547,12 @@ t_DR3() { local e; e=$(mktemp -d "$base/emptylib.XXXXXX"); ( cd "$T" && ORBIT_KB
 t_HP1() { okb help; rc_is 0; any_has 'H1'; any_has 'H2'; any_hasi 'query'; any_hasi 'lint'; }
 t_HP2() { okb help query; rc_is 0; any_hasi 'query'; any_hasi -- '--why|--json'; }
 t_HP3() { okb --help; rc_is 0 "--help"; any_hasi 'usage'; }
+t_HP4() { okb help; rc_is 0; any_has 'How to use'; local t
+          for t in core build discovery codes answers; do any_has "orbit-kb help $t" "general help names $t"; done; }
+t_HP5() { local t; for t in core build discovery codes answers; do
+            okb help "$t"; rc_is 0 "help $t"; any_hasi "$t" "help $t is not empty"; done; }
+t_HP6() { okb help nosuchtopic; rc_is 2 "unknown topic"; }
+t_HP7() { okb init "$T/hp7" --request 'x'; rc_is 0; any_has 'Next:.*help core'; }
 
 # ================================================================ run
 for id in K1 K2 K3 K4 K5 K6 K7 K8; do :; done
@@ -1799,6 +1805,10 @@ run_test t_DR4 DR4 "D8: doctor reports the ground-mode H4 and grounder-corruptio
 run_test t_HP1 HP1 "help explains H1 and H2"
 run_test t_HP2 HP2 "help query"
 run_test t_HP3 HP3 "--help"
+run_test t_HP4 HP4 "general help starts with how to use and names each topic"
+run_test t_HP5 HP5 "each help topic prints"
+run_test t_HP6 HP6 "unknown help topic exits 2"
+run_test t_HP7 HP7 "init prints a Next line"
 
 run_tests
 echo "----"

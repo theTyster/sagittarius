@@ -176,200 +176,63 @@ file in s(CASP), which is Prolog with default negation (`not p`), classical nega
 (`-p`), and justification trees. Records follow the in-toto shape: each attestation names
 a subject (an artifact and its digest), a type, a predicate, who made it, and when.
 
-Use the `orbit-kb` command for all work on a KB. Do not edit `kb.pl` by hand. The command
-enforces a schema that Prolog does not have: every predicate is declared, every argument
-is typed, and every reference points to a real fact. Run `orbit-kb help` for details.
+**Before your first `orbit-kb` command in a session, run `orbit-kb help`.** It gives the order
+of the commands and names the topics. Before a move writes records, read its topic: `orbit-kb
+help core`, `help build`, or `help discovery`. Look up a lint code with `orbit-kb help codes`,
+and a strange answer with `orbit-kb help answers`. The help holds the syntax, the vocabulary,
+and the recipe for each record. This prompt holds only the rules that you need before you
+read it.
 
 ### Rules for the KB
 
-- Put the KB where it is useful. Nothing requires a fixed location. Commands find the KB
-  from `--dir`, then `$ORBIT_KB`, then the nearest parent directory that contains one.
+- Use the `orbit-kb` command for all work on a KB. Do not edit `kb.pl` by hand. The command
+  enforces a schema that Prolog does not have: every predicate is declared, every argument
+  is typed, and every reference points to a real fact.
+- Put the KB where it is useful. Commands find the KB from `--dir`, then `$ORBIT_KB`, then the
+  nearest parent directory that contains one.
 - Do not commit the KB or its `runs/` logs, unless the human asks. The delivery carries
   the evidence.
 - Size the KB to the work. A small change needs a few facts: the request, one claim, and
   one check. Write a fact only if a query or the delivery report reads it.
 - Never type a digest or a test result, because a typed value can differ from the file or
   the run. `orbit-kb subject` computes digests. `orbit-kb run` is the only way to record a
-  test result. When a fact needs a digest, pass
-  it through the shell: `D=$(orbit-kb subject M PATH)`, then use `'$D'` in the fact.
+  test result.
 - The KB is the memory between laps and between sessions. When you resume, run
   `orbit-kb show open` first. In a KB that uses the discovery module, also run
   `orbit-kb lint`, because `show open` omits the discovery items. Do not rely on what you
   remember.
-- When the work moves to the other orbit, add its module: `orbit-kb uses build` or
-  `orbit-kb uses discovery`. Then run `orbit-kb lint`. The new module can add findings.
+- When the work moves to the other orbit, add its module (`orbit-kb uses build` or
+  `orbit-kb uses discovery`), then run `orbit-kb lint`. The new module can add findings.
 - If the schema does not fit, declare what you need with `orbit-kb declare`, and write
-  one sentence about it. This is normal. `orbit-kb lint` lists your extensions for review.
-- A local rule goes in `rules.pl` beside `kb.pl`. It cannot change `done` or the burn
-  rules: lint reports E16, and the engines ignore the clause. Two traps in s(CASP);
-  `orbit-kb lint` catches both:
-  - A variable that occurs nowhere else inside a `not` literal means "some value", not
-    "every value". Write a helper rule instead: `any_under :- under(_).` Then write
-    `not any_under`.
-  - An atom that ends in an underscore and digits, such as `order_4417`, merges with its
-    neighbors. Write `order4417`.
+  one sentence about it. This is normal. A local rule goes in `rules.pl`; it cannot change
+  `done` or the burn rules. Two s(CASP) traps are in `orbit-kb help core`, and `orbit-kb lint`
+  catches both.
+- Exit 0 means yes. Exit 1 means no. Exit 2 means that something is wrong with the question
+  or the tools. Exit 2 is never a no.
+- **ENGINE DISAGREEMENT.** `orbit-kb` answers each query with two engines. If they disagree,
+  one is wrong and you cannot tell which. Stop. Do not use either answer. Report the goal and
+  both answers to the human.
+- **CROSS-CHECK SKIPPED** with `(unchecked)` means that only one engine answered. You can use
+  the answer, but say in the delivery that only one engine answered.
 
-### Commands
+### Ideas that the moves use
 
-| Purpose | Command |
-|---|---|
-| Start a KB | `orbit-kb init DIR --request 'the human's words, verbatim' --uses build` |
-| Add a module | `orbit-kb uses discovery` |
-| Add facts | `orbit-kb add "claim(c1, introduce, 'Primary buttons are purple.')" "cites(c1, 'the button purple')"` |
-| Record an artifact | `orbit-kb subject s1 src/ui/Button.tsx` |
-| Record a disclosure | `orbit-kb attest disclosure s1 'guess(q2)'` |
-| Record a divergence | `orbit-kb attest divergence s1 'claim(c1)' --by human` |
-| Record a human approval | `orbit-kb attest approval s1 'digest(current)' --by human` |
-| Run a check (after `check(k1, c1)`) | `orbit-kb run k1 -- npm test -- button` |
-| Record a Lean proof | `orbit-kb prove c2 Proofs/Discount.lean price_above_floor` |
-| Ask a question | `orbit-kb query 'to_ask(Q)' -n 0` |
-| Explain a yes | `orbit-kb why 'fulfilled(c1)'` |
-| Explain a no | `orbit-kb whynot 'fulfilled(c1)'` |
-| Lint the KB | `orbit-kb lint` |
-| See what is open | `orbit-kb show open` |
-| Draft the delivery | `orbit-kb report` |
-
-### Core vocabulary
-
-- `request(Id, Text)`: the human's words, verbatim.
-- `claim(Id, Label, Text)`. The label is one of these:
-  - `preserve`: true now, and must stay true;
-  - `retire`: true now, and must become false;
-  - `introduce`: false now, and must become true.
-- `cites(Claim, Text)`: the request text that a claim serves.
-- `example(Claim, Text)`: a concrete case of a claim.
-- `supersedes(New, Old)`: the new claim replaces the old one. Never edit a claim. A claim
-  cannot replace itself, also through a chain: `add` refuses it, and lint reports E15.
-- `world(Fact)` and `source(Fact, Where)`: the existing state, and where you saw it.
-- `question(Q, Claim, Text)`, `assumed(Q, Default)`, `answer(Q, Answer, By)`, and
-  `depends(Q, Q0)`.
-- `universal(Claim)`: the claim is universal, as defined in the burn trigger of "Shift up to
-  a KB".
-- `ticket(S)`: subject S holds the ratified ticket.
-- `check(K, Claim)`: K is a check of the claim (see "The light path").
-- `scope`, `risk`, `assumption`, `not_explored`, and `note`: context that the human reads.
-- Attestation types: `disclosure`, `divergence`, `disproof`, `approval`, and
-  `test_result`. Modules add more types.
-
-Core queries:
-
-| Query | True when |
-|---|---|
-| `current(C)` | claim C is not superseded |
-| `defeated(Q)` | a human answer differs from the default of Q |
-| `to_ask(Q)` | Q is unanswered, its claim is current, and its claim is contested or a question that it depends on is defeated |
-| `contested(C)`, `contested_twice(C)` | one or more divergences, or two or more, name claim C |
-| `refuted(C)` | a verdict says that claim C is refuted |
-| `passed(K)`, `was_red(K)` | the latest run of K passed; K failed before it passed |
-| `stale(A)` | approval A is for a digest that is no longer current |
-
-### Reading the answers
-
-- Exit 0 means yes. Exit 1 means no. Exit 2 means that something is wrong with the
-  question or the tools. Exit 2 is never a no.
-- **ENGINE DISAGREEMENT.** `orbit-kb` answers each query with two engines and compares
-  them. If they disagree, one of them is wrong and you cannot tell which. Stop. Do not use either
-  answer. Report the goal and both answers to the human. If the goal uses a rule of yours in
-  `rules.pl`, rewrite that rule in a simpler form.
-- **CROSS-CHECK SKIPPED** with `(unchecked)` means that only one engine answered. You can
-  use the answer, but say in the delivery that only one engine answered.
-- `whynot` says which kind of "no" you have:
-  - **absent** (`not p`): nothing records p. The survey can have missed it.
-  - **contradicts** (`-p`): the KB records that p is false.
-
-### Build module (`--uses build`)
-
-Facts: `change(X, Text)`, `serves(X, Claim)`, `burn_requested(Claim)`, and
-`conformance(Check)`. Attestation types: `lean_result` (progress: `stated`,
-`refuted(Counterexample)`, or `tested(N)`), `lean_proof` (only `orbit-kb prove` writes it), and `waiver` (only a human
-writes it).
-
-| Query | True when |
-|---|---|
-| `fulfilled(C)` | a check of C passed; for `retire` and `introduce`, it failed first; C is not refuted |
-| `under(C)` | current claim C is not fulfilled |
-| `over(X)` | change X serves no claim |
-| `done` | nothing is under, nothing is over, nothing is to ask, no burn is open, and no claim is in a supersede cycle |
-| `burn(C)` | C is contested twice, is `universal`, or the human asked for a proof (`burn_requested`); or C supersedes such a claim, directly or through other claims |
-| `burn_open(C)` | current claim C burns, and it has no proof that still counts and no waiver before its due time |
-
-### Discovery module (`--uses discovery`)
-
-Start the KB with `orbit-kb init DIR --request-file F --uses discovery`, where F holds the
-report word for word. Keep the models and the logs inside DIR. Record `scope`, `risk`,
-`assumption`, and `not_explored` as you learn them.
-
-Facts:
-
-| Fact | Meaning |
-|---|---|
-| `hypothesis(H, Kind, Text)` | Kind is `defect`, `feature`, or `risk`. |
-| `budget(laps, N)` | The largest lap budget counts. |
-| `lap_done(N)` | Lap N ended with a human answer. |
-| `discovery_evidence(S, From)` | S is `system` or `model` evidence. A model file or solver log is never `system` evidence. |
-| `model(M, Tool)` | Subject M is a model file. Tool is `smt` or `tla`. |
-| `model_run(Log, M, Digest)` | Solver log Log is a run of model M at that digest. Its results count only while M keeps that digest. |
-| `derived_from(Target, Existing)` | The target model changes the existing-world model. |
-| `encodes(M, C)` | Model M states claim C. |
-| `finding(F, Kind, From)` | Kind is `root_cause(X)`, `conflict(Core)`, `surprise(Case)`, `trace(T)`, or `scope(Item)`. From is `system` or `model`. |
-| `reason(M, Rule, Text)` | Why the rule of model M survived its mutation. |
-| `raised_by(Q, X)` | Finding or hypothesis X raised question Q. |
-
-Attestation types:
-
-- `reproduction`, on system evidence: `result(H, reproduced)`, `result(H, not_reproduced)`,
-  or `confirms(F)`.
-- `model_result`, on a solver log: `verdict(M, Kind, Result)`,
-  `calibration(M, Case, Result)`, or `mutation(M, Rule, Result)`. A calibration Case is
-  `example(C)` or `case(Text)`, and its Result is `matches` or `differs`. A mutation Result
-  is `killed` or `survived`.
-- `decision`, by the human only: `no_go(H, Text)` or `hold(H, Text)`. GO is a core
-  `approval`, not a decision.
-- `vote`, by you or the human: `vote(Round, Choice)`. Choice is `go`, `no_go`, or `hold`.
-  Each writer votes once in each round. Only the largest round counts.
-
-In a `verdict`, Kind is `sanity`, `bad_case`, `together`, `root_cause(R)`, `normal_case(N)`,
-`preserve(C)`, `applies(C)`, or `explore(T)`. Result is `sat`, `unsat`, `unknown`,
-`reached`, `violated`, or `holds`.
-
-| Query | True when |
-|---|---|
-| `discovery_ready` | clean: there is a hypothesis, and each hypothesis has a system result; a claim is current, or a hypothesis did not reproduce; no current claim is refuted or has no falsifier; no question waits or is `to_ask`; no WD1, WD3, WD7, or ED3 to ED7 |
-| `discovery_decide` | `discovery_ready`, or `budget_spent`: the last lap of the largest budget is done |
-| `no_falsifier(C)` | current claim C has no `check`, and no trusted model that encodes C gave a `preserve(C)` or `applies(C)` result other than `unknown` |
-| `model_trusted(M)` | M is sane, calibrated, and does not diverge. Or, one level only: M is sane, does not diverge, and is `derived_from` such a model of the same tool. |
-| `artifact_vote(V)` | the vote of the formal artifacts: `go` when `discovery_ready` holds and a claim is current; `no_go` when `discovery_ready` holds and no claim is current; else `hold` |
-| `gate(V)` | the human voted in the current round. V is the human's choice when you or the formal artifacts voted the same. Else V is `hold`. |
-| `gate_split` | the human voted, and no other role voted the same |
-
-Discovery is ready with no current claim only when a hypothesis did not reproduce (WD6).
-Tell the human, with what you tried.
-
-Lint codes (E: error, W: warning):
-
-| Code | Meaning | What to do |
-|---|---|---|
-| WD1 | A conflict, surprise, or scope finding raised no question. | Ask one. |
-| WD2 | A model states a claim, but is not trusted. | Make it sane and calibrated. |
-| WD3 | A rule survived its mutation, with no `reason`. | Find out why. Add a `reason`. |
-| WD4 | Only a model shows this finding. | Confirm it, or report a lead. |
-| WD5 | A result is `unknown`. | Report a gap, never UNSAT. |
-| WD6 | The problem did not reproduce. | Tell the human what you tried. |
-| WD7 | A hypothesis has no system result. | Reproduce it, or ask if it is another ticket. |
-| WD8 | This result's log has a run of an older model file. | Run `orbit-kb subject` on the model. Run the solver into a new log. |
-| WD9 | The human voted, and you did not vote in that round. | In the next round, vote before the human. |
-| ED1 | A reproduction is not on system evidence. | Use a log, query, or test tagged `system`. |
-| ED2 | A model result has no `model_run` for its log. | Add it. |
-| ED3 | The model disagrees with the system, or the existing-world model misses the bad case. | Fix the model. |
-| ED4 | A claim can never apply. | Fix the model, or ask the human. |
-| ED5 | A model breaks a current claim. | File a `disproof` with `refuted(Counterexample)`. |
-| ED6 | Two solver results of the same kind, for one model, disagree. | Find the cause. |
-| ED7 | A claim replaces a refuted or contested claim with no human answer. | Ask the human. |
-| ED8 | No finding or hypothesis raised this question. | Correct `raised_by`. |
-| ED9 | A model is derived from a derived model, or from itself. | Derive targets from existing-world models only. |
-| ED10 | A writer voted twice in one round. | Keep one vote. After a HOLD, vote in the next round. |
-
-If `discovery_ready` is false, run `orbit-kb lint` and `orbit-kb whynot 'discovery_ready'`.
+- A claim has a label: `preserve` (true now, and must stay true), `retire` (true now, and
+  must become false), or `introduce` (false now, and must become true). A claim cites the
+  request text that it serves.
+- A **check** (`check(K, Claim)`) is an executable test of a claim. A claim is *fulfilled*
+  when a check passed, when a `retire` or `introduce` check failed first, and when no verdict
+  refutes it.
+- `done` (build orbit) is true when no claim is under (not fulfilled), no change is over
+  (serves no claim), no question is to ask, no burn is open, and no claim is in a supersede
+  cycle. `orbit-kb whynot 'done'` says what is missing.
+- A claim **burns** (`burn(C)`) when it is contested twice, is `universal`, or the human asked
+  for a proof. A burn stays open until a Lean proof (`orbit-kb prove`) or a human waiver
+  closes it.
+- `discovery_ready` (discovery orbit) is true when nothing is open. `discovery_decide` is
+  true when it is ready, or the last lap of the budget is done.
+- A divergence is recorded with `orbit-kb attest divergence`, a disclosure with
+  `orbit-kb attest disclosure`. Their syntax is in `orbit-kb help core`.
 
 ## Moves
 
@@ -389,7 +252,7 @@ itself, so that an error in an earlier move does not pass on silently.
 
 ### DECOMPOSE: claims and questions
 
-1. Split the ticket into claims. Give each claim one label (see "Core vocabulary").
+1. Split the ticket into claims. Give each claim one label (see "Ideas that the moves use").
 2. Each claim cites the ticket text that it serves. A claim with no citation is drift. Drop
    it, or propose it to the human as a ticket change.
 3. For each claim, record the questions that a careful reader would ask. Give each question
@@ -438,7 +301,7 @@ counterexample, and ask the human.
 
 ### BURN: prove the claim in Lean
 
-Burn a claim when `burn(C)` holds (see the build module). A claim that supersedes a burning
+Burn a claim when `burn(C)` holds (see "Ideas that the moves use"). A claim that supersedes a burning
 claim burns too, and needs its own proof: the proof or waiver of the old claim does not
 carry over.
 
@@ -625,7 +488,7 @@ to SURVEY. A conflict sends you to the human. Describe each divergence in a `not
    in a `note`.
 6. If nothing needs learning, propose the build orbit.
 
-**Record:** `hypothesis(h1, defect, 'TEXT')` and `budget(laps, 3)`.
+**Record:** `orbit-kb help discovery` (section SIGNAL).
 
 #### SURVEY: touch the current system
 
@@ -639,10 +502,7 @@ Discovery never skips SURVEY.
    attest a `divergence` with `hypothesis(H)`. Tell the human what you
    found.
 
-**Record:** run `orbit-kb subject` for each log or query result, and tag it
-`discovery_evidence(S, system)`. On it, attest a `reproduction` with
-`result(h1, reproduced)` or `result(h1, not_reproduced)`. A tagged test (SPECTRUM) can also
-be the subject.
+**Record:** `orbit-kb help discovery` (section SURVEY).
 
 #### SPECTRUM: split into claims and choose tools
 
@@ -666,9 +526,8 @@ be the subject.
    claims. If two tools state one claim, build each statement from the report and the
    SURVEY facts, not from the other statement.
 
-**Record:** the claims, as in DECOMPOSE, and `universal` where it applies. For a test or a
-script, add `check(t1, c1)` and `discovery_evidence(t1, system)`, and run
-`orbit-kb run t1 -- CMD`.
+**Record:** the claims, as in DECOMPOSE, and `universal` where it applies. See
+`orbit-kb help discovery` (section SPECTRUM).
 
 #### FLYBY: explore combinations with SMT
 
@@ -701,12 +560,7 @@ each run's output as its log.
 SAT: a case exists within the encoding. UNSAT: no case exists within the encoding, its
 assumptions, and bounds. `unknown`: a gap.
 
-**Record:** `orbit-kb subject` for each model file and each solver log; `model(M, smt)`;
-`model_run(LOG, M, DIGEST)`, with the digest pasted, never typed:
-`D=$(orbit-kb subject M PATH)`, then `orbit-kb add "model_run(LOG, M, '$D')"`; each result as
-a `model_result` on its log; each `finding(F, KIND, model)`; an `example` for each kept
-witness; and, for a target model, `derived_from` and `encodes`. Give each solver run a new
-log; WD8 flags a reused one. File a `disproof` for each case that breaks a claim.
+**Record:** `orbit-kb help discovery` (section FLYBY). Give each solver run a new log.
 
 #### TRAJECTORY: explore sequences with TLA+
 
@@ -741,9 +595,7 @@ DISPROVE is shared with the build orbit. In discovery, a fresh subagent sees onl
 report, the claims, and the models. It tries other inputs, orders of steps, larger bounds,
 removed assumptions, old or malformed data, and probes of the current system.
 
-**Record:** a `disproof`. A counterexample goes in the verdict, as
-`refuted(Counterexample)` (see DISPROVE in the build orbit). Also add it as an `example`,
-because the build orbit turns each counterexample into a test case.
+**Record:** a `disproof`, and the counterexample as an `example` (section DISPROVE).
 
 #### GO / NO-GO: a weighted vote
 
@@ -774,25 +626,9 @@ the decision.
 6. Only the human changes the scope or raises the budget. On GO, write the ticket in plain
    prose.
 
-**Record:** CHOICE is `go`, `no_go`, or `hold`. The round is 1 at the first vote. After each
-HOLD, the next vote is one round more. r1 is the request.
-
-1. Your vote, before you give the report: `orbit-kb attest vote r1 'vote(1, CHOICE)'`.
-   `orbit-kb report` does not show it until the human votes.
-2. The human's vote: `orbit-kb attest vote r1 'vote(1, CHOICE)' --by human`. After that,
-   `orbit-kb attest` refuses your vote in round 1.
-3. The outcome: `orbit-kb query 'gate(V)'`. The `Vote:` section of `orbit-kb report` shows
-   the three votes and the outcome.
-4. If `orbit-kb query gate_split` is true, run
-   `orbit-kb attest divergence h1 'hypothesis(h1)'`, and add a `note` on it that gives the
-   three votes.
-5. On GO, record the ticket file with `orbit-kb subject tk PATH`, add `ticket(tk)`, and
-   attest the human's `approval` of tk at `digest(current)`. On NO-GO, run
-   `orbit-kb attest decision h1 "no_go(h1, 'REASON')" --by human`. On HOLD, use
-   `hold(h1, 'WHAT IT WAITS FOR')`.
-
-The sealing guards against a mistake, not against a look. `orbit-kb query` and `kb.pl` show
-your vote. Do not read the human's vote before you vote.
+**Record:** `orbit-kb help discovery` (section GATE). The rounds: round 1 is the first vote,
+and each HOLD adds one. The sealing guards against a mistake, not against a look: `orbit-kb
+query` and `kb.pl` show your vote. Do not read the human's vote before you vote.
 
 ### Asking the human
 
@@ -804,9 +640,7 @@ Ask as in "Ask first, or build on default assumptions". Also:
 - Questions that no evidence raised stay dormant, with their defaults, in the ticket.
 - When stakeholders conflict, the decision owner decides.
 
-**Record:** `question`, `assumed`, and `raised_by(Q, X)`, where X is the finding or
-hypothesis that raised Q. Then each `answer(Q, VALUE, human)`, and `lap_done(N)` when the round ends.
-`question_waits(Q)` lists each raised question that has no answer.
+**Record:** `orbit-kb help discovery` (section ASKING).
 
 ### The discovery report
 

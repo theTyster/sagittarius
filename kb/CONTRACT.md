@@ -571,7 +571,7 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | `show [claims\|questions\|open\|disclosures\|extensions\|all]` | Plain-text listing. The default is `all`. `open` lists `to_ask`, `stale`, and `contested`, plus `under` and `over` when build is loaded. |
 | `report` | A delivery skeleton with these sections in this order: `Delivered:` (placeholder); `Claims:` (each current claim with `fulfilled` or `under` when build is loaded, and its checks); `Guesses:` (questions whose default no human answered); `Disclosures:`; `Not checked:` (current claims with no check); `Open:` (`to_ask`, stale approvals, `over`); `To land:` (placeholder). Use short, plain sentences. |
 | `doctor` | Check `swipl`, `scasp` (its location and version), and the library directory, and print a fix step for anything missing. Then run a known-answer self-test on both engines: the H1 helper form must be false, the H2 program must have no answer, the H3 program must answer exactly k2, k3, and k4 with `-n 0`, and the H1 bad form must be flagged by E12. Report each result. Exit 2 if anything is missing or a self-test fails. |
-| `help [COMMAND]` | Usage. The general help explains H1 and H2 in a few plain sentences. |
+| `help [COMMAND\|TOPIC]` | Usage. The general help starts with a "How to use" block (the order of the commands, and one line for each topic), then lists the commands and explains H1 and H2 in a few plain sentences. A TOPIC is `core`, `build`, `discovery`, `codes`, or `answers`. Its text is the file `help/TOPIC.txt` in the library directory. An unknown name exits 2. `init` prints a `Next:` line that names `help core`. `uses discovery` prints a `Next:` line that names `lint` and `help discovery`. |
 
 ## Lint
 
