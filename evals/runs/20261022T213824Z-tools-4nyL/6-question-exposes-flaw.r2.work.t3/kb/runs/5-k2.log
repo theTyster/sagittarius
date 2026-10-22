@@ -1,0 +1,15 @@
+% orbit-kb run 5 check=k2 result=pass exit=0 time=2026-10-22T21:39:51Z cmd=/tmp/sag_scratch/rename_run.sh
+.F.
+======================================================================
+FAIL: test_live_tracker_json_format (test_report.ReportTest.test_live_tracker_json_format)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.MjPTH4NA5X/test_report.py", line 38, in test_live_tracker_json_format
+    self.assertIn("state", issue)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 'state' not found in {'id': 101, 'title': 'Login page times out', 'status': 'open'}
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+FAILED (failures=1)

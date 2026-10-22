@@ -1,0 +1,6 @@
+% orbit-kb run 6 check=k1 result=pass exit=0 time=2026-10-22T21:39:51Z cmd=/tmp/sag_scratch/mutate_run.sh
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+OK
