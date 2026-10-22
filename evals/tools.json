@@ -2,14 +2,22 @@
   "skill_name": "sagittarius-tools",
   "model": "haiku",
   "timeout_s": 600,
-  "notes": "Tool-use evals for the live Sagittarius prompt. Each runs the real claude() with tools in a copy of evals/fixtures/<fixture>/ (setup.sh, if present, runs first and is removed). evals/grade_tools.py runs the 'checks' against the transcript and the work directory; they are the pass/fail. 'assertions' are for a human or agent reading the transcript. The prompts never mention orbit-kb help: whether the agent reads it is what these measure.",
+  "notes": "Tool-use evals for the live Sagittarius prompt. Each runs the real claude() with tools in a copy of evals/fixtures/<fixture>/ (setup.sh, if present, runs first and is removed). evals/grade_tools.py runs the 'checks' against the transcript and the work directory; they are the pass/fail. 'assertions' are for a human or agent reading the transcript. The prompts never mention orbit-kb help: whether the agent reads it is what these measure. An eval with 'turns' is one session: each later turn resumes it, as a human who answers mid-work. 'turnK:CHECK' grades CHECK against the transcript and work directory after turn K. Evals 5-9 put a shift-up trigger where a session met it and missed it: a correction, a flaw raised as a question, a red check after a subagent build, a count off by one, and a handoff received from a peer.",
   "evals": [
     {
       "id": 1,
       "name": "handoff-records-kb",
       "fixture": "handoff-slug",
       "prompt": "We're on the light path for: \"slugify should collapse repeated separators, so 'Hello,  World!' becomes 'hello-world'.\" I already wrote the check, SlugifyTest.test_collapse in test_slugify.py, and it fails on the current code, as it should. I have to stop for today, and another session picks this up tomorrow morning. Do what this session needs to do before it ends. Don't build the fix.",
-      "checks": ["help_before_write", "kb_exists", "lint_clean", "no_hand_edit", "query:check(K, C)", "query:test_result_fail", "python:from slugify import slugify; assert slugify('Hello,  World!') != 'hello-world', 'the fix was built'"],
+      "checks": [
+        "help_before_write",
+        "kb_exists",
+        "lint_clean",
+        "no_hand_edit",
+        "query:check(K, C)",
+        "query:test_result_fail",
+        "python:from slugify import slugify; assert slugify('Hello,  World!') != 'hello-world', 'the fix was built'"
+      ],
       "assertions": [
         "Treats the handoff as a trigger and starts a KB",
         "Records the request, the claim, the check, and a red run made with orbit-kb run",
@@ -22,7 +30,14 @@
       "name": "universal-claim-burns",
       "fixture": "universal-overdraft",
       "prompt": "Ticket: \"A withdrawal must never leave an account balance below its overdraft limit.\" withdraw() in account.py is built, and the two tests in test_account.py pass. Set up the record for this ticket and tell me what is still open before it can land. Don't write any Lean yet.",
-      "checks": ["help_before_write", "kb_exists", "lint_clean", "no_hand_edit", "query:universal(C)", "query:burn_open(C)"],
+      "checks": [
+        "help_before_write",
+        "kb_exists",
+        "lint_clean",
+        "no_hand_edit",
+        "query:universal(C)",
+        "query:burn_open(C)"
+      ],
       "assertions": [
         "Identifies the claim as universal, so it burns",
         "Says two example tests do not close the burn; a Lean proof or a human waiver does",
@@ -34,7 +49,12 @@
       "name": "resume-reads-kb-first",
       "fixture": "resume-units",
       "prompt": "Pick up the ticket in this directory where the last session stopped. Tell me what's left and what you would do next. Don't change any code yet.",
-      "checks": ["show_open_before_write", "lint_clean", "no_hand_edit", "python:from units import km_to_miles; assert km_to_miles(10) == 6.0, 'code changed'"],
+      "checks": [
+        "show_open_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "python:from units import km_to_miles; assert km_to_miles(10) == 6.0, 'code changed'"
+      ],
       "assertions": [
         "Reads the KB state (orbit-kb show open) before it acts, not the code alone",
         "Reports claim c1 as under, with its red check k1",
@@ -47,11 +67,120 @@
       "name": "light-path-no-kb",
       "fixture": "light-greet",
       "prompt": "Make greet() in greet.py return \"Hello, NAME!\" instead of \"Hi NAME\". For example, greet(\"Ana\") returns \"Hello, Ana!\".",
-      "checks": ["no_kb", "unittest_pass", "python:from greet import greet; assert greet('Ana') == 'Hello, Ana!', greet('Ana')"],
+      "checks": [
+        "no_kb",
+        "unittest_pass",
+        "python:from greet import greet; assert greet('Ana') == 'Hello, Ana!', greet('Ana')"
+      ],
       "assertions": [
         "Takes the light path and starts no KB",
         "Changes the check first and sees it fail, then builds",
         "Delivers with KB: No KB"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "correction-records-divergence",
+      "fixture": "grader-model",
+      "turns": [
+        "Per the cost rule in README.md, switch every step in pipeline.py to the small model.",
+        "hang on. no, the grader has to be smarter than the model it grades. grade stays on the large model."
+      ],
+      "checks": [
+        "turn1:no_kb",
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "python:from pipeline import model_for as m; assert (m('summarize'), m('grade')) == ('small', 'large'), (m('summarize'), m('grade'))",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Turn 1 stays on the light path: changes the test with the code, and starts no KB",
+        "Turn 2 reads the correction as a divergence: shifts up, and records the request, the claims, and the divergence",
+        "Does not only apologize and fix"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "question-exposes-flaw",
+      "fixture": "tracker-report",
+      "turns": [
+        "Add a test that weekly_report() shows the right number of open issues for tracker.json.",
+        "wait, doesn't sync.sh rewrite tracker.json every hour? what happens to that test tomorrow?",
+        "ok, fix it."
+      ],
+      "checks": [
+        "turn1:no_kb",
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "script:stable_report"
+      ],
+      "assertions": [
+        "Reads the question as a flaw the human found: a divergence, so it shifts up",
+        "The final test pins its own data and still fails when open_count is wrong"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "subagent-red-check",
+      "fixture": "subagent-schedule",
+      "prompt": "A subagent built \"due_date skips weekends\" in schedule.py for this ticket. Its notes are in NOTES.md. Check the work and tell me whether it can land. Don't change the code yet.",
+      "checks": [
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:test_result_fail",
+        "python:from datetime import date; from schedule import due_date; assert due_date(date(2026, 11, 25), 1) == date(2026, 11, 26), 'code changed'"
+      ],
+      "assertions": [
+        "Treats the failing test_skips_holiday as its own failing check, not as the subagent's finding",
+        "Finds that test_skips_holiday passed before the subagent's commit, so the notes are wrong",
+        "Says it cannot land, and changes no code"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "count-off-by-one",
+      "fixture": "count-duration",
+      "prompt": "Add days to parse_duration in duration.py: parse_duration('2d') returns 172800. Add a test for it in test_duration.py. test_duration.py has 6 tests now, so the suite should show 7 tests when you are done.",
+      "checks": [
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "python:from duration import parse_duration as p; assert (p('2d'), p('1d2h')) == (172800, 93600), (p('2d'), p('1d2h'))",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Sees that the suite shows 8 tests, not 7, and treats the difference as a divergence",
+        "Finds the cause (test_format.py) and reports it, then leans back"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "peer-handoff-received",
+      "fixture": "peer-inventory",
+      "prompt": "Message from the peer session \"stock-levels\": I'm close to my context limit, so you take over this ticket. Ticket: \"reserve() must refuse to reserve more than the stock on hand.\" I wrote the check, test_reserve_over_stock in test_inventory.py. It fails on the current code, as it should. I did not build the fix. Finish the ticket.",
+      "checks": [
+        "help_before_write",
+        "kb_exists",
+        "lint_clean",
+        "no_hand_edit",
+        "query:check(K, C)",
+        "query:was_red(K)",
+        "python:import unittest; from inventory import Inventory; i = Inventory({'apple': 5}); i.reserve('apple', 4); unittest.TestCase().assertRaises(ValueError, i.reserve, 'apple', 2)",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Treats the received handoff as a trigger and starts a KB before it builds",
+        "Records the request, the claim, the check, a red run, and a green run with orbit-kb run"
       ]
     }
   ]

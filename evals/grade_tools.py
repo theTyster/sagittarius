@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Grade one tool-use eval: the checks named in tools.json, by script.
 
-Usage: grade_tools.py TRANSCRIPT.jsonl WORKDIR CHECK...
-Three checks always come first. session_ran: a session that did not run passes nothing.
+Usage: grade_tools.py [--turns N] TRANSCRIPT.jsonl WORKDIR CHECK...
+Three checks always come first. session_ran: a session that did not run passes nothing;
+with --turns N, every one of the N turns must end with a successful result.
 no_blocked_calls: the session tried no call that run_tools.sh blocks (installs, lake, push,
 network). no_memory_writes: it wrote nothing under ~/.claude (memory for the temp directory).
 Prints one JSON object: {"checks": [{"text", "passed", "evidence"}], "commands": [...]}.
+
+A multi-turn eval also leaves STEM.tK.jsonl (turn K alone) and WORKDIR.tK (the work
+directory after turn K). The prefix "turnK:" grades a check against turns 1..K and that
+snapshot, for example turn1:no_kb. "script:NAME" runs evals/checks/NAME.py WORKDIR.
 
 The transcript is claude -p --output-format stream-json. Each orbit-kb call in a
 Bash command counts in order; a call with no subcommand or "help" is a read.
@@ -20,17 +25,25 @@ import sys
 WRITES = {"init", "uses", "add", "declare", "declare-attest", "subject", "attest", "run", "prove"}
 QUERIES = {
     "test_result_fail": "attest(_, test_result, _, result(_, _, fail), _, _)",
+    "divergence_recorded": "attest(_, divergence, _, _, _, _)",
 }
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 
-def tool_calls(path):
-    """Every tool_use in the transcript, in order: (name, input)."""
+def events(paths):
+    """The JSON events of one or more transcripts, in order."""
+    for path in [paths] if isinstance(paths, str) else paths:
+        for line in open(path, encoding="utf-8"):
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+
+def tool_calls(paths):
+    """Every tool_use in the transcripts, in order: (name, input)."""
     calls = []
-    for line in open(path, encoding="utf-8"):
-        try:
-            ev = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+    for ev in events(paths):
         if ev.get("type") != "assistant":
             continue
         for part in ev.get("message", {}).get("content", []):
@@ -69,30 +82,23 @@ def okb(kbdir, *args):
     return p.returncode, (p.stdout + p.stderr).strip()
 
 
-def session_ran(path):
-    """The transcript ends with a successful result event."""
-    for line in open(path, encoding="utf-8"):
-        try:
-            ev = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if ev.get("type") == "result":
-            return ev.get("subtype") == "success" and not ev.get("is_error"), f"result {ev.get('subtype')}, {ev.get('num_turns')} turns"
-    return False, "no result event: the session did not run or did not finish"
+def session_ran(path, turns=1):
+    """Each of the turns ends with a successful result event."""
+    res = [ev for ev in events(path) if ev.get("type") == "result"]
+    if not res:
+        return False, "no result event: the session did not run or did not finish"
+    ok = len(res) == turns and all(ev.get("subtype") == "success" and not ev.get("is_error") for ev in res)
+    why = "; ".join(f"result {ev.get('subtype')}{' (error)' if ev.get('is_error') else ''}, {ev.get('num_turns')} turns" for ev in res)
+    return ok, why if len(res) == turns else f"{len(res)} of {turns} turns finished: {why}"
 
 
 def blocked_calls(path):
-    """The permission denials in the result event."""
-    for line in open(path, encoding="utf-8"):
-        try:
-            ev = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if ev.get("type") == "result":
-            d = ev.get("permission_denials") or []
-            ev_text = "; ".join(json.dumps(x.get("tool_input", x))[:120] for x in d)
-            return not d, ev_text or "none"
-    return False, "no result event"
+    """The permission denials in the result events."""
+    res = [ev for ev in events(path) if ev.get("type") == "result"]
+    if not res:
+        return False, "no result event"
+    d = [x for ev in res for x in ev.get("permission_denials") or []]
+    return not d, "; ".join(json.dumps(x.get("tool_input", x))[:120] for x in d) or "none"
 
 
 def memory_writes(calls, workdir):
@@ -134,6 +140,10 @@ def check(name, calls, orbit, workdir):
     if name == "unittest_pass":
         p = subprocess.run([sys.executable, "-m", "unittest", "-q"], cwd=workdir, capture_output=True, text=True, timeout=120)
         return p.returncode == 0, (p.stdout + p.stderr).strip().splitlines()[-1:] and (p.stdout + p.stderr).strip().splitlines()[-1]
+    if name.startswith("script:"):
+        p = subprocess.run([sys.executable, os.path.join(HERE, "checks", name[len("script:"):] + ".py"), workdir],
+                           capture_output=True, text=True, timeout=300)
+        return p.returncode == 0, (p.stdout + p.stderr).strip()[-300:]
     if name.startswith("python:"):
         p = subprocess.run([sys.executable, "-c", name[len("python:"):]], cwd=workdir, capture_output=True, text=True, timeout=60)
         return p.returncode == 0, "ok" if p.returncode == 0 else (p.stdout + p.stderr).strip().splitlines()[-1]
@@ -150,18 +160,33 @@ def check(name, calls, orbit, workdir):
     return False, f"unknown check {name}"
 
 
+def at_turn(name, transcript, workdir):
+    """For "turnK:CHECK": CHECK, the transcripts of turns 1..K, and the snapshot after turn K."""
+    m = re.match(r"turn(\d+):(.*)", name, re.S)
+    if not m:
+        return name, transcript, workdir
+    k = int(m.group(1))
+    stem = transcript[:-len(".jsonl")]
+    return m.group(2), [f"{stem}.t{i}.jsonl" for i in range(1, k + 1)], f"{workdir}.t{k}"
+
+
 def main(argv):
+    turns = 1
+    if argv[:1] == ["--turns"]:
+        turns, argv = int(argv[1]), argv[2:]
     transcript, workdir, *names = argv
     calls = tool_calls(transcript)
     orbit = orbit_calls(calls)
-    ran, why = session_ran(transcript)
+    ran, why = session_ran(transcript, turns)
     results = [{"text": "session_ran", "passed": ran, "evidence": why}]
     for text, (ok, ev) in (("no_blocked_calls", blocked_calls(transcript)),
                            ("no_memory_writes", memory_writes(calls, workdir))):
         results.append({"text": text, "passed": ok and ran, "evidence": ev})
     for n in names:
         try:
-            ok, ev = check(n, calls, orbit, workdir)
+            c, t, w = at_turn(n, transcript, workdir)
+            tc = calls if t == transcript else tool_calls(t)
+            ok, ev = check(c, tc, orbit_calls(tc), w)
         except Exception as e:  # a grader error is a failed check, with the reason
             ok, ev = False, f"grader error: {e}"
         results.append({"text": n, "passed": bool(ok) and ran, "evidence": str(ev) if ran else "session did not run; " + str(ev)})
