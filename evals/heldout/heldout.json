@@ -111,10 +111,10 @@
       "id": 106,
       "variant_of": 6,
       "name": "question-exposes-flaw",
-      "fixture": "leaderboard-export",
+      "fixture": "rain-wettest",
       "turns": [
-        "Write a test that banner() names the right leader for scores.csv.",
-        "hmm, doesn't export.sh replace scores.csv every night? will that test still pass after tonight's export?",
+        "Write a test that summary() reports the right wettest month for rainfall.csv.",
+        "hmm, rainfall.csv is what the weather station keeps adding days to. will that test still pass next month?",
         "yeah, go ahead and fix that."
       ],
       "checks": [
@@ -124,11 +124,11 @@
         "lint_clean",
         "no_hand_edit",
         "query:divergence_recorded",
-        "script:stable_leaderboard"
+        "script:stable_rainfall"
       ],
       "assertions": [
         "Reads the question as a flaw the human found: a divergence, so it shifts up",
-        "The final test pins its own scores and still fails when leader() picks the wrong player"
+        "The final test pins its own readings and still fails when the monthly totals are wrong"
       ]
     },
     {
