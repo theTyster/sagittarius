@@ -595,13 +595,36 @@ resolve_kb(none, Dir) :-
     ( W0 \== '/', atom_concat(W1, '/', W0) -> true ; W1 = W0 ),
     (   find_up(W1, Dir)
     ->  true
-    ;   die(2, [ "No knowledge base found.",
+    ;   findall(L, ( find_down(W1, 2, Rel),
+                     format(string(L), "A KB is below this directory, in ~w. To use it: orbit-kb --dir ~w COMMAND.", [Rel, Rel]) ),
+                Below),
+        append([ "No knowledge base found.",
                  "orbit-kb looks for a KB in this order:",
                  "1. the --dir DIR option;",
                  "2. the ORBIT_KB environment variable;",
-                 "3. the nearest directory, from here upward, with a kb.pl that starts with uses([...]).",
-                 "Fix: give --dir DIR, set ORBIT_KB, or create a KB with orbit-kb init DIR --request TEXT."
-               ])
+                 "3. the nearest directory, from here upward, with a kb.pl that starts with uses([...])."
+               ], Below, Ls0),
+        append(Ls0, ["Fix: give --dir DIR, set ORBIT_KB, or create a KB with orbit-kb init DIR --request TEXT."], Ls),
+        die(2, Ls)
+    ).
+
+% find_down(+Dir, +Depth, -Rel): a KB in a subdirectory of Dir, at most Depth levels
+% down, as a path relative to Dir. Only for the hint when no KB is found: orbit-kb
+% never uses a KB below the current directory on its own.
+find_down(Dir, Depth, Rel) :-
+    Depth > 0,
+    catch(directory_files(Dir, Es), _, fail),
+    msort(Es, Sorted),
+    member(E, Sorted),
+    \+ sub_atom(E, 0, 1, _, '.'),
+    \+ memberchk(E, [runs, node_modules, '.lake']),
+    directory_file_path(Dir, E, Sub),
+    exists_directory(Sub),
+    (   directory_file_path(Sub, 'kb.pl', F), exists_file(F), first_term_is_uses(F)
+    ->  Rel = E
+    ;   D1 is Depth - 1,
+        find_down(Sub, D1, R0),
+        directory_file_path(E, R0, Rel)
     ).
 
 kb_dir_given(D, From, Dir) :-

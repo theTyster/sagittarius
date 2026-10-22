@@ -542,7 +542,10 @@ KB resolution, in order:
 3. the nearest parent of the current directory, or the directory itself, that holds a
    `kb.pl` whose first term is `uses(_)`.
 
-If none is found, exit 2 with a message that names all three options.
+If none is found, exit 2 with a message that names all three options. If a subdirectory of
+the current directory, up to two levels down, holds such a `kb.pl`, the message also names it
+and the `--dir` that would use it (hidden directories, `runs`, `node_modules`, and `.lake` are
+skipped). orbit-kb never uses that KB on its own.
 
 Exit codes:
 

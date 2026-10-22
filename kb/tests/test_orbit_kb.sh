@@ -626,12 +626,16 @@ t_K2() { valid_copy; ORBIT_KB="$K" okb_env query 'current(c1)'; rc_is 0; out_has
 okb_env() { ( cd "$T" && ORBIT_KB="$ORBIT_KB" exec timeout "$TMO" "$OKB" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
 t_K3() { valid_copy; mkdir -p "$K/runs/deep"; okb_in "$K/runs/deep" query 'current(c1)'; rc_is 0 "walk from a subdirectory"; out_has '^true'
          okb_in "$K" query 'current(c1)'; rc_is 0 "walk from the KB directory itself"; }
-t_K4() { mkdir -p "$T/empty/sub"; okb_in "$T/empty/sub" query 'true'; rc_is 2; any_has -- '--dir'; any_has 'ORBIT_KB'; any_hasi 'parent|walk|kb\.pl'; }
+t_K4() { mkdir -p "$T/empty/sub"; okb_in "$T/empty/sub" query 'true'; rc_is 2; any_has '[-]-dir'; any_has 'ORBIT_KB'; any_hasi 'parent|walk|kb\.pl'; }
 t_K5() { mkdir -p "$T/x"; printf 'request(r1, a).\nuses([]).\n' > "$T/x/kb.pl"; okb_in "$T/x" query 'true'; rc_is 2 "kb.pl whose first term is not uses/1 is no KB"; }
 t_K6() { valid_copy; mkdir -p "$T/other"; okb_in "$T/other" --dir "$K" query 'current(c1)'; rc_is 0 "--dir wins over the cwd";
          mkdir -p "$T/kb2"; printf 'uses([]).\n' > "$T/kb2/kb.pl"
          ORBIT_KB="$T/kb2" okb_env --dir "$K" query 'current(c1)'; rc_is 0 "--dir wins over \$ORBIT_KB"; }
 t_K7() { okb --dir "$T/does-not-exist" query 'true'; rc_is 2 "--dir without a KB"; }
+t_K9() { valid_copy; mkdir -p "$T/proj" && cp -r "$K" "$T/proj/kb"; okb_in "$T/proj" query 'current(c1)'
+         rc_is 2 "a KB below is not used on its own"; any_has '[-]-dir kb' "the message names the KB below"
+         mkdir -p "$T/proj2/a/b/c" && cp -r "$K" "$T/proj2/a/b/c/kb"; okb_in "$T/proj2" query 'true'
+         rc_is 2; any_hasnt 'a/b/c' "three levels down is not searched"; }
 t_K8() { okb; rc_is 2 "no arguments"; okb frobnicate; rc_is 2 "unknown command"; }
 
 # ================================================================ I: init
@@ -1564,6 +1568,7 @@ run_test t_K5 K5 "kb.pl without uses/1 first is not a KB"
 run_test t_K6 K6 "resolution order: --dir, then \$ORBIT_KB"
 run_test t_K7 K7 "--dir with no KB exits 2"
 run_test t_K8 K8 "no command and unknown command exit 2"
+run_test t_K9 K9 "no KB here, but one below: the message names it"
 run_test t_I1 I1 "init creates kb.pl with uses and request, prints the path"
 run_test t_I2 I2 "second init exits 1 and keeps kb.pl"
 run_test t_I3 I3 "init --uses build"
