@@ -121,14 +121,14 @@ svg .ico{fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
 /* numbered steps with round counters */
 ol.steps{list-style:none;padding:0;counter-reset:s;gap:.6rem}
-ol.steps>li{counter-increment:s;display:grid;grid-template-columns:1.9rem 1fr;gap:.7rem;align-items:start}
-ol.steps>li::before{content:counter(s);display:grid;place-items:center;width:1.75rem;height:1.75rem;border-radius:50%;
-  border:1.5px solid var(--accent);color:var(--accent);font:600 .8rem var(--mono);margin-top:-.1rem}
+ol.steps>li{counter-increment:s;position:relative;padding-left:2.6rem;min-height:1.75rem}
+ol.steps>li::before{content:counter(s);position:absolute;left:0;top:-.1rem;display:grid;place-items:center;width:1.75rem;height:1.75rem;border-radius:50%;
+  border:1.5px solid var(--accent);color:var(--accent);font:600 .8rem var(--mono)}
 
 /* dated list: the counter becomes a colored dot per era */
 ol.dates{gap:.45rem}
-ol.dates>li{grid-template-columns:1.2rem 1fr}
-ol.dates>li::before{content:"";width:.7rem;height:.7rem;margin-top:.45rem;border-color:var(--line);background:var(--line)}
+ol.dates>li{padding-left:1.9rem;min-height:0}
+ol.dates>li::before{content:"";width:.7rem;height:.7rem;top:.45rem;border-color:var(--line);background:var(--line)}
 ol.dates>li.e1::before{border-color:var(--accent);background:var(--accent)}
 ol.dates>li.e0::before{border-color:var(--amber);background:transparent;border-style:dashed}
 ol.dates>li.e2::before{border-color:var(--mid);background:var(--mid)}
@@ -258,7 +258,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   h1,h2{background:none;color:#111;-webkit-text-fill-color:#111}
   .tile{backdrop-filter:none;-webkit-backdrop-filter:none;border:1px solid #bbb;border-top:3px solid var(--tone)}
   .tile,figure.diagram{break-inside:avoid}
-  figure.diagram svg{max-height:none}
+  figure.diagram svg{max-height:3.4in}
 }
 </style>
 </head>
@@ -567,7 +567,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <div class="tile"><span class="when">2 Apr</span><svg class="ic"><use href="#i-layers"/></svg><h3>The orbital plugins</h3>
       <p class="muted">A Prolog plugin that grows into a seven-stage pipeline with 17 sub-agents. Lesson: ten of ten theorems proven, and the code could still ship broken.</p></div>
     <div class="tile t-amber"><span class="when">13 Jun</span><svg class="ic"><use href="#i-speech"/></svg><h3>By hand</h3>
-      <p class="muted">The pipeline off, lean&#8209;lsp on. Nine Lean commits land in 24 minutes. A refutation pass over 51 axioms finds a false one.</p></div>
+      <p class="muted">The pipeline off, lean&#8209;lsp on. Nine Lean commits land in 24 minutes. A refutation pass over a spec's axioms finds a false one.</p></div>
     <div class="tile t-amber"><span class="when">11 Aug</span><svg class="ic"><use href="#i-mute"/></svg><h3>Raw Claude</h3>
       <p class="muted">One week with no process. Then the formal work comes back, and the hub's new rule is: humans specify, and choose the verification level.</p></div>
     <div class="tile t-mid"><span class="when">28 Aug</span><svg class="ic"><use href="#i-scale"/></svg><h3>The AIDLC</h3>
@@ -655,8 +655,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       </g>
       <!-- what happened: the middle empties -->
       <rect class="box" x="390" y="30" width="310" height="34" rx="8"/><text x="402" y="52" class="b">Tier 1</text>
-      <rect class="gap" x="390" y="80" width="310" height="34" rx="8" style="fill:none"/><text x="402" y="102" class="sub">Tier 2</text><text x="560" y="102" class="sub">drifts up</text>
-      <rect class="gap" x="390" y="130" width="310" height="34" rx="8" style="fill:none"/><text x="402" y="152" class="sub">Tier 3</text><text x="560" y="152" class="sub">drifts down</text>
+      <rect class="gap" x="390" y="80" width="310" height="34" rx="8" style="fill:none"/><text x="402" y="102" class="sub">Tier 2</text><text x="560" y="102" class="sub">drifts to Tier 1</text>
+      <rect class="gap" x="390" y="130" width="310" height="34" rx="8" style="fill:none"/><text x="402" y="152" class="sub">Tier 3</text><text x="560" y="152" class="sub">drifts to Tier 4</text>
       <rect class="box" x="390" y="180" width="310" height="34" rx="8"/><text x="402" y="202" class="b">Tier 4</text>
       <g class="ta">
         <circle cx="480" cy="47" r="5"/><circle cx="510" cy="47" r="5"/><circle cx="540" cy="47" r="5"/><circle cx="570" cy="47" r="5"/><circle cx="600" cy="47" r="5"/><circle cx="630" cy="47" r="5"/>
@@ -734,7 +734,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <use href="#i-target" x="306" y="216" width="24" height="24" class="ico" style="stroke:var(--accent)"/>
       <text x="338" y="233" class="b">the intent</text>
     </svg>
-    <figcaption>"Working together, the specificity of Lean and the structure of Prolog provide two lenses that the LLM and the human can use to determine the intent of the session." (Ty)</figcaption>
+    <figcaption>"Working together, the specificity of Lean and the structure of Prolog help provide two lenses that the LLM and the human can use to determine the intent of the session." (Ty)</figcaption>
   </figure>
   <dl class="gloss">
     <div><dt><svg class="ic"><use href="#i-forall"/></svg>Lean</dt><dd><mark>Demands specificity</mark>: a statement says exactly what is meant, or it does not check. LLMs use it more and more. In the orbit, it proves the claims that burn.</dd></div>
@@ -747,7 +747,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 <section class="slide" id="s15" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-box"/></svg>15 of 30 · The tool</div>
   <h2>What Orbital Shifting is</h2>
-  <p class="big">A system prompt, a command-line tool, and two engines it calls. <em>That's all.</em></p>
+  <p class="big">A system prompt, a command-line tool, and two tools it calls: Prolog and Lean. <em>That's all.</em></p>
   <figure class="diagram">
     <svg viewBox="0 0 740 230" role="img" aria-label="The system prompt, ORBITAL-SHIFTING.md, is appended to the agent's session. The agent talks with the human and runs orbit-kb. orbit-kb reads and writes a KB folder, asks SWI-Prolog with s(CASP) its queries, and asks Lean 4 to check proofs.">
       <defs><marker id="aht1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
@@ -841,8 +841,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <text x="195" y="70" text-anchor="middle" class="sub">claims, examples</text>
       <rect class="box chk" x="266" y="28" width="114" height="62" rx="10"/>
       <text x="323" y="48" text-anchor="middle" font-weight="600">Formal artifacts</text>
-      <text x="323" y="65" text-anchor="middle" class="sub">KB queries,</text>
-      <text x="323" y="78" text-anchor="middle" class="sub">checks, Lean</text>
+      <text x="323" y="64" text-anchor="middle" class="sub">KB queries,</text>
+      <text x="323" y="79" text-anchor="middle" class="sub">checks, Lean</text>
       <rect class="box" x="394" y="28" width="114" height="62" rx="10"/>
       <text x="451" y="52" text-anchor="middle" font-weight="600">Agent</text>
       <text x="451" y="70" text-anchor="middle" class="sub">findings or build</text>
@@ -939,7 +939,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <text x="464" y="233" class="b">Build orbit</text>
       <text x="464" y="249" class="sub">light path first</text>
       <path class="arr" marker-end="url(#ah10)" d="M550 194V212"/>
-      <text x="558" y="208" class="sub">GO</text>
+      <text x="561" y="207" class="sub">GO</text>
     </svg>
   </figure>
   <p>A report says something is wrong or wanted, but not what to change. A change request with open details stays in the build orbit: <mark>open details are questions to ask, not a reason for discovery.</mark></p>
@@ -1105,10 +1105,10 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <rect class="box chk" x="558" y="30" width="144" height="38" rx="6"/><text x="630" y="54" text-anchor="middle" class="b">Artifacts 0.24</text>
       <path d="M420 80V238" stroke="var(--amber)" stroke-width="2" stroke-dasharray="5 4"/>
       <text x="420" y="256" text-anchor="middle" class="sub" style="fill:var(--amber)">0.5: a win needs more</text>
-      <text x="20" y="104" class="b">GO</text><text x="20" y="120" class="sub">human + artifacts</text>
+      <text x="20" y="104" class="b">GO</text><text x="20" y="120" class="sub" style="font-size:10.5px">human + artifacts</text>
       <rect class="box hum" x="120" y="92" width="294" height="30" rx="6"/><rect class="box chk" x="414" y="92" width="144" height="30" rx="6"/><text x="267" y="112" text-anchor="middle" class="lbl">Human 0.49</text><text x="486" y="112" text-anchor="middle" class="lbl">Artifacts 0.24</text>
       <text x="568" y="112" class="b" style="fill:var(--good)">0.73 ✓</text>
-      <text x="20" y="156" class="b">HOLD</text><text x="20" y="172" class="sub">agent + artifacts</text>
+      <text x="20" y="156" class="b">HOLD</text><text x="20" y="172" class="sub" style="font-size:10.5px">agent + artifacts</text>
       <rect class="box" x="120" y="144" width="144" height="30" rx="6"/><rect class="box chk" x="264" y="144" width="144" height="30" rx="6"/><text x="192" y="164" text-anchor="middle" class="lbl">Agent 0.24</text><text x="336" y="164" text-anchor="middle" class="lbl">Artifacts 0.24</text>
       <text x="436" y="164" class="b" style="fill:var(--amber)">0.48: nothing wins without the human</text>
       <text x="20" y="208" class="b">HOLD</text><text x="20" y="224" class="sub">human alone</text>
@@ -1146,7 +1146,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <rect class="box hum" x="250" y="90" width="300" height="52" rx="10"/><use href="#i-clock" x="262" y="104" width="24" height="24" class="ico" style="stroke:var(--accent)"/>
       <text x="296" y="112" class="b">Human waiver, with a due time</text><text x="296" y="130" class="sub">the delivery says "not proved"</text>
       <path class="arr" marker-end="url(#ah16)" d="M550 34L618 66"/><path class="arr" marker-end="url(#ah16)" d="M550 116L618 84"/>
-      <rect class="box chk" x="620" y="42" width="116" height="66" rx="10"/><text x="678" y="68" text-anchor="middle" class="b">burn closed</text><text x="678" y="86" text-anchor="middle" class="sub">(a waiver only</text><text x="678" y="99" text-anchor="middle" class="sub">until it is due)</text>
+      <rect class="box chk" x="620" y="42" width="116" height="66" rx="10"/><text x="678" y="68" text-anchor="middle" class="b">burn closed</text><text x="678" y="85" text-anchor="middle" class="sub">(a waiver only</text><text x="678" y="100" text-anchor="middle" class="sub">until it is due)</text>
     </svg>
   </figure>
   <details class="more" open><summary>The rules and the steps</summary><div class="body">
@@ -1418,7 +1418,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <h2>The gradient</h2>
   <p class="big">No tier is picked up front. Each <em>signal</em> adds one rung, and each rung comes off when its cause is resolved.</p>
   <figure class="diagram">
-    <svg viewBox="0 0 740 306" role="img" aria-label="A ramp from light to rigorous with six rungs. Answer directly or tiny discovery, for a question or tiny report. Light path with one check, for any change request. Plus a KB, when questions pile up or on a handoff. Plus laps, on a divergence. Plus a Lean burn, for a universal claim or one contested twice. Full discovery with models and a vote, when a claim needs a model. A dashed arrow shows shifting up on a signal; a green arrow shows leaning back, rung by rung. The purple button of slide 28 sits at the light path; the discount codes of slide 29 span the KB to full discovery.">
+    <svg viewBox="0 0 740 306" role="img" aria-label="A ramp from light to rigorous with six rungs. Answer directly or tiny discovery, for a question or tiny report. Light path with one check, for any change request. Plus a KB, when questions pile up or on a handoff. Plus laps, on a divergence. Plus a Lean burn, for a universal claim or one contested twice. Full discovery in a KB, with models, and then the vote, when a claim needs a model. A dashed arrow shows shifting up on a signal; a green arrow shows leaning back, rung by rung. The purple button of slide 28 sits at the light path; the discount codes of slide 29 span the KB to full discovery.">
       <defs>
         <marker id="g29up" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--amber)"/></marker>
         <marker id="g29dn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--good)"/></marker>
@@ -1452,7 +1452,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <text x="553" y="222" text-anchor="middle" class="sub">or contested twice</text>
       <rect class="box amb" x="618" y="50" width="114" height="140" rx="10"/>
       <use href="#i-compass" x="628" y="60" width="20" height="20" class="ico" style="stroke:var(--amber)"/>
-      <text x="628" y="100" class="b">Full discovery</text><text x="628" y="117" class="sub">models, then vote</text>
+      <text x="628" y="100" class="b">Full discovery</text><text x="628" y="117" class="sub">models, in a KB</text>
       <text x="675" y="208" text-anchor="middle" class="sub">a claim needs</text>
       <text x="675" y="222" text-anchor="middle" class="sub">a model</text>
       <circle cx="132" cy="246" r="4" class="pb"/><text x="142" y="250" class="sub">purple button (28)</text>
@@ -1553,7 +1553,7 @@ and the review sections of thoughts/orbital-shifting-refinement-record.md.
 Slides 8 to 11 come from thoughts/orbital-shifting-history.md, which has the evidence (commit hashes).
 Slides 12 to 14 come from Ty's account in thoughts/orbital-shifting-why.md; quotes are Ty's words ("thats"
 spelled "that's"). The tier-drift diagram (slide 12), the bridge diagram (slide 13), and the lens diagram
-(slide 14) illustrate that account; dot counts and bar heights mean nothing.
+(slide 14) illustrate that account; dot counts, bar heights, and the tier count mean nothing (the AIDLC had four tiers, then three).
 Slides 15 and 16 come from the live prompt (Commands table), claude() and _orbital_system_prompt in
 shared/copy/.zshenv, and section 2 of shared/link/.local/share/orbit-kb/README.md (install steps, Lean only
 for prove). The command sequence on slide 16 is an
@@ -1573,7 +1573,7 @@ Slides 28 to 30 (the gradient) were drafted by sub-agents from the live prompt a
 Illustrations, glosses, and wording with no exact match in the live prompt:
 - Slide 9 chapter moments and slide 11 AIDLC beats: from the second excavation (pass 3), recorded in
   thoughts/orbital-shifting-history.md. "Ten of ten theorems proven, and the code could still ship broken"
-  is from a 2026-05-07 memory note; "nine Lean commits in 24 minutes" is nine hub commits on 06-18 (14:29 to 15:53);
+  is from a 2026-05-07 memory note; "nine Lean commits in 24 minutes" is nine hub commits on 06-18 (14:29 to 14:53);
   "182 theorems, no sorry, no axioms" is the #1200 Lean model on 09-09. Slide 11 sizes are git blob sizes
   (17-file tree at ad2ae50 = 40,081 bytes; 8b2d093 = 50,564; 15a3b04 = 67,201; ORBITAL-SHIFTING.md now =
   48,299).
