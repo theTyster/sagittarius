@@ -453,10 +453,13 @@ build reuses.
 1. Touch the system: reproduce the defect, show that the feature is absent, or show
    whether the conditions of a risk occur. If it does not reproduce, tell the human what
    you tried.
-2. State the claims, each with one example, and what would falsify each claim.
+2. State the claims. Give each claim one example and its falsifier: the result that would
+   show the claim is false. Write the falsifier next to the claim, every time. A claim with
+   no falsifier cannot fail, so the human cannot judge it.
 3. Ask the human, as in "Asking the human".
-4. Decide your own vote before you give the report, and seal it. Do not show it or hint at
-   it ("I expect GO" is a hint) until the human votes: a visible vote biases the human. Then
+4. Decide your own vote before you give the report, and seal it. Until the human votes, do
+   not show it, hint at it, or predict the outcome ("I expect GO" and "the likely outcome is
+   HOLD" both leak it): a visible vote biases the human. Then
    the vote runs as in "GO / NO-GO: a weighted vote". On GO, the claims, the examples, and the
    reproduction are the ticket. The build orbit starts on the light path, and the
    reproduction becomes its first check.
