@@ -59,11 +59,16 @@ a{color:var(--accent)}
 header.top{position:sticky;top:0;z-index:6;display:flex;flex-wrap:wrap;align-items:center;gap:.3rem 1.2rem;
   padding:.55rem 1.1rem;background:var(--bar);border-bottom:1px solid var(--line);
   -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+header.top .alt{font:.72rem var(--mono);letter-spacing:.08em;text-transform:uppercase;text-decoration:none;
+  padding:.2rem .7rem;border:1px solid var(--accent);border-radius:99px;white-space:nowrap}
+header.top .alt::after{content:" \2192"}
+.see{font:.78rem var(--mono);letter-spacing:.04em;margin:0}
+.see a::after{content:" \2192"}
 header.top strong{display:flex;align-items:center;gap:.6rem;font-size:.82rem;font-weight:600;letter-spacing:.02em;min-width:0}
 header.top strong::before{content:"";flex:none;width:1.15rem;height:.62rem;border:1.5px solid var(--accent);border-radius:50%;
   transform:rotate(-24deg);box-shadow:0 0 8px color-mix(in srgb,var(--accent) 50%,transparent);
   background:radial-gradient(circle at 50% 50%,var(--amber) 0 22%,transparent 26%)}
-nav{flex:1;min-width:0}
+nav{flex:1 1 16rem;min-width:0}
 nav ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.3rem;justify-content:flex-end}
 nav a{display:inline-flex;align-items:center;min-width:1.9rem;justify-content:center;padding:.12rem .45rem;border:1px solid var(--line);
   border-radius:99px;color:var(--muted);text-decoration:none;font:.76rem var(--mono);background:var(--card);transition:border-color .2s,color .2s}
@@ -302,6 +307,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 <div class="progress" aria-hidden="true"><i id="bar"></i></div>
 <header class="top">
   <strong>Orbital Shifting: a backgrounder and the current prompt</strong>
+  <a class="alt" href="essentials.html">Short version</a>
   <nav aria-label="Slide index">
     <ol>
       <li><a href="#s1"><span>1</span><span class="t"> Wrong spec</span></a></li>
@@ -346,13 +352,14 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <div class="num"><svg class="ic"><use href="#i-target"/></svg>1 of 30 · Background</div>
   <h1>The wrong-spec problem</h1>
   <p class="big">An agent can build <em>exactly</em> what it was told, and still build the wrong thing.</p>
-  <p>An <strong>agent</strong> is an AI that does the work, such as Claude Code. A <strong>spec</strong> is what it builds from: the request, the ticket, and the tests. If the spec is wrong, the work is wrong, and the agent may not know it.</p>
+  <p>An <strong>agent</strong> is an AI that does the work, such as <a href="https://claude.com/claude-code">Claude Code</a>. A <strong>spec</strong> is what it builds from: the request, the ticket, and the tests. If the spec is wrong, the work is wrong, and the agent may not know it.</p>
   <div class="tiles">
     <div class="tile t-bad"><svg class="ic"><use href="#i-x"/></svg><h3>Wrong</h3><p class="muted">The spec does not match how things really are.</p></div>
     <div class="tile t-amber"><svg class="ic"><use href="#i-question"/></svg><h3>Incomplete</h3><p class="muted">The spec leaves out a case that matters.</p></div>
     <div class="tile t-mid"><svg class="ic"><use href="#i-split"/></svg><h3>Read two ways</h3><p class="muted">The human and the agent read the same words and see different things.</p></div>
   </div>
   <p>The human is the source of intent. <mark>The human is not always the source of clarity.</mark></p>
+  <p class="see"><a href="essentials.html">In a hurry? The ten-slide version</a></p>
 </section>
 
 <section class="slide" id="s2" tabindex="-1">
@@ -567,7 +574,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <div class="tile"><span class="when">2 Apr</span><svg class="ic"><use href="#i-layers"/></svg><h3>The orbital plugins</h3>
       <p class="muted">A Prolog plugin that grows into a seven-stage pipeline with 17 sub-agents. Lesson: ten of ten theorems proven, and the code could still ship broken.</p></div>
     <div class="tile t-amber"><span class="when">13 Jun</span><svg class="ic"><use href="#i-speech"/></svg><h3>By hand</h3>
-      <p class="muted">The pipeline off, lean&#8209;lsp on. Nine Lean commits land in 24 minutes. A refutation pass over a spec's axioms finds a false one.</p></div>
+      <p class="muted">The pipeline off, <a href="https://github.com/oOo0oOo/lean-lsp-mcp">lean&#8209;lsp</a> on. Nine Lean commits land in 24 minutes. A refutation pass over a spec's axioms finds a false one.</p></div>
     <div class="tile t-amber"><span class="when">11 Aug</span><svg class="ic"><use href="#i-mute"/></svg><h3>Raw Claude</h3>
       <p class="muted">One week with no process. Then the formal work comes back, and the hub's new rule is: humans specify, and choose the verification level.</p></div>
     <div class="tile t-mid"><span class="when">28 Aug</span><svg class="ic"><use href="#i-scale"/></svg><h3>The AIDLC</h3>
@@ -737,8 +744,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <figcaption>"Working together, the specificity of Lean and the structure of Prolog help provide two lenses that the LLM and the human can use to determine the intent of the session." (Ty)</figcaption>
   </figure>
   <dl class="gloss">
-    <div><dt><svg class="ic"><use href="#i-forall"/></svg>Lean</dt><dd><mark>Demands specificity</mark>: a statement says exactly what is meant, or it does not check. LLMs use it more and more. In the orbit, it proves the claims that burn.</dd></div>
-    <div><dt><svg class="ic"><use href="#i-db"/></svg>Prolog</dt><dd>A <mark>queryable</mark>, self-contained store of facts, with logical constraints that keep the LLM and the human on what matters most. In the orbit, it is the KB.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-forall"/></svg><a href="https://lean-lang.org">Lean</a></dt><dd><mark>Demands specificity</mark>: a statement says exactly what is meant, or it does not check. LLMs use it more and more. In the orbit, it proves the claims that burn.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-db"/></svg><a href="https://github.com/SWI-Prolog/sCASP">Prolog</a></dt><dd>A <mark>queryable</mark>, self-contained store of facts, with logical constraints that keep the LLM and the human on what matters most. In the orbit, it is the KB.</dd></div>
   </dl>
 </section>
 
@@ -794,11 +801,48 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </figure>
   <blockquote><p>"My bet is that this version will stand the test of time and continue being used even if harnesses evolve in other ways."</p></blockquote>
   <p>Plain text and a shell command: <mark>no harness owns it</mark>. Prolog and Lean are older, and steadier, than any agent.</p>
+  <p class="see">Get the tools: <a href="https://www.swi-prolog.org">SWI-Prolog</a> · <a href="https://github.com/SWI-Prolog/sCASP">s(CASP)</a> · <a href="https://lean-lang.org">Lean</a> · <a href="https://github.com/leanprover/elan">elan</a> · <a href="https://github.com/theTyster/sharlean">sharlean</a> · <a href="https://github.com/oOo0oOo/lean-lsp-mcp">lean-lsp-mcp</a></p>
 </section>
 
 <section class="slide" id="s16" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-term"/></svg>16 of 30 · The tool</div>
   <h2>How to use it</h2>
+  <figure class="diagram">
+    <svg viewBox="0 0 740 196" role="img" aria-label="Five steps. Once: install the tools, then load the prompt. Every request: ask in your own words, answer at most three questions a round, and verify the result, not the tests. Behind the scenes, the agent runs orbit-kb when the work shifts up.">
+      <defs><marker id="ahu" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+      <text x="518" y="15" text-anchor="middle" class="sub">behind the scenes: the agent runs orbit-kb on a shift up</text>
+      <circle cx="74" cy="56" r="30" class="box amb"/><use href="#i-term" x="60" y="42" width="28" height="28" class="ico" style="stroke:var(--amber)"/>
+      <circle cx="222" cy="56" r="30" class="box amb"/><use href="#i-feather" x="208" y="42" width="28" height="28" class="ico" style="stroke:var(--amber)"/>
+      <circle cx="370" cy="56" r="30" class="box hum"/><use href="#i-speech" x="356" y="42" width="28" height="28" class="ico" style="stroke:var(--accent)"/>
+      <circle cx="518" cy="56" r="30" class="box hum"/><use href="#i-question" x="504" y="42" width="28" height="28" class="ico" style="stroke:var(--accent)"/>
+      <circle cx="666" cy="56" r="30" class="box chk"/><use href="#i-check" x="652" y="42" width="28" height="28" class="ico" style="stroke:var(--good)"/>
+      <path class="arr" marker-end="url(#ahu)" d="M106 56H188"/>
+      <path class="arr" marker-end="url(#ahu)" d="M254 56H336"/>
+      <path class="arr" marker-end="url(#ahu)" d="M402 56H484"/>
+      <path class="arr" marker-end="url(#ahu)" d="M550 56H632"/>
+      <text x="74" y="110" text-anchor="middle" class="b">Install</text>
+      <text x="74" y="128" text-anchor="middle" class="sub">Prolog, s(CASP),</text>
+      <text x="74" y="143" text-anchor="middle" class="sub">orbit-kb; Lean</text>
+      <text x="222" y="110" text-anchor="middle" class="b">Load the prompt</text>
+      <text x="222" y="128" text-anchor="middle" class="sub">ORBITAL-SHIFTING.md</text>
+      <text x="222" y="143" text-anchor="middle" class="sub">as system prompt</text>
+      <text x="370" y="110" text-anchor="middle" class="b">Ask</text>
+      <text x="370" y="128" text-anchor="middle" class="sub">in your own words</text>
+      <text x="518" y="110" text-anchor="middle" class="b">Answer</text>
+      <text x="518" y="128" text-anchor="middle" class="sub">at most 3 a round,</text>
+      <text x="518" y="143" text-anchor="middle" class="sub">defaults marked</text>
+      <text x="666" y="110" text-anchor="middle" class="b">Verify</text>
+      <text x="666" y="128" text-anchor="middle" class="sub">the result,</text>
+      <text x="666" y="143" text-anchor="middle" class="sub">not the tests</text>
+      <path d="M24 160V168H272V160" fill="none" style="stroke:var(--amber)" stroke-width="2"/>
+      <text x="148" y="188" text-anchor="middle" class="band">ONCE</text>
+      <path d="M320 160V168H716V160" fill="none" style="stroke:var(--accent)" stroke-width="2"/>
+      <text x="518" y="188" text-anchor="middle" class="band" style="fill:var(--accent)">EVERY REQUEST</text>
+    </svg>
+    <figcaption>Two setup steps, then three steps for each request. The human's part is to ask, answer, and verify.</figcaption>
+  </figure>
+  <p class="muted">You rarely type <code>orbit-kb</code> yourself. When the work shifts up, the agent runs it.</p>
+  <details class="more"><summary>Each step in full</summary><div class="body">
   <ol class="steps">
     <li><span><strong>Install once.</strong> SWI-Prolog with the s(CASP) pack, and <code>orbit-kb</code> on your PATH. Lean 4 only if you want proofs. Then run <code>orbit-kb doctor</code>.</span></li>
     <li><span><strong>Load the prompt.</strong> Pass <code>ORBITAL-SHIFTING.md</code> as the agent's system prompt. Ty's <code>claude</code> shell function appends it to every work session.</span></li>
@@ -806,7 +850,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <li><span><strong>Answer what it asks.</strong> At most three questions a round, each with options and a marked default.</span></li>
     <li><span><strong>Verify the result, not the tests.</strong> The delivery says what was checked, what was guessed, and what was not checked.</span></li>
   </ol>
-  <p class="muted">You rarely type <code>orbit-kb</code> yourself. When the work shifts up, the agent runs it.</p>
+  </div></details>
   <details class="more"><summary>What the agent runs</summary><div class="body">
 <pre class="report"><i>$</i> orbit-kb init kb --request 'Make the button purple' --uses build
 <i>$</i> orbit-kb add "claim(c1, introduce, 'Primary buttons are purple.')" "check(k1, c1)"
@@ -994,7 +1038,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <div class="tiles">
     <div class="tile"><svg class="ic"><use href="#i-question"/></svg><h3>Questions</h3><p class="muted">More than three, or an answer raises a new one.</p></div>
     <div class="tile t-bad"><svg class="ic"><use href="#i-split"/></svg><h3>A divergence</h3><p class="muted"><q>That is wrong.</q> Or a check, or the code, surprises the agent.</p></div>
-    <div class="tile t-amber"><svg class="ic"><use href="#i-flame"/></svg><h3>A claim burns</h3><p class="muted">It needs a proof (slide 25).</p></div>
+    <div class="tile t-amber"><svg class="ic"><use href="#i-flame"/></svg><h3>A claim burns</h3><p class="muted">It needs a proof (<a href="#s25">slide 25</a>).</p></div>
     <div class="tile t-mid"><svg class="ic"><use href="#i-handoff"/></svg><h3>A handoff</h3><p class="muted">Another session continues the work.</p></div>
   </div>
   <figure class="diagram">
@@ -1055,7 +1099,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <li><strong>BUILD:</strong> write the checks first, plus a screenshot check for a user surface. Run each <code>retire</code> and <code>introduce</code> check red. Never edit a check to make it pass.</li>
     <li><strong>FULFILL:</strong> review with fresh eyes, both ways. Under: a claim not fulfilled. Over: a change that serves no claim.</li>
     <li><strong>DISPROVE:</strong> try to break a claim on a small budget. The verdict is <code>refuted(Counterexample)</code>, <code>inconclusive</code>, or <code>abstained</code>. Do not weaken a claim to absorb a counterexample.</li>
-    <li><strong>BURN:</strong> prove a burning claim in Lean (slide 25). <strong>EXPLAIN:</strong> on request.</li>
+    <li><strong>BURN:</strong> prove a burning claim in Lean (<a href="#s25">slide 25</a>). <strong>EXPLAIN:</strong> on request.</li>
     <li>Two logic engines answer each KB query, and the tool compares them. If they disagree, stop and report both answers.</li>
   </ul>
   </div></details>
@@ -1072,7 +1116,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <rect class="box bad" x="10" y="32" width="150" height="62" rx="10"/><use href="#i-bug" x="22" y="42" width="22" height="22" class="ico" style="stroke:var(--bad)"/><text x="50" y="58" class="b">Reproduce</text><text x="22" y="82" class="sub">a red test</text>
       <rect class="box" x="190" y="32" width="150" height="62" rx="10"/><use href="#i-speech" x="202" y="42" width="22" height="22" class="ico" style="stroke:var(--fg)"/><text x="230" y="58" class="b">Claims</text><text x="202" y="82" class="sub">examples, falsifiers</text>
       <rect class="box hum" x="370" y="32" width="150" height="62" rx="10"/><use href="#i-human" x="382" y="42" width="22" height="22" class="ico" style="stroke:var(--accent)"/><text x="410" y="58" class="b">Ask</text><text x="382" y="82" class="sub">the human</text>
-      <rect class="box mid" x="550" y="32" width="90" height="62" rx="10"/><use href="#i-scale" x="562" y="42" width="22" height="22" class="ico" style="stroke:var(--mid)"/><text x="590" y="58" class="b">Vote</text><text x="562" y="82" class="sub">slide 24</text>
+      <rect class="box mid" x="550" y="32" width="90" height="62" rx="10"/><use href="#i-scale" x="562" y="42" width="22" height="22" class="ico" style="stroke:var(--mid)"/><text x="590" y="58" class="b">Vote</text><a href="#s24"><text x="562" y="82" class="sub" style="fill:var(--accent);text-decoration:underline">slide 24</text></a>
       <path class="arr" marker-end="url(#ah14)" d="M160 63H188"/><path class="arr" marker-end="url(#ah14)" d="M340 63H368"/><path class="arr" marker-end="url(#ah14)" d="M520 63H548"/><path class="arr" marker-end="url(#ah14)" d="M640 63H668"/>
       <rect class="box chk" x="670" y="32" width="80" height="62" rx="10"/><text x="710" y="58" text-anchor="middle" class="b">Build</text><text x="710" y="82" text-anchor="middle" class="sub">on GO</text>
       <path class="arr up" d="M85 94V124H710V96" marker-end="url(#ah14a)"/>
@@ -1083,7 +1127,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <details class="more" open><summary>The full discovery orbit</summary><div class="body">
   <ul>
     <li>Pin the report as one falsifiable hypothesis, then touch the system to reproduce it. If it does not reproduce, tell the human what was tried. Three laps by default.</li>
-    <li>Choose the cheapest tool that can falsify each claim: a reproduction or a test first; SMT (a solver for rules, permissions, limits, prices); TLA+ (a model checker for order of steps, retries, concurrency). A property for every input is <code>universal</code>, for BURN.</li>
+    <li>Choose the cheapest tool that can falsify each claim: a reproduction or a test first; <a href="https://github.com/Z3Prover/z3">SMT</a> (a solver for rules, permissions, limits, prices); <a href="https://lamport.azurewebsites.net/tla/tla.html">TLA+</a> (a model checker for order of steps, retries, concurrency). A property for every input is <code>universal</code>, for BURN.</li>
     <li>A finding from a model only is a lead, until a reproduction on the system confirms it.</li>
     <li>Ask only the questions that evidence raised: conflicts first, then surprises, then boundaries. When stakeholders conflict, the decision owner decides.</li>
     <li>Stop when discovery is ready, or the budget is spent. Out of budget is not ready: report what is known and not known. Then vote.</li>
@@ -1219,7 +1263,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 <section class="slide" id="s28" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-feather"/></svg>28 of 30 · The gradient</div>
   <h2>The lightest path</h2>
-  <p class="big">The five steps of slide 20, on one real ticket. <em>No KB.</em></p>
+  <p class="big">The five steps of <a href="#s20">slide 20</a>, on one real ticket. <em>No KB.</em></p>
   <figure class="diagram">
     <svg viewBox="-4 -2 728 206" role="img" aria-label="The purple button ticket on the light path, left to right. 1 Restate with one example. 2 Decide: build on defaults, no questions. 3 Write the check first: it fails, red. 4 Build one rule. 5 Run the check again: green, deliver with No KB. Then the human opens the checkout page, sees purple, and closes the ticket. Cost: minutes, and only the change and its test are touched.">
       <defs><marker id="l27a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
@@ -1560,6 +1604,10 @@ for prove). The command sequence on slide 16 is an
 illustration in the documented command forms.
 Slide numbers below are for the 30-slide version (2026-10-21 polish, after the readability review).
 Slide 2 (the five words) is the glossary that was on the philosophy slide, moved ahead of first use.
+Slide 16's five-step diagram (2026-10-22) restates its own step list; "once" and "every request" group the
+steps. External links point to the projects' own sites (SWI-Prolog, s(CASP), Lean, elan, Mathlib, Z3, TLA+,
+sharlean, lean-lsp-mcp, Claude Code). The short version, essentials.html, is generated from this file by
+build_essentials.py: rerun it after any edit here.
 Slides 28 to 30 (the gradient) were drafted by sub-agents from the live prompt and checked against it:
 - 28: the five light-path steps; "No KB"; the six delivery fields; the divergence and burn triggers. Illustration:
   "minutes", "one CSS rule", the screenshot line, and "dark mode" under Not checked.

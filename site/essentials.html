@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orbital Shifting Essentials</title>
+<style>
+/* Layout: a deep-space deck. Fixed bar on top, one slide per viewport, orbit motif in the corner.
+   Without JavaScript the slides stack as a normal scrolling page. */
+:root{
+  color-scheme: dark;
+  --bg:#060a18; --bg2:#0c1534; --fg:#e8edff; --muted:#aab5d8;
+  --card:rgba(18,28,66,.55); --line:#2b3a6c; --bar:rgba(6,10,24,.82);
+  --accent:#62e3f7; --amber:#ffb454; --good:#74e8ae; --bad:#ff9a9a; --warn:#ffb454; --mid:#b9adff;
+  --purple:#a78bfa; --hl:rgba(255,180,84,.30);
+  --svgfill:rgba(10,18,46,.9); --glow:5px; --code:#bfeaff;
+  --starc:rgba(255,255,255,.95); --star-op:1; --orbit-op:.2;
+  --neb1:rgba(70,100,230,.26); --neb2:rgba(0,200,220,.12); --neb3:rgba(255,160,70,.07);
+  --display:"Avenir Next","Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    color-scheme: light;
+    --bg:#f1f4fb; --bg2:#e4eaf8; --fg:#121a36; --muted:#475274;
+    --card:rgba(255,255,255,.8); --line:#c6d0e8; --bar:rgba(241,244,251,.88);
+    --accent:#0a6a88; --amber:#8a5200; --good:#17703f; --bad:#a82828; --warn:#8a5200; --mid:#5645c4;
+    --purple:#7c3aed; --hl:rgba(255,190,90,.45);
+    --svgfill:rgba(255,255,255,.95); --glow:0px; --code:#0a5069;
+    --starc:rgba(40,60,140,.0); --star-op:0; --orbit-op:.07;
+    --neb1:rgba(90,120,230,.14); --neb2:rgba(0,170,200,.08); --neb3:rgba(255,170,80,.08);
+  }
+}
+*{box-sizing:border-box}
+html{font-size:clamp(15px,.85vw + 5px,24px);scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;color:var(--fg);font:1rem/1.55 var(--display);overflow-x:hidden;
+  background:
+    radial-gradient(ellipse 70% 60% at 85% -10%,var(--neb1),transparent 70%),
+    radial-gradient(ellipse 60% 50% at -5% 105%,var(--neb2),transparent 70%),
+    radial-gradient(ellipse 40% 30% at 60% 110%,var(--neb3),transparent 70%),
+    linear-gradient(180deg,var(--bg),var(--bg2) 140%);
+  background-color:var(--bg);background-attachment:fixed}
+/* starfield */
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--star-op);
+  background:
+    radial-gradient(1px 1px at 23px 41px,var(--starc),transparent) 0 0/197px 173px,
+    radial-gradient(1.4px 1.4px at 91px 12px,var(--starc),transparent) 0 0/251px 229px,
+    radial-gradient(1px 1px at 140px 120px,rgba(180,220,255,.8),transparent) 0 0/313px 277px,
+    radial-gradient(1.8px 1.8px at 60px 200px,rgba(255,226,180,.9),transparent) 0 0/409px 383px;
+  animation:twinkle 9s ease-in-out infinite alternate}
+@keyframes twinkle{from{opacity:calc(var(--star-op) * .7)}to{opacity:var(--star-op)}}
+/* orbit motif: three tilted ellipses and a small body, bottom right */
+body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--orbit-op);
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800' fill='none'%3E%3Cg transform='rotate(-24 400 400)' stroke='%2362e3f7' stroke-width='1.2'%3E%3Cellipse cx='400' cy='400' rx='380' ry='150'/%3E%3Cellipse cx='400' cy='400' rx='290' ry='108' stroke-dasharray='3 9'/%3E%3Cellipse cx='400' cy='400' rx='200' ry='70'/%3E%3C/g%3E%3Ccircle cx='400' cy='400' r='34' fill='%23ffb454' fill-opacity='.5'/%3E%3Ccircle cx='712' cy='292' r='7' fill='%2362e3f7'/%3E%3C/svg%3E") no-repeat right -22vmin bottom -26vmin/92vmin}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:.3rem}
+
+/* top bar and progress */
+header.top{position:sticky;top:0;z-index:6;display:flex;flex-wrap:wrap;align-items:center;gap:.3rem 1.2rem;
+  padding:.55rem 1.1rem;background:var(--bar);border-bottom:1px solid var(--line);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+header.top .alt{font:.72rem var(--mono);letter-spacing:.08em;text-transform:uppercase;text-decoration:none;
+  padding:.2rem .7rem;border:1px solid var(--accent);border-radius:99px;white-space:nowrap}
+header.top .alt::after{content:" \2192"}
+.see{font:.78rem var(--mono);letter-spacing:.04em;margin:0}
+.see a::after{content:" \2192"}
+header.top strong{display:flex;align-items:center;gap:.6rem;font-size:.82rem;font-weight:600;letter-spacing:.02em;min-width:0}
+header.top strong::before{content:"";flex:none;width:1.15rem;height:.62rem;border:1.5px solid var(--accent);border-radius:50%;
+  transform:rotate(-24deg);box-shadow:0 0 8px color-mix(in srgb,var(--accent) 50%,transparent);
+  background:radial-gradient(circle at 50% 50%,var(--amber) 0 22%,transparent 26%)}
+nav{flex:1 1 16rem;min-width:0}
+nav ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.3rem;justify-content:flex-end}
+nav a{display:inline-flex;align-items:center;min-width:1.9rem;justify-content:center;padding:.12rem .45rem;border:1px solid var(--line);
+  border-radius:99px;color:var(--muted);text-decoration:none;font:.76rem var(--mono);background:var(--card);transition:border-color .2s,color .2s}
+nav a:hover,nav a[aria-current="true"]{border-color:var(--accent);color:var(--accent)}
+nav a[aria-current="true"]{font-weight:700;box-shadow:0 0 10px color-mix(in srgb,var(--accent) 35%,transparent)}
+nav .t{display:none}
+@media (min-width:900px){ nav .t{display:inline;white-space:pre} html:not(.js) nav a{border-radius:.5rem} html.js nav a:not([aria-current="true"]) .t{display:none} }
+.progress{display:none}
+html.js .progress{display:block;position:fixed;top:0;left:0;right:0;height:3px;z-index:20}
+.progress i{display:block;height:100%;transform-origin:0 50%;transform:scaleX(0);transition:transform .5s ease;
+  background:linear-gradient(90deg,var(--accent),var(--amber));box-shadow:0 0 10px var(--accent)}
+
+/* slides */
+main{position:relative;z-index:1}
+.slide{position:relative;z-index:1;display:flex;flex-direction:column;gap:1rem;outline:none;
+  padding-block:1.6rem 1.8rem;padding-inline:max(1.1rem,calc((100% - 62rem)/2));scroll-margin-top:4rem;
+  border-bottom:1px solid var(--line)}
+.slide:last-of-type{border-bottom:0}
+.slide>*{flex:none;margin:0;max-width:100%}
+.slide p,.slide li{max-width:72ch}
+.slide ul,.slide ol{padding-left:1.3rem;display:flex;flex-direction:column;gap:.5rem}
+.slide li::marker{color:var(--accent)}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.12;margin:0}
+h1{font-size:clamp(2.1rem,3.4vw + .8rem,3.6rem);font-weight:700;letter-spacing:-.02em}
+h2{font-size:clamp(1.8rem,2.6vw + .7rem,2.8rem);font-weight:700;letter-spacing:-.015em}
+h1,h2{background:linear-gradient(100deg,var(--fg) 40%,var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.08em}
+h3{font-size:1.1rem;font-weight:650;color:var(--accent)}
+.num{display:flex;align-items:center;gap:.5rem;font:.74rem var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--amber)}
+.num .ic{width:1.2rem;height:1.2rem}
+.lead{font-size:1.3rem;line-height:1.4;font-weight:450}
+strong{font-weight:650}
+mark{color:inherit;background:linear-gradient(transparent 58%,var(--hl) 58%);padding:0 .08em}
+.muted{color:var(--muted)}
+.big{font-size:clamp(1.35rem,1.5vw + .8rem,2rem);font-weight:600;line-height:1.28;text-wrap:balance;max-width:34ch}
+.big em{font-style:normal;color:var(--accent)}
+
+/* icons: a sprite of 24px stroke symbols */
+.ic{display:inline-block;width:1.15em;height:1.15em;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round;vertical-align:-.2em}
+svg .ico{fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* tiles: one idea each, icon on top, no nested boxes */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13.5rem),1fr));gap:.9rem}
+.tiles.wide{grid-template-columns:repeat(auto-fit,minmax(min(100%,19rem),1fr))}
+.tile{--tone:var(--accent);display:flex;flex-direction:column;gap:.35rem;padding:.85rem 1rem .95rem;border-radius:.8rem;
+  background:var(--card);border-top:3px solid var(--tone);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.tile>.ic{width:1.8rem;height:1.8rem;color:var(--tone)}
+.tile h3{color:var(--fg);font-size:1.05rem}
+.tile p{margin:0;max-width:none}
+.tile .muted{font-size:.94rem}
+.t-good{--tone:var(--good)} .t-bad{--tone:var(--bad)} .t-amber{--tone:var(--amber)} .t-mid{--tone:var(--mid)}
+.split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:1.4rem;align-items:start}
+.split>*{display:flex;flex-direction:column;gap:.7rem;min-width:0}
+.split>*>*{margin:0}
+
+/* numbered steps with round counters */
+ol.steps{list-style:none;padding:0;counter-reset:s;gap:.6rem}
+ol.steps>li{counter-increment:s;position:relative;padding-left:2.6rem;min-height:1.75rem}
+ol.steps>li::before{content:counter(s);position:absolute;left:0;top:-.1rem;display:grid;place-items:center;width:1.75rem;height:1.75rem;border-radius:50%;
+  border:1.5px solid var(--accent);color:var(--accent);font:600 .8rem var(--mono)}
+
+/* dated list: the counter becomes a colored dot per era */
+ol.dates{gap:.45rem}
+ol.dates>li{padding-left:1.9rem;min-height:0}
+ol.dates>li::before{content:"";width:.7rem;height:.7rem;top:.45rem;border-color:var(--line);background:var(--line)}
+ol.dates>li.e1::before{border-color:var(--accent);background:var(--accent)}
+ol.dates>li.e0::before{border-color:var(--amber);background:transparent;border-style:dashed}
+ol.dates>li.e2::before{border-color:var(--mid);background:var(--mid)}
+ol.dates>li.e3::before{border-color:var(--good);background:var(--good)}
+ol.dates>li>span{display:grid;grid-template-columns:7.6rem 1fr}
+ol.dates b{display:block;font:600 .85rem var(--mono);color:var(--amber)}
+
+/* glossary: term and meaning, no boxes */
+dl.gloss{margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,17rem),1fr));gap:.6rem 1.4rem}
+dl.gloss>div{display:flex;flex-direction:column;gap:.1rem}
+dl.gloss dt{display:flex;align-items:center;gap:.4rem;font-weight:650;color:var(--accent)}
+dl.gloss dd{margin:0;color:var(--muted);font-size:.94rem}
+
+/* chapter tiles: a date flag on top */
+.chapters{grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr))}
+.tile .when{font:600 .78rem var(--mono);letter-spacing:.06em;color:var(--tone)}
+
+/* chips */
+.chips{display:flex;flex-wrap:wrap;gap:.5rem;padding:0;margin:0;list-style:none}
+.slide ul.chips{flex-direction:row;padding-left:0}
+.chip{display:inline-flex;align-items:center;gap:.45rem;padding:.3rem .8rem;border:1px solid var(--line);border-radius:99px;
+  background:var(--card);font-size:.92rem}
+.chip .ic{color:var(--accent)}
+
+/* pull quote: a rule on the left, no box */
+blockquote{margin:0;padding:.15rem 0 .15rem 1.1rem;border-left:4px solid var(--accent);font-size:1.12rem}
+blockquote p{margin:.4em 0}
+blockquote.small{font-size:1rem}
+blockquote.small p{max-width:none}
+code{font:.88em var(--mono);color:var(--code);background:color-mix(in srgb,var(--accent) 10%,transparent);
+  border:1px solid color-mix(in srgb,var(--accent) 22%,transparent);border-radius:.3rem;padding:0 .3rem;overflow-wrap:anywhere}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;vertical-align:top;padding:.45rem .7rem;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+th{font:.72rem var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+
+/* a sample report, as the agent writes it */
+.report{margin:0;font:.88rem/1.7 var(--mono);background:var(--card);border-radius:.8rem;padding:.9rem 1.2rem;
+  border-left:3px solid var(--good);overflow-x:auto;white-space:pre}
+.report b{color:var(--accent);font-weight:600}
+.report i{color:var(--muted);font-style:normal}
+
+/* diagrams: drawn on the page, no frame */
+figure.diagram{margin:0;overflow-x:auto}
+figure.diagram svg{width:100%;min-width:600px;height:auto;max-height:48vh;display:block}
+@media (max-width:640px){
+    figure.diagram::before{content:"Swipe the diagram \2192";display:block;font:.72rem var(--mono);letter-spacing:.08em;color:var(--amber);margin-bottom:.3rem}
+}
+figure.diagram figcaption{font-size:.85rem;color:var(--muted);margin-top:.35rem;max-width:72ch}
+svg text{fill:var(--fg);font:13px var(--display)}
+svg .box{fill:var(--svgfill);stroke:var(--line);stroke-width:1.5}
+svg .hum{stroke:var(--accent);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--accent))}
+svg .chk{stroke:var(--good);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--good))}
+svg .bad{stroke:var(--bad);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--bad))}
+svg .mid{stroke:var(--mid);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--mid))}
+svg .amb{stroke:var(--amber);stroke-width:2;filter:drop-shadow(0 0 var(--glow) var(--amber))}
+svg .arr{stroke:var(--muted);stroke-width:2;fill:none}
+svg .arr.up{stroke:var(--amber);stroke-dasharray:6 4}
+svg .sub{fill:var(--muted);font-size:11.5px}
+svg .gap{stroke:var(--warn);stroke-width:2;stroke-dasharray:5 4}
+svg .band{fill:var(--amber);font:600 12px var(--mono);letter-spacing:.14em}
+svg .lbl{font-size:12px}
+svg .b{font-weight:600}
+svg .big{font-size:44px;font-weight:700}
+svg .pb{fill:var(--purple)}
+svg .gb{fill:var(--line)}
+svg .ln{fill:var(--line)}
+svg .tg{fill:var(--good)} svg .tb{fill:var(--bad)} svg .ta{fill:var(--accent)} svg .tm{fill:var(--muted)} svg .tam{fill:var(--amber)}
+.sources,.hint{font-size:.82rem;color:var(--muted)}
+
+/* expanders: open by default so the page reads in full without JavaScript. Flat: a dashed rule, no box. */
+details.more{border-top:1px dashed var(--line)}
+details.more>summary{cursor:pointer;list-style:none;padding:.6rem 0 .3rem;font:.76rem var(--mono);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:.6rem}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary::before{content:"+";display:inline-grid;place-items:center;width:1.2rem;height:1.2rem;border:1px solid var(--accent);border-radius:50%}
+details.more[open]>summary::before{content:"\2212"}
+details.more>.body{display:flex;flex-direction:column;gap:.8rem;padding:.4rem 0 .4rem}
+details.more>.body>*{flex:none;margin:0;max-width:100%}
+
+/* controls: only when JavaScript runs */
+.controls{display:none}
+html.js .controls{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.5rem 1.1rem;
+  background:var(--bar);border-top:1px solid var(--line);position:relative;z-index:6}
+.controls button{font:.82rem var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:.4rem 1.1rem;border:1px solid var(--line);
+  border-radius:99px;background:var(--card);color:var(--fg);cursor:pointer;transition:border-color .2s}
+.controls button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.controls button:disabled{opacity:.4;cursor:default}
+.controls .ctr{display:flex;flex-direction:column;align-items:center;gap:.05rem;text-align:center}
+#pos{font:.8rem var(--mono);color:var(--fg)}
+.keys{font-size:.72rem;color:var(--muted)}
+#more{margin-left:.8rem;color:var(--amber);font:.72rem var(--mono);letter-spacing:.08em;text-transform:uppercase;min-height:1em}
+@media (max-width:700px){ .keys{display:none} }
+.nojs{display:block}
+html.js .nojs{display:none}
+
+/* slide mode */
+html.js,html.js body{height:100%;overflow:hidden}
+html.js body{display:flex;flex-direction:column}
+html.js main{flex:1;min-height:0}
+html.js .slide{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;justify-content:safe center;border:0;
+  opacity:0;visibility:hidden;transform:translateY(14px) scale(.995);
+  transition:opacity .45s ease,transform .45s ease,visibility 0s .45s}
+html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opacity .45s ease,transform .45s ease,visibility 0s}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  body::before{animation:none}
+  html.js .slide,html.js .slide.active,.progress i{transition:none}
+}
+@media (max-width:600px){
+  .lead{font-size:1.15rem}
+  .slide{padding-block:1.4rem 2rem}
+}
+
+/* print: one slide per page, plain colors */
+@page{size:13.333in 7.5in;margin:.4in}
+@media print{
+  html,html.js,html.js body{height:auto;overflow:visible;font-size:11pt}
+  body{background:#fff!important;color:#111}
+  body::before,body::after,header.top,.controls,.progress,.nojs{display:none!important}
+  :root{--fg:#111;--muted:#444;--card:#fff;--line:#bbb;--accent:#0a5069;--amber:#7a4a00;--good:#17703f;--bad:#a82828;--warn:#7a4a00;--mid:#4a3bb0;--purple:#6d28d9;--hl:#ffe2a8;--svgfill:#fff;--glow:0px;--code:#0a5069}
+  html.js main{position:static}
+  html.js .slide,html.js .slide.active{position:static;opacity:1;visibility:visible;transform:none;overflow:visible;
+    break-after:page;page-break-after:always;min-height:0;padding:0;justify-content:flex-start}
+  .slide:last-of-type{break-after:auto}
+  h1,h2{background:none;color:#111;-webkit-text-fill-color:#111}
+  .tile{backdrop-filter:none;-webkit-backdrop-filter:none;border:1px solid #bbb;border-top:3px solid var(--tone)}
+  .tile,figure.diagram{break-inside:avoid}
+  figure.diagram svg{max-height:3.4in}
+}
+</style>
+</head>
+<body>
+<!-- Icon sprite. Each symbol is a 24px stroke icon; color comes from currentColor. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-human" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></symbol>
+  <symbol id="i-agent" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9.5 13v2M14.5 13v2M2 13v3M22 13v3"/><circle cx="12" cy="3.5" r="1"/></symbol>
+  <symbol id="i-formal" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 14l2 2 4-4.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 3c.5 3.5 6 5.5 6 11a6 6 0 0 1-12 0c0-2.8 1.6-4.2 2.4-6.2C9.6 9.4 11 10.6 11 12.6 12.4 11 12.6 6.6 12 3z"/></symbol>
+  <symbol id="i-orbit" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10.5" ry="4.5" transform="rotate(-24 12 12)"/><circle cx="12" cy="12" r="3"/><circle cx="20.6" cy="8.3" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></symbol>
+  <symbol id="i-hammer" viewBox="0 0 24 24"><path d="M13 7l4 4M4 20l8.5-8.5"/><path d="M10.5 5.5l3-3 8 8-3 3z"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 4v16M7 20h10M4 7h16"/><path d="M6 7l-3 6h6zM18 7l-3 6h6z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-feather" viewBox="0 0 24 24"><path d="M20 4C12 4 6 10 6 18M20 4c-1 8-6 13-14 14M4 20l2-2M9.5 14.5h6"/></symbol>
+  <symbol id="i-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.9-.9 1.6v.4"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></symbol>
+  <symbol id="i-handoff" viewBox="0 0 24 24"><path d="M4 8h14l-3-3M20 16H6l3 3"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-split" viewBox="0 0 24 24"><path d="M12 21v-8M12 13L5 4M12 13l7-9"/><path d="M4 8V4h4M20 8V4h-4"/></symbol>
+  <symbol id="i-loud" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9.5l4 5M21 9.5l-4 5"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-lens" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.4-4.4"/></symbol>
+  <symbol id="i-speech" viewBox="0 0 24 24"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M8 10.5h8"/></symbol>
+  <symbol id="i-forall" viewBox="0 0 24 24"><path d="M5 4l7 16 7-16M8.2 11.5h7.6"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M3 7.5l9-4.5 9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5l9 4.5 9-4.5M12 12v9"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="13" rx="5"/><path d="M12 11v9M4 11h3M17 11h3M4 17h3M17 17h3M9 4l1.5 3M15 4l-1.5 3"/></symbol>
+  <symbol id="i-path" viewBox="0 0 24 24"><circle cx="5" cy="18" r="2"/><circle cx="19" cy="6" r="2"/><path d="M7 18h6a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h6"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+  <symbol id="i-lean" viewBox="0 0 24 24"><path d="M6 4v16M6 12h12"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M7 10l3 2.5L7 15M12.5 15h4.5"/></symbol>
+</svg>
+<div class="progress" aria-hidden="true"><i id="bar"></i></div>
+<header class="top">
+  <strong>Orbital Shifting: the essentials</strong>
+  <a class="alt" href="index.html">Full deck</a>
+  <nav aria-label="Slide index">
+    <ol>
+      <li><a href="#s1"><span>1</span><span class="t"> Problem</span></a></li>
+      <li><a href="#s2"><span>2</span><span class="t"> Example</span></a></li>
+      <li><a href="#s3"><span>3</span><span class="t"> Alignment</span></a></li>
+      <li><a href="#s4"><span>4</span><span class="t"> Tests and proofs</span></a></li>
+      <li><a href="#s5"><span>5</span><span class="t"> Timeline</span></a></li>
+      <li><a href="#s6"><span>6</span><span class="t"> Why</span></a></li>
+      <li><a href="#s7"><span>7</span><span class="t"> What it is</span></a></li>
+      <li><a href="#s8"><span>8</span><span class="t"> How to use</span></a></li>
+      <li><a href="#s9"><span>9</span><span class="t"> The gradient</span></a></li>
+      <li><a href="#s10"><span>10</span><span class="t"> What you get</span></a></li>
+    </ol>
+  </nav>
+</header>
+
+<main>
+
+<section class="slide" id="s1" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-target"/></svg>1 of 10 · The problem</div>
+  <h1>The wrong-spec problem</h1>
+  <p class="big">An agent can build <em>exactly</em> what it was told, and still build the wrong thing.</p>
+  <p>An <strong>agent</strong> is an AI that does the work, such as <a href="https://claude.com/claude-code">Claude Code</a>. A <strong>spec</strong> is what it builds from: the request, the ticket, and the tests.</p>
+  <div class="tiles">
+    <div class="tile t-bad"><svg class="ic"><use href="#i-x"/></svg><h3>Wrong</h3><p class="muted">The spec does not match how things really are.</p></div>
+    <div class="tile t-amber"><svg class="ic"><use href="#i-question"/></svg><h3>Incomplete</h3><p class="muted">The spec leaves out a case that matters.</p></div>
+    <div class="tile t-mid"><svg class="ic"><use href="#i-split"/></svg><h3>Read two ways</h3><p class="muted">The human and the agent read the same words and see different things.</p></div>
+  </div>
+  <p>The human is the source of intent. <mark>The human is not always the source of clarity.</mark></p>
+  <p class="see"><a href="index.html#s1">Full deck: the wrong-spec problem</a></p>
+</section>
+
+<section class="slide" id="s2" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-eye"/></svg>2 of 10 · The problem</div>
+  <h2>"Make the button purple"</h2>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 250" role="img" aria-label="Three views of one request. The human meant only the checkout button. The agent made every primary button purple. The test checked only the checkout button, so it passed. All checks pass, and the human says: that is not what I meant.">
+      <defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+      <text x="20" y="20" class="band">WHAT THE HUMAN MEANT</text>
+      <text x="260" y="20" class="band">WHAT THE AGENT BUILT</text>
+      <text x="500" y="20" class="band">WHAT THE TEST CHECKED</text>
+      <!-- human: only checkout -->
+      <g>
+        <rect class="box hum" x="20" y="34" width="60" height="80" rx="6"/><rect class="ln" x="30" y="46" width="40" height="4" rx="2"/><rect class="ln" x="30" y="56" width="28" height="4" rx="2"/><rect class="pb" x="30" y="86" width="40" height="14" rx="4"/>
+        <rect class="box" x="92" y="34" width="60" height="80" rx="6"/><rect class="ln" x="102" y="46" width="40" height="4" rx="2"/><rect class="ln" x="102" y="56" width="28" height="4" rx="2"/><rect class="gb" x="102" y="86" width="40" height="14" rx="4"/>
+        <rect class="box" x="164" y="34" width="60" height="80" rx="6"/><rect class="ln" x="174" y="46" width="40" height="4" rx="2"/><rect class="ln" x="174" y="56" width="28" height="4" rx="2"/><rect class="gb" x="174" y="86" width="40" height="14" rx="4"/>
+        <text x="50" y="132" text-anchor="middle" class="sub">/checkout</text><text x="122" y="132" text-anchor="middle" class="sub">/account</text><text x="194" y="132" text-anchor="middle" class="sub">/home</text>
+        <text x="122" y="160" text-anchor="middle" class="b">One button</text>
+      </g>
+      <!-- agent: all purple -->
+      <g>
+        <rect class="box" x="260" y="34" width="60" height="80" rx="6"/><rect class="ln" x="270" y="46" width="40" height="4" rx="2"/><rect class="ln" x="270" y="56" width="28" height="4" rx="2"/><rect class="pb" x="270" y="86" width="40" height="14" rx="4"/>
+        <rect class="box" x="332" y="34" width="60" height="80" rx="6"/><rect class="ln" x="342" y="46" width="40" height="4" rx="2"/><rect class="ln" x="342" y="56" width="28" height="4" rx="2"/><rect class="pb" x="342" y="86" width="40" height="14" rx="4"/>
+        <rect class="box" x="404" y="34" width="60" height="80" rx="6"/><rect class="ln" x="414" y="46" width="40" height="4" rx="2"/><rect class="ln" x="414" y="56" width="28" height="4" rx="2"/><rect class="pb" x="414" y="86" width="40" height="14" rx="4"/>
+        <text x="290" y="132" text-anchor="middle" class="sub">/checkout</text><text x="362" y="132" text-anchor="middle" class="sub">/account</text><text x="434" y="132" text-anchor="middle" class="sub">/home</text>
+        <text x="362" y="160" text-anchor="middle" class="b">Every primary button</text>
+      </g>
+      <!-- test: checkout only, passes -->
+      <g>
+        <rect class="box chk" x="560" y="34" width="60" height="80" rx="6"/><rect class="ln" x="570" y="46" width="40" height="4" rx="2"/><rect class="ln" x="570" y="56" width="28" height="4" rx="2"/><rect class="pb" x="570" y="86" width="40" height="14" rx="4"/>
+        <circle cx="620" cy="104" r="12" class="box chk"/><use href="#i-check" x="611" y="95" width="18" height="18" class="ico" style="stroke:var(--good)"/>
+        <text x="590" y="132" text-anchor="middle" class="sub">/checkout</text>
+        <text x="590" y="160" text-anchor="middle" class="b">Submit is purple</text>
+      </g>
+      <!-- outcome -->
+      <rect class="box chk" x="260" y="186" width="440" height="44" rx="10"/>
+      <use href="#i-check" x="276" y="197" width="22" height="22" class="ico" style="stroke:var(--good)"/>
+      <text x="306" y="213" class="b">All checks pass. Nothing fails, so nobody notices.</text>
+      <rect class="box bad" x="20" y="186" width="204" height="44" rx="10"/>
+      <use href="#i-x" x="34" y="197" width="22" height="22" class="ico" style="stroke:var(--bad)"/>
+      <text x="62" y="213" class="b">"Not what I meant."</text>
+      <path class="arr" marker-end="url(#ah2)" d="M258 208H228"/>
+    </svg>
+    <figcaption>The agent built what it understood. The test checked what the agent understood. Only the human saw the gap, and only at the end.</figcaption>
+  </figure>
+  <p>The fix costs one line, if it comes early. The agent says its claim back with one example, and the human answers: <q>No, only that button.</q></p>
+  <p class="see"><a href="index.html#s3">Full deck: the example</a></p>
+</section>
+
+<section class="slide" id="s3" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-orbit"/></svg>3 of 10 · The idea</div>
+  <h2>Alignment</h2>
+  <p class="big">The human, the agent, and the formal records <em>agree</em> on what to build and on when it is done.</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 680 300" role="img" aria-label="A triangle of three roles. The human owns the intent and the final product. The agent owns the build. The formal artifacts are impartial and can disagree with both. Edges: the agent restates and asks the human; the agent queries, checks, and proves through the artifacts; the artifacts give the human evidence.">
+      <defs><marker id="ah5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+      <path class="arr" marker-start="url(#ah5)" marker-end="url(#ah5)" d="M270 92L168 196"/>
+      <path class="arr" marker-start="url(#ah5)" marker-end="url(#ah5)" d="M410 92L512 196"/>
+      <path class="arr" marker-start="url(#ah5)" marker-end="url(#ah5)" d="M232 236H448"/>
+      <text x="196" y="132" text-anchor="end" class="lbl">restates, asks,</text>
+      <text x="196" y="148" text-anchor="end" class="lbl">delivers</text>
+      <text x="484" y="132" class="lbl">evidence it</text>
+      <text x="484" y="148" class="lbl">can read</text>
+      <text x="340" y="228" text-anchor="middle" class="lbl">queries, checks, proves</text>
+      <text x="340" y="256" text-anchor="middle" class="sub">the artifacts can disagree with both</text>
+      <rect class="box hum" x="240" y="14" width="200" height="82" rx="12"/>
+      <use href="#i-human" x="266" y="34" width="26" height="26" class="ico" style="stroke:var(--accent)"/>
+      <text x="300" y="52" class="b">The human</text>
+      <text x="300" y="72" class="sub">owns the intent</text>
+      <text x="300" y="86" class="sub">and the final product</text>
+      <rect class="box" x="30" y="196" width="200" height="82" rx="12"/>
+      <use href="#i-agent" x="56" y="214" width="26" height="26" class="ico" style="stroke:var(--fg)"/>
+      <text x="90" y="232" class="b">The agent</text>
+      <text x="90" y="252" class="sub">owns the build</text>
+      <rect class="box chk" x="450" y="196" width="210" height="82" rx="12"/>
+      <use href="#i-formal" x="466" y="214" width="26" height="26" class="ico" style="stroke:var(--good)"/>
+      <text x="500" y="232" class="b">Formal artifacts</text>
+      <text x="500" y="252" class="sub">KB, tests, Lean</text>
+      <text x="500" y="266" class="sub">impartial</text>
+    </svg>
+    <figcaption>No one grades their own work. The human verifies the result, not the test results.</figcaption>
+  </figure>
+  <ul class="chips" aria-label="The four goals">
+    <li class="chip"><svg class="ic"><use href="#i-lens"/></svg>Clear</li>
+    <li class="chip"><svg class="ic"><use href="#i-target"/></svg>Accurate</li>
+    <li class="chip"><svg class="ic"><use href="#i-speech"/></svg>Honest</li>
+    <li class="chip"><svg class="ic"><use href="#i-bolt"/></svg>Fast</li>
+  </ul>
+  <p class="see"><a href="index.html#s5">Full deck: the philosophy, the roles, and loud versus quiet</a></p>
+</section>
+
+<section class="slide" id="s4" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-forall"/></svg>4 of 10 · The idea</div>
+  <h2>Tests and proofs</h2>
+  <p>The real claim behind "add discount codes": <mark>no discount code takes a price below the floor</mark>, for every code and every cart.</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 230" role="img" aria-label="Every possible cart and code is a large field of points. The tests try four sample points, and all pass. One combination that no test tried takes the price below the floor. A proof covers the whole field.">
+      <defs><pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="8" cy="8" r="1.8" class="tm" opacity=".45"/></pattern></defs>
+      <text x="20" y="20" class="band">EVERY CART AND CODE</text>
+      <rect x="20" y="30" width="420" height="160" rx="12" fill="url(#dots)" class="box" style="fill:url(#dots)"/>
+      <g class="ico" style="stroke:var(--good)">
+        <circle cx="104" cy="72" r="7"/><circle cx="152" cy="104" r="7"/><circle cx="88" cy="136" r="7"/><circle cx="200" cy="88" r="7"/>
+      </g>
+      <circle cx="104" cy="72" r="3" class="tg"/><circle cx="152" cy="104" r="3" class="tg"/><circle cx="88" cy="136" r="3" class="tg"/><circle cx="200" cy="88" r="3" class="tg"/>
+      <circle cx="376" cy="152" r="8" class="ico" style="stroke:var(--bad)"/><circle cx="376" cy="152" r="3.5" class="tb"/>
+      <text x="20" y="212" class="lbl" style="fill:var(--good)">● codes the tests try: all pass</text>
+      <text x="440" y="212" text-anchor="end" class="lbl" style="fill:var(--bad)">● an untried combination: below the floor</text>
+      <text x="470" y="20" class="band">A PROOF</text>
+      <rect class="box chk" x="470" y="30" width="230" height="160" rx="12"/>
+      <text x="585" y="104" text-anchor="middle" class="big" style="fill:var(--good)">∀</text>
+      <text x="585" y="140" text-anchor="middle" class="b">covers every case</text>
+      <text x="585" y="160" text-anchor="middle" class="sub">of the model, checked by Lean</text>
+    </svg>
+    <figcaption>A test shows a claim for the cases that it tries. A proof shows it for all cases of the model.</figcaption>
+  </figure>
+  <p class="big">A test written from a wrong spec <em>passes</em>.</p>
+  <p>So ask early whether the spec matches what the human means. When a claim must hold for every case, prove it in <a href="https://lean-lang.org">Lean</a>.</p>
+  <p class="see"><a href="index.html#s4">Full deck: tests and proofs</a></p>
+</section>
+
+<section class="slide" id="s5" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-cal"/></svg>5 of 10 · The story</div>
+  <h2>The idea held; the machinery changed</h2>
+  <p>Ty reached this process in 2026 through three eras. <mark>The process kept changing. The delivery did not.</mark></p>
+  <figure class="diagram">
+    <svg viewBox="0 0 760 210" role="img" aria-label="Lanes from January to October 2026. Process: Claude Code from January, the orbital plugins from April, the method by hand from June, the AIDLC from late August, Orbital Shifting from 21 October. Lean: in use from April on, never dropped. Hoggwood Health: client work kept shipping the whole time.">
+      <text x="130" y="16" class="band">2026</text>
+      <g class="sub" text-anchor="middle">
+        <text x="160.5" y="36" class="sub">Jan</text><text x="221.5" y="36" class="sub">Feb</text><text x="282.5" y="36" class="sub">Mar</text><text x="343.5" y="36" class="sub">Apr</text><text x="404.5" y="36" class="sub">May</text>
+        <text x="465.5" y="36" class="sub">Jun</text><text x="526.5" y="36" class="sub">Jul</text><text x="587.5" y="36" class="sub">Aug</text><text x="648.5" y="36" class="sub">Sep</text><text x="709.5" y="36" class="sub">Oct</text>
+      </g>
+      <path class="arr" style="stroke-width:1;opacity:.5" d="M191 42V50M252 42V50M313 42V50M374 42V50M435 42V50M496 42V50M557 42V50M618 42V50M679 42V50"/>
+      <text x="10" y="76" class="b">Process</text><text x="10" y="91" class="sub">changed</text>
+      <rect class="box" x="152" y="52" width="161" height="44" rx="8"/><text x="232" y="79" text-anchor="middle" class="lbl">Claude Code</text>
+      <rect class="box hum" x="315" y="52" width="143" height="44" rx="8"/><text x="386" y="72" text-anchor="middle" class="b">Orbital</text><text x="386" y="88" text-anchor="middle" class="b">plugins</text>
+      <rect class="box gap" x="460" y="52" width="149" height="44" rx="8"/><text x="534" y="72" text-anchor="middle" class="b">By hand</text><text x="534" y="88" text-anchor="middle" class="sub">long prompts</text>
+      <rect class="box mid" x="611" y="52" width="106" height="44" rx="8"/><text x="664" y="79" text-anchor="middle" class="b">AIDLC</text>
+      <rect class="box chk" x="719" y="52" width="24" height="44" rx="6"/>
+      <path d="M731 96V108" stroke="var(--good)" stroke-width="2"/><text x="743" y="118" text-anchor="end" class="lbl b" style="fill:var(--good)">Orbital Shifting, live 21 Oct</text>
+      <text x="10" y="146" class="b">Lean</text><text x="10" y="161" class="sub">never dropped</text>
+      <path d="M315 146H743" stroke="var(--amber)" stroke-width="3" stroke-linecap="round"/>
+      <g class="tam"><circle cx="315" cy="146" r="4"/><circle cx="339" cy="146" r="5"/><circle cx="465" cy="146" r="5"/><circle cx="514" cy="146" r="4"/><circle cx="610" cy="146" r="4"/><circle cx="634" cy="146" r="5"/><circle cx="714" cy="146" r="5"/></g>
+      <text x="10" y="186" class="b">Delivery</text><text x="10" y="201" class="sub">constant</text>
+      <rect x="152" y="174" width="591" height="22" rx="11" style="fill:var(--accent);opacity:.22"/>
+      <text x="447" y="190" text-anchor="middle" class="b">Hoggwood Health: client work kept shipping</text>
+    </svg>
+    <figcaption>The philosophy held the whole way, so the quality of the client work held. What changed was how much of the method a tool ran.</figcaption>
+  </figure>
+  <p class="see"><a href="index.html#s8">Full deck: the timeline, the five chapters, and the eras</a></p>
+</section>
+
+<section class="slide" id="s6" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-split"/></svg>6 of 10 · The story</div>
+  <h2>Why signals, not tiers</h2>
+  <p>The AIDLC, the era before, sorted work into tiers by difficulty. <mark>The middle tiers drifted to the ends</mark>, and what is hard for a model changes with every model. One thing does not change:</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 200" role="img" aria-label="The human holds what they want: context, taste, the niche cases, and a mind not made up yet. The model's data and compute keep growing. Between them is a bridge of words, and misalignment lives on that bridge. Orbital Shifting works there.">
+      <defs><marker id="ahw2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+      <rect class="box hum" x="20" y="30" width="210" height="124" rx="12"/>
+      <use href="#i-human" x="38" y="44" width="26" height="26" class="ico" style="stroke:var(--accent)"/>
+      <text x="74" y="62" class="b">The human</text>
+      <text x="38" y="94" class="sub">what they want</text>
+      <text x="38" y="110" class="sub">context and taste</text>
+      <text x="38" y="126" class="sub">the niche cases</text>
+      <text x="38" y="142" class="sub">a mind not made up yet</text>
+      <rect class="box" x="490" y="30" width="210" height="124" rx="12"/>
+      <use href="#i-agent" x="508" y="44" width="26" height="26" class="ico" style="stroke:var(--fg)"/>
+      <text x="544" y="62" class="b">The model</text>
+      <g class="ta" opacity=".7"><rect x="510" y="128" width="16" height="14" rx="3"/><rect x="532" y="116" width="16" height="26" rx="3"/><rect x="554" y="102" width="16" height="40" rx="3"/><rect x="576" y="84" width="16" height="58" rx="3"/></g>
+      <text x="606" y="112" class="sub">data and</text>
+      <text x="606" y="126" class="sub">compute</text>
+      <text x="606" y="140" class="sub">keep growing</text>
+      <use href="#i-speech" x="347" y="40" width="26" height="26" class="ico" style="stroke:var(--fg)"/>
+      <text x="360" y="84" text-anchor="middle" class="lbl">explained in words</text>
+      <path class="arr" marker-start="url(#ahw2)" marker-end="url(#ahw2)" d="M232 94H488"/>
+      <text x="360" y="120" text-anchor="middle" class="band">MISALIGNMENT</text>
+      <text x="360" y="136" text-anchor="middle" class="sub">lives on this bridge</text>
+      <path d="M240 160V170H480V160" fill="none" style="stroke:var(--good)" stroke-width="2"/>
+      <text x="360" y="190" text-anchor="middle" class="b" style="fill:var(--good)">Orbital Shifting works here</text>
+    </svg>
+    <figcaption>People change their minds, and often don't know what they want until they see it. Better models will guess better, but not every time, and least of all on the niche asks.</figcaption>
+  </figure>
+  <blockquote><p>"I'm making the bet that even with ASI, humans will still need to explain what they want."</p></blockquote>
+  <p class="see"><a href="index.html#s12">Full deck: why the tiers had to go</a></p>
+</section>
+
+<section class="slide" id="s7" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-box"/></svg>7 of 10 · The tool</div>
+  <h2>What it is</h2>
+  <figure class="diagram">
+    <svg viewBox="0 0 740 230" role="img" aria-label="The system prompt, ORBITAL-SHIFTING.md, is appended to the agent's session. The agent talks with the human and runs orbit-kb. orbit-kb reads and writes a KB folder, asks SWI-Prolog with s(CASP) its queries, and asks Lean 4 to check proofs.">
+      <defs><marker id="aht1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+      <rect class="box amb" x="10" y="30" width="160" height="80" rx="10"/>
+      <use href="#i-feather" x="22" y="42" width="22" height="22" class="ico" style="stroke:var(--amber)"/>
+      <text x="52" y="58" class="b">System prompt</text>
+      <text x="22" y="82" class="sub">ORBITAL-SHIFTING.md</text>
+      <text x="22" y="98" class="sub">one plain-text file</text>
+      <text x="90" y="128" text-anchor="middle" class="sub">appended to each session</text>
+      <rect class="box" x="200" y="30" width="150" height="80" rx="10"/>
+      <use href="#i-agent" x="212" y="42" width="22" height="22" class="ico" style="stroke:var(--fg)"/>
+      <text x="242" y="58" class="b">The agent</text>
+      <text x="212" y="82" class="sub">any harness;</text>
+      <text x="212" y="98" class="sub">Claude Code today</text>
+      <rect class="box chk" x="380" y="30" width="150" height="80" rx="10"/>
+      <use href="#i-term" x="392" y="42" width="22" height="22" class="ico" style="stroke:var(--good)"/>
+      <text x="422" y="58" class="b">orbit-kb</text>
+      <text x="392" y="82" class="sub">schema, lint,</text>
+      <text x="392" y="98" class="sub">queries, report</text>
+      <rect class="box" x="560" y="14" width="170" height="56" rx="10"/>
+      <text x="574" y="38" class="b">SWI-Prolog, s(CASP)</text>
+      <text x="574" y="56" class="sub">two engines cross-check</text>
+      <rect class="box mid" x="560" y="84" width="170" height="56" rx="10"/>
+      <text x="574" y="108" class="b">Lean 4</text>
+      <text x="574" y="126" class="sub">checks proofs, burns only</text>
+      <rect class="box hum" x="200" y="150" width="150" height="70" rx="10"/>
+      <use href="#i-human" x="212" y="162" width="22" height="22" class="ico" style="stroke:var(--accent)"/>
+      <text x="242" y="178" class="b">The human</text>
+      <text x="212" y="204" class="sub">asks, answers, verifies</text>
+      <rect class="box" x="380" y="150" width="150" height="70" rx="10"/>
+      <use href="#i-db" x="392" y="162" width="22" height="22" class="ico" style="stroke:var(--fg)"/>
+      <text x="422" y="178" class="b">A KB folder</text>
+      <text x="392" y="204" class="sub">kb.pl, runs/ logs</text>
+      <path class="arr" marker-end="url(#aht1)" d="M170 70H198"/>
+      <path class="arr" marker-end="url(#aht1)" d="M350 70H378"/>
+      <path class="arr" marker-end="url(#aht1)" d="M530 56L558 44"/>
+      <path class="arr" marker-end="url(#aht1)" d="M530 86L558 106"/>
+      <path class="arr" marker-start="url(#aht1)" marker-end="url(#aht1)" d="M275 112V148"/>
+      <path class="arr" marker-start="url(#aht1)" marker-end="url(#aht1)" d="M455 112V148"/>
+      <text x="287" y="135" class="sub">plain words</text>
+      <text x="467" y="135" class="sub">reads, writes</text>
+    </svg>
+    <figcaption>The prompt tells the agent how to work. <code>orbit-kb</code> keeps the records honest: every fact is declared, typed, and checked.</figcaption>
+  </figure>
+  <dl class="gloss">
+    <div><dt><svg class="ic"><use href="#i-feather"/></svg>The prompt</dt><dd>One plain-text file, appended to the agent's system prompt. It says how to work: start light, shift up on a signal.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-term"/></svg>orbit-kb</dt><dd>A command-line tool that keeps the knowledge base (KB): every fact declared, typed, and checked.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-db"/></svg>Prolog</dt><dd><a href="https://www.swi-prolog.org">SWI-Prolog</a> 9 or later with <a href="https://github.com/SWI-Prolog/sCASP">s(CASP)</a>: answers the KB's questions.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-lean"/></svg>Lean 4</dt><dd>Only for proofs. Install with <a href="https://github.com/leanprover/elan">elan</a>. Optional helpers: <a href="https://github.com/theTyster/sharlean">sharlean</a> (shared libraries such as <a href="https://github.com/leanprover-community/mathlib4">Mathlib</a>) and <a href="https://github.com/oOo0oOo/lean-lsp-mcp">lean-lsp-mcp</a>.</dd></div>
+  </dl>
+  <p class="see"><a href="index.html#s15">Full deck: what it is, and why Lean and Prolog</a></p>
+</section>
+
+<section class="slide" id="s8" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-term"/></svg>8 of 10 · The tool</div>
+  <h2>How to use it</h2>
+  <figure class="diagram">
+    <svg viewBox="0 0 740 196" role="img" aria-label="Five steps. Once: install the tools, then load the prompt. Every request: ask in your own words, answer at most three questions a round, and verify the result, not the tests. Behind the scenes, the agent runs orbit-kb when the work shifts up.">
+      <defs><marker id="ahu" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+      <text x="518" y="15" text-anchor="middle" class="sub">behind the scenes: the agent runs orbit-kb on a shift up</text>
+      <circle cx="74" cy="56" r="30" class="box amb"/><use href="#i-term" x="60" y="42" width="28" height="28" class="ico" style="stroke:var(--amber)"/>
+      <circle cx="222" cy="56" r="30" class="box amb"/><use href="#i-feather" x="208" y="42" width="28" height="28" class="ico" style="stroke:var(--amber)"/>
+      <circle cx="370" cy="56" r="30" class="box hum"/><use href="#i-speech" x="356" y="42" width="28" height="28" class="ico" style="stroke:var(--accent)"/>
+      <circle cx="518" cy="56" r="30" class="box hum"/><use href="#i-question" x="504" y="42" width="28" height="28" class="ico" style="stroke:var(--accent)"/>
+      <circle cx="666" cy="56" r="30" class="box chk"/><use href="#i-check" x="652" y="42" width="28" height="28" class="ico" style="stroke:var(--good)"/>
+      <path class="arr" marker-end="url(#ahu)" d="M106 56H188"/>
+      <path class="arr" marker-end="url(#ahu)" d="M254 56H336"/>
+      <path class="arr" marker-end="url(#ahu)" d="M402 56H484"/>
+      <path class="arr" marker-end="url(#ahu)" d="M550 56H632"/>
+      <text x="74" y="110" text-anchor="middle" class="b">Install</text>
+      <text x="74" y="128" text-anchor="middle" class="sub">Prolog, s(CASP),</text>
+      <text x="74" y="143" text-anchor="middle" class="sub">orbit-kb; Lean</text>
+      <text x="222" y="110" text-anchor="middle" class="b">Load the prompt</text>
+      <text x="222" y="128" text-anchor="middle" class="sub">ORBITAL-SHIFTING.md</text>
+      <text x="222" y="143" text-anchor="middle" class="sub">as system prompt</text>
+      <text x="370" y="110" text-anchor="middle" class="b">Ask</text>
+      <text x="370" y="128" text-anchor="middle" class="sub">in your own words</text>
+      <text x="518" y="110" text-anchor="middle" class="b">Answer</text>
+      <text x="518" y="128" text-anchor="middle" class="sub">at most 3 a round,</text>
+      <text x="518" y="143" text-anchor="middle" class="sub">defaults marked</text>
+      <text x="666" y="110" text-anchor="middle" class="b">Verify</text>
+      <text x="666" y="128" text-anchor="middle" class="sub">the result,</text>
+      <text x="666" y="143" text-anchor="middle" class="sub">not the tests</text>
+      <path d="M24 160V168H272V160" fill="none" style="stroke:var(--amber)" stroke-width="2"/>
+      <text x="148" y="188" text-anchor="middle" class="band">ONCE</text>
+      <path d="M320 160V168H716V160" fill="none" style="stroke:var(--accent)" stroke-width="2"/>
+      <text x="518" y="188" text-anchor="middle" class="band" style="fill:var(--accent)">EVERY REQUEST</text>
+    </svg>
+    <figcaption>Two setup steps, then three steps for each request. The human's part is to ask, answer, and verify.</figcaption>
+  </figure>
+  <p>You rarely type <code>orbit-kb</code> yourself. Most requests stay on the light path: <mark>one check, no KB</mark>.</p>
+  <details class="more"><summary>Install on Fedora</summary><div class="body">
+<pre class="report"><i>$</i> sudo dnf install swi-prolog-nox
+<i>$</i> swipl -g "pack_install(scasp, [interactive(false)])" -t halt
+<i>$</i> ln -s ~/.local/share/swi-prolog/pack/scasp/scasp ~/.local/bin/scasp
+<i>$</i> orbit-kb doctor</pre>
+    <p>For <code>orbit-kb prove</code>, install Lean 4 and Lake with elan. Ty's Lean projects share their libraries through <code>sharlean</code>, so a proof does not rebuild Mathlib. In Ty's dotfiles, <code>create-links</code> puts <code>orbit-kb</code> on the PATH and its rules in <code>~/.local/share/orbit-kb</code>.</p>
+  </div></details>
+  <p class="see"><a href="index.html#s16">Full deck: how to use it, with the commands the agent runs</a></p>
+</section>
+
+<section class="slide" id="s9" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-layers"/></svg>9 of 10 · In practice</div>
+  <h2>The gradient</h2>
+  <p class="big">No tier is picked up front. Each <em>signal</em> adds one rung, and each rung comes off when its cause is resolved.</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 740 306" role="img" aria-label="A ramp from light to rigorous with six rungs. Answer directly or tiny discovery, for a question or tiny report. Light path with one check, for any change request. Plus a KB, when questions pile up or on a handoff. Plus laps, on a divergence. Plus a Lean burn, for a universal claim or one contested twice. Full discovery in a KB, with models, and then the vote, when a claim needs a model. A dashed arrow shows shifting up on a signal; a green arrow shows leaning back, rung by rung. The purple button sits at the light path; the discount codes span the KB to full discovery.">
+      <defs>
+        <marker id="g29up" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--amber)"/></marker>
+        <marker id="g29dn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--good)"/></marker>
+      </defs>
+      <text x="8" y="16" class="band">LIGHT</text><text x="732" y="16" text-anchor="end" class="band">RIGOROUS</text>
+      <text x="370" y="16" text-anchor="middle" class="sub">shift up on a signal</text>
+      <path class="arr up" d="M70 90L700 28" marker-end="url(#g29up)"/>
+      <rect class="box" x="8" y="110" width="114" height="80" rx="10"/>
+      <use href="#i-speech" x="18" y="120" width="20" height="20" class="ico" style="stroke:var(--fg)"/>
+      <text x="18" y="160" class="b">Answer directly</text><text x="18" y="177" class="sub">or tiny discovery</text>
+      <text x="65" y="208" text-anchor="middle" class="sub">a question,</text>
+      <text x="65" y="222" text-anchor="middle" class="sub">or a tiny report</text>
+      <rect class="box chk" x="130" y="98" width="114" height="92" rx="10"/>
+      <use href="#i-check" x="140" y="108" width="20" height="20" class="ico" style="stroke:var(--good)"/>
+      <text x="140" y="148" class="b">Light path</text><text x="140" y="165" class="sub">one check</text>
+      <text x="187" y="208" text-anchor="middle" class="sub">any change</text>
+      <text x="187" y="222" text-anchor="middle" class="sub">request</text>
+      <rect class="box hum" x="252" y="86" width="114" height="104" rx="10"/>
+      <use href="#i-db" x="262" y="96" width="20" height="20" class="ico" style="stroke:var(--accent)"/>
+      <text x="262" y="136" class="b">+ KB</text><text x="262" y="153" class="sub">memory, referee</text>
+      <text x="309" y="208" text-anchor="middle" class="sub">questions pile up,</text>
+      <text x="309" y="222" text-anchor="middle" class="sub">or a handoff</text>
+      <rect class="box mid" x="374" y="74" width="114" height="116" rx="10"/>
+      <use href="#i-orbit" x="384" y="84" width="20" height="20" class="ico" style="stroke:var(--mid)"/>
+      <text x="384" y="124" class="b">+ Laps</text><text x="384" y="141" class="sub">back to claims</text>
+      <text x="431" y="208" text-anchor="middle" class="sub">a divergence</text>
+      <rect class="box amb" x="496" y="62" width="114" height="128" rx="10"/>
+      <use href="#i-flame" x="506" y="72" width="20" height="20" class="ico" style="stroke:var(--amber)"/>
+      <text x="506" y="112" class="b">+ Lean burn</text><text x="506" y="129" class="sub">proves the model</text>
+      <text x="553" y="208" text-anchor="middle" class="sub">universal claim,</text>
+      <text x="553" y="222" text-anchor="middle" class="sub">or contested twice</text>
+      <rect class="box amb" x="618" y="50" width="114" height="140" rx="10"/>
+      <use href="#i-compass" x="628" y="60" width="20" height="20" class="ico" style="stroke:var(--amber)"/>
+      <text x="628" y="100" class="b">Full discovery</text><text x="628" y="117" class="sub">models, in a KB</text>
+      <text x="675" y="208" text-anchor="middle" class="sub">a claim needs</text>
+      <text x="675" y="222" text-anchor="middle" class="sub">a model</text>
+      <circle cx="132" cy="246" r="4" class="pb"/><text x="142" y="250" class="sub">purple button</text>
+      <path d="M262 246H724" stroke="var(--amber)" stroke-width="3" stroke-linecap="round"/><text x="493" y="264" text-anchor="middle" class="sub">discount codes: each trigger fires in turn</text>
+      <path d="M730 282H20" class="arr" style="stroke:var(--good)" marker-end="url(#g29dn)" fill="none"/>
+      <text x="375" y="302" text-anchor="middle" class="sub" style="fill:var(--good)">leaning back: a rung stops when its cause is resolved. A KB stays; a burn stays until a proof or a waiver.</text>
+    </svg>
+    <figcaption>Fixed tiers had no middle. Here each trigger adds only its own rung, in any order: a universal claim can burn with no questions asked.</figcaption>
+  </figure>
+  <blockquote><p>"This pattern offers, when it really needs it, a level of rigor that can guarantee correctness."</p></blockquote>
+  <p class="muted">A proof holds for every case of the Lean model. The checks tie the model to the code.</p>
+  <p class="see"><a href="index.html#s28">The lightest path, step by step</a> · <a href="index.html#s29">The most rigorous path</a></p>
+</section>
+
+<section class="slide" id="s10" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-check"/></svg>10 of 10 · In practice</div>
+  <h2>What you get back</h2>
+  <p>Six fields, in short plain sentences. An empty field says "none", so you see that the agent looked.</p>
+<pre class="report" aria-label="A sample delivery"><b>Delivered:</b>    Submit on /checkout is purple.
+<b>Claims:</b>       Submit on /checkout renders #6B3FA0: fulfilled (check red, then green).
+<b>Guesses:</b>      Only this button, not every primary button.
+<b>Disclosures:</b>  none
+<b>Not checked:</b>  dark mode
+<b>To land:</b>      none; merged.
+<i>Screenshot attached. No KB.</i></pre>
+  <h3>Go deeper</h3>
+  <ul class="chips" aria-label="Sections of the full deck">
+    <li class="chip"><svg class="ic"><use href="#i-feather"/></svg><a href="index.html#s20">The light path</a></li>
+    <li class="chip"><svg class="ic"><use href="#i-layers"/></svg><a href="index.html#s21">Shifting up</a></li>
+    <li class="chip"><svg class="ic"><use href="#i-compass"/></svg><a href="index.html#s23">Discovery</a></li>
+    <li class="chip"><svg class="ic"><use href="#i-scale"/></svg><a href="index.html#s24">The vote</a></li>
+    <li class="chip"><svg class="ic"><use href="#i-flame"/></svg><a href="index.html#s25">Burns</a></li>
+    <li class="chip"><svg class="ic"><use href="#i-shield"/></svg><a href="index.html#s26">Trust and honesty</a></li>
+  </ul>
+</section>
+
+<p class="hint nojs" style="padding-inline:1.1rem;text-align:center">Without JavaScript, scroll.</p>
+</main>
+<div class="controls" id="controls">
+  <button id="prev" type="button">Previous</button>
+  <div class="ctr"><span><span id="pos"></span><span id="more"></span></span><span class="keys">Arrows, PageUp and PageDown, Home, End to move. F for full screen. D for details.</span></div>
+  <button id="next" type="button">Next</button>
+</div>
+
+<script>
+(function(){
+  var slides=[].slice.call(document.querySelectorAll('.slide'));
+  var links=[].slice.call(document.querySelectorAll('nav a'));
+  var pos=document.getElementById('pos'),prev=document.getElementById('prev'),next=document.getElementById('next'),bar=document.getElementById('bar');
+  var details=[].slice.call(document.querySelectorAll('details.more'));
+  var cur=0;
+  document.documentElement.className+=' js';
+  details.forEach(function(d){d.open=false;});
+  function show(i,push){
+    cur=Math.max(0,Math.min(slides.length-1,i));
+    slides.forEach(function(s,k){
+      s.classList.toggle('active',k===cur);
+      if(k===cur){s.removeAttribute('aria-hidden');}else{s.setAttribute('aria-hidden','true');}
+    });
+    links.forEach(function(a,k){ if(k===cur)a.setAttribute('aria-current','true'); else a.removeAttribute('aria-current');});
+    pos.textContent=(cur+1)+' / '+slides.length;
+    bar.style.transform='scaleX('+((cur+1)/slides.length)+')';
+    prev.disabled=cur===0; next.disabled=cur===slides.length-1;
+    if(push){ try{history.replaceState(null,'','#s'+(cur+1));}catch(e){} }
+    slides[cur].scrollTop=0; hint();
+    try{slides[cur].focus({preventScroll:true});}catch(e){}
+  }
+  function hint(){
+    var s=slides[cur],m=document.getElementById('more');
+    m.textContent=(s.scrollHeight-s.clientHeight-s.scrollTop>24)?'scroll for more':'';
+  }
+  slides.forEach(function(s){s.addEventListener('scroll',hint,{passive:true});});
+  window.addEventListener('resize',hint);
+  document.addEventListener('toggle',hint,true);
+  function fromHash(){
+    var m=/^#s(\d+)$/.exec(location.hash);
+    return m?parseInt(m[1],10)-1:0;
+  }
+  function toggleDetails(){
+    var ds=[].slice.call(slides[cur].querySelectorAll('details.more'));
+    var anyClosed=ds.some(function(d){return !d.open;});
+    ds.forEach(function(d){d.open=anyClosed;});
+  }
+  function fullscreen(){
+    var d=document,e=d.documentElement;
+    try{ if(d.fullscreenElement){d.exitFullscreen();} else if(e.requestFullscreen){e.requestFullscreen();} }catch(x){}
+  }
+  links.forEach(function(a,k){ a.addEventListener('click',function(e){e.preventDefault();show(k,true);}); });
+  prev.addEventListener('click',function(){show(cur-1,true);});
+  next.addEventListener('click',function(){show(cur+1,true);});
+  document.addEventListener('keydown',function(e){
+    if(e.altKey||e.ctrlKey||e.metaKey)return;
+    var k=e.key,t=e.target&&e.target.tagName;
+    var onControl=(t==='SUMMARY'||t==='BUTTON'||t==='A');
+    if(k==='ArrowRight'||k==='PageDown'){e.preventDefault();show(cur+1,true);}
+    else if(k==='ArrowLeft'||k==='PageUp'){e.preventDefault();show(cur-1,true);}
+    else if(k==='Home'){e.preventDefault();show(0,true);}
+    else if(k==='End'){e.preventDefault();show(slides.length-1,true);}
+    else if(k===' '&&!onControl){e.preventDefault();show(cur+(e.shiftKey?-1:1),true);}
+    else if(k==='f'||k==='F'){e.preventDefault();fullscreen();}
+    else if(k==='d'||k==='D'){e.preventDefault();toggleDetails();}
+  });
+  var tx=null,ty=null;
+  document.addEventListener('touchstart',function(e){var t=e.changedTouches[0];tx=t.clientX;ty=t.clientY;},{passive:true});
+  document.addEventListener('touchend',function(e){
+    if(tx===null)return; var t=e.changedTouches[0],dx=t.clientX-tx,dy=t.clientY-ty; tx=null;
+    if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*2){show(cur+(dx<0?1:-1),true);}
+  },{passive:true});
+  window.addEventListener('hashchange',function(){show(fromHash(),false);});
+  var wasOpen=null;
+  window.addEventListener('beforeprint',function(){wasOpen=details.map(function(d){return d.open;});details.forEach(function(d){d.open=true;});});
+  window.addEventListener('afterprint',function(){if(wasOpen)details.forEach(function(d,k){d.open=wasOpen[k];});});
+  show(fromHash(),false);
+})();
+</script>
+<!--
+Essentials: a ten-slide short version of index.html, built by a script from its diagrams.
+Slides 2, 3, 4, 6, 7, and 9 reuse the full deck's diagrams (full slides 3, 6, 4, 13, 15, 30). The
+timeline on slide 5 is the full slide 8 without the machine lane and the Lean dot labels. Slide 8's
+diagram is shared with full slide 16. The fact-check note in index.html covers every claim here.
+-->
+</body>
+</html>
