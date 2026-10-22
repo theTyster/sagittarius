@@ -1,6 +1,6 @@
 # The path to Orbital Shifting: a history
 
-Written 2026-10-21; timeline corrected the same day from a second and a third excavation (session
+Written 2026-10-21; timeline corrected the same day from the second, third, and fourth excavations (session
 transcripts, `~/.claude`, and the client work repositories). It covers Ty's AI development
 process in three eras and the gap between the first two. Each entry gives its evidence.
 
@@ -213,8 +213,18 @@ model of the process (the design notes list these as dropped).
 the formal artifacts vote on discovery results, with weights 0.49, 0.24, and 0.24. A
 divergence is recorded as good news. A burn needs a proof.
 
+**First day live (from the fourth excavation).** The last client session under the AIDLC ended
+at 14:37, half an hour before go-live. No client ticket ran under the new prompt that day. The
+first behavior under it came from the Haiku evals at 15:42 to 15:54: one stayed on the light
+path ("No KB… shift up only if you say the color is wrong"), and one shifted up and later wrote
+"Leaning back: questions settled". The term "Leaning back" itself replaced "Shift down" at
+15:48 (`ec83ab7`), forty minutes after go-live, and eval 9 led to a further edit (`97f4912`).
+Before go-live, every `orbit-kb` run was a walkthrough or a test in the dotfiles sessions; the
+first was 10-15 14:12.
+
 **Shown so far.** Twelve one-shot planning evals on Haiku pass on the live prompt, in two of
-two runs (`thoughts/orbital-shifting-evals/grading-20261021-final.md`). Those evals test the
+two runs (`thoughts/orbital-shifting-evals/grading-20261021-final.md`). The graded runs
+(16:43) came before the 18:26 vote reweight, which changed weights but no outcome. Those evals test the
 plan an agent makes, not a full ticket. The claim that it is more efficient is still a goal,
 not a result.
 
