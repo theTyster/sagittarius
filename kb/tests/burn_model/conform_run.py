@@ -35,7 +35,7 @@ from concurrent.futures import ThreadPoolExecutor
 HERE = os.path.dirname(os.path.abspath(__file__))
 OKB = os.environ.get(
     "ORBIT_KB_CLI",
-    os.path.normpath(os.path.join(HERE, "../../../shared/link/.local/bin/orbit-kb")),
+    os.path.normpath(os.path.join(HERE, "../../bin/orbit-kb")),
 )
 LEAN_TEXT = "theorem t : True := trivial\n"
 

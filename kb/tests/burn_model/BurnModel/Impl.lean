@@ -2,8 +2,8 @@
 # orbit-kb D10: the implementation model (TELEMETRY)
 
 This file models the Prolog rules of
-`shared/link/.local/share/orbit-kb/core.pl` and
-`shared/link/.local/share/orbit-kb/modules/build.pl`, clause by clause,
+`kb/share/orbit-kb/core.pl` and
+`kb/share/orbit-kb/modules/build.pl`, clause by clause,
 with the same names. Each definition cites the clauses that it models.
 
 The program is not recursive, so it is stratified. A `not` literal is negation

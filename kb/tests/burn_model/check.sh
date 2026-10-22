@@ -16,7 +16,7 @@ set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo=$(cd "$here/../../.." && pwd)
-lib=$repo/shared/link/.local/share/orbit-kb
+lib=$repo/kb/share/orbit-kb
 jobs=${CONFORM_JOBS:-3}
 work=$(mktemp -d "${TMPDIR:-/tmp}/burn_model.XXXXXX")
 trap 'rm -rf "$work"' EXIT
@@ -27,8 +27,8 @@ export XDG_CACHE_HOME=$work/cache   # a private s(CASP) cache, deleted at exit
 
 cd "$here"
 echo "== versions"
-echo "commit $(git -C "$repo" rev-parse --short HEAD)$(git -C "$repo" diff --quiet HEAD -- shared/link/.local/share/orbit-kb shared/link/.local/bin/orbit-kb || echo ' (CLI or library dirty)')"
-echo "inputs sha256 $(cat "$lib/core.pl" "$lib/modules/build.pl" "$repo/shared/link/.local/bin/orbit-kb" | sha256sum | cut -c1-16) (core.pl, build.pl, orbit-kb)"
+echo "commit $(git -C "$repo" rev-parse --short HEAD)$(git -C "$repo" diff --quiet HEAD -- kb/share/orbit-kb kb/bin/orbit-kb || echo ' (CLI or library dirty)')"
+echo "inputs sha256 $(cat "$lib/core.pl" "$lib/modules/build.pl" "$repo/kb/bin/orbit-kb" | sha256sum | cut -c1-16) (core.pl, build.pl, orbit-kb)"
 echo "model sha256 $(cat BurnModel/Requirements.lean BurnModel/Impl.lean BurnModel/Rendezvous.lean Conform.lean conform_run.py | sha256sum | cut -c1-16) (Requirements, Impl, Rendezvous, Conform, conform_run.py)"
 echo "requirements sha256 $(sha256sum BurnModel/Requirements.lean | cut -d' ' -f1)"
 lean --version

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Black-box tests for shared/link/.local/bin/orbit-kb.
+# Black-box tests for kb/bin/orbit-kb.
 #
 # The ONLY source of expected behavior is thoughts/orbit-kb-contract.md (v2.1). No test
 # reads the CLI source or the library source, so the implementation is never the source
 # of what a test expects. Where the contract is ambiguous, the test follows the reading
 # that makes a failure loud, and the comment above the test says so.
 #
-# Usage: scripts/orbit-kb/test_orbit_kb.sh [path-to-orbit-kb]
-#   (or ORBIT_KB_BIN=/path/to/orbit-kb scripts/orbit-kb/test_orbit_kb.sh)
+# Usage: kb/tests/test_orbit_kb.sh [path-to-orbit-kb]
+#   (or ORBIT_KB_BIN=/path/to/orbit-kb kb/tests/test_orbit_kb.sh)
 #   ONLY='<regex>' runs only the tests whose id matches, for example ONLY='^(K|I)[0-9]'.
 #   ORBIT_KB_TEST_JOBS=N runs the tests in N parallel workers (default 4, see below).
 #   ORBIT_KB_TEST_JOBS=1 runs them one at a time in this shell, as the suite always did.
@@ -15,7 +15,7 @@
 #   suite works before installation (override: ORBIT_KB_TEST_LIB).
 #   Exit status: 0 when every test passes, 1 when a test fails, 2 when the suite cannot
 #   run (the CLI, the library, or a tool is missing, or ORBIT_KB_TEST_JOBS is not a number).
-#   The suite is one CPU-heavy job: run it as `heavy bash scripts/orbit-kb/test_orbit_kb.sh`.
+#   The suite is one CPU-heavy job: run it as `heavy bash kb/tests/test_orbit_kb.sh`.
 #
 # Each test runs in a fresh mktemp -d and removes it at the end. Fixtures in fixtures/ are
 # copied first and never modified. KBs that a test needs are built inline, next to the
@@ -88,8 +88,8 @@ set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 FIX=$here/fixtures
-OKB=${1:-${ORBIT_KB_BIN:-$here/../../shared/link/.local/bin/orbit-kb}}
-LIB=${ORBIT_KB_TEST_LIB:-$here/../../shared/link/.local/share/orbit-kb}
+OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
+LIB=${ORBIT_KB_TEST_LIB:-$here/../share/orbit-kb}
 TMO=${ORBIT_KB_TEST_TIMEOUT:-120}
 if [ -z "${ORBIT_KB_TEST_JOBS:-}" ]; then
     # CPUs available to this process (nproc follows the CPU affinity, for example HEAVY_CPUS)
@@ -120,7 +120,7 @@ NOTE_RAW_RE='^NOTE: s\(CASP\) ran the raw program: .*[^ ]'
 # ---------------------------------------------------------------- preconditions
 if [ ! -f "$OKB" ] || [ ! -x "$OKB" ]; then
     printf 'test_orbit_kb.sh: the orbit-kb CLI is missing or is not executable: %s\n' "$OKB" >&2
-    printf '  Build it first (shared/link/.local/bin/orbit-kb), or pass its path as the first argument.\n' >&2
+    printf '  Check the repo copy (kb/bin/orbit-kb), or pass its path as the first argument.\n' >&2
     exit 2
 fi
 OKB=$(cd "$(dirname "$OKB")" && pwd -P)/$(basename "$OKB")

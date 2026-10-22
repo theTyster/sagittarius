@@ -1,8 +1,9 @@
 #!/usr/bin/env zsh
-# Run the orbital-shifting planning evals against Haiku, one headless session each.
+# Run the Sagittarius planning evals against Haiku, one headless session each.
 # Usage: run.sh [ID...]   (no IDs: run every eval)
 # Each eval goes through the real claude() from ~/.zshenv, so it gets exactly the live
-# Orbital Shifting prompt. It runs in an empty temp directory, so no repo context leaks in.
+# Sagittarius prompt (work account only: claude() skips it under claude-personal).
+# It runs in an empty temp directory, so no repo context leaks in.
 # Answers go to runs/<UTC time>/<id>-<name>.md. Grading happens afterwards, by hand or by an
 # agent, against "assertions" and "fails" in evals.json.
 set -eo pipefail

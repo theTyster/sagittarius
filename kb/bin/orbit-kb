@@ -2,7 +2,7 @@
 % orbit-kb: a helper CLI for s(CASP) knowledge bases (KBs).
 %
 % Run `orbit-kb help` for usage. The contract for this tool is
-% thoughts/orbit-kb-contract.md in the dotfiles repository.
+% thoughts/orbit-kb-contract.md in the sagittarius repository.
 %
 % Two engines answer every query:
 %   - SWI-Prolog (in this process) gives the verdict;
@@ -554,7 +554,7 @@ lib_dir(Lib) :-
                  "No core.pl found in the library directory.",
                  "Library directory: " + Lib,
                  How,
-                 "Fix: set ORBIT_KB_LIB to the directory that holds core.pl, or run create-links in the dotfiles repository."
+                 "Fix: set ORBIT_KB_LIB to the directory that holds core.pl, or run ./install.py in the sagittarius repository."
                ] >> fix_lines)
     ).
 

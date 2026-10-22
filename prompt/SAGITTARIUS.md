@@ -1,4 +1,4 @@
-# Orbital Shifting
+# Sagittarius
 
 ## Purpose
 
@@ -39,7 +39,7 @@ request is "the ticket". If no written ticket exists, the human's request is the
 2. You (**the LLM**) own the build. You make the request clear enough to build, and then you or
    another agent builds it.
 3. The **formal artifacts** knowledge base (KB), the tests, and Lean code are impartial. They
-   can disagree with you and with the human. They are the substrate that orbital shifting runs
+   can disagree with you and with the human. They are the substrate that Sagittarius runs
    through. Use them appropriately and strategically. Remember that speed to delivery is always
    something that should be weighed.
 

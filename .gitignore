@@ -1,40 +1,30 @@
-# Claude Code: the project CLAUDE.md IS committed (it carries repo-specific
-# operating notes not duplicated in README.md / docs/). The project .claude/
-# dir IS committed too — agents/skills developed here (e.g. .claude/agents/)
-# travel with the repo. Machine-local overrides — CLAUDE.local.md and
-# .claude/settings.local.json — are covered by *.local.* below.
+# Machine-local overrides (CLAUDE.local.md, .claude/settings.local.json).
 .env
 *.local.*
 
-# This repo TRACKS thoughts/ as a working area (notes, the discovery deck, the
-# recon-upgrade experiment, in-progress recon dogfood artifacts). The operator's
-# global ~/.gitignore_global ignores `thoughts/*` by convention; these two lines
-# override that for this repo. Build artifacts inside thoughts/ stay ignored —
-# the .lake/ / *.olean rules below are matched last, so they still win.
+# This repo TRACKS thoughts/ (design notes, records, the discovery-orbit work).
+# The global ~/.gitignore_global ignores `thoughts/*`; these lines override it.
+# The .lake/ and *.olean rules below still win inside thoughts/.
 !thoughts/
 !thoughts/**
 
-# Lean build artifacts (regenerable; multi-GB — never commit)
+# Lean build artifacts (regenerable; never commit)
 .lake/
 lake-packages/
 *.olean
 
-# Node.js
-node_modules/
-package-lock.json
+# Temp. Logs and tmp/ dirs are not ignored: fixtures and evidence carry them on purpose.
+/tmp/
+/temp/
 
-# OS files
+# Python
+__pycache__/
+
+# OS and editor files
 .DS_Store
 Thumbs.db
-
-# Editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# Logs / temp
-*.log
-tmp/
-temp/

@@ -5,7 +5,7 @@ s(CASP) knowledge bases (KBs).
 
 ## 1. What orbit-kb is, and when to use it
 
-`orbit-kb` serves the "orbital shifting" process, in which a human and an LLM
+`orbit-kb` serves the Sagittarius process, in which a human and an LLM
 work together. During this process, agents record facts in a KB:
 
 - The request of the human, word for word.
@@ -25,7 +25,7 @@ vocabulary for one orbit:
 | Module | Orbit | Status |
 |---|---|---|
 | `build` | Build: specification, implementation, verification | Written. See section 7. |
-| `discovery` | Discovery | Rules for the discovery orbit: models, findings, hypotheses, and the gates `discovery_ready` and `discovery_decide`. The discovery-orbit session owns it. Example KB: `scripts/orbit-kb/fixtures/discovery-a/`. |
+| `discovery` | Discovery | Rules for the discovery orbit: models, findings, hypotheses, and the gates `discovery_ready` and `discovery_decide`. The discovery-orbit session owns it. Example KB: `kb/tests/fixtures/discovery-a/`. |
 
 When an agent must record what a human asked for and then show with evidence
 that the work is done, use `orbit-kb`.
@@ -38,13 +38,13 @@ a module to an existing KB (section 8).
 
 ## 2. Install and check
 
-The tool is part of this dotfiles repository:
+The tool is part of the sagittarius repository:
 
 | Item | Repository path | Installed path |
 |---|---|---|
-| CLI | `shared/link/.local/bin/orbit-kb` | `~/.local/bin/orbit-kb` |
-| Library | `shared/link/.local/share/orbit-kb/` | `~/.local/share/orbit-kb/` |
-| Tests | `scripts/orbit-kb/` | (not installed) |
+| CLI | `kb/bin/orbit-kb` | `~/.local/bin/orbit-kb` |
+| Library | `kb/share/orbit-kb/` | `~/.local/share/orbit-kb/` |
+| Tests | `kb/tests/` | (not installed) |
 | Contract | `thoughts/orbit-kb-contract.md` | (not installed) |
 
 To install on Fedora:
@@ -57,8 +57,8 @@ To install on Fedora:
    link in `/usr/lib64/swipl/bin/bin/`. The build is still complete. Make the
    link yourself:
    `ln -s ~/.local/share/swi-prolog/pack/scasp/scasp ~/.local/bin/scasp`
-4. If `~/.local/bin/orbit-kb` does not exist, run `create-links` from the
-   dotfiles repository.
+4. If `~/.local/bin/orbit-kb` does not exist, run `./install.py` from the
+   root of the sagittarius repository.
 5. Run `orbit-kb doctor`.
 
 `orbit-kb` also uses two common tools: `flock` from util-linux, and `timeout`
@@ -75,7 +75,7 @@ The result on this machine (12 `ok` lines and 1 `info` line):
 $ orbit-kb doctor
 ok    swipl: /usr/bin/swipl (SWI-Prolog 9.2.9; running as /usr/lib64/swipl/bin/x86_64-linux/swipl).
 ok    scasp: /home/ty/.local/bin/scasp (s(CASP): version 1.1.4 on SWI-Prolog 9.2.9).
-ok    library: /home/ty/.dotfiles/shared/link/.local/share/orbit-kb (modules: build, discovery).
+ok    library: /home/ty/Projects/mine/sagittarius/kb/share/orbit-kb (modules: build, discovery).
 info  s(CASP) command: scasp --unknown=error --forall=prev (timeout 20 s).
 ok    H1 helper form: done must be false on both engines.
 ok    H2 program: finding_lead(F) must have no answer on both engines.
@@ -1420,13 +1420,13 @@ Lint lists each extension for a human to review:
 ```text
 $ orbit-kb declare 'world(term)' --doc 'x'
 Rejected. Nothing was written.
-world/1 is already declared in the core (/home/ty/.dotfiles/shared/link/.local/share/orbit-kb/core.pl:77). Choose another name, or use the declaration that exists.
+world/1 is already declared in the core (/home/ty/Projects/mine/sagittarius/kb/share/orbit-kb/core.pl:77). Choose another name, or use the declaration that exists.
 ```
 
 ### Writing a new module
 
 1. Make the file `modules/<name>.pl` in the library directory
-   (`shared/link/.local/share/orbit-kb/modules/` in this repository).
+   (`kb/share/orbit-kb/modules/` in this repository).
 2. Load it in a KB with `uses([<name>])`. If the file does not exist, lint
    gives E10.
 3. Declare every predicate with `decl/4`. This includes rule predicates and
@@ -1531,7 +1531,7 @@ The discovery-orbit session tests its module with fixtures that have an
 `expected.pl` file. The harness that reads it is `harness/run.pl` in
 `thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/`. It is a
 draft in the `thoughts/` directory. It is not part of the installed tool, and
-`scripts/orbit-kb/test_orbit_kb.sh` does not read `expected.pl`. The harness
+`kb/tests/test_orbit_kb.sh` does not read `expected.pl`. The harness
 runs s(CASP) on the assembled program. It does not use the grounding of the
 CLI.
 
@@ -1619,10 +1619,10 @@ result cache.
 
 To run the suite:
 
-1. Go to the root of the dotfiles repository.
-2. Run `heavy scripts/orbit-kb/test_orbit_kb.sh`.
+1. Go to the root of the sagittarius repository.
+2. Run `heavy kb/tests/test_orbit_kb.sh`.
 3. To run a subset, set `ONLY` to a regex of test IDs, for example
-   `ONLY='^(K|I)[0-9]' heavy scripts/orbit-kb/test_orbit_kb.sh`.
+   `ONLY='^(K|I)[0-9]' heavy kb/tests/test_orbit_kb.sh`.
 
 The suite has 176 tests. All pass. The tests run in parallel. On an idle
 machine, the suite takes about 13.5 s with 4 workers, and about 49 s with one
@@ -1662,7 +1662,7 @@ The negative controls for H2 and H3 (`H3b`, `X2`, `X3`, `X9`) set
 
 ### Fixtures
 
-The fixtures are in `scripts/orbit-kb/fixtures/<name>/`:
+The fixtures are in `kb/tests/fixtures/<name>/`:
 
 - `valid` and `valid_local`: KBs that must lint clean.
 - One fixture for each error code, from E1 to E14, for example `e1_syntax`,

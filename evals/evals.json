@@ -1,8 +1,8 @@
 {
-  "skill_name": "orbital-shifting",
+  "skill_name": "sagittarius",
   "model": "haiku",
   "preamble": "This is a planning exercise. Don't run any tools or change any files; just answer in prose.",
-  "notes": "One-shot planning evals for the live Orbital Shifting prompt (shared/link/.claude/orbital-shifting/ORBITAL-SHIFTING.md). Each scenario avoids the examples used in the prompt itself (purple buttons, discount codes, contrast) so a pass is not a copy. 'assertions' are what a correct answer does; 'fails' are hard failures. Grade on meaning, not wording.",
+  "notes": "One-shot planning evals for the live Sagittarius prompt (prompt/SAGITTARIUS.md). Each scenario avoids the examples used in the prompt itself (purple buttons, discount codes, contrast) so a pass is not a copy. 'assertions' are what a correct answer does; 'fails' are hard failures. Grade on meaning, not wording.",
   "evals": [
     {
       "id": 1,

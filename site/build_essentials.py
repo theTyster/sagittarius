@@ -42,7 +42,7 @@ report = re.search(r'<pre class="report" aria-label="A sample delivery">.*?</pre
 
 # The timeline, simplified: no machine lane, no labels on the Lean dots, one gap box.
 timeline = '''  <figure class="diagram">
-    <svg viewBox="0 0 760 210" role="img" aria-label="Lanes from January to October 2026. Process: Claude Code from January, the orbital plugins from April, the method by hand from June, the AIDLC from late August, Orbital Shifting from 21 October. Lean: in use from April on, never dropped. Hoggwood Health: client work kept shipping the whole time.">
+    <svg viewBox="0 0 760 210" role="img" aria-label="Lanes from January to October 2026. Process: Claude Code from January, the orbital plugins from April, the method by hand from June, the AIDLC from late August, Sagittarius from 21 October. Lean: in use from April on, never dropped. Hoggwood Health: client work kept shipping the whole time.">
       <text x="130" y="16" class="band">2026</text>
       <g class="sub" text-anchor="middle">
         <text x="160.5" y="36" class="sub">Jan</text><text x="221.5" y="36" class="sub">Feb</text><text x="282.5" y="36" class="sub">Mar</text><text x="343.5" y="36" class="sub">Apr</text><text x="404.5" y="36" class="sub">May</text>
@@ -55,7 +55,7 @@ timeline = '''  <figure class="diagram">
       <rect class="box gap" x="460" y="52" width="149" height="44" rx="8"/><text x="534" y="72" text-anchor="middle" class="b">By hand</text><text x="534" y="88" text-anchor="middle" class="sub">long prompts</text>
       <rect class="box mid" x="611" y="52" width="106" height="44" rx="8"/><text x="664" y="79" text-anchor="middle" class="b">AIDLC</text>
       <rect class="box chk" x="719" y="52" width="24" height="44" rx="6"/>
-      <path d="M731 96V108" stroke="var(--good)" stroke-width="2"/><text x="743" y="118" text-anchor="end" class="lbl b" style="fill:var(--good)">Orbital Shifting, live 21 Oct</text>
+      <path d="M731 96V108" stroke="var(--good)" stroke-width="2"/><text x="743" y="118" text-anchor="end" class="lbl b" style="fill:var(--good)">Sagittarius, live 21 Oct</text>
       <text x="10" y="146" class="b">Lean</text><text x="10" y="161" class="sub">never dropped</text>
       <path d="M315 146H743" stroke="var(--amber)" stroke-width="3" stroke-linecap="round"/>
       <g class="tam"><circle cx="315" cy="146" r="4"/><circle cx="339" cy="146" r="5"/><circle cx="465" cy="146" r="5"/><circle cx="514" cy="146" r="4"/><circle cx="610" cy="146" r="4"/><circle cx="634" cy="146" r="5"/><circle cx="714" cy="146" r="5"/></g>
@@ -150,9 +150,9 @@ nav = '\n'.join(f'      <li><a href="#s{i}"><span>{i}</span><span class="t"> {t}
 
 # ---- assemble -----------------------------------------------------------------------------
 pre = full[:full.index('<header class="top">')]
-pre = pre.replace('<title>Orbital Shifting</title>', '<title>Orbital Shifting Essentials</title>', 1)
+pre = pre.replace('<title>Sagittarius</title>', '<title>Sagittarius Essentials</title>', 1)
 header = f'''<header class="top">
-  <strong>Orbital Shifting: the essentials</strong>
+  <strong>Sagittarius: the essentials</strong>
   <a class="alt" href="index.html">Full deck</a>
   <nav aria-label="Slide index">
     <ol>
