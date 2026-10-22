@@ -228,6 +228,21 @@ two runs (`thoughts/orbital-shifting-evals/grading-20261021-final.md`). The grad
 plan an agent makes, not a full ticket. The claim that it is more efficient is still a goal,
 not a result.
 
+## Client delivery, every month
+
+From the fifth excavation (2026-10-21): Ty's commits in the five client repositories, by author
+date, all branches, no names recorded.
+
+| 2026 | Jan | Feb | Mar | Apr | May | Jun | Jul | Aug | Sep | Oct (to 21st) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Commits | 9 | 47 | 42 | 144 | 83 | 70 | 60 | 187 | 456 | 314 |
+| Merge commits | 1 | 9 | 6 | 14 | 4 | 14 | 25 | 38 | 33 | 67 |
+
+No month is empty, and there is no gap at the 09-14 machine move. The rise from August is
+partly finer-grained commits from agent-assisted work, so the counts show that delivery never
+stopped, not how much was delivered. The site says "client work kept shipping" and does not
+chart these numbers.
+
 ## Lean in every era
 
 - Plugins: a Lean parser for nvim (04-02), `LEAN_PATH` from a shared Mathlib (04-14), the Lean 4

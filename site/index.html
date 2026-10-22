@@ -296,7 +296,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <symbol id="i-path" viewBox="0 0 24 24"><circle cx="5" cy="18" r="2"/><circle cx="19" cy="6" r="2"/><path d="M7 18h6a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h6"/></symbol>
   <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
   <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
-  <symbol id="i-lean" viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></symbol>
+  <symbol id="i-lean" viewBox="0 0 24 24"><path d="M6 4v16M6 12h12"/></symbol>
   <symbol id="i-term" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M7 10l3 2.5L7 15M12.5 15h4.5"/></symbol>
 </svg>
 <div class="progress" aria-hidden="true"><i id="bar"></i></div>
@@ -305,34 +305,35 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <nav aria-label="Slide index">
     <ol>
       <li><a href="#s1"><span>1</span><span class="t"> Wrong spec</span></a></li>
-      <li><a href="#s2"><span>2</span><span class="t"> Purple button</span></a></li>
-      <li><a href="#s3"><span>3</span><span class="t"> Tests and proofs</span></a></li>
-      <li><a href="#s4"><span>4</span><span class="t"> Philosophy</span></a></li>
-      <li><a href="#s5"><span>5</span><span class="t"> Roles</span></a></li>
-      <li><a href="#s6"><span>6</span><span class="t"> Loud and quiet</span></a></li>
-      <li><a href="#s7"><span>7</span><span class="t"> Timeline</span></a></li>
-      <li><a href="#s8"><span>8</span><span class="t"> Chapters</span></a></li>
-      <li><a href="#s9"><span>9</span><span class="t"> The eras</span></a></li>
-      <li><a href="#s10"><span>10</span><span class="t"> AIDLC</span></a></li>
-      <li><a href="#s11"><span>11</span><span class="t"> Tiers overfit</span></a></li>
-      <li><a href="#s12"><span>12</span><span class="t"> The constant</span></a></li>
-      <li><a href="#s13"><span>13</span><span class="t"> Two lenses</span></a></li>
-      <li><a href="#s14"><span>14</span><span class="t"> The tool</span></a></li>
-      <li><a href="#s15"><span>15</span><span class="t"> How to use</span></a></li>
-      <li><a href="#s16"><span>16</span><span class="t"> Parallax</span></a></li>
-      <li><a href="#s17"><span>17</span><span class="t"> Two orbits</span></a></li>
-      <li><a href="#s18"><span>18</span><span class="t"> Routes</span></a></li>
-      <li><a href="#s19"><span>19</span><span class="t"> Light path</span></a></li>
-      <li><a href="#s20"><span>20</span><span class="t"> Shifting</span></a></li>
-      <li><a href="#s21"><span>21</span><span class="t"> Build orbit</span></a></li>
-      <li><a href="#s22"><span>22</span><span class="t"> Discovery</span></a></li>
-      <li><a href="#s23"><span>23</span><span class="t"> The vote</span></a></li>
-      <li><a href="#s24"><span>24</span><span class="t"> Burns</span></a></li>
-      <li><a href="#s25"><span>25</span><span class="t"> Trust</span></a></li>
-      <li><a href="#s26"><span>26</span><span class="t"> Delivery</span></a></li>
-      <li><a href="#s27"><span>27</span><span class="t"> Lightest path</span></a></li>
-      <li><a href="#s28"><span>28</span><span class="t"> Most rigorous</span></a></li>
-      <li><a href="#s29"><span>29</span><span class="t"> The gradient</span></a></li>
+      <li><a href="#s2"><span>2</span><span class="t"> Five words</span></a></li>
+      <li><a href="#s3"><span>3</span><span class="t"> Purple button</span></a></li>
+      <li><a href="#s4"><span>4</span><span class="t"> Tests and proofs</span></a></li>
+      <li><a href="#s5"><span>5</span><span class="t"> Philosophy</span></a></li>
+      <li><a href="#s6"><span>6</span><span class="t"> Roles</span></a></li>
+      <li><a href="#s7"><span>7</span><span class="t"> Loud and quiet</span></a></li>
+      <li><a href="#s8"><span>8</span><span class="t"> Timeline</span></a></li>
+      <li><a href="#s9"><span>9</span><span class="t"> Chapters</span></a></li>
+      <li><a href="#s10"><span>10</span><span class="t"> The eras</span></a></li>
+      <li><a href="#s11"><span>11</span><span class="t"> AIDLC</span></a></li>
+      <li><a href="#s12"><span>12</span><span class="t"> Tiers overfit</span></a></li>
+      <li><a href="#s13"><span>13</span><span class="t"> The constant</span></a></li>
+      <li><a href="#s14"><span>14</span><span class="t"> Two lenses</span></a></li>
+      <li><a href="#s15"><span>15</span><span class="t"> The tool</span></a></li>
+      <li><a href="#s16"><span>16</span><span class="t"> How to use</span></a></li>
+      <li><a href="#s17"><span>17</span><span class="t"> Parallax</span></a></li>
+      <li><a href="#s18"><span>18</span><span class="t"> Two orbits</span></a></li>
+      <li><a href="#s19"><span>19</span><span class="t"> Routes</span></a></li>
+      <li><a href="#s20"><span>20</span><span class="t"> Light path</span></a></li>
+      <li><a href="#s21"><span>21</span><span class="t"> Shifting</span></a></li>
+      <li><a href="#s22"><span>22</span><span class="t"> Build orbit</span></a></li>
+      <li><a href="#s23"><span>23</span><span class="t"> Discovery</span></a></li>
+      <li><a href="#s24"><span>24</span><span class="t"> The vote</span></a></li>
+      <li><a href="#s25"><span>25</span><span class="t"> Burns</span></a></li>
+      <li><a href="#s26"><span>26</span><span class="t"> Trust</span></a></li>
+      <li><a href="#s27"><span>27</span><span class="t"> Delivery</span></a></li>
+      <li><a href="#s28"><span>28</span><span class="t"> Lightest path</span></a></li>
+      <li><a href="#s29"><span>29</span><span class="t"> Most rigorous</span></a></li>
+      <li><a href="#s30"><span>30</span><span class="t"> The gradient</span></a></li>
     </ol>
   </nav>
 </header>
@@ -342,7 +343,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 <!-- ============ BACKGROUND ============ -->
 
 <section class="slide" id="s1" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-target"/></svg>1 of 29 · Background</div>
+  <div class="num"><svg class="ic"><use href="#i-target"/></svg>1 of 30 · Background</div>
   <h1>The wrong-spec problem</h1>
   <p class="big">An agent can build <em>exactly</em> what it was told, and still build the wrong thing.</p>
   <p>An <strong>agent</strong> is an AI that does the work, such as Claude Code. A <strong>spec</strong> is what it builds from: the request, the ticket, and the tests. If the spec is wrong, the work is wrong, and the agent may not know it.</p>
@@ -355,7 +356,20 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 </section>
 
 <section class="slide" id="s2" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-eye"/></svg>2 of 29 · Background</div>
+  <div class="num"><svg class="ic"><use href="#i-speech"/></svg>2 of 30 · Background</div>
+  <h2>Five words used on this site</h2>
+  <p class="big">A <em>claim</em> is checked by a <em>check</em>, kept in a <em>KB</em>, and, when it must hold for every case, proved in <em>Lean</em>.</p>
+  <dl class="gloss">
+    <div><dt><svg class="ic"><use href="#i-speech"/></svg>Claim</dt><dd>One statement the change must make true: "Primary buttons are purple."</dd></div>
+    <div><dt><svg class="ic"><use href="#i-check"/></svg>Check</dt><dd>An executable test of one claim, with a pass or fail result.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-db"/></svg>KB</dt><dd>A knowledge base: a folder of facts about one piece of work, kept by <code>orbit-kb</code>.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-lean"/></svg>Lean</dt><dd>A language for proofs. A program checks each step.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-forall"/></svg>Proof</dt><dd>A computer-checked argument that a claim holds for all cases.</dd></div>
+  </dl>
+</section>
+
+<section class="slide" id="s3" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-eye"/></svg>3 of 30 · Background</div>
   <h2>Example: "Make the button purple"</h2>
   <figure class="diagram">
     <svg viewBox="0 0 720 250" role="img" aria-label="Three views of one request. The human meant only the checkout button. The agent made every primary button purple. The test checked only the checkout button, so it passed. All checks pass, and the human says: that is not what I meant.">
@@ -382,7 +396,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <!-- test: checkout only, passes -->
       <g>
         <rect class="box chk" x="560" y="34" width="60" height="80" rx="6"/><rect class="ln" x="570" y="46" width="40" height="4" rx="2"/><rect class="ln" x="570" y="56" width="28" height="4" rx="2"/><rect class="pb" x="570" y="86" width="40" height="14" rx="4"/>
-        <circle cx="620" cy="114" r="12" class="box chk"/><use href="#i-check" x="611" y="105" width="18" height="18" class="ico" style="stroke:var(--good)"/>
+        <circle cx="620" cy="104" r="12" class="box chk"/><use href="#i-check" x="611" y="95" width="18" height="18" class="ico" style="stroke:var(--good)"/>
         <text x="590" y="132" text-anchor="middle" class="sub">/checkout</text>
         <text x="590" y="160" text-anchor="middle" class="b">Submit is purple</text>
       </g>
@@ -400,10 +414,10 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <p>The fix costs one line, if it comes early. The agent says its claim back with one concrete example: <q>Primary buttons are purple. Example: Submit on /checkout shows #6B3FA0.</q> The human answers: <q>No, only that button.</q></p>
 </section>
 
-<section class="slide" id="s3" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-forall"/></svg>3 of 29 · Background</div>
+<section class="slide" id="s4" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-forall"/></svg>4 of 30 · Background</div>
   <h2>Discount codes: why more tests do not help</h2>
-  <p>"Add discount codes to checkout." The real claim is <mark>no discount code takes a price below the floor</mark> (the lowest price allowed). That claim is about every code, every cart, and every combination.</p>
+  <p>"Add discount codes to checkout." The real claim: <mark>no discount code takes a price below the floor</mark> (the lowest price allowed), for every code and every cart.</p>
   <figure class="diagram">
     <svg viewBox="0 0 720 230" role="img" aria-label="Every possible cart and code is a large field of points. The tests try four sample points, and all pass. One combination that no test tried takes the price below the floor. A proof covers the whole field.">
       <defs><pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="8" cy="8" r="1.8" class="tm" opacity=".45"/></pattern></defs>
@@ -425,11 +439,11 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <figcaption>A test shows a claim for the cases that it tries. A proof shows it for all cases of the model.</figcaption>
   </figure>
   <p class="big">The tests come from the same spec. <em>A test written from a wrong spec passes.</em></p>
-  <p>So the question is not only "does the code match the spec?" It is also <mark>"does the spec match what the human means?"</mark> Orbital Shifting asks the second question early and often.</p>
+  <p>So ask a second question, early and often: <mark>does the spec match what the human means?</mark></p>
 </section>
 
-<section class="slide" id="s4" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-orbit"/></svg>4 of 29 · Background</div>
+<section class="slide" id="s5" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-orbit"/></svg>5 of 30 · Background</div>
   <h2>The core philosophy</h2>
   <p class="big">Alignment: the human, the agent, and the formal records <em>agree</em> on what to build and on when it is done.</p>
   <p>Alignment is always possible before a change lands, even when a full proof is not. The agent delivers changes that are:</p>
@@ -439,18 +453,10 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <div class="tile t-good"><svg class="ic"><use href="#i-target"/></svg><h3>Accurate</h3><p class="muted">The change does what the request means. No less, no more.</p></div>
     <div class="tile t-amber"><svg class="ic"><use href="#i-speech"/></svg><h3>Honest</h3><p class="muted">Say what was guessed, not verified, or wrong. Claim no more than the evidence.</p></div>
   </div>
-  <h3>Five words used on this site</h3>
-  <dl class="gloss">
-    <div><dt><svg class="ic"><use href="#i-speech"/></svg>Claim</dt><dd>One statement the change must make true: "Primary buttons are purple."</dd></div>
-    <div><dt><svg class="ic"><use href="#i-check"/></svg>Check</dt><dd>An executable test of one claim, with a pass or fail result.</dd></div>
-    <div><dt><svg class="ic"><use href="#i-db"/></svg>KB</dt><dd>A knowledge base: a folder of facts about one piece of work, kept by <code>orbit-kb</code>.</dd></div>
-    <div><dt><svg class="ic"><use href="#i-lean"/></svg>Lean</dt><dd>A language for proofs. A program checks each step.</dd></div>
-    <div><dt><svg class="ic"><use href="#i-forall"/></svg>Proof</dt><dd>A computer-checked argument that a claim holds for all cases.</dd></div>
-  </dl>
 </section>
 
-<section class="slide" id="s5" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-human"/></svg>5 of 29 · Background</div>
+<section class="slide" id="s6" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-human"/></svg>6 of 30 · Background</div>
   <h2>Three roles, and no one grades their own work</h2>
   <figure class="diagram">
     <svg viewBox="0 0 680 300" role="img" aria-label="A triangle of three roles. The human owns the intent and the final product. The agent owns the build. The formal artifacts are impartial and can disagree with both. Edges: the agent restates and asks the human; the agent queries, checks, and proves through the artifacts; the artifacts give the human evidence.">
@@ -492,8 +498,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </div></details>
 </section>
 
-<section class="slide" id="s6" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-loud"/></svg>6 of 29 · Background</div>
+<section class="slide" id="s7" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-loud"/></svg>7 of 30 · Background</div>
   <h2>Loud is good. Quiet is the danger.</h2>
   <div class="split">
     <div class="tile t-good"><svg class="ic"><use href="#i-loud"/></svg><h3>A divergence is loud</h3>
@@ -511,8 +517,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </ul>
 </section>
 
-<section class="slide" id="s7" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-cal"/></svg>7 of 29 · Background</div>
+<section class="slide" id="s8" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-cal"/></svg>8 of 30 · Background</div>
   <h2>The idea held; the machinery changed</h2>
   <p>Ty, the author, reached this process in 2026 by trying a lot of tools, on two machines. <mark>The process on top kept changing. The two lanes underneath did not.</mark></p>
   <figure class="diagram">
@@ -554,8 +560,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </figure>
 </section>
 
-<section class="slide" id="s8" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-cal"/></svg>8 of 29 · Background</div>
+<section class="slide" id="s9" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-cal"/></svg>9 of 30 · Background</div>
   <h2>Five chapters</h2>
   <div class="tiles chapters">
     <div class="tile"><span class="when">2 Apr</span><svg class="ic"><use href="#i-layers"/></svg><h3>The orbital plugins</h3>
@@ -576,28 +582,24 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </ul>
 </section>
 
-<section class="slide" id="s9" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-path"/></svg>9 of 29 · Background</div>
+<section class="slide" id="s10" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-path"/></svg>10 of 30 · Background</div>
   <h2>Three eras, one idea that stayed</h2>
   <p class="big">Treat the spec as a <em>hypothesis</em>, and try to disprove it before there is code.</p>
   <div class="tiles wide">
     <div class="tile"><svg class="ic"><use href="#i-layers"/></svg><h3>1. The orbital plugins</h3>
-      <p>A seven-stage formal pipeline for every ticket: Prolog, a model, Lean proofs, tests, sub-agents, a score. Seventeen sub-agents.</p>
       <p class="muted"><strong>Taught:</strong> the tools were strong, but one level of rigor for all work was too strict.</p></div>
     <div class="tile t-amber"><svg class="ic"><use href="#i-speech"/></svg><h3>The gap: by hand, then raw Claude</h3>
-      <p>The same method, run by hand with long prompts. Then a stretch with no process at all.</p>
       <p class="muted"><strong>Taught:</strong> the old philosophy was sound, but the process had reached a <mark>local optimum</mark>. Tuning it would not help; it needed a different shape with less machinery.</p></div>
     <div class="tile t-mid"><svg class="ic"><use href="#i-scale"/></svg><h3>2. The AIDLC</h3>
-      <p>Born on ticket #1200. A governance prompt with phases and three rigor tiers, chosen per ticket.</p>
       <p class="muted"><strong>Taught:</strong> a tier chosen once at the start does not work. Nobody knows how much must be formal until a miscommunication happens.</p></div>
     <div class="tile t-good"><svg class="ic"><use href="#i-orbit"/></svg><h3>3. Orbital Shifting</h3>
-      <p>A light path first. A KB and proofs come in only when a signal shows they are needed, and rigor leans back when the cause is resolved.</p>
       <p class="muted"><strong>Live:</strong> since 21 October 2026. The name is reused from the old pipeline plugin, <code>shifting@orbital</code>.</p></div>
   </div>
 </section>
 
-<section class="slide" id="s10" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-scale"/></svg>10 of 29 · Background</div>
+<section class="slide" id="s11" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-scale"/></svg>11 of 30 · Background</div>
   <h2>The AIDLC, renovated twice</h2>
   <p>The AIDLC tried to scale the process back with tiers. Each renovation aimed to make it lighter; <mark>none made the prompt shorter</mark>.</p>
   <figure class="diagram">
@@ -615,7 +617,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       </g>
       <g>
         <title>5 Oct: the slim revision, 1,727 lines, 67.2 KB, plus a TLA+ model</title>
-        <text x="20" y="142" class="b">5 Oct</text><text x="20" y="157" class="sub">"slim" revision</text>
+        <text x="20" y="142" class="b">5 Oct</text><text x="20" y="157" class="sub">"slim", + TLA+</text>
         <rect x="170" y="130" width="400" height="26" rx="4" style="fill:var(--mid);opacity:.75"/><text x="578" y="148" class="lbl">67 KB</text>
       </g>
       <g>
@@ -626,18 +628,13 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <path d="M170 26V206" stroke="var(--muted)" stroke-width="1"/>
     </svg>
   </figure>
-  <ol class="steps dates">
-    <li class="e2"><span><b>4 Sep</b> The AIDLC lands: 17 files, nine phases, four tiers (three by 11 Sep).</span></li>
-    <li class="e2"><span><b>24 Sep</b> First renovation: 17 files become one prompt, and work regroups into sets with approvers.</span></li>
-    <li class="e2"><span><b>5 Oct</b> Second renovation, to "cut process overhead for simple work". It adds a TLA+ model of the process, and grows.</span></li>
-    <li class="e3"><span><b>13 Oct</b> The lesson: the tier cannot be chosen once. Start light, and shift up.</span></li>
-  </ol>
+  <p><b>13 Oct</b>, the lesson: <mark>the tier cannot be chosen once.</mark> Start light, and shift up.</p>
 </section>
 
 <!-- ============ WHY ============ -->
 
-<section class="slide" id="s11" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-layers"/></svg>11 of 29 · Why</div>
+<section class="slide" id="s12" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-layers"/></svg>12 of 30 · Why</div>
   <h2>Why the tiers had to go</h2>
   <p class="big">Tiers had the right philosophy, but they <em>overfit</em>.</p>
   <figure class="diagram">
@@ -669,14 +666,14 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <path class="arr up" marker-end="url(#ahw1)" d="M700 97C724 97 724 47 703 47"/>
       <path class="arr up" marker-end="url(#ahw1)" d="M700 147C724 147 724 197 703 197"/>
     </svg>
-    <figcaption>Ty wanted three or more tiers. The middle ones kept drifting into the lowest and the highest, so the gradient was never smooth.</figcaption>
+    <figcaption>Ty wanted three or more tiers. The middle ones emptied, so the gradient was never smooth.</figcaption>
   </figure>
-  <p>And "difficulty" was the wrong axis. <mark>What is hard for a model today is not what will be hard in six months, or in six years.</mark> A tier built on difficulty is built on sand.</p>
+  <p>And "difficulty" was the wrong axis. <mark>What is hard for a model today is not what will be hard in six months, or in six years.</mark></p>
   <blockquote><p>"I knew it wasn't going to survive the next model shift."</p></blockquote>
 </section>
 
-<section class="slide" id="s12" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-split"/></svg>12 of 29 · Why</div>
+<section class="slide" id="s13" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-split"/></svg>13 of 30 · Why</div>
   <h2>The constant: misalignment</h2>
   <p class="big">LLMs scale with data and compute. <em>They don't have the data in your brain.</em></p>
   <figure class="diagram">
@@ -707,17 +704,11 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <figcaption>People change their minds, and often don't know what they want until they see it. Better models will guess better, but not every time, and least of all on the niche asks.</figcaption>
   </figure>
   <blockquote><p>"I'm making the bet that even with ASI, humans will still need to explain what they want, and that will continue to be a point of friction."</p></blockquote>
-  <p>So the process aims at the bridge, not at difficulty. Find the intent, then deliver it <mark>without adding unnecessary process</mark>.</p>
-  <ul class="chips" aria-label="What the process aims at">
-    <li class="chip"><svg class="ic"><use href="#i-lens"/></svg>Clarity</li>
-    <li class="chip"><svg class="ic"><use href="#i-target"/></svg>Accuracy</li>
-    <li class="chip"><svg class="ic"><use href="#i-speech"/></svg>Honesty</li>
-    <li class="chip"><svg class="ic"><use href="#i-bolt"/></svg>Speed</li>
-  </ul>
+  <p>So the process aims at <mark>the bridge, not at difficulty</mark>: find the intent, then deliver it without unnecessary process.</p>
 </section>
 
-<section class="slide" id="s13" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-lens"/></svg>13 of 29 · Why</div>
+<section class="slide" id="s14" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-lens"/></svg>14 of 30 · Why</div>
   <h2>Two lenses: Lean and Prolog</h2>
   <figure class="diagram">
     <svg viewBox="0 0 720 256" role="img" aria-label="The human and the agent each look through two lenses, Lean and Prolog. Lean gives specificity: it says exactly what is meant. Prolog gives structure: it asks what is open and what is done. Both lenses focus on the intent.">
@@ -746,15 +737,15 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <figcaption>"Working together, the specificity of Lean and the structure of Prolog provide two lenses that the LLM and the human can use to determine the intent of the session." (Ty)</figcaption>
   </figure>
   <dl class="gloss">
-    <div><dt><svg class="ic"><use href="#i-forall"/></svg>Lean</dt><dd>A dependently typed language <mark>demands specificity</mark>, and it is becoming a primary tool for LLMs. In the orbit, Lean proves the claims that burn.</dd></div>
-    <div><dt><svg class="ic"><use href="#i-db"/></svg>Prolog</dt><dd>Queryable, self-contained knowledge stores, with a semantic upper hand on markdown notes. Its <mark>logical constraints</mark> keep the LLM and the human focused on what matters most. In the orbit, it is the KB.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-forall"/></svg>Lean</dt><dd><mark>Demands specificity</mark>: a statement says exactly what is meant, or it does not check. LLMs use it more and more. In the orbit, it proves the claims that burn.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-db"/></svg>Prolog</dt><dd>A <mark>queryable</mark>, self-contained store of facts, with logical constraints that keep the LLM and the human on what matters most. In the orbit, it is the KB.</dd></div>
   </dl>
 </section>
 
 <!-- ============ THE TOOL ============ -->
 
-<section class="slide" id="s14" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-box"/></svg>14 of 29 · The tool</div>
+<section class="slide" id="s15" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-box"/></svg>15 of 30 · The tool</div>
   <h2>What Orbital Shifting is</h2>
   <p class="big">A system prompt, a command-line tool, and two engines it calls. <em>That's all.</em></p>
   <figure class="diagram">
@@ -777,10 +768,10 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <text x="392" y="82" class="sub">schema, lint,</text>
       <text x="392" y="98" class="sub">queries, report</text>
       <rect class="box" x="560" y="14" width="170" height="56" rx="10"/>
-      <text x="574" y="38" class="b">SWI-Prolog</text>
-      <text x="574" y="56" class="sub">s(CASP), two engines</text>
+      <text x="574" y="38" class="b">SWI-Prolog, s(CASP)</text>
+      <text x="574" y="56" class="sub">two engines cross-check</text>
       <rect class="box mid" x="560" y="84" width="170" height="56" rx="10"/>
-      <text x="574" y="108" class="b">Lean 4 + Lake</text>
+      <text x="574" y="108" class="b">Lean 4</text>
       <text x="574" y="126" class="sub">checks proofs, burns only</text>
       <rect class="box hum" x="200" y="150" width="150" height="70" rx="10"/>
       <use href="#i-human" x="212" y="162" width="22" height="22" class="ico" style="stroke:var(--accent)"/>
@@ -799,14 +790,14 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <text x="287" y="135" class="sub">plain words</text>
       <text x="467" y="135" class="sub">reads, writes</text>
     </svg>
-    <figcaption>The prompt tells the agent how to work. <code>orbit-kb</code> keeps the records honest: every fact is declared, typed, and checked. Prolog answers the questions; Lean checks the proofs.</figcaption>
+    <figcaption>The prompt tells the agent how to work. <code>orbit-kb</code> keeps the records honest: every fact is declared, typed, and checked.</figcaption>
   </figure>
   <blockquote><p>"My bet is that this version will stand the test of time and continue being used even if harnesses evolve in other ways."</p></blockquote>
-  <p>The prompt is plain text and the tool is a shell command, so <mark>no harness owns it</mark>. Prolog and Lean are older, and steadier, than any agent.</p>
+  <p>Plain text and a shell command: <mark>no harness owns it</mark>. Prolog and Lean are older, and steadier, than any agent.</p>
 </section>
 
-<section class="slide" id="s15" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-term"/></svg>15 of 29 · The tool</div>
+<section class="slide" id="s16" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-term"/></svg>16 of 30 · The tool</div>
   <h2>How to use it</h2>
   <ol class="steps">
     <li><span><strong>Install once.</strong> SWI-Prolog with the s(CASP) pack, and <code>orbit-kb</code> on your PATH. Lean 4 only if you want proofs. Then run <code>orbit-kb doctor</code>.</span></li>
@@ -815,12 +806,14 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <li><span><strong>Answer what it asks.</strong> At most three questions a round, each with options and a marked default.</span></li>
     <li><span><strong>Verify the result, not the tests.</strong> The delivery says what was checked, what was guessed, and what was not checked.</span></li>
   </ol>
-  <p class="muted">You rarely type <code>orbit-kb</code> yourself. When the work shifts up, the agent runs it, like this:</p>
+  <p class="muted">You rarely type <code>orbit-kb</code> yourself. When the work shifts up, the agent runs it.</p>
+  <details class="more"><summary>What the agent runs</summary><div class="body">
 <pre class="report"><i>$</i> orbit-kb init kb --request 'Make the button purple' --uses build
 <i>$</i> orbit-kb add "claim(c1, introduce, 'Primary buttons are purple.')" "check(k1, c1)"
 <i>$</i> orbit-kb run k1 -- npm test -- button     <i># fails first, then passes</i>
 <i>$</i> orbit-kb query done                       <i># exit 0 means yes</i>
 <i>$</i> orbit-kb report                           <i># the delivery skeleton</i></pre>
+  </div></details>
   <details class="more"><summary>Install on Fedora</summary><div class="body">
 <pre class="report"><i>$</i> sudo dnf install swi-prolog-nox
 <i>$</i> swipl -g "pack_install(scasp, [interactive(false)])" -t halt
@@ -832,8 +825,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 
 <!-- ============ HOW IT WORKS ============ -->
 
-<section class="slide" id="s16" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-eye"/></svg>16 of 29 · How it works</div>
+<section class="slide" id="s17" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-eye"/></svg>17 of 30 · How it works</div>
   <h2>Parallax: one lap of the orbit</h2>
   <p>Each party sees the intent from a different position. Like two eyes, the views <mark>triangulate</mark> the intent. Where they do not line up, there is a divergence.</p>
   <figure class="diagram">
@@ -881,13 +874,9 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </figure>
 </section>
 
-<section class="slide" id="s17" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-orbit"/></svg>17 of 29 · How it works</div>
+<section class="slide" id="s18" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-orbit"/></svg>18 of 30 · How it works</div>
   <h2>Two orbits: discovery, then build</h2>
-  <div class="split">
-    <div class="tile"><svg class="ic"><use href="#i-compass"/></svg><h3>Discovery</h3><p class="muted">Makes a problem clear.</p></div>
-    <div class="tile t-good"><svg class="ic"><use href="#i-hammer"/></svg><h3>Build</h3><p class="muted">Delivers a solution.</p></div>
-  </div>
   <figure class="diagram">
     <svg viewBox="0 280 640 140" role="img" aria-label="A report goes through the discovery orbit and, on GO, into the build orbit. A clear change request goes straight to the build orbit. The build orbit ends in delivery.">
       <defs><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs><text x="10" y="298" class="band">THE TWO ORBITS, IN ORDER</text>
@@ -913,8 +902,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <blockquote><p>We write solutions to problems. We do not write to achieve understanding; <strong>we orbit to achieve understanding.</strong></p></blockquote>
 </section>
 
-<section class="slide" id="s18" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-path"/></svg>18 of 29 · How it works</div>
+<section class="slide" id="s19" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-path"/></svg>19 of 30 · How it works</div>
   <h2>Where a request goes</h2>
   <figure class="diagram">
     <svg viewBox="0 0 700 270" role="img" aria-label="Four kinds of request. A question, or a request for advice or a decision, gets a direct answer with no KB. A report, where something is wrong but nobody can say what to change, goes to the discovery orbit, tiny first. A change request goes to the build orbit, light path first. Discovery leads to build on GO.">
@@ -956,8 +945,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <p>A report says something is wrong or wanted, but not what to change. A change request with open details stays in the build orbit: <mark>open details are questions to ask, not a reason for discovery.</mark></p>
 </section>
 
-<section class="slide" id="s19" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-feather"/></svg>19 of 29 · How it works</div>
+<section class="slide" id="s20" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-feather"/></svg>20 of 30 · How it works</div>
   <h2>The light path</h2>
   <p>Most tickets need only these five steps. They are the whole process until a trigger fires.</p>
   <figure class="diagram">
@@ -999,13 +988,13 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </div></details>
 </section>
 
-<section class="slide" id="s20" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-layers"/></svg>20 of 29 · How it works</div>
+<section class="slide" id="s21" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-layers"/></svg>21 of 30 · How it works</div>
   <h2>Shift up on a signal. Lean back when it is resolved.</h2>
   <div class="tiles">
-    <div class="tile"><svg class="ic"><use href="#i-question"/></svg><h3>Questions</h3><p class="muted">One round does not settle it: more than three questions, or an answer raises a new one.</p></div>
-    <div class="tile t-bad"><svg class="ic"><use href="#i-split"/></svg><h3>A divergence</h3><p class="muted">"That is wrong." The red run passes. A check still fails when the build is done. The code does not behave as assumed.</p></div>
-    <div class="tile t-amber"><svg class="ic"><use href="#i-flame"/></svg><h3>A claim burns</h3><p class="muted">It needs a proof. See slide 24.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-question"/></svg><h3>Questions</h3><p class="muted">More than three, or an answer raises a new one.</p></div>
+    <div class="tile t-bad"><svg class="ic"><use href="#i-split"/></svg><h3>A divergence</h3><p class="muted"><q>That is wrong.</q> Or a check, or the code, surprises the agent.</p></div>
+    <div class="tile t-amber"><svg class="ic"><use href="#i-flame"/></svg><h3>A claim burns</h3><p class="muted">It needs a proof (slide 25).</p></div>
     <div class="tile t-mid"><svg class="ic"><use href="#i-handoff"/></svg><h3>A handoff</h3><p class="muted">Another session continues the work.</p></div>
   </div>
   <figure class="diagram">
@@ -1036,8 +1025,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </div></details>
 </section>
 
-<section class="slide" id="s21" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-hammer"/></svg>21 of 29 · How it works</div>
+<section class="slide" id="s22" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-hammer"/></svg>22 of 30 · How it works</div>
   <h2>The build orbit, in a KB</h2>
   <p>After a shift up, the agent works in the KB with moves. It runs only the moves the ticket needs, and every move reads the ticket text itself.</p>
   <figure class="diagram">
@@ -1058,10 +1047,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <rect class="box" x="470" y="160" width="280" height="50" rx="10" style="stroke-dasharray:5 4"/><text x="610" y="182" text-anchor="middle" class="b">EXPLAIN</text><text x="610" y="198" text-anchor="middle" class="sub">on request: plain English, from the KB</text>
     </svg>
   </figure>
-  <div class="tiles">
-    <div class="tile t-good"><svg class="ic"><use href="#i-check"/></svg><h3><code>done</code> holds when</h3><p class="muted">nothing is under, nothing is over, nothing is to ask, no burn is open, and no claim is in a supersede cycle.</p></div>
-    <div class="tile"><svg class="ic"><use href="#i-db"/></svg><h3>The KB</h3><p class="muted">Memory between laps and sessions. Only <code>orbit-kb</code> writes it; only <code>orbit-kb run</code> records a test result. Not committed unless asked.</p></div>
-  </div>
+  <ul class="chips"><li class="chip"><svg class="ic"><use href="#i-check"/></svg><span><code>done</code> = nothing under, over, or to ask; no burn open</span></li><li class="chip"><svg class="ic"><use href="#i-db"/></svg>Only <code>orbit-kb</code> writes the KB</li></ul>
   <details class="more" open><summary>The moves in full</summary><div class="body">
   <ul>
     <li><strong>SURVEY:</strong> record the current behavior that the claims depend on. For a defect, reproduce it first. Skip it when discovery ran, or when the change site is obvious.</li>
@@ -1069,14 +1055,14 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <li><strong>BUILD:</strong> write the checks first, plus a screenshot check for a user surface. Run each <code>retire</code> and <code>introduce</code> check red. Never edit a check to make it pass.</li>
     <li><strong>FULFILL:</strong> review with fresh eyes, both ways. Under: a claim not fulfilled. Over: a change that serves no claim.</li>
     <li><strong>DISPROVE:</strong> try to break a claim on a small budget. The verdict is <code>refuted(Counterexample)</code>, <code>inconclusive</code>, or <code>abstained</code>. Do not weaken a claim to absorb a counterexample.</li>
-    <li><strong>BURN:</strong> prove a burning claim in Lean (slide 24). <strong>EXPLAIN:</strong> on request.</li>
+    <li><strong>BURN:</strong> prove a burning claim in Lean (slide 25). <strong>EXPLAIN:</strong> on request.</li>
     <li>Two logic engines answer each KB query, and the tool compares them. If they disagree, stop and report both answers.</li>
   </ul>
   </div></details>
 </section>
 
-<section class="slide" id="s22" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-compass"/></svg>22 of 29 · How it works</div>
+<section class="slide" id="s23" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-compass"/></svg>23 of 30 · How it works</div>
   <h2>The discovery orbit</h2>
   <p>Discovery turns a report into a ticket with a clear problem, scope, and risk, before anything is built. <mark>Most reports need only a reproduction.</mark></p>
   <figure class="diagram">
@@ -1086,20 +1072,17 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <rect class="box bad" x="10" y="32" width="150" height="62" rx="10"/><use href="#i-bug" x="22" y="42" width="22" height="22" class="ico" style="stroke:var(--bad)"/><text x="50" y="58" class="b">Reproduce</text><text x="22" y="82" class="sub">a red test</text>
       <rect class="box" x="190" y="32" width="150" height="62" rx="10"/><use href="#i-speech" x="202" y="42" width="22" height="22" class="ico" style="stroke:var(--fg)"/><text x="230" y="58" class="b">Claims</text><text x="202" y="82" class="sub">examples, falsifiers</text>
       <rect class="box hum" x="370" y="32" width="150" height="62" rx="10"/><use href="#i-human" x="382" y="42" width="22" height="22" class="ico" style="stroke:var(--accent)"/><text x="410" y="58" class="b">Ask</text><text x="382" y="82" class="sub">the human</text>
-      <rect class="box mid" x="550" y="32" width="90" height="62" rx="10"/><use href="#i-scale" x="562" y="42" width="22" height="22" class="ico" style="stroke:var(--mid)"/><text x="590" y="58" class="b">Vote</text><text x="562" y="82" class="sub">slide 23</text>
+      <rect class="box mid" x="550" y="32" width="90" height="62" rx="10"/><use href="#i-scale" x="562" y="42" width="22" height="22" class="ico" style="stroke:var(--mid)"/><text x="590" y="58" class="b">Vote</text><text x="562" y="82" class="sub">slide 24</text>
       <path class="arr" marker-end="url(#ah14)" d="M160 63H188"/><path class="arr" marker-end="url(#ah14)" d="M340 63H368"/><path class="arr" marker-end="url(#ah14)" d="M520 63H548"/><path class="arr" marker-end="url(#ah14)" d="M640 63H668"/>
       <rect class="box chk" x="670" y="32" width="80" height="62" rx="10"/><text x="710" y="58" text-anchor="middle" class="b">Build</text><text x="710" y="82" text-anchor="middle" class="sub">on GO</text>
       <path class="arr up" d="M85 94V124H710V96" marker-end="url(#ah14a)"/>
       <text x="400" y="142" text-anchor="middle" class="sub">the red reproduction becomes the build's first check</text>
     </svg>
   </figure>
-  <div class="split">
-    <div class="tile"><svg class="ic"><use href="#i-feather"/></svg><h3>Tiny</h3><p class="muted">One problem, a cheap reproduction, claims that a few examples cover. If it does not reproduce, tell the human what was tried.</p></div>
-    <div class="tile t-amber"><svg class="ic"><use href="#i-db"/></svg><h3>Full, in a KB</h3><p class="muted">On any light-path trigger, or when a claim needs a model because a few examples cannot cover its combinations. Three laps by default.</p></div>
-  </div>
+  <ul class="chips"><li class="chip"><svg class="ic"><use href="#i-feather"/></svg><strong>Tiny</strong> one problem, a cheap reproduction</li><li class="chip"><svg class="ic"><use href="#i-db"/></svg><strong>Full, in a KB</strong> on a trigger, or when a claim needs a model</li></ul>
   <details class="more" open><summary>The full discovery orbit</summary><div class="body">
   <ul>
-    <li>Pin the report as one falsifiable hypothesis, then touch the system to reproduce it.</li>
+    <li>Pin the report as one falsifiable hypothesis, then touch the system to reproduce it. If it does not reproduce, tell the human what was tried. Three laps by default.</li>
     <li>Choose the cheapest tool that can falsify each claim: a reproduction or a test first; SMT (a solver for rules, permissions, limits, prices); TLA+ (a model checker for order of steps, retries, concurrency). A property for every input is <code>universal</code>, for BURN.</li>
     <li>A finding from a model only is a lead, until a reproduction on the system confirms it.</li>
     <li>Ask only the questions that evidence raised: conflicts first, then surprises, then boundaries. When stakeholders conflict, the decision owner decides.</li>
@@ -1110,8 +1093,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </div></details>
 </section>
 
-<section class="slide" id="s23" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-scale"/></svg>23 of 29 · How it works</div>
+<section class="slide" id="s24" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-scale"/></svg>24 of 30 · How it works</div>
   <h2>The vote: GO, NO-GO, or HOLD</h2>
   <p>At the end of discovery, three roles vote. A choice wins with <mark>more than 0.5</mark> of the vote. No role wins alone, and nothing wins without the human.</p>
   <figure class="diagram">
@@ -1132,28 +1115,27 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <rect class="box hum" x="120" y="196" width="294" height="30" rx="6"/><text x="267" y="216" text-anchor="middle" class="lbl">Human 0.49</text>
       <text x="436" y="216" class="b" style="fill:var(--amber)">0.49: the human needs one supporter</text>
     </svg>
-    <figcaption>Any result without a winner is HOLD: another orbit follows, and the agent records the disagreement as a divergence.</figcaption>
+    <figcaption>A split is recorded as a divergence, and another orbit follows.</figcaption>
   </figure>
   <ul class="chips" aria-label="What each choice means">
     <li class="chip"><svg class="ic" style="color:var(--good)"><use href="#i-check"/></svg><strong>GO</strong> build the ticket</li>
     <li class="chip"><svg class="ic" style="color:var(--bad)"><use href="#i-x"/></svg><strong>NO-GO</strong> not real, already exists, or not worth it</li>
     <li class="chip"><svg class="ic" style="color:var(--amber)"><use href="#i-clock"/></svg><strong>HOLD</strong> wait for data, access, or a decision; then lap again</li>
   </ul>
+  <details class="more"><summary>Who votes how</summary><div class="body">
   <div class="tiles">
     <div class="tile"><svg class="ic"><use href="#i-lock"/></svg><h3>The agent votes first, sealed</h3><p class="muted">Recorded before the report. A visible vote biases the human.</p></div>
     <div class="tile t-good"><svg class="ic"><use href="#i-formal"/></svg><h3>The artifacts vote by rule</h3><p class="muted">In a KB, the tool computes it. In a tiny orbit: red reproduction is GO; no reproduction is NO-GO.</p></div>
     <div class="tile"><svg class="ic"><use href="#i-human"/></svg><h3>The human decides</h3><p class="muted">Nothing is built or dropped against the human's vote.</p></div>
   </div>
+  </div></details>
 </section>
 
-<section class="slide" id="s24" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-flame"/></svg>24 of 29 · How it works</div>
+<section class="slide" id="s25" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-flame"/></svg>25 of 30 · How it works</div>
   <h2>Burns: when a test cannot be enough</h2>
   <p>A claim <strong>burns</strong> when it is <code>universal</code>, when the human asks for a proof, or when it was contested twice. <mark>Universal</mark> has one meaning: the domain inputs are infinite or too large to check case by case.</p>
-  <div class="split">
-    <div class="tile t-amber"><svg class="ic"><use href="#i-flame"/></svg><h3>Burns</h3><p>"No discount code takes a price below the floor."</p><p>"Every distinguished element has at least 7:1 contrast with whatever it overlays."</p></div>
-    <div class="tile"><svg class="ic"><use href="#i-check"/></svg><h3>Does not burn</h3><p>"Primary buttons are purple." A few examples cover it.</p></div>
-  </div>
+  <ul class="chips"><li class="chip"><svg class="ic" style="color:var(--amber)"><use href="#i-flame"/></svg><strong>Burns</strong> "No discount code takes a price below the floor."</li><li class="chip"><svg class="ic"><use href="#i-check"/></svg><strong>Does not burn</strong> "Primary buttons are purple." A few examples cover it.</li></ul>
   <figure class="diagram">
     <svg viewBox="0 0 745 150" role="img" aria-label="A burning claim closes in one of two ways. A Lean proof recorded by orbit-kb prove: no sorry, no native_decide, no new axiom, and the kernel accepts it again. Or a human waiver with a due time, after which the burn blocks done again.">
       <defs><marker id="ah16" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
@@ -1185,8 +1167,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </div></details>
 </section>
 
-<section class="slide" id="s25" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-shield"/></svg>25 of 29 · How it works</div>
+<section class="slide" id="s26" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-shield"/></svg>26 of 30 · How it works</div>
   <h2>Trust and honesty</h2>
   <p class="big">The formal artifacts catch <em>honest mistakes</em>. They do not stop cheating, and the prompt says so.</p>
   <div class="split">
@@ -1203,15 +1185,17 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <tr><td>No counterexample in 1,000 trials</td><td>"always true"</td><td>"none found in 1,000 trials"</td></tr>
     </table>
   </div>
+  <details class="more"><summary>Three more honesty rules</summary><div class="body">
   <ul class="chips" aria-label="Other honesty rules">
     <li class="chip"><svg class="ic"><use href="#i-speech"/></svg>Every default is a guess: list the risky ones</li>
     <li class="chip"><svg class="ic"><use href="#i-loud"/></svg>Disclosing is never a failure; hiding is</li>
     <li class="chip"><svg class="ic"><use href="#i-x"/></svg>Found your own work wrong? Say so first</li>
   </ul>
+  </div></details>
 </section>
 
-<section class="slide" id="s26" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-box"/></svg>26 of 29 · How it works</div>
+<section class="slide" id="s27" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-box"/></svg>27 of 30 · How it works</div>
   <h2>The delivery</h2>
   <p>Six fields, in short plain sentences. An empty field says "none", so the human sees that the agent looked. An example from the light path:</p>
 <pre class="report" aria-label="A sample delivery"><b>Delivered:</b>    Submit on /checkout is purple.
@@ -1220,7 +1204,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 <b>Disclosures:</b>  none
 <b>Not checked:</b>  dark mode
 <b>To land:</b>      none; merged.
-<i>No KB.</i></pre>
+<i>Screenshot attached. No KB.</i></pre>
   <div class="tiles">
     <div class="tile"><svg class="ic"><use href="#i-db"/></svg><h3>With a KB</h3><p class="muted"><code>orbit-kb report</code> drafts it and adds <code>Open:</code>: open burns, lapsed waivers, proofs that no longer count.</p></div>
     <div class="tile t-amber"><svg class="ic"><use href="#i-clock"/></svg><h3>Waivers</h3><p class="muted">Every waiver is listed, with its due time.</p></div>
@@ -1232,10 +1216,10 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 
 <!-- ============ THE GRADIENT ============ -->
 
-<section class="slide" id="s27" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-feather"/></svg>27 of 29 · The gradient</div>
+<section class="slide" id="s28" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-feather"/></svg>28 of 30 · The gradient</div>
   <h2>The lightest path</h2>
-  <p class="big">One ticket, one lap, one check. <em>No KB.</em></p>
+  <p class="big">The five steps of slide 20, on one real ticket. <em>No KB.</em></p>
   <figure class="diagram">
     <svg viewBox="-4 -2 728 206" role="img" aria-label="The purple button ticket on the light path, left to right. 1 Restate with one example. 2 Decide: build on defaults, no questions. 3 Write the check first: it fails, red. 4 Build one rule. 5 Run the check again: green, deliver with No KB. Then the human opens the checkout page, sees purple, and closes the ticket. Cost: minutes, and only the change and its test are touched.">
       <defs><marker id="l27a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
@@ -1296,20 +1280,11 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     </svg>
     <figcaption>Most tickets end here: red, then green, then the human says yes.</figcaption>
   </figure>
-  <div class="split">
-    <div><pre class="report" aria-label="The delivery for this ticket"><b>Delivered:</b>    Submit on /checkout is purple.
-<b>Claims:</b>       Submit is #6B3FA0: fulfilled. Check red, then green.
-<b>Guesses:</b>      this button only.
-<b>Disclosures:</b>  none
-<b>Not checked:</b>  dark mode
-<b>To land:</b>      none; merged.
-<i>Screenshot attached. No KB.</i></pre></div>
-    <div class="tile t-amber"><svg class="ic"><use href="#i-bolt"/></svg><h3>What would shift it up</h3><p class="muted">The human says <q>that is not what I meant</q>: a divergence. Or asks that every button keep 7:1 contrast: a claim that burns. Then a KB starts: <a href="#s29">the gradient</a>.</p></div>
-  </div>
+  <div class="tile t-amber"><svg class="ic"><use href="#i-bolt"/></svg><h3>What would shift it up</h3><p class="muted">The human says <q>that is not what I meant</q>: a divergence. Or asks that every button keep 7:1 contrast: a claim that burns. Then a KB starts: <a href="#s30">the gradient</a>.</p></div>
 </section>
 
-<section class="slide" id="s28" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-forall"/></svg>28 of 29 · The gradient</div>
+<section class="slide" id="s29" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-forall"/></svg>29 of 30 · The gradient</div>
   <h2>The most rigorous path</h2>
   <p>The report: <q>Some stacked discount codes give orders for almost nothing.</q></p>
   <figure class="diagram">
@@ -1327,8 +1302,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <!-- laps loop: DISPROVE back to FLYBY, through the human -->
       <path class="arr up" marker-end="url(#h28a)" d="M534 48V34H226V46"/>
       <circle cx="380" cy="34" r="10" class="box hum"/><use href="#i-human" x="373" y="27" width="14" height="14" class="ico" style="stroke:var(--accent)"/>
-      <text x="362" y="28" text-anchor="end" class="sub">laps 1 to 3</text>
-      <text x="398" y="28" class="sub" style="fill:var(--accent)">the human answers</text>
+      <text x="362" y="26" text-anchor="end" class="sub">laps 1 to 3</text>
+      <text x="398" y="26" class="sub" style="fill:var(--accent)">the human answers</text>
 
       <!-- discovery stations -->
       <rect class="box bad" x="6" y="48" width="132" height="70" rx="10"/>
@@ -1388,7 +1363,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <rect class="box amb" x="314" y="172" width="132" height="70" rx="10"/>
       <use href="#i-flame" x="324" y="181" width="20" height="20" class="ico" style="stroke:var(--amber)"/>
       <text x="350" y="196" class="b">BURN</text>
-      <text x="324" y="218" class="sub">∀ codes, ∀ carts</text>
+      <text x="324" y="218" class="sub">every code, every cart</text>
       <text x="324" y="233" class="sub">search: none found</text>
 
       <rect class="box chk" x="468" y="172" width="132" height="70" rx="10"/>
@@ -1435,16 +1410,15 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <li><strong>BURN.</strong> The claim is <code>universal</code>. A Lean model, <code>#eval</code> examples as a table for the human, and a counterexample search first. Then the proof, recorded by <code>orbit-kb prove</code>. The human reads the printed statement.</li>
     <li><strong>Delivery.</strong> <code>done</code> holds: nothing under, over, or to ask, and no open burn. Each Lean example is a test. Prices are money, so the human decides to land.</li>
   </ol>
-  <p class="muted">What "guarantee" covers: the proof holds for every case of the Lean model. Only the checks test the shipped code.</p>
   </div></details>
 </section>
 
-<section class="slide" id="s29" tabindex="-1">
-  <div class="num"><svg class="ic"><use href="#i-layers"/></svg>29 of 29 · The gradient</div>
+<section class="slide" id="s30" tabindex="-1">
+  <div class="num"><svg class="ic"><use href="#i-layers"/></svg>30 of 30 · The gradient</div>
   <h2>The gradient</h2>
   <p class="big">No tier is picked up front. Each <em>signal</em> adds one rung, and each rung comes off when its cause is resolved.</p>
   <figure class="diagram">
-    <svg viewBox="0 0 740 306" role="img" aria-label="A ramp from light to rigorous with six rungs. Answer directly or tiny discovery, for a question or tiny report. Light path with one check, for any change request. Plus a KB, when questions pile up or on a handoff. Plus laps, on a divergence. Plus a Lean burn, for a universal claim or one contested twice. Full discovery with models and a vote, when a claim needs a model. A dashed arrow shows shifting up on a signal; a green arrow shows leaning back, rung by rung. The purple button of slide 27 sits at the light path; the discount codes of slide 28 span the KB to full discovery.">
+    <svg viewBox="0 0 740 306" role="img" aria-label="A ramp from light to rigorous with six rungs. Answer directly or tiny discovery, for a question or tiny report. Light path with one check, for any change request. Plus a KB, when questions pile up or on a handoff. Plus laps, on a divergence. Plus a Lean burn, for a universal claim or one contested twice. Full discovery with models and a vote, when a claim needs a model. A dashed arrow shows shifting up on a signal; a green arrow shows leaning back, rung by rung. The purple button of slide 28 sits at the light path; the discount codes of slide 29 span the KB to full discovery.">
       <defs>
         <marker id="g29up" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--amber)"/></marker>
         <marker id="g29dn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--good)"/></marker>
@@ -1481,16 +1455,16 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <text x="628" y="100" class="b">Full discovery</text><text x="628" y="117" class="sub">models, then vote</text>
       <text x="675" y="208" text-anchor="middle" class="sub">a claim needs</text>
       <text x="675" y="222" text-anchor="middle" class="sub">a model</text>
-      <circle cx="132" cy="246" r="4" class="pb"/><text x="142" y="250" class="sub">purple button (27)</text>
-      <path d="M262 246H724" stroke="var(--amber)" stroke-width="3" stroke-linecap="round"/><text x="493" y="264" text-anchor="middle" class="sub">discount codes (28): each trigger fires in turn</text>
+      <circle cx="132" cy="246" r="4" class="pb"/><text x="142" y="250" class="sub">purple button (28)</text>
+      <path d="M262 246H724" stroke="var(--amber)" stroke-width="3" stroke-linecap="round"/><text x="493" y="264" text-anchor="middle" class="sub">discount codes (29): each trigger fires in turn</text>
       <path d="M730 282H20" class="arr" style="stroke:var(--good)" marker-end="url(#g29dn)" fill="none"/>
       <text x="375" y="302" text-anchor="middle" class="sub" style="fill:var(--good)">leaning back: a rung stops when its cause is resolved. A KB stays; a burn stays until a proof or a waiver.</text>
     </svg>
-    <figcaption>Fixed tiers lost their middle. Here it is reachable: a trigger adds only its own rigor, in any order. A universal claim can burn with no questions asked.</figcaption>
+    <figcaption>Fixed tiers had no middle. Here each trigger adds only its own rung, in any order: a universal claim can burn with no questions asked.</figcaption>
   </figure>
   <blockquote><p>"My bet is that this version will stand the test of time and continue being used even if harnesses evolve in other ways. This pattern offers, when it really needs it, a level of rigor that can guarantee correctness."</p></blockquote>
   <p class="muted">What "guarantee" covers: a proof holds for every case of the Lean model. The checks tie the model to the code.</p>
-  <p class="sources">Sources: the live prompt, <code>shared/link/.claude/orbital-shifting/ORBITAL-SHIFTING.md</code> (live since 2026-10-21), its design notes <code>thoughts/orbital-shifting-system-prompt-draft.md</code>, and <code>thoughts/orbital-shifting-refinement-record.md</code>. Slides 7 to 10 come from <code>thoughts/orbital-shifting-history.md</code>. Slides 11 to 13 quote <code>thoughts/orbital-shifting-why.md</code>.</p>
+  <p class="sources">Sources: the live prompt, <code>shared/link/.claude/orbital-shifting/ORBITAL-SHIFTING.md</code> (live since 2026-10-21), its design notes <code>thoughts/orbital-shifting-system-prompt-draft.md</code>, and <code>thoughts/orbital-shifting-refinement-record.md</code>. Slides 8 to 11 come from <code>thoughts/orbital-shifting-history.md</code>. Slides 12 to 14 quote <code>thoughts/orbital-shifting-why.md</code>.</p>
 </section>
 
 <p class="hint nojs" style="padding-inline:1.1rem;text-align:center">Without JavaScript, scroll.</p>
@@ -1573,36 +1547,37 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 })();
 </script>
 <!--
-Fact-check note. Slides 1 to 6 and 16 to 26 were checked against the live prompt
+Fact-check note. Slides 1 to 7 and 17 to 27 were checked against the live prompt
 (shared/link/.claude/orbital-shifting/ORBITAL-SHIFTING.md), thoughts/orbital-shifting-system-prompt-draft.md,
 and the review sections of thoughts/orbital-shifting-refinement-record.md.
-Slides 7 to 10 come from thoughts/orbital-shifting-history.md, which has the evidence (commit hashes).
-Slides 11 to 13 come from Ty's account in thoughts/orbital-shifting-why.md; quotes are Ty's words ("thats"
-spelled "that's"). The tier-drift diagram (slide 11), the bridge diagram (slide 12), and the lens diagram
-(slide 13) illustrate that account; dot counts and bar heights mean nothing.
-Slides 14 and 15 come from the live prompt (Commands table), claude() and _orbital_system_prompt in
+Slides 8 to 11 come from thoughts/orbital-shifting-history.md, which has the evidence (commit hashes).
+Slides 12 to 14 come from Ty's account in thoughts/orbital-shifting-why.md; quotes are Ty's words ("thats"
+spelled "that's"). The tier-drift diagram (slide 12), the bridge diagram (slide 13), and the lens diagram
+(slide 14) illustrate that account; dot counts and bar heights mean nothing.
+Slides 15 and 16 come from the live prompt (Commands table), claude() and _orbital_system_prompt in
 shared/copy/.zshenv, and section 2 of shared/link/.local/share/orbit-kb/README.md (install steps, Lean only
-for prove). The command sequence on slide 15 is an
+for prove). The command sequence on slide 16 is an
 illustration in the documented command forms.
-Slide numbers below are for the 29-slide version (2026-10-21 polish, after the gradient slides).
-Slides 27 to 29 (the gradient) were drafted by sub-agents from the live prompt and checked against it:
-- 27: the five light-path steps; "No KB"; the six delivery fields; the divergence and burn triggers. Illustration:
+Slide numbers below are for the 30-slide version (2026-10-21 polish, after the readability review).
+Slide 2 (the five words) is the glossary that was on the philosophy slide, moved ahead of first use.
+Slides 28 to 30 (the gradient) were drafted by sub-agents from the live prompt and checked against it:
+- 28: the five light-path steps; "No KB"; the six delivery fields; the divergence and burn triggers. Illustration:
   "minutes", "one CSS rule", the screenshot line, and "dark mode" under Not checked.
-- 28: the discovery moves, the lap, the sealed agent vote and the 0.49/0.24/0.24 weights, the handoff, BURN steps
+- 29: the discovery moves, the lap, the sealed agent vote and the 0.49/0.24/0.24 weights, the handoff, BURN steps
   1 to 6, done, and "stop for the human first" on money. Illustration: the report wording, "none found",
   "apply, retry", all three votes GO, and "hours, not minutes".
-- 29: rungs and triggers from Scope, "Shift up to a KB", BURN (burn reasons), "When to run discovery" (a claim
+- 30: rungs and triggers from Scope, "Shift up to a KB", BURN (burn reasons), "When to run discovery" (a claim
   needs a model), and "Leaning back". Rung heights and order are an illustration; triggers fire in any order.
-- "Guarantee" (Ty's word) is scoped on 28 and 29 to the Lean model; only the checks test the shipped code.
+- "Guarantee" (Ty's word) is scoped on 29 and 30 to the Lean model; only the checks test the shipped code.
 
 Illustrations, glosses, and wording with no exact match in the live prompt:
-- Slide 8 chapter moments and slide 10 AIDLC beats: from the second excavation (pass 3), recorded in
+- Slide 9 chapter moments and slide 11 AIDLC beats: from the second excavation (pass 3), recorded in
   thoughts/orbital-shifting-history.md. "Ten of ten theorems proven, and the code could still ship broken"
-  is from a 2026-05-07 memory note; "nine Lean commits in 24 minutes" is nine hub commits on 06-18 (14:29 to 14:53);
-  "182 theorems, no sorry, no axioms" is the #1200 Lean model on 09-09. Slide 10 sizes are git blob sizes
+  is from a 2026-05-07 memory note; "nine Lean commits in 24 minutes" is nine hub commits on 06-18 (14:29 to 15:53);
+  "182 theorems, no sorry, no axioms" is the #1200 Lean model on 09-09. Slide 11 sizes are git blob sizes
   (17-file tree at ad2ae50 = 40,081 bytes; 8b2d093 = 50,564; 15a3b04 = 67,201; ORBITAL-SHIFTING.md now =
   48,299).
-- Slides 7 to 9 (timeline): dates and events from thoughts/orbital-shifting-history.md, corrected
+- Slides 8 to 10 (timeline): dates and events from thoughts/orbital-shifting-history.md, corrected
   2026-10-21 from the excavation of ~/.claude, transcripts, and the work hub. Hedges were dropped from the
   slides at Ty's request ("we're trying to tell a story"); the third excavation (2026-10-21 evening)
   dated the lean-lsp install (Mac about 06-13 per Ty, Linux 10-09) and the plugin-repo beats. The Lean dots
@@ -1610,27 +1585,27 @@ Illustrations, glosses, and wording with no exact match in the live prompt:
   Ty's account of steady quality.
 - Slide 1 "wrong, incomplete, read two ways": from the task brief. The prompt has "the human is not always
   the source of clarity" (Roles).
-- Slide 2 purple-button diagram: the claim "Primary buttons are purple" and #6B3FA0 are the prompt's. The
+- Slide 3 purple-button diagram: the claim "Primary buttons are purple" and #6B3FA0 are the prompt's. The
   "only the checkout button" meaning, the three pages, and the human's reply are an illustration.
-- Slide 3 discount diagram: the floor claim is the prompt's. "Combined codes" and "sample codes pass" are an
+- Slide 4 discount diagram: the floor claim is the prompt's. "Combined codes" and "sample codes pass" are an
   illustration from the refinement-record scenario. "Only a proof shows a claim for all cases" paraphrases
   the burn rules ("no counterexample in N trials is not a proof").
-- Slide 4 tile wording compresses the four goals; glossary entries are plain-language glosses.
-- Slide 5 triangle edge labels ("restates, asks, delivers"; "queries, checks, proves"; "evidence it can
+- Slide 5 tile wording compresses the four goals; glossary entries are plain-language glosses.
+- Slide 6 triangle edge labels ("restates, asks, delivers"; "queries, checks, proves"; "evidence it can
   read") summarize the lap diagram and the role text. The blockquote is Ty's text, word for word.
-- Slide 6 "a check that cannot fail / an empty field / a claim nobody tested" illustrate "silence";
+- Slide 7 "a check that cannot fail / an empty field / a claim nobody tested" illustrate "silence";
   "an empty field says none" is from the delivery rules.
-- Slide 18 routing: "options, assumptions, unknowns" is the prompt's advice route.
-- Slide 19 step 2 detail compresses "Ask first, or build on default assumptions".
-- Slide 20 per-trigger bars are an illustration of "rigor follows each trigger separately"; bar lengths
+- Slide 19 routing: "options, assumptions, unknowns" is the prompt's advice route.
+- Slide 20 step 2 detail compresses "Ask first, or build on default assumptions".
+- Slide 21 per-trigger bars are an illustration of "rigor follows each trigger separately"; bar lengths
   mean nothing.
-- Slide 21 move diagram: the order SURVEY, DECOMPOSE, BUILD, FULFILL is the prompt's; the DISPROVE and
+- Slide 22 move diagram: the order SURVEY, DECOMPOSE, BUILD, FULFILL is the prompt's; the DISPROVE and
   BURN placement and the divergence arrow summarize "When the human says it is wrong".
-- Slide 23: the 0.73, 0.48, and 0.49 examples follow from the weights (0.49, 0.24, 0.24) and the 0.5 bar.
-- Slide 25 "Not / Say" table restates honesty rule 3; the "Say" wording is illustrative ("Tests pass does not mean correct" and so on).
-- Slide 26 sample delivery is an illustration in the six-field format; "No KB" comes from light-path step 5.
+- Slide 24: the 0.73, 0.48, and 0.49 examples follow from the weights (0.49, 0.24, 0.24) and the 0.5 bar.
+- Slide 26 "Not / Say" table restates honesty rule 3; the "Say" wording is illustrative ("Tests pass does not mean correct" and so on).
+- Slide 27 sample delivery is an illustration in the six-field format; "No KB" comes from light-path step 5.
 - Ty's emphasis, not draft text: "Humans care about proofs when proofs are necessary. Agents worry about
-  tests." (slide 5) and "the human verifies the result, not the test results".
+  tests." (slide 6) and "the human verifies the result, not the test results".
 No orbit-kb vote command is quoted, by request.
 -->
 </body>
