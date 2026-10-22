@@ -1,0 +1,6 @@
+% orbit-kb run 5 check=k1 result=pass exit=0 time=2026-10-22T21:33:00Z cmd=python3 -I -m unittest discover -s /tmp/tmp.ZTKH9sxFmc -k test_weekly_report_matches_live_tracker
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

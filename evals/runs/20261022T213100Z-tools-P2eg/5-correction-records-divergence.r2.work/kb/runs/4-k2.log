@@ -1,0 +1,6 @@
+% orbit-kb run 4 check=k2 result=pass exit=0 time=2026-10-22T21:31:38Z cmd=python -m unittest test_pipeline.PipelineTest.test_grade_large
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

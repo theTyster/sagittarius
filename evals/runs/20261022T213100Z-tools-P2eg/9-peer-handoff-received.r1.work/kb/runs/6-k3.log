@@ -1,0 +1,6 @@
+% orbit-kb run 6 check=k3 result=pass exit=0 time=2026-10-22T21:34:15Z cmd=python -m unittest test_inventory.InventoryTest.test_refused_reserve_keeps_total
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

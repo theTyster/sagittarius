@@ -1,0 +1,6 @@
+% orbit-kb run 4 check=k2 result=pass exit=0 time=2026-10-22T21:32:54Z cmd=python3 -I -m unittest discover -s /tmp/tmp.ZTKH9sxFmc -k test_weekly_report_counts_open_issues
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+OK
