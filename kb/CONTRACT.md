@@ -1,5 +1,8 @@
 # orbit-kb contract (v2.1, 2026-10-15)
 
+Files cited here under `thoughts/` are in git history, at the tag `thoughts-archive`
+(`git show thoughts-archive:thoughts/<file>`). Their paths are from the dotfiles repository.
+
 **Changes in v2.1** (sent to the builders while they work):
 
 - **D1.** `test_result` and the rules `passed/1`, `failed_after/2`, and `was_red/1` move

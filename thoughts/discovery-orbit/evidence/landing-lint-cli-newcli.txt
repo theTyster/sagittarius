@@ -1,4 +1,0 @@
-Summary: 0 error(s), 0 warning(s).
-ok    R1 orbit-kb lint: no E code (exit 0)
-ok    R1 control: lint reports E14 and E13 on the bad copy (exit 1)
-b0465f2b34302f45

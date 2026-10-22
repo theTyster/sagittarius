@@ -2,12 +2,6 @@
 .env
 *.local.*
 
-# This repo TRACKS thoughts/ (design notes, records, the discovery-orbit work).
-# The global ~/.gitignore_global ignores `thoughts/*`; these lines override it.
-# The .lake/ and *.olean rules below still win inside thoughts/.
-!thoughts/
-!thoughts/**
-
 # Lean build artifacts (regenerable; never commit)
 .lake/
 lake-packages/

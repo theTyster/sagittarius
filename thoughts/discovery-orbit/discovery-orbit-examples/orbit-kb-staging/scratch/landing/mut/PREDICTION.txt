@@ -1,8 +1,0 @@
-Written before the mutant runs (module sha256 18435d9d9b95fbdb):
-- orig operators (250): expect roughly 80-90% killed by an answer.
-- Expected survivors (real gaps): model_diverges clause with subject = M (line 181);
-  discovery_model_artifact clauses (model/2 and model_run/3) because no variant tags a
-  model artifact as system evidence; WD8/ED2 literal deletions that the m3/minor_wrong_log
-  ids do not pin; parts of model_breaks (bad_case) beyond b2_target_bad_case.
-- ext operators (269): expect a lower kill rate (60-75%): break_join mutants on not-literals
-  and lint ids; swap_const on enum facts (holds/violated) probably survive.

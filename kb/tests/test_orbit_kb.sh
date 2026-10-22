@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Black-box tests for kb/bin/orbit-kb.
 #
-# The ONLY source of expected behavior is thoughts/orbit-kb-contract.md (v2.1). No test
+# The ONLY source of expected behavior is kb/CONTRACT.md (v2.1). No test
 # reads the CLI source or the library source, so the implementation is never the source
 # of what a test expects. Where the contract is ambiguous, the test follows the reading
 # that makes a failure loud, and the comment above the test says so.

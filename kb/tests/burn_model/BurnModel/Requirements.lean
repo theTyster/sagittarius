@@ -1,9 +1,10 @@
 /-!
 # orbit-kb D10: the requirements model (SIMULATION)
 
-Sources, and only these:
+Sources, and only these (the `thoughts/` files are in git history, tag
+`thoughts-archive`):
 * R1 to R5 in `thoughts/orbit-kb-d10-record.md` (Ty, 2026-10-19);
-* the D10 entry in `thoughts/orbit-kb-contract.md`;
+* the D10 entry in `kb/CONTRACT.md`;
 * the "BURN" section and the build-module table in
   `thoughts/orbital-shifting-system-prompt-draft.md`.
 

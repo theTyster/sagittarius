@@ -1,7 +1,0 @@
-# Generated mutants (13 MB). Rebuild with mut/tools/gen_mutants_ext.pl and
-# scratch/review/mut/gen_mutants.pl; see evidence/landing-review.md section 4.
-mut/orig/
-mut/orig2/
-mut/ext/
-mut/ext2/
-mut/surv2/

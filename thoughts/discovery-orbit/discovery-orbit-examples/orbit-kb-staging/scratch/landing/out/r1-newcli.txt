@@ -1,6 +1,0 @@
-heavy: waiting for a slot (2 busy)
-CLI sha256: b0465f2b34302f45; module: 20db37fba8da1c01; lint_cli.sh: f2bc48d652bad3ec
-Summary: 0 error(s), 0 warning(s).
-ok    R1 orbit-kb lint: no E code (exit 0)
-ok    R1 control: lint reports E14 and E13 on the bad copy (exit 1)
-lint_cli rc=0

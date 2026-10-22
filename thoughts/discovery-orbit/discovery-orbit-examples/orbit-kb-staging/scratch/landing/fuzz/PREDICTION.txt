@@ -1,5 +1,0 @@
-Written before the fuzz runs (module sha256 18435d9d9b95fbdb):
-- fuzz_small (120 random KBs x 7 queries = 840 comparisons, seed 7, s(CASP) timeout 10 s):
-  expect 0 ENGINE DISAGREEMENT; a few skips; many SWI "FAIL" lines (dummy expectations).
-- fuzz_pert (60 perturbations of discovery-a x 7 queries = 420, seed 11, timeout 10 s):
-  expect 0 ENGINE DISAGREEMENT; skips mainly on discovery_ready/discovery_decide/lint_issue.

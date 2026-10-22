@@ -1,4 +1,0 @@
-set -u
-cd /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/rh3
-echo "module: $(sha256sum < /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/rh3/modules/discovery.pl | cut -c1-16)"
-for fx in probe minimal qwait; do timeout 1200 python3 -I /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/mut/tools/run_mutants_matrix.py /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/fixtures/$fx /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/mut/surv2-$fx.json /home/ty/.dotfiles/thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/scratch/landing/mut/surv2; done

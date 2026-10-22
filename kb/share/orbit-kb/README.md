@@ -45,7 +45,7 @@ The tool is part of the sagittarius repository:
 | CLI | `kb/bin/orbit-kb` | `~/.local/bin/orbit-kb` |
 | Library | `kb/share/orbit-kb/` | `~/.local/share/orbit-kb/` |
 | Tests | `kb/tests/` | (not installed) |
-| Contract | `thoughts/orbit-kb-contract.md` | (not installed) |
+| Contract | `kb/CONTRACT.md` | (not installed) |
 
 To install on Fedora:
 
@@ -1530,7 +1530,8 @@ orbit-kb query gate_split                           # true: record a divergence
 The discovery-orbit session tests its module with fixtures that have an
 `expected.pl` file. The harness that reads it is `harness/run.pl` in
 `thoughts/discovery-orbit/discovery-orbit-examples/orbit-kb-staging/`. It is a
-draft in the `thoughts/` directory. It is not part of the installed tool, and
+draft, kept in git history (tag `thoughts-archive`). It is not part of the
+installed tool, and
 `kb/tests/test_orbit_kb.sh` does not read `expected.pl`. The harness
 runs s(CASP) on the assembled program. It does not use the grounding of the
 CLI.
@@ -1678,7 +1679,7 @@ writes.
 
 ### The independence rule
 
-The only source of expected behavior is `thoughts/orbit-kb-contract.md`. No
+The only source of expected behavior is `kb/CONTRACT.md`. No
 test reads the CLI source or the library source. Thus the implementation never
 decides what a test expects. Where the contract is not clear, the test uses the
 reading that makes a failure loud, and a comment above the test says so.
@@ -1777,7 +1778,8 @@ The speed work (also on 2026-10-16) did not change any answer:
 
 - **D10 follow-up (review fixes, 2026-10-20).** An independent review of D10 and
   the Lean phases found these defects. Record:
-  `thoughts/orbit-kb-d10-record.md`, section "D10 follow-up fixes".
+  `thoughts/orbit-kb-d10-record.md`, section "D10 follow-up fixes" (in git
+  history, tag `thoughts-archive`).
   - **Restated claims (F11, Ty's decision).** A claim that replaces a burning
     claim inherits the burn, also through a chain. The new rule
     `burn(C) :- supersedes_closure(C, O), burn_reason(O).` reads a derived
