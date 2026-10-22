@@ -9,6 +9,14 @@
 set -eo pipefail
 here=${0:A:h}
 source ~/.zshenv
+# Evals run on the personal key unless EVAL_ACCOUNT=work. Claude Code does not pass its own
+# token to the shells it starts, so the runner picks the account; claude() keeps a token that
+# is already set and does not fall back to the work key.
+case ${EVAL_ACCOUNT:-personal} in
+  personal) claude-personal || { print -u2 "Cannot load the personal key. Run claude-auth in a real terminal."; exit 3; } ;;
+  work) claude-40AU-claudeAPI-env || { print -u2 "Cannot load the work key. Run claude-auth in a real terminal."; exit 3; } ;;
+  *) print -u2 "EVAL_ACCOUNT must be personal or work"; exit 2 ;;
+esac
 model=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["model"])' $here/evals.json)
 mkdir -p $here/runs
 out=$(mktemp -d $here/runs/$(date -u +%Y%m%dT%H%M%SZ)-XXXX)

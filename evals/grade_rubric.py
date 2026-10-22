@@ -4,7 +4,8 @@
 Usage: grade_rubric.py SPEC ID TRANSCRIPT.jsonl
 The scripted checks (grade_tools.py) decide pass and fail. The judge reads what they cannot:
 what the agent told the human, and whether it did so for the right reason. It judges
-outcomes, not wording. It runs through claude() with no Sagittarius prompt and no tools.
+outcomes, not wording. It runs through claude() with no Sagittarius prompt and no tools, on
+the account that run_tools.sh loaded (the personal key when run alone).
 Prints one JSON object: {"assertions": [{"assertion", "passed", "evidence"}], "judge": MODEL}.
 """
 import json
@@ -61,7 +62,7 @@ def main(spec, eid, transcript):
         "sentences.\n\n# Assertions\n" + asks + "\n\n# Session\n" + condensed(transcript, turns)
     )
     p = subprocess.run(
-        ["zsh", "-c", 'source ~/.zshenv && claude "$@"', "claude", "-p", "--model", JUDGE,
+        ["zsh", "-c", 'source ~/.zshenv && { [[ -n $CLAUDE_CODE_OAUTH_TOKEN || -n $ANTHROPIC_AUTH_TOKEN ]] || claude-personal; } && claude "$@"', "claude", "-p", "--model", JUDGE,
          "--append-system-prompt", " ", "--tools", "", "--no-session-persistence",
          "--output-format", "json", "--json-schema", json.dumps(SCHEMA)],
         input=prompt, capture_output=True, text=True, timeout=600)

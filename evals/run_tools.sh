@@ -25,6 +25,14 @@
 set -eo pipefail
 here=${0:A:h}
 source ~/.zshenv
+# Evals run on the personal key unless EVAL_ACCOUNT=work. Claude Code does not pass its own
+# token to the shells it starts, so the runner picks the account; claude() keeps a token that
+# is already set and does not fall back to the work key.
+case ${EVAL_ACCOUNT:-personal} in
+  personal) claude-personal || { print -u2 "Cannot load the personal key. Run claude-auth in a real terminal."; exit 3; } ;;
+  work) claude-40AU-claudeAPI-env || { print -u2 "Cannot load the work key. Run claude-auth in a real terminal."; exit 3; } ;;
+  *) print -u2 "EVAL_ACCOUNT must be personal or work"; exit 2 ;;
+esac
 spec=$here/tools.json; runs=1; jobs=1; prompt=""; model=""; rubric=0
 while (( $# )); do
   case $1 in
@@ -50,13 +58,13 @@ if [[ $prompt == none ]]; then sp=(--append-system-prompt " ")
 elif [[ -n $prompt ]]; then [[ -f $prompt ]] || { print -u2 "no prompt file $prompt"; exit 2; }; sp=(--append-system-prompt "$(<$prompt)"); fi
 mkdir -p $here/runs
 out=$(mktemp -d $here/runs/$(date -u +%Y%m%dT%H%M%SZ)-tools-XXXX)
-python3 - $out/meta.json $spec $model "${prompt:-live}" $runs $here <<'PY'
+python3 - $out/meta.json $spec $model "${prompt:-live}" $runs $here ${EVAL_ACCOUNT:-personal} <<'PY'
 import hashlib,json,os,subprocess,sys
-out,spec,model,prompt,runs,here=sys.argv[1:]
+out,spec,model,prompt,runs,here,account=sys.argv[1:]
 path=os.path.expanduser("~/.claude/sagittarius/SAGITTARIUS.md") if prompt=="live" else prompt
 sha=hashlib.sha256(open(path,"rb").read()).hexdigest() if prompt!="none" else None
 git=lambda *a: subprocess.run(["git","-C",here,*a],capture_output=True,text=True).stdout.strip()
-json.dump({"spec":os.path.relpath(spec,here),"model":model,"prompt":prompt,"prompt_sha256":sha,"runs":int(runs),
+json.dump({"spec":os.path.relpath(spec,here),"account":account,"model":model,"prompt":prompt,"prompt_sha256":sha,"runs":int(runs),
            "commit":git("rev-parse","--short","HEAD"),"dirty":bool(git("status","--porcelain","--","prompt","evals"))},open(out,"w"),indent=2)
 PY
 ids=$(python3 - $spec "$@" <<'PY'
