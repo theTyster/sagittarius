@@ -1,0 +1,35 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 9 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_kb",
+      "passed": true,
+      "evidence": "no kb.pl"
+    },
+    {
+      "text": "unittest_pass",
+      "passed": true,
+      "evidence": "OK"
+    },
+    {
+      "text": "python:from greet import greet; assert greet('Ana') == 'Hello, Ana!', greet('Ana')",
+      "passed": true,
+      "evidence": "ok"
+    }
+  ],
+  "commands": []
+}
