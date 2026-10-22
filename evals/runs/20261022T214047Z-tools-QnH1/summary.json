@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "live",
+    "prompt_sha256": "0b46a6962514b2273963317319113d8005357683e2ffb378ebb17ffaa68e32ff",
+    "runs": 3,
+    "commit": "0eb9e86",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 8,
+      "name": "count-off-by-one",
+      "runs": 3,
+      "passed_runs": 0,
+      "passed": false,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "kb_exists": "0/3",
+        "help_before_write": "0/3",
+        "lint_clean": "0/3",
+        "no_hand_edit": "3/3",
+        "query:divergence_recorded": "0/3",
+        "python:from duration import parse_duration as p; assert (p('2d'), p('1d2h')) == (172800, 93600), (p('2d'), p('1d2h'))": "3/3",
+        "unittest_pass": "3/3"
+      },
+      "rubric": {}
+    }
+  ]
+}

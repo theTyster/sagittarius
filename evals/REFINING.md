@@ -71,7 +71,8 @@ the prompt toward one case.
 
 | Case | Executor | Reason |
 |---|---|---|
-| (none yet) | | |
+| 5, 6, 7, 8 | sonnet | Haiku, 3 runs each over five prompt cycles (2026-10-22): 0/3 on each. It names the trigger in its own words ("a one-line correction to my last change", "Divergence: yes") and still delivers with no KB. Sonnet passes 5, 6, 7 at 3/3. |
+| 8 | opus | Sonnet, three cycles: it names the count difference as a divergence in 2 of 3 runs and still delivers with no KB, after it finds the cause. Opus passes 3/3. |
 
 ## The loop
 

@@ -47,7 +47,7 @@ Your goal should be to help foster understanding between these three roles in th
 
 ## The light path
 
-Most tickets need only this. These five steps are the whole process until a trigger fires
+Most tickets need only this. These six steps are the whole process until a trigger fires
 (below). The KB sections and the moves apply only after you shift up.
 
 The light path is one try to get the request right. When the human verifies that the result
@@ -60,37 +60,57 @@ A **check** is an executable test of one claim, such as a unit test or a script,
 or fail result. In a KB, it is a `check(K, Claim)` fact, and `orbit-kb run` records each
 run. On the light path, it is the same test with no KB.
 
-1. State the request back in a sentence, with one concrete example.
+1. Check the triggers in "Shift up to a KB" against the request. If one fired, shift up now.
+   Then state the request back in a sentence, with one concrete example.
 2. Decide: ask first, or build on default assumptions (see "Ask first, or build on default assumptions").
 3. Find the project's existing tests first, and put the check with them, so it outlives this
    session. An existing test that asserts the old behavior is a check you change, not one
-   you skip. Run the project's tests before and after the change. If you say that no tests
-   exist, say where you looked. Write the check first, and run it. A check of behavior that
-   the change adds or removes must fail before the change: a check that has never failed
-   shows nothing. A check that current behavior stays the same passes before and after. If
-   the change has no executable check, such as prose, say so under "Not checked".
+   you skip. Run all of the project's tests before and after the change: the whole suite,
+   not only the file that you changed. If you say that no tests exist, say where you
+   looked. Write the check first, and run it. A check of behavior that the change adds or removes must fail before
+   the change: a check that has never failed shows nothing. A check that current behavior
+   stays the same passes before and after. If the change has no executable check, such as
+   prose, say so under "Not checked".
 4. Build only what the request needs.
-5. Run the checks again. Deliver with the report in "Delivery", with "KB: No KB". The human
-   verifies the result, not the tests. Name each check and its result in one line, so the
-   delivery stays honest.
+5. Run the checks again. Deliver with the report in "Delivery". Every trigger "no" goes with
+   "KB: No KB"; if a trigger fired, shift up first. The human verifies the result, not the
+   tests. Name each check and its result in one line, so the delivery stays honest.
+6. The ticket does not end at the delivery. Most corrections and doubts arrive after it.
+   Check each later human message, and each result that you see, against the triggers
+   before you answer. If one fired, shift up before you reply.
 
 ### Shift up to a KB
 
 Shift up the moment one of these occurs. Then start a KB (`orbit-kb init`), record the
-request, the claims, the checks, and the answers that exist so far, and continue in the KB.
+request, the claims, the checks, the answers that exist so far, and what fired: a
+divergence is a `divergence` record on its claim, not only a disclosure. Continue in the KB.
 
 - **Questions:** one round does not settle the ticket. You need more than three questions,
   or an answer raises a new question.
-- **A divergence:** the human says that the result, or your restatement, is wrong; the red
-  run passes; a check still fails when the build is done; or the code does not behave as you assumed.
+- **A divergence:** two of the three roles disagree: the human, you, or a result, whoever
+  turns out to be wrong. The human corrects the result or your restatement, or finds a
+  flaw or a missed case, even as a question or a doubt (more forms in "When the human says
+  that it is wrong"). Or a result differs from
+  what you or the human expected, even by a small amount: the red run passes, a check
+  still fails when the build is done, or the code does not behave as you assumed. If you
+  are about to say "you're right" about your own error, you found a divergence: shift up
+  before you fix it.
+- **A build by someone else:** you own the ticket when a subagent or a peer session builds.
+  Check its report yourself. A failing check, or a report that your run contradicts, is a
+  divergence.
 - **A claim that burns:** the human asks for a proof, or the claim is universal: the domain
   inputs are infinite or too large to check case by case, such as "no discount code takes
   a price below the floor" / "every distinguished element needs at least 7:1 contrast
   with whatever it overlays".
-- **A handoff:** another session continues the work.
+- **A handoff:** unfinished work moves to a new session, in either direction: another
+  session continues your work, or you continue work from a peer session's message or from
+  a compaction summary.
 
 A KB costs time, so you do not start one before you need it. A KB is memory and a referee,
-so you start one as soon as a miscommunication or a proof appears.
+so you start one as soon as a miscommunication, an unexpected result, or a proof appears.
+A trigger decides the shift up, not the size of the change. A one-line fix with a trigger
+gets a small KB: the request, one claim, one check, and what fired. A small change, a clear
+request, or a fix that you already know are not reasons to skip it.
 
 ### Leaning back
 
@@ -100,7 +120,9 @@ a divergence has a known cause, stop working on it. Work for a trigger that is s
 active continues: a claim that burns keeps its burn until a proof or a human waiver closes
 it.
 
-Leaning back does not leave the KB. Once a KB exists, it stays until the ticket closes, and
+Leaning back comes after the shift up, never instead of it. A divergence whose cause you
+find in the same turn still gets its KB and its record; then you lean back. Leaning back
+does not leave the KB. Once a KB exists, it stays until the ticket closes, and
 `done` decides when the work is finished. Write only the facts that `done` and the report
 read. Do not add optional work, such as a conformance check, unless the human asks. Do not
 drop an open question, a failing check, or a burn.
@@ -395,6 +417,8 @@ Deliver to the human in short, plain sentences (ASD-STE100 style):
 ```
 Delivered:   <one sentence>
 KB:          <"No KB", or the KB directory>
+Triggers:    <questions, divergence, someone else built, burns, handoff: each "no", or
+             "yes" and what fired it>
 Claims:      <each claim: fulfilled or not, and how it was verified>
 Guesses:     <defaults that a human might disagree with>
 Disclosures: <unverified parts, disagreements, work outside the claims>
@@ -403,6 +427,8 @@ To land:     <the decision that the human must make>
 ```
 
 The `KB:` field tells the human where the evidence lives: in the KB, or only in this report.
+The `Triggers:` field checks the work against "Shift up to a KB". If a trigger fired, the
+`KB:` field names a KB.
 Keep each field to a line when the change is small. Write "none" in an empty field, so that
 the human sees you looked. Include a screenshot when the change has a user surface. In a KB,
 `orbit-kb report` drafts the middle fields and adds `Open:` (open burns, lapsed waivers,
