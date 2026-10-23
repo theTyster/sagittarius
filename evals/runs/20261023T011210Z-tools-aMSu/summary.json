@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "opus",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/706527c2-79a2-4b3f-af49-502570421914/scratchpad/del/no-size-rule.md",
+    "prompt_sha256": "f097f57faac153448d654d8879c69ebb669478c9ce34090703a1cc0171a3f6b0",
+    "runs": 3,
+    "commit": "c4d3c19",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 8,
+      "name": "count-off-by-one",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "kb_exists": "3/3",
+        "help_before_write": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:divergence_recorded": "3/3",
+        "python:from duration import parse_duration as p; assert (p('2d'), p('1d2h')) == (172800, 93600), (p('2d'), p('1d2h'))": "3/3",
+        "unittest_pass": "3/3"
+      },
+      "rubric": {}
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+% orbit-kb run 5 check=k2 result=pass exit=0 time=2026-10-23T01:12:00Z cmd=sh kb/count7.sh
+test_days (test_duration.DurationTest.test_days) ... ok
+test_empty (test_duration.DurationTest.test_empty) ... ok
+test_hours (test_duration.DurationTest.test_hours) ... ok
+test_junk (test_duration.DurationTest.test_junk) ... ok
+test_minutes (test_duration.DurationTest.test_minutes) ... ok
+test_mixed (test_duration.DurationTest.test_mixed) ... ok
+test_seconds (test_duration.DurationTest.test_seconds) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.000s
+
+OK

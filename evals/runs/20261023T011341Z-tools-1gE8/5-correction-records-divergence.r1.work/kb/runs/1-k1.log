@@ -1,0 +1,16 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-23T01:14:08Z cmd=python -I -m unittest test_pipeline.PipelineTest.test_summarize_small
+E
+======================================================================
+ERROR: test_pipeline (unittest.loader._FailedTest.test_pipeline)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_pipeline
+Traceback (most recent call last):
+  File "/usr/lib64/python3.14/unittest/loader.py", line 141, in loadTestsFromName
+    module = __import__(module_name)
+ModuleNotFoundError: No module named 'test_pipeline'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

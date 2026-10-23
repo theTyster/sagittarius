@@ -1,0 +1,34 @@
+% orbit-kb run 5 check=k3 result=fail exit=1 time=2026-10-23T01:18:08Z cmd=python3 -m unittest
+.FF
+======================================================================
+FAIL: test_weekly_report_counts_open_issues (test_report.ReportTest.test_weekly_report_counts_open_issues)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.3Cohl5RRMu/test_report.py", line 25, in test_weekly_report_counts_open_issues
+    self.assertEqual(weekly_report(path), "Open issues: 3")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Open issues: 2' != 'Open issues: 3'
+- Open issues: 2
+?              ^
++ Open issues: 3
+?              ^
+
+
+======================================================================
+FAIL: test_weekly_report_matches_live_tracker (test_report.ReportTest.test_weekly_report_matches_live_tracker)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.3Cohl5RRMu/test_report.py", line 31, in test_weekly_report_matches_live_tracker
+    self.assertEqual(weekly_report(path), f"Open issues: {expected}")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Open issues: 2' != 'Open issues: 3'
+- Open issues: 2
+?              ^
++ Open issues: 3
+?              ^
+
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+FAILED (failures=2)

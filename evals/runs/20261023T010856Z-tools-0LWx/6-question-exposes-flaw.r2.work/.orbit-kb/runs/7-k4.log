@@ -1,0 +1,1 @@
+% orbit-kb run 7 check=k4 result=fail exit=1 time=2026-10-23T01:11:02Z cmd=bash /tmp/tmp.BAZG1wzm0g/.orbit-kb/k4.sh

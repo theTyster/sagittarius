@@ -1,0 +1,10 @@
+{
+  "spec": "tools.json",
+  "account": "personal",
+  "model": "opus",
+  "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/706527c2-79a2-4b3f-af49-502570421914/scratchpad/del/no-size-rule.md",
+  "prompt_sha256": "f097f57faac153448d654d8879c69ebb669478c9ce34090703a1cc0171a3f6b0",
+  "runs": 3,
+  "commit": "c4d3c19",
+  "dirty": false
+}

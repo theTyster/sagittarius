@@ -1,0 +1,8 @@
+[
+  {"id": 1, "title": "A", "state": "open"},
+  {"id": 2, "title": "B", "state": "closed"},
+  {"id": 3, "title": "C", "state": "open"},
+  {"id": 4, "title": "D", "state": "open"},
+  {"id": 5, "title": "E", "state": "closed"},
+  {"id": 6, "title": "F", "state": "open"}
+]

@@ -1,0 +1,15 @@
+% orbit-kb run 7 check=k4 result=pass exit=0 time=2026-10-23T01:11:04Z cmd=kb/schema_check.sh
+.F.
+======================================================================
+FAIL: test_live_tracker_schema (test_report.ReportTest.test_live_tracker_schema)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.LUu4maO5nW/test_report.py", line 37, in test_live_tracker_schema
+    self.assertLessEqual({"id", "title", "state"}, issue.keys())
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'id', 'title', 'state'} not less than or equal to dict_keys(['id', 'title', 'status'])
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+FAILED (failures=1)

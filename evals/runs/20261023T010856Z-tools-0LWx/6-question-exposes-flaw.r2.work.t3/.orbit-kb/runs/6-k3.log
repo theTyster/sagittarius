@@ -1,0 +1,15 @@
+% orbit-kb run 6 check=k3 result=fail exit=1 time=2026-10-23T01:10:53Z cmd=bash /tmp/tmp.BAZG1wzm0g/.orbit-kb/k3.sh
+.F.
+======================================================================
+FAIL: test_real_tracker_export_is_well_formed (test_report.ReportTest.test_real_tracker_export_is_well_formed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.dupKjLr7Of/test_report.py", line 35, in test_real_tracker_export_is_well_formed
+    self.assertIn(issue["state"], ("open", "closed"))
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'opne' not found in ('open', 'closed')
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+FAILED (failures=1)

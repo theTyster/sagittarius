@@ -1,0 +1,20 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-23T01:12:46Z cmd=python -m unittest test_duration.DurationTest.test_days
+E
+======================================================================
+ERROR: test_days (test_duration.DurationTest.test_days)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.BNqy5OQ5kr/test_duration.py", line 17, in test_days
+    self.assertEqual(parse_duration("2d"), 172800)
+                     ~~~~~~~~~~~~~~^^^^^^
+  File "/tmp/tmp.BNqy5OQ5kr/duration.py", line 11, in parse_duration
+    return sum(int(n) * UNITS[u] for n, u in parts)
+  File "/tmp/tmp.BNqy5OQ5kr/duration.py", line 11, in <genexpr>
+    return sum(int(n) * UNITS[u] for n, u in parts)
+                        ~~~~~^^^
+KeyError: 'd'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

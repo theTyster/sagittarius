@@ -1,0 +1,10 @@
+{
+  "spec": "tools.json",
+  "account": "personal",
+  "model": "sonnet",
+  "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/706527c2-79a2-4b3f-af49-502570421914/scratchpad/del/old-handoff.md",
+  "prompt_sha256": "59055299afb7be7d976252a136a2447d334d9bd6785344531d79e6933a58f5ad",
+  "runs": 3,
+  "commit": "c4d3c19",
+  "dirty": false
+}

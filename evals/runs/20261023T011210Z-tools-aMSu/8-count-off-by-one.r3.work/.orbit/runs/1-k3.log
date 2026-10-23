@@ -1,0 +1,2 @@
+% orbit-kb run 1 check=k3 result=fail exit=1 time=2026-10-23T01:12:44Z cmd=sh .orbit/count_tests.sh
+test_duration.py tests: 6

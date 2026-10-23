@@ -1,0 +1,6 @@
+% orbit-kb run 4 check=k2 result=pass exit=0 time=2026-10-23T01:10:37Z cmd=bash /tmp/tmp.BAZG1wzm0g/.orbit-kb/k2.sh
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK

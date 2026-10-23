@@ -1,0 +1,71 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 11 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "kb_exists",
+      "passed": true,
+      "evidence": "/tmp/tmp.efpZlN6ab0/kb"
+    },
+    {
+      "text": "help_before_write",
+      "passed": true,
+      "evidence": "first help at call 0, first write (init) at call 3"
+    },
+    {
+      "text": "lint_clean",
+      "passed": true,
+      "evidence": "Summary: 0 error(s), 0 warning(s)."
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:divergence_recorded",
+      "passed": true,
+      "evidence": "exit 0: true"
+    },
+    {
+      "text": "python:from duration import parse_duration as p; assert (p('2d'), p('1d2h')) == (172800, 93600), (p('2d'), p('1d2h'))",
+      "passed": true,
+      "evidence": "ok"
+    },
+    {
+      "text": "unittest_pass",
+      "passed": true,
+      "evidence": "OK"
+    }
+  ],
+  "commands": [
+    "help",
+    "help core",
+    "help build",
+    "init kb",
+    "add",
+    "attest divergence",
+    "add",
+    "attest divergence",
+    "run k",
+    "run k",
+    "add",
+    "run k",
+    "run k",
+    "lint",
+    "whynot done"
+  ]
+}
