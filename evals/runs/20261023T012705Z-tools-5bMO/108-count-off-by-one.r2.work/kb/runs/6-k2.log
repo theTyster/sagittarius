@@ -1,0 +1,1 @@
+% orbit-kb run 6 check=k2 result=pass exit=0 time=2026-10-23T01:27:54Z cmd=sh -c python -m unittest test_roman 2>&1 | grep -q 'Ran 5 tests'

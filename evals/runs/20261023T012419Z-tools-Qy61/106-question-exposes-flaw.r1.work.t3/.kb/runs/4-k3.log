@@ -1,0 +1,29 @@
+% orbit-kb run 4 check=k3 result=fail exit=1 time=2026-10-23T01:25:50Z cmd=/tmp/rainfall_scripts/live.sh /tmp/tmp.rdG9lbJzPT mutant
+FF.
+======================================================================
+FAIL: test_summary_names_the_wettest_month_of_the_live_file (test_rainfall.LiveFileTest.test_summary_names_the_wettest_month_of_the_live_file)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.C5r79N0zQh/test_rainfall.py", line 34, in test_summary_names_the_wettest_month_of_the_live_file
+    self.assertEqual(totals[m.group(1)], top)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 20.0 != 50.0
+
+======================================================================
+FAIL: test_wettest_month_for_rainfall_csv (test_rainfall.SummaryTest.test_wettest_month_for_rainfall_csv)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.C5r79N0zQh/test_rainfall.py", line 19, in test_wettest_month_for_rainfall_csv
+    self.assertEqual(summary(path), "Wettest month: 2026-04 (50.0 mm)")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Wettest month: 2026-05 (20.0 mm)' != 'Wettest month: 2026-04 (50.0 mm)'
+- Wettest month: 2026-05 (20.0 mm)
+?                       ---
++ Wettest month: 2026-04 (50.0 mm)
+?                      +++
+
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+FAILED (failures=2)

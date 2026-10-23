@@ -1,0 +1,6 @@
+% orbit-kb run 2 check=k1 result=pass exit=0 time=2026-10-23T01:25:25Z cmd=/tmp/scratch_rain/grow_check.sh /tmp/tmp.0JBVnQQlqf
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK

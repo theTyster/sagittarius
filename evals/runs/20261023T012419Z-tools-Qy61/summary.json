@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "spec": "heldout/heldout.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "live",
+    "prompt_sha256": "0b46a6962514b2273963317319113d8005357683e2ffb378ebb17ffaa68e32ff",
+    "runs": 3,
+    "commit": "a662ce2",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 105,
+      "name": "correction-records-divergence",
+      "runs": 3,
+      "passed_runs": 0,
+      "passed": false,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "turn1:no_kb": "3/3",
+        "kb_exists": "0/3",
+        "help_before_write": "0/3",
+        "lint_clean": "0/3",
+        "no_hand_edit": "3/3",
+        "query:divergence_recorded": "0/3",
+        "python:from retention import days_to_keep as d; assert (d('thumbnails'), d('exports'), d('invoices')) == (7, 7, 3650), (d('thumbnails'), d('exports'), d('invoices'))": "3/3",
+        "unittest_pass": "2/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 106,
+      "name": "question-exposes-flaw",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "turn1:no_kb": "3/3",
+        "kb_exists": "3/3",
+        "help_before_write": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:divergence_recorded": "3/3",
+        "script:stable_rainfall": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 107,
+      "name": "subagent-red-check",
+      "runs": 3,
+      "passed_runs": 0,
+      "passed": false,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "kb_exists": "0/3",
+        "help_before_write": "0/3",
+        "lint_clean": "0/3",
+        "no_hand_edit": "3/3",
+        "query:test_result_fail": "0/3",
+        "python:from passwords import is_strong; assert is_strong('ab3') is True, 'code changed'": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 109,
+      "name": "peer-handoff-received",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "help_before_write": "3/3",
+        "kb_exists": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:check(K, C)": "3/3",
+        "query:was_red(K)": "3/3",
+        "python:import unittest; from rooms import Bookings; b = Bookings(); b.book('cedar', 13, 15); unittest.TestCase().assertRaises(ValueError, b.book, 'cedar', 14, 16); b.book('maple', 14, 16)": "3/3",
+        "unittest_pass": "3/3"
+      },
+      "rubric": {}
+    }
+  ]
+}

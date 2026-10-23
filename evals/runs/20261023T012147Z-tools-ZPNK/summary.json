@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "spec": "heldout/heldout.json",
+    "account": "personal",
+    "model": "haiku",
+    "prompt": "live",
+    "prompt_sha256": "0b46a6962514b2273963317319113d8005357683e2ffb378ebb17ffaa68e32ff",
+    "runs": 3,
+    "commit": "a662ce2",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 101,
+      "name": "handoff-records-kb",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "help_before_write": "3/3",
+        "kb_exists": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:check(K, C)": "3/3",
+        "query:test_result_fail": "3/3",
+        "python:from prices import format_price; assert format_price(123456) != '$1,234.56', 'the fix was built'": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 102,
+      "name": "universal-claim-burns",
+      "runs": 3,
+      "passed_runs": 2,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "help_before_write": "3/3",
+        "kb_exists": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:universal(C)": "2/3",
+        "query:burn_open(C)": "2/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 103,
+      "name": "resume-reads-kb-first",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "show_open_before_write": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "python:from tax import sales_tax; assert round(sales_tax(200), 6) == 14.0, 'code changed'": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 104,
+      "name": "light-path-no-kb",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "no_kb": "3/3",
+        "unittest_pass": "3/3",
+        "python:from names import initials; assert initials('Mira Okafor') == 'M.O.', initials('Mira Okafor')": "3/3"
+      },
+      "rubric": {}
+    }
+  ]
+}

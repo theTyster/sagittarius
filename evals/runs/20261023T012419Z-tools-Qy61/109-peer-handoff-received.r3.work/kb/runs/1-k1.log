@@ -1,0 +1,15 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-23T01:26:45Z cmd=python3 -m unittest test_rooms.BookingsTest.test_rejects_overlap
+F
+======================================================================
+FAIL: test_rejects_overlap (test_rooms.BookingsTest.test_rejects_overlap)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.C8jQ0BCsyV/test_rooms.py", line 14, in test_rejects_overlap
+    with self.assertRaises(ValueError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

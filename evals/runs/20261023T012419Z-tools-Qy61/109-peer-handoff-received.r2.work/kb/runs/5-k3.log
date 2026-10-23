@@ -1,0 +1,6 @@
+% orbit-kb run 5 check=k3 result=pass exit=0 time=2026-10-23T01:26:58Z cmd=python3 -m unittest test_rooms.BookingsTest.test_rejects_enclosing_and_identical
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

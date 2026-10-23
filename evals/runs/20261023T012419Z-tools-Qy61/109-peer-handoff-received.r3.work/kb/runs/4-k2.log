@@ -1,0 +1,6 @@
+% orbit-kb run 4 check=k2 result=pass exit=0 time=2026-10-23T01:26:49Z cmd=python3 -m unittest test_rooms.BookingsTest.test_accepts_non_overlap test_rooms.BookingsTest.test_book
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK

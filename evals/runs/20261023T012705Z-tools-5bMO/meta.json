@@ -1,0 +1,10 @@
+{
+  "spec": "heldout/heldout.json",
+  "account": "personal",
+  "model": "opus",
+  "prompt": "live",
+  "prompt_sha256": "0b46a6962514b2273963317319113d8005357683e2ffb378ebb17ffaa68e32ff",
+  "runs": 3,
+  "commit": "a662ce2",
+  "dirty": false
+}

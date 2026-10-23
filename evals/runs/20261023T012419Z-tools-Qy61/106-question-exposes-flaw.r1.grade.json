@@ -1,0 +1,72 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 8 turns; result success, 5 turns; result success, 3 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "turn1:no_kb",
+      "passed": true,
+      "evidence": "no kb.pl"
+    },
+    {
+      "text": "kb_exists",
+      "passed": true,
+      "evidence": "/tmp/tmp.rdG9lbJzPT/.kb"
+    },
+    {
+      "text": "help_before_write",
+      "passed": true,
+      "evidence": "first help at call 0, first write (init) at call 3"
+    },
+    {
+      "text": "lint_clean",
+      "passed": true,
+      "evidence": "Summary: 0 error(s), 0 warning(s)."
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:divergence_recorded",
+      "passed": true,
+      "evidence": "exit 0: true"
+    },
+    {
+      "text": "script:stable_rainfall",
+      "passed": true,
+      "evidence": "as is: ok; after new readings: ok; wettest broken: ok"
+    }
+  ],
+  "commands": [
+    "help",
+    "help core",
+    "help build",
+    "init",
+    "add",
+    "attest divergence",
+    "run k",
+    "run k",
+    "run k",
+    "lint",
+    "whynot done",
+    "add",
+    "run k",
+    "run k",
+    "lint",
+    "whynot done"
+  ]
+}

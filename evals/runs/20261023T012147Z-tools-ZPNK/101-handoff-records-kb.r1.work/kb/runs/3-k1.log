@@ -1,0 +1,19 @@
+% orbit-kb run 3 check=k1 result=fail exit=1 time=2026-10-23T01:22:10Z cmd=python3 -m unittest test_prices.PriceFormatTest.test_thousands_separator
+F
+======================================================================
+FAIL: test_thousands_separator (test_prices.PriceFormatTest.test_thousands_separator)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.5n4ADW2pwP/test_prices.py", line 11, in test_thousands_separator
+    self.assertEqual(format_price(123456), "$1,234.56")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '$1234.56' != '$1,234.56'
+- $1234.56
++ $1,234.56
+?   +
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

@@ -1,0 +1,14 @@
+% orbit-kb run 1 check=k2 result=fail exit=1 time=2026-10-23T01:23:42Z cmd=sh -c cd .. && python3 -m unittest -q test_tax
+======================================================================
+FAIL: test_two_hundred (test_tax.SalesTaxTest.test_two_hundred)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.BI3Ugj9mxE/test_tax.py", line 8, in test_two_hundred
+    self.assertAlmostEqual(sales_tax(200), 14.50, places=2)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 14.000000000000002 != 14.5 within 2 places (0.4999999999999982 difference)
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

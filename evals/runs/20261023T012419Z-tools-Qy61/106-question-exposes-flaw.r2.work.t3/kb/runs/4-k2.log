@@ -1,0 +1,6 @@
+% orbit-kb run 4 check=k2 result=pass exit=0 time=2026-10-23T01:25:54Z cmd=/tmp/rs/live.sh /tmp/tmp.EwCePfSFUW ok
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+OK

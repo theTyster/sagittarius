@@ -1,0 +1,6 @@
+% orbit-kb run 1 check=k2 result=fail exit=1 time=2026-10-23T01:27:44Z cmd=sh -c python -m unittest test_roman 2>&1 | tee /dev/stderr | grep -q 'Ran 5 tests'
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.000s
+
+OK

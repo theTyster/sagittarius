@@ -1,0 +1,24 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-23T01:26:38Z cmd=python -m unittest test_rooms.BookingsTest.test_rejects_overlap test_rooms.BookingsTest.test_rejected_booking_is_not_stored
+FF
+======================================================================
+FAIL: test_rejects_overlap (test_rooms.BookingsTest.test_rejects_overlap)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.upVH9osKdo/test_rooms.py", line 14, in test_rejects_overlap
+    with self.assertRaises(ValueError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_rejected_booking_is_not_stored (test_rooms.BookingsTest.test_rejected_booking_is_not_stored)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.upVH9osKdo/test_rooms.py", line 26, in test_rejected_booking_is_not_stored
+    with self.assertRaises(ValueError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+FAILED (failures=2)

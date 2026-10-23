@@ -1,0 +1,1 @@
+% orbit-kb run 7 check=k3 result=pass exit=0 time=2026-10-23T01:27:54Z cmd=python -c from roman import to_roman as r; assert [r(40), r(44), r(49), r(89)] == ['XL','XLIV','XLIX','LXXXIX']

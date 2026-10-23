@@ -1,0 +1,73 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 12 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "help_before_write",
+      "passed": true,
+      "evidence": "first help at call 0, first write (init) at call 4"
+    },
+    {
+      "text": "kb_exists",
+      "passed": true,
+      "evidence": "/tmp/tmp.Kbl4fCvLgq/kb"
+    },
+    {
+      "text": "lint_clean",
+      "passed": true,
+      "evidence": "Summary: 0 error(s), 0 warning(s)."
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:check(K, C)",
+      "passed": true,
+      "evidence": "exit 0: K = k1, C = c1"
+    },
+    {
+      "text": "query:test_result_fail",
+      "passed": true,
+      "evidence": "exit 0: true"
+    },
+    {
+      "text": "python:from prices import format_price; assert format_price(123456) != '$1,234.56', 'the fix was built'",
+      "passed": true,
+      "evidence": "ok"
+    }
+  ],
+  "commands": [
+    "help",
+    "help core",
+    "help build",
+    "help build",
+    "init kb",
+    "add",
+    "run k",
+    "run k",
+    "show open",
+    "add",
+    "lint",
+    "query",
+    "add",
+    "lint",
+    "whynot",
+    "lint",
+    "show open"
+  ]
+}

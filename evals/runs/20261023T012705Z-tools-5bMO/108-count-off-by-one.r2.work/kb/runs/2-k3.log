@@ -1,0 +1,8 @@
+% orbit-kb run 2 check=k3 result=fail exit=1 time=2026-10-23T01:27:44Z cmd=python -c from roman import to_roman as r; assert [r(40), r(44), r(49), r(89)] == ['XL','XLIV','XLIX','LXXXIX'], [r(40)]
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from roman import to_roman as r; assert [r(40), r(44), r(49), r(89)] == ['XL','XLIV','XLIX','LXXXIX'], [r(40)]
+                                             ~^^^^
+  File "/tmp/tmp.1l42Xezx0m/roman.py", line 7, in to_roman
+    raise ValueError(f"out of range: {n}")
+ValueError: out of range: 40

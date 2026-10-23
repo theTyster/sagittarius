@@ -1,0 +1,16 @@
+% orbit-kb run 2 check=k2 result=fail exit=1 time=2026-10-23T01:22:06Z cmd=python3 -m unittest test_prices.PriceFormatTest.test_small_amount
+E
+======================================================================
+ERROR: test_prices (unittest.loader._FailedTest.test_prices)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_prices
+Traceback (most recent call last):
+  File "/usr/lib64/python3.14/unittest/loader.py", line 141, in loadTestsFromName
+    module = __import__(module_name)
+ModuleNotFoundError: No module named 'test_prices'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

@@ -1,0 +1,6 @@
+% orbit-kb run 5 check=k3 result=pass exit=0 time=2026-10-23T01:25:50Z cmd=/tmp/rainfall_scripts/live.sh /tmp/tmp.rdG9lbJzPT grow
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.000s
+
+OK

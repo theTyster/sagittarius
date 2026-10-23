@@ -1,0 +1,20 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-23T01:25:23Z cmd=/tmp/rain_scripts/grow.sh /tmp/tmp.EwCePfSFUW
+F.
+======================================================================
+FAIL: test_wettest_month_of_rainfall_csv (test_rainfall.SummaryTest.test_wettest_month_of_rainfall_csv)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.Wi1l5xhUfv/test_rainfall.py", line 16, in test_wettest_month_of_rainfall_csv
+    self.assertEqual(summary(path), "Wettest month: 2026-04 (50.0 mm)")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Wettest month: 2026-06 (60.0 mm)' != 'Wettest month: 2026-04 (50.0 mm)'
+- Wettest month: 2026-06 (60.0 mm)
+?                      ^  ^
++ Wettest month: 2026-04 (50.0 mm)
+?                      ^  ^
+
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+FAILED (failures=1)

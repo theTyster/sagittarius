@@ -1,0 +1,6 @@
+% orbit-kb run 4 check=k2 result=pass exit=0 time=2026-10-23T01:22:11Z cmd=python3 -m unittest test_prices.PriceFormatTest.test_small_amount
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

@@ -1,0 +1,6 @@
+% orbit-kb run 6 check=k2 result=pass exit=0 time=2026-10-23T01:26:58Z cmd=python3 -m unittest test_rooms.BookingsTest.test_allows_adjacent_and_other_room
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK
