@@ -17,6 +17,9 @@
 % - D14: GO, NO-GO, or HOLD is a weighted vote: the human 0.49, the agent 0.24, the formal
 %   artifacts 0.24. The agent and the human each attest a `vote`. orbit-kb computes the
 %   vote of the formal artifacts (artifact_vote/1) and the outcome (gate/1).
+% - D15: to reword a hypothesis, add a new hypothesis and supersedes(New, Old), as for a
+%   claim. A superseded hypothesis is out of play: it needs no system result (WD7, the
+%   readiness check), its not_reproduced result is no outcome, and it raises no WD6.
 
 % --- Facts ---
 decl(fact, hypothesis(id, oneof([defect, feature, risk]), text),
@@ -86,7 +89,7 @@ decl(rule, discovery_disproof_filed(ref(claim)), 'A disproof attestation refutes
 decl(rule, discovery_model_artifact(ref), 'The id is a model file, a solver log, or is tagged as model evidence.', '@(1) is a model artifact').
 decl(rule, discovery_system_evidence(ref), 'The id is tagged as system evidence and is not a model artifact.', '@(1) is evidence from the current system').
 decl(rule, discovery_hypothesis_touched(ref(hypothesis)), 'A reproduction on system evidence gives a result for the hypothesis.', 'the current system was checked for hypothesis @(1)').
-decl(rule, discovery_has_outcome, 'Some claim is current, or a hypothesis did not reproduce.', 'some claim is current, or some hypothesis did not reproduce').
+decl(rule, discovery_has_outcome, 'Some claim is current, or a hypothesis that no other hypothesis replaces did not reproduce.', 'some claim is current, or some hypothesis did not reproduce').
 decl(rule, discovery_sanity_ok(atom), 'A result that passes a sanity check.', '@(1) passes a sanity check').
 decl(rule, discovery_decided(atom), 'A solver result that is not unknown.', '@(1) is a decided result').
 decl(rule, discovery_has_case(atom), 'A solver result that shows a case.', '@(1) shows a case').
@@ -136,8 +139,8 @@ decl(rule, rule_has_reason(ref(model), atom), 'A reason is recorded for the rule
 decl(rule, weak_rule(atom), 'A rule that survived its mutation check, with no recorded reason.', 'rule @(1) survived its mutation check with no reason').
 decl(rule, touched_system, 'Discovery has evidence from the current system.', 'discovery touched the current system').
 decl(rule, budget_spent, 'The last lap of the largest budget is done.', 'the lap budget is spent').
-decl(rule, some_hypothesis, 'Some hypothesis is recorded.', 'some hypothesis is recorded').
-decl(rule, some_untouched_hypothesis, 'Some hypothesis has no result from the current system.', 'some hypothesis was not checked on the current system').
+decl(rule, some_hypothesis, 'Some hypothesis is recorded, and no other hypothesis replaces it.', 'some hypothesis is recorded').
+decl(rule, some_untouched_hypothesis, 'Some hypothesis that no other hypothesis replaces has no result from the current system.', 'some hypothesis was not checked on the current system').
 decl(rule, some_no_falsifier, 'Some current claim has no falsifier.', 'some current claim has no falsifier').
 decl(rule, some_question_waits, 'Some question waits for the human.', 'some question waits for the human').
 decl(rule, some_unasked_finding, 'Some finding needs a question.', 'some finding needs a question').
@@ -170,7 +173,9 @@ touched_system :- attest(_, reproduction, S, _, _, _), discovery_system_evidence
 touched_system :- attest(_, test_result, K, _, _, _), discovery_system_evidence(K).
 discovery_hypothesis_touched(H) :- attest(_, reproduction, S, result(H, _), _, _), discovery_system_evidence(S).
 discovery_has_outcome :- current(_).
-discovery_has_outcome :- attest(_, reproduction, S, result(_, not_reproduced), _, _), discovery_system_evidence(S).
+% D15: the result of a superseded hypothesis is no outcome. Its new wording needs its own.
+discovery_has_outcome :- attest(_, reproduction, S, result(H, not_reproduced), _, _), discovery_system_evidence(S),
+    not superseded(H).
 
 % --- Model verdicts count only for the current digest of their own model ---
 % A log that also has a run at an older digest does not count: reusing a log for a new
@@ -272,8 +277,9 @@ discovery_budget_raised(B) :- budget(laps, B), budget(laps, B2), B2 > B.
 budget_spent :- budget(laps, B), lap_done(B), not discovery_budget_raised(B).
 
 % --- "There is no such X" needs a helper with no arguments (hazard H1) ---
-some_hypothesis :- hypothesis(_, _, _).
-some_untouched_hypothesis :- hypothesis(H, _, _), not discovery_hypothesis_touched(H).
+% D15: a superseded hypothesis does not count. Its replacement does.
+some_hypothesis :- hypothesis(H, _, _), not superseded(H).
+some_untouched_hypothesis :- hypothesis(H, _, _), not superseded(H), not discovery_hypothesis_touched(H).
 some_no_falsifier :- no_falsifier(_).
 some_question_waits :- question_waits(_).
 some_unasked_finding :- unasked_finding(_).
@@ -336,9 +342,10 @@ lint_issue('WD4', F, 'Only a model shows this finding. It is a lead until eviden
 lint_issue('WD5', A, 'This check gave unknown. It is a gap, not UNSAT, so it falsifies nothing.') :-
     model_verdict(A, _, _, unknown).
 lint_issue('WD6', A, 'The problem did not reproduce on the current system. Tell the human what you tried.') :-
-    attest(A, reproduction, S, result(_, not_reproduced), _, _), discovery_system_evidence(S).
+    attest(A, reproduction, S, result(H, not_reproduced), _, _), discovery_system_evidence(S),
+    not superseded(H).
 lint_issue('WD7', H, 'No result from the current system exists for this hypothesis. Reproduce it, or ask the human if it is a separate ticket.') :-
-    hypothesis(H, _, _), not discovery_hypothesis_touched(H).
+    hypothesis(H, _, _), not superseded(H), not discovery_hypothesis_touched(H).
 lint_issue('WD8', A, 'This model result is on a log of an older digest of the model. It does not count. Run the solver again, into a new log.') :-
     attest(A, model_result, S, P, _, _), discovery_result_model(P, M), model_run_stale(S, M).
 lint_issue('WD9', A, 'The human voted in this round, and the agent did not vote first. The agent vote must be sealed before the human votes.') :-

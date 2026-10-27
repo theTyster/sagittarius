@@ -403,7 +403,7 @@ The core (`core.pl`) is always loaded. It does not mention software.
 | `claim(id, oneof([preserve, retire, introduce]), text)` | A claim. `preserve`: true now, and it must stay true. `retire`: true now, and it must become false. `introduce`: false now, and it must become true. |
 | `cites(ref(claim), text)` | The text of the request or the ticket that the claim serves. |
 | `example(ref(claim), text)` | A concrete case of the claim. |
-| `supersedes(ref(claim), ref(claim))` | The first claim replaces the second claim. |
+| `supersedes(ref, ref)` | The first claim replaces the second claim, or the first hypothesis replaces the second hypothesis (discovery module, D15). Both ids must be the same kind: a claim and a hypothesis is lint error E4, and `add` refuses it. |
 | `universal(ref(claim))` | The claim is about every input. |
 | `check(id, ref(claim))` | An executable check of the claim. |
 | `world(term)` | A fact about the current state. A state that is not recorded is false. |
@@ -434,7 +434,7 @@ The core (`core.pl`) is always loaded. It does not mention software.
 
 | Query | True when |
 |---|---|
-| `superseded(C)` | A `supersedes(_, C)` fact exists. |
+| `superseded(C)` | A `supersedes(_, C)` fact exists. `C` can be a claim or a hypothesis. |
 | `current(C)` | `C` is a claim and is not superseded. |
 | `answered(Q)` | A human answered `Q`. |
 | `defeated(Q)` | A human answer to `Q` differs from its default. |
@@ -445,9 +445,9 @@ The core (`core.pl`) is always loaded. It does not mention software.
 | `question_waived(Q)` | Declared with no core clause. The build module adds it: a human `waiver` of question `Q` exists, and its due time is not past (D13). |
 | `any_to_ask` | `to_ask(Q)` is true for one or more questions. |
 | `stale(A)` | Human approval `A` names a digest that differs from the recorded digest of its subject. |
-| `supersedes_closure(N, O)` | Computed by `orbit-kb` when it reads the KB. Claim `N` replaces claim `O` through one or more `supersedes` facts. |
-| `supersede_cycle(C)` | Computed by `orbit-kb` when it reads the KB. Claim `C` replaces itself through one or more `supersedes` facts. Lint E15 reports it. |
-| `any_supersede_cycle` | `supersede_cycle(C)` is true for one or more claims. |
+| `supersedes_closure(N, O)` | Computed by `orbit-kb` when it reads the KB. Claim (or hypothesis) `N` replaces `O` through one or more `supersedes` facts. |
+| `supersede_cycle(C)` | Computed by `orbit-kb` when it reads the KB. Claim (or hypothesis) `C` replaces itself through one or more `supersedes` facts. Lint E15 reports it. |
+| `any_supersede_cycle` | `supersede_cycle(C)` is true for one or more claims or hypotheses. |
 | `passed(K)` | Check `K` passed in a run, and no run with a higher number failed. |
 | `failed_after(K, R)` | Check `K` failed in a run with a number higher than `R`. |
 | `was_red(K)` | Check `K` failed in a run before a run in which it passed. |
@@ -970,7 +970,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E1 | Syntax error, with file and line. In any source, E1 makes `query`, `why`, `whynot`, `show`, and `report` exit 2. |
 | E2 | Undeclared predicate or wrong arity, in `kb.pl` facts or in the heads and bodies of `rules.pl`, `core.pl`, and the modules. If a declaration has the same name but a different arity, the message names it. In `rules.pl`, E2 makes the commands that answer exit 2. |
 | E3 | Type error. This includes a label outside `oneof`. |
-| E4 | Dangling `ref`. |
+| E4 | Dangling `ref`, or a `ref` to the wrong kind of id. A `supersedes` fact must name two claims or two hypotheses (D15). |
 | E5 | Duplicate ID. |
 | E6 | Non-ground fact in `kb.pl`. |
 | E7 | A clause in the wrong place: a `rule` predicate as a fact in `kb.pl`, or a `fact` predicate with clauses outside `kb.pl`. |
@@ -981,7 +981,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E12 | A `not` literal holds a variable that occurs nowhere else in the clause, `_` included (hazard H1). The message gives the helper-predicate fix. |
 | E13 | An atom or a string ends in `_` and digits (hazard H4). |
 | E14 | Unsafe negation: a variable of a `not` literal occurs in the head, but in no positive body literal. |
-| E15 | A `supersedes` fact on a cycle: a claim replaces itself, directly (`supersedes(C, C)`) or through other claims. `done` is false while the cycle exists. `add` refuses such a fact. |
+| E15 | A `supersedes` fact on a cycle: a claim (or a hypothesis) replaces itself, directly (`supersedes(C, C)`) or through others. `done` is false while the cycle exists. `add` refuses such a fact. |
 | E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engines ignore the clause. |
 
 | Code | Warning |
@@ -990,7 +990,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | W2 | A local declaration, listed for review. |
 | W3 | A claim with no `cites`. |
 | W4 | A local fact predicate that no rule reads. |
-| W5 | A superseded claim that a `check` still references. |
+| W5 | A `check` of a superseded claim, while the current claim that replaces it (directly or through a chain) has no check. Check ids are unique (E5) and facts are append-only, so the message says to add a new check of the current claim and run it (D15). |
 | W6 | A local rule that adds clauses to a core or module predicate (an extension). For a protected predicate, it is E16 instead. |
 
 Built-ins that E2 permits: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `#=`, `#<>`,
@@ -1534,6 +1534,26 @@ orbit-kb query 'gate(V)'                            # V = hold
 orbit-kb query gate_split                           # true: record a divergence
 ```
 
+### Reword a hypothesis (D15)
+
+When the human asks to reword a hypothesis, add a new hypothesis and
+`supersedes(New, Old)`, as for a claim. Nothing else is new.
+
+- Both ids are hypotheses. A claim and a hypothesis in one `supersedes` fact is
+  E4, and `add` refuses it.
+- A superseded hypothesis is out of play. It raises no WD7, and
+  `discovery_ready` does not need a system result for it
+  (`some_hypothesis`, `some_untouched_hypothesis`). Its `not_reproduced`
+  result is no outcome (`discovery_has_outcome`), and it raises no WD6. The
+  new hypothesis needs its own result.
+- `supersedes_closure/2`, `supersede_cycle/1`, and E15 cover hypotheses too.
+  `current/1`, `under/1`, and `burn/1` stay claims only.
+- A `decision` (`no_go(H, Text)`, `hold(H, Text)`) does not change.
+
+```sh
+orbit-kb add "hypothesis(h2, defect, 'NEW TEXT')" "supersedes(h2, h1)"
+```
+
 ### Fixture expectations: `expected.pl`
 
 The discovery-orbit session tests its module with fixtures that have an
@@ -1874,6 +1894,12 @@ Known gaps:
   `gate_split` are in the discovery module (section 12). WD6 no longer calls
   a failed reproduction a NO-GO candidate: it says to tell the human what you
   tried.
+- **D15 (2026-10-27).** Ty decided: no new command and no new attestation type
+  for a reworded hypothesis. `supersedes` takes two hypotheses too (section
+  12, "Reword a hypothesis"). Its declared type is `ref`, because `core.pl`
+  cannot name the module fact `hypothesis/3`; the CLI checks the kinds (E4).
+  W5 now says to add a new check of the current claim, because a check id
+  cannot be reused, and W5 stops once that claim has a check.
 
 Known limits of `prove` (D10 follow-up, 2026-10-20). `prove` checks the proof of
 an honest agent that can make mistakes; it does not resist an agent that cheats

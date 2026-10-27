@@ -32,9 +32,10 @@ ATTESTATIONS
                 Only the largest round counts.
 
 QUERIES
-  discovery_ready   clean: a hypothesis exists and each has a system result; a claim is
-                    current or a hypothesis did not reproduce; no current claim is refuted or
-                    has no falsifier; no question waits or is to_ask; no WD1, WD3, WD7, ED3-ED7
+  discovery_ready   clean: a hypothesis exists, and each one that is not superseded has a
+                    system result; a claim is current, or such a hypothesis did not
+                    reproduce; no current claim is refuted or has no falsifier; no question
+                    waits or is to_ask; no WD1, WD3, WD7, ED3-ED7
   discovery_decide  discovery_ready, or budget_spent (the last lap of the largest budget is done)
   no_falsifier(C)   current claim C has no check, and no trusted model gave a preserve(C)
                     or applies(C) result other than unknown
@@ -50,6 +51,9 @@ Ready with no current claim happens only when a hypothesis did not reproduce (WD
 SIGNAL: pin the report
   orbit-kb add "hypothesis(h1, defect, 'TEXT')" "budget(laps, 3)"
   The KB counts laps only. Write a time limit in a note.
+  To reword a hypothesis, add the new one and supersedes(hNew, hOld):
+    orbit-kb add "hypothesis(h2, defect, 'NEW TEXT')" "supersedes(h2, h1)"
+  The old one then needs no system result. The new one needs its own.
 
 SURVEY: touch the current system
   Record world facts, each with a source. Reproduce with a test, a script, or a request.

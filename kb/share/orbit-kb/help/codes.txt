@@ -5,7 +5,8 @@ Core
   E1   syntax error. Query, why, whynot, show, and report exit 2.
   E2   undeclared predicate or wrong arity. Declare it: orbit-kb declare.
   E3   type error (also a label outside oneof)
-  E4   dangling reference: the id does not exist
+  E4   dangling reference: the id does not exist, or is the wrong kind.
+       supersedes takes two claims, or two hypotheses.
   E5   duplicate id
   E6   non-ground fact in kb.pl
   E7   a clause in the wrong place (a rule as a fact in kb.pl, or a fact outside kb.pl)
@@ -22,7 +23,7 @@ Core
   W2   a local declaration, listed for review
   W3   a claim with no cites. Cite the request text, or drop the claim (drift).
   W4   a local fact predicate that no rule reads
-  W5   a superseded claim that a check still references
+  W5   a check tests a replaced claim, and the new claim has none. Add a new check. Run it.
   W6   a local rule extends a core or module predicate
 
 Discovery module
@@ -33,6 +34,7 @@ Discovery module
   WD5  a result is unknown. Report a gap, never UNSAT.
   WD6  the problem did not reproduce. Tell the human what you tried.
   WD7  a hypothesis has no system result. Reproduce it, or ask if it is another ticket.
+       A superseded hypothesis needs none.
   WD8  this result's log has a run of an older model file. Run orbit-kb subject on the
        model. Run the solver into a new log.
   WD9  the human voted and you did not vote in that round. Vote before the human next round.

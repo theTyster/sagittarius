@@ -10,11 +10,13 @@ Facts
                                  or introduce (false now, must become true)
   cites(Claim, Text)             the request text that the claim serves
   example(Claim, Text)           a concrete case of the claim
-  supersedes(New, Old)           New replaces Old. Never edit a claim.
-                                 A claim cannot replace itself, also through a chain.
+  supersedes(New, Old)           New replaces Old. Never edit a claim or a hypothesis.
+                                 Both are claims, or both are hypotheses (discovery).
+                                 Nothing can replace itself, also through a chain.
                                  add refuses it, and lint reports E15.
   universal(Claim)               the claim is about every input; it burns (orbit-kb help build)
-  check(K, Claim)                K is an executable check of the claim
+  check(K, Claim)                K is an executable check of the claim. A check never moves:
+                                 for a claim that replaces it, add a new check (lint W5).
   world(Fact), source(Fact, Where)   the current state, and where you saw it.
                                  A fact that you did not record is false.
   question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By), depends(Q, Q0)

@@ -1226,10 +1226,34 @@ fact_diags(Ctx, it(_, F, L, T, _, _), Diags) :-
                 ->  attest_diags(KB, ATs, Env, P, F, L, GT)
                 ;   GT = []
                 ),
-                append([G6, GA, GT], Diags)
+                (   N/A == supersedes/2, Neg == false
+                ->  supersedes_kind_diags(Env, P, F, L, GS)
+                ;   GS = []
+                ),
+                append([G6, GA, GT, GS], Diags)
             )
         )
     ).
+
+% supersedes_kind_diags(+Env, +Fact, +F, +L, -Diags) (D15): supersedes/2 has the
+% type ref in core.pl, because core.pl cannot name the discovery fact
+% hypothesis/3. Here each side must be a claim or a hypothesis, and both sides
+% the same kind. An id that does not exist is E4 of the ref type already.
+supersedes_kind_diags(env(_, _, IdA, FAA), supersedes(N, O), F, L, Diags) :-
+    findall(diag('E4', F, L, M),
+            ( nth1(I, [N, O], X), atom(X), get_assoc(X, IdA, _),
+              \+ sup_kind(FAA, X, _),
+              fmt(M, "supersedes/2 argument ~w: ~q is not the id of a claim or a hypothesis. supersedes takes two claims, or two hypotheses (discovery module). Fix the id.", [I, X]) ),
+            D1),
+    (   sup_kind(FAA, N, KN), sup_kind(FAA, O, KO), KN \== KO
+    ->  fmt(M2, "supersedes/2: ~q is a ~w and ~q is a ~w. A claim cannot replace a hypothesis, and a hypothesis cannot replace a claim. To reword a hypothesis, add a new hypothesis, then supersedes(NewHypothesis, ~q).", [N, KN, O, KO, O]),
+        D2 = [diag('E4', F, L, M2)]
+    ;   D2 = []
+    ),
+    append(D1, D2, Diags).
+
+sup_kind(FAA, X, claim) :- atom(X), get_assoc(claim-X, FAA, _), !.
+sup_kind(FAA, X, hypothesis) :- atom(X), get_assoc(hypothesis-X, FAA, _).
 
 attest_diags(KB, ATs, Env, Fact0, F, L, Diags) :-
     Fact0 = attest(_, Type, _, Pred, By, _),
@@ -1301,11 +1325,18 @@ e15_diags(FactItems, Diags) :-
             ( member(it(_, F, L, T, _, _), FactItems), nonvar(T),
               T = supersedes(N, O), ground(N-O),
               ord_memberchk(O-N, Pairs),
+              sup_kind_words(FactItems, N, One, Many),
               (   N == O
-              ->  fmt(M, "supersedes(~q, ~q): a claim cannot replace itself. Remove this fact. done is false while a supersede cycle exists.", [N, O])
-              ;   fmt(M, "supersedes(~q, ~q) is part of a supersede cycle: ~q also replaces ~q, directly or through other claims. A claim cannot replace itself. Remove one supersedes fact of the cycle. done is false while the cycle exists.", [N, O, O, N])
+              ->  fmt(M, "supersedes(~q, ~q): a ~w cannot replace itself. Remove this fact. done is false while a supersede cycle exists.", [N, O, One])
+              ;   fmt(M, "supersedes(~q, ~q) is part of a supersede cycle: ~q also replaces ~q, directly or through other ~w. A ~w cannot replace itself. Remove one supersedes fact of the cycle. done is false while the cycle exists.", [N, O, O, N, Many, One])
               ) ),
             Diags).
+
+% sup_kind_words(+FactItems, +Id, -One, -Many): "hypothesis" and "hypotheses"
+% when Id is a hypothesis (D15), else "claim" and "claims".
+sup_kind_words(FactItems, X, "hypothesis", "hypotheses") :-
+    member(it(_, _, _, T, _, _), FactItems), nonvar(T), T = hypothesis(Y, _, _), Y == X, !.
+sup_kind_words(_, _, "claim", "claims").
 
 % E5 over the facts in order. Only diagnostics at a later item.
 e5_diags(FactItems, Ds, Diags) :-
@@ -4545,15 +4576,26 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
               \+ ord_memberchk(N/A, Read),
               fmt(M, "No rule reads the local fact ~q/~w. Add a rule in rules.pl that uses it, or remove it.", [N, A]) ),
             W4),
-    % W5. As for W3, only ground claims can match. Old-New pairs keep
-    % the file order of the supersedes facts.
-    findall(Old-New, ( member(it(_, _, _, S, _, _), Facts), nonvar(S),
-                       S = supersedes(New, Old), ground(Old) ), SP),
-    group_by_key_in_order(SP, SupBy),
+    % W5 (D15). A check of a superseded claim, while a current claim that
+    % replaces it (directly or through a chain) has no check of its own.
+    % Check ids are unique (E5) and facts are append-only, so the fix is a
+    % new check of the current claim, not a move of the old check.
+    supersede_edges(Facts, SEdges),
+    supersede_closure(SEdges, SPairs),
+    findall(O5, member(_-O5, SEdges), Olds0), sort(Olds0, Olds),
+    findall(C5, ( member(it(_, _, _, T5, _, _), Facts), nonvar(T5),
+                  T5 = check(_, C5), ground(C5) ), Checked0),
+    sort(Checked0, Checked),
+    findall(C6, ( member(it(_, _, _, T6, _, _), Facts), nonvar(T6),
+                  T6 = claim(C6, _, _), atom(C6) ), Claims0),
+    sort(Claims0, Claims),
     findall(diag('W5', F, L, M),
             ( member(it(_, F, L, T, _, _), Facts), nonvar(T), T = check(K, C),
-              ground(C), get_assoc(C, SupBy, News), member(New, News),
-              fmt(M, "Check ~q tests claim ~q, but claim ~q replaces it. Point the check at the new claim.", [K, C, New]) ),
+              ground(C),
+              member(New-C1, SPairs), C1 == C,
+              ord_memberchk(New, Claims), \+ ord_memberchk(New, Olds),
+              \+ ord_memberchk(New, Checked),
+              fmt(M, "Check ~q tests claim ~q, but claim ~q replaces it, and ~q has no check. Add a new check of ~q with a new id: orbit-kb add \"check(NEW_ID, ~q)\". Then run it: orbit-kb run NEW_ID -- CMD.", [K, C, New, New, New, New]) ),
             W5),
     append([W1, W2a, W2b, W3, W4, W5], Diags).
 
@@ -4700,7 +4742,9 @@ show_section(KB, Eng, open) :-
     forall(member(A, As), say("- stale ~w: approval ~w names an old digest.", [A, A])),
     forall(member(C, Cs), say("- contested ~w: a divergence names claim ~w.", [C, C])),
     eng_all(Eng, [Y], supersede_cycle(Y), Ys),
-    forall(member(Y, Ys), say("- supersede_cycle ~w: claim ~w replaces itself (lint E15).", [Y, Y])),
+    forall(member(Y, Ys),
+           ( ( eng_true(Eng, claim(Y, _, _)) -> YK = claim ; YK = hypothesis ),
+             say("- supersede_cycle ~w: ~w ~w replaces itself (lint E15).", [Y, YK, Y]) )),
     (   has_build(KB)
     ->  eng_all(Eng, [U], under(U), Us),
         eng_all(Eng, [O], over(O), Os),
@@ -4900,7 +4944,11 @@ cmd_report(KB, Args, Code) :-
     ),
     forall(member(Q4, Q4s), say("- Ask question ~w now.", [Q4])),
     forall(member(A4, A4s), say("- Approval ~w is stale. The subject changed after the approval.", [A4])),
-    forall(member(Y4, Y4s), say("- Claim ~w is in a supersede cycle. It replaces itself, so it is not current. Remove a supersedes fact (lint E15).", [Y4])),
+    forall(member(Y4, Y4s),
+           (   eng_true(Eng, claim(Y4, _, _))
+           ->  say("- Claim ~w is in a supersede cycle. It replaces itself, so it is not current. Remove a supersedes fact (lint E15).", [Y4])
+           ;   say("- Hypothesis ~w is in a supersede cycle. It replaces itself. Remove a supersedes fact (lint E15).", [Y4])
+           )),
     forall(member(O4, O4s), say("- Change ~w serves no claim.", [O4])),
     forall(member(B4, B4s), say("- Claim ~w needs a Lean proof. Prove it with orbit-kb prove, or ask a human for a waiver.", [B4])),
     forall(member([W4, C4, D4], L4s),
@@ -5330,9 +5378,9 @@ help_lines(lint, [
 "E1 syntax. E2 undeclared predicate. E3 type. E4 dangling ref. E5 duplicate id.",
 "E6 non-ground fact. E7 clause in the wrong place. E8 writer not allowed. E9 test result or proof without its log.",
 "E10 uses/1. E11 the program does not compile. E12 hazard H1. E13 hazard H4. E14 unsafe negation.",
-"E15 supersede cycle (a claim replaces itself). E16 rules.pl changes done, a burn, waiver, or vote rule, or a computed fact.",
+"E15 supersede cycle (a claim or hypothesis replaces itself). E16 rules.pl changes done, a burn, waiver, or vote rule, or a computed fact.",
 "W1 subject changed. W2 local declaration. W3 claim without cites. W4 local fact that no rule reads.",
-"W5 check on a superseded claim. W6 local rule that extends a library predicate.",
+"W5 check on a superseded claim, and the new claim has no check yet. W6 local rule that extends a library predicate.",
 "Module lint_issue/3 results follow. Exit 1 on errors, or on warnings with --strict."
 ]).
 help_lines(query, [

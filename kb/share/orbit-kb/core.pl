@@ -65,9 +65,12 @@ decl(fact, cites(ref(claim), text),
 decl(fact, example(ref(claim), text),
      'A concrete case of the claim.',
      'an example of claim @(1) is @(2)').
-decl(fact, supersedes(ref(claim), ref(claim)),
-     'The first claim replaces the second claim.',
-     'claim @(1) replaces claim @(2)').
+% supersedes/2 takes two claims, or two hypotheses of the discovery module.
+% The type is ref (any id), because core.pl cannot name the module fact
+% hypothesis/3. orbit-kb checks the kinds: a claim and a hypothesis is E4.
+decl(fact, supersedes(ref, ref),
+     'The first claim replaces the second claim, or the first hypothesis replaces the second hypothesis.',
+     '@(1) replaces @(2)').
 decl(fact, universal(ref(claim)),
      'The claim says that something is true for every input.',
      'claim @(1) is about every input').
@@ -118,9 +121,9 @@ decl(fact, attest(id, atom, ref, attest_predicate, by, time),
 % Core rule predicates
 % ---------------------------------------------------------------------
 
-decl(rule, superseded(ref(claim)),
-     'Another claim replaces the claim.',
-     'claim @(1) is superseded').
+decl(rule, superseded(ref),
+     'Another claim replaces the claim, or another hypothesis replaces the hypothesis.',
+     '@(1) is superseded').
 decl(rule, current(ref(claim)),
      'The claim is in force, because no other claim replaces it.',
      'claim @(1) is current').
@@ -160,15 +163,15 @@ decl(rule, failed_after(ref(check), int),
 decl(rule, was_red(ref(check)),
      'The check failed in a run before a run in which it passed.',
      'check @(1) failed before it passed').
-decl(rule, supersedes_closure(ref(claim), ref(claim)),
-     'The first claim replaces the second claim through one or more supersedes facts. orbit-kb computes it when it reads the KB.',
-     'claim @(1) replaces claim @(2), directly or through other claims').
-decl(rule, supersede_cycle(ref(claim)),
-     'The claim replaces itself through one or more supersedes facts. orbit-kb computes it when it reads the KB.',
-     'claim @(1) is in a supersede cycle').
+decl(rule, supersedes_closure(ref, ref),
+     'The first claim or hypothesis replaces the second through one or more supersedes facts. orbit-kb computes it when it reads the KB.',
+     '@(1) replaces @(2), directly or through others').
+decl(rule, supersede_cycle(ref),
+     'The claim or hypothesis replaces itself through one or more supersedes facts. orbit-kb computes it when it reads the KB.',
+     '@(1) is in a supersede cycle').
 decl(rule, any_supersede_cycle,
-     'At least one claim is in a supersede cycle.',
-     'some claim is in a supersede cycle').
+     'At least one claim or hypothesis is in a supersede cycle.',
+     'some claim or hypothesis is in a supersede cycle').
 decl(rule, lint_issue(atom, ref, text),
      'A lint result that a module adds, with a code, an id, and a message.',
      'lint issue @(1) on @(2): @(3)').

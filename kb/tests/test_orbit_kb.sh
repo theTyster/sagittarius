@@ -66,6 +66,7 @@
 #   SC  D10 follow-up: inherited burns, supersede cycles, rules.pl, times, proof logs (D10 follow-up) : SC1-SC11
 #   RF  refuted(Counterexample) in disproof and lean_result (2026-10-21) : RF1-RF7
 #   WV  waivers of a check or a question (D13, 2026-10-21)     (Build module; D13)              : WV1-WV10
+#   RW  reword a hypothesis with supersedes; W5 names a new check (D15, 2026-10-27) : RW1-RW5 W5b W5c
 #   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10, D10 follow-up) : PV1-PV12
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
@@ -1276,6 +1277,79 @@ t_WV10() { kb_waive "$T/k"; K=$T/k; okb help attest; rc_is 0; local line
            eval "set -- $line" 2>/dev/null || { note "the example does not parse in a shell: $line"; return; }
            okb --dir "$K" attest waiver "$@"; rc_is 0 "the help example runs as typed: $line"; }
 
+# ---- D15 (2026-10-27): reword a hypothesis with supersedes(HNew, HOld). Both sides are claims,
+# or both are hypotheses; a mix is E4. A superseded hypothesis raises no WD7 or WD6 and does not
+# count for discovery_ready. current/1, under/1, and burn/1 stay claims only.
+t_RW1() { kb_noshow "$T/k"; K=$T/k; printf "claim(c1, introduce, 'No double charge.').\ncites(c1, 'charged twice').\n" >> "$K/kb.pl"
+          oadd "hypothesis(h2, defect, 'A retry after a timeout charges an order twice.')" "supersedes(h2, h1)"
+          rc_is 0 "a hypothesis replaces a hypothesis"
+          has_fact "$K/kb.pl" "supersedes(h2, h1)" "the supersedes fact is stored"
+          rejects "a claim cannot replace a hypothesis" 'claim.*hypothes|hypothes.*claim' add "supersedes(c1, h1)"
+          rejects "a hypothesis cannot replace a claim" 'claim.*hypothes|hypothes.*claim' add "supersedes(h2, c1)"
+          rejects "a mix in one add" 'claim.*hypothes|hypothes.*claim' add "hypothesis(h3, risk, 'Other words.')" "supersedes(h3, c1)"
+          rejects "a request is no claim or hypothesis" 'E4' add "supersedes(c1, r1)"
+          printf "supersedes(c1, h1).\n" >> "$K/kb.pl"; okb --dir "$K" lint; rc_is 1 "a mix in kb.pl is a lint error"
+          out_has '^E4 .*kb\.pl:.*hypothes' "E4 names the kinds"
+          kb_new "$T/c" <<'EOF'
+uses([]).
+request(r1, 'Fix the thing').
+claim(c1, preserve, 'It works').
+cites(c1, 'Fix the thing').
+claim(c2, preserve, 'It works better').
+cites(c2, 'Fix the thing').
+EOF
+          K=$T/c; rejects "core only: a request is not a claim" 'E4' add "supersedes(c2, r1)"
+          oadd "supersedes(c2, c1)"; rc_is 0 "core only: a claim replaces a claim"
+          okb --dir "$K" lint; rc_is 0 "core only: lint is clean"; out_hasnt '^E'; }
+t_RW2() { da_copy; is_true 'discovery_ready' "setup: discovery-a is ready"
+          oadd "hypothesis(h2, defect, 'Old words.')"; rc_is 0
+          okb --dir "$K" lint; out_has '^WD7 h2' "setup: h2 has no system result"; is_false 'discovery_ready' "setup: h2 blocks"
+          oadd "hypothesis(h3, defect, 'New words.')" "supersedes(h3, h2)"; rc_is 0 "the human rewords h2 as h3"
+          okb --dir "$K" lint; out_hasnt '^WD7 h2' "a superseded hypothesis has no WD7"; out_has '^WD7 h3' "the new hypothesis needs a result"
+          is_false 'discovery_ready' "h3 has no system result yet"
+          okb --dir "$K" attest reproduction log4417 'result(h3, reproduced)'; rc_is 0
+          okb --dir "$K" lint; rc_is 0; out_hasnt '^WD7' "no WD7 left"
+          is_false 'some_untouched_hypothesis' "the superseded h2 is not untouched"
+          is_true 'discovery_ready' "a superseded hypothesis does not block discovery_ready"
+          is_set 'artifact_vote(V)' 'V = go' "the artifacts vote go"
+          oadd "hypothesis(h4, defect, 'Reworded h1.')" "supersedes(h4, h1)"; rc_is 0
+          okb --dir "$K" lint; out_hasnt '^WD7 h1'; out_has '^WD7 h4' "the result of h1 does not carry over to h4"
+          is_false 'discovery_ready' "h4 needs its own system result"; }
+t_RW3() { kb_noshow "$T/n"; K=$T/n; is_true 'discovery_ready' "setup: ready because h1 did not reproduce"
+          oadd "hypothesis(h2, defect, 'A retry after a timeout charges an order twice.')" "supersedes(h2, h1)"; rc_is 0
+          okb --dir "$K" lint; out_hasnt '^WD6' "no WD6 on the result of a superseded hypothesis"
+          out_hasnt '^WD7 h1'; out_has '^WD7 h2'
+          is_false 'discovery_has_outcome' "the not_reproduced result of a superseded hypothesis is no outcome"
+          is_false 'discovery_ready'; is_set 'artifact_vote(V)' 'V = hold'
+          okb --dir "$K" attest reproduction log1 'result(h2, not_reproduced)'; rc_is 0
+          okb --dir "$K" lint; out_has '^WD6 ' "WD6 on the result of the new hypothesis"; out_hasnt '^WD7'
+          is_true 'discovery_ready' "ready: h2 did not reproduce"; is_set 'artifact_vote(V)' 'V = no_go'; }
+t_RW4() { kb_new "$T/k" <<'EOF'
+uses([build, discovery]).
+request(r1, 'Orders are charged twice.').
+hypothesis(h1, defect, 'Old words.').
+hypothesis(h2, defect, 'New words.').
+supersedes(h2, h1).
+claim(c1, introduce, 'No double charge.').
+cites(c1, 'charged twice').
+universal(c1).
+EOF
+          K=$T/k; okb --dir "$K" lint; out_hasnt '^E' "setup: no lint error"
+          is_set 'supersedes_closure(N, O)' 'N = h2, O = h1'; is_true 'superseded(h1)'
+          is_set 'current(X)' 'X = c1' "current is claims only"; is_set 'under(X)' 'X = c1' "under is claims only"
+          is_set 'burn(X)' 'X = c1' "burn is claims only"
+          oadd "hypothesis(h3, defect, 'Newer words.')" "supersedes(h3, h2)"; rc_is 0
+          is_set 'supersedes_closure(N, h1)' 'N = h2|N = h3' "the closure follows a hypothesis chain"
+          rejects "a hypothesis cycle" 'cycle' add "supersedes(h1, h3)"
+          printf "supersedes(h1, h3).\n" >> "$K/kb.pl"; okb --dir "$K" lint; rc_is 1
+          out_has '^E15 .*hypothes' "E15 on a hypothesis cycle names hypotheses"
+          is_set 'supersede_cycle(X)' 'X = h1|X = h2|X = h3'; is_false 'done' "a hypothesis cycle makes done false"
+          okb --dir "$K" show open; rc_is 0; out_has 'supersede_cycle h1: hypothesis h1' "show open names the kind"; }
+t_RW5() { okb help discovery; rc_is 0; any_has 'supersedes\(h[A-Za-z0-9]*, ?h' "help discovery shows supersedes on hypotheses"
+          any_hasi 'reword' "help discovery says how to reword"
+          okb help core; rc_is 0; any_hasi 'supersedes.*hypothes|hypothes.*supersedes|two hypotheses' "help core: supersedes takes hypotheses too"
+          okb help codes; rc_is 0; any_has 'W5 .*new check' "help codes: W5 says to add a new check"; }
+
 # ---- D10: orbit-kb prove with real Lean. The Lake project is built once (prototype lake).
 # Each test copies it, so lake build has little to do. Skip when lake is missing.
 LEAN_TC=$(command -v elan >/dev/null 2>&1 && elan toolchain list 2>/dev/null | sed -n 's/^\(leanprover\/lean4:v[0-9.]*\).*/\1/p' | sort -V | tail -1)
@@ -1420,6 +1494,36 @@ t_W1() { copy_fixture valid "$T/f"; echo 'changed' >> "$T/f/plan.txt"; okb --dir
 t_W3() { fx_lint w3_no_cites W3; }
 t_W4() { fx_lint w4_no_reader W4 W2; out_has '^W2 '; }
 t_W5() { fx_lint w5_superseded_check W5; }
+# 2026-10-27: check ids are unique (E5) and facts are append-only, so a check cannot be pointed
+# at the new claim. W5 says to add a new check of the new claim, and it stops once that claim
+# has a check of its own.
+t_W5b() { copy_fixture w5_superseded_check "$T/f"; K=$T/f; okb --dir "$K" lint; rc_is 0
+          out_has '^W5 .*[Aa]dd a new check of c2' "W5 says to add a new check of the new claim"
+          out_has '^W5 .*orbit-kb run' "W5 says to run the new check"
+          out_hasnt '^W5 .*Point the check' "W5 must not say to point the old check at the new claim"
+          printf "check(k2, c2).\n" >> "$K/kb.pl"; okb --dir "$K" lint; rc_is 0
+          out_hasnt '^W5' "no W5 once the new claim has a check of its own"; }
+t_W5c() { kb_new "$T/k" <<'EOF'
+uses([]).
+request(r1, 'Fix the thing').
+claim(c1, preserve, 'It works').
+cites(c1, 'Fix the thing').
+claim(c2, preserve, 'It works better').
+cites(c2, 'Fix the thing').
+claim(c3, preserve, 'It works best').
+cites(c3, 'Fix the thing').
+supersedes(c2, c1).
+supersedes(c3, c2).
+check(k1, c1).
+check(k2, c2).
+EOF
+          K=$T/k; okb --dir "$K" lint; rc_is 0
+          [ "$(printf '%s\n' "$out" | grep -c '^W5 ')" = 2 ] || note "want W5 on k1 and k2: $(snip "$out")"
+          out_has '^W5 .*k1.*claim c3 replaces' "W5 on k1 names the current claim c3"
+          out_has '^W5 .*k2.*claim c3 replaces' "W5 on k2 names the current claim c3"
+          out_hasnt '^W5 .*claim c2 replaces' "c2 is superseded too, so W5 does not name it"
+          printf "check(k3, c3).\n" >> "$K/kb.pl"; okb --dir "$K" lint; rc_is 0
+          out_hasnt '^W5' "no W5 once the current claim c3 has a check"; }
 t_W6() { fx_lint w6_extension W6; okb --dir "$T/f" lint --strict; rc_is 1 "--strict with W6"; }
 t_LS() { copy_fixture valid_local "$T/f"; okb --dir "$T/f" lint --strict; rc_is 1 "W2 under --strict"; okb --dir "$T/f" lint; rc_is 0; }
 t_LH1() { kb_new "$T/k" <<'EOF'
@@ -1708,6 +1812,11 @@ run_test t_WV7 WV7 "D13: a claim waiver does not cover its checks or questions (
 run_test t_WV8 WV8 "D13: report lists every waiver with target, kind, due time, and lapse (W6)"
 run_test t_WV9 WV9 "D13: rules.pl clauses for check_waived and question_waived are E16 (W7)"
 run_test t_WV10 WV10 "D13: the waiver example in help attest is typable in a shell"
+run_test t_RW1 RW1 "D15: supersedes takes two hypotheses; a claim-hypothesis mix is E4"
+run_test t_RW2 RW2 "D15: a superseded hypothesis has no WD7 and does not block discovery_ready"
+run_test t_RW3 RW3 "D15: a superseded hypothesis's not_reproduced is no outcome and has no WD6"
+run_test t_RW4 RW4 "D15: closure and E15 work on hypotheses; current, under, burn stay claims"
+run_test t_RW5 RW5 "D15: help discovery, core, and codes describe rewording and the new W5"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"
@@ -1778,6 +1887,8 @@ run_test t_W1 W1 "lint W1 changed subject; --strict exits 1"
 run_test t_W3 W3 "lint W3 claim without cites"
 run_test t_W4 W4 "lint W4 fact predicate with no reader"
 run_test t_W5 W5 "lint W5 check on a superseded claim"
+run_test t_W5b W5b "lint W5 says to add a new check of the new claim, and stops when it has one"
+run_test t_W5c W5c "lint W5 follows a supersede chain to the current claim"
 run_test t_W6 W6 "lint W6 local rule extends a core predicate"
 run_test t_LS LS "lint --strict turns W2 into exit 1"
 run_test t_E14 E14 "lint E14 unsafe negation: head variable in no positive literal (D7)"

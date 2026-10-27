@@ -88,6 +88,12 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
   are updated below. Open requests: a lint warning for a stale approval (LM21); a way to
   record a digest without typing it (F5); a `report_section/3` hook for `report` and
   `show open`. `--by human` is a claim the CLI cannot verify (LM20).
+- **D15 (reword a hypothesis; W5 asks for a new check, 2026-10-27).** Decision by Ty: no new command and no new attestation type for what is a small reword. Choices made by the builder:
+  - R1: `supersedes` takes two claims, or two hypotheses. Its declaration is `supersedes(ref, ref)`: core cannot name the discovery fact `hypothesis/3` in a type, and `ref([claim, hypothesis])` is E3 without the module. The CLI checks the kinds. A side that is an existing id but no claim and no hypothesis is E4. A claim and a hypothesis in one fact is E4, and the message says how to reword a hypothesis. `add` refuses both. `superseded/1`, `supersedes_closure/2`, and `supersede_cycle/1` are declared with `ref`. Their rules do not change, so the Lean burn model is not rerun.
+  - R2: `current/1` keeps `claim(C, _, _)`, so a hypothesis is never current, under, or a burn (`burn_reason/1` reads claims only). A hypothesis cycle is E15 and makes `any_supersede_cycle` true, so `done` is false, as for claims. The E15 message, `show open`, and `report` name the kind.
+  - R3 (discovery): a superseded hypothesis is out of play. `some_hypothesis :- hypothesis(H, _, _), not superseded(H).`, `some_untouched_hypothesis :- hypothesis(H, _, _), not superseded(H), not discovery_hypothesis_touched(H).`, the not_reproduced clause of `discovery_has_outcome` adds `not superseded(H)`, WD7 adds `not superseded(H)`, and WD6 adds `not superseded(H)` for the hypothesis of its result. `artifact_vote/1` reads these through `discovery_ready`. `raised_by/2`, ED8, and `decision` (`no_go`, `hold`) do not change. `discovery_ready` does not read `any_supersede_cycle`; E15 reports a cycle.
+  - R4 (W5): a check of a superseded claim gets W5 once for each current claim (a claim that no claim supersedes) that replaces the claim, directly or through a chain, and that has no check of its own. The message names that claim and says to add a new check of it with a new id, then run it (check ids are unique, E5, and facts are append-only). No W5 when no such claim exists.
+  - Tests: RW1 to RW5, W5b, W5c.
 - **D14 (GO / NO-GO / HOLD is a weighted vote, 2026-10-21).** Decision by Ty, recorded in `thoughts/orbital-shifting-system-prompt-draft.md` ("GO / NO-GO: a weighted vote"): the human (0.4), the agent (0.3), and the formal artifacts (0.3) vote GO, NO-GO, or HOLD. The agent's vote is sealed until the human votes. A choice wins only with more than half of the weight and with the human's vote, so the human plus at least one other role. Any other result is HOLD, another orbit follows, and the disagreement is a divergence. All in `modules/discovery.pl`; `core.pl` and `build.pl` do not change, so the Lean burn model is not rerun. Choices made by the builder:
   - V1: attest type `vote`, shape `vote(int, oneof([go, no_go, hold]))`, writers `[agent, human]`. The subject is the request. The int is the round: 1 at the first gate, then one more after each HOLD. One vote per writer per round: a second is lint error ED10 (on each of the two). A later round replaces the earlier one: only the largest round with any vote counts (`vote_round/1`, with the helper `discovery_vote_raised/1`, as `budget` does). A round, not "the later vote wins", because the rules cannot order attestations by time, and a new orbit needs new votes.
   - V2: `artifact_vote(go) :- discovery_ready, discovery_some_current.`, `artifact_vote(no_go) :- discovery_ready, not discovery_some_current.`, `artifact_vote(hold) :- not discovery_ready.` It reads the KB as it is at the query.
@@ -418,7 +424,8 @@ Core facts:
 - `cites(ref(claim), text)`: the request or ticket text that the claim serves.
 - `example(ref(claim), text)`: a concrete case. Discovery's witnesses and reproductions
   go here, and build turns them into tests.
-- `supersedes(ref(claim), ref(claim))`: the new claim, then the old one.
+- `supersedes(ref, ref)`: the new claim, then the old one; or, with the discovery module,
+  the new hypothesis, then the old one (D15). Both sides are the same kind; otherwise E4.
 - `universal(ref(claim))`: the claim says "for every input".
 - `check(id, ref(claim))`: an executable check of the claim.
 - `world(term)`: a closed-world fact about the current state.
@@ -583,7 +590,7 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | E1 | Syntax error, with file and line. |
 | E2 | Undeclared predicate or wrong arity. This covers `kb.pl` facts and the heads and bodies in `rules.pl`, `core.pl`, and the modules. Built-ins are allowed: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `#=`, `#<>`, `#<`, `#>`, `#=<`, `#>=`, `true`, `false`, `forall/2`. `not G` and `-G` are unwrapped. When a declaration exists with the same name but a different arity, the message names it. |
 | E3 | Type error, including a label outside `oneof`. |
-| E4 | Dangling `ref`. |
+| E4 | Dangling `ref`, or a `ref` to the wrong kind. A `supersedes` side that is no claim and no hypothesis, or a claim and a hypothesis in one `supersedes` fact (D15). `add` refuses it. |
 | E5 | Duplicate id. |
 | E6 | Non-ground fact in `kb.pl` (D2). |
 | E7 | A clause in the wrong place (D2): a `rule` predicate asserted as a fact in `kb.pl`, or a `fact` predicate with clauses outside `kb.pl`. |
@@ -593,7 +600,7 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | E11 | The assembled program fails to compile in s(CASP), or fails to load in the SWI engine. |
 | E13 | An atom or string ends in `_` plus digits (H4). |
 | E14 | Unsafe negation: a `not` literal's variable occurs in the head but in no positive body literal (D7). |
-| E15 | A `supersedes` fact on a cycle, including `supersedes(C, C)` (D10 follow-up). `add` refuses it. |
+| E15 | A `supersedes` fact on a cycle, including `supersedes(C, C)` (D10 follow-up), of claims or of hypotheses (D15). `add` refuses it. |
 | E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle` (D10 follow-up), and the vote rules `vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split` (D14). The engines ignore the clause. |
 | E12 | A `not` literal contains a variable that occurs nowhere else in the clause, including `_` (H1). The message gives the helper-predicate fix. |
 
@@ -603,7 +610,7 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | W2 | A local declaration, listed for review. |
 | W3 | A claim with no `cites`. |
 | W4 | A local fact predicate that no rule reads (no reader). |
-| W5 | A superseded claim that a `check` still references. |
+| W5 | A `check` of a superseded claim, while a current claim that replaces it (directly or through a chain) has no check (D15). The message says to add a new check of that claim, with a new id, and run it. |
 | W6 | A local rule that adds clauses to a core or module predicate (an extension), other than a protected one (E16). |
 
 ## Style
