@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right payment (litres picked up with unit converted, at the co-op's rate; month by dairy local time) and says the paid/stated amount can differ, so one pickup or farm-month could confirm or refute it",
+      "passed": false,
+      "evidence": "The report has no general problem statement. It opens with \"I found two separate bugs in `milk.py`\", and each section starts with a code cause (\"`pickup_payment` ignores the `unit` column\", \"`month_of` takes the month from the first 7 characters of the UTC timestamp\"). It never states, apart from those causes, what decides the right amount and that the paid amount can differ from it."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix",
+      "passed": false,
+      "evidence": "The causes are the framing itself: \"gallons are paid as if they were litres\" and \"takes the month from the first 7 characters of the UTC timestamp\". No cause-free statement comes before them."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail",
+      "passed": true,
+      "evidence": "The two stated problems (the unit is ignored, and the month comes from UTC instead of UTC-7) each cover one complaint. Each can be refuted by a concrete check: 80 gal \u00d7 3.785 \u00d7 0.42 = 127.18, and 367.50 + 113.40 = 480.90 when P-8830 is counted in September by local time."
+    }
+  ],
+  "judge": "opus"
+}

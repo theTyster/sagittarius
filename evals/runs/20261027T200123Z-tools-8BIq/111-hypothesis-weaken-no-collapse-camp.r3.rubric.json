@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as 'cancelled bookings are counted', 'the oldest age is excluded', 'should use <=', or 'filter bookings by status'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "The turn-2 **Problem** says only that \"a session shows 0 places left. The office counts 11 children booked for 12 places\" and that \"a child who is 10 on the first day is refused a session described as 'ages 7 to 10'.\" It states no cause or fix. The cancelled entry appears only later, under \"What I observed\", and the inclusive-limit and status questions are left open for the team."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right answer for a sign-up (the session's capacity and the children booked on it; the session's age range and the child's age on its first day) and says the form's answer can differ, so that checking one session or one child could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong answer would fit, such as 'the sign-up form sometimes gives the wrong answer' or 'the result depends on something other than the booking data'",
+      "passed": true,
+      "evidence": "The problem names the deciding facts: places against the children booked (\"11 children booked for 12 places\") and the child's age on the first day against the session's range (\"10 on the first day ... 'ages 7 to 10'\"). It says the form's answer differs: \"the form refuses a family the office would accept.\" The claims table makes it checkable on a single session or child (S-207 with the child born 2017-09-14, S-212 with the child born 2017-04-21)."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "The restated problem has two numbered items, one for the S-207 \"0 places left\" refusal and one for the S-212 age refusal. Both fall under the shared framing \"Two sign-up refusals do not match what the office expects.\""
+    }
+  ],
+  "judge": "opus"
+}

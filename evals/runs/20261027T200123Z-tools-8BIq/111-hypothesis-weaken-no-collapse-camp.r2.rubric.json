@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as 'cancelled bookings are counted', 'the oldest age is excluded', 'should use <=', or 'filter bookings by status'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "Hypothesis 1 says only that 'the places left shown to parents should match the office count of booked children', and Hypothesis 2 says only that 'a child whose age on the first day is inside a session's stated age range should be accepted'. Neither names a mechanism. The cancelled row B-5511 appears only under 'System', as a data finding."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right answer for a sign-up (the session's capacity and the children booked on it; the session's age range and the child's age on its first day) and says the form's answer can differ, so that checking one session or one child could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong answer would fit, such as 'the sign-up form sometimes gives the wrong answer' or 'the result depends on something other than the booking data'",
+      "passed": true,
+      "evidence": "H2 names the deciding rule: 'age on the first day is inside a session's stated age range'. H1 ties places left to 'the office count of booked children'. Capacity is named only in the reproduction ('11 booked, 12 places'), not in H1 itself, so H1 is borderline. Both still say 'some \u2026 differ/are refused', and each has a per-session falsifier ('false if every session's number matched the office count')."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "The restatement keeps two hypotheses. H1 covers S-207 showing 0 places left when the office count gives 1. H2 covers the 2017-04-21 child, who is 10 and is refused for S-212 'ages 7 to 10'."
+    }
+  ],
+  "judge": "opus"
+}

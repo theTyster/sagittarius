@@ -1,0 +1,27 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 5 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "python:from milk import monthly_statement as s; assert s('F-12', '2026-09') == 367.5, 'code changed'",
+      "passed": true,
+      "evidence": "ok"
+    }
+  ],
+  "commands": [
+    "help"
+  ]
+}

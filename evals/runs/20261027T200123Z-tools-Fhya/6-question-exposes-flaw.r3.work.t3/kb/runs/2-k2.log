@@ -1,0 +1,6 @@
+% orbit-kb run 2 check=k2 result=pass exit=0 time=2026-10-27T20:03:32Z cmd=./kb/sync_sim.sh
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+OK

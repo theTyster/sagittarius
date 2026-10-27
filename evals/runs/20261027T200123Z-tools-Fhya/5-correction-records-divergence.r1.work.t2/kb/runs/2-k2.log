@@ -1,0 +1,18 @@
+% orbit-kb run 2 check=k2 result=fail exit=1 time=2026-10-27T20:01:58Z cmd=python -m unittest test_pipeline.PipelineTest.test_grade_large
+F
+======================================================================
+FAIL: test_grade_large (test_pipeline.PipelineTest.test_grade_large)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.Dc7tjc61Cm/test_pipeline.py", line 11, in test_grade_large
+    self.assertEqual(model_for("grade"), "large")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'small' != 'large'
+- small
++ large
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

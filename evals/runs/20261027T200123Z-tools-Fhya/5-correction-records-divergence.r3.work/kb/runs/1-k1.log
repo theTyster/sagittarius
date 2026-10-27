@@ -1,0 +1,18 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-27T20:01:54Z cmd=python -I -m unittest discover -s /tmp/tmp.15apxMQqT8 -p test_pipeline.py -k test_summarize_small
+F
+======================================================================
+FAIL: test_summarize_small (test_pipeline.PipelineTest.test_summarize_small)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.15apxMQqT8/test_pipeline.py", line 8, in test_summarize_small
+    self.assertEqual(model_for("summarize"), "small")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'large' != 'small'
+- large
++ small
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

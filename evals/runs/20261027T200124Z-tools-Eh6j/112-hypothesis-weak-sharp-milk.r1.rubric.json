@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right payment (the litres picked up, with the farm's meter unit converted to litres, at the co-op's rate; and which month a pickup belongs to, by the dairy's local time) and says the paid or stated amount can differ from that, so that checking one pickup or one farm's month could confirm or refute it.",
+      "passed": false,
+      "evidence": "The agent never states the problem on its own. It opens with \"Both complaints are real, and each has its own cause in `milk.py`\" and then jumps to cause headings (\"the unit is ignored\", \"the month is cut on the UTC date\"). The deciding facts, gallons converted to litres at 0.42 per litre and the month by dairy time at UTC-7, show up only inside those cause explanations, not as a general statement of what the right payment depends on."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix.",
+      "passed": false,
+      "evidence": "The only framing of the problem is the cause itself: \"F-07, P-8835: the unit is ignored\" and \"F-12, September: the month is cut on the UTC date.\" No statement stands apart from the causes it found in the code."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names would show it false.",
+      "passed": true,
+      "evidence": "Both complaints are covered as two problems, and each gives concrete figures that a check could refute: P-8835 is \"80 gal ... 302.8 L. At 0.42 per litre that is 127.18\", and September plus P-8830 (113.40) comes to 480.90. Recomputing either figure could show the claim false."
+    }
+  ],
+  "judge": "opus"
+}

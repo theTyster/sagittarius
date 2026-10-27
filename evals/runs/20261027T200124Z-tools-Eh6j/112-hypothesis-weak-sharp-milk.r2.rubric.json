@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right payment (litres with the meter unit converted, at the co-op rate; the month by the dairy's local time) and says the paid or stated amount can differ, so one pickup or farm-month could confirm or refute it",
+      "passed": false,
+      "evidence": "There is no separate problem statement. The write-up starts with \"the cause is two separate bugs in `milk.py`.\" The deciding rules (1 gal = 3.785 L; a pickup belongs to its month at the dairy, UTC-7) appear only inside the \"Cause:\" bullets, as support for the code defects. They are never stated as what decides the right payment."
+    },
+    {
+      "assertion": "The problem statement does not build in a cause or fix (e.g. 'unit column is ignored', 'month taken from UTC date')",
+      "passed": false,
+      "evidence": "The framing is the cause itself: \"`pickup_payment` \u2026 ignores the `unit` column\" and \"`month_of` \u2026 takes the month straight from the UTC timestamp\". No neutral statement is given apart from these causes. The fixes (\"Convert gallons\u2026 shift UTC by -7 hours\") follow directly."
+    },
+    {
+      "assertion": "Both complaints fit the statement (as one or two problems), and the statement can fail: some named result would show it false",
+      "passed": true,
+      "evidence": "Each complaint gets its own section with checkable results: 80 \u00d7 3.785 \u00d7 0.42 = 127.18 for P-8835, and P-8830 at 2026-10-01T02:40Z is 19:40 on 30 September, so 367.50 + 113.40 = 480.90. A different result from either check would show the claim false."
+    }
+  ],
+  "judge": "opus"
+}

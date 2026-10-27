@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Problem statement names what decides the right payment (litres with unit converted, at co-op rate; month by dairy local time) and says paid/stated amount can differ, checkable per pickup or farm-month",
+      "passed": true,
+      "evidence": "Hypothesis: \"each pickup should be paid by its litres (converted from gallons if needed) and counted in the month it happened at the dairy (UTC-7). The code can give a different number.\" It does not state the rate, but \"paid by its litres\" covers the per-litre rule in general terms. It can be checked one pickup or one farm-month at a time."
+    },
+    {
+      "assertion": "Problem statement does not build in a cause or fix",
+      "passed": true,
+      "evidence": "The hypothesis states the correct rules (litres after any gallon conversion, and the month at the dairy, identified as UTC-7). It does not say how the code goes wrong. Causes such as \"ignores the unit column\" and \"takes the first 7 characters of the UTC time\" appear only in the Findings, as evidence."
+    },
+    {
+      "assertion": "Both complaints fit the statement and the statement can fail",
+      "passed": true,
+      "evidence": "F-07's complaint is a unit conversion problem and F-12's is a month assignment problem; both fit the litres-and-local-month statement. The agent gives a falsifier: \"It would be false if every payout and statement matched the README rules.\""
+    }
+  ],
+  "judge": "opus"
+}

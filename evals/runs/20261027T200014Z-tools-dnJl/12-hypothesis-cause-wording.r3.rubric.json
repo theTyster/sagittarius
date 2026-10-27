@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right total for a rental (item and catalog daily price, days, best coupon discount) and says the billed total can differ, so checking one rental could confirm or refute it",
+      "passed": true,
+      "evidence": "The agent says the right figure for R-2208 is the catalog rate times the days (\"22.00 \u00d7 3 = 66.00\"). For the coupons it cites the README rule \"the one that saves the most applies\". Its table compares \"Billed\" with \"Per the rules\" for each rental, so checking any one row could confirm or refute the claim."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix",
+      "passed": false,
+      "evidence": "The only problem statement is the \"What happened\" bullets, and they are written as causes: \"the lookup is an exact-match dict.get... silently uses DEFAULT_DAILY_RATE\" and \"applies the first valid coupon in the list and then hits break.\" No statement apart from these causes says what decides the right total."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one or two problems), and the statement can fail: some result it names would show it false",
+      "passed": true,
+      "evidence": "Each complaint is covered as its own problem. Each names the facts that fix the right total: 22.00 \u00d7 3 = 66.00 against a billed 30.00, and the 10% coupon giving 21.60 against a billed 22.80. A different correct value for either rental would show the statement false."
+    }
+  ],
+  "judge": "opus"
+}

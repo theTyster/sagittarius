@@ -1,0 +1,10 @@
+{
+  "spec": "tools.json",
+  "account": "personal",
+  "model": "haiku",
+  "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/v5.md",
+  "prompt_sha256": "3142253188abe85d64cb23183371f1901c78f2b03c018308985916c2752105a9",
+  "runs": 3,
+  "commit": "601087e",
+  "dirty": false
+}

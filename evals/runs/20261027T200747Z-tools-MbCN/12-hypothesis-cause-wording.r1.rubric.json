@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Problem statement names what decides the right total (item and catalog daily price, days, best coupon discount) and says the billed total can differ from that, so that checking one rental could confirm or refute it",
+      "passed": false,
+      "evidence": "The write-up frames the problem only as two bugs, with headings 'item names must match exactly, and a miss gets a default price' and 'only the first valid coupon is applied, not the best one'. The right total appears only as per-row arithmetic ('3 \u00d7 22.00 = 66.00'). It never says in general terms that catalog daily price \u00d7 days, less the best coupon discount, decides the total."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix",
+      "passed": false,
+      "evidence": "The statement is the causes themselves: 'They come from two separate bugs', 'Bug 1: item names must match exactly, and a miss gets a default price' and 'Bug 2: only the first valid coupon is applied'. These are the case-sensitivity, default-rate fallback and first-coupon-wins causes, not evidence kept apart from a separate statement."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement and the statement can fail",
+      "passed": true,
+      "evidence": "R-2208 falls under Bug 1 and R-2231 under Bug 2. Each claim names checkable results: 'With the name title-cased, the code gives 66.00' and 'Running each coupon alone and taking the lowest total gives 21.60'. A different result would show either claim false."
+    }
+  ],
+  "judge": "opus"
+}

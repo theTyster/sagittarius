@@ -1,0 +1,15 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-27T20:03:29Z cmd=python3 /tmp/kbmut.IA2fA5/nofloor/test_account.py
+F.
+======================================================================
+FAIL: test_past_limit_refused (__main__.WithdrawTest.test_past_limit_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/kbmut.IA2fA5/nofloor/test_account.py", line 11, in test_past_limit_refused
+    with self.assertRaises(Refused):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: Refused not raised
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+FAILED (failures=1)

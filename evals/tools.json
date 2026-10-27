@@ -230,7 +230,22 @@
         "The problem statement itself does not build in a cause or a fix, such as 'the lookup is case sensitive', 'unpriced items fall back to the default rate', 'the first coupon in the list wins', or 'sort the coupons by value'. Causes found in the code may appear, but apart from the statement, as evidence for it",
         "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right total) would show it false. It fails this only when no result could show it false, as in 'some totals are wrong' or 'the discount depends on something outside the rental'. It need not name the specific complaints"
       ],
-      "notes": "Two causes give wrong totals: the daily rate is looked up by exact item name with a silent fallback to the default rate, so 'pressure washer' (lower case, as typed in the booking) misses 'Pressure Washer' and is billed at 10.00 a day, not 22.00; and only the first valid coupon in the list is applied, in the order given, not the one that saves the most, so WELCOME5 beats SPRING10. R-2208 has no coupons and R-2231 is an exact-name item, so each complaint has one cause. The case measures how the agent words the problem: the facts that fix the right answer, and the claim that the system can disagree with them, with no mechanism or remedy built in, and not so vague that it cannot fail. Graded by the rubric (--rubric); the scripted check only guards the code. Moved from the held-out set (was 110) on 2026-10-27, after its failing transcripts were read to classify the failure: there, no run stated the problem apart from the causes, and the request's wording ('what is going wrong') led away from discovery. The README now states the coupon rule, so each complaint has a ground truth."
+      "notes": "Two causes give wrong totals: the daily rate is looked up by exact item name with a silent fallback to the default rate, so 'pressure washer' (lower case, as typed in the booking) misses 'Pressure Washer' and is billed at 10.00 a day, not 22.00; and only the first valid coupon in the list is applied, in the order given, not the one that saves the most, so WELCOME5 beats SPRING10. R-2208 has no coupons and R-2231 is an exact-name item, so each complaint has one cause. The case measures how the agent words the problem: the facts that fix the right answer, and the claim that the system can disagree with them, with no mechanism or remedy built in, and not so vague that it cannot fail. Graded by the rubric (--rubric); the scripted check only guards the code. Moved from the held-out set (was 110) on 2026-10-27, after its failing transcripts were read to classify the failure: there, no run stated the problem apart from the causes, and the request's wording ('what is going wrong') led away from discovery. The README now states the coupon rule, so each complaint has a ground truth. Result 2026-10-27 (sonnet): when the agent enters discovery its hypothesis passes; it does so in about half the runs. Four prompt versions moved the no-cause assertion only within noise (1/6 to 4/6). Open: routing of investigate-and-write-up requests to discovery."
+    },
+    {
+      "id": 13,
+      "name": "why-question-direct",
+      "fixture": "why-test-fails",
+      "prompt": "why does test_large_sequence fail?",
+      "checks": [
+        "no_kb",
+        "python:from invoice import invoice_number as n; assert n(2026, 12345) == 'INV-2026-12345', 'code changed'"
+      ],
+      "assertions": [
+        "Answers the question directly: the format pads to at least four digits and does not cut longer numbers, so the test's expected 'INV-2026-2345' does not match 'INV-2026-12345'",
+        "Does not turn the question into an investigation process: no discovery report, hypothesis section, claims list, or vote"
+      ],
+      "notes": "Guards against over-routing: a 'why' question about one named failure is a question, answered directly. The test, not the code, looks wrong; the agent may say so. A guard, not a rule test: it passes at the base too (haiku and sonnet, 2026-10-27). It fails if a routing change sends a plain question into discovery."
     }
   ]
 }

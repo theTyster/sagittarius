@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right total for a rental (item and catalog daily price, days, best coupon discount) and says the billed total can differ from that, so checking one rental could confirm or refute it",
+      "passed": true,
+      "evidence": "There is no general statement, but the write-up gives the right total's inputs. It says 'The correct figure is 22.00 \u00d7 3 = 66.00', which is catalog price times days, and that the coupon applied should be 'the one that saves the most'. It also says the billed totals differ, and it checks this row by row (e.g. R-2231 billed 22.80 vs 21.60)."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix",
+      "passed": false,
+      "evidence": "The problem is stated as two causes: 'Bug 1: item names must match exactly, and a miss silently charges 10.00 a day' and 'Bug 2: the first valid coupon is applied, not the one that saves the most'. The headline also says the complaints 'have two separate causes'. No statement separate from the causes describes the symptom (billed total \u2260 catalog price \u00d7 days less the best discount)."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail",
+      "passed": true,
+      "evidence": "R-2208 falls under Bug 1 and R-2231 under Bug 2. Each comes with concrete figures that one rental could refute, e.g. 'SPRING10 would give 21.60' against the billed 22.80, and 10.00 \u00d7 3 = 30.00 against 22.00 \u00d7 3 = 66.00."
+    }
+  ],
+  "judge": "opus"
+}

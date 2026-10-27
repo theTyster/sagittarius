@@ -1,0 +1,56 @@
+{
+  "meta": {
+    "spec": "heldout/heldout.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/v4.md",
+    "prompt_sha256": "9c9608bc6994ec56ea667c656e0aa41d08aabb5a09424e0043dcaec2cee9393f",
+    "runs": 3,
+    "commit": "601087e",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 111,
+      "name": "hypothesis-weaken-no-collapse-camp",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "python:from camp import places_left as p; assert p('S-207') == 0, 'code changed'": "3/3"
+      },
+      "rubric": {
+        "After the second turn, the restated problem builds in no cause or fix, such as 'cancelled bookings are counted', 'the oldest age is excluded', 'should use <=', or 'filter bookings by status'. Causes may appear apart from it, as findings": "3/3",
+        "After the second turn, the restated problem still names what decides the right answer for a sign-up (the session's capacity and the children booked on it; the session's age range and the child's age on its first day) and says the form's answer can differ, so that checking one session or one child could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong answer would fit, such as 'the sign-up form sometimes gives the wrong answer' or 'the result depends on something other than the booking data'": "3/3",
+        "Both complaints still fit the restated problem, as one problem or two": "3/3"
+      }
+    },
+    {
+      "id": 112,
+      "name": "hypothesis-weak-sharp-milk",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "python:from milk import monthly_statement as s; assert s('F-12', '2026-09') == 367.5, 'code changed'": "3/3"
+      },
+      "rubric": {
+        "Problem statement names what decides the right payment (litres with unit converted, at co-op rate; month by dairy local time) and says paid/stated amount can differ, checkable per pickup or farm-month": "1/1",
+        "Problem statement does not build in a cause or fix": "1/1",
+        "Both complaints fit the statement and the statement can fail": "1/1",
+        "Its statement of the problem names what decides the right payment (the litres picked up, with the farm's meter unit converted to litres, at the co-op's rate; and which month a pickup belongs to, by the dairy's local time) and says the paid or stated amount can differ from that, so that checking one pickup or one farm's month could confirm or refute it.": "0/1",
+        "The problem statement itself does not build in a cause or a fix, such as 'gallons are paid as litres', 'the unit column is ignored', 'the month is taken from the UTC date', 'convert the time to UTC-7 first' or 'multiply by 3.785'.": "0/1",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names would show it false.": "1/1",
+        "Its statement of the problem names what decides the right payment (litres with the meter unit converted, at the co-op rate; month by the dairy's local time) and says the paid or stated amount can differ from that, so that checking one pickup or one farm's month could confirm or refute it": "0/1",
+        "The problem statement itself does not build in a cause or a fix": "0/1",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail": "1/1"
+      }
+    }
+  ]
+}

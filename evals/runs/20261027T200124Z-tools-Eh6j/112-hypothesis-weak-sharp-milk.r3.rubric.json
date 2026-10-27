@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Problem statement names what decides the right payment (litres with unit converted, co-op rate, month by dairy local time) and says paid/stated amount can differ, checkable on one pickup or farm-month",
+      "passed": false,
+      "evidence": "The write-up has no separate problem statement. It opens with \"Both complaints are correct, and each one has a separate cause in milk.py\" and goes straight to code causes. The deciding rules (convert gal by 3.785, \u00d70.42, month at the dairy in UTC-7) appear only inside those cause explanations and the fix list, not as a general statement of what decides the right amount."
+    },
+    {
+      "assertion": "The problem statement does not build in a cause or a fix",
+      "passed": false,
+      "evidence": "The framing is the causes themselves: \"pickup_payment \u2026 never reads the unit column\" and \"month_of takes the first 7 characters of the UTC timestamp\". The fixes \"Convert gal to litres by 3.785\" and \"Convert to UTC-7\" also appear. No cause-free statement stands apart from this evidence."
+    },
+    {
+      "assertion": "Both complaints fit the statement and it is falsifiable",
+      "passed": true,
+      "evidence": "Both complaints are covered, under the headings \"F-07, pickup P-8835: paid 33.60, should be 127.18\" and \"F-12, September statement: 367.50, should be 480.90\". Each claim names a concrete right amount that recomputing the pickup or the farm's month could refute."
+    }
+  ],
+  "judge": "opus"
+}

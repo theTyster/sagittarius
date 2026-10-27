@@ -1,0 +1,17 @@
+% orbit-kb run 3 check=k2 result=fail exit=1 time=2026-10-27T20:03:38Z cmd=env PYTHONPATH=/tmp/kbmut.IA2fA5/offbyone python3 kb/checks/test_boundary.py
+E.
+======================================================================
+ERROR: test_ends_exactly_at_limit_is_allowed (__main__.BoundaryTest.test_ends_exactly_at_limit_is_allowed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.xnYRCcmYzc/kb/checks/test_boundary.py", line 8, in test_ends_exactly_at_limit_is_allowed
+    self.assertEqual(withdraw(0, 100, 100), -100)
+                     ~~~~~~~~^^^^^^^^^^^^^
+  File "/tmp/kbmut.IA2fA5/offbyone/account.py", line 11, in withdraw
+    raise Refused("over the overdraft limit")
+account.Refused: over the overdraft limit
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+FAILED (errors=1)

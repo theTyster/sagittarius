@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right payment (litres with the meter unit converted, at the co-op rate; month by the dairy's local time) and says the paid or stated amount can differ from that, so that checking one pickup or one farm's month could confirm or refute it",
+      "passed": false,
+      "evidence": "The agent never states the problem separately from its causes. It opens with \"Both complaints are real, and each has its own cause\", and its headings are diagnoses (\"the gallons are never converted\", \"the month is taken from the UTC date\"). The deciding rules (\u00d73.785 at 0.42; the month at the dairy on UTC-7) appear only inside the findings, as supporting evidence, not as a statement of what the right amount should be."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix",
+      "passed": false,
+      "evidence": "The statements that frame each problem are the causes themselves: \"the gallons are never converted\" and \"the month is taken from the UTC date, not the dairy's date\". There is no cause-free statement that keeps these apart as evidence."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail",
+      "passed": true,
+      "evidence": "The agent covers both complaints as two problems: F-07/P-8835 under unit conversion and F-12 September under month assignment. Each claim can be refuted by a concrete result, for example 80 gal \u00d7 3.785 \u00d7 0.42 = 127.18 against the 33.60 paid, or P-8830 being 2026-09-30 19:40 at the dairy."
+    }
+  ],
+  "judge": "opus"
+}

@@ -1,0 +1,19 @@
+% orbit-kb run 5 check=k3 result=pass exit=0 time=2026-10-27T20:03:21Z cmd=/tmp/shape_check.sh
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+OK
+======================================================================
+FAIL: test_tracker_export_shape (test_report.ReportTest.test_tracker_export_shape)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.Wiv1bYfbxJ/test_report.py", line 32, in test_tracker_export_shape
+    self.assertIn(issue.get("state"), {"open", "closed"}, issue)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'reopened' not found in {'closed', 'open'} : {'id': 999, 'title': 'x', 'state': 'reopened'}
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+FAILED (failures=1)
+guard works

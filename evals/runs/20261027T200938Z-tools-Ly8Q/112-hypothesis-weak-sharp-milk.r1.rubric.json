@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right payment (litres picked up with the meter unit converted, at the co-op rate; month by the dairy's local time) and says the paid or stated amount can differ from that, so one pickup or one farm's month could confirm or refute it",
+      "passed": false,
+      "evidence": "The agent never states the problem on its own. It opens with \"I found two separate bugs in `milk.py`\" and goes straight to \"Cause 1: `unit` is ignored\" and \"Cause 2: month uses UTC\". The README rules (convert to litres, month by dairy time at UTC-7) show up only inside those cause descriptions, not as a general statement of what decides the right payment."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix",
+      "passed": false,
+      "evidence": "The only framing given is cause-first. The headings are \"`unit` is ignored (F-07)\" and \"month uses UTC (F-12)\", and the bodies say \"Gallon rows are paid as if they were litres\". These are exactly the built-in causes the assertion rules out, and no separate cause-free statement exists."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result would show it false",
+      "passed": true,
+      "evidence": "Both complaints are covered and the claims are checkable against specific results. 80 gal \u00d7 3.785 \u00d7 0.42 = 127.18 against the 33.60 paid, and moving P-8830 (2026-10-01T02:40Z, which is 09-30 19:40 at the dairy) into September gives 367.50 + 113.40 = 480.90. A different recomputed value would refute either claim."
+    }
+  ],
+  "judge": "opus"
+}

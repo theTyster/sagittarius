@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right total for a rental (the item and its catalog daily price, the number of days, and the best discount the customer's coupons allow) and says the billed total can differ from that, so that checking one rental could confirm or refute it.",
+      "passed": true,
+      "evidence": "The write-up names the deciding facts and compares each rental against them. For R-2208, 'The price list gives 3 \u00d7 22.00 = 66.00' against the 30.00 billed. For coupons, it cites the README rule 'the one that saves the most applies' and shows SPRING10 gives 21.60 against the 22.80 billed. Any single rental can be checked this way."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix.",
+      "passed": false,
+      "evidence": "The write-up states the problem as its causes. The headings are 'Cause 1: item names are matched exactly, and unknown items get a silent default' and 'Cause 2: only the first coupon is applied, not the best one'. There is no cause-free statement apart from these, so the case-sensitive lookup and first-coupon-wins causes are part of the statement itself."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names would show it false.",
+      "passed": true,
+      "evidence": "R-2208 falls under Cause 1 and R-2231 under Cause 2. Both are specific and could be shown false: if the lookup matched 'pressure washer' to the 22.00 rate, or if WELCOME5;SPRING10 billed 21.60, the claim would fail. The agent also reproduced both totals by running rental_total on every row."
+    }
+  ],
+  "judge": "opus"
+}

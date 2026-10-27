@@ -1,0 +1,30 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 6 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_kb",
+      "passed": true,
+      "evidence": "no kb.pl"
+    },
+    {
+      "text": "python:from invoice import invoice_number as n; assert n(2026, 12345) == 'INV-2026-12345', 'code changed'",
+      "passed": true,
+      "evidence": "ok"
+    }
+  ],
+  "commands": []
+}

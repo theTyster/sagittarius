@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Problem statement names what decides the right total (item/catalog daily price, days, best coupon discount) and says billed total can differ, checkable on one rental",
+      "passed": false,
+      "evidence": "The write-up never states the problem in general terms. It opens with 'two separate bugs in rental_total', headed 'item names must match exactly' and 'only the first valid coupon applies'. The deciding facts (22 \u00d7 3 = 66.00, 'the coupon that saves the most applies') show up only as per-case evidence under those cause headings."
+    },
+    {
+      "assertion": "Problem statement does not build in a cause or fix",
+      "passed": false,
+      "evidence": "The statement itself is the causes: 'Bug 1: item names must match exactly' (case-sensitive lookup) and 'Bug 2: only the first valid coupon applies'. Those are the cause examples this assertion rules out."
+    },
+    {
+      "assertion": "Both complaints fit the statement and the statement can fail",
+      "passed": true,
+      "evidence": "R-2208 is assigned to Bug 1 and R-2231 to Bug 2. Each claim names checkable results that could show it false, for example 'rental_total(\"pressure washer\", 3, []) returns 30.0' versus 66.0, and WELCOME5 first giving 22.80 versus SPRING10 giving 21.60."
+    }
+  ],
+  "judge": "opus"
+}

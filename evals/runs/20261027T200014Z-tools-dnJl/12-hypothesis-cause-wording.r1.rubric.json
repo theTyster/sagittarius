@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right total for a rental (item and catalog daily price, days, best coupon discount) and says the billed total can differ from that, checkable on one rental",
+      "passed": false,
+      "evidence": "The write-up never states the problem in general terms. It goes straight to two per-rental bug headings ('R-2208 was billed 30.00 and should be 66.00'), each followed by a 'Cause:' bullet. The facts that decide the right total (price-list rate \u00d7 days, and the README rule that the best coupon applies) appear only inside the cause and effect explanations. They are not stated as the problem."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix",
+      "passed": false,
+      "evidence": "The problem is framed from the start as code defects: 'They come from two separate bugs', with Bug 1 defined by the exact-match `DAILY_RATES.get` falling back to 10.00 and Bug 2 by 'the code applies the first coupon in the list'. There is no cause-free statement that stands apart from these causes."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one or two problems), and the statement can fail: some result it names would show it false",
+      "passed": true,
+      "evidence": "Both complaints are covered as two problems, and each gives concrete expected values: 3 \u00d7 22 = 66.00 for R-2208, and 24.00 less 10% = 21.60 for R-2231. Recomputing either total would confirm or refute the claim, and the agent reproduced both (66.0 and 21.6)."
+    }
+  ],
+  "judge": "opus"
+}

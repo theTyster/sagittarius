@@ -1,0 +1,15 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-27T20:03:22Z cmd=sh -c cd /tmp/mutant.4Kv6 && python3 -m unittest test_account
+F.
+======================================================================
+FAIL: test_past_limit_refused (test_account.WithdrawTest.test_past_limit_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/mutant.4Kv6/test_account.py", line 11, in test_past_limit_refused
+    with self.assertRaises(Refused):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: Refused not raised
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+FAILED (failures=1)

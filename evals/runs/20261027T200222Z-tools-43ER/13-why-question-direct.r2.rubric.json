@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Answers the question directly: the format pads to at least four digits and does not cut longer numbers, so the test's expected 'INV-2026-2345' does not match 'INV-2026-12345'",
+      "passed": true,
+      "evidence": "The agent said `04` means \"pad to at least 4 digits\", so 12345 stays `12345` and the result is `INV-2026-12345`. It also said the test expects truncation to `INV-2026-2345`."
+    },
+    {
+      "assertion": "Does not turn the question into an investigation process: no discovery report, hypothesis section, claims list, or vote",
+      "passed": true,
+      "evidence": "The agent read the two files, ran the one test and gave a plain explanation with two options for fixing it. The reply has no hypothesis section, claims list, discovery report or vote."
+    }
+  ],
+  "judge": "opus"
+}

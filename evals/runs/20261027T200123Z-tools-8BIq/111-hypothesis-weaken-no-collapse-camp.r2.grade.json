@@ -1,0 +1,46 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 4 turns; result success, 7 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "python:from camp import places_left as p; assert p('S-207') == 0, 'code changed'",
+      "passed": true,
+      "evidence": "ok"
+    }
+  ],
+  "commands": [
+    "help",
+    "help core",
+    "help discovery",
+    "help discovery",
+    "init",
+    "add",
+    "add",
+    "add",
+    "run k",
+    "run k",
+    "attest reproduction",
+    "attest reproduction",
+    "attest disclosure",
+    "attest divergence",
+    "add",
+    "lint",
+    "whynot",
+    "add",
+    "lint",
+    "query"
+  ]
+}

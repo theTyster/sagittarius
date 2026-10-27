@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/v2.md",
+    "prompt_sha256": "46fdec32cd76a546481d0fcdea3a99a7836ed0b397f3657e07b2f2638b55c30f",
+    "runs": 3,
+    "commit": "601087e",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 12,
+      "name": "hypothesis-cause-wording",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "python:from rental import rental_total as r; assert r('pressure washer', 3, []) == 30.0, 'code changed'": "3/3"
+      },
+      "rubric": {
+        "Its statement of the problem names what decides the right total for a rental (item and catalog daily price, days, best coupon discount) and says the billed total can differ from that, checkable on one rental": "0/1",
+        "The problem statement itself does not build in a cause or a fix": "0/3",
+        "Both complaints fit the problem statement (as one or two problems), and the statement can fail: some result it names would show it false": "2/2",
+        "Its statement of the problem names what decides the right total for a rental (item and catalog daily price, days, best coupon discount) and says the billed total can differ from that, so checking one rental could confirm or refute it": "1/1",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail": "1/1",
+        "Its statement of the problem names what decides the right total for a rental (item and catalog daily price, days, best coupon discount) and says the billed total can differ, so checking one rental could confirm or refute it": "1/1"
+      }
+    }
+  ]
+}

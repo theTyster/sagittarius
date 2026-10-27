@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Answers the question directly: the format pads to at least four digits and does not cut longer numbers, so the test's expected 'INV-2026-2345' does not match 'INV-2026-12345'",
+      "passed": true,
+      "evidence": "The agent says `{seq:04}` means \"pad to at least 4 characters\" and that \"It does not cap the width, so 12345 prints in full\". It also shows the failure `'INV-2026-12345' != 'INV-2026-2345'`."
+    },
+    {
+      "assertion": "Does not turn the question into an investigation process: no discovery report, hypothesis section, claims list, or vote",
+      "passed": true,
+      "evidence": "The reply is a short explanation followed by two fix options and a recommendation. It has no discovery report, hypothesis section, claims list, or vote."
+    }
+  ],
+  "judge": "opus"
+}

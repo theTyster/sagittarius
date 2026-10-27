@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right payment (the litres picked up, with the farm's meter unit converted to litres, at the co-op's rate; and which month a pickup belongs to, by the dairy's local time) and says the paid or stated amount can differ from that, so that checking one pickup or one farm's month could confirm or refute it.",
+      "passed": false,
+      "evidence": "The agent never wrote a problem statement apart from the causes. The only framing is two cause headings: 'the unit is ignored' and 'the month boundary uses UTC'. The rules that decide the right amount (3.785 litres per gallon at 0.42, and the dairy's UTC-7 month) appear only as supporting arithmetic under those causes, not as a general statement of what the right payment is."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'gallons are paid as litres', 'the unit column is ignored', 'the month is taken from the UTC date', 'convert the time to UTC-7 first' or 'multiply by 3.785'.",
+      "passed": false,
+      "evidence": "The agent's framing is the causes themselves: '1. F-07, pickup P-8835: the unit is ignored.' and '2. F-12, September: the month boundary uses UTC.' These match the forbidden examples, and no separate cause-free statement exists."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names would show it false.",
+      "passed": true,
+      "evidence": "The two findings cover F-07/P-8835 (80 \u00d7 3.785 \u00d7 0.42 = 127.18) and F-12's September (367.50 + 113.40 = 480.90). Both are concrete claims that a check could refute, for example if P-8835 were not in gallons or if P-8830 fell in October at local time."
+    }
+  ],
+  "judge": "opus"
+}

@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Answers the question directly: the format pads to at least four digits and does not cut longer numbers, so the test's expected 'INV-2026-2345' does not match 'INV-2026-12345'",
+      "passed": true,
+      "evidence": "The agent's first line answers the question. It then says `04` \"is a minimum width, not a cap\", so `12345` formats as `INV-2026-12345`, while the test expects `INV-2026-2345`. It also ran the test, and the AssertionError matches that explanation."
+    },
+    {
+      "assertion": "Does not turn the question into an investigation process: no discovery report, hypothesis section, claims list, or vote",
+      "passed": true,
+      "evidence": "The reply is a short explanation with the test output and two possible fixes. It has no discovery report, hypothesis section, claims list, or vote."
+    }
+  ],
+  "judge": "opus"
+}

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right total for a rental (the item and its catalog daily price, the number of days, and the best discount the customer's coupons allow) and says the billed total can differ from that, so that checking one rental could confirm or refute it.",
+      "passed": true,
+      "evidence": "The write-up gives the right value from the catalog rate and days (\"The correct figure is 22.00 \u00d7 3 = 66.00\") and the best coupon (\"the one that saves the most applies\"; \"SPRING10 (10%) gives 21.60\"). It sets these against the billed totals, and each one can be checked against a single rental."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'the lookup is case sensitive', 'unpriced items fall back to the default rate', 'the first coupon in the list wins', or 'sort the coupons by value'.",
+      "passed": false,
+      "evidence": "The problem is stated as causes. The headings are \"Bug 1: item name must match exactly\" and \"Bug 2: the first valid coupon applies, not the best one\". The bodies say the lookup \"is case-sensitive\" and \"falls back silently to the default rate\". These are the very causes the assertion names, and they stand in as the statement rather than as evidence kept apart from it."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names would show it false.",
+      "passed": true,
+      "evidence": "R-2208 falls under Bug 1 and R-2231 under Bug 2. Each names results that would show it false, such as \"Falsifier: If the item were spelled exactly `Pressure Washer`, the bill would be 66.00\", along with exact expected and billed totals for each rental."
+    }
+  ],
+  "judge": "opus"
+}

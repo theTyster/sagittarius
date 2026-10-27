@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Problem statement names what decides the right payment (litres converted from the meter unit, at the co-op rate; month by dairy local time) and says the paid amount can differ, so one pickup or farm-month could confirm or refute it",
+      "passed": true,
+      "evidence": "The hypothesis says: \"A pickup's payment depends on its litres (converted from the meter unit) and on the month it happened at the dairy. Some pickups are paid on a different amount or put in a different month.\" It doesn't name the rate, but it states the deciding rules in general terms and says payments can differ from them, which can be checked one pickup at a time."
+    },
+    {
+      "assertion": "The problem statement does not build in a cause or fix (e.g. gallons paid as litres, UTC date, multiply by 3.785)",
+      "passed": true,
+      "evidence": "The statement gives only the rules: convert from the meter unit, and use the month at the dairy. The causes (\"the code ignores `unit`\", \"uses the UTC date\") and the 3.785/UTC-7 figures appear only later, under Findings, as evidence."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement and the statement can fail (names a falsifier or the facts fixing the right amount)",
+      "passed": true,
+      "evidence": "F-07's wrong amount and F-12's month misplacement both fit \"paid on a different amount or put in a different month.\" The statement names its own falsifier: \"This would be false if every pickup's payment and month matched those rules.\""
+    }
+  ],
+  "judge": "opus"
+}

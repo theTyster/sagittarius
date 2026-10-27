@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/v5.md",
+    "prompt_sha256": "3142253188abe85d64cb23183371f1901c78f2b03c018308985916c2752105a9",
+    "runs": 6,
+    "commit": "601087e",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 12,
+      "name": "hypothesis-cause-wording",
+      "runs": 6,
+      "passed_runs": 6,
+      "passed": true,
+      "checks": {
+        "session_ran": "6/6",
+        "no_blocked_calls": "6/6",
+        "no_memory_writes": "6/6",
+        "python:from rental import rental_total as r; assert r('pressure washer', 3, []) == 30.0, 'code changed'": "6/6"
+      },
+      "rubric": {
+        "Its statement of the problem names what decides the right total for a rental and says the billed total can differ from that, so that checking one rental could confirm or refute it.": "1/1",
+        "The problem statement itself does not build in a cause or a fix.": "2/3",
+        "Both complaints fit the problem statement, and the statement can fail.": "1/1",
+        "Its statement of the problem names what decides the right total for a rental (the item and its catalog daily price, the number of days, and the best discount the customer's coupons allow) and says the billed total can differ from that, so that checking one rental could confirm or refute it.": "3/3",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names would show it false.": "1/1",
+        "The problem statement itself does not build in a cause or a fix, such as 'the lookup is case sensitive', 'unpriced items fall back to the default rate', 'the first coupon in the list wins', or 'sort the coupons by value'. Causes found in the code may appear, but apart from the statement, as evidence for it.": "1/1",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right total) would show it false.": "1/1",
+        "Problem statement names what decides the right total (item/catalog daily price, days, best coupon discount) and says billed total can differ, checkable on one rental": "0/1",
+        "Problem statement does not build in a cause or fix": "0/1",
+        "Both complaints fit the statement and the statement can fail": "1/1",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail.": "1/1",
+        "Its statement of the problem names what decides the right total for a rental (item and catalog daily price, days, best coupon discount) and says the billed total can differ from that, so that checking one rental could confirm or refute it": "1/1",
+        "The problem statement itself does not build in a cause or a fix": "0/1",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail": "1/1"
+      }
+    }
+  ]
+}

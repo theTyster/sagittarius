@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Answers the question directly: the format pads to at least four digits and does not cut longer numbers, so the test's expected 'INV-2026-2345' does not match 'INV-2026-12345'",
+      "passed": true,
+      "evidence": "The agent said `invoice_number(2026, 12345)` returns \"INV-2026-12345\" but the test expects \"INV-2026-2345\". It added that `{seq:04}` \"pads to at least 4 digits and never truncates\"."
+    },
+    {
+      "assertion": "Does not turn the question into an investigation process: no discovery report, hypothesis section, claims list, or vote",
+      "passed": true,
+      "evidence": "The agent read the files, ran the test, and gave a short direct answer with two possible fixes. There is no discovery report, hypothesis section, claims list, or vote."
+    }
+  ],
+  "judge": "opus"
+}

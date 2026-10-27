@@ -1,0 +1,6 @@
+% orbit-kb run 3 check=k2b result=pass exit=0 time=2026-10-27T20:07:01Z cmd=python -m unittest test_inventory.InventoryTest.test_reserve_exactly_stock
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

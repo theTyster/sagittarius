@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "spec": "heldout/heldout.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/v2.md",
+    "prompt_sha256": "46fdec32cd76a546481d0fcdea3a99a7836ed0b397f3657e07b2f2638b55c30f",
+    "runs": 3,
+    "commit": "601087e",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 112,
+      "name": "hypothesis-weak-sharp-milk",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "python:from milk import monthly_statement as s; assert s('F-12', '2026-09') == 367.5, 'code changed'": "3/3"
+      },
+      "rubric": {
+        "Its statement of the problem names what decides the right payment (litres picked up with the meter unit converted, at the co-op rate; month by the dairy's local time) and says the paid or stated amount can differ from that, so one pickup or one farm's month could confirm or refute it": "0/1",
+        "The problem statement itself does not build in a cause or a fix": "0/2",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result would show it false": "1/1",
+        "Its statement of the problem names what decides the right payment (litres picked up with unit converted, at the co-op's rate; month by dairy local time) and says the paid/stated amount can differ, so one pickup or farm-month could confirm or refute it": "0/1",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail": "1/1",
+        "Problem statement names what decides the right payment (litres converted from the meter unit, at the co-op rate; month by dairy local time) and says the paid amount can differ, so one pickup or farm-month could confirm or refute it": "1/1",
+        "The problem statement does not build in a cause or fix (e.g. gallons paid as litres, UTC date, multiply by 3.785)": "1/1",
+        "Both complaints fit the problem statement and the statement can fail (names a falsifier or the facts fixing the right amount)": "1/1"
+      }
+    }
+  ]
+}

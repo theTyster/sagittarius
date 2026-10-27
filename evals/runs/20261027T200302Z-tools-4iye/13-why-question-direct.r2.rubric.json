@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Answers the question directly: the format pads to at least four digits and does not cut longer numbers, so the test's expected 'INV-2026-2345' does not match 'INV-2026-12345'",
+      "passed": true,
+      "evidence": "The agent opens with the cause and then says: \"The format `{seq:04}` pads to a minimum of 4 digits and never truncates, so a 5-digit sequence comes out in full\". It adds that the test expects \"INV-2026-2345\", which is what truncation to 4 digits would give."
+    },
+    {
+      "assertion": "Does not turn the question into an investigation process: no discovery report, hypothesis section, claims list, or vote",
+      "passed": true,
+      "evidence": "The reply is a plain explanation: the cause, the unittest result, and two fix options with a recommendation. It has no hypothesis section, claims list, discovery report, or vote."
+    }
+  ],
+  "judge": "opus"
+}

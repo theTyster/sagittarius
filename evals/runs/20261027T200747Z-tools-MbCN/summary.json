@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/v6.md",
+    "prompt_sha256": "e0fdb70f4733f1c3ee48f1663ba62a7c413f15df057fb4a3008017eb9dc6f64b",
+    "runs": 6,
+    "commit": "601087e",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 12,
+      "name": "hypothesis-cause-wording",
+      "runs": 6,
+      "passed_runs": 6,
+      "passed": true,
+      "checks": {
+        "session_ran": "6/6",
+        "no_blocked_calls": "6/6",
+        "no_memory_writes": "6/6",
+        "python:from rental import rental_total as r; assert r('pressure washer', 3, []) == 30.0, 'code changed'": "6/6"
+      },
+      "rubric": {
+        "Problem statement names what decides the right total (item and catalog daily price, days, best coupon discount) and says the billed total can differ from that, so that checking one rental could confirm or refute it": "0/1",
+        "The problem statement itself does not build in a cause or a fix": "0/1",
+        "Both complaints fit the problem statement and the statement can fail": "1/1",
+        "Its statement of the problem names what decides the right total for a rental (the item and its catalog daily price, the number of days, and the best discount the customer's coupons allow) and says the billed total can differ from that, so that checking one rental could confirm or refute it.": "3/4",
+        "The problem statement itself does not build in a cause or a fix, such as 'the lookup is case sensitive', 'unpriced items fall back to the default rate', 'the first coupon in the list wins', or 'sort the coupons by value'.": "0/3",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names would show it false.": "3/3",
+        "The problem statement names what decides the right total (the item and its catalog price, the days, and the best coupon discount) and says the billed total can differ, so that one rental could confirm or refute it": "1/1",
+        "The problem statement does not build in a cause or a fix; causes found in the code appear only apart from it, as evidence": "1/1",
+        "Both complaints fit the problem statement, and the statement can be shown false": "1/1",
+        "The problem statement itself does not build in a cause or a fix, such as 'the lookup is case sensitive', 'unpriced items fall back to the default rate', 'the first coupon in the list wins', or 'sort the coupons by value'. Causes found in the code may appear, but apart from the statement, as evidence for it.": "1/1",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right total) would show it false.": "1/1"
+      }
+    }
+  ]
+}

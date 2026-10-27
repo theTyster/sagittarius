@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Answers the question directly: the format pads to at least four digits and does not cut longer numbers, so the test's expected 'INV-2026-2345' does not match 'INV-2026-12345'",
+      "passed": true,
+      "evidence": "The agent said `04` \"is a minimum width: it pads short numbers with zeros but never truncates long ones. So the code returns \"INV-2026-12345\".\" It then quoted the assertion error 'INV-2026-12345' != 'INV-2026-2345'."
+    },
+    {
+      "assertion": "Does not turn the question into an investigation process: no discovery report, hypothesis section, claims list, or vote",
+      "passed": true,
+      "evidence": "The reply is a plain explanation followed by two fix options and a question about which behavior the user wants. It has no hypothesis section, discovery report, claims list, or vote."
+    }
+  ],
+  "judge": "opus"
+}

@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "spec": "heldout/heldout.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/base.md",
+    "prompt_sha256": "0b46a6962514b2273963317319113d8005357683e2ffb378ebb17ffaa68e32ff",
+    "runs": 3,
+    "commit": "601087e",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 112,
+      "name": "hypothesis-weak-sharp-milk",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "python:from milk import monthly_statement as s; assert s('F-12', '2026-09') == 367.5, 'code changed'": "3/3"
+      },
+      "rubric": {
+        "Its statement of the problem names what decides the right payment (the litres picked up, with the farm's meter unit converted to litres, at the co-op's rate; and which month a pickup belongs to, by the dairy's local time) and says the paid or stated amount can differ from that, so that checking one pickup or one farm's month could confirm or refute it.": "0/1",
+        "The problem statement itself does not build in a cause or a fix.": "0/1",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names would show it false.": "1/1",
+        "Its statement of the problem names what decides the right payment (litres with the meter unit converted, at the co-op rate; the month by the dairy's local time) and says the paid or stated amount can differ, so one pickup or farm-month could confirm or refute it": "0/1",
+        "The problem statement does not build in a cause or fix (e.g. 'unit column is ignored', 'month taken from UTC date')": "0/1",
+        "Both complaints fit the statement (as one or two problems), and the statement can fail: some named result would show it false": "1/1",
+        "Problem statement names what decides the right payment (litres with unit converted, co-op rate, month by dairy local time) and says paid/stated amount can differ, checkable on one pickup or farm-month": "0/1",
+        "The problem statement does not build in a cause or a fix": "0/1",
+        "Both complaints fit the statement and it is falsifiable": "1/1"
+      }
+    }
+  ]
+}

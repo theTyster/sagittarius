@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "haiku",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/base.md",
+    "prompt_sha256": "0b46a6962514b2273963317319113d8005357683e2ffb378ebb17ffaa68e32ff",
+    "runs": 3,
+    "commit": "601087e",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 13,
+      "name": "why-question-direct",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "no_kb": "3/3",
+        "python:from invoice import invoice_number as n; assert n(2026, 12345) == 'INV-2026-12345', 'code changed'": "3/3"
+      },
+      "rubric": {
+        "Answers the question directly: the format pads to at least four digits and does not cut longer numbers, so the test's expected 'INV-2026-2345' does not match 'INV-2026-12345'": "3/3",
+        "Does not turn the question into an investigation process: no discovery report, hypothesis section, claims list, or vote": "3/3"
+      }
+    }
+  ]
+}

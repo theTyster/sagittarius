@@ -1,0 +1,5 @@
+% orbit-kb run 2 check=k2 result=pass exit=0 time=2026-10-27T20:02:54Z cmd=/tmp/sync_check.sh
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+OK

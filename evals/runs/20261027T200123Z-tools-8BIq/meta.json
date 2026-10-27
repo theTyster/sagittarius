@@ -1,0 +1,10 @@
+{
+  "spec": "heldout/heldout.json",
+  "account": "personal",
+  "model": "sonnet",
+  "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/v4.md",
+  "prompt_sha256": "9c9608bc6994ec56ea667c656e0aa41d08aabb5a09424e0043dcaec2cee9393f",
+  "runs": 3,
+  "commit": "601087e",
+  "dirty": false
+}

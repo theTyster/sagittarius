@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right total for a rental (the item and its catalog daily price, the number of days, and the best discount the customer's coupons allow) and says the billed total can differ from that, so that checking one rental could confirm or refute it.",
+      "passed": true,
+      "evidence": "The write-up gives the correct total from the price-list rate times days (\"22.00 \u00d7 3 days = 66.00\"). It cites the rule that \"the one that saves the most applies\" (24.00 base, SPRING10 gives 21.60) and sets each against the billed amount. The deciding inputs are named, even though they are spread across the two bug sections."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'the lookup is case sensitive', 'unpriced items fall back to the default rate', 'the first coupon in the list wins', or 'sort the coupons by value'.",
+      "passed": false,
+      "evidence": "The statement frames the problem as \"two separate bugs in rental_total\" and defines each bug by its cause: \"The lookup is case-sensitive\", \"quietly falls back to the 10.00 default\", and \"applies the first coupon it recognizes and then hits `break`\". The causes are the statement itself, not evidence kept apart from it."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names would show it false.",
+      "passed": true,
+      "evidence": "R-2208 and R-2231 each map to one of the two stated problems, with specific expected totals (66.00 and 21.60). A rental whose billed total matched the catalog rate \u00d7 days with the best coupon would refute either claim."
+    }
+  ],
+  "judge": "opus"
+}

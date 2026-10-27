@@ -1,0 +1,19 @@
+% orbit-kb run 1 check=k2 result=fail exit=1 time=2026-10-27T20:02:50Z cmd=/tmp/sync_check.sh
+======================================================================
+FAIL: test_weekly_report_counts_open_issues_in_tracker (test_report.ReportTest.test_weekly_report_counts_open_issues_in_tracker)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.QRRpYCvTaV/test_report.py", line 14, in test_weekly_report_counts_open_issues_in_tracker
+    self.assertEqual(weekly_report(path), "Open issues: 3")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Open issues: 4' != 'Open issues: 3'
+- Open issues: 4
+?              ^
++ Open issues: 3
+?              ^
+
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+FAILED (failures=1)
