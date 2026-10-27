@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "The problem statement names what decides the right total (item and catalog daily price, days, best coupon discount) and says the billed total can differ, so that one rental can confirm or refute it",
+      "passed": true,
+      "evidence": "The hypothesis says \"The shop's price list and coupon rules decide each total. Some rentals are billed a different amount.\" Its falsifier checks each row against \"the price list and the 'best coupon' rule\". That names the deciding facts in general terms, says billing can differ from them, and lets one row be checked against it."
+    },
+    {
+      "assertion": "The problem statement does not build in a cause or fix; causes appear only apart from the statement, as evidence",
+      "passed": true,
+      "evidence": "The hypothesis names no mechanism. The case-sensitive lookup, the 10.00 default rate, and the `break` after the first coupon appear only later, under Findings, as evidence from running the code."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement, and the statement can fail (it names a falsifier or the facts that fix the right total)",
+      "passed": true,
+      "evidence": "R-2208 (an item mispriced against the price list) and R-2231 (not the best coupon) both fit \"billed a different amount\" from the price list and coupon rules. The explicit falsifier is: \"every row in `rentals.csv` matches the price list and the 'best coupon' rule.\""
+    }
+  ],
+  "judge": "opus"
+}

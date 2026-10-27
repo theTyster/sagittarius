@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as '365 days', 'counts from the signup date', 'should use calendar years', or 'should read annual_since'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "The turn-2 hypothesis says only: \"A customer's real renewal date decides when their reminder is sent. Some customers get a reminder on a different day from 14 days before that date.\" It doesn't mention signup, annual_since, 365 days or calendar years, and the agent explicitly holds back its leads on the causes."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right reminder date (when the customer's annual plan started or renews, and the two-week lead) and says the sent date can differ, so that checking one customer could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong date would fit, such as 'reminders are sometimes sent on the wrong day' or 'the date depends on something other than the plan'",
+      "passed": true,
+      "evidence": "It names the customer's real renewal date and the 14-day lead as what decides the reminder date, and says some reminders differ from that. The falsifier, \"every customer's reminder falls exactly 14 days before their real renewal,\" can be checked one customer at a time."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "Both complaints fit the single statement. C-327's reminder was 15 days before its 2024-06-01 renewal, not 14. C-311's reminder (2026-10-19) is far from a renewal tied to their March 2026 move to annual, and the table lists both customers under the restated problem."
+    }
+  ],
+  "judge": "opus"
+}

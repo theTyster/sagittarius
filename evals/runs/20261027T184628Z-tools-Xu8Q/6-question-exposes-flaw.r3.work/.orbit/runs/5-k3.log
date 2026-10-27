@@ -1,0 +1,2 @@
+% orbit-kb run 5 check=k3 result=fail exit=1 time=2026-10-27T18:49:03Z cmd=.orbit/k3.sh /tmp/tmp.AogECB3I2k
+suite passes on corrupted file

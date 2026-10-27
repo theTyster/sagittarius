@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as '365 days', 'counts from the signup date', 'should use calendar years', or 'should read annual_since'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "The rewritten hypothesis is 'Each annual customer gets a renewal reminder two weeks before their renewal. Some customers get it on a different date.' It names no field, no 365 days, and no fix. The one hint at a cause ('one year after they moved to the annual plan') appears separately, as a default under Decide."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right reminder date (when the customer's annual plan started or renews, and the two-week lead) and says the sent date can differ, so that checking one customer could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong date would fit, such as 'reminders are sometimes sent on the wrong day' or 'the date depends on something other than the plan'",
+      "passed": true,
+      "evidence": "The hypothesis ties the right date to 'two weeks before their renewal' and says some customers 'get it on a different date'. The falsifier is 'every customer's reminder date is exactly 14 days before their renewal', so checking one customer can show it false."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "C-311's renewal follows from their March move, so an October 19 reminder is not two weeks before it. C-327's May 17 reminder is 15 days before June 1. The System section lists both as cases of the reminder not landing two weeks before the renewal."
+    }
+  ],
+  "judge": "opus"
+}

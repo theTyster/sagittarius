@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it.",
+      "passed": true,
+      "evidence": "The Hypothesis says 'The fee for an order should depend on the order's ship date, weight and postal code. This month's invoice run bills some orders a different amount.' It then sets the test against 'the rate card for its ship date and zone'."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix. Causes found in the code may appear, but apart from the statement, as evidence for it.",
+      "passed": true,
+      "evidence": "The Hypothesis only says what decides the correct fee (ship date, weight, postal code) and that billed amounts differ. The causes appear separately under Findings: `date.today()` in `_rates()`, and the 1-character prefix shadowing '59'."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names would show it false.",
+      "passed": true,
+      "evidence": "The statement says it 'would be false if every order's billed fee matched the rate card for its ship date and zone'. Both A-1041 (9.00 billed vs 9.40) and A-1077 (8.32 billed vs 7.30) are cases of a billed fee that does not match that rate card."
+    }
+  ],
+  "judge": "opus"
+}

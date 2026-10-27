@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as 'cancelled bookings are counted', 'the oldest age is excluded', 'should use <=', or 'filter bookings by status'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "The restated hypothesis reads: 'A child who meets a session's age range and has a free place is sometimes told the session is full or the child is out of range.' It names no cause and no fix. The causes (all 12 rows counted, top age treated as not allowed) appear only in the supporting bullets, as findings."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right answer for a sign-up (the session's capacity and the children booked on it; the session's age range and the child's age on its first day) and says the form's answer can differ, so that checking one session or one child could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong answer would fit, such as 'the sign-up form sometimes gives the wrong answer' or 'the result depends on something other than the booking data'",
+      "passed": true,
+      "evidence": "The hypothesis names the deciding facts in general terms: the child 'meets a session's age range' and the session 'has a free place'. It says the form can still refuse such a child, and it gives a falsifier: 'false if every such child is accepted'. The supporting text ties these facts to places versus children booked, and to the child's age on the first day (2027-07-19)."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "The single hypothesis covers both cases: wrongly told 'full', and wrongly told 'out of range'. The write-up then lays them out as '1. Pottery Week 2 (S-207)\u2026' and '2. Forest Explorers (S-212)\u2026'."
+    }
+  ],
+  "judge": "opus"
+}

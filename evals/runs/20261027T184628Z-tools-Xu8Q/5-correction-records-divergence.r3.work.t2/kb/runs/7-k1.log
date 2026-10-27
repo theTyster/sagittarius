@@ -1,0 +1,6 @@
+% orbit-kb run 7 check=k1 result=fail exit=1 time=2026-10-27T18:47:19Z cmd=python -c from pipeline import model_for as m; assert m('summarize')=='small'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from pipeline import model_for as m; assert m('summarize')=='small'
+                                                ^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

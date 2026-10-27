@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right total for a rental (the item and its catalog daily price, the number of days, and the best discount the customer's coupons allow) and says the billed total can differ from that, so that checking one rental could confirm or refute it.",
+      "passed": true,
+      "evidence": "The hypothesis reads: \"The billed total should follow the shop's price list for the item and the best coupon the customer brought... For some rentals the code gives a different number.\" It names the price list and the best coupon. It doesn't name days, but the assertion allows general terms, and the claim can be checked one row at a time."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix.",
+      "passed": true,
+      "evidence": "The hypothesis only compares the billed total with the price list plus the best coupon. The case-sensitive lookup, the default-rate fallback and the first-coupon `break` come up only afterward, in the defect sections, as evidence."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names would show it false.",
+      "passed": true,
+      "evidence": "R-2208 (price list) and R-2231 (best coupon) both fit the one statement. It names a falsifier: \"If every row matched the price list and the best coupon, this would be false,\" and then checks every row."
+    }
+  ],
+  "judge": "opus"
+}

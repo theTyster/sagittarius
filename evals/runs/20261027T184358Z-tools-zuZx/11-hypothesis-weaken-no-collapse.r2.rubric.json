@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as '365 days', 'counts from the signup date', 'should use calendar years', or 'should read annual_since'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "The turn-2 restatement says only that reminders came on the wrong dates (\"The job puts the reminder in the wrong place for these customers\"). It does not mention signup, annual_since, 365-day arithmetic, calendar years or any fix."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right reminder date (when the customer's annual plan started or renews, and the two-week lead) and says the sent date can differ, so that checking one customer could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong date would fit, such as 'reminders are sometimes sent on the wrong day' or 'the date depends on something other than the plan'",
+      "passed": true,
+      "evidence": "It names the deciding facts. For C-311 it says \"They moved to the annual plan in March\" and \"Their renewal is months later\". For C-327 it says the reminder \"should have come two weeks before their June 1 renewal, which is May 18\", which gives both the renewal date and the two-week lead. It sets each of these against the actual sent dates (Oct 19 and May 17), so checking one customer could show the claim false."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "Both C-311 and C-327 appear as bullets under the single framing \"Two annual customers got renewal reminders on the wrong dates.\""
+    }
+  ],
+  "judge": "opus"
+}

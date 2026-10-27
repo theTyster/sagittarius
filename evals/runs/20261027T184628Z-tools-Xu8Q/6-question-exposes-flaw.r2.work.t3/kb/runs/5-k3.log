@@ -1,0 +1,6 @@
+% orbit-kb run 5 check=k3 result=fail exit=1 time=2026-10-27T18:48:59Z cmd=kb/badfile_check.sh
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK

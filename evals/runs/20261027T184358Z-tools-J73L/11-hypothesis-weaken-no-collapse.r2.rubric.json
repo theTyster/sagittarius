@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as '365 days', 'counts from the signup date', 'should use calendar years', or 'should read annual_since'. Causes may appear apart from it, as findings",
+      "passed": false,
+      "evidence": "The restated Hypothesis itself says \"The code computes it as `signup` plus 365 days, minus 14 days.\" That puts the signup anchor and the 365-day cause inside the problem statement instead of keeping them as separate findings."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right reminder date (when the customer's annual plan started or renews, and the two-week lead) and says the sent date can differ, so that checking one customer could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong date would fit, such as 'reminders are sometimes sent on the wrong day' or 'the date depends on something other than the plan'",
+      "passed": false,
+      "evidence": "The restated problem says only that the computed date \"does not match the date they expect\" and that \"We have not established what the correct renewal date is.\" It never names the annual-plan start or renewal and the two-week lead as what decides the right date, so almost any wrong date would fit it."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "\"For two customers, the reminder date the system computes does not match the date they expect\" covers both C-311 and C-327. The System section then lists each customer's case under that statement."
+    }
+  ],
+  "judge": "opus"
+}

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right total for a rental (item and catalog daily price, days, best coupon discount) and says the billed total can differ from that, so that checking one rental could confirm or refute it",
+      "passed": false,
+      "evidence": "The write-up opens with \"Two separate bugs in `rental.py`\" and frames each problem as a code cause (\"item name lookup is exact-match\", \"only the first valid coupon applies\"). It never gives a general statement that the right total is the catalog daily rate \u00d7 days less the best coupon, with billed totals that can differ. The pieces show up only as per-case arithmetic (\"22.00 \u00d7 3 = 66.00\") and as a README quote."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix",
+      "passed": false,
+      "evidence": "The problem headings are the causes themselves: \"R-2208: item name lookup is exact-match, and the fallback is silent\" and \"only the first valid coupon applies, not the best one\". The code evidence is not kept apart from the statement."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail",
+      "passed": true,
+      "evidence": "Each complaint gets its own problem: R-2208 under case-sensitive lookup with the default rate, and R-2231 under the first-coupon issue. Both are concrete, checkable claims with expected values (\"`pressure washer` \u00d7 3 days gives 66.00\", \"`WELCOME5;SPRING10` on 24.00 gives 21.60\"), so a result could show them false."
+    }
+  ],
+  "judge": "opus"
+}

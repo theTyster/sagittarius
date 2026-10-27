@@ -1,19 +1,19 @@
 {
   "assertions": [
     {
-      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
-      "passed": false,
-      "evidence": "The write-up opens with 'Write-up: two bugs in `fees.py`' and 'The code has two separate bugs'. It never states the problem as the right fee being set by weight, zone and the rates for the ship date, with the billed fee able to differ from that. These factors appear only inside the worked figures for each order (e.g. 'zone 3 on the September table, 7.00 + 1.20 \u00d7 2')."
-    },
-    {
-      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
-      "passed": false,
-      "evidence": "The problem is framed directly as causes: 'Bug 1: the rate table comes from today's date, not the ship date' and 'Bug 2: the zone lookup never reaches the 2-digit prefix `59`', including 'The loop needs to try the longest prefix first.' No statement is kept separate from these causes."
-    },
-    {
-      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "assertion": "Problem statement names what decides the right fee (weight, zone, rates for its date) and says the billed fee can differ, checkable per order",
       "passed": true,
-      "evidence": "A-1077 is explained by Bug 1 (8.32 billed vs 7.30 from the September table), and A-1041 by both bugs (9.00 billed vs 9.40 for zone 3 on the September table). The statement names the facts that fix each right fee and gives concrete expected fees (9.40, 7.30, 8.65, 8.78) that a check could refute."
+      "evidence": "The write-up says orders should be priced with the table for the ship date and the zone from the postal prefix. It checks each order against that, e.g. 'Correct is 9.40: zone 3 on the September table, 7.00 + 1.20 \u00d7 2' versus billed 9.00."
+    },
+    {
+      "assertion": "The problem statement does not build in a cause or fix",
+      "passed": false,
+      "evidence": "The problem is framed only as causes: 'Bug 1: the rate table comes from today's date, not the ship date' and 'Bug 2: the zone lookup never reaches the 2-digit prefix 59'. No cause-free statement stands apart from these."
+    },
+    {
+      "assertion": "Both complaints fit the statement and the statement can fail",
+      "passed": true,
+      "evidence": "A-1077 is explained by bug 1 and A-1041 by bugs 1 and 2 together, with exact expected values (7.30, 9.40). Recomputing a fee from the stated tables and zone would show the statement false if the numbers did not match."
     }
   ],
   "judge": "opus"

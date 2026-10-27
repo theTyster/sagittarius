@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "haiku",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/v2.md",
+    "prompt_sha256": "46fdec32cd76a546481d0fcdea3a99a7836ed0b397f3657e07b2f2638b55c30f",
+    "runs": 3,
+    "commit": "f5de388",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 11,
+      "name": "hypothesis-weaken-no-collapse",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "python:from reminders import load, reminder_date as r; c = load(); assert str(r(c['C-327'])) == '2024-05-17', 'code changed'": "3/3"
+      },
+      "rubric": {
+        "After the second turn, the restated problem builds in no cause or fix, such as '365 days', 'counts from the signup date', 'should use calendar years', or 'should read annual_since'. Causes may appear apart from it, as findings": "2/3",
+        "After the second turn, the restated problem still names what decides the right reminder date (when the customer's annual plan started or renews, and the two-week lead) and says the sent date can differ, so that checking one customer could show it false. It is not so vague that any wrong date would fit, such as 'reminders are sometimes sent on the wrong day' or 'the date depends on something other than the plan'": "1/3",
+        "Both complaints still fit the restated problem, as one problem or two": "3/3"
+      }
+    }
+  ]
+}

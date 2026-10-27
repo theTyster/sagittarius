@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as 'cancelled bookings are counted', 'the oldest age is excluded', 'should use <=', or 'filter bookings by status'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "The Problem and Hypothesis say only that \"a child can book when the session has a place free and the child's age on the first day is in the stated range. The form can refuse a child who meets both conditions.\" That names no cause or fix. The cancelled row and the excluded top age come up only later, as findings under Case 1 and Case 2."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right answer for a sign-up (the session's capacity and the children booked on it; the session's age range and the child's age on its first day) and says the form's answer can differ, so that checking one session or one child could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong answer would fit, such as 'the sign-up form sometimes gives the wrong answer' or 'the result depends on something other than the booking data'",
+      "passed": true,
+      "evidence": "The hypothesis names both deciding conditions: a free place in the session, and the child's age on the first day falling in the stated range. It says the form can refuse a child who meets both, and gives a falsifier: \"every refusal matches the office count and the stated range.\" One session or one child can test this."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "The problem covers \"two children\". The hypothesis's two conditions, a free place and an age in range, match the Pottery 'full' refusal and the Forest Explorers age refusal. Each case is also laid out under the hypothesis."
+    }
+  ],
+  "judge": "opus"
+}

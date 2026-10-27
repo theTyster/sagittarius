@@ -1,0 +1,15 @@
+% orbit-kb run 6 check=k3 result=pass exit=0 time=2026-10-27T18:48:59Z cmd=kb/badfile_check.sh
+.F.
+======================================================================
+FAIL: test_live_tracker_is_well_formed (test_report.ReportTest.test_live_tracker_is_well_formed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.WCfgdi9iyf/test_report.py", line 34, in test_live_tracker_is_well_formed
+    self.assertIn(issue["state"], ("open", "closed"))
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Open' not found in ('open', 'closed')
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+FAILED (failures=1)

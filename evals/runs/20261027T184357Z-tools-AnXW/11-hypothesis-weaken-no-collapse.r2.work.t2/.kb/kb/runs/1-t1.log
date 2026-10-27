@@ -1,0 +1,6 @@
+% orbit-kb run 1 check=t1 result=fail exit=1 time=2026-10-27T18:45:07Z cmd=python3 -I .kb/t_c311.py
+Traceback (most recent call last):
+  File "/tmp/tmp.OYLgv3QxCk/.kb/t_c311.py", line 4, in <module>
+    assert str(reminder_date(load("/tmp/tmp.OYLgv3QxCk/customers.csv")["C-311"])) != "2026-10-19"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

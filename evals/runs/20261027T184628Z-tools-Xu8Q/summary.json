@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/v2.md",
+    "prompt_sha256": "46fdec32cd76a546481d0fcdea3a99a7836ed0b397f3657e07b2f2638b55c30f",
+    "runs": 3,
+    "commit": "f5de388",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 5,
+      "name": "correction-records-divergence",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "turn1:no_kb": "3/3",
+        "kb_exists": "3/3",
+        "help_before_write": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:divergence_recorded": "3/3",
+        "python:from pipeline import model_for as m; assert (m('summarize'), m('grade')) == ('small', 'large'), (m('summarize'), m('grade'))": "3/3",
+        "unittest_pass": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 6,
+      "name": "question-exposes-flaw",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "turn1:no_kb": "3/3",
+        "kb_exists": "3/3",
+        "help_before_write": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:divergence_recorded": "3/3",
+        "script:stable_report": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 7,
+      "name": "subagent-red-check",
+      "runs": 3,
+      "passed_runs": 2,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "2/3",
+        "no_memory_writes": "3/3",
+        "kb_exists": "3/3",
+        "help_before_write": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:test_result_fail": "3/3",
+        "python:from datetime import date; from schedule import due_date; assert due_date(date(2026, 11, 25), 1) == date(2026, 11, 26), 'code changed'": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 9,
+      "name": "peer-handoff-received",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "help_before_write": "3/3",
+        "kb_exists": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:check(K, C)": "3/3",
+        "query:was_red(K)": "3/3",
+        "python:import unittest; from inventory import Inventory; i = Inventory({'apple': 5}); i.reserve('apple', 4); unittest.TestCase().assertRaises(ValueError, i.reserve, 'apple', 2)": "3/3",
+        "unittest_pass": "3/3"
+      },
+      "rubric": {}
+    }
+  ]
+}

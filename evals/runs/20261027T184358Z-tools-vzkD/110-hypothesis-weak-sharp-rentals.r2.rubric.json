@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right total for a rental (the item and its catalog daily price, the number of days, and the best discount the customer's coupons allow) and says the billed total can differ from that, so that checking one rental could confirm or refute it",
+      "passed": false,
+      "evidence": "The write-up never states the problem in general terms. It goes complaint by complaint into causes. For R-2231 it declines to say the best coupon decides the right total: \"This is a policy gap, not a clear bug... Nothing says whether that was intended.\""
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'the lookup is case sensitive', 'unpriced items fall back to the default rate', 'the first coupon in the list wins', or 'sort the coupons by value'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "Each section frames the problem through its cause: \"**Cause:** the item name is matched exactly, and case matters\" and \"**Cause:** `rental_total` applies only the first valid coupon and then stops\". No cause-free statement stands apart from these."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right total) would show it false. It fails this only when no result could show it false, as in 'some totals are wrong' or 'the discount depends on something outside the rental'. It need not name the specific complaints",
+      "passed": false,
+      "evidence": "R-2208 gets a checkable claim (22.00 \u00d7 3 = 66.00). R-2231 is labeled a policy gap with no stated right total, so no single statement covers both complaints and fixes the facts that would refute it for R-2231."
+    }
+  ],
+  "judge": "opus"
+}

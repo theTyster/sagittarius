@@ -1,0 +1,20 @@
+% orbit-kb run 4 check=k2 result=pass exit=0 time=2026-10-27T18:48:41Z cmd=kb/mutant_check.sh
+.F
+======================================================================
+FAIL: test_weekly_report_counts_open_issues (test_report.ReportTest.test_weekly_report_counts_open_issues)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.H8Ozdfs4nm/test_report.py", line 26, in test_weekly_report_counts_open_issues
+    self.assertEqual(weekly_report(path), "Open issues: 3")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Open issues: 2' != 'Open issues: 3'
+- Open issues: 2
+?              ^
++ Open issues: 3
+?              ^
+
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+FAILED (failures=1)

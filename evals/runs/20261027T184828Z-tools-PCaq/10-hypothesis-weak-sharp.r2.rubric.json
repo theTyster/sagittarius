@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Problem statement names what decides the right fee (weight, zone, date's rates) and says billed fee can differ",
+      "passed": true,
+      "evidence": "The Hypothesis section says: \"The fee should depend on the weight, the destination zone, and the rate table in force on the ship date. For some orders the code returns a different number.\""
+    },
+    {
+      "assertion": "Problem statement does not build in a cause or fix",
+      "passed": true,
+      "evidence": "The statement only says which facts decide the right fee and that the code's result can differ. The causes (date.today(), the one-digit prefix tried first) appear separately, under 'Bug 1' and 'Bug 2', as findings from the code."
+    },
+    {
+      "assertion": "Both complaints fit the statement and it can fail",
+      "passed": true,
+      "evidence": "The agent names a falsifier: \"It would be falsified if every billed fee matched the fee from the right table and zone.\" A-1041 (9.00 vs 9.40) and A-1077 (8.32 vs 7.30) both count as cases where the billed fee differs from the right one."
+    }
+  ],
+  "judge": "opus"
+}

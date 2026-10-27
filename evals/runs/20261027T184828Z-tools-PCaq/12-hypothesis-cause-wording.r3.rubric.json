@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Problem statement names what decides the right total (catalog daily price, days, best coupon discount) and says the billed total can differ, checkable per rental",
+      "passed": false,
+      "evidence": "The write-up never states in general terms what the right total should be. It opens with \"I found two separate bugs in rental_total\" and gives only per-case arithmetic (e.g. \"22.00 \u00d7 3 = 66.00\") plus cause-based scope lines. There is no general claim like \"the total should be the catalog rate \u00d7 days less the best coupon.\""
+    },
+    {
+      "assertion": "The problem statement does not build in a cause or fix; causes appear only apart from it as evidence",
+      "passed": false,
+      "evidence": "The problem is framed through its causes. The scope lines say \"any item whose name differs in case, spacing, or spelling is billed at 10.00 a day\" and \"any order where the best coupon is not listed first.\" These build in the case-sensitive lookup, the default-rate fallback and the first-coupon-wins rule, so the causes are part of the statement rather than evidence for it."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement and the statement is falsifiable",
+      "passed": true,
+      "evidence": "R-2208 falls under Bug 1 and R-2231 under Bug 2. Each claim names concrete results that could refute it: the expected total of 66.00 vs the billed 30.00, and 21.60 vs 22.80. The agent checked both against all five CSV rows."
+    }
+  ],
+  "judge": "opus"
+}

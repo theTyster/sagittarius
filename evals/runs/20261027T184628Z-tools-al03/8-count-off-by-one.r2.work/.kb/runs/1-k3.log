@@ -1,0 +1,6 @@
+% orbit-kb run 1 check=k3 result=fail exit=1 time=2026-10-27T18:47:13Z cmd=.kb/count_tests.sh
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.000s
+
+OK

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as '365 days', 'counts from the signup date', 'should use calendar years', or 'should read annual_since'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "The restatement says only: \"Reminders can go out on the wrong day for some annual customers... both reminders came earlier than the renewal they were meant for.\" It does not mention 365 days, signup, calendar years, or annual_since."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right reminder date (when the customer's annual plan started or renews, and the two-week lead) and says the sent date can differ, so that checking one customer could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong date would fit, such as 'reminders are sometimes sent on the wrong day' or 'the date depends on something other than the plan'",
+      "passed": true,
+      "evidence": "The falsifier names both deciding facts: the reminder should fall \"two weeks before their actual renewal date\". The restatement also says the sent reminders \"came earlier than the renewal they were meant for\", so checking one customer's dates can test it."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "Both reminders arrived earlier than intended. C-311's came months before the annual renewal, and C-327's came 15 days before it instead of 14. Both fit \"came earlier than the renewal they were meant for\" and a reminder not falling two weeks before the actual renewal."
+    }
+  ],
+  "judge": "opus"
+}

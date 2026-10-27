@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Problem statement names what decides the right total (item's catalog daily price, days, best coupon discount) and says billed total can differ, checkable on one rental",
+      "passed": true,
+      "evidence": "The write-up gives the rules that set the right total: 'The price list says 22.00 \u00d7 3 = 66.00' and 'the README says \"the one that saves the most applies.\"' It then compares each billed total with that right value, for example 22.80 billed against 21.60, so a single rental can confirm or refute it."
+    },
+    {
+      "assertion": "Problem statement does not build in a cause or fix",
+      "passed": false,
+      "evidence": "The problem is stated as causes. The headings are 'Bug 1: item names must match exactly, and a miss silently falls back to 10.00/day' and 'Bug 2: only the first valid coupon is applied, not the best one'. These are the case-sensitive lookup, default-rate and first-coupon-wins causes, and there is no neutral statement apart from them."
+    },
+    {
+      "assertion": "Both complaints fit the statement and the statement can fail",
+      "passed": true,
+      "evidence": "R-2208 falls under Bug 1 and R-2231 under Bug 2. Each claim names a concrete expected total (66.00, 21.60) that replaying the rental could contradict, so the statement can be shown false."
+    }
+  ],
+  "judge": "opus"
+}

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as '365 days', 'counts from the signup date', 'should use calendar years', or 'should read annual_since'. Causes may appear apart from it, as findings",
+      "passed": false,
+      "evidence": "The problem paragraph itself says the renewal date is wrong because \"one is the wrong starting point, the other is the wrong length of the term,\" and it places the fault in `reminders.py`. Those are the signup-anchor and 365-day causes, only reworded, and they sit inside the problem statement rather than being kept apart as findings."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right reminder date (when the customer's annual plan started or renews, and the two-week lead) and says the sent date can differ, so that checking one customer could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong date would fit, such as 'reminders are sometimes sent on the wrong day' or 'the date depends on something other than the plan'",
+      "passed": true,
+      "evidence": "The headline (\"wrong time\") is vague, but the restatement names the deciding facts. C-311 \"moved to the annual plan in March 2026\", and C-327's reminder came \"one day earlier than two weeks before their June 1 renewal\". It also gives a falsifier tied to each customer's plan history, so checking one customer could show it false."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "Both C-311 (reminder sent for a renewal they don't have yet, after moving to annual in March) and C-327 (sent one day earlier than two weeks before June 1) are listed under the single problem of reminders sent at the wrong time."
+    }
+  ],
+  "judge": "opus"
+}

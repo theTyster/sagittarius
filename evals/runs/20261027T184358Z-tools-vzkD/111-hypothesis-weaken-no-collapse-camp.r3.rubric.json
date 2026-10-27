@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as 'cancelled bookings are counted', 'the oldest age is excluded', 'should use <=', or 'filter bookings by status'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "The rewritten hypothesis says only that \"The form should give the same answer as the office's records and the published session details. For these two cases it doesn't.\" It names no cause or fix. The cancelled booking and the upper age limit come up only later, under the findings."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right answer for a sign-up (the session's capacity and the children booked on it; the session's age range and the child's age on its first day) and says the form's answer can differ, so that checking one session or one child could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong answer would fit, such as 'the sign-up form sometimes gives the wrong answer' or 'the result depends on something other than the booking data'",
+      "passed": false,
+      "evidence": "The restated problem points only to \"the office's records and the published session details\". It never names capacity against the children booked, or the age range against the child's age on the first day. That is close to \"the form disagrees with the records\", which almost any wrong answer would fit."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "The hypothesis says \"For these two cases it doesn't\" match the records. Its findings 1 (S-207 shown as full) and 2 (S-212 age refusal) both sit under it."
+    }
+  ],
+  "judge": "opus"
+}

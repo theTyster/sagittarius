@@ -1,0 +1,14 @@
+% orbit-kb run 5 check=k2 result=pass exit=0 time=2026-10-27T18:47:06Z cmd=python -m unittest -v
+test_days (test_duration.DurationTest.test_days) ... ok
+test_empty (test_duration.DurationTest.test_empty) ... ok
+test_hours (test_duration.DurationTest.test_hours) ... ok
+test_junk (test_duration.DurationTest.test_junk) ... ok
+test_minutes (test_duration.DurationTest.test_minutes) ... ok
+test_mixed (test_duration.DurationTest.test_mixed) ... ok
+test_seconds (test_duration.DurationTest.test_seconds) ... ok
+test_no_spaces (test_format.FormatTest.test_no_spaces) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.000s
+
+OK

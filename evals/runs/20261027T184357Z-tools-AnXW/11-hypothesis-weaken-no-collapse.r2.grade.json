@@ -1,0 +1,48 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 5 turns; result success, 9 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "python:from reminders import load, reminder_date as r; c = load(); assert str(r(c['C-327'])) == '2024-05-17', 'code changed'",
+      "passed": true,
+      "evidence": "ok"
+    }
+  ],
+  "commands": [
+    "help",
+    "help core",
+    "help discovery",
+    "help discovery",
+    "init",
+    "add",
+    "add",
+    "add",
+    "attest divergence",
+    "add",
+    "add",
+    "attest divergence",
+    "add",
+    "add",
+    "run t",
+    "run t",
+    "run t",
+    "attest reproduction",
+    "lint",
+    "attest vote",
+    "query",
+    "show open"
+  ]
+}

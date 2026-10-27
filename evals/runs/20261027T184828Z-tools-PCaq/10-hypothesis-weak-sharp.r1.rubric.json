@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Problem statement names what decides the right fee (weight, zone/destination, date-applicable rates) and says the billed fee can differ, so one order could confirm or refute it",
+      "passed": true,
+      "evidence": "The hypothesis says \"Each order's fee should come from the rate table in force on its ship date and from the zone its postal code maps to. Some invoiced fees don't match.\" That names the date's rates and the zone, and says billed fees can differ. Each order can be checked on its own, as the agent did per order (A-1041 \u2192 9.40, A-1077 \u2192 7.30)."
+    },
+    {
+      "assertion": "The problem statement does not build in a cause or fix; causes from code appear separately as evidence",
+      "passed": true,
+      "evidence": "The hypothesis only describes what the right fee is: the rates in force on the ship date and the postal code's zone. It does not mention a mechanism. The causes (`date.today()` in `_rates()`, and `zone_for` trying the 1-character prefix first) appear only later, under Findings, as evidence."
+    },
+    {
+      "assertion": "Both complaints fit the statement and the statement can fail via a named result",
+      "passed": true,
+      "evidence": "The agent names a falsifier: \"The hypothesis is false if every billed fee equals that calculation.\" Both complaints fit the statement. A-1077 is the date-rate mismatch (7.30 vs 8.32). A-1041 is the zone-and-date mismatch (9.40 vs 9.00)."
+    }
+  ],
+  "judge": "opus"
+}

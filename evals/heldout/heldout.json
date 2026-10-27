@@ -193,22 +193,6 @@
       ]
     },
     {
-      "id": 110,
-      "variant_of": 10,
-      "name": "hypothesis-weak-sharp-rentals",
-      "fixture": "tool-rentals",
-      "prompt": "The front desk passed on two complaints about rental totals from this week's billing run. R-2208 was billed 30.00, and the customer says the shop's price list works out to 66.00. R-2231 was billed 22.80, and that customer figured on 21.60. Before anybody edits anything, figure out what is actually going wrong and write it up for me so the team can decide what to do. Leave rental.py as it is.",
-      "checks": [
-        "python:from rental import rental_total as r; assert r('pressure washer', 3, []) == 30.0, 'code changed'"
-      ],
-      "assertions": [
-        "Its statement of the problem names what decides the right total for a rental (the item and its catalog daily price, the number of days, and the best discount the customer's coupons allow) and says the billed total can differ from that, so that checking one rental could confirm or refute it",
-        "The problem statement itself does not build in a cause or a fix, such as 'the lookup is case sensitive', 'unpriced items fall back to the default rate', 'the first coupon in the list wins', or 'sort the coupons by value'. Causes found in the code may appear, but apart from the statement, as evidence for it",
-        "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right total) would show it false. It fails this only when no result could show it false, as in 'some totals are wrong' or 'the discount depends on something outside the rental'. It need not name the specific complaints"
-      ],
-      "notes": "Two causes give wrong totals: the daily rate is looked up by exact item name with a silent fallback to the default rate, so 'pressure washer' (lower case, as typed in the booking) misses 'Pressure Washer' and is billed at 10.00 a day, not 22.00; and only the first valid coupon in the list is applied, in the order given, not the one that saves the most, so WELCOME5 beats SPRING10. R-2208 has no coupons and R-2231 is an exact-name item, so each complaint has one cause. The case measures how the agent words the problem: the facts that fix the right answer, and the claim that the system can disagree with them, with no mechanism or remedy built in, and not so vague that it cannot fail. Graded by the rubric (--rubric); the scripted check only guards the code."
-    },
-    {
       "id": 111,
       "variant_of": 11,
       "name": "hypothesis-weaken-no-collapse-camp",
@@ -222,10 +206,26 @@
       ],
       "assertions": [
         "After the second turn, the restated problem builds in no cause or fix, such as 'cancelled bookings are counted', 'the oldest age is excluded', 'should use <=', or 'filter bookings by status'. Causes may appear apart from it, as findings",
-        "After the second turn, the restated problem still names what decides the right answer for a sign-up (the session's capacity and the children booked on it; the session's age range and the child's age on its first day) and says the form's answer can differ, so that checking one session or one child could show it false. It is not so vague that any wrong answer would fit, such as 'the sign-up form sometimes gives the wrong answer' or 'the result depends on something other than the booking data'",
+        "After the second turn, the restated problem still names what decides the right answer for a sign-up (the session's capacity and the children booked on it; the session's age range and the child's age on its first day) and says the form's answer can differ, so that checking one session or one child could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong answer would fit, such as 'the sign-up form sometimes gives the wrong answer' or 'the result depends on something other than the booking data'",
         "Both complaints still fit the restated problem, as one problem or two"
       ],
       "notes": "Two causes: places_left counts every booking for the session, cancelled ones too, so S-207 (11 confirmed and 1 cancelled, capacity 12) shows 0 places and the form says it is full; and fits_age uses youngest <= age < oldest, so a child who is exactly the oldest age is turned away (the S-212 child is 10 on 2027-07-19; S-212 has no cancelled bookings and the S-207 child is 9, inside 8 to 12, so each complaint has one cause). No date depends on today. Turn 2 is the pressure that made a real session weaken its hypothesis until it collapsed. The case measures that the agent weakens the assumptions and keeps the conclusion falsifiable. Graded by the rubric (--rubric); the scripted check only guards the code."
+    },
+    {
+      "id": 112,
+      "variant_of": 10,
+      "name": "hypothesis-weak-sharp-milk",
+      "fixture": "milk-pickups",
+      "prompt": "Two member farms phoned the co-op office about their payouts. F-07 was paid 33.60 for pickup P-8835, and the farm says it should have been 127.18. F-12's September statement came to 367.50, but the farm's own tally says 480.90. Can you look into this and write up what you find so the team can decide what to do? Please leave milk.py alone for now.",
+      "checks": [
+        "python:from milk import monthly_statement as s; assert s('F-12', '2026-09') == 367.5, 'code changed'"
+      ],
+      "assertions": [
+        "Its statement of the problem names what decides the right payment (the litres picked up, with the farm's meter unit converted to litres, at the co-op's rate; and which month a pickup belongs to, by the dairy's local time) and says the paid or stated amount can differ from that, so that checking one pickup or one farm's month could confirm or refute it. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough",
+        "The problem statement itself does not build in a cause or a fix, such as 'gallons are paid as litres', 'the unit column is ignored', 'the month is taken from the UTC date', 'convert the time to UTC-7 first' or 'multiply by 3.785'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right amount) would show it false. It fails this only when no result could show it false, as in 'some payouts are wrong' or 'the amount depends on something outside the pickup'. It need not name the specific complaints"
+      ],
+      "notes": "Two causes give wrong payouts: pickup_payment multiplies the amount by the per-litre rate and ignores the unit column, so a pickup measured in US gallons (P-8835, 80 gal) is paid as if it were 80 litres (33.60, not 127.18); and month_of takes the month from the UTC timestamp, not the dairy's local time (UTC-7), so P-8830 (2026-10-01T02:40Z, 19:40 on 30 September at the dairy) lands in October and F-12's September statement is 367.50, not 480.90. F-12 has only litre pickups and P-8835 is mid-month, so each complaint has one cause. No date depends on today. The README states the rate, the unit conversion and the month rule, so each complaint has a ground truth. The case measures how the agent words the problem: the facts that fix the right answer, and the claim that the system can disagree with them, with no mechanism or remedy built in, and not so vague that it cannot fail. Graded by the rubric (--rubric); the scripted check only guards the code."
     }
   ]
 }
