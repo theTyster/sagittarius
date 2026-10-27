@@ -1,0 +1,10 @@
+{
+  "spec": "tools.json",
+  "account": "personal",
+  "model": "haiku",
+  "prompt": "none",
+  "prompt_sha256": null,
+  "runs": 3,
+  "commit": "0a50c95",
+  "dirty": false
+}

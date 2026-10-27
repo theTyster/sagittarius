@@ -1,0 +1,90 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 20 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "help_before_write",
+      "passed": true,
+      "evidence": "first help at call 0, first write (init) at call 3"
+    },
+    {
+      "text": "kb_exists",
+      "passed": true,
+      "evidence": "/tmp/withdraw-kb"
+    },
+    {
+      "text": "lint_clean",
+      "passed": true,
+      "evidence": "Summary: 0 error(s), 0 warning(s)."
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:universal(C)",
+      "passed": true,
+      "evidence": "exit 0: C = c1"
+    },
+    {
+      "text": "query:burn_open(C)",
+      "passed": true,
+      "evidence": "exit 0: C = c1"
+    }
+  ],
+  "commands": [
+    "help",
+    "help core",
+    "help build",
+    "init",
+    "add",
+    "add",
+    "run k",
+    "run k",
+    "query",
+    "query",
+    "query",
+    "query",
+    "query",
+    "query",
+    "lint",
+    "show open",
+    "whynot",
+    "lint",
+    "show open",
+    "whynot",
+    "subject s",
+    "help attest",
+    "add",
+    "attest divergence",
+    "attest disclosure",
+    "attest disclosure",
+    "attest disclosure",
+    "attest disclosure",
+    "attest disclosure",
+    "lint",
+    "query",
+    "show open",
+    "add",
+    "attest disclosure",
+    "attest disclosure",
+    "attest disclosure",
+    "lint",
+    "show open",
+    "report"
+  ]
+}

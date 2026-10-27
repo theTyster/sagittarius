@@ -1,0 +1,72 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 13 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "help_before_write",
+      "passed": true,
+      "evidence": "first help at call 0, first write (init) at call 4"
+    },
+    {
+      "text": "kb_exists",
+      "passed": true,
+      "evidence": "/tmp/tmp.Gb64f0KTnP/kb"
+    },
+    {
+      "text": "lint_clean",
+      "passed": true,
+      "evidence": "Summary: 0 error(s), 0 warning(s)."
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:universal(C)",
+      "passed": true,
+      "evidence": "exit 0: C = c1"
+    },
+    {
+      "text": "query:burn_open(C)",
+      "passed": true,
+      "evidence": "exit 0: C = c1"
+    }
+  ],
+  "commands": [
+    "help",
+    "help core",
+    "help build",
+    "help build",
+    "init",
+    "add",
+    "run k",
+    "lint",
+    "show open",
+    "whynot",
+    "run k",
+    "run k",
+    "lint",
+    "show open",
+    "query",
+    "query",
+    "subject s",
+    "attest disclosure",
+    "show disclosures",
+    "report",
+    "report"
+  ]
+}

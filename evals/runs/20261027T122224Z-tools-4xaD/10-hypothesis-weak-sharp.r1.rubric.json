@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": false,
+      "evidence": "The write-up never says what the right fee for an order is: base for its zone plus per-kg times its weight, at the rates for its ship date. It opens with \"two bugs in `fees.py`\" and describes each bug as code behaviour (\"`_rates()` calls `date.today()`\", \"`zone_for` tries prefix lengths (1, 2)\"). It does not name weight as one of the inputs."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The problem is stated as the causes themselves. The headings are \"the rate table is chosen by today's date, not the ship date\" and \"the `\"59\": 3` zone entry can never match\". The body adds the fix: \"The loop should try the longer prefix first.\" No separate, cause-free statement exists."
+    },
+    {
+      "assertion": "The problem statement covers both complaints (the September rates and the 59xxx zone), as one problem or two, and is not so vague that any wrong fee would fit it, such as 'fees are sometimes wrong' or 'the fee depends on something outside the order'",
+      "passed": true,
+      "evidence": "It covers both complaints, as two specific problems. September-shipped orders are billed at October rates (A-1077: 8.325 instead of 7.30). 59xxx codes are priced as zone 2 instead of zone 3 (A-1041: 9.40 expected). Neither is vague."
+    }
+  ],
+  "judge": "opus"
+}

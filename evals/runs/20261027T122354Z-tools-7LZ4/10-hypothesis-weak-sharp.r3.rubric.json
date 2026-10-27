@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": false,
+      "evidence": "The write-up has no cause-neutral problem statement. It opens with \"Both complaints are real, and they have two separate causes in `fees.py`\" and then goes straight to \"Cause 1\" and \"Cause 2\". The facts that set the right fee (weight, zone, the ship-date card) appear only inside the per-order arithmetic, and no sentence says the billed fee differs from the fee those facts determine."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The problem is framed entirely as code causes: \"the rate table follows today's date, not the ship date\" and \"`zone_for` tries the 1-digit prefix first\". These are the exact causes the assertion rules out, and there is no separate statement for them to serve as evidence for."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "A-1077 is explained by the date cause, and A-1041 by the date and zone causes together (9.00 billed vs 9.40). The section \"Claims and what would falsify them\" gives checkable results, e.g. `zone_for(\"59120\")` should return 3 (\"falsified if it returns 3\") and `shipping_fee(2.0, \"59120\", date(2026,9,14))` should return 9.40."
+    }
+  ],
+  "judge": "opus"
+}

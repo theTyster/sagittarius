@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": false,
+      "evidence": "The statement is 'shipping_fee() prices with the wrong rate table (the table for today's date, not the ship date) and the wrong zone (any postal code starting 59 is priced as zone 2, not 3).' It describes two code defects. It never says the right fee comes from weight, zone and the rates in force on the order's date. Weight is not mentioned at all."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The Hypothesis line itself contains the causes and the fix: 'the table for today's date, not the ship date' and '59 is priced as zone 2'. The findings then restate these as 'Bug 1: ship_date is ignored... uses date.today()' and 'Bug 2: zone_for checks the 1-digit prefix before the 2-digit one.'"
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "A-1077 is explained by the date bug (6.30+1.35\u00d71.5=8.32 vs 5.50+1.20\u00d71.5=7.30), and A-1041 by both bugs (9.00 vs 9.40). Each claim has a concrete falsifier, e.g. 'C1... A-1077 \u2192 7.30. Falsifier: it still returns 8.32' and 'C2... zone_for(\"59120\") \u2192 3. Falsifier: it still returns 2.'"
+    }
+  ],
+  "judge": "opus"
+}

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": true,
+      "evidence": "The write-up says the table should be keyed on the ship date and the zone found by longest prefix. It then works each order from zone base plus per-kg times weight, for example \"zone 3 with the January table: 7.00 + 1.20 \u00d7 2.0 = 9.40\", and sets that beside the billed 9.00 in a per-order table that one order can check."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The write-up opens with \"Both complaints come from two bugs in fees.py\" under the heading \"Root causes\". It states the problem as \"The rate table is chosen by today's date, not the ship date\" and \"Zone lookup takes the shortest prefix first\". The causes are the problem statement, not separate evidence for it."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "It maps A-1077 to the date bug alone and A-1041 to both bugs, and it names results that can be checked: zone_for(\"59120\") returns 2, and the January table gives 7.30 and 9.40. Different figures would refute it."
+    }
+  ],
+  "judge": "opus"
+}

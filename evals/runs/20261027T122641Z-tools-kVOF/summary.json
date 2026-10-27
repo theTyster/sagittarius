@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "haiku",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/base.md",
+    "prompt_sha256": "0b46a6962514b2273963317319113d8005357683e2ffb378ebb17ffaa68e32ff",
+    "runs": 3,
+    "commit": "0a50c95",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 1,
+      "name": "handoff-records-kb",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "help_before_write": "3/3",
+        "kb_exists": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:check(K, C)": "3/3",
+        "query:test_result_fail": "3/3",
+        "python:from slugify import slugify; assert slugify('Hello,  World!') != 'hello-world', 'the fix was built'": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 2,
+      "name": "universal-claim-burns",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "help_before_write": "3/3",
+        "kb_exists": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:universal(C)": "3/3",
+        "query:burn_open(C)": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 3,
+      "name": "resume-reads-kb-first",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "show_open_before_write": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "python:from units import km_to_miles; assert km_to_miles(10) == 6.0, 'code changed'": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 4,
+      "name": "light-path-no-kb",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "no_kb": "3/3",
+        "unittest_pass": "3/3",
+        "python:from greet import greet; assert greet('Ana') == 'Hello, Ana!', greet('Ana')": "3/3"
+      },
+      "rubric": {}
+    }
+  ]
+}

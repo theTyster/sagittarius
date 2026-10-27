@@ -1,0 +1,19 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-27T12:27:19Z cmd=python3 -m unittest test_slugify.SlugifyTest.test_collapse
+F
+======================================================================
+FAIL: test_collapse (test_slugify.SlugifyTest.test_collapse)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.ZVfRFMluOk/test_slugify.py", line 11, in test_collapse
+    self.assertEqual(slugify("Hello,  World!"), "hello-world")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'hello---world' != 'hello-world'
+- hello---world
+?      --
++ hello-world
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

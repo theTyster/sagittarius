@@ -1,0 +1,35 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": false,
+      "evidence": "result success (error), 6 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": false,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": false,
+      "evidence": "none"
+    },
+    {
+      "text": "no_kb",
+      "passed": false,
+      "evidence": "session did not run; no kb.pl"
+    },
+    {
+      "text": "unittest_pass",
+      "passed": false,
+      "evidence": "session did not run; FAILED (failures=1)"
+    },
+    {
+      "text": "python:from greet import greet; assert greet('Ana') == 'Hello, Ana!', greet('Ana')",
+      "passed": false,
+      "evidence": "session did not run; AssertionError: Hi Ana"
+    }
+  ],
+  "commands": []
+}

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": false,
+      "evidence": "The agent states the problem only as two code bugs: \"the rate table is chosen by today's date, not the ship date\" and \"the zone lookup matches the wrong prefix\". It never gives a neutral statement that the right fee is set by weight, zone and the rates in force on the ship date, with the billed fee able to differ from that. Weight shows up only in the worked arithmetic."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The statement itself is the causes: \"Bug 1: the rate table is chosen by today's date, not the ship date\" and \"Bug 2: ... tries the 1-character prefix before the 2-character one\". These are exactly the built-in causes the assertion rules out."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "Both complaints are tied to the two-bug statement: A-1041 to \"Both bugs\" and A-1077 to \"Rate-table date only\". The statement is concrete and checkable, with recomputed correct fees (9.40, 7.30) from the ship-date table and zone 3 for 59\u2026 codes. A September order priced at January rates, or a 59\u2026 code mapped to zone 3, would show it false."
+    }
+  ],
+  "judge": "opus"
+}

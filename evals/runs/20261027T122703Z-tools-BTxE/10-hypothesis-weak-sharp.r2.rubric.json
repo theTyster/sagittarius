@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": false,
+      "evidence": "The agent framed the problem as two code bugs: \"the rate table is chosen by `date.today()`, not `ship_date`\" and \"`zone_for` never matches the two-digit \"59\" prefix\". It never states that the right fee comes from the order's weight, zone and the rates in effect on its date, with the billed fee differing from that. That idea appears only implicitly in the table column \"Table that matches ship date, correct zone\"."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The statement is the cause itself: \"`fees.py` picks the rate table by today's date, not the ship date\". Problem 2 says `zone_for` \"tries one-digit prefixes first\". These are the example causes the assertion rules out."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "Both complaints fit the two problems: A-1077 is \"problem 1 alone\" (7.30 from the Jan table), and A-1041 is \"both bugs\" (9.40 from the Jan table, zone 3). The statements are concrete and checkable, with recomputed fees per order that could show them false."
+    }
+  ],
+  "judge": "opus"
+}

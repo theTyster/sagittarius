@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": true,
+      "evidence": "The Hypothesis reads: \"The fee for an order should come from the rate card in force on its ship date, and from the zone its postal code belongs to. Some orders are billed a different number.\" It does not name weight, but weight is the per-kg input to that rate card. The table checks each order against this rule."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": true,
+      "evidence": "The Hypothesis defines the correct fee as the ship-date rate card plus the right zone. It does not say what the code does wrong. The causes ('_rates() calls date.today()' and 'zone_for tries the 1-digit prefix first') appear only later, under Findings."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "Both complaints are orders billed something other than their ship-date-and-zone fee (A-1041 at 9.00 instead of 9.40, A-1077 at 8.32 instead of 7.30). The statement names a falsifier: \"every order in orders.csv bills exactly what its ship-date table and zone give.\""
+    }
+  ],
+  "judge": "opus"
+}

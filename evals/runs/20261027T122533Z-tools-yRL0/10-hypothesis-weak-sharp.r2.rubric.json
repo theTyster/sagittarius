@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": false,
+      "evidence": "The write-up has no problem statement apart from its causes. It opens with \"they come from two separate bugs in `fees.py`\" and then describes each bug. Weight, zone and date rates appear only in the per-order arithmetic, never as a general statement of what decides the right fee."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The causes are the statement itself. The headings read \"Bug 1: the rate table comes from the invoice date, not the ship date\" and \"Bug 2: postal prefix `59` can never match\", with \"`zone_for` checks the 1-digit prefix first\". These are exactly the causes the assertion excludes."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "The two-bug framing covers both complaints: A-1041 is attributed to both bugs and A-1077 to Bug 1. It also names the facts that fix the right fee, e.g. \"Zone 3 on the January table: 7.00 + 1.20\u00d72 = 9.40\", which a check could refute."
+    }
+  ],
+  "judge": "opus"
+}

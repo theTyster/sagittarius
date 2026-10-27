@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as '365 days', 'counts from the signup date', 'should use calendar years', or 'should read annual_since'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "The turn-2 problem, hypothesis and falsifier only say reminders \"do not match their renewal dates\" and are \"not always the date that customer expects, given their renewal date.\" They never mention signup, 365 days, annual_since or calendar years. The agent even says \"This wording leaves out the cause and the fix.\""
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right reminder date (when the customer's annual plan started or renews, and the two-week lead) and says the sent date can differ, so that checking one customer could show it false. It is not so vague that any wrong date would fit, such as 'reminders are sometimes sent on the wrong day' or 'the date depends on something other than the plan'",
+      "passed": true,
+      "evidence": "The hypothesis ties the right date to the customer's renewal date (\"given their renewal date\") and says the system \"can fail to give the expected date.\" The falsifier names the lead time: \"a reminder exactly 14 days before the renewal date they expect.\" So checking one customer's reminder against renewal minus 14 days could prove it false. The hypothesis alone is loose, but together with the falsifier the statement can be checked."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "The restated problem names both: \"C-311 got one on October 19, 2026. C-327 got one on May 17, 2024, and their renewal was June 1, 2024.\" Each fits the claim that the reminder did not come 14 days before the renewal date the customer expects. The statement drops C-311's March annual start, but its complaint still fits."
+    }
+  ],
+  "judge": "opus"
+}

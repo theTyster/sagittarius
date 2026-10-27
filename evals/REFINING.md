@@ -73,6 +73,7 @@ the prompt toward one case.
 |---|---|---|
 | 5, 6, 7, 8 | sonnet | Haiku, 3 runs each over five prompt cycles (2026-10-22): 0/3 on each. It names the trigger in its own words ("a one-line correction to my last change", "Divergence: yes") and still delivers with no KB. Sonnet passes 5, 6, 7 at 3/3. |
 | 9 | sonnet | Haiku over four prompt cycles: 0/3, 0/3, 2/3, 1/3. When it misses, it names the handoff and still delivers with no KB ("The fix is one function and one check, so I judged..."). Sonnet passes 3/3. |
+| 10 | sonnet | Haiku, three prompt versions (2026-10-27): it finds both causes in the code and reports them as the problem, with no discovery and no hypothesis. Rubric on the wording: 0/3, 1-2/3, 0/3; a general routing line did not help and was dropped. Sonnet passes 3/3 with the rule and 0/3 at the base and with no prompt. |
 | 8 | opus | Sonnet, three cycles: it names the count difference as a divergence in 2 of 3 runs and still delivers with no KB, after it finds the cause. Opus passes 3/3. |
 
 ## The loop

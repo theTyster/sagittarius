@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": false,
+      "evidence": "The write-up never states the problem as 'the right fee is set by weight, zone and the rates for the order's date, and the billed fee can differ'. It opens with 'The complaints are two separate bugs in fees.py' and gives two code-level bug titles. Weight appears only inside the worked arithmetic, not in any statement of the problem."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The causes are the statement itself: 'Bug 1: the rate table comes from today's date, not the ship date' and 'Bug 2: \"59\" is never reached in zone_for, so every 5xxxx postal code is zone 2.' There is no cause-neutral statement that these support as evidence."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "A-1077 is mapped to Bug 1 (September table gives 5.50 + 1.20 \u00d7 1.5 = 7.30) and A-1041 to both bugs (zone 3 on the September table = 9.40). The claims can be checked against specific results, such as zone_for('59120') returning 2 and the fee changing with the run date, so a different result would show them false."
+    }
+  ],
+  "judge": "opus"
+}

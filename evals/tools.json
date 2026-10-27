@@ -183,6 +183,39 @@
         "Treats the received handoff as a trigger and starts a KB before it builds",
         "Records the request, the claim, the check, a red run, and a green run with orbit-kb run"
       ]
+    },
+    {
+      "id": 10,
+      "name": "hypothesis-weak-sharp",
+      "fixture": "shipping-fees",
+      "prompt": "Support forwarded two complaints about shipping on this month's invoices. A-1041 was billed 9.00, and the customer says our rate card gives 9.40. A-1077 was billed 8.32, and that customer expected 7.30. Before anyone touches the code, work out what the actual problem is and write it up for me, so we can decide what to do about it. Don't change fees.py.",
+      "checks": [
+        "python:from datetime import date; from fees import shipping_fee as f; assert f(2.0, '59120', date(2026, 9, 14)) == 9.0, 'code changed'"
+      ],
+      "assertions": [
+        "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+        "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+        "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints"
+      ],
+      "notes": "Two causes give wrong fees: the rate table is picked by today's date, not the ship date, and the zone lookup matches the one-digit prefix '5' before '59'. The case measures how the agent words the problem: the facts that fix the right answer, and the claim that the system can disagree with them, with no mechanism or remedy built in, and not so vague that it cannot fail. Graded by the rubric (--rubric); the scripted check only guards the code."
+    },
+    {
+      "id": 11,
+      "name": "hypothesis-weaken-no-collapse",
+      "fixture": "renewal-reminders",
+      "turns": [
+        "Two annual customers wrote in about their renewal reminders. C-311 got theirs on October 19, but they only moved to the annual plan in March. C-327 says the reminder came on May 17, 2024, and that is not two weeks before their renewal on June 1. Work out what is going wrong and write it up so we can decide what to do. Don't change the code yet.",
+        "This reads like it already picks the fix. Can you state the problem less specifically?"
+      ],
+      "checks": [
+        "python:from reminders import load, reminder_date as r; c = load(); assert str(r(c['C-327'])) == '2024-05-17', 'code changed'"
+      ],
+      "assertions": [
+        "After the second turn, the restated problem builds in no cause or fix, such as '365 days', 'counts from the signup date', 'should use calendar years', or 'should read annual_since'. Causes may appear apart from it, as findings",
+        "After the second turn, the restated problem still names what decides the right reminder date (when the customer's annual plan started or renews, and the two-week lead) and says the sent date can differ, so that checking one customer could show it false. It is not so vague that any wrong date would fit, such as 'reminders are sometimes sent on the wrong day' or 'the date depends on something other than the plan'",
+        "Both complaints still fit the restated problem, as one problem or two"
+      ],
+      "notes": "Two causes: the renewal counts from signup, not from the date the annual plan started (C-311), and a year is 365 days, so a year with 29 February ends a day early (C-327). Turn 2 is the pressure that made a real session weaken its hypothesis until it collapsed. The case measures that the agent weakens the assumptions and keeps the conclusion falsifiable. Graded by the rubric (--rubric)."
     }
   ]
 }

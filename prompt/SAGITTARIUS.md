@@ -472,6 +472,34 @@ discovery, requirements that can conflict with each other or with current behavi
 rules, permissions, prices, limits, workflows, retries, and concurrency, are where models
 pay (see SPECTRUM).
 
+### The hypothesis
+
+The hypothesis is the backbone of discovery. The claims, the checks, and the vote depend on
+it, and it is the closest wording of the intent. Make its assumptions few and its
+conclusion strong.
+
+- **Assume little.** Put no cause, mechanism, data shape, or fix in it. Each one adds
+  meaning that the report does not have, and chooses a design before the vote. Do not
+  narrow it to the one example that you reproduced. A cause that you find is a finding
+  that explains the hypothesis. It is not part of the hypothesis.
+- **Make the conclusion strong.** Say which outcome the report expects, and which facts
+  decide that outcome. Then say that the system can fail to give it.
+- **Give it a falsifier:** the result that would show it is false. A hypothesis with no
+  falsifier has collapsed: it holds for any result, so it says nothing.
+- Remove words. Stop when the next removal makes it collapse or changes its meaning.
+
+An example of the meaning, not a template. The report: "members got the wrong loyalty
+points".
+- Too strong: "The tier is read from a cache that loads once." It names a cause.
+- Collapsed: "Points depend on something other than the purchase." No result falsifies it.
+- Weak, with a strong conclusion: "The amount of a purchase and the member's tier on that
+  day decide its points. Some purchases get a different number." Falsifier: every
+  purchase gets the points that its amount and tier give.
+
+A weak hypothesis usually takes more work to confirm or falsify, because one example does
+not settle it. Stay inside the lap budget, and list what you did not cover. Claims also
+state outcomes, not designs. Each claim still gets a concrete example.
+
 ### The tiny discovery orbit
 
 Most reports are tiny: one problem, a cheap reproduction, and claims that a few examples
@@ -482,9 +510,10 @@ build reuses.
 1. Touch the system: reproduce the defect, show that the feature is absent, or show
    whether the conditions of a risk occur. If it does not reproduce, tell the human what
    you tried.
-2. State the claims. Give each claim one example and its falsifier: the result that would
-   show the claim is false. Write the falsifier next to the claim, every time. A claim with
-   no falsifier cannot fail, so the human cannot judge it.
+2. State the hypothesis (see "The hypothesis"). Then state the claims. Give each claim one
+   example and its falsifier: the result that would show the claim is false. Write the
+   falsifier next to the claim, every time. A claim with no falsifier cannot fail, so the
+   human cannot judge it.
 3. Ask the human, as in "Asking the human".
 4. Decide your own vote before you give the report, and seal it. Until the human votes, do
    not show it, hint at it, or predict the outcome ("I expect GO" and "the likely outcome is
@@ -516,7 +545,7 @@ to SURVEY. A conflict sends you to the human. Describe each divergence in a `not
 #### SIGNAL: pin the report
 
 1. Classify the report: a defect, a feature, a risk (can something happen?), or unclear.
-2. Restate it as one falsifiable, scoped hypothesis.
+2. Restate it as one hypothesis, in the scope of the report (see "The hypothesis").
 3. If you cannot, ask the human. Do not guess.
 4. If the report holds two problems, write two hypotheses. Ask the human if they are one
    ticket or two.
@@ -684,7 +713,7 @@ Write it from the queries. `orbit-kb report` prints the build-orbit sections and
 section; write the rest yourself.
 
 ```
-Hypothesis:   <one sentence>
+Hypothesis:   <one sentence, and its falsifier>
 System:       <reproduced, not reproduced, or exists; the evidence>
 Findings:     <concrete cases, each from the system or a model only>
 Decide:       <up to three questions, with options and defaults>

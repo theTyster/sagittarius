@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": true,
+      "evidence": "The Hypothesis says the fee 'should depend only on its weight, its postal code and its ship date', and that 'some orders get a fee that doesn't follow from those three inputs.' It gives a per-order check: the fee should match 'the rate card for the ship date and the correct zone'."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": true,
+      "evidence": "The Hypothesis only names the inputs that decide the right fee and says some billed fees don't follow from them. The causes appear separately under Findings: `_rates()` calls `date.today()`, and `zone_for` tries the 1-character prefix first. The Hypothesis does not mention either."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "Both complaints fit: A-1041 (9.00 vs 9.40) and A-1077 (8.32 vs 7.30) are fees that don't follow from the rate card for the order's ship date and zone. The statement names its own falsifier: 'It would be false if every billed fee matched the rate card for the ship date and the correct zone.'"
+    }
+  ],
+  "judge": "opus"
+}

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": true,
+      "evidence": "The hypothesis reads: \"Billed shipping fees do not match the rate card that applies on each order's ship date. Falsifier: every order's billed fee equals the rate card for its ship date and postal zone.\" It names the date-applicable rates and the zone, and says the billed fee differs from them, so one order can be checked against it. Weight is not named, but it is implied by applying the rate card to the order (the card charges per kg)."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": true,
+      "evidence": "The statement only says how the right fee is set: the rate card for the ship date and zone. The causes (`_rates()` calls `date.today()`, and `zone_for` tries 1-character prefixes first) appear separately under \"What is wrong\". Fixes appear only under \"Next step\"."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "The agent states an explicit falsifier: \"every order's billed fee equals the rate card for its ship date and postal zone\". Both A-1041 (9.00 vs 9.40) and A-1077 (8.32 vs 7.30) are shown in the comparison table as mismatches of exactly this kind."
+    }
+  ],
+  "judge": "opus"
+}

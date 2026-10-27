@@ -1,0 +1,25 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 7 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "python:from datetime import date; from fees import shipping_fee as f; assert f(2.0, '59120', date(2026, 9, 14)) == 9.0, 'code changed'",
+      "passed": true,
+      "evidence": "ok"
+    }
+  ],
+  "commands": []
+}

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": false,
+      "evidence": "The write-up opens with 'Two bugs in fees.py': ship_date is ignored in favour of date.today(), and the '59' prefix is never reached. That is a list of code causes. It never says that the right fee is set by weight, zone and the rate table for the order's date, or that the billed fee can differ from that fee. The rule appears only implicitly, in the table column 'Ship-date table, zone correct'."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The problem statement is itself made of causes: 'It uses date.today() (2026-10-27), so every order gets the October table' and 'zone_for tries prefix lengths 1, then 2. The key \"5\" (zone 2) matches first.' These are the very causes the assertion rules out."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "Both complaints fit the two problems: A-1077 comes from Bug 1 alone, and A-1041 needs both bugs. The claims can be checked against concrete numbers. September rates give 5.50 + 1.20 \u00d7 1.5 = 7.30, zone 3 gives 9.40, and the expected fees for all four rows would show the claims false if they did not hold."
+    }
+  ],
+  "judge": "opus"
+}

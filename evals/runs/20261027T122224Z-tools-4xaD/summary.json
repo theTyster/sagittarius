@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "haiku",
+    "prompt": "none",
+    "prompt_sha256": null,
+    "runs": 3,
+    "commit": "0a50c95",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 10,
+      "name": "hypothesis-weak-sharp",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "python:from datetime import date; from fees import shipping_fee as f; assert f(2.0, '59120', date(2026, 9, 14)) == 9.0, 'code changed'": "3/3"
+      },
+      "rubric": {
+        "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it": "0/3",
+        "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it": "0/3",
+        "The problem statement covers both complaints (the September rates and the 59xxx zone), as one problem or two, and is not so vague that any wrong fee would fit it, such as 'fees are sometimes wrong' or 'the fee depends on something outside the order'": "3/3"
+      }
+    }
+  ]
+}

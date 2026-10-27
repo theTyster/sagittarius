@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": true,
+      "evidence": "The Hypothesis says: \"A fee should depend on the parcel's weight, its postal-code zone, and the rate table in force on its ship date. The invoice run gets a different number for some orders.\" Pricing any one order shows whether its billed fee matches that rule."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": true,
+      "evidence": "The Hypothesis paragraph names only what decides the right fee and says the billed fee differs. The causes (`date.today()` in `_rates()`, the one-character prefix in `zone_for`) and the proposed fixes appear only in the separate 'Bug 1', 'Bug 2' and 'Decisions' sections."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "Both complaints fit: A-1077 gets 7.30 under the ship-date table, and A-1041 gets 9.40 at zone 3 on the September table. Each differs from what was billed. The agent names a falsifier: \"It would be false if every order in `orders.csv` matched that rule.\" (It then says \"so it is false,\" which is muddled wording, but the falsifier is stated.)"
+    }
+  ],
+  "judge": "opus"
+}

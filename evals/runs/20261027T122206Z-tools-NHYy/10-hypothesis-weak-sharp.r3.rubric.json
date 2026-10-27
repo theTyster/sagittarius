@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": false,
+      "evidence": "The write-up opens with \"Two bugs in `fees.py` cause both complaints\" and states the problem as two code defects. It never states the rule itself: the right fee is the zone base plus the per-kg price times the weight, from the table in force on the ship date, and the billed fee differs from it. Weight and ship date show up only as columns in the findings table and in a later question to the human."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The statement is the causes. It says \"The rate table is chosen by today's date, not the ship date\" and \"`zone_for` tries the 1-digit prefix first ... `\"59\": 3` is unreachable\". These are exactly the built-in causes the assertion excludes."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "Both complaints map onto the two stated problems: A-1077 to the date issue, and A-1041 to both issues netting out. The claims can be checked, because the agent names the correct fees (9.40 = 7.00 + 1.20\u00d72.0 for zone 3 on the January table, and 7.30), and a recomputation could refute them."
+    }
+  ],
+  "judge": "opus"
+}

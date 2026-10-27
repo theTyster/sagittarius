@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": false,
+      "evidence": "The write-up opens with \"Two separate bugs in `fees.py` cause the complaints\" and frames everything as code defects. It never says that the right fee depends on the order's weight, zone, and the rates in force on its date. The 'Correct (ship-date table, correct zone)' column shows this idea only as a computed result, not as a stated problem."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The problems are stated as causes: \"Bug 1: the rate table is chosen by today's date, not the ship date\" and \"Bug 2: zone lookup returns the shortest prefix, so \"59\" never matches\". There is no cause-neutral statement that the code findings could serve as evidence for."
+    },
+    {
+      "assertion": "The problem statement covers both complaints (the September rates and the 59xxx zone), as one problem or two, and is not so vague that any wrong fee would fit it, such as 'fees are sometimes wrong' or 'the fee depends on something outside the order'",
+      "passed": true,
+      "evidence": "It names two specific problems. Pre-October ships are priced at October rates, which explains A-1077's 8.32 vs 7.30. 59xxx postal codes are priced as zone 2 instead of zone 3, which with the date issue explains A-1041's 9.00 vs 9.40. Both are specific enough that one order can check them."
+    }
+  ],
+  "judge": "opus"
+}

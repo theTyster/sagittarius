@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": false,
+      "evidence": "The write-up opens with 'There are two independent bugs in `fees.py`' and states the problem as code defects ('the rate table comes from today's date', '59 never get zone 3'). Weight, zone and dated rates show up only inside the per-order arithmetic. No statement says the right fee is set by weight, zone and the rate card for the order's date and that the billed fee can differ from it."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The problem statements are the causes themselves: 'Bug 1: the rate table comes from today's date, not the ship date' and 'Bug 2: ... `zone_for` tries a 1-digit prefix before a 2-digit one'. No cause-free statement stands apart from them."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right fee) would show it false. It fails this only when no result could show it false, as in 'fees are sometimes wrong' or 'the fee depends on something outside the order'. It need not name the specific complaints",
+      "passed": true,
+      "evidence": "Its table maps A-1041 to both bugs and A-1077 to Bug 1. It gives concrete facts that could refute this, such as 'The September card gives 5.50 + 1.20\u00d71.5 = 7.30' and 'correct price is zone 3 on the September card: 7.00 + 1.20\u00d72 = 9.40'. A recomputation that did not match would show the claims false."
+    }
+  ],
+  "judge": "opus"
+}

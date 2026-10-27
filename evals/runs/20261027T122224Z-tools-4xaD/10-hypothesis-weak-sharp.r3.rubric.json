@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right fee for an order (its weight, its destination or zone, and the rates that apply to its date) and says the billed fee can differ from that, so that checking one order could confirm or refute it",
+      "passed": false,
+      "evidence": "The write-up frames the problem as \"Two bugs in `fees.py` cause the complaints\" and describes code behaviour. It never says that the right fee is set by weight, zone and the rates in force on the date. The closest line is under the table: \"Rate card expectation uses the table in force on the ship date and the zone from the full postcode prefix\". That line leaves out weight and is a note on how the table was computed, not a statement of the problem."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix, such as 'uses today's date', 'should use the ship date', 'the zone lookup tries one digit first', or 'store the fee on the order'. Causes found in the code may appear, but apart from the statement, as evidence for it",
+      "passed": false,
+      "evidence": "The statement is the causes themselves: \"The rate table is chosen by today's date, not the ship date\" and \"`zone_for` tries 1-character prefixes before 2-character ones.\" There is no cause-free statement that these findings support."
+    },
+    {
+      "assertion": "The problem statement covers both complaints (the September rates and the 59xxx zone), as one problem or two, and is not so vague that any wrong fee would fit it, such as 'fees are sometimes wrong' or 'the fee depends on something outside the order'",
+      "passed": true,
+      "evidence": "It names two specific problems: September shipments priced with the October table, and every `59` postcode zoned as 2 instead of 3. Each is tied to an order: A-1077 has the date problem only, and A-1041 has both."
+    }
+  ],
+  "judge": "opus"
+}

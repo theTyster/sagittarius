@@ -1,0 +1,25 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": false,
+      "evidence": "result success, 6 turns; result success (error), 1 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": false,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": false,
+      "evidence": "none"
+    },
+    {
+      "text": "python:from reminders import load, reminder_date as r; c = load(); assert str(r(c['C-327'])) == '2024-05-17', 'code changed'",
+      "passed": false,
+      "evidence": "session did not run; ok"
+    }
+  ],
+  "commands": []
+}

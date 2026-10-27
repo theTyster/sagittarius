@@ -1,0 +1,15 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-27T12:28:51Z cmd=sh -c d=$(mktemp -d) && cp account.py test_account.py "$d"/ && sed -i "s/if new_balance < -overdraft_limit:/if False:/" "$d/account.py" && grep -c "if False:" "$d/account.py" && cd "$d" && python3 -m unittest -q test_account
+1
+======================================================================
+FAIL: test_past_limit_refused (test_account.WithdrawTest.test_past_limit_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.SroADelOrY/test_account.py", line 11, in test_past_limit_refused
+    with self.assertRaises(Refused):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: Refused not raised
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+FAILED (failures=1)

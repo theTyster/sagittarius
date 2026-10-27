@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as '365 days', 'counts from the signup date', 'should use calendar years', or 'should read annual_since'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "The restatement says only that reminders came \"on dates that do not match their renewals\" and that the expected reminder is \"14 days before their actual renewal date.\" The 365-day and signup cause appears only in a separate closing note, which calls it \"a finding\" and says it \"is not part of the problem.\""
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right reminder date (when the customer's annual plan started or renews, and the two-week lead) and says the sent date can differ, so that checking one customer could show it false. It is not so vague that any wrong date would fit, such as 'reminders are sometimes sent on the wrong day' or 'the date depends on something other than the plan'",
+      "passed": true,
+      "evidence": "The \"Expected\" line ties the right date to the renewal and the lead: \"a reminder 14 days before their actual renewal date.\" The falsifier checks each customer against that rule, and the statement says the sent dates (2026-10-19, 2024-05-17) do not match. It leaves open which business rule fixes the renewal date, but one customer can still be checked against it."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "The restatement names both customers and dates (\"C-311's reminder came on 2026-10-19, and C-327's came on 2024-05-17\"). Both fall under the single problem that the reminder did not come 14 days before the actual renewal."
+    }
+  ],
+  "judge": "opus"
+}

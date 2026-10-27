@@ -1,0 +1,16 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-27T12:27:06Z cmd=python3 -m unittest test_slugify.SlugifyTest.test_collapse
+E
+======================================================================
+ERROR: test_slugify (unittest.loader._FailedTest.test_slugify)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_slugify
+Traceback (most recent call last):
+  File "/usr/lib64/python3.14/unittest/loader.py", line 141, in loadTestsFromName
+    module = __import__(module_name)
+ModuleNotFoundError: No module named 'test_slugify'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
