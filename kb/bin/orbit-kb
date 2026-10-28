@@ -4621,29 +4621,29 @@ has_discovery(KB) :- kb_uses(KB, U), memberchk(discovery, U).
 % current round. A query can still read them: this is the honest path,
 % not a lock.
 vote_section(Eng) :-
-    say("Vote:", []),
+    rsay(head('Vote'), "Vote:", []),
     ( eng_all(Eng, [Rq], request(Rq, _), [Rq1|_]) -> true ; Rq1 = 'REQUEST' ),
     eng_all(Eng, [R], vote_round(R), Rs),
     (   Rs == []
-    ->  say("- No vote yet. The agent votes first, and seals the vote: orbit-kb attest vote ~w 'vote(1, CHOICE)'. CHOICE is go, no_go, or hold.", [Rq1])
+    ->  rsay(vote, "- No vote yet. The agent votes first, and seals the vote: orbit-kb attest vote ~w 'vote(1, CHOICE)'. CHOICE is go, no_go, or hold.", [Rq1])
     ;   Rs = [R1|_],
         eng_all(Eng, [H], human_vote(H), Hs),
         eng_all(Eng, [A], agent_vote(A), As),
         (   Hs == []
-        ->  say("- Round ~w. The human has not voted. The other votes stay sealed until the human votes.", [R1]),
+        ->  rsay(vote, "- Round ~w. The human has not voted. The other votes stay sealed until the human votes.", [R1]),
             (   As == []
-            ->  say("- The agent has not voted. Vote first: orbit-kb attest vote ~w 'vote(~w, CHOICE)'.", [Rq1, R1])
-            ;   say("- The agent voted. Its vote is sealed.", [])
+            ->  rsay(vote, "- The agent has not voted. Vote first: orbit-kb attest vote ~w 'vote(~w, CHOICE)'.", [Rq1, R1])
+            ;   rsay(vote, "- The agent voted. Its vote is sealed.", [])
             ),
-            say("- Record the human vote: orbit-kb attest vote ~w 'vote(~w, CHOICE)' --by human.", [Rq1, R1])
+            rsay(vote, "- Record the human vote: orbit-kb attest vote ~w 'vote(~w, CHOICE)' --by human.", [Rq1, R1])
         ;   atomic_list_concat(Hs, ', ', HT),
             ( As == [] -> AT = 'no vote' ; atomic_list_concat(As, ', ', AT) ),
             ( eng_all(Eng, [V], artifact_vote(V), [V1|_]) -> true ; V1 = 'no vote' ),
-            say("- Round ~w. Human (0.4): ~w. Agent (0.3): ~w. Formal artifacts (0.3): ~w.", [R1, HT, AT, V1]),
+            rsay(vote, "- Round ~w. Human (0.4): ~w. Agent (0.3): ~w. Formal artifacts (0.3): ~w.", [R1, HT, AT, V1]),
             eng_all(Eng, [G], gate(G), Gs0), sort(Gs0, Gs), atomic_list_concat(Gs, ', ', GT),
-            say("- Outcome: ~w.", [GT]),
+            rsay(vote, "- Outcome: ~w.", [GT]),
             (   eng_true(Eng, gate_split)
-            ->  say("- The vote is split. The outcome is hold, and another orbit follows. Record the disagreement as a divergence, with a note: orbit-kb attest divergence H 'hypothesis(H)'.", [])
+            ->  rsay(vote, "- The vote is split. The outcome is hold, and another orbit follows. Record the disagreement as a divergence, with a note: orbit-kb attest divergence H 'hypothesis(H)'.", [])
             ;   true
             )
         )
@@ -4864,18 +4864,41 @@ waiver_kind(Eng, X, K) :-
     ;   K = 'unknown id'
     ).
 
+% report_rec(Tag, Line) (D16): each line that report printed, in order,
+% with the item that it is about. report --html builds the page from
+% these records, so the page and the text cannot disagree.
+:- dynamic report_rec/2.
+
+% rsay(+Tag, +Fmt, +Args): print one line of the report, as say/2 does,
+% and record it.
+rsay(Tag, Fmt, Args) :-
+    format(string(S), Fmt, Args),
+    format("~w~n", [S]),
+    assertz(report_rec(Tag, S)).
+
 cmd_report(KB, Args, Code) :-
-    parse_opts(Args, [], Pos, _),
+    parse_opts(Args, ['--html'-value, '--open'-flag], Pos, Opts),
     ( Pos == [] -> true ; usage_error("report takes no arguments.", []) ),
+    opt(Opts, '--html', none, Html),
+    opt(Opts, '--open', false, Open),
+    ( Open == true, Html == none -> usage_error("--open needs --html FILE.", []) ; true ),
     kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
     answer_gate(KB),
     kb_engine(KB, Eng),
+    retractall(report_rec(_, _)),
+    report_text(KB, Eng),
+    (   Html == none
+    ->  Code = 0
+    ;   report_page(KB, Eng, Html, Open, Code)
+    ).
+
+report_text(KB, Eng) :-
     Build = has_build(KB),
-    say("Delivered:", []),
-    say("- (Write what you delivered here.)", []),
-    say("Claims:", []),
+    rsay(head('Delivered'), "Delivered:", []),
+    rsay(placeholder, "- (Write what you delivered here.)", []),
+    rsay(head('Claims'), "Claims:", []),
     eng_all(Eng, [C, L, T], ( claim(C, L, T), current(C) ), Cs),
-    (   Cs == [] -> say("- No current claims.", []) ; true ),
+    (   Cs == [] -> rsay(none, "- No current claims.", []) ; true ),
     % One query per relation, then lookups (see eng_set/4).
     ( call(Build) -> eng_set(Eng, X1, fulfilled(X1), FulS), burn_sets(Eng, BSets) ; true ),
     eng_groups(Eng, C2, K2, check(K2, C2), ChecksBy),
@@ -4883,38 +4906,40 @@ cmd_report(KB, Args, Code) :-
     forall(member([C, L, T], Cs),
            ( txt(T, TT),
              (   call(Build)
-             ->  (   eng_member(Eng, FulS, C, fulfilled(C)) -> St0 = " Status: fulfilled."
+             ->  (   eng_member(Eng, FulS, C, fulfilled(C)) -> St0 = " Status: fulfilled.", SK = fulfilled
                  ;   eng_all(Eng, [WK, WD], ( check(WK, C), attest(WW, waiver, _, waive(WK, WD, _), human, _), not(waiver_lapsed(WW)) ), [[WK1, WD1]|_])
-                 ->  fmt(St0, " Status: not fulfilled. A human waived check ~w until ~w, so the claim does not block done until then.", [WK1, WD1])
-                 ;   St0 = " Status: under. It is not fulfilled yet."
+                 ->  fmt(St0, " Status: not fulfilled. A human waived check ~w until ~w, so the claim does not block done until then.", [WK1, WD1]),
+                     SK = waived
+                 ;   St0 = " Status: under. It is not fulfilled yet.", SK = under
                  ),
                  burn_text(Eng, BSets, C, BT),
                  string_concat(St0, BT, St)
-             ;   St = ""
+             ;   St = "", St0 = "", BT = "", SK = none
              ),
              eng_lookup(Eng, ChecksBy, C, K, check(K, C), Ks),
+             findall(K-KS, ( member(K, Ks), check_state(Eng, KSets, K, KS) ), KStates),
              (   Ks == [] -> KT = " Checks: none."
-             ;   findall(S, ( member(K, Ks), check_state(Eng, KSets, K, KS), fmt(S, "~w (~w)", [K, KS]) ), Ss),
+             ;   findall(S, ( member(K-KS, KStates), fmt(S, "~w (~w)", [K, KS]) ), Ss),
                  atomic_list_concat(Ss, ', ', SsT), fmt(KT, " Checks: ~w.", [SsT])
              ),
-             say("- ~w (~w): ~w~w~w", [C, L, TT, St, KT]) )),
-    say("Guesses:", []),
+             rsay(claim(C, L, TT, SK, St0, BT, KStates), "- ~w (~w): ~w~w~w", [C, L, TT, St, KT]) )),
+    rsay(head('Guesses'), "Guesses:", []),
     eng_all(Eng, [Q, A], ( assumed(Q, A), not(answered(Q)) ), Gs),
-    (   Gs == [] -> say("- None. A human answered every question with a default.", []) ; true ),
+    (   Gs == [] -> rsay(none, "- None. A human answered every question with a default.", []) ; true ),
     eng_groups(Eng, Q5, QT5, question(Q5, _, QT5), QTextBy),
     forall(member([Q, A], Gs),
            ( term_text(A, AT),
              ( eng_lookup(Eng, QTextBy, Q, QT, question(Q, _, QT), [QT1|_]) -> txt(QT1, QTT) ; QTT = "" ),
-             say("- ~w: ~w The default is ~w. No human answered it.", [Q, QTT, AT]) )),
-    say("Disclosures:", []),
+             rsay(item(Q), "- ~w: ~w The default is ~w. No human answered it.", [Q, QTT, AT]) )),
+    rsay(head('Disclosures'), "Disclosures:", []),
     eng_all(Eng, [I, S0, P, B], attest(I, disclosure, S0, P, B, _), Ds),
-    (   Ds == [] -> say("- None.", []) ; true ),
+    (   Ds == [] -> rsay(none, "- None.", []) ; true ),
     forall(member([I, S0, P, B], Ds),
-           ( term_text(P, PT), say("- ~w: ~w, about ~w, by ~w.", [I, PT, S0, B]) )),
+           ( term_text(P, PT), rsay(item(I), "- ~w: ~w, about ~w, by ~w.", [I, PT, S0, B]) )),
     (   call(Build)
-    ->  say("Waivers:", []),
+    ->  rsay(head('Waivers'), "Waivers:", []),
         eng_all(Eng, [W6, X6, D6, B6], attest(W6, waiver, _, waive(X6, D6, _), B6, _), W6s),
-        (   W6s == [] -> say("- None.", []) ; true ),
+        (   W6s == [] -> rsay(none, "- None.", []) ; true ),
         forall(member([W6, X6, D6, B6], W6s),
                ( waiver_kind(Eng, X6, Kind6),
                  ( atom(D6) -> DT6 = D6 ; term_text(D6, DT6) ),
@@ -4922,16 +4947,16 @@ cmd_report(KB, Args, Code) :-
                  ;   eng_true(Eng, waiver_lapsed(W6)) -> St6 = "lapsed, so the item blocks done again"
                  ;   St6 = "in force"
                  ),
-                 say("- ~w: ~w ~w, due ~w, ~w.", [W6, Kind6, X6, DT6, St6]) ))
+                 rsay(item(W6), "- ~w: ~w ~w, due ~w, ~w.", [W6, Kind6, X6, DT6, St6]) ))
     ;   true
     ),
-    say("Not checked:", []),
+    rsay(head('Not checked'), "Not checked:", []),
     findall([C3, T3], ( member([C3, _, T3], Cs),
                         \+ ( eng_lookup(Eng, ChecksBy, C3, K3, check(K3, C3), [_|_]) ) ),
             NCs),
-    (   NCs == [] -> say("- None. Every current claim has a check.", []) ; true ),
-    forall(member([C3, T3], NCs), ( txt(T3, TT3), say("- ~w: ~w It has no check.", [C3, TT3]) )),
-    say("Open:", []),
+    (   NCs == [] -> rsay(none, "- None. Every current claim has a check.", []) ; true ),
+    forall(member([C3, T3], NCs), ( txt(T3, TT3), rsay(item(C3), "- ~w: ~w It has no check.", [C3, TT3]) )),
+    rsay(head('Open'), "Open:", []),
     eng_all(Eng, [Q4], to_ask(Q4), Q4s),
     eng_all(Eng, [A4], stale(A4), A4s),
     eng_all(Eng, [Y4], supersede_cycle(Y4), Y4s),
@@ -4942,28 +4967,448 @@ cmd_report(KB, Args, Code) :-
         eng_all(Eng, [P4, C5], ( attest(P4, lean_proof, _, proof(C5, _), _, _), proof_changed(P4) ), P4s)
     ;   O4s = [], B4s = [], L4s = [], P4s = []
     ),
-    forall(member(Q4, Q4s), say("- Ask question ~w now.", [Q4])),
-    forall(member(A4, A4s), say("- Approval ~w is stale. The subject changed after the approval.", [A4])),
+    forall(member(Q4, Q4s), rsay(open(to_ask, Q4, none), "- Ask question ~w now.", [Q4])),
+    forall(member(A4, A4s), rsay(open(stale, A4, none), "- Approval ~w is stale. The subject changed after the approval.", [A4])),
     forall(member(Y4, Y4s),
            (   eng_true(Eng, claim(Y4, _, _))
-           ->  say("- Claim ~w is in a supersede cycle. It replaces itself, so it is not current. Remove a supersedes fact (lint E15).", [Y4])
-           ;   say("- Hypothesis ~w is in a supersede cycle. It replaces itself. Remove a supersedes fact (lint E15).", [Y4])
+           ->  rsay(open(supersede_cycle, Y4, none), "- Claim ~w is in a supersede cycle. It replaces itself, so it is not current. Remove a supersedes fact (lint E15).", [Y4])
+           ;   rsay(open(supersede_cycle, Y4, none), "- Hypothesis ~w is in a supersede cycle. It replaces itself. Remove a supersedes fact (lint E15).", [Y4])
            )),
-    forall(member(O4, O4s), say("- Change ~w serves no claim.", [O4])),
-    forall(member(B4, B4s), say("- Claim ~w needs a Lean proof. Prove it with orbit-kb prove, or ask a human for a waiver.", [B4])),
+    forall(member(O4, O4s), rsay(open(over, O4, none), "- Change ~w serves no claim.", [O4])),
+    forall(member(B4, B4s), rsay(open(burn_open, B4, B4), "- Claim ~w needs a Lean proof. Prove it with orbit-kb prove, or ask a human for a waiver.", [B4])),
     forall(member([W4, C4, D4], L4s),
            ( waiver_kind(Eng, C4, K4),
-             (   K4 == claim -> say("- Waiver ~w of the proof of claim ~w was due at ~w. The proof is due now.", [W4, C4, D4])
-             ;   K4 == check -> say("- Waiver ~w of check ~w was due at ~w. The check must pass now.", [W4, C4, D4])
-             ;   K4 == question -> say("- Waiver ~w of question ~w was due at ~w. Ask the question now, if it is still open.", [W4, C4, D4])
-             ;   say("- Waiver ~w of ~w was due at ~w.", [W4, C4, D4])
+             Tag4 = open(waiver_lapsed, W4, C4),
+             (   K4 == claim -> rsay(Tag4, "- Waiver ~w of the proof of claim ~w was due at ~w. The proof is due now.", [W4, C4, D4])
+             ;   K4 == check -> rsay(Tag4, "- Waiver ~w of check ~w was due at ~w. The check must pass now.", [W4, C4, D4])
+             ;   K4 == question -> rsay(Tag4, "- Waiver ~w of question ~w was due at ~w. Ask the question now, if it is still open.", [W4, C4, D4])
+             ;   rsay(Tag4, "- Waiver ~w of ~w was due at ~w.", [W4, C4, D4])
              ) )),
-    forall(member([P4, C5], P4s), say("- Proof ~w of claim ~w no longer counts. A file of the proof changed. Run orbit-kb prove again.", [P4, C5])),
-    (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], L4s == [], P4s == [] -> say("- Nothing is open.", []) ; true ),
+    forall(member([P4, C5], P4s), rsay(open(proof_changed, P4, C5), "- Proof ~w of claim ~w no longer counts. A file of the proof changed. Run orbit-kb prove again.", [P4, C5])),
+    (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], L4s == [], P4s == [] -> rsay(none, "- Nothing is open.", []) ; true ),
     ( has_discovery(KB) -> vote_section(Eng) ; true ),
-    say("To land:", []),
-    say("- (Write the steps to land the work here.)", []),
-    Code = 0.
+    rsay(head('To land'), "To land:", []),
+    rsay(placeholder, "- (Write the steps to land the work here.)", []).
+
+% ---------------------------------------------------------------------
+% report --html (D16): the delivery report as one page
+% ---------------------------------------------------------------------
+% The page is built from the records of report_text/2 (report_rec/2),
+% plus evidence read from facts. It derives no status itself. It also
+% cross-checks the open relations, because the text report runs only
+% the SWI engine. The page cannot write to the KB: review marks stay in
+% the browser (localStorage) and leave it as text that the reviewer
+% pastes back.
+
+report_page(KB, Eng, Html, Open, Code) :-
+    findall(Tag-S, report_rec(Tag, S), Recs),
+    findall(S, member(_-S, Recs), Lines),
+    atomic_list_concat(Lines, '\n', T0), string_concat(T0, "\n", Text),
+    sha256_text(Text, Digest),
+    report_crosscheck(KB, XCs),
+    page_assets(Css, Js),
+    absolute_file_name(Html, Abs),
+    with_output_to(string(Page),
+                   page_write(KB, Eng, Recs, Text, Digest, XCs, Css, Js)),
+    catch(setup_call_cleanup(open(Abs, write, Out, [encoding(utf8)]),
+                             write(Out, Page),
+                             close(Out)),
+          E, ( err_text(E, M),
+               die(2, ["Cannot write the page " + Abs + ": " + M,
+                       "Fix: give a path in a directory that exists and that you can write."] >> fix_lines) )),
+    format(user_error, "HTML written to ~w~n", [Abs]),
+    ( Open == true -> open_page(Abs) ; true ),
+    ( memberchk(xc(_, disagree(_), _), XCs) -> Code = 2 ; Code = 0 ).
+
+% page_assets(-Css, -Js): the style and the script of the page, from the
+% library (report/page.css, report/page.js). They are inlined.
+page_assets(Css, Js) :-
+    lib_dir(Lib),
+    maplist(page_asset(Lib), ['report/page.css', 'report/page.js'], [Css, Js]).
+
+page_asset(Lib, Rel, Text) :-
+    directory_file_path(Lib, Rel, F),
+    (   exists_file(F)
+    ->  read_file_to_string(F, Text, [encoding(utf8)])
+    ;   die(2, ["The library has no " + Rel + " (" + F + ").",
+                "Fix: check ORBIT_KB_LIB, or run install.py again."] >> fix_lines)
+    ).
+
+% open_page(+File): --open. xdg-open, else open. It does not wait.
+open_page(File) :-
+    (   member(Exe, ['xdg-open', open]),
+        absolute_file_name(path(Exe), P, [access(execute), file_errors(fail)])
+    ->  catch(( process_create(P, [File], [stdin(null), stdout(null), stderr(null),
+                                           detached(true), process(_)]),
+                format(user_error, "Opened the page with ~w.~n", [Exe]) ),
+              E, ( err_text(E, M), format(user_error, "Could not open the page with ~w: ~w~n", [Exe, M]) ))
+    ;   format(user_error, "Could not open the page: no xdg-open or open on PATH. Open ~w in a browser.~n", [File])
+    ).
+
+% report_crosscheck(+KB, -XCs): cross-check the relations that make the
+% open items. XC = xc(GoalText, Verdict, SwiAnswers), Verdict = agree |
+% disagree(Reason) | skipped(Why). A disagreement is printed on stderr,
+% as query prints it.
+report_crosscheck(KB, XCs) :-
+    kb_items(KB, Items),
+    items_decls(Items, Ds),
+    (   has_build(KB)
+    ->  GTs = ["done", "under(X)", "burn_open(X)", "to_ask(X)"]
+    ;   GTs = ["to_ask(X)"]
+    ),
+    maplist(xc_goal, GTs, GVs),
+    findall(G, member(G-_, GVs), Gs),
+    prepare(Items, Ds, Gs, Ctx),
+    maplist(xc_start(Ctx), GVs, Ps),
+    maplist(xc_finish, GVs, Ps, XCs).
+
+xc_goal(GT, G-VN) :- parse_goal(GT, G, VN).
+xc_start(Ctx, G-VN, P) :- eval_start(Ctx, G, VN, 0, P).
+
+xc_finish(G-VN, P, xc(GT, V, NA)) :-
+    eval_finish(P, ResA, Extra),
+    ( Extra = disagree(ResB) -> Res = ResB ; Res = ResA ),
+    Res = res(_, SwiRes, ScRes, _),
+    term_text(G, VN, GT),
+    ( SwiRes = answers(L, _) -> length(L, NA) ; NA = none ),
+    (   SwiRes = skipped(Why)
+    ->  V = skipped(Why)
+    ;   ScRes = timeout(T)
+    ->  fmt(W, "s(CASP) timed out after ~w s", [T]), V = skipped(W)
+    ;   crosscheck(Res, disagree(Reason))
+    ->  print_disagreement(user_error, GT, Res, Reason),
+        V = disagree(Reason)
+    ;   Extra = timeout(TB)
+    ->  fmt(W, "s(CASP) timed out after ~w s while it looked for more answers", [TB]), V = skipped(W)
+    ;   V = agree
+    ).
+
+% --- HTML helpers. Every KB string goes through esc/2 or he/1.
+
+esc(X, S) :-
+    plain_text(X, T0),
+    string_codes(T0, Cs),
+    html_esc_codes(Cs, Es),
+    string_codes(S, Es).
+
+html_esc_codes([], []).
+html_esc_codes([C|Cs], Out) :-
+    (   html_esc_code(C, E)
+    ->  string_codes(E, ECs), append(ECs, Rest, Out)
+    ;   Out = [C|Rest]
+    ),
+    html_esc_codes(Cs, Rest).
+
+html_esc_code(0'&, "&amp;").
+html_esc_code(0'<, "&lt;").
+html_esc_code(0'>, "&gt;").
+html_esc_code(0'", "&quot;").
+html_esc_code(0'', "&#39;").
+
+he(X) :- esc(X, S), write(S).
+
+% file_url(+Path, -Url): a file:// URL, percent-encoded as a URI path.
+file_url(Path, Url) :-
+    use_module(library(uri)),
+    uri_encoded(path, Path, Enc),
+    atom_concat('file://', Enc, Url).
+
+strip_dash(S0, S) :- ( sub_string(S0, 0, 2, _, "- ") -> sub_string(S0, 2, _, 0, S) ; S = S0 ).
+trim_lead(S0, S) :- ( sub_string(S0, 0, 1, _, " ") -> sub_string(S0, 1, _, 0, S) ; S = S0 ).
+
+status_glyph(fulfilled, "&#10003;").
+status_glyph(under, "&#10007;").
+status_glyph(waived, "&#9684;").
+status_glyph(none, "&#8211;").
+
+% mark_box(+Key): the review marks of one item. Items with the same key
+% share one mark.
+mark_box(Key) :-
+    esc(Key, K),
+    format("<div class=\"mark\" role=\"group\" aria-label=\"Review of ~w\" data-key=\"~w\">", [K, K]),
+    forall(member(M, [ok, doubt, wrong]),
+           format("<button type=\"button\" data-mark=\"~w\" aria-pressed=\"false\">~w</button>", [M, M])),
+    format("<input type=\"text\" maxlength=\"300\" placeholder=\"Note (optional)\" aria-label=\"Note on ~w\">", [K]),
+    format("</div>~n", []).
+
+% records of one section: the records after head(Name), up to the next head
+section_recs(Recs, Name, Out) :-
+    (   append(_, [head(Name)-_|After], Recs)
+    ->  ( append(Out, [head(_)-_|_], After) -> true ; Out = After )
+    ;   Out = []
+    ).
+
+page_write(KB, Eng, Recs, Text, Digest, XCs, Css, Js) :-
+    kb_dir(KB, Dir),
+    get_time(Now), format_time(string(When), "%FT%TZ", Now, posix),
+    findall(C-SK, member(claim(C, _, _, SK, _, _, _)-_, Recs), CSKs),
+    length(CSKs, NC),
+    findall(K-N, ( member(K, [fulfilled, under, waived]),
+                   aggregate_all(count, member(_-K, CSKs), N), N > 0 ), Counts),
+    findall(C, member(C-under, CSKs), Unders),
+    section_recs(Recs, 'Open', OpenRecs),
+    findall(X, ( member(X-_, OpenRecs), X = open(_, _, _) ), OpenItems),
+    findall(XC, ( member(XC, XCs), XC = xc(_, disagree(_), _) ), Dis),
+    length(Unders, NU), length(OpenItems, NO), length(Dis, ND),
+    NOpen is NU + NO + ND,
+    format("<!doctype html>~n<html lang=\"en\">~n<head>~n<meta charset=\"utf-8\">~n", []),
+    format("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">~n", []),
+    format("<meta name=\"generator\" content=\"orbit-kb report --html\">~n", []),
+    file_base_name(Dir, Base),
+    format("<title>Delivery report: ", []), he(Base), format("</title>~n<style>~n~w</style>~n</head>~n", [Css]),
+    esc(Dir, DirE), esc(Digest, DigE),
+    format("<body data-kb=\"~w\" data-digest=\"~w\">~n<div class=\"wrap\">~n", [DirE, DigE]),
+    % header
+    format("<header class=\"top\">~n<h1>Delivery report</h1>~n", []),
+    eng_all(Eng, [R, RT], request(R, RT), Rqs),
+    forall(member([R, RT], Rqs),
+           ( format("<p class=\"request\"><span class=\"id\">", []), he(R),
+             format("</span> ", []), he(RT), format("</p>~n", []) )),
+    format("<p class=\"meta\">KB <code>~w</code><br>Written ~w. Report <code title=\"~w\">", [DirE, When, DigE]),
+    sub_string(Digest, 7, 12, _, DShort), he(DShort),
+    format("</code></p>~n<ul class=\"chips\" aria-label=\"Summary\">~n", []),
+    plural(NC, PC), format("<li class=\"chip\">~w claim~w</li>~n", [NC, PC]),
+    forall(member(K-N, Counts),
+           ( status_glyph(K, G),
+             format("<li class=\"chip st-~w\"><span aria-hidden=\"true\">~w</span> ~w ~w</li>~n", [K, G, N, K]) )),
+    (   NOpen =:= 0
+    ->  format("<li class=\"chip st-fulfilled\">nothing open</li>~n", [])
+    ;   plural(NOpen, PO),
+        format("<li class=\"chip st-under\"><a href=\"#open\">~w open item~w</a></li>~n", [NOpen, PO])
+    ),
+    (   member(xc(GTd, _, ND0), XCs), text_to_string(GTd, "done"), integer(ND0)
+    ->  ( ND0 > 0 -> DoneT = "done: yes", DoneK = fulfilled ; DoneT = "done: no", DoneK = under ),
+        format("<li class=\"chip st-~w\">~w</li>~n", [DoneK, DoneT])
+    ;   true
+    ),
+    format("</ul>~n", []),
+    page_crosscheck(XCs),
+    format("<p class=\"tools\"><button type=\"button\" id=\"expand-all\">Show all evidence</button></p>~n", []),
+    format("</header>~n<main>~n", []),
+    % open items first
+    format("<section data-section=\"open\" id=\"open\" aria-labelledby=\"h-open\">~n<h2 id=\"h-open\">Open: needs a decision or more work</h2>~n", []),
+    (   NOpen =:= 0
+    ->  format("<p class=\"empty\">Nothing is open.</p>~n", [])
+    ;   format("<ul class=\"open\">~n", []),
+        forall(member(claim(C, L, TT, under, St0, BT, _)-_, Recs),
+               ( esc(C, CE),
+                 format("<li data-open=\"under\" data-ref=\"~w\"><span class=\"badge st-under\">under</span> <a href=\"#claim-~w\">Claim ~w</a> (", [CE, CE, CE]),
+                 he(L), format("): ", []), he(TT), format(". ", []),
+                 trim_lead(St0, St1), he(St1), he(BT),
+                 format("~n", []), mark_box(C), format("</li>~n", []) )),
+        forall(member(open(Kind, Ref, Tgt)-S, OpenRecs),
+               ( esc(Ref, RE), open_label(Kind, Lab),
+                 format("<li data-open=\"~w\" data-ref=\"~w\"><span class=\"badge st-under\">~w</span> ", [Kind, RE, Lab]),
+                 strip_dash(S, S1), he(S1),
+                 open_link(Eng, Recs, Kind, Ref, Tgt),
+                 format("~n", []), mark_box(Ref), format("</li>~n", []) )),
+        forall(member(xc(GT, disagree(Reason), _), Dis),
+               ( format("<li data-open=\"disagreement\" data-ref=\"", []), he(GT),
+                 format("\"><span class=\"badge st-under\">engines disagree</span> ENGINE DISAGREEMENT on <code>", []), he(GT),
+                 format("</code>. ", []), he(Reason),
+                 format(" Do not trust either answer until you find the cause. Run orbit-kb query on the goal for the details.~n", []),
+                 mark_box(engines), format("</li>~n", []) )),
+        format("</ul>~n", [])
+    ),
+    format("</section>~n", []),
+    % claims
+    format("<section data-section=\"claims\" id=\"claims\" aria-labelledby=\"h-claims\">~n<h2 id=\"h-claims\">Claims</h2>~n", []),
+    (   NC =:= 0 -> format("<p class=\"empty\">No current claims.</p>~n", []) ; true ),
+    forall(member(claim(C, L, TT, SK, St0, BT, KStates)-_, Recs),
+           page_claim(KB, Eng, C, L, TT, SK, St0, BT, KStates)),
+    format("</section>~n", []),
+    % the other sections, from the text lines
+    page_list(Recs, 'Guesses', guesses, "Guesses", "Defaults that no human answered. Say if one is wrong."),
+    page_list(Recs, 'Disclosures', disclosures, "Disclosures", ""),
+    (   has_build(KB) -> page_list(Recs, 'Waivers', waivers, "Waivers", "") ; true ),
+    page_list(Recs, 'Not checked', not_checked, "Not checked", ""),
+    (   has_discovery(KB) -> page_list(Recs, 'Vote', vote, "Vote", "") ; true ),
+    format("<section data-section=\"text\" id=\"text\">~n<h2>Plain text</h2>~n<details><summary>The text of orbit-kb report</summary>~n<pre class=\"text\">", []),
+    he(Text),
+    format("</pre>~n</details>~n</section>~n</main>~n</div>~n", []),
+    % review bar
+    format("<footer class=\"review\" id=\"review\" aria-label=\"Review\">~n<div class=\"inner\">~n", []),
+    format("<span id=\"review-count\" aria-live=\"polite\">No marks yet.</span>~n", []),
+    format("<button type=\"button\" id=\"review-copy\">Copy review for the agent</button>~n", []),
+    format("<button type=\"button\" id=\"review-clear\">Clear marks</button>~n", []),
+    format("<span id=\"review-msg\" role=\"status\"></span>~n", []),
+    format("<textarea id=\"review-text\" rows=\"5\" spellcheck=\"false\" aria-label=\"Review text to paste to the agent\" hidden></textarea>~n", []),
+    format("</div>~n</footer>~n<script>~n~w</script>~n</body>~n</html>~n", [Js]).
+
+plural(N, S) :- ( N =:= 1 -> S = "" ; S = "s" ).
+
+open_label(to_ask, "ask").
+open_label(stale, "stale").
+open_label(supersede_cycle, "cycle").
+open_label(over, "over").
+open_label(burn_open, "burn open").
+open_label(waiver_lapsed, "waiver lapsed").
+open_label(proof_changed, "proof changed").
+
+% open_link: a link to the claim that an open item is about, when the
+% claim is on the page.
+open_link(Eng, Recs, Kind, Ref, Tgt) :-
+    (   Kind == to_ask, eng_all(Eng, [C], question(Ref, C, _), [C1|_]) -> T = C1
+    ;   Tgt \== none -> T = Tgt
+    ;   T = none
+    ),
+    (   T \== none, memberchk(claim(T, _, _, _, _, _, _)-_, Recs)
+    ->  esc(T, TE), format(" <a href=\"#claim-~w\">See claim ~w.</a>", [TE, TE])
+    ;   true
+    ).
+
+page_crosscheck(XCs) :-
+    (   XCs == [] -> true
+    ;   findall(GT, member(xc(GT, _, _), XCs), GTs),
+        (   memberchk(xc(_, disagree(_), _), XCs) -> V = disagree
+        ;   memberchk(xc(_, skipped(_), _), XCs) -> V = skipped
+        ;   V = agree
+        ),
+        format("<p class=\"xc xc-~w\" data-crosscheck=\"~w\">", [V, V]),
+        (   V == agree
+        ->  format("Both engines agree on ", [])
+        ;   V == disagree
+        ->  format("<strong>The engines disagree.</strong> See the open items. Cross-checked: ", [])
+        ;   format("Not all relations were cross-checked. Cross-checked: ", [])
+        ),
+        forall(nth1(I, GTs, GT), ( ( I > 1 -> write(", ") ; true ), format("<code>", []), he(GT), format("</code>", []) )),
+        format(".", []),
+        forall(member(xc(GT, skipped(W), _), XCs),
+               ( format(" Not cross-checked: <code>", []), he(GT), format("</code> (", []), he(W), format(").", []) )),
+        format("</p>~n", [])
+    ).
+
+% page_list: a section of the text report as a list, one item per line,
+% with marks on items that have an id.
+page_list(Recs, Head, Id, Title, Lead) :-
+    section_recs(Recs, Head, Rs),
+    format("<section data-section=\"~w\" id=\"~w\" aria-labelledby=\"h-~w\">~n<h2 id=\"h-~w\">~w</h2>~n", [Id, Id, Id, Id, Title]),
+    (   Lead \== "", member(item(_)-_, Rs) -> format("<p class=\"lead\">~w</p>~n", [Lead]) ; true ),
+    format("<ul class=\"items\">~n", []),
+    forall(member(Tag-S, Rs),
+           ( strip_dash(S, S1),
+             (   Tag = item(X)
+             ->  format("<li>", []), he(S1),
+                 (   Head == 'Not checked' -> esc(X, XE), format(" <a href=\"#claim-~w\">See claim ~w.</a>", [XE, XE]) ; true ),
+                 format("~n", []), mark_box(X), format("</li>~n", [])
+             ;   format("<li class=\"plain\">", []), he(S1), format("</li>~n", [])
+             ) )),
+    format("</ul>~n</section>~n", []).
+
+% page_claim: one claim, its status as the text report says it, and its
+% evidence.
+page_claim(KB, Eng, C, L, TT, SK, St0, BT, KStates) :-
+    esc(C, CE),
+    eng_all(Eng, [D, B, Tm], attest(D, divergence, _, claim(C), B, Tm), Dvs),
+    % The evidence starts open when the claim needs attention.
+    (   SK \== fulfilled -> Det = " open"
+    ;   sub_string(BT, _, _, _, "A Lean proof is required") -> Det = " open"
+    ;   Dvs \== [] -> Det = " open"
+    ;   Det = ""
+    ),
+    format("<article class=\"claim\" id=\"claim-~w\" data-claim=\"~w\" data-status=\"~w\">~n", [CE, CE, SK]),
+    status_glyph(SK, G),
+    format("<div class=\"chead\"><span class=\"id\">~w</span> <span class=\"label\">", [CE]), he(L),
+    format("</span> <span class=\"badge st-~w\"><span aria-hidden=\"true\">~w</span>~w</span>", [SK, G, SK]),
+    (   BT == "" -> true
+    ;   eng_true(Eng, burn_proved(C)) -> format(" <span class=\"badge st-fulfilled\">burn proved</span>", [])
+    ;   sub_string(BT, _, _, _, "waived") -> format(" <span class=\"badge st-waived\">burn not proved, waived</span>", [])
+    ;   format(" <span class=\"badge st-under\">burn not proved</span>", [])
+    ),
+    format("</div>~n<p class=\"ctext\">", []), he(TT), format("</p>~n", []),
+    (   St0 == "" -> true
+    ;   trim_lead(St0, S1), format("<p class=\"sentence\">", []), he(S1),
+        ( BT == "" -> true ; format(" ", []), trim_lead(BT, B1), he(B1) ),
+        format("</p>~n", [])
+    ),
+    % checks, with the latest run of each
+    (   KStates == []
+    ->  format("<p class=\"checks\">Checks: none.</p>~n", [])
+    ;   format("<ul class=\"checks\" aria-label=\"Checks\">~n", []),
+        forall(member(K-KS, KStates), page_check(KB, Eng, K, KS)),
+        format("</ul>~n", [])
+    ),
+    format("<details class=\"evidence\"~w><summary>Evidence</summary>~n<div class=\"ev\">~n", [Det]),
+    eng_all(Eng, [X], cites(C, X), Xs),
+    ev_list("Cites", Xs, [X1]>>he(X1)),
+    eng_all(Eng, [X], example(C, X), Es),
+    ev_list("Examples", Es, [X1]>>he(X1)),
+    ev_list("Divergences", Dvs, ev_divergence(Eng)),
+    eng_all(Eng, [Q, QT], question(Q, C, QT), Qs),
+    findall(S0, ( S0 = C ; member([S0, _], Qs) ), Subjs),
+    findall([I, P, B, Tm], ( member(S0, Subjs), eng_all(Eng, [I, P, B, Tm], attest(I, disclosure, S0, P, B, Tm), L0), member([I, P, B, Tm], L0) ), Dcs),
+    ev_list("Disclosures", Dcs,
+            [[I1, P1, B1, Tm1]]>>( format("<span class=\"id\">", []), he(I1), format("</span> ", []), he(P1),
+                                   format(", by ", []), he(B1), format(" at ", []), he(Tm1), format(".", []) )),
+    (   has_build(KB)
+    ->  findall(T0, ( T0 = C ; member(K-_, KStates), T0 = K ), Tgts),
+        findall([W, T0, Due, Why, B], ( member(T0, Tgts),
+                                        eng_all(Eng, [W, Due, Why, B], attest(W, waiver, _, waive(T0, Due, Why), B, _), L1),
+                                        member([W, Due, Why, B], L1) ), Wvs),
+        ev_list("Waivers", Wvs, ev_waiver(Eng))
+    ;   true
+    ),
+    ev_list("Questions", Qs, ev_question(Eng)),
+    eng_all(Eng, [N], note(C, N), CNs),
+    ev_list("Notes", CNs, [X1]>>he(X1)),
+    format("</div>~n</details>~n", []),
+    mark_box(C),
+    format("</article>~n", []).
+
+ev_divergence(Eng, [D, B, Tm]) :-
+    format("<span class=\"id\">", []), he(D), format("</span> by ", []), he(B),
+    format(" at ", []), he(Tm), format(".", []),
+    eng_all(Eng, [N], note(D, N), Ns),
+    forall(member(N1, Ns), ( format(" ", []), he(N1) )).
+
+ev_waiver(Eng, [W, T, Due, Why, B]) :-
+    format("<span class=\"id\">", []), he(W), format("</span> waives ", []), he(T),
+    format(" until ", []), he(Due), format(": ", []), he(Why), format(" (", []),
+    (   B \== human -> format("it does not count: a human did not write it", [])
+    ;   eng_true(Eng, waiver_lapsed(W)) -> format("<strong>lapsed</strong>", [])
+    ;   format("in force", [])
+    ),
+    format(").", []).
+
+ev_question(Eng, [Q, QT]) :-
+    format("<span class=\"id\">", []), he(Q), format("</span> ", []), he(QT),
+    plain_text(QT, QTS),
+    ( sub_string(QTS, _, 1, 0, E), sub_atom(".?!", _, 1, _, E) -> true ; format(".", []) ),
+    eng_all(Eng, [A], assumed(Q, A), As),
+    forall(member(A1, As), ( format(" Default: ", []), he(A1), format(".", []) )),
+    eng_all(Eng, [A, Wr], answer(Q, A, Wr), Ans),
+    forall(member([A2, Wr2], Ans), ( format(" Answer by ", []), he(Wr2), format(": ", []), he(A2), format(".", []) )).
+
+ev_list(_, [], _) :- !.
+ev_list(Title, Xs, Goal) :-
+    format("<h3>~w</h3>~n<ul>~n", [Title]),
+    forall(member(X, Xs), ( format("<li>", []), call(Goal, X), format("</li>~n", []) )),
+    format("</ul>~n", []).
+
+% page_check: one check, with its state as the text report says it, and
+% its latest run: number, result, time, and log.
+page_check(KB, Eng, K, KS) :-
+    esc(K, KE),
+    eng_all(Eng, [N, R, Tm], attest(_, test_result, _, result(K, N, R), _, Tm), Runs0),
+    findall(N-[R, Tm], ( member([N, R, Tm], Runs0), integer(N) ), Runs1),
+    keysort(Runs1, Runs),
+    length(Runs, NR),
+    (   last(Runs, N-[R, Tm])
+    ->  format("<li data-check=\"~w\" data-run=\"~w\" data-result=\"~w\">", [KE, N, R]),
+        ( R == pass -> RK = fulfilled ; RK = under ),
+        format("<span class=\"id\">~w</span> ~w. Latest run ~w: <span class=\"badge st-~w\">~w</span> at ", [KE, KS, N, RK, R]),
+        he(Tm),
+        ( NR > 1 -> format(" (~w runs)", [NR]) ; true ),
+        format(". Log ", []),
+        run_log_path(KB, K, N, Abs),
+        format(atom(Rel), "runs/~w-~w.log", [N, K]),
+        (   exists_file(Abs)
+        ->  file_url(Abs, U), esc(U, UE), format("<a href=\"~w\"><code>", [UE]), he(Rel), format("</code></a>.", [])
+        ;   format("<code>", []), he(Rel), format("</code> (missing).", [])
+        )
+    ;   format("<li data-check=\"~w\" data-run=\"none\" data-result=\"none\"><span class=\"id\">~w</span> ~w.", [KE, KE, KS])
+    ),
+    format("</li>~n", []).
 
 % ---------------------------------------------------------------------
 % doctor
@@ -5225,7 +5670,7 @@ help_lines(general, [
 "  why 'GOAL' [-n N] [--long]",
 "  whynot 'GOAL' [--long]",
 "  show [claims|questions|open|disclosures|extensions|all]",
-"  report",
+"  report [--html FILE [--open]]",
 "  doctor",
 "  help [COMMAND|TOPIC]",
 "",
@@ -5416,13 +5861,22 @@ help_lines(show, [
 "open lists to_ask, stale, contested, and supersede_cycle, and under, over, and burn_open when the build module is in use."
 ]).
 help_lines(report, [
-"orbit-kb report",
+"orbit-kb report [--html FILE [--open]]",
 "",
 "Print a delivery report skeleton with these sections:",
-"Delivered, Claims, Guesses, Disclosures, Not checked, Open, To land.",
+"Delivered, Claims, Guesses, Disclosures, Waivers (build), Not checked, Open, To land.",
 "With the discovery module, a Vote section comes before To land. It shows the agent's vote",
 "and the formal artifacts' vote only after the human votes in the current round.",
-"Fill in Delivered and To land yourself."
+"Fill in Delivered and To land yourself.",
+"",
+"--html FILE also writes the report as one page for a human to review in a browser.",
+"The text on stdout does not change. The page works offline. It shows the open items first,",
+"then each claim with its status, its checks (latest run and log), and its evidence.",
+"The reviewer marks items ok, doubt, or wrong, with a note, and copies the marks as text",
+"to paste back to you, such as: c1: doubt - the example does not cover X.",
+"For the page, report also cross-checks done, under, burn_open, and to_ask with s(CASP).",
+"On ENGINE DISAGREEMENT it exits 2, after it writes the page.",
+"--open opens the page with xdg-open (or open). Without --open, nothing opens."
 ]).
 help_lines(doctor, [
 "orbit-kb doctor",

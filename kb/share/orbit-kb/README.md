@@ -786,6 +786,40 @@ After the human votes, it shows the three votes with their weights, the
 outcome (`gate`), and, on a split, a reminder to record a divergence.
 Exit: 0. 2 on E1 or E2 in a source file.
 
+`report --html FILE [--open]` (D16) prints the same text, and also writes the
+report as one HTML page for a human to review in a browser. The page is self-
+contained: its style and script are inline (from `report/page.css` and
+`report/page.js` in the library), and it loads nothing from the network, so it
+works from `file://`. It shows:
+
+- the request, a summary (claims by status, open items, `done`), and whether
+  the two engines agree;
+- first, the open items: each `under` claim, each line of `Open:`, and each
+  engine disagreement;
+- each claim with its status as a text label and a color, the status sentence
+  of the text, and its checks with the latest run (number, result, time, and a
+  link to `runs/N-CHECK.log`). Its evidence expands below it: citations,
+  examples, divergences with their notes, disclosures, waivers with the due
+  time, questions, and notes. It starts open when the claim needs attention;
+- the guesses, disclosures, waivers, `Not checked:`, and `Vote:` lines, and
+  the plain text at the end.
+
+The page is built from the lines that `report` prints, so the two always say
+the same thing. The text report runs only the SWI engine, so for the page
+`report` cross-checks `done`, `under(X)`, `burn_open(X)`, and `to_ask(X)` with
+s(CASP). A disagreement is an open item on the page and is printed on stderr,
+and the exit is 2.
+
+For review, each claim and each item has the marks `ok`, `doubt`, and `wrong`
+and a short note. "Copy review for the agent" writes the marks as text, one
+line per item, such as `c1: doubt - the example does not cover X`, and copies
+it when the browser allows; the text also shows in a box to select. The page
+cannot change the KB. Marks stay in the browser (`localStorage`, under the KB
+path and the digest of the report text), so a new report starts with no marks.
+Every KB string is HTML-escaped. `--open` opens the page with `xdg-open` (or
+`open`); without it, nothing opens. Exit: as `report`; 2 also when the file
+cannot be written, or on an engine disagreement.
+
 ### `doctor`
 
 Examines `swipl`, `scasp`, and the library, and prints a fix step for each
@@ -1900,6 +1934,11 @@ Known gaps:
   cannot name the module fact `hypothesis/3`; the CLI checks the kinds (E4).
   W5 now says to add a new check of the current claim, because a check id
   cannot be reused, and W5 stops once that claim has a check.
+- **D16 (2026-10-28).** `report --html FILE` writes the delivery report as a
+  page for review, because the close-out text was hard to read. Ty asked for
+  "a few UX offerings": open items first, evidence under each claim, and
+  review marks that become text to paste back. The text of `report` does not
+  change (golden files in the tests). `--open` opens the page only when given.
 
 Known limits of `prove` (D10 follow-up, 2026-10-20). `prove` checks the proof of
 an honest agent that can make mistakes; it does not resist an agent that cheats
