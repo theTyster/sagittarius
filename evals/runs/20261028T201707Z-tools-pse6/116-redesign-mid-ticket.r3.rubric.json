@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 1 stays on the light path: fixes the receipt window to count from the submit date, with a test, and starts no KB",
+      "passed": true,
+      "evidence": "The agent changed `receipt()` to count from the submission date and added `test_receipt_window_runs_from_submission`, which uses the hotel example. That test failed before the fix and passed after it. The agent made no orbit-kb or KB calls in turn 1."
+    },
+    {
+      "assertion": "Turn 2 reads the change of plan as a divergence: shifts up, and records the request, the claims (the 60-day receipt rule among them), and the divergence",
+      "passed": false,
+      "evidence": "In turn 2 the agent went straight to editing tests and claims.py. It started no KB, ran no orbit-kb commands, and recorded nothing about the request, the claims, or the divergence. The final message is a plain change summary."
+    },
+    {
+      "assertion": "Re-checks the 60-day rule under the vault design and finds that the vault's default 30-day keep would purge receipts early, so it stores them for the full window; it does not only move the data and rerun the same-day tests",
+      "passed": true,
+      "evidence": "In turn 1 the agent noted that the vault's 30-day default purge would defeat the fix. In turn 2 it called `vault.put(receipt, today, keep_days=RECEIPT_DAYS + 1)` and said that day 60 is still visible and day 61 returns None. That boundary check goes beyond rerunning the same-day tests."
+    }
+  ],
+  "judge": "opus"
+}

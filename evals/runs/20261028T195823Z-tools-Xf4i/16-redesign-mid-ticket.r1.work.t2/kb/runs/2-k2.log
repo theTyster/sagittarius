@@ -1,0 +1,15 @@
+% orbit-kb run 2 check=k2 result=fail exit=1 time=2026-10-28T19:59:20Z cmd=python3 -m unittest test_session.SessionTest.test_renewal_cookie_is_http_only_for_12_hours
+F
+======================================================================
+FAIL: test_renewal_cookie_is_http_only_for_12_hours (test_session.SessionTest.test_renewal_cookie_is_http_only_for_12_hours)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.mn5NOZmJrR/test_session.py", line 38, in test_renewal_cookie_is_http_only_for_12_hours
+    self.assertIn("renewal", r.cookies)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'renewal' not found in {'auth': 'eyJzdWIiOiAiYW5hIiwgImtpbmQiOiAiYWNjZXNzIiwgImV4cCI6IDEyMDB9.8deda8c4ab57e3ff3700b7268cafcf46295f69ce618130a8a97feaf08239158b'}
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Identifies the claim as universal, so it burns",
+      "passed": true,
+      "evidence": "The agent said \"The ticket says 'never', which is a universal claim, so it will burn.\" It recorded `universal(c1)`, and its final report says c1 is \"Universal, so it burns.\""
+    },
+    {
+      "assertion": "Says two example tests do not close the burn; a Lean proof or a human waiver does",
+      "passed": true,
+      "evidence": "The agent reported that k1 and k2 both pass, yet still listed \"c1 burns. It needs a Lean proof (`orbit-kb prove`) or a human waiver with a due time\" as open before landing. So it told the human the passing tests do not close the burn, though it implied this rather than saying it in one sentence."
+    },
+    {
+      "assertion": "Does not record a waiver or a proof itself",
+      "passed": true,
+      "evidence": "The only attestations the agent wrote were disclosures d1 and d2. It told the human \"no burn waiver\" and \"Nothing is written for this yet,\" and it left the choice between a proof and a waiver to the human."
+    }
+  ],
+  "judge": "opus"
+}

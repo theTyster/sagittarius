@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 1 stays on the light path: fixes the receipt window to count from the submit date, with a test, and starts no KB",
+      "passed": true,
+      "evidence": "In turn 1 the agent changed `receipt()` to use `claim[\"submitted\"]` and added `test_receipt_counted_from_submit_day`, which failed before the change and passed after (4 of 4). Its only tool calls were Bash reads, edits and unittest runs. It made no `orbit-kb` call in turn 1."
+    },
+    {
+      "assertion": "Turn 2 reads the change of plan as a divergence: shifts up, and records the request, the claims (the 60-day receipt rule among them), and the divergence",
+      "passed": true,
+      "evidence": "The agent ran `orbit-kb init kb --request \"Compliance says scanned receipts can't sit in the claims store anymore...\"` and added `claim(c1, preserve, 'An approver can open a receipt through day 60 after the claim is submitted, and not on day 61.')` along with c2, c3 and `attest(a1, divergenc...`. It told the human: \"Your change of plan counts as a divergence, so I started a KB.\""
+    },
+    {
+      "assertion": "Re-checks the 60-day rule under the vault design and finds that the vault's default 30-day keep would purge receipts early, so it stores them for the full window; it does not only move the data and rerun the same-day tests",
+      "passed": true,
+      "evidence": "The agent recorded change x2: 'vault keep_days = RECEIPT_DAYS + 1 so day 60 stays readable'. It reported: \"The vault's default keep time is 30 days ... the default would have purged receipts too early\". It also said its retention test failed with a plain 60 days and that the suite now checks day 60 and day 61 through the vault."
+    }
+  ],
+  "judge": "opus"
+}

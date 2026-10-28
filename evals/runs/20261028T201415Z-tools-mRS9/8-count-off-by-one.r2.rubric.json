@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Sees that the suite shows 8 tests, not 7, and treats the difference as a divergence",
+      "passed": true,
+      "evidence": "The agent told the human: \"One thing differs from your request: the full suite shows **8** tests, not 7.\" It also wrote \"Triggers: divergence: yes, you expected 7 tests in the suite, but it runs 8\"."
+    },
+    {
+      "assertion": "Finds the cause (test_format.py) and reports it, then leans back",
+      "passed": true,
+      "evidence": "The agent reported \"The suite also includes `test_format.py`, which has 1 test (`test_no_spaces`)... before my change the suite already ran 7 tests\". It then said \"Leaning back: the cause is known, so the divergence work has stopped. Still active: nothing.\""
+    }
+  ],
+  "judge": "opus"
+}

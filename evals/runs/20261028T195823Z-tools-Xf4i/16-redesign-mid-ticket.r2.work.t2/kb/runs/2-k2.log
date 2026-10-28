@@ -1,0 +1,15 @@
+% orbit-kb run 2 check=k2 result=fail exit=1 time=2026-10-28T19:59:50Z cmd=python3 -m unittest test_session.SessionTest.test_renew_resets_http_only_renewal_cookie
+E
+======================================================================
+ERROR: test_renew_resets_http_only_renewal_cookie (test_session.SessionTest.test_renew_resets_http_only_renewal_cookie)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.xNpSY8e6Qn/test_session.py", line 40, in test_renew_resets_http_only_renewal_cookie
+    self.assertTrue(r2.cookie_attrs["renewal"]["http_only"])
+                    ^^^^^^^^^^^^^^^
+AttributeError: 'Response' object has no attribute 'cookie_attrs'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (errors=1)

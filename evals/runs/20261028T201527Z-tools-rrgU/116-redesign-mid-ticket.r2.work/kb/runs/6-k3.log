@@ -1,0 +1,6 @@
+% orbit-kb run 6 check=k3 result=pass exit=0 time=2026-10-28T20:16:44Z cmd=python3 -m unittest -k test_late_claim_stores_nothing_in_vault
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

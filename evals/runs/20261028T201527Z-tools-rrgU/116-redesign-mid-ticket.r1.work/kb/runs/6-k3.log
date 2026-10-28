@@ -1,0 +1,6 @@
+% orbit-kb run 6 check=k3 result=pass exit=0 time=2026-10-28T20:16:26Z cmd=python3 -m unittest test_claims.ClaimsTest.test_receipt_kept_in_vault_by_reference
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

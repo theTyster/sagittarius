@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "The problem statement names what decides the right fee (weight, zone or destination, and the rates for the order's date) and says the billed fee can differ from it, so that checking one order could confirm or refute it.",
+      "passed": true,
+      "evidence": "The hypothesis reads: \"A parcel's fee should depend on its weight, its zone from the longest matching postal prefix, and the rate table in force on its ship date. The code can fail on each of these.\" That names weight, zone and date-based rates, and says the billed fee can differ."
+    },
+    {
+      "assertion": "The problem statement does not build in a cause or a fix. Causes found in the code may appear only apart from the statement, as evidence for it.",
+      "passed": true,
+      "evidence": "This is a borderline pass. The statement gives the rules that fix the right fee: the zone from the longest matching prefix and the table in force on the ship date. The code causes (`date.today()` and the short prefix tried first) appear only in the separate Bug 1 and Bug 2 sections. The phrase \"longest matching postal prefix\" does echo the proposed fix, but it is worded as the rule for the correct zone, not as a defect in the code."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement, as one problem or two, and the statement can fail: some result it names would show it false.",
+      "passed": true,
+      "evidence": "Both complaints fit. A-1041 has the wrong zone and the wrong date table, and A-1077 has the wrong date table. The statement names the facts that fix the right fee (weight, zone, date table), so recomputing an order can confirm or refute it. The agent's stated falsifier is muddled, though: it treats A-1102, a correctly billed order, as only showing the bugs are \"not universal\"."
+    }
+  ],
+  "judge": "opus"
+}

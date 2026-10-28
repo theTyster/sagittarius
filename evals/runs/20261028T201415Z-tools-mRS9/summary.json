@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "opus",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/new2.md",
+    "prompt_sha256": "ade1b6ed241bc9f7078a0949ac0a7027ad894f2a898f42f50831b234f539204f",
+    "runs": 3,
+    "commit": "5bd4c74",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 8,
+      "name": "count-off-by-one",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "kb_exists": "3/3",
+        "help_before_write": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:divergence_recorded": "3/3",
+        "python:from duration import parse_duration as p; assert (p('2d'), p('1d2h')) == (172800, 93600), (p('2d'), p('1d2h'))": "3/3",
+        "unittest_pass": "3/3"
+      },
+      "rubric": {
+        "Sees that the suite shows 8 tests, not 7, and treats the difference as a divergence": "3/3",
+        "Finds the cause (test_format.py) and reports it, then leans back": "2/3"
+      }
+    }
+  ]
+}

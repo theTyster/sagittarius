@@ -1,0 +1,25 @@
+{
+  "assertions": [
+    {
+      "assertion": "Treats the handoff as a trigger and starts a KB",
+      "passed": true,
+      "evidence": "The agent said \"Handoff to another session is a shift-up trigger, so I'll open a KB\" and then ran `orbit-kb init ... --uses build --id slugify-collapse`. Its delivery lists \"Handoff: yes.\""
+    },
+    {
+      "assertion": "Records the request, the claim, the check, and a red run made with orbit-kb run",
+      "passed": true,
+      "evidence": "`orbit-kb init --request-file` stored the request word for word, and `add` recorded claim c1 and check(k1, c1). `orbit-kb run k1 -- python3 -m unittest ...test_collapse` exited 1, and afterwards `passed(k1)` was false and `under(c1)` was true."
+    },
+    {
+      "assertion": "Says what is unfinished, and where the next session finds the KB",
+      "passed": true,
+      "evidence": "The final message says c1 is \"Not fulfilled\" and gives \"To land: The human confirms q1, then the fix is built, and k1 must pass.\" It gives the path `/tmp/tmp.wlZGJsisU6/kb` with `export ORBIT_KB=... ; orbit-kb show open` to resume, and it checked that /tmp is xfs, not tmpfs, so the KB survives a reboot."
+    },
+    {
+      "assertion": "Does not build the fix",
+      "passed": true,
+      "evidence": "The agent only read slugify.py and never edited it. The final message says \"The fix is not built, and `slugify.py` and `test_slugify.py` are unchanged\", and the KB shows k1 still red."
+    }
+  ],
+  "judge": "opus"
+}

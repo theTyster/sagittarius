@@ -1,0 +1,25 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 6 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "python:from rental import rental_total as r; assert r('pressure washer', 3, []) == 30.0, 'code changed'",
+      "passed": true,
+      "evidence": "ok"
+    }
+  ],
+  "commands": []
+}

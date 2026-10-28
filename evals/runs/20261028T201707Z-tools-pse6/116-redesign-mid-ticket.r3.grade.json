@@ -1,0 +1,70 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 4 turns; result success, 3 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "turn1:no_kb",
+      "passed": true,
+      "evidence": "no kb.pl"
+    },
+    {
+      "text": "turn1:python:from datetime import date; from claims import Claims; c = Claims(); c.submit('EX-9', date(2026, 7, 1), b'R', date(2026, 9, 1)); assert c.receipt('EX-9', date(2026, 9, 10)) == b'R', 'receipt gone 9 days after the claim went in'",
+      "passed": true,
+      "evidence": "ok"
+    },
+    {
+      "text": "kb_exists",
+      "passed": false,
+      "evidence": "no kb.pl under the work directory"
+    },
+    {
+      "text": "help_before_write",
+      "passed": false,
+      "evidence": "no orbit-kb write ran"
+    },
+    {
+      "text": "lint_clean",
+      "passed": false,
+      "evidence": "no KB to check"
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:divergence_recorded",
+      "passed": false,
+      "evidence": "no KB to check"
+    },
+    {
+      "text": "python:import inspect, vault, claims; from datetime import date, timedelta as t; c = claims.Claims(vault.Vault()) if inspect.signature(claims.Claims).parameters else claims.Claims(); s0 = date(2026, 9, 1); c.submit('EX-9', date(2026, 7, 1), b'RCPT-scan-7731', s0); r = [c.receipt('EX-9', s0 + t(days=n)) for n in (0, 30, 45, 59)]; assert r == [b'RCPT-scan-7731'] * 4, ('receipt on days 0, 30, 45, 59 after submit', r)",
+      "passed": true,
+      "evidence": "ok"
+    },
+    {
+      "text": "python:import inspect, vault, claims; from datetime import date; s = []; p = vault.Vault.put; vault.Vault.put = lambda self, *a, **k: (s.append(a[0] if a else k.get('data')), p(self, *a, **k))[1]; c = claims.Claims(vault.Vault()) if inspect.signature(claims.Claims).parameters else claims.Claims(); c.submit('EX-9', date(2026, 7, 1), b'RCPT-scan-7731', date(2026, 9, 1)); assert b'RCPT-scan-7731' in s, 'the receipt was not put in the vault'; assert 'RCPT-scan' not in repr(vars(c)) + repr([v for k, v in vars(claims).items() if not k.startswith('__')]), 'the claims store still holds the scan'",
+      "passed": true,
+      "evidence": "ok"
+    },
+    {
+      "text": "unittest_pass",
+      "passed": true,
+      "evidence": "OK"
+    }
+  ],
+  "commands": []
+}

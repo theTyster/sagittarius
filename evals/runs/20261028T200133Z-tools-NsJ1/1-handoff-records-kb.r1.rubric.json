@@ -1,0 +1,25 @@
+{
+  "assertions": [
+    {
+      "assertion": "Treats the handoff as a trigger and starts a KB",
+      "passed": true,
+      "evidence": "The agent's first words were \"The handoff to tomorrow's session is a shift-up trigger, so this session needs a KB.\" It then ran `orbit-kb init kb --request ...`, and its handoff lists \"Handoff: yes ... so the KB was started.\""
+    },
+    {
+      "assertion": "Records the request, the claim, the check, and a red run made with orbit-kb run",
+      "passed": true,
+      "evidence": "`orbit-kb init --request` recorded the request. `add` recorded claim c1 and check k1. Runs went into kb/runs/ (logs like 1-k1.log), and once the KB was rebuilt the agent reported \"The red run is real now: 'hello---world' != 'hello-world'\". Lint returned 0 errors."
+    },
+    {
+      "assertion": "Says what is unfinished, and where the next session finds the KB",
+      "passed": true,
+      "evidence": "The handoff says \"Not delivered. Light path stopped before the build\" and that c1 is \"Not fulfilled. The fix is not built.\" It gives the KB location, \"/tmp/tmp.KlC944u29V/kb (run `orbit-kb --dir kb show open` first)\", plus steps for tomorrow."
+    },
+    {
+      "assertion": "Does not build the fix",
+      "passed": true,
+      "evidence": "No tool call edits slugify.py; the agent only reads it with cat. It ends with \"Stopping here, with the fix not built.\""
+    }
+  ],
+  "judge": "opus"
+}

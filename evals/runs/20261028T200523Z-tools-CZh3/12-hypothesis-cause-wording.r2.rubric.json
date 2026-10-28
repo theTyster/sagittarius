@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Its statement of the problem names what decides the right total for a rental (item and catalog daily price, days, best coupon discount) and says the billed total can differ from that, so checking one rental could confirm or refute it",
+      "passed": false,
+      "evidence": "The problem is never stated in general terms. It is split into two cause headings: 'the item name doesn't match the catalog' and 'the code applies the first coupon, not the best one'. The inputs that set the right total (22.00 \u00d7 3; README's 'the one that saves the most') come up only per rental, as support for those causes, and never as one rule that the billed total breaks."
+    },
+    {
+      "assertion": "The problem statement itself does not build in a cause or a fix",
+      "passed": false,
+      "evidence": "The statement is the causes. The headings are 'the item name doesn't match the catalog' and 'the code applies the first coupon, not the best one'. The first bullet says 'The lookup is case-sensitive' and that a miss 'silently uses the 10.00 default rate', which are the cause examples the assertion names."
+    },
+    {
+      "assertion": "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result would show it false",
+      "passed": true,
+      "evidence": "R-2208 and R-2231 each get a specific claim that a single result could disprove, with the expected values stated. For example, 22.00 \u00d7 3 = 66.00 against the billed 30.00, and SPRING10 giving 21.60 against WELCOME5's 22.80. The replay reproduced both billed amounts."
+    }
+  ],
+  "judge": "opus"
+}

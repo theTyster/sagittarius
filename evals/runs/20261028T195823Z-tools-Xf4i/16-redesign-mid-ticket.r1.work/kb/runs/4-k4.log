@@ -1,0 +1,24 @@
+% orbit-kb run 4 check=k4 result=fail exit=1 time=2026-10-28T19:59:20Z cmd=python3 -m unittest test_session.SessionTest.test_renewal_after_lunch_break test_session.SessionTest.test_renewal_late_in_12_hour_window
+FF
+======================================================================
+FAIL: test_renewal_after_lunch_break (test_session.SessionTest.test_renewal_after_lunch_break)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.mn5NOZmJrR/test_session.py", line 25, in test_renewal_after_lunch_break
+    self.assertEqual(renew({}, r.cookies, now=1 * HOUR).status, 200)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 401 != 200
+
+======================================================================
+FAIL: test_renewal_late_in_12_hour_window (test_session.SessionTest.test_renewal_late_in_12_hour_window)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.mn5NOZmJrR/test_session.py", line 29, in test_renewal_late_in_12_hour_window
+    self.assertEqual(renew({}, r.cookies, now=11 * HOUR).status, 200)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 401 != 200
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+FAILED (failures=2)

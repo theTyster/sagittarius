@@ -1,0 +1,10 @@
+{
+  "spec": "heldout/heldout.json",
+  "account": "personal",
+  "model": "sonnet",
+  "prompt": "live",
+  "prompt_sha256": "46fdec32cd76a546481d0fcdea3a99a7836ed0b397f3657e07b2f2638b55c30f",
+  "runs": 3,
+  "commit": "5bd4c74",
+  "dirty": false
+}

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 1 stays on the light path: changes the test with the code, and starts no KB",
+      "passed": true,
+      "evidence": "In turn 1 the agent ran `sed` on both `pipeline.py` and `test_pipeline.py` and re-ran unittest. It called no `orbit-kb` commands, and it said so: \"I also changed `test_pipeline.py`, because it asserted \\\"large\\\"\"."
+    },
+    {
+      "assertion": "Turn 2 reads the correction as a divergence: shifts up, and records the request, the claims, and the divergence",
+      "passed": true,
+      "evidence": "The agent said \"You corrected my reading of 'every step', which is a divergence, so I started a KB\". It ran `orbit-kb init` with both human turns word for word as the request, then added claims c1 (summarize small) and c2 (grade large) with cites, and attested the misreading as a `self_error` disclosure. One weakness: the agent claims it recorded the correction on c2, but the truncated output only shows the cite on c2 and the self_error attached to c1."
+    },
+    {
+      "assertion": "Does not only apologize and fix",
+      "passed": true,
+      "evidence": "Besides reverting `grade`, the agent built a KB with checks k1 and k2. It ran a valid red run against a temporary copy of the old code (run 8) and a green run (run 9), and said that runs 5 and 6 were invalid. It also disclosed that it never ran k1 red at the first edit, and reported what it had not checked."
+    }
+  ],
+  "judge": "opus"
+}

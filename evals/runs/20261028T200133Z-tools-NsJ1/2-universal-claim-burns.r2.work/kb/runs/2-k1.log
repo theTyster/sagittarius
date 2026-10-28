@@ -1,0 +1,8 @@
+% orbit-kb run 2 check=k1 result=pass exit=0 time=2026-10-28T20:03:13Z cmd=python3 -m unittest -v test_account
+test_past_limit_refused (test_account.WithdrawTest.test_past_limit_refused) ... ok
+test_within_limit (test_account.WithdrawTest.test_within_limit) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK

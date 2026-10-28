@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Problem statement names what decides the right total (item/catalog price, days, best coupon discount) and says the billed total can differ, checkable per rental",
+      "passed": true,
+      "evidence": "The Hypothesis says \"the item, the days, and the coupons decide the total. The README says the best coupon applies. The billing run charged some rentals a different amount.\" Its falsifier checks billed totals against \"the price list and the best coupon,\" so checking one rental can confirm or refute it."
+    },
+    {
+      "assertion": "Problem statement does not build in a cause or fix",
+      "passed": true,
+      "evidence": "The Hypothesis covers only the deciding inputs and the mismatch. The case-sensitive lookup, the 10.00 default and the first-coupon `break` appear separately, in the Findings table and the defects list, as evidence."
+    },
+    {
+      "assertion": "Both complaints fit the statement and it is falsifiable",
+      "passed": true,
+      "evidence": "R-2208 is a price-list mismatch and R-2231 is a best-coupon mismatch, so both fit the statement. It names a falsifier: \"It would be false if every billed total matched the price list and the best coupon.\""
+    }
+  ],
+  "judge": "opus"
+}

@@ -1,0 +1,14 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-28T20:16:32Z cmd=python3 -m unittest -k test_receipt_lives_in_vault_not_in_claim
+E
+======================================================================
+ERROR: test_receipt_lives_in_vault_not_in_claim (test_claims.ClaimsTest.test_receipt_lives_in_vault_not_in_claim)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.Jc88lmmGBH/test_claims.py", line 35, in test_receipt_lives_in_vault_not_in_claim
+    c = Claims(v)
+TypeError: Claims.__init__() takes 1 positional argument but 2 were given
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

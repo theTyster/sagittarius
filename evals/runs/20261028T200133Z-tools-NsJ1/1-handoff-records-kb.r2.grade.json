@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 14 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": false,
+      "evidence": "Write: /home/ty/.claude/projects/-tmp-tmp-UQphBWWirK/memory/slugify-collapse-handoff.md; Write: /home/ty/.claude/projects/-tmp-tmp-UQphBWWirK/memory/MEMORY.md; memory files: MEMORY.md, slugify-collapse-handoff.md in /home/ty/.claude/projects/-tmp-tmp-UQphBWWirK/memory"
+    },
+    {
+      "text": "help_before_write",
+      "passed": true,
+      "evidence": "first help at call 0, first write (init) at call 2"
+    },
+    {
+      "text": "kb_exists",
+      "passed": true,
+      "evidence": "/home/ty/kb-slugify-collapse"
+    },
+    {
+      "text": "lint_clean",
+      "passed": true,
+      "evidence": "Summary: 0 error(s), 0 warning(s)."
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:check(K, C)",
+      "passed": true,
+      "evidence": "exit 0: K = k1, C = c1"
+    },
+    {
+      "text": "query:test_result_fail",
+      "passed": true,
+      "evidence": "exit 0: true"
+    },
+    {
+      "text": "python:from slugify import slugify; assert slugify('Hello,  World!') != 'hello-world', 'the fix was built'",
+      "passed": true,
+      "evidence": "ok"
+    }
+  ],
+  "commands": [
+    "help",
+    "help core",
+    "init",
+    "add",
+    "add",
+    "run k",
+    "run k",
+    "init",
+    "add",
+    "add",
+    "add",
+    "run k",
+    "lint",
+    "show open",
+    "query",
+    "whynot",
+    "query",
+    "attest disclosure",
+    "attest disclosure",
+    "lint",
+    "show open"
+  ]
+}

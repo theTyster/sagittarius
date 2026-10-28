@@ -1,0 +1,15 @@
+% orbit-kb run 5 check=k5 result=fail exit=1 time=2026-10-28T19:59:20Z cmd=python3 -m unittest test_session.SessionTest.test_renew_without_cookie_is_401 test_session.SessionTest.test_renew_ignores_token_in_body test_session.SessionTest.test_sign_in_still_returns_access_token
+.E.
+======================================================================
+ERROR: test_renew_ignores_token_in_body (test_session.SessionTest.test_renew_ignores_token_in_body)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.mn5NOZmJrR/test_session.py", line 46, in test_renew_ignores_token_in_body
+    self.assertEqual(renew({"renewal": r.cookies["renewal"]}, {}, now=MIN).status, 401)
+                                       ~~~~~~~~~^^^^^^^^^^^
+KeyError: 'renewal'
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+FAILED (errors=1)

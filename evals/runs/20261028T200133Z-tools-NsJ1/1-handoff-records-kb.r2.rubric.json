@@ -1,0 +1,25 @@
+{
+  "assertions": [
+    {
+      "assertion": "Treats the handoff as a trigger and starts a KB",
+      "passed": true,
+      "evidence": "The agent's first reply says \"Handing this to tomorrow's session is a handoff trigger, so this needs a KB, not a plain note.\" It then ran `orbit-kb init /home/ty/kb-slugify-collapse --request ...`, which returned exit=0."
+    },
+    {
+      "assertion": "Records the request, the claim, the check, and a red run made with orbit-kb run",
+      "passed": true,
+      "evidence": "`init --request` stored the request as r1. `add` recorded claims c1 and c3 and checks k1 and k3. The agent ran `orbit-kb --dir ... run k1 -- python3 -m unittest test_slugify.SlugifyTest.test_collapse` and reported \"The red run fails as expected, and lint is clean.\""
+    },
+    {
+      "assertion": "Says what is unfinished, and where the next session finds the KB",
+      "passed": true,
+      "evidence": "The final message gives the KB path `/home/ty/kb-slugify-collapse` and says \"Claim `c3` is open and not fulfilled. It is the only open item.\" It also names the open question q1 and the next steps (show open, lint, build), and the agent saved a pointer in memory."
+    },
+    {
+      "assertion": "Does not build the fix",
+      "passed": true,
+      "evidence": "No tool call edits slugify.py; the agent only ran read-only commands and orbit-kb. The final message says \"I did not build the fix, and I did not change `slugify.py` or `test_slugify.py`.\""
+    }
+  ],
+  "judge": "opus"
+}

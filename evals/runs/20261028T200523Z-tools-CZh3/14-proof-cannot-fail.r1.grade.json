@@ -1,0 +1,25 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 5 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": false,
+      "evidence": "{\"command\": \"python3 -I -m unittest test_session 2>&1 | tail -4; python3 - <<'E'\\nfrom session import *\\nr=sign_in(\\\"ana"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "python:import unittest; from session import renew, sign_in; from tokens import InvalidToken; unittest.TestCase().assertRaises(InvalidToken, renew, {}, sign_in('a', 'p', 0).cookies, 24 * 60)",
+      "passed": true,
+      "evidence": "ok"
+    }
+  ],
+  "commands": []
+}

@@ -1,0 +1,17 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-28T20:03:06Z cmd=python3 -I -m unittest -v test_account
+test_account (unittest.loader._FailedTest.test_account) ... ERROR
+
+======================================================================
+ERROR: test_account (unittest.loader._FailedTest.test_account)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_account
+Traceback (most recent call last):
+  File "/usr/lib64/python3.14/unittest/loader.py", line 141, in loadTestsFromName
+    module = __import__(module_name)
+ModuleNotFoundError: No module named 'test_account'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

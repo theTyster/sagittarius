@@ -1,0 +1,5 @@
+% orbit-kb run 5 check=k1 result=pass exit=0 time=2026-10-28T20:16:44Z cmd=python3 -m unittest -q test_claims.ClaimsTest.test_vault_purge_matches_60_day_window
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

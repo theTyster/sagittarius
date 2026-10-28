@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim (supersedes), not edited; an earlier outcome claim that still holds may stay as it is",
+      "passed": false,
+      "evidence": "The turn-2 delivery says \"KB: No KB\" and \"Triggers: none fired.\" The agent did not shift up or record the mid-ticket design change as a divergence. It also did not mark the turn-1 claims as superseded. It just listed a new set of claims."
+    },
+    {
+      "assertion": "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
+      "passed": false,
+      "evidence": "The check did happen. The agent rewrote the existing tests to call `renew({}, r.cookies, now=...)`, which includes the 60-minute `test_renewal_after_lunch_break`, and those tests pass. But the outcome is no longer a claim in the turn-2 delivery. The only related claim is \"`/renew` works with an empty body\", so the sign-in-lasts-until-expiry outcome is not carried forward."
+    },
+    {
+      "assertion": "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it",
+      "passed": true,
+      "evidence": "The delivery never calls the change transport-only or equivalent to the old flow. Each claim it makes is backed by tests through the cookie path, and it lists real browser behaviour and the client change under \"Not checked\"."
+    }
+  ],
+  "judge": "opus"
+}

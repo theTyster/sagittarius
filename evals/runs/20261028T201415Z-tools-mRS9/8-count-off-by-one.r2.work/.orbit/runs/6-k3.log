@@ -1,0 +1,6 @@
+% orbit-kb run 6 check=k3 result=pass exit=0 time=2026-10-28T20:14:56Z cmd=sh -c python -m unittest test_duration 2>&1 | tee /dev/stderr | grep -qx "Ran 7 tests in .*" && python -m unittest test_duration
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.000s
+
+OK

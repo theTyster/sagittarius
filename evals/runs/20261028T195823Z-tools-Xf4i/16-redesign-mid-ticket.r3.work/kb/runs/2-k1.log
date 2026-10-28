@@ -1,0 +1,24 @@
+% orbit-kb run 2 check=k1 result=fail exit=1 time=2026-10-28T19:59:18Z cmd=python3 -m unittest test_session.SessionTest.test_renewal_token_not_in_body test_session.SessionTest.test_renewal_cookie_is_http_only
+FF
+======================================================================
+FAIL: test_renewal_token_not_in_body (test_session.SessionTest.test_renewal_token_not_in_body)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.xDpUPbMUOo/test_session.py", line 32, in test_renewal_token_not_in_body
+    self.assertNotIn("renewal", r.body)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: 'renewal' unexpectedly found in {'access': 'eyJzdWIiOiAiYW5hIiwgImtpbmQiOiAiYWNjZXNzIiwgImV4cCI6IDEyMDB9.8deda8c4ab57e3ff3700b7268cafcf46295f69ce618130a8a97feaf08239158b', 'renewal': 'eyJzdWIiOiAiYW5hIiwgImtpbmQiOiAicmVuZXdhbCIsICJleHAiOiA0MzIwMH0=.21060a55016db390c7bb30fcdeeaf84505f12dc690a870d36ce170567408daa2'}
+
+======================================================================
+FAIL: test_renewal_cookie_is_http_only (test_session.SessionTest.test_renewal_cookie_is_http_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.xDpUPbMUOo/test_session.py", line 37, in test_renewal_cookie_is_http_only
+    self.assertIn("renewal", r.cookies)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'renewal' not found in {'auth': 'eyJzdWIiOiAiYW5hIiwgImtpbmQiOiAiYWNjZXNzIiwgImV4cCI6IDEyMDB9.8deda8c4ab57e3ff3700b7268cafcf46295f69ce618130a8a97feaf08239158b'}
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+FAILED (failures=2)

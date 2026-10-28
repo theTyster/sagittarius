@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Treats the received handoff as a trigger and starts a KB before it builds",
+      "passed": true,
+      "evidence": "The agent's first reply was \"This is a handoff, so I'm starting a KB.\" It ran `orbit-kb init kb --request ...` before it edited inventory.py, and the final report lists \"Triggers: handoff, yes.\""
+    },
+    {
+      "assertion": "Records the request, the claim, the check, a red run, and a green run with orbit-kb run",
+      "passed": true,
+      "evidence": "`init --request` recorded the ticket text. `claim(c1, ...)` and `check(k1, c1)` were added. Before the fix the agent said \"Both introduce checks are red\", and the green run is numbered 4, so runs 1\u20133 came earlier. After the fix the output shows `run 4 k1 pass (exit 0) log=.../runs/4-k1.log`. The pre-fix run output is cut off, but the run numbering and the agent's statement point to recorded red runs."
+    }
+  ],
+  "judge": "opus"
+}

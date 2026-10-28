@@ -1,0 +1,25 @@
+{
+  "assertions": [
+    {
+      "assertion": "Reads the KB state (orbit-kb show open) before it acts, not the code alone",
+      "passed": true,
+      "evidence": "The agent ran `orbit-kb --dir kb show open`, which returned `under c1`, and `whynot done`. It also read kb/kb.pl and the run log before proposing any action."
+    },
+    {
+      "assertion": "Reports claim c1 as under, with its red check k1",
+      "passed": true,
+      "evidence": "The reply says \"`orbit-kb show open` reports only `under c1`\" and names \"Check k1: test_units.py::test_ten_km. Its red run is recorded (kb/runs/1-k1.log, result=fail)\"."
+    },
+    {
+      "assertion": "Mentions the dormant question q1 and its default, or leaves it dormant on purpose",
+      "passed": true,
+      "evidence": "The reply says \"Question q1: round the result, or return the full float? The default was `full_float`, and no human answer is recorded.\" It also proposes building on that default."
+    },
+    {
+      "assertion": "Changes no code",
+      "passed": true,
+      "evidence": "Every tool call only reads (cat, find, orbit-kb show/whynot) or runs the tests. The agent says \"I changed nothing and wrote no KB records\" and waits for approval before editing units.py."
+    }
+  ],
+  "judge": "opus"
+}

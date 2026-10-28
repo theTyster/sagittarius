@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Problem statement names what decides the right fee and says billed fee can differ, so one order could confirm or refute it",
+      "passed": true,
+      "evidence": "The Hypothesis says \"Each order's fee should come from the rate table in force on its ship date and from the zone of its postal code. Some invoiced fees don't match that.\" It names the date's rates and the zone, and says billed fees can differ. Weight is left out, but the assertion does not require every input."
+    },
+    {
+      "assertion": "Problem statement does not build in a cause or fix; causes from code appear apart as evidence",
+      "passed": true,
+      "evidence": "The statement only says how the right fee is set: the rate table in force on the ship date and the postal code's zone. It does not mention date.today() or the one-digit prefix lookup. Those causes appear only later, under System and Findings, as evidence."
+    },
+    {
+      "assertion": "Both complaints fit the statement and it can fail via a named result",
+      "passed": true,
+      "evidence": "Both complaints fit as orders whose billed fee differs from the ship-date-table, correct-zone value (A-1041 should be 9.40, A-1077 should be 7.30). The statement names its own falsifier: \"This would be false if every billed fee equalled the ship-date table and the postal-code zone.\""
+    }
+  ],
+  "judge": "opus"
+}

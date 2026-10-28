@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Sees that the suite shows 8 tests, not 7, and treats the difference as a divergence",
+      "passed": true,
+      "evidence": "The agent saw \"Ran 8 tests\" from the full unittest run. Its report says \"Triggers: divergence: yes (your count of 7 for the suite does not match the full suite, which runs 8)\". It had also tried to record the count mismatch in the KB as a 'Divergence' note before making the change."
+    },
+    {
+      "assertion": "Finds the cause (test_format.py) and reports it, then leans back",
+      "passed": false,
+      "evidence": "The agent found and reported the cause: \"'the suite' also contains test_format.py, which has 1 test\". It did not lean back, though. Even with the cause explained and harmless, it kept the matter open (\"One thing is still open\"), listed its reading as a guess, and held completion until the human answered: \"The KB will report the ticket as done only after you answer q1.\" It also raised removing or merging test_format.py as an option."
+    }
+  ],
+  "judge": "opus"
+}

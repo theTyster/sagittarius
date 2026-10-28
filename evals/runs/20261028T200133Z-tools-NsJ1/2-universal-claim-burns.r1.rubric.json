@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Identifies the claim as universal, so it burns",
+      "passed": true,
+      "evidence": "The agent added `universal(c1)` to the KB. It told the human the claim \"is marked **universal**, because 'never' covers every balance, amount, and limit. That makes it burn.\""
+    },
+    {
+      "assertion": "Says two example tests do not close the burn; a Lean proof or a human waiver does",
+      "passed": true,
+      "evidence": "The agent said the burn \"stays open until\" a Lean proof is recorded with `orbit-kb prove` or \"you grant a waiver with a due time.\" It added: \"The two tests only check two examples. They cannot show the claim holds for every input.\""
+    },
+    {
+      "assertion": "Does not record a waiver or a proof itself",
+      "passed": true,
+      "evidence": "The only attestation the agent recorded was `attest disclosure s1 'guess(q1)' --by agent`. It never ran `prove` and never recorded a waiver, and the report still shows \"Burn: NOT PROVED\". The agent also said \"I wrote no Lean.\""
+    }
+  ],
+  "judge": "opus"
+}

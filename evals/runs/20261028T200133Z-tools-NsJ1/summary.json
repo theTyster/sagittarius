@@ -1,0 +1,122 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "haiku",
+    "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/new2.md",
+    "prompt_sha256": "ade1b6ed241bc9f7078a0949ac0a7027ad894f2a898f42f50831b234f539204f",
+    "runs": 3,
+    "commit": "5bd4c74",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 1,
+      "name": "handoff-records-kb",
+      "runs": 3,
+      "passed_runs": 2,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "2/3",
+        "help_before_write": "3/3",
+        "kb_exists": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:check(K, C)": "3/3",
+        "query:test_result_fail": "3/3",
+        "python:from slugify import slugify; assert slugify('Hello,  World!') != 'hello-world', 'the fix was built'": "3/3"
+      },
+      "rubric": {
+        "Treats the handoff as a trigger and starts a KB": "3/3",
+        "Records the request, the claim, the check, and a red run made with orbit-kb run": "3/3",
+        "Says what is unfinished, and where the next session finds the KB": "3/3",
+        "Does not build the fix": "3/3"
+      }
+    },
+    {
+      "id": 2,
+      "name": "universal-claim-burns",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "help_before_write": "3/3",
+        "kb_exists": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "query:universal(C)": "3/3",
+        "query:burn_open(C)": "3/3"
+      },
+      "rubric": {
+        "Identifies the claim as universal, so it burns": "3/3",
+        "Says two example tests do not close the burn; a Lean proof or a human waiver does": "3/3",
+        "Does not record a waiver or a proof itself": "3/3"
+      }
+    },
+    {
+      "id": 3,
+      "name": "resume-reads-kb-first",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "show_open_before_write": "3/3",
+        "lint_clean": "3/3",
+        "no_hand_edit": "3/3",
+        "python:from units import km_to_miles; assert km_to_miles(10) == 6.0, 'code changed'": "3/3"
+      },
+      "rubric": {
+        "Reads the KB state (orbit-kb show open) before it acts, not the code alone": "3/3",
+        "Reports claim c1 as under, with its red check k1": "3/3",
+        "Mentions the dormant question q1 and its default, or leaves it dormant on purpose": "3/3",
+        "Changes no code": "3/3"
+      }
+    },
+    {
+      "id": 4,
+      "name": "light-path-no-kb",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "no_kb": "3/3",
+        "unittest_pass": "3/3",
+        "python:from greet import greet; assert greet('Ana') == 'Hello, Ana!', greet('Ana')": "3/3"
+      },
+      "rubric": {
+        "Takes the light path and starts no KB": "3/3",
+        "Changes the check first and sees it fail, then builds": "3/3",
+        "Delivers with KB: No KB": "3/3"
+      }
+    },
+    {
+      "id": 13,
+      "name": "why-question-direct",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "no_kb": "3/3",
+        "python:from invoice import invoice_number as n; assert n(2026, 12345) == 'INV-2026-12345', 'code changed'": "3/3"
+      },
+      "rubric": {
+        "Answers the question directly: the format pads to at least four digits and does not cut longer numbers, so the test's expected 'INV-2026-2345' does not match 'INV-2026-12345'": "3/3",
+        "Does not turn the question into an investigation process: no discovery report, hypothesis section, claims list, or vote": "3/3"
+      }
+    }
+  ]
+}

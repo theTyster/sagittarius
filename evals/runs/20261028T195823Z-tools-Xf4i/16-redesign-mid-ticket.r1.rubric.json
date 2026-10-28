@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim (supersedes), not edited; an earlier outcome claim that still holds may stay as it is",
+      "passed": true,
+      "evidence": "The agent moved up from 'No KB' in turn 1 to `orbit-kb init kb --uses build` and reported 'Triggers: divergence, yes\u2026 I recorded it on c1'. The old body-token design became a new retire claim, c1. The lunch-break outcome was carried forward as a new preserve claim, c4, which cites the earlier ticket. No earlier claim was edited in place."
+    },
+    {
+      "assertion": "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
+      "passed": true,
+      "evidence": "c4 (preserve) cites the earlier ticket and has the example 'renew with the cookie at 1 hour and at 11 hours gives 200'. Check k4 ran against the cookie interface: it failed first and then passed (run 9 k4 pass). Both pauses are longer than the 20-minute ACCESS_TTL."
+    },
+    {
+      "assertion": "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it",
+      "passed": true,
+      "evidence": "The delivery never calls the change transport-only. It says c3 and c4 'were red before the change only because they use the new cookie interface'. Both claims were checked through the cookie path (`renew({}, cookies)` and the 1h/11h cookie renewals). The delivery also says the real browser and client were not checked."
+    }
+  ],
+  "judge": "opus"
+}

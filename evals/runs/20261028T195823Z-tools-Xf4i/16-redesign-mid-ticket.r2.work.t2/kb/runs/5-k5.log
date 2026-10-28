@@ -1,0 +1,15 @@
+% orbit-kb run 5 check=k5 result=fail exit=1 time=2026-10-28T19:59:50Z cmd=python3 -m unittest test_session.SessionTest.test_renew_ignores_token_in_body
+F
+======================================================================
+FAIL: test_renew_ignores_token_in_body (test_session.SessionTest.test_renew_ignores_token_in_body)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.xNpSY8e6Qn/test_session.py", line 52, in test_renew_ignores_token_in_body
+    self.assertEqual(renew({"renewal": mint("ana", "renewal", 0)}, {}, now=0).status, 401)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 200 != 401
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)

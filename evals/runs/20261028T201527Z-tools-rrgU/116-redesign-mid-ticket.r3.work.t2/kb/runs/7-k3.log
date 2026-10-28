@@ -1,0 +1,5 @@
+% orbit-kb run 7 check=k3 result=pass exit=0 time=2026-10-28T20:16:44Z cmd=python3 -m unittest -q test_claims.ClaimsTest.test_scan_lives_in_vault_not_in_claim
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

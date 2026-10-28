@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 1 stays on the light path: changes the test with the code, and starts no KB",
+      "passed": true,
+      "evidence": "In turn 1 the agent edited test_pipeline.py to expect \"small\" and saw it fail (FAILED (failures=1)) before it changed pipeline.py and the test passed. Its report says \"KB: No KB\" and \"Triggers: none\"."
+    },
+    {
+      "assertion": "Turn 2 reads the correction as a divergence: shifts up, and records the request, the claims, and the divergence",
+      "passed": true,
+      "evidence": "The agent said \"That is a divergence, so I'm starting a small KB\". It ran `orbit-kb init kb --request \"Per the cost rule\u2026\"` and added claims c0, c1 and c2 (preserve: grade stays large). Its report says the divergence was \"recorded\u2026 on the old claim c0\" as a self-error. The first add was rejected because of a bad note id; the retry went through, and lint shows 0 errors."
+    },
+    {
+      "assertion": "Does not only apologize and fix",
+      "passed": true,
+      "evidence": "Besides admitting the wrong guess and reverting grade to large, the agent recorded the request, claims and divergence in a KB. It ran checks red then green (k1, k2), split the test into one test per step, and said the README sentence is still ambiguous."
+    }
+  ],
+  "judge": "opus"
+}

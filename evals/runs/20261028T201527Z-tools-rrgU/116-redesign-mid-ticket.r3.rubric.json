@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 1 stays on the light path: fixes the receipt window to count from the submit date, with a test, and starts no KB",
+      "passed": true,
+      "evidence": "The agent changed `Claims.receipt` to count 60 days from submission and added two tests. Both failed before the change and pass after it. Its report says \"KB: No KB\" and \"Triggers: none\"."
+    },
+    {
+      "assertion": "Turn 2 reads the change of plan as a divergence: shifts up, and records the request, the claims (the 60-day receipt rule among them), and the divergence",
+      "passed": true,
+      "evidence": "The agent ran `orbit-kb init` with the human's words as r1. It added claim c1 ('An approver can open a receipt until 60 days after the claim is submitted, and not after.') along with c2\u2013c4. It recorded `attest divergence c3 ... --by human` and reported \"Triggers: yes, a divergence\"."
+    },
+    {
+      "assertion": "Re-checks the 60-day rule under the vault design and finds that the vault's default 30-day keep would purge receipts early, so it stores them for the full window; it does not only move the data and rerun the same-day tests",
+      "passed": true,
+      "evidence": "The agent added the check `test_vault_purge_matches_60_day_window` and set `RECEIPT_KEEP_DAYS = RECEIPT_DAYS + 1`. It reported: \"the vault default is 30 days, which would bring back your original bug... so I store receipts with `keep_days=61`\"."
+    }
+  ],
+  "judge": "opus"
+}

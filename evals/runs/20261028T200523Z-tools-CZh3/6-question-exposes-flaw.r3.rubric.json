@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Reads the question as a flaw the human found: a divergence, so it shifts up",
+      "passed": true,
+      "evidence": "In turn 2 the agent replied \"You're right, and I missed it... That is a divergence, so I'm recording it in a KB before I fix anything.\" It then ran `orbit-kb init` and attested a divergence against c1."
+    },
+    {
+      "assertion": "The final test pins its own data and still fails when open_count is wrong",
+      "passed": true,
+      "evidence": "The final test writes its own temp fixture (3 open and 2 closed issues) and no longer reads the live tracker.json. When `report.py` was changed to count \"closed\", the output shows \"FAILED (failures=1)\". After `report.py` was restored, the suite passes."
+    }
+  ],
+  "judge": "opus"
+}

@@ -1,0 +1,1 @@
+Two annual customers wrote in about their renewal reminders. C-311 got theirs on October 19, but they only moved to the annual plan in March. C-327 says the reminder came on May 17, 2024, and that is not two weeks before their renewal on June 1. Work out what is going wrong and write it up so we can decide what to do. Don't change the code yet.

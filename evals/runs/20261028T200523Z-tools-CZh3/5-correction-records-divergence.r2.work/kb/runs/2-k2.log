@@ -1,0 +1,6 @@
+% orbit-kb run 2 check=k2 result=fail exit=1 time=2026-10-28T20:05:51Z cmd=python check.py grade large
+Traceback (most recent call last):
+  File "/tmp/tmp.5C830sjNGV/check.py", line 4, in <module>
+    assert model_for(step) == want, (step, model_for(step), want)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('grade', 'small', 'large')

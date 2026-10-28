@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim (supersedes), not edited; an earlier outcome claim that still holds may stay as it is",
+      "passed": true,
+      "evidence": "The agent said \"This is a change of plan, so a trigger fires and I'll start a KB\" and recorded `attest(a19, divergence, s_session, claim(c0), human, ...)` on the body-based claim c0. The delivery says it recorded the cookie-based checks \"as new claims that supersede the old one\", and nothing shows c0 being edited."
+    },
+    {
+      "assertion": "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
+      "passed": true,
+      "evidence": "The tests were rewritten to `renew({}, r.cookies, now=60 * MIN)` and `now=12 * 60 * MIN`, and they ran as k8 and k9. The delivery lists \"Lunch-break fix kept: renewal works at 60 minutes and at 12 hours through the cookie (k8, k9)\". A 60-minute pause is longer than the 20-minute access token."
+    },
+    {
+      "assertion": "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it",
+      "passed": true,
+      "evidence": "The delivery never calls the change transport-only or equivalent to the old flow. Every behavior claim cites a check that ran through the cookie path (k1\u2013k9), and the delivery points out a behavior change: old clients that post the token now get 401 (`q_body`)."
+    }
+  ],
+  "judge": "opus"
+}

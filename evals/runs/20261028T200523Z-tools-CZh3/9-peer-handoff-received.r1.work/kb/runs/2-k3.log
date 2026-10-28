@@ -1,0 +1,15 @@
+% orbit-kb run 2 check=k3 result=fail exit=1 time=2026-10-28T20:09:16Z cmd=sh -c cd /tmp/tmp.35eOwXeCpE && python3 -m unittest test_inventory.InventoryTest.test_refused_reserve_changes_nothing
+F
+======================================================================
+FAIL: test_refused_reserve_changes_nothing (test_inventory.InventoryTest.test_refused_reserve_changes_nothing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.35eOwXeCpE/test_inventory.py", line 25, in test_refused_reserve_changes_nothing
+    with self.assertRaises(ValueError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

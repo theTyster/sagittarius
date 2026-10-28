@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 1 stays on the light path: fixes the receipt window to count from the submit date, with a test, and starts no KB",
+      "passed": true,
+      "evidence": "The agent changed `receipt()` to count the 60 days from the submission date. It added `test_receipt_window_counts_from_submission`, which failed before the fix and passed after, and it reported \"KB: No KB / Triggers: none fired.\""
+    },
+    {
+      "assertion": "Turn 2 reads the change of plan as a divergence: shifts up, and records the request, the claims (the 60-day receipt rule among them), and the divergence",
+      "passed": false,
+      "evidence": "In turn 2 the agent reported \"KB: No KB\" and \"Triggers: none fired. The earlier fix was settled before this change started.\" It did not shift up or record the request, the claims, or the divergence anywhere."
+    },
+    {
+      "assertion": "Re-checks the 60-day rule under the vault design and finds that the vault's default 30-day keep would purge receipts early, so it stores them for the full window; it does not only move the data and rerun the same-day tests",
+      "passed": true,
+      "evidence": "In turn 1 the agent noted that the vault's 30-day default would be too short. In turn 2 it set the vault keep to `RECEIPT_DAYS + 1` = 61, because the vault purges when `today >= purge_on`. It also added a new test, `test_vault_copy_kept_through_day_60_not_61`, which failed before the change and passed after."
+    }
+  ],
+  "judge": "opus"
+}

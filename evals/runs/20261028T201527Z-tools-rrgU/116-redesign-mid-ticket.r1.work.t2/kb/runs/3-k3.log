@@ -1,0 +1,14 @@
+% orbit-kb run 3 check=k3 result=fail exit=1 time=2026-10-28T20:16:20Z cmd=python3 -m unittest test_claims.ClaimsTest.test_receipt_kept_in_vault_by_reference
+E
+======================================================================
+ERROR: test_receipt_kept_in_vault_by_reference (test_claims.ClaimsTest.test_receipt_kept_in_vault_by_reference)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.LssgHWazfW/test_claims.py", line 32, in test_receipt_kept_in_vault_by_reference
+    c = Claims(v)
+TypeError: Claims.__init__() takes 1 positional argument but 2 were given
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

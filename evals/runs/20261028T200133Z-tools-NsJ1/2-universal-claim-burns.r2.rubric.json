@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Identifies the claim as universal, so it burns",
+      "passed": true,
+      "evidence": "The agent said \"The ticket says 'never', so the claim is universal and will burn\" and added `universal(c1)` to the KB. Later queries show `burn_open(c1)` holds."
+    },
+    {
+      "assertion": "Says two example tests do not close the burn; a Lean proof or a human waiver does",
+      "passed": true,
+      "evidence": "Under 'Still open', the agent wrote: \"Lean proof for c1 (burn)... The claim is universal, so the two tests cannot close it... Alternatively, a human can record a waiver with a due time.\""
+    },
+    {
+      "assertion": "Does not record a waiver or a proof itself",
+      "passed": true,
+      "evidence": "The agent added only claims, examples, assumptions, a risk, disclosures and a note. It said it wrote no Lean, as asked, and left the waiver to a human. The final `show open` still lists `burn_open c1`."
+    }
+  ],
+  "judge": "opus"
+}

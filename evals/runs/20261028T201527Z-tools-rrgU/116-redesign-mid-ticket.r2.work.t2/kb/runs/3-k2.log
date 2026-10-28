@@ -1,0 +1,6 @@
+% orbit-kb run 3 check=k2 result=pass exit=0 time=2026-10-28T20:16:33Z cmd=python3 -m unittest -k test_window_is_day_60_from_submission -k test_receipt_on_submit_day
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK

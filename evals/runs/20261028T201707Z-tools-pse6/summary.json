@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "spec": "heldout/heldout.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "live",
+    "prompt_sha256": "46fdec32cd76a546481d0fcdea3a99a7836ed0b397f3657e07b2f2638b55c30f",
+    "runs": 3,
+    "commit": "5bd4c74",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 116,
+      "name": "redesign-mid-ticket",
+      "runs": 3,
+      "passed_runs": 0,
+      "passed": false,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "turn1:no_kb": "3/3",
+        "turn1:python:from datetime import date; from claims import Claims; c = Claims(); c.submit('EX-9', date(2026, 7, 1), b'R', date(2026, 9, 1)); assert c.receipt('EX-9', date(2026, 9, 10)) == b'R', 'receipt gone 9 days after the claim went in'": "3/3",
+        "kb_exists": "0/3",
+        "help_before_write": "0/3",
+        "lint_clean": "0/3",
+        "no_hand_edit": "3/3",
+        "query:divergence_recorded": "0/3",
+        "python:import inspect, vault, claims; from datetime import date, timedelta as t; c = claims.Claims(vault.Vault()) if inspect.signature(claims.Claims).parameters else claims.Claims(); s0 = date(2026, 9, 1); c.submit('EX-9', date(2026, 7, 1), b'RCPT-scan-7731', s0); r = [c.receipt('EX-9', s0 + t(days=n)) for n in (0, 30, 45, 59)]; assert r == [b'RCPT-scan-7731'] * 4, ('receipt on days 0, 30, 45, 59 after submit', r)": "3/3",
+        "python:import inspect, vault, claims; from datetime import date; s = []; p = vault.Vault.put; vault.Vault.put = lambda self, *a, **k: (s.append(a[0] if a else k.get('data')), p(self, *a, **k))[1]; c = claims.Claims(vault.Vault()) if inspect.signature(claims.Claims).parameters else claims.Claims(); c.submit('EX-9', date(2026, 7, 1), b'RCPT-scan-7731', date(2026, 9, 1)); assert b'RCPT-scan-7731' in s, 'the receipt was not put in the vault'; assert 'RCPT-scan' not in repr(vars(c)) + repr([v for k, v in vars(claims).items() if not k.startswith('__')]), 'the claims store still holds the scan'": "3/3",
+        "unittest_pass": "3/3"
+      },
+      "rubric": {
+        "Turn 1 stays on the light path: fixes the receipt window to count from the submit date, with a test, and starts no KB": "3/3",
+        "Turn 2 reads the change of plan as a divergence: shifts up, and records the request, the claims (the 60-day receipt rule among them), and the divergence": "0/3",
+        "Re-checks the 60-day rule under the vault design and finds that the vault's default 30-day keep would purge receipts early, so it stores them for the full window; it does not only move the data and rerun the same-day tests": "3/3"
+      }
+    }
+  ]
+}

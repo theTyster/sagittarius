@@ -1,0 +1,2 @@
+% orbit-kb run 6 check=k3 result=pass exit=0 time=2026-10-28T20:15:13Z cmd=python -c import unittest,sys; n=unittest.defaultTestLoader.loadTestsFromName("test_duration").countTestCases(); print(n); sys.exit(n!=7)
+7

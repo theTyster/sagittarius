@@ -1,0 +1,15 @@
+% orbit-kb run 9 check=k9 result=fail exit=1 time=2026-10-28T19:59:51Z cmd=python3 -m unittest test_session.SessionTest.test_renewal_lasts_12_hours
+F
+======================================================================
+FAIL: test_renewal_lasts_12_hours (test_session.SessionTest.test_renewal_lasts_12_hours)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.xNpSY8e6Qn/test_session.py", line 29, in test_renewal_lasts_12_hours
+    self.assertEqual(renew({}, r.cookies, now=12 * 60 * MIN).status, 200)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 401 != 200
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

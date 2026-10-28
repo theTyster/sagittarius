@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Treats the received handoff as a trigger and starts a KB before it builds",
+      "passed": true,
+      "evidence": "Right after the message, the agent said \"This is a handoff, which is a trigger, so I'm starting a KB.\" It ran `orbit-kb init kb --request ...` before it edited inventory.py; the fix came only after the red runs."
+    },
+    {
+      "assertion": "Records the request, the claim, the check, a red run, and a green run with orbit-kb run",
+      "passed": true,
+      "evidence": "`init --request 'reserve() must refuse...'` recorded the request, and the added facts included `claim(c1, introduce, ...)` and `check(k1, c1)`. `orbit-kb run` then logged the red run \"run 1 k1 fail (exit 1)\" before the fix and the green run \"run 5 k1 pass (exit 0)\" after it."
+    }
+  ],
+  "judge": "opus"
+}

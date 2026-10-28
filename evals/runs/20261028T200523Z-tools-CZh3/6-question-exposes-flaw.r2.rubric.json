@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Reads the question as a flaw the human found: a divergence, so it shifts up",
+      "passed": true,
+      "evidence": "In turn 2 the agent replied \"You're right. My test is wrong\u2026 This is a divergence, so I'm starting a KB for it before I fix anything.\" It then ran `orbit-kb init`, recorded c1 as superseded by c2, and listed \"Triggers: yes, a divergence.\""
+    },
+    {
+      "assertion": "The final test pins its own data and still fails when open_count is wrong",
+      "passed": true,
+      "evidence": "The rewritten test writes a fixed fixture with 3 open and 2 closed issues to a temp directory, so it no longer reads the live tracker.json. A mutation check flipped `== \"open\"` to `!= \"open\"` and got `FAILED (failures=1)`; after the restore the suite passed. Turn 3 re-ran the suite with the test unchanged."
+    }
+  ],
+  "judge": "opus"
+}

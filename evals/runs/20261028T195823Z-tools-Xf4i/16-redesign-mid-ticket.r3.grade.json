@@ -1,0 +1,94 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 4 turns; result success, 9 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "turn1:no_kb",
+      "passed": true,
+      "evidence": "no kb.pl"
+    },
+    {
+      "text": "kb_exists",
+      "passed": true,
+      "evidence": "/tmp/tmp.xDpUPbMUOo/kb"
+    },
+    {
+      "text": "help_before_write",
+      "passed": true,
+      "evidence": "first help at call 0, first write (init) at call 3"
+    },
+    {
+      "text": "lint_clean",
+      "passed": true,
+      "evidence": "Summary: 0 error(s), 0 warning(s)."
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:divergence_recorded",
+      "passed": true,
+      "evidence": "exit 0: true"
+    },
+    {
+      "text": "python:import inspect; from session import renew, sign_in; r = sign_in('ana', 'pw', 0); assert 'renewal' not in r.body, 'renewal token still readable in the body'; args = ({}, r.cookies, 60 * 60) if len(inspect.signature(renew).parameters) == 3 else (r.cookies, 60 * 60); assert renew(*args).status == 200, 'cookie-only renewal fails after a pause'",
+      "passed": true,
+      "evidence": "ok"
+    },
+    {
+      "text": "python:from session import page_load, sign_in; assert page_load(sign_in('ana', 'pw', 0).cookies, 5 * 60).body['user'] == 'ana'",
+      "passed": true,
+      "evidence": "ok"
+    },
+    {
+      "text": "unittest_pass",
+      "passed": true,
+      "evidence": "OK"
+    }
+  ],
+  "commands": [
+    "help",
+    "help core",
+    "help build",
+    "init kb",
+    "add",
+    "attest divergence",
+    "help core",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "run k",
+    "add",
+    "attest disclosure",
+    "attest disclosure",
+    "lint",
+    "query",
+    "report"
+  ]
+}

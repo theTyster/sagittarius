@@ -1,0 +1,15 @@
+% orbit-kb run 3 check=k3 result=fail exit=1 time=2026-10-28T19:59:50Z cmd=python3 -m unittest test_session.SessionTest.test_renewal_token_not_in_any_body
+F
+======================================================================
+FAIL: test_renewal_token_not_in_any_body (test_session.SessionTest.test_renewal_token_not_in_any_body)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.xNpSY8e6Qn/test_session.py", line 45, in test_renewal_token_not_in_any_body
+    self.assertNotIn("renewal", r.body)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: 'renewal' unexpectedly found in {'access': 'eyJzdWIiOiAiYW5hIiwgImtpbmQiOiAiYWNjZXNzIiwgImV4cCI6IDEyMDB9.8deda8c4ab57e3ff3700b7268cafcf46295f69ce618130a8a97feaf08239158b', 'renewal': 'eyJzdWIiOiAiYW5hIiwgImtpbmQiOiAicmVuZXdhbCIsICJleHAiOiA0MzIwMH0=.21060a55016db390c7bb30fcdeeaf84505f12dc690a870d36ce170567408daa2'}
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

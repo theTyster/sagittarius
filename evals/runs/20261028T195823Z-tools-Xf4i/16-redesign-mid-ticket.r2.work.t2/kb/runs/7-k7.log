@@ -1,0 +1,6 @@
+% orbit-kb run 7 check=k7 result=pass exit=0 time=2026-10-28T19:59:51Z cmd=python3 -m unittest test_session.SessionTest.test_sign_in_sets_cookie
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

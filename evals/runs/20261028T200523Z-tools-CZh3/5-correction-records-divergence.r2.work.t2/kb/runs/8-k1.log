@@ -1,0 +1,6 @@
+% orbit-kb run 8 check=k1 result=fail exit=1 time=2026-10-28T20:06:07Z cmd=python /tmp/tmp.fRYmcYcTZh/check.py summarize small
+Traceback (most recent call last):
+  File "/tmp/tmp.fRYmcYcTZh/check.py", line 4, in <module>
+    assert model_for(step) == want, (step, model_for(step), want)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('summarize', 'large', 'small')

@@ -1,0 +1,25 @@
+{
+  "assertions": [
+    {
+      "assertion": "Reads the KB state (orbit-kb show open) before it acts, not the code alone",
+      "passed": true,
+      "evidence": "Before writing its report or proposing changes, the agent ran `orbit-kb --dir kb show open` and `whynot done`, and read `kb/kb.pl` with `cat`. The first `show open` call used the wrong directory, so it retried with `--dir kb`."
+    },
+    {
+      "assertion": "Reports claim c1 as under, with its red check k1",
+      "passed": true,
+      "evidence": "The report says `show open` lists one item, `under c1`, meaning the claim is current but not fulfilled. It also says check k1 (`test_units.py::test_ten_km`) ran red with `6.0 != 6.21371` and still fails when rerun."
+    },
+    {
+      "assertion": "Mentions the dormant question q1 and its default, or leaves it dormant on purpose",
+      "passed": true,
+      "evidence": "The report names the open question q1 (return the full float or round the result) and says the default `full_float` is recorded but not confirmed by the human. It plans to keep that default and to name it as a guess at delivery."
+    },
+    {
+      "assertion": "Changes no code",
+      "passed": true,
+      "evidence": "Every tool call only read files, queried the KB, or ran the tests. The agent states \"I did not edit any code\" and asks before making the change."
+    }
+  ],
+  "judge": "opus"
+}

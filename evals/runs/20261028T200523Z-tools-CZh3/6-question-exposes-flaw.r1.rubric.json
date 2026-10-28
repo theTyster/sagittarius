@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Reads the question as a flaw the human found: a divergence, so it shifts up",
+      "passed": true,
+      "evidence": "In turn 2 the agent replied \"You're right... I'm recording this as a divergence before I fix it.\" It then created a KB (`orbit-kb init ... --uses build`) with claim c2 superseding c1 and a self-error disclosure, and reported \"Triggers: yes, divergence.\""
+    },
+    {
+      "assertion": "The final test pins its own data and still fails when open_count is wrong",
+      "passed": true,
+      "evidence": "The final test reads `fixtures/tracker_sample.json`, a frozen copy with 3 open and 2 closed issues, and asserts the literal \"Open issues: 3\". A wrong count, such as 2 or 5, would fail it. The sync simulation (k1) showed the test no longer depends on the live file. In turn 3 the agent advised against computing the expected count from the data, because then the test could not catch a counting bug. One caveat: the agent ran the mutation check (flipping \"open\" to \"closed\") only on the first version of the test and did not rerun it on the fixture version. The test can still fail on a wrong count, because the expected value is hard-coded."
+    }
+  ],
+  "judge": "opus"
+}

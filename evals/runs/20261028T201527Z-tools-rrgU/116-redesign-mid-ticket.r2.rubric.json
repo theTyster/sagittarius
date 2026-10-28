@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 1 stays on the light path: fixes the receipt window to count from the submit date, with a test, and starts no KB",
+      "passed": true,
+      "evidence": "The agent changed `Claims.receipt()` to count 60 days from submission. It added `test_receipt_counts_from_submission_not_purchase`, which failed before the fix (`None != b'scan-3'`) and passes after. Its report says \"KB: No KB / Triggers: none fired.\""
+    },
+    {
+      "assertion": "Turn 2 reads the change of plan as a divergence: shifts up, and records the request, the claims (the 60-day receipt rule among them), and the divergence",
+      "passed": true,
+      "evidence": "The agent said \"This changes the design you approved, so I'm starting a KB and recording the divergence.\" It ran `orbit-kb init` with the human's request, then added claims c1\u2013c3, where c2 is the 60-day rule. The KB output shows \"contested c2: a divergence names claim c2.\""
+    },
+    {
+      "assertion": "Re-checks the 60-day rule under the vault design and finds that the vault's default 30-day keep would purge receipts early, so it stores them for the full window; it does not only move the data and rerun the same-day tests",
+      "passed": true,
+      "evidence": "The agent passes `keep_days=61` because \"The vault's default of 30 days would have hidden receipts after a month.\" Check k2 runs `test_window_is_day_60_from_submission` (day 60 visible, day 61 gone) against the vault build, not only the same-day test."
+    }
+  ],
+  "judge": "opus"
+}

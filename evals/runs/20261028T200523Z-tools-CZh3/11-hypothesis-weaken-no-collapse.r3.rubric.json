@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as '365 days', 'counts from the signup date', 'should use calendar years', or 'should read annual_since'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "The restated hypothesis reads: 'Each annual customer gets one renewal reminder, 14 days before their renewal. For some customers, the reminder date does not meet that.' It does not mention signup, annual_since, 365 days or calendar years. The only cause-like remark ('The code is one day off') sits apart, in the findings."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right reminder date (when the customer's annual plan started or renews, and the two-week lead) and says the sent date can differ, so that checking one customer could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong date would fit, such as 'reminders are sometimes sent on the wrong day' or 'the date depends on something other than the plan'",
+      "passed": true,
+      "evidence": "The hypothesis names the customer's renewal and the 14-day lead, and says that for some customers the reminder date does not meet that. The stated falsifier, 'every reminder is exactly 14 days before that customer's renewal date', can be checked for each customer."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "C-327's reminder is 15 days before June 1, so it is not 14 days before the renewal. C-311's October 19 reminder is not 14 days before a renewal tied to their March annual start. The agent's table lists both cases under the one hypothesis, and claims c1 and c2 cover each."
+    }
+  ],
+  "judge": "opus"
+}

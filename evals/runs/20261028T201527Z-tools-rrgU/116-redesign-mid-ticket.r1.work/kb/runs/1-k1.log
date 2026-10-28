@@ -1,0 +1,6 @@
+% orbit-kb run 1 check=k1 result=pass exit=0 time=2026-10-28T20:16:20Z cmd=python3 -m unittest test_claims.ClaimsTest.test_receipt_counted_from_submit_day
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

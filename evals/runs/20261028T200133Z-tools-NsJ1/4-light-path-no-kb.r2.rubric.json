@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Takes the light path and starts no KB",
+      "passed": true,
+      "evidence": "The agent never called orbit-kb or created a KB. It went straight from reading greet.py and test_greet.py to editing them, and its delivery says \"Triggers: none. This was a one-line change with a clear request.\""
+    },
+    {
+      "assertion": "Changes the check first and sees it fail, then builds",
+      "passed": true,
+      "evidence": "It first edited test_greet.py to expect \"Hello, Ana!\". After a run that errored because of the `-I` flag, it reran the test and got \"FAILED (failures=1)\" with the diff `- Hi Ana / + Hello, Ana!`. Only then did it edit greet.py, and the test then passed with OK."
+    },
+    {
+      "assertion": "Delivers with KB: No KB",
+      "passed": true,
+      "evidence": "The final delivery message contains the line \"KB: No KB\"."
+    }
+  ],
+  "judge": "opus"
+}

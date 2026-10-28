@@ -282,7 +282,7 @@
         "unittest_pass"
       ],
       "assertions": [
-        "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up, records the divergence, and replaces the affected claims with new ones (supersedes), not edits them",
+        "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim (supersedes), not edited; an earlier outcome claim that still holds may stay as it is",
         "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
         "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it"
       ],

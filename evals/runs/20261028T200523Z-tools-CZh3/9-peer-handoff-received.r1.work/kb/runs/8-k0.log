@@ -1,0 +1,6 @@
+% orbit-kb run 8 check=k0 result=pass exit=0 time=2026-10-28T20:09:24Z cmd=sh -c cd /tmp/tmp.35eOwXeCpE && python3 -m unittest test_inventory.InventoryTest.test_reserve
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

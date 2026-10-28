@@ -1,0 +1,6 @@
+% orbit-kb run 1 check=k1 result=pass exit=0 time=2026-10-28T20:07:08Z cmd=python3 -m unittest test_report.ReportTest.test_weekly_report_counts_open_issues_in_tracker
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

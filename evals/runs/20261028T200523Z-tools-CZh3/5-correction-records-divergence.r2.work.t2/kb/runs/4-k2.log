@@ -1,0 +1,5 @@
+% orbit-kb run 4 check=k2 result=fail exit=1 time=2026-10-28T20:05:56Z cmd=env PYTHONPATH=. python -I check.py grade large
+Traceback (most recent call last):
+  File "/tmp/tmp.5C830sjNGV/check.py", line 2, in <module>
+    from pipeline import model_for
+ModuleNotFoundError: No module named 'pipeline'

@@ -1,0 +1,74 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 15 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "help_before_write",
+      "passed": true,
+      "evidence": "first help at call 0, first write (init) at call 4"
+    },
+    {
+      "text": "kb_exists",
+      "passed": true,
+      "evidence": "/tmp/tmp.AtixAuCP5O/kb"
+    },
+    {
+      "text": "lint_clean",
+      "passed": true,
+      "evidence": "Summary: 0 error(s), 0 warning(s)."
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:universal(C)",
+      "passed": true,
+      "evidence": "exit 0: C = c1"
+    },
+    {
+      "text": "query:burn_open(C)",
+      "passed": true,
+      "evidence": "exit 0: C = c1"
+    }
+  ],
+  "commands": [
+    "help",
+    "help build",
+    "help core",
+    "help core",
+    "init kb",
+    "add",
+    "help subject",
+    "add",
+    "help subject",
+    "run k",
+    "run k",
+    "add",
+    "show open",
+    "whynot",
+    "add",
+    "show open",
+    "whynot",
+    "subject s",
+    "subject s",
+    "attest disclosure",
+    "attest disclosure",
+    "lint",
+    "report"
+  ]
+}

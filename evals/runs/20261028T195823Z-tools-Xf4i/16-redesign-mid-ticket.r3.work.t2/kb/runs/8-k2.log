@@ -1,0 +1,6 @@
+% orbit-kb run 8 check=k2 result=pass exit=0 time=2026-10-28T19:59:26Z cmd=python3 -m unittest test_session.SessionTest.test_renew_sets_new_cookies test_session.SessionTest.test_renewal_before_access_expiry
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK

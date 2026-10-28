@@ -1,0 +1,6 @@
+% orbit-kb run 10 check=k4 result=pass exit=0 time=2026-10-28T19:59:26Z cmd=python3 -m unittest test_session.SessionTest.test_sign_in_sets_cookie test_session.SessionTest.test_page_load_sees_user
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK

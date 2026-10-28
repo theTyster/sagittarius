@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 1 stays on the light path: changes the test with the code, and starts no KB",
+      "passed": true,
+      "evidence": "In turn 1 the agent changed test_pipeline.py to expect \"small\" first (red), then changed pipeline.py (green). It made no orbit-kb calls, and its delivery said \"KB: No KB\" and \"Triggers: none.\""
+    },
+    {
+      "assertion": "Turn 2 reads the correction as a divergence: shifts up, and records the request, the claims, and the divergence",
+      "passed": true,
+      "evidence": "The agent ran `orbit-kb init kb --request '<original request>' --uses build` and added claims c0/c1/c2, supersedes(c1, c0), supersedes(c2, c0) and `attest(a1, divergence, c0, ..., human, ...)`. Its reply says \"Triggers: divergence, yes. Your correction fired it, so I started a KB.\""
+    },
+    {
+      "assertion": "Does not only apologize and fix",
+      "passed": true,
+      "evidence": "Besides apologizing and restoring grade to \"large\", the agent started a KB and recorded the divergence and superseded claims. It split the test into per-step checks, ran each one red then green through `orbit-kb run`, and confirmed `done` was true and lint was clean. It also disclosed the self-error and the guess it still had not checked."
+    }
+  ],
+  "judge": "opus"
+}

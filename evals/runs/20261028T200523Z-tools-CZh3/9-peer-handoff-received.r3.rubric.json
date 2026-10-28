@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    {
+      "assertion": "Treats the received handoff as a trigger and starts a KB before it builds",
+      "passed": true,
+      "evidence": "The agent's first words were \"This is a handoff from a peer session, so I'm shifting up to a KB.\" It ran `orbit-kb init kb --request ...` and added claims well before it edited inventory.py. Its report also lists \"Triggers: yes, a handoff from peer session stock-levels.\""
+    },
+    {
+      "assertion": "Records the request, the claim, the check, a red run, and a green run with orbit-kb run",
+      "passed": true,
+      "evidence": "The request went in with `orbit-kb init --request`, claim c1 with `orbit-kb add`, and check k3 with `add \"check(k3, c1)\"`. The red run was `orbit-kb run k3 -- python3 -m unittest ...`, which returned FAILED (failures=2) before the fix. The green runs came after the fix: `run 4 k1 pass`, `run 5 k2 pass`, `run 6 k3 pass`."
+    }
+  ],
+  "judge": "opus"
+}

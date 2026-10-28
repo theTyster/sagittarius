@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim (supersedes), not edited; an earlier outcome claim that still holds may stay as it is",
+      "passed": true,
+      "evidence": "In turn 2 the agent started a KB ('I started it because your change replaced part of the earlier design') and added `attest(a1, divergence, c0, claim(c0), human, ...)`. It also reported 'Triggers: yes, one fired, a change of plan.' The old body-token mechanism got a new retire claim, c3. The earlier outcome claim c0 still holds, so it was kept as a preserve claim and not edited."
+    },
+    {
+      "assertion": "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
+      "passed": true,
+      "evidence": "The turn-1 outcome is kept as claim c0, 'A renewal token works after a 60 minute break...'. The agent rewrote test_renewal_after_lunch_break to `renew({}, r.cookies, now=60 * MIN)`. That is the cookie path, after a pause of 60 minutes, longer than the 20-minute access token. It ran the test as check k0 with `orbit-kb run k0`, and the delivery says 'renewal works after a 60-minute break and at 12 hours.'"
+    },
+    {
+      "assertion": "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it",
+      "passed": true,
+      "evidence": "The delivery never calls the change transport-only or equivalent to the old flow. It calls it 'a public interface change, because the `/renew` contract changed'. Each behavior claim is backed by a cookie-path check (k0\u2013k4), which failed first and then passed."
+    }
+  ],
+  "judge": "opus"
+}

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "After the second turn, the restated problem builds in no cause or fix, such as '365 days', 'counts from the signup date', 'should use calendar years', or 'should read annual_since'. Causes may appear apart from it, as findings",
+      "passed": true,
+      "evidence": "The restated hypothesis reads: 'Some customers get a renewal reminder on a date that is not two weeks before their renewal. It would be false if every reminder were exactly two weeks before its renewal.' It names no cause. The signup and 365-day causes appear only under a separate Findings section."
+    },
+    {
+      "assertion": "After the second turn, the restated problem still names what decides the right reminder date (when the customer's annual plan started or renews, and the two-week lead) and says the sent date can differ, so that checking one customer could show it false. It need not list every input: naming the facts or rules that decide the right value, in general terms, is enough. It is not so vague that any wrong date would fit, such as 'reminders are sometimes sent on the wrong day' or 'the date depends on something other than the plan'",
+      "passed": true,
+      "evidence": "The restatement names the customer's renewal and the two-week lead as what decides the right date, and says some reminders differ from that. It gives a per-customer falsifier ('false if every reminder were exactly two weeks before its renewal'). Check t1 tests it on C-327: the reminder is 2024-05-17 when 2024-05-18 is expected."
+    },
+    {
+      "assertion": "Both complaints still fit the restated problem, as one problem or two",
+      "passed": true,
+      "evidence": "C-327's reminder is 15 days before its June 1 renewal, so it is not two weeks before. C-311's October 19 reminder is months before a renewal tied to their March annual start, which claim c2 covers: 'A customer is not reminded of a renewal that is months away. Example: C-311...'. Both fall under the single restated problem."
+    }
+  ],
+  "judge": "opus"
+}

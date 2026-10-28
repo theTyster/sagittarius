@@ -1,0 +1,14 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-28T20:04:15Z cmd=sh -c cd .. && python3 -m unittest -q test_units
+======================================================================
+FAIL: test_ten_km (test_units.UnitsTest.test_ten_km)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.4eCvHdPLkT/test_units.py", line 8, in test_ten_km
+    self.assertAlmostEqual(km_to_miles(10), 6.21371, places=4)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 6.0 != 6.21371 within 4 places (0.21370999999999984 difference)
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)

@@ -1,0 +1,13 @@
+% orbit-kb run 4 check=k4 result=fail exit=1 time=2026-10-28T20:16:35Z cmd=python3 -m unittest -q test_claims.ClaimsTest.test_refused_claim_stores_nothing_in_vault
+======================================================================
+ERROR: test_refused_claim_stores_nothing_in_vault (test_claims.ClaimsTest.test_refused_claim_stores_nothing_in_vault)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.dqlJ6vVEe4/test_claims.py", line 48, in test_refused_claim_stores_nothing_in_vault
+    c = Claims(v)
+TypeError: Claims.__init__() takes 1 positional argument but 2 were given
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

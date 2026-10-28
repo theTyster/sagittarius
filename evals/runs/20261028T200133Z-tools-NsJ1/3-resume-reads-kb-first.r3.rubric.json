@@ -1,0 +1,25 @@
+{
+  "assertions": [
+    {
+      "assertion": "Reads the KB state (orbit-kb show open) before it acts, not the code alone",
+      "passed": true,
+      "evidence": "Before giving any plan, the agent ran `orbit-kb show open`, then `orbit-kb --dir kb show open` once the KB was found, along with `lint` and `whynot 'done'`. The output was \"Open: - under c1\". It also read kb/kb.pl and kb/runs/1-k1.log."
+    },
+    {
+      "assertion": "Reports claim c1 as under, with its red check k1",
+      "passed": true,
+      "evidence": "The agent said \"`show open` reports one open item: `under c1`\" and \"Check `k1` is that test\". It also said \"The red run is recorded in `kb/runs/1-k1.log`: `6.0 != 6.21371`\"."
+    },
+    {
+      "assertion": "Mentions the dormant question q1 and its default, or leaves it dormant on purpose",
+      "passed": true,
+      "evidence": "The agent wrote: \"Decide open question `q1`: 'Round the result, or return the full float?' The KB currently assumes `full_float`. That's my default, not your answer.\" It plans to list the default as a guess in the delivery report."
+    },
+    {
+      "assertion": "Changes no code",
+      "passed": true,
+      "evidence": "Every tool call was a read-only command (ls, find, cat, orbit-kb show/lint/whynot). The agent said \"I only ran read-only queries and didn't change any code.\""
+    }
+  ],
+  "judge": "opus"
+}

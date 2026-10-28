@@ -1,0 +1,15 @@
+% orbit-kb run 4 check=k3 result=fail exit=1 time=2026-10-28T19:59:19Z cmd=python3 -m unittest test_session.SessionTest.test_renew_ignores_body_token
+E
+======================================================================
+ERROR: test_renew_ignores_body_token (test_session.SessionTest.test_renew_ignores_body_token)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.xDpUPbMUOo/test_session.py", line 43, in test_renew_ignores_body_token
+    tok = r.cookies["renewal"]
+          ~~~~~~~~~^^^^^^^^^^^
+KeyError: 'renewal'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

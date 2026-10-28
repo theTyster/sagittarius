@@ -1,0 +1,6 @@
+% orbit-kb run 11 check=k2 result=pass exit=0 time=2026-10-28T20:00:03Z cmd=python3 -m unittest test_session.SessionTest.test_renew_resets_http_only_renewal_cookie
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK
