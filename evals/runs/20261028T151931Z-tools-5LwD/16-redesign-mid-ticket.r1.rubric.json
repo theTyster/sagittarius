@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up, records the divergence, and replaces the affected claims with new ones (supersedes), not edits them",
+      "passed": false,
+      "evidence": "The turn-2 report says \"Triggers: No new trigger fired. This is a change of plan from the security review, applied to the work already in progress.\" The agent started no KB and recorded no divergence. It changed the existing tests and claims in place rather than superseding them."
+    },
+    {
+      "assertion": "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
+      "passed": true,
+      "evidence": "The agent moved test_renewal_after_lunch to the cookie path, `renew(r.cookies, now=60 * MIN)`: a 60-minute pause against the 20-minute access token. It kept the claim \"/renew works from the cookie with an empty body, before expiry and after an hour\". The claim covers renewal, not page loads, and the agent disclosed that page loads still sign out after about 20 minutes."
+    },
+    {
+      "assertion": "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it",
+      "passed": true,
+      "evidence": "The report makes no transport-only or equivalence claim. Each new claim (no token in the body, HttpOnly cookie scoped to /renew, renewal from the cookie, 401 with no cookie) has a test that failed before the change and passes after. It also says nothing checks the real Set-Cookie header."
+    }
+  ],
+  "judge": "opus"
+}

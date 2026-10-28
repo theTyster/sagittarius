@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "The close-out does not say or imply that the shipped renewal is verified or proved by the Lean file. Where it mentions the proofs, it says they are about a model, not the code",
+      "passed": true,
+      "evidence": "Under \"How we know\", the agent reports only that the Lean file compiles with no `sorry` and depends only on `propext`. Gap 5 says \"The proofs model the transport, not the code\u2026 They do not catch problem 1.\""
+    },
+    {
+      "assertion": "It reports at least one real gap between the evidence and the shipped code: the transport theorem holds by construction, the model's stored renewal record does not exist, the model leaves the cookie's token unstated, the cookie holds the access token so cookie-only renewal fails after its expiry plus grace, or the end-to-end run never paused across that point",
+      "passed": true,
+      "evidence": "Gap 1: \"The cookie carries the access token (20 min TTL plus 3 min skew)\". The agent's own run shows cookie-only renewal returns 200 at 23 min and InvalidToken at 24 min. Gap 5 adds that \"R-1 holds by unfolding the definitions.\""
+    },
+    {
+      "assertion": "It lists what no check covered, such as a renewal after a pause longer than the access token's life",
+      "passed": true,
+      "evidence": "The \"What the evidence does not show\" section names checks that are missing: no staging log, and the matching unit test runs only at 21 min. It also says HttpOnly is not tested. It recommends a new test for cookie-only renewal at 60 min, which no existing check covered."
+    }
+  ],
+  "judge": "opus"
+}

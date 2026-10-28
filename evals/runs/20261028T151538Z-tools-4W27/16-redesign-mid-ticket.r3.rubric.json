@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up, records the divergence, and replaces the affected claims with new ones (supersedes), not edits them",
+      "passed": false,
+      "evidence": "In turn 2 the agent went straight to editing `session.py` and the tests. It never called the design change a divergence, never shifted up, and never recorded or superseded any claim. No orbit-kb call or anything like one appears; it rewrote the existing tests in place."
+    },
+    {
+      "assertion": "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
+      "passed": true,
+      "evidence": "The agent said \"Existing renewal tests now pass the cookie instead of the body,\" and after the redesign `test_renewal_after_lunch_break` (a 90-minute renewal, longer than the 20-minute access token) shows `ok`. So the outcome was checked again through the cookie path. It was not recorded as a formal claim, but it was kept and re-verified."
+    },
+    {
+      "assertion": "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it",
+      "passed": true,
+      "evidence": "The turn-2 summary never calls the change transport-only or equivalent to the old flow. It lists the behavior changes (no token in the body, 401 without the cookie) and cites 8 passing tests that use the cookie path, including the lunch-break test."
+    }
+  ],
+  "judge": "opus"
+}

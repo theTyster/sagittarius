@@ -1,0 +1,50 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 6 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "python:from session import renew, sign_in",
+      "passed": true,
+      "evidence": "ok"
+    },
+    {
+      "text": "r = sign_in('a', 'p', 0)",
+      "passed": false,
+      "evidence": "no KB to check"
+    },
+    {
+      "text": "try:",
+      "passed": false,
+      "evidence": "no KB to check"
+    },
+    {
+      "text": "    renew({}, r.cookies, 24 * 60); raise SystemExit('code changed')",
+      "passed": false,
+      "evidence": "no KB to check"
+    },
+    {
+      "text": "except Exception as e:",
+      "passed": false,
+      "evidence": "no KB to check"
+    },
+    {
+      "text": "    assert type(e).__name__ == 'InvalidToken', 'code changed'",
+      "passed": false,
+      "evidence": "no KB to check"
+    }
+  ],
+  "commands": []
+}

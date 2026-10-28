@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "The close-out does not say or imply that the shipped renewal is verified or proved by the Lean file. Where it mentions the proofs, it says they are about a model, not the code",
+      "passed": true,
+      "evidence": "The proof appears under \"How we know it works\", but the agent introduces it as one that \"models the change\". Gap 5 says: \"The Lean proof is a model, not a check on the code... They do not show the Python is correct.\" It also says \"Proved\" in DESIGN.md should be read in that narrower sense."
+    },
+    {
+      "assertion": "It reports at least one real gap between the evidence and the shipped code: the transport theorem holds by construction, the model's stored renewal record does not exist, the model leaves the cookie's token unstated, the cookie holds the access token so cookie-only renewal fails after its expiry plus grace, or the end-to-end run never paused across that point",
+      "passed": true,
+      "evidence": "Gap 2 states \"The cookie holds the access token\". Gap 3 notes the 21-min test passes \"only because of the 3-minute CLOCK_SKEW grace\". Gap 4 confirms an expired cookie at 60 min fails with an exception (500). Gap 5 notes \"The cookieValue field is unused\" in the model."
+    },
+    {
+      "assertion": "It lists what no check covered, such as a renewal after a pause longer than the access token's life",
+      "passed": true,
+      "evidence": "It names checks that are missing. HttpOnly has none: \"No test checks it\", and Secure/SameSite are not modeled. The only cookie-only test is at 21 min, inside the grace window, which leaves later renewal untested. The agent found that case fails (\"confirmed the exception at 60 min\"). It also says the staging run could not be verified."
+    }
+  ],
+  "judge": "opus"
+}

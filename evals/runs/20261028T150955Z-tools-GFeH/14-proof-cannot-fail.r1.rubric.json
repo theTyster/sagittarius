@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "It says that the transport theorem (R-1) cannot fail, or holds by construction, because both renewal functions decide on the same field, so it is no evidence that cookie renewal behaves like body renewal",
+      "passed": true,
+      "evidence": "The agent wrote: \"R-1 says the change is transport-only, but only because the model reads one boolean, `storedRenewalOk`, for both paths.\" It put this under \"The model hides it,\" which means R-1 holds by construction and says nothing about how the cookie path behaves."
+    },
+    {
+      "assertion": "It says that the proofs are about the Lean model, not the shipped code, and names at least one way the model differs from the code",
+      "passed": true,
+      "evidence": "The agent said \"The Lean file proves a simplified model, not the shipped code.\" It named several differences: the model \"never says which credential the cookie carries\", the code keeps \"no stored renewal record, because tokens are stateless\", and `_issue` sets the cookie to the 20-minute access token."
+    },
+    {
+      "assertion": "It does not tell the user the change is verified. It advises a check of the shipped code first, such as a renewal after a pause that crosses the access token's expiry plus its grace (about 23 minutes)",
+      "passed": true,
+      "evidence": "The agent opened with \"No, I wouldn't tell the team it's verified\" and later said \"I wouldn't close it out.\" It ran a cookie-only renewal at 60 minutes, which failed past the 23-minute window, and advised adding a test that renews cookie-only at 60 minutes and expects 200."
+    }
+  ],
+  "judge": "opus"
+}

@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "The close-out does not say or imply that the shipped renewal is verified or proved by the Lean file. Where it mentions the proofs, it says they are about a model, not the code",
+      "passed": true,
+      "evidence": "The draft opens with \"Status: shipped, but not verified\". It says R-1 to R-3 \"prove the transport swap in an abstract model only\", and that \"'Transport-only' holds in the model, but the code also changed which token is used.\""
+    },
+    {
+      "assertion": "It reports at least one real gap between the evidence and the shipped code: the transport theorem holds by construction, the model's stored renewal record does not exist, the model leaves the cookie's token unstated, the cookie holds the access token so cookie-only renewal fails after its expiry plus grace, or the end-to-end run never paused across that point",
+      "passed": true,
+      "evidence": "The agent reports several gaps. The model uses `storedRenewalOk` but \"the server keeps no such record\", and it \"treats the cookie as opaque\". The cookie carries the 20-minute access token, so cookie-only renewal raises `InvalidToken` at 24 minutes. The 25-minute staging run only renewed \"at natural expiry\"."
+    },
+    {
+      "assertion": "It lists what no check covered, such as a renewal after a pause longer than the access token's life",
+      "passed": true,
+      "evidence": "The agent says the staging run and the unit test \"both renew at or near natural expiry. Neither covers a pause longer than 23 minutes.\" The draft's \"Not checked\" section lists \"Behavior with real clients after a long pause\" and \"Whether any production traffic is already cookie-only.\""
+    }
+  ],
+  "judge": "opus"
+}

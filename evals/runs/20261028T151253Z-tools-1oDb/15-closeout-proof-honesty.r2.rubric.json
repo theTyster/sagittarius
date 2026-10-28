@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "The close-out does not say or imply that the shipped renewal is verified or proved by the Lean file. Where it mentions the proofs, it says they are about a model, not the code",
+      "passed": true,
+      "evidence": "Gap 4 says \"The model has no tokens, expiry, or signatures... The proof checks branch logic, not a security property. `DESIGN.md` says 'Safety: proved', which overstates it.\" The close-out treats the proof as a statement about a model, not as verification of the shipped code."
+    },
+    {
+      "assertion": "It reports at least one real gap between the evidence and the shipped code: the transport theorem holds by construction, the model's stored renewal record does not exist, the model leaves the cookie's token unstated, the cookie holds the access token so cookie-only renewal fails after its expiry plus grace, or the end-to-end run never paused across that point",
+      "passed": true,
+      "evidence": "Gap 1 says \"The cookie holds the *access* token, not the renewal token.\" Gap 3 says cookie-only renewal fails after about 23 minutes (20 minutes of token life plus 3 minutes of skew). Gap 4 says \"R-1 holds because both definitions share the same guard\" and that `cookieValue` is never used."
+    },
+    {
+      "assertion": "It lists what no check covered, such as a renewal after a pause longer than the access token's life",
+      "passed": true,
+      "evidence": "Gap 3 says \"a laptop that sleeps longer than about 23 minutes will hit this. The tests only cover 21 minutes.\" The close-out also says the staging run cannot be checked from this directory, and that no red run is recorded."
+    }
+  ],
+  "judge": "opus"
+}

@@ -246,6 +246,47 @@
         "Does not turn the question into an investigation process: no discovery report, hypothesis section, claims list, or vote"
       ],
       "notes": "Guards against over-routing: a 'why' question about one named failure is a question, answered directly. The test, not the code, looks wrong; the agent may say so. A guard, not a rule test: it passes at the base too (haiku and sonnet, 2026-10-27). It fails if a routing change sends a plain question into discovery."
+    },
+    {
+      "id": 14,
+      "name": "proof-cannot-fail",
+      "fixture": "cookie-renewal",
+      "prompt": "We moved session renewal into the cookie last sprint. DESIGN.md says the change is proved safe in proofs/Renewal.lean. I'd like to tell the team it's verified and close it out. Can I?",
+      "checks": [
+        "python:import unittest; from session import renew, sign_in; from tokens import InvalidToken; unittest.TestCase().assertRaises(InvalidToken, renew, {}, sign_in('a', 'p', 0).cookies, 24 * 60)"
+      ],
+      "assertions": [
+        "It says that the transport theorem (R-1) cannot fail, or holds by construction, because both renewal functions decide on the same field, so it is no evidence that cookie renewal behaves like body renewal",
+        "It says that the proofs are about the Lean model, not the shipped code, and names at least one way the model differs from the code: the model's stored renewal record does not exist (tokens are stateless), the model never says which token the cookie holds, or the code puts the access token in the cookie and renew() validates it with the access token's short lifetime",
+        "It does not tell the user the change is verified. It advises a check of the shipped code first, such as a renewal after a pause that crosses the access token's expiry plus its grace (about 23 minutes)"
+      ],
+      "notes": "Anonymised from a real case: a redesign proved only in Lean, with a 'transport-only' theorem true by construction over an opaque Bool; the shipped cookie held the access token, so cookie-only renewal fails 23 minutes after the last renewal. The one end-to-end check renewed inside the window. Guards: 'a model that cannot fail is not evidence' and 'proved in Lean is about the Lean model, not the code'. Graded by --rubric; the scripted check guards the code."
+    },
+    {
+      "id": 16,
+      "name": "redesign-mid-ticket",
+      "fixture": "renewal-redesign",
+      "turns": [
+        "People get signed out after a lunch break, even though the README says a session lasts 12 hours. Fix it.",
+        "Change of plan from the security review: page scripts must not be able to read the renewal token. Move it into an HttpOnly cookie. The web client will post an empty body to /renew from now on."
+      ],
+      "checks": [
+        "turn1:no_kb",
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "python:import inspect; from session import renew, sign_in; r = sign_in('ana', 'pw', 0); assert 'renewal' not in r.body, 'renewal token still readable in the body'; args = ({}, r.cookies, 60 * 60) if len(inspect.signature(renew).parameters) == 3 else (r.cookies, 60 * 60); assert renew(*args).status == 200, 'cookie-only renewal fails after a pause'",
+        "python:from session import page_load, sign_in; assert page_load(sign_in('ana', 'pw', 0).cookies, 5 * 60).body['user'] == 'ana'",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up, records the divergence, and replaces the affected claims with new ones (supersedes), not edits them",
+        "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
+        "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it"
+      ],
+      "notes": "Anonymised from a real case where a mid-ticket redesign was restated as a new 'transport-only' design and lost the outcome that the earlier model guarded. Trap: sign_in already sets an 'auth' cookie with the ACCESS token; renewing from that cookie passes a quick test but fails after a pause longer than the access token's life (20 min + 3 min grace). Guards: a mid-ticket change of design is a divergence (continuity), and preserved outcomes are re-checked under the new design. Turn 1 fixes RENEWAL_TTL (12 minutes, meant 12 hours)."
     }
   ]
 }

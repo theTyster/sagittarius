@@ -1,0 +1,10 @@
+{
+  "spec": "tools.json",
+  "account": "personal",
+  "model": "sonnet",
+  "prompt": "none",
+  "prompt_sha256": null,
+  "runs": 3,
+  "commit": "9f0cb1b",
+  "dirty": false
+}

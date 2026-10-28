@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up, records the divergence, and replaces the affected claims with new ones (supersedes), not edits them",
+      "passed": false,
+      "evidence": "The turn 2 delivery says \"KB: No KB\" and \"Triggers: none fired. The request was clear.\" Nothing records a divergence and no claim is superseded. The agent added new claims next to the restated old one."
+    },
+    {
+      "assertion": "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
+      "passed": true,
+      "evidence": "The delivery keeps the claim \"The 12-hour renewal from the previous change still holds\". It cites `test_renewal_after_lunch_break`, a 60-minute pause that is longer than the 20-minute access token. After the sed, that test calls `renew(r.cookies, now=...)`, so it goes through the cookie path, and it passes. This is a weak pass: the 12-hour claim's own evidence is only the cookie max age (`RENEWAL_TTL`). The lunch-break test is cited under the separate claim about reading the cookie."
+    },
+    {
+      "assertion": "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it",
+      "passed": true,
+      "evidence": "The delivery never calls the change transport-only or equivalent to the old flow. Each claim names a test it ran, and it flags the `renew` signature change and the client changes still needed."
+    }
+  ],
+  "judge": "opus"
+}

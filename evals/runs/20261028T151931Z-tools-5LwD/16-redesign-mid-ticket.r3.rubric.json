@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up, records the divergence, and replaces the affected claims with new ones (supersedes), not edits them",
+      "passed": false,
+      "evidence": "The agent started building straight away ('I'll write the checks first and confirm they fail before changing `session.py`'). It never shifted up, recorded a divergence, or superseded any claims. It only rewrote test_session.py and session.py."
+    },
+    {
+      "assertion": "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
+      "passed": true,
+      "evidence": "The delivery says 'the existing 1-hour and 12-hour renewal checks now use the cookie', and renew() now takes only (cookies, now). All 8 tests pass, so renewal after 1 hour (longer than the 20-minute access token) is checked through the cookie path."
+    },
+    {
+      "assertion": "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it",
+      "passed": true,
+      "evidence": "The delivery never calls the change equivalent or transport-only. It lists checks that failed first and then passed: no token in the body, the cookie is HttpOnly, a missing cookie gets 401, and 1-hour renewal works through the cookie."
+    }
+  ],
+  "judge": "opus"
+}

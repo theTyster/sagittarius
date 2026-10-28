@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up, records the divergence, and replaces the affected claims with new ones (supersedes), not edits them",
+      "passed": false,
+      "evidence": "The agent treated turn 2 as a routine edit. It said \"I'll fix both, and make `/renew` use only the cookie\" and changed session.py and the tests in place. It never named a divergence, never recorded one and never superseded any claims."
+    },
+    {
+      "assertion": "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
+      "passed": true,
+      "evidence": "The lunch-break test was kept and moved to the new path as `renew(r.cookies, now=90 * MIN)`, a 90-minute pause against the 20-minute access token, and it passed in the turn-2 run. The page-load test at 90 minutes also still passes. The outcome survives as a test, not as an explicit claim record."
+    },
+    {
+      "assertion": "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it",
+      "passed": true,
+      "evidence": "The final message never calls the change transport-only or equivalent to the old flow. It cites tests for the missing body token, the cookie flags and renewal from the cookie after 90 minutes, and it says the Set-Cookie header itself could not be checked because the repo has no HTTP layer."
+    }
+  ],
+  "judge": "opus"
+}

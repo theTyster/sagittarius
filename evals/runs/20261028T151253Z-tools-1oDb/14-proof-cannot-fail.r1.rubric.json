@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "It says that the transport theorem (R-1) cannot fail, or holds by construction, because both renewal functions decide on the same field, so it is no evidence that cookie renewal behaves like body renewal",
+      "passed": false,
+      "evidence": "The agent hedged: it called `transport_only` \"close to definitional\" and \"a weak safety result\", and its reason was that \"renewViaBody ignores the cookie\". It never said that both functions decide on the same stored field (`storedRenewalOk`). It also never said the theorem cannot fail, or that it is no evidence that cookie renewal behaves like body renewal."
+    },
+    {
+      "assertion": "It says that the proofs are about the Lean model, not the shipped code, and names at least one way the model differs from the code: the model's stored renewal record does not exist (tokens are stateless), the model never says which token the cookie holds, or the code puts the access token in the cookie and renew() validates it with the access token's short lifetime",
+      "passed": true,
+      "evidence": "The agent said the proofs \"are about a small pure model\" and \"cover the 'PROPOSED change' ... not the code that shipped\". It also named a difference: \"The cookie value is opaque. Nothing ties the cookie to the right session or user\". This matches the model never saying which token the cookie holds."
+    },
+    {
+      "assertion": "It does not tell the user the change is verified. It advises a check of the shipped code first, such as a renewal after a pause that crosses the access token's expiry plus its grace (about 23 minutes)",
+      "passed": true,
+      "evidence": "The agent said \"You can't tell them the change is verified safe\" and noted \"I did not verify the shipped code\". Under \"Suggested next steps before close-out\" it advised \"Add checks on the real code\", but it never mentioned the expiry-plus-grace pause case."
+    }
+  ],
+  "judge": "opus"
+}

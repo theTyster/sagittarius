@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up, records the divergence, and replaces the affected claims with new ones (supersedes), not edits them",
+      "passed": false,
+      "evidence": "In turn 2 the agent went straight to editing session.py and test_session.py. It never named the change as a divergence, never shifted up, and never recorded or superseded any claims. It edited the existing test call sites in place (e.g. replace_all `renew({\"renewal\": ...}, {}, ...)` \u2192 `renew(r.cookies, ...)`)."
+    },
+    {
+      "assertion": "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
+      "passed": false,
+      "evidence": "The agent never restated the 12-hour outcome as a claim that carries across the redesign. The only check that /renew succeeds through the cookie runs at `now=10 * MIN`, which is shorter than the 20-minute access token. The 90-minute test goes through page_load, not through the new /renew cookie path, and the 13-hour test only checks rejection."
+    },
+    {
+      "assertion": "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it",
+      "passed": true,
+      "evidence": "The final message lists the changes and the 8 passing tests and never says the change is transport-only or equivalent to the old flow. It also hedges where it could not verify: \"I can't confirm that from this code, because the `Response` here is a stub.\""
+    }
+  ],
+  "judge": "opus"
+}
