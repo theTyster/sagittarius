@@ -1,14 +1,22 @@
-Delivered:
-- (Write what you delivered here.)
-Claims:
-- c1 (preserve): x Checks: none.
-Guesses:
-- None. A human answered every question with a default.
-Disclosures:
-- None.
-Not checked:
-- c1: x It has no check.
-Open:
-- Nothing is open.
-To land:
-- (Write the steps to land the work here.)
+# Delivered:
+  - (Write what you delivered here.)
+
+# Claims:
+  - c1 **preserve**: x
+    - Checks: none.
+
+# Guesses:
+  - None. A human answered every question with a default.
+
+# Disclosures:
+  - None.
+
+# Not checked:
+  - c1: x
+    - It has no check.
+
+# Open:
+  - Nothing is open.
+
+# To land:
+  - (Write the steps to land the work here.)

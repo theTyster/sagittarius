@@ -1,29 +1,63 @@
-Delivered:
-- (Write what you delivered here.)
-Claims:
-- c1 (introduce): The widget can be saved Status: fulfilled. Checks: k1 (passed).
-- c2 (preserve): Loading stays fast Status: under. It is not fulfilled yet. Checks: k2 (not passed).
-- c3 (preserve): Every saved widget loads back the same Status: fulfilled. Burn: NOT PROVED. A human waived the proof until 2999-01-01T00:00:00Z. Checks: k3 (passed).
-- c4 (preserve): Old files still load Status: not fulfilled. A human waived check k4 until 2999-01-01T00:00:00Z, so the claim does not block done until then. Checks: k4 (never run).
-- c5 (preserve): Saving never loses data Status: fulfilled. Burn: NOT PROVED. A Lean proof is required. Checks: k5 (passed).
-- c6 (introduce): The save button has a tooltip Status: under. It is not fulfilled yet. Checks: none.
-- c7 (preserve): Names like <b>bold</b> & "quoted" stay plain Status: fulfilled. Checks: k7 (passed).
-Guesses:
-- q1: Is a cold start in scope The default is no. No human answered it.
-- q2: Does saving need a progress bar The default is no. No human answered it.
-Disclosures:
-- a1: unverified('Not measured on a slow disk'), about c2, by agent.
-- a2: guess(q2), about q2, by agent.
-Waivers:
-- w1: claim c3, due 2999-01-01T00:00:00Z, in force.
-- w2: check k4, due 2999-01-01T00:00:00Z, in force.
-- w3: claim c5, due 2001-01-01T00:00:00Z, lapsed, so the item blocks done again.
-Not checked:
-- c6: The save button has a tooltip It has no check.
-Open:
-- Ask question q1 now.
-- Change x2 serves no claim.
-- Claim c5 needs a Lean proof. Prove it with orbit-kb prove, or ask a human for a waiver.
-- Waiver w3 of the proof of claim c5 was due at 2001-01-01T00:00:00Z. The proof is due now.
-To land:
-- (Write the steps to land the work here.)
+# Delivered:
+  - (Write what you delivered here.)
+
+# Claims:
+  - c1 **introduce**: The widget can be saved. Status: fulfilled. Checks: k1 (passed).
+  - c2 **preserve**: Loading stays fast
+    - Status: under.
+      - It is not fulfilled yet.
+    - Checks: k2 (not passed).
+  - c3 **preserve**: Every saved widget loads back the same
+    - Status: fulfilled.
+    - Burn: NOT PROVED.
+      - A human waived the proof until 2999-01-01T00:00:00Z.
+    - Checks: k3 (passed).
+  - c4 **preserve**: Old files still load
+    - Status: not fulfilled.
+      - A human waived check k4 until 2999-01-01T00:00:00Z, so the claim does not block done until then.
+    - Checks: k4 (never run).
+  - c5 **preserve**: Saving never loses data
+    - Status: fulfilled.
+    - Burn: NOT PROVED.
+      - A Lean proof is required.
+    - Checks: k5 (passed).
+  - c6 **introduce**: The save button has a tooltip
+    - Status: under.
+      - It is not fulfilled yet.
+    - Checks: none.
+  - c7 **preserve**: Names like <b>bold</b> & "quoted" stay plain
+    - Status: fulfilled.
+    - Checks: k7 (passed).
+
+# Guesses:
+  - q1: Is a cold start in scope
+    - The default is no. No human answered it.
+  - q2: Does saving need a progress bar
+    - The default is no. No human answered it.
+
+# Disclosures:
+  - a1 **unverified**: Not measured on a slow disk
+    - About c2, by agent.
+  - a2 **guess**: q2
+    - About q2, by agent.
+
+# Waivers:
+  - w1 **in force**: claim c3, due 2999-01-01T00:00:00Z
+  - w2 **in force**: check k4, due 2999-01-01T00:00:00Z
+  - w3 **lapsed**: claim c5, due 2001-01-01T00:00:00Z
+    - The item blocks done again.
+
+# Not checked:
+  - c6: The save button has a tooltip
+    - It has no check.
+
+# Open:
+  - **ask**: Ask question q1 now
+  - **over**: Change x2 serves no claim
+  - **burn open**: Claim c5 needs a Lean proof
+    - Prove it with orbit-kb prove, or ask a human for a waiver.
+  - **waiver lapsed**: Waiver w3 of the proof of claim c5 was due at 2001-01-01T00:00:00Z
+    - The proof is due now.
+
+# To land:
+  - (Write the steps to land the work here.)

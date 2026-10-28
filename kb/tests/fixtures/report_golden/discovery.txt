@@ -1,16 +1,24 @@
-Delivered:
-- (Write what you delivered here.)
-Claims:
-- No current claims.
-Guesses:
-- None. A human answered every question with a default.
-Disclosures:
-- None.
-Not checked:
-- None. Every current claim has a check.
-Open:
-- Nothing is open.
-Vote:
-- No vote yet. The agent votes first, and seals the vote: orbit-kb attest vote r1 'vote(1, CHOICE)'. CHOICE is go, no_go, or hold.
-To land:
-- (Write the steps to land the work here.)
+# Delivered:
+  - (Write what you delivered here.)
+
+# Claims:
+  - No current claims.
+
+# Guesses:
+  - None. A human answered every question with a default.
+
+# Disclosures:
+  - None.
+
+# Not checked:
+  - None. Every current claim has a check.
+
+# Open:
+  - Nothing is open.
+
+# Vote:
+  - No vote yet
+    - The agent votes first, and seals the vote: orbit-kb attest vote r1 'vote(1, CHOICE)'. CHOICE is go, no_go, or hold.
+
+# To land:
+  - (Write the steps to land the work here.)

@@ -1,17 +1,28 @@
-Delivered:
-- (Write what you delivered here.)
-Claims:
-- c1 (introduce): Claim one Status: under. It is not fulfilled yet. Checks: none.
-- c2 (preserve): Claim two Status: fulfilled. Checks: k2 (passed).
-Guesses:
-- None. A human answered every question with a default.
-Disclosures:
-- None.
-Waivers:
-- None.
-Not checked:
-- c1: Claim one It has no check.
-Open:
-- Change x2 serves no claim.
-To land:
-- (Write the steps to land the work here.)
+# Delivered:
+  - (Write what you delivered here.)
+
+# Claims:
+  - c1 **introduce**: Claim one
+    - Status: under.
+      - It is not fulfilled yet.
+    - Checks: none.
+  - c2 **preserve**: Claim two. Status: fulfilled. Checks: k2 (passed).
+
+# Guesses:
+  - None. A human answered every question with a default.
+
+# Disclosures:
+  - None.
+
+# Waivers:
+  - None.
+
+# Not checked:
+  - c1: Claim one
+    - It has no check.
+
+# Open:
+  - **over**: Change x2 serves no claim
+
+# To land:
+  - (Write the steps to land the work here.)

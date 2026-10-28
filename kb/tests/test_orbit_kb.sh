@@ -62,6 +62,7 @@
 #   L   lint E1-E13, W1-W6, --strict, hook, summary            (Lint; D2; H4)                   : L0 L0b E1-E13 W1 W3-W6 LS LS2 LH1 LH2
 #   D7  review fixes: broken sources exit 2, unsafe negation, kb.lock (D7)                   : D7a-D7d RC E14 E13s
 #   SH  show   RP report   DR doctor (H1-H4 self-tests)   HP help (CLI: show, report, doctor, help) : SH1-SH7 RP1-RP6 DR1-DR3 HP1-HP3
+#   RL  report text layout: headings, bullets, nesting (D16 c4)   : RL1-RL7
 #   RH  report --html: golden text, page, escaping, open first, evidence, review (D16)   : RH1-RH9
 #   BP  burns: open, proved, changed, waived, lapsed       (Build module; D10)              : BP1-BP14
 #   SC  D10 follow-up: inherited burns, supersede cycles, rules.pl, times, proof logs (D10 follow-up) : SC1-SC11
@@ -1040,7 +1041,7 @@ t_VT5() { kb_noshow "$T/n"; K=$T/n; vt_add v1 agent 1 go; vt_add v2 human 1 no_g
           is_set 'gate(V)' 'V = no_go' "human and artifacts agree on no_go"; is_false 'gate_split'
           vt_add v3 agent 2 hold; vt_add v4 human 2 go
           is_set 'gate(V)' 'V = hold' "round 2: human go against agent hold and artifacts no_go"; is_true 'gate_split'; }
-vt_section() { printf '%s\n' "$out" | awk '/^Vote:/{f=1;next} /^[A-Z][A-Za-z ]*:/{f=0} f'; }
+vt_section() { printf '%s\n' "$out" | awk '/^# Vote:/{f=1;next} /^# /{f=0} f'; }
 t_VT6() { da_copy; okb --dir "$K" report; rc_is 0; local g; g=$(vt_section)
           [ -n "$g" ] || note "report has a Vote: section in a discovery KB: $(snip "$out")"
           vt_add v1 agent 1 no_go; okb --dir "$K" report; rc_is 0; g=$(vt_section)
@@ -1057,7 +1058,7 @@ t_VT6() { da_copy; okb --dir "$K" report; rc_is 0; local g; g=$(vt_section)
 uses([build]).
 request(r1, 'Plain').
 EOF
-          K=$T/b; okb --dir "$K" report; rc_is 0; out_hasnt '^Vote:' "no Vote: section without discovery"; }
+          K=$T/b; okb --dir "$K" report; rc_is 0; out_hasnt '^# Vote:' "no Vote: section without discovery"; }
 t_VT7() { da_copy; vt_add v2 human 1 go; okb --dir "$K" lint; rc_is 0 "a warning only"
           out_has '^WD9 v2' "a human vote with no agent vote in its round"
           da_copy; vt_add v1 agent 1 go; vt_add v2 human 1 go; okb --dir "$K" lint; out_hasnt '^WD9'
@@ -1103,7 +1104,7 @@ t_BP7() { kb_burndone "$T/k"; K=$T/k; add_proof "$K" p1 c1; sed -i '$ s/), scrip
           rejects scripttype 'prove' add "attest(p2, lean_proof, c1, proof(c1, 'sha256:$(printf '%064d' 0)'), script, '2026-10-15T10:00:00Z')"; }
 t_BP8() { kb_burndone "$T/k"; K=$T/k; okb --dir "$K" attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'Ship before the demo')" --by human; rc_is 0
           is_true 'burn_waived(c1)'; is_false 'burn_open(c1)'; is_true 'done' "a human waived the proof"; is_false 'burn_proved(c1)'
-          okb --dir "$K" report; out_has 'c1.*NOT PROVED.*waived.*2999-01-01'; }
+          okb --dir "$K" report; rp_item c1 | grep -Eq 'NOT PROVED' || note "c1 block says NOT PROVED"; rp_item c1 | grep -Eq 'waived the proof until 2999-01-01' || note "c1 block says the waiver and its due time: $(snip "$(rp_item c1)")"; }
 t_BP9() { kb_burndone "$T/k"; K=$T/k; rejects agentwaiver 'writer|human' attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'x')"
           printf "attest(w1, waiver, c1, waive(c1, '2999-01-01T00:00:00Z', x), agent, '2026-10-15T11:00:00Z').\n" >> $K/kb.pl
           okb --dir "$K" lint; rc_is 1; out_has '^E8'; is_false 'burn_waived(c1)' "an agent cannot waive a proof"; is_false 'done'; }
@@ -1258,13 +1259,13 @@ t_WV7() { kb_waive "$T/k"; K=$T/k; wv_add w1 c1 2999-01-01T00:00:00Z; wv_add w2 
           is_true 'under(c1)' "a claim waiver does not cover the checks of the claim (W2)"; is_true 'to_ask(q1)' "a claim waiver does not cover its questions"
           is_true 'burn_waived(c1)' "a claim waiver closes a burn as before"; is_false 'burn_waived(k1)'; }
 t_WV8() { kb_waive "$T/k"; K=$T/k; wv_add w1 k1 2999-01-01T00:00:00Z; wv_add w2 q1 2020-01-01T00:00:00Z; wv_add w3 c2 2999-06-01T00:00:00Z
-          okb --dir "$K" report; rc_is 0; local g; g=$(printf '%s\n' "$out" | awk '/^Waivers:/{f=1;next} /^[A-Z][A-Za-z ]*:/{f=0} f')
-          printf '%s\n' "$g" | grep -Eq 'w1.*check k1.*2999-01-01T00:00:00Z.*in force' || note "w1 (check, in force) in Waivers: [$g]"
-          printf '%s\n' "$g" | grep -Eq 'w2.*question q1.*2020-01-01T00:00:00Z.*lapsed' || note "w2 (question, lapsed) in Waivers: [$g]"
-          printf '%s\n' "$g" | grep -Eq 'w3.*claim c2.*2999-06-01T00:00:00Z.*in force' || note "w3 (claim, in force) in Waivers: [$g]"
-          out_has 'c1.*waived' "the claim line says that a check of c1 is waived"
+          okb --dir "$K" report; rc_is 0; local g; g=$(printf '%s\n' "$out" | awk '/^# Waivers:/{f=1;next} /^# /{f=0} f')
+          printf '%s\n' "$g" | grep -Eq 'w1 \*\*in force\*\*: check k1, due 2999-01-01T00:00:00Z' || note "w1 (check, in force) in Waivers: [$g]"
+          printf '%s\n' "$g" | grep -Eq 'w2 \*\*lapsed\*\*: question q1, due 2020-01-01T00:00:00Z' || note "w2 (question, lapsed) in Waivers: [$g]"
+          printf '%s\n' "$g" | grep -Eq 'w3 \*\*in force\*\*: claim c2, due 2999-06-01T00:00:00Z' || note "w3 (claim, in force) in Waivers: [$g]"
+          rp_item c1 | grep -Eq 'waived' || note "the c1 block says that a check of c1 is waived: $(snip "$(rp_item c1)")"
           out_has 'Waiver w2 of question q1 was due at 2020-01-01' "Open lists the lapsed question waiver"
-          kb_waive "$T/k2"; K=$T/k2; okb --dir "$K" report; rc_is 0; g=$(printf '%s\n' "$out" | awk '/^Waivers:/{f=1;next} /^[A-Z][A-Za-z ]*:/{f=0} f')
+          kb_waive "$T/k2"; K=$T/k2; okb --dir "$K" report; rc_is 0; g=$(printf '%s\n' "$out" | awk '/^# Waivers:/{f=1;next} /^# /{f=0} f')
           printf '%s\n' "$g" | grep -q 'None' || note "no waivers: the section says None: [$g]"; }
 t_WV9() { kb_waive "$T/k"; K=$T/k; printf 'check_waived(C) :- claim(C, _, _).\nquestion_waived(Q) :- question(Q, _, _).\n' > $K/rules.pl
           okb --dir "$K" lint; rc_is 1 "rules.pl cannot waive a check or a question (W7)"
@@ -1622,19 +1623,136 @@ t_SH5() { copy_fixture w6_extension "$T/k"; K=$T/k; okb --dir "$K" show extensio
 t_SH6() { valid_copy; okb --dir "$K" show; rc_is 0; out_has 'c1'; okb --dir "$K" show all; rc_is 0; out_has 'q1'; }
 t_SH7() { valid_copy; okb --dir "$K" show bogus; rc_is 2; }
 t_RP1() { valid_copy; okb --dir "$K" report; rc_is 0
-          local order; order=$(printf '%s\n' "$out" | grep -oE '^(Delivered|Claims|Guesses|Disclosures|Not checked|Open|To land):' | paste -sd' ')
+          local order; order=$(printf '%s\n' "$out" | grep -oE '^# (Delivered|Claims|Guesses|Disclosures|Not checked|Open|To land):' | sed 's/^# //' | paste -sd' ')
           [ "$order" = "Delivered: Claims: Guesses: Disclosures: Not checked: Open: To land:" ] || note "sections: [$order]"; }
-t_RP2() { kb_overunder "$T/k"; K=$T/k; okb --dir "$K" report; rc_is 0; out_has 'c1.*under|under.*c1'; out_has 'c2.*fulfilled|fulfilled.*c2'; out_has 'x2' "over change in Open"; }
-t_RP3() { valid_copy; okb --dir "$K" report; local g; g=$(printf '%s\n' "$out" | awk '/^Guesses:/{f=1;next} /^[A-Z][A-Za-z ]*:/{f=0} f'); printf '%s\n' "$g" | grep -q q2 || note "q2 (default never answered by a human) is a guess: [$g]"; printf '%s\n' "$g" | grep -q 'q1' && note "q1 was answered by a human, not a guess"; true; }
-t_RP4() { kb_overunder "$T/k"; K=$T/k; printf "claim(c3, preserve, 'No check').\ncites(c3, 'Change things').\n" >> $K/kb.pl; okb --dir "$K" report; local g; g=$(printf '%s\n' "$out" | awk '/^Not checked:/{f=1;next} /^[A-Z][A-Za-z ]*:/{f=0} f'); printf '%s\n' "$g" | grep -q c3 || note "c3 has no check: [$g]"; printf '%s\n' "$g" | grep -q 'c2' && note "c2 has a check"; true; }
-t_RP5() { valid_copy; okb --dir "$K" report; local g; g=$(printf '%s\n' "$out" | awk '/^Disclosures:/{f=1;next} /^[A-Z][A-Za-z ]*:/{f=0} f'); printf '%s\n' "$g" | grep -Eq 'a5|a6|Not measured|slow disk' || note "disclosures missing: [$g]"; }
+t_RP2() { kb_overunder "$T/k"; K=$T/k; okb --dir "$K" report; rc_is 0; rp_item c1 | grep -q 'Status: under' || note "c1 is under: $(snip "$out")"; rp_item c2 | grep -q 'fulfilled' || note "c2 is fulfilled: $(snip "$out")"; out_has 'x2' "over change in Open"; }
+t_RP3() { valid_copy; okb --dir "$K" report; local g; g=$(printf '%s\n' "$out" | awk '/^# Guesses:/{f=1;next} /^# /{f=0} f'); printf '%s\n' "$g" | grep -q q2 || note "q2 (default never answered by a human) is a guess: [$g]"; printf '%s\n' "$g" | grep -q 'q1' && note "q1 was answered by a human, not a guess"; true; }
+t_RP4() { kb_overunder "$T/k"; K=$T/k; printf "claim(c3, preserve, 'No check').\ncites(c3, 'Change things').\n" >> $K/kb.pl; okb --dir "$K" report; local g; g=$(printf '%s\n' "$out" | awk '/^# Not checked:/{f=1;next} /^# /{f=0} f'); printf '%s\n' "$g" | grep -q c3 || note "c3 has no check: [$g]"; printf '%s\n' "$g" | grep -q 'c2' && note "c2 has a check"; true; }
+t_RP5() { valid_copy; okb --dir "$K" report; local g; g=$(printf '%s\n' "$out" | awk '/^# Disclosures:/{f=1;next} /^# /{f=0} f'); printf '%s\n' "$g" | grep -Eq 'a5|a6|Not measured|slow disk' || note "disclosures missing: [$g]"; }
 t_RP6() { kb_new "$T/k" <<'EOF'
 uses([]).
 request(r1, 'Plain').
 claim(c1, preserve, 'x').
 cites(c1, 'x').
 EOF
-    K=$T/k; okb --dir "$K" report; rc_is 0 "report without build"; out_has '^Claims:'; out_has 'c1'; }
+    K=$T/k; okb --dir "$K" report; rc_is 0 "report without build"; out_has '^# Claims:'; out_has 'c1'; }
+
+# ---- RL: the layout of the report text (D16 c4, 2026-10-28). Markdown that also reads as raw text:
+# "# Section:" headings, a blank line between sections, two-space-indented bullets, the label in
+# **bold**, and nested bullets for the detail of a claim that needs attention.
+rp_sec() {  # rp_sec NAME: the lines of one section of $out, without its heading
+    printf '%s\n' "$out" | awk -v h="# $1:" '$0==h {f=1; next} /^# / {f=0} f'; }
+rp_item() {  # rp_item ID: the first bullet of $out that starts with ID, and the lines nested under it
+    printf '%s\n' "$out" | awk -v id="$1" 'BEGIN {p = "  - " id}
+        !f && substr($0, 1, length(p)) == p && substr($0, length(p) + 1, 1) ~ /[ :]/ {f=1; print; next}
+        f && /^    / {print; next} f {exit}'; }
+rl_is() {  # rl_is LABEL WANT GOT: exact text
+    [ "$2" = "$3" ] || note "$1: want [$(printf '%s' "$2" | tr '\n' '~')] got [$(printf '%s' "$3" | tr '\n' '~')]"; }
+t_RL1() { # headings: "# Name:" in contract order, one blank line before each but the first, no trailing blank line
+    rh_kb report_review; okb --dir "$K" report; rc_is 0
+    local heads; heads=$(printf '%s\n' "$out" | grep -E '^# ' | paste -sd'|')
+    rl_is "headings" "# Delivered:|# Claims:|# Guesses:|# Disclosures:|# Waivers:|# Not checked:|# Open:|# To land:" "$heads"
+    printf '%s\n' "$out" | grep -qE '^[A-Z][A-Za-z ]*:$' && note "a heading without the # mark"
+    local n; n=$(printf '%s\n' "$out" | awk '/^# / && NR > 1 && prev != "" {bad++} {prev = $0} END {print bad + 0}')
+    rl_is "a blank line before every heading but the first" 0 "$n"
+    [ "$(printf '%s\n' "$out" | sed -n 1p)" = "# Delivered:" ] || note "the first line is the Delivered heading"
+    [ -n "$(printf '%s\n' "$out" | tail -n 1)" ] || note "the last line is blank"
+    [ "$(printf '%s\n' "$out" | grep -c '^$')" = 7 ] || note "want exactly 7 blank lines (one between sections), got $(printf '%s\n' "$out" | grep -c '^$')"
+    rh_kb discovery; okb --dir "$K" report; rc_is 0; out_has '^# Vote:' "the Vote heading"; }
+t_RL2() { # every other line is a bullet at two spaces plus two per level; no tabs, no colour codes, no box drawing
+    local k bl
+    for k in report_review valid overunder nobuild discovery; do
+        rh_kb "$k"; okb --dir "$K" report; rc_is 0 "report $k"
+        bl=$(printf '%s\n' "$out" | grep -vE '^(# .*:|)$' | grep -vE '^( {2}| {4}| {6}| {8})- [^ ]' | head -n 3)
+        [ -z "$bl" ] || note "$k: lines that are not bullets at 2, 4, 6, or 8 spaces: $(snip "$bl")"
+        printf '%s\n' "$out" | grep -q "$(printf '\t')" && note "$k: a tab"
+        printf '%s\n' "$out" | grep -q "$(printf '\033')" && note "$k: a colour code"
+        printf '%s\n' "$out" | LC_ALL=C grep -q $'\xe2[\x94-\x95]' && note "$k: a box-drawing character"
+        printf '%s\n' "$out" | grep -qE ' +$' && note "$k: trailing spaces"
+    done; true; }
+t_RL3() { # a fulfilled claim with nothing to add stays on one line; a claim that needs attention nests its status and checks
+    rh_kb report_review; okb --dir "$K" report; rc_is 0
+    rl_is "c1 (fulfilled)" "  - c1 **introduce**: The widget can be saved. Status: fulfilled. Checks: k1 (passed)." "$(rp_item c1)"
+    rl_is "c2 (under)" "  - c2 **preserve**: Loading stays fast
+    - Status: under.
+      - It is not fulfilled yet.
+    - Checks: k2 (not passed)." "$(rp_item c2)"
+    rl_is "c3 (burn waived)" "  - c3 **preserve**: Every saved widget loads back the same
+    - Status: fulfilled.
+    - Burn: NOT PROVED.
+      - A human waived the proof until 2999-01-01T00:00:00Z.
+    - Checks: k3 (passed)." "$(rp_item c3)"
+    rl_is "c4 (check waived)" "  - c4 **preserve**: Old files still load
+    - Status: not fulfilled.
+      - A human waived check k4 until 2999-01-01T00:00:00Z, so the claim does not block done until then.
+    - Checks: k4 (never run)." "$(rp_item c4)"
+    rl_is "c5 (burn open)" "  - c5 **preserve**: Saving never loses data
+    - Status: fulfilled.
+    - Burn: NOT PROVED.
+      - A Lean proof is required.
+    - Checks: k5 (passed)." "$(rp_item c5)"
+    rl_is "c6 (under, no check)" "  - c6 **introduce**: The save button has a tooltip
+    - Status: under.
+      - It is not fulfilled yet.
+    - Checks: none." "$(rp_item c6)"
+    rh_kb valid; okb --dir "$K" report; rc_is 0
+    rl_is "c4 (fulfilled, fits in 100 columns)" "  - c4 **preserve**: The new save button is shown. Status: fulfilled. Checks: k3 (passed)." "$(rp_item c4)"
+    rl_is "c2 (burn proved) is long, so it nests" "  - c2 **preserve**: Loading stays fast
+    - Status: fulfilled.
+    - Burn: proved in Lean.
+    - Checks: k2 (passed)." "$(rp_item c2)"
+    rl_is "no line of a one-line claim is over 100 columns" 0 "$(printf '%s\n' "$out" | awk '/^  - c[0-9]+ \*\*[a-z]+\*\*: .*Status: fulfilled\. / && length($0) > 100 {n++} END {print n + 0}')"; }
+t_RL4() { # more than one check: they nest under Checks
+    rh_kb report_review; printf "check(k8, c1).\n" >> "$K/kb.pl"; okb --dir "$K" report; rc_is 0
+    rl_is "c1 with two checks" "  - c1 **introduce**: The widget can be saved
+    - Status: fulfilled.
+    - Checks:
+      - k1 (passed)
+      - k8 (never run)" "$(rp_item c1)"; }
+t_RL5() { # the other sections: bullets, the label in bold, detail nested
+    rh_kb report_review; okb --dir "$K" report; rc_is 0
+    rl_is "q1 (guess)" "  - q1: Is a cold start in scope
+    - The default is no. No human answered it." "$(rp_item q1)"
+    rl_is "a1 (disclosure)" "  - a1 **unverified**: Not measured on a slow disk
+    - About c2, by agent." "$(rp_item a1)"
+    rl_is "a2 (disclosure)" "  - a2 **guess**: q2
+    - About q2, by agent." "$(rp_item a2)"
+    rl_is "w1 (waiver in force)" "  - w1 **in force**: claim c3, due 2999-01-01T00:00:00Z" "$(rp_item w1)"
+    rl_is "w3 (waiver lapsed)" "  - w3 **lapsed**: claim c5, due 2001-01-01T00:00:00Z
+    - The item blocks done again." "$(rp_item w3)"
+    rl_is "c6 (not checked)" "  - c6: The save button has a tooltip
+    - It has no check." "$(rp_sec 'Not checked')"
+    rl_is "Open: the kind in bold, the first sentence, then the rest nested" "  - **ask**: Ask question q1 now
+  - **over**: Change x2 serves no claim
+  - **burn open**: Claim c5 needs a Lean proof
+    - Prove it with orbit-kb prove, or ask a human for a waiver.
+  - **waiver lapsed**: Waiver w3 of the proof of claim c5 was due at 2001-01-01T00:00:00Z
+    - The proof is due now." "$(rp_sec Open)"
+    rl_is "the Delivered placeholder" "  - (Write what you delivered here.)" "$(rp_sec Delivered)"
+    rl_is "the To land placeholder" "  - (Write the steps to land the work here.)" "$(rp_sec 'To land')"
+    rh_kb valid; okb --dir "$K" report; rc_is 0
+    rl_is "empty Waivers" "  - None." "$(rp_sec Waivers)"
+    rl_is "empty Open" "  - Nothing is open." "$(rp_sec Open)"
+    rh_kb discovery; okb --dir "$K" report; rc_is 0
+    rl_is "Vote: the first sentence, the rest nested" "  - No vote yet
+    - The agent votes first, and seals the vote: orbit-kb attest vote r1 'vote(1, CHOICE)'. CHOICE is go, no_go, or hold." "$(rp_sec Vote)"; }
+t_RL6() { # without the build module: no status and no burn, only the checks; the report still runs
+    rh_kb nobuild; okb --dir "$K" report; rc_is 0
+    rl_is "c1 without build, no check" "  - c1 **preserve**: x
+    - Checks: none." "$(rp_item c1)"
+    printf '%s\n' "$out" | grep -q 'Status:' && note "Status: without the build module"; true; }
+t_RL7() { # a long claim text stays on its line (no hard wrap), and the page keeps the status words
+    rh_kb report_review
+    local long="A saved widget keeps every field, its history, and its attachments when it is loaded back on a second machine after a crash"
+    printf "claim(c8, preserve, '%s').\ncites(c8, 'Make saving safe').\n" "$long" >> "$K/kb.pl"
+    okb --dir "$K" report; rc_is 0
+    rl_is "c8" "  - c8 **preserve**: $long
+    - Status: under.
+      - It is not fulfilled yet.
+    - Checks: none." "$(rp_item c8)"
+    okb --dir "$K" report --html "$T/r.html"; rc_is 0
+    local sk; for sk in "c1 fulfilled" "c2 under" "c4 waived" "c6 under"; do
+        rh_has "$(rh_claim "$T/r.html" "${sk% *}")" "data-status=\"${sk#* }\"" "the page status of ${sk% *}"; done; }
 
 # ---- RH: report --html (D16, 2026-10-28). The page is read as text, through the hooks that the
 # contract names: data-section, data-claim with data-status, data-open with data-ref, data-check,
@@ -1663,7 +1781,7 @@ rh_hasnt() {
     printf '%s\n' "$1" | grep -Eq -- "$2" || return 0
     note "$3: has /$2/, it must not ($(snip "$1"))"; return 1
 }
-t_RH1() { # c2: plain report text is byte-identical to the golden files made by the CLI before D16; --html prints the same text
+t_RH1() { # c2 (D16 C4): plain report text is byte-identical to the golden files (made again from the CLI after C4, read by eye); --html prints the same text
     local k
     for k in valid report_review overunder nobuild discovery; do
         rh_kb "$k"; okb --dir "$K" report; rc_is 0 "report $k"
@@ -2057,6 +2175,13 @@ run_test t_RP3 RP3 "report: guesses"
 run_test t_RP4 RP4 "report: not checked"
 run_test t_RP5 RP5 "report: disclosures"
 run_test t_RP6 RP6 "report without build"
+run_test t_RL1 RL1 "report text: # headings, one blank line between sections"
+run_test t_RL2 RL2 "report text: bullets at two spaces per level; plain text only"
+run_test t_RL3 RL3 "report text: a claim that needs attention nests its status, burn, and checks"
+run_test t_RL4 RL4 "report text: several checks nest under Checks"
+run_test t_RL5 RL5 "report text: the other sections use bullets, bold labels, and nesting"
+run_test t_RL6 RL6 "report text without the build module"
+run_test t_RL7 RL7 "report text: long claim text is not wrapped; the page keeps the status words"
 run_test t_RH1 RH1 "report text is byte-identical to the golden files; --html prints the same text"
 run_test t_RH2 RH2 "report --html: one self-contained page, each claim with a status label and its checks"
 run_test t_RH3 RH3 "report --html escapes every KB string (<script> in a claim)"

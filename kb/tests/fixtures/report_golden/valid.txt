@@ -1,19 +1,32 @@
-Delivered:
-- (Write what you delivered here.)
-Claims:
-- c1 (introduce): The widget can be saved Status: fulfilled. Checks: k1 (passed).
-- c2 (preserve): Loading stays fast Status: fulfilled. Burn: proved in Lean. Checks: k2 (passed).
-- c4 (preserve): The new save button is shown Status: fulfilled. Checks: k3 (passed).
-Guesses:
-- q2: Does saving need a progress bar The default is no. No human answered it.
-Disclosures:
-- a5: guess(q2), about q2, by agent.
-- a6: unverified('Speed was not measured on a slow disk'), about c1, by agent.
-Waivers:
-- None.
-Not checked:
-- None. Every current claim has a check.
-Open:
-- Nothing is open.
-To land:
-- (Write the steps to land the work here.)
+# Delivered:
+  - (Write what you delivered here.)
+
+# Claims:
+  - c1 **introduce**: The widget can be saved. Status: fulfilled. Checks: k1 (passed).
+  - c2 **preserve**: Loading stays fast
+    - Status: fulfilled.
+    - Burn: proved in Lean.
+    - Checks: k2 (passed).
+  - c4 **preserve**: The new save button is shown. Status: fulfilled. Checks: k3 (passed).
+
+# Guesses:
+  - q2: Does saving need a progress bar
+    - The default is no. No human answered it.
+
+# Disclosures:
+  - a5 **guess**: q2
+    - About q2, by agent.
+  - a6 **unverified**: Speed was not measured on a slow disk
+    - About c1, by agent.
+
+# Waivers:
+  - None.
+
+# Not checked:
+  - None. Every current claim has a check.
+
+# Open:
+  - Nothing is open.
+
+# To land:
+  - (Write the steps to land the work here.)
