@@ -88,13 +88,15 @@ divergence is a `divergence` record on its claim, not only a disclosure. Continu
 - **Questions:** one round does not settle the ticket. You need more than three questions,
   or an answer raises a new question.
 - **A divergence:** two of the three roles disagree: the human, you, or a result, whoever
-  turns out to be wrong. The human corrects the result or your restatement, or finds a
-  flaw or a missed case, even as a question or a doubt (more forms in "When the human says
-  that it is wrong"). Or a result differs from
-  what you or the human expected, even by a small amount: the red run passes, a check
-  still fails when the build is done, or the code does not behave as you assumed. If you
-  are about to say "you're right" about your own error, you found a divergence: shift up
-  before you fix it.
+  turns out to be wrong. The human corrects the result or your restatement, replaces part
+  of it with a different request or design (an addition that contradicts nothing is not a
+  divergence), or finds a flaw or a missed case, even as a question or a doubt (more forms
+  in "When the human says that it is wrong"). Or a result differs from what you or the
+  human expected, even by a small amount: the red run passes, a check still fails when the
+  build is done, or the code does not behave as you assumed. If you are about to say
+  "you're right" about your own error, you found a divergence: shift up before you fix it.
+  After a change of plan, keep each earlier outcome that the human still wants as a claim,
+  and check it again against the new design.
 - **A build by someone else:** you own the ticket when a subagent or a peer session builds.
   Check its report yourself. A failing check, or a report that your run contradicts, is a
   divergence.

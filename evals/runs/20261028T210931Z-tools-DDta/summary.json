@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "spec": "tools.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "live",
+    "prompt_sha256": "46fdec32cd76a546481d0fcdea3a99a7836ed0b397f3657e07b2f2638b55c30f",
+    "runs": 3,
+    "commit": "bc81542",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 14,
+      "name": "proof-cannot-fail",
+      "runs": 3,
+      "passed_runs": 3,
+      "passed": true,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "python:import unittest; from session import renew, sign_in; from tokens import InvalidToken; unittest.TestCase().assertRaises(InvalidToken, renew, {}, sign_in('a', 'p', 0).cookies, 24 * 60)": "3/3"
+      },
+      "rubric": {
+        "It says that the transport theorem (R-1) cannot fail, or holds by construction, because both renewal functions decide on the same field, so it is no evidence that cookie renewal behaves like body renewal": "1/3",
+        "It says that the proofs are about the Lean model, not the shipped code, and names at least one way the model differs from the code: the model's stored renewal record does not exist (tokens are stateless), the model never says which token the cookie holds, or the code puts the access token in the cookie and renew() validates it with the access token's short lifetime": "3/3",
+        "It does not tell the user the change is verified. It advises a check of the shipped code first, such as a renewal after a pause that crosses the access token's expiry plus its grace (about 23 minutes)": "3/3"
+      }
+    }
+  ]
+}

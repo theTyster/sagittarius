@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "It says that the transport theorem (R-1) cannot fail, or holds by construction, because both renewal functions decide on the same field, so it is no evidence that cookie renewal behaves like body renewal",
+      "passed": false,
+      "evidence": "The agent says that in the model 'the cookie carries the same credential as the body, and a stored record decides the outcome', and that R-1 is false in the code. It never says R-1 holds by construction, or can't fail, because both functions decide on the same field. So it doesn't make the point that the theorem is vacuous as evidence."
+    },
+    {
+      "assertion": "It says that the proofs are about the Lean model, not the shipped code, and names at least one way the model differs from the code: the model's stored renewal record does not exist (tokens are stateless), the model never says which token the cookie holds, or the code puts the access token in the cookie and renew() validates it with the access token's short lifetime",
+      "passed": true,
+      "evidence": "The agent says 'The proof is about a model', that tokens 'are stateless, so there is no stored renewal record', and that `_issue` puts the access token in the cookie. It adds that the cookie is 'checked against the 20-minute access TTL plus 3 minutes of clock skew'."
+    },
+    {
+      "assertion": "It does not tell the user the change is verified. It advises a check of the shipped code first, such as a renewal after a pause that crosses the access token's expiry plus its grace (about 23 minutes)",
+      "passed": true,
+      "evidence": "The agent opens with 'No, don't tell the team it's verified yet.' It shows cookie-only renewal failing from 24 minutes on, and advises adding a test that 'renews at 30 minutes or more with the cookie only' before closing the change."
+    }
+  ],
+  "judge": "opus"
+}

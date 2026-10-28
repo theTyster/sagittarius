@@ -1,0 +1,10 @@
+{
+  "spec": "tools.json",
+  "account": "personal",
+  "model": "sonnet",
+  "prompt": "/tmp/claude-1000/-home-ty-Projects-mine-sagittarius/493fb24f-712c-438c-996e-74f12af16c2d/scratchpad/new2.md",
+  "prompt_sha256": "ade1b6ed241bc9f7078a0949ac0a7027ad894f2a898f42f50831b234f539204f",
+  "runs": 3,
+  "commit": "bc81542",
+  "dirty": false
+}
