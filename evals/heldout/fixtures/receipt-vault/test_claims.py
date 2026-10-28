@@ -1,0 +1,20 @@
+import unittest
+from datetime import date
+
+from claims import Claims
+
+
+class ClaimsTest(unittest.TestCase):
+    def test_receipt_on_submit_day(self):
+        c = Claims()
+        c.submit("EX-1", date(2026, 3, 2), b"scan-1", date(2026, 3, 4))
+        self.assertEqual(c.receipt("EX-1", date(2026, 3, 4)), b"scan-1")
+
+    def test_late_claim_refused(self):
+        c = Claims()
+        with self.assertRaises(ValueError):
+            c.submit("EX-2", date(2026, 1, 5), b"scan-2", date(2026, 4, 20))
+
+
+if __name__ == "__main__":
+    unittest.main()
