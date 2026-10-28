@@ -241,20 +241,27 @@ The digest in step 7 depends on the text of your `ticket.md`.
     $ orbit-kb lint
     Summary: 0 error(s), 0 warning(s).
     $ orbit-kb report
-    Delivered:
-    - (Write what you delivered here.)
-    Claims:
-    - c1 (introduce): The Buy button is purple. Status: fulfilled. Checks: k1 (passed).
-    Guesses:
-    - q2: Does the hover color change too? The default is yes. No human answered it.
-    Disclosures:
-    - None.
-    Not checked:
-    - None. Every current claim has a check.
-    Open:
-    - Ask question q2 now.
-    To land:
-    - (Write the steps to land the work here.)
+    # Delivered:
+      - (Write what you delivered here.)
+
+    # Claims:
+      - c1 **introduce**: The Buy button is purple. Status: fulfilled. Checks: k1 (passed).
+
+    # Guesses:
+      - q2: Does the hover color change too?
+        - The default is yes. No human answered it.
+
+    # Disclosures:
+      - None.
+
+    # Not checked:
+      - None. Every current claim has a check.
+
+    # Open:
+      - **ask**: Ask question q2 now
+
+    # To land:
+      - (Write the steps to land the work here.)
     ```
 
 The `kb.pl` file after step 16:
@@ -772,7 +779,16 @@ Prints a skeleton of a delivery report with these sections: `Delivered:`,
 `Claims:`, `Guesses:`, `Disclosures:`, `Waivers:` (with the `build` module),
 `Not checked:`, `Open:`, `To land:`.
 You write `Delivered` and `To land` yourself. Step 16 of section 3 shows an
-example. Like `show`, `report` runs one query for each relation. For a claim
+example. The text is plain Markdown that also reads as raw text (D16 c4). Each
+section has a heading, `# Claims:`, and a blank line before the next heading.
+Each item is a bullet, indented two spaces, and each nested level adds two more.
+The label is in `**bold**`: the kind of a claim, of a disclosure, and of an open
+item, and the state of a waiver. A claim that needs attention (`under`, a waived
+check, a burn that is not proved, or a check that did not pass or has no run)
+puts its `Status:`, `Burn:`, and `Checks:` in nested bullets, and the detail
+sentence under each. A fulfilled claim with nothing to add stays on one line, when
+the line fits in 100 columns. Long lines are not wrapped. In `Open:` and `Vote:`,
+the first sentence is the bullet and the rest is nested. Like `show`, `report` runs one query for each relation. For a claim
 that burns, `Claims:` adds `Burn: proved in Lean.` or `Burn: NOT PROVED.` with
 the waiver due time. A claim with a waived check shows `Status: not fulfilled`
 with the check and the due time. `Waivers:` lists every waiver: its id, the kind

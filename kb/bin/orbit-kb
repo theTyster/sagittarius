@@ -4621,29 +4621,29 @@ has_discovery(KB) :- kb_uses(KB, U), memberchk(discovery, U).
 % current round. A query can still read them: this is the honest path,
 % not a lock.
 vote_section(Eng) :-
-    rsay(head('Vote'), "Vote:", []),
+    rhead('Vote'),
     ( eng_all(Eng, [Rq], request(Rq, _), [Rq1|_]) -> true ; Rq1 = 'REQUEST' ),
     eng_all(Eng, [R], vote_round(R), Rs),
     (   Rs == []
-    ->  rsay(vote, "- No vote yet. The agent votes first, and seals the vote: orbit-kb attest vote ~w 'vote(1, CHOICE)'. CHOICE is go, no_go, or hold.", [Rq1])
+    ->  rsplit(vote, "No vote yet. The agent votes first, and seals the vote: orbit-kb attest vote ~w 'vote(1, CHOICE)'. CHOICE is go, no_go, or hold.", [Rq1])
     ;   Rs = [R1|_],
         eng_all(Eng, [H], human_vote(H), Hs),
         eng_all(Eng, [A], agent_vote(A), As),
         (   Hs == []
-        ->  rsay(vote, "- Round ~w. The human has not voted. The other votes stay sealed until the human votes.", [R1]),
+        ->  rsplit(vote, "Round ~w. The human has not voted. The other votes stay sealed until the human votes.", [R1]),
             (   As == []
-            ->  rsay(vote, "- The agent has not voted. Vote first: orbit-kb attest vote ~w 'vote(~w, CHOICE)'.", [Rq1, R1])
-            ;   rsay(vote, "- The agent voted. Its vote is sealed.", [])
+            ->  rsplit(vote, "The agent has not voted. Vote first: orbit-kb attest vote ~w 'vote(~w, CHOICE)'.", [Rq1, R1])
+            ;   rsplit(vote, "The agent voted. Its vote is sealed.", [])
             ),
-            rsay(vote, "- Record the human vote: orbit-kb attest vote ~w 'vote(~w, CHOICE)' --by human.", [Rq1, R1])
+            rsplit(vote, "Record the human vote: orbit-kb attest vote ~w 'vote(~w, CHOICE)' --by human.", [Rq1, R1])
         ;   atomic_list_concat(Hs, ', ', HT),
             ( As == [] -> AT = 'no vote' ; atomic_list_concat(As, ', ', AT) ),
             ( eng_all(Eng, [V], artifact_vote(V), [V1|_]) -> true ; V1 = 'no vote' ),
-            rsay(vote, "- Round ~w. Human (0.4): ~w. Agent (0.3): ~w. Formal artifacts (0.3): ~w.", [R1, HT, AT, V1]),
+            rsplit(vote, "Round ~w. Human (0.4): ~w. Agent (0.3): ~w. Formal artifacts (0.3): ~w.", [R1, HT, AT, V1]),
             eng_all(Eng, [G], gate(G), Gs0), sort(Gs0, Gs), atomic_list_concat(Gs, ', ', GT),
-            rsay(vote, "- Outcome: ~w.", [GT]),
+            rsplit(vote, "Outcome: ~w.", [GT]),
             (   eng_true(Eng, gate_split)
-            ->  rsay(vote, "- The vote is split. The outcome is hold, and another orbit follows. Record the disagreement as a divergence, with a note: orbit-kb attest divergence H 'hypothesis(H)'.", [])
+            ->  rsplit(vote, "The vote is split. The outcome is hold, and another orbit follows. Record the disagreement as a divergence, with a note: orbit-kb attest divergence H 'hypothesis(H)'.", [])
             ;   true
             )
         )
@@ -4800,12 +4800,19 @@ burn_sets(Eng, bs(BurnS, ProvS, WaivBy)) :-
     eng_set(Eng, X2, burn_proved(X2), ProvS),
     eng_groups(Eng, C3, D3, ( attest(W3, waiver, _, waive(C3, D3, _), human, _), not(waiver_lapsed(W3)) ), WaivBy).
 
-burn_text(Eng, bs(BurnS, ProvS, WaivBy), C, T) :-
-    (   \+ eng_member(Eng, BurnS, C, burn(C)) -> T = ""
-    ;   eng_member(Eng, ProvS, C, burn_proved(C)) -> T = " Burn: proved in Lean."
+burn_parts(Eng, bs(BurnS, ProvS, WaivBy), C, Head, Detail) :-
+    (   \+ eng_member(Eng, BurnS, C, burn(C)) -> Head = "", Detail = ""
+    ;   eng_member(Eng, ProvS, C, burn_proved(C)) -> Head = "Burn: proved in Lean.", Detail = ""
     ;   eng_lookup(Eng, WaivBy, C, D, ( attest(W, waiver, _, waive(C, D, _), human, _), not(waiver_lapsed(W)) ), [D1|_])
-    ->  fmt(T, " Burn: NOT PROVED. A human waived the proof until ~w.", [D1])
-    ;   T = " Burn: NOT PROVED. A Lean proof is required."
+    ->  Head = "Burn: NOT PROVED.", fmt(Detail, "A human waived the proof until ~w.", [D1])
+    ;   Head = "Burn: NOT PROVED.", Detail = "A Lean proof is required."
+    ).
+
+burn_text(Eng, BSets, C, T) :-
+    burn_parts(Eng, BSets, C, Head, Detail),
+    (   Head == "" -> T = ""
+    ;   Detail == "" -> fmt(T, " ~w", [Head])
+    ;   fmt(T, " ~w ~w", [Head, Detail])
     ).
 
 % Joins for show and report. A section asks the SWI engine once per
@@ -4864,17 +4871,59 @@ waiver_kind(Eng, X, K) :-
     ;   K = 'unknown id'
     ).
 
-% report_rec(Tag, Line) (D16): each line that report printed, in order,
-% with the item that it is about. report --html builds the page from
-% these records, so the page and the text cannot disagree.
-:- dynamic report_rec/2.
+% The text of report (D16 c4) is plain Markdown that also reads as raw
+% text: "# Section:" headings with a blank line between sections, bullets
+% indented by two spaces per level, the label in **bold**, and nesting
+% for the detail of an item. It has no colour and no box drawing.
+%
+% report_line(S): each line that report printed, in order. The digest
+% and the "Plain text" part of the page are made from these lines.
+% report_rec(Tag, Plain) (D16): the same output as one record per item,
+% in order, with the item that it is about and its text as one plain
+% sentence. report --html builds the page from these records, so the
+% page and the text cannot disagree.
+:- dynamic report_rec/2, report_line/1, report_started/0.
 
-% rsay(+Tag, +Fmt, +Args): print one line of the report, as say/2 does,
-% and record it.
+rline(S) :- format("~w~n", [S]), assertz(report_line(S)).
+
+% rhead(+Name): the heading of a section, after a blank line (but the first).
+rhead(Name) :-
+    (   report_started -> rline("") ; assertz(report_started) ),
+    format(string(H), "# ~w:", [Name]),
+    rline(H),
+    format(string(P), "~w:", [Name]),
+    assertz(report_rec(head(Name), P)).
+
+% rtree(+Tag, +Plain, +Node): print one item and record it. Node is
+% Text-Kids, and each kid is a node. The top bullet has two spaces,
+% and each level adds two.
+rtree(Tag, Plain, Node) :-
+    assertz(report_rec(Tag, Plain)),
+    rnode(1, Node).
+
+rnode(Depth, Text-Kids) :-
+    Indent is 2 * Depth,
+    format(string(Pad), "~*c", [Indent, 0' ]),
+    format(string(L), "~w- ~w", [Pad, Text]),
+    rline(L),
+    D1 is Depth + 1,
+    forall(member(K, Kids), rnode(D1, K)).
+
+% rsay(+Tag, +Fmt, +Args): a bullet with no nesting.
 rsay(Tag, Fmt, Args) :-
     format(string(S), Fmt, Args),
-    format("~w~n", [S]),
-    assertz(report_rec(Tag, S)).
+    rtree(Tag, S, S-[]).
+
+% as_sentence(+Text, -S): Text, with a period when it has no end mark.
+% The page shows this form, so that its sentences do not run together.
+as_sentence(T, S) :-
+    plain_text(T, S0),
+    ( T == "" -> S = S0 ; ends_sentence(T) -> S = S0 ; format(string(S), "~w.", [S0]) ).
+
+% ends_sentence(+Text): the text ends in . ? or !
+ends_sentence(T) :-
+    plain_text(T, S),
+    sub_string(S, _, 1, 0, E), sub_atom(".?!", _, 1, _, E).
 
 cmd_report(KB, Args, Code) :-
     parse_opts(Args, ['--html'-value, '--open'-flag], Pos, Opts),
@@ -4885,20 +4934,62 @@ cmd_report(KB, Args, Code) :-
     kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
     answer_gate(KB),
     kb_engine(KB, Eng),
-    retractall(report_rec(_, _)),
+    retractall(report_rec(_, _)), retractall(report_line(_)), retractall(report_started),
     report_text(KB, Eng),
     (   Html == none
     ->  Code = 0
     ;   report_page(KB, Eng, Html, Open, Code)
     ).
 
+% claim_node(+Build, +C, +L, +TT, +SK, +StHead, +StDetail, +BHead, +BDetail, +KStates, -Node)
+% A claim that is fulfilled, with nothing to add, is one line: its checks
+% all passed, its burn is proved or absent, and the line, with its
+% bullet, fits in 100 columns. Any other claim breaks its status, burn,
+% and checks into nested bullets, so that its status never wraps off
+% the end of a long line.
+claim_node(Build, C, L, TT, SK, StHead, StDetail, BHead, BDetail, KStates, Node) :-
+    format(string(Head), "~w **~w**: ~w", [C, L, TT]),
+    (   memberchk(SK, [fulfilled, none]),
+        ( BHead == "" ; BHead == "Burn: proved in Lean." ),
+        KStates \== [],
+        forall(member(_-KS, KStates), KS == "passed"),
+        (   ends_sentence(TT) -> Sep = " " ; Sep = ". " ),
+        findall(P, ( call(Build), StHead \== "", P = StHead
+                   ; BHead \== "", P = BHead
+                   ; check_line(KStates, P, _) ),
+                Ps),
+        atomic_list_concat(Ps, ' ', PsT),
+        format(string(Line), "~w~w~w", [Head, Sep, PsT]),
+        string_length(Line, Len),
+        Len + 4 =< 100
+    ->  Node = Line-[]
+    ;   findall(N, claim_kid(Build, StHead, StDetail, BHead, BDetail, KStates, N), Kids),
+        Node = Head-Kids
+    ).
+
+claim_kid(Build, StHead, StDetail, _, _, _, N) :-
+    call(Build), StHead \== "",
+    ( StDetail == "" -> N = StHead-[] ; N = StHead-[StDetail-[]] ).
+claim_kid(_, _, _, BHead, BDetail, _, N) :-
+    BHead \== "",
+    ( BDetail == "" -> N = BHead-[] ; N = BHead-[BDetail-[]] ).
+claim_kid(_, _, _, _, _, KStates, N) :-
+    check_line(KStates, T, Kids), N = T-Kids.
+
+% check_line(+KStates, -Text, -Kids): "Checks: none.", "Checks: k1 (passed).",
+% or "Checks:" with one kid per check.
+check_line([], "Checks: none.", []).
+check_line([K-KS], T, []) :- format(string(T), "Checks: ~w (~w).", [K, KS]).
+check_line([A, B|R], "Checks:", Kids) :-
+    findall(N, ( member(K-KS, [A, B|R]), format(string(X), "~w (~w)", [K, KS]), N = X-[] ), Kids).
+
 report_text(KB, Eng) :-
     Build = has_build(KB),
-    rsay(head('Delivered'), "Delivered:", []),
-    rsay(placeholder, "- (Write what you delivered here.)", []),
-    rsay(head('Claims'), "Claims:", []),
+    rhead('Delivered'),
+    rsay(placeholder, "(Write what you delivered here.)", []),
+    rhead('Claims'),
     eng_all(Eng, [C, L, T], ( claim(C, L, T), current(C) ), Cs),
-    (   Cs == [] -> rsay(none, "- No current claims.", []) ; true ),
+    (   Cs == [] -> rsay(none, "No current claims.", []) ; true ),
     % One query per relation, then lookups (see eng_set/4).
     ( call(Build) -> eng_set(Eng, X1, fulfilled(X1), FulS), burn_sets(Eng, BSets) ; true ),
     eng_groups(Eng, C2, K2, check(K2, C2), ChecksBy),
@@ -4906,15 +4997,21 @@ report_text(KB, Eng) :-
     forall(member([C, L, T], Cs),
            ( txt(T, TT),
              (   call(Build)
-             ->  (   eng_member(Eng, FulS, C, fulfilled(C)) -> St0 = " Status: fulfilled.", SK = fulfilled
+             ->  (   eng_member(Eng, FulS, C, fulfilled(C)) -> StHead = "Status: fulfilled.", StDetail = "", SK = fulfilled
                  ;   eng_all(Eng, [WK, WD], ( check(WK, C), attest(WW, waiver, _, waive(WK, WD, _), human, _), not(waiver_lapsed(WW)) ), [[WK1, WD1]|_])
-                 ->  fmt(St0, " Status: not fulfilled. A human waived check ~w until ~w, so the claim does not block done until then.", [WK1, WD1]),
+                 ->  StHead = "Status: not fulfilled.",
+                     fmt(StDetail, "A human waived check ~w until ~w, so the claim does not block done until then.", [WK1, WD1]),
                      SK = waived
-                 ;   St0 = " Status: under. It is not fulfilled yet.", SK = under
+                 ;   StHead = "Status: under.", StDetail = "It is not fulfilled yet.", SK = under
                  ),
-                 burn_text(Eng, BSets, C, BT),
+                 burn_parts(Eng, BSets, C, BHead, BDetail),
+                 join_sentences(StHead, StDetail, S1),
+                 string_concat(" ", S1, St0),
+                 join_sentences(BHead, BDetail, B1),
+                 ( B1 == "" -> BT = "" ; string_concat(" ", B1, BT) ),
                  string_concat(St0, BT, St)
-             ;   St = "", St0 = "", BT = "", SK = none
+             ;   St = "", St0 = "", BT = "", SK = none,
+                 StHead = "", StDetail = "", BHead = "", BDetail = ""
              ),
              eng_lookup(Eng, ChecksBy, C, K, check(K, C), Ks),
              findall(K-KS, ( member(K, Ks), check_state(Eng, KSets, K, KS) ), KStates),
@@ -4922,41 +5019,66 @@ report_text(KB, Eng) :-
              ;   findall(S, ( member(K-KS, KStates), fmt(S, "~w (~w)", [K, KS]) ), Ss),
                  atomic_list_concat(Ss, ', ', SsT), fmt(KT, " Checks: ~w.", [SsT])
              ),
-             rsay(claim(C, L, TT, SK, St0, BT, KStates), "- ~w (~w): ~w~w~w", [C, L, TT, St, KT]) )),
-    rsay(head('Guesses'), "Guesses:", []),
+             claim_node(Build, C, L, TT, SK, StHead, StDetail, BHead, BDetail, KStates, Node),
+             format(string(Plain), "~w (~w): ~w~w~w", [C, L, TT, St, KT]),
+             rtree(claim(C, L, TT, SK, St0, BT, KStates), Plain, Node) )),
+    rhead('Guesses'),
     eng_all(Eng, [Q, A], ( assumed(Q, A), not(answered(Q)) ), Gs),
-    (   Gs == [] -> rsay(none, "- None. A human answered every question with a default.", []) ; true ),
+    (   Gs == [] -> rsay(none, "None. A human answered every question with a default.", []) ; true ),
     eng_groups(Eng, Q5, QT5, question(Q5, _, QT5), QTextBy),
     forall(member([Q, A], Gs),
            ( term_text(A, AT),
              ( eng_lookup(Eng, QTextBy, Q, QT, question(Q, _, QT), [QT1|_]) -> txt(QT1, QTT) ; QTT = "" ),
-             rsay(item(Q), "- ~w: ~w The default is ~w. No human answered it.", [Q, QTT, AT]) )),
-    rsay(head('Disclosures'), "Disclosures:", []),
+             as_sentence(QTT, QTS),
+             format(string(Plain), "~w: ~w The default is ~w. No human answered it.", [Q, QTS, AT]),
+             format(string(Head), "~w: ~w", [Q, QTT]),
+             format(string(Kid), "The default is ~w. No human answered it.", [AT]),
+             rtree(item(Q), Plain, Head-[Kid-[]]) )),
+    rhead('Disclosures'),
     eng_all(Eng, [I, S0, P, B], attest(I, disclosure, S0, P, B, _), Ds),
-    (   Ds == [] -> rsay(none, "- None.", []) ; true ),
+    (   Ds == [] -> rsay(none, "None.", []) ; true ),
     forall(member([I, S0, P, B], Ds),
-           ( term_text(P, PT), rsay(item(I), "- ~w: ~w, about ~w, by ~w.", [I, PT, S0, B]) )),
+           ( term_text(P, PT),
+             format(string(Plain), "~w: ~w, about ~w, by ~w.", [I, PT, S0, B]),
+             (   compound(P), compound_name_arguments(P, Kind, [Arg])
+             ->  plain_text(Arg, ArgT), format(string(Head), "~w **~w**: ~w", [I, Kind, ArgT])
+             ;   format(string(Head), "~w: ~w", [I, PT])
+             ),
+             format(string(Kid), "About ~w, by ~w.", [S0, B]),
+             rtree(item(I), Plain, Head-[Kid-[]]) )),
     (   call(Build)
-    ->  rsay(head('Waivers'), "Waivers:", []),
+    ->  rhead('Waivers'),
         eng_all(Eng, [W6, X6, D6, B6], attest(W6, waiver, _, waive(X6, D6, _), B6, _), W6s),
-        (   W6s == [] -> rsay(none, "- None.", []) ; true ),
+        (   W6s == [] -> rsay(none, "None.", []) ; true ),
         forall(member([W6, X6, D6, B6], W6s),
                ( waiver_kind(Eng, X6, Kind6),
                  ( atom(D6) -> DT6 = D6 ; term_text(D6, DT6) ),
-                 (   B6 \== human -> St6 = "it does not count, because a human did not write it (E8)"
-                 ;   eng_true(Eng, waiver_lapsed(W6)) -> St6 = "lapsed, so the item blocks done again"
-                 ;   St6 = "in force"
+                 (   B6 \== human
+                 ->  St6 = "it does not count, because a human did not write it (E8)",
+                     Lab6 = "ignored", Kid6 = "It does not count, because a human did not write it (E8)."
+                 ;   eng_true(Eng, waiver_lapsed(W6))
+                 ->  St6 = "lapsed, so the item blocks done again",
+                     Lab6 = "lapsed", Kid6 = "The item blocks done again."
+                 ;   St6 = "in force", Lab6 = "in force", Kid6 = ""
                  ),
-                 rsay(item(W6), "- ~w: ~w ~w, due ~w, ~w.", [W6, Kind6, X6, DT6, St6]) ))
+                 format(string(Plain), "~w: ~w ~w, due ~w, ~w.", [W6, Kind6, X6, DT6, St6]),
+                 format(string(Head), "~w **~w**: ~w ~w, due ~w", [W6, Lab6, Kind6, X6, DT6]),
+                 ( Kid6 == "" -> Kids6 = [] ; Kids6 = [Kid6-[]] ),
+                 rtree(item(W6), Plain, Head-Kids6) ))
     ;   true
     ),
-    rsay(head('Not checked'), "Not checked:", []),
+    rhead('Not checked'),
     findall([C3, T3], ( member([C3, _, T3], Cs),
                         \+ ( eng_lookup(Eng, ChecksBy, C3, K3, check(K3, C3), [_|_]) ) ),
             NCs),
-    (   NCs == [] -> rsay(none, "- None. Every current claim has a check.", []) ; true ),
-    forall(member([C3, T3], NCs), ( txt(T3, TT3), rsay(item(C3), "- ~w: ~w It has no check.", [C3, TT3]) )),
-    rsay(head('Open'), "Open:", []),
+    (   NCs == [] -> rsay(none, "None. Every current claim has a check.", []) ; true ),
+    forall(member([C3, T3], NCs),
+           ( txt(T3, TT3),
+             as_sentence(TT3, TTS3),
+             format(string(Plain), "~w: ~w It has no check.", [C3, TTS3]),
+             format(string(Head), "~w: ~w", [C3, TT3]),
+             rtree(item(C3), Plain, Head-["It has no check."-[]]) )),
+    rhead('Open'),
     eng_all(Eng, [Q4], to_ask(Q4), Q4s),
     eng_all(Eng, [A4], stale(A4), A4s),
     eng_all(Eng, [Y4], supersede_cycle(Y4), Y4s),
@@ -4967,28 +5089,58 @@ report_text(KB, Eng) :-
         eng_all(Eng, [P4, C5], ( attest(P4, lean_proof, _, proof(C5, _), _, _), proof_changed(P4) ), P4s)
     ;   O4s = [], B4s = [], L4s = [], P4s = []
     ),
-    forall(member(Q4, Q4s), rsay(open(to_ask, Q4, none), "- Ask question ~w now.", [Q4])),
-    forall(member(A4, A4s), rsay(open(stale, A4, none), "- Approval ~w is stale. The subject changed after the approval.", [A4])),
+    forall(member(Q4, Q4s), ropen(open(to_ask, Q4, none), "ask", "Ask question ~w now.", [Q4])),
+    forall(member(A4, A4s), ropen(open(stale, A4, none), "stale", "Approval ~w is stale. The subject changed after the approval.", [A4])),
     forall(member(Y4, Y4s),
            (   eng_true(Eng, claim(Y4, _, _))
-           ->  rsay(open(supersede_cycle, Y4, none), "- Claim ~w is in a supersede cycle. It replaces itself, so it is not current. Remove a supersedes fact (lint E15).", [Y4])
-           ;   rsay(open(supersede_cycle, Y4, none), "- Hypothesis ~w is in a supersede cycle. It replaces itself. Remove a supersedes fact (lint E15).", [Y4])
+           ->  ropen(open(supersede_cycle, Y4, none), "cycle", "Claim ~w is in a supersede cycle. It replaces itself, so it is not current. Remove a supersedes fact (lint E15).", [Y4])
+           ;   ropen(open(supersede_cycle, Y4, none), "cycle", "Hypothesis ~w is in a supersede cycle. It replaces itself. Remove a supersedes fact (lint E15).", [Y4])
            )),
-    forall(member(O4, O4s), rsay(open(over, O4, none), "- Change ~w serves no claim.", [O4])),
-    forall(member(B4, B4s), rsay(open(burn_open, B4, B4), "- Claim ~w needs a Lean proof. Prove it with orbit-kb prove, or ask a human for a waiver.", [B4])),
+    forall(member(O4, O4s), ropen(open(over, O4, none), "over", "Change ~w serves no claim.", [O4])),
+    forall(member(B4, B4s), ropen(open(burn_open, B4, B4), "burn open", "Claim ~w needs a Lean proof. Prove it with orbit-kb prove, or ask a human for a waiver.", [B4])),
     forall(member([W4, C4, D4], L4s),
            ( waiver_kind(Eng, C4, K4),
              Tag4 = open(waiver_lapsed, W4, C4),
-             (   K4 == claim -> rsay(Tag4, "- Waiver ~w of the proof of claim ~w was due at ~w. The proof is due now.", [W4, C4, D4])
-             ;   K4 == check -> rsay(Tag4, "- Waiver ~w of check ~w was due at ~w. The check must pass now.", [W4, C4, D4])
-             ;   K4 == question -> rsay(Tag4, "- Waiver ~w of question ~w was due at ~w. Ask the question now, if it is still open.", [W4, C4, D4])
-             ;   rsay(Tag4, "- Waiver ~w of ~w was due at ~w.", [W4, C4, D4])
+             (   K4 == claim -> ropen(Tag4, "waiver lapsed", "Waiver ~w of the proof of claim ~w was due at ~w. The proof is due now.", [W4, C4, D4])
+             ;   K4 == check -> ropen(Tag4, "waiver lapsed", "Waiver ~w of check ~w was due at ~w. The check must pass now.", [W4, C4, D4])
+             ;   K4 == question -> ropen(Tag4, "waiver lapsed", "Waiver ~w of question ~w was due at ~w. Ask the question now, if it is still open.", [W4, C4, D4])
+             ;   ropen(Tag4, "waiver lapsed", "Waiver ~w of ~w was due at ~w.", [W4, C4, D4])
              ) )),
-    forall(member([P4, C5], P4s), rsay(open(proof_changed, P4, C5), "- Proof ~w of claim ~w no longer counts. A file of the proof changed. Run orbit-kb prove again.", [P4, C5])),
-    (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], L4s == [], P4s == [] -> rsay(none, "- Nothing is open.", []) ; true ),
+    forall(member([P4, C5], P4s), ropen(open(proof_changed, P4, C5), "proof changed", "Proof ~w of claim ~w no longer counts. A file of the proof changed. Run orbit-kb prove again.", [P4, C5])),
+    (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], L4s == [], P4s == [] -> rsay(none, "Nothing is open.", []) ; true ),
     ( has_discovery(KB) -> vote_section(Eng) ; true ),
-    rsay(head('To land'), "To land:", []),
-    rsay(placeholder, "- (Write the steps to land the work here.)", []).
+    rhead('To land'),
+    rsay(placeholder, "(Write the steps to land the work here.)", []).
+
+% ropen(+Tag, +Label, +Fmt, +Args): an item of the Open section, with its kind in bold.
+ropen(Tag, Label, Fmt, Args) :-
+    format(string(S), Fmt, Args),
+    split_first(S, First, Rest),
+    format(string(Head), "**~w**: ~w", [Label, First]),
+    ( Rest == "" -> Kids = [] ; Kids = [Rest-[]] ),
+    rtree(Tag, S, Head-Kids).
+
+% rsplit(+Tag, +Fmt, +Args): a bullet of its first sentence, with the
+% other sentences as one nested bullet.
+rsplit(Tag, Fmt, Args) :-
+    format(string(S), Fmt, Args),
+    split_first(S, First, Rest),
+    ( Rest == "" -> Kids = [] ; Kids = [Rest-[]] ),
+    rtree(Tag, S, First-Kids).
+
+% split_first(+S, -First, -Rest): the first sentence of S, without its
+% final period, and the rest of S ("" when there is none).
+split_first(S, First, Rest) :-
+    (   sub_string(S, B, 2, A, ". "), A > 0
+    ->  sub_string(S, 0, B, _, First), sub_string(S, _, A, 0, Rest)
+    ;   sub_string(S, _, 1, 0, ".")
+    ->  sub_string(S, 0, _, 1, First), Rest = ""
+    ;   First = S, Rest = ""
+    ).
+
+% join_sentences(+A, +B, -S): A, and B after a space when B is not empty.
+join_sentences(A, B, S) :-
+    (   B == "" -> S = A ; format(string(S), "~w ~w", [A, B]) ).
 
 % ---------------------------------------------------------------------
 % report --html (D16): the delivery report as one page
@@ -5002,7 +5154,7 @@ report_text(KB, Eng) :-
 
 report_page(KB, Eng, Html, Open, Code) :-
     findall(Tag-S, report_rec(Tag, S), Recs),
-    findall(S, member(_-S, Recs), Lines),
+    findall(S, report_line(S), Lines),
     atomic_list_concat(Lines, '\n', T0), string_concat(T0, "\n", Text),
     sha256_text(Text, Digest),
     report_crosscheck(KB, XCs),
@@ -5868,6 +6020,12 @@ help_lines(report, [
 "With the discovery module, a Vote section comes before To land. It shows the agent's vote",
 "and the formal artifacts' vote only after the human votes in the current round.",
 "Fill in Delivered and To land yourself.",
+"",
+"The text is plain Markdown. Each section has a heading (# Claims:) and a blank line after it.",
+"Each item is a bullet, with two more spaces for each level. The label is in **bold**.",
+"A claim that needs attention (under, a waiver, a burn that is not proved, a check that did not",
+"pass) puts its status, burn, and checks in nested bullets. A fulfilled claim with nothing to add",
+"stays on one line, when the line fits in 100 columns. Long lines are not wrapped.",
 "",
 "--html FILE also writes the report as one page for a human to review in a browser.",
 "The text on stdout does not change. The page works offline. It shows the open items first,",
