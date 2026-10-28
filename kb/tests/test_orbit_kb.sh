@@ -62,6 +62,7 @@
 #   L   lint E1-E13, W1-W6, --strict, hook, summary            (Lint; D2; H4)                   : L0 L0b E1-E13 W1 W3-W6 LS LS2 LH1 LH2
 #   D7  review fixes: broken sources exit 2, unsafe negation, kb.lock (D7)                   : D7a-D7d RC E14 E13s
 #   SH  show   RP report   DR doctor (H1-H4 self-tests)   HP help (CLI: show, report, doctor, help) : SH1-SH7 RP1-RP6 DR1-DR3 HP1-HP3
+#   RH  report --html: golden text, page, escaping, open first, evidence, review (D16)   : RH1-RH9
 #   BP  burns: open, proved, changed, waived, lapsed       (Build module; D10)              : BP1-BP14
 #   SC  D10 follow-up: inherited burns, supersede cycles, rules.pl, times, proof logs (D10 follow-up) : SC1-SC11
 #   RF  refuted(Counterexample) in disproof and lean_result (2026-10-21) : RF1-RF7
@@ -1634,6 +1635,148 @@ claim(c1, preserve, 'x').
 cites(c1, 'x').
 EOF
     K=$T/k; okb --dir "$K" report; rc_is 0 "report without build"; out_has '^Claims:'; out_has 'c1'; }
+
+# ---- RH: report --html (D16, 2026-10-28). The page is read as text, through the hooks that the
+# contract names: data-section, data-claim with data-status, data-open with data-ref, data-check,
+# data-mark, data-kb, data-digest, review-copy, review-text. No test runs the page script.
+GOLD=$FIX/report_golden
+rh_kb() {  # rh_kb NAME: a KB for the golden report NAME in $T/NAME; K is set
+    K=$T/$1
+    case $1 in
+        valid|report_review) copy_fixture "$1" "$K" ;;
+        overunder) kb_overunder "$K" ;;
+        nobuild) printf "uses([]).\nrequest(r1, 'Plain').\nclaim(c1, preserve, 'x').\ncites(c1, 'x').\n" | kb_new "$K" ;;
+        discovery) printf "uses([discovery]).\nrequest(r1, 'Is it slow').\n" | kb_new "$K" ;;
+    esac
+}
+rh_section() {  # rh_section FILE NAME: the page text from data-section="NAME" to the next data-section
+    awk -v n="data-section=\"$2\"" 'index($0, n) {f=1; print; next} f && /data-section="/ {exit} f' "$1"
+}
+rh_claim() {  # rh_claim FILE ID: the page text of one claim, from data-claim="ID" to its </article>
+    awk -v n="data-claim=\"$2\"" 'index($0, n) {f=1} f {print} f && /<\/article>/ {exit}' "$1"
+}
+rh_has() {  # rh_has TEXT ERE LABEL
+    printf '%s\n' "$1" | grep -Eq -- "$2" && return 0
+    note "$3: lacks /$2/ ($(snip "$1"))"; return 1
+}
+rh_hasnt() {
+    printf '%s\n' "$1" | grep -Eq -- "$2" || return 0
+    note "$3: has /$2/, it must not ($(snip "$1"))"; return 1
+}
+t_RH1() { # c2: plain report text is byte-identical to the golden files made by the CLI before D16; --html prints the same text
+    local k
+    for k in valid report_review overunder nobuild discovery; do
+        rh_kb "$k"; okb --dir "$K" report; rc_is 0 "report $k"
+        cmp -s "$T/.out" "$GOLD/$k.txt" || note "report $k: the text differs from $GOLD/$k.txt: $(diff "$GOLD/$k.txt" "$T/.out" | head -n 6 | tr '\n' '~')"
+        okb --dir "$K" report --html "$T/$k.html"; rc_is 0 "report --html $k"
+        cmp -s "$T/.out" "$GOLD/$k.txt" || note "report --html $k: stdout differs from $GOLD/$k.txt"
+        [ -s "$T/$k.html" ] || note "report --html $k wrote no file"
+    done; }
+t_RH2() { # c1: one self-contained page with each claim, its status as a label, and its checks
+    rh_kb report_review; okb --dir "$K" report --html "$T/r.html"; rc_is 0; err_has 'HTML written to .*r\.html' "stderr names the file"
+    local h; h=$(<"$T/r.html")
+    head -c 15 "$T/r.html" | grep -qi '^<!doctype html>' || note "the page does not start with <!doctype html>"
+    rh_hasnt "$h" '<script[^>]*src=|<link[^>]*href=|@import|url\(|(src|href|action)="?(https?:)?//' "no external resource"
+    local c s
+    for c in c1:fulfilled c2:under c3:fulfilled c4:waived c5:fulfilled c6:under c7:fulfilled; do
+        s=${c#*:}; c=${c%%:*}
+        rh_has "$h" "data-claim=\"$c\"[^>]*data-status=\"$s\"" "claim $c has status $s"
+        rh_claim "$T/r.html" "$c" | grep -q ">$s<" || note "claim $c: the status $s is not shown as a text label"
+    done
+    for c in c1:k1 c2:k2 c3:k3 c4:k4 c5:k5 c7:k7; do rh_has "$(rh_claim "$T/r.html" "${c%%:*}")" "data-check=\"${c#*:}\"" "claim ${c%%:*} lists check ${c#*:}"; done
+    rh_has "$(rh_claim "$T/r.html" c2)" 'Status: under\. It is not fulfilled yet\.' "the status sentence of the text report"
+    rh_has "$(rh_claim "$T/r.html" c5)" 'Burn: NOT PROVED\. A Lean proof is required\.' "the burn sentence of the text report"
+    rh_kb nobuild; okb --dir "$K" report --html "$T/n.html"; rc_is 0 "a KB without build"
+    rh_has "$(<"$T/n.html")" 'data-claim="c1"[^>]*data-status="none"' "without build a claim has no status"
+    rh_kb discovery; okb --dir "$K" report --html "$T/d.html"; rc_is 0 "a discovery KB"
+    rh_has "$(rh_section "$T/d.html" vote)" 'No vote yet' "the Vote section"; }
+t_RH3() { # c1: every KB string is escaped
+    kb_new "$T/k" <<'EOF'
+uses([build]).
+request(r1, 'Try <i>markup</i>').
+claim(c1, introduce, '<script>alert(1)</script> & "q" \'s\'').
+cites(c1, '</textarea><img src=x onerror=alert(2)>').
+example(c1, '<!-- open comment').
+check(k1, c1).
+EOF
+    K=$T/k; okb --dir "$K" report --html "$T/r.html"; rc_is 0
+    local h; h=$(<"$T/r.html")
+    rh_hasnt "$h" '<script>alert|<img src=x|<i>markup|<!-- open' "a KB string is not markup"
+    rh_has "$h" '&lt;script&gt;alert\(1\)&lt;/script&gt; &amp; (&quot;|&#34;)q(&quot;|&#34;)' "claim text escaped"
+    rh_has "$h" '&lt;/textarea&gt;&lt;img src=x onerror=alert\(2\)&gt;' "citation escaped"
+    rh_has "$h" '&lt;i&gt;markup&lt;/i&gt;' "request escaped"
+    rh_hasnt "$(<"$GOLD/report_review.txt")" '&lt;' "setup: the text report is not escaped"
+    rh_kb report_review; okb --dir "$K" report --html "$T/v.html"; rc_is 0
+    rh_hasnt "$(<"$T/v.html")" '<b>bold</b>|<b>x</b>' "fixture claim c7 and its example"; }
+t_RH4() { # c3: open items come first: under claims, open burns, lapsed waivers, questions to ask
+    rh_kb report_review; okb --dir "$K" report --html "$T/r.html"; rc_is 0
+    local o po pc
+    po=$(grep -n 'data-section="open"' "$T/r.html" | head -n1 | cut -d: -f1)
+    pc=$(grep -n 'data-section="claims"' "$T/r.html" | head -n1 | cut -d: -f1)
+    [ -n "$po" ] && [ -n "$pc" ] && [ "$po" -lt "$pc" ] || note "the open section ($po) must come before the claims ($pc)"
+    o=$(rh_section "$T/r.html" open)
+    rh_has "$o" 'data-open="under"[^>]*data-ref="c2"' "under c2"
+    rh_has "$o" 'data-open="under"[^>]*data-ref="c6"' "under c6"
+    rh_has "$o" 'data-open="burn_open"[^>]*data-ref="c5"' "open burn c5"
+    rh_has "$o" 'data-open="waiver_lapsed"[^>]*data-ref="w3"' "lapsed waiver w3"
+    rh_has "$o" 'data-open="to_ask"[^>]*data-ref="q1"' "question q1"
+    rh_has "$o" 'data-open="over"[^>]*data-ref="x2"' "over x2"
+    rh_hasnt "$o" 'data-ref="(c1|c3|c4|c7|w1|w2)"' "nothing else is open"
+    rh_kb valid; okb --dir "$K" report --html "$T/v.html"; rc_is 0
+    o=$(rh_section "$T/v.html" open); rh_hasnt "$o" 'data-open=' "valid fixture: nothing open"; rh_has "$o" 'Nothing is open' "valid fixture: says so"; }
+t_RH5() { # c3: each claim carries its evidence
+    rh_kb report_review; okb --dir "$K" report --html "$T/r.html"; rc_is 0
+    local c
+    c=$(rh_claim "$T/r.html" c1)
+    rh_has "$c" 'Make saving safe' "c1 citation"; rh_has "$c" 'close the app, open it again' "c1 example"
+    rh_has "$c" 'runs/2-k1\.log' "c1: the log of the latest run of k1"; rh_hasnt "$c" 'runs/1-k1\.log' "c1: not an older run"
+    rh_has "$c" 'data-check="k1"[^>]*data-run="2"[^>]*data-result="pass"' "c1: k1 latest run 2 passed"
+    c=$(rh_claim "$T/r.html" c2)
+    rh_has "$c" 'data-check="k2"[^>]*data-run="3"[^>]*data-result="fail"' "c2: k2 run 3 failed"; rh_has "$c" 'runs/3-k2\.log' "c2 log"
+    rh_has "$c" 'd1' "c2 divergence id"; rh_has "$c" 'slow on a cold start' "c2 divergence note"
+    rh_has "$c" 'Not measured on a slow disk' "c2 disclosure"; rh_has "$c" 'Is a cold start in scope' "c2 question"
+    c=$(rh_claim "$T/r.html" c3); rh_has "$c" 'w1' "c3 waiver id"; rh_has "$c" '2999-01-01T00:00:00Z' "c3 waiver due"; rh_has "$c" 'Prove it after the demo' "c3 waiver reason"
+    c=$(rh_claim "$T/r.html" c4); rh_has "$c" 'w2' "c4: the waiver of its check"; rh_has "$c" 'data-check="k4"[^>]*data-run="none"' "c4: k4 never ran"
+    c=$(rh_claim "$T/r.html" c5); rh_has "$c" 'w3' "c5 waiver"; rh_has "$c" 'lapsed' "c5 waiver lapsed"; }
+t_RH6() { # c3: review marks, one button, a textarea fallback, keyed by the KB path and the report digest
+    rh_kb report_review; okb --dir "$K" report; local d; d=sha256:$(sha "$T/.out")
+    okb --dir "$K" report --html "$T/r.html"; rc_is 0
+    local h; h=$(<"$T/r.html")
+    rh_has "$h" "data-digest=\"$d\"" "the digest of the plain report"
+    rh_has "$h" "data-kb=\"$K\"" "the KB path"
+    local m; for m in ok doubt wrong; do rh_has "$(rh_claim "$T/r.html" c2)" "data-mark=\"$m\"" "claim mark $m"; done
+    rh_has "$h" 'id="review-copy"' "the copy button"; rh_has "$h" '<textarea[^>]*id="review-text"' "the textarea fallback"
+    printf '%s\n' "$h" | grep -n 'localStorage' | grep -vq 'try' && note "every localStorage access is inside try (one per line)"
+    true; }
+t_RH7() { # --open runs xdg-open (or open) only when given
+    mkdir -p "$T/bin"; local x
+    for x in xdg-open open; do printf '#!/bin/sh\nprintf "%%s\\n" "$@" >> "%s/opened"\n' "$T" > "$T/bin/$x"; chmod +x "$T/bin/$x"; done
+    rh_kb report_review
+    PATH="$T/bin:$PATH" okb --dir "$K" report --html "$T/r.html"; rc_is 0
+    [ -e "$T/opened" ] && note "a browser opened without --open"
+    PATH="$T/bin:$PATH" okb --dir "$K" report --html "$T/r.html" --open; rc_is 0 "--open"
+    local i; for i in 1 2 3 4 5 6 7 8 9 10; do [ -s "$T/opened" ] && break; sleep 0.2; done
+    grep -q 'r\.html' "$T/opened" 2>/dev/null || note "--open did not open the page"; }
+t_RH8() { # usage
+    rh_kb report_review
+    okb --dir "$K" report --html; rc_is 2 "--html needs a value"
+    okb --dir "$K" report --open; rc_is 2 "--open needs --html"
+    okb --dir "$K" report extra; rc_is 2 "report still takes no argument"
+    okb --dir "$K" report --html "$T/no/such/dir/r.html"; rc_is 2 "a path that cannot be written"; any_hasnt 'internal error' "a plain message"; }
+t_RH9() { # c3: an engine disagreement is an open item, and the exit is 2 (H3 on the raw program)
+    kb_new "$T/k" <<'EOF'
+uses([build]).
+request(r1, 'Runs').
+claim(c1, preserve, 'The runs behave').
+cites(c1, 'Runs').
+check(k1, c1).
+EOF
+    K=$T/k; add_result "$K" k1 1 pass; add_result "$K" k1 2 fail
+    okb --dir "$K" report --html "$T/a.html"; rc_is 0 "the default flags agree"
+    rh_has "$(<"$T/a.html")" 'data-crosscheck="agree"' "the page says the engines agree"
+    ORBIT_KB_SCASP_GROUND=raw ORBIT_KB_SCASP_FLAGS=--forall=all okb --dir "$K" report --html "$T/r.html"; rc_is 2 "a disagreement exits 2"
+    any_hasf 'ENGINE DISAGREEMENT'
+    rh_has "$(rh_section "$T/r.html" open)" 'data-open="disagreement"' "the disagreement is an open item"; }
 t_DR1() { okb doctor; rc_is 0 "doctor on this machine"; any_hasi 'swipl'; any_hasi 'scasp'; }
 t_DR2() { okb doctor; any_has 'H1'; any_has 'H2'; any_has 'H3'; any_has 'H4'; local l; for l in H1 H2 H3 H4; do anyout | grep -E "$l" | grep -Eiq 'pass|ok' || note "no passing line for $l"; anyout | grep -E "$l" | grep -Eiq "$FAIL_WORD" && note "the $l line reports a failure"; done; true; }
 # A doctor line that reports a failure: the word fail, fails, failed, or failure. Whole words only,
@@ -1914,6 +2057,15 @@ run_test t_RP3 RP3 "report: guesses"
 run_test t_RP4 RP4 "report: not checked"
 run_test t_RP5 RP5 "report: disclosures"
 run_test t_RP6 RP6 "report without build"
+run_test t_RH1 RH1 "report text is byte-identical to the golden files; --html prints the same text"
+run_test t_RH2 RH2 "report --html: one self-contained page, each claim with a status label and its checks"
+run_test t_RH3 RH3 "report --html escapes every KB string (<script> in a claim)"
+run_test t_RH4 RH4 "report --html: open items come first"
+run_test t_RH5 RH5 "report --html: each claim carries its evidence"
+run_test t_RH6 RH6 "report --html: review marks, copy button, textarea, KB path and report digest"
+run_test t_RH7 RH7 "report --html: --open runs the opener only when given"
+run_test t_RH8 RH8 "report --html: usage errors exit 2"
+run_test t_RH9 RH9 "report --html: an engine disagreement is an open item and exits 2"
 run_test t_DR1 DR1 "doctor exits 0 on this machine"
 run_test t_DR2 DR2 "doctor reports H1, H2, H3 self-tests as passing"
 run_test t_DR3 DR3 "doctor with a broken library exits 2"
