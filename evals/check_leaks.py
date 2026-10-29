@@ -4,7 +4,7 @@
 Usage: check_leaks.py [GIT-DIFF-ARGS...]   (default: the uncommitted diff of the prompt)
 Example: check_leaks.py HEAD~3 -- prompt/SAGITTARIUS.md
 Reads every eval spec (tools.json, heldout/heldout.json). Exit 1 when an added line shares
-a 4-word run with an eval prompt or turn. See REFINING.md, rule 2.
+a 4-word run with an eval prompt or turn. See docs/REFINING.md, rule 2.
 """
 import glob
 import json

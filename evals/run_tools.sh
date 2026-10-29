@@ -3,7 +3,7 @@
 # of its fixture. Usage:
 #   run_tools.sh [--spec FILE] [--runs N] [-j N] [--prompt FILE|none] [--model M] [--rubric] [ID...]
 # No IDs: run every eval in the spec (default evals/tools.json; the held-out set is
-# evals/heldout/heldout.json). Read evals/REFINING.md before you change the prompt for a result.
+# evals/heldout/heldout.json). Read docs/REFINING.md before you change the prompt for a result.
 #   --runs N    run each eval N times; an eval passes when it passes in 2 of 3 runs (summary.json)
 #   -j N        run N sessions at once (they wait on the network, not the CPU)
 #   --prompt F  append F instead of the live prompt: a copy with one rule deleted, or the base
