@@ -500,7 +500,9 @@ verdict. A proof is a `lean_proof`.
 | `over(X)` | Change `X` serves no claim. |
 | `any_under` | `under(C)` is true for one or more claims. |
 | `any_over` | `over(X)` is true for one or more changes. |
-| `done` | `any_under`, `any_over`, `any_to_ask`, `any_burn_open`, and `any_supersede_cycle` are all false. |
+| `any_current_claim` | `current(C)` is true for one or more claims (D17). |
+| `no_current_claim` | No claim is current. Then `done` is false (D17). |
+| `done` | `any_under`, `any_over`, `any_to_ask`, `any_burn_open`, `any_supersede_cycle`, and `no_current_claim` are all false. A KB with no current claim is not done (D17). |
 | `burn_reason(C)` | `C` is contested twice, it is universal, or a human asked for a proof. |
 | `burn(C)` | `C` needs a Lean proof: `burn_reason(C)`, or `C` replaces a claim with a burn reason, directly or through other claims (`supersedes_closure`). |
 | `burn_proved(C)` | A `lean_proof` of `C` by `script` exists, and no file of that proof changed (`proof_changed`). |
@@ -767,7 +769,8 @@ predicate (E2) in a source file.
 
 Lists parts of the KB as plain text. The default is `all`. `open` lists
 `to_ask`, `stale`, and `contested`. When the `build` module is in use, `open`
-also lists `under`, `over`, and `burn_open`. `claims` shows the burn state of
+also lists `under`, `over`, and `burn_open`, and `no_claim` when no claim is
+current (D17). `claims` shows the burn state of
 each claim that burns: proved, waived (`NOT PROVED`), or open. It shows a claim
 with a waived check as `not fulfilled`, and `questions` marks a waived question. `show` runs one query for each relation, not
 one query for each fact.
@@ -794,7 +797,12 @@ the waiver due time. A claim with a waived check shows `Status: not fulfilled`
 with the check and the due time. `Waivers:` lists every waiver: its id, the kind
 and id of its target, its due time, and whether it is in force or lapsed.
 `Open:` lists each open burn, each waiver past its due time (of a claim, a
-check, or a question), and each proof that no longer counts.
+check, or a question), and each proof that no longer counts. With the `build`
+module, when no claim is current, `Open:` says `**no claim**: No claim is
+current`, because `done` is false without a current claim (D17). When no question
+has a default, `Guesses:` says `None. No question has a default.` It says that a
+human answered every question only when a question with a default exists. When
+no claim is current, `Not checked:` says `None. No claim is current.`
 With the `discovery` module, a `Vote:` section comes before `To land:` (D14).
 Until the human votes in the current round, it says only whether the agent
 voted, and it does not show the agent's choice or the formal artifacts' vote.
@@ -1032,7 +1040,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E13 | An atom or a string ends in `_` and digits (hazard H4). |
 | E14 | Unsafe negation: a variable of a `not` literal occurs in the head, but in no positive body literal. |
 | E15 | A `supersedes` fact on a cycle: a claim (or a hypothesis) replaces itself, directly (`supersedes(C, C)`) or through others. `done` is false while the cycle exists. `add` refuses such a fact. |
-| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engines ignore the clause. |
+| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `any_current_claim`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engines ignore the clause. |
 
 | Code | Warning |
 |---|---|

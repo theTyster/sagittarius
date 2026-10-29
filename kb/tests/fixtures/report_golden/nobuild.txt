@@ -6,7 +6,7 @@
     - Checks: none.
 
 # Guesses:
-  - None. A human answered every question with a default.
+  - None. No question has a default.
 
 # Disclosures:
   - None.

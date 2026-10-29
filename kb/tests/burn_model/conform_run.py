@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the orbit-kb CLI on the generated KBs and compare it with the Lean model.
 
-Usage: conform_run.py GENDIR [--mutant MA|MB|MC|MI|MY] [--jobs N]
+Usage: conform_run.py GENDIR [--mutant MA|MB|MC|MI|MY|MZ] [--jobs N]
 
 GENDIR holds the KB directories that `lake exe conform gen GENDIR` wrote.
 For each KB, this script:
@@ -124,7 +124,7 @@ def answers(rc: int, out: str, var: str):
 
 
 def read_expect(k: str):
-    """The expected answers: the model, and each mutant (MA, MB, MC, MI, MY)."""
+    """The expected answers: the model, and each mutant (MA, MB, MC, MI, MY, MZ)."""
     exp = {}
     with open(os.path.join(k, "expect.txt")) as f:
         for ln in f:
@@ -135,7 +135,7 @@ def read_expect(k: str):
         "changed": sorted(exp["changed"]),
         "lapsed": sorted(exp["lapsed"]),
     }
-    for m in ("MA", "MB", "MC", "MI", "MY"):
+    for m in ("MA", "MB", "MC", "MI", "MY", "MZ"):
         out[m] = {"done": exp[m][0], "open": sorted(exp[m][1:])}
     return out
 
@@ -193,7 +193,7 @@ def main(argv):
         else:
             gen = a
             i += 1
-    if not gen or mutant not in (None, "MA", "MB", "MC", "MI", "MY"):
+    if not gen or mutant not in (None, "MA", "MB", "MC", "MI", "MY", "MZ"):
         print(__doc__, file=sys.stderr)
         return 2
     kbs = sorted(

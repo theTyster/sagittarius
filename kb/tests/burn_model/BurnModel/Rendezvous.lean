@@ -25,13 +25,14 @@ The map:
 * `supersedes` of `Req` is the list of `supersedes(New, Old)` facts.
 
 Result (D10 follow-up, requirements v3):
-* `implSys` meets LR1, LR3, LR5 to LR7, and LR9 to LR12 for every state.
+* `implSys` meets LR1, LR3, LR5 to LR7, and LR9 to LR13 for every state (LR13:
+  amendment v4, D17).
 * LR2 and LR4 need `Req.burns` to follow from `burn`. That needs each claim that
   a `supersedes` fact replaces to be a claim (`LR2_of`, `LR4_of`).
 * `implSys` does not meet LR8 (`impl_not_LR8`): `universal(c109)` with no claim
   `c109` makes `burn(c109)` true (finding F7). On the states with no dangling
-  reference (`WF`, what lint E4 checks), LR8 holds. `implSysWF` meets all twelve
-  (`implWF_all`).
+  reference (`WF`, what lint E4 checks), LR8 holds. `implSysWF` meets all
+  thirteen (`implWF_all`).
 -/
 
 namespace Rdz
@@ -171,6 +172,9 @@ theorem burns_of_burn (db : DB) (hsup : ∀ e ∈ db.supersedes, ∃ x ∈ db.cl
     obtain ⟨x, hx, hxe⟩ := hsup e he
     exact Or.inr ⟨x, hx, hxe ▸ h1, hxe ▸ h2⟩
 
+theorem someCurrent_view (db : DB) : Req.someCurrent (view db) = any_current_claim db := by
+  simp only [Req.someCurrent, view, List.any_map, Function.comp_def, claimView, any_current_claim]
+
 theorem cycle_view (db : DB) : Req.cycle (view db) = any_supersede_cycle db := by
   simp only [Req.cycle, view, any_supersede_cycle, supersede_cycle, reach_eq]
 
@@ -233,7 +237,7 @@ theorem burn_open_eq (db : DB) (c : Atom) :
 
 /-! ## One theorem per requirement
 
-On every state: LR1, LR3, LR5, LR6, LR7, LR9, LR10, LR11, LR12. LR2 and LR4 need
+On every state: LR1, LR3, LR5, LR6, LR7, LR9, LR10, LR11, LR12, LR13. LR2 and LR4 need
 `Req.burns` to follow from `burn`, so they need the states where every claim
 that a `supersedes` fact replaces is a claim (lint E4, `WF` below). LR8 fails on
 some states (`impl_not_LR8`) and holds on `WF`. -/
@@ -244,7 +248,7 @@ theorem impl_LR1 : Req.LR1 implSys := by
   obtain ⟨x, _, rfl⟩ := mem_claims.1 hm
   have hno : any_burn_open db = false := by
     simp only [done, Bool.and_eq_true, Bool.not_eq_true'] at hd
-    exact hd.1.2
+    exact hd.1.1.2
   have hnot : burn_open db x.1 = false := by
     cases h : burn_open db x.1 with
     | false => rfl
@@ -259,8 +263,10 @@ theorem impl_LR1 : Req.LR1 implSys := by
 /-- LR2 (non-vacuity), on a state where each replaced claim is a claim. -/
 theorem LR2_of (db : DB) (hsup : ∀ e ∈ db.supersedes, ∃ x ∈ db.claim, x.1 = e.2) :
     (view db).restOk = true → Req.AllBurnsClosed (view db) →
-      (¬ ∃ c, Req.Reaches (view db).supersedes c c) → done db = true := by
-  intro hr ha hc
+      (¬ ∃ c, Req.Reaches (view db).supersedes c c) → Req.someCurrent (view db) = true →
+      done db = true := by
+  intro hr ha hc hs
+  rw [someCurrent_view] at hs
   simp only [view, Bool.and_eq_true, Bool.not_eq_true'] at hr
   have hno : any_burn_open db = false := by
     cases h : any_burn_open db with
@@ -278,13 +284,13 @@ theorem LR2_of (db : DB) (hsup : ∀ e ∈ db.supersedes, ∃ x ∈ db.claim, x.
     cases h : any_supersede_cycle db with
     | false => rfl
     | true => exact absurd ((Req.cycle_iff (view db)).1 (by rw [cycle_view]; exact h)) hc
-  simp [done, hr.1.1, hr.1.2, hr.2, hno, hcy]
+  simp [done, no_current_claim, hr.1.1, hr.1.2, hr.2, hno, hcy, hs]
 
 /-- LR3: `done` keeps its other parts. -/
 theorem impl_LR3 : Req.LR3 implSys := by
   intro db hd
   simp only [done, Bool.and_eq_true] at hd
-  simp [view, hd.1.1.1.1, hd.1.1.1.2, hd.1.1.2]
+  simp [view, hd.1.1.1.1.1, hd.1.1.1.1.2, hd.1.1.1.2]
 
 /-- LR4: `burn_open` means a current claim that burns and is not closed, on a
 state where each replaced claim is a claim. -/
@@ -432,10 +438,18 @@ theorem impl_LR12 : Req.LR12 implSys := by
   intro db hd hc
   have hcy : any_supersede_cycle db = false := by
     simp only [done, Bool.and_eq_true, Bool.not_eq_true'] at hd
-    exact hd.2
+    exact hd.1.2
   have h := (Req.cycle_iff (view db)).2 hc
   rw [cycle_view, hcy] at h
   exact absurd h (by simp)
+
+/-- LR13: `done` implies that at least one claim is current (v4, D17). -/
+theorem impl_LR13 : Req.LR13 implSys := by
+  intro db hd
+  change Req.someCurrent (view db) = true
+  rw [someCurrent_view]
+  simp only [done, no_current_claim, Bool.not_not, Bool.and_eq_true] at hd
+  exact hd.2
 
 /-! ## The well-formed states: what lint E4 checks -/
 
@@ -522,11 +536,12 @@ theorem implWF_LR10 : Req.LR10 implSysWF :=
 
 theorem implWF_LR11 : Req.LR11 implSysWF := fun s => impl_LR11 s.1
 theorem implWF_LR12 : Req.LR12 implSysWF := fun s => impl_LR12 s.1
+theorem implWF_LR13 : Req.LR13 implSysWF := fun s => impl_LR13 s.1
 
-/-- On the well-formed states, the implementation model meets all twelve requirements. -/
+/-- On the well-formed states, the implementation model meets all thirteen requirements. -/
 theorem implWF_all : Req.AllLR implSysWF :=
   ⟨implWF_LR1, implWF_LR2, implWF_LR3, implWF_LR4, implWF_LR5, implWF_LR6, implWF_LR7,
-    implWF_LR8, implWF_LR9, implWF_LR10, implWF_LR11, implWF_LR12⟩
+    implWF_LR8, implWF_LR9, implWF_LR10, implWF_LR11, implWF_LR12, implWF_LR13⟩
 
 /-! ## The derived facts do not change when a record is added
 

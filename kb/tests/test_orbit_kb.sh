@@ -69,6 +69,7 @@
 #   RF  refuted(Counterexample) in disproof and lean_result (2026-10-21) : RF1-RF7
 #   WV  waivers of a check or a question (D13, 2026-10-21)     (Build module; D13)              : WV1-WV10
 #   RW  reword a hypothesis with supersedes; W5 names a new check (D15, 2026-10-27) : RW1-RW5 W5b W5c
+#   NC  no current claim: done, whynot, report, show open (D17, issue #1)   : NC1-NC5
 #   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10, D10 follow-up) : PV1-PV12
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
@@ -1352,6 +1353,40 @@ t_RW5() { okb help discovery; rc_is 0; any_has 'supersedes\(h[A-Za-z0-9]*, ?h' "
           okb help core; rc_is 0; any_hasi 'supersedes.*hypothes|hypothes.*supersedes|two hypotheses' "help core: supersedes takes hypotheses too"
           okb help codes; rc_is 0; any_has 'W5 .*new check' "help codes: W5 says to add a new check"; }
 
+# ---- D17 (issue #1): done needs a current claim; report says nothing about questions that do not exist
+t_NC1() { K=$T/k; kb_init "$K" build
+          is_false 'done' "a build KB with no claim is not done"; is_false 'any_current_claim'
+          okb --dir "$K" whynot 'done'; rc_is 0; [ "$(first_line)" = absent ] || note "whynot done: first line '$(first_line)'"
+          out_has 'no claim is current' "whynot done names the missing claim"; out_has 'some claim is current'
+          oadd "claim(c1, preserve, 'One stays true')" "cites(c1, 'Test request')" "check(k1, c1)" >/dev/null
+          add_result "$K" k1 1 pass
+          is_true 'any_current_claim'; is_true 'done' "one fulfilled claim: done holds"
+          okb --dir "$K" whynot 'done'; rc_is 0; [ "$(first_line)" = holds ] || note "whynot done after a claim: '$(first_line)'"; }
+t_NC2() { K=$T/k; kb_init "$K" build; okb --dir "$K" report; rc_is 0
+          out_hasnt 'answered every question' "no question exists, so no human answered one"
+          rl_is "Guesses with no question" "  - None. No question has a default." "$(rp_sec Guesses)"
+          rl_is "Not checked with no claim" "  - None. No claim is current." "$(rp_sec 'Not checked')"
+          rl_is "Open with no claim" "  - **no claim**: No claim is current
+    - Add a claim. The work is not done without one." "$(rp_sec Open)"
+          okb --dir "$K" show open; rc_is 0; out_has '^- no_claim: no claim is current' "show open names the missing claim"
+          out_hasnt 'Nothing is open' "show open: something is open"
+          okb --dir "$K" report --html "$T/r.html"; rc_is 0
+          grep -q 'data-open="no_claim"' "$T/r.html" || note "the page lists the missing claim as an open item"; }
+t_NC3() { K=$T/k; kb_init "$K" build; oadd "claim(c1, preserve, 'One stays true')" "cites(c1, 'Test request')" >/dev/null
+          okb --dir "$K" report; rc_is 0
+          rl_is "Guesses with a claim and no question" "  - None. No question has a default." "$(rp_sec Guesses)"
+          out_hasnt 'no claim' "a current claim exists"
+          oadd "question(q1, c1, 'Is it one')" "assumed(q1, yes)" "answer(q1, yes, human)" >/dev/null
+          okb --dir "$K" report; rc_is 0
+          rl_is "Guesses when a human answered" "  - None. A human answered every question with a default." "$(rp_sec Guesses)"
+          okb --dir "$K" show open; out_hasnt 'no_claim' "show open: a current claim exists"; }
+t_NC4() { K=$T/k; kb_init "$K" build; printf 'any_current_claim.\n' > "$K/rules.pl"
+          okb --dir "$K" lint; rc_is 1 "rules.pl cannot make a claim appear for done"; out_has '^E16 rules.pl'
+          is_false 'any_current_claim' "the engines ignore the protected clause"; is_false 'done'; }
+t_NC5() { K=$T/k; kb_init "$K" discovery
+          is_false 'discovery_ready' "no hypothesis and no claim: not ready"; is_false 'discovery_decide'
+          is_set 'artifact_vote(V)' 'V = hold' "an empty discovery KB votes hold"; }
+
 # ---- D10: orbit-kb prove with real Lean. The Lake project is built once (prototype lake).
 # Each test copies it, so lake build has little to do. Skip when lake is missing.
 LEAN_TC=$(command -v elan >/dev/null 2>&1 && elan toolchain list 2>/dev/null | sed -n 's/^\(leanprover\/lean4:v[0-9.]*\).*/\1/p' | sort -V | tail -1)
@@ -2078,6 +2113,11 @@ run_test t_RW2 RW2 "D15: a superseded hypothesis has no WD7 and does not block d
 run_test t_RW3 RW3 "D15: a superseded hypothesis's not_reproduced is no outcome and has no WD6"
 run_test t_RW4 RW4 "D15: closure and E15 work on hypotheses; current, under, burn stay claims"
 run_test t_RW5 RW5 "D15: help discovery, core, and codes describe rewording and the new W5"
+run_test t_NC1 NC1 "D17: done needs a current claim; whynot done names it"
+run_test t_NC2 NC2 "D17: report and show open on a KB with no claim"
+run_test t_NC3 NC3 "D17: Guesses says no question has a default, unless a human answered one"
+run_test t_NC4 NC4 "D17: a rules.pl clause for any_current_claim is E16"
+run_test t_NC5 NC5 "D17: an empty discovery KB is not ready and votes hold"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"

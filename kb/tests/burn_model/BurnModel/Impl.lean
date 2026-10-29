@@ -303,11 +303,19 @@ needs `claim(C, _, _)`. The search over the claim ids is exact
 (`any_burn_open_iff`). -/
 def any_burn_open : Bool := db.claim.any fun x => burn_open db x.1
 
+/-- `any_current_claim :- current(_).` (D17) `current(C)` needs
+`claim(C, _, _)`, so the search over the claim ids is exact
+(`any_current_claim_iff`). -/
+def any_current_claim : Bool := db.claim.any fun x => current db x.1
+
+/-- `no_current_claim :- not any_current_claim.` (D17) -/
+def no_current_claim : Bool := !any_current_claim db
+
 /-- `done :- not any_under, not any_over, not any_to_ask, not any_burn_open,
-not any_supersede_cycle.` -/
+not any_supersede_cycle, not no_current_claim.` -/
 def done : Bool :=
   !any_under db && !any_over db && !any_to_ask db && !any_burn_open db &&
-    !any_supersede_cycle db
+    !any_supersede_cycle db && !no_current_claim db
 
 /-- `conforms(C) :- conformance(K), check(K, C), passed(K).` -/
 def conforms (c : Atom) : Bool :=
@@ -361,6 +369,17 @@ theorem any_burn_open_iff : any_burn_open db = true ↔ ∃ c, burn_open db c = 
       simp only [burn_open, Bool.and_eq_true] at hc; exact hc.1.1.2
     obtain ⟨x, hx, rfl⟩ := current_claim hcur
     simp only [any_burn_open, List.any_eq_true]
+    exact ⟨x, hx, hc⟩
+
+theorem any_current_claim_iff : any_current_claim db = true ↔ ∃ c, current db c = true := by
+  constructor
+  · intro h
+    simp only [any_current_claim, List.any_eq_true] at h
+    obtain ⟨x, _, hx⟩ := h
+    exact ⟨_, hx⟩
+  · rintro ⟨c, hc⟩
+    obtain ⟨x, hx, rfl⟩ := current_claim hc
+    simp only [any_current_claim, List.any_eq_true]
     exact ⟨x, hx, hc⟩
 
 theorem any_under_iff : any_under db = true ↔ ∃ c, under db c = true := by

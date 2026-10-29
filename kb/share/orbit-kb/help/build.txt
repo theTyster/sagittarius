@@ -15,8 +15,10 @@ Queries
   fulfilled(C)  a check of C passed; for retire and introduce, it failed first; C is not refuted
   under(C)      current claim C is not fulfilled
   over(X)       change X serves no claim
-  done          nothing is under, nothing is over, nothing is to ask, no burn is open,
-                and no claim is in a supersede cycle
+  done          at least one claim is current, nothing is under, nothing is over,
+                nothing is to ask, no burn is open, and no claim is in a supersede cycle.
+                A KB with no current claim is not done. whynot done then says
+                "no claim is current".
   burn(C)       C is contested twice, is universal, or the human asked for a proof;
                 or C supersedes such a claim, directly or through other claims
   burn_open(C)  current claim C burns, and has no proof that still counts and no waiver

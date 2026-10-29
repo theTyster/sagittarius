@@ -5,13 +5,13 @@
   - No current claims.
 
 # Guesses:
-  - None. A human answered every question with a default.
+  - None. No question has a default.
 
 # Disclosures:
   - None.
 
 # Not checked:
-  - None. Every current claim has a check.
+  - None. No claim is current.
 
 # Open:
   - Nothing is open.

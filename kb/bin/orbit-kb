@@ -1466,6 +1466,7 @@ protected_pi(burn_proved/1).
 protected_pi(burn_waived/1).
 protected_pi(burn_open/1).
 protected_pi(any_burn_open/0).
+protected_pi(any_current_claim/0).
 protected_pi(proof_changed/1).
 protected_pi(waiver_lapsed/1).
 protected_pi(check_waived/1).
@@ -4751,10 +4752,14 @@ show_section(KB, Eng, open) :-
         eng_all(Eng, [B], burn_open(B), Bs),
         forall(member(U, Us), say("- under ~w: claim ~w is current but not fulfilled.", [U, U])),
         forall(member(O, Os), say("- over ~w: change ~w serves no claim.", [O, O])),
-        forall(member(B, Bs), say("- burn_open ~w: claim ~w needs a Lean proof.", [B, B]))
-    ;   Us = [], Os = [], Bs = []
+        forall(member(B, Bs), say("- burn_open ~w: claim ~w needs a Lean proof.", [B, B])),
+        % D17: done needs a current claim.
+        (   eng_true(Eng, any_current_claim) -> Ns = []
+        ;   Ns = [no_claim], say("- no_claim: no claim is current. Add a claim. The work is not done without one.", [])
+        )
+    ;   Us = [], Os = [], Bs = [], Ns = []
     ),
-    (   Qs == [], As == [], Cs == [], Ys == [], Us == [], Os == [], Bs == [] -> say("- Nothing is open.", []) ; true ).
+    (   Qs == [], As == [], Cs == [], Ys == [], Us == [], Os == [], Bs == [], Ns == [] -> say("- Nothing is open.", []) ; true ).
 show_section(_, Eng, disclosures) :-
     say("Disclosures:", []),
     eng_all(Eng, [I, S, P, B, T], attest(I, disclosure, S, P, B, T), Ds),
@@ -5024,7 +5029,12 @@ report_text(KB, Eng) :-
              rtree(claim(C, L, TT, SK, St0, BT, KStates), Plain, Node) )),
     rhead('Guesses'),
     eng_all(Eng, [Q, A], ( assumed(Q, A), not(answered(Q)) ), Gs),
-    (   Gs == [] -> rsay(none, "None. A human answered every question with a default.", []) ; true ),
+    % D17: say that a human answered only when a question with a default exists.
+    (   Gs \== [] -> true
+    ;   eng_all(Eng, [Q0], assumed(Q0, _), [_|_])
+    ->  rsay(none, "None. A human answered every question with a default.", [])
+    ;   rsay(none, "None. No question has a default.", [])
+    ),
     eng_groups(Eng, Q5, QT5, question(Q5, _, QT5), QTextBy),
     forall(member([Q, A], Gs),
            ( term_text(A, AT),
@@ -5071,7 +5081,10 @@ report_text(KB, Eng) :-
     findall([C3, T3], ( member([C3, _, T3], Cs),
                         \+ ( eng_lookup(Eng, ChecksBy, C3, K3, check(K3, C3), [_|_]) ) ),
             NCs),
-    (   NCs == [] -> rsay(none, "None. Every current claim has a check.", []) ; true ),
+    (   NCs \== [] -> true
+    ;   Cs == [] -> rsay(none, "None. No claim is current.", [])
+    ;   rsay(none, "None. Every current claim has a check.", [])
+    ),
     forall(member([C3, T3], NCs),
            ( txt(T3, TT3),
              as_sentence(TT3, TTS3),
@@ -5089,6 +5102,9 @@ report_text(KB, Eng) :-
         eng_all(Eng, [P4, C5], ( attest(P4, lean_proof, _, proof(C5, _), _, _), proof_changed(P4) ), P4s)
     ;   O4s = [], B4s = [], L4s = [], P4s = []
     ),
+    % D17: in a build KB, done needs a current claim.
+    ( call(Build), Cs == [] -> N4s = [no_claim] ; N4s = [] ),
+    forall(member(_, N4s), ropen(open(no_claim, claims, none), "no claim", "No claim is current. Add a claim. The work is not done without one.", [])),
     forall(member(Q4, Q4s), ropen(open(to_ask, Q4, none), "ask", "Ask question ~w now.", [Q4])),
     forall(member(A4, A4s), ropen(open(stale, A4, none), "stale", "Approval ~w is stale. The subject changed after the approval.", [A4])),
     forall(member(Y4, Y4s),
@@ -5107,7 +5123,7 @@ report_text(KB, Eng) :-
              ;   ropen(Tag4, "waiver lapsed", "Waiver ~w of ~w was due at ~w.", [W4, C4, D4])
              ) )),
     forall(member([P4, C5], P4s), ropen(open(proof_changed, P4, C5), "proof changed", "Proof ~w of claim ~w no longer counts. A file of the proof changed. Run orbit-kb prove again.", [P4, C5])),
-    (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], L4s == [], P4s == [] -> rsay(none, "Nothing is open.", []) ; true ),
+    (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], L4s == [], P4s == [], N4s == [] -> rsay(none, "Nothing is open.", []) ; true ),
     ( has_discovery(KB) -> vote_section(Eng) ; true ),
     rhead('To land'),
     rsay(placeholder, "(Write the steps to land the work here.)", []).
@@ -5389,6 +5405,7 @@ page_write(KB, Eng, Recs, Text, Digest, XCs, Css, Js) :-
 
 plural(N, S) :- ( N =:= 1 -> S = "" ; S = "s" ).
 
+open_label(no_claim, "no claim").
 open_label(to_ask, "ask").
 open_label(stale, "stale").
 open_label(supersede_cycle, "cycle").
@@ -6010,7 +6027,7 @@ help_lines(show, [
 "orbit-kb show [claims|questions|open|disclosures|extensions|all]",
 "",
 "List parts of the KB as plain text. The default is all.",
-"open lists to_ask, stale, contested, and supersede_cycle, and under, over, and burn_open when the build module is in use."
+"open lists to_ask, stale, contested, and supersede_cycle, and under, over, burn_open, and no_claim (no claim is current) when the build module is in use."
 ]).
 help_lines(report, [
 "orbit-kb report [--html FILE [--open]]",

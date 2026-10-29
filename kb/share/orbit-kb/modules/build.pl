@@ -47,8 +47,14 @@ decl(rule, any_under,
 decl(rule, any_over,
      'At least one change serves no claim.',
      'some change serves no claim').
+decl(rule, any_current_claim,
+     'At least one claim is current.',
+     'some claim is current').
+decl(rule, no_current_claim,
+     'No claim is current. Then the work is not done.',
+     'no claim is current').
 decl(rule, done,
-     'No current claim is unfulfilled, no change is without a claim, no question must be asked, no burn is open, and no claim is in a supersede cycle.',
+     'At least one claim is current, no current claim is unfulfilled, no change is without a claim, no question must be asked, no burn is open, and no claim is in a supersede cycle.',
      'the work is done').
 decl(rule, burn_reason(ref(claim)),
      'The claim was contested twice, it is universal, or a human asked for a Lean proof.',
@@ -110,8 +116,15 @@ served(X) :- serves(X, _).
 over(X) :- change(X, _), not served(X).
 any_under :- under(_).
 any_over :- over(_).
+% D17 (issue #1): a KB with no current claim is not done. Before D17, a
+% build KB right after init was done. done negates no_current_claim, and
+% does not call any_current_claim directly: then whynot done can explain
+% "no claim is current" in the grounded program (a rule instance with a
+% positive body that cannot hold is not in the grounding).
+any_current_claim :- current(_).
+no_current_claim :- not any_current_claim.
 done :- not any_under, not any_over, not any_to_ask, not any_burn_open,
-        not any_supersede_cycle.
+        not any_supersede_cycle, not no_current_claim.
 burn_reason(C) :- contested_twice(C).
 burn_reason(C) :- universal(C).
 burn_reason(C) :- burn_requested(C).
