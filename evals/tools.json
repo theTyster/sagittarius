@@ -287,6 +287,109 @@
         "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it"
       ],
       "notes": "Anonymised from a real case where a mid-ticket redesign was restated as a new 'transport-only' design and lost the outcome that the earlier model guarded. Trap: sign_in already sets an 'auth' cookie with the ACCESS token; renewing from that cookie passes a quick test but fails after a pause longer than the access token's life (20 min + 3 min grace). Guards: a mid-ticket change of design is a divergence (continuity), and preserved outcomes are re-checked under the new design. Turn 1 fixes RENEWAL_TTL (12 minutes, meant 12 hours)."
+    },
+    {
+      "id": 18,
+      "name": "correction-records-divergence",
+      "fixture": "retention-invoices",
+      "turns": [
+        "Go through retention.py and set every retention period to 7 days, per the storage rule in README.md.",
+        "wait, no. invoices are tax records, we're legally required to keep those ten years. invoices stay at 3650."
+      ],
+      "checks": [
+        "turn1:no_kb",
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "python:from retention import days_to_keep as d; assert (d('thumbnails'), d('exports'), d('invoices')) == (7, 7, 3650), (d('thumbnails'), d('exports'), d('invoices'))",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Turn 1 stays on the light path: changes the test with the code, and starts no KB",
+        "Turn 2 reads the correction as a divergence: shifts up, and records the request, the claims, and the divergence",
+        "Does not only apologize and fix"
+      ],
+      "notes": "Moved from held-out 105 on 2026-10-29: it was read while tuning, so it no longer gates."
+    },
+    {
+      "id": 17,
+      "name": "redesign-mid-ticket",
+      "fixture": "receipt-vault",
+      "turns": [
+        "Approvers keep telling me receipts disappear from claims that are still waiting on them. Someone put in a claim last week for a hotel stay from about two months ago, and when the approver opened it today the receipt was already gone. The README has the rule for how long approvers should be able to see a receipt. Can you fix that in claims.py?",
+        "Change of plan before I close this one out: compliance says scanned receipts can't sit in the claims store anymore. They have to go into the document vault (vault.py), and the claim should keep only a reference to the vault copy. Can you switch it over?"
+      ],
+      "checks": [
+        "turn1:no_kb",
+        "turn1:python:from datetime import date; from claims import Claims; c = Claims(); c.submit('EX-9', date(2026, 7, 1), b'R', date(2026, 9, 1)); assert c.receipt('EX-9', date(2026, 9, 10)) == b'R', 'receipt gone 9 days after the claim went in'",
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "python:import inspect, vault, claims; from datetime import date, timedelta as t; c = claims.Claims(vault.Vault()) if inspect.signature(claims.Claims).parameters else claims.Claims(); s0 = date(2026, 9, 1); c.submit('EX-9', date(2026, 7, 1), b'RCPT-scan-7731', s0); r = [c.receipt('EX-9', s0 + t(days=n)) for n in (0, 30, 45, 59)]; assert r == [b'RCPT-scan-7731'] * 4, ('receipt on days 0, 30, 45, 59 after submit', r)",
+        "python:import inspect, vault, claims; from datetime import date; s = []; p = vault.Vault.put; vault.Vault.put = lambda self, *a, **k: (s.append(a[0] if a else k.get('data')), p(self, *a, **k))[1]; c = claims.Claims(vault.Vault()) if inspect.signature(claims.Claims).parameters else claims.Claims(); c.submit('EX-9', date(2026, 7, 1), b'RCPT-scan-7731', date(2026, 9, 1)); assert b'RCPT-scan-7731' in s, 'the receipt was not put in the vault'; assert 'RCPT-scan' not in repr(vars(c)) + repr([v for k, v in vars(claims).items() if not k.startswith('__')]), 'the claims store still holds the scan'",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Turn 1 stays on the light path: fixes the receipt window to count from the submit date, with a test, and starts no KB",
+        "Turn 2 reads the change of plan as a divergence: shifts up, and records the request, the claims (the 60-day receipt rule among them), and the divergence",
+        "Re-checks the 60-day rule under the vault design and finds that the vault's default 30-day keep would purge receipts early, so it stores them for the full window; it does not only move the data and rerun the same-day tests"
+      ],
+      "notes": "Turn 1: Claims.receipt counts the 60-day window from the purchase date, not the submit date, so a claim submitted 62 days after the purchase has no receipt at all; the README states the rule. Turn 2 moves the scan into vault.py, whose put() keeps a document for 30 days unless keep_days says otherwise. The naive move (put(receipt, today)) passes every fixture test, which read the receipt on the submit day only, but the receipt vanishes on day 30 of the 60. The python checks build Claims with a Vault when its constructor takes an argument and with no argument otherwise, and record Vault.put calls by patching the class, so the agent may name the parameter or hold the vault as it likes. Verified: the original code fails turn1:python; the turn-1 fix passes it; a correct vault build (keep_days of at least 60) passes both final python checks; the naive vault build passes the storage check and fails the 60-day check (receipt None from day 30). Moved from held-out 116 on 2026-10-29: it was read while tuning, so it no longer gates."
+    },
+    {
+      "id": 19,
+      "name": "correction-records-divergence",
+      "fixture": "greenhouse-watering",
+      "turns": [
+        "The README says every tray gets watered every 2 days, but greenhouse.py still has some trays on 3 and 4. Can you bring them all to 2?",
+        "ah wait, not the orchids, sorry. they rot if the bark stays wet that long, so keep that tray at 4 like it was. the rest at 2 is right."
+      ],
+      "checks": [
+        "turn1:no_kb",
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "python:from datetime import date as d; from greenhouse import next_watering as n; got = {t: (n(t, d(2026, 6, 1)) - d(2026, 6, 1)).days for t in ('basil', 'tomato', 'chilli', 'lettuce', 'orchid', 'mint')}; assert got == {'basil': 2, 'tomato': 2, 'chilli': 2, 'lettuce': 2, 'orchid': 4, 'mint': 2}, got",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Turn 1 takes the light path: it changes the intervals with a test and starts no KB",
+        "Reads the turn-2 correction as a divergence: it starts a KB and records the request, the claims and the divergence, and does not only apologise and fix",
+        "The final code waters the orchid tray every 4 days and every other tray every 2 days, with a test for the exception"
+      ],
+      "notes": "The README rule says every tray is watered every 2 days; INTERVAL_DAYS has basil and chilli at 3, orchid and mint at 4. Mint is also at 4, so the orchid does not stand out in turn 1. Turn 2 is a casual correction with a reason (orchids rot), so one item is an exception to the README rule. The python check reads next_watering, so a rename of the interval table does not fail it. Moved from held-out 105 on 2026-10-29: its writer reported its domain and trap to the tuner, so it no longer gates."
+    },
+    {
+      "id": 20,
+      "name": "redesign-mid-ticket",
+      "fixture": "photo-album",
+      "turns": [
+        "People say some photos never show up when they page through the album, even though the README says every photo should. Can you fix that?",
+        "Change of plan before we close this one. The hosting bill went up and the page queries are most of it: numbered pages make the database count through every earlier photo each time. So switch the album to \"load more\" instead. Add page_after(photos, cursor, size) that returns (the photos for that page, the next cursor). A cursor of None gives the first page, and a next cursor of None means there is nothing more. Each call should pick up right after the last photo the person already saw, without counting from the start, so a new upload doesn't shift what comes next. The numbered page() can go once nothing uses it."
+      ],
+      "checks": [
+        "turn1:no_kb",
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "python:import json; from album import page_after as f; ps = json.load(open('photos.json')); a, c = f(ps, None, 4); new = dict(ps[0], id='NEW_0001', taken_at='2099-01-01T00:00:00'); b, _ = f([new] + ps, c, 4); ids = [p['id'] for p in a + b]; assert len(a) == 4 and 'NEW_0001' not in ids and len(set(ids)) == 8, ids",
+        "python:import json; from album import page_after as f; ps = json.load(open('photos.json')); w = lambda s, c=None, n=0: (lambda r: list(r[0]) + (w(s, r[1], n + 1) if r[1] is not None and n < 40 else []))(f(ps, c, s)); bad = {s: [p['id'] for p in w(s)] for s in range(1, 13) if sorted(p['id'] for p in w(s)) != sorted(p['id'] for p in ps) or any(x['taken_at'] < y['taken_at'] for x, y in zip(w(s), w(s)[1:]))}; assert not bad, bad",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Turn 2 is read as a divergence: the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim, not edited; an earlier outcome claim that still holds may stay.",
+        "Keeps the turn-1 outcome (paging shows every photo exactly once, newest first) as a claim and re-checks it under page_after, with a check that splits a burst of same-second photos across a page boundary, not only a walk at the default page size of 4",
+        "The final page_after neither skips nor repeats photos taken in the same second at any page size: its cursor breaks ties (for example taken_at with id), and the delivery says how the outcome was re-checked"
+      ],
+      "notes": "Turn 1: page() ends each page at start + size - 1, so at size 4 the last photo of pages 1 and 2 (IMG_5102, DSC_0071) never shows. The fix is one character. Turn 2 moves paging to a cursor for a cost reason. The obvious cursor is the last photo's taken_at with taken_at < cursor: it passes a walk at size 4, because no burst straddles a size-4 boundary, but it skips the rest of a burst (or repeats it with <=) at sizes 2, 3 and 5. The first python check tests the new design: a cursor still continues after the last photo seen when a newer photo is added, so an offset in disguise fails. The second walks every page size from 1 to 12 and needs each photo exactly once, newest first. Photo ids do not rise with time, so an id-only cursor fails too. Moved from held-out 116 on 2026-10-29: its writer reported its domain and trap to the tuner, so it no longer gates."
     }
   ]
 }

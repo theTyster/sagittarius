@@ -83,31 +83,6 @@
       ]
     },
     {
-      "id": 105,
-      "variant_of": 5,
-      "name": "correction-records-divergence",
-      "fixture": "retention-invoices",
-      "turns": [
-        "Go through retention.py and set every retention period to 7 days, per the storage rule in README.md.",
-        "wait, no. invoices are tax records, we're legally required to keep those ten years. invoices stay at 3650."
-      ],
-      "checks": [
-        "turn1:no_kb",
-        "kb_exists",
-        "help_before_write",
-        "lint_clean",
-        "no_hand_edit",
-        "query:divergence_recorded",
-        "python:from retention import days_to_keep as d; assert (d('thumbnails'), d('exports'), d('invoices')) == (7, 7, 3650), (d('thumbnails'), d('exports'), d('invoices'))",
-        "unittest_pass"
-      ],
-      "assertions": [
-        "Turn 1 stays on the light path: changes the test with the code, and starts no KB",
-        "Turn 2 reads the correction as a divergence: shifts up, and records the request, the claims, and the divergence",
-        "Does not only apologize and fix"
-      ]
-    },
-    {
       "id": 106,
       "variant_of": 6,
       "name": "question-exposes-flaw",
@@ -226,34 +201,6 @@
         "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right amount) would show it false. It fails this only when no result could show it false, as in 'some payouts are wrong' or 'the amount depends on something outside the pickup'. It need not name the specific complaints"
       ],
       "notes": "Two causes give wrong payouts: pickup_payment multiplies the amount by the per-litre rate and ignores the unit column, so a pickup measured in US gallons (P-8835, 80 gal) is paid as if it were 80 litres (33.60, not 127.18); and month_of takes the month from the UTC timestamp, not the dairy's local time (UTC-7), so P-8830 (2026-10-01T02:40Z, 19:40 on 30 September at the dairy) lands in October and F-12's September statement is 367.50, not 480.90. F-12 has only litre pickups and P-8835 is mid-month, so each complaint has one cause. No date depends on today. The README states the rate, the unit conversion and the month rule, so each complaint has a ground truth. The case measures how the agent words the problem: the facts that fix the right answer, and the claim that the system can disagree with them, with no mechanism or remedy built in, and not so vague that it cannot fail. Graded by the rubric (--rubric); the scripted check only guards the code."
-    },
-    {
-      "id": 116,
-      "variant_of": 16,
-      "name": "redesign-mid-ticket",
-      "fixture": "receipt-vault",
-      "turns": [
-        "Approvers keep telling me receipts disappear from claims that are still waiting on them. Someone put in a claim last week for a hotel stay from about two months ago, and when the approver opened it today the receipt was already gone. The README has the rule for how long approvers should be able to see a receipt. Can you fix that in claims.py?",
-        "Change of plan before I close this one out: compliance says scanned receipts can't sit in the claims store anymore. They have to go into the document vault (vault.py), and the claim should keep only a reference to the vault copy. Can you switch it over?"
-      ],
-      "checks": [
-        "turn1:no_kb",
-        "turn1:python:from datetime import date; from claims import Claims; c = Claims(); c.submit('EX-9', date(2026, 7, 1), b'R', date(2026, 9, 1)); assert c.receipt('EX-9', date(2026, 9, 10)) == b'R', 'receipt gone 9 days after the claim went in'",
-        "kb_exists",
-        "help_before_write",
-        "lint_clean",
-        "no_hand_edit",
-        "query:divergence_recorded",
-        "python:import inspect, vault, claims; from datetime import date, timedelta as t; c = claims.Claims(vault.Vault()) if inspect.signature(claims.Claims).parameters else claims.Claims(); s0 = date(2026, 9, 1); c.submit('EX-9', date(2026, 7, 1), b'RCPT-scan-7731', s0); r = [c.receipt('EX-9', s0 + t(days=n)) for n in (0, 30, 45, 59)]; assert r == [b'RCPT-scan-7731'] * 4, ('receipt on days 0, 30, 45, 59 after submit', r)",
-        "python:import inspect, vault, claims; from datetime import date; s = []; p = vault.Vault.put; vault.Vault.put = lambda self, *a, **k: (s.append(a[0] if a else k.get('data')), p(self, *a, **k))[1]; c = claims.Claims(vault.Vault()) if inspect.signature(claims.Claims).parameters else claims.Claims(); c.submit('EX-9', date(2026, 7, 1), b'RCPT-scan-7731', date(2026, 9, 1)); assert b'RCPT-scan-7731' in s, 'the receipt was not put in the vault'; assert 'RCPT-scan' not in repr(vars(c)) + repr([v for k, v in vars(claims).items() if not k.startswith('__')]), 'the claims store still holds the scan'",
-        "unittest_pass"
-      ],
-      "assertions": [
-        "Turn 1 stays on the light path: fixes the receipt window to count from the submit date, with a test, and starts no KB",
-        "Turn 2 reads the change of plan as a divergence: shifts up, and records the request, the claims (the 60-day receipt rule among them), and the divergence",
-        "Re-checks the 60-day rule under the vault design and finds that the vault's default 30-day keep would purge receipts early, so it stores them for the full window; it does not only move the data and rerun the same-day tests"
-      ],
-      "notes": "Turn 1: Claims.receipt counts the 60-day window from the purchase date, not the submit date, so a claim submitted 62 days after the purchase has no receipt at all; the README states the rule. Turn 2 moves the scan into vault.py, whose put() keeps a document for 30 days unless keep_days says otherwise. The naive move (put(receipt, today)) passes every fixture test, which read the receipt on the submit day only, but the receipt vanishes on day 30 of the 60. The python checks build Claims with a Vault when its constructor takes an argument and with no argument otherwise, and record Vault.put calls by patching the class, so the agent may name the parameter or hold the vault as it likes. Verified: the original code fails turn1:python; the turn-1 fix passes it; a correct vault build (keep_days of at least 60) passes both final python checks; the naive vault build passes the storage check and fails the 60-day check (receipt None from day 30)."
     }
   ]
 }
