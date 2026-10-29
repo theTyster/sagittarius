@@ -1,0 +1,15 @@
+date,window,post,observer,species,count
+2026-10-04,1,gate,Ana,House Sparrow,4
+2026-10-04,1,gate,Ben,House Sparrow,3
+2026-10-04,1,gate,Ana,Blackbird,1
+2026-10-04,1,pond,Cleo,house sparrow,5
+2026-10-04,2,gate,Ana,House Sparrow,2
+2026-10-04,2,pond,Ben,Blackbird,2
+2026-10-04,2,pond,Cleo,Blackbird,2
+2026-10-04,2,pond,Cleo,Robin,1
+2026-10-04,3,pond,Ben,Robin,1
+2026-10-04,3,gate,Ana,Robin,1
+2026-10-11,1,gate,Ana,House Sparrow,6
+2026-10-11,1,pond,Ben,Blue Tit,3
+2026-10-11,2,pond,Ben,Blue Tit,2
+2026-10-11,2,pond,Cleo,Blue Tit,4

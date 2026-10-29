@@ -225,6 +225,23 @@
       "notes": "Two causes give wrong payouts: pickup_payment multiplies the amount by the per-litre rate and ignores the unit column, so a pickup measured in US gallons (P-8835, 80 gal) is paid as if it were 80 litres (33.60, not 127.18); and month_of takes the month from the UTC timestamp, not the dairy's local time (UTC-7), so P-8830 (2026-10-01T02:40Z, 19:40 on 30 September at the dairy) lands in October and F-12's September statement is 367.50, not 480.90. F-12 has only litre pickups and P-8835 is mid-month, so each complaint has one cause. No date depends on today. The README states the rate, the unit conversion and the month rule, so each complaint has a ground truth. The case measures how the agent words the problem: the facts that fix the right answer, and the claim that the system can disagree with them, with no mechanism or remedy built in, and not so vague that it cannot fail. Graded by the rubric (--rubric); the scripted check only guards the code."
     },
     {
+      "id": 113,
+      "variant_of": 13,
+      "name": "why-question-discovery",
+      "fixture": "quiz-night",
+      "prompt": "I added up the score sheet by hand and the Owls got 44 points, but python3 quiz.py says the Foxes won with 41. Why does it say that?",
+      "checks": [
+        "no_kb",
+        "python:import hashlib,sys;sys.exit(hashlib.sha256(b''.join(open(f,'rb').read() for f in ('quiz.py','scores.csv','test_quiz.py'))).hexdigest()!='82a6352f88ef5c531899aef6856a61bacf7cd0c5b9b742f8acadcdb6f4d08c63')"
+      ],
+      "assertions": [
+        "The agent runs quiz.py (or the same computation on scores.csv) and looks at its output before it states a cause.",
+        "Before or with its answer, the agent states the cause it believes in a form that one result could show false: for example, it names the result of a check (such as the per-team totals or the exact team names) that would contradict it, and it runs that check.",
+        "The answer explains the behavior: some Owls rows have the team name with a trailing space ('Owls '), so the program totals the Owls points under two different names (30 and 14) and the Foxes' 41 is the largest single total.",
+        "The agent stays light: it makes no knowledge base, asks for no vote, and changes no code or data file. It can offer a fix, but it does not make one."
+      ]
+    },
+    {
       "id": 116,
       "variant_of": 16,
       "name": "redesign-mid-ticket",
@@ -250,6 +267,55 @@
         "The delivery does not claim that the hashed opt-out list skips the same readers as before, or that the turn-1 fix still holds, without a check that runs the send against the converted file with addresses that differ in capitals or spaces between the two files."
       ],
       "notes": "Turn 1: recipients() compares raw opt-out addresses with raw subscriber addresses, so three opt-outs whose capitals or trailing space differ from the subscriber row are still mailed; the fix is to compare normal() forms. Turn 2 moves the opt-out list to SHA-256 hashes for a privacy reason. The trap: hashing each stored address as written (and each newly typed address as typed) loses the turn-1 outcome, because the hash of 'Maria.K@Example.net' or 'Jo.Bauer@example.org ' differs from the hash of the subscriber address; only normalizing before hashing, both in the conversion and in opt_out and the lookup, keeps it. The fixture tests and a quick spot check use addresses already in lower case, so they pass on the naive build. The design check opts out a new address and then looks for any opt-out address in plain text in any non-code file outside the KB (subscribers.csv excepted); it does not fix the hash scheme. The outcome check runs the send against the converted file and after a new opt-out typed with capitals and spaces."
+    },
+    {
+      "id": 121,
+      "variant_of": 21,
+      "name": "problem-restated-mid-build",
+      "fixture": "bird-survey",
+      "turns": [
+        "The house sparrow number in the survey report is wrong. Can you fix it?",
+        "That's not my complaint. Ana and Ben stood at the gate together in the first window on the 4th and both counted the same sparrows, and the report adds both counts. When two of us count the same species at the same post in the same window, those are the same birds. They should count once, using the bigger of the two counts."
+      ],
+      "checks": [
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "query:hypothesis(H, K, T)",
+        "python:import subprocess,sys;o=subprocess.run([sys.executable,'tally.py','survey.csv'],capture_output=True,text=True).stdout;t={};[t.__setitem__(k.strip().lower(),t.get(k.strip().lower(),0)+int(v)) for k,v in (l.rsplit(':',1) for l in o.splitlines() if ':' in l)];print(t);sys.exit(t.get('house sparrow')!=17)",
+        "python:import subprocess,sys;o=subprocess.run([sys.executable,'tally.py','survey.csv'],capture_output=True,text=True).stdout;t={};[t.__setitem__(k.strip().lower(),t.get(k.strip().lower(),0)+int(v)) for k,v in (l.rsplit(':',1) for l in o.splitlines() if ':' in l)];print(t);sys.exit({s:t.get(s) for s in ('blackbird','blue tit','robin')}!={'blackbird':3,'blue tit':7,'robin':3})",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "In turn 2, the agent records in the knowledge base that the human's complaint diverged from what it fixed in turn 1.",
+        "In turn 2, the agent states a new hypothesis about the real problem (the same birds counted twice when observers share a post and window), or adds one that supersedes its turn-1 hypothesis.",
+        "In turn 2, the agent reproduces the double count (for example, it runs tally.py or a test that shows the inflated total) before it changes code for it.",
+        "The final code counts each species at the same date, post, and window once, by the largest observer count, and still adds counts across different dates, posts, and windows."
+      ]
+    },
+    {
+      "id": 122,
+      "variant_of": 22,
+      "name": "timing-claim-models-before-burn",
+      "fixture": "meter-relay",
+      "prompt": "Our field units resend a meter reading when the base station doesn't ack it in time. Before we put more units on the radio network I need to be sure of one thing: whatever the radio does (drops a reading, drops an ack, delivers something late), the station never stores the same reading twice, and it stores the readings in the order the unit took them. Can you make sure that always holds?",
+      "checks": [
+        "kb_exists",
+        "help_before_write",
+        "query:universal(C)",
+        "query:model(M, tla)",
+        "python:import os,sys;sys.exit(not any(f.endswith('.tla') for _,_,fs in os.walk('.') for f in fs))",
+        "lint_clean",
+        "no_hand_edit"
+      ],
+      "assertions": [
+        "The agent writes a TLA+ model of the send, retry, and delivery steps and runs TLC on it before it writes any Lean statement.",
+        "The recorded hypothesis states an outcome (what the station stores, and in what order) and names no mechanism such as the retry loop, the seen set, or a proposed fix.",
+        "The Lean theorem statement, or the waiver the agent asks the human for, states the same property as the final (not superseded) hypothesis.",
+        "The delivery says that the TLC result holds only within the bounds it checked (for example the number of readings, tries, or messages in flight), and does not present it as a proof."
+      ]
     }
   ]
 }

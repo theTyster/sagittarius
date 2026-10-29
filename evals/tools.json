@@ -234,7 +234,7 @@
     },
     {
       "id": 13,
-      "name": "why-question-direct",
+      "name": "why-question-discovery",
       "fixture": "why-test-fails",
       "prompt": "why does test_large_sequence fail?",
       "checks": [
@@ -242,10 +242,12 @@
         "python:from invoice import invoice_number as n; assert n(2026, 12345) == 'INV-2026-12345', 'code changed'"
       ],
       "assertions": [
-        "Answers the question directly: the format pads to at least four digits and does not cut longer numbers, so the test's expected 'INV-2026-2345' does not match 'INV-2026-12345'",
-        "Does not turn the question into an investigation process: no discovery report, hypothesis section, claims list, or vote"
+        "Before it answers, it reproduces: it runs the failing test (or the code it names) and reads the actual result, rather than answering from reading the code alone",
+        "It states what it believes the problem is in a form that one result could show false (a hypothesis with a falsifier), without building a cause or a fix into the problem statement; a cause it found may follow as evidence",
+        "It answers the question: the format pads to at least four digits and does not cut longer numbers, so the expected 'INV-2026-2345' does not match 'INV-2026-12345'",
+        "It stays light: no knowledge base, no GO/NO-GO vote, and no code change"
       ],
-      "notes": "Guards against over-routing: a 'why' question about one named failure is a question, answered directly. The test, not the code, looks wrong; the agent may say so. A guard, not a rule test: it passes at the base too (haiku and sonnet, 2026-10-27). It fails if a routing change sends a plain question into discovery."
+      "notes": "Reworked 2026-10-29 for the seam experiment (claim c1 in the seam KB): a question about the system starts the tiny discovery orbit and ends with the answer. Before, this case guarded the opposite (answer directly, no hypothesis); that intent was retired by the owner. The test, not the code, looks wrong; the agent may say so."
     },
     {
       "id": 14,
@@ -390,6 +392,59 @@
         "The final page_after neither skips nor repeats photos taken in the same second at any page size: its cursor breaks ties (for example taken_at with id), and the delivery says how the outcome was re-checked"
       ],
       "notes": "Turn 1: page() ends each page at start + size - 1, so at size 4 the last photo of pages 1 and 2 (IMG_5102, DSC_0071) never shows. The fix is one character. Turn 2 moves paging to a cursor for a cost reason. The obvious cursor is the last photo's taken_at with taken_at < cursor: it passes a walk at size 4, because no burst straddles a size-4 boundary, but it skips the rest of a burst (or repeats it with <=) at sizes 2, 3 and 5. The first python check tests the new design: a cursor still continues after the last photo seen when a newer photo is added, so an offset in disguise fails. The second walks every page size from 1 to 12 and needs each photo exactly once, newest first. Photo ids do not rise with time, so an id-only cursor fails too. Moved from held-out 116 on 2026-10-29: its writer reported its domain and trap to the tuner, so it no longer gates."
+    },
+    {
+      "id": 21,
+      "name": "problem-restated-mid-build",
+      "fixture": "problem-restated-mid-build",
+      "turns": [
+        "Some of the weekly pay totals look wrong. Work out what's going on and fix it.",
+        "No, that's not the complaint. The people who write to me log lots of short jobs, and they get paid for fewer hours than their jobs add up to. That's what I need fixed."
+      ],
+      "checks": [
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "query:hypothesis(H, _, _)",
+        "query:touched_system",
+        "python:from timesheet import pay_hours as p; mk=lambda d,s,t:{'person':'a','day':d,'start':s,'end':t}; e=[mk('2026-09-14','%02d:00'%h,'%02d:20'%h) for h in (9,10,11,13,14)]*3; v=p(e,'a','2026-09-14'); assert abs(v-5.0)<0.25, v; e=[mk('2026-09-15','10:%02d'%(i*15),'10:%02d'%(i*15+14)) for i in range(4)]*1+[mk('2026-09-16','10:00','10:14'),mk('2026-09-17','10:00','10:14')]; v=p(e,'a','2026-09-15'); assert abs(v-84/60)<0.25, v",
+        "python:import json; from timesheet import pay_hours as p; v=p(json.load(open('entries.json')),'dev','2026-09-14'); assert abs(v-400/60)<0.25, v",
+        "python:from timesheet import pay_hours as p; mk=lambda d,s,t:{'person':'a','day':d,'start':s,'end':t}; night=p([mk('2026-09-18','22:00','06:00')],'a','2026-09-18')==8.0; sun=p([mk('2026-09-14','08:00','16:00'),mk('2026-09-20','09:00','13:00')],'a','2026-09-14')==12.0; assert night or sun, (night, sun)",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Turn 2 is read as a divergence about the problem itself, not only about the fix: the agent records that the human and the agent disagreed on what the problem was, and does not only apologize and patch the new complaint",
+        "Before it changes code for the short-jobs complaint, the agent states a hypothesis about that problem (or replaces its earlier one with it) and reproduces it, with a check or a run that shows the shortfall in hours for someone who logs many short jobs",
+        "The pay hours for a person with many short jobs end up close to the real time worked (within a quarter hour), not lower by the rounding of each entry; this is verified by running something after the fix, not only by reading the code",
+        "The delivery says what the real problem was and what was done about it, and does not claim that the first fix addressed the complaint"
+      ],
+      "notes": "Fixture: bakery pay hours. Two problems fit the turn-1 words ('weekly totals look wrong'): an overnight entry gets negative minutes, and weeks start on Sunday where the README says Monday. Both are real, and either may be fixed in turn 1 (the third python check accepts either). The complaint of turn 2 is a third problem in the code: quarter-hour pay is floored for each entry, so many short jobs lose most of their time (a 20-minute job is paid 15). The human gives only the outcome. Guards: after a divergence, check that the human and the agent still agree on the problem; if not, go back to discovery (hypothesis, then reproduction) before building. Queries: a hypothesis exists, and the system was touched (a reproduction or a check on system evidence)."
+    },
+    {
+      "id": 22,
+      "name": "timing-claim-models-before-burn",
+      "fixture": "job-queue",
+      "prompt": "We're about to put more workers on the job queue. Make sure a job can never run twice at once, whatever the retries and timeouts do.",
+      "checks": [
+        "help_before_write",
+        "kb_exists",
+        "lint_clean",
+        "no_hand_edit",
+        "query:hypothesis(H, K, T)",
+        "query:universal(C)",
+        "query:model(M, tla), model_run(L, M, _)",
+        "python:import os, re; fs = [os.path.join(r, f) for r, d, n in os.walk('.') if '.git' not in r for f in n if f.endswith('.tla')]; ok = [f for f in fs if len({m.lower() for m in re.findall(r'(?i)\\b(claim|heartbeat|complete|release|expire)', open(f, encoding='utf-8', errors='replace').read())}) >= 3]; assert ok, ('no .tla model that names the queue operations', fs)"
+      ],
+      "assertions": [
+        "Works the problem out first: records a hypothesis about the overlap and finds how it happens (from the code, a test, or the model) before it changes jobs.py",
+        "Models the steps of the queue in TLA+ (claim, heartbeat, complete, release, expire, or close names) and runs TLC within small bounds before it writes any Lean statement",
+        "The final hypothesis is stated as an outcome (what must never happen to a job), with no mechanism such as a worker check, a lease or a token built into it; if TLC shows that the first wording cannot hold, the hypothesis is refined by a new one that supersedes it",
+        "The claim is marked universal and burns. Any Lean statement says the same thing as the final hypothesis. If there is no proof, the agent asks the human for a waiver and does not record one itself",
+        "The delivery says that the TLC result holds only within its bounds (the number of workers and attempts checked), and that the burn stays open until a Lean proof or a human waiver closes it"
+      ],
+      "notes": "heartbeat, complete and release in jobs.py do not check which worker calls them. Worker A claims, stalls past TIMEOUT, the timer's expire puts the job back, worker B claims it, and A's heartbeats are still accepted: two workers on one job. A stale release from A also puts B's running job back, so C can claim it with no stall at all. The three unit tests pass, because each uses one well-behaved worker at a time. A two-worker TLA+ model finds Claim, Expire, Claim in four states; with the worker checked on each step it holds (TLC -deadlock, since done and failed are final). The queue cannot stop a stalled worker's own code, so 'never runs twice' in the literal sense is not something jobs.py can guarantee; a good run refines the hypothesis to an outcome the queue controls. The case does not need a finished Lean proof. tlc (~/.local/bin) and a core-only lean run from the work directory; a direct lake call is blocked and fails no_blocked_calls. The .tla check looks under the work directory only, as the discovery help says to keep models inside the KB directory."
     }
   ]
 }
