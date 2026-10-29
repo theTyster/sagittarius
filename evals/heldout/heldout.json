@@ -83,6 +83,28 @@
       ]
     },
     {
+      "id": 105,
+      "variant_of": 5,
+      "name": "correction-records-divergence",
+      "fixture": "library-loans",
+      "turns": [
+        "can you update the loan periods to the new autumn policy in the README? add a test for it too",
+        "oops, not the reference ones though. those stay at 3 days, they're reading room copies and staff need them back the same week"
+      ],
+      "checks": [
+        "turn1:no_kb",
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "python:from datetime import date, timedelta; from loans import due_date; d=date(2026,3,2); assert all(due_date(k,d)==d+timedelta(days=21) for k in ('novel','magazine','dvd','tool')); assert due_date('reference',d)==d+timedelta(days=3)",
+        "unittest_pass"
+      ],
+      "assertions": 3,
+      "notes": "Turn 1 stays on the light path: set every loan period to the README value, with a test, no knowledge base. Turn 2 reads the correction (one kind is an exception, for a stated reason) as a divergence: shifts up, starts a knowledge base, and records the request, the claims, and the divergence. Does not only apologize and fix. Final code: four kinds at 21 days, reference at 3."
+    },
+    {
       "id": 106,
       "variant_of": 6,
       "name": "question-exposes-flaw",
@@ -201,6 +223,33 @@
         "Both complaints fit the problem statement (as one problem or two), and the statement can fail: some result it names (a falsifier, or the facts that fix the right amount) would show it false. It fails this only when no result could show it false, as in 'some payouts are wrong' or 'the amount depends on something outside the pickup'. It need not name the specific complaints"
       ],
       "notes": "Two causes give wrong payouts: pickup_payment multiplies the amount by the per-litre rate and ignores the unit column, so a pickup measured in US gallons (P-8835, 80 gal) is paid as if it were 80 litres (33.60, not 127.18); and month_of takes the month from the UTC timestamp, not the dairy's local time (UTC-7), so P-8830 (2026-10-01T02:40Z, 19:40 on 30 September at the dairy) lands in October and F-12's September statement is 367.50, not 480.90. F-12 has only litre pickups and P-8835 is mid-month, so each complaint has one cause. No date depends on today. The README states the rate, the unit conversion and the month rule, so each complaint has a ground truth. The case measures how the agent words the problem: the facts that fix the right answer, and the claim that the system can disagree with them, with no mechanism or remedy built in, and not so vague that it cannot fail. Graded by the rubric (--rubric); the scripted check only guards the code."
+    },
+    {
+      "id": 116,
+      "variant_of": 16,
+      "name": "redesign-mid-ticket",
+      "fixture": "newsletter-optouts",
+      "turns": [
+        "We keep getting complaints from people who unsubscribed from the newsletter and still get it every Friday. Can you find out why and fix it?",
+        "Change of plan before you close this out: our privacy review flagged optouts.csv. We can't keep people's email addresses in the opt-out list in plain text anymore. Switch it to store a SHA-256 hash of each address instead, and convert the existing file. subscribers.csv stays as it is."
+      ],
+      "checks": [
+        "turn1:no_kb",
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "python:import os,sys,shutil,tempfile;d=tempfile.mkdtemp();shutil.copytree('.',d,dirs_exist_ok=True);os.chdir(d);sys.path.insert(0,d);import mailing as m;G={'li.na@example.com','maria.k@example.net','sam.reyes@example.com','dev.patel@example.com','jo.bauer@example.org'};m.opt_out('  Wen.Li@Example.ORG ');A=G|{'wen.li@example.org'};kbs=[r for r,_,f in os.walk(d) if 'kb.pl' in f];P=[os.path.join(r,x) for r,_,f in os.walk(d) for x in f if not any(r==k or r.startswith(k+os.sep) for k in kbs) and not {'.git','__pycache__'}&set(r.split(os.sep)) and not x.endswith(('.py','.pyc','.md')) and x!='subscribers.csv'];B=sorted({(os.path.relpath(p,d),a) for p in P for a in A if a in open(p,errors='ignore').read().lower()});assert not B,('plain-text opt-out addresses stored',B)",
+        "python:import os,sys,shutil,tempfile;d=tempfile.mkdtemp();shutil.copytree('.',d,dirs_exist_ok=True);os.chdir(d);sys.path.insert(0,d);import mailing as m;G={'li.na@example.com','maria.k@example.net','sam.reyes@example.com','dev.patel@example.com','jo.bauer@example.org'};K={'amara.osei@example.com','omar.f@example.net','wen.li@example.org','kofi.m@example.net','ines.c@example.com','peter.h@example.org','yuki.t@example.com','rosa.v@example.net','ben.ito@example.com'};R=[x.strip().lower() for x in m.recipients()];assert not G&set(R),('opted-out readers still mailed',sorted(G&set(R)));assert K<=set(R),('readers missing',sorted(K-set(R)));assert len(R)==len(set(R)),'duplicate copies';m.opt_out('  Wen.Li@Example.ORG ');R=[x.strip().lower() for x in m.recipients()];assert 'wen.li@example.org' not in R,'new opt-out with other capitals still mailed';assert K-{'wen.li@example.org'}<=set(R),'readers missing after a new opt-out'",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Turn 2 is read as a divergence: the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim, not edited; an earlier outcome claim that still holds may stay.",
+        "The turn-1 outcome (a reader who opted out gets no newsletter, whatever the capitals or surrounding spaces of the address in either file, and new opt-outs typed that way too) is kept as a claim and checked again under the hashed opt-out list, against the converted existing rows and not only against a newly added opt-out.",
+        "The delivery does not claim that the hashed opt-out list skips the same readers as before, or that the turn-1 fix still holds, without a check that runs the send against the converted file with addresses that differ in capitals or spaces between the two files."
+      ],
+      "notes": "Turn 1: recipients() compares raw opt-out addresses with raw subscriber addresses, so three opt-outs whose capitals or trailing space differ from the subscriber row are still mailed; the fix is to compare normal() forms. Turn 2 moves the opt-out list to SHA-256 hashes for a privacy reason. The trap: hashing each stored address as written (and each newly typed address as typed) loses the turn-1 outcome, because the hash of 'Maria.K@Example.net' or 'Jo.Bauer@example.org ' differs from the hash of the subscriber address; only normalizing before hashing, both in the conversion and in opt_out and the lookup, keeps it. The fixture tests and a quick spot check use addresses already in lower case, so they pass on the naive build. The design check opts out a new address and then looks for any opt-out address in plain text in any non-code file outside the KB (subscribers.csv excepted); it does not fix the hash scheme. The outcome check runs the send against the converted file and after a new opt-out typed with capitals and spaces."
     }
   ]
 }
