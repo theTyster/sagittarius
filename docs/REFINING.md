@@ -37,8 +37,9 @@ into the prompt, or its hint into the eval. The rules below stop that.
 - Put a rule in the numbered steps, at the step where the agent acts. A rule in prose after the
   step that ends the turn (a vote, a report, a delivery) is read too late and skipped. On
   2026-10-30, the same "model before the vote" rule moved case 22 in 1 of 3 runs when it sat in
-  a paragraph after the vote step. "State the hypothesis first" did nothing as an exhortation on
-  10-27, and took the new case 13 from 0/6 to 6/6 when it became step 1 of the procedure.
+  a paragraph after the vote step. "State the hypothesis first" did not move case 12 as an
+  exhortation on 10-27; as step 1 of the procedure it took the new case 13 from 0/6 to 6/6
+  (different cases, so this is a lead, not a controlled test).
 
 ### 3. Prompts are what a user would type, and fixtures are the world
 
