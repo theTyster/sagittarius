@@ -59,6 +59,11 @@ into the prompt, or its hint into the eval. The rules below stop that.
   line. `--rubric` has an Opus judge grade each case's `assertions` on outcomes.
 - Every case must score higher with the prompt than without it (`--prompt none`). If the baseline
   also passes, the case does not test the prompt. Rewrite it.
+- A grader can fail quietly, too. Before you use a new or changed assertion, judge it on known
+  transcripts: one that the prompt's own definition calls right must pass, and one that it calls
+  wrong must fail. Take the "right" one from the prompt's own example, not from your reading of
+  it. On 2026-10-30 a clause written to fail a restated test assertion also failed hypotheses in
+  the exact form of the prompt's example. It hid a real gain until a regrade.
 
 ### 5. Prove that each case tests its rule
 
