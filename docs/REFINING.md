@@ -34,6 +34,11 @@ into the prompt, or its hint into the eval. The rules below stop that.
   for 4-word overlaps with eval prompts. Run it before you commit.
 - A reviewer who sees only the prompt diff and the prompt judges each change: is it a true, general
   rule? The reviewer does not see the evals.
+- Put a rule in the numbered steps, at the step where the agent acts. A rule in prose after the
+  step that ends the turn (a vote, a report, a delivery) is read too late and skipped. On
+  2026-10-30, the same "model before the vote" rule moved case 22 in 1 of 3 runs when it sat in
+  a paragraph after the vote step. "State the hypothesis first" did nothing as an exhortation on
+  10-27, and took the new case 13 from 0/6 to 6/6 when it became step 1 of the procedure.
 
 ### 3. Prompts are what a user would type, and fixtures are the world
 
