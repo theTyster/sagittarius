@@ -1753,6 +1753,21 @@ EOF
 # ---- RL: the layout of the report text (D16 c4, 2026-10-28). Markdown that also reads as raw text:
 # "# Section:" headings, a blank line between sections, two-space-indented bullets, the label in
 # **bold**, and nested bullets for the detail of a claim that needs attention.
+t_RP7() { kb_new "$T/k" <<'EOF'
+uses([discovery]).
+request(r1, 'Some totals look wrong.').
+hypothesis(h1, defect, 'The inputs decide each total. Some totals differ.').
+claim(c1, introduce, 'Each total matches its inputs.').
+cites(c1, 'totals look wrong').
+question(q1, c1, 'Which totals count?').
+assumed(q1, all).
+raised_by(q1, h1).
+EOF
+    K=$T/k; okb --dir "$K" report; rc_is 0
+    local o; o=$(rp_sec Open)
+    printf '%s\n' "$o" | grep -q 'Nothing is open' && note "Open says nothing is open while q1 waits: [$o]"
+    printf '%s\n' "$o" | grep -q 'q1' || note "Open names the waiting question q1: [$o]"
+    printf '%s\n' "$o" | grep -q 'discovery_ready' || note "Open says discovery is not ready: [$o]"; true; }
 rp_sec() {  # rp_sec NAME: the lines of one section of $out, without its heading
     printf '%s\n' "$out" | awk -v h="# $1:" '$0==h {f=1; next} /^# / {f=0} f'; }
 rp_item() {  # rp_item ID: the first bullet of $out that starts with ID, and the lines nested under it
@@ -2301,6 +2316,7 @@ run_test t_RP3 RP3 "report: guesses"
 run_test t_RP4 RP4 "report: not checked"
 run_test t_RP5 RP5 "report: disclosures"
 run_test t_RP6 RP6 "report without build"
+run_test t_RP7 RP7 "report Open lists what blocks discovery_ready"
 run_test t_RL1 RL1 "report text: # headings, one blank line between sections"
 run_test t_RL2 RL2 "report text: bullets at two spaces per level; plain text only"
 run_test t_RL3 RL3 "report text: a claim that needs attention nests its status, burn, and checks"
