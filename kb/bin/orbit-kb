@@ -465,6 +465,8 @@ top(Argv0, Code) :-
                     kb_cmd(Cmd, KB, Args, Code)
                 )
             )
+        ;   atom(Cmd), \+ sub_atom(Cmd, 0, _, _, '-')
+        ->  usage_error("Unknown command ~w. If ~w is a query, run it with query: orbit-kb query '~w(X)', or orbit-kb query '~w' when it has no arguments.", [Cmd, Cmd, Cmd, Cmd])
         ;   usage_error("Unknown command ~w.", [Cmd])
         )
     ).

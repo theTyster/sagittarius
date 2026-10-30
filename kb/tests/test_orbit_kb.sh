@@ -44,7 +44,7 @@
 #    directory. Nothing changes a prototype after it is built (see use_proto).
 #
 # Requirement map (contract v2.1 + H3/H4; section names, not line numbers, because the contract is edited):
-#   K   KB resolution: --dir, $ORBIT_KB, parent walk, exit 2   (CLI: KB resolution, exit codes) : K1-K8
+#   K   KB resolution: --dir, $ORBIT_KB, parent walk, exit 2   (CLI: KB resolution, exit codes) : K1-K10
 #   I   init                                                   (CLI: init)                      : I1-I8
 #   U   uses: add a module to an existing KB                   (CLI: uses)                      : U1-U9
 #   A   add: validation, all or nothing, rejections            (CLI: add; Declarations; Types)  : A1-A22
@@ -645,6 +645,7 @@ t_K9() { valid_copy; mkdir -p "$T/proj" && cp -r "$K" "$T/proj/kb"; okb_in "$T/p
          mkdir -p "$T/proj2/a/b/c" && cp -r "$K" "$T/proj2/a/b/c/kb"; okb_in "$T/proj2" query 'true'
          rc_is 2; any_hasnt 'a/b/c' "three levels down is not searched"; }
 t_K8() { okb; rc_is 2 "no arguments"; okb frobnicate; rc_is 2 "unknown command"; }
+t_K10() { okb to_ask; rc_is 2 "a query name used as a command"; any_has "orbit-kb query 'to_ask" "the message shows the query form"; }
 
 # ================================================================ I: init
 t_I1() { K=$T/new; okb init "$K" --request 'Make it fast'; rc_is 0; any_hasf "$K"; [ -f "$K/kb.pl" ] || note "kb.pl was not created"
@@ -2045,6 +2046,7 @@ run_test t_K5 K5 "kb.pl without uses/1 first is not a KB"
 run_test t_K6 K6 "resolution order: --dir, then \$ORBIT_KB"
 run_test t_K7 K7 "--dir with no KB exits 2"
 run_test t_K8 K8 "no command and unknown command exit 2"
+run_test t_K10 K10 "an unknown command shows the query form, for a query name such as to_ask"
 run_test t_K9 K9 "no KB here, but one below: the message names it"
 run_test t_I1 I1 "init creates kb.pl with uses and request, prints the path"
 run_test t_I2 I2 "second init exits 1 and keeps kb.pl"
