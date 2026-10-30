@@ -1099,6 +1099,19 @@ EOF
 lg_refused() {  # lg_refused LABEL LOG PRED: exit 1, nothing written, the message names the fix
     rejects "$1" 'run the solver again' attest model_result "$2" "$3"
 }
+t_WD8() { lg_kb   # an old result says whether a newer result of the same check replaces it
+          okb --dir "$K" uses discovery >/dev/null
+          okb --dir "$K" attest model_result l_viol 'verdict(m1, sanity, reached)'; rc_is 0 "first result"
+          okb --dir "$K" attest model_result l_holds 'mutation(m1, g, survived)'; rc_is 0 "second result"
+          printf 'model v2\n' > "$K/m.tla"; okb --dir "$K" subject m1 "$K/m.tla"; rc_is 0 "model edited"
+          okb --dir "$K" lint; out_has 'WD8 a[0-9]+:.*Run the solver again' "a stale result asks for a new run"
+          printf 'Error: Invariant X is violated.\n' > "$K/new.log"
+          okb --dir "$K" subject l_new "$K/new.log"; rc_is 0 "new log"
+          printf "model_run(l_new, m1, 'sha256:%s').\n" "$(sha "$K/m.tla")" >> "$K/kb.pl"
+          okb --dir "$K" attest model_result l_new 'verdict(m1, sanity, reached)'; rc_is 0 "the renewed result"
+          okb --dir "$K" lint
+          out_has 'WD8 a[0-9]+:.*replaces it; nothing to do' "the renewed check says nothing to do"
+          out_has 'WD8 a[0-9]+:.*Run the solver again' "the mutation, not renewed, still asks for a run"; }
 t_LG1() { lg_kb   # TLC
           lg_refused "reached on a log with no error" l_holds 'verdict(m1, sanity, reached)'
           lg_refused "violated on a log with no error" l_holds 'verdict(m1, preserve(c1), violated)'
@@ -2122,6 +2135,7 @@ run_test t_VT7 VT7 "D14 V4: WD9 and a late agent vote is refused"
 run_test t_VT8 VT8 "D14 V2/V3: rules.pl cannot change the vote rules (E16)"
 run_test t_VT9 VT9 "D14 V6: WD6 and the discovery_has_outcome template do not recommend NO-GO"
 run_test t_VT10 VT10 "D14: help attest has a vote example that runs; help query names gate"
+run_test t_WD8 WD8 "lint WD8 says when a newer result of the same check replaces an old one"
 run_test t_LG1 LG1 "D18: attest model_result refuses a TLC contradiction; agreement and unknown are accepted"
 run_test t_LG2 LG2 "D18: attest model_result refuses a z3 contradiction; agreement and unknown are accepted"
 run_test t_LG3 LG3 "D18: calibration, an unclassified log, and a missing log are accepted (NOTE on stderr)"

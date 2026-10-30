@@ -107,6 +107,8 @@ decl(rule, model_run_of(ref(subject), ref(model)), 'The log is a run of the mode
 decl(rule, discovery_old_run(ref(subject), ref(model)), 'The log has a run of the model at a digest that is not the current one.', 'log @(1) has a run of an older digest of model @(2)').
 decl(rule, model_run_current(ref(subject), ref(model)), 'The log is a run of the model at its current digest, and at no older digest.', 'log @(1) is a current run of model @(2)').
 decl(rule, model_run_stale(ref(subject), ref(model)), 'The log is a run of the model at an older digest.', 'log @(1) is an old run of model @(2)').
+decl(rule, discovery_result_key(term, term), 'What a model_result checks: the model and the verdict kind, the mutation rule, or the calibration case.', 'result @(1) checks @(2)').
+decl(rule, discovery_result_renewed(ref(attest)), 'A model_result on an old run has a newer result of the same check on a current run.', 'attestation @(1) has a newer result of the same check').
 decl(rule, model_verdict(ref(attest), ref(model), term, atom), 'A verdict that counts: its attestation, model, check, and result.', 'attestation @(1) gives model @(2) the result @(4) on check @(3)').
 decl(rule, model_calibration(ref(attest), ref(model), atom), 'A calibration that counts: its attestation, model, and result.', 'attestation @(1) gives model @(2) the calibration result @(3)').
 decl(rule, model_mutation(ref(attest), ref(model), atom, atom), 'A mutation check that counts: its attestation, model, rule, and result.', 'attestation @(1): rule @(3) of model @(2) was @(4)').
@@ -184,6 +186,13 @@ model_run_of(S, M) :- model_run(S, M, _).
 discovery_old_run(S, M) :- model_run(S, M, D), subject(M, _, D1), D \= D1.
 model_run_current(S, M) :- model_run(S, M, D), subject(M, _, D), not discovery_old_run(S, M).
 model_run_stale(S, M) :- model_run(S, M, _), not model_run_current(S, M).
+discovery_result_key(verdict(M, K, _), v(M, K)).
+discovery_result_key(mutation(M, R, _), m(M, R)).
+discovery_result_key(calibration(M, C, _), c(M, C)).
+discovery_result_renewed(A) :-
+    attest(A, model_result, _, P, _, _), discovery_result_key(P, Key),
+    attest(B, model_result, S, Q, _, _), B \= A, discovery_result_key(Q, Key),
+    discovery_result_model(Q, M), model_run_current(S, M).
 model_verdict(A, M, K, R) :- attest(A, model_result, S, verdict(M, K, R), _, _), model_run_current(S, M).
 model_calibration(A, M, R) :- attest(A, model_result, S, calibration(M, _, R), _, _), model_run_current(S, M).
 model_mutation(A, M, Rule, R) :- attest(A, model_result, S, mutation(M, Rule, R), _, _), model_run_current(S, M).
@@ -347,7 +356,11 @@ lint_issue('WD6', A, 'The problem did not reproduce on the current system. Tell 
 lint_issue('WD7', H, 'No result from the current system exists for this hypothesis. Reproduce it, or ask the human if it is a separate ticket.') :-
     hypothesis(H, _, _), not superseded(H), not discovery_hypothesis_touched(H).
 lint_issue('WD8', A, 'This model result is on a log of an older digest of the model. It does not count. Run the solver again, into a new log.') :-
-    attest(A, model_result, S, P, _, _), discovery_result_model(P, M), model_run_stale(S, M).
+    attest(A, model_result, S, P, _, _), discovery_result_model(P, M), model_run_stale(S, M),
+    not discovery_result_renewed(A).
+lint_issue('WD8', A, 'This model result is on a log of an older digest of the model. It does not count. A newer result of the same check replaces it; nothing to do.') :-
+    attest(A, model_result, S, P, _, _), discovery_result_model(P, M), model_run_stale(S, M),
+    discovery_result_renewed(A).
 lint_issue('WD9', A, 'The human voted in this round, and the agent did not vote first. The agent vote must be sealed before the human votes.') :-
     attest(A, vote, _, vote(R, _), human, _), not discovery_agent_voted(R).
 lint_issue('ED1', A, 'This reproduction must point at evidence from the current system. Tag the subject with discovery_evidence(Subject, system); a model or a solver log is not system evidence.') :-
