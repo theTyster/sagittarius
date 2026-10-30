@@ -51,7 +51,7 @@ put the text of `SAGITTARIUS.md` in its system prompt.
 |---|---|
 | `prompt/` | The live system prompt. |
 | `kb/` | `orbit-kb`: `CONTRACT.md` (what the tests hold it to), `bin/`, `share/orbit-kb/` (core rules, the build and discovery modules, the Lean probe), `tests/` (the black-box suite, fixtures, and a Lean model of the burn rules). |
-| `site/` | The two decks, published at https://thetyster.github.io/sagittarius/ by `.github/workflows/pages.yml` on each push to `main` that touches `site/`. `essentials.html` is generated from `index.html` by `build_essentials.py`; the workflow fails if it is stale. |
+| `site/` | The two decks, published at https://thetyster.github.io/sagittarius/ (the short deck; the full deck is at `full.html`) by `.github/workflows/pages.yml` on each push to `main` that touches `site/`. `essentials.html` is generated from `index.html` by `build_essentials.py`; the workflow fails if it is stale. |
 | `evals/` | One-shot planning evals for the prompt, with graded runs. |
 
 ## History

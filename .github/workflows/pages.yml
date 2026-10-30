@@ -36,10 +36,16 @@ jobs:
             exit 1
           fi
 
+      # The short deck is the landing page; the full deck is full.html.
       - name: Stage the public files
         run: |
           mkdir _site
-          cp site/index.html site/essentials.html _site/
+          sed 's/href="index\.html/href="full.html/g' site/essentials.html > _site/index.html
+          sed 's/href="essentials\.html/href=".\//g' site/index.html > _site/full.html
+          if grep -q 'href="\(index\|essentials\)\.html' _site/index.html _site/full.html; then
+            echo "::error::A deck still links to a source file name."
+            exit 1
+          fi
           touch _site/.nojekyll
 
       - uses: actions/configure-pages@v6
