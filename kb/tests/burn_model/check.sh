@@ -14,6 +14,9 @@
 # skips step 4. The CLI and the library are the ones in this checkout.
 set -euo pipefail
 
+# `heavy` is a job queue that some machines have. Without it, run the command directly.
+command -v heavy >/dev/null 2>&1 || heavy() { "$@"; }
+
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo=$(cd "$here/../../.." && pwd)
 lib=$repo/kb/share/orbit-kb

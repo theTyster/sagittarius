@@ -845,7 +845,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <details class="more"><summary>Each step in full</summary><div class="body">
   <ol class="steps">
     <li><span><strong>Install once.</strong> SWI-Prolog with the s(CASP) pack, and <code>orbit-kb</code> on your PATH. Lean 4 only if you want proofs. Then run <code>orbit-kb doctor</code>.</span></li>
-    <li><span><strong>Load the prompt.</strong> Pass <code>SAGITTARIUS.md</code> as the agent's system prompt. Ty's <code>claude</code> shell function appends it to every work session.</span></li>
+    <li><span><strong>Load the prompt.</strong> Append <code>SAGITTARIUS.md</code> to the agent's system prompt. For Claude Code, run <code>claude --append-system-prompt "$(cat ~/.claude/sagittarius/SAGITTARIUS.md)"</code>. A shell function or alias makes this the default for every session.</span></li>
     <li><span><strong>Ask in your own words.</strong> A question gets an answer. A change starts on the light path. A report of a problem starts discovery.</span></li>
     <li><span><strong>Answer what it asks.</strong> At most three questions a round, each with options and a marked default.</span></li>
     <li><span><strong>Verify the result, not the tests.</strong> The delivery says what was checked, what was guessed, and what was not checked.</span></li>
@@ -859,11 +859,12 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 <i>$</i> orbit-kb report                           <i># the delivery skeleton</i></pre>
   </div></details>
   <details class="more"><summary>Install on Fedora</summary><div class="body">
+    <p>On another system, use its package manager for SWI-Prolog 9 or later, then follow the same steps.</p>
 <pre class="report"><i>$</i> sudo dnf install swi-prolog-nox
 <i>$</i> swipl -g "pack_install(scasp, [interactive(false)])" -t halt
 <i>$</i> ln -s ~/.local/share/swi-prolog/pack/scasp/scasp ~/.local/bin/scasp
 <i>$</i> orbit-kb doctor</pre>
-    <p>For <code>orbit-kb prove</code>, install Lean 4 and Lake with elan. Ty's Lean projects share their libraries through <code>sharlean</code>, so a proof does not rebuild Mathlib. In the sagittarius repo, <code>./install.py</code> puts <code>orbit-kb</code> on the PATH and its rules in <code>~/.local/share/orbit-kb</code>.</p>
+    <p>For <code>orbit-kb prove</code>, install Lean 4 and Lake with elan. A Lean project that needs Mathlib builds it slowly. If you have several such projects, you can share one built copy of the libraries between them. In the sagittarius repo, <code>./install.py</code> puts <code>orbit-kb</code> on the PATH and its rules in <code>~/.local/share/orbit-kb</code>.</p>
   </div></details>
 </section>
 
@@ -1600,8 +1601,8 @@ Slides 8 to 11 come from thoughts/orbital-shifting-history.md, which has the evi
 Slides 12 to 14 come from Ty's account in thoughts/orbital-shifting-why.md; quotes are Ty's words ("thats"
 spelled "that's"). The tier-drift diagram (slide 12), the bridge diagram (slide 13), and the lens diagram
 (slide 14) illustrate that account; dot counts, bar heights, and the tier count mean nothing (the AIDLC had four tiers, then three).
-Slides 15 and 16 come from the live prompt (Commands table), claude() and _sagittarius_system_prompt in
-shared/copy/.zshenv in the dotfiles repo, and section 2 of kb/share/orbit-kb/README.md (install steps, Lean only
+Slides 15 and 16 come from the live prompt (Commands table), the author's claude() wrapper and
+_sagittarius_system_prompt in shared/copy/.zshenv in his dotfiles repo (the slide shows the general form), and section 2 of kb/share/orbit-kb/README.md (install steps, Lean only
 for prove). The command sequence on slide 16 is an
 illustration in the documented command forms.
 Slide numbers below are for the 30-slide version (2026-10-21 polish, after the readability review).

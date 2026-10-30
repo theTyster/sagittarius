@@ -47,7 +47,8 @@ The tool is part of the sagittarius repository:
 | Tests | `kb/tests/` | (not installed) |
 | Contract | `kb/CONTRACT.md` | (not installed) |
 
-To install on Fedora:
+These steps are for Fedora. On another system, use its package manager for SWI-Prolog
+(for example `apt install swi-prolog-nox` or `brew install swi-prolog`).
 
 1. Install SWI-Prolog 9 or later:
    `sudo dnf install swi-prolog-nox`
@@ -69,13 +70,13 @@ when one is missing.
 `lake`, and the `leanchecker` binary of the project toolchain. It was tested
 with Lean 4.30.0, 4.34.0, and 4.35.0. The other commands do not need Lean.
 
-The result on this machine (12 `ok` lines and 1 `info` line):
+An example result (12 `ok` lines and 1 `info` line):
 
 ```text
 $ orbit-kb doctor
 ok    swipl: /usr/bin/swipl (SWI-Prolog 9.2.9; running as /usr/lib64/swipl/bin/x86_64-linux/swipl).
-ok    scasp: /home/ty/.local/bin/scasp (s(CASP): version 1.1.4 on SWI-Prolog 9.2.9).
-ok    library: /home/ty/Projects/mine/sagittarius/kb/share/orbit-kb (modules: build, discovery).
+ok    scasp: /home/you/.local/bin/scasp (s(CASP): version 1.1.4 on SWI-Prolog 9.2.9).
+ok    library: /home/you/sagittarius/kb/share/orbit-kb (modules: build, discovery).
 info  s(CASP) command: scasp --unknown=error --forall=prev (timeout 20 s).
 ok    H1 helper form: done must be false on both engines.
 ok    H2 program: finding_lead(F) must have no answer on both engines.
@@ -109,7 +110,7 @@ The digest in step 7 depends on the text of your `ticket.md`.
 
    ```text
    $ orbit-kb init purple --request 'Make the button purple.' --uses build
-   /tmp/claude-1000/-home-ty--dotfiles/63a00f00-8d72-4aeb-a216-cde6b882f1f4/scratchpad/docs-walk/purple/kb.pl
+   /tmp/purple/kb.pl
    ```
 
 2. Go into the KB directory: `cd purple`. All commands that follow find the
@@ -174,7 +175,7 @@ The digest in step 7 depends on the text of your `ticket.md`.
 
    ```text
    $ orbit-kb run k1 -- grep -q purple button.css
-   run 1 k1 fail (exit 1) log=/tmp/claude-1000/-home-ty--dotfiles/63a00f00-8d72-4aeb-a216-cde6b882f1f4/scratchpad/docs-walk/purple/runs/1-k1.log
+   run 1 k1 fail (exit 1) log=/tmp/purple/runs/1-k1.log
    Last 0 line(s) of output:
    $ orbit-kb query done
    false
@@ -187,7 +188,7 @@ The digest in step 7 depends on the text of your `ticket.md`.
 
     ```text
     $ orbit-kb run k1 -- grep -q purple button.css
-    run 2 k1 pass (exit 0) log=/tmp/claude-1000/-home-ty--dotfiles/63a00f00-8d72-4aeb-a216-cde6b882f1f4/scratchpad/docs-walk/purple/runs/2-k1.log
+    run 2 k1 pass (exit 0) log=/tmp/purple/runs/2-k1.log
     ```
 
 11. Query `done`. No question waits for a human:
@@ -1231,9 +1232,8 @@ proof consults only the relevant atoms. Matching on normalized atoms only
 enlarges the set. A program outside the fragment is not grounded, so the
 argument does not cover it.
 
-**Evidence.** The scripts and logs were in a session scratchpad. Its main file
-is
-`/tmp/claude-1000/-home-ty--dotfiles/63a00f00-8d72-4aeb-a216-cde6b882f1f4/scratchpad/perf/scasp-agent/RESULTS.md`.
+**Evidence.** The scripts and logs were in a session scratchpad. They are not
+in this repository.
 A scratchpad can disappear. So this list keeps the results:
 
 - About 1.45 million differential checks against SWI. Each check compares the
@@ -1487,7 +1487,7 @@ Lint lists each extension for a human to review:
 ```text
 $ orbit-kb declare 'world(term)' --doc 'x'
 Rejected. Nothing was written.
-world/1 is already declared in the core (/home/ty/Projects/mine/sagittarius/kb/share/orbit-kb/core.pl:77). Choose another name, or use the declaration that exists.
+world/1 is already declared in the core (/home/you/sagittarius/kb/share/orbit-kb/core.pl:77). Choose another name, or use the declaration that exists.
 ```
 
 ### Writing a new module
@@ -1708,9 +1708,10 @@ result cache.
 To run the suite:
 
 1. Go to the root of the sagittarius repository.
-2. Run `heavy kb/tests/test_orbit_kb.sh`.
+2. Run `bash kb/tests/test_orbit_kb.sh`. If you have a job queue for CPU-heavy commands,
+   run it through the queue.
 3. To run a subset, set `ONLY` to a regex of test IDs, for example
-   `ONLY='^(K|I)[0-9]' heavy kb/tests/test_orbit_kb.sh`.
+   `ONLY='^(K|I)[0-9]' bash kb/tests/test_orbit_kb.sh`.
 
 The suite has 176 tests. All pass. The tests run in parallel. On an idle
 machine, the suite takes about 13.5 s with 4 workers, and about 49 s with one
@@ -1775,6 +1776,8 @@ Three agents wrote the library, the CLI, and the tests in parallel, from the
 same contract. The test author never read the CLI source.
 
 ## 15. Design decisions and history
+
+In this section, "Ty" is the author of the project. His decisions are credited by name.
 
 | Decision | Reason |
 |---|---|
@@ -1932,7 +1935,7 @@ Known gaps:
 - A proof covers the project source files and the Lake configuration files. It
   does not cover the source of a dependency in `.lake/packages`. For a `git`
   dependency, `lake-manifest.json` names a revision, so a change of version
-  changes the digest. For a `"type": "path"` dependency (a sharlean project),
+  changes the digest. For a `"type": "path"` dependency (for example, a project that shares its libraries with other projects),
   the manifest has no revision, so a change in the dependency does not reopen
   the burn.
 - `proof_changed/1` and `waiver_lapsed/1` read the disk and the clock. So the

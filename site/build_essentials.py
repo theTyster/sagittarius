@@ -100,7 +100,7 @@ slides.append(head(4, 'i-forall', 'The idea') + '''  <h2>Tests and proofs</h2>
 ''' + full_link(4, 'Full deck: tests and proofs'))
 
 slides.append(head(5, 'i-cal', 'The story') + '''  <h2>The idea held; the machinery changed</h2>
-  <p>Ty reached this process in 2026 through three eras. <mark>The process kept changing. The delivery did not.</mark></p>
+  <p>The author, Ty, reached this process in 2026 through three eras. <mark>The process kept changing. The delivery did not.</mark></p>
 ''' + timeline + full_link(8, 'Full deck: the timeline, the five chapters, and the eras'))
 
 slides.append(head(6, 'i-split', 'The story') + '''  <h2>Why signals, not tiers</h2>

@@ -461,7 +461,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 <section class="slide" id="s5" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-cal"/></svg>5 of 10 · The story</div>
   <h2>The idea held; the machinery changed</h2>
-  <p>Ty reached this process in 2026 through three eras. <mark>The process kept changing. The delivery did not.</mark></p>
+  <p>The author, Ty, reached this process in 2026 through three eras. <mark>The process kept changing. The delivery did not.</mark></p>
   <figure class="diagram">
     <svg viewBox="0 0 760 210" role="img" aria-label="Lanes from January to October 2026. Process: Claude Code from January, the orbital plugins from April, the method by hand from June, the AIDLC from late August, Sagittarius from 21 October. Lean: in use from April on, never dropped. Hoggwood Health: client work kept shipping the whole time.">
       <text x="130" y="16" class="band">2026</text>
@@ -619,11 +619,12 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </figure>
   <p>You rarely type <code>orbit-kb</code> yourself. Most requests stay on the light path: <mark>one check, no KB</mark>.</p>
   <details class="more"><summary>Install on Fedora</summary><div class="body">
+    <p>On another system, use its package manager for SWI-Prolog 9 or later, then follow the same steps.</p>
 <pre class="report"><i>$</i> sudo dnf install swi-prolog-nox
 <i>$</i> swipl -g "pack_install(scasp, [interactive(false)])" -t halt
 <i>$</i> ln -s ~/.local/share/swi-prolog/pack/scasp/scasp ~/.local/bin/scasp
 <i>$</i> orbit-kb doctor</pre>
-    <p>For <code>orbit-kb prove</code>, install Lean 4 and Lake with elan. Ty's Lean projects share their libraries through <code>sharlean</code>, so a proof does not rebuild Mathlib. In the sagittarius repo, <code>./install.py</code> puts <code>orbit-kb</code> on the PATH and its rules in <code>~/.local/share/orbit-kb</code>.</p>
+    <p>For <code>orbit-kb prove</code>, install Lean 4 and Lake with elan. A Lean project that needs Mathlib builds it slowly. If you have several such projects, you can share one built copy of the libraries between them. In the sagittarius repo, <code>./install.py</code> puts <code>orbit-kb</code> on the PATH and its rules in <code>~/.local/share/orbit-kb</code>.</p>
   </div></details>
   <p class="see"><a href="index.html#s16">Full deck: how to use it, with the commands the agent runs</a></p>
 </section>
