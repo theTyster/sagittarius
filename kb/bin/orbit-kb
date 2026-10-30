@@ -1104,9 +1104,30 @@ shape_val_errs(S, V, Env, Es) :- compound(S), !,
         ;   Es = Es0
         )
     ;   term_text(S, ST), term_text(V, VT),
-        fmt(M, "It must have the form ~w. It is ~w.", [ST, VT]),
+        (   inner_label_whole(S, V, WT)
+        ->  fmt(M, "It must have the form ~w. It is ~w. Write the whole predicate as ~w.", [ST, VT, WT])
+        ;   fmt(M, "It must have the form ~w. It is ~w.", [ST, VT])
+        ),
         Es = ['E3'-M]
     ).
+
+% inner_label_whole(+Shape, +Pred, -Text): Pred is only one entry of an alt inside Shape,
+% such as tested(100) for verdict(ref(claim), alt([..., tested(int)])). Text is the whole
+% predicate, with each ref argument as a placeholder: verdict(CLAIM, tested(100)).
+inner_label_whole(S, V, Text) :-
+    compound(S), S =.. [N|Ts],
+    nth1(I, Ts, alt(Entries)), member(E, Entries), same_entry_shape(E, V), !,
+    findall(A, ( nth1(J, Ts, T),
+                 (   J == I -> term_text(V, A)
+                 ;   T = ref(K), atom(K) -> upcase_atom(K, A)
+                 ;   term_text(T, A)
+                 ) ), As),
+    atomic_list_concat(As, ', ', Inner),
+    fmt(Text, "~w(~w)", [N, Inner]).
+
+same_entry_shape(E, V) :- atom(E), !, E == V.
+same_entry_shape(E, V) :- compound(E), compound(V),
+    compound_name_arity(E, F, A), compound_name_arity(V, F, A).
 shape_val_errs(_, _, _, ['E3'-"The attestation type has an invalid shape."]).
 
 args_errs(Ts, Vs, Env, Es) :-
