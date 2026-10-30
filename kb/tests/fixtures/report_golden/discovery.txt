@@ -14,7 +14,8 @@
   - None. No claim is current.
 
 # Open:
-  - Nothing is open.
+  - **not ready**: Discovery is not ready
+    - Run orbit-kb whynot 'discovery_ready' and orbit-kb lint for the rest.
 
 # Vote:
   - No vote yet

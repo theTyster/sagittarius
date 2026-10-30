@@ -5171,8 +5171,19 @@ report_text(KB, Eng) :-
     ),
     % D17: in a build KB, done needs a current claim.
     ( call(Build), Cs == [] -> N4s = [no_claim] ; N4s = [] ),
+    % D19: in a discovery KB, what blocks discovery_ready is open too.
+    (   has_discovery(KB)
+    ->  eng_all(Eng, [W5], question_waits(W5), W5s0),
+        subtract(W5s0, Q4s, W5s),
+        eng_all(Eng, [R5], ( refuted(R5), current(R5) ), R5s),
+        (   eng_true(Eng, discovery_ready) -> D5s = [] ; D5s = [not_ready] )
+    ;   W5s = [], R5s = [], D5s = []
+    ),
     forall(member(_, N4s), ropen(open(no_claim, claims, none), "no claim", "No claim is current. Add a claim. The work is not done without one.", [])),
     forall(member(Q4, Q4s), ropen(open(to_ask, Q4, none), "ask", "Ask question ~w now.", [Q4])),
+    forall(member(W5, W5s), ropen(open(question_waits, W5, none), "waits", "Question ~w waits for the human's answer.", [W5])),
+    forall(member(R5, R5s), ropen(open(refuted, R5, none), "refuted", "Claim ~w is refuted. Record the counterexample as an example, and ask the human. Do not weaken the claim.", [R5])),
+    forall(member(_, D5s), ropen(open(discovery_ready, discovery, none), "not ready", "Discovery is not ready. Run orbit-kb whynot 'discovery_ready' and orbit-kb lint for the rest.", [])),
     forall(member(A4, A4s), ropen(open(stale, A4, none), "stale", "Approval ~w is stale. The subject changed after the approval.", [A4])),
     forall(member(Y4, Y4s),
            (   eng_true(Eng, claim(Y4, _, _))
@@ -5190,7 +5201,11 @@ report_text(KB, Eng) :-
              ;   ropen(Tag4, "waiver lapsed", "Waiver ~w of ~w was due at ~w.", [W4, C4, D4])
              ) )),
     forall(member([P4, C5], P4s), ropen(open(proof_changed, P4, C5), "proof changed", "Proof ~w of claim ~w no longer counts. A file of the proof changed. Run orbit-kb prove again.", [P4, C5])),
-    (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], L4s == [], P4s == [], N4s == [] -> rsay(none, "Nothing is open.", []) ; true ),
+    (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], L4s == [], P4s == [], N4s == [],
+        W5s == [], R5s == [], D5s == []
+    ->  rsay(none, "Nothing is open.", [])
+    ;   true
+    ),
     ( has_discovery(KB) -> vote_section(Eng) ; true ),
     rhead('To land'),
     rsay(placeholder, "(Write the steps to land the work here.)", []).
@@ -5480,6 +5495,9 @@ open_label(over, "over").
 open_label(burn_open, "burn open").
 open_label(waiver_lapsed, "waiver lapsed").
 open_label(proof_changed, "proof changed").
+open_label(question_waits, "waits").
+open_label(refuted, "refuted").
+open_label(discovery_ready, "not ready").
 
 % open_link: a link to the claim that an open item is about, when the
 % claim is on the page.
