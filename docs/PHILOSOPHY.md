@@ -261,6 +261,24 @@ stays out of the prompt until an eval shows one. Four points are not decided:
   TRAJECTORY step 3 asks for. The KB counted the model trusted. So "trusted" is the agent's own
   grade (principle 3).
 
+  The same discovery then gave a candidate answer. Its system trace showed the abort by a
+  different sequence than the TLC trace: two builds of different bytes, not the one-builder
+  path that TLC printed. TLC prints the shortest path to a violation, not the path that the
+  system takes. So the model passed outcome calibration and would have failed mechanism
+  calibration as it was attested. Three candidate criteria come from this case:
+
+  - **Two sides.** Calibrate on a real case where the system fails, and on a real case where
+    it passes. A model where every run fails also matches the failing case.
+  - **Two levels.** Outcome calibration (the same result) is enough for verdicts about
+    outcomes. A finding that names a cause or a mechanism needs mechanism calibration, or it
+    stays a lead.
+  - **From the system to the model.** Mechanism calibration constrains the model to the
+    sequence that the system showed, and checks that the model can reach it. The reverse
+    (does the system show the model's trace?) is weak, because a checker picks its own path.
+
+  Sanity has a candidate answer too: the model can reach each state that a claim talks
+  about. That replaces "each important state" with a list that comes from the claims.
+
 ## How to judge a change
 
 Ask these questions about a proposed change to the prompt or the tool:
