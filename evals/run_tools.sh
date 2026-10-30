@@ -118,7 +118,7 @@ PY
   rm -rf $turns
   EVAL_CHECKS_DIR=$sdir/checks python3 $here/grade_tools.py --turns $n $base.jsonl $work ${(f)checks} > $base.grade.json
   python3 -c 'import json,sys;g=json.load(open(sys.argv[1]));print(sys.argv[2]+"  "+"  ".join(("PASS " if c["passed"] else "FAIL ")+c["text"][:50] for c in g["checks"]))' $base.grade.json "  $id.r$r" >&2
-  if (( rubric )); then python3 $here/grade_rubric.py $spec $id $base.jsonl > $base.rubric.json || true; fi
+  if (( rubric )); then python3 $here/grade_rubric.py $spec $id $base.jsonl > $base.rubric.json || echo "  $id.r$r  rubric ERROR: see $base.rubric.json" >&2; fi
   find $work ${work}.t*(N) -name __pycache__ -prune -exec rm -rf {} +
   # runs/ is committed, so a fixture's .git stays out: it would become an embedded repository.
   rsync -a --exclude .git $work/ $base.work/
