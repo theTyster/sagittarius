@@ -7,6 +7,7 @@ what the agent told the human, and whether it did so for the right reason. It ju
 outcomes, not wording. It runs through claude() with no Sagittarius prompt and no tools, on
 the account that run_tools.sh loaded (the personal key when run alone).
 Prints one JSON object: {"assertions": [{"assertion", "passed", "evidence"}], "judge": MODEL}.
+On any failure it prints {"error": ..., "judge": MODEL} instead and exits 1. It never prints nothing.
 """
 import json
 import subprocess
@@ -69,12 +70,16 @@ def main(spec, eid, transcript):
     try:
         res = json.loads(p.stdout)
         body = res.get("structured_output") or json.loads(res.get("result", ""))
-    except (json.JSONDecodeError, TypeError):
-        print(json.dumps({"error": (p.stdout + p.stderr)[-500:], "judge": JUDGE}))
-        sys.exit(1)
+        body["assertions"]
+    except (json.JSONDecodeError, TypeError, KeyError):
+        raise RuntimeError((p.stdout + p.stderr)[-500:] or "judge printed nothing")
     body["judge"] = JUDGE
     print(json.dumps(body, indent=2))
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:])
+    try:
+        main(*sys.argv[1:])
+    except BaseException as ex:
+        print(json.dumps({"error": f"{type(ex).__name__}: {ex}"[-500:], "judge": JUDGE}))
+        sys.exit(1)

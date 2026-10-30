@@ -63,6 +63,8 @@ For each case that guards a rule, delete the rule from a copy of the prompt and 
 
 - Run each case 3 times (`--runs 3`). A case passes when 2 of 3 runs pass. `summary.json` has the
   verdicts.
+  When a rubric ran, the gate uses the combined verdict (`passed_combined`: checks and rubric both
+  pass), not `passed`, which counts the checks only. A run with a missing or failed rubric fails it.
 - One run is noise. Scores change between identical runs.
 - Compare against the base: the same cases with `--prompt` set to the base version of the prompt
   (`git show BASE:prompt/SAGITTARIUS.md > /tmp/base.md`).
