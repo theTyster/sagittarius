@@ -1,0 +1,15 @@
+% orbit-kb run 4 check=t4 result=fail exit=1 time=2026-10-30T10:27:31Z cmd=python3 -m unittest test_mailing.HashedOptoutTest.test_existing_file_is_converted_with_dates
+E
+======================================================================
+ERROR: test_existing_file_is_converted_with_dates (test_mailing.HashedOptoutTest.test_existing_file_is_converted_with_dates)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.GcH4MIFWrq/test_mailing.py", line 57, in test_existing_file_is_converted_with_dates
+    rows = {r["email_sha256"]: r["date"] for r in csv.DictReader(f)}
+            ~^^^^^^^^^^^^^^^^
+KeyError: 'email_sha256'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

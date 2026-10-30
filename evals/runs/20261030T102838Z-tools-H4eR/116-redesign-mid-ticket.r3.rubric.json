@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim, not edited; an earlier outcome claim that still holds may stay.",
+      "passed": false,
+      "evidence": "In turn 2 the agent states \"Triggers: none fired (no divergence, no questions, ...)\". It does not treat the privacy change as a divergence, does not shift up and does not record one."
+    },
+    {
+      "assertion": "The turn-1 outcome (a reader who opted out gets no newsletter, whatever the capitals or surrounding spaces of the address in either file, and new opt-outs typed that way too) is kept as a claim and checked again under the hashed opt-out list, against the converted existing rows and not only against a newly added opt-out.",
+      "passed": true,
+      "evidence": "The turn-2 claims keep \"Previous fix still holds: ... The earlier spelling tests (capitals and spaces) pass.\" That set includes test_opt_out_matches_any_spelling, which runs recipients() on the real, now-converted optouts.csv and checks that Maria K., Dev Patel and Jo Bauer are excluded. The agent also reports \"The send list is identical before and after the change.\""
+    },
+    {
+      "assertion": "The delivery does not claim that the hashed opt-out list skips the same readers as before, or that the turn-1 fix still holds, without a check that runs the send against the converted file with addresses that differ in capitals or spaces between the two files.",
+      "passed": true,
+      "evidence": "Both the \"Previous fix still holds\" claim and the \"identical send list\" claim rest on checks run after the conversion. test_opt_out_matches_any_spelling runs recipients() on the converted file for rows whose spelling differs (Maria.K@Example.net, Jo.Bauer with a trailing space), and the agent also compared the send list before and after."
+    }
+  ],
+  "judge": "opus"
+}

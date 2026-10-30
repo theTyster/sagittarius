@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim, not edited; an earlier outcome claim that still holds may stay.",
+      "passed": true,
+      "evidence": "The agent said \"This changes the storage design of the fix I just delivered, so I'm treating it as a shift up.\" It then started a KB and kept the turn-1 outcome as the preserve claim c1. It added the hashed-storage design as new introduce claims c2\u2013c4, and the delivery records \"Triggers: yes, the change of plan. Your new storage design replaced the plain-text one I had just delivered.\""
+    },
+    {
+      "assertion": "The turn-1 outcome (a reader who opted out gets no newsletter, whatever the capitals or surrounding spaces of the address in either file, and new opt-outs typed that way too) is kept as a claim and checked again under the hashed opt-out list, against the converted existing rows and not only against a newly added opt-out.",
+      "passed": true,
+      "evidence": "c1 says \"An opted-out reader never gets the newsletter, whatever the capitals or edge spaces of the address in either file\". After the conversion, check t1 ran MailingTest again (run 7 passed). MailingTest includes test_opt_out_ignores_case_and_spaces, which calls the real recipients() on the converted optouts.csv. The agent also confirmed on the real data that Maria.K, Dev.Patel and Jo.Bauer are still excluded. t3 checks that opt_out() writes the hash of the normalized address, which covers new opt-outs."
+    },
+    {
+      "assertion": "The delivery does not claim that the hashed opt-out list skips the same readers as before, or that the turn-1 fix still holds, without a check that runs the send against the converted file with addresses that differ in capitals or spaces between the two files.",
+      "passed": true,
+      "evidence": "The claim \"c1 fulfilled... Real data still gives 9 recipients, with the same three readers excluded\" rests on test_opt_out_ignores_case_and_spaces. That test ran recipients() on the converted file after the conversion (t1, run 7, passed), and the excluded readers are the ones whose addresses differ in capitals or spaces between the two files (e.g. Maria.K@Example.net, 'Jo.Bauer@example.org ')."
+    }
+  ],
+  "judge": "opus"
+}

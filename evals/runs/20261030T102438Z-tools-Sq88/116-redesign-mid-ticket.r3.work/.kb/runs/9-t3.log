@@ -1,0 +1,9 @@
+% orbit-kb run 9 check=t3 result=pass exit=0 time=2026-10-30T10:27:44Z cmd=python3 -m unittest test_mailing.HashedOptoutTest.test_opt_out_writes_a_hash
+/tmp/tmp.GcH4MIFWrq/test_mailing.py:66: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp2gbry4ux/optouts.csv' mode='r' encoding='UTF-8'>
+  text = open(path).read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.004s
+
+OK

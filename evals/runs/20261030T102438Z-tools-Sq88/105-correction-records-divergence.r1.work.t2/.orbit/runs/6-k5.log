@@ -1,0 +1,15 @@
+% orbit-kb run 6 check=k5 result=fail exit=1 time=2026-10-30T10:25:53Z cmd=python3 -m unittest -k readme test_loans
+F
+======================================================================
+FAIL: test_readme_states_the_policy (test_loans.DueDateTest.test_readme_states_the_policy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.fPPSo4bUM3/test_loans.py", line 28, in test_readme_states_the_policy
+    self.assertIn("`reference`", readme)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '`reference`' not found in '# Library loans\n\nThe desk screen calls `due_date(kind, checked_out)` when a patron borrows an item, and\nprints the date it returns. `kind` is one of the keys of `LOAN_DAYS` in `loans.py`.\n\n## Loan periods\n\nStarting this autumn, the loan period for every kind of item is 21 days.\n'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

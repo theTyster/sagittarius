@@ -1,0 +1,5 @@
+% orbit-kb run 4 check=k2 result=pass exit=0 time=2026-10-30T10:29:36Z cmd=python -m unittest -q -k test_non_reference
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

@@ -1,0 +1,10 @@
+{
+  "spec": "heldout/heldout.json",
+  "account": "personal",
+  "model": "sonnet",
+  "prompt": "/home/ty/Projects/mine/sagittarius/tmp/testing/norule.md",
+  "prompt_sha256": "46fdec32cd76a546481d0fcdea3a99a7836ed0b397f3657e07b2f2638b55c30f",
+  "runs": 3,
+  "commit": "b358dd1",
+  "dirty": false
+}

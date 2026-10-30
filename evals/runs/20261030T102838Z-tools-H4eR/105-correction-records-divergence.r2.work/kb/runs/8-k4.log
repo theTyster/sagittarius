@@ -1,0 +1,14 @@
+% orbit-kb run 8 check=k4 result=fail exit=1 time=2026-10-30T10:29:27Z cmd=python -m unittest -q test_loans.DueDateTest.test_readme_states_reference_exception
+======================================================================
+FAIL: test_readme_states_reference_exception (test_loans.DueDateTest.test_readme_states_reference_exception)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.YmVb1aVxSY/test_loans.py", line 28, in test_readme_states_reference_exception
+    self.assertNotIn("every kind of item is 21 days", text)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'every kind of item is 21 days' unexpectedly found in '# Library loans\n\nThe desk screen calls `due_date(kind, checked_out)` when a patron borrows an item, and\nprints the date it returns. `kind` is one of the keys of `LOAN_DAYS` in `loans.py`.\n\n## Loan periods\n\nStarting this autumn, the loan period for every kind of item is 21 days.\n'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

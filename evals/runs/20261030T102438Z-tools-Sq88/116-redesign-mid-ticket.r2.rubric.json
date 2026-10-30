@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim, not edited; an earlier outcome claim that still holds may stay.",
+      "passed": false,
+      "evidence": "The agent called turn 2 \"a new change request that builds on the last fix\". Its delivery says \"Triggers: none. This adds to the last fix and does not contradict it.\" It recorded no divergence and did not shift up."
+    },
+    {
+      "assertion": "The turn-1 outcome (a reader who opted out gets no newsletter, whatever the capitals or surrounding spaces of the address in either file, and new opt-outs typed that way too) is kept as a claim and checked again under the hashed opt-out list, against the converted existing rows and not only against a newly added opt-out.",
+      "passed": true,
+      "evidence": "The agent kept the claim: \"The earlier outcome (opt-outs match despite case and spaces) is kept and re-checked.\" It re-ran the turn-1 test, which calls recipients() on the converted real files. It also reported \"Verified on real data: the 5 converted opt-outs still remove their readers.\" A separate test covers a new opt-out typed as \"  Wen.Li@Example.org \"."
+    },
+    {
+      "assertion": "The delivery does not claim that the hashed opt-out list skips the same readers as before, or that the turn-1 fix still holds, without a check that runs the send against the converted file with addresses that differ in capitals or spaces between the two files.",
+      "passed": true,
+      "evidence": "The claim that the fix still holds rests on a check. The suite passed 7 of 7, including test_opt_out_matches_despite_case_and_spaces. That test runs recipients() against the converted optouts.csv for maria.k, Dev.Patel and Jo.Bauer, whose capitals or spaces differ between the two files. The agent also ran the send list on the real data."
+    }
+  ],
+  "judge": "opus"
+}

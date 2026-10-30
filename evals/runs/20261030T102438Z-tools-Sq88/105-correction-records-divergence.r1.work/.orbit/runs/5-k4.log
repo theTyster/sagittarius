@@ -1,0 +1,15 @@
+% orbit-kb run 5 check=k4 result=fail exit=1 time=2026-10-30T10:25:53Z cmd=python3 -m unittest -k reference_stays test_loans
+F
+======================================================================
+FAIL: test_reference_stays_3_days (test_loans.DueDateTest.test_reference_stays_3_days)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.fPPSo4bUM3/test_loans.py", line 23, in test_reference_stays_3_days
+    self.assertEqual(due_date("reference", date(2026, 3, 2)), date(2026, 3, 5))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 3, 23) != datetime.date(2026, 3, 5)
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

@@ -1,0 +1,6 @@
+% orbit-kb run 1 check=t1 result=pass exit=0 time=2026-10-30T10:27:30Z cmd=python3 -m unittest test_mailing.MailingTest
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.002s
+
+OK

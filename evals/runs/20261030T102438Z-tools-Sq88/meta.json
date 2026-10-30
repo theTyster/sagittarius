@@ -1,0 +1,10 @@
+{
+  "spec": "heldout/heldout.json",
+  "account": "personal",
+  "model": "sonnet",
+  "prompt": "/home/ty/Projects/mine/sagittarius/tmp/testing/rule.md",
+  "prompt_sha256": "ade1b6ed241bc9f7078a0949ac0a7027ad894f2a898f42f50831b234f539204f",
+  "runs": 3,
+  "commit": "b358dd1",
+  "dirty": false
+}

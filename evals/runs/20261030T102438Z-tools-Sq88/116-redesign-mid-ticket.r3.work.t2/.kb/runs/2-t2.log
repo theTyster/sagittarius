@@ -1,0 +1,18 @@
+% orbit-kb run 2 check=t2 result=fail exit=1 time=2026-10-30T10:27:30Z cmd=python3 -m unittest test_mailing.HashedOptoutTest.test_file_holds_no_plain_address
+/tmp/tmp.GcH4MIFWrq/test_mailing.py:51: ResourceWarning: unclosed file <_io.TextIOWrapper name='optouts.csv' mode='r' encoding='UTF-8'>
+  text = open("optouts.csv").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+F
+======================================================================
+FAIL: test_file_holds_no_plain_address (test_mailing.HashedOptoutTest.test_file_holds_no_plain_address)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.GcH4MIFWrq/test_mailing.py", line 52, in test_file_holds_no_plain_address
+    self.assertNotIn("@", text)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^
+AssertionError: '@' unexpectedly found in 'email,date\nli.na@example.com,2026-08-03\nMaria.K@Example.net,2026-08-19\nsam.reyes@example.com,2026-09-02\ndev.patel@example.com,2026-09-14\nJo.Bauer@example.org ,2026-10-06\n'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.003s
+
+FAILED (failures=1)

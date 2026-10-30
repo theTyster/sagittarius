@@ -1,0 +1,5 @@
+% orbit-kb run 9 check=k3 result=pass exit=0 time=2026-10-30T10:29:27Z cmd=python -m unittest -q test_loans.DueDateTest.test_reference_stays_3_days
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

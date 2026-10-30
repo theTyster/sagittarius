@@ -1,0 +1,42 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-30T10:25:14Z cmd=python -m unittest test_loans.DueDateTest.test_autumn_policy_is_21_days_except_reference
+FFFF
+======================================================================
+FAIL: test_autumn_policy_is_21_days_except_reference (test_loans.DueDateTest.test_autumn_policy_is_21_days_except_reference) (kind='novel')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.Fn9S5ljZAU/test_loans.py", line 21, in test_autumn_policy_is_21_days_except_reference
+    self.assertEqual(due_date(kind, OUT), date(2026, 3, 23))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 3, 16) != datetime.date(2026, 3, 23)
+
+======================================================================
+FAIL: test_autumn_policy_is_21_days_except_reference (test_loans.DueDateTest.test_autumn_policy_is_21_days_except_reference) (kind='magazine')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.Fn9S5ljZAU/test_loans.py", line 21, in test_autumn_policy_is_21_days_except_reference
+    self.assertEqual(due_date(kind, OUT), date(2026, 3, 23))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 3, 9) != datetime.date(2026, 3, 23)
+
+======================================================================
+FAIL: test_autumn_policy_is_21_days_except_reference (test_loans.DueDateTest.test_autumn_policy_is_21_days_except_reference) (kind='dvd')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.Fn9S5ljZAU/test_loans.py", line 21, in test_autumn_policy_is_21_days_except_reference
+    self.assertEqual(due_date(kind, OUT), date(2026, 3, 23))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 3, 9) != datetime.date(2026, 3, 23)
+
+======================================================================
+FAIL: test_autumn_policy_is_21_days_except_reference (test_loans.DueDateTest.test_autumn_policy_is_21_days_except_reference) (kind='tool')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.Fn9S5ljZAU/test_loans.py", line 21, in test_autumn_policy_is_21_days_except_reference
+    self.assertEqual(due_date(kind, OUT), date(2026, 3, 23))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 3, 7) != datetime.date(2026, 3, 23)
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=4)

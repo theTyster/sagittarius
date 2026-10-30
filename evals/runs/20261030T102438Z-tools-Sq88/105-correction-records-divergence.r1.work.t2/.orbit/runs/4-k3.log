@@ -1,0 +1,6 @@
+% orbit-kb run 4 check=k3 result=pass exit=0 time=2026-10-30T10:25:53Z cmd=python3 -m unittest -k autumn test_loans
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

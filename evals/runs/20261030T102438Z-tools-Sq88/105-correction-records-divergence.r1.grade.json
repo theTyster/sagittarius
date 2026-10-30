@@ -1,0 +1,92 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 11 turns; result success, 10 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": false,
+      "evidence": "{\"command\": \"cd /tmp/tmp.fPPSo4bUM3; export ORBIT_KB=$PWD/.orbit; (cd loan_model && lake env lean Loanmodel/Basic.lean);"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "turn1:no_kb",
+      "passed": false,
+      "evidence": "/tmp/tmp.fPPSo4bUM3.t1/.orbit"
+    },
+    {
+      "text": "kb_exists",
+      "passed": true,
+      "evidence": "/tmp/tmp.fPPSo4bUM3/.orbit"
+    },
+    {
+      "text": "help_before_write",
+      "passed": true,
+      "evidence": "first help at call 0, first write (init) at call 3"
+    },
+    {
+      "text": "lint_clean",
+      "passed": true,
+      "evidence": "Summary: 0 error(s), 0 warning(s)."
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:divergence_recorded",
+      "passed": true,
+      "evidence": "exit 0: true"
+    },
+    {
+      "text": "python:from datetime import date, timedelta; from loans import due_date; d=date(2026,3,2); assert all(due_date(k,d)==d+timedelta(days=21) for k in ('novel','magazine','dvd','tool')); assert due_date('reference',d)==d+timedelta(days=3)",
+      "passed": true,
+      "evidence": "ok"
+    },
+    {
+      "text": "unittest_pass",
+      "passed": true,
+      "evidence": "OK"
+    }
+  ],
+  "commands": [
+    "help",
+    "help core",
+    "help build",
+    "init",
+    "add",
+    "attest divergence",
+    "add",
+    "run k",
+    "run k",
+    "run k",
+    "add",
+    "lint",
+    "query done",
+    "report",
+    "attest divergence",
+    "add",
+    "run k",
+    "run k",
+    "run k",
+    "add",
+    "lint",
+    "whynot done",
+    "query",
+    "query",
+    "report",
+    "prove c",
+    "prove c",
+    "prove c",
+    "lint",
+    "query done",
+    "report"
+  ]
+}

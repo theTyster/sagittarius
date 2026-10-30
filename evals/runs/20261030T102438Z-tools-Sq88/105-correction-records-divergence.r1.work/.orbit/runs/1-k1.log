@@ -1,0 +1,51 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-30T10:25:22Z cmd=python3 -m unittest -k autumn test_loans
+FFFFF
+======================================================================
+FAIL: test_autumn_policy_every_kind_is_21_days (test_loans.DueDateTest.test_autumn_policy_every_kind_is_21_days) (kind='novel')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.fPPSo4bUM3/test_loans.py", line 18, in test_autumn_policy_every_kind_is_21_days
+    self.assertEqual(due_date(kind, date(2026, 3, 2)), date(2026, 3, 23))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 3, 16) != datetime.date(2026, 3, 23)
+
+======================================================================
+FAIL: test_autumn_policy_every_kind_is_21_days (test_loans.DueDateTest.test_autumn_policy_every_kind_is_21_days) (kind='magazine')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.fPPSo4bUM3/test_loans.py", line 18, in test_autumn_policy_every_kind_is_21_days
+    self.assertEqual(due_date(kind, date(2026, 3, 2)), date(2026, 3, 23))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 3, 9) != datetime.date(2026, 3, 23)
+
+======================================================================
+FAIL: test_autumn_policy_every_kind_is_21_days (test_loans.DueDateTest.test_autumn_policy_every_kind_is_21_days) (kind='dvd')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.fPPSo4bUM3/test_loans.py", line 18, in test_autumn_policy_every_kind_is_21_days
+    self.assertEqual(due_date(kind, date(2026, 3, 2)), date(2026, 3, 23))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 3, 9) != datetime.date(2026, 3, 23)
+
+======================================================================
+FAIL: test_autumn_policy_every_kind_is_21_days (test_loans.DueDateTest.test_autumn_policy_every_kind_is_21_days) (kind='tool')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.fPPSo4bUM3/test_loans.py", line 18, in test_autumn_policy_every_kind_is_21_days
+    self.assertEqual(due_date(kind, date(2026, 3, 2)), date(2026, 3, 23))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 3, 7) != datetime.date(2026, 3, 23)
+
+======================================================================
+FAIL: test_autumn_policy_every_kind_is_21_days (test_loans.DueDateTest.test_autumn_policy_every_kind_is_21_days) (kind='reference')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.fPPSo4bUM3/test_loans.py", line 18, in test_autumn_policy_every_kind_is_21_days
+    self.assertEqual(due_date(kind, date(2026, 3, 2)), date(2026, 3, 23))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 3, 5) != datetime.date(2026, 3, 23)
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=5)

@@ -1,0 +1,6 @@
+% orbit-kb run 10 check=t4 result=pass exit=0 time=2026-10-30T10:27:44Z cmd=python3 -m unittest test_mailing.HashedOptoutTest.test_existing_file_is_converted_with_dates
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

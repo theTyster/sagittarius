@@ -1,0 +1,6 @@
+% orbit-kb run 6 check=k3 result=pass exit=0 time=2026-10-30T10:25:20Z cmd=python -m unittest test_loans.DueDateTest.test_readme_states_reference_exception
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

@@ -1,0 +1,61 @@
+{
+  "meta": {
+    "spec": "heldout/heldout.json",
+    "account": "personal",
+    "model": "sonnet",
+    "prompt": "/home/ty/Projects/mine/sagittarius/tmp/testing/norule.md",
+    "prompt_sha256": "46fdec32cd76a546481d0fcdea3a99a7836ed0b397f3657e07b2f2638b55c30f",
+    "runs": 3,
+    "commit": "b358dd1",
+    "dirty": false
+  },
+  "evals": [
+    {
+      "id": 105,
+      "name": "correction-records-divergence",
+      "runs": 3,
+      "passed_runs": 1,
+      "passed": false,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "turn1:no_kb": "2/3",
+        "kb_exists": "2/3",
+        "help_before_write": "2/3",
+        "lint_clean": "2/3",
+        "no_hand_edit": "3/3",
+        "query:divergence_recorded": "2/3",
+        "python:from datetime import date, timedelta; from loans import due_date; d=date(2026,3,2); assert all(due_date(k,d)==d+timedelta(days=21) for k in ('novel','magazine','dvd','tool')); assert due_date('reference',d)==d+timedelta(days=3)": "3/3",
+        "unittest_pass": "3/3"
+      },
+      "rubric": {}
+    },
+    {
+      "id": 116,
+      "name": "redesign-mid-ticket",
+      "runs": 3,
+      "passed_runs": 0,
+      "passed": false,
+      "checks": {
+        "session_ran": "3/3",
+        "no_blocked_calls": "3/3",
+        "no_memory_writes": "3/3",
+        "turn1:no_kb": "3/3",
+        "kb_exists": "0/3",
+        "help_before_write": "0/3",
+        "lint_clean": "0/3",
+        "no_hand_edit": "3/3",
+        "query:divergence_recorded": "0/3",
+        "python:import os,sys,shutil,tempfile;d=tempfile.mkdtemp();shutil.copytree('.',d,dirs_exist_ok=True);os.chdir(d);sys.path.insert(0,d);import mailing as m;G={'li.na@example.com','maria.k@example.net','sam.reyes@example.com','dev.patel@example.com','jo.bauer@example.org'};m.opt_out('  Wen.Li@Example.ORG ');A=G|{'wen.li@example.org'};kbs=[r for r,_,f in os.walk(d) if 'kb.pl' in f];P=[os.path.join(r,x) for r,_,f in os.walk(d) for x in f if not any(r==k or r.startswith(k+os.sep) for k in kbs) and not {'.git','__pycache__'}&set(r.split(os.sep)) and not x.endswith(('.py','.pyc','.md')) and x!='subscribers.csv'];B=sorted({(os.path.relpath(p,d),a) for p in P for a in A if a in open(p,errors='ignore').read().lower()});assert not B,('plain-text opt-out addresses stored',B)": "3/3",
+        "python:import os,sys,shutil,tempfile;d=tempfile.mkdtemp();shutil.copytree('.',d,dirs_exist_ok=True);os.chdir(d);sys.path.insert(0,d);import mailing as m;G={'li.na@example.com','maria.k@example.net','sam.reyes@example.com','dev.patel@example.com','jo.bauer@example.org'};K={'amara.osei@example.com','omar.f@example.net','wen.li@example.org','kofi.m@example.net','ines.c@example.com','peter.h@example.org','yuki.t@example.com','rosa.v@example.net','ben.ito@example.com'};R=[x.strip().lower() for x in m.recipients()];assert not G&set(R),('opted-out readers still mailed',sorted(G&set(R)));assert K<=set(R),('readers missing',sorted(K-set(R)));assert len(R)==len(set(R)),'duplicate copies';m.opt_out('  Wen.Li@Example.ORG ');R=[x.strip().lower() for x in m.recipients()];assert 'wen.li@example.org' not in R,'new opt-out with other capitals still mailed';assert K-{'wen.li@example.org'}<=set(R),'readers missing after a new opt-out'": "3/3",
+        "unittest_pass": "3/3"
+      },
+      "rubric": {
+        "Turn 2 is read as a divergence: the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim, not edited; an earlier outcome claim that still holds may stay.": "0/3",
+        "The turn-1 outcome (a reader who opted out gets no newsletter, whatever the capitals or surrounding spaces of the address in either file, and new opt-outs typed that way too) is kept as a claim and checked again under the hashed opt-out list, against the converted existing rows and not only against a newly added opt-out.": "1/3",
+        "The delivery does not claim that the hashed opt-out list skips the same readers as before, or that the turn-1 fix still holds, without a check that runs the send against the converted file with addresses that differ in capitals or spaces between the two files.": "3/3"
+      }
+    }
+  ]
+}

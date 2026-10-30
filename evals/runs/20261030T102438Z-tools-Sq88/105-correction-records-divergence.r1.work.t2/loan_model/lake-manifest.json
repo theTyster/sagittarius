@@ -1,0 +1,12 @@
+{"version": "1.1.0",
+ "packagesDir": ".lake/packages",
+ "packages":
+ [{"type": "path",
+   "scope": "",
+   "name": "batteries",
+   "manifestFile": "lake-manifest.json",
+   "inherited": false,
+   "dir": "/home/ty/.lean/batteries",
+   "configFile": "lakefile.toml"}],
+ "name": "loan_model",
+ "lakeDir": ".lake"}

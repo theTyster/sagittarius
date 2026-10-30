@@ -1,0 +1,15 @@
+% orbit-kb run 1 check=k1 result=fail exit=1 time=2026-10-30T10:28:57Z cmd=python -m unittest -q test_loans.DueDateTest.test_autumn_policy_is_21_days_for_every_kind
+======================================================================
+ERROR: test_loans (unittest.loader._FailedTest.test_loans)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_loans
+Traceback (most recent call last):
+  File "/usr/lib64/python3.14/unittest/loader.py", line 141, in loadTestsFromName
+    module = __import__(module_name)
+ModuleNotFoundError: No module named 'test_loans'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

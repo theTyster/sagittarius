@@ -1,0 +1,6 @@
+% orbit-kb run 8 check=k4 result=pass exit=0 time=2026-10-30T10:25:59Z cmd=python3 -m unittest -k reference_stays test_loans
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

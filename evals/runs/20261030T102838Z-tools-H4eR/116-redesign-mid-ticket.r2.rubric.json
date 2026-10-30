@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim, not edited; an earlier outcome claim that still holds may stay.",
+      "passed": false,
+      "evidence": "The turn-2 delivery says \"KB: No KB.\" and \"Triggers: none fired.\" The agent did not shift up, recorded no divergence, and replaced no claim. It went straight to new tests and the code change."
+    },
+    {
+      "assertion": "The turn-1 outcome (a reader who opted out gets no newsletter, whatever the capitals or surrounding spaces of the address in either file, and new opt-outs typed that way too) is kept as a claim and checked again under the hashed opt-out list, against the converted existing rows and not only against a newly added opt-out.",
+      "passed": false,
+      "evidence": "The check itself happened. After the conversion, the turn-1 test test_opt_out_ignores_case_and_spaces still ran as one of the 7 passing tests, and recipients() returned the same 9 addresses from the converted rows. But no KB was used, so the outcome was never kept as a claim (\"KB: No KB.\"). The assertion requires both, so it fails."
+    },
+    {
+      "assertion": "The delivery does not claim that the hashed opt-out list skips the same readers as before, or that the turn-1 fix still holds, without a check that runs the send against the converted file with addresses that differ in capitals or spaces between the two files.",
+      "passed": true,
+      "evidence": "The claim \"recipients() still returns the same 9 addresses as before\" rests on a run of recipients() against the converted optouts.csv. Its rows came from the mismatched Maria.K, Dev.Patel and trailing-space Jo.Bauer entries, and the case/space test was re-run and passed (7 OK)."
+    }
+  ],
+  "judge": "opus"
+}

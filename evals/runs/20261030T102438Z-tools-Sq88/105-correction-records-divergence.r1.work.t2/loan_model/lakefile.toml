@@ -1,0 +1,12 @@
+name = "loan_model"
+defaultTargets = ["Loanmodel"]
+
+[leanOptions]
+autoImplicit = false
+
+[[lean_lib]]
+name = "Loanmodel"
+
+[[require]]
+name = "batteries"
+path = "/home/ty/.lean/batteries"

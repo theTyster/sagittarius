@@ -1,0 +1,41 @@
+% orbit-kb run 2 check=k2 result=fail exit=1 time=2026-10-30T10:29:31Z cmd=python -m unittest -q -k test_non_reference
+======================================================================
+FAIL: test_non_reference_kinds_are_21_days (test_loans.DueDateTest.test_non_reference_kinds_are_21_days) (kind='novel')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.z7jGuNXb3G/test_loans.py", line 20, in test_non_reference_kinds_are_21_days
+    self.assertEqual(due_date(kind, date(2026, 10, 1)), date(2026, 10, 22))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 10, 15) != datetime.date(2026, 10, 22)
+
+======================================================================
+FAIL: test_non_reference_kinds_are_21_days (test_loans.DueDateTest.test_non_reference_kinds_are_21_days) (kind='magazine')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.z7jGuNXb3G/test_loans.py", line 20, in test_non_reference_kinds_are_21_days
+    self.assertEqual(due_date(kind, date(2026, 10, 1)), date(2026, 10, 22))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 10, 8) != datetime.date(2026, 10, 22)
+
+======================================================================
+FAIL: test_non_reference_kinds_are_21_days (test_loans.DueDateTest.test_non_reference_kinds_are_21_days) (kind='dvd')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.z7jGuNXb3G/test_loans.py", line 20, in test_non_reference_kinds_are_21_days
+    self.assertEqual(due_date(kind, date(2026, 10, 1)), date(2026, 10, 22))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 10, 8) != datetime.date(2026, 10, 22)
+
+======================================================================
+FAIL: test_non_reference_kinds_are_21_days (test_loans.DueDateTest.test_non_reference_kinds_are_21_days) (kind='tool')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.z7jGuNXb3G/test_loans.py", line 20, in test_non_reference_kinds_are_21_days
+    self.assertEqual(due_date(kind, date(2026, 10, 1)), date(2026, 10, 22))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: datetime.date(2026, 10, 6) != datetime.date(2026, 10, 22)
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=4)

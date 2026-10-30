@@ -1,0 +1,21 @@
+% orbit-kb prove claim=c3 digest=sha256:5c101e78e7cc7ca439a3689b9a33a05523caa021b964b67a710f05d43416ed88
+theorem loan_21_except_reference
+module Loanmodel.Basic
+source Loanmodel/Basic.lean
+statement ∀ (k : Kind), k ≠ Kind.reference → loanDays k = 21
+lean 4.34.0
+time 2026-10-30T10:26:22Z
+axiom propext
+uses Kind Loanmodel.Basic
+uses Kind.reference Loanmodel.Basic
+uses loanDays Loanmodel.Basic
+root /tmp/tmp.fPPSo4bUM3/loan_model
+file sha256:9f8277c65593cf00c9695bd14144b7f4005a38edd2c267a22bf8a256e8fda134 Loanmodel/Basic.lean
+file sha256:83399ccf0ead91d16c6983512ddb85f476cadb79835061b1e6e9739c326967cd lake-manifest.json
+file sha256:7e37ef4de9e3e0314423a518c5e1f9ac455b568e5d1ef4a1af81d98258353a53 lakefile.toml
+file sha256:8733782dc070a99b312039cda424f601b80f3be6f6f512627da5ba25adc27632 lean-toolchain
+absent lakefile.lean
+--- lake build output
+ℹ [2/2] Replayed Loanmodel.Basic
+info: Loanmodel/Basic.lean:12:0: [21, 21, 21, 21, 3]
+Build completed successfully (2 jobs).

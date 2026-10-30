@@ -1,0 +1,16 @@
+from datetime import date, timedelta
+
+# Days a patron may keep each kind of item. Autumn policy: 21 days, except
+# reference items (reading room copies), which stay at 3 so staff get them back the same week.
+LOAN_DAYS = {
+    "novel": 21,
+    "magazine": 21,
+    "dvd": 21,
+    "tool": 21,
+    "reference": 3,
+}
+
+
+def due_date(kind: str, checked_out: date) -> date:
+    """The date an item of this kind must come back."""
+    return checked_out + timedelta(days=LOAN_DAYS[kind])

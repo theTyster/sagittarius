@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    {
+      "assertion": "Turn 2 is read as a divergence: the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim, not edited; an earlier outcome claim that still holds may stay.",
+      "passed": false,
+      "evidence": "The agent treated turn 2 as just \"a new change request\". Its delivery says \"KB: No KB\" and \"Triggers: none fired. One request, no divergence\", so it neither shifted up nor recorded a divergence or any claim."
+    },
+    {
+      "assertion": "The turn-1 outcome (a reader who opted out gets no newsletter, whatever the capitals or surrounding spaces of the address in either file, and new opt-outs typed that way too) is kept as a claim and checked again under the hashed opt-out list, against the converted existing rows and not only against a newly added opt-out.",
+      "passed": false,
+      "evidence": "The agent did re-run the earlier test, test_opt_out_ignores_case_and_spaces, which calls recipients() on the real data, and it checked that \"None of the 9 matches an opt-out hash\" against the converted file. But the outcome was never kept as a claim: the agent said \"No KB\" and recorded no claims, so the 'kept as a claim' part is not met."
+    },
+    {
+      "assertion": "The delivery does not claim that the hashed opt-out list skips the same readers as before, or that the turn-1 fix still holds, without a check that runs the send against the converted file with addresses that differ in capitals or spaces between the two files.",
+      "passed": true,
+      "evidence": "The claim \"The Friday fix still works\" is backed by a check. The turn-1 test calls recipients() on the converted optouts.csv and asserts that maria.k, dev.patel and jo.bauer are excluded, and all 7 tests pass. Those three addresses differ in capitals or spaces between the two files. The agent also reported that, on the real data, none of the 9 remaining readers matches an opt-out hash."
+    }
+  ],
+  "judge": "opus"
+}

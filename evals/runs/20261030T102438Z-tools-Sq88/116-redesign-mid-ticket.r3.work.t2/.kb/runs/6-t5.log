@@ -1,0 +1,2 @@
+% orbit-kb run 6 check=t5 result=pass exit=0 time=2026-10-30T10:27:38Z cmd=sha256sum -c /tmp/subs.sha
+subscribers.csv: OK

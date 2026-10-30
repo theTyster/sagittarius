@@ -1,0 +1,6 @@
+% orbit-kb run 9 check=k5 result=pass exit=0 time=2026-10-30T10:25:59Z cmd=python3 -m unittest -k readme test_loans
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

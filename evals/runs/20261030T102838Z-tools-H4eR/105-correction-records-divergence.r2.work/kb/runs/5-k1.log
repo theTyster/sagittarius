@@ -1,0 +1,5 @@
+% orbit-kb run 5 check=k1 result=pass exit=0 time=2026-10-30T10:29:03Z cmd=python -m unittest -q test_loans.DueDateTest.test_autumn_policy_is_21_days_for_every_kind
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

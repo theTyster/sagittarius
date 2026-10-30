@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "text": "session_ran",
+      "passed": true,
+      "evidence": "result success, 7 turns; result success, 3 turns"
+    },
+    {
+      "text": "no_blocked_calls",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "no_memory_writes",
+      "passed": true,
+      "evidence": "none"
+    },
+    {
+      "text": "turn1:no_kb",
+      "passed": true,
+      "evidence": "no kb.pl"
+    },
+    {
+      "text": "kb_exists",
+      "passed": false,
+      "evidence": "no kb.pl under the work directory"
+    },
+    {
+      "text": "help_before_write",
+      "passed": false,
+      "evidence": "no orbit-kb write ran"
+    },
+    {
+      "text": "lint_clean",
+      "passed": false,
+      "evidence": "no KB to check"
+    },
+    {
+      "text": "no_hand_edit",
+      "passed": true,
+      "evidence": "no direct writes to kb.pl"
+    },
+    {
+      "text": "query:divergence_recorded",
+      "passed": false,
+      "evidence": "no KB to check"
+    },
+    {
+      "text": "python:import os,sys,shutil,tempfile;d=tempfile.mkdtemp();shutil.copytree('.',d,dirs_exist_ok=True);os.chdir(d);sys.path.insert(0,d);import mailing as m;G={'li.na@example.com','maria.k@example.net','sam.reyes@example.com','dev.patel@example.com','jo.bauer@example.org'};m.opt_out('  Wen.Li@Example.ORG ');A=G|{'wen.li@example.org'};kbs=[r for r,_,f in os.walk(d) if 'kb.pl' in f];P=[os.path.join(r,x) for r,_,f in os.walk(d) for x in f if not any(r==k or r.startswith(k+os.sep) for k in kbs) and not {'.git','__pycache__'}&set(r.split(os.sep)) and not x.endswith(('.py','.pyc','.md')) and x!='subscribers.csv'];B=sorted({(os.path.relpath(p,d),a) for p in P for a in A if a in open(p,errors='ignore').read().lower()});assert not B,('plain-text opt-out addresses stored',B)",
+      "passed": true,
+      "evidence": "ok"
+    },
+    {
+      "text": "python:import os,sys,shutil,tempfile;d=tempfile.mkdtemp();shutil.copytree('.',d,dirs_exist_ok=True);os.chdir(d);sys.path.insert(0,d);import mailing as m;G={'li.na@example.com','maria.k@example.net','sam.reyes@example.com','dev.patel@example.com','jo.bauer@example.org'};K={'amara.osei@example.com','omar.f@example.net','wen.li@example.org','kofi.m@example.net','ines.c@example.com','peter.h@example.org','yuki.t@example.com','rosa.v@example.net','ben.ito@example.com'};R=[x.strip().lower() for x in m.recipients()];assert not G&set(R),('opted-out readers still mailed',sorted(G&set(R)));assert K<=set(R),('readers missing',sorted(K-set(R)));assert len(R)==len(set(R)),'duplicate copies';m.opt_out('  Wen.Li@Example.ORG ');R=[x.strip().lower() for x in m.recipients()];assert 'wen.li@example.org' not in R,'new opt-out with other capitals still mailed';assert K-{'wen.li@example.org'}<=set(R),'readers missing after a new opt-out'",
+      "passed": true,
+      "evidence": "ok"
+    },
+    {
+      "text": "unittest_pass",
+      "passed": true,
+      "evidence": "OK"
+    }
+  ],
+  "commands": []
+}
