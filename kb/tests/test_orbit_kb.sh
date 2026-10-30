@@ -91,6 +91,10 @@
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+# A test function that is defined twice silently runs the later body under both ids, so
+# one test hides another. Refuse to run the suite.
+dups=$(grep -oE '^t_[A-Za-z0-9_]+\(\)' "${BASH_SOURCE[0]}" | sort | uniq -d)
+if [ -n "$dups" ]; then echo "ERROR: test functions defined twice: $(echo $dups)" >&2; exit 2; fi
 FIX=$here/fixtures
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
 LIB=${ORBIT_KB_TEST_LIB:-$here/../share/orbit-kb}
