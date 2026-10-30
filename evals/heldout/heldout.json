@@ -329,7 +329,7 @@
       ],
       "assertions": [
         "The agent reproduces the surprising behavior by running code (for example calling the function or the command line with the user's numbers) before it gives its answer.",
-        "The agent states a hypothesis in one sentence, together with the one observable result that would show it false, and then checks that result.",
+        "Before it gives its answer, the agent states a hypothesis in outcome form and then checks it. The hypothesis names the expected number of bundles and the facts that decide it, says the planner can give a different number, and gives a falsifier: the one result that would show it false. It carries no cause or mechanism. It is not a bare restatement of the user's expectation or of an observed value with no deciding facts, and it is not written only after the cause is known.",
         "The answer names the actual cause: the planner uses the language's built-in rounding, which rounds exact halves to the nearest even number, so 2.5 gives 2 and 3.5 gives 4.",
         "The agent makes no code change and starts no knowledge base (no kb.pl, no orbit-kb init)."
       ]
@@ -345,7 +345,7 @@
       ],
       "assertions": [
         "Reproduces first: runs the failing test (or the code) and reads the real result before explaining anything",
-        "States the problem as a hypothesis that one named result could show false, with no cause or fix built into it, and only afterwards gives the cause it found as evidence",
+        "States the problem as a hypothesis in outcome form before explaining: it names the expected result and the facts that decide it, says the code can give a different result, and names one result that would show it false. It has no cause, mechanism or fix built into it, and it is not a bare restatement of a test's expected value with no deciding facts. Only afterwards does the agent give the cause it found as evidence",
         "Answers correctly: board_level uses Python's round(), which rounds an exact half to the nearest even number (banker's rounding). The mean 100.5 goes to 100 and 101.5 goes to 102, so the two tests differ. It is not a float error, not the clean() filter, and not a bug in the mean",
         "Stays light: creates no knowledge base (no kb.pl), holds no vote, and does not change the code or the tests"
       ]
