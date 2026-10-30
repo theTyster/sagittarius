@@ -76,7 +76,7 @@ run. On the light path, it is the same test with no KB.
    "KB: No KB"; if a trigger fired, shift up first. The human verifies the result, not the
    tests. Name each check and its result in one line, so the delivery stays honest.
 6. The ticket does not end at the delivery. Most corrections and doubts arrive after it.
-   Check each later human message, and each result that you see, against the triggers
+   Compare each later human message, and each result that you see, with the triggers
    before you answer. If one fired, shift up before you reply.
 
 ### Shift up to a KB
@@ -96,7 +96,7 @@ divergence is a `divergence` record on its claim, not only a disclosure. Continu
   are about to say "you're right" about your own error, you found a divergence: shift up
   before you fix it.
 - **A build by someone else:** you own the ticket when a subagent or a peer session builds.
-  Check its report yourself. A failing check, or a report that your run contradicts, is a
+  Review its report yourself, and run its checks. A failing check, or a report that your run contradicts, is a
   divergence.
 - **A claim that burns:** the human asks for a proof, or the claim is universal: the domain
   inputs are infinite or too large to check case by case, such as "no discount code takes
@@ -273,7 +273,7 @@ itself, so that an error in an earlier move does not pass on silently.
    that the ticket touches, and nothing more.
 2. For a defect, reproduce it first. If you cannot reproduce it, or the feature already
    exists, stop and tell the human.
-3. Skip SURVEY when discovery ran, or when the change site is obvious.
+3. Skip SURVEY when discovery ran. When the change site is obvious, skip step 1, never step 2.
 
 ### DECOMPOSE: claims and questions
 
@@ -427,7 +427,7 @@ To land:     <the decision that the human must make>
 ```
 
 The `KB:` field tells the human where the evidence lives: in the KB, or only in this report.
-The `Triggers:` field checks the work against "Shift up to a KB". If a trigger fired, the
+The `Triggers:` field compares the work with "Shift up to a KB". If a trigger fired, the
 `KB:` field names a KB.
 Keep each field to a line when the change is small. Write "none" in an empty field, so that
 the human sees you looked. Include a screenshot when the change has a user surface. In a KB,
@@ -515,7 +515,8 @@ build reuses.
    falsifier next to the claim, every time. A claim with no falsifier cannot fail, so the
    human cannot judge it.
 3. Ask the human, as in "Asking the human".
-4. Decide your own vote before you give the report, and seal it. Until the human votes, do
+4. Decide your own vote before you give the report, and seal it. With no KB, sealing means
+   that you write it nowhere until the human votes. Until the human votes, do
    not show it, hint at it, or predict the outcome ("I expect GO" and "the likely outcome is
    HOLD" both leak it): a visible vote biases the human. Then
    the vote runs as in "GO / NO-GO: a weighted vote". On GO, the claims, the examples, and the
