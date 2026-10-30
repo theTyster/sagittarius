@@ -243,7 +243,7 @@
       ],
       "assertions": [
         "Before it answers, it reproduces: it runs the failing test (or the code it names) and reads the actual result, rather than answering from reading the code alone",
-        "It states what it believes the problem is in a form that one result could show false (a hypothesis with a falsifier), without building a cause or a fix into the problem statement; a cause it found may follow as evidence",
+        "It states what it believes the problem is in a form that one result could show false (a hypothesis with a falsifier), without building a cause or a fix into the problem statement; a cause it found may follow as evidence. The hypothesis is about the behavior the question asks about, and the falsifier is a result the agent did not already have. It fails when the hypothesis only restates the observed failure or the test's own assertion, such as \"the call returns what the test expects; falsifier: it returns anything else\"",
         "It answers the question: the format pads to at least four digits and does not cut longer numbers, so the expected 'INV-2026-2345' does not match 'INV-2026-12345'",
         "It stays light: no knowledge base, no GO/NO-GO vote, and no code change"
       ],
