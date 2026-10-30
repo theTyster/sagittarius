@@ -8,6 +8,9 @@ When a rubric ran (grade_rubric.py), a run passes the rubric when every assertio
 passes combined when it passes both. "passed_combined" applies the same 2-of-3 bar to those runs.
 A run whose rubric is missing, empty or an error counts in "rubric_errors" and fails the rubric.
 The PASS/FAIL line on stderr leads with the combined verdict when a rubric ran.
+A run with a .api_error marker (an API error ended the session) is counted apart in "api_errors"
+and left out of the verdict: with 3 runs and 1 errored, 2 runs decide. An eval whose runs all
+errored shows ERROR.
 """
 import glob
 import json
@@ -19,13 +22,17 @@ import sys
 out, spec = sys.argv[1], sys.argv[2]
 evals = json.load(open(spec))["evals"]
 summary = {"meta": json.load(open(os.path.join(out, "meta.json"))), "evals": []}
+used = bool(glob.glob(os.path.join(out, "*.rubric.json")))
 for e in evals:
     grades = sorted(g for g in glob.glob(os.path.join(out, f"{e['id']}-{e['name']}*.grade.json"))
                     if re.search(r"(\.r\d+)?\.grade\.json$", g))
     if not grades:
         continue
-    runs, checks, rubric, rstat = [], {}, {}, []
+    runs, checks, rubric, rstat, errs = [], {}, {}, [], 0
     for g in grades:
+        if os.path.exists(g[:-len(".grade.json")] + ".api_error"):
+            errs += 1
+            continue
         d = json.load(open(g))
         runs.append(all(c["passed"] for c in d["checks"]))
         for c in d["checks"]:
@@ -43,33 +50,38 @@ for e in evals:
                 pass
     n, k = len(runs), sum(runs)
     bar = math.ceil(2 * n / 3)
-    used = bool(glob.glob(os.path.join(out, "*.rubric.json")))
     both = sum(c and r is True for c, r in zip(runs, rstat))
     summary["evals"].append({
-        "id": e["id"], "name": e["name"], "runs": n, "passed_runs": k,
-        "passed": k >= bar,
+        "id": e["id"], "name": e["name"], "runs": n, "passed_runs": k, "api_errors": errs,
+        "passed": k >= bar if n else None,
         **({"rubric_passed_runs": sum(r is True for r in rstat), "combined_passed_runs": both,
-            "rubric_errors": rstat.count(None), "passed_combined": both >= bar} if used else {}),
+            "rubric_errors": rstat.count(None), "passed_combined": both >= bar if n else None} if used else {}),
         "checks": {t: f"{sum(v)}/{len(v)}" for t, v in checks.items()},
         "rubric": {t: f"{sum(v)}/{len(v)}" for t, v in rubric.items()},
     })
 json.dump(summary, open(os.path.join(out, "summary.json"), "w"), indent=2)
 m = summary["meta"]
 print(f"model {m['model']}, prompt {m['prompt']}, {m['runs']} run(s) each, commit {m['commit']}{' (dirty)' if m['dirty'] else ''}", file=sys.stderr)
+word = lambda v: "ERROR" if v is None else "PASS" if v else "FAIL"
 for s in summary["evals"]:
     weak = [f"{t[:40]} {v}" for t, v in s["checks"].items() if not v.startswith(str(s["runs"]) + "/")]
     n = s["runs"]
     if "passed_combined" in s:
         rb = f"rubric ERROR {s['rubric_errors']}/{n}" if s["rubric_errors"] else f"rubric {s['rubric_passed_runs']}/{n}"
-        line = (f"{'PASS' if s['passed_combined'] else 'FAIL'} {s['id']:>3} {s['name']:<32} combined {s['combined_passed_runs']}/{n}"
-                f"   checks {'PASS' if s['passed'] else 'FAIL'} {s['passed_runs']}/{n}   {rb}")
+        line = (f"{word(s['passed_combined']):<5} {s['id']:>3} {s['name']:<32} combined {s['combined_passed_runs']}/{n}"
+                f"   checks {word(s['passed'])} {s['passed_runs']}/{n}   {rb}")
     else:
-        line = f"{'PASS' if s['passed'] else 'FAIL'} {s['id']:>3} {s['name']:<32} checks {s['passed_runs']}/{n}"
+        line = f"{word(s['passed']):<5} {s['id']:>3} {s['name']:<32} checks {s['passed_runs']}/{n}"
+    if s["api_errors"]:
+        line += f"   ({s['api_errors']} API error(s) not graded)"
     print(f"  {line}" + (f"   short: {'; '.join(weak)}" if weak else ""), file=sys.stderr)
 ev = summary["evals"]
-print(f"  {sum(s['passed'] for s in ev)}/{len(ev)} evals pass the checks", file=sys.stderr)
-if any("passed_combined" in s for s in ev):
-    print(f"  {sum(s.get('passed_combined', s['passed']) for s in ev)}/{len(ev)} evals pass combined", file=sys.stderr)
+print(f"  {sum(s['passed'] is True for s in ev)}/{len(ev)} evals pass the checks", file=sys.stderr)
+if used:
+    print(f"  {sum(s.get('passed_combined') is True for s in ev)}/{len(ev)} evals pass combined", file=sys.stderr)
     bad = sum(s.get("rubric_errors", 0) for s in ev)
     if bad:
         print(f"  !! {bad} run(s) have a missing or failed rubric", file=sys.stderr)
+total = sum(s["api_errors"] for s in ev)
+if total:
+    print(f"  !! {total} run(s) hit an API error and were not graded", file=sys.stderr)

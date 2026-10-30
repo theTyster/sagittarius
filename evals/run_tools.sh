@@ -80,7 +80,7 @@ field() { python3 -c 'import json,sys;e=[e for e in json.load(open(sys.argv[1]))
 
 # One run of one eval. Exit 3 when the credential is locked.
 run_one() {
-  local id=$1 r=$2 name fixture checks turns n sid work base k sess tj proj
+  local id=$1 r=$2 name fixture checks turns n sid work base k sess tj proj apierr=
   name=$(field $id name); fixture=$(field $id fixture); checks=$(field $id checks)
   turns=$(mktemp -d)
   python3 - $spec $id $turns <<'PY'
@@ -114,8 +114,18 @@ PY
       rm -rf $work $turns; return 3
     fi
     if (( n > 1 )); then cat $tj >> $base.jsonl; rsync -a --exclude .git $work/ $work.t$k/; fi
+    # An API error (rate limit, spend limit, overload) ends the session at once. It is not a failed behavior.
+    apierr=$(python3 -c 'import sys;sys.path.insert(0,sys.argv[1]);import grade_tools as g
+r=[e for e in g.events(sys.argv[2]) if e.get("type")=="result"]
+x=str(r[-1].get("result") or "") if r else ""
+if r and (r[-1].get("is_error") or x.startswith("API Error")): print(x or "is_error")' $here $tj)
+    if [[ -n $apierr ]]; then break; fi
   done
   rm -rf $turns
+  if [[ -n $apierr ]]; then
+    print -r -- $apierr > $base.api_error
+    print -u2 -r -- "  $id.r$r  API ERROR: ${apierr[1,120]}"
+  fi
   EVAL_CHECKS_DIR=$sdir/checks python3 $here/grade_tools.py --turns $n $base.jsonl $work ${(f)checks} > $base.grade.json
   python3 -c 'import json,sys;g=json.load(open(sys.argv[1]));print(sys.argv[2]+"  "+"  ".join(("PASS " if c["passed"] else "FAIL ")+c["text"][:50] for c in g["checks"]))' $base.grade.json "  $id.r$r" >&2
   if (( rubric )); then python3 $here/grade_rubric.py $spec $id $base.jsonl > $base.rubric.json || echo "  $id.r$r  rubric ERROR: see $base.rubric.json" >&2; fi
