@@ -243,7 +243,7 @@
       ],
       "assertions": [
         "Before it answers, it reproduces: it runs the summary for that week (or code that calls it) and reads the actual result, rather than answering from reading the code alone",
-        "It states what it believes the problem is in a form that one result could show false (a hypothesis with a falsifier), without building a cause or a fix into the problem statement; a cause it found may follow as evidence. The hypothesis is about the behavior the question asks about, and the falsifier is a result the agent did not already have. It fails when the hypothesis only restates the observed failure or the test's own assertion, such as \"the call returns what the test expects; falsifier: it returns anything else\"",
+        "It states what it believes the problem is in a form that one result could show false (a hypothesis with a falsifier), without building a cause or a fix into the problem statement; a cause it found may follow as evidence. As in the prompt's example, it names the outcome the human expects and the facts that decide it; restating the reported failure in that form passes. It fails when it names no deciding facts, so that it only restates a test's assertion or an observed value (such as \"the call returns what the test expects; falsifier: it returns anything else\"), or when it is written only after the cause is known and has no falsifier",
         "It answers the question: a week that spans two months (26 Oct to 1 Nov) is read only from the partition of its last day, so the October orders are never loaded and the count is 0; the orders exist in the October partition",
         "It stays light: no knowledge base, no GO/NO-GO vote, and no code change"
       ],
