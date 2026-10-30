@@ -81,6 +81,9 @@ the prompt toward one case.
 | 9 | sonnet | Haiku over four prompt cycles: 0/3, 0/3, 2/3, 1/3. When it misses, it names the handoff and still delivers with no KB ("The fix is one function and one check, so I judged..."). Sonnet passes 3/3. |
 | 10 | sonnet | Haiku, three prompt versions (2026-10-27): it finds both causes in the code and reports them as the problem, with no discovery and no hypothesis. Rubric on the wording: 0/3, 1-2/3, 0/3; a general routing line did not help and was dropped. Sonnet passes 3/3 with the rule and 0/3 at the base and with no prompt. |
 | 16 | sonnet | Haiku, today's prompt and two drafts (2026-10-28): 0/3 on recording a divergence after a change of plan, though it builds the new design well. Sonnet: 0/3 at the base, 3/3 with the change-of-plan rule. |
+| 14 | sonnet | Haiku 2/3 with and without the prompt (2026-10-28), so it does not test the prompt. Sonnet: 2/3 with the prompt, 0/3 without. |
+| 17, 18, 19, 20 | sonnet | Former held-out 116 and 105, moved to tuning after the tuner read them (49f3fb0). They run on 16's executor. |
+| 11, 12, 21, 22 | sonnet | Not recorded. The seam experiment runs them on Sonnet (`tmp/testing/run_inc.sh`). Write the reason here when a Haiku run is on record. |
 | 8 | opus | Sonnet, three cycles: it names the count difference as a divergence in 2 of 3 runs and still delivers with no KB, after it finds the cause. Opus passes 3/3. |
 
 ## Briefing subagents
