@@ -1354,7 +1354,8 @@ t_RW5() { okb help discovery; rc_is 0; any_has 'supersedes\(h[A-Za-z0-9]*, ?h' "
 
 # ---- D10: orbit-kb prove with real Lean. The Lake project is built once (prototype lake).
 # Each test copies it, so lake build has little to do. Skip when lake is missing.
-LEAN_TC=$(command -v elan >/dev/null 2>&1 && elan toolchain list 2>/dev/null | sed -n 's/^\(leanprover\/lean4:v[0-9.]*\).*/\1/p' | sort -V | tail -1)
+# LEAN_TC is the newest installed toolchain, named exactly as elan lists it (an -rc name must not be cut to a release that is not installed).
+LEAN_TC=$(command -v elan >/dev/null 2>&1 && elan toolchain list 2>/dev/null | awk '$1 ~ /^leanprover\/lean4:v/ {print $1}' | sort -V | tail -1)
 lake_fresh() {  # the setup behind lean_proj: a Lake project in $T/lp with one module per case, built
     local d=$T/lp; mkdir -p "$d/Fx"
     printf '%s\n' "$LEAN_TC" > "$d/lean-toolchain"
