@@ -1777,7 +1777,7 @@ same contract. The test author never read the CLI source.
 
 ## 15. Design decisions and history
 
-In this section, "Ty" is the author of the project. His decisions are credited by name.
+In this section, "Ty" is the author of the project. The author's decisions are credited by name.
 
 | Decision | Reason |
 |---|---|

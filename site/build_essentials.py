@@ -42,7 +42,7 @@ report = re.search(r'<pre class="report" aria-label="A sample delivery">.*?</pre
 
 # The timeline, simplified: no machine lane, no labels on the Lean dots, one gap box.
 timeline = '''  <figure class="diagram">
-    <svg viewBox="0 0 760 210" role="img" aria-label="Lanes from January to October 2026. Process: Claude Code from January, the orbital plugins from April, the method by hand from June, the AIDLC from late August, Sagittarius from 21 October. Lean: in use from April on, never dropped. Hoggwood Health: client work kept shipping the whole time.">
+    <svg viewBox="0 0 760 210" role="img" aria-label="Lanes from January to October 2026. Process: Claude Code from January, the orbital plugins from April, the method by hand from June, the AIDLC from late August, Sagittarius from 21 October. Lean: in use from April on, never dropped. Client work: kept shipping the whole time.">
       <text x="130" y="16" class="band">2026</text>
       <g class="sub" text-anchor="middle">
         <text x="160.5" y="36" class="sub">Jan</text><text x="221.5" y="36" class="sub">Feb</text><text x="282.5" y="36" class="sub">Mar</text><text x="343.5" y="36" class="sub">Apr</text><text x="404.5" y="36" class="sub">May</text>
@@ -61,7 +61,7 @@ timeline = '''  <figure class="diagram">
       <g class="tam"><circle cx="315" cy="146" r="4"/><circle cx="339" cy="146" r="5"/><circle cx="465" cy="146" r="5"/><circle cx="514" cy="146" r="4"/><circle cx="610" cy="146" r="4"/><circle cx="634" cy="146" r="5"/><circle cx="714" cy="146" r="5"/></g>
       <text x="10" y="186" class="b">Delivery</text><text x="10" y="201" class="sub">constant</text>
       <rect x="152" y="174" width="591" height="22" rx="11" style="fill:var(--accent);opacity:.22"/>
-      <text x="447" y="190" text-anchor="middle" class="b">Hoggwood Health: client work kept shipping</text>
+      <text x="447" y="190" text-anchor="middle" class="b">Client work kept shipping</text>
     </svg>
     <figcaption>The philosophy held the whole way, so the quality of the client work held. What changed was how much of the method a tool ran.</figcaption>
   </figure>
