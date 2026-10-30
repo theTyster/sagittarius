@@ -47,7 +47,7 @@
 #   K   KB resolution: --dir, $ORBIT_KB, parent walk, exit 2   (CLI: KB resolution, exit codes) : K1-K8
 #   I   init                                                   (CLI: init)                      : I1-I8
 #   U   uses: add a module to an existing KB                   (CLI: uses)                      : U1-U9
-#   A   add: validation, all or nothing, rejections            (CLI: add; Declarations; Types)  : A1-A19
+#   A   add: validation, all or nothing, rejections            (CLI: add; Declarations; Types)  : A1-A20
 #   D   declare, declare-attest                                (CLI: declare, declare-attest)   : D1-D6
 #   AT  attest: id, time, writers, digest(current)             (CLI: attest)                    : AT1-AT9
 #   S   subject: sha256, relative paths, refresh               (CLI: subject; D3)               : S1-S8
@@ -723,6 +723,7 @@ t_A14() { mkclaim; rejects arity '' add "claim(c2, preserve)"; any_has 'E2|arity
 t_A15() { mkclaim; rejects syntax '' add "claim(c2 preserve, x)"; }
 t_A16() { mkclaim; rejects badtime '' add "attest(a1, disclosure, c1, unverified(x), agent, 'yesterday')"; }
 t_A17() { mkclaim; rejects badwriter 'writer|allow|agent|human' add "attest(a1, disproof, c1, verdict(c1, refuted('x fails')), human, '2026-10-15T10:00:00Z')"; }
+t_A20() { mkclaim; rejects conjunction 'own argument' add "risk(rk1, 'a'), risk(rk2, 'b')"; no_fact "$K/kb.pl" "risk(rk1,_)" "nothing written"; }
 
 # ================================================================ D: declare
 t_D1() { mkclaim; okb --dir "$K" declare 'gizmo(id, text)' --doc 'A gizmo.' --template '@(1) is a gizmo called @(2)'; rc_is 0
@@ -2060,6 +2061,7 @@ run_test t_A14 A14 "add rejects a wrong arity"
 run_test t_A15 A15 "add rejects a syntax error"
 run_test t_A16 A16 "add rejects a bad time"
 run_test t_A17 A17 "add rejects a writer that is not allowed"
+run_test t_A20 A20 "add says to give each fact as its own argument"
 run_test t_D1 D1 "declare appends decl/4 with the template"
 run_test t_D2 D2 "declare twice exits 1"
 run_test t_D3 D3 "declare with an unknown type exits 1"
