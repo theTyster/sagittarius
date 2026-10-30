@@ -237,6 +237,30 @@ code with no loud signal.
 large. These describe outcomes, but they can read as tiers. Principle 7 says that signals decide,
 not size. The list needs a second look.
 
+**F. Shift up to one formal language at a time?** The candidate belief: the work is active in only
+one formal language at a time. The KB is the exception, because it tracks the ticket itself. When
+that language leans back, the next shift up can go to a different language. Each shift up uses the
+cheapest language that can soundly resolve the divergence. A burn always goes to Lean, with or
+without a divergence. The aim is to stop a recursive shift up: a trigger that fires while a model
+is built must not start a second language. No failure of that kind has been seen yet, so the belief
+stays out of the prompt until an eval shows one. Four points are not decided:
+
+- SPECTRUM states a claim that mixes rules and steps in TLA+ and in SMT at once. Under this belief
+  the two run one after the other.
+- Is a finished model that is read as evidence (an SMT witness run as a Lean `#eval`) a language
+  in use? If it is, the belief cuts off the parallax between two statements of one claim. One
+  possible line: one language that is being written, and any number of finished models that are
+  read.
+- When does a language lean back? "The cause of the trigger is resolved" lets an agent stay in a
+  model too long, or leave it early to reach the next language. It needs an exit test, such as
+  "the model is trusted and its verdicts are recorded, or it is dropped with a disclosure".
+- That exit test rests on sanity and calibration. The prompt states them per tool (FLYBY steps 1
+  and 2, TRAJECTORY steps 2 and 3), but the agent attests them, and `orbit-kb` counts one result
+  of each. In the cache-race discovery of 2026-10-30, a TLA+ model was attested calibrated on the
+  outcome (the same abort) before any system log showed the same sequence of steps, which
+  TRAJECTORY step 3 asks for. The KB counted the model trusted. So "trusted" is the agent's own
+  grade (principle 3).
+
 ## How to judge a change
 
 Ask these questions about a proposed change to the prompt or the tool:
