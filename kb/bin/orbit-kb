@@ -3724,11 +3724,73 @@ cmd_attest(KB, Args, Code) :-
     ;   true
     ),
     late_vote_check(Items, Type, By, Pred),
+    log_check(KB, Items, Type, Subject, Pred),
     clause_line(T, [], Line),
     kb_file(KB, KbFile),
     append_lines(KbFile, [Line]),
     format("~w~n", [Line]),
     Code = 0.
+
+% log_check(+KB, +Items, +Type, +Subject, +Pred) (D18): a model_result
+% verdict or mutation that the solver log clearly contradicts is refused.
+% A log that is missing, unreadable, or not clear gives a NOTE and the
+% result is accepted. calibration is never checked.
+log_check(KB, Items, model_result, Subject, Pred) :-
+    nonvar(Pred), log_claim(Pred, Res, Want), !,
+    (   member(it(kb, _, _, T, _, _), Items), nonvar(T), T = subject(Subject, Path, _), atom(Path)
+    ->  subject_abs(KB, Path, Abs),
+        (   catch(read_file_to_string(Abs, Str, []), _, fail)
+        ->  split_string(Str, "\n", "\r \t", Lines),
+            log_class(Lines, Class),
+            (   Class == none
+            ->  ( fmt(M1, "the log ~w is not a clear TLC or z3 result", [Subject]), log_note(M1) )
+            ;   log_shows(Class, Shows, Text),
+                (   Shows \== Want
+                ->  log_refuse(Subject, Res, Text)
+                ;   true
+                )
+            )
+        ;   ( fmt(M2, "the log file ~w is missing or cannot be read", [Abs]), log_note(M2) )
+        )
+    ;   ( fmt(M3, "there is no subject ~w with a file path", [Subject]), log_note(M3) )
+    ).
+log_check(_, _, _, _, _).
+
+% log_claim(+Pred, -Result, -Want): what the result says the log shows.
+% case: a violation or sat. nocase: holds or unsat.
+log_claim(verdict(_, _, R), R, W) :- log_want(R, W).
+log_claim(mutation(_, _, R), R, W) :- memberchk(R-W, [killed-case, survived-nocase]).
+
+log_want(R, case)   :- memberchk(R, [reached, violated, sat]).
+log_want(R, nocase) :- memberchk(R, [holds, unsat]).
+
+log_class(Lines, Class) :-
+    (   member(L, Lines), sub_string(L, _, _, _, "is violated") -> V = true ; V = false ),
+    (   member(L, Lines), sub_string(L, _, _, _, "No error has been found") -> H = true ; H = false ),
+    (   V-H == true-false -> Class = tlc_violated
+    ;   V-H == false-true -> Class = tlc_holds
+    ;   V-H \== false-false -> Class = none
+    ;   findall(W, ( member(L, Lines), memberchk(L, ["sat", "unsat", "unknown"]), atom_string(W, L) ), Ws0),
+        sort(Ws0, Ws),
+        (   Ws = [sat] -> Class = z3_sat
+        ;   Ws = [unsat] -> Class = z3_unsat
+        ;   Class = none
+        )
+    ).
+
+log_shows(tlc_violated, case,   "TLC reports a violation").
+log_shows(tlc_holds,    nocase, "TLC reports no error").
+log_shows(z3_sat,       case,   "the solver printed sat").
+log_shows(z3_unsat,     nocase, "the solver printed unsat").
+
+log_note(Msg) :-
+    fmt(S, "NOTE: the log was not checked: ~w", [Msg]),
+    format(user_error, "~w~n", [S]).
+
+log_refuse(Subject, Res, Text) :-
+    reject([ "The log " + Subject + " contradicts the result " + Res + ": " + Text + ".",
+             "Fix: attest the result that the log shows, or run the solver again into a new log."
+           ] >> fix_lines).
 
 % late_vote_check(+Items, +Type, +By, +Pred) (D14): the agent's vote is
 % sealed, so it must come before the human's vote. An agent vote in a
