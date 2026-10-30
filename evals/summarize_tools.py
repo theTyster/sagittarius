@@ -4,7 +4,9 @@
 Usage: summarize_tools.py OUTDIR SPEC
 A run passes when every check passes. An eval passes when at least 2 of 3 of its runs pass
 (for N runs: at least ceil(2N/3)). Rubric results (grade_rubric.py) are counted beside the
-checks and do not decide the verdict.
+checks and do not decide the verdict. A run with a .api_error marker (an API error ended the
+session) is counted apart and left out of the verdict: with 3 runs and 1 errored, 2 runs decide.
+An eval whose runs all errored shows ERROR.
 """
 import glob
 import json
@@ -21,8 +23,11 @@ for e in evals:
                     if re.search(r"(\.r\d+)?\.grade\.json$", g))
     if not grades:
         continue
-    runs, checks, rubric = [], {}, {}
+    runs, checks, rubric, errs = [], {}, {}, 0
     for g in grades:
+        if os.path.exists(g[:-len(".grade.json")] + ".api_error"):
+            errs += 1
+            continue
         d = json.load(open(g))
         runs.append(all(c["passed"] for c in d["checks"]))
         for c in d["checks"]:
@@ -36,8 +41,8 @@ for e in evals:
                 pass
     n, k = len(runs), sum(runs)
     summary["evals"].append({
-        "id": e["id"], "name": e["name"], "runs": n, "passed_runs": k,
-        "passed": k >= math.ceil(2 * n / 3),
+        "id": e["id"], "name": e["name"], "runs": n, "passed_runs": k, "api_errors": errs,
+        "passed": k >= math.ceil(2 * n / 3) if n else None,
         "checks": {t: f"{sum(v)}/{len(v)}" for t, v in checks.items()},
         "rubric": {t: f"{sum(v)}/{len(v)}" for t, v in rubric.items()},
     })
@@ -46,6 +51,11 @@ m = summary["meta"]
 print(f"model {m['model']}, prompt {m['prompt']}, {m['runs']} run(s) each, commit {m['commit']}{' (dirty)' if m['dirty'] else ''}", file=sys.stderr)
 for s in summary["evals"]:
     weak = [f"{t[:40]} {v}" for t, v in s["checks"].items() if not v.startswith(str(s["runs"]) + "/")]
-    print(f"  {'PASS' if s['passed'] else 'FAIL'} {s['id']:>3} {s['name']:<32} {s['passed_runs']}/{s['runs']}"
+    word = "ERROR" if s["passed"] is None else "PASS" if s["passed"] else "FAIL"
+    print(f"  {word:<5} {s['id']:>3} {s['name']:<32} {s['passed_runs']}/{s['runs']}"
+          + (f" graded, {s['api_errors']} API error(s) not graded" if s["api_errors"] else "")
           + (f"   short: {'; '.join(weak)}" if weak else ""), file=sys.stderr)
-print(f"  {sum(s['passed'] for s in summary['evals'])}/{len(summary['evals'])} evals pass", file=sys.stderr)
+print(f"  {sum(s['passed'] is True for s in summary['evals'])}/{len(summary['evals'])} evals pass", file=sys.stderr)
+total = sum(s["api_errors"] for s in summary["evals"])
+if total:
+    print(f"!! {total} run(s) hit an API error and were not graded", file=sys.stderr)
