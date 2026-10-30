@@ -15,7 +15,9 @@
 % Fast start
 % ---------------------------------------------------------------------
 % Loading this script and its libraries takes about 80 ms. A saved state
-% (swipl -o STATE -c SCRIPT) starts in about 15 ms. The state lives in
+% (swipl -o STATE -c SCRIPT) starts in about 15 ms. Measured on a whole
+% call of `orbit-kb help` (2026-10-30, median of 10, three runs): about
+% 40 ms from the state, 57 ms with ORBIT_KB_NO_CACHE=1. The state lives in
 % ${XDG_CACHE_HOME:-~/.cache}/orbit-kb/ under a digest of the script
 % text, the script path, and the SWI-Prolog version and executable. So
 % an edit of the script, or a new SWI-Prolog, gives a new state.
