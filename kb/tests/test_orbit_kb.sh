@@ -15,7 +15,7 @@
 #   suite works before installation (override: ORBIT_KB_TEST_LIB).
 #   Exit status: 0 when every test passes, 1 when a test fails, 2 when the suite cannot
 #   run (the CLI, the library, or a tool is missing, or ORBIT_KB_TEST_JOBS is not a number).
-#   The suite is one CPU-heavy job: run it as `heavy bash kb/tests/test_orbit_kb.sh`.
+#   The suite is one CPU-heavy job. If your machine has a job queue, run it through the queue.
 #
 # Each test runs in a fresh mktemp -d and removes it at the end. Fixtures in fixtures/ are
 # copied first and never modified. KBs that a test needs are built inline, next to the
@@ -24,9 +24,9 @@
 #
 # Parallel runs (ORBIT_KB_TEST_JOBS > 1):
 #  - The default is 4 workers (fewer when fewer CPUs are available, for example under
-#    HEAVY_CPUS). The suite is one heavy job, and heavy lets 2 jobs run at once on this
-#    shared, heat-limited laptop (4 P-cores of 14 cores). 4 workers use about 4 cores, so the
-#    other heavy job and the interactive sessions keep the rest. Measured on an idle machine
+#    HEAVY_CPUS). The suite is one heavy job. On the author's shared,
+#    heat-limited laptop (4 P-cores of 14 cores), a job queue lets 2 jobs run at once. 4 workers
+#    use about 4 cores, so the other job and the interactive sessions keep the rest. Measured on an idle machine
 #    (2026-10-16): N=2 27 s, N=4 15 s, N=8 9.5 s of wall time, but 55 s, 61 s, 74 s of CPU
 #    time, because more workers run on E-cores and on hot, slower cores.
 #  - Each worker takes the next test that no other worker took (an O_EXCL claim file), so a

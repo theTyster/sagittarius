@@ -128,5 +128,7 @@ evals/run_tools.sh --runs 3 -j 3 --prompt none 5 6 7  # no-prompt baseline
 evals/run_tools.sh --spec evals/heldout/heldout.json --runs 3 -j 3   # the gate
 ```
 
-The runner goes through `claude()` from `~/.zshenv`, so it needs an unlocked credential. A wrapper
-that bypasses the shell setup fails every case with "Not logged in".
+The runner starts `claude` the way an interactive shell does. It needs an unlocked credential and
+the wrapper that appends the prompt (see "Install" in `README.md`). The author's wrapper is
+`claude()` in a `.zshenv` file. A runner that bypasses the shell setup fails every case with
+"Not logged in".
