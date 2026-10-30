@@ -588,6 +588,8 @@ the current directory, up to two levels down, holds such a `kb.pl`, the message 
 and the `--dir` that would use it (hidden directories, `runs`, `node_modules`, and `.lake` are
 skipped). orbit-kb never uses that KB on its own.
 
+An unknown command exits 2. When it is a plain word, the message also shows how to run it as a query: `orbit-kb query 'WORD(X)'`, or `orbit-kb query 'WORD'` (K10).
+
 Exit codes:
 
 | Code | Meaning |
