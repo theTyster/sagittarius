@@ -36,7 +36,8 @@ Discovery module
   WD7  a hypothesis has no system result. Reproduce it, or ask if it is another ticket.
        A superseded hypothesis needs none.
   WD8  this result's log has a run of an older model file. Run orbit-kb subject on the
-       model. Run the solver into a new log.
+       model. Run the solver into a new log. When a newer result of the same check
+       exists, the message says so, and nothing is left to do.
   WD9  the human voted and you did not vote in that round. Vote before the human next round.
   ED1  a reproduction is not on system evidence. Use a log, query, or test tagged system.
   ED2  a model result has no model_run for its log. Add it.
