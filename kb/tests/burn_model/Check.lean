@@ -6,7 +6,7 @@ theorem. `check.sh` fails when a theorem uses an axiom other than `propext`,
 
 #eval Req.witnessTable
 
--- The requirements model is consistent (one system meets all twelve).
+-- The requirements model is consistent (one system meets all thirteen).
 #print axioms Req.spec_satisfies
 #print axioms Req.reach_iff
 #print axioms Req.cycle_iff
@@ -27,6 +27,7 @@ theorem. `check.sh` fails when a theorem uses an axiom other than `propext`,
 #print axioms Rdz.impl_LR10
 #print axioms Rdz.impl_LR11
 #print axioms Rdz.impl_LR12
+#print axioms Rdz.impl_LR13
 
 -- The implementation model, on the well-formed states (lint E4 clean).
 #print axioms Rdz.implWF_LR1
@@ -41,11 +42,14 @@ theorem. `check.sh` fails when a theorem uses an axiom other than `propext`,
 #print axioms Rdz.implWF_LR10
 #print axioms Rdz.implWF_LR11
 #print axioms Rdz.implWF_LR12
+#print axioms Rdz.implWF_LR13
 #print axioms Rdz.implWF_all
 
 -- Fidelity of the implementation model, and the derived facts.
 #print axioms Impl.any_burn_open_iff
 #print axioms Impl.any_under_iff
+#print axioms Impl.any_current_claim_iff
+#print axioms Rdz.someCurrent_view
 #print axioms Impl.any_over_iff
 #print axioms Impl.any_to_ask_iff
 #print axioms Impl.derive_proof_changed

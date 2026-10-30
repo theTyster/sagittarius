@@ -12,11 +12,12 @@ import BurnModel.Impl
   makes the Lean file and the log, as `add_proof` in the test suite does;
 * `expect.txt`: what the compiled implementation model answers. The lines are
   `done`, `open`, `changed` (`proof_changed`), `lapsed` (`waiver_lapsed`), and one
-  line per mutant (`MA`, `MB`, `MC`, `MI`, `MY`).
+  line per mutant (`MA`, `MB`, `MC`, `MI`, `MY`, `MZ`).
 
-Two sets:
+Three sets:
 * `e*`: exhaustive over one burning claim (see `exhaustive`), 2160 KBs.
 * `r*`: random over one to three claims, with a fixed seed, 600 KBs.
+* `z*`: KBs with no claim (D17), 2 KBs.
 
 The random generator is xorshift64 with a fixed seed. It does not depend on the
 Lean version.
@@ -129,13 +130,15 @@ def candidates (db : DB) : List Nat :=
 * MC: `burn_proved` without `not proof_changed(A)`.
 * MI: `burn/1` without its clause `burn(C) :- supersedes_closure(C, O), burn_reason(O).`
   (D10 follow-up: no inherited burn).
-* MY: `done` without `not any_supersede_cycle` (D10 follow-up). -/
+* MY: `done` without `not any_supersede_cycle` (D10 follow-up).
+* MZ: `done` without `not no_current_claim` (D17). -/
 inductive Mut where
   | MA
   | MB
   | MC
   | MI
   | MY
+  | MZ
   deriving DecidableEq, Repr
 
 def Mut.name : Mut → String
@@ -144,6 +147,7 @@ def Mut.name : Mut → String
   | .MC => "MC"
   | .MI => "MI"
   | .MY => "MY"
+  | .MZ => "MZ"
 
 def burn_proved_MC (db : DB) (c : Atom) : Bool :=
   db.attest.any fun a => a.type == .lean_proof && a.pred.proofOf c && a.by_ == .script
@@ -154,11 +158,13 @@ def burn_open_m (db : DB) (c : Atom) : Mut → Bool
   | .MC => burn db c && current db c && !burn_proved_MC db c && !burn_waived db c
   | .MI => burn_reason db c && current db c && !burn_proved db c && !burn_waived db c
   | .MY => burn_open db c
+  | .MZ => burn_open db c
 
 def done_m (db : DB) (m : Mut) : Bool :=
   !any_under db && !any_over db && !any_to_ask db &&
     !(candidates db).any (fun c => burn_open_m db c m) &&
-    (m == .MY || !any_supersede_cycle db)
+    (m == .MY || !any_supersede_cycle db) &&
+    (m == .MZ || !no_current_claim db)
 
 /-! ## Rendering -/
 
@@ -228,7 +234,7 @@ def expectText (db0 : DB) (modes : List (Nat × PMode)) : String :=
     s!"{m.name} {done_m db m} {names "c" o}"
   s!"done {done db}\nopen {names "c" opens}\nchanged {names "p" (sortNats db.proof_changed)}\n" ++
   s!"lapsed {names "w" (sortNats db.waiver_lapsed)}\n" ++
-  String.intercalate "\n" ([Mut.MA, .MB, .MC, .MI, .MY].map mline) ++ "\n"
+  String.intercalate "\n" ([Mut.MA, .MB, .MC, .MI, .MY, .MZ].map mline) ++ "\n"
 
 def modeS : PMode → String
   | .ok => "ok"
@@ -361,6 +367,19 @@ def randomOne : B Unit := do
   if nk > 0 then
     if ← chance 25 then addConf ((← rand nk) + 1)
 
+/-! ## KBs with no claim (D17)
+
+* z1: no fact but the request.
+* z2: a progress record and a waiver of a claim that does not exist (a dangling
+  reference, lint E4). Nothing burns, so only the missing claim blocks `done`. -/
+
+def noClaim (out : String) : IO Nat := do
+  let (_, s1) := (pure () : B Unit).run { rng := ⟨1⟩ }
+  writeKB out "z1" s1
+  let (_, s2) := (do addProg 1 .stated .agent; addWaiver 1 .human 2999 : B Unit).run { rng := ⟨1⟩ }
+  writeKB out "z2" s2
+  return 2
+
 def random (out : String) (count : Nat) (seed : UInt64) : IO Unit := do
   let mut rng : Rng := ⟨seed⟩
   for i in [1:count + 1] do
@@ -375,7 +394,8 @@ def main (args : List String) : IO UInt32 := do
   | ["gen", out] =>
     let n ← Conform.exhaustive out
     Conform.random out 600 0x2545F4914F6CDD1D
-    IO.println s!"wrote {n} exhaustive KBs (e1..e{n}) and 600 random KBs (r1..r600) to {out}"
+    let z ← Conform.noClaim out
+    IO.println s!"wrote {n} exhaustive KBs (e1..e{n}), 600 random KBs (r1..r600), and {z} KBs with no claim (z1..z{z}) to {out}"
     return 0
   | _ =>
     IO.eprintln "usage: conform gen OUTDIR"

@@ -60,6 +60,12 @@ Assumptions (interpretations, not words of Ty). Ty must confirm them.
 * A11 (amendment v3, S2). A `supersedes` cycle never gives `done`. The claims of
   a cycle are not current, so without this rule their burns would close with no
   proof.
+
+Amendment v4 (2026-10-29, D17, issue #1). Source: the issue "done holds in a KB
+with no claims" and the D17 entry in `kb/CONTRACT.md`. `done` needs at least one
+current claim (`someCurrent`, LR2, LR13). Without it, a KB with no claim was
+`done`. W7 gets a second, current claim, so that it stays `done`. W17 is a KB with
+no claim: it is not `done`.
 -/
 
 namespace Req
@@ -157,6 +163,9 @@ def reach (E : List (Nat × Nat)) (a c : Nat) : Bool := E.any fun e => e.1 == a 
 one or more `supersedes` steps, a claim that has one (S1, A10). -/
 def burns (kb : KB) (c : Claim) : Bool :=
   ownReason c || kb.claims.any fun d => reach kb.supersedes c.id d.id && ownReason d
+
+/-- At least one claim is current (amendment v4, D17). -/
+def someCurrent (kb : KB) : Bool := kb.claims.any (·.current)
 
 /-- A `supersedes` cycle: some claim reaches itself (S2). -/
 def cycle (kb : KB) : Bool := kb.supersedes.any fun e => reach kb.supersedes e.1 e.1
@@ -295,11 +304,12 @@ current proof or a current human waiver. -/
 def LR1 : Prop := ∀ s, S.done s = true → AllBurnsClosed (S.view s)
 
 /-- LR2 (non-vacuity, the converse of LR1). If the other parts of `done` hold,
-every current claim that burns is closed, and no claim is in a `supersedes`
-cycle, then `done` holds. -/
+every current claim that burns is closed, no claim is in a `supersedes` cycle,
+and at least one claim is current (v4), then `done` holds. -/
 def LR2 : Prop :=
   ∀ s, (S.view s).restOk = true → AllBurnsClosed (S.view s) →
-    (¬ ∃ c, Reaches (S.view s).supersedes c c) → S.done s = true
+    (¬ ∃ c, Reaches (S.view s).supersedes c c) → someCurrent (S.view s) = true →
+    S.done s = true
 
 /-- LR3. `done` keeps its other parts: `done` implies nothing under, nothing
 over, and nothing to ask. -/
@@ -365,10 +375,14 @@ def LR11 : Prop :=
 /-- LR12 (S2). `done` implies that no claim is in a `supersedes` cycle. -/
 def LR12 : Prop := ∀ s, S.done s = true → ¬ ∃ c, Reaches (S.view s).supersedes c c
 
-/-- All twelve requirements. -/
+/-- LR13 (v4, D17). `done` implies that at least one claim is current. A KB with
+no claim is not `done`. -/
+def LR13 : Prop := ∀ s, S.done s = true → someCurrent (S.view s) = true
+
+/-- All thirteen requirements. -/
 def AllLR : Prop :=
   LR1 S ∧ LR2 S ∧ LR3 S ∧ LR4 S ∧ LR5 S ∧ LR6 S ∧ LR7 S ∧ LR8 S ∧ LR9 S ∧ LR10 S ∧
-    LR11 S ∧ LR12 S
+    LR11 S ∧ LR12 S ∧ LR13 S
 
 /-! ## Consequences that hold for every system -/
 
@@ -391,9 +405,10 @@ theorem progress_never_makes_done {S : Sys} (h1 : LR1 S) (h4 : LR4 S) (h9 : LR9 
 /-! ## The reference system: the requirements are consistent
 
 `spec` reads the requirements as rules. `spec_satisfies` shows that one system
-meets all twelve requirements together, so they do not contradict each other. -/
+meets all thirteen requirements together, so they do not contradict each other. -/
 
-def specDone (kb : KB) : Bool := kb.restOk && decide (AllBurnsClosed kb) && !cycle kb
+def specDone (kb : KB) : Bool :=
+  kb.restOk && decide (AllBurnsClosed kb) && !cycle kb && someCurrent kb
 
 def specBurn (kb : KB) (c : Nat) : Bool :=
   decide (∃ cl ∈ kb.claims, cl.id = c ∧ burns kb cl = true)
@@ -411,20 +426,20 @@ def spec : Sys where
   addCheck kb k := { kb with checks := k :: kb.checks }
 
 theorem spec_satisfies : AllLR spec := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro s h
     simp only [spec, specDone, Bool.and_eq_true, decide_eq_true_eq] at h
-    exact h.1.2
-  · intro s hr ha hc
+    exact h.1.1.2
+  · intro s hr ha hc hs
     have hc' : cycle s = false := by
       cases h : cycle s with
       | false => rfl
       | true => exact absurd ((cycle_iff s).1 h) hc
     simp only [spec, specDone, Bool.and_eq_true, decide_eq_true_eq, hc', Bool.not_false]
-    exact ⟨⟨hr, ha⟩, trivial⟩
+    exact ⟨⟨⟨hr, ha⟩, trivial⟩, hs⟩
   · intro s h
     simp only [spec, specDone, Bool.and_eq_true] at h
-    exact h.1.1
+    exact h.1.1.1
   · intro s c
     simp only [spec, specOpen, id, decide_eq_true_eq]
   · intro s cl hm hcur hb hnw
@@ -479,7 +494,10 @@ theorem spec_satisfies : AllLR spec := by
     exact Or.inr ⟨d, hd, (reach_iff _ _ _).2 hr, ho⟩
   · intro s h hc
     simp only [spec, specDone, Bool.and_eq_true, Bool.not_eq_true'] at h
-    exact absurd ((cycle_iff s).2 hc) (by simp [h.2])
+    exact absurd ((cycle_iff s).2 hc) (by simp [h.1.2])
+  · intro s h
+    simp only [spec, specDone, Bool.and_eq_true] at h
+    exact h.2
 
 /-! ## Witnesses
 
@@ -504,8 +522,10 @@ def wAgent : KB := { base with proofs := [⟨1, .agent, false⟩] }
 /-- W6. Open: an agent wrote the waiver. -/
 def wAgentWaiver : KB := { base with waivers := [⟨1, .agent, false⟩] }
 /-- W7. A superseded universal claim with no proof (assumption A1). The claim
-that supersedes it is not in the KB, so nothing inherits the burn. -/
-def wSuperseded : KB := { base with claims := [⟨1, false, false, true, false⟩] }
+that supersedes it is not in the KB, so nothing inherits the burn. Claim 2 is
+current and has no reason to burn, so the KB has a current claim (v4). -/
+def wSuperseded : KB :=
+  { base with claims := [⟨1, false, false, true, false⟩, ⟨2, true, false, false, false⟩] }
 /-- W8. Contested twice, no proof. -/
 def wContested : KB := { base with claims := [⟨1, true, true, false, false⟩] }
 /-- W9. Requested by the human, no proof. -/
@@ -514,6 +534,8 @@ def wRequested : KB := { base with claims := [⟨1, true, false, false, true⟩]
 def wCoast : KB := { base with claims := [⟨1, true, false, false, false⟩] }
 /-- W11. All burns closed, but something else is open (`restOk` false). -/
 def wRest : KB := { wProof with restOk := false }
+/-- W17 (v4, D17). A KB with no claim, and nothing else open. -/
+def wEmpty : KB := { base with claims := [] }
 /-- W12. One changed proof and one current proof (assumption A7). -/
 def wTwoProofs : KB := { base with proofs := [⟨1, .script, true⟩, ⟨1, .script, false⟩] }
 
@@ -540,6 +562,9 @@ example : specBurn wCoast 1 = false ∧ specDone wCoast = true := by decide
 example : specDone wRest = false := by decide
 -- W12: A7.
 example : specOpen wTwoProofs 1 = false := by decide
+-- W17: LR13. No claim, so not `done`, though every other part holds.
+example : wEmpty.restOk = true ∧ AllBurnsClosed wEmpty ∧ cycle wEmpty = false ∧
+    specDone wEmpty = false := by decide
 
 /-- W13 (A10, decided). Universal claim 1 is superseded by plain claim 2. No proof. -/
 def wCarry : KB :=
@@ -593,6 +618,7 @@ def witnessTable : List (String × Bool × Bool) :=
    ("W13 superseded by a plain claim (A10)", specOpen wCarry 2, specDone wCarry),
    ("W14 a supersede chain", specOpen wChain 3, specDone wChain),
    ("W15 supersedes itself", specOpen wSelf 1, specDone wSelf),
-   ("W16 a two-claim cycle", specOpen wCycle2 2, specDone wCycle2)]
+   ("W16 a two-claim cycle", specOpen wCycle2 2, specDone wCycle2),
+   ("W17 no claim (D17)", specOpen wEmpty 1, specDone wEmpty)]
 
 end Req
