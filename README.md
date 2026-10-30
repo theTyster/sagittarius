@@ -43,7 +43,7 @@ function appends `~/.claude/sagittarius/SAGITTARIUS.md` to every work session.
 |---|---|
 | `prompt/` | The live system prompt. |
 | `kb/` | `orbit-kb`: `CONTRACT.md` (what the tests hold it to), `bin/`, `share/orbit-kb/` (core rules, the build and discovery modules, the Lean probe), `tests/` (the black-box suite, fixtures, and a Lean model of the burn rules). |
-| `site/` | The two decks. `essentials.html` is generated from `index.html` by `build_essentials.py`. |
+| `site/` | The two decks, published at https://thetyster.github.io/sagittarius/ by `.github/workflows/pages.yml` on each push to `main` that touches `site/`. `essentials.html` is generated from `index.html` by `build_essentials.py`; the workflow fails if it is stale. |
 | `evals/` | One-shot planning evals for the prompt, with graded runs. |
 | `aidlc/` | The AIDLC prompt that came before (retired 2026-10-21), with its TLA+ model. |
 
