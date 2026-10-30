@@ -1008,7 +1008,7 @@ val_errs(ref, V, env(_, _, IdA, _), Es) :- !,
     ->  bad_value("an id (an atom)", V, Es)
     ;   get_assoc(V, IdA, _)
     ->  Es = []
-    ;   fmt(M, "~q is not an existing id. Add the fact that defines it first, or fix the id.", [V]),
+    ;   fmt(M, "~q is not an existing id. This argument names an id that another fact defines (a claim, a question, the request); it does not create one. For example, attach a note with note(c1, '...') or note(r1, '...'). Add the fact that defines ~q first, or use an existing id.", [V, V]),
         Es = ['E4'-M]
     ).
 % ref([N1, N2, ...]) (D13): the id of a fact of any one of the names.

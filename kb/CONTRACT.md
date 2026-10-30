@@ -624,7 +624,7 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | E1 | Syntax error, with file and line. |
 | E2 | Undeclared predicate or wrong arity. This covers `kb.pl` facts and the heads and bodies in `rules.pl`, `core.pl`, and the modules. Built-ins are allowed: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `#=`, `#<>`, `#<`, `#>`, `#=<`, `#>=`, `true`, `false`, `forall/2`. `not G` and `-G` are unwrapped. When a declaration exists with the same name but a different arity, the message names it. Two facts joined by a comma in one `add` argument (a `','/2` term) get a message that says to give each fact as its own argument (A20). |
 | E3 | Type error, including a label outside `oneof`. |
-| E4 | Dangling `ref`, or a `ref` to the wrong kind. A `supersedes` side that is no claim and no hypothesis, or a claim and a hypothesis in one `supersedes` fact (D15). `add` refuses it. |
+| E4 | Dangling `ref`, or a `ref` to the wrong kind. A `supersedes` side that is no claim and no hypothesis, or a claim and a hypothesis in one `supersedes` fact (D15). `add` refuses it. The message says that the argument names an id that another fact defines and does not create one, with `note(c1, ...)` as the example (A21). |
 | E5 | Duplicate id. |
 | E6 | Non-ground fact in `kb.pl` (D2). |
 | E7 | A clause in the wrong place (D2): a `rule` predicate asserted as a fact in `kb.pl`, or a `fact` predicate with clauses outside `kb.pl`. |

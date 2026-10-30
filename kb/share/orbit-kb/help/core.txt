@@ -21,7 +21,9 @@ Facts
                                  A fact that you did not record is false.
   question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By), depends(Q, Q0)
   ticket(S)                      subject S holds the ratified ticket
-  scope(in|out, Text), risk(Id, Text), assumption(Id, Text), not_explored(Text), note(Id, Text)
+  scope(in|out, Text), risk(Id, Text), assumption(Id, Text), not_explored(Text)
+  note(X, Text)                  a note about an existing id X (a claim, a question, r1).
+                                 It does not create an id.
 
 Artifacts and records
   orbit-kb subject s1 PATH       record an artifact and compute its digest
