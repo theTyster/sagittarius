@@ -1067,6 +1067,62 @@ t_VT7() { da_copy; vt_add v2 human 1 go; okb --dir "$K" lint; rc_is 0 "a warning
           da_copy; okb --dir "$K" attest vote r1 'vote(1, go)' --by human; rc_is 0
           rejects "a late agent vote" 'seal|human' attest vote r1 'vote(1, go)'
           okb --dir "$K" attest vote r1 'vote(2, go)'; rc_is 0 "an agent vote in a new round"; }
+# D18 LG: attest model_result reads the solver log and refuses a result it clearly contradicts.
+lg_kb() {  # lg_kb: a KB with a TLC model m1 and a z3 model m2, and a log of each class
+    K=$T/lg; mkdir -p "$K"; printf 'model\n' > "$K/m.tla"; printf 'model\n' > "$K/m.smt"
+    printf 'Model checking completed. No error has been found.\n' > "$K/holds.log"
+    printf 'Error: Invariant Inv is violated.\n' > "$K/viol.log"
+    printf 'Error: Deadlock reached.\n' > "$K/dead.log"
+    printf 'unsat\n' > "$K/unsat.log"; printf 'sat\n' > "$K/sat.log"; printf 'sat\nunsat\n' > "$K/mixed.log"
+    kb_new "$K" <<EOF
+uses([discovery]).
+request(r1, 'q').
+model(m1, tla).
+model(m2, smt).
+claim(c1, preserve, 'x').
+cites(c1, 'r').
+subject(m1, 'm.tla', 'sha256:$(sha "$K/m.tla")').
+subject(m2, 'm.smt', 'sha256:$(sha "$K/m.smt")').
+EOF
+    local l
+    for l in holds viol dead gone unsat sat mixed; do
+        printf "subject(l_%s, '%s.log', 'sha256:%064d').\n" "$l" "$l" 0 >> "$K/kb.pl"
+    done
+    for l in holds viol dead gone; do printf "model_run(l_%s, m1, 'sha256:%s').\n" "$l" "$(sha "$K/m.tla")" >> "$K/kb.pl"; done
+    for l in unsat sat mixed; do printf "model_run(l_%s, m2, 'sha256:%s').\n" "$l" "$(sha "$K/m.smt")" >> "$K/kb.pl"; done
+}
+lg_refused() {  # lg_refused LABEL LOG PRED: exit 1, nothing written, the message names the fix
+    rejects "$1" 'run the solver again' attest model_result "$2" "$3"
+}
+t_LG1() { lg_kb   # TLC
+          lg_refused "reached on a log with no error" l_holds 'verdict(m1, sanity, reached)'
+          lg_refused "violated on a log with no error" l_holds 'verdict(m1, preserve(c1), violated)'
+          lg_refused "holds on a violated log" l_viol 'verdict(m1, preserve(c1), holds)'
+          lg_refused "killed on a log with no error" l_holds 'mutation(m1, g, killed)'
+          lg_refused "survived on a violated log" l_viol 'mutation(m1, g, survived)'
+          okb --dir "$K" attest model_result l_viol 'verdict(m1, sanity, reached)'; rc_is 0 "reached on a violated log"
+          okb --dir "$K" attest model_result l_holds 'verdict(m1, preserve(c1), holds)'; rc_is 0 "holds on a log with no error"
+          okb --dir "$K" attest model_result l_viol 'mutation(m1, g, killed)'; rc_is 0 "killed on a violated log"
+          okb --dir "$K" attest model_result l_holds 'mutation(m1, g, survived)'; rc_is 0 "survived on a log with no error"
+          okb --dir "$K" attest model_result l_holds 'verdict(m1, sanity, unknown)'; rc_is 0 "unknown is never refused"; }
+t_LG2() { lg_kb   # z3
+          lg_refused "sat on an unsat log" l_unsat 'verdict(m2, bad_case, sat)'
+          lg_refused "unsat on a sat log" l_sat 'verdict(m2, together, unsat)'
+          lg_refused "killed on an unsat log" l_unsat 'mutation(m2, g, killed)'
+          lg_refused "survived on a sat log" l_sat 'mutation(m2, g, survived)'
+          okb --dir "$K" attest model_result l_sat 'verdict(m2, bad_case, sat)'; rc_is 0 "sat on a sat log"
+          okb --dir "$K" attest model_result l_unsat 'verdict(m2, together, unsat)'; rc_is 0 "unsat on an unsat log"
+          okb --dir "$K" attest model_result l_sat 'verdict(m2, bad_case, unknown)'; rc_is 0 "unknown is never refused"; }
+t_LG3() { lg_kb   # accepted; a NOTE when the log was not checked
+          okb --dir "$K" attest model_result l_holds "calibration(m1, case('x'), matches)"; rc_is 0 "calibration is not checked"
+          printf '%s\n' "$err" | grep -q 'not checked' && note "calibration prints no NOTE: $(snip "$err")"
+          okb --dir "$K" attest model_result l_viol "calibration(m1, case('x'), differs)"; rc_is 0 "calibration on a violated log"
+          okb --dir "$K" attest model_result l_dead 'verdict(m1, sanity, reached)'; rc_is 0 "a deadlock log is unclassified"
+          err_has 'NOTE: the log was not checked' "unclassified TLC log"
+          okb --dir "$K" attest model_result l_mixed 'verdict(m2, bad_case, unsat)'; rc_is 0 "a log with sat and unsat is unclassified"
+          err_has 'NOTE: the log was not checked' "unclassified z3 log"
+          okb --dir "$K" attest model_result l_gone 'verdict(m1, preserve(c1), holds)'; rc_is 0 "a missing log file"
+          err_has 'NOTE: the log was not checked' "missing log"; }
 t_VT8() { da_copy; printf 'gate(go).\nartifact_vote(go) :- some_hypothesis.\ngate_split :- some_hypothesis.\nhuman_vote(go).\n' > "$K/rules.pl"
           okb --dir "$K" lint; rc_is 1 "rules.pl cannot change the vote rules"
           [ "$(printf '%s\n' "$out" | grep -c '^E16 rules.pl')" = 4 ] || note "want E16 on each of the 4 clauses: $(snip "$out")"
@@ -2060,6 +2116,9 @@ run_test t_VT7 VT7 "D14 V4: WD9 and a late agent vote is refused"
 run_test t_VT8 VT8 "D14 V2/V3: rules.pl cannot change the vote rules (E16)"
 run_test t_VT9 VT9 "D14 V6: WD6 and the discovery_has_outcome template do not recommend NO-GO"
 run_test t_VT10 VT10 "D14: help attest has a vote example that runs; help query names gate"
+run_test t_LG1 LG1 "D18: attest model_result refuses a TLC contradiction; agreement and unknown are accepted"
+run_test t_LG2 LG2 "D18: attest model_result refuses a z3 contradiction; agreement and unknown are accepted"
+run_test t_LG3 LG3 "D18: calibration, an unclassified log, and a missing log are accepted (NOTE on stderr)"
 run_test t_B8 B8 "under and over (a change that serves nothing is over)"
 run_test t_B9 B9 "done is true when everything is clear"
 run_test t_B10 B10 "done is false with an open claim among several facts (H1)"

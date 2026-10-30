@@ -77,6 +77,7 @@ FLYBY (SMT) and TRAJECTORY (TLA+): record
   Record a disproof for each case that breaks a claim.
   TLC results: violated (with a trace), holds within the stated bounds, or not run.
   A violated never-reached invariant is verdict(M, sanity, reached). Use model(M, tla).
+  attest model_result reads the log. It refuses a result the log clearly contradicts. Attest what the log shows, or run again into a new log.
 
 DISPROVE: record
   orbit-kb attest disproof c1 "verdict(c1, refuted('price 0 with code X'))"
