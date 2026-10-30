@@ -912,6 +912,9 @@ atype_of(As, T, X) :-
 
 meta_term(T) :- nonvar(T), ( T = uses(_) ; T = decl(_, _, _, _) ; T = attest_type(_, _, _, _) ), !.
 
+% Two facts in one argument parse as one ','/2 term.
+undeclared_msg(_, ',', 2, M) :- !,
+    M = "Two or more facts are joined with a comma in one argument. Give each fact as its own argument: orbit-kb add 'f(a)' 'g(b)'.".
 undeclared_msg(Ds, N, A, M) :-
     findall(A2, ( member(d(N, A2, _, _, _, _, _, _, _), Ds), A2 \== A ), As0),
     sort(As0, As),

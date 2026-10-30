@@ -622,7 +622,7 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | Code | Error |
 |---|---|
 | E1 | Syntax error, with file and line. |
-| E2 | Undeclared predicate or wrong arity. This covers `kb.pl` facts and the heads and bodies in `rules.pl`, `core.pl`, and the modules. Built-ins are allowed: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `#=`, `#<>`, `#<`, `#>`, `#=<`, `#>=`, `true`, `false`, `forall/2`. `not G` and `-G` are unwrapped. When a declaration exists with the same name but a different arity, the message names it. |
+| E2 | Undeclared predicate or wrong arity. This covers `kb.pl` facts and the heads and bodies in `rules.pl`, `core.pl`, and the modules. Built-ins are allowed: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `#=`, `#<>`, `#<`, `#>`, `#=<`, `#>=`, `true`, `false`, `forall/2`. `not G` and `-G` are unwrapped. When a declaration exists with the same name but a different arity, the message names it. Two facts joined by a comma in one `add` argument (a `','/2` term) get a message that says to give each fact as its own argument (A20). |
 | E3 | Type error, including a label outside `oneof`. |
 | E4 | Dangling `ref`, or a `ref` to the wrong kind. A `supersedes` side that is no claim and no hypothesis, or a claim and a hypothesis in one `supersedes` fact (D15). `add` refuses it. |
 | E5 | Duplicate id. |
