@@ -79,6 +79,12 @@ For each case that guards a rule, delete the rule from a copy of the prompt and 
 - One run is noise. Scores change between identical runs.
 - Compare against the base: the same cases with `--prompt` set to the base version of the prompt
   (`git show BASE:prompt/SAGITTARIUS.md > /tmp/base.md`).
+- Run the base on the same day, with the same `orbit-kb` and graders, as the candidate. On
+  2026-10-30 a candidate's gain on cases 10 and 12 (1/3 to 3/3, 0/3 to 2/3) shrank to one run in
+  three each when the base was rerun after three `orbit-kb` fixes were merged. Do not merge a tool
+  change while a comparison is running.
+- When 3-run arms differ by one run, decide with 6 runs per arm on the deciding cases before you
+  land or drop a candidate.
 - The gate is all of these: the held-out pass rate is at or above the agreed bar; no guarding case
   scores lower than at the base; every rule-deletion check fails as it should.
 
