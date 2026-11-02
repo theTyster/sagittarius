@@ -197,8 +197,8 @@ quiet. A check is only valuable if it can fail.
 ## The knowledge base
 
 Work that needs a knowledge base (KB) has one. The KB is a directory with a `kb.pl`
-file in s(CASP), which is Prolog with default negation (`not p`), classical negation
-(`-p`), and justification trees. Records follow the in-toto shape: each attestation names
+file in Prolog with default negation: `not p` holds when nothing proves `p`. `orbit-kb why`
+and `orbit-kb whynot` show the facts and rules behind an answer. Records follow the in-toto shape: each attestation names
 a subject (an artifact and its digest), a type, a predicate, who made it, and when.
 
 **Before your first `orbit-kb` command in a session, run `orbit-kb help`.** It gives the order
@@ -230,15 +230,9 @@ read it.
   `orbit-kb uses discovery`), then run `orbit-kb lint`. The new module can add findings.
 - If the schema does not fit, declare what you need with `orbit-kb declare`, and write
   one sentence about it. This is normal. A local rule goes in `rules.pl`; it cannot change
-  `done` or the burn rules. Two s(CASP) traps are in `orbit-kb help core`, and `orbit-kb lint`
-  catches both.
+  `done` or the burn rules. `orbit-kb lint` checks it.
 - Exit 0 means yes. Exit 1 means no. Exit 2 means that something is wrong with the question
   or the tools. Exit 2 is never a no.
-- **ENGINE DISAGREEMENT.** `orbit-kb` answers each query with two engines. If they disagree,
-  one is wrong and you cannot tell which. Stop. Do not use either answer. Report the goal and
-  both answers to the human.
-- **CROSS-CHECK SKIPPED** with `(unchecked)` means that only one engine answered. You can use
-  the answer, but say in the delivery that only one engine answered.
 
 ### Ideas that the moves use
 
