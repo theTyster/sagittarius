@@ -2101,7 +2101,7 @@ list_conj_true(Ls, C) :- list_conj(Ls, C).
 
 ex_lines(fact(G), Ds, I) --> ex_line(I, "~w", [tpl(G, Ds)]).
 ex_lines(builtin(G), _, I) --> ex_line(I, "~w holds", [lit(G)]).
-ex_lines(more(G), Ds, I) --> ex_line(I, "~w (orbit-kb why --long shows more)", [tpl(G, Ds)]).
+ex_lines(more(G), Ds, I) --> ex_line(I, "~w (--long shows more)", [tpl(G, Ds)]).
 ex_lines(rule(G, Kids), Ds, I) -->
     ex_line(I, "~w, because", [tpl(G, Ds)]),
     { I1 is I + 1 },
@@ -2115,7 +2115,7 @@ ex_lines(fails(G, Why), Ds, I) -->
     ;   { Why == builtin }
     ->  ex_line(I, "~w does not hold", [lit(G)])
     ;   { Why == depth }
-    ->  ex_line(I, "there is no evidence that ~w (orbit-kb whynot --long shows more)", [tpl(G, Ds)])
+    ->  ex_line(I, "there is no evidence that ~w (--long shows more)", [tpl(G, Ds)])
     ;   { Why = rules(Stops) },
         ex_line(I, "there is no evidence that ~w, because", [tpl(G, Ds)]),
         { I1 is I + 1, length(Stops, NS) },
