@@ -112,7 +112,7 @@ slides.append(head(7, 'i-box', 'The tool') + '''  <h2>What it is</h2>
 ''' + fig_tool + '''  <dl class="gloss">
     <div><dt><svg class="ic"><use href="#i-feather"/></svg>The prompt</dt><dd>One plain-text file, appended to the agent's system prompt. It says how to work: start light, shift up on a signal.</dd></div>
     <div><dt><svg class="ic"><use href="#i-term"/></svg>orbit-kb</dt><dd>A command-line tool that keeps the knowledge base (KB): every fact declared, typed, and checked.</dd></div>
-    <div><dt><svg class="ic"><use href="#i-db"/></svg>Prolog</dt><dd><a href="https://www.swi-prolog.org">SWI-Prolog</a> 9 or later with <a href="https://github.com/SWI-Prolog/sCASP">s(CASP)</a>: answers the KB's questions.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-db"/></svg>Prolog</dt><dd><a href="https://www.swi-prolog.org">SWI-Prolog</a> 9 or later: answers the KB's questions.</dd></div>
     <div><dt><svg class="ic"><use href="#i-lean"/></svg>Lean 4</dt><dd>Only for proofs. Install with <a href="https://github.com/leanprover/elan">elan</a>. Optional helpers: <a href="https://github.com/theTyster/sharlean">sharlean</a> (shared libraries such as <a href="https://github.com/leanprover-community/mathlib4">Mathlib</a>) and <a href="https://github.com/oOo0oOo/lean-lsp-mcp">lean-lsp-mcp</a>.</dd></div>
   </dl>
 ''' + full_link(15, 'Full deck: what it is, and why Lean and Prolog'))

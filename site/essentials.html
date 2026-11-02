@@ -528,7 +528,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <div class="num"><svg class="ic"><use href="#i-box"/></svg>7 of 10 · The tool</div>
   <h2>What it is</h2>
   <figure class="diagram">
-    <svg viewBox="0 0 740 230" role="img" aria-label="The system prompt, SAGITTARIUS.md, is appended to the agent's session. The agent talks with the human and runs orbit-kb. orbit-kb reads and writes a KB folder, asks SWI-Prolog with s(CASP) its queries, and asks Lean 4 to check proofs.">
+    <svg viewBox="0 0 740 230" role="img" aria-label="The system prompt, SAGITTARIUS.md, is appended to the agent's session. The agent talks with the human and runs orbit-kb. orbit-kb reads and writes a KB folder, asks SWI-Prolog its queries, and asks Lean 4 to check proofs.">
       <defs><marker id="aht1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
       <rect class="box amb" x="10" y="30" width="160" height="80" rx="10"/>
       <use href="#i-feather" x="22" y="42" width="22" height="22" class="ico" style="stroke:var(--amber)"/>
@@ -547,8 +547,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <text x="392" y="82" class="sub">schema, lint,</text>
       <text x="392" y="98" class="sub">queries, report</text>
       <rect class="box" x="560" y="14" width="170" height="56" rx="10"/>
-      <text x="574" y="38" class="b">SWI-Prolog, s(CASP)</text>
-      <text x="574" y="56" class="sub">two engines cross-check</text>
+      <text x="574" y="38" class="b">SWI-Prolog</text>
+      <text x="574" y="56" class="sub">answers each query</text>
       <rect class="box mid" x="560" y="84" width="170" height="56" rx="10"/>
       <text x="574" y="108" class="b">Lean 4</text>
       <text x="574" y="126" class="sub">checks proofs, burns only</text>
@@ -574,7 +574,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <dl class="gloss">
     <div><dt><svg class="ic"><use href="#i-feather"/></svg>The prompt</dt><dd>One plain-text file, appended to the agent's system prompt. It says how to work: start light, shift up on a signal.</dd></div>
     <div><dt><svg class="ic"><use href="#i-term"/></svg>orbit-kb</dt><dd>A command-line tool that keeps the knowledge base (KB): every fact declared, typed, and checked.</dd></div>
-    <div><dt><svg class="ic"><use href="#i-db"/></svg>Prolog</dt><dd><a href="https://www.swi-prolog.org">SWI-Prolog</a> 9 or later with <a href="https://github.com/SWI-Prolog/sCASP">s(CASP)</a>: answers the KB's questions.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-db"/></svg>Prolog</dt><dd><a href="https://www.swi-prolog.org">SWI-Prolog</a> 9 or later: answers the KB's questions.</dd></div>
     <div><dt><svg class="ic"><use href="#i-lean"/></svg>Lean 4</dt><dd>Only for proofs. Install with <a href="https://github.com/leanprover/elan">elan</a>. Optional helpers: <a href="https://github.com/theTyster/sharlean">sharlean</a> (shared libraries such as <a href="https://github.com/leanprover-community/mathlib4">Mathlib</a>) and <a href="https://github.com/oOo0oOo/lean-lsp-mcp">lean-lsp-mcp</a>.</dd></div>
   </dl>
   <p class="see"><a href="index.html#s15">Full deck: what it is, and why Lean and Prolog</a></p>
@@ -597,7 +597,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <path class="arr" marker-end="url(#ahu)" d="M402 56H484"/>
       <path class="arr" marker-end="url(#ahu)" d="M550 56H632"/>
       <text x="74" y="110" text-anchor="middle" class="b">Install</text>
-      <text x="74" y="128" text-anchor="middle" class="sub">Prolog, s(CASP),</text>
+      <text x="74" y="128" text-anchor="middle" class="sub">Prolog,</text>
       <text x="74" y="143" text-anchor="middle" class="sub">orbit-kb; Lean</text>
       <text x="222" y="110" text-anchor="middle" class="b">Load the prompt</text>
       <text x="222" y="128" text-anchor="middle" class="sub">SAGITTARIUS.md</text>
@@ -621,8 +621,6 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <details class="more"><summary>Install on Fedora</summary><div class="body">
     <p>On another system, use its package manager for SWI-Prolog 9 or later, then follow the same steps.</p>
 <pre class="report"><i>$</i> sudo dnf install swi-prolog-nox
-<i>$</i> swipl -g "pack_install(scasp, [interactive(false)])" -t halt
-<i>$</i> ln -s ~/.local/share/swi-prolog/pack/scasp/scasp ~/.local/bin/scasp
 <i>$</i> orbit-kb doctor</pre>
     <p>For <code>orbit-kb prove</code>, install Lean 4 and Lake with elan. A Lean project that needs Mathlib builds it slowly. If you have several such projects, you can share one built copy of the libraries between them. In the sagittarius repo, <code>./install.py</code> puts <code>orbit-kb</code> on the PATH and its rules in <code>~/.local/share/orbit-kb</code>.</p>
   </div></details>

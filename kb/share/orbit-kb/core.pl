@@ -1,8 +1,8 @@
 % orbit-kb core library (core.pl)
 %
 % orbit-kb always loads this file first. Then it loads the modules that
-% uses/1 in kb.pl names, then kb.pl, then rules.pl. The text is s(CASP)
-% source. SWI-Prolog can read it with the s(CASP) operators.
+% uses/1 in kb.pl names, then kb.pl, then rules.pl. The text is a Prolog
+% program that SWI-Prolog runs. `not p` is negation as failure.
 %
 % FILE FORMAT
 %
@@ -14,9 +14,9 @@
 %             The types are id, ref(Name), ref, oneof(List), alt(Shapes),
 %             text, atom, int, time, digest, by, term, attest_predicate.
 %   Doc       One plain sentence.
-%   Template  The text for the #pred line. @(1), @(2), ... stand for the
-%             arguments by position. Use '' for no template. orbit-kb
-%             writes the #pred lines, so do not write them here.
+%   Template  The text that why and whynot print for the predicate. @(1),
+%             @(2), ... stand for the arguments by position. Use '' for no
+%             template. Do not write #pred lines (lint E17).
 %
 % attest_type(Type, Shape, Writers, Doc) declares one attestation type.
 %   Shape     The type of the predicate, the 4th argument of attest/6.
@@ -29,21 +29,22 @@
 % EVERY PREDICATE MUST BE DECLARED
 %
 % Declare every predicate with decl/4. This includes rule predicates and
-% helper predicates. orbit-kb adds an empty stub for each declared
-% predicate, and it runs s(CASP) with --unknown=error. Thus a predicate
-% that is not declared, or a misspelled name, causes an error.
+% helper predicates. The engine makes each declared predicate dynamic, so
+% a declared predicate with no clauses fails. A predicate that is not
+% declared, or a misspelled name, is lint error E2.
 %
-% HAZARD H1: A VARIABLE ONLY UNDER not IS EXISTENTIAL
+% NEGATION
 %
-% In s(CASP), a variable that occurs only in a not literal means "some
-% value", not "every value". Thus "done :- not under(_)." is true even
-% when under(c1) is true. A not literal must not hold a variable that
-% occurs nowhere else in the clause. This includes _. Lint error E12
-% finds this problem. To correct it, put the variable in a helper
-% predicate, declare the helper, and negate the helper:
+% `not p` is negation as failure: it holds when p has no answer. Thus
+% "not under(_)" means "there is no under at all". The rules below keep
+% their helper forms, which were needed until 2026-11-02, when s(CASP)
+% was the second engine (D20):
 %
 %     any_under :- under(_).
 %     done :- not any_under.
+%
+% The rules must be stratified: no predicate depends on itself through
+% not (lint E18).
 
 
 % ---------------------------------------------------------------------
@@ -229,7 +230,7 @@ was_red(K) :- attest(_, test_result, _, result(K, R1, fail), _, _),
 % supersedes_closure/2 and supersede_cycle/1 have no clauses here. When
 % orbit-kb reads the KB, it adds their facts: the transitive closure of
 % the supersedes/2 facts of kb.pl, and each claim that reaches itself.
-% Thus no rule recurses through supersedes/2, and both engines finish on
+% Thus no rule recurses through supersedes/2, and the engine finishes on
 % every KB. Lint E15 reports a cycle.
 any_supersede_cycle :- supersede_cycle(_).
 % lint_issue/3 has no clauses here. Modules add them (the module lint hook).

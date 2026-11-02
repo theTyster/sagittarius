@@ -43,7 +43,7 @@
 #    CLI calls, in its own directory. Then each test copies the result into its own temp
 #    directory. Nothing changes a prototype after it is built (see use_proto).
 #
-# Requirement map (contract v2.1 + H3/H4; section names, not line numbers, because the contract is edited):
+# Requirement map (contract v2.1 + D20; section names, not line numbers, because the contract is edited):
 #   K   KB resolution: --dir, $ORBIT_KB, parent walk, exit 2   (CLI: KB resolution, exit codes) : K1-K10
 #   I   init                                                   (CLI: init)                      : I1-I8
 #   U   uses: add a module to an existing KB                   (CLI: uses)                      : U1-U9
@@ -111,12 +111,9 @@ if [ "$JOBS" -lt 1 ]; then
     exit 2
 fi
 # Tests that run alone in a parallel run (an ERE on the test id; empty: none). No test needs
-# it now. The time limits are the CLI's 20 s for s(CASP) (ORBIT_KB_SCASP_TIMEOUT, which the
-# suite does not set), 10 s for the SWI engine, and $TMO per call here. Under 1.5x to 2x CPU
-# overload (14 workers next to 7 or 14 busy loops), all tests passed in 4 of 4 runs, the
-# slowest s(CASP) process took 6 s, and doctor (DR1, DR2) took 1.7 s at most. GD (D8, 20 claims
-# x 2 runs, the default 20 s s(CASP) limit) passed with 8 workers next to 14 busy loops. In raw
-# mode the same query times out, so a slow grounder shows up in GD as CROSS-CHECK SKIPPED.
+# it now. The time limits are the CLI's 10 s for the SWI engine and $TMO per call here. Under
+# 1.5x to 2x CPU overload (14 workers next to 7 or 14 busy loops), all tests passed in 4 of 4
+# runs. (This note was measured before D20, when s(CASP) was the second engine.)
 SERIAL=''
 
 # ---------------------------------------------------------------- preconditions
@@ -168,7 +165,7 @@ for v in $(compgen -e); do case $v in ORBIT_KB*) unset "$v";; esac; done
 export ORBIT_KB_LIB="$LIB"
 
 # ---------------------------------------------------------------- kbq: read kb.pl semantically
-# kbq FILE GOAL: read every term of FILE (s(CASP) operators on), then run GOAL.
+# kbq FILE GOAL: read every term of FILE (the not operator on), then run GOAL.
 #   kb(T) lists the terms in file order. kb_line(L, T) adds the line of each term.
 #   Exit 0 when GOAL succeeds, 1 when it fails, 3 on an error in GOAL.
 cat > "$base/kbq.pl" <<'PROLOG'
@@ -845,7 +842,7 @@ EOF2
           is_true 'to_ask(q1)'; is_false "done"
           printf "claim(c2b, preserve, 'The new claim').\ncites(c2b, 'Replace a claim').\nsupersedes(c2b, c2).\ncheck(k2, c2b).\n" >> $K/kb.pl; add_result $K k2 2 pass
           is_false 'to_ask(q1)'; is_false 'any_to_ask'; is_true "done"; }
-# H3: arithmetic under negation (passed/1)
+# H3: arithmetic under negation (passed/1); the name is from s(CASP) days (D20)
 h3_kb() { use_proto h3; }
 h3_kb_fresh() {  # the setup behind h3_kb. It runs once per suite, in a prototype (use_proto).
     K=$T/kb; kb_init "$K" ""; oadd "claim(c1, preserve, 'The runs behave')" "cites(c1, 'x')" "check(k1, c1)" "check(k2, c1)" "check(k3, c1)" "check(k4, c1)" >/dev/null || note "setup failed: $(snip "$err")"
@@ -1641,7 +1638,7 @@ claim(c1, preserve, 'x').
 cites(c1, 'x').
 EOF
     printf "lint_issue('E99', c1, 'custom hook error') :- claim(c1, _, _).\n" > "$T/k/rules.pl"; K=$T/k; okb --dir "$K" lint; rc_is 1; out_has '^E99 c1: custom hook error'; }
-# ================================================================ D7: review fixes (contract D7, E14, E13 on strings)
+# ================================================================ D7: review fixes (contract D7, E14)
 kb_d7() {  # kb_d7 DIR: a KB with fact predicates q, r, w and the rule predicate p, all atom-typed
     kb_new "$1" <<'EOF'
 uses([]).

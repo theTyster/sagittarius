@@ -243,7 +243,8 @@ model_breaks(M, C) :- model_verdict(_, M, preserve(C), R), discovery_has_case(R)
 model_breaks(M, C) :- model_verdict(_, M, bad_case, R), discovery_has_case(R),
     model_is_derived(M), encodes(M, C), claim(C, introduce, _).
 model_unfiled_break(C) :- model_breaks(_, C), current(C), not discovery_disproof_filed(C).
-% No disequality here: R1 \= R2 over a self-join is very slow in s(CASP).
+% No disequality here: R1 \= R2 over a self-join was very slow in s(CASP), the
+% second engine until 2026-11-02 (D20).
 model_check_case(M, K) :- model_verdict(_, M, K, R), discovery_has_case(R).
 model_check_no_case(M, K) :- model_verdict(_, M, K, R), discovery_no_case(R).
 model_solvers_disagree(M) :- model_check_case(M, K), model_check_no_case(M, K).
@@ -285,7 +286,7 @@ discovery_unratified(New) :- supersedes(New, Old), discovery_disputed(Old),
 discovery_budget_raised(B) :- budget(laps, B), budget(laps, B2), B2 > B.
 budget_spent :- budget(laps, B), lap_done(B), not discovery_budget_raised(B).
 
-% --- "There is no such X" needs a helper with no arguments (hazard H1) ---
+% --- "There is no such X" uses a helper with no arguments (the form since s(CASP) days; D20) ---
 % D15: a superseded hypothesis does not count. Its replacement does.
 some_hypothesis :- hypothesis(H, _, _), not superseded(H).
 some_untouched_hypothesis :- hypothesis(H, _, _), not superseded(H), not discovery_hypothesis_touched(H).
