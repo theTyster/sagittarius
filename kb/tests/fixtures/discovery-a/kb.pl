@@ -2,8 +2,9 @@ uses([discovery]).
 % Example A of the discovery orbit (FLYBY, SMT), after lap 2 and before GO.
 % The code units, the order, the test, and the system logs are invented.
 % The solver logs are real runs of Z3 5.1.0 and cvc5 1.3.4 on the models.
-% No atom ends in _<digits>: s(CASP) 1.1.4 reads order_4417 as order. So the solver
-% label order_4417 is order4417 in terms, and keeps its exact name only in note text.
+% No atom ends in _<digits>: s(CASP) 1.1.4, the second engine until 2026-11-02, read
+% order_4417 as order. So the solver label order_4417 is order4417 in terms, and keeps
+% its exact name only in note text.
 
 % --- SIGNAL ---
 request(r1, 'A customer used two discount codes and paid less than our minimum price.').

@@ -2,7 +2,7 @@
 %
 % Load this module with uses([build]) in kb.pl. It adds the changes to
 % the code, the Lean results, and the rules that decide when the build
-% is done. The file format and the H1 rule are the same as in core.pl.
+% is done. The file format is the same as in core.pl.
 % The rules below use the core rules passed/1, was_red/1, refuted/1,
 % current/1, to_ask/1, contested_twice/1, supersedes_closure/2, and
 % any_supersede_cycle/0.

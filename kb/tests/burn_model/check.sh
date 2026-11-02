@@ -26,7 +26,7 @@ trap 'rm -rf "$work"' EXIT
 
 # As the test suite does: no ORBIT_KB_* variable of the caller reaches the CLI.
 for v in $(compgen -e); do case $v in ORBIT_KB*) unset "$v";; esac; done
-export XDG_CACHE_HOME=$work/cache   # a private s(CASP) cache, deleted at exit
+export XDG_CACHE_HOME=$work/cache   # a private cache for the saved state, deleted at exit
 
 cd "$here"
 echo "== versions"
@@ -36,7 +36,6 @@ echo "model sha256 $(cat BurnModel/Requirements.lean BurnModel/Impl.lean BurnMod
 echo "requirements sha256 $(sha256sum BurnModel/Requirements.lean | cut -d' ' -f1)"
 lean --version
 swipl --version
-scasp --version 2>&1 | head -n1 || true
 python3 --version
 
 echo "== 1. build"

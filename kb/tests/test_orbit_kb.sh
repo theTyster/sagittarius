@@ -43,7 +43,7 @@
 #    CLI calls, in its own directory. Then each test copies the result into its own temp
 #    directory. Nothing changes a prototype after it is built (see use_proto).
 #
-# Requirement map (contract v2.1 + H3/H4; section names, not line numbers, because the contract is edited):
+# Requirement map (contract v2.1 + D20; section names, not line numbers, because the contract is edited):
 #   K   KB resolution: --dir, $ORBIT_KB, parent walk, exit 2   (CLI: KB resolution, exit codes) : K1-K10
 #   I   init                                                   (CLI: init)                      : I1-I8
 #   U   uses: add a module to an existing KB                   (CLI: uses)                      : U1-U9
@@ -53,15 +53,15 @@
 #   S   subject: sha256, relative paths, refresh               (CLI: subject; D3)               : S1-S8
 #   R   run: numbering, log header, tail, unknown check, D1    (CLI: run; Files; D1)            : R1-R9
 #   B   core and build rules through query, H1 guard           (Core rules; Build module)       : B1-B20
-#   H3  passed/1 with arithmetic under negation                (H3; Engines: cross-check; D8)   : H3a-H3d
+#   H3  passed/1 with arithmetic under negation                (Engine)                         : H3a H3c
 #   Q   query: output, -n, exit codes, --json, --html, --why   (CLI: query; exit codes)         : Q1-Q13
-#   X   engines: H1, H2, cross-check, #= skip, flags           (H1; H2; Engines)                : X1-X10 X2g
-#   G   grounded cross-check: 20x2 done, raw fallback NOTE     (D8)                             : GD GU (also H3d X2g DR4)
-#   WN  whynot: holds, contradicts, absent                     (CLI: whynot)                    : WN1-WN4
+#   X   engine: negation as failure, E17, E18, no scasp        (Engine; D20)                    : X1-X9
+#   G   20x2 done                                              (Engine)                         : GD
+#   WN  whynot: holds, absent, what blocks (D20)               (CLI: whynot)                    : WN1-WN5
 #   Y   why: justification text, #pred templates               (CLI: why; Environment facts)    : Y1-Y3
-#   L   lint E1-E13, W1-W6, --strict, hook, summary            (Lint; D2; H4)                   : L0 L0b E1-E13 W1 W3-W6 LS LS2 LH1 LH2
-#   D7  review fixes: broken sources exit 2, unsafe negation, kb.lock (D7)                   : D7a-D7d RC E14 E13s
-#   SH  show   RP report   DR doctor (H1-H4 self-tests)   HP help (CLI: show, report, doctor, help) : SH1-SH7 RP1-RP6 DR1-DR3 HP1-HP3
+#   L   lint E1-E18, W1-W6, --strict, hook, summary            (Lint; D2; D20)                  : L0 L0b E1-E10 E17 W1 W3-W6 LS LS2 LH1 LH2
+#   D7  review fixes: broken sources exit 2, unsafe negation, kb.lock (D7)                   : D7a-D7d RC E14
+#   SH  show   RP report   DR doctor (self-tests)   HP help (CLI: show, report, doctor, help) : SH1-SH7 RP1-RP6 DR1-DR3 HP1-HP3
 #   RL  report text layout: headings, bullets, nesting (D16 c4)   : RL1-RL7
 #   RH  report --html: golden text, page, escaping, open first, evidence, review (D16)   : RH1-RH9
 #   BP  burns: open, proved, changed, waived, lapsed       (Build module; D10)              : BP1-BP14
@@ -74,9 +74,9 @@
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
-# e10_no_uses, e11_compile, e12_not_var, e13_atom_digits (one per error code), the variants e2_arity,
+# e10_no_uses, e17_scasp_syntax (one per error code), the variants e2_arity,
 # e2_rule_body, e3_time, e4_wrong_kind, e5_cross, e8_script_type, e9_bad_header,
-# e10_not_first, e10_unknown_module, e12_named_var, e14_unsafe_neg (D7), and the warning fixtures w3_no_cites,
+# e10_not_first, e10_unknown_module, e14_unsafe_neg (D7), and the warning fixtures w3_no_cites,
 # w4_no_reader, w5_superseded_check, w6_extension. A line that must get a diagnostic ends
 # with the marker "% <-- E<n>". The tests read the expected line from the marker.
 #
@@ -84,10 +84,8 @@
 #  - lint prints diagnostics and the summary line on stdout; other checks accept either stream.
 #  - add: a syntax error in a fact is a rejection (exit 1); an unknown check in run is exit 2,
 #    because for run the exit code 1 means "the check failed" and a typo must not look like it.
-#  - A stub-free engine disagreement test needs ORBIT_KB_SCASP_FLAGS=--forall=all (L122).
-#  - D8: such negative controls (H2, H3) also set ORBIT_KB_SCASP_GROUND=raw. The H1 bad forms
-#    (X4, X7) run in both modes; in ground mode they must print the raw-fallback NOTE.
-#    The doctor lines for the new D8 controls are found by /H4.*ground/ and /corrupt/.
+#  - D20 (2026-11-02): s(CASP) is gone. The tests of the cross-check, the grounder, and
+#    hazards H1-H4 went with it. X, WN, E17, and E18 test the one engine instead.
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -113,17 +111,10 @@ if [ "$JOBS" -lt 1 ]; then
     exit 2
 fi
 # Tests that run alone in a parallel run (an ERE on the test id; empty: none). No test needs
-# it now. The time limits are the CLI's 20 s for s(CASP) (ORBIT_KB_SCASP_TIMEOUT, which the
-# suite does not set), 10 s for the SWI engine, and $TMO per call here. Under 1.5x to 2x CPU
-# overload (14 workers next to 7 or 14 busy loops), all tests passed in 4 of 4 runs, the
-# slowest s(CASP) process took 6 s, and doctor (DR1, DR2) took 1.7 s at most. GD (D8, 20 claims
-# x 2 runs, the default 20 s s(CASP) limit) passed with 8 workers next to 14 busy loops. In raw
-# mode the same query times out, so a slow grounder shows up in GD as CROSS-CHECK SKIPPED.
+# it now. The time limits are the CLI's 10 s for the SWI engine and $TMO per call here. Under
+# 1.5x to 2x CPU overload (14 workers next to 7 or 14 busy loops), all tests passed in 4 of 4
+# runs. (This note was measured before D20, when s(CASP) was the second engine.)
 SERIAL=''
-# D8: the grounder's fallback line. NOTE_RAW for "must not appear" checks; NOTE_RAW_RE, at the
-# start of a stderr line and with a reason after the colon, for "must appear" checks.
-NOTE_RAW='NOTE: s\(CASP\) ran the raw program'
-NOTE_RAW_RE='^NOTE: s\(CASP\) ran the raw program: .*[^ ]'
 
 # ---------------------------------------------------------------- preconditions
 if [ ! -f "$OKB" ] || [ ! -x "$OKB" ]; then
@@ -138,7 +129,7 @@ if [ ! -f "$LIB/core.pl" ]; then
     printf '  Build it first, or set ORBIT_KB_TEST_LIB to a library directory.\n' >&2
     exit 2
 fi
-for tool in swipl scasp sha256sum timeout mktemp awk grep sed diff cmp sort head wc cp mv; do
+for tool in swipl sha256sum timeout mktemp awk grep sed diff cmp sort head wc cp mv; do
     command -v "$tool" >/dev/null 2>&1 || { printf 'test_orbit_kb.sh: required tool not found: %s\n' "$tool" >&2; exit 2; }
 done
 have_python=0
@@ -168,13 +159,13 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 # The tests control the environment of the CLI completely: no ORBIT_KB_* variable of the
-# caller (ORBIT_KB, ORBIT_KB_SCASP_FLAGS, a cache switch, ...) reaches it, the suite sets
+# caller (ORBIT_KB, a cache switch, ...) reaches it, the suite sets
 # ORBIT_KB_LIB, and each test sets its own XDG_CACHE_HOME (exec_test).
 for v in $(compgen -e); do case $v in ORBIT_KB*) unset "$v";; esac; done
 export ORBIT_KB_LIB="$LIB"
 
 # ---------------------------------------------------------------- kbq: read kb.pl semantically
-# kbq FILE GOAL: read every term of FILE (s(CASP) operators on), then run GOAL.
+# kbq FILE GOAL: read every term of FILE (the not operator on), then run GOAL.
 #   kb(T) lists the terms in file order. kb_line(L, T) adds the line of each term.
 #   Exit 0 when GOAL succeeds, 1 when it fails, 3 on an error in GOAL.
 cat > "$base/kbq.pl" <<'PROLOG'
@@ -612,7 +603,6 @@ request(r1, 'Explain things').
 claim(c1, preserve, 'Claim one').
 cites(c1, 'Explain things').
 world(door_closed).
--world(door_open).
 EOF
 }
 kb_init() {  # kb_init DIR [uses]: a KB made by the CLI itself
@@ -723,7 +713,7 @@ t_A10() { mkclaim; rejects batch 'cites|c9|ref|exist' add "claim(c2, preserve, '
           no_fact "$K/kb.pl" "claim(c2,_,_)" "the good fact before the bad one"; no_fact "$K/kb.pl" "risk(rk1,_)" "the good fact after the bad one"; }
 t_A11() { mkclaim; oadd "cites(c2, 'x')" "claim(c2, preserve, 'later in the batch')"; rc_is 0 "facts in a batch may refer to each other"; has_fact "$K/kb.pl" "cites(c2, x)"; }
 t_A12() { mkclaim; oadd "risk(rk1, 'a')." "risk(rk2, 'b')"; rc_is 0; has_fact "$K/kb.pl" "risk(rk1, a)"; has_fact "$K/kb.pl" "risk(rk2, b)"; }
-t_A13() { mkclaim; oadd "-world(door_open)"; rc_is 0 "a ground negative fact"; has_fact "$K/kb.pl" "-world(door_open)"; }
+t_A13() { mkclaim; rejects classical 'classical negation' add "-world(door_open)"; any_has 'E17' "the code"; }
 t_A14() { mkclaim; rejects arity '' add "claim(c2, preserve)"; any_has 'E2|arity|claim/3|declared'; }
 t_A15() { mkclaim; rejects syntax '' add "claim(c2 preserve, x)"; }
 t_A16() { mkclaim; rejects badtime '' add "attest(a1, disclosure, c1, unverified(x), agent, 'yesterday')"; }
@@ -852,7 +842,7 @@ EOF2
           is_true 'to_ask(q1)'; is_false "done"
           printf "claim(c2b, preserve, 'The new claim').\ncites(c2b, 'Replace a claim').\nsupersedes(c2b, c2).\ncheck(k2, c2b).\n" >> $K/kb.pl; add_result $K k2 2 pass
           is_false 'to_ask(q1)'; is_false 'any_to_ask'; is_true "done"; }
-# H3: arithmetic under negation (passed/1)
+# H3: arithmetic under negation (passed/1); the name is from s(CASP) days (D20)
 h3_kb() { use_proto h3; }
 h3_kb_fresh() {  # the setup behind h3_kb. It runs once per suite, in a prototype (use_proto).
     K=$T/kb; kb_init "$K" ""; oadd "claim(c1, preserve, 'The runs behave')" "cites(c1, 'x')" "check(k1, c1)" "check(k2, c1)" "check(k3, c1)" "check(k4, c1)" >/dev/null || note "setup failed: $(snip "$err")"
@@ -861,14 +851,6 @@ h3_kb_fresh() {  # the setup behind h3_kb. It runs once per suite, in a prototyp
 }
 t_H3a() { h3_kb; okb --dir "$K" query 'passed(K)' -n 0; rc_is 0; local got; got=$(printf '%s\n' "$out" | LC_ALL=C sort | paste -sd'|'); [ "$got" = "K = k2|K = k3|K = k4" ] || note "passed(K) answers [$got], want k2, k3, k4 (no k1, with k4)"
          ls "$K/runs" | grep -q '^8-k4.log$' || note "run numbers 1..8 expected, runs: $(ls "$K/runs" | paste -sd' ')"; }
-t_H3b() { # the negative control runs on the raw program (D8): in ground mode H3 cannot occur
-         h3_kb; ORBIT_KB_SCASP_GROUND=raw ORBIT_KB_SCASP_FLAGS=--forall=all okb --dir "$K" query 'passed(K)' -n 0; rc_is 2 "forall=all answers k1,k2,k3: wrong, and only the full-set comparison sees it"; any_hasf 'ENGINE DISAGREEMENT'; }
-t_H3d() { # D8: ground mode (the default) under --forall=all gives the correct answer, with no disagreement
-         h3_kb; ORBIT_KB_SCASP_FLAGS=--forall=all okb --dir "$K" query 'passed(K)' -n 0; rc_is 0
-         local got; got=$(printf '%s\n' "$out" | LC_ALL=C sort | paste -sd'|'); [ "$got" = "K = k2|K = k3|K = k4" ] || note "passed(K) answers [$got], want exactly k2, k3, k4"
-         any_hasnt 'ENGINE DISAGREEMENT' "no disagreement in ground mode"; any_hasnt "$NOTE_RAW" "the H3 program is a supported form: no raw fallback"
-         ORBIT_KB_SCASP_FLAGS=--forall=all okb --dir "$K" query 'passed(k1)'; rc_is 1 "ground passed(k1) under --forall=all: pass, then fail is not passed"; any_hasnt 'ENGINE DISAGREEMENT'
-         ORBIT_KB_SCASP_FLAGS=--forall=all okb --dir "$K" query 'passed(k4)'; rc_is 0 "ground passed(k4) under --forall=all"; any_hasnt 'ENGINE DISAGREEMENT'; }
 t_H3c() { h3_kb; okb --dir "$K" query 'passed(k1)'; rc_is 1 "pass, then fail: not passed"; okb --dir "$K" query 'passed(k4)'; rc_is 0; }
 
 # ================================================================ Q: query
@@ -880,26 +862,17 @@ t_Q5() { kb_q "$T/k"; K=$T/k; q 'current(c1)'; rc_is 0; [ "$(first_line)" = true
          q 'current(X)' -n 0; rc_is 0; out_has '^X = c1$'; out_has '^X = c3$'; q 'current(X)' ; rc_is 0; [ "$(printf '%s\n' "$out" | grep -c '^X = ')" = 1 ] || note "-n defaults to 1 answer: $(snip "$out")"; }
 t_Q6() { kb_q "$T/k"; K=$T/k; q 'serves(X, Y)' -n 0; rc_is 0; out_has '^(X = x1, Y = c1|Y = c1, X = x1)$'; out_has '^(X = x1, Y = c2|Y = c2, X = x1)$'; }
 t_Q7() { kb_q "$T/k"; K=$T/k; q '1 < 2'; rc_is 0 builtin; q 'a \= a'; rc_is 1; q 'X = abc'; rc_is 0; out_has '^X = abc$'; q 'current(X), check(K, X)' ; rc_is 0; }
-t_Q8() { kb_q "$T/k"; K=$T/k; q 'current(c1)' --json; rc_is 0
-         if [ $have_python = 1 ]; then printf '%s' "$out" | python3 -I -c 'import json,sys; d=json.load(sys.stdin); assert len(d["answers"])>=1' 2>/dev/null || note "--json output is not s(CASP) JSON with answers: $(snip "$out")"
-         else out_has '"answers"'; fi; }
-t_Q9() { kb_q "$T/k"; K=$T/k; q 'current(c1)' --html "$T/out.html"; rc_is 0; [ -s "$T/out.html" ] && grep -qi '<html' "$T/out.html" || note "--html file missing or not HTML"; }
-t_Q10() { kb_q "$T/k"; K=$T/k; q 'current(c1)' --why; rc_is 0; out_has '^true'; out_has 'c1'; [ "$(printf '%s\n' "$out" | wc -l)" -ge 3 ] || note "--why adds a tree: $(snip "$out")"; }
+t_Q8() { kb_q "$T/k"; K=$T/k; q 'current(c1)' --json; rc_is 2 "D20: --json is gone"; any_hasi 'unknown option'; }
+t_Q9() { kb_q "$T/k"; K=$T/k; q 'current(c1)' --html "$T/out.html"; rc_is 2 "D20: query --html is gone"; [ -e "$T/out.html" ] && note "a file was written"; true; }
+t_Q10() { kb_q "$T/k"; K=$T/k; q 'current(c1)' --why; rc_is 0; out_has '^true'; out_has 'c1'; out_has 'because'; [ "$(printf '%s\n' "$out" | wc -l)" -ge 3 ] || note "--why adds a tree: $(snip "$out")"; }
 t_Q11() { kb_q "$T/k"; K=$T/k; q 'claim(c1)'; rc_is 2 "wrong arity is undeclared"; }
 t_Q12() { kb_q "$T/k"; K=$T/k; q 'current(X)' -n 2; rc_is 0; [ "$(printf '%s\n' "$out" | grep -c '^X = ')" = 2 ] || note "-n 2 gives two answers: $(snip "$out")"; }
 t_Q13() { kb_q "$T/k"; K=$T/k; q 'current(c1)' -n x; rc_is 2 "bad -n"; }
 
-# ================================================================ X: engines
-t_X1() { kb_h2 "$T/k"; K=$T/k; q 'finding_lead(F)'; rc_is 1 "H2 under the default flags: no answer"; any_hasnt 'ENGINE DISAGREEMENT'; }
-t_X2() { kb_h2 "$T/k"; K=$T/k; ORBIT_KB_SCASP_GROUND=raw ORBIT_KB_SCASP_FLAGS=--forall=all q 'finding_lead(F)'; rc_is 2; any_hasf 'ENGINE DISAGREEMENT'; any_has 'H1|H2'; }
-t_X3() { kb_h2 "$T/k"; K=$T/k; ORBIT_KB_SCASP_GROUND=raw ORBIT_KB_SCASP_FLAGS=--forall=all okb --dir "$K" query 'finding_lead(F)' -n 0; rc_is 2; any_hasf 'ENGINE DISAGREEMENT'; }
-t_X2g() { # D8: the H2 program under --forall=all in ground mode (the default): correct, no disagreement
-          kb_h2 "$T/k"; K=$T/k
-          ORBIT_KB_SCASP_FLAGS=--forall=all q 'finding_lead(F)'; rc_is 1 "H2 in ground mode: no answer"; any_hasnt 'ENGINE DISAGREEMENT'; any_hasnt "$NOTE_RAW" "the H2 program is a supported form: no raw fallback"
-          ORBIT_KB_SCASP_FLAGS=--forall=all q 'finding_lead(F)' -n 0; rc_is 1 "-n 0: no answer"; any_hasnt 'ENGINE DISAGREEMENT'
-          printf 'finding(f2, sys, model).\n' >> "$K/kb.pl"
-          ORBIT_KB_SCASP_FLAGS=--forall=all q 'finding_lead(F)' -n 0; rc_is 0 "with f2 unconfirmed: one answer"; any_hasnt 'ENGINE DISAGREEMENT' "the answer sets agree in ground mode"
-          local got; got=$(printf '%s\n' "$out" | LC_ALL=C sort | paste -sd'|'); [ "$got" = "F = f2" ] || note "finding_lead(F) -n 0 answers [$got], want exactly F = f2"; }
+# ================================================================ X: the engine (D20)
+t_X1() { kb_h2 "$T/k"; K=$T/k; q 'finding_lead(F)'; rc_is 1 "H2 program: no answer"; }
+t_X2() { x_h1kb; q 'bad_done'; rc_is 1 "not under(_) means no under at all; under(c1) holds, so bad_done is false"; }
+t_X3() { kb_h2 "$T/k"; K=$T/k; printf 'finding(f2, sys, model).\n' >> $K/kb.pl; is_set 'finding_lead(F)' 'F = f2'; }
 x_h1kb() { kb_new "$T/k" <<'EOF'
 uses([build]).
 request(r1, 'H1 tests').
@@ -920,22 +893,53 @@ bad_over(X) :- change(X, _), not serves(X, Y).
 EOF
     K=$T/k
 }
-# D8: the H1 bad form is a not over a free variable, so the grounder falls back to the raw
-# program with a NOTE. It must disagree in both modes.
-t_X4() { x_h1kb; q 'bad_done'; rc_is 2 "H1 bad form, ground mode (falls back to raw): engines disagree"; any_hasf 'ENGINE DISAGREEMENT'; err_has "$NOTE_RAW_RE" "ground mode: the raw fallback NOTE on stderr"
-         ORBIT_KB_SCASP_GROUND=raw q 'bad_done'; rc_is 2 "H1 bad form, raw mode: engines disagree"; any_hasf 'ENGINE DISAGREEMENT'; }
-t_X5() { x_h1kb; okb --dir "$K" lint; rc_is 1; out_has '^E12 '; }
-t_X6() { x_h1kb; q 'good_done'; rc_is 1 "H1 helper form is false"; any_hasnt 'ENGINE DISAGREEMENT'; q 'helper_any_under'; rc_is 0 "c1 has no check, so under(c1) holds: helper true"; }
-t_X7() { x_h1kb; q 'bad_over(X)'; rc_is 2 "named variable under not, ground mode (falls back to raw): disagreement, never exit 1"; any_hasf 'ENGINE DISAGREEMENT'; err_has "$NOTE_RAW_RE" "ground mode: the raw fallback NOTE on stderr"
-         ORBIT_KB_SCASP_GROUND=raw q 'bad_over(X)'; rc_is 2 "named variable under not, raw mode: disagreement, never exit 1"; any_hasf 'ENGINE DISAGREEMENT'; }
-t_X8() { kb_new "$T/k" <<'EOF'
+t_X4() { x_h1kb; q 'bad_over(X)'; rc_is 1 "x1 serves c1: not serves(x1, Y) is false"; okb --dir "$K" lint; rc_is 0 "a variable only under not is no error (D20: E12 is gone)"; }
+t_X5() { # D20: E18, rules that are not stratified
+    kb_new "$T/k" <<'EOF'
+uses([]).
+request(r1, 'Loop').
+decl(rule, p, 'p.', '').
+decl(rule, q, 'q.', '').
+EOF
+    K=$T/k; printf 'p :- not q.\nq :- not p.\n' > "$K/rules.pl"
+    okb --dir "$K" lint; rc_is 1; out_has '^E18 rules\.pl:1' "E18 at the first clause"; out_has '^E18 rules\.pl:2' "E18 at the second clause"
+    q 'p'; rc_is 2 "no answer from rules that are not stratified"; any_has 'E18'
+    printf 'p :- not q.\nq.\n' > "$K/rules.pl"; okb --dir "$K" lint; rc_is 0 "stratified: no E18"; q 'p'; rc_is 1; }
+t_X6() { x_h1kb; q 'good_done'; rc_is 1 "H1 helper form is false"; q 'helper_any_under'; rc_is 0 "c1 has no check, so under(c1) holds: helper true"; }
+t_X7() { # D20: E17, s(CASP) forms in rules.pl; the engine skips them, so query gives no answer
+    kb_new "$T/k" <<'EOF'
 uses([]).
 request(r1, 'Add one').
 decl(rule, plus_one(int, int), 'The second number is the first plus one.', '').
+decl(rule, door(atom), 'A door.', '').
 EOF
-    echo 'plus_one(X, Y) :- Y #= X + 1.' > "$T/k/rules.pl"; K=$T/k; q 'plus_one(1, Y)'; rc_is 0; any_hasf 'CROSS-CHECK SKIPPED'; any_hasf '(unchecked)'; any_has 'Y = 2'; }
-t_X9() { kb_h2 "$T/k"; K=$T/k; printf 'finding(f2, sys, model).\n' >> $K/kb.pl; q 'finding_lead(F)' -n 0; rc_is 0; out_has '^F = f2$'; out_hasnt 'f1'
-         ORBIT_KB_SCASP_GROUND=raw ORBIT_KB_SCASP_FLAGS=--forall=all q 'finding_lead(F)' -n 0; rc_is 2 "raw mode: existence agrees, the answer sets differ"; any_hasf 'ENGINE DISAGREEMENT'; }
+    K=$T/k; printf 'plus_one(X, Y) :- Y #= X + 1.\n-door(a).\n:- door(b).\n#pred door(X) :: x.\n' > "$K/rules.pl"
+    okb --dir "$K" lint; rc_is 1; local n; n=$(printf '%s\n' "$out" | grep -c '^E17 rules\.pl:[1-4]:'); [ "$n" = 4 ] || note "want 4 E17 lines, got $n: $(snip "$out")"
+    any_hasi 'classical negation'; q 'plus_one(1, Y)'; rc_is 2 "no answer while an E17 form is in rules.pl"; any_has 'E17'
+    printf 'plus_one(X, Y) :- Y is X + 1.\n' > "$K/rules.pl"; q 'plus_one(1, Y)'; rc_is 0; out_has '^Y = 2$'; }
+t_X8() { # D20: a body literal -p is E17 too, also under not
+    kb_new "$T/k" <<'EOF'
+uses([]).
+request(r1, 'Neg').
+decl(rule, door(atom), 'A door.', '').
+decl(rule, shut(atom), 'Shut.', '').
+EOF
+    K=$T/k; printf 'door(a).\nshut(X) :- door(X), not -door(X).\n' > "$K/rules.pl"
+    okb --dir "$K" lint; rc_is 1; out_has '^E17 rules\.pl:2:'; }
+t_X9() { # D20: no scasp is needed. A scasp on PATH that records each call is never called.
+    mkclaim; mkdir -p "$T/fakebin"; printf '#!/bin/sh\ntouch "%s/called"\nexit 1\n' "$T" > "$T/fakebin/scasp"; chmod +x "$T/fakebin/scasp"
+    local c; for c in "query done" "whynot done" "why current(c1)" "lint" "report" "doctor"; do
+        PATH="$T/fakebin:$PATH" okb --dir "$K" $c; [ "$rc" -le 1 ] || note "$c: exit $rc"; done
+    [ -e "$T/called" ] && note "scasp was called"; true; }
+t_X10() { # D20 review: forms of s(CASP) in kb.pl and in a goal; no E2 for #<; E18 names the rules.pl clause
+    mkclaim; printf ':- claim(c1, introduce, x).\n' >> "$K/kb.pl"
+    okb --dir "$K" lint; rc_is 1; out_has '^E17 kb\.pl'; out_hasnt '^E7 ' "E17 only"
+    q 'current(c1)'; rc_is 2 "no answer while kb.pl holds a constraint"
+    mkclaim; q '-current(c1)'; rc_is 2; any_hasi 'classical negation' "a clear message for -p in a goal"; any_hasnt 'SWI ERROR'
+    printf 'q :- current(X), X #< 3.\n' > "$K/rules.pl"; okb --dir "$K" declare q --doc q --kind rule >/dev/null
+    okb --dir "$K" lint; rc_is 1; out_has '^E17 rules\.pl:1'; out_hasnt '^E2 ' "no E2 for #<"
+    printf 'superseded(C) :- current(C).\n' > "$K/rules.pl"
+    okb --dir "$K" lint; rc_is 1; out_has '^E18 rules\.pl:1' "E18 names the rules.pl clause that closes the cycle"; }
 gd_kb() {  # gd_kb DIR: a build KB with 20 claims, each with a check, a serving change, and 2 runs (fail, then pass)
     local d=$1 i kind
     mkdir -p "$d"
@@ -1196,8 +1200,6 @@ t_BP12() { kb_burndone "$T/k"; K=$T/k; add_proof "$K" p1 c1
            printf "check(k9, c1).\nconformance(k9).\n" >> $K/kb.pl; is_false 'conforms(c1)'; is_true 'done' "conformance is optional"
            add_result $K k9 4 pass; is_true 'conforms(c1)'; is_true 'done'; }
 t_BP13() { kb_burn "$T/k"; K=$T/k; is_set 'burn_open(X)' 'X = c1|X = c3|X = c4' "contested twice, universal, and requested all need a proof"; }
-t_BP14() { mkclaim; rejects reserved 'reserved' declare 'proved(ref(claim))' --doc 'x' --kind rule; }
-
 # ---- D10 follow-up (2026-10-20): restated claims, supersede cycles, rules.pl, times, logs
 sc_restate() {  # sc_restate: kb_burndone, then c3 restates the universal claim c1 (c3 has no trigger of its own)
     kb_burndone "$T/k"; K=$T/k
@@ -1537,29 +1539,37 @@ t_PV12() { lean_proj || return 0; local real; real=$(command -v lake); mkdir -p 
            chmod +x "$T/bin/lake"
            PATH="$T/bin:$PATH" prove_rejects changed 'changed while' "$LP/Fx/Good.lean" load_linear; }
 
-t_GD() { # D8: query done on 20 claims x 2 runs is answered and cross-checked in ground mode (default timeout)
+t_GD() { # query done on 20 claims x 2 runs
          gd_kb "$T/k"; K=$T/k
          okb --dir "$K" lint; rc_is 0 "the generated KB is valid"
          q 'done'; rc_is 0 "every claim is fulfilled: done holds"; out_has '^true'
-         any_hasnt 'CROSS-CHECK SKIPPED' "done is cross-checked"; any_hasnt 'ENGINE DISAGREEMENT'; any_hasnt "$NOTE_RAW" "the build rules are a supported form: no raw fallback"
          add_result "$K" k20 41 fail
-         q 'done'; rc_is 1 "k20 failed last: done is false"; any_hasnt 'CROSS-CHECK SKIPPED' "done is cross-checked"; any_hasnt 'ENGINE DISAGREEMENT'
-         is_set 'under(X)' 'X = c20'; any_hasnt 'CROSS-CHECK SKIPPED' "under(X) -n 0 is cross-checked"; }
-t_GU() { # D8: an unsupported form (a constraint) falls back to the raw program with a NOTE, and the answer is still right
-         kb_new "$T/k" <<'EOF'
-uses([]).
-request(r1, 'Add one').
-decl(rule, plus_one(int, int), 'The second number is the first plus one.', '').
-EOF
-         echo 'plus_one(X, Y) :- Y #= X + 1.' > "$T/k/rules.pl"; K=$T/k
-         q 'plus_one(1, Y)'; rc_is 0; any_has 'Y = 2'; err_has "$NOTE_RAW_RE" "the raw fallback NOTE on stderr"; any_hasnt 'ENGINE DISAGREEMENT'; }
-t_X10() { kb_h2 "$T/k"; K=$T/k; ORBIT_KB_SCASP_FLAGS=--forall=sasp q 'finding_lead(F)'; rc_is 1 "ORBIT_KB_SCASP_FLAGS replaces the default"; }
-
+         q 'done'; rc_is 1 "k20 failed last: done is false"
+         is_set 'under(X)' 'X = c20'; }
 # ================================================================ WN: whynot, Y: why
-t_WN1() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'current(c1)'; rc_is 0; [ "$(first_line)" = holds ] || note "first line '$(first_line)'"; }
-t_WN2() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'world(door_open)'; rc_is 0; [ "$(first_line)" = contradicts ] || note "first line '$(first_line)'"; }
-t_WN3() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'current(c9)'; rc_is 0; [ "$(first_line)" = absent ] || note "first line '$(first_line)'"; [ "$(printf '%s\n' "$out" | wc -l)" -ge 2 ] || note "a justification follows the verdict"; }
-t_WN4() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'world(door_closed)'; [ "$(first_line)" = holds ] || note "a fact with a -clause elsewhere still holds: '$(first_line)'"; okb --dir "$K" whynot 'world(window)'; [ "$(first_line)" = absent ] || note "no clause for it: absent, got '$(first_line)'"; }
+t_WN1() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'current(c1)'; rc_is 0; [ "$(first_line)" = holds ] || note "first line '$(first_line)'"; out_has 'because' "the clauses that prove it"; }
+t_WN2() { # D20: absent names, for each rule, the literal that blocks, and why
+          kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'done'; rc_is 0; [ "$(first_line)" = absent ] || note "first line '$(first_line)'"
+          out_has 'stops at not any_under' "the blocking literal of done"; out_has 'claim c1 is current but not fulfilled' "the template text of the reason"; }
+t_WN3() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'current(c9)'; rc_is 0; [ "$(first_line)" = absent ] || note "first line '$(first_line)'"; [ "$(printf '%s\n' "$out" | wc -l)" -ge 2 ] || note "a justification follows the verdict"; out_has 'claim\(c9' "names the missing fact"; }
+t_WN4() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'world(door_closed)'; [ "$(first_line)" = holds ] || note "a fact holds: '$(first_line)'"; okb --dir "$K" whynot 'world(window)'; [ "$(first_line)" = absent ] || note "no clause for it: absent, got '$(first_line)'"; out_has 'nothing records world\(window\)'; }
+t_WN5() { # D20: the default explanation stops at 6 levels; --long goes on
+          kb_new "$T/k" <<'EOF'
+uses([]).
+request(r1, 'Chain').
+decl(rule, d1, 'd1.', '').
+decl(rule, d2, 'd2.', '').
+decl(rule, d3, 'd3.', '').
+decl(rule, d4, 'd4.', '').
+decl(rule, d5, 'd5.', '').
+decl(rule, d6, 'd6.', '').
+decl(rule, d7, 'd7.', '').
+decl(rule, d8, 'd8.', '').
+decl(fact, d9, 'd9.', '').
+EOF
+          K=$T/k; printf 'd1 :- d2.\nd2 :- d3.\nd3 :- d4.\nd4 :- d5.\nd5 :- d6.\nd6 :- d7.\nd7 :- d8.\nd8 :- d9.\n' > "$K/rules.pl"
+          okb --dir "$K" whynot d1; rc_is 0; out_has 'long shows more' "the default stops"; out_hasnt 'nothing records d9' "the default does not reach d9"
+          okb --dir "$K" whynot d1 --long; rc_is 0; out_has 'nothing records d9' "--long reaches d9"; out_hasnt 'long shows more'; }
 t_Y1() { mkclaim; okb --dir "$K" declare 'gizmo(id, text)' --doc 'A gizmo.' --template '@(1) is a gizmo called @(2)' >/dev/null; oadd "gizmo(g1, sprocket)" >/dev/null
          okb --dir "$K" why 'gizmo(g1, N)'; rc_is 0; any_hasf 'g1 is a gizmo called sprocket' "the local template text"; }
 t_Y2() { kb_q "$T/k"; K=$T/k; okb --dir "$K" why 'current(c1)'; rc_is 0; out_has 'c1'; out_has 'because|holds|evidence'; }
@@ -1599,11 +1609,7 @@ t_E7() { fx_lint e7_wrong_place E7; local n; n=$(printf '%s\n' "$out" | grep -c 
 t_E8() { fx_lint e8_writer E8; fx_lint e8_script_type E8; }
 t_E9() { fx_lint e9_no_log E9; fx_lint e9_bad_header E9; }
 t_E10() { fx_lint e10_no_uses E10; fx_lint e10_not_first E10; fx_lint e10_unknown_module E10; }
-t_E11() { fx_lint e11_compile E11; }
-t_E13() { fx_lint e13_atom_digits E13; any_hasi 'rename'; }
-t_A18() { mkclaim; rejects atomdigits 'rename' add "world(order_4417)"; }
-t_A19() { mkclaim; rejects atomdigits_id 'rename' add "risk(rk_12, 'x')"; okb init "$T/new" --request a --id req_9; rc_is 1 "init --id with a trailing _digits"; [ -e "$T/new/kb.pl" ] && note "kb.pl written despite the rejection"; true; }
-t_E12() { fx_lint e12_not_var E12; fx_lint e12_named_var E12; any_hasi 'helper|any_|predicate'; }
+t_E17() { fx_lint e17_scasp_syntax E17; any_hasi 's\(CASP\) syntax'; }
 t_W1() { copy_fixture valid "$T/f"; echo 'changed' >> "$T/f/plan.txt"; okb --dir "$T/f" lint; rc_is 0 "a warning alone is exit 0"; out_has '^W1 '
          okb --dir "$T/f" lint --strict; rc_is 1 "--strict turns the warning into exit 1"; rm "$T/f/plan.txt"; okb --dir "$T/f" lint; out_has '^W1 ' "missing file"; rc_is 0; }
 t_W3() { fx_lint w3_no_cites W3; }
@@ -1655,7 +1661,7 @@ claim(c1, preserve, 'x').
 cites(c1, 'x').
 EOF
     printf "lint_issue('E99', c1, 'custom hook error') :- claim(c1, _, _).\n" > "$T/k/rules.pl"; K=$T/k; okb --dir "$K" lint; rc_is 1; out_has '^E99 c1: custom hook error'; }
-# ================================================================ D7: review fixes (contract D7, E14, E13 on strings)
+# ================================================================ D7: review fixes (contract D7, E14)
 kb_d7() {  # kb_d7 DIR: a KB with fact predicates q, r, w and the rule predicate p, all atom-typed
     kb_new "$1" <<'EOF'
 uses([]).
@@ -1689,14 +1695,6 @@ t_D7d() { # D7: not before the positive literal that binds its variable; SWI mov
     is_set 'p(X)' 'X = b|X = z'
     okb --dir "$K" lint; rc_is 0 "X occurs in the positive literal w(X): safe, no lint error"; out_hasnt '^E14' "no E14"; }
 t_E14() { fx_lint e14_unsafe_neg E14; }
-t_E13s() { # D7: E13 also checks strings (a string "x_1" in rules.pl)
-    kb_new "$T/k" <<'EOF'
-uses([]).
-request(r1, 'Strings').
-decl(rule, s(text), 'A string thing.', '').
-EOF
-    K=$T/k; printf 's("x_1").\n' > "$K/rules.pl"
-    okb --dir "$K" lint; rc_is 1; out_has '^E13 .*rules\.pl' "E13 for the string in rules.pl"; }
 t_RC() { # D7: 8 concurrent runs on one KB (kb.lock): run numbers 1..8, unique ids, one matching log per run
     mkclaim; local i pids=() rcs=() cmd n r line
     for i in 1 2 3 4 5 6 7 8; do
@@ -2009,24 +2007,10 @@ t_RH8() { # usage
     okb --dir "$K" report --open; rc_is 2 "--open needs --html"
     okb --dir "$K" report extra; rc_is 2 "report still takes no argument"
     okb --dir "$K" report --html "$T/no/such/dir/r.html"; rc_is 2 "a path that cannot be written"; any_hasnt 'internal error' "a plain message"; }
-t_RH9() { # c3: an engine disagreement is an open item, and the exit is 2 (H3 on the raw program)
-    kb_new "$T/k" <<'EOF'
-uses([build]).
-request(r1, 'Runs').
-claim(c1, preserve, 'The runs behave').
-cites(c1, 'Runs').
-check(k1, c1).
-EOF
-    K=$T/k; add_result "$K" k1 1 pass; add_result "$K" k1 2 fail
-    okb --dir "$K" report --html "$T/a.html"; rc_is 0 "the default flags agree"
-    rh_has "$(<"$T/a.html")" 'data-crosscheck="agree"' "the page says the engines agree"
-    ORBIT_KB_SCASP_GROUND=raw ORBIT_KB_SCASP_FLAGS=--forall=all okb --dir "$K" report --html "$T/r.html"; rc_is 2 "a disagreement exits 2"
-    any_hasf 'ENGINE DISAGREEMENT'
-    rh_has "$(rh_section "$T/r.html" open)" 'data-open="disagreement"' "the disagreement is an open item"; }
-t_DR1() { okb doctor; rc_is 0 "doctor on this machine"; any_hasi 'swipl'; any_hasi 'scasp'; }
-t_DR2() { okb doctor; any_has 'H1'; any_has 'H2'; any_has 'H3'; any_has 'H4'; local l; for l in H1 H2 H3 H4; do anyout | grep -E "$l" | grep -Eiq 'pass|ok' || note "no passing line for $l"; anyout | grep -E "$l" | grep -Eiq "$FAIL_WORD" && note "the $l line reports a failure"; done; true; }
+t_DR1() { okb doctor; rc_is 0 "doctor on this machine"; any_hasi 'swipl'; any_hasnti 'scasp:|s\(CASP\)' "D20: doctor does not look for scasp"; }
+t_DR2() { okb doctor; dr_passes 'helper' "not with a helper rule"; dr_passes 'under\(_\)' "not under(_)"; dr_passes 'arithmetic' "arithmetic under not"; dr_passes 'E18' "E18"; dr_passes 'E17' "E17"; }
 # A doctor line that reports a failure: the word fail, fails, failed, or failure. Whole words only,
-# so a line that names the rule failed_after (D8: the grounder-corruption control) is no failure.
+# so a line that names the rule failed_after is no failure.
 FAIL_WORD='\bfail(s|ed|ure)?\b'
 dr_passes() {  # dr_passes ERE LABEL: doctor (in $out/$err) has a line matching ERE (case-insensitive), and each such line passes
     local lines; lines=$(anyout | grep -Ei -- "$1")
@@ -2035,14 +2019,10 @@ dr_passes() {  # dr_passes ERE LABEL: doctor (in $out/$err) has a line matching 
     printf '%s\n' "$lines" | grep -Eiq -- "$FAIL_WORD" && note "a $2 line reports a failure: $(snip "$lines")"
     return 0
 }
-t_DR4() { # D8: doctor adds the ground-mode H4 control and the grounder-corruption control; both pass
-          okb doctor; rc_is 0 "doctor on this machine"
-          dr_passes 'H4.*ground|ground.*H4' "ground-mode H4 control"
-          dr_passes 'corrupt' "grounder-corruption control"; }
 t_DR3() { local e; e=$(mktemp -d "$base/emptylib.XXXXXX"); ( cd "$T" && ORBIT_KB_LIB="$e" exec timeout "$TMO" "$OKB" doctor ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err")
          rc_is 2 "doctor with a broken library"; any_hasi 'librar'; }
-t_HP1() { okb help; rc_is 0; any_has 'H1'; any_has 'H2'; any_hasi 'query'; any_hasi 'lint'; }
-t_HP2() { okb help query; rc_is 0; any_hasi 'query'; any_hasi -- '--why|--json'; }
+t_HP1() { okb help; rc_is 0; any_hasi 'negation as failure'; any_hasi 'stratified'; any_hasi 'query'; any_hasi 'lint'; any_hasnti 'scasp|s\(CASP\)' "D20: no second engine"; }
+t_HP2() { okb help query; rc_is 0; any_hasi 'query'; any_hasi -- '--why'; any_hasnti 'json' "D20: no --json"; }
 t_HP3() { okb --help; rc_is 0 "--help"; any_hasi 'usage'; }
 t_HP4() { okb help; rc_is 0; any_has 'How to use'; local t
           for t in core build discovery codes answers; do any_has "orbit-kb help $t" "general help names $t"; done; }
@@ -2092,7 +2072,7 @@ run_test t_A9 A9 "add rejects test_result and points to run"
 run_test t_A10 A10 "add batch is all or nothing"
 run_test t_A11 A11 "facts in one batch may refer to each other"
 run_test t_A12 A12 "trailing dot is optional"
-run_test t_A13 A13 "add accepts a ground -fact"
+run_test t_A13 A13 "D20: add rejects a -fact (E17)"
 run_test t_A14 A14 "add rejects a wrong arity"
 run_test t_A15 A15 "add rejects a syntax error"
 run_test t_A16 A16 "add rejects a bad time"
@@ -2187,7 +2167,6 @@ run_test t_BP10 BP10 "D10: a waiver past its due time lapses; done is false"
 run_test t_BP11 BP11 "D10: a superseded claim has no open burn"
 run_test t_BP12 BP12 "D10: conformance is optional; conforms holds after its check passes"
 run_test t_BP13 BP13 "D10: each burn trigger needs a proof"
-run_test t_BP14 BP14 "D10: proved/1 is a reserved name (s(CASP) model wrapper)"
 run_test t_SC1 SC1 "D10 follow-up: a claim that supersedes a burning claim inherits the burn (F11, S1)"
 run_test t_SC2 SC2 "D10 follow-up: the burn passes along a supersede chain (S1)"
 run_test t_SC3 SC3 "D10 follow-up: supersedes(c1, c1) is E15, and done is false (L-F2, S2)"
@@ -2232,9 +2211,7 @@ run_test t_PV10 PV10 "D10 follow-up: the log has the statement and absent config
 run_test t_PV11 PV11 "D10 follow-up: prove rejects a --module that is not the module of FILE (MF)"
 run_test t_PV12 PV12 "D10 follow-up: prove rejects a file that changes during the checks (MN)"
 run_test t_H3a H3a "H3: passed(K) -n 0 lists k2, k3, k4 (default flags)"
-run_test t_H3b H3b "H3: --forall=all gives ENGINE DISAGREEMENT, exit 2"
 run_test t_H3c H3c "H3: ground passed(k1) is false, passed(k4) is true"
-run_test t_H3d H3d "D8: H3 under --forall=all in ground mode: exactly k2, k3, k4, no disagreement"
 run_test t_Q1 Q1 "query with no answer exits 1"
 run_test t_Q2 Q2 "declared empty predicate exits 1 without an error"
 run_test t_Q3 Q3 "undeclared predicate in a query exits 2"
@@ -2242,29 +2219,28 @@ run_test t_Q4 Q4 "query syntax error exits 2"
 run_test t_Q5 Q5 "output: true, X = v, and the -n default of 1"
 run_test t_Q6 Q6 "output with two variables"
 run_test t_Q7 Q7 "built-ins in a query"
-run_test t_Q8 Q8 "--json prints s(CASP) JSON"
-run_test t_Q9 Q9 "--html writes a file"
+run_test t_Q8 Q8 "D20: query --json is a usage error"
+run_test t_Q9 Q9 "D20: query --html is a usage error"
 run_test t_Q10 Q10 "--why adds a justification"
 run_test t_Q11 Q11 "wrong arity in a query exits 2"
 run_test t_Q12 Q12 "-n 2"
 run_test t_Q13 Q13 "bad -n value is a usage error"
-run_test t_X1 X1 "H2 under default flags: no answer, exit 1"
-run_test t_X2 X2 "H2 under --forall=all: ENGINE DISAGREEMENT, exit 2"
-run_test t_X3 X3 "H2 under --forall=all with -n 0"
-run_test t_X2g X2g "D8: H2 under --forall=all in ground mode: correct, no disagreement"
-run_test t_X4 X4 "H1 bad form in rules.pl: disagreement, exit 2"
-run_test t_X5 X5 "H1 bad form: lint reports E12"
-run_test t_X6 X6 "H1 helper form agrees with both engines"
-run_test t_X7 X7 "H1 named variable under not: disagreement, exit 2"
-run_test t_X8 X8 "#= constraint: CROSS-CHECK SKIPPED and (unchecked)"
-run_test t_X9 X9 "answer sets differ under --forall=all with -n 0"
-run_test t_X10 X10 "ORBIT_KB_SCASP_FLAGS replaces the default flag"
-run_test t_GD GD "D8: query done on 20 claims x 2 runs: cross-checked, correct"
-run_test t_GU GU "D8: a constraint falls back to the raw program with a NOTE, answer correct"
+run_test t_X1 X1 "engine: H2 program: no answer, exit 1"
+run_test t_X2 X2 "D20: not under(_) means no under at all"
+run_test t_X3 X3 "engine: -n 0 gives exactly the answers"
+run_test t_X4 X4 "D20: a named variable only under not; no E12"
+run_test t_X5 X5 "D20: E18 rules that are not stratified; query exits 2"
+run_test t_X6 X6 "H1 helper form is false"
+run_test t_X7 X7 "D20: E17 s(CASP) forms in rules.pl; query exits 2"
+run_test t_X8 X8 "D20: E17 for -p in a body"
+run_test t_X9 X9 "D20: no command calls scasp"
+run_test t_X10 X10 "D20 review: E17 in kb.pl and goals, no E2 for #<, E18 in rules.pl"
+run_test t_GD GD "query done on 20 claims x 2 runs: correct"
 run_test t_WN1 WN1 "whynot: holds"
-run_test t_WN2 WN2 "whynot: contradicts (a -world fact)"
+run_test t_WN2 WN2 "D20: whynot absent names the blocking literal"
 run_test t_WN3 WN3 "whynot: absent, with a justification"
-run_test t_WN4 WN4 "whynot: holds and absent for a predicate with a -clause"
+run_test t_WN4 WN4 "whynot: a fact holds; no clause is absent and named"
+run_test t_WN5 WN5 "D20: whynot --long"
 run_test t_Y1 Y1 "why shows the local declare --template text"
 run_test t_Y2 Y2 "why prints a justification"
 run_test t_Y3 Y3 "why on a false goal exits 1"
@@ -2280,11 +2256,7 @@ run_test t_E7 E7 "lint E7 clause in the wrong place, both cases (D2)"
 run_test t_E8 E8 "lint E8 writer not allowed"
 run_test t_E9 E9 "lint E9 test_result without a matching log"
 run_test t_E10 E10 "lint E10 uses/1 missing, not first, unknown module"
-run_test t_E11 E11 "lint E11 assembled program does not compile"
-run_test t_E13 E13 "lint E13 atom ends in _digits (H4)"
-run_test t_A18 A18 "add rejects an atom ending in _digits and suggests a rename (H4)"
-run_test t_A19 A19 "add and init --id reject _digits atoms (H4)"
-run_test t_E12 E12 "lint E12 not over a body-only variable"
+run_test t_E17 E17 "D20: lint E17 a form of s(CASP) (#include)"
 run_test t_W1 W1 "lint W1 changed subject; --strict exits 1"
 run_test t_W3 W3 "lint W3 claim without cites"
 run_test t_W4 W4 "lint W4 fact predicate with no reader"
@@ -2294,7 +2266,6 @@ run_test t_W5c W5c "lint W5 follows a supersede chain to the current claim"
 run_test t_W6 W6 "lint W6 local rule extends a core predicate"
 run_test t_LS LS "lint --strict turns W2 into exit 1"
 run_test t_E14 E14 "lint E14 unsafe negation: head variable in no positive literal (D7)"
-run_test t_E13s E13s "lint E13 also checks strings (D7)"
 run_test t_D7a D7a "D7: syntax error in rules.pl: query, why, whynot, show, report exit 2"
 run_test t_D7b D7b "D7: syntax error in kb.pl: query exits 2, never 1"
 run_test t_D7c D7c "D7: misspelled head in rules.pl: query exits 2"
@@ -2332,12 +2303,10 @@ run_test t_RH5 RH5 "report --html: each claim carries its evidence"
 run_test t_RH6 RH6 "report --html: review marks, copy button, textarea, KB path and report digest"
 run_test t_RH7 RH7 "report --html: --open runs the opener only when given"
 run_test t_RH8 RH8 "report --html: usage errors exit 2"
-run_test t_RH9 RH9 "report --html: an engine disagreement is an open item and exits 2"
 run_test t_DR1 DR1 "doctor exits 0 on this machine"
-run_test t_DR2 DR2 "doctor reports H1, H2, H3 self-tests as passing"
+run_test t_DR2 DR2 "doctor reports each self-test as passing"
 run_test t_DR3 DR3 "doctor with a broken library exits 2"
-run_test t_DR4 DR4 "D8: doctor reports the ground-mode H4 and grounder-corruption controls as passing"
-run_test t_HP1 HP1 "help explains H1 and H2"
+run_test t_HP1 HP1 "help explains the engine"
 run_test t_HP2 HP2 "help query"
 run_test t_HP3 HP3 "--help"
 run_test t_HP4 HP4 "general help starts with how to use and names each topic"

@@ -16,15 +16,13 @@ the timeline and every mechanism, is in 30 slides: [`site/index.html`](site/inde
 | Part | Where | What it does |
 |---|---|---|
 | System prompt | [`prompt/SAGITTARIUS.md`](prompt/SAGITTARIUS.md) | One self-contained file, appended to the agent's session. |
-| `orbit-kb` | [`kb/bin/orbit-kb`](kb/bin/orbit-kb), rules in [`kb/share/orbit-kb/`](kb/share/orbit-kb/) | A CLI that writes, lints, and queries s(CASP) KBs. It also records Lean proofs (`orbit-kb prove`). Full reference: [`kb/share/orbit-kb/README.md`](kb/share/orbit-kb/README.md). |
-| Dependencies | | [SWI-Prolog](https://www.swi-prolog.org) 9+ with the [s(CASP)](https://github.com/SWI-Prolog/sCASP) pack. [Lean 4](https://lean-lang.org), but only for proofs. |
+| `orbit-kb` | [`kb/bin/orbit-kb`](kb/bin/orbit-kb), rules in [`kb/share/orbit-kb/`](kb/share/orbit-kb/) | A CLI that writes, lints, and queries Prolog KBs, with SWI-Prolog as the only engine. It also records Lean proofs (`orbit-kb prove`). Full reference: [`kb/share/orbit-kb/README.md`](kb/share/orbit-kb/README.md). |
+| Dependencies | | [SWI-Prolog](https://www.swi-prolog.org) 9+. [Lean 4](https://lean-lang.org), but only for proofs. |
 
 ## Install
 
 ```sh
 sudo dnf install swi-prolog-nox                       # or your platform's SWI-Prolog 9+
-swipl -g "pack_install(scasp, [interactive(false)])" -t halt
-ln -s ~/.local/share/swi-prolog/pack/scasp/scasp ~/.local/bin/scasp
 ./install.py                                          # links the CLI, rules, and prompt
 orbit-kb doctor
 ```

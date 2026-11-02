@@ -13,12 +13,15 @@ Core
   E8   this writer may not write this attestation type
   E9   a test_result or lean_proof with no matching run log. Use orbit-kb run / prove.
   E10  uses/1 is missing, not first, or names an unknown module
-  E11  the program does not compile in s(CASP) or does not load in SWI
-  E12  a variable only inside not (hazard H1). Use a helper rule: orbit-kb help answers
-  E13  an atom ends in underscore and digits (hazard H4). Write order4417.
+  E11  a clause does not load in the SWI engine
   E14  unsafe negation: a not variable is in the head but in no positive body literal
   E15  supersedes cycle. add refuses it. done is false while it exists.
   E16  rules.pl adds clauses to a protected predicate (done, burn rules, vote rules). Ignored.
+  E17  a form that orbit-kb does not read: classical negation -p, a # line, a global
+       constraint (:- Body), or a #= constraint. add refuses it. Query, why, whynot,
+       show, and report exit 2 until it is gone.
+  E18  the rules are not stratified: a predicate depends on itself through not.
+       Query, why, whynot, show, and report exit 2 until it is gone.
   W1   subject digest differs from the file. Run orbit-kb subject again.
   W2   a local declaration, listed for review
   W3   a claim with no cites. Cite the request text, or drop the claim (drift).

@@ -168,7 +168,7 @@ check one by one.
 
 Two kinds of formal tool help the human and the agent see the intent. A proof language (Lean)
 demands precision: a statement says exactly what it means, or it does not check. A queryable logic
-store (Prolog, as s(CASP)) keeps the facts of the work in one place. Its rules keep attention on
+store (Prolog, with SWI-Prolog as the engine) keeps the facts of the work in one place. Its rules keep attention on
 what is still open.
 
 Applied in: prompt "SPECTRUM", "Shift up to a KB" (a claim that burns); deck slide 14.

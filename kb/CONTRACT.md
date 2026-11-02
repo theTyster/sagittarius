@@ -26,7 +26,7 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
 - **D5.** `to_ask/1` asks only questions whose claim is still current. Without this, the
   questions of a superseded claim stay open forever, and `done` can never hold.
   `any_to_ask/0` moves from build to core.
-- **D8 (grounded cross-check, 2026-10-16).** Root cause and evidence:
+- **D8 (grounded cross-check, 2026-10-16).** Superseded by D20. Root cause and evidence:
   `/tmp/claude-1000/-home-ty--dotfiles/63a00f00-8d72-4aeb-a216-cde6b882f1f4/scratchpad/perf/scasp-agent/RESULTS.md`
   (the session scratchpad, so it may be gone).
   - **Default.** s(CASP) runs on a query-relevant grounding of the assembled program.
@@ -66,7 +66,7 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
     - `doctor` adds a grounder-corruption control: delete one `failed_after` instance
       from the grounded H3 program. s(CASP) then also answers k1, and the cross-check must
       report ENGINE DISAGREEMENT.
-- **D7 (review fixes, 2026-10-16).**
+- **D7 (review fixes, 2026-10-16).** (The cross-check and E13 parts are superseded by D20.)
   - `query`, `why`, `whynot`, `show`, and `report` exit 2 before they answer in two
     cases: when any KB or rules file has a syntax error (E1), and when `rules.pl` has an
     undeclared head or body predicate (E2). A broken source never yields a quiet "false".
@@ -88,6 +88,16 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
   are updated below. Open requests: a lint warning for a stale approval (LM21); a way to
   record a digest without typing it (F5); a `report_section/3` hook for `report` and
   `show open`. `--by human` is a claim the CLI cannot verify (LM20).
+- **D20 (SWI-Prolog is the only engine, 2026-11-02).** Decision by Ty ("option 2"): drop s(CASP) and keep SWI-Prolog as the only engine. Reasons from two read-only audits: every rule is stratified; the code that only s(CASP) used was about 1,430 lines (about 23% of the CLI); in 17 real client-project sessions `why` had 0 calls and `whynot` about 20 (all of the kind "what blocks done or discovery_ready"); ENGINE DISAGREEMENT happened 0 times and CROSS-CHECK SKIPPED once (a timeout); in the git history every disagreement was a tool bug and never an error in the KB logic. The changes:
+  - C1, gone: the `scasp` binary and its pack; the grounder (D8); the cross-check, ENGINE DISAGREEMENT, CROSS-CHECK SKIPPED, `(unchecked)`, and `NOTE: s(CASP) ran the raw program`; the s(CASP) result cache; the variables `ORBIT_KB_SCASP_FLAGS`, `ORBIT_KB_SCASP_TIMEOUT`, and `ORBIT_KB_SCASP_GROUND`; the hazards H1 to H4; lint E12 and E13; `query --json` and `query --html` (both are now usage errors); the `contradicts` verdict of `whynot`; classical negation `-p`; the reserved names `proved`, `chs`, `assume`, and `abduced`; in the report page, `data-crosscheck` and the `disagreement` open item. `report --html` always exits 0 when it writes the page. Its "done: yes/no" chip comes from the SWI verdict.
+  - C2, negation: `not p` is negation as failure. `not under(_)` means "no under at all", so a rule needs no helper for it. The core rules keep their helper forms.
+  - C3, explanations: `why` and `query --why` print each answer, then the clauses that prove it: "X, because", with indented reasons, and "there is no evidence that X" for a `not` literal. `whynot GOAL` prints `holds` or `absent`. For `absent`, it prints, for each rule of GOAL, the first body literal that no answer gets past ("the rule for done/0 stops at not any_under:") and why, recursively. It prints "nothing records X: no fact or rule matches it" when nothing matches. The depth is 6 levels, and `--long` gives 30. An explanation never changes a verdict.
+  - C4, E17: classical negation `-p` (a fact or rule head, or a body literal), a `#` line, a global constraint `(:- Body)`, or a `#=`-family constraint. `add` refuses them. It applies in `kb.pl` too, and a goal with such a form exits 2 with the E17 text. `query`, `why`, `whynot`, `show`, and `report` exit 2 while an E17 exists (the answer gate, as for E1 and E2 in D7).
+  - C5, E18: rules that are not stratified (a predicate depends on itself through `not`). The same answer gate applies. Before, SWI hit its stack limit on `p :- not q. q :- not p.`. When a `rules.pl` clause closes a cycle through a `not` in the core or a module, E18 names that `rules.pl` clause too.
+  - C6: E11 means only "a clause does not load in the SWI engine". The text of E14 says "A call with X unbound then gives a wrong answer".
+  - C7: `doctor` checks `swipl` and the library, then runs SWI known-answer self-tests: the helper form is false; `not under(_)` is false when `under(a)` holds; arithmetic under `not` gives exactly k2, k3, k4; E18 flags `p :- not q, q :- not p`; E17 flags `-p(b)`.
+  - C8, unchanged: the saved-state fast start (the owner keeps it: a fix of the cache race, GitHub issue #4, must keep it), the schema and the types, the digests, the run logs, `prove`, the text of `report`, `rules.pl`, and `done` and every rule in the core and the modules.
+  - Tests added: X1 to X10, WN1 to WN5, E17, A13, DR1, DR2, HP1, HP2. Q8 and Q9 now check that `--json` and `--html` are usage errors. Tests removed: H3b, H3d, X2g, the old X10, GU, the E11 fixture test, E12, E13, E13s, A18, A19, BP14, RH9, DR4.
 - **D19 (report Open shows what blocks discovery, 2026-10-30).** In a discovery KB, `report` printed "Nothing is open" while a raised question waited for the human, a current claim was refuted, or `discovery_ready` failed. A delivery drafted from it claimed that nothing was open. Now, when the discovery module is loaded, Open also lists each `question_waits(Q)` that is not already a `to_ask` item ("waits"), each current refuted claim ("refuted": record the counterexample and ask the human, do not weaken the claim), and, when `discovery_ready` fails, one "not ready" item that points to `orbit-kb whynot 'discovery_ready'` and `orbit-kb lint`. "Nothing is open" is printed only when none of these holds. `show open` does not change. Test RP7; the discovery report golden changes by that one item.
 - **D18 (attest model_result checks the log, 2026-10-30).** A `model_result` could name any result for a solver log, so a verdict of `holds` could sit on a log that says the invariant is violated. `orbit-kb attest model_result LOG 'PRED'` now reads the file of subject LOG (the path from `subject/3`) for a `verdict(M, Kind, Result)` or a `mutation(M, Rule, Result)`. `calibration` is never checked. It guards an honest mistake: a false refusal is worse than a miss, so it refuses only on a clear contradiction. The choices:
   - C1: a TLC log is `violated` when a line holds `is violated` and no line holds `No error has been found`, and `holds` in the reverse case. A TLC log with neither phrase, or with both, is unclassified. A z3 or cvc5 log is read as the set of lines that are exactly `sat`, `unsat`, or `unknown` (trimmed): one distinct value is the class, several values or none is unclassified.
@@ -95,8 +105,8 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
   - C3: a refusal exits 1 with nothing written. The message says what the log shows and the fix: attest the result the log shows, or run the solver again into a new log.
   - C4: when the log file is missing or unreadable, the subject has no path, or the log is unclassified, the result is accepted as before and stderr has `NOTE: the log was not checked: ...`.
   - C5: a KB edited by hand is not checked, and `lint` does not read logs. Tests: LG1 to LG3.
-- **D17 (done needs a current claim, 2026-10-29).** Issue #1: in a build KB with no claim, `done` held, `lint` was clean, and `report` said "A human answered every question with a default." when no question existed. A ticket with nothing in it counted as finished. Both engines agreed, so the cross-check could not find it: the fault was in the rule. The changes:
-  - C1: `modules/build.pl` adds `any_current_claim :- current(_).` and `no_current_claim :- not any_current_claim.`, and `done` gets one more literal: `done :- not any_under, not any_over, not any_to_ask, not any_burn_open, not any_supersede_cycle, not no_current_claim.` `done` negates `no_current_claim`, and does not call `any_current_claim` directly, so that `whynot done` can explain the case in the grounded program (D8 keeps no rule instance whose positive body cannot hold). No variable occurs only under `not` (H1).
+- **D17 (done needs a current claim, 2026-10-29).** Issue #1: in a build KB with no claim, `done` held, `lint` was clean, and `report` said "A human answered every question with a default." when no question existed. A ticket with nothing in it counted as finished. Both engines agreed then, so the cross-check could not find it: the fault was in the rule. The changes:
+  - C1: `modules/build.pl` adds `any_current_claim :- current(_).` and `no_current_claim :- not any_current_claim.`, and `done` gets one more literal: `done :- not any_under, not any_over, not any_to_ask, not any_burn_open, not any_supersede_cycle, not no_current_claim.` `done` negates `no_current_claim`, and does not call `any_current_claim` directly, so that `whynot done` can explain the case in the grounded program (D8 kept no rule instance whose positive body cannot hold; superseded by D20, but the rule text stays). No variable occurs only under `not`.
   - C2: `whynot done` on a KB with no current claim starts with `absent`, and its explanation names the missing claim: `no claim is current`, because `there is no evidence that some claim is current`.
   - C3: `any_current_claim` is protected (E16): a `rules.pl` clause for it is E16, and the engines ignore it.
   - C4: `report`, with the `build` module and no current claim, has the open item `**no claim**: No claim is current`, with `Add a claim. The work is not done without one.` nested. Its page hook is `data-open="no_claim"`. `show open` prints `- no_claim: no claim is current. Add a claim. The work is not done without one.` In both, `Nothing is open.` is not printed then.
@@ -107,11 +117,11 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
 - **D16 (the delivery report as a page, 2026-10-28).** Request by Ty: the close-out text "is not very readable", so orbit-kb writes the report as a page to read in a browser, "with a few UX offerings to help the review process". Choices made by the builder:
   - P1: `report --html FILE` writes one self-contained HTML page (CSS and script inline; no network, CDN, font, or build step; it works from `file://`). It prints the same text on stdout as `report`, and `HTML written to FILE` on stderr. A file that cannot be written exits 2. The text on stdout is the plain `report` text, byte for byte (fixtures `report_golden/*.txt`). C4 changed that text on the same day; the golden files were made again from the CLI after C4 and read by eye.
   - P2: one source. `report` records each line it prints with its item. The page is built from those records, so it shows the same items and the same status sentences, and no script derives a status. The page adds evidence that the text leaves out, read from facts: per claim its citations, examples, checks (state, latest run number, result, time, and `runs/N-CHECK.log`), divergences with their notes, disclosures about the claim or its questions, waivers of the claim or its checks (due time, reason, state), questions, and notes.
-  - P3: open items come first, in a section before the claims: each `under` claim, then each line of `Open:` (questions to ask, stale approvals, supersede cycles, `over` changes, open burns, lapsed waivers, proofs that no longer count), then engine disagreements. The report text never runs s(CASP), so for the page the CLI cross-checks `done`, `under(X)`, `burn_open(X)`, and `to_ask(X)` (only `to_ask(X)` without build). A disagreement is an open item, and it is printed on stderr as by `query`; then the exit is 2, after the page is written. A s(CASP) timeout is shown as "not cross-checked".
+  - P3: open items come first, in a section before the claims: each `under` claim, then each line of `Open:` (questions to ask, stale approvals, supersede cycles, `over` changes, open burns, lapsed waivers, proofs that no longer count), then engine disagreements. Superseded by D20: the page has no cross-check and no `disagreement` item. (Old text: the report text never runs s(CASP), so for the page the CLI cross-checks `done`, `under(X)`, `burn_open(X)`, and `to_ask(X)` (only `to_ask(X)` without build). A disagreement is an open item, and it is printed on stderr as by `query`; then the exit is 2, after the page is written. A s(CASP) timeout is shown as "not cross-checked".)
   - P4: review marks. Each claim, guess, disclosure, waiver, and open item has the marks `ok`, `doubt`, and `wrong`, and a short note. Items with the same id share one mark. One button writes the marks as plain text, one line per marked item (`c1: doubt - the note`), after a first line that names the KB and the report digest. It copies the text when the browser allows it, and it always shows the text in a selectable textarea. The page cannot write to the KB. It keeps the marks in `localStorage`, under the KB path and the digest of the report text; every access is inside `try`.
   - P5: escaping. Every KB string in the page is HTML-escaped (`& < > " '`). Notes are set as text by the script.
   - P6: `--open` (only with `--html`) runs `xdg-open`, or `open` when there is no `xdg-open`, on the page, and does not wait. Without `--open`, nothing is opened.
-  - P7: page hooks, for the tests: `data-section` (`open`, `claims`, `guesses`, `disclosures`, `waivers`, `not_checked`, `vote`, `text`); per claim `<article data-claim="C" data-status="S">` on one line, where S is `fulfilled`, `under`, `waived` (a waived check), or `none` (no build module), with S also as a text label; `data-check="K" data-run="N|none" data-result="pass|fail|none"`; per open item `data-open="KIND" data-ref="ID"` (KIND: `under`, `to_ask`, `stale`, `supersede_cycle`, `over`, `burn_open`, `waiver_lapsed`, `proof_changed`, `disagreement`); `data-crosscheck="agree|disagree|skipped"`; `data-mark`; `<body data-kb="KB DIR" data-digest="sha256:…">`; `id="review-copy"` and `<textarea id="review-text">`.
+  - P7: page hooks, for the tests: `data-section` (`open`, `claims`, `guesses`, `disclosures`, `waivers`, `not_checked`, `vote`, `text`); per claim `<article data-claim="C" data-status="S">` on one line, where S is `fulfilled`, `under`, `waived` (a waived check), or `none` (no build module), with S also as a text label; `data-check="K" data-run="N|none" data-result="pass|fail|none"`; per open item `data-open="KIND" data-ref="ID"` (KIND: `under`, `to_ask`, `stale`, `supersede_cycle`, `over`, `burn_open`, `waiver_lapsed`, `proof_changed`; D20 removed the KIND `disagreement` and `data-crosscheck`); `data-mark`; `<body data-kb="KB DIR" data-digest="sha256:…">`; `id="review-copy"` and `<textarea id="review-text">`.
   - C4 (the layout of the text, 2026-10-28). Request by Ty: "better headings and new spacing for the default output", "probably even more than the html report"; the goal for the text and the page is readability. This replaces the old claim that the text stays as it is. The text is plain Markdown that also reads as raw text: no colour codes, no tabs, no box-drawing characters, no trailing spaces.
     - L1: each section has the heading `# Name:` (`Delivered`, `Claims`, `Guesses`, `Disclosures`, `Waivers`, `Not checked`, `Open`, `Vote`, `To land`; the same order and conditions as before), and one blank line separates two sections. There is no blank line before the first heading and none after the last line.
     - L2: each item is a bullet `- ` indented by two spaces. A nested bullet adds two spaces for each level. The label is in `**bold**`: the kind of a claim (`c1 **introduce**: text`), the kind of a disclosure (`a1 **unverified**: text`; a disclosure that is not `kind(arg)` has no label), the state of a waiver (`w1 **in force**`, `**lapsed**`, or `**ignored**` when a human did not write it), and the kind of an open item (`**ask**`, `**stale**`, `**cycle**`, `**over**`, `**burn open**`, `**waiver lapsed**`, `**proof changed**`).
@@ -164,12 +174,12 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
     axioms `propext`, `Classical.choice`, `Quot.sound`. It writes `runs/proof-ID.log`.
   - Derived facts, computed at each KB load: `proof_changed(A)` (a file of the proof
     changed, or the log is missing or wrong) and `waiver_lapsed(W)` (the due time is
-    past). The SWI engine and s(CASP) both see them as facts.
+    past). Both engines saw them as facts (D20: only SWI now).
   - Lint E9 also covers a `lean_proof` with no matching log. E8 names `orbit-kb prove`.
   - Optional conformance: `conformance(ref(check))` and `conforms(C)`.
   - `declare` refuses `proved`, `chs`, `assume`, `abduced`: s(CASP) uses them as model
     wrappers, and a rule `proved/1` made `scasp --code` raise an instantiation error.
-    The rule is named `burn_proved/1`.
+    The rule is named `burn_proved/1`. Superseded by D20: the names are no longer reserved.
 - **D10 follow-up (review fixes, 2026-10-20).** Decisions by Ty on 2026-10-20: the
   threat model is trust ("we expect trust between the agents, the human, and the code"),
   so `prove` checks the proof of an honest agent that can make mistakes and does not
@@ -197,7 +207,8 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
     still has its sha256, and every absent file is still absent.
 - **D6.** Generate stubs only for declared predicates that have no clauses in the
   assembled program. Name every anonymous variable in a query before passing it to
-  s(CASP), because `--json` crashes on `_`.
+  s(CASP), because `--json` crashes on `_`. Superseded by D20: no stubs go to s(CASP)
+  now; the SWI engine makes each declared predicate dynamic.
 
 This contract is the single source of truth for three builders who work in parallel:
 
@@ -208,8 +219,8 @@ This contract is the single source of truth for three builders who work in paral
 Each builder edits only its own path. When something is ambiguous, choose the reading
 that makes failures loud, and record the choice in your final report.
 
-**Purpose.** A CLI that helps LLM agents write, check, and query s(CASP) knowledge bases
-(KBs). A KB records:
+**Purpose.** A CLI that helps LLM agents write, check, and query Prolog knowledge bases
+(KBs) with default negation (`not p`). SWI-Prolog is the only engine (D20). A KB records:
 
 - a human's request;
 - claims about the request;
@@ -221,140 +232,46 @@ domain-neutral. The core vocabulary must not mention software. Software terms li
 `modules/build.pl`. Discovery terms live in `modules/discovery.pl`, which another session
 owns.
 
-## Environment facts (verified 2026-10-15)
+## Environment facts
 
-- SWI-Prolog 9.2.9 is at `/usr/bin/swipl`.
-- s(CASP) 1.1.4 is a pack in `~/.local/share/swi-prolog/pack/scasp`. Its binary is
-  linked at `~/.local/bin/scasp`.
-- `scasp` reads a program from `/dev/stdin`.
-- A stub `p(_, _) :- false.` declares an empty predicate. A query on it gives
-  "No models", with no warning. With `--unknown=error`, a misspelled predicate in a rule
-  body raises an error, which is loud. A query goal on a predicate with no clauses raises
-  an error even with `--unknown=fail`. Stubs fix that too.
-- "No models" exits 0 and prints `Warning: s(CASP): No models` on stderr. An existence
-  error exits 1.
-- `--json=-` prints `{"answers":[{"bindings":{"X":{"value":…}}, …}]}`. `answers` is
-  empty when there are no models.
-- `--tree --human` prints an English justification. A `#pred head(A,B) :: 'text @(A)'.`
-  line changes that text.
+- SWI-Prolog 9.2.9 is at `/usr/bin/swipl`. It is the only engine (D20). No other
+  program is needed. Until 2026-11-02, a second engine, s(CASP) 1.1.4, ran beside it.
+- `not G` is negation as failure: it holds when G has no answer. So `not under(_)` means
+  "no under at all".
 - Clauses of one predicate merge across concatenated files, and negation sees all of
   them. Facts like `decl(fact, claim(id, oneof([a,b]), text), 'Doc', 'T').` are harmless
-  inside an s(CASP) program. So the program can be built by concatenating raw text.
-- s(CASP) operators, for SWI reading:
-  - `op(900, fy, not)`
-  - `op(950, xfx, ::)`
-  - `op(1200, fx, #)`
-  - `op(1150, fx, [table, show, pred])`
-  - `op(350, fx, [include, compute, abducible])`
-  - `op(700, xfx, [#=, #<>, #<, #>, #=<, #>=])`
+  inside the program. So the program can be built by concatenating raw text.
+- The SWI engine reads these operators: `op(900, fy, not)` and `op(950, xfx, ::)`.
+  Other operators of s(CASP) are not read (E17).
 
-### Two s(CASP) soundness hazards (reproduced 2026-10-15)
+## Engine: one engine, one verdict, one explanation
 
-**H1: a variable that occurs only under `not` is existential.**
-- `done :- not under(_).` succeeds even when `under(a)` is a fact. The same happens with
-  every `--forall` mode.
-- `over(X) :- change(X, _), not serves(X, _).` is true even when `serves(x1, c1)` exists.
-- The fix is a helper predicate: `any_under :- under(_). done :- not any_under.`
-- Rule: no `not` literal may contain a variable that occurs nowhere else in the clause,
-  including `_`. Lint error E12 enforces this.
+SWI-Prolog is the only engine (D20). Every program that the tool answers is stratified:
+the core and the modules are, and lint (E14, E17, E18) keeps `rules.pl` inside the same
+fragment. Negation as failure then gives the one answer of the program.
 
-**H2: the default `--forall` algorithm returned a wrong answer.** This 5-fact program
-must have no models:
-
-```prolog
-finding(f1, sys, model).
-about_system(sys).
-attest(a1, other, foo, x, agent, t1).
-attest(a2, reproduction, other, confirms(f9), script, t2).
-attest(a4, reproduction, sys, confirms(f1), script, t4).
-finding_lead(F) :- finding(F, K, model), about_system(K), not finding_confirmed(F).
-finding_confirmed(F) :- attest(_, reproduction, _, confirms(F), _, _).
-?- finding_lead(F).
-```
-
-- The default `--forall` mode gives `F = f1`. That is wrong.
-- `--forall=prev` and `--forall=sasp` give "No models", which is correct.
-- SWI-Prolog negation (`\+`) gives no answer, which is correct.
-
-Neither the soundness of `prev` nor that of `sasp` has been proved. The bug is upstream:
-https://github.com/SWI-Prolog/sCASP/issues/10 has been open since 2024-10, and no fix
-exists in 1.1.4 or master. `prev` is the algorithm from the 2018 paper and the default in
-Ciao. Its known weakness is arithmetic constraints that link variables under negation.
-
-**H3: arithmetic under negation, as in the core rule `passed/1`.** Tested on 2026-10-15.
-
-- Program: the core `passed/1` and `failed_after/2`, plus these runs:
-  - k1: pass(1), fail(2)
-  - k2: fail(3), pass(4)
-  - k3: pass(5)
-  - k4: pass(6), fail(7), pass(8)
-- Query: `passed(K)`.
-- Expected: exactly k2, k3, and k4.
-
-| Engine | Answer | Verdict |
-|---|---|---|
-| default `all` | k1, k2, k3 | wrong both ways |
-| `prev` | k2, k3, k4 | correct |
-| `sasp` | k2, k3, k4 | correct |
-| SWI | k2, k3, k4 | correct |
-
-With `all`, the ground query `passed(k1)` also says yes after a pass and then a fail.
-This is a third known-answer case for `doctor`.
-
-**H4: atoms that end in `_<digits>` merge.** s(CASP) strips a trailing `_<digits>` from
-atoms, even quoted ones, and the stripped atoms then unify. This was reproduced on
-2026-10-15:
-
-- `p(order_4417). r :- p(order_5120).` gives `r` true in s(CASP), but false in SWI.
-- `p(order_4417). p(order_5120).` with the query `p(X)` prints `X = order` twice.
-
-Rules:
-- Lint error **E13**: any atom in `kb.pl`, `rules.pl`, the core, or a module that matches
-  `_[0-9]+$`. The fix text: "rename it, for example order4417".
-- `add`, `declare`, `attest`, and `init --id` reject such atoms with the same message.
-- `doctor` adds a fourth known-answer case: the `r` program above must be false on both
-  engines. With such atoms, s(CASP) says true and SWI says false. If E13 lets such atoms
-  through, a query on them must report ENGINE DISAGREEMENT.
-- The cross-check compares binding sets whenever bindings are ground, at any `-n`, not
-  only `-n 0`. The comparison covers the answers that both engines returned up to `-n`.
-  If the engines order answers differently, compare existence only and note this in the
-  report.
-
-## Engines: one verdict, one explanation, cross-checked
-
-Every query runs on two engines:
-
-1. **SWI engine (verdict).** Load the assembled program into a fresh module of the
-   `orbit-kb` process, after these translations:
+1. **Verdict.** Load the assembled program into a fresh module of the `orbit-kb`
+   process, after these translations:
    - `not G` becomes `\+ G`;
-   - `-p(…)` becomes the separate predicate `'-p'(…)`, in facts and in calls;
-   - `#…` directives are dropped;
+   - each `not` literal moves after all of the positive body literals. Builtins stay in
+     place relative to the positive literals. In a stratified program this does not
+     change the answers, and it stops `\+` from floundering on unbound variables (D7);
+   - a clause that has a form of E17 is skipped;
    - each declared predicate is made dynamic, so an empty predicate fails without an
      error.
 
    Collect all answers with a time limit (10 s) and an answer cap (1000), then remove
-   duplicates. These are the answers that `orbit-kb` prints. For the stratified programs
-   this tool targets, this is negation as failure with the usual closed-world meaning.
-2. **s(CASP) engine (explanation).**
-   - Run `scasp --unknown=error --forall=prev` on the assembled program plus generated
-     stubs.
-   - `$ORBIT_KB_SCASP_FLAGS` replaces `--forall=prev` when set. The tests use it.
-   - s(CASP) provides the `--why` trees, `--json`, and `--html`.
-3. **Cross-check.**
-   - Compare existence: SWI has at least one answer if and only if s(CASP) has at least
-     one model.
-   - With `-n 0`, and when every s(CASP) binding is ground, also compare the sets of
-     binding tuples.
-   - On a mismatch, print `ENGINE DISAGREEMENT`, both results, and the hint
-     "see H1/H2 in the orbit-kb help". Exit 2.
-   - A disagreement is never silent and never exits 0 or 1.
-   - If the SWI engine cannot evaluate a construct, such as `#=` constraints, print
-     `CROSS-CHECK SKIPPED: <reason>` on stderr. Then answer from s(CASP) alone, and add
-     `(unchecked)` to the output.
+   duplicates. These are the answers that `orbit-kb` prints.
+2. **Explanation.** `why` and `whynot` read the same clauses. They never change a verdict
+   (see the CLI table).
+3. **Answer gate.** `query`, `why`, `whynot`, `show`, and `report` exit 2 before they
+   answer while a source has an E1, E2 (in `rules.pl`), E17, or E18 diagnostic. A broken
+   source never yields a quiet "false".
+4. **SWI ERROR.** When the engine cannot evaluate a goal, the command exits 2. It is
+   never a false answer.
 
-**Stubs.** When assembling for s(CASP), add `p(_,…,_) :- false.` for every declared
-predicate: fact and rule kinds, core, modules, and local. Then run `--unknown=error`, so
-an undeclared predicate is loud at run time as well as in lint.
+There are no hazards of a second engine (H1 to H4 went with s(CASP), D20). A fact that is
+not recorded is false. Atoms that end in `_<digits>` are ordinary atoms.
 
 ## Files
 
@@ -370,11 +287,11 @@ an undeclared predicate is loud at run time as well as in lint.
 
 - `kb.pl`:
   - The first term is `uses([Module, …]).` The list may be empty.
-  - Then facts, `-facts` (classical negation), and local `decl/4` and `attest_type/4`
+  - Then facts (no classical negation `-p`: E17), and local `decl/4` and `attest_type/4`
     declarations.
   - The file is append-only by convention. The only exception is `orbit-kb subject`,
     which rewrites its own `subject/3` line.
-- `rules.pl` (optional): local rules and `#pred` lines.
+- `rules.pl` (optional): local rules (no `#` lines: E17).
 - `runs/<N>-<CheckId>.log`: written only by `orbit-kb run`. The first line is
   `% orbit-kb run <N> check=<CheckId> result=<pass|fail> exit=<code> time=<ISO> cmd=<command>`.
 
@@ -385,7 +302,7 @@ decl(Kind, Head, Doc, Template).
 %  Kind:     fact | rule
 %  Head:     Name(Type1, …, TypeN)
 %  Doc:      atom; one plain sentence
-%  Template: atom with positional @(1), @(2)… for #pred; '' if none
+%  Template: atom with positional @(1), @(2)… that `why` and `whynot` print; '' if none
 attest_type(Type, Shape, Writers, Doc).
 %  Shape:    a type (below) for the 4th argument of attest/6
 %  Writers:  sub-list of [human, agent, script]
@@ -487,7 +404,7 @@ Core attestation types:
 - `test_result`: shape `result(ref(check), int, oneof([pass, fail]))`. Writers:
   `[script]` (moved from build in v2.1).
 
-Core rules, each declared with kind `rule`, and each passing E12:
+Core rules, each declared with kind `rule`:
 
 ```prolog
 superseded(C) :- supersedes(_, C).
@@ -597,9 +514,9 @@ Exit codes:
 |---|---|
 | 0 | success; the query is true; lint is clean |
 | 1 | the query has no answer; lint found errors; `add`, `declare`, `attest`, or `init` rejected the input |
-| 2 | usage error; KB or library not found; tool missing; query syntax error; undeclared predicate in a query; ENGINE DISAGREEMENT; internal error |
+| 2 | usage error (also `query --json` and `query --html`, which no longer exist); KB or library not found; tool missing; query syntax error; undeclared predicate in a query; a source that has E1, E2, E17, or E18 (answer gate); SWI ERROR; internal error |
 
-A typo or an engine disagreement MUST never exit 1. It must never look like "false".
+A typo, a broken source, or an engine error MUST never exit 1. It must never look like "false".
 
 | Command | Contract |
 |---|---|
@@ -612,13 +529,13 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | `attest TYPE SUBJECT 'PREDICATE' [--by human\|agent] [--id ID]` | `--by` defaults to `agent`. The id defaults to `a<N>`, the next free number. The time is now, in UTC. Validate the shape, the writer, and the references. The literal predicate `digest(current)` is replaced by the subject's recorded digest. |
 | `run CHECK -- CMD …` | Check that CHECK exists, then run CMD. Write its combined output to `runs/<N>-<CHECK>.log`, where N is the highest run number in any `test_result` plus 1. Append `attest(aM, test_result, CHECK, result(CHECK, N, pass\|fail), script, TIME)`; the result is `pass` when CMD exits 0. Print `run N CHECK pass\|fail (exit E) log=PATH`. On a fail, also print the last 40 lines of output. Exit 0 on pass and 1 on fail. |
 | `lint [--strict]` | Print one diagnostic per line, `E<n> file:line: message` or `W<n> …`, then module `lint_issue` results, then a summary line. Exit 1 if there are errors, or if there are warnings and `--strict` is set. |
-| `query 'GOAL' [-n N] [--why] [--json] [--html FILE]` | Check that every predicate in GOAL is declared or built in; otherwise exit 2. Assemble the program in this order: core, modules, `kb.pl`, `rules.pl`, stubs, and `#pred` lines from templates. Run both engines and cross-check them. `-n` defaults to 1; 0 means all answers. Default output: one line per answer from the SWI engine, either `true` or `X = v, Y = w`. `--why` adds the s(CASP) human justification tree. `--json` prints the s(CASP) JSON unchanged. Exit 0 on an answer, 1 on none. |
-| `why 'GOAL'` | Same as `query --why`. |
-| `whynot 'GOAL'` | The first line is `holds`, `contradicts`, or `absent`, decided by the SWI engine. `holds` means GOAL has an answer. `contradicts` means `-GOAL` has an answer; only check this when a `-` clause exists. `absent` means neither, and the tree shown is for `not GOAL`. Then print the s(CASP) justification. Cross-check the verdict. Exit 0. |
+| `query 'GOAL' [-n N] [--why] [--long]` | Check that every predicate in GOAL is declared or built in; otherwise exit 2. Assemble the program in this order: core, modules, `kb.pl`, `rules.pl`. Run the SWI engine. `-n` defaults to 1; 0 means all answers. Output: one line per answer, either `true` or `X = v, Y = w`; no answer prints `false`. `--why` adds, after each answer, the clauses that prove it (D20). `--long` makes the explanation 30 levels deep instead of 6. `--json` and `--html` are usage errors (exit 2). Exit 0 on an answer, 1 on none, 2 on a bad goal, a source for the answer gate, or SWI ERROR. |
+| `why 'GOAL' [-n N] [--long]` | Same as `query --why`. Each answer is followed by "X, because" and the indented reasons: why each literal of the rule that proves it holds. A `not` literal reads "there is no evidence that X". |
+| `whynot 'GOAL' [--long]` | The first line is `holds` or `absent`, decided by the SWI engine (the verdict `contradicts` is gone, D20). `holds` means GOAL has an answer; the clauses that prove the first answer follow. `absent` means GOAL has no answer; then, for each rule of GOAL, the first body literal that no answer gets past ("the rule for done/0 stops at not any_under:") and why, recursively. "nothing records X: no fact or rule matches it" is printed when nothing matches. The depth is 6 levels; `--long` gives 30. The explanation never changes the verdict. Exit 0. |
 | `show [claims\|questions\|open\|disclosures\|extensions\|all]` | Plain-text listing. The default is `all`. `open` lists `to_ask`, `stale`, and `contested`, plus `under` and `over` when build is loaded. |
 | `report` | A delivery skeleton in plain Markdown (D16 C4: `# Name:` headings, a blank line between sections, two-space bullets, bold labels, nested detail) with these sections in this order: `Delivered:` (placeholder); `Claims:` (each current claim with `fulfilled` or `under` when build is loaded, and its checks); `Guesses:` (questions whose default no human answered; D17 C5 for the empty case); `Disclosures:`; `Not checked:` (current claims with no check); `Open:` (`to_ask`, stale approvals, `over`, and `no claim` when no claim is current, D17 C4); `To land:` (placeholder). Use short, plain sentences. `--html FILE` also writes the report as a page for review, and `--open` opens it (D16). |
-| `doctor` | Check `swipl`, `scasp` (its location and version), and the library directory, and print a fix step for anything missing. Then run a known-answer self-test on both engines: the H1 helper form must be false, the H2 program must have no answer, the H3 program must answer exactly k2, k3, and k4 with `-n 0`, and the H1 bad form must be flagged by E12. Report each result. Exit 2 if anything is missing or a self-test fails. |
-| `help [COMMAND\|TOPIC]` | Usage. The general help starts with a "How to use" block (the order of the commands, and one line for each topic), then lists the commands and explains H1 and H2 in a few plain sentences. A TOPIC is `core`, `build`, `discovery`, `codes`, or `answers`. Its text is the file `help/TOPIC.txt` in the library directory. An unknown name exits 2. `init` prints a `Next:` line that names `help core`. `uses discovery` prints a `Next:` line that names `lint` and `help discovery`. |
+| `doctor` | Check `swipl` and the library directory, and print a fix step for anything missing. Then run known-answer self-tests on the SWI engine: the helper form must be false; `not under(_)` must be false when `under(a)` holds; arithmetic under `not` must give exactly k2, k3, and k4 with `-n 0`; E18 must flag `p :- not q, q :- not p`; E17 must flag `-p(b)`. Report each result. Exit 2 if anything is missing or a self-test fails. It does not look for `scasp`. |
+| `help [COMMAND\|TOPIC]` | Usage. The general help starts with a "How to use" block (the order of the commands, and one line for each topic), then lists the commands and explains the engine (negation as failure, stratified rules) in a few plain sentences. A TOPIC is `core`, `build`, `discovery`, `codes`, or `answers`. Its text is the file `help/TOPIC.txt` in the library directory. An unknown name exits 2. `init` prints a `Next:` line that names `help core`. `uses discovery` prints a `Next:` line that names `lint` and `help discovery`. |
 
 ## Lint
 
@@ -634,12 +551,14 @@ A typo or an engine disagreement MUST never exit 1. It must never look like "fal
 | E8 | Attestation writer not allowed for its type. This includes a `[script]` type whose By is not `script`. |
 | E9 | A `test_result` with no matching run log, where the header must match N, the check, and the result. A `lean_proof` with no matching `runs/proof-ID.log`: the header must name the claim and the digest, and the digest of the log lines (D10 follow-up) must equal it. |
 | E10 | `uses/1` is missing, is not first, or names an unknown module. |
-| E11 | The assembled program fails to compile in s(CASP), or fails to load in the SWI engine. |
-| E13 | An atom or string ends in `_` plus digits (H4). |
-| E14 | Unsafe negation: a `not` literal's variable occurs in the head but in no positive body literal (D7). |
+| E11 | A clause does not load in the SWI engine (D20). |
+| E13 | Removed by D20 (it was hazard H4 of s(CASP)). |
+| E14 | Unsafe negation: a `not` literal's variable occurs in the head but in no positive body literal (D7). A call with that variable unbound then gives a wrong answer. |
 | E15 | A `supersedes` fact on a cycle, including `supersedes(C, C)` (D10 follow-up), of claims or of hypotheses (D15). `add` refuses it. |
 | E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle` (D10 follow-up), `any_current_claim` (D17), and the vote rules `vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split` (D14). The engines ignore the clause. |
-| E12 | A `not` literal contains a variable that occurs nowhere else in the clause, including `_` (H1). The message gives the helper-predicate fix. |
+| E12 | Removed by D20 (it was hazard H1 of s(CASP)). A variable only under `not` is now an ordinary case: `not under(_)` means no under at all. |
+| E17 | A form that `orbit-kb` does not read (D20): classical negation `-p` (a fact or rule head, or a body literal), a `#` line, a global constraint `(:- Body)`, or a `#=`-family constraint. `add` refuses it. It applies in `kb.pl` too, and a goal with such a form exits 2 with the E17 text. The answer gate applies. |
+| E18 | The rules are not stratified: a predicate depends on itself through `not` (D20). The answer gate applies. |
 
 | Code | Warning |
 |---|---|
