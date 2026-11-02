@@ -1008,7 +1008,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E14 | Unsafe negation: a variable of a `not` literal occurs in the head, but in no positive body literal. A call with that variable unbound then gives a wrong answer. |
 | E15 | A `supersedes` fact on a cycle: a claim (or a hypothesis) replaces itself, directly (`supersedes(C, C)`) or through others. `done` is false while the cycle exists. `add` refuses such a fact. |
 | E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `any_current_claim`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engine ignores the clause. |
-| E17 | A form that `orbit-kb` does not read (it is s(CASP) syntax): classical negation `-p` (in a fact, a rule head, or a body literal), a `#` line, a global constraint `(:- Body)`, or a `#=`-family constraint. `add` refuses it. In `kb.pl`, a `#` line or a `:-` line is reported as E7 only. `query`, `why`, `whynot`, `show`, and `report` exit 2 while an E17 exists. |
+| E17 | A form that `orbit-kb` does not read (it is s(CASP) syntax): classical negation `-p` (in a fact, a rule head, or a body literal), a `#` line, a global constraint `(:- Body)`, or a `#=`-family constraint. `add` refuses it. It applies in `kb.pl` too, and a goal with such a form exits 2 with the E17 text. `query`, `why`, `whynot`, `show`, and `report` exit 2 while an E17 exists. |
 | E18 | The rules are not stratified: a predicate depends on itself through `not`. The same commands exit 2 while an E18 exists. |
 
 | Code | Warning |
@@ -1148,8 +1148,8 @@ Typical tickets have 1–20 claims. The speed work has these parts:
   the path of the script, and the SWI-Prolog version and executable. A sidecar
   file `.ok` holds the size and the SHA-1 of the state. If the state is bad,
   the CLI loads the script as usual. The first run after a script change builds
-  a new state, which takes about 0.3 s. The owner has not decided whether the
-  saved state stays (GitHub issue #4).
+  a new state, which takes about 0.3 s. The owner keeps the saved state; a fix
+  of its cache race (GitHub issue #4) must keep it.
 - **Lazy libraries.** Libraries that only some commands need load on first use.
 - **Hot spots.** The quadratic loops of lint use AVL sets. `show` and `report`
   run one query for each relation.
@@ -1512,7 +1512,7 @@ In this section, "Ty" is the author of the project. The author's decisions are c
 | One engine (D20) | SWI-Prolog gives the verdict and, from the same clauses, the explanation. Until 2026-11-02, s(CASP) explained the answers and a cross-check compared the two. It cost about 23% of the CLI, and in the audits it found no error in a KB, only tool bugs. |
 | Exit 2 for typos and broken sources | A typo or a broken source must never look like "false". D7 added broken sources to this rule. D20 added E17 and E18. |
 | `run` outside the lock (D7) | A long check must not stop other writers. The cost is that `run` numbers runs in the order that they finish. |
-| Saved state under `XDG_CACHE_HOME` | A saved state makes a warm query start in 35–40 ms. A cache error is never fatal, and `ORBIT_KB_NO_CACHE=1` turns it off. The owner has not decided whether it stays (GitHub issue #4). |
+| Saved state under `XDG_CACHE_HOME` | A saved state makes a warm query start in 35–40 ms. A cache error is never fatal, and `ORBIT_KB_NO_CACHE=1` turns it off. The owner keeps it; a fix of its cache race (GitHub issue #4) must keep it. |
 
 Changes in contract v2.1:
 
@@ -1687,7 +1687,7 @@ Known gaps:
   - **Changed.** E11 means only "a clause does not load in the SWI engine". The
     E14 text says "A call with X unbound then gives a wrong answer". `doctor`
     runs SWI self-tests.
-  - **Unchanged.** The saved state (the owner has not decided: GitHub issue #4),
+  - **Unchanged.** The saved state (the owner keeps it; GitHub issue #4),
     the schema and types, the digests, the run logs, `prove`, the text of
     `report`, `rules.pl`, `done`, and all rule text in the core and the modules.
   - **History of the hazards.** On 2026-10-15, four faults of s(CASP) showed

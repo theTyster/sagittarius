@@ -931,6 +931,15 @@ t_X9() { # D20: no scasp is needed. A scasp on PATH that records each call is ne
     local c; for c in "query done" "whynot done" "why current(c1)" "lint" "report" "doctor"; do
         PATH="$T/fakebin:$PATH" okb --dir "$K" $c; [ "$rc" -le 1 ] || note "$c: exit $rc"; done
     [ -e "$T/called" ] && note "scasp was called"; true; }
+t_X10() { # D20 review: forms of s(CASP) in kb.pl and in a goal; no E2 for #<; E18 names the rules.pl clause
+    mkclaim; printf ':- claim(c1, introduce, x).\n' >> "$K/kb.pl"
+    okb --dir "$K" lint; rc_is 1; out_has '^E17 kb\.pl'; out_hasnt '^E7 ' "E17 only"
+    q 'current(c1)'; rc_is 2 "no answer while kb.pl holds a constraint"
+    mkclaim; q '-current(c1)'; rc_is 2; any_hasi 'classical negation' "a clear message for -p in a goal"; any_hasnt 'SWI ERROR'
+    printf 'q :- current(X), X #< 3.\n' > "$K/rules.pl"; okb --dir "$K" declare q --doc q --kind rule >/dev/null
+    okb --dir "$K" lint; rc_is 1; out_has '^E17 rules\.pl:1'; out_hasnt '^E2 ' "no E2 for #<"
+    printf 'superseded(C) :- current(C).\n' > "$K/rules.pl"
+    okb --dir "$K" lint; rc_is 1; out_has '^E18 rules\.pl:1' "E18 names the rules.pl clause that closes the cycle"; }
 gd_kb() {  # gd_kb DIR: a build KB with 20 claims, each with a check, a serving change, and 2 runs (fail, then pass)
     local d=$1 i kind
     mkdir -p "$d"
@@ -1544,9 +1553,23 @@ t_WN2() { # D20: absent names, for each rule, the literal that blocks, and why
           out_has 'stops at not any_under' "the blocking literal of done"; out_has 'claim c1 is current but not fulfilled' "the template text of the reason"; }
 t_WN3() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'current(c9)'; rc_is 0; [ "$(first_line)" = absent ] || note "first line '$(first_line)'"; [ "$(printf '%s\n' "$out" | wc -l)" -ge 2 ] || note "a justification follows the verdict"; out_has 'claim\(c9' "names the missing fact"; }
 t_WN4() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'world(door_closed)'; [ "$(first_line)" = holds ] || note "a fact holds: '$(first_line)'"; okb --dir "$K" whynot 'world(window)'; [ "$(first_line)" = absent ] || note "no clause for it: absent, got '$(first_line)'"; out_has 'nothing records world\(window\)'; }
-t_WN5() { # D20: --long goes deeper than the default
-          kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'done'; local n1; n1=$(printf '%s\n' "$out" | wc -l)
-          okb --dir "$K" whynot 'done' --long; rc_is 0; local n2; n2=$(printf '%s\n' "$out" | wc -l); [ "$n2" -ge "$n1" ] || note "--long is shorter ($n2 < $n1)"; }
+t_WN5() { # D20: the default explanation stops at 6 levels; --long goes on
+          kb_new "$T/k" <<'EOF'
+uses([]).
+request(r1, 'Chain').
+decl(rule, d1, 'd1.', '').
+decl(rule, d2, 'd2.', '').
+decl(rule, d3, 'd3.', '').
+decl(rule, d4, 'd4.', '').
+decl(rule, d5, 'd5.', '').
+decl(rule, d6, 'd6.', '').
+decl(rule, d7, 'd7.', '').
+decl(rule, d8, 'd8.', '').
+decl(fact, d9, 'd9.', '').
+EOF
+          K=$T/k; printf 'd1 :- d2.\nd2 :- d3.\nd3 :- d4.\nd4 :- d5.\nd5 :- d6.\nd6 :- d7.\nd7 :- d8.\nd8 :- d9.\n' > "$K/rules.pl"
+          okb --dir "$K" whynot d1; rc_is 0; out_has 'long shows more' "the default stops"; out_hasnt 'nothing records d9' "the default does not reach d9"
+          okb --dir "$K" whynot d1 --long; rc_is 0; out_has 'nothing records d9' "--long reaches d9"; out_hasnt 'long shows more'; }
 t_Y1() { mkclaim; okb --dir "$K" declare 'gizmo(id, text)' --doc 'A gizmo.' --template '@(1) is a gizmo called @(2)' >/dev/null; oadd "gizmo(g1, sprocket)" >/dev/null
          okb --dir "$K" why 'gizmo(g1, N)'; rc_is 0; any_hasf 'g1 is a gizmo called sprocket' "the local template text"; }
 t_Y2() { kb_q "$T/k"; K=$T/k; okb --dir "$K" why 'current(c1)'; rc_is 0; out_has 'c1'; out_has 'because|holds|evidence'; }
@@ -2211,6 +2234,7 @@ run_test t_X6 X6 "H1 helper form is false"
 run_test t_X7 X7 "D20: E17 s(CASP) forms in rules.pl; query exits 2"
 run_test t_X8 X8 "D20: E17 for -p in a body"
 run_test t_X9 X9 "D20: no command calls scasp"
+run_test t_X10 X10 "D20 review: E17 in kb.pl and goals, no E2 for #<, E18 in rules.pl"
 run_test t_GD GD "query done on 20 claims x 2 runs: correct"
 run_test t_WN1 WN1 "whynot: holds"
 run_test t_WN2 WN2 "D20: whynot absent names the blocking literal"

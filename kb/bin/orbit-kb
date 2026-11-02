@@ -1226,10 +1226,8 @@ fact_diags(_, it(_, F, L, T, _, _), [diag('E2', F, L, "This term is a variable, 
     var(T), !.
 fact_diags(_, it(_, F, L, (_ :- _), _, _),
            [diag('E7', F, L, "This is a rule. Rules belong in rules.pl, not in kb.pl.")]) :- !.
-fact_diags(_, it(_, F, L, (:- _), _, _),
-           [diag('E7', F, L, "This is a constraint or a directive. Put it in rules.pl, not in kb.pl.")]) :- !.
-fact_diags(_, it(_, F, L, #(_), _, _),
-           [diag('E7', F, L, "A # line belongs in rules.pl, not in kb.pl.")]) :- !.
+fact_diags(_, it(_, _, _, (:- _), _, _), []) :- !.    % E17
+fact_diags(_, it(_, _, _, #(_), _, _), []) :- !.       % E17
 fact_diags(Ctx, it(_, F, L, T, _, _), Diags) :-
     (   T = -(P), callable(P) -> Neg = true ; P = T, Neg = false ),
     (   \+ callable(P)
@@ -1535,6 +1533,7 @@ body_goal_diag(_, F, L, HN, G, diag('E2', F, L, M)) :-
     var(G), !,
     fmt(M, "The body of ~w has a variable as a goal. Write a predicate call.", [HN]).
 body_goal_diag(_, _, _, _, G, _) :- builtin_goal(G), !, fail.
+body_goal_diag(_, _, _, _, G, _) :- hash_constraint(G), !, fail.   % E17
 body_goal_diag(_, F, L, HN, G, diag('E2', F, L, M)) :-
     \+ callable(G), !,
     term_text(G, GT),
@@ -1602,11 +1601,8 @@ e14_msg(VN, HN, G, Bad, M) :-
 % E17: a form that only s(CASP) reads. orbit-kb runs SWI-Prolog only, so
 % the engine skips such a clause (load_item/4), and query, why, whynot,
 % show, and report give no answer while one is in a source (answer_gate/1).
-% In kb.pl, E7 already reports a # line and a (:- Body) line, which the
-% engine skips too.
-e17_diags(it(Src, F, L, T, _, _), Diags) :- !,
-    (   nonvar(T), e17_form(T, M),
-        \+ ( Src \== rules, ( T = #(_) ; T = (:- _) ) )
+e17_diags(it(_, F, L, T, _, _), Diags) :- !,
+    (   nonvar(T), e17_form(T, M)
     ->  Diags = [diag('E17', F, L, M)]
     ;   Diags = []
     ).
@@ -1629,6 +1625,10 @@ e17_form(T, M) :-
     ),
     !.
 
+hash_constraint(G) :-
+    callable(G), functor(G, Op, 2),
+    memberchk(Op, ['#=', '#<>', '#<', '#>', '#=<', '#>=']).
+
 neg_msg(P, M) :-
     term_text(P, PT),
     fmt(M, "-~w is classical negation, which orbit-kb no longer reads. orbit-kb runs SWI-Prolog only, and a fact that is not recorded is false: not ~w. To record that something is not the case, write it as a positive fact, such as world(door_closed), or as a note.", [PT, PT]).
@@ -1641,25 +1641,42 @@ neg_msg(P, M) :-
 % clause that holds a not literal on a cycle.
 e18_diags(Items0, Ds, Diags) :-
     answer_items(Items0, Ds, Items),
-    findall(e(H, B, S, F, L),
-            ( member(it(_, F, L, T, _, _), Items), nonvar(T),
+    findall(e(H, B, S, F, L, Src),
+            ( member(it(Src, F, L, T, _, _), Items), nonvar(T),
               \+ meta_term(T), \+ e17_form(T, _),
               T = (Hd :- Body), callable(Hd), functor(Hd, HN, HA), H = HN/HA,
               dep_lits(Body, pos, Deps), member(S-Lit, Deps),
               callable(Lit), \+ builtin_goal(Lit),
               functor(Lit, BN, BA), B = BN/BA ),
             Es),
-    findall(X-Y, member(e(X, Y, _, _, _), Es), Edges0),
+    findall(X-Y, member(e(X, Y, _, _, _, _), Es), Edges0),
     sort(Edges0, Edges),
     findall(V, ( member(X-Y, Edges), ( V = X ; V = Y ) ), Vs0), sort(Vs0, Vs),
     vertices_edges_to_ugraph(Vs, Edges, G),
     transitive_closure(G, C),
+    findall(H-B-F-L,
+            ( member(e(H, B, neg, F, L, _), Es),
+              ( H == B -> true ; member(B-Rs, C), memberchk(H, Rs) ) ),
+            Cycles),
     findall(diag('E18', F, L, M),
-            ( member(e(H, B, neg, F, L), Es),
-              ( H == B -> true ; member(B-Rs, C), memberchk(H, Rs) ),
+            ( member(H-B-F-L, Cycles),
               fmt(M, "~q depends on itself through not ~q (the rules are not stratified). Negation as failure has no single answer for such a program. Fix: break the cycle, for example with a fact that records the case.", [H, B]) ),
             Diags0),
-    list_to_set(Diags0, Diags).
+    % A cycle through a not in the library is closed by a clause of
+    % rules.pl. Name that clause too: it is the one the user can change.
+    findall(diag('E18', F, L, M),
+            ( member(H-B-_-_, Cycles),
+              member(e(X, Y, pos, F, L, rules), Es),
+              on_cycle(X, H, B, C), on_cycle(Y, H, B, C),
+              fmt(M, "This clause of ~q closes a cycle through not ~q in ~q (the rules are not stratified). Fix: remove or change this clause.", [X, B, H]) ),
+            Diags1),
+    append(Diags0, Diags1, Diags2),
+    list_to_set(Diags2, Diags).
+
+% on_cycle(X, H, B, C): X lies on a cycle that runs H -> not B -> ... -> H.
+on_cycle(X, H, B, C) :-
+    ( X == B -> true ; member(B-RB, C), memberchk(X, RB) ),
+    ( X == H -> true ; member(X-RX, C), memberchk(H, RX) ).
 
 % dep_lits(+Body, +Sign, -SignLits): each literal of a body with pos or
 % neg. A literal under not, or in the condition of forall, is neg.
@@ -1881,6 +1898,10 @@ answer_gate(KB) :-
     ).
 
 check_goal(G, Ds) :-
+    (   e17_form((goal :- G), M)
+    ->  die(2, ["The goal uses a form that orbit-kb does not read. " + M] >> fix_lines)
+    ;   true
+    ),
     body_goals(G, Gs),
     forall(member(X, Gs), goal_ok(X, Ds)).
 
@@ -2036,7 +2057,11 @@ user_pred(M, G) :-
     predicate_property(M:H, dynamic).
 
 ex_true(M, G, D, T) :-
-    (   G = (\+ P)
+    (   G = (_, _)
+    ->  conj_list(G, Ls),
+        maplist([L, K]>>once(ex_true(M, L, D, K)), Ls, Kids),
+        T = all(Kids)
+    ;   G = (\+ P)
     ->  ( D > 0 -> ex_false(M, P, D, Sub) ; Sub = none ),
         T = naf(P, Sub)
     ;   \+ user_pred(M, G)
@@ -2053,7 +2078,15 @@ ex_true(M, G, D, T) :-
         )
     ).
 
-ex_false(M, G, D, fails(G, Why)) :-
+ex_false(M, G, D, T) :-
+    (   G = (\+ P)
+    ->  once(ex_true(M, P, D, PT)), T = neg_fails(P, PT)
+    ;   G = (_, _)
+    ->  rule_stop(M, '$goal', G, D, S), T = fails('$goal', rules([S]))
+    ;   ex_false_lit(M, G, D, T)
+    ).
+
+ex_false_lit(M, G, D, fails(G, Why)) :-
     (   \+ user_pred(M, G)
     ->  Why = builtin
     ;   D =< 0
@@ -2109,6 +2142,13 @@ ex_lines(rule(G, Kids), Ds, I) -->
 ex_lines(naf(P, none), Ds, I) --> !,
     ex_line(I, "there is no evidence that ~w", [tpl(P, Ds)]).
 ex_lines(naf(_, Sub), Ds, I) --> ex_lines(Sub, Ds, I).
+ex_lines(all(Kids), Ds, I) --> ex_kids(Kids, Ds, I).
+ex_lines(neg_fails(P, PT), Ds, I) -->
+    ex_line(I, "not ~w does not hold, because", [lit(P)]),
+    { I1 is I + 1 },
+    ex_lines(PT, Ds, I1).
+ex_lines(fails('$goal', rules(Stops)), Ds, I) --> !,
+    ex_stops(Stops, 1, 1, Ds, I).
 ex_lines(fails(G, Why), Ds, I) -->
     (   { Why == nothing }
     ->  ex_line(I, "nothing records ~w: no fact or rule matches it", [lit(G)])
@@ -2128,7 +2168,9 @@ ex_kids([K|Ks], Ds, I) --> ex_lines(K, Ds, I), ex_kids(Ks, Ds, I).
 ex_stops([], _, _, _, _) --> [].
 ex_stops([stop(H, Lit, Sub)|Ss], NS, K, Ds, I) -->
     { functor(H, N, A),
-      (   NS =:= 1
+      (   H == '$goal'
+      ->  Which = "the goal"
+      ;   NS =:= 1
       ->  fmt(Which, "the rule for ~q/~w", [N, A])
       ;   fmt(Which, "rule ~w of ~w for ~q/~w", [K, NS, N, A])
       ) },
@@ -2162,6 +2204,9 @@ lit_text(G, S) :- show_not(G, G2), term_text(G2, S).
 
 show_not(V, V) :- var(V), !.
 show_not(\+ G, not(G2)) :- !, show_not(G, G2).
+show_not((A, B), (A2, B2)) :- !, show_not(A, A2), show_not(B, B2).
+show_not((A ; B), (A2 ; B2)) :- !, show_not(A, A2), show_not(B, B2).
+show_not((A -> B), (A2 -> B2)) :- !, show_not(A, A2), show_not(B, B2).
 show_not(G, G).
 
 % The template of a declaration with the arguments put in, or the goal
@@ -2180,17 +2225,13 @@ goal_template_text(G, Ds, S) :-
 tpl_put(Arg, I-S0, I1-S) :-
     I1 is I + 1,
     fmt(From, "@(~w)", [I]),
-    ( var(Arg) -> AT = "_" ; term_text(Arg, AT0), unquote(AT0, AT) ),
+    (   var(Arg) -> AT = "_"
+    ;   atomic(Arg) -> format(string(AT), "~w", [Arg])
+    ;   term_text(Arg, AT)
+    ),
     atomic_list_concat(Parts, From, S0),
     atomic_list_concat(Parts, AT, A),
     atom_string(A, S).
-
-unquote(S0, S) :-
-    (   sub_string(S0, 0, 1, _, "'"), sub_string(S0, _, 1, 0, "'"),
-        string_length(S0, L), L >= 2
-    ->  L2 is L - 2, sub_string(S0, 1, L2, _, S)
-    ;   S = S0
-    ).
 
 % ---------------------------------------------------------------------
 % init
