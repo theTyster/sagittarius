@@ -1,13 +1,15 @@
 #!/usr/bin/env swipl
-% orbit-kb: a helper CLI for s(CASP) knowledge bases (KBs).
+% orbit-kb: a helper CLI for Prolog knowledge bases (KBs) with default
+% negation (not p).
 %
 % Run `orbit-kb help` for usage. The contract for this tool is
 % kb/CONTRACT.md in the sagittarius repository.
 %
-% Two engines answer every query:
-%   - SWI-Prolog (in this process) gives the verdict;
-%   - s(CASP) (the scasp binary) gives the explanation.
-% orbit-kb compares them and fails loudly when they differ.
+% SWI-Prolog, in this process, answers every query. Until 2026-11-02 a
+% second engine, s(CASP), gave the explanations and cross-checked each
+% answer; it never found a fault in a KB, only in the tools (CONTRACT
+% D20). The explanations of why and whynot now come from the same
+% clauses (see "Explanations").
 
 :- initialization(main, main).
 
@@ -32,7 +34,7 @@
 % Every problem falls back to the normal load: no cache directory, an
 % unwritable directory, no library(unix), a failed build (it leaves a
 % .failed marker, so the build is not tried again). ORBIT_KB_NO_CACHE=1
-% turns the state off, as it turns off the s(CASP) cache.
+% turns the state off.
 
 :- dynamic orbit_state_wanted/2.
 
@@ -148,8 +150,7 @@ have_crypto :-
 
 main :-
     state_flags,
-    % Remove temp files and stop s(CASP) runs also when a signal halts
-    % the process.
+    % Remove temp files also when a signal halts the process.
     at_halt(cleanup_tmp),
     catch(set_stream(user_output, encoding(utf8)), _, true),
     catch(set_stream(user_error, encoding(utf8)), _, true),
@@ -173,8 +174,7 @@ main :-
 % the answer was printed, with the main thread in a mutex wait in a
 % cleanup hook under PL_halt (eu-stack: cleanup <- run_on_halt <-
 % PL_cleanup <- PL_halt) and the GC thread idle. Here the output is
-% flushed, the temp files are removed, and the s(CASP) runs are stopped,
-% so no hook has work left. The process replaces itself with
+% flushed and the temp files are removed, so no hook has work left. The process replaces itself with
 % "sh -c 'exit Code'", which runs no hook. Any problem falls back to
 % halt/1.
 exit_now(Code) :-
@@ -318,21 +318,23 @@ err_text(E, S) :-
     ).
 
 % ---------------------------------------------------------------------
-% s(CASP) operators. They live in the module orbit_ops only, so they do
-% not change how this script itself is read.
+% Operators for reading sources. They live in the module orbit_ops only,
+% so they do not change how this script itself is read. Only not is part
+% of the KB language. The others read the syntax of s(CASP), so that lint
+% can name such a line (E17) instead of a bare syntax error.
 % ---------------------------------------------------------------------
 
-scasp_op(900, fy, not).
-scasp_op(950, xfx, ::).
-scasp_op(1200, fx, #).
-scasp_op(1150, fx, [table, show, pred]).
-scasp_op(350, fx, [include, compute, abducible]).
-scasp_op(700, xfx, ['#=', '#<>', '#<', '#>', '#=<', '#>=']).
+kb_op(900, fy, not).
+kb_op(950, xfx, ::).
+kb_op(1200, fx, #).
+kb_op(1150, fx, [table, show, pred]).
+kb_op(350, fx, [include, compute, abducible]).
+kb_op(700, xfx, ['#=', '#<>', '#<', '#>', '#=<', '#>=']).
 
 setup_ops :-
-    forall(scasp_op(P, T, N), op(P, T, orbit_ops:N)).
+    forall(kb_op(P, T, N), op(P, T, orbit_ops:N)).
 
-% Write a term with quotes and the s(CASP) operators. Variables print as
+% Write a term with quotes and the KB operators. Variables print as
 % their source names, or as _ when they have no name.
 term_text(T, S) :- term_text(T, [], S).
 term_text(T, VN, S) :-
@@ -369,7 +371,6 @@ tmp_stream(Ext, Path, S) :-
     assertz(orbit_tmp(Path)).
 
 cleanup_tmp :-
-    stop_jobs,
     forall(retract(orbit_tmp(P)), catch(delete_file(P), _, true)).
 
 % ---------------------------------------------------------------------
@@ -1112,6 +1113,7 @@ shape_val_errs(S, V, Env, Es) :- compound(S), !,
         ),
         Es = ['E3'-M]
     ).
+shape_val_errs(_, _, _, ['E3'-"The attestation type has an invalid shape."]).
 
 % inner_label_whole(+Shape, +Pred, -Text): Pred is only one entry of an alt inside Shape,
 % such as tested(100) for verdict(ref(claim), alt([..., tested(int)])). Text is the whole
@@ -1130,7 +1132,6 @@ inner_label_whole(S, V, Text) :-
 same_entry_shape(E, V) :- atom(E), !, E == V.
 same_entry_shape(E, V) :- compound(E), compound(V),
     compound_name_arity(E, F, A), compound_name_arity(V, F, A).
-shape_val_errs(_, _, _, ['E3'-"The attestation type has an invalid shape."]).
 
 args_errs(Ts, Vs, Env, Es) :-
     findall(C-M, ( nth1(I, Ts, T), nth1(I, Vs, V),
@@ -1407,17 +1408,14 @@ show_file(F, FT) :-
     ).
 
 % ---------------------------------------------------------------------
-% Rules: E2, E7, W6, E12
+% Rules: E2, E7, W6, E14
 % ---------------------------------------------------------------------
 
 builtin_goal(G) :-
     callable(G),
     functor(G, N, A),
     memberchk(N/A, ['='/2, '\\='/2, '<'/2, '>'/2, '=<'/2, '>='/2, is/2,
-                    '#='/2, '#<>'/2, '#<'/2, '#>'/2, '#=<'/2, '#>='/2,
                     true/0, false/0, forall/2]).
-
-hash_op(Op) :- memberchk(Op, ['#=', '#<>', '#<', '#>', '#=<', '#>=']).
 
 % body_goals(+Body, -Goals): the literals of a body, with not and -
 % unwrapped. forall/2 stays, and its parts are added too.
@@ -1447,9 +1445,8 @@ rule_item_diags(Ds, it(Src, F, L, T, VN, _), Diags) :-
         body_goals(B, Gs),
         head_name(H, HN),
         findall(D, ( member(G, Gs), body_goal_diag(Ds, F, L, HN, G, D) ), DB),
-        e12_diags(T, VN, F, L, D12),
         e14_diags(T, VN, F, L, D14),
-        append([DH, DB, D12, D14], Diags)
+        append([DH, DB, D14], Diags)
     ).
 
 head_name(none, "a constraint") :- !.
@@ -1549,59 +1546,19 @@ body_goal_diag(Ds, F, L, HN, G, diag('E2', F, L, M)) :-
     undeclared_msg(Ds, N, A, M0),
     fmt(M, "The body of ~w calls ~w Declare it, or fix the name.", [HN, M0]).
 
-% H1: a not literal with a variable that occurs nowhere else.
+% The literals of a body, with the not literals still wrapped.
 body_lits(G, [G]) :- var(G), !.
 body_lits((A, B), L) :- !, body_lits(A, LA), body_lits(B, LB), append(LA, LB, L).
 body_lits((A ; B), L) :- !, body_lits(A, LA), body_lits(B, LB), append(LA, LB, L).
 body_lits((A -> B), L) :- !, body_lits(A, LA), body_lits(B, LB), append(LA, LB, L).
 body_lits(G, [G]).
 
-% e12_problem(+Clause, -p(Literal, BodyOnlyVars, BoundVars)): one per bad
-% not literal. The variables stay shared with Clause, so the caller can
-% print them with their source names. (findall/3 would copy them.)
-e12_problem(T, p(G, Bad, Good)) :-
-    clause_parts(T, H0, B),
-    ( H0 == none -> H = [] ; H = H0 ),
-    body_lits(B, Lits),
-    nth1(I, Lits, Lit), nonvar(Lit), Lit = not(G),
-    nth1(I, Lits, _, Others),
-    term_variables(H-Others, OV),
-    term_variables(G, GV),
-    exclude(var_in(OV), GV, Bad), Bad \== [],
-    include(var_in(OV), GV, Good).
-
-e12_problems(T, Problems) :-
-    findall(P, e12_problem(T, P), Problems).
-
 var_in(Vs, V) :- member(X, Vs), X == V, !.
-
-e12_diags(T, VN, F, L, Diags) :-
-    clause_parts(T, H, _),
-    head_name(H, HN),
-    findall(diag('E12', F, L, M),
-            ( e12_problem(T, p(G, Bad, Good)), e12_msg(VN, HN, G, Bad, Good, M) ),
-            Diags).
-
-e12_msg(VN, HN, G, Bad, Good, M) :-
-    ( G = -(G1), callable(G1) -> true ; G1 = G ),
-    ( callable(G1) -> functor(G1, GN, _) ; GN = goal ),
-    atom_concat(has_, GN, HelperName),
-    Helper =.. [HelperName|Good],
-    copy_term(VN-t(G, Bad, Helper), VN2-t(G2, Bad2, Helper2)),
-    maplist(bind_vn, VN2),
-    term_variables(t(G2, Bad2, Helper2), Rest),
-    maplist(=('$VAR'('_')), Rest),
-    wtext(not(G2), NotT),
-    maplist(wtext, Bad2, BadTs), atomic_list_concat(BadTs, ', ', BadT),
-    wtext(Helper2, HelperHeadT), wtext(G2, LitT),
-    fmt(HelperRuleT, "~w :- ~w", [HelperHeadT, LitT]),
-    wtext(not(Helper2), NotHelperT),
-    fmt(M, "In ~w, the literal `~w` has a variable that occurs nowhere else in the clause (~w). s(CASP) reads it as \"some value\", not \"every value\" (hazard H1). Fix: add the helper rule `~w.`, declare it with orbit-kb declare --kind rule, and write `~w`.",
-        [HN, NotT, BadT, HelperRuleT, NotHelperT]).
 
 % E14 (D7): unsafe negation. A not literal holds a variable that occurs
 % in the head but in no positive body literal. Nothing binds that
-% variable before the negation runs, so the engines can disagree.
+% variable before the negation runs, so a call with that argument unbound
+% gets the wrong answer (floundering).
 e14_problem(T, p(G, Bad)) :-
     clause_parts(T, H, B),
     H \== none,
@@ -1639,116 +1596,132 @@ e14_msg(VN, HN, G, Bad, M) :-
     maplist(=('$VAR'('_')), Rest),
     wtext(not(G2), NotT),
     maplist(wtext, Bad2, BadTs), atomic_list_concat(BadTs, ', ', BadT),
-    fmt(M, "In ~w, the literal `~w` uses ~w. It occurs in the head, but no positive literal in the body binds it (unsafe negation). The engines can then disagree. Fix: before the not literal, add a positive literal that gives ~w its values, for example a fact or a rule that lists them.",
-        [HN, NotT, BadT, BadT]).
+    fmt(M, "In ~w, the literal `~w` uses ~w. It occurs in the head, but no positive literal in the body binds it (unsafe negation). A call with ~w unbound then gives a wrong answer. Fix: before the not literal, add a positive literal that gives ~w its values, for example a fact or a rule that lists them.",
+        [HN, NotT, BadT, BadT, BadT]).
 
-% H4: atoms that end in _ and digits.
-h4_atom(A) :-
-    ( atom(A) ; string(A) ), !,
-    atom_codes(A, Cs),
-    append(_, [0'_|Ds], Cs),
-    Ds \== [],
-    maplist(is_digit_code, Ds), !.
-
-% term_atom(+T, -A): each atom and each string in T (D7: E13 also
-% checks string values).
-term_atom(T, T) :- atom(T).
-term_atom(T, T) :- string(T).
-term_atom(T, A) :-
-    compound(T),
-    compound_name_arguments(T, N, Args),
-    (   A = N
-    ;   member(X, Args), term_atom(X, A)
+% E17: a form that only s(CASP) reads. orbit-kb runs SWI-Prolog only, so
+% the engine skips such a clause (load_item/4), and query, why, whynot,
+% show, and report give no answer while one is in a source (answer_gate/1).
+% In kb.pl, E7 already reports a # line and a (:- Body) line, which the
+% engine skips too.
+e17_diags(it(Src, F, L, T, _, _), Diags) :- !,
+    (   nonvar(T), e17_form(T, M),
+        \+ ( Src \== rules, ( T = #(_) ; T = (:- _) ) )
+    ->  Diags = [diag('E17', F, L, M)]
+    ;   Diags = []
     ).
+e17_diags(_, []).
 
-h4_fix(A, Fix) :-
-    atom_codes(A, Cs),
-    append(Pre, [0'_|Ds], Cs), Ds \== [], maplist(is_digit_code, Ds), !,
-    append(Pre, Ds, Cs2),
-    atom_codes(Fix, Cs2).
+e17_form(T, _) :- var(T), !, fail.
+e17_form(#(_), "A # line is s(CASP) syntax. orbit-kb runs SWI-Prolog only. Remove the line. A predicate gets its text from the template of its declaration.") :- !.
+e17_form((:- _), "A global constraint (:- Body) is s(CASP) syntax. orbit-kb runs SWI-Prolog only. Write a rule whose head names the problem, such as bad(X) :- Body, and query it.") :- !.
+e17_form(T, M) :-
+    clause_parts(T, H, B),
+    (   nonvar(H), H = -(P), callable(P)
+    ->  neg_msg(P, M)
+    ;   body_lits_deep(B, Ls), member(X, Ls), nonvar(X),
+        (   X = -(P), callable(P), \+ number(P)
+        ->  neg_msg(P, M)
+        ;   callable(X), functor(X, Op, 2),
+            memberchk(Op, ['#=', '#<>', '#<', '#>', '#=<', '#>='])
+        ->  fmt(M, "The constraint ~w is s(CASP) syntax. orbit-kb runs SWI-Prolog only. Use is/2 and the comparisons =, <, >, =<, >=.", [Op])
+        )
+    ),
+    !.
 
-h4_msg(A, M) :-
-    h4_fix(A, Fix),
-    fmt(M, "The atom ~q ends in _ and digits. s(CASP) drops that ending, so different atoms can merge (hazard H4). Fix: rename it, for example order4417. Here you can use ~q.", [A, Fix]).
+neg_msg(P, M) :-
+    term_text(P, PT),
+    fmt(M, "-~w is classical negation, which orbit-kb no longer reads. orbit-kb runs SWI-Prolog only, and a fact that is not recorded is false: not ~w. To record that something is not the case, write it as a positive fact, such as world(door_closed), or as a note.", [PT, PT]).
 
-e13_diags(it(_, F, L, T, _, _), Diags) :- !,
-    findall(A, ( term_atom(T, A), h4_atom(A) ), As0),
-    sort(As0, As),
-    findall(diag('E13', F, L, M), ( member(A, As), h4_msg(A, M) ), Diags).
-e13_diags(_, []).
+% E18 (D20): the program must be stratified: no predicate depends on
+% itself through a not literal. For such a program, negation as failure
+% gives one answer, and the SWI engine computes it. For p :- not q and
+% q :- not p, it does not. The core and the modules are stratified, so a
+% cycle always goes through a clause of rules.pl. One error for each
+% clause that holds a not literal on a cycle.
+e18_diags(Items0, Ds, Diags) :-
+    answer_items(Items0, Ds, Items),
+    findall(e(H, B, S, F, L),
+            ( member(it(_, F, L, T, _, _), Items), nonvar(T),
+              \+ meta_term(T), \+ e17_form(T, _),
+              T = (Hd :- Body), callable(Hd), functor(Hd, HN, HA), H = HN/HA,
+              dep_lits(Body, pos, Deps), member(S-Lit, Deps),
+              callable(Lit), \+ builtin_goal(Lit),
+              functor(Lit, BN, BA), B = BN/BA ),
+            Es),
+    findall(X-Y, member(e(X, Y, _, _, _), Es), Edges0),
+    sort(Edges0, Edges),
+    findall(V, ( member(X-Y, Edges), ( V = X ; V = Y ) ), Vs0), sort(Vs0, Vs),
+    vertices_edges_to_ugraph(Vs, Edges, G),
+    transitive_closure(G, C),
+    findall(diag('E18', F, L, M),
+            ( member(e(H, B, neg, F, L), Es),
+              ( H == B -> true ; member(B-Rs, C), memberchk(H, Rs) ),
+              fmt(M, "~q depends on itself through not ~q (the rules are not stratified). Negation as failure has no single answer for such a program. Fix: break the cycle, for example with a fact that records the case.", [H, B]) ),
+            Diags0),
+    list_to_set(Diags0, Diags).
+
+% dep_lits(+Body, +Sign, -SignLits): each literal of a body with pos or
+% neg. A literal under not, or in the condition of forall, is neg.
+dep_lits(V, _, []) :- var(V), !.
+dep_lits((A, B), S, L) :- !, dep_lits(A, S, LA), dep_lits(B, S, LB), append(LA, LB, L).
+dep_lits((A ; B), S, L) :- !, dep_lits(A, S, LA), dep_lits(B, S, LB), append(LA, LB, L).
+dep_lits((A -> B), S, L) :- !, dep_lits(A, neg, LA), dep_lits(B, S, LB), append(LA, LB, L).
+dep_lits(not(G), _, L) :- !, dep_lits(G, neg, L).
+dep_lits(\+(G), _, L) :- !, dep_lits(G, neg, L).
+dep_lits(forall(A, B), _, L) :- !, dep_lits(A, neg, LA), dep_lits(B, neg, LB), append(LA, LB, L).
+dep_lits(G, S, [S-G]).
+
+% The literals of a body, also inside not, forall, and the parts of ;
+% and ->.
+body_lits_deep(G, [G]) :- var(G), !.
+body_lits_deep((A, B), L) :- !, body_lits_deep(A, LA), body_lits_deep(B, LB), append(LA, LB, L).
+body_lits_deep((A ; B), L) :- !, body_lits_deep(A, LA), body_lits_deep(B, LB), append(LA, LB, L).
+body_lits_deep((A -> B), L) :- !, body_lits_deep(A, LA), body_lits_deep(B, LB), append(LA, LB, L).
+body_lits_deep(not(G), L) :- !, body_lits_deep(G, L).
+body_lits_deep(\+(G), L) :- !, body_lits_deep(G, L).
+body_lits_deep(forall(A, B), L) :- !, body_lits_deep(A, LA), body_lits_deep(B, LB), append(LA, LB, L).
+body_lits_deep(G, [G]).
 
 % ---------------------------------------------------------------------
 % SWI engine
 % ---------------------------------------------------------------------
-% eng(Module, Global, Unsup, LoadErrs, Graph)
-%   Global:   reasons that the whole program cannot be evaluated
-%   Unsup:    list of PI-Op, predicates that use #-constraints
+% SWI-Prolog is the only engine. Every program is stratified: the core
+% and the modules are, and lint keeps rules.pl inside the same fragment
+% (E14 unsafe negation, E17 forms of s(CASP), E18 stratification). So negation as
+% failure gives the one answer of the program.
+%
+% eng(Module, LoadErrs)
 %   LoadErrs: list of le(File, Line, Message)
-%   Graph:    list of PI-CalleePIs
 
-build_engine(Items0, Ds, eng(M, Global, Unsup, LoadErrs, Graph)) :-
+build_engine(Items0, Ds, eng(M, LoadErrs)) :-
     answer_items(Items0, Ds, Items),
     gensym(orbit_eng_, M),
     set_module(M:base(system)),
-    forall(member(d(N, A, _, _, _, _, _, _, _), Ds),
-           ( make_dyn(M, N, A), atom_concat('-', N, NN), make_dyn(M, NN, A) )),
+    forall(member(d(N, A, _, _, _, _, _, _, _), Ds), make_dyn(M, N, A)),
     make_dyn(M, decl, 4),
     make_dyn(M, attest_type, 4),
-    foldl(load_item(M), Items, acc([], [], [], []), acc(G0, U0, LE0, Gr)),
-    reverse(G0, Global),
-    reverse(U0, Unsup),
-    reverse(LE0, LoadErrs),
-    Graph = Gr.
+    foldl(load_item(M), Items, [], LE0),
+    reverse(LE0, LoadErrs).
 
 make_dyn(M, N, A) :-
     catch(dynamic(M:N/A), _, true).
 
-load_item(_, synerr(_, _, _, _), Acc, Acc) :- !.
-load_item(_, it(kb, _, _, T, _, _), Acc, Acc) :- nonvar(T), T = uses(_), !.
-load_item(_, it(_, F, L, T, _, _), acc(G, U, LE, Gr), acc(G1, U, LE, Gr)) :-
-    nonvar(T), T = #(D), !,
-    (   nonvar(D), ( D = abducible(_) ; D = compute(_) )
-    ->  show_loc(F, L, LT),
-        fmt(R, "the # directive at ~w changes the meaning of the program", [LT]),
-        G1 = [R|G]
-    ;   G1 = G
-    ).
-load_item(_, it(_, F, L, T, _, _), acc(G, U, LE, Gr), acc([R|G], U, LE, Gr)) :-
-    nonvar(T), T = (:- _), !,
-    show_loc(F, L, LT),
-    fmt(R, "the global constraint (:- ...) at ~w", [LT]).
-load_item(_, it(_, F, L, T, _, _), acc(G, U, LE, Gr), acc(G, U, [le(F, L, "The clause is a variable.")|LE], Gr)) :-
+load_item(_, synerr(_, _, _, _), LE, LE) :- !.
+load_item(_, it(kb, _, _, T, _, _), LE, LE) :- nonvar(T), T = uses(_), !.
+load_item(_, it(_, F, L, T, _, _), LE, [le(F, L, "The clause is a variable.")|LE]) :-
     var(T), !.
-load_item(M, it(_, F, L, T, _, _), acc(G, U, LE, Gr), acc(G, U1, LE1, [PI-Cs|Gr])) :-
-    swi_clause(T, T2, PI, Cs),
+load_item(_, it(_, _, _, T, _, _), LE, LE) :- e17_form(T, _), !.   % lint E17 or E7
+load_item(M, it(_, F, L, T, _, _), LE, LE1) :-
+    swi_clause(T, T2),
     catch(assertz(M:T2), E, true),
     (   var(E)
     ->  LE1 = LE
     ;   err_text(E, ET), LE1 = [le(F, L, ET)|LE]
-    ),
-    clause_parts(T, _, B),
-    (   body_goals(B, Gs), member(X, Gs), nonvar(X), callable(X),
-        functor(X, Op, 2), hash_op(Op)
-    ->  U1 = [PI-Op|U]
-    ;   U1 = U
     ).
 
-swi_clause((H :- B), (H2 :- B2), PI, Cs) :- !,
-    swi_head(H, H2), pi_of(H2, PI),
-    swi_body(B, B2), body_pis(B2, Cs).
-swi_clause(H, H2, PI, []) :-
-    swi_head(H, H2), pi_of(H2, PI).
-
-swi_head(H, H2) :- nonvar(H), H = -(G), callable(G), !, neg_lit(G, H2).
-swi_head(H, H).
-
-neg_lit(G, G2) :-
-    G =.. [N|As],
-    atom_concat('-', N, N2),
-    G2 =.. [N2|As].
-
-pi_of(H, N/A) :- callable(H), !, functor(H, N, A).
-pi_of(_, '?'/0).
+swi_clause((H :- B), (H :- B2)) :- !, swi_body(B, B2).
+swi_clause(H, H).
 
 % swi_body(+Body, -SwiBody) (D7): in each conjunction, the not literals
 % move after all of the other literals. The other literals (builtins
@@ -1770,7 +1743,6 @@ swi_lit((A ; B), (A2 ; B2)) :- !, swi_body(A, A2), swi_body(B, B2).
 swi_lit((A -> B), (A2 -> B2)) :- !, swi_body(A, A2), swi_body(B, B2).
 swi_lit(not(G), \+ G2) :- !, swi_body(G, G2).
 swi_lit(\+(G), \+ G2) :- !, swi_body(G, G2).
-swi_lit(-(G), G2) :- callable(G), !, neg_lit(G, G2).
 swi_lit(forall(A, B), forall(A2, B2)) :- !, swi_body(A, A2), swi_body(B, B2).
 swi_lit(G, G).
 
@@ -1783,53 +1755,21 @@ conj_list(G, [G]).
 list_conj([G], G) :- !.
 list_conj([G|Gs], (G, C)) :- list_conj(Gs, C).
 
-body_pis(V, []) :- var(V), !.
-body_pis(call(V), []) :- var(V), !.
-body_pis((A, B), Ps) :- !, body_pis(A, PA), body_pis(B, PB), append(PA, PB, Ps).
-body_pis((A ; B), Ps) :- !, body_pis(A, PA), body_pis(B, PB), append(PA, PB, Ps).
-body_pis((A -> B), Ps) :- !, body_pis(A, PA), body_pis(B, PB), append(PA, PB, Ps).
-body_pis(\+(G), Ps) :- !, body_pis(G, Ps).
-body_pis(forall(A, B), Ps) :- !, body_pis(A, PA), body_pis(B, PB), append(PA, PB, Ps).
-body_pis(G, [N/A]) :- callable(G), !, functor(G, N, A).
-body_pis(_, []).
-
-reach(Start, Graph, Reach) :- reach_(Start, Graph, [], Reach).
-reach_([], _, Acc, Acc).
-reach_([P|Ps], G, Acc, R) :-
-    (   memberchk(P, Acc)
-    ->  reach_(Ps, G, Acc, R)
-    ;   findall(C, ( member(P-Cs, G), member(C, Cs) ), New),
-        append(New, Ps, Ps1),
-        reach_(Ps1, G, [P|Acc], R)
-    ).
-
 swi_time_limit(10).
 swi_answer_cap(1000).
 
 % swi_query(+Eng, +Goal, +Template, -Result)
-% Result: answers(List, Capped) | skipped(Reason) | error(Message)
+% Result: answers(List, Capped) | error(Message)
 swi_query(Eng, G, Tpl, Res) :-
-    Eng = eng(_, Global, Unsup, LoadErrs, Graph),
-    swi_body(G, G2),
-    body_pis(G2, QPIs),
-    body_goals(G, QGs),
-    (   Global = [R|_]
-    ->  fmt(Res0, "the SWI engine cannot evaluate ~w", [R]), Res = skipped(Res0)
-    ;   member(X, QGs), nonvar(X), callable(X), functor(X, Op, 2), hash_op(Op)
-    ->  fmt(Res0, "the goal uses the constraint ~w, which the SWI engine cannot evaluate", [Op]),
-        Res = skipped(Res0)
-    ;   reach(QPIs, Graph, Reach),
-        member(PI-Op, Unsup), memberchk(PI, Reach)
-    ->  fmt(Res0, "~w uses the constraint ~w, which the SWI engine cannot evaluate", [PI, Op]),
-        Res = skipped(Res0)
-    ;   LoadErrs = [le(F, L, Msg)|_]
+    Eng = eng(_, LoadErrs),
+    (   LoadErrs = [le(F, L, Msg)|_]
     ->  show_loc(F, L, LT),
         fmt(Res0, "the SWI engine could not load the clause at ~w: ~w Run orbit-kb lint.", [LT, Msg]),
         Res = error(Res0)
     ;   swi_raw(Eng, G, Tpl, Res)
     ).
 
-swi_raw(eng(M, _, _, _, _), G, Tpl, Res) :-
+swi_raw(eng(M, _), G, Tpl, Res) :-
     swi_body(G, G2),
     swi_time_limit(TL),
     swi_answer_cap(Cap),
@@ -1855,752 +1795,15 @@ eng_all(Eng, Tpl, G, L) :-
     ->  die(2, ["SWI ERROR: " + Msg] >> fix_lines)
     ).
 
-% ---------------------------------------------------------------------
-% Assembling the s(CASP) program
-% ---------------------------------------------------------------------
+swi_fail_if_error(error(Msg)) :- !,
+    die(2, ["SWI ERROR: " + Msg, "The SWI engine could not evaluate the goal. This is not a false answer."] >> fix_lines).
+swi_fail_if_error(_).
 
 item_head_pi(it(_, _, _, T, _, _), PI) :-
     nonvar(T),
     \+ ( T = (:- _) ), \+ ( T = #(_) ),
     clause_parts(T, H, _),
-    nonvar(H),
-    (   H = -(H1), callable(H1)
-    ->  functor(H1, N, A), atom_concat('-', N, NN), PI = NN/A
-    ;   callable(H), functor(H, N, A), PI = N/A
-    ).
-
-neg_refs_in(T, PIs) :-
-    findall(NN/A, ( sub_term(S, T), nonvar(S), S = -(G), callable(G),
-                    \+ number(G), functor(G, N, A), atom_concat('-', N, NN) ),
-            PIs).
-
-explicit_pred_pi(it(_, _, _, T, _, _), N/A) :-
-    nonvar(T), T = #(P), nonvar(P), P = pred(X), nonvar(X), X = '::'(H, _),
-    callable(H), functor(H, N, A).
-
-% assemble(+Items, +Decls, +ExtraTerms, -File, -LineMap)
-assemble(Items0, Ds, Extra, File, LineMap) :-
-    answer_items(Items0, Ds, Items),
-    findall(Line-loc(F, L),
-            ( member(it(Src, F, L, T, VN, _), Items),
-              \+ ( Src == kb, nonvar(T), T = uses(_) ),
-              catch(clause_line(T, VN, Line), _, fail) ),
-            Pairs),
-    findall(PI, ( member(I, Items), item_head_pi(I, PI) ), Def0),
-    sort(Def0, Defined),
-    findall(PI, ( member(d(N, A, _, _, _, _, _, _, _), Ds), PI = N/A,
-                  \+ ord_memberchk(PI, Defined) ),
-            Stub0),
-    sort(Stub0, StubPIs),
-    findall(NPI, ( member(it(_, _, _, T, _, _), Items), nonvar(T),
-                   \+ meta_term(T), neg_refs_in(T, NR), member(NPI, NR) ),
-            NR0),
-    findall(NPI, ( member(X, Extra), neg_refs_in(X, NR), member(NPI, NR) ), NR1),
-    append(NR0, NR1, NR2),
-    sort(NR2, NegRefs),
-    findall(NPI, ( member(NPI, NegRefs), \+ ord_memberchk(NPI, Defined),
-                   NPI = NN/A, atom_concat('-', N, NN),
-                   decl_of(Ds, N, A, _) ),
-            NegStubs),
-    append(StubPIs, NegStubs, AllStubs),
-    maplist(stub_line, AllStubs, StubLines),
-    findall(PI, ( member(I, Items), explicit_pred_pi(I, PI) ), Ex0),
-    sort(Ex0, Explicit),
-    findall(PL, ( member(d(N, A, _, _, _, Tpl, _, _, _), Ds),
-                  atom(Tpl), Tpl \== '',
-                  \+ ord_memberchk(N/A, Explicit),
-                  pred_line(N, A, Tpl, PL) ),
-            PL0),
-    list_to_set(PL0, PredLines),
-    pairs_keys_values(Pairs, ClauseLines, Locs),
-    numlist_from(1, Locs, LineMap),
-    tmp_stream(pl, File, S),
-    call_cleanup(( forall(member(Ln, ClauseLines), format(S, "~w~n", [Ln])),
-                   forall(member(Ln, StubLines), format(S, "~w~n", [Ln])),
-                   forall(member(Ln, PredLines), format(S, "~w~n", [Ln])) ),
-                 close(S)).
-
-numlist_from(_, [], []).
-numlist_from(N, [X|Xs], [N-X|Ys]) :- N1 is N + 1, numlist_from(N1, Xs, Ys).
-
-stub_line(N/A, Line) :-
-    (   atom_concat('-', P, N), P \== ''
-    ->  fmt(Pre, "-~q", [P])
-    ;   fmt(Pre, "~q", [N])
-    ),
-    (   A =:= 0
-    ->  fmt(Line, "~w :- false.", [Pre])
-    ;   length(Us, A), maplist(=("_"), Us),
-        atomic_list_concat(Us, ', ', UT),
-        fmt(Line, "~w(~w) :- false.", [Pre, UT])
-    ).
-
-pred_line(N, A, Tpl, Line) :-
-    atom_string(Tpl, T0),
-    numlist_safe(A, Is),
-    foldl(tpl_subst, Is, T0, T1),
-    atom_string(TA, T1),
-    (   A =:= 0
-    ->  fmt(Line, "#pred ~q :: ~q.", [N, TA])
-    ;   findall(V, ( member(I, Is), format(atom(V), "A~w", [I]) ), Vs),
-        atomic_list_concat(Vs, ',', VT),
-        fmt(Line, "#pred ~q(~w) :: ~q.", [N, VT, TA])
-    ).
-
-numlist_safe(A, Is) :- ( A >= 1 -> numlist(1, A, Is) ; Is = [] ).
-
-tpl_subst(I, S0, S) :-
-    fmt(From, "@(~w)", [I]),
-    fmt(To, "@(A~w)", [I]),
-    atomic_list_concat(Parts, From, S0),
-    atomic_list_concat(Parts, To, A),
-    atom_string(A, S).
-
-% ---------------------------------------------------------------------
-% Grounding the s(CASP) program (D8)
-% ---------------------------------------------------------------------
-% s(CASP) is slow on rules that have variables only in the body (such
-% as passed/1 over attest/6): the dual of such a rule needs a forall,
-% and each forall step enumerates and copies. So, by default, s(CASP)
-% runs on a grounding of the assembled program for the goal:
-%   - every rule instance that the goal can reach and whose positive
-%     body can hold. A not literal does not stop the search, but its
-%     atom is grounded too. Builtins are evaluated here;
-%   - for a ground head with an instance whose body is only facts and
-%     builtins, that instance alone (the head is true in any case);
-%   - all facts, unchanged, so the explanation names the same ids;
-%   - a stub for each predicate that has no clause left; the # lines.
-% A ground program has no forall in its duals, so H2 and H3 cannot
-% occur in it. The SWI engine still runs the original program, and the
-% cross-check compares the two.
-%
-% For a stratified program, the grounding has the same answers as the
-% original for every atom that the goal can reach (the positive body of
-% a dropped instance is false in the perfect model, and the reached
-% atoms form a splitting set). Every other program, and every problem
-% (an unsupported form, an error, more than 5 s), falls back to the raw
-% program with a NOTE. Answers come from the SWI engine in every mode.
-%
-% ORBIT_KB_SCASP_GROUND=raw runs the raw program. ORBIT_KB_GROUND_TIMEOUT
-% (seconds, default 5) exists for the tests of the fallback.
-
-:- dynamic gr_fact/1, gr_rule/3, gr_inst/3, gr_seen/1, gr_has_clause/1.
-% gr_grounded(File): File holds a complete grounding (see scasp_file_cap/2).
-:- dynamic gr_grounded/1.
-:- table gr_sk/2, gr_ri/4.
-
-scasp_mode(Mode) :-
-    (   getenv('ORBIT_KB_SCASP_GROUND', raw)
-    ->  Mode = raw
-    ;   Mode = ground
-    ).
-
-gr_time_limit(T) :-
-    (   getenv('ORBIT_KB_GROUND_TIMEOUT', S), atom_number(S, T0), T0 > 0
-    ->  T = T0
-    ;   T = 5
-    ).
-
-% ground_file(+Raw, +Goals, -File): File holds the grounding of the
-% program in Raw for Goals. On any problem (an unsupported form, an
-% error of any kind, the time limit), File = Raw and a NOTE goes to
-% stderr. The grounding is written to a new file only after it is
-% complete, so Raw is never changed.
-ground_file(Raw, Goals0, File) :-
-    include([G]>>( callable(G), G \== none ), Goals0, Goals),
-    gr_time_limit(TL),
-    (   catch(setup_call_cleanup(gr_cleanup,
-                                 call_with_time_limit(TL, gr_ground_file(Raw, Goals, R0)),
-                                 gr_cleanup),
-              E, R0 = error(E))
-    ->  true
-    ;   R0 = failed
-    ),
-    (   R0 = ok(Lines)
-    ->  (   catch(gr_write(Lines, F2), E2, true)
-        ->  ( var(E2) -> R = ok ; R = error(E2) )
-        ;   R = failed
-        )
-    ;   R = R0
-    ),
-    (   R == ok
-    ->  File = F2,
-        assertz(gr_grounded(F2))
-    ;   File = Raw,
-        gr_reason(R, TL, Why),
-        format(user_error, "NOTE: s(CASP) ran the raw program: ~w~n", [Why])
-    ).
-
-gr_write(Lines, File) :-
-    tmp_stream(pl, File, S),
-    call_cleanup(forall(member(L, Lines), format(S, "~w~n", [L])), close(S)).
-
-gr_reason(failed, _, "the grounder failed.") :- !.
-gr_reason(cannot(C), _, Why) :- !, gr_cannot_text(C, Why).
-gr_reason(error(time_limit_exceeded), TL, Why) :- !,
-    fmt(Why, "grounding took more than ~w s.", [TL]).
-gr_reason(error(E), _, Why) :- !,
-    err_text(E, T), fmt(Why, "the grounder stopped with an error: ~w", [T]).
-gr_reason(R, _, Why) :- fmt(Why, "~q", [R]).
-
-gr_cannot_text(nonground_negative(L), W) :- !,
-    term_text(L, T), fmt(W, "a not literal has a free variable when it is reached: not ~w.", [T]).
-gr_cannot_text(constraint, W) :- !,
-    W = "the program has a constraint (:- ...)".
-gr_cannot_text(directive(D), W) :- !,
-    term_text(D, T), fmt(W, "the program has the directive #~w.", [T]).
-gr_cannot_text(unsupported(G), W) :- !,
-    term_text(G, T), fmt(W, "the program uses ~w, which the grounder does not support.", [T]).
-gr_cannot_text(not_stratified(P, Q), W) :- !,
-    fmt(W, "the program is not stratified: ~q and not ~q are in one cycle.", [P, Q]).
-gr_cannot_text(nonground_instance(H), W) :- !,
-    term_text(H, T), fmt(W, "a rule instance stays non-ground: ~w.", [T]).
-gr_cannot_text(undefined(PI), W) :- !,
-    fmt(W, "~q has no clauses and no stub.", [PI]).
-gr_cannot_text(builtin_error(G, E), W) :- !,
-    term_text(G, T), err_text(E, ET), fmt(W, "the builtin ~w raised an error: ~w", [T, ET]).
-gr_cannot_text(C, W) :- fmt(W, "~q", [C]).
-
-gr_cleanup :-
-    abolish_table_subgoals(gr_sk(_, _)),
-    abolish_table_subgoals(gr_ri(_, _, _, _)),
-    retractall(gr_fact(_)), retractall(gr_rule(_, _, _)), retractall(gr_inst(_, _, _)),
-    retractall(gr_seen(_)), retractall(gr_has_clause(_)).
-
-% gr_ground_file(+File, +Goals, -R): R = ok(Lines), or cannot(Reason).
-gr_ground_file(File, Goals, R) :-
-    read_file_to_string(File, Text, [encoding(utf8)]),
-    split_string(Text, "\n", "", Lines),
-    include([L]>>sub_string(L, 0, 1, _, "#"), Lines, HashLines),
-    setup_call_cleanup(open(File, read, S, [encoding(utf8)]),
-                       gr_read_terms(S, Ts),
-                       close(S)),
-    findall(D, member(#(D), Ts), HashTerms),
-    (   length(HashTerms, NH), length(HashLines, NH)
-    ->  pairs_keys_values(Hash, HashTerms, HashLines)
-    ;   Hash = none                     % keep every # line
-    ),
-    catch(( gr_load(Ts, 0, Facts),
-            gr_stratified,
-            gr_demand_goals(Goals),
-            gr_collect,
-            gr_emit(Goals, Facts, Hash, Out, HashOut0),
-            R0 = ok(Out, HashOut0) ),
-          gr_cannot(C),
-          R0 = cannot(C)),
-    (   R0 = ok(Clauses, HashOut)
-    ->  maplist([C1, L1]>>clause_line(C1, [], L1), Clauses, CLines),
-        ( HashOut == all -> KeptHash = HashLines ; KeptHash = HashOut ),
-        append(CLines, KeptHash, AllLines),
-        R = ok(AllLines)
-    ;   R = R0
-    ).
-
-gr_read_terms(S, Ts) :-
-    read_term(S, T, [module(orbit_ops)]),
-    (   T == end_of_file -> Ts = [] ; Ts = [T|Ts1], gr_read_terms(S, Ts1) ).
-
-gr_cannot(C) :- throw(gr_cannot(C)).
-
-% gr_load(+Terms, +N, -Facts): store rules and facts; Facts in order.
-gr_load([], _, []).
-gr_load([T|Ts], N, Fs) :-
-    N1 is N + 1,
-    (   var(T)
-    ->  gr_cannot(unsupported(T))
-    ;   T = #(D)
-    ->  (   nonvar(D), ( D = pred(_) ; D = show(_) ) -> true ; gr_cannot(directive(D)) ),
-        Fs = Fs1
-    ;   T = (:- _)
-    ->  gr_cannot(constraint)
-    ;   T = (H :- false)
-    ->  gr_pi(H, PI), gr_note(gr_seen(PI)), Fs = Fs1
-    ;   T = (H :- B)
-    ->  gr_pi(H, PI), gr_note(gr_seen(PI)), gr_note(gr_has_clause(PI)),
-        gr_conj_list(B, BL),
-        assertz(gr_rule(H, BL, N)), Fs = Fs1
-    ;   gr_pi(T, PI), gr_note(gr_seen(PI)), gr_note(gr_has_clause(PI)),
-        (   ground(T)
-        ->  assertz(gr_fact(T)), Fs = [T|Fs1]
-        ;   assertz(gr_rule(T, [], N)), Fs = Fs1
-        )
-    ),
-    gr_load(Ts, N1, Fs1).
-
-gr_pi(H, _) :- var(H), !, gr_cannot(unsupported(H)).
-gr_pi(-(H), ('-'(N))/A) :- callable(H), !, functor(H, N, A).
-gr_pi(H, N/A) :- callable(H), !, functor(H, N, A).
-gr_pi(H, _) :- gr_cannot(unsupported(H)).
-
-gr_note(T) :- ( call(T) -> true ; assertz(T) ).
-
-gr_conj_list(V, _) :- var(V), !, gr_cannot(unsupported(V)).
-gr_conj_list((A, B), L) :- !, gr_conj_list(A, LA), gr_conj_list(B, LB), append(LA, LB, L).
-gr_conj_list(true, []) :- !.
-gr_conj_list(A, [A]).
-
-% Builtins that the grounder evaluates. Other control and constraint
-% forms make the program unsupported.
-gr_builtin(G) :- var(G), !, gr_cannot(unsupported(G)).
-gr_builtin(G) :- gr_unsupported(G), !, gr_cannot(unsupported(G)).
-gr_builtin(G) :-
-    callable(G), functor(G, N, A),
-    memberchk(N/A, ['='/2, '\\='/2, '<'/2, '>'/2, '=<'/2, '>='/2, is/2, true/0, false/0]).
-
-gr_unsupported(G) :-
-    callable(G), functor(G, N, A),
-    (   memberchk(N/A, [forall/2, findall/3, ';'/2, '->'/2, '*->'/2, '\\+'/1, call/1])
-    ;   A =:= 2, hash_op(N)
-    ;   G = not(X), nonvar(X), X = not(_)
-    ),
-    !.
-
-% Stratification by predicate: no cycle through a not literal.
-gr_stratified :-
-    findall(H-B-S, ( gr_rule(Hd, Body, _), gr_pi(Hd, H),
-                     member(L, Body), gr_dep(L, B, S) ), Es),
-    findall(H-B, member(H-B-_, Es), E2),
-    findall(V, ( member(X-Y, E2), ( V = X ; V = Y ) ), Vs0), sort(Vs0, Vs),
-    vertices_edges_to_ugraph(Vs, E2, G),
-    transitive_closure(G, C),
-    (   member(H-B-neg, Es), member(B-Rs, C), memberchk(H, Rs)
-    ->  gr_cannot(not_stratified(H, B))
-    ;   true
-    ).
-
-gr_dep(L, _, _) :- var(L), !, gr_cannot(unsupported(L)).
-gr_dep(not(L), PI, neg) :- !, \+ gr_builtin(L), gr_pi(L, PI).
-gr_dep(L, PI, pos) :- \+ gr_builtin(L), gr_pi(L, PI).
-
-% The goals, and for each predicate p with a -p clause, all of p and
-% -p: s(CASP) checks that no p(X) and -p(X) both hold, over the whole
-% program.
-gr_demand_goals(Goals) :-
-    forall(member(G, Goals),
-           ( gr_conj_list(G, Ls), forall(member(L, Ls), gr_demand_lit(L)) )),
-    forall(( gr_has_clause(('-'(N))/A), functor(P, N, A) ),
-           ( gr_demand(P), gr_demand(-(P)) )).
-
-gr_demand_lit(not(L)) :- !, gr_demand(L).
-gr_demand_lit(L) :- gr_demand(L).
-
-gr_demand(L) :- gr_builtin(L), !.
-gr_demand(L) :- gr_known(L), forall(gr_sk(L, _), true).
-
-gr_known(L) :-
-    gr_pi(L, PI),
-    (   gr_seen(PI) -> true ; gr_cannot(undefined(PI)) ).
-
-% gr_sk(G, _): G holds in the least model of the program with its not
-% literals deleted. gr_sk/2 and gr_ri/4 carry a free extra argument,
-% so that no tabled call is ground: SWI completes a ground tabled call
-% after its first answer, and that would lose rule instances.
-gr_sk(G, _) :- gr_fact(G).
-gr_sk(G, _) :- gr_ri(_, G, _, _).
-
-% gr_ri(Id, G, Body, _): an instance of rule Id whose body can hold.
-% As in the SWI engine (D7), the not literals are taken after all other
-% literals; a not literal must then be ground.
-gr_ri(Id, G, Body, _) :-
-    gr_rule(G, Body, Id),
-    partition([L]>>( nonvar(L), L = not(_) ), Body, Negs, Poss),
-    gr_body(Poss),
-    gr_body(Negs).
-
-gr_body([]).
-gr_body([L|Ls]) :- gr_lit(L), gr_body(Ls).
-
-gr_lit(not(L)) :- !,
-    (   ground(L) -> true ; gr_cannot(nonground_negative(L)) ),
-    (   gr_builtin(L)
-    ->  \+ gr_call(L)
-    ;   gr_demand(L)
-    ).
-gr_lit(L) :- gr_builtin(L), !, gr_call(L).
-gr_lit(L) :- gr_known(L), gr_sk(L, _).
-
-gr_call(G) :- catch(G, E, gr_cannot(builtin_error(G, E))).
-
-% current_table/2 matches variants, so enumerate the tables.
-gr_collect :-
-    findall(V, ( current_table(user:V, _), V = gr_ri(_, _, _, _) ), Vs),
-    forall(member(gr_ri(I, G, B, D), Vs),
-           forall(gr_ri(I, G, B, D), gr_record(I, G, B))).
-
-gr_record(Id, G, Body) :-
-    (   ground(G-Body) -> true ; gr_cannot(nonground_instance(G)) ),
-    (   gr_inst(Id, G, Body) -> true ; assertz(gr_inst(Id, G, Body)) ).
-
-% Relevance trimming. Only what the goals can reach is emitted. The
-% roots are the goal atoms (not removed), and the atoms p(_..) and
-% -p(_..) for each p with a -p clause. A reached atom reaches every
-% instance whose head is that atom (or unifies with it, for a root with
-% variables), and an instance reaches each atom of its body, under not
-% too. A fact is kept if a reached atom unifies with it. Then the
-% reached atoms are a splitting set, and the emitted part is its bottom,
-% so the truth of every reached atom is the same.
-% Atoms are compared after gr_norm/2, which drops a final _ and digits
-% as s(CASP) does (H4). So the trimming keeps every fact and instance
-% that s(CASP) would merge with a reached atom, and the cross-check still
-% sees an H4 merge. Keeping more is always safe: the kept set is still
-% closed under the instances of its heads.
-% Output: the kept facts in source order, the reached instances (by
-% rule, then by term), stubs for the referenced predicates that have no
-% clause left, and the # lines of the predicates that appear.
-gr_emit(Goals, Facts, Hash, Out, HashOut) :-
-    findall(I-(H-B), gr_inst(I, H, B), IB0),
-    msort(IB0, IB),
-    gr_prune(IB, IB1),
-    gr_roots(Goals, Roots),
-    partition(ground, Roots, GRoots, Open0),
-    maplist(gr_norm, Open0, Open),
-    gr_head_index(IB1, Idx),
-    findall(A, ( member(_-(H-B), IB1), gr_norm(H, NH), member(P, Open), \+ NH \= P,
-                 gr_body_atom(B, A) ), OpenBody),
-    append(GRoots, OpenBody, Start),
-    empty_assoc(Seen0),
-    gr_reach(Start, Idx, Seen0, Seen),
-    include(gr_reached_inst(Open, Seen), IB1, IB2),
-    include(gr_reached_atom(Open, Seen), Facts, Kept),
-    findall(Cl, ( member(_-(H-B), IB2), gr_clause(H, B, Cl) ), Rs),
-    findall(PI, ( member(F, Kept), gr_pi(F, PI) ), FPIs),
-    findall(PI, ( member(_-(H-_), IB2), gr_pi(H, PI) ), HPIs),
-    findall(PI, ( ( member(A, Roots) ; member(_-(_-B), IB2), gr_body_atom(B, A) ),
-                  gr_pi(A, PI) ), RPIs),
-    append(FPIs, HPIs, DefPIs0), sort(DefPIs0, DefPIs),
-    sort(RPIs, RefPIs),
-    ord_subtract(RefPIs, DefPIs, StubPIs),
-    maplist(gr_stub, StubPIs, Ss),
-    append([Kept, Rs, Ss], Out),
-    ord_union(DefPIs, RefPIs, Used),
-    (   Hash == none
-    ->  HashOut = all
-    ;   findall(L, ( member(D-L, Hash), gr_hash_used(D, Used) ), HashOut)
-    ).
-
-gr_roots(Goals, Roots) :-
-    findall(A, ( member(G, Goals), gr_conj_list(G, Ls), member(L, Ls),
-                 ( L = not(A0) -> A = A0 ; A = L ),
-                 \+ gr_builtin(A) ),
-            R1),
-    findall(R, ( gr_has_clause(('-'(N))/Ar), functor(P, N, Ar), ( R = P ; R = -(P) ) ), R2),
-    append(R1, R2, Roots).
-
-gr_body_atom(B, A) :-
-    member(L, B),
-    ( L = not(A0) -> A = A0 ; A = L ),
-    \+ gr_builtin(A).
-
-gr_head_index(IB, Idx) :-
-    findall(NH-(I-(H-B)), ( member(I-(H-B), IB), gr_norm(H, NH) ), Ps0),
-    keysort(Ps0, Ps),
-    group_pairs_by_key(Ps, Gs),
-    list_to_assoc(Gs, Idx).
-
-gr_reach([], _, Seen, Seen).
-gr_reach([A0|As], Idx, Seen0, Seen) :-
-    gr_norm(A0, A),
-    (   get_assoc(A, Seen0, _)
-    ->  gr_reach(As, Idx, Seen0, Seen)
-    ;   put_assoc(A, Seen0, t, Seen1),
-        (   get_assoc(A, Idx, Insts)
-        ->  findall(X, ( member(_-(_-B), Insts), gr_body_atom(B, X) ), New),
-            append(New, As, As1)
-        ;   As1 = As
-        ),
-        gr_reach(As1, Idx, Seen1, Seen)
-    ).
-
-gr_reached_inst(Open, Seen, _-(H-_)) :- gr_reached_atom(Open, Seen, H).
-
-gr_reached_atom(Open, Seen, A0) :-
-    gr_norm(A0, A),
-    (   get_assoc(A, Seen, _)
-    ->  true
-    ;   member(P, Open), \+ A \= P
-    ->  true
-    ).
-
-% gr_norm(+T, -N): T with a final _ and digits dropped from every atom
-% and string, repeatedly (order_4417 -> order), as s(CASP) reads them.
-gr_norm(T, T) :- var(T), !.
-gr_norm(T, N) :- atom(T), !, atom_codes(T, Cs), gr_strip(Cs, Ns), atom_codes(N, Ns).
-gr_norm(T, N) :- string(T), !, string_codes(T, Cs), gr_strip(Cs, Ns), string_codes(N, Ns).
-gr_norm(T, N) :- compound(T), !,
-    compound_name_arguments(T, F, As),
-    maplist(gr_norm, As, Ns),
-    compound_name_arguments(N, F, Ns).
-gr_norm(T, T).
-
-gr_strip(Cs, Ns) :-
-    (   append(Pre, [0'_|Ds], Cs), Pre \== [], Ds \== [],
-        forall(member(D, Ds), code_type(D, digit))
-    ->  gr_strip(Pre, Ns)
-    ;   Ns = Cs
-    ).
-
-gr_hash_used(D, Used) :-
-    (   nonvar(D), D = pred(X), nonvar(X), X = '::'(H, _), callable(H)
-    ->  gr_pi(H, PI), ord_memberchk(PI, Used)
-    ;   true                            % #show and the like stay
-    ).
-
-% If a head has an instance whose body is only facts and builtins, keep
-% the first such instance and drop the other instances of that head.
-gr_prune(IB, Out) :-
-    findall(H, ( member(_-(H-B), IB), gr_definite(B) ), Ws0),
-    sort(Ws0, Ws),
-    gr_prune_(IB, Ws, [], Out).
-
-gr_prune_([], _, _, []).
-gr_prune_([I-(H-B)|T], Ws, Done, Out) :-
-    (   ord_memberchk(H, Ws)
-    ->  (   memberchk(H, Done)
-        ->  Out = Out1, Done1 = Done
-        ;   gr_definite(B)
-        ->  Out = [I-(H-B)|Out1], Done1 = [H|Done]
-        ;   Out = Out1, Done1 = Done
-        )
-    ;   Out = [I-(H-B)|Out1], Done1 = Done
-    ),
-    gr_prune_(T, Ws, Done1, Out1).
-
-gr_definite(B) :- forall(member(L, B), ( L \= not(_), ( gr_builtin(L) ; gr_fact(L) ) )).
-
-gr_clause(H, [], H) :- !.
-gr_clause(H, B, (H :- C)) :- list_conj(B, C).
-
-gr_stub(('-'(N))/A, (-(H) :- false)) :- !, functor(H, N, A).
-gr_stub(N/A, (H :- false)) :- functor(H, N, A).
-
-% ---------------------------------------------------------------------
-% s(CASP) engine
-% ---------------------------------------------------------------------
-
-scasp_exe(Exe) :-
-    absolute_file_name(path(scasp), Exe, [access(execute), file_errors(fail)]).
-
-scasp_flags(Fs) :-
-    (   getenv('ORBIT_KB_SCASP_FLAGS', S), S \== ''
-    ->  split_string(S, " \t", " \t", Ps0),
-        exclude(==(""), Ps0, Ps),
-        maplist(atom_string, Fs, Ps)
-    ;   Fs = ['--forall=prev']
-    ).
-
-scasp_cmd_text(T) :-
-    scasp_flags(Fs),
-    atomic_list_concat([scasp, '--unknown=error'|Fs], ' ', T).
-
-scasp_timeout(T) :-
-    (   getenv('ORBIT_KB_SCASP_TIMEOUT', S), atom_number(S, T0), T0 > 0
-    ->  T = T0
-    ;   T = 20
-    ).
-
-need_scasp(Exe) :-
-    (   scasp_exe(Exe)
-    ->  true
-    ;   die(2, [ "scasp is not on PATH.",
-                 "Fix: install the s(CASP) pack (swipl pack install scasp), and link its scasp binary into ~/.local/bin.",
-                 "Then run orbit-kb doctor." ])
-    ).
-
-% scasp_call(+ProgFile, +ExtraArgs, -Result)
-% Result: done(Status, Out, Err) | timeout(Seconds)
-scasp_call(File, Extra, Res) :-
-    scasp_start(File, Extra, Job),
-    scasp_wait(Job, Res).
-
-% A run of s(CASP) is a job. scasp_start/3 starts it and returns at
-% once, so the caller can do other work (or start other runs) while
-% s(CASP) works. scasp_wait/2 collects the result. A job is
-%   ready(Result)     a cache hit; no process runs
-%   failed(Error)     the start failed; scasp_wait/2 throws Error, so
-%                     the error comes at the same point as before
-%   running(...)      a process runs
-% Jobs that nobody collects (for example after ENGINE DISAGREEMENT) are
-% stopped by cleanup_tmp/0.
-:- dynamic orbit_job/1, orbit_cache_off/0.
-
-scasp_start(File, Extra, Job) :-
-    scasp_start(File, Extra, true, Job).
-
-% Cache is false for runs with a side effect (--html writes a file).
-scasp_start(File, Extra, Cache, Job) :-
-    catch(scasp_start_(File, Extra, Cache, Job), E, Job = failed(E)).
-
-scasp_start_(File, Extra, Cache, Job) :-
-    need_scasp(Exe),
-    scasp_flags(Fl),
-    append([['--unknown=error'], Fl, Extra], Opts),
-    append(Opts, [File], Args),
-    scasp_timeout(T),
-    (   Cache == true,
-        scasp_cache_key(Exe, Opts, File, Key)
-    ->  true
-    ;   Key = none
-    ),
-    (   Key \== none, scasp_cache_get(Key, T, Hit)
-    ->  Job = ready(Hit)
-    ;   tmp_stream(out, O, OS),
-        tmp_stream(err, E, ES),
-        % process_wait/3 ignores its timeout option here, so coreutils
-        % timeout(1) enforces the limit.
-        (   absolute_file_name(path(timeout), TExe, [access(execute), file_errors(fail)])
-        ->  format(atom(TA), "~w", [T]),
-            RunExe = TExe, RunArgs = ['-k', '2', TA, Exe|Args], Timed = true
-        ;   RunExe = Exe, RunArgs = Args, Timed = false
-        ),
-        catch(process_create(RunExe, RunArgs, [stdin(null), stdout(stream(OS)), stderr(stream(ES)), process(P)]),
-              Err, true),
-        close(OS), close(ES),
-        (   nonvar(Err)
-        ->  err_text(Err, ET),
-            die(2, ["Could not start scasp: " + ET] >> fix_lines)
-        ;   true
-        ),
-        get_time(Start),
-        assertz(orbit_job(P)),
-        Job = running(P, O, E, T, Timed, Start, Key)
-    ).
-
-scasp_wait(ready(Res), Res).
-scasp_wait(failed(E), _) :- throw(E).
-scasp_wait(running(P, O, E, T, Timed, Start, Key), Res) :-
-    process_wait(P, St),
-    retractall(orbit_job(P)),
-    get_time(End),
-    (   Timed == true, ( St == exit(124) ; St == exit(137) ; St = killed(_) )
-    ->  Res = timeout(T)
-    ;   read_file_to_string(O, Out, [encoding(utf8)]),
-        read_file_to_string(E, ErrS, [encoding(utf8)]),
-        Res = done(St, Out, ErrS),
-        (   Key \== none,
-            St == exit(0),
-            \+ sub_string(Out, _, _, _, "ERROR"),
-            \+ sub_string(ErrS, _, _, _, "ERROR")
-        ->  Secs is End - Start,
-            scasp_cache_put(Key, Res, Secs)
-        ;   true
-        )
-    ).
-
-% Stop every job that still runs. TERM goes to timeout(1), which passes
-% it on to scasp.
-stop_jobs :-
-    forall(retract(orbit_job(P)),
-           ( catch(process_kill(P, term), _, true),
-             catch(process_wait(P, _), _, true) )).
-
-% ---------------------------------------------------------------------
-% s(CASP) result cache
-% ---------------------------------------------------------------------
-% A finished run of s(CASP) is stored under a digest of everything that
-% decides its output: the program text, the arguments (flags, -n, the
-% query, the output mode), the scasp binary (real path, size, mtime,
-% version), the SWIPL variable that the scasp script reads, and the
-% SWI-Prolog version and executable. Only runs that exit 0 and print
-% no ERROR are stored. A timeout is never stored. A hit is used only if
-% the stored run took less time than the current time limit, so a
-% shorter ORBIT_KB_SCASP_TIMEOUT still times out as before.
-% ORBIT_KB_NO_CACHE=1 turns the cache off. Every cache error falls back
-% to a normal run.
-
-cache_off :-
-    (   orbit_cache_off
-    ->  true
-    ;   getenv('ORBIT_KB_NO_CACHE', V), V \== '', V \== '0'
-    ).
-
-cache_root(Root) :-
-    (   getenv('XDG_CACHE_HOME', X), X \== '', is_absolute_file_name(X)
-    ->  Base = X
-    ;   getenv('HOME', H), H \== ''
-    ->  atom_concat(H, '/.cache', Base)
-    ),
-    atom_concat(Base, '/orbit-kb', Root).
-
-scasp_cache_dir(Dir) :-
-    \+ cache_off,
-    cache_root(Root),
-    atom_concat(Root, '/scasp', Dir),
-    catch(( exists_directory(Dir) -> true ; make_directory_path(Dir) ), _, fail),
-    access_file(Dir, write).
-
-:- dynamic scasp_id_memo/1.
-
-% The identity of the scasp binary. The version comes from
-% scasp --version once per binary; it is kept in the cache directory.
-scasp_id(Exe, Dir, Id) :-
-    (   scasp_id_memo(Id0)
-    ->  Id = Id0
-    ;   real_file(Exe, Real),
-        size_file(Real, Size),
-        time_file(Real, MTime),
-        variant_sha1(bin(Real, Size, MTime), BH),
-        atomic_list_concat([Dir, '/version-', BH], VF),
-        (   catch(read_file_to_string(VF, V0, [encoding(utf8)]), _, fail),
-            V0 \== ""
-        ->  Version = V0
-        ;   % scasp prints its version on stderr.
-            catch(( process_create(Exe, ['--version'], [stdin(null), stdout(null), stderr(pipe(O)), process(P)]),
-                    read_string(O, _, Version), close(O), process_wait(P, exit(0)) ),
-                  _, fail),
-            Version \== "",
-            write_atomic(VF, Version)
-        ),
-        ( getenv('SWIPL', SE) -> true ; SE = '' ),
-        current_prolog_flag(version, SV),
-        current_prolog_flag(executable, SX),
-        Id = scasp(Real, Size, MTime, Version, SE, SV, SX),
-        assertz(scasp_id_memo(Id))
-    ).
-
-% The key: the cache directory, the file name digest, and the full
-% identity that the entry must repeat. The identity holds the
-% arguments, the scasp identity, and a second digest and the length of
-% the program text. A hash collision, a renamed entry, or an entry
-% from another program therefore never matches.
-scasp_cache_key(Exe, Opts, File, key(Dir, Hash, Meta)) :-
-    scasp_cache_dir(Dir),
-    catch(( scasp_id(Exe, Dir, Id),
-            read_file_to_string(File, Text, [encoding(utf8)]),
-            variant_sha1(k(Text, Opts, Id), Hash),
-            variant_sha1(text(Text), TextHash),
-            string_length(Text, TextLen),
-            Meta = meta(Hash, TextHash, TextLen, Opts, Id) ),
-          _, fail).
-
-scasp_entry_file(key(Dir, Hash, _), F) :-
-    atomic_list_concat([Dir, '/', Hash, '.pl'], F).
-
-% A hit needs one well-formed term whose identity equals the key, and
-% nothing after it. Anything else (garbage, a truncated file, another
-% key) is a miss, and the bad entry is deleted.
-scasp_cache_get(Key, Limit, done(exit(0), Out, Err)) :-
-    scasp_entry_file(Key, F),
-    exists_file(F),
-    Key = key(_, _, Meta),
-    (   catch(setup_call_cleanup(open(F, read, S, [encoding(utf8)]),
-                                 ( read_term(S, T, []), read_term(S, EOF, []) ),
-                                 close(S)),
-              _, fail),
-        EOF == end_of_file,
-        nonvar(T),
-        T = scasp_result(Meta1, St, Out, Err, Secs),
-        Meta1 == Meta,
-        St == exit(0), string(Out), string(Err), number(Secs)
-    ->  Secs < Limit
-    ;   catch(delete_file(F), _, true),
-        fail
-    ).
-
-scasp_cache_put(Key, done(St, Out, Err), Secs) :-
-    Key = key(Dir, _, Meta),
-    scasp_entry_file(Key, F),
-    format(string(Text), "~k.~n", [scasp_result(Meta, St, Out, Err, Secs)]),
-    catch(( write_atomic(F, Text), cache_prune(Dir) ), _, true).
+    callable(H), functor(H, N, A), PI = N/A.
 
 % Write a file atomically: a temp file in the same directory, then
 % rename. A reader sees the old file or the whole new file.
@@ -2616,336 +1819,14 @@ write_atomic(F, Text) :-
           E,
           ( catch(delete_file(Tmp), _, true), throw(E) )).
 
-% Keep at most 2000 entries. When there are more, delete the oldest
-% (by modification time) down to 1500.
-cache_max_entries(2000).
-cache_keep_entries(1500).
-
-cache_prune(Dir) :-
-    directory_files(Dir, Fs),
-    include([F]>>file_name_extension(_, pl, F), Fs, Es),
-    length(Es, N),
-    cache_max_entries(Max),
-    (   N > Max
-    ->  findall(T-P, ( member(E, Es), atomic_list_concat([Dir, '/', E], P),
-                       catch(time_file(P, T), _, fail) ), TPs),
-        keysort(TPs, Sorted),
-        cache_keep_entries(Keep),
-        Drop is max(0, N - Keep),
-        length(Old, Drop),
-        append(Old, _, Sorted),
-        forall(member(_-P, Old), catch(delete_file(P), _, true))
-    ;   true
-    ).
-
-scasp_failed(done(St, _, Err)) :-
-    ( St \== exit(0) ; sub_string(Err, _, _, _, "ERROR") ), !.
-
-scasp_error_lines(Err, Lines) :-
-    split_string(Err, "\n", "", Ls0),
-    exclude(==(""), Ls0, Ls1),
-    exclude(trace_line, Ls1, Ls2),
-    ( length(Ls2, N), N > 12 -> length(Ls, 12), append(Ls, _, Ls2) ; Ls = Ls2 ),
-    Lines = Ls.
-
-trace_line(L) :- sub_string(L, 0, _, _, "ERROR:   ["), !.
-trace_line(L) :- sub_string(L, 0, _, _, "ERROR: In:"), !.
-trace_line("ERROR: ").
-
-die_scasp(Err, Why) :-
-    scasp_error_lines(Err, Ls),
-    scasp_cmd_text(C),
-    append([[ "s(CASP) failed while it " + Why + ".", "Command: " + C ],
-            Ls,
-            [ "Fix: run orbit-kb lint. An undeclared predicate or a syntax error is the usual cause." ]],
-           All),
-    die(2, All >> fix_lines).
-
-% Number of models to ask s(CASP) for. s(CASP) is slow on some goals,
-% so the number is capped.
-scasp_cap(10).
-% The cap for the cross-check run on File. A grounded program has no
-% forall in its duals, so its models are cheap: at 400 attestations,
-% 100 models cost at most 0.06 s more than 10, and no duplicate models
-% were seen. So up to 99 SWI answers get a complete comparison there.
-% A raw program keeps the small cap (H3 with --forall=all can loop).
-scasp_file_cap(File, Cap) :-
-    (   gr_grounded(File) -> Cap = 100 ; scasp_cap(Cap) ).
-% With a SWI verdict of M answers, the explanation shows M models (at
-% least 1, at most the cap and -n). A complete enumeration can loop in
-% s(CASP) (H3 with --forall=all), but the first M models are fast.
-scasp_n_from(G, N, M, SN) :-
-    scasp_cap(Cap),
-    (   ground(G) -> SN = 1
-    ;   S0 is max(1, min(M, Cap)),
-        ( N >= 1 -> SN is min(S0, N) ; SN = S0 )
-    ).
-scasp_n(G, N, SN) :-
-    scasp_cap(Cap),
-    (   ground(G) -> SN = 1
-    ;   N >= 1, N =< Cap -> SN = N
-    ;   SN = Cap
-    ).
-
-% scasp_ns(+File, +G, +N, +SwiRes, -CheckN, -TreeN) (D7)
-% CheckN: the models for the cross-check. With M SWI answers, ask for
-% M+1 (at most the cap), so a model that SWI lacks shows up.
-% TreeN: the models that the explanation shows, as before.
-scasp_ns(_, G, _, _, 1, 1) :- ground(G), !.
-scasp_ns(File, G, N, answers(L, _), CN, TN) :- !,
-    length(L, M),
-    scasp_file_cap(File, Cap),
-    CN is max(1, min(M + 1, Cap)),
-    scasp_n_from(G, N, M, TN).
-scasp_ns(_, G, N, _, SN, SN) :-
-    scasp_n(G, N, SN).
-
-query_arg(QT, QA) :- format(atom(QA), "--query=~w", [QT]).
-
-% scasp_json(+File, +QueryText, +N, -Result)
-% Result: json(Text, Answers) | timeout(T)
-scasp_json(File, QT, N, Res) :-
-    scasp_json_start(File, QT, N, J),
-    scasp_json_wait(J, Res).
-
-scasp_json_start(File, QT, N, J) :-
-    query_arg(QT, QA),
-    scasp_start(File, ['-n', N, '--json=-', QA], J).
-
-scasp_json_wait(J, Res) :-
-    scasp_wait(J, R),
-    (   R = timeout(T)
-    ->  Res = timeout(T)
-    ;   scasp_failed(R)
-    ->  R = done(_, _, Err),
-        die_scasp(Err, "answered the query")
-    ;   R = done(_, Out, _),
-        (   catch(( open_string(Out, S), json_read_dict(S, D), close(S) ), _, fail),
-            get_dict(answers, D, As)
-        ->  Res = json(Out, As)
-        ;   die(2, ["s(CASP) printed JSON that orbit-kb cannot read.", Out])
-        )
-    ).
-
-scasp_tree(File, QT, N, Long, Res) :-
-    scasp_tree_start(File, QT, N, Long, J),
-    scasp_tree_wait(J, Res).
-
-scasp_tree_start(File, QT, N, Long, J) :-
-    query_arg(QT, QA),
-    ( Long == true -> Mode = '--long' ; Mode = '--short' ),
-    scasp_start(File, ['-n', N, '--tree', '--human', Mode, QA], J).
-
-scasp_tree_wait(J, Res) :-
-    scasp_wait(J, R),
-    (   R = timeout(T)
-    ->  Res = timeout(T)
-    ;   scasp_failed(R)
-    ->  R = done(_, _, Err),
-        die_scasp(Err, "built the justification")
-    ;   R = done(_, Out, _),
-        Res = text(Out)
-    ).
-
-scasp_html(File, QT, N, HtmlFile, Res) :-
-    scasp_html_start(File, QT, N, HtmlFile, J),
-    scasp_html_wait(J, Res).
-
-scasp_html_start(File, QT, N, HtmlFile, J) :-
-    query_arg(QT, QA),
-    format(atom(HA), "--html=~w", [HtmlFile]),
-    scasp_start(File, ['-n', N, '--tree', HA, QA], false, J).
-
-scasp_html_wait(J, Res) :-
-    scasp_wait(J, R),
-    (   R = timeout(T)
-    ->  Res = timeout(T)
-    ;   scasp_failed(R)
-    ->  R = done(_, _, Err),
-        die_scasp(Err, "wrote the HTML file")
-    ;   Res = ok
-    ).
-
-% JSON values back to terms.
-json_val(J, V) :- is_list(J), !, maplist(json_val, J, V).
-json_val(J, V) :- is_dict(J), get_dict(type, J, Ty), !, json_typed(Ty, J, V).
-json_val(J, J).
-
-json_typed("atom", J, V) :- !, get_dict(value, J, S), atom_string(V, S).
-json_typed("rational", J, V) :- !,
-    get_dict(numerator, J, N), get_dict(denominator, J, D),
-    ( D =:= 1 -> V = N ; V is N rdiv D ).
-json_typed("number", J, V) :- !, get_dict(value, J, V).
-json_typed("compound", J, V) :- !,
-    get_dict(functor, J, F0), atom_string(F, F0),
-    get_dict(args, J, As0), maplist(json_val, As0, As),
-    V =.. [F|As].
-json_typed("var", _, _) :- !.
-json_typed(_, J, V) :- ( get_dict(value, J, V0) -> json_val(V0, V) ; true ).
-
-% sc_tuple(+Names, +Answer, -Tuple)
-sc_tuple(Names, Ans, Tuple) :-
-    ( get_dict(bindings, Ans, B) -> true ; B = _{} ),
-    maplist(sc_bind(B), Names, Tuple).
-
-sc_bind(B, Name, V) :-
-    (   get_dict(Name, B, Bd), is_dict(Bd), get_dict(value, Bd, J)
-    ->  json_val(J, V0),
-        ( get_dict(truth, Bd, false) -> V = -(V0) ; V = V0 )
-    ;   true
-    ).
-
-% Query text for s(CASP): every variable has a name (D6).
-query_text(G, VN, Text) :-
-    copy_term(G-VN, G2-VN2),
-    maplist(bind_vn, VN2),
-    term_variables(G2, Vs),
-    name_anon(Vs, 1),
-    wtext(G2, Text).
-
-name_anon([], _).
-name_anon([V|Vs], I) :-
-    format(atom(N), "_OrbitG~w", [I]),
-    V = '$VAR'(N),
-    I1 is I + 1,
-    name_anon(Vs, I1).
-
 % ---------------------------------------------------------------------
-% Running a goal on both engines
+% Goals
 % ---------------------------------------------------------------------
-
-% prepare(+Items, +Decls, +ExtraTerms, -Ctx)
-% Assemble the s(CASP) program now. The SWI engine is built when it is
-% needed (ctx_engine/2), so a s(CASP) run can start first and work
-% while the SWI engine loads and answers.
-% By default s(CASP) gets the grounding of the program for the goals in
-% Extra (D8); prepare/5 takes the mode (ground or raw) explicitly.
-prepare(Items, Ds, Extra, Ctx) :-
-    scasp_mode(Mode),
-    prepare(Items, Ds, Extra, Mode, Ctx).
-
-prepare(Items, Ds, Extra, Mode, ctx(Items, Ds, File)) :-
-    assemble(Items, Ds, Extra, Raw, _),
-    (   Mode == ground
-    ->  ground_file(Raw, Extra, File)
-    ;   File = Raw
-    ).
-
-ctx_file(ctx(_, _, File), File).
-
-ctx_engine(ctx(Items, Ds, _), Eng) :-
-    build_engine(Items, Ds, Eng).
 
 query_names(VN, Names, Vars) :-
     exclude([N=_]>>sub_atom(N, 0, 1, _, '_'), VN, VN1),
     findall(N, member(N=_, VN1), Names),
     maplist([_=V, V]>>true, VN1, Vars).
-
-% eval_goal(+Ctx, +G, +VN, +N, -Res)
-% Res = res(Names, SwiRes, ScRes, ScN)
-eval_goal(Ctx, G, VN, N, Res) :-
-    eval_start(Ctx, G, VN, N, Pend),
-    eval_finish(Pend, Res0, Extra),
-    ( Extra = disagree(ResB) -> Res = ResB ; Res = Res0 ).
-
-% eval_start(+Ctx, +G, +VN, +N, -Pend): the SWI verdict, and started
-% s(CASP) runs for the cross-check.
-%   Run A asks for TreeN models, as the explanation does. Its result is
-%   the s(CASP) result that query prints (--json too).
-%   Run B (D7) asks for M+1 models, at most the cap, when SWI found M
-%   answers and M+1 is more than TreeN. It finds a model that SWI
-%   lacks. It runs at the same time as run A.
-% For a ground goal both numbers are 1 whatever SWI says, so s(CASP)
-% starts before the SWI engine is built. An SWI error still stops here,
-% before any result of s(CASP) is used.
-% Pend = pend(Names, SwiRes, TreeN, JobA, QueryText, CheckN, JobB)
-eval_start(Ctx, G, VN, N, pend(Names, SwiRes, TN, JobA, QT, CN, JobB)) :-
-    ctx_file(Ctx, File),
-    query_names(VN, Names, Vars),
-    query_text(G, VN, QT),
-    (   ground(G)
-    ->  scasp_json_start(File, QT, 1, Early)
-    ;   Early = none
-    ),
-    ctx_engine(Ctx, Eng),
-    swi_query(Eng, G, Vars, SwiRes),
-    (   SwiRes = error(Msg)
-    ->  die(2, [ "SWI ERROR: " + Msg,
-                 "The SWI engine could not evaluate the goal. This is not a false answer."
-               ] >> fix_lines)
-    ;   true
-    ),
-    scasp_ns(File, G, N, SwiRes, CN, TN),
-    (   Early \== none
-    ->  JobA = Early
-    ;   scasp_json_start(File, QT, TN, JobA)
-    ),
-    (   CN > TN
-    ->  scasp_json_start(File, QT, CN, JobB)
-    ;   JobB = none
-    ).
-
-% eval_finish(+Pend, -ResA, -Extra)
-% ResA = res(Names, SwiRes, ScRes, TreeN) from run A.
-% Extra: none (no run B) | agree | disagree(ResB) | timeout(T)
-% Run B is collected only when run A agrees with SWI. A disagreement of
-% run A is final, and cleanup stops run B.
-eval_finish(pend(Names, SwiRes, TN, JobA, _, CN, JobB), ResA, Extra) :-
-    scasp_json_wait(JobA, RA),
-    ResA = res(Names, SwiRes, RA, TN),
-    (   JobB == none
-    ->  Extra = none
-    ;   RA = json(_, _), crosscheck(ResA, agree)
-    ->  scasp_json_wait(JobB, RB),
-        (   RB = timeout(T)
-        ->  Extra = timeout(T)
-        ;   ResB = res(Names, SwiRes, RB, CN),
-            (   crosscheck(ResB, disagree(_))
-            ->  Extra = disagree(ResB)
-            ;   Extra = agree
-            )
-        )
-    ;   Extra = none
-    ).
-
-% crosscheck(+Res, -Verdict): agree | disagree(Reason)
-crosscheck(res(Names, answers(L, Capped), json(_, As), ScN), V) :- !,
-    ( L \== [] -> SE = true ; SE = false ),
-    ( As \== [] -> CE = true ; CE = false ),
-    (   SE \== CE
-    ->  ( SE == true
-        ->  V = disagree("The SWI engine finds an answer. s(CASP) finds no model.")
-        ;   V = disagree("s(CASP) finds a model. The SWI engine finds no answer.")
-        )
-    ;   maplist(sc_tuple(Names), As, Ts0),
-        sort(Ts0, Ts),
-        sort(L, LS),
-        (   ground(Ts), ground(LS)
-        ->  subtract_eq(Ts, LS, OnlyC),
-            length(As, Raw),
-            (   Capped == false, OnlyC \== []
-            ->  V = disagree("s(CASP) has answers that the SWI engine does not have.")
-            ;   Raw < ScN, subtract_eq(LS, Ts, OnlyS), OnlyS \== []
-            ->  V = disagree("The SWI engine has answers that s(CASP) does not have.")
-            ;   V = agree
-            )
-        ;   Capped == false,
-            variant_count(Ts, NC), variant_count(LS, NS), NC > NS
-        ->  V = disagree("s(CASP) has more answers than the SWI engine.")
-        ;   V = agree
-        )
-    ).
-crosscheck(_, agree).
-
-% The number of different answers, where answers that are variants
-% count once.
-variant_count(L, N) :-
-    maplist([T, K]>>( copy_term(T, K), numbervars(K, 0, _) ), L, Ks),
-    sort(Ks, S),
-    length(S, N).
-
-subtract_eq(A, B, C) :- exclude([X]>>memberchk_eq(X, B), A, C).
-memberchk_eq(X, L) :- member(Y, L), Y == X, !.
 
 answer_line([], _, "true") :- !.
 answer_line(Names, Tuple, Line) :-
@@ -2958,33 +1839,13 @@ answer_line(Names, Tuple, Line) :-
 take_n(0, L, L) :- !.
 take_n(N, L, T) :- length(L, Len), ( Len =< N -> T = L ; length(T, N), append(T, _, L) ).
 
-print_disagreement(Out, GoalText, res(Names, SwiRes, ScRes, ScN), Reason) :-
-    format(Out, "ENGINE DISAGREEMENT~n", []),
-    format(Out, "Goal: ~w~n", [GoalText]),
-    format(Out, "~w~n", [Reason]),
-    (   SwiRes = answers(L, _)
-    ->  length(L, LN),
-        format(Out, "SWI engine (verdict): ~w answer(s).~n", [LN]),
-        take_n(10, L, L10),
-        forall(member(T, L10), ( answer_line(Names, T, AL), format(Out, "  ~w~n", [AL]) ))
-    ;   true
-    ),
-    (   ScRes = json(_, As)
-    ->  length(As, AN),
-        scasp_cmd_text(C),
-        format(Out, "s(CASP) engine (~w -n ~w): ~w model(s).~n", [C, ScN, AN]),
-        maplist(sc_tuple(Names), As, Ts),
-        take_n(10, Ts, T10),
-        forall(member(T, T10), ( answer_line(Names, T, AL), format(Out, "  ~w~n", [AL]) ))
-    ;   true
-    ),
-    format(Out, "Hint: see H1/H2 in the orbit-kb help (orbit-kb help). Also see H3 and H4 there.~n", []),
-    format(Out, "Do not trust either answer until you find the cause.~n", []).
-
-% answer_gate(+KB) (D7): query, why, whynot, show, and report do not
-% answer from a broken source. A syntax error (E1) in any source drops
-% the clause, and an undeclared head or body predicate (E2) in rules.pl
-% is hidden by a stub. Both would give a quiet "false". Exit 2 instead.
+% answer_gate(+KB) (D7, D20): query, why, whynot, show, and report do
+% not answer from a broken source. A syntax error (E1) in any source
+% drops the clause, an undeclared head or body predicate (E2) in
+% rules.pl is hidden by a stub, the engine skips a form of s(CASP)
+% (E17), and negation as failure has no single answer for a program that
+% is not stratified (E18). Each would give a quiet wrong answer. Exit 2
+% instead.
 answer_gate(KB) :-
     kb_items(KB, Items),
     findall(D, ( member(synerr(_, F, L, M), Items), D = diag('E1', F, L, M) ), E1s),
@@ -2993,10 +1854,12 @@ answer_gate(KB) :-
         findall(D, ( member(I, Items), I = it(rules, _, _, _, _, _),
                      rule_item_diags(Ds, I, D0),
                      member(D, D0), D = diag('E2', _, _, _) ),
-                E2s)
-    ;   E2s = []
+                E2s),
+        findall(D, ( member(I, Items), e17_diags(I, D0), member(D, D0) ), E17s),
+        e18_diags(Items, Ds, E18s)
+    ;   E2s = [], E17s = [], E18s = []
     ),
-    append(E1s, E2s, Bad),
+    append([E1s, E2s, E17s, E18s], Bad),
     (   Bad == []
     ->  true
     ;   findall(S, ( member(diag(C, F, L, M), Bad), show_loc(F, L, LT),
@@ -3004,7 +1867,11 @@ answer_gate(KB) :-
                 Ls),
         (   E1s \== []
         ->  Why = "A source file has a syntax error. orbit-kb drops a clause that does not parse, so an answer could be wrong."
-        ;   Why = "rules.pl names a predicate that is not declared. Its clauses cannot take part, so an answer could be wrong."
+        ;   E2s \== []
+        ->  Why = "rules.pl names a predicate that is not declared. Its clauses cannot take part, so an answer could be wrong."
+        ;   E17s \== []
+        ->  Why = "A source uses a form that orbit-kb does not read. The engine skips that clause, so an answer could be wrong."
+        ;   Why = "The rules are not stratified, so negation as failure has no single answer."
         ),
         append([Ls, [Why,
                      "Fix: correct each line above, then run orbit-kb lint.",
@@ -3045,14 +1912,12 @@ parse_goal(Text, G, VN) :-
                  "Check the brackets and quotes. Write text in single quotes.",
                  "This is a usage error, not a false answer." ] >> fix_lines)
     ).
-
 % ---------------------------------------------------------------------
 % query and why
 % ---------------------------------------------------------------------
 
 cmd_query(KB, Args, ForceWhy, Code) :-
-    parse_opts(Args, ['-n'-value, '--why'-flag, '--json'-flag, '--html'-value,
-                      '--long'-flag, '--short'-flag], Pos, Opts),
+    parse_opts(Args, ['-n'-value, '--why'-flag, '--long'-flag, '--short'-flag], Pos, Opts),
     (   Pos = [GoalText]
     ->  true
     ;   usage_error("Give exactly one goal in quotes, such as orbit-kb query 'claim(C, L, T)'.", [])
@@ -3064,110 +1929,35 @@ cmd_query(KB, Args, ForceWhy, Code) :-
     ),
     opt(Opts, '--why', false, Why0),
     ( ForceWhy == true -> Why = true ; Why = Why0 ),
-    opt(Opts, '--json', false, Json),
     opt(Opts, '--long', false, Long),
-    opt(Opts, '--html', none, Html),
     kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
     parse_goal(GoalText, G, VN),
     kb_items(KB, Items),
     items_decls(Items, Ds),
     check_goal(G, Ds),
     answer_gate(KB),
-    prepare(Items, Ds, [G], Ctx),
-    ctx_file(Ctx, File),
-    eval_start(Ctx, G, VN, N, Pend),
-    Pend = pend(_, _, TreeN, _, QT, _, _),
-    % The explanation runs at the same time as the cross-check. It is
-    % shown only where it was shown before; else cleanup stops it.
-    (   Why == true
-    ->  scasp_tree_start(File, QT, TreeN, Long, TreeJob)
-    ;   TreeJob = none
-    ),
-    eval_finish(Pend, ResA, Extra),
-    ( Extra = disagree(ResB) -> Res = ResB ; Res = ResA ),
-    Res = res(Names, SwiRes, ScRes, _),
-    term_text(G, VN, GT),
-    ( Json == true -> Out = user_error ; Out = user_output ),
-    (   SwiRes = skipped(_), ScRes = timeout(T)
-    ->  SwiRes = skipped(Why1),
-        die(2, [ "Neither engine can answer this goal.",
-                 "The SWI engine cannot: " + Why1 + ".",
-                 "s(CASP) timed out after " + T + " s. Set ORBIT_KB_SCASP_TIMEOUT to wait longer." ] >> fix_lines)
-    ;   crosscheck(Res, disagree(Reason))
-    ->  print_disagreement(Out, GT, Res, Reason),
-        ( Json == true, ScRes = json(JT, _) -> format(user_output, "~w", [JT]) ; true ),
-        Code = 2
-    ;   (   SwiRes = answers(L, _), ScRes = json(_, _), Extra = timeout(TB)
-        ->  format(user_error, "CROSS-CHECK SKIPPED: s(CASP) timed out after ~ws while it looked for answers that the SWI engine does not have~n", [TB]),
-            Checked = false, Lines0 = L, Src = swi
-        ;   SwiRes = answers(L, _), ScRes = json(_, _)
-        ->  Checked = true, Lines0 = L, Src = swi
-        ;   SwiRes = answers(L, _), ScRes = timeout(T)
-        ->  format(user_error, "CROSS-CHECK SKIPPED: s(CASP) timed out after ~ws~n", [T]),
-            Checked = false, Lines0 = L, Src = swi
-        ;   SwiRes = skipped(Reason)
-        ->  format(user_error, "CROSS-CHECK SKIPPED: ~w~n", [Reason]),
-            ScRes = json(_, As),
-            maplist(sc_tuple(Names), As, Lines0),
-            Checked = false, Src = scasp
-        ),
-        _ = Src,
-        ( Lines0 == [] -> Code = 1 ; Code = 0 ),
-        (   Json == true
-        ->  (   ScRes = json(JT, _)
-            ->  format(user_output, "~w", [JT])
-            ;   die(2, ["s(CASP) timed out, so no JSON is available. The SWI engine verdict: " + Code + " (0 true, 1 false)."] >> fix_lines)
-            )
-        ;   take_n(N, Lines0, Shown),
-            ( Checked == true -> Suffix = "" ; Suffix = " (unchecked)" ),
-            (   Shown == []
-            ->  format("false~w~n", [Suffix])
-            ;   forall(member(Tp, Shown),
-                       ( answer_line(Names, Tp, AL), format("~w~w~n", [AL, Suffix]) ))
-            )
-        ),
-        (   Html \== none
-        ->  absolute_file_name(Html, HtmlAbs),
-            scasp_html_start(File, QT, TreeN, HtmlAbs, HtmlJob)
-        ;   true
-        ),
-        (   Why == true
-        ->  (   ScRes = timeout(T2)
-            ->  format("No explanation is available, because s(CASP) timed out after ~w s.~n", [T2])
-            ;   scasp_tree_wait(TreeJob, TR),
-                (   TR = text(TreeText)
-                ->  format("~n~w", [TreeText])
-                ;   TR = timeout(T3),
-                    format("No explanation is available, because s(CASP) timed out after ~w s.~n", [T3])
-                )
-            )
-        ;   true
-        ),
-        (   Html \== none
-        ->  scasp_html_wait(HtmlJob, HR),
-            (   HR == ok
-            ->  format(user_error, "HTML written to ~w~n", [HtmlAbs])
-            ;   HR = timeout(T4),
-                format(user_error, "No HTML file was written, because s(CASP) timed out after ~w s.~n", [T4])
-            )
-        ;   true
-        )
+    build_engine(Items, Ds, Eng),
+    query_names(VN, Names, Vars),
+    swi_query(Eng, G, Vars, Res),
+    swi_fail_if_error(Res),
+    Res = answers(L, _),
+    take_n(N, L, Shown),
+    (   Shown == []
+    ->  format("false~n", []), Code = 1
+    ;   Code = 0,
+        forall(member(Tp, Shown),
+               ( answer_line(Names, Tp, AL), format("~w~n", [AL]),
+                 (   Why == true
+                 ->  copy_term(G-Vars, G1-Tp),
+                     explain_lines(Eng, Ds, holds, G1, Long, Lines),
+                     format("~n", []), print_lines(user_output, Lines)
+                 ;   true
+                 ) ))
     ).
 
 % ---------------------------------------------------------------------
 % whynot
 % ---------------------------------------------------------------------
-
-complement(G, C) :- nonvar(G), G = -(P), callable(P), !, C = P.
-complement(G, -(G)) :- callable(G), \+ builtin_goal(G), \+ control_goal(G).
-
-control_goal(G) :- nonvar(G), ( G = (_, _) ; G = (_ ; _) ; G = (_ -> _) ; G = not(_) ; G = forall(_, _) ), !.
-
-has_clauses_for(Items, C) :-
-    (   C = -(P) -> functor(P, N, A), atom_concat('-', N, NN), PI = NN/A
-    ;   functor(C, N, A), PI = N/A
-    ),
-    member(I, Items), item_head_pi(I, PI), !.
 
 cmd_whynot(KB, Args, Code) :-
     parse_opts(Args, ['--long'-flag, '--short'-flag], Pos, Opts),
@@ -3176,101 +1966,231 @@ cmd_whynot(KB, Args, Code) :-
     ),
     opt(Opts, '--long', false, Long),
     kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
-    parse_goal(GoalText, G, VN),
+    parse_goal(GoalText, G, _),
     kb_items(KB, Items),
     items_decls(Items, Ds),
     check_goal(G, Ds),
     answer_gate(KB),
-    (   complement(G, C), has_clauses_for(Items, C)
-    ->  HasC = true
-    ;   HasC = false, C = none
+    build_engine(Items, Ds, Eng),
+    swi_query(Eng, G, [G], Res),
+    swi_fail_if_error(Res),
+    Res = answers(L, _),
+    (   L = [[G1]|_]
+    ->  format("holds~n", []),
+        explain_lines(Eng, Ds, holds, G1, Long, Lines)
+    ;   format("absent~n", []),
+        explain_lines(Eng, Ds, fails, G, Long, Lines)
     ),
-    prepare(Items, Ds, [G, C], Ctx),
-    ctx_file(Ctx, File),
-    % Start the s(CASP) runs first. They work while the SWI engine loads
-    % and answers.
-    query_text(G, VN, QG),
-    scasp_json_start(File, QG, 1, JobG),
-    (   HasC == true -> query_text(C, VN, QC), scasp_json_start(File, QC, 1, JobC) ; JobC = none ),
-    % SWI verdict
-    ctx_engine(Ctx, Eng),
-    swi_query(Eng, G, [], SG),
-    swi_fail_if_error(SG),
-    (   HasC == true -> swi_query(Eng, C, [], SC), swi_fail_if_error(SC) ; SC = answers([], false) ),
-    swi_verdict(SG, SC, SV),
-    % The explanation for the SWI verdict starts now. It is used only if
-    % the verdict stands.
-    (   SV \== unknown
-    ->  whynot_target(SV, G, C, TG0),
-        query_text(TG0, VN, QT0),
-        scasp_tree_start(File, QT0, 1, Long, TreeJob0)
-    ;   TG0 = none, TreeJob0 = none
+    format("~n", []),
+    print_lines(user_output, Lines),
+    Code = 0.
+
+% ---------------------------------------------------------------------
+% Explanations (why, whynot)
+% ---------------------------------------------------------------------
+% The SWI engine gives every verdict. An explanation reads the same
+% clauses again, after the verdict:
+%   - a goal that holds: one clause that proves it, and why each of its
+%     body literals holds;
+%   - a goal that fails: for each rule of the goal, the first body
+%     literal that no answer of the literals before it gets past.
+% Every program is stratified (lint E18, answer_gate/1), so these trees are
+% finite. A depth limit keeps them short: 6 levels, or 30 with --long.
+% An explanation never changes a verdict.
+
+expl_depth(Long, D) :- ( Long == true -> D = 30 ; D = 6 ).
+expl_time_limit(10).
+
+% explain_lines(+Eng, +Ds, +Mode, +Goal, +Long, -Lines)
+% Mode is holds (Goal has an answer; Goal is bound to it) or fails.
+explain_lines(eng(M, _), Ds, Mode, G, Long, Lines) :-
+    expl_depth(Long, D),
+    swi_body(G, G2),
+    expl_time_limit(TL),
+    catch(call_with_time_limit(TL,
+              ( Mode == holds -> ex_true(M, G2, D, T) ; ex_false(M, G2, D, T) )),
+          E, true),
+    (   var(E), nonvar(T)
+    ->  phrase(ex_lines(T, Ds, 0), Lines)
+    ;   E == time_limit_exceeded
+    ->  fmt(L, "No explanation: it took more than ~w s. The verdict above stands.", [TL]),
+        Lines = [L]
+    ;   Lines = ["No explanation is available. The verdict above stands."]
+    ).
+
+% Trees:
+%   fact(G)             G is a fact
+%   rule(G, Kids)       G holds by a rule; Kids explain its body
+%   builtin(G)          a builtin goal that holds
+%   naf(P, Sub)         not P holds; Sub = none, or the tree of P failing
+%   more(G)             G holds; the depth limit stops here
+%   fails(G, Why)       G has no answer. Why = nothing | builtin | depth
+%                       | rules(Stops), Stops = list of stop(Lit, Sub)
+%   holds_neg(P, Sub)   (inside a stop) not P fails because P holds
+
+user_pred(M, G) :-
+    callable(G),
+    \+ builtin_goal(G),
+    functor(G, N, A),
+    functor(H, N, A),
+    predicate_property(M:H, dynamic).
+
+ex_true(M, G, D, T) :-
+    (   G = (\+ P)
+    ->  ( D > 0 -> ex_false(M, P, D, Sub) ; Sub = none ),
+        T = naf(P, Sub)
+    ;   \+ user_pred(M, G)
+    ->  once(call(M:G)), T = builtin(G)
+    ;   D =< 0
+    ->  once(call(M:G)), T = more(G)
+    ;   once(( clause(M:G, B), call(M:B) )),
+        (   B == true
+        ->  T = fact(G)
+        ;   D1 is D - 1,
+            conj_list(B, Ls),
+            maplist([L, K]>>once(ex_true(M, L, D1, K)), Ls, Kids),
+            T = rule(G, Kids)
+        )
+    ).
+
+ex_false(M, G, D, fails(G, Why)) :-
+    (   \+ user_pred(M, G)
+    ->  Why = builtin
+    ;   D =< 0
+    ->  Why = depth
+    ;   findall(G-B, ( clause(M:G, B), B \== true ), Rules),
+        (   Rules == []
+        ->  Why = nothing
+        ;   D1 is D - 1,
+            findall(S, ( member(G1-B1, Rules), rule_stop(M, G1, B1, D1, S) ), Stops),
+            Why = rules(Stops)
+        )
+    ).
+
+% rule_stop(+M, +Head, +Body, +D, -Stop): the first body literal that no
+% answer of the literals before it gets past. The literal is shown with
+% the bindings of the literals before it when they have one answer.
+rule_stop(M, H, B, D, stop(H, Lit, Sub)) :-
+    conj_list(B, Ls),
+    stop_at(M, Ls, [], Lit0, Before),
+    findall(Lit0, call(M:Before), Ans0),
+    sort(Ans0, Ans),
+    (   Ans = [Lit]
+    ->  (   Lit = (\+ P)
+        ->  once(ex_true(M, P, D, PT)), Sub = holds_neg(P, PT)
+        ;   ex_false(M, Lit, D, Sub)
+        )
+    ;   Ans == []
+    ->  Lit = Lit0, Sub = first
+    ;   Lit = Lit0, Sub = each
+    ).
+
+stop_at(M, [L|Ls], Acc, Lit, Before) :-
+    append(Acc, [L], Acc1),
+    list_conj_true(Acc1, C),
+    (   \+ \+ call(M:C)
+    ->  stop_at(M, Ls, Acc1, Lit, Before)
+    ;   Lit = L,
+        list_conj_true(Acc, Before)
+    ).
+
+list_conj_true([], true) :- !.
+list_conj_true(Ls, C) :- list_conj(Ls, C).
+
+% --- Text. Each line is indented by three spaces per level.
+
+ex_lines(fact(G), Ds, I) --> ex_line(I, "~w", [tpl(G, Ds)]).
+ex_lines(builtin(G), _, I) --> ex_line(I, "~w holds", [lit(G)]).
+ex_lines(more(G), Ds, I) --> ex_line(I, "~w (orbit-kb why --long shows more)", [tpl(G, Ds)]).
+ex_lines(rule(G, Kids), Ds, I) -->
+    ex_line(I, "~w, because", [tpl(G, Ds)]),
+    { I1 is I + 1 },
+    ex_kids(Kids, Ds, I1).
+ex_lines(naf(P, none), Ds, I) --> !,
+    ex_line(I, "there is no evidence that ~w", [tpl(P, Ds)]).
+ex_lines(naf(_, Sub), Ds, I) --> ex_lines(Sub, Ds, I).
+ex_lines(fails(G, Why), Ds, I) -->
+    (   { Why == nothing }
+    ->  ex_line(I, "nothing records ~w: no fact or rule matches it", [lit(G)])
+    ;   { Why == builtin }
+    ->  ex_line(I, "~w does not hold", [lit(G)])
+    ;   { Why == depth }
+    ->  ex_line(I, "there is no evidence that ~w (orbit-kb whynot --long shows more)", [tpl(G, Ds)])
+    ;   { Why = rules(Stops) },
+        ex_line(I, "there is no evidence that ~w, because", [tpl(G, Ds)]),
+        { I1 is I + 1, length(Stops, NS) },
+        ex_stops(Stops, NS, 1, Ds, I1)
+    ).
+
+ex_kids([], _, _) --> [].
+ex_kids([K|Ks], Ds, I) --> ex_lines(K, Ds, I), ex_kids(Ks, Ds, I).
+
+ex_stops([], _, _, _, _) --> [].
+ex_stops([stop(H, Lit, Sub)|Ss], NS, K, Ds, I) -->
+    { functor(H, N, A),
+      (   NS =:= 1
+      ->  fmt(Which, "the rule for ~q/~w", [N, A])
+      ;   fmt(Which, "rule ~w of ~w for ~q/~w", [K, NS, N, A])
+      ) },
+    (   { Sub == first }
+    ->  ex_line(I, "~w stops at its first literal: ~w", [str(Which), lit(Lit)])
+    ;   { Sub == each }
+    ->  ex_line(I, "~w stops at ~w, for every answer of the literals before it", [str(Which), lit(Lit)])
+    ;   ex_line(I, "~w stops at ~w:", [str(Which), lit(Lit)]),
+        { I1 is I + 1 },
+        (   { Sub = holds_neg(_, PT) }
+        ->  ex_lines(PT, Ds, I1)
+        ;   ex_lines(Sub, Ds, I1)
+        )
     ),
-    % s(CASP) verdict
-    scasp_json_wait(JobG, JG),
-    (   HasC == true -> scasp_json_wait(JobC, JC) ; JC = json("", []) ),
-    scasp_verdict(JG, JC, CV),
-    term_text(G, VN, GT),
-    (   SV == unknown, CV == unknown
-    ->  die(2, ["Neither engine can decide this goal. The SWI engine cannot evaluate it, and s(CASP) timed out."])
-    ;   SV \== unknown, CV \== unknown, SV \== CV
-    ->  format("ENGINE DISAGREEMENT~n", []),
-        format("Goal: ~w~n", [GT]),
-        format("SWI engine (verdict): ~w~n", [SV]),
-        scasp_cmd_text(Cmd),
-        format("s(CASP) engine (~w): ~w~n", [Cmd, CV]),
-        format("Hint: see H1/H2 in the orbit-kb help (orbit-kb help). Also see H3 and H4 there.~n", []),
-        Code = 2
-    ;   (   SV == unknown
-        ->  SG = skipped(R1),
-            format(user_error, "CROSS-CHECK SKIPPED: ~w~n", [R1]),
-            Verdict = CV, Suffix = " (unchecked)"
-        ;   CV == unknown
-        ->  scasp_timeout(TO),
-            format(user_error, "CROSS-CHECK SKIPPED: s(CASP) timed out after ~ws~n", [TO]),
-            Verdict = SV, Suffix = " (unchecked)"
-        ;   Verdict = SV, Suffix = ""
-        ),
-        format("~w~w~n", [Verdict, Suffix]),
-        whynot_target(Verdict, G, C, TG),
-        (   CV == unknown
-        ->  format("No explanation is available, because s(CASP) timed out.~n", [])
-        ;   (   TG0 \== none, TG == TG0
-            ->  TreeJob = TreeJob0
-            ;   query_text(TG, VN, QT),
-                scasp_tree_start(File, QT, 1, Long, TreeJob)
-            ),
-            scasp_tree_wait(TreeJob, TR),
-            (   TR = text(TreeText)
-            ->  format("~n~w", [TreeText])
-            ;   TR = timeout(T3),
-                format("No explanation is available, because s(CASP) timed out after ~w s.~n", [T3])
-            )
-        ),
-        Code = 0
+    { K1 is K + 1 },
+    ex_stops(Ss, NS, K1, Ds, I).
+
+ex_line(I, Fmt, Args0) -->
+    { maplist(ex_arg, Args0, Args),
+      format(string(S0), Fmt, Args),
+      Pad is I * 3,
+      format(string(S), "~*c~w", [Pad, 0' , S0]) },
+    [S].
+
+ex_arg(tpl(G, Ds), S) :- !, goal_template_text(G, Ds, S).
+ex_arg(lit(G), S) :- !, lit_text(G, S).
+ex_arg(str(S), S).
+
+% A literal as source text: \+ prints as not.
+lit_text(G, S) :- show_not(G, G2), term_text(G2, S).
+
+show_not(V, V) :- var(V), !.
+show_not(\+ G, not(G2)) :- !, show_not(G, G2).
+show_not(G, G).
+
+% The template of a declaration with the arguments put in, or the goal
+% as text when it has no template.
+goal_template_text(G, Ds, S) :-
+    (   callable(G), functor(G, N, A),
+        decl_of(Ds, N, A, d(_, _, _, _, _, Tpl, _, _, _)),
+        atom(Tpl), Tpl \== ''
+    ->  atom_string(Tpl, T0),
+        G =.. [_|Args],
+        foldl(tpl_put, Args, 1-T0, _-S)
+    ;   lit_text(G, S0),
+        fmt(S, "~w holds", [S0])
     ).
 
-whynot_target(holds, G, _, G) :- !.
-whynot_target(contradicts, _, C, C) :- !.
-whynot_target(_, G, _, not(G)).
+tpl_put(Arg, I-S0, I1-S) :-
+    I1 is I + 1,
+    fmt(From, "@(~w)", [I]),
+    ( var(Arg) -> AT = "_" ; term_text(Arg, AT0), unquote(AT0, AT) ),
+    atomic_list_concat(Parts, From, S0),
+    atomic_list_concat(Parts, AT, A),
+    atom_string(A, S).
 
-swi_fail_if_error(error(Msg)) :- !,
-    die(2, ["SWI ERROR: " + Msg, "The SWI engine could not evaluate the goal. This is not a false answer."] >> fix_lines).
-swi_fail_if_error(_).
-
-swi_verdict(answers(LG, _), answers(LC, _), V) :- !,
-    (   LG \== [] -> V = holds
-    ;   LC \== [] -> V = contradicts
-    ;   V = absent
+unquote(S0, S) :-
+    (   sub_string(S0, 0, 1, _, "'"), sub_string(S0, _, 1, 0, "'"),
+        string_length(S0, L), L >= 2
+    ->  L2 is L - 2, sub_string(S0, 1, L2, _, S)
+    ;   S = S0
     ).
-swi_verdict(_, _, unknown).
-
-scasp_verdict(json(_, AG), json(_, AC), V) :- !,
-    (   AG \== [] -> V = holds
-    ;   AC \== [] -> V = contradicts
-    ;   V = absent
-    ).
-scasp_verdict(_, _, unknown).
 
 % ---------------------------------------------------------------------
 % init
@@ -3307,11 +2227,6 @@ cmd_init(Args, Code) :-
     ;   true
     ),
     Req = request(Id, Text),
-    (   term_atom(Req, A), h4_atom(A)
-    ->  h4_msg(A, HM),
-        die(1, ["Rejected. " + HM] >> fix_lines)
-    ;   true
-    ),
     absolute_file_name(Dir0, Dir),
     directory_file_path(Dir, 'kb.pl', KbFile),
     (   exists_file(KbFile)
@@ -3429,7 +2344,7 @@ validate_new(KB, NewItems, Problems) :-
     findall(D, ( member(I, NewItems), fact_diags(Ctx, I, D0), member(D, D0) ), D1),
     e5_diags(All, Ds, D2a),
     include([diag(_, F, _, _)]>>(F == '<arg>'), D2a, D2),
-    findall(D, ( member(I, NewItems), e13_diags(I, D0), member(D, D0) ), D3),
+    findall(D, ( member(I, NewItems), e17_diags(I, D0), member(D, D0) ), D3),
     e15_diags(All, D4a),
     include([diag(_, F, _, _)]>>(F == '<arg>'), D4a, D4),
     append([D1, D2, D3, D4], Problems).
@@ -3494,11 +2409,7 @@ script_only_type(ATs, Type) :-
 reserved_name(N) :-
     memberchk(N, [decl, attest_type, uses, not, true, false, forall, call, is,
                   '=', '\\=', '<', '>', '=<', '>=', ',', ';', '->', ':-', '#', '\\+', '-',
-                  '#=', '#<>', '#<', '#>', '#=<', '#>=',
-                  % s(CASP) wraps model terms in these names. A predicate
-                  % proved/1 (or chs/1, assume/1, abduced/1) makes
-                  % scasp --code fail with an instantiation error (D10).
-                  proved, chs, assume, abduced]).
+                  '#=', '#<>', '#<', '#>', '#=<', '#>=']).
 
 cmd_declare(KB, Args, Code) :-
     parse_opts(Args, ['--doc'-value, '--kind'-value, '--template'-value], Pos, Opts),
@@ -3538,19 +2449,12 @@ cmd_declare(KB, Args, Code) :-
     template_errs(Tpl, A, PErrs),
     (   PErrs \== [] -> reject(PErrs) ; true ),
     Decl = decl(Kind, H, Doc, Tpl),
-    h4_reject(Decl),
     clause_line(Decl, [], Line),
     kb_file(KB, KbFile),
     append_lines(KbFile, [Line]),
     format("~w~n", [Line]),
     Code = 0.
 
-
-h4_reject(T) :-
-    (   term_atom(T, A), h4_atom(A)
-    ->  h4_msg(A, M), reject([M])
-    ;   true
-    ).
 
 template_errs('', _, []) :- !.
 template_errs(Tpl, A, Errs) :-
@@ -3603,7 +2507,6 @@ cmd_declare_attest(KB, Args, Code) :-
     shape_errs(Shape, FactNames, SErrs),
     (   SErrs \== [] -> reject(SErrs) ; true ),
     AT = attest_type(Type, Shape, Writers, Doc),
-    h4_reject(AT),
     clause_line(AT, [], Line),
     kb_file(KB, KbFile),
     append_lines(KbFile, [Line]),
@@ -3664,7 +2567,6 @@ cmd_subject(KB, Args, Code) :-
     kb_dir(KB, Dir),
     stored_path(Dir, Abs, Stored),
     New = subject(Id, Stored, Digest),
-    h4_reject(subject(Id)),
     kb_items(KB, Items),
     items_decls(Items, Ds),
     include(fact_item, Items, Facts),
@@ -4423,10 +3325,6 @@ lint_diags(KB, Diags, IssueLines, IssueErrors) :-
     directory_file_path(Dir, 'kb.pl', KbFile),
     items_decls(Items, Ds),
     items_atypes(Items, ATs),
-    % E11 needs a s(CASP) compile. It starts now and runs while the
-    % other checks run.
-    assemble(Items, Ds, [], ProgFile, LineMap),
-    scasp_start(ProgFile, ['--code'], CodeJob),
     % E1
     findall(diag('E1', F, L, M), member(synerr(_, F, L, M), Items), D1),
     % E10
@@ -4445,19 +3343,15 @@ lint_diags(KB, Diags, IssueLines, IssueErrors) :-
     findall(D, ( member(I, Items), I = it(Src, _, _, _, _, _), Src \== kb,
                  rule_item_diags(Ds, I, D0), member(D, D0) ),
             DR),
-    % E13
-    findall(D, ( member(I, Items), e13_diags(I, D0), member(D, D0) ), D13),
+    % E17
+    findall(D, ( member(I, Items), e17_diags(I, D0), member(D, D0) ), D17),
+    % E18
+    e18_diags(Items, Ds, D18),
     % E11
-    findall(N/A, ( member(it(Src2, _, _, T2, _, _), Items), Src2 \== kb, nonvar(T2),
-                   \+ meta_term(T2), T2 \= #(_),
-                   clause_parts(T2, _, B2), body_goals(B2, Gs2), member(G2, Gs2),
-                   nonvar(G2), callable(G2), \+ builtin_goal(G2),
-                   functor(G2, N, A), \+ decl_of(Ds, N, A, _) ),
-            E2PIs),
-    e11_diags(Items, Ds, E2PIs, code(CodeJob, ProgFile, LineMap), D11, Eng),
+    e11_diags(Items, Ds, D11, Eng),
     % warnings
     w_diags(KB, Items, Ds, Facts, DW),
-    append([D1, D10, DD, DA, DF, D5, D15, DR, D13, D11, DW], Diags0),
+    append([D1, D10, DD, DA, DF, D5, D15, DR, D17, D18, D11, DW], Diags0),
     % keep errors in a stable order; drop exact repeats
     list_to_set(Diags0, Diags),
     lint_issues(Eng, Ds, IssueLines, IssueErrors).
@@ -4560,50 +3454,13 @@ atype_diags(Items, Ds, ATs, Diags) :-
             D2),
     append(D1, D2, Diags).
 
-e11_diags(Items, Ds, E2PIs, code(CodeJob, File, LineMap), Diags, Eng) :-
+e11_diags(Items, Ds, Diags, Eng) :-
     build_engine(Items, Ds, Eng),
-    Eng = eng(_, _, _, LoadErrs, _),
+    Eng = eng(_, LoadErrs),
     findall(diag('E11', F, L, M),
             ( member(le(F, L, Msg), LoadErrs),
               fmt(M, "The SWI engine cannot load this clause: ~w", [Msg]) ),
-            D1),
-    scasp_wait(CodeJob, R),
-    (   R = timeout(T)
-    ->  fmt(M, "s(CASP) did not finish compiling the program in ~w s.", [T]),
-        D2 = [diag('E11', '', 0, M)]
-    ;   scasp_failed(R)
-    ->  R = done(_, _, Err),
-        scasp_error_lines(Err, Ls),
-        (   Ls = [L1|_] -> true ; L1 = "unknown error" ),
-        e11_from_scasp(L1, File, LineMap, E2PIs, D2)
-    ;   D2 = []
-    ),
-    append(D1, D2, Diags).
-
-e11_from_scasp(Line, File, LineMap, E2PIs, Diags) :-
-    (   sub_string(Line, B, _, _, File),
-        Start is B + 0,
-        string_length(File, FL),
-        P is Start + FL + 1,
-        sub_string(Line, P, _, 0, Rest),
-        split_string(Rest, ":", "", [LS|More]),
-        number_string(LN, LS)
-    ->  ( memberchk(LN-loc(F, L), LineMap) -> true ; F = '', L = 0 ),
-        ( More = [_|MsgParts] -> atomic_list_concat(MsgParts, ':', Msg0) ; Msg0 = Rest ),
-        normalize_space(string(Msg), Msg0),
-        fmt(M, "s(CASP) cannot compile this clause: ~w", [Msg]),
-        Diags = [diag('E11', F, L, M)]
-    ;   sub_string(Line, _, _, _, "does not exist"),
-        member(N/A, E2PIs),
-        fmt(Needle, "~w/~w", [N, A]),
-        sub_string(Line, _, _, _, Needle)
-    ->  Diags = []
-    ;   sub_string(Line, _, _, _, "scasp_predicate")
-    ->  fmt(M, "s(CASP) cannot compile the program: ~w The predicate is used but it has no clauses and no declaration.", [Line]),
-        Diags = [diag('E11', '', 0, M)]
-    ;   fmt(M, "s(CASP) cannot compile the program: ~w", [Line]),
-        Diags = [diag('E11', '', 0, M)]
-    ).
+            Diags).
 
 lint_issues(Eng, Ds, Lines, NErr) :-
     (   decl_of(Ds, lint_issue, 3, _)
@@ -5267,9 +4124,8 @@ join_sentences(A, B, S) :-
 % report --html (D16): the delivery report as one page
 % ---------------------------------------------------------------------
 % The page is built from the records of report_text/2 (report_rec/2),
-% plus evidence read from facts. It derives no status itself. It also
-% cross-checks the open relations, because the text report runs only
-% the SWI engine. The page cannot write to the KB: review marks stay in
+% plus evidence read from facts, and the verdict of done. It derives no
+% other status itself. The page cannot write to the KB: review marks stay in
 % the browser (localStorage) and leave it as text that the reviewer
 % pastes back.
 
@@ -5278,11 +4134,14 @@ report_page(KB, Eng, Html, Open, Code) :-
     findall(S, report_line(S), Lines),
     atomic_list_concat(Lines, '\n', T0), string_concat(T0, "\n", Text),
     sha256_text(Text, Digest),
-    report_crosscheck(KB, XCs),
+    (   has_build(KB)
+    ->  eng_all(Eng, [], done, DL), ( DL \== [] -> Done = yes ; Done = no )
+    ;   Done = none
+    ),
     page_assets(Css, Js),
     absolute_file_name(Html, Abs),
     with_output_to(string(Page),
-                   page_write(KB, Eng, Recs, Text, Digest, XCs, Css, Js)),
+                   page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js)),
     catch(setup_call_cleanup(open(Abs, write, Out, [encoding(utf8)]),
                              write(Out, Page),
                              close(Out)),
@@ -5291,7 +4150,7 @@ report_page(KB, Eng, Html, Open, Code) :-
                        "Fix: give a path in a directory that exists and that you can write."] >> fix_lines) )),
     format(user_error, "HTML written to ~w~n", [Abs]),
     ( Open == true -> open_page(Abs) ; true ),
-    ( memberchk(xc(_, disagree(_), _), XCs) -> Code = 2 ; Code = 0 ).
+    Code = 0.
 
 % page_assets(-Css, -Js): the style and the script of the page, from the
 % library (report/page.css, report/page.js). They are inlined.
@@ -5316,44 +4175,6 @@ open_page(File) :-
                 format(user_error, "Opened the page with ~w.~n", [Exe]) ),
               E, ( err_text(E, M), format(user_error, "Could not open the page with ~w: ~w~n", [Exe, M]) ))
     ;   format(user_error, "Could not open the page: no xdg-open or open on PATH. Open ~w in a browser.~n", [File])
-    ).
-
-% report_crosscheck(+KB, -XCs): cross-check the relations that make the
-% open items. XC = xc(GoalText, Verdict, SwiAnswers), Verdict = agree |
-% disagree(Reason) | skipped(Why). A disagreement is printed on stderr,
-% as query prints it.
-report_crosscheck(KB, XCs) :-
-    kb_items(KB, Items),
-    items_decls(Items, Ds),
-    (   has_build(KB)
-    ->  GTs = ["done", "under(X)", "burn_open(X)", "to_ask(X)"]
-    ;   GTs = ["to_ask(X)"]
-    ),
-    maplist(xc_goal, GTs, GVs),
-    findall(G, member(G-_, GVs), Gs),
-    prepare(Items, Ds, Gs, Ctx),
-    maplist(xc_start(Ctx), GVs, Ps),
-    maplist(xc_finish, GVs, Ps, XCs).
-
-xc_goal(GT, G-VN) :- parse_goal(GT, G, VN).
-xc_start(Ctx, G-VN, P) :- eval_start(Ctx, G, VN, 0, P).
-
-xc_finish(G-VN, P, xc(GT, V, NA)) :-
-    eval_finish(P, ResA, Extra),
-    ( Extra = disagree(ResB) -> Res = ResB ; Res = ResA ),
-    Res = res(_, SwiRes, ScRes, _),
-    term_text(G, VN, GT),
-    ( SwiRes = answers(L, _) -> length(L, NA) ; NA = none ),
-    (   SwiRes = skipped(Why)
-    ->  V = skipped(Why)
-    ;   ScRes = timeout(T)
-    ->  fmt(W, "s(CASP) timed out after ~w s", [T]), V = skipped(W)
-    ;   crosscheck(Res, disagree(Reason))
-    ->  print_disagreement(user_error, GT, Res, Reason),
-        V = disagree(Reason)
-    ;   Extra = timeout(TB)
-    ->  fmt(W, "s(CASP) timed out after ~w s while it looked for more answers", [TB]), V = skipped(W)
-    ;   V = agree
     ).
 
 % --- HTML helpers. Every KB string goes through esc/2 or he/1.
@@ -5411,7 +4232,7 @@ section_recs(Recs, Name, Out) :-
     ;   Out = []
     ).
 
-page_write(KB, Eng, Recs, Text, Digest, XCs, Css, Js) :-
+page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js) :-
     kb_dir(KB, Dir),
     get_time(Now), format_time(string(When), "%FT%TZ", Now, posix),
     findall(C-SK, member(claim(C, _, _, SK, _, _, _)-_, Recs), CSKs),
@@ -5421,9 +4242,8 @@ page_write(KB, Eng, Recs, Text, Digest, XCs, Css, Js) :-
     findall(C, member(C-under, CSKs), Unders),
     section_recs(Recs, 'Open', OpenRecs),
     findall(X, ( member(X-_, OpenRecs), X = open(_, _, _) ), OpenItems),
-    findall(XC, ( member(XC, XCs), XC = xc(_, disagree(_), _) ), Dis),
-    length(Unders, NU), length(OpenItems, NO), length(Dis, ND),
-    NOpen is NU + NO + ND,
+    length(Unders, NU), length(OpenItems, NO),
+    NOpen is NU + NO,
     format("<!doctype html>~n<html lang=\"en\">~n<head>~n<meta charset=\"utf-8\">~n", []),
     format("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">~n", []),
     format("<meta name=\"generator\" content=\"orbit-kb report --html\">~n", []),
@@ -5449,13 +4269,12 @@ page_write(KB, Eng, Recs, Text, Digest, XCs, Css, Js) :-
     ;   plural(NOpen, PO),
         format("<li class=\"chip st-under\"><a href=\"#open\">~w open item~w</a></li>~n", [NOpen, PO])
     ),
-    (   member(xc(GTd, _, ND0), XCs), text_to_string(GTd, "done"), integer(ND0)
-    ->  ( ND0 > 0 -> DoneT = "done: yes", DoneK = fulfilled ; DoneT = "done: no", DoneK = under ),
+    (   Done \== none
+    ->  ( Done == yes -> DoneT = "done: yes", DoneK = fulfilled ; DoneT = "done: no", DoneK = under ),
         format("<li class=\"chip st-~w\">~w</li>~n", [DoneK, DoneT])
     ;   true
     ),
     format("</ul>~n", []),
-    page_crosscheck(XCs),
     format("<p class=\"tools\"><button type=\"button\" id=\"expand-all\">Show all evidence</button></p>~n", []),
     format("</header>~n<main>~n", []),
     % open items first
@@ -5475,12 +4294,6 @@ page_write(KB, Eng, Recs, Text, Digest, XCs, Css, Js) :-
                  strip_dash(S, S1), he(S1),
                  open_link(Eng, Recs, Kind, Ref, Tgt),
                  format("~n", []), mark_box(Ref), format("</li>~n", []) )),
-        forall(member(xc(GT, disagree(Reason), _), Dis),
-               ( format("<li data-open=\"disagreement\" data-ref=\"", []), he(GT),
-                 format("\"><span class=\"badge st-under\">engines disagree</span> ENGINE DISAGREEMENT on <code>", []), he(GT),
-                 format("</code>. ", []), he(Reason),
-                 format(" Do not trust either answer until you find the cause. Run orbit-kb query on the goal for the details.~n", []),
-                 mark_box(engines), format("</li>~n", []) )),
         format("</ul>~n", [])
     ),
     format("</section>~n", []),
@@ -5532,27 +4345,6 @@ open_link(Eng, Recs, Kind, Ref, Tgt) :-
     (   T \== none, memberchk(claim(T, _, _, _, _, _, _)-_, Recs)
     ->  esc(T, TE), format(" <a href=\"#claim-~w\">See claim ~w.</a>", [TE, TE])
     ;   true
-    ).
-
-page_crosscheck(XCs) :-
-    (   XCs == [] -> true
-    ;   findall(GT, member(xc(GT, _, _), XCs), GTs),
-        (   memberchk(xc(_, disagree(_), _), XCs) -> V = disagree
-        ;   memberchk(xc(_, skipped(_), _), XCs) -> V = skipped
-        ;   V = agree
-        ),
-        format("<p class=\"xc xc-~w\" data-crosscheck=\"~w\">", [V, V]),
-        (   V == agree
-        ->  format("Both engines agree on ", [])
-        ;   V == disagree
-        ->  format("<strong>The engines disagree.</strong> See the open items. Cross-checked: ", [])
-        ;   format("Not all relations were cross-checked. Cross-checked: ", [])
-        ),
-        forall(nth1(I, GTs, GT), ( ( I > 1 -> write(", ") ; true ), format("<code>", []), he(GT), format("</code>", []) )),
-        format(".", []),
-        forall(member(xc(GT, skipped(W), _), XCs),
-               ( format(" Not cross-checked: <code>", []), he(GT), format("</code> (", []), he(W), format(").", []) )),
-        format("</p>~n", [])
     ).
 
 % page_list: a section of the text report as a list, one item per line,
@@ -5691,13 +4483,13 @@ page_check(KB, Eng, K, KS) :-
 % doctor
 % ---------------------------------------------------------------------
 
-doctor_h1_good("under(a).\nany_under :- under(_).\ndone :- not any_under.\n").
-doctor_h1_bad("under(a).\ndone :- not under(_).\n").
-doctor_h2("finding(f1, sys, model).\nabout_system(sys).\nattest(a1, other, foo, x, agent, t1).\nattest(a2, reproduction, other, confirms(f9), script, t2).\nattest(a4, reproduction, sys, confirms(f1), script, t4).\nfinding_lead(F) :- finding(F, K, model), about_system(K), not finding_confirmed(F).\nfinding_confirmed(F) :- attest(_, reproduction, _, confirms(F), _, _).\n").
-doctor_h3("attest(r1, test_result, k1, result(k1, 1, pass), script, t).\nattest(r2, test_result, k1, result(k1, 2, fail), script, t).\nattest(r3, test_result, k2, result(k2, 3, fail), script, t).\nattest(r4, test_result, k2, result(k2, 4, pass), script, t).\nattest(r5, test_result, k3, result(k3, 5, pass), script, t).\nattest(r6, test_result, k4, result(k4, 6, pass), script, t).\nattest(r7, test_result, k4, result(k4, 7, fail), script, t).\nattest(r8, test_result, k4, result(k4, 8, pass), script, t).\npassed(K) :- attest(_, test_result, _, result(K, R, pass), _, _), not failed_after(K, R).\nfailed_after(K, R) :- attest(_, test_result, _, result(K, R2, fail), _, _), R2 > R.\n").
-doctor_h4_raw("p(order_4417).\nr :- p(order_5120).\n").
-doctor_h4_renamed("p(order4417).\nr :- p(order5120).\n").
-doctor_h4_neg("p(order_4417).\nq :- not p(order_5120).\n").
+% Known-answer programs for the self-tests. Each runs on the SWI engine,
+% as a query does.
+doctor_neg_helper("under(a).\nany_under :- under(_).\ndone :- not any_under.\n").
+doctor_neg_anon("under(a).\ndone :- not under(_).\n").
+doctor_arith("attest(r1, test_result, k1, result(k1, 1, pass), script, t).\nattest(r2, test_result, k1, result(k1, 2, fail), script, t).\nattest(r3, test_result, k2, result(k2, 3, fail), script, t).\nattest(r4, test_result, k2, result(k2, 4, pass), script, t).\nattest(r5, test_result, k3, result(k3, 5, pass), script, t).\nattest(r6, test_result, k4, result(k4, 6, pass), script, t).\nattest(r7, test_result, k4, result(k4, 7, fail), script, t).\nattest(r8, test_result, k4, result(k4, 8, pass), script, t).\npassed(K) :- attest(_, test_result, _, result(K, R, pass), _, _), not failed_after(K, R).\nfailed_after(K, R) :- attest(_, test_result, _, result(K, R2, fail), _, _), R2 > R.\n").
+doctor_unstratified("p :- not q.\nq :- not p.\n").
+doctor_classical("p(a).\n-p(b).\n").
 
 cmd_doctor(Args, Code) :-
     parse_opts(Args, [], Pos, _),
@@ -5705,43 +4497,19 @@ cmd_doctor(Args, Code) :-
     current_prolog_flag(version, V),
     VMaj is V // 10000, VMin is (V // 100) mod 100, VPat is V mod 100,
     current_prolog_flag(executable, SwiExe),
-    % The self-tests must run s(CASP) itself, so the cache is off here.
-    % They start now and run while the tool checks below run.
-    assertz(orbit_cache_off),
-    (   scasp_exe(_)
-    ->  doctor_start_tests(Started)
-    ;   Started = none
-    ),
     (   absolute_file_name(path(swipl), SwiPath, [access(execute), file_errors(fail)])
     ->  say("ok    swipl: ~w (SWI-Prolog ~w.~w.~w; running as ~w).", [SwiPath, VMaj, VMin, VPat, SwiExe]), P1 = []
     ;   say("FAIL  swipl: not on PATH. This process runs ~w. Fix: put swipl on PATH.", [SwiExe]), P1 = [swipl]
     ),
-    (   scasp_exe(Sc)
-    ->  catch(( process_create(Sc, ['--version'], [stdin(null), stdout(pipe(O)), stderr(pipe(E)), process(Pid)]),
-                read_string(O, _, VO1), read_string(E, _, VO2), close(O), close(E), process_wait(Pid, _) ),
-              _, ( VO1 = "", VO2 = "" )),
-        string_concat(VO1, VO2, VO),
-        split_string(VO, "\n", " %", VLs),
-        ( member(VL, VLs), sub_string(VL, _, _, _, "version") -> true ; VL = "version unknown" ),
-        say("ok    scasp: ~w (~w).", [Sc, VL]), P2 = []
-    ;   say("FAIL  scasp: not on PATH. Fix: swipl pack install scasp, then link the pack's scasp binary into ~~/.local/bin.", []),
-        P2 = [scasp]
-    ),
     catch(( lib_dir(Lib), LibR = ok(Lib) ), orbit_error(_, Ls), ( atomic_list_concat(Ls, ' ', LT), LibR = bad(LT) )),
     (   LibR = ok(Lib)
     ->  lib_modules(Lib, Ms), atomic_list_concat(Ms, ', ', MT),
-        say("ok    library: ~w (modules: ~w).", [Lib, MT]), P3 = []
+        say("ok    library: ~w (modules: ~w).", [Lib, MT]), P2 = []
     ;   LibR = bad(LT2),
-        say("FAIL  library: ~w", [LT2]), P3 = [library]
+        say("FAIL  library: ~w", [LT2]), P2 = [library]
     ),
-    scasp_cmd_text(CT),
-    scasp_timeout(TO),
-    say("info  s(CASP) command: ~w (timeout ~w s).", [CT, TO]),
-    (   P2 == [], Started \== none
-    ->  doctor_tests(Started, Fails)
-    ;   say("skip  self-tests: scasp is missing.", []), Fails = [selftests]
-    ),
-    append([P1, P2, P3, Fails], All),
+    doctor_tests(Fails),
+    append([P1, P2, Fails], All),
     (   All == []
     ->  say("Result: all checks passed.", []), Code = 0
     ;   length(All, NF), say("Result: ~w problem(s). Fix them before you trust orbit-kb.", [NF]), Code = 2
@@ -5750,144 +4518,51 @@ cmd_doctor(Args, Code) :-
 doctor_items(Name, Text, Items) :-
     read_source_string(test, Name, Text, Items).
 
-% Run a self-test program. Res = res(...) as in eval_goal, but SWI
-% errors and s(CASP) failures become a result, not an exit.
-% doctor_start/6 starts the run; doctor_finish/2 collects it. Mode is
-% ground (as a query runs), raw, or corrupt: the grounding with its
-% first failed_after/2 instance deleted (D8 grounder-corruption control).
-doctor_start(Name, Text, GoalText, N, Mode, P) :-
-    doctor_items(Name, Text, Items),
-    parse_one(GoalText, ok(G, VN)),
-    catch(( ( Mode == raw -> PM = raw ; PM = ground ),
-            prepare(Items, [], [G], PM, Ctx0),
-            (   Mode == corrupt
-            ->  doctor_corrupt(Ctx0, Ctx)
-            ;   Ctx = Ctx0
-            ),
-            eval_start(Ctx, G, VN, N, Pend),
-            P = pend(Pend) ),
-          orbit_error(_, Ls),
-          ( atomic_list_concat(Ls, ' ', M), P = failed(M) )).
+% doctor_answers(+Name, +Text, +GoalText, -Result): ok(Answers) | failed(Message)
+doctor_answers(Name, Text, GoalText, R) :-
+    catch(( doctor_items(Name, Text, Items),
+            parse_one(GoalText, ok(G, VN)),
+            query_names(VN, _, Vars),
+            build_engine(Items, [], Eng),
+            swi_query(Eng, G, Vars, Res),
+            (   Res = answers(L, _) -> sort(L, LS), R = ok(LS)
+            ;   Res = error(M) -> R = failed(M)
+            ) ),
+          E, ( err_text(E, M), R = failed(M) )).
 
-doctor_corrupt(ctx(Items, Ds, File), ctx(Items, Ds, Bad)) :-
-    read_file_to_string(File, Text, [encoding(utf8)]),
-    split_string(Text, "\n", "", Lines),
-    (   append(Pre, [L|Post], Lines),
-        sub_string(L, 0, _, _, "failed_after("),
-        sub_string(L, _, _, _, ":-")
-    ->  append(Pre, Post, Kept),
-        tmp_stream(pl, Bad, S),
-        call_cleanup(forall(member(K, Kept), format(S, "~s~n", [K])), close(S))
-    ;   die(2, ["The grounder did not ground the H3 program, so there is no failed_after/2 instance to delete."])
-    ).
-
-doctor_finish(failed(M), failed(M)).
-doctor_finish(pend(Pend), Out) :-
-    catch(( eval_finish(Pend, Res0, Extra),
-            ( Extra = disagree(ResB) -> Res = ResB ; Res = Res0 ),
-            Out = ok(Res) ),
-          orbit_error(_, Ls),
-          ( atomic_list_concat(Ls, ' ', M), Out = failed(M) )).
-
-% The known-answer tests run in ground mode, as queries do (D8). The
-% H4 raw-atom control runs in raw mode: in ground mode the SWI side of
-% the grounder does that join, and both engines say false. In ground
-% mode, H4 shows under not (P6). P7 deletes one ground instance: the
-% cross-check must see that.
-doctor_start_tests(started(P1, P2, P3, P4, P5, P6, P7)) :-
-    doctor_h1_good(T1), doctor_start(h1, T1, "done", 1, ground, P1),
-    doctor_h2(T2), doctor_start(h2, T2, "finding_lead(F)", 1, ground, P2),
-    doctor_h3(T3), doctor_start(h3, T3, "passed(K)", 0, ground, P3),
-    doctor_h4_renamed(T4), doctor_start(h4, T4, "r", 1, ground, P4),
-    doctor_h4_raw(T5), doctor_start(h4raw, T5, "r", 1, raw, P5),
-    doctor_h4_neg(T6), doctor_start(h4neg, T6, "q", 1, ground, P6),
-    doctor_start(h3bad, T3, "passed(K)", 0, corrupt, P7).
-
-doctor_tests(started(P1, P2, P3, P4, P5, P6, P7), Fails) :-
-    % H1
-    doctor_finish(P1, R1),
-    doctor_expect_none(R1, "H1 helper form: done must be false on both engines", F1),
-    % H2
-    doctor_finish(P2, R2),
-    doctor_expect_none(R2, "H2 program: finding_lead(F) must have no answer on both engines", F2),
-    % H3
-    doctor_finish(P3, R3),
-    doctor_expect_set(R3, [[k2], [k3], [k4]], "H3 program: passed(K) must be exactly k2, k3, k4 on both engines", F3),
-    % H4
-    doctor_finish(P4, R4),
-    doctor_expect_none(R4, "H4 renamed atoms: r must be false on both engines", F4),
-    doctor_finish(P5, R5),
-    doctor_expect_disagree(R5, "H4 raw atoms, raw mode (E13 bypassed): the cross-check must report ENGINE DISAGREEMENT", F5),
-    doctor_finish(P6, R6),
-    doctor_expect_disagree(R6, "H4 under not, ground mode (E13 bypassed): the cross-check must report ENGINE DISAGREEMENT", F8),
-    doctor_finish(P7, R7),
-    doctor_expect_disagree(R7, "Grounder corruption (one failed_after instance deleted from H3): the cross-check must report ENGINE DISAGREEMENT", F9),
-    doctor_h4_raw(T5),
-    doctor_items(h4raw, T5, H4Items),
-    findall(D, ( member(I, H4Items), e13_diags(I, D0), member(D, D0) ), D13),
-    (   D13 \== []
-    ->  say("ok    E13 flags the H4 atoms (order_4417, order_5120).", []), F6 = []
-    ;   say("FAIL  E13 does not flag the H4 atoms.", []), F6 = [e13]
-    ),
-    % E12
-    doctor_h1_bad(T6),
-    doctor_items(h1bad, T6, BadItems),
-    findall(P, ( member(it(_, _, _, T, _, _), BadItems), e12_problems(T, Ps), member(P, Ps) ), E12),
-    (   E12 \== []
-    ->  say("ok    E12 flags the bad H1 form: done :- not under(_).", []), F7 = []
-    ;   say("FAIL  E12 does not flag the bad H1 form: done :- not under(_).", []), F7 = [e12]
-    ),
-    append([F1, F2, F3, F4, F5, F6, F7, F8, F9], Fails).
-
-doctor_expect_none(failed(M), What, [x]) :- !, say("FAIL  ~w. Error: ~w", [What, M]).
-doctor_expect_none(ok(Res), What, F) :-
-    Res = res(_, SwiRes, ScRes, _),
-    (   ScRes = timeout(T)
-    ->  say("FAIL  ~w. s(CASP) timed out after ~w s.", [What, T]), F = [x]
-    ;   SwiRes = answers([], _), ScRes = json(_, [])
+doctor_expect(Name, Text, GoalText, Want, What, F) :-
+    doctor_answers(Name, Text, GoalText, R),
+    sort(Want, WS),
+    (   R = ok(WS)
     ->  say("ok    ~w.", [What]), F = []
-    ;   doctor_counts(Res, CT),
-        say("FAIL  ~w. ~w", [What, CT]), F = [x]
+    ;   R = ok(Got)
+    ->  say("FAIL  ~w. Got ~q.", [What, Got]), F = [x]
+    ;   R = failed(M),
+        say("FAIL  ~w. Error: ~w", [What, M]), F = [x]
     ).
 
-doctor_expect_set(failed(M), _, What, [x]) :- !, say("FAIL  ~w. Error: ~w", [What, M]).
-doctor_expect_set(ok(Res), Want, What, F) :-
-    Res = res(Names, SwiRes, ScRes, _),
-    (   ScRes = timeout(T)
-    ->  say("FAIL  ~w. s(CASP) timed out after ~w s.", [What, T]), F = [x]
-    ;   SwiRes = answers(L, _), ScRes = json(_, As),
-        maplist(sc_tuple(Names), As, Ts),
-        sort(L, LS), sort(Ts, TS), sort(Want, WS),
-        LS == WS, TS == WS
-    ->  say("ok    ~w.", [What]), F = []
-    ;   doctor_counts(Res, CT),
-        say("FAIL  ~w. ~w", [What, CT]), F = [x]
-    ).
-
-doctor_expect_disagree(failed(M), What, [x]) :- !, say("FAIL  ~w. Error: ~w", [What, M]).
-doctor_expect_disagree(ok(Res), What, F) :-
-    (   crosscheck(Res, disagree(_))
-    ->  say("ok    ~w.", [What]), F = []
-    ;   doctor_counts(Res, CT),
-        say("FAIL  ~w. ~w", [What, CT]), F = [x]
-    ).
-
-doctor_counts(res(Names, SwiRes, ScRes, _), Text) :-
-    (   SwiRes = answers(L, _)
-    ->  findall(S, ( member(T, L), answer_line(Names, T, S) ), Ss),
-        atomic_list_concat(Ss, '; ', ST), length(L, LN),
-        fmt(A, "SWI: ~w answer(s) [~w].", [LN, ST])
-    ;   SwiRes = skipped(R) -> fmt(A, "SWI: skipped (~w).", [R])
-    ;   A = "SWI: no result."
+doctor_tests(Fails) :-
+    doctor_neg_helper(T1),
+    doctor_expect(neg1, T1, "done", [], "not with a helper rule: done must be false", F1),
+    doctor_neg_anon(T2),
+    doctor_expect(neg2, T2, "done", [], "not under(_) means no under at all: done must be false", F2),
+    doctor_arith(T3),
+    doctor_expect(arith, T3, "passed(K)", [[k2], [k3], [k4]], "arithmetic under not: passed(K) must be exactly k2, k3, k4", F3),
+    doctor_unstratified(T4),
+    doctor_items(e18, T4, I4),
+    e18_diags(I4, [], D18),
+    (   D18 \== []
+    ->  say("ok    E18 flags rules that are not stratified (p :- not q, q :- not p).", []), F4 = []
+    ;   say("FAIL  E18 does not flag p :- not q, q :- not p.", []), F4 = [e18]
     ),
-    (   ScRes = json(_, As)
-    ->  maplist(sc_tuple(Names), As, Ts),
-        findall(S, ( member(T, Ts), answer_line(Names, T, S) ), Ss2),
-        atomic_list_concat(Ss2, '; ', ST2), length(As, AN),
-        fmt(B, "s(CASP): ~w model(s) [~w].", [AN, ST2])
-    ;   B = "s(CASP): no result."
+    doctor_classical(T5),
+    doctor_items(e17, T5, I5),
+    findall(D, ( member(I, I5), e17_diags(I, D0), member(D, D0) ), D17),
+    (   D17 \== []
+    ->  say("ok    E17 flags classical negation (-p(b)).", []), F5 = []
+    ;   say("FAIL  E17 does not flag -p(b).", []), F5 = [e17]
     ),
-    fmt(Text, "~w ~w", [A, B]).
+    append([F1, F2, F3, F4, F5], Fails).
 
 % ---------------------------------------------------------------------
 % help
@@ -5912,7 +4587,7 @@ help_topic_file(Topic, File) :-
     exists_file(File).
 
 help_lines(general, [
-"orbit-kb: write, check, and query s(CASP) knowledge bases (KBs).",
+"orbit-kb: write, check, and query Prolog knowledge bases (KBs) with default negation (not p).",
 "",
 "How to use (read this first; the topics hold the details):",
 "  1. orbit-kb init DIR --request 'the human's words' --uses MODULE",
@@ -5929,7 +4604,7 @@ help_lines(general, [
 "    orbit-kb help build     build-module facts and queries, burns, proofs, waivers",
 "    orbit-kb help discovery discovery-module facts, verdicts, queries, and the recipe for each move",
 "    orbit-kb help codes     each lint code and what to do",
-"    orbit-kb help answers   exit codes, ENGINE DISAGREEMENT, CROSS-CHECK SKIPPED, whynot",
+"    orbit-kb help answers   exit codes, SWI ERROR, why and whynot",
 "  Never type a digest or a test result: orbit-kb subject and orbit-kb run write them.",
 "",
 "Usage: orbit-kb [--dir DIR] COMMAND [ARGS]",
@@ -5945,7 +4620,7 @@ help_lines(general, [
 "  run CHECK -- CMD [ARGS]",
 "  prove CLAIM FILE THEOREM [--module M]",
 "  lint [--strict]",
-"  query 'GOAL' [-n N] [--why] [--long] [--json] [--html FILE]",
+"  query 'GOAL' [-n N] [--why] [--long]",
 "  why 'GOAL' [-n N] [--long]",
 "  whynot 'GOAL' [--long]",
 "  show [claims|questions|open|disclosures|extensions|all]",
@@ -5961,33 +4636,15 @@ help_lines(general, [
 "Exit codes:",
 "  0  Success. The query is true. Lint is clean.",
 "  1  The query has no answer. Lint found errors. orbit-kb rejected the input.",
-"  2  Usage error, missing KB or tool, bad goal, SWI ERROR, or ENGINE DISAGREEMENT.",
+"  2  Usage error, missing KB or tool, bad goal, a source that lint must fix first, or SWI ERROR.",
 "  A typo never exits 1. Exit 1 always means a real \"no\".",
 "",
-"Engines:",
-"  The SWI-Prolog engine gives the answers. s(CASP) gives the explanations.",
-"  orbit-kb runs both engines and compares them.",
-"  If they differ, orbit-kb prints ENGINE DISAGREEMENT and exits 2.",
-"  If one engine cannot run a goal, orbit-kb prints CROSS-CHECK SKIPPED and marks the answer (unchecked).",
-"  ORBIT_KB_SCASP_FLAGS replaces --forall=prev. ORBIT_KB_SCASP_TIMEOUT sets the s(CASP) time limit (default 20 s).",
-"  s(CASP) runs on a grounding of the program for the goal: the rule instances that the goal can reach, with no variables.",
-"  The SWI engine runs the program as written. ORBIT_KB_SCASP_GROUND=raw gives s(CASP) the program as written.",
-"  If orbit-kb cannot ground the program in 5 s, s(CASP) runs it as written, and a NOTE says why. The answers do not change.",
-"",
-"Hazards:",
-"  H1. In s(CASP), a variable that occurs only inside a not literal means \"some value\", not \"every value\".",
-"      Thus \"done :- not under(_).\" can be true when under(c1) is true.",
-"      Put the variable in a helper rule: \"any_under :- under(_).\" Then write \"done :- not any_under.\"",
-"      Lint error E12 finds this problem.",
-"  H2. The default s(CASP) --forall algorithm can give wrong answers.",
-"      A grounded program needs no forall, so H2 cannot occur in it.",
-"      For a program that runs as written, orbit-kb uses --forall=prev. The cross-check finds the problem if it occurs.",
-"  H3. Arithmetic under negation, as in passed/1, also fails with the default algorithm.",
-"      H3 also cannot occur in a grounded program.",
-"  H4. s(CASP) drops a final _ and digits from atoms. Thus order_4417 and order_5120 merge.",
-"      Lint error E13 finds such atoms. Rename them, for example order4417.",
-"      In a grounded program the cross-check finds H4 under not or in an answer, but not in a join.",
-"  orbit-kb doctor tests H1, H2, H3, H4, and the grounder.",
+"Engine:",
+"  SWI-Prolog answers every query. Negation is negation as failure: not p holds when p has no answer.",
+"  So not under(_) means \"no under at all\". A fact that is not recorded is false.",
+"  The rules must be stratified: no predicate depends on itself through not (lint E18).",
+"  why and whynot explain a verdict from the same clauses. They never change it.",
+"  orbit-kb doctor runs known-answer self-tests.",
 "",
 "Run orbit-kb help COMMAND for details about one command."
 ]).
@@ -6101,21 +4758,21 @@ help_lines(lint, [
 "Check the KB, the library, and rules.pl. One line per problem, then a summary.",
 "E1 syntax. E2 undeclared predicate. E3 type. E4 dangling ref. E5 duplicate id.",
 "E6 non-ground fact. E7 clause in the wrong place. E8 writer not allowed. E9 test result or proof without its log.",
-"E10 uses/1. E11 the program does not compile. E12 hazard H1. E13 hazard H4. E14 unsafe negation.",
+"E10 uses/1. E11 a clause does not load. E14 unsafe negation. E17 a form that orbit-kb does not read (s(CASP) syntax).",
 "E15 supersede cycle (a claim or hypothesis replaces itself). E16 rules.pl changes done, a burn, waiver, or vote rule, or a computed fact.",
+"E18 the rules are not stratified (a predicate depends on itself through not).",
 "W1 subject changed. W2 local declaration. W3 claim without cites. W4 local fact that no rule reads.",
 "W5 check on a superseded claim, and the new claim has no check yet. W6 local rule that extends a library predicate.",
 "Module lint_issue/3 results follow. Exit 1 on errors, or on warnings with --strict."
 ]).
 help_lines(query, [
-"orbit-kb query 'GOAL' [-n N] [--why] [--long] [--json] [--html FILE]",
+"orbit-kb query 'GOAL' [-n N] [--why] [--long]",
 "",
-"Answer GOAL on both engines and compare them.",
+"Answer GOAL.",
 "-n N shows N answers. The default is 1. 0 shows all answers.",
 "Output: one line per answer, as true or X = v, Y = w. No answer prints false.",
-"--why adds the s(CASP) explanation (short form). --long gives the full explanation.",
-"--json prints the s(CASP) JSON. --html FILE writes the explanation as HTML.",
-"Exit 0 on an answer, 1 on no answer, 2 on a bad goal or ENGINE DISAGREEMENT.",
+"--why adds, after each answer, the clauses that prove it, 6 levels deep. --long goes 30 levels deep.",
+"Exit 0 on an answer, 1 on no answer, 2 on a bad goal, a source that lint must fix first, or SWI ERROR.",
 "Discovery vote (D14): 'gate(V)' is the outcome, and has no answer until the human votes.",
 "gate_split holds when no other role agrees with the human. 'artifact_vote(V)' is the vote of the formal artifacts."
 ]).
@@ -6127,11 +4784,12 @@ help_lines(why, [
 help_lines(whynot, [
 "orbit-kb whynot 'GOAL' [--long]",
 "",
-"The first line is the verdict of the SWI engine:",
-"  holds        GOAL has an answer.",
-"  contradicts  -GOAL has an answer (only when a - clause exists).",
-"  absent       neither. The explanation is for not GOAL.",
-"Then orbit-kb prints the s(CASP) explanation. Exit 0, or 2 on ENGINE DISAGREEMENT."
+"The first line is the verdict:",
+"  holds    GOAL has an answer. The explanation gives the clauses that prove the first answer.",
+"  absent   GOAL has no answer. The explanation gives, for each rule of GOAL, the first literal",
+"           that no answer gets past, and why. \"nothing records X\" means that no fact or rule",
+"           matches X: the survey can have missed it.",
+"The explanation is 6 levels deep; --long goes 30 levels deep. Exit 0."
 ]).
 help_lines(show, [
 "orbit-kb show [claims|questions|open|disclosures|extensions|all]",
@@ -6159,21 +4817,15 @@ help_lines(report, [
 "then each claim with its status, its checks (latest run and log), and its evidence.",
 "The reviewer marks items ok, doubt, or wrong, with a note, and copies the marks as text",
 "to paste back to you, such as: c1: doubt - the example does not cover X.",
-"For the page, report also cross-checks done, under, burn_open, and to_ask with s(CASP).",
-"On ENGINE DISAGREEMENT it exits 2, after it writes the page.",
 "--open opens the page with xdg-open (or open). Without --open, nothing opens."
 ]).
 help_lines(doctor, [
 "orbit-kb doctor",
 "",
-"Check swipl, scasp, and the library. Then run known-answer self-tests on both engines,",
-"with s(CASP) on the grounded program, as a query runs:",
-"H1 helper form is false; H2 has no answer; H3 gives exactly k2, k3, k4; H4 renamed atoms give false.",
-"Then the controls, which must give ENGINE DISAGREEMENT:",
-"raw H4 atoms, with s(CASP) on the program as written;",
-"H4 atoms under not (q :- not p(order_5120)), with s(CASP) on the grounded program;",
-"the grounded H3 program with one failed_after instance deleted.",
-"E12 flags the bad H1 form; E13 flags the H4 atoms.",
+"Check swipl and the library. Then run known-answer self-tests on the engine, as a query runs:",
+"not with a helper rule, and not under(_), are false when under(a) holds;",
+"arithmetic under not gives exactly k2, k3, k4;",
+"E18 flags p :- not q, q :- not p; E17 flags -p(b).",
 "Exit 2 if something is missing or a self-test fails."
 ]).
 help_lines(help, [

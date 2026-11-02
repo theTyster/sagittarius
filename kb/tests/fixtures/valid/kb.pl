@@ -24,7 +24,6 @@ serves(x1, c1).
 serves(x2, c4).
 world(save_format(json)).
 source(save_format(json), 'src/save.c line 40').
--world(save_format(xml)).
 scope(in, 'The save path').
 scope(out, 'The loader').
 risk(rk1, 'Old files may not load').

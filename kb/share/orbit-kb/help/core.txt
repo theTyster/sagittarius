@@ -55,10 +55,8 @@ Queries (orbit-kb query 'current(C)' -n 0)
   stale(A)           approval A is for a digest that is no longer current
 
 Local rules go in rules.pl beside kb.pl. They cannot change done or the burn rules
-(lint reports E16). Two traps in s(CASP) (orbit-kb help answers, hazards H1 and H4):
-  - A variable that occurs nowhere else inside a not literal means "some value".
-    Write a helper rule: any_under :- under(_).   Then: not any_under.
-  - An atom that ends in an underscore and digits, such as order_4417, merges with its
-    neighbors. Write order4417.
+(lint reports E16). not p means that p has no answer (negation as failure), so
+not under(_) means "no under at all". A predicate must not depend on itself through not
+(lint E18). There is no classical negation: a fact that is not recorded is false.
 If the schema does not fit, declare what you need: orbit-kb declare ... --doc TEXT.
 Write one sentence about why. lint lists your extensions for review.
