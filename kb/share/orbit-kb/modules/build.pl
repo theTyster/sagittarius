@@ -87,11 +87,14 @@ decl(rule, burn_open(ref(claim)),
 decl(rule, any_burn_open,
      'At least one burn is open.',
      'some claim needs a Lean proof that does not exist yet').
+decl(rule, demo_changed(ref(subject)),
+     'The file of a demo subject is missing, or its sha256 differs from the digest in subject/3. orbit-kb computes it when it reads the KB.',
+     'the file of demo @(1) changed after its digest was recorded').
 decl(rule, flare(ref(claim)),
      'A human must approve a demo of the claim, because it is visual, or it replaces a visual claim, directly or through other claims.',
      'claim @(1) needs a demo that a human approves').
 decl(rule, flare_shown(ref(claim)),
-     'A human approved a demo of the claim, and the approval names the current digest of the demo.',
+     'A human approved a demo of the claim, the approval names the recorded digest of the demo, and the file on disk still has that digest.',
      'a human approved a demo of claim @(1)').
 decl(rule, flare_waived(ref(claim)),
      'A human waived the claim, and the due time of the waiver is not past. The same waiver also closes a burn of the claim.',
@@ -169,10 +172,13 @@ any_burn_open :- burn_open(_).
 % D21 (issue #9): burns get proved, flares get shown. A visual claim, or a
 % claim that replaces one, needs a human approval of a demo subject at its
 % current digest, or a human waiver. A new file under the same subject
-% makes the approval stale, and the flare opens again.
+% makes the approval stale, and the flare opens again. An edit of the
+% file on disk does too (F3b): orbit-kb adds demo_changed(S) when it
+% reads the KB, as it adds proof_changed(A) for a proof.
 flare(C) :- visual(C).
 flare(C) :- supersedes_closure(C, O), visual(O).
-flare_shown(C) :- demo(S, C), attest(_, approval, S, digest(D), human, _), subject(S, _, D).
+flare_shown(C) :- demo(S, C), attest(_, approval, S, digest(D), human, _), subject(S, _, D),
+                  not demo_changed(S).
 flare_waived(C) :- attest(W, waiver, _, waive(C, _, _), human, _), not waiver_lapsed(W).
 flare_open(C) :- flare(C), current(C), not flare_shown(C), not flare_waived(C).
 any_flare_open :- flare_open(_).

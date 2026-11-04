@@ -58,7 +58,7 @@
 #   X   engine: negation as failure, E17, E18, no scasp        (Engine; D20)                    : X1-X9
 #   G   20x2 done                                              (Engine)                         : GD
 #   WN  whynot: holds, absent, what blocks (D20)               (CLI: whynot)                    : WN1-WN5
-#   FL  flares: visual claims, demos, approvals (D21)          (Build module; D21)              : FL1-FL10
+#   FL  flares: visual claims, demos, approvals (D21)          (Build module; D21)              : FL1-FL11
 #   Y   why: justification text, #pred templates               (CLI: why; Environment facts)    : Y1-Y3
 #   L   lint E1-E18, W1-W6, --strict, hook, summary            (Lint; D2; D20)                  : L0 L0b E1-E10 E17 W1 W3-W6 LS LS2 LH1 LH2
 #   D7  review fixes: broken sources exit 2, unsafe negation, kb.lock (D7)                   : D7a-D7d RC E14
@@ -1589,6 +1589,13 @@ t_FL2() { fl_kb; fl_demo; is_true 'flare_open(c1)' "a demo with no approval does
 t_FL3() { fl_kb; fl_demo; okb --dir "$K" attest approval s1 'digest(current)' --by human >/dev/null
           printf 'png v2\n' > "$K/shot.png"; okb --dir "$K" subject s1 shot.png >/dev/null
           is_false 'flare_shown(c1)' "the approval names the old digest"; is_true 'flare_open(c1)'; is_false 'done' "a new screenshot reopens the flare (F3)"; }
+t_FL11() { fl_kb; fl_demo; okb --dir "$K" attest approval s1 'digest(current)' --by human >/dev/null
+           is_true 'done' "setup: the approved demo closes the flare"; is_false 'demo_changed(s1)'
+           cp "$K/shot.png" "$T/shot.keep"; printf 'png v2, edited on disk\n' > "$K/shot.png"
+           is_true 'demo_changed(s1)' "the file differs from its recorded digest (F3b)"
+           is_true 'flare_open(c1)' "an edit on disk with no subject run reopens the flare"; is_false 'done'
+           cp "$T/shot.keep" "$K/shot.png"; is_false 'demo_changed(s1)'; is_true 'done' "the approved file is back"
+           mv "$K/shot.png" "$T/shot.gone"; is_true 'flare_open(c1)' "a missing demo file reopens the flare"; is_false 'done'; }
 t_FL4() { fl_kb; fl_demo; rejects agentok 'writer|human' attest approval s1 'digest(current)'
           local d; d=$(sha "$K/shot.png")
           printf "attest(a9, approval, s1, digest('sha256:%s'), agent, '2026-10-15T11:00:00Z').\n" "$d" >> "$K/kb.pl"
@@ -2311,6 +2318,7 @@ run_test t_FL7 FL7 "D21: a claim can burn and flare: proof and demo"
 run_test t_FL8 FL8 "D21: a claim that replaces a visual claim flares"
 run_test t_FL9 FL9 "D21: rules.pl cannot close a flare (E16)"
 run_test t_FL10 FL10 "D21: report: Flare part, Open item, lapsed waiver of the demo"
+run_test t_FL11 FL11 "D21 F3b: an edit of the demo file on disk reopens the flare"
 run_test t_Y1 Y1 "why shows the local declare --template text"
 run_test t_Y2 Y2 "why prints a justification"
 run_test t_Y3 Y3 "why on a false goal exits 1"
