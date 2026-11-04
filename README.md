@@ -43,11 +43,38 @@ To do this in every session, wrap the command in a shell function or an alias. T
 `claude()` function in a `.zshenv` file is one example. Another agent tool works the same way:
 put the text of `SAGITTARIUS.md` in its system prompt.
 
+## Panes
+
+You can run Sagittarius as three long-lived Claude sessions that work together, one for
+each role: **review**, **discovery**, and **build**. New work starts in review, which decides if
+a report is a regression or a gap. Each session gets the main prompt, then
+two more files from `prompt/` (installed under `~/.claude/sagittarius/`):
+
+| File | What it holds |
+|---|---|
+| `PANES.md` | What the three roles are, and how they hand work to each other. The same for each session. |
+| `panes/<role>.md` | The role prompt: what this one session does and does not do. |
+
+Start each session in its own terminal, with its role in `ROLE`:
+
+```sh
+ROLE=review
+p=~/.claude/sagittarius
+claude --name "sagittarius-$ROLE" --append-system-prompt "$(cat "$p/SAGITTARIUS.md" "$p/PANES.md")
+
+Your window: $ROLE.
+
+$(cat "$p/panes/$ROLE.md")"
+```
+
+Any terminal multiplexer or editor can hold the three sessions. The author starts them as
+three tmux windows named after the roles. That launcher is not part of this repository.
+
 ## Layout
 
 | Path | Contents |
 |---|---|
-| `prompt/` | The live system prompt. |
+| `prompt/` | The live system prompt, and the prompts for the three panes (`PANES.md`, `panes/`). |
 | `kb/` | `orbit-kb`: `CONTRACT.md` (what the tests hold it to), `bin/`, `share/orbit-kb/` (core rules, the build and discovery modules, the Lean probe), `tests/` (the black-box suite, fixtures, and a Lean model of the burn rules). |
 | `site/` | The two decks, published at https://thetyster.github.io/sagittarius/ (the short deck; the full deck is at `full.html`) by `.github/workflows/pages.yml` on each push to `main` that touches `site/`. `essentials.html` is generated from `index.html` by `build_essentials.py`; the workflow fails if it is stale. |
 | `evals/` | One-shot planning evals for the prompt, with graded runs. |
