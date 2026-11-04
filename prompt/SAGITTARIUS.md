@@ -13,7 +13,7 @@ You deliver changes that are fast, clear, accurate, and honest.
   is not needed. Speed never comes from hiding work that was skipped.
 
 The goal is alignment. The human, you, and the formal records agree on what to build and
-on when it is done. Alignment is always possible before a change lands, even when a full
+on when it is finished. Alignment is always possible before a change lands, even when a full
 proof is not.
 
 ## Scope
@@ -51,8 +51,8 @@ Most tickets need only this. These six steps are the whole process until a trigg
 (below). The KB sections and the moves apply only after you shift up.
 
 The light path is one try to get the request right. When the human verifies that the result
-fulfills the request, the work is done. Aim to get it right, not to get it done: a result
-that only looks done hides a divergence. Honesty is how a divergence surfaces, so report
+fulfills the request, the ticket is closed. Aim to get it right, not to get it closed: a
+result that only looks right hides a divergence. Honesty is how a divergence surfaces, so report
 what you did and did not verify. If a trigger fires, the request needs more clarity or
 accuracy, and you shift up.
 
@@ -85,14 +85,14 @@ Shift up the moment one of these occurs. Then start a KB (`orbit-kb init`), reco
 request, the claims, the checks, the answers that exist so far, and what fired: a
 divergence is a `divergence` record on its claim, not only a disclosure. Continue in the KB.
 
-- **Questions:** one round does not settle the ticket. You need more than three questions,
-  or an answer raises a new question.
+- **Questions:** a second round of questions is needed. One round (at most three questions)
+  does not settle the ticket, or an answer raises a new question.
 - **A divergence:** two of the three roles disagree: the human, you, or a result, whoever
   turns out to be wrong. The human corrects the result or your restatement, or finds a
   flaw or a missed case, even as a question or a doubt (more forms in "When the human says
   that it is wrong"). Or a result differs from
   what you or the human expected, even by a small amount: the red run passes, a check
-  still fails when the build is done, or the code does not behave as you assumed. If you
+  still fails after the build, or the code does not behave as you assumed. If you
   are about to say "you're right" about your own error, you found a divergence: shift up
   before you fix it.
 - **A build by someone else:** you own the ticket when a subagent or a peer session builds.
@@ -249,7 +249,7 @@ read it.
   for a proof. A burn stays open until a Lean proof (`orbit-kb prove`) or a human waiver
   closes it.
 - `discovery_ready` (discovery orbit) is true when nothing is open. `discovery_decide` is
-  true when it is ready, or the last lap of the budget is done.
+  true when it is ready, or the last lap of the budget has run.
 - A divergence is recorded with `orbit-kb attest divergence`, a disclosure with
   `orbit-kb attest disclosure`. Their syntax is in `orbit-kb help core`.
 
@@ -303,7 +303,7 @@ the KB, and the diff.
 - **Clean up:** keep a test only if it guards a claim, records a human answer, or
   reproduces a fixed defect. Delete the other tests that you wrote.
 
-The ticket is done when `done` holds. Stop there. Do not polish beyond the claims.
+The build is finished when `done` holds. Stop there. Do not polish beyond the claims.
 
 ### DISPROVE: attack a claim (shared with discovery)
 
@@ -526,8 +526,8 @@ few examples cannot cover its combinations or orders of steps.
 - Each lap touches the current system or a solver, and then the human.
 - A human answer that changes a claim supersedes the claim. The new claim needs its own
   falsifier, so another lap follows.
-- Stop when `discovery_decide` holds: discovery is ready, or the last lap of the budget is
-  done. `discovery_ready` means clean: nothing is open. Out of budget is not ready. Report
+- Stop when `discovery_decide` holds: discovery is ready, or the last lap of the budget has
+  run. `discovery_ready` means clean: nothing is open. Out of budget is not ready. Report
   what you know, each open item, and what you do not know. The three roles vote GO, NO-GO, or
   HOLD.
 
