@@ -62,6 +62,7 @@ Flares: show the claim to the human (burns get proved, flares get shown)
   3. Show the demo to the human. Only the human approves it:
      orbit-kb attest approval s1 'digest(current)' --by human
   A new file under the same subject makes the approval stale, and the flare opens again.
+  An edit of the demo file on disk reopens it too, even before orbit-kb subject runs.
   Contests on a visual claim do not make it burn. They keep its flare open.
   A preference change (a new name or color, and no one misread the intent) is a new claim
   that supersedes the old one. It is not a divergence.

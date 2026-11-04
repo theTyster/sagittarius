@@ -774,6 +774,8 @@ load_kb(Dir, Lib, kb(Dir, Lib, Uses, Items)) :-
 %                     changed, or its log is missing or does not match.
 %   waiver_lapsed(W)  the due time of waiver W is past, or it is not a
 %                     valid time (D10 follow-up, F9).
+%   demo_changed(S)   S is the subject of a demo/2 fact, and its file is
+%                     missing or its sha256 differs from subject/3 (D21 F3b).
 % And from the supersedes/2 facts of kb.pl (D10 follow-up, S3):
 %   supersedes_closure(New, Old)  New reaches Old through one or more
 %                     supersedes facts.
@@ -794,7 +796,15 @@ derived_items(Dir, KbItems, Items) :-
               \+ ( nonvar(Pred), Pred = waive(_, Due, _), is_time(Due), \+ Due @< Now ) ),
             Ts2),
     supersede_derived(KbItems, Ts3),
-    append([Ts1, Ts2, Ts3], Ts),
+    findall(demo_changed(S),
+            ( member(it(kb, _, _, T, _, _), KbItems), nonvar(T), T = demo(S, _), atom(S),
+              once(( member(it(kb, _, _, T2, _, _), KbItems), nonvar(T2), T2 = subject(S, Path, D0) )),
+              atom(Path),
+              ( is_absolute_file_name(Path) -> Abs = Path ; directory_file_path(Dir, Path, Abs) ),
+              \+ ( exists_file(Abs), sha256_file(Abs, D1), D1 == D0 ) ),
+            Ts40),
+    sort(Ts40, Ts4),
+    append([Ts1, Ts2, Ts3, Ts4], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
 
 % supersede_derived(+KbItems, -Facts): the supersedes_closure/2 and
@@ -1494,6 +1504,7 @@ protected_pi(flare_shown/1).
 protected_pi(flare_waived/1).
 protected_pi(flare_open/1).
 protected_pi(any_flare_open/0).
+protected_pi(demo_changed/1).
 protected_pi(any_current_claim/0).
 protected_pi(proof_changed/1).
 protected_pi(waiver_lapsed/1).
