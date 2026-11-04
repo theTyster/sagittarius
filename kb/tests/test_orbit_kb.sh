@@ -52,17 +52,17 @@
 #   AT  attest: id, time, writers, digest(current)             (CLI: attest)                    : AT1-AT9
 #   S   subject: sha256, relative paths, refresh               (CLI: subject; D3)               : S1-S8
 #   R   run: numbering, log header, tail, unknown check, D1    (CLI: run; Files; D1)            : R1-R9
-#   B   core and build rules through query, H1 guard           (Core rules; Build module)       : B1-B20
+#   B   core and build rules through query, H1 guard           (Core rules; Build module)       : B1-B21
 #   H3  passed/1 with arithmetic under negation                (Engine)                         : H3a H3c
-#   Q   query: output, -n, exit codes, --json, --html, --why   (CLI: query; exit codes)         : Q1-Q13
-#   X   engine: negation as failure, E17, E18, no scasp        (Engine; D20)                    : X1-X9
+#   Q   query: output, -n, exit codes, --why                   (CLI: query; exit codes)         : Q1-Q13
+#   X   engine: negation as failure, E17, E18, no scasp        (Engine; D20)                    : X1-X10
 #   G   20x2 done                                              (Engine)                         : GD
 #   WN  whynot: holds, absent, what blocks (D20)               (CLI: whynot)                    : WN1-WN5
 #   FL  flares: visual claims, demos, approvals (D21)          (Build module; D21)              : FL1-FL11
 #   Y   why: justification text, #pred templates               (CLI: why; Environment facts)    : Y1-Y3
-#   L   lint E1-E18, W1-W6, --strict, hook, summary            (Lint; D2; D20)                  : L0 L0b E1-E10 E17 W1 W3-W6 LS LS2 LH1 LH2
+#   L   lint E1-E18, W1-W6, WD8, --strict, hook, summary       (Lint; D2; D20)                  : L0 L0b E1-E10 E17 W1 W3-W6 LS LS2 LH1 LH2 WD8
 #   D7  review fixes: broken sources exit 2, unsafe negation, kb.lock (D7)                   : D7a-D7d RC E14
-#   SH  show   RP report   DR doctor (self-tests)   HP help (CLI: show, report, doctor, help) : SH1-SH7 RP1-RP6 DR1-DR3 HP1-HP3
+#   SH  show   RP report   DR doctor (self-tests)   HP help (CLI: show, report, doctor, help) : SH1-SH7 RP1-RP7 DR1-DR3 HP1-HP7
 #   RL  report text layout: headings, bullets, nesting (D16 c4)   : RL1-RL7
 #   RH  report --html: golden text, page, escaping, open first, evidence, review (D16)   : RH1-RH9
 #   BP  burns: open, proved, changed, waived, lapsed       (Build module; D10)              : BP1-BP14
@@ -71,6 +71,8 @@
 #   WV  waivers of a check or a question (D13, 2026-10-21)     (Build module; D13)              : WV1-WV10
 #   RW  reword a hypothesis with supersedes; W5 names a new check (D15, 2026-10-27) : RW1-RW5 W5b W5c
 #   NC  no current claim: done, whynot, report, show open (D17, issue #1)   : NC1-NC5
+#   VT  weighted vote: vote attestations, gate, sealed agent vote (D14)    (Discovery module; D14) : VT1-VT10
+#   LG  attest model_result reads the solver log (D18)    (CLI: attest; D18)               : LG1-LG3
 #   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10, D10 follow-up) : PV1-PV12
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
