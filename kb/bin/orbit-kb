@@ -1489,6 +1489,11 @@ protected_pi(burn_proved/1).
 protected_pi(burn_waived/1).
 protected_pi(burn_open/1).
 protected_pi(any_burn_open/0).
+protected_pi(flare/1).
+protected_pi(flare_shown/1).
+protected_pi(flare_waived/1).
+protected_pi(flare_open/1).
+protected_pi(any_flare_open/0).
 protected_pi(any_current_claim/0).
 protected_pi(proof_changed/1).
 protected_pi(waiver_lapsed/1).
@@ -3737,10 +3742,13 @@ show_section(KB, Eng, open) :-
     (   has_build(KB)
     ->  eng_all(Eng, [U], under(U), Us),
         eng_all(Eng, [O], over(O), Os),
-        eng_all(Eng, [B], burn_open(B), Bs),
+        eng_all(Eng, [B], burn_open(B), Bs0),
+        eng_all(Eng, [F], flare_open(F), Fs),
         forall(member(U, Us), say("- under ~w: claim ~w is current but not fulfilled.", [U, U])),
         forall(member(O, Os), say("- over ~w: change ~w serves no claim.", [O, O])),
-        forall(member(B, Bs), say("- burn_open ~w: claim ~w needs a Lean proof.", [B, B])),
+        forall(member(B, Bs0), say("- burn_open ~w: claim ~w needs a Lean proof.", [B, B])),
+        forall(member(F, Fs), say("- flare_open ~w: claim ~w needs a human to approve a demo.", [F, F])),
+        append(Bs0, Fs, Bs),
         % D17: done needs a current claim.
         (   eng_true(Eng, any_current_claim) -> Ns = []
         ;   Ns = [no_claim], say("- no_claim: no claim is current. Add a claim. The work is not done without one.", [])
@@ -3787,13 +3795,36 @@ check_state(Eng, ks(PassS, RunS), K, S) :-
     ).
 
 % The burn state of a claim, for show and report: proved, waived (with
-% the due time), open, or not a burn.
-burn_sets(Eng, bs(BurnS, ProvS, WaivBy)) :-
+% the due time), open, or not a burn. D21: the flare state too: shown
+% (with the demo), waived, open, or not a flare.
+burn_sets(Eng, bs(BurnS, ProvS, WaivBy, FlareS, ShownS)) :-
     eng_set(Eng, X1, burn(X1), BurnS),
     eng_set(Eng, X2, burn_proved(X2), ProvS),
-    eng_groups(Eng, C3, D3, ( attest(W3, waiver, _, waive(C3, D3, _), human, _), not(waiver_lapsed(W3)) ), WaivBy).
+    eng_groups(Eng, C3, D3, ( attest(W3, waiver, _, waive(C3, D3, _), human, _), not(waiver_lapsed(W3)) ), WaivBy),
+    eng_set(Eng, X4, flare(X4), FlareS),
+    eng_set(Eng, X5, flare_shown(X5), ShownS).
 
-burn_parts(Eng, bs(BurnS, ProvS, WaivBy), C, Head, Detail) :-
+% esc_parts(+Eng, +BSets, +C, -Parts): the Head-Detail pairs of the burn
+% and the flare of claim C, in that order; [] when it has neither.
+esc_parts(Eng, BSets, C, Parts) :-
+    burn_parts(Eng, BSets, C, BH, BD),
+    flare_parts(Eng, BSets, C, FH, FD),
+    exclude([H-_]>>(H == ""), [BH-BD, FH-FD], Parts).
+
+flare_parts(Eng, bs(_, _, WaivBy, FlareS, ShownS), C, Head, Detail) :-
+    (   \+ eng_member(Eng, FlareS, C, flare(C)) -> Head = "", Detail = ""
+    ;   eng_member(Eng, ShownS, C, flare_shown(C))
+    ->  Head = "Flare: shown.",
+        eng_all(Eng, [S, P], ( demo(S, C), attest(_, approval, S, digest(D), human, _), subject(S, P, D) ), SPs),
+        findall(T, ( member([S, P], SPs), fmt(T, "~w (~w)", [S, P]) ), Ts0),
+        sort(Ts0, Ts), atomic_list_concat(Ts, ', ', TsT),
+        fmt(Detail, "A human approved demo ~w.", [TsT])
+    ;   eng_lookup(Eng, WaivBy, C, D, ( attest(W, waiver, _, waive(C, D, _), human, _), not(waiver_lapsed(W)) ), [D1|_])
+    ->  Head = "Flare: NOT SHOWN.", fmt(Detail, "A human waived the demo until ~w.", [D1])
+    ;   Head = "Flare: NOT SHOWN.", Detail = "A human must approve a demo of it."
+    ).
+
+burn_parts(Eng, bs(BurnS, ProvS, WaivBy, _, _), C, Head, Detail) :-
     (   \+ eng_member(Eng, BurnS, C, burn(C)) -> Head = "", Detail = ""
     ;   eng_member(Eng, ProvS, C, burn_proved(C)) -> Head = "Burn: proved in Lean.", Detail = ""
     ;   eng_lookup(Eng, WaivBy, C, D, ( attest(W, waiver, _, waive(C, D, _), human, _), not(waiver_lapsed(W)) ), [D1|_])
@@ -3802,11 +3833,11 @@ burn_parts(Eng, bs(BurnS, ProvS, WaivBy), C, Head, Detail) :-
     ).
 
 burn_text(Eng, BSets, C, T) :-
-    burn_parts(Eng, BSets, C, Head, Detail),
-    (   Head == "" -> T = ""
-    ;   Detail == "" -> fmt(T, " ~w", [Head])
-    ;   fmt(T, " ~w ~w", [Head, Detail])
-    ).
+    esc_parts(Eng, BSets, C, Parts),
+    findall(PT, ( member(Head-Detail, Parts),
+                  ( Detail == "" -> fmt(PT, " ~w", [Head]) ; fmt(PT, " ~w ~w", [Head, Detail]) ) ),
+            PTs),
+    atomic_list_concat(PTs, '', T0), atom_string(T0, T).
 
 % Joins for show and report. A section asks the SWI engine once per
 % relation, not once per claim or check, and then looks the answers up.
@@ -3934,21 +3965,23 @@ cmd_report(KB, Args, Code) :-
     ;   report_page(KB, Eng, Html, Open, Code)
     ).
 
-% claim_node(+Build, +C, +L, +TT, +SK, +StHead, +StDetail, +BHead, +BDetail, +KStates, -Node)
+% claim_node(+Build, +C, +L, +TT, +SK, +StHead, +StDetail, +Parts, +KStates, -Node)
+% Parts: the Head-Detail pairs of the burn and the flare (esc_parts/4).
 % A claim that is fulfilled, with nothing to add, is one line: its checks
-% all passed, its burn is proved or absent, and the line, with its
+% all passed, its burn is proved or absent, it has no flare (D21: the
+% demo always shows), and the line, with its
 % bullet, fits in 100 columns. Any other claim breaks its status, burn,
 % and checks into nested bullets, so that its status never wraps off
 % the end of a long line.
-claim_node(Build, C, L, TT, SK, StHead, StDetail, BHead, BDetail, KStates, Node) :-
+claim_node(Build, C, L, TT, SK, StHead, StDetail, Parts, KStates, Node) :-
     format(string(Head), "~w **~w**: ~w", [C, L, TT]),
     (   memberchk(SK, [fulfilled, none]),
-        ( BHead == "" ; BHead == "Burn: proved in Lean." ),
+        ( Parts == [] ; Parts = ["Burn: proved in Lean."-_] ),
         KStates \== [],
         forall(member(_-KS, KStates), KS == "passed"),
         (   ends_sentence(TT) -> Sep = " " ; Sep = ". " ),
         findall(P, ( call(Build), StHead \== "", P = StHead
-                   ; BHead \== "", P = BHead
+                   ; member(P-_, Parts)
                    ; check_line(KStates, P, _) ),
                 Ps),
         atomic_list_concat(Ps, ' ', PsT),
@@ -3956,17 +3989,17 @@ claim_node(Build, C, L, TT, SK, StHead, StDetail, BHead, BDetail, KStates, Node)
         string_length(Line, Len),
         Len + 4 =< 100
     ->  Node = Line-[]
-    ;   findall(N, claim_kid(Build, StHead, StDetail, BHead, BDetail, KStates, N), Kids),
+    ;   findall(N, claim_kid(Build, StHead, StDetail, Parts, KStates, N), Kids),
         Node = Head-Kids
     ).
 
-claim_kid(Build, StHead, StDetail, _, _, _, N) :-
+claim_kid(Build, StHead, StDetail, _, _, N) :-
     call(Build), StHead \== "",
     ( StDetail == "" -> N = StHead-[] ; N = StHead-[StDetail-[]] ).
-claim_kid(_, _, _, BHead, BDetail, _, N) :-
-    BHead \== "",
+claim_kid(_, _, _, Parts, _, N) :-
+    member(BHead-BDetail, Parts),
     ( BDetail == "" -> N = BHead-[] ; N = BHead-[BDetail-[]] ).
-claim_kid(_, _, _, _, _, KStates, N) :-
+claim_kid(_, _, _, _, KStates, N) :-
     check_line(KStates, T, Kids), N = T-Kids.
 
 % check_line(+KStates, -Text, -Kids): "Checks: none.", "Checks: k1 (passed).",
@@ -3997,14 +4030,15 @@ report_text(KB, Eng) :-
                      SK = waived
                  ;   StHead = "Status: under.", StDetail = "It is not fulfilled yet.", SK = under
                  ),
-                 burn_parts(Eng, BSets, C, BHead, BDetail),
+                 esc_parts(Eng, BSets, C, Parts),
                  join_sentences(StHead, StDetail, S1),
                  string_concat(" ", S1, St0),
-                 join_sentences(BHead, BDetail, B1),
-                 ( B1 == "" -> BT = "" ; string_concat(" ", B1, BT) ),
+                 findall(B1, ( member(BHead-BDetail, Parts), join_sentences(BHead, BDetail, B0),
+                               string_concat(" ", B0, B1) ), B1s),
+                 atomic_list_concat(B1s, '', BT0), atom_string(BT0, BT),
                  string_concat(St0, BT, St)
              ;   St = "", St0 = "", BT = "", SK = none,
-                 StHead = "", StDetail = "", BHead = "", BDetail = ""
+                 StHead = "", StDetail = "", Parts = []
              ),
              eng_lookup(Eng, ChecksBy, C, K, check(K, C), Ks),
              findall(K-KS, ( member(K, Ks), check_state(Eng, KSets, K, KS) ), KStates),
@@ -4012,7 +4046,7 @@ report_text(KB, Eng) :-
              ;   findall(S, ( member(K-KS, KStates), fmt(S, "~w (~w)", [K, KS]) ), Ss),
                  atomic_list_concat(Ss, ', ', SsT), fmt(KT, " Checks: ~w.", [SsT])
              ),
-             claim_node(Build, C, L, TT, SK, StHead, StDetail, BHead, BDetail, KStates, Node),
+             claim_node(Build, C, L, TT, SK, StHead, StDetail, Parts, KStates, Node),
              format(string(Plain), "~w (~w): ~w~w~w", [C, L, TT, St, KT]),
              rtree(claim(C, L, TT, SK, St0, BT, KStates), Plain, Node) )),
     rhead('Guesses'),
@@ -4086,9 +4120,10 @@ report_text(KB, Eng) :-
     (   call(Build)
     ->  eng_all(Eng, [O4], over(O4), O4s),
         eng_all(Eng, [B4], burn_open(B4), B4s),
+        eng_all(Eng, [F4], flare_open(F4), F4s),
         eng_all(Eng, [W4, C4, D4], ( attest(W4, waiver, _, waive(C4, D4, _), human, _), waiver_lapsed(W4) ), L4s),
         eng_all(Eng, [P4, C5], ( attest(P4, lean_proof, _, proof(C5, _), _, _), proof_changed(P4) ), P4s)
-    ;   O4s = [], B4s = [], L4s = [], P4s = []
+    ;   O4s = [], B4s = [], F4s = [], L4s = [], P4s = []
     ),
     % D17: in a build KB, done needs a current claim.
     ( call(Build), Cs == [] -> N4s = [no_claim] ; N4s = [] ),
@@ -4113,16 +4148,23 @@ report_text(KB, Eng) :-
            )),
     forall(member(O4, O4s), ropen(open(over, O4, none), "over", "Change ~w serves no claim.", [O4])),
     forall(member(B4, B4s), ropen(open(burn_open, B4, B4), "burn open", "Claim ~w needs a Lean proof. Prove it with orbit-kb prove, or ask a human for a waiver.", [B4])),
+    forall(member(F4, F4s), ropen(open(flare_open, F4, F4), "flare open", "Claim ~w needs a human to approve a demo. Record a screenshot or a recording with orbit-kb subject and demo(S, C), show it, and ask the human to approve it or waive it.", [F4])),
     forall(member([W4, C4, D4], L4s),
            ( waiver_kind(Eng, C4, K4),
              Tag4 = open(waiver_lapsed, W4, C4),
-             (   K4 == claim -> ropen(Tag4, "waiver lapsed", "Waiver ~w of the proof of claim ~w was due at ~w. The proof is due now.", [W4, C4, D4])
+             (   K4 == claim
+             ->  (   eng_true(Eng, flare(C4)), eng_true(Eng, burn(C4))
+                 ->  ropen(Tag4, "waiver lapsed", "Waiver ~w of the proof and the demo of claim ~w was due at ~w. The proof and the demo are due now.", [W4, C4, D4])
+                 ;   eng_true(Eng, flare(C4))
+                 ->  ropen(Tag4, "waiver lapsed", "Waiver ~w of the demo of claim ~w was due at ~w. The demo is due now.", [W4, C4, D4])
+                 ;   ropen(Tag4, "waiver lapsed", "Waiver ~w of the proof of claim ~w was due at ~w. The proof is due now.", [W4, C4, D4])
+                 )
              ;   K4 == check -> ropen(Tag4, "waiver lapsed", "Waiver ~w of check ~w was due at ~w. The check must pass now.", [W4, C4, D4])
              ;   K4 == question -> ropen(Tag4, "waiver lapsed", "Waiver ~w of question ~w was due at ~w. Ask the question now, if it is still open.", [W4, C4, D4])
              ;   ropen(Tag4, "waiver lapsed", "Waiver ~w of ~w was due at ~w.", [W4, C4, D4])
              ) )),
     forall(member([P4, C5], P4s), ropen(open(proof_changed, P4, C5), "proof changed", "Proof ~w of claim ~w no longer counts. A file of the proof changed. Run orbit-kb prove again.", [P4, C5])),
-    (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], L4s == [], P4s == [], N4s == [],
+    (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], F4s == [], L4s == [], P4s == [], N4s == [],
         W5s == [], R5s == [], D5s == []
     ->  rsay(none, "Nothing is open.", [])
     ;   true
@@ -4370,6 +4412,7 @@ open_label(stale, "stale").
 open_label(supersede_cycle, "cycle").
 open_label(over, "over").
 open_label(burn_open, "burn open").
+open_label(flare_open, "flare open").
 open_label(waiver_lapsed, "waiver lapsed").
 open_label(proof_changed, "proof changed").
 open_label(question_waits, "waits").
@@ -4413,6 +4456,7 @@ page_claim(KB, Eng, C, L, TT, SK, St0, BT, KStates) :-
     % The evidence starts open when the claim needs attention.
     (   SK \== fulfilled -> Det = " open"
     ;   sub_string(BT, _, _, _, "A Lean proof is required") -> Det = " open"
+    ;   sub_string(BT, _, _, _, "must approve a demo") -> Det = " open"
     ;   Dvs \== [] -> Det = " open"
     ;   Det = ""
     ),
@@ -4420,10 +4464,15 @@ page_claim(KB, Eng, C, L, TT, SK, St0, BT, KStates) :-
     status_glyph(SK, G),
     format("<div class=\"chead\"><span class=\"id\">~w</span> <span class=\"label\">", [CE]), he(L),
     format("</span> <span class=\"badge st-~w\"><span aria-hidden=\"true\">~w</span>~w</span>", [SK, G, SK]),
-    (   BT == "" -> true
+    (   BT == "" ; \+ eng_true(Eng, burn(C)) -> true
     ;   eng_true(Eng, burn_proved(C)) -> format(" <span class=\"badge st-fulfilled\">burn proved</span>", [])
-    ;   sub_string(BT, _, _, _, "waived") -> format(" <span class=\"badge st-waived\">burn not proved, waived</span>", [])
+    ;   eng_true(Eng, burn_waived(C)) -> format(" <span class=\"badge st-waived\">burn not proved, waived</span>", [])
     ;   format(" <span class=\"badge st-under\">burn not proved</span>", [])
+    ),
+    (   BT == "" ; \+ eng_true(Eng, flare(C)) -> true
+    ;   eng_true(Eng, flare_shown(C)) -> format(" <span class=\"badge st-fulfilled\">flare shown</span>", [])
+    ;   eng_true(Eng, flare_waived(C)) -> format(" <span class=\"badge st-waived\">flare not shown, waived</span>", [])
+    ;   format(" <span class=\"badge st-under\">flare not shown</span>", [])
     ),
     format("</div>~n<p class=\"ctext\">", []), he(TT), format("</p>~n", []),
     (   St0 == "" -> true
@@ -4642,7 +4691,7 @@ help_lines(general, [
 "  7. orbit-kb report              draft the delivery",
 "  Topics:",
 "    orbit-kb help core      facts, claim labels, attestation types, and core queries",
-"    orbit-kb help build     build-module facts and queries, burns, proofs, waivers",
+"    orbit-kb help build     build-module facts and queries, burns, flares, proofs, waivers",
 "    orbit-kb help discovery discovery-module facts, verdicts, queries, and the recipe for each move",
 "    orbit-kb help codes     each lint code and what to do",
 "    orbit-kb help answers   exit codes, SWI ERROR, why and whynot",
@@ -4750,7 +4799,7 @@ help_lines(attest, [
 "The predicate digest(current) becomes the recorded digest of SUBJECT.",
 "The file must still have that digest. If it changed, run orbit-kb subject first.",
 "orbit-kb checks the shape, the writer, and the references.",
-"A waiver is human only. Its target is a claim (it waives the Lean proof), a check, or a question:",
+"A waiver is human only. Its target is a claim (it waives the Lean proof and the demo), a check, or a question:",
 "  orbit-kb attest waiver c1 \"waive(c1, '2026-11-30T17:00:00Z', 'why')\" --by human",
 "A waived check covers its claim for done, but the claim is not fulfilled, and a burn still needs a proof.",
 "A waived question need not be asked. When the due time is past, the item blocks done again. report lists every waiver.",
@@ -4800,7 +4849,7 @@ help_lines(lint, [
 "E1 syntax. E2 undeclared predicate. E3 type. E4 dangling ref. E5 duplicate id.",
 "E6 non-ground fact. E7 clause in the wrong place. E8 writer not allowed. E9 test result or proof without its log.",
 "E10 uses/1. E11 a clause does not load. E14 unsafe negation. E17 a form that orbit-kb does not read (s(CASP) syntax).",
-"E15 supersede cycle (a claim or hypothesis replaces itself). E16 rules.pl changes done, a burn, waiver, or vote rule, or a computed fact.",
+"E15 supersede cycle (a claim or hypothesis replaces itself). E16 rules.pl changes done, a burn, flare, waiver, or vote rule, or a computed fact.",
 "E18 the rules are not stratified (a predicate depends on itself through not).",
 "W1 subject changed. W2 local declaration. W3 claim without cites. W4 local fact that no rule reads.",
 "W5 check on a superseded claim, and the new claim has no check yet. W6 local rule that extends a library predicate.",
@@ -4836,7 +4885,7 @@ help_lines(show, [
 "orbit-kb show [claims|questions|open|disclosures|extensions|all]",
 "",
 "List parts of the KB as plain text. The default is all.",
-"open lists to_ask, stale, contested, and supersede_cycle, and under, over, burn_open, and no_claim (no claim is current) when the build module is in use."
+"open lists to_ask, stale, contested, and supersede_cycle, and under, over, burn_open, flare_open, and no_claim (no claim is current) when the build module is in use."
 ]).
 help_lines(report, [
 "orbit-kb report [--html FILE [--open]]",
@@ -4849,8 +4898,8 @@ help_lines(report, [
 "",
 "The text is plain Markdown. Each section has a heading (# Claims:) and a blank line after it.",
 "Each item is a bullet, with two more spaces for each level. The label is in **bold**.",
-"A claim that needs attention (under, a waiver, a burn that is not proved, a check that did not",
-"pass) puts its status, burn, and checks in nested bullets. A fulfilled claim with nothing to add",
+"A claim that needs attention (under, a waiver, a burn that is not proved, a flare, a check that did not",
+"pass) puts its status, burn, flare, and checks in nested bullets. A fulfilled claim with nothing to add",
 "stays on one line, when the line fits in 100 columns. Long lines are not wrapped.",
 "",
 "--html FILE also writes the report as one page for a human to review in a browser.",

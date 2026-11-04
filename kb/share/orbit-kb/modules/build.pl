@@ -21,6 +21,13 @@ decl(fact, serves(ref(change), ref(claim)),
 decl(fact, burn_requested(ref(claim)),
      'A human asked for a Lean proof of the claim.',
      'a human asked for a Lean proof of claim @(1)').
+% D21 (issue #9): a visual claim flares. A human must see it to judge it.
+decl(fact, visual(ref(claim)),
+     'A human must see the claim to judge it: a look, a layout, a name, or another preference.',
+     'claim @(1) is visual: a human must see it').
+decl(fact, demo(ref(subject), ref(claim)),
+     'The subject, a screenshot or a recording, shows the claim to a human.',
+     'subject @(1) is a demo of claim @(2)').
 decl(fact, conformance(ref(check)),
      'The check runs the code against the Lean model of its claim.',
      'check @(1) runs the code against the Lean model').
@@ -54,10 +61,10 @@ decl(rule, no_current_claim,
      'No claim is current. Then the work is not done.',
      'no claim is current').
 decl(rule, done,
-     'At least one claim is current, no current claim is unfulfilled, no change is without a claim, no question must be asked, no burn is open, and no claim is in a supersede cycle.',
+     'At least one claim is current, no current claim is unfulfilled, no change is without a claim, no question must be asked, no burn or flare is open, and no claim is in a supersede cycle.',
      'the work is done').
 decl(rule, burn_reason(ref(claim)),
-     'The claim was contested twice, it is universal, or a human asked for a Lean proof.',
+     'The claim was contested twice and is not visual, it is universal, or a human asked for a Lean proof.',
      'claim @(1) has a reason to need a Lean proof').
 decl(rule, burn(ref(claim)),
      'The claim needs a Lean proof, because it has a burn reason, or it replaces a claim with a burn reason, directly or through other claims.',
@@ -80,6 +87,21 @@ decl(rule, burn_open(ref(claim)),
 decl(rule, any_burn_open,
      'At least one burn is open.',
      'some claim needs a Lean proof that does not exist yet').
+decl(rule, flare(ref(claim)),
+     'A human must approve a demo of the claim, because it is visual, or it replaces a visual claim, directly or through other claims.',
+     'claim @(1) needs a demo that a human approves').
+decl(rule, flare_shown(ref(claim)),
+     'A human approved a demo of the claim, and the approval names the current digest of the demo.',
+     'a human approved a demo of claim @(1)').
+decl(rule, flare_waived(ref(claim)),
+     'A human waived the claim, and the due time of the waiver is not past. The same waiver also closes a burn of the claim.',
+     'a human waived the demo of claim @(1)').
+decl(rule, flare_open(ref(claim)),
+     'The claim is current and needs a demo, but no human approved a current demo and no human waived it.',
+     'claim @(1) needs a demo that a human approves').
+decl(rule, any_flare_open,
+     'At least one flare is open.',
+     'some claim needs a demo that a human approves').
 decl(rule, check_waived(ref(claim)),
      'A human waived a check of the claim, and the due time of the waiver is not past. The claim is covered for done, but it is not fulfilled.',
      'a human waived a check of claim @(1)').
@@ -102,7 +124,7 @@ attest_type(lean_proof,
 attest_type(waiver,
             waive(ref([claim, check, question]), time, text),
             [human],
-            'A human waives an item until the due time, for the reason in the text: the proof of a claim, a check (its claim is covered for done, not fulfilled), or a question (it need not be asked).').
+            'A human waives an item until the due time, for the reason in the text: the proof and the demo of a claim, a check (its claim is covered for done, not fulfilled), or a question (it need not be asked).').
 
 % ---------------------------------------------------------------------
 % Build rules
@@ -124,8 +146,9 @@ any_over :- over(_).
 any_current_claim :- current(_).
 no_current_claim :- not any_current_claim.
 done :- not any_under, not any_over, not any_to_ask, not any_burn_open,
-        not any_supersede_cycle, not no_current_claim.
-burn_reason(C) :- contested_twice(C).
+        not any_flare_open, not any_supersede_cycle, not no_current_claim.
+% D21: contests on a visual claim escalate to its flare, not to a proof.
+burn_reason(C) :- contested_twice(C), not visual(C).
 burn_reason(C) :- universal(C).
 burn_reason(C) :- burn_requested(C).
 % A claim that replaces a burning claim inherits the burn (Ty, 2026-10-20).
@@ -143,6 +166,16 @@ burn_proved(C) :- attest(A, lean_proof, _, proof(C, _), script, _), not proof_ch
 burn_waived(C) :- attest(W, waiver, _, waive(C, _, _), human, _), not waiver_lapsed(W).
 burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C).
 any_burn_open :- burn_open(_).
+% D21 (issue #9): burns get proved, flares get shown. A visual claim, or a
+% claim that replaces one, needs a human approval of a demo subject at its
+% current digest, or a human waiver. A new file under the same subject
+% makes the approval stale, and the flare opens again.
+flare(C) :- visual(C).
+flare(C) :- supersedes_closure(C, O), visual(O).
+flare_shown(C) :- demo(S, C), attest(_, approval, S, digest(D), human, _), subject(S, _, D).
+flare_waived(C) :- attest(W, waiver, _, waive(C, _, _), human, _), not waiver_lapsed(W).
+flare_open(C) :- flare(C), current(C), not flare_shown(C), not flare_waived(C).
+any_flare_open :- flare_open(_).
 conforms(C) :- conformance(K), check(K, C), passed(K).
 % D13 (Ty, 2026-10-21): a waiver can also target a check or a question.
 % A waiver on a check covers its claim for done (under/1), but the claim

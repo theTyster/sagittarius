@@ -43,7 +43,7 @@
 #    CLI calls, in its own directory. Then each test copies the result into its own temp
 #    directory. Nothing changes a prototype after it is built (see use_proto).
 #
-# Requirement map (contract v2.1 + D20; section names, not line numbers, because the contract is edited):
+# Requirement map (contract v2.1 + D20 + D21; section names, not line numbers, because the contract is edited):
 #   K   KB resolution: --dir, $ORBIT_KB, parent walk, exit 2   (CLI: KB resolution, exit codes) : K1-K10
 #   I   init                                                   (CLI: init)                      : I1-I8
 #   U   uses: add a module to an existing KB                   (CLI: uses)                      : U1-U9
@@ -58,6 +58,7 @@
 #   X   engine: negation as failure, E17, E18, no scasp        (Engine; D20)                    : X1-X9
 #   G   20x2 done                                              (Engine)                         : GD
 #   WN  whynot: holds, absent, what blocks (D20)               (CLI: whynot)                    : WN1-WN5
+#   FL  flares: visual claims, demos, approvals (D21)          (Build module; D21)              : FL1-FL10
 #   Y   why: justification text, #pred templates               (CLI: why; Environment facts)    : Y1-Y3
 #   L   lint E1-E18, W1-W6, --strict, hook, summary            (Lint; D2; D20)                  : L0 L0b E1-E10 E17 W1 W3-W6 LS LS2 LH1 LH2
 #   D7  review fixes: broken sources exit 2, unsafe negation, kb.lock (D7)                   : D7a-D7d RC E14
@@ -1570,6 +1571,65 @@ EOF
           K=$T/k; printf 'd1 :- d2.\nd2 :- d3.\nd3 :- d4.\nd4 :- d5.\nd5 :- d6.\nd6 :- d7.\nd7 :- d8.\nd8 :- d9.\n' > "$K/rules.pl"
           okb --dir "$K" whynot d1; rc_is 0; out_has 'long shows more' "the default stops"; out_hasnt 'nothing records d9' "the default does not reach d9"
           okb --dir "$K" whynot d1 --long; rc_is 0; out_has 'nothing records d9' "--long reaches d9"; out_hasnt 'long shows more'; }
+
+# ---- D21: a visual claim flares; a human approval of a demo closes the flare
+fl_kb() {  # fl_kb: kb_done (done holds) plus visual(c1), so c1 flares
+    kb_done "$T/k"; K=$T/k; printf "visual(c1).\n" >> "$K/kb.pl"
+}
+fl_demo() {  # fl_demo: a screenshot subject s1, demo(s1, c1)
+    printf 'png v1\n' > "$K/shot.png"; okb --dir "$K" subject s1 shot.png >/dev/null; oadd 'demo(s1, c1)' >/dev/null
+}
+t_FL1() { fl_kb; is_true 'flare(c1)'; is_set 'flare_open(X)' 'X = c1'; is_true any_flare_open
+          is_false 'done' "c1 is visual and no human approved a demo (F5)"; is_false 'burn(c1)' "visual alone does not burn"
+          okb --dir "$K" show open; rc_is 0; out_has '^- flare_open c1: claim c1 needs a human to approve a demo\.'
+          okb --dir "$K" lint; rc_is 0 "visual/1 and demo/2 are declared"; }
+t_FL2() { fl_kb; fl_demo; is_true 'flare_open(c1)' "a demo with no approval does not close the flare"
+          okb --dir "$K" attest approval s1 'digest(current)' --by human; rc_is 0
+          is_true 'flare_shown(c1)'; is_false 'flare_open(c1)'; is_true 'done' "a human approved the demo (F3)"; }
+t_FL3() { fl_kb; fl_demo; okb --dir "$K" attest approval s1 'digest(current)' --by human >/dev/null
+          printf 'png v2\n' > "$K/shot.png"; okb --dir "$K" subject s1 shot.png >/dev/null
+          is_false 'flare_shown(c1)' "the approval names the old digest"; is_true 'flare_open(c1)'; is_false 'done' "a new screenshot reopens the flare (F3)"; }
+t_FL4() { fl_kb; fl_demo; rejects agentok 'writer|human' attest approval s1 'digest(current)'
+          local d; d=$(sha "$K/shot.png")
+          printf "attest(a9, approval, s1, digest('sha256:%s'), agent, '2026-10-15T11:00:00Z').\n" "$d" >> "$K/kb.pl"
+          okb --dir "$K" lint; rc_is 1; out_has '^E8'; is_false 'flare_shown(c1)' "an agent cannot approve a demo"; is_false 'done'; }
+t_FL5() { fl_kb; okb --dir "$K" attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'Ship first')" --by human; rc_is 0
+          is_true 'flare_waived(c1)'; is_false 'flare_open(c1)'; is_true 'done' "a human waived the demo (F4)"
+          fl_kb; printf "attest(w1, waiver, c1, waive(c1, '2020-01-01T00:00:00Z', 'Old'), human, '2019-12-01T00:00:00Z').\n" >> "$K/kb.pl"
+          is_false 'flare_waived(c1)'; is_true 'flare_open(c1)' "a lapsed waiver does not count"; is_false 'done'; }
+t_FL6() { kb_burn "$T/k"; K=$T/k; printf "visual(c1).\n" >> "$K/kb.pl"
+          is_false 'burn(c1)' "a visual claim contested twice does not burn (F6)"; is_true 'flare(c1)'
+          is_set 'burn(X)' 'X = c3|X = c4'; printf "visual(c3).\nvisual(c4).\n" >> "$K/kb.pl"
+          is_set 'burn(X)' 'X = c3|X = c4' "universal and burn_requested still burn a visual claim"; }
+t_FL7() { kb_burndone "$T/k"; K=$T/k; printf "visual(c1).\n" >> "$K/kb.pl"; add_proof "$K" p1 c1
+          is_true 'burn_proved(c1)'; is_true 'flare_open(c1)' "a proof does not show the look (F2)"; is_false 'done'
+          fl_demo; okb --dir "$K" attest approval s1 'digest(current)' --by human >/dev/null
+          is_false 'flare_open(c1)'; is_true 'done' "proved and shown"; }
+t_FL8() { fl_kb; printf "supersedes(c3, c1).\nclaim(c3, preserve, 'One stays true, new name').\ncites(c3, 'Do two things').\ncheck(k3, c3).\nserves(x1, c3).\n" >> "$K/kb.pl"
+          add_result "$K" k3 4 pass; is_true 'flare(c3)' "c3 replaces the visual claim c1 (F2)"
+          is_set 'flare_open(X)' 'X = c3' "c1 is superseded, so only c3 is open"; is_false 'done'; }
+t_FL9() { fl_kb; printf 'flare_shown(c1).\nflare_waived(C) :- claim(C, _, _).\n' > "$K/rules.pl"
+          okb --dir "$K" lint; rc_is 1 "rules.pl cannot close a flare (F8)"
+          [ "$(printf '%s\n' "$out" | grep -c '^E16 rules.pl')" = 2 ] || note "want E16 on each of the 2 clauses: $(snip "$out")"
+          is_true 'flare_open(c1)' "the engines ignore the clause"; is_false 'done'; }
+t_FL10() { fl_kb; okb --dir "$K" report; rc_is 0
+           rl_is "c1 (flare open)" "  - c1 **preserve**: One stays true
+    - Status: fulfilled.
+    - Flare: NOT SHOWN.
+      - A human must approve a demo of it.
+    - Checks: k1 (passed)." "$(rp_item c1)"
+           rp_sec Open | grep -q '^  - \*\*flare open\*\*: Claim c1 needs a human to approve a demo' || note "Open lists the flare: $(snip "$(rp_sec Open)")"
+           okb --dir "$K" report --html "$T/r.html"; rc_is 0
+           rh_has "$(rh_section "$T/r.html" open)" 'data-open="flare_open"[^>]*data-ref="c1"' "open flare c1 on the page"
+           fl_demo; okb --dir "$K" attest approval s1 'digest(current)' --by human >/dev/null; okb --dir "$K" report; rc_is 0
+           rl_is "c1 (flare shown)" "  - c1 **preserve**: One stays true
+    - Status: fulfilled.
+    - Flare: shown.
+      - A human approved demo s1 (shot.png).
+    - Checks: k1 (passed)." "$(rp_item c1)"
+           fl_kb; printf "attest(w1, waiver, c1, waive(c1, '2020-01-01T00:00:00Z', 'Old'), human, '2019-12-01T00:00:00Z').\n" >> "$K/kb.pl"
+           okb --dir "$K" report; rc_is 0
+           rp_sec Open | grep -q 'Waiver w1 of the demo of claim c1 was due at 2020-01-01T00:00:00Z' || note "the lapsed waiver names the demo: $(snip "$(rp_sec Open)")"; }
 t_Y1() { mkclaim; okb --dir "$K" declare 'gizmo(id, text)' --doc 'A gizmo.' --template '@(1) is a gizmo called @(2)' >/dev/null; oadd "gizmo(g1, sprocket)" >/dev/null
          okb --dir "$K" why 'gizmo(g1, N)'; rc_is 0; any_hasf 'g1 is a gizmo called sprocket' "the local template text"; }
 t_Y2() { kb_q "$T/k"; K=$T/k; okb --dir "$K" why 'current(c1)'; rc_is 0; out_has 'c1'; out_has 'because|holds|evidence'; }
@@ -2241,6 +2301,16 @@ run_test t_WN2 WN2 "D20: whynot absent names the blocking literal"
 run_test t_WN3 WN3 "whynot: absent, with a justification"
 run_test t_WN4 WN4 "whynot: a fact holds; no clause is absent and named"
 run_test t_WN5 WN5 "D20: whynot --long"
+run_test t_FL1 FL1 "D21: a visual claim flares; done waits; show open lists it"
+run_test t_FL2 FL2 "D21: a human approval of the demo closes the flare"
+run_test t_FL3 FL3 "D21: a new screenshot makes the approval stale and reopens the flare"
+run_test t_FL4 FL4 "D21: an agent cannot approve a demo"
+run_test t_FL5 FL5 "D21: a waiver closes a flare until its due time"
+run_test t_FL6 FL6 "D21: a visual claim contested twice does not burn"
+run_test t_FL7 FL7 "D21: a claim can burn and flare: proof and demo"
+run_test t_FL8 FL8 "D21: a claim that replaces a visual claim flares"
+run_test t_FL9 FL9 "D21: rules.pl cannot close a flare (E16)"
+run_test t_FL10 FL10 "D21: report: Flare part, Open item, lapsed waiver of the demo"
 run_test t_Y1 Y1 "why shows the local declare --template text"
 run_test t_Y2 Y2 "why prints a justification"
 run_test t_Y3 Y3 "why on a false goal exits 1"
