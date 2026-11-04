@@ -54,8 +54,8 @@ Queries (orbit-kb query 'current(C)' -n 0)
   was_red(K)         K failed before it passed
   stale(A)           approval A is for a digest that is no longer current
 
-Local rules go in rules.pl beside kb.pl. They cannot change done or the burn rules
-(lint reports E16). not p means that p has no answer (negation as failure), so
+Local rules go in rules.pl beside kb.pl. They cannot change done, or the burn and flare
+rules (lint reports E16). not p means that p has no answer (negation as failure), so
 not under(_) means "no under at all". A predicate must not depend on itself through not
 (lint E18). There is no classical negation: a fact that is not recorded is false.
 If the schema does not fit, declare what you need: orbit-kb declare ... --doc TEXT.

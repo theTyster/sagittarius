@@ -16,7 +16,7 @@ Core
   E11  a clause does not load in the SWI engine
   E14  unsafe negation: a not variable is in the head but in no positive body literal
   E15  supersedes cycle. add refuses it. done is false while it exists.
-  E16  rules.pl adds clauses to a protected predicate (done, burn rules, vote rules). Ignored.
+  E16  rules.pl adds clauses to a protected predicate (done, burn and flare rules, vote rules). Ignored.
   E17  a form that orbit-kb does not read: classical negation -p, a # line, a global
        constraint (:- Body), or a #= constraint. add refuses it. Query, why, whynot,
        show, and report exit 2 until it is gone.

@@ -332,7 +332,7 @@ fails, and it does not raise an error.
 Two kinds of clause that lint rejects do not reach the engine (D10
 follow-up, F8): a clause in `rules.pl` whose head is a fact predicate (E7) or a
 protected library predicate (E16), and a fact in `kb.pl` of a protected library
-predicate (E7). The protected predicates are `done`, the burn rules, the vote
+predicate (E7). The protected predicates are `done`, the burn and flare rules, the vote
 rules of the discovery module, and the computed facts (section 10, E16). The SWI engine loads this program (section 11).
 
 ## 5. The type system
@@ -466,6 +466,8 @@ Load it with `uses([build])`. Its file is `modules/build.pl`.
 | `serves(ref(change), ref(claim))` | The change serves the claim. |
 | `burn_requested(ref(claim))` | A human asked for a Lean proof of the claim. |
 | `conformance(ref(check))` | The check runs the code against the Lean model of its claim. Optional. |
+| `visual(ref(claim))` | A human must see the claim to judge it: a look, a layout, a name, or another preference (D21). |
+| `demo(ref(subject), ref(claim))` | The subject, a screenshot or a recording, shows the claim to a human (D21). |
 
 ### Build attestation types
 
@@ -493,13 +495,18 @@ verdict. A proof is a `lean_proof`.
 | `any_over` | `over(X)` is true for one or more changes. |
 | `any_current_claim` | `current(C)` is true for one or more claims (D17). |
 | `no_current_claim` | No claim is current. Then `done` is false (D17). |
-| `done` | `any_under`, `any_over`, `any_to_ask`, `any_burn_open`, `any_supersede_cycle`, and `no_current_claim` are all false. A KB with no current claim is not done (D17). |
-| `burn_reason(C)` | `C` is contested twice, it is universal, or a human asked for a proof. |
+| `done` | `any_under`, `any_over`, `any_to_ask`, `any_burn_open`, `any_flare_open`, `any_supersede_cycle`, and `no_current_claim` are all false. A KB with no current claim is not done (D17). |
+| `burn_reason(C)` | `C` is contested twice and not visual (D21), it is universal, or a human asked for a proof. |
 | `burn(C)` | `C` needs a Lean proof: `burn_reason(C)`, or `C` replaces a claim with a burn reason, directly or through other claims (`supersedes_closure`). |
 | `burn_proved(C)` | A `lean_proof` of `C` by `script` exists, and no file of that proof changed (`proof_changed`). |
 | `burn_waived(C)` | A human `waiver` of `C` exists, and its due time is not past (`waiver_lapsed`). |
 | `burn_open(C)` | `burn(C)`, `C` is current, and `C` is not proved and not waived. |
 | `any_burn_open` | `burn_open(C)` is true for one or more claims. |
+| `flare(C)` | `C` needs a demo that a human approves: `visual(C)`, or `C` replaces a visual claim, directly or through other claims (D21). |
+| `flare_shown(C)` | A human `approval` of a `demo` subject of `C` names the current digest of the subject. |
+| `flare_waived(C)` | A human `waiver` of `C` exists, and its due time is not past. The same waiver closes a burn of `C`. |
+| `flare_open(C)` | `flare(C)`, `C` is current, and `C` is not shown and not waived. |
+| `any_flare_open` | `flare_open(C)` is true for one or more claims. |
 | `conforms(C)` | A `conformance` check of `C` passed. `done` does not need it. |
 | `proof_changed(A)` | Computed by `orbit-kb` when it reads the KB. A file of proof `A` changed, or its log is missing or does not match. |
 | `waiver_lapsed(W)` | Computed by `orbit-kb` when it reads the KB. The due time of waiver `W` is past, or it is not a valid time. |
@@ -532,6 +539,30 @@ proof imports, and the Lake configuration files. If one of these files
 changes, the proof stops counting, and the burn is open again. `report` shows
 `Proof A of claim C no longer counts.` Run `orbit-kb prove` again.
 
+### Flares need a human to see the result
+
+Burns get proved; flares get shown (D21). Some claims are not logic: a look, a
+layout, or a name. The human must see the result and decide, and a Lean proof
+adds nothing. Mark such a claim `visual(C)` at DECOMPOSE, or when the human asks
+to see it. Then `flare(C)` holds, and `done` is false until one of these:
+
+1. A human approves a demo of the claim. Record the screenshot or the recording
+   with `orbit-kb subject s1 shot.png`, add `demo(s1, c1)`, show it, and record
+   the human's approval: `orbit-kb attest approval s1 'digest(current)' --by human`.
+   The approval counts only while it names the current digest of the subject. A
+   new file under the same subject makes the approval stale, and the flare opens
+   again.
+2. A human waives the claim until a due time, as for a burn. One waiver of a
+   claim closes both its burn and its flare.
+
+A claim can burn and flare at once, for example a contrast ratio and a look:
+prove the invariant, and show the look. A visual claim does not burn because it
+was contested twice: the contests keep its flare open. A claim that replaces a
+visual claim flares too. A preference change (a new name or a new color, when no
+one misread the intent) is a new claim that supersedes the old one. It is not a
+divergence. `show open` and `report` list each open flare, and `report` shows the
+`Flare:` state of each claim that flares, with the approved demo.
+
 ### Waivers
 
 A human can waive a claim, a check, or a question until a due time (D13). The
@@ -541,7 +572,7 @@ come back to the item.
 
 | Target | Effect while the waiver is in force |
 |---|---|
-| claim `C` | `burn_waived(C)`: the burn of `C` is closed. `C` must still be fulfilled or have a waived check. |
+| claim `C` | `burn_waived(C)` and `flare_waived(C)`: the burn and the flare of `C` are closed. `C` must still be fulfilled or have a waived check. |
 | check `K` of claim `C` | `check_waived(C)`: `C` is not `under`, so it does not block `done`. `C` is not `fulfilled`. A burn of `C` still needs a proof or a waiver of `C`. |
 | question `Q` | `question_waived(Q)`: `Q` is not `to_ask`. It is not answered. |
 
@@ -773,9 +804,9 @@ that no answer gets past, and why, recursively. Exit: 0. 2 on a syntax error
 
 Lists parts of the KB as plain text. The default is `all`. `open` lists
 `to_ask`, `stale`, and `contested`. When the `build` module is in use, `open`
-also lists `under`, `over`, and `burn_open`, and `no_claim` when no claim is
+also lists `under`, `over`, `burn_open`, and `flare_open` (D21), and `no_claim` when no claim is
 current (D17). `claims` shows the burn state of
-each claim that burns: proved, waived (`NOT PROVED`), or open. It shows a claim
+each claim that burns: proved, waived (`NOT PROVED`), or open, and the flare state of each claim that flares. It shows a claim
 with a waived check as `not fulfilled`, and `questions` marks a waived question. `show` runs one query for each relation, not
 one query for each fact.
 Exit: 0. 2 on an unknown topic, or on E1 or E2 in a source file.
@@ -791,16 +822,18 @@ section has a heading, `# Claims:`, and a blank line before the next heading.
 Each item is a bullet, indented two spaces, and each nested level adds two more.
 The label is in `**bold**`: the kind of a claim, of a disclosure, and of an open
 item, and the state of a waiver. A claim that needs attention (`under`, a waived
-check, a burn that is not proved, or a check that did not pass or has no run)
-puts its `Status:`, `Burn:`, and `Checks:` in nested bullets, and the detail
+check, a burn that is not proved, a flare, or a check that did not pass or has no run)
+puts its `Status:`, `Burn:`, `Flare:`, and `Checks:` in nested bullets, and the detail
 sentence under each. A fulfilled claim with nothing to add stays on one line, when
 the line fits in 100 columns. Long lines are not wrapped. In `Open:` and `Vote:`,
 the first sentence is the bullet and the rest is nested. Like `show`, `report` runs one query for each relation. For a claim
 that burns, `Claims:` adds `Burn: proved in Lean.` or `Burn: NOT PROVED.` with
-the waiver due time. A claim with a waived check shows `Status: not fulfilled`
+the waiver due time. For a claim that flares, `Claims:` adds `Flare: shown.` with
+the approved demo, or `Flare: NOT SHOWN.` with the waiver due time or "A human must
+approve a demo of it." (D21). A claim with a waived check shows `Status: not fulfilled`
 with the check and the due time. `Waivers:` lists every waiver: its id, the kind
 and id of its target, its due time, and whether it is in force or lapsed.
-`Open:` lists each open burn, each waiver past its due time (of a claim, a
+`Open:` lists each open burn, each open flare, each waiver past its due time (of a claim, a
 check, or a question), and each proof that no longer counts. With the `build`
 module, when no claim is current, `Open:` says `**no claim**: No claim is
 current`, because `done` is false without a current claim (D17). When no question
@@ -1007,7 +1040,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E11 | A clause does not load in the SWI engine. |
 | E14 | Unsafe negation: a variable of a `not` literal occurs in the head, but in no positive body literal. A call with that variable unbound then gives a wrong answer. |
 | E15 | A `supersedes` fact on a cycle: a claim (or a hypothesis) replaces itself, directly (`supersedes(C, C)`) or through others. `done` is false while the cycle exists. `add` refuses such a fact. |
-| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `any_current_claim`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engine ignores the clause. |
+| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `flare`, `flare_shown`, `flare_waived`, `flare_open`, `any_flare_open` (D21), `any_current_claim`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engine ignores the clause. |
 | E17 | A form that `orbit-kb` does not read (it is s(CASP) syntax): classical negation `-p` (in a fact, a rule head, or a body literal), a `#` line, a global constraint `(:- Body)`, or a `#=`-family constraint. `add` refuses it. It applies in `kb.pl` too, and a goal with such a form exits 2 with the E17 text. `query`, `why`, `whynot`, `show`, and `report` exit 2 while an E17 exists. |
 | E18 | The rules are not stratified: a predicate depends on itself through `not`. The same commands exit 2 while an E18 exists. |
 
@@ -1509,6 +1542,7 @@ In this section, "Ty" is the author of the project. The author's decisions are c
 
 | Decision | Reason |
 |---|---|
+| Flares beside burns (D21) | Burns get proved, flares get shown. Before D21, a renamed alias was a second divergence, its claim burned, and `done` waited for a Lean proof of an alias name (GitHub issue #9). A visual claim now needs a human approval of a demo, not a proof. |
 | One engine (D20) | SWI-Prolog gives the verdict and, from the same clauses, the explanation. Until 2026-11-02, s(CASP) explained the answers and a cross-check compared the two. It cost about 23% of the CLI, and in the audits it found no error in a KB, only tool bugs. |
 | Exit 2 for typos and broken sources | A typo or a broken source must never look like "false". D7 added broken sources to this rule. D20 added E17 and E18. |
 | `run` outside the lock (D7) | A long check must not stop other writers. The cost is that `run` numbers runs in the order that they finish. |
@@ -1667,6 +1701,13 @@ Known gaps:
   "a few UX offerings": open items first, evidence under each claim, and
   review marks that become text to paste back. The text of `report` does not
   change (golden files in the tests). `--open` opens the page only when given.
+- **D21 (a visual claim flares, 2026-11-04).** GitHub issue #9; Ty chose
+  "Both". `visual(C)` and `demo(S, C)` are new build facts. `flare(C)` holds for
+  a visual claim, and for a claim that replaces one. A human approval of a demo
+  at its current digest, or a human waiver with a due time, closes the flare.
+  `done` also needs `not any_flare_open`. A visual claim no longer burns when it
+  is contested twice. `show open` and `report` list open flares. The Lean burn
+  model does not model flares; its generated KBs have no visual facts.
 - **D20 (SWI-Prolog is the only engine, 2026-11-02).** Ty decided ("option 2")
   to drop s(CASP) and to keep SWI-Prolog as the only engine. Section 11 gives
   the reasons from the two audits. What changed:

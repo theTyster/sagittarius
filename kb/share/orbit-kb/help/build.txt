@@ -4,6 +4,9 @@ Facts
   change(X, Text)       a change that you made
   serves(X, Claim)      the claim that change X serves
   burn_requested(Claim) the human asked for a proof
+  visual(Claim)         a human must see the claim to judge it (a look, a layout, a name);
+                        mark it at DECOMPOSE, or when the human asks to see it
+  demo(Subject, Claim)  a screenshot or a recording (orbit-kb subject) shows the claim
   conformance(Check)    an optional check that runs the code against the Lean model
 
 Attestation types
@@ -16,13 +19,16 @@ Queries
   under(C)      current claim C is not fulfilled
   over(X)       change X serves no claim
   done          at least one claim is current, nothing is under, nothing is over,
-                nothing is to ask, no burn is open, and no claim is in a supersede cycle.
+                nothing is to ask, no burn or flare is open, and no claim is in a supersede cycle.
                 A KB with no current claim is not done. whynot done then says
                 "no claim is current".
-  burn(C)       C is contested twice, is universal, or the human asked for a proof;
-                or C supersedes such a claim, directly or through other claims
+  burn(C)       C is contested twice (and not visual), is universal, or the human asked
+                for a proof; or C supersedes such a claim, directly or through other claims
   burn_open(C)  current claim C burns, and has no proof that still counts and no waiver
                 before its due time
+  flare(C)      C is visual, or C supersedes a visual claim, directly or through others
+  flare_open(C) current claim C flares, and no human approved a demo of it at the demo's
+                current digest, and no waiver is before its due time
 
 Checks
   orbit-kb add "check(k1, c1)"
@@ -47,12 +53,26 @@ Burns: prove the claim in Lean
   A change in a Lean file of the project, or in a Lake file, reopens the burn.
   A change inside a path dependency (a shared library) does not.
 
+Flares: show the claim to the human (burns get proved, flares get shown)
+  A visual claim needs a human to see it, not a proof. A claim can burn and flare at once
+  (a contrast ratio and a look): prove the invariant, and show the look.
+  1. Make the demo: a screenshot, a recording, or a before and after.
+  2. orbit-kb subject s1 shot.png
+     orbit-kb add "demo(s1, c1)"
+  3. Show the demo to the human. Only the human approves it:
+     orbit-kb attest approval s1 'digest(current)' --by human
+  A new file under the same subject makes the approval stale, and the flare opens again.
+  Contests on a visual claim do not make it burn. They keep its flare open.
+  A preference change (a new name or color, and no one misread the intent) is a new claim
+  that supersedes the old one. It is not a divergence.
+
 Waivers (the human only; the human sets the due time)
   orbit-kb attest waiver C "waive(C, '2026-11-30T17:00:00Z', 'why')" --by human
-  C is a claim (its proof), a check, or a question.
+  C is a claim (its proof and its demo), a check, or a question.
   Until the due time the item does not block done. A waived check covers its claim,
   but the claim is not fulfilled. After the due time the item blocks done again.
-  report lists every waiver. The delivery says "not proved" for a waived burn.
+  report lists every waiver. The delivery says "not proved" for a waived burn, and
+  "not shown" for a waived flare.
 
 Verdicts for disproof (orbit-kb help core): refuted(Text), inconclusive, abstained.
 Do not weaken a claim to absorb a counterexample. Record it, and ask the human.
