@@ -11,7 +11,8 @@ Prints one JSON object: {"checks": [{"text", "passed", "evidence"}], "commands":
 A multi-turn eval also leaves STEM.tK.jsonl (turn K alone) and WORKDIR.tK (the work
 directory after turn K). The prefix "turnK:" grades a check against turns 1..K and that
 snapshot, for example turn1:no_kb. "script:NAME" runs NAME.py WORKDIR from $EVAL_CHECKS_DIR
-(the spec's checks/ directory), or else from evals/checks/.
+(the spec's checks/ directory), or else from evals/checks/. A "python:" or "script:" check
+gets $EVAL_KB, the KB directory that kb_exists finds, when there is one.
 
 The transcript is claude -p --output-format stream-json. Each orbit-kb call in a
 Bash command counts in order; a call with no subcommand or "help" is a read.
@@ -102,6 +103,14 @@ def find_kb(workdir, calls=(), named=None):
     return None
 
 
+def check_env(kb):
+    """The environment of a python: or script: check: $EVAL_KB is the KB that find_kb found."""
+    env = {k: v for k, v in os.environ.items() if k not in ("ORBIT_KB", "EVAL_KB")}
+    if kb:
+        env["EVAL_KB"] = kb
+    return env
+
+
 def okb(kbdir, *args):
     env = {k: v for k, v in os.environ.items() if k != "ORBIT_KB"}
     p = subprocess.run(["orbit-kb", "--dir", kbdir, *args], capture_output=True, text=True, env=env, timeout=120)
@@ -171,11 +180,12 @@ def check(name, calls, orbit, workdir, transcript=()):
         path = os.path.join(cdir, name[len("script:"):] + ".py")
         if not os.path.exists(path):
             path = os.path.join(HERE, "checks", name[len("script:"):] + ".py")
-        p = subprocess.run([sys.executable, path, workdir],
+        p = subprocess.run([sys.executable, path, workdir], env=check_env(kb),
                            capture_output=True, text=True, timeout=300)
         return p.returncode == 0, (p.stdout + p.stderr).strip()[-300:]
     if name.startswith("python:"):
-        p = subprocess.run([sys.executable, "-c", name[len("python:"):]], cwd=workdir, capture_output=True, text=True, timeout=60)
+        p = subprocess.run([sys.executable, "-c", name[len("python:"):]], cwd=workdir, env=check_env(kb),
+                           capture_output=True, text=True, timeout=60)
         return p.returncode == 0, "ok" if p.returncode == 0 else (p.stdout + p.stderr).strip().splitlines()[-1]
     if kb is None:
         return False, "no KB to check"

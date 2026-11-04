@@ -435,7 +435,7 @@
         "query:hypothesis(H, K, T)",
         "query:universal(C)",
         "query:model(M, tla), model_run(L, M, _)",
-        "python:import os, re; fs = [os.path.join(r, f) for r, d, n in os.walk('.') if '.git' not in r for f in n if f.endswith('.tla')]; ok = [f for f in fs if len({m.lower() for m in re.findall(r'(?i)\\b(claim|heartbeat|complete|release|expire)', open(f, encoding='utf-8', errors='replace').read())}) >= 3]; assert ok, ('no .tla model that names the queue operations', fs)"
+        "script:tla_model"
       ],
       "assertions": [
         "Works the problem out first: records a hypothesis about the overlap and finds how it happens (from the code, a test, or the model) before it changes jobs.py",
@@ -444,7 +444,7 @@
         "The claim is marked universal and burns. Any Lean statement says the same thing as the final hypothesis. If there is no proof, the agent asks the human for a waiver and does not record one itself",
         "The delivery says that the TLC result holds only within its bounds (the number of workers and attempts checked), and that the burn stays open until a Lean proof or a human waiver closes it"
       ],
-      "notes": "heartbeat, complete and release in jobs.py do not check which worker calls them. Worker A claims, stalls past TIMEOUT, the timer's expire puts the job back, worker B claims it, and A's heartbeats are still accepted: two workers on one job. A stale release from A also puts B's running job back, so C can claim it with no stall at all. The three unit tests pass, because each uses one well-behaved worker at a time. A two-worker TLA+ model finds Claim, Expire, Claim in four states; with the worker checked on each step it holds (TLC -deadlock, since done and failed are final). The queue cannot stop a stalled worker's own code, so 'never runs twice' in the literal sense is not something jobs.py can guarantee; a good run refines the hypothesis to an outcome the queue controls. The case does not need a finished Lean proof. tlc (~/.local/bin) and a core-only lean run from the work directory; a direct lake call is blocked and fails no_blocked_calls. The .tla check looks under the work directory only, as the discovery help says to keep models inside the KB directory."
+      "notes": "heartbeat, complete and release in jobs.py do not check which worker calls them. Worker A claims, stalls past TIMEOUT, the timer's expire puts the job back, worker B claims it, and A's heartbeats are still accepted: two workers on one job. A stale release from A also puts B's running job back, so C can claim it with no stall at all. The three unit tests pass, because each uses one well-behaved worker at a time. A two-worker TLA+ model finds Claim, Expire, Claim in four states; with the worker checked on each step it holds (TLC -deadlock, since done and failed are final). The queue cannot stop a stalled worker's own code, so 'never runs twice' in the literal sense is not something jobs.py can guarantee; a good run refines the hypothesis to an outcome the queue controls. The case does not need a finished Lean proof. tlc (~/.local/bin) and a core-only lean run from the work directory; a direct lake call is blocked and fails no_blocked_calls. The .tla check (checks/tla_model.py) looks under the work directory and at the model subjects of the KB that the grader finds, which can sit outside the work directory."
     }
   ]
 }
