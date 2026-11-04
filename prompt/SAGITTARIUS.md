@@ -243,9 +243,9 @@ read it.
 - A **check** (`check(K, Claim)`) is an executable test of a claim. A claim is *fulfilled*
   when a check passed, when a `retire` or `introduce` check failed first, and when no verdict
   refutes it.
-- `done` (build orbit) is true when no claim is under (not fulfilled), no change is over
-  (serves no claim), no question is to ask, no burn or flare is open, and no claim is in a
-  supersede cycle. `orbit-kb whynot 'done'` says what is missing.
+- `done` (build orbit) is true when at least one claim is current, no claim is under (not
+  fulfilled), no change is over (serves no claim), no question is to ask, no burn or flare is
+  open, and no claim is in a supersede cycle. `orbit-kb whynot 'done'` says what is missing.
 - A claim **burns** (`burn(C)`) when it is contested twice, is `universal`, or the human asked
   for a proof. A burn stays open until a Lean proof (`orbit-kb prove`) or a human waiver
   closes it.
