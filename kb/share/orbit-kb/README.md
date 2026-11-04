@@ -503,7 +503,7 @@ verdict. A proof is a `lean_proof`.
 | `burn_open(C)` | `burn(C)`, `C` is current, and `C` is not proved and not waived. |
 | `any_burn_open` | `burn_open(C)` is true for one or more claims. |
 | `flare(C)` | `C` needs a demo that a human approves: `visual(C)`, or `C` replaces a visual claim, directly or through other claims (D21). |
-| `flare_shown(C)` | A human `approval` of a `demo` subject of `C` names the current digest of the subject. |
+| `flare_shown(C)` | A human `approval` of a `demo` subject of `C` names the current digest of the subject, and the file on disk still has that digest (`not demo_changed(S)`, D21 F3b). |
 | `flare_waived(C)` | A human `waiver` of `C` exists, and its due time is not past. The same waiver closes a burn of `C`. |
 | `flare_open(C)` | `flare(C)`, `C` is current, and `C` is not shown and not waived. |
 | `any_flare_open` | `flare_open(C)` is true for one or more claims. |

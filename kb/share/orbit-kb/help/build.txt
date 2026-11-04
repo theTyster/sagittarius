@@ -16,7 +16,7 @@ Attestation types
 
 Queries
   fulfilled(C)  a check of C passed; for retire and introduce, it failed first; C is not refuted
-  under(C)      current claim C is not fulfilled
+  under(C)      current claim C is not fulfilled, and no human waived a check of it
   over(X)       change X serves no claim
   done          at least one claim is current, nothing is under, nothing is over,
                 nothing is to ask, no burn or flare is open, and no claim is in a supersede cycle.

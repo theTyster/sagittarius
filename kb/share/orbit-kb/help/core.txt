@@ -45,8 +45,8 @@ Attestation types
 Queries (orbit-kb query 'current(C)' -n 0)
   current(C)         claim C is not superseded
   defeated(Q)        a human answer differs from the default of Q
-  to_ask(Q)          Q is unanswered, its claim is current, and the claim is contested
-                     or a question that Q depends on is defeated
+  to_ask(Q)          Q is unanswered, no human waived it, its claim is current, and the
+                     claim is contested or a question that Q depends on is defeated
   contested(C)       one or more divergences name C
   contested_twice(C) two or more divergences name C
   refuted(C)         a verdict says that C is refuted

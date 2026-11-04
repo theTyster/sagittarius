@@ -3644,7 +3644,7 @@ vote_section(Eng) :-
         ;   atomic_list_concat(Hs, ', ', HT),
             ( As == [] -> AT = 'no vote' ; atomic_list_concat(As, ', ', AT) ),
             ( eng_all(Eng, [V], artifact_vote(V), [V1|_]) -> true ; V1 = 'no vote' ),
-            rsplit(vote, "Round ~w. Human (0.4): ~w. Agent (0.3): ~w. Formal artifacts (0.3): ~w.", [R1, HT, AT, V1]),
+            rsplit(vote, "Round ~w. Human (0.49): ~w. Agent (0.24): ~w. Formal artifacts (0.24): ~w.", [R1, HT, AT, V1]),
             eng_all(Eng, [G], gate(G), Gs0), sort(Gs0, Gs), atomic_list_concat(Gs, ', ', GT),
             rsplit(vote, "Outcome: ~w.", [GT]),
             (   eng_true(Eng, gate_split)
