@@ -94,7 +94,8 @@ divergence is a `divergence` record on its claim, not only a disclosure. Continu
   what you or the human expected, even by a small amount: the red run passes, a check
   still fails when the build is done, or the code does not behave as you assumed. If you
   are about to say "you're right" about your own error, you found a divergence: shift up
-  before you fix it.
+  before you fix it. A preference change is not a divergence (see "When the human says
+  that it is wrong").
 - **A build by someone else:** you own the ticket when a subagent or a peer session builds.
   Review its report yourself, and run its checks. A failing check, or a report that your run contradicts, is a
   divergence.
@@ -243,11 +244,15 @@ read it.
   when a check passed, when a `retire` or `introduce` check failed first, and when no verdict
   refutes it.
 - `done` (build orbit) is true when no claim is under (not fulfilled), no change is over
-  (serves no claim), no question is to ask, no burn is open, and no claim is in a supersede
-  cycle. `orbit-kb whynot 'done'` says what is missing.
+  (serves no claim), no question is to ask, no burn or flare is open, and no claim is in a
+  supersede cycle. `orbit-kb whynot 'done'` says what is missing.
 - A claim **burns** (`burn(C)`) when it is contested twice, is `universal`, or the human asked
   for a proof. A burn stays open until a Lean proof (`orbit-kb prove`) or a human waiver
   closes it.
+- A claim **flares** (`flare(C)`) when it is `visual`: a human must see the result to judge
+  it, as for a look, a layout, or a name. A flare stays open until the human approves a demo
+  (a screenshot or a recording) or waives it. Burns get proved; flares get shown. Contests
+  on a visual claim keep its flare open; they do not make it burn.
 - `discovery_ready` (discovery orbit) is true when nothing is open. `discovery_decide` is
   true when it is ready, or the last lap of the budget is done.
 - A divergence is recorded with `orbit-kb attest divergence`, a disclosure with
@@ -279,6 +284,8 @@ itself, so that an error in an earlier move does not pass on silently.
    now would bury the human in questions that may never matter.
 4. Restate each claim as one or more concrete examples, for example "Submit on /checkout
    renders #6B3FA0". The human reads examples. The human never has to read formal text.
+5. Mark a claim `visual` when the human must see the result to judge it. Its syntax is in
+   `orbit-kb help build`.
 
 ### BUILD
 
@@ -372,6 +379,12 @@ match:
 - "what are you doing right now?"
 - "that was fast..."
 - "this is taking longer than I thought..."
+
+A preference change is not a divergence. Ask: did the result match what the human asked
+for at the time? If it did, and the human now prefers something else (another name, color,
+or layout), no one misread the intent. Record a new claim that supersedes the old one, with
+a note, and no divergence. If it did not match, someone misread the intent: that is a
+divergence, and the steps below apply.
 
 1. On the light path, shift up now: start a KB, and record the request, your claims, and
    the checks so far.
