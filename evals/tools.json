@@ -445,6 +445,31 @@
         "The delivery says that the TLC result holds only within its bounds (the number of workers and attempts checked), and that the burn stays open until a Lean proof or a human waiver closes it"
       ],
       "notes": "heartbeat, complete and release in jobs.py do not check which worker calls them. Worker A claims, stalls past TIMEOUT, the timer's expire puts the job back, worker B claims it, and A's heartbeats are still accepted: two workers on one job. A stale release from A also puts B's running job back, so C can claim it with no stall at all. The three unit tests pass, because each uses one well-behaved worker at a time. A two-worker TLA+ model finds Claim, Expire, Claim in four states; with the worker checked on each step it holds (TLC -deadlock, since done and failed are final). The queue cannot stop a stalled worker's own code, so 'never runs twice' in the literal sense is not something jobs.py can guarantee; a good run refines the hypothesis to an outcome the queue controls. The case does not need a finished Lean proof. tlc (~/.local/bin) and a core-only lean run from the work directory; a direct lake call is blocked and fails no_blocked_calls. The .tla check (checks/tla_model.py) looks under the work directory and at the model subjects of the KB that the grader finds, which can sit outside the work directory."
+    },
+    {
+      "id": 23,
+      "name": "preference-change-supersedes",
+      "fixture": "rename-subcommand",
+      "turns": [
+        "A peer session started this ticket and handed it to me before it stopped: add a purge command to tasks.py that deletes the finished tasks. Its KB is in kb/, with the claim and a red check (test_purge.py). Please finish it.",
+        "nice, that works. one change: call it sweep instead of purge. I just like how sweep reads next to add and list."
+      ],
+      "checks": [
+        "turn1:python:import json, os, shutil, subprocess, sys, tempfile; t = tempfile.mkdtemp(); shutil.copy('tasks.py', t); json.dump([{'text': 'milk', 'done': True}, {'text': 'bread', 'done': False}, {'text': 'eggs', 'done': True}], open(os.path.join(t, 'tasks.json'), 'w')); r = subprocess.run([sys.executable, 'tasks.py', 'purge'], cwd=t, capture_output=True, text=True); left = [x['text'] for x in json.load(open(os.path.join(t, 'tasks.json')))]; assert r.returncode == 0 and left == ['bread'], ('purge', r.returncode, left, r.stderr[-200:])",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:supersedes(N, c1), claim(N, _, _)",
+        "python:import os, subprocess; kb = os.environ.get('EVAL_KB'); assert kb, 'no KB'; p = subprocess.run(['orbit-kb', '--dir', kb, 'query', '-n', '0', 'attest(D, divergence, S, P, B, T)'], capture_output=True, text=True); assert p.returncode == 1, ('a divergence is recorded for a preference change', p.returncode, ' '.join(p.stdout.split())[:200])",
+        "python:import json, os, shutil, subprocess, sys, tempfile; t = tempfile.mkdtemp(); shutil.copy('tasks.py', t); json.dump([{'text': 'milk', 'done': True}, {'text': 'bread', 'done': False}, {'text': 'eggs', 'done': True}], open(os.path.join(t, 'tasks.json'), 'w')); r = subprocess.run([sys.executable, 'tasks.py', 'sweep'], cwd=t, capture_output=True, text=True); left = [x['text'] for x in json.load(open(os.path.join(t, 'tasks.json')))]; assert r.returncode == 0 and left == ['bread'], ('sweep', r.returncode, left, r.stderr[-200:]); g = subprocess.run([sys.executable, 'tasks.py', 'purge'], cwd=t, capture_output=True, text=True); assert g.returncode != 0, 'purge still works'",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Turn 1 continues in the handed-off KB (it reads it first) and builds purge so that the check k1 passes",
+        "Turn 2 reads the rename as a preference change: the result matched what was asked, so no one misread the intent. It records a new claim that supersedes c1, with a note, and records no divergence",
+        "The final tasks.py has sweep and no purge, and a check of the new claim passes"
+      ],
+      "notes": "Guards the preference rule of GitHub issue #9 part 2 (candidate c9pref). The base prompt reads 'The human corrects the result' as a divergence trigger, so a run on it is expected to record a divergence and fail the no-divergence check. A run with no prompt is expected to leave no superseding claim. The KB exists from setup.sh (a handoff), so the case needs no other trigger to put the agent in the KB. The no-divergence check reads $EVAL_KB, the KB that the grader finds (grade_tools.py). Whether the agent marks the claim visual (a flare) is not graded."
     }
   ]
 }
