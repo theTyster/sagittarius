@@ -35,8 +35,8 @@ The human is the source of the intent and the owner of the result. The human is 
 source of clarity. People often do not know exactly what they want until they see it. The agent
 owns the build, and its first job is to make the request clear enough before it builds. When the
 human and the agent disagree on a decision, the human decides. The owner is not the only person
-who can answer a question or ratify a decision. Answers and decisions can come from people other
-than the owner.
+who can answer a question or ratify a decision. Answers and decisions can come from
+people other than the owner.
 <!-- d_other_humans, decided 2026-11-05 -->
 
 Applied in: prompt "Roles", "GO / NO-GO: a weighted vote".
