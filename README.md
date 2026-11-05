@@ -70,6 +70,19 @@ $(cat "$p/panes/$ROLE.md")"
 Any terminal multiplexer or editor can hold the three sessions. The author starts them as
 three tmux windows named after the roles. That launcher is not part of this repository.
 
+## Hub kit
+
+`hubkit/` is hubflow-starter: a template for a hub, one git repo that a few named Claude Code
+sessions share as working memory (a weekly calendar plus flow state in SQLite). To start a hub from
+it, give `hubkit/` to your agent and say "follow INSTRUCTIONS.md" (`hubkit/INSTRUCTIONS.md`). The
+agent asks up to three questions, sets up the hub, and checks each step. To take a new release into
+a hub, see `hubkit/UPGRADING.md`. Its tests run from the repo root:
+
+```
+python3 hubkit/hub/.claude/scripts/hubflow-test.py
+python3 hubkit/tools/hubkit-test.py
+```
+
 ## Layout
 
 | Path | Contents |
