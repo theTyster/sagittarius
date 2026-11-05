@@ -103,8 +103,8 @@ hypothesis often takes more work to confirm or refute, but not always.
 Every stated hypothesis lists its premises beside it. This is a trial: UAT judges whether it adds
 too much noise. <!-- d_premises_beside, decided 2026-11-05 -->
 Hypotheses, premises, and claims err soft. Experiment just past the boundary of too brittle or
-too soft, then formalize. The formalism then localizes the definition. Annealing in the formal languages brings out the
-tempered position. Oscillation is an intentional heuristic.
+too soft, then formalize. The formalism then localizes the definition. Annealing in the formal languages brings out
+the tempered position. Oscillation is an intentional heuristic.
 <!-- d_err_soft, d_oscillate, decided 2026-11-05 -->
 
 Applied in: prompt "The hypothesis". The exact definition is open (see the end).
@@ -134,7 +134,8 @@ cause of a signal is resolved, the rigor that it added stops.
 Also, significant effort or verbosity from the human is a signal to shift into a formal
 language. The System 1 model, the LLM, and the human each have a part in deciding when to shift up.
 After a shift, the human, the agent, and the CPU (the machine that runs the solvers and provers)
-all work in the formal language. The human must read and review it, so shift up only when needed. <!-- d_effort_signal, d_shift_three, d_formal_substrate, decided 2026-11-05 -->
+all work in the formal language. The human must read and review it, so shift up only when needed.
+<!-- d_effort_signal, d_shift_three, d_formal_substrate, decided 2026-11-05 -->
 
 Work has two levels. The orbit is discovery or build. The phase is research and specify (in
 discovery), or build and verify (in build). Rigor concentrates on specification and verification.
@@ -189,7 +190,8 @@ needs a proof. Use the cheapest tool that can show the claim false. Use a model 
 examples cannot cover the cases. A tool that does not fit the shape can prove something true and
 still lose the intent.
 
-Every orbit encodes domain knowledge, not only a record of the process. <!-- p_domain, decided 2026-11-05 -->
+Every orbit encodes domain knowledge, not only a record of the process.
+<!-- p_domain, decided 2026-11-05 -->
 
 Decide the shape of a claim by its meaning and its domain, not by its words. "Every" in a sentence
 does not make a claim universal. A claim is universal when its inputs are infinite or too many to
