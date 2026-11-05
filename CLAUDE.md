@@ -8,6 +8,7 @@ For what the project is, its install and layout, see @README.md.
 | Area | Open first |
 |---|---|
 | The live prompt | `prompt/SAGITTARIUS.md`. Installed as `~/.claude/sagittarius/SAGITTARIUS.md`. Each user appends it to their sessions (see "Install" in `README.md`). |
+| Hub kit | `hubkit/README.md` (what it is); `hubkit/INSTRUCTIONS.md` (start a hub); `hubkit/UPGRADING.md`. Imported from hubflow-starter with its history. Tests: `python3 hubkit/hub/.claude/scripts/hubflow-test.py` and `python3 hubkit/tools/hubkit-test.py`. |
 | The pane prompts | `prompt/PANES.md` (shared) and `prompt/panes/<role>.md` (discovery, build, review). See "Panes" in `README.md`. |
 | `orbit-kb` | `kb/share/orbit-kb/README.md` (full reference); CLI `kb/bin/orbit-kb`; contract `kb/CONTRACT.md` (the only source of what the tests expect); tests `kb/tests/test_orbit_kb.sh` |
 | `orbit-kb` help topics | `kb/share/orbit-kb/help/*.txt` (read by `orbit-kb help TOPIC`). The agent-facing syntax and recipes live here, not in the prompt. A new fact or lint code goes in its topic. |
