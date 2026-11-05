@@ -103,8 +103,8 @@ hypothesis often takes more work to confirm or refute, but not always.
 Every stated hypothesis lists its premises beside it. This is a trial: UAT judges whether it adds
 too much noise. <!-- d_premises_beside, decided 2026-11-05 -->
 Hypotheses, premises, and claims err soft. Experiment just past the boundary of too brittle or
-too soft, then formalize. The formalism then localizes the definition. Annealing in the formal languages brings out
-the tempered position. Oscillation is an intentional heuristic.
+too soft, then formalize. The formalism then localizes the definition. Annealing in the formal
+languages brings out the tempered position. Oscillation is an intentional heuristic.
 <!-- d_err_soft, d_oscillate, decided 2026-11-05 -->
 
 Applied in: prompt "The hypothesis". The exact definition is open (see the end).
