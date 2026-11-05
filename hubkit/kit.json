@@ -1,0 +1,22 @@
+{
+  "version": "0.1.0",
+  "engine": [
+    "HUB-CORE.md",
+    ".claude/scripts/hubflow.py",
+    ".claude/scripts/hubflow-test.py",
+    ".claude/skills/hub-flow/SKILL.md",
+    ".claude/skills/hub-rotate/SKILL.md",
+    ".claude/skills/hub-rotate/scripts/rotate.sh",
+    ".claude/skills/hub-rotate/scripts/check-citations.sh",
+    "sessions/launch.sh"
+  ],
+  "owned": [
+    "CLAUDE.md",
+    "HEURISTICS.md",
+    "TECHNOLOGIES.md",
+    ".gitignore",
+    "W0/WEEK.md",
+    "sessions/ROLES",
+    "flow/seed.json"
+  ]
+}
