@@ -5,8 +5,9 @@ usage: python3 -I check_commands.py [HUBFLOW_PY]
 
 Every key of hubflow.py's `COMMANDS = {...}` must be in exactly one of `modelledCommands` or
 `excludedCommands` (with a reason) in LedgerGuard.lean, and every listed name must be a real
-command. Exit 0 when they agree, 1 when not (each difference is printed), 2 on a parse error.
-Reads both files as text; runs and imports nothing.
+command. An excluded command named in REASON_CHECKS also has its reason checked against the source
+of its cmd_ function (T33: spec-triage). Exit 0 when they agree, 1 when not (each difference is
+printed), 2 on a parse error. Reads both files as text; runs and imports nothing.
 """
 import ast
 import os
@@ -18,15 +19,88 @@ DEFAULT = os.path.join(HERE, "..", "..", "hub", ".claude", "scripts", "hubflow.p
 LEAN = os.path.join(HERE, "LedgerGuard.lean")
 
 
-def hubflow_commands(path):
-    tree = ast.parse(open(path, encoding="utf-8").read(), path)
-    for node in tree.body:
+def hubflow_commands(tree, path):
+    """The COMMANDS table: command name -> the name of its cmd_ function."""
+    for node in ast.walk(tree):
         if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "COMMANDS" for t in node.targets):
             if not isinstance(node.value, ast.Dict):
                 break
-            return [k.value for k in node.value.keys if isinstance(k, ast.Constant)]
+            return {k.value: (v.id if isinstance(v, ast.Name) else None)
+                    for k, v in zip(node.value.keys, node.value.values) if isinstance(k, ast.Constant)}
     print(f"check_commands: no COMMANDS dict in {path}", file=sys.stderr)
     sys.exit(2)
+
+
+# ---- excluded reasons that are checked against hubflow.py ----
+
+WRITE_SQL = re.compile(r"\b(INSERT|UPDATE|DELETE|REPLACE|DROP|ALTER|CREATE)\b", re.I)
+
+
+def call_name(call):
+    f = call.func
+    if isinstance(f, ast.Name):
+        return f.id
+    if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
+        return f.value.id + "." + f.attr
+    return None
+
+
+def write_sql(fn):
+    return [n.value for n in ast.walk(fn) if isinstance(n, ast.Constant) and isinstance(n.value, str)
+            and WRITE_SQL.search(n.value)]
+
+
+def changes_no_item(tree, fn):
+    """The reason "changes no item row": the command refuses while an item of the slug is open
+    (`if opened: raise`, before run_write, with `opened` the items whose status is in OPEN), its
+    write function only calls w.event with the item id None, it has no write SQL and no connect_rw,
+    and no module function that it calls (except run_write and connect_ro) has write SQL, connect_rw or run_write.
+    Returns the problems (empty when the reason holds)."""
+    out = []
+    body = fn.body
+    write_at = [i for i, st in enumerate(body)
+                if any(isinstance(n, ast.Call) and call_name(n) == "run_write" for n in ast.walk(st))]
+    if len(write_at) != 1:
+        return [f"{fn.name} must call run_write once at its top level (found {len(write_at)})"]
+    w_i = write_at[0]
+    opened_ok = any(isinstance(st, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "opened" for t in st.targets)
+                    and "in OPEN" in ast.unparse(st.value) for st in body[:w_i])
+    refuse_ok = any(isinstance(st, ast.If) and isinstance(st.test, ast.Name) and st.test.id == "opened"
+                    and len(st.body) == 1 and isinstance(st.body[0], ast.Raise) for st in body[:w_i])
+    if not (opened_ok and refuse_ok):
+        out.append(f"{fn.name} does not refuse (`if opened: raise`, opened = the items in OPEN) before run_write")
+    call = [n for n in ast.walk(body[w_i]) if isinstance(n, ast.Call) and call_name(n) == "run_write"][0]
+    inner = {n.name: n for n in fn.body if isinstance(n, ast.FunctionDef)}
+    wfn = inner.get(call.args[2].id) if len(call.args) >= 3 and isinstance(call.args[2], ast.Name) else None
+    if wfn is None:
+        out.append(f"{fn.name}: the write function given to run_write is not a def in {fn.name}")
+    else:
+        for n in ast.walk(wfn):
+            if not isinstance(n, ast.Call):
+                continue
+            if call_name(n) != "w.event":
+                out.append(f"{fn.name}: its write function calls {ast.unparse(n.func)}, not only w.event")
+            elif not (n.args and isinstance(n.args[0], ast.Constant) and n.args[0].value is None):
+                out.append(f"{fn.name}: w.event is given an item id ({ast.unparse(n.args[0]) if n.args else 'none'}), not None")
+    for sql in write_sql(fn):
+        out.append(f"{fn.name} has write SQL: {sql[:60]!r}")
+    names = {n.id for n in ast.walk(fn) if isinstance(n, ast.Name)}
+    if "connect_rw" in names:
+        out.append(f"{fn.name} opens the db read-write (connect_rw)")
+    funcs = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+    # run_write is the write transaction itself (checked above through its write function);
+    # connect_ro opens the db file with mode=ro, and its INSERT goes to a private in-memory copy.
+    skip = {"run_write", "connect_ro", fn.name}
+    for name in sorted({call_name(n) for n in ast.walk(fn) if isinstance(n, ast.Call)} & set(funcs) - skip):
+        h = funcs[name]
+        hn = {n.id for n in ast.walk(h) if isinstance(n, ast.Name)}
+        if write_sql(h) or hn & {"connect_rw", "run_write"}:
+            out.append(f"{fn.name} calls {name}, which writes")
+    return out
+
+
+# command -> the check of its excluded reason
+REASON_CHECKS = {"spec-triage": changes_no_item}
 
 
 def lean_list(text, name):
@@ -40,7 +114,9 @@ def lean_list(text, name):
 
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT
-    real = hubflow_commands(path)
+    tree = ast.parse(open(path, encoding="utf-8").read(), path)
+    table = hubflow_commands(tree, path)
+    real = list(table)
     text = open(LEAN, encoding="utf-8").read()
     modelled = lean_list(text, "modelledCommands")
     excluded = lean_list(text, "excludedCommands")
@@ -58,6 +134,16 @@ def main():
     for n in names:
         if n not in real:
             problems.append(f"{n}: listed in the model but not a hubflow command")
+    funcs = {x.name: x for x in tree.body if isinstance(x, ast.FunctionDef)}
+    for n, _ in excluded:
+        if n not in REASON_CHECKS or n not in table:
+            continue
+        fn = funcs.get(table[n])
+        bad = [f"no module function {table[n]}"] if fn is None else REASON_CHECKS[n](tree, fn)
+        if bad:
+            problems.append(f"{n}: the excluded reason does not hold in hubflow.py: " + "; ".join(bad))
+        else:
+            print(f"OK {n}: excluded reason checked ({REASON_CHECKS[n].__name__} in {table[n]})")
     for p in problems:
         print("FAIL " + p)
     print(f"{len(real)} hubflow commands; {len(modelled)} modelled, {len(excluded)} excluded; "
