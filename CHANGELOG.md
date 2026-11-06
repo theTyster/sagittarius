@@ -40,6 +40,11 @@ Ty makes the release. This entry lists what is in the `redesign` branch. The hub
   on the PATH. `HUB-CORE.md` "Without orbit-kb" says what changes and where each fact kind of the
   spec and project KBs is kept. `PRINCIPLES.md` brings the philosophy into each hub. `sessions/`
   left the kit; named sessions are set up outside the hub. The kit is named the hub kit.
+- Meeting transcripts (T28, hub kit 0.4.0, db schema 3): `hubflow.py index-transcripts` also reads
+  the Markdown and plain-text meeting transcripts in `W*/transcripts/`: one summary per file and
+  one row per speaker turn or paragraph, with its line. `transcripts --detail ID` shows the turns,
+  `transcripts --grep TEXT` finds them with file and line, and `rotate --yes` rebuilds the index,
+  so a retired week's rows go with it.
 
 ### Not in this release yet
 

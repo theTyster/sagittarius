@@ -90,7 +90,9 @@ DECOMPOSE: claims and questions
      is contested. For each option, add option(Q, 'Text', 'Effect'): what choosing it
      changes. Without options and effects, the human gets only an id, a text, and a default.
   4. Restate each claim as one or more concrete examples, for example "Submit on /checkout
-     renders #6B3FA0". The human reads examples. The human never has to read formal text.
+     renders #6B3FA0". The human reads examples first. When the work has shifted up, the
+     human, the agent and the CPU all use the formal language as the shared substrate, and the
+     human reads, reviews and understands it, so write it to be read.
   5. Mark a claim visual when the human must see the result to judge it (orbit-kb help build).
 
 Asking the human

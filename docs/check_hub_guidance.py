@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T22: an agent in a hub knows the stores and the workflow. One check per claim.
 
-usage: python3 docs/check_hub_guidance.py c1|c2|...|c12 [--design DIR]
+usage: python3 docs/check_hub_guidance.py c1|c2|...|c12 [--design DIR]   (--list prints the ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 c1 compares HUB-CORE.md "What lives where" with hubkit/tools/store-facts.json (the facts of the
@@ -339,6 +339,9 @@ CLAIMS = {f"c{i}": globals()[f"c{i}"] for i in range(1, 13)}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
+    if a == ["--list"]:
+        print("\n".join(CLAIMS))
+        sys.exit(0)
     arg = None
     if "--design" in a:
         arg = a[a.index("--design") + 1]

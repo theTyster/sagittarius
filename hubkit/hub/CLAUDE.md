@@ -18,8 +18,8 @@ Tickets live in <YOUR TRACKER: GitHub Issues / Jira / Linear>. Refs in the flow 
 
 ## Repos and the project KB
 
-<Where the project KB lives (a path), and the repos of the project. The repo map is `kb/bin/repo-map`
-of the Sagittarius checkout: name here how to run it. `HUB-CORE.md` says which store holds what.>
+<Where the project KB lives (a path), and the repos of the project. The repo map is `repo-map`
+(`kb/bin/repo-map` of the Sagittarius checkout, on PATH once it is installed): name here how to run it. `HUB-CORE.md` says which store holds what.>
 
 ## Sessions
 
