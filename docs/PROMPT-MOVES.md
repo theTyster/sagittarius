@@ -108,6 +108,9 @@ For home `prompt`, c4 checks the phrase in `prompt/SAGITTARIUS.md`.
 | `### Leaning back` | prompt | `The next ticket starts light` | R7. |
 | `### BURN: prove the claim in Lean` | prompt | `Only a human can skip a proof` | R8: a waiver with a due time. |
 | `## Speed` | help core | `subagent on a fast model` | R9: long mechanical work; a small task needs no subagent. |
+| `## When the human says that it is wrong` | help build | `Defaults that conflict with it are now defeated` | Step 4: record the human's answer. |
+| `## When the human says that it is wrong` | help build | `Ask that small cluster, not every dormant question` | Step 5: query to_ask. |
+| `## When the human says that it is wrong` | help build | `If burn(C) now holds, prove the claim in Lean` | Step 6: rebuild and rerun the checks. |
 
 ## Honesty rules for discovery: they stay in the prompt
 
