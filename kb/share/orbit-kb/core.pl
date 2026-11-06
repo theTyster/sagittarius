@@ -190,6 +190,9 @@ decl(rule, item_open(ref),
 decl(rule, blocking(term),
      'The item blocks done. The term names its kind and its id, such as to_ask(q1) or burn_open(c1).',
      '@(1) blocks done').
+decl(rule, any_project_conflict,
+     'A conflict of the project KB blocks this KB, because a claim rests on a decision that the conflict concerns. The project module adds the clause (D23).',
+     'a conflict of the project KB blocks this KB').
 decl(rule, lint_issue(atom, ref, text),
      'A lint result that a module adds, with a code, an id, and a message.',
      'lint issue @(1) on @(2): @(3)').

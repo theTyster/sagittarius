@@ -149,7 +149,7 @@ any_over :- over(_).
 any_current_claim :- current(_).
 no_current_claim :- not any_current_claim.
 done :- not any_under, not any_over, not any_to_ask, not any_burn_open,
-        not any_flare_open, not any_supersede_cycle, not no_current_claim.
+        not any_flare_open, not any_project_conflict, not any_supersede_cycle, not no_current_claim.
 % D21: contests on a visual claim escalate to its flare, not to a proof.
 burn_reason(C) :- contested_twice(C), not visual(C).
 burn_reason(C) :- universal(C).

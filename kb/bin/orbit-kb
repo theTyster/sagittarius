@@ -451,7 +451,16 @@ top(Argv0, Code) :-
         ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
             ->  cmd_help([uses], Code)
             ;   resolve_kb(DirOpt, Dir),
-                with_kb_lock(Dir, cmd_uses(Dir, Args, Code))
+                writer_gate(Dir, Args, Args1),
+                with_kb_lock(Dir, cmd_uses(Dir, Args1, Code))
+            )
+        ;   Cmd == release
+        ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
+            ->  cmd_help([release], Code)
+            ;   Args == []
+            ->  resolve_kb(DirOpt, Dir),
+                with_kb_lock(Dir, cmd_release(Dir, Code))
+            ;   usage_error("release takes no arguments.", [])
             )
         ;   Cmd == pin
         ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
@@ -464,11 +473,12 @@ top(Argv0, Code) :-
             ->  cmd_help([Cmd], Code)
             ;   lib_dir(Lib),
                 resolve_kb(DirOpt, Dir),
+                (   lock_command(Cmd) -> writer_gate(Dir, Args, Args1) ; Args1 = Args ),
                 (   writer_command(Cmd)
                 ->  with_kb_lock(Dir, ( load_kb(Dir, Lib, KB),
-                                        kb_cmd(Cmd, KB, Args, Code) ))
+                                        kb_cmd(Cmd, KB, Args1, Code) ))
                 ;   load_kb(Dir, Lib, KB),
-                    kb_cmd(Cmd, KB, Args, Code)
+                    kb_cmd(Cmd, KB, Args1, Code)
                 )
             )
         ;   atom(Cmd), \+ sub_atom(Cmd, 0, _, _, '-')
@@ -485,6 +495,92 @@ writer_command(subject).
 writer_command(attest).
 % run and prove take the lock themselves, only to record the result
 % (see cmd_run/3 and cmd_prove/3).
+
+% ---------------------------------------------------------------------
+% The writer lock of a project KB (D23 P7)
+% ---------------------------------------------------------------------
+% A KB that uses the project module has the file writer.lock with one line,
+% WRITER TIME. The writer is $ORBIT_KB_WRITER, or else $CLAUDE_SESSION_ID. With
+% neither, there is no writer: no lock is taken and none is checked. A
+% command that writes first claims the lock: a free lock is taken, the
+% holder goes on, and another writer gets exit 2 with the holder named.
+% --take replaces the holder and records writer_takeover/3 in kb.pl. The
+% lock is a record, not a guard: nothing stops a hand edit of kb.pl.
+
+lock_command(C) :- memberchk(C, [add, declare, subject, attest, run, prove, uses]).
+
+writer_name(W) :-
+    (   getenv('ORBIT_KB_WRITER', W0), W0 \== ''
+    ->  W = W0
+    ;   getenv('CLAUDE_SESSION_ID', W0), W0 \== ''
+    ->  W = W0
+    ).
+
+kb_uses_project(Dir) :-
+    directory_file_path(Dir, 'kb.pl', F),
+    exists_file(F),
+    read_source_file(kb, F, Items),
+    items_uses(Items, Us),
+    memberchk(project, Us).
+
+writer_gate(Dir, Args0, Args) :-
+    (   kb_uses_project(Dir)
+    ->  (   selectchk('--take', Args0, _) -> Take = true ; Take = false ),
+        exclude(==('--take'), Args0, Args),
+        (   writer_name(W)
+        ->  with_kb_lock(Dir, claim_writer(Dir, W, Take))
+        ;   true
+        )
+    ;   Args = Args0
+    ).
+
+lock_holder(Dir, Holder, Since) :-
+    directory_file_path(Dir, 'writer.lock', LF),
+    exists_file(LF),
+    read_file_to_string(LF, S, [encoding(utf8)]),
+    split_string(S, "\n", "", [L1|_]),
+    split_string(L1, " ", "", [H|Rest]),
+    atom_string(Holder, H),
+    (   Rest = [T|_] -> atom_string(Since, T) ; Since = unknown ).
+
+claim_writer(Dir, W, Take) :-
+    directory_file_path(Dir, 'writer.lock', LF),
+    utc_now(Now),
+    (   lock_holder(Dir, Holder, Since)
+    ->  (   Holder == W
+        ->  true
+        ;   Take == true
+        ->  fmt(Text, "~w ~w~n", [W, Now]),
+            write_atomic(LF, Text),
+            directory_file_path(Dir, 'kb.pl', KbFile),
+            fmt(Fact, "writer_takeover(~q, ~q, ~q).~n", [Holder, W, Now]),
+            append_fact_text(KbFile, Fact)
+        ;   fmt(M1, "The KB is locked. It is held by ~w since ~w.", [Holder, Since]),
+            die(2, [M1, "Nothing was written.",
+                    "Fix: ask the holder to run orbit-kb release, or take the lock with --take. A takeover is recorded in kb.pl."] >> fix_lines)
+        )
+    ;   fmt(Text, "~w ~w~n", [W, Now]),
+        write_atomic(LF, Text)
+    ).
+
+append_fact_text(File, Text) :-
+    read_file_to_string(File, S, [encoding(utf8)]),
+    (   ( S == "" ; sub_string(S, _, 1, 0, "\n") ) -> Pre = "" ; Pre = "\n" ),
+    setup_call_cleanup(open(File, append, O, [encoding(utf8)]),
+                       format(O, "~w~w", [Pre, Text]),
+                       close(O)).
+
+cmd_release(Dir, Code) :-
+    directory_file_path(Dir, 'writer.lock', LF),
+    (   lock_holder(Dir, Holder, Since)
+    ->  (   writer_name(W), W == Holder
+        ->  delete_file(LF),
+            format("Released the writer lock of ~w.~n", [Holder]), Code = 0
+        ;   fmt(M1, "The KB is locked. It is held by ~w since ~w. Only the holder can release it.", [Holder, Since]),
+            die(2, [M1, "Fix: ask the holder, or take the lock with --take on a write."] >> fix_lines)
+        )
+    ;   format("There is no writer lock.~n", []), Code = 0
+    ).
 
 % ---------------------------------------------------------------------
 % The KB lock (D7)
@@ -814,8 +910,61 @@ derived_items(Dir, KbItems, Items) :-
               \+ ( is_time(Due), \+ Due @< Now ) ),
             Ts50),
     sort(Ts50, Ts5),
-    append([Ts1, Ts2, Ts3, Ts4, Ts5], Ts),
+    project_derived(Dir, KbItems, Ts6),
+    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
+
+% project_derived(+Dir, +KbItems, -Facts) (D23): the facts of the project module,
+% for a KB that uses it.
+%   subject_now(S, D)        the file of subject S exists, and its digest now is D.
+%   decision_digest(X, D)    D is the sha256 of the text of decision X.
+%   project_decision_digest(X, D)   the same, for a decision of the KB at project_kb/1.
+%   project_conflict(Dr, X)  draft Dr of that KB is in conflict, and decision X
+%                            rests on the pin of the draft.
+project_derived(Dir, KbItems, Facts) :-
+    items_uses(KbItems, Uses),
+    memberchk(project, Uses),
+    !,
+    findall(subject_now(S, D),
+            ( kb_term(KbItems, subject(S, Path, _)), atom(S), atom(Path),
+              ( is_absolute_file_name(Path) -> Abs = Path ; directory_file_path(Dir, Path, Abs) ),
+              exists_file(Abs), sha256_file(Abs, D) ),
+            F1),
+    findall(decision_digest(X, D),
+            ( kb_term(KbItems, decision(X, Text)), atom(X), atomic(Text), sha256_text(Text, D) ),
+            F2),
+    (   kb_term(KbItems, project_kb(P)), atom(P)
+    ->  catch(project_kb_facts(Dir, P, F3), _, F3 = [])
+    ;   F3 = []
+    ),
+    append([F1, F2, F3], Facts).
+project_derived(_, _, []).
+
+kb_term(KbItems, T) :-
+    member(it(kb, _, _, T0, _, _), KbItems), nonvar(T0), T0 = T.
+
+project_kb_facts(Dir, P, Facts) :-
+    ( is_absolute_file_name(P) -> PDir = P ; directory_file_path(Dir, P, PDir) ),
+    directory_file_path(PDir, 'kb.pl', PFile),
+    exists_file(PFile),
+    absolute_file_name(PDir, A1), absolute_file_name(Dir, A2),
+    A1 \== A2,
+    lib_dir(Lib),
+    read_source_file(kb, PFile, PItems),
+    items_uses(PItems, PUses),
+    memberchk(project, PUses),
+    findall(project_decision_digest(X, D),
+            ( kb_term(PItems, decision(X, Text)), atom(X), atomic(Text), sha256_text(Text, D) ),
+            F1),
+    load_kb(PDir, Lib, PKB),
+    kb_items(PKB, AllItems), items_decls(AllItems, Ds),
+    build_engine(AllItems, Ds, Eng),
+    swi_raw(Eng, (conflict(Dr), draft(Dr, Pn, _, _), concerns(X, Pn)), Dr-X, Res),
+    (   Res = answers(L, _)
+    ->  findall(project_conflict(Dr, X), member(Dr-X, L), F2)
+    ;   F2 = []
+    ),
+    append(F1, F2, Facts).
 
 % supersede_derived(+KbItems, -Facts): the supersedes_closure/2 and
 % supersede_cycle/1 facts of the ground supersedes/2 facts.
@@ -1447,7 +1596,8 @@ builtin_goal(G) :-
     callable(G),
     functor(G, N, A),
     memberchk(N/A, ['='/2, '\\='/2, '<'/2, '>'/2, '=<'/2, '>='/2, is/2,
-                    true/0, false/0, forall/2]).
+                    true/0, false/0, forall/2,
+                    '=='/2, '\\=='/2, '@<'/2, '@>'/2, '@=<'/2, '@>='/2]).
 
 % body_goals(+Body, -Goals): the literals of a body, with not and -
 % unwrapped. forall/2 stays, and its parts are added too.
@@ -1542,6 +1692,12 @@ protected_pi(blocking/1).
 protected_pi(item_open/1).
 protected_pi(check_ran/1).
 protected_pi(due_passed/1).
+% D23: the project module.
+protected_pi(any_project_conflict/0).
+protected_pi(subject_now/2).
+protected_pi(decision_digest/2).
+protected_pi(project_decision_digest/2).
+protected_pi(project_conflict/2).
 % D14: the weighted vote of the discovery module.
 protected_pi(vote_cast/3).
 protected_pi(discovery_vote_raised/1).
@@ -4859,12 +5015,12 @@ cmd_help([C|_], Code) :-
     ;   help_topic_file(C, File)
     ->  read_file_to_string(File, S, [encoding(utf8)]),
         format("~s", [S]), Code = 0
-    ;   usage_error("There is no help for ~w. It is not a command or a topic. Topics: ~w.", [C, 'core, build, discovery, codes, answers'])
+    ;   usage_error("There is no help for ~w. It is not a command or a topic. Topics: ~w.", [C, 'core, build, discovery, project, codes, answers'])
     ).
 
 % A topic is the file help/TOPIC.txt in the library directory.
 help_topic_file(Topic, File) :-
-    memberchk(Topic, [core, build, discovery, codes, answers]),
+    memberchk(Topic, [core, build, discovery, project, codes, answers]),
     lib_dir(Lib),
     atomic_list_concat([Lib, '/help/', Topic, '.txt'], File),
     exists_file(File).
@@ -4886,6 +5042,7 @@ help_lines(general, [
 "    orbit-kb help core      facts, claim labels, attestation types, and core queries",
 "    orbit-kb help build     build-module facts and queries, burns, flares, proofs, waivers",
 "    orbit-kb help discovery discovery-module facts, verdicts, queries, and the recipe for each move",
+"    orbit-kb help project   project-module facts: decisions, pins, drafts, conflicts, and the writer lock",
 "    orbit-kb help codes     each lint code and what to do",
 "    orbit-kb help answers   exit codes, SWI ERROR, why and whynot",
 "  Never type a digest or a test result: orbit-kb subject and orbit-kb run write them.",
@@ -4917,6 +5074,7 @@ help_lines(general, [
 "  show [claims|questions|open|blocking|disclosures|extensions|all]",
 "  report [--html FILE [--open]]",
 "  pin [--check STAMP]",
+"  release",
 "  doctor",
 "  help [COMMAND|TOPIC]",
 "",
@@ -5095,6 +5253,12 @@ help_lines(show, [
 "The kinds: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X), check_failing(K), check_unrun(K),",
 "waiver_lapsed(W), past_due(X) (an open item with a due/2 time in the past), supersede_cycle(C), no_claim."
 ]).
+help_lines(release, [
+"orbit-kb release",
+"",
+"Free the writer lock of a project KB (orbit-kb help project). Only the holder can release it.",
+"With no lock, it does nothing. Exit: 0 on success. 2 when another writer holds the lock."
+]).
 help_lines(pin, [
 "orbit-kb pin [--check STAMP]",
 "",
@@ -5140,5 +5304,5 @@ help_lines(help, [
 "orbit-kb help [COMMAND|TOPIC]",
 "",
 "Show general help, or help for one command or one topic.",
-"Topics: core, build, discovery, codes, answers."
+"Topics: core, build, discovery, project, codes, answers."
 ]).
