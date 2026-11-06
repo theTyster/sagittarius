@@ -16,10 +16,11 @@ What is sent (T20): `recent` is a list, oldest first, of the last 3 messages bef
 results, meta lines and subagent (sidechain) lines are not messages. An assistant reply is all
 the agent text of one turn (between two user prompts). Each text is sent whole.
 Only when the state and the longest question would pass Jev's per-question context (32k tokens,
-counted here as CONTEXT_CHARS characters) are the messages beyond 3 dropped, oldest first, and
-then the oldest one left is cut from its start; the log line then has "trimmed": true. No
-long-context header is sent. The transcript read starts with the last 2 MiB and goes back,
-at most 8 MiB, until it has the messages. Every text is redacted.
+counted here as CONTEXT_CHARS characters) are the messages beyond 3 dropped, oldest first. If the
+3 whole messages still do not fit, they are sent whole with the TypeSafe-Danger-Zone-Long-Context
+header (262k tokens; slower, same price; the log line has "long_context": true). Only beyond 262k
+is the oldest message cut from its start; the log line then has "trimmed": true. The transcript
+read starts with the last 2 MiB and goes back, at most 8 MiB, until it has the messages. Every text is redacted.
 
 Fails open: on any error, a timeout, a missing key, a missing questions file or bad stdin it
 prints nothing and exits 0. It never blocks a prompt.
@@ -46,6 +47,8 @@ MAX_TAIL_BYTES = 8 * 1024 * 1024  # the read goes back at most this far (as the 
 CONTEXT_TOKENS = 32000  # Jev's default per-question context (models page)
 CHARS_PER_TOKEN = 3  # a cautious count: fewer characters per token than English text has
 CONTEXT_CHARS = CONTEXT_TOKENS * CHARS_PER_TOKEN
+LONG_CONTEXT_TOKENS = 262000  # with the long-context header (TypeSafe docs, models page)
+LONG_CONTEXT_CHARS = LONG_CONTEXT_TOKENS * CHARS_PER_TOKEN
 REDACTED = "[redacted]"
 CHOICE_MIN = 0.5  # a choice is shown when P(choice) >= 0.5, as in the calibration
 
@@ -161,7 +164,11 @@ def recent_messages(path, n, prompt=None):
 
 
 def _fit(state, questions):
-    """Trim the state to the context budget (T20 c2). Returns True when it trimmed."""
+    """Fit the state to the context (T30 c1). Returns (trimmed, long_context).
+
+    Over the default context: drop the messages beyond 3, oldest first. If the 3 still do not
+    fit, keep them whole and ask for the long context (LONG_CONTEXT_CHARS). Only past that is
+    the oldest cut from its start."""
     longest = max((len(json.dumps(v)) for v in questions.values()), default=0)
 
     def size():
@@ -172,23 +179,24 @@ def _fit(state, questions):
     while size() > CONTEXT_CHARS and len(rec) > CONTEXT_MESSAGES:
         rec.pop(0)
         trimmed = True
-    while size() > CONTEXT_CHARS and rec:
-        over = size() - CONTEXT_CHARS  # each character takes at least one in the JSON
+    long_context = size() > CONTEXT_CHARS
+    while size() > LONG_CONTEXT_CHARS and rec:
+        over = size() - LONG_CONTEXT_CHARS  # each character takes at least one in the JSON
         t = rec[0]["text"]
         if over >= len(t):
             rec.pop(0)
         else:
             rec[0]["text"] = t[over:]
         trimmed = True
-    return trimmed
+    return trimmed, long_context
 
 
 def build_state(prompt, transcript_path, pairs, n=CONTEXT_MESSAGES, questions=None):
-    """{message, recent}, redacted, then fitted to the context budget. Returns (state, trimmed)."""
+    """{message, recent}, redacted, then fitted. Returns (state, trimmed, long_context)."""
     recent = recent_messages(transcript_path, n, prompt)
     st = jev.redact({"message": prompt, "recent": recent}, pairs)
-    trimmed = _fit(st, questions or {})
-    return st, trimmed
+    trimmed, long_context = _fit(st, questions or {})
+    return st, trimmed, long_context
 
 
 def _p(x):
@@ -291,14 +299,17 @@ def run(raw, env, transport=None):
 
         def call():  # the transcript read and the request both run inside the timeout
             try:
-                state, trimmed = build_state(payload["prompt"], tpath, load_redactions(redact_path),
+                state, trimmed, long_context = build_state(payload["prompt"], tpath, load_redactions(redact_path),
                                              _count(env), questions)
             except Exception as e:
                 box["error"] = f"state: {type(e).__name__}: {e}"
                 return
-            lx = dict(extra, trimmed=True) if trimmed else extra
+            lx = dict(extra, trimmed=True) if trimmed else dict(extra)
+            if long_context:
+                lx["long_context"] = True
             box["answers"] = jev.judge(state, questions, timeout=timeout, key=key,
-                                       log_path=log_path, transport=transport, log_extra=lx)
+                                       log_path=log_path, transport=transport, log_extra=lx,
+                                       long_context=long_context)
 
         t = threading.Thread(target=call, daemon=True)
         t.start()
