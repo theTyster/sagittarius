@@ -563,6 +563,11 @@ EOF
     chk alltext "$T/page.html" '!claim:No' '!No claim is current'
 }
 
+t_QV35() {  # the options note names option facts as a source and says once what "other" means
+    opt_kb "$T/a"; view --dir "$T/a" || return
+    chk alltext "$T/page.html" 'option facts' 'Other means an answer that is not listed' '!The page invents no options'
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -571,6 +576,6 @@ run_one() {  # run_one ID
     if [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 34); do run_one QV$n; done
+for n in $(seq 1 35); do run_one QV$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
