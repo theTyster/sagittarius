@@ -308,5 +308,258 @@ class C3Roles(Base):
         self.assertEqual(trace[-1][5], "reject")        # and the recorded judges rejected it
 
 
+# ---------------------------------------------------------------------------------------------
+# Review's recorded responses (runs.jsonl, step "loopcal", last run; see
+# fixtures/build_loopcal_fixture.py). Jev answers are exact. The Sonnet booleans are the logged
+# ones (rebuilt into the JSON reply the judge prompt asks for). Haiku's statements and
+# falsifiers are the ones the later steps were judged on. Not logged: raw Sonnet text, raw haiku
+# stdout.
+# ---------------------------------------------------------------------------------------------
+from unittest import mock  # noqa: E402
+
+with open(os.path.join(HERE, "fixtures", "loopcal_trio.json")) as _f:
+    TRIO = json.load(_f)
+RSTEP = {}      # statement -> step record
+RNEXT = {}      # statement -> the statement haiku produced from it
+for _item, _d in TRIO.items():
+    for _a, _b in zip(_d["steps"], _d["steps"][1:]):
+        RNEXT[_a["statement"]] = _b["statement"]
+    for _s in _d["steps"]:
+        RSTEP[_s["statement"]] = _s
+RFAL = {s["statement"]: s["falsifier"] for s in RSTEP.values()}
+
+
+def recorded_transport(url, headers, body, timeout):
+    st = json.loads(body)["state"]["statement"]
+    return 200, json.dumps({"model": "jev-1.14.0", "answers": RSTEP[st]["jev"]})
+
+
+class RecordedClaude:
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, prompt, model):
+        self.calls.append((model, prompt))
+        st = re.findall(r"^Statement: (.*)$", prompt, re.M)[-1]
+        if model == "sonnet":
+            s = RSTEP[st]["sonnet"]
+            return json.dumps({"false_if_correct": not s["collapsed"], "faithful": s["faithful"]})
+        if "Allowed step:" in prompt:
+            return RNEXT[st]
+        if prompt.startswith("Write the falsifier"):
+            return RFAL[st]
+        raise AssertionError(prompt[:60])
+
+
+def start_of(item):
+    s = TRIO[item]["steps"][0]
+    return s["statement"], s["falsifier"], TRIO[item]["source"]
+
+
+class C1Recorded(unittest.TestCase):
+    """c1 on review's own recorded Jev and Sonnet answers (loyalty trio, loopcal run)."""
+
+    def go(self, item, kind="hypothesis"):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        st, fal, src = start_of(item)
+        self.claude = RecordedClaude()
+        return temper.temper(st, src, kind, falsifier=fal, claude=self.claude, transport=recorded_transport,
+                             log_path=os.path.join(d.name, "t.jsonl"), jev_log=os.path.join(d.name, "j.jsonl"))
+
+    def test_c11_c12_rejected_c13_accepted_at_start(self):
+        want = {"c11": "reject", "c12": "reject", "c13": "accept"}
+        for item, v in want.items():
+            trace, _ = self.go(item)
+            self.assertEqual(trace[0][5], v, item)
+
+    def test_start_reasons_are_the_recorded_ones(self):
+        self.assertEqual(self.go("c11")[0][0][6], ["adds_mechanism"])
+        self.assertEqual(self.go("c12")[0][0][6], ["adds_cause", "collapsed"])
+
+    def test_brackets_match_the_recorded_loop(self):
+        # out_loopcal.pl: c11 open, c12 unrepaired, c13 a bracket with the recorded statements.
+        _, b11 = self.go("c11")
+        self.assertEqual(b11[0], "open")
+        self.assertEqual(b11[1], TRIO["c11"]["steps"][-1]["statement"])
+        _, b12 = self.go("c12")
+        self.assertEqual((b12[0], b12[1]), ("unrepaired", None))
+        _, b13 = self.go("c13")
+        self.assertEqual(b13[:3], ("bracket", TRIO["c13"]["steps"][1]["statement"], TRIO["c13"]["steps"][2]["statement"]))
+
+    def test_the_fixture_has_no_client_names(self):
+        text = open(os.path.join(HERE, "fixtures", "loopcal_trio.json")).read()
+        self.assertNotRegex(text, "(?i)" + "|".join(["del" + "ta", "den" + "tal", "co" + "bra", "mind" + "hub", "ho" + "gg"]))
+
+
+class NoRealCalls(unittest.TestCase):
+    """A run with no transport or no claude function must fail, and must not reach the network."""
+
+    def setUp(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.dir = d.name
+        os.environ["TYPESAFE_API_KEY"] = "sk-test"
+        # Make a leak harmless and visible: no claude on PATH, and the network raises.
+        empty = os.path.join(d.name, "nobin")
+        os.makedirs(empty)
+        p = mock.patch.dict(os.environ, {"PATH": empty})
+        p.start()
+        self.addCleanup(p.stop)
+        u = mock.patch("urllib.request.urlopen", side_effect=AssertionError("network reached"))
+        self.urlopen = u.start()
+        self.addCleanup(u.stop)
+
+    def kw(self):
+        return dict(log_path=os.path.join(self.dir, "t.jsonl"), jev_log=os.path.join(self.dir, "j.jsonl"))
+
+    def test_no_claude_function_fails(self):
+        with self.assertRaises(RuntimeError):
+            temper.temper("S", "src", transport=recorded_transport, **self.kw())
+
+    def test_no_transport_fails_without_the_network(self):
+        with self.assertRaises(RuntimeError):
+            temper.temper("S", "src", falsifier="F", claude=RecordedClaude(), **self.kw())
+        self.urlopen.assert_not_called()
+
+    def test_run_claude_alone_refuses(self):
+        with self.assertRaises(RuntimeError):
+            temper.run_claude("hello", "haiku")
+
+    def test_injected_functions_still_work(self):
+        st, fal, src = start_of("c13")
+        trace, _ = temper.temper(st, src, falsifier=fal, maxn=0, claude=RecordedClaude(),
+                                 transport=recorded_transport, **self.kw())
+        self.assertEqual(trace[0][5], "accept")
+
+
+FAKE_PY_CLAUDE = """#!%(py)s
+import json, os, re, sys
+d = json.load(open(os.environ["FAKE_FIXTURE"]))
+steps = {s["statement"]: s for v in d.values() for s in v["steps"]}
+nxt = {a["statement"]: b["statement"] for v in d.values() for a, b in zip(v["steps"], v["steps"][1:])}
+argv = sys.argv[1:]
+model = argv[argv.index("--model") + 1]
+prompt = argv[-1]
+st = re.findall(r"^Statement: (.*)$", prompt, re.M)[-1]
+if model == "sonnet":
+    s = steps[st]["sonnet"]
+    print(json.dumps({"false_if_correct": not s["collapsed"], "faithful": s["faithful"]}))
+elif "Allowed step:" in prompt:
+    print(nxt[st])
+else:
+    print(steps[st]["falsifier"])
+"""
+
+WRAPPER = """import json, os, runpy, sys
+sys.path.insert(0, %(here)r)
+import jev
+fx = json.load(open(os.environ["FAKE_FIXTURE"]))
+steps = {s["statement"]: s for v in fx.values() for s in v["steps"]}
+def fake(url, headers, body, timeout):
+    st = json.loads(body)["state"]["statement"]
+    return 200, json.dumps({"answers": steps[st]["jev"]})
+jev.urllib_transport = fake
+sys.argv = ["temper.py"] + sys.argv[1:]
+runpy.run_path(os.path.join(%(here)r, "temper.py"), run_name="__main__")
+"""
+
+
+class CliTest(unittest.TestCase):
+    """python3 s1/temper.py STATEMENT --source TEXT --kind ... as a subprocess, stdin /dev/null,
+    claude replaced on PATH, Jev replaced inside the process: no network."""
+
+    def setUp(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.dir = d.name
+        bindir = os.path.join(d.name, "bin")
+        os.makedirs(bindir)
+        p = os.path.join(bindir, "claude")
+        with open(p, "w") as f:
+            f.write(FAKE_PY_CLAUDE % {"py": sys.executable})
+        os.chmod(p, 0o755)
+        self.wrapper = os.path.join(d.name, "wrap.py")
+        with open(self.wrapper, "w") as f:
+            f.write(WRAPPER % {"here": HERE})
+        self.env = dict(os.environ, PATH=bindir + os.pathsep + os.environ["PATH"],
+                        FAKE_FIXTURE=os.path.join(HERE, "fixtures", "loopcal_trio.json"),
+                        TYPESAFE_API_KEY="sk-test", S1_LOG=os.path.join(d.name, "j.jsonl"),
+                        TEMPER_LOG=os.path.join(d.name, "t.jsonl"))
+
+    def cli(self, item, *extra, kind=None):
+        st, fal, src = start_of(item)
+        args = [sys.executable, self.wrapper, st, "--source", src, "--falsifier", fal, *extra]
+        if kind:
+            args += ["--kind", kind]
+        return subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True, text=True, env=self.env, timeout=60)
+
+    def test_hypothesis_text_and_facts(self):
+        r = self.cli("c13", kind="hypothesis")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = TRIO["c13"]["steps"]
+        self.assertIn("bracket: bracket", r.stdout)
+        self.assertIn("last accepted: " + s[1]["statement"], r.stdout)
+        self.assertIn("first rejected: " + s[2]["statement"], r.stdout)
+        self.assertIn("why: sharpen_conclusion: collapsed", r.stdout)
+        self.assertRegex(r.stdout, r"s1_step\('temper', 't1', 0, start, .*, accept, \[\]\)\.")
+        self.assertRegex(r.stdout, r"s1_bracket\('temper', 't1', bracket, ")
+        self.assertIn(":- discontiguous", r.stdout)
+
+    def test_requirement_kind_skips_collapse(self):
+        r = self.cli("c12", kind="requirement")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        first = [l for l in r.stdout.splitlines() if l.startswith("s1_step(") and ", 0, start," in l][0]
+        self.assertNotIn("collapsed", first)
+        self.assertIn("s1_judged('temper', 't1', 0, collapsed, 'False').", r.stdout)
+
+    def test_bad_kind_is_refused(self):
+        r = self.cli("c13", kind="opinion")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("invalid choice", r.stderr)
+
+    def test_source_is_required(self):
+        r = subprocess.run([sys.executable, self.wrapper, "S"], stdin=subprocess.DEVNULL, capture_output=True,
+                           text=True, env=self.env, timeout=60)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("--source", r.stderr)
+
+
+class C3ProposerPrompt(unittest.TestCase):
+    """c3: what the proposer and the falsifier are given holds no judge answer or verdict."""
+
+    LEAK = [r"\b[jh]_[a-z_]+", r"\b(accept|reject|unsure|to_ty)\b", r"\d\.\d", r"\bprobabilit", r"\bconfidence\b"]
+
+    def prompts(self):
+        out = []
+        for item in TRIO:
+            d = tempfile.TemporaryDirectory()
+            self.addCleanup(d.cleanup)
+            st, fal, src = start_of(item)
+            c = RecordedClaude()
+            temper.temper(st, src, falsifier=fal, claude=c, transport=recorded_transport,
+                          log_path=os.path.join(d.name, "t.jsonl"), jev_log=os.path.join(d.name, "j.jsonl"))
+            out += [p for m, p in c.calls if m == "haiku"]
+        return out
+
+    def test_haiku_prompts_in_a_whole_run(self):
+        ps = self.prompts()
+        self.assertGreater(len(ps), 10)
+        for p in ps:
+            # the statement and source are user text; strip them, then look at what the tool wrote
+            body = re.sub(r"^(Source[^\n]*|Statement: .*)$", "", p, flags=re.M)
+            for pat in self.LEAK:
+                self.assertIsNone(re.search(pat, body, re.I), (pat, p))
+
+    def test_failure_hints_do_not_name_judge_questions(self):
+        seen = []
+        run = temper.Run(claude=lambda prompt, model: seen.append(prompt) or "x",
+                         transport=recorded_transport, log_path=os.devnull)
+        temper.propose(run, "A statement.", "A source.", "sharpen_conclusion", ["j_contra", "j_observable", "collapsed"])
+        temper.propose(run, "A statement.", "A source.", "drop_assumption", ["adds_mechanism", "j_contra"])
+        for p in seen:
+            self.assertIsNone(re.search(r"\b[jh]_[a-z_]+", p.replace("adds_", "")), p)
+
+
 if __name__ == "__main__":
     unittest.main()
