@@ -2699,7 +2699,7 @@ cmd_view(Dirs0, Args, Code) :-
 </head>
 <body>
 <h1>Open questions</h1>
-<p class=\"options-note\">The options of a question come from the KB's defaults: its default answer, an answer that an agent recorded, and other. The page invents no options.</p>
+<p class=\"options-note\">The options of a question come from the KB: its default answer, an answer that an agent recorded, and its option facts (each with what it changes). Other means an answer that is not listed. The page adds no option of its own.</p>
 ~w
 ~w
 </body>
