@@ -14,6 +14,7 @@
 #   c3 a conflict shows as "decide", never resolved by date                    : TS10-TS12 TS15
 #   c4 no command writes to a network                                          : TS13-TS14
 #   text injection (Markdown and HTML in free text), help project              : TS16-TS20
+#   T18 c6: draft outbound with no draft facts names --dir PROJECT          : TS21
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -407,6 +408,22 @@ t_TS19() { conflict_kb
            printf '%s\n' "$out" | grep -Eq '^- Status:' && note "a draft text forged a status line"; }
 t_TS20() { okb_nokb help project; rc_is 0 "help project"
            printf '%s\n' "$out" | grep -E 'write command' | grep -Fq 'pin-item' || note "help project lists pin-item among the write commands of the writer lock"; }
+# TS21 (T18 c6): draft outbound in a KB with no draft facts says that it reads only this KB and
+# names --dir PROJECT, so an owner who ran it in a spec KB (or the wrong KB) is not told only
+# "Nothing to push.". A KB that has drafts, all pushed, gets no such line.
+t_TS21() { project_kb_empty
+           out_hasi_ts 'only this KB' "a KB with no draft facts: the output says it reads only this KB"
+           out_has '--dir PROJECT' "a KB with no draft facts: the output names --dir PROJECT"
+           K=$T/spec-p; "$OKB" init "$K" --request 'Test request' --uses build,project >/dev/null 2>&1 || note "setup: init spec KB"
+           okb "$K" draft outbound; rc_is 0 "a spec KB with the project module and no draft"
+           out_has '^- Nothing to push\.$' "the empty list says so"
+           out_hasi_ts 'only this KB' "a spec KB with no draft facts: the output says it reads only this KB"
+           out_has '--dir PROJECT' "a spec KB with no draft facts: the output names --dir PROJECT"
+           project_kb; pin_item p1 tracker:ITEM-1 'Title: Sort orders' "$T0"; add_draft d1 p1 'A draft' "$T1"
+           okb "$P" add "pushed(d1, '$T2')" >/dev/null
+           okb "$P" draft outbound; rc_is 0; out_has '^- Nothing to push\.$' "every draft is pushed"
+           if printf '%s\n' "$out" | grep -Fiq 'only this KB'; then note "a KB that has draft facts gets no 'only this KB' line"; fi; }
+out_hasi_ts() { printf '%s\n' "$out" | grep -Fiq -- "$1" && return 0; note "${2:+$2: }stdout lacks '$1' (stdout: $(snip "$out"))"; return 1; }
 okb_nokb() { ( cd "$T" && exec timeout "$TMO" "$OKB" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
 
 # ---------------------------------------------------------------- driver

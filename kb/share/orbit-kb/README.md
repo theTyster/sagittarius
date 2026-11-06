@@ -291,6 +291,7 @@ A KB is a directory. You choose its location. There is no default location.
 | `rules.pl` | You (optional) | Local rules. |
 | `runs/<N>-<CheckId>.log` | `run` only | The combined output of one run of a check. |
 | `kb.lock` | The writing commands | An empty file. Each writing command holds a lock on it (section 8). |
+| `writer.lock` | The write commands of a KB that uses `project` | One line `WRITER TIME`: the one writer of a project KB, until `release` (section 8, Locking). |
 
 While a check runs, its output is in a temp file `runs/.tmp-*`. `run` removes
 that file when it ends.
@@ -967,6 +968,46 @@ also works. `pin` writes nothing and takes no lock.
 Exit: 0 when `kb.pl` still has the digest of STAMP. 1 when it changed. 2 on a
 malformed STAMP or another argument.
 
+### `release`
+
+Frees the writer lock of a KB that uses `project` (D23 P7; see Locking). Only
+the holder can release it: the writer of `$ORBIT_KB_WRITER`, else of
+`$CLAUDE_SESSION_ID`. With no lock it does nothing.
+Exit: 0 on success and when there is no lock. 2 when another writer holds the
+lock; the message names the holder.
+
+### `draft blocking | draft outbound`
+
+Drafts only (D25): each prints Markdown on stdout for a person to paste into a
+tracker. Nothing is sent to a tracker, and no command uses a network. Neither
+command writes a file or takes a lock.
+
+- `draft blocking` prints the heading `## Blocking items`, the line
+  `Stamp: spec-kb@sha256:HEX` (the digest of `kb.pl`, as `pin` computes it), and
+  one bullet for each item that blocks `done`, as `show blocking` prints it, or
+  `- Nothing blocks done.`. A `project_conflict` bullet says `decide`.
+  `pin --check` with the stamp exits 1 once `kb.pl` changes.
+- `orbit-kb --dir PROJECT draft outbound` prints `## Outbound drafts`, then a
+  section `### DRAFT_ID` for each draft of the project KB that is not pushed
+  and not dropped, with its pin, source, ChangedAt, staged time, and
+  `- Status: ready`, or `- Status: decide` for a conflict. A human settles a
+  conflict with `resolved/3`; the command never picks a side by date. It reads
+  only the KB of `--dir`; it needs a KB that uses `project` (else exit 2).
+
+Free text in a draft is escaped, so it cannot act as Markdown or HTML (D25 T7).
+Exit: 0, or 2 for a usage error.
+
+### `pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]`
+
+Appends `pin(ID, Kind, SOURCE, Digest, T)` to a KB that uses `project` (D25 T4).
+F holds the text of the tracker item that a person pasted or exported; the CLI
+computes Digest, the sha256 of F, and never changes F. T is the change time of
+the item, in UTC (`2026-10-01T09:00:00Z`). Kind defaults to `tracker`. Nothing
+is fetched. It is a write command: it takes the writer lock and accepts
+`--take`.
+Exit: 0 prints the pin id and digest. 1 when the pin id exists. 2 for a missing
+F, a missing option, or a T that is not a time.
+
 ### Locking
 
 The commands `add`, `declare`, `subject`, `attest`, and `uses` hold
@@ -979,6 +1020,19 @@ to record their result (see `run`). The commands that only read the KB take no l
 ends, for any reason, so a stale lock cannot occur. If `flock(1)` is not on
 `PATH`, for example on macOS, `orbit-kb` uses the lock that SWI-Prolog takes on
 `kb.lock`.
+
+A KB that uses `project` also has one writer at a time (D23 P7). This lock is
+the file `writer.lock` in the KB directory, and it stays until `release`. The
+writer is `$ORBIT_KB_WRITER`, else `$CLAUDE_SESSION_ID`; with neither, no
+writer lock is taken or checked. The write commands `add`, `declare`,
+`subject`, `attest`, `run`, `prove`, `uses`, and `pin-item` read it first. With
+no lock file, the command writes `writer.lock` (one line `WRITER TIME`) and goes
+on. When the same writer holds it, the command goes on. When another writer
+holds it, the command exits 2, writes nothing, and names the holder and the
+time. Then the holder runs `orbit-kb release`, or the new writer adds `--take`
+to the command: `--take` makes it the holder and appends
+`writer_takeover(From, To, Time)` to `kb.pl`. Reads never touch the writer
+lock. It is a record, not a guard: it does not stop a hand edit of `kb.pl`.
 
 ## 9. Exit codes, and how to read answers
 
@@ -1111,6 +1165,8 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | W5 | A `check` of a superseded claim, while the current claim that replaces it (directly or through a chain) has no check. Check ids are unique (E5) and facts are append-only, so the message says to add a new check of the current claim and run it (D15). |
 | W6 | A local rule that adds clauses to a core or module predicate (an extension). For a protected predicate, it is E16 instead. |
 | W7 | A predicate declared by its first use in `add` (D22), with who and when. Review it. |
+| WP1 | A `pins(Claim, project, Decision, Digest)` fact whose digest differs from the digest of the decision in the project KB now: the decision changed since the claim was written. Read it, then add a `pins` fact with the new digest. Module hook; the id is the claim (D23 P6). |
+| WP2 | A `pins/4` fact that cannot be checked: no `project_kb` fact, no `kb.pl` at that path, or no such decision. Module hook; the id is the claim (D23 P6). |
 | WP3 | The project KB of `project_kb/1` has a lint error, so a conflict could hide in it. Run `orbit-kb lint` on it. It also blocks (`project_kb_unclean`). Module hook (D23 P8). |
 | WP4 | A KB has more than one `project_kb` fact. Only the first is read. Keep one. The id is the later directory (D23 follow-up). |
 

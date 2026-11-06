@@ -3058,9 +3058,20 @@ view_kind_label(no_claim, "No current claim").
 view_kind_label(check_failing, "Check that failed").
 view_kind_label(check_unrun, "Check that never ran").
 view_kind_label(waiver_lapsed, "Waiver that lapsed").
+view_kind_label(project_conflict, "Draft that conflicts with the tracker").
+view_kind_label(project_kb_unclean, "Project KB that does not load clean").
+
+% view_blocking_sentence(+Eng, +Item, -Text) (T18 c4): the sentence of show blocking for Item,
+% the text after "- KIND ID: " (or "- KIND: "). The project kinds (D23 P5, P8) use it.
+view_blocking_sentence(Eng, Item, Text) :-
+    blocking_line(_, Eng, Item, Line0),
+    atom_string(Line0, Line),
+    (   sub_string(Line, B, 2, _, ": ") -> S is B + 2, sub_string(Line, S, _, 0, Text)
+    ;   Text = Line
+    ).
 
 view_item_html(Eng, Item, Html) :-
-    (   Item == no_claim -> Kind = no_claim, Id = ''
+    (   atom(Item) -> Kind = Item, Id = ''
     ;   Item =.. [Kind, Id]
     ),
     (   view_kind_label(Kind, Label) -> true ; Label = "Blocking item" ),
@@ -3073,10 +3084,12 @@ view_item_html(Eng, Item, Html) :-
         )
     ;   Kind == no_claim
     ->  Text = "Add a claim; the work is not done without one."
+    ;   memberchk(Kind, [project_conflict, project_kb_unclean])
+    ->  view_blocking_sentence(Eng, Item, Text)
     ;   view_xtext(Eng, Id, Text),
         ( view_xclaim(Eng, Id, Cl) -> true ; true )
     ),
-    (   Kind == no_claim -> Ref = "", Plain = Text
+    (   Id == '' -> Ref = "", Plain = Text
     ;   view_ref(Id, Text, Ref0), format(string(Ref), "~w", [Ref0]), Plain = ""
     ),
     esc(Label, LabelH), esc(Plain, PlainH),
@@ -4483,6 +4496,10 @@ cmd_draft(KB, Args, Code) :-
         (   Rows == [] -> say("- Nothing to push.", [])
         ;   forall(member(Row, Rows), outbound_section(Eng, Row))
         ),
+        (   Ds0 == []
+        ->  say("- This KB has no draft facts. draft outbound reads only this KB. For the drafts of the project KB, run: orbit-kb --dir PROJECT draft outbound", [])
+        ;   true
+        ),
         Code = 0
     ;   usage_error("draft outbound needs a KB that uses the project module (D23).", [])
     ).
@@ -5691,13 +5708,14 @@ help_lines(whynot, [
 "The explanation is 6 levels deep; --long goes 30 levels deep. Exit 0."
 ]).
 help_lines(show, [
-"orbit-kb show [claims|questions|open|disclosures|extensions|all]",
+"orbit-kb show [claims|questions|open|blocking|disclosures|extensions|all]",
 "",
 "List parts of the KB as plain text. The default is all (all does not include blocking).",
 "open lists to_ask, stale, contested, and supersede_cycle, and under, over, burn_open, flare_open, and no_claim (no claim is current) when the build module is in use.",
 "blocking lists each answer of orbit-kb query 'blocking(X)' with its text: each item that blocks done.",
 "The kinds: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X), check_failing(K), check_unrun(K),",
-"waiver_lapsed(W), past_due(X) (an open item with a due/2 time in the past), supersede_cycle(C), no_claim."
+"waiver_lapsed(W), past_due(X) (an open item with a due/2 time in the past), supersede_cycle(C), no_claim.",
+"With the project module: project_conflict(D) and project_kb_unclean (orbit-kb help project)."
 ]).
 help_lines(release, [
 "orbit-kb release",
@@ -5739,7 +5757,8 @@ help_lines(draft, [
 "draft blocking prints Markdown: the stamp spec-kb@sha256:HEX of kb.pl, then each item that",
 "blocks done, as show blocking does. Paste it into the ticket. orbit-kb pin --check STAMP",
 "exits 1 once kb.pl has changed. It writes nothing.",
-"draft outbound lists the project KB drafts that are not pushed (needs the project module)."
+"draft outbound lists the project KB drafts that are not pushed (needs the project module).",
+"It reads only the KB it runs in, so give the project KB: orbit-kb --dir PROJECT draft outbound."
 ]).
 help_lines('pin-item', [
 "orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",
