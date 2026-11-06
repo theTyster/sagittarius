@@ -53,7 +53,7 @@ MUTANTS = [
     ("escalate-fails-open", 'blocking = any(k["state"] != "clear" for k in checks)  # fail-safe',
      'blocking = any(k["state"] == "blocking" for k in checks)'),
     ("agent-may-lapse-blocking", 'if by != "human" and disp != "escalate" and kb_refs:  # agents escalate', "if False:"),
-    ("agent-may-close-blocking", 'if not skip and writer_by(o, g) != "human":  # an agent never closes a blocking item', "if False:"),
+    ("agent-guard-dropped", 'if esc or any(k["state"] != "clear" for k in checks):  # agent guard', "if False:"),
     ("rotate-ignores-untriaged", "if untriaged:  # triage gate", "if False:"),
     ("skip-not-propagated", 'if o["reason"] == "human_skip":  # propagate', "if False:"),
     ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
