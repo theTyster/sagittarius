@@ -38,6 +38,7 @@
 #   c4 pin-item --kind file keeps no copy; show pin reports a mismatch : PF4
 #   c5 self-relations are refused (EP2); a depends_on cycle is WP7 : PF5
 #   c6 an agent's ratified_by is refused at add (any case); help states the trust limit : PF6
+#   c1 (divergence a21) the removal closes over references: a fact that names a removed fact goes too : PF7
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -922,6 +923,26 @@ t_PF6() { t23_pk "decision(d1, 'Export goes through the queue')" "decided_by(d1,
           padd "ratified_by(d1, ann, '$T2')"; rc_is 0 "a human ratifies"; is_false 'proposed(_)'
           okb help project; out_has 'self-declared' "help project says that Who is self-declared"; }
 
+# PF7 (T34 c1, divergence a21): the removal closes over references. An attestation about d1 goes
+# with d1, and so does every fact that names the attestation (its actor record, a local fact),
+# and every fact that names those, until nothing changes. Lint is clean after the archive.
+t_PF7() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "decided_by(d2, ann, '$T2')" "supersedes(d2, d1)" \
+                 "decision(d3, 'Retry an export three times')"
+          okb --dir "$K" attest disclosure d1 "other('The old export was a guess')" --id a90; rc_is 0 "setup: an attestation about d1"
+          okb --dir "$K" attest disclosure d3 "other('Retry is fine')" --id a91; rc_is 0 "setup: an attestation about d3"
+          okb --dir "$K" declare 'seen(id, ref, text)' --doc 'A reader saw a record.'; rc_is 0 "setup: a fact with an id that names any id"
+          okb --dir "$K" declare 'ack(ref, text)' --doc 'A reader acknowledged a record.'; rc_is 0 "setup: a fact that names any id"
+          padd "seen(sn1, a90, 'Read by ann')" "ack(sn1, 'ok')" "seen(sn2, a91, 'Read by ann')" "ack(sn2, 'ok')" >/dev/null; rc_is 0 "setup: a chain a90 <- sn1 <- ack"
+          okb --dir "$K" lint; rc_is 0 "setup: lint is clean before the archive"
+          okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "archive"
+          no_fact "$K/kb.pl" "decision(d1, _)" "d1 is archived"
+          no_fact "$K/kb.pl" "attest(a90, _, _, _, _, _)" "the attestation about d1 goes"
+          no_fact "$K/kb.pl" "actor(a90, _, _)" "a fact that names the attestation goes"
+          no_fact "$K/kb.pl" "seen(sn1, _, _)" "a fact that names the attestation goes"
+          no_fact "$K/kb.pl" "ack(sn1, _)" "a fact that names a removed fact goes, at any depth"
+          for x in "attest(a91, _, _, _, _, _)" "seen(sn2, _, _)" "ack(sn2, _)" "decision(d3, _)"; do has_fact "$K/kb.pl" "$x" "kept"; done
+          okb --dir "$K" lint; rc_is 0 "lint is clean after the archive"; out_hasnt '^E[0-9A-Z]' "no error"; }
+
 # ================================================================ run
 run_test t_PK1 PK1 "T06 c1: init --uses project; every fact of the module is accepted"
 run_test t_PK2 PK2 "T06 c1: dangling refs and duplicate ids are refused (E4, E5)"
@@ -991,6 +1012,7 @@ run_test t_PF2 PF2 "T34 c2: impact and archive find a pinning spec KB outside th
 run_test t_PF3 PF3 "T34 c3: --superseded-before takes only a real date"
 run_test t_PF4 PF4 "T34 c4: pin-item --kind file keeps no copy; show pin reports a mismatch"
 run_test t_PF5 PF5 "T34 c5: excludes(X, X) and depends_on(X, X) are EP2; a depends_on cycle is WP7"
+run_test t_PF7 PF7 "T34 c1 (a21): the removal closes over references; lint is clean after the archive"
 run_test t_PF6 PF6 "T34 c6: ratified_by by an agent is refused at add in any case; Who is self-declared"
 NT=${#REG_ID[@]}
 for ((i = 0; i < NT; i++)); do exec_test "$i"; done
