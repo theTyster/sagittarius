@@ -10,7 +10,7 @@
 #
 # Input hash (the contract of c2): sha256 over the bytes of the facts file, then one NUL byte,
 # then the bytes of the containers file. The map carries `map@` and the first 12 hex digits.
-# Requirement map: C1a-C1d (c1), C2a-C2d (c2), C3a-C3b (c3), U1 (usage).
+# Requirement map: C1a-C1d (c1), C2a-C2d (c2), C3a-C3b (c3), U1 (usage), D1 D2a-c D3 (review fixes).
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 repo=$(cd "$here/../.." && pwd -P)
@@ -186,7 +186,57 @@ t_U1() {  # usage errors exit 2
     rm_run --facts "$base/u1/kb.pl" --containers "$base/u1/containers.pl" --level c9; rc_is 2 "bad level"
 }
 
-for t in C1a C1b C1c C1d C2a C2b C2c C2d C3a C3b U1; do
+# ---------------------------------------------------------------- review fixes (D1-D3)
+err_has() { printf '%s\n' "$err" | grep -Eq -- "$1" || note "${2:+$2: }stderr lacks /$1/ (stderr: $(snip "$err"))"; }
+t_D2a() {  # an unparsable line in the containers file warns (file and line); --strict exits 1
+    mkfix "$base/d2a"
+    printf 'repo(a).\nbroken(.\nrepo(b).\n' > "$base/d2a/bad.pl"
+    rm_run --facts "$base/d2a/kb.pl" --containers "$base/d2a/bad.pl"; rc_is 0 "default"
+    err_has 'bad\.pl' "names the file"; err_has '(:|line )2([^0-9]|$)' "names line 2"
+    err_has 'repo\(b\)|second repo|ignored' "the second repo(Name) is ignored, and says so"
+    rm_run --facts "$base/d2a/kb.pl" --containers "$base/d2a/bad.pl" --strict; rc_is 1 "strict"
+    err_has 'bad\.pl' "strict: names the file"
+}
+t_D2b() {  # an unparsable line in the facts file warns; --strict exits 1
+    mkfix "$base/d2b"
+    printf "repo(a, '/x').\nrepo(oops, .\nrepo(c, '/y').\n" > "$base/d2b/badkb.pl"
+    rm_run --facts "$base/d2b/badkb.pl" --containers "$base/d2b/containers.pl"; rc_is 0 "default"
+    err_has 'badkb\.pl' "names the file"; err_has '(:|line )2([^0-9]|$)' "names line 2"
+    rm_run --facts "$base/d2b/badkb.pl" --containers "$base/d2b/containers.pl" --strict; rc_is 1 "strict"
+}
+t_D2c() {  # a clean input gives no warning, also with --strict; a second repo(Name) is a --strict failure
+    mkfix "$base/d2c"
+    rm_run --facts "$base/d2c/kb.pl" --containers "$base/d2c/containers.pl" --strict; rc_is 0 "clean strict"
+    [ -z "$err" ] || note "clean input printed on stderr: $(snip "$err")"
+    printf 'repo(zeta).\n' >> "$base/d2c/containers.pl"
+    rm_run --facts "$base/d2c/kb.pl" --containers "$base/d2c/containers.pl"; rc_is 0 "second repo, default"
+    err_has 'containers\.pl' "second repo: names the file"; err_has '(:|line )[0-9]+' "second repo: line"
+    rm_run --facts "$base/d2c/kb.pl" --containers "$base/d2c/containers.pl" --strict; rc_is 1 "second repo, strict"
+}
+t_D1() {  # two names that sanitize to the same Mermaid id are refused (exit 2), naming both
+    mkdir -p "$base/d1"
+    printf 'uses(project).\n' > "$base/d1/kb.pl"
+    cat > "$base/d1/c.pl" <<'CT'
+repo(alpha).
+container('a b', 'First', 'x', 'd').
+container(a_b, 'Second', 'x', 'd').
+CT
+    rm_run --facts "$base/d1/kb.pl" --containers "$base/d1/c.pl"; rc_is 2 "collision"
+    err_has 'a b' "names the first"; err_has 'a_b' "names the second"
+    [ -z "$out" ] || note "a refused input must print no map"
+}
+t_D3() {  # the H1 title is escaped: no raw Markdown or HTML from the repo name
+    mkdir -p "$base/d3"
+    printf 'uses(project).\n' > "$base/d3/kb.pl"
+    printf "repo('a *b* <x> [l](u) #h').\n" > "$base/d3/c.pl"
+    rm_run --facts "$base/d3/kb.pl" --containers "$base/d3/c.pl"; rc_is 0
+    local h; h=$(printf '%s\n' "$out" | grep -m1 '^# ')
+    case $h in *'<x>'*|*'*b*'*|*'[l](u)'*) note "title not escaped: $h";; esac
+    case $h in *'\<x\>'*) ;; *) note "title lacks the escaped form: $h";; esac
+    [ "$(printf '%s\n' "$out" | grep -c '^# ')" = 1 ] || note "exactly one H1"
+}
+
+for t in C1a C1b C1c C1d C2a C2b C2c C2d C3a C3b U1 D2a D2b D2c D1 D3; do
     FAILS=(); "t_$t"
     if [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $t"
     else fail=$((fail+1)); echo "FAIL $t"; for m in "${FAILS[@]}"; do echo "     - $m"; done; fi
