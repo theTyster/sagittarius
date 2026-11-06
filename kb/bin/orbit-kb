@@ -2675,12 +2675,12 @@ take_dirs([A|As], Ds, Rest) :-
 take_dirs([A|As], Ds, [A|Rest]) :- take_dirs(As, Ds, Rest).
 
 cmd_view(Dirs0, Args, Code) :-
-    parse_opts(Args, ['--ledger'-value, '--out'-value], Pos, Opts),
+    parse_opts(Args, ['--ledger'-value, '--out'-value, '--owner'-value], Pos, Opts),
     (   Pos == [] -> usage_error("view needs a view name: orbit-kb view questions [--dir KB]... [--ledger FILE] [--out F].", [])
     ;   Pos == [questions] -> true
     ;   usage_error("view takes the one view name questions.", [])
     ),
-    (   memberchk('--ledger'-LF, Opts) -> view_ledger(LF, Asks), Led = some(Asks) ; Led = none ),
+    (   memberchk('--ledger'-LF, Opts) -> view_ledger(LF, Rows), view_owner(Opts, Rows, Owner), view_owned(Rows, Owner, Asks), Led = some(Asks) ; Led = none ),
     (   Dirs0 == [] -> resolve_kb(none, D0), Dirs = [D0]
     ;   maplist([D, R]>>resolve_kb(some(D), R), Dirs0, Dirs)
     ),
@@ -2730,7 +2730,17 @@ view_ledger(File, Asks) :-
     ;   usage_error("The ledger file ~w must hold one JSON array of objects.", [File])
     ),
     forall(nth1(I, J, X), view_ledger_row(File, I, X)),
-    findall(X, ( member(X, J), X.kind == "ask", memberchk(X.status, ["open", "waiting"]), X.waits_on == null ), Asks).
+    Asks = J.
+
+% view_owner(+Opts, +Rows, -Owner) (D24 C5): --owner, else the owner key of the first row that has one, else me.
+view_owner(Opts, Rows, Owner) :-
+    (   memberchk('--owner'-O, Opts) -> atom_string(O, Owner)
+    ;   member(X, Rows), get_dict(owner, X, O0), string(O0) -> Owner = O0
+    ;   Owner = "me"
+    ).
+
+view_owned(Rows, Owner, Asks) :-
+    findall(X, ( member(X, Rows), X.kind == "ask", memberchk(X.status, ["open", "waiting"]), X.waits_on == Owner ), Asks).
 
 view_ledger_row(File, I, X) :-
     (   is_dict(X) -> true ; usage_error("Ledger ~w, item ~w: not an object.", [File, I]) ),
@@ -2771,7 +2781,11 @@ view_kb_section(Lib, Dir, Html) :-
         atomic_list_concat(Is, '\n', B0),
         format(string(Body), "<ul class=\"items\">\n~w\n</ul>", [B0])
     ),
-    format(string(Html), "<section class=\"kb\" data-stamp=\"~w\">\n<h2>Knowledge base <span class=\"stamp\">~w</span></h2>\n~w\n</section>", [StampH, StampH, Body]).
+    (   eng_all(Eng, [RT], request(_, RT), [RT1|_]), txt(RT1, RT2), split_string(RT2, "\n", " \t", [L1|_]), L1 \== "" -> Label = L1
+    ;   file_base_name(Dir, Label)
+    ),
+    esc(Label, LabelH),
+    format(string(Html), "<section class=\"kb\" data-stamp=\"~w\">\n<h2><span class=\"kblabel\">~w</span> <span class=\"stamp\">~w</span></h2>\n~w\n</section>", [StampH, LabelH, StampH, Body]).
 
 view_ref(Id, Text, Html) :-
     esc(Id, I), esc(Text, T),
@@ -2818,14 +2832,13 @@ view_item_html(Eng, Item, Html) :-
         ;   Text = "(a waiver)"
         )
     ;   Kind == no_claim
-    ->  Text = "No claim is current. Add a claim."
+    ->  Text = "Add a claim; the work is not done without one."
     ;   view_xtext(Eng, Id, Text),
         ( view_xclaim(Eng, Id, Cl) -> true ; true )
     ),
-    (   Kind == no_claim -> Ref = ""
-    ;   view_ref(Id, Text, Ref0), format(string(Ref), " ~w", [Ref0])
+    (   Kind == no_claim -> Ref = "", Plain = Text
+    ;   view_ref(Id, Text, Ref0), format(string(Ref), "~w", [Ref0]), Plain = ""
     ),
-    (   Kind == no_claim -> Plain = Text ; Plain = "" ),
     esc(Label, LabelH), esc(Plain, PlainH),
     esc(Kind, KindH), esc(Id, IdH),
     (   nonvar(Cl)
@@ -2839,10 +2852,11 @@ view_item_html(Eng, Item, Html) :-
     ;   Blocks = "", CitedH = ""
     ),
     (   Kind == to_ask -> view_question_html(Eng, Id, QHtml) ; QHtml = "" ),
-    format(string(Html), "<li class=\"item\" data-kind=\"~w\" data-id=\"~w\">\n<p>~w:~w~w</p>\n~w\n~w\n~w\n</li>",
+    format(string(Html), "<li class=\"item\" data-kind=\"~w\" data-id=\"~w\">\n<p>~w: ~w~w</p>\n~w\n~w\n~w\n</li>",
            [KindH, IdH, LabelH, Ref, PlainH, Blocks, CitedH, QHtml]).
 
-% The default and the options of a question (D24 C7): the default, an answer by an agent, and other.
+% The default and the options of a question (D24 C7): the default, an answer by an agent,
+% each option/3 text, and other. Each option has its effect when the KB records one.
 view_question_html(Eng, Q, Html) :-
     (   eng_all(Eng, [A], assumed(Q, A), [A1|_]) -> plain_text(A1, Def) ; Def = none ),
     ( nonvar(Def), Def \== none -> HasDef = true ; HasDef = false ),
@@ -2851,16 +2865,32 @@ view_question_html(Eng, Q, Html) :-
     eng_all(Eng, [A2, By], answer(Q, A2, By), Ans),
     findall(AT, ( member([A3, By3], Ans), By3 \== human, plain_text(A3, AT), ( HasDef == false ; AT \== Def ) ), Ats0),
     list_to_set(Ats0, Ats),
-    findall(L, ( HasDef == true, view_option("default", Def, L) ), DL),
-    findall(L, ( member(AT, Ats), view_option("answer", AT, L) ), AL),
-    view_option("other", "other", OL),
-    append([DL, AL, [OL]], Os),
-    atomic_list_concat(Os, '\n', OsT),
-    format(string(Html), "~w\n<ul class=\"options\">\n~w\n</ul>", [DefLine, OsT]).
+    eng_all(Eng, [OT, OE], option(Q, OT, OE), OFs0),
+    findall(T-E, ( member([T0, E0], OFs0), plain_text(T0, T), plain_text(E0, E) ), OFs),
+    findall(src(default, Def), HasDef == true, DL),
+    findall(src(answer, AT), member(AT, Ats), AL),
+    findall(T0, ( member(T0-_, OFs), \+ memberchk(src(_, T0), DL), \+ memberchk(src(_, T0), AL) ), Ots0),
+    list_to_set(Ots0, Ots),
+    findall(src(option, T0), member(T0, Ots), OL),
+    append([DL, AL, OL], Srcs),
+    findall(L, ( member(src(Src, T), Srcs), view_option(Src, T, OFs, L) ), Ls0),
+    view_option(other, other, [], OtherL),
+    append(Ls0, [OtherL], Ls),
+    atomic_list_concat(Ls, '\n', OsT),
+    (   OFs == []
+    ->  Note = "<p class=\"no-effects\">No option effects are recorded for this question.</p>"
+    ;   Note = ""
+    ),
+    format(string(Html), "~w\n<ul class=\"options\">\n~w\n</ul>\n~w", [DefLine, OsT, Note]).
 
-view_option(Src, Text, L) :-
+view_option(Src, Text, OFs, L) :-
     esc(Text, T),
-    format(string(L), "<li class=\"option\" data-source=\"~w\">~w</li>", [Src, T]).
+    (   Src == other -> Eff = ""
+    ;   OFs == [] -> Eff = ""
+    ;   memberchk(Text-E, OFs) -> esc(E, EH), format(string(Eff), " <span class=\"effect\">~w</span>", [EH])
+    ;   Eff = " <span class=\"effect none\">No effect is recorded.</span>"
+    ),
+    format(string(L), "<li class=\"option\" data-source=\"~w\"><span class=\"optiontext\">~w</span>~w</li>", [Src, T, Eff]).
 
 % ---------------------------------------------------------------------
 % subject
@@ -5129,7 +5159,7 @@ help_lines(general, [
 "  show [claims|questions|open|blocking|disclosures|extensions|all]",
 "  report [--html FILE [--open]]",
 "  pin [--check STAMP]",
-"  view questions [--dir KB]... [--ledger FILE] [--out F]",
+"  view questions [--dir KB]... [--ledger FILE [--owner KEY]] [--out F]",
 "  doctor",
 "  help [COMMAND|TOPIC]",
 "",
@@ -5309,15 +5339,18 @@ help_lines(show, [
 "waiver_lapsed(W), past_due(X) (an open item with a due/2 time in the past), supersede_cycle(C), no_claim."
 ]).
 help_lines(view, [
-"orbit-kb view questions [--dir KB]... [--ledger FILE] [--out F]",
+"orbit-kb view questions [--dir KB]... [--ledger FILE [--owner KEY]] [--out F]",
 "",
 "Write one HTML page, with no external dependency, of what blocks done in each KB:",
 "each question to ask, with its text, its default, the claim it blocks, and the request text",
 "that the claim cites, then the other blocking items. Each KB has its own section, named by its",
-"pin stamp (spec-kb@sha256:HEX). The options of a question come from the KB's defaults.",
+"pin stamp (spec-kb@sha256:HEX) and labeled with its first request. The options of a question come from the",
+"KB's defaults and its option(Q, Text, Effect) facts; each option shows its effect.",
 "--dir may repeat. --ledger FILE: a JSON export of the flow ledger; the page lists the asks that",
-"wait on the owner, with their age. Make it with: hubflow sql \"SELECT id, kind, title, status,",
-"waits_on, age_days FROM v_open\" --format json > asks.json",
+"wait on the owner (an ask with waits_on null is nobody's), with their age. The owner is --owner KEY,",
+"else the owner key in the export, else me. Make the export with: hubflow sql \"SELECT id, kind, title,",
+"status, waits_on, age_days, COALESCE((SELECT value FROM meta WHERE key='owner_person'), (SELECT key FROM",
+"person WHERE key='me')) AS owner FROM v_open\" --format json > asks.json",
 "--out F writes the page to F; without it the page goes to stdout. The view reads only.",
 "Exit 2 for a usage error, a KB that cannot be read, or a bad ledger file."
 ]).

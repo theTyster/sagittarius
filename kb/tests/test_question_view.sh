@@ -162,7 +162,7 @@ def main():
             ol=[k for k in hit[0].walk() if "options" in k.classes()]
             if len(ol)!=1: bad.append("item %s has %d options elements, want 1"%(iid,len(ol)))
             else:
-                got=["%s=%s"%(k.attrs.get("data-source"),k.text()) for k in ol[0].walk() if k.tag=="li" and "option" in k.classes()]
+                got=["%s=%s"%(k.attrs.get("data-source"),next((x.text() for x in k.walk() if "optiontext" in x.classes()),k.text())) for k in ol[0].walk() if k.tag=="li" and "option" in k.classes()]
                 if got!=want: bad.append("options of %s: got %s, want %s"%(iid,got,want))
     elif mode=="effects":  # effects FILE ID TEXT=EFFECT... : each option li has that optiontext and an effect span with that text
         iid,*want=a
@@ -530,7 +530,6 @@ t_QV30() {  # no option fact: the page says so, visibly, in the item; no effect 
 t_QV31() {  # a question with option facts for only some options: the others say that no effect is recorded
     kb_a "$T/a"; echo "option(q2, no, 'Paid invoices stay in the list')." >> "$T/a/kb.pl"; view --dir "$T/a" || return
     chk effects "$T/page.html" q2 'no=Paid invoices stay in the list'
-    chk effects "$T/page.html" q1 ''
     chk noeffects "$T/page.html" q1
     chk effects "$T/page.html" q2 'other='
 }

@@ -102,6 +102,9 @@ decl(fact, question(id, ref(claim), text),
 decl(fact, assumed(ref(question), term),
      'The default answer to a question.',
      'the default answer to question @(1) is @(2)').
+decl(fact, option(ref(question), text, text),
+     'An option of a question, and what choosing it changes (D24).',
+     'option @(2) of question @(1) changes: @(3)').
 decl(fact, answer(ref(question), term, oneof([human, agent])),
      'An answer to a question, and who gave it.',
      'the @(3) answered question @(1) with @(2)').
