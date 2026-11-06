@@ -36,13 +36,32 @@ Artifacts and records
     D=$(orbit-kb subject M PATH)   then use '$D' in the fact.
   The predicate digest(current) means the recorded digest of the subject.
 
+Who made a record (D28)
+  actor(A, Role, Session)        orbit-kb writes it after each attestation (attest, run, prove,
+                                 add) and each change. Role is --as ROLE of the command, else
+                                 ORBIT_KB_ROLE (build, review, discovery, a subagent label),
+                                 else unknown. Session is the writer of the KB: the first of
+                                 ORBIT_KB_WRITER, CLAUDE_CODE_SESSION_ID, CLAUDE_SESSION_ID,
+                                 HUB_SESSION, else unknown. --by human|agent keeps its meaning.
+                                 For run, put --as before --: orbit-kb run --as review k1 -- CMD
+  review_saw(R, Kind, Digest)    what reviewer R saw: the ticket, the KB, and the diff.
+                                 orbit-kb review start --as R --ticket F --diff A..B writes it.
+  rests_on_run(V, Run)           verdict V rests on run Run (attest disproof --rests-on).
+  add refuses these three facts: orbit-kb writes them. A limit: the role is self-reported.
+  orbit-kb cannot check it, as it cannot check --by human.
+  The tools catch mistakes, not cheating.
+
 Attestation types
   disclosure   guess(Q) | unverified(Text) | disagreement(Text) | out_of_scope(Text)
                | self_error(Text) | other(Text)                      agent or human
   divergence   claim(C) | hypothesis(H) | model(M)                   human or agent
                Put the description in a note.
-  disproof     verdict(C, refuted(Text) | inconclusive | abstained)  agent
-               Put the counterexample in the text of refuted.
+  disproof     verdict(C, upheld(Text) | refuted(Text) | inconclusive(Text) | abstained(Text))
+               agent. The text says what was tried. upheld(Text): the attempt did not break
+               the claim. Put the counterexample in the text of refuted. The bare inconclusive
+               and abstained are still valid (old KBs). Name the runs that the verdict rests
+               on: attest disproof C 'verdict(C, upheld(...))' --rests-on a7,a9 writes
+               rests_on_run(V, a7) and rests_on_run(V, a9). Each must be a test_result.
   approval     digest(current)                                       human only
   test_result  written by orbit-kb run only
 

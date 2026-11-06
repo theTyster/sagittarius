@@ -33,6 +33,10 @@ decl(fact, ac(ref(claim)),
 decl(fact, demo(ref(subject), ref(claim)),
      'The subject, a screenshot or a recording, shows the claim to a human.',
      'subject @(1) is a demo of claim @(2)').
+% D28 (T25): add writes change_at/2 with each change/2 fact, and actor/3.
+decl(fact, change_at(ref(change), time),
+     'The time at which the change was recorded. orbit-kb add writes it with the change.',
+     'change @(1) was recorded at @(2)').
 decl(fact, conformance(ref(check)),
      'The check runs the code against the Lean model of its claim.',
      'check @(1) runs the code against the Lean model').
@@ -116,6 +120,32 @@ decl(rule, check_waived(ref(claim)),
 decl(rule, conforms(ref(claim)),
      'A conformance check of the claim passed: the code agrees with the Lean model on its cases.',
      'the code conforms to the Lean model of claim @(1)').
+
+% D28 (T25): independent verification.
+decl(rule, independently_verified(ref(claim)),
+     'An upheld verdict on the claim comes from an actor whose role and session both differ from the actor of the last change that serves the claim, is after that change, and rests on a run of a check of the claim by the same actor after that change.',
+     'claim @(1) is independently verified').
+decl(rule, last_change(ref(claim), ref(change)),
+     'The change serves the claim and has a change time, and no other change that serves the claim has a later one.',
+     'change @(2) is the last change of claim @(1)').
+decl(rule, later_change(ref(claim), time),
+     'A change that serves the claim was recorded after the time.',
+     'a change of claim @(1) was recorded after @(2)').
+decl(rule, has_actor(ref),
+     'The record has an actor.',
+     '@(1) has an actor').
+decl(rule, verdict_not_independent(ref(attest), ref(claim)),
+     'The verdict on the claim is not independent of the last change: the change has no actor, the role or the session is the same, or the verdict is not after the change.',
+     'verdict @(1) on claim @(2) is not independent of its last change').
+decl(rule, run_before_last_change(ref(attest), ref(claim)),
+     'The run is not after the last change of the claim.',
+     'run @(1) is not after the last change of claim @(2)').
+decl(rule, verdict_fresh_run(ref(attest), ref(claim)),
+     'The verdict rests on a run of a check of the claim by the same actor, after the last change of the claim.',
+     'verdict @(1) rests on a fresh run of a check of claim @(2)').
+decl(rule, verification_recorded,
+     'The KB records actors or a review (D28). Then lint warns about each current claim that is not independently verified (WR1).',
+     'the KB records who verified what').
 
 % ---------------------------------------------------------------------
 % Build attestation types
@@ -217,3 +247,30 @@ blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(C, _, _), human, _), wa
 blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(K, _, _), human, _), waiver_lapsed(W),
                               check(K, C), under(C).
 blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(Q, _, _), human, _), waiver_lapsed(W), to_ask(Q).
+% D28 (T25): independent verification. A verdict counts only when it is
+% upheld, its actor differs in role and in session from the actor of the
+% last change of the claim, it is after that change, and it rests on a
+% run of a check of the claim by the same actor after that change. done
+% does not read it. Lint warns (WR1) in a KB that records actors.
+% rules.pl cannot add clauses to these rules (lint E16).
+later_change(C, T) :- serves(Y, C), change_at(Y, T2), T2 @> T.
+last_change(C, X) :- serves(X, C), change_at(X, T), not later_change(C, T).
+has_actor(X) :- actor(X, _, _).
+verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), last_change(C, X), not has_actor(X).
+verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), last_change(C, X),
+                                  actor(V, R, _), actor(X, R, _).
+verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), last_change(C, X),
+                                  actor(V, _, S), actor(X, _, S).
+verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, TV), last_change(C, X),
+                                  change_at(X, TX), TV @=< TX.
+run_before_last_change(A, C) :- attest(A, test_result, _, _, _, TA), last_change(C, X),
+                                change_at(X, TX), TA @=< TX.
+verdict_fresh_run(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), actor(V, R, S),
+                           rests_on_run(V, A), attest(A, test_result, _, result(K, _, _), _, _),
+                           check(K, C), actor(A, R, S), not run_before_last_change(A, C).
+independently_verified(C) :- attest(V, disproof, _, verdict(C, upheld(_)), _, _), has_actor(V),
+                             not verdict_not_independent(V, C), verdict_fresh_run(V, C).
+verification_recorded :- actor(_, _, _).
+verification_recorded :- review_saw(_, _, _).
+lint_issue('WR1', C, 'No fresh-eyes verdict verifies this claim yet. A reviewer of another role and session must rerun a check of the claim after its last change (orbit-kb run --as ROLE), then record an upheld verdict that rests on that run (attest disproof --rests-on). orbit-kb report lists the review. This does not block done.') :-
+    verification_recorded, current(C), not independently_verified(C).

@@ -145,6 +145,17 @@ decl(fact, subject(id, text, digest),
 decl(fact, attest(id, atom, ref, attest_predicate, by, time),
      'An attestation with its id, type, subject, predicate, writer, and time.',
      'attestation @(1) of type @(2) records @(4) about @(3), by the @(5) at @(6)').
+% D28 (T25): who made a record, and what a reviewer saw. Only the commands
+% write these facts (add refuses them). The role is self-reported.
+decl(fact, actor(ref, atom, atom),
+     'Who made the record: its role (from --as or ORBIT_KB_ROLE) and its session (the writer of the KB, T27). orbit-kb writes it with each attestation and each change.',
+     '@(1) was made by role @(2) in session @(3)').
+decl(fact, review_saw(atom, oneof([ticket, kb, diff]), digest),
+     'What a reviewer saw when the review started: the ticket file, the KB (its spec-kb stamp), and the diff. Only orbit-kb review start writes it.',
+     'reviewer @(1) saw the @(2) with digest @(3)').
+decl(fact, rests_on_run(ref(attest), ref(attest)),
+     'The verdict rests on the run: a test_result attestation that the reviewer read or ran.',
+     'verdict @(1) rests on run @(2)').
 
 % ---------------------------------------------------------------------
 % Core rule predicates
@@ -237,9 +248,10 @@ attest_type(divergence,
             [human, agent],
             'A view does not agree with a claim, a hypothesis, or a model; a note holds the description.').
 attest_type(disproof,
-            verdict(ref(claim), alt([refuted(text), inconclusive, abstained])),
+            verdict(ref(claim), alt([refuted(text), upheld(text), inconclusive(text), abstained(text),
+                                     inconclusive, abstained])),
             [agent],
-            'The verdict of an attempt to break a claim. A refuted verdict carries the counterexample as text.').
+            'The verdict of an attempt to break a claim. The text says what was tried; a refuted verdict carries the counterexample. upheld: the attempt did not break the claim. The bare inconclusive and abstained are for old KBs.').
 attest_type(approval,
             digest(digest),
             [human],

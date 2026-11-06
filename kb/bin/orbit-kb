@@ -443,6 +443,7 @@ kb_command('pin-question').
 kb_command('pin-answer').
 kb_command('pin-request').
 kb_command('apply-pending').
+kb_command(review).
 
 top(Argv0, Code) :-
     take_dirs(Argv0, Dirs, [view|ViewArgs]), !,
@@ -471,7 +472,8 @@ top(Argv0, Code) :-
         ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
             ->  cmd_help([uses], Code)
             ;   resolve_kb(DirOpt, Dir),
-                writer_gate(Dir, Args, Args1),
+                take_role(Args, ArgsR),
+                writer_gate(Dir, ArgsR, Args1),
                 apply_pending(Dir),
                 with_kb_lock(Dir, cmd_uses(Dir, Args1, Code))
             )
@@ -499,7 +501,10 @@ top(Argv0, Code) :-
             ->  cmd_help([Cmd], Code)
             ;   lib_dir(Lib),
                 resolve_kb(DirOpt, Dir),
-                (   lock_command(Cmd) -> writer_gate(Dir, Args, Args1), apply_pending(Dir) ; Args1 = Args ),
+                (   lock_command(Cmd)
+                ->  take_role(Args, ArgsR), writer_gate(Dir, ArgsR, Args1), apply_pending(Dir)
+                ;   Args1 = Args
+                ),
                 (   writer_command(Cmd)
                 ->  with_kb_lock(Dir, ( load_kb(Dir, Lib, KB),
                                         kb_cmd(Cmd, KB, Args1, Code) ))
@@ -521,6 +526,7 @@ writer_command('pin-question').
 writer_command('pin-answer').
 writer_command('pin-request').
 writer_command('apply-pending').
+writer_command(review).
 writer_command(declare).
 writer_command(subject).
 writer_command(attest).
@@ -543,13 +549,61 @@ writer_command(attest).
 % The lock is a record, not a guard: nothing stops a hand edit of kb.pl.
 
 lock_command(C) :- memberchk(C, [add, declare, subject, attest, run, prove, uses, 'pin-item',
-                                 'pin-question', 'pin-answer', 'pin-request', 'apply-pending']).
+                                 'pin-question', 'pin-answer', 'pin-request', 'apply-pending', review]).
 
 writer_name(W) :-
     member(V, ['ORBIT_KB_WRITER', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'HUB_SESSION']),
     getenv(V, W0), W0 \== '',
     !,
     W = W0.
+
+% ---------------------------------------------------------------------
+% The actor of a record (D28, T25)
+% ---------------------------------------------------------------------
+% Each attestation (attest, run, prove, and add of an attest/6 fact) and
+% each change (add of a change/2 fact) gets actor(ID, ROLE, SESSION) right
+% after it. ROLE is --as ROLE of the write command, else $ORBIT_KB_ROLE,
+% else unknown. SESSION is the writer of the KB (writer_name/1, T27),
+% else unknown. The role is self-reported: the tools catch mistakes, not
+% cheating.
+
+% take_role(+Args0, -Args): remove --as ROLE from the arguments of a write
+% command, and keep ROLE for actor_role/1. For run, only the part before
+% -- counts: after --, the arguments belong to the command.
+take_role(Args0, Args) :-
+    (   append(Pre0, ['--'|Post], Args0) -> Sep = ['--'|Post] ; Pre0 = Args0, Sep = [] ),
+    take_role_pre(Pre0, Pre),
+    append(Pre, Sep, Args).
+
+take_role_pre(Pre0, Pre) :-
+    (   append(B, [AsEq|A], Pre0), atom(AsEq), sub_atom(AsEq, 0, _, R, '--as='), R > 0
+    ->  sub_atom(AsEq, 5, _, 0, Role),
+        nb_setval(orbit_role, Role),
+        append(B, A, Pre1),
+        take_role_pre(Pre1, Pre)
+    ;   append(B, ['--as'|Rest], Pre0)
+    ->  (   Rest = [R|A], R \== '', \+ sub_atom(R, 0, _, _, '--')
+        ->  nb_setval(orbit_role, R),
+            append(B, A, Pre1),
+            take_role_pre(Pre1, Pre)            % a second --as: the later one wins
+        ;   usage_error("--as needs a role, such as --as review.", [])
+        )
+    ;   Pre = Pre0
+    ).
+
+actor_role(R) :-
+    (   nb_current(orbit_role, R0), atom(R0), R0 \== [] -> R = R0
+    ;   getenv('ORBIT_KB_ROLE', R0), R0 \== '' -> R = R0
+    ;   R = unknown
+    ).
+
+actor_session(S) :-
+    ( writer_name(S0) -> S = S0 ; S = unknown ).
+
+% actor_line(+Id, -Line): the actor/3 line of a new record.
+actor_line(Id, Line) :-
+    actor_role(R), actor_session(S),
+    clause_line(actor(Id, R, S), [], Line).
 
 % lease_seconds(-S): $ORBIT_KB_LEASE minutes (a whole number, 0 or more), default 30.
 lease_seconds(S) :-
@@ -1042,6 +1096,7 @@ kb_cmd('pin-question', KB, Args, Code) :- cmd_pin_question(KB, Args, Code).
 kb_cmd('pin-answer', KB, Args, Code) :- cmd_pin_answer(KB, Args, Code).
 kb_cmd('pin-request', KB, Args, Code) :- cmd_pin_request(KB, Args, Code).
 kb_cmd('apply-pending', KB, Args, Code) :- cmd_apply_pending(KB, Args, Code).
+kb_cmd(review, KB, Args, Code) :- cmd_review(KB, Args, Code).
 
 % ---------------------------------------------------------------------
 % Library and KB location
@@ -2259,6 +2314,15 @@ protected_pi(due_passed/1).
 protected_pi(any_project_conflict/0).
 % T27: the stale request.
 protected_pi(request_stale/1).
+% D28 (T25): independent verification.
+protected_pi(independently_verified/1).
+protected_pi(last_change/2).
+protected_pi(later_change/2).
+protected_pi(has_actor/1).
+protected_pi(verdict_not_independent/2).
+protected_pi(run_before_last_change/2).
+protected_pi(verdict_fresh_run/2).
+protected_pi(verification_recorded/0).
 protected_pi(any_request_stale/0).
 protected_pi(subject_now/2).
 protected_pi(decision_digest/2).
@@ -3231,8 +3295,21 @@ add_lines([it(_, _, _, T, _, _)|Is], FUs, By, Now, Done, Lines) :-
     ;   Pre = [], Done1 = Done
     ),
     clause_line(T, [], L),
+    record_lines(T, Now, Post),
     add_lines(Is, FUs, By, Now, Done1, Rest),
-    append(Pre, [L|Rest], Lines).
+    append(Post, Rest, Rest1),
+    append(Pre, [L|Rest1], Lines).
+
+% record_lines(+Fact, +Time, -Lines) (D28): after an attestation, its
+% actor; after a change, its actor and its change time.
+record_lines(T, _, [A]) :-
+    nonvar(T), T = attest(Id, _, _, _, _, _), !,
+    actor_line(Id, A).
+record_lines(T, Now, [A, C]) :-
+    nonvar(T), T = change(Id, _), !,
+    actor_line(Id, A),
+    clause_line(change_at(Id, Now), [], C).
+record_lines(_, _, []).
 
 first_use_decl(N, A, decl(fact, H, 'Declared by its first use. Review it (lint W7).', '')) :-
     length(Ts, A), maplist(=(term), Ts),
@@ -3274,6 +3351,8 @@ add_item(ATs, I, A, R) :-
         ->  fmt(M, "Argument ~w is an attestation type. orbit-kb add does not declare attestation types. Use a type that orbit-kb help core or a module topic lists.", [I]), R = err(M)
         ;   nonvar(T), T = uses(_)
         ->  fmt(M, "Argument ~w is uses/1. orbit-kb init writes it. To add a module, run orbit-kb uses MODULE.", [I]), R = err(M)
+        ;   nonvar(T), functor(T, RN, RA), memberchk(RN/RA, [actor/3, change_at/2, review_saw/3])
+        ->  fmt(M, "Argument ~w: orbit-kb writes ~w/~w itself (D28): with each attestation and change, or with orbit-kb review start. add refuses it.", [I, RN, RA]), R = err(M)
         ;   nonvar(T), T = attest(_, Type, _, _, _, _), atom(Type), script_only_type(ATs, Type)
         ->  script_use(Type, Use),
             fmt(M, "Argument ~w: only ~w writes attestations of type ~q.", [I, Use, Type]), R = err(M)
@@ -4262,7 +4341,7 @@ next_attest_id(Items, Ds, Id) :-
     format(atom(Id), "a~w", [N1]).
 
 cmd_attest(KB, Args, Code) :-
-    parse_opts(Args, ['--by'-value, '--id'-value], Pos, Opts),
+    parse_opts(Args, ['--by'-value, '--id'-value, '--rests-on'-value], Pos, Opts),
     (   Pos = [Type, Subject, PredText] -> true
     ;   usage_error("Give a type, a subject, and a predicate: orbit-kb attest TYPE SUBJECT 'PREDICATE'.", [])
     ),
@@ -4301,11 +4380,82 @@ cmd_attest(KB, Args, Code) :-
     ),
     late_vote_check(Items, Type, By, Pred),
     log_check(KB, Items, Type, Subject, Pred),
+    rests_on_lines(Opts, Items, Type, Id, RLines),
     clause_line(T, [], Line),
+    actor_line(Id, ALine),
     kb_file(KB, KbFile),
-    append_lines(KbFile, [Line]),
-    format("~w~n", [Line]),
+    append_lines(KbFile, [Line, ALine|RLines]),
+    forall(member(L, [Line, ALine|RLines]), format("~w~n", [L])),
     Code = 0.
+
+% rests_on_lines(+Opts, +Items, +Type, +Id, -Lines) (D28): --rests-on A1,A2
+% names the runs that a disproof verdict rests on. Each must be a
+% test_result attestation in kb.pl. One rests_on_run(Id, A) line per run.
+rests_on_lines(Opts, Items, Type, Id, Lines) :-
+    (   memberchk('--rests-on'-RA, Opts)
+    ->  (   Type == disproof -> true
+        ;   reject(["--rests-on is only for a disproof verdict. The type is " + Type + "."] >> fix_lines)
+        ),
+        atomic_list_concat(Rs0, ',', RA),
+        findall(R, ( member(R1, Rs0), normalize_space(atom(R), R1), R \== '' ), Rs),
+        (   Rs == [] -> reject(["--rests-on needs one or more run ids, such as --rests-on a7,a9."] >> fix_lines) ; true ),
+        forall(member(R, Rs),
+               (   member(it(kb, _, _, A, _, _), Items), nonvar(A),
+                   A = attest(R, test_result, _, _, _, _)
+               ->  true
+               ;   reject(["--rests-on " + R + ": there is no test_result attestation " + R + " in kb.pl.",
+                           "Fix: name a run that orbit-kb run recorded (orbit-kb query 'attest(A, test_result, K, R, B, T)' -n 0)."] >> fix_lines)
+               )),
+        findall(L, ( member(R, Rs), clause_line(rests_on_run(Id, R), [], L) ), Lines)
+    ;   Lines = []
+    ).
+
+% ---------------------------------------------------------------------
+% review start (D28, T25)
+% ---------------------------------------------------------------------
+% review start --as R --ticket F --diff A..B records what the reviewer
+% saw: review_saw(R, ticket, D) for the bytes of F, review_saw(R, kb, D)
+% for the spec-kb stamp of kb.pl before these facts, and
+% review_saw(R, diff, D) for the stdout of git diff A..B, run in the
+% current directory. A missing option, file, or a failed git diff is
+% exit 2, and nothing is written.
+cmd_review(KB, [start|Args], Code) :- !,
+    parse_opts(Args, ['--ticket'-value, '--diff'-value], Pos, Opts),
+    (   Pos == [] -> true ; usage_error("review start takes only options: review start --as ROLE --ticket F --diff A..B.", []) ),
+    (   ( nb_current(orbit_role, R), atom(R) ; getenv('ORBIT_KB_ROLE', R), R \== '' ) -> true
+    ;   usage_error("review start needs the role of the reviewer: --as ROLE (or ORBIT_KB_ROLE), such as --as review.", [])
+    ),
+    (   memberchk('--ticket'-F, Opts) -> true ; usage_error("review start needs --ticket F, the ticket file that the reviewer reads.", []) ),
+    (   memberchk('--diff'-Range, Opts) -> true ; usage_error("review start needs --diff A..B, the commits that the reviewer reads.", []) ),
+    absolute_file_name(F, FAbs),
+    (   exists_file(FAbs) -> true
+    ;   die(2, ["The ticket file " + F + " does not exist. Nothing was written.", "Fix: give the path of the ticket file."] >> fix_lines)
+    ),
+    sha256_file(FAbs, DT),
+    git_diff_digest(Range, DD),
+    kb_file(KB, KbFile),
+    sha256_file(KbFile, DK),
+    findall(L, ( member(K-D, [ticket-DT, kb-DK, diff-DD]), clause_line(review_saw(R, K, D), [], L) ), Lines),
+    append_lines(KbFile, Lines),
+    forall(member(L, Lines), format("~w~n", [L])),
+    Code = 0.
+cmd_review(_, _, _) :-
+    usage_error("Usage: orbit-kb review start --as ROLE --ticket F --diff A..B.", []).
+
+% git_diff_digest(+Range, -Digest): the sha256 of the stdout of git diff RANGE.
+git_diff_digest(Range, Digest) :-
+    (   absolute_file_name(path(git), Git, [access(execute), file_errors(fail)]) -> true
+    ;   die(2, ["git was not found. review start needs git for --diff. Nothing was written."] >> fix_lines)
+    ),
+    tmp_file_stream(binary, Tmp, S),
+    catch(process_create(Git, [diff, Range], [stdin(null), stdout(stream(S)), stderr(null), process(P)]), E, true),
+    close(S),
+    (   var(E), process_wait(P, exit(0))
+    ->  sha256_file(Tmp, Digest), catch(delete_file(Tmp), _, true)
+    ;   catch(delete_file(Tmp), _, true),
+        die(2, ["git diff " + Range + " failed. Nothing was written.",
+                "Fix: run review start in the repository, with a range such as main..HEAD."] >> fix_lines)
+    ).
 
 % log_check(+KB, +Items, +Type, +Subject, +Pred) (D18): a model_result
 % verdict or mutation that the solver log clearly contradicts is refused.
@@ -4537,8 +4687,9 @@ record_run(KB, Check, Result, EC, Now, CmdText, Output, RunN, Log) :-
     next_attest_id(Items, Ds, Id),
     Att = attest(Id, test_result, Check, result(Check, RunN, Result), script, Now),
     clause_line(Att, [], Line),
+    actor_line(Id, ALine),
     kb_file(KB2, KbFile),
-    append_lines(KbFile, [Line]).
+    append_lines(KbFile, [Line, ALine]).
 
 % runs_tmp(+RunsDir, -Path, -Stream): a new private file
 % runs/.tmp-<pid>-<random>. The process id makes the name unique among
@@ -4867,8 +5018,9 @@ record_proof(KB, Claim, Digest, Now, LogText, Id, Log) :-
     create_exclusive(Log, LogText),
     Att = attest(Id, lean_proof, Claim, proof(Claim, Digest), script, Now),
     clause_line(Att, [], Line),
+    actor_line(Id, ALine),
     kb_file(KB2, KbFile),
-    append_lines(KbFile, [Line]).
+    append_lines(KbFile, [Line, ALine]).
 
 proof_log_path(Dir, Id, P) :-
     format(atom(Rel), "runs/proof-~w.log", [Id]),
@@ -6201,6 +6353,11 @@ report_text(KB, Eng) :-
              claim_node(Build, C, L, TT, SK, StHead, StDetail, Parts, KStates, Node),
              format(string(Plain), "~w (~w): ~w~w~w", [C, L, TT, St, KT]),
              rtree(claim(C, L, TT, SK, St0, BT, KStates), Plain, Node) )),
+    % D28: who verified each claim, in a KB that records actors or a review.
+    (   call(Build), eng_true(Eng, verification_recorded)
+    ->  review_section(Eng, Cs)
+    ;   true
+    ),
     rhead('Guesses'),
     eng_all(Eng, [Q, A], ( assumed(Q, A), not(answered(Q)) ), Gs),
     % D17: say that a human answered only when a question with a default exists.
@@ -6324,6 +6481,40 @@ report_text(KB, Eng) :-
     ( has_discovery(KB) -> vote_section(Eng) ; true ),
     rhead('To land'),
     rsay(placeholder, "(Write the steps to land the work here.)", []).
+
+% review_section(+Eng, +Cs) (D28): for each current claim, its latest
+% verdict (the last in kb.pl) with the actor and the runs it rests on;
+% then the claims that are not independently verified.
+review_section(Eng, Cs) :-
+    rhead('Review'),
+    eng_all(Eng, [V, C, P], attest(V, disproof, _, verdict(C, P), _, _), Vs),
+    (   Cs == [] -> rsay(none, "No current claims.", []) ; true ),
+    forall(member([C, _, _], Cs),
+           (   findall(V-P, member([V, C, P], Vs), VPs),
+               (   VPs == []
+               ->  rsay(item(C), "~w: no verdict.", [C])
+               ;   last(VPs, V-P),
+                   ( eng_all(Eng, [R, S], actor(V, R, S), [[R, S]|_]) -> true ; R = unknown, S = unknown ),
+                   (   compound(P), compound_name_arguments(P, Kind, [Arg])
+                   ->  plain_text(Arg, AT), as_sentence(AT, ATS),
+                       format(string(Head), "~w: reviewer ~w (session ~w), verdict ~w: ~w", [C, R, S, Kind, ATS])
+                   ;   format(string(Head), "~w: reviewer ~w (session ~w), verdict ~w.", [C, R, S, P])
+                   ),
+                   eng_all(Eng, [A, K, N, Res], ( rests_on_run(V, A), attest(A, test_result, _, result(K, N, Res), _, _) ), Rs),
+                   (   Rs == [] -> Kid = "Reruns: none."
+                   ;   findall(X, ( member([_, K, N, Res], Rs), format(string(X), "run ~w ~w ~w", [N, K, Res]) ), Xs),
+                       atomic_list_concat(Xs, ', ', XT), format(string(Kid), "Reruns: ~w.", [XT])
+                   ),
+                   format(string(Plain), "~w ~w", [Head, Kid]),
+                   rtree(item(C), Plain, Head-[Kid-[]])
+               ) )),
+    eng_all(Eng, [C1], ( current(C1), not(independently_verified(C1)) ), NV0),
+    findall(C2, ( member([C2, _, _], Cs), memberchk(C2, NV0) ), NVs),
+    (   NVs == []
+    ->  ( Cs == [] -> true ; rsay(none, "Every current claim is independently verified.", []) )
+    ;   atomic_list_concat(NVs, ', ', NVT),
+        rsay(review_open, "Not independently verified: ~w.", [NVT])
+    ).
 
 % ropen(+Tag, +Label, +Fmt, +Args): an item of the Open section, with its kind in bold.
 ropen(Tag, Label, Fmt, Args) :-
@@ -6867,8 +7058,9 @@ help_lines(general, [
 "  add 'FACT' ... [--by human|agent]",
 "  declare 'HEAD' --doc TEXT [--kind fact|rule] [--template T]     (optional)",
 "  subject ID PATH",
-"  attest TYPE SUBJECT 'PREDICATE' [--by human|agent] [--id ID]",
+"  attest TYPE SUBJECT 'PREDICATE' [--by human|agent] [--id ID] [--rests-on RUN,...]",
 "  run CHECK -- CMD [ARGS]",
+"  review start --as ROLE --ticket F --diff A..B",
 "  prove CLAIM FILE THEOREM [--module M]",
 "  lint [--strict]",
 "  query 'GOAL' [-n N] [--why] [--long]",
@@ -6888,6 +7080,7 @@ help_lines(general, [
 "  apply-pending",
 "  project impact X [--root DIR] | project archive --superseded-before DATE [--root DIR]",
 "  doctor",
+"  Every write command takes --as ROLE: actor(A, Role, Session) records who wrote (help core).",
 "  help [COMMAND|TOPIC]",
 "",
 "Finding the KB. orbit-kb uses the first of these:",
@@ -6987,7 +7180,23 @@ help_lines(attest, [
 "  orbit-kb attest vote r1 'vote(1, hold)' --by human",
 "An agent vote in a round in which the human already voted is refused.",
 "Read the outcome with orbit-kb query 'gate(V)' and orbit-kb query gate_split.",
-"orbit-kb cannot verify --by human. The writer says human."
+"orbit-kb cannot verify --by human. The writer says human.",
+"A disproof verdict names the runs that it rests on (D28):",
+"  orbit-kb attest disproof c1 \"verdict(c1, upheld('what I tried'))\" --rests-on a7,a9",
+"Each run must be a test_result. --rests-on is only for disproof.",
+"After each attestation, orbit-kb writes actor(ID, ROLE, SESSION): ROLE from --as ROLE or ORBIT_KB_ROLE."
+]).
+help_lines(review, [
+"orbit-kb review start --as ROLE --ticket F --diff A..B",
+"",
+"Record what a fresh-eyes reviewer saw, before the review (D28):",
+"  review_saw(ROLE, ticket, D)   D is the sha256 of the ticket file F;",
+"  review_saw(ROLE, kb, D)       D is the digest of the spec-kb stamp (orbit-kb pin);",
+"  review_saw(ROLE, diff, D)     D is the sha256 of git diff A..B, run in this directory.",
+"ROLE comes from --as, else ORBIT_KB_ROLE. Then rerun each check (orbit-kb run --as ROLE),",
+"and record one verdict for every claim (orbit-kb attest disproof ... --rests-on RUN).",
+"orbit-kb help build, FULFILL, has the whole brief.",
+"Exit 0 when the facts are written; 2 for a missing option or file, or a git diff that fails."
 ]).
 help_lines(run, [
 "orbit-kb run CHECK -- CMD [ARGS]",
@@ -6997,7 +7206,8 @@ help_lines(run, [
 "orbit-kb appends a test_result attestation: pass if the command exits 0, else fail.",
 "It prints: run N CHECK pass|fail (exit E) log=PATH.",
 "On a fail, it also prints the last 40 lines of output.",
-"Exit 0 on pass, 1 on fail, 2 if the check or the command does not exist."
+"Exit 0 on pass, 1 on fail, 2 if the check or the command does not exist.",
+"orbit-kb also writes actor(ID, ROLE, SESSION) (D28). Put --as ROLE before --: orbit-kb run --as review k1 -- CMD."
 ]).
 help_lines(prove, [
 "orbit-kb prove CLAIM FILE THEOREM [--module M]",
