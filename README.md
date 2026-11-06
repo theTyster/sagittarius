@@ -11,6 +11,17 @@ of questions, and, for a claim about every case, a Lean proof.
 The idea in ten slides: [`site/essentials.html`](site/essentials.html). The full story, with
 the timeline and every mechanism, is in 30 slides: [`site/index.html`](site/index.html).
 
+## Use it
+
+1. **Install.** Install SWI-Prolog 9+, then run `./install.py` from this folder. It links
+   `orbit-kb`, `repo-map`, and the prompt into your home directory. Check it with `orbit-kb doctor`
+   and `./install.py --check`. See "Install" below for the prompt flag.
+2. **Start a hub.** Give `hubkit/` to your agent and say "follow INSTRUCTIONS.md". It reads
+   `hubkit/INSTRUCTIONS.md`, asks up to three questions, and sets up the hub. See "Hub kit" below.
+3. **Add the System 1 hook (optional).** The hook asks Jev about each prompt before the agent
+   answers. Follow `s1/README.md`. The hook is manual: you paste a snippet into your
+   `~/.claude/settings.json`. No script writes that file. `install.py` never does.
+
 ## What it is
 
 | Part | Where | What it does |
@@ -28,8 +39,8 @@ orbit-kb doctor
 ```
 
 `install.py` uses only the Python standard library and works the same on Linux, macOS,
-and Windows. It makes three links: `~/.local/bin/orbit-kb`, `~/.local/share/orbit-kb`, and
-`~/.claude/sagittarius` (the prompt). Run `./install.py --check` to see their status. On
+and Windows. It makes four links: `~/.local/bin/orbit-kb`, `~/.local/bin/repo-map`, `~/.local/share/orbit-kb`,
+and `~/.claude/sagittarius` (the prompt). Run `./install.py --check` to see their status. On
 Windows, symlinks need Developer Mode.
 
 Then add the prompt to your Claude Code sessions. Claude Code can append text to its system
