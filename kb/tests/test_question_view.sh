@@ -12,6 +12,7 @@
 #   multiple KBs                                                : QV16-QV17
 #   no external dependency, escaping, page shape                : QV18-QV19
 #   errors, read-only, --out                                    : QV20-QV22
+#   c3 textual (no bare id), fy16 options                       : QV23-QV24
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -137,6 +138,32 @@ def main():
         if got!=a: bad.append("kb sections have stamps %s, want %s"%(got,a))
         for n in secs:
             if n.attrs.get("data-stamp","?") not in n.text(): bad.append("section %s does not show its stamp as text"%n.attrs.get("data-stamp"))
+    elif mode=="bareids":  # bareids FILE ID... : no id as a bare token outside span.ref (visible text, attrs but class and data-*)
+        pat=re.compile(r"(?<![A-Za-z0-9_])(%s)(?![A-Za-z0-9_])"%"|".join(map(re.escape,a)))
+        def inref(n):
+            while n is not None:
+                if n.tag=="span" and "ref" in n.classes(): return True
+                n=n.parent
+            return False
+        def vis(n):   # own text pieces of n, unless n is hidden machinery
+            return [] if n.tag in ("script","style") else n.txt
+        for n in p.all:
+            if inref(n): continue
+            for t in vis(n):
+                for m in pat.finditer(t): bad.append("bare id %s in text of <%s>: %r"%(m.group(1),n.tag,norm(t)[:120]))
+            for k,v in n.attrs.items():
+                if k=="class" or k.startswith("data-") or v is None: continue
+                for m in pat.finditer(v): bad.append("bare id %s in attribute %s of <%s>"%(m.group(1),k,n.tag))
+    elif mode=="options":  # options FILE ID SRC=TEXT... : the exact option list of the to_ask item ID, in order
+        iid,*want=a
+        hit=[n for st,n in items(p) if n.attrs.get("data-kind")=="to_ask" and n.attrs.get("data-id")==iid]
+        if len(hit)!=1: bad.append("want one to_ask item %s, found %d"%(iid,len(hit)))
+        else:
+            ol=[k for k in hit[0].walk() if "options" in k.classes()]
+            if len(ol)!=1: bad.append("item %s has %d options elements, want 1"%(iid,len(ol)))
+            else:
+                got=["%s=%s"%(k.attrs.get("data-source"),k.text()) for k in ol[0].walk() if k.tag=="li" and "option" in k.classes()]
+                if got!=want: bad.append("options of %s: got %s, want %s"%(iid,got,want))
     elif mode=="extdeps":
         if re.search(r"<script[^>]*\ssrc\s*=", raw, re.I): bad.append("a <script src>")
         if re.search(r"<link\b", raw, re.I): bad.append("a <link>")
@@ -387,6 +414,23 @@ t_QV22() {  # exit 2: bad ledger, missing ledger, unknown view, no view, no KB; 
     [ ! -e "$T/q.html" ] || note "a failed run wrote the --out file"
 }
 
+t_QV23() {  # c3, textual: no bare KB id anywhere outside the ref spans (two KBs, a ledger, a check)
+    kb_a "$T/a"; kb_b "$T/b"; ledger_json "$T/asks.json"
+    printf "question(q4, c2, 'Should the export include totals').\nattest(d2, divergence, c2, claim(c2), agent, '2026-10-15T10:00:02Z').\n" >> "$T/a/kb.pl"
+    view --dir "$T/a" --dir "$T/b" --ledger "$T/asks.json" || return
+    chk refs "$T/page.html" 8
+    chk bareids "$T/page.html" q1 q2 q3 q4 c1 c2 k1 r1 r2 d1 d2
+}
+t_QV24() {  # fy16: the options are the default, the answer if any, and other; the page invents none
+    kb_a "$T/a"
+    printf "answer(q1, no, agent).\nanswer(q2, no, agent).\nquestion(q5, c1, 'Should the list show a total').\nquestion(q6, c1, 'Is the list printable').\nassumed(q6, yes).\n" >> "$T/a/kb.pl"
+    view --dir "$T/a" || return
+    chk options "$T/page.html" q1 default=yes answer=no other=other
+    chk options "$T/page.html" q2 default=no other=other
+    chk options "$T/page.html" q5 other=other
+    chk options "$T/page.html" q6 default=yes other=other
+    chk alltext "$T/page.html" "come from the KB's defaults"
+}
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -395,6 +439,6 @@ run_one() {  # run_one ID
     if [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 22); do run_one QV$n; done
+for n in $(seq 1 24); do run_one QV$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
