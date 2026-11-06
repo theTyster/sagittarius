@@ -30,11 +30,40 @@ Queries
   flare_open(C) current claim C flares, and no human approved a demo of it at the demo's
                 current digest, and no waiver is before its due time
 
-Checks
-  orbit-kb add "check(k1, c1)"
-  orbit-kb run k1 -- npm test -- button     run it; the output goes to runs/N-k1.log
-  Run each retire and introduce check against the current code first. It must fail.
-  Do not edit a check to make it pass. If a claim was wrong, add a claim that supersedes it.
+SURVEY: close the world (build)
+  1. Record as world facts the current behavior that the claims rest on. Under the
+     closed-world assumption, a fact that you did not record is false. So record the slice
+     that the ticket touches, and nothing more.
+  2. For a defect, reproduce it first. If you cannot reproduce it, or the feature already
+     exists, stop and tell the human.
+  3. Skip SURVEY when discovery ran. When the change site is obvious, skip step 1, never step 2.
+
+BUILD: checks first
+  1. Write the checks first, from the claims and the examples. Add a screenshot check when
+     the change has a user surface.
+       orbit-kb add "check(k1, c1)"
+       orbit-kb run k1 -- npm test -- button     run it; the output goes to runs/N-k1.log
+  2. Run each retire and introduce check against the current code first. It must fail.
+     The red run proves that the check can fail. Run every check with orbit-kb run.
+  3. Build the change. Change only what the claims need. Record each change and the claim
+     that it serves: change(X, Text), serves(X, Claim).
+  4. Do not edit a check to make it pass: that hides a divergence. If a claim was wrong, add
+     a claim that supersedes it, and disclose the change.
+
+FULFILL: fulfillment in both directions (verify)
+  Review with fresh eyes. Prefer one subagent with a fresh context that sees only the ticket,
+  the KB, and the diff.
+  - Under: orbit-kb query 'under(C)'. Each answer is a claim that is not fulfilled.
+  - Over: orbit-kb query 'over(X)'. Each answer is a change that serves no claim. Remove it,
+    or propose it to the human.
+  - Open questions: orbit-kb query 'to_ask(Q)'.
+  - Clean up: keep a test only if it guards a claim, records a human answer, or reproduces a
+    fixed defect. Delete the other tests that you wrote.
+  The build is finished when done holds (orbit-kb show blocking lists what blocks it). Stop
+  there. Do not polish beyond the claims.
+
+DISPROVE (verify, and in discovery): before you deliver a burned claim, or when you doubt any
+claim, try to break it within a small budget. Record one disproof verdict (orbit-kb help core).
 
 Burns: prove the claim in Lean
   A statement with sorry is not a proof. "No counterexample in N trials" is not a proof.
