@@ -8,7 +8,8 @@ working memory. It has three ideas:
   skills before a week rolls off.
 - **Flow state is in SQLite.** Asks waiting on a person, in-flight threads, holds and handoffs
   between sessions are rows in `flow/flow.db`, written only by `hubflow.py`. Each write also exports
-  JSONL, which git tracks. Items lapse when nobody renews them.
+  JSONL, which git tracks. An item nobody renews comes due, and each rotation records one
+  decision for every due item (keep, lapse, capsule or escalate) instead of a silent lapse.
 - **Named sessions, one per role**, each with an identity that the db records on every write.
 
 **Briefing for people:** <https://thetyster.github.io/hubflow-starter/> (also `docs/index.html`).

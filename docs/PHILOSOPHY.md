@@ -2,7 +2,8 @@
 
 This document states the beliefs under Sagittarius: what is true about humans, agents, intent,
 evidence, and formal methods that makes the design right. It does not say how to do the work. The
-procedure is in [`prompt/SAGITTARIUS.md`](../prompt/SAGITTARIUS.md) and in `orbit-kb help`.
+procedure is in `orbit-kb help` and its topics. The prompt,
+[`prompt/SAGITTARIUS.md`](../prompt/SAGITTARIUS.md), states the philosophy in short.
 
 The prompt is one way to apply these beliefs. Each principle must stay true even if every section
 of the prompt changes. Use this document to judge a proposed change to the prompt or to `orbit-kb`.
@@ -39,7 +40,7 @@ who can answer a question or ratify a decision. Answers and decisions can come f
 people other than the owner.
 <!-- d_other_humans, decided 2026-11-05 -->
 
-Applied in: prompt "Roles", "GO / NO-GO: a weighted vote".
+Applied in: prompt "Roles", "The phase tree" (the vote); `orbit-kb help discovery` (GATE).
 
 ### 2. Alignment is the goal. A proof is one tool for it
 
@@ -61,7 +62,7 @@ party that did not make it.
 Show the human concrete examples and results, not formal text or test logs. The human judges
 meaning. The machines judge consistency.
 
-Applied in: prompt "The orbit" (Parallax), "Roles", "Delivery".
+Applied in: prompt "The phase tree" (Parallax), "Roles", "Delivery".
 
 ### 4. Orbit the intent. Do not translate it
 
@@ -84,7 +85,8 @@ statement. Then a difference between them is information.
 
 > "We do not write to achieve understanding; we orbit to achieve understanding."
 
-Applied in: prompt "The orbit", "Moves" (each move reads the ticket), "SPECTRUM".
+Applied in: prompt "The phase tree" (Parallax: each lap goes back to the source); `orbit-kb help
+discovery` (SPECTRUM).
 
 ### 5. The hypothesis is the closest formal statement of intent
 
@@ -107,7 +109,7 @@ too soft, then formalize. The formalism then localizes the definition. Annealing
 languages brings out the tempered position. Oscillation is an intentional heuristic.
 <!-- d_err_soft, d_oscillate, decided 2026-11-05 -->
 
-Applied in: prompt "The hypothesis". The exact definition is open (see the end).
+Applied in: prompt "The phase tree" (the hypothesis). The exact definition is open (see the end).
 
 ### 6. A divergence is good news. A quiet failure is the enemy
 
@@ -121,18 +123,19 @@ tested, an empty answer, a theorem that cannot fail. Evidence that cannot fail i
 > "Silence, negative space, emptiness, and vacuity are often the predators of clarity, accuracy,
 > and honesty."
 
-Applied in: prompt "The orbit" (quiet failures), "The light path" (a new check fails first).
+Applied in: prompt "The phase tree" (quiet failures), "Start light" (a new check fails first).
 
 ### 7. Rigor follows signals of misunderstanding, not size or difficulty
 
 Most work needs little process. Rigor starts light and increases only when a signal of
 misunderstanding appears: questions that one round does not settle, a disagreement, work that
-another party did, a claim that examples cannot cover, or work that changes hands. The size of a
+another party did, a claim that examples cannot cover, work that changes hands, or significant
+effort or verbosity from the human. The size of a
 change does not decide. A one-line fix can need rigor, and a large change can need none. When the
 cause of a signal is resolved, the rigor that it added stops.
 
-Also, significant effort or verbosity from the human is a signal to shift into a formal
-language. The System 1 model, the LLM, and the human each have a part in deciding when to shift up.
+Effort is a signal to shift into a formal
+language. A long, careful message holds decisions that must not be lost. The System 1 model, the LLM, and the human each have a part in deciding when to shift up.
 After a shift, the human, the agent, and the CPU (the machine that runs the solvers and provers)
 all work in the formal language. The human must read and review it, so shift up only when needed.
 <!-- d_effort_signal, d_shift_three, d_formal_substrate, decided 2026-11-05 -->
@@ -145,7 +148,8 @@ The split between make and judge stays, because it marks a handoff.
 Fixed tiers, chosen at the start, failed. Nobody knows how much must be formal until a
 misunderstanding occurs. In practice, the middle tiers emptied into the lowest and the highest.
 
-Applied in: prompt "The light path", "Shift up to a KB", "Leaning back"; deck slides 12 and 30.
+Applied in: prompt "Start light", "When to shift up" (also leaning back); the System 1 hook
+(`s1/hook.py`); deck slides 12 and 30.
 
 ### 8. Speed comes from skipping work, never from hiding it
 
@@ -167,7 +171,7 @@ Hiding is a failure. Claim no more than the evidence shows:
 
 If your own earlier work is wrong, say so first.
 
-Applied in: prompt "Honesty rules", "Honesty rules for discovery".
+Applied in: prompt "Honesty rules" (with the rules for discovery).
 
 ### 10. Each formal artifact catches its own kind of error. None stops cheating
 
@@ -180,7 +184,7 @@ more than the checks give. Impartial also does not mean infallible: when two eng
 answers, nobody uses either answer until a human looks.
 <!-- prop_retire_honest_mistakes, d_retire_honest, decided 2026-11-05 -->
 
-Applied in: prompt "Honesty rules" (rule 5), "Rules for the KB".
+Applied in: prompt "Honesty rules" (rule 5), "Where the procedure is"; `orbit-kb help core`.
 
 ### 11. Each claim has a shape. Use the tool that fits it
 
@@ -202,7 +206,8 @@ demands precision: a statement says exactly what it means, or it does not check.
 store (Prolog, with SWI-Prolog as the engine) keeps the facts of the work in one place. Its rules keep attention on
 what is still open.
 
-Applied in: prompt "SPECTRUM", "Shift up to a KB" (a claim that burns); deck slide 14.
+Applied in: prompt "When to shift up" (a claim that burns); `orbit-kb help discovery` (SPECTRUM);
+deck slide 14.
 
 ### 12. Memory lives outside the agent
 
@@ -217,7 +222,8 @@ The main task is to give the LLM the right amount of context. Rules in the KB he
 The prompt holds the philosophy only. The System 1 hook runs the classification steps.
 <!-- p_context, d_prompt_small, decided 2026-11-05 -->
 
-Applied in: prompt "Rules for the KB", "Shift up to a KB" (a divergence, a handoff), "BURN".
+Applied in: prompt "Where the procedure is", "When to shift up" (a divergence, a handoff);
+`orbit-kb help build` (burns).
 
 ### 13. One principle, shown by examples
 
@@ -225,8 +231,8 @@ State one principle, and let examples show its meaning. A checklist of trigger w
 catches the words and misses the meaning. Examples show meaning, not strings to match. Give each
 term one meaning. When two meanings share a word, the result is confusion.
 
-Applied in: prompt "When the human says that it is wrong", "The hypothesis" (an example of the
-meaning, not a template).
+Applied in: prompt "When the human says that it is wrong"; `orbit-kb help discovery` (SIGNAL: an
+example of a hypothesis, of the meaning, not a template).
 
 ### 14. Improve the process as you improve a hypothesis
 
@@ -241,7 +247,7 @@ whether the philosophy and the hypotheses pay off. No stakeholder instance is pr
 results stay non-trivial.
 <!-- d_eval_scope, p_general, decided 2026-11-05 -->
 
-Applied in: `evals/REFINING.md`.
+Applied in: `docs/REFINING.md`.
 
 ## Open questions
 
@@ -294,7 +300,7 @@ stays out of the prompt until an eval shows one. Four points are not decided:
 - When does a language lean back? "The cause of the trigger is resolved" lets an agent stay in a
   model too long, or leave it early to reach the next language. It needs an exit test, such as
   "the model is trusted and its verdicts are recorded, or it is dropped with a disclosure".
-- That exit test rests on sanity and calibration. The prompt states them per tool (FLYBY steps 1
+- That exit test rests on sanity and calibration. `orbit-kb help discovery` states them per tool (FLYBY steps 1
   and 2, TRAJECTORY steps 2 and 3), but the agent attests them, and `orbit-kb` counts one result
   of each. In the cache-race discovery of 2026-10-30, a TLA+ model was attested calibrated on the
   outcome (the same abort) before any system log showed the same sequence of steps, which

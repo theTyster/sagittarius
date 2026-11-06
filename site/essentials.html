@@ -569,7 +569,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <text x="287" y="135" class="sub">plain words</text>
       <text x="467" y="135" class="sub">reads, writes</text>
     </svg>
-    <figcaption>The prompt tells the agent how to work. <code>orbit-kb</code> keeps the records honest: every fact is declared, typed, and checked.</figcaption>
+    <figcaption>The prompt tells the agent how to work. <code>orbit-kb</code> keeps the records honest: every fact is declared, typed, and checked. The prompt holds the philosophy only. The procedure is in <code>orbit-kb help</code>, and the agent reads it before its first <code>orbit-kb</code> command.</figcaption>
   </figure>
   <dl class="gloss">
     <div><dt><svg class="ic"><use href="#i-feather"/></svg>The prompt</dt><dd>One plain-text file, appended to the agent's system prompt. It says how to work: start light, shift up on a signal.</dd></div>
@@ -686,12 +686,14 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <h2>What you get back</h2>
   <p>Six fields, in short plain sentences. An empty field says "none", so you see that the agent looked.</p>
 <pre class="report" aria-label="A sample delivery"><b>Delivered:</b>    Submit on /checkout is purple.
+<b>KB:</b>           No KB.
+<b>Triggers:</b>     questions no; divergence no; someone else built no; burns no; handoff no.
 <b>Claims:</b>       Submit on /checkout renders #6B3FA0: fulfilled (check red, then green).
 <b>Guesses:</b>      Only this button, not every primary button.
 <b>Disclosures:</b>  none
 <b>Not checked:</b>  dark mode
 <b>To land:</b>      none; merged.
-<i>Screenshot attached. No KB.</i></pre>
+<i>Screenshot attached.</i></pre>
   <h3>Go deeper</h3>
   <ul class="chips" aria-label="Sections of the full deck">
     <li class="chip"><svg class="ic"><use href="#i-feather"/></svg><a href="index.html#s20">The light path</a></li>

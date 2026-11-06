@@ -20,7 +20,7 @@ die(Fmt, Args) :- format(user_error, Fmt, Args), nl, halt(2).
 
 main(Argv) :-
     parse_args(Argv, Facts, Cont, Level),
-    (   Facts == none ; Cont == none -> usage ; true ),
+    (   ( Facts == none ; Cont == none ) -> usage ; true ),
     forall(member(F, [Facts, Cont]),
            ( exists_file(F) -> true ; die("repo-map: cannot read a file", []) )),
     read_data(Facts, Cont),

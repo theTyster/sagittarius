@@ -1,0 +1,6 @@
+name = "ledger_guard"
+version = "0.1.0"
+defaultTargets = ["LedgerGuard"]
+
+[[lean_lib]]
+name = "LedgerGuard"

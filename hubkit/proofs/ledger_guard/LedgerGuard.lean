@@ -1,0 +1,457 @@
+/-
+T05 c2, the flow ledger `hubflow` (hubkit/hub/.claude/scripts/hubflow.py).
+
+Claim (after review): no agent command may take an item out of the open/escalated view
+without the human, when the item is open or waiting and is escalated, or its kb ref's spec KB
+blocks, or the KB answer is unknown (fail-safe: a missing kb dir, orbit-kb exit 2, a timeout
+or a missing command all count as unknown).
+
+The model is one item. Each hubflow command that can change an existing item is one `Cmd`.
+`step` follows hubflow.py; `check_commands.py` (next to this file) compares hubflow.py's
+COMMANDS table with `modelledCommands` and `excludedCommands` below.
+-/
+namespace LedgerGuard
+
+/-- item.status (STATUSES). `parked_until` is a separate field (`Item.parked`), not a status. -/
+inductive Status
+  | open_ | waiting | done | dropped | lapsed
+  deriving DecidableEq, Repr
+
+/-- The answer of all kb refs of the item together (`kb_checks`, then
+`any(k["state"] != "clear")`). `none`: the item has no kb ref. `unknown`: the fail-safe. -/
+inductive Kb
+  | none | clear | blocks | unknown
+  deriving DecidableEq, Repr
+
+structure Item where
+  status : Status
+  /-- `is_escalated`: the newest disposition of the item is `escalate`. -/
+  esc : Bool
+  kb : Kb
+  parked : Bool
+  /-- At least one capsule row exists (`triage ID capsule` needs one). -/
+  hasCapsule : Bool
+  deriving DecidableEq, Repr
+
+/-- The writer (`writer_by`): `--by agent` (the default), `--by script`, or `--by human`,
+which needs `--note` with the person's words. -/
+inductive Actor
+  | agent | script | human (note : String)
+  deriving Repr
+
+/-- `some true`: the writer counts as the human. `some false`: agent or script.
+`none`: `--by human` without `--note`, which `writer_by` refuses (exit 1, nothing written). -/
+def Actor.writer : Actor → Option Bool
+  | .agent => some false
+  | .script => some false
+  | .human n => if n = "" then none else some true
+
+inductive Disp
+  | keep | lapse | capsule | escalate
+  deriving DecidableEq, Repr
+
+inductive Reason
+  | done | dropped | humanSkip
+  deriving DecidableEq, Repr
+
+/-- One hubflow command, as it acts on the modelled item. -/
+inductive Cmd
+  /-- `renew ID` -/
+  | renew
+  /-- `park ID --until D` -/
+  | park
+  /-- `set ID --status ST` (only open or waiting are accepted) -/
+  | setStatus (st : Status)
+  /-- `set ID` with only --title / --owner / --waits-on / --analysis -/
+  | setFields
+  /-- `close ID --reason R` -/
+  | close (r : Reason)
+  /-- `reopen ID` -/
+  | reopen
+  /-- `ref ID add kb:REF` whose spec KB answers `a` -/
+  | refAddKb (a : Kb)
+  /-- `ref ID rm kb:REF`; `rest` is the answer of the kb refs that are left -/
+  | refRmKb (rest : Kb)
+  /-- `ref ID add|rm KIND:REF` for a kind that is not kb -/
+  | refOther
+  /-- `link FROM TO KIND` with this item on either side -/
+  | link
+  /-- `note ID TEXT` -/
+  | note
+  /-- `accept ID` (a handoff) -/
+  | accept
+  /-- `capsule ID --summary T` -/
+  | capsule
+  /-- `triage ID D --note T` -/
+  | triage (d : Disp)
+  /-- `close OTHER --reason human_skip`, where OTHER is linked to this item by `blocks`: the
+  propagation drops this item too. -/
+  | skipLinked
+  /-- `rotate --week-start W --yes`: it prunes only closed items -/
+  | rotate
+  deriving Repr
+
+inductive Outcome
+  | ok (s : Item)
+  /-- the agent guard or triage refused: exit 1, nothing written -/
+  | refused
+  /-- any other exit 1 (need_open, a usage error, no such ref, no capsule ...) -/
+  | error
+  deriving DecidableEq, Repr
+
+def isOpen (s : Item) : Bool := s.status == .open_ || s.status == .waiting
+
+def nonclear : Kb → Bool
+  | .blocks => true
+  | .unknown => true
+  | _ => false
+
+/-- `ref add kb:...`: the new answer of all kb refs together. -/
+def Kb.join : Kb → Kb → Kb
+  | k, .none => k
+  | .none, a => a
+  | .clear, a => a
+  | .blocks, _ => .blocks
+  | .unknown, .blocks => .blocks
+  | .unknown, _ => .unknown
+
+/-- `agent_guard`: true = refuse. Not for the human; only for an open item that is escalated,
+or that has kb refs and one of them is not clear. -/
+def agentGuard (human : Bool) (s : Item) : Bool :=
+  !human && isOpen s && (s.esc || nonclear s.kb)
+
+/-- One command by a writer that `writer_by` accepted (`human` = it is `--by human --note`). -/
+def stepAs (human : Bool) : Cmd → Item → Outcome
+  | .renew, s =>
+      if agentGuard human s then .refused else if isOpen s then .ok s else .error
+  | .park, s =>
+      if agentGuard human s then .refused
+      else if isOpen s then .ok { s with parked := true } else .error
+  | .setStatus st, s =>
+      if !(st == .open_ || st == .waiting) then .error
+      else if agentGuard human s then .refused
+      else if isOpen s then .ok { s with status := st } else .error
+  | .setFields, s => .ok s
+  | .close .humanSkip, s =>
+      if !human then .error
+      else if isOpen s then .ok { s with status := .dropped } else .error
+  | .close r, s =>
+      if agentGuard human s then .refused
+      else if isOpen s then .ok { s with status := if r == .done then .done else .dropped }
+      else .error
+  | .reopen, s =>
+      if isOpen s then .error else .ok { s with status := .open_, parked := false }
+  | .refAddKb a, s => .ok { s with kb := s.kb.join a }
+  | .refRmKb rest, s =>
+      if s.kb == .none then .error
+      else if agentGuard human s then .refused
+      else .ok { s with kb := rest }
+  | .refOther, s => .ok s
+  | .link, s => .ok s
+  | .note, s => .ok s
+  | .accept, s => if isOpen s then .ok s else .error
+  | .capsule, s => .ok { s with hasCapsule := true }
+  | .triage d, s =>
+      if !isOpen s then .error
+      else
+        -- hubflow.py cmd_triage: an agent's keep/lapse/capsule of an escalated item, or of an
+        -- item whose kb answer is not clear, becomes escalate.
+        let final := if !human && d != .escalate && (s.esc || nonclear s.kb) then Disp.escalate else d
+        match final with
+        | .escalate => .ok { s with esc := true }
+        | .keep => .ok { s with esc := false }
+        | .capsule => if s.hasCapsule then .ok { s with esc := false } else .error
+        | .lapse => .ok { s with esc := false, status := .lapsed }
+  | .skipLinked, s =>
+      if !human then .error
+      else if isOpen s then .ok { s with status := .dropped } else .ok s
+  | .rotate, s => .ok s
+
+def step (a : Actor) (c : Cmd) (s : Item) : Outcome :=
+  match a.writer with
+  | none => .error
+  | some h => stepAs h c s
+
+/-- The item after the command: a refused or failed command writes nothing. -/
+def exec (a : Actor) (c : Cmd) (s : Item) : Item :=
+  match step a c s with
+  | .ok s' => s'
+  | _ => s
+
+def run : List (Actor × Cmd) → Item → Item
+  | [], s => s
+  | (a, c) :: rest, s => run rest (exec a c s)
+
+/-- v_open: status open or waiting (v_escalated is v_open with escalated = 1). -/
+def inView (s : Item) : Prop := s.status = .open_ ∨ s.status = .waiting
+
+/-- Open or waiting, and escalated, or the kb answer blocks or is unknown. -/
+def guarded (s : Item) : Prop :=
+  inView s ∧ (s.esc = true ∨ s.kb = .blocks ∨ s.kb = .unknown)
+
+/-- The writer is not the human (agent, script, or `--by human` with no note). -/
+def notHuman (a : Actor) : Prop := a.writer ≠ some true
+
+/-! ## Counterexample search: every state, every command, one agent step. -/
+
+def allStatus : List Status := [.open_, .waiting, .done, .dropped, .lapsed]
+def allKb : List Kb := [.none, .clear, .blocks, .unknown]
+def allBool : List Bool := [false, true]
+def allItems : List Item := Id.run do
+  let mut out := []
+  for st in allStatus do
+    for e in allBool do
+      for k in allKb do
+        for p in allBool do
+          for c in allBool do
+            out := out ++ [{ status := st, esc := e, kb := k, parked := p, hasCapsule := c }]
+  return out
+def allCmds : List Cmd :=
+  [.renew, .park, .setFields, .close .done, .close .dropped, .close .humanSkip, .reopen,
+   .refOther, .link, .note, .accept, .capsule, .skipLinked, .rotate]
+  ++ allStatus.map .setStatus ++ allKb.map .refAddKb ++ allKb.map .refRmKb
+  ++ [Disp.keep, .lapse, .capsule, .escalate].map .triage
+
+def inViewB (s : Item) : Bool := isOpen s
+def guardedB (s : Item) : Bool := isOpen s && (s.esc || nonclear s.kb)
+
+/-- Pairs (state, command) where one agent step leaves a guarded state unguarded. -/
+def agentCounterexamples : List (Item × Cmd) :=
+  allItems.flatMap fun s => allCmds.filterMap fun c =>
+    let s' := match stepAs false c s with | .ok x => x | _ => s
+    if guardedB s && !guardedB s' then some (s, c) else none
+
+#eval agentCounterexamples  -- expect []
+#eval (allItems.length, allCmds.length)
+
+/-! ## The proof -/
+
+theorem guarded_iff (s : Item) : guarded s ↔ guardedB s = true := by
+  rcases s with ⟨st, e, k, p, c⟩
+  cases st <;> cases e <;> cases k <;> simp [guarded, guardedB, inView, isOpen, nonclear]
+
+theorem inView_iff (s : Item) : inView s ↔ inViewB s = true := by
+  rcases s with ⟨st, e, k, p, c⟩
+  cases st <;> simp [inView, inViewB, isOpen]
+
+/-- One step by a non-human writer (after `writer_by`) keeps a guarded item guarded. -/
+theorem stepAs_agent_keeps_guarded (c : Cmd) (s : Item) (h : guardedB s = true) :
+    guardedB (match stepAs false c s with | .ok x => x | _ => s) = true := by
+  rcases s with ⟨st, e, k, p, hc⟩
+  cases c with
+  | setStatus st' =>
+    cases st' <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert h <;> decide
+  | close r =>
+    cases r <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert h <;> decide
+  | refAddKb a =>
+    cases a <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert h <;> decide
+  | refRmKb a =>
+    cases a <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert h <;> decide
+  | triage d =>
+    cases d <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert h <;> decide
+  | _ =>
+    cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert h <;> decide
+
+theorem exec_agent_keeps_guarded (a : Actor) (ha : notHuman a) (c : Cmd) (s : Item)
+    (h : guarded s) : guarded (exec a c s) := by
+  rw [guarded_iff] at h ⊢
+  unfold exec step
+  cases hw : a.writer with
+  | none => simpa using h
+  | some b =>
+    cases b with
+    | true => exact absurd hw ha
+    | false =>
+      have := stepAs_agent_keeps_guarded c s h
+      simpa using this
+
+/-- **Theorem (T05 c2).** In plain words: start from an item that is open or waiting and is
+escalated, or whose kb answer blocks or is unknown. Run any finite list of hubflow commands
+in which no command is written `--by human --note ...`. Then the item is still open or
+waiting (in `view open`), and it is still guarded. -/
+theorem agent_run_keeps_guarded (cs : List (Actor × Cmd)) (hcs : ∀ p ∈ cs, notHuman p.1)
+    (s : Item) (hs : guarded s) : inView (run cs s) ∧ guarded (run cs s) := by
+  induction cs generalizing s with
+  | nil => exact ⟨hs.1, hs⟩
+  | cons p rest ih =>
+    obtain ⟨a, c⟩ := p
+    exact ih (fun q hq => hcs q (List.mem_cons_of_mem _ hq)) _
+      (exec_agent_keeps_guarded a (hcs (a, c) List.mem_cons_self) c s hs)
+
+/-- An agent cannot end an escalation either: an escalated item in view stays escalated
+(it stays in `view escalated`). -/
+theorem agent_run_keeps_escalated (cs : List (Actor × Cmd)) (hcs : ∀ p ∈ cs, notHuman p.1)
+    (s : Item) (hv : inView s) (he : s.esc = true) :
+    inView (run cs s) ∧ (run cs s).esc = true := by
+  induction cs generalizing s with
+  | nil => exact ⟨hv, he⟩
+  | cons p rest ih =>
+    obtain ⟨a, c⟩ := p
+    apply ih (fun q hq => hcs q (List.mem_cons_of_mem _ hq))
+    · exact (exec_agent_keeps_guarded a (hcs (a, c) List.mem_cons_self) c s ⟨hv, Or.inl he⟩).1
+    · have ha := hcs (a, c) List.mem_cons_self
+      unfold exec step
+      cases hw : a.writer with
+      | none => simpa using he
+      | some b =>
+        cases b with
+        | true => exact absurd hw ha
+        | false =>
+          simp only
+          rw [inView_iff] at hv
+          rcases s with ⟨st, e, k, p, hc⟩
+          simp only at he
+          subst he
+          cases c with
+          | setStatus st' =>
+            cases st' <;> cases st <;> cases k <;> cases p <;> cases hc <;> revert hv <;> decide
+          | close r =>
+            cases r <;> cases st <;> cases k <;> cases p <;> cases hc <;> revert hv <;> decide
+          | refAddKb a =>
+            cases a <;> cases st <;> cases k <;> cases p <;> cases hc <;> revert hv <;> decide
+          | refRmKb a =>
+            cases a <;> cases st <;> cases k <;> cases p <;> cases hc <;> revert hv <;> decide
+          | triage d =>
+            cases d <;> cases st <;> cases k <;> cases p <;> cases hc <;> revert hv <;> decide
+          | _ =>
+            cases st <;> cases k <;> cases p <;> cases hc <;> revert hv <;> decide
+
+/-- The guard is not vacuous: the human, with a note, can take any guarded item out of view
+(`close ID --reason dropped --by human --note ...`). -/
+theorem human_close_leaves_view (n : String) (hn : n ≠ "") (s : Item) (hs : guarded s) :
+    ¬ inView (exec (.human n) (.close .dropped) s) := by
+  have hw : (Actor.human n).writer = some true := by simp [Actor.writer, hn]
+  rw [guarded_iff] at hs
+  rw [inView_iff]
+  unfold exec step
+  rw [hw]
+  rcases s with ⟨st, e, k, p, hc⟩
+  cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert hs <;> decide
+
+/-- And the human's `triage ID lapse` lapses it (case_escalate: c2-human-may-lapse-blocking). -/
+theorem human_lapse_leaves_view (n : String) (hn : n ≠ "") (s : Item) (hs : guarded s) :
+    ¬ inView (exec (.human n) (.triage .lapse) s) := by
+  have hw : (Actor.human n).writer = some true := by simp [Actor.writer, hn]
+  rw [guarded_iff] at hs
+  rw [inView_iff]
+  unfold exec step
+  rw [hw]
+  rcases s with ⟨st, e, k, p, hc⟩
+  cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert hs <;> decide
+
+/-! ## Rows that mirror hubflow-test.py checks -/
+
+def item (st : Status := .open_) (e : Bool := false) (k : Kb := .none) (cap : Bool := false) : Item :=
+  { status := st, esc := e, kb := k, parked := false, hasCapsule := cap }
+
+def me : Actor := .human "\"drop it\" (Me)"
+
+structure Row where
+  check : String
+  actor : Actor
+  cmd : Cmd
+  start : Item
+  expect : Outcome
+
+def rows : List Row := [
+  ⟨"c2-agent-lapse-of-blocking-escalates", .agent, .triage .lapse, item (k := .blocks),
+    .ok (item (e := true) (k := .blocks))⟩,
+  ⟨"c2-agent-keep-of-blocking-escalates", .agent, .triage .keep, item (e := true) (k := .blocks),
+    .ok (item (e := true) (k := .blocks))⟩,
+  ⟨"c2-clear-kb-lapses", .agent, .triage .lapse, item (k := .clear),
+    .ok (item (st := .lapsed) (k := .clear))⟩,
+  ⟨"c2-failsafe-query-error-escalates", .agent, .triage .lapse, item (k := .unknown),
+    .ok (item (e := true) (k := .unknown))⟩,
+  ⟨"c2-failsafe-missing-kb-dir-escalates", .agent, .triage .lapse, item (k := .unknown),
+    .ok (item (e := true) (k := .unknown))⟩,
+  ⟨"c2-failsafe-missing-orbit-kb-escalates", .agent, .triage .lapse, item (k := .unknown),
+    .ok (item (e := true) (k := .unknown))⟩,
+  ⟨"c2-no-kb-ref-no-query", .agent, .triage .lapse, item,
+    .ok (item (st := .lapsed))⟩,
+  ⟨"c2-no-automatic-action", .agent, .rotate, item (e := true) (k := .blocks),
+    .ok (item (e := true) (k := .blocks))⟩,
+  ⟨"c2-human-may-lapse-blocking", me, .triage .lapse, item (e := true) (k := .blocks),
+    .ok (item (st := .lapsed) (k := .blocks))⟩,
+  ⟨"c2-agent-close-dropped-of-blocking-refused", .agent, .close .dropped, item (k := .blocks), .refused⟩,
+  ⟨"c2-agent-close-done-of-blocking-refused", .agent, .close .done, item (k := .blocks), .refused⟩,
+  ⟨"c2-agent-close-failsafe-refused", .agent, .close .dropped, item (k := .unknown), .refused⟩,
+  ⟨"c2-agent-close-of-clear-item", .agent, .close .dropped, item (k := .clear),
+    .ok (item (st := .dropped) (k := .clear))⟩,
+  ⟨"c2-human-close-of-blocking", me, .close .dropped, item (k := .blocks),
+    .ok (item (st := .dropped) (k := .blocks))⟩,
+  ⟨"c2-agent-kb-ref-rm-refused escalated", .agent, .refRmKb .none, item (e := true) (k := .clear), .refused⟩,
+  ⟨"c2-agent-kb-ref-rm-refused would-be-blocking", .agent, .refRmKb .none, item (k := .blocks), .refused⟩,
+  ⟨"c2-agent-kb-ref-rm-of-clear-item", .agent, .refRmKb .none, item (k := .clear), .ok item⟩,
+  ⟨"c2-human-kb-ref-rm", me, .refRmKb .none, item (k := .blocks), .ok item⟩,
+  ⟨"c2-agent-renew-of-guarded-item-refused", .agent, .renew, item (e := true) (k := .clear), .refused⟩,
+  ⟨"c2-agent-park-of-guarded-item-refused", .agent, .park, item (k := .blocks), .refused⟩,
+  ⟨"c2-agent-set-status-of-guarded-item-refused", .agent, .setStatus .waiting, item (e := true) (k := .clear), .refused⟩,
+  ⟨"c2-agent-renew-of-clear-item", .agent, .renew, item (k := .clear), .ok (item (k := .clear))⟩,
+  ⟨"c2-human-renew-of-guarded-item", me, .renew, item (k := .blocks), .ok (item (k := .blocks))⟩,
+  ⟨"c2-agent-lapse-of-escalated-stays clear-kb", .agent, .triage .lapse, item (e := true) (k := .clear),
+    .ok (item (e := true) (k := .clear))⟩,
+  ⟨"c2-agent-lapse-of-escalated-stays no-kb", .agent, .triage .lapse, item (e := true),
+    .ok (item (e := true))⟩,
+  ⟨"c2-agent-keep-of-escalated-stays-escalated", .agent, .triage .keep, item (e := true),
+    .ok (item (e := true))⟩,
+  ⟨"c2-agent-close-after-agent-keep-refused", .agent, .close .dropped, item (e := true), .refused⟩,
+  ⟨"c2-human-keep-of-escalated", .human "\"keep it, I decided\" (Me)", .triage .keep,
+    item (e := true) (k := .clear), .ok (item (k := .clear))⟩
+]
+
+def Row.pass (r : Row) : Bool := step r.actor r.cmd r.start == r.expect
+
+#eval rows.map fun r => (r.check, if r.pass then "PASS" else "FAIL")
+
+/-- Every row holds (checked by the kernel, not only by #eval). -/
+theorem rows_pass : rows.all Row.pass = true := by decide
+
+/-! ## The commands of hubflow.py's COMMANDS table (read by check_commands.py) -/
+
+/-- Commands that act on an existing item, with their `Cmd`. -/
+def modelledCommands : List (String × String) := [
+  ("renew", "Cmd.renew"),
+  ("park", "Cmd.park"),
+  ("set", "Cmd.setStatus, Cmd.setFields"),
+  ("close", "Cmd.close; human_skip of a linked item: Cmd.skipLinked"),
+  ("reopen", "Cmd.reopen"),
+  ("ref", "Cmd.refAddKb, Cmd.refRmKb, Cmd.refOther"),
+  ("link", "Cmd.link (no change; it only enables Cmd.skipLinked)"),
+  ("note", "Cmd.note"),
+  ("accept", "Cmd.accept"),
+  ("capsule", "Cmd.capsule"),
+  ("triage", "Cmd.triage"),
+  ("rotate", "Cmd.rotate (prunes closed items only; an open item is unchanged)")
+]
+
+/-- Commands left out, each with the reason. -/
+def excludedCommands : List (String × String) := [
+  ("init", "makes a new db; refuses when the db exists"),
+  ("add", "makes a new item; no existing item changes"),
+  ("handoff", "makes a new handoff item; no existing item changes"),
+  ("import", "makes new items only (new_item); no existing item changes"),
+  ("show", "read-only"),
+  ("view", "read-only"),
+  ("sql", "read-only (query_only, SELECT authorizer)"),
+  ("where", "read-only"),
+  ("transcripts", "read-only"),
+  ("check", "read-only (rolls back)"),
+  ("export", "writes the JSONL copy of the db; no row changes"),
+  ("rebuild", "only when the db is missing; loads the JSONL copy (editing that copy is outside the model)"),
+  ("migrate", "schema upgrade; item rows and the escalated rule stay"),
+  ("session", "session rows and owner_session only; status is not touched"),
+  ("index-transcripts", "transcript tables only")
+]
+
+end LedgerGuard
+
+open LedgerGuard in
+#print axioms agent_run_keeps_guarded
+open LedgerGuard in
+#print axioms agent_run_keeps_escalated
+open LedgerGuard in
+#print axioms human_close_leaves_view
+open LedgerGuard in
+#print axioms human_lapse_leaves_view
+open LedgerGuard in
+#print axioms rows_pass

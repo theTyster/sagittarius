@@ -131,7 +131,7 @@ orbit_state_path(Script, State) :-
 :- autoload(library(readutil), [read_file_to_string/3, read_line_to_string/2]).
 :- autoload(library(process), [process_create/3, process_wait/2, process_kill/2]).
 :- autoload(library(filesex), [directory_file_path/3, make_directory_path/1, link_file/3]).
-:- autoload(library(http/json), [json_read_dict/2]).
+:- autoload(library(http/json), [json_read_dict/2, json_read_dict/3]).
 :- autoload(library(time), [call_with_time_limit/2]).
 :- autoload(library(ugraphs), [vertices_edges_to_ugraph/3, transitive_closure/2]).
 
@@ -178,6 +178,8 @@ main :-
 % "sh -c 'exit Code'", which runs no hook. Any problem falls back to
 % halt/1.
 exit_now(Code) :-
+    % D23: a takeover that the command did not use is undone (see claim_writer/3).
+    (   nb_current(orbit_settle, G), G \== none -> nb_setval(orbit_settle, none), catch(G, _, true) ; true ),
     (   integer(Code), Code >= 0, Code =< 255,
         catch(use_module(library(unix), [exec/1]), _, fail),
         absolute_file_name(path(sh), Sh, [access(execute), file_errors(fail)])
@@ -436,7 +438,14 @@ kb_command(whynot).
 kb_command(show).
 kb_command(report).
 kb_command(draft).
+kb_command('pin-item').
 
+top(Argv0, Code) :-
+    take_dirs(Argv0, Dirs, [view|ViewArgs]), !,
+    (   member(Arg, ViewArgs), memberchk(Arg, ['--help', '-h'])
+    ->  cmd_help([view], Code)
+    ;   cmd_view(Dirs, ViewArgs, Code)
+    ).
 top(Argv0, Code) :-
     take_dir(Argv0, DirOpt, Argv),
     (   Argv == []
@@ -452,7 +461,16 @@ top(Argv0, Code) :-
         ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
             ->  cmd_help([uses], Code)
             ;   resolve_kb(DirOpt, Dir),
-                with_kb_lock(Dir, cmd_uses(Dir, Args, Code))
+                writer_gate(Dir, Args, Args1),
+                with_kb_lock(Dir, cmd_uses(Dir, Args1, Code))
+            )
+        ;   Cmd == release
+        ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
+            ->  cmd_help([release], Code)
+            ;   Args == []
+            ->  resolve_kb(DirOpt, Dir),
+                with_kb_lock(Dir, cmd_release(Dir, Code))
+            ;   usage_error("release takes no arguments.", [])
             )
         ;   Cmd == pin
         ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
@@ -465,11 +483,12 @@ top(Argv0, Code) :-
             ->  cmd_help([Cmd], Code)
             ;   lib_dir(Lib),
                 resolve_kb(DirOpt, Dir),
+                (   lock_command(Cmd) -> writer_gate(Dir, Args, Args1) ; Args1 = Args ),
                 (   writer_command(Cmd)
                 ->  with_kb_lock(Dir, ( load_kb(Dir, Lib, KB),
-                                        kb_cmd(Cmd, KB, Args, Code) ))
+                                        kb_cmd(Cmd, KB, Args1, Code) ))
                 ;   load_kb(Dir, Lib, KB),
-                    kb_cmd(Cmd, KB, Args, Code)
+                    kb_cmd(Cmd, KB, Args1, Code)
                 )
             )
         ;   atom(Cmd), \+ sub_atom(Cmd, 0, _, _, '-')
@@ -481,11 +500,156 @@ top(Argv0, Code) :-
 % Commands that write to the KB. They hold the KB lock for the whole
 % cycle: read the KB, choose the id or the run number, write, append.
 writer_command(add).
+writer_command('pin-item').
 writer_command(declare).
 writer_command(subject).
 writer_command(attest).
 % run and prove take the lock themselves, only to record the result
 % (see cmd_run/3 and cmd_prove/3).
+
+% ---------------------------------------------------------------------
+% The writer lock of a project KB (D23 P7)
+% ---------------------------------------------------------------------
+% A KB that uses the project module has the file writer.lock with one line,
+% WRITER TIME. The writer is $ORBIT_KB_WRITER, or else $CLAUDE_SESSION_ID. With
+% neither, there is no writer: no lock is taken and none is checked. A
+% command that writes first claims the lock: a free lock is taken, the
+% holder goes on, and another writer gets exit 2 with the holder named.
+% --take replaces the holder and records writer_takeover/3 in kb.pl. The
+% lock is a record, not a guard: nothing stops a hand edit of kb.pl.
+
+lock_command(C) :- memberchk(C, [add, declare, subject, attest, run, prove, uses, 'pin-item']).
+
+writer_name(W) :-
+    (   getenv('ORBIT_KB_WRITER', W0), W0 \== ''
+    ->  W = W0
+    ;   getenv('CLAUDE_SESSION_ID', W0), W0 \== ''
+    ->  W = W0
+    ).
+
+kb_uses_project(Dir) :-
+    directory_file_path(Dir, 'kb.pl', F),
+    exists_file(F),
+    read_source_file(kb, F, Items),
+    items_uses(Items, Us),
+    memberchk(project, Us).
+
+writer_gate(Dir, Args0, Args) :-
+    (   kb_uses_project(Dir)
+    ->  (   selectchk('--take', Args0, _) -> Take = true ; Take = false ),
+        exclude(==('--take'), Args0, Args),
+        (   writer_name(W)
+        ->  with_kb_lock(Dir, claim_writer(Dir, W, Take))
+        ;   true
+        )
+    ;   Args = Args0
+    ).
+
+% lock_state(+Dir, -State): none (no lock file), or held(Holder, Since), or
+% bad(Why) for an empty or malformed lock. The line is NAME TIME. NAME is
+% written with ~q, so a name with a space is quoted.
+lock_state(Dir, State) :-
+    directory_file_path(Dir, 'writer.lock', LF),
+    (   exists_file(LF)
+    ->  read_file_to_string(LF, S, [encoding(utf8)]),
+        split_string(S, "\n", "", [L1|_]),
+        split_string(L1, "", " \t\r", [L2]),
+        (   L2 == ""
+        ->  State = bad("The file is empty.")
+        ;   sub_string(L2, B, 1, A, " "), \+ ( sub_string(L2, B2, 1, _, " "), B2 > B )
+        ->  sub_string(L2, 0, B, _, NameS), sub_string(L2, _, A, 0, TimeS),
+            atom_string(Since, TimeS),
+            (   is_time(Since),
+                (   sub_string(NameS, 0, 1, _, "'")
+                ->  catch(term_string(Name, NameS), _, fail), atomic(Name)
+                ;   \+ sub_string(NameS, _, 1, _, " "), atom_string(Name, NameS)
+                )
+            ->  ( atom(Name) -> Holder = Name ; format(atom(Holder), "~w", [Name]) ),
+                State = held(Holder, Since)
+            ;   State = bad("The line is not NAME TIME.")
+            )
+        ;   State = bad("The line is not NAME TIME.")
+        )
+    ;   State = none
+    ).
+
+% writer_text(+Writer, -Text): the name as the lock file holds it: bare when it is
+% made of plain characters, else quoted.
+writer_text(W, T) :-
+    atom_codes(W, Cs),
+    (   Cs \== [], forall(member(C, Cs), ( code_type(C, alnum) ; memberchk(C, `_-.@:/`) ))
+    ->  atom_string(W, T)
+    ;   format(string(T), "~q", [W])
+    ).
+
+lock_bad(Dir, Why) :-
+    directory_file_path(Dir, 'writer.lock', LF),
+    fmt(M1, "The writer lock ~w cannot be read. ~w", [LF, Why]),
+    die(2, [M1, "Nothing was written.",
+            "Fix: if no writer is active, delete writer.lock. Or take the lock with --take."] >> fix_lines).
+
+claim_writer(Dir, W, Take) :-
+    directory_file_path(Dir, 'writer.lock', LF),
+    utc_now(Now),
+    writer_text(W, WT),
+    fmt(Text, "~w ~w~n", [WT, Now]),
+    lock_state(Dir, State),
+    (   State = held(Holder, Since)
+    ->  (   Holder == W
+        ->  true
+        ;   Take == true
+        ->  directory_file_path(Dir, 'kb.pl', KbFile),
+            read_file_to_string(LF, LockBefore, [encoding(utf8)]),
+            write_atomic(LF, Text),
+            fmt(Fact, "writer_takeover(~q, ~q, ~q).~n", [Holder, W, Now]),
+            append_fact_text(KbFile, Fact),
+            read_file_to_string(KbFile, After, [encoding(utf8)]),
+            % D23 review: the lock moves only if the command writes. At exit, a
+            % command that wrote nothing (a rejected add) gives the lock back.
+            nb_setval(orbit_settle, settle_takeover(Dir, LF, LockBefore, KbFile, Fact, After))
+        ;   fmt(M1, "The KB is locked. It is held by ~w since ~w.", [Holder, Since]),
+            die(2, [M1, "Nothing was written.",
+                    "Fix: ask the holder to run orbit-kb release, or take the lock with --take. A takeover is recorded in kb.pl."] >> fix_lines)
+        )
+    ;   State = bad(Why)
+    ->  (   Take == true
+        ->  write_atomic(LF, Text)
+        ;   lock_bad(Dir, Why)
+        )
+    ;   write_atomic(LF, Text)
+    ).
+
+settle_takeover(Dir, LF, LockBefore, KbFile, Fact, After) :-
+    catch(( with_kb_lock(Dir,
+              ( read_file_to_string(KbFile, Now, [encoding(utf8)]),
+                (   Now == After
+                ->  string_concat(Pre, Fact, After),
+                    write_atomic(KbFile, Pre),
+                    write_atomic(LF, LockBefore)
+                ;   true
+                ) )) ), _, true).
+
+append_fact_text(File, Text) :-
+    read_file_to_string(File, S, [encoding(utf8)]),
+    (   ( S == "" ; sub_string(S, _, 1, 0, "\n") ) -> Pre = "" ; Pre = "\n" ),
+    setup_call_cleanup(open(File, append, O, [encoding(utf8)]),
+                       format(O, "~w~w", [Pre, Text]),
+                       close(O)).
+
+cmd_release(Dir, Code) :-
+    directory_file_path(Dir, 'writer.lock', LF),
+    lock_state(Dir, State),
+    (   State = held(Holder, Since)
+    ->  (   writer_name(W), W == Holder
+        ->  delete_file(LF),
+            format("Released the writer lock of ~w.~n", [Holder]), Code = 0
+        ;   fmt(M1, "The KB is locked. It is held by ~w since ~w. Only the holder can release it.", [Holder, Since]),
+            die(2, [M1, "Fix: ask the holder, or take the lock with --take on a write."] >> fix_lines)
+        )
+    ;   State = bad(Why)
+    ->  lock_bad(Dir, Why)
+    ;   format("There is no writer lock.~n", []), Code = 0
+    ).
 
 % ---------------------------------------------------------------------
 % The KB lock (D7)
@@ -549,6 +713,7 @@ kb_cmd(whynot, KB, Args, Code) :- cmd_whynot(KB, Args, Code).
 kb_cmd(show, KB, Args, Code) :- cmd_show(KB, Args, Code).
 kb_cmd(report, KB, Args, Code) :- cmd_report(KB, Args, Code).
 kb_cmd(draft, KB, Args, Code) :- cmd_draft(KB, Args, Code).
+kb_cmd('pin-item', KB, Args, Code) :- cmd_pin_item(KB, Args, Code).
 
 % ---------------------------------------------------------------------
 % Library and KB location
@@ -816,8 +981,77 @@ derived_items(Dir, KbItems, Items) :-
               \+ ( is_time(Due), \+ Due @< Now ) ),
             Ts50),
     sort(Ts50, Ts5),
-    append([Ts1, Ts2, Ts3, Ts4, Ts5], Ts),
+    project_derived(Dir, KbItems, Ts6),
+    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
+
+% project_derived(+Dir, +KbItems, -Facts) (D23): the facts of the project module,
+% for a KB that uses it.
+%   subject_now(S, D)        the file of subject S exists, and its digest now is D.
+%   decision_digest(X, D)    D is the sha256 of the text of decision X.
+%   project_decision_digest(X, D)   the same, for a decision of the KB at project_kb/1.
+%   project_conflict(Dr, X)  draft Dr of that KB is in conflict, and decision X
+%                            rests on the pin of the draft.
+project_derived(Dir, KbItems, Facts) :-
+    items_uses(KbItems, Uses),
+    memberchk(project, Uses),
+    !,
+    findall(subject_now(S, D),
+            ( kb_term(KbItems, subject(S, Path, _)), atom(S), atom(Path),
+              ( is_absolute_file_name(Path) -> Abs = Path ; directory_file_path(Dir, Path, Abs) ),
+              exists_file(Abs), sha256_file(Abs, D) ),
+            F1),
+    findall(decision_digest(X, D),
+            ( kb_term(KbItems, decision(X, Text)), atom(X), atomic(Text), sha256_text(Text, D) ),
+            F2),
+    (   kb_term(KbItems, project_kb(P)), atom(P),
+        \+ nb_current(orbit_project_depth, 1)
+    ->  setup_call_cleanup(nb_setval(orbit_project_depth, 1),
+                           ( catch(project_kb_facts(Dir, P, F3), _, fail) -> true ; F3 = [] ),
+                           nb_setval(orbit_project_depth, 0))
+    ;   F3 = []
+    ),
+    append([F1, F2, F3], Facts).
+project_derived(_, _, []).
+
+kb_term(KbItems, T) :-
+    member(it(kb, _, _, T0, _, _), KbItems), nonvar(T0), T0 = T.
+
+project_kb_facts(Dir, P, Facts) :-
+    ( is_absolute_file_name(P) -> PDir = P ; directory_file_path(Dir, P, PDir) ),
+    directory_file_path(PDir, 'kb.pl', PFile),
+    exists_file(PFile),
+    absolute_file_name(PDir, A1), absolute_file_name(Dir, A2),
+    A1 \== A2,
+    nb_setval(orbit_project_depth, 1),
+    lib_dir(Lib),
+    read_source_file(kb, PFile, PItems),
+    items_uses(PItems, PUses),
+    memberchk(project, PUses),
+    findall(project_decision_digest(X, D),
+            ( kb_term(PItems, decision(X, Text)), atom(X), atomic(Text), sha256_text(Text, D) ),
+            F1),
+    load_kb(PDir, Lib, PKB),
+    kb_items(PKB, AllItems), items_decls(AllItems, Ds),
+    build_engine(AllItems, Ds, Eng),
+    swi_raw(Eng, (conflict(Dr), draft(Dr, Pn, Tx, _), concerns(X, Pn)), t(Dr, X, Tx), Res),
+    (   Res = answers(L, _)
+    ->  findall(project_conflict(Dr, X), member(t(Dr, X, _), L), F2a),
+        findall(project_draft_text(Dr, Tx), member(t(Dr, _, Tx), L), F2b0),
+        sort(F2b0, F2b),
+        append(F2a, F2b, F2)
+    ;   F2 = []
+    ),
+    (   project_unclean(PKB) -> F3 = [project_kb_unclean] ; F3 = [] ),
+    append([F1, F2, F3], Facts).
+
+% The project KB does not load clean: lint finds an error in it (D23).
+project_unclean(PKB) :-
+    catch(( lint_diags(PKB, Diags, _, IssueErrors),
+            (   IssueErrors > 0
+            ;   member(diag(C, _, _, _), Diags), sub_atom(C, 0, 1, _, 'E')
+            ) ), _, true),
+    !.
 
 % supersede_derived(+KbItems, -Facts): the supersedes_closure/2 and
 % supersede_cycle/1 facts of the ground supersedes/2 facts.
@@ -1449,7 +1683,8 @@ builtin_goal(G) :-
     callable(G),
     functor(G, N, A),
     memberchk(N/A, ['='/2, '\\='/2, '<'/2, '>'/2, '=<'/2, '>='/2, is/2,
-                    true/0, false/0, forall/2]).
+                    true/0, false/0, forall/2,
+                    '=='/2, '\\=='/2, '@<'/2, '@>'/2, '@=<'/2, '@>='/2]).
 
 % body_goals(+Body, -Goals): the literals of a body, with not and -
 % unwrapped. forall/2 stays, and its parts are added too.
@@ -1544,6 +1779,14 @@ protected_pi(blocking/1).
 protected_pi(item_open/1).
 protected_pi(check_ran/1).
 protected_pi(due_passed/1).
+% D23: the project module.
+protected_pi(any_project_conflict/0).
+protected_pi(subject_now/2).
+protected_pi(decision_digest/2).
+protected_pi(project_decision_digest/2).
+protected_pi(project_conflict/2).
+protected_pi(project_draft_text/2).
+protected_pi(project_kb_unclean/0).
 % D14: the weighted vote of the discovery module.
 protected_pi(vote_cast/3).
 protected_pi(discovery_vote_raised/1).
@@ -1626,7 +1869,8 @@ binding_lit(not(_)) :- !, fail.
 binding_lit(\+(_)) :- !, fail.
 binding_lit(L) :-
     callable(L), functor(L, N, A),
-    \+ memberchk(N/A, ['\\='/2, '<'/2, '>'/2, '=<'/2, '>='/2, true/0, false/0]).
+    \+ memberchk(N/A, ['\\='/2, '<'/2, '>'/2, '=<'/2, '>='/2, true/0, false/0,
+                       '=='/2, '\\=='/2, '@<'/2, '@>'/2, '@=<'/2, '@>='/2]).
 
 e14_diags(T, VN, F, L, Diags) :-
     clause_parts(T, H, _),
@@ -2651,6 +2895,242 @@ pin_stamp_ok(A) :-
     atom_length(Hex, 64),
     atom_codes(Hex, Cs),
     forall(member(C, Cs), ( between(0'0, 0'9, C) ; between(0'a, 0'f, C) )).
+
+% ---------------------------------------------------------------------
+% view questions (D24)
+% ---------------------------------------------------------------------
+% orbit-kb view questions [--dir KB]... [--ledger FILE] [--out F]: one
+% static HTML page of what blocks done in each KB (with its pin stamp)
+% and of the owner's asks from a JSON export of the flow ledger. It
+% reads only. It takes no lock and writes no KB file.
+
+take_dirs([], [], []).
+take_dirs(['--'|As], [], ['--'|As]) :- !.
+take_dirs(['--dir', D|As], [D|Ds], Rest) :- !, take_dirs(As, Ds, Rest).
+take_dirs(['--dir'], _, _) :- !, usage_error("The option --dir needs a directory.", []).
+take_dirs([A|As], Ds, Rest) :-
+    sub_atom(A, 0, _, _, '--dir='), !,
+    sub_atom(A, 6, _, 0, D),
+    Ds = [D|Ds1], take_dirs(As, Ds1, Rest).
+take_dirs([A|As], Ds, [A|Rest]) :- take_dirs(As, Ds, Rest).
+
+cmd_view(Dirs0, Args, Code) :-
+    parse_opts(Args, ['--ledger'-value, '--out'-value, '--owner'-value], Pos, Opts),
+    (   Pos == [] -> usage_error("view needs a view name: orbit-kb view questions [--dir KB]... [--ledger FILE] [--out F].", [])
+    ;   Pos == [questions] -> true
+    ;   usage_error("view takes the one view name questions.", [])
+    ),
+    (   memberchk('--ledger'-LF, Opts) -> view_ledger(LF, Rows), view_owner(Opts, Rows, Owner), view_owned(Rows, Owner, Asks), Led = some(Asks) ; Led = none ),
+    (   Dirs0 == [] -> resolve_kb(none, D0), Dirs = [D0]
+    ;   maplist([D, R]>>resolve_kb(some(D), R), Dirs0, Dirs)
+    ),
+    lib_dir(Lib),
+    maplist(view_kb_section(Lib), Dirs, Secs),
+    atomic_list_concat(Secs, '\n', SecsText),
+    view_ledger_section(Led, LedText),
+    view_css(Css),
+    format(string(Page),
+"<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+<meta charset=\"utf-8\">
+<title>Open questions</title>
+<style>~w</style>
+</head>
+<body>
+<h1>Open questions</h1>
+<p class=\"options-note\">The options of a question come from the KB's defaults (its default answer and an answer that an agent recorded) and from its option facts (each with what it changes). Other means an answer that is not listed. The page adds no option of its own.</p>
+~w
+~w
+</body>
+</html>
+", [Css, SecsText, LedText]),
+    (   memberchk('--out'-Out, Opts)
+    ->  absolute_file_name(Out, Abs),
+        catch(write_atomic(Abs, Page), E,
+              ( err_text(E, M),
+                die(2, ["Cannot write the page " + Abs + ": " + M,
+                        "Fix: give a path in a directory that exists and that you can write."] >> fix_lines) ))
+    ;   set_stream(user_output, encoding(utf8)),
+        write(Page)
+    ),
+    Code = 0.
+
+view_css("body{font-family:sans-serif;max-width:60em;margin:2em auto;padding:0 1em;line-height:1.4}section{border:1px solid #888;border-radius:6px;padding:.5em 1em;margin:1em 0}li.item,li.ask{margin:.8em 0;padding:.4em;border-left:4px solid #888;list-style:none}.ref .kbid{font-family:monospace;color:#555}.default,.age{font-weight:bold}.stamp{font-family:monospace;font-size:.8em;word-break:break-all}").
+
+view_ledger(File, Asks) :-
+    (   exists_file(File) -> true
+    ;   usage_error("The ledger file ~w does not exist.", [File])
+    ),
+    catch(setup_call_cleanup(open(File, read, S, [encoding(utf8)]),
+                             json_read_dict(S, J, [null(null)]),
+                             close(S)),
+          E, ( err_text(E, M), usage_error("The ledger file ~w is not valid JSON: ~w", [File, M]) )),
+    (   is_list(J) -> true
+    ;   usage_error("The ledger file ~w must hold one JSON array of objects.", [File])
+    ),
+    forall(nth1(I, J, X), view_ledger_row(File, I, X)),
+    Asks = J.
+
+% view_owner(+Opts, +Rows, -Owner) (D24 C5): --owner, else the owner key of the first row that has one, else me.
+view_owner(Opts, Rows, Owner) :-
+    (   memberchk('--owner'-O, Opts) -> atom_string(O, Owner)
+    ;   member(X, Rows), get_dict(owner, X, O0), string(O0) -> Owner = O0
+    ;   Owner = "me"
+    ).
+
+view_owned(Rows, Owner, Asks) :-
+    findall(X, ( member(X, Rows), X.kind == "ask", memberchk(X.status, ["open", "waiting"]), X.waits_on == Owner ), Asks).
+
+view_ledger_row(File, I, X) :-
+    (   is_dict(X) -> true ; usage_error("Ledger ~w, item ~w: not an object.", [File, I]) ),
+    forall(member(K, [id, kind, title, status]),
+           (   get_dict(K, X, V), string(V) -> true
+           ;   usage_error("Ledger ~w, item ~w: the key ~w is missing or is not a string.", [File, I, K])
+           )),
+    (   get_dict(waits_on, X, W), ( W == null ; string(W) ) -> true
+    ;   usage_error("Ledger ~w, item ~w: waits_on must be a string or null.", [File, I])
+    ),
+    (   get_dict(age_days, X, Age), integer(Age), Age >= 0 -> true
+    ;   usage_error("Ledger ~w, item ~w: age_days must be a whole number, 0 or more.", [File, I])
+    ).
+
+view_ledger_section(none, "").
+view_ledger_section(some(Asks), Text) :-
+    findall(L, ( member(X, Asks), view_ask_html(X, L) ), Ls),
+    (   Ls == [] -> Body = "<p>No ask waits on the owner.</p>"
+    ;   atomic_list_concat(Ls, '\n', B0), format(string(Body), "<ul>\n~w\n</ul>", [B0])
+    ),
+    format(string(Text), "<section class=\"ledger\">\n<h2>Asks that wait on you</h2>\n~w\n</section>", [Body]).
+
+view_ask_html(X, L) :-
+    esc(X.id, Id), esc(X.title, T), esc(X.age_days, Age),
+    format(string(L), "<li class=\"ask\" data-id=\"~w\"><span class=\"title\">~w</span> <span class=\"age\">~w days</span></li>", [Id, T, Age]).
+
+view_kb_section(Lib, Dir, Html) :-
+    load_kb(Dir, Lib, KB),
+    answer_gate(KB),
+    directory_file_path(Dir, 'kb.pl', KbFile),
+    sha256_file(KbFile, Digest),
+    atom_concat('spec-kb@', Digest, Stamp),
+    esc(Stamp, StampH),
+    kb_engine(KB, Eng),
+    eng_all(Eng, [X], blocking(X), Xs),
+    (   Xs == [] -> Body = "<p>Nothing blocks done.</p>"
+    ;   maplist(view_item_html(Eng), Xs, Is),
+        atomic_list_concat(Is, '\n', B0),
+        format(string(Body), "<ul class=\"items\">\n~w\n</ul>", [B0])
+    ),
+    (   eng_all(Eng, [RT], request(_, RT), [RT1|_]), txt(RT1, RT2), split_string(RT2, "\n", " \t", [L1|_]), L1 \== "" -> Label = L1
+    ;   file_base_name(Dir, Label)
+    ),
+    esc(Label, LabelH),
+    format(string(Html), "<section class=\"kb\" data-stamp=\"~w\">\n<h2><span class=\"kblabel\">~w</span> <span class=\"stamp\">~w</span></h2>\n~w\n</section>", [StampH, LabelH, StampH, Body]).
+
+view_ref(Id, Text, Html) :-
+    esc(Id, I), esc(Text, T),
+    format(string(Html), "<span class=\"ref\"><span class=\"kbid\">~w</span> <span class=\"kbtext\">~w</span></span>", [I, T]).
+
+% view_xtext(+Eng, +X, -Text): the text of a claim, a question, or a change; of a check, the text of its claim.
+view_xtext(Eng, X, T) :-
+    (   eng_all(Eng, [T0], claim(X, _, T0), [T1|_]) -> txt(T1, T)
+    ;   eng_all(Eng, [T0], question(X, _, T0), [T1|_]) -> txt(T1, T)
+    ;   eng_all(Eng, [C], check(X, C), [C1|_]), eng_all(Eng, [T0], claim(C1, _, T0), [T1|_]) -> txt(T1, T)
+    ;   eng_all(Eng, [T0], change(X, T0), [T1|_]) -> txt(T1, T)
+    ;   T = "(no text is recorded)"
+    ).
+
+% view_xclaim(+Eng, +X, -C): the claim that item X blocks, when it has one.
+view_xclaim(Eng, X, C) :-
+    (   eng_all(Eng, [], claim(X, _, _), [_|_]) -> C = X
+    ;   eng_all(Eng, [C0], question(X, C0, _), [C1|_]) -> C = C1
+    ;   eng_all(Eng, [C0], check(X, C0), [C1|_]) -> C = C1
+    ).
+
+view_kind_label(to_ask, "Question to ask").
+view_kind_label(supersede_cycle, "Claim that replaces itself").
+view_kind_label(past_due, "Past due").
+view_kind_label(under, "Claim not fulfilled").
+view_kind_label(over, "Change that serves no claim").
+view_kind_label(burn_open, "Claim that needs a Lean proof").
+view_kind_label(flare_open, "Claim that needs an approved demo").
+view_kind_label(no_claim, "No current claim").
+view_kind_label(check_failing, "Check that failed").
+view_kind_label(check_unrun, "Check that never ran").
+view_kind_label(waiver_lapsed, "Waiver that lapsed").
+
+view_item_html(Eng, Item, Html) :-
+    (   Item == no_claim -> Kind = no_claim, Id = ''
+    ;   Item =.. [Kind, Id]
+    ),
+    (   view_kind_label(Kind, Label) -> true ; Label = "Blocking item" ),
+    % the subject: its text, and the claim it blocks
+    (   Kind == waiver_lapsed
+    ->  (   eng_all(Eng, [X, R], attest(Id, waiver, _, waive(X, _, R), _, _), [[X1, R1]|_])
+        ->  txt(R1, T0), ( T0 == '' -> view_xtext(Eng, X1, Text) ; Text = T0 ),
+            ( view_xclaim(Eng, X1, Cl) -> true ; true )
+        ;   Text = "(a waiver)"
+        )
+    ;   Kind == no_claim
+    ->  Text = "Add a claim; the work is not done without one."
+    ;   view_xtext(Eng, Id, Text),
+        ( view_xclaim(Eng, Id, Cl) -> true ; true )
+    ),
+    (   Kind == no_claim -> Ref = "", Plain = Text
+    ;   view_ref(Id, Text, Ref0), format(string(Ref), "~w", [Ref0]), Plain = ""
+    ),
+    esc(Label, LabelH), esc(Plain, PlainH),
+    esc(Kind, KindH), esc(Id, IdH),
+    (   nonvar(Cl)
+    ->  eng_all(Eng, [CT], claim(Cl, _, CT), [CT1|_]), txt(CT1, CTT),
+        view_ref(Cl, CTT, ClRef),
+        format(string(Blocks), "<p>Blocks: <span class=\"blocks\">~w</span></p>", [ClRef]),
+        eng_all(Eng, [Cite], cites(Cl, Cite), Cites),
+        findall(S, ( member(Ci, Cites), esc(Ci, CiH),
+                     format(string(S), "<blockquote class=\"cited\">~w</blockquote>", [CiH]) ), CiS),
+        atomic_list_concat(CiS, '', CitedH)
+    ;   Blocks = "", CitedH = ""
+    ),
+    (   Kind == to_ask -> view_question_html(Eng, Id, QHtml) ; QHtml = "" ),
+    format(string(Html), "<li class=\"item\" data-kind=\"~w\" data-id=\"~w\">\n<p>~w: ~w~w</p>\n~w\n~w\n~w\n</li>",
+           [KindH, IdH, LabelH, Ref, PlainH, Blocks, CitedH, QHtml]).
+
+% The default and the options of a question (D24 C7): the default, an answer by an agent,
+% each option/3 text, and other. Each option has its effect when the KB records one.
+view_question_html(Eng, Q, Html) :-
+    (   eng_all(Eng, [A], assumed(Q, A), [A1|_]) -> plain_text(A1, Def) ; Def = none ),
+    ( nonvar(Def), Def \== none -> HasDef = true ; HasDef = false ),
+    esc(Def, DefH),
+    format(string(DefLine), "<p>Default: <span class=\"default\">~w</span></p>", [DefH]),
+    eng_all(Eng, [A2, By], answer(Q, A2, By), Ans),
+    findall(AT, ( member([A3, By3], Ans), By3 \== human, plain_text(A3, AT), ( HasDef == false ; AT \== Def ) ), Ats0),
+    list_to_set(Ats0, Ats),
+    eng_all(Eng, [OT, OE], option(Q, OT, OE), OFs0),
+    findall(T-E, ( member([T0, E0], OFs0), plain_text(T0, T), plain_text(E0, E) ), OFs),
+    findall(src(default, Def), HasDef == true, DL),
+    findall(src(answer, AT), member(AT, Ats), AL),
+    findall(T0, ( member(T0-_, OFs), \+ memberchk(src(_, T0), DL), \+ memberchk(src(_, T0), AL) ), Ots0),
+    list_to_set(Ots0, Ots),
+    findall(src(option, T0), member(T0, Ots), OL),
+    append([DL, AL, OL], Srcs),
+    findall(L, ( member(src(Src, T), Srcs), view_option(Src, T, OFs, L) ), Ls0),
+    view_option(other, other, [], OtherL),
+    append(Ls0, [OtherL], Ls),
+    atomic_list_concat(Ls, '\n', OsT),
+    (   OFs == []
+    ->  Note = "<p class=\"no-effects\">No option effects are recorded for this question.</p>"
+    ;   Note = ""
+    ),
+    format(string(Html), "~w\n<ul class=\"options\">\n~w\n</ul>\n~w", [DefLine, OsT, Note]).
+
+view_option(Src, Text, OFs, L) :-
+    esc(Text, T),
+    (   Src == other -> Eff = ""
+    ;   OFs == [] -> Eff = ""
+    ;   memberchk(Text-E, OFs) -> esc(E, EH), format(string(Eff), " <span class=\"effect\">~w</span>", [EH])
+    ;   Eff = " <span class=\"effect none\">No effect is recorded.</span>"
+    ),
+    format(string(L), "<li class=\"option\" data-source=\"~w\"><span class=\"optiontext\">~w</span>~w</li>", [Src, T, Eff]).
 
 % ---------------------------------------------------------------------
 % subject
@@ -3957,8 +4437,13 @@ blocking_line(_, Eng, waiver_lapsed(W), S) :- !,
         fmt(S, "- waiver_lapsed ~w: waiver ~w of ~w was due at ~w, and ~w still blocks: ~w", [W, W, XT, DT, XT, RT])
     ;   fmt(S, "- waiver_lapsed ~w: waiver ~w is past its due time.", [W, W])
     ).
-blocking_line(_, _, project_conflict(D), S) :- !,
-    fmt(S, "- project_conflict ~w: draft ~w and the tracker both changed: decide which side stays", [D, D]).
+blocking_line(_, Eng, project_conflict(Dr), S) :- !,
+    (   eng_all(Eng, [Dc, Tx], ( project_conflict(Dr, Dc), project_draft_text(Dr, Tx) ), [[Dc1, Tx1]|_])
+    ->  txt(Dc1, DcT), txt(Tx1, TxT)
+    ;   DcT = '?', TxT = ''
+    ),
+    fmt(S, "- project_conflict ~w: draft ~w of the project KB conflicts with a change of the tracker, and decision ~w rests on it: ~w", [Dr, Dr, DcT, TxT]).
+blocking_line(_, _, project_kb_unclean, "- project_kb_unclean: the project KB does not load clean, so a conflict could hide in it. Run orbit-kb lint on the project KB and fix the errors.") :- !.
 blocking_line(_, _, X, S) :-
     term_text(X, XT), fmt(S, "- ~w", [XT]).
 
@@ -3984,11 +4469,63 @@ cmd_draft(KB, Args, Code) :-
         say("Stamp: spec-kb@~w", [Digest]), nl,
         eng_all(Eng, [X], blocking(X), Xs),
         (   Xs == [] -> say("- Nothing blocks done.", [])
-        ;   forall(member(X, Xs), ( blocking_line(KB, Eng, X, S), say("~w", [S]) ))
+        ;   forall(member(X, Xs), ( blocking_line(KB, Eng, X, S),
+                                   ( X = project_conflict(_) -> say("~w Status: decide. A human settles it, never the date.", [S]) ; say("~w", [S]) ) ))
+        ),
+        Code = 0
+    ;   kb_uses(KB, Us), memberchk(project, Us)
+    ->  kb_engine(KB, Eng),
+        say("## Outbound drafts", []), nl,
+        eng_all(Eng, [D, P, T, S], draft(D, P, T, S), Ds0),
+        findall(r(D, P, T, S), ( member([D, P, T, S], Ds0),
+                                 \+ eng_true(Eng, pushed(D, _)),
+                                 ( eng_true(Eng, outbound(D)) ; eng_true(Eng, conflict(D)) ) ), Rows),
+        (   Rows == [] -> say("- Nothing to push.", [])
+        ;   forall(member(Row, Rows), outbound_section(Eng, Row))
         ),
         Code = 0
     ;   usage_error("draft outbound needs a KB that uses the project module (D23).", [])
     ).
+
+outbound_section(Eng, r(D, P, T, S)) :-
+    say("### ~w", [D]), nl,
+    (   eng_all(Eng, [Src, C], pin(P, _, Src, _, C), [[Src1, C1]|_]) -> true ; Src1 = '?', C1 = '?' ),
+    say("- Pin: ~w", [P]),
+    say("- Source: ~w", [Src1]),
+    say("- ChangedAt: ~w", [C1]),
+    say("- Staged: ~w", [S]),
+    (   eng_true(Eng, conflict(D))
+    ->  (   eng_all(Eng, [C2], tracker_changed_after(P, C2), Cs2), Cs2 \== [] -> max_member(C2a, Cs2) ; C2a = '?' ),
+        say("- Tracker changed: ~w", [C2a]),
+        say("- Status: decide", []),
+        say("- Decide: a human picks one side, the tracker edit or the draft edit. orbit-kb does not pick.", [])
+    ;   say("- Status: ready", [])
+    ),
+    txt(T, TT),
+    say("- Draft: ~w", [TT]), nl.
+
+% pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file] (D25 T4):
+% records pin(ID, Kind, SOURCE, sha256:HEX, T). The CLI computes the digest of F.
+cmd_pin_item(KB, Args, Code) :-
+    parse_opts(Args, ['--text-file'-value, '--changed-at'-value, '--kind'-value], Pos, Opts),
+    (   Pos = [Id, Src] -> true
+    ;   usage_error("pin-item takes an id and a source: orbit-kb pin-item ID SOURCE --text-file F --changed-at T.", [])
+    ),
+    (   kb_uses(KB, Us), memberchk(project, Us) -> true
+    ;   usage_error("pin-item needs a KB that uses the project module.", [])
+    ),
+    (   memberchk('--text-file'-File, Opts) -> true ; usage_error("pin-item needs --text-file F.", []) ),
+    (   memberchk('--changed-at'-At, Opts) -> true ; usage_error("pin-item needs --changed-at T.", []) ),
+    opt(Opts, '--kind', tracker, Kind),
+    (   memberchk(Kind, [tracker, file]) -> true ; usage_error("--kind takes tracker or file. It is ~w.", [Kind]) ),
+    (   atom_string(At, AtS),
+        re_match("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"/'', AtS) -> true
+    ;   usage_error("--changed-at takes a UTC time such as 2026-10-01T09:00:00Z. It is ~w.", [At])
+    ),
+    (   exists_file(File) -> true ; usage_error("The text file ~w does not exist.", [File]) ),
+    sha256_file(File, Digest),
+    format(atom(Fact), "pin(~q, ~q, ~q, ~q, ~q)", [Id, Kind, Src, Digest, At]),
+    cmd_add(KB, [Fact], Code).
 
 % item_text(+Eng, +Id, -Text): the text of a claim or a question, or for a
 % check, the check and the text of its claim. '' for another id.
@@ -4891,12 +5428,12 @@ cmd_help([C|_], Code) :-
     ;   help_topic_file(C, File)
     ->  read_file_to_string(File, S, [encoding(utf8)]),
         format("~s", [S]), Code = 0
-    ;   usage_error("There is no help for ~w. It is not a command or a topic. Topics: ~w.", [C, 'core, build, discovery, codes, answers'])
+    ;   usage_error("There is no help for ~w. It is not a command or a topic. Topics: ~w.", [C, 'core, build, discovery, project, codes, answers'])
     ).
 
 % A topic is the file help/TOPIC.txt in the library directory.
 help_topic_file(Topic, File) :-
-    memberchk(Topic, [core, build, discovery, codes, answers]),
+    memberchk(Topic, [core, build, discovery, project, codes, answers]),
     lib_dir(Lib),
     atomic_list_concat([Lib, '/help/', Topic, '.txt'], File),
     exists_file(File).
@@ -4918,6 +5455,7 @@ help_lines(general, [
 "    orbit-kb help core      facts, claim labels, attestation types, and core queries",
 "    orbit-kb help build     build-module facts and queries, burns, flares, proofs, waivers",
 "    orbit-kb help discovery discovery-module facts, verdicts, queries, and the recipe for each move",
+"    orbit-kb help project   project-module facts: decisions, pins, drafts, conflicts, and the writer lock",
 "    orbit-kb help codes     each lint code and what to do",
 "    orbit-kb help answers   exit codes, SWI ERROR, why and whynot",
 "  Never type a digest or a test result: orbit-kb subject and orbit-kb run write them.",
@@ -4949,7 +5487,10 @@ help_lines(general, [
 "  show [claims|questions|open|blocking|disclosures|extensions|all]",
 "  report [--html FILE [--open]]",
 "  pin [--check STAMP]",
+"  release",
+"  view questions [--dir KB]... [--ledger FILE [--owner KEY]] [--out F]",
 "  draft blocking | draft outbound",
+"  pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",
 "  doctor",
 "  help [COMMAND|TOPIC]",
 "",
@@ -5128,6 +5669,28 @@ help_lines(show, [
 "The kinds: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X), check_failing(K), check_unrun(K),",
 "waiver_lapsed(W), past_due(X) (an open item with a due/2 time in the past), supersede_cycle(C), no_claim."
 ]).
+help_lines(release, [
+"orbit-kb release",
+"",
+"Free the writer lock of a project KB (orbit-kb help project). Only the holder can release it.",
+"With no lock, it does nothing. Exit: 0 on success. 2 when another writer holds the lock."
+]).
+help_lines(view, [
+"orbit-kb view questions [--dir KB]... [--ledger FILE [--owner KEY]] [--out F]",
+"",
+"Write one HTML page, with no external dependency, of what blocks done in each KB:",
+"each question to ask, with its text, its default, the claim it blocks, and the request text",
+"that the claim cites, then the other blocking items. Each KB has its own section, named by its",
+"pin stamp (spec-kb@sha256:HEX) and labeled with its first request. The options of a question come from the",
+"KB's defaults and its option(Q, Text, Effect) facts; each option shows its effect.",
+"--dir may repeat. --ledger FILE: a JSON export of the flow ledger; the page lists the asks that",
+"wait on the owner (an ask with waits_on null is nobody's), with their age. The owner is --owner KEY,",
+"else the owner key in the export, else me. Make the export with: hubflow sql \"SELECT id, kind, title,",
+"status, waits_on, age_days, COALESCE((SELECT value FROM meta WHERE key='owner_person'), (SELECT key FROM",
+"person WHERE key='me')) AS owner FROM v_open\" --format json > asks.json",
+"--out F writes the page to F; without it the page goes to stdout. The view reads only.",
+"Exit 2 for a usage error, a KB that cannot be read, or a bad ledger file."
+]).
 help_lines(pin, [
 "orbit-kb pin [--check STAMP]",
 "",
@@ -5147,6 +5710,15 @@ help_lines(draft, [
 "blocks done, as show blocking does. Paste it into the ticket. orbit-kb pin --check STAMP",
 "exits 1 once kb.pl has changed. It writes nothing.",
 "draft outbound lists the project KB drafts that are not pushed (needs the project module)."
+]).
+help_lines('pin-item', [
+"orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",
+"",
+"Record a pin of a tracker item in a project KB, from item text that you pasted or exported",
+"into the file F. orbit-kb computes the digest (sha256 of F). You give the change time",
+"(--changed-at, UTC, such as 2026-10-01T09:00:00Z). --kind defaults to tracker.",
+"It writes pin/5, so it takes the writer lock and accepts --take (D23). A pin id that exists",
+"is rejected (exit 1). Nothing is fetched: no command uses a network."
 ]).
 help_lines(report, [
 "orbit-kb report [--html FILE [--open]]",
@@ -5183,5 +5755,5 @@ help_lines(help, [
 "orbit-kb help [COMMAND|TOPIC]",
 "",
 "Show general help, or help for one command or one topic.",
-"Topics: core, build, discovery, codes, answers."
+"Topics: core, build, discovery, project, codes, answers."
 ]).

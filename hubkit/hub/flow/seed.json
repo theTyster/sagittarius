@@ -11,5 +11,6 @@
   "persons": [
     {"key": "me", "display": "Me"},
     {"key": "alex", "display": "Alex Example"}
-  ]
+  ],
+  "owner": "me"
 }

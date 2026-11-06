@@ -102,6 +102,9 @@ decl(fact, question(id, ref(claim), text),
 decl(fact, assumed(ref(question), term),
      'The default answer to a question.',
      'the default answer to question @(1) is @(2)').
+decl(fact, option(ref(question), text, text),
+     'An option of a question, and what choosing it changes (D24).',
+     'option @(2) of question @(1) changes: @(3)').
 decl(fact, answer(ref(question), term, oneof([human, agent])),
      'An answer to a question, and who gave it.',
      'the @(3) answered question @(1) with @(2)').
@@ -190,6 +193,9 @@ decl(rule, item_open(ref),
 decl(rule, blocking(term),
      'The item blocks done. The term names its kind and its id, such as to_ask(q1) or burn_open(c1).',
      '@(1) blocks done').
+decl(rule, any_project_conflict,
+     'A conflict of the project KB blocks this KB, because a claim rests on a decision that the conflict concerns. The project module adds the clause (D23).',
+     'a conflict of the project KB blocks this KB').
 decl(rule, lint_issue(atom, ref, text),
      'A lint result that a module adds, with a code, an id, and a message.',
      'lint issue @(1) on @(2): @(3)').
@@ -232,8 +238,7 @@ refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).
 contested(C) :- attest(_, divergence, _, claim(C), _, _).
 contested_twice(C) :- attest(D1, divergence, _, claim(C), _, _),
                       attest(D2, divergence, _, claim(C), _, _), D1 \= D2.
-% D22: the clause for depends/2 (a question whose prerequisite is defeated)
-% is gone with the fact.
+% D22: a question whose prerequisite is defeated has no clause here any more.
 to_ask(Q) :- question(Q, C, _), current(C), contested(C), not answered(Q),
              not question_waived(Q).
 % question_waived/1 has no clause here. The build module adds it (D13):
