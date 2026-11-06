@@ -10,7 +10,8 @@ usage: python3 -I hubflow-test.py [--mutants] [--case NAME ...]
 Check names of the T05 ledger claims start with their claim id: c1- triage, c2- escalate,
 c3- capsule, c4- transcripts, c5- skip, c6- asks; schema- is the v1 -> v2 migration.
 Every scenario seeds its db from a seed file written into the temp dir (SEED_DATA below).
-Prints `PASS name` or `FAIL name: why` per case; the last line is `N passed, M failed`.
+Prints `PASS name` or `FAIL name: why` per case (`SKIP name: why` for a check that cannot run
+here, not counted); the last line is `N passed, M failed`.
 Exit 0 only if every case passes (and, with --mutants, every mutant is killed); 1 otherwise.
 """
 import json, os, re, shutil, sqlite3, subprocess, sys, tempfile
@@ -56,6 +57,11 @@ class Run:
         self.script = script
         self.results = []
         self.sync_bad = []
+
+    def skip(self, name, why):
+        """A check that cannot run here: printed, not counted."""
+        if not QUIET:
+            print(f"SKIP {name}: {why}")
 
     def check(self, name, ok, detail=""):
         self.results.append(bool(ok))
@@ -1519,6 +1525,119 @@ def case_schema_v2(r, root):
     r.check("schema-rebuild-v2", res[0] == 0 and hf(r, d, "check")[0] == 0 and disp(d, "A-0001")[-1][0] == "keep", res)
 
 
+def case_close_blocking(r, root):
+    """c2 (review): an agent's direct close of an item whose spec KB blocks is refused, as triage is."""
+    stub = write_stub(root)
+    h = kb_hub(root, "closehub", {"spec-a": ["q1"], "spec-b": None})
+    d = fresh(r, root, "close-blocking")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+    add(r, d, "ask", "Blocked by spec a", "--ref", "kb:spec-a/kb")  # A-1
+    add(r, d, "ask", "Spec b is clear", "--ref", "kb:spec-b/kb")  # A-2
+    add(r, d, "ask", "Blocked, no orbit-kb", "--ref", "kb:spec-a/kb")  # A-3
+    res = hf(r, d, "close", "A-0001", "--reason", "lapsed", hub=h, extra_env=env)
+    r.check("c2-close-reason-lapsed-refused", refused(res, 1) and status(d, "A-0001") == "open", res)
+    for reason in ("dropped", "done"):
+        res = hf(r, d, "close", "A-0001", "--reason", reason, hub=h, extra_env=env)
+        r.check(f"c2-agent-close-{reason}-of-blocking-refused", refused(res, 1, "block") and "q1" in res[2]
+                and status(d, "A-0001") == "open", res)
+    res = hf(r, d, "close", "A-0003", "--reason", "dropped", hub=h, extra_env={"HUBFLOW_ORBIT_KB": os.path.join(root, "no-such-orbit-kb")})
+    r.check("c2-agent-close-failsafe-refused", refused(res, 1, "treated as blocking") and status(d, "A-0003") == "open", res)
+    res = hf(r, d, "close", "A-0002", "--reason", "dropped", hub=h, extra_env=env)
+    r.check("c2-agent-close-of-clear-item", res[0] == 0 and status(d, "A-0002") == "dropped", res)
+    res = hf(r, d, "close", "A-0001", "--reason", "dropped", "--by", "human", "--note", "\"drop it\" (Me)", hub=h, extra_env=env)
+    r.check("c2-human-close-of-blocking", res[0] == 0 and status(d, "A-0001") == "dropped", res)
+
+
+def real_orbit_kb():
+    """The orbit-kb of this checkout (kb/bin/orbit-kb), or $HUBFLOW_TEST_ORBIT_KB."""
+    return os.environ.get("HUBFLOW_TEST_ORBIT_KB") or os.path.normpath(os.path.join(HERE, "..", "..", "..", "..", "kb", "bin", "orbit-kb"))
+
+
+def case_real_orbit_kb(r, root):
+    """c2 against the real `orbit-kb query 'blocking(X)'` (T03 c7). Skips until it exists."""
+    okb = real_orbit_kb()
+    name = "c2-real-orbit-kb"
+    if not os.access(okb, os.X_OK):
+        r.skip(name, f"no orbit-kb at {okb} (set HUBFLOW_TEST_ORBIT_KB)")
+        return
+    h = os.path.join(root, "realkb-hub")
+    kbs = {"spec-open": os.path.join(h, "W0", "analyses", "spec-open", "kb"),
+           "spec-none": os.path.join(h, "W0", "analyses", "spec-none", "kb")}
+
+    def okb_run(*args):
+        return subprocess.run([okb] + list(args), capture_output=True, text=True, timeout=120)
+
+    for k in kbs.values():
+        os.makedirs(os.path.dirname(k))
+        p = okb_run("init", k, "--request", "An invented request for a test fixture.", "--uses", "build")
+        if p.returncode != 0:
+            r.skip(name, f"orbit-kb init failed (exit {p.returncode}): {(p.stdout + p.stderr).strip()[:200]}")
+            return
+    # spec-open: one open question (to_ask: its claim is contested); spec-none: nothing at all
+    steps = [("--dir", kbs["spec-open"], "add", "claim(c1, preserve, 'Widgets stay blue.')", "question(q1, c1, 'Which blue?')"),
+             ("--dir", kbs["spec-open"], "attest", "divergence", "c1", "claim(c1)", "--by", "human")]
+    for st in steps:
+        p = okb_run(*st)
+        if p.returncode != 0:
+            r.skip(name, f"orbit-kb {st[2]} failed (exit {p.returncode}): {(p.stdout + p.stderr).strip()[:200]}")
+            return
+    p = okb_run("--dir", kbs["spec-none"], "query", "blocking(X)")
+    if p.returncode == 2 and "blocking/1" in p.stdout + p.stderr:
+        r.skip(name, f"{okb} has no blocking/1 yet (ticket T03 c7); rerun this suite after T03 lands")
+        return
+    r.check("c2-real-query-none-exit-1", p.returncode == 1, (p.returncode, p.stdout, p.stderr))
+    p = okb_run("--dir", kbs["spec-open"], "query", "blocking(X)")
+    r.check("c2-real-query-open-question", p.returncode == 0 and any(x.strip() in ("X = q1", "q1") for x in p.stdout.splitlines()),
+            (p.returncode, p.stdout, p.stderr))
+    d = fresh(r, root, "realkb")
+    env = {"HUBFLOW_ORBIT_KB": okb}
+    add(r, d, "ask", "Behind the open question", "--ref", "kb:spec-open/kb", now=DUE)  # A-1
+    add(r, d, "ask", "Behind a clear spec", "--ref", "kb:spec-none/kb", now=DUE)  # A-2
+    res = hf(r, d, "triage", "A-0001", "lapse", "--note", "looks idle", hub=h, extra_env=env)
+    r.check("c2-real-nonempty-answer-escalates", res[0] == 0 and status(d, "A-0001") == "open"
+            and disp(d, "A-0001")[-1][:2] == ("escalate", "lapse") and "q1" in res[1], res)
+    det = qs(d, "select detail from disposition where item_id='A-0001'")
+    r.check("c2-real-nonempty-answer-parsed", det and "q1" in det[-1][0] and "X =" not in det[-1][0] and "treated as blocking" not in det[-1][0], det)
+    res = hf(r, d, "triage", "A-0002", "lapse", "--note", "nothing blocks", hub=h, extra_env=env)
+    r.check("c2-real-empty-answer-lapses", res[0] == 0 and status(d, "A-0002") == "lapsed" and disp(d, "A-0002")[-1][:2] == ("lapse", None), res)
+
+
+def case_transcripts_clock(r, root):
+    """c4 (review): a rerun under another clock leaves the index rows as they were."""
+    h = os.path.join(root, "tsclock")
+    transcript_fixture(h)
+    d = fresh(r, root, "transcripts-clock")
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    r.check("c4-clock-first-index", res[0] == 0, res)
+    tabs = ("transcript", "transcript_msg")
+    before = {t: sorted(rows(d, t)) for t in tabs} if all(qs(d, f"select count(*) from {t}") for t in tabs) else None
+    files = {k: v for k, v in jl_bytes(d).items() if k.startswith("transcript")}
+    res = hf(r, d, "index-transcripts", "W0", hub=h, now="2026-11-09T08:00:00Z")
+    after = {t: sorted(rows(d, t)) for t in tabs} if before else None
+    r.check("c4-rerun-other-clock-rows-unchanged", res[0] == 0 and before and after == before
+            and {k: v for k, v in jl_bytes(d).items() if k.startswith("transcript")} == files and len(files) == 2, res)
+
+
+def case_skip_two_kbs(r, root):
+    """c5 (review): each linked item's own spec KB gets its waiver line too."""
+    stub = write_stub(root)
+    h = kb_hub(root, "skip2hub", {"spec-u": ["q1"], "spec-v": ["q2"]})
+    d = fresh(r, root, "skip-two")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+    add(r, d, "thread", "Build behind spec u", "--ref", "kb:spec-u/kb")  # T-1
+    add(r, d, "ask", "Question behind spec v", "--ref", "kb:spec-v/kb")  # A-1
+    ok(r, d, "link", "A-0001", "T-0001", "blocks")
+    code, out, err = hf(r, d, "close", "T-0001", "--reason", "human_skip", "--by", "human", "--note", "\"skip it\" (Me)", hub=h, extra_env=env)
+    waivers = [x for x in out.splitlines() if x.startswith("waiver: ")]
+    per_kb = {}
+    for x in waivers:
+        m = re.search(r"--dir (\S+) attest waiver (\S+) ", x)
+        if m:
+            per_kb.setdefault(m.group(1), []).append(m.group(2))
+    r.check("c5-waiver-line-for-each-linked-kb", code == 0 and status(d, "A-0001") == "dropped" and len(waivers) == 2
+            and per_kb == {"W0/analyses/spec-u/kb": ["q1"], "W0/analyses/spec-v/kb": ["q2"]}, out + err)
+
+
 def run_case(r, fn, *args):
     """Run one scenario. A scenario that cannot even run is a failure, not a crash, and the
     scenarios after it still run."""
@@ -1566,6 +1685,11 @@ def cases(r):
         run_case(r, case_skip, root)
         run_case(r, case_asks, root)
         run_case(r, case_schema_v2, root)
+        # T05, added after review
+        run_case(r, case_close_blocking, root)
+        run_case(r, case_real_orbit_kb, root)
+        run_case(r, case_transcripts_clock, root)
+        run_case(r, case_skip_two_kbs, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))
