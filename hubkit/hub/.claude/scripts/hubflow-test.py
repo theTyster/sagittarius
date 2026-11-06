@@ -63,6 +63,12 @@ MUTANTS = [
     ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
     ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
     ("capsule-without-rev", "rev = git_head(hub_dir(g))  # capsule rev", "rev = None"),
+    # T28: meeting transcripts
+    ("rotate-skips-transcript-reindex", "index = reindex_weeks(c, hub_dir(g))", "index = reindex_weeks(None, hub_dir(g))"),
+    ("grep-case-sensitive", 'needle = o["grep"].casefold()', 'needle = o["grep"]'),
+    ("speaker-turns-ignored", "turn_mode = marked >= 2", "turn_mode = False"),
+    ("meeting-index-keeps-stale-rows", 'c.execute("DELETE FROM meeting WHERE path GLOB ?"', 'print("DELETE FROM meeting WHERE path GLOB ?"'),
+    ("meeting-detail-text-uncut", "substr(text, 1, {TEXT_CAP}) AS text", "text"),
 ]
 
 
