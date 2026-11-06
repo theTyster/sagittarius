@@ -12,8 +12,12 @@ Facts (write them with orbit-kb add; never edit kb.pl)
                                       on it pins it (pins/4 below). Its examples are checks in those spec KBs.
   decided_by(Id, Who, When)           who made a decision, definition or rule, and when (a time such as
                                       '2026-03-01T09:00:00Z'). Who is any person or role. Who is an
-                                      agent when it is agent or starts with agent: (agent:build).
-  ratified_by(Id, Who, When)          a human ratified what an agent made. An agent may not ratify (EP1).
+                                      agent when it is agent or starts with agent: (agent:build), in
+                                      any case (Agent:build too).
+  ratified_by(Id, Who, When)          a human ratified what an agent made. add refuses a Who that is
+                                      an agent (EP1).
+  Trust limit: the Who of a fact is self-declared. orbit-kb reads the name that the writer gives; it
+  cannot know who wrote the fact. A name that is not an agent's is taken as a human's.
   reason(Id, Text)                    a reason for the decision
   repo(Name, Location)                a repository of the product
   analysis(Id, Path)                  the file with the analysis behind a decision, definition or rule.
@@ -22,9 +26,10 @@ Facts (write them with orbit-kb add; never edit kb.pl)
                                       project KB is WP6.
   Relations (each refuses an id that does not exist: E4)
   supersedes(New, Old)                two decisions, two definitions, or two rules. Old stays in kb.pl.
-  depends_on(X, Y)                    X depends on Y; any two of decision, definition, rule
+  depends_on(X, Y)                    X depends on Y; any two of decision, definition, rule.
+                                      depends_on(X, X) is refused (EP2); a cycle is the warning WP7.
   excludes(X, Y)                      a human or an agent records that X and Y cannot both hold. It is
-                                      never inferred from the text.
+                                      never inferred from the text. excludes(X, X) is refused (EP2).
   pin(Id, Kind, Source, Digest, ChangedAt)
                                       a pin of the world. Kind is file or tracker.
                                       file: Source is a subject id. Run orbit-kb subject first, and
@@ -52,7 +57,8 @@ Queries (the derived answers)
   contradiction(X, Y)           excludes(X, Y), and both are current
   proposed(X)                   an agent made X and no human ratified it. A proposed fact blocks nothing.
   impact(X, SpecKB)             a claim of the spec KB pins X, or pins a fact that rests on X.
-                                The spec KBs are found under the parent directory of the project KB.
+                                The spec KBs are found under the parent directory of the project KB,
+                                and in its registry spec_kbs.txt (below), wherever they are.
   stale_pin(P)                  the pin is old: the file has another digest now (or is missing), or a
                                 newer ChangedAt exists for the same tracker item
   outbound(D)                   the drafts that are not pushed, not in conflict, and did not lose
@@ -74,16 +80,24 @@ Commands
   orbit-kb --dir PROJECT project impact X [--root DIR]
       lists the spec KBs that a change of X touches: those that pin X, and those that pin a fact
       that rests on X (the line says "rests on"). The default root is the parent of the project KB.
+      The registry spec_kbs.txt of the project KB adds the spec KBs outside the root: add writes
+      the directory of a spec KB there when it records project_kb or pins. A spec KB that is in
+      neither (its pins written by hand, outside the root) is not seen: pass --root.
   orbit-kb --dir PROJECT project archive --superseded-before DATE [--root DIR]
-      removes from kb.pl each superseded decision, definition or rule, and the facts that name it,
-      when its superseding fact was decided (decided_by) before DATE, no kept fact rests on it,
-      and no open spec KB (done does not hold) pins it. A pinned or rested-on fact is never
-      removed. git keeps what is removed. It is a write command (writer lock).
+      removes from kb.pl each superseded decision, definition or rule, and every fact that names
+      it (decided_by, reason, a note, an attestation about it, any fact with a ref to it), when
+      its superseding fact was decided (decided_by) before DATE, no kept fact rests on it, and no
+      open spec KB (done does not hold) pins it. A pinned or rested-on fact is never removed.
+      DATE is a real date (2026-10-01) or UTC time; else exit 2. When the KB after the archive
+      would have a lint error that it has not now, nothing is written (exit 1, the errors named).
+      git keeps what is removed. It is a write command (writer lock).
   orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]
-      records the pin and keeps the pinned text as pins/HEX.txt (HEX of the digest), so a draft is
-      an edit of that text. Only pinned items are kept.
+      records the pin. A tracker pin keeps the pinned text as pins/HEX.txt (HEX of the digest), so
+      a draft is an edit of that text. A file pin (--kind file, a week's report) keeps only its
+      digest and its path: never a copy.
   orbit-kb --dir PROJECT show pin ID
-      prints the pin and its kept text (exit 1 when no text is kept: a pin made with add).
+      prints the pin and its kept text. Exit 1 when no text is kept (a file pin, or a pin made with
+      add), and when the kept text does not match the digest of the pin (MISMATCH: it was edited).
 
 Weeks and the project KB
   The weeks own the raw reports and the transcripts. The project KB keeps only a pin of the ones
@@ -97,7 +111,9 @@ Lint
   WP4   a KB has more than one project_kb fact. Only the first is read. Keep one.
   WP5   a claim pins a fact that rests on a fact in a contradiction. Only a warning: no claim pins it directly.
   WP6   an analysis path is outside the project KB. Move the file under analyses/ of the project KB.
-  EP1   an agent ratified a fact (error). Only a human ratifies.
+  WP7   a fact rests on itself: a cycle of depends_on facts. Check each fact of the cycle.
+  EP1   an agent ratified a fact (error; add refuses it). Only a human ratifies.
+  EP2   a fact depends on itself or excludes itself (error; add refuses it).
 
 One writer (every KB, T27)
   Every KB has one writer at a time, a spec KB too. The writer is the first that is set of

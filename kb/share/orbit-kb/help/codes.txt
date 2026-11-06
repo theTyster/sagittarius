@@ -72,4 +72,6 @@ Project module (orbit-kb help project)
   WP4  a KB has more than one project_kb fact. Only the first is read. Keep one.
   WP5  a claim pins a fact that rests on a fact in a contradiction. A warning: only a direct pin blocks.
   WP6  an analysis path is outside the project KB. Move the file under analyses/ of the project KB.
-  EP1  an agent ratified a fact (an error). Only a human ratifies what an agent made.
+  WP7  a fact rests on itself: its depends_on facts make a cycle. A warning: check each depends_on of the cycle.
+  EP1  an agent (agent or agent:NAME, in any case) ratified a fact (an error; add refuses it). Only a human ratifies.
+  EP2  a fact depends on itself or excludes itself (depends_on(X, X), excludes(X, X); an error; add refuses it).

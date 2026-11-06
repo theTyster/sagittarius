@@ -291,7 +291,8 @@ A KB is a directory. You choose its location. There is no default location.
 | `rules.pl` | You (optional) | Local rules. |
 | `runs/<N>-<CheckId>.log` | `run` only | The combined output of one run of a check. |
 | `kb.lock` | The writing commands | An empty file. Each writing command holds a lock on it (section 8). |
-| `pins/<HEX>.txt` | `pin-item` only | The text of a pinned item, named by its sha256 (D27). `show pin ID` prints it. |
+| `spec_kbs.txt` | `add` in a spec KB | In a project KB: one absolute directory per line, each spec KB that recorded a `project_kb` or `pins` fact naming it (T34). `project impact`, `project archive` and `impact/2` read it with the walk of the root. |
+| `pins/<HEX>.txt` | `pin-item` only | The text of a pinned tracker item, named by its sha256 (D27). `show pin ID` prints it, and reports a mismatch when it was edited. A file pin keeps no copy (T34). |
 | `analyses/` | You (a project KB) | The analyses of the project KB (`analysis/2`, D27). A path outside the KB is WP6. |
 | `writer.lock` | The write commands of a KB that uses `project` | One line `WRITER TIME`: the one writer of a project KB, until `release` (section 8, Locking). |
 
@@ -835,7 +836,9 @@ that no answer gets past, and why, recursively. Exit: 0. 2 on a syntax error
 ### `show [claims|questions|open|blocking|disclosures|extensions|all]`, `show pin ID`
 
 `show pin ID` (D27) prints the pin, then the text that `pin-item` kept for it
-(`pins/HEX.txt`). Exit 1 when no text is kept (a pin made with `add`), 2 when
+(`pins/HEX.txt`). It checks the kept text against the digest of the pin first
+(T34): when they differ, it prints `MISMATCH: ...` and no text. Exit 1 when no
+text is kept (a file pin, or a pin made with `add`) and on a mismatch, 2 when
 ID is no pin.
 
 Lists parts of the KB as plain text. The default is `all` (without `blocking`).
@@ -1076,10 +1079,12 @@ F holds the text of the tracker item that a person pasted or exported; the CLI
 computes Digest, the sha256 of F, and never changes F. T is the change time of
 the item, in UTC (`2026-10-01T09:00:00Z`). Kind defaults to `tracker`. Nothing
 is fetched. It is a write command: it takes the writer lock and accepts
-`--take`. After the pin is recorded, the CLI keeps a copy of F as
+`--take`. After a tracker pin is recorded, the CLI keeps a copy of F as
 `pins/HEX.txt` in the KB, HEX of the digest (D27): content-addressed, so the
 same text is kept once, and only pinned items are kept. A draft is an edit of
-that text; `show pin ID` prints it.
+that text; `show pin ID` prints it. A file pin (`--kind file`, such as a week's
+report) keeps only its digest and its path, never a copy (T34): the week owns
+the file.
 Exit: 0 prints the pin id and digest. 1 when the pin id exists. 2 for a missing
 F, a missing option, or a T that is not a time.
 
@@ -1089,9 +1094,13 @@ Run in a project KB (D27). Lists the spec KBs that a change of decision,
 definition or rule X touches: each claim that pins X (`- DIR: claim C pins X`)
 and each claim that pins a fact that rests on X (`- DIR: claim C pins Z, which
 rests on X`). The spec KBs are the KBs under DIR (default: the parent
-directory of the project KB; the walk of `serve --root`) whose `project_kb`
-names this project KB. The query `impact(X, SpecKB)` gives the same set, with
-the default root. Read-only.
+directory of the project KB; the walk of `serve --root`), and the KBs of the
+registry `spec_kbs.txt` of the project KB (T34), whose `project_kb` names this
+project KB. `add` writes the absolute directory of a spec KB in that registry
+when it records a `project_kb` or a `pins` fact that names the project KB, so
+a spec KB outside the root is found too. A spec KB in neither place (its pins
+written by hand, outside the root) is not seen. The query `impact(X, SpecKB)`
+gives the same set, with the default root. Read-only.
 Exit: 0, also when no spec KB is touched (`No spec KB pins ...`). 2 when X is
 no decision, definition or rule of the KB.
 
@@ -1099,14 +1108,20 @@ no decision, definition or rule of the KB.
 
 Run in a project KB (D27). Keeps the project KB bounded. It removes from
 `kb.pl` each decision, definition and rule that is superseded by a fact whose
-`decided_by` time is before DATE (`2026-10-01` or a UTC time), and every fact
-that names it (`decided_by`, `ratified_by`, `reason`, `analysis`, `concerns`,
-`depends_on`, `supersedes`, `excludes`). It never removes a fact that an open
-spec KB (one where `done` does not hold) pins, and never a fact that a kept
-fact depends on, directly or through `rests_on`. git keeps what it removes.
+`decided_by` time is before DATE (`2026-10-01` or a UTC time; a real date:
+`2026-13-45` and `2026-02-30` are exit 2), and every fact that names it
+(`decided_by`, `ratified_by`, `reason`, `analysis`, `concerns`, `depends_on`,
+`supersedes`, `excludes`, and every fact of any kind with a ref argument that
+names it, such as `note/2`, the subject of an `attest/6`, or a local fact; T34).
+Before it writes, it lints the KB as it would be after the archive: a lint
+error that the KB does not have now refuses the archive (exit 1, the errors
+named, nothing written). So no archive leaves a dangling reference. It never
+removes a fact that an open spec KB (one where `done` does not hold) pins, and
+never a fact that a kept fact depends on, directly or through `rests_on`. The
+spec KBs are those of `project impact`. git keeps what it removes.
 It is a write command: it takes the writer lock and accepts `--take`.
-Exit: 0, also when nothing is removed (`Nothing to archive`). 2 for a missing
-or bad DATE.
+Exit: 0, also when nothing is removed (`Nothing to archive`). 1 when the
+result would have a new lint error. 2 for a missing or bad DATE.
 
 ### Locking
 
@@ -1263,7 +1278,8 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `flare`, `flare_shown`, `flare_waived`, `flare_open`, `any_flare_open`, `demo_changed` (D21), `any_current_claim`, `proof_changed`, `waiver_lapsed`, `blocking`, `item_open`, `check_ran`, `due_passed` (D22), `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engine ignores the clause. |
 | E17 | A form that `orbit-kb` does not read (it is s(CASP) syntax): classical negation `-p` (in a fact, a rule head, or a body literal), a `#` line, a global constraint `(:- Body)`, or a `#=`-family constraint. `add` refuses it. It applies in `kb.pl` too, and a goal with such a form exits 2 with the E17 text. `query`, `why`, `whynot`, `show`, and `report` exit 2 while an E17 exists. |
 | E18 | The rules are not stratified: a predicate depends on itself through `not`. The same commands exit 2 while an E18 exists. |
-| EP1 | An agent ratified a fact: `ratified_by(X, Who, _)` where Who is `agent` or starts with `agent:`. Only a human ratifies what an agent made. Module hook (D27). |
+| EP1 | An agent ratified a fact: `ratified_by(X, Who, _)` where Who is `agent` or starts with `agent:`, in any case (`Agent:review` too). Only a human ratifies what an agent made. `add` refuses it (T34). Who is self-declared: the check reads the name, it cannot know who wrote the fact (D27). |
+| EP2 | A fact depends on itself or excludes itself: `depends_on(X, X)` or `excludes(X, X)`. `add` refuses it (T34). To end a fact, supersede it. |
 | E19 | Typo guard (D22): a predicate declared by its first use has a name 2 edits or fewer (Levenshtein) from another declared predicate of the same arity. The message names both. `add` does not refuse it. For a typo, correct the facts in `kb.pl` and delete the `decl/4` and `first_use/3` lines of the new name. For a new predicate, choose a name more than 2 edits away. |
 
 | Code | Warning |
@@ -1282,6 +1298,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | WP4 | A KB has more than one `project_kb` fact. Only the first is read. Keep one. The id is the later directory (D23 follow-up). |
 | WP5 | A claim pins a fact of the project KB that rests on a fact in a contradiction, and no claim pins that fact directly. Only a direct pin blocks (`project_contradiction`); this is a warning. Module hook; the id is the claim (D27). |
 | WP6 | An `analysis(X, Path)` whose Path is outside the project KB directory. Analyses are written in the project KB (`analyses/`); a week's raw report is pinned, not an analysis. Module hook (D27). |
+| WP7 | A fact rests on itself: its `depends_on` facts make a cycle (`rests_on(X, X)`). A cycle is allowed, but it is often a mistake. Module hook; the id is each fact of the cycle (T34). |
 
 Built-ins that E2 permits: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `true`,
 `false`, `forall/2`. Lint unwraps `not G`.

@@ -90,7 +90,7 @@ decl(rule, rests_on(ref, ref),
      'The first fact depends on the second through one or more depends_on facts (D27). orbit-kb computes it when it reads the KB.',
      '@(1) rests on @(2)').
 decl(rule, agent_who(atom),
-     'The decider is an agent: the atom agent, or an atom that starts with agent: (D27). orbit-kb computes it when it reads the KB.',
+     'The decider is an agent: the atom agent, or an atom that starts with agent:, in any case (D27, T34). orbit-kb computes it when it reads the KB.',
      '@(1) is an agent').
 decl(rule, analysis_outside(ref, text),
      'The path of an analysis of the fact is outside the directory of the project KB (D27). orbit-kb computes it when it reads the KB.',
@@ -206,7 +206,9 @@ lint_issue('WP3', C, 'The project KB does not load clean: lint finds an error in
 lint_issue('WP5', C, 'This claim rests on a fact of the project KB that rests on a fact in a contradiction (orbit-kb project impact lists it). It does not block this KB, because no claim pins that fact directly. Read the contradiction in the project KB.') :-
     pins(C, project, Z, _), project_rests_on(Z, X), project_contradiction(X, _), not project_pinned(X).
 lint_issue('WP6', X, M) :- analysis_outside(X, M).
-lint_issue('EP1', X, 'An agent ratified this fact. Only a human may ratify a fact that an agent made. Remove the ratified_by fact, and ask a human.') :-
-    ratified_by(X, W, _), agent_who(W).
+% EP1 (an agent ratified) and EP2 (a fact depends on or excludes itself) are checks of one fact
+% in the CLI, at add and at lint (T34).
+lint_issue('WP7', X, 'This fact rests on itself: its depends_on facts make a cycle. A cycle of dependencies is allowed, but it is often a mistake. Check each depends_on fact of the cycle (orbit-kb query ''rests_on(X, Y)'').') :-
+    rests_on(X, X).
 lint_issue('WP4', Dir, 'This KB has more than one project_kb fact. Only the first is read. Keep one project_kb fact.') :-
     project_kb(First), project_kb(Dir), First @< Dir.

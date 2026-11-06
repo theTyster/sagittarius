@@ -9,12 +9,23 @@ Abstractions (what the model leaves out):
 * An id is a natural number. The candidates are the superseded decisions, definitions and rules
   whose superseding fact was decided before DATE (the code computes them from kb.pl).
 * `pinned` is the set of ids that a claim of an open spec KB pins (the code reads the spec KBs
-  and asks `done` of each).
+  and asks `done` of each). What "pinned" covers (T34 c2): the pins of the spec KBs that the
+  code finds, and only those. The code finds a spec KB in two ways: the walk of the root (the
+  parent directory of the project KB, or `--root DIR`), and the registry `spec_kbs.txt` of the
+  project KB, which `orbit-kb add` writes when a spec KB records `project_kb/1` or `pins/4`.
+  The proof does not cover the walk: it takes `pinned` as given. A spec KB that neither the walk
+  nor the registry finds (one that was copied in, or whose pins were written by hand outside
+  the root) can pin an id that archive removes.
 * `deps` holds the pairs `(y, x)` of the `depends_on(y, x)` facts: y depends on x.
-* The code removes the facts of the ids in the set. The claim is about the set.
+* The code removes the facts of the ids in the set. The claims c9 are about the set.
+* T34 c1: a fact of kb.pl is modelled by the list of the ids it names (its id, and each ref
+  argument). The code removes each fact that names an archived id (`archiveKeep`). The model
+  leaves out the lint check that the code runs on the result before it writes.
 
 The claim (c9): a pinned fact, or a fact that a kept fact rests on, is never removed.
 `rests_on` is the transitive closure of `depends_on` (D27 R3).
+The claim (T34 c1): the archive leaves no dangling reference: each id that a kept fact names
+is still defined by a kept fact.
 -/
 namespace ProjectArchive
 
@@ -103,5 +114,35 @@ theorem archive_never_removes (cand pinned : List Nat) (deps : List (Nat × Nat)
     exact hy (fix_rests deps _ y x hr hx)
   · intro hx
     exact (List.mem_filter.mp (fix_sub deps _ x hx)).1
+
+/-- T34 c1: the facts that stay. A fact is the list of the ids that it names; the code
+removes each fact that names an archived id (`archive_names/2`, `archive_ref_names/3`). -/
+def archiveKeep (A : List Nat) (facts : List (List Nat)) : List (List Nat) :=
+  facts.filter (fun f => !(f.any (fun x => A.contains x)))
+
+/- The PT9 / PF1 case: d1 = 1 is archived; `[1]` is decision d1, `[1, 2]` is supersedes(d2, d1),
+`[1]` is also note(d1); `[3]` is decision d3 and `[3]` a note of it; `[2]` is decision d2. -/
+#eval archiveKeep [1] [[1], [2], [1, 2], [1], [3], [3]]  -- [[2], [3], [3]]
+
+/-- A kept fact names no archived id. -/
+theorem keep_names_none (A : List Nat) (facts : List (List Nat)) (f : List Nat) (x : Nat)
+    (hf : f ∈ archiveKeep A facts) (hx : x ∈ f) : x ∉ A := by
+  intro hA
+  have h := (List.mem_filter.mp hf).2
+  simp only [Bool.not_eq_true', List.any_eq_false] at h
+  exact absurd (List.contains_iff_mem.mpr hA) (by simpa using h x hx)
+
+/-- T34 c1: no dangling reference after any archive. Before the archive each id that a fact
+names has its defining fact `[x]` (it names only x) in kb.pl (lint has no E4). Then each id
+that a kept fact names has its defining fact kept too. -/
+theorem archive_no_dangling (A : List Nat) (facts : List (List Nat))
+    (hdef : ∀ f ∈ facts, ∀ x ∈ f, [x] ∈ facts) :
+    ∀ f ∈ archiveKeep A facts, ∀ x ∈ f, [x] ∈ archiveKeep A facts := by
+  intro f hf x hx
+  have hxA := keep_names_none A facts f x hf hx
+  have hfo : f ∈ facts := (List.mem_filter.mp hf).1
+  refine List.mem_filter.mpr ⟨hdef f hfo x hx, ?_⟩
+  simp only [List.any_cons, List.any_nil, Bool.or_false, Bool.not_eq_true']
+  simpa using hxA
 
 end ProjectArchive
