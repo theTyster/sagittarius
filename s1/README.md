@@ -92,7 +92,8 @@ The parts are the `h_work` choice, P(`h_divergence`) and P(`h_effort`).
 - It prints nothing when the log is missing, when the session has no line, when stdin has no
   `session_id`, or when the newest line of the session is 10 minutes old or older.
 - When the newest line is an error line (`error` set, or `answers` null) it prints `S1 err`.
-- A missing answer is left out of the segment.
+- A missing answer is left out of the segment. So is a work choice with P below 0.5, the hook's
+  floor (`probabilities[choice]`, else `confidence`). With nothing left, it prints nothing.
 - It reads only the end of the log (64 KiB blocks, at most 8 MiB back). It never calls the network
   and imports no network module. It uses `S1_LOG` like the other s1 tools.
 
