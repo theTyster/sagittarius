@@ -4,6 +4,8 @@
 c1 (u47, d_formal_substrate): the prompt and PHILOSOPHY drop "Show the human concrete examples and
    results, not formal text", and say: examples first; when the work has shifted up, the human
    reads and reviews the formal text too, so write it to be read.
+   T31 c8 (u47) strengthens it: the human, the agent and the CPU all use the formal language as the
+   shared substrate, and the human reads, reviews and understands it.
 c2 (u57, u90, d_err_soft, d_oscillate): the hypothesis paragraph of the prompt says to err toward
    the general and soft, and to step just past the boundary on purpose before formalizing; and
    every "Applied in" line of PHILOSOPHY is true: each target it names exists, and grepping the
@@ -46,8 +48,10 @@ def c1():
             bad.append("%s still says 'not formal text'" % path)
         if not re.search(r"examples[^.]*\bfirst\b", t):
             bad.append("%s does not say examples first" % path)
-        if not re.search(r"shifted up[^.]*reads and reviews the formal text", t):
-            bad.append("%s does not say that after a shift up the human reads and reviews the formal text" % path)
+        if not re.search(r"shifted up[^.]*the human, the agent,? and the cpu all use the formal language as the shared"
+                         r" substrate[^.]*the human reads, reviews,? and understands it", t):
+            bad.append("%s does not say that after a shift up the human, the agent and the CPU share the formal"
+                       " language as the substrate, and the human reads, reviews and understands it (u47)" % path)
         if "write it to be read" not in t:
             bad.append("%s does not say 'write it to be read'" % path)
     return "; ".join(bad) or None
@@ -152,6 +156,10 @@ def c2():
     hyp = flat(block(prompt, "**The hypothesis.**", "**The vote.**"))
     if not re.search(r"\berr\b[^.]*general[^.]*soft|\berr\b[^.]*soft[^.]*general", hyp):
         bad.append("the hypothesis paragraph of the prompt does not say to err toward the general and soft")
+    if not re.search(r"\berr\b[^.]*\bhypotheses\b[^.]*\bpremises\b[^.]*\bclaims\b", hyp):
+        bad.append("the hypothesis paragraph of the prompt does not name hypotheses, premises and claims for err-soft (u57)")
+    if "oscillation is an intentional heuristic" not in hyp:
+        bad.append("the hypothesis paragraph of the prompt does not say 'oscillation is an intentional heuristic' (u57)")
     if not re.search(r"just past the boundary[^.]*formaliz|formaliz[^.]*just past the boundary", hyp):
         bad.append("the hypothesis paragraph of the prompt does not say to step just past the boundary before formalizing")
     if "on purpose" not in hyp:

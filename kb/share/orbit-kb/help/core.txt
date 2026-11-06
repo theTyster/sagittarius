@@ -90,7 +90,8 @@ DECOMPOSE: claims and questions
      is contested.
   4. Restate each claim as one or more concrete examples, for example "Submit on /checkout
      renders #6B3FA0". The human reads examples first. When the work has shifted up, the
-     human reads and reviews the formal text too, so write it to be read.
+     human, the agent and the CPU all use the formal language as the shared substrate, and the
+     human reads, reviews and understands it, so write it to be read.
   5. Mark a claim visual when the human must see the result to judge it (orbit-kb help build).
 
 Asking the human
