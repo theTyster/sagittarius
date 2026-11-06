@@ -1,7 +1,9 @@
 #!/usr/bin/env swipl
-% repo-map: write the C4 map of a repo (levels C1 and C2) as Mermaid in Markdown.
+% repo-map: write the C4 map of a repo (levels C1 and C2, and C3 for one container) as Mermaid
+% in Markdown.
 %
 %   repo-map --facts KB_PL --containers CONTAINERS_PL [--level c1|c2|both] [--strict]
+%   repo-map --facts KB_PL --containers CONTAINERS_PL --level c3 --container ID [--strict]
 %
 % Spec and file formats: kb/share/repo-map/README.md. Nothing here touches the network, and
 % nothing is executed from the input files: they are only read as data.
@@ -11,16 +13,21 @@
 :- use_module(library(apply)).
 :- use_module(library(lists)).
 
-:- dynamic r_repo/2, c_repo/1, c_person/3, c_external/3, c_container/4, c_link/3, c_about/2.
+:- dynamic r_repo/2, c_repo/1, c_person/3, c_external/3, c_container/4, c_link/3, c_about/2,
+           c_component/5.
 
 usage :-
     format(user_error, "usage: repo-map --facts KB_PL --containers CONTAINERS_PL [--level c1|c2|both]~n", []),
+    format(user_error, "       repo-map --facts KB_PL --containers CONTAINERS_PL --level c3 --container ID~n", []),
     halt(2).
 die(Fmt, Args) :- format(user_error, Fmt, Args), nl, halt(2).
 
 main(Argv) :-
-    parse_args(Argv, Facts, Cont, Level),
+    parse_args(Argv, Facts, Cont, Level, Box),
     (   ( Facts == none ; Cont == none ) -> usage ; true ),
+    (   Level == c3, Box == none -> die("repo-map: --level c3 needs --container ID (the container to show)", [])
+    ;   Level \== c3, Box \== none -> die("repo-map: --container is only for --level c3", [])
+    ;   true ),
     forall(member(F, [Facts, Cont]),
            ( exists_file(F) -> true ; die("repo-map: cannot read a file", []) )),
     read_data(Facts, Cont),
@@ -28,22 +35,30 @@ main(Argv) :-
     sub_atom(Hex, 0, 12, _, Short),
     (   c_repo(This) -> true ; die("repo-map: the containers file has no repo(Name) fact", []) ),
     check_ids(This),
+    (   Box == none -> true
+    ;   c_container(Box, _, _, _) -> true
+    ;   die("repo-map: the containers file has no container(~w, ...)", [Box]) ),
     ( strict, warned -> halt(1) ; true ),
     md_escape(This, ThisE),
+    (   Box == none -> ThisBox = '' ; md_escape(Box, ThisBox) ),
     format("# Repo map: ~w~n~nmap@~w~n", [ThisE, Short]),
-    (   Level \== c2 -> format("~n## C1 System context~n~n"), c1(This) ; true ),
-    (   Level \== c1 -> format("~n## C2 Containers~n~n"), c2(This) ; true ).
+    (   Level == c3 -> format("~n## C3 Components of ~w~n~n", [ThisBox]), c3(This, Box)
+    ;   (   Level \== c2 -> format("~n## C1 System context~n~n"), c1(This) ; true ),
+        (   Level \== c1 -> format("~n## C2 Containers~n~n"), c2(This) ; true )
+    ).
 
-parse_args(Argv0, F, C, L) :-
+parse_args(Argv0, F, C, L, B) :-
     (   selectchk('--strict', Argv0, Argv) -> assertz(strict) ; Argv = Argv0 ),
-    parse_args_(Argv, none, none, both, F, C, L).
-parse_args_([], F, C, L, F, C, L).
-parse_args_(['--facts', V|T], _, C0, L0, F, C, L) :- !, parse_args_(T, V, C0, L0, F, C, L).
-parse_args_(['--containers', V|T], F0, _, L0, F, C, L) :- !, parse_args_(T, F0, V, L0, F, C, L).
-parse_args_(['--level', V|T], F0, C0, _, F, C, L) :- !,
-    (   memberchk(V, [c1, c2, both]) -> parse_args_(T, F0, C0, V, F, C, L)
-    ;   die("repo-map: --level must be c1, c2 or both", []) ).
-parse_args_([A|_], _, _, _, _, _, _) :- die("repo-map: unknown argument ~w", [A]).
+    parse_args_(Argv, a(none, none, both, none), a(F, C, L, B)).
+parse_args_([], A, A).
+parse_args_(['--facts', V|T], a(_, C, L, B), A) :- !, parse_args_(T, a(V, C, L, B), A).
+parse_args_(['--containers', V|T], a(F, _, L, B), A) :- !, parse_args_(T, a(F, V, L, B), A).
+parse_args_(['--container', V|T], a(F, C, L, _), A) :- !, parse_args_(T, a(F, C, L, V), A).
+parse_args_(['--level', V|T], a(F, C, _, B), A) :- !,
+    (   memberchk(V, [c1, c2, c3, both]) -> parse_args_(T, a(F, C, V, B), A)
+    ;   die("repo-map: --level must be c1, c2, c3 or both", []) ).
+parse_args_(['--container'], _, _) :- !, die("repo-map: --container needs a container id", []).
+parse_args_([A|_], _, _) :- die("repo-map: unknown argument ~w", [A]).
 
 % ---- reading: terms are data. A line that does not parse is skipped with a warning on stderr
 % (file and line). With --strict, any warning makes the exit status 1 after the map is not written.
@@ -75,12 +90,13 @@ keep(_, _, external(I, L, D)) :- !, assertz(c_external(I, L, D)).
 keep(_, _, container(I, L, T, D)) :- !, assertz(c_container(I, L, T, D)).
 keep(_, _, link(A, B, L)) :- !, assertz(c_link(A, B, L)).
 keep(_, _, about(N, D)) :- !, assertz(c_about(N, D)).
+keep(_, _, component(I, C, L, T, D)) :- !, assertz(c_component(I, C, L, T, D)).
 keep(_, _, _).
 
 % two different names must not give the same Mermaid id
 check_ids(This) :-
     findall(N, ( r_repo(N, _) ; c_repo(N) ; N = This ; c_person(N, _, _) ; c_external(N, _, _) ; c_container(N, _, _, _)
-               ; c_link(N, _, _) ; c_link(_, N, _) ), Ns0),
+               ; c_component(N, _, _, _, _) ; c_link(N, _, _) ; c_link(_, N, _) ), Ns0),
     sort(Ns0, Ns),
     forall(( member(A, Ns), member(B, Ns), A @< B, id_atom(A, I), id_atom(B, I) ),
            die("repo-map: the names '~w' and '~w' give the same diagram id ~w; rename one", [A, B, I])).
@@ -158,3 +174,24 @@ c2(This) :-
     forall(( c_link(A, B, L), c2_node(This, A), c2_node(This, B) ), rel(A, B, L)),
     format("```~n").
 c2_node(This, X) :- ( is_cont(X) ; is_person(X) ; is_sys(X) ; is_ext(X) ; X == This ), !.
+
+% ---- C3: the components of one container (Box), and what their links touch
+is_comp(I) :- c_component(I, _, _, _, _).
+c3(This, Box) :-
+    format("```mermaid~nC4Component~n"),
+    format("  title ~w~n", ['"Components of the container"']),
+    findall(A-B-L, ( c_link(A, B, L), ( c_component(A, Box, _, _, _) ; c_component(B, Box, _, _, _) ) ), Ls0),
+    list_to_set(Ls0, Ls),
+    findall(X, ( member(A-B-_, Ls), member(X, [A, B]), \+ c_component(X, Box, _, _, _) ), Xs0), list_to_set(Xs0, Xs),
+    forall(( member(X, Xs), is_person(X) ), ( c_person(X, L, D), id_atom(X, Id), qtext(L, QL), qtext(D, QD), format("  Person(~w, ~w, ~w)~n", [Id, QL, QD]) )),
+    c_container(Box, BL, _, _), id_atom(Box, BI), qtext(BL, QB),
+    format("  Container_Boundary(~w, ~w) {~n", [BI, QB]),
+    forall(c_component(I, Box, L, T, D), ( id_atom(I, Id), qtext(L, QL), qtext(T, QTe), qtext(D, QD), format("    Component(~w, ~w, ~w, ~w)~n", [Id, QL, QTe, QD]) )),
+    format("  }~n"),
+    forall(( member(X, Xs), \+ is_person(X), is_comp(X) ), ( c_component(X, _, L, T, D), id_atom(X, Id), qtext(L, QL), qtext(T, QTe), qtext(D, QD), format("  Component_Ext(~w, ~w, ~w, ~w)~n", [Id, QL, QTe, QD]) )),
+    forall(( member(X, Xs), \+ is_person(X), \+ is_comp(X), is_cont(X) ), ( c_container(X, L, T, D), id_atom(X, Id), qtext(L, QL), qtext(T, QTe), qtext(D, QD), format("  Container(~w, ~w, ~w, ~w)~n", [Id, QL, QTe, QD]) )),
+    forall(( member(X, Xs), \+ is_person(X), \+ is_comp(X), \+ is_cont(X), is_sys(X), X \== This ), ( id_atom(X, Id), qtext(X, QN), desc_of(X, D), qtext(D, QD), format("  System_Ext(~w, ~w, ~w)~n", [Id, QN, QD]) )),
+    forall(( member(X, Xs), \+ is_person(X), \+ is_comp(X), \+ is_cont(X), \+ is_sys(X), is_ext(X) ), ( c_external(X, L, D), id_atom(X, Id), qtext(L, QL), qtext(D, QD), format("  System_Ext(~w, ~w, ~w)~n", [Id, QL, QD]) )),
+    forall(( member(A-B-L, Ls), c3_node(A), c3_node(B) ), rel(A, B, L)),
+    format("```~n").
+c3_node(X) :- ( is_comp(X) ; is_cont(X) ; is_person(X) ; is_sys(X) ; is_ext(X) ), !.

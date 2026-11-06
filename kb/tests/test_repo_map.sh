@@ -306,7 +306,7 @@ t_L3e() {  # the map of a C3 level: same hash rule; no path, no location
     rm_run --facts "$base/l3e/kb.pl" --containers "$base/l3e/containers.pl" --level c3 --container web; rc_is 0
     out_has "map@$(hash12 "$base/l3e/kb.pl" "$base/l3e/containers.pl")" "the input hash"
     all_hasnt_f "/srv/work" "repo locations"; all_hasnt_f "$base" "input paths"
-    printf "component(dup, web, 'A', 'x', 'd').\ncomponent('d u p', web, 'B', 'x', 'd').\n" >> "$base/l3e/containers.pl"
+    printf "component(d_p, web, 'A', 'x', 'd').\ncomponent('d-p', web, 'B', 'x', 'd').\n" >> "$base/l3e/containers.pl"
     rm_run --facts "$base/l3e/kb.pl" --containers "$base/l3e/containers.pl" --level c3 --container web; rc_is 2 "colliding component ids are refused"
 }
 
