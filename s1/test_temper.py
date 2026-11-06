@@ -98,7 +98,7 @@ class ReplayClaude:
         st = re.findall(r"^Statement: (.*)$", prompt, re.M)[-1]
         if model == "sonnet":
             r = REC[st]
-            return json.dumps({"false_if_correct": r["col"], "faithful": r["fai"]})
+            return json.dumps({"false_if_correct": not r["col"], "faithful": r["fai"]})
         if "Allowed step:" in prompt:
             return NEXT[st]
         if prompt.startswith("Write the falsifier"):
