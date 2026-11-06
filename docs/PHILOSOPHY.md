@@ -25,6 +25,13 @@ The audience is people who work with formal methods and AI. Users are expected t
 Lean, and the other formal languages. A general template is a byproduct: an informal release.
 <!-- d_audience_fm, decided 2026-11-05 -->
 
+The position: Sagittarius is an extension of the harness, between the human-agent interface and
+the software factory. The harness is the interface between the human and the agent; the software
+factory is the interface between the agent and the project. Sagittarius fills the gap between them
+as an inference, reasoning and knowledge-graph layer. It is opinionated: it puts everything into
+one shape.
+<!-- u08, u37 -->
+
 > "I'm making the bet that even with ASI, humans will still need to explain what they want, and
 > that will continue to be a point of friction." (the author)
 
@@ -59,8 +66,10 @@ base). Like two eyes, different views find depth that one view cannot. The forma
 impartial: they can disagree with the agent and with the human. Thus each result must go through a
 party that did not make it.
 
-Show the human concrete examples and results, not formal text or test logs. The human judges
-meaning. The machines judge consistency.
+Show the human concrete examples and results first, not test logs. When the work has shifted up,
+the human reads and reviews the formal text too, so write it to be read. The human judges meaning.
+The machines judge consistency.
+<!-- d_formal_substrate, decided 2026-11-05 -->
 
 Applied in: prompt "The phase tree" (Parallax), "Roles", "Delivery".
 
