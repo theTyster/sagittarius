@@ -41,7 +41,7 @@ T="" K="" P=""
 base=$(mktemp -d "${TMPDIR:-/tmp}/orbit-kb-ts.XXXXXX") || exit 2
 base=$(cd "$base" && pwd -P)
 trap 'rm -rf "$base"' EXIT
-for v in $(compgen -e); do case $v in ORBIT_KB*) unset "$v";; esac; done
+for v in $(compgen -e); do case $v in ORBIT_KB*|CLAUDE_SESSION_ID|CLAUDE_CODE_SESSION_ID|HUB_SESSION) unset "$v";; esac; done
 export ORBIT_KB_LIB="$LIB"
 export ORBIT_KB_WRITER=t11-tests   # the one-writer lock of the project KB (D23)
 

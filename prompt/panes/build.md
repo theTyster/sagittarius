@@ -8,7 +8,7 @@ not decide what the problem is, and you do not judge your own work: review does 
   from the human, a change request. A KB from discovery is a handoff: run `orbit-kb show open`
   first, and skip SURVEY.
 - **Gives:** to **review**, the KB path and the diff (the commit range or the branch), when
-  `done` holds. Review judges what you made. Do not tell the human that the work is done until
+  `done` holds. Run `orbit-kb release` on the KB first, so that review can write to it. Review judges what you made. Do not tell the human that the work is done until
   review has reported.
 
 Rules:

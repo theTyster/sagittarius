@@ -25,7 +25,7 @@ done
 [ -x "$OKB" ] || { echo "test_question_view.sh: the CLI is missing or not executable: $OKB" >&2; exit 2; }
 OKB=$(cd "$(dirname "$OKB")" && pwd -P)/$(basename "$OKB")
 LIB=$(cd "$LIB" && pwd -P)
-for v in $(compgen -e); do case $v in ORBIT_KB*) unset "$v";; esac; done
+for v in $(compgen -e); do case $v in ORBIT_KB*|CLAUDE_SESSION_ID|CLAUDE_CODE_SESSION_ID|HUB_SESSION) unset "$v";; esac; done
 export ORBIT_KB_LIB="$LIB"
 
 pass=0 fail=0 skip=0 failed=() FAILS=()

@@ -92,6 +92,8 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                step and rewrites the JSONL, all in one transaction
 
 Every write needs a session: HUB_SESSION, or --session S (an alias resolves to the current name).
+--session human with --by human needs no session row: a person writes their own words (the
+question server, `orbit-kb serve questions --hub DIR`, closes an ask this way).
 --by human|agent|script (default agent); `human` records a person's own words and needs --note
 with the quote.
 Output: md tables by default; --format json for scripts. Errors go to stderr as `hubflow: ERROR: ...`.
@@ -192,6 +194,7 @@ PREFIX = {"ask": "A", "thread": "T", "hold": "K", "handoff": "H"}
 REF_KINDS = ("issue", "pr", "build", "release", "kb", "file", "commit", "url")
 LINK_KINDS = ("blocks", "duplicates", "relates", "supersedes", "follows")
 BY = ("human", "agent", "script")
+HUMAN_SESSION = "human"  # --session human --by human: a person, not a session (orbit-kb serve --hub)
 W_SLOT = re.compile(r"^W\d/", re.I)
 SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 SESSION_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -620,6 +623,10 @@ def run_write(g, o, fn, session=True, bootstrap=None):
             c.execute("DELETE FROM meta WHERE key = 'now'")
         if name and bootstrap and name == bootstrap and c.execute("SELECT COUNT(*) FROM session").fetchone()[0] == 0:
             who = name  # the first session, about to be added by fn
+        elif name == HUMAN_SESSION and by == "human" and c.execute(
+                "SELECT 1 FROM session WHERE name = ? UNION SELECT 1 FROM session_alias WHERE alias = ?",
+                (name, name)).fetchone() is None:
+            who = name  # a person writes their own words (the question server): no session row needed
         else:
             who = resolve_session(c, name) if name else None
         w = W(c, now, who, by, o.get("note"))

@@ -35,6 +35,9 @@ Core
   W6   a local rule extends a core or module predicate
   W7   a predicate declared by its first use (add), with who and when. Review it:
        is it needed, and is the name right? Its arguments have the type term.
+  W8   the request text changed at its source (request_pin, T27): read the tracker item. A human
+       accepts the new text with orbit-kb pin-request --request-file F --accept --by human.
+       It also blocks done (request_stale) until then.
 
 Discovery module
   WD1  a conflict, surprise, or scope finding raised no question. Ask one.

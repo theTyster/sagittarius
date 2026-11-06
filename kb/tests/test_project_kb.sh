@@ -17,6 +17,10 @@
 #   c6 a spec KB pins a decision (WP1, WP2)      : PX1 PX2 PX3 PX4
 #   T18 c2 help codes lists WP1 to WP4           : PK6
 #   T18 c3 the README documents the module       : PK7
+#   T27 c1 writer identity (CLAUDE_CODE_SESSION_ID) : PW8
+#   T27 c2 one writer for every KB, as a lease     : PW9 (PW7 drops its last case: a KB without project has a lock now)
+#   T27 c3 the handoff texts (release, lease)      : PH1
+#   T27 c10 the request is pinned (--source)       : PR1
 # Ticket T23 (CONTRACT D27, the project KB reasons over the domain):
 #   c1 two sides: definition/2, concerns, help     : PT1
 #   c2 product rules, pinned by spec claims        : PT2
@@ -53,7 +57,7 @@ base=$(cd "$base" && pwd -P)
 trap 'rm -rf "$base"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-for v in $(compgen -e); do case $v in ORBIT_KB*|CLAUDE_SESSION_ID) unset "$v";; esac; done
+for v in $(compgen -e); do case $v in ORBIT_KB*|CLAUDE_SESSION_ID|CLAUDE_CODE_SESSION_ID|HUB_SESSION) unset "$v";; esac; done
 export ORBIT_KB_LIB="$LIB"
 
 # kbq: read the terms of a kb.pl with swipl, then run a goal (as test_orbit_kb.sh does).
@@ -305,10 +309,8 @@ t_PW7() { pk_init "$T/pk"
           CLAUDE_SESSION_ID=sess-7 padd "decision(d2, 'A session id')" >/dev/null; rc_is 0 "the session id is the writer"
           grep -q '^sess-7 ' "$K/writer.lock" 2>/dev/null || note "writer.lock does not name the session id"
           ORBIT_KB_WRITER=ann CLAUDE_SESSION_ID=sess-7 padd "decision(d3, 'The variable wins')"; rc_is 2 "ORBIT_KB_WRITER wins over the session id"
-          local k2=$T/spec; okb init "$k2" --request 'plain' --uses build >/dev/null 2>&1
-          ORBIT_KB_WRITER=ann okb --dir "$k2" add "claim(c1, introduce, 'x')" "cites(c1, 'x')" >/dev/null
-          ORBIT_KB_WRITER=bob okb --dir "$k2" add "claim(c2, introduce, 'y')" "cites(c2, 'y')"; rc_is 0 "a KB without project has no lock"
-          [ ! -e "$k2/writer.lock" ] || note "a KB without project got a lock"; }
+          # T27 c2: a KB without project has the lock too now (PW9); the case "a KB without project has no lock" is gone.
+          true; }
 
 # ================================================================ c4: outbound drafts
 t_PD1() { pk_basic; K=$T/pk; grep -E '^pin\(' "$K/kb.pl" > "$T/.pins.before"
@@ -510,6 +512,87 @@ t_PB11() { pk_basic; tracker_changed p2 "$T2"; stage dr1 "$T3"; spec_with_confli
            out_has '^- project_conflict dr1: .+: Retitle the issue to match the queue decision' "KIND ID: SENTENCE: TEXT of the draft"
            printf 'this is not (valid.\n' >> "$T/pk/kb.pl"
            okb --dir "$K" show blocking; out_has '^- project_kb_unclean: .+' "the unclean item has a sentence"; }
+
+
+# ================================================================ T27 c1: writer identity
+t_PW8() { pk_init "$T/pk"
+          CLAUDE_CODE_SESSION_ID=cc-1 padd "decision(d1, 'A Claude Code session')"; rc_is 0 "only CLAUDE_CODE_SESSION_ID"
+          grep -Eq '^cc-1 [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$' "$K/writer.lock" 2>/dev/null || note "writer.lock is not 'cc-1 TIME': $(cat "$K/writer.lock" 2>/dev/null)"
+          CLAUDE_CODE_SESSION_ID=cc-2 CLAUDE_SESSION_ID=cc-1 padd "decision(d2, 'Two ids')"; rc_is 2 "CLAUDE_CODE_SESSION_ID wins over CLAUDE_SESSION_ID"; any_has 'cc-1' "names the holder"
+          CLAUDE_SESSION_ID=cc-1 HUB_SESSION=hub-x padd "decision(d3, 'Older id')"; rc_is 0 "CLAUDE_SESSION_ID wins over HUB_SESSION"
+          ORBIT_KB_WRITER=cc-1 CLAUDE_CODE_SESSION_ID=cc-9 padd "decision(d4, 'The variable')"; rc_is 0 "ORBIT_KB_WRITER wins over CLAUDE_CODE_SESSION_ID"
+          CLAUDE_CODE_SESSION_ID=cc-1 okb --dir "$K" release >/dev/null; rc_is 0 "release by the holder"
+          HUB_SESSION=hub-x padd "decision(d5, 'A hub session')"; rc_is 0 "only HUB_SESSION"
+          grep -q '^hub-x ' "$K/writer.lock" 2>/dev/null || note "writer.lock does not name hub-x: $(cat "$K/writer.lock" 2>/dev/null)"; }
+
+# ================================================================ T27 c2: one writer for every KB, a lease
+t_PW9() { K=$T/spec; okb init "$K" --request 'plain' --uses build >/dev/null 2>&1
+          ORBIT_KB_WRITER=ann okb --dir "$K" add "claim(c1, introduce, 'x')" "cites(c1, 'x')"; rc_is 0 "ann writes a spec KB"
+          grep -q '^ann ' "$K/writer.lock" 2>/dev/null || note "a spec KB took no lock"
+          cp "$K/kb.pl" "$T/.before"
+          ORBIT_KB_WRITER=bob okb --dir "$K" add "claim(c2, introduce, 'y')" "cites(c2, 'y')"; rc_is 2 "a second writer of a spec KB"; any_has 'ann' "names the holder"
+          same_file "$K/kb.pl" "$T/.before" "kb.pl after the refusal"
+          # the holder's write renews the lease: the time is the time of the last write
+          printf 'ann 2020-01-01T00:00:00Z\n' > "$K/writer.lock"
+          ORBIT_KB_WRITER=ann ORBIT_KB_LEASE=1000000000 okb --dir "$K" add "note(c1, 'renew')"; rc_is 0 "the holder writes"
+          grep -q '^ann 2020-' "$K/writer.lock" && note "the holder's write did not renew the time of the lease"
+          # a lease that did not lapse stays held
+          printf 'ann 2020-01-01T00:00:00Z\n' > "$K/writer.lock"
+          ORBIT_KB_WRITER=bob ORBIT_KB_LEASE=1000000000 okb --dir "$K" add "note(c1, 'not lapsed')"; rc_is 2 "a lease that did not lapse"
+          # the default lease is 30 minutes: an old lock lapses, and the next writer takes it
+          ORBIT_KB_WRITER=bob okb --dir "$K" add "note(c1, 'bob after the lapse')"; rc_is 0 "bob takes a lapsed lease"
+          has_goal "$K/kb.pl" "kb(writer_takeover(ann, bob, T)), atom_length(T, 20)" "the takeover is recorded"
+          has_goal "$K/kb.pl" "kb_line(A, writer_takeover(ann, bob, _)), kb_line(B, note(c1, 'bob after the lapse')), A < B" "the takeover comes before the fact"
+          grep -q '^bob ' "$K/writer.lock" || note "writer.lock does not name bob"
+          ORBIT_KB_WRITER=ann okb --dir "$K" add "note(c1, 'ann again')"; rc_is 2 "the former holder is refused"; any_has 'bob' "names the new holder"
+          ORBIT_KB_WRITER=bob okb --dir "$K" release; rc_is 0 "bob releases"
+          ORBIT_KB_WRITER=ann okb --dir "$K" add "note(c1, 'ann after the release')"; rc_is 0 "ann writes after the release"
+          # a fresh lease of another writer is not lapsed
+          printf 'bob %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$K/writer.lock"
+          ORBIT_KB_WRITER=ann okb --dir "$K" add "note(c1, 'too soon')"; rc_is 2 "a fresh lease"
+          # a short lease: ORBIT_KB_LEASE=0 lapses at once
+          ORBIT_KB_WRITER=ann ORBIT_KB_LEASE=0 okb --dir "$K" add "note(c1, 'short lease')"; rc_is 0 "ORBIT_KB_LEASE=0"
+          ORBIT_KB_LEASE=soon ORBIT_KB_WRITER=ann okb --dir "$K" add "note(c1, 'bad lease')"; rc_is 2 "a lease that is not a number"
+          okb help project; out_has 'ORBIT_KB_LEASE' "help project names ORBIT_KB_LEASE"; out_has 'CLAUDE_CODE_SESSION_ID' "help project names CLAUDE_CODE_SESSION_ID"; }
+
+# ================================================================ T27 c3: the handoff texts
+t_PH1() { local P=$here/../../prompt gives
+          gives=$(grep -E '^- \*\*Gives:\*\*' -A3 "$P/panes/build.md")
+          printf '%s\n' "$gives" | grep -Fq 'orbit-kb release' || note "panes/build.md Gives does not say orbit-kb release"
+          grep -Fq 'orbit-kb release' "$P/PANES.md" || note "PANES.md does not say orbit-kb release"
+          grep -Eiq 'first write takes the (writer )?lock' "$P/PANES.md" || note "PANES.md does not say the receiver's first write takes the lock"
+          grep -Eiq 'own lease' "$P/panes/review.md" || note "panes/review.md does not say review writes under its own lease"; }
+
+# ================================================================ T27 c10: the request is pinned
+t_PR1() { local J=$T/item.json S=$T/spec
+          printf '{"title": "Export must be daily", "body": "Send the export each day.", "acceptance_criteria": "One file per day", "state": "open", "column": "Todo"}\n' > "$J"
+          okb init "$S" --request-file "$J" --source 'gh:acme/widgets#3' --uses build; rc_is 0 "init --source"
+          K=$S
+          has_goal "$S/kb.pl" "kb(request(r1, T)), sub_atom(T, _, _, _, 'Export must be daily'), sub_atom(T, _, _, _, 'Send the export each day.'), sub_atom(T, _, _, _, 'One file per day')" "the request text is the title, the description and the acceptance criteria"
+          no_fact "$S/kb.pl" "request(r1, T)), sub_atom(T, _, _, _, 'Todo'" "the request text holds no state"
+          has_goal "$S/kb.pl" "kb(request_pin(r1, 'gh:acme/widgets#3', D, T)), sub_atom(D, 0, 7, _, 'sha256:'), atom_length(T, 20)" "a pin of the request: ref, digest, date"
+          local want; want=$(swipl -q -g "open('$S/kb.pl', read, S), repeat, read(S, X), (X = request(r1, T) -> write(T), halt ; X == end_of_file -> halt(1) ; fail)" 2>/dev/null)
+          has_goal "$S/kb.pl" "kb(request_pin(r1, _, '$(tdigest "$want")', _))" "the digest is the sha256 of the request text"
+          is_false 'request_stale(r1)'
+          # a column move is not a change of the text
+          sed -i 's/"Todo"/"Done"/; s/"open"/"closed"/' "$J"
+          okb --dir "$S" pin-request --request-file "$J"; rc_is 0 "pin-request after a column move"
+          is_false 'request_stale(r1)'; is_false 'blocking(request_stale(r1))'
+          # a changed text makes the request stale: a W lint and a blocking item
+          sed -i 's/Send the export each day./Send the export each hour./' "$J"
+          okb --dir "$S" pin-request --request-file "$J"; rc_is 0 "pin-request after a text change"
+          is_true 'request_stale(r1)'; is_true 'blocking(request_stale(r1))'
+          okb --dir "$S" lint; out_has '^W8 r1' "a W-lint names the stale request"
+          okb --dir "$S" show blocking; out_has 'request_stale r1' "show blocking lists it"
+          okb --dir "$S" pin-request --request-file "$J" --accept; rc_is 2 "--accept needs --by human"
+          is_true 'request_stale(r1)'
+          okb --dir "$S" pin-request --request-file "$J" --accept --by human; rc_is 0 "a human accepts the new text"
+          is_false 'request_stale(r1)'; is_false 'blocking(request_stale(r1))'
+          has_goal "$S/kb.pl" "kb(request_accepted(r1, _, T)), sub_atom(T, _, _, _, 'each hour')" "the accepted text is kept"
+          # without --source the KB owns the request: no pin, and pin-request has nothing to pin
+          okb init "$T/own" --request 'Plain words' --uses build; rc_is 0
+          no_fact "$T/own/kb.pl" "request_pin(_, _, _, _)" "no pin without --source"
+          okb --dir "$T/own" pin-request --request-file "$J"; rc_is 1 "pin-request without a source"; }
 
 # ================================================================ T23: the project KB reasons (D27)
 # Fixtures are invented: the widget product of acme. Ids: d* decisions, df* definitions, ru* rules (r1 is the request id).
@@ -790,6 +873,10 @@ run_test t_PB9 PB9 "T06 review 4: WP1 clears after a re-pin; old pins stay"
 run_test t_PB10 PB10 "T06 review 6: ==, \\==, @<, @>, @=<, @>= do not bind: E14 applies"
 run_test t_PB11 PB11 "T06 review 8: show blocking prints KIND ID: SENTENCE: TEXT"
 run_test t_PB12 PB12 "T06 follow-up: two project_kb facts give WP4 (only the first is read)"
+run_test t_PW8 PW8 "T27 c1: CLAUDE_CODE_SESSION_ID names the writer; ORBIT_KB_WRITER, CLAUDE_CODE_SESSION_ID, CLAUDE_SESSION_ID, HUB_SESSION in order"
+run_test t_PW9 PW9 "T27 c2: every KB has one writer; the lock is a lease that lapses after ORBIT_KB_LEASE minutes"
+run_test t_PH1 PH1 "T27 c3: the handoff texts say release, the first write takes the lock, review has its own lease"
+run_test t_PR1 PR1 "T27 c10: init --source pins the request; a changed text is stale until a human accepts it"
 
 run_test t_PT1 PT1 "T23 c1: definition/2 and concerns of a definition; help project opens with the two sides"
 run_test t_PT2 PT2 "T23 c2: rule/2 is pinned by a spec claim; WP1 and WP2 cover rule pins"

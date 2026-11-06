@@ -439,6 +439,10 @@ kb_command(show).
 kb_command(report).
 kb_command(draft).
 kb_command('pin-item').
+kb_command('pin-question').
+kb_command('pin-answer').
+kb_command('pin-request').
+kb_command('apply-pending').
 
 top(Argv0, Code) :-
     take_dirs(Argv0, Dirs, [view|ViewArgs]), !,
@@ -468,6 +472,7 @@ top(Argv0, Code) :-
             ->  cmd_help([uses], Code)
             ;   resolve_kb(DirOpt, Dir),
                 writer_gate(Dir, Args, Args1),
+                apply_pending(Dir),
                 with_kb_lock(Dir, cmd_uses(Dir, Args1, Code))
             )
         ;   Cmd == release
@@ -494,7 +499,7 @@ top(Argv0, Code) :-
             ->  cmd_help([Cmd], Code)
             ;   lib_dir(Lib),
                 resolve_kb(DirOpt, Dir),
-                (   lock_command(Cmd) -> writer_gate(Dir, Args, Args1) ; Args1 = Args ),
+                (   lock_command(Cmd) -> writer_gate(Dir, Args, Args1), apply_pending(Dir) ; Args1 = Args ),
                 (   writer_command(Cmd)
                 ->  with_kb_lock(Dir, ( load_kb(Dir, Lib, KB),
                                         kb_cmd(Cmd, KB, Args1, Code) ))
@@ -512,6 +517,10 @@ top(Argv0, Code) :-
 % cycle: read the KB, choose the id or the run number, write, append.
 writer_command(add).
 writer_command('pin-item').
+writer_command('pin-question').
+writer_command('pin-answer').
+writer_command('pin-request').
+writer_command('apply-pending').
 writer_command(declare).
 writer_command(subject).
 writer_command(attest).
@@ -519,24 +528,45 @@ writer_command(attest).
 % (see cmd_run/3 and cmd_prove/3).
 
 % ---------------------------------------------------------------------
-% The writer lock of a project KB (D23 P7)
+% The writer lock of a KB (D23 P7; T27: every KB, and a lease)
 % ---------------------------------------------------------------------
-% A KB that uses the project module has the file writer.lock with one line,
-% WRITER TIME. The writer is $ORBIT_KB_WRITER, or else $CLAUDE_SESSION_ID. With
-% neither, there is no writer: no lock is taken and none is checked. A
-% command that writes first claims the lock: a free lock is taken, the
-% holder goes on, and another writer gets exit 2 with the holder named.
-% --take replaces the holder and records writer_takeover/3 in kb.pl. The
-% lock is a record, not a guard: nothing stops a hand edit of kb.pl.
+% Every KB has the file writer.lock with one line, WRITER TIME, while a
+% writer holds it. TIME is the time of the holder's last write. The writer
+% is the first of $ORBIT_KB_WRITER, $CLAUDE_CODE_SESSION_ID,
+% $CLAUDE_SESSION_ID, $HUB_SESSION. With none, there is no writer: no
+% lock is taken and none is checked. A command that writes first claims
+% the lock: a free lock is taken, the holder goes on (and renews the
+% lease), and another writer gets exit 2 with the holder named. The lock
+% is a lease: after $ORBIT_KB_LEASE minutes (default 30) with no write by
+% the holder, the next writer takes it, and writer_takeover/3 records it.
+% --take replaces the holder at once and records writer_takeover/3 too.
+% The lock is a record, not a guard: nothing stops a hand edit of kb.pl.
 
-lock_command(C) :- memberchk(C, [add, declare, subject, attest, run, prove, uses, 'pin-item']).
+lock_command(C) :- memberchk(C, [add, declare, subject, attest, run, prove, uses, 'pin-item',
+                                 'pin-question', 'pin-answer', 'pin-request', 'apply-pending']).
 
 writer_name(W) :-
-    (   getenv('ORBIT_KB_WRITER', W0), W0 \== ''
-    ->  W = W0
-    ;   getenv('CLAUDE_SESSION_ID', W0), W0 \== ''
-    ->  W = W0
+    member(V, ['ORBIT_KB_WRITER', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'HUB_SESSION']),
+    getenv(V, W0), W0 \== '',
+    !,
+    W = W0.
+
+% lease_seconds(-S): $ORBIT_KB_LEASE minutes (a whole number, 0 or more), default 30.
+lease_seconds(S) :-
+    (   getenv('ORBIT_KB_LEASE', L0), L0 \== ''
+    ->  (   atom_number(L0, M), integer(M), M >= 0 -> S is M * 60
+        ;   die(2, ["ORBIT_KB_LEASE must be a whole number of minutes, 0 or more. It is " + L0 + ".",
+                    "Nothing was written.", "Fix: unset it (the lease is 30 minutes) or give a number."] >> fix_lines)
+        )
+    ;   S is 30 * 60
     ).
+
+% lease_lapsed(+Since): the holder's last write was ORBIT_KB_LEASE minutes ago or more.
+lease_lapsed(Since) :-
+    lease_seconds(L),
+    catch(parse_time(Since, iso_8601, T0), _, fail),
+    get_time(Now),
+    Now - T0 >= L.
 
 kb_uses_project(Dir) :-
     directory_file_path(Dir, 'kb.pl', F),
@@ -546,11 +576,13 @@ kb_uses_project(Dir) :-
     memberchk(project, Us).
 
 writer_gate(Dir, Args0, Args) :-
-    (   kb_uses_project(Dir)
+    directory_file_path(Dir, 'kb.pl', KbF),
+    (   exists_file(KbF)
     ->  (   selectchk('--take', Args0, _) -> Take = true ; Take = false ),
         exclude(==('--take'), Args0, Args),
         (   writer_name(W)
-        ->  with_kb_lock(Dir, claim_writer(Dir, W, Take))
+        ->  lease_seconds(_),                            % a bad ORBIT_KB_LEASE is exit 2 at once
+            with_kb_lock(Dir, claim_writer(Dir, W, Take))
         ;   true
         )
     ;   Args = Args0
@@ -607,8 +639,12 @@ claim_writer(Dir, W, Take) :-
     lock_state(Dir, State),
     (   State = held(Holder, Since)
     ->  (   Holder == W
-        ->  true
-        ;   Take == true
+        ->  write_atomic(LF, Text)                      % the holder renews the lease
+        ;   (   Take == true
+            ->  true
+            ;   lease_lapsed(Since)
+            ->  format(user_error, "The lease of ~w lapsed (its last write was at ~w). ~w takes the writer lock; writer_takeover records it.~n", [Holder, Since, W])
+            )
         ->  directory_file_path(Dir, 'kb.pl', KbFile),
             read_file_to_string(LF, LockBefore, [encoding(utf8)]),
             write_atomic(LF, Text),
@@ -619,7 +655,9 @@ claim_writer(Dir, W, Take) :-
             % command that wrote nothing (a rejected add) gives the lock back.
             nb_setval(orbit_settle, settle_takeover(Dir, LF, LockBefore, KbFile, Fact, After))
         ;   fmt(M1, "The KB is locked. It is held by ~w since ~w.", [Holder, Since]),
-            die(2, [M1, "Nothing was written.",
+            lease_seconds(LS), LM is LS // 60,
+            fmt(M2, "The lease lapses ~w minutes after the holder's last write (ORBIT_KB_LEASE).", [LM]),
+            die(2, [M1, "Nothing was written.", M2,
                     "Fix: ask the holder to run orbit-kb release, or take the lock with --take. A takeover is recorded in kb.pl."] >> fix_lines)
         )
     ;   State = bad(Why)
@@ -662,6 +700,281 @@ cmd_release(Dir, Code) :-
     ;   format("There is no writer lock.~n", []), Code = 0
     ).
 
+% ---------------------------------------------------------------------
+% Answers that wait (T27 c4): answers.pending
+% ---------------------------------------------------------------------
+% The question server never waits on an agent: it appends each answer at once to
+% answers.pending next to kb.pl, one line per answer, the term
+% pending(TIME, DIGEST, FACTS) (DIGEST: the sha256 of TIME and FACTS). The file is
+% append-only. Every write command applies the lines that are not applied yet, before its
+% own facts, as orbit-kb add --by human would write them; answers.applied records each
+% one (DIGEST TIME applied|refused). So the lease holder, or the next writer, applies them.
+
+pending_file(Dir, F) :- directory_file_path(Dir, 'answers.pending', F).
+applied_file(Dir, F) :- directory_file_path(Dir, 'answers.applied', F).
+
+pending_entries(Dir, Es) :-
+    pending_file(Dir, F),
+    (   exists_file(F)
+    ->  catch(setup_call_cleanup(open(F, read, S, [encoding(utf8)]),
+                                 pending_read(S, Es),
+                                 close(S)), _, Es = [])
+    ;   Es = []
+    ).
+
+pending_read(S, Es) :-
+    catch(read_term(S, T, [module(orbit_ops)]), _, T = '$bad'),
+    (   T == end_of_file -> Es = []
+    ;   T = pending(Tm, D, Fs), atom(D), is_list(Fs), ground(Fs) -> Es = [pending(Tm, D, Fs)|Es1], pending_read(S, Es1)
+    ;   T == '$bad' -> Es = []
+    ;   pending_read(S, Es)
+    ).
+
+applied_digests(Dir, Ds) :-
+    applied_file(Dir, F),
+    (   exists_file(F)
+    ->  read_file_to_string(F, S, [encoding(utf8)]),
+        split_string(S, "\n", " \t\r", Ls),
+        findall(D, ( member(L, Ls), L \== "", split_string(L, " ", "", [DS|_]), atom_string(D, DS) ), Ds)
+    ;   Ds = []
+    ).
+
+% pending_open(+Dir, -Entries): the lines of answers.pending that no write applied yet.
+pending_open(Dir, Ps) :-
+    pending_entries(Dir, Es),
+    (   Es == [] -> Ps = []
+    ;   applied_digests(Dir, Ds),
+        exclude([pending(_, D, _)]>>memberchk(D, Ds), Es, Ps)
+    ).
+
+pending_questions(Facts, QAs) :-
+    findall(Q-A, member(answer(Q, A, _), Facts), QAs).
+
+% queue_pending(+Dir, +Facts): append one line to answers.pending (under the KB lock).
+queue_pending(Dir, Facts) :-
+    utc_now(T),
+    term_text(Facts, FT),
+    format(string(Body), "~w ~w", [T, FT]),
+    sha256_text(Body, D),
+    clause_line(pending(T, D, Facts), [], Line),
+    pending_file(Dir, F),
+    with_kb_lock(Dir, append_lines(F, [Line])).
+
+% apply_pending(+Dir): apply each open line of answers.pending, in order, before a write.
+apply_pending(Dir) :-
+    nb_setval(orbit_applied, []),
+    pending_file(Dir, F),
+    (   exists_file(F)
+    ->  with_kb_lock(Dir, apply_pending_(Dir))
+    ;   true
+    ).
+
+apply_pending_(Dir) :-
+    pending_open(Dir, Ps),
+    lib_dir(Lib),
+    forall(member(pending(T, D, Facts), Ps), apply_one_pending(Dir, Lib, T, D, Facts)).
+
+apply_one_pending(Dir, Lib, T, D, Facts) :-
+    findall(A, ( member(Fa, Facts), term_text(Fa, S0), atom_string(A, S0) ), FAs),
+    append(FAs, ['--by', human], Args),
+    catch(( load_kb(Dir, Lib, KB), with_output_to(string(_), cmd_add(KB, Args, _)) ), E, true),
+    utc_now(Now),
+    (   var(E)
+    ->  Res = applied,
+        format(user_error, "Applied an answer that waited in answers.pending (queued ~w).~n", [T])
+    ;   Res = refused,
+        serve_err_text(E, M),
+        format(user_error, "An answer in answers.pending (queued ~w) was refused, and it is not applied: ~w~n", [T, M])
+    ),
+    applied_file(Dir, AF),
+    format(string(L), "~w ~w ~w", [D, Now, Res]),
+    append_lines(AF, [L]),
+    nb_getval(orbit_applied, Acc), nb_setval(orbit_applied, [Res|Acc]).
+
+% apply-pending: a write that only applies the waiting answers (the question server runs it).
+cmd_apply_pending(_, Args, Code) :-
+    (   Args == [] -> true ; usage_error("apply-pending takes no arguments.", []) ),
+    ( nb_current(orbit_applied, Rs) -> true ; Rs = [] ),
+    include(==(applied), Rs, Ap), length(Ap, NA),
+    include(==(refused), Rs, Rf), length(Rf, NR),
+    format("Applied ~w waiting answer(s); ~w refused.~n", [NA, NR]),
+    ( NR > 0 -> Code = 1 ; Code = 0 ).
+
+% ---------------------------------------------------------------------
+% Who owns a question (T27 c5): the ledger, the tracker, or the spec KB
+% ---------------------------------------------------------------------
+
+cmd_pin_question(KB, Args, Code) :-
+    parse_opts(Args, [], Pos, _),
+    (   Pos = [Q, Kind, Ref], memberchk(Kind, [ledger, tracker]) -> true
+    ;   usage_error("pin-question Q ledger|tracker REF: the ledger ask or the tracker item that owns question Q.", [])
+    ),
+    kb_items(KB, Items),
+    (   member(it(kb, _, _, T, _, _), Items), nonvar(T), T = question(Q, _, QT)
+    ->  true
+    ;   die(1, ["There is no question " + Q + " in the KB. Nothing was written."] >> fix_lines)
+    ),
+    plain_text(QT, QS), sha256_text(QS, D), utc_now(Now),
+    term_text(question_pin(Q, Kind, Ref, D, Now), FT), atom_string(FA, FT),
+    cmd_add(KB, [FA], Code).
+
+cmd_pin_answer(KB, Args, Code) :-
+    parse_opts(Args, ['--hub'-value, '--text-file'-value, '--by'-value], Pos, Opts),
+    (   Pos = [Q, Ref] -> true
+    ;   usage_error("pin-answer Q REF [--hub DIR | --text-file F --by NAME]: copy the answer of question Q from its owner REF.", [])
+    ),
+    kb_items(KB, Items),
+    (   findall(K, ( member(it(kb, _, _, T, _, _), Items), nonvar(T), T = question_pin(Q, K, Ref, _, _) ), Ks), last(Ks, Kind)
+    ->  true
+    ;   die(1, ["Question " + Q + " has no pin to " + Ref + ". Nothing was written.",
+                "Fix: record its owner first: orbit-kb pin-question Q ledger|tracker REF."] >> fix_lines)
+    ),
+    (   Kind == ledger
+    ->  (   memberchk('--hub'-H0, Opts) -> true
+        ;   getenv('HUBFLOW_HUB', H0), H0 \== '' -> true
+        ;   usage_error("pin-answer of a ledger question needs the hub: --hub DIR.", [])
+        ),
+        hub_root(H0, Hub),
+        hub_ask(Hub, Ref, Ask),
+        (   Ask == null
+        ->  die(1, ["The ledger has no ask " + Ref + ". Nothing was written."] >> fix_lines)
+        ;   Ask.answer == null
+        ->  fmt(M1, "The ask ~w has no answer yet (status ~w). Nothing was written.", [Ref, Ask.status]),
+            die(1, [M1, "Fix: the owner answers the ask in the hub (hubflow close ID --by human --note ANSWER), then run pin-answer again."] >> fix_lines)
+        ;   atom_string(Text, Ask.answer),
+            ( Ask.owner == null -> Name = me ; atom_string(Name, Ask.owner) )
+        )
+    ;   (   memberchk('--text-file'-F, Opts), memberchk('--by'-Name, Opts) -> true
+        ;   usage_error("pin-answer of a tracker question needs --text-file F (the answer as the item holds it) and --by NAME (who answered).", [])
+        ),
+        (   exists_file(F) -> true ; die(2, ["The answer file " + F + " does not exist."] >> fix_lines) ),
+        read_file_to_string(F, S0, [encoding(utf8)]),
+        split_string(S0, "", " \t\r\n", [S1]),
+        (   S1 == "" -> die(1, ["The answer file " + F + " is empty. Nothing was written."] >> fix_lines) ; true ),
+        atom_string(Text, S1)
+    ),
+    sha256_text(Text, D), utc_now(Now),
+    maplist([Fa, A]>>( term_text(Fa, S), atom_string(A, S) ),
+            [answer(Q, Text, human:Name), answer_pin(Q, Ref, D, Now)], FAs),
+    append(FAs, ['--by', human], AddArgs),
+    cmd_add(KB, AddArgs, Code).
+
+% hub_root(+Dir, -Abs): a hub root that holds flow/flow.db.
+hub_root(H0, Hub) :-
+    (   exists_directory(H0) -> absolute_file_name(H0, Hub) ; usage_error("The hub ~w is not a directory.", [H0]) ),
+    hub_db(Hub, Db),
+    (   exists_file(Db) -> true ; usage_error("The hub ~w has no ledger: ~w does not exist.", [H0, Db]) ).
+
+hub_db(Hub, Db) :- directory_file_path(Hub, 'flow/flow.db', Db).
+
+% The ledger is read directly from flow.db, read only (sqlite mode=ro), by python3.
+hub_reader('import json, sqlite3, sys, datetime
+from urllib.parse import quote
+mode, db = sys.argv[1], sys.argv[2]
+c = sqlite3.connect("file:" + quote(db) + "?mode=ro", uri=True, timeout=30)
+c.row_factory = sqlite3.Row
+def owner():
+    r = c.execute("SELECT value FROM meta WHERE key = \'owner_person\'").fetchone()
+    if r: return r[0]
+    r = c.execute("SELECT key FROM person WHERE key = \'me\'").fetchone()
+    return r[0] if r else None
+now = datetime.datetime.now(datetime.timezone.utc)
+def age(r):
+    try:
+        t = datetime.datetime.strptime(r["renewed_at"] or r["opened_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+        return max(0, (now - t).days)
+    except Exception:
+        return 0
+if mode == "asks":
+    rows = [dict(id=r["id"], kind=r["kind"], title=r["title"], status=r["status"], waits_on=r["waits_on"], age_days=age(r))
+            for r in c.execute("SELECT * FROM item WHERE kind = \'ask\' AND status IN (\'open\', \'waiting\') ORDER BY id")]
+    print(json.dumps({"owner": owner(), "asks": rows}))
+else:
+    r = c.execute("SELECT * FROM item WHERE id = ?", (sys.argv[3],)).fetchone()
+    if r is None:
+        print("null")
+    else:
+        e = c.execute("SELECT note FROM event WHERE item_id = ? AND verb = \'closed\' AND new = \'done\' AND by = \'human\' ORDER BY seq DESC LIMIT 1", (r["id"],)).fetchone()
+        print(json.dumps({"id": r["id"], "status": r["status"], "waits_on": r["waits_on"], "title": r["title"],
+                          "answer": e[0] if e and r["status"] == "done" else None, "owner": owner()}))
+').
+
+hub_read(Hub, Args, J) :-
+    use_module(library(http/json)),
+    hub_reader(Py), hub_db(Hub, Db),
+    (   absolute_file_name(path(python3), Exe, [access(execute), file_errors(fail)]) -> true
+    ;   die(2, ["Reading the ledger needs python3 on PATH."])
+    ),
+    append(['-I', '-c', Py], Args, A0), A0 = [_, _, _, Mode|Rest],
+    catch(( process_create(Exe, ['-I', '-c', Py, Mode, Db|Rest],
+                           [stdin(null), stdout(pipe(O)), stderr(pipe(E)), process(P)]),
+            set_stream(O, encoding(utf8)),
+            read_string(O, _, Out), read_string(E, _, Err), close(O), close(E),
+            process_wait(P, St) ), X, ( err_text(X, XM), die(2, ["Cannot read the ledger " + Db + ": " + XM]) )),
+    (   St == exit(0), catch(atom_json_dict(Out, J, [value_string_as(string), null(null)]), _, fail)
+    ->  true
+    ;   split_string(Err, "", " \n", [E1]),
+        die(2, ["Cannot read the ledger " + Db + ": " + E1])
+    ).
+
+hub_asks(Hub, Owner, Rows) :-
+    hub_read(Hub, [asks], J),
+    ( J.owner == null -> Owner = "me" ; Owner = J.owner ),
+    Rows = J.asks.
+
+hub_ask(Hub, Id, Ask) :-
+    hub_read(Hub, [ask, Id], Ask).
+
+% hub_close(+Hub, +Ask, +Text, -R): the owner's answer closes the ask in the ledger, by
+% hubflow itself (run from the hub root, as a human: --session human --by human).
+hub_close(Hub, Ask, Text, R) :-
+    directory_file_path(Hub, '.claude/scripts/hubflow.py', Hf),
+    (   absolute_file_name(path(python3), Exe, [access(execute), file_errors(fail)]), exists_file(Hf)
+    ->  catch(( process_create(Exe, [Hf, '--hub', Hub, '--by', human, close, Ask, '--reason', done, '--note', Text, '--session', human],
+                               [cwd(Hub), stdin(null), stdout(null), stderr(pipe(E)), process(P)]),
+                read_string(E, _, Err), close(E), process_wait(P, St) ), X, ( err_text(X, Err), St = exit(2) )),
+        (   St == exit(0) -> R = ok
+        ;   split_string(Err, "", " \n", [E1]),
+            format(string(M), "The ledger did not take the answer, and nothing was written. hubflow said: ~w", [E1]),
+            R = refused(409, M)
+        )
+    ;   format(string(M), "The hub ~w has no .claude/scripts/hubflow.py (or python3 is missing). Nothing was written.", [Hub]),
+        R = refused(409, M)
+    ).
+
+% draft questions (T27 c5): the questions for the tracker, as Markdown for a human to post.
+% Each question that is to ask and not owned by the ledger, and each question pinned to a
+% tracker item that has no human answer, with its case, default, options and effects.
+draft_questions(KB) :-
+    kb_dir(KB, Dir), answer_gate(KB), kb_engine(KB, Eng),
+    directory_file_path(Dir, 'kb.pl', KbFile), sha256_file(KbFile, Digest),
+    say("## Questions for the tracker", []), nl,
+    say("Stamp: spec-kb@~w", [Digest]), nl,
+    say("A human posts each question as a tracker item, then records it: orbit-kb pin-question Q tracker REF. The answer comes back with orbit-kb pin-answer Q REF --text-file F --by NAME.", []), nl,
+    eng_all(Eng, [Q, C, T], question(Q, C, T), Qs0),
+    findall(Q-C-T, ( member([Q, C, T], Qs0),
+                     \+ eng_true(Eng, question_pin(Q, ledger, _, _, _)),
+                     (   eng_true(Eng, to_ask(Q))
+                     ;   eng_true(Eng, question_pin(Q, tracker, _, _, _)), \+ eng_true(Eng, answered(Q))
+                     ) ), Qs),
+    (   Qs == [] -> say("- No question waits on the tracker.", [])
+    ;   forall(member(Q-C-T, Qs), draft_question(Eng, Q, C, T))
+    ).
+
+draft_question(Eng, Q, C, T) :-
+    txt(T, TT), md_escape(TT, TE), md_inline(Q, Qm), say("### ~w: ~w", [Qm, TE]), nl,
+    (   eng_all(Eng, [Ref], question_pin(Q, tracker, Ref, _, _), Rs), last(Rs, R1) -> md_say("- Tracker item: ", R1, "") ; say("- Tracker item: not posted yet", []) ),
+    (   eng_all(Eng, [CT], claim(C, _, CT), [CT1|_]) -> txt(CT1, CTT), md_say("- Case (claim): ", CTT, "") ; true ),
+    eng_all(Eng, [Ci], cites(C, Ci), Cis), forall(member(X1, Cis), ( txt(X1, Y1), md_say("- Cites: ", Y1, "") )),
+    eng_all(Eng, [N], note(Q, N), Ns), forall(member(X2, Ns), ( txt(X2, Y2), md_say("- Note: ", Y2, "") )),
+    eng_all(Eng, [N2], note(C, N2), N2s), forall(member(X3, N2s), ( txt(X3, Y3), md_say("- Note on the claim: ", Y3, "") )),
+    eng_all(Eng, [Ex], example(C, Ex), Exs), forall(member(X4, Exs), ( txt(X4, Y4), md_say("- Example: ", Y4, "") )),
+    (   eng_all(Eng, [A], assumed(Q, A), [A1|_]) -> plain_text(A1, AT), md_say("- Default: ", AT, "") ; true ),
+    eng_all(Eng, [OT, OE], option(Q, OT, OE), Os),
+    forall(member([OT1, OE1], Os),
+           ( plain_text(OT1, OTT), plain_text(OE1, OET), format(string(OL), "~w: ~w", [OTT, OET]), md_say("- Option ", OL, "") )),
+    (   eng_all(Eng, [Du], due(Q, Du), [Du1|_]) -> md_say("- Due: ", Du1, "") ; true ),
+    nl.
 % ---------------------------------------------------------------------
 % The KB lock (D7)
 % ---------------------------------------------------------------------
@@ -725,6 +1038,10 @@ kb_cmd(show, KB, Args, Code) :- cmd_show(KB, Args, Code).
 kb_cmd(report, KB, Args, Code) :- cmd_report(KB, Args, Code).
 kb_cmd(draft, KB, Args, Code) :- cmd_draft(KB, Args, Code).
 kb_cmd('pin-item', KB, Args, Code) :- cmd_pin_item(KB, Args, Code).
+kb_cmd('pin-question', KB, Args, Code) :- cmd_pin_question(KB, Args, Code).
+kb_cmd('pin-answer', KB, Args, Code) :- cmd_pin_answer(KB, Args, Code).
+kb_cmd('pin-request', KB, Args, Code) :- cmd_pin_request(KB, Args, Code).
+kb_cmd('apply-pending', KB, Args, Code) :- cmd_apply_pending(KB, Args, Code).
 
 % ---------------------------------------------------------------------
 % Library and KB location
@@ -1002,8 +1319,21 @@ derived_items(Dir, KbItems, Items) :-
             Ts50),
     sort(Ts50, Ts5),
     project_derived(Dir, KbItems, Ts6),
-    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6], Ts),
+    request_derived(KbItems, Ts7),
+    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
+
+% request_derived(+KbItems, -Facts) (T27 c10): request_stale(R) for a request whose latest
+% request_pin (the last one in kb.pl) has a digest that is neither the digest of the request
+% text in the KB nor a digest that a human accepted (request_accepted/3).
+request_derived(KbItems, Facts) :-
+    findall(request_stale(R),
+            ( kb_term(KbItems, request(R, Text)), atom(R),
+              findall(D, ( kb_term(KbItems, request_pin(R0, _, D, _)), R0 == R ), Ds), last(Ds, Last),
+              \+ ( atomic(Text), sha256_text(Text, Last) ),
+              \+ ( kb_term(KbItems, request_accepted(R1, D1, _)), R1 == R, D1 == Last ) ),
+            Facts0),
+    sort(Facts0, Facts).
 
 % project_derived(+Dir, +KbItems, -Facts) (D23): the facts of the project module,
 % for a KB that uses it.
@@ -1868,6 +2198,9 @@ protected_pi(check_ran/1).
 protected_pi(due_passed/1).
 % D23: the project module.
 protected_pi(any_project_conflict/0).
+% T27: the stale request.
+protected_pi(request_stale/1).
+protected_pi(any_request_stale/0).
 protected_pi(subject_now/2).
 protected_pi(decision_digest/2).
 protected_pi(project_decision_digest/2).
@@ -2623,7 +2956,7 @@ tpl_put(Arg, I-S0, I1-S) :-
 % ---------------------------------------------------------------------
 
 cmd_init(Args, Code) :-
-    parse_opts(Args, ['--request'-value, '--request-file'-value, '--uses'-value, '--id'-value], Pos, Opts),
+    parse_opts(Args, ['--request'-value, '--request-file'-value, '--uses'-value, '--id'-value, '--source'-value], Pos, Opts),
     (   Pos = [Dir0] -> true
     ;   usage_error("Give one directory: orbit-kb init DIR --request TEXT.", [])
     ),
@@ -2631,6 +2964,10 @@ cmd_init(Args, Code) :-
     opt(Opts, '--request-file', none, RF),
     (   RT \== none, RF == none
     ->  Text = RT
+    ;   RF \== none, RT == none, memberchk('--source'-_, Opts)
+    ->  (   exists_file(RF) -> request_text(RF, Text)
+        ;   die(1, ["The request file " + RF + " does not exist. Check the path."] >> fix_lines)
+        )
     ;   RF \== none, RT == none
     ->  (   exists_file(RF)
         ->  read_file_to_string(RF, S0, [encoding(utf8)]),
@@ -2662,8 +2999,14 @@ cmd_init(Args, Code) :-
     make_directory_path(Dir),
     clause_line(uses(Uses), [], L1),
     clause_line(Req, [], L2),
+    (   memberchk('--source'-Src, Opts)
+    ->  (   Src == '' -> usage_error("--source needs the ref of the tracker item, such as gh:acme/widgets#3.", []) ; true ),
+        sha256_text(Text, RD), utc_now(Now),
+        clause_line(request_pin(Id, Src, RD, Now), [], L3), Ls = [L1, L2, L3]
+    ;   Ls = [L1, L2]
+    ),
     setup_call_cleanup(open(KbFile, write, S, [encoding(utf8)]),
-                       format(S, "~w~n~w~n", [L1, L2]),
+                       forall(member(L, Ls), format(S, "~w~n", [L])),
                        close(S)),
     format("~w~n", [KbFile]),
     format(user_error, "Next: add the claims and the checks. Vocabulary: orbit-kb help core.~n", []),
@@ -3100,14 +3443,33 @@ view_ledger_section(Mode, some(Asks), Text) :-
 
 view_ask_html(Mode, X, L) :-
     esc(X.id, Id), esc(X.title, T), esc(X.age_days, Age),
-    % D26 S7: the server shows, read-only, the hubflow command that answers the ask.
-    (   Mode = serve(_)
-    ->  format(string(Cmd), "python3 .claude/scripts/hubflow.py --by human close ~w --reason done --note 'YOUR ANSWER'", [X.id]),
+    % D26 S7: the server shows the hubflow command that answers the ask, shell-quoted (T27 c7).
+    % With --hub (Mode serve_hub), the ask also has a form: the server runs that command.
+    (   ( Mode = serve(_) ; Mode = serve_hub(_, _) )
+    ->  sh_quote(X.id, IdQ),
+        (   Mode = serve_hub(_, Hub) -> sh_quote(Hub, HubQ), format(string(Cd), "cd ~w && ", [HubQ]) ; Cd = "" ),
+        format(string(Cmd), "~wpython3 .claude/scripts/hubflow.py --by human close ~w --reason done --note 'YOUR ANSWER' --session human", [Cd, IdQ]),
         esc(Cmd, CmdH),
-        format(string(Hf), " <p>Answer it in the hub: <code class=\"hubflow\">~w</code></p>", [CmdH])
+        (   Mode = serve_hub(Token, _)
+        ->  esc(Token, TokH),
+            format(string(Fm), "<form class=\"answer ask\" method=\"post\" action=\"/answer\"><input type=\"hidden\" name=\"token\" value=\"~w\"><input type=\"hidden\" name=\"ask\" value=\"~w\"><label>Your answer: <input type=\"text\" name=\"text\" size=\"60\"></label> <button type=\"submit\">Answer the ask</button></form>", [TokH, Id]),
+            format(string(Hf), " <p>The server runs, in the hub: <code class=\"hubflow\">~w</code></p>~w", [CmdH, Fm])
+        ;   format(string(Hf), " <p>Answer it in the hub: <code class=\"hubflow\">~w</code></p>", [CmdH])
+        )
     ;   Hf = ""
     ),
     format(string(L), "<li class=\"ask\" data-id=\"~w\"><span class=\"title\">~w</span> <span class=\"age\">~w days</span>~w</li>", [Id, T, Age, Hf]).
+
+% sh_quote(+Text, -Quoted) (T27 c7): Text as one shell word: bare when it is made of plain
+% characters, else in single quotes.
+sh_quote(T0, Q) :-
+    atom_string(T0, T),
+    string_codes(T, Cs),
+    (   Cs \== [], forall(member(C, Cs), ( code_type(C, alnum) ; memberchk(C, `_-.,:/@%+=`) ))
+    ->  Q = T
+    ;   split_string(T, "'", "", Parts), atomic_list_concat(Parts, '\'\\\'\'', J),
+        format(string(Q), "'~w'", [J])
+    ).
 
 view_kb_section(Lib, Dir, Html) :- view_kb_section(static, Lib, Dir, Html).
 view_kb_section(Mode, Lib, Dir, Html) :-
@@ -3125,12 +3487,24 @@ view_kb_section(Mode, Lib, Dir, Html) :-
         format(string(Body0), "<ul class=\"items\">\n~w\n</ul>", [B0])
     ),
     (   Mode = serve(_) -> view_answered_html(Eng, AnsH) ; AnsH = "" ),
-    string_concat(Body0, AnsH, Body),
+    view_pending_html(Dir, PendH),
+    atomic_list_concat([Body0, AnsH, PendH], Body),
     (   eng_all(Eng, [RT], request(_, RT), [RT1|_]), txt(RT1, RT2), split_string(RT2, "\n", " \t", [L1|_]), L1 \== "" -> Label = L1
     ;   file_base_name(Dir, Label)
     ),
     esc(Label, LabelH),
     format(string(Html), "<section class=\"kb\" data-stamp=\"~w\">\n<h2><span class=\"kblabel\">~w</span> <span class=\"stamp\">~w</span></h2>\n~w\n</section>", [StampH, LabelH, StampH, Body]).
+
+% view_pending_html(+Dir, -Html) (T27 c4): the answers that wait in answers.pending.
+view_pending_html(Dir, Html) :-
+    pending_open(Dir, Ps),
+    findall(L, ( member(pending(T, _, Fs), Ps), pending_questions(Fs, QAs), member(Q-A, QAs),
+                 plain_text(A, AT), esc(AT, AH), esc(Q, QH), esc(T, TH),
+                 format(string(L), "<li class=\"pending\" data-id=\"~w\">Question <span class=\"kbid\">~w</span>: the answer <span class=\"answer\">~w</span> is pending (queued ~w). The next write to the KB applies it.</li>", [QH, QH, AH, TH]) ), Ls),
+    (   Ls == [] -> Html = ""
+    ;   atomic_list_concat(Ls, '\n', LsT),
+        format(string(Html), "\n<h3>Answers that wait to be applied</h3>\n<ul class=\"pending-list\">\n~w\n</ul>", [LsT])
+    ).
 
 view_ref(Id, Text, Html) :-
     esc(Id, I), esc(Text, T),
@@ -3222,7 +3596,7 @@ view_question_html(Mode, Dir, Eng, Q, Html) :-
     esc(Def, DefH),
     format(string(DefLine), "<p>Default: <span class=\"default\">~w</span></p>", [DefH]),
     eng_all(Eng, [A2, By], answer(Q, A2, By), Ans),
-    findall(AT, ( member([A3, By3], Ans), By3 \== human, plain_text(A3, AT), ( HasDef == false ; AT \== Def ) ), Ats0),
+    findall(AT, ( member([A3, By3], Ans), By3 \== human, By3 \= human:_, plain_text(A3, AT), ( HasDef == false ; AT \== Def ) ), Ats0),
     list_to_set(Ats0, Ats),
     eng_all(Eng, [OT, OE], option(Q, OT, OE), OFs0),
     findall(T-E, ( member([T0, E0], OFs0), plain_text(T0, T), plain_text(E0, E) ), OFs),
@@ -3245,7 +3619,26 @@ view_question_html(Mode, Dir, Eng, Q, Html) :-
         view_answer_form(Token, Dir, Q, Ts, Form)
     ;   Form = ""
     ),
-    format(string(Html), "~w\n<ul class=\"options\">\n~w\n</ul>\n~w~w", [DefLine, OsT, Note, Form]).
+    view_context_html(Eng, Q, Ctx),
+    format(string(Html), "~w~w\n<ul class=\"options\">\n~w\n</ul>\n~w~w", [Ctx, DefLine, OsT, Note, Form]).
+
+% view_context_html(+Eng, +Q, -Html) (T27 c6): the context a human needs to decide: the notes
+% of the question, the notes of its claim (the divergence), the examples of the claim, and the
+% due date of the question.
+view_context_html(Eng, Q, Html) :-
+    (   eng_all(Eng, [C0], question(Q, C0, _), [C|_]) -> true ; C = '$none' ),
+    eng_all(Eng, [N1], note(Q, N1), N1s),
+    eng_all(Eng, [N2], note(C, N2), N2s),
+    eng_all(Eng, [E1], example(C, E1), Es),
+    eng_all(Eng, [D1], due(Q, D1), Ds),
+    findall(P, ( member(X, N1s), txt(X, XT), esc(XT, XH), format(string(P), "<p class=\"qnote\">Note: ~w</p>", [XH]) ), P1),
+    findall(P, ( member(X, N2s), txt(X, XT), esc(XT, XH), format(string(P), "<p class=\"claimnote\">Note on the claim: ~w</p>", [XH]) ), P2),
+    findall(P, ( member(X, Es), txt(X, XT), esc(XT, XH), format(string(P), "<p class=\"example\">Example: ~w</p>", [XH]) ), P3),
+    findall(P, ( member(X, Ds), txt(X, XT), esc(XT, XH), format(string(P), "<p class=\"due\">Due: ~w</p>", [XH]) ), P4),
+    append([P1, P2, P3, P4], Ps),
+    (   Ps == [] -> Html = ""
+    ;   atomic_list_concat(Ps, '\n', PT), format(string(Html), "<div class=\"context\">\n~w\n</div>\n", [PT])
+    ).
 
 % view_answer_form(+Token, +Dir, +Q, +Texts, -Html) (D26 S3): the answer form of a to_ask
 % question in the served page: one radio choice per option text (as listed above), then other,
@@ -3267,7 +3660,8 @@ view_answer_form(Token, Dir, Q, Texts, Html) :-
 % view_answered_html(+Eng, -Html) (D26 S3): the questions that a human answered, each with the
 % answer, and its default marked when the answer defeats it.
 view_answered_html(Eng, Html) :-
-    eng_all(Eng, [Q, A], answer(Q, A, human), QAs0),
+    eng_all(Eng, [Q, A, By], answer(Q, A, By), QAs1),
+    findall([Q, A], ( member([Q, A, By], QAs1), ( By == human ; By = human:_ ) ), QAs0),
     list_to_set(QAs0, QAs),
     findall(L, ( member([Q, A], QAs), view_answered_li(Eng, Q, A, L) ), Ls),
     (   Ls == [] -> Html = ""
@@ -3310,8 +3704,8 @@ view_option(Src, Text, OFs, L) :-
 serve_default_port(8737).
 
 cmd_serve(Dirs0, Args, Code) :-
-    parse_opts(Args, ['--ledger'-value, '--owner'-value, '--root'-value, '--port'-value], Pos, Opts),
-    (   Pos == [] -> usage_error("serve needs a view name: orbit-kb serve questions [--dir KB]... [--root DIR] [--ledger FILE] [--port N].", [])
+    parse_opts(Args, ['--ledger'-value, '--owner'-value, '--root'-value, '--port'-value, '--hub'-value], Pos, Opts),
+    (   Pos == [] -> usage_error("serve needs a view name: orbit-kb serve questions [--dir KB]... [--root DIR] [--ledger FILE] [--hub DIR] [--port N].", [])
     ;   Pos == [questions] -> true
     ;   usage_error("serve takes the one view name questions.", [])
     ),
@@ -3335,12 +3729,13 @@ cmd_serve(Dirs0, Args, Code) :-
     ;   maplist([D, Rd]>>resolve_kb(some(D), Rd), Dirs0, Dirs)
     ),
     (   memberchk('--owner'-Ow, Opts) -> OwnOpt = ['--owner'-Ow] ; OwnOpt = [] ),
+    (   memberchk('--hub'-H0, Opts) -> hub_root(H0, Hub), hub_asks(Hub, _, _), HubOpt = some(Hub) ; HubOpt = none ),
     serve_token(Token),
     (   getenv('ORBIT_KB_WRITER', W0), W0 \== '' -> Writer = W0 ; Writer = human ),
     orbit_script(Script),
     retractall(serve_conf(_, _)),
     forall(member(K-V, [dirs-Dirs, root-RootOpt, ledger-LedOpt, owner-OwnOpt, token-Token,
-                        writer-Writer, script-Script]),
+                        writer-Writer, script-Script, hub-HubOpt]),
            assertz(serve_conf(K, V))),
     use_module(library(http/thread_httpd)),
     ( Port == 0 -> true ; BindPort = Port ),     % an unbound port: the system picks a free one
@@ -3401,7 +3796,7 @@ serve_request_(Req) :-
 
 serve_act(page, _) :- serve_page("", Page), serve_reply(200, Page).
 serve_act(answer, Form) :- serve_answer(Form, R),
-    (   R = ok -> format("Status: 303~nLocation: /~nContent-type: text/html; charset=UTF-8~n~n<p>Recorded. <a href=\"/\">Back to the questions</a></p>~n", [])
+    (   R = ok -> serve_frame_headers(FH), format("Status: 303~nLocation: /~n~wContent-type: text/html; charset=UTF-8~n~n<p>Recorded. <a href=\"/\">Back to the questions</a></p>~n", [FH])
     ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
     ).
 serve_act(forbidden, _) :- serve_message_page(403, "Forbidden. The server answers only requests to 127.0.0.1 or localhost, and a POST needs the token of the page of this run. Reload the page.").
@@ -3426,8 +3821,12 @@ serve_form(Req, Form) :-
 
 serve_field(Form, K, V) :- memberchk(K=V0, Form), atom_string(V0, V).
 
+% T27 c9: no other site may frame the page (and its token).
+serve_frame_headers("X-Frame-Options: DENY\nContent-Security-Policy: frame-ancestors 'none'\n").
+
 serve_reply(Status, Page) :-
-    format("Status: ~w~nContent-type: text/html; charset=UTF-8~nCache-Control: no-store~n~n", [Status]),
+    serve_frame_headers(FH),
+    format("Status: ~w~n~wContent-type: text/html; charset=UTF-8~nCache-Control: no-store~n~n", [Status, FH]),
     set_stream(current_output, encoding(utf8)),
     write(Page).
 
@@ -3444,20 +3843,30 @@ serve_kbs(Groups) :-
     serve_conf(dirs, Dirs0), serve_conf(root, RootOpt),
     (   RootOpt = some(Root) -> serve_find_kbs(Root, Found) ; Found = [] ),
     append(Dirs0, Found, All0),
-    maplist([D, A]>>absolute_file_name(D, A), All0, All1),
+    maplist(serve_norm, All0, All1),
     list_to_set(All1, All),
     findall(D-P, ( member(D, All), serve_kb_project(D, P) ), DPs),
     findall(P, member(_-some(P), DPs), Ps0), list_to_set(Ps0, Ps),
     findall(D, ( member(D, All), ( memberchk(D, Ps) ; serve_is_project_kb(D) ) ), PKs),
     findall(D-P, ( member(D-P, DPs), \+ memberchk(D, PKs) ), Specs),
     findall(P, member(_-some(P), Specs), GPs0), list_to_set(GPs0, GPs),
+    % T27 c8: a project KB with its own questions to ask has its section, first in its group.
     findall(L-group(L, some(P), Ds),
             ( member(P, GPs), serve_project_label(P, L),
-              findall(D, member(D-some(P), Specs), Ds) ),
+              findall(D, member(D-some(P), Specs), Ds1),
+              ( serve_has_to_ask(P) -> Ds = [P|Ds1] ; Ds = Ds1 ) ),
             LGs0),
     keysort(LGs0, LGs), pairs_values(LGs, PGroups),
     findall(D, member(D-none, Specs), NDs),
     (   NDs == [] -> Groups = PGroups ; append(PGroups, [group("no project", none, NDs)], Groups) ).
+
+serve_has_to_ask(Dir) :-
+    catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_engine(KB, Eng), eng_true(Eng, to_ask(_)) ), _, fail).
+
+% serve_norm(+Path, -Norm) (T27 c9): an absolute path with no trailing slash.
+serve_norm(P0, P) :-
+    absolute_file_name(P0, P1),
+    (   atom_concat(P2, '/', P1), P2 \== '' -> serve_norm(P2, P) ; P = P1 ).
 
 serve_find_kbs(Root, Dirs) :-
     findall(D, serve_walk(Root, 0, D), Ds0), sort(Ds0, Dirs).
@@ -3479,7 +3888,7 @@ serve_kb_project(Dir, P) :-
     serve_kb_items(Dir, Items),
     (   kb_term(Items, project_kb(P0)), atom(P0)
     ->  ( is_absolute_file_name(P0) -> P1 = P0 ; directory_file_path(Dir, P0, P1) ),
-        absolute_file_name(P1, PA), P = some(PA)
+        serve_norm(P1, PA), P = some(PA)
     ;   P = none
     ).
 
@@ -3509,6 +3918,15 @@ serve_page(Msg, Page) :-
                    format(string(LedText), "<section class=\"ledger\"><h2>Asks that wait on you</h2><p class=\"message error\">~w</p></section>", [EMH]) ))
     ;   LedText = ""
     ),
+    serve_conf(hub, HubOpt),
+    (   HubOpt = some(Hub)
+    ->  catch(( hub_asks(Hub, HOwner, HRows), view_owned(HRows, HOwner, HAsks),
+                view_ledger_section(serve_hub(Token, Hub), some(HAsks), HubText0),
+                format(string(HubText), "~w", [HubText0]) ),
+              E2, ( serve_err_text(E2, EM2), esc(EM2, EMH2),
+                    format(string(HubText), "<section class=\"ledger\"><h2>Asks that wait on you</h2><p class=\"message error\">~w</p></section>", [EMH2]) ))
+    ;   HubText = ""
+    ),
     view_css(Css),
     (   Msg == "" -> MsgH = "" ; esc(Msg, M0), format(string(MsgH), "<p class=\"message\">~w</p>", [M0]) ),
     format(string(Page),
@@ -3526,9 +3944,10 @@ serve_page(Msg, Page) :-
 ~w
 ~w
 ~w
+~w
 </body>
 </html>
-", [Css, MsgH, GsText, LedText]).
+", [Css, MsgH, GsText, LedText, HubText]).
 
 serve_group_html(Token, Lib, Label, Dirs, Html) :-
     findall(S, ( member(D, Dirs), serve_kb_html(Token, Lib, D, S) ), Ss),
@@ -3547,11 +3966,17 @@ serve_err_text(E, M) :- err_text(E, M).
 % serve_answer(+Form, -Result) (D26 S3, S4): ok, or refused(Status, Message). Nothing is
 % written unless every check passes; the write is one `orbit-kb add` child process.
 serve_answer(Form, R) :-
+    (   serve_field(Form, ask, AskS), AskS \== ""
+    ->  serve_answer_ask(AskS, Form, R)
+    ;   serve_answer_kb(Form, R)
+    ).
+
+serve_answer_kb(Form, R) :-
     serve_kbs(Groups),
     findall(D, ( member(group(_, _, Ds), Groups), member(D, Ds) ), Served),
-    (   \+ ( serve_field(Form, kb, KS), atom_string(KA, KS), memberchk(KA, Served) )
+    (   \+ ( serve_field(Form, kb, KS), atom_string(KA0, KS), serve_norm(KA0, KA), memberchk(KA, Served) )
     ->  R = refused(400, "The form names a KB that this server does not serve. Reload the page.")
-    ;   serve_field(Form, kb, KS), atom_string(Dir, KS),
+    ;   serve_field(Form, kb, KS), atom_string(Dir0, KS), serve_norm(Dir0, Dir),
         (   \+ ( serve_field(Form, q, QS), QS \== "" )
         ->  R = refused(400, "The form names no question. Reload the page.")
         ;   serve_field(Form, q, QS), atom_string(Q, QS),
@@ -3559,42 +3984,113 @@ serve_answer(Form, R) :-
             (   \+ eng_true(Eng, to_ask(Q))
             ->  format(string(M), "The question ~w is not open any more. Reload the page.", [Q]),
                 R = refused(409, M)
-            ;   serve_answer_text(Form, Text),
+            ;   serve_answer_text(Form, Text, Note),
                 (   Text == ""
                 ->  R = refused(400, "Choose an option, or choose other and write the answer.")
                 ;   string_length(Text, Len), Len > 2000
                 ->  R = refused(400, "The answer is longer than 2000 characters.")
-                ;   serve_write(Dir, Q, Text, R)
+                ;   string_length(Note, NLen), NLen > 2000
+                ->  R = refused(400, "The text is longer than 2000 characters.")
+                ;   serve_answer_term(Eng, Q, Text, A),
+                    ( Note == "" -> NFs = [] ; atom_string(NA, Note), NFs = [note(Q, NA)] ),
+                    serve_owned(Eng, Q, Dir, A, Text, NFs, R)
                 )
             )
         )
     ).
 
-serve_answer_text(Form, Text) :-
+% serve_answer_text(+Form, -Text, -Note) (T27 c9): the picked option (or, with other or no
+% option, the typed text) is the answer. Typed text next to a picked option is kept as a note.
+serve_answer_text(Form, Text, Note) :-
     ( serve_field(Form, choice, C0) -> true ; C0 = "" ),
     ( serve_field(Form, text, T0) -> true ; T0 = "" ),
     split_string(C0, "", " \t\r\n", [C]), split_string(T0, "", " \t\r\n", [T]),
-    (   C \== "", C \== "other" -> Text = C ; Text = T ).
+    (   C \== "", C \== "other" -> Text = C, Note = T ; Text = T, Note = "" ).
 
-serve_write(Dir, Q, Text, R) :-
+% serve_answer_term(+Eng, +Q, +Text, -A) (T27 c9): the default, or an answer of an agent, when
+% Text is its text, as the same term (so accepting a default 3 is not a defeat); else an atom.
+serve_answer_term(Eng, Q, Text, A) :-
+    (   eng_all(Eng, [D], assumed(Q, D), Ds), member(D1, Ds), plain_text(D1, DT), DT == Text -> A = D1
+    ;   eng_all(Eng, [B, By], answer(Q, B, By), Bs), member([B1, agent], Bs), plain_text(B1, BT), BT == Text -> A = B1
+    ;   atom_string(A, Text)
+    ).
+
+% serve_owned(+Eng, +Q, +Dir, +A, +Text, +NoteFacts, -R) (T27 c5): the owner of the question
+% gets the answer first. A question of the ledger: the ask is closed in the hub, then the pinned
+% answer is queued for the spec KB. A question of the tracker is answered in the tracker. Any
+% other question belongs to the spec KB (as before T27).
+serve_owned(Eng, Q, Dir, A, Text, NFs, R) :-
+    (   eng_all(Eng, [K, Ref], question_pin(Q, K, Ref, _, _), Pins), last(Pins, [Kind, Ref1])
+    ->  (   Kind == tracker
+        ->  format(string(M), "Question ~w is owned by the tracker item ~w: answer it there. Then the answer is pinned with orbit-kb pin-answer ~w ~w --text-file F --by NAME. Nothing was written.", [Q, Ref1, Q, Ref1]),
+            R = refused(409, M)
+        ;   serve_conf(hub, some(Hub))
+        ->  hub_close(Hub, Ref1, Text, R0),
+            (   R0 == ok
+            ->  hub_asks(Hub, Owner, _), atom_string(OA, Owner),
+                sha256_text(Text, D), utc_now(Now),
+                append([answer(Q, A, human:OA), answer_pin(Q, Ref1, D, Now)], NFs, Facts),
+                serve_write(Dir, Facts, R)
+            ;   R = R0
+            )
+        ;   format(string(M), "Question ~w is owned by the ledger ask ~w. Start the server with --hub DIR to answer it here, or answer the ask in the hub. Nothing was written.", [Q, Ref1]),
+            R = refused(409, M)
+        )
+    ;   serve_write(Dir, [answer(Q, A, human)|NFs], R)
+    ).
+
+% serve_answer_ask(+Id, +Form, -R) (T27 c7): an answer to a ledger ask that waits on the owner.
+% hubflow closes the ask (as a human); each served spec KB whose question is pinned to the ask
+% gets the pinned answer through its queue (c5).
+serve_answer_ask(IdS, Form, R) :-
+    (   serve_conf(hub, some(Hub))
+    ->  hub_asks(Hub, Owner, Rows),
+        (   \+ ( member(X, Rows), X.id == IdS, X.waits_on == Owner )
+        ->  format(string(M), "The ask ~w does not wait on you now. Reload the page.", [IdS]),
+            R = refused(409, M)
+        ;   ( serve_field(Form, text, T0) -> true ; T0 = "" ),
+            split_string(T0, "", " \t\r\n", [Text]),
+            (   Text == "" -> R = refused(400, "Write the answer.")
+            ;   string_length(Text, Len), Len > 2000 -> R = refused(400, "The answer is longer than 2000 characters.")
+            ;   atom_string(Id, IdS),
+                hub_close(Hub, Id, Text, R0),
+                (   R0 == ok
+                ->  atom_string(OA, Owner), atom_string(A, Text), sha256_text(Text, D), utc_now(Now),
+                    serve_kbs(Groups),
+                    forall(( member(group(_, _, Ds), Groups), member(Dir, Ds),
+                             serve_kb_pins_ask(Dir, Id, Qs), member(Q, Qs) ),
+                           serve_write(Dir, [answer(Q, A, human:OA), answer_pin(Q, Id, D, Now)], _)),
+                    R = ok
+                ;   R = R0
+                )
+            )
+        )
+    ;   R = refused(400, "This server reads no hub. Start it with --hub DIR to answer asks.")
+    ).
+
+serve_kb_pins_ask(Dir, Id, Qs) :-
+    catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_engine(KB, Eng),
+            findall(Q, ( eng_true(Eng, question_pin(Q, ledger, Id, _, _)), \+ eng_true(Eng, answered(Q)) ), Qs0),
+            sort(Qs0, Qs) ), _, Qs = []).
+
+% serve_write(+Dir, +Facts, -R) (T27 c4, D26 S4 amended): the answer never waits on an agent. It
+% goes at once to answers.pending. When no other writer holds the lock, the server applies it
+% now (orbit-kb apply-pending as its writer) and gives a lock that was free back; else the
+% holder, or the next writer, applies it with its next write.
+serve_write(Dir, Facts, R) :-
     serve_conf(writer, W), serve_conf(script, Script),
-    (   kb_uses_project(Dir) -> lock_state(Dir, LS) ; LS = none_needed ),
-    (   LS = held(H, Since), H \== W
-    ->  format(string(M), "The KB is locked. It is held by ~w since ~w. Nothing was written. The server never takes a lock: ask ~w to run orbit-kb release, then answer again.", [H, Since, H]),
-        R = refused(409, M)
-    ;   LS = bad(Why)
-    ->  format(string(M), "The writer lock of the KB cannot be read: ~w Nothing was written.", [Why]),
-        R = refused(409, M)
-    ;   atom_string(A, Text),
-        format(string(Fact), "~q", [answer(Q, A, human)]),
-        serve_child(Script, W, ['--dir', Dir, add, Fact, '--by', human], Exit, Err),
+    queue_pending(Dir, Facts),
+    lock_state(Dir, LS),
+    (   ( LS == none ; LS = held(W, _) )
+    ->  serve_child(Script, W, ['--dir', Dir, 'apply-pending'], Exit, Err),
+        ( LS == none -> serve_child(Script, W, ['--dir', Dir, release], _, _) ; true ),
         (   Exit == 0
-        ->  ( LS == none -> serve_child(Script, W, ['--dir', Dir, release], _, _) ; true ),
-            R = ok
+        ->  R = ok
         ;   split_string(Err, "", " \n", [E1]),
             format(string(M), "Nothing was written. orbit-kb said: ~w", [E1]),
             R = refused(409, M)
         )
+    ;   R = ok
     ).
 
 serve_child(Script, W, Args, Exit, Err) :-
@@ -4658,7 +5154,12 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
               fmt(M, "~q/~w was declared by its first use, and its name is ~w edit(s) from the declared ~q/~w. It may be a typo. If it is: correct the facts in kb.pl to ~q/~w, and delete the decl/4 and first_use/3 lines of ~q/~w. If it is a new predicate: choose a name more than 2 edits away.", [N, A, Dist, N2, A, N2, A, N, A]) ),
             E19a),
     sort(E19a, E19),
-    append([W1, W2a, W2b, W3, W4, W5, W7, E19], Diags).
+    % W8 (T27 c10): a request whose tracker item has a new text that no human accepted
+    findall(diag('W8', '', 0, M),
+            ( member(it(derived, _, _, T8, _, _), Items), nonvar(T8), T8 = request_stale(R8),
+              fmt(M, "~w: the request text changed at its source (the latest request_pin has another digest). Read the item. If the new text is right, a human accepts it: orbit-kb pin-request --request-file F --accept --by human. It blocks done until then.", [R8]) ),
+            W8),
+    append([W1, W2a, W2b, W3, W4, W5, W7, W8, E19], Diags).
 
 % edit_distance_at_most(+A, +B, +Max, -D) (D22): the Levenshtein distance D
 % of the names A and B (over their characters) is at most Max.
@@ -4871,7 +5372,13 @@ show_section(KB, Eng, open) :-
         )
     ;   Us = [], Os = [], Bs = [], Ns = []
     ),
-    (   Qs == [], As == [], Cs == [], Ys == [], Us == [], Os == [], Bs == [], Ns == [] -> say("- Nothing is open.", []) ; true ).
+    eng_all(Eng, [R], request_stale(R), Rs),
+    forall(member(R, Rs), say("- request_stale ~w: the request text changed at its source. A human accepts it with orbit-kb pin-request --accept --by human.", [R])),
+    kb_dir(KB, KDir), pending_open(KDir, Ps),
+    forall(member(pending(PT, _, PFs), Ps),
+           ( pending_questions(PFs, PQs),
+             forall(member(Q-A, PQs), ( term_text(A, AT), say("- pending ~w: an answer to question ~w waits in answers.pending (queued ~w): ~w. The next write applies it.", [Q, Q, PT, AT]) )) )),
+    (   Qs == [], As == [], Cs == [], Ys == [], Us == [], Os == [], Bs == [], Ns == [], Rs == [], Ps == [] -> say("- Nothing is open.", []) ; true ).
 % D22: each answer of blocking(X), with the text of its item.
 show_section(KB, Eng, blocking) :-
     say("Blocking:", []),
@@ -4942,6 +5449,9 @@ blocking_line(_, Eng, project_conflict(Dr), S) :- !,
     ;   DcT = '?', TxT = ''
     ),
     fmt(S, "- project_conflict ~w: draft ~w of the project KB conflicts with a change of the tracker, and decision ~w rests on it: ~w", [Dr, Dr, DcT, TxT]).
+blocking_line(_, Eng, request_stale(R), S) :- !,
+    eng_all(Eng, [Ref], request_pin(R, Ref, _, _), Refs), ( last(Refs, Ref1) -> true ; Ref1 = '?' ),
+    fmt(S, "- request_stale ~w: the request text of ~w changed since the KB pinned it. Read the item; a human accepts the new text with orbit-kb pin-request --request-file F --accept --by human.", [R, Ref1]).
 blocking_line(_, Eng, project_contradiction(X), S) :- !,
     eng_all(Eng, [Y], project_contradiction(X, Y), Ys0), sort(Ys0, Ys),
     atomic_list_concat(Ys, ', ', YT),
@@ -4960,10 +5470,13 @@ cmd_draft(KB, Args, Code) :-
     parse_opts(Args, [], Pos, _),
     (   Pos == [blocking] -> true
     ;   Pos == [outbound] -> true
+    ;   Pos == [questions] -> true
     ;   Pos == [attach] -> true
-    ;   usage_error("draft takes one subject and nothing else: draft blocking, draft attach, or draft outbound.", [])
+    ;   usage_error("draft takes one subject and nothing else: draft blocking, draft attach, draft outbound, or draft questions.", [])
     ),
-    (   Pos == [attach]
+    (   Pos == [questions]
+    ->  draft_questions(KB), Code = 0
+    ;   Pos == [attach]
     ->  % T22 c6 (u93): the file to attach to the tracker item and the line to paste. Nothing is copied or posted.
         kb_dir(KB, Dir),
         directory_file_path(Dir, 'kb.pl', KbFile),
@@ -5056,6 +5569,69 @@ outbound_section(Eng, r(D, P, T, S)) :-
 
 % pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file] (D25 T4):
 % records pin(ID, Kind, SOURCE, sha256:HEX, T). The CLI computes the digest of F.
+% ---------------------------------------------------------------------
+% The pinned request (T27 c10)
+% ---------------------------------------------------------------------
+% request_text(+File, -Text): the request text of a tracker item. A JSON object gives its
+% title, its description (body or description) and its acceptance criteria, and nothing else:
+% no state, column, label, or time, so a column move does not change the text. Any other
+% file gives its whole text (without one final newline).
+request_text(File, Text) :-
+    read_file_to_string(File, S0, [encoding(utf8)]),
+    use_module(library(http/json)),
+    (   catch(atom_json_dict(S0, J, [value_string_as(string)]), _, fail), is_dict(J),
+        get_dict(title, J, Title), string(Title)
+    ->  ( member(K, [body, description]), get_dict(K, J, B), string(B), B \== "" -> Bs = [B] ; Bs = [] ),
+        ( member(K2, [acceptance_criteria, acceptanceCriteria, acceptance]), get_dict(K2, J, AC), string(AC), AC \== ""
+        ->  string_concat("Acceptance criteria:\n", AC, ACT), ACs = [ACT] ; ACs = [] ),
+        append([[Title], Bs, ACs], Parts),
+        atomic_list_concat(Parts, '\n\n', Text)
+    ;   ( sub_string(S0, B0, 1, 0, "\n") -> sub_string(S0, 0, B0, _, S1) ; S1 = S0 ),
+        atom_string(Text, S1)
+    ).
+
+cmd_pin_request(KB, Args, Code) :-
+    parse_opts(Args, ['--request-file'-value, '--accept'-flag, '--by'-value], Pos, Opts),
+    (   Pos == [] -> true ; usage_error("pin-request takes options only: pin-request --request-file F [--accept --by human].", []) ),
+    (   memberchk('--request-file'-F, Opts) -> true
+    ;   usage_error("pin-request needs --request-file F: the text of the tracker item as you read it now.", [])
+    ),
+    opt(Opts, '--accept', false, Accept), opt(Opts, '--by', agent, By),
+    (   Accept == true, By \== human
+    ->  usage_error("--accept records that a human accepted the new request text: add --by human. Only a human accepts it.", [])
+    ;   true
+    ),
+    (   exists_file(F) -> true ; die(2, ["The request file " + F + " does not exist."] >> fix_lines) ),
+    kb_items(KB, Items),
+    (   findall(R-Ref-D, ( member(it(kb, _, _, T, _, _), Items), nonvar(T), T = request_pin(R, Ref, D, _) ), Pins),
+        last(Pins, R-Ref-LastD)
+    ->  true
+    ;   die(1, ["The request has no pin: the KB owns its request (init without --source). Nothing was written.",
+                "Fix: nothing to do. To pin a request, start the KB with orbit-kb init DIR --request-file F --source REF."] >> fix_lines)
+    ),
+    request_text(F, Text), sha256_text(Text, D), utc_now(Now),
+    (   D == LastD -> L1 = [] ; clause_line(request_pin(R, Ref, D, Now), [], P1), L1 = [P1] ),
+    (   Accept == true
+    ->  (   member(it(kb, _, _, T2, _, _), Items), nonvar(T2), T2 = request(R, OldText), atomic(OldText), sha256_text(OldText, D)
+        ->  L2 = []
+        ;   member(it(kb, _, _, T3, _, _), Items), nonvar(T3), T3 = request_accepted(R, D, _)
+        ->  L2 = []
+        ;   clause_line(request_accepted(R, D, Text), [], P2), L2 = [P2]
+        )
+    ;   L2 = []
+    ),
+    append(L1, L2, Lines),
+    (   Lines == []
+    ->  format("The request text of ~w is unchanged (~w). Nothing was written.~n", [Ref, D])
+    ;   kb_file(KB, KbFile), append_lines(KbFile, Lines),
+        forall(member(L, Lines), format("~w~n", [L])),
+        (   L1 \== [], L2 == []
+        ->  format(user_error, "The request text changed at ~w. The request is stale (lint W8) until a human accepts the new text: orbit-kb pin-request --request-file F --accept --by human.~n", [Ref])
+        ;   true
+        )
+    ),
+    Code = 0.
+
 cmd_pin_item(KB, Args, Code) :-
     parse_opts(Args, ['--text-file'-value, '--changed-at'-value, '--kind'-value], Pos, Opts),
     (   Pos = [Id, Src] -> true
@@ -5128,6 +5704,7 @@ cmd_project(DirOpt, [impact|Args], Code) :- !,
 cmd_project(DirOpt, [archive|Args0], Code) :- !,
     resolve_kb(DirOpt, Dir),
     writer_gate(Dir, Args0, Args),
+    apply_pending(Dir),                          % T27 c4: a write applies the waiting answers first
     parse_opts(Args, ['--superseded-before'-value, '--root'-value], Pos, Opts),
     (   Pos == [] -> true ; usage_error("project archive takes no positional argument.", []) ),
     (   memberchk('--superseded-before'-D0, Opts) -> true
@@ -6169,7 +6746,7 @@ help_lines(general, [
 "Usage: orbit-kb [--dir DIR] COMMAND [ARGS]",
 "",
 "Commands:",
-"  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID]",
+"  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
 "  uses MODULE ...",
 "  add 'FACT' ... [--by human|agent]",
 "  declare 'HEAD' --doc TEXT [--kind fact|rule] [--template T]     (optional)",
@@ -6186,9 +6763,13 @@ help_lines(general, [
 "  pin [--check STAMP]",
 "  release",
 "  view questions [--dir KB]... [--ledger FILE [--owner KEY]] [--out F]",
-"  serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--port N]",
-"  draft blocking | draft attach | draft outbound",
+"  serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--hub DIR] [--port N]",
+"  draft blocking | draft attach | draft outbound | draft questions",
 "  pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",
+"  pin-question Q ledger|tracker REF",
+"  pin-answer Q REF [--hub DIR | --text-file F --by NAME]",
+"  pin-request --request-file F [--accept --by human]",
+"  apply-pending",
 "  project impact X [--root DIR] | project archive --superseded-before DATE [--root DIR]",
 "  doctor",
 "  help [COMMAND|TOPIC]",
@@ -6215,9 +6796,13 @@ help_lines(general, [
 ]).
 
 help_lines(init, [
-"orbit-kb init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID]",
+"orbit-kb init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
 "",
 "Create DIR/kb.pl. It holds uses([...]). and request(ID, 'TEXT').",
+"--source REF (T27): the request is the tracker item REF. init records request_pin(ID, REF,",
+"DIGEST, DATE); the text is a cached snapshot of the item, not a copy the KB owns. With a JSON",
+"file, the text is its title, description (body) and acceptance criteria, never its state or",
+"column. orbit-kb pin-request reads the item again. Without --source, the KB owns the request.",
 "The default ID is r1. --uses names library modules, such as build.",
 "orbit-kb init does not overwrite a kb.pl. It exits 1 if kb.pl exists.",
 "It prints the path of the new kb.pl."
@@ -6373,7 +6958,8 @@ help_lines(show, [
 help_lines(release, [
 "orbit-kb release",
 "",
-"Free the writer lock of a project KB (orbit-kb help project). Only the holder can release it.",
+"Free the writer lock of the KB (orbit-kb help project). Only the holder can release it.",
+"Run it when you hand the KB to another pane: the receiver's first write takes the lock.",
 "With no lock, it does nothing. Exit: 0 on success. 2 when another writer holds the lock."
 ]).
 help_lines(view, [
@@ -6393,19 +6979,27 @@ help_lines(view, [
 "Exit 2 for a usage error, a KB that cannot be read, or a bad ledger file."
 ]).
 help_lines(serve, [
-"orbit-kb serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--port N]",
+"orbit-kb serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--hub DIR] [--port N]",
 "",
 "Serve the page of view questions on http://127.0.0.1:PORT/ (default port 8737; --port 0 picks",
 "a free port). Each reload reads the KBs and the ledger again, so the page is live.",
 "--dir may repeat. --root DIR serves each kb.pl under DIR. The page groups the spec KBs by the",
 "project KB that they name (project_kb), labeled with its first request; a KB with no",
-"project_kb is in the group no project. --ledger and --owner work as for view questions; each",
-"ask shows the hubflow command that answers it. The page does not answer asks.",
-"Each question to ask has a form: its options, other, and a free text. A POST records the",
-"answer as answer(Q, Answer, human) with orbit-kb add --by human, and writes nothing else.",
-"The write takes the writer lock of the KB (orbit-kb help project) as ORBIT_KB_WRITER, else",
-"as human, and gives a lock that was free back after the write. When another writer holds the",
-"lock, nothing is written and the page names the holder. The server never uses --take.",
+"project_kb is in the group no project; a project KB with its own questions to ask has its section.",
+"--ledger and --owner work as for view questions; each ask shows the hubflow command that",
+"answers it (shell-quoted). --hub DIR reads the ledger of the hub live (DIR/flow/flow.db, read",
+"only): each ask that waits on the owner has a form, and the server runs that command (hubflow",
+"close --by human --session human, from the hub root).",
+"Each question to ask shows its notes, its claim's notes and examples, and its due date, and has",
+"a form: its options, other, and a free text. Typed text next to a picked option is kept as a",
+"note. A default picked as it is keeps its term. The answer never waits on an agent: it goes at",
+"once to answers.pending next to kb.pl. When no other writer holds the writer lock (orbit-kb help",
+"project), the server applies it now as ORBIT_KB_WRITER, else as human (orbit-kb apply-pending),",
+"and gives a lock that was free back. Else the holder's next write applies it; the page and",
+"show open list it as pending. The server never uses --take.",
+"A question pinned to a ledger ask (pin-question): the answer closes the ask first, then the",
+"pinned copy, answer(Q, A, human:OWNER) and answer_pin, goes to the queue. A question pinned to",
+"a tracker item is answered in the tracker.",
 "Safety: it listens on 127.0.0.1 only; a request whose Host is not 127.0.0.1 or localhost gets",
 "403; a POST needs the token of this run, which the page carries. There is no login.",
 "The server keeps no state of its own. Ctrl-C stops it.",
@@ -6425,6 +7019,7 @@ help_lines(draft, [
 "orbit-kb draft blocking",
 "orbit-kb draft attach",
 "orbit-kb --dir PROJECT draft outbound",
+"orbit-kb draft questions",
 "",
 "Drafts only: nothing is sent to a tracker, and no command uses a network.",
 "draft blocking prints Markdown: the stamp spec-kb@sha256:HEX of kb.pl, then each item that",
@@ -6435,7 +7030,43 @@ help_lines(draft, [
 "pastes the line. It copies and writes nothing. After a human sends a staged draft, the human (or an",
 "agent that the human told) records pushed(Draft, Time) in the project KB.",
 "draft outbound lists the project KB drafts that are not pushed (needs the project module).",
-"It reads only the KB it runs in, so give the project KB: orbit-kb --dir PROJECT draft outbound."
+"It reads only the KB it runs in, so give the project KB: orbit-kb --dir PROJECT draft outbound.",
+"draft questions prints Markdown of the questions for the tracker (T27): each question to ask",
+"that the ledger does not own, and each question pinned to a tracker item with no answer, with",
+"its case, notes, examples, default, options and their effects, and due date. A human posts it."
+]).
+help_lines('pin-question', [
+"orbit-kb pin-question Q ledger|tracker REF",
+"",
+"Record who owns question Q (T27, u58): a ledger ask (REF is its id, such as A-0001) when the",
+"question depends only on the owner of the hub; a tracker item (REF names it) when someone",
+"else answers. It writes question_pin(Q, KIND, REF, DIGEST, DATE); DIGEST is of the question",
+"text. A question with no pin belongs to the spec KB, as before. It is a write (writer lock)."
+]).
+help_lines('pin-answer', [
+"orbit-kb pin-answer Q REF [--hub DIR | --text-file F --by NAME]",
+"",
+"Copy the answer of question Q from its owner REF (pin-question) into the KB: answer(Q, A,",
+"human:NAME) and answer_pin(Q, REF, DIGEST, DATE). A ledger ask: --hub DIR (or $HUBFLOW_HUB);",
+"the answer is the note of the human close of the ask, and NAME is the owner of the hub. Exit",
+"1 while the ask has no answer. A tracker item: --text-file F holds the answer as the item has",
+"it, and --by NAME names who gave it. Nothing is fetched. It is a write (writer lock)."
+]).
+help_lines('pin-request', [
+"orbit-kb pin-request --request-file F [--accept --by human]",
+"",
+"Read the tracker item of the request again (T27): F holds the item as you exported it now.",
+"A new request_pin is recorded when the request text changed (title, description, acceptance",
+"criteria; a column move is no change). A changed text makes the request stale: lint W8 and",
+"blocking(request_stale(R)), until a human accepts the new text with --accept --by human",
+"(request_accepted/3 keeps it). A KB without --source at init owns its request: exit 1."
+]).
+help_lines('apply-pending', [
+"orbit-kb apply-pending",
+"",
+"Apply the answers that wait in answers.pending (the question server queued them), and write",
+"nothing else. Every write command does this first, so the holder of the lease or the next",
+"writer applies them. Exit 1 when an answer was refused (answers.applied records it)."
 ]).
 help_lines('pin-item', [
 "orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",

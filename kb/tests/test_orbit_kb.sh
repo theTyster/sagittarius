@@ -170,7 +170,7 @@ trap 'exit 143' TERM
 # The tests control the environment of the CLI completely: no ORBIT_KB_* variable of the
 # caller (ORBIT_KB, a cache switch, ...) reaches it, the suite sets
 # ORBIT_KB_LIB, and each test sets its own XDG_CACHE_HOME (exec_test).
-for v in $(compgen -e); do case $v in ORBIT_KB*) unset "$v";; esac; done
+for v in $(compgen -e); do case $v in ORBIT_KB*|CLAUDE_SESSION_ID|CLAUDE_CODE_SESSION_ID|HUB_SESSION) unset "$v";; esac; done
 export ORBIT_KB_LIB="$LIB"
 
 # ---------------------------------------------------------------- kbq: read kb.pl semantically

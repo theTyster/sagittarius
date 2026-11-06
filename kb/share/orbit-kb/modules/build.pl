@@ -66,7 +66,7 @@ decl(rule, no_current_claim,
      'No claim is current. Then the work is not done.',
      'no claim is current').
 decl(rule, done,
-     'At least one claim is current, no current claim is unfulfilled, no change is without a claim, no question must be asked, no burn or flare is open, and no claim is in a supersede cycle.',
+     'At least one claim is current, no current claim is unfulfilled, no change is without a claim, no question must be asked, no burn or flare is open, no request is stale, and no claim is in a supersede cycle.',
      'the work is done').
 decl(rule, burn_reason(ref(claim)),
      'The claim was contested twice and is not visual, it is universal, or a human asked for a Lean proof.',
@@ -154,7 +154,7 @@ any_over :- over(_).
 any_current_claim :- current(_).
 no_current_claim :- not any_current_claim.
 done :- not any_under, not any_over, not any_to_ask, not any_burn_open,
-        not any_flare_open, not any_project_conflict, not any_supersede_cycle, not no_current_claim.
+        not any_flare_open, not any_project_conflict, not any_request_stale, not any_supersede_cycle, not no_current_claim.
 % D21: contests on a visual claim escalate to its flare, not to a proof.
 burn_reason(C) :- contested_twice(C), not visual(C).
 burn_reason(C) :- universal(C).

@@ -23,6 +23,8 @@ How you work together:
 - Stay in your role. Hand work to the pane that owns it. Do not do it yourself.
 - Hand off through the KB, not through memory. A handoff is a trigger: the receiver runs
   `orbit-kb show open` first.
+- A KB has one writer at a time. The giver runs `orbit-kb release` before the handoff. The
+  receiver's first write takes the lock.
 - Handoffs in a hub. One procedure, written once here: the sender records one `hubflow handoff`
   row (`--to ROLE --ref kb:SLUG --note "where to start"`; `hubflow` is
   `python3 .claude/scripts/hubflow.py`) and tells the receiver with SendMessage, naming the id.
