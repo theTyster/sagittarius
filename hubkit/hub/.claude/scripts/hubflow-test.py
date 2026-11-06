@@ -1727,6 +1727,35 @@ def case_transcripts_same_session(r, root):
             and "3 file(s)" in res[1] and "2 session(s)" in res[1], (res, n))
 
 
+def case_triage_escalated(r, root):
+    """c2 (counterexample search): an agent's triage cannot end an escalation; only a human decides."""
+    stub = write_stub(root)
+    h = kb_hub(root, "trghub", {"spec-b": None})
+    d = fresh(r, root, "triage-escalated")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+
+    def t(*args):
+        return hf(r, d, *args, hub=h, extra_env=env)
+
+    add(r, d, "ask", "Escalated, clear spec", "--ref", "kb:spec-b/kb", now=DUE)  # A-1
+    add(r, d, "ask", "Escalated, no spec", now=DUE)  # A-2
+    add(r, d, "ask", "Escalated, kept by an agent", now=DUE)  # A-3
+    for i in ("A-0001", "A-0002", "A-0003"):
+        t("triage", i, "escalate", "--note", "only the human can decide")
+    for name, item in (("clear-kb", "A-0001"), ("no-kb", "A-0002")):
+        res = t("triage", item, "lapse", "--note", "looks idle")
+        r.check(f"c2-agent-lapse-of-escalated-stays {name}", res[0] == 0 and status(d, item) == "open"
+                and disp(d, item)[-1][:2] == ("escalate", "lapse"), (res, disp(d, item)))
+    t("triage", "A-0003", "keep", "--note", "keep it")
+    r.check("c2-agent-keep-of-escalated-stays-escalated", disp(d, "A-0003")[-1][:2] == ("escalate", "keep"), disp(d, "A-0003"))
+    res = t("close", "A-0003", "--reason", "dropped")
+    r.check("c2-agent-close-after-agent-keep-refused", refused(res, 1, "--by human") and status(d, "A-0003") == "open", res)
+    res = t("triage", "A-0001", "keep", "--by", "human", "--note", "\"keep it, I decided\" (Me)")
+    code, out, _ = t("view", "escalated", "--format", "json")
+    r.check("c2-human-keep-of-escalated", res[0] == 0 and disp(d, "A-0001")[-1][:2] == ("keep", None)
+            and "A-0001" not in (ids(out) or []) and status(d, "A-0001") == "open", (res, out))
+
+
 def run_case(r, fn, *args):
     """Run one scenario. A scenario that cannot even run is a failure, not a crash, and the
     scenarios after it still run."""
@@ -1782,6 +1811,7 @@ def cases(r):
         run_case(r, case_ref_guard, root)
         run_case(r, case_guard_more, root)
         run_case(r, case_transcripts_same_session, root)
+        run_case(r, case_triage_escalated, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))
