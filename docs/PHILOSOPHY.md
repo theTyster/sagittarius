@@ -67,7 +67,8 @@ impartial: they can disagree with the agent and with the human. Thus each result
 party that did not make it.
 
 Show the human concrete examples and results first, not test logs. When the work has shifted up,
-the human reads and reviews the formal text too, so write it to be read. The human judges meaning.
+the human, the agent and the CPU all use the formal language as the shared substrate, and the human
+reads, reviews and understands it, so write it to be read. The human judges meaning.
 The machines judge consistency.
 <!-- d_formal_substrate, decided 2026-11-05 -->
 

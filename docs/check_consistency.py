@@ -140,7 +140,7 @@ def c7():
 
 def c8():
     text = flat(read("hubkit/INSTRUCTIONS.md") + " " + read("hubkit/README.md"))
-    for need in ["project-kb/", "orbit-kb init project-kb --uses project", "orbit-kb help project"]:
+    for need in ["project-kb/", "orbit-kb init project-kb --request", "orbit-kb help project"]:
         if need not in text:
             return "hubkit/INSTRUCTIONS.md and README.md do not name the project KB: missing %r" % need
     return None

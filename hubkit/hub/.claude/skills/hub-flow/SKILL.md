@@ -86,7 +86,8 @@ Rules the script enforces: `issue` and `pr` refs are digits only; `--analysis` t
 spec KB, never a `W0/…` path. A spec KB lives at `specs/<slug>/` and its ref is `kb:<slug>`;
 `$HF where <slug>` prints the path (an old hub's `W*/analyses/<slug>/kb` still resolves).
 
-**A handoff** is a `handoff` row plus the KB. The one procedure is written in `prompt/PANES.md`
+**A handoff** is a `handoff` row plus the KB. The one procedure is written in `PANES.md` (installed as
+`~/.claude/sagittarius/PANES.md`; `prompt/PANES.md` in the Sagittarius checkout)
 ("Handoffs in a hub"): follow it, and do not restate it here. A row nobody was told about is a
 silent handoff.
 

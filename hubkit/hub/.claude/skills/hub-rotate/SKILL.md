@@ -54,7 +54,8 @@ recorded disposition at the rotation, never a silent lapse.
 ## The durability check
 
 Before anything stays behind to roll off, ask: **is it durable?** If yes, promote it out of the week
-dirs: a root file (`HEURISTICS.md`, `TECHNOLOGIES.md`, `CLAUDE.md`), a skill, or the project docs.
+dirs: a root file (`HEURISTICS.md`, `TECHNOLOGIES.md`, `CLAUDE.md`), a skill, or the project KB
+(a domain decision, a definition, a pin of the world: `orbit-kb help project`).
 Dropping durable knowledge at a week boundary is the one failure this design can produce.
 
 ## Citations
