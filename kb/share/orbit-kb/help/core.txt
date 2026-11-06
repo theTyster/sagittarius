@@ -125,6 +125,13 @@ Asking the human
   - Do not ask the human to approve a list. A long list invites "approve all", and that is a
     quiet failure.
   In discovery, see also orbit-kb help discovery (ASKING).
+  Who owns a question: the ledger owns a question that waits only on the hub owner, the
+  tracker owns the others, and the spec KB pins both. When to pin: orbit-kb help build (PIN).
+
+One writer
+  Subagents of one pane share CLAUDE_CODE_SESSION_ID, so they count as one writer. The
+  writer lock does not keep them apart: two subagents that write one KB at once can
+  interleave their records. Give a KB to one subagent at a time, or write it yourself.
 
 Speed
   Run independent tool calls in parallel. Give long mechanical work (wide searches, long test

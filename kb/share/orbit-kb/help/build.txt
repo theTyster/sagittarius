@@ -47,6 +47,17 @@ SURVEY: close the world (build)
      exists, stop and tell the human.
   3. Skip SURVEY when discovery ran. When the change site is obvious, skip step 1, never step 2.
 
+PIN: when the request or a question has an owner (the tracker or the ledger)
+  1. The request is a tracker item: start with orbit-kb init DIR --request-file F --source REF
+     (F holds the item as you read it, plain text or its JSON). Read the item again before
+     done and after each handoff: orbit-kb pin-request --request-file F. A changed text blocks
+     done until a human accepts it (pin-request --accept --by human).
+  2. A question that waits only on the hub owner: orbit-kb pin-question Q ledger ASK. Any other
+     question that a person must answer in the tracker: orbit-kb draft questions, the human
+     posts it, then orbit-kb pin-question Q tracker ITEM. The answer comes back with
+     orbit-kb pin-answer Q ITEM --text-file F --by NAME.
+  3. Never copy a request or an answer by hand: pin it.
+
 BUILD: checks first
   1. Write the checks first, from the claims and the examples. Add a screenshot check when
      the change has a user surface.

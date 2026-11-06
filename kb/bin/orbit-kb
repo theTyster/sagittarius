@@ -722,6 +722,12 @@ claim_writer(Dir, W, Take) :-
     ;   write_atomic(LF, Text)
     ).
 
+% recheck_writer(+Dir) (T37 c2): a command that runs long (run, prove) claims the lock again right
+% before it writes, under the KB lock. If another writer took the lock meanwhile (a lapsed
+% lease), the old holder is refused as at the start: exit 2, nothing written.
+recheck_writer(Dir) :-
+    (   writer_name(W) -> claim_writer(Dir, W, false) ; true ).
+
 settle_takeover(Dir, LF, LockBefore, KbFile, Fact, After) :-
     catch(( with_kb_lock(Dir,
               ( read_file_to_string(KbFile, Now, [encoding(utf8)]),
@@ -780,8 +786,9 @@ pending_read(S, Es) :-
     catch(read_term(S, T, [module(orbit_ops)]), _, T = '$bad'),
     (   T == end_of_file -> Es = []
     ;   T = pending(Tm, D, Fs), atom(D), is_list(Fs), ground(Fs) -> Es = [pending(Tm, D, Fs)|Es1], pending_read(S, Es1)
-    ;   T == '$bad' -> Es = []
-    ;   pending_read(S, Es)
+    ;   T == '$bad' -> Es = [bad('a line that cannot be read, and the lines after it')]
+    ;   format(string(TT1), "~q", [T]), string_length(TT1, TL), ( TL > 80 -> sub_string(TT1, 0, 80, _, TT) ; TT = TT1 ),
+        Es = [bad(TT)|Es1], pending_read(S, Es1)       % T37 c1: reported, never skipped silently
     ).
 
 applied_digests(Dir, Ds) :-
@@ -793,13 +800,30 @@ applied_digests(Dir, Ds) :-
     ;   Ds = []
     ).
 
+% applied_results(+Dir, -Pairs): DIGEST-applied|refused for each line of answers.applied.
+applied_results(Dir, Rs) :-
+    applied_file(Dir, F),
+    (   exists_file(F)
+    ->  read_file_to_string(F, S, [encoding(utf8)]),
+        split_string(S, "\n", " \t\r", Ls),
+        findall(D-R, ( member(L, Ls), L \== "", split_string(L, " ", "", [DS, _, RS]), atom_string(D, DS), atom_string(R, RS) ), Rs)
+    ;   Rs = []
+    ).
+
 % pending_open(+Dir, -Entries): the lines of answers.pending that no write applied yet.
 pending_open(Dir, Ps) :-
-    pending_entries(Dir, Es),
+    pending_entries(Dir, Es0),
+    include([E]>>( E = pending(_, _, _) ), Es0, Es),
     (   Es == [] -> Ps = []
     ;   applied_digests(Dir, Ds),
         exclude([pending(_, D, _)]>>memberchk(D, Ds), Es, Ps)
     ).
+
+% pending_bad(+Dir, -Texts): the lines of answers.pending that are not pending(TIME, DIGEST, FACTS)
+% with a list of ground facts (T37 c1). Such a line is never applied.
+pending_bad(Dir, Ts) :-
+    pending_entries(Dir, Es),
+    findall(T, member(bad(T), Es), Ts).
 
 pending_questions(Facts, QAs) :-
     findall(Q-A, member(answer(Q, A, _), Facts), QAs).
@@ -824,6 +848,9 @@ apply_pending(Dir) :-
     ).
 
 apply_pending_(Dir) :-
+    pending_bad(Dir, Bs),
+    forall(member(B, Bs),
+           format(user_error, "A line in answers.pending is not applied: it is not pending(TIME, DIGEST, FACTS) with ground facts: ~w~n", [B])),
     pending_open(Dir, Ps),
     lib_dir(Lib),
     forall(member(pending(T, D, Facts), Ps), apply_one_pending(Dir, Lib, T, D, Facts)).
@@ -908,8 +935,13 @@ cmd_pin_answer(KB, Args, Code) :-
         atom_string(Text, S1)
     ),
     sha256_text(Text, D), utc_now(Now),
+    % T37 c5: Text that is the text of the default (or of an agent's answer) is written as that term
+    (   member(it(kb, _, _, TA, _, _), Items), nonvar(TA), TA = assumed(Q, Def), plain_text(Def, DefT), atom_string(Text, TextS), DefT == TextS
+    ->  AnsT = Def
+    ;   AnsT = Text
+    ),
     maplist([Fa, A]>>( term_text(Fa, S), atom_string(A, S) ),
-            [answer(Q, Text, human:Name), answer_pin(Q, Ref, D, Now)], FAs),
+            [answer(Q, AnsT, human:Name), answer_pin(Q, Ref, D, Now)], FAs),
     append(FAs, ['--by', human], AddArgs),
     cmd_add(KB, AddArgs, Code).
 
@@ -3640,9 +3672,22 @@ view_pending_html(Dir, Html) :-
     findall(L, ( member(pending(T, _, Fs), Ps), pending_questions(Fs, QAs), member(Q-A, QAs),
                  plain_text(A, AT), esc(AT, AH), esc(Q, QH), esc(T, TH),
                  format(string(L), "<li class=\"pending\" data-id=\"~w\">Question <span class=\"kbid\">~w</span>: the answer <span class=\"answer\">~w</span> is pending (queued ~w). The next write to the KB applies it.</li>", [QH, QH, AH, TH]) ), Ls),
+    (   Ls == [] -> Html0 = ""
+    ;   atomic_list_concat(Ls, '\n', LsT),
+        format(string(Html0), "\n<h3>Answers that wait to be applied</h3>\n<ul class=\"pending-list\">\n~w\n</ul>", [LsT])
+    ),
+    view_refused_html(Dir, Html1),
+    string_concat(Html0, Html1, Html).
+
+% view_refused_html(+Dir, -Html) (T37 c5): the queued answers that the KB refused when a write applied them.
+view_refused_html(Dir, Html) :-
+    pending_entries(Dir, Es), applied_results(Dir, Rs),
+    findall(L, ( member(pending(T, D, Fs), Es), memberchk(D-refused, Rs), pending_questions(Fs, QAs), member(Q-A, QAs),
+                 plain_text(A, AT), esc(AT, AH), esc(Q, QH), esc(T, TH),
+                 format(string(L), "<li class=\"refused\" data-id=\"~w\">Question <span class=\"kbid\">~w</span>: the answer <span class=\"answer\">~w</span> (queued ~w) was refused and is not applied. Answer the question again.</li>", [QH, QH, AH, TH]) ), Ls),
     (   Ls == [] -> Html = ""
     ;   atomic_list_concat(Ls, '\n', LsT),
-        format(string(Html), "\n<h3>Answers that wait to be applied</h3>\n<ul class=\"pending-list\">\n~w\n</ul>", [LsT])
+        format(string(Html), "\n<h3>Queued answers that were refused</h3>\n<ul class=\"refused-list\">\n~w\n</ul>", [LsT])
     ).
 
 view_ref(Id, Text, Html) :-
@@ -3755,7 +3800,7 @@ view_question_html(Mode, Dir, Eng, Q, Html) :-
     ),
     (   Mode = serve(Token)
     ->  findall(T, member(src(_, T), Srcs), Ts0), list_to_set(Ts0, Ts),
-        view_answer_form(Token, Dir, Q, Ts, Form)
+        view_form_or_owner(Eng, Token, Dir, Q, Ts, Form)
     ;   Form = ""
     ),
     view_context_html(Eng, Q, Ctx),
@@ -3778,6 +3823,23 @@ view_context_html(Eng, Q, Html) :-
     (   Ps == [] -> Html = ""
     ;   atomic_list_concat(Ps, '\n', PT), format(string(Html), "<div class=\"context\">\n~w\n</div>\n", [PT])
     ).
+
+% view_form_or_owner(+Eng, +Token, +Dir, +Q, +Texts, -Html) (T37 c5): no form while an answer to Q waits
+% in answers.pending (the pending list shows it), and none for a question that a tracker item owns
+% (the page shows the item; a POST would only get 409).
+view_form_or_owner(Eng, Token, Dir, Q, Texts, Html) :-
+    (   pending_for_question(Dir, Q)
+    ->  Html = "<p class=\"waiting\">An answer to this question waits to be applied (see below). The form is back when it is applied.</p>"
+    ;   eng_all(Eng, [Ref], question_pin(Q, tracker, Ref, _, _), Refs), last(Refs, Ref1)
+    ->  plain_text(Ref1, RT), esc(RT, RH),
+        format(string(Html), "<p class=\"owner\">This question is owned by the tracker item <span class=\"ref\">~w</span>. Answer it there; the answer is pinned with orbit-kb pin-answer.</p>", [RH])
+    ;   view_answer_form(Token, Dir, Q, Texts, Html)
+    ).
+
+% pending_for_question(+Dir, +Q): an open line of answers.pending answers Q.
+pending_for_question(Dir, Q) :-
+    pending_open(Dir, Ps),
+    member(pending(_, _, Fs), Ps), member(answer(Q0, _, _), Fs), Q0 == Q, !.
 
 % view_answer_form(+Token, +Dir, +Q, +Texts, -Html) (D26 S3): the answer form of a to_ask
 % question in the served page: one radio choice per option text (as listed above), then other,
@@ -4123,6 +4185,9 @@ serve_answer_kb(Form, R) :-
             (   \+ eng_true(Eng, to_ask(Q))
             ->  format(string(M), "The question ~w is not open any more. Reload the page.", [Q]),
                 R = refused(409, M)
+            ;   pending_for_question(Dir, Q)
+            ->  format(string(M), "An answer to question ~w waits to be applied. Reload the page.", [Q]),
+                R = refused(409, M)
             ;   serve_answer_text(Form, Text, Note),
                 (   Text == ""
                 ->  R = refused(400, "Choose an option, or choose other and write the answer.")
@@ -4194,11 +4259,12 @@ serve_answer_ask(IdS, Form, R) :-
             ;   atom_string(Id, IdS),
                 hub_close(Hub, Id, Text, R0),
                 (   R0 == ok
-                ->  atom_string(OA, Owner), atom_string(A, Text), sha256_text(Text, D), utc_now(Now),
+                ->  atom_string(OA, Owner), sha256_text(Text, D), utc_now(Now),
                     serve_kbs(Groups),
                     forall(( member(group(_, _, Ds), Groups), member(Dir, Ds),
                              serve_kb_pins_ask(Dir, Id, Qs), member(Q, Qs) ),
-                           serve_write(Dir, [answer(Q, A, human:OA), answer_pin(Q, Id, D, Now)], _)),
+                           ( serve_text_term(Dir, Q, Text, A),
+                             serve_write(Dir, [answer(Q, A, human:OA), answer_pin(Q, Id, D, Now)], _) )),
                     R = ok
                 ;   R = R0
                 )
@@ -4207,9 +4273,18 @@ serve_answer_ask(IdS, Form, R) :-
     ;   R = refused(400, "This server reads no hub. Start it with --hub DIR to answer asks.")
     ).
 
+% serve_text_term(+Dir, +Q, +Text, -A) (T37 c5): the answer term of Q for Text: as serve_answer_term/4
+% (the default, or an agent's answer, when Text is its text, so a number stays a number); else an atom.
+serve_text_term(Dir, Q, Text, A) :-
+    (   catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_engine(KB, Eng), serve_answer_term(Eng, Q, Text, A0) ), _, fail)
+    ->  A = A0
+    ;   atom_string(A, Text)
+    ).
+
 serve_kb_pins_ask(Dir, Id, Qs) :-
     catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_engine(KB, Eng),
-            findall(Q, ( eng_true(Eng, question_pin(Q, ledger, Id, _, _)), \+ eng_true(Eng, answered(Q)) ), Qs0),
+            eng_all(Eng, [Q0], question_pin(Q0, ledger, Id, _, _), Q0s),
+            findall(Q, ( member(Q, Q0s), \+ eng_true(Eng, answered(Q)) ), Qs0),
             sort(Qs0, Qs) ), _, Qs = []).
 
 % serve_write(+Dir, +Facts, -R) (T27 c4, D26 S4 amended): the answer never waits on an agent. It
@@ -4663,6 +4738,7 @@ run_interrupted(P, Sig) :-
 % Files that start with a dot (the runs/.tmp-* files) do not count.
 record_run(KB, Check, Result, EC, Now, CmdText, Output, RunN, Log) :-
     kb_dir(KB, Dir),
+    recheck_writer(Dir),
     kb_lib(KB, Lib),
     load_kb(Dir, Lib, KB2),
     kb_items(KB2, Items),
@@ -5006,6 +5082,7 @@ proof_log_text(Claim, Digest, Thm, Mod, RelFile, StoredRoot, PF, Files, Absent, 
 % as record_run does.
 record_proof(KB, Claim, Digest, Now, LogText, Id, Log) :-
     kb_dir(KB, Dir),
+    recheck_writer(Dir),
     kb_lib(KB, Lib),
     load_kb(Dir, Lib, KB2),
     kb_items(KB2, Items),
@@ -5801,15 +5878,29 @@ request_text(File, Text) :-
     read_file_to_string(File, S0, [encoding(utf8)]),
     use_module(library(http/json)),
     (   catch(atom_json_dict(S0, J, [value_string_as(string)]), _, fail), is_dict(J),
-        get_dict(title, J, Title), string(Title)
-    ->  ( member(K, [body, description]), get_dict(K, J, B), string(B), B \== "" -> Bs = [B] ; Bs = [] ),
-        ( member(K2, [acceptance_criteria, acceptanceCriteria, acceptance]), get_dict(K2, J, AC), string(AC), AC \== ""
+        req_field(J, [[title], [fields, 'System.Title'], [fields, summary], [name]], Title)
+    ->  ( req_field(J, [[body], [description], [fields, 'System.Description'], [fields, description], [description_html]], B) -> Bs = [B] ; Bs = [] ),
+        (   req_field(J, [[acceptance_criteria], [acceptanceCriteria], [acceptance],
+                          [fields, 'Microsoft.VSTS.Common.AcceptanceCriteria']], AC)
         ->  string_concat("Acceptance criteria:\n", AC, ACT), ACs = [ACT] ; ACs = [] ),
         append([[Title], Bs, ACs], Parts),
         atomic_list_concat(Parts, '\n\n', Text)
     ;   ( sub_string(S0, B0, 1, 0, "\n") -> sub_string(S0, 0, B0, _, S1) ; S1 = S0 ),
         atom_string(Text, S1)
     ).
+
+% req_field(+Dict, +Paths, -String) (T37 c3): the first path (a list of keys, nested) that holds a
+% non-empty string. Paths cover the trackers in use: a plain item (title, body), ADO
+% (fields.System.Title, System.Description, Microsoft.VSTS.Common.AcceptanceCriteria), Jira
+% (fields.summary, fields.description), Plane (name, description_html). Nothing else is read:
+% a State or BoardColumn move changes no text.
+req_field(J, Paths, V) :-
+    member(Path, Paths),
+    req_path(J, Path, V0), string(V0), V0 \== "",
+    !, V = V0.
+
+req_path(V, [], V).
+req_path(D, [K|Ks], V) :- is_dict(D), get_dict(K, D, V1), req_path(V1, Ks, V).
 
 cmd_pin_request(KB, Args, Code) :-
     parse_opts(Args, ['--request-file'-value, '--accept'-flag, '--by'-value], Pos, Opts),
