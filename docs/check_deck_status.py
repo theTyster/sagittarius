@@ -168,6 +168,7 @@ def main():
     for b in bad:
         print("FAIL " + b)
     if not bad:
+        print("PASS slide %s: items never lapse by themselves" % LAPSE_SLIDE)
         print("PASS slide %s: %d statuses name tickets, and they agree with the merges (%s)" % (SLIDE, len(named), " ".join(sorted(set(named)))))
     return 1 if bad else 0
 

@@ -8,8 +8,13 @@ direct answer or a light path with one check. When a miscommunication shows up, 
 adds rigor one step at a time: a knowledge base (KB) of claims and questions, more rounds
 of questions, and, for a claim about every case, a Lean proof.
 
-The idea in ten slides: [`site/essentials.html`](site/essentials.html). The full story, with
-the timeline and every mechanism, is in 30 slides: [`site/index.html`](site/index.html).
+**Where it sits.** Sagittarius is an extension of the harness, between the human-agent
+interface (the harness, such as Claude Code) and the software factory (the interface between the
+agent and the project). It is an inference, reasoning and knowledge-graph layer: Prolog KBs,
+Lean proofs, and a small model (System 1) that reads each message.
+
+The idea in thirteen slides: [`site/essentials.html`](site/essentials.html). The full story, with
+the timeline and every mechanism, is in 35 slides: [`site/index.html`](site/index.html).
 
 ## Use it
 
