@@ -1,14 +1,30 @@
-orbit-kb project module: domain reasoning about where the product is and where it is going.
+Project KB: Two sides: Decisions about future work and definitions about the current system. Where the product is and where it is going. (Ty)
+orbit-kb project module: a KB that reasons over the domain of the product, not a ledger.
 
 Make a project KB:  orbit-kb init project-kb --request 'TEXT' --uses project
 A spec KB can pin a decision of it:  orbit-kb init DIR --request 'TEXT' --uses build,project
 
 Facts (write them with orbit-kb add; never edit kb.pl)
-  decision(Id, Text)                  a decision, in one plain sentence
-  decided_by(Id, Who, When)           who made it, and when (a time such as '2026-03-01T09:00:00Z')
+  The two sides, and the product rules (ids are global: r1 is the request, so use ru1 for a rule)
+  decision(Id, Text)                  where the product is going: what future work will do
+  definition(Id, Text)                where the product is: how the current system is now
+  rule(Id, Text)                      a product rule. The project KB owns it; a spec claim that relies
+                                      on it pins it (pins/4 below). Its examples are checks in those spec KBs.
+  decided_by(Id, Who, When)           who made a decision, definition or rule, and when (a time such as
+                                      '2026-03-01T09:00:00Z'). Who is any person or role. Who is an
+                                      agent when it is agent or starts with agent: (agent:build).
+  ratified_by(Id, Who, When)          a human ratified what an agent made. An agent may not ratify (EP1).
   reason(Id, Text)                    a reason for the decision
   repo(Name, Location)                a repository of the product
-  analysis(Id, Path)                  the file with the analysis behind the decision
+  analysis(Id, Path)                  the file with the analysis behind a decision, definition or rule.
+                                      Analyses are written in the project KB when they are made: the
+                                      file lives under analyses/ of the project KB. A Path outside the
+                                      project KB is WP6.
+  Relations (each refuses an id that does not exist: E4)
+  supersedes(New, Old)                two decisions, two definitions, or two rules. Old stays in kb.pl.
+  depends_on(X, Y)                    X depends on Y; any two of decision, definition, rule
+  excludes(X, Y)                      a human or an agent records that X and Y cannot both hold. It is
+                                      never inferred from the text.
   pin(Id, Kind, Source, Digest, ChangedAt)
                                       a pin of the world. Kind is file or tracker.
                                       file: Source is a subject id. Run orbit-kb subject first, and
@@ -17,18 +33,26 @@ Facts (write them with orbit-kb add; never edit kb.pl)
                                         Digest is the sha256 of the item as fetched, and ChangedAt is
                                         the change time of the item. A new record of the same item is
                                         a new pin. Never rewrite a pin.
-  concerns(Decision, Pin)             the decision rests on the pin
+  concerns(Id, Pin)                   the decision or the definition rests on the pin
   draft(Id, PinId, Text, StagedAt)    an edit staged for the tracker item. It never edits the pin.
   pushed(Draft, Time)                 the draft was pushed to the tracker
   resolved(Draft, Side, Time)         a human settled a conflict. Side is draft or tracker: the side that stays.
   writer_takeover(From, To, Time)     written by --take only
 In a spec KB:
   project_kb(Dir)                     the directory of the project KB, relative to this KB or absolute
-  pins(Claim, project, DecisionId, Digest)
-                                      the claim rests on the decision. Digest is its decision_digest.
-                                      Read it with: orbit-kb query 'project_decision_digest(d1, D)'
+  pins(Claim, project, Id, Digest)    the claim rests on a decision, a definition or a rule (a product
+                                      rule: the spec pins the rules its claims rely on). Digest is
+                                      the sha256 of its text. Read it in the spec KB with:
+                                      orbit-kb query 'project_decision_digest(ru1, D)'
 
-Queries
+Queries (the derived answers)
+  current_fact(X)               X is a decision, definition or rule that is not superseded.
+                                (current/1 stays the rule for claims.)
+  rests_on(X, Y)                X depends on Y through one or more depends_on facts
+  contradiction(X, Y)           excludes(X, Y), and both are current
+  proposed(X)                   an agent made X and no human ratified it. A proposed fact blocks nothing.
+  impact(X, SpecKB)             a claim of the spec KB pins X, or pins a fact that rests on X.
+                                The spec KBs are found under the parent directory of the project KB.
   stale_pin(P)                  the pin is old: the file has another digest now (or is missing), or a
                                 newer ChangedAt exists for the same tracker item
   outbound(D)                   the drafts that are not pushed, not in conflict, and did not lose
@@ -42,12 +66,38 @@ Queries
   subject_now(S, Digest)        the digest of the file of the subject now (computed)
 A conflict is a blocking item (orbit-kb show blocking) for each spec KB that pins a decision that
 rests on the pin of the draft. It blocks no other KB.
+A contradiction is the blocking item project_contradiction(X) for each spec KB with a claim that
+pins X directly. A spec KB that reaches X only through rests_on gets the warning WP5, not a block.
+Only ratified facts block: a conflict or a contradiction on a proposed fact blocks nothing.
+
+Commands
+  orbit-kb --dir PROJECT project impact X [--root DIR]
+      lists the spec KBs that a change of X touches: those that pin X, and those that pin a fact
+      that rests on X (the line says "rests on"). The default root is the parent of the project KB.
+  orbit-kb --dir PROJECT project archive --superseded-before DATE [--root DIR]
+      removes from kb.pl each superseded decision, definition or rule, and the facts that name it,
+      when its superseding fact was decided (decided_by) before DATE, no kept fact rests on it,
+      and no open spec KB (done does not hold) pins it. A pinned or rested-on fact is never
+      removed. git keeps what is removed. It is a write command (writer lock).
+  orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]
+      records the pin and keeps the pinned text as pins/HEX.txt (HEX of the digest), so a draft is
+      an edit of that text. Only pinned items are kept.
+  orbit-kb --dir PROJECT show pin ID
+      prints the pin and its kept text (exit 1 when no text is kept: a pin made with add).
+
+Weeks and the project KB
+  The weeks own the raw reports and the transcripts. The project KB keeps only a pin of the ones
+  that a lasting fact relies on: a pin of kind file (orbit-kb subject, then pin), and concerns.
+  It keeps no copy of the week's files.
 
 Lint
   WP1   a pins fact: the decision changed since the claim was written. Read it, then pin the new digest.
   WP2   a pins fact that cannot be checked: no project_kb, no kb.pl there, or no such decision.
   WP3   the project KB has a lint error, so a conflict could hide in it. Run orbit-kb lint on it. It also blocks (project_kb_unclean).
   WP4   a KB has more than one project_kb fact. Only the first is read. Keep one.
+  WP5   a claim pins a fact that rests on a fact in a contradiction. Only a warning: no claim pins it directly.
+  WP6   an analysis path is outside the project KB. Move the file under analyses/ of the project KB.
+  EP1   an agent ratified a fact (error). Only a human ratifies.
 
 One writer
   A project KB has one writer at a time. The writer is $ORBIT_KB_WRITER, or else $CLAUDE_SESSION_ID.

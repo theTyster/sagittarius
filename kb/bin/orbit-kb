@@ -478,6 +478,11 @@ top(Argv0, Code) :-
                 with_kb_lock(Dir, cmd_release(Dir, Code))
             ;   usage_error("release takes no arguments.", [])
             )
+        ;   Cmd == project
+        ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
+            ->  cmd_help([project], Code)
+            ;   cmd_project(DirOpt, Args, Code)
+            )
         ;   Cmd == pin
         ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
             ->  cmd_help([pin], Code)
@@ -1017,8 +1022,61 @@ project_derived(Dir, KbItems, Facts) :-
                            nb_setval(orbit_project_depth, 0))
     ;   F3 = []
     ),
-    append([F1, F2, F3], Facts).
+    project_reason_facts(Dir, KbItems, F4),
+    append([F1, F2, F3, F4], Facts).
 project_derived(_, _, []).
+
+% project_reason_facts(+Dir, +KbItems, -Facts) (D27): the computed facts of the
+% relations of a project KB.
+%   rests_on(X, Y)          the closure of the ground depends_on/2 facts
+%   agent_who(W)            W of decided_by or ratified_by is agent, or starts with agent:
+%   analysis_outside(X, M)  an analysis path of X is outside Dir; M is the WP6 text
+%   spec_pin(S, C, X)       spec KB S (found under the parent of Dir) has claim C with pins of X.
+%                           Not computed when this KB is read for a spec KB (no recursion).
+project_reason_facts(Dir, KbItems, Facts) :-
+    findall(X-Y, ( kb_term(KbItems, depends_on(X, Y)), ground(X-Y) ), E0), sort(E0, Edges),
+    supersede_closure(Edges, Pairs),
+    findall(rests_on(X, Y), member(X-Y, Pairs), F1),
+    findall(W, ( ( kb_term(KbItems, decided_by(_, W, _)) ; kb_term(KbItems, ratified_by(_, W, _)) ),
+                 atom(W), agent_atom(W) ), Ws0),
+    sort(Ws0, Ws), findall(agent_who(W), member(W, Ws), F2),
+    findall(analysis_outside(X, M),
+            ( kb_term(KbItems, analysis(X, Path)), atom(X), atomic(Path),
+              \+ path_under(Dir, Path),
+              format(atom(M), "The analysis of ~w is at ~w, outside the project KB. Analyses are written in the project KB when they are made: move the file under analyses/ of the project KB, and fix the path. A week's raw report or transcript is not an analysis: pin it (pin of kind file).", [X, Path]) ),
+            F3),
+    (   nb_current(orbit_project_depth, 1)
+    ->  F4 = []
+    ;   catch(spec_pins_of(Dir, none, Ts), _, Ts = []),
+        findall(spec_pin(S, C, X), member(t(S, C, X), Ts), F4)
+    ),
+    append([F1, F2, F3, F4], Facts).
+
+agent_atom(agent) :- !.
+agent_atom(W) :- sub_atom(W, 0, _, _, 'agent:').
+
+% path_under(+Dir, +Path): Path (relative to Dir, or absolute) names a file inside Dir.
+path_under(Dir, Path) :-
+    atom_string(PathA, Path),
+    ( is_absolute_file_name(PathA) -> Abs0 = PathA ; directory_file_path(Dir, PathA, Abs0) ),
+    absolute_file_name(Abs0, Abs), absolute_file_name(Dir, DirA),
+    atom_concat(DirA, '/', Prefix),
+    sub_atom(Abs, 0, _, _, Prefix).
+
+% spec_pins_of(+ProjectDir, +RootOpt, -Triples) (D27): t(SpecDir, Claim, Item) for each
+% pins(Claim, project, Item, _) of each KB under the root (default: the parent directory of
+% the project KB) whose project_kb/1 names ProjectDir. The walk is the walk of serve --root.
+spec_pins_of(PDir, RootOpt, Ts) :-
+    absolute_file_name(PDir, PA),
+    (   RootOpt = some(Root0) -> absolute_file_name(Root0, Root) ; file_directory_name(PA, Root) ),
+    serve_find_kbs(Root, Dirs),
+    findall(t(SD, C, X),
+            ( member(SD0, Dirs), absolute_file_name(SD0, SD), SD \== PA,
+              serve_kb_project(SD, some(PA)),
+              serve_kb_items(SD, Items),
+              kb_term(Items, pins(C, project, X, _)), atom(C), atom(X) ),
+            Ts0),
+    sort(Ts0, Ts).
 
 kb_term(KbItems, T) :-
     member(it(kb, _, _, T0, _, _), KbItems), nonvar(T0), T0 = T.
@@ -1035,12 +1093,22 @@ project_kb_facts(Dir, P, Facts) :-
     items_uses(PItems, PUses),
     memberchk(project, PUses),
     findall(project_decision_digest(X, D),
-            ( kb_term(PItems, decision(X, Text)), atom(X), atomic(Text), sha256_text(Text, D) ),
+            ( member(F, [decision, definition, rule]), G =.. [F, X, Text],
+              kb_term(PItems, G), atom(X), atomic(Text), sha256_text(Text, D) ),
             F1),
     load_kb(PDir, Lib, PKB),
     kb_items(PKB, AllItems), items_decls(AllItems, Ds),
     build_engine(AllItems, Ds, Eng),
-    swi_raw(Eng, (conflict(Dr), draft(Dr, Pn, Tx, _), concerns(X, Pn)), t(Dr, X, Tx), Res),
+    % D27: a proposed fact (an agent made it, no human ratified it) blocks nothing.
+    swi_raw(Eng, (conflict(Dr), draft(Dr, Pn, Tx, _), concerns(X, Pn), not(proposed(X))), t(Dr, X, Tx), Res),
+    swi_raw(Eng, (contradiction(CA, CB), not(proposed(CA)), not(proposed(CB))), CA-CB, ResC),
+    (   ResC = answers(LC, _)
+    ->  findall(project_contradiction(X1, Y1), ( member(X0-Y0, LC), ( X1-Y1 = X0-Y0 ; X1-Y1 = Y0-X0 ) ), FC0),
+        sort(FC0, FC)
+    ;   FC = []
+    ),
+    swi_raw(Eng, rests_on(RZ, RY), RZ-RY, ResR),
+    (   ResR = answers(LR, _) -> findall(project_rests_on(Z1, Y2), member(Z1-Y2, LR), FR) ; FR = [] ),
     (   Res = answers(L, _)
     ->  findall(project_conflict(Dr, X), member(t(Dr, X, _), L), F2a),
         findall(project_draft_text(Dr, Tx), member(t(Dr, _, Tx), L), F2b0),
@@ -1049,7 +1117,7 @@ project_kb_facts(Dir, P, Facts) :-
     ;   F2 = []
     ),
     (   project_unclean(PKB) -> F3 = [project_kb_unclean] ; F3 = [] ),
-    append([F1, F2, F3], Facts).
+    append([F1, F2, F3, FC, FR], Facts).
 
 % The project KB does not load clean: lint finds an error in it (D23).
 project_unclean(PKB) :-
@@ -1546,17 +1614,18 @@ supersedes_kind_diags(env(_, _, IdA, FAA), supersedes(N, O), F, L, Diags) :-
     findall(diag('E4', F, L, M),
             ( nth1(I, [N, O], X), atom(X), get_assoc(X, IdA, _),
               \+ sup_kind(FAA, X, _),
-              fmt(M, "supersedes/2 argument ~w: ~q is not the id of a claim or a hypothesis. supersedes takes two claims, or two hypotheses (discovery module). Fix the id.", [I, X]) ),
+              fmt(M, "supersedes/2 argument ~w: ~q is not the id of a claim or a hypothesis. supersedes takes two claims, two hypotheses (discovery module), or two decisions, two definitions, or two rules (project module). Fix the id.", [I, X]) ),
             D1),
     (   sup_kind(FAA, N, KN), sup_kind(FAA, O, KO), KN \== KO
-    ->  fmt(M2, "supersedes/2: ~q is a ~w and ~q is a ~w. A claim cannot replace a hypothesis, and a hypothesis cannot replace a claim. To reword a hypothesis, add a new hypothesis, then supersedes(NewHypothesis, ~q).", [N, KN, O, KO, O]),
+    ->  fmt(M2, "supersedes/2: ~q is a ~w and ~q is a ~w. Both sides must be the same kind: a claim cannot replace a hypothesis, and a decision cannot replace a definition. To reword a hypothesis, add a new hypothesis, then supersedes(NewHypothesis, ~q).", [N, KN, O, KO, O]),
         D2 = [diag('E4', F, L, M2)]
     ;   D2 = []
     ),
     append(D1, D2, Diags).
 
 sup_kind(FAA, X, claim) :- atom(X), get_assoc(claim-X, FAA, _), !.
-sup_kind(FAA, X, hypothesis) :- atom(X), get_assoc(hypothesis-X, FAA, _).
+sup_kind(FAA, X, hypothesis) :- atom(X), get_assoc(hypothesis-X, FAA, _), !.
+sup_kind(FAA, X, K) :- atom(X), member(K, [decision, definition, rule]), get_assoc(K-X, FAA, _), !.  % D27
 
 attest_diags(KB, ATs, Env, Fact0, F, L, Diags) :-
     Fact0 = attest(_, Type, _, Pred, By, _),
@@ -1639,6 +1708,9 @@ e15_diags(FactItems, Diags) :-
 % when Id is a hypothesis (D15), else "claim" and "claims".
 sup_kind_words(FactItems, X, "hypothesis", "hypotheses") :-
     member(it(_, _, _, T, _, _), FactItems), nonvar(T), T = hypothesis(Y, _, _), Y == X, !.
+sup_kind_words(FactItems, X, One, Many) :-
+    member(K-One-Many, [decision-"decision"-"decisions", definition-"definition"-"definitions", rule-"rule"-"rules"]),
+    member(it(_, _, _, T, _, _), FactItems), nonvar(T), functor(T, K, 2), arg(1, T, Y), Y == X, !.
 sup_kind_words(_, _, "claim", "claims").
 
 % E5 over the facts in order. Only diagnostics at a later item.
@@ -1793,6 +1865,13 @@ protected_pi(project_decision_digest/2).
 protected_pi(project_conflict/2).
 protected_pi(project_draft_text/2).
 protected_pi(project_kb_unclean/0).
+% D27: the computed facts of the project module.
+protected_pi(rests_on/2).
+protected_pi(agent_who/1).
+protected_pi(analysis_outside/2).
+protected_pi(spec_pin/3).
+protected_pi(project_contradiction/2).
+protected_pi(project_rests_on/2).
 % D14: the weighted vote of the discovery module.
 protected_pi(vote_cast/3).
 protected_pi(discovery_vote_raised/1).
@@ -3077,6 +3156,7 @@ view_kind_label(check_unrun, "Check that never ran").
 view_kind_label(waiver_lapsed, "Waiver that lapsed").
 view_kind_label(project_conflict, "Draft that conflicts with the tracker").
 view_kind_label(project_kb_unclean, "Project KB that does not load clean").
+view_kind_label(project_contradiction, "Pinned fact in a contradiction").
 
 % view_blocking_sentence(+Eng, +Item, -Text) (T18 c4): the sentence of show blocking for Item,
 % the text after "- KIND ID: " (or "- KIND: "). The project kinds (D23 P5, P8) use it.
@@ -3101,7 +3181,7 @@ view_item_html(Mode, Dir, Eng, Item, Html) :-
         )
     ;   Kind == no_claim
     ->  Text = "Add a claim; the work is not done without one."
-    ;   memberchk(Kind, [project_conflict, project_kb_unclean])
+    ;   memberchk(Kind, [project_conflict, project_kb_unclean, project_contradiction])
     ->  view_blocking_sentence(Eng, Item, Text)
     ;   view_xtext(Eng, Id, Text),
         ( view_xclaim(Eng, Id, Cl) -> true ; true )
@@ -4661,10 +4741,14 @@ txt(T, S) :- ( atom(T) -> S = T ; term_text(T, S) ).
 plain_text(T, S) :- ( atomic(T) -> format(string(S), "~w", [T]) ; term_text(T, S) ).
 
 cmd_show(KB, Args, Code) :-
+    parse_opts(Args, [], [pin|PinArgs], _), !,
+    (   PinArgs = [Id0] -> atom_string(Id, Id0) ; usage_error("show pin takes one pin id: orbit-kb show pin ID.", []) ),
+    show_pin(KB, Id, Code).
+cmd_show(KB, Args, Code) :-
     parse_opts(Args, [], Pos, _),
     (   Pos == [] -> What = all
     ;   Pos = [What], memberchk(What, [claims, questions, open, blocking, disclosures, extensions, all]) -> true
-    ;   usage_error("show takes one of: claims, questions, open, blocking, disclosures, extensions, all.", [])
+    ;   usage_error("show takes one of: claims, questions, open, blocking, disclosures, extensions, all, or pin ID.", [])
     ),
     kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
     answer_gate(KB),
@@ -4675,6 +4759,24 @@ cmd_show(KB, Args, Code) :-
     ;   show_section(KB, Eng, What)
     ),
     Code = 0.
+
+% show pin ID (D27 c8): the pin, then the text that pin-item kept at pins/HEX.txt.
+show_pin(KB, Id, Code) :-
+    kb_items(KB, Items),
+    (   kb_term(Items, pin(Id, Kind, Src, Digest, At)) -> true
+    ;   usage_error("~w is not a pin of this KB.", [Id])
+    ),
+    say("Pin ~w: ~w ~w, digest ~w, changed at ~w", [Id, Kind, Src, Digest, At]),
+    kb_dir(KB, Dir),
+    (   pin_text_file(Dir, Digest, F), exists_file(F)
+    ->  say("Text (~w):", [F]),
+        read_file_to_string(F, Text, [encoding(utf8)]),
+        format("~s", [Text]),
+        ( sub_string(Text, _, 1, 0, "\n") -> true ; Text == "" -> true ; nl ),
+        Code = 0
+    ;   say("No text is kept for pin ~w. Only orbit-kb pin-item keeps the text of a pin (pins/HEX.txt).", [Id]),
+        Code = 1
+    ).
 
 show_section(KB, Eng, claims) :-
     say("Claims:", []),
@@ -4831,6 +4933,10 @@ blocking_line(_, Eng, project_conflict(Dr), S) :- !,
     ;   DcT = '?', TxT = ''
     ),
     fmt(S, "- project_conflict ~w: draft ~w of the project KB conflicts with a change of the tracker, and decision ~w rests on it: ~w", [Dr, Dr, DcT, TxT]).
+blocking_line(_, Eng, project_contradiction(X), S) :- !,
+    eng_all(Eng, [Y], project_contradiction(X, Y), Ys0), sort(Ys0, Ys),
+    atomic_list_concat(Ys, ', ', YT),
+    fmt(S, "- project_contradiction ~w: a claim pins ~w of the project KB, and ~w cannot hold together with ~w there (excludes). Ask a human to supersede one side in the project KB, or change the claim.", [X, X, X, YT]).
 blocking_line(_, _, project_kb_unclean, "- project_kb_unclean: the project KB does not load clean, so a conflict could hide in it. Run orbit-kb lint on the project KB and fix the errors.") :- !.
 blocking_line(_, _, X, S) :-
     term_text(X, XT), fmt(S, "- ~w", [XT]).
@@ -4960,7 +5066,154 @@ cmd_pin_item(KB, Args, Code) :-
     (   exists_file(File) -> true ; usage_error("The text file ~w does not exist.", [File]) ),
     sha256_file(File, Digest),
     format(atom(Fact), "pin(~q, ~q, ~q, ~q, ~q)", [Id, Kind, Src, Digest, At]),
-    cmd_add(KB, [Fact], Code).
+    cmd_add(KB, [Fact], Code),
+    (   Code == 0 -> kb_dir(KB, Dir), keep_pin_text(Dir, Digest, File) ; true ).
+
+% keep_pin_text(+Dir, +Digest, +File) (D27 c8): the pinned text is kept as
+% pins/HEX.txt in the project KB, HEX of the digest sha256:HEX. Content-addressed:
+% the same text is kept once. Written only after the pin is recorded.
+keep_pin_text(Dir, Digest, File) :-
+    pin_text_file(Dir, Digest, Target),
+    (   exists_file(Target) -> true
+    ;   directory_file_path(Dir, pins, PD), make_directory_path(PD),
+        current_prolog_flag(pid, Pid), format(atom(Tmp), "~w.tmp-~w", [Target, Pid]),
+        copy_file(File, Tmp), rename_file(Tmp, Target)
+    ).
+
+pin_text_file(Dir, Digest, Target) :-
+    atom(Digest), atom_concat('sha256:', Hex, Digest),
+    format(atom(Rel), "pins/~w.txt", [Hex]),
+    directory_file_path(Dir, Rel, Target).
+
+% ---------------------------------------------------------------------
+% project impact X, project archive --superseded-before DATE (D27)
+% ---------------------------------------------------------------------
+
+project_item_kind(Items, X, K) :-
+    member(K, [decision, definition, rule]), G =.. [K, X, _], kb_term(Items, G), !.
+
+cmd_project(DirOpt, [impact|Args], Code) :- !,
+    parse_opts(Args, ['--root'-value], Pos, Opts),
+    (   Pos = [X0] -> atom_string(X, X0) ; usage_error("project impact takes one id: orbit-kb project impact X.", []) ),
+    resolve_kb(DirOpt, Dir), lib_dir(Lib), load_kb(Dir, Lib, KB),
+    project_kb_check(KB),
+    kb_items(KB, Items),
+    (   project_item_kind(Items, X, Kind) -> true
+    ;   usage_error("~w is not a decision, a definition or a rule of this project KB.", [X])
+    ),
+    ( memberchk('--root'-R, Opts) -> RootOpt = some(R) ; RootOpt = none ),
+    spec_pins_of(Dir, RootOpt, Ts),
+    kb_engine(KB, Eng),
+    eng_all(Eng, [Z], rests_on(Z, X), Zs),
+    findall(L, ( member(t(S, C, Y), Ts),
+                 (   Y == X -> fmt(L, "- ~w: claim ~w pins ~w", [S, C, X])
+                 ;   memberchk(Y, Zs) -> fmt(L, "- ~w: claim ~w pins ~w, which rests on ~w", [S, C, Y, X])
+                 ) ),
+            Ls),
+    (   Ls == []
+    ->  say("No spec KB pins ~w ~w or a fact that rests on it.", [Kind, X])
+    ;   say("Spec KBs that a change of ~w ~w touches:", [Kind, X]),
+        forall(member(L, Ls), say("~w", [L]))
+    ),
+    Code = 0.
+cmd_project(DirOpt, [archive|Args0], Code) :- !,
+    resolve_kb(DirOpt, Dir),
+    writer_gate(Dir, Args0, Args),
+    parse_opts(Args, ['--superseded-before'-value, '--root'-value], Pos, Opts),
+    (   Pos == [] -> true ; usage_error("project archive takes no positional argument.", []) ),
+    (   memberchk('--superseded-before'-D0, Opts) -> true
+    ;   usage_error("project archive needs --superseded-before DATE (such as 2026-10-01 or 2026-10-01T00:00:00Z).", [])
+    ),
+    archive_date(D0, Date),
+    ( memberchk('--root'-R, Opts) -> RootOpt = some(R) ; RootOpt = none ),
+    with_kb_lock(Dir, project_archive(Dir, Date, RootOpt, Code)).
+cmd_project(_, _, _) :-
+    usage_error("project takes impact X, or archive --superseded-before DATE.", []).
+
+project_kb_check(KB) :-
+    (   kb_uses(KB, Us), memberchk(project, Us) -> true
+    ;   usage_error("project needs a KB that uses the project module.", [])
+    ).
+
+archive_date(D0, Date) :-
+    atom_string(D0, S),
+    (   re_match("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"/'', S) -> atom_concat(D0, 'T00:00:00Z', Date)
+    ;   re_match("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"/'', S) -> Date = D0
+    ;   usage_error("--superseded-before takes a date such as 2026-10-01 or a UTC time such as 2026-10-01T00:00:00Z. It is ~w.", [D0])
+    ).
+
+% project_archive(+Dir, +Date, +RootOpt, -Code): remove what archive_set/5 gives.
+project_archive(Dir, Date, RootOpt, Code) :-
+    lib_dir(Lib), load_kb(Dir, Lib, KB), project_kb_check(KB),
+    kb_items(KB, All),
+    include([I]>>( I = it(kb, _, _, _, _, _) ), All, Items),
+    findall(X, ( member(it(_, _, _, T, _, _), Items), nonvar(T),
+                 member(K, [decision, definition, rule]), functor(T, K, 2), arg(1, T, X), atom(X) ), Ids0),
+    sort(Ids0, Ids),
+    findall(X, ( member(X, Ids), kb_term(Items, supersedes(N, X)),
+                 kb_term(Items, decided_by(N, _, W)), atom(W), W @< Date ), C0),
+    sort(C0, Cand0),
+    spec_pins_of(Dir, RootOpt, Ts),
+    findall(S, ( member(t(S, _, X), Ts), memberchk(X, Cand0) ), Ss0), sort(Ss0, Ss),
+    include(spec_kb_open(Lib), Ss, Open),
+    findall(X, ( member(t(S, _, X), Ts), memberchk(S, Open) ), Pinned0), sort(Pinned0, Pinned),
+    findall(Y-X, ( kb_term(Items, depends_on(Y, X)), ground(Y-X) ), Deps),
+    archive_set(Cand0, Pinned, Deps, Arch),
+    (   Arch == []
+    ->  say("Nothing to archive: no superseded decision, definition or rule before ~w that nothing keeps.", [Date])
+    ;   findall(L-T, ( member(it(_, _, L, T, _, _), Items), nonvar(T), archive_names(T, Arch) ), LTs),
+        kb_file(KB, KbFile),
+        remove_kb_lines(KbFile, LTs),
+        length(LTs, NF),
+        atomic_list_concat(Arch, ', ', AT),
+        say("Archived (removed from kb.pl; git keeps them): ~w", [AT]),
+        say("~w facts removed.", [NF])
+    ),
+    Code = 0.
+
+% archive_set(+Cand, +Pinned, +Deps, -Arch) (D27 c9; Lean model kb/proofs/project_archive):
+% start from the candidates that no open spec KB pins, and drop each one that a
+% fact outside the set depends on, until nothing changes. So no fact that stays
+% in kb.pl depends on (or, by induction, rests on) a removed fact.
+archive_set(Cand, Pinned, Deps, Arch) :-
+    exclude([X]>>memberchk(X, Pinned), Cand, A0),
+    archive_fix(A0, Deps, Arch).
+
+archive_fix(A0, Deps, A) :-
+    exclude([X]>>( member(Y-X, Deps), \+ memberchk(Y, A0) ), A0, A1),
+    (   A1 == A0 -> A = A0 ; archive_fix(A1, Deps, A) ).
+
+% archive_names(+Fact, +Arch): the fact names an archived id where the fact
+% takes a decision, a definition or a rule.
+archive_names(T, Arch) :-
+    member(F/A-Ps, [decision/2-[1], definition/2-[1], rule/2-[1], decided_by/3-[1], ratified_by/3-[1],
+                    reason/2-[1], analysis/2-[1], concerns/2-[1], depends_on/2-[1, 2],
+                    supersedes/2-[1, 2], excludes/2-[1, 2]]),
+    functor(T, F, A), member(P, Ps), arg(P, T, X), atom(X), memberchk(X, Arch), !.
+
+% spec_kb_open(+Lib, +SpecDir): done does not hold in the spec KB (or it cannot be read).
+spec_kb_open(Lib, S) :-
+    \+ catch(( load_kb(S, Lib, SKB), has_build(SKB), kb_engine(SKB, Eng), eng_true(Eng, done) ), _, fail).
+
+% remove_kb_lines(+File, +Line-Term pairs): each fact is on one line of its own
+% (orbit-kb add writes it so). A line that does not hold exactly its fact stops
+% the command, and nothing is written.
+remove_kb_lines(File, LTs) :-
+    read_file_to_string(File, Str, [encoding(utf8)]),
+    split_string(Str, "\n", "", Lines),
+    forall(member(L-T, LTs),
+           (   nth1(L, Lines, LS),
+               catch(term_string(T2, LS, [module(orbit_ops)]), _, fail), T2 =@= T
+           ->  true
+           ;   die(2, ["project archive: line " + L + " of kb.pl does not hold exactly one fact. Nothing was written.",
+                       "Fix: keep one fact per line in kb.pl (orbit-kb add writes them so)."] >> fix_lines)
+           )),
+    pairs_keys(LTs, Ls),
+    findall(LS, ( nth1(I, Lines, LS), \+ memberchk(I, Ls) ), Keep),
+    atomic_list_concat(Keep, '\n', Out),
+    current_prolog_flag(pid, Pid), format(atom(Tmp), "~w.tmp-~w", [File, Pid]),
+    setup_call_cleanup(open(Tmp, write, S, [encoding(utf8)]), write(S, Out), close(S)),
+    rename_file(Tmp, File).
 
 % item_text(+Eng, +Id, -Text): the text of a claim or a question, or for a
 % check, the check and the text of its claim. '' for another id.
@@ -5890,7 +6143,7 @@ help_lines(general, [
 "    orbit-kb help core      facts, claim labels, attestation types, and core queries",
 "    orbit-kb help build     build-module facts and queries, burns, flares, proofs, waivers",
 "    orbit-kb help discovery discovery-module facts, verdicts, queries, and the recipe for each move",
-"    orbit-kb help project   project-module facts: decisions, pins, drafts, conflicts, and the writer lock",
+"    orbit-kb help project   project-module facts: decisions, definitions, rules, relations, pins, drafts, conflicts, and the writer lock",
 "    orbit-kb help codes     each lint code and what to do",
 "    orbit-kb help answers   exit codes, SWI ERROR, why and whynot",
 "  Never type a digest or a test result: orbit-kb subject and orbit-kb run write them.",
@@ -5919,7 +6172,7 @@ help_lines(general, [
 "  query 'GOAL' [-n N] [--why] [--long]",
 "  why 'GOAL' [-n N] [--long]",
 "  whynot 'GOAL' [--long]",
-"  show [claims|questions|open|blocking|disclosures|extensions|all]",
+"  show [claims|questions|open|blocking|disclosures|extensions|all] | show pin ID",
 "  report [--html FILE [--open]]",
 "  pin [--check STAMP]",
 "  release",
@@ -5927,6 +6180,7 @@ help_lines(general, [
 "  serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--port N]",
 "  draft blocking | draft attach | draft outbound",
 "  pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",
+"  project impact X [--root DIR] | project archive --superseded-before DATE [--root DIR]",
 "  doctor",
 "  help [COMMAND|TOPIC]",
 "",
@@ -6097,14 +6351,15 @@ help_lines(whynot, [
 "The explanation is 6 levels deep; --long goes 30 levels deep. Exit 0."
 ]).
 help_lines(show, [
-"orbit-kb show [claims|questions|open|blocking|disclosures|extensions|all]",
+"orbit-kb show [claims|questions|open|blocking|disclosures|extensions|all] | show pin ID",
 "",
 "List parts of the KB as plain text. The default is all (all does not include blocking).",
 "open lists to_ask, stale, contested, and supersede_cycle, and under, over, burn_open, flare_open, and no_claim (no claim is current) when the build module is in use.",
 "blocking lists each answer of orbit-kb query 'blocking(X)' with its text: each item that blocks done.",
 "The kinds: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X), check_failing(K), check_unrun(K),",
 "waiver_lapsed(W), past_due(X) (an open item with a due/2 time in the past), supersede_cycle(C), no_claim.",
-"With the project module: project_conflict(D) and project_kb_unclean (orbit-kb help project)."
+"With the project module: project_conflict(D), project_contradiction(X), and project_kb_unclean (orbit-kb help project).",
+"pin ID prints a pin and the text that pin-item kept for it (pins/HEX.txt); exit 1 when no text is kept."
 ]).
 help_lines(release, [
 "orbit-kb release",
@@ -6180,7 +6435,8 @@ help_lines('pin-item', [
 "into the file F. orbit-kb computes the digest (sha256 of F). You give the change time",
 "(--changed-at, UTC, such as 2026-10-01T09:00:00Z). --kind defaults to tracker.",
 "It writes pin/5, so it takes the writer lock and accepts --take (D23). A pin id that exists",
-"is rejected (exit 1). Nothing is fetched: no command uses a network."
+"is rejected (exit 1). Nothing is fetched: no command uses a network.",
+"It keeps the text of F as pins/HEX.txt in the KB (HEX of the digest; D27). orbit-kb show pin ID prints it."
 ]).
 help_lines(report, [
 "orbit-kb report [--html FILE [--open]]",

@@ -27,7 +27,7 @@ vocabulary for one orbit:
 |---|---|---|
 | `build` | Build: specification, implementation, verification | Written. See section 7. |
 | `discovery` | Discovery | Rules for the discovery orbit: models, findings, hypotheses, and the gates `discovery_ready` and `discovery_decide`. The discovery-orbit session owns it. Example KB: `kb/tests/fixtures/discovery-a/`. |
-| `project` | Project | Decisions, pins of files and tracker items, drafts, conflicts, and a writer lock, for the project KB (D23). A spec KB pins a decision with `pins/4`. `orbit-kb help project`. |
+| `project` | Project | Two sides (D27): decisions (where the product is going) and definitions (where it is now), and product rules; relations between them (`supersedes`, `depends_on`, `excludes`) with derived answers (`current_fact`, `rests_on`, `contradiction`, `impact`); who decided and who ratified; pins of files and tracker items, with the pinned text; drafts, conflicts, and a writer lock, for the project KB (D23). A spec KB pins a decision, a definition or a rule with `pins/4`. `orbit-kb help project`. |
 
 When an agent must record what a human asked for and then show with evidence
 that the work is done, use `orbit-kb`.
@@ -291,6 +291,8 @@ A KB is a directory. You choose its location. There is no default location.
 | `rules.pl` | You (optional) | Local rules. |
 | `runs/<N>-<CheckId>.log` | `run` only | The combined output of one run of a check. |
 | `kb.lock` | The writing commands | An empty file. Each writing command holds a lock on it (section 8). |
+| `pins/<HEX>.txt` | `pin-item` only | The text of a pinned item, named by its sha256 (D27). `show pin ID` prints it. |
+| `analyses/` | You (a project KB) | The analyses of the project KB (`analysis/2`, D27). A path outside the KB is WP6. |
 | `writer.lock` | The write commands of a KB that uses `project` | One line `WRITER TIME`: the one writer of a project KB, until `release` (section 8, Locking). |
 
 While a check runs, its output is in a temp file `runs/.tmp-*`. `run` removes
@@ -830,7 +832,11 @@ answer. For `absent`, it prints, for each rule of GOAL, the first body literal
 that no answer gets past, and why, recursively. Exit: 0. 2 on a syntax error
 (E1), an undeclared predicate (E2), E17, or E18 in a source file.
 
-### `show [claims|questions|open|blocking|disclosures|extensions|all]`
+### `show [claims|questions|open|blocking|disclosures|extensions|all]`, `show pin ID`
+
+`show pin ID` (D27) prints the pin, then the text that `pin-item` kept for it
+(`pins/HEX.txt`). Exit 1 when no text is kept (a pin made with `add`), 2 when
+ID is no pin.
 
 Lists parts of the KB as plain text. The default is `all` (without `blocking`).
 `blocking` (D22) prints `Blocking:`, then one line for each answer of
@@ -1030,9 +1036,37 @@ F holds the text of the tracker item that a person pasted or exported; the CLI
 computes Digest, the sha256 of F, and never changes F. T is the change time of
 the item, in UTC (`2026-10-01T09:00:00Z`). Kind defaults to `tracker`. Nothing
 is fetched. It is a write command: it takes the writer lock and accepts
-`--take`.
+`--take`. After the pin is recorded, the CLI keeps a copy of F as
+`pins/HEX.txt` in the KB, HEX of the digest (D27): content-addressed, so the
+same text is kept once, and only pinned items are kept. A draft is an edit of
+that text; `show pin ID` prints it.
 Exit: 0 prints the pin id and digest. 1 when the pin id exists. 2 for a missing
 F, a missing option, or a T that is not a time.
+
+### `project impact X [--root DIR]`
+
+Run in a project KB (D27). Lists the spec KBs that a change of decision,
+definition or rule X touches: each claim that pins X (`- DIR: claim C pins X`)
+and each claim that pins a fact that rests on X (`- DIR: claim C pins Z, which
+rests on X`). The spec KBs are the KBs under DIR (default: the parent
+directory of the project KB; the walk of `serve --root`) whose `project_kb`
+names this project KB. The query `impact(X, SpecKB)` gives the same set, with
+the default root. Read-only.
+Exit: 0, also when no spec KB is touched (`No spec KB pins ...`). 2 when X is
+no decision, definition or rule of the KB.
+
+### `project archive --superseded-before DATE [--root DIR]`
+
+Run in a project KB (D27). Keeps the project KB bounded. It removes from
+`kb.pl` each decision, definition and rule that is superseded by a fact whose
+`decided_by` time is before DATE (`2026-10-01` or a UTC time), and every fact
+that names it (`decided_by`, `ratified_by`, `reason`, `analysis`, `concerns`,
+`depends_on`, `supersedes`, `excludes`). It never removes a fact that an open
+spec KB (one where `done` does not hold) pins, and never a fact that a kept
+fact depends on, directly or through `rests_on`. git keeps what it removes.
+It is a write command: it takes the writer lock and accepts `--take`.
+Exit: 0, also when nothing is removed (`Nothing to archive`). 2 for a missing
+or bad DATE.
 
 ### Locking
 
@@ -1167,7 +1201,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E1 | Syntax error, with file and line. In any source, E1 makes `query`, `why`, `whynot`, `show`, and `report` exit 2. |
 | E2 | Undeclared predicate or wrong arity, in `kb.pl` facts or in the heads and bodies of `rules.pl`, `core.pl`, and the modules. If a declaration has the same name but a different arity, the message names it. In `rules.pl`, E2 makes the commands that answer exit 2. |
 | E3 | Type error. This includes a label outside `oneof`. |
-| E4 | Dangling `ref`, or a `ref` to the wrong kind of id. A `supersedes` fact must name two claims or two hypotheses (D15). |
+| E4 | Dangling `ref`, or a `ref` to the wrong kind of id. A `supersedes` fact must name two claims or two hypotheses (D15), or two decisions, two definitions or two rules of the project module (D27). The project relations `depends_on`, `excludes`, `ratified_by`, `decided_by`, `analysis` and `concerns` refuse a missing id the same way (D27). |
 | E5 | Duplicate ID. |
 | E6 | Non-ground fact in `kb.pl`. |
 | E7 | A clause in the wrong place: a `rule` predicate as a fact in `kb.pl`, or a `fact` predicate with clauses outside `kb.pl`. |
@@ -1180,6 +1214,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `flare`, `flare_shown`, `flare_waived`, `flare_open`, `any_flare_open`, `demo_changed` (D21), `any_current_claim`, `proof_changed`, `waiver_lapsed`, `blocking`, `item_open`, `check_ran`, `due_passed` (D22), `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engine ignores the clause. |
 | E17 | A form that `orbit-kb` does not read (it is s(CASP) syntax): classical negation `-p` (in a fact, a rule head, or a body literal), a `#` line, a global constraint `(:- Body)`, or a `#=`-family constraint. `add` refuses it. It applies in `kb.pl` too, and a goal with such a form exits 2 with the E17 text. `query`, `why`, `whynot`, `show`, and `report` exit 2 while an E17 exists. |
 | E18 | The rules are not stratified: a predicate depends on itself through `not`. The same commands exit 2 while an E18 exists. |
+| EP1 | An agent ratified a fact: `ratified_by(X, Who, _)` where Who is `agent` or starts with `agent:`. Only a human ratifies what an agent made. Module hook (D27). |
 | E19 | Typo guard (D22): a predicate declared by its first use has a name 2 edits or fewer (Levenshtein) from another declared predicate of the same arity. The message names both. `add` does not refuse it. For a typo, correct the facts in `kb.pl` and delete the `decl/4` and `first_use/3` lines of the new name. For a new predicate, choose a name more than 2 edits away. |
 
 | Code | Warning |
@@ -1191,10 +1226,12 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | W5 | A `check` of a superseded claim, while the current claim that replaces it (directly or through a chain) has no check. Check ids are unique (E5) and facts are append-only, so the message says to add a new check of the current claim and run it (D15). |
 | W6 | A local rule that adds clauses to a core or module predicate (an extension). For a protected predicate, it is E16 instead. |
 | W7 | A predicate declared by its first use in `add` (D22), with who and when. Review it. |
-| WP1 | A `pins(Claim, project, Decision, Digest)` fact whose digest differs from the digest of the decision in the project KB now: the decision changed since the claim was written. Read it, then add a `pins` fact with the new digest. Module hook; the id is the claim (D23 P6). |
+| WP1 | A `pins(Claim, project, Decision, Digest)` fact whose digest differs from the digest of the decision (or definition or rule, D27) in the project KB now: the decision changed since the claim was written. Read it, then add a `pins` fact with the new digest. Module hook; the id is the claim (D23 P6). |
 | WP2 | A `pins/4` fact that cannot be checked: no `project_kb` fact, no `kb.pl` at that path, or no such decision. Module hook; the id is the claim (D23 P6). |
 | WP3 | The project KB of `project_kb/1` has a lint error, so a conflict could hide in it. Run `orbit-kb lint` on it. It also blocks (`project_kb_unclean`). Module hook (D23 P8). |
 | WP4 | A KB has more than one `project_kb` fact. Only the first is read. Keep one. The id is the later directory (D23 follow-up). |
+| WP5 | A claim pins a fact of the project KB that rests on a fact in a contradiction, and no claim pins that fact directly. Only a direct pin blocks (`project_contradiction`); this is a warning. Module hook; the id is the claim (D27). |
+| WP6 | An `analysis(X, Path)` whose Path is outside the project KB directory. Analyses are written in the project KB (`analyses/`); a week's raw report is pinned, not an analysis. Module hook (D27). |
 
 Built-ins that E2 permits: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `true`,
 `false`, `forall/2`. Lint unwraps `not G`.
