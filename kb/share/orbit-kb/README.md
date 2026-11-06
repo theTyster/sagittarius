@@ -996,7 +996,7 @@ the holder can release it: the writer of `$ORBIT_KB_WRITER`, else of
 Exit: 0 on success and when there is no lock. 2 when another writer holds the
 lock; the message names the holder.
 
-### `draft blocking | draft outbound`
+### `draft blocking | draft attach | draft outbound`
 
 Drafts only (D25): each prints Markdown on stdout for a person to paste into a
 tracker. Nothing is sent to a tracker, and no command uses a network. Neither
@@ -1007,6 +1007,11 @@ command writes a file or takes a lock.
   one bullet for each item that blocks `done`, as `show blocking` prints it, or
   `- Nothing blocks done.`. A `project_conflict` bullet says `decide`.
   `pin --check` with the stamp exits 1 once `kb.pl` changes.
+- `draft attach` (T22, u93) prints `## Attach the spec KB to the tracker item`, then the
+  lines `- File:` (the absolute path of this spec KB's `kb.pl`: a plain file copy is
+  what a human attaches), `- Stamp: spec-kb@sha256:HEX`, `- Paste:` (the line to paste
+  into the item) and a line that a human attaches the file. It takes no argument and
+  copies, writes and posts nothing.
 - `orbit-kb --dir PROJECT draft outbound` prints `## Outbound drafts`, then a
   section `### DRAFT_ID` for each draft of the project KB that is not pushed
   and not dropped, with its pin, source, ChangedAt, staged time, and

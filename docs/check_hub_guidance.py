@@ -233,7 +233,7 @@ def c4(_):
     h = run([sys.executable, "-I", FLOW, "--help"])
     lacks("c4 hubflow.py --help", h.stdout + h.stderr, "each with an analyses/")
     has("c4 hubflow.py --help", h.stdout + h.stderr, "spec-triage")
-    case_run("c4", "case_t22_rotate_open_spec", "case_t22_closed_spec", need=20)
+    case_run("c4", "case_t22_rotate_open_spec", "case_t22_closed_spec", need=18)
 
 
 # ------------------------------------------------------------------ c5

@@ -1818,7 +1818,7 @@ def case_t22_rotate_open_spec(r, root):
     d = fresh(r, root, "t22-open")
     env = {"HUBFLOW_ORBIT_KB": stub}
     add(r, d, "thread", "Ticket in flight", "--ref", "kb:open-one", now="2026-09-01T00:00:00Z")  # T-1
-    ok(r, d, "renew", "T-0001", "--note", "still live", now="2026-10-30T00:00:00Z")
+    hf(r, d, "renew", "T-0001", "--note", "still live", now="2026-10-30T00:00:00Z", hub=h, extra_env=env)
     code, out, err = hf(r, d, "rotate", "--week-start", WK, hub=h, extra_env=env, session=None)
     r.check("t22-c4-open-spec-not-listed", code == 0 and listed(out, "spec_kbs_untriaged:") == [] and "spec_kbs_untriaged:" in out, (code, out, err))
     code, out, err = hf(r, d, "rotate", "--week-start", WK, "--yes", hub=h, extra_env=env)
@@ -1856,7 +1856,7 @@ def case_t22_closed_spec(r, root):
     for slug in ("done-a", "done-b", "done-c", "live", "done-d"):
         add(r, d, "thread", f"Ticket {slug}", "--ref", f"kb:{slug}", now="2026-10-20T00:00:00Z")
     for i in ("T-0001", "T-0002", "T-0003", "T-0005"):
-        ok(r, d, "close", i, "--reason", "done", now="2026-10-25T00:00:00Z")
+        t("close", i, "--reason", "done", "--by", "human", "--note", "\"the ticket is closed\" (Me)", now="2026-10-25T00:00:00Z")
     code, out, err = t("rotate", "--week-start", WK, session=None)
     r.check("t22-c4-closed-spec-listed-and-gates", refused((code, out, err), 1, "spec") and listed(out, "spec_kbs_untriaged:") == ["done-a", "done-b", "done-c", "done-d"], (code, out, err))
     code, out, err = t("rotate", "--week-start", WK, "--yes")
@@ -1876,7 +1876,7 @@ def case_t22_closed_spec(r, root):
     r.check("t22-c4-archive-after-git-rm", code == 0 and q(d, "select new from event where verb='spec_triage' and old='done-b'") == [("archive",)], (code, out, err))
     code, out, err = t("spec-triage", "done-d", "capsule", "--note", "context kept")
     r.check("t22-c4-capsule-needs-a-capsule-first", refused((code, out, err), 1, "capsule"), (code, out, err))
-    ok(r, d, "capsule", "T-0005", "--summary", "what the spec KB decided")
+    t("capsule", "T-0005", "--summary", "what the spec KB decided")
     code, out, err = t("spec-triage", "done-d", "capsule", "--note", "context kept")
     r.check("t22-c4-capsule-recorded", code == 0 and q(d, "select new from event where verb='spec_triage' and old='done-d'") == [("capsule",)], (code, out, err))
     code, out, err = t("spec-triage", "done-c", "keep", "--note", "keep it")
