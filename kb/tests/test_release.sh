@@ -68,7 +68,7 @@ else:  # hubkit is not on main: compare with the version it first had
     if first:
         base = json.loads(git("show", first[0] + ":hubkit/kit.json").stdout)["version"]
 if base is None:
-    sys.exit("no earlier version found to compare with")
+    sys.exit("no earlier version found to compare with: this check needs a git checkout with history (not an archive copy)")
 if not ver(now) > ver(base):
     sys.exit(f"kit.json version {now} is not above {base}")
 PY
