@@ -1651,6 +1651,32 @@ def case_skip_two_kbs(r, root):
             and per_kb == {"W0/analyses/spec-u/kb": ["q1"], "W0/analyses/spec-v/kb": ["q2"]}, out + err)
 
 
+def case_ref_guard(r, root):
+    """c2 (review): an agent cannot end an escalation by removing the item's kb ref first."""
+    stub = write_stub(root)
+    h = kb_hub(root, "refhub", {"spec-a": ["q1"], "spec-b": None})
+    d = fresh(r, root, "ref-guard")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+
+    def t(*args):
+        return hf(r, d, *args, hub=h, extra_env=env)
+
+    add(r, d, "ask", "Escalated, clear spec", "--ref", "kb:spec-b/kb")  # A-1
+    add(r, d, "ask", "Blocking spec, not escalated", "--ref", "kb:spec-a/kb")  # A-2
+    add(r, d, "ask", "Clear spec, not escalated", "--ref", "kb:spec-b/kb")  # A-3
+    t("triage", "A-0001", "escalate", "--note", "only the human can decide")
+    kb = lambda i: qs(d, "select ref from item_ref where item_id = ? and kind = 'kb'", i)
+    for name, item, ref in (("escalated", "A-0001", "kb:spec-b/kb"), ("would-be-blocking", "A-0002", "kb:spec-a/kb")):
+        n_ev = len(ev(d, item))
+        res = t("ref", item, "rm", ref)
+        r.check(f"c2-agent-kb-ref-rm-refused {name}", refused(res, 1, "--by human") and kb(item) == [(ref[3:],)]
+                and len(ev(d, item)) == n_ev, (res, kb(item)))
+    res = t("ref", "A-0003", "rm", "kb:spec-b/kb")
+    r.check("c2-agent-kb-ref-rm-of-clear-item", res[0] == 0 and kb("A-0003") == [], res)
+    res = t("ref", "A-0002", "rm", "kb:spec-a/kb", "--by", "human", "--note", "\"that spec is gone\" (Me)")
+    r.check("c2-human-kb-ref-rm", res[0] == 0 and kb("A-0002") == [] and ev(d, "A-0002")[-1][:5] == ("ref_rm", "kb:spec-a/kb", None, "discovery", "human"), res)
+
+
 def run_case(r, fn, *args):
     """Run one scenario. A scenario that cannot even run is a failure, not a crash, and the
     scenarios after it still run."""
@@ -1703,6 +1729,7 @@ def cases(r):
         run_case(r, case_real_orbit_kb, root)
         run_case(r, case_transcripts_clock, root)
         run_case(r, case_skip_two_kbs, root)
+        run_case(r, case_ref_guard, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))
