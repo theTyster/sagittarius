@@ -25,6 +25,10 @@ files.
    each in its own terminal pane, all with the hub as cwd. Each has an identity (`HUB_SESSION`) that
    the db records on every write. Sessions hand work to each other with a db row plus a message.
 
+The hub can also hold a **project KB**: an orbit-kb KB with the `project` module, kept at the hub
+root as `project-kb/`. It records domain decisions, pins of the world, and drafts for the tracker.
+Make it with `orbit-kb init project-kb --uses project`. See `orbit-kb help project`.
+
 ## The kit
 
 ```

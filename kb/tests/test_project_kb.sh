@@ -399,6 +399,13 @@ t_PB3() { okb init "$T/plain" --request 'No project module here' --uses build >/
           spec_pointing '../plain'; pb_broken_target; }
 t_PB4() { spec_pointing '.'; pb_broken_target; }
 
+# PB12: two project_kb facts: only the first is read, so lint warns (WP4).
+t_PB12() { spec_with_pin
+           okb --dir "$K" lint; rc_is 0; out_hasnt '^WP4' "one project_kb: no WP4"
+           padd "project_kb('../other')" >/dev/null; rc_is 0 "a second project_kb is added"
+           okb --dir "$K" lint; rc_is 0 "a warning is not an error"; out_has '^WP4' "WP4 names the extra project_kb"
+           okb --dir "$K" lint --strict; rc_is 1 "--strict"; }
+
 # PB5: a project KB that does not load clean is never silent.
 t_PB5() { pk_basic; tracker_changed p2 "$T2"; stage dr1 "$T3"
           local pk=$K; spec_with_conflict_pin "$pk"
@@ -515,6 +522,7 @@ run_test t_PB8 PB8 "T06 review 5: an empty or malformed lock is an exit 2 with a
 run_test t_PB9 PB9 "T06 review 4: WP1 clears after a re-pin; old pins stay"
 run_test t_PB10 PB10 "T06 review 6: ==, \\==, @<, @>, @=<, @>= do not bind: E14 applies"
 run_test t_PB11 PB11 "T06 review 8: show blocking prints KIND ID: SENTENCE: TEXT"
+run_test t_PB12 PB12 "T06 follow-up: two project_kb facts give WP4 (only the first is read)"
 
 NT=${#REG_ID[@]}
 for ((i = 0; i < NT; i++)); do exec_test "$i"; done

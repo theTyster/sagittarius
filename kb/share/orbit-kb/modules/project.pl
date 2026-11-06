@@ -136,3 +136,5 @@ lint_issue('WP2', C, 'The decision that this claim rests on cannot be read. The 
     pins(C, project, D, _), not project_decision_digest(D, _).
 lint_issue('WP3', C, 'The project KB does not load clean: lint finds an error in it. A conflict or a changed decision could hide there. Run orbit-kb lint on the project KB and fix the errors.') :-
     pins(C, project, _, _), project_kb_unclean.
+lint_issue('WP4', Dir, 'This KB has more than one project_kb fact. Only the first is read. Keep one project_kb fact.') :-
+    project_kb(First), project_kb(Dir), First @< Dir.
