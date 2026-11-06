@@ -22,7 +22,8 @@ NOW = "2026-11-02T12:00:00Z"  # a Monday
 TABLES = ("meta", "session", "session_alias", "person", "item", "item_ref", "item_link", "handoff", "event")
 VIEWS = ("clock", "v_open", "v_waiting_on", "v_inbox", "v_stale", "v_dup_refs", "v_week", "v_retention_due")
 WRITE_CMDS = ("init", "migrate", "add", "handoff", "accept", "renew", "park", "set", "close", "reopen", "ref", "link",
-              "note", "session", "import", "rotate", "rebuild", "export", "triage", "capsule", "index-transcripts")
+              "note", "session", "import", "rotate", "rebuild", "export", "triage", "capsule", "index-transcripts",
+              "spec-triage")
 # Tables added by schema 2 (T05). The JSONL checks below cover them when the db has them.
 NEW_TABLES = ("disposition", "capsule", "transcript", "transcript_msg")
 
@@ -1757,6 +1758,137 @@ def case_triage_escalated(r, root):
             and "A-0001" not in (ids(out) or []) and status(d, "A-0001") == "open", (res, out))
 
 
+# ---------------------------------------------------------------------------------------------------
+# T22: a spec KB has the ticket's clock (specs/<slug>/ at the hub root), not the week's.
+
+def spec_hub(root, name, specs, old=None):
+    """A hub dir with spec KBs at specs/<slug>/ and, for old hubs, at W0/analyses/<slug>/kb.
+    specs, old: slug -> list of blocking items or None (nothing blocks)."""
+    h = os.path.join(root, name)
+    for new_form, kbs in ((True, specs), (False, old or {})):
+        for slug, v in kbs.items():
+            k = os.path.join(h, "specs", slug) if new_form else os.path.join(h, "W0", "analyses", slug, "kb")
+            os.makedirs(k)
+            write_json(os.path.join(k, "kb.pl"), "% an invented spec KB\n")
+            if v:
+                write_json(os.path.join(k, "BLOCKING"), "".join(x + "\n" for x in v))
+    return h
+
+
+def case_t22_spec_home(r, root):
+    """T22 c3: kb:<slug> resolves to specs/<slug>/ ; the old W*/analyses/<slug>/kb form still resolves."""
+    stub = write_stub(root)
+    log = os.path.join(root, "t22-home-stub.log")
+    h = spec_hub(root, "homehub", {"new-one": ["q1"], "both": None}, old={"old-one": None, "both": ["q9"]})
+    d = fresh(r, root, "t22-home")
+    env = {"HUBFLOW_ORBIT_KB": stub, "STUB_LOG": log}
+
+    def t(*args):
+        return hf(r, d, *args, hub=h, extra_env=env)
+
+    code, out, err = t("where", "new-one")
+    r.check("t22-c3-where-prints-specs-path", code == 0 and out.strip() == "specs/new-one", (code, out, err))
+    code, out, err = t("where", "old-one")
+    r.check("t22-c3-where-old-form-resolves", code == 0 and out.strip() == "W0/analyses/old-one", (code, out, err))
+    code, out, err = t("where", "both")
+    r.check("t22-c3-specs-wins-over-old", code == 0 and out.strip() == "specs/both", (code, out, err))
+    r.check("t22-c3-where-unknown-refused", refused(t("where", "nope"), 1))
+    add(r, d, "ask", "Spec at the hub root", "--ref", "kb:new-one", now=DUE)  # A-1
+    add(r, d, "ask", "Old form", "--ref", "kb:old-one/kb", now=DUE)  # A-2
+    add(r, d, "ask", "Old form, kb ref with no sub dir", "--ref", "kb:both", now=DUE)  # A-3
+    code, out, err = t("triage", "A-0001", "lapse", "--note", "idle")
+    r.check("t22-c3-ref-resolves-to-specs-and-blocks", code == 0 and disp(d, "A-0001")[-1][:2] == ("escalate", "lapse")
+            and "specs/new-one" in open(log, encoding="utf-8").read(), (code, out, err))
+    code, out, err = t("triage", "A-0002", "lapse", "--note", "idle")
+    r.check("t22-c3-old-form-ref-resolves-and-clear", code == 0 and status(d, "A-0002") == "lapsed"
+            and "W0/analyses/old-one/kb" in open(log, encoding="utf-8").read(), (code, out, err))
+    code, out, err = t("triage", "A-0003", "lapse", "--note", "idle")
+    r.check("t22-c3-specs-wins-for-a-ref", code == 0 and status(d, "A-0003") == "lapsed", (code, out, err))
+    add(r, d, "ask", "No such spec KB", "--ref", "kb:missing", now=DUE)  # A-4
+    code, out, err = t("triage", "A-0004", "lapse", "--note", "idle")
+    r.check("t22-c3-missing-spec-counts-as-blocking", code == 0 and disp(d, "A-0004")[-1][:2] == ("escalate", "lapse"), (code, out, err))
+    code, out, err = t("--help")
+    r.check("t22-c3-help-names-specs", "specs/<slug>" in out + err, out[:200])
+
+
+def case_t22_rotate_open_spec(r, root):
+    """T22 c4: a rotation never retires a spec KB whose ticket is open, and does not list it."""
+    stub = write_stub(root)
+    h = spec_hub(root, "openhub", {"open-one": None})
+    d = fresh(r, root, "t22-open")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+    add(r, d, "thread", "Ticket in flight", "--ref", "kb:open-one", now="2026-09-01T00:00:00Z")  # T-1
+    ok(r, d, "renew", "T-0001", "--note", "still live", now="2026-10-30T00:00:00Z")
+    code, out, err = hf(r, d, "rotate", "--week-start", WK, hub=h, extra_env=env, session=None)
+    r.check("t22-c4-open-spec-not-listed", code == 0 and listed(out, "spec_kbs_untriaged:") == [] and "spec_kbs_untriaged:" in out, (code, out, err))
+    code, out, err = hf(r, d, "rotate", "--week-start", WK, "--yes", hub=h, extra_env=env)
+    r.check("t22-c4-rotate-yes-keeps-open-spec", code == 0 and os.path.isfile(os.path.join(h, "specs", "open-one", "kb.pl")), (code, out, err))
+    # the mechanical rotation moves only W0..W5
+    gh = os.path.join(root, "gitopen")
+    git_hub(gh)
+    os.makedirs(os.path.join(gh, "specs", "open-one"))
+    os.makedirs(os.path.join(gh, "W0"))
+    os.makedirs(os.path.join(gh, "W5", "reports"))
+    write_json(os.path.join(gh, "specs", "open-one", "kb.pl"), "% spec\n")
+    write_json(os.path.join(gh, "W0", "WEEK.md"), "# Week of 2026-10-26 -> 2026-11-01\n")
+    write_json(os.path.join(gh, "W5", "reports", "old.md"), "old\n")
+    g = ["git", "-C", gh, "-c", "user.name=Test", "-c", "user.email=test@example.invalid"]
+    subprocess.run(g + ["add", "-A"], check=True, capture_output=True)
+    subprocess.run(g + ["commit", "-q", "-m", "hub"], check=True, capture_output=True)
+    rs = os.path.join(HERE, "..", "skills", "hub-rotate", "scripts", "rotate.sh")
+    p = subprocess.run(["bash", rs, "--hub", gh], capture_output=True, text=True)
+    r.check("t22-c4-rotate-sh-leaves-specs", p.returncode == 0 and os.path.isfile(os.path.join(gh, "specs", "open-one", "kb.pl"))
+            and not os.path.exists(os.path.join(gh, "W5", "reports", "old.md")), (p.returncode, p.stdout[-300:], p.stderr[-300:]))
+    st = subprocess.run(["git", "-C", gh, "status", "--porcelain", "--", "specs"], capture_output=True, text=True).stdout
+    r.check("t22-c4-rotate-sh-specs-untouched-in-index", st.strip() == "", st)
+
+
+def case_t22_closed_spec(r, root):
+    """T22 c4: a spec KB whose ticket is closed is a triage item at rotation, with one recorded decision."""
+    stub = write_stub(root)
+    h = spec_hub(root, "closedhub", {"done-a": None, "done-b": None, "done-c": ["q1"], "live": None, "done-d": None})
+    d = fresh(r, root, "t22-closed")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+
+    def t(*args, **kw):
+        return hf(r, d, *args, hub=h, extra_env=env, **kw)
+
+    for slug in ("done-a", "done-b", "done-c", "live", "done-d"):
+        add(r, d, "thread", f"Ticket {slug}", "--ref", f"kb:{slug}", now="2026-10-20T00:00:00Z")
+    for i in ("T-0001", "T-0002", "T-0003", "T-0005"):
+        ok(r, d, "close", i, "--reason", "done", now="2026-10-25T00:00:00Z")
+    code, out, err = t("rotate", "--week-start", WK, session=None)
+    r.check("t22-c4-closed-spec-listed-and-gates", refused((code, out, err), 1, "spec") and listed(out, "spec_kbs_untriaged:") == ["done-a", "done-b", "done-c", "done-d"], (code, out, err))
+    code, out, err = t("rotate", "--week-start", WK, "--yes")
+    r.check("t22-c4-rotate-yes-refused-until-decided", refused((code, out, err), 1, "spec") and os.path.isdir(os.path.join(h, "specs", "done-a")), (code, out, err))
+    r.check("t22-c4-bad-decision-refused", refused(t("spec-triage", "done-a", "forget", "--note", "x"), 1)
+            and refused(t("spec-triage", "done-a", "keep"), 1, "note") and refused(t("spec-triage", "live", "keep", "--note", "x"), 1, "closed")
+            and refused(t("spec-triage", "no-such", "keep", "--note", "x"), 1))
+    code, out, err = t("spec-triage", "done-a", "keep", "--note", "the client may reopen it")
+    ev_ = [x for x in q(d, "select verb, old, new, by_session, note from event where verb = 'spec_triage'")]
+    r.check("t22-c4-keep-recorded-once", code == 0 and ev_ == [("spec_triage", "done-a", "keep", "discovery", "the client may reopen it")]
+            and os.path.isdir(os.path.join(h, "specs", "done-a")), (code, out, err, ev_))
+    r.check("t22-c4-keep-removes-it-from-the-list", listed(t("rotate", "--week-start", WK, session=None)[1], "spec_kbs_untriaged:") == ["done-b", "done-c", "done-d"])
+    res = t("spec-triage", "done-b", "archive", "--note", "no use any more")
+    r.check("t22-c4-archive-needs-git-rm-first", refused(res, 1, "git rm") and os.path.isdir(os.path.join(h, "specs", "done-b")), res)
+    shutil.rmtree(os.path.join(h, "specs", "done-b"))
+    code, out, err = t("spec-triage", "done-b", "archive", "--note", "git rm done, history keeps it")
+    r.check("t22-c4-archive-after-git-rm", code == 0 and q(d, "select new from event where verb='spec_triage' and old='done-b'") == [("archive",)], (code, out, err))
+    code, out, err = t("spec-triage", "done-d", "capsule", "--note", "context kept")
+    r.check("t22-c4-capsule-needs-a-capsule-first", refused((code, out, err), 1, "capsule"), (code, out, err))
+    ok(r, d, "capsule", "T-0005", "--summary", "what the spec KB decided")
+    code, out, err = t("spec-triage", "done-d", "capsule", "--note", "context kept")
+    r.check("t22-c4-capsule-recorded", code == 0 and q(d, "select new from event where verb='spec_triage' and old='done-d'") == [("capsule",)], (code, out, err))
+    code, out, err = t("spec-triage", "done-c", "keep", "--note", "keep it")
+    r.check("t22-c4-agent-keep-of-blocking-spec-becomes-escalate", code == 0 and "escalate" in out
+            and q(d, "select new from event where verb='spec_triage' and old='done-c'") == [("escalate",)], (code, out, err))
+    code, out, err = t("rotate", "--week-start", WK, session=None)
+    r.check("t22-c4-all-decided-rotation-passes", code == 0 and listed(out, "spec_kbs_untriaged:") == [], (code, out, err))
+    code, out, err = t("rotate", "--week-start", WK, "--yes")
+    r.check("t22-c4-rotate-yes-after-decisions", code == 0 and os.path.isdir(os.path.join(h, "specs", "done-a")), (code, out, err))
+    r.check("t22-c4-jsonl-in-sync", hf(r, d, "check")[0] == 0 and out_of_sync(d) == [])
+
+
 def run_case(r, fn, *args):
     """Run one scenario. A scenario that cannot even run is a failure, not a crash, and the
     scenarios after it still run."""
@@ -1813,6 +1945,10 @@ def cases(r):
         run_case(r, case_guard_more, root)
         run_case(r, case_transcripts_same_session, root)
         run_case(r, case_triage_escalated, root)
+        # T22: the spec KB home and the spec KB triage
+        run_case(r, case_t22_spec_home, root)
+        run_case(r, case_t22_rotate_open_spec, root)
+        run_case(r, case_t22_closed_spec, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))
