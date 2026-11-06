@@ -476,6 +476,7 @@ Load it with `uses([build])`. Its file is `modules/build.pl`.
 | `conformance(ref(check))` | The check runs the code against the Lean model of its claim. Optional. |
 | `visual(ref(claim))` | A human must see the claim to judge it: a look, a layout, a name, or another preference (D21). |
 | `demo(ref(subject), ref(claim))` | The subject, a screenshot or a recording, shows the claim to a human (D21). |
+| `ac(ref(claim))` | The claim is an acceptance criterion (AC) of the ticket (D29). It changes no rule. `show blocking` and `draft blocking` name an unmet AC: `- under C: acceptance criterion C is not met (claim C is current but not fulfilled): TEXT`. |
 
 ### Build attestation types
 

@@ -158,6 +158,12 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
   - S7 (ledger, claim c7): with `--ledger`, the asks show as in D24 C5, and each `li.ask` holds a `<code class="hubflow">` with `python3 .claude/scripts/hubflow.py --by human close ID --reason done --note 'YOUR ANSWER'`. The page has no form for an ask.
   - Not in scope: answering ledger asks from the page; a login (loopback and the token are the guard); TLS.
   - Tests added: QS1 to QS16, in `kb/tests/test_question_server.sh` (a separate file; it has its own summary line).
+- **D29 (acceptance criteria, 2026-11-06).** Ticket T29 of the redesign, claim c7 (Ty's u93: acceptance criteria are among the blocking items; review finding w3_u93). An acceptance criterion (AC) of the ticket is a claim of the spec KB, marked by a fact. The changes:
+  - A1 (the fact): the build module declares `ac(ref(claim))`: the claim is an acceptance criterion of the ticket. `add 'ac(C)'` writes no `first_use/3` fact; `ac` of an id that is not a claim is E4. `help build` lists it with its meaning. It is a plain fact kind: E16 does not protect it, and it can be queried.
+  - A2 (no rule changes): `ac/1` changes no rule. The answers of `blocking(X)`, `done`, `burn/1`, `flare/1`, and every other library rule are the same with and without `ac` facts. An unmet AC blocks `done` because its claim is `under`, as every current claim that is not fulfilled. The Lean burn model does not model it.
+  - A3 (the text): `show blocking` and `draft blocking` print the item `under(C)` of a claim C with an `ac(C)` fact as `- under C: acceptance criterion C is not met (claim C is current but not fulfilled): TEXT`. Every other `under` line stays `- under C: claim C is current but not fulfilled: TEXT`. The term `under(C)` and the other kinds do not change, so the question view (D24) and the question server (D26) list it as before.
+  - Not in scope: a blocking kind of its own for an AC; a check of an AC that failed (`check_failing`, `check_unrun`) keeps its line.
+  - Tests added: AC1 to AC5, in `kb/tests/test_orbit_kb.sh`.
 - **D21 (a visual claim flares, 2026-11-04).** GitHub issue #9. Decision by Ty ("Both"). A burn closes with a Lean proof; some claims are a look, a layout, or a name, and only a human who sees the result can close them. Before D21, a renamed alias was recorded as a second divergence, its claim burned, and `done` waited for a Lean proof of an alias name. Mnemonic: burns get proved, flares get shown. The changes, all in `modules/build.pl`:
   - F1: new facts `visual(ref(claim))` (the agent marks it at DECOMPOSE, or a human asks for it) and `demo(ref(subject), ref(claim))` (a screenshot or a recording, recorded with `orbit-kb subject`, shows the claim).
   - F2: `flare(C)` holds when C is visual, or when C replaces a visual claim through one or more `supersedes` steps, as an inherited burn does. A claim can burn and flare at once: prove the invariant, show the look.
@@ -538,6 +544,7 @@ Facts:
 - `conformance(ref(check))` (D10, optional)
 - `visual(ref(claim))` (D21): a human must see the claim to judge it.
 - `demo(ref(subject), ref(claim))` (D21): the subject (a screenshot or a recording) shows the claim.
+- `ac(ref(claim))` (D29): the claim is an acceptance criterion of the ticket. It changes no rule.
 
 Attestation types:
 
