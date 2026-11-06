@@ -10,7 +10,7 @@
 #
 # Input hash (the contract of c2): sha256 over the bytes of the facts file, then one NUL byte,
 # then the bytes of the containers file. The map carries `map@` and the first 12 hex digits.
-# Requirement map: C1a-C1d (c1), C2a-C2d (c2), C3a-C3b (c3), U1 (usage), D1 D2a-c D3 (review fixes).
+# Requirement map: C1a-C1d (c1), C2a-C2d (c2), C3a-C3b (c3), U1 U2 (usage), D1 D2a-c D3 (review fixes).
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 repo=$(cd "$here/../.." && pwd -P)
@@ -186,8 +186,13 @@ t_U1() {  # usage errors exit 2
     rm_run --facts "$base/u1/kb.pl" --containers "$base/u1/containers.pl" --level c9; rc_is 2 "bad level"
 }
 
+t_U2() {  # no arguments: the usage line, not a file error (T15 found the precedence bug)
+    rm_run; rc_is 2 "no args"; err_has '^usage: repo-map' "no args prints usage"; err_hasnt 'cannot read a file' "no args is not a file error"
+}
+
 # ---------------------------------------------------------------- review fixes (D1-D3)
 err_has() { printf '%s\n' "$err" | grep -Eq -- "$1" || note "${2:+$2: }stderr lacks /$1/ (stderr: $(snip "$err"))"; }
+err_hasnt() { printf '%s\n' "$err" | grep -Eq -- "$1" && note "${2:+$2: }stderr has /$1/, it must not (stderr: $(snip "$err"))"; return 0; }
 t_D2a() {  # an unparsable line in the containers file warns (file and line); --strict exits 1
     mkfix "$base/d2a"
     printf 'repo(a).\nbroken(.\nrepo(b).\n' > "$base/d2a/bad.pl"
@@ -236,7 +241,7 @@ t_D3() {  # the H1 title is escaped: no raw Markdown or HTML from the repo name
     [ "$(printf '%s\n' "$out" | grep -c '^# ')" = 1 ] || note "exactly one H1"
 }
 
-for t in C1a C1b C1c C1d C2a C2b C2c C2d C3a C3b U1 D2a D2b D2c D1 D3; do
+for t in C1a C1b C1c C1d C2a C2b C2c C2d C3a C3b U1 U2 D2a D2b D2c D1 D3; do
     FAILS=(); "t_$t"
     if [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $t"
     else fail=$((fail+1)); echo "FAIL $t"; for m in "${FAILS[@]}"; do echo "     - $m"; done; fi
