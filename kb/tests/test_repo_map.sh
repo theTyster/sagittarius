@@ -109,11 +109,11 @@ t_C1c() {  # the output is well-formed Mermaid C4 (structure only, not rendered)
 }
 t_C1d() {  # the example is truthful: the paths of the parts that exist today exist
     local p
-    for p in prompt/SAGITTARIUS.md kb/bin/orbit-kb evals/run.sh site/index.html docs/PHILOSOPHY.md; do
+    for p in prompt/SAGITTARIUS.md kb/bin/orbit-kb hubkit/hub/.claude/scripts/hubflow.py s1/jev.py evals/run.sh site/index.html docs/PHILOSOPHY.md; do
         [ -e "$repo/$p" ] || note "missing $p"
     done
     [ -f "$EX_CT" ] || { note "no committed containers example $EX_CT"; return; }
-    grep -q 'planned' "$EX_CT" || note "hubkit and s1 are not in the tree yet; the example must say planned"
+    grep -qi 'planned' "$EX_CT" && note "hubkit and s1 are in the tree now; the example must not say planned"
 }
 
 # ---------------------------------------------------------------- c2
