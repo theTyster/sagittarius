@@ -80,6 +80,7 @@
 #   PN  pin stamp                                          (CLI: pin; D22)                  : PN1 PN2
 #   PH  help names the phases                              (CLI: help; D22)                 : PH1
 #   AC  acceptance criteria: ac/1, show and draft blocking (D29)                             : AC1-AC5
+#   VR  verification records: actor, review_saw, verdicts, independently_verified, WR1 (D28) : VR1-VR6
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -2287,6 +2288,195 @@ t_AC5() { ac_kb "$T/k"; K=$T/k; echo "ac(c3)." >> "$K/kb.pl"
           rm -f "$K/rules.pl"
           q 'ac(X)' -n 0; rc_is 0 "query ac(X)"; out_has 'X = c3' "ac(c3) is queryable"; }
 
+# ---------------------------------------------------------------- D28: verification records (T25)
+# vr_kb DIR: a build KB with two claims and their checks, written by the CLI (no actor yet).
+vr_kb() { kb_new "$1" <<'EOF2'
+uses([build]).
+request(r1, 'Verify two things').
+claim(c1, introduce, 'One becomes true').
+claim(c2, preserve, 'Two stays true').
+cites(c1, 'Verify two things').
+cites(c2, 'Verify two things').
+check(k1, c1).
+check(k2, c2).
+EOF2
+}
+# vr_ind DIR: a KB in which c1 is independently verified (D28 V4): change x1 by (build, s1) at
+# 10:00, run t1 of k1 by (review, s2) at 10:04, verdict v1 upheld by (review, s2) at 10:05.
+vr_ind() { kb_new "$1" <<'EOF2'
+uses([build]).
+request(r1, 'Verify one thing').
+claim(c1, introduce, 'One becomes true').
+cites(c1, 'Verify one thing').
+check(k1, c1).
+change(x1, 'Edit one').
+serves(x1, c1).
+change_at(x1, '2026-11-01T10:00:00Z').
+actor(x1, build, s1).
+attest(t1, test_result, k1, result(k1, 1, pass), script, '2026-11-01T10:04:00Z').
+actor(t1, review, s2).
+attest(v1, disproof, c1, verdict(c1, upheld('reran k1; tried an empty input')), agent, '2026-11-01T10:05:00Z').
+actor(v1, review, s2).
+rests_on_run(v1, t1).
+EOF2
+}
+# actor_of KB TYPE PATTERN ROLE SESSION: the attestation of TYPE whose predicate matches PATTERN has actor(A, ROLE, SESSION)
+actor_of() { has_goal "$1/kb.pl" "kb(attest(A, $2, _, $3, _, _)), kb(actor(A, $4, $5))" "${6:-}"; }
+
+t_VR1() { vr_kb "$T/k"; K=$T/k
+          ORBIT_KB_ROLE=build ORBIT_KB_WRITER=w1 okb --dir "$K" run k1 -- true; rc_is 0 "run"
+          actor_of "$K" test_result 'result(k1, _, pass)' build w1 "run records actor(A, ROLE, WRITER)"
+          ORBIT_KB_LEASE=0 ORBIT_KB_ROLE=build CLAUDE_CODE_SESSION_ID=s9 okb --dir "$K" run k1 --as review -- true; rc_is 0 "run --as"
+          actor_of "$K" test_result 'result(k1, 2, _)' review s9 "--as before -- wins over ORBIT_KB_ROLE; the session is CLAUDE_CODE_SESSION_ID"
+          ORBIT_KB_LEASE=0 ORBIT_KB_ROLE=build ORBIT_KB_WRITER=w1 okb --dir "$K" run k2 -- echo --as x; rc_is 0 "run with --as after --"
+          actor_of "$K" test_result 'result(k2, _, _)' build w1 "--as after -- belongs to the command"
+          grep -q -- '--as x' "$K"/runs/*-k2.log || note "the command got --as x"
+          ORBIT_KB_LEASE=0 ORBIT_KB_WRITER=w2 CLAUDE_CODE_SESSION_ID=s9 okb --dir "$K" attest disclosure c1 "unverified('not measured')" --as subagent_a; rc_is 0 "attest --as"
+          actor_of "$K" disclosure "unverified(_)" subagent_a w2 "ORBIT_KB_WRITER comes before CLAUDE_CODE_SESSION_ID"
+          ORBIT_KB_LEASE=0 CLAUDE_SESSION_ID=s7 HUB_SESSION=h1 ORBIT_KB_ROLE=discovery okb --dir "$K" attest divergence c1 'claim(c1)'; rc_is 0
+          actor_of "$K" divergence "claim(c1)" discovery s7 "CLAUDE_SESSION_ID comes before HUB_SESSION"
+          ORBIT_KB_LEASE=0 HUB_SESSION=h1 okb --dir "$K" attest disclosure c2 "other('x')" --by human; rc_is 0
+          actor_of "$K" disclosure "other(_)" unknown h1 "HUB_SESSION last; no role is unknown"
+          has_fact "$K/kb.pl" "attest(_, disclosure, c2, other(_), human, _)" "--by human keeps its meaning"
+          ORBIT_KB_LEASE=0 okb --dir "$K" add "attest(m1, disclosure, c2, other('y'), agent, '2026-11-01T10:00:00Z')"; rc_is 0 "add of an attest fact"
+          has_fact "$K/kb.pl" "actor(m1, unknown, unknown)" "add of an attest fact records its actor; no role and no session are unknown"
+          fact_count "$K/kb.pl" "attest(_, _, _, _, _, _)" 7 "seven attestations"
+          fact_count "$K/kb.pl" "actor(_, _, _)" 7 "one actor per attestation"
+          rejects "add actor by hand" 'actor' add "actor(m1, review, s2)"
+          okb --dir "$K" lint; rc_is 0 "lint after the actor facts"; out_hasnt '^E[0-9]'
+          okb help core; rc_is 0
+          out_has 'actor\(A, Role, Session\)' "help core names actor(A, Role, Session)"
+          out_has 'self-reported' "help core says the role is self-reported"
+          out_has 'mistakes, not cheating' "help core names it as a limit"; }
+
+t_VR2() { vr_kb "$T/k"; K=$T/k; local r=$T/repo
+          mkdir -p "$r"; git -C "$r" init -q; printf 'one\n' > "$r/a.txt"
+          git -C "$r" add a.txt; git -C "$r" -c user.name=t -c user.email=t@example.invalid commit -q -m one
+          printf 'two\n' >> "$r/a.txt"; git -C "$r" -c user.name=t -c user.email=t@example.invalid commit -q -am two
+          printf 'Ticket T1: verify two things\n' > "$r/ticket.md"
+          local dt dd dk
+          dt=$(sha "$r/ticket.md"); dd=$(git -C "$r" diff HEAD~1..HEAD | sha256sum | cut -d' ' -f1)
+          okb --dir "$K" pin; dk=$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}' | head -n1)
+          ORBIT_KB_WRITER=r1 okb_in "$r" --dir "$K" review start --as review --ticket ticket.md --diff HEAD~1..HEAD; rc_is 0 "review start"
+          has_fact "$K/kb.pl" "review_saw(review, ticket, 'sha256:$dt')" "the ticket digest"
+          has_fact "$K/kb.pl" "review_saw(review, kb, '$dk')" "the spec-kb stamp before the command"
+          has_fact "$K/kb.pl" "review_saw(review, diff, 'sha256:$dd')" "the sha256 of git diff A..B"
+          fact_count "$K/kb.pl" "review_saw(_, _, _)" 3 "three facts"
+          cp "$K/kb.pl" "$T/before"
+          ORBIT_KB_WRITER=r1 okb_in "$r" --dir "$K" review start --ticket ticket.md --diff HEAD~1..HEAD; rc_is 2 "no role"
+          ORBIT_KB_WRITER=r1 okb_in "$r" --dir "$K" review start --as review --diff HEAD~1..HEAD; rc_is 2 "no --ticket"
+          ORBIT_KB_WRITER=r1 okb_in "$r" --dir "$K" review start --as review --ticket ticket.md; rc_is 2 "no --diff"
+          ORBIT_KB_WRITER=r1 okb_in "$r" --dir "$K" review start --as review --ticket nope.md --diff HEAD~1..HEAD; rc_is 2 "a missing ticket file"
+          ORBIT_KB_WRITER=r1 okb_in "$r" --dir "$K" review start --as review --ticket ticket.md --diff nosuch..HEAD; rc_is 2 "git diff fails"
+          same_file "$K/kb.pl" "$T/before" "a refused review start writes nothing"
+          ORBIT_KB_ROLE=fresh_eyes ORBIT_KB_WRITER=r1 okb_in "$r" --dir "$K" review start --ticket ticket.md --diff HEAD~1..HEAD; rc_is 0 "the role from ORBIT_KB_ROLE"
+          has_fact "$K/kb.pl" "review_saw(fresh_eyes, diff, 'sha256:$dd')" "ORBIT_KB_ROLE names the reviewer"
+          okb --dir "$K" lint; rc_is 0 "lint after review start"; out_hasnt '^E[0-9]'; }
+
+t_VR3() { vr_kb "$T/k"; K=$T/k; add_result "$K" k1 1 fail; add_result "$K" k1 2 pass
+          okb --dir "$K" attest disproof c1 "verdict(c1, upheld('reran k1; tried an empty input'))" --rests-on t2 --id v1; rc_is 0 "upheld(Text)"
+          has_goal "$K/kb.pl" "kb(attest(V, disproof, _, verdict(c1, upheld(_)), _, _)), kb(rests_on_run(V, t2))" "rests_on_run(V, t2)"
+          okb --dir "$K" attest disproof c2 "verdict(c2, inconclusive('ran out of time'))" --rests-on t1,t2; rc_is 0 "inconclusive(Text) and two runs"
+          fact_count "$K/kb.pl" "rests_on_run(_, _)" 3 "one rests_on_run per run"
+          okb --dir "$K" attest disproof c2 "verdict(c2, abstained('no way to run it'))"; rc_is 0 "abstained(Text)"
+          okb --dir "$K" attest disproof c2 "verdict(c2, refuted('the empty input'))"; rc_is 0 "refuted(Text)"
+          okb --dir "$K" attest disproof c2 "verdict(c2, inconclusive)"; rc_is 0 "bare inconclusive stays valid"
+          okb --dir "$K" attest disproof c2 "verdict(c2, abstained)"; rc_is 0 "bare abstained stays valid"
+          rejects "bare upheld" 'E3|upheld' attest disproof c1 "verdict(c1, upheld)"
+          rejects "bare refuted" 'E3|refuted' attest disproof c1 "verdict(c1, refuted)"
+          rejects "a run that is no test_result" '' attest disproof c1 "verdict(c1, upheld('x'))" --rests-on v1
+          rejects "a run that does not exist" '' attest disproof c1 "verdict(c1, upheld('x'))" --rests-on nosuch
+          rejects "--rests-on on another type" '' attest divergence c1 'claim(c1)' --rests-on t2
+          okb --dir "$K" lint; rc_is 0 "every verdict form lints clean"; out_hasnt '^E[0-9]'
+          is_set 'refuted(C)' 'C = c2' "upheld does not refute"
+          is_true 'fulfilled(c1)' "an upheld verdict leaves fulfilled as it was"
+          okb help core; rc_is 0
+          out_has 'upheld\(Text\)' "help core lists upheld(Text)"
+          out_has 'rests_on_run' "help core names rests_on_run"
+          out_has '--rests-on' "help core names --rests-on"; }
+
+t_VR4() { vr_ind "$T/a"; K=$T/a
+          is_true 'independently_verified(c1)' "(a) another role and session, after the change, a fresh rerun"
+          local v
+          for v in "s/actor(v1, review, s2)/actor(v1, review, s1)/ @@ the same session as the change" \
+                   "s/actor(v1, review, s2)/actor(v1, build, s2)/ @@ the same role as the change" \
+                   "s/actor(t1, review, s2)/actor(t1, review, s3)/ @@ a run by another actor than the verdict" \
+                   "s/10:04:00Z'/09:59:00Z'/ @@ a run before the change" \
+                   "s/10:05:00Z'/09:00:00Z'/ @@ a verdict before the change" \
+                   "/^rests_on_run/d @@ a verdict that rests on no run" \
+                   "s/upheld('reran k1; tried an empty input')/inconclusive('ran out of time')/ @@ a verdict that is not upheld (choice)" \
+                   "/^actor(x1/d @@ a last change with no actor" \
+                   "s/result(k1, 1, pass)/result(k9, 1, pass)/;s/^check(k1, c1)./check(k1, c1).\ncheck(k9, c9).\nclaim(c9, preserve, 'Other')./ @@ a run of a check of another claim (choice)"; do
+              cp -r "$T/a" "$T/b"; sed -i "${v%% @@ *}" "$T/b/kb.pl"; K=$T/b
+              is_false 'independently_verified(c1)' "${v#* @@ }"; rm -rf "$T/b"
+          done
+          cp -r "$T/a" "$T/c"; K=$T/c
+          printf "change(x2, 'Edit again').\nserves(x2, c1).\nchange_at(x2, '2026-11-01T10:10:00Z').\nactor(x2, build, s1).\n" >> "$K/kb.pl"
+          is_false 'independently_verified(c1)' "a later change makes the old verdict and run stale"
+          printf "attest(t2, test_result, k1, result(k1, 2, pass), script, '2026-11-01T10:11:00Z').\nactor(t2, review, s2).\nattest(v2, disproof, c1, verdict(c1, upheld('again')), agent, '2026-11-01T10:12:00Z').\nactor(v2, review, s2).\nrests_on_run(v2, t2).\n" >> "$K/kb.pl"
+          is_true 'independently_verified(c1)' "a new verdict on a new rerun after the last change"
+          kb_new "$T/d" <<'EOF2'
+uses([build]).
+request(r1, 'Keep it').
+claim(c1, preserve, 'It stays').
+cites(c1, 'Keep it').
+check(k1, c1).
+attest(t1, test_result, k1, result(k1, 1, pass), script, '2026-11-01T10:04:00Z').
+actor(t1, review, s2).
+attest(v1, disproof, c1, verdict(c1, upheld('reran k1')), agent, '2026-11-01T10:05:00Z').
+actor(v1, review, s2).
+rests_on_run(v1, t1).
+EOF2
+          K=$T/d; is_true 'independently_verified(c1)' "no serving change: the upheld verdict and the rerun by the same actor (choice)"
+          vr_kb "$T/e"; K=$T/e
+          ORBIT_KB_ROLE=build ORBIT_KB_WRITER=w1 okb --dir "$K" add "change(x1, 'Edit one')" "serves(x1, c1)"; rc_is 0 "add a change"
+          has_fact "$K/kb.pl" "actor(x1, build, w1)" "add of a change records its actor"
+          has_goal "$K/kb.pl" "kb(change_at(x1, T)), atom(T), atom_length(T, 20)" "add of a change records change_at(X, TIME)"
+          rejects "add change_at by hand" 'change_at' add "change_at(x1, '2026-11-01T10:00:00Z')"
+          okb --dir "$K" lint; rc_is 0; out_hasnt '^E[0-9]'
+          printf 'independently_verified(c2).\n' > "$K/rules.pl"; okb --dir "$K" lint
+          out_has '^E16' "rules.pl cannot add to independently_verified (E16)"; rm -f "$K/rules.pl"
+          okb help build; rc_is 0; out_has 'independently_verified\(C\)' "help build names independently_verified(C)"; }
+
+t_VR5() { vr_ind "$T/k"; K=$T/k
+          printf "claim(c2, preserve, 'Two stays true').\ncites(c2, 'Verify one thing').\ncheck(k2, c2).\n" >> "$K/kb.pl"
+          printf "attest(t3, test_result, k2, result(k2, 3, pass), script, '2026-11-01T10:06:00Z').\nactor(t3, build, s1).\n" >> "$K/kb.pl"
+          printf "attest(t0, test_result, k1, result(k1, 0, fail), script, '2026-11-01T09:00:00Z').\nactor(t0, build, s1).\n" >> "$K/kb.pl"
+          printf "change(x2, 'Edit two').\nserves(x2, c2).\nchange_at(x2, '2026-11-01T10:00:00Z').\nactor(x2, build, s1).\n" >> "$K/kb.pl"
+          mkdir -p "$K/runs"
+          printf '%% orbit-kb run 0 check=k1 result=fail exit=1 time=2026-11-01T09:00:00Z cmd=false\n' > "$K/runs/0-k1.log"
+          printf '%% orbit-kb run 1 check=k1 result=pass exit=0 time=2026-11-01T10:04:00Z cmd=true\n' > "$K/runs/1-k1.log"
+          printf '%% orbit-kb run 3 check=k2 result=pass exit=0 time=2026-11-01T10:06:00Z cmd=true\n' > "$K/runs/3-k2.log"
+          is_true 'independently_verified(c1)'; is_false 'independently_verified(c2)'
+          okb --dir "$K" report; rc_is 0 "report"
+          local sec; sec=$(printf '%s\n' "$out" | awk '/^# Review:/{f=1;next} /^# /{f=0} f')
+          [ -n "$sec" ] || note "report has no Review section"
+          printf '%s\n' "$out" | grep -E '^# ' | paste -sd' ' | grep -qF '# Claims: # Review: # Guesses:' \
+              || note "the Review section comes after Claims, before Guesses"
+          printf '%s\n' "$sec" | grep -Eq '^  - c1: reviewer review \(session s2\), verdict upheld: reran k1; tried an empty input\.$' || note "c1: reviewer, verdict, text: [$(snip "$sec")]"
+          printf '%s\n' "$sec" | grep -Eq '^    - Reruns: run 1 k1 pass\.$' || note "c1: its reruns: [$(snip "$sec")]"
+          printf '%s\n' "$sec" | grep -Eq '^  - c2: no verdict\.$' || note "c2 has no verdict: [$(snip "$sec")]"
+          printf '%s\n' "$sec" | grep -Eq '^  - Not independently verified: c2\.$' || note "the report names c2 as not independently verified: [$(snip "$sec")]"
+          okb --dir "$K" lint; rc_is 0 "WR1 is a warning"
+          out_has '^WR1 c2' "lint WR1 for c2"; out_hasnt '^WR1 c1' "no WR1 for c1"
+          is_true done "WR1 does not block done"
+          q 'blocking(X)' -n 0; rc_is 1 "nothing blocks: WR1 is no blocking item"
+          valid_copy; okb --dir "$K" report; rc_is 0; out_hasnt '^# Review:' "a KB with no actor and no review_saw fact: no Review section"
+          okb --dir "$K" lint; out_hasnt '^WR1' "a KB with no actor and no review_saw fact: no WR1"
+          okb help codes; rc_is 0; out_has 'WR1' "help codes lists WR1"; }
+
+t_VR6() { okb help build; rc_is 0
+          local f; f=$(printf '%s\n' "$out" | awk '/^FULFILL/{f=1;print;next} f && /^[A-Z]/{exit} f')
+          [ -n "$f" ] || { note "help build has no FULFILL section"; return; }
+          local p
+          for p in 'fresh' 'only the ticket, the KB,? and the diff' 'review start --as [A-Za-z_]+ --ticket' '--diff' \
+                   'orbit-kb run --as' 'attest disproof' '--rests-on' 'upheld' 'every (current )?claim' 'orbit-kb report' 'WR1'; do
+              printf '%s\n' "$f" | grep -Eq -- "$p" || note "FULFILL lacks /$p/"
+          done
+          local pr=$here/../../prompt
+          grep -E 'help build' "$pr/SAGITTARIUS.md" | grep -Eqi 'fresh-eyes|FULFILL' || note "SAGITTARIUS.md: the help build line points to the fresh-eyes brief"
+          grep -Eq 'help build.*FULFILL|FULFILL.*help build' "$pr/panes/review.md" || note "review.md (Verify) points to the FULFILL brief of help build"; }
+
 # BL11 (T18 c5): the usage line of help show lists blocking among the parts (D22 C7).
 t_BL11() { okb help show; rc_is 0 "help show"
            out_has '^orbit-kb show \[[^]]*\bblocking\b[^]]*\]' "the usage line of help show lists blocking"; }
@@ -2667,6 +2857,12 @@ run_test t_AC2 AC2 "D29 c7: show blocking names an unmet acceptance criterion as
 run_test t_AC3 AC3 "D29 c7: draft blocking names an unmet acceptance criterion as such"
 run_test t_AC4 AC4 "D29 c7: ac/1 changes neither blocking/1, nor done, nor burns"
 run_test t_AC5 AC5 "D29 c7: ac/1 is a plain fact kind: queryable, not protected"
+run_test t_VR1 VR1 "D28 c1: every attestation and every run records actor(A, Role, Session)"
+run_test t_VR2 VR2 "D28 c2: review start records review_saw for the ticket, the KB stamp, and the diff"
+run_test t_VR3 VR3 "D28 c3: verdicts carry what was tried, upheld(Text), and rests_on_run"
+run_test t_VR4 VR4 "D28 c4: independently_verified(C)"
+run_test t_VR5 VR5 "D28 c5: report Review section and lint WR1; done unchanged"
+run_test t_VR6 VR6 "D28 c6: the FULFILL brief for the fresh-eyes subagent"
 
 run_tests
 echo "----"
