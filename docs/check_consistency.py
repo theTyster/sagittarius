@@ -138,6 +138,14 @@ def c7():
     return None
 
 
+def c8():
+    text = flat(read("hubkit/INSTRUCTIONS.md") + " " + read("hubkit/README.md"))
+    for need in ["project-kb/", "orbit-kb init project-kb --uses project", "orbit-kb help project"]:
+        if need not in text:
+            return "hubkit/INSTRUCTIONS.md and README.md do not name the project KB: missing %r" % need
+    return None
+
+
 def c9():
     hk = read("hubkit/README.md")
     words = {"two": 2, "three": 3, "four": 4, "five": 5}
@@ -153,7 +161,7 @@ def c9():
     return None
 
 
-CHECKS = {"c1": c1, "c2": c2, "c3": c3, "c4": c4, "c5": c5, "c6": c6, "c7": c7, "c9": c9}
+CHECKS = {"c1": c1, "c2": c2, "c3": c3, "c4": c4, "c5": c5, "c6": c6, "c7": c7, "c8": c8, "c9": c9}
 
 if __name__ == "__main__":
     only = [a for a in sys.argv[1:] if a in CHECKS] or list(CHECKS)

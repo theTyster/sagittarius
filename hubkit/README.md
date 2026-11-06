@@ -12,6 +12,9 @@ working memory. It has three ideas:
   decision for every due item (keep, lapse, capsule or escalate) instead of a silent lapse.
 - **Named sessions, one per role**, each with an identity that the db records on every write.
 
+The hub can also keep a project KB at its root, as `project-kb/`. It is an orbit-kb KB with the
+`project` module. Make it with `orbit-kb init project-kb --uses project`. See `orbit-kb help project`.
+
 **Briefing for people:** <https://thetyster.github.io/hubflow-starter/> (also `docs/index.html`).
 
 ## Start a hub
