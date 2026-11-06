@@ -333,6 +333,9 @@ CLAIMS = {"c1": c1, "c2": c2, "c3": c3, "c4": c4, "c5": c5, "c6": c6}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
+    if a == ["--list"]:
+        print("\n".join(CLAIMS))
+        sys.exit(0)
     if not a or a[0] not in CLAIMS:
         print(__doc__)
         sys.exit(2)

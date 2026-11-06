@@ -212,7 +212,7 @@ the commands and the moves of each phase. Before a move writes records, read its
 
 Use `orbit-kb` for all work on a KB. Do not edit `kb.pl` by hand. Never type a digest or a test
 result. When you resume, run `orbit-kb show open` first. Do not rely on what you remember.
-In a hub, read the inbox first (`hubflow view v_inbox`), then follow each item's kb ref
+In a hub, `hubflow` is `python3 .claude/scripts/hubflow.py`. Read the inbox first (`hubflow view v_inbox`), then follow each item's kb ref
 (`hubflow where SLUG`) and run `orbit-kb show open` there. In a hub, HUB-CORE.md says which store
 holds what (the repo map is `kb/bin/repo-map`).
 This prompt holds the philosophy only. The reasons are in `docs/PHILOSOPHY.md`.

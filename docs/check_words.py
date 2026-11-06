@@ -199,6 +199,9 @@ def c3():
 CHECKS = {"c1": c1, "c2": c2, "c3": c3}
 
 if __name__ == "__main__":
+    if sys.argv[1:] == ["--list"]:
+        print("\n".join(CHECKS))
+        sys.exit(0)
     only = [a for a in sys.argv[1:] if a in CHECKS] or list(CHECKS)
     nbad = 0
     for k in only:

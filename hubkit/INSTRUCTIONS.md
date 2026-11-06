@@ -36,7 +36,7 @@ The hub works without any formal tool: `HUB-CORE.md`, "Without orbit-kb", says w
 kept then. If your human uses Sagittarius's `orbit-kb` (it needs SWI-Prolog), the hub can also hold
 a **project KB**: an orbit-kb KB with the `project` module, kept at the hub root as `project-kb/`.
 It records domain decisions, pins of the world, and drafts for the tracker. Make it with
-`orbit-kb init project-kb --uses project`. See `orbit-kb help project`. Do not install `orbit-kb`
+`orbit-kb init project-kb --request 'WHAT THE PROJECT IS' --uses project`. See `orbit-kb help project`. Do not install `orbit-kb`
 unless your human asks for it.
 
 ## The kit
