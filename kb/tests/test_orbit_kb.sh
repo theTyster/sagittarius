@@ -76,7 +76,7 @@
 #   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10, D10 follow-up) : PV1-PV12
 #   FU  schema declared on first use, W7, E19 typo guard    (CLI: add, declare; Lint; D22)   : FU1-FU6 FU8 (FU7 superseded, not run)
 #   RT  retired: declare-attest and depends/2              (D22)                            : RT1-RT3
-#   BL  blocking/1 and show blocking                       (Core and build rules; D22)      : BL1-BL10 BL6b BL8b
+#   BL  blocking/1 and show blocking                       (Core and build rules; D22)      : BL1-BL11 BL6b BL8b
 #   PN  pin stamp                                          (CLI: pin; D22)                  : PN1 PN2
 #   PH  help names the phases                              (CLI: help; D22)                 : PH1
 #
@@ -2255,6 +2255,9 @@ t_RT3() { local f t; f=$LIB/../../CONTRACT.md
 t_BL6b() { kb_done "$T/k"; K=$T/k
           printf "question(q2, c2, 'Is it two').\nquestion(q3, c2, 'Is it three').\nattest(d1, divergence, c2, claim(c2), agent, '2026-10-15T10:00:09Z').\nanswer(q3, yes, human).\nclaim(c3, preserve, 'Unchecked').\ncites(c3, 'Do two things').\ncheck(k9, c3).\ndue(q2, '2020-01-01T00:00:00Z').\ndue(q3, '2020-01-01T00:00:00Z').\ndue(k9, '2020-01-01T00:00:00Z').\ndue(k1, '2020-01-01T00:00:00Z').\n" >> "$K/kb.pl"
           is_set 'blocking(past_due(X))' 'X = k9|X = q2' "q3 is answered and k1 is a check of a fulfilled claim"; }
+# BL11 (T18 c5): the usage line of help show lists blocking among the parts (D22 C7).
+t_BL11() { okb help show; rc_is 0 "help show"
+           out_has '^orbit-kb show \[[^]]*\bblocking\b[^]]*\]' "the usage line of help show lists blocking"; }
 t_BL8b() { kb_new "$T/k" <<'EOF'
 uses([build]).
 request(r1, 'Every kind').
@@ -2623,6 +2626,7 @@ run_test t_BL7 BL7 "D22 c7: done holds exactly when nothing blocks (under, over,
 run_test t_BL8 BL8 "D22 c7: show blocking prints each item with its text"
 run_test t_BL8b BL8b "D22 c7: show blocking prints the text of every kind"
 run_test t_BL9 BL9 "D22 c7: rules.pl cannot add to blocking/1 (E16)"
+run_test t_BL11 BL11 "T18 c5: help show lists blocking in its usage line"
 run_test t_PN1 PN1 "D22 c8: pin prints the stamp and the time; pin --check is 0 unchanged, 1 changed"
 run_test t_PN2 PN2 "D22 c8: pin usage errors exit 2"
 run_test t_PH1 PH1 "D22 c9: help names the phase tree and the moves of each phase"
