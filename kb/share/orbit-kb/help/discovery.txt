@@ -2,8 +2,10 @@ orbit-kb help discovery: the discovery module (orbit-kb uses discovery)
 
 Start: orbit-kb init DIR --request-file F --uses discovery   (F holds the report word for word)
 Keep the models and the logs inside DIR. Record scope, risk, assumption, and not_explored.
-Sections: FACTS, ATTESTATIONS, QUERIES, then one recipe for each move (SIGNAL, SURVEY,
-SPECTRUM, FLYBY, TRAJECTORY, DISPROVE, GATE, ASKING, HANDOFF).
+Sections: FACTS, ATTESTATIONS, QUERIES, LAPS, then one recipe for each move (SIGNAL and
+The hypothesis, SURVEY, SPECTRUM, FLYBY, TRAJECTORY, DISPROVE, GATE, ASKING, HANDOFF), then
+REPORT and BACK. Run only the moves that the report needs, in the order that the KB state
+calls for. Every move rereads the report. Describe each divergence in a note.
 
 FACTS
   hypothesis(H, Kind, Text)       Kind is defect, feature, or risk
@@ -48,14 +50,53 @@ QUERIES
 If discovery_ready is false: orbit-kb lint, and orbit-kb whynot 'discovery_ready'.
 Ready with no current claim happens only when a hypothesis did not reproduce (WD6).
 
+LAPS
+  Each lap touches the current system or a solver, and then the human. A human answer that
+  changes a claim supersedes the claim. The new claim needs its own falsifier, so another lap
+  follows. Stop when discovery_decide holds. Out of budget is not ready: report what you
+  know, each open item, and what you do not know. Only the human raises the budget.
+
 SIGNAL: pin the report
+  1. Classify the report: a defect, a feature, a risk (can something happen?), or unclear.
+  2. Restate it as one hypothesis, in the scope of the report (see The hypothesis, below).
+  3. If you cannot, ask the human. Do not guess.
+  4. If the report holds two problems, write two hypotheses. Ask the human if they are one
+     ticket or two.
+  5. Set a lap budget: three laps by default.
+  6. If nothing needs learning, propose the build orbit.
+  Record:
   orbit-kb add "hypothesis(h1, defect, 'TEXT')" "budget(laps, 3)"
   The KB counts laps only. Write a time limit in a note.
   To reword a hypothesis, add the new one and supersedes(hNew, hOld):
     orbit-kb add "hypothesis(h2, defect, 'NEW TEXT')" "supersedes(h2, h1)"
   The old one then needs no system result. The new one needs its own.
 
-SURVEY: touch the current system
+The hypothesis (the backbone of discovery; the claims, the checks, and the vote depend on it)
+  Make its assumptions few and its conclusion strong. List its premises beside it.
+  - Assume little. Put no cause, mechanism, data shape, or fix in it. Each one adds meaning
+    that the report does not have, and chooses a design before the vote. Do not narrow it to
+    the one example that you reproduced. A cause that you find is a finding that explains
+    the hypothesis. It is not part of the hypothesis.
+  - Make the conclusion strong. Say which outcome the report expects, and which facts decide
+    that outcome. Then say that the system can fail to give it.
+  - Give it a falsifier: the result that would show it is false. A hypothesis with no
+    falsifier has collapsed: it holds for any result, so it says nothing.
+  - Remove words. Stop when the next removal makes it collapse or changes its meaning.
+  An example of the meaning, not a template. The report: "members got the wrong loyalty points".
+  - Too strong: "The tier is read from a cache that loads once." It names a cause.
+  - Collapsed: "Points depend on something other than the purchase." No result falsifies it.
+  - Weak, with a strong conclusion: "The amount of a purchase and the member's tier on that
+    day decide its points. Some purchases get a different number." Falsifier: every
+    purchase gets the points that its amount and tier give.
+  A weak hypothesis usually takes more work to confirm or falsify, because one example does
+  not settle it. Stay inside the lap budget, and list what you did not cover.
+
+SURVEY: touch the current system (discovery never skips it)
+  1. Record the world facts that the hypothesis depends on, each with a source.
+  2. Reproduce a defect with a test, a script, or a request. For a feature, show that the
+     system does not do it now. For a risk, show whether its conditions occur.
+  3. If the problem does not reproduce, occurs in a different way, or the feature exists,
+     attest a divergence with hypothesis(H), and tell the human what you found.
   Record world facts, each with a source. Reproduce with a test, a script, or a request.
   D=$(orbit-kb subject e1 LOG)         then:  orbit-kb add "discovery_evidence(e1, system)"
   orbit-kb attest reproduction e1 'result(h1, reproduced)'     (or not_reproduced)
@@ -63,9 +104,77 @@ SURVEY: touch the current system
   A tagged test can be the subject.
 
 SPECTRUM: claims and tools
+  1. Split the hypothesis into claims, as in DECOMPOSE (orbit-kb help core): labels,
+     citations of the report text, and dormant questions with defaults. Claims state
+     outcomes, not designs. Each claim gets a concrete example and its falsifier.
+  2. Choose the cheapest tool that can falsify each claim:
+       current behavior                                   a reproduction or a test
+       code structure                                     code reading, search, or a KB query
+       a quantity                                         a script or a calculation
+       rules, permissions, limits, prices, configurations, data constraints   SMT (FLYBY)
+       order of steps, retries, timeouts, concurrency, workflows              TLA+ (TRAJECTORY)
+       a property for all/every input   universal, for BURN. FLYBY can first search for a
+                                        counterexample.
+  3. Use a model only when a few examples cannot cover the combinations or orders of steps.
+  4. If a claim mixes rules and steps, model the steps in TLA+ with the rules as guards, and
+     the rules alone in SMT, with the same claim ids.
+  5. Build an existing-world model from the SURVEY facts, and a target model from it and the
+     claims. If two tools state one claim, build each statement from the report and the
+     SURVEY facts, not from the other statement.
+  Record:
   Record the claims (orbit-kb help core) and universal(C) where it applies.
   For a test or script: orbit-kb add "check(t1, c1)" "discovery_evidence(t1, system)"
   then orbit-kb run t1 -- CMD
+
+FLYBY: explore combinations with SMT
+  Use Z3 through its Python API or SMT-LIB 2. Give each requirement a name, so an unsat core
+  names requirements. Keep the domain small. Use one file for each model, and save each run's
+  output as its log.
+  1. Sanity. The existing-world rules with no property must be SAT. UNSAT is an encoding
+     error. Fix it first.
+  2. Calibrate. Pin the inputs of a real case from SURVEY, and of two or three normal cases.
+     The model must give the results of the current system. If not, record a calibration
+     that differs, or a divergence with model(M), and fix the model. Then the reported bad
+     case must be SAT.
+  3. Root cause (defects only). Change one suspected rule at a time. The root cause removes
+     the bad case and keeps every normal case.
+  4. Target. Remove the retired rules, add the introduced rules, and keep the preserved
+     rules. Then the bad case and each negated preserved property are UNSAT, each introduced
+     condition is SAT, and all requirements together are SAT. That witness is an example for
+     the human, and the target's sanity result.
+  5. Conflicts. If the requirements cannot hold together, record the unsat core as one
+     conflict finding, and ask one question: "For this case, these requirements cannot all
+     hold. Which one gives?" After the answer, attest a divergence with claim(C) only on each
+     claim that the answer superseded.
+  6. Explore. Get several witnesses: block each one, and run again. Show the human the
+     surprising cases and the boundary cases: zero, the maximum, empty, one, and many. First
+     pin realistic values.
+  7. Mutation. Delete each introduced rule, one at a time. The bad case must return (killed).
+     If it does not (survived), find out why, and record a reason.
+  SAT: a case exists within the encoding. UNSAT: no case exists within the encoding, its
+  assumptions, and bounds. unknown: a gap.
+
+TRAJECTORY: explore sequences with TLA+ (the FLYBY steps, with these changes)
+  1. Model. Write the variables, the initial state, and one action for each real operation,
+     named after its code unit. Include the failure paths that matter: timeouts, retries,
+     crashes, and duplicate messages. Record each omitted one as an assumption.
+  2. Sanity. For each important state, TLC must violate an invariant that says the state is
+     never reached.
+  3. Calibrate. TLC must violate the reported good behavior. The code path of its trace must
+     exist, and the logs or a test must show the same sequence. If the system shows the
+     problem and the model cannot reach it, add the missing action or order of steps.
+  4. Target. Add an invariant for each preserved and introduced claim, and liveness where a
+     claim needs it, with its fairness assumptions.
+  5. Mutation. Remove each new guard, or restore each old action. The violation must return.
+  6. Why-not. For each invariant that holds, say why: contradicts (a guard forbids the bad
+     state) or absent (the model omits the cause). Record what the model omits as a risk.
+  7. Explore. Run TLC on properties that the domain suggests, but that the report did not
+     ask about. A violation is a finding. Ask the human if it is in scope.
+  8. Bounds. Start with two processes and two or three items. Increase the bounds once, at
+     the end. Note the bounds and distinct states of each result.
+
+Solvers: write the models yourself. A subagent on a fast model can read the logs.
+Set a timeout on every solver run.
 
 FLYBY (SMT) and TRAJECTORY (TLA+): record
   orbit-kb subject m1 model.smt ; orbit-kb subject log1 run1.log     (a new log for each run)
@@ -79,7 +188,11 @@ FLYBY (SMT) and TRAJECTORY (TLA+): record
   A violated never-reached invariant is verdict(M, sanity, reached). Use model(M, tla).
   attest model_result reads the log. It refuses a result the log clearly contradicts. Attest what the log shows, or run again into a new log.
 
-DISPROVE: record
+DISPROVE: attack the claims
+  DISPROVE is shared with the build orbit. In discovery, a fresh subagent sees only the
+  report, the claims, and the models. It tries other inputs, orders of steps, larger bounds,
+  removed assumptions, old or malformed data, and probes of the current system.
+  Record:
   orbit-kb attest disproof c1 "verdict(c1, refuted('price 0 with code X'))"
   Also add the counterexample as an example(...): the build orbit makes it a test case.
 
@@ -99,7 +212,14 @@ GATE: the GO / NO-GO vote (r1 is the request; round 1 first, +1 after each HOLD)
   The seal guards against a mistake, not a look. query and kb.pl show your vote.
   Do not read the human's vote before you vote.
 
-ASKING: record
+ASKING: ask the human
+  Ask as in orbit-kb help core (Asking the human). Also:
+  - Ask only the questions that evidence raised: a conflict, a surprise, a trace, a failed
+    reproduction, or a scope boundary. Show the concrete case.
+  - Ask about conflicts first, then surprises, then boundaries.
+  - Questions that no evidence raised stay dormant, with their defaults, in the ticket.
+  - When stakeholders conflict, the decision owner decides.
+  Record:
   question, assumed, raised_by(Q, X) (X is the finding or hypothesis that raised Q).
   Then answer(Q, VALUE, human), and lap_done(N) when the round ends.
 
@@ -111,3 +231,28 @@ HANDOFF to the build orbit
   only a Lean proof or a human waiver closes a burn.
   For a claim in SMT or TLA+ and again in Lean, run the SMT witnesses as Lean #eval
   examples. Record a divergence where the two disagree.
+
+REPORT: the discovery report
+  Write it from the queries. orbit-kb report prints the build-orbit sections and a Vote:
+  section; write the rest yourself.
+    Hypothesis:   <one sentence, and its falsifier>
+    System:       <reproduced, not reproduced, or exists; the evidence>
+    Findings:     <concrete cases, each from the system or a model only>
+    Decide:       <up to three questions, with options and defaults>
+    Scope:        in: ... / out: ...
+    Risk:         <what it touches; what a wrong build can damage; how to undo it>
+    Claims:       <each claim, its label, one example, and what would falsify it>
+    Not explored: <what discovery did not cover>
+    Ask:          "Vote GO, NO-GO, or HOLD." Nothing else: not your vote, and no
+                  recommendation. Your vote stays sealed until the human votes.
+  On GO, the ticket holds the report without Decide and Ask. It also holds: in the risk, the
+  data, money, security, or interfaces at stake, and what the models omit; for each claim, at
+  least one example from a witness, a trace, or a reproduction; the human's answers, and the
+  dormant questions with their defaults; each counterexample, with its disposition; the
+  universal claims, for BURN; the models, verdicts, and bounds.
+
+BACK: back to discovery
+  When a divergence shows that the problem is wrong, not the build, file a disclosure, and
+  run orbit-kb uses discovery. Then go to SIGNAL if the hypothesis is wrong, SPECTRUM if a
+  claim is wrong or missing, FLYBY or TRAJECTORY if a model missed a behavior, and FLYBY and
+  then the human if BURN shows that the requirements conflict.

@@ -15,7 +15,7 @@ the timeline and every mechanism, is in 30 slides: [`site/index.html`](site/inde
 
 | Part | Where | What it does |
 |---|---|---|
-| System prompt | [`prompt/SAGITTARIUS.md`](prompt/SAGITTARIUS.md) | One self-contained file, appended to the agent's session. |
+| System prompt | [`prompt/SAGITTARIUS.md`](prompt/SAGITTARIUS.md) | One file, appended to the agent's session. It states the philosophy in short; the procedure is in `orbit-kb help`. |
 | `orbit-kb` | [`kb/bin/orbit-kb`](kb/bin/orbit-kb), rules in [`kb/share/orbit-kb/`](kb/share/orbit-kb/) | A CLI that writes, lints, and queries Prolog KBs, with SWI-Prolog as the only engine. It also records Lean proofs (`orbit-kb prove`). Full reference: [`kb/share/orbit-kb/README.md`](kb/share/orbit-kb/README.md). |
 | Dependencies | | [SWI-Prolog](https://www.swi-prolog.org) 9+. [Lean 4](https://lean-lang.org), but only for proofs. |
 
