@@ -1554,9 +1554,12 @@ def cmd_triage(g, a):
     it = get_item(c, iid)
     need_open(it)
     kb_refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (iid,))]
+    esc = is_escalated(c, it["id"])
     c.close()
     final, asked, detail = disp, None, None
-    if by != "human" and disp != "escalate" and kb_refs:  # agents escalate
+    if by != "human" and disp != "escalate" and esc:  # escalated stays
+        final, asked, detail = "escalate", disp, "escalated to the human; only --by human --note decides it"
+    elif by != "human" and disp != "escalate" and kb_refs:  # agents escalate
         checks = kb_checks(hub_dir(g), kb_refs)
         blocking = any(k["state"] != "clear" for k in checks)  # fail-safe
         if blocking:
