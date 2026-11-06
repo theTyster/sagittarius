@@ -235,8 +235,7 @@ refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).
 contested(C) :- attest(_, divergence, _, claim(C), _, _).
 contested_twice(C) :- attest(D1, divergence, _, claim(C), _, _),
                       attest(D2, divergence, _, claim(C), _, _), D1 \= D2.
-% D22: the clause for depends/2 (a question whose prerequisite is defeated)
-% is gone with the fact.
+% D22: a question whose prerequisite is defeated has no clause here any more.
 to_ask(Q) :- question(Q, C, _), current(C), contested(C), not answered(Q),
              not question_waived(Q).
 % question_waived/1 has no clause here. The build module adds it (D13):

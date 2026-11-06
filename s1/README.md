@@ -35,7 +35,7 @@ session's calibrated set (22 of 25 known cases), copied unchanged.
    machine, one per line. `s1/redact.txt` is gitignored. Without it, nothing is redacted.
 2. Set `TYPESAFE_API_KEY` in the environment that starts `claude`.
 3. Paste this into the `hooks` of your `~/.claude/settings.json`. Change the path if the checkout
-   is not at `/home/ty/Projects/mine/sagittarius`:
+   is not at `/path/to/sagittarius`:
 
 ```json
 {
@@ -45,7 +45,7 @@ session's calibrated set (22 of 25 known cases), copied unchanged.
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /home/ty/Projects/mine/sagittarius/s1/hook.py",
+            "command": "python3 /path/to/sagittarius/s1/hook.py",
             "timeout": 10
           }
         ]
@@ -108,7 +108,7 @@ Alone, in `~/.claude/settings.json`. Change the path if the checkout is elsewher
 {
   "statusLine": {
     "type": "command",
-    "command": "python3 /home/ty/Projects/mine/sagittarius/s1/statusline.py"
+    "command": "python3 /path/to/sagittarius/s1/statusline.py"
   }
 }
 ```
@@ -124,7 +124,7 @@ Wrap both in a small script that saves stdin and feeds it to each. Save as
 #!/bin/sh
 input=$(cat)
 base=$(printf '%s' "$input" | EXISTING_COMMAND)
-s1=$(printf '%s' "$input" | python3 /home/ty/Projects/mine/sagittarius/s1/statusline.py)
+s1=$(printf '%s' "$input" | python3 /path/to/sagittarius/s1/statusline.py)
 printf '%s' "$base"
 [ -n "$s1" ] && printf ' | %s' "$s1"
 printf '\n'
