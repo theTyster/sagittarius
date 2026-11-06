@@ -5,6 +5,7 @@ below. This file belongs to this hub: an upgrade never replaces it. Add this hub
 Where this file and `HUB-CORE.md` disagree, this file wins.
 
 @HUB-CORE.md
+@PRINCIPLES.md
 @HEURISTICS.md
 @TECHNOLOGIES.md
 
@@ -22,7 +23,8 @@ of the Sagittarius checkout: name here how to run it. `HUB-CORE.md` says which s
 
 ## Sessions
 
-<One line per role in sessions/ROLES: what it owns, and what it hands to whom.>
+<One line per session name in flow/seed.json: what it owns, and what it hands to whom. How a named
+session is started is set up outside the hub (for example in your dotfiles).>
 
 ## Local rules
 

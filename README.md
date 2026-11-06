@@ -18,6 +18,8 @@ the timeline and every mechanism, is in 35 slides: [`site/index.html`](site/inde
 
 ## Use it
 
+Only the hub, with no Prolog and no Lean? That is the informal release: see [`hubkit/README.md`](hubkit/README.md).
+
 1. **Install.** Install SWI-Prolog 9+, then run `./install.py` from this folder. It links
    `orbit-kb`, `repo-map`, and the prompt into your home directory. Check it with `orbit-kb doctor`
    and `./install.py --check`. See "Install" below for the prompt flag.
@@ -88,7 +90,7 @@ three tmux windows named after the roles. That launcher is not part of this repo
 
 ## Hub kit
 
-`hubkit/` is hubflow-starter: a template for a hub, one git repo that a few named Claude Code
+`hubkit/` is the hub kit: a template for a hub, one git repo that a few named Claude Code
 sessions share as working memory (a weekly calendar plus flow state in SQLite). To start a hub from
 it, give `hubkit/` to your agent and say "follow INSTRUCTIONS.md" (`hubkit/INSTRUCTIONS.md`). The
 agent asks up to three questions, sets up the hub, and checks each step. To take a new release into

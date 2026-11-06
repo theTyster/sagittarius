@@ -1,4 +1,7 @@
-# Instructions for the agent: set up a hub with a flow-state db
+# Instructions for the agent: set up a hub with the hub kit
+
+This is the hub kit, part of Sagittarius (<https://github.com/theTyster/sagittarius>): its informal
+release. It needs Python 3 and git, no Prolog and no Lean.
 
 You are setting up a **hub**: a git repo that a few long-lived Claude Code sessions share as their
 working memory. Read this whole file before you do anything. Do the steps in order. Each step ends
@@ -24,10 +27,17 @@ files.
 5. **A few named, long-lived sessions**, one per role (example: discovery, build, process, support. This is not the Sagittarius pane set: review, discovery, build),
    each in its own terminal pane, all with the hub as cwd. Each has an identity (`HUB_SESSION`) that
    the db records on every write. Sessions hand work to each other with a db row plus a message.
+   How a named session is started is set up outside the hub (dotfiles, a shell alias): it belongs
+   to one machine. The hub knows only the names, in `flow/seed.json`.
+6. **The principles.** `PRINCIPLES.md` states the Sagittarius philosophy in plain words, and
+   `CLAUDE.md` imports it. Read it to your human too.
 
-The hub can also hold a **project KB**: an orbit-kb KB with the `project` module, kept at the hub
-root as `project-kb/`. It records domain decisions, pins of the world, and drafts for the tracker.
-Make it with `orbit-kb init project-kb --uses project`. See `orbit-kb help project`.
+The hub works without any formal tool: `HUB-CORE.md`, "Without orbit-kb", says where each fact is
+kept then. If your human uses Sagittarius's `orbit-kb` (it needs SWI-Prolog), the hub can also hold
+a **project KB**: an orbit-kb KB with the `project` module, kept at the hub root as `project-kb/`.
+It records domain decisions, pins of the world, and drafts for the tracker. Make it with
+`orbit-kb init project-kb --uses project`. See `orbit-kb help project`. Do not install `orbit-kb`
+unless your human asks for it.
 
 ## The kit
 
@@ -37,11 +47,10 @@ UPGRADING.md                    what each release changes, and how to apply it t
 kit.json                        the template version, and which files are engine or owned
 tools/hubkit.py                 install, status, upgrade (tests: tools/hubkit-test.py)
 hub/                            the files of a new hub, at the paths they take in the hub:
-  HUB-CORE.md                     the shipped rules (engine: an upgrade replaces it)
+  HUB-CORE.md, PRINCIPLES.md      the shipped rules and principles (engine: an upgrade replaces them)
   CLAUDE.md, HEURISTICS.md, TECHNOLOGIES.md, W0/WEEK.md   owned by the hub from day one
   .claude/scripts/hubflow.py      the db tool (Python 3 stdlib only), and hubflow-test.py
   .claude/skills/hub-flow, hub-rotate   the two skills; a LOCAL.md next to SKILL.md holds local changes
-  sessions/launch.sh, ROLES       start or resume a role session by name
   flow/seed.json                  sessions, aliases and people to seed
 docs/index.html                 a one-page briefing for your human (also published as the repo's site)
 ```
@@ -58,7 +67,7 @@ and what to say to you. Then ask:
 
 
 1. Where should the hub live (a new directory; it becomes a git repo)? Default: `~/hub`.
-2. Which sessions (roles), and which people do items wait on? Default: the four in
+2. Which sessions (one name per role), and which people do items wait on? Default: the four in
    `hub/flow/seed.json`, and one person `me` for your human.
 3. Which tracker holds tickets (GitHub Issues, Jira, Linear, …)? It only changes wording in
    `CLAUDE.md`; refs are `issue:<digits>`, `pr:<digits>`, or `url:<url>`.
@@ -72,11 +81,10 @@ python3 "$KIT"/tools/hubkit.py install --hub "$HUB"
 ```
 
 Edit only owned files: `W0/WEEK.md` line 1 (this week's Monday → Sunday); the tracker and the
-sessions in `CLAUDE.md`; `sessions/ROLES` (answer 2); `flow/seed.json`, with the same session names
-and the people.
+sessions in `CLAUDE.md`; `flow/seed.json`, with the session names (answer 2) and the people.
 
 **Check:** `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` lists every engine file as
-`unchanged`; `sessions/ROLES` and `flow/seed.json` name the same sessions.
+`unchanged`; `CLAUDE.md` and `flow/seed.json` name the same sessions.
 
 ## Step 3: prove the db tool on this machine
 
@@ -107,26 +115,26 @@ and rejected rows), show your human the counts, and run `import FILE --yes` only
 
 ## Step 5: sessions
 
-For each role: `sessions/launch.sh <role> --dry-run` prints the command it would run. Then run
-`sessions/launch.sh <role>` in its own terminal pane (tmux, a terminal tab, anything). It resumes the
-session with that name, or creates it, and exports `HUB_SESSION`. Never start a role session with
-`claude --continue`: every role shares the hub as cwd, so `--continue` can pick another role's
-conversation.
+The kit does not start sessions. Named sessions are set up outside the hub, in your human's
+dotfiles or shell: they belong to one machine. Each session needs its hub cwd and its own
+`HUB_SESSION=<name>` (a name from `flow/seed.json`). One way, in a terminal pane per role:
 
-Optional per role: `sessions/<role>/prompt.md` (appended to the system prompt on every launch; say
-what the role owns, what it does not own, and which other session gets what) and
-`sessions/<role>/settings.json`. Write these with your human; they are the part most worth tuning.
+```
+cd "$HUB" && HUB_SESSION=<name> claude --name "hub-<name>"
+```
 
-If you script the panes (tmux or other), have each pane either call `launch.sh <role>` or export
-`HUB_SESSION=<role>` itself. A pane without it can read the db but every write fails.
+Resume a role's session by its name, never with `claude --continue`: every role shares the hub as
+cwd, so `--continue` can pick another role's conversation. A pane without `HUB_SESSION` can read the
+db, but every write fails.
 
-**Check:** each role's dry run prints a command with its own `HUB_SESSION`.
+**Check:** in each role's pane, `echo "$HUB_SESSION"` prints that role's name, and
+`python3 .claude/scripts/hubflow.py view v_inbox --session "$HUB_SESSION"` exits 0.
 
 ## Step 6: commit
 
 ```
-git add .gitignore .hub-template.json CLAUDE.md HUB-CORE.md HEURISTICS.md TECHNOLOGIES.md .claude sessions flow/seed.json flow/jsonl W0
-git commit -m "hub: initial layout, flow db, sessions"
+git add .gitignore .hub-template.json CLAUDE.md HUB-CORE.md PRINCIPLES.md HEURISTICS.md TECHNOLOGIES.md .claude flow/seed.json flow/jsonl W0
+git commit -m "hub: initial layout and flow db"
 ```
 
 **Check:** `git status` is clean, and `git ls-files flow` lists the JSONL but no `flow.db`.
@@ -148,11 +156,11 @@ Say what you set up, each check's result, and what you did not check. Then tell 
 
 - The db is new. It has a test suite with mutation checks, but little time in daily use yet.
 - `rotate` requires `--week-start` to be a Monday, and an item is due at exactly 28 idle days.
-- Escalation asks `orbit-kb` (or `HUBFLOW_ORBIT_KB`) whether a spec KB blocks. Without it, every item
-  with a `kb` ref counts as blocking, so an agent can never lapse it. On an escalated or blocking
+- Escalation asks `orbit-kb` (or `HUBFLOW_ORBIT_KB`) whether a spec KB blocks. Without it (the
+  informal release) nothing blocks from a spec KB, but every item with a `kb` ref counts as
+  blocking, so an agent can never lapse it: do not add `kb` refs without `orbit-kb`. On an escalated or blocking
   item, an agent's close, renew, park, `set --status` and removal of its `kb` ref are refused too;
   a human does them with `--by human --note`. An agent can still pass `--by human` without a
   human's words, or edit the hub outside hubflow: the rule stops mistakes, not cheating.
 - Nothing wakes an idle session by itself. A session sees db changes when it next reads the db, or
   when another session messages it.
-- `launch.sh` needs bash 4+ and `jq` (on macOS: `brew install bash jq`).

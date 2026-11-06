@@ -43,6 +43,35 @@ human before you start; this is a one-time merge.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.4.0 (the informal release: the hub kit without Prolog or Lean)
+
+No schema change. The kit is now named the hub kit, part of Sagittarius
+(<https://github.com/theTyster/sagittarius>). `HUB-CORE.md` is an engine file: merge it by intent
+(the new section is "Without orbit-kb", with its generated informal store map; the structure tree
+and "Panes" no longer name `sessions/`).
+
+- **The principles ship with the hub.** Intent: every agent in the hub reads the Sagittarius
+  principles in plain words at start. Files: `PRINCIPLES.md` (new, engine: the upgrade adds it).
+  Owned file `CLAUDE.md`: add the line `@PRINCIPLES.md` below `@HUB-CORE.md`; an upgrade never
+  writes `CLAUDE.md`, and a root file that is not imported is invisible.
+  Check: `grep -x @PRINCIPLES.md CLAUDE.md` prints the line.
+- **The hub works without orbit-kb.** Intent: with only the five informal stores (ledger, memory
+  files, weeks, bespoke tools, tracker), nothing blocks from a spec KB; an item with a `kb` ref is
+  still treated as blocking when `orbit-kb` is missing. Files: `HUB-CORE.md`. No code change: a hub
+  that uses `orbit-kb` keeps its spec KBs at `specs/<slug>` and its `spec-triage` step. Check:
+  `hubflow.py check` exits 0.
+- **`sessions/` leaves the kit.** Intent: named sessions belong to one machine, so they are set up
+  outside the hub (dotfiles, a shell alias), and the hub knows only their names in `flow/seed.json`.
+  Files: `sessions/launch.sh` (no longer shipped), `HUB-CORE.md`, `hub-flow/SKILL.md`,
+  `INSTRUCTIONS.md`. An existing hub may keep its own `sessions/`: `sessions/ROLES` and each
+  `sessions/<role>/` are the hub's files, and an upgrade never touches them. The upgrade removes an
+  unchanged `sessions/launch.sh` (it lists `remove sessions/launch.sh`); to keep it as the hub's own
+  file, run `git -C "$HUB" checkout HEAD -- sessions/launch.sh` after the upgrade. A changed
+  `launch.sh` is listed as `pending`: keep the hub's file and run
+  `python3 "$KIT"/tools/hubkit.py done --hub "$HUB" sessions/launch.sh`. Owned files: `CLAUDE.md`'s
+  "Sessions" section may say where the sessions are started. Check: `hubkit.py status` does not
+  list `sessions/launch.sh`.
+
 ### 0.3.0 (agents know the stores and the workflow)
 
 No schema change. `HUB-CORE.md` is an engine file: merge it by intent (the new sections are "What
