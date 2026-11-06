@@ -1279,6 +1279,9 @@ def case_capsule(r, root):
     """c3 (m_capsule, r_ticket_log_split): a capsule holds a summary, the hub's HEAD and the item's paths."""
     h = os.path.join(root, "caphub")
     head = git_hub(h)
+    # the item's kb ref names a real spec KB dir whose (stub) orbit-kb answers: nothing blocks
+    os.makedirs(os.path.join(h, "W0", "analyses", "alpha", "kb"))
+    stub_env = {"HUBFLOW_ORBIT_KB": write_stub(root)}
     d = fresh(r, root, "capsule")
     add(r, d, "ask", "Long-lived ask", "--ref", "issue:12", "--ref", "file:alpha/notes.md", "--ref", "kb:alpha/kb", "--analysis", "alpha")  # A-1
     add(r, d, "ask", "No capsule here")  # A-2
@@ -1310,7 +1313,7 @@ def case_capsule(r, root):
                        ("summary-capped", ["capsule", "A-0001", "--summary", "x" * 1001])):
         r.check("c3-capsule-refused " + name, refused(hf(r, d, *args, hub=h), 1), hf(r, d, *args, hub=h))
     r.check("c3-refusals-store-nothing", (qs(d, "select count(*) from capsule") or [(None,)])[0][0] == n)
-    res = hf(r, d, "triage", "A-0001", "capsule", "--note", "context kept in the capsule", hub=h)
+    res = hf(r, d, "triage", "A-0001", "capsule", "--note", "context kept in the capsule", hub=h, extra_env=stub_env)
     r.check("c3-triage-capsule-after-capsule", res[0] == 0 and disp(d, "A-0001")[-1][0] == "capsule" and status(d, "A-0001") == "open", res)
     r.check("c3-check-clean", hf(r, d, "check")[0] == 0)
 
