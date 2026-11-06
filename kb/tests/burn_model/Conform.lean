@@ -47,7 +47,7 @@ inductive PMode where
   | nolog
   deriving DecidableEq, Repr, Inhabited
 
-def emptyDB : DB := ⟨[], [], [], [], [], [], [], [], [], [], [], [], [], [], []⟩
+def emptyDB : DB := ⟨[], [], [], [], [], [], [], [], [], [], [], [], [], []⟩
 
 structure BState where
   db : DB := emptyDB
@@ -78,7 +78,6 @@ def addQuestion (q c : Nat) : B Unit := modDB fun d => { d with question := d.qu
 def addAssumed (q v : Nat) : B Unit := modDB fun d => { d with assumed := d.assumed ++ [(q, v)] }
 def addAnswer (q v : Nat) (w : Writer) : B Unit :=
   modDB fun d => { d with answer := d.answer ++ [(q, v, w)] }
-def addDepends (q p : Nat) : B Unit := modDB fun d => { d with depends := d.depends ++ [(q, p)] }
 def addConf (k : Nat) : B Unit := modDB fun d => { d with conformance := d.conformance ++ [k] }
 
 def addAttest (t : AType) (subj : Nat) (p : Pred) (w : Writer) : B Nat := do
@@ -218,7 +217,6 @@ def renderKB (db : DB) : String :=
     (db.question.map fun (q, c) => s!"question(q{q}, c{c}, 'Question {q}').") ++
     (db.assumed.map fun (q, v) => s!"assumed(q{q}, v{v}).") ++
     (db.answer.map fun (q, v, w) => s!"answer(q{q}, v{v}, {wS w}).") ++
-    (db.depends.map fun (q, p) => s!"depends(q{q}, q{p}).") ++
     (db.conformance.map fun k => s!"conformance(k{k}).") ++
     (db.attest.map renderAttest)
   String.intercalate "\n" ls ++ "\n"
@@ -362,8 +360,6 @@ def randomOne : B Unit := do
     | 2 => addAnswer q 1 .human
     | 3 => addAnswer q 1 .agent
     | _ => pure ()
-    if q > 1 then
-      if ← chance 30 then addDepends q ((← rand (q - 1)) + 1)
   if nk > 0 then
     if ← chance 25 then addConf ((← rand nk) + 1)
 

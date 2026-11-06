@@ -1,0 +1,5 @@
+# One long-lived session name per line. Must match the sessions in flow/seed.json.
+discovery
+build
+process
+support
