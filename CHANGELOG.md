@@ -25,8 +25,15 @@ Ty makes the release. This entry lists what is in the `redesign` branch. The hub
 - System 1 hook (T07): `s1/hook.py` asks Jev about each prompt. It is optional. You paste its
   snippet into `settings.json` yourself. No script writes that file.
 - Release (T15): a "Use it" path in `README.md`, and `kb/tests/test_release.sh`.
+- Project KB (T06): an orbit-kb KB with the `project` module (CONTRACT D23). It has one writer at a
+  time (a lock), stale pins, outbound drafts, and a conflict rule: when the tracker and a draft both
+  changed after the pin, only a human can pick, and the conflict blocks `done`.
 
 ### Not in this release yet
 
-- Project KB (T06).
 - Tracker drafts (T11).
+
+### Limits
+
+- The Lean model's `done` has no project-conflict clause and no flare clause. So the Lean proofs
+  about `done` cover only KBs without those modules.
