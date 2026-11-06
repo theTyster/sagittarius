@@ -20,7 +20,9 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   renew ID [--note N]                          renewed_at = now (an open item only)
   park ID --until YYYY-MM-DD [--note N]        not lapsed before that date
   set ID [--title T] [--owner S] [--waits-on P|none] [--status open|waiting] [--analysis SLUG|none]
-  close ID --reason done|dropped [--note N]   an agent cannot close an item whose spec KB blocks
+  close ID --reason done|dropped [--note N]   an agent cannot close, renew, park, set --status
+                                               or ref rm the kb ref of an item that is escalated
+                                               or whose spec KB blocks (--by human may)
   close ID --reason human_skip --by human --note QUOTE
                                                a person's skip: also closes the open items linked
                                                to ID by `blocks` (either way), and prints the
@@ -931,6 +933,7 @@ def cmd_renew(g, a):
     pos, o = parse(a, WOPT)
     if len(pos) != 1:
         usage("renew ID [--note N]")
+    agent_guard(g, o, pos[0], "renew")
 
     def fn(c, w):
         it = get_item(c, pos[0])
@@ -946,6 +949,7 @@ def cmd_park(g, a):
     if len(pos) != 1 or not o.get("until"):
         usage("park ID --until YYYY-MM-DD [--note N]")
     until = parse_date(o["until"], "--until")
+    agent_guard(g, o, pos[0], "park")
 
     def fn(c, w):
         it = get_item(c, pos[0])
@@ -971,6 +975,8 @@ def cmd_set(g, a):
         raise Bad("--status is open or waiting (close with the close command)")
     if o.get("analysis") not in (None, "none"):
         check_analysis(o["analysis"])
+    if "status" in o:
+        agent_guard(g, o, pos[0], "change the status of")
 
     def fn(c, w):
         it = get_item(c, pos[0])
@@ -1011,15 +1017,8 @@ def cmd_close(g, a):
     skip = o["reason"] == "human_skip"
     if skip and writer_by(o, g) != "human":
         raise Bad("--reason human_skip records a person's skip: pass --by human --note with their words")
-    if not skip and writer_by(o, g) != "human":  # an agent never closes a blocking item
-        c = connect_ro(flow_dir(g))
-        it = get_item(c, pos[0])
-        kb_refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (it["id"],))]
-        c.close()
-        checks = kb_checks(hub_dir(g), kb_refs) if it["status"] in OPEN else []
-        if any(k["state"] != "clear" for k in checks):
-            raise Bad(f"{it['id']} is blocking ({blocking_detail(checks)}); an agent cannot close it."
-                      f" Record `triage {it['id']} escalate --note T` for the human")
+    if not skip:  # an agent never closes a blocking item
+        agent_guard(g, o, pos[0], "close")
 
     def fn(c, w):
         it = get_item(c, pos[0])
@@ -1077,6 +1076,8 @@ def cmd_ref(g, a):
     if len(pos) != 3 or pos[1] not in ("add", "rm"):
         usage("ref ID add|rm KIND:REF")
     kind, ref = parse_ref(pos[2])
+    if pos[1] == "rm" and kind == "kb":
+        agent_guard(g, o, pos[0], "remove the kb ref of")
 
     def fn(c, w):
         it = get_item(c, pos[0])
@@ -1523,6 +1524,22 @@ def is_escalated(c, iid):
     return r is not None and r[0] == "escalate"
 
 
+def agent_guard(g, o, iid, what):
+    """An agent may not `what` an open item that is escalated or whose spec KB blocks (same
+    fail-safe as triage): only a human, with --by human --note, may."""
+    if writer_by(o, g) == "human":
+        return
+    c = connect_ro(flow_dir(g))
+    it = get_item(c, iid)
+    esc = it["status"] in OPEN and is_escalated(c, it["id"])
+    refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (it["id"],))]
+    c.close()
+    checks = kb_checks(hub_dir(g), refs) if it["status"] in OPEN and refs and not esc else []
+    if esc or any(k["state"] != "clear" for k in checks):  # agent guard
+        why = "escalated to the human" if esc else f"blocking ({blocking_detail(checks)})"
+        raise Bad(f"{it['id']} is {why}; an agent cannot {what} it. A human can: add --by human --note \"<their words>\"")
+
+
 def cmd_triage(g, a):
     pos, o = parse(a, WOPT)
     if len(pos) != 2:
@@ -1670,7 +1687,7 @@ def cmd_index_transcripts(g, a):
     wd = pos[0] if os.path.isabs(pos[0]) else os.path.join(hub, pos[0])
     if not os.path.isdir(wd):
         raise Bad(f"no week dir {wd}")
-    found = []
+    found, files_read = [], 0
     for root, dirs, files in os.walk(wd):
         dirs.sort()
         for name in sorted(files):
@@ -1678,6 +1695,7 @@ def cmd_index_transcripts(g, a):
                 path = os.path.join(root, name)
                 t = read_transcript(path)
                 if t:
+                    files_read += 1
                     rel = os.path.relpath(path, hub)
                     t["path"] = path if rel.startswith("..") else rel
                     found.append(t)
@@ -1692,7 +1710,8 @@ def cmd_index_transcripts(g, a):
                 c.execute("INSERT INTO transcript_msg(session_id, n, at, text) VALUES(?,?,?,?)", (t["session_id"], n, at, text))
 
     run_write(g, o, fn)
-    print(f"indexed {len(found)} transcript(s) from {pos[0]}")
+    print(f"indexed {files_read} file(s), {len({t['session_id'] for t in found})} session(s) from {pos[0]}"
+          " (files that share a session id: the last one read wins)")
 
 
 TRANSCRIPT_COLS = ("session_id", "first_at", "last_at", "messages", "user_messages", "tools", "first_user", "path")

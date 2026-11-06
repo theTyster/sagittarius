@@ -94,8 +94,8 @@ $HF triage A-0007 escalate --note "only the human can decide" # stays open, top 
 ```
 
 An agent may triage. An item with a `kb` ref to a spec KB that blocks is not the agent's to end:
-an agent's keep, lapse or capsule of it is recorded as **escalate**, and an agent's `close` of it is
-refused. hubflow asks `orbit-kb --dir <kb dir> query 'blocking(X)'` (`HUBFLOW_ORBIT_KB` names
+an agent's keep, lapse or capsule of it is recorded as **escalate**, and an agent's `close`,
+`renew`, `park`, `set --status` or `ref rm kb:…` of it (or of any escalated item) is refused. hubflow asks `orbit-kb --dir <kb dir> query 'blocking(X)'` (`HUBFLOW_ORBIT_KB` names
 another command). If the query fails, orbit-kb is missing, or the kb dir is not in W0–W5, the item
 counts as blocking. An escalated item stays open at the top of `view`, with no automatic action,
 until the human records a disposition (`--by human --note "<their words>"`).

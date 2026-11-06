@@ -145,9 +145,10 @@ Say what you set up, each check's result, and what you did not check. Then tell 
 - The db is new. It has a test suite with mutation checks, but little time in daily use yet.
 - `rotate` requires `--week-start` to be a Monday, and an item is due at exactly 28 idle days.
 - Escalation asks `orbit-kb` (or `HUBFLOW_ORBIT_KB`) whether a spec KB blocks. Without it, every item
-  with a `kb` ref counts as blocking, so an agent can never lapse it. An agent can still drop an
-  escalated item by other means the tool does not watch (for example by removing its `kb` ref
-  first): the rule stops mistakes, not cheating.
+  with a `kb` ref counts as blocking, so an agent can never lapse it. On an escalated or blocking
+  item, an agent's close, renew, park, `set --status` and removal of its `kb` ref are refused too;
+  a human does them with `--by human --note`. An agent can still pass `--by human` without a
+  human's words, or edit the hub outside hubflow: the rule stops mistakes, not cheating.
 - Nothing wakes an idle session by itself. A session sees db changes when it next reads the db, or
   when another session messages it.
 - `launch.sh` needs bash 4+ and `jq` (on macOS: `brew install bash jq`).
