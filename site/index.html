@@ -1530,7 +1530,6 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <p>The source is <code>docs/PHILOSOPHY.md</code>: "The bet" and principles 7 and 10. The slides that describe the prompt itself wait for the small prompt (T08).</p>
 </section>
 
-<!-- T16: recheck after T07 fixes -->
 <section class="slide" id="s32" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-speech"/></svg>32 of 35 · The redesign</div>
   <h2>System 1: the hook and the Jev client</h2>
@@ -1539,10 +1538,10 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <div class="tile"><svg class="ic"><use href="#i-speech"/></svg><h3>The Jev client</h3><p class="muted"><code>s1/jev.py</code> sends a state and small questions to Jev (TypeSafe System One). It returns an answer with a probability for each question, or nothing. It never raises, and it redacts names before the call.</p></div>
     <div class="tile t-mid"><svg class="ic"><use href="#i-bolt"/></svg><h3>The hook</h3><p class="muted"><code>s1/hook.py</code> is a <code>UserPromptSubmit</code> hook. It asks the question set about the prompt and the last agent message, and prints one line: the kind of work, a likely divergence, or an effort that suggests a shift up.</p></div>
     <div class="tile"><svg class="ic"><use href="#i-eye"/></svg><h3>The status line</h3><p class="muted"><code>s1/statusline.py</code> shows the newest answer of the session: the work kind, the divergence probability and the effort probability.</p></div>
-    <div class="tile t-amber"><svg class="ic"><use href="#i-lock"/></svg><h3>It fails open</h3><p class="muted">A missing key, a timeout or bad input prints nothing and never blocks a prompt. An unsure answer is left out. Ty approves the question set before it is final.</p></div>
+    <div class="tile t-amber"><svg class="ic"><use href="#i-lock"/></svg><h3>It fails open</h3><p class="muted">Any error, a missing key, a timeout or bad input prints nothing and never blocks a prompt. The hook reads only the last 2 MB of the transcript, and the read and the call both run inside the timeout (4 seconds by default, plus a short grace). An unsure answer is left out. Ty approves the question set before it is final.</p></div>
   </div>
   <details class="more"><summary>Why a small model instead of a long prompt</summary><div class="body">
-  <p>Each call is one small, granular choice, so it can be measured. A long prompt asks the agent to notice many signals at once, and nobody can check that it did. The line is a signal, not an order: the agent still decides.</p>
+  <p>A skip is never silent: every skip writes one log line with a reason, except <code>S1_OFF</code>, which writes nothing. So a quiet hook can be told apart from a broken one. Each call is one small, granular choice, so it can be measured. A long prompt asks the agent to notice many signals at once, and nobody can check that it did. The line is a signal, not an order: the agent still decides.</p>
   </div></details>
 </section>
 
@@ -1558,7 +1557,6 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </div>
 </section>
 
-<!-- T16: recheck after T07 fixes -->
 <section class="slide" id="s34" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-box"/></svg>34 of 35 · The redesign</div>
   <h2>The hub kit</h2>
