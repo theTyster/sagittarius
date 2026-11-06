@@ -31,6 +31,13 @@
 #   c7 D27 notes the Lean limit (burn_model untouched: kb/tests/burn_model/check.sh) : PT7
 #   c8 pin-item keeps the pinned text; show pin    : PT8
 #   c9 project archive --superseded-before         : PT9
+# Ticket T34 (fixes of the project KB found when T23 was verified; CONTRACT D27 R10):
+#   c1 archive leaves no dangling reference; lint is clean after it : PF1
+#   c2 archive and impact find a spec KB outside the parent directory : PF2
+#   c3 --superseded-before takes only a real date  : PF3
+#   c4 pin-item --kind file keeps no copy; show pin reports a mismatch : PF4
+#   c5 self-relations are refused (EP2); a depends_on cycle is WP7 : PF5
+#   c6 an agent's ratified_by is refused at add (any case); help states the trust limit : PF6
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -826,6 +833,95 @@ t_PT9() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "deci
           printf '%s\n' "$cmds" | grep -E '^### `' | grep -Fq 'project impact' || note "the README command reference has no heading for project impact"
           printf '%s\n' "$cmds" | grep -E '^### `' | grep -Fq 'project archive' || note "the README command reference has no heading for project archive"; }
 
+# ================================================================ T34
+# PF1 (T34 c1): archive removes every fact that names an archived id (a note, an attestation
+# about it, a local fact with a ref argument), so lint is clean after it.
+t_PF1() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "decided_by(d2, ann, '$T2')" "supersedes(d2, d1)" \
+                 "note(d1, 'Kept for the history')" "decision(d3, 'Retry an export three times')" "note(d3, 'Stays')"
+          okb --dir "$K" attest disclosure d1 "other('The old export was a guess')"; rc_is 0 "setup: an attestation about d1"
+          okb --dir "$K" declare 'tag(ref(decision), text)' --doc 'A tag of a decision.'; rc_is 0 "setup: a local fact kind"
+          padd "tag(d1, 'legacy')" "tag(d3, 'current')" >/dev/null; rc_is 0 "setup: tags"
+          okb --dir "$K" lint; rc_is 0 "setup: lint is clean before the archive"
+          okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "archive"; out_has '(^|[^a-z0-9])d1([^a-z0-9]|$)' "names d1"
+          no_fact "$K/kb.pl" "decision(d1, _)" "d1 is archived"
+          no_fact "$K/kb.pl" "note(d1, _)" "the note about d1 goes with it"
+          no_fact "$K/kb.pl" "attest(_, _, d1, _, _, _)" "the attestation about d1 goes with it"
+          no_fact "$K/kb.pl" "tag(d1, _)" "the local fact that names d1 goes with it"
+          has_fact "$K/kb.pl" "note(d3, _)" "a note about a kept id stays"; has_fact "$K/kb.pl" "tag(d3, _)" "a tag of a kept id stays"
+          okb --dir "$K" lint; rc_is 0 "lint is clean after the archive"; out_hasnt '^E[0-9A-Z]' "no error"
+          okb help project; out_has 'note' "help project says that archive removes notes and other facts that name the id"; }
+
+# PF2 (T34 c2): a spec KB outside the parent directory of the project KB, that names it by an
+# absolute path, is found by project impact and keeps its pin through project archive.
+t_PF2() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "decided_by(d2, ann, '$T2')" "supersedes(d2, d1)"
+          local o d; o=$(mktemp -d "$base/PF2out.XXXXXX"); o=$(cd "$o" && pwd -P)
+          okb init "$o/spec" --request 'Build far away' --uses build,project >/dev/null 2>&1 || note "setup: init far spec failed"
+          K=$o/spec
+          d=$(tdigest 'Old export')
+          padd "project_kb('$T/pk')" "claim(c1, preserve, 'The far work holds')" "cites(c1, 'Build far away')" \
+                          "check(k1, c1)" "pins(c1, project, d1, '$d')" >/dev/null; rc_is 0 "setup: the far spec KB pins d1"
+          okb --dir "$K" lint; out_hasnt '^WP[12]' "setup: the pin matches"
+          K=$T/pk
+          okb --dir "$K" project impact d1; rc_is 0 "project impact"; out_has "$o/spec" "impact finds the spec KB outside the parent directory"
+          is_set 'impact(d1, S)' "S = '$o/spec'"
+          okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "archive"; out_has 'Nothing' "the open far spec KB keeps d1"
+          has_fact "$K/kb.pl" "decision(d1, _)" "d1 stays"
+          local lean=$here/../proofs/project_archive/ProjectArchive.lean
+          grep -q 'registry' "$lean" || note "the Lean model says that pinned covers the registry of pinning spec KBs"
+          grep -Eq 'does not cover the walk|not cover .*walk' "$lean" || note "the Lean model says that the proof does not cover the walk"
+          okb help project; out_has 'spec_kbs' "help project documents the registry"; }
+
+# PF3 (T34 c3): --superseded-before takes only a real date or time.
+t_PF3() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "decided_by(d2, ann, '$T2')" "supersedes(d2, d1)"
+          cp "$K/kb.pl" "$T/kb.before"
+          local x; for x in 2026-13-45 2026-02-30 2026-04-31 2026-00-10 2026-02-29T00:00:00Z 2026-03-03T25:00:00Z 2026-03-03T10:60:00Z; do
+              okb --dir "$K" project archive --superseded-before "$x"; rc_is 2 "$x is not a real date" && any_has "$x" "the message names $x"
+          done
+          same_file "$K/kb.pl" "$T/kb.before" "nothing was written"
+          okb --dir "$K" project archive --superseded-before 2024-02-29; rc_is 0 "a leap day is a real date"; out_has 'Nothing'
+          okb --dir "$K" project archive --superseded-before 2026-03-03; rc_is 0 "a real date"; no_fact "$K/kb.pl" "decision(d1, _)"; }
+
+# PF4 (T34 c4): pin-item --kind file keeps the digest and the path only; show pin checks the
+# kept text of a tracker pin against its digest.
+t_PF4() { t23_pk; mkdir -p "$T/weeks/w45"; printf 'raw report of week 45\n' > "$T/weeks/w45/report.md"
+          local h; h=$(sha "$T/weeks/w45/report.md")
+          okb --dir "$K" pin-item p1 "$T/weeks/w45/report.md" --kind file --text-file "$T/weeks/w45/report.md" --changed-at "$T1"
+          rc_is 0 "pin-item --kind file"
+          has_fact "$K/kb.pl" "pin(p1, file, _, 'sha256:$h', _)" "the pin keeps the digest"
+          [ -e "$K/pins/$h.txt" ] && note "a file pin kept a copy of the week file"
+          [ -d "$K/pins" ] && [ -n "$(ls -A "$K/pins")" ] && note "pins/ holds a copy: $(ls "$K/pins" | tr '\n' ' ')"
+          okb --dir "$K" show pin p1; rc_is 1 "a file pin has no kept text"; any_has "weeks/w45/report.md" "show pin names the path of the file"
+          printf 'Title: Sort orders\n' > "$T/item.txt"; local h2; h2=$(sha "$T/item.txt")
+          okb --dir "$K" pin-item p2 'gh:acme/widgets#12' --text-file "$T/item.txt" --changed-at "$T1"; rc_is 0 "a tracker pin keeps its text"
+          [ -f "$K/pins/$h2.txt" ] || note "no pins/$h2.txt for the tracker pin"
+          okb --dir "$K" show pin p2; rc_is 0 "the kept text matches"; out_hasnt '[Mm]ismatch|does not match'
+          printf 'Title: Sort orders (edited)\n' > "$K/pins/$h2.txt"
+          okb --dir "$K" show pin p2; rc_is 1 "an edited kept text"; any_hasi 'mismatch|does not match' "show pin reports the mismatch"
+          okb help project; out_has 'never a copy|no copy|keeps no copy' "help project says a file pin keeps no copy"; }
+
+# PF5 (T34 c5): a fact cannot depend on or exclude itself (EP2); a depends_on cycle is WP7.
+t_PF5() { t23_pk "decision(d1, 'Export goes through the queue')" "definition(df1, 'The queue runs on the batch host')"
+          local f; for f in "depends_on(d1, d1)" "excludes(d1, d1)" "excludes(df1, df1)"; do
+              padd "$f"; rc_is 1 "$f is refused" && any_has 'EP2' "$f: EP2"; no_fact "$K/kb.pl" "$f" "$f is not written"
+          done
+          padd "depends_on(d1, df1)" "depends_on(df1, d1)"; rc_is 0 "a cycle of two is accepted at add"
+          okb --dir "$K" lint; rc_is 0 "a depends_on cycle is a warning"; out_has '^WP7 ' "WP7"
+          printf 'excludes(d1, d1).\n' >> "$K/kb.pl"
+          okb --dir "$K" lint; rc_is 1 "a self-exclusion written by hand is a lint error"; out_has '^EP2 ' "EP2"
+          okb help codes; out_has '^ *EP2 +[a-zA-Z]' "help codes lists EP2"; out_has '^ *WP7 +[a-zA-Z]' "help codes lists WP7"
+          local lint; lint=$(readme_part '^## [0-9]+[.] Lint codes' '^## ')
+          for f in EP2 WP7; do printf '%s\n' "$lint" | grep -Eq "^[|] $f [|] [A-Za-z]" || note "the README lint table has no row $f"; done; }
+
+# PF6 (T34 c6): add refuses ratified_by by an agent, in any case; help project states the trust limit.
+t_PF6() { t23_pk "decision(d1, 'Export goes through the queue')" "decided_by(d1, 'Agent:build', '$T1')"
+          is_set 'proposed(X)' "X = d1"
+          local w; for w in agent 'agent:review' 'Agent:review' 'AGENT' 'AGENT:Review'; do
+              padd "ratified_by(d1, '$w', '$T2')"; rc_is 1 "ratified_by by $w is refused" && any_has 'EP1' "$w: EP1"
+          done
+          no_fact "$K/kb.pl" "ratified_by(_, _, _)" "nothing was written"
+          padd "ratified_by(d1, ann, '$T2')"; rc_is 0 "a human ratifies"; is_false 'proposed(_)'
+          okb help project; out_has 'self-declared' "help project says that Who is self-declared"; }
+
 # ================================================================ run
 run_test t_PK1 PK1 "T06 c1: init --uses project; every fact of the module is accepted"
 run_test t_PK2 PK2 "T06 c1: dangling refs and duplicate ids are refused (E4, E5)"
@@ -890,6 +986,12 @@ run_test t_PT6 PT6 "T23 c6: every new relation refuses a dangling reference (E4)
 run_test t_PT7 PT7 "T23 c7: CONTRACT D27 notes the Lean limit again"
 run_test t_PT8 PT8 "T23 c8: pin-item keeps the pinned text at pins/HEX.txt; show pin ID prints it"
 run_test t_PT9 PT9 "T23 c9: project archive removes superseded facts that nothing keeps"
+run_test t_PF1 PF1 "T34 c1: archive removes the facts that name an archived id; lint is clean after it"
+run_test t_PF2 PF2 "T34 c2: impact and archive find a pinning spec KB outside the parent directory"
+run_test t_PF3 PF3 "T34 c3: --superseded-before takes only a real date"
+run_test t_PF4 PF4 "T34 c4: pin-item --kind file keeps no copy; show pin reports a mismatch"
+run_test t_PF5 PF5 "T34 c5: excludes(X, X) and depends_on(X, X) are EP2; a depends_on cycle is WP7"
+run_test t_PF6 PF6 "T34 c6: ratified_by by an agent is refused at add in any case; Who is self-declared"
 NT=${#REG_ID[@]}
 for ((i = 0; i < NT; i++)); do exec_test "$i"; done
 echo "----"
