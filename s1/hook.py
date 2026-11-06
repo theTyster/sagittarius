@@ -2,18 +2,30 @@
 """System 1 hook for Claude Code (T07). Event: UserPromptSubmit. Python 3 standard library only.
 
 Reads the hook JSON on stdin (prompt, transcript_path, session_id), asks Jev the questions in
-s1/questions.json about {message: the prompt, recent: the last agent message, at most 600
-characters}, and prints one line of the answers outside the unsure band as additionalContext:
+s1/questions.json about {message: the prompt, recent: the last 3 messages before it}, and prints
+one line of the answers outside the unsure band as additionalContext:
 
     {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
                             "additionalContext": "System 1: work=build (0.83); ..."}}
 
 Output shape: https://code.claude.com/docs/en/hooks ("UserPromptSubmit decision control").
 
+What is sent (T20): `recent` is a list, oldest first, of the last 3 messages before the prompt
+(S1_CONTEXT_MESSAGES raises the count; never below 3). Each item is {"role": "you" | "agent",
+"text": the complete text}. A message is a user prompt or an assistant reply; tool calls, tool
+results, meta lines and subagent (sidechain) lines are not messages. An assistant reply is all
+the agent text of one turn (between two user prompts). Each text is sent whole.
+Only when the state and the longest question would pass Jev's per-question context (32k tokens,
+counted here as CONTEXT_CHARS characters) are the messages beyond 3 dropped, oldest first, and
+then the oldest one left is cut from its start; the log line then has "trimmed": true. No
+long-context header is sent. The transcript read starts with the last 2 MiB and goes back,
+at most 8 MiB, until it has the messages. Every text is redacted.
+
 Fails open: on any error, a timeout, a missing key, a missing questions file or bad stdin it
 prints nothing and exits 0. It never blocks a prompt.
 
 Env: TYPESAFE_API_KEY (the key), S1_OFF=1 (do nothing), S1_TIMEOUT (seconds, default 4),
+S1_CONTEXT_MESSAGES (default 3, never below 3),
 S1_QUESTIONS (default s1/questions.json), S1_REDACT (default s1/redact.txt: one name per line,
 '#' starts a comment), S1_LOG (default ~/.claude/logs/s1.jsonl).
 """
@@ -28,8 +40,12 @@ import jev  # noqa: E402
 
 DEFAULT_TIMEOUT = 4.0
 GRACE = 0.5  # seconds past the timeout before the hook stops waiting for the call
-RECENT_MAX = 600
-TAIL_BYTES = 2 * 1024 * 1024  # only the end of the transcript is read
+CONTEXT_MESSAGES = 3  # the least number of messages in recent (T20, Ty)
+TAIL_BYTES = 2 * 1024 * 1024  # the first read: the end of the transcript
+MAX_TAIL_BYTES = 8 * 1024 * 1024  # the read goes back at most this far (as the status line)
+CONTEXT_TOKENS = 32000  # Jev's default per-question context (models page)
+CHARS_PER_TOKEN = 3  # a cautious count: fewer characters per token than English text has
+CONTEXT_CHARS = CONTEXT_TOKENS * CHARS_PER_TOKEN
 REDACTED = "[redacted]"
 CHOICE_MIN = 0.5  # a choice is shown when P(choice) >= 0.5, as in the calibration
 
@@ -66,54 +82,113 @@ def _tail_lines(path, size=TAIL_BYTES):
     return lines[1:] if start > 0 else lines
 
 
-def last_agent_message(path):
-    """The text of the last assistant message in a transcript JSONL, or "".
-    Only the last TAIL_BYTES are read. One message is spread over several lines (one per
-    content block) that share message.id; their text blocks are joined. Subagent (sidechain)
-    lines are skipped."""
-    if not path:
-        return ""
+def _count(env):
     try:
-        raw = _tail_lines(path)
-    except OSError:
-        return ""
-    found = []  # (message id, [texts]) for assistant lines that hold text
-    for line in raw:
+        n = int(env.get("S1_CONTEXT_MESSAGES", CONTEXT_MESSAGES))
+    except (TypeError, ValueError):
+        return CONTEXT_MESSAGES
+    return max(n, CONTEXT_MESSAGES)
+
+
+def _message(d):
+    """(key, role, [texts]) for a transcript line that is part of a message, else None."""
+    if not isinstance(d, dict) or d.get("isSidechain") or d.get("isMeta"):
+        return None
+    kind = d.get("type")
+    m = d.get("message")
+    if kind not in ("user", "assistant") or not isinstance(m, dict):
+        return None
+    c = m.get("content")
+    if isinstance(c, str):
+        texts = [c]
+    elif isinstance(c, list):
+        if any(isinstance(b, dict) and b.get("type") == "tool_result" for b in c):
+            return None
+        texts = [b["text"] for b in c
+                 if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)]
+    else:
+        texts = []
+    texts = [t for t in texts if t.strip()]
+    if not texts:
+        return None
+    role = "agent" if kind == "assistant" else "you"
+    key = ("agent", m.get("id")) if kind == "assistant" and m.get("id") is not None else None
+    return key, role, texts
+
+
+def _messages(lines):
+    """The messages of transcript lines, oldest first: [{"role", "text"}]. An assistant reply is
+    all the agent text between two user prompts (one turn): the lines of every API message in
+    it (one line per content block, each response with its own message.id) are joined in order."""
+    out = []  # [key, role, [texts]]
+    for line in lines:
         try:
             d = json.loads(line)
         except ValueError:
             continue
-        if not isinstance(d, dict) or d.get("type") != "assistant" or d.get("isSidechain"):
+        got = _message(d)
+        if not got:
             continue
-        m = d.get("message")
-        if not isinstance(m, dict):
-            continue
-        c = m.get("content")
-        if isinstance(c, str):
-            texts = [c]
-        elif isinstance(c, list):
-            texts = [b["text"] for b in c
-                     if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)]
+        key, role, texts = got
+        if role == "agent" and out and out[-1][1] == "agent":  # one turn is one reply (T20 c9)
+            out[-1][2].extend(texts)
         else:
-            texts = []
-        texts = [t for t in texts if t.strip()]
-        if texts:
-            found.append((m.get("id"), texts))
-    if not found:
-        return ""
-    last_id = found[-1][0]
-    if last_id is None:
-        return "\n".join(found[-1][1])
-    return "\n".join(t for mid, ts in found if mid == last_id for t in ts)
+            out.append([key, role, list(texts)])
+    return [{"role": r, "text": "\n".join(ts)} for _, r, ts in out]
 
 
-def build_state(prompt, transcript_path, pairs):
-    """{message, recent}, redacted, then recent cut to RECENT_MAX characters.
-    recent carries the "Agent: " prefix the calibration used."""
-    recent = last_agent_message(transcript_path)
-    st = jev.redact({"message": prompt, "recent": ("Agent: " + recent) if recent else ""}, pairs)
-    st["recent"] = st["recent"][:RECENT_MAX]
-    return st
+def recent_messages(path, n, prompt=None):
+    """The last n messages before the prompt, oldest first. The read starts with the last
+    TAIL_BYTES and doubles, at most MAX_TAIL_BYTES, until it has n + 1 messages (one more, in
+    case the prompt is already in the transcript) or the whole file."""
+    if not path:
+        return []
+    size = TAIL_BYTES
+    while True:
+        try:
+            with open(path, "rb") as f:
+                f.seek(0, os.SEEK_END)
+                whole = f.tell() <= size
+            msgs = _messages(_tail_lines(path, size))
+        except OSError:
+            return []
+        if whole or len(msgs) > n or size >= MAX_TAIL_BYTES:
+            break
+        size = min(size * 2, MAX_TAIL_BYTES)
+    if prompt is not None and msgs and msgs[-1]["role"] == "you" and msgs[-1]["text"].strip() == prompt.strip():
+        msgs = msgs[:-1]
+    return msgs[-n:]
+
+
+def _fit(state, questions):
+    """Trim the state to the context budget (T20 c2). Returns True when it trimmed."""
+    longest = max((len(json.dumps(v)) for v in questions.values()), default=0)
+
+    def size():
+        return len(json.dumps(state)) + longest
+
+    trimmed = False
+    rec = state["recent"]
+    while size() > CONTEXT_CHARS and len(rec) > CONTEXT_MESSAGES:
+        rec.pop(0)
+        trimmed = True
+    while size() > CONTEXT_CHARS and rec:
+        over = size() - CONTEXT_CHARS  # each character takes at least one in the JSON
+        t = rec[0]["text"]
+        if over >= len(t):
+            rec.pop(0)
+        else:
+            rec[0]["text"] = t[over:]
+        trimmed = True
+    return trimmed
+
+
+def build_state(prompt, transcript_path, pairs, n=CONTEXT_MESSAGES, questions=None):
+    """{message, recent}, redacted, then fitted to the context budget. Returns (state, trimmed)."""
+    recent = recent_messages(transcript_path, n, prompt)
+    st = jev.redact({"message": prompt, "recent": recent}, pairs)
+    trimmed = _fit(st, questions or {})
+    return st, trimmed
 
 
 def _p(x):
@@ -216,12 +291,14 @@ def run(raw, env, transport=None):
 
         def call():  # the transcript read and the request both run inside the timeout
             try:
-                state = build_state(payload["prompt"], tpath, load_redactions(redact_path))
+                state, trimmed = build_state(payload["prompt"], tpath, load_redactions(redact_path),
+                                             _count(env), questions)
             except Exception as e:
                 box["error"] = f"state: {type(e).__name__}: {e}"
                 return
+            lx = dict(extra, trimmed=True) if trimmed else extra
             box["answers"] = jev.judge(state, questions, timeout=timeout, key=key,
-                                       log_path=log_path, transport=transport, log_extra=extra)
+                                       log_path=log_path, transport=transport, log_extra=lx)
 
         t = threading.Thread(target=call, daemon=True)
         t.start()

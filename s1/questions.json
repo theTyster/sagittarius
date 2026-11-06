@@ -1,7 +1,7 @@
 {
  "h_work": {
   "type": "choice",
-  "instructions": "What kind of work does the newest message in `message` ask for, given `recent`?",
+  "instructions": "What kind of work does the newest message in `message` ask for, given the conversation in `recent`?",
   "criteria": {
    "research": "Learn how something behaves now, or whether a problem is real",
    "specify": "Decide or state what must become true: requirements, examples, a plan",
