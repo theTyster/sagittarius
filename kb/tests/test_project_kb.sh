@@ -300,7 +300,7 @@ t_PW7() { pk_init "$T/pk"
           grep -q '^sess-7 ' "$K/writer.lock" 2>/dev/null || note "writer.lock does not name the session id"
           ORBIT_KB_WRITER=ann CLAUDE_SESSION_ID=sess-7 padd "decision(d3, 'The variable wins')"; rc_is 2 "ORBIT_KB_WRITER wins over the session id"
           # T27 c2: a KB without project has the lock too now (PW9); the case "a KB without project has no lock" is gone.
-          [ ! -e "$k2/writer.lock" ] || note "a KB without project got a lock"; }
+          true; }
 
 # ================================================================ c4: outbound drafts
 t_PD1() { pk_basic; K=$T/pk; grep -E '^pin\(' "$K/kb.pl" > "$T/.pins.before"

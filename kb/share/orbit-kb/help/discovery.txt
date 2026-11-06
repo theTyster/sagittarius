@@ -220,7 +220,8 @@ ASKING: ask the human
   - Questions that no evidence raised stay dormant, with their defaults, in the ticket.
   - When stakeholders conflict, the decision owner decides.
   Record:
-  question, assumed, raised_by(Q, X) (X is the finding or hypothesis that raised Q).
+  question, assumed, raised_by(Q, X) (X is the finding or hypothesis that raised Q),
+  and option(Q, 'Text', 'Effect') for each option, with what choosing it changes.
   Then answer(Q, VALUE, human), and lap_done(N) when the round ends.
 
 HANDOFF to the build orbit

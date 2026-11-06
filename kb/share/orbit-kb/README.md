@@ -606,7 +606,7 @@ optional. `conforms(C)` shows the result.
 Usage: `orbit-kb [--dir DIR] COMMAND [ARGS]`. Run `orbit-kb help COMMAND` for
 the text that the CLI prints.
 
-### `init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID]`
+### `init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]`
 
 Makes `DIR/kb.pl` with `uses([…]).` and `request(ID, 'TEXT').` The default ID
 is `r1`. It prints the path of the new `kb.pl`.
@@ -958,7 +958,7 @@ default, an agent's answer, the texts of its `option/3` facts, and other; the ef
 comes from `option(Q, Text, Effect)`, and the page says so when none is recorded.
 The view reads only. Exit 2 for a usage error, an unreadable KB, or a bad ledger file.
 
-### `serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--port N]`
+### `serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--hub DIR] [--port N]`
 
 Serves the page of `view questions` on `http://127.0.0.1:PORT/` (D26). The default port is
 8737; `--port 0` picks a free port, and the first line on stdout gives the address. Each reload
@@ -966,14 +966,25 @@ reads the KBs and the ledger again, so the page is live; the server keeps no sta
 and Ctrl-C stops it. `--dir` may repeat; `--root DIR` serves each `kb.pl` under DIR (hidden
 directories and `runs/` are skipped). The page groups the spec KBs by the project KB that they
 name with `project_kb/1`, each group labeled with that project KB's first request; a spec KB
-with no `project_kb` is in the group `no project`. A project KB has no section of its own.
-Each question to ask has a form: its options as in `view questions`, `other`, and a free text.
-A POST records `answer(Q, Answer, human)` with `orbit-kb add --by human` in a child process, and
-writes nothing else. The write takes the writer lock (D23 P7) as `$ORBIT_KB_WRITER`, else as
-`human`, and gives back a lock that was free before it. When another writer holds the lock,
-nothing is written and the page names the holder; the server never uses `--take`. The ledger's
-asks are read-only, each with the `hubflow.py ... close ID --reason done --note` command that
-answers it. Safety: the server listens on 127.0.0.1 only; a request whose `Host` is not
+with no `project_kb` is in the group `no project`. A project KB has no section of its own,
+unless it has its own questions to ask (T27 c8). `project_kb` paths are normalized, so a
+trailing slash makes no second group.
+Each question to ask shows its notes, its claim's notes and examples, and its due date (T27 c6),
+and has a form: its options as in `view questions`, `other`, and a free text. A picked default
+keeps its term (`3`, not `'3'`); typed text next to a picked option is kept as `note(Q, Text)`.
+The answer never waits on an agent (T27 c4): it goes at once to `answers.pending` next to
+`kb.pl`. When no other writer holds the writer lock (D23 P7), the server applies it at once,
+as `$ORBIT_KB_WRITER`, else as `human` (`orbit-kb apply-pending` in a child process), and gives
+back a lock that was free before it. Else the holder's next write applies it; until then the
+page and `show open` list it as pending. The server never uses `--take`. A question pinned to a
+ledger ask (`pin-question`) is answered in the ledger first (the ask is closed), then its pinned
+copy `answer(Q, A, human:OWNER)` and `answer_pin` go to the queue; a question pinned to a
+tracker item is answered in the tracker (409). The ledger's asks show the shell-quoted
+`hubflow.py --by human close ID --reason done --note 'YOUR ANSWER' --session human` command.
+With `--ledger FILE` they are read-only. With `--hub DIR` (T27 c7) the asks are read live from
+`DIR/flow/flow.db`, read only, and each ask that waits on the owner has a form: the server runs
+that command from the hub root. The page sends `X-Frame-Options: DENY` and
+`Content-Security-Policy: frame-ancestors 'none'`. Safety: the server listens on 127.0.0.1 only; a request whose `Host` is not
 `127.0.0.1` or `localhost` gets 403; a POST needs the token of this run, which the page carries;
 free text is escaped on the page and written as one quoted term that `add` checks. There is no
 login. Exit 2 for a usage error, a KB that cannot be found, a bad ledger file, or a port in use.
@@ -990,11 +1001,40 @@ malformed STAMP or another argument.
 
 ### `release`
 
-Frees the writer lock of a KB that uses `project` (D23 P7; see Locking). Only
-the holder can release it: the writer of `$ORBIT_KB_WRITER`, else of
-`$CLAUDE_SESSION_ID`. With no lock it does nothing.
+Frees the writer lock of the KB (D23 P7; see Locking). Only the holder can
+release it: the writer named as in Locking. With no lock it does nothing.
 Exit: 0 on success and when there is no lock. 2 when another writer holds the
 lock; the message names the holder.
+
+### `pin-question Q ledger|tracker REF` and `pin-answer Q REF [--hub DIR | --text-file F --by NAME]`
+
+T27 (u58, u84). A question that depends only on the owner of the hub is owned
+by a ledger ask; a question for anyone else by a tracker item (drafted with
+`draft questions`, posted by a human). `pin-question` records the owner:
+`question_pin(Q, ledger|tracker, REF, DIGEST, DATE)`. `pin-answer` copies the
+answer from its owner: `answer(Q, A, human:NAME)` and `answer_pin(Q, REF,
+DIGEST, DATE)`. For a ledger ask it reads `DIR/flow/flow.db` read only (the
+note of the human close of the ask; NAME is the hub owner) and exits 1 while
+the ask has no answer. For a tracker item, `--text-file F` holds the answer
+and `--by NAME` names who gave it. A question with no pin belongs to the spec
+KB, as before.
+
+### `pin-request --request-file F [--accept --by human]`
+
+T27 c10. With `init --source REF`, the request is pinned to its tracker item:
+`request_pin(R, REF, DIGEST, DATE)`; DIGEST covers the request text only
+(title, description, acceptance criteria). `pin-request` reads the exported
+item again and records a new pin when the text changed. Then
+`request_stale(R)` holds, lint gives W8, and `blocking(request_stale(R))`
+blocks done, until a human accepts the text (`--accept --by human` writes
+`request_accepted(R, DIGEST, TEXT)`). A KB without `--source` owns its request
+(exit 1).
+
+### `apply-pending`
+
+T27 c4. Applies the answers that the question server queued in
+`answers.pending` (one line per answer, `pending(TIME, DIGEST, FACTS)`,
+append-only); `answers.applied` records each. Every write does this first.
 
 ### `draft blocking | draft outbound`
 
@@ -1041,18 +1081,27 @@ ends, for any reason, so a stale lock cannot occur. If `flock(1)` is not on
 `PATH`, for example on macOS, `orbit-kb` uses the lock that SWI-Prolog takes on
 `kb.lock`.
 
-A KB that uses `project` also has one writer at a time (D23 P7). This lock is
-the file `writer.lock` in the KB directory, and it stays until `release`. The
-writer is `$ORBIT_KB_WRITER`, else `$CLAUDE_SESSION_ID`; with neither, no
-writer lock is taken or checked. The write commands `add`, `declare`,
-`subject`, `attest`, `run`, `prove`, `uses`, and `pin-item` read it first. With
-no lock file, the command writes `writer.lock` (one line `WRITER TIME`) and goes
-on. When the same writer holds it, the command goes on. When another writer
-holds it, the command exits 2, writes nothing, and names the holder and the
-time. Then the holder runs `orbit-kb release`, or the new writer adds `--take`
-to the command: `--take` makes it the holder and appends
-`writer_takeover(From, To, Time)` to `kb.pl`. Reads never touch the writer
-lock. It is a record, not a guard: it does not stop a hand edit of `kb.pl`.
+Every KB also has one writer at a time (D23 P7; T27 made it every KB, a spec
+KB too, and a lease). This lock is the file `writer.lock` in the KB directory.
+The writer is the first that is set of `$ORBIT_KB_WRITER`,
+`$CLAUDE_CODE_SESSION_ID` (Claude Code sets it), `$CLAUDE_SESSION_ID`, and
+`$HUB_SESSION`; with none, no writer lock is taken or checked. The write
+commands `add`, `declare`, `subject`, `attest`, `run`, `prove`, `uses`,
+`pin-item`, `pin-question`, `pin-answer`, `pin-request`, and `apply-pending`
+read it first. With no lock file, the command writes `writer.lock` (one line
+`WRITER TIME`) and goes on. When the same writer holds it, the command renews
+the lease (TIME is the time of the last write) and goes on. When another
+writer holds it, the command exits 2, writes nothing, and names the holder and
+the time. The lock is a lease: after `$ORBIT_KB_LEASE` minutes (default 30)
+with no write by the holder, the next writer takes it and appends
+`writer_takeover(From, To, Time)` to `kb.pl`; the former holder then gets exit
+2 until a release. Else the holder runs `orbit-kb release` (a pane runs it when
+it hands the KB on; the receiver's first write takes the lock), or the new
+writer adds `--take` to the command: `--take` makes it the holder and appends
+`writer_takeover(From, To, Time)` to `kb.pl`. Before its own facts, every
+write applies the answers that the question server queued in
+`answers.pending`. Reads never touch the writer lock. It is a record, not a
+guard: it does not stop a hand edit of `kb.pl`.
 
 ## 9. Exit codes, and how to read answers
 
@@ -1185,6 +1234,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | W5 | A `check` of a superseded claim, while the current claim that replaces it (directly or through a chain) has no check. Check ids are unique (E5) and facts are append-only, so the message says to add a new check of the current claim and run it (D15). |
 | W6 | A local rule that adds clauses to a core or module predicate (an extension). For a protected predicate, it is E16 instead. |
 | W7 | A predicate declared by its first use in `add` (D22), with who and when. Review it. |
+| W8 | The request text changed at its source (T27): the latest `request_pin` has another digest and no human accepted it. It also blocks done. |
 | WP1 | A `pins(Claim, project, Decision, Digest)` fact whose digest differs from the digest of the decision in the project KB now: the decision changed since the claim was written. Read it, then add a `pins` fact with the new digest. Module hook; the id is the claim (D23 P6). |
 | WP2 | A `pins/4` fact that cannot be checked: no `project_kb` fact, no `kb.pl` at that path, or no such decision. Module hook; the id is the claim (D23 P6). |
 | WP3 | The project KB of `project_kb/1` has a lint error, so a conflict could hide in it. Run `orbit-kb lint` on it. It also blocks (`project_kb_unclean`). Module hook (D23 P8). |
@@ -1567,6 +1617,8 @@ Rules of the harness:
 |---|---|---|
 | `ORBIT_KB` | The KB directory, when `--dir` is not given. | None. `orbit-kb` searches upward from the current directory. |
 | `ORBIT_KB_LIB` | The library directory that holds `core.pl` and `modules/`. | `<real dir of the orbit-kb script>/../share/orbit-kb` |
+| `ORBIT_KB_WRITER` | The writer of the writer lock (section 8, Locking). Else `CLAUDE_CODE_SESSION_ID`, `CLAUDE_SESSION_ID`, `HUB_SESSION`. | None: no writer lock |
+| `ORBIT_KB_LEASE` | Minutes after the holder's last write when its writer lock lapses. | 30 |
 | `ORBIT_KB_NO_CACHE` | A value other than empty or `0` turns off the saved state. | Not set: cache on |
 | `XDG_CACHE_HOME` | The base of the cache directory. It must be an absolute path. The saved state is in `$XDG_CACHE_HOME/orbit-kb/`. | `~/.cache` |
 | `ORBIT_KB_TEST_JOBS` | The number of parallel workers of the test suite (section 14). | The number of CPUs, at most 4 |

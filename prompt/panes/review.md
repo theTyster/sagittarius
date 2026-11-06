@@ -43,8 +43,8 @@ been in use in UAT is evidence.
 
 - Read only the request, the KB, and the diff. Do not take another pane's reasoning as
   evidence. Do not ask build how it reasoned.
-- Run every check again yourself with `orbit-kb run`. A run that contradicts a report is a
-  divergence. Record it on the claim.
+- Run every check again yourself with `orbit-kb run`, under your own lease (your first write
+  takes the lock). A run that contradicts a report is a divergence. Record it on the claim.
 - Query `under(C)`, `over(X)`, and `to_ask(Q)`. Compare each claim with the request text
   that it cites, and look for parts of the request that no claim covers.
 - Run DISPROVE on each claim within a small budget: other inputs, boundaries, orders of

@@ -86,7 +86,8 @@ DECOMPOSE: claims and questions
   3. For each claim, record the questions that a careful reader would ask, each with your
      default answer (assumed). These questions stay dormant: asking them all now would bury
      the human in questions that may never matter. A question becomes to_ask when its claim
-     is contested.
+     is contested. For each option, add option(Q, 'Text', 'Effect'): what choosing it
+     changes. Without options and effects, the human gets only an id, a text, and a default.
   4. Restate each claim as one or more concrete examples, for example "Submit on /checkout
      renders #6B3FA0". The human reads examples. The human never has to read formal text.
   5. Mark a claim visual when the human must see the result to judge it (orbit-kb help build).

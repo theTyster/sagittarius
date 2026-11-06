@@ -596,7 +596,7 @@ t_QS21() {  # c7: with --hub the asks are read live from flow.db; an ask of the 
     page_ok || return
     chk text "$T/page.html" 'Which payment provider do we pick' '!Vendor must send the tax form'
     chk askform "$T/page.html" "$A"
-    chk askcmd "$T/page.html" "$A" "hubflow.py --session human --by human close $A --reason done"
+    chk askcmd "$T/page.html" "$A" "hubflow.py --by human close $A --reason done --note 'YOUR ANSWER' --session human"
     C=$(hf "$T/h" --session build add ask --title 'Pick the launch date' --waits-on me)
     page_ok || return; chk text "$T/page.html" 'Pick the launch date'
     local tok; tok=$(token)

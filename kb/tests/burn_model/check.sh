@@ -78,7 +78,8 @@ mutate MC "$proved_rule" 'burn_proved(C) :- attest(A, lean_proof, _, proof(C, _)
 # D10 follow-up: MI drops the inherited burn; MY drops the supersede cycle from done.
 mutate MI 'burn(C) :- supersedes_closure(C, O), burn_reason(O).' '% (MI: the inherited clause of burn/1 is dropped)'
 # D21: done also has not any_flare_open. The model has no flares, and its KBs have no visual facts.
-done_rule=$'done :- not any_under, not any_over, not any_to_ask, not any_burn_open,\n        not any_flare_open, not any_project_conflict, not any_supersede_cycle, not no_current_claim.'
+# T27: done also has not any_request_stale (a stale request; no request pins in the model's KBs).
+done_rule=$'done :- not any_under, not any_over, not any_to_ask, not any_burn_open,\n        not any_flare_open, not any_project_conflict, not any_request_stale, not any_supersede_cycle, not no_current_claim.'
 mutate MY "$done_rule" 'done :- not any_under, not any_over, not any_to_ask, not any_burn_open, not any_flare_open, not no_current_claim.'
 # D17: MZ drops the current claim from done.
 mutate MZ "$done_rule" 'done :- not any_under, not any_over, not any_to_ask, not any_burn_open, not any_flare_open, not any_supersede_cycle.'

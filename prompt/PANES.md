@@ -23,6 +23,8 @@ How you work together:
 - Stay in your role. Hand work to the pane that owns it. Do not do it yourself.
 - Hand off through the KB, not through memory. A handoff is a trigger: the receiver runs
   `orbit-kb show open` first.
+- A KB has one writer at a time. The giver runs `orbit-kb release` before the handoff. The
+  receiver's first write takes the lock.
 - No pane grades its own work. When review's run contradicts build's report, that is a
   divergence. Record it on the claim.
 - The human owns the intent and routes the work. Reach a peer with SendMessage (ListAgents

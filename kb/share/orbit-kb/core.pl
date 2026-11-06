@@ -105,9 +105,29 @@ decl(fact, assumed(ref(question), term),
 decl(fact, option(ref(question), text, text),
      'An option of a question, and what choosing it changes (D24).',
      'option @(2) of question @(1) changes: @(3)').
-decl(fact, answer(ref(question), term, oneof([human, agent])),
-     'An answer to a question, and who gave it.',
-     'the @(3) answered question @(1) with @(2)').
+decl(fact, answer(ref(question), term, alt([human, agent, oneof([human]):atom])),
+     'An answer to a question, and who gave it: human, agent, or human:NAME for a pinned answer that NAME gave (T27).',
+     '@(3) answered question @(1) with @(2)').
+% T27: who owns a question (u58), and the pins of a question and of its answer.
+decl(fact, question_pin(ref(question), oneof([ledger, tracker]), atom, digest, time),
+     'The question is owned by a ledger ask or a tracker item (the ref); the digest is of the question text when it was pinned. Only orbit-kb pin-question writes it.',
+     'question @(1) is owned by the @(2) item @(3), pinned at @(5)').
+decl(fact, answer_pin(ref(question), atom, digest, time),
+     'The answer of the question was copied from its owner (the ref); the digest is of the answer text. Only orbit-kb pin-answer and the question server write it.',
+     'the answer of question @(1) was pinned from @(2) at @(4)').
+% T27: the request is pinned to its tracker item (u84, u52).
+decl(fact, request_pin(ref(request), atom, digest, time),
+     'A reading of the tracker item of the request: its ref, the digest of its request text (title, description, acceptance criteria), and the date. Only orbit-kb init --source and pin-request write it.',
+     'request @(1) was read from @(2) at @(4)').
+decl(fact, request_accepted(ref(request), digest, text),
+     'A human accepted a new text of the request: its digest, and the text (the cached snapshot). Only orbit-kb pin-request --accept --by human writes it.',
+     'a human accepted a new text of request @(1)').
+decl(rule, request_stale(ref(request)),
+     'The latest reading of the tracker item has a request text that is not the one in the KB, and no human accepted it. orbit-kb computes it when it reads the KB.',
+     'the text of request @(1) changed at its source').
+decl(rule, any_request_stale,
+     'A request of the KB is stale.',
+     'a request of the KB is stale').
 % D22: the item is due at the time. A past due time blocks an open item.
 decl(fact, due(ref([claim, check, question]), time),
      'The claim, check, or question is due at the time.',
@@ -136,6 +156,9 @@ decl(rule, superseded(ref),
 decl(rule, current(ref(claim)),
      'The claim is in force, because no other claim replaces it.',
      'claim @(1) is current').
+decl(fact, writer_takeover(atom, atom, time),
+     'A writer took the lock of the KB from another writer: with --take, or because the lease of the holder lapsed (T27).',
+     '@(2) took the writer lock from @(1) at @(3)').
 decl(rule, answered(ref(question)),
      'A human answered the question.',
      'a human answered question @(1)').
@@ -233,7 +256,9 @@ attest_type(test_result,
 superseded(C) :- supersedes(_, C).
 current(C) :- claim(C, _, _), not superseded(C).
 answered(Q) :- answer(Q, _, human).
+answered(Q) :- answer(Q, _, human:_).
 defeated(Q) :- assumed(Q, A), answer(Q, B, human), A \= B.
+defeated(Q) :- assumed(Q, A), answer(Q, B, human:_), A \= B.
 refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).
 contested(C) :- attest(_, divergence, _, claim(C), _, _).
 contested_twice(C) :- attest(D1, divergence, _, claim(C), _, _),
@@ -264,4 +289,7 @@ item_open(Q) :- to_ask(Q).
 blocking(to_ask(Q)) :- to_ask(Q).
 blocking(supersede_cycle(C)) :- supersede_cycle(C).
 blocking(past_due(X)) :- due_passed(X), item_open(X).
+% T27: request_stale/1 has no clauses here: orbit-kb computes its facts.
+blocking(request_stale(R)) :- request_stale(R).
+any_request_stale :- request_stale(_).
 % lint_issue/3 has no clauses here. Modules add them (the module lint hook).

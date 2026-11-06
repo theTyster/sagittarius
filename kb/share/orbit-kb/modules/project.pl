@@ -41,9 +41,7 @@ decl(fact, pushed(ref(draft), time),
 decl(fact, resolved(ref(draft), oneof([draft, tracker]), time),
      'A human settled the conflict of the draft, and named the side that stays: the draft, or the tracker.',
      'the conflict of draft @(1) was settled for the @(2)').
-decl(fact, writer_takeover(atom, atom, time),
-     'A writer took the lock of the KB from another writer. Only the option --take writes it.',
-     '@(2) took the writer lock from @(1) at @(3)').
+% T27: writer_takeover/3 is declared in core.pl: every KB has the writer lock.
 decl(fact, project_kb(text),
      'In a spec KB: the directory of the project KB, relative to this KB or absolute.',
      'the project KB is @(1)').
