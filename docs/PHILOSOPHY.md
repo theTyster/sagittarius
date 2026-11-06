@@ -129,12 +129,13 @@ Applied in: prompt "The phase tree" (quiet failures), "Start light" (a new check
 
 Most work needs little process. Rigor starts light and increases only when a signal of
 misunderstanding appears: questions that one round does not settle, a disagreement, work that
-another party did, a claim that examples cannot cover, or work that changes hands. The size of a
+another party did, a claim that examples cannot cover, work that changes hands, or significant
+effort or verbosity from the human. The size of a
 change does not decide. A one-line fix can need rigor, and a large change can need none. When the
 cause of a signal is resolved, the rigor that it added stops.
 
-Also, significant effort or verbosity from the human is a signal to shift into a formal
-language. The System 1 model, the LLM, and the human each have a part in deciding when to shift up.
+Effort is a signal to shift into a formal
+language. A long, careful message holds decisions that must not be lost. The System 1 model, the LLM, and the human each have a part in deciding when to shift up.
 After a shift, the human, the agent, and the CPU (the machine that runs the solvers and provers)
 all work in the formal language. The human must read and review it, so shift up only when needed.
 <!-- d_effort_signal, d_shift_three, d_formal_substrate, decided 2026-11-05 -->
@@ -246,7 +247,7 @@ whether the philosophy and the hypotheses pay off. No stakeholder instance is pr
 results stay non-trivial.
 <!-- d_eval_scope, p_general, decided 2026-11-05 -->
 
-Applied in: `evals/REFINING.md`.
+Applied in: `docs/REFINING.md`.
 
 ## Open questions
 
@@ -299,7 +300,7 @@ stays out of the prompt until an eval shows one. Four points are not decided:
 - When does a language lean back? "The cause of the trigger is resolved" lets an agent stay in a
   model too long, or leave it early to reach the next language. It needs an exit test, such as
   "the model is trusted and its verdicts are recorded, or it is dropped with a disclosure".
-- That exit test rests on sanity and calibration. The prompt states them per tool (FLYBY steps 1
+- That exit test rests on sanity and calibration. `orbit-kb help discovery` states them per tool (FLYBY steps 1
   and 2, TRAJECTORY steps 2 and 3), but the agent attests them, and `orbit-kb` counts one result
   of each. In the cache-race discovery of 2026-10-30, a TLA+ model was attested calibrated on the
   outcome (the same abort) before any system log showed the same sequence of steps, which

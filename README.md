@@ -101,6 +101,9 @@ python3 hubkit/tools/hubkit-test.py
 | `prompt/` | The live system prompt, and the prompts for the three panes (`PANES.md`, `panes/`). |
 | `kb/` | `orbit-kb`: `CONTRACT.md` (what the tests hold it to), `bin/`, `share/orbit-kb/` (core rules, the build and discovery modules, the Lean probe), `tests/` (the black-box suite, fixtures, and a Lean model of the burn rules). |
 | `site/` | The two decks, published at https://thetyster.github.io/sagittarius/ (the short deck; the full deck is at `full.html`) by `.github/workflows/pages.yml` on each push to `main` that touches `site/`. `essentials.html` is generated from `index.html` by `build_essentials.py`; the workflow fails if it is stale. |
+| `s1/` | System 1, the hook that adds hints to each message. The install is manual. It is off until the question set is approved. See `s1/README.md`. |
+| `hubkit/` | The hub kit: a template for a hub of named sessions (see "Hub kit"). |
+| `docs/` | `PHILOSOPHY.md` (why the process is as it is), `REFINING.md`, `PROMPT-MOVES.md`, and the checks for the prompt and the panes (`check_*.py`). |
 | `evals/` | One-shot planning evals for the prompt, with graded runs. |
 
 ## History

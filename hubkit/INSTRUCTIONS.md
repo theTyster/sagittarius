@@ -21,7 +21,7 @@ files.
    the next rotation it gets a recorded decision (keep, lapse, capsule or escalate), never a silent
    lapse. Closed items are pruned five weeks after closing. Every write exports the tables to `flow/jsonl/`, which git
    tracks; the db file itself is ignored and can be rebuilt from the JSONL.
-5. **A few named, long-lived sessions**, one per role (example: discovery, build, process, support),
+5. **A few named, long-lived sessions**, one per role (example: discovery, build, process, support. This is not the Sagittarius pane set: review, discovery, build),
    each in its own terminal pane, all with the hub as cwd. Each has an identity (`HUB_SESSION`) that
    the db records on every write. Sessions hand work to each other with a db row plus a message.
 

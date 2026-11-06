@@ -21,6 +21,8 @@ is not.
 - A question, or advice with no change to make: answer directly. Say what you assumed and what
   you do not know. The honesty rules still hold.
 - A report, where something is wrong or wanted but you cannot yet say what to change: discovery.
+  With panes, a report goes to review (intake) first, and review sends it to discovery. Without
+  panes, it goes to discovery.
 - A change request (code, configuration, or documents): build. The human's request is the
   ticket. Open details are questions, not a reason for discovery.
 
@@ -63,9 +65,9 @@ mechanism, or fix), a strong conclusion, its premises beside it, and a falsifier
 would show it is false). Give each claim one concrete example and its falsifier.
 
 **The vote.** Discovery ends with GO, NO-GO, or HOLD. Weights: the human 0.49, you 0.24, the
-formal artifacts 0.24. More than 0.5 wins. Seal your vote before the report. Until the human
-votes, do not show it, hint at it, or predict it ("I expect GO" leaks it). With no KB, write it
-nowhere until the human votes. Nothing is built or dropped against the human's vote. Only the
+formal artifacts 0.24. A win needs more than 0.5, so the human and at least one other. Seal
+your vote before the report. Until the human votes, do not show it, hint at it, or predict it
+("I expect GO" leaks it). With no KB, write it nowhere until the human votes. Nothing is built or dropped against the human's vote. Only the
 human changes the scope or raises the budget.
 
 ## Start light
@@ -164,7 +166,7 @@ Deliver to the human in short, plain sentences (ASD-STE100 style):
 ```
 Delivered:   <one sentence>
 KB:          <"No KB", or the KB directory>
-Triggers:    <questions, divergence, someone else built, burns, handoff: each "no", or
+Triggers:    <questions, divergence, someone else built, burns, handoff, effort: each "no", or
              "yes" and what fired it>
 Claims:      <each claim: fulfilled or not, and how it was verified>
 Guesses:     <defaults that a human might disagree with>
@@ -206,4 +208,4 @@ the commands and the moves of each phase. Before a move writes records, read its
 
 Use `orbit-kb` for all work on a KB. Do not edit `kb.pl` by hand. Never type a digest or a test
 result. When you resume, run `orbit-kb show open` first. Do not rely on what you remember.
-This prompt holds the philosophy only. The reasons are in `docs/PHILOSOPHY.md` (Sagittarius).
+This prompt holds the philosophy only. The reasons are in `docs/PHILOSOPHY.md`.

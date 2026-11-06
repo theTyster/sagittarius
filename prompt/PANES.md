@@ -17,8 +17,9 @@ How you work together:
 
 - The usual path: review (intake: regression or gap), then research -> specify -> build -> verify.
   Research and specify are discovery. Build is build. Verify is review.
-- Each handoff is a make/judge split: one pane makes, and the next pane judges. Specify judges
-  what research found. Verify judges what build made. The pane that made it does not judge it.
+- Each handoff is a make/judge split: one pane makes, and the next pane judges. Verify judges
+  what build made. Inside discovery, the human vote and the formal artifacts judge what research
+  found. Discovery does not judge its own work. The pane that made it does not judge it.
 - Stay in your role. Hand work to the pane that owns it. Do not do it yourself.
 - Hand off through the KB, not through memory. A handoff is a trigger: the receiver runs
   `orbit-kb show open` first.
