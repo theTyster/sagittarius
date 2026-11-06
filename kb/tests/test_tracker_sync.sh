@@ -254,28 +254,83 @@ t_TS15() { conflict_kb
            out_hasnt 'project_conflict dC' "a draft without a conflict is not listed"; }
 
 # ================================================================ c4: no command writes to a network
-# Each T11 command runs in a new network namespace (unshare -rn) with only a down loopback:
-# a connection would fail, and the command must still succeed. When unshare is not usable the
-# commands run with a proxy at a closed port in the environment. And the source has no client.
-nonet_run() {   # nonet_run DIR ARGS...
-    if [ "${NONET:-}" = unshare ]; then okb_nonet "$@"
-    else
-        ( cd "$T" && exec env http_proxy=http://127.0.0.1:9 https_proxy=http://127.0.0.1:9 HTTP_PROXY=http://127.0.0.1:9 \
-            HTTPS_PROXY=http://127.0.0.1:9 ALL_PROXY=http://127.0.0.1:9 no_proxy= \
-            timeout "$TMO" "$OKB" --dir "$1" "${@:2}" ) >"$T/.out" 2>"$T/.err" </dev/null
-        rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err")
-    fi
+# Each T11 command runs traced (see traced_run): any AF_INET/AF_INET6 socket, connect, or
+# sendto fails the test, even when the command swallows the error and succeeds. TS13 first
+# proves the tracer by a deliberate tcp_connect. TS14 greps the source for clients.
+# traced_run DIR ARGS...: run the CLI so that any inet socket or connect is recorded in $T/.net.
+# Method, in order: strace -f (trace=socket,connect,sendto); else an LD_PRELOAD shim (built with cc)
+# that logs socket()/connect()/sendto() of AF_INET and AF_INET6; else unshare -rn plus stderr
+# only (weak: a swallowed connect is not seen). Under unshare -rn when it is usable, so that a
+# connect could not leave the machine anyway. NETMETHOD names the method that was used.
+NETMETHOD=""
+net_setup() {
+    [ -n "$NETMETHOD" ] && return 0
+    NETNS=""; unshare -rn true 2>/dev/null && NETNS=1
+    if command -v strace >/dev/null 2>&1; then NETMETHOD=strace
+    elif command -v cc >/dev/null 2>&1 && cat > "$base/netshim.c" <<'CSRC' && cc -shared -fPIC -O1 -o "$base/netshim.so" "$base/netshim.c" -ldl 2>/dev/null; then NETMETHOD=preload
+#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+static void note(const char *what, int fam) {
+    const char *p = getenv("NETSHIM_LOG");
+    if (!p) return;
+    FILE *f = fopen(p, "a");
+    if (f) { fprintf(f, "%s AF_INET%s\n", what, fam == AF_INET6 ? "6" : ""); fclose(f); }
 }
-t_TS13() { NONET=proxy; unshare -rn true 2>/dev/null && NONET=unshare
+int socket(int d, int t, int p) {
+    static int (*real)(int, int, int);
+    if (!real) real = dlsym(RTLD_NEXT, "socket");
+    if (d == AF_INET || d == AF_INET6) note("socket", d);
+    return real(d, t, p);
+}
+int connect(int fd, const struct sockaddr *a, socklen_t l) {
+    static int (*real)(int, const struct sockaddr *, socklen_t);
+    if (!real) real = dlsym(RTLD_NEXT, "connect");
+    if (a && (a->sa_family == AF_INET || a->sa_family == AF_INET6)) note("connect", a->sa_family);
+    return real(fd, a, l);
+}
+ssize_t sendto(int fd, const void *b, size_t n, int fl, const struct sockaddr *a, socklen_t l) {
+    static ssize_t (*real)(int, const void *, size_t, int, const struct sockaddr *, socklen_t);
+    if (!real) real = dlsym(RTLD_NEXT, "sendto");
+    if (a && (a->sa_family == AF_INET || a->sa_family == AF_INET6)) note("sendto", a->sa_family);
+    return real(fd, b, n, fl, a, l);
+}
+CSRC
+    else NETMETHOD=unshare-stderr; fi
+}
+traced_cmd() {   # traced_cmd CMD ARGS...: run any command traced. Sets out, err, rc; $T/.net has the inet calls.
+    net_setup; : > "$T/.net"
+    local pre=()
+    [ -n "$NETNS" ] && pre=(unshare -rn)
+    case $NETMETHOD in
+        strace) ( cd "$T" && exec timeout "$TMO" "${pre[@]}" strace -f -qq -e trace=socket,connect,sendto -o "$T/.strace" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?
+                grep -E 'AF_INET6?[,)]|sa_family=AF_INET' "$T/.strace" > "$T/.net" 2>/dev/null ;;
+        preload) ( cd "$T" && exec timeout "$TMO" "${pre[@]}" env LD_PRELOAD="$base/netshim.so" NETSHIM_LOG="$T/.net" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$? ;;
+        *) ( cd "$T" && exec timeout "$TMO" "${pre[@]}" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?
+           grep -Ei 'network|connect|socket|resolve|host' "$T/.err" > "$T/.net" 2>/dev/null ;;
+    esac
+    out=$(<"$T/.out"); err=$(<"$T/.err")
+}
+traced_run() { local d=$1; shift; traced_cmd "$OKB" --dir "$d" "$@"; }
+no_net() {   # no_net LABEL: the last traced run made no inet socket, connect, or sendto
+    [ -s "$T/.net" ] && note "$1: network use ($NETMETHOD): $(snip "$(head -3 "$T/.net")")"; return 0
+}
+t_TS13() { net_setup
+           # the harness itself: a deliberate connect must be seen, or the method proves nothing
+           traced_cmd swipl -q -g "catch(tcp_connect(localhost:9, _, []), _, true)" -t halt
+           [ -s "$T/.net" ] || { [ "$NETMETHOD" = unshare-stderr ] && echo "     (weak method: a swallowed connect is not seen)"; [ "$NETMETHOD" = unshare-stderr ] || note "the harness ($NETMETHOD) did not see a deliberate connect"; }
            spec_kb; conflict_kb
-           nonet_run "$K" draft blocking; rc_is 0 "draft blocking with no network ($NONET)"; out_has 'spec-kb@sha256:[0-9a-f]{64}' "its output is complete"
-           nonet_run "$P" draft outbound; rc_is 0 "draft outbound with no network ($NONET)"; out_has '^### dA' "its output is complete"
+           traced_run "$K" draft blocking; rc_is 0 "draft blocking ($NETMETHOD)"; out_has 'spec-kb@sha256:[0-9a-f]{64}' "its output is complete"; no_net "draft blocking"
+           traced_run "$P" draft outbound; rc_is 0 "draft outbound ($NETMETHOD)"; out_has '^### dA' "its output is complete"; no_net "draft outbound"
            item_text "$T/n.txt" 'Title: N'
-           nonet_run "$P" pin-item p9 tracker:ITEM-9 --text-file "$T/n.txt" --changed-at "$T4"; rc_is 0 "pin-item with no network ($NONET)"
+           traced_run "$P" pin-item p9 tracker:ITEM-9 --text-file "$T/n.txt" --changed-at "$T4"; rc_is 0 "pin-item ($NETMETHOD)"; no_net "pin-item"
            cp "$P/kb.pl" "$T/.before"
-           nonet_run "$P" draft outbound; rc_is 0
+           traced_run "$P" draft outbound; rc_is 0
            same_file "$P/kb.pl" "$T/.before" "draft outbound writes nothing to the project KB"
-           true; }
+           no_net "draft outbound again"
+           echo "     (c4 method: $NETMETHOD${NETNS:+ in unshare -rn})"; }
 t_TS14() { local pat='http_open|http_get|http_post|http_delete|http_put|http/http_client|http/http_open|library\(socket\)|tcp_connect|\bcurl\b|\bwget\b|\bglab\b|\bgh (pr|issue|api)\b|\btea (issues|pulls)\b|url_connect'
            local files hits
            files="$SRC_BIN $(find "$SRC_LIB" -name '*.pl' 2>/dev/null | sort | tr '\n' ' ')"
