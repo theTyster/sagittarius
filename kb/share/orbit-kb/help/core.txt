@@ -19,7 +19,9 @@ Facts
                                  for a claim that replaces it, add a new check (lint W5).
   world(Fact), source(Fact, Where)   the current state, and where you saw it.
                                  A fact that you did not record is false.
-  question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By), depends(Q, Q0)
+  question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By)
+  due(X, 'TIME')                 claim, check, or question X is due at TIME. While X is open
+                                 after TIME, blocking(past_due(X)) holds.
   ticket(S)                      subject S holds the ratified ticket
   scope(in|out, Text), risk(Id, Text), assumption(Id, Text), not_explored(Text)
   note(X, Text)                  a note about an existing id X (a claim, a question, r1).
@@ -45,18 +47,61 @@ Attestation types
 Queries (orbit-kb query 'current(C)' -n 0)
   current(C)         claim C is not superseded
   defeated(Q)        a human answer differs from the default of Q
-  to_ask(Q)          Q is unanswered, no human waived it, its claim is current, and the
-                     claim is contested or a question that Q depends on is defeated
+  to_ask(Q)          Q is unanswered, no human waived it, and its claim is current and contested
   contested(C)       one or more divergences name C
   contested_twice(C) two or more divergences name C
   refuted(C)         a verdict says that C is refuted
   passed(K)          the latest run of K passed
   was_red(K)         K failed before it passed
   stale(A)           approval A is for a digest that is no longer current
+  blocking(X)        X blocks done: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X),
+                     check_failing(K), check_unrun(K), waiver_lapsed(W), past_due(X),
+                     supersede_cycle(C), no_claim. orbit-kb show blocking prints each with its text.
 
 Local rules go in rules.pl beside kb.pl. They cannot change done, or the burn and flare
 rules (lint reports E16). not p means that p has no answer (negation as failure), so
 not under(_) means "no under at all". A predicate must not depend on itself through not
 (lint E18). There is no classical negation: a fact that is not recorded is false.
-If the schema does not fit, declare what you need: orbit-kb declare ... --doc TEXT.
-Write one sentence about why. lint lists your extensions for review.
+If the schema does not fit, add a fact of a new predicate. Its first use declares it
+(orbit-kb help add), and lint lists it (W7) for review, and flags a name that looks like a
+typo of a declared one (E19). declare is optional: use orbit-kb declare ... --doc TEXT
+before the first use to give the predicate a doc and types.
+
+Rules for the KB
+  Size the KB to the work. A small change needs a few facts: the request, one claim, and one
+  check. Write a fact only if a query or the delivery report reads it.
+  Put the KB where it is useful. Commands find it from --dir, then $ORBIT_KB, then the nearest
+  parent directory that holds one. Do not commit the KB or its runs/ logs unless the human
+  asks: the delivery carries the evidence.
+  When the work moves to the other orbit, add its module (orbit-kb uses build, or orbit-kb
+  uses discovery), then run orbit-kb lint. The new module can add findings.
+
+DECOMPOSE: claims and questions
+  Every move reads the ticket text itself, so that an error in an earlier move does not pass on.
+  1. Split the ticket into claims. Give each claim one label (preserve, retire, introduce).
+  2. Each claim cites the ticket text that it serves. A claim with no citation is drift. Drop
+     it, or propose it to the human as a ticket change.
+  3. For each claim, record the questions that a careful reader would ask, each with your
+     default answer (assumed). These questions stay dormant: asking them all now would bury
+     the human in questions that may never matter. A question becomes to_ask when its claim
+     is contested.
+  4. Restate each claim as one or more concrete examples, for example "Submit on /checkout
+     renders #6B3FA0". The human reads examples. The human never has to read formal text.
+  5. Mark a claim visual when the human must see the result to judge it (orbit-kb help build).
+
+Asking the human
+  Build on your default assumptions, unless a wrong default is costly or impossible to undo
+  (data loss, external effects, public interfaces, security, or money), or two defaults are
+  equally likely and the build is large. Then ask before you build:
+  - Ask at most three questions in one round. Choose them in this order. First, the questions
+    whose default is the most costly if it is wrong. Then, the questions whose answers also
+    settle other questions. The rest wait for the next round.
+  - Give concrete options, and mark your default.
+  - Do not ask the human to approve a list. A long list invites "approve all", and that is a
+    quiet failure.
+  In discovery, see also orbit-kb help discovery (ASKING).
+
+Speed
+  Run independent tool calls in parallel. Give long mechanical work (wide searches, long test
+  runs) to a subagent on a fast model. A small task does not need a subagent.
+  Report results, not process.

@@ -265,5 +265,68 @@ class C6Prolog(unittest.TestCase):
         self.assertEqual(jev.to_prolog("r", {"q": None}), "")
 
 
+
+class C7RedactRobust(Base):
+    """T04b (review): redact never raises on case folding and never drops a value."""
+
+    def test_c7_dotted_capital_i(self):
+        self.assertEqual(jev.redact("İstanbul trip", [("istanbul", "T")]), "T trip")
+
+    def test_c7_folding_variants_all_replaced(self):
+        out = jev.redact(["ISTANBUL", "istanbul", "İstanbul"], [("istanbul", "T")])
+        self.assertEqual(out, ["T", "T", "T"])
+
+    def test_c7_key_collision_is_an_error(self):
+        with self.assertRaises(ValueError):
+            jev.redact({"Alice": 1, "alice": 2}, [("alice", "X")])
+
+    def test_c7_key_collision_in_judge_fails_open_and_logs(self):
+        fake = Fake()
+        self.assertIsNone(self.call(fake, state={"Alice": 1, "alice": 2},
+                                    redactions=[("alice", "X")]))
+        self.assertEqual(fake.calls, [])
+        self.assertTrue(self.lines()[-1]["error"])
+
+
+class C8PrologRobust(unittest.TestCase):
+    """T04b (review): to_prolog never raises on a malformed answer."""
+
+    def test_c8_noul_without_value_is_skipped_with_comment(self):
+        out = jev.to_prolog("r", {"q": {"type": "noul"}, "q2": {"type": "noul", "noul": 0.9}})
+        self.assertIn("s1_answer(r, q2, noul, 0.9, yes).", out)
+        self.assertNotIn("s1_answer(r, q,", out)
+        self.assertIn("% skipped q:", out)
+
+    def test_c8_bad_types_never_raise(self):
+        bad = {"a": {"type": "noul", "noul": "high"}, "b": {"type": "choice"},
+               "c": {"type": "score", "score": None}, "d": {"type": "choice", "choice": "x",
+               "confidence": "?"}}
+        out = jev.to_prolog("r", bad)
+        self.assertNotIn("s1_answer(", out)
+        self.assertEqual(out.count("% skipped"), 4)
+
+    def test_c8_comment_is_one_line(self):
+        out = jev.to_prolog("r", {"a\nb": {"type": "noul"}})
+        self.assertEqual(len(out.splitlines()), 1)
+
+
+class C9MissingAnswer(Base):
+    """T04b (review): a missing or null answer for an asked question is a logged error."""
+
+    def test_c9_empty_answers(self):
+        fake = Fake(payload={"answers": {}})
+        self.assertIsNone(self.call(fake))
+        self.assertIn("q1", self.lines()[-1]["error"])
+
+    def test_c9_null_answer(self):
+        fake = Fake(payload={"answers": {"q1": None}})
+        self.assertIsNone(self.call(fake))
+        self.assertIn("q1", self.lines()[-1]["error"])
+
+    def test_c9_one_of_two_missing(self):
+        qs = {"q1": Q["q1"], "q2": {"type": "noul", "instructions": "And this?"}}
+        self.assertIsNone(self.call(Fake(), questions=qs))
+        self.assertIn("q2", self.lines()[-1]["error"])
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

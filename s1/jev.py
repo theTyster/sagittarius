@@ -44,19 +44,25 @@ def urllib_transport(url, headers, body, timeout):
 
 def redact(obj, pairs):
     """Return a copy of obj with each (original, replacement) replaced, case-insensitively,
-    in every string (values and dict keys). One pass, so a replacement is never rescanned."""
-    pairs = [(a, b) for a, b in pairs if a]
+    in every string (values and dict keys). One pass, so a replacement is never rescanned.
+    The match maps back to its pair by group, not by lower(), so case folding never fails.
+    Two dict keys that become the same key raise ValueError (no value is dropped)."""
+    pairs = sorted([(a, b) for a, b in pairs if a], key=lambda p: -len(p[0]))
     if not pairs:
         return obj
-    table = {a.lower(): b for a, b in pairs}
-    rx = re.compile("|".join(re.escape(a) for a, _ in sorted(pairs, key=lambda p: -len(p[0]))),
-                    re.IGNORECASE)
+    rx = re.compile("|".join("(" + re.escape(a) + ")" for a, _ in pairs), re.IGNORECASE)
 
     def walk(o):
         if isinstance(o, str):
-            return rx.sub(lambda m: table[m.group(0).lower()], o)
+            return rx.sub(lambda m: pairs[m.lastindex - 1][1], o)
         if isinstance(o, dict):
-            return {walk(k): walk(v) for k, v in o.items()}
+            out = {}
+            for k, v in o.items():
+                k2 = walk(k)
+                if k2 in out:
+                    raise ValueError("redaction makes two keys the same")
+                out[k2] = walk(v)
+            return out
         if isinstance(o, (list, tuple)):
             return [walk(v) for v in o]
         return o
@@ -86,26 +92,33 @@ def _log(path, key, record):
         pass
 
 
+_CORE = ("time", "model", "questions", "state", "answers", "latency", "usage", "error")
+
+
 def judge(state, questions, *, model=DEFAULT_MODEL, timeout=DEFAULT_TIMEOUT,
-          redactions=None, key=None, log_path=None, transport=None):
+          redactions=None, key=None, log_path=None, transport=None, log_extra=None):
     """Ask Jev the questions about state. Returns {qid: answer}, or None on any failure.
 
     redactions: [(original, replacement), ...] applied to the state and to the question
     values (not the question ids) before the request, and so before the log.
     key: defaults to $TYPESAFE_API_KEY. log_path: defaults to $S1_LOG, then DEFAULT_LOG.
+    log_extra: optional {field: value} added to the log line; it never replaces a core field.
     """
     path = log_path or os.environ.get(LOG_ENV) or DEFAULT_LOG
     key = key or os.environ.get(KEY_ENV)
     pairs = redactions or []
+    extra = dict(log_extra or {})
     try:
         state = redact(state, pairs)
         questions = {q: redact(v, pairs) for q, v in questions.items()}
     except Exception as e:  # malformed input: fail open
         _log(path, key, {"time": _now(), "model": model, "questions": [], "state": None,
-                         "answers": None, "latency": 0, "usage": None, "error": f"input: {e}"})
+                         "answers": None, "latency": 0, "usage": None, "error": f"input: {e}",
+                         **{k: v for k, v in extra.items() if k not in _CORE}})
         return None
     rec = {"time": _now(), "model": model, "questions": list(questions), "state": state,
            "answers": None, "latency": 0.0, "usage": None, "error": None}
+    rec.update({k: v for k, v in extra.items() if k not in rec})
     t0 = time.monotonic()
     try:
         if not key:
@@ -119,6 +132,10 @@ def judge(state, questions, *, model=DEFAULT_MODEL, timeout=DEFAULT_TIMEOUT,
         answers = data["answers"]
         if not isinstance(answers, dict):
             raise ValueError("answers is not an object")
+        missing = [q for q in questions if answers.get(q) is None]
+        if missing:
+            rec["answers"] = answers
+            raise ValueError("no answer for " + ", ".join(missing))
         rec["answers"] = answers
         rec["usage"] = data.get("usage")
         if data.get("model"):
@@ -161,16 +178,30 @@ def to_prolog(run_id, answers):
     """
     out = []
     for qid, a in (answers or {}).items():
-        if not isinstance(a, dict):
+        if a is None:
             continue
-        t = a.get("type")
-        if t == "noul":
-            value, label = a["noul"], band(a["noul"])
-        elif t == "choice":
-            value, label = a["confidence"], _atom(a["choice"])
-        elif t == "score":
-            value, label = a["score"], int(a["score"] + 0.5)
-        else:
+        try:
+            t = a.get("type")
+            if t == "noul":
+                value = _num(a["noul"])
+                label = band(value)
+            elif t == "choice":
+                value, label = _num(a["confidence"]), _atom(a["choice"])
+            elif t == "score":
+                value = _num(a["score"])
+                label = int(value + 0.5)
+            else:
+                continue
+        except (AttributeError, KeyError, TypeError, ValueError) as e:
+            why = (type(e).__name__ + " " + str(e)).replace("\n", " ").replace("\r", " ")
+            out.append("% skipped " + str(qid).replace("\n", " ").replace("\r", " ")
+                       + ": malformed answer (" + why[:80] + ")")
             continue
         out.append(f"s1_answer({_atom(run_id)}, {_atom(qid)}, {t}, {value!r}, {label}).")
     return "\n".join(out)
+
+
+def _num(x):
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        raise TypeError(f"not a number: {x!r}")
+    return x

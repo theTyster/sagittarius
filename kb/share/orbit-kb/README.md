@@ -133,15 +133,14 @@ The digest in step 7 depends on the text of your `ticket.md`.
    E3 in argument 1 (claim(c2, add, 'The label stays Buy.')): claim/3 argument 2: The label must be one of: preserve, retire, introduce. It is add.
    ```
 
-6. Add two questions with default answers. Question `q2` depends on `q1`:
+6. Add two questions with default answers:
 
    ```text
-   $ orbit-kb add "question(q1, c1, 'Which shade of purple?')" "assumed(q1, rebeccapurple)" "question(q2, c1, 'Does the hover color change too?')" "assumed(q2, yes)" "depends(q2, q1)"
+   $ orbit-kb add "question(q1, c1, 'Which shade of purple?')" "assumed(q1, rebeccapurple)" "question(q2, c1, 'Does the hover color change too?')" "assumed(q2, yes)"
    question(q1, c1, 'Which shade of purple?').
    assumed(q1, rebeccapurple).
    question(q2, c1, 'Does the hover color change too?').
    assumed(q2, yes).
-   depends(q2, q1).
    ```
 
 7. Record the ticket file as a subject, and mark it as the ticket:
@@ -215,15 +214,18 @@ The digest in step 7 depends on the text of your `ticket.md`.
     answer(q1, indigo, human).
     ```
 
-15. Query `to_ask` and `done` again. Question `q2` is still open. Its claim
-    is contested, and the answer defeated the default of `q1`, on which `q2`
-    depends:
+15. Query `to_ask` and `done` again. Question `q2` is still open: its claim
+    is contested, and no human answered it. `show blocking` lists what blocks
+    `done`:
 
     ```text
     $ orbit-kb query 'to_ask(Q)' -n 0
     Q = q2
     $ orbit-kb query done
     false
+    $ orbit-kb show blocking
+    Blocking:
+    - to_ask q2: ask question q2 now: Does the hover color change too? (a question about claim c1)
     ```
 
 16. Lint the KB, and print the report:
@@ -269,7 +271,6 @@ question(q1, c1, 'Which shade of purple?').
 assumed(q1, rebeccapurple).
 question(q2, c1, 'Does the hover color change too?').
 assumed(q2, yes).
-depends(q2, q1).
 subject(s1, 'ticket.md', 'sha256:6f2a6395ccceef334e4e8f37a147facff03474208405b9533f12976298a4c0a4').
 ticket(s1).
 attest(a1, test_result, k1, result(k1, 1, fail), script, '2026-10-16T21:59:43Z').
@@ -285,7 +286,7 @@ A KB is a directory. You choose its location. There is no default location.
 
 | Path | Who writes it | Contents |
 |---|---|---|
-| `kb.pl` | `init`, `add`, `declare`, `declare-attest`, `subject`, `attest`, `run` | The first term is `uses([Module, …]).` The list can be empty. Then come facts and local `decl/4` and `attest_type/4` lines. |
+| `kb.pl` | `init`, `add`, `declare`, `subject`, `attest`, `run` | The first term is `uses([Module, …]).` The list can be empty. Then come facts and local `decl/4` lines (from `declare`, or from the first use of a new predicate in `add`). A local `attest_type/4` line written by hand also works. |
 | `rules.pl` | You (optional) | Local rules. |
 | `runs/<N>-<CheckId>.log` | `run` only | The combined output of one run of a check. |
 | `kb.lock` | The writing commands | An empty file. Each writing command holds a lock on it (section 8). |
@@ -413,7 +414,8 @@ The core (`core.pl`) is always loaded. It does not mention software.
 | `question(id, ref(claim), text)` | A dormant question about a claim. |
 | `assumed(ref(question), term)` | The default answer to a question. |
 | `answer(ref(question), term, oneof([human, agent]))` | An answer, and who gave it. |
-| `depends(ref(question), ref(question))` | The first question depends on the answer to the second. |
+| `due(ref([claim, check, question]), time)` | The item is due at the time. While the item is open after that time, `blocking(past_due(X))` holds. |
+| `first_use(term, by, time)` | The predicate `Name/Arity` was declared by its first use in `add`, by that writer, at that time. Only `add` writes it. Lint lists it (W7). |
 | `note(ref, text)` | A free-text note about an ID of any kind. |
 | `subject(id, text, digest)` | An artifact path and its sha256. A relative path starts at the KB directory. |
 | `attest(id, atom, ref, attest_predicate, by, time)` | An attestation: ID, type, subject, predicate, writer, time. |
@@ -439,7 +441,7 @@ The core (`core.pl`) is always loaded. It does not mention software.
 | `refuted(C)` | An attestation gives `verdict(C, refuted(_))`. The text is the counterexample. A bare `refuted` is rejected (E3). |
 | `contested(C)` | One or more `divergence` attestations name `claim(C)`. |
 | `contested_twice(C)` | Two or more different `divergence` attestations name `claim(C)`. |
-| `to_ask(Q)` | No human answered `Q`, no human waived `Q` (`question_waived`), its claim is current, and one of these is true: a question that `Q` depends on is defeated, or the claim is contested. |
+| `to_ask(Q)` | No human answered `Q`, no human waived `Q` (`question_waived`), and its claim is current and contested. |
 | `question_waived(Q)` | Declared with no core clause. The build module adds it: a human `waiver` of question `Q` exists, and its due time is not past (D13). |
 | `any_to_ask` | `to_ask(Q)` is true for one or more questions. |
 | `stale(A)` | Human approval `A` names a digest that differs from the recorded digest of its subject. |
@@ -449,6 +451,10 @@ The core (`core.pl`) is always loaded. It does not mention software.
 | `passed(K)` | Check `K` passed in a run, and no run with a higher number failed. |
 | `failed_after(K, R)` | Check `K` failed in a run with a number higher than `R`. |
 | `was_red(K)` | Check `K` failed in a run before a run in which it passed. |
+| `check_ran(K)` | Check `K` has at least one `test_result`. |
+| `due_passed(X)` | Computed by `orbit-kb` when it reads the KB. The time of a `due(X, T)` fact is past, or it is not a valid time. |
+| `item_open(X)` | `X` still blocks `done`: a question to ask. The build module adds: a claim that is `under` or has an open burn or flare, and a check of an `under` claim. |
+| `blocking(X)` | `X` blocks `done`. Core kinds: `to_ask(Q)`, `supersede_cycle(C)`, `past_due(X)` (an open item past its due time). The build module adds `under(C)`, `over(X)`, `burn_open(C)`, `flare_open(C)`, `no_claim`, `check_failing(K)` and `check_unrun(K)` (a check of an `under` claim that did not pass its last run, or never ran), and `waiver_lapsed(W)` (a lapsed human waiver whose target still blocks). `done` does not read `blocking/1`; with the build module, `done` holds exactly when `blocking(_)` has no answer. `orbit-kb show blocking` prints each item with its text. |
 | `lint_issue(Code, Id, Message)` | Declared with no core clauses. Modules add clauses. See section 10. |
 
 The source of these rules is in `core.pl`. A pass followed by a later fail
@@ -620,24 +626,44 @@ Exit: 0, also when the KB already uses every module. 1 on an unknown module, or
 a first term that is not `uses/1` with a list of module names. 2 on a usage
 error, or when `kb.pl` cannot be written.
 
-### `add 'FACT' …`
+### `add 'FACT' … [--by human|agent]`
 
 Appends facts to `kb.pl`. The final full stop is optional. Facts in one command
 can refer to each other. If one fact is wrong, nothing is written. `add` refuses
 a classical negation `-world(x)` (E17): a fact that is not recorded is false. `add` refuses types whose writers are
 `[script]`. Use `run` or `prove` for those.
-Exit: 0 on success. 1 on a rejection. The message gives the fix.
+
+A new predicate is declared by its first use (D22). When no declaration names
+the predicate (the core, any library module, `kb.pl`, at any arity), `add`
+writes a `decl/4` line, with the type `term` for each argument, and a
+`first_use(Name/Arity, By, Time)` fact before the first fact of the predicate.
+`--by` names the writer (default `agent`). Lint lists each first use (W7), and
+reports E19 when the name is 2 edits or fewer from a declared predicate of the
+same arity (a typo). A second arity of the new name is E2, as for a declared
+name. A name that only an unused module declares needs that module: `orbit-kb uses MODULE`.
+
+```text
+$ orbit-kb add 'colour_of(widget1, blue)'
+decl(fact, colour_of(term, term), 'Declared by its first use. Review it (lint W7).', '').
+first_use(colour_of/2, agent, '2026-11-05T10:00:00Z').
+colour_of(widget1, blue).
+NOTE: colour_of/2 is a new predicate. Its first use declares it, with the type term for each argument (lint W7 lists it). To give a predicate a doc and types, declare it before its first use: orbit-kb declare.
+```
+
+Exit: 0 on success. 1 on a rejection. The message gives the fix. 2 on a usage
+error, such as `--by robot`.
 
 ### `declare 'HEAD' --doc TEXT [--kind fact|rule] [--template T]`
 
-Appends a local `decl/4` line to `kb.pl`. The default kind is `fact`.
+Optional (D22). Appends a local `decl/4` line to `kb.pl`, ahead of the first use
+of the predicate, with a doc, a template, and types. A declared predicate has no
+`first_use/3` fact, so W7 and E19 do not apply to it. The default kind is `fact`.
+Use `--kind rule` for a rule predicate of `rules.pl`.
 Exit: 0 on success. 1 if the name and arity are declared, a type is unknown, or
 the name is reserved.
 
-### `declare-attest TYPE 'SHAPE' --doc TEXT --writers human,agent`
-
-Appends a local `attest_type/4` line to `kb.pl`. The checks of `declare` apply.
-Exit: 0 on success. 1 on a rejection.
+No command declares an attestation type any more (D22: the command was cut).
+An `attest_type/4` line that is already in `kb.pl` still works, and lint lists it (W2).
 
 ### `subject ID PATH`
 
@@ -801,9 +827,11 @@ answer. For `absent`, it prints, for each rule of GOAL, the first body literal
 that no answer gets past, and why, recursively. Exit: 0. 2 on a syntax error
 (E1), an undeclared predicate (E2), E17, or E18 in a source file.
 
-### `show [claims|questions|open|disclosures|extensions|all]`
+### `show [claims|questions|open|blocking|disclosures|extensions|all]`
 
-Lists parts of the KB as plain text. The default is `all`. `open` lists
+Lists parts of the KB as plain text. The default is `all` (without `blocking`).
+`blocking` (D22) prints `Blocking:`, then one line for each answer of
+`blocking(X)` with the text of its item, or `- Nothing blocks done.`. `open` lists
 `to_ask`, `stale`, and `contested`. When the `build` module is in use, `open`
 also lists `under`, `over`, `burn_open`, and `flare_open` (D21), and `no_claim` when no claim is
 current (D17). `claims` shows the burn state of
@@ -906,14 +934,25 @@ rules.
 The topics are plain files in `help/` beside this README: `core`, `build`,
 `discovery` (with one recipe for each move), `codes` (the lint codes), and
 `answers` (exit codes, `why`, and `whynot`). They exist so that an agent
-loads the syntax when a move needs it. The agent prompt
-(`prompt/SAGITTARIUS.md`) holds only the rules that come before the first
-command, and tells the agent to run `orbit-kb help`. Test HP4 to HP6 check
+loads the syntax and the recipe when a move needs it. The agent prompt
+(`prompt/SAGITTARIUS.md`) holds only the philosophy (T08): the procedure, with
+the steps of each move, is in these topics, and the prompt tells the agent to
+run `orbit-kb help`. Test HP4 to HP6 check
 the topics. Exit: 0. An unknown name exits 2.
+
+### `pin [--check STAMP]`
+
+Prints one line: `spec-kb@sha256:HEX TIME`. HEX is the sha256 of `kb.pl`, which
+the CLI computes; never type it. TIME is now, in UTC. Attach the stamp to the
+ticket, so the ticket names the copy of the spec KB that it relies on (D22).
+`pin --check STAMP` reads the first word of STAMP, so the whole line of `pin`
+also works. `pin` writes nothing and takes no lock.
+Exit: 0 when `kb.pl` still has the digest of STAMP. 1 when it changed. 2 on a
+malformed STAMP or another argument.
 
 ### Locking
 
-The commands `add`, `declare`, `declare-attest`, `subject`, `attest`, and `uses` hold
+The commands `add`, `declare`, `subject`, `attest`, and `uses` hold
 an exclusive lock on `kb.lock` in the KB directory for the whole cycle. The
 cycle is: read `kb.pl`, choose the ID, write, and append. Thus two writers in
 two processes cannot choose the same ID. `run` and `prove` take the lock only
@@ -1041,18 +1080,20 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E11 | A clause does not load in the SWI engine. |
 | E14 | Unsafe negation: a variable of a `not` literal occurs in the head, but in no positive body literal. A call with that variable unbound then gives a wrong answer. |
 | E15 | A `supersedes` fact on a cycle: a claim (or a hypothesis) replaces itself, directly (`supersedes(C, C)`) or through others. `done` is false while the cycle exists. `add` refuses such a fact. |
-| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `flare`, `flare_shown`, `flare_waived`, `flare_open`, `any_flare_open`, `demo_changed` (D21), `any_current_claim`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engine ignores the clause. |
+| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `flare`, `flare_shown`, `flare_waived`, `flare_open`, `any_flare_open`, `demo_changed` (D21), `any_current_claim`, `proof_changed`, `waiver_lapsed`, `blocking`, `item_open`, `check_ran`, `due_passed` (D22), `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engine ignores the clause. |
 | E17 | A form that `orbit-kb` does not read (it is s(CASP) syntax): classical negation `-p` (in a fact, a rule head, or a body literal), a `#` line, a global constraint `(:- Body)`, or a `#=`-family constraint. `add` refuses it. It applies in `kb.pl` too, and a goal with such a form exits 2 with the E17 text. `query`, `why`, `whynot`, `show`, and `report` exit 2 while an E17 exists. |
 | E18 | The rules are not stratified: a predicate depends on itself through `not`. The same commands exit 2 while an E18 exists. |
+| E19 | Typo guard (D22): a predicate declared by its first use has a name 2 edits or fewer (Levenshtein) from another declared predicate of the same arity. The message names both. `add` does not refuse it. For a typo, correct the facts in `kb.pl` and delete the `decl/4` and `first_use/3` lines of the new name. For a new predicate, choose a name more than 2 edits away. |
 
 | Code | Warning |
 |---|---|
 | W1 | The subject digest differs from the file on disk, or the file is missing. Refresh it with `orbit-kb subject`. |
-| W2 | A local declaration, listed for review. |
+| W2 | A local declaration, listed for review. A declaration that a first use made gets W7 instead. |
 | W3 | A claim with no `cites`. |
 | W4 | A local fact predicate that no rule reads. |
 | W5 | A `check` of a superseded claim, while the current claim that replaces it (directly or through a chain) has no check. Check ids are unique (E5) and facts are append-only, so the message says to add a new check of the current claim and run it (D15). |
 | W6 | A local rule that adds clauses to a core or module predicate (an extension). For a protected predicate, it is E16 instead. |
+| W7 | A predicate declared by its first use in `add` (D22), with who and when. Review it. |
 
 Built-ins that E2 permits: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `true`,
 `false`, `forall/2`. Lint unwraps `not G`.
@@ -1196,7 +1237,8 @@ Typical tickets have 1–20 claims. The speed work has these parts:
 
 A KB can add its own vocabulary without a change to the library.
 
-1. Declare each new fact predicate with `orbit-kb declare`.
+1. Add the facts of a new fact predicate: the first use declares it (W7). Or
+   declare it first with `orbit-kb declare`, to give it a doc and types.
 2. Declare each new rule predicate, helpers included, with
    `orbit-kb declare --kind rule`.
 3. Write the rules in `rules.pl` in the KB directory.
@@ -1237,6 +1279,7 @@ false
 Lint lists each extension for a human to review:
 
 - W2 lists each local declaration.
+- W7 lists each predicate that a first use declared (D22), and E19 flags a name that looks like a typo of a declared one.
 - W6 lists each local rule that adds clauses to a core or module predicate.
 - W4 lists each local fact predicate that no rule reads.
 
@@ -1543,6 +1586,7 @@ In this section, "Ty" is the author of the project. The author's decisions are c
 
 | Decision | Reason |
 |---|---|
+| The spec KB (D22) | Ticket T03 of the redesign. The schema is declared on first use, so no declare step comes before use; lint lists each new predicate (W7) and flags a near name (E19). The design KB cut the attestation-type command and the question dependency fact. `blocking/1` lists what blocks `done`, because only the spec KB decides what blocks. `pin` stamps the copy of the KB that a ticket relies on. |
 | Flares beside burns (D21) | Burns get proved, flares get shown. Before D21, a renamed alias was a second divergence, its claim burned, and `done` waited for a Lean proof of an alias name (GitHub issue #9). A visual claim now needs a human approval of a demo, not a proof. |
 | One engine (D20) | SWI-Prolog gives the verdict and, from the same clauses, the explanation. Until 2026-11-02, s(CASP) explained the answers and a cross-check compared the two. It cost about 23% of the CLI, and in the audits it found no error in a KB, only tool bugs. |
 | Exit 2 for typos and broken sources | A typo or a broken source must never look like "false". D7 added broken sources to this rule. D20 added E17 and E18. |
@@ -1702,6 +1746,13 @@ Known gaps:
   "a few UX offerings": open items first, evidence under each claim, and
   review marks that become text to paste back. The text of `report` does not
   change (golden files in the tests). `--open` opens the page only when given.
+- **D22 (the spec KB, 2026-11-05).** Ticket T03 of the redesign. `add`
+  declares a new predicate by its first use (`first_use/3`, lint W7), and lint
+  error E19 is the typo guard. `declare` is optional. The command for local
+  attestation types and the fact `depends/2` are gone; `to_ask/1` now asks
+  only the questions of a contested claim. New: `blocking/1` (one kind per
+  item that blocks `done`), `due/2`, `show blocking`, `pin`, and the phases in
+  the general help. See `kb/CONTRACT.md`, D22.
 - **D21 (a visual claim flares, 2026-11-04).** GitHub issue #9; Ty chose
   "Both". `visual(C)` and `demo(S, C)` are new build facts. `flare(C)` holds for
   a visual claim, and for a claim that replaces one. A human approval of a demo

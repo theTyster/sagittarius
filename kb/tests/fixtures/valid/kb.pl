@@ -34,7 +34,6 @@ question(q2, c1, 'Does saving need a progress bar').
 assumed(q1, json).
 assumed(q2, no).
 answer(q1, json, human).
-depends(q2, q1).
 note(c1, 'The user agreed to this in the first message').
 attest(a1, test_result, k1, result(k1, 1, fail), script, '2026-10-15T10:00:01Z').
 attest(a2, test_result, k1, result(k1, 2, pass), script, '2026-10-15T10:00:02Z').
