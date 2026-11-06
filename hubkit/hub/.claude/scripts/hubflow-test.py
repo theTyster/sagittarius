@@ -1586,9 +1586,12 @@ def case_real_orbit_kb(r, root):
         if p.returncode != 0:
             r.skip(name, f"orbit-kb init failed (exit {p.returncode}): {(p.stdout + p.stderr).strip()[:200]}")
             return
-    # spec-open: one open question (to_ask: its claim is contested); spec-none: nothing at all
+    # spec-open: one open question (to_ask: its claim is contested). spec-none: a done KB (CONTRACT
+    # D22: an empty KB blocks with no_claim), so one claim with a check that ran and passed.
     steps = [("--dir", kbs["spec-open"], "add", "claim(c1, preserve, 'Widgets stay blue.')", "question(q1, c1, 'Which blue?')"),
-             ("--dir", kbs["spec-open"], "attest", "divergence", "c1", "claim(c1)", "--by", "human")]
+             ("--dir", kbs["spec-open"], "attest", "divergence", "c1", "claim(c1)", "--by", "human"),
+             ("--dir", kbs["spec-none"], "add", "claim(c1, preserve, 'Gadgets stay round.')", "check(k1, c1)"),
+             ("--dir", kbs["spec-none"], "run", "k1", "--", "true")]
     for st in steps:
         p = okb_run(*st)
         if p.returncode != 0:
@@ -1600,7 +1603,7 @@ def case_real_orbit_kb(r, root):
         return
     r.check("c2-real-query-none-exit-1", p.returncode == 1, (p.returncode, p.stdout, p.stderr))
     p = okb_run("--dir", kbs["spec-open"], "query", "blocking(X)")
-    r.check("c2-real-query-open-question", p.returncode == 0 and any(x.strip() in ("X = q1", "q1") for x in p.stdout.splitlines()),
+    r.check("c2-real-query-open-question", p.returncode == 0 and any(x.strip() in ("X = q1", "q1", "X = to_ask(q1)") for x in p.stdout.splitlines()),
             (p.returncode, p.stdout, p.stderr))
     d = fresh(r, root, "realkb")
     env = {"HUBFLOW_ORBIT_KB": okb}
