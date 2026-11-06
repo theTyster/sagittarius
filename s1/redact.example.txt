@@ -1,0 +1,4 @@
+# Names to redact before a prompt goes to Jev. One per line; matching ignores case.
+# Copy this file to s1/redact.txt (gitignored) and put the real names there.
+Example Client Inc
+Project Bluebird

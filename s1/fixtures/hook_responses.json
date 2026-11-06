@@ -1,0 +1,370 @@
+{
+ "_comment": "Invented responses in the Jev API shape (choice: choice, confidence, probabilities; noul: noul). No real data.",
+ "ticket_example": {
+  "model": "jev-1.14.0",
+  "answers": {
+   "h_work": {
+    "type": "choice",
+    "choice": "build",
+    "confidence": 0.83,
+    "probabilities": {
+     "build": 0.83,
+     "research": 0.034,
+     "specify": 0.034,
+     "verify": 0.034,
+     "question": 0.034,
+     "other": 0.034
+    }
+   },
+   "h_divergence": {
+    "type": "noul",
+    "noul": 0.85
+   },
+   "h_change_of_plan": {
+    "type": "noul",
+    "noul": 0.5
+   },
+   "h_effort": {
+    "type": "noul",
+    "noul": 0.91
+   },
+   "h_language": {
+    "type": "choice",
+    "choice": "prolog",
+    "confidence": 0.72,
+    "probabilities": {
+     "prolog": 0.72,
+     "lean": 0.056,
+     "z3": 0.056,
+     "tla": 0.056,
+     "tests": 0.056,
+     "none": 0.056
+    }
+   }
+  },
+  "usage": {
+   "input_tokens": 400,
+   "output_tokens": 20
+  }
+ },
+ "both_likely": {
+  "model": "jev-1.14.0",
+  "answers": {
+   "h_work": {
+    "type": "choice",
+    "choice": "build",
+    "confidence": 0.9,
+    "probabilities": {
+     "build": 0.9,
+     "research": 0.02,
+     "specify": 0.02,
+     "verify": 0.02,
+     "question": 0.02,
+     "other": 0.02
+    }
+   },
+   "h_divergence": {
+    "type": "noul",
+    "noul": 0.8
+   },
+   "h_change_of_plan": {
+    "type": "noul",
+    "noul": 0.75
+   },
+   "h_effort": {
+    "type": "noul",
+    "noul": 0.4
+   },
+   "h_language": {
+    "type": "choice",
+    "choice": "tests",
+    "confidence": 0.8,
+    "probabilities": {
+     "tests": 0.8,
+     "prolog": 0.04,
+     "lean": 0.04,
+     "z3": 0.04,
+     "tla": 0.04,
+     "none": 0.04
+    }
+   }
+  },
+  "usage": {
+   "input_tokens": 400,
+   "output_tokens": 20
+  }
+ },
+ "change_only": {
+  "model": "jev-1.14.0",
+  "answers": {
+   "h_work": {
+    "type": "choice",
+    "choice": "build",
+    "confidence": 0.77,
+    "probabilities": {
+     "build": 0.77,
+     "research": 0.046,
+     "specify": 0.046,
+     "verify": 0.046,
+     "question": 0.046,
+     "other": 0.046
+    }
+   },
+   "h_divergence": {
+    "type": "noul",
+    "noul": 0.1
+   },
+   "h_change_of_plan": {
+    "type": "noul",
+    "noul": 0.89
+   },
+   "h_effort": {
+    "type": "noul",
+    "noul": 0.5
+   },
+   "h_language": {
+    "type": "choice",
+    "choice": "tests",
+    "confidence": 0.3,
+    "probabilities": {
+     "tests": 0.3,
+     "prolog": 0.14,
+     "lean": 0.14,
+     "z3": 0.14,
+     "tla": 0.14,
+     "none": 0.14
+    }
+   }
+  },
+  "usage": {
+   "input_tokens": 400,
+   "output_tokens": 20
+  }
+ },
+ "thanks": {
+  "model": "jev-1.14.0",
+  "answers": {
+   "h_work": {
+    "type": "choice",
+    "choice": "other",
+    "confidence": 1.0,
+    "probabilities": {
+     "other": 1.0,
+     "research": 0.0,
+     "specify": 0.0,
+     "build": 0.0,
+     "verify": 0.0,
+     "question": 0.0
+    }
+   },
+   "h_divergence": {
+    "type": "noul",
+    "noul": 0.03
+   },
+   "h_change_of_plan": {
+    "type": "noul",
+    "noul": 0.05
+   },
+   "h_effort": {
+    "type": "noul",
+    "noul": 0.02
+   },
+   "h_language": {
+    "type": "choice",
+    "choice": "none",
+    "confidence": 0.95,
+    "probabilities": {
+     "none": 0.95,
+     "prolog": 0.01,
+     "lean": 0.01,
+     "z3": 0.01,
+     "tla": 0.01,
+     "tests": 0.01
+    }
+   }
+  },
+  "usage": {
+   "input_tokens": 400,
+   "output_tokens": 20
+  }
+ },
+ "mixed_unsure": {
+  "model": "jev-1.14.0",
+  "answers": {
+   "h_work": {
+    "type": "choice",
+    "choice": "specify",
+    "confidence": 0.49,
+    "probabilities": {
+     "specify": 0.49,
+     "research": 0.102,
+     "build": 0.102,
+     "verify": 0.102,
+     "question": 0.102,
+     "other": 0.102
+    }
+   },
+   "h_divergence": {
+    "type": "noul",
+    "noul": 0.55
+   },
+   "h_change_of_plan": {
+    "type": "noul",
+    "noul": 0.32
+   },
+   "h_effort": {
+    "type": "noul",
+    "noul": 0.81
+   },
+   "h_language": {
+    "type": "choice",
+    "choice": "lean",
+    "confidence": 0.4,
+    "probabilities": {
+     "lean": 0.4,
+     "prolog": 0.12,
+     "z3": 0.12,
+     "tla": 0.12,
+     "tests": 0.12,
+     "none": 0.12
+    }
+   }
+  },
+  "usage": {
+   "input_tokens": 400,
+   "output_tokens": 20
+  }
+ },
+ "choice_low_p": {
+  "model": "jev-1.14.0",
+  "answers": {
+   "h_work": {
+    "type": "choice",
+    "choice": "verify",
+    "confidence": 0.9,
+    "probabilities": {
+     "verify": 0.45,
+     "research": 0.11,
+     "specify": 0.11,
+     "build": 0.11,
+     "question": 0.11,
+     "other": 0.11
+    }
+   },
+   "h_divergence": {
+    "type": "noul",
+    "noul": 0.5
+   },
+   "h_change_of_plan": {
+    "type": "noul",
+    "noul": 0.5
+   },
+   "h_effort": {
+    "type": "noul",
+    "noul": 0.5
+   },
+   "h_language": {
+    "type": "choice",
+    "choice": "z3",
+    "confidence": 0.5,
+    "probabilities": {
+     "z3": 0.5,
+     "prolog": 0.1,
+     "lean": 0.1,
+     "tla": 0.1,
+     "tests": 0.1,
+     "none": 0.1
+    }
+   }
+  },
+  "usage": {
+   "input_tokens": 400,
+   "output_tokens": 20
+  }
+ },
+ "all_unsure": {
+  "model": "jev-1.14.0",
+  "answers": {
+   "h_work": {
+    "type": "choice",
+    "choice": "build",
+    "confidence": 0.4,
+    "probabilities": {
+     "build": 0.4,
+     "research": 0.12,
+     "specify": 0.12,
+     "verify": 0.12,
+     "question": 0.12,
+     "other": 0.12
+    }
+   },
+   "h_divergence": {
+    "type": "noul",
+    "noul": 0.5
+   },
+   "h_change_of_plan": {
+    "type": "noul",
+    "noul": 0.6
+   },
+   "h_effort": {
+    "type": "noul",
+    "noul": 0.31
+   },
+   "h_language": {
+    "type": "choice",
+    "choice": "tests",
+    "confidence": 0.2,
+    "probabilities": {
+     "tests": 0.2,
+     "prolog": 0.16,
+     "lean": 0.16,
+     "z3": 0.16,
+     "tla": 0.16,
+     "none": 0.16
+    }
+   }
+  },
+  "usage": {
+   "input_tokens": 400,
+   "output_tokens": 20
+  }
+ },
+ "malformed": {
+  "model": "jev-1.14.0",
+  "answers": {
+   "h_work": {
+    "type": "choice",
+    "choice": "build"
+   },
+   "h_divergence": {
+    "type": "noul",
+    "noul": "high"
+   },
+   "h_change_of_plan": {
+    "type": "noul",
+    "noul": 0.5
+   },
+   "h_effort": {
+    "type": "noul",
+    "noul": 0.9
+   },
+   "h_language": {
+    "type": "choice",
+    "choice": "tests",
+    "confidence": 0.8,
+    "probabilities": {
+     "tests": 0.8,
+     "prolog": 0.04,
+     "lean": 0.04,
+     "z3": 0.04,
+     "tla": 0.04,
+     "none": 0.04
+    }
+   }
+  },
+  "usage": {
+   "input_tokens": 400,
+   "output_tokens": 20
+  }
+ }
+}

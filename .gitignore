@@ -22,3 +22,6 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# System 1 hook: real names to redact stay on this machine (see s1/redact.example.txt)
+s1/redact.txt
