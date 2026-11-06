@@ -958,6 +958,26 @@ default, an agent's answer, the texts of its `option/3` facts, and other; the ef
 comes from `option(Q, Text, Effect)`, and the page says so when none is recorded.
 The view reads only. Exit 2 for a usage error, an unreadable KB, or a bad ledger file.
 
+### `serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--port N]`
+
+Serves the page of `view questions` on `http://127.0.0.1:PORT/` (D26). The default port is
+8737; `--port 0` picks a free port, and the first line on stdout gives the address. Each reload
+reads the KBs and the ledger again, so the page is live; the server keeps no state of its own,
+and Ctrl-C stops it. `--dir` may repeat; `--root DIR` serves each `kb.pl` under DIR (hidden
+directories and `runs/` are skipped). The page groups the spec KBs by the project KB that they
+name with `project_kb/1`, each group labeled with that project KB's first request; a spec KB
+with no `project_kb` is in the group `no project`. A project KB has no section of its own.
+Each question to ask has a form: its options as in `view questions`, `other`, and a free text.
+A POST records `answer(Q, Answer, human)` with `orbit-kb add --by human` in a child process, and
+writes nothing else. The write takes the writer lock (D23 P7) as `$ORBIT_KB_WRITER`, else as
+`human`, and gives back a lock that was free before it. When another writer holds the lock,
+nothing is written and the page names the holder; the server never uses `--take`. The ledger's
+asks are read-only, each with the `hubflow.py ... close ID --reason done --note` command that
+answers it. Safety: the server listens on 127.0.0.1 only; a request whose `Host` is not
+`127.0.0.1` or `localhost` gets 403; a POST needs the token of this run, which the page carries;
+free text is escaped on the page and written as one quoted term that `add` checks. There is no
+login. Exit 2 for a usage error, a KB that cannot be found, a bad ledger file, or a port in use.
+
 ### `pin [--check STAMP]`
 
 Prints one line: `spec-kb@sha256:HEX TIME`. HEX is the sha256 of `kb.pl`, which

@@ -1,0 +1,6 @@
+name = "question_server"
+version = "0.1.0"
+defaultTargets = ["QuestionServer"]
+
+[[lean_lib]]
+name = "QuestionServer"

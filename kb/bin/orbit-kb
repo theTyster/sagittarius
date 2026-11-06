@@ -447,6 +447,12 @@ top(Argv0, Code) :-
     ;   cmd_view(Dirs, ViewArgs, Code)
     ).
 top(Argv0, Code) :-
+    take_dirs(Argv0, Dirs, [serve|ServeArgs]), !,
+    (   member(Arg, ServeArgs), memberchk(Arg, ['--help', '-h'])
+    ->  cmd_help([serve], Code)
+    ;   cmd_serve(Dirs, ServeArgs, Code)
+    ).
+top(Argv0, Code) :-
     take_dir(Argv0, DirOpt, Argv),
     (   Argv == []
     ->  help_lines(general, Ls), print_lines(user_error, Ls), Code = 2
@@ -2995,19 +3001,28 @@ view_ledger_row(File, I, X) :-
     ;   usage_error("Ledger ~w, item ~w: age_days must be a whole number, 0 or more.", [File, I])
     ).
 
-view_ledger_section(none, "").
-view_ledger_section(some(Asks), Text) :-
-    findall(L, ( member(X, Asks), view_ask_html(X, L) ), Ls),
+view_ledger_section(Led, Text) :- view_ledger_section(static, Led, Text).
+view_ledger_section(_, none, "").
+view_ledger_section(Mode, some(Asks), Text) :-
+    findall(L, ( member(X, Asks), view_ask_html(Mode, X, L) ), Ls),
     (   Ls == [] -> Body = "<p>No ask waits on the owner.</p>"
     ;   atomic_list_concat(Ls, '\n', B0), format(string(Body), "<ul>\n~w\n</ul>", [B0])
     ),
     format(string(Text), "<section class=\"ledger\">\n<h2>Asks that wait on you</h2>\n~w\n</section>", [Body]).
 
-view_ask_html(X, L) :-
+view_ask_html(Mode, X, L) :-
     esc(X.id, Id), esc(X.title, T), esc(X.age_days, Age),
-    format(string(L), "<li class=\"ask\" data-id=\"~w\"><span class=\"title\">~w</span> <span class=\"age\">~w days</span></li>", [Id, T, Age]).
+    % D26 S7: the server shows, read-only, the hubflow command that answers the ask.
+    (   Mode = serve(_)
+    ->  format(string(Cmd), "python3 .claude/scripts/hubflow.py --by human close ~w --reason done --note 'YOUR ANSWER'", [X.id]),
+        esc(Cmd, CmdH),
+        format(string(Hf), " <p>Answer it in the hub: <code class=\"hubflow\">~w</code></p>", [CmdH])
+    ;   Hf = ""
+    ),
+    format(string(L), "<li class=\"ask\" data-id=\"~w\"><span class=\"title\">~w</span> <span class=\"age\">~w days</span>~w</li>", [Id, T, Age, Hf]).
 
-view_kb_section(Lib, Dir, Html) :-
+view_kb_section(Lib, Dir, Html) :- view_kb_section(static, Lib, Dir, Html).
+view_kb_section(Mode, Lib, Dir, Html) :-
     load_kb(Dir, Lib, KB),
     answer_gate(KB),
     directory_file_path(Dir, 'kb.pl', KbFile),
@@ -3016,11 +3031,13 @@ view_kb_section(Lib, Dir, Html) :-
     esc(Stamp, StampH),
     kb_engine(KB, Eng),
     eng_all(Eng, [X], blocking(X), Xs),
-    (   Xs == [] -> Body = "<p>Nothing blocks done.</p>"
-    ;   maplist(view_item_html(Eng), Xs, Is),
+    (   Xs == [] -> Body0 = "<p>Nothing blocks done.</p>"
+    ;   maplist(view_item_html(Mode, Dir, Eng), Xs, Is),
         atomic_list_concat(Is, '\n', B0),
-        format(string(Body), "<ul class=\"items\">\n~w\n</ul>", [B0])
+        format(string(Body0), "<ul class=\"items\">\n~w\n</ul>", [B0])
     ),
+    (   Mode = serve(_) -> view_answered_html(Eng, AnsH) ; AnsH = "" ),
+    string_concat(Body0, AnsH, Body),
     (   eng_all(Eng, [RT], request(_, RT), [RT1|_]), txt(RT1, RT2), split_string(RT2, "\n", " \t", [L1|_]), L1 \== "" -> Label = L1
     ;   file_base_name(Dir, Label)
     ),
@@ -3070,7 +3087,7 @@ view_blocking_sentence(Eng, Item, Text) :-
     ;   Text = Line
     ).
 
-view_item_html(Eng, Item, Html) :-
+view_item_html(Mode, Dir, Eng, Item, Html) :-
     (   atom(Item) -> Kind = Item, Id = ''
     ;   Item =.. [Kind, Id]
     ),
@@ -3104,13 +3121,13 @@ view_item_html(Eng, Item, Html) :-
         atomic_list_concat(CiS, '', CitedH)
     ;   Blocks = "", CitedH = ""
     ),
-    (   Kind == to_ask -> view_question_html(Eng, Id, QHtml) ; QHtml = "" ),
+    (   Kind == to_ask -> view_question_html(Mode, Dir, Eng, Id, QHtml) ; QHtml = "" ),
     format(string(Html), "<li class=\"item\" data-kind=\"~w\" data-id=\"~w\">\n<p>~w: ~w~w</p>\n~w\n~w\n~w\n</li>",
            [KindH, IdH, LabelH, Ref, PlainH, Blocks, CitedH, QHtml]).
 
 % The default and the options of a question (D24 C7): the default, an answer by an agent,
 % each option/3 text, and other. Each option has its effect when the KB records one.
-view_question_html(Eng, Q, Html) :-
+view_question_html(Mode, Dir, Eng, Q, Html) :-
     (   eng_all(Eng, [A], assumed(Q, A), [A1|_]) -> plain_text(A1, Def) ; Def = none ),
     ( nonvar(Def), Def \== none -> HasDef = true ; HasDef = false ),
     esc(Def, DefH),
@@ -3134,7 +3151,51 @@ view_question_html(Eng, Q, Html) :-
     ->  Note = "<p class=\"no-effects\">No option effects are recorded for this question.</p>"
     ;   Note = ""
     ),
-    format(string(Html), "~w\n<ul class=\"options\">\n~w\n</ul>\n~w", [DefLine, OsT, Note]).
+    (   Mode = serve(Token)
+    ->  findall(T, member(src(_, T), Srcs), Ts0), list_to_set(Ts0, Ts),
+        view_answer_form(Token, Dir, Q, Ts, Form)
+    ;   Form = ""
+    ),
+    format(string(Html), "~w\n<ul class=\"options\">\n~w\n</ul>\n~w~w", [DefLine, OsT, Note, Form]).
+
+% view_answer_form(+Token, +Dir, +Q, +Texts, -Html) (D26 S3): the answer form of a to_ask
+% question in the served page: one radio choice per option text (as listed above), then other,
+% and a free text. The hidden fields carry the token of this run, the KB, and the question.
+view_answer_form(Token, Dir, Q, Texts, Html) :-
+    append(Texts, ["other"], All),
+    findall(R, ( member(T, All), esc(T, TH),
+                 format(string(R), "<label><input type=\"radio\" name=\"choice\" value=\"~w\"> ~w</label>", [TH, TH]) ), Rs),
+    atomic_list_concat(Rs, '\n', RsT),
+    esc(Token, TokH), esc(Dir, DirH), esc(Q, QH),
+    format(string(Html),
+"<form class=\"answer\" method=\"post\" action=\"/answer\">
+<input type=\"hidden\" name=\"token\" value=\"~w\"><input type=\"hidden\" name=\"kb\" value=\"~w\"><input type=\"hidden\" name=\"q\" value=\"~w\">
+~w
+<label>Or write the answer (with other): <input type=\"text\" name=\"text\" size=\"60\"></label>
+<button type=\"submit\">Record my answer</button>
+</form>", [TokH, DirH, QH, RsT]).
+
+% view_answered_html(+Eng, -Html) (D26 S3): the questions that a human answered, each with the
+% answer, and its default marked when the answer defeats it.
+view_answered_html(Eng, Html) :-
+    eng_all(Eng, [Q, A], answer(Q, A, human), QAs0),
+    list_to_set(QAs0, QAs),
+    findall(L, ( member([Q, A], QAs), view_answered_li(Eng, Q, A, L) ), Ls),
+    (   Ls == [] -> Html = ""
+    ;   atomic_list_concat(Ls, '\n', LsT),
+        format(string(Html), "\n<h3>Answered by a human</h3>\n<ul class=\"answered-list\">\n~w\n</ul>", [LsT])
+    ).
+
+view_answered_li(Eng, Q, A, L) :-
+    view_xtext(Eng, Q, QT), view_ref(Q, QT, Ref),
+    plain_text(A, AT), esc(AT, AH),
+    (   eng_true(Eng, defeated(Q)), eng_all(Eng, [D], assumed(Q, D), [D1|_])
+    ->  plain_text(D1, DT), esc(DT, DH),
+        format(string(Def), " <span class=\"defeated\">The default ~w is defeated.</span>", [DH])
+    ;   Def = ""
+    ),
+    esc(Q, QH),
+    format(string(L), "<li class=\"answered\" data-id=\"~w\">~w Answer: <span class=\"answer\">~w</span>~w</li>", [QH, Ref, AH, Def]).
 
 view_option(Src, Text, OFs, L) :-
     esc(Text, T),
@@ -3144,6 +3205,316 @@ view_option(Src, Text, OFs, L) :-
     ;   Eff = " <span class=\"effect none\">No effect is recorded.</span>"
     ),
     format(string(L), "<li class=\"option\" data-source=\"~w\"><span class=\"optiontext\">~w</span>~w</li>", [Src, T, Eff]).
+
+% ---------------------------------------------------------------------
+% serve questions (D26)
+% ---------------------------------------------------------------------
+% orbit-kb serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--port N]:
+% a local server for the page of view questions. Each GET of / reads the KBs and the ledger
+% again. A POST of /answer records one human answer through `orbit-kb add --by human`, run as
+% a child process, under the writer lock. The server listens on 127.0.0.1 only, refuses a Host
+% other than 127.0.0.1 or localhost, and needs the token of this run on a POST. It keeps no
+% state of its own and never uses --take. Ctrl-C stops it.
+
+:- dynamic serve_conf/2.
+
+serve_default_port(8737).
+
+cmd_serve(Dirs0, Args, Code) :-
+    parse_opts(Args, ['--ledger'-value, '--owner'-value, '--root'-value, '--port'-value], Pos, Opts),
+    (   Pos == [] -> usage_error("serve needs a view name: orbit-kb serve questions [--dir KB]... [--root DIR] [--ledger FILE] [--port N].", [])
+    ;   Pos == [questions] -> true
+    ;   usage_error("serve takes the one view name questions.", [])
+    ),
+    (   memberchk('--port'-PA, Opts)
+    ->  (   atom_number(PA, Port), integer(Port), between(0, 65535, Port) -> true
+        ;   usage_error("--port takes a whole number from 0 to 65535. It is ~w.", [PA])
+        )
+    ;   serve_default_port(Port)
+    ),
+    (   memberchk('--root'-R0, Opts)
+    ->  (   exists_directory(R0) -> absolute_file_name(R0, Root), RootOpt = some(Root)
+        ;   usage_error("The --root directory ~w does not exist.", [R0])
+        )
+    ;   RootOpt = none
+    ),
+    (   memberchk('--ledger'-LF0, Opts)
+    ->  absolute_file_name(LF0, LF), view_ledger(LF, _), LedOpt = some(LF)    % fail early on a bad file
+    ;   LedOpt = none
+    ),
+    (   Dirs0 == [], RootOpt == none -> resolve_kb(none, D0), Dirs = [D0]
+    ;   maplist([D, Rd]>>resolve_kb(some(D), Rd), Dirs0, Dirs)
+    ),
+    (   memberchk('--owner'-Ow, Opts) -> OwnOpt = ['--owner'-Ow] ; OwnOpt = [] ),
+    serve_token(Token),
+    (   getenv('ORBIT_KB_WRITER', W0), W0 \== '' -> Writer = W0 ; Writer = human ),
+    orbit_script(Script),
+    retractall(serve_conf(_, _)),
+    forall(member(K-V, [dirs-Dirs, root-RootOpt, ledger-LedOpt, owner-OwnOpt, token-Token,
+                        writer-Writer, script-Script]),
+           assertz(serve_conf(K, V))),
+    use_module(library(http/thread_httpd)),
+    ( Port == 0 -> true ; BindPort = Port ),     % an unbound port: the system picks a free one
+    context_module(Mod),
+    catch(thread_httpd:http_server(Mod:serve_request, [port('127.0.0.1':BindPort), workers(1), silent(true)]), E,
+          ( err_text(E, M),
+            die(2, ["Cannot listen on 127.0.0.1:" + Port + ": " + M,
+                    "Fix: give another port with --port N."] >> fix_lines) )),
+    format("Serving the questions at http://127.0.0.1:~w/ . Answers are written as ~w. Ctrl-C stops.~n", [BindPort, Writer]),
+    flush_output(user_output),
+    on_signal(int, _, serve_halt),
+    on_signal(term, _, serve_halt),
+    repeat, thread_get_message(_), fail,
+    Code = 0.
+
+serve_halt(_) :- halt(0).
+
+% serve_token(-Token): 32 hex digits from a random source, new for each run.
+serve_token(Token) :-
+    (   catch(( use_module(library(crypto)), crypto:crypto_n_random_bytes(16, Bs) ), _, fail)
+    ->  true
+    ;   catch(setup_call_cleanup(open('/dev/urandom', read, S, [type(binary)]),
+                                 ( length(Bs, 16), maplist([B]>>get_byte(S, B), Bs) ),
+                                 close(S)), _, fail)
+    ->  true
+    ;   die(2, ["Cannot make the token of the run: no random source.", "Fix: install the SWI-Prolog ssl package."])
+    ),
+    maplist([B, H]>>format(atom(H), "~|~`0t~16r~2+", [B]), Bs, Hs),
+    atomic_list_concat(Hs, Token).
+
+% serve_route(+Method, +Path, +HostOk, +TokenOk, -Action) (D26 S5, S6): the one place that
+% decides what a request does. Only `answer` writes, and only after the checks of serve_answer/2.
+serve_route(_, _, false, _, forbidden) :- !.
+serve_route(get, '/', true, _, page) :- !.
+serve_route(post, '/answer', true, true, answer) :- !.
+serve_route(post, '/answer', true, false, forbidden) :- !.
+serve_route(_, P, true, _, bad_method) :- memberchk(P, ['/', '/answer']), !.
+serve_route(_, _, true, _, not_found).
+
+serve_host_ok(Req, true) :-
+    memberchk(host(H), Req), memberchk(H, ['127.0.0.1', localhost]), !.
+serve_host_ok(_, false).
+
+serve_request(Req) :-
+    catch(serve_request_(Req), E, serve_failed(E)).
+
+serve_request_(Req) :-
+    memberchk(method(M), Req), memberchk(path(P), Req),
+    serve_host_ok(Req, HostOk),
+    (   M == post, P == '/answer', HostOk == true
+    ->  serve_form(Req, Form),
+        serve_conf(token, Tok),
+        ( serve_field(Form, token, T), atom_string(Tok, T) -> TokOk = true ; TokOk = false )
+    ;   Form = [], TokOk = false
+    ),
+    serve_route(M, P, HostOk, TokOk, Action),
+    serve_act(Action, Form).
+
+serve_act(page, _) :- serve_page("", Page), serve_reply(200, Page).
+serve_act(answer, Form) :- serve_answer(Form, R),
+    (   R = ok -> format("Status: 303~nLocation: /~nContent-type: text/html; charset=UTF-8~n~n<p>Recorded. <a href=\"/\">Back to the questions</a></p>~n", [])
+    ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
+    ).
+serve_act(forbidden, _) :- serve_message_page(403, "Forbidden. The server answers only requests to 127.0.0.1 or localhost, and a POST needs the token of the page of this run. Reload the page.").
+serve_act(bad_method, _) :- serve_message_page(405, "This method is not allowed here. GET / shows the page; the forms POST to /answer.").
+serve_act(not_found, _) :- serve_message_page(404, "There is no such page. GET / shows the questions.").
+
+serve_failed(E) :-
+    (   E = orbit_error(_, Lines) -> atomic_list_concat(Lines, ' ', M) ; err_text(E, M) ),
+    catch(serve_message_page(500, M), _, true).
+
+serve_form(Req, Form) :-
+    (   memberchk(content_length(N), Req), N > 65536
+    ->  Form = []
+    ;   memberchk(content_type(CT), Req), sub_atom(CT, 0, _, _, 'application/x-www-form-urlencoded'),
+        memberchk(content_length(N), Req), memberchk(input(In), Req)
+    ->  % read the body here: no HTTP client library (D25 T6; TS14)
+        catch(( set_stream(In, encoding(octet)), read_string(In, N, Body),
+                uri_query_components(Body, Form0) ), _, Form0 = []),
+        ( is_list(Form0) -> Form = Form0 ; Form = [] )
+    ;   Form = []
+    ).
+
+serve_field(Form, K, V) :- memberchk(K=V0, Form), atom_string(V0, V).
+
+serve_reply(Status, Page) :-
+    format("Status: ~w~nContent-type: text/html; charset=UTF-8~nCache-Control: no-store~n~n", [Status]),
+    set_stream(current_output, encoding(utf8)),
+    write(Page).
+
+serve_message_page(Status, Msg) :-
+    esc(Msg, MH),
+    format(string(Page), "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Open questions</title>\n</head>\n<body>\n<p class=\"message error\">~w</p>\n<p><a href=\"/\">Back to the questions</a></p>\n</body>\n</html>\n", [MH]),
+    serve_reply(Status, Page).
+
+% serve_kbs(-Groups): the KBs to serve now, as group(Label, ProjectDir|none, Dirs). The --dir
+% KBs in the order given, then the KBs under --root, sorted by path. A KB that a spec KB names
+% with project_kb/1, or that uses the project module and has no project_kb and no claim, is a
+% project KB: it names a group and has no section of its own.
+serve_kbs(Groups) :-
+    serve_conf(dirs, Dirs0), serve_conf(root, RootOpt),
+    (   RootOpt = some(Root) -> serve_find_kbs(Root, Found) ; Found = [] ),
+    append(Dirs0, Found, All0),
+    maplist([D, A]>>absolute_file_name(D, A), All0, All1),
+    list_to_set(All1, All),
+    findall(D-P, ( member(D, All), serve_kb_project(D, P) ), DPs),
+    findall(P, member(_-some(P), DPs), Ps0), list_to_set(Ps0, Ps),
+    findall(D, ( member(D, All), ( memberchk(D, Ps) ; serve_is_project_kb(D) ) ), PKs),
+    findall(D-P, ( member(D-P, DPs), \+ memberchk(D, PKs) ), Specs),
+    findall(P, member(_-some(P), Specs), GPs0), list_to_set(GPs0, GPs),
+    findall(L-group(L, some(P), Ds),
+            ( member(P, GPs), serve_project_label(P, L),
+              findall(D, member(D-some(P), Specs), Ds) ),
+            LGs0),
+    keysort(LGs0, LGs), pairs_values(LGs, PGroups),
+    findall(D, member(D-none, Specs), NDs),
+    (   NDs == [] -> Groups = PGroups ; append(PGroups, [group("no project", none, NDs)], Groups) ).
+
+serve_find_kbs(Root, Dirs) :-
+    findall(D, serve_walk(Root, 0, D), Ds0), sort(Ds0, Dirs).
+
+serve_walk(Dir, _, Dir) :- directory_file_path(Dir, 'kb.pl', F), exists_file(F).
+serve_walk(Dir, Depth, Found) :-
+    Depth < 8,
+    catch(directory_files(Dir, Es), _, fail),
+    member(E, Es), \+ sub_atom(E, 0, _, _, '.'), E \== runs,
+    directory_file_path(Dir, E, Sub), exists_directory(Sub),
+    D1 is Depth + 1,
+    serve_walk(Sub, D1, Found).
+
+serve_kb_items(Dir, Items) :-
+    directory_file_path(Dir, 'kb.pl', F),
+    catch(read_source_file(kb, F, Items), _, Items = []).
+
+serve_kb_project(Dir, P) :-
+    serve_kb_items(Dir, Items),
+    (   kb_term(Items, project_kb(P0)), atom(P0)
+    ->  ( is_absolute_file_name(P0) -> P1 = P0 ; directory_file_path(Dir, P0, P1) ),
+        absolute_file_name(P1, PA), P = some(PA)
+    ;   P = none
+    ).
+
+serve_is_project_kb(Dir) :-
+    serve_kb_items(Dir, Items),
+    items_uses(Items, Us), memberchk(project, Us),
+    \+ kb_term(Items, project_kb(_)),
+    \+ kb_term(Items, claim(_, _, _)).
+
+serve_project_label(P, Label) :-
+    serve_kb_items(P, Items),
+    (   kb_term(Items, request(_, RT)), txt(RT, RT2), split_string(RT2, "\n", " \t", [L1|_]), L1 \== ""
+    ->  Label = L1
+    ;   file_base_name(P, B), atom_string(B, Label)
+    ).
+
+serve_page(Msg, Page) :-
+    serve_conf(token, Token), lib_dir(Lib),
+    serve_kbs(Groups),
+    findall(G, ( member(group(L, _, Ds), Groups), serve_group_html(Token, Lib, L, Ds, G) ), Gs),
+    (   Gs == [] -> GsText = "<p class=\"message\">No KB was found.</p>" ; atomic_list_concat(Gs, '\n', GsText) ),
+    serve_conf(ledger, LedOpt), serve_conf(owner, OwnOpt),
+    (   LedOpt = some(LF)
+    ->  catch(( view_ledger(LF, Rows), view_owner(OwnOpt, Rows, Owner), view_owned(Rows, Owner, Asks),
+                view_ledger_section(serve(Token), some(Asks), LedText) ),
+              E, ( serve_err_text(E, EM), esc(EM, EMH),
+                   format(string(LedText), "<section class=\"ledger\"><h2>Asks that wait on you</h2><p class=\"message error\">~w</p></section>", [EMH]) ))
+    ;   LedText = ""
+    ),
+    view_css(Css),
+    (   Msg == "" -> MsgH = "" ; esc(Msg, M0), format(string(MsgH), "<p class=\"message\">~w</p>", [M0]) ),
+    format(string(Page),
+"<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+<meta charset=\"utf-8\">
+<title>Open questions</title>
+<style>~w section.project{border-width:2px}form.answer{margin:.5em 0;padding:.4em;background:#f4f4f4}form.answer label{display:block}</style>
+</head>
+<body>
+<h1>Open questions</h1>
+<p class=\"serve-note\">Live: each reload reads the KBs again. An answer is recorded as a human answer (orbit-kb add --by human), under the writer lock of its KB.</p>
+<p class=\"options-note\">The options of a question come from the KB's defaults (its default answer and an answer that an agent recorded) and from its option facts (each with what it changes). Other means an answer that is not listed. The page adds no option of its own.</p>
+~w
+~w
+~w
+</body>
+</html>
+", [Css, MsgH, GsText, LedText]).
+
+serve_group_html(Token, Lib, Label, Dirs, Html) :-
+    findall(S, ( member(D, Dirs), serve_kb_html(Token, Lib, D, S) ), Ss),
+    atomic_list_concat(Ss, '\n', SsT),
+    esc(Label, LH),
+    format(string(Html), "<section class=\"project\">\n<h2 class=\"projectlabel\">~w</h2>\n~w\n</section>", [LH, SsT]).
+
+serve_kb_html(Token, Lib, Dir, Html) :-
+    catch(view_kb_section(serve(Token), Lib, Dir, Html), E,
+          ( serve_err_text(E, M), esc(M, MH), esc(Dir, DH),
+            format(string(Html), "<section class=\"kb error\">\n<h2><span class=\"kblabel\">~w</span></h2>\n<p class=\"message error\">~w</p>\n</section>", [DH, MH]) )).
+
+serve_err_text(orbit_error(_, Lines), M) :- !, atomic_list_concat(Lines, ' ', M).
+serve_err_text(E, M) :- err_text(E, M).
+
+% serve_answer(+Form, -Result) (D26 S3, S4): ok, or refused(Status, Message). Nothing is
+% written unless every check passes; the write is one `orbit-kb add` child process.
+serve_answer(Form, R) :-
+    serve_kbs(Groups),
+    findall(D, ( member(group(_, _, Ds), Groups), member(D, Ds) ), Served),
+    (   \+ ( serve_field(Form, kb, KS), atom_string(KA, KS), memberchk(KA, Served) )
+    ->  R = refused(400, "The form names a KB that this server does not serve. Reload the page.")
+    ;   serve_field(Form, kb, KS), atom_string(Dir, KS),
+        (   \+ ( serve_field(Form, q, QS), QS \== "" )
+        ->  R = refused(400, "The form names no question. Reload the page.")
+        ;   serve_field(Form, q, QS), atom_string(Q, QS),
+            lib_dir(Lib), load_kb(Dir, Lib, KB), answer_gate(KB), kb_engine(KB, Eng),
+            (   \+ eng_true(Eng, to_ask(Q))
+            ->  format(string(M), "The question ~w is not open any more. Reload the page.", [Q]),
+                R = refused(409, M)
+            ;   serve_answer_text(Form, Text),
+                (   Text == ""
+                ->  R = refused(400, "Choose an option, or choose other and write the answer.")
+                ;   string_length(Text, Len), Len > 2000
+                ->  R = refused(400, "The answer is longer than 2000 characters.")
+                ;   serve_write(Dir, Q, Text, R)
+                )
+            )
+        )
+    ).
+
+serve_answer_text(Form, Text) :-
+    ( serve_field(Form, choice, C0) -> true ; C0 = "" ),
+    ( serve_field(Form, text, T0) -> true ; T0 = "" ),
+    split_string(C0, "", " \t\r\n", [C]), split_string(T0, "", " \t\r\n", [T]),
+    (   C \== "", C \== "other" -> Text = C ; Text = T ).
+
+serve_write(Dir, Q, Text, R) :-
+    serve_conf(writer, W), serve_conf(script, Script),
+    (   kb_uses_project(Dir) -> lock_state(Dir, LS) ; LS = none_needed ),
+    (   LS = held(H, Since), H \== W
+    ->  format(string(M), "The KB is locked. It is held by ~w since ~w. Nothing was written. The server never takes a lock: ask ~w to run orbit-kb release, then answer again.", [H, Since, H]),
+        R = refused(409, M)
+    ;   LS = bad(Why)
+    ->  format(string(M), "The writer lock of the KB cannot be read: ~w Nothing was written.", [Why]),
+        R = refused(409, M)
+    ;   atom_string(A, Text),
+        format(string(Fact), "~q", [answer(Q, A, human)]),
+        serve_child(Script, W, ['--dir', Dir, add, Fact, '--by', human], Exit, Err),
+        (   Exit == 0
+        ->  ( LS == none -> serve_child(Script, W, ['--dir', Dir, release], _, _) ; true ),
+            R = ok
+        ;   split_string(Err, "", " \n", [E1]),
+            format(string(M), "Nothing was written. orbit-kb said: ~w", [E1]),
+            R = refused(409, M)
+        )
+    ).
+
+serve_child(Script, W, Args, Exit, Err) :-
+    process_create(Script, Args,
+                   [ environment(['ORBIT_KB_WRITER'=W]), stdin(null),
+                     stdout(null), stderr(pipe(E)), process(P) ]),
+    read_string(E, _, Err), close(E),
+    process_wait(P, St),
+    ( St = exit(Exit) -> true ; Exit = 2 ).
 
 % ---------------------------------------------------------------------
 % subject
@@ -5536,6 +5907,7 @@ help_lines(general, [
 "  pin [--check STAMP]",
 "  release",
 "  view questions [--dir KB]... [--ledger FILE [--owner KEY]] [--out F]",
+"  serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--port N]",
 "  draft blocking | draft outbound",
 "  pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",
 "  doctor",
@@ -5738,6 +6110,25 @@ help_lines(view, [
 "person WHERE key='me')) AS owner FROM v_open\" --format json > asks.json",
 "--out F writes the page to F; without it the page goes to stdout. The view reads only.",
 "Exit 2 for a usage error, a KB that cannot be read, or a bad ledger file."
+]).
+help_lines(serve, [
+"orbit-kb serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--port N]",
+"",
+"Serve the page of view questions on http://127.0.0.1:PORT/ (default port 8737; --port 0 picks",
+"a free port). Each reload reads the KBs and the ledger again, so the page is live.",
+"--dir may repeat. --root DIR serves each kb.pl under DIR. The page groups the spec KBs by the",
+"project KB that they name (project_kb), labeled with its first request; a KB with no",
+"project_kb is in the group no project. --ledger and --owner work as for view questions; each",
+"ask shows the hubflow command that answers it. The page does not answer asks.",
+"Each question to ask has a form: its options, other, and a free text. A POST records the",
+"answer as answer(Q, Answer, human) with orbit-kb add --by human, and writes nothing else.",
+"The write takes the writer lock of the KB (orbit-kb help project) as ORBIT_KB_WRITER, else",
+"as human, and gives a lock that was free back after the write. When another writer holds the",
+"lock, nothing is written and the page names the holder. The server never uses --take.",
+"Safety: it listens on 127.0.0.1 only; a request whose Host is not 127.0.0.1 or localhost gets",
+"403; a POST needs the token of this run, which the page carries. There is no login.",
+"The server keeps no state of its own. Ctrl-C stops it.",
+"Exit 2 for a usage error, a KB that cannot be found, a bad ledger file, or a port in use."
 ]).
 help_lines(pin, [
 "orbit-kb pin [--check STAMP]",

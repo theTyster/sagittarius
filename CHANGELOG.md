@@ -27,6 +27,9 @@ Ty makes the release. This entry lists what is in the `redesign` branch. The hub
 - Tracker drafts (T11): `orbit-kb draft blocking` (the blocking items with the stamp), `draft outbound`
   (project KB drafts with their pins; a conflict shows as "decide"), and `pin-item` (records a pin of
   a tracker item from pasted text). Nothing is sent to a tracker (CONTRACT D25).
+- Question server (T19): `orbit-kb serve questions` serves the question page live on 127.0.0.1,
+  grouped per project, and records an answer from the page as a human answer, under the writer
+  lock (CONTRACT D26).
 - Release (T15): a "Use it" path in `README.md`, and `kb/tests/test_release.sh`.
 - Project KB (T06): an orbit-kb KB with the `project` module (CONTRACT D23). It has one writer at a
   time (a lock), stale pins, outbound drafts, and a conflict rule: when the tracker and a draft both

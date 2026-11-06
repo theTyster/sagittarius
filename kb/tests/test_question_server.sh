@@ -11,7 +11,7 @@
 #   c3 answer: a form per to_ask question; POST records the answer  : QS5 QS6 QS7
 #   c4 lock: the writer lock; a held lock writes nothing, no --take : QS8 QS9
 #   c5 safety: loopback, token, Host, escaping, term validation     : QS10 QS11 QS12 QS13
-#   c6 only answer records, only through orbit-kb                   : QS14
+#   c6 only answer records, only through orbit-kb                   : QS14; QS17 runs the server against the Lean model
 #   c7 the ledger's asks, read-only, with the hubflow command       : QS15
 #   c8 docs: help serve, README, CONTRACT D26                       : QS16
 set -u
@@ -373,8 +373,9 @@ t_QS13() {  # free text is escaped on the page, and is one answer term (never sp
     local evil="x'), claim(c9, introduce, 'y'). %"
     post /answer "token=$tok" "kb=$kb" q=q2 choice=other "text=$evil"; code_is 303 "POST of text with quotes"
     hasnt_goal "$T/a" 'claim(c9, _, _)' "no claim c9 from the free text"
-    q "$T/a" "answer(q2, A, human), atom_string(A, S), S == \"x'), claim(c9, introduce, 'y'). %\""
-    [ "$rc" = 0 ] || note "the answer text is not the posted text (rc $rc $(snip "$out$err"))"
+    # read kb.pl as terms (not through query, which allows no atom_string): one answer of q2, with exactly the posted text
+    EVIL="$evil" swipl -q -g "getenv('EVIL', E), open('$T/a/kb.pl', read, S), findall(A, (repeat, read(S, X), (X == end_of_file -> !, fail ; X = answer(q2, A, human))), As), (As = [A1], atom_string(A1, E) -> halt(0) ; print(As), nl, halt(1))" -t 'halt(2)' >"$T/.rd" 2>&1 \
+        || note "the answer text is not the posted text: $(snip "$(cat "$T/.rd")")"
     post /answer "token=$tok" "kb=$kb" q=q1 choice=other 'text=<b>bold</b> & <script>alert(1)</script>'; code_is 303 "POST of text with markup"
     page_ok || return
     chk raw "$T/page.html" '!<b>bold</b>' '!<script>alert' '&lt;b&gt;bold&lt;/b&gt;'
@@ -399,6 +400,42 @@ t_QS14() {  # every request but a valid POST /answer leaves every KB as it was
     diff <(grep -v '^%' "$T/a.before") <(grep -v '^%' "$T/a/kb.pl") | grep '^>' > "$T/added" || true
     [ "$(wc -l < "$T/added")" = 1 ] && grep -q '^> answer(q1, *no, *human)\.' "$T/added" \
         || note "the valid POST did not add exactly one answer fact: $(snip "$(cat "$T/added")")"
+    srv_stop
+}
+
+# QS17 (conformance, D26 S5 S6): the server against the Lean model kb/proofs/question_server
+# (#eval table). Rows: METHOD PATH HOST-OK TOKEN-OK ACTION, copied from the #eval output.
+QS17_TABLE='get root 1 1 page|get root 1 0 page|get root 0 1 forbidden|get root 0 0 forbidden
+get answer 1 1 badMethod|get answer 1 0 badMethod|get answer 0 1 forbidden|get answer 0 0 forbidden
+get other 1 1 notFound|get other 1 0 notFound|get other 0 1 forbidden|get other 0 0 forbidden
+post root 1 1 badMethod|post root 1 0 badMethod|post root 0 1 forbidden|post root 0 0 forbidden
+post answer 1 1 answer|post answer 1 0 forbidden|post answer 0 1 forbidden|post answer 0 0 forbidden
+post other 1 1 notFound|post other 1 0 notFound|post other 0 1 forbidden|post other 0 0 forbidden
+put root 1 1 badMethod|put root 1 0 badMethod|put root 0 1 forbidden|put root 0 0 forbidden
+put answer 1 1 badMethod|put answer 1 0 badMethod|put answer 0 1 forbidden|put answer 0 0 forbidden
+put other 1 1 notFound|put other 1 0 notFound|put other 0 1 forbidden|put other 0 0 forbidden
+delete root 1 1 badMethod|delete root 1 0 badMethod|delete root 0 1 forbidden|delete root 0 0 forbidden
+delete answer 1 1 badMethod|delete answer 1 0 badMethod|delete answer 0 1 forbidden|delete answer 0 0 forbidden
+delete other 1 1 notFound|delete other 1 0 notFound|delete other 0 1 forbidden|delete other 0 0 forbidden'
+t_QS17() {  # every row of the model's table: the HTTP status of its action; only the answer row writes
+    kb_a "$T/a"; srv --dir "$T/a" || return
+    page_ok || return; local tok kb port=${URL##*:}; tok=$(token); kb=$(pg kbval "$T/page.html" "$L_A")
+    local rows n=0 m p h t act want path hostarg tokarg
+    rows=$(printf '%s' "$QS17_TABLE" | tr '|' '\n')
+    while read -r m p h t act; do
+        [ -n "$m" ] || continue; n=$((n+1))
+        case $act in page) want=200;; answer) want=303;; forbidden) want=403;; badMethod) want=405;; notFound) want=404;; esac
+        case $p in root) path=/;; answer) path=/answer;; other) path=/elsewhere;; esac
+        if [ "$h" = 1 ]; then hostarg="Host: 127.0.0.1:$port"; else hostarg="Host: evil.example:$port"; fi
+        if [ "$t" = 1 ]; then tokarg="token=$tok"; else tokarg="token=not-$tok"; fi
+        cp "$T/a/kb.pl" "$T/row.before"
+        CODE=$(curl -s -o "$T/row.html" -w '%{http_code}' --max-time 30 -X "${m^^}" -H "$hostarg" \
+               --data-urlencode "$tokarg" --data-urlencode "kb=$kb" --data-urlencode q=q1 --data-urlencode choice=yes "$URL$path")
+        [ "$CODE" = "$want" ] || note "row $m $p host=$h token=$t: HTTP $CODE, want $want ($act)"
+        if [ "$act" = answer ]; then cmp -s "$T/a/kb.pl" "$T/row.before" && note "row $m $p: the answer row wrote nothing"
+        else cmp -s "$T/a/kb.pl" "$T/row.before" || note "row $m $p host=$h token=$t ($act) changed kb.pl"; fi
+    done <<< "$rows"
+    [ "$n" = 48 ] || note "the table has $n rows, want 48"
     srv_stop
 }
 
@@ -437,6 +474,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 16); do run_one QS$n; done
+for n in $(seq 1 17); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
