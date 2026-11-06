@@ -49,6 +49,16 @@ MUTANTS = [
     ("migrate-version-not-set", "c.execute(f\"PRAGMA user_version = {v + 1}\")  # migrate step", "pass"),
     ("rebuild-ignores-unknown-columns", "if extra:  # unknown JSONL columns", "if False:"),
     ("seed-file-ignored", "seed = load_seed(seed_path(o, d))  # seed file read", "seed = load_seed(None)"),
+    # T05: the flow ledger
+    ("escalate-fails-open", 'blocking = any(k["state"] != "clear" for k in checks)  # fail-safe',
+     'blocking = any(k["state"] == "blocking" for k in checks)'),
+    ("agent-may-lapse-blocking", 'if by != "human" and disp != "escalate" and kb_refs:  # agents escalate', "if False:"),
+    ("agent-may-close-blocking", 'if not skip and writer_by(o, g) != "human":  # an agent never closes a blocking item', "if False:"),
+    ("rotate-ignores-untriaged", "if untriaged:  # triage gate", "if False:"),
+    ("skip-not-propagated", 'if o["reason"] == "human_skip":  # propagate', "if False:"),
+    ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
+    ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
+    ("capsule-without-rev", "rev = git_head(hub_dir(g))  # capsule rev", "rev = None"),
 ]
 
 
