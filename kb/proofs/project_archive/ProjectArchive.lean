@@ -18,14 +18,20 @@ Abstractions (what the model leaves out):
   the root) can pin an id that archive removes.
 * `deps` holds the pairs `(y, x)` of the `depends_on(y, x)` facts: y depends on x.
 * The code removes the facts of the ids in the set. The claims c9 are about the set.
-* T34 c1: a fact of kb.pl is modelled by the list of the ids it names (its id, and each ref
-  argument). The code removes each fact that names an archived id (`archiveKeep`). The model
-  leaves out the lint check that the code runs on the result before it writes.
+* T34 c1: a fact of kb.pl is modelled by its own id (if it has one) and the ids that its ref
+  arguments name. The code removes each fact that names an id of the removed set R; R starts
+  as the archived ids, and the id of each removed fact joins it, until a pass adds nothing
+  (`archive_removed/4`; divergence a21: an attestation about d1 has an id, and its actor
+  record names that id). The model leaves out the lint check that the code runs on the result
+  before it writes. Termination of the loop is not modelled: the code stops when a pass adds
+  no id, and that stop condition is `closed` here (`stable_closed`).
 
 The claim (c9): a pinned fact, or a fact that a kept fact rests on, is never removed.
 `rests_on` is the transitive closure of `depends_on` (D27 R3).
 The claim (T34 c1): the archive leaves no dangling reference: each id that a kept fact names
-is still defined by a kept fact.
+is still defined by a kept fact. The first model (one step, a defining fact names only its id)
+did not cover an attestation about d1 named by its actor record (divergence a21): the defining
+fact of a90 names d1 too. This model closes over the ids of removed facts.
 -/
 namespace ProjectArchive
 
@@ -115,34 +121,95 @@ theorem archive_never_removes (cand pinned : List Nat) (deps : List (Nat × Nat)
   · intro hx
     exact (List.mem_filter.mp (fix_sub deps _ x hx)).1
 
-/-- T34 c1: the facts that stay. A fact is the list of the ids that it names; the code
-removes each fact that names an archived id (`archive_names/2`, `archive_ref_names/3`). -/
-def archiveKeep (A : List Nat) (facts : List (List Nat)) : List (List Nat) :=
-  facts.filter (fun f => !(f.any (fun x => A.contains x)))
+/-- T34 c1: a fact of kb.pl: its own id (an attestation, a check, a decision) and the ids that
+its ref arguments name. -/
+structure Fact where
+  id : Option Nat
+  refs : List Nat
+deriving Repr
 
-/- The PT9 / PF1 case: d1 = 1 is archived; `[1]` is decision d1, `[1, 2]` is supersedes(d2, d1),
-`[1]` is also note(d1); `[3]` is decision d3 and `[3]` a note of it; `[2]` is decision d2. -/
-#eval archiveKeep [1] [[1], [2], [1, 2], [1], [3], [3]]  -- [[2], [3], [3]]
+/-- The fact names an id of R: its own id, or a ref. -/
+def namesAny (R : List Nat) (f : Fact) : Bool :=
+  f.id.any (fun i => R.contains i) || f.refs.any (fun x => R.contains x)
 
-/-- A kept fact names no archived id. -/
-theorem keep_names_none (A : List Nat) (facts : List (List Nat)) (f : List Nat) (x : Nat)
-    (hf : f ∈ archiveKeep A facts) (hx : x ∈ f) : x ∉ A := by
-  intro hA
-  have h := (List.mem_filter.mp hf).2
-  simp only [Bool.not_eq_true', List.any_eq_false] at h
-  exact absurd (List.contains_iff_mem.mpr hA) (by simpa using h x hx)
+/-- The facts that stay: those that name no id of R (`archive_removed/4`). -/
+def keep (R : List Nat) (facts : List Fact) : List Fact :=
+  facts.filter (fun f => !namesAny R f)
 
-/-- T34 c1: no dangling reference after any archive. Before the archive each id that a fact
-names has its defining fact `[x]` (it names only x) in kb.pl (lint has no E4). Then each id
-that a kept fact names has its defining fact kept too. -/
-theorem archive_no_dangling (A : List Nat) (facts : List (List Nat))
-    (hdef : ∀ f ∈ facts, ∀ x ∈ f, [x] ∈ facts) :
-    ∀ f ∈ archiveKeep A facts, ∀ x ∈ f, [x] ∈ archiveKeep A facts := by
-  intro f hf x hx
-  have hxA := keep_names_none A facts f x hf hx
-  have hfo : f ∈ facts := (List.mem_filter.mp hf).1
-  refine List.mem_filter.mpr ⟨hdef f hfo x hx, ?_⟩
-  simp only [List.any_cons, List.any_nil, Bool.or_false, Bool.not_eq_true']
-  simpa using hxA
+/-- The ids of the facts that a pass removes. -/
+def stepIds (R : List Nat) (facts : List Fact) : List Nat :=
+  facts.filterMap (fun f => if namesAny R f then f.id else none)
+
+/-- One pass of the loop of `archive_removed/4`. -/
+def closeStep (R : List Nat) (facts : List Fact) : List Nat :=
+  R ++ (stepIds R facts).filter (fun i => !R.contains i)
+
+/-- The loop, with a bound on the passes (the code has none: it stops when a pass adds no id). -/
+def closeN : Nat → List Nat → List Fact → List Nat
+  | 0, R, _ => R
+  | n + 1, R, facts => if (closeStep R facts).length == R.length then R else closeN n (closeStep R facts) facts
+
+/-- R is closed: the id of every fact that names an id of R is in R. -/
+def Closed (R : List Nat) (facts : List Fact) : Prop :=
+  ∀ f ∈ facts, namesAny R f = true → ∀ i, f.id = some i → i ∈ R
+
+/- The PF7 case: d1 = 1 archived; decision d1 {id 1}; supersedes(d2, d1) {refs 2, 1};
+attestation a90 = 90 about d1 {id 90, refs 1}; its actor record {refs 90}; seen sn1 = 50
+{id 50, refs 90}; ack {refs 50}; decision d3 = 3, attestation a91 = 91 about it, and so on. -/
+def pf7 : List Fact :=
+  [⟨some 1, []⟩, ⟨some 2, []⟩, ⟨none, [2, 1]⟩, ⟨some 90, [1]⟩, ⟨none, [90]⟩, ⟨some 50, [90]⟩,
+   ⟨none, [50]⟩, ⟨some 3, []⟩, ⟨some 91, [3]⟩, ⟨none, [91]⟩, ⟨some 51, [91]⟩, ⟨none, [51]⟩]
+
+#eval closeN 20 [1] pf7                         -- [1, 90, 50]
+#eval keep (closeN 20 [1] pf7) pf7 |>.length    -- 6
+
+/-- The stop condition of the loop (a pass adds no id) makes R closed. -/
+theorem stable_closed (R : List Nat) (facts : List Fact)
+    (hs : ∀ i ∈ stepIds R facts, i ∈ R) : Closed R facts := by
+  intro f hf hn i hi
+  apply hs
+  simp only [stepIds, List.mem_filterMap]
+  exact ⟨f, hf, by simp [hn, hi]⟩
+
+theorem keep_spec {R : List Nat} {facts : List Fact} {f : Fact} :
+    f ∈ keep R facts ↔ f ∈ facts ∧ namesAny R f = false := by
+  simp [keep, List.mem_filter]
+
+/-- T34 c1: no dangling reference after any archive. Before the archive each id that a ref
+names has a defining fact (lint has no E4). R holds the archived ids A and is closed. Then each
+id that a kept fact names has a kept defining fact, and no kept fact names an archived id. -/
+theorem archive_no_dangling (A R : List Nat) (facts : List Fact)
+    (hA : ∀ x ∈ A, x ∈ R) (hc : Closed R facts)
+    (hdef : ∀ f ∈ facts, ∀ x ∈ f.refs, ∃ d ∈ facts, d.id = some x) :
+    (∀ f ∈ keep R facts, ∀ x ∈ f.refs, ∃ d ∈ keep R facts, d.id = some x) ∧
+    (∀ f ∈ keep R facts, ∀ x ∈ A, f.id ≠ some x ∧ x ∉ f.refs) := by
+  constructor
+  · intro f hf x hx
+    obtain ⟨hfo, hfn⟩ := keep_spec.mp hf
+    have hxR : x ∉ R := by
+      intro hxR
+      have : namesAny R f = true := by
+        simp only [namesAny, Bool.or_eq_true, List.any_eq_true]
+        exact Or.inr ⟨x, hx, by simpa using hxR⟩
+      rw [hfn] at this; exact Bool.false_ne_true this
+    obtain ⟨d, hd, hdid⟩ := hdef f hfo x hx
+    refine ⟨d, keep_spec.mpr ⟨hd, ?_⟩, hdid⟩
+    cases hdn : namesAny R d with
+    | false => rfl
+    | true => exact absurd (hc d hd hdn x hdid) hxR
+  · intro f hf x hxA
+    obtain ⟨_, hfn⟩ := keep_spec.mp hf
+    have hxR := hA x hxA
+    constructor
+    · intro hid
+      have : namesAny R f = true := by
+        simp only [namesAny, Bool.or_eq_true]
+        exact Or.inl (by simp [hid, hxR])
+      rw [hfn] at this; exact Bool.false_ne_true this
+    · intro hx
+      have : namesAny R f = true := by
+        simp only [namesAny, Bool.or_eq_true, List.any_eq_true]
+        exact Or.inr ⟨x, hx, by simpa using hxR⟩
+      rw [hfn] at this; exact Bool.false_ne_true this
 
 end ProjectArchive

@@ -85,7 +85,8 @@ Commands
       neither (its pins written by hand, outside the root) is not seen: pass --root.
   orbit-kb --dir PROJECT project archive --superseded-before DATE [--root DIR]
       removes from kb.pl each superseded decision, definition or rule, and every fact that names
-      it (decided_by, reason, a note, an attestation about it, any fact with a ref to it), when
+      it (decided_by, reason, a note, an attestation about it, any fact with a ref to it; and
+      then each fact that names a removed fact, such as the actor record of that attestation), when
       its superseding fact was decided (decided_by) before DATE, no kept fact rests on it, and no
       open spec KB (done does not hold) pins it. A pinned or rested-on fact is never removed.
       DATE is a real date (2026-10-01) or UTC time; else exit 2. When the KB after the archive

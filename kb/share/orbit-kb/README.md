@@ -1130,6 +1130,9 @@ Run in a project KB (D27). Keeps the project KB bounded. It removes from
 (`decided_by`, `ratified_by`, `reason`, `analysis`, `concerns`, `depends_on`,
 `supersedes`, `excludes`, and every fact of any kind with a ref argument that
 names it, such as `note/2`, the subject of an `attest/6`, or a local fact; T34).
+The removal closes over references: the id of a removed fact (an attestation
+about the fact) joins the removed set, so the facts that name it (its `actor`
+record) go too, until nothing changes.
 Before it writes, it lints the KB as it would be after the archive: a lint
 error that the KB does not have now refuses the archive (exit 1, the errors
 named, nothing written). So no archive leaves a dangling reference. It never

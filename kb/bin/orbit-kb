@@ -5973,8 +5973,7 @@ project_archive(Dir, Date, RootOpt, Code) :-
     (   Arch == []
     ->  say("Nothing to archive: no superseded decision, definition or rule before ~w that nothing keeps.", [Date])
     ;   items_decls(All, Ds),
-        findall(L-T, ( member(it(_, _, L, T, _, _), Items), nonvar(T),
-                       ( archive_names(T, Arch) -> true ; archive_ref_names(Ds, T, Arch) ) ), LTs),
+        archive_removed(Items, Ds, Arch, LTs),
         kb_file(KB, KbFile),
         kb_lines_without(KbFile, LTs, Out),
         archive_lint_guard(KB, KbFile, Out, Arch),     % T34 c1: refuse a result with a new lint error
@@ -6005,6 +6004,18 @@ archive_names(T, Arch) :-
                     reason/2-[1], analysis/2-[1], concerns/2-[1], depends_on/2-[1, 2],
                     supersedes/2-[1, 2], excludes/2-[1, 2]]),
     functor(T, F, A), member(P, Ps), arg(P, T, X), atom(X), memberchk(X, Arch), !.
+
+% archive_removed(+Items, +Ds, +Arch, -LTs) (T34 c1, divergence a21): the Line-Fact pairs to
+% remove. A fact goes when it names an id of the removed set; the set starts as Arch, and the
+% id of each fact that goes joins it (an attestation about d1, then the facts that name the
+% attestation, such as its actor record). Repeat until nothing changes. Lean model:
+% archive_no_dangling in kb/proofs/project_archive.
+archive_removed(Items, Ds, R0, LTs) :-
+    findall(L-T, ( member(it(_, _, L, T, _, _), Items), nonvar(T),
+                   ( archive_names(T, R0) -> true ; archive_ref_names(Ds, T, R0) ) ), LTs0),
+    findall(V, ( member(_-T, LTs0), id_value(T, Ds, V) ), Vs),
+    append(R0, Vs, R10), sort(R10, R1), sort(R0, R0s),
+    (   R1 == R0s -> LTs = LTs0 ; archive_removed(Items, Ds, R1, LTs) ).
 
 % archive_ref_names(+Ds, +Fact, +Arch) (T34 c1): a fact of any kind (core, a module, or a
 % local declaration) has an argument of a ref type that names an archived id: note/2,
