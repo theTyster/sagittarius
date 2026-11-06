@@ -4470,7 +4470,7 @@ cmd_draft(KB, Args, Code) :-
         eng_all(Eng, [X], blocking(X), Xs),
         (   Xs == [] -> say("- Nothing blocks done.", [])
         ;   forall(member(X, Xs), ( blocking_line(KB, Eng, X, S),
-                                   ( X = project_conflict(_) -> say("~w Status: decide. A human settles it, never the date.", [S]) ; say("~w", [S]) ) ))
+                                   ( X = project_conflict(_) -> md_say("", S, " Status: decide. A human settles it, never the date.") ; md_say("", S, "") ) ))
         ),
         Code = 0
     ;   kb_uses(KB, Us), memberchk(project, Us)
@@ -4487,22 +4487,52 @@ cmd_draft(KB, Args, Code) :-
     ;   usage_error("draft outbound needs a KB that uses the project module (D23).", [])
     ).
 
+% Free text is pasted into a tracker that renders Markdown and HTML (D25 T7).
+% md_escape/2: & < > become entities; ` | [ ] \ get a backslash. The text has no line break.
+% md_say(+Prefix, +Text, +Suffix): the first line of Text stays on the bullet (Prefix, escaped
+% line, Suffix); each further line goes under it with the prefix "  > ".
+md_break(C) :- memberchk(C, [0'\n, 0'\r, 0'\v, 0'\f, 0x85, 0x2028, 0x2029]).
+md_lines(Text, Lines) :-
+    plain_text(Text, S), string_codes(S, Cs),
+    md_split(Cs, Lines).
+md_split(Cs, [L|Ls]) :-
+    (   append(Pre, [B|Post], Cs), md_break(B)
+    ->  ( B == 0'\r, Post = [0'\n|Post1] -> true ; Post1 = Post ),
+        !, string_codes(L, Pre), md_split(Post1, Ls)
+    ;   string_codes(L, Cs), Ls = []
+    ).
+md_escape(In, Out) :-
+    plain_text(In, S), string_codes(S, Cs),
+    foldl([C, A0, A]>>( md_esc_code(C, Es), append(A0, Es, A) ), Cs, [], Os),
+    string_codes(Out, Os).
+md_esc_code(0'&, Cs) :- !, string_codes("&amp;", Cs).
+md_esc_code(0'<, Cs) :- !, string_codes("&lt;", Cs).
+md_esc_code(0'>, Cs) :- !, string_codes("&gt;", Cs).
+md_esc_code(C, [0'\\, C]) :- memberchk(C, [0'`, 0'|, 0'[, 0'], 0'\\]), !.
+md_esc_code(C, [C]).
+md_inline(In, Out) :-
+    md_lines(In, Ls), atomic_list_concat(Ls, ' ', J), md_escape(J, Out).
+md_say(Prefix, Text, Suffix) :-
+    md_lines(Text, [L1|Rest]),
+    md_escape(L1, E1),
+    say("~w~w~w", [Prefix, E1, Suffix]),
+    forall(member(L, Rest), ( md_escape(L, E), say("  > ~w", [E]) )).
+
 outbound_section(Eng, r(D, P, T, S)) :-
-    say("### ~w", [D]), nl,
+    md_inline(D, Dm), say("### ~w", [Dm]), nl,
     (   eng_all(Eng, [Src, C], pin(P, _, Src, _, C), [[Src1, C1]|_]) -> true ; Src1 = '?', C1 = '?' ),
-    say("- Pin: ~w", [P]),
-    say("- Source: ~w", [Src1]),
-    say("- ChangedAt: ~w", [C1]),
-    say("- Staged: ~w", [S]),
+    md_inline(P, Pm), say("- Pin: ~w", [Pm]),
+    md_say("- Source: ", Src1, ""),
+    md_inline(C1, C1m), say("- ChangedAt: ~w", [C1m]),
+    md_inline(S, Sm), say("- Staged: ~w", [Sm]),
     (   eng_true(Eng, conflict(D))
     ->  (   eng_all(Eng, [C2], tracker_changed_after(P, C2), Cs2), Cs2 \== [] -> max_member(C2a, Cs2) ; C2a = '?' ),
-        say("- Tracker changed: ~w", [C2a]),
+        md_inline(C2a, C2m), say("- Tracker changed: ~w", [C2m]),
         say("- Status: decide", []),
         say("- Decide: a human picks one side, the tracker edit or the draft edit. orbit-kb does not pick.", [])
     ;   say("- Status: ready", [])
     ),
-    txt(T, TT),
-    say("- Draft: ~w", [TT]), nl.
+    md_say("- Draft: ", T, ""), nl.
 
 % pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file] (D25 T4):
 % records pin(ID, Kind, SOURCE, sha256:HEX, T). The CLI computes the digest of F.
