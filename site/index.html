@@ -755,7 +755,6 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 </section>
 
 <!-- ============ THE TOOL ============ -->
-<!-- T16: update after T08 -->
 
 <section class="slide" id="s15" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-box"/></svg>15 of 35 · The tool</div>
@@ -803,7 +802,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <text x="287" y="135" class="sub">plain words</text>
       <text x="467" y="135" class="sub">reads, writes</text>
     </svg>
-    <figcaption>The prompt tells the agent how to work. <code>orbit-kb</code> keeps the records honest: every fact is declared, typed, and checked.</figcaption>
+    <figcaption>The prompt tells the agent how to work. <code>orbit-kb</code> keeps the records honest: every fact is declared, typed, and checked. The prompt holds the philosophy only. The procedure is in <code>orbit-kb help</code>, and the agent reads it before its first <code>orbit-kb</code> command.</figcaption>
   </figure>
   <blockquote><p>"My bet is that this version will stand the test of time and continue being used even if harnesses evolve in other ways."</p></blockquote>
   <p>Plain text and a shell command: <mark>no harness owns it</mark>. Prolog and Lean are older, and steadier, than any agent.</p>
@@ -858,7 +857,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </ol>
   </div></details>
   <details class="more"><summary>What the agent runs</summary><div class="body">
-<pre class="report"><i>$</i> orbit-kb init kb --request 'Make the button purple' --uses build
+<pre class="report"><i>$</i> orbit-kb help                              <i># first, in each session</i>
+<i>$</i> orbit-kb init kb --request 'Make the button purple' --uses build
 <i>$</i> orbit-kb add "claim(c1, introduce, 'Primary buttons are purple.')" "check(k1, c1)"
 <i>$</i> orbit-kb run k1 -- npm test -- button     <i># fails first, then passes</i>
 <i>$</i> orbit-kb query done                       <i># exit 0 means yes</i>
@@ -873,7 +873,6 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 </section>
 
 <!-- ============ HOW IT WORKS ============ -->
-<!-- T16: update after T08 -->
 
 <section class="slide" id="s17" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-eye"/></svg>17 of 35 · How it works</div>
@@ -1042,10 +1041,12 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <div class="num"><svg class="ic"><use href="#i-layers"/></svg>21 of 35 · How it works</div>
   <h2>Shift up on a signal. Lean back when it is resolved.</h2>
   <div class="tiles">
-    <div class="tile"><svg class="ic"><use href="#i-question"/></svg><h3>Questions</h3><p class="muted">More than three, or an answer raises a new one.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-question"/></svg><h3>Questions</h3><p class="muted">One round of questions does not settle the ticket.</p></div>
     <div class="tile t-bad"><svg class="ic"><use href="#i-split"/></svg><h3>A divergence</h3><p class="muted"><q>That is wrong.</q> Or a check, or the code, surprises the agent.</p></div>
+    <div class="tile t-mid"><svg class="ic"><use href="#i-agent"/></svg><h3>A build by someone else</h3><p class="muted">A subagent or a peer built it. The agent runs its checks itself.</p></div>
     <div class="tile t-amber"><svg class="ic"><use href="#i-flame"/></svg><h3>A claim burns</h3><p class="muted">It needs a proof (<a href="#s25">slide 25</a>).</p></div>
     <div class="tile t-mid"><svg class="ic"><use href="#i-handoff"/></svg><h3>A handoff</h3><p class="muted">Another session continues the work.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-speech"/></svg><h3>Effort</h3><p class="muted">Significant effort or verbosity from the human: a long, careful message holds decisions that must not be lost.</p></div>
   </div>
   <figure class="diagram">
     <svg viewBox="0 0 720 200" role="img" aria-label="Rigor follows each trigger separately. In the KB, the questions trigger stops when the answers settle them, the divergence trigger stops when its cause is known, and the burn stays active until a proof or a human waiver closes it. The KB stays until done holds. The next ticket starts light.">
@@ -1078,7 +1079,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 <section class="slide" id="s22" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-hammer"/></svg>22 of 35 · How it works</div>
   <h2>The build orbit, in a KB</h2>
-  <p>After a shift up, the agent works in the KB with moves. It runs only the moves the ticket needs, and every move reads the ticket text itself.</p>
+  <p>After a shift up, the agent works in the KB with moves. It runs only the moves the ticket needs, and every move reads the ticket text itself. Each move belongs to a phase of the build orbit: SURVEY and BUILD are the build phase, and FULFILL, DISPROVE and BURN are the verify phase. DECOMPOSE is the specify phase of discovery. The recipe for each move is in <code>orbit-kb help</code>.</p>
   <figure class="diagram">
     <svg viewBox="0 0 760 230" role="img" aria-label="The main moves in order: SURVEY, DECOMPOSE, BUILD, FULFILL, then done. DISPROVE attacks claims from DECOMPOSE. BURN proves a burning claim in Lean. Any divergence goes back to DECOMPOSE, or to discovery if the problem itself is wrong.">
       <defs><marker id="ah13a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--amber)"/></marker><marker id="ah13" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
@@ -1094,7 +1095,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
       <path class="arr" marker-end="url(#ah13)" d="M290 185H318"/>
       <path class="arr up" d="M535 60V30H225V58" marker-end="url(#ah13a)"/>
       <text x="380" y="24" text-anchor="middle" class="sub">a divergence: back to claims (or to discovery, if the problem is wrong)</text>
-      <rect class="box" x="470" y="160" width="280" height="50" rx="10" style="stroke-dasharray:5 4"/><text x="610" y="182" text-anchor="middle" class="b">EXPLAIN</text><text x="610" y="198" text-anchor="middle" class="sub">on request: plain English, from the KB</text>
+      <rect class="box" x="470" y="160" width="280" height="50" rx="10" style="stroke-dasharray:5 4"/><text x="610" y="182" text-anchor="middle" class="b">WHY</text><text x="610" y="198" text-anchor="middle" class="sub">on request: orbit-kb why, whynot</text>
     </svg>
   </figure>
   <ul class="chips"><li class="chip"><svg class="ic"><use href="#i-check"/></svg><span><code>done</code> = nothing under, over, or to ask; no burn open</span></li><li class="chip"><svg class="ic"><use href="#i-db"/></svg>Only <code>orbit-kb</code> writes the KB</li></ul>
@@ -1105,7 +1106,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <li><strong>BUILD:</strong> write the checks first, plus a screenshot check for a user surface. Run each <code>retire</code> and <code>introduce</code> check red. Never edit a check to make it pass.</li>
     <li><strong>FULFILL:</strong> review with fresh eyes, both ways. Under: a claim not fulfilled. Over: a change that serves no claim.</li>
     <li><strong>DISPROVE:</strong> try to break a claim on a small budget. The verdict is <code>refuted(Counterexample)</code>, <code>inconclusive</code>, or <code>abstained</code>. Do not weaken a claim to absorb a counterexample.</li>
-    <li><strong>BURN:</strong> prove a burning claim in Lean (<a href="#s25">slide 25</a>). <strong>EXPLAIN:</strong> on request.</li>
+    <li><strong>BURN:</strong> prove a burning claim in Lean (<a href="#s25">slide 25</a>). <strong>WHY:</strong> <code>orbit-kb why</code> and <code>whynot</code>, on request.</li>
     <li>One logic engine, SWI-Prolog, answers each KB query. <code>not p</code> holds when <code>p</code> has no answer. Exit 2 is never a "no".</li>
   </ul>
   </div></details>
@@ -1139,7 +1140,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <li>Stop when discovery is ready, or the budget is spent. Out of budget is not ready: report what is known and not known. Then vote.</li>
     <li>A wrong report is a valid result. Say so, with the evidence.</li>
   </ul>
-  <p class="muted">Moves: SIGNAL, SURVEY, SPECTRUM, FLYBY (SMT), TRAJECTORY (TLA+), DISPROVE.</p>
+  <p class="muted">Moves by phase. Research: SIGNAL, SURVEY, FLYBY (SMT), TRAJECTORY (TLA+), DISPROVE. Specify: SPECTRUM, DECOMPOSE, and the vote.</p>
   </div></details>
 </section>
 
@@ -1220,7 +1221,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 <section class="slide" id="s26" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-shield"/></svg>26 of 35 · How it works</div>
   <h2>Trust and honesty</h2>
-  <p class="big">The formal artifacts catch <em>honest mistakes</em>. They do not stop cheating, and the prompt says so.</p>
+  <p class="big">The formal artifacts catch <em>each its own kind of error</em>. None stops cheating, and the prompt says so.</p>
   <div class="split">
     <div class="tile t-amber"><svg class="ic"><use href="#i-lock"/></svg><h3>Known limits</h3><p class="muted"><code>orbit-kb</code> cannot verify <code>--by human</code>. <code>orbit-kb prove</code> does not resist a proof built to fool it.</p></div>
     <div class="tile t-good"><svg class="ic"><use href="#i-shield"/></svg><h3>So the agent</h3><p class="muted">records <code>--by human</code> only for what the human said, and never works around a check. A safeguard that is worked around protects no one.</p></div>
@@ -1247,14 +1248,16 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 <section class="slide" id="s27" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-box"/></svg>27 of 35 · How it works</div>
   <h2>The delivery</h2>
-  <p>Six fields, in short plain sentences. An empty field says "none", so the human sees that the agent looked. An example from the light path:</p>
+  <p>Eight fields, in short plain sentences. An empty field says "none", so the human sees that the agent looked. An example from the light path:</p>
 <pre class="report" aria-label="A sample delivery"><b>Delivered:</b>    Submit on /checkout is purple.
+<b>KB:</b>           No KB.
+<b>Triggers:</b>     questions no; divergence no; someone else built no; burns no; handoff no.
 <b>Claims:</b>       Submit on /checkout renders #6B3FA0: fulfilled (check red, then green).
 <b>Guesses:</b>      Only this button, not every primary button.
 <b>Disclosures:</b>  none
 <b>Not checked:</b>  dark mode
 <b>To land:</b>      none; merged.
-<i>Screenshot attached. No KB.</i></pre>
+<i>Screenshot attached.</i></pre>
   <div class="tiles">
     <div class="tile"><svg class="ic"><use href="#i-db"/></svg><h3>With a KB</h3><p class="muted"><code>orbit-kb report</code> drafts it and adds <code>Open:</code>: open burns, lapsed waivers, proofs that no longer count.</p></div>
     <div class="tile t-amber"><svg class="ic"><use href="#i-clock"/></svg><h3>Waivers</h3><p class="muted">Every waiver is listed, with its due time.</p></div>
@@ -1265,7 +1268,6 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 </section>
 
 <!-- ============ THE GRADIENT ============ -->
-<!-- T16: update after T08 -->
 
 <section class="slide" id="s28" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-feather"/></svg>28 of 35 · The gradient</div>
@@ -1527,7 +1529,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <div class="tile t-amber"><svg class="ic"><use href="#i-bolt"/></svg><h3>Shift-up signals</h3><p class="muted">Significant effort or verbosity from the human is a signal to shift into a formal language. After a shift, the human, the agent and the CPU all work in it, so shift up only when needed.</p></div>
     <div class="tile t-bad"><svg class="ic"><use href="#i-shield"/></svg><h3>Each artifact catches its own kind of error</h3><p class="muted">Lint catches syntax and schema errors. A check catches behavior on its cases. A proof covers its model. The human judges meaning. No tool stops deliberate cheating, and the documents say so.</p></div>
   </div>
-  <p>The source is <code>docs/PHILOSOPHY.md</code>: "The bet" and principles 7 and 10. The slides that describe the prompt itself wait for the small prompt (T08).</p>
+  <p>The source is <code>docs/PHILOSOPHY.md</code>: "The bet" and principles 7 and 10. The three panes follow the phases: review runs intake and verify, discovery runs research and specify, and build runs build (<code>prompt/PANES.md</code>). Each handoff between panes is a make/judge split. The prompt keeps the philosophy only (T08). The procedure is in <code>orbit-kb help</code>, grouped by phase.</p>
 </section>
 
 <section class="slide" id="s32" tabindex="-1">
@@ -1572,19 +1574,20 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 <section class="slide" id="s35" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-db"/></svg>35 of 35 · The redesign</div>
   <h2>The stores of the design</h2>
-  <p class="big">This is a design, not built yet. Each concern has one owning store. Other stores read through it, or pin a copy with a digest.</p>
-  <p>Status comes from what has merged into the <code>redesign</code> branch. A store is "landed" if its ticket has merged, and "not built yet" if not.</p>
+  <p class="big">Each concern has one owning store. Other stores read through it, or pin a copy with a digest.</p>
+  <p>Most of it has landed. The project KB and the tracker drafts are still a design, not built yet: their tickets are not merged yet. Status comes from the merges on the <code>redesign</code> branch.</p>
   <div class="tiles">
-    <div class="tile"><svg class="ic"><use href="#i-formal"/></svg><h3>Spec KB</h3><p class="muted">Claims, checks, questions and burns for one piece of work. It alone decides what blocks. Status: the changes (T03) are not built yet.</p></div>
-    <div class="tile t-mid"><svg class="ic"><use href="#i-box"/></svg><h3>Project KB</h3><p class="muted">The relevant designs, bugs and features, the domain decisions, and a ticket capsule where the tracker lacks context. Status: not built yet (T06).</p></div>
-    <div class="tile"><svg class="ic"><use href="#i-db"/></svg><h3>Ledger</h3><p class="muted">A queryable record: a summary first, detail on request, the archive last. Transcripts are parsed into it. Status: not built yet (T05).</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-formal"/></svg><h3>Spec KB</h3><p class="muted"><code>orbit-kb</code> is the spec KB: claims, checks, questions and burns for one piece of work. It alone decides what blocks, and it has a pin stamp. Status: landed (T03).</p></div>
+    <div class="tile t-bad"><svg class="ic"><use href="#i-box"/></svg><h3>Project KB</h3><p class="muted">The relevant designs, bugs and features, the domain decisions, and a ticket capsule where the tracker lacks context. Status: not merged yet (T06). A design, not built yet.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-db"/></svg><h3>Ledger</h3><p class="muted"><code>hubflow</code>, a queryable record in the hub: a summary first, detail on request, the archive last. A guard keeps an agent from taking a blocked or escalated item out of view. That guard is proved in Lean (<code>hubkit/proofs/ledger_guard</code>) for the Lean model, not the code. A check compares the model with the command table. Status: landed (T05).</p></div>
     <div class="tile"><svg class="ic"><use href="#i-feather"/></svg><h3>Memory</h3><p class="muted">What every agent must know at the start: boot context, heuristics, technologies, and reusable bespoke tools. Status: the boot files come with the landed hub kit (T01).</p></div>
-    <div class="tile t-mid"><svg class="ic"><use href="#i-cal"/></svg><h3>Weeks</h3><p class="muted">The weekly reports and raw transcripts. They rotate out as the calendar moves. Status: the calendar comes with the landed hub kit (T01); parsing transcripts into the ledger is not built yet.</p></div>
-    <div class="tile"><svg class="ic"><use href="#i-hammer"/></svg><h3>Bespoke tools</h3><p class="muted">Helper scripts, skills and small stores that agents add where nothing fits. They stay visible and can be pruned. Status: a convention only; no tool for it is built yet.</p></div>
+    <div class="tile t-mid"><svg class="ic"><use href="#i-cal"/></svg><h3>Weeks</h3><p class="muted">The weekly reports and raw transcripts. They rotate out as the calendar moves. <code>index-transcripts</code> parses transcripts into the ledger. Status: landed (T01, T05).</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-hammer"/></svg><h3>Bespoke tools</h3><p class="muted">Helper scripts, skills and small stores that agents add where nothing fits. They stay visible and can be pruned. Status: a convention only; no tool for it is built.</p></div>
     <div class="tile t-amber"><svg class="ic"><use href="#i-path"/></svg><h3>Tracker</h3><p class="muted">The client system of record: tickets, checks, runs and the code. The hub reads from it and pins what it needs. Status: it is outside this repo.</p></div>
     <div class="tile t-mid"><svg class="ic"><use href="#i-compass"/></svg><h3>Repo map</h3><p class="muted">The C4 map of a repo at levels C1 and C2, as Mermaid, made by <code>kb/bin/repo-map</code> from a project KB facts file and a containers file. Spec: <code>kb/share/repo-map/README.md</code>. Status: landed (T12).</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-question"/></svg><h3>Question view</h3><p class="muted"><code>orbit-kb view questions</code> writes one HTML page of what blocks done in each KB, with each question, its options and their effects, so Ty can answer without a live session. Status: landed (T10).</p></div>
   </div>
-  <p><strong>Drafts only:</strong> tracker sync is drafts only. A command would write a Markdown block for a ticket, stamped with the digest of the spec KB, and a person would post it. Nothing writes to the tracker over a network. Status: not built yet (T11). The question view, <code>orbit-kb view questions</code>, is not built yet either (T10).</p>
+  <p><strong>Drafts only:</strong> tracker sync is drafts only. A command would write a Markdown block for a ticket, stamped with the digest of the spec KB, and a person would post it. Nothing writes to the tracker over a network. Status: not merged yet (T11). A design, not built yet.</p>
 </section>
 
 <p class="hint nojs" style="padding-inline:1.1rem;text-align:center">Without JavaScript, scroll.</p>
