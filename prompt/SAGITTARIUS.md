@@ -206,7 +206,8 @@ List every waiver in the delivery.
 the commands and the moves of each phase. Before a move writes records, read its topic:
 
 - `orbit-kb help core`: facts, claim labels, attestations, and what blocks `done`.
-- `orbit-kb help build`: checks, burns (proofs in Lean), flares (demos), and waivers.
+- `orbit-kb help build`: checks, burns (proofs in Lean), flares (demos), waivers, and the FULFILL
+  brief for a fresh-eyes reviewer.
 - `orbit-kb help discovery`: the recipe for each discovery move, and the vote.
 - `orbit-kb help project`: the project KB: decisions, definitions, rules, pins, drafts, and the writer lock.
 - `orbit-kb help codes`: each lint code and its fix.

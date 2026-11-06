@@ -1013,6 +1013,23 @@ release it: the writer named as in Locking. With no lock it does nothing.
 Exit: 0 on success and when there is no lock. 2 when another writer holds the
 lock; the message names the holder.
 
+### `review start --as ROLE --ticket F --diff A..B`
+
+D28 (T25). Records what a fresh-eyes reviewer saw before the review:
+`review_saw(ROLE, ticket, D)` (the sha256 of F), `review_saw(ROLE, kb, D)` (the
+digest of the `pin` stamp of `kb.pl`), and `review_saw(ROLE, diff, D)` (the sha256
+of `git diff A..B`, run in the current directory). ROLE is `--as`, else
+`$ORBIT_KB_ROLE`. It is a write command (the writer lock, `--take`).
+Every write command takes `--as ROLE`. After each attestation (`attest`, `run`,
+`prove`, and `add` of an `attest/6` fact) and each `change/2` fact, the CLI writes
+`actor(ID, ROLE, SESSION)`, where SESSION is the writer of Locking; a change also
+gets `change_at(ID, TIME)`. `attest disproof ... --rests-on A1,A2` writes
+`rests_on_run(V, A)` for each run. The rule `independently_verified(C)` (build),
+the `Review:` section of `report`, and the lint warning WR1 read these facts.
+The role is self-reported: the tools catch mistakes, not cheating.
+Exit: 0 when the facts are written. 2 for a missing option, a missing F, or a
+`git diff` that fails; nothing is written.
+
 ### `pin-question Q ledger|tracker REF` and `pin-answer Q REF [--hub DIR | --text-file F --by NAME]`
 
 T27 (u58, u84). A question that depends only on the owner of the hub is owned
@@ -1276,6 +1293,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | W6 | A local rule that adds clauses to a core or module predicate (an extension). For a protected predicate, it is E16 instead. |
 | W7 | A predicate declared by its first use in `add` (D22), with who and when. Review it. |
 | W8 | The request text changed at its source (T27): the latest `request_pin` has another digest and no human accepted it. It also blocks done. |
+| WR1 | A current claim that is not independently verified (D28): no upheld verdict by an actor of another role and session than the last change, resting on a rerun of a check of the claim after that change. Only in a KB with an `actor/3` or `review_saw/3` fact. Module hook of build; it does not block `done`. |
 | WP1 | A `pins(Claim, project, Decision, Digest)` fact whose digest differs from the digest of the decision (or definition or rule, D27) in the project KB now: the decision changed since the claim was written. Read it, then add a `pins` fact with the new digest. Module hook; the id is the claim (D23 P6). |
 | WP2 | A `pins/4` fact that cannot be checked: no `project_kb` fact, no `kb.pl` at that path, or no such decision. Module hook; the id is the claim (D23 P6). |
 | WP3 | The project KB of `project_kb/1` has a lint error, so a conflict could hide in it. Run `orbit-kb lint` on it. It also blocks (`project_kb_unclean`). Module hook (D23 P8). |

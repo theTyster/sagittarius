@@ -64,6 +64,12 @@ Discovery module
   ED10 a writer voted twice in one round. Keep one vote. After a HOLD, vote in the next round.
 What blocks discovery_ready blocks GO. The list can change: read orbit-kb whynot 'discovery_ready'.
 
+Build module (orbit-kb help build)
+  WR1  a current claim is not independently verified (D28). A reviewer of another role and
+       session reruns a check of it after its last change (orbit-kb run --as ROLE), then
+       records an upheld verdict that rests on that run (attest disproof --rests-on).
+       Only in a KB that records actors or a review. A warning: it does not block done.
+
 Project module (orbit-kb help project)
   WP1  a pins fact: the decision (or definition or rule) changed since the claim was written. Read it, then pin the new digest.
   WP2  a pins fact that cannot be checked: no project_kb, no kb.pl there, or no such decision, definition or rule.
