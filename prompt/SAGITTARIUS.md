@@ -37,8 +37,8 @@ is not.
    They can disagree with you and with the human. Use them where they pay for their cost.
 
 No party grades its own work. Each result goes through a party that did not make it. Show the
-human concrete examples first. When the work has shifted up, the human reads and reviews the
-formal text too, so write it to be read. The human judges meaning.
+human concrete examples and results first. When the work has shifted up, the human reads and
+reviews the formal text too, so write it to be read. The human judges meaning.
 
 ## The phase tree
 
