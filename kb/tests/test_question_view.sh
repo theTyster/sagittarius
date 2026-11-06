@@ -164,6 +164,34 @@ def main():
             else:
                 got=["%s=%s"%(k.attrs.get("data-source"),k.text()) for k in ol[0].walk() if k.tag=="li" and "option" in k.classes()]
                 if got!=want: bad.append("options of %s: got %s, want %s"%(iid,got,want))
+    elif mode=="effects":  # effects FILE ID TEXT=EFFECT... : each option li has that optiontext and an effect span with that text
+        iid,*want=a
+        hit=[n for st,n in items(p) if n.attrs.get("data-kind")=="to_ask" and n.attrs.get("data-id")==iid]
+        if len(hit)!=1: bad.append("want one to_ask item %s, found %d"%(iid,len(hit)))
+        else:
+            lis=[k for k in hit[0].walk() if k.tag=="li" and "option" in k.classes()]
+            for w in want:
+                t,_,e=w.partition("=")
+                m=[l for l in lis if any("optiontext" in k.classes() and k.text()==t for k in l.walk())]
+                if len(m)!=1: bad.append("option %r: found %d li"%(t,len(m))); continue
+                ef=[k for k in m[0].walk() if "effect" in k.classes()]
+                if e=="": 
+                    if ef: bad.append("option %r must have no effect element, has %r"%(t,[k.text() for k in ef]))
+                elif not ef or not any(e in k.text() for k in ef): bad.append("option %r: effect lacks %r (has %r)"%(t,e,[k.text() for k in ef]))
+    elif mode=="noeffects":  # noeffects FILE ID : the no-effects note is in the item and no li has an effect element
+        iid=a[0]
+        hit=[n for st,n in items(p) if n.attrs.get("data-kind")=="to_ask" and n.attrs.get("data-id")==iid]
+        if len(hit)!=1: bad.append("want one to_ask item %s, found %d"%(iid,len(hit)))
+        else:
+            n=hit[0]
+            if not any("no-effects" in k.classes() and "No option effects are recorded for this question." in k.text() for k in n.walk()): bad.append("item %s lacks the no-effects note"%iid)
+            if any("effect" in k.classes() for k in n.walk() if k.tag=="li" or (k.parent and k.parent.tag=="li")): bad.append("item %s has an effect element in an option"%iid)
+    elif mode=="kblabel":  # kblabel FILE STAMP TEXT : the section with that stamp has a kblabel with TEXT
+        sec=[n for n in p.all if n.tag=="section" and "kb" in n.classes() and n.attrs.get("data-stamp")==a[0]]
+        if len(sec)!=1: bad.append("no unique section for %s"%a[0])
+        else:
+            l=[k for k in sec[0].walk() if "kblabel" in k.classes()]
+            if not l or not any(a[1] in k.text() for k in l): bad.append("section %s kblabel lacks %r (has %r)"%(a[0],a[1],[k.text() for k in l]))
     elif mode=="extdeps":
         if re.search(r"<script[^>]*\ssrc\s*=", raw, re.I): bad.append("a <script src>")
         if re.search(r"<link\b", raw, re.I): bad.append("a <link>")
@@ -242,10 +270,10 @@ EOF
 }
 ledger_json() { cat > "$1" <<'EOF'
 [
- {"id":"A12","kind":"ask","title":"Which payment provider do we pick","status":"open","waits_on":null,"age_days":17},
- {"id":"A15","kind":"ask","title":"Approve the refund wording","status":"waiting","waits_on":null,"age_days":3},
+ {"id":"A12","kind":"ask","title":"Which payment provider do we pick","status":"open","waits_on":"me","age_days":17},
+ {"id":"A15","kind":"ask","title":"Approve the refund wording","status":"waiting","waits_on":"me","age_days":3},
  {"id":"A20","kind":"ask","title":"Vendor must send the tax form","status":"open","waits_on":"pat","age_days":40},
- {"id":"A07","kind":"ask","title":"Settled question about the logo","status":"done","waits_on":null,"age_days":90},
+ {"id":"A07","kind":"ask","title":"Settled question about the logo","status":"done","waits_on":"me","age_days":90},
  {"id":"T3","kind":"thread","title":"A thread and not an ask","status":"open","waits_on":null,"age_days":5}
 ]
 EOF
@@ -305,7 +333,7 @@ t_QV9() {  # an empty ledger is valid; the age comes from the file and not from 
     kb_a "$T/a"; echo '[]' > "$T/e.json"; view --dir "$T/a" --ledger "$T/e.json" || return
     chk askids "$T/page.html" --
     cat > "$T/o.json" <<'EOF'
-[{"id":"A99","kind":"ask","title":"Pick the release date","status":"open","waits_on":null,"age_days":400}]
+[{"id":"A99","kind":"ask","title":"Pick the release date","status":"open","waits_on":"me","age_days":400}]
 EOF
     view --dir "$T/a" --ledger "$T/o.json" || return
     chk ask "$T/page.html" A99 'has:Pick the release date' 'age:400 days'
@@ -383,7 +411,7 @@ question(q1, c1, 'Is a <u>tag</u> & an ampersand shown as text').
 assumed(q1, yes).
 attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
 EOF
-    printf '[{"id":"A1","kind":"ask","title":"Ship <script>x</script> & go","status":"open","waits_on":null,"age_days":2}]\n' > "$T/l.json"
+    printf '[{"id":"A1","kind":"ask","title":"Ship <script>x</script> & go","status":"open","waits_on":"me","age_days":2}]\n' > "$T/l.json"
     view --dir "$T/x" --ledger "$T/l.json" || return
     chk notag "$T/page.html" b i u script
     chk item "$T/page.html" to_ask q1 'has:Is a <u>tag</u> & an ampersand shown as text' 'cls:cited=Keep <i>markup</i> & quotes safe'
@@ -435,6 +463,107 @@ t_QV24() {  # fy16: the options are the default, the answer if any, and other; t
     chk options "$T/page.html" q6 default=yes other=other
     chk alltext "$T/page.html" "come from the KB's defaults"
 }
+# ---- review fixes: the owner of the ledger, option effects, labels, the no-claim text
+t_QV25() {  # the owner is a person key: `me` by default; null is nobody, and is not shown
+    kb_a "$T/a"; ledger_json "$T/asks.json"
+    cat > "$T/n.json" <<'EOF'
+[{"id":"A30","kind":"ask","title":"Nobody owns this ask","status":"open","waits_on":null,"age_days":9},
+ {"id":"A31","kind":"ask","title":"Mine by key","status":"open","waits_on":"me","age_days":2},
+ {"id":"A32","kind":"ask","title":"Pat decides","status":"open","waits_on":"pat","age_days":4}]
+EOF
+    view --dir "$T/a" --ledger "$T/n.json" || return
+    chk askids "$T/page.html" -- A31
+    chk alltext "$T/page.html" '!Nobody owns this ask' '!Pat decides'
+}
+t_QV26() {  # --owner KEY shows the asks that wait on that person
+    kb_a "$T/a"
+    cat > "$T/n.json" <<'EOF'
+[{"id":"A31","kind":"ask","title":"Mine by key","status":"open","waits_on":"me","age_days":2},
+ {"id":"A32","kind":"ask","title":"Pat decides","status":"open","waits_on":"pat","age_days":4},
+ {"id":"A33","kind":"ask","title":"Pat decides later","status":"waiting","waits_on":"pat","age_days":6}]
+EOF
+    view --dir "$T/a" --ledger "$T/n.json" --owner pat || return
+    chk askids "$T/page.html" -- A32 A33
+    chk ask "$T/page.html" A32 'has:Pat decides' 'age:4 days'
+}
+t_QV27() {  # the export may carry the owner in a row; --owner overrides it
+    kb_a "$T/a"
+    cat > "$T/n.json" <<'EOF'
+[{"id":"A41","kind":"ask","title":"For the boss","status":"open","waits_on":"boss","age_days":1,"owner":"boss"},
+ {"id":"A42","kind":"ask","title":"For pat","status":"open","waits_on":"pat","age_days":1,"owner":"boss"}]
+EOF
+    view --dir "$T/a" --ledger "$T/n.json" || return
+    chk askids "$T/page.html" -- A41
+    view --dir "$T/a" --ledger "$T/n.json" --owner pat || return
+    chk askids "$T/page.html" -- A42
+}
+t_QV28() {  # the real hubflow export: a hub seeded with another owner, asks to three people and to nobody
+    command -v python3 >/dev/null || return
+    local hf="$here/../../hubkit/hub/.claude/scripts/hubflow.py" H="$T/hub"
+    [ -f "$hf" ] || { note "hubflow.py not found at $hf"; return; }
+    mkdir -p "$H"
+    printf '{"sessions":[{"name":"build","role":"build"}],"persons":[{"key":"boss","display":"Boss"},{"key":"pat","display":"Pat"}],"owner":"boss"}\n' > "$H/seed.json"
+    export HUB_SESSION=build
+    python3 "$hf" --hub "$H" init --seed "$H/seed.json" </dev/null >/dev/null 2>&1 || { note "hubflow init failed"; return; }
+    python3 "$hf" --hub "$H" add ask --title "Pick the payment provider" --waits-on boss </dev/null >/dev/null 2>&1
+    python3 "$hf" --hub "$H" add ask --title "Vendor sends the tax form" --waits-on pat --ref issue:5 </dev/null >/dev/null 2>&1
+    python3 "$hf" --hub "$H" add ask --title "Unassigned ask" </dev/null >/dev/null 2>&1
+    python3 "$hf" --hub "$H" add thread --title "A thread that waits on the boss" --waits-on boss </dev/null >/dev/null 2>&1
+    python3 "$hf" --hub "$H" sql "SELECT id, kind, title, status, waits_on, age_days, COALESCE((SELECT value FROM meta WHERE key='owner_person'), (SELECT key FROM person WHERE key='me')) AS owner FROM v_open" --format json </dev/null > "$T/real.json" 2>"$T/hf.err"
+    [ -s "$T/real.json" ] || { note "hubflow sql wrote nothing: $(snip "$(cat "$T/hf.err")")"; return; }
+    kb_a "$T/a"; view --dir "$T/a" --ledger "$T/real.json" || return
+    chk alltext "$T/page.html" 'Pick the payment provider' '!Vendor sends the tax form' '!Unassigned ask' '!A thread that waits on the boss'
+    chk ask "$T/page.html" "$(python3 -c "import json,sys;print([r['id'] for r in json.load(open('$T/real.json')) if r['title']=='Pick the payment provider'][0])")" 'has:Pick the payment provider' 'age:0 days'
+    view --dir "$T/a" --ledger "$T/real.json" --owner pat || return
+    chk alltext "$T/page.html" 'Vendor sends the tax form' '!Pick the payment provider'
+}
+opt_kb() { kb_a "$1"; printf "option(q1, yes, 'The newest invoice is on top; older ones need a scroll').\noption(q1, no, 'The list keeps its date order').\noption(q1, 'by amount', 'Invoices sort by total, largest first').\n" >> "$1/kb.pl"; }
+t_QV29() {  # each option shows its effect; an option fact adds an option the KB has not named otherwise
+    opt_kb "$T/a"; echo "answer(q1, no, agent)." >> "$T/a/kb.pl"; view --dir "$T/a" || return
+    chk options "$T/page.html" q1 'default=yes' 'answer=no' 'option=by amount' 'other=other'
+    chk effects "$T/page.html" q1 'yes=The newest invoice is on top; older ones need a scroll' 'no=The list keeps its date order' 'by amount=Invoices sort by total, largest first' 'other='
+}
+t_QV30() {  # no option fact: the page says so, visibly, in the item; no effect element in an option
+    kb_a "$T/a"; view --dir "$T/a" || return
+    chk noeffects "$T/page.html" q1; chk noeffects "$T/page.html" q2
+}
+t_QV31() {  # a question with option facts for only some options: the others say that no effect is recorded
+    kb_a "$T/a"; echo "option(q2, no, 'Paid invoices stay in the list')." >> "$T/a/kb.pl"; view --dir "$T/a" || return
+    chk effects "$T/page.html" q2 'no=Paid invoices stay in the list'
+    chk effects "$T/page.html" q1 ''
+    chk noeffects "$T/page.html" q1
+    chk effects "$T/page.html" q2 'other='
+}
+t_QV32() {  # option/3 is a core fact: add accepts it, lint is clean, help core lists it, it changes no rule
+    kb_a "$T/a"; okb --dir "$T/a" lint; local before=$out
+    okb --dir "$T/a" add "option(q1, yes, 'Shows newest first')"; rc_is 0 "add option/3" || return
+    okb --dir "$T/a" lint; rc_is 0 "lint after option/3"
+    okb --dir "$T/a" add "option(zz, yes, 'x')"; rc_is 1 "option of a missing question"
+    okb --dir "$T/a" query 'blocking(to_ask(X))' -n 0; err_has 'q1' "to_ask still holds"
+    okb help core; err_has 'option\(' "help core lists option"
+    okb --dir "$T/a" show all; err_has 'q1' "show works"
+}
+t_QV33() {  # each KB section names its KB: the first line of its first request, or its directory
+    kb_a "$T/a"; kb_b "$T/b"; view --dir "$T/a" --dir "$T/b" || return
+    chk kblabel "$T/page.html" "$(stamp_of "$T/a")" 'Billing must be less confusing for customers'
+    chk kblabel "$T/page.html" "$(stamp_of "$T/b")" 'The mobile app must work offline'
+    kb_new "$T/dirkb/proj_x" <<'EOF'
+uses([build]).
+claim(c1, preserve, 'Anything').
+EOF
+    view --dir "$T/dirkb/proj_x" || return
+    chk kblabel "$T/page.html" "$(stamp_of "$T/dirkb/proj_x")" 'proj_x'
+}
+t_QV34() {  # the no-claim item: label and text are apart and do not repeat each other
+    kb_new "$T/n" <<'EOF'
+uses([build]).
+request(r1, 'Nothing is claimed yet').
+EOF
+    view --dir "$T/n" || return
+    chk item "$T/page.html" no_claim '' 'has:No current claim: Add a claim'
+    chk alltext "$T/page.html" '!claim:No' '!No claim is current'
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -443,6 +572,6 @@ run_one() {  # run_one ID
     if [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 24); do run_one QV$n; done
+for n in $(seq 1 34); do run_one QV$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
