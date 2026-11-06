@@ -4496,6 +4496,10 @@ cmd_draft(KB, Args, Code) :-
         (   Rows == [] -> say("- Nothing to push.", [])
         ;   forall(member(Row, Rows), outbound_section(Eng, Row))
         ),
+        (   Ds0 == []
+        ->  say("- This KB has no draft facts. draft outbound reads only this KB. For the drafts of the project KB, run: orbit-kb --dir PROJECT draft outbound", [])
+        ;   true
+        ),
         Code = 0
     ;   usage_error("draft outbound needs a KB that uses the project module (D23).", [])
     ).
@@ -5753,7 +5757,8 @@ help_lines(draft, [
 "draft blocking prints Markdown: the stamp spec-kb@sha256:HEX of kb.pl, then each item that",
 "blocks done, as show blocking does. Paste it into the ticket. orbit-kb pin --check STAMP",
 "exits 1 once kb.pl has changed. It writes nothing.",
-"draft outbound lists the project KB drafts that are not pushed (needs the project module)."
+"draft outbound lists the project KB drafts that are not pushed (needs the project module).",
+"It reads only the KB it runs in, so give the project KB: orbit-kb --dir PROJECT draft outbound."
 ]).
 help_lines('pin-item', [
 "orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",
