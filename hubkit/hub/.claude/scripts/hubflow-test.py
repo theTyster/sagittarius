@@ -1897,6 +1897,52 @@ def case_t22_closed_spec(r, root):
     r.check("t22-c4-jsonl-in-sync", hf(r, d, "check")[0] == 0 and out_of_sync(d) == [])
 
 
+def case_t33_spec_triage_guard(r, root):
+    """T33 c3: an agent's spec-triage on a blocking spec KB cannot close the item. While an item of
+    kb:<slug> is open, spec-triage is refused and writes nothing; the item stays open and guarded.
+    After the human closed the item, the agent's decision becomes escalate (archive is refused while
+    specs/<slug> exists), and no item, item_ref or disposition row changes."""
+    stub = write_stub(root)
+    h = spec_hub(root, "t33hub", {"blk": ["q1"]})
+    d = fresh(r, root, "t33")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+
+    def t(*args, **kw):
+        return hf(r, d, *args, hub=h, extra_env=env, **kw)
+
+    def snap():
+        return [rows(d, x) for x in ("item", "item_ref", "disposition")]
+
+    def spec_events():
+        return q(d, "select old, new, by from event where verb = 'spec_triage' order by seq")
+
+    add(r, d, "thread", "Ticket with a blocking spec KB", "--ref", "kb:blk", now="2026-10-20T00:00:00Z")  # T-0001
+    res = t("close", "T-0001", "--reason", "done")
+    r.check("t33-c3-item-guarded-before", refused(res, 1, "--by human"), res)
+    before = snap()
+    for dec in ("archive", "keep", "capsule", "escalate"):
+        res = t("spec-triage", "blk", dec, "--note", "the agent decides")
+        r.check(f"t33-c3-agent-spec-triage-{dec}-of-open-item-refused", refused(res, 1, "not closed")
+                and snap() == before and spec_events() == [], (res, spec_events()))
+    code, out, err = t("view", "open", "--format", "json")
+    in_view = [x["id"] for x in (js(out) or [])]
+    res = t("close", "T-0001", "--reason", "dropped")
+    r.check("t33-c3-item-stays-open-and-guarded", q(d, "select status from item where id = 'T-0001'") == [("open",)]
+            and "T-0001" in in_view and refused(res, 1, "--by human"), (in_view, res))
+    t("close", "T-0001", "--reason", "done", "--by", "human", "--note", "\"the ticket is done\" (Me)")
+    before = snap()
+    res = t("spec-triage", "blk", "archive", "--note", "no use any more")
+    r.check("t33-c3-agent-archive-refused-while-spec-exists", refused(res, 1, "git rm") and snap() == before
+            and spec_events() == [] and os.path.isdir(os.path.join(h, "specs", "blk")), res)
+    code, out, err = t("spec-triage", "blk", "keep", "--note", "keep it")
+    r.check("t33-c3-agent-decision-escalates-no-item-row-changes", code == 0 and "escalate" in out
+            and spec_events() == [("blk", "escalate", "agent")] and snap() == before
+            and q(d, "select status from item where id = 'T-0001'") == [("done",)], (code, out, err, spec_events()))
+    code, out, err = t("spec-triage", "blk", "keep", "--by", "human", "--note", "\"keep it\" (Me)")
+    r.check("t33-c3-human-decision-stands", code == 0 and spec_events()[-1] == ("blk", "keep", "human")
+            and snap() == before, (code, out, err, spec_events()))
+
+
 def no_orbit_kb_path():
     """PATH without any directory that holds an orbit-kb (T24: the informal release has no orbit-kb)."""
     keep = [x for x in os.environ.get("PATH", "").split(os.pathsep) if x and not os.path.exists(os.path.join(x, "orbit-kb"))]
@@ -2206,6 +2252,8 @@ def cases(r):
         run_case(r, case_t22_spec_home, root)
         run_case(r, case_t22_rotate_open_spec, root)
         run_case(r, case_t22_closed_spec, root)
+        # T33: spec-triage cannot take a guarded item out of view
+        run_case(r, case_t33_spec_triage_guard, root)
         # T24: the informal release (no orbit-kb)
         run_case(r, case_t24_no_orbit_kb, root)
         # T28: meeting transcripts
