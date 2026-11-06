@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T31: an agent in a hub can run what the hub guidance tells it. One check per claim.
 
-usage: python3 docs/check_hub_fixes.py t31c1|...|t31c7 [--list]   (--list prints the claim ids)
+usage: python3 docs/check_hub_fixes.py t31c1|...|t31c9 (t31c7 is superseded by t31c8) [--list]   (--list prints the claim ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 t31c1 runs the project KB setup line that hubkit/INSTRUCTIONS.md (and hubkit/README.md, when it has one) gives.
@@ -12,6 +12,10 @@ t31c5 runs `orbit-kb show open` at a hub root with no KB and reads the hint.
 t31c6 reads the landing check (LAND_CHECK, default the design KB's land_check.sh) for a loop that runs every
       claim id of the docs/check_*.py scripts that take one (each script prints its ids with --list).
 t31c7 reads the DECOMPOSE step 4 of the core help topic against the wording of the prompt's Roles section.
+t31c8 (u47) the prompt, PHILOSOPHY and the core help say: after a shift up the human, the agent and the CPU use
+      the formal language as the shared substrate, and the human reads, reviews and understands it.
+t31c9 (u57) the hypothesis paragraph of the prompt names hypotheses, premises and claims for err-soft, and keeps
+      "oscillation is an intentional heuristic".
 """
 import os
 import re
@@ -151,7 +155,39 @@ def t31c7():
           "wording missing")
 
 
-CLAIMS = {k: globals()[k] for k in ("t31c1", "t31c2", "t31c3", "t31c4", "t31c5", "t31c6", "t31c7")}
+def flat(p):
+    return re.sub(r"\s+", " ", read(os.path.join(ROOT, *p.split("/")))).lower()
+
+
+def t31c8():
+    core = flat("kb/share/orbit-kb/help/core.txt")
+    check("t31c8 core help no longer says the human never has to read formal text",
+          "never has to read formal text" not in core, "old phrase present")
+    for p in ("prompt/SAGITTARIUS.md", "docs/PHILOSOPHY.md", "kb/share/orbit-kb/help/core.txt"):
+        w = flat(p)
+        check(f"t31c8 {p} names the human, the agent and the CPU",
+              re.search(r"the human, the agent,? and the cpu all use the formal language as the shared substrate", w) is not None,
+              "wording missing")
+        check(f"t31c8 {p} says the human reads, reviews and understands it",
+              re.search(r"the human reads, reviews,? and understands it", w) is not None, "wording missing")
+        check(f"t31c8 {p} keeps 'write it to be read'", "write it to be read" in w, "missing")
+
+
+def t31c9():
+    w = flat("prompt/SAGITTARIUS.md")
+    i = w.find("**the hypothesis.**")
+    j = w.find("**the vote.**")
+    para = w[i:j] if i >= 0 and j > i else ""
+    check("t31c9 the hypothesis paragraph is found", bool(para), "missing")
+    check("t31c9 err-soft names hypotheses, premises and claims",
+          re.search(r"err toward the general and soft in [^.]*\bhypothes[^.]*\bpremises[^.]*\bclaims", para) is not None, para[-400:])
+    check("t31c9 oscillation is an intentional heuristic", "oscillation is an intentional heuristic" in para, para[-300:])
+    check("t31c9 the prompt stays within 230 lines", len(read(os.path.join(ROOT, "prompt", "SAGITTARIUS.md")).splitlines()) <= 230, "too long")
+
+
+# t31c7 is superseded by t31c8 (u47): its second check pinned the T29 wording, which u47 says is too narrow.
+# The function stays above as the record. It is no longer a claim of this file.
+CLAIMS = {k: globals()[k] for k in ("t31c1", "t31c2", "t31c3", "t31c4", "t31c5", "t31c6", "t31c8", "t31c9")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
