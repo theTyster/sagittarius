@@ -1677,6 +1677,53 @@ def case_ref_guard(r, root):
     r.check("c2-human-kb-ref-rm", res[0] == 0 and kb("A-0002") == [] and ev(d, "A-0002")[-1][:5] == ("ref_rm", "kb:spec-a/kb", None, "discovery", "human"), res)
 
 
+def case_guard_more(r, root):
+    """c2 (review): renew, park and set --status by an agent on an escalated or blocking item are
+    the same hole as dropping its kb ref: refused unless --by human --note."""
+    stub = write_stub(root)
+    h = kb_hub(root, "guardhub", {"spec-a": ["q1"], "spec-b": None})
+    d = fresh(r, root, "guard-more")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+
+    def t(*args):
+        return hf(r, d, *args, hub=h, extra_env=env)
+
+    add(r, d, "ask", "Escalated, clear spec", "--ref", "kb:spec-b/kb", now=DUE)  # A-1
+    add(r, d, "ask", "Blocking spec, not escalated", "--ref", "kb:spec-a/kb", now=DUE)  # A-2
+    add(r, d, "ask", "Clear spec, not escalated", "--ref", "kb:spec-b/kb", now=DUE)  # A-3
+    t("triage", "A-0001", "escalate", "--note", "only the human can decide")
+    cases_ = (("renew", "A-0001", ["renew", "A-0001", "--note", "still live"]),
+              ("park", "A-0002", ["park", "A-0002", "--until", "2026-12-01", "--note", "later"]),
+              ("set-status", "A-0001", ["set", "A-0001", "--status", "waiting"]))
+    for name, item, args in cases_:
+        before = q(d, "select status, renewed_at, parked_until from item where id = ?", item)
+        n_ev = len(ev(d, item))
+        res = t(*args)
+        r.check(f"c2-agent-{name}-of-guarded-item-refused", refused(res, 1, "--by human")
+                and q(d, "select status, renewed_at, parked_until from item where id = ?", item) == before
+                and len(ev(d, item)) == n_ev, res)
+    res = t("renew", "A-0003", "--note", "still live")
+    r.check("c2-agent-renew-of-clear-item", res[0] == 0 and q(d, "select renewed_at from item where id='A-0003'") == [(NOW,)], res)
+    res = t("renew", "A-0002", "--by", "human", "--note", "\"keep it a while\" (Me)")
+    r.check("c2-human-renew-of-guarded-item", res[0] == 0 and q(d, "select renewed_at from item where id='A-0002'") == [(NOW,)]
+            and ev(d, "A-0002")[-1][0] == "renewed" and ev(d, "A-0002")[-1][4] == "human", res)
+
+
+def case_transcripts_same_session(r, root):
+    """c4 (review): two files with one sessionId make one row (the last file wins); the message
+    counts files and sessions, not rows it did not make."""
+    h = os.path.join(root, "tssame")
+    w = transcript_fixture(h)
+    with open(os.path.join(w, "one-resumed.jsonl"), "w", encoding="utf-8") as f:
+        f.write(json.dumps({"type": "user", "sessionId": "sess-one", "timestamp": "2026-11-04T10:00:00Z",
+                            "message": {"role": "user", "content": "Resumed: where were we?"}}) + "\n")
+    d = fresh(r, root, "transcripts-same")
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    n = qs(d, "select count(*) from transcript")
+    r.check("c4-index-message-counts-files-and-sessions", res[0] == 0 and n == [(2,)]
+            and "3 file(s)" in res[1] and "2 session(s)" in res[1], (res, n))
+
+
 def run_case(r, fn, *args):
     """Run one scenario. A scenario that cannot even run is a failure, not a crash, and the
     scenarios after it still run."""
@@ -1730,6 +1777,8 @@ def cases(r):
         run_case(r, case_transcripts_clock, root)
         run_case(r, case_skip_two_kbs, root)
         run_case(r, case_ref_guard, root)
+        run_case(r, case_guard_more, root)
+        run_case(r, case_transcripts_same_session, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))
