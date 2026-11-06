@@ -2,7 +2,8 @@
 
 This document states the beliefs under Sagittarius: what is true about humans, agents, intent,
 evidence, and formal methods that makes the design right. It does not say how to do the work. The
-procedure is in [`prompt/SAGITTARIUS.md`](../prompt/SAGITTARIUS.md) and in `orbit-kb help`.
+procedure is in `orbit-kb help` and its topics. The prompt,
+[`prompt/SAGITTARIUS.md`](../prompt/SAGITTARIUS.md), states the philosophy in short.
 
 The prompt is one way to apply these beliefs. Each principle must stay true even if every section
 of the prompt changes. Use this document to judge a proposed change to the prompt or to `orbit-kb`.
