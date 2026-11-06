@@ -14,6 +14,13 @@
 #   c6 only answer records, only through orbit-kb                   : QS14; QS17 runs the server against the Lean model
 #   c7 the ledger's asks, read-only, with the hubflow command       : QS15
 #   c8 docs: help serve, README, CONTRACT D26                       : QS16
+# Ticket T27 (CONTRACT D26 amended):
+#   c4 a human answer never waits: answers.pending, applied by the next write : QS18 (QS8 now: a held lease queues the answer)
+#   c5 who owns a question: ledger, tracker, pins, draft questions           : QS19
+#   c6 context on the page: notes, examples, due; option/3 in the recipes    : QS20
+#   c7 the ledger, live from flow.db, with an answer form; quoted command    : QS21
+#   c8 a project KB's own questions                                          : QS22
+#   c9 fixes: default terms, option and text, project_kb paths, frame headers : QS23
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -25,7 +32,7 @@ done
 [ -x "$OKB" ] || { echo "test_question_server.sh: the CLI is missing or not executable: $OKB" >&2; exit 2; }
 OKB=$(cd "$(dirname "$OKB")" && pwd -P)/$(basename "$OKB")
 LIB=$(cd "$LIB" && pwd -P)
-for v in $(compgen -e); do case $v in ORBIT_KB*|CLAUDE_SESSION_ID) unset "$v";; esac; done
+for v in $(compgen -e); do case $v in ORBIT_KB*|CLAUDE_SESSION_ID|CLAUDE_CODE_SESSION_ID|HUB_SESSION|HUBFLOW*) unset "$v";; esac; done
 export ORBIT_KB_LIB="$LIB"
 REPO=$(cd "$here/../.." && pwd -P)
 
@@ -139,6 +146,35 @@ def main():
             c=[x.text() for x in cls(ls[0],"hubflow")]
             if not c or a[1] not in c[0]: bad.append("hubflow command %r lacks %r" % (c, a[1]))
             if any(n.tag=="form" for n in ls[0].walk()): bad.append("the ask has a form (asks are read-only in v1)")
+    elif mode=="pending":    # pending FILE LABEL QID: the KB section LABEL lists QID as a pending answer
+        secs=kbsec(p, a[0]); ls=[x for s in secs for x in s.walk() if "pending" in x.classes() and x.attrs.get("data-id")==a[1]]
+        if len(ls)<1: bad.append("no element with class pending and data-id %s in %r" % (a[1], a[0]))
+    elif mode=="ctx":        # ctx FILE LABEL QID T...: the to_ask item QID in section LABEL has each text T
+        secs=kbsec(p, a[0]); its=[x for s in secs for x in items(s,"to_ask") if x.attrs.get("data-id")==a[1]]
+        if len(its)!=1: bad.append("want one to_ask item %s in %r, found %d" % (a[1], a[0], len(its)))
+        else:
+            t=its[0].text()
+            for x in a[2:]:
+                if x not in t: bad.append("item %s lacks %r" % (a[1], x))
+    elif mode=="askform":    # askform FILE ID: li.ask ID has one POST form to /answer with hidden token and ask=ID, and a text field
+        ls=[n for n in p.all if n.tag=="li" and "ask" in n.classes() and n.attrs.get("data-id")==a[0]]
+        if len(ls)!=1: bad.append("want one li.ask %s, found %d" % (a[0], len(ls)))
+        else:
+            fs=[n for n in ls[0].walk() if n.tag=="form"]
+            if len(fs)!=1: bad.append("want one form in the ask, found %d" % len(fs))
+            else:
+                fm=fs[0]; ins=[n for n in fm.walk() if n.tag in ("input","textarea")]
+                if (fm.attrs.get("method") or "").lower()!="post" or fm.attrs.get("action")!="/answer": bad.append("the form is not a POST to /answer")
+                hid={n.attrs.get("name"):n.attrs.get("value") for n in ins if n.attrs.get("type")=="hidden"}
+                if hid.get("ask")!=a[0]: bad.append("hidden ask is %r" % hid.get("ask"))
+                if not hid.get("token"): bad.append("no hidden token")
+                if not any(n.attrs.get("name")=="text" for n in ins): bad.append("no text field")
+    elif mode=="askcmd":     # askcmd FILE ID FRAGMENT: li.ask ID holds a code.hubflow with the fragment
+        ls=[n for n in p.all if n.tag=="li" and "ask" in n.classes() and n.attrs.get("data-id")==a[0]]
+        if len(ls)!=1: bad.append("want one li.ask %s, found %d" % (a[0], len(ls)))
+        else:
+            c=[x.text() for x in cls(ls[0],"hubflow")]
+            if not c or a[1] not in c[0]: bad.append("hubflow command %r lacks %r" % (c, a[1]))
     elif mode=="message":    # message FILE T: an element with class message holds T
         ms=[x.text() for x in p.all if "message" in x.classes()]
         if not any(a[0] in m for m in ms): bad.append("no .message with %r (messages %r)" % (a[0], ms))
@@ -307,17 +343,18 @@ t_QS7() {  # a POST of free text (choice other) records exactly that text, throu
 }
 
 # ================================================================ c4 lock
-t_QS8() {  # another writer holds the lock: nothing is written, the page names the holder, no --take
+t_QS8() {  # another writer holds the lock: nothing is written to kb.pl, the answer waits in the queue, no --take
     kb_spec "$T/s" 'Alpha rules' ''
     printf 'ann 2026-11-06T10:00:00Z\n' > "$T/s/writer.lock"
     cp "$T/s/kb.pl" "$T/kb.before"; cp "$T/s/writer.lock" "$T/lock.before"
     srv --dir "$T/s" || return
     page_ok || return; local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" 'Alpha rules')
-    post /answer "token=$tok" "kb=$kb" q=q1 choice=no; code_is 409 "POST under a held lock"
+    # T27 c4 (D26 S4 amended): the answer is queued at once (303), not refused; the KB and the lock stay as they are
+    post /answer "token=$tok" "kb=$kb" q=q1 choice=no; code_is 303 "POST under a held lock is queued"
     same_file "$T/s/kb.pl" "$T/kb.before" "kb.pl"
     same_file "$T/s/writer.lock" "$T/lock.before" "writer.lock"
     grep -q 'writer_takeover' "$T/s/kb.pl" && note "a takeover was recorded"
-    chk message "$T/post.html" 'ann'
+    [ -s "$T/s/answers.pending" ] || note "the answer is not in answers.pending"
     srv_stop
 }
 t_QS9() {  # a free lock: the server takes it for the write, and gives it back after
@@ -464,6 +501,169 @@ t_QS16() {  # help serve, the README command reference, CONTRACT D26
     grep -Fq '| `serve questions' "$REPO/kb/CONTRACT.md" || note "the CONTRACT command table has no serve questions row"
 }
 
+
+# ================================================================ T27
+# a hub with the ledger: mkhub DIR (seeded sessions; the owner is the person me)
+mkhub() { mkdir -p "$1/.claude/scripts"; cp "$REPO/hubkit/hub/.claude/scripts/hubflow.py" "$1/.claude/scripts/"
+          cp "$REPO/hubkit/hub/flow/seed.json" "$1/seed.json"
+          ( cd "$1" && python3 .claude/scripts/hubflow.py --hub "$1" init --seed seed.json ) >/dev/null 2>&1 || note "setup: hub init failed"; }
+hf() { local H=$1; shift; ( cd "$H" && python3 .claude/scripts/hubflow.py --hub "$H" "$@" ) 2>&1; }
+# askjson HUB ID PY-EXPR: the item and events of ask ID (hubflow show --format json) as d; the expression must hold
+askjson() { hf "$1" show "$2" --format json > "$T/.ask.json"
+            python3 -I -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if ($3) else 1)" "$T/.ask.json" \
+              || note "ask $2: not ($3): $(snip "$(cat "$T/.ask.json")")"; }
+wr() { ( cd "$T" && ORBIT_KB_WRITER=$1 XDG_CACHE_HOME="$T/.cache" timeout "$TMO" "$OKB" "${@:2}" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
+
+t_QS18() {  # c4: an answer given while an agent holds the lease waits in answers.pending; the agent's next write applies it
+    kb_a "$T/a"
+    wr ann --dir "$T/a" add "note(c1, 'ann works here')"; rc_is 0 "ann takes the lease" || return
+    cp "$T/a/kb.pl" "$T/kb.before"
+    srv --dir "$T/a" || return
+    page_ok || return; local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" "$L_A")
+    post /answer "token=$tok" "kb=$kb" q=q1 choice=no; code_is 303 "the answer is taken at once" || return
+    same_file "$T/a/kb.pl" "$T/kb.before" "kb.pl while ann holds the lease"
+    [ "$(wc -l < "$T/a/answers.pending" 2>/dev/null)" = 1 ] || note "answers.pending does not have one line"
+    grep -Eq '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z' "$T/a/answers.pending" 2>/dev/null || note "the queued line has no time"
+    grep -Eq 'sha256:[0-9a-f]{64}' "$T/a/answers.pending" 2>/dev/null || note "the queued line has no digest"
+    page_ok || return; chk pending "$T/page.html" "$L_A" q1
+    okb --dir "$T/a" show open; printf '%s\n' "$out" | grep -Eiq 'pending.*q1' || note "show open does not list q1 as pending: $(snip "$out")"
+    wr ann --dir "$T/a" add "note(c1, 'ann writes again')"; rc_is 0 "ann's next write"
+    has_goal "$T/a" 'answer(q1, no, human)' "ann's next write applied the answer"
+    local la lb; la=$(grep -n '^answer(q1, *no, *human)' "$T/a/kb.pl" | cut -d: -f1); lb=$(grep -n "ann writes again" "$T/a/kb.pl" | cut -d: -f1)
+    [ -n "$la" ] && [ -n "$lb" ] && [ "$la" -lt "$lb" ] || note "the answer is not applied before ann's own fact (lines $la, $lb)"
+    okb --dir "$T/a" show open; printf '%s\n' "$out" | grep -Eiq 'pending.*q1' && note "show open still lists q1 as pending"
+    [ "$(wc -l < "$T/a/answers.pending")" = 1 ] || note "answers.pending is append-only: it must keep its line"
+    wr ann --dir "$T/a" add "note(c1, 'a third write')"
+    [ "$(grep -c '^answer(q1' "$T/a/kb.pl")" = 1 ] || note "the answer was applied twice"
+    srv_stop
+}
+
+t_QS19() {  # c5: the ledger owns a question that depends only on the owner, the tracker owns the others; the spec KB pins both
+    mkhub "$T/h"; local A A2
+    A=$(hf "$T/h" --session build add ask --title 'Should the list show the newest invoice first' --waits-on me --ref kb:billing/kb)
+    kb_a "$T/a"
+    okb --dir "$T/a" add "option(q2, yes, 'Paid invoices move to the archive tab')"
+    okb --dir "$T/a" pin-question q1 ledger "$A"; rc_is 0 "pin-question to the ledger"
+    has_goal "$T/a" "question_pin(q1, ledger, '$A', D, T)" "the question is pinned to its ask"
+    okb --dir "$T/a" pin-question q2 tracker 'gh:acme/billing#7'; rc_is 0 "pin-question to the tracker"
+    okb --dir "$T/a" draft questions; rc_is 0 "draft questions"
+    printf '%s\n' "$out" | grep -Fq 'Should paid invoices be hidden by default' || note "the draft lacks the tracker's question q2"
+    printf '%s\n' "$out" | grep -Fq 'Paid invoices move to the archive tab' || note "the draft lacks the effect of an option"
+    printf '%s\n' "$out" | grep -Fq 'The invoice list is sorted by date' || note "the draft lacks the case (the claim)"
+    printf '%s\n' "$out" | grep -Fq 'Should the list show the newest invoice first' && note "the draft has the ledger's question q1"
+    okb --dir "$T/a" pin-answer q1 "$A" --hub "$T/h"; rc_is 1 "pin-answer before the ask has an answer"
+    hf "$T/h" --session build --by human close "$A" --reason done --note 'Newest first' >/dev/null
+    okb --dir "$T/a" pin-answer q1 "$A" --hub "$T/h"; rc_is 0 "pin-answer from the ledger"
+    has_goal "$T/a" "answer(q1, 'Newest first', human:me)" "the answer is the pinned copy and names who answered"
+    has_goal "$T/a" "answer_pin(q1, '$A', D, T)" "a pin of the answer"
+    hasnt_goal "$T/a" 'to_ask(q1)' "q1 is answered"
+    has_goal "$T/a" 'defeated(q1)' "a pinned human answer defeats the default"
+    printf 'Only for admins\n' > "$T/ans.txt"
+    okb --dir "$T/a" pin-answer q2 'gh:acme/billing#7' --text-file "$T/ans.txt" --by alex; rc_is 0 "pin-answer from the tracker"
+    has_goal "$T/a" "answer(q2, 'Only for admins', human:alex)" "the tracker's answer names alex"
+    okb --dir "$T/a" pin-answer q3 'gh:acme/billing#7' --text-file "$T/ans.txt" --by alex; rc_is 1 "pin-answer of a question with no pin"
+    # the server: the answer goes to the ask first, then into the spec KB through the queue
+    kb_a "$T/b"; A2=$(hf "$T/h" --session build add ask --title 'Should paid invoices be hidden by default' --waits-on me)
+    okb --dir "$T/b" pin-question q2 ledger "$A2"; rc_is 0
+    srv --dir "$T/b" --hub "$T/h" || return
+    page_ok || return; local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" "$L_A")
+    post /answer "token=$tok" "kb=$kb" q=q2 choice=other 'text=Hide after 90 days'; code_is 303 "POST of a ledger-owned question"
+    askjson "$T/h" "$A2" "d['item']['status']=='done' and any(e['by']=='human' and e['note']=='Hide after 90 days' for e in d['events'])"
+    has_goal "$T/b" "answer(q2, 'Hide after 90 days', human:me)" "the spec KB has the pinned answer"
+    has_goal "$T/b" "answer_pin(q2, '$A2', _, _)" "the spec KB has the pin of the answer"
+    grep -q 'answer_pin' "$T/b/answers.pending" 2>/dev/null || note "the pinned answer did not go through answers.pending"
+    srv_stop
+}
+
+t_QS20() {  # c6: each question shows its note, its claim's note, the claim's examples, its due date (view and serve)
+    kb_a "$T/a"
+    okb --dir "$T/a" add "note(q1, 'Ty said the old order confused him')" "note(c1, 'Review found the order reversed')" \
+        "example(c1, 'Invoice 7 of May shows above invoice 3 of April')" "due(q1, '2030-01-15T12:00:00Z')"; rc_is 0 "setup"
+    okb --dir "$T/a" view questions --out "$T/view.html"; rc_is 0 "view questions"
+    chk ctx "$T/view.html" "$L_A" q1 'Ty said the old order confused him' 'Review found the order reversed' 'Invoice 7 of May shows above invoice 3 of April' '2030-01-15T12:00:00Z'
+    srv --dir "$T/a" || return; page_ok || return
+    chk ctx "$T/page.html" "$L_A" q1 'Ty said the old order confused him' 'Review found the order reversed' 'Invoice 7 of May shows above invoice 3 of April' '2030-01-15T12:00:00Z'
+    srv_stop
+    okb help core; printf '%s\n' "$out" | awk '/^DECOMPOSE/{f=1} /^Asking the human/{f=0} f' | grep -Fq 'option(' || note "help core DECOMPOSE does not say option/3"
+    okb help discovery; printf '%s\n' "$out" | awk '/^ASKING/{f=1} /^HANDOFF/{f=0} f' | grep -Fq 'option(' || note "help discovery ASKING does not say option/3"
+}
+
+t_QS21() {  # c7: with --hub the asks are read live from flow.db; an ask of the owner has an answer form that runs hubflow
+    mkhub "$T/h"; local A B C
+    A=$(hf "$T/h" --session build add ask --title 'Which payment provider do we pick' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --title 'Vendor must send the tax form' --waits-on alex --ref issue:12)
+    kb_a "$T/a"; srv --dir "$T/a" --hub "$T/h" || return
+    page_ok || return
+    chk text "$T/page.html" 'Which payment provider do we pick' '!Vendor must send the tax form'
+    chk askform "$T/page.html" "$A"
+    chk askcmd "$T/page.html" "$A" "hubflow.py --session human --by human close $A --reason done"
+    C=$(hf "$T/h" --session build add ask --title 'Pick the launch date' --waits-on me)
+    page_ok || return; chk text "$T/page.html" 'Pick the launch date'
+    local tok; tok=$(token)
+    post /answer "token=$tok" "ask=$A" 'text=Stripe, for the fees'; code_is 303 "POST an answer to an ask"
+    askjson "$T/h" "$A" "d['item']['status']=='done' and any(e['by']=='human' and e['by_session']=='human' and e['note']=='Stripe, for the fees' for e in d['events'])"
+    page_ok || return; chk text "$T/page.html" '!Which payment provider do we pick' 'Pick the launch date'
+    post /answer "token=$tok" "ask=$B" 'text=No'; code_is 409 "an ask that waits on another person"
+    askjson "$T/h" "$B" "d['item']['status']=='open'"
+    srv_stop
+    # the shown command is shell-quoted
+    printf '[{"id":"A12; touch pwned","kind":"ask","title":"Odd id","status":"open","waits_on":"me","age_days":1}]\n' > "$T/asks.json"
+    srv --dir "$T/a" --ledger "$T/asks.json" || return
+    page_ok || return; chk askcmd "$T/page.html" 'A12; touch pwned' "close 'A12; touch pwned' --reason done"
+    srv_stop
+}
+
+t_QS22() {  # c8: a project KB's own to_ask questions get their section, and can be answered
+    kb_new "$T/r/pk" <<'EOF'
+uses([project]).
+request(r1, 'Build the export').
+claim(c1, preserve, 'Exports run nightly').
+cites(c1, 'Build the export').
+question(pq1, c1, 'Is a weekly export enough').
+assumed(pq1, no).
+attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
+EOF
+    kb_spec "$T/r/s1" 'Alpha rules' '../pk'
+    srv --root "$T/r" || return; page_ok || return
+    chk asks "$T/page.html" 'Build the export' pq1
+    local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" 'Build the export')
+    post /answer "token=$tok" "kb=$kb" q=pq1 choice=no; code_is 303 "answer a project KB's question"
+    has_goal "$T/r/pk" 'answer(pq1, no, human)' "the project KB has the answer"
+    srv_stop
+}
+
+t_QS23() {  # c9: default terms, option with text, project_kb paths, frame headers
+    kb_new "$T/a" <<'EOF'
+uses([build]).
+request(r1, 'Numbers must stay sane').
+claim(c1, preserve, 'Retries are bounded').
+cites(c1, 'Numbers must stay sane').
+question(q22, c1, 'How many retries').
+assumed(q22, 3).
+question(q23, c1, 'Which region').
+assumed(q23, eu).
+option(q23, us, 'Data moves to the US').
+attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
+EOF
+    srv --dir "$T/a" || return; page_ok || return
+    local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" 'Numbers must stay sane')
+    post /answer "token=$tok" "kb=$kb" q=q22 choice=3; code_is 303 "accept the default 3"
+    has_goal "$T/a" 'answer(q22, 3, human)' "the default is written as the same term"
+    hasnt_goal "$T/a" 'defeated(q22)' "accepting the default is not a defeat"
+    post /answer "token=$tok" "kb=$kb" q=q23 choice=us 'text=only for the pilot'; code_is 303 "an option with text"
+    has_goal "$T/a" 'answer(q23, us, human)' "the option is the answer"
+    has_goal "$T/a" "note(q23, 'only for the pilot')" "the typed text is kept as a note"
+    curl -s -D "$T/hdr" -o /dev/null --max-time 30 "$URL/"
+    grep -Eiq '^X-Frame-Options: *DENY' "$T/hdr" || note "no X-Frame-Options: DENY"
+    grep -Eiq "^Content-Security-Policy:.*frame-ancestors 'none'" "$T/hdr" || note "no CSP frame-ancestors 'none'"
+    srv_stop
+    kb_project "$T/r/pk" 'Build the export'
+    kb_spec "$T/r/s1" 'Alpha rules' '../pk'; kb_spec "$T/r/s2" 'Beta rules' '../pk/'
+    srv --root "$T/r" || return; page_ok || return
+    chk groups "$T/page.html" 'Build the export=Alpha rules,Beta rules'
+    srv_stop
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -474,6 +674,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 17); do run_one QS$n; done
+for n in $(seq 1 23); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
