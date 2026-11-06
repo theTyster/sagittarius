@@ -13,6 +13,7 @@
 #   no external dependency, escaping, page shape                : QV18-QV19
 #   errors, read-only, --out                                    : QV20-QV22
 #   c3 textual (no bare id), fy16 options                       : QV23-QV24
+#   T18 c4: project_conflict and project_kb_unclean items        : QV36-QV37
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -568,6 +569,49 @@ t_QV35() {  # the options note names option facts as a source and says once what
     chk alltext "$T/page.html" 'option facts' 'Other means an answer that is not listed' '!The page invents no options'
 }
 
+# ---- T18 c4: the blocking items of the project module (D23 P5, P8) have the text of show blocking
+# pc_kbs DIR: a project KB DIR/proj where draft dA conflicts with a change of the tracker (p2 is
+# newer than p1, and dA was staged after p1), and a spec KB DIR/spec that pins decision dec1.
+pc_kbs() {
+    local h d; h=$(printf 'x' | sha256sum | cut -d' ' -f1); d=$(printf '%s' 'Orders are sorted by number' | sha256sum | cut -d' ' -f1)
+    kb_new "$1/proj" <<EOF
+uses([project]).
+request(r1, 'Project decisions').
+decision(dec1, 'Orders are sorted by number').
+pin(p1, tracker, 'tracker:ITEM-1', 'sha256:$h', '2026-10-01T09:00:00Z').
+pin(p2, tracker, 'tracker:ITEM-1', 'sha256:$h', '2026-10-03T09:00:00Z').
+concerns(dec1, p1).
+draft(dA, p1, 'Sort orders by their number', '2026-10-02T09:00:00Z').
+EOF
+    kb_new "$1/spec" <<EOF
+uses([build, project]).
+request(r1, 'Keep orders sorted').
+project_kb('../proj').
+claim(c1, preserve, 'Orders keep their number').
+cites(c1, 'Keep orders sorted').
+pins(c1, project, dec1, 'sha256:$d').
+EOF
+}
+# blocking_sentence KB KIND: the text after "- KIND[ ID]: " of the show blocking line of KIND.
+blocking_sentence() { okb --dir "$1" show blocking; printf '%s\n' "$out" | grep -E "^- $2[ :]" | head -n1 | sed -E 's/^- [a-z_]+( [^ :]+)?: //'; }
+t_QV36() {  # a project conflict shows its sentence and the draft text, as show blocking does
+    pc_kbs "$T"
+    local sen; sen=$(blocking_sentence "$T/spec" project_conflict)
+    [ -n "$sen" ] || { note "setup: show blocking has no project_conflict line: $(snip "$out")"; return; }
+    view --dir "$T/spec" || return
+    chk item "$T/page.html" project_conflict dA "has:$sen" 'has:Sort orders by their number'
+    chk alltext "$T/page.html" '!no text is recorded'
+    chk refs "$T/page.html" 1
+}
+t_QV37() {  # a project KB that does not load clean: the page is written, and the item has its sentence
+    pc_kbs "$T"; printf 'this is not (valid.\n' >> "$T/proj/kb.pl"
+    local sen; sen=$(blocking_sentence "$T/spec" project_kb_unclean)
+    [ -n "$sen" ] || { note "setup: show blocking has no project_kb_unclean line: $(snip "$out")"; return; }
+    view --dir "$T/spec" || return
+    chk item "$T/page.html" project_kb_unclean '' "has:$sen"
+    chk alltext "$T/page.html" '!no text is recorded'
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -576,6 +620,6 @@ run_one() {  # run_one ID
     if [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 35); do run_one QV$n; done
+for n in $(seq 1 37); do run_one QV$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
