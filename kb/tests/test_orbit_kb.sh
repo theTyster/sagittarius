@@ -74,7 +74,7 @@
 #   VT  weighted vote: vote attestations, gate, sealed agent vote (D14)    (Discovery module; D14) : VT1-VT10
 #   LG  attest model_result reads the solver log (D18)    (CLI: attest; D18)               : LG1-LG3
 #   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10, D10 follow-up) : PV1-PV12
-#   FU  schema declared on first use, W7, E19 typo guard    (CLI: add, declare; Lint; D22)   : FU1-FU8
+#   FU  schema declared on first use, W7, E19 typo guard    (CLI: add, declare; Lint; D22)   : FU1-FU6 FU8 (FU7 superseded, not run)
 #   RT  retired: declare-attest and depends/2              (D22)                            : RT1-RT3
 #   BL  blocking/1 and show blocking                       (Core and build rules; D22)      : BL1-BL10 BL6b BL8b
 #   PN  pin stamp                                          (CLI: pin; D22)                  : PN1 PN2
@@ -2606,7 +2606,7 @@ run_test t_FU3 FU3 "D22 c3: a first-use name within 2 edits of a declared one (s
 run_test t_FU4 FU4 "D22 c4: a declared predicate keeps its arity and types"
 run_test t_FU5 FU5 "D22 c5: declare adds a doc and types ahead of use"
 run_test t_FU6 FU6 "D22 c5: help says declare is optional"
-run_test t_FU7 FU7 "D22 c3: E19 at edit distance 2, none at distance 3"
+# FU7 is not run: FU8 supersedes it (see the comment above t_FU8).
 run_test t_FU8 FU8 "D22 c3: E19 at edit distance 2, none at distance 3 (each case alone)"
 run_test t_RT1 RT1 "D22 c6: declare-attest is an unknown command"
 run_test t_RT2 RT2 "D22 c6: depends/2 is not a fact kind"
