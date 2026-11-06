@@ -12,8 +12,14 @@ Tests (no network): `python3 -m unittest s1.test_jev -v` from the repo root.
 ## The hook (T07)
 
 `hook.py` is a Claude Code `UserPromptSubmit` hook. For each prompt it asks Jev the questions in
-`questions.json` about `{message: the prompt, recent: the last agent message}`. `recent` has the
-prefix `Agent: ` and is at most 600 characters. It adds one line of context for the agent, for example:
+`questions.json` about `{message: the prompt, recent: the last 3 messages before it}`. `recent`
+is a list, oldest first; each item is `{"role": "you" | "agent", "text": the complete text}`. A
+message is a user prompt or an assistant reply; tool calls, tool results, meta lines and subagent
+lines are not messages; an assistant reply is all the agent text of one turn. `S1_CONTEXT_MESSAGES` raises the count (never below 3). Each text is sent
+whole. Only when the state and the longest question would pass Jev's per-question context (32k
+tokens) are the messages beyond 3 dropped, oldest first, and then the oldest one left is cut from
+its start; the log line then has `"trimmed": true`. No long-context header is sent. Every text is
+redacted. It adds one line of context for the agent, for example:
 
     System 1: work=build (0.83); divergence likely (0.85); effort significant (0.91): consider a shift up; formal tool: prolog (0.72)
 
@@ -69,6 +75,7 @@ Set `S1_OFF=1`: for one session, start it with `S1_OFF=1 claude`; for all sessio
 |---|---|---|
 | `S1_OFF` | unset | `1` (any value but `0`): do nothing |
 | `S1_TIMEOUT` | `4` | seconds for the Jev call |
+| `S1_CONTEXT_MESSAGES` | `3` | messages in `recent` (never below 3) |
 | `S1_QUESTIONS` | `s1/questions.json` | the question set |
 | `S1_REDACT` | `s1/redact.txt` | names to redact |
 | `S1_LOG` | `~/.claude/logs/s1.jsonl` | the log (`jev.py` writes it) |
@@ -77,7 +84,7 @@ Each log line is the `jev.py` record (no key; the state after redaction) plus `s
 `transcript` (the basename of the transcript path).
 When the hook makes no call or prints nothing because of a problem (bad stdin, no
 questions, no key, a timeout, no answers, bad answers), it writes one line with a `skipped`
-reason. `S1_OFF=1` writes nothing. The hook reads only the last 2 MB of the transcript.
+reason. `S1_OFF=1` writes nothing. The hook reads the last 2 MiB of the transcript, and goes back at most 8 MiB until it has the messages.
 
 Tests (no network): `python3 -m unittest s1.test_hook -v` from the repo root. One claim alone:
 `python3 -m unittest s1.test_hook.C3FailOpen -v`.

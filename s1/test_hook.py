@@ -138,8 +138,8 @@ def subprocess_hook(stdin_text, env, fake_spec=None, timeout=20):
 
 
 class C1State(Base):
-    """c1: the state sent is {message: prompt, recent: last agent message <= 600 chars},
-    redacted with the names in redact.txt."""
+    """c1: the state sent is {message: prompt, recent: the last messages} (T20 supersedes the
+    600-character cut of T07 c1), redacted with the names in redact.txt."""
 
     def test_c1_questions_file_is_the_calibrated_set(self):
         with open(os.path.join(HERE, "questions.json")) as f:
@@ -164,8 +164,8 @@ class C1State(Base):
         self.assertEqual(sorted(st), ["message", "recent"])
         self.assertNotIn("zorblax", st["message"].lower())
         self.assertTrue(st["message"].startswith("Looks good. Ask "))
-        self.assertIn("renamed the tab to Reports", st["recent"])
-        self.assertNotIn("acme", st["recent"].lower())
+        self.assertIn("renamed the tab to Reports", texts(st))
+        self.assertNotIn("acme", texts(st).lower())
         self.assertNotIn("acme", fake.calls[0]["body"].decode().lower())
 
     def test_c1_redaction_is_case_insensitive(self):
@@ -187,24 +187,22 @@ class C1State(Base):
         ])
         fake = Fake()
         self.run_hook(fake)
-        recent = fake.state()["recent"]
+        recent = texts(fake.state())  # T20: the last 3 messages, so the older answer is in
         self.assertIn("First part.", recent)
         self.assertIn("Second part.", recent)
-        self.assertNotIn("older", recent)
+        self.assertIn("An older answer.", recent)
         self.assertNotIn("subagent", recent)
 
-    def test_c1_recent_cut_to_600(self):
+    def test_c1_recent_not_cut_to_600(self):  # T20 c2 supersedes T07 c1 (the 600 cut)
         self.write_transcript([entry("assistant", ["x" * 5000], "m3")])
         fake = Fake()
         self.run_hook(fake)
-        recent = fake.state()["recent"]
-        self.assertLessEqual(len(recent), 600)
-        self.assertGreaterEqual(len(recent), 590)
+        self.assertEqual(fake.state()["recent"], [{"role": "agent", "text": "x" * 5000}])
 
     def test_c1_no_transcript_gives_empty_recent(self):
         fake = Fake()
         self.run_hook(fake, raw=self.payload(transcript_path=os.path.join(self.dir, "none.jsonl")))
-        self.assertEqual(fake.state()["recent"], "")
+        self.assertEqual(fake.state()["recent"], [])
 
     def test_c1_missing_redact_file_sends_unredacted(self):
         env = dict(self.env, S1_REDACT=os.path.join(self.dir, "absent.txt"))
@@ -225,7 +223,7 @@ class C1State(Base):
         fake = Fake()
         out = self.run_hook(fake)
         self.assertEqual(len(fake.calls), 1)
-        self.assertEqual(fake.state()["recent"], "")
+        self.assertEqual(fake.state()["recent"], [])
         self.assertEqual(self.context(out), TICKET_LINE)
 
     def test_c1_large_sparse_transcript_reads_only_the_tail(self):
@@ -240,7 +238,7 @@ class C1State(Base):
         self.run_hook(fake)
         took = time.monotonic() - t0
         self.assertLess(took, 0.5, f"took {took:.2f} s")
-        self.assertIn("The newest answer.", fake.state()["recent"])
+        self.assertIn("The newest answer.", texts(fake.state()))
 
     def test_c1_multi_mb_transcript_tail_finds_last_message(self):
         lines = [json.dumps(entry("assistant", ["filler " + "y" * 900], f"f{i}"))
@@ -252,7 +250,11 @@ class C1State(Base):
         t0 = time.monotonic()
         self.run_hook(fake)
         self.assertLess(time.monotonic() - t0, 0.5)
-        self.assertEqual(fake.state()["recent"], "Agent: The last one.")
+        # T20 c9: 6000 agent messages with no prompt between them are one turn, so one reply;
+        # it is trimmed from its start and still ends with the last message
+        last = fake.state()["recent"][-1]
+        self.assertEqual(last["role"], "agent")
+        self.assertTrue(last["text"].endswith("The last one."))
 
     def test_c1_transcript_read_inside_the_timeout(self):
         # review fix 2: a transcript that blocks on read (a FIFO with no writer) must not
@@ -264,6 +266,200 @@ class C1State(Base):
                                   fake_spec={"payload": RECORDED["ticket_example"]}, timeout=8)
         self.assertEqual((p.returncode, p.stdout), (0, ""))
         self.assertLess(took, 3)
+
+
+
+def utext(text):
+    return {"type": "user", "isSidechain": False, "message": {"role": "user", "content": text}}
+
+
+def tool_result(tid, size=10):
+    return {"type": "user", "message": {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": tid, "content": "r" * size}]}}
+
+
+def texts(st):
+    """All the text of recent, joined (for assertions that do not care about the items)."""
+    return "\n".join(m["text"] for m in st["recent"])
+
+
+class T20Context(Base):
+    """T20: the state carries the complete last 3 messages (supersedes T07 c1, the 600 cut)."""
+
+    def conv(self):
+        return [
+            utext("Rename the tab."),
+            entry("assistant", [], "a1", extra_blocks=[{"type": "thinking", "thinking": "hm"}]),
+            entry("assistant", ["I will rename it."], "a1"),
+            entry("assistant", [], "a1", extra_blocks=[{"type": "tool_use", "name": "Bash",
+                                                        "input": {}, "id": "t1"}]),
+            tool_result("t1"),
+            entry("assistant", ["Done: the tab is Reports."], "a2"),
+            entry("assistant", ["A subagent's words."], "s9", sidechain=True),
+            utext("And the menu entry too?"),
+            entry("assistant", ["The menu says Reports as well."], "a3"),
+        ]
+
+    # c1 ------------------------------------------------------------------
+    def test_t20_c9_last_three_messages_oldest_first_a_reply_is_the_whole_turn(self):
+        # T20 c9 (supersedes c1): the agent text of one turn is one reply, whatever its ids
+        self.write_transcript(self.conv())
+        fake = Fake()
+        self.run_hook(fake)
+        st = fake.state()
+        self.assertEqual(sorted(st), ["message", "recent"])
+        self.assertEqual(st["recent"], [
+            {"role": "agent", "text": "I will rename it.\nDone: the tab is Reports."},
+            {"role": "you", "text": "And the menu entry too?"},
+            {"role": "agent", "text": "The menu says Reports as well."}])
+
+    def test_t20_c1_one_message_spread_over_lines_is_one_item(self):
+        self.write_transcript([utext("Go."), entry("assistant", ["First part."], "m2"),
+                               entry("assistant", [], "m2", extra_blocks=[
+                                   {"type": "tool_use", "name": "Read", "input": {}, "id": "t2"}]),
+                               tool_result("t2"),
+                               entry("assistant", ["Second part."], "m2")])
+        fake = Fake()
+        self.run_hook(fake)
+        self.assertEqual(fake.state()["recent"], [
+            {"role": "you", "text": "Go."},
+            {"role": "agent", "text": "First part.\nSecond part."}])
+
+    def test_t20_c1_fewer_than_three_sends_what_exists(self):
+        self.write_transcript([utext("Hello there.")])
+        fake = Fake()
+        self.run_hook(fake)
+        self.assertEqual(fake.state()["recent"], [{"role": "you", "text": "Hello there."}])
+
+    def test_t20_c9_the_new_prompt_is_not_repeated_in_recent(self):
+        self.write_transcript(self.conv() + [utext("Looks good. Ask Zorblax about it.")])
+        fake = Fake()
+        self.run_hook(fake)
+        self.assertEqual([m["text"] for m in fake.state()["recent"]],
+                         ["I will rename it.\nDone: the tab is Reports.", "And the menu entry too?",
+                          "The menu says Reports as well."])
+
+    def test_t20_c9_count_from_env_never_below_three(self):
+        es = []
+        for i in range(4):
+            es += [utext(f"Question {i}."), entry("assistant", [f"Answer {i}."], f"a{i}")]
+        self.write_transcript(es)  # 8 messages
+        for val, n in (("5", 5), ("1", 3), ("x", 3), ("", 3)):
+            fake = Fake()
+            self.run_hook(fake, env=dict(self.env, S1_CONTEXT_MESSAGES=val))
+            self.assertEqual(len(fake.state()["recent"]), n, f"S1_CONTEXT_MESSAGES={val!r}")
+        fake = Fake()
+        self.run_hook(fake, env=dict(self.env, S1_CONTEXT_MESSAGES="5"))
+        self.assertEqual(fake.state()["recent"][0], {"role": "agent", "text": "Answer 1."})
+
+    def test_t20_c1_meta_and_command_lines_are_not_messages(self):
+        self.write_transcript([utext("Real question."),
+                               dict(utext("<local-command-stdout>x</local-command-stdout>"), isMeta=True),
+                               entry("assistant", ["Real answer."], "m1")])
+        fake = Fake()
+        self.run_hook(fake)
+        self.assertEqual([m["text"] for m in fake.state()["recent"]], ["Real question.", "Real answer."])
+
+    # c2 ------------------------------------------------------------------
+    def test_t20_c2_texts_are_sent_whole(self):
+        long = "word " * 4000  # 20000 characters, far past the old 600 cut
+        self.write_transcript([utext("Explain."), entry("assistant", [long.strip()], "m3")])
+        fake = Fake()
+        self.run_hook(fake)
+        self.assertEqual(fake.state()["recent"][-1]["text"], long.strip())
+        self.assertNotIn("trimmed", json.dumps(self.log_lines()[-1]))
+
+    def test_t20_c2_over_budget_drops_extra_then_cuts_oldest_from_start(self):
+        h = hook()
+        big = "B" * (h.CONTEXT_CHARS)  # one message alone fills the budget
+        self.write_transcript([utext("old one"), entry("assistant", ["old two"], "o2"),
+                               utext("start-" + big), entry("assistant", ["middle"], "m"),
+                               utext("newest")])
+        fake = Fake()
+        self.run_hook(fake, env=dict(self.env, S1_CONTEXT_MESSAGES="5"))
+        st = fake.state()
+        self.assertEqual([m["text"] for m in st["recent"]][1:], ["middle", "newest"])
+        self.assertEqual(len(st["recent"]), 3, "the messages beyond 3 are dropped first")
+        first = st["recent"][0]["text"]
+        self.assertTrue(first.endswith("BBBB"), "the cut is at the start of the oldest")
+        self.assertFalse(first.startswith("start-"))
+        q = json.loads(fake.calls[0]["body"])["questions"]
+        longest = max(len(json.dumps(v)) for v in q.values())
+        self.assertLessEqual(len(json.dumps(st)) + longest, h.CONTEXT_CHARS)
+        self.assertTrue(self.log_lines()[-1].get("trimmed"), "the log line says trimmed")
+
+    def test_t20_c2_extra_messages_dropped_before_any_cut(self):
+        h = hook()
+        over = "H" * h.CONTEXT_CHARS  # past the budget alone; it is beyond the last 3
+        self.write_transcript([utext("x1 " + over), entry("assistant", ["x2"], "a"),
+                               utext("x3"), entry("assistant", ["x4"], "b"), utext("x5")])
+        fake = Fake()
+        self.run_hook(fake, env=dict(self.env, S1_CONTEXT_MESSAGES="5"))
+        # x1 is dropped (the oldest beyond 3); then the state fits, so x2 stays and nothing is cut
+        self.assertEqual([m["text"] for m in fake.state()["recent"]], ["x2", "x3", "x4", "x5"])
+
+    def test_t20_c2_no_long_context_header(self):
+        self.write_transcript(self.conv())
+        fake = Fake()
+        self.run_hook(fake)
+        self.assertEqual(sorted(fake.calls[0]["headers"]), ["Authorization", "Content-Type"])
+
+    # c3 ------------------------------------------------------------------
+    def test_t20_c3_read_goes_back_past_two_mib_for_three_messages(self):
+        es = [utext("First, far back."), tool_result("t1", 3 * 1024 * 1024),
+              entry("assistant", ["Second."], "a1"), tool_result("t2", 3 * 1024 * 1024),
+              utext("Third.")]
+        self.write_transcript(es)
+        fake = Fake()
+        self.run_hook(fake)
+        self.assertEqual([m["text"] for m in fake.state()["recent"]], ["First, far back.", "Second.", "Third."])
+
+    def test_t20_c3_read_is_bounded_at_eight_mib(self):
+        with open(self.transcript, "wb") as f:
+            f.write((json.dumps(utext("Beyond the bound.")) + "\n").encode())
+            f.seek(9 * 1024 * 1024)
+            f.write(b"\n" + (json.dumps(utext("Near the end.")) + "\n").encode())
+        fake = Fake()
+        t0 = time.monotonic()
+        self.run_hook(fake)
+        self.assertLess(time.monotonic() - t0, 1.0)
+        self.assertEqual([m["text"] for m in fake.state()["recent"]], ["Near the end."])
+
+    # c4 ------------------------------------------------------------------
+    def test_t20_c4_redaction_covers_every_message(self):
+        self.write_transcript([utext("Ask Acme Widgets."), entry("assistant", ["ZORBLAX said no."], "a"),
+                               utext("And zorblax again?")])
+        fake = Fake()
+        self.run_hook(fake)
+        body = fake.calls[0]["body"].decode().lower()
+        self.assertNotIn("acme", body)
+        self.assertNotIn("zorblax", body)
+        self.assertEqual([m["role"] for m in fake.state()["recent"]], ["you", "agent", "you"])
+        self.assertIn("[redacted]", texts(fake.state()))
+
+    # c5 ------------------------------------------------------------------
+    def test_t20_c5_wording_is_the_conversation_in_recent_and_nothing_else(self):
+        with open(os.path.join(HERE, "questions.json")) as f:
+            now = f.read()
+        self.assertNotIn("given `recent`", now)
+        self.assertIn("the conversation in `recent`", now)
+        old = subprocess.run(["git", "show", "redesign:s1/questions.json"], cwd=ROOT,
+                             capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        if old.returncode == 0 and "given `recent`" in old.stdout:
+            self.assertEqual(now, old.stdout.replace("given `recent`",
+                                                     "given the conversation in `recent`"))
+
+    # c7 ------------------------------------------------------------------
+    def test_t20_c7_readme_and_docstring_say_what_is_sent(self):
+        with open(os.path.join(HERE, "README.md")) as f:
+            readme = f.read()
+        sec = readme.split("## The hook", 1)[1].split("\n## ", 1)[0]
+        doc = hook().__doc__
+        for t in (sec, doc):
+            self.assertIn("last 3 messages", t)
+            self.assertIn("S1_CONTEXT_MESSAGES", t)
+            self.assertIn("trimmed", t)
+            self.assertNotIn("600", t)
 
 
 class C2Output(Base):
