@@ -32,6 +32,10 @@ Ty makes the release. This entry lists what is in the `redesign` branch. The hub
   time (a lock), stale pins, outbound drafts, and a conflict rule: when the tracker and a draft both
   changed after the pin, only a human can pick, and the conflict blocks `done`.
 
+### Not in this release yet
+
+- None.
+
 ### Limits
 
 - The Lean model's `done` has no project-conflict clause and no flare clause. So the Lean proofs
