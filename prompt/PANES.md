@@ -23,6 +23,12 @@ How you work together:
 - Stay in your role. Hand work to the pane that owns it. Do not do it yourself.
 - Hand off through the KB, not through memory. A handoff is a trigger: the receiver runs
   `orbit-kb show open` first.
+- Handoffs in a hub. One procedure, written once here: the sender records one `hubflow handoff`
+  row (`--to ROLE --ref kb:SLUG --note "where to start"`; `hubflow` is
+  `python3 .claude/scripts/hubflow.py`) and tells the receiver with SendMessage, naming the id.
+  The receiver reads its inbox (`hubflow view v_inbox`), accepts the row, follows the item's kb ref
+  (`hubflow where SLUG` prints `specs/SLUG`), and runs `orbit-kb show open` there. The KB holds the
+  state; the row holds who has it.
 - No pane grades its own work. When review's run contradicts build's report, that is a
   divergence. Record it on the claim.
 - The human owns the intent and routes the work. Reach a peer with SendMessage (ListAgents

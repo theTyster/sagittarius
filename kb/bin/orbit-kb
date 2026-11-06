@@ -4841,9 +4841,22 @@ cmd_draft(KB, Args, Code) :-
     parse_opts(Args, [], Pos, _),
     (   Pos == [blocking] -> true
     ;   Pos == [outbound] -> true
-    ;   usage_error("draft takes one subject and nothing else: draft blocking, or draft outbound.", [])
+    ;   Pos == [attach] -> true
+    ;   usage_error("draft takes one subject and nothing else: draft blocking, draft attach, or draft outbound.", [])
     ),
-    (   Pos == [blocking]
+    (   Pos == [attach]
+    ->  % T22 c6 (u93): the file to attach to the tracker item and the line to paste. Nothing is copied or posted.
+        kb_dir(KB, Dir),
+        directory_file_path(Dir, 'kb.pl', KbFile),
+        absolute_file_name(KbFile, Abs),
+        sha256_file(KbFile, Digest),
+        say("## Attach the spec KB to the tracker item", []), nl,
+        say("- File: ~w", [Abs]),
+        say("- Stamp: spec-kb@~w", [Digest]),
+        say("- Paste: Spec KB attached (kb.pl), stamp spec-kb@~w", [Digest]),
+        say("- A human attaches the file to the tracker item and pastes the line. orbit-kb posts nothing.", []),
+        Code = 0
+    ;   Pos == [blocking]
     ->  kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
         answer_gate(KB),
         kb_engine(KB, Eng),
@@ -5908,7 +5921,7 @@ help_lines(general, [
 "  release",
 "  view questions [--dir KB]... [--ledger FILE [--owner KEY]] [--out F]",
 "  serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--port N]",
-"  draft blocking | draft outbound",
+"  draft blocking | draft attach | draft outbound",
 "  pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",
 "  doctor",
 "  help [COMMAND|TOPIC]",
@@ -6142,12 +6155,17 @@ help_lines(pin, [
 ]).
 help_lines(draft, [
 "orbit-kb draft blocking",
+"orbit-kb draft attach",
 "orbit-kb --dir PROJECT draft outbound",
 "",
 "Drafts only: nothing is sent to a tracker, and no command uses a network.",
 "draft blocking prints Markdown: the stamp spec-kb@sha256:HEX of kb.pl, then each item that",
-"blocks done, as show blocking does. Paste it into the ticket. orbit-kb pin --check STAMP",
+"blocks done, as show blocking does; a human pastes it into the ticket. orbit-kb pin --check STAMP",
 "exits 1 once kb.pl has changed. It writes nothing.",
+"draft attach prints the file to attach to the tracker item (the kb.pl of this spec KB, as it is:",
+"a plain file copy, with its spec-kb stamp) and the line to paste. A human attaches the file and",
+"pastes the line. It copies and writes nothing. After a human sends a staged draft, the human (or an",
+"agent that the human told) records pushed(Draft, Time) in the project KB.",
 "draft outbound lists the project KB drafts that are not pushed (needs the project module).",
 "It reads only the KB it runs in, so give the project KB: orbit-kb --dir PROJECT draft outbound."
 ]).

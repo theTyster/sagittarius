@@ -43,6 +43,33 @@ human before you start; this is a one-time merge.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.3.0 (agents know the stores and the workflow)
+
+No schema change. `HUB-CORE.md` is an engine file: merge it by intent (the new sections are "What
+lives where", with its generated store map, and "Panes").
+
+- **Spec KBs live at `specs/<slug>/`.** Intent: a spec KB has the ticket's clock, not the week's.
+  Files: `.claude/scripts/hubflow.py` (`kb:<slug>` resolves to `specs/<slug>`; `where` prints it;
+  the old `W*/analyses/<slug>/kb` form still resolves, and `specs/` wins), `HUB-CORE.md`, both
+  skills. To move an old spec KB: `git mv W<n>/analyses/<slug>/kb specs/<slug>`, then for each item
+  that refers to it, add the new ref and remove the old one (`hubflow.py ref ID add kb:<slug>`, then
+  `ref ID rm kb:<slug>/kb`; an agent is refused on an item whose spec KB blocks, so a human runs
+  the `rm` with `--by human --note`). Leave the other contents of `analyses/` in git history or
+  move them into the project KB. Check: `hubflow.py where <slug>` prints `specs/<slug>`.
+- **The spec KB of a closed ticket is a triage item.** Intent: `rotate` lists
+  `spec_kbs_untriaged:` and exits 1 until `hubflow.py spec-triage SLUG
+  archive|capsule|keep|escalate --note T` records one decision for each. Files: `hubflow.py`,
+  `hub-flow/SKILL.md`, `hub-rotate/SKILL.md`. A hub that changed the rotation steps keeps its own
+  steps and adds the spec KB step before the `rotate --yes` step. Check: `hubflow-test.py`.
+- **The week has no `analyses/` slot.** Intent: a week holds raw reports and transcripts; analyses
+  are written in the project KB. Files: `hub-rotate/SKILL.md`, `HUB-CORE.md`. Owned files: a hub's
+  `CLAUDE.md` should name the project KB and the repos (see the template's "Repos and the project
+  KB") and the sessions that run the panes.
+- **The copy rule, outbound, bespoke tools.** Intent: a pinned copy with a digest is allowed and
+  goes stale on a later pin; an unpinned copy is not; one home per outbound thing; bespoke tools
+  are listed only when other agents can use them, and pruned when unused. Files: `HUB-CORE.md`,
+  `hub-flow/SKILL.md`, `hub-rotate/SKILL.md`, `hubflow.py --help`.
+
 ### 0.2.0 (the flow ledger)
 
 The db schema is 2. **Database:** run `python3 .claude/scripts/hubflow.py migrate`, then `check`.

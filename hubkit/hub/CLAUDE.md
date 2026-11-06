@@ -15,6 +15,11 @@ A root file that is not imported here is invisible. Add the import when you add 
 Tickets live in <YOUR TRACKER: GitHub Issues / Jira / Linear>. Refs in the flow db are
 `issue:<digits>`, `pr:<digits>`, or `url:<url>`.
 
+## Repos and the project KB
+
+<Where the project KB lives (a path), and the repos of the project. The repo map is `kb/bin/repo-map`
+of the Sagittarius checkout: name here how to run it. `HUB-CORE.md` says which store holds what.>
+
 ## Sessions
 
 <One line per role in sessions/ROLES: what it owns, and what it hands to whom.>

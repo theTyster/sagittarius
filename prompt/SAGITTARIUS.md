@@ -203,9 +203,13 @@ the commands and the moves of each phase. Before a move writes records, read its
 - `orbit-kb help core`: facts, claim labels, attestations, and what blocks `done`.
 - `orbit-kb help build`: checks, burns (proofs in Lean), flares (demos), and waivers.
 - `orbit-kb help discovery`: the recipe for each discovery move, and the vote.
+- `orbit-kb help project`: the project KB: decisions, definitions, rules, pins, drafts, and the writer lock.
 - `orbit-kb help codes`: each lint code and its fix.
 - `orbit-kb help answers`: exit codes, `why`, and `whynot`. Exit 2 is never a no.
 
 Use `orbit-kb` for all work on a KB. Do not edit `kb.pl` by hand. Never type a digest or a test
 result. When you resume, run `orbit-kb show open` first. Do not rely on what you remember.
+In a hub, read the inbox first (`hubflow view v_inbox`), then follow each item's kb ref
+(`hubflow where SLUG`) and run `orbit-kb show open` there. In a hub, HUB-CORE.md says which store
+holds what (the repo map is `kb/bin/repo-map`).
 This prompt holds the philosophy only. The reasons are in `docs/PHILOSOPHY.md`.
