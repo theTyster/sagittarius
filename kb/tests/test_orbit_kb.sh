@@ -74,7 +74,7 @@
 #   VT  weighted vote: vote attestations, gate, sealed agent vote (D14)    (Discovery module; D14) : VT1-VT10
 #   LG  attest model_result reads the solver log (D18)    (CLI: attest; D18)               : LG1-LG3
 #   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10, D10 follow-up) : PV1-PV12
-#   FU  schema declared on first use, W7, E19 typo guard    (CLI: add, declare; Lint; D22)   : FU1-FU7
+#   FU  schema declared on first use, W7, E19 typo guard    (CLI: add, declare; Lint; D22)   : FU1-FU8
 #   RT  retired: declare-attest and depends/2              (D22)                            : RT1-RT3
 #   BL  blocking/1 and show blocking                       (Core and build rules; D22)      : BL1-BL10 BL6b BL8b
 #   PN  pin stamp                                          (CLI: pin; D22)                  : PN1 PN2
@@ -2230,6 +2230,19 @@ t_FU7() { K=$T/k; kb_init "$K" build
           okb --dir "$K" lint; rc_is 1 "edit distance 2 is an error"
           out_has '^E19 .*colr_ov/2.*color_of/2' "colr_ov is 2 edits from color_of"
           out_hasnt '^E19 .*clr_ov/2' "clr_ov is 3 edits from color_of: no finding"; }
+# FU8 replaces FU7, which is wrong and stays as committed: in FU7, colr_ov/2 and clr_ov/2 are
+# both new, and they are 1 edit apart, so E19 correctly names clr_ov/2 against colr_ov/2.
+# FU8 puts each case in its own KB.
+t_FU8() { K=$T/k; kb_init "$K" build
+          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          oadd 'colr_ov(widget1, blue)'; rc_is 0 "add"
+          okb --dir "$K" lint; rc_is 1 "edit distance 2 is an error"
+          out_has '^E19 .*colr_ov/2.*color_of/2' "colr_ov is 2 edits from color_of"
+          K=$T/k2; kb_init "$K" build
+          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          oadd 'clr_ov(widget1, blue)'; rc_is 0 "add"
+          okb --dir "$K" lint; rc_is 0 "distance 3: no error"
+          out_hasnt '^E19' "clr_ov is 3 edits from color_of: no finding"; }
 # CONTRACT keeps the history of the cut: a line that says the item was retired or removed is
 # exempt (the D22 entry names both items there). Every other line must not name them.
 t_RT3() { local f t; f=$LIB/../../CONTRACT.md
@@ -2594,6 +2607,7 @@ run_test t_FU4 FU4 "D22 c4: a declared predicate keeps its arity and types"
 run_test t_FU5 FU5 "D22 c5: declare adds a doc and types ahead of use"
 run_test t_FU6 FU6 "D22 c5: help says declare is optional"
 run_test t_FU7 FU7 "D22 c3: E19 at edit distance 2, none at distance 3"
+run_test t_FU8 FU8 "D22 c3: E19 at edit distance 2, none at distance 3 (each case alone)"
 run_test t_RT1 RT1 "D22 c6: declare-attest is an unknown command"
 run_test t_RT2 RT2 "D22 c6: depends/2 is not a fact kind"
 run_test t_RT3 RT3 "D22 c6: CONTRACT and the help topics do not name the cut items"
