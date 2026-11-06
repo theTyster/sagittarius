@@ -1889,6 +1889,55 @@ def case_t22_closed_spec(r, root):
     r.check("t22-c4-jsonl-in-sync", hf(r, d, "check")[0] == 0 and out_of_sync(d) == [])
 
 
+def no_orbit_kb_path():
+    """PATH without any directory that holds an orbit-kb (T24: the informal release has no orbit-kb)."""
+    keep = [x for x in os.environ.get("PATH", "").split(os.pathsep) if x and not os.path.exists(os.path.join(x, "orbit-kb"))]
+    return os.pathsep.join(keep)
+
+
+def case_t24_no_orbit_kb(r, root):
+    """T24 c2: without orbit-kb (HUBFLOW_ORBIT_KB unset, no orbit-kb on PATH) triage, escalation, rotate
+    and check do what HUB-CORE.md "Without orbit-kb" says. Nothing blocks from a spec KB; a kb ref is
+    still fail-safe blocking."""
+    path = no_orbit_kb_path()
+    r.check("t24-c2-no-orbit-kb-on-path", shutil.which("orbit-kb", path=path) is None, path)
+    h = os.path.join(root, "informalhub")
+    os.makedirs(os.path.join(h, "W0"))
+    d = fresh(r, root, "t24-informal")
+    env = {"PATH": path}  # hf() drops every HUBFLOW_* variable, so HUBFLOW_ORBIT_KB is unset
+
+    def t(*args, **kw):
+        return hf(r, d, *args, hub=h, extra_env=env, **kw)
+
+    add(r, d, "ask", "Due, nobody needs it", now=DUE)  # A-1
+    add(r, d, "ask", "Due, still needed", now=DUE)  # A-2
+    add(r, d, "ask", "Due, only the human can decide", now=DUE)  # A-3
+    add(r, d, "ask", "Due, has a kb ref", "--ref", "kb:old-spec", now=DUE)  # A-4
+    code, out, err = t("rotate", "--week-start", WK, session=None)
+    r.check("t24-c2-rotate-lists-due-items", refused((code, out, err), 1, "disposition")
+            and listed(out, "untriaged:") == ["A-0001", "A-0002", "A-0003", "A-0004"], (code, out, err))
+    res = t("triage", "A-0001", "lapse", "--note", "nobody asked again")
+    r.check("t24-c2-agent-lapse-works", res[0] == 0 and status(d, "A-0001") == "lapsed" and disp(d, "A-0001")[-1][:2] == ("lapse", None), res)
+    res = t("triage", "A-0002", "keep", "--note", "still needed")
+    r.check("t24-c2-agent-keep-works", res[0] == 0 and status(d, "A-0002") == "open" and disp(d, "A-0002")[-1][:2] == ("keep", None), res)
+    res = t("triage", "A-0003", "escalate", "--note", "only the human can decide")
+    r.check("t24-c2-escalate-stays-open", res[0] == 0 and status(d, "A-0003") == "open" and disp(d, "A-0003")[-1][0] == "escalate", res)
+    res = t("triage", "A-0004", "lapse", "--note", "looks idle")
+    r.check("t24-c2-kb-ref-without-orbit-kb-is-blocking", res[0] == 0 and status(d, "A-0004") == "open"
+            and disp(d, "A-0004")[-1][:2] == ("escalate", "lapse") and "treated as blocking" in res[1] + res[2], res)
+    code, out, err = t("rotate", "--week-start", WK, session=None)
+    r.check("t24-c2-rotate-lists-escalated", code == 0 and listed(out, "untriaged:") == []
+            and listed(out, "escalated:") == ["A-0003", "A-0004"] and listed(out, "spec_kbs_untriaged:") in ([], None), (code, out, err))
+    code, out, err = t("view", "escalated", "--format", "json")
+    r.check("t24-c2-view-escalated", code == 0 and ids(out) == ["A-0003", "A-0004"], (code, out, err))
+    code, out, err = t("rotate", "--week-start", WK, "--yes")
+    r.check("t24-c2-rotate-yes", code == 0 and status(d, "A-0003") == "open" and status(d, "A-0002") == "open", (code, out, err))
+    res = t("triage", "A-0004", "lapse", "--by", "human", "--note", "\"drop it\" (Me)")
+    r.check("t24-c2-human-lapses-kb-ref-item", res[0] == 0 and status(d, "A-0004") == "lapsed", res)
+    code, out, err = t("check")
+    r.check("t24-c2-check-exit-0", code == 0, (code, out, err))
+
+
 def run_case(r, fn, *args):
     """Run one scenario. A scenario that cannot even run is a failure, not a crash, and the
     scenarios after it still run."""
@@ -1949,6 +1998,8 @@ def cases(r):
         run_case(r, case_t22_spec_home, root)
         run_case(r, case_t22_rotate_open_spec, root)
         run_case(r, case_t22_closed_spec, root)
+        # T24: the informal release (no orbit-kb)
+        run_case(r, case_t24_no_orbit_kb, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))
