@@ -939,6 +939,18 @@ loads the syntax when a move needs it. The agent prompt
 command, and tells the agent to run `orbit-kb help`. Test HP4 to HP6 check
 the topics. Exit: 0. An unknown name exits 2.
 
+### `view questions [--dir KB]... [--ledger FILE] [--out F]`
+
+Writes one self-contained HTML page (D24): for each KB a section named by its
+pin stamp, with each blocking item (a question to ask, with its default, its
+options, the claim it blocks, and the request text the claim cites), and, with
+`--ledger FILE`, the owner's asks and their age. The ledger file is a JSON array
+of objects with `id`, `kind`, `title`, `status`, `waits_on` and `age_days`; make it
+with `hubflow sql "SELECT id, kind, title, status, waits_on, age_days FROM v_open"
+--format json`. Every KB id on the page sits next to its text. The options of a
+question come from the KB's defaults: the default, an agent's answer, and other.
+The view reads only. Exit 2 for a usage error, an unreadable KB, or a bad ledger file.
+
 ### `pin [--check STAMP]`
 
 Prints one line: `spec-kb@sha256:HEX TIME`. HEX is the sha256 of `kb.pl`, which

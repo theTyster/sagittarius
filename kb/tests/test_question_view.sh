@@ -234,7 +234,11 @@ uses([build]).
 request(r1, 'Keep the lights on').
 claim(c1, preserve, 'The service stays up').
 cites(c1, 'Keep the lights on').
+check(k1, c1).
 EOF
+    mkdir -p "$1/runs"
+    printf '%% orbit-kb run 1 check=k1 result=pass exit=0 time=2026-10-15T10:00:01Z cmd=true\n' > "$1/runs/1-k1.log"
+    printf "attest(t1, test_result, k1, result(k1, 1, pass), script, '2026-10-15T10:00:01Z').\n" >> "$1/kb.pl"
 }
 ledger_json() { cat > "$1" <<'EOF'
 [

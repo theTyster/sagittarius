@@ -131,7 +131,7 @@ orbit_state_path(Script, State) :-
 :- autoload(library(readutil), [read_file_to_string/3, read_line_to_string/2]).
 :- autoload(library(process), [process_create/3, process_wait/2, process_kill/2]).
 :- autoload(library(filesex), [directory_file_path/3, make_directory_path/1, link_file/3]).
-:- autoload(library(http/json), [json_read_dict/2]).
+:- autoload(library(http/json), [json_read_dict/2, json_read_dict/3]).
 :- autoload(library(time), [call_with_time_limit/2]).
 :- autoload(library(ugraphs), [vertices_edges_to_ugraph/3, transitive_closure/2]).
 
@@ -436,6 +436,12 @@ kb_command(whynot).
 kb_command(show).
 kb_command(report).
 
+top(Argv0, Code) :-
+    take_dirs(Argv0, Dirs, [view|ViewArgs]), !,
+    (   member(Arg, ViewArgs), memberchk(Arg, ['--help', '-h'])
+    ->  cmd_help([view], Code)
+    ;   cmd_view(Dirs, ViewArgs, Code)
+    ).
 top(Argv0, Code) :-
     take_dir(Argv0, DirOpt, Argv),
     (   Argv == []
@@ -2649,6 +2655,212 @@ pin_stamp_ok(A) :-
     atom_length(Hex, 64),
     atom_codes(Hex, Cs),
     forall(member(C, Cs), ( between(0'0, 0'9, C) ; between(0'a, 0'f, C) )).
+
+% ---------------------------------------------------------------------
+% view questions (D24)
+% ---------------------------------------------------------------------
+% orbit-kb view questions [--dir KB]... [--ledger FILE] [--out F]: one
+% static HTML page of what blocks done in each KB (with its pin stamp)
+% and of the owner's asks from a JSON export of the flow ledger. It
+% reads only. It takes no lock and writes no KB file.
+
+take_dirs([], [], []).
+take_dirs(['--'|As], [], ['--'|As]) :- !.
+take_dirs(['--dir', D|As], [D|Ds], Rest) :- !, take_dirs(As, Ds, Rest).
+take_dirs(['--dir'], _, _) :- !, usage_error("The option --dir needs a directory.", []).
+take_dirs([A|As], Ds, Rest) :-
+    sub_atom(A, 0, _, _, '--dir='), !,
+    sub_atom(A, 6, _, 0, D),
+    Ds = [D|Ds1], take_dirs(As, Ds1, Rest).
+take_dirs([A|As], Ds, [A|Rest]) :- take_dirs(As, Ds, Rest).
+
+cmd_view(Dirs0, Args, Code) :-
+    parse_opts(Args, ['--ledger'-value, '--out'-value], Pos, Opts),
+    (   Pos == [] -> usage_error("view needs a view name: orbit-kb view questions [--dir KB]... [--ledger FILE] [--out F].", [])
+    ;   Pos == [questions] -> true
+    ;   usage_error("view takes the one view name questions.", [])
+    ),
+    (   memberchk('--ledger'-LF, Opts) -> view_ledger(LF, Asks), Led = some(Asks) ; Led = none ),
+    (   Dirs0 == [] -> resolve_kb(none, D0), Dirs = [D0]
+    ;   maplist([D, R]>>resolve_kb(some(D), R), Dirs0, Dirs)
+    ),
+    lib_dir(Lib),
+    maplist(view_kb_section(Lib), Dirs, Secs),
+    atomic_list_concat(Secs, '\n', SecsText),
+    view_ledger_section(Led, LedText),
+    view_css(Css),
+    format(string(Page),
+"<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+<meta charset=\"utf-8\">
+<title>Open questions</title>
+<style>~w</style>
+</head>
+<body>
+<h1>Open questions</h1>
+<p class=\"options-note\">The options of a question come from the KB's defaults: its default answer, an answer that an agent recorded, and other. The page invents no options.</p>
+~w
+~w
+</body>
+</html>
+", [Css, SecsText, LedText]),
+    (   memberchk('--out'-Out, Opts)
+    ->  absolute_file_name(Out, Abs),
+        catch(write_atomic(Abs, Page), E,
+              ( err_text(E, M),
+                die(2, ["Cannot write the page " + Abs + ": " + M,
+                        "Fix: give a path in a directory that exists and that you can write."] >> fix_lines) ))
+    ;   set_stream(user_output, encoding(utf8)),
+        write(Page)
+    ),
+    Code = 0.
+
+view_css("body{font-family:sans-serif;max-width:60em;margin:2em auto;padding:0 1em;line-height:1.4}section{border:1px solid #888;border-radius:6px;padding:.5em 1em;margin:1em 0}li.item,li.ask{margin:.8em 0;padding:.4em;border-left:4px solid #888;list-style:none}.ref .kbid{font-family:monospace;color:#555}.default,.age{font-weight:bold}.stamp{font-family:monospace;font-size:.8em;word-break:break-all}").
+
+view_ledger(File, Asks) :-
+    (   exists_file(File) -> true
+    ;   usage_error("The ledger file ~w does not exist.", [File])
+    ),
+    catch(setup_call_cleanup(open(File, read, S, [encoding(utf8)]),
+                             json_read_dict(S, J, [null(null)]),
+                             close(S)),
+          E, ( err_text(E, M), usage_error("The ledger file ~w is not valid JSON: ~w", [File, M]) )),
+    (   is_list(J) -> true
+    ;   usage_error("The ledger file ~w must hold one JSON array of objects.", [File])
+    ),
+    forall(nth1(I, J, X), view_ledger_row(File, I, X)),
+    findall(X, ( member(X, J), X.kind == "ask", memberchk(X.status, ["open", "waiting"]), X.waits_on == null ), Asks).
+
+view_ledger_row(File, I, X) :-
+    (   is_dict(X) -> true ; usage_error("Ledger ~w, item ~w: not an object.", [File, I]) ),
+    forall(member(K, [id, kind, title, status]),
+           (   get_dict(K, X, V), string(V) -> true
+           ;   usage_error("Ledger ~w, item ~w: the key ~w is missing or is not a string.", [File, I, K])
+           )),
+    (   get_dict(waits_on, X, W), ( W == null ; string(W) ) -> true
+    ;   usage_error("Ledger ~w, item ~w: waits_on must be a string or null.", [File, I])
+    ),
+    (   get_dict(age_days, X, Age), integer(Age), Age >= 0 -> true
+    ;   usage_error("Ledger ~w, item ~w: age_days must be a whole number, 0 or more.", [File, I])
+    ).
+
+view_ledger_section(none, "").
+view_ledger_section(some(Asks), Text) :-
+    findall(L, ( member(X, Asks), view_ask_html(X, L) ), Ls),
+    (   Ls == [] -> Body = "<p>No ask waits on the owner.</p>"
+    ;   atomic_list_concat(Ls, '\n', B0), format(string(Body), "<ul>\n~w\n</ul>", [B0])
+    ),
+    format(string(Text), "<section class=\"ledger\">\n<h2>Asks that wait on you</h2>\n~w\n</section>", [Body]).
+
+view_ask_html(X, L) :-
+    esc(X.id, Id), esc(X.title, T), esc(X.age_days, Age),
+    format(string(L), "<li class=\"ask\" data-id=\"~w\"><span class=\"title\">~w</span> <span class=\"age\">~w days</span></li>", [Id, T, Age]).
+
+view_kb_section(Lib, Dir, Html) :-
+    load_kb(Dir, Lib, KB),
+    answer_gate(KB),
+    directory_file_path(Dir, 'kb.pl', KbFile),
+    sha256_file(KbFile, Digest),
+    atom_concat('spec-kb@', Digest, Stamp),
+    esc(Stamp, StampH),
+    kb_engine(KB, Eng),
+    eng_all(Eng, [X], blocking(X), Xs),
+    (   Xs == [] -> Body = "<p>Nothing blocks done.</p>"
+    ;   maplist(view_item_html(Eng), Xs, Is),
+        atomic_list_concat(Is, '\n', B0),
+        format(string(Body), "<ul class=\"items\">\n~w\n</ul>", [B0])
+    ),
+    format(string(Html), "<section class=\"kb\" data-stamp=\"~w\">\n<h2>Knowledge base <span class=\"stamp\">~w</span></h2>\n~w\n</section>", [StampH, StampH, Body]).
+
+view_ref(Id, Text, Html) :-
+    esc(Id, I), esc(Text, T),
+    format(string(Html), "<span class=\"ref\"><span class=\"kbid\">~w</span> <span class=\"kbtext\">~w</span></span>", [I, T]).
+
+% view_xtext(+Eng, +X, -Text): the text of a claim, a question, or a change; of a check, the text of its claim.
+view_xtext(Eng, X, T) :-
+    (   eng_all(Eng, [T0], claim(X, _, T0), [T1|_]) -> txt(T1, T)
+    ;   eng_all(Eng, [T0], question(X, _, T0), [T1|_]) -> txt(T1, T)
+    ;   eng_all(Eng, [C], check(X, C), [C1|_]), eng_all(Eng, [T0], claim(C1, _, T0), [T1|_]) -> txt(T1, T)
+    ;   eng_all(Eng, [T0], change(X, T0), [T1|_]) -> txt(T1, T)
+    ;   T = "(no text is recorded)"
+    ).
+
+% view_xclaim(+Eng, +X, -C): the claim that item X blocks, when it has one.
+view_xclaim(Eng, X, C) :-
+    (   eng_all(Eng, [], claim(X, _, _), [_|_]) -> C = X
+    ;   eng_all(Eng, [C0], question(X, C0, _), [C1|_]) -> C = C1
+    ;   eng_all(Eng, [C0], check(X, C0), [C1|_]) -> C = C1
+    ).
+
+view_kind_label(to_ask, "Question to ask").
+view_kind_label(supersede_cycle, "Claim that replaces itself").
+view_kind_label(past_due, "Past due").
+view_kind_label(under, "Claim not fulfilled").
+view_kind_label(over, "Change that serves no claim").
+view_kind_label(burn_open, "Claim that needs a Lean proof").
+view_kind_label(flare_open, "Claim that needs an approved demo").
+view_kind_label(no_claim, "No current claim").
+view_kind_label(check_failing, "Check that failed").
+view_kind_label(check_unrun, "Check that never ran").
+view_kind_label(waiver_lapsed, "Waiver that lapsed").
+
+view_item_html(Eng, Item, Html) :-
+    (   Item == no_claim -> Kind = no_claim, Id = ''
+    ;   Item =.. [Kind, Id]
+    ),
+    (   view_kind_label(Kind, Label) -> true ; Label = "Blocking item" ),
+    % the subject: its text, and the claim it blocks
+    (   Kind == waiver_lapsed
+    ->  (   eng_all(Eng, [X, R], attest(Id, waiver, _, waive(X, _, R), _, _), [[X1, R1]|_])
+        ->  txt(R1, T0), ( T0 == '' -> view_xtext(Eng, X1, Text) ; Text = T0 ),
+            ( view_xclaim(Eng, X1, Cl) -> true ; true )
+        ;   Text = "(a waiver)"
+        )
+    ;   Kind == no_claim
+    ->  Text = "No claim is current. Add a claim."
+    ;   view_xtext(Eng, Id, Text),
+        ( view_xclaim(Eng, Id, Cl) -> true ; true )
+    ),
+    (   Kind == no_claim -> Ref = ""
+    ;   view_ref(Id, Text, Ref0), format(string(Ref), " ~w", [Ref0])
+    ),
+    (   Kind == no_claim -> Plain = Text ; Plain = "" ),
+    esc(Label, LabelH), esc(Plain, PlainH),
+    esc(Kind, KindH), esc(Id, IdH),
+    (   nonvar(Cl)
+    ->  eng_all(Eng, [CT], claim(Cl, _, CT), [CT1|_]), txt(CT1, CTT),
+        view_ref(Cl, CTT, ClRef),
+        format(string(Blocks), "<p>Blocks: <span class=\"blocks\">~w</span></p>", [ClRef]),
+        eng_all(Eng, [Cite], cites(Cl, Cite), Cites),
+        findall(S, ( member(Ci, Cites), esc(Ci, CiH),
+                     format(string(S), "<blockquote class=\"cited\">~w</blockquote>", [CiH]) ), CiS),
+        atomic_list_concat(CiS, '', CitedH)
+    ;   Blocks = "", CitedH = ""
+    ),
+    (   Kind == to_ask -> view_question_html(Eng, Id, QHtml) ; QHtml = "" ),
+    format(string(Html), "<li class=\"item\" data-kind=\"~w\" data-id=\"~w\">\n<p>~w:~w~w</p>\n~w\n~w\n~w\n</li>",
+           [KindH, IdH, LabelH, Ref, PlainH, Blocks, CitedH, QHtml]).
+
+% The default and the options of a question (D24 C7): the default, an answer by an agent, and other.
+view_question_html(Eng, Q, Html) :-
+    (   eng_all(Eng, [A], assumed(Q, A), [A1|_]) -> plain_text(A1, Def) ; Def = none ),
+    ( nonvar(Def), Def \== none -> HasDef = true ; HasDef = false ),
+    esc(Def, DefH),
+    format(string(DefLine), "<p>Default: <span class=\"default\">~w</span></p>", [DefH]),
+    eng_all(Eng, [A2, By], answer(Q, A2, By), Ans),
+    findall(AT, ( member([A3, By3], Ans), By3 \== human, plain_text(A3, AT), ( HasDef == false ; AT \== Def ) ), Ats0),
+    list_to_set(Ats0, Ats),
+    findall(L, ( HasDef == true, view_option("default", Def, L) ), DL),
+    findall(L, ( member(AT, Ats), view_option("answer", AT, L) ), AL),
+    view_option("other", "other", OL),
+    append([DL, AL, [OL]], Os),
+    atomic_list_concat(Os, '\n', OsT),
+    format(string(Html), "~w\n<ul class=\"options\">\n~w\n</ul>", [DefLine, OsT]).
+
+view_option(Src, Text, L) :-
+    esc(Text, T),
+    format(string(L), "<li class=\"option\" data-source=\"~w\">~w</li>", [Src, T]).
 
 % ---------------------------------------------------------------------
 % subject
@@ -4917,6 +5129,7 @@ help_lines(general, [
 "  show [claims|questions|open|blocking|disclosures|extensions|all]",
 "  report [--html FILE [--open]]",
 "  pin [--check STAMP]",
+"  view questions [--dir KB]... [--ledger FILE] [--out F]",
 "  doctor",
 "  help [COMMAND|TOPIC]",
 "",
@@ -5094,6 +5307,19 @@ help_lines(show, [
 "blocking lists each answer of orbit-kb query 'blocking(X)' with its text: each item that blocks done.",
 "The kinds: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X), check_failing(K), check_unrun(K),",
 "waiver_lapsed(W), past_due(X) (an open item with a due/2 time in the past), supersede_cycle(C), no_claim."
+]).
+help_lines(view, [
+"orbit-kb view questions [--dir KB]... [--ledger FILE] [--out F]",
+"",
+"Write one HTML page, with no external dependency, of what blocks done in each KB:",
+"each question to ask, with its text, its default, the claim it blocks, and the request text",
+"that the claim cites, then the other blocking items. Each KB has its own section, named by its",
+"pin stamp (spec-kb@sha256:HEX). The options of a question come from the KB's defaults.",
+"--dir may repeat. --ledger FILE: a JSON export of the flow ledger; the page lists the asks that",
+"wait on the owner, with their age. Make it with: hubflow sql \"SELECT id, kind, title, status,",
+"waits_on, age_days FROM v_open\" --format json > asks.json",
+"--out F writes the page to F; without it the page goes to stdout. The view reads only.",
+"Exit 2 for a usage error, a KB that cannot be read, or a bad ledger file."
 ]).
 help_lines(pin, [
 "orbit-kb pin [--check STAMP]",
