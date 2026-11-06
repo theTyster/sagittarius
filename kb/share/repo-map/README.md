@@ -1,17 +1,21 @@
 # repo-map
 
 `kb/bin/repo-map` writes the C4 map of one repo, at level C1 (system context) and level C2
-(containers), as Mermaid diagrams in Markdown. It is a separate tool from `orbit-kb`: it has no
+(containers), as Mermaid diagrams in Markdown. On request it writes level C3 (components) for one
+container (ticket T29 c8: C3 "occasionally", u60). It is a separate tool from `orbit-kb`: it has no
 `CONTRACT.md` entry. Its tests are `kb/tests/test_repo_map.sh`. Ticket T12 (claims c1 to c3).
 The only engine is SWI-Prolog. It reads two files as data, runs nothing from them, and uses no
 network.
 
 ```sh
 kb/bin/repo-map --facts KB_PL --containers CONTAINERS_PL [--level c1|c2|both] [--strict]
+kb/bin/repo-map --facts KB_PL --containers CONTAINERS_PL --level c3 --container ID [--strict]
 ```
 
 Exit 0 and Markdown on stdout. Exit 2 on a usage error: a missing or unreadable file, an unknown
-argument, a `--level` that is not `c1`, `c2` or `both`, or a containers file with no `repo/1` fact.
+argument, a `--level` that is not `c1`, `c2`, `c3` or `both`, a containers file with no `repo/1`
+fact, `--level c3` without `--container`, `--container` with another level, or a `--container` ID
+that has no `container/4` fact. `both` is C1 and C2; C3 is written only with `--level c3`.
 
 ## Bad input
 
@@ -39,7 +43,8 @@ argument, a `--level` that is not `c1`, `c2` or `both`, or a containers file wit
 | `person(Id, Label, Text)` | A person. |
 | `external(Id, Label, Text)` | A system that is not a repo (for example a tool). |
 | `container(Id, Label, Technology, Text)` | A container of this repo. |
-| `link(From, To, Label)` | A link. The ends are person, container, repo or external ids. A link from a container shows at C1 as a link from this repo. |
+| `component(Id, Container, Label, Technology, Text)` | A component of a container of this repo (C3 only). |
+| `link(From, To, Label)` | A link. The ends are person, container, component, repo or external ids. A link from a container shows at C1 as a link from this repo. A link that has a component at one end shows only at C3. |
 
 The example facts are `example-kb.pl`.
 
@@ -51,6 +56,11 @@ The example facts are `example-kb.pl`.
   `System_Ext`), the externals, and the links lifted to the repo level.
 - C2: the containers in a `Container_Boundary`; the persons, repos and externals that a link
   touches; the links.
+- C3 (`--level c3 --container ID`): a `C4Component` diagram, in place of C1 and C2, under the
+  heading `## C3 Components of ID`. The components of container ID in a `Container_Boundary`; the
+  links that have a component of ID at one end (each one once); and the other end of each such
+  link: a person, a container (`Container`), a component of another container
+  (`Component_Ext`), a repo or an external (`System_Ext`).
 - Facts that the diagrams do not need are not printed. An end of a link that is not declared is
   dropped from C2 and C1.
 
@@ -73,5 +83,5 @@ commit to a tracker.
 ## Limits
 
 The Mermaid is checked for structure by the tests (fences, diagram type, known C4 keywords,
-balanced parentheses, quotes and braces). It is not rendered by any Mermaid version. C3 is not
-written.
+balanced parentheses, quotes and braces). It is not rendered by any Mermaid version. C3 covers
+one container at a time; C4 (code) is not written.

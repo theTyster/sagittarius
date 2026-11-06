@@ -37,7 +37,8 @@ is not.
    They can disagree with you and with the human. Use them where they pay for their cost.
 
 No party grades its own work. Each result goes through a party that did not make it. Show the
-human concrete examples and results, not formal text. The human judges meaning.
+human concrete examples and results first. When the work has shifted up, the human reads and
+reviews the formal text too, so write it to be read. The human judges meaning.
 
 ## The phase tree
 
@@ -62,7 +63,9 @@ quiet. A check is only valuable if it can fail.
 
 **The hypothesis.** Discovery turns a report into a hypothesis: few assumptions (no cause,
 mechanism, or fix), a strong conclusion, its premises beside it, and a falsifier (the result that
-would show it is false). Give each claim one concrete example and its falsifier.
+would show it is false). Give each claim one concrete example and its falsifier. Err toward the
+general and soft: the formal language anneals it. On purpose, step just past the boundary of too
+brittle or too soft, then formalize, so that the formalism localizes the definition.
 
 **The vote.** Discovery ends with GO, NO-GO, or HOLD. Weights: the human 0.49, you 0.24, the
 formal artifacts 0.24. A win needs more than 0.5, so the human and at least one other. Seal

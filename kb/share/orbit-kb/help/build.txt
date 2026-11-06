@@ -7,6 +7,8 @@ Facts
   visual(Claim)         a human must see the claim to judge it (a look, a layout, a name);
                         mark it at DECOMPOSE, or when the human asks to see it
   demo(Subject, Claim)  a screenshot or a recording (orbit-kb subject) shows the claim
+  ac(Claim)             the claim is an acceptance criterion (AC) of the ticket. It changes no
+                        rule: show blocking and draft blocking name an unmet AC as such
   conformance(Check)    an optional check that runs the code against the Lean model
 
 Attestation types

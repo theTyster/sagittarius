@@ -25,6 +25,11 @@ decl(fact, burn_requested(ref(claim)),
 decl(fact, visual(ref(claim)),
      'A human must see the claim to judge it: a look, a layout, a name, or another preference.',
      'claim @(1) is visual: a human must see it').
+% D29 (ticket T29 c7, u93): an acceptance criterion of the ticket is a claim marked ac/1. It changes
+% no rule: show blocking and draft blocking name an unmet one as such.
+decl(fact, ac(ref(claim)),
+     'The claim is an acceptance criterion (AC) of the ticket.',
+     'claim @(1) is an acceptance criterion of the ticket').
 decl(fact, demo(ref(subject), ref(claim)),
      'The subject, a screenshot or a recording, shows the claim to a human.',
      'subject @(1) is a demo of claim @(2)').

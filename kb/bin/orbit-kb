@@ -4803,7 +4803,11 @@ blocking_line(KB, Eng, past_due(X), S) :- !,
     item_text(Eng, X, T0), opt_change_text(KB, Eng, X, T0, T),
     fmt(S, "- past_due ~w: ~w was due at ~w, and it is still open: ~w", [X, X, DT, T]).
 blocking_line(_, Eng, under(C), S) :- !,
-    item_text(Eng, C, T), fmt(S, "- under ~w: claim ~w is current but not fulfilled: ~w", [C, C, T]).
+    item_text(Eng, C, T),
+    (   eng_true(Eng, ac(C))   % D29: an unmet acceptance criterion is named as such
+    ->  fmt(S, "- under ~w: acceptance criterion ~w is not met (claim ~w is current but not fulfilled): ~w", [C, C, C, T])
+    ;   fmt(S, "- under ~w: claim ~w is current but not fulfilled: ~w", [C, C, T])
+    ).
 blocking_line(KB, Eng, over(X), S) :- !,
     opt_change_text(KB, Eng, X, '', T), fmt(S, "- over ~w: change ~w serves no claim: ~w", [X, X, T]).
 blocking_line(_, Eng, burn_open(C), S) :- !,

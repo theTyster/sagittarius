@@ -68,7 +68,7 @@ timeline = '''  <figure class="diagram">
 '''
 
 # ---- the slides ---------------------------------------------------------------------------
-N = 10
+N = 13
 def head(n, icon, part):
     return f'  <div class="num"><svg class="ic"><use href="#{icon}"/></svg>{n} of {N} · {part}</div>\n'
 
@@ -77,6 +77,7 @@ slides.append(head(1, 'i-target', 'The problem') + '''  <h1>The wrong-spec probl
   <p class="big">An agent can build <em>exactly</em> what it was told, and still build the wrong thing.</p>
   <p>An <strong>agent</strong> is an AI that does the work, such as <a href="https://claude.com/claude-code">Claude Code</a>. A <strong>spec</strong> is what it builds from: the request, the ticket, and the tests.</p>
 ''' + tiles_s1 + '''  <p>The human is the source of intent. <mark>The human is not always the source of clarity.</mark></p>
+  <p class="muted">Written for people who work with formal methods and AI. You are expected to read Prolog and Lean: after a shift up, the human, the agent and the machine all work in the formal text.</p>
 ''' + full_link(1, 'Full deck: the wrong-spec problem'))
 
 slides.append(head(2, 'i-eye', 'The problem') + '''  <h2>"Make the button purple"</h2>
@@ -109,6 +110,7 @@ slides.append(head(6, 'i-split', 'The story') + '''  <h2>Why signals, not tiers<
 ''' + full_link(12, 'Full deck: why the tiers had to go'))
 
 slides.append(head(7, 'i-box', 'The tool') + '''  <h2>What it is</h2>
+  <p>An extension of the harness, between the human-agent interface and the software factory: <mark>an inference, reasoning and knowledge-graph layer</mark>.</p>
 ''' + fig_tool + '''  <dl class="gloss">
     <div><dt><svg class="ic"><use href="#i-feather"/></svg>The prompt</dt><dd>One plain-text file, appended to the agent's system prompt. It says how to work: start light, shift up on a signal.</dd></div>
     <div><dt><svg class="ic"><use href="#i-term"/></svg>orbit-kb</dt><dd>A command-line tool that keeps the knowledge base (KB): every fact declared, typed, and checked.</dd></div>
@@ -128,7 +130,35 @@ slides.append(head(9, 'i-layers', 'In practice') + '''  <h2>The gradient</h2>
   <p class="see"><a href="index.html#s28">The lightest path, step by step</a> · <a href="index.html#s29">The most rigorous path</a></p>
 ''')
 
-slides.append(head(10, 'i-check', 'In practice') + '''  <h2>What you get back</h2>
+slides.append(head(10, 'i-path', 'The redesign') + '''  <h2>The phase tree and System 1</h2>
+  <p class="big">Two orbits, four phases. A small model reads each message before the agent does.</p>
+  <div class="tiles">
+    <div class="tile t-mid"><svg class="ic"><use href="#i-compass"/></svg><h3>The phase tree</h3><p class="muted">The orbit is discovery or build. Discovery has research and specify; build has build and verify. Rigor concentrates on specify and verify, and each make/judge split is a handoff.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-speech"/></svg><h3>System 1</h3><p class="muted">A hook (<code>s1/hook.py</code>) asks Jev (TypeSafe System One) five small questions about each message: the kind of work, a divergence, a change of plan, the effort, and a formal tool that fits. It adds one line of hints. The agent weighs it and decides.</p></div>
+    <div class="tile t-amber"><svg class="ic"><use href="#i-eye"/></svg><h3>The status line</h3><p class="muted"><code>s1/statusline.py</code> shows the five judgments of the newest message, each only outside the unsure band. Any error prints nothing: System 1 fails open.</p></div>
+  </div>
+''' + full_link(31, 'Full deck: the philosophy, amended') + full_link(32, 'Full deck: System 1'))
+
+slides.append(head(11, 'i-db', 'The redesign') + '''  <h2>The hub and its seven stores</h2>
+  <p>A <strong>hub</strong> is one git repo that a few long-lived sessions share as working memory. The <strong>hub kit</strong> (<code>hubkit/</code>) is its template. Each concern has one owning store; the others read through it, or pin a copy with a digest.</p>
+  <dl class="gloss">
+    <div><dt><svg class="ic"><use href="#i-formal"/></svg>Spec KB</dt><dd><code>orbit-kb</code>, one per ticket: claims, checks, questions, burns. It alone decides what blocks.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-box"/></svg>Project KB</dt><dd>Domain decisions, pins of files and tracker items, and drafts for the tracker. One writer at a time.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-db"/></svg>Ledger</dt><dd><code>hubflow</code>: asks, threads, holds and handoffs. Items never lapse by themselves. Its guard is proved in Lean for its model.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-feather"/></svg>Memory</dt><dd>What every agent must know at the start: boot context, heuristics, technologies.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-cal"/></svg>Weeks</dt><dd>The weekly reports and raw transcripts. They rotate out; git history keeps them.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-hammer"/></svg>Bespoke tools</dt><dd>Helper scripts and small stores that agents add where nothing fits. A convention.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-path"/></svg>Tracker</dt><dd>The client system of record. The hub reads it and pins what it needs; drafts go back by hand.</dd></div>
+  </dl>
+''' + full_link(34, 'Full deck: the hub kit') + full_link(35, 'Full deck: the stores of the design'))
+
+slides.append(head(12, 'i-question', 'The redesign') + '''  <h2>The question server</h2>
+  <p class="big">Open questions reach the human <em>without</em> a live session.</p>
+  <p><code>orbit-kb serve questions</code> serves one page on 127.0.0.1: for each spec KB, what blocks done, and each question with its options and what each option changes. An answer is recorded as <code>answer(Q, A, human)</code> through <code>orbit-kb add</code>, under the writer lock. <code>orbit-kb view questions</code> writes the same page as a static file.</p>
+  <p class="muted">The page reads the KB's defaults and options; it invents none. <code>orbit-kb draft blocking</code> prints the same blocking items as Markdown for the tracker, stamped with the digest of the spec KB. An unmet acceptance criterion is named as such.</p>
+''' + full_link(35, 'Full deck: the question view and tracker sync'))
+
+slides.append(head(13, 'i-check', 'In practice') + '''  <h2>What you get back</h2>
   <p>Six fields, in short plain sentences. An empty field says "none", so you see that the agent looked.</p>
 ''' + report + '''
   <h3>Go deeper</h3>
@@ -142,7 +172,8 @@ slides.append(head(10, 'i-check', 'In practice') + '''  <h2>What you get back</h
   </ul>
 ''')
 
-labels = ["Problem", "Example", "Alignment", "Tests and proofs", "Timeline", "Why", "What it is", "How to use", "The gradient", "What you get"]
+labels = ["Problem", "Example", "Alignment", "Tests and proofs", "Timeline", "Why", "What it is", "How to use", "The gradient",
+          "Phases and System 1", "The hub", "Question server", "What you get"]
 assert len(slides) == N == len(labels)
 
 body = '\n\n'.join(f'<section class="slide" id="s{i}" tabindex="-1">\n{s}</section>' for i, s in enumerate(slides, 1))
@@ -170,7 +201,9 @@ header = f'''<header class="top">
 '''
 tail = full[full.index('<div class="controls" id="controls">'):]
 tail = tail[:tail.index('<!--\nFact-check note.')] + '''<!--
-Essentials: a ten-slide short version of index.html, built by a script from its diagrams.
+Essentials: a thirteen-slide short version of index.html, built by a script from its diagrams.
+Slides 10 to 12 (the redesign: the phase tree, System 1, the hub, the seven stores, the question
+server) are text written here, from full slides 31, 32, 34 and 35.
 Slides 2, 3, 4, 6, 7, and 9 reuse the full deck's diagrams (full slides 3, 6, 4, 13, 15, 30). The
 timeline on slide 5 is the full slide 8 without the machine lane and the Lean dot labels. Slide 8's
 diagram is shared with full slide 16. The fact-check note in index.html covers every claim here.

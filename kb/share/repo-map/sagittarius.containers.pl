@@ -18,6 +18,13 @@ container(evals, 'Evals', 'Shell and Python', 'evals/: planning and tool-use eva
 container(site, 'Decks', 'HTML', 'site/: the full deck and the generated short deck.').
 container(docs, 'Docs', 'Markdown', 'docs/: the philosophy and the eval refining loop.').
 
+% C3 (repo-map --level c3 --container orbit_kb): the components of orbit-kb.
+component(okb_cli, orbit_kb, 'CLI', 'SWI-Prolog script', 'kb/bin/orbit-kb: the commands, lint, the answer gate, show, draft and report.').
+component(okb_core, orbit_kb, 'Core rules', 'Prolog', 'kb/share/orbit-kb/core.pl: the declarations and the core rules of every KB.').
+component(okb_modules, orbit_kb, 'Modules', 'Prolog', 'kb/share/orbit-kb/modules/: build, discovery and project rules.').
+component(okb_help, orbit_kb, 'Help topics', 'Text', 'kb/share/orbit-kb/help/: the agent-facing syntax and recipes.').
+component(okb_lean, orbit_kb, 'Lean check', 'Lean 4', 'kb/share/orbit-kb/lean/: what orbit-kb prove runs to check a proof.').
+
 link(user, prompt, 'appends to sessions').
 link(user, orbit_kb, 'runs through the agent').
 link(prompt, claude_code, 'is appended to the system prompt of').
@@ -30,3 +37,10 @@ link(docs, prompt, 'explains').
 link(hubkit, orbit_kb, 'pins spec KBs of').
 link(s1, prompt, 'adds context to the sessions of').
 link(hubkit, hubflow_starter, 'comes from').
+link(okb_cli, okb_core, 'loads').
+link(okb_cli, okb_modules, 'loads the modules a KB uses').
+link(okb_cli, okb_help, 'prints').
+link(okb_cli, swipl, 'runs on').
+link(okb_cli, okb_lean, 'runs for orbit-kb prove').
+link(okb_lean, lean, 'calls').
+link(okb_modules, okb_core, 'extends').

@@ -1,4 +1,8 @@
-"""Tests for s1/statusline.py (T14, claims c1-c3). No network.
+"""Tests for s1/statusline.py (T14, claims c1-c3; T29 c6: all five judgments). No network.
+
+T29 c6 changed the expected segments of the T14 tests: the fixture line has h_language = none
+(P 0.8, outside the unsure band), so each segment now ends with "| tool none"; h_change_of_plan is
+0.33 (inside the band), so it stays hidden.
 
 Run from the repo root:  python3 -m unittest s1.test_statusline -v
 One claim alone:         python3 -m unittest s1.test_statusline.C2Stale -v
@@ -61,13 +65,13 @@ class Base(unittest.TestCase):
 class C1Render(Base):
     def test_fixture_line(self):
         self.write(line())
-        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 build | div 0.85 | eff 0.91")
+        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 build | div 0.85 | eff 0.91 | tool none")
 
     def test_picks_the_sessions_line_when_others_come_after(self):
         self.write(line("sess-A", work="research", div=0.1, eff=0.2),
                    line("sess-B", work="verify", div=0.9, eff=0.9),
                    line("sess-C"))
-        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 research | div 0.10 | eff 0.20")
+        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 research | div 0.10 | eff 0.20 | tool none")
 
     def test_newest_line_of_the_session_wins(self):
         self.write(line(work="research"), line("sess-B"), line(work="verify"))
@@ -77,7 +81,7 @@ class C1Render(Base):
         d = line()
         del d["answers"]["h_divergence"]
         self.write(d)
-        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 build | eff 0.91")
+        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 build | eff 0.91 | tool none")
 
     def test_work_choice_floor_is_0_5(self):
         # same floor as the hook: P = probabilities[choice], else confidence; below 0.5 hides it
@@ -87,14 +91,14 @@ class C1Render(Base):
                                       "probabilities": {"build": p}}
             self.write(d)
             return sl().render("sess-A", self.log, now=T0)
-        self.assertEqual(work(0.49), "S1 div 0.85 | eff 0.91")
-        self.assertEqual(work(0.5), "S1 build | div 0.85 | eff 0.91")
+        self.assertEqual(work(0.49), "S1 div 0.85 | eff 0.91 | tool none")
+        self.assertEqual(work(0.5), "S1 build | div 0.85 | eff 0.91 | tool none")
 
     def test_work_floor_falls_back_to_confidence(self):
         d = line()
         d["answers"]["h_work"] = {"type": "choice", "choice": "build", "confidence": 0.49}
         self.write(d)
-        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 div 0.85 | eff 0.91")
+        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 div 0.85 | eff 0.91 | tool none")
 
     def test_nothing_left_prints_nothing(self):
         d = line()
@@ -109,13 +113,13 @@ class C1Render(Base):
 
     def test_bad_lines_are_skipped(self):
         self.write(line(), "not json", "[1]")
-        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 build | div 0.85 | eff 0.91")
+        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 build | div 0.85 | eff 0.91 | tool none")
 
     def test_finds_a_session_line_far_back_in_a_big_log(self):
         pad = line("sess-B")
         self.write(line(), *([pad] * 3000))  # several 64 KiB blocks of other lines
         self.assertTrue(os.path.getsize(self.log) > 200_000)
-        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 build | div 0.85 | eff 0.91")
+        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 build | div 0.85 | eff 0.91 | tool none")
 
     def test_script_reads_stdin_and_env_log(self):
         now = dt.datetime.now(dt.timezone.utc)
@@ -124,7 +128,7 @@ class C1Render(Base):
                            capture_output=True, text=True, env=dict(os.environ, S1_LOG=self.log),
                            timeout=20)
         self.assertEqual(r.returncode, 0)
-        self.assertEqual(r.stdout, "S1 build | div 0.85 | eff 0.91\n")
+        self.assertEqual(r.stdout, "S1 build | div 0.85 | eff 0.91 | tool none\n")
 
 
 class C2Stale(Base):
@@ -141,7 +145,7 @@ class C2Stale(Base):
 
     def test_9_59_shows(self):
         now = T0 + dt.timedelta(minutes=9, seconds=59)
-        self.assertEqual(sl().render("sess-A", self._one(), now=now), "S1 build | div 0.85 | eff 0.91")
+        self.assertEqual(sl().render("sess-A", self._one(), now=now), "S1 build | div 0.85 | eff 0.91 | tool none")
 
     def test_10_01_hides(self):
         now = T0 + dt.timedelta(minutes=10, seconds=1)
@@ -160,6 +164,58 @@ class C2Stale(Base):
     def _one(self):
         self.write(line())
         return self.log
+
+
+class C4FiveJudgments(Base):
+    """T29 c6 (u81): the segment shows each of the five hook judgments when it is outside the
+    unsure band, in the order work | div | plan | eff | tool, and hides it inside the band.
+    The band is the hook's: a yes/no answer is shown when P <= 0.3 or P >= 0.7 (jev.band);
+    a choice is shown when P(choice) >= 0.5 (hook.py CHOICE_MIN)."""
+
+    def seg(self, **answers):
+        d = line()
+        d["answers"].update(answers)
+        self.write(d)
+        return sl().render("sess-A", self.log, now=T0)
+
+    def noul(self, p):
+        return {"type": "noul", "noul": p}
+
+    def test_all_five_outside_the_band(self):
+        got = self.seg(h_divergence=self.noul(0.85), h_change_of_plan=self.noul(0.1),
+                       h_effort=self.noul(0.91),
+                       h_language={"type": "choice", "choice": "lean", "confidence": 0.8})
+        self.assertEqual(got, "S1 build | div 0.85 | plan 0.10 | eff 0.91 | tool lean")
+
+    def test_change_of_plan_yes_shows(self):
+        got = self.seg(h_change_of_plan=self.noul(0.75))
+        self.assertIn("plan 0.75", got)
+
+    def test_language_uses_probabilities_then_confidence(self):
+        got = self.seg(h_language={"type": "choice", "choice": "tla", "confidence": 0.2,
+                                   "probabilities": {"tla": 0.66}})
+        self.assertTrue(got.endswith("| tool tla"), got)
+        got = self.seg(h_language={"type": "choice", "choice": "tla", "confidence": 0.9,
+                                   "probabilities": {"tla": 0.49}})
+        self.assertNotIn("tool", got)
+
+    def test_band_edges(self):
+        # 0.3 and 0.7 are outside the band (jev.band: <= 0.3 no, >= 0.7 yes); 0.31 and 0.69 inside
+        for p, shown in ((0.3, True), (0.31, False), (0.5, False), (0.69, False), (0.7, True)):
+            for label, qid in (("div", "h_divergence"), ("plan", "h_change_of_plan"), ("eff", "h_effort")):
+                got = self.seg(**{qid: self.noul(p)})
+                self.assertEqual(("%s %.2f" % (label, p)) in got, shown, (qid, p, got))
+
+    def test_unsure_everywhere_but_work(self):
+        got = self.seg(h_divergence=self.noul(0.5), h_change_of_plan=self.noul(0.5),
+                       h_effort=self.noul(0.5),
+                       h_language={"type": "choice", "choice": "lean", "confidence": 0.4})
+        self.assertEqual(got, "S1 build")
+
+    def test_unknown_or_malformed_judgment_is_left_out(self):
+        got = self.seg(h_change_of_plan={"type": "noul", "noul": "high"},
+                       h_language={"type": "choice", "choice": 7, "confidence": 0.9})
+        self.assertEqual(got, "S1 build | div 0.85 | eff 0.91")
 
 
 AUDIT = '''
@@ -190,7 +246,7 @@ class C3NoNetwork(Base):
                            capture_output=True, text=True, env=env, timeout=20)
         self.assertNotIn("NETWORK", r.stderr)
         self.assertEqual(r.returncode, 0)
-        self.assertEqual(r.stdout, "S1 build | div 0.85 | eff 0.91\n")
+        self.assertEqual(r.stdout, "S1 build | div 0.85 | eff 0.91 | tool none\n")
 
     def test_module_imports_no_network_library(self):
         code = ("import sys; sys.path.insert(0, %r); import statusline; "
