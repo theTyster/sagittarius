@@ -178,6 +178,8 @@ main :-
 % "sh -c 'exit Code'", which runs no hook. Any problem falls back to
 % halt/1.
 exit_now(Code) :-
+    % D23: a takeover that the command did not use is undone (see claim_writer/3).
+    (   nb_current(orbit_settle, G), G \== none -> nb_setval(orbit_settle, none), catch(G, _, true) ; true ),
     (   integer(Code), Code >= 0, Code =< 255,
         catch(use_module(library(unix), [exec/1]), _, fail),
         absolute_file_name(path(sh), Sh, [access(execute), file_errors(fail)])
@@ -540,34 +542,89 @@ writer_gate(Dir, Args0, Args) :-
     ;   Args = Args0
     ).
 
-lock_holder(Dir, Holder, Since) :-
+% lock_state(+Dir, -State): none (no lock file), or held(Holder, Since), or
+% bad(Why) for an empty or malformed lock. The line is NAME TIME. NAME is
+% written with ~q, so a name with a space is quoted.
+lock_state(Dir, State) :-
     directory_file_path(Dir, 'writer.lock', LF),
-    exists_file(LF),
-    read_file_to_string(LF, S, [encoding(utf8)]),
-    split_string(S, "\n", "", [L1|_]),
-    split_string(L1, " ", "", [H|Rest]),
-    atom_string(Holder, H),
-    (   Rest = [T|_] -> atom_string(Since, T) ; Since = unknown ).
+    (   exists_file(LF)
+    ->  read_file_to_string(LF, S, [encoding(utf8)]),
+        split_string(S, "\n", "", [L1|_]),
+        split_string(L1, "", " \t\r", [L2]),
+        (   L2 == ""
+        ->  State = bad("The file is empty.")
+        ;   sub_string(L2, B, 1, A, " "), \+ ( sub_string(L2, B2, 1, _, " "), B2 > B )
+        ->  sub_string(L2, 0, B, _, NameS), sub_string(L2, _, A, 0, TimeS),
+            atom_string(Since, TimeS),
+            (   is_time(Since),
+                (   sub_string(NameS, 0, 1, _, "'")
+                ->  catch(term_string(Name, NameS), _, fail), atomic(Name)
+                ;   \+ sub_string(NameS, _, 1, _, " "), atom_string(Name, NameS)
+                )
+            ->  ( atom(Name) -> Holder = Name ; format(atom(Holder), "~w", [Name]) ),
+                State = held(Holder, Since)
+            ;   State = bad("The line is not NAME TIME.")
+            )
+        ;   State = bad("The line is not NAME TIME.")
+        )
+    ;   State = none
+    ).
+
+% writer_text(+Writer, -Text): the name as the lock file holds it: bare when it is
+% made of plain characters, else quoted.
+writer_text(W, T) :-
+    atom_codes(W, Cs),
+    (   Cs \== [], forall(member(C, Cs), ( code_type(C, alnum) ; memberchk(C, `_-.@:/`) ))
+    ->  atom_string(W, T)
+    ;   format(string(T), "~q", [W])
+    ).
+
+lock_bad(Dir, Why) :-
+    directory_file_path(Dir, 'writer.lock', LF),
+    fmt(M1, "The writer lock ~w cannot be read. ~w", [LF, Why]),
+    die(2, [M1, "Nothing was written.",
+            "Fix: if no writer is active, delete writer.lock. Or take the lock with --take."] >> fix_lines).
 
 claim_writer(Dir, W, Take) :-
     directory_file_path(Dir, 'writer.lock', LF),
     utc_now(Now),
-    (   lock_holder(Dir, Holder, Since)
+    writer_text(W, WT),
+    fmt(Text, "~w ~w~n", [WT, Now]),
+    lock_state(Dir, State),
+    (   State = held(Holder, Since)
     ->  (   Holder == W
         ->  true
         ;   Take == true
-        ->  fmt(Text, "~w ~w~n", [W, Now]),
+        ->  directory_file_path(Dir, 'kb.pl', KbFile),
+            read_file_to_string(LF, LockBefore, [encoding(utf8)]),
             write_atomic(LF, Text),
-            directory_file_path(Dir, 'kb.pl', KbFile),
             fmt(Fact, "writer_takeover(~q, ~q, ~q).~n", [Holder, W, Now]),
-            append_fact_text(KbFile, Fact)
+            append_fact_text(KbFile, Fact),
+            read_file_to_string(KbFile, After, [encoding(utf8)]),
+            % D23 review: the lock moves only if the command writes. At exit, a
+            % command that wrote nothing (a rejected add) gives the lock back.
+            nb_setval(orbit_settle, settle_takeover(Dir, LF, LockBefore, KbFile, Fact, After))
         ;   fmt(M1, "The KB is locked. It is held by ~w since ~w.", [Holder, Since]),
             die(2, [M1, "Nothing was written.",
                     "Fix: ask the holder to run orbit-kb release, or take the lock with --take. A takeover is recorded in kb.pl."] >> fix_lines)
         )
-    ;   fmt(Text, "~w ~w~n", [W, Now]),
-        write_atomic(LF, Text)
+    ;   State = bad(Why)
+    ->  (   Take == true
+        ->  write_atomic(LF, Text)
+        ;   lock_bad(Dir, Why)
+        )
+    ;   write_atomic(LF, Text)
     ).
+
+settle_takeover(Dir, LF, LockBefore, KbFile, Fact, After) :-
+    catch(( with_kb_lock(Dir,
+              ( read_file_to_string(KbFile, Now, [encoding(utf8)]),
+                (   Now == After
+                ->  string_concat(Pre, Fact, After),
+                    write_atomic(KbFile, Pre),
+                    write_atomic(LF, LockBefore)
+                ;   true
+                ) )) ), _, true).
 
 append_fact_text(File, Text) :-
     read_file_to_string(File, S, [encoding(utf8)]),
@@ -578,13 +635,16 @@ append_fact_text(File, Text) :-
 
 cmd_release(Dir, Code) :-
     directory_file_path(Dir, 'writer.lock', LF),
-    (   lock_holder(Dir, Holder, Since)
+    lock_state(Dir, State),
+    (   State = held(Holder, Since)
     ->  (   writer_name(W), W == Holder
         ->  delete_file(LF),
             format("Released the writer lock of ~w.~n", [Holder]), Code = 0
         ;   fmt(M1, "The KB is locked. It is held by ~w since ~w. Only the holder can release it.", [Holder, Since]),
             die(2, [M1, "Fix: ask the holder, or take the lock with --take on a write."] >> fix_lines)
         )
+    ;   State = bad(Why)
+    ->  lock_bad(Dir, Why)
     ;   format("There is no writer lock.~n", []), Code = 0
     ).
 
@@ -939,8 +999,11 @@ project_derived(Dir, KbItems, Facts) :-
     findall(decision_digest(X, D),
             ( kb_term(KbItems, decision(X, Text)), atom(X), atomic(Text), sha256_text(Text, D) ),
             F2),
-    (   kb_term(KbItems, project_kb(P)), atom(P)
-    ->  catch(project_kb_facts(Dir, P, F3), _, F3 = [])
+    (   kb_term(KbItems, project_kb(P)), atom(P),
+        \+ nb_current(orbit_project_depth, 1)
+    ->  setup_call_cleanup(nb_setval(orbit_project_depth, 1),
+                           ( catch(project_kb_facts(Dir, P, F3), _, fail) -> true ; F3 = [] ),
+                           nb_setval(orbit_project_depth, 0))
     ;   F3 = []
     ),
     append([F1, F2, F3], Facts).
@@ -955,6 +1018,7 @@ project_kb_facts(Dir, P, Facts) :-
     exists_file(PFile),
     absolute_file_name(PDir, A1), absolute_file_name(Dir, A2),
     A1 \== A2,
+    nb_setval(orbit_project_depth, 1),
     lib_dir(Lib),
     read_source_file(kb, PFile, PItems),
     items_uses(PItems, PUses),
@@ -965,12 +1029,24 @@ project_kb_facts(Dir, P, Facts) :-
     load_kb(PDir, Lib, PKB),
     kb_items(PKB, AllItems), items_decls(AllItems, Ds),
     build_engine(AllItems, Ds, Eng),
-    swi_raw(Eng, (conflict(Dr), draft(Dr, Pn, _, _), concerns(X, Pn)), Dr-X, Res),
+    swi_raw(Eng, (conflict(Dr), draft(Dr, Pn, Tx, _), concerns(X, Pn)), t(Dr, X, Tx), Res),
     (   Res = answers(L, _)
-    ->  findall(project_conflict(Dr, X), member(Dr-X, L), F2)
+    ->  findall(project_conflict(Dr, X), member(t(Dr, X, _), L), F2a),
+        findall(project_draft_text(Dr, Tx), member(t(Dr, _, Tx), L), F2b0),
+        sort(F2b0, F2b),
+        append(F2a, F2b, F2)
     ;   F2 = []
     ),
-    append(F1, F2, Facts).
+    (   project_unclean(PKB) -> F3 = [project_kb_unclean] ; F3 = [] ),
+    append([F1, F2, F3], Facts).
+
+% The project KB does not load clean: lint finds an error in it (D23).
+project_unclean(PKB) :-
+    catch(( lint_diags(PKB, Diags, _, IssueErrors),
+            (   IssueErrors > 0
+            ;   member(diag(C, _, _, _), Diags), sub_atom(C, 0, 1, _, 'E')
+            ) ), _, true),
+    !.
 
 % supersede_derived(+KbItems, -Facts): the supersedes_closure/2 and
 % supersede_cycle/1 facts of the ground supersedes/2 facts.
@@ -1704,6 +1780,8 @@ protected_pi(subject_now/2).
 protected_pi(decision_digest/2).
 protected_pi(project_decision_digest/2).
 protected_pi(project_conflict/2).
+protected_pi(project_draft_text/2).
+protected_pi(project_kb_unclean/0).
 % D14: the weighted vote of the discovery module.
 protected_pi(vote_cast/3).
 protected_pi(discovery_vote_raised/1).
@@ -1786,7 +1864,8 @@ binding_lit(not(_)) :- !, fail.
 binding_lit(\+(_)) :- !, fail.
 binding_lit(L) :-
     callable(L), functor(L, N, A),
-    \+ memberchk(N/A, ['\\='/2, '<'/2, '>'/2, '=<'/2, '>='/2, true/0, false/0]).
+    \+ memberchk(N/A, ['\\='/2, '<'/2, '>'/2, '=<'/2, '>='/2, true/0, false/0,
+                       '=='/2, '\\=='/2, '@<'/2, '@>'/2, '@=<'/2, '@>='/2]).
 
 e14_diags(T, VN, F, L, Diags) :-
     clause_parts(T, H, _),
@@ -4353,6 +4432,13 @@ blocking_line(_, Eng, waiver_lapsed(W), S) :- !,
         fmt(S, "- waiver_lapsed ~w: waiver ~w of ~w was due at ~w, and ~w still blocks: ~w", [W, W, XT, DT, XT, RT])
     ;   fmt(S, "- waiver_lapsed ~w: waiver ~w is past its due time.", [W, W])
     ).
+blocking_line(_, Eng, project_conflict(Dr), S) :- !,
+    (   eng_all(Eng, [Dc, Tx], ( project_conflict(Dr, Dc), project_draft_text(Dr, Tx) ), [[Dc1, Tx1]|_])
+    ->  txt(Dc1, DcT), txt(Tx1, TxT)
+    ;   DcT = '?', TxT = ''
+    ),
+    fmt(S, "- project_conflict ~w: draft ~w of the project KB conflicts with a change of the tracker, and decision ~w rests on it: ~w", [Dr, Dr, DcT, TxT]).
+blocking_line(_, _, project_kb_unclean, "- project_kb_unclean: the project KB does not load clean, so a conflict could hide in it. Run orbit-kb lint on the project KB and fix the errors.") :- !.
 blocking_line(_, _, X, S) :-
     term_text(X, XT), fmt(S, "- ~w", [XT]).
 

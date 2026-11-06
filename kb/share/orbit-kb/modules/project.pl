@@ -64,6 +64,12 @@ decl(rule, decision_digest(ref(decision), digest),
 decl(rule, project_decision_digest(atom, digest),
      'The decision_digest of a decision in the project KB of project_kb/1, as it is now. orbit-kb computes it when it reads the KB.',
      'decision @(1) of the project KB has digest @(2) now').
+decl(rule, project_draft_text(atom, text),
+     'The text of a draft of the project KB that is in conflict (see project_conflict). orbit-kb computes it when it reads the KB.',
+     'the conflicting draft @(1) says: @(2)').
+decl(rule, project_kb_unclean,
+     'The project KB of project_kb/1 does not load clean: lint finds an error in it, so a conflict could hide there. orbit-kb computes it when it reads the KB.',
+     'the project KB does not load clean').
 decl(rule, project_conflict(atom, atom),
      'A draft of the project KB is in conflict, and its pin is one that the decision rests on. orbit-kb computes it when it reads the KB.',
      'draft @(1) of the project KB is in conflict, and decision @(2) rests on its pin').
@@ -116,13 +122,17 @@ outbound(D) :- draft(D, _, _, _), not pushed(D, _), not conflict(D), not dropped
 
 % A conflict blocks a spec KB that pins a decision that rests on the pin.
 blocking(project_conflict(Dr)) :- project_conflict(Dr, Dec), pins(_, project, Dec, _).
+blocking(project_kb_unclean) :- project_kb_unclean.
 any_project_conflict :- blocking(project_conflict(_)).
+any_project_conflict :- blocking(project_kb_unclean).
 
 % ---------------------------------------------------------------------
 % Lint hooks
 % ---------------------------------------------------------------------
 
 lint_issue('WP1', C, 'This claim rests on a decision of the project KB, and the decision changed after the claim was written. Read the decision. If the claim still holds, pin the new digest with orbit-kb add and a new pins fact; if not, change the claim.') :-
-    pins(C, project, D, Dig), project_decision_digest(D, Now), Now \== Dig.
+    pins(C, project, D, _), project_decision_digest(D, Now), not pins(C, project, D, Now).
 lint_issue('WP2', C, 'The decision that this claim rests on cannot be read. The KB has no project_kb fact, or the project KB has no kb.pl, or it has no such decision. Add project_kb(DIR) or fix the decision id.') :-
     pins(C, project, D, _), not project_decision_digest(D, _).
+lint_issue('WP3', C, 'The project KB does not load clean: lint finds an error in it. A conflict or a changed decision could hide there. Run orbit-kb lint on the project KB and fix the errors.') :-
+    pins(C, project, _, _), project_kb_unclean.
