@@ -94,7 +94,10 @@ says how to move them). In a hub the spec KB is committed, with the hub: git is 
 A week holds only what people gave it: raw reports in `W*/reports/` and meeting transcripts in
 `W*/transcripts/`. There is no `analyses/` slot: analyses are written in the project KB when they
 are made. The project KB pins the digest of a report or transcript only when a lasting project
-fact relies on it. Rotation never retires a spec KB. A spec KB whose ticket is closed is a triage
+fact relies on it. `hubflow.py index-transcripts W0` parses the week's meeting transcripts (`.md`,
+`.txt`) and Claude Code transcripts into the ledger: `transcripts` for the summaries, `--detail ID`
+for the turns, `--grep TEXT` for the turns that say TEXT with file and line, and the file last.
+`rotate --yes` rebuilds that index, so a retired week's rows go with it. Rotation never retires a spec KB. A spec KB whose ticket is closed is a triage
 item at rotation: the decision is archive, capsule, keep or escalate, recorded once with
 `hubflow.py spec-triage`. Archive is `git rm -r specs/<slug>`; history keeps it.
 

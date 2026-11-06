@@ -56,7 +56,8 @@ $HF view v_stale                            # idle ≥14 d (warn), ≥28 d (laps
 $HF view v_dup_refs                         # one ticket on several open items: merge or link them
 $HF show A-0007                              # one item, with its events
 $HF sql "SELECT …"                           # read-only; one SELECT/WITH only
-$HF transcripts [--detail <session id>]       # the transcript index: summary, then user messages
+$HF transcripts [--detail <id>]             # the transcript index: summary, then messages or turns
+$HF transcripts --grep "conveyor"           # meeting turns that say it, with file and line
 ```
 
 Read at session start and after every compaction: the db is the memory, not the conversation.
@@ -143,8 +144,12 @@ An agent's decision on a spec KB that blocks is recorded as `escalate`.
 `$HF index-transcripts W0` reads the Claude Code JSONL transcripts under a week dir into the
 ledger: per session the first and last time, the first user message, message and tool counts,
 and the path; plus each user message cut to 200 characters. It never stores a whole transcript,
-and a rerun gives the same rows. Read `$HF transcripts` first, then `--detail <id>`, then the file
-itself only if you still need it.
+and a rerun gives the same rows. It also reads the meeting transcripts (`.md`, `.txt`) in the week's
+`transcripts/`: per file the title, date, speakers and first lines, and one row per speaker turn
+(a line `Name: text` or `**Name:** text`), or per paragraph when no speaker is marked, with its
+line in the file. Read `$HF transcripts` first, then `--detail <id>`, then the file itself only if
+you still need it. `$HF transcripts --grep TEXT` finds the meeting turns that say TEXT, with file
+and line. `rotate --yes` rebuilds the index of W0..W5, so a retired week's rows go with it.
 
 ## Exit codes
 

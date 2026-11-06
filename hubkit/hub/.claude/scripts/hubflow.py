@@ -37,11 +37,23 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   capsule ID --summary T                       context the tracker lacks (at most 1000 characters),
                                                with the hub's git HEAD and the item's kb and file
                                                refs; `show` prints the newest capsule first
-  index-transcripts W_DIR                      index the Claude Code JSONL transcripts under a week
-                                               dir (relative to the hub): counts, times, and user
-                                               messages cut to 200 characters. Idempotent
-  transcripts [--detail SESSION_ID] [--format md|json|tsv]
-                                               the index; --detail adds the user messages
+  index-transcripts W_DIR                      index the transcripts of a week dir (relative to the
+                                               hub). Claude Code JSONL anywhere under it: counts,
+                                               times, and user messages cut to 200 characters.
+                                               Meeting transcripts (.md, .txt) in W_DIR/transcripts/:
+                                               a summary (title, date, speakers, first lines) and
+                                               one row per speaker turn (a line `Name: text` or
+                                               `**Name:** text`; two or more such lines mark the
+                                               file), else one row per paragraph, with its line.
+                                               Idempotent; it replaces the week's meeting rows
+  transcripts [--detail ID] [--grep TEXT] [--format md|json|tsv]
+                                               the index: sessions, then meetings (json: one list,
+                                               each row with kind session|meeting). --detail ID adds
+                                               a session's user messages or a meeting's turns (each
+                                               cut to 200 characters); then read the file at its
+                                               path. --grep TEXT: the meeting turns that contain
+                                               TEXT (any case) with id, path, line, speaker and the
+                                               text around the match; with --detail, in one meeting
   reopen ID [--note N]
   ref ID add|rm KIND:REF                       KIND: issue pr build release kb file commit url
   link FROM TO KIND                            KIND: blocks duplicates relates supersedes follows
@@ -67,7 +79,10 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   import FILE [--yes] [--format md|json]       JSONL of items; a dry run without --yes; all or nothing
   rotate --week-start YYYY-MM-DD [--yes]       prune; a dry run without --yes. Lists the due items
                                                with no disposition (untriaged) and exits 1 until
-                                               each has one
+                                               each has one. --yes also rebuilds the transcript
+                                               index of the week dirs W0..W5 on disk (run it after
+                                               rotate.sh): moved weeks get their new paths, and a
+                                               retired week's rows go with it
   export                                       rewrite the JSONL from the db
   rebuild                                      make the db from the JSONL (refuses if the db exists)
   check                                        schema, foreign keys, JSONL equal to the db, and
@@ -124,8 +139,9 @@ Retention (rotate --week-start D, D the Monday of the new W0; W5 starts at D - 3
          sessions retired before then and referenced by no item go with their aliases
   The caller commits flow/jsonl/ with the ids in the message; git history is the archive.
 
-Schema v2 (PRAGMA user_version = 2; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
-db to v2: it adds the four tables below the event table and remakes v_open and v_retention_due.
+Schema v3 (PRAGMA user_version = 3; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
+db to v2 (it adds disposition, capsule, transcript, transcript_msg and remakes v_open and
+v_retention_due), and a v2 db to v3 (it adds meeting and meeting_turn).
   meta(key, value)                  next_A next_T next_K next_H, owner_person, and now (tests only)
   session(name, role, status active|retired, started_on, retired_on)
   session_alias(alias, name, since)
@@ -144,13 +160,19 @@ db to v2: it adds the four tables below the event table and remakes v_open and v
   capsule(seq, at, item_id, summary, git_rev, paths (a JSON list), by_session, by)
   transcript(session_id, first_at, last_at, first_user, messages, user_messages, tools, path)
   transcript_msg(session_id, n, at, text)   user messages only, each cut to 200 characters
+  meeting(id, path, title, date, speakers, first_lines, turns, lines)
+                                    a meeting transcript; id = file name slug + 6 hex digits of
+                                    its sha256 (a rename keeps it); first_lines cut to 200
+  meeting_turn(meeting_id, n, line, speaker, text)
+                                    one speaker turn (speaker empty: a paragraph), the whole text;
+                                    line is its first line in the file
 Views: clock v_open (with escalated) v_escalated v_waiting_on v_inbox v_stale v_dup_refs v_week
        v_retention_due (would: triage | prune)
 """
-import datetime, json, os, re, shlex, sqlite3, subprocess, sys
+import datetime, hashlib, json, os, re, shlex, sqlite3, subprocess, sys
 from urllib.parse import quote
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 # Schema steps: MIGRATIONS[v] is the SQL that takes a db from schema v to v + 1. DDL is the shape of
 # schema 1; init and rebuild run DDL and then every step, so a new db and a migrated db are the
 # same. A release that changes the schema raises SCHEMA_VERSION and adds its step to MIGRATIONS.
@@ -179,11 +201,11 @@ SQL_OK = re.compile(r"^\s*(select|with)\b", re.I)
 TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
 TABLES = ("meta", "session", "session_alias", "person", "item", "item_ref", "item_link", "handoff", "event",
-          "disposition", "capsule", "transcript", "transcript_msg")
+          "disposition", "capsule", "transcript", "transcript_msg", "meeting", "meeting_turn")
 ORDER = {"meta": "key", "session": "name", "session_alias": "alias", "person": "key", "item": "id",
          "item_ref": "item_id, kind, ref", "item_link": "from_id, to_id, kind", "handoff": "item_id",
          "event": "seq", "disposition": "seq", "capsule": "seq", "transcript": "session_id",
-         "transcript_msg": "session_id, n"}
+         "transcript_msg": "session_id, n", "meeting": "id", "meeting_turn": "meeting_id, n"}
 
 SEED_KEYS = {"sessions": ("name", "role"), "aliases": ("alias", "name"), "persons": ("key", "display")}
 SEED_OWNER = "owner"  # optional seed key: the person key of the hub's owner
@@ -338,8 +360,19 @@ WHERE i.closed_at IS NOT NULL
   AND i.closed_at < strftime('%Y-%m-%dT00:00:00Z', p.wk, '-{PRUNE_DAYS} days')""",
 ]
 
+# Schema 3 (T28): meeting transcripts (Markdown and plain text in W*/transcripts/), one summary per
+# file and one row per speaker turn or paragraph. The text of a turn is kept whole, for --grep.
+V3_STEPS = [
+    f"""CREATE TABLE meeting(id TEXT PRIMARY KEY, path TEXT NOT NULL, title TEXT, date TEXT,
+  speakers TEXT, first_lines TEXT CHECK(first_lines IS NULL OR length(first_lines) <= {TEXT_CAP}),
+  turns INTEGER NOT NULL, lines INTEGER NOT NULL)""",
+    """CREATE TABLE meeting_turn(meeting_id TEXT NOT NULL REFERENCES meeting(id) ON DELETE CASCADE,
+  n INTEGER NOT NULL, line INTEGER NOT NULL, speaker TEXT, text TEXT NOT NULL, PRIMARY KEY(meeting_id, n))""",
+]
+
 MIGRATIONS = {
     1: V2_STEPS,
+    2: V3_STEPS,
 }
 
 # view name -> (sql view, filter option -> column, ORDER BY)
@@ -1705,6 +1738,191 @@ def read_transcript(path):
             "tools": tools, "users": users}
 
 
+# ---- meeting transcripts (T28): Markdown and plain text in W*/transcripts/ ----
+
+MEETING_EXT = (".md", ".txt")
+WEEK_DIR = re.compile(r"^W\d$")
+_STAMP = r"(?:\[\d{1,2}:\d\d(?::\d\d)?\]|\(\d{1,2}:\d\d(?::\d\d)?\)|\d{1,2}:\d\d(?::\d\d)?)"
+# A marked speaker turn: `Name: text`, `**Name:** text` or `**Name**: text`; the name is one to four
+# capitalised words; a time stamp may stand before or after the name.
+SPEAKER_LINE = re.compile(r"^\s*(?:[-*]\s+)?(?:" + _STAMP + r"\s+)?(?:\*\*|__)?"
+                          r"(?P<name>[A-Z][\w.'-]*(?: [A-Z][\w.'-]*){0,3})"
+                          r"(?:\*\*|__)?(?:\s+" + _STAMP + r")?\s*:(?:\*\*|__)?\s+(?P<text>\S.*)$")
+# Header keys and note words that look like a speaker but are not one.
+NOT_SPEAKERS = {"date", "time", "title", "attendees", "participants", "present", "absent", "speakers", "location",
+                "subject", "meeting", "duration", "recording", "link", "url", "agenda", "note", "notes", "action",
+                "actions", "action items", "todo", "next", "next steps", "decision", "decisions", "question",
+                "questions", "answer", "summary", "update", "status", "owner", "topic", "re", "fyi", "where", "when"}
+META_LINE = re.compile(r"^\s*(?P<key>[A-Za-z][A-Za-z ]{0,20}):\s*(?P<value>.*)$")
+HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(?P<text>.*?)\s*#*\s*$")
+ISO_DAY = re.compile(r"(\d{4}-\d\d-\d\d)")
+
+
+def first_day(*texts):
+    """The first real YYYY-MM-DD in the texts, or None."""
+    for t in texts:
+        for m in ISO_DAY.finditer(t or ""):
+            try:
+                return datetime.date.fromisoformat(m.group(1)).isoformat()
+            except ValueError:
+                continue
+    return None
+
+
+def speaker_of(line):
+    """(name, text) when the line is a marked speaker turn, else None."""
+    m = SPEAKER_LINE.match(line)
+    if not m or m.group("name").lower() in NOT_SPEAKERS:
+        return None
+    return m.group("name"), m.group("text").strip()
+
+
+def read_meeting(path, rel):
+    """Index one meeting transcript (.md or .txt): its summary and one row per speaker turn, or per
+    paragraph when fewer than two lines mark a speaker. Lines are numbered from 1 in the file."""
+    with open(path, "rb") as f:
+        raw = f.read()
+    lines = raw.decode("utf-8", errors="replace").lstrip("\ufeff").splitlines()
+    stem = os.path.splitext(os.path.basename(path))[0]
+    slug = re.sub(r"[^a-z0-9]+", "-", stem.lower()).strip("-")[:40] or "meeting"
+    title, date, i = None, None, 0
+    if lines and lines[0].strip() == "---":  # YAML front matter: title and date only
+        for j in range(1, len(lines)):
+            if lines[j].strip() in ("---", "..."):
+                for x in lines[1:j]:
+                    m = META_LINE.match(x)
+                    if m and m.group("key").strip().lower() == "title" and m.group("value").strip():
+                        title = m.group("value").strip().strip("'\"")
+                    elif m and m.group("key").strip().lower() == "date":
+                        date = first_day(m.group("value"))
+                i = j + 1
+                break
+    body = list(enumerate(lines, 1))[i:]
+    if title is None:
+        for n, x in body:
+            h = HEADING.match(x)
+            if h and h.group("text"):
+                title, body = h.group("text"), [b for b in body if b[0] != n]
+                break
+    if title is None and path.endswith(".txt"):
+        for n, x in body:
+            if x.strip():
+                if not speaker_of(x) and len(x.strip()) <= 120:
+                    title, body = x.strip(), [b for b in body if b[0] != n]
+                break
+    marked = sum(1 for _, x in body if speaker_of(x))
+    turn_mode = marked >= 2
+    rows, cur, started = [], None, False
+
+    def flush():
+        if cur and cur[2]:
+            rows.append((cur[0], cur[1], " ".join(cur[2])))
+
+    for n, x in body:
+        t = x.strip()
+        if not started:  # header lines before the first turn or paragraph
+            m = META_LINE.match(x)
+            if m and not (turn_mode and speaker_of(x)) and m.group("key").strip().lower() in NOT_SPEAKERS:
+                if m.group("key").strip().lower() == "date" and date is None:
+                    date = first_day(m.group("value"))
+                continue
+        if HEADING.match(x):
+            flush()
+            cur = None
+            continue
+        sp = speaker_of(x) if turn_mode else None
+        if sp:
+            flush()
+            cur, started = (n, sp[0], [sp[1]]), True
+        elif not t:
+            if not turn_mode:
+                flush()
+                cur = None
+        elif cur is None:
+            cur, started = (n, None, [t]), True
+        else:
+            cur[2].append(t)
+    flush()
+    speakers = []
+    for _, sp, _ in rows:
+        if sp and sp not in speakers:
+            speakers.append(sp)
+    first = " ".join(x for _, _, x in rows[:3])
+    return {"id": f"{slug}-{hashlib.sha256(raw).hexdigest()[:6]}", "path": rel, "title": (title or stem)[:TEXT_CAP],
+            "date": date or first_day(title, stem), "speakers": ", ".join(speakers) or None,
+            "first_lines": first[:TEXT_CAP] or None, "turns": len(rows), "lines": len(lines), "rows": rows}
+
+
+def hub_rel(path, hub):
+    rel = os.path.relpath(path, hub)
+    return path if rel.startswith("..") else rel
+
+
+def scan_week(wd, hub):
+    """The Claude Code JSONL transcripts anywhere under the week dir wd, and the meeting transcripts
+    (.md, .txt) under wd/transcripts/: (sessions, meetings, JSONL files read)."""
+    sessions, meetings, files_read = [], [], 0
+    for root, dirs, files in os.walk(wd):
+        dirs.sort()
+        for name in sorted(files):
+            path = os.path.join(root, name)
+            if name.endswith(".jsonl"):
+                t = read_transcript(path)
+                if t:
+                    files_read += 1
+                    t["path"] = hub_rel(path, hub)
+                    sessions.append(t)
+    td = os.path.join(wd, "transcripts")
+    for root, dirs, files in os.walk(td):
+        dirs.sort()
+        for name in sorted(files):
+            if name.lower().endswith(MEETING_EXT):
+                path = os.path.join(root, name)
+                meetings.append(read_meeting(path, hub_rel(path, hub)))
+    return sessions, meetings, files_read
+
+
+def store_sessions(c, found):
+    for t in found:
+        c.execute("DELETE FROM transcript WHERE session_id = ?", (t["session_id"],))  # msgs cascade
+        c.execute("INSERT INTO transcript(session_id, first_at, last_at, first_user, messages, user_messages, tools, path)"
+                  " VALUES(?,?,?,?,?,?,?,?)", tuple(t[k] for k in ("session_id", "first_at", "last_at", "first_user",
+                                                                   "messages", "user_messages", "tools", "path")))
+        for n, (at, text) in enumerate(t["users"], 1):
+            c.execute("INSERT INTO transcript_msg(session_id, n, at, text) VALUES(?,?,?,?)", (t["session_id"], n, at, text))
+
+
+def store_meetings(c, meetings):
+    for m in meetings:
+        c.execute("DELETE FROM meeting WHERE id = ?", (m["id"],))  # turns cascade
+        c.execute("INSERT INTO meeting(id, path, title, date, speakers, first_lines, turns, lines) VALUES(?,?,?,?,?,?,?,?)",
+                  tuple(m[k] for k in ("id", "path", "title", "date", "speakers", "first_lines", "turns", "lines")))
+        for n, (line, sp, text) in enumerate(m["rows"], 1):
+            c.execute("INSERT INTO meeting_turn(meeting_id, n, line, speaker, text) VALUES(?,?,?,?,?)", (m["id"], n, line, sp, text))
+
+
+def week_dirs(hub):
+    return sorted(x for x in os.listdir(hub) if WEEK_DIR.match(x) and os.path.isdir(os.path.join(hub, x))) \
+        if os.path.isdir(hub) else []
+
+
+def reindex_weeks(c, hub):
+    """Rebuild the week transcript index from the week dirs on disk (rotation): every meeting row and
+    every JSONL row whose path is in a week dir is replaced, so a moved week gets its new paths and a
+    retired week's rows go with it. Returns (weeks, meetings, sessions)."""
+    weeks, sessions, meetings = week_dirs(hub), [], []
+    for wk in weeks:
+        s, m, _ = scan_week(os.path.join(hub, wk), hub)
+        sessions += s
+        meetings += m
+    if c is not None:
+        c.execute("DELETE FROM meeting")
+        c.execute("DELETE FROM transcript WHERE path GLOB 'W[0-9]/*'")  # a retired week's rows go
+        store_sessions(c, sessions)
+        store_meetings(c, meetings)
+    return weeks, len({m["id"] for m in meetings}), len({t["session_id"] for t in sessions})
+
+
 def cmd_index_transcripts(g, a):
     pos, o = parse(a, WOPT)
     if len(pos) != 1:
@@ -1713,52 +1931,85 @@ def cmd_index_transcripts(g, a):
     wd = pos[0] if os.path.isabs(pos[0]) else os.path.join(hub, pos[0])
     if not os.path.isdir(wd):
         raise Bad(f"no week dir {wd}")
-    found, files_read = [], 0
-    for root, dirs, files in os.walk(wd):
-        dirs.sort()
-        for name in sorted(files):
-            if name.endswith(".jsonl"):
-                path = os.path.join(root, name)
-                t = read_transcript(path)
-                if t:
-                    files_read += 1
-                    rel = os.path.relpath(path, hub)
-                    t["path"] = path if rel.startswith("..") else rel
-                    found.append(t)
+    found, meetings, files_read = scan_week(wd, hub)
+    td = hub_rel(os.path.join(wd, "transcripts"), hub)
 
     def fn(c, w):
-        for t in found:
-            c.execute("DELETE FROM transcript WHERE session_id = ?", (t["session_id"],))  # msgs cascade
-            c.execute("INSERT INTO transcript(session_id, first_at, last_at, first_user, messages, user_messages, tools, path)"
-                      " VALUES(?,?,?,?,?,?,?,?)", tuple(t[k] for k in ("session_id", "first_at", "last_at", "first_user",
-                                                                       "messages", "user_messages", "tools", "path")))
-            for n, (at, text) in enumerate(t["users"], 1):
-                c.execute("INSERT INTO transcript_msg(session_id, n, at, text) VALUES(?,?,?,?)", (t["session_id"], n, at, text))
+        store_sessions(c, found)
+        # the meetings of this week dir are replaced: an edited or removed file leaves no old row
+        c.execute("DELETE FROM meeting WHERE path GLOB ?", (td.replace("[", "[[]") + "/*",))
+        store_meetings(c, meetings)
 
     run_write(g, o, fn)
     print(f"indexed {files_read} file(s), {len({t['session_id'] for t in found})} session(s) from {pos[0]}"
-          " (files that share a session id: the last one read wins)")
+          " (files that share a session id: the last one read wins);"
+          f" {len({m['id'] for m in meetings})} meeting transcript(s) from {td}")
 
 
 TRANSCRIPT_COLS = ("session_id", "first_at", "last_at", "messages", "user_messages", "tools", "first_user", "path")
+MEETING_COLS = ("id", "date", "title", "speakers", "turns", "first_lines", "path")
+
+
+def cut_around(text, needle):
+    """At most TEXT_CAP characters of text, around the first match of needle."""
+    if len(text) <= TEXT_CAP:
+        return text
+    at = text.casefold().find(needle.casefold())
+    start = max(0, min(at - TEXT_CAP // 3, len(text) - TEXT_CAP)) if at >= 0 else 0
+    return text[start:start + TEXT_CAP]
 
 
 def cmd_transcripts(g, a):
-    pos, o = parse(a, {"--detail": "one", "--format": "one"})
+    pos, o = parse(a, {"--detail": "one", "--format": "one", "--grep": "one"})
     if pos:
-        usage("transcripts [--detail SESSION_ID] [--format md|json|tsv]")
-    fmt = fmt_of(o, ("md", "json") if "detail" in o else ("md", "json", "tsv"))
+        usage("transcripts [--detail ID] [--grep TEXT] [--format md|json|tsv]")
+    fmt = fmt_of(o, ("md", "json") if "detail" in o and "grep" not in o else ("md", "json", "tsv"))
     c = connect_ro(flow_dir(g))
     sel = "SELECT " + ", ".join(TRANSCRIPT_COLS) + " FROM transcript"
+    msel = "SELECT " + ", ".join(MEETING_COLS) + " FROM meeting"
+    if "grep" in o:
+        if not o["grep"]:
+            c.close()
+            raise Bad("--grep needs a text")
+        sql = ("SELECT m.id, m.path, t.line, t.speaker, t.text FROM meeting_turn t JOIN meeting m ON m.id = t.meeting_id"
+               + (" WHERE m.id = ?" if "detail" in o else "") + " ORDER BY m.path, t.line")
+        cols, rows = select_rows(c, sql, (o["detail"],) if "detail" in o else ())
+        c.close()
+        needle = o["grep"].casefold()
+        hits = [r[:4] + (cut_around(r[4], o["grep"]),) for r in rows if needle in r[4].casefold()]
+        print(render(hits, cols, fmt))
+        return
     if "detail" not in o:
         cols, rows = select_rows(c, sel + " ORDER BY first_at, session_id")
+        mcols, mrows = select_rows(c, msel + " ORDER BY date, path")
         c.close()
+        if fmt == "json":
+            print(json.dumps([{"kind": "session", **dict(zip(cols, r))} for r in rows]
+                             + [{"kind": "meeting", **dict(zip(mcols, r))} for r in mrows],
+                             indent=1, ensure_ascii=False))
+            return
         print(render(rows, cols, fmt))
+        if mrows:
+            print()
+            print(render(mrows, mcols, fmt))
         return
     cols, rows = select_rows(c, sel + " WHERE session_id = ?", (o["detail"],))
     if not rows:
+        mcols, mrows = select_rows(c, msel + " WHERE id = ?", (o["detail"],))
+        if not mrows:
+            c.close()
+            raise Bad(f"no transcript {o['detail']!r}; run index-transcripts W_DIR")
+        tcols, trows = select_rows(c, f"SELECT n, line, speaker, substr(text, 1, {TEXT_CAP}) AS text FROM meeting_turn"
+                                      " WHERE meeting_id = ? ORDER BY n", (o["detail"],))
         c.close()
-        raise Bad(f"no transcript {o['detail']!r}; run index-transcripts W_DIR")
+        if fmt == "json":
+            print(json.dumps({"meeting": dict(zip(mcols, mrows[0])), "turns": [dict(zip(tcols, r)) for r in trows]},
+                             indent=1, ensure_ascii=False))
+            return
+        print(render(mrows, mcols, "md"))
+        print()
+        print(render(trows, tcols, "md"))
+        return
     mcols, mrows = select_rows(c, "SELECT n, at, text FROM transcript_msg WHERE session_id = ? ORDER BY n", (o["detail"],))
     c.close()
     if fmt == "json":
@@ -1911,6 +2162,9 @@ def cmd_rotate(g, a):
         print("pruned_sessions: " + (" ".join(sessions) or "none"))
         sys.stdout.flush()
 
+    def report_index(weeks, meetings, sessions):
+        print(f"transcripts_reindexed: {meetings} meeting(s), {sessions} session(s) from " + (" ".join(weeks) or "no week dir"))
+
     if not o.get("yes"):
         c = connect_ro(flow_dir(g))
         plan = rotate_plan(c, clock(), wk) + (untriaged_spec_kbs(c, hub_dir(g)),)
@@ -1918,6 +2172,7 @@ def cmd_rotate(g, a):
         print("dry-run: nothing written (add --yes to apply)")
         report(*plan)
         triage_gate(plan[0], plan[4])
+        report_index(*reindex_weeks(None, hub_dir(g)))
         return
 
     def fn(c, w):
@@ -1932,9 +2187,12 @@ def cmd_rotate(g, a):
         for name in sessions:
             c.execute("DELETE FROM session_alias WHERE name = ?", (name,))
             c.execute("DELETE FROM session WHERE name = ?", (name,))
-        return untriaged, escalated, prune, sessions, specs
+        index = reindex_weeks(c, hub_dir(g))  # the week transcript index follows the rename
+        return (untriaged, escalated, prune, sessions, specs), index
 
-    report(*run_write(g, o, fn))
+    plan, index = run_write(g, o, fn)
+    report(*plan)
+    report_index(*index)
 
 
 # ---- export, rebuild, check ----

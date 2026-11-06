@@ -97,8 +97,9 @@ Dropping durable knowledge at a week boundary is the one failure this design can
    `outbound-staging/` items: sent → `W1/reports/`, unsent → `W0/outbound-staging/`
    with a dated note why. Read `W1/reports/` for lost facts.
 5. **Flow db.** `hubflow.py rotate --week-start <today's Monday> --yes`. Put the triaged (with their
-   dispositions), escalated and pruned ids in the commit message. If the week dir that just became
-   `W1` holds Claude Code transcripts, `hubflow.py index-transcripts W1` (rerunning it is safe).
+   dispositions), escalated and pruned ids in the commit message. Run it after step 3: `--yes` also
+   rebuilds the transcript index from the renamed week dirs (`transcripts_reindexed:`), so moved
+   transcripts get their new paths and the retired `W5`'s rows go.
 6. **Citations after.** `$SK/check-citations.sh > $SCR/citations-after.tsv` and compare with the
    baseline. A citation that broke or now resolves to a different week: tombstone it.
 7. **Commit** the editorial half with a pathspec. Report: what moved, each disposition, what is

@@ -45,7 +45,8 @@ changed those files, and a check.
 
 ### 0.4.0 (the informal release: the hub kit without Prolog or Lean)
 
-No schema change. The kit is now named the hub kit, part of Sagittarius
+The db schema is 3 (T28). **Database:** run `python3 .claude/scripts/hubflow.py migrate`, then
+`check`. The kit is now named the hub kit, part of Sagittarius
 (<https://github.com/theTyster/sagittarius>). `HUB-CORE.md` is an engine file: merge it by intent
 (the new section is "Without orbit-kb", with its generated informal store map; the structure tree
 and "Panes" no longer name `sessions/`).
@@ -71,6 +72,16 @@ and "Panes" no longer name `sessions/`).
   `python3 "$KIT"/tools/hubkit.py done --hub "$HUB" sessions/launch.sh`. Owned files: `CLAUDE.md`'s
   "Sessions" section may say where the sessions are started. Check: `hubkit.py status` does not
   list `sessions/launch.sh`.
+- **Meeting transcripts can be queried.** Intent: `index-transcripts W_DIR` also reads the Markdown
+  and plain-text meeting transcripts in `W_DIR/transcripts/` (a summary and one row per speaker
+  turn or paragraph); `transcripts --detail ID` shows a meeting's turns; `transcripts --grep TEXT`
+  finds turns with their file and line; `rotate --yes` rebuilds the index of the week dirs, so a
+  retired week's rows go. Files: `.claude/scripts/hubflow.py`, `.claude/scripts/hubflow-test.py`,
+  `.claude/skills/hub-flow/SKILL.md`, `.claude/skills/hub-rotate/SKILL.md` (step 5: `rotate --yes`
+  runs after the rename and replaces the `index-transcripts W1` line), `HUB-CORE.md` ("What a week
+  holds"). A hub that changed the rotation steps keeps its own steps and runs `rotate --yes` after
+  its rename. Check: `hubflow.py index-transcripts W0`, then `hubflow.py transcripts` lists each
+  meeting file of `W0/transcripts/`.
 
 ### 0.3.0 (agents know the stores and the workflow)
 
