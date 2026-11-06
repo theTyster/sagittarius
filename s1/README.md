@@ -17,8 +17,10 @@ is a list, oldest first; each item is `{"role": "you" | "agent", "text": the com
 message is a user prompt or an assistant reply; tool calls, tool results, meta lines and subagent
 lines are not messages; an assistant reply is all the agent text of one turn. `S1_CONTEXT_MESSAGES` raises the count (never below 3). Each text is sent
 whole. Only when the state and the longest question would pass Jev's per-question context (32k
-tokens) are the messages beyond 3 dropped, oldest first, and then the oldest one left is cut from
-its start; the log line then has `"trimmed": true`. No long-context header is sent. Every text is
+tokens) are the messages beyond 3 dropped, oldest first. If the 3 whole messages still do not
+fit, they are sent whole with the `TypeSafe-Danger-Zone-Long-Context: true` header (262k tokens;
+slower, same price; the log line has `"long_context": true`). Only beyond 262k is the oldest one
+cut from its start; the log line then has `"trimmed": true`. Every text is
 redacted. It adds one line of context for the agent, for example:
 
     System 1: work=build (0.83); divergence likely (0.85); effort significant (0.91): consider a shift up; formal tool: prolog (0.72)

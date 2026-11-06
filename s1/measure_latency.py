@@ -4,7 +4,9 @@
 One live call each, through jev.judge, with $TYPESAFE_API_KEY. The text is invented. It is not a
 unit test (it needs the network and the key), so `unittest discover` does not run it.
 
-    python3 s1/measure_latency.py [--log FILE]
+    python3 s1/measure_latency.py [--log FILE] [--long]
+
+--long (T30 c2): sizes of about 60k and 150k tokens, sent with the long-context header.
 
 Prints one JSON line per size: target tokens, state characters, latency, usage, error. Exit 0
 when every call answered within the hook's S1_TIMEOUT default; 1 otherwise; 2 with no key
@@ -46,12 +48,13 @@ def main(argv):
         questions = json.load(f)
     rnd = random.Random(7)
     ok = True
-    for target in (4000, 12000, 30000):
+    long_ctx = "--long" in argv
+    for target in ((60000, 150000) if long_ctx else (4000, 12000, 30000)):
         per = target * 4 // 3  # about 4 characters per token, over 3 messages
         st = {"message": "Does this change the plan for the export?",
               "recent": [{"role": r, "text": text(rnd, per)} for r in ("you", "agent", "you")]}
         t0 = time.monotonic()
-        ans = jev.judge(st, questions, timeout=60, log_path=log)
+        ans = jev.judge(st, questions, timeout=60, log_path=log, long_context=long_ctx)
         dt = time.monotonic() - t0
         with open(log, encoding="utf-8") as f:
             rec = json.loads(f.read().splitlines()[-1])
@@ -59,7 +62,7 @@ def main(argv):
         ok = ok and good
         print(json.dumps({"target_tokens": target, "state_chars": len(json.dumps(st)),
                           "latency_s": round(dt, 2), "answered": ans is not None,
-                          "within_default_timeout": good, "usage": rec.get("usage"),
+                          "long_context": long_ctx, "within_default_timeout": good, "usage": rec.get("usage"),
                           "error": rec.get("error")}))
     return 0 if ok else 1
 

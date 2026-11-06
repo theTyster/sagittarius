@@ -27,6 +27,7 @@ DEFAULT_TIMEOUT = 20.0
 DEFAULT_LOG = os.path.expanduser("~/.claude/logs/s1.jsonl")
 KEY_ENV = "TYPESAFE_API_KEY"
 LOG_ENV = "S1_LOG"
+LONG_CONTEXT_HEADER = "TypeSafe-Danger-Zone-Long-Context"  # docs.typesafe.ai/models.md
 
 
 def urllib_transport(url, headers, body, timeout):
@@ -96,13 +97,15 @@ _CORE = ("time", "model", "questions", "state", "answers", "latency", "usage", "
 
 
 def judge(state, questions, *, model=DEFAULT_MODEL, timeout=DEFAULT_TIMEOUT,
-          redactions=None, key=None, log_path=None, transport=None, log_extra=None):
+          redactions=None, key=None, log_path=None, transport=None, log_extra=None,
+          long_context=False):
     """Ask Jev the questions about state. Returns {qid: answer}, or None on any failure.
 
     redactions: [(original, replacement), ...] applied to the state and to the question
     values (not the question ids) before the request, and so before the log.
     key: defaults to $TYPESAFE_API_KEY. log_path: defaults to $S1_LOG, then DEFAULT_LOG.
     log_extra: optional {field: value} added to the log line; it never replaces a core field.
+    long_context: send the TypeSafe-Danger-Zone-Long-Context header (262k tokens, T30).
     """
     path = log_path or os.environ.get(LOG_ENV) or DEFAULT_LOG
     key = key or os.environ.get(KEY_ENV)
@@ -125,6 +128,8 @@ def judge(state, questions, *, model=DEFAULT_MODEL, timeout=DEFAULT_TIMEOUT,
             raise RuntimeError(f"missing API key (${KEY_ENV})")
         body = json.dumps({"model": model, "state": state, "questions": questions}).encode()
         headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json"}
+        if long_context:
+            headers[LONG_CONTEXT_HEADER] = "true"
         status, text = (transport or urllib_transport)(URL, headers, body, timeout)
         if status != 200:
             raise RuntimeError(f"HTTP {status}: {text[:300]}")
