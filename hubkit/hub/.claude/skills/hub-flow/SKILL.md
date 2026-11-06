@@ -31,7 +31,7 @@ by a tool. `.claude/scripts/hubflow.py` (`$HF` below) is the only writer. Every 
 
 ## Who you are
 
-Every write needs a session identity: `HUB_SESSION` (set by `sessions/launch.sh`) or `--session S`.
+Every write needs a session identity: `HUB_SESSION` (set where the session is started, outside the hub) or `--session S`.
 No identity → exit 1. `--by human` only records a human's own words and needs `--note "<quote>"`.
 
 ## Kinds

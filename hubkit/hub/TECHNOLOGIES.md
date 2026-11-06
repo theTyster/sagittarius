@@ -8,4 +8,4 @@ running the binary before you rely on it: these drift silently.
 | Claude Code | | | Agents, skills, the whole operating surface |
 | Python 3 | ≥ 3.9 | | `hubflow.py` (stdlib only) |
 | SQLite | (bundled with Python) | | `flow/flow.db` |
-| jq | | | `sessions/launch.sh` |
+| git | | | the hub's history and archive |
