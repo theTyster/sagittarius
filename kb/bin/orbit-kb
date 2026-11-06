@@ -437,6 +437,8 @@ kb_command(why).
 kb_command(whynot).
 kb_command(show).
 kb_command(report).
+kb_command(draft).
+kb_command('pin-item').
 
 top(Argv0, Code) :-
     take_dirs(Argv0, Dirs, [view|ViewArgs]), !,
@@ -498,6 +500,7 @@ top(Argv0, Code) :-
 % Commands that write to the KB. They hold the KB lock for the whole
 % cycle: read the KB, choose the id or the run number, write, append.
 writer_command(add).
+writer_command('pin-item').
 writer_command(declare).
 writer_command(subject).
 writer_command(attest).
@@ -515,7 +518,7 @@ writer_command(attest).
 % --take replaces the holder and records writer_takeover/3 in kb.pl. The
 % lock is a record, not a guard: nothing stops a hand edit of kb.pl.
 
-lock_command(C) :- memberchk(C, [add, declare, subject, attest, run, prove, uses]).
+lock_command(C) :- memberchk(C, [add, declare, subject, attest, run, prove, uses, 'pin-item']).
 
 writer_name(W) :-
     (   getenv('ORBIT_KB_WRITER', W0), W0 \== ''
@@ -709,6 +712,8 @@ kb_cmd(why, KB, Args, Code) :- cmd_query(KB, Args, true, Code).
 kb_cmd(whynot, KB, Args, Code) :- cmd_whynot(KB, Args, Code).
 kb_cmd(show, KB, Args, Code) :- cmd_show(KB, Args, Code).
 kb_cmd(report, KB, Args, Code) :- cmd_report(KB, Args, Code).
+kb_cmd(draft, KB, Args, Code) :- cmd_draft(KB, Args, Code).
+kb_cmd('pin-item', KB, Args, Code) :- cmd_pin_item(KB, Args, Code).
 
 % ---------------------------------------------------------------------
 % Library and KB location
@@ -4442,6 +4447,116 @@ blocking_line(_, _, project_kb_unclean, "- project_kb_unclean: the project KB do
 blocking_line(_, _, X, S) :-
     term_text(X, XT), fmt(S, "- ~w", [XT]).
 
+% ---------------------------------------------------------------------
+% draft (D25): Markdown for a human to paste. Nothing is sent anywhere.
+% ---------------------------------------------------------------------
+% draft blocking: the stamp of kb.pl and each blocking item (as show blocking).
+% It writes nothing and takes no lock.
+
+cmd_draft(KB, Args, Code) :-
+    parse_opts(Args, [], Pos, _),
+    (   Pos == [blocking] -> true
+    ;   Pos == [outbound] -> true
+    ;   usage_error("draft takes one subject and nothing else: draft blocking, or draft outbound.", [])
+    ),
+    (   Pos == [blocking]
+    ->  kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
+        answer_gate(KB),
+        kb_engine(KB, Eng),
+        directory_file_path(Dir, 'kb.pl', KbFile),
+        sha256_file(KbFile, Digest),
+        say("## Blocking items", []), nl,
+        say("Stamp: spec-kb@~w", [Digest]), nl,
+        eng_all(Eng, [X], blocking(X), Xs),
+        (   Xs == [] -> say("- Nothing blocks done.", [])
+        ;   forall(member(X, Xs), ( blocking_line(KB, Eng, X, S),
+                                   ( X = project_conflict(_) -> md_say("", S, " Status: decide. A human settles it, never the date.") ; md_say("", S, "") ) ))
+        ),
+        Code = 0
+    ;   kb_uses(KB, Us), memberchk(project, Us)
+    ->  kb_engine(KB, Eng),
+        say("## Outbound drafts", []), nl,
+        eng_all(Eng, [D, P, T, S], draft(D, P, T, S), Ds0),
+        findall(r(D, P, T, S), ( member([D, P, T, S], Ds0),
+                                 \+ eng_true(Eng, pushed(D, _)),
+                                 ( eng_true(Eng, outbound(D)) ; eng_true(Eng, conflict(D)) ) ), Rows),
+        (   Rows == [] -> say("- Nothing to push.", [])
+        ;   forall(member(Row, Rows), outbound_section(Eng, Row))
+        ),
+        Code = 0
+    ;   usage_error("draft outbound needs a KB that uses the project module (D23).", [])
+    ).
+
+% Free text is pasted into a tracker that renders Markdown and HTML (D25 T7).
+% md_escape/2: & < > become entities; ` | [ ] \ get a backslash. The text has no line break.
+% md_say(+Prefix, +Text, +Suffix): the first line of Text stays on the bullet (Prefix, escaped
+% line, Suffix); each further line goes under it with the prefix "  > ".
+md_break(C) :- memberchk(C, [0'\n, 0'\r, 0'\v, 0'\f, 0x85, 0x2028, 0x2029]).
+md_lines(Text, Lines) :-
+    plain_text(Text, S), string_codes(S, Cs),
+    md_split(Cs, Lines).
+md_split(Cs, [L|Ls]) :-
+    (   append(Pre, [B|Post], Cs), md_break(B)
+    ->  ( B == 0'\r, Post = [0'\n|Post1] -> true ; Post1 = Post ),
+        !, string_codes(L, Pre), md_split(Post1, Ls)
+    ;   string_codes(L, Cs), Ls = []
+    ).
+md_escape(In, Out) :-
+    plain_text(In, S), string_codes(S, Cs),
+    foldl([C, A0, A]>>( md_esc_code(C, Es), append(A0, Es, A) ), Cs, [], Os),
+    string_codes(Out, Os).
+md_esc_code(0'&, Cs) :- !, string_codes("&amp;", Cs).
+md_esc_code(0'<, Cs) :- !, string_codes("&lt;", Cs).
+md_esc_code(0'>, Cs) :- !, string_codes("&gt;", Cs).
+md_esc_code(C, [0'\\, C]) :- memberchk(C, [0'`, 0'|, 0'[, 0'], 0'\\]), !.
+md_esc_code(C, [C]).
+md_inline(In, Out) :-
+    md_lines(In, Ls), atomic_list_concat(Ls, ' ', J), md_escape(J, Out).
+md_say(Prefix, Text, Suffix) :-
+    md_lines(Text, [L1|Rest]),
+    md_escape(L1, E1),
+    say("~w~w~w", [Prefix, E1, Suffix]),
+    forall(member(L, Rest), ( md_escape(L, E), say("  > ~w", [E]) )).
+
+outbound_section(Eng, r(D, P, T, S)) :-
+    md_inline(D, Dm), say("### ~w", [Dm]), nl,
+    (   eng_all(Eng, [Src, C], pin(P, _, Src, _, C), [[Src1, C1]|_]) -> true ; Src1 = '?', C1 = '?' ),
+    md_inline(P, Pm), say("- Pin: ~w", [Pm]),
+    md_say("- Source: ", Src1, ""),
+    md_inline(C1, C1m), say("- ChangedAt: ~w", [C1m]),
+    md_inline(S, Sm), say("- Staged: ~w", [Sm]),
+    (   eng_true(Eng, conflict(D))
+    ->  (   eng_all(Eng, [C2], tracker_changed_after(P, C2), Cs2), Cs2 \== [] -> max_member(C2a, Cs2) ; C2a = '?' ),
+        md_inline(C2a, C2m), say("- Tracker changed: ~w", [C2m]),
+        say("- Status: decide", []),
+        say("- Decide: a human picks one side, the tracker edit or the draft edit. orbit-kb does not pick.", [])
+    ;   say("- Status: ready", [])
+    ),
+    md_say("- Draft: ", T, ""), nl.
+
+% pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file] (D25 T4):
+% records pin(ID, Kind, SOURCE, sha256:HEX, T). The CLI computes the digest of F.
+cmd_pin_item(KB, Args, Code) :-
+    parse_opts(Args, ['--text-file'-value, '--changed-at'-value, '--kind'-value], Pos, Opts),
+    (   Pos = [Id, Src] -> true
+    ;   usage_error("pin-item takes an id and a source: orbit-kb pin-item ID SOURCE --text-file F --changed-at T.", [])
+    ),
+    (   kb_uses(KB, Us), memberchk(project, Us) -> true
+    ;   usage_error("pin-item needs a KB that uses the project module.", [])
+    ),
+    (   memberchk('--text-file'-File, Opts) -> true ; usage_error("pin-item needs --text-file F.", []) ),
+    (   memberchk('--changed-at'-At, Opts) -> true ; usage_error("pin-item needs --changed-at T.", []) ),
+    opt(Opts, '--kind', tracker, Kind),
+    (   memberchk(Kind, [tracker, file]) -> true ; usage_error("--kind takes tracker or file. It is ~w.", [Kind]) ),
+    (   atom_string(At, AtS),
+        re_match("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"/'', AtS) -> true
+    ;   usage_error("--changed-at takes a UTC time such as 2026-10-01T09:00:00Z. It is ~w.", [At])
+    ),
+    (   exists_file(File) -> true ; usage_error("The text file ~w does not exist.", [File]) ),
+    sha256_file(File, Digest),
+    format(atom(Fact), "pin(~q, ~q, ~q, ~q, ~q)", [Id, Kind, Src, Digest, At]),
+    cmd_add(KB, [Fact], Code).
+
 % item_text(+Eng, +Id, -Text): the text of a claim or a question, or for a
 % check, the check and the text of its claim. '' for another id.
 item_text(Eng, X, T) :-
@@ -5404,6 +5519,8 @@ help_lines(general, [
 "  pin [--check STAMP]",
 "  release",
 "  view questions [--dir KB]... [--ledger FILE [--owner KEY]] [--out F]",
+"  draft blocking | draft outbound",
+"  pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",
 "  doctor",
 "  help [COMMAND|TOPIC]",
 "",
@@ -5613,6 +5730,25 @@ help_lines(pin, [
 "--check STAMP: exit 0 when kb.pl still has that digest, and 1 when it changed.",
 "The whole line of pin is a valid STAMP. A malformed STAMP is a usage error (exit 2).",
 "pin writes nothing."
+]).
+help_lines(draft, [
+"orbit-kb draft blocking",
+"orbit-kb --dir PROJECT draft outbound",
+"",
+"Drafts only: nothing is sent to a tracker, and no command uses a network.",
+"draft blocking prints Markdown: the stamp spec-kb@sha256:HEX of kb.pl, then each item that",
+"blocks done, as show blocking does. Paste it into the ticket. orbit-kb pin --check STAMP",
+"exits 1 once kb.pl has changed. It writes nothing.",
+"draft outbound lists the project KB drafts that are not pushed (needs the project module)."
+]).
+help_lines('pin-item', [
+"orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",
+"",
+"Record a pin of a tracker item in a project KB, from item text that you pasted or exported",
+"into the file F. orbit-kb computes the digest (sha256 of F). You give the change time",
+"(--changed-at, UTC, such as 2026-10-01T09:00:00Z). --kind defaults to tracker.",
+"It writes pin/5, so it takes the writer lock and accepts --take (D23). A pin id that exists",
+"is rejected (exit 1). Nothing is fetched: no command uses a network."
 ]).
 help_lines(report, [
 "orbit-kb report [--html FILE [--open]]",

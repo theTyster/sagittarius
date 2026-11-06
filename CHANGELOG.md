@@ -24,6 +24,9 @@ Ty makes the release. This entry lists what is in the `redesign` branch. The hub
 - Status line (T14): `s1/statusline.py` shows System 1 in the Claude Code status line.
 - System 1 hook (T07): `s1/hook.py` asks Jev about each prompt. It is optional. You paste its
   snippet into `settings.json` yourself. No script writes that file.
+- Tracker drafts (T11): `orbit-kb draft blocking` (the blocking items with the stamp), `draft outbound`
+  (project KB drafts with their pins; a conflict shows as "decide"), and `pin-item` (records a pin of
+  a tracker item from pasted text). Nothing is sent to a tracker (CONTRACT D25).
 - Release (T15): a "Use it" path in `README.md`, and `kb/tests/test_release.sh`.
 - Project KB (T06): an orbit-kb KB with the `project` module (CONTRACT D23). It has one writer at a
   time (a lock), stale pins, outbound drafts, and a conflict rule: when the tracker and a draft both
@@ -31,9 +34,9 @@ Ty makes the release. This entry lists what is in the `redesign` branch. The hub
 
 ### Not in this release yet
 
-- Tracker drafts (T11).
+- None.
 
 ### Limits
 
 - The Lean model's `done` has no project-conflict clause and no flare clause. So the Lean proofs
-  about `done` cover only KBs without those modules.
+  about `done` cover only KBs with no project module and no visual (flare) claims.

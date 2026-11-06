@@ -51,7 +51,7 @@ Lint
 
 One writer
   A project KB has one writer at a time. The writer is $ORBIT_KB_WRITER, or else $CLAUDE_SESSION_ID.
-  With neither, no lock is taken. A write command (add, declare, subject, attest, run, prove, uses)
+  With neither, no lock is taken. A write command (add, declare, subject, attest, run, prove, uses, pin-item)
   claims the file writer.lock. The same writer goes on. Another writer gets exit 2 and the name of
   the holder. Two ways forward:
     orbit-kb release            the holder frees the lock

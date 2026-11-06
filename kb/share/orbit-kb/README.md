@@ -1111,6 +1111,8 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | W5 | A `check` of a superseded claim, while the current claim that replaces it (directly or through a chain) has no check. Check ids are unique (E5) and facts are append-only, so the message says to add a new check of the current claim and run it (D15). |
 | W6 | A local rule that adds clauses to a core or module predicate (an extension). For a protected predicate, it is E16 instead. |
 | W7 | A predicate declared by its first use in `add` (D22), with who and when. Review it. |
+| WP3 | The project KB of `project_kb/1` has a lint error, so a conflict could hide in it. Run `orbit-kb lint` on it. It also blocks (`project_kb_unclean`). Module hook (D23 P8). |
+| WP4 | A KB has more than one `project_kb` fact. Only the first is read. Keep one. The id is the later directory (D23 follow-up). |
 
 Built-ins that E2 permits: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `true`,
 `false`, `forall/2`. Lint unwraps `not G`.
