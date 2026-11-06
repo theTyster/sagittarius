@@ -13,6 +13,7 @@
 #   c2 each outbound draft names its pin and the pin's ChangedAt; pin-item     : TS5-TS9
 #   c3 a conflict shows as "decide", never resolved by date                    : TS10-TS12 TS15
 #   c4 no command writes to a network                                          : TS13-TS14
+#   text injection (Markdown and HTML in free text), help project              : TS16-TS20
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -266,7 +267,8 @@ NETMETHOD=""
 net_setup() {
     [ -n "$NETMETHOD" ] && return 0
     NETNS=""; unshare -rn true 2>/dev/null && NETNS=1
-    if command -v strace >/dev/null 2>&1; then NETMETHOD=strace
+    if [ "${TRACKER_SYNC_NONET:-}" = weak ]; then NETMETHOD=unshare-stderr   # force the weak method (to test the skip)
+    elif command -v strace >/dev/null 2>&1; then NETMETHOD=strace
     elif command -v cc >/dev/null 2>&1 && cat > "$base/netshim.c" <<'CSRC' && cc -shared -fPIC -O1 -o "$base/netshim.so" "$base/netshim.c" -ldl 2>/dev/null; then NETMETHOD=preload
 #define _GNU_SOURCE
 #include <dlfcn.h>
@@ -320,7 +322,8 @@ no_net() {   # no_net LABEL: the last traced run made no inet socket, connect, o
 t_TS13() { net_setup
            # the harness itself: a deliberate connect must be seen, or the method proves nothing
            traced_cmd swipl -q -g "catch(tcp_connect(localhost:9, _, []), _, true)" -t halt
-           [ -s "$T/.net" ] || { [ "$NETMETHOD" = unshare-stderr ] && echo "     (weak method: a swallowed connect is not seen)"; [ "$NETMETHOD" = unshare-stderr ] || note "the harness ($NETMETHOD) did not see a deliberate connect"; }
+           if [ "$NETMETHOD" = unshare-stderr ]; then SKIPMSG="weak method only (no strace, no cc): a swallowed connect is not seen. The other checks of this test still ran."
+           else [ -s "$T/.net" ] || note "the harness ($NETMETHOD) did not see a deliberate connect"; fi
            spec_kb; conflict_kb
            traced_run "$K" draft blocking; rc_is 0 "draft blocking ($NETMETHOD)"; out_has 'spec-kb@sha256:[0-9a-f]{64}' "its output is complete"; no_net "draft blocking"
            traced_run "$P" draft outbound; rc_is 0 "draft outbound ($NETMETHOD)"; out_has '^### dA' "its output is complete"; no_net "draft outbound"
@@ -340,6 +343,71 @@ t_TS14() { local pat='http_open|http_get|http_post|http_delete|http_put|http/htt
            project_kb; okb "$P" draft outbound; rc_is 0 "the command exists"
            okb "$P" help draft; any_hasi 'no network|never (post|push|write)|drafts only' "help draft says that nothing goes to a tracker"; }
 
+
+# ================================================================ text injection (review of T11)
+# Free text (a draft text, a source, a claim text) is pasted into a tracker that renders Markdown
+# and HTML. D25 T7: it is escaped (& < > ` | [ ] \), and a text of more than one line puts every
+# line after the first under the bullet as a block with the prefix "  > ", so no line of it can start
+# a heading, a list item, or a fake status line.
+EVIL=$'one\n## Heading\n- Status: ready\n<script>alert(1)</script> <img src=x onerror=alert(2)> a | b `c` [x](http://example.test/)'
+EVILA="one\\n## Heading\\n- Status: ready\\n<script>alert(1)</script> <img src=x onerror=alert(2)> a | b \`c\` [x](http://example.test/)"
+safe_md() {   # safe_md LABEL: the stdout in $out has no live injection
+    local l=$1
+    [ "$(printf '%s\n' "$out" | grep -c '^## ')" = 1 ] || note "$l: a forged '## ' heading line"
+    printf '%s\n' "$out" | grep -Eq '^#{1,6} Heading' && note "$l: a forged heading"
+    printf '%s\n' "$out" | grep -Eq '<(script|img)|onerror=' && note "$l: raw HTML passes through"
+    printf '%s\n' "$out" | grep -Eq '(^|[^\\])[|]' && note "$l: an unescaped pipe"
+    printf '%s\n' "$out" | grep -Eq '(^|[^\\])`' && note "$l: an unescaped backtick"
+    printf '%s\n' "$out" | grep -Fq '](http' && note "$l: a live link"
+    printf '%s\n' "$out" | grep -Eq '^- Status: ready' && note "$l: a forged status line at the start of a line"
+    printf '%s\n' "$out" | grep -Fq 'Heading' || note "$l: the text is lost (it must show, escaped)"
+    printf '%s\n' "$out" | grep -Fq '&lt;script&gt;' || note "$l: < and > are not escaped as &lt; and &gt;"
+    printf '%s\n' "$out" | grep -Eq '^  > ## Heading' || note "$l: the lines after the first are not a '  > ' block"
+    return 0
+}
+t_TS16() { project_kb
+           pin_item p1 tracker:ITEM-1 'Title: Sort orders' "$T0"
+           okb "$P" add "draft(d1, p1, '$EVILA', '$T2')" >/dev/null || note "setup: add the draft: $(snip "$err")"
+           okb "$P" draft outbound; rc_is 0 "draft outbound"
+           safe_md "draft text"
+           [ "$(printf '%s\n' "$out" | grep -c '^- Status:')" = 1 ] || note "one status line for the one draft (a text forged another)"
+           [ "$(printf '%s\n' "$out" | grep -c '^### ')" = 1 ] || note "one section for the one draft"; }
+t_TS17() { project_kb
+           item_text "$T/i.txt" 'x'
+           okb "$P" pin-item p1 "$EVIL" --text-file "$T/i.txt" --changed-at "$T0"; rc_is 0 "a source with a newline is recorded as given"
+           add_draft d1 p1 'Plain text' "$T2"
+           okb "$P" draft outbound; rc_is 0 "draft outbound"
+           safe_md "source"
+           [ "$(printf '%s\n' "$out" | grep -c '^- Status:')" = 1 ] || note "one status line (a source forged another)"
+           project_kb_ids; }
+project_kb_ids() { local P2=$T/proj2; "$OKB" init "$P2" --request 'Ids' --uses project >/dev/null 2>&1
+           item_text "$T/j.txt" 'y'
+           okb "$P2" pin-item p1 tracker:I-1 --text-file "$T/j.txt" --changed-at "$T0" >/dev/null
+           okb "$P2" add "draft('d\\n## Fake', p1, 'ok', '$T2')" >/dev/null || note "setup: odd id"
+           okb "$P2" draft outbound; rc_is 0 "an odd draft id"
+           [ "$(printf '%s\n' "$out" | grep -c '^#\{1,6\} ')" = 2 ] || note "a draft id forged a heading (want the title and one section heading)"; }
+t_TS18() { K=$T/spec
+           "$OKB" init "$K" --request 'Test request' --uses build >/dev/null 2>&1 || note "setup: init"
+           okb "$K" add "claim(c1, preserve, '$EVILA')" "cites(c1, 'Keep it')" >/dev/null || note "setup: add the claim: $(snip "$err")"
+           okb "$K" draft blocking; rc_is 0 "draft blocking"
+           safe_md "claim text"
+           printf '%s\n' "$out" | grep -Fxq -- '- Nothing blocks done.' && note "a claim text forged '- Nothing blocks done.'"
+           okb "$K" pin --check "$(printf '%s\n' "$out" | grep -Eo 'spec-kb@sha256:[0-9a-f]{64}' | head -n1)"; rc_is 0 "the stamp is still the stamp of kb.pl"; }
+t_TS19() { conflict_kb
+           okb "$P" add "draft(dE, p5, '$EVILA', '$T4')" >/dev/null
+           pin_item p6 tracker:ITEM-5 'Title: Quiet, edited' "$T3"   # the tracker changed at T3, the draft was staged at T4
+           okb "$P" add "decision(dec1, 'Orders are sorted by number')" "concerns(dec1, p5)" >/dev/null || note "setup: decision"
+           local dg; dg=sha256:$(printf '%s' 'Orders are sorted by number' | sha256sum | cut -d' ' -f1)
+           K=$T/spec2; "$OKB" init "$K" --request 'Test request' --uses build,project >/dev/null 2>&1 || note "setup: init spec KB"
+           okb "$K" add "project_kb('$P')" "claim(c1, preserve, 'Orders keep their number')" "cites(c1, 'Keep the order number')" \
+               "pins(c1, project, dec1, '$dg')" >/dev/null || note "setup: add to the spec KB: $(snip "$err")"
+           okb "$K" draft blocking; rc_is 0 "draft blocking"
+           out_has '^- project_conflict dE' "the conflict with the odd draft text is listed"
+           safe_md "conflict draft text"; }
+t_TS20() { okb_nokb help project; rc_is 0 "help project"
+           printf '%s\n' "$out" | grep -E 'write command' | grep -Fq 'pin-item' || note "help project lists pin-item among the write commands of the writer lock"; }
+okb_nokb() { ( cd "$T" && exec timeout "$TMO" "$OKB" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
+
 # ---------------------------------------------------------------- driver
 for fn in $(declare -F | awk '{print $3}' | grep -E '^t_TS[0-9]+$' | sort -t S -k2 -n); do
     id=${fn#t_}
@@ -348,7 +416,8 @@ for fn in $(declare -F | awk '{print $3}' | grep -E '^t_TS[0-9]+$' | sort -t S -
     FAILS=(); SKIPMSG=""; out=""; err=""; rc=0; K=""; P=""
     XDG_CACHE_HOME=$T/.cache; export XDG_CACHE_HOME; mkdir "$XDG_CACHE_HOME"
     cd "$T" && "$fn" </dev/null; cd "$here"
-    if [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
+    if [ ${#FAILS[@]} -eq 0 ] && [ -n "$SKIPMSG" ]; then skip=$((skip+1)); echo "SKIP $id: $SKIPMSG"
+    elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for m in "${FAILS[@]}"; do echo "     - $m"; done; fi
     rm -rf "$T"
 done
