@@ -20,14 +20,36 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   renew ID [--note N]                          renewed_at = now (an open item only)
   park ID --until YYYY-MM-DD [--note N]        not lapsed before that date
   set ID [--title T] [--owner S] [--waits-on P|none] [--status open|waiting] [--analysis SLUG|none]
-  close ID --reason done|dropped [--note N]
+  close ID --reason done|dropped [--note N]   an agent cannot close, renew, park, set --status
+                                               or ref rm the kb ref of an item that is escalated
+                                               or whose spec KB blocks (--by human may)
+  close ID --reason human_skip --by human --note QUOTE
+                                               a person's skip: also closes the open items linked
+                                               to ID by `blocks` (either way), and prints the
+                                               waiver command for each blocking item of each
+                                               linked spec KB; it never runs one
+  triage ID keep|lapse|capsule|escalate --note T
+                                               one recorded disposition for a due item. keep and
+                                               capsule renew it (capsule needs a capsule first),
+                                               lapse closes it as lapsed, escalate leaves it open
+                                               for the human. An agent's keep, lapse or capsule of
+                                               an item whose spec KB blocks becomes escalate
+  capsule ID --summary T                       context the tracker lacks (at most 1000 characters),
+                                               with the hub's git HEAD and the item's kb and file
+                                               refs; `show` prints the newest capsule first
+  index-transcripts W_DIR                      index the Claude Code JSONL transcripts under a week
+                                               dir (relative to the hub): counts, times, and user
+                                               messages cut to 200 characters. Idempotent
+  transcripts [--detail SESSION_ID] [--format md|json|tsv]
+                                               the index; --detail adds the user messages
   reopen ID [--note N]
   ref ID add|rm KIND:REF                       KIND: issue pr build release kb file commit url
   link FROM TO KIND                            KIND: blocks duplicates relates supersedes follows
   note ID TEXT                                 an event with verb note
   show ID [--format md|json]                   the item, refs, links, handoff and events
-  view NAME [--session S] [--person P] [--kind K] [--week-start D] [--format md|json|tsv]
-                                               NAME: open waiting_on inbox stale dup_refs week
+  view [NAME] [--session S] [--person P] [--kind K] [--week-start D] [--format md|json|tsv]
+                                               NAME: open (the default; escalated items first)
+                                               escalated waiting_on inbox stale dup_refs week
                                                retention_due (v_ prefix optional)
   sql "SELECT ..." [--format md|json|tsv]      read-only; one SELECT or WITH statement, else exit 1
   session add NAME --role R | rename OLD NEW | retire NAME
@@ -35,10 +57,13 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                writer NAME makes the first session
   where SLUG                                   the W-slot path of an analysis slug, newest week first
   import FILE [--yes] [--format md|json]       JSONL of items; a dry run without --yes; all or nothing
-  rotate --week-start YYYY-MM-DD [--yes]       lapse and prune; a dry run without --yes
+  rotate --week-start YYYY-MM-DD [--yes]       prune; a dry run without --yes. Lists the due items
+                                               with no disposition (untriaged) and exits 1 until
+                                               each has one
   export                                       rewrite the JSONL from the db
   rebuild                                      make the db from the JSONL (refuses if the db exists)
-  check                                        schema, foreign keys, and JSONL equal to the db
+  check                                        schema, foreign keys, JSONL equal to the db, and
+                                               no ask to another person without an issue ref
   migrate                                      bring an older db up to this script's schema: copies
                                                the db to flow/flow.db.bak-v<N> first, then runs each
                                                step and rewrites the JSONL, all in one transaction
@@ -51,13 +76,19 @@ Output: md tables by default; --format json for scripts. Errors go to stderr as 
 Seed file (JSON; every key optional, no other keys):
   {"sessions": [{"name": "discovery", "role": "discovery"}, ...],
    "aliases":  [{"alias": "helpdesk", "name": "support"}],
-   "persons":  [{"key": "me", "display": "Me"}]}
+   "persons":  [{"key": "me", "display": "Me"}],
+   "owner":    "me"}
   Session names and aliases: lowercase letters, digits and dashes. An alias names a seeded session.
+  owner: the person key of the hub's owner (meta owner_person); without it, the person `me`.
 
 Environment
   HUB_SESSION          the writer's session name
   HUBFLOW_HUB          the hub root, when --hub is not given
   HUBFLOW_DB_DIR       the flow/ directory (tests). It wins over --hub; default <hub>/flow
+  HUBFLOW_ORBIT_KB     the orbit-kb command for spec KB queries (default `orbit-kb`; split like
+                       shell words). hubflow only runs `--dir KB query 'blocking(X)'`: exit 0 with
+                       lines = blocking, exit 1 = clear. Any other exit, a missing command or a kb
+                       ref with no dir in W0..W5/analyses counts as blocking (fail-safe)
   HUBFLOW_NOW          fixes the clock, YYYY-MM-DDTHH:MM:SSZ (tests). Every write stores it as
                        meta.now so views read the same clock; a read applies it to a private copy
   --hub DIR            the hub root (default: HUBFLOW_HUB, else the git toplevel of the current
@@ -68,16 +99,18 @@ directory. `where` and the retention windows below follow it.
 
 Exit codes
   0 ok   1 bad input or a refused rule   2 db state (missing, exists, older or newer schema, locked)
-  3 check found a difference
+  3 check found a difference or an ask to another person without an issue ref
 
 Retention (rotate --week-start D, D the Monday of the new W0; W5 starts at D - 35 days)
-  lapse: open or waiting, idle 28 days or more, not parked through today -> status lapsed
+  due: open or waiting, idle 28 days or more, not parked through today, not escalated. Each due
+       item needs a disposition (`triage`) before `rotate` runs; nothing lapses by itself
   prune: closed before D - 35 days -> deleted with refs, links, handoff and events; retired
          sessions retired before then and referenced by no item go with their aliases
   The caller commits flow/jsonl/ with the ids in the message; git history is the archive.
 
-Schema v1 (PRAGMA user_version = 1; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ)
-  meta(key, value)                  next_A next_T next_K next_H, and now (tests only)
+Schema v2 (PRAGMA user_version = 2; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
+db to v2: it adds the four tables below the event table and remakes v_open and v_retention_due.
+  meta(key, value)                  next_A next_T next_K next_H, owner_person, and now (tests only)
   session(name, role, status active|retired, started_on, retired_on)
   session_alias(alias, name, since)
   person(key, display)
@@ -89,18 +122,30 @@ Schema v1 (PRAGMA user_version = 1; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ)
   item_link(from_id, to_id, kind)
   handoff(item_id, from_session, to_session, gate, accepted_at)
   event(seq, at, item_id, verb, old, new, by_session, by human|agent|script, note)
-Views: clock v_open v_waiting_on v_inbox v_stale v_dup_refs v_week v_retention_due
+  disposition(seq, at, item_id, disposition keep|lapse|capsule|escalate, asked, note, detail,
+       by_session, by)              asked: what an agent asked for when it became escalate;
+                                    an open item is escalated while its newest disposition is
+  capsule(seq, at, item_id, summary, git_rev, paths (a JSON list), by_session, by)
+  transcript(session_id, first_at, last_at, first_user, messages, user_messages, tools, path)
+  transcript_msg(session_id, n, at, text)   user messages only, each cut to 200 characters
+Views: clock v_open (with escalated) v_escalated v_waiting_on v_inbox v_stale v_dup_refs v_week
+       v_retention_due (would: triage | prune)
 """
-import datetime, json, os, re, sqlite3, subprocess, sys
+import datetime, json, os, re, shlex, sqlite3, subprocess, sys
 from urllib.parse import quote
 
-SCHEMA_VERSION = 1
-# Schema steps: MIGRATIONS[v] is the SQL that takes a db from schema v to v + 1. A release that
-# changes the schema raises SCHEMA_VERSION, changes DDL to the new shape, and adds the step here.
-MIGRATIONS = {}
+SCHEMA_VERSION = 2
+# Schema steps: MIGRATIONS[v] is the SQL that takes a db from schema v to v + 1. DDL is the shape of
+# schema 1; init and rebuild run DDL and then every step, so a new db and a migrated db are the
+# same. A release that changes the schema raises SCHEMA_VERSION and adds its step to MIGRATIONS.
 WARN_DAYS = 14
 LAPSE_DAYS = 28
 PRUNE_DAYS = 35
+TEXT_CAP = 200          # transcript texts kept in the ledger, in characters
+CAPSULE_MAX = 1000      # a capsule is a summary, not a copy
+ORBIT_KB_TIMEOUT = 60   # seconds for one `orbit-kb query`
+DISPOSITIONS = ("keep", "lapse", "capsule", "escalate")
+CLOSE_REASONS = ("done", "dropped", "human_skip")
 ITEM_KINDS = ("ask", "thread", "hold", "handoff")
 ADDABLE = ("ask", "thread", "hold")
 STATUSES = ("open", "waiting", "done", "dropped", "lapsed")
@@ -117,12 +162,15 @@ DATE = re.compile(r"^\d{4}-\d\d-\d\d$")
 SQL_OK = re.compile(r"^\s*(select|with)\b", re.I)
 TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
-TABLES = ("meta", "session", "session_alias", "person", "item", "item_ref", "item_link", "handoff", "event")
+TABLES = ("meta", "session", "session_alias", "person", "item", "item_ref", "item_link", "handoff", "event",
+          "disposition", "capsule", "transcript", "transcript_msg")
 ORDER = {"meta": "key", "session": "name", "session_alias": "alias", "person": "key", "item": "id",
          "item_ref": "item_id, kind, ref", "item_link": "from_id, to_id, kind", "handoff": "item_id",
-         "event": "seq"}
+         "event": "seq", "disposition": "seq", "capsule": "seq", "transcript": "session_id",
+         "transcript_msg": "session_id, n"}
 
 SEED_KEYS = {"sessions": ("name", "role"), "aliases": ("alias", "name"), "persons": ("key", "display")}
+SEED_OWNER = "owner"  # optional seed key: the person key of the hub's owner
 
 AGE = "(CAST(strftime('%s', clock.now) AS INTEGER) - CAST(strftime('%s', {col}) AS INTEGER)) / 86400"
 
@@ -218,9 +266,70 @@ WHERE i.closed_at IS NOT NULL
   AND i.closed_at < strftime('%Y-%m-%dT00:00:00Z', p.wk, '-{PRUNE_DAYS} days')""",
 ]
 
+ESCALATED = """COALESCE((SELECT d.disposition = 'escalate' FROM disposition d WHERE d.item_id = i.id
+                  ORDER BY d.seq DESC LIMIT 1), 0)"""
+
+# Schema 2 (T05, the flow ledger): triage dispositions, context capsules, the transcript index;
+# v_open gains `escalated`; v_retention_due lists due items as `triage`, never `lapse`.
+V2_STEPS = [
+    """CREATE TABLE disposition(seq INTEGER PRIMARY KEY, at TEXT NOT NULL,
+  item_id TEXT NOT NULL REFERENCES item(id) ON DELETE CASCADE,
+  disposition TEXT NOT NULL CHECK(disposition IN ('keep','lapse','capsule','escalate')),
+  asked TEXT CHECK(asked IS NULL OR asked IN ('keep','lapse','capsule')),
+  note TEXT NOT NULL, detail TEXT,
+  by_session TEXT NOT NULL, by TEXT NOT NULL CHECK(by IN ('human','agent','script')))""",
+    f"""CREATE TABLE capsule(seq INTEGER PRIMARY KEY, at TEXT NOT NULL,
+  item_id TEXT NOT NULL REFERENCES item(id) ON DELETE CASCADE,
+  summary TEXT NOT NULL CHECK(length(summary) BETWEEN 1 AND {CAPSULE_MAX}),
+  git_rev TEXT, paths TEXT NOT NULL,
+  by_session TEXT NOT NULL, by TEXT NOT NULL CHECK(by IN ('human','agent','script')))""",
+    """CREATE TABLE transcript(session_id TEXT PRIMARY KEY, first_at TEXT, last_at TEXT,
+  first_user TEXT CHECK(first_user IS NULL OR length(first_user) <= 200),
+  messages INTEGER NOT NULL, user_messages INTEGER NOT NULL, tools INTEGER NOT NULL, path TEXT NOT NULL)""",
+    """CREATE TABLE transcript_msg(session_id TEXT NOT NULL REFERENCES transcript(session_id) ON DELETE CASCADE,
+  n INTEGER NOT NULL, at TEXT, text TEXT NOT NULL CHECK(length(text) <= 200), PRIMARY KEY(session_id, n))""",
+    "DROP VIEW v_open",
+    f"""CREATE VIEW v_open AS
+SELECT i.id, i.kind, i.title, i.status, i.owner_session, i.waits_on, i.analysis,
+  COALESCE((SELECT group_concat(kind || ':' || ref, ' ')
+            FROM (SELECT kind, ref FROM item_ref r WHERE r.item_id = i.id ORDER BY kind, ref)), '') AS refs,
+  {AGE.format(col='i.opened_at')} AS age_days,
+  {AGE.format(col='i.renewed_at')} AS idle_days,
+  i.opened_at, i.renewed_at, i.parked_until,
+  {ESCALATED} AS escalated
+FROM item i, clock WHERE i.status IN ('open','waiting')""",
+    """CREATE VIEW v_escalated AS
+SELECT o.id, o.kind, o.title, o.owner_session, o.waits_on, o.refs, o.idle_days,
+  d.at AS escalated_at, d.asked, d.note, d.detail, d.by_session
+FROM v_open o JOIN disposition d ON d.seq = (SELECT MAX(x.seq) FROM disposition x WHERE x.item_id = o.id)
+WHERE o.escalated = 1""",
+    "DROP VIEW v_retention_due",
+    f"""CREATE VIEW v_retention_due AS
+WITH p AS (SELECT clock.now AS now,
+                  COALESCE((SELECT value FROM meta WHERE key='rotate_week_start'),
+                           date(clock.now, '-6 days', 'weekday 1')) AS wk FROM clock)
+SELECT i.id, i.kind, i.title, i.status, 'triage' AS would,
+  'idle ' || ((CAST(strftime('%s', p.now) AS INTEGER) - CAST(strftime('%s', i.renewed_at) AS INTEGER)) / 86400) || ' days' AS detail
+FROM item i, p
+WHERE i.status IN ('open','waiting')
+  AND i.renewed_at <= strftime('%Y-%m-%dT%H:%M:%SZ', p.now, '-{LAPSE_DAYS} days')
+  AND (i.parked_until IS NULL OR i.parked_until < date(p.now))
+  AND {ESCALATED} = 0
+UNION ALL
+SELECT i.id, i.kind, i.title, i.status, 'prune', 'closed ' || i.closed_at
+FROM item i, p
+WHERE i.closed_at IS NOT NULL
+  AND i.closed_at < strftime('%Y-%m-%dT00:00:00Z', p.wk, '-{PRUNE_DAYS} days')""",
+]
+
+MIGRATIONS = {
+    1: V2_STEPS,
+}
+
 # view name -> (sql view, filter option -> column, ORDER BY)
 VIEW_DEFS = {
-    "open": ("v_open", {"session": "owner_session", "kind": "kind"}, "id"),
+    "open": ("v_open", {"session": "owner_session", "kind": "kind"}, "escalated DESC, id"),
+    "escalated": ("v_escalated", {"session": "owner_session", "kind": "kind"}, "id"),
     "waiting_on": ("v_waiting_on", {"person": "waits_on", "kind": "kind"}, "waits_on, opened_at, id"),
     "inbox": ("v_inbox", {"session": "session", "kind": "kind"}, "session, unaccepted DESC, opened_at, id"),
     "stale": ("v_stale", {"session": "owner_session", "kind": "kind"}, "id, flag"),
@@ -357,6 +466,21 @@ def connect_ro(d, overrides=None):
     return m
 
 
+def create_schema(c):
+    """The schema-1 DDL, then every step up to SCHEMA_VERSION (init and rebuild)."""
+    for stmt in DDL:
+        c.execute(stmt)
+    for v in range(1, SCHEMA_VERSION):
+        for stmt in MIGRATIONS[v]:
+            c.execute(stmt)
+
+
+def live_tables(c):
+    """TABLES that the db has (a db at an older schema lacks the later ones)."""
+    have = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    return [t for t in TABLES if t in have]
+
+
 # ---- JSONL ----
 
 def table_rows(c, t):
@@ -367,7 +491,7 @@ def export_all(c, d):
     """Write one sorted JSONL file per table. Called inside the write transaction."""
     jd = jsonl_dir(d)
     os.makedirs(jd, exist_ok=True)
-    for t in TABLES:
+    for t in live_tables(c):
         tmp = os.path.join(jd, t + ".jsonl.tmp")
         with open(tmp, "w", encoding="utf-8", newline="\n") as f:
             for row in table_rows(c, t):
@@ -387,7 +511,7 @@ def read_jsonl(path):
 
 def differences(c, d):
     out = []
-    for t in TABLES:
+    for t in live_tables(c):
         disk = read_jsonl(os.path.join(jsonl_dir(d), t + ".jsonl"))
         if disk is None:
             out.append(f"{t}.jsonl is missing")
@@ -635,6 +759,7 @@ def seed_path(o, d):
 def load_seed(path):
     """Read and validate a seed file. Returns {"sessions": [(name, role)], "aliases": [...], "persons": [...]}."""
     out = {k: [] for k in SEED_KEYS}
+    out["owner"] = None
     if path is None:
         return out
     try:
@@ -646,7 +771,7 @@ def load_seed(path):
         raise Bad(f"seed {path} is not valid JSON: {e}")
     if not isinstance(obj, dict):
         raise Bad(f"seed {path} must be a JSON object with sessions, aliases and persons")
-    extra = sorted(set(obj) - set(SEED_KEYS))
+    extra = sorted(set(obj) - set(SEED_KEYS) - {SEED_OWNER})
     if extra:
         raise Bad(f"seed {path} has unknown key(s): {', '.join(extra)}")
     for key, fields in SEED_KEYS.items():
@@ -672,6 +797,10 @@ def load_seed(path):
     keys = [k for k, _ in out["persons"]]
     if len(set(keys)) != len(keys):
         raise Bad("seed person keys must all be different")
+    if SEED_OWNER in obj:
+        if obj[SEED_OWNER] not in keys:
+            raise Bad(f"seed owner {obj[SEED_OWNER]!r} must be the key of a seeded person")
+        out["owner"] = obj[SEED_OWNER]
     return out
 
 
@@ -688,8 +817,7 @@ def cmd_init(g, a):
     try:
         c.execute("PRAGMA journal_mode=WAL")
         c.execute("BEGIN IMMEDIATE")
-        for stmt in DDL:
-            c.execute(stmt)
+        create_schema(c)
         today = now[:10]
         for k in ("next_A", "next_T", "next_K", "next_H"):
             c.execute("INSERT INTO meta(key, value) VALUES(?, '1')", (k,))
@@ -701,6 +829,8 @@ def cmd_init(g, a):
             c.execute("INSERT INTO session_alias(alias, name, since) VALUES(?, ?, ?)", (alias, name, today))
         for key, display in seed["persons"]:
             c.execute("INSERT INTO person(key, display) VALUES(?, ?)", (key, display))
+        if seed["owner"]:
+            c.execute("INSERT INTO meta(key, value) VALUES('owner_person', ?)", (seed["owner"],))
         c.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         export_all(c, d)
         c.execute("COMMIT")
@@ -803,6 +933,7 @@ def cmd_renew(g, a):
     pos, o = parse(a, WOPT)
     if len(pos) != 1:
         usage("renew ID [--note N]")
+    agent_guard(g, o, pos[0], "renew")
 
     def fn(c, w):
         it = get_item(c, pos[0])
@@ -818,6 +949,7 @@ def cmd_park(g, a):
     if len(pos) != 1 or not o.get("until"):
         usage("park ID --until YYYY-MM-DD [--note N]")
     until = parse_date(o["until"], "--until")
+    agent_guard(g, o, pos[0], "park")
 
     def fn(c, w):
         it = get_item(c, pos[0])
@@ -843,6 +975,8 @@ def cmd_set(g, a):
         raise Bad("--status is open or waiting (close with the close command)")
     if o.get("analysis") not in (None, "none"):
         check_analysis(o["analysis"])
+    if "status" in o:
+        agent_guard(g, o, pos[0], "change the status of")
 
     def fn(c, w):
         it = get_item(c, pos[0])
@@ -878,17 +1012,47 @@ def cmd_set(g, a):
 
 def cmd_close(g, a):
     pos, o = parse(a, {**WOPT, "--reason": "one"})
-    if len(pos) != 1 or o.get("reason") not in ("done", "dropped"):
-        usage("close ID --reason done|dropped [--note N]")
+    if len(pos) != 1 or o.get("reason") not in CLOSE_REASONS:
+        usage("close ID --reason done|dropped|human_skip [--note N]")
+    skip = o["reason"] == "human_skip"
+    if skip and writer_by(o, g) != "human":
+        raise Bad("--reason human_skip records a person's skip: pass --by human --note with their words")
+    if not skip:  # an agent never closes a blocking item
+        agent_guard(g, o, pos[0], "close")
 
     def fn(c, w):
         it = get_item(c, pos[0])
         need_open(it)
+        iid = it["id"]
+        status = "dropped" if skip else o["reason"]
         c.execute("UPDATE item SET status = ?, closed_at = ?, close_reason = ? WHERE id = ?",
-                  (o["reason"], w.now, o["reason"], it["id"]))
-        w.event(it["id"], "closed", it["status"], o["reason"])
+                  (status, w.now, o["reason"], iid))
+        w.event(iid, "closed", it["status"], o["reason"])
+        linked = []
+        if o["reason"] == "human_skip":  # propagate
+            linked = [r[0] for r in c.execute(
+                "SELECT i.id FROM item i WHERE i.status IN ('open','waiting') AND i.id IN"
+                " (SELECT to_id FROM item_link WHERE from_id = ? AND kind = 'blocks'"
+                "  UNION SELECT from_id FROM item_link WHERE to_id = ? AND kind = 'blocks') ORDER BY i.id", (iid, iid))]
+            for x in linked:
+                old = c.execute("SELECT status FROM item WHERE id = ?", (x,)).fetchone()[0]
+                c.execute("UPDATE item SET status = 'dropped', closed_at = ?, close_reason = ? WHERE id = ?",
+                          (w.now, f"human_skip of {iid}", x))
+                w.event(x, "closed", old, "human_skip",
+                        note=f"the human skipped {iid}, linked by blocks; their words are on {iid}", by="script")
+        kbs = []
+        for x in [iid] + linked:
+            for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (x,)):
+                if r[0] not in kbs:
+                    kbs.append(r[0])
+        return iid, linked, kbs
 
-    run_write(g, o, fn)
+    iid, linked, kbs = run_write(g, o, fn)
+    if not skip:
+        return
+    print(f"closed: {iid} human_skip")
+    print("closed_linked: " + (" ".join(linked) or "none"))
+    print_waivers(hub_dir(g), iid, kbs)
 
 
 def cmd_reopen(g, a):
@@ -912,6 +1076,8 @@ def cmd_ref(g, a):
     if len(pos) != 3 or pos[1] not in ("add", "rm"):
         usage("ref ID add|rm KIND:REF")
     kind, ref = parse_ref(pos[2])
+    if pos[1] == "rm" and kind == "kb":
+        agent_guard(g, o, pos[0], "remove the kb ref of")
 
     def fn(c, w):
         it = get_item(c, pos[0])
@@ -980,10 +1146,22 @@ def cmd_show(g, a):
     h = c.execute("SELECT * FROM handoff WHERE item_id = ?", (iid,)).fetchone()
     if h is not None:
         d["handoff"] = dict(h)
+    caps = [dict(r) for r in c.execute("SELECT * FROM capsule WHERE item_id = ? ORDER BY seq DESC", (iid,))]
+    for x in caps:
+        x["paths"] = json.loads(x["paths"])
     c.close()
+    d = {"capsule": caps[0] if caps else None, "capsules": caps, **d}  # the capsule comes first
     if fmt == "json":
         print(json.dumps(d, indent=1, ensure_ascii=False))
         return
+    if caps:
+        x = caps[0]
+        print(f"capsule: {x['summary']}")
+        print(f"capsule_rev: {x['git_rev'] or '(no git revision)'}")
+        print("capsule_paths: " + " ".join(x["paths"]))
+        print(f"capsule_at: {x['at']} by {x['by_session']} ({x['by']})"
+              + (f"; {len(caps) - 1} older capsule(s) in --format json" if len(caps) > 1 else ""))
+        print()
     for k, v in d["item"].items():
         print(f"{k}: {'' if v is None else v}")
     if d["handoff"]:
@@ -999,8 +1177,9 @@ def cmd_show(g, a):
 def cmd_view(g, a):
     pos, o = parse(a, {"--session": "one", "--person": "one", "--kind": "one", "--week-start": "one", "--format": "one"})
     fmt = fmt_of(o)
-    if len(pos) != 1:
-        usage("view NAME [--session S] [--person P] [--kind K] [--format md|json|tsv]")
+    if len(pos) > 1:
+        usage("view [NAME] [--session S] [--person P] [--kind K] [--format md|json|tsv]")
+    pos = pos or ["open"]  # escalated items first
     name = pos[0][2:] if pos[0].startswith("v_") else pos[0]
     if name not in VIEW_DEFS:
         raise Bad(f"view {pos[0]!r} is not one of {', '.join(VIEW_DEFS)}")
@@ -1252,11 +1431,349 @@ def cmd_import(g, a):
     print(f"imported {len(made)}: " + " ".join(made))
 
 
+# ---- the ledger: spec KB queries, triage, capsules, transcripts ----
+
+def orbit_kb_cmd():
+    """The orbit-kb command: HUBFLOW_ORBIT_KB (split like a shell word list), else `orbit-kb`."""
+    return shlex.split(os.environ.get("HUBFLOW_ORBIT_KB") or "orbit-kb")
+
+
+def kb_dir(hub, ref):
+    """The dir of a kb ref (<slug>/<path>), newest week first, or None."""
+    slug, _, rest = ref.partition("/")
+    for n in range(6):
+        p = os.path.join(hub, f"W{n}", "analyses", slug, rest)
+        if os.path.isdir(p):
+            return p
+    return None
+
+
+def query_blocking(path):
+    """Ask one spec KB what blocks: (state, items, why). state: blocking | clear | unknown.
+    Only `query` is run: the ledger never writes to a spec KB."""
+    try:
+        p = subprocess.run(orbit_kb_cmd() + ["--dir", path, "query", "blocking(X)"],
+                           capture_output=True, text=True, timeout=ORBIT_KB_TIMEOUT)
+    except (OSError, ValueError, subprocess.SubprocessError) as e:
+        return "unknown", [], f"orbit-kb did not run ({e.__class__.__name__}: {e})"
+    if p.returncode == 0:
+        items = []
+        for line in p.stdout.splitlines():
+            x = line.strip()
+            if x.startswith("X = "):
+                x = x[4:].strip()
+            if x:
+                items.append(x)
+        return ("blocking", items, "") if items else ("clear", [], "")
+    if p.returncode == 1:
+        return "clear", [], ""
+    return "unknown", [], f"orbit-kb exited {p.returncode}" + (f": {p.stderr.strip()[:200]}" if p.stderr.strip() else "")
+
+
+def kb_checks(hub, refs):
+    """One check per kb ref: {ref, path, state, items, why}. A dir that is not found is unknown."""
+    out = []
+    for ref in refs:
+        path = kb_dir(hub, ref)
+        if path is None:
+            out.append({"ref": ref, "path": None, "state": "unknown", "items": [],
+                        "why": f"no dir W0..W5/analyses/{ref}"})
+            continue
+        state, items, why = query_blocking(path)
+        out.append({"ref": ref, "path": path, "state": state, "items": items, "why": why})
+    return out
+
+
+def blocking_detail(checks):
+    parts = []
+    for k in checks:
+        if k["state"] == "blocking":
+            parts.append(f"kb:{k['ref']} blocks on {', '.join(k['items'])}")
+        elif k["state"] == "unknown":
+            parts.append(f"kb:{k['ref']}: {k['why']}; treated as blocking")
+    return "; ".join(parts)
+
+
+def waive_quote(term):
+    return f'"{term}"' if not re.search(r'["$`\\]', term) else shlex.quote(term)
+
+
+def print_waivers(hub, iid, kbs):
+    """Print, never run, the waiver command for each blocking item of each linked spec KB."""
+    cmd = shlex.join(orbit_kb_cmd())
+    reason = f"human skip of {iid} in the hub ledger"
+    for k in kb_checks(hub, kbs):
+        rel = os.path.relpath(k["path"], hub) if k["path"] else None
+        if k["state"] == "clear":
+            print(f"# kb:{k['ref']}: nothing blocks; no waiver needed")
+        elif k["state"] == "blocking":
+            for x in k["items"]:
+                term = f"waive({x}, '<DUE>', '{reason}')"
+                print(f"waiver: {cmd} --dir {rel} attest waiver {x} {waive_quote(term)} --by human")
+        elif rel:
+            print(f"# kb:{k['ref']}: {k['why']}; run `{cmd} --dir {rel} query 'blocking(X)'` and waive each item:")
+            print(f"waiver: {cmd} --dir {rel} attest waiver <ITEM> {waive_quote(f'waive(<ITEM>, <DUE>, {reason!r})')} --by human")
+        else:
+            print(f"# kb:{k['ref']}: {k['why']}; find the spec KB and waive its blocking items by hand")
+    if kbs:
+        print("# the human runs each waiver and sets <DUE>; hubflow never writes to a spec KB")
+
+
+def is_escalated(c, iid):
+    r = c.execute("SELECT disposition FROM disposition WHERE item_id = ? ORDER BY seq DESC LIMIT 1", (iid,)).fetchone()
+    return r is not None and r[0] == "escalate"
+
+
+def agent_guard(g, o, iid, what):
+    """An agent may not `what` an open item that is escalated or whose spec KB blocks (same
+    fail-safe as triage): only a human, with --by human --note, may."""
+    if writer_by(o, g) == "human":
+        return
+    c = connect_ro(flow_dir(g))
+    it = get_item(c, iid)
+    esc = it["status"] in OPEN and is_escalated(c, it["id"])
+    refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (it["id"],))]
+    c.close()
+    checks = kb_checks(hub_dir(g), refs) if it["status"] in OPEN and refs and not esc else []
+    if esc or any(k["state"] != "clear" for k in checks):  # agent guard
+        why = "escalated to the human" if esc else f"blocking ({blocking_detail(checks)})"
+        raise Bad(f"{it['id']} is {why}; an agent cannot {what} it. A human can: add --by human --note \"<their words>\"")
+
+
+def cmd_triage(g, a):
+    pos, o = parse(a, WOPT)
+    if len(pos) != 2:
+        usage("triage ID keep|lapse|capsule|escalate --note T")
+    iid, disp = pos
+    if disp not in DISPOSITIONS:
+        raise Bad(f"disposition {disp!r} is not one of {', '.join(DISPOSITIONS)}")
+    if not o.get("note"):
+        raise Bad("triage needs --note: why this disposition")
+    by = writer_by(o, g)
+    c = connect_ro(flow_dir(g))
+    it = get_item(c, iid)
+    need_open(it)
+    kb_refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (iid,))]
+    esc = is_escalated(c, it["id"])
+    c.close()
+    final, asked, detail = disp, None, None
+    if by != "human" and disp != "escalate" and esc:  # escalated stays
+        final, asked, detail = "escalate", disp, "escalated to the human; only --by human --note decides it"
+    elif by != "human" and disp != "escalate" and kb_refs:  # agents escalate
+        checks = kb_checks(hub_dir(g), kb_refs)
+        blocking = any(k["state"] != "clear" for k in checks)  # fail-safe
+        if blocking:
+            final, asked, detail = "escalate", disp, blocking_detail(checks)
+
+    def fn(c, w):
+        it = get_item(c, iid)
+        need_open(it)
+        if final == "capsule" and c.execute("SELECT 1 FROM capsule WHERE item_id = ?", (iid,)).fetchone() is None:
+            raise Bad(f"disposition capsule needs a capsule first: hubflow.py capsule {iid} --summary T")
+        c.execute("INSERT INTO disposition(at, item_id, disposition, asked, note, detail, by_session, by)"
+                  " VALUES(?,?,?,?,?,?,?,?)", (w.now, iid, final, asked, o["note"], detail, w.session, w.by))
+        w.event(iid, "triage", asked, final)
+        if final in ("keep", "capsule"):
+            c.execute("UPDATE item SET renewed_at = ? WHERE id = ?", (w.now, iid))
+        elif final == "lapse":
+            c.execute("UPDATE item SET status = 'lapsed', closed_at = ?, close_reason = ? WHERE id = ?",
+                      (w.now, f"lapsed: triage, idle {idle_days(w.now, it['renewed_at'])} days", iid))
+            w.event(iid, "lapsed", it["status"], "lapsed", note=None)
+
+    run_write(g, o, fn)
+    if asked:
+        print(f"{iid} escalate (asked {asked}): {detail}")
+        print(f"{iid} stays open at the top of `view open` for the human; an agent cannot keep or lapse a blocking item")
+    else:
+        print(f"{iid} {final}")
+
+
+def git_head(hub):
+    try:
+        p = subprocess.run(["git", "-C", hub, "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    v = p.stdout.strip()
+    return v if p.returncode == 0 and re.fullmatch(r"[0-9a-f]{40,64}", v) else None
+
+
+def cmd_capsule(g, a):
+    pos, o = parse(a, {**WOPT, "--summary": "one"})
+    if len(pos) != 1 or o.get("summary") is None:
+        usage("capsule ID --summary T")
+    summary = o["summary"].strip()
+    if not 1 <= len(summary) <= CAPSULE_MAX:
+        raise Bad(f"the summary must be 1 to {CAPSULE_MAX} characters: the context the tracker lacks, not a copy")
+    rev = git_head(hub_dir(g))  # capsule rev
+
+    def fn(c, w):
+        it = get_item(c, pos[0])
+        paths = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind IN ('kb','file') ORDER BY ref",
+                                         (it["id"],))]
+        c.execute("INSERT INTO capsule(at, item_id, summary, git_rev, paths, by_session, by) VALUES(?,?,?,?,?,?,?)",
+                  (w.now, it["id"], summary, rev, json.dumps(paths), w.session, w.by))
+        w.event(it["id"], "capsule", None, rev)
+        return it["id"]
+
+    iid = run_write(g, o, fn)
+    if rev is None:
+        print(f"hubflow: warning: {hub_dir(g)} has no git HEAD; the capsule has no revision", file=sys.stderr)
+    print(f"{iid} capsule at {rev or 'no git revision'}")
+
+
+def norm_ts(v):
+    """A transcript timestamp as YYYY-MM-DDTHH:MM:SSZ (UTC), or None."""
+    if not isinstance(v, str):
+        return None
+    try:
+        t = datetime.datetime.fromisoformat(v.replace("Z", "+00:00"))
+    except ValueError:
+        m = re.match(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)", v)
+        return m.group(1) + "Z" if m else None
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=datetime.timezone.utc)
+    return t.astimezone(datetime.timezone.utc).strftime(TS_FMT)
+
+
+def user_text(content):
+    """The words a person typed in a user message; tool results are not."""
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = [b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        return " ".join(x.strip() for x in parts if isinstance(x, str) and x.strip())
+    return ""
+
+
+def read_transcript(path):
+    """Index one Claude Code JSONL transcript, or None when it holds no messages. Keeps counts and
+    the user messages cut to TEXT_CAP characters, nothing else."""
+    sid, times, msgs, tools, users = None, [], 0, 0, []
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(obj, dict) or obj.get("type") not in ("user", "assistant"):
+                continue
+            m = obj.get("message")
+            if not isinstance(m, dict):
+                continue
+            if sid is None and isinstance(obj.get("sessionId"), str) and obj["sessionId"]:
+                sid = obj["sessionId"]
+            ts = norm_ts(obj.get("timestamp"))
+            if ts:
+                times.append(ts)
+            msgs += 1
+            content = m.get("content")
+            if obj["type"] == "assistant":
+                if isinstance(content, list):
+                    tools += sum(1 for b in content if isinstance(b, dict) and b.get("type") == "tool_use")
+            elif not obj.get("isMeta"):
+                text = user_text(content)
+                if text:
+                    users.append((ts, text[:TEXT_CAP]))
+    if msgs == 0:
+        return None
+    return {"session_id": sid or os.path.splitext(os.path.basename(path))[0],
+            "first_at": min(times) if times else None, "last_at": max(times) if times else None,
+            "first_user": users[0][1] if users else None, "messages": msgs, "user_messages": len(users),
+            "tools": tools, "users": users}
+
+
+def cmd_index_transcripts(g, a):
+    pos, o = parse(a, WOPT)
+    if len(pos) != 1:
+        usage("index-transcripts W_DIR")
+    hub = hub_dir(g)
+    wd = pos[0] if os.path.isabs(pos[0]) else os.path.join(hub, pos[0])
+    if not os.path.isdir(wd):
+        raise Bad(f"no week dir {wd}")
+    found, files_read = [], 0
+    for root, dirs, files in os.walk(wd):
+        dirs.sort()
+        for name in sorted(files):
+            if name.endswith(".jsonl"):
+                path = os.path.join(root, name)
+                t = read_transcript(path)
+                if t:
+                    files_read += 1
+                    rel = os.path.relpath(path, hub)
+                    t["path"] = path if rel.startswith("..") else rel
+                    found.append(t)
+
+    def fn(c, w):
+        for t in found:
+            c.execute("DELETE FROM transcript WHERE session_id = ?", (t["session_id"],))  # msgs cascade
+            c.execute("INSERT INTO transcript(session_id, first_at, last_at, first_user, messages, user_messages, tools, path)"
+                      " VALUES(?,?,?,?,?,?,?,?)", tuple(t[k] for k in ("session_id", "first_at", "last_at", "first_user",
+                                                                       "messages", "user_messages", "tools", "path")))
+            for n, (at, text) in enumerate(t["users"], 1):
+                c.execute("INSERT INTO transcript_msg(session_id, n, at, text) VALUES(?,?,?,?)", (t["session_id"], n, at, text))
+
+    run_write(g, o, fn)
+    print(f"indexed {files_read} file(s), {len({t['session_id'] for t in found})} session(s) from {pos[0]}"
+          " (files that share a session id: the last one read wins)")
+
+
+TRANSCRIPT_COLS = ("session_id", "first_at", "last_at", "messages", "user_messages", "tools", "first_user", "path")
+
+
+def cmd_transcripts(g, a):
+    pos, o = parse(a, {"--detail": "one", "--format": "one"})
+    if pos:
+        usage("transcripts [--detail SESSION_ID] [--format md|json|tsv]")
+    fmt = fmt_of(o, ("md", "json") if "detail" in o else ("md", "json", "tsv"))
+    c = connect_ro(flow_dir(g))
+    sel = "SELECT " + ", ".join(TRANSCRIPT_COLS) + " FROM transcript"
+    if "detail" not in o:
+        cols, rows = select_rows(c, sel + " ORDER BY first_at, session_id")
+        c.close()
+        print(render(rows, cols, fmt))
+        return
+    cols, rows = select_rows(c, sel + " WHERE session_id = ?", (o["detail"],))
+    if not rows:
+        c.close()
+        raise Bad(f"no transcript {o['detail']!r}; run index-transcripts W_DIR")
+    mcols, mrows = select_rows(c, "SELECT n, at, text FROM transcript_msg WHERE session_id = ? ORDER BY n", (o["detail"],))
+    c.close()
+    if fmt == "json":
+        print(json.dumps({"transcript": dict(zip(cols, rows[0])), "user_messages": [dict(zip(mcols, r)) for r in mrows]},
+                         indent=1, ensure_ascii=False))
+        return
+    print(render(rows, cols, "md"))
+    print()
+    print(render(mrows, mcols, "md"))
+
+
+def owner_person(c):
+    """The hub owner's person key: meta owner_person (seed key "owner"), else the person `me`."""
+    r = c.execute("SELECT value FROM meta WHERE key = 'owner_person'").fetchone()
+    if r:
+        return r[0]
+    r = c.execute("SELECT key FROM person WHERE key = 'me'").fetchone()
+    return r[0] if r else None
+
+
+def untracked_asks(c):
+    """An ask that waits on someone other than the owner is owned by the tracker: it needs an issue ref."""
+    own = owner_person(c)
+    out = []
+    for r in c.execute("SELECT i.id, i.waits_on FROM item i WHERE i.kind = 'ask' AND i.status IN ('open','waiting')"
+                       " AND i.waits_on IS NOT NULL AND (? IS NULL OR i.waits_on <> ?)"
+                       " AND NOT EXISTS (SELECT 1 FROM item_ref x WHERE x.item_id = i.id AND x.kind = 'issue')"
+                       " ORDER BY i.id", (own, own)):
+        out.append(f"ask {r[0]} waits on {r[1]}, not the owner ({own or 'none set'}), and has no issue ref:"
+                   f" the tracker owns an ask to another person; add `ref {r[0]} add issue:N`")
+    return out
+
+
 # ---- rotate ----
 
 def rotate_plan(c, now, wk):
     lapse_before = ts_add(now, -LAPSE_DAYS * 86400)
-    lapse = c.execute("SELECT id, renewed_at FROM item WHERE status IN ('open','waiting') AND renewed_at <= ?"
+    due = c.execute("SELECT id, renewed_at FROM item WHERE status IN ('open','waiting') AND renewed_at <= ?"
                       " AND (parked_until IS NULL OR parked_until < ?) ORDER BY id", (lapse_before, now[:10])).fetchall()
     cutoff = ts_add(wk + "T00:00:00Z", -PRUNE_DAYS * 86400)
     prune = [r[0] for r in c.execute("SELECT id FROM item WHERE closed_at IS NOT NULL AND closed_at < ? ORDER BY id", (cutoff,))]
@@ -1271,7 +1788,16 @@ def rotate_plan(c, now, wk):
             held.update((r[1], r[2]))
     sessions = [r[0] for r in c.execute("SELECT name FROM session WHERE status = 'retired' AND retired_on < ? ORDER BY name",
                                         (cutoff[:10],)) if r[0] not in held]
-    return [(r[0], idle_days(now, r[1])) for r in lapse], prune, sessions
+    untriaged = [r[0] for r in due if not is_escalated(c, r[0])]
+    escalated = [r[0] for r in c.execute("SELECT id FROM item WHERE status IN ('open','waiting') ORDER BY id") if is_escalated(c, r[0])]
+    return untriaged, escalated, prune, sessions
+
+
+def triage_gate(untriaged):
+    """Refuse the rotation while a due item lacks a disposition (d_triage_per_item)."""
+    if untriaged:  # triage gate
+        raise Bad(f"{len(untriaged)} due item(s) lack a disposition: {' '.join(untriaged)}; record one for each with"
+                  " `hubflow.py triage ID keep|lapse|capsule|escalate --note T`, then rotate again")
 
 
 def cmd_rotate(g, a):
@@ -1282,34 +1808,35 @@ def cmd_rotate(g, a):
     if datetime.date.fromisoformat(wk).weekday() != 0:
         raise Bad(f"--week-start {wk} is not a Monday")
 
-    def report(lapse, prune, sessions):
+    def report(untriaged, escalated, prune, sessions):
         print(f"week_start: {wk}")
-        print("lapsed: " + (" ".join(i for i, _ in lapse) or "none"))
+        print("untriaged: " + (" ".join(untriaged) or "none"))
+        print("escalated: " + (" ".join(escalated) or "none"))
         print("pruned: " + (" ".join(prune) or "none"))
         print("pruned_sessions: " + (" ".join(sessions) or "none"))
+        sys.stdout.flush()
 
     if not o.get("yes"):
         c = connect_ro(flow_dir(g))
-        lapse, prune, sessions = rotate_plan(c, clock(), wk)
+        plan = rotate_plan(c, clock(), wk)
         c.close()
         print("dry-run: nothing written (add --yes to apply)")
-        report(lapse, prune, sessions)
+        report(*plan)
+        triage_gate(plan[0])
         return
 
     def fn(c, w):
-        lapse, prune, sessions = rotate_plan(c, w.now, wk)
-        for iid, idle in lapse:
-            old = c.execute("SELECT status FROM item WHERE id = ?", (iid,)).fetchone()[0]
-            c.execute("UPDATE item SET status = 'lapsed', closed_at = ?, close_reason = ? WHERE id = ?",
-                      (w.now, f"lapsed: idle {idle} days", iid))
-            w.event(iid, "lapsed", old, "lapsed", note=None, by="script")
+        untriaged, escalated, prune, sessions = rotate_plan(c, w.now, wk)
+        if untriaged:
+            report(untriaged, escalated, prune, sessions)
+        triage_gate(untriaged)
         for iid in prune:
             c.execute("DELETE FROM item WHERE id = ?", (iid,))
         c.execute("DELETE FROM event WHERE item_id IS NOT NULL AND item_id NOT IN (SELECT id FROM item)")
         for name in sessions:
             c.execute("DELETE FROM session_alias WHERE name = ?", (name,))
             c.execute("DELETE FROM session WHERE name = ?", (name,))
-        return lapse, prune, sessions
+        return untriaged, escalated, prune, sessions
 
     report(*run_write(g, o, fn))
 
@@ -1338,7 +1865,7 @@ def cmd_rebuild(g, a):
     if os.path.exists(db_path(d)):
         die(2, f"{db_path(d)} exists; rebuild only makes a missing db")
     src = {}
-    for t in TABLES:
+    for t in TABLES:  # every table of this schema
         src[t] = read_jsonl(os.path.join(jsonl_dir(d), t + ".jsonl"))
         if src[t] is None:
             die(2, f"{t}.jsonl is missing in {jsonl_dir(d)}")
@@ -1347,9 +1874,8 @@ def cmd_rebuild(g, a):
     try:
         c.execute("PRAGMA journal_mode=WAL")
         c.execute("BEGIN IMMEDIATE")
-        for stmt in DDL:
-            c.execute(stmt)
-        for t in TABLES:
+        create_schema(c)
+        for t in live_tables(c):
             cols = [r[1] for r in c.execute(f"PRAGMA table_info({t})")]
             for row in src[t]:
                 extra = sorted(set(row) - set(cols))
@@ -1425,6 +1951,7 @@ def cmd_check(g, a):
     if c.execute("PRAGMA foreign_key_check").fetchall():
         problems.append("a row points to a row that does not exist")
     problems += differences(c, d)
+    problems += untracked_asks(c)
     c.execute("ROLLBACK")
     c.close()
     if problems:
@@ -1435,7 +1962,9 @@ COMMANDS = {"init": cmd_init, "add": cmd_add, "handoff": cmd_handoff, "accept": 
             "park": cmd_park, "set": cmd_set, "close": cmd_close, "reopen": cmd_reopen, "ref": cmd_ref,
             "link": cmd_link, "note": cmd_note, "show": cmd_show, "view": cmd_view, "sql": cmd_sql,
             "session": cmd_session, "where": cmd_where, "import": cmd_import, "rotate": cmd_rotate,
-            "export": cmd_export, "rebuild": cmd_rebuild, "check": cmd_check, "migrate": cmd_migrate}
+            "export": cmd_export, "rebuild": cmd_rebuild, "check": cmd_check, "migrate": cmd_migrate,
+            "triage": cmd_triage, "capsule": cmd_capsule, "index-transcripts": cmd_index_transcripts,
+            "transcripts": cmd_transcripts}
 
 
 def main():

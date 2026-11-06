@@ -935,10 +935,27 @@ rules.
 The topics are plain files in `help/` beside this README: `core`, `build`,
 `discovery` (with one recipe for each move), `codes` (the lint codes), and
 `answers` (exit codes, `why`, and `whynot`). They exist so that an agent
-loads the syntax when a move needs it. The agent prompt
-(`prompt/SAGITTARIUS.md`) holds only the rules that come before the first
-command, and tells the agent to run `orbit-kb help`. Test HP4 to HP6 check
+loads the syntax and the recipe when a move needs it. The agent prompt
+(`prompt/SAGITTARIUS.md`) holds only the philosophy (T08): the procedure, with
+the steps of each move, is in these topics, and the prompt tells the agent to
+run `orbit-kb help`. Test HP4 to HP6 check
 the topics. Exit: 0. An unknown name exits 2.
+
+### `view questions [--dir KB]... [--ledger FILE [--owner KEY]] [--out F]`
+
+Writes one self-contained HTML page (D24): for each KB a section named by its
+pin stamp, with each blocking item (a question to ask, with its default, its
+options with their effects, the claim it blocks, and the request text the claim cites),
+labeled with the KB's first request, and, with `--ledger FILE`, the owner's asks and their
+age. The ledger file is a JSON array of objects with `id`, `kind`, `title`, `status`,
+`waits_on` and `age_days`, and optionally `owner`. The owner is `--owner KEY`, else the `owner`
+of the export, else `me`; an ask with `waits_on` null is nobody's and is not shown. Make the
+export with `hubflow sql "SELECT id, kind, title, status, waits_on, age_days, COALESCE((SELECT value
+FROM meta WHERE key='owner_person'), (SELECT key FROM person WHERE key='me')) AS owner FROM v_open"
+--format json`. Every KB id on the page sits next to its text. The options of a question are its
+default, an agent's answer, the texts of its `option/3` facts, and other; the effect of each
+comes from `option(Q, Text, Effect)`, and the page says so when none is recorded.
+The view reads only. Exit 2 for a usage error, an unreadable KB, or a bad ledger file.
 
 ### `pin [--check STAMP]`
 
