@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T08 c1 and c3: the prompt is small, states what it must, and keeps the honesty and delivery rules.
 
-c1: PROMPT has at most 200 lines, and one key phrase for each required item (the purpose, the
+c1: PROMPT has at most MAX_LINES lines (230, c6; was 200), and one key phrase for each required item (the purpose, the
     roles, the phase tree, when to shift up, the honesty rules, the delivery block, where the
     procedure is). It names nothing that T03 removes from orbit-kb (depends/2, declare-attest).
 c3: every rule of the old prompt's "## Honesty rules" and "## Delivery", and rules 1 to 6 of
@@ -22,7 +22,9 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = "7da5320"
-MAX_LINES = 200
+# c6 supersedes c1@200: restoring the 9 rules that review found lost took the prompt to 209
+# lines, so the limit is 230 (T08 c6). The phrase checks of c1 and c3 do not change.
+MAX_LINES = 230
 
 # (item, phrases): each phrase must be in the prompt (whitespace collapsed, case kept).
 REQUIRED = [
