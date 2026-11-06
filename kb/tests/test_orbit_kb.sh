@@ -43,12 +43,12 @@
 #    CLI calls, in its own directory. Then each test copies the result into its own temp
 #    directory. Nothing changes a prototype after it is built (see use_proto).
 #
-# Requirement map (contract v2.1 + D20 + D21; section names, not line numbers, because the contract is edited):
+# Requirement map (contract v2.1 + D20 + D21 + D22; section names, not line numbers, because the contract is edited):
 #   K   KB resolution: --dir, $ORBIT_KB, parent walk, exit 2   (CLI: KB resolution, exit codes) : K1-K10
 #   I   init                                                   (CLI: init)                      : I1-I8
 #   U   uses: add a module to an existing KB                   (CLI: uses)                      : U1-U9
-#   A   add: validation, all or nothing, rejections            (CLI: add; Declarations; Types)  : A1-A22
-#   D   declare, declare-attest                                (CLI: declare, declare-attest)   : D1-D6
+#   A   add: validation, all or nothing, rejections            (CLI: add; Declarations; Types)  : A1 A4-A22
+#   D   declare                                                (CLI: declare)                   : D1-D4 D6
 #   AT  attest: id, time, writers, digest(current)             (CLI: attest)                    : AT1-AT9
 #   S   subject: sha256, relative paths, refresh               (CLI: subject; D3)               : S1-S8
 #   R   run: numbering, log header, tail, unknown check, D1    (CLI: run; Files; D1)            : R1-R9
@@ -74,6 +74,11 @@
 #   VT  weighted vote: vote attestations, gate, sealed agent vote (D14)    (Discovery module; D14) : VT1-VT10
 #   LG  attest model_result reads the solver log (D18)    (CLI: attest; D18)               : LG1-LG3
 #   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10, D10 follow-up) : PV1-PV12
+#   FU  schema declared on first use, W7, E19 typo guard    (CLI: add, declare; Lint; D22)   : FU1-FU6 FU8 (FU7 superseded, not run)
+#   RT  retired: declare-attest and depends/2              (D22)                            : RT1-RT3
+#   BL  blocking/1 and show blocking                       (Core and build rules; D22)      : BL1-BL10 BL6b BL8b
+#   PN  pin stamp                                          (CLI: pin; D22)                  : PN1 PN2
+#   PH  help names the phases                              (CLI: help; D22)                 : PH1
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -555,7 +560,6 @@ question(q1, c1, 'Is it a').
 question(q2, c1, 'Is it b').
 assumed(q1, yes).
 assumed(q2, no).
-depends(q2, q1).
 EOF
 }
 kb_super() { kb_new "$1" <<'EOF'
@@ -702,10 +706,8 @@ t_U9() { # the new module can add lint findings, so uses tells the agent to lint
 # ================================================================ A: add
 t_A1() { mkclaim; oadd "claim(c2, preserve, 'Loading stays fast')" "cites(c2, 'fast')"; rc_is 0; any_has 'claim\(c2'; any_has 'cites\(c2'
          fact_count "$K/kb.pl" "claim(_,_,_)" 2; has_goal "$K/kb.pl" "kb_line(A, claim(c2,_,_)), kb_line(B, cites(c2,_)), A < B" "order"; }
-t_A2() { mkclaim; rejects undeclared 'declare' add "gadget(g1, a)"; any_hasf 'orbit-kb declare'; }
-t_A3() { mkclaim; rejects undeclared 'declare' add "gadget(g1, a)"
-         okb --dir "$K" declare 'gadget(id, text)' --doc 'A gadget.'; rc_is 0 declare
-         oadd "gadget(g1, a)"; rc_is 0 "after declare"; has_fact "$K/kb.pl" "gadget(g1, a)"; }
+# A2 and A3 (add rejects an undeclared predicate) went with D22: a new predicate is now
+# declared by its first use (FU1). FU5 checks the declare-first path that A3 checked.
 t_A4() { mkclaim; rejects oneof 'oneof|bogus|label|one of' add "claim(c2, bogus, x)"; any_has '^E3|E3'; }
 t_A5() { mkclaim; rejects dangling 'ref|c9|exist|dangl' add "cites(c9, 'no such claim')"; }
 t_A6() { mkclaim; rejects duplicate 'duplicate|unique|already|c1' add "claim(c1, preserve, 'again')"; }
@@ -734,9 +736,7 @@ t_D3() { mkclaim; rejects badtype 'type|unknown|banana' declare 'gizmo(banana)' 
 t_D4() { mkclaim; okb --dir "$K" declare 'claim(id)' --doc 'x'; rc_is 0 "claim/1 is a new predicate: only an exact name and arity match is rejected"
          has_fact "$K/kb.pl" "decl(fact, claim(id), _, _)" "decl line for claim/1"
          cp "$K/kb.pl" "$T/.b"; okb --dir "$K" declare 'claim(id, text, text)' --doc 'x'; rc_is 1 "same name and arity as the core claim/3"; same_file "$K/kb.pl" "$T/.b"; }
-t_D5() { mkclaim; okb --dir "$K" declare-attest reading 'level(text, int)' --doc 'A reading.' --writers human,agent; rc_is 0
-         okb --dir "$K" attest reading c1 'level(speed, 5)'; rc_is 0 "attest of the new type"; has_fact "$K/kb.pl" "attest(_, reading, c1, level(speed, 5), agent, _)"
-         okb --dir "$K" declare-attest reading 'level(text, int)' --doc 'again' --writers human; rc_is 1 "duplicate type"; }
+# D5 (declare-attest then attest) went with D22: declare-attest is retired (RT1).
 t_D6() { mkclaim; okb --dir "$K" declare 'okay(ref(claim))' --doc 'A computed thing.' --kind rule; rc_is 0; has_fact "$K/kb.pl" "decl(rule, okay(ref(claim)), _, _)"
          rejects rulefact 'rule' add "okay(c1)"; }
 
@@ -816,10 +816,10 @@ t_B8() { kb_overunder "$T/k"; K=$T/k; is_set 'under(X)' 'X = c1'; is_set 'over(X
 t_B9() { kb_done "$T/k"; K=$T/k; is_true "done"; is_false any_under; is_false any_over; is_false any_to_ask; }
 t_B10() { kb_done "$T/k"; K=$T/k; printf "claim(c3, preserve, 'Unchecked').\ncites(c3, 'Do two things').\nserves(x2, c3).\n" >> $K/kb.pl; is_false "done"; is_true any_under; is_set 'under(X)' 'X = c3'; }
 t_B11() { kb_done "$T/k"; K=$T/k; printf "change(x3, 'Unrelated').\n" >> $K/kb.pl; is_false "done"; is_true any_over; is_set 'over(X)' 'X = x3'; is_false any_under; }
-t_B12() { kb_done "$T/k"; K=$T/k; printf "question(q2, c2, 'Is it two').\nassumed(q2, no).\ndepends(q2, q1).\nanswer(q1, no, human).\n" >> $K/kb.pl
+t_B12() { kb_done "$T/k"; K=$T/k; printf "question(q2, c2, 'Is it two').\nassumed(q2, no).\nattest(d1, divergence, c2, claim(c2), agent, '2026-10-15T10:00:09Z').\nanswer(q1, no, human).\n" >> $K/kb.pl
           is_false "done"; is_true any_to_ask; is_set 'to_ask(X)' 'X = q2'; is_set 'defeated(X)' 'X = q1'; }
 t_B13() { kb_burn "$T/k"; K=$T/k; is_set 'burn(X)' 'X = c1|X = c3|X = c4'; is_true 'burn(c1)'; is_false 'burn(c2)'; is_false 'burn(c5)'; is_set 'contested(X)' 'X = c1|X = c2'; is_set 'contested_twice(X)' 'X = c1'; }
-t_B14() { kb_toask "$T/k"; K=$T/k; echo "answer(q1, no, human)." >> $K/kb.pl; is_set 'to_ask(X)' 'X = q2'; is_set 'defeated(X)' 'X = q1'; }
+t_B14() { kb_toask "$T/k"; K=$T/k; echo "answer(q1, no, human)." >> $K/kb.pl; is_false 'to_ask(X)' "D22: a defeated default alone asks nothing"; is_set 'defeated(X)' 'X = q1'; }
 t_B15() { kb_toask "$T/k"; K=$T/k; echo "answer(q1, yes, human)." >> $K/kb.pl; is_false 'to_ask(X)'; is_false 'defeated(X)'; }
 t_B16() { kb_toask "$T/k"; K=$T/k; echo "answer(q1, no, agent)." >> $K/kb.pl; is_false 'to_ask(X)'; is_false 'defeated(X)'; is_false 'answered(X)'; }
 t_B17() { kb_toask "$T/k"; K=$T/k; echo "attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z')." >> $K/kb.pl; is_set 'to_ask(X)' 'X = q1|X = q2'
@@ -1796,7 +1796,7 @@ t_LS2() { copy_fixture valid "$T/f";okb --dir "$T/f" lint; printf '%s\n' "$out" 
 # ================================================================ SH / RP / DR / HP
 t_SH1() { valid_copy; okb --dir "$K" show claims; rc_is 0; out_has 'c1'; out_has 'widget can be saved'; }
 t_SH2() { valid_copy; okb --dir "$K" show questions; rc_is 0; out_has 'q1'; out_has 'q2'; }
-t_SH3() { kb_done "$T/k"; K=$T/k; printf "question(q2, c2, 'Is it two').\nassumed(q2, no).\ndepends(q2, q1).\nanswer(q1, no, human).\nchange(x3, 'Unrelated').\n" >> $K/kb.pl
+t_SH3() { kb_done "$T/k"; K=$T/k; printf "question(q2, c2, 'Is it two').\nassumed(q2, no).\nattest(d1, divergence, c2, claim(c2), agent, '2026-10-15T10:00:09Z').\nchange(x3, 'Unrelated').\n" >> $K/kb.pl
           okb --dir "$K" show open; rc_is 0; out_has 'q2'; out_has 'x3'; out_hasnt 'c1' "nothing else is open"; }
 t_SH4() { valid_copy; okb --dir "$K" show disclosures; rc_is 0; out_has 'a6|a5'; }
 t_SH5() { copy_fixture w6_extension "$T/k"; K=$T/k; okb --dir "$K" show extensions; rc_is 0; out_has 'to_ask'; }
@@ -2100,6 +2100,216 @@ t_HP5() { local t; for t in core build discovery codes answers; do
 t_HP6() { okb help nosuchtopic; rc_is 2 "unknown topic"; }
 t_HP7() { okb init "$T/hp7" --request 'x'; rc_is 0; any_has 'Next:.*help core'; }
 
+# ================================================================ D22: the spec KB (ticket T03)
+# FU: the schema is declared on first use (c1), lint lists it (c2, W7), the typo guard (c3,
+# E19), declared predicates keep their types (c4), declare still works and is optional (c5).
+t_FU1() { K=$T/k; kb_init "$K" build
+          oadd 'colour_of(widget1, blue)'; rc_is 0 "a new predicate is declared by its first use"
+          has_fact "$K/kb.pl" "colour_of(widget1, blue)" "the fact"
+          has_fact "$K/kb.pl" "decl(fact, colour_of(_, _), _, _)" "a decl/4 line for colour_of/2"
+          has_goal "$K/kb.pl" "kb(first_use(colour_of/2, agent, T)), atom(T), atom_length(T, 20), sub_atom(T, 19, 1, 0, 'Z')" "first_use records who (agent) and when"
+          has_goal "$K/kb.pl" "kb_line(A, decl(fact, colour_of(_, _), _, _)), kb_line(B, colour_of(widget1, blue)), A < B" "the decl comes before the fact"
+          oadd 'colour_of(widget2, red)'; rc_is 0 "a second use"
+          fact_count "$K/kb.pl" "first_use(colour_of/2, _, _)" 1 "one first_use per predicate"
+          fact_count "$K/kb.pl" "decl(_, colour_of(_, _), _, _)" 1 "one decl per predicate"
+          oadd 'size_of(widget1, 3)' --by human; rc_is 0 "--by human"
+          has_fact "$K/kb.pl" "first_use(size_of/2, human, _)" "first_use records the human"
+          rejects arity 'colour_of/1 is not declared\. colour_of is declared with arity 2\.' add 'colour_of(widget3)'
+          rejects batch '' add 'shape_of(w1, round)' "cites(c9, 'x')"
+          no_fact "$K/kb.pl" "decl(_, shape_of(_, _), _, _)" "a rejected batch declares nothing"
+          okb --dir "$K" add 'tint_of(w1, x)' --by robot; rc_is 2 "--by takes human or agent"; }
+t_FU2() { K=$T/k; kb_init "$K" build; oadd 'colour_of(widget1, blue)' >/dev/null
+          okb --dir "$K" lint; rc_is 0 "W7 is a warning"; out_has '^W7 .*colour_of/2' "lint lists the first-use predicate"
+          out_has '^W7 .*colour_of/2.*agent' "W7 names who declared it"; out_hasnt '^W2 .*colour_of' "W7, not W2, lists a first-use declaration"
+          okb --dir "$K" lint --strict; rc_is 1 "--strict makes W7 an error"
+          okb help codes; rc_is 0; out_has '^ +W7 ' "help codes documents W7"; }
+t_FU3() { K=$T/k; kb_init "$K" build
+          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          oadd 'colour_of(widget1, blue)'; rc_is 0 "add still succeeds near a declared name"
+          oadd 'paint_of(widget1, blue)' 'colr_of(a, b, c)'; rc_is 0 "a far name, and a near name of another arity"
+          okb --dir "$K" lint; rc_is 1 "the typo guard is an error"
+          out_has '^E19 .*colour_of/2.*color_of/2' "E19 names both predicates"
+          out_hasnt '^E19 .*paint_of' "a name more than 2 edits away"; out_hasnt '^E19 .*colr_of' "another arity"
+          K=$T/k2; kb_init "$K" build; oadd "cite(c1, 'x')" >/dev/null
+          okb --dir "$K" lint; rc_is 1; out_has '^E19 .*cite/2.*cites/2' "a near name of a core predicate"
+          okb help codes; out_has '^ +E19 ' "help codes documents E19"; }
+t_FU4() { mkclaim; rejects arity 'claim/1 is not declared\. claim is declared with arity 3\.' add 'claim(c1)'
+          no_fact "$K/kb.pl" "first_use(_, _, _)" "a wrong arity of a declared name is no first use"
+          rejects oneof 'E3' add "claim(c2, bogus, 'x')"
+          rejects reftype 'E4' add "cites(c9, 'x')"; }
+t_FU5() { mkclaim; okb --dir "$K" declare 'gizmo(id, text)' --doc 'A gizmo.'; rc_is 0 declare
+          has_fact "$K/kb.pl" "decl(fact, gizmo(id, text), 'A gizmo.', _)" "declare writes the doc and the types"
+          oadd 'gizmo(g1, a)'; rc_is 0 "after declare"; has_fact "$K/kb.pl" "gizmo(g1, a)"
+          no_fact "$K/kb.pl" "first_use(gizmo/2, _, _)" "a declared predicate has no first use"
+          rejects type 'E3' add 'gizmo(g2, 5)'
+          okb --dir "$K" lint; out_hasnt '^W7' "no W7 for a declared predicate"; }
+t_FU6() { okb help declare; rc_is 0; any_hasi 'optional' "help declare says declare is optional"
+          okb help add; rc_is 0; any_hasi 'first use' "help add names the first use"
+          okb help core; rc_is 0; any_hasi 'first use' "help core names the first use"; }
+
+# RT: retired with D22 (c6): declare-attest and the depends fact kind.
+t_RT1() { mkclaim; okb --dir "$K" declare-attest reading 'level(text, int)' --doc 'A reading.' --writers human,agent
+          rc_is 2 "declare-attest is gone"; any_hasi 'unknown command'
+          okb declare-attest x; rc_is 2; any_hasi 'unknown command'
+          okb help; any_hasnt 'declare-attest' "general help"; okb help declare-attest; rc_is 2 "no help for it"
+          grep -q 'declare-attest' "$LIB/README.md" && note "README.md still names declare-attest"; return 0; }
+t_RT2() { mkclaim; q 'depends(X, Y)'; rc_is 2 "depends/2 is not declared any more"
+          okb help core; any_hasnt 'depends\(' "help core"
+          grep -q 'depends(' "$LIB/README.md" && note "README.md still names depends/2"; return 0; }
+
+# BL: blocking/1 lists every item that blocks done, one kind per test (c7).
+bl_base() { kb_new "$1" <<'EOF'
+uses([build]).
+request(r1, 'Block things').
+claim(c1, preserve, 'Claim one').
+cites(c1, 'Block things').
+EOF
+}
+t_BL1() { bl_base "$T/k"; K=$T/k
+          printf "question(q1, c1, 'Is it a').\nattest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').\n" >> "$K/kb.pl"
+          is_set 'blocking(to_ask(X))' 'X = q1'
+          echo "answer(q1, yes, human)." >> "$K/kb.pl"; is_false 'blocking(to_ask(X))'; }
+t_BL2() { kb_burn "$T/k"; K=$T/k; is_set 'blocking(burn_open(X))' 'X = c1|X = c3|X = c4'; }
+t_BL3() { bl_base "$T/k"; K=$T/k; echo "visual(c1)." >> "$K/kb.pl"; is_set 'blocking(flare_open(X))' 'X = c1'; }
+bl_checks() { kb_new "$1" <<'EOF'
+uses([build]).
+request(r1, 'Check things').
+claim(c1, introduce, 'Claim one').
+claim(c2, preserve, 'Claim two').
+cites(c1, 'Check things').
+cites(c2, 'Check things').
+check(k1, c1).
+check(k2, c1).
+check(k3, c2).
+check(k4, c2).
+check(k5, c2).
+EOF
+}
+t_BL10() { bl_checks "$T/k"; K=$T/k; add_result "$K" k1 1 fail; add_result "$K" k3 2 pass
+          is_set 'blocking(check_unrun(X))' 'X = k2' "k5 never ran, but its claim c2 is fulfilled"; }
+t_BL4() { kb_new "$T/k" <<'EOF'
+uses([build]).
+request(r1, 'Check things').
+claim(c1, introduce, 'Claim one').
+claim(c2, preserve, 'Claim two').
+cites(c1, 'Check things').
+cites(c2, 'Check things').
+check(k1, c1).
+check(k2, c1).
+check(k3, c2).
+check(k4, c2).
+EOF
+          K=$T/k; add_result "$K" k1 1 fail; add_result "$K" k3 2 pass; add_result "$K" k4 3 fail
+          is_set 'blocking(check_failing(X))' 'X = k1'; }
+t_BL5() { kb_burndone "$T/k"; K=$T/k; wv_add w1 c1 2020-01-01T00:00:00Z
+          is_set 'blocking(waiver_lapsed(X))' 'X = w1'; is_set 'blocking(burn_open(X))' 'X = c1'
+          wv_add w2 c1 2999-01-01T00:00:00Z; is_false 'blocking(waiver_lapsed(X))' "a waiver in force closes the burn"
+          is_true done; }
+t_BL6() { kb_done "$T/k"; K=$T/k
+          printf "claim(c3, preserve, 'Unchecked').\ncites(c3, 'Do two things').\ndue(c3, '2020-01-01T00:00:00Z').\ndue(c1, '2020-01-01T00:00:00Z').\ndue(q1, '2999-01-01T00:00:00Z').\n" >> "$K/kb.pl"
+          okb --dir "$K" lint; out_hasnt '^E' "due/2 is declared"
+          is_set 'blocking(past_due(X))' 'X = c3'; }
+t_BL7() { kb_done "$T/k"; K=$T/k; is_true done; is_false 'blocking(X)' "done: nothing blocks"
+          printf "change(x3, 'Unrelated').\n" >> "$K/kb.pl"; is_set 'blocking(X)' 'X = over(x3)'
+          kb_done "$T/k2"; K=$T/k2; printf "claim(c3, preserve, 'Unchecked').\ncites(c3, 'Do two things').\n" >> "$K/kb.pl"
+          is_set 'blocking(X)' 'X = under(c3)'
+          K=$T/k3; kb_init "$K" build; is_set 'blocking(X)' 'X = no_claim'; }
+t_BL8() { kb_done "$T/k"; K=$T/k; okb --dir "$K" show blocking; rc_is 0; out_has 'Nothing blocks done'
+          printf "question(q2, c2, 'Is it two').\nattest(d1, divergence, c2, claim(c2), agent, '2026-10-15T10:00:09Z').\nclaim(c3, preserve, 'Unchecked claim').\ncites(c3, 'Do two things').\n" >> "$K/kb.pl"
+          okb --dir "$K" show blocking; rc_is 0
+          out_has 'to_ask q2.*Is it two' "the question with its text"; out_has 'under c3.*Unchecked claim' "the claim with its text"
+          out_hasnt 'Nothing blocks done'; }
+t_BL9() { kb_done "$T/k"; K=$T/k; printf 'blocking(nothing).\n' > "$K/rules.pl"
+          okb --dir "$K" lint; rc_is 1; out_has '^E16 .*blocking/1' "rules.pl cannot add to blocking/1"
+          is_false 'blocking(X)' "the engine ignores the clause"; }
+
+# Added after review of de77192 (D22 c3, c6, c7).
+t_FU7() { K=$T/k; kb_init "$K" build
+          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          oadd 'colr_ov(widget1, blue)' 'clr_ov(widget1, blue)'; rc_is 0 "add"
+          okb --dir "$K" lint; rc_is 1 "edit distance 2 is an error"
+          out_has '^E19 .*colr_ov/2.*color_of/2' "colr_ov is 2 edits from color_of"
+          out_hasnt '^E19 .*clr_ov/2' "clr_ov is 3 edits from color_of: no finding"; }
+# FU8 replaces FU7, which is wrong and stays as committed: in FU7, colr_ov/2 and clr_ov/2 are
+# both new, and they are 1 edit apart, so E19 correctly names clr_ov/2 against colr_ov/2.
+# FU8 puts each case in its own KB.
+t_FU8() { K=$T/k; kb_init "$K" build
+          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          oadd 'colr_ov(widget1, blue)'; rc_is 0 "add"
+          okb --dir "$K" lint; rc_is 1 "edit distance 2 is an error"
+          out_has '^E19 .*colr_ov/2.*color_of/2' "colr_ov is 2 edits from color_of"
+          K=$T/k2; kb_init "$K" build
+          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          oadd 'clr_ov(widget1, blue)'; rc_is 0 "add"
+          okb --dir "$K" lint; rc_is 0 "distance 3: no error"
+          out_hasnt '^E19' "clr_ov is 3 edits from color_of: no finding"; }
+# CONTRACT keeps the history of the cut: a line that says the item was retired or removed is
+# exempt (the D22 entry names both items there). Every other line must not name them.
+t_RT3() { local f t; f=$LIB/../../CONTRACT.md
+          [ -f "$f" ] || { note "no CONTRACT.md at $f"; return 0; }
+          t=$(grep -nE 'depends\(|declare-attest' "$f" | grep -vE 'retire|removed')
+          [ -z "$t" ] || note "CONTRACT.md names a cut item outside its history: $(snip "$t")"
+          for t in build discovery codes answers; do
+              okb help "$t"; rc_is 0 "help $t"; any_hasnt 'depends\(|declare-attest' "help $t"
+          done; }
+t_BL6b() { kb_done "$T/k"; K=$T/k
+          printf "question(q2, c2, 'Is it two').\nquestion(q3, c2, 'Is it three').\nattest(d1, divergence, c2, claim(c2), agent, '2026-10-15T10:00:09Z').\nanswer(q3, yes, human).\nclaim(c3, preserve, 'Unchecked').\ncites(c3, 'Do two things').\ncheck(k9, c3).\ndue(q2, '2020-01-01T00:00:00Z').\ndue(q3, '2020-01-01T00:00:00Z').\ndue(k9, '2020-01-01T00:00:00Z').\ndue(k1, '2020-01-01T00:00:00Z').\n" >> "$K/kb.pl"
+          is_set 'blocking(past_due(X))' 'X = k9|X = q2' "q3 is answered and k1 is a check of a fulfilled claim"; }
+t_BL8b() { kb_new "$T/k" <<'EOF'
+uses([build]).
+request(r1, 'Every kind').
+claim(c1, preserve, 'Text of c1 contested').
+claim(c2, preserve, 'Text of c2 universal').
+claim(c3, preserve, 'Text of c3 visual').
+claim(c4, introduce, 'Text of c4 checks').
+claim(c5, preserve, 'Text of c5 cycle').
+claim(c6, preserve, 'Text of c6 cycle').
+cites(c1, 'Every kind').
+cites(c2, 'Every kind').
+cites(c3, 'Every kind').
+cites(c4, 'Every kind').
+cites(c5, 'Every kind').
+cites(c6, 'Every kind').
+question(q1, c1, 'Text of q1').
+attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
+universal(c2).
+attest(w1, waiver, c2, waive(c2, '2020-01-01T00:00:00Z', 'Text of w1'), human, '2026-10-15T10:00:02Z').
+visual(c3).
+check(k1, c4).
+check(k2, c4).
+due(c4, '2020-01-01T00:00:00Z').
+change(x1, 'Text of x1').
+supersedes(c5, c6).
+supersedes(c6, c5).
+EOF
+          K=$T/k; add_result "$K" k1 1 fail
+          okb --dir "$K" show blocking; rc_is 0
+          out_has 'to_ask q1.*Text of q1'; out_has 'burn_open c2.*Text of c2'; out_has 'flare_open c3.*Text of c3'
+          out_has 'under c4.*Text of c4'; out_has 'check_failing k1.*Text of c4'; out_has 'check_unrun k2.*Text of c4'
+          out_has 'waiver_lapsed w1.*Text of w1'; out_has 'past_due c4.*Text of c4'; out_has 'over x1.*Text of x1'
+          out_has 'supersede_cycle c5.*Text of c5'
+          K=$T/k2; kb_init "$K" build; okb --dir "$K" show blocking; rc_is 0; out_has 'no_claim: no claim is current'; }
+
+# PN: the pin stamp (c8).
+t_PN1() { mkclaim; local d s; d=$(sha "$K/kb.pl"); cp "$K/kb.pl" "$T/.b"
+          okb --dir "$K" pin; rc_is 0; out_has "^spec-kb@sha256:$d [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\$" "stamp and time"
+          same_file "$K/kb.pl" "$T/.b" "pin writes nothing"
+          s=$(first_line)
+          okb --dir "$K" pin --check "$s"; rc_is 0 "unchanged, stamp with its time"
+          okb --dir "$K" pin --check "${s%% *}"; rc_is 0 "unchanged, stamp alone"
+          oadd "risk(rk1, 'a')" >/dev/null
+          okb --dir "$K" pin --check "${s%% *}"; rc_is 1 "the KB changed"; any_hasi 'changed'; }
+t_PN2() { mkclaim; okb --dir "$K" pin --check 'spec-kb@sha256:abc'; rc_is 2 "a malformed stamp"
+          okb --dir "$K" pin --check; rc_is 2 "--check needs a stamp"
+          okb --dir "$K" pin extra; rc_is 2 "pin takes no argument"; }
+
+# PH: help names the phases and maps each move to its phase (c9).
+t_PH1() { okb help; rc_is 0
+          out_has 'discovery: research, specify' "the discovery orbit"; out_has 'build: build, verify' "the build orbit"
+          out_has 'research +SIGNAL, SURVEY, FLYBY, TRAJECTORY, DISPROVE' "research moves"
+          out_has 'specify +SPECTRUM, DECOMPOSE, the vote' "specify moves"
+          out_has '^ +build +BUILD$' "build moves"; out_has 'verify +FULFILL, DISPROVE, BURN' "verify moves"; }
+
 # ================================================================ run
 for id in K1 K2 K3 K4 K5 K6 K7 K8; do :; done
 run_test t_K1 K1 "--dir finds the KB"
@@ -2130,8 +2340,6 @@ run_test t_U7 U7 "uses: duplicates and the comma form; -- is a usage error; -h a
 run_test t_U8 U8 "uses: waits for the KB lock"
 run_test t_U9 U9 "uses: says to lint; a new module can add lint findings (ED7)"
 run_test t_A1 A1 "add appends valid facts in order and prints them"
-run_test t_A2 A2 "add rejects an undeclared predicate and names declare"
-run_test t_A3 A3 "after declare the same fact is accepted"
 run_test t_A4 A4 "add rejects a label outside oneof"
 run_test t_A5 A5 "add rejects a dangling ref"
 run_test t_A6 A6 "add rejects a duplicate id"
@@ -2153,7 +2361,6 @@ run_test t_D1 D1 "declare appends decl/4 with the template"
 run_test t_D2 D2 "declare twice exits 1"
 run_test t_D3 D3 "declare with an unknown type exits 1"
 run_test t_D4 D4 "declare: a new arity of a core name is accepted, the same name and arity exits 1"
-run_test t_D5 D5 "declare-attest then attest"
 run_test t_D6 D6 "declare --kind rule rejects facts for it"
 run_test t_AT1 AT1 "attest generates id a1 and the UTC time"
 run_test t_AT2 AT2 "attest takes the next free id"
@@ -2213,9 +2420,9 @@ run_test t_B8 B8 "under and over (a change that serves nothing is over)"
 run_test t_B9 B9 "done is true when everything is clear"
 run_test t_B10 B10 "done is false with an open claim among several facts (H1)"
 run_test t_B11 B11 "done is false with an over change"
-run_test t_B12 B12 "done is false with a question to ask; to_ask after a human defeats a default"
+run_test t_B12 B12 "done is false with a question to ask (a contested claim, D22)"
 run_test t_B13 B13 "burn: contested twice, universal, burn_requested"
-run_test t_B14 B14 "to_ask: dependent question after a human answer defeats the default"
+run_test t_B14 B14 "to_ask: a human answer that defeats a default asks no other question (D22: no depends)"
 run_test t_B15 B15 "to_ask: human agrees with the default, nothing to ask"
 run_test t_B16 B16 "to_ask: an agent answer does not count"
 run_test t_B17 B17 "to_ask: contested claim asks its questions"
@@ -2393,6 +2600,32 @@ run_test t_HP4 HP4 "general help starts with how to use and names each topic"
 run_test t_HP5 HP5 "each help topic prints"
 run_test t_HP6 HP6 "unknown help topic exits 2"
 run_test t_HP7 HP7 "init prints a Next line"
+run_test t_FU1 FU1 "D22 c1: add declares a new predicate by its first use (who, when)"
+run_test t_FU2 FU2 "D22 c2: lint lists each first-use predicate as W7; help codes documents it"
+run_test t_FU3 FU3 "D22 c3: a first-use name within 2 edits of a declared one (same arity) is E19"
+run_test t_FU4 FU4 "D22 c4: a declared predicate keeps its arity and types"
+run_test t_FU5 FU5 "D22 c5: declare adds a doc and types ahead of use"
+run_test t_FU6 FU6 "D22 c5: help says declare is optional"
+# FU7 is not run: FU8 supersedes it (see the comment above t_FU8).
+run_test t_FU8 FU8 "D22 c3: E19 at edit distance 2, none at distance 3 (each case alone)"
+run_test t_RT1 RT1 "D22 c6: declare-attest is an unknown command"
+run_test t_RT2 RT2 "D22 c6: depends/2 is not a fact kind"
+run_test t_RT3 RT3 "D22 c6: CONTRACT and the help topics do not name the cut items"
+run_test t_BL1 BL1 "D22 c7: blocking(to_ask(Q))"
+run_test t_BL2 BL2 "D22 c7: blocking(burn_open(C))"
+run_test t_BL3 BL3 "D22 c7: blocking(flare_open(C))"
+run_test t_BL4 BL4 "D22 c7: blocking(check_failing(K))"
+run_test t_BL10 BL10 "D22 c7: blocking(check_unrun(K))"
+run_test t_BL5 BL5 "D22 c7: blocking(waiver_lapsed(W))"
+run_test t_BL6 BL6 "D22 c7: blocking(past_due(X))"
+run_test t_BL6b BL6b "D22 c7: blocking(past_due(X)) for a question and a check"
+run_test t_BL7 BL7 "D22 c7: done holds exactly when nothing blocks (under, over, no_claim)"
+run_test t_BL8 BL8 "D22 c7: show blocking prints each item with its text"
+run_test t_BL8b BL8b "D22 c7: show blocking prints the text of every kind"
+run_test t_BL9 BL9 "D22 c7: rules.pl cannot add to blocking/1 (E16)"
+run_test t_PN1 PN1 "D22 c8: pin prints the stamp and the time; pin --check is 0 unchanged, 1 changed"
+run_test t_PN2 PN2 "D22 c8: pin usage errors exit 2"
+run_test t_PH1 PH1 "D22 c9: help names the phase tree and the moves of each phase"
 
 run_tests
 echo "----"
