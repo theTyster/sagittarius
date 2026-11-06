@@ -74,7 +74,8 @@ Rules for the KB
   check. Write a fact only if a query or the delivery report reads it.
   Put the KB where it is useful. Commands find it from --dir, then $ORBIT_KB, then the nearest
   parent directory that holds one. Do not commit the KB or its runs/ logs unless the human
-  asks: the delivery carries the evidence.
+  asks: the delivery carries the evidence. In a hub (a project with HUB-CORE.md) the spec KB
+  lives at specs/<slug>/ and is committed, because git is the archive.
   When the work moves to the other orbit, add its module (orbit-kb uses build, or orbit-kb
   uses discovery), then run orbit-kb lint. The new module can add findings.
 

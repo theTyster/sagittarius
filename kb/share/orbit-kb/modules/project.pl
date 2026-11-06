@@ -1,37 +1,52 @@
-% orbit-kb project module (modules/project.pl), D23 (ticket T06)
+% orbit-kb project module (modules/project.pl), D23 (ticket T06), D27 (ticket T23)
 %
 % Load this module with uses([project]) in kb.pl. A project KB records
-% domain reasoning about where the product is and where it is going:
-% decisions, who made them and why, the repositories, and pins of the
-% world (a file, or an item of the tracker). A spec KB that uses this
-% module can pin a decision with pins/4. The file format is the same as
-% in core.pl. Run orbit-kb help project for the recipes.
-
-% ---------------------------------------------------------------------
-% Facts
-% ---------------------------------------------------------------------
+% domain reasoning about where the product is and where it is going.
+% Two sides (D27): definitions say how the current system is, decisions
+% say what future work will do. Product rules hold for every spec KB that
+% pins them. Relations between these facts (supersedes, depends_on,
+% excludes) give derived answers: current_fact, rests_on, contradiction,
+% impact. Pins record the world (a file, or an item of the tracker). A
+% spec KB that uses this module can pin a decision, a definition or a rule
+% with pins/4. The file format is the same as in core.pl. Run
+% orbit-kb help project for the recipes.
 
 decl(fact, decision(id, text),
      'A decision about the product, in one plain sentence.',
      'decision @(1): @(2)').
-decl(fact, decided_by(ref(decision), atom, time),
-     'Who made the decision, and when.',
-     'decision @(1) was made by @(2) at @(3)').
+decl(fact, definition(id, text),
+     'A definition of the current system: how it is now, in one plain sentence (D27).',
+     'definition @(1): @(2)').
+decl(fact, rule(id, text),
+     'A product rule: a statement that every spec KB that pins it must keep (D27).',
+     'product rule @(1): @(2)').
+decl(fact, decided_by(ref([decision, definition, rule]), atom, time),
+     'Who made the decision, the definition or the rule, and when. Who is any person or role; agent or agent:NAME is an agent (D27).',
+     '@(1) was made by @(2) at @(3)').
+decl(fact, ratified_by(ref([decision, definition, rule]), atom, time),
+     'A human ratified a decision that an agent made (D27). An agent may not ratify (lint EP1).',
+     '@(1) was ratified by @(2) at @(3)').
+decl(fact, depends_on(ref([decision, definition, rule]), ref([decision, definition, rule])),
+     'The first fact depends on the second (D27).',
+     '@(1) depends on @(2)').
+decl(fact, excludes(ref([decision, definition, rule]), ref([decision, definition, rule])),
+     'A human or an agent records that the two facts cannot both hold (D27). It is never inferred from the text.',
+     '@(1) and @(2) cannot both hold').
 decl(fact, reason(ref(decision), text),
      'A reason for the decision.',
      'a reason for decision @(1): @(2)').
 decl(fact, repo(id, text),
      'A repository of the product: its name and where it lives.',
      'repository @(1) is at @(2)').
-decl(fact, analysis(ref(decision), text),
-     'The path of a file that holds the analysis behind the decision.',
-     'the analysis for decision @(1) is in @(2)').
+decl(fact, analysis(ref([decision, definition, rule]), text),
+     'The path of a file that holds the analysis behind the fact: a path under the project KB, such as analyses/NAME.md (D27, lint WP6).',
+     'the analysis for @(1) is in @(2)').
 decl(fact, pin(id, oneof([file, tracker]), atom, digest, time),
      'A pin of the world: its kind (file or tracker), its source (a subject id, or the name of a tracker item), the digest at the time, and the change time. A new record of a tracker item is a new pin. A pin is never rewritten.',
      'pin @(1) records @(3) as it was at @(5)').
-decl(fact, concerns(ref(decision), ref(pin)),
-     'The decision rests on the pin.',
-     'decision @(1) rests on pin @(2)').
+decl(fact, concerns(ref([decision, definition]), ref(pin)),
+     'The decision or the definition rests on the pin.',
+     '@(1) rests on pin @(2)').
 decl(fact, draft(id, ref(pin), text, time),
      'An edit staged for the pinned tracker item. A draft never changes the pin.',
      'draft @(1) of pin @(2) was staged at @(4)').
@@ -46,8 +61,8 @@ decl(fact, project_kb(text),
      'In a spec KB: the directory of the project KB, relative to this KB or absolute.',
      'the project KB is @(1)').
 decl(fact, pins(ref(claim), oneof([project]), atom, digest),
-     'In a spec KB: the claim rests on a decision of the project KB. The digest is the decision_digest of the decision when the claim was written.',
-     'claim @(1) rests on decision @(3) of the project KB').
+     'In a spec KB: the claim rests on a decision, a definition or a rule of the project KB. The digest is its project_decision_digest when the claim was written.',
+     'claim @(1) rests on @(3) of the project KB').
 
 % ---------------------------------------------------------------------
 % Computed facts (orbit-kb computes them when it reads the KB)
@@ -60,8 +75,8 @@ decl(rule, decision_digest(ref(decision), digest),
      'The sha256 of the text of the decision, with no newline. orbit-kb computes it when it reads the KB.',
      'decision @(1) has digest @(2)').
 decl(rule, project_decision_digest(atom, digest),
-     'The decision_digest of a decision in the project KB of project_kb/1, as it is now. orbit-kb computes it when it reads the KB.',
-     'decision @(1) of the project KB has digest @(2) now').
+     'The sha256 of the text of a decision, a definition or a rule in the project KB of project_kb/1, as it is now. orbit-kb computes it when it reads the KB.',
+     '@(1) of the project KB has digest @(2) now').
 decl(rule, project_draft_text(atom, text),
      'The text of a draft of the project KB that is in conflict (see project_conflict). orbit-kb computes it when it reads the KB.',
      'the conflicting draft @(1) says: @(2)').
@@ -69,8 +84,26 @@ decl(rule, project_kb_unclean,
      'The project KB of project_kb/1 does not load clean: lint finds an error in it, so a conflict could hide there. orbit-kb computes it when it reads the KB.',
      'the project KB does not load clean').
 decl(rule, project_conflict(atom, atom),
-     'A draft of the project KB is in conflict, and its pin is one that the decision rests on. orbit-kb computes it when it reads the KB.',
-     'draft @(1) of the project KB is in conflict, and decision @(2) rests on its pin').
+     'A draft of the project KB is in conflict, and its pin is one that the decision or definition rests on, and that fact is not proposed. orbit-kb computes it when it reads the KB.',
+     'draft @(1) of the project KB is in conflict, and @(2) rests on its pin').
+decl(rule, rests_on(ref, ref),
+     'The first fact depends on the second through one or more depends_on facts (D27). orbit-kb computes it when it reads the KB.',
+     '@(1) rests on @(2)').
+decl(rule, agent_who(atom),
+     'The decider is an agent: the atom agent, or an atom that starts with agent: (D27). orbit-kb computes it when it reads the KB.',
+     '@(1) is an agent').
+decl(rule, analysis_outside(ref, text),
+     'The path of an analysis of the fact is outside the directory of the project KB (D27). orbit-kb computes it when it reads the KB.',
+     'an analysis of @(1) is outside the project KB: @(2)').
+decl(rule, spec_pin(atom, atom, atom),
+     'A spec KB (its directory) has a claim that pins the fact of this project KB (D27). orbit-kb finds the spec KBs under the parent directory of the project KB, and computes it when it reads the KB.',
+     'spec KB @(1) has claim @(2), which pins @(3)').
+decl(rule, project_contradiction(atom, atom),
+     'In a spec KB: the two facts of the project KB are in a contradiction, and neither is proposed (D27). orbit-kb computes it when it reads the KB.',
+     '@(1) and @(2) of the project KB contradict each other').
+decl(rule, project_rests_on(atom, atom),
+     'In a spec KB: rests_on of the project KB (D27). orbit-kb computes it when it reads the KB.',
+     '@(1) of the project KB rests on @(2)').
 
 % ---------------------------------------------------------------------
 % Rules
@@ -94,6 +127,24 @@ decl(rule, supersedes_by_date(ref(draft), oneof([draft, tracker])),
 decl(rule, dropped(ref(draft), oneof([draft, tracker])),
      'The edit of this side lost, by date or by the choice of a human. It stays in kb.pl: this is the record.',
      'for draft @(1), the edit of the @(2) was dropped').
+decl(rule, current_fact(ref([decision, definition, rule])),
+     'The decision, definition or rule is not superseded (D27).',
+     '@(1) is current').
+decl(rule, contradiction(ref([decision, definition, rule]), ref([decision, definition, rule])),
+     'An excludes fact names the two facts, and both are current (D27).',
+     '@(1) and @(2) contradict each other').
+decl(rule, proposed(ref([decision, definition, rule])),
+     'An agent made the fact, and no human ratified it (D27). A proposed fact blocks nothing.',
+     '@(1) is proposed: an agent made it, and no human ratified it').
+decl(rule, human_ratified(ref([decision, definition, rule])),
+     'A ratified_by fact by a person who is not an agent names the fact (D27).',
+     'a human ratified @(1)').
+decl(rule, impact(ref([decision, definition, rule]), atom),
+     'The spec KB has a claim that pins the fact, or pins a fact that rests on it (D27).',
+     'a change of @(1) touches spec KB @(2)').
+decl(rule, project_pinned(atom),
+     'In a spec KB: a claim pins this fact of the project KB directly (D27).',
+     'a claim pins @(1) of the project KB').
 decl(rule, outbound(ref(draft)),
      'The draft is not pushed yet, is no conflict, and did not lose.',
      'draft @(1) waits to be pushed').
@@ -118,6 +169,24 @@ dropped(D, tracker) :- resolved(D, draft, _).
 
 outbound(D) :- draft(D, _, _, _), not pushed(D, _), not conflict(D), not dropped(D, draft).
 
+% D27: the two sides, product rules, and their relations.
+current_fact(X) :- decision(X, _), not superseded(X).
+current_fact(X) :- definition(X, _), not superseded(X).
+current_fact(X) :- rule(X, _), not superseded(X).
+
+contradiction(X, Y) :- excludes(X, Y), current_fact(X), current_fact(Y).
+
+human_ratified(X) :- ratified_by(X, W, _), not agent_who(W).
+proposed(X) :- decided_by(X, W, _), agent_who(W), not human_ratified(X).
+
+impact(X, S) :- spec_pin(S, _, X).
+impact(X, S) :- spec_pin(S, _, Z), rests_on(Z, X).
+
+% In a spec KB: a contradiction blocks only a spec KB that pins a side directly.
+project_pinned(X) :- pins(_, project, X, _).
+blocking(project_contradiction(X)) :- project_contradiction(X, _), project_pinned(X).
+any_project_conflict :- blocking(project_contradiction(_)).
+
 % A conflict blocks a spec KB that pins a decision that rests on the pin.
 blocking(project_conflict(Dr)) :- project_conflict(Dr, Dec), pins(_, project, Dec, _).
 blocking(project_kb_unclean) :- project_kb_unclean.
@@ -128,11 +197,16 @@ any_project_conflict :- blocking(project_kb_unclean).
 % Lint hooks
 % ---------------------------------------------------------------------
 
-lint_issue('WP1', C, 'This claim rests on a decision of the project KB, and the decision changed after the claim was written. Read the decision. If the claim still holds, pin the new digest with orbit-kb add and a new pins fact; if not, change the claim.') :-
+lint_issue('WP1', C, 'This claim rests on a decision, a definition or a rule of the project KB, and it changed after the claim was written. Read it. If the claim still holds, pin the new digest with orbit-kb add and a new pins fact; if not, change the claim.') :-
     pins(C, project, D, _), project_decision_digest(D, Now), not pins(C, project, D, Now).
-lint_issue('WP2', C, 'The decision that this claim rests on cannot be read. The KB has no project_kb fact, or the project KB has no kb.pl, or it has no such decision. Add project_kb(DIR) or fix the decision id.') :-
+lint_issue('WP2', C, 'The decision, definition or rule that this claim rests on cannot be read. The KB has no project_kb fact, or the project KB has no kb.pl, or it has no such id. Add project_kb(DIR) or fix the id.') :-
     pins(C, project, D, _), not project_decision_digest(D, _).
 lint_issue('WP3', C, 'The project KB does not load clean: lint finds an error in it. A conflict or a changed decision could hide there. Run orbit-kb lint on the project KB and fix the errors.') :-
     pins(C, project, _, _), project_kb_unclean.
+lint_issue('WP5', C, 'This claim rests on a fact of the project KB that rests on a fact in a contradiction (orbit-kb project impact lists it). It does not block this KB, because no claim pins that fact directly. Read the contradiction in the project KB.') :-
+    pins(C, project, Z, _), project_rests_on(Z, X), project_contradiction(X, _), not project_pinned(X).
+lint_issue('WP6', X, M) :- analysis_outside(X, M).
+lint_issue('EP1', X, 'An agent ratified this fact. Only a human may ratify a fact that an agent made. Remove the ratified_by fact, and ask a human.') :-
+    ratified_by(X, W, _), agent_who(W).
 lint_issue('WP4', Dir, 'This KB has more than one project_kb fact. Only the first is read. Keep one project_kb fact.') :-
     project_kb(First), project_kb(Dir), First @< Dir.

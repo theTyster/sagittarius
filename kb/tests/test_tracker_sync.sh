@@ -15,6 +15,7 @@
 #   c4 no command writes to a network                                          : TS13-TS14
 #   text injection (Markdown and HTML in free text), help project              : TS16-TS20
 #   T18 c6: draft outbound with no draft facts names --dir PROJECT          : TS21
+#   T22 c6: draft attach names the file to attach and the line to paste     : TS60-TS61
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -423,6 +424,26 @@ t_TS21() { project_kb_empty
            okb "$P" add "pushed(d1, '$T2')" >/dev/null
            okb "$P" draft outbound; rc_is 0; out_has '^- Nothing to push\.$' "every draft is pushed"
            if printf '%s\n' "$out" | grep -Fiq 'only this KB'; then note "a KB that has draft facts gets no 'only this KB' line"; fi; }
+# T22 c6 (u93): draft attach names the spec KB file to attach to the tracker item and the line to
+# paste. It copies nothing, writes nothing and posts nothing; a human attaches the file.
+t_TS60() { spec_kb; cp "$K/kb.pl" "$T/.before"; ls -A "$K" > "$T/.ls-before"
+           okb "$K" draft attach; rc_is 0 "draft attach"
+           out_has "^- File: $K/kb\\.pl\$" "the file to attach is the absolute path of kb.pl"
+           out_has "^- Stamp: spec-kb@sha256:$(sha "$K/kb.pl")\$" "the stamp is the digest of kb.pl now"
+           out_has "^- Paste: .*spec-kb@sha256:$(sha "$K/kb.pl")" "the line to paste carries the stamp"
+           out_has 'human attaches' "a human attaches the file; nothing is posted"
+           same_file "$K/kb.pl" "$T/.before" "draft attach writes nothing"
+           ls -A "$K" > "$T/.ls-after"; same_file "$T/.ls-before" "$T/.ls-after" "draft attach adds no file"; }
+t_TS61() { spec_kb
+           okb "$K" draft attach extra; rc_is 2 "draft attach takes no argument"
+           okb "$K" draft attach; local first=$out
+           okb "$K" add "claim(c2, preserve, 'A second claim')" "cites(c2, 'Keep the order number')" >/dev/null
+           okb "$K" draft attach; rc_is 0
+           out_has "spec-kb@sha256:$(sha "$K/kb.pl")" "after a change the stamp is new"
+           [ "$out" != "$first" ] || note "the stamp did not change with the KB"
+           okb "$K" help draft; rc_is 0; out_has 'draft attach' "help draft names draft attach"
+           out_has 'a human pastes it' "help draft says a human pastes it"
+           out_hasnt 'Paste it' "help draft does not give the order Paste it"; }
 out_hasi_ts() { printf '%s\n' "$out" | grep -Fiq -- "$1" && return 0; note "${2:+$2: }stdout lacks '$1' (stdout: $(snip "$out"))"; return 1; }
 okb_nokb() { ( cd "$T" && exec timeout "$TMO" "$OKB" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
 

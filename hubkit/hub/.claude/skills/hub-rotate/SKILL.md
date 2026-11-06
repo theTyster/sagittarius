@@ -23,21 +23,21 @@ in git history. Weeks start **Monday**.
 ```
 W0/
 ├── WEEK.md              REQUIRED. Line 1: "# Week of YYYY-MM-DD → YYYY-MM-DD"
-├── analyses/            one file or dir per question, named for the question
-├── reports/             what went out to people, and how it landed
+├── reports/             raw reports, as people gave them: what went out, and how it landed
 ├── transcripts/         meetings, verbatim. Never deleted.
-└── outbound-staging/    drafted, not sent. A human sends. Empty at every rotation.
+└── outbound-staging/    free outbound text (mail, chat), drafted, not sent. A human sends. Empty at every rotation.
 ```
 
-Empty slots are omitted. Flow state (asks, threads, holds, handoffs) is **not** a week slot: it lives
+Empty slots are omitted. A week holds only what people gave it. A spec KB is not a week slot: it
+lives at `specs/<slug>/` at the hub root (the ticket's clock), and a rotation never retires it.
+Analyses are written in the project KB when they are made; there is no `analyses/` slot. Flow state (asks, threads, holds, handoffs) is **not** a week slot: it lives
 in `flow/flow.db` (skill `hub-flow`), which ages by idle time, not by week: a due item gets a
 recorded disposition at the rotation, never a silent lapse.
 
 | Slot | Rule |
 |---|---|
 | `WEEK.md` | Required in every week dir: the dir names rotate, so the dates live here. Never dropped. |
-| `analyses/` | States what was measured, how, and **what remains unmeasured**. More than 5 markdown files: add a lean `CLAUDE.md` index. Most likely slot to hold durable content. |
-| `reports/` | A report with no outcome is half an artifact. Read them at every rotation for facts other slots lost. |
+| `reports/` | A report with no outcome is half an artifact. Read them at every rotation for facts other slots lost. The project KB pins the digest of a report only when a lasting project fact relies on it. |
 | `transcripts/` | Never summarised here (that is an analysis), never deleted. |
 | `outbound-staging/` | One dir per item; `NOTES.md` line 1 names the surface and recipient. Agents never send. |
 
@@ -86,8 +86,14 @@ Dropping durable knowledge at a week boundary is the one failure this design can
    W4→W5 … W0→W1"`. This one commit has **no** pathspec, on purpose (a pathspec would sweep the
    `--leave` files' unstaged edits in); `--verify` on the line before proves the index holds only
    the rotation.
-4. **Editorial lanes.** New `W0/WEEK.md` (rewritten, never copied). Move live analyses with
-   tombstones. Move `outbound-staging/` items: sent → `W1/reports/`, unsent → `W0/outbound-staging/`
+4. **Editorial lanes.** New `W0/WEEK.md` (rewritten, never copied). Move live week dirs with
+   tombstones. **Spec KBs and tools.** `hubflow.py rotate` lists `spec_kbs_untriaged:`: each spec KB
+   at `specs/<slug>/` whose ticket is closed needs one decision (archive, capsule, keep or
+   escalate): `hubflow.py spec-triage <slug> ... --note "why"`; archive is `git rm -r specs/<slug>`.
+   Then prune the unused bespoke tools: a tool in `TECHNOLOGIES.md` (or the memory file the hub
+   names) that no open spec KB pins and that has no listed use since the last rotation. Record a
+   triage decision for each. Never prune a model or proof that an open spec KB pins. Move
+   `outbound-staging/` items: sent → `W1/reports/`, unsent → `W0/outbound-staging/`
    with a dated note why. Read `W1/reports/` for lost facts.
 5. **Flow db.** `hubflow.py rotate --week-start <today's Monday> --yes`. Put the triaged (with their
    dispositions), escalated and pruned ids in the commit message. If the week dir that just became

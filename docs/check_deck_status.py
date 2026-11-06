@@ -16,6 +16,10 @@ yet", "not merged yet", or "a design"; a ticket that has not landed is "not merg
 paragraph says "not merged yet" when a ticket has not landed, and never "not built yet", "not
 merged yet", or "still a design" when every named ticket has landed.
 
+T29 c5 (d_triage_per_item): slide 34 (the hub kit) says that items never lapse by themselves: its
+text says "never lapse(s) by itself/themselves" (or "nothing lapses by itself"), and it never says
+that items lapse when nobody renews them (or lapse on a timer, after a time, or by themselves).
+
 Usage: python3 docs/check_deck_status.py      Exit 0: pass. 1: fail. 2: cannot run.
 """
 import html
@@ -105,8 +109,29 @@ def slide_units():
     return intro, units
 
 
+LAPSE_SLIDE = "s34"
+
+
+def lapse_check():
+    """T29 c5: slide 34 says that items never lapse by themselves. A list of failures."""
+    with open(os.path.join(ROOT, "site", "index.html"), encoding="utf-8") as f:
+        page = f.read()
+    m = re.search(r'<section class="slide" id="%s"[^>]*>(.*?)</section>' % LAPSE_SLIDE, page, re.S)
+    if not m:
+        return ["site/index.html has no slide %s" % LAPSE_SLIDE]
+    text = text_of(m.group(1)).lower()
+    bad = []
+    if not re.search(r"\b(never|nothing|no item)\b[^.]*\blapses?\b[^.]*\bby (itself|themselves)\b", text):
+        bad.append("slide %s does not say that items never lapse by themselves" % LAPSE_SLIDE)
+    for sentence in re.split(r"(?<=[.!?])\s+", text):
+        if re.search(r"\blapses?\b", sentence) and not re.search(r"\b(never|nothing|no item|not)\b", sentence):
+            bad.append("slide %s says that items lapse: %r" % (LAPSE_SLIDE, sentence))
+    return bad
+
+
 def main():
     bad = self_test()
+    bad += lapse_check()
     landed = landed_tickets()
     intro, units = slide_units()
     named = []
@@ -143,6 +168,7 @@ def main():
     for b in bad:
         print("FAIL " + b)
     if not bad:
+        print("PASS slide %s: items never lapse by themselves" % LAPSE_SLIDE)
         print("PASS slide %s: %d statuses name tickets, and they agree with the merges (%s)" % (SLIDE, len(named), " ".join(sorted(set(named)))))
     return 1 if bad else 0
 

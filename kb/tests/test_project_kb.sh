@@ -21,6 +21,16 @@
 #   T27 c2 one writer for every KB, as a lease     : PW9 (PW7 drops its last case: a KB without project has a lock now)
 #   T27 c3 the handoff texts (release, lease)      : PH1
 #   T27 c10 the request is pinned (--source)       : PR1
+# Ticket T23 (CONTRACT D27, the project KB reasons over the domain):
+#   c1 two sides: definition/2, concerns, help     : PT1
+#   c2 product rules, pinned by spec claims        : PT2
+#   c3 relations: supersedes, rests_on, contradiction, impact : PT3A PT3B PT3C PT3D
+#   c4 origin: proposed, ratified_by, only ratified decisions block : PT4
+#   c5 analyses in the project KB, week reports pinned : PT5
+#   c6 dangling references (E4), help codes        : PT6
+#   c7 D27 notes the Lean limit (burn_model untouched: kb/tests/burn_model/check.sh) : PT7
+#   c8 pin-item keeps the pinned text; show pin    : PT8
+#   c9 project archive --superseded-before         : PT9
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -584,6 +594,238 @@ t_PR1() { local J=$T/item.json S=$T/spec
           no_fact "$T/own/kb.pl" "request_pin(_, _, _, _)" "no pin without --source"
           okb --dir "$T/own" pin-request --request-file "$J"; rc_is 1 "pin-request without a source"; }
 
+# ================================================================ T23: the project KB reasons (D27)
+# Fixtures are invented: the widget product of acme. Ids: d* decisions, df* definitions, ru* rules (r1 is the request id).
+
+# t23_pk: a project KB at $T/pk with the facts given (K stays at the project KB).
+t23_pk() { pk_init "$T/pk"; [ $# -eq 0 ] && return 0; padd "$@" >/dev/null; [ "$rc" = 0 ] || note "setup: project facts failed: $(snip "$out$err")"; }
+# t23_spec NAME ITEM [ITEM2]: a build+project spec KB at $T/NAME, whose claim c1 pins ITEM of
+# ../pk with its digest now (read through project_decision_digest). K is left at the spec KB.
+t23_spec() {
+    local name=$1 item=$2 d
+    okb init "$T/$name" --request "Build $name" --uses build,project >/dev/null 2>&1 || note "setup: init $name failed: $(snip "$err")"
+    K=$T/$name
+    padd "project_kb('../pk')" "claim(c1, preserve, 'The $name work holds')" "cites(c1, 'Build $name')" "check(k1, c1)" >/dev/null
+    [ "$rc" = 0 ] || note "setup: $name facts failed: $(snip "$out$err")"
+    okb --dir "$K" query "project_decision_digest($item, D)"
+    d=$(printf '%s\n' "$out" | sed -n "s/^D = '\{0,1\}\(sha256:[0-9a-f]*\)'\{0,1\}\$/\1/p" | head -n1)
+    [ -n "$d" ] || { note "setup: no project_decision_digest for $item in $name (stdout: $(snip "$out"))"; d=$H1; }
+    padd "pins(c1, project, $item, '$d')" >/dev/null; [ "$rc" = 0 ] || note "setup: $name pins $item failed: $(snip "$out$err")"
+}
+
+# PT1 (c1): two sides. definition/2 states how the system is; concerns/2 takes a definition too.
+t_PT1() { t23_pk
+          padd "definition(df1, 'Exports run nightly from the batch host')" "decision(d1, 'Export goes through the queue')" \
+               "pin(p1, tracker, 'gh:acme/widgets#12', '$H1', '$T1')" "concerns(df1, p1)" "concerns(d1, p1)"
+          rc_is 0 "definition and concerns of a definition are accepted"
+          has_fact "$K/kb.pl" "definition(df1, _)"; has_fact "$K/kb.pl" "concerns(df1, p1)"
+          padd "definition(df1, 'Another text')"; rc_is 1 "a duplicate definition id"; any_has 'E5' "E5"
+          okb --dir "$K" lint; rc_is 0 "lint is clean"
+          is_set 'definition(X, _)' "X = df1"
+          okb help project; rc_is 0 "help project"
+          printf '%s\n' "$out" | head -n 3 | grep -Fq 'Two sides: Decisions about future work and definitions about the current system.' \
+              || note "help project does not open with Ty's two-sides sentence (head: $(snip "$(printf '%s\n' "$out" | head -n 3)"))"
+          out_has 'Where the product is and where it is going' "the second half of the sentence"
+          out_has '(^|[^a-z_])definition\(' "help project documents definition"; }
+
+# PT2 (c2): product rules, pinned by a spec claim; WP1 and WP2 cover them.
+t_PT2() { t23_pk "rule(ru1, 'Every export is logged')" "decision(d1, 'Export goes through the queue')"
+          has_fact "$K/kb.pl" "rule(ru1, _)"
+          okb --dir "$K" lint; rc_is 0 "a project KB with a rule lints clean"
+          t23_spec spec ru1
+          q 'project_decision_digest(ru1, D)'; rc_is 0 "the digest of a rule of the project KB"
+          out_has "$(tdigest 'Every export is logged' | cut -c8-30)" "the sha256 of the rule text"
+          okb --dir "$K" lint; rc_is 0; out_hasnt '^WP[12]' "a matching rule pin lints clean"
+          sed -i "s/Every export is logged/Every export is logged twice/" "$T/pk/kb.pl"
+          okb --dir "$K" lint; rc_is 0 "a warning"; out_has '^WP1 c1:' "WP1: the rule changed after the claim pinned it"
+          padd "claim(c2, preserve, 'Other')" "cites(c2, 'Build spec')" "pins(c2, project, ru9, '$H1')" >/dev/null; rc_is 0
+          okb --dir "$K" lint; out_has '^WP2 c2:' "WP2: no such rule in the project KB"
+          okb help project; out_has '(^|[^a-z_])rule\(' "help project documents rule"; }
+
+# PT3A (c3): supersedes between decisions or definitions; current_fact; a cycle is E15.
+t_PT3A() { t23_pk "decision(d1, 'Export goes through the queue')" "decision(d2, 'Export goes through the stream')" \
+                  "definition(df1, 'Exports run nightly')" "definition(df2, 'Exports run hourly')" "rule(ru1, 'Every export is logged')"
+           padd "supersedes(d2, d1)" "supersedes(df2, df1)"; rc_is 0 "supersedes between decisions and between definitions"
+           is_set 'current_fact(X)' "X = d2|X = df2|X = ru1"
+           padd "supersedes(d1, df1)"; rc_is 1 "a decision cannot replace a definition"; any_has 'E4' "E4"
+           padd "supersedes(d1, d2)"; rc_is 1 "a cycle is refused"; any_has 'E15' "E15"
+           printf 'supersedes(d1, d2).\n' >> "$K/kb.pl"
+           okb --dir "$K" lint; rc_is 1 "a supersede cycle of decisions is a lint error"; out_has '^E15 ' "E15"; }
+
+# PT3B (c3): depends_on between any two kinds; rests_on is its transitive closure.
+t_PT3B() { t23_pk "decision(d1, 'Export goes through the queue')" "definition(df1, 'The queue runs on the batch host')" \
+                  "rule(ru1, 'Every export is logged')" "decision(d2, 'Retry an export three times')"
+           padd "depends_on(d1, df1)" "depends_on(df1, ru1)" "depends_on(d2, d1)"; rc_is 0 "depends_on between any two kinds"
+           is_set 'rests_on(d1, X)' "X = df1|X = ru1"
+           is_set 'rests_on(d2, X)' "X = d1|X = df1|X = ru1"
+           is_set 'rests_on(X, ru1)' "X = d1|X = d2|X = df1"
+           is_false 'rests_on(ru1, _)'
+           okb --dir "$K" lint; rc_is 0 "lint is clean"; }
+
+# PT3C (c3): excludes and contradiction; it blocks only a spec KB that pins a side directly; one
+# that reaches a side through rests_on gets WP5 and no blocking item.
+t_PT3C() { t23_pk "decision(d1, 'Export goes through the queue')" "definition(df1, 'There is no queue')" \
+                  "decision(d3, 'Retry an export three times')" "depends_on(d3, d1)" "rule(ru1, 'Every export is logged')" \
+                  "excludes(d1, df1)"
+           is_set 'contradiction(X, Y)' "X = d1, Y = df1"
+           okb --dir "$K" lint; rc_is 0 "a contradiction is not a lint error of the project KB"
+           t23_spec direct d1
+           is_true 'blocking(project_contradiction(d1))' "a spec KB that pins d1 directly is blocked"
+           okb --dir "$K" show blocking; out_has '^- project_contradiction d1: .+' "show blocking names it with a sentence"
+           is_false 'done' "done waits"
+           t23_spec side df1
+           is_true 'blocking(project_contradiction(df1))' "the other side blocks a spec KB that pins it"
+           t23_spec through d3
+           is_false 'blocking(project_contradiction(_))' "a spec KB that reaches d1 through rests_on is not blocked"
+           okb --dir "$K" lint; rc_is 0 "only a warning"; out_has '^WP5 c1:' "WP5 names the claim"
+           t23_spec apart ru1
+           is_false 'blocking(project_contradiction(_))' "a spec KB that pins an unrelated rule is not blocked"
+           okb --dir "$K" lint; out_hasnt '^WP5' "and has no WP5"
+           K=$T/pk; padd "definition(df2, 'A queue exists')" "supersedes(df2, df1)" >/dev/null
+           is_false 'contradiction(_, _)' "a superseded side ends the contradiction"
+           K=$T/direct; is_false 'blocking(project_contradiction(_))' "nothing blocks after the supersede"
+           K=$T/through; okb --dir "$K" lint; out_hasnt '^WP5' "and WP5 is gone"; }
+
+# PT3D (c3): impact(X, SpecKB) and `orbit-kb project impact X`.
+t_PT3D() { t23_pk "decision(d1, 'Export goes through the queue')" "decision(d3, 'Retry an export three times')" \
+                  "rule(ru1, 'Every export is logged')" "rule(ru2, 'Exports are signed')" "depends_on(d3, d1)" "depends_on(d1, ru1)"
+           t23_spec direct d1; t23_spec through d3; t23_spec apart ru2
+           K=$T/pk
+           is_set 'impact(ru1, S)' "S = '$T/direct'|S = '$T/through'"
+           okb --dir "$K" project impact ru1; rc_is 0 "project impact"
+           out_has "$T/direct" "the spec KB that pins d1, which rests on ru1"
+           out_has "$T/through" "the spec KB that pins d3, which rests on ru1 through d1"
+           out_hasnt "$T/apart" "not a spec KB that pins an unrelated rule"
+           okb --dir "$K" project impact d1; rc_is 0
+           printf '%s\n' "$out" | grep -F "$T/direct" | grep -Eqv 'rests on' || note "d1 is pinned directly by direct: $(snip "$out")"
+           printf '%s\n' "$out" | grep -F "$T/through" | grep -Eq 'rests on' || note "through reaches d1 through rests_on, and the line says so: $(snip "$out")"
+           okb --dir "$K" project impact ru2; rc_is 0; out_has "$T/apart"
+           okb --dir "$K" project impact d9; rc_is 2 "an id that is no decision, definition or rule"
+           okb --dir "$K" add "decision(d4, 'Nobody pins this')" >/dev/null
+           okb --dir "$K" project impact d4; rc_is 0; out_has 'No spec KB' "nothing is impacted"
+           okb help project; out_has 'project impact' "help project documents project impact"; }
+
+# PT4 (c4): origin. A decision by an agent is proposed until a human ratifies it; only ratified
+# decisions block; an agent may not ratify.
+t_PT4() { t23_pk "decision(d1, 'Export goes through the queue')" "decided_by(d1, 'agent:build', '$T1')" \
+                 "decision(d2, 'Retry an export three times')" "decided_by(d2, 'product owner', '$T1')" \
+                 "definition(df1, 'There is no queue')" "excludes(d1, df1)" \
+                 "rule(ru1, 'Every export is logged')" "decided_by(ru1, ann, '$T1')"
+          rc_is 0 "decided_by accepts a person, a role, and a rule"
+          is_set 'proposed(X)' "X = d1"
+          t23_spec spec d1
+          is_false 'blocking(project_contradiction(_))' "a proposed decision does not block"
+          K=$T/pk; padd "ratified_by(d1, ann, '$T2')"; rc_is 0 "a human ratifies"
+          is_false 'proposed(_)' "ratified: no longer proposed"
+          K=$T/spec; is_true 'blocking(project_contradiction(d1))' "a ratified decision blocks"
+          K=$T/pk; padd "ratified_by(d2, 'agent:review', '$T2')"
+          if [ "$rc" = 0 ]; then okb --dir "$K" lint; rc_is 1 "an agent that ratifies is a lint error"; out_has '^EP1 ' "EP1"
+          else any_has 'EP1' "the add is refused with EP1"; fi
+          # a draft conflict on a proposed decision does not block either
+          rm -rf "$T/pk" "$T/spec"; t23_pk "decision(d5, 'Export goes through the queue')" "decided_by(d5, agent, '$T1')" \
+                 "pin(p1, tracker, 'gh:acme/widgets#12', '$H1', '$T1')" "concerns(d5, p1)" \
+                 "pin(p2, tracker, 'gh:acme/widgets#12', '$H2', '$T2')" "draft(dr1, p1, 'Retitle the issue', '$T3')"
+          is_true 'conflict(dr1)'
+          t23_spec spec d5
+          is_false 'blocking(project_conflict(_))' "a conflict on a proposed decision does not block"
+          K=$T/pk; padd "ratified_by(d5, ann, '$T3')" >/dev/null
+          K=$T/spec; is_true 'blocking(project_conflict(dr1))' "after the ratification it blocks"
+          okb help project; out_has 'ratified_by' "help project documents ratified_by"; out_has 'proposed' "and proposed"; }
+
+# PT5 (c5): analyses live in the project KB; a path outside it is WP6; a week's report is a file pin.
+t_PT5() { t23_pk "decision(d1, 'Export goes through the queue')" "definition(df1, 'Exports run nightly')" "rule(ru1, 'Every export is logged')"
+          mkdir -p "$K/analyses" "$T/weeks/w45"; printf 'why\n' > "$K/analyses/export.md"; printf 'raw report\n' > "$T/weeks/w45/report.md"
+          padd "analysis(d1, 'analyses/export.md')" "analysis(df1, 'analyses/export.md')" "analysis(ru1, 'analyses/export.md')"
+          rc_is 0 "analysis attaches to a decision, a definition and a rule"
+          okb --dir "$K" lint; rc_is 0; out_hasnt '^WP6' "a path under the project KB is fine"
+          okb --dir "$K" subject s1 "$T/weeks/w45/report.md" >/dev/null; rc_is 0 "a week's report is a subject"
+          local d; d=$(sha "$T/weeks/w45/report.md")
+          padd "pin(p1, file, s1, 'sha256:$d', '$T1')" "concerns(df1, p1)"; rc_is 0 "a file pin of the report"
+          okb --dir "$K" lint; rc_is 0; out_hasnt '^WP6' "a file pin outside the KB is not an analysis"
+          padd "analysis(d1, '../weeks/w45/report.md')" "analysis(ru1, '/var/tmp/notes.md')"; rc_is 0
+          okb --dir "$K" lint; rc_is 0 "a warning"
+          out_has '^WP6 .*weeks/w45/report.md' "WP6 names a relative path outside the project KB"
+          out_has '^WP6 .*/var/tmp/notes.md' "WP6 names an absolute path outside the project KB"
+          okb help project; out_has 'analyses/' "help project says where analyses live"
+          out_has '[Ww]eeks? own' "help project says the weeks own raw reports and transcripts"; out_has 'transcript' "names transcripts"; }
+
+# PT6 (c6): every new relation refuses a dangling reference with E4; help codes says so.
+t_PT6() { t23_pk "decision(d1, 'Export goes through the queue')" "definition(df1, 'Exports run nightly')" \
+                 "rule(ru1, 'Every export is logged')" "pin(p1, tracker, 'gh:acme/widgets#12', '$H1', '$T1')"
+          local f
+          for f in "depends_on(d1, x9)" "depends_on(x9, d1)" "excludes(d1, x9)" "excludes(x9, ru1)" "supersedes(x9, d1)" \
+                   "supersedes(df1, x9)" "ratified_by(x9, ann, '$T1')" "decided_by(x9, ann, '$T1')" "analysis(x9, 'analyses/a.md')" \
+                   "concerns(x9, p1)" "concerns(df1, p9)"; do
+              padd "$f"; rc_is 1 "$f is refused" && any_has 'E4' "$f: E4"
+          done
+          for f in "depends_on(d1, p1)" "excludes(d1, p1)"; do padd "$f"; rc_is 1 "$f: a pin is no decision, definition or rule" && any_has 'E[34]' "$f: E3 or E4"; done
+          printf 'depends_on(ru1, x9).\n' >> "$K/kb.pl"
+          okb --dir "$K" lint; rc_is 1 "a dangling depends_on written by hand"; out_has '^E4 ' "lint E4"
+          okb help codes; rc_is 0
+          printf '%s\n' "$out" | grep -E '^ *E4' | grep -q 'depends_on' || note "help codes: the E4 line names depends_on"
+          printf '%s\n' "$out" | grep -E '^ *E4' | grep -q 'excludes' || note "help codes: the E4 line names excludes"
+          printf '%s\n' "$out" | grep -E '^ *E4' | grep -q 'ratified_by' || note "help codes: the E4 line names ratified_by"
+          local c; for c in WP5 WP6 EP1; do out_has "^ *$c +[a-zA-Z]" "help codes lists $c"; done
+          local lint; lint=$(readme_part '^## [0-9]+[.] Lint codes' '^## ')
+          for c in WP5 WP6 EP1; do printf '%s\n' "$lint" | grep -Eq "^[|] $c [|] [A-Za-z]" || note "the README lint table has no row $c"; done; }
+
+# PT7 (c7): CONTRACT D27 notes again that the Lean model of done has no project clause.
+t_PT7() { local c=$here/../CONTRACT.md d
+          [ -f "$c" ] || { note "no CONTRACT.md at $c"; return; }
+          d=$(grep -F '**D27' "$c")
+          [ -n "$d" ] || { note "CONTRACT.md has no D27"; return; }
+          awk '/\*\*D27/{on=1} on' "$c" | head -n 30 | grep -q 'burn_model' || note "D27 names the burn_model"
+          awk '/\*\*D27/{on=1} on' "$c" | head -n 30 | grep -Eq 'OPEN.md item 5|limit' || note "D27 notes the limit"; }
+
+# PT8 (c8): pin-item keeps the pinned text at pins/HEX.txt; show pin ID prints it.
+t_PT8() { t23_pk; printf 'Title: Sort orders\nBody: sort by date\n' > "$T/item.txt"
+          local h; h=$(sha "$T/item.txt")
+          okb --dir "$K" pin-item p1 'gh:acme/widgets#12' --text-file "$T/item.txt" --changed-at "$T1"; rc_is 0 "pin-item"
+          [ -f "$K/pins/$h.txt" ] || note "no pins/$h.txt"
+          [ -f "$K/pins/$h.txt" ] && { same_file "$K/pins/$h.txt" "$T/item.txt" "the kept text is the pinned bytes"; [ "$(sha "$K/pins/$h.txt")" = "$h" ] || note "the name is its own sha256"; }
+          okb --dir "$K" show pin p1; rc_is 0 "show pin"; out_has '^Body: sort by date$' "show pin prints the text"; out_has 'gh:acme/widgets#12' "and the source"
+          okb --dir "$K" pin-item p2 'gh:acme/widgets#12' --text-file "$T/item.txt" --changed-at "$T2"; rc_is 0
+          [ "$(ls "$K/pins" | wc -l)" = 1 ] || note "the same text is kept once: $(ls "$K/pins" | tr '\n' ' ')"
+          printf 'Other text\n' > "$T/other.txt"
+          okb --dir "$K" pin-item p1 'gh:acme/widgets#13' --text-file "$T/other.txt" --changed-at "$T2"; rc_is 1 "a duplicate pin id"
+          [ -f "$K/pins/$(sha "$T/other.txt").txt" ] && note "a refused pin-item kept its text"
+          padd "pin(p3, tracker, 'gh:acme/widgets#14', '$H1', '$T1')" >/dev/null
+          okb --dir "$K" show pin p3; rc_is 1 "a pin with no kept text"; any_hasi 'no text' "says so"
+          okb --dir "$K" show pin p9; rc_is 2 "no such pin"
+          okb help project; out_has 'pins/' "help project documents the kept text"; out_has 'show pin' "and show pin"; }
+
+# PT9 (c9): project archive --superseded-before DATE removes what nothing keeps.
+t_PT9() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "decided_by(d2, ann, '$T2')" "supersedes(d2, d1)" \
+                 "reason(d1, 'It was simple')" \
+                 "decision(d3, 'Old retry')" "decision(d4, 'New retry')" "decided_by(d4, ann, '$T2')" "supersedes(d4, d3)" \
+                 "decision(d5, 'Old log')" "decision(d6, 'New log')" "decided_by(d6, ann, '$T2')" "supersedes(d6, d5)" \
+                 "decision(d7, 'Audit')" "depends_on(d7, d5)" \
+                 "decision(d8, 'Old sign')" "decision(d9, 'New sign')" "decided_by(d9, ann, '$T4')" "supersedes(d9, d8)" \
+                 "definition(df1, 'Exports run nightly')" "definition(df2, 'Exports run hourly')" "decided_by(df2, ann, '$T2')" "supersedes(df2, df1)" \
+                 "rule(ru1, 'Every export is logged')" "rule(ru2, 'Every export is logged and signed')" "decided_by(ru2, ann, '$T2')" "supersedes(ru2, ru1)" \
+                 "decision(d12, 'Old base')" "decision(d13, 'Old middle')" "decision(d15, 'New base')" "decided_by(d15, ann, '$T2')" \
+                 "supersedes(d15, d12)" "supersedes(d15, d13)" "depends_on(d13, d12)" "decision(d14, 'Top')" "depends_on(d14, d13)" \
+                 "decision(d10, 'Old cache')" "decision(d11, 'New cache')" "decided_by(d11, ann, '$T2')" "supersedes(d11, d10)"
+          t23_spec openspec d3
+          t23_spec donespec d10; okb --dir "$K" run k1 -- true >/dev/null 2>&1
+          is_true 'done' "setup: donespec is done"
+          K=$T/pk
+          okb --dir "$K" project archive; rc_is 2 "--superseded-before is required"
+          okb --dir "$K" project archive --superseded-before soon; rc_is 2 "a DATE that is not a time"
+          okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "archive"
+          local x; for x in d1 df1 ru1 d10; do out_has "(^|[^a-z0-9])$x([^a-z0-9]|\$)" "the output names $x"; done
+          for x in "decision(d1, _)" "reason(d1, _)" "supersedes(d2, d1)" "definition(df1, _)" "rule(ru1, _)" "decision(d10, _)" "supersedes(d11, d10)"; do
+              no_fact "$K/kb.pl" "$x" "archived"; done
+          for x in "decision(d2, _)" "decision(d3, _)" "decision(d5, _)" "decision(d8, _)" "decision(d12, _)" "decision(d13, _)" \
+                   "supersedes(d4, d3)" "supersedes(d6, d5)" "depends_on(d7, d5)" "definition(df2, _)" "rule(ru2, _)"; do
+              has_fact "$K/kb.pl" "$x" "kept"; done
+          okb --dir "$K" lint; rc_is 0 "the project KB lints clean after the archive"
+          okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "a second archive"; out_has 'Nothing' "removes nothing more"
+          okb help project; out_has 'project archive' "help project documents project archive"
+          local cmds; cmds=$(readme_part '^## [0-9]+[.] Command reference' '^## ')
+          printf '%s\n' "$cmds" | grep -E '^### `' | grep -Fq 'project impact' || note "the README command reference has no heading for project impact"
+          printf '%s\n' "$cmds" | grep -E '^### `' | grep -Fq 'project archive' || note "the README command reference has no heading for project archive"; }
+
 # ================================================================ run
 run_test t_PK1 PK1 "T06 c1: init --uses project; every fact of the module is accepted"
 run_test t_PK2 PK2 "T06 c1: dangling refs and duplicate ids are refused (E4, E5)"
@@ -636,6 +878,18 @@ run_test t_PW9 PW9 "T27 c2: every KB has one writer; the lock is a lease that la
 run_test t_PH1 PH1 "T27 c3: the handoff texts say release, the first write takes the lock, review has its own lease"
 run_test t_PR1 PR1 "T27 c10: init --source pins the request; a changed text is stale until a human accepts it"
 
+run_test t_PT1 PT1 "T23 c1: definition/2 and concerns of a definition; help project opens with the two sides"
+run_test t_PT2 PT2 "T23 c2: rule/2 is pinned by a spec claim; WP1 and WP2 cover rule pins"
+run_test t_PT3A PT3A "T23 c3: supersedes between decisions or definitions; current_fact; a cycle is E15"
+run_test t_PT3B PT3B "T23 c3: depends_on between any two kinds; rests_on is its transitive closure"
+run_test t_PT3C PT3C "T23 c3: a contradiction blocks only a spec KB that pins a side; rests_on gives WP5"
+run_test t_PT3D PT3D "T23 c3: impact(X, SpecKB) and project impact X"
+run_test t_PT4 PT4 "T23 c4: an agent's decision is proposed until a human ratifies it; only ratified decisions block"
+run_test t_PT5 PT5 "T23 c5: analyses live in the project KB (WP6); a week's report is a file pin"
+run_test t_PT6 PT6 "T23 c6: every new relation refuses a dangling reference (E4); help codes lists them"
+run_test t_PT7 PT7 "T23 c7: CONTRACT D27 notes the Lean limit again"
+run_test t_PT8 PT8 "T23 c8: pin-item keeps the pinned text at pins/HEX.txt; show pin ID prints it"
+run_test t_PT9 PT9 "T23 c9: project archive removes superseded facts that nothing keeps"
 NT=${#REG_ID[@]}
 for ((i = 0; i < NT; i++)); do exec_test "$i"; done
 echo "----"

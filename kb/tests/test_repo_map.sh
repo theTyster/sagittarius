@@ -10,7 +10,9 @@
 #
 # Input hash (the contract of c2): sha256 over the bytes of the facts file, then one NUL byte,
 # then the bytes of the containers file. The map carries `map@` and the first 12 hex digits.
-# Requirement map: C1a-C1d (c1), C2a-C2d (c2), C3a-C3b (c3), U1 U2 (usage), D1 D2a-c D3 (review fixes).
+# Requirement map: C1a-C1d (c1), C2a-C2d (c2), C3a-C3b (c3), U1 U2 (usage), D1 D2a-c D3 (review fixes),
+#   L3a-L3e (ticket T29 c8: --level c3 --container ID, the components of one container).
+# ONLY='<regex>' runs only the tests whose id matches.
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 repo=$(cd "$here/../.." && pwd -P)
@@ -49,10 +51,10 @@ mermaid_ok() {
         inb {
             line=$0; sub(/^[ \t]+/, "", line)
             if (line=="") next
-            if (first) { if (line!="C4Context" && line!="C4Container") bad("bad diagram type: " line); first=0; next }
+            if (first) { if (line!="C4Context" && line!="C4Container" && line!="C4Component") bad("bad diagram type: " line); first=0; next }
             if (line ~ /^%%/) next
             if (line=="}") { depth--; next }
-            if (line !~ /^(title|Person|Person_Ext|System|System_Ext|SystemDb|Container|ContainerDb|Container_Ext|Container_Boundary|System_Boundary|Boundary|Enterprise_Boundary|Rel|BiRel|UpdateLayoutConfig)( |\()/) bad("unknown keyword: " line)
+            if (line !~ /^(title|Person|Person_Ext|System|System_Ext|SystemDb|Container|ContainerDb|Container_Ext|Container_Boundary|System_Boundary|Boundary|Enterprise_Boundary|Component|ComponentDb|Component_Ext|Rel|BiRel|UpdateLayoutConfig)( |\()/) bad("unknown keyword: " line)
             q=gsub(/"/, "\"", line); if (q%2) bad("odd quotes: " line)
             t=line; gsub(/"[^"]*"/, "", t)
             o=gsub(/\(/, "(", t); c=gsub(/\)/, ")", t); if (o!=c) bad("unbalanced parens: " line)
@@ -241,7 +243,75 @@ t_D3() {  # the H1 title is escaped: no raw Markdown or HTML from the repo name
     [ "$(printf '%s\n' "$out" | grep -c '^# ')" = 1 ] || note "exactly one H1"
 }
 
-for t in C1a C1b C1c C1d C2a C2b C2c C2d C3a C3b U1 U2 D2a D2b D2c D1 D3; do
+# ---------------------------------------------------------------- T29 c8: C3 for one container
+# --level c3 --container ID writes the C4 components of container ID (u60: "occasionally C3").
+# The containers file declares them as component(Id, Container, Label, Technology, Text).
+mkfix3() {  # mkfix3 DIR: mkfix plus components of web, and links that touch them
+    mkfix "$1"
+    cat >> "$1/containers.pl" <<'CT'
+component(router, web, 'Router', 'Python', 'Maps URLs to handlers.').
+component(views, web, 'Views', 'Jinja', 'Renders pages.').
+component(repo_layer, web, 'Repository', 'Python', 'Reads and writes the store.').
+component(migrator, store, 'Migrator', 'SQL', 'Applies schema changes.').
+link(dev, router, 'sends requests to').
+link(router, views, 'calls').
+link(views, repo_layer, 'reads through').
+link(repo_layer, store, 'queries').
+link(repo_layer, migrator, 'waits for').
+link(views, cloud, 'loads assets from').
+CT
+}
+t_L3a() {  # the example: C3 of orbit_kb renders as a C4Component diagram of its components
+    rm_run --facts "$EX_KB" --containers "$EX_CT" --level c3 --container orbit_kb; rc_is 0
+    out_has '^ *C4Component$' "a C4Component diagram"; mermaid_ok
+    out_has 'Container_Boundary\(orbit_kb,' "the container is the boundary"
+    out_has '^ +Component\(' "at least one component"
+    out_hasnt 'C4Context|C4Container' "level c3 has no C1 and no C2"
+    out_has 'map@[0-9a-f]{12}' "the map carries the input hash"
+}
+t_L3b() {  # the components of the one container, and what their links touch
+    mkfix3 "$base/l3b"
+    rm_run --facts "$base/l3b/kb.pl" --containers "$base/l3b/containers.pl" --level c3 --container web; rc_is 0; mermaid_ok
+    local c; for c in router views repo_layer; do out_has "^ +Component\\($c," "component $c"; done
+    out_hasnt 'Component\(migrator,' "a component of another container is not a component here"
+    out_has 'Container\(store,' "a container that a component links to shows as a container"
+    out_has 'Container\(migrator,|Component_Ext\(migrator,' "a component of another container that a link touches shows outside the boundary"
+    out_has 'Person\(dev,' "a person that links to a component"
+    out_has 'System_Ext\(cloud,' "an external that a component links to"
+    out_has 'Rel\(router, views,' "link between components"; out_has 'Rel\(repo_layer, store,' "link to a container"
+    out_has 'Rel\(dev, router,' "link from a person"
+    out_hasnt 'Rel\(web, ' "links of the container itself are C2, not C3"
+    out_hasnt 'beta|gamma' "systems that no component links to are left out"
+}
+t_L3c() {  # usage: c3 needs one known container; --container needs c3
+    mkfix3 "$base/l3c"; local F=$base/l3c/kb.pl C=$base/l3c/containers.pl
+    rm_run --facts "$F" --containers "$C" --level c3; rc_is 2 "c3 without --container"; [ -z "$out" ] || note "no map on a usage error"
+    err_has 'container' "the message names --container"
+    rm_run --facts "$F" --containers "$C" --level c3 --container nosuch; rc_is 2 "unknown container"; err_has 'nosuch' "names the unknown container"
+    rm_run --facts "$F" --containers "$C" --level c2 --container web; rc_is 2 "--container with level c2"
+    rm_run --facts "$F" --containers "$C" --container web; rc_is 2 "--container with the default level"
+    rm_run --facts "$F" --containers "$C" --level c3 --container; rc_is 2 "--container with no value"
+}
+t_L3d() {  # C1 and C2 do not change: no component is printed at those levels
+    mkfix "$base/l3d0"; mkfix3 "$base/l3d"
+    local lv; for lv in c1 c2 both; do
+        rm_run --facts "$base/l3d/kb.pl" --containers "$base/l3d/containers.pl" --level "$lv"; rc_is 0 "$lv"; mermaid_ok
+        out_hasnt 'Component|C4Component|router|repo_layer|migrator' "$lv shows no component"
+    done
+    rm_run --facts "$base/l3d0/kb.pl" --containers "$base/l3d0/containers.pl" --level both; local a=$out
+    [ -n "$a" ] || note "setup"; printf '%s\n' "$a" | grep -q 'Container(web,' || note "setup: C2 lacks web"
+}
+t_L3e() {  # the map of a C3 level: same hash rule; no path, no location
+    mkfix3 "$base/l3e"
+    rm_run --facts "$base/l3e/kb.pl" --containers "$base/l3e/containers.pl" --level c3 --container web; rc_is 0
+    out_has "map@$(hash12 "$base/l3e/kb.pl" "$base/l3e/containers.pl")" "the input hash"
+    all_hasnt_f "/srv/work" "repo locations"; all_hasnt_f "$base" "input paths"
+    printf "component(d_p, web, 'A', 'x', 'd').\ncomponent('d-p', web, 'B', 'x', 'd').\n" >> "$base/l3e/containers.pl"
+    rm_run --facts "$base/l3e/kb.pl" --containers "$base/l3e/containers.pl" --level c3 --container web; rc_is 2 "colliding component ids are refused"
+}
+
+for t in C1a C1b C1c C1d C2a C2b C2c C2d C3a C3b U1 U2 D2a D2b D2c D1 D3 L3a L3b L3c L3d L3e; do
+    if [ -n "${ONLY:-}" ] && ! [[ $t =~ $ONLY ]]; then continue; fi
     FAILS=(); "t_$t"
     if [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $t"
     else fail=$((fail+1)); echo "FAIL $t"; for m in "${FAILS[@]}"; do echo "     - $m"; done; fi

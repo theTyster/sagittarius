@@ -8,10 +8,17 @@ direct answer or a light path with one check. When a miscommunication shows up, 
 adds rigor one step at a time: a knowledge base (KB) of claims and questions, more rounds
 of questions, and, for a claim about every case, a Lean proof.
 
-The idea in ten slides: [`site/essentials.html`](site/essentials.html). The full story, with
-the timeline and every mechanism, is in 30 slides: [`site/index.html`](site/index.html).
+**Where it sits.** Sagittarius is an extension of the harness, between the human-agent
+interface (the harness, such as Claude Code) and the software factory (the interface between the
+agent and the project). It is an inference, reasoning and knowledge-graph layer: Prolog KBs,
+Lean proofs, and a small model (System 1) that reads each message.
+
+The idea in thirteen slides: [`site/essentials.html`](site/essentials.html). The full story, with
+the timeline and every mechanism, is in 35 slides: [`site/index.html`](site/index.html).
 
 ## Use it
+
+Only the hub, with no Prolog and no Lean? That is the informal release: see [`hubkit/README.md`](hubkit/README.md).
 
 1. **Install.** Install SWI-Prolog 9+, then run `./install.py` from this folder. It links
    `orbit-kb`, `repo-map`, and the prompt into your home directory. Check it with `orbit-kb doctor`
@@ -83,7 +90,7 @@ three tmux windows named after the roles. That launcher is not part of this repo
 
 ## Hub kit
 
-`hubkit/` is hubflow-starter: a template for a hub, one git repo that a few named Claude Code
+`hubkit/` is the hub kit: a template for a hub, one git repo that a few named Claude Code
 sessions share as working memory (a weekly calendar plus flow state in SQLite). To start a hub from
 it, give `hubkit/` to your agent and say "follow INSTRUCTIONS.md" (`hubkit/INSTRUCTIONS.md`). The
 agent asks up to three questions, sets up the hub, and checks each step. To take a new release into

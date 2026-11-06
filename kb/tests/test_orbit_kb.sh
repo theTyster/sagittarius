@@ -79,6 +79,7 @@
 #   BL  blocking/1 and show blocking                       (Core and build rules; D22)      : BL1-BL11 BL6b BL8b
 #   PN  pin stamp                                          (CLI: pin; D22)                  : PN1 PN2
 #   PH  help names the phases                              (CLI: help; D22)                 : PH1
+#   AC  acceptance criteria: ac/1, show and draft blocking (D29)                             : AC1-AC5
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -2255,6 +2256,37 @@ t_RT3() { local f t; f=$LIB/../../CONTRACT.md
 t_BL6b() { kb_done "$T/k"; K=$T/k
           printf "question(q2, c2, 'Is it two').\nquestion(q3, c2, 'Is it three').\nattest(d1, divergence, c2, claim(c2), agent, '2026-10-15T10:00:09Z').\nanswer(q3, yes, human).\nclaim(c3, preserve, 'Unchecked').\ncites(c3, 'Do two things').\ncheck(k9, c3).\ndue(q2, '2020-01-01T00:00:00Z').\ndue(q3, '2020-01-01T00:00:00Z').\ndue(k9, '2020-01-01T00:00:00Z').\ndue(k1, '2020-01-01T00:00:00Z').\n" >> "$K/kb.pl"
           is_set 'blocking(past_due(X))' 'X = k9|X = q2' "q3 is answered and k1 is a check of a fulfilled claim"; }
+# AC (D29, ticket T29 c7): acceptance criteria are claims marked ac/1. An unmet AC is named as such in
+# show blocking and draft blocking. done, blocking/1 and the burn rules do not change.
+ac_kb() { kb_done "$1"; printf "claim(c3, introduce, 'Orders sort by date').\ncites(c3, 'Do two things').\ncheck(k3, c3).\nclaim(c4, preserve, 'Plain claim four').\ncites(c4, 'Do two things').\n" >> "$1/kb.pl"; }
+t_AC1() { kb_done "$T/k"; K=$T/k
+          oadd 'ac(c2)'; rc_is 0 "ac/1 is declared: add takes ac(c2)"
+          no_fact "$K/kb.pl" "first_use(ac/1, _, _)" "ac/1 is declared by the library, not by its first use"
+          okb --dir "$K" lint; rc_is 0 "lint is clean with ac(c2)"; out_hasnt '^W7' "no W7 for ac/1"
+          rejects "ac of a question" 'E4|claim' add 'ac(q1)'
+          okb help build; rc_is 0; any_hasi 'ac\(' "help build names ac/1"; any_hasi 'acceptance criteri' "help build says what ac/1 means"; }
+t_AC2() { ac_kb "$T/k"; K=$T/k; echo "ac(c3)." >> "$K/kb.pl"; add_result "$K" k3 4 fail
+          okb --dir "$K" show blocking; rc_is 0
+          out_has '^- under c3: .*acceptance criterion.*not met.*Orders sort by date' "an unmet AC is named as an acceptance criterion"
+          out_has '^- under c4: claim c4 is current but not fulfilled: Plain claim four' "a claim that is no AC keeps its line"
+          if printf '%s\n' "$out" | grep -E '^- under c4' | grep -qi 'acceptance'; then note "c4 is no AC, but its line says acceptance"; fi; }
+t_AC3() { ac_kb "$T/k"; K=$T/k; echo "ac(c3)." >> "$K/kb.pl"
+          okb --dir "$K" draft blocking; rc_is 0
+          out_has '^- under c3: .*acceptance criterion.*not met.*Orders sort by date' "draft blocking names the unmet AC"
+          out_has '^- under c4: claim c4 is current but not fulfilled' "draft blocking: c4 keeps its line"; }
+t_AC4() { ac_kb "$T/k"; K=$T/k; q 'blocking(X)' -n 0; local before=$out
+          echo "ac(c3)." >> "$K/kb.pl"; q 'blocking(X)' -n 0
+          [ "$out" = "$before" ] || note "ac/1 changed the answers of blocking(X): [$(snip "$before")] -> [$(snip "$out")]"
+          is_false done "an unmet AC: not done"
+          kb_done "$T/k2"; K=$T/k2; echo "ac(c2)." >> "$K/kb.pl"; is_true done "a met AC does not block done"
+          okb --dir "$K" show blocking; out_has 'Nothing blocks done' "a met AC is not listed"
+          q 'burn(X)' -n 0; rc_is 1 "ac/1 does not make a claim burn"; }
+t_AC5() { ac_kb "$T/k"; K=$T/k; echo "ac(c3)." >> "$K/kb.pl"
+          printf 'ac(c4).\n' > "$K/rules.pl"; okb --dir "$K" lint
+          if printf '%s\n' "$out" | grep -q '^E16'; then note "ac/1 is a fact kind, not protected: rules.pl may not be refused for it"; fi
+          rm -f "$K/rules.pl"
+          q 'ac(X)' -n 0; rc_is 0 "query ac(X)"; out_has 'X = c3' "ac(c3) is queryable"; }
+
 # BL11 (T18 c5): the usage line of help show lists blocking among the parts (D22 C7).
 t_BL11() { okb help show; rc_is 0 "help show"
            out_has '^orbit-kb show \[[^]]*\bblocking\b[^]]*\]' "the usage line of help show lists blocking"; }
@@ -2630,6 +2662,11 @@ run_test t_BL11 BL11 "T18 c5: help show lists blocking in its usage line"
 run_test t_PN1 PN1 "D22 c8: pin prints the stamp and the time; pin --check is 0 unchanged, 1 changed"
 run_test t_PN2 PN2 "D22 c8: pin usage errors exit 2"
 run_test t_PH1 PH1 "D22 c9: help names the phase tree and the moves of each phase"
+run_test t_AC1 AC1 "D29 c7: ac/1 is a declared fact kind of the build module; help build names it"
+run_test t_AC2 AC2 "D29 c7: show blocking names an unmet acceptance criterion as such"
+run_test t_AC3 AC3 "D29 c7: draft blocking names an unmet acceptance criterion as such"
+run_test t_AC4 AC4 "D29 c7: ac/1 changes neither blocking/1, nor done, nor burns"
+run_test t_AC5 AC5 "D29 c7: ac/1 is a plain fact kind: queryable, not protected"
 
 run_tests
 echo "----"

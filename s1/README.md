@@ -17,8 +17,10 @@ is a list, oldest first; each item is `{"role": "you" | "agent", "text": the com
 message is a user prompt or an assistant reply; tool calls, tool results, meta lines and subagent
 lines are not messages; an assistant reply is all the agent text of one turn. `S1_CONTEXT_MESSAGES` raises the count (never below 3). Each text is sent
 whole. Only when the state and the longest question would pass Jev's per-question context (32k
-tokens) are the messages beyond 3 dropped, oldest first, and then the oldest one left is cut from
-its start; the log line then has `"trimmed": true`. No long-context header is sent. Every text is
+tokens) are the messages beyond 3 dropped, oldest first. If the 3 whole messages still do not
+fit, they are sent whole with the `TypeSafe-Danger-Zone-Long-Context: true` header (262k tokens;
+slower, same price; the log line has `"long_context": true`). Only beyond 262k is the oldest one
+cut from its start; the log line then has `"trimmed": true`. Every text is
 redacted. It adds one line of context for the agent, for example:
 
     System 1: work=build (0.83); divergence likely (0.85); effort significant (0.91): consider a shift up; formal tool: prolog (0.72)
@@ -95,15 +97,19 @@ Tests (no network): `python3 -m unittest s1.test_hook -v` from the repo root. On
 (`session_id`; docs: https://code.claude.com/docs/en/statusline) and prints one segment for the
 newest log line of that session:
 
-    S1 build | div 0.85 | eff 0.91
+    S1 build | div 0.85 | plan 0.10 | eff 0.91 | tool lean
 
-The parts are the `h_work` choice, P(`h_divergence`) and P(`h_effort`).
+The parts are the five judgments of the hook (T29 c6): the `h_work` choice, P(`h_divergence`),
+P(`h_change_of_plan`), P(`h_effort`), and the `h_language` choice (the formal tool). Each part shows
+only outside the unsure band, as the hook decides it: a yes/no answer when P <= 0.3 or P >= 0.7, a
+choice when its P is 0.5 or more.
 
 - It prints nothing when the log is missing, when the session has no line, when stdin has no
   `session_id`, or when the newest line of the session is 10 minutes old or older.
 - When the newest line is an error line (`error` set, or `answers` null) it prints `S1 err`.
-- A missing answer is left out of the segment. So is a work choice with P below 0.5, the hook's
-  floor (`probabilities[choice]`, else `confidence`). With nothing left, it prints nothing.
+- A missing answer is left out of the segment. So is a choice with P below 0.5, the hook's
+  floor (`probabilities[choice]`, else `confidence`), and a yes/no answer inside the band. With
+  nothing left, it prints nothing.
 - It reads only the end of the log (64 KiB blocks, at most 8 MiB back). It never calls the network
   and imports no network module. It uses `S1_LOG` like the other s1 tools.
 

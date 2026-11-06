@@ -364,7 +364,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <div class="tile t-mid"><svg class="ic"><use href="#i-split"/></svg><h3>Read two ways</h3><p class="muted">The human and the agent read the same words and see different things.</p></div>
   </div>
   <p>The human is the source of intent. <mark>The human is not always the source of clarity.</mark></p>
-  <p class="see"><a href="essentials.html">In a hurry? The ten-slide version</a></p>
+  <p class="see"><a href="essentials.html">In a hurry? The thirteen-slide version</a></p>
 </section>
 
 <section class="slide" id="s2" tabindex="-1">
@@ -1539,7 +1539,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <div class="tiles">
     <div class="tile"><svg class="ic"><use href="#i-speech"/></svg><h3>The Jev client</h3><p class="muted"><code>s1/jev.py</code> sends a state and small questions to Jev (TypeSafe System One). It returns an answer with a probability for each question, or nothing. It never raises, and it redacts names before the call.</p></div>
     <div class="tile t-mid"><svg class="ic"><use href="#i-bolt"/></svg><h3>The hook</h3><p class="muted"><code>s1/hook.py</code> is a <code>UserPromptSubmit</code> hook. It asks the question set about the prompt and the last agent message, and prints one line: the kind of work, a likely divergence, or an effort that suggests a shift up.</p></div>
-    <div class="tile"><svg class="ic"><use href="#i-eye"/></svg><h3>The status line</h3><p class="muted"><code>s1/statusline.py</code> shows the newest answer of the session: the work kind, the divergence probability and the effort probability.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-eye"/></svg><h3>The status line</h3><p class="muted"><code>s1/statusline.py</code> shows the newest answer of the session: all five judgments of the hook (the work kind, divergence, change of plan, effort, and the formal tool), each only when it is outside the unsure band.</p></div>
     <div class="tile t-amber"><svg class="ic"><use href="#i-lock"/></svg><h3>It fails open</h3><p class="muted">Any error, a missing key, a timeout or bad input prints nothing and never blocks a prompt. The hook reads only the last 2 MB of the transcript, and the read and the call both run inside the timeout (4 seconds by default, plus a short grace). An unsure answer is left out. Ty approves the question set before it is final.</p></div>
   </div>
   <details class="more"><summary>Why a small model instead of a long prompt</summary><div class="body">
@@ -1565,7 +1565,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <p class="big">A template for a hub: one git repo that a few long-lived sessions share as working memory.</p>
   <div class="tiles">
     <div class="tile"><svg class="ic"><use href="#i-cal"/></svg><h3>The hub is a calendar</h3><p class="muted">This week is W0 and the oldest kept week is W5. A rotation each Monday retires the oldest week, and git history keeps it. Lasting knowledge moves to root files and skills first.</p></div>
-    <div class="tile t-mid"><svg class="ic"><use href="#i-db"/></svg><h3>Flow state in SQLite</h3><p class="muted">Asks waiting on a person, threads in flight, holds and handoffs are rows written only by <code>hubflow.py</code>. Each write also exports JSONL for git. Items lapse when nobody renews them.</p></div>
+    <div class="tile t-mid"><svg class="ic"><use href="#i-db"/></svg><h3>Flow state in SQLite</h3><p class="muted">Asks waiting on a person, threads in flight, holds and handoffs are rows written only by <code>hubflow.py</code>. Each write also exports JSONL for git. Items never lapse by themselves: at each rotation, every item on the chopping block gets its own decision.</p></div>
     <div class="tile"><svg class="ic"><use href="#i-handoff"/></svg><h3>Upgrades keep your changes</h3><p class="muted">The hub owns its own files. Shipped files carry a checksum, so <code>tools/hubkit.py</code> knows which ones you changed, and an upgrade applies your changes by intent.</p></div>
   </div>
   <p>The kit lives in <code>hubkit/</code>, imported with its history from hubflow-starter. Start with <code>hubkit/README.md</code>.</p>
@@ -1584,8 +1584,8 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
     <div class="tile t-mid"><svg class="ic"><use href="#i-cal"/></svg><h3>Weeks</h3><p class="muted">The weekly reports and raw transcripts. They rotate out as the calendar moves. <code>index-transcripts</code> parses transcripts into the ledger. Status: landed (T01, T05).</p></div>
     <div class="tile"><svg class="ic"><use href="#i-hammer"/></svg><h3>Bespoke tools</h3><p class="muted">Helper scripts, skills and small stores that agents add where nothing fits. They stay visible and can be pruned. Status: a convention only; no tool for it is built.</p></div>
     <div class="tile t-amber"><svg class="ic"><use href="#i-path"/></svg><h3>Tracker</h3><p class="muted">The client system of record: tickets, checks, runs and the code. The hub reads from it and pins what it needs. Status: it is outside this repo.</p></div>
-    <div class="tile t-mid"><svg class="ic"><use href="#i-compass"/></svg><h3>Repo map</h3><p class="muted">The C4 map of a repo at levels C1 and C2, as Mermaid, made by <code>kb/bin/repo-map</code> from a project KB facts file and a containers file. Spec: <code>kb/share/repo-map/README.md</code>. Status: landed (T12).</p></div>
-    <div class="tile"><svg class="ic"><use href="#i-question"/></svg><h3>Question view</h3><p class="muted"><code>orbit-kb view questions</code> writes one HTML page of what blocks done in each KB, with each question, its options and their effects, so Ty can answer without a live session. Status: landed (T10).</p></div>
+    <div class="tile t-mid"><svg class="ic"><use href="#i-compass"/></svg><h3>Repo map</h3><p class="muted">The C4 map of a repo at levels C1 and C2 (and C3 for one container on request), as Mermaid, made by <code>kb/bin/repo-map</code> from a project KB facts file and a containers file. Spec: <code>kb/share/repo-map/README.md</code>. Status: landed (T12).</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-question"/></svg><h3>Question view</h3><p class="muted"><code>orbit-kb view questions</code> writes one HTML page of what blocks done in each KB, with each question, its options and their effects, so Ty can answer without a live session. The question server, <code>orbit-kb serve questions</code>, serves the same page live on 127.0.0.1 and records each answer under the writer lock. Status: landed (T10, T19).</p></div>
   </div>
   <p><strong>Drafts only:</strong> tracker sync is drafts only. <code>orbit-kb draft blocking</code> prints the blocking items of a spec KB as Markdown, stamped with the digest of the spec KB. <code>orbit-kb --dir PROJECT draft outbound</code> prints the drafts of the project KB that are not pushed, and marks a conflict "decide". <code>orbit-kb pin-item</code> records a pin of a tracker item from text that a person put in a file. Nothing posts: a person pastes each draft into the tracker, and no command uses a network. Status: landed (T11).</p>
 </section>

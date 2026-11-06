@@ -16,7 +16,7 @@ Two kinds of file, listed in the kit's kit.json:
           manifest records the sha256 of each as installed. An upgrade replaces an engine file the
           hub did not change, and leaves a changed one in `pending` for the agent to merge by hand,
           following UPGRADING.md.
-  owned   files the hub owns from the first day (CLAUDE.md, HEURISTICS.md, ROLES, ...). An upgrade
+  owned   files the hub owns from the first day (CLAUDE.md, HEURISTICS.md, seed.json, ...). An upgrade
           never changes them. It copies a new owned file only if the hub has no file at that path.
 
 Upgrade actions per engine file (hub state against the manifest, and whether the kit changed it):

@@ -55,7 +55,15 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   session add NAME --role R | rename OLD NEW | retire NAME
                                                with no sessions at all, `session add NAME` by the
                                                writer NAME makes the first session
-  where SLUG                                   the W-slot path of an analysis slug, newest week first
+  where SLUG                                   the hub-relative path of a spec KB slug: specs/<slug>, else
+                                               (an old hub) W<n>/analyses/<slug>, newest week first
+  spec-triage SLUG archive|capsule|keep|escalate --note T
+                                               the one recorded decision for the spec KB of a closed
+                                               ticket (specs/<slug>), made at a rotation. archive:
+                                               `git rm -r specs/<slug>` first (history keeps it), then
+                                               record it. capsule needs a capsule on an item that
+                                               refers to the KB. An agent's decision on a KB that
+                                               blocks becomes escalate
   import FILE [--yes] [--format md|json]       JSONL of items; a dry run without --yes; all or nothing
   rotate --week-start YYYY-MM-DD [--yes]       prune; a dry run without --yes. Lists the due items
                                                with no disposition (untriaged) and exits 1 until
@@ -90,14 +98,22 @@ Environment
   HUBFLOW_ORBIT_KB     the orbit-kb command for spec KB queries (default `orbit-kb`; split like
                        shell words). hubflow only runs `--dir KB query 'blocking(X)'`: exit 0 with
                        lines = blocking, exit 1 = clear. Any other exit, a missing command or a kb
-                       ref with no dir in W0..W5/analyses counts as blocking (fail-safe)
+                       ref with no dir in specs/<slug> or W0..W5/analyses counts as blocking (fail-safe)
   HUBFLOW_NOW          fixes the clock, YYYY-MM-DDTHH:MM:SSZ (tests). Every write stores it as
                        meta.now so views read the same clock; a read applies it to a private copy
   --hub DIR            the hub root (default: HUBFLOW_HUB, else the git toplevel of the current
                        directory, else the current directory); `where` reads it
 
-The hub is a weekly calendar: W0 is the current week, W5 five weeks back, each with an analyses/
-directory. `where` and the retention windows below follow it.
+The hub is a weekly calendar: W0 is the current week, W5 five weeks back; a week holds only what
+people gave it (reports/, transcripts/). A spec KB has the ticket's clock, not the week's: it lives
+at specs/<slug>/ at the hub root, and the item's ref is kb:<slug>. A hub made before 0.3.0 keeps
+spec KBs at W<n>/analyses/<slug>/kb (ref kb:<slug>/kb); that form still resolves, and specs/ wins.
+`where` and the retention windows below follow this.
+
+Copies. The ledger holds a pointer (issue:123) and the flow state around it. A pinned copy of a
+tracker item (its text with a digest, in the project KB) is allowed; it goes stale when the source
+has a later pin. An unpinned copy is not allowed. Re-pin a tracker item each time an agent reads it
+for a ticket, so the digest names what the agent read.
 
 Exit codes
   0 ok   1 bad input or a refused rule   2 db state (missing, exists, older or newer schema, locked)
@@ -119,8 +135,8 @@ db to v2: it adds the four tables below the event table and remakes v_open and v
   item(id, kind ask|thread|hold|handoff, title 3..200, status open|waiting|done|dropped|lapsed,
        owner_session, waits_on, analysis (a slug, never a W-slot path), opened_at, renewed_at,
        parked_until, closed_at, close_reason)       closed_at is set exactly when status is closed
-  item_ref(item_id, kind, ref)      issue and pr refs are digits; kb and file refs are relative to
-                                    an analysis (<slug>/kb), never W0/...
+  item_ref(item_id, kind, ref)      issue and pr refs are digits; a kb ref is <slug> (the spec KB at
+                                    specs/<slug>) or, in an old hub, <slug>/kb; never W0/...
   item_link(from_id, to_id, kind)
   handoff(item_id, from_session, to_session, gate, accepted_at)
   event(seq, at, item_id, verb, old, new, by_session, by human|agent|script, note)
@@ -1298,11 +1314,14 @@ def cmd_where(g, a):
         usage("where SLUG")
     slug = check_analysis(pos[0])
     hub = hub_dir(g)
+    if os.path.isdir(os.path.join(hub, "specs", slug)):
+        print(f"specs/{slug}")
+        return
     for n in range(6):
         if os.path.isdir(os.path.join(hub, f"W{n}", "analyses", slug)):
             print(f"W{n}/analyses/{slug}")
             return
-    raise Bad(f"no analysis {slug!r} in W0 to W5")
+    raise Bad(f"no spec KB {slug!r} in specs/ (or, in an old hub, W0 to W5 analyses)")
 
 
 # ---- import ----
@@ -1446,8 +1465,12 @@ def orbit_kb_cmd():
 
 
 def kb_dir(hub, ref):
-    """The dir of a kb ref (<slug>/<path>), newest week first, or None."""
+    """The dir of a kb ref (<slug> or <slug>/<path>): specs/<slug>/<path> first, then (an old hub)
+    W<n>/analyses/<slug>/<path>, newest week first, or None."""
     slug, _, rest = ref.partition("/")
+    p = os.path.join(hub, "specs", slug, rest)
+    if os.path.isdir(p):
+        return p
     for n in range(6):
         p = os.path.join(hub, f"W{n}", "analyses", slug, rest)
         if os.path.isdir(p):
@@ -1484,7 +1507,7 @@ def kb_checks(hub, refs):
         path = kb_dir(hub, ref)
         if path is None:
             out.append({"ref": ref, "path": None, "state": "unknown", "items": [],
-                        "why": f"no dir W0..W5/analyses/{ref}"})
+                        "why": f"no dir specs/{ref} or W0..W5/analyses/{ref}"})
             continue
         state, items, why = query_blocking(path)
         out.append({"ref": ref, "path": path, "state": state, "items": items, "why": why})
@@ -1800,11 +1823,82 @@ def rotate_plan(c, now, wk):
     return untriaged, escalated, prune, sessions
 
 
-def triage_gate(untriaged):
-    """Refuse the rotation while a due item lacks a disposition (d_triage_per_item)."""
+def triage_gate(untriaged, specs=()):
+    """Refuse the rotation while a due item lacks a disposition (d_triage_per_item), or the spec KB
+    of a closed ticket lacks a decision."""
     if untriaged:  # triage gate
         raise Bad(f"{len(untriaged)} due item(s) lack a disposition: {' '.join(untriaged)}; record one for each with"
                   " `hubflow.py triage ID keep|lapse|capsule|escalate --note T`, then rotate again")
+    if specs:  # spec KB gate
+        raise Bad(f"{len(specs)} spec KB(s) of closed tickets lack a decision: {' '.join(specs)}; record one for each with"
+                  " `hubflow.py spec-triage SLUG archive|capsule|keep|escalate --note T`, then rotate again")
+
+
+SPEC_DECISIONS = ("archive", "capsule", "keep", "escalate")
+
+
+def kb_slug_items(c, slug):
+    """The items whose kb ref is the spec KB slug (kb:<slug> or kb:<slug>/...): (id, status, closed_at)."""
+    return c.execute("SELECT DISTINCT i.id, i.status, i.closed_at FROM item i JOIN item_ref r ON r.item_id = i.id"
+                     " WHERE r.kind = 'kb' AND (r.ref = ? OR r.ref LIKE ?) ORDER BY i.id", (slug, slug + "/%")).fetchall()
+
+
+def untriaged_spec_kbs(c, hub):
+    """The spec KBs at specs/<slug> whose every referring item is closed and that have no recorded
+    decision (a spec_triage event) since the last of them closed."""
+    slugs = set()
+    for (ref,) in c.execute("SELECT DISTINCT ref FROM item_ref WHERE kind = 'kb'"):
+        slugs.add(ref.partition("/")[0])
+    out = []
+    for slug in sorted(slugs):
+        if not os.path.isdir(os.path.join(hub, "specs", slug)):
+            continue
+        items = kb_slug_items(c, slug)
+        if not items or any(st in OPEN for _, st, _ in items):
+            continue
+        last = max(x[2] for x in items)
+        if c.execute("SELECT 1 FROM event WHERE verb = 'spec_triage' AND old = ? AND at >= ?", (slug, last)).fetchone() is None:
+            out.append(slug)
+    return out
+
+
+def cmd_spec_triage(g, a):
+    pos, o = parse(a, WOPT)
+    if len(pos) != 2:
+        usage("spec-triage SLUG archive|capsule|keep|escalate --note T")
+    slug, dec = check_analysis(pos[0]), pos[1]
+    if dec not in SPEC_DECISIONS:
+        raise Bad(f"decision {dec!r} is not one of {', '.join(SPEC_DECISIONS)}")
+    if not o.get("note"):
+        raise Bad("spec-triage needs --note: why this decision")
+    by, hub = writer_by(o, g), hub_dir(g)
+    c = connect_ro(flow_dir(g))
+    items = kb_slug_items(c, slug)
+    has_capsule = any(c.execute("SELECT 1 FROM capsule WHERE item_id = ?", (i[0],)).fetchone() for i in items)
+    c.close()
+    if not items:
+        raise Bad(f"no item refers to kb:{slug}")
+    opened = [i[0] for i in items if i[1] in OPEN]
+    if opened:
+        raise Bad(f"the ticket of kb:{slug} is not closed: {' '.join(opened)} is open")
+    exists = os.path.isdir(os.path.join(hub, "specs", slug))
+    if dec == "archive" and exists:
+        raise Bad(f"run `git rm -r specs/{slug}` first (git history keeps it), then record archive")
+    if dec != "archive" and not exists:
+        raise Bad(f"no spec KB at specs/{slug}")
+    if dec == "capsule" and not has_capsule:
+        raise Bad(f"decision capsule needs a capsule on an item of kb:{slug} first: hubflow.py capsule ID --summary T")
+    final, asked = dec, None
+    if by != "human" and dec != "escalate" and exists:  # a spec KB that blocks is not the agent's to end
+        if any(k["state"] != "clear" for k in kb_checks(hub, [slug])):
+            final, asked = "escalate", dec
+    note = o["note"] + (f" (the agent asked {asked}; the spec KB blocks)" if asked else "")
+
+    def fn(c, w):
+        w.event(None, "spec_triage", slug, final, note=note)
+
+    run_write(g, o, fn)
+    print(f"{slug} {final}" + (f" (asked {asked}): the spec KB blocks, so only a human decides it" if asked else ""))
 
 
 def cmd_rotate(g, a):
@@ -1815,9 +1909,10 @@ def cmd_rotate(g, a):
     if datetime.date.fromisoformat(wk).weekday() != 0:
         raise Bad(f"--week-start {wk} is not a Monday")
 
-    def report(untriaged, escalated, prune, sessions):
+    def report(untriaged, escalated, prune, sessions, specs):
         print(f"week_start: {wk}")
         print("untriaged: " + (" ".join(untriaged) or "none"))
+        print("spec_kbs_untriaged: " + (" ".join(specs) or "none"))
         print("escalated: " + (" ".join(escalated) or "none"))
         print("pruned: " + (" ".join(prune) or "none"))
         print("pruned_sessions: " + (" ".join(sessions) or "none"))
@@ -1825,25 +1920,26 @@ def cmd_rotate(g, a):
 
     if not o.get("yes"):
         c = connect_ro(flow_dir(g))
-        plan = rotate_plan(c, clock(), wk)
+        plan = rotate_plan(c, clock(), wk) + (untriaged_spec_kbs(c, hub_dir(g)),)
         c.close()
         print("dry-run: nothing written (add --yes to apply)")
         report(*plan)
-        triage_gate(plan[0])
+        triage_gate(plan[0], plan[4])
         return
 
     def fn(c, w):
         untriaged, escalated, prune, sessions = rotate_plan(c, w.now, wk)
-        if untriaged:
-            report(untriaged, escalated, prune, sessions)
-        triage_gate(untriaged)
+        specs = untriaged_spec_kbs(c, hub_dir(g))
+        if untriaged or specs:
+            report(untriaged, escalated, prune, sessions, specs)
+        triage_gate(untriaged, specs)
         for iid in prune:
             c.execute("DELETE FROM item WHERE id = ?", (iid,))
         c.execute("DELETE FROM event WHERE item_id IS NOT NULL AND item_id NOT IN (SELECT id FROM item)")
         for name in sessions:
             c.execute("DELETE FROM session_alias WHERE name = ?", (name,))
             c.execute("DELETE FROM session WHERE name = ?", (name,))
-        return untriaged, escalated, prune, sessions
+        return untriaged, escalated, prune, sessions, specs
 
     report(*run_write(g, o, fn))
 
@@ -1968,7 +2064,7 @@ def cmd_check(g, a):
 COMMANDS = {"init": cmd_init, "add": cmd_add, "handoff": cmd_handoff, "accept": cmd_accept, "renew": cmd_renew,
             "park": cmd_park, "set": cmd_set, "close": cmd_close, "reopen": cmd_reopen, "ref": cmd_ref,
             "link": cmd_link, "note": cmd_note, "show": cmd_show, "view": cmd_view, "sql": cmd_sql,
-            "session": cmd_session, "where": cmd_where, "import": cmd_import, "rotate": cmd_rotate,
+            "session": cmd_session, "where": cmd_where, "spec-triage": cmd_spec_triage, "import": cmd_import, "rotate": cmd_rotate,
             "export": cmd_export, "rebuild": cmd_rebuild, "check": cmd_check, "migrate": cmd_migrate,
             "triage": cmd_triage, "capsule": cmd_capsule, "index-transcripts": cmd_index_transcripts,
             "transcripts": cmd_transcripts}
