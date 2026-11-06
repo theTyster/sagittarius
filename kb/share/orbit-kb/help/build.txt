@@ -96,6 +96,18 @@ Flares: show the claim to the human (burns get proved, flares get shown)
   A preference change (a new name or color, and no one misread the intent) is a new claim
   that supersedes the old one. It is not a divergence.
 
+When the human says it is wrong (a divergence, not a preference change)
+  1. On the light path, shift up now: start a KB, and record the request, your claims, and
+     the checks so far.
+  2. Record a divergence on the claim: orbit-kb attest divergence C 'claim(C)', and a note.
+  3. Decide which is wrong: the build, or the problem itself. If the problem is wrong, run
+     orbit-kb uses discovery, and go back to discovery (orbit-kb help discovery, BACK).
+  4. Record the human's answer: answer(Q, Answer, human). Defaults that conflict with it are
+     now defeated.
+  5. Query to_ask(Q). Ask that small cluster, not every dormant question.
+  6. Rebuild, and run the checks again. If burn(C) now holds, prove the claim in Lean (Burns).
+  The KB already holds the questions, so you continue from where you stopped.
+
 Waivers (the human only; the human sets the due time)
   orbit-kb attest waiver C "waive(C, '2026-11-30T17:00:00Z', 'why')" --by human
   C is a claim (its proof and its demo), a check, or a question.
