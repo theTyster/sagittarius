@@ -1,7 +1,7 @@
 #!/usr/bin/env swipl
 % repo-map: write the C4 map of a repo (levels C1 and C2) as Mermaid in Markdown.
 %
-%   repo-map --facts KB_PL --containers CONTAINERS_PL [--level c1|c2|both]
+%   repo-map --facts KB_PL --containers CONTAINERS_PL [--level c1|c2|both] [--strict]
 %
 % Spec and file formats: kb/share/repo-map/README.md. Nothing here touches the network, and
 % nothing is executed from the input files: they are only read as data.
@@ -27,11 +27,16 @@ main(Argv) :-
     input_hash(Facts, Cont, Hex),
     sub_atom(Hex, 0, 12, _, Short),
     (   c_repo(This) -> true ; die("repo-map: the containers file has no repo(Name) fact", []) ),
-    format("# Repo map: ~w~n~nmap@~w~n", [This, Short]),
+    check_ids(This),
+    ( strict, warned -> halt(1) ; true ),
+    md_escape(This, ThisE),
+    format("# Repo map: ~w~n~nmap@~w~n", [ThisE, Short]),
     (   Level \== c2 -> format("~n## C1 System context~n~n"), c1(This) ; true ),
     (   Level \== c1 -> format("~n## C2 Containers~n~n"), c2(This) ; true ).
 
-parse_args(Argv, F, C, L) :- parse_args_(Argv, none, none, both, F, C, L).
+parse_args(Argv0, F, C, L) :-
+    (   selectchk('--strict', Argv0, Argv) -> assertz(strict) ; Argv = Argv0 ),
+    parse_args_(Argv, none, none, both, F, C, L).
 parse_args_([], F, C, L, F, C, L).
 parse_args_(['--facts', V|T], _, C0, L0, F, C, L) :- !, parse_args_(T, V, C0, L0, F, C, L).
 parse_args_(['--containers', V|T], F0, _, L0, F, C, L) :- !, parse_args_(T, F0, V, L0, F, C, L).
@@ -40,27 +45,52 @@ parse_args_(['--level', V|T], F0, C0, _, F, C, L) :- !,
     ;   die("repo-map: --level must be c1, c2 or both", []) ).
 parse_args_([A|_], _, _, _, _, _, _) :- die("repo-map: unknown argument ~w", [A]).
 
-% ---- reading: terms are data; a term that does not parse is skipped
+% ---- reading: terms are data. A line that does not parse is skipped with a warning on stderr
+% (file and line). With --strict, any warning makes the exit status 1 after the map is not written.
+:- dynamic warned/0, strict/0.
+warn(File, Line, Fmt, Args) :-
+    assertz(warned),
+    format(user_error, "repo-map: warning: ~w:~w: ", [File, Line]),
+    format(user_error, Fmt, Args), nl(user_error).
 read_terms(File, Terms) :-
-    setup_call_cleanup(open(File, read, S, [encoding(utf8)]), rt(S, Terms), close(S)).
-rt(S, Ts) :-
-    catch(read_term(S, T, [syntax_errors(error)]), _, T = '$bad'),
+    setup_call_cleanup(open(File, read, S, [encoding(utf8)]), rt(File, S, Terms), close(S)).
+rt(File, S, Ts) :-
+    catch(read_term(S, T, [syntax_errors(error), term_position(P)]), E, (T = '$bad', bad_line(E, S, L))),
     (   T == end_of_file -> Ts = []
-    ;   T == '$bad' -> rt(S, Ts)
-    ;   Ts = [T|R], rt(S, R) ).
+    ;   T == '$bad' -> warn(File, L, "cannot parse this line, skipped", []), rt(File, S, Ts)
+    ;   stream_position_data(line_count, P, L0), Ts = [L0-T|R], rt(File, S, R) ).
+bad_line(error(_, stream(_, L, _, _)), _, L) :- !.
+bad_line(error(_, file(_, L, _, _)), _, L) :- !.
+bad_line(_, S, L) :- line_count(S, L).
 
 read_data(Facts, Cont) :-
     read_terms(Facts, FT),
-    forall(member(repo(N, L), FT), ( atomic(N), \+ r_repo(N, _) -> assertz(r_repo(N, L)) ; true )),
+    forall(member(L0-repo(N, L), FT), ( atomic(N), \+ r_repo(N, _) -> assertz(r_repo(N, L)) ; ( atomic(N) -> warn(Facts, L0, "repo(~w, _) is repeated, ignored", [N]) ; true ) )),
     read_terms(Cont, CT),
-    forall(member(T, CT), keep(T)).
-keep(repo(N)) :- atomic(N), \+ c_repo(_), !, assertz(c_repo(N)).
-keep(person(I, L, D)) :- !, assertz(c_person(I, L, D)).
-keep(external(I, L, D)) :- !, assertz(c_external(I, L, D)).
-keep(container(I, L, T, D)) :- !, assertz(c_container(I, L, T, D)).
-keep(link(A, B, L)) :- !, assertz(c_link(A, B, L)).
-keep(about(N, D)) :- !, assertz(c_about(N, D)).
-keep(_).
+    forall(member(L1-T, CT), keep(Cont, L1, T)).
+keep(_, _, repo(N)) :- atomic(N), \+ c_repo(_), !, assertz(c_repo(N)).
+keep(F, L, repo(N)) :- !, warn(F, L, "a second repo(~w) is ignored: the file describes one repo", [N]).
+keep(_, _, person(I, L, D)) :- !, assertz(c_person(I, L, D)).
+keep(_, _, external(I, L, D)) :- !, assertz(c_external(I, L, D)).
+keep(_, _, container(I, L, T, D)) :- !, assertz(c_container(I, L, T, D)).
+keep(_, _, link(A, B, L)) :- !, assertz(c_link(A, B, L)).
+keep(_, _, about(N, D)) :- !, assertz(c_about(N, D)).
+keep(_, _, _).
+
+% two different names must not give the same Mermaid id
+check_ids(This) :-
+    findall(N, ( r_repo(N, _) ; c_repo(N) ; N = This ; c_person(N, _, _) ; c_external(N, _, _) ; c_container(N, _, _, _)
+               ; c_link(N, _, _) ; c_link(_, N, _) ), Ns0),
+    sort(Ns0, Ns),
+    forall(( member(A, Ns), member(B, Ns), A @< B, id_atom(A, I), id_atom(B, I) ),
+           die("repo-map: the names '~w' and '~w' give the same diagram id ~w; rename one", [A, B, I])).
+
+md_escape(X, E) :-
+    format(atom(T0), "~w", [X]), atom_codes(T0, Cs),
+    foldl([C, A0, A]>>( memberchk(C, [10, 13, 9]) -> append(A0, [0'\s], A)
+                      ; ( char_code(Ch, C), sub_atom('\\`*_{}[]<>()#+-.!|~&', _, 1, _, Ch) ) -> append(A0, [0'\\, C], A)
+                      ; append(A0, [C], A) ), Cs, [], Es),
+    atom_codes(E, Es).
 
 % ---- the input hash: sha256 over facts bytes, one NUL byte, containers bytes
 input_hash(Facts, Cont, Hex) :-
@@ -72,7 +102,7 @@ input_hash(Facts, Cont, Hex) :-
 
 % ---- text and ids. Locations of repos are never printed.
 id_atom(X, Id) :-
-    term_to_atom(X, A0), atom_codes(A0, Cs0),
+    format(atom(A0), "~w", [X]), atom_codes(A0, Cs0),
     maplist([C, D]>>( code_type(C, alnum) -> D = C ; D = 0'_ ), Cs0, Cs),
     atom_codes(A1, Cs),
     (   A1 == '' -> Id = n_ ; sub_atom(A1, 0, 1, _, F), char_type(F, digit) -> atom_concat(n_, A1, Id) ; Id = A1 ).

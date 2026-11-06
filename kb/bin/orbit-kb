@@ -425,7 +425,6 @@ take_dir([A|As], Dir, [A|Rest]) :- take_dir(As, Dir, Rest).
 
 kb_command(add).
 kb_command(declare).
-kb_command('declare-attest').
 kb_command(subject).
 kb_command(attest).
 kb_command(run).
@@ -454,6 +453,12 @@ top(Argv0, Code) :-
             ;   resolve_kb(DirOpt, Dir),
                 with_kb_lock(Dir, cmd_uses(Dir, Args, Code))
             )
+        ;   Cmd == pin
+        ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
+            ->  cmd_help([pin], Code)
+            ;   resolve_kb(DirOpt, Dir),
+                cmd_pin(Dir, Args, Code)
+            )
         ;   kb_command(Cmd)
         ->  (   memberchk(Arg, Args), memberchk(Arg, ['--help', '-h'])
             ->  cmd_help([Cmd], Code)
@@ -476,7 +481,6 @@ top(Argv0, Code) :-
 % cycle: read the KB, choose the id or the run number, write, append.
 writer_command(add).
 writer_command(declare).
-writer_command('declare-attest').
 writer_command(subject).
 writer_command(attest).
 % run and prove take the lock themselves, only to record the result
@@ -533,7 +537,6 @@ kb_unlock(fcntl(S)) :-
 
 kb_cmd(add, KB, Args, Code) :- cmd_add(KB, Args, Code).
 kb_cmd(declare, KB, Args, Code) :- cmd_declare(KB, Args, Code).
-kb_cmd('declare-attest', KB, Args, Code) :- cmd_declare_attest(KB, Args, Code).
 kb_cmd(subject, KB, Args, Code) :- cmd_subject(KB, Args, Code).
 kb_cmd(attest, KB, Args, Code) :- cmd_attest(KB, Args, Code).
 kb_cmd(run, KB, Args, Code) :- cmd_run(KB, Args, Code).
@@ -776,6 +779,8 @@ load_kb(Dir, Lib, kb(Dir, Lib, Uses, Items)) :-
 %                     valid time (D10 follow-up, F9).
 %   demo_changed(S)   S is the subject of a demo/2 fact, and its file is
 %                     missing or its sha256 differs from subject/3 (D21 F3b).
+%   due_passed(X)     the due time of a due/2 fact is past, or it is not a
+%                     valid time (D22).
 % And from the supersedes/2 facts of kb.pl (D10 follow-up, S3):
 %   supersedes_closure(New, Old)  New reaches Old through one or more
 %                     supersedes facts.
@@ -804,7 +809,12 @@ derived_items(Dir, KbItems, Items) :-
               \+ ( exists_file(Abs), sha256_file(Abs, D1), D1 == D0 ) ),
             Ts40),
     sort(Ts40, Ts4),
-    append([Ts1, Ts2, Ts3, Ts4], Ts),
+    findall(due_passed(X),
+            ( member(it(kb, _, _, T, _, _), KbItems), nonvar(T), T = due(X, Due), ground(X),
+              \+ ( is_time(Due), \+ Due @< Now ) ),
+            Ts50),
+    sort(Ts50, Ts5),
+    append([Ts1, Ts2, Ts3, Ts4, Ts5], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
 
 % supersede_derived(+KbItems, -Facts): the supersedes_closure/2 and
@@ -1245,8 +1255,11 @@ fact_diags(Ctx, it(_, F, L, T, _, _), Diags) :-
     ;   functor(P, N, A),
         Ctx = fctx(KB, Ds, ATs, Env),
         (   \+ decl_of(Ds, N, A, _)
-        ->  undeclared_msg(Ds, N, A, M0),
-            fmt(M, "~w Declare it with orbit-kb declare, or fix the name.", [M0]),
+        ->  (   unused_module_decl(KB, N, A, Mod)
+            ->  fmt(M, "~q/~w is declared in module ~w, which this KB does not use. Add the module first: orbit-kb uses ~w.", [N, A, Mod, Mod])
+            ;   undeclared_msg(Ds, N, A, M0),
+                fmt(M, "~w Declare it with orbit-kb declare, or fix the name.", [M0])
+            ),
             Diags = [diag('E2', F, L, M)]
         ;   decl_of(Ds, N, A, d(_, _, Kind, Ts, _, _, _, _, _)),
             (   Kind == rule
@@ -1271,6 +1284,17 @@ fact_diags(Ctx, it(_, F, L, T, _, _), Diags) :-
             )
         )
     ).
+
+% unused_module_decl(+KB, +N, +A, -Module) (D22): N/A is declared in a
+% library module that the KB does not use.
+unused_module_decl(KB, N, A, M) :-
+    kb_lib(KB, Lib), kb_uses(KB, Uses),
+    lib_modules(Lib, Ms),
+    member(M, Ms), \+ memberchk(M, Uses),
+    module_file(Lib, M, MF),
+    read_source_file(module(M), MF, MIs),
+    items_decls(MIs, MDs),
+    decl_of(MDs, N, A, _), !.
 
 % supersedes_kind_diags(+Env, +Fact, +F, +L, -Diags) (D15): supersedes/2 has the
 % type ref in core.pl, because core.pl cannot name the discovery fact
@@ -1297,7 +1321,7 @@ attest_diags(KB, ATs, Env, Fact0, F, L, Diags) :-
     (   \+ atom(Type)
     ->  Diags = []                       % reported as a type error already
     ;   \+ atype_of(ATs, Type, _)
-    ->  fmt(M, "~q is not a declared attestation type. Declare it with orbit-kb declare-attest, or fix the type.", [Type]),
+    ->  fmt(M, "~q is not a declared attestation type. Use a type that orbit-kb help core or a module topic lists, or fix the type.", [Type]),
         Diags = [diag('E3', F, L, M)]
     ;   atype_of(ATs, Type, at(_, Shape, Writers, _, _, _, _)),
         shape_val_errs(Shape, Pred, Env, Es),
@@ -1478,7 +1502,7 @@ head_diags(Ds, Src, F, L, H0, Diags) :-
                 Diags = [diag('E7', F, L, M)]
             ;   Src == rules, ( DSrc == core ; DSrc = module(_) ), protected_pi(N/A)
             ->  src_text(DSrc, ST),
-                fmt(M, "rules.pl adds clauses to ~q/~w from ~w. rules.pl cannot change done, the burn rules, the waiver rules, the vote rules, or the facts that orbit-kb computes. The engines ignore this clause. Remove it.", [N, A, ST]),
+                fmt(M, "rules.pl adds clauses to ~q/~w from ~w. rules.pl cannot change done, the burn rules, the waiver rules, the vote rules, the blocking rules, or the facts that orbit-kb computes. The engines ignore this clause. Remove it.", [N, A, ST]),
                 Diags = [diag('E16', F, L, M)]
             ;   Src == rules, ( DSrc == core ; DSrc = module(_) )
             ->  src_text(DSrc, ST),
@@ -1513,6 +1537,11 @@ protected_pi(question_waived/1).
 protected_pi(supersedes_closure/2).
 protected_pi(supersede_cycle/1).
 protected_pi(any_supersede_cycle/0).
+% D22: what blocks done, and the computed due times.
+protected_pi(blocking/1).
+protected_pi(item_open/1).
+protected_pi(check_ran/1).
+protected_pi(due_passed/1).
 % D14: the weighted vote of the discovery module.
 protected_pi(vote_cast/3).
 protected_pi(discovery_vote_raised/1).
@@ -2414,24 +2443,81 @@ problem_lines(Problems, NewItems, Lines) :-
             Lines).
 
 cmd_add(KB, Args, Code) :-
-    parse_opts(Args, [], Pos, _),
+    parse_opts(Args, ['--by'-value], Pos, Opts),
     (   Pos == [] -> usage_error("Give one or more facts in quotes, such as orbit-kb add 'claim(c1, preserve, ''Text'')'.", []) ; true ),
+    opt(Opts, '--by', agent, By),
+    (   memberchk(By, [human, agent]) -> true
+    ;   usage_error("--by takes human or agent. It is ~w.", [By])
+    ),
     kb_items(KB, KI), items_atypes(KI, ATs),
     findall(R, ( nth1(I, Pos, A), add_item(ATs, I, A, R) ), Rs),
     findall(M, member(err(M), Rs), Errs),
     (   Errs \== [] -> reject(Errs) ; true ),
     findall(It, member(ok(It), Rs), NewItems),
-    validate_new(KB, NewItems, Problems),
+    % D22: a fact whose name is declared nowhere declares its predicate by
+    % its first use. The decl/4 lines take part in the checks of the batch.
+    first_use_pis(KB, NewItems, FUs),
+    kb_file(KB, KbFile),
+    findall(it(kb, KbFile, 0, D, [], 0-0), ( member(N/A, FUs), first_use_decl(N, A, D) ), DeclItems),
+    KB = kb(Dir, Lib, Uses, _),
+    append(KI, DeclItems, KI2),
+    validate_new(kb(Dir, Lib, Uses, KI2), NewItems, Problems),
     (   Problems \== []
     ->  problem_lines(Problems, NewItems, PL),
         reject(PL)
     ;   true
     ),
-    findall(Line, ( member(it(_, _, _, T, _, _), NewItems), clause_line(T, [], Line) ), Lines),
-    kb_file(KB, KbFile),
+    utc_now(Now),
+    add_lines(NewItems, FUs, By, Now, [], Lines),
     append_lines(KbFile, Lines),
     forall(member(L, Lines), format("~w~n", [L])),
+    forall(member(N/A, FUs),
+           format(user_error, "NOTE: ~q/~w is a new predicate. Its first use declares it, with the type term for each argument (lint W7 lists it). To give a predicate a doc and types, declare it before its first use: orbit-kb declare.~n", [N, A])),
     Code = 0.
+
+% add_lines(+NewItems, +FirstUsePIs, +By, +Time, +Done, -Lines): the lines
+% of the facts in order. Before the first fact of a first-use predicate
+% come its decl/4 line and its first_use/3 fact (D22).
+add_lines([], _, _, _, _, []).
+add_lines([it(_, _, _, T, _, _)|Is], FUs, By, Now, Done, Lines) :-
+    (   pos_fact(T), functor(T, N, A), memberchk(N/A, FUs), \+ memberchk(N/A, Done)
+    ->  first_use_decl(N, A, D),
+        clause_line(D, [], L1),
+        clause_line(first_use(N/A, By, Now), [], L2),
+        Pre = [L1, L2], Done1 = [N/A|Done]
+    ;   Pre = [], Done1 = Done
+    ),
+    clause_line(T, [], L),
+    add_lines(Is, FUs, By, Now, Done1, Rest),
+    append(Pre, [L|Rest], Lines).
+
+first_use_decl(N, A, decl(fact, H, 'Declared by its first use. Review it (lint W7).', '')) :-
+    length(Ts, A), maplist(=(term), Ts),
+    H =.. [N|Ts].
+
+% first_use_pis(+KB, +NewItems, -PIs) (D22): the predicates N/A of the new
+% facts whose name N is declared nowhere: not in the core, in no library
+% module (also one that the KB does not use), not in kb.pl, at no arity.
+% Each name once, at its first fact. A reserved name is never a first use.
+first_use_pis(KB, NewItems, PIs) :-
+    all_known_items(KB, Known),
+    items_decls(Known, KDs),
+    findall(N, member(d(N, _, _, _, _, _, _, _, _), KDs), Ns0),
+    sort(Ns0, Known1),
+    first_use_walk(NewItems, Known1, [], PIs0),
+    reverse(PIs0, PIs).
+
+first_use_walk([], _, Acc, Acc).
+first_use_walk([it(_, _, _, T, _, _)|Is], Known, Acc, PIs) :-
+    (   pos_fact(T), \+ meta_term(T),
+        functor(T, N, A),
+        atom(N), \+ reserved_name(N),
+        \+ ord_memberchk(N, Known),
+        \+ memberchk(N/_, Acc)
+    ->  Acc1 = [N/A|Acc]
+    ;   Acc1 = Acc
+    ),
+    first_use_walk(Is, Known, Acc1, PIs).
 
 add_item(ATs, I, A, R) :-
     parse_one(A, P),
@@ -2442,7 +2528,7 @@ add_item(ATs, I, A, R) :-
         (   nonvar(T), T = decl(_, _, _, _)
         ->  fmt(M, "Argument ~w is a declaration. Use orbit-kb declare instead.", [I]), R = err(M)
         ;   nonvar(T), T = attest_type(_, _, _, _)
-        ->  fmt(M, "Argument ~w is an attestation type. Use orbit-kb declare-attest instead.", [I]), R = err(M)
+        ->  fmt(M, "Argument ~w is an attestation type. orbit-kb add does not declare attestation types. Use a type that orbit-kb help core or a module topic lists.", [I]), R = err(M)
         ;   nonvar(T), T = uses(_)
         ->  fmt(M, "Argument ~w is uses/1. orbit-kb init writes it. To add a module, run orbit-kb uses MODULE.", [I]), R = err(M)
         ;   nonvar(T), T = attest(_, Type, _, _, _, _), atom(Type), script_only_type(ATs, Type)
@@ -2460,7 +2546,7 @@ script_only_type(ATs, Type) :-
     W == [script].
 
 % ---------------------------------------------------------------------
-% declare and declare-attest
+% declare
 % ---------------------------------------------------------------------
 
 reserved_name(N) :-
@@ -2527,48 +2613,42 @@ template_err(Cs, A, E) :-
     ;   E = "The template has an @( that is not @(N) with a number N. Use @(1), @(2), and so on."
     ).
 
-cmd_declare_attest(KB, Args, Code) :-
-    parse_opts(Args, ['--doc'-value, '--writers'-value], Pos, Opts),
-    (   Pos = [Type, ShapeText] -> true
-    ;   usage_error("Give a type and a shape, such as orbit-kb declare-attest review 'verdict(ref(claim), oneof([ok, bad]))' --doc TEXT --writers human,agent.", [])
+% ---------------------------------------------------------------------
+% pin (D22)
+% ---------------------------------------------------------------------
+% orbit-kb pin prints the stamp spec-kb@sha256:HEX of kb.pl and the time.
+% The CLI computes the digest; nobody types it. pin --check STAMP compares
+% the first word of STAMP with the stamp of kb.pl now. pin writes nothing.
+
+cmd_pin(Dir, Args, Code) :-
+    parse_opts(Args, ['--check'-value], Pos, Opts),
+    (   Pos == [] -> true
+    ;   usage_error("pin takes no arguments other than --check STAMP.", [])
     ),
-    (   memberchk('--doc'-Doc, Opts) -> true
-    ;   usage_error("The option --doc TEXT is required. Write one plain sentence.", [])
-    ),
-    (   memberchk('--writers'-WA, Opts) -> true
-    ;   usage_error("The option --writers is required, such as --writers human,agent.", [])
-    ),
-    split_string(WA, ",", " ", WS0), exclude(==(""), WS0, WS),
-    maplist(atom_string, Writers, WS),
-    (   Writers \== [], forall(member(W, Writers), memberchk(W, [human, agent, script])),
-        sort(Writers, WSorted), length(WSorted, L1), length(Writers, L1)
-    ->  true
-    ;   reject(["The writers must be a list of human, agent, and script, with no repeats, such as human,agent."])
-    ),
-    all_known_items(KB, Known),
-    items_atypes(Known, KATs),
-    (   atype_of(KATs, Type, at(_, _, _, _, ASrc, AF, AL))
-    ->  src_text(ASrc, ST),
-        fmt(M1, "The attestation type ~q is already declared in ~w (~w:~w). Choose another name.", [Type, ST, AF, AL]),
-        reject([M1])
-    ;   true
-    ),
-    (   reserved_name(Type) -> reject(["The name " + Type + " is reserved. Choose another name."] >> fix_lines) ; true ),
-    parse_one(ShapeText, P),
-    (   P = ok(Shape, _), ground(Shape) -> true
-    ;   P = err(M0) -> reject(["The shape does not parse. " + M0] >> fix_lines)
-    ;   reject(["The shape must not have variables. Write types in their place, such as verdict(ref(claim), text)."])
-    ),
-    items_decls(Known, KDs),
-    findall(FN, member(d(FN, _, fact, _, _, _, _, _, _), KDs), FN0), sort(FN0, FactNames),
-    shape_errs(Shape, FactNames, SErrs),
-    (   SErrs \== [] -> reject(SErrs) ; true ),
-    AT = attest_type(Type, Shape, Writers, Doc),
-    clause_line(AT, [], Line),
-    kb_file(KB, KbFile),
-    append_lines(KbFile, [Line]),
-    format("~w~n", [Line]),
-    Code = 0.
+    directory_file_path(Dir, 'kb.pl', KbFile),
+    sha256_file(KbFile, Digest),
+    atom_concat('spec-kb@', Digest, Stamp),
+    (   memberchk('--check'-Given, Opts)
+    ->  atom_string(Given, GS),
+        split_string(GS, " \t", " \t", Words0), exclude(==(""), Words0, Words),
+        (   Words = [W|_], atom_string(WA, W), pin_stamp_ok(WA)
+        ->  true
+        ;   usage_error("The stamp must be spec-kb@sha256: and 64 lowercase hex characters, as orbit-kb pin prints it. It is ~w.", [Given])
+        ),
+        (   WA == Stamp
+        ->  format("unchanged: ~w~n", [Stamp]), Code = 0
+        ;   format("changed: kb.pl is now ~w. The pin ~w is old.~n", [Stamp, WA]), Code = 1
+        )
+    ;   utc_now(Now),
+        format("~w ~w~n", [Stamp, Now]),
+        Code = 0
+    ).
+
+pin_stamp_ok(A) :-
+    atom_concat('spec-kb@sha256:', Hex, A),
+    atom_length(Hex, 64),
+    atom_codes(Hex, Cs),
+    forall(member(C, Cs), ( between(0'0, 0'9, C) ; between(0'a, 0'f, C) )).
 
 % ---------------------------------------------------------------------
 % subject
@@ -3549,9 +3629,15 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
                   fmt(M, "The file of subject ~q changed since its digest was recorded. Refresh with orbit-kb subject ~w ~w.", [Id, Id, Path])
               ) ),
             W1),
-    % W2
+    % D22: the first_use/3 facts of kb.pl
+    findall(fu(N, A, By, Tm, F, L),
+            ( member(it(_, F, L, T, _, _), Facts), nonvar(T), T = first_use(PI, By, Tm),
+              nonvar(PI), PI = N/A, atom(N), integer(A) ),
+            FUs),
+    % W2 (not for a declaration that a first use made: W7 lists it)
     findall(diag('W2', F, L, M),
             ( member(d(N, A, K, _, Doc, _, kb, F, L), Ds),
+              \+ memberchk(fu(N, A, _, _, _, _), FUs),
               fmt(M, "Local declaration of ~q/~w (~w): ~w Review it.", [N, A, K, Doc]) ),
             W2a),
     findall(diag('W2', F, L, M),
@@ -3602,7 +3688,49 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
               \+ ord_memberchk(New, Checked),
               fmt(M, "Check ~q tests claim ~q, but claim ~q replaces it, and ~q has no check. Add a new check of ~q with a new id: orbit-kb add \"check(NEW_ID, ~q)\". Then run it: orbit-kb run NEW_ID -- CMD.", [K, C, New, New, New, New]) ),
             W5),
-    append([W1, W2a, W2b, W3, W4, W5], Diags).
+    % W7 (D22): each predicate declared by its first use
+    findall(diag('W7', F, L, M),
+            ( member(fu(N, A, By, Tm, F, L), FUs),
+              txt(By, ByT), txt(Tm, TmT),
+              fmt(M, "~q/~w was declared by its first use, by ~w at ~w. Review the new predicate: is it needed, and is the name right? Its arguments have the type term.", [N, A, ByT, TmT]) ),
+            W7),
+    % E19 (D22): the typo guard. A first-use name at most 2 edits from
+    % another declared name of the same arity.
+    findall(diag('E19', F, L, M),
+            ( member(fu(N, A, _, _, F, L), FUs),
+              member(d(N2, A, _, _, _, _, _, _, _), Ds), N2 \== N, atom(N2),
+              edit_distance_at_most(N, N2, 2, Dist),
+              fmt(M, "~q/~w was declared by its first use, and its name is ~w edit(s) from the declared ~q/~w. It may be a typo. If it is: correct the facts in kb.pl to ~q/~w, and delete the decl/4 and first_use/3 lines of ~q/~w. If it is a new predicate: choose a name more than 2 edits away.", [N, A, Dist, N2, A, N2, A, N, A]) ),
+            E19a),
+    sort(E19a, E19),
+    append([W1, W2a, W2b, W3, W4, W5, W7, E19], Diags).
+
+% edit_distance_at_most(+A, +B, +Max, -D) (D22): the Levenshtein distance D
+% of the names A and B (over their characters) is at most Max.
+edit_distance_at_most(A, B, Max, D) :-
+    atom_codes(A, As), atom_codes(B, Bs),
+    length(As, LA), length(Bs, LB),
+    abs(LA - LB) =< Max,
+    levenshtein(As, Bs, D),
+    D =< Max.
+
+levenshtein(As, Bs, D) :-
+    length(Bs, LB),
+    numlist(0, LB, Row0),
+    foldl(lev_step(Bs), As, Row0-0, Row-_),
+    last(Row, D).
+
+lev_step(Bs, A, Prev-I0, [I|Cur]-I) :-
+    I is I0 + 1,
+    Prev = [P0|Ps],
+    lev_cells(Bs, A, P0, Ps, I, Cur).
+
+lev_cells([], _, _, [], _, []).
+lev_cells([B|Bs], A, Diag, [Up|Ups], Left, [C|Cs]) :-
+    ( A == B -> Cost = 0 ; Cost = 1 ),
+    C is min(min(Up + 1, Left + 1), Diag + Cost),
+    lev_cells(Bs, A, Up, Ups, C, Cs).
+
 
 % group_by_key_in_order(+Pairs, -Assoc): Key -> the values of Key, in
 % the order of Pairs.
@@ -3669,8 +3797,8 @@ plain_text(T, S) :- ( atomic(T) -> format(string(S), "~w", [T]) ; term_text(T, S
 cmd_show(KB, Args, Code) :-
     parse_opts(Args, [], Pos, _),
     (   Pos == [] -> What = all
-    ;   Pos = [What], memberchk(What, [claims, questions, open, disclosures, extensions, all]) -> true
-    ;   usage_error("show takes one of: claims, questions, open, disclosures, extensions, all.", [])
+    ;   Pos = [What], memberchk(What, [claims, questions, open, blocking, disclosures, extensions, all]) -> true
+    ;   usage_error("show takes one of: claims, questions, open, blocking, disclosures, extensions, all.", [])
     ),
     kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
     answer_gate(KB),
@@ -3767,6 +3895,13 @@ show_section(KB, Eng, open) :-
     ;   Us = [], Os = [], Bs = [], Ns = []
     ),
     (   Qs == [], As == [], Cs == [], Ys == [], Us == [], Os == [], Bs == [], Ns == [] -> say("- Nothing is open.", []) ; true ).
+% D22: each answer of blocking(X), with the text of its item.
+show_section(KB, Eng, blocking) :-
+    say("Blocking:", []),
+    eng_all(Eng, [X], blocking(X), Xs),
+    (   Xs == [] -> say("- Nothing blocks done.", [])
+    ;   forall(member(X, Xs), ( blocking_line(KB, Eng, X, S), say("~w", [S]) ))
+    ).
 show_section(_, Eng, disclosures) :-
     say("Disclosures:", []),
     eng_all(Eng, [I, S, P, B, T], attest(I, disclosure, S, P, B, T), Ds),
@@ -3791,6 +3926,53 @@ show_section(KB, _, extensions) :-
                  fmt(S, "- rules.pl extends ~q/~w from ~w.", [N, A, ST]) ), S3),
     append([S1, S2, S3], All),
     (   All == [] -> say("- None.", []) ; forall(member(S, All), say("~w", [S])) ).
+
+% blocking_line(+KB, +Eng, +Item, -Line) (D22): one line of show blocking.
+blocking_line(_, Eng, to_ask(Q), S) :- !,
+    item_text(Eng, Q, T), fmt(S, "- to_ask ~w: ask question ~w now: ~w", [Q, Q, T]).
+blocking_line(_, Eng, supersede_cycle(C), S) :- !,
+    item_text(Eng, C, T), fmt(S, "- supersede_cycle ~w: ~w replaces itself (lint E15): ~w", [C, C, T]).
+blocking_line(KB, Eng, past_due(X), S) :- !,
+    ( eng_all(Eng, [D], due(X, D), [D1|_]) -> txt(D1, DT) ; DT = '?' ),
+    item_text(Eng, X, T0), opt_change_text(KB, Eng, X, T0, T),
+    fmt(S, "- past_due ~w: ~w was due at ~w, and it is still open: ~w", [X, X, DT, T]).
+blocking_line(_, Eng, under(C), S) :- !,
+    item_text(Eng, C, T), fmt(S, "- under ~w: claim ~w is current but not fulfilled: ~w", [C, C, T]).
+blocking_line(KB, Eng, over(X), S) :- !,
+    opt_change_text(KB, Eng, X, '', T), fmt(S, "- over ~w: change ~w serves no claim: ~w", [X, X, T]).
+blocking_line(_, Eng, burn_open(C), S) :- !,
+    item_text(Eng, C, T), fmt(S, "- burn_open ~w: claim ~w needs a Lean proof: ~w", [C, C, T]).
+blocking_line(_, Eng, flare_open(C), S) :- !,
+    item_text(Eng, C, T), fmt(S, "- flare_open ~w: claim ~w needs a human to approve a demo: ~w", [C, C, T]).
+blocking_line(_, _, no_claim, "- no_claim: no claim is current. Add a claim. The work is not done without one.") :- !.
+blocking_line(_, Eng, check_failing(K), S) :- !,
+    item_text(Eng, K, T), fmt(S, "- check_failing ~w: check ~w did not pass its last run: ~w", [K, K, T]).
+blocking_line(_, Eng, check_unrun(K), S) :- !,
+    item_text(Eng, K, T), fmt(S, "- check_unrun ~w: check ~w never ran: ~w", [K, K, T]).
+blocking_line(_, Eng, waiver_lapsed(W), S) :- !,
+    (   eng_all(Eng, [X, D, R], attest(W, waiver, _, waive(X, D, R), _, _), [[X1, D1, R1]|_])
+    ->  txt(X1, XT), txt(D1, DT), txt(R1, RT),
+        fmt(S, "- waiver_lapsed ~w: waiver ~w of ~w was due at ~w, and ~w still blocks: ~w", [W, W, XT, DT, XT, RT])
+    ;   fmt(S, "- waiver_lapsed ~w: waiver ~w is past its due time.", [W, W])
+    ).
+blocking_line(_, _, X, S) :-
+    term_text(X, XT), fmt(S, "- ~w", [XT]).
+
+% item_text(+Eng, +Id, -Text): the text of a claim or a question, or for a
+% check, the check and the text of its claim. '' for another id.
+item_text(Eng, X, T) :-
+    (   eng_all(Eng, [T0], claim(X, _, T0), [T1|_]) -> txt(T1, T)
+    ;   eng_all(Eng, [C, T0], question(X, C, T0), [[C1, T1]|_]) -> txt(T1, TT), fmt(T, "~w (a question about claim ~w)", [TT, C1])
+    ;   eng_all(Eng, [C], check(X, C), [C1|_])
+    ->  ( eng_all(Eng, [T0], claim(C1, _, T0), [T1|_]) -> txt(T1, CT) ; CT = '' ),
+        fmt(T, "a check of claim ~w: ~w", [C1, CT])
+    ;   T = ''
+    ).
+
+% opt_change_text(+KB, +Eng, +Id, +Default, -Text): the text of change Id
+% when the build module is in use, else Default.
+opt_change_text(KB, Eng, X, D, T) :-
+    (   has_build(KB), eng_all(Eng, [T0], change(X, T0), [T1|_]) -> txt(T1, T) ; T = D ).
 
 % The state of a check, from check_sets/2: passed, not passed (it has a
 % test result), or never run.
@@ -4708,14 +4890,22 @@ help_lines(general, [
 "    orbit-kb help answers   exit codes, SWI ERROR, why and whynot",
 "  Never type a digest or a test result: orbit-kb subject and orbit-kb run write them.",
 "",
+"Phases (each orbit has two phases; each move belongs to one phase):",
+"  discovery: research, specify",
+"  build: build, verify",
+"  research  SIGNAL, SURVEY, FLYBY, TRAJECTORY, DISPROVE (discovery)",
+"  specify   SPECTRUM, DECOMPOSE, the vote (GATE)",
+"  build     BUILD",
+"  verify    FULFILL, DISPROVE, BURN",
+"  What blocks done: orbit-kb show blocking. Pin the KB to its ticket: orbit-kb pin.",
+"",
 "Usage: orbit-kb [--dir DIR] COMMAND [ARGS]",
 "",
 "Commands:",
 "  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID]",
 "  uses MODULE ...",
-"  add 'FACT' ...",
-"  declare 'HEAD' --doc TEXT [--kind fact|rule] [--template T]",
-"  declare-attest TYPE 'SHAPE' --doc TEXT --writers human,agent",
+"  add 'FACT' ... [--by human|agent]",
+"  declare 'HEAD' --doc TEXT [--kind fact|rule] [--template T]     (optional)",
 "  subject ID PATH",
 "  attest TYPE SUBJECT 'PREDICATE' [--by human|agent] [--id ID]",
 "  run CHECK -- CMD [ARGS]",
@@ -4724,8 +4914,9 @@ help_lines(general, [
 "  query 'GOAL' [-n N] [--why] [--long]",
 "  why 'GOAL' [-n N] [--long]",
 "  whynot 'GOAL' [--long]",
-"  show [claims|questions|open|disclosures|extensions|all]",
+"  show [claims|questions|open|blocking|disclosures|extensions|all]",
 "  report [--html FILE [--open]]",
+"  pin [--check STAMP]",
 "  doctor",
 "  help [COMMAND|TOPIC]",
 "",
@@ -4776,7 +4967,12 @@ help_lines(add, [
 "Facts in one command can refer to each other.",
 "If one fact is wrong, orbit-kb writes nothing and exits 1. The message says how to fix it.",
 "Write text in single quotes. Write a classical negation as '-world(x)'.",
-"To add a new predicate, use orbit-kb declare first.",
+"A new predicate is declared by its first use: when no library module and no",
+"declaration names it, add writes a decl/4 line (each argument has the type term)",
+"and first_use(Name/Arity, BY, TIME) before the fact. --by human|agent names BY (default agent).",
+"lint lists each one as W7, and E19 when its name is 2 edits or fewer from a declared",
+"predicate of the same arity (a typo). For a doc and types, use orbit-kb declare before the first use.",
+"A name that only an unused module declares needs the module: orbit-kb uses MODULE.",
 "orbit-kb run writes test results. add refuses them."
 ]).
 help_lines(declare, [
@@ -4786,14 +4982,10 @@ help_lines(declare, [
 "Types: id, ref(Name), ref([Name, ...]), ref, oneof([a, b]), alt([shape, ...]), text, atom, int, time, digest, by, term.",
 "The default kind is fact. Use --kind rule for a predicate that rules.pl computes.",
 "The template is the English text for explanations. @(1), @(2), ... stand for the arguments.",
-"orbit-kb refuses a name and arity that is already declared anywhere."
-]).
-help_lines('declare-attest', [
-"orbit-kb declare-attest TYPE 'SHAPE' --doc TEXT --writers human,agent",
-"",
-"Declare a local attestation type in kb.pl.",
-"SHAPE is the type of the predicate (the 4th argument of attest/6), such as verdict(ref(claim), oneof([ok, bad])).",
-"--writers lists who may write it: human, agent, script. [script] means only orbit-kb run."
+"orbit-kb refuses a name and arity that is already declared anywhere.",
+"declare is optional. A fact of a new predicate declares it by its first use (see orbit-kb help add).",
+"Use declare before the first use to give a predicate a doc, a template, and types,",
+"or for a rule predicate of rules.pl."
 ]).
 help_lines(subject, [
 "orbit-kb subject ID PATH",
@@ -4862,8 +5054,10 @@ help_lines(lint, [
 "E10 uses/1. E11 a clause does not load. E14 unsafe negation. E17 a form that orbit-kb does not read (s(CASP) syntax).",
 "E15 supersede cycle (a claim or hypothesis replaces itself). E16 rules.pl changes done, a burn, flare, waiver, or vote rule, or a computed fact.",
 "E18 the rules are not stratified (a predicate depends on itself through not).",
+"E19 a predicate declared by its first use has a name 2 edits or fewer from a declared one (a typo?).",
 "W1 subject changed. W2 local declaration. W3 claim without cites. W4 local fact that no rule reads.",
 "W5 check on a superseded claim, and the new claim has no check yet. W6 local rule that extends a library predicate.",
+"W7 a predicate declared by its first use, with who and when. Review it.",
 "Module lint_issue/3 results follow. Exit 1 on errors, or on warnings with --strict."
 ]).
 help_lines(query, [
@@ -4895,8 +5089,21 @@ help_lines(whynot, [
 help_lines(show, [
 "orbit-kb show [claims|questions|open|disclosures|extensions|all]",
 "",
-"List parts of the KB as plain text. The default is all.",
-"open lists to_ask, stale, contested, and supersede_cycle, and under, over, burn_open, flare_open, and no_claim (no claim is current) when the build module is in use."
+"List parts of the KB as plain text. The default is all (all does not include blocking).",
+"open lists to_ask, stale, contested, and supersede_cycle, and under, over, burn_open, flare_open, and no_claim (no claim is current) when the build module is in use.",
+"blocking lists each answer of orbit-kb query 'blocking(X)' with its text: each item that blocks done.",
+"The kinds: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X), check_failing(K), check_unrun(K),",
+"waiver_lapsed(W), past_due(X) (an open item with a due/2 time in the past), supersede_cycle(C), no_claim."
+]).
+help_lines(pin, [
+"orbit-kb pin [--check STAMP]",
+"",
+"Print the stamp of the KB and the time: spec-kb@sha256:HEX TIME.",
+"HEX is the sha256 of kb.pl. orbit-kb computes it. Never type it.",
+"Attach the stamp to the ticket, so the ticket names the KB that it relies on.",
+"--check STAMP: exit 0 when kb.pl still has that digest, and 1 when it changed.",
+"The whole line of pin is a valid STAMP. A malformed STAMP is a usage error (exit 2).",
+"pin writes nothing."
 ]).
 help_lines(report, [
 "orbit-kb report [--html FILE [--open]]",

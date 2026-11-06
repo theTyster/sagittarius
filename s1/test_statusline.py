@@ -79,6 +79,30 @@ class C1Render(Base):
         self.write(d)
         self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 build | eff 0.91")
 
+    def test_work_choice_floor_is_0_5(self):
+        # same floor as the hook: P = probabilities[choice], else confidence; below 0.5 hides it
+        def work(p):
+            d = line()
+            d["answers"]["h_work"] = {"type": "choice", "choice": "build", "confidence": 0.99,
+                                      "probabilities": {"build": p}}
+            self.write(d)
+            return sl().render("sess-A", self.log, now=T0)
+        self.assertEqual(work(0.49), "S1 div 0.85 | eff 0.91")
+        self.assertEqual(work(0.5), "S1 build | div 0.85 | eff 0.91")
+
+    def test_work_floor_falls_back_to_confidence(self):
+        d = line()
+        d["answers"]["h_work"] = {"type": "choice", "choice": "build", "confidence": 0.49}
+        self.write(d)
+        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 div 0.85 | eff 0.91")
+
+    def test_nothing_left_prints_nothing(self):
+        d = line()
+        d["answers"] = {"h_work": {"type": "choice", "choice": "build", "confidence": 0.3,
+                                   "probabilities": {"build": 0.3}}}
+        self.write(d)
+        self.assertEqual(sl().render("sess-A", self.log, now=T0), "")
+
     def test_error_line_shows_err(self):
         self.write(line(answers=None, error="timeout: the hook stopped waiting"))
         self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 err")

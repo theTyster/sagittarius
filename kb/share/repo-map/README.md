@@ -7,11 +7,22 @@ The only engine is SWI-Prolog. It reads two files as data, runs nothing from the
 network.
 
 ```sh
-kb/bin/repo-map --facts KB_PL --containers CONTAINERS_PL [--level c1|c2|both]
+kb/bin/repo-map --facts KB_PL --containers CONTAINERS_PL [--level c1|c2|both] [--strict]
 ```
 
 Exit 0 and Markdown on stdout. Exit 2 on a usage error: a missing or unreadable file, an unknown
 argument, a `--level` that is not `c1`, `c2` or `both`, or a containers file with no `repo/1` fact.
+
+## Bad input
+
+- A line that does not parse is skipped, with a warning on stderr that names the file and the line
+  (`repo-map: warning: FILE:LINE: ...`). A second `repo(Name)` in the containers file, and a
+  repeated `repo(Name, _)` in the facts file, are ignored with the same kind of warning.
+- With `--strict`, any such warning makes the tool exit 1 and write no map.
+- Two different names that give the same Mermaid id (for example `'a b'` and `a_b`, both `a_b`)
+  are refused: exit 2, no map, a message that names both. The ids are not renamed with a suffix,
+  so an id in the diagram always equals the name in the file.
+- The H1 title is Markdown-escaped, so a repo name cannot add markup or HTML to the title.
 
 ## Inputs
 

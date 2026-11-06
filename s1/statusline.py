@@ -13,6 +13,7 @@ same session_id and prints one segment:
   session, when stdin has no session_id, or when the newest line of the session is 10 minutes old
   or older (STALE_SECONDS).
 - Newest line is an error line (error set, or answers null): prints `S1 err`.
+- A work choice with P below 0.5 (probabilities[choice], else confidence; as in hook.py) is left out.
 - A missing or malformed answer is left out of the segment; with none left, nothing is printed.
 - The log is read from its end in 64 KiB blocks, stopping at the first line that matches (at most
   MAX_SCAN bytes back). It never reads the whole file.
@@ -26,6 +27,7 @@ import os
 import sys
 
 STALE_SECONDS = 600
+CHOICE_MIN = 0.5  # the hook's floor: a choice is shown when P(choice) >= 0.5
 BLOCK = 64 * 1024
 MAX_SCAN = 8 * 1024 * 1024
 DEFAULT_LOG = os.path.join("~", ".claude", "logs", "s1.jsonl")
@@ -81,6 +83,20 @@ def _p(answers, qid):
     return None
 
 
+def _choice(a):
+    """The choice when P(choice) >= CHOICE_MIN, else None. P is probabilities[choice], else
+    confidence: the same rule as hook.py."""
+    if not isinstance(a, dict) or a.get("type") != "choice" or not isinstance(a.get("choice"), str):
+        return None
+    probs = a.get("probabilities")
+    p = probs.get(a["choice"]) if isinstance(probs, dict) else None
+    if p is None:
+        p = a.get("confidence")
+    if isinstance(p, bool) or not isinstance(p, (int, float)) or p < CHOICE_MIN:
+        return None
+    return a["choice"]
+
+
 def render(session_id, log_path, now=None):
     """The segment text for the session, or "" to show nothing. now: aware datetime (clock)."""
     try:
@@ -97,8 +113,9 @@ def render(session_id, log_path, now=None):
             return "S1 err"
         parts = []
         w = answers.get("h_work")
-        if isinstance(w, dict) and w.get("type") == "choice" and isinstance(w.get("choice"), str):
-            parts.append(w["choice"])
+        c = _choice(w)
+        if c:
+            parts.append(c)
         for label, qid in (("div", "h_divergence"), ("eff", "h_effort")):
             p = _p(answers, qid)
             if p:
