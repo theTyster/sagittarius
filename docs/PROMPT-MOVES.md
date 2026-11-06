@@ -27,7 +27,7 @@ parts went to different homes.
 | `## Scope` | hook | `An answer or advice only, with no change to make` | The hook classifies each message (h_work). |
 | `## Roles` | prompt | | Kept. |
 | `## The light path` | prompt | | Kept as "Start light": the steps in short. |
-| `### Shift up to a KB` | prompt | | The signals stay. The three parts (System 1, the LLM, the human) and the effort signal are new (d_shift_three, d_effort_signal). |
+| `### Shift up to a KB` | prompt | | Now "When to shift up". The signals stay. The three parts (System 1, the LLM, the human) and the effort signal are new (d_shift_three, d_effort_signal). |
 | `### Shift up to a KB` | help general | `orbit-kb init DIR` | How to start a KB. |
 | `### Leaning back` | prompt | | Kept, shorter. |
 | `### Ask first, or build on default assumptions` | prompt | | Kept, shorter. |
@@ -51,8 +51,8 @@ parts went to different homes.
 | `## When the human says that it is wrong` | prompt | | The examples of a divergence and the preference-change rule stay. |
 | `## When the human says that it is wrong` | hook | `Doubt, surprise or a pointed question counts` | h_divergence and h_change_of_plan give the hints. |
 | `## When the human says that it is wrong` | help build | `A preference change` | The record steps. |
-| `## Honesty rules` | prompt | | Every rule, word for word (c3). |
-| `## Delivery` | prompt | | Every rule, word for word (c3). |
+| `## Honesty rules` | prompt | | Every rule (c3); rule 5 reworded (see below). |
+| `## Delivery` | prompt | | Every rule (c3); one section name changed (see below). |
 | `## Speed` | prompt | | Merged into "Fast" in the purpose. |
 | `## Discovery orbit` | prompt | | In the phase tree. |
 | `### Purpose` | prompt | | One sentence in the phase tree. |
@@ -73,7 +73,7 @@ parts went to different homes.
 | `#### DISPROVE: attack the claims` | help discovery | `a fresh subagent sees only the report` | |
 | `#### GO / NO-GO: a weighted vote` | prompt | | The weights and the seal stay: they are the roles in action. |
 | `#### GO / NO-GO: a weighted vote` | help discovery | `GATE: the GO / NO-GO vote` | The record steps. |
-| `### Asking the human` | prompt | | One line: ask only what evidence raised. |
+| `### Asking the human` | prompt | | The general rule for asking ("Start light") covers it. |
 | `### Asking the human` | help discovery | `Ask about conflicts first, then surprises, then boundaries` | |
 | `### The discovery report` | help discovery | `Not explored:` | The report template. |
 | `### Handoff to the build orbit` | help discovery | `HANDOFF to the build orbit` | |
@@ -99,4 +99,16 @@ of "Honesty rules for discovery", after whitespace is collapsed. A rule can be r
 rewording is listed here, with the reason. The check reads this list.
 
 <!-- c3-rewordings: begin -->
+
+Rule 5 of "Honesty rules":
+
+OLD: The formal artifacts trust you. They catch honest mistakes; they do not stop cheating. `orbit-kb` cannot verify `--by human`, and `orbit-kb prove` does not resist a proof built to fool it. So write `--by human` only to record what the human said, and never work around a check, a lint rule, or `orbit-kb prove`. A safeguard that you work around protects no one.
+NEW: The formal artifacts trust you. Each catches its own kind of error; none stops cheating. `orbit-kb` cannot verify `--by human`, and `orbit-kb prove` does not resist a proof built to fool it. So write `--by human` only to record what the human said, and never work around a check, a lint rule, or `orbit-kb prove`. A safeguard that you work around protects no one.
+WHY: PHILOSOPHY.md §10 (decision d_retire_honest, 2026-11-05) retires "honest mistakes": each tool catches its own kind of error, and none stops cheating. Only the second sentence changes.
+
+The `KB:` and `Triggers:` paragraph of "Delivery":
+
+OLD: The `KB:` field tells the human where the evidence lives: in the KB, or only in this report. The `Triggers:` field compares the work with "Shift up to a KB". If a trigger fired, the `KB:` field names a KB. Keep each field to a line when the change is small. Write "none" in an empty field, so that the human sees you looked. Include a screenshot when the change has a user surface. In a KB, `orbit-kb report` drafts the middle fields and adds `Open:` (open burns, lapsed waivers, proofs that no longer count). Keep `Open:` in the delivery.
+NEW: The `KB:` field tells the human where the evidence lives: in the KB, or only in this report. The `Triggers:` field compares the work with "When to shift up". If a trigger fired, the `KB:` field names a KB. Keep each field to a line when the change is small. Write "none" in an empty field, so that the human sees you looked. Include a screenshot when the change has a user surface. In a KB, `orbit-kb report` drafts the middle fields and adds `Open:` (open burns, lapsed waivers, proofs that no longer count). Keep `Open:` in the delivery.
+WHY: the section "Shift up to a KB" is now "When to shift up". Only the section name changes.
 <!-- c3-rewordings: end -->
