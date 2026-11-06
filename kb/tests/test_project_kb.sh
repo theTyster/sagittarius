@@ -16,6 +16,7 @@
 #   c5 conflict, supersedes_by_date, blocking    : PC1 PC2 PC3 PC4 PC5 PC6 PC7
 #   c6 a spec KB pins a decision (WP1, WP2)      : PX1 PX2 PX3 PX4
 #   T18 c2 help codes lists WP1 to WP4           : PK6
+#   T18 c3 the README documents the module       : PK7
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -198,6 +199,23 @@ t_PK5() { okb help project; rc_is 0 "help project"
 # codes of the project module too (D23: WP1, WP2, WP3, WP4), each on a line of its own.
 t_PK6() { okb help codes; rc_is 0 "help codes"
           local c; for c in WP1 WP2 WP3 WP4; do out_has "^ *$c +[a-zA-Z]" "help codes lists $c with its text"; done; }
+# PK7 (T18 c3): the README of orbit-kb documents the project module: the lint table has WP1 to
+# WP4, the command reference has draft, pin-item and release, and Locking names the writer lock.
+# readme_part START END: the lines of README.md from the line that matches START up to (not
+# including) the next line that matches END.
+readme_part() { awk -v s="$1" -v e="$2" 'on && $0 ~ e {exit} $0 ~ s {on=1} on' "$LIB/README.md"; }
+t_PK7() { [ -f "$LIB/README.md" ] || { note "no README.md in $LIB"; return; }
+          local lint cmds lock c bt='`'
+          lint=$(readme_part '^## [0-9]+[.] Lint codes' '^## ')
+          for c in WP1 WP2 WP3 WP4; do printf '%s\n' "$lint" | grep -Eq "^[|] $c [|] [A-Za-z]" || note "the README lint table has no row $c"; done
+          cmds=$(readme_part '^## [0-9]+[.] Command reference' '^## ')
+          for c in 'draft blocking' 'draft outbound' 'pin-item' 'release'; do
+              printf '%s\n' "$cmds" | grep -E '^### `' | grep -Fq -- "$c" || note "the README command reference has no heading for $c"; done
+          lock=$(readme_part '^### Locking' '^##? ')
+          for c in writer.lock ORBIT_KB_WRITER CLAUDE_SESSION_ID --take release; do
+              printf '%s\n' "$lock" | grep -Fq -- "$c" || note "README Locking does not name $c"; done
+          for c in add declare subject attest run prove uses pin-item; do
+              printf '%s\n' "$lock" | grep -Fq -- "$bt$c$bt" || note "README Locking does not list the locked command $c"; done; }
 
 # ================================================================ c2: stale pins
 t_PS1() { pk_basic; K=$T/pk
@@ -490,6 +508,7 @@ run_test t_PK3 PK3 "T06 c1: pin kind, digest and time are typed (E3)"
 run_test t_PK4 PK4 "T06 c1: decision_digest is the sha256 of the decision text"
 run_test t_PK5 PK5 "T06 c1: help project documents each predicate, the lock and release"
 run_test t_PK6 PK6 "T18 c2: help codes lists WP1 to WP4"
+run_test t_PK7 PK7 "T18 c3: README lint table, command reference and Locking cover the project module"
 run_test t_PS1 PS1 "T06 c2: a file pin goes stale when the file's digest changes"
 run_test t_PS2 PS2 "T06 c2: a file pin keeps its own digest when the subject is refreshed"
 run_test t_PS3 PS3 "T06 c2: a file pin whose file is missing is stale"
