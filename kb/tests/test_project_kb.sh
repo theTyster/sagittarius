@@ -376,6 +376,101 @@ t_PX4() { spec_with_pin
           padd "pins(c1, repo, d1, '$H1')"; rc_is 1 "the second argument is project"; any_has 'E3' "E3"
           padd "pins(c1, project, d1, 'nothex')"; rc_is 1 "a digest that is no sha256:HEX"; any_has 'E3' "E3"; }
 
+# ================================================================ review fixes (after the first green)
+# PB1-PB4: a project_kb that cannot be used is WP2, never a crash (CONTRACT: a broken source never exits 1).
+spec_pointing() {  # spec_pointing TARGET: a build+project spec KB at $T/spec, project_kb(TARGET), one pinned claim
+    okb init "$T/spec" --request 'Build the export' --uses build >/dev/null 2>&1 || note "setup: init failed"
+    okb --dir "$T/spec" uses project >/dev/null 2>&1 || note "setup: uses project failed"
+    K=$T/spec
+    padd "project_kb('$1')" "claim(c1, introduce, 'Export uses the queue')" "cites(c1, 'Build the export')" \
+         "pins(c1, project, d1, '$H1')" >/dev/null; [ "$rc" = 0 ] || note "setup: add failed: $(snip "$out$err")"
+}
+pb_broken_target() {  # pb_broken_target: the checks that every broken target must pass
+    okb --dir "$K" lint; rc_is 0 "lint does not crash"; out_has '^WP2 c1:' "WP2 for the pin that cannot be read"
+    any_hasnt_main
+    q 'claim(X, Y, Z)'; rc_is 0 "a query still works"
+    okb --dir "$K" show blocking; rc_is 0 "show blocking still works"
+    okb --dir "$K" report; rc_is 0 "report still works"
+}
+any_hasnt_main() { anyout | grep -Eq 'user:main|^ERROR' && note "the CLI crashed: $(snip "$out$err")"; return 0; }
+t_PB1() { mkdir -p "$T/x"; spec_pointing '../nowhere'; pb_broken_target; }
+t_PB2() { mkdir -p "$T/empty"; spec_pointing '../empty'; pb_broken_target; }
+t_PB3() { okb init "$T/plain" --request 'No project module here' --uses build >/dev/null 2>&1
+          spec_pointing '../plain'; pb_broken_target; }
+t_PB4() { spec_pointing '.'; pb_broken_target; }
+
+# PB5: a project KB that does not load clean is never silent.
+t_PB5() { pk_basic; tracker_changed p2 "$T2"; stage dr1 "$T3"
+          local pk=$K; spec_with_conflict_pin "$pk"
+          is_true 'blocking(project_conflict(dr1))' "clean project KB: the conflict blocks"
+          printf 'this is not (valid.\n' >> "$pk/kb.pl"
+          okb --dir "$K" lint; rc_is 0 "lint is not an error in the spec KB"; out_has '^WP3' "WP3 names the broken project KB"
+          is_true 'blocking(project_kb_unclean)' "the broken project KB blocks"
+          is_false 'done' "done waits"
+          okb --dir "$K" show blocking; rc_is 0; out_has 'project_kb_unclean' "show blocking names it"; }
+spec_with_conflict_pin() {  # spec_with_conflict_pin PKDIR: a spec KB that pins d1 of PKDIR, and concerns(d1, p1) is in PKDIR
+    local dd; dd=$(tdigest 'Export goes through the queue')
+    okb init "$T/spec" --request 'Build the export' --uses build,project >/dev/null 2>&1 || note "setup: spec init failed"
+    K=$T/spec
+    padd "project_kb('../pk')" "claim(c1, introduce, 'Export uses the queue')" "cites(c1, 'Build the export')" "check(k1, c1)" \
+         "pins(c1, project, d1, '$dd')" >/dev/null; [ "$rc" = 0 ] || note "setup: spec add failed: $(snip "$out$err")"
+}
+
+# PB6: --take on a rejected add moves nothing.
+t_PB6() { pk_init "$T/pk"
+          ORBIT_KB_WRITER=ann padd "decision(d1, 'First')" >/dev/null; cp "$K/writer.lock" "$T/.lock.before"; cp "$K/kb.pl" "$T/.kb.before"
+          ORBIT_KB_WRITER=bob padd "decided_by(d99, bob, '$T1')" --take; rc_is 1 "the add is rejected (dangling ref)"
+          same_file "$K/writer.lock" "$T/.lock.before" "the lock did not move"; same_file "$K/kb.pl" "$T/.kb.before" "kb.pl is unchanged"
+          ORBIT_KB_WRITER=bob padd "decision(d2, 'Second')" --take; rc_is 0 "an accepted add with --take takes the lock"
+          has_goal "$K/kb.pl" "kb(writer_takeover(ann, bob, _))" "the takeover is recorded when the add is accepted"; }
+
+# PB7: writer names with a space; an empty or malformed lock.
+t_PB7() { pk_init "$T/pk"
+          ORBIT_KB_WRITER='ann smith' padd "decision(d1, 'First')" >/dev/null; rc_is 0 "a writer name with a space"
+          ORBIT_KB_WRITER=bob padd "decision(d2, 'Second')"; rc_is 2 "another writer"; any_has 'ann smith' "the whole name is the holder"
+          ORBIT_KB_WRITER='ann smith' padd "decision(d3, 'Third')"; rc_is 0 "the same writer goes on"
+          ORBIT_KB_WRITER='bob jones' padd "decision(d4, 'Fourth')" --take; rc_is 0 "--take with a spaced name"
+          has_goal "$K/kb.pl" "kb(writer_takeover('ann smith', 'bob jones', _))" "both names are kept whole"
+          ORBIT_KB_WRITER='ann smith' padd "decision(d5, 'Fifth')"; rc_is 2 "the old holder is a second writer"; any_has 'bob jones' "names the new holder"; }
+t_PB8() { pk_init "$T/pk"
+          : > "$K/writer.lock"
+          ORBIT_KB_WRITER=ann padd "decision(d1, 'First')"; rc_is 2 "an empty lock is an error"
+          any_hasi 'empty|malformed|cannot read' "the message says what is wrong"; any_has 'Fix' "the message has a fix line"
+          printf 'garbage\n' > "$K/writer.lock"
+          ORBIT_KB_WRITER=ann padd "decision(d1, 'First')"; rc_is 2 "a lock with no time is an error"; any_has 'Fix' "the fix line"
+          ORBIT_KB_WRITER=ann okb --dir "$K" release; rc_is 2 "release does not guess either"; any_has 'Fix' "the fix line"; }
+
+# PB9: WP1 clears after a re-pin; the old pins fact stays (append-only).
+t_PB9() { spec_with_pin
+          sed -i "s/Export goes through the queue/Export goes through the batch job/" "$SPEC_PK/kb.pl"
+          okb --dir "$K" lint; out_has '^WP1 c1:' "WP1 fires on the old digest"
+          local nd; nd=$(tdigest 'Export goes through the batch job')
+          padd "pins(c1, project, d1, '$nd')"; rc_is 0 "the new digest is pinned"
+          okb --dir "$K" lint; rc_is 0; out_hasnt '^WP1' "WP1 is cleared by the newest pin"
+          has_fact "$K/kb.pl" "pins(c1, project, d1, _)" "the pins facts stay in kb.pl"
+          local n; n=$(grep -c '^pins(c1' "$K/kb.pl"); [ "$n" = 2 ] || note "want 2 pins facts, have $n"
+          sed -i "s/Export goes through the batch job/Export goes through a stream/" "$SPEC_PK/kb.pl"
+          okb --dir "$K" lint; out_has '^WP1 c1:' "WP1 fires again when the decision changes again"; }
+
+# PB10: the term-order builtins bind nothing, so E14 applies as for \=.
+e14_rules() {  # e14_rules BODYTAIL
+    mkdir -p "$T/e"
+    printf "uses([]).\nrequest(r1, 'x').\ndecl(fact, q(atom), 'A q.', '').\ndecl(rule, p(atom), 'A p.', '').\nq(a).\n" > "$T/e/kb.pl"
+    printf 'p(X) :- not q(X), %s.\n' "$1" > "$T/e/rules.pl"
+    okb --dir "$T/e" lint
+}
+t_PB10() { local b
+           for b in 'X \= a' "X \\== a" 'X == a' 'X @< a' 'X @> a' 'X @=< a' 'X @>= a'; do
+               e14_rules "$b"; rc_is 1 "lint with $b"; out_has '^E14 ' "E14 with $b"
+           done; }
+
+# PB11: show blocking follows D22: "- KIND ID: SENTENCE: TEXT".
+t_PB11() { pk_basic; tracker_changed p2 "$T2"; stage dr1 "$T3"; spec_with_conflict_pin "$K"
+           okb --dir "$K" show blocking; rc_is 0
+           out_has '^- project_conflict dr1: .+: Retitle the issue to match the queue decision' "KIND ID: SENTENCE: TEXT of the draft"
+           printf 'this is not (valid.\n' >> "$T/pk/kb.pl"
+           okb --dir "$K" show blocking; out_has '^- project_kb_unclean: .+' "the unclean item has a sentence"; }
+
 # ================================================================ run
 run_test t_PK1 PK1 "T06 c1: init --uses project; every fact of the module is accepted"
 run_test t_PK2 PK2 "T06 c1: dangling refs and duplicate ids are refused (E4, E5)"
@@ -409,6 +504,17 @@ run_test t_PX1 PX1 "T06 c6: a matching pins/4 digest lints clean"
 run_test t_PX2 PX2 "T06 c6: a changed decision gives WP1 (a warning; --strict fails)"
 run_test t_PX3 PX3 "T06 c6: a pin that cannot be checked gives WP2"
 run_test t_PX4 PX4 "T06 c6: pins/4 is typed"
+run_test t_PB1 PB1 "T06 review 1: project_kb at a missing directory is WP2, no crash"
+run_test t_PB2 PB2 "T06 review 1: project_kb at a directory with no kb.pl is WP2, no crash"
+run_test t_PB3 PB3 "T06 review 1: project_kb at a KB without the project module is WP2, no crash"
+run_test t_PB4 PB4 "T06 review 1: project_kb at the KB itself is WP2, no crash"
+run_test t_PB5 PB5 "T06 review 2: a project KB with errors gives WP3 and a blocking item, never silence"
+run_test t_PB6 PB6 "T06 review 3: --take on a rejected add moves no lock and writes no takeover"
+run_test t_PB7 PB7 "T06 review 5: writer names with a space are kept whole"
+run_test t_PB8 PB8 "T06 review 5: an empty or malformed lock is an exit 2 with a fix line"
+run_test t_PB9 PB9 "T06 review 4: WP1 clears after a re-pin; old pins stay"
+run_test t_PB10 PB10 "T06 review 6: ==, \\==, @<, @>, @=<, @>= do not bind: E14 applies"
+run_test t_PB11 PB11 "T06 review 8: show blocking prints KIND ID: SENTENCE: TEXT"
 
 NT=${#REG_ID[@]}
 for ((i = 0; i < NT; i++)); do exec_test "$i"; done
