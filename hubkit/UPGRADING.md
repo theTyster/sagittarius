@@ -43,6 +43,28 @@ human before you start; this is a one-time merge.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.2.0 (the flow ledger)
+
+The db schema is 2. **Database:** run `python3 .claude/scripts/hubflow.py migrate`, then `check`.
+
+- **No silent lapse.** Intent: every item due at a rotation gets one recorded disposition
+  (`hubflow.py triage ID keep|lapse|capsule|escalate --note T`); `rotate` exits 1 until each has
+  one. An agent's keep or lapse of an item whose spec KB blocks becomes `escalate`. Files:
+  `.claude/scripts/hubflow.py`, `.claude/skills/hub-flow/SKILL.md`,
+  `.claude/skills/hub-rotate/SKILL.md`. A hub that changed the rotation steps keeps its own steps
+  and adds the triage step before the `rotate --yes` step. Check: `rotate --week-start <Monday>`
+  lists `untriaged:`.
+- **Capsules, transcript index, human skip.** Intent: new commands `capsule`, `index-transcripts`,
+  `transcripts`, and `close --reason human_skip --by human`. Files: the same. Check:
+  `hubflow-test.py --mutants`.
+- **Asks to other people.** Intent: `check` exits 3 for an open ask that waits on someone other than
+  the owner and has no `issue` ref. Owned file `flow/seed.json`: add `"owner": "<your person key>"`
+  if the owner's key is not `me` (the seed is read only at `init`; for an existing db, the person
+  `me` is the owner). Check: `hubflow.py check` exits 0, or names each untracked ask; give each one
+  its issue ref.
+- **Escalation needs orbit-kb.** `orbit-kb` on the PATH, or `HUBFLOW_ORBIT_KB`. Without it every
+  item with a `kb` ref counts as blocking.
+
 ### 0.1.0 (first release)
 
 The first versioned release. Nothing to upgrade from; a hub starts here with `INSTRUCTIONS.md`.

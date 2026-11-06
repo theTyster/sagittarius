@@ -88,6 +88,43 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
   are updated below. Open requests: a lint warning for a stale approval (LM21); a way to
   record a digest without typing it (F5); a `report_section/3` hook for `report` and
   `show open`. `--by human` is a claim the CLI cannot verify (LM20).
+- **D22 (orbit-kb becomes the spec KB, 2026-11-05).** Ticket T03 of the redesign (deliverable `dl_spec_kb`). Decisions by Ty in the hub design KB: the schema is "declared on first use" (`ty_schema(declare)`); the design KB cut verdicts retire `declare-attest` and the fact `depends/2`; blocking items include due dates (fy13), and only the spec KB decides what blocks (`d_blocking_in_spec_kb`); a spec KB attached to its ticket is a pinned copy (`d_blocking_pin`); the phase tree has a specify phase (`d_phase_tree`, `d_specify_phase`). The changes:
+  - C1 (first use, claim c1): `add` accepts a fact whose name is declared nowhere: not in the core, not in any library module (also one that the KB does not use), not in `kb.pl`, at any arity. Before the fact, it appends `decl(fact, Name(term, ..., term), 'Declared by its first use. Review it (lint W7).', '')` and `first_use(Name/Arity, By, Time)`. By is `--by human|agent` (default `agent`; another value is a usage error, exit 2). Time is now, in UTC. A batch declares each new name once, at its first fact. A second arity of a new name in a later fact, or in the same batch, is the E2 of today ("colour_of/1 is not declared. colour_of is declared with arity 2."). A reserved name (`decl`, `uses`, `not`, `true`, `,`, and the other names that `declare` refuses) is no first use. A name that only a module that the KB does not use declares, with the same arity, stays E2, and the message names the module and `orbit-kb uses MODULE`. All or nothing still holds: a rejected batch writes no `decl/4` and no `first_use/3`. A hand-written fact of an undeclared predicate in `kb.pl` is still E2: only `add` declares by first use.
+  - C2 (W7, claim c2): lint warns once for each `first_use/3` fact: `W7 kb.pl:LINE: N/A was declared by its first use, by BY at TIME. ...`. The `decl/4` line of a first-use predicate gets no W2 (W7 lists it). W4 still applies.
+  - C3 (E19, claim c3): lint error for each first-use predicate N/A and each other declared predicate M/A of the KB (the core, the modules in use, `kb.pl`) with the same arity, M not N, whose names are at most 2 edits apart (Levenshtein distance over the characters of the names). The line is the line of the `first_use/3` fact, and the message names both. `add` does not refuse it: E19 is a lint finding only. The fix for a typo is to correct the facts by hand in `kb.pl` and delete the `decl/4` and `first_use/3` lines of the new name. For a new predicate that is not a typo, choose a name more than 2 edits away, or declare it with `orbit-kb declare` before its first use (a declared predicate has no `first_use/3` fact, so no E19).
+  - C4 (claim c4): a declared predicate keeps its types and arity. `orbit-kb add 'claim(c1)'` is still the E2 of today, and a value of the wrong type is still E3.
+  - C5 (claim c5): `declare` is unchanged. It is optional now: it adds a doc, a template, and types ahead of use. `help declare`, `help add`, and `help core` say so.
+  - C6 (claim c6): retired. The command `declare-attest` is gone (`orbit-kb declare-attest ...` exits 2 with "Unknown command"; `help declare-attest` exits 2). A local `attest_type/4` line that is in `kb.pl` still works and is still W2. The core fact `depends/2` is gone, and with it the first clause of `to_ask/1`. `to_ask(Q)` now holds only when the claim of Q is current and contested, no human answered Q, and no human waived Q. A defeated default (`defeated/1`) no longer asks another question. The Lean burn model (`kb/tests/burn_model`) drops `depends` from its database, its `to_ask`, and its generator.
+  - C7 (claim c7): `blocking(X)` (core and build) holds for each item that blocks `done`. `done` does not change, and it does not read `blocking/1`. With the build module, `done` holds exactly when `blocking(_)` has no answer. The term shapes:
+    - `to_ask(Q)` (core): question Q must be asked.
+    - `supersede_cycle(C)` (core): C replaces itself.
+    - `past_due(X)` (core): X has a `due(X, Time)` fact, the time is past (or not a valid time), and X is still open (`item_open/1`).
+    - `under(C)`, `over(X)`, `burn_open(C)`, `flare_open(C)`, `no_claim` (build): as the rules of the same names (`no_claim` for `no_current_claim`).
+    - `check_failing(K)` (build): a check of an `under` claim that ran (`check_ran/1`) and did not pass (`passed/1` fails).
+    - `check_unrun(K)` (build): a check of an `under` claim that never ran.
+    - `waiver_lapsed(W)` (build): a human waiver whose due time is past, and whose target still blocks: a claim with an open burn or flare, a check of an `under` claim, or a question to ask.
+    New core fact: `due(ref([claim, check, question]), time)`. New rules: `check_ran(K) :- attest(_, test_result, _, result(K, _, _), _, _).`; `item_open(X)`: a question to ask (core); a claim that is `under`, has an open burn, or has an open flare, and a check of an `under` claim (build). New computed fact: `due_passed(X)`, which the CLI adds when it reads the KB, for each `due(X, T)` of `kb.pl` whose T is not a valid time or is before now. E16 protects `blocking`, `item_open`, `check_ran`, and `due_passed`. `orbit-kb show blocking` prints `Blocking:`, then one line per item, `- KIND ID: SENTENCE: TEXT`, where TEXT is the text of the question, the claim (also for `supersede_cycle`, and for a check: the text of its claim), the change, or the waiver; or `- Nothing blocks done.`. `show all` does not include it.
+  - C8 (claim c8): `orbit-kb pin` prints one line, `spec-kb@sha256:HEX TIME`: HEX is the sha256 of the bytes of `kb.pl`, computed by the CLI, and TIME is now, in UTC. It writes nothing and takes no lock. `orbit-kb pin --check STAMP` reads the first word of STAMP (so the whole line of `pin` is accepted too). Exit 0 when the digest of `kb.pl` is the same, 1 when it differs (the message says "changed" and names the new stamp), 2 for a STAMP that is not `spec-kb@sha256:` and 64 lowercase hex characters, a missing STAMP, or another argument.
+  - C9 (claim c9): the general help has a `Phases` block after "How to use": `discovery: research, specify`, `build: build, verify`, and one line per phase with its moves: research `SIGNAL, SURVEY, FLYBY, TRAJECTORY, DISPROVE (discovery)`; specify `SPECTRUM, DECOMPOSE, the vote (GATE)`; build `BUILD`; verify `FULFILL, DISPROVE, BURN`.
+  - Not in scope: the prompt (T08) and the project KB (T06). `--dir`, `$ORBIT_KB`, the parent walk, and the file name `kb.pl` do not change.
+  - Tests added: FU1 to FU6 and FU8 (FU8 supersedes FU7, whose two new names are 1 edit apart from each other, so it fails by design of E19; FU7 stays in the file but is not run), RT1 to RT3, BL1 to BL10, BL6b, BL8b, PN1, PN2, PH1 (FU7, RT3, BL6b, BL8b, BL10 after a review of the first red commit; BL10 takes the unrun case out of BL4). RT3 exempts each CONTRACT line that says an item was retired or removed, so the history keeps the names. Tests removed: A2 and A3 (add rejected an undeclared predicate), D5 (declare-attest). Tests changed: B12 and SH3 (a contested claim asks the question, not `depends`), B14 (a defeated default alone asks nothing), the fixture `valid` and the KB builder `kb_toask` (no `depends` fact).
+- **D24 (the question view, 2026-11-05).** Ticket T10 of the redesign (deliverable `dl_question_view`; requirement `r_question_view`, Ty's u59; fy16: a question needs its case, its options, and what each option changes). The human answers open questions from one static page, without a live session. The new command `orbit-kb view questions` is read-only: it never writes `kb.pl`, takes no lock, and adds no fact. The changes:
+  - C1 (command): `orbit-kb view questions [--dir KB]... [--ledger FILE] [--out F]`. `--dir` may repeat (one section per KB, in the order given); with no `--dir` the usual KB resolution applies (`$ORBIT_KB`, then the parent walk) and gives one KB. The page goes to stdout, or to F with `--out` (then stdout stays empty; F is replaced whole). Exit 0 when the page is written. Exit 2 for a usage error (another view name, no view name, an unknown option), for a KB that cannot be found or read (E1, E2, E17, or E18, as for `query`), and for a ledger FILE that is missing, is not JSON, or has the wrong shape (the message says so). Exit 2 writes no page.
+  - C2 (the page): one HTML file with no external dependency. It has no `<script src>`, no `<link>`, no `@import`, no `url(` to a remote address, and no `src` or `href` attribute that starts with `http:`, `https:`, or `//`. No remote font, image, or style. Text from a KB or the ledger is HTML-escaped (a question text `a <b> & c` shows as that text and makes no element). It begins with `<!DOCTYPE html>` and has a `<title>`.
+  - C3 (KB sections, claim c4): for each KB read there is one `<section class="kb" data-stamp="STAMP">`. STAMP is the pin stamp of that KB without the time: `spec-kb@sha256:HEX`, HEX the sha256 of the bytes of `kb.pl` as `orbit-kb pin` (D22 C8) computes it, and the section shows the same stamp as visible text. Everything about a KB is inside its section, so two KBs with the same ids (`q1`, `c1`) stay apart.
+  - C4 (blocking items, claim c1): inside a section, one `<li class="item" data-kind="KIND" data-id="ID">` for each answer of `blocking(KIND(ID))` in that KB (D22 C7; KIND is the functor and ID the argument; `no_claim` has no ID and gets `data-id=""`). So each question for which `to_ask` holds, and each other open blocking item (`under`, `burn_open`, `flare_open`, `check_failing`, `check_unrun`, `waiver_lapsed`, `past_due`, `supersede_cycle`, `over`), has one item; an answered question has none. A section for a KB where nothing blocks has no item and says "Nothing blocks done." The item shows, as text of its element:
+    - the text of the item: for a question, the question text; for a claim, the claim text; for a check, the text of the claim it checks, as the check has no text of its own;
+    - an element with class `default`, only for a question: the default answer (`assumed/2`) as written in the KB, or `none` when the question has no default. The `default` element has no other answer in it. the options are C7;
+    - an element with class `blocks`: the claim that the item blocks (for a claim item, that claim; for a question or a check, its claim), as a reference of C6;
+    - an element with class `cited`: the text of each `cites(C, Text)` of that claim, verbatim (the request text, or the ticket text, that the claim serves).
+  - C5 (the ledger, claim c2; revised after review): `--ledger FILE` reads a JSON export of the flow ledger (ticket T05). The shape: one JSON array of objects. The keys `id` (string), `kind` (string), `title` (string), `status` (string), `waits_on` (a string, or `null` for nobody), and `age_days` (a whole number, 0 or more) are required. The key `owner` (a string, the owner's person key) is optional; other keys are ignored. The owner is the person key in this order: the option `--owner KEY`; else the `owner` of the first object that has one; else `me`. This is how `hubflow` decides it (`owner_person()`: the meta `owner_person`, else the person `me`). The page shows an ask for each object with `kind` `ask`, `status` `open` or `waiting`, and `waits_on` equal to the owner key. It shows no other object: not a thread, a hold, a closed item, an ask that waits on another person, or an ask with `waits_on` `null` (nobody owns it: it is not the owner's). `hubflow` makes the export: `hubflow sql "SELECT id, kind, title, status, waits_on, age_days, COALESCE((SELECT value FROM meta WHERE key='owner_person'), (SELECT key FROM person WHERE key='me')) AS owner FROM v_open" --format json > asks.json`. Each shown ask is one `<li class="ask" data-id="ID">` in a `<section class="ledger">`, and it has the title and an element with class `age` whose text is `N days`. Without `--ledger` the page has no ledger section. `--owner` without `--ledger` is accepted and has no effect.
+  - C6 (no bare id, claim c3): every KB id on the page (a claim, question, check, request, or other id from `kb.pl`) is in an element with class `kbid`. That element is inside a `<span class="ref">`, and the same `ref` element holds an element with class `kbtext` whose text is not empty: the text of that id, or for a check the text of its claim. The ids of the ledger (`A12`) are not KB ids and are not tested. The check is structural on purpose: the page cannot show an id without its words. A second check is textual: no KB id of the page's KBs appears as a bare token (not part of a longer word, letters, digits, or `_`) in the visible text or in an attribute value other than `class` and `data-*`, outside the `ref` spans.
+  - C7 (options and their effects, fy16; revised after review): a question item has one element with class `options`. It holds one `<li class="option" data-source="SRC">` for each option, in this order, and no other: (1) `data-source="default"`, the default answer of `assumed/2`, as written in the KB, only when the question has a default; (2) `data-source="answer"`, the answer of an `answer/3` fact of that question given by an agent (a human answer removes the question from `to_ask`), only when its text differs from the default; (3) `data-source="option"`, the text of each `option/3` fact of the question (D24 C8) whose text is not already listed, in fact order; (4) `data-source="other"`, with the text `other`, always. The page invents no other option. Each `li` holds a `<span class="optiontext">` with the option text. When the question has at least one `option/3` fact, an option whose text equals the text of an `option/3` fact also holds a `<span class="effect">` with that effect, and an option with no fact holds a `<span class="effect none">` reading `No effect is recorded.`; `other` has no effect element. When the question has no `option/3` fact, no `li` has an effect element, and the item has a `<p class="no-effects">` (outside the `options` element) reading `No option effects are recorded for this question.` The page has an element with class `options-note` whose text contains `come from the KB's defaults`.
+  - C8 (the option fact, fy16): one new core fact `option(ref(question), text, text)`: the question, an option text, and what choosing that option changes. It is declared in the core with a doc and a template, and `help core` lists it. Writers: `add`, as any fact. `option` does not change any rule: it does not enter `to_ask`, `blocking`, or `done`. `ref(question)` is checked as for `assumed/2` (a missing question is E4).
+  - C9 (section label): each KB section has an element with class `kblabel` that names the KB for a person: the first line of its first `request/2` text; when the KB has no request, the last part of its directory path. The page shows it for one KB also.
+  - C10 (the no-claim item): the item `no_claim` shows its label and its text separated by `: ` (`No current claim: Add a claim; the work is not done without one.`). The label is not joined to the text, and the text does not repeat the label.
+  - Not in scope: choosing an answer on the page (the page is read-only; the human answers with `orbit-kb add` in a session); a live ledger query (the export is a file, so the view does not need `hubflow`).
+  - Tests added: QV1 to QV34, in `kb/tests/test_question_view.sh` (a separate file; it has its own summary line).
 - **D21 (a visual claim flares, 2026-11-04).** GitHub issue #9. Decision by Ty ("Both"). A burn closes with a Lean proof; some claims are a look, a layout, or a name, and only a human who sees the result can close them. Before D21, a renamed alias was recorded as a second divergence, its claim burned, and `done` waited for a Lean proof of an alias name. Mnemonic: burns get proved, flares get shown. The changes, all in `modules/build.pl`:
   - F1: new facts `visual(ref(claim))` (the agent marks it at DECOMPOSE, or a human asks for it) and `demo(ref(subject), ref(claim))` (a screenshot or a recording, recorded with `orbit-kb subject`, shows the claim).
   - F2: `flare(C)` holds when C is visual, or when C replaces a visual claim through one or more `supersedes` steps, as an inherited burn does. A claim can burn and flare at once: prove the invariant, show the look.
@@ -399,8 +436,10 @@ Core facts:
 - `not_explored(text)`
 - `question(id, ref(claim), text)`
 - `assumed(ref(question), term)`: the default answer.
+- `option(ref(question), text, text)`: an option of the question, and what choosing it changes (D24 C8). It changes no rule.
 - `answer(ref(question), term, oneof([human, agent]))`
-- `depends(ref(question), ref(question))`: the first question depends on the second.
+- `due(ref([claim, check, question]), time)`: the item is due at the time (D22). A past due time blocks the item while it is open (`blocking(past_due(X))`).
+- `first_use(term, by, time)`: the predicate `Name/Arity` was declared by its first use in `add`, by that writer, at that time (D22). Only `add` writes it.
 - `note(ref, text)`: a free-text note about any id.
 - `subject(id, text, digest)`: an artifact path and its sha256. The path is relative
   to the KB directory when the file is inside it; otherwise it is absolute (D3).
@@ -427,10 +466,8 @@ refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).
 contested(C) :- attest(_, divergence, _, claim(C), _, _).
 contested_twice(C) :- attest(D1, divergence, _, claim(C), _, _),
                       attest(D2, divergence, _, claim(C), _, _), D1 \= D2.
-to_ask(Q) :- question(Q, C, _), current(C), depends(Q, P), defeated(P), not answered(Q),
-             not question_waived(Q).
 to_ask(Q) :- question(Q, C, _), current(C), contested(C), not answered(Q),
-             not question_waived(Q).
+             not question_waived(Q).          % D22: the depends/2 clause is gone
 % question_waived/1: no clause in core; the build module adds it (D13).
 any_to_ask :- to_ask(_).
 stale(A) :- attest(A, approval, S, digest(D0), human, _), subject(S, _, D1), D0 \= D1.
@@ -439,8 +476,16 @@ failed_after(K, R) :- attest(_, test_result, _, result(K, R2, fail), _, _), R2 >
 was_red(K) :- attest(_, test_result, _, result(K, R1, fail), _, _),
               attest(_, test_result, _, result(K, R2, pass), _, _), R1 < R2.
 any_supersede_cycle :- supersede_cycle(_).
+check_ran(K) :- attest(_, test_result, _, result(K, _, _), _, _).                 % D22
+item_open(Q) :- to_ask(Q).                                                        % D22
+blocking(to_ask(Q)) :- to_ask(Q).                                                 % D22
+blocking(supersede_cycle(C)) :- supersede_cycle(C).
+blocking(past_due(X)) :- due_passed(X), item_open(X).
 lint_issue(Code, Id, Message)          % declared; no core clauses (module hook)
 ```
+
+`due_passed(X)` (D22) is a rule predicate with no clauses in the library. The CLI adds a
+fact for each `due(X, T)` of `kb.pl` whose T is not a valid time or is before now.
 
 `supersedes_closure(New, Old)` (New reaches Old through one or more `supersedes` facts)
 and `supersede_cycle(C)` (C reaches itself) are rule predicates with no clauses in the
@@ -504,6 +549,23 @@ check_waived(C) :- check(K, C), attest(W, waiver, _, waive(K, _, _), human, _),
                    not waiver_lapsed(W).
 question_waived(Q) :- question(Q, _, _), attest(W, waiver, _, waive(Q, _, _), human, _),
                       not waiver_lapsed(W).
+% D22: what blocks done. done does not read these.
+item_open(C) :- under(C).
+item_open(C) :- burn_open(C).
+item_open(C) :- flare_open(C).
+item_open(K) :- check(K, C), under(C).
+blocking(under(C)) :- under(C).
+blocking(over(X)) :- over(X).
+blocking(burn_open(C)) :- burn_open(C).
+blocking(flare_open(C)) :- flare_open(C).
+blocking(no_claim) :- no_current_claim.
+blocking(check_failing(K)) :- check(K, C), under(C), check_ran(K), not passed(K).
+blocking(check_unrun(K)) :- check(K, C), under(C), not check_ran(K).
+blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(C, _, _), human, _), waiver_lapsed(W), burn_open(C).
+blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(C, _, _), human, _), waiver_lapsed(W), flare_open(C).
+blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(K, _, _), human, _), waiver_lapsed(W),
+                              check(K, C), under(C).
+blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(Q, _, _), human, _), waiver_lapsed(W), to_ask(Q).
 ```
 
 `proof_changed/1` and `waiver_lapsed/1` are rule predicates with no clauses in the
@@ -534,7 +596,7 @@ Exit codes:
 | Code | Meaning |
 |---|---|
 | 0 | success; the query is true; lint is clean |
-| 1 | the query has no answer; lint found errors; `add`, `declare`, `attest`, or `init` rejected the input |
+| 1 | the query has no answer; lint found errors; `add`, `declare`, `attest`, or `init` rejected the input; `pin --check` found that `kb.pl` changed (D22) |
 | 2 | usage error (also `query --json` and `query --html`, which no longer exist); KB or library not found; tool missing; query syntax error; undeclared predicate in a query; a source that has E1, E2, E17, or E18 (answer gate); SWI ERROR; internal error |
 
 A typo, a broken source, or an engine error MUST never exit 1. It must never look like "false".
@@ -543,9 +605,10 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 |---|---|
 | `init DIR (--request TEXT \| --request-file F) [--uses m1,m2] [--id ID]` | Create `DIR/kb.pl` containing `uses([…]).` and `request(ID, 'TEXT').` The default ID is `r1`. Exit 1 if `kb.pl` already exists. Print the path. |
 | `uses MODULE …` | Add modules to the first term `uses([…])` of an existing `kb.pl`, under the KB lock, without loading the KB. Keep the modules in use; never remove one. Keep the text around the term. Print the new line, and tell the agent to lint. Exit 0, also when nothing changes; 1 on an unknown module or a first term that is not `uses/1` with a list of atoms; 2 on a usage error or a failed write (D11). |
-| `add 'FACT' …` | The trailing `.` is optional. Validate against every lint error that applies to facts. Facts in the same batch may refer to each other. All or nothing. Append the facts in order and print each one. Refuse attestation types whose writers are `[script]`, and point to `orbit-kb run`. Every rejection says why and how to fix it. For an undeclared predicate, the fix is `orbit-kb declare`. |
-| `declare 'HEAD' --doc TEXT [--kind fact\|rule] [--template T]` | The default kind is `fact`. Exit 1 if that name and arity are already declared anywhere, or if a type is unknown. Append the `decl/4` line. |
-| `declare-attest TYPE 'SHAPE' --doc TEXT --writers human,agent` | Append an `attest_type/4` line. The same checks apply. |
+| `add 'FACT' … [--by human\|agent]` | The trailing `.` is optional. Validate against every lint error that applies to facts. Facts in the same batch may refer to each other. All or nothing. Append the facts in order and print each one. A fact whose name is declared nowhere declares its predicate by its first use: a `decl/4` line and a `first_use/3` fact come before it (D22 C1; `--by` names the writer, default `agent`). Refuse attestation types whose writers are `[script]`, and point to `orbit-kb run`. Every rejection says why and how to fix it. |
+| `declare 'HEAD' --doc TEXT [--kind fact\|rule] [--template T]` | Optional (D22): it declares a predicate ahead of its first use, with a doc and types. The default kind is `fact`. Exit 1 if that name and arity are already declared anywhere, or if a type is unknown. Append the `decl/4` line. |
+| `pin [--check STAMP]` | Print `spec-kb@sha256:HEX TIME`, the computed sha256 of `kb.pl` and the time (D22 C8). `--check`: exit 0 when the digest of STAMP is the digest of `kb.pl` now, 1 when it differs, 2 on a malformed STAMP. |
+| `view questions [--dir KB]... [--ledger FILE] [--out F]` | Write one self-contained HTML page of the open questions and blocking items of each KB, with the pin stamp of each, and the owner's asks from a ledger export (D24). Read-only. Exit 0, or 2 for a usage error, a missing KB, or a bad ledger file. |
 | `subject ID PATH` | Compute the sha256 of PATH. Exit 1 if the file is missing. Store the path relative to the KB directory when the file is inside the KB directory tree, otherwise the absolute path (D3). Rewrite an existing `subject(ID, …)` line in place, or append a new one. Print the digest. |
 | `attest TYPE SUBJECT 'PREDICATE' [--by human\|agent] [--id ID]` | `--by` defaults to `agent`. The id defaults to `a<N>`, the next free number. The time is now, in UTC. Validate the shape, the writer, and the references. The literal predicate `digest(current)` is replaced by the subject's recorded digest. |
 | `run CHECK -- CMD …` | Check that CHECK exists, then run CMD. Write its combined output to `runs/<N>-<CHECK>.log`, where N is the highest run number in any `test_result` plus 1. Append `attest(aM, test_result, CHECK, result(CHECK, N, pass\|fail), script, TIME)`; the result is `pass` when CMD exits 0. Print `run N CHECK pass\|fail (exit E) log=PATH`. On a fail, also print the last 40 lines of output. Exit 0 on pass and 1 on fail. |
@@ -553,10 +616,10 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 | `query 'GOAL' [-n N] [--why] [--long]` | Check that every predicate in GOAL is declared or built in; otherwise exit 2. Assemble the program in this order: core, modules, `kb.pl`, `rules.pl`. Run the SWI engine. `-n` defaults to 1; 0 means all answers. Output: one line per answer, either `true` or `X = v, Y = w`; no answer prints `false`. `--why` adds, after each answer, the clauses that prove it (D20). `--long` makes the explanation 30 levels deep instead of 6. `--json` and `--html` are usage errors (exit 2). Exit 0 on an answer, 1 on none, 2 on a bad goal, a source for the answer gate, or SWI ERROR. |
 | `why 'GOAL' [-n N] [--long]` | Same as `query --why`. Each answer is followed by "X, because" and the indented reasons: why each literal of the rule that proves it holds. A `not` literal reads "there is no evidence that X". |
 | `whynot 'GOAL' [--long]` | The first line is `holds` or `absent`, decided by the SWI engine (the verdict `contradicts` is gone, D20). `holds` means GOAL has an answer; the clauses that prove the first answer follow. `absent` means GOAL has no answer; then, for each rule of GOAL, the first body literal that no answer gets past ("the rule for done/0 stops at not any_under:") and why, recursively. "nothing records X: no fact or rule matches it" is printed when nothing matches. The depth is 6 levels; `--long` gives 30. The explanation never changes the verdict. Exit 0. |
-| `show [claims\|questions\|open\|disclosures\|extensions\|all]` | Plain-text listing. The default is `all`. `open` lists `to_ask`, `stale`, and `contested`, plus `under` and `over` when build is loaded. |
+| `show [claims\|questions\|open\|blocking\|disclosures\|extensions\|all]` | Plain-text listing. The default is `all` (without `blocking`). `open` lists `to_ask`, `stale`, and `contested`, plus `under` and `over` when build is loaded. `blocking` lists each answer of `blocking(X)` with its text (D22 C7). |
 | `report` | A delivery skeleton in plain Markdown (D16 C4: `# Name:` headings, a blank line between sections, two-space bullets, bold labels, nested detail) with these sections in this order: `Delivered:` (placeholder); `Claims:` (each current claim with `fulfilled` or `under` when build is loaded, and its checks); `Guesses:` (questions whose default no human answered; D17 C5 for the empty case); `Disclosures:`; `Not checked:` (current claims with no check); `Open:` (`to_ask`, stale approvals, `over`, and `no claim` when no claim is current, D17 C4); `To land:` (placeholder). Use short, plain sentences. `--html FILE` also writes the report as a page for review, and `--open` opens it (D16). |
 | `doctor` | Check `swipl` and the library directory, and print a fix step for anything missing. Then run known-answer self-tests on the SWI engine: the helper form must be false; `not under(_)` must be false when `under(a)` holds; arithmetic under `not` must give exactly k2, k3, and k4 with `-n 0`; E18 must flag `p :- not q, q :- not p`; E17 must flag `-p(b)`. Report each result. Exit 2 if anything is missing or a self-test fails. It does not look for `scasp`. |
-| `help [COMMAND\|TOPIC]` | Usage. The general help starts with a "How to use" block (the order of the commands, and one line for each topic), then lists the commands and explains the engine (negation as failure, stratified rules) in a few plain sentences. A TOPIC is `core`, `build`, `discovery`, `codes`, or `answers`. Its text is the file `help/TOPIC.txt` in the library directory. An unknown name exits 2. `init` prints a `Next:` line that names `help core`. `uses discovery` prints a `Next:` line that names `lint` and `help discovery`. |
+| `help [COMMAND\|TOPIC]` | Usage. The general help starts with a "How to use" block (the order of the commands, and one line for each topic), then a "Phases" block (D22 C9), then lists the commands and explains the engine (negation as failure, stratified rules) in a few plain sentences. A TOPIC is `core`, `build`, `discovery`, `codes`, or `answers`. Its text is the file `help/TOPIC.txt` in the library directory. An unknown name exits 2. `init` prints a `Next:` line that names `help core`. `uses discovery` prints a `Next:` line that names `lint` and `help discovery`. |
 
 ## Lint
 
@@ -576,19 +639,21 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 | E13 | Removed by D20 (it was hazard H4 of s(CASP)). |
 | E14 | Unsafe negation: a `not` literal's variable occurs in the head but in no positive body literal (D7). A call with that variable unbound then gives a wrong answer. |
 | E15 | A `supersedes` fact on a cycle, including `supersedes(C, C)` (D10 follow-up), of claims or of hypotheses (D15). `add` refuses it. |
-| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `flare`, `flare_shown`, `flare_waived`, `flare_open`, `any_flare_open`, `demo_changed` (D21), `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle` (D10 follow-up), `any_current_claim` (D17), and the vote rules `vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split` (D14). The engines ignore the clause. |
+| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `flare`, `flare_shown`, `flare_waived`, `flare_open`, `any_flare_open`, `demo_changed` (D21), `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle` (D10 follow-up), `any_current_claim` (D17), `blocking`, `item_open`, `check_ran`, `due_passed` (D22), and the vote rules `vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split` (D14). The engines ignore the clause. |
 | E12 | Removed by D20 (it was hazard H1 of s(CASP)). A variable only under `not` is now an ordinary case: `not under(_)` means no under at all. |
 | E17 | A form that `orbit-kb` does not read (D20): classical negation `-p` (a fact or rule head, or a body literal), a `#` line, a global constraint `(:- Body)`, or a `#=`-family constraint. `add` refuses it. It applies in `kb.pl` too, and a goal with such a form exits 2 with the E17 text. The answer gate applies. |
 | E18 | The rules are not stratified: a predicate depends on itself through `not` (D20). The answer gate applies. |
+| E19 | Typo guard (D22 C3): a predicate declared by its first use is at most 2 edits from another declared predicate of the same arity. The message names both. `add` does not refuse it. |
 
 | Code | Warning |
 |---|---|
 | W1 | The subject digest differs from the file on disk, or the file is missing. Refresh with `orbit-kb subject`. |
-| W2 | A local declaration, listed for review. |
+| W2 | A local declaration, listed for review (not one made by a first use, D22: W7). |
 | W3 | A claim with no `cites`. |
 | W4 | A local fact predicate that no rule reads (no reader). |
 | W5 | A `check` of a superseded claim, while a current claim that replaces it (directly or through a chain) has no check (D15). The message says to add a new check of that claim, with a new id, and run it. |
 | W6 | A local rule that adds clauses to a core or module predicate (an extension), other than a protected one (E16). |
+| W7 | A predicate declared by its first use (D22 C2), with who and when. Its `decl/4` line gets no W2. |
 
 ## Style
 

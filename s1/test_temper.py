@@ -210,7 +210,11 @@ class C2Stdin(unittest.TestCase):
     def captured(self):
         files = sorted(f for f in os.listdir(self.out) if f.startswith("stdin"))
         self.assertTrue(files, "the fake claude never ran")
-        return [open(os.path.join(self.out, f)).read() for f in files]
+        got = []
+        for f in files:
+            with open(os.path.join(self.out, f)) as fh:
+                got.append(fh.read())
+        return got
 
     def test_run_claude_gives_the_child_empty_stdin(self):
         self.drive("import temper; print(temper.run_claude('hello there', 'haiku'))")
@@ -235,7 +239,8 @@ class C2Stdin(unittest.TestCase):
 
     def test_the_child_command_line(self):
         self.drive("import temper; temper.run_claude('p', 'sonnet')")
-        argv = open(os.path.join(self.out, "argv.0")).read().split("\n")
+        with open(os.path.join(self.out, "argv.0")) as f:
+            argv = f.read().split("\n")
         self.assertIn("-p", argv)
         self.assertEqual(argv[argv.index("--model") + 1], "sonnet")
         self.assertEqual(argv[argv.index("--tools") + 1], "")

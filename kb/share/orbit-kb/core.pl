@@ -102,12 +102,20 @@ decl(fact, question(id, ref(claim), text),
 decl(fact, assumed(ref(question), term),
      'The default answer to a question.',
      'the default answer to question @(1) is @(2)').
+decl(fact, option(ref(question), text, text),
+     'An option of a question, and what choosing it changes (D24).',
+     'option @(2) of question @(1) changes: @(3)').
 decl(fact, answer(ref(question), term, oneof([human, agent])),
      'An answer to a question, and who gave it.',
      'the @(3) answered question @(1) with @(2)').
-decl(fact, depends(ref(question), ref(question)),
-     'The first question depends on the answer to the second question.',
-     'question @(1) depends on question @(2)').
+% D22: the item is due at the time. A past due time blocks an open item.
+decl(fact, due(ref([claim, check, question]), time),
+     'The claim, check, or question is due at the time.',
+     '@(1) is due at @(2)').
+% D22: orbit-kb add writes it when a fact declares its predicate by its first use.
+decl(fact, first_use(term, by, time),
+     'The predicate Name/Arity was declared by its first use in orbit-kb add, by the writer, at the time.',
+     'predicate @(1) was declared by its first use, by the @(2) at @(3)').
 decl(fact, note(ref, text),
      'A free-text note about any id.',
      'a note on @(1) says @(2)').
@@ -144,7 +152,7 @@ decl(rule, contested_twice(ref(claim)),
      'Two or more different divergence attestations name the claim.',
      'claim @(1) is contested two or more times').
 decl(rule, to_ask(ref(question)),
-     'Ask this question now, because no human answered it, no human waived it, its claim is current, and its claim is contested or a question that it depends on is defeated.',
+     'Ask this question now, because no human answered it, no human waived it, and its claim is current and contested.',
      'question @(1) must be asked now').
 decl(rule, question_waived(ref(question)),
      'A human waived the question, and the due time of the waiver is not past. The build module adds the clause.',
@@ -173,6 +181,18 @@ decl(rule, supersede_cycle(ref),
 decl(rule, any_supersede_cycle,
      'At least one claim or hypothesis is in a supersede cycle.',
      'some claim or hypothesis is in a supersede cycle').
+decl(rule, check_ran(ref(check)),
+     'The check has at least one test result.',
+     'check @(1) ran').
+decl(rule, due_passed(ref),
+     'The due time of the item is past, or it is not a valid time. orbit-kb computes it when it reads the KB.',
+     'the due time of @(1) is past').
+decl(rule, item_open(ref),
+     'The item still blocks done: a question to ask, or (build module) a claim that is under or has an open burn or flare, or a check of a claim that is under.',
+     '@(1) is still open').
+decl(rule, blocking(term),
+     'The item blocks done. The term names its kind and its id, such as to_ask(q1) or burn_open(c1).',
+     '@(1) blocks done').
 decl(rule, lint_issue(atom, ref, text),
      'A lint result that a module adds, with a code, an id, and a message.',
      'lint issue @(1) on @(2): @(3)').
@@ -215,8 +235,8 @@ refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).
 contested(C) :- attest(_, divergence, _, claim(C), _, _).
 contested_twice(C) :- attest(D1, divergence, _, claim(C), _, _),
                       attest(D2, divergence, _, claim(C), _, _), D1 \= D2.
-to_ask(Q) :- question(Q, C, _), current(C), depends(Q, P), defeated(P), not answered(Q),
-             not question_waived(Q).
+% D22: the clause for depends/2 (a question whose prerequisite is defeated)
+% is gone with the fact.
 to_ask(Q) :- question(Q, C, _), current(C), contested(C), not answered(Q),
              not question_waived(Q).
 % question_waived/1 has no clause here. The build module adds it (D13):
@@ -233,4 +253,13 @@ was_red(K) :- attest(_, test_result, _, result(K, R1, fail), _, _),
 % Thus no rule recurses through supersedes/2, and the engine finishes on
 % every KB. Lint E15 reports a cycle.
 any_supersede_cycle :- supersede_cycle(_).
+% D22: blocking(X) lists each item that blocks done. done does not read it.
+% The build module adds the kinds of its own rules. due_passed/1 has no
+% clauses here: orbit-kb adds its facts when it reads the KB, as for
+% waiver_lapsed/1. rules.pl cannot add clauses to these rules (lint E16).
+check_ran(K) :- attest(_, test_result, _, result(K, _, _), _, _).
+item_open(Q) :- to_ask(Q).
+blocking(to_ask(Q)) :- to_ask(Q).
+blocking(supersede_cycle(C)) :- supersede_cycle(C).
+blocking(past_due(X)) :- due_passed(X), item_open(X).
 % lint_issue/3 has no clauses here. Modules add them (the module lint hook).

@@ -361,7 +361,7 @@ theorem impl_LR7 : Req.LR7 implSys := by
       simp [burn_reason, h]
 
 /-- A KB with `universal(c109)` and no claim. -/
-def danglingDB : DB := ⟨[], [], [109], [], [], [], [], [], [], [], [], [], [], [], []⟩
+def danglingDB : DB := ⟨[], [], [109], [], [], [], [], [], [], [], [], [], [], []⟩
 
 /-- LR8 fails for the implementation model on all states: `universal(c109)` with
 no `claim(c109, _, _)` makes `burn(c109)` true, and no claim of the view is
