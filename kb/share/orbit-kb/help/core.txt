@@ -19,7 +19,9 @@ Facts
                                  for a claim that replaces it, add a new check (lint W5).
   world(Fact), source(Fact, Where)   the current state, and where you saw it.
                                  A fact that you did not record is false.
-  question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By), depends(Q, Q0)
+  question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By)
+  due(X, 'TIME')                 claim, check, or question X is due at TIME. While X is open
+                                 after TIME, blocking(past_due(X)) holds.
   ticket(S)                      subject S holds the ratified ticket
   scope(in|out, Text), risk(Id, Text), assumption(Id, Text), not_explored(Text)
   note(X, Text)                  a note about an existing id X (a claim, a question, r1).
@@ -45,18 +47,22 @@ Attestation types
 Queries (orbit-kb query 'current(C)' -n 0)
   current(C)         claim C is not superseded
   defeated(Q)        a human answer differs from the default of Q
-  to_ask(Q)          Q is unanswered, no human waived it, its claim is current, and the
-                     claim is contested or a question that Q depends on is defeated
+  to_ask(Q)          Q is unanswered, no human waived it, and its claim is current and contested
   contested(C)       one or more divergences name C
   contested_twice(C) two or more divergences name C
   refuted(C)         a verdict says that C is refuted
   passed(K)          the latest run of K passed
   was_red(K)         K failed before it passed
   stale(A)           approval A is for a digest that is no longer current
+  blocking(X)        X blocks done: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X),
+                     check_failing(K), check_unrun(K), waiver_lapsed(W), past_due(X),
+                     supersede_cycle(C), no_claim. orbit-kb show blocking prints each with its text.
 
 Local rules go in rules.pl beside kb.pl. They cannot change done, or the burn and flare
 rules (lint reports E16). not p means that p has no answer (negation as failure), so
 not under(_) means "no under at all". A predicate must not depend on itself through not
 (lint E18). There is no classical negation: a fact that is not recorded is false.
-If the schema does not fit, declare what you need: orbit-kb declare ... --doc TEXT.
-Write one sentence about why. lint lists your extensions for review.
+If the schema does not fit, add a fact of a new predicate. Its first use declares it
+(orbit-kb help add), and lint lists it (W7) for review, and flags a name that looks like a
+typo of a declared one (E19). declare is optional: use orbit-kb declare ... --doc TEXT
+before the first use to give the predicate a doc and types.

@@ -130,8 +130,6 @@ structure DB where
   assumed : List (Atom × Atom)
   /-- `answer(Q, B, By)` -/
   answer : List (Atom × Atom × Writer)
-  /-- `depends(Q, P)` -/
-  depends : List (Atom × Atom)
   /-- `conformance(K)` -/
   conformance : List Atom
   /-- `attest/6` -/
@@ -174,13 +172,10 @@ def contested_twice (c : Atom) : Bool :=
   db.attest.any fun a1 => a1.type == .divergence && a1.pred == .claim c &&
     db.attest.any fun a2 => a2.type == .divergence && a2.pred == .claim c && a1.id != a2.id
 
-/-- The two clauses of `to_ask/1`:
-`to_ask(Q) :- question(Q, C, _), current(C), depends(Q, P), defeated(P), not answered(Q).`
+/-- The clause of `to_ask/1` (D22: the clause of `depends/2` is gone with the fact):
 `to_ask(Q) :- question(Q, C, _), current(C), contested(C), not answered(Q).` -/
 def to_ask (q : Atom) : Bool :=
-  (db.question.any fun x => x.1 == q && current db x.2 &&
-    db.depends.any (fun d => d.1 == q && defeated db d.2) && !answered db q) ||
-  (db.question.any fun x => x.1 == q && current db x.2 && contested db x.2 && !answered db q)
+  db.question.any fun x => x.1 == q && current db x.2 && contested db x.2 && !answered db q
 
 /-- `any_to_ask :- to_ask(_).` `to_ask(Q)` needs `question(Q, _, _)`, so the
 search over the question ids is exact (`any_to_ask_iff`). -/
@@ -416,12 +411,12 @@ theorem any_to_ask_iff : any_to_ask db = true ↔ ∃ q, to_ask db q = true := b
     exact ⟨_, hx⟩
   · rintro ⟨q, hq⟩
     have hq' := hq
-    simp only [to_ask, Bool.or_eq_true, Bool.and_eq_true, List.any_eq_true,
-      beq_iff_eq] at hq'
+    simp only [to_ask, Bool.and_eq_true, List.any_eq_true, beq_iff_eq] at hq'
+    obtain ⟨x, hx, hxq⟩ := hq'
     simp only [any_to_ask, List.any_eq_true]
-    rcases hq' with ⟨x, hx, ⟨⟨rfl, _⟩, _⟩, _⟩ | ⟨x, hx, ⟨⟨rfl, _⟩, _⟩, _⟩
-    · exact ⟨x, hx, hq⟩
-    · exact ⟨x, hx, hq⟩
+    have h1 : x.1 = q := hxq.1.1.1
+    subst h1
+    exact ⟨x, hx, hq⟩
 
 /-- `derive` adds `proof_changed(A)` exactly for the `lean_proof` attestations
 whose disk state is not `ok`. -/
