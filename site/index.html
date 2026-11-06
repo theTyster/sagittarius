@@ -1530,6 +1530,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <p>The source is <code>docs/PHILOSOPHY.md</code>: "The bet" and principles 7 and 10. The slides that describe the prompt itself wait for the small prompt (T08).</p>
 </section>
 
+<!-- T16: recheck after T07 fixes -->
 <section class="slide" id="s32" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-speech"/></svg>32 of 35 · The redesign</div>
   <h2>System 1: the hook and the Jev client</h2>
@@ -1557,6 +1558,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   </div>
 </section>
 
+<!-- T16: recheck after T07 fixes -->
 <section class="slide" id="s34" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-box"/></svg>34 of 35 · The redesign</div>
   <h2>The hub kit</h2>
@@ -1572,17 +1574,19 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 <section class="slide" id="s35" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-db"/></svg>35 of 35 · The redesign</div>
   <h2>The stores of the design</h2>
-  <p class="big">Each concern has one owning store. Other stores read through it, or pin a copy with a digest.</p>
+  <p class="big">This is a design, not built yet. Each concern has one owning store. Other stores read through it, or pin a copy with a digest.</p>
+  <p>Status comes from what has merged into the <code>redesign</code> branch. A store is "landed" if its ticket has merged, and "not built yet" if not.</p>
   <div class="tiles">
-    <div class="tile"><svg class="ic"><use href="#i-formal"/></svg><h3>Spec KB</h3><p class="muted">Claims, checks, questions and burns for one piece of work. It alone decides what blocks. Changes are in progress (T03).</p></div>
-    <div class="tile t-mid"><svg class="ic"><use href="#i-box"/></svg><h3>Project KB</h3><p class="muted">The relevant designs, bugs and features, the domain decisions, and a ticket capsule where the tracker lacks context. In progress (T06).</p></div>
-    <div class="tile"><svg class="ic"><use href="#i-db"/></svg><h3>Ledger</h3><p class="muted">A queryable record: a summary first, detail on request, the archive last. Transcripts are parsed into it. Held in the hub (T05, in progress).</p></div>
-    <div class="tile"><svg class="ic"><use href="#i-feather"/></svg><h3>Memory</h3><p class="muted">What every agent must know at the start: boot context, heuristics, technologies, and reusable bespoke tools.</p></div>
-    <div class="tile t-mid"><svg class="ic"><use href="#i-cal"/></svg><h3>Weeks</h3><p class="muted">The weekly reports and raw transcripts. They rotate out as the calendar moves.</p></div>
-    <div class="tile"><svg class="ic"><use href="#i-hammer"/></svg><h3>Bespoke tools</h3><p class="muted">Helper scripts, skills and small stores that agents add where nothing fits. They stay visible and can be pruned.</p></div>
-    <div class="tile t-amber"><svg class="ic"><use href="#i-path"/></svg><h3>Tracker</h3><p class="muted">The client system of record: tickets, checks, runs and the code. The hub reads from it and pins what it needs.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-formal"/></svg><h3>Spec KB</h3><p class="muted">Claims, checks, questions and burns for one piece of work. It alone decides what blocks. Status: the changes (T03) are not built yet.</p></div>
+    <div class="tile t-mid"><svg class="ic"><use href="#i-box"/></svg><h3>Project KB</h3><p class="muted">The relevant designs, bugs and features, the domain decisions, and a ticket capsule where the tracker lacks context. Status: not built yet (T06).</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-db"/></svg><h3>Ledger</h3><p class="muted">A queryable record: a summary first, detail on request, the archive last. Transcripts are parsed into it. Status: not built yet (T05).</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-feather"/></svg><h3>Memory</h3><p class="muted">What every agent must know at the start: boot context, heuristics, technologies, and reusable bespoke tools. Status: the boot files come with the landed hub kit (T01).</p></div>
+    <div class="tile t-mid"><svg class="ic"><use href="#i-cal"/></svg><h3>Weeks</h3><p class="muted">The weekly reports and raw transcripts. They rotate out as the calendar moves. Status: the calendar comes with the landed hub kit (T01); parsing transcripts into the ledger is not built yet.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-hammer"/></svg><h3>Bespoke tools</h3><p class="muted">Helper scripts, skills and small stores that agents add where nothing fits. They stay visible and can be pruned. Status: a convention only; no tool for it is built yet.</p></div>
+    <div class="tile t-amber"><svg class="ic"><use href="#i-path"/></svg><h3>Tracker</h3><p class="muted">The client system of record: tickets, checks, runs and the code. The hub reads from it and pins what it needs. Status: it is outside this repo.</p></div>
+    <div class="tile t-mid"><svg class="ic"><use href="#i-compass"/></svg><h3>Repo map</h3><p class="muted">The C4 map of a repo at levels C1 and C2, as Mermaid, made by <code>kb/bin/repo-map</code> from a project KB facts file and a containers file. Spec: <code>kb/share/repo-map/README.md</code>. Status: landed (T12).</p></div>
   </div>
-  <p><strong>Drafts only:</strong> tracker sync is drafts only. A command writes a Markdown block for a ticket, stamped with the digest of the spec KB, and a person posts it. Nothing writes to the tracker over a network (T11, in progress). The question view, <code>orbit-kb view questions</code>, is planned (T10).</p>
+  <p><strong>Drafts only:</strong> tracker sync is drafts only. A command would write a Markdown block for a ticket, stamped with the digest of the spec KB, and a person would post it. Nothing writes to the tracker over a network. Status: not built yet (T11). The question view, <code>orbit-kb view questions</code>, is not built yet either (T10).</p>
 </section>
 
 <p class="hint nojs" style="padding-inline:1.1rem;text-align:center">Without JavaScript, scroll.</p>
