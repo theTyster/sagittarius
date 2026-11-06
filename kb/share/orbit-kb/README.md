@@ -934,9 +934,10 @@ rules.
 The topics are plain files in `help/` beside this README: `core`, `build`,
 `discovery` (with one recipe for each move), `codes` (the lint codes), and
 `answers` (exit codes, `why`, and `whynot`). They exist so that an agent
-loads the syntax when a move needs it. The agent prompt
-(`prompt/SAGITTARIUS.md`) holds only the rules that come before the first
-command, and tells the agent to run `orbit-kb help`. Test HP4 to HP6 check
+loads the syntax and the recipe when a move needs it. The agent prompt
+(`prompt/SAGITTARIUS.md`) holds only the philosophy (T08): the procedure, with
+the steps of each move, is in these topics, and the prompt tells the agent to
+run `orbit-kb help`. Test HP4 to HP6 check
 the topics. Exit: 0. An unknown name exits 2.
 
 ### `pin [--check STAMP]`
