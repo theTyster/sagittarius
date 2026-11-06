@@ -65,9 +65,16 @@ def q(s):
     return "'" + str(s).replace("\\", "\\\\").replace("'", "''").replace("\n", "\\n") + "'"
 
 
+def refuse_real(what):
+    """Under a test runner a real claude or network call is a bug: fail loudly, reach nothing."""
+    if ("unittest" in sys.modules or "pytest" in sys.modules) and not os.environ.get("TEMPER_ALLOW_REAL"):
+        raise RuntimeError(f"real {what} call under a test runner: inject a fake (or set TEMPER_ALLOW_REAL=1)")
+
+
 def run_claude(prompt, model, system=SYSTEM):
     """A plain model call: no tools, no settings, no project context, an empty working directory.
     stdin is /dev/null (c2). Returns stdout, or "" if the child fails."""
+    refuse_real("claude")
     with tempfile.TemporaryDirectory() as empty:
         try:
             r = subprocess.run(["claude", "-p", "--model", model, "--system-prompt", system,
@@ -109,6 +116,8 @@ class Run:
         return self._call(role, model, lambda: self.claude(prompt, model), **info)
 
     def jev(self, state):
+        if self.transport is None:
+            refuse_real("Jev network")
         return self._call("judge", "jev", lambda: jev.judge(state, JQ, transport=self.transport, log_path=self.jev_log,
                                                               redactions=self.redactions))
 
@@ -173,11 +182,15 @@ def show(ps):
             "collapsed": ps["h_collapsed"], "faithful": ps["h_faithful"]}
 
 
+# The proposer is told what failed in plain words, never the judge question names.
+WHY_WORDS = {"j_contra": "the falsifier does not contradict it", "j_observable": "the falsifier cannot be observed"}
+
+
 def propose(run, statement, source, move, why=()):
     if move == "drop_assumption":
         hint = "The statement names " + ", ".join(w.replace("adds_", "a ") for w in why if w.startswith("adds_")) + " that the source does not. Remove it; keep the expected outcome."
     elif why:
-        hint = "The statement does not tell a faulty system from a correct one (" + ", ".join(why) + "). Name the outcome the source expects more exactly, so that a correct system would make the statement false."
+        hint = "The statement does not tell a faulty system from a correct one (" + ", ".join(WHY_WORDS.get(w, w) for w in why) + "). Name the outcome the source expects more exactly, so that a correct system would make the statement false."
     else:
         hint = "The statement is acceptable. Make its conclusion stronger by one step: say more exactly which outcome is expected and which facts should decide it. Do not say why it fails, how the system works inside, where data is stored, or how to fix it."
     return run.model("proposer", "haiku",

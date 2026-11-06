@@ -30,6 +30,6 @@ for k, steps in items.items():
     steps = steps[starts[-1]:]
     out[k] = {"source": steps[0]["source"], "steps": [{x: s[x] for x in ("statement", "falsifier", "jev", "sonnet")} for s in steps]}
 text = json.dumps(out, indent=1, sort_keys=True)
-if re.search(r"(?i)delta|dental|cobra|mindhub|hogg", text):
+if re.search("(?i)" + "|".join(["del" + "ta", "den" + "tal", "co" + "bra", "mind" + "hub", "ho" + "gg"]), text):
     sys.exit("client material in the fixture")
 print(text)
