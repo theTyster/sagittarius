@@ -29,6 +29,7 @@ import jev  # noqa: E402
 DEFAULT_TIMEOUT = 4.0
 GRACE = 0.5  # seconds past the timeout before the hook stops waiting for the call
 RECENT_MAX = 600
+TAIL_BYTES = 2 * 1024 * 1024  # only the end of the transcript is read
 REDACTED = "[redacted]"
 CHOICE_MIN = 0.5  # a choice is shown when P(choice) >= 0.5, as in the calibration
 
@@ -52,15 +53,28 @@ def load_redactions(path):
     return [(n, REDACTED) for n in names if n and not n.startswith("#")]
 
 
+def _tail_lines(path, size=TAIL_BYTES):
+    """The lines in the last `size` bytes of a file, decoded with errors="replace".
+    The first line is dropped when the read starts mid-file (it is likely cut)."""
+    with open(path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        end = f.tell()
+        start = max(0, end - size)
+        f.seek(start)
+        data = f.read(end - start)
+    lines = data.decode("utf-8", errors="replace").splitlines()
+    return lines[1:] if start > 0 else lines
+
+
 def last_agent_message(path):
     """The text of the last assistant message in a transcript JSONL, or "".
-    One message is spread over several lines (one per content block) that share message.id;
-    their text blocks are joined. Subagent (sidechain) lines are skipped."""
+    Only the last TAIL_BYTES are read. One message is spread over several lines (one per
+    content block) that share message.id; their text blocks are joined. Subagent (sidechain)
+    lines are skipped."""
     if not path:
         return ""
     try:
-        with open(path, encoding="utf-8") as f:
-            raw = f.read().splitlines()
+        raw = _tail_lines(path)
     except OSError:
         return ""
     found = []  # (message id, [texts]) for assistant lines that hold text
@@ -153,39 +167,59 @@ def format_answers(answers, questions):
     return ("System 1: " + "; ".join(parts)) if parts else ""
 
 
+def _skip(log_path, key, reason, extra=None, **fields):
+    """One log line that says why the hook made no call or printed nothing. No key."""
+    rec = {"time": jev._now(), "skipped": reason}
+    rec.update(fields)
+    rec.update(extra or {})
+    jev._log(log_path, key, rec)
+
+
 def run(raw, env, transport=None):
     """The hook's stdout for stdin text raw: a JSON hook result, or "" for nothing.
-    Never raises."""
+    Never raises. Every skip except S1_OFF writes one log line with the reason."""
+    if env.get("S1_OFF", "").strip() not in ("", "0"):
+        return ""
+    log_path = env.get(jev.LOG_ENV) or jev.DEFAULT_LOG
+    key = env.get(jev.KEY_ENV) or ""
+    extra = {}
     try:
-        if env.get("S1_OFF", "").strip() not in ("", "0"):
+        try:
+            payload = json.loads(raw)
+        except ValueError as e:
+            _skip(log_path, key, f"stdin: not JSON ({e})")
             return ""
-        payload = json.loads(raw)
         if not isinstance(payload, dict) or not isinstance(payload.get("prompt"), str):
-            return ""
-        with open(env.get("S1_QUESTIONS") or os.path.join(HERE, "questions.json"),
-                  encoding="utf-8") as f:
-            questions = json.load(f)
-        if not isinstance(questions, dict) or not questions:
+            _skip(log_path, key, "stdin: no prompt")
             return ""
         tpath = payload.get("transcript_path")
         tpath = tpath if isinstance(tpath, str) else ""
         extra = {"session_id": payload.get("session_id"),
                  "transcript": os.path.basename(tpath) or None}
-        state = build_state(payload["prompt"],
-                            tpath, load_redactions(env.get("S1_REDACT") or os.path.join(HERE, "redact.txt")))
+        try:
+            with open(env.get("S1_QUESTIONS") or os.path.join(HERE, "questions.json"),
+                      encoding="utf-8") as f:
+                questions = json.load(f)
+            if not isinstance(questions, dict) or not questions:
+                raise ValueError("not a non-empty object")
+        except (OSError, ValueError) as e:
+            _skip(log_path, key, f"questions: {type(e).__name__}: {e}", extra)
+            return ""
+        redact_path = env.get("S1_REDACT") or os.path.join(HERE, "redact.txt")
         timeout = _timeout(env)
-        log_path = env.get(jev.LOG_ENV) or jev.DEFAULT_LOG
-        key = env.get(jev.KEY_ENV) or ""
         if not key:  # judge would fall back to os.environ; the hook reads only env
-            jev._log(log_path, None, {"time": jev._now(), "model": jev.DEFAULT_MODEL,
-                                      "questions": list(questions), "state": state,
-                                      "answers": None, "latency": 0.0, "usage": None,
-                                      "error": f"RuntimeError: missing API key (${jev.KEY_ENV})",
-                                      **extra})
+            _skip(log_path, None, "no API key", extra, model=jev.DEFAULT_MODEL,
+                  questions=list(questions), answers=None, latency=0.0, usage=None,
+                  error=f"RuntimeError: missing API key (${jev.KEY_ENV})")
             return ""
         box = {}
 
-        def call():
+        def call():  # the transcript read and the request both run inside the timeout
+            try:
+                state = build_state(payload["prompt"], tpath, load_redactions(redact_path))
+            except Exception as e:
+                box["error"] = f"state: {type(e).__name__}: {e}"
+                return
             box["answers"] = jev.judge(state, questions, timeout=timeout, key=key,
                                        log_path=log_path, transport=transport, log_extra=extra)
 
@@ -193,21 +227,28 @@ def run(raw, env, transport=None):
         t.start()
         t.join(timeout + GRACE)
         if t.is_alive():
-            jev._log(log_path, key, {"time": jev._now(), "model": jev.DEFAULT_MODEL,
-                                     "questions": list(questions), "state": state,
-                                     "answers": None, "latency": timeout + GRACE, "usage": None,
-                                     "error": f"timeout: the hook stopped waiting after "
-                                              f"{timeout + GRACE}s", **extra})
+            _skip(log_path, key, f"timeout: the hook stopped waiting after {timeout + GRACE}s",
+                  extra, model=jev.DEFAULT_MODEL, questions=list(questions),
+                  latency=timeout + GRACE, error=f"timeout: after {timeout + GRACE}s")
+            return ""
+        if "error" in box:
+            _skip(log_path, key, box["error"], extra)
             return ""
         answers = box.get("answers")
         if not answers:
+            _skip(log_path, key, "no answers (the call's line has the error)", extra)
             return ""
-        line = format_answers(answers, questions)
+        try:
+            line = format_answers(answers, questions)
+        except Exception as e:
+            _skip(log_path, key, f"bad answers: {type(e).__name__}: {e}", extra)
+            return ""
         if not line:
             return ""
         return json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
                                                   "additionalContext": line}})
-    except Exception:
+    except Exception as e:
+        _skip(log_path, key, f"error: {type(e).__name__}: {e}", extra)
         return ""
 
 

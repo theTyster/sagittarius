@@ -75,6 +75,9 @@ Set `S1_OFF=1`: for one session, start it with `S1_OFF=1 claude`; for all sessio
 
 Each log line is the `jev.py` record (no key; the state after redaction) plus `session_id` and
 `transcript` (the basename of the transcript path).
+When the hook makes no call or prints nothing because of a problem (bad stdin, no
+questions, no key, a timeout, no answers, bad answers), it writes one line with a `skipped`
+reason. `S1_OFF=1` writes nothing. The hook reads only the last 2 MB of the transcript.
 
 Tests (no network): `python3 -m unittest s1.test_hook -v` from the repo root. One claim alone:
 `python3 -m unittest s1.test_hook.C3FailOpen -v`.
