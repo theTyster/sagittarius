@@ -3058,9 +3058,20 @@ view_kind_label(no_claim, "No current claim").
 view_kind_label(check_failing, "Check that failed").
 view_kind_label(check_unrun, "Check that never ran").
 view_kind_label(waiver_lapsed, "Waiver that lapsed").
+view_kind_label(project_conflict, "Draft that conflicts with the tracker").
+view_kind_label(project_kb_unclean, "Project KB that does not load clean").
+
+% view_blocking_sentence(+Eng, +Item, -Text) (T18 c4): the sentence of show blocking for Item,
+% the text after "- KIND ID: " (or "- KIND: "). The project kinds (D23 P5, P8) use it.
+view_blocking_sentence(Eng, Item, Text) :-
+    blocking_line(_, Eng, Item, Line0),
+    atom_string(Line0, Line),
+    (   sub_string(Line, B, 2, _, ": ") -> S is B + 2, sub_string(Line, S, _, 0, Text)
+    ;   Text = Line
+    ).
 
 view_item_html(Eng, Item, Html) :-
-    (   Item == no_claim -> Kind = no_claim, Id = ''
+    (   atom(Item) -> Kind = Item, Id = ''
     ;   Item =.. [Kind, Id]
     ),
     (   view_kind_label(Kind, Label) -> true ; Label = "Blocking item" ),
@@ -3073,10 +3084,12 @@ view_item_html(Eng, Item, Html) :-
         )
     ;   Kind == no_claim
     ->  Text = "Add a claim; the work is not done without one."
+    ;   memberchk(Kind, [project_conflict, project_kb_unclean])
+    ->  view_blocking_sentence(Eng, Item, Text)
     ;   view_xtext(Eng, Id, Text),
         ( view_xclaim(Eng, Id, Cl) -> true ; true )
     ),
-    (   Kind == no_claim -> Ref = "", Plain = Text
+    (   Id == '' -> Ref = "", Plain = Text
     ;   view_ref(Id, Text, Ref0), format(string(Ref), "~w", [Ref0]), Plain = ""
     ),
     esc(Label, LabelH), esc(Plain, PlainH),
