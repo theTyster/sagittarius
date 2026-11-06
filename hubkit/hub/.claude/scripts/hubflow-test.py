@@ -9,6 +9,7 @@ usage: python3 -I hubflow-test.py [--mutants] [--case NAME ...]
              needs another one's db (case_sql, case_state need case_basic) brings it along.
 Check names of the T05 ledger claims start with their claim id: c1- triage, c2- escalate,
 c3- capsule, c4- transcripts, c5- skip, c6- asks; schema- is the v1 -> v2 migration.
+Check names of the T28 claims (meeting transcripts) start with t28-c1- .. t28-c4-.
 Every scenario seeds its db from a seed file written into the temp dir (SEED_DATA below).
 Prints `PASS name` or `FAIL name: why` per case (`SKIP name: why` for a check that cannot run
 here, not counted); the last line is `N passed, M failed`.
@@ -25,7 +26,8 @@ WRITE_CMDS = ("init", "migrate", "add", "handoff", "accept", "renew", "park", "s
               "note", "session", "import", "rotate", "rebuild", "export", "triage", "capsule", "index-transcripts",
               "spec-triage")
 # Tables added by schema 2 (T05). The JSONL checks below cover them when the db has them.
-NEW_TABLES = ("disposition", "capsule", "transcript", "transcript_msg")
+# Tables added by schema 3 (T28): meeting transcripts.
+NEW_TABLES = ("disposition", "capsule", "transcript", "transcript_msg", "meeting", "meeting_turn")
 
 SEED_DATA = {
     "sessions": [{"name": n, "role": n} for n in ("discovery", "build", "process", "support")],
@@ -1938,6 +1940,206 @@ def case_t24_no_orbit_kb(r, root):
     r.check("t24-c2-check-exit-0", code == 0, (code, out, err))
 
 
+# ---- T28: meeting transcripts (Markdown and plain text) in the ledger ----
+
+LONG_TURN = "I write the measurement plan by Friday. " * 6 + "The spare gearbox is in bay seven."
+WIDGET_SYNC = "\n".join([
+    "# Widget sorter sync",                                                              # 1
+    "",                                                                                  # 2
+    "Date: 2026-11-03",                                                                  # 3
+    "Attendees: Robin Example, Sam Sample",                                              # 4
+    "",                                                                                  # 5
+    "**Robin Example:** Welcome. Today we look at the widget sorter bins.",              # 6
+    "It still drops blue widgets.",                                                      # 7
+    "",                                                                                  # 8
+    "Sam Sample: The conveyor belt runs too fast for the blue bin.",                     # 9
+    "[00:04:10] Robin Example: Then we slow the CONVEYOR to half speed and measure again.",  # 10
+    "",                                                                                  # 11
+    "## Actions",                                                                        # 12
+    "",                                                                                  # 13
+    "Sam Sample: " + LONG_TURN,                                                          # 14
+]) + "\n"
+GADGET_NOTES = "\n".join([
+    "Gadget feeder notes 2026-11-04",                                                    # 1
+    "",                                                                                  # 2
+    "The feeder jams when the hopper is more than half full.",                           # 3
+    "Nobody has measured the jam rate yet.",                                             # 4
+    "",                                                                                  # 5
+    "Next step: count the jams for one shift.",                                          # 6
+    "",                                                                                  # 7
+    "Note: the hopper lid is cracked.",                                                  # 8
+]) + "\n"
+WIDGET_TURNS = [(1, 6, "Robin Example", "Welcome. Today we look at the widget sorter bins. It still drops blue widgets."),
+                (2, 9, "Sam Sample", "The conveyor belt runs too fast for the blue bin."),
+                (3, 10, "Robin Example", "Then we slow the CONVEYOR to half speed and measure again."),
+                (4, 14, "Sam Sample", LONG_TURN)]
+GADGET_PARAS = [(1, 3, None, "The feeder jams when the hopper is more than half full. Nobody has measured the jam rate yet."),
+                (2, 6, None, "Next step: count the jams for one shift."),
+                (3, 8, None, "Note: the hopper lid is cracked.")]
+WS_PATH, GN_PATH = "W0/transcripts/widget-sync.md", "W0/transcripts/gadget-notes.txt"
+
+
+def write_text(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    return path
+
+
+def meeting_fixture(h, jsonl=True):
+    """Two invented meeting transcripts (one .md with marked speakers, one .txt with none) in
+    W0/transcripts/, a report that is not a transcript, and (jsonl) the two Claude Code ones."""
+    if jsonl:
+        transcript_fixture(h)
+    write_text(os.path.join(h, WS_PATH), WIDGET_SYNC)
+    write_text(os.path.join(h, GN_PATH), GADGET_NOTES)
+    write_text(os.path.join(h, "W0", "reports", "status.md"), "# Status\n\nRobin Example: not a transcript.\nSam Sample: a report.\n")
+
+
+def meeting_rows(d):
+    return qs(d, "select path, title, date, speakers, turns from meeting order by path")
+
+
+def meeting_id(d, path):
+    got = qs(d, "select id from meeting where path = ?", path)
+    return got[0][0] if got else None
+
+
+def turn_rows(d, path):
+    return qs(d, "select t.n, t.line, t.speaker, t.text from meeting_turn t join meeting m on m.id = t.meeting_id"
+                 " where m.path = ? order by t.n", path)
+
+
+def case_t28_index(r, root):
+    """T28 c1: index-transcripts also indexes the .md and .txt meeting transcripts in W*/transcripts/:
+    one summary per file, one row per speaker turn (or per paragraph), each with its line."""
+    h = os.path.join(root, "t28-index")
+    meeting_fixture(h, jsonl=False)
+    d = fresh(r, root, "t28-index")
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    r.check("t28-c1-index-exit-0-counts-meetings", res[0] == 0 and "2 meeting" in res[1], res)
+    r.check("t28-c1-one-summary-per-file", meeting_rows(d) == [
+        (GN_PATH, "Gadget feeder notes 2026-11-04", "2026-11-04", None, 3),
+        (WS_PATH, "Widget sorter sync", "2026-11-03", "Robin Example, Sam Sample", 4)], meeting_rows(d))
+    fl = qs(d, "select path, first_lines from meeting order by path")
+    r.check("t28-c1-summary-first-lines", len(fl) == 2 and "The feeder jams when the hopper" in (fl[0][1] or "")
+            and "Welcome. Today we look at the widget sorter bins." in (fl[1][1] or "")
+            and all(len(x[1] or "") <= 200 for x in fl), fl)
+    r.check("t28-c1-one-row-per-speaker-turn", turn_rows(d, WS_PATH) == WIDGET_TURNS, turn_rows(d, WS_PATH))
+    r.check("t28-c1-one-row-per-paragraph", turn_rows(d, GN_PATH) == GADGET_PARAS, turn_rows(d, GN_PATH))
+    r.check("t28-c1-reports-not-indexed", not qs(d, "select 1 from meeting where path like '%reports%'"))
+    snap, files = snapshot(d), jl_bytes(d)
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    r.check("t28-c1-rerun-is-idempotent", res[0] == 0 and snapshot(d) == snap and jl_bytes(d) == files, res)
+    with open(os.path.join(h, GN_PATH), "a", encoding="utf-8") as f:
+        f.write("\nA later paragraph about the feeder.\n")
+    old = meeting_id(d, GN_PATH)
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    r.check("t28-c1-rerun-follows-an-edit", res[0] == 0 and len(meeting_rows(d)) == 2
+            and [x[1] for x in turn_rows(d, GN_PATH)] == [3, 6, 8, 10]
+            and old is not None and meeting_id(d, GN_PATH) != old
+            and not qs(d, "select 1 from meeting_turn where meeting_id = ?", old), (res, meeting_rows(d), turn_rows(d, GN_PATH)))
+    r.check("t28-c1-check-clean", hf(r, d, "check")[0] == 0)
+
+
+def case_t28_levels(r, root):
+    """T28 c2: the three levels for a meeting: the list, --detail ID, then the file itself."""
+    h = os.path.join(root, "t28-levels")
+    meeting_fixture(h)
+    d = fresh(r, root, "t28-levels")
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    code, out, err = hf(r, d, "transcripts", "--format", "json", hub=h)
+    v = js(out) or []
+    meets = [x for x in v if isinstance(x, dict) and x.get("kind") == "meeting"]
+    sess = [x.get("session_id") for x in v if isinstance(x, dict) and x.get("kind") != "meeting"]
+    r.check("t28-c2-list-has-sessions-and-meetings", code == 0 and sess == ["sess-one", "sess-two"]
+            and sorted(x.get("path") for x in meets) == [GN_PATH, WS_PATH], (res, out[:600], err))
+    ws = ([x for x in meets if x.get("path") == WS_PATH] or [{}])[0]
+    r.check("t28-c2-list-summary-fields", ws.get("title") == "Widget sorter sync" and ws.get("date") == "2026-11-03"
+            and ws.get("speakers") == "Robin Example, Sam Sample" and ws.get("turns") == 4 and ws.get("id"), ws)
+    code, out, err = hf(r, d, "transcripts", hub=h)
+    r.check("t28-c2-list-md", code == 0 and "| session_id |" in out and "Widget sorter sync" in out and WS_PATH in out, out[:800] + err)
+    mid = ws.get("id") or "no-id"
+    code, out, err = hf(r, d, "transcripts", "--detail", mid, hub=h)
+    r.check("t28-c2-detail-summary-then-turns", code == 0 and "Widget sorter sync" in out and "| line |" in out
+            and "Then we slow the CONVEYOR" in out and out.index("Widget sorter sync") < out.index("Then we slow"), out[:800] + err)
+    r.check("t28-c2-detail-cuts-each-turn-to-200", LONG_TURN[:200] in out and LONG_TURN[:201] not in out, out[-600:])
+    code, out, err = hf(r, d, "transcripts", "--detail", mid, "--format", "json", hub=h)
+    v = js(out) or {}
+    turns = [(x.get("n"), x.get("line"), x.get("speaker"), x.get("text")) for x in v.get("turns", [])]
+    r.check("t28-c2-detail-json", code == 0 and (v.get("meeting") or {}).get("path") == WS_PATH
+            and turns == WIDGET_TURNS[:3] + [(4, 14, "Sam Sample", LONG_TURN[:200])], out[:800] + err)
+    r.check("t28-c2-the-file-itself", os.path.isfile(os.path.join(h, (v.get("meeting") or {}).get("path") or "nope")))
+    r.check("t28-c2-session-detail-unchanged", hf(r, d, "transcripts", "--detail", "sess-one", hub=h)[0] == 0)
+    r.check("t28-c2-detail-unknown-refused", refused(hf(r, d, "transcripts", "--detail", "widget-nope", hub=h), 1))
+
+
+def case_t28_grep(r, root):
+    """T28 c3: transcripts --grep TEXT returns the matching turns with their file and line."""
+    h = os.path.join(root, "t28-grep")
+    meeting_fixture(h)
+    d = fresh(r, root, "t28-grep")
+    hf(r, d, "index-transcripts", "W0", hub=h)
+
+    def grep(*a):
+        code, out, err = hf(r, d, "transcripts", "--grep", *a, "--format", "json", hub=h)
+        v = js(out)
+        return code, ([(x.get("path"), x.get("line"), x.get("speaker")) for x in v] if isinstance(v, list) else None), out + err
+
+    code, got, raw = grep("conveyor")
+    r.check("t28-c3-grep-turns-with-file-and-line", code == 0 and got == [(WS_PATH, 9, "Sam Sample"), (WS_PATH, 10, "Robin Example")], raw[:600])
+    v = js(hf(r, d, "transcripts", "--grep", "conveyor", "--format", "json", hub=h)[1]) or [{}]
+    r.check("t28-c3-grep-row-has-id-and-text", isinstance(v, list) and v and v[0].get("id") and "conveyor belt" in (v[0].get("text") or ""), v)
+    code, got, raw = grep("gearbox")
+    r.check("t28-c3-grep-finds-a-word-past-200", code == 0 and got == [(WS_PATH, 14, "Sam Sample")], raw[:600])
+    gv = js(hf(r, d, "transcripts", "--grep", "gearbox", "--format", "json", hub=h)[1]) or [{}]
+    r.check("t28-c3-grep-text-shows-the-match", isinstance(gv, list) and gv and "gearbox" in (gv[0].get("text") or "")
+            and len(gv[0].get("text") or "") <= 200, gv)
+    code, got, raw = grep("HOPPER")
+    r.check("t28-c3-grep-paragraphs-any-case", code == 0 and got == [(GN_PATH, 3, None), (GN_PATH, 8, None)], raw[:600])
+    code, got, raw = grep("no-such-word")
+    r.check("t28-c3-grep-no-match-no-rows", code == 0 and got == [], raw[:300])
+    code, out, err = hf(r, d, "transcripts", "--grep", "conveyor", hub=h)
+    r.check("t28-c3-grep-md", code == 0 and "| path |" in out and "| line |" in out and WS_PATH in out, out[:600] + err)
+    gid = meeting_id(d, GN_PATH) or "no-id"
+    code, got, raw = grep("conveyor", "--detail", gid)
+    r.check("t28-c3-grep-within-one-meeting", code == 0 and got == [], raw[:300])
+
+
+def case_t28_rotate(r, root):
+    """T28 c4: rotate --yes rebuilds the week transcript index from the week dirs on disk; a
+    retired week's rows go with it."""
+    h = os.path.join(root, "t28-rotate")
+    meeting_fixture(h)
+    write_text(os.path.join(h, "W5", "transcripts", "old-review.md"),
+               "# Old review\n\nRobin Example: An old point about pallets.\nSam Sample: Agreed.\n")
+    write_text(os.path.join(h, "W5", "transcripts", "old.jsonl"), json.dumps(
+        {"type": "user", "sessionId": "sess-old", "timestamp": "2026-09-28T09:00:00Z",
+         "message": {"role": "user", "content": "An old session."}}) + "\n")
+    d = fresh(r, root, "t28-rotate")
+    hf(r, d, "index-transcripts", "W0", hub=h)
+    hf(r, d, "index-transcripts", "W5", hub=h)
+    ws_id = meeting_id(d, WS_PATH)
+    before = len(qs(d, "select 1 from meeting"))
+    # the mechanical rename (rotate.sh): retire W5 (git rm), then W0 -> W1
+    shutil.rmtree(os.path.join(h, "W5"))
+    os.rename(os.path.join(h, "W0"), os.path.join(h, "W1"))
+    snap = snapshot(d)
+    res = hf(r, d, "rotate", "--week-start", WK, hub=h, session=None)
+    r.check("t28-c4-dry-run-writes-nothing", res[0] == 0 and snapshot(d) == snap, res)
+    res = hf(r, d, "rotate", "--week-start", WK, "--yes", hub=h)
+    paths = [x[0] for x in qs(d, "select path from meeting order by path")]
+    r.check("t28-c4-rotate-yes-exit-0", res[0] == 0, res)
+    r.check("t28-c4-moved-meetings-get-new-paths", before == 3 and paths == ["W1/transcripts/gadget-notes.txt", "W1/transcripts/widget-sync.md"]
+            and meeting_id(d, "W1/transcripts/widget-sync.md") == ws_id, (before, paths))
+    r.check("t28-c4-retired-week-meeting-rows-gone", not qs(d, "select 1 from meeting where path like 'W5/%'")
+            and not qs(d, "select 1 from meeting_turn where text like '%pallets%'"), qs(d, "select * from meeting"))
+    sess = qs(d, "select session_id, path from transcript order by session_id")
+    r.check("t28-c4-retired-week-session-rows-gone", sess == [("sess-one", "W1/transcripts/one.jsonl"), ("sess-two", "W1/transcripts/two.jsonl")], sess)
+    r.check("t28-c4-turns-follow", [x[1] for x in turn_rows(d, "W1/transcripts/widget-sync.md")] == [6, 9, 10, 14])
+    r.check("t28-c4-check-clean", hf(r, d, "check", hub=h)[0] == 0)
+
+
 def run_case(r, fn, *args):
     """Run one scenario. A scenario that cannot even run is a failure, not a crash, and the
     scenarios after it still run."""
@@ -2000,6 +2202,11 @@ def cases(r):
         run_case(r, case_t22_closed_spec, root)
         # T24: the informal release (no orbit-kb)
         run_case(r, case_t24_no_orbit_kb, root)
+        # T28: meeting transcripts
+        run_case(r, case_t28_index, root)
+        run_case(r, case_t28_levels, root)
+        run_case(r, case_t28_grep, root)
+        run_case(r, case_t28_rotate, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))
