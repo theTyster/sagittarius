@@ -83,6 +83,21 @@ and "Panes" no longer name `sessions/`).
   its rename. Check: `hubflow.py index-transcripts W0`, then `hubflow.py transcripts` lists each
   meeting file of `W0/transcripts/`.
 
+- **A hub knows its edition (T32).** Intent: an informal hub loads only informal rules (the five
+  stores and their commands; no spec KB, project KB or formal tool). `hubkit.py install --edition
+  informal|formal` (default: informal when `orbit-kb` is not on the PATH, else formal) records the
+  edition in `.hub-template.json`, and an upgrade keeps it. A hub made before has no edition
+  recorded: it is formal, keeps its text, and the upgrade records `formal`. Files: `tools/hubkit.py`,
+  `kit.json` (`editions`), `editions/informal/` (the informal `HUB-CORE.md`, `CLAUDE.md` and the two
+  `SKILL.md`), `HUB-CORE.md` (the informal store map now has every fact kind, in the columns Fact
+  kind, Informal home, How), `PRINCIPLES.md` (three principles added), `flow/seed.json` (a `review`
+  session; owned, so an existing hub adds it with `hubflow.py session add review --role review` if
+  it wants one). To switch an existing hub to the informal edition:
+  `python3 "$KIT"/tools/hubkit.py edition --hub "$HUB" informal`, then again with `--yes`; merge
+  each pending file by intent, and rewrite `CLAUDE.md` by hand from `editions/informal/CLAUDE.md`
+  (an owned file: the switch never writes it). Check: `hubkit.py edition --hub "$HUB"` prints the
+  edition, and `hubkit.py status` names it.
+
 ### 0.3.0 (agents know the stores and the workflow)
 
 No schema change. `HUB-CORE.md` is an engine file: merge it by intent (the new sections are "What

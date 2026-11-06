@@ -5,11 +5,11 @@ usage: python3 docs/check_informal_release.py c1|c2|c3|c4|c5|c6
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 c1 runs the install of hubkit/README.md (its "## Install" sh block) in a scratch dir, with a PATH
-   that has no swipl, lean, lake, elan or orbit-kb (a dir of links to every other tool on PATH),
-   then runs the hub's own tests in the new hub with that PATH.
+   of exactly the tools that README lists (T32 c6: python3, git, bash and the backticked tools of
+   its POSIX paragraph; a dir of links), then runs the hub's own tests in the new hub with that PATH.
 c2 runs hubflow-test.py --case case_t24_no_orbit_kb (HUBFLOW_ORBIT_KB unset, no orbit-kb on PATH),
    reads HUB-CORE.md "Without orbit-kb", and compares its informal store map with the fact kinds of
-   hubkit/tools/store-facts.json that the spec or the project store owns. store-facts.json is the
+   hubkit/tools/store-facts.json (all of them since T32 c3). store-facts.json is the
    design KB's export; check_hub_guidance.py c1 keeps it equal to the design KB, and c2 runs it.
 c4 also upgrades a hub made from the 0.3.0 kit (git archive 4d0c5bc) to this kit, and runs the
    UPGRADING.md command that keeps the hub's own sessions/launch.sh.
@@ -107,19 +107,17 @@ def run(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, **kw)
 
 
-def formal_free_bin(where):
-    """A dir of links to every tool on PATH except the formal tools. Returns its path."""
+def readme_bin(where, inst):
+    """T32 c6: a dir of links to exactly the tools that the README's Install section lists."""
+    paras = [p for p in re.split(r"\n\s*\n", inst) if "POSIX" in p]
+    tools = ["python3", "git", "bash"] + (re.findall(r"`([a-z0-9]+)`", paras[0]) if paras else [])
     b = os.path.join(where, "bin")
     os.makedirs(b)
-    for d in os.environ.get("PATH", "").split(os.pathsep):
-        if not d or not os.path.isdir(d):
-            continue
-        for n in os.listdir(d):
-            if n.startswith("swipl") or n in FORMAL_TOOLS or os.path.exists(os.path.join(b, n)):
-                continue
-            p = os.path.join(d, n)
-            if os.path.isfile(p) and os.access(p, os.X_OK):
-                os.symlink(p, os.path.join(b, n))
+    for t in tools:
+        p = shutil.which(t)
+        if p:
+            os.symlink(p, os.path.join(b, t))
+    print("c1: PATH tools: " + " ".join(tools))
     return b
 
 
@@ -158,7 +156,7 @@ def c1():
     if len(blocks) != 1:
         return
     with tempfile.TemporaryDirectory(prefix="t24-c1-") as t:
-        b = formal_free_bin(t)
+        b = readme_bin(t, inst)
         for tool in FORMAL_TOOLS:
             check(f"c1 {tool} is not on the scratch PATH", shutil.which(tool, path=b) is None, shutil.which(tool, path=b))
         check("c1 python3 and git are on the scratch PATH", shutil.which("python3", path=b) and shutil.which("git", path=b), b)
@@ -192,22 +190,24 @@ def c2():
     for s in INFORMAL:
         check(f"c2 'Without orbit-kb' names the store {s}", f"`{s}`" in sec, "missing")
     facts = json.loads(read(FACTS) or "{}")
-    want = {f["name"]: f["owner"] for f in facts.get("facts", []) if f["owner"] in ("spec", "project")}
-    check("c2 store-facts.json has fact kinds owned by spec or project", len(want) >= 1, want)
+    # T32 c3 widened the map: every fact kind of the design (not only those that spec or project
+    # owns) has an informal home or is not kept, and the Owner column left the table (an informal
+    # hub loads it, and must not name the formal stores).
+    want = {f["name"]: f["owner"] for f in facts.get("facts", [])}
+    check("c2 store-facts.json has fact kinds owned by spec or project", any(o in ("spec", "project") for o in want.values()), want)
     rows = table(sec, "Fact kind")
-    check("c2 the informal map exists (Fact kind | Owner | Informal home | How)", rows is not None and rows and len(rows[0]) == 4, rows)
+    check("c2 the informal map exists (Fact kind | Informal home | How)", rows is not None and rows and len(rows[0]) == 3, rows)
     if rows:
         got = {r[0].strip("`"): r for r in rows}
-        check("c2 the map has exactly the fact kinds that spec or project owns", set(got) == set(want),
+        check("c2 the map has exactly the fact kinds of the design", set(got) == set(want),
               (sorted(set(want) - set(got)), sorted(set(got) - set(want))))
         for k, owner in want.items():
             r = got.get(k)
-            if not r:
+            if not r or len(r) != 3:
                 continue
-            check(f"c2 {k}: owner as in store-facts.json", r[1].strip("`") == owner, (r[1], owner))
-            home = r[2].strip("`")
+            home = r[1].strip("`")
             check(f"c2 {k}: a home in the five informal stores, or not kept", home in INFORMAL + ("not kept",), home)
-            check(f"c2 {k}: says how", len(r[3]) > 10, r[3])
+            check(f"c2 {k}: says how", len(r[2]) > 10, r[2])
     g = run([sys.executable, os.path.join(ROOT, "docs", "check_hub_guidance.py"), "c1"])
     check("c2 store-facts.json agrees with the design KB and HUB-CORE.md (check_hub_guidance.py c1)", g.returncode == 0, g.stdout[-300:])
     s = run([sys.executable, "-I", os.path.join(KITDIR, "tools", "storemap.py"), "--check"])

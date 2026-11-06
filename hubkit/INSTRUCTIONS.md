@@ -1,7 +1,8 @@
 # Instructions for the agent: set up a hub with the hub kit
 
 This is the hub kit, part of Sagittarius (<https://github.com/theTyster/sagittarius>): its informal
-release. It needs Python 3 and git, no Prolog and no Lean.
+release. It needs Python 3, git and bash (`README.md`, "Install", lists the tools), and no formal
+tools.
 
 You are setting up a **hub**: a git repo that a few long-lived Claude Code sessions share as their
 working memory. Read this whole file before you do anything. Do the steps in order. Each step ends
@@ -24,20 +25,20 @@ files.
    the next rotation it gets a recorded decision (keep, lapse, capsule or escalate), never a silent
    lapse. Closed items are pruned five weeks after closing. Every write exports the tables to `flow/jsonl/`, which git
    tracks; the db file itself is ignored and can be rebuilt from the JSONL.
-5. **A few named, long-lived sessions**, one per role (example: discovery, build, process, support. This is not the Sagittarius pane set: review, discovery, build),
+5. **A few named, long-lived sessions**, one per role (example: discovery, build, review, process, support),
    each in its own terminal pane, all with the hub as cwd. Each has an identity (`HUB_SESSION`) that
    the db records on every write. Sessions hand work to each other with a db row plus a message.
    How a named session is started is set up outside the hub (dotfiles, a shell alias): it belongs
    to one machine. The hub knows only the names, in `flow/seed.json`.
-6. **The principles.** `PRINCIPLES.md` states the Sagittarius philosophy in plain words, and
+6. **No one grades their own work.** The `review` session verifies what another session made, and
+   records its verdict as a note on the item (`HUB-CORE.md`, "Verify").
+7. **The principles.** `PRINCIPLES.md` states the Sagittarius philosophy in plain words, and
    `CLAUDE.md` imports it. Read it to your human too.
 
-The hub works without any formal tool: `HUB-CORE.md`, "Without orbit-kb", says where each fact is
-kept then. If your human uses Sagittarius's `orbit-kb` (it needs SWI-Prolog), the hub can also hold
-a **project KB**: an orbit-kb KB with the `project` module, kept at the hub root as `project-kb/`.
-It records domain decisions, pins of the world, and drafts for the tracker. Make it with
-`orbit-kb init project-kb --request 'WHAT THE PROJECT IS' --uses project`. See `orbit-kb help project`. Do not install `orbit-kb`
-unless your human asks for it.
+This kit installs the **informal edition**: five stores (the flow ledger, the memory files, the
+weeks, the bespoke tools, the tracker), and rules that name only those. `HUB-CORE.md` says where
+each fact is kept. A formal edition exists for teams that use the formal tools of Sagittarius; it is
+the last section of this file. Do not set it up unless your human asks for it.
 
 ## The kit
 
@@ -48,6 +49,7 @@ kit.json                        the template version, and which files are engine
 tools/hubkit.py                 install, status, upgrade (tests: tools/hubkit-test.py)
 hub/                            the files of a new hub, at the paths they take in the hub:
   HUB-CORE.md, PRINCIPLES.md      the shipped rules and principles (engine: an upgrade replaces them)
+                                  (the formal edition; editions/informal/ holds the informal files)
   CLAUDE.md, HEURISTICS.md, TECHNOLOGIES.md, W0/WEEK.md   owned by the hub from day one
   .claude/scripts/hubflow.py      the db tool (Python 3 stdlib only), and hubflow-test.py
   .claude/skills/hub-flow, hub-rotate   the two skills; a LOCAL.md next to SKILL.md holds local changes
@@ -67,7 +69,7 @@ and what to say to you. Then ask:
 
 
 1. Where should the hub live (a new directory; it becomes a git repo)? Default: `~/hub`.
-2. Which sessions (one name per role), and which people do items wait on? Default: the four in
+2. Which sessions (one name per role), and which people do items wait on? Default: the five in
    `hub/flow/seed.json`, and one person `me` for your human.
 3. Which tracker holds tickets (GitHub Issues, Jira, Linear, …)? It only changes wording in
    `CLAUDE.md`; refs are `issue:<digits>`, `pr:<digits>`, or `url:<url>`.
@@ -77,14 +79,14 @@ and what to say to you. Then ask:
 ```
 HUB=<answer 1>; KIT=<this kit's directory>
 mkdir -p "$HUB" && cd "$HUB" && git init
-python3 "$KIT"/tools/hubkit.py install --hub "$HUB"
+python3 "$KIT"/tools/hubkit.py install --hub "$HUB" --edition informal
 ```
 
 Edit only owned files: `W0/WEEK.md` line 1 (this week's Monday → Sunday); the tracker and the
 sessions in `CLAUDE.md`; `flow/seed.json`, with the session names (answer 2) and the people.
 
-**Check:** `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` lists every engine file as
-`unchanged`; `CLAUDE.md` and `flow/seed.json` name the same sessions.
+**Check:** `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` names the informal edition and lists
+every engine file as `unchanged`; `CLAUDE.md` and `flow/seed.json` name the same sessions.
 
 ## Step 3: prove the db tool on this machine
 
@@ -123,9 +125,14 @@ dotfiles or shell: they belong to one machine. Each session needs its hub cwd an
 cd "$HUB" && HUB_SESSION=<name> claude --name "hub-<name>"
 ```
 
-Resume a role's session by its name, never with `claude --continue`: every role shares the hub as
-cwd, so `--continue` can pick another role's conversation. A pane without `HUB_SESSION` can read the
-db, but every write fails.
+To resume a role's session later, resume it by the same name, with the same `HUB_SESSION`:
+
+```
+cd "$HUB" && HUB_SESSION=<name> claude --resume "hub-<name>"
+```
+
+Never resume with `claude --continue`: every role shares the hub as cwd, so `--continue` can pick
+another role's conversation. A pane without `HUB_SESSION` can read the db, but every write fails.
 
 **Check:** in each role's pane, `echo "$HUB_SESSION"` prints that role's name, and
 `python3 .claude/scripts/hubflow.py view v_inbox --session "$HUB_SESSION"` exits 0.
@@ -148,7 +155,7 @@ Say what you set up, each check's result, and what you did not check. Then tell 
   them with `view v_waiting_on --person me`.
 - **Passing work:** `handoff --to <role>`, then message that session with the id.
 - **Each Monday:** "rotate the hub" (skill `hub-rotate`). The agent records a decision for each due
-  item and escalates to the human what a spec KB still blocks.
+  item and escalates to the human what only the human can decide.
 - **When a new template release is out:** "upgrade the hub to the new template", and give the
   agent `UPGRADING.md` from the new release.
 
@@ -156,11 +163,25 @@ Say what you set up, each check's result, and what you did not check. Then tell 
 
 - The db is new. It has a test suite with mutation checks, but little time in daily use yet.
 - `rotate` requires `--week-start` to be a Monday, and an item is due at exactly 28 idle days.
-- Escalation asks `orbit-kb` (or `HUBFLOW_ORBIT_KB`) whether a spec KB blocks. Without it (the
-  informal release) nothing blocks from a spec KB, but every item with a `kb` ref counts as
-  blocking, so an agent can never lapse it: do not add `kb` refs without `orbit-kb`. On an escalated or blocking
-  item, an agent's close, renew, park, `set --status` and removal of its `kb` ref are refused too;
-  a human does them with `--by human --note`. An agent can still pass `--by human` without a
-  human's words, or edit the hub outside hubflow: the rule stops mistakes, not cheating.
+- Do not add `kb` refs in the informal edition: hubflow counts an item with one as blocking, so an
+  agent can never lapse it. On an escalated or blocking item, an agent's close, renew, park and
+  `set --status` are refused too; a human does them with `--by human --note`. An agent can still
+  pass `--by human` without a human's words, or edit the hub outside hubflow: the rule stops
+  mistakes, not cheating.
 - Nothing wakes an idle session by itself. A session sees db changes when it next reads the db, or
   when another session messages it.
+
+## The formal edition
+
+Only when your human asks for it. The formal edition adds two stores, written with Sagittarius's
+`orbit-kb` (it needs SWI-Prolog): a **spec KB** per ticket at `specs/<slug>/`, and a **project
+KB**: an orbit-kb KB with the `project` module, kept at the hub root as `project-kb/`. It records
+domain decisions, pins of the world, and drafts for the tracker. Make it with
+`orbit-kb init project-kb --request 'WHAT THE PROJECT IS' --uses project`. See `orbit-kb help project`.
+
+- Install with `--edition formal` (the default when `orbit-kb` is on the PATH), or switch an
+  informal hub with `python3 "$KIT"/tools/hubkit.py edition --hub "$HUB" formal --yes`. The switch
+  replaces the shipped rules and skills; `CLAUDE.md` is the hub's own, so add its "Repos and the
+  project KB" section by hand (copy it from `hub/CLAUDE.md`).
+- Escalation asks `orbit-kb` (or `HUBFLOW_ORBIT_KB`) whether a spec KB blocks. If the query fails,
+  or `orbit-kb` is missing, an item with a `kb` ref counts as blocking (fail-safe).
