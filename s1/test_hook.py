@@ -218,6 +218,53 @@ class C1State(Base):
                            stdin=subprocess.DEVNULL, capture_output=True)
         self.assertEqual(p.returncode, 0, "s1/redact.txt is not gitignored")
 
+    def test_c1_non_utf8_transcript_still_calls(self):
+        # review fix 1: 5 MB of random bytes as the transcript must not lose the call
+        with open(self.transcript, "wb") as f:
+            f.write(os.urandom(5 * 1024 * 1024))
+        fake = Fake()
+        out = self.run_hook(fake)
+        self.assertEqual(len(fake.calls), 1)
+        self.assertEqual(fake.state()["recent"], "")
+        self.assertEqual(self.context(out), TICKET_LINE)
+
+    def test_c1_large_sparse_transcript_reads_only_the_tail(self):
+        # review fix 2: a 512 MB (sparse) transcript; only the tail is read
+        with open(self.transcript, "wb") as f:
+            f.write((json.dumps(entry("assistant", ["An old answer."], "m0")) + "\n").encode())
+            f.seek(512 * 1024 * 1024)
+            f.write(b"\n" + (json.dumps(entry("assistant", ["The newest answer."], "m9"))
+                              + "\n").encode())
+        fake = Fake()
+        t0 = time.monotonic()
+        self.run_hook(fake)
+        took = time.monotonic() - t0
+        self.assertLess(took, 0.5, f"took {took:.2f} s")
+        self.assertIn("The newest answer.", fake.state()["recent"])
+
+    def test_c1_multi_mb_transcript_tail_finds_last_message(self):
+        lines = [json.dumps(entry("assistant", ["filler " + "y" * 900], f"f{i}"))
+                 for i in range(6000)]  # about 6 MB
+        lines.append(json.dumps(entry("assistant", ["The last one."], "mz")))
+        with open(self.transcript, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        fake = Fake()
+        t0 = time.monotonic()
+        self.run_hook(fake)
+        self.assertLess(time.monotonic() - t0, 0.5)
+        self.assertEqual(fake.state()["recent"], "Agent: The last one.")
+
+    def test_c1_transcript_read_inside_the_timeout(self):
+        # review fix 2: a transcript that blocks on read (a FIFO with no writer) must not
+        # hang the hook past the timeout. Run as a child so a hang cannot stall the suite.
+        fifo = os.path.join(self.dir, "fifo.jsonl")
+        os.mkfifo(fifo)
+        p, took = subprocess_hook(self.payload(transcript_path=fifo),
+                                  dict(self.env, S1_TIMEOUT="0.3"),
+                                  fake_spec={"payload": RECORDED["ticket_example"]}, timeout=8)
+        self.assertEqual((p.returncode, p.stdout), (0, ""))
+        self.assertLess(took, 3)
+
 
 class C2Output(Base):
     """c2: one short line of the answers outside the unsure band, in the ticket's words."""
@@ -418,6 +465,36 @@ class C4Log(Base):
         self.assertIsNone(rec["error"])
         self.assertEqual(rec["state"], "s")
 
+    def _one_reason(self, *, raw=None, env=None, fake=None, want=""):
+        if os.path.exists(self.log):
+            os.remove(self.log)
+        self.assertEqual(self.run_hook(fake or Fake(), raw=raw, env=env), "")
+        with open(self.log) as f:
+            text = f.read()
+        self.assertNotIn(KEY, text)
+        recs = [json.loads(x) for x in text.splitlines()]
+        reasons = [r for r in recs if r.get("skipped")]
+        self.assertEqual(len(reasons), 1, recs)
+        self.assertIn(want, reasons[0]["skipped"])
+        return reasons[0]
+
+    def test_c4_every_skip_logs_one_reason(self):
+        # review fix 1: each skip (except S1_OFF) writes one log line with the reason
+        self._one_reason(raw="{oops", want="stdin")
+        self._one_reason(raw=json.dumps({"session_id": "s"}), want="prompt")
+        r = self._one_reason(env=dict(self.env, S1_QUESTIONS=os.path.join(self.dir, "no.json")),
+                             want="questions")
+        self.assertEqual(r["session_id"], "sess-fixture-1")
+        self._one_reason(fake=Fake(RECORDED["malformed"]), want="answers")
+        self._one_reason(fake=Fake(exc=OSError("down")), want="no answers")
+        env = {k: v for k, v in self.env.items() if k != "TYPESAFE_API_KEY"}
+        self._one_reason(env=env, want="key")
+
+    def test_c4_timeout_skip_logs_one_reason(self):
+        self.addCleanup(time.sleep, 2.0)
+        self._one_reason(fake=Fake(sleep=1.5), env=dict(self.env, S1_TIMEOUT="0.3"),
+                         want="timeout")
+
 
 class C5Readme(unittest.TestCase):
     """c5: s1/README.md shows the settings.json snippet, S1_OFF=1, and says the question set is
@@ -449,6 +526,28 @@ class C5Readme(unittest.TestCase):
             if name.endswith(".py") and not name.startswith("test_"):
                 with open(os.path.join(HERE, name)) as f:
                     self.assertNotIn("settings.json", f.read(), name)
+
+
+class Discovery(unittest.TestCase):
+    """Review fix 3: the tests are found by discovery, and hook.py still runs as a script."""
+
+    def test_s1_is_a_package(self):
+        self.assertTrue(os.path.isfile(os.path.join(HERE, "__init__.py")))
+
+    def test_discover_loads_without_errors(self):
+        code = ("import sys, unittest\n"
+                "l = unittest.TestLoader()\n"
+                "s = l.discover('s1', top_level_dir='.')\n"
+                "sys.exit(1 if l.errors or s.countTestCases() == 0 else 0)\n")
+        p = subprocess.run([sys.executable, "-c", code], cwd=ROOT, stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(p.returncode, 0, p.stderr[-2000:])
+
+    def test_hook_runs_as_a_script(self):
+        p = subprocess.run([sys.executable, os.path.join(HERE, "hook.py")], input="{}",
+                           capture_output=True, text=True, cwd=ROOT, timeout=20,
+                           env={"PATH": os.environ.get("PATH", ""), "S1_LOG": os.devnull})
+        self.assertEqual((p.returncode, p.stdout, p.stderr), (0, "", ""))
 
 
 if __name__ == "__main__":
