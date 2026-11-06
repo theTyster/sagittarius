@@ -63,8 +63,10 @@ mechanism, or fix), a strong conclusion, its premises beside it, and a falsifier
 would show it is false). Give each claim one concrete example and its falsifier.
 
 **The vote.** Discovery ends with GO, NO-GO, or HOLD. Weights: the human 0.49, you 0.24, the
-formal artifacts 0.24. More than 0.5 wins. Seal your vote before the report, and do not show or
-hint at it until the human votes. Nothing is built or dropped against the human's vote.
+formal artifacts 0.24. More than 0.5 wins. Seal your vote before the report. Until the human
+votes, do not show it, hint at it, or predict it ("I expect GO" leaks it). With no KB, write it
+nowhere until the human votes. Nothing is built or dropped against the human's vote. Only the
+human changes the scope or raises the budget.
 
 ## Start light
 
@@ -72,14 +74,18 @@ Most work needs little process. Start light (the light path), and add rigor only
 The ticket does not end at the delivery: compare each later message and result with the signals.
 
 - Build: state the request back in a sentence, with one concrete example. Find the project's
-  tests, and put the check with them. A check of a change must fail before the change. Build
-  only what the request needs. Run the whole suite before and after.
+  tests, and put the check with them. An existing test that asserts the old behavior is a check
+  you change, not one you skip. If you say that no tests exist, say where you looked. A check of
+  a change must fail before the change; a check that behavior stays the same passes before and
+  after. With no executable check, say so under "Not checked". Build only what the request
+  needs. Run the whole suite before and after.
 - Discovery: a small report needs no KB and no models. Reproduce it, state the hypothesis and
   the claims with falsifiers, ask, and vote. The reproduction is the first check of the build.
 
 Build on your defaults. Ask first only when a wrong default is costly or hard to undo (data,
 external effects, public interfaces, security, money), or two defaults are equally likely and
 the build is large. Ask at most three questions a round, with options and your default marked.
+Do not ask the human to approve a list: a long list invites "approve all", a quiet failure.
 
 ## When to shift up
 
@@ -92,7 +98,8 @@ these signals occurs. The size of the change does not decide.
   expected. If you are about to say "you're right" about your own error, shift up first.
 - **A build by someone else:** a subagent or a peer session built it. Run its checks yourself.
 - **A claim that burns:** the human asks for a proof, or the claim is universal by its meaning:
-  its inputs are infinite or too many to check one by one.
+  its inputs are infinite or too many to check one by one. Only a human can skip a proof, with a
+  waiver and a due time.
 - **A handoff:** unfinished work moves to or from another session.
 - **Effort:** significant effort or verbosity from the human is a signal to shift into a formal
   language. A long, careful message holds decisions that must not be lost.
@@ -103,8 +110,10 @@ A hint is not a decision: you weigh it, and you decide. The human can always ask
 or a lean back, and wins. The human must read the formal language, so shift up only when needed.
 
 **Leaning back.** When the cause of a signal is resolved, stop the work that it added. A burn
-stays open until a proof or a human waiver closes it. Leaning back does not leave the KB. Say it
-in one line: "Leaning back: <what stopped>. Still active: <what continues>."
+stays open until a proof or a human waiver closes it. Leaning back does not leave the KB: once a
+KB exists, it stays until the ticket closes. Do not drop an open question, a failing check, or a
+burn. Say it in one line: "Leaning back: <what stopped>. Still active: <what continues>." The
+next ticket starts light.
 
 ## When the human says that it is wrong
 
