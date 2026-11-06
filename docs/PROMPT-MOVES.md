@@ -10,7 +10,8 @@ names the new home of every heading of the prompt before the redesign
 - c2: every heading of the old prompt has a row here.
 - c4: every row with home `help TOPIC` names a key phrase, and the phrase is in that topic
   (`kb/share/orbit-kb/help/TOPIC.txt`; topic `general` is the general help in `kb/bin/orbit-kb`).
-  A `hook` row with a phrase must be in `s1/questions.json` or `s1/hook.py`.
+  A `hook` row with a phrase must be in `s1/questions.json` or `s1/hook.py`. A `prompt` row with a
+  phrase must be in `prompt/SAGITTARIUS.md`.
 
 Homes: `prompt` (kept, maybe shorter), `help TOPIC`, `hook`, `PHILOSOPHY.md §N` (a principle of
 `docs/PHILOSOPHY.md`), or `dropped, because ...`. A heading can have more than one row when its
@@ -83,6 +84,30 @@ parts went to different homes.
 | `### Honesty rules for discovery` | help discovery | `WD1, WD3, WD7, ED3-ED7` | Rule 7 names lint codes. |
 | `### Sizes and speed` | dropped, because the sizes read as tiers (PHILOSOPHY.md §7, open question E); the tiny orbit stays in the prompt | | |
 | `### Sizes and speed` | help discovery | `Set a timeout on every solver run` | |
+
+### Rules restored after review (T08 follow-up)
+
+Review found rules that the first small prompt lost. Each row names its home and a key phrase.
+For home `prompt`, c4 checks the phrase in `prompt/SAGITTARIUS.md`.
+
+| Old heading | Home | Key phrase | Note |
+|---|---|---|---|
+| `### Ask first, or build on default assumptions` | prompt | `invites "approve all"` | R1: do not ask the human to approve a list. |
+| `### Ask first, or build on default assumptions` | help core | `whose default is the most costly if it is wrong` | R2: the order of the questions in a round. |
+| `### Asking the human` | help discovery | `Ask about conflicts first, then surprises, then boundaries` | R2 in discovery. |
+| `### The tiny discovery orbit` | prompt | `I expect GO` | R3: a prediction leaks the sealed vote. |
+| `### The tiny discovery orbit` | prompt | `write it nowhere until the human votes` | R3: the seal with no KB. |
+| `#### GO / NO-GO: a weighted vote` | prompt | `Only the human changes the scope or raises the budget` | R4. |
+| `## The light path` | prompt | `a check you change, not one you skip` | R5: a test of the old behavior. |
+| `## The light path` | prompt | `say where you looked` | R5: no tests found. |
+| `## The light path` | prompt | `say so under "Not checked"` | R5: no executable check. |
+| `## The light path` | prompt | `passes before and after` | R5: a check that behavior stays the same. |
+| `### The hypothesis` | help discovery | `Collapsed:` | R6: the worked example (too strong, collapsed, weak). |
+| `### Leaning back` | prompt | `it stays until the ticket closes` | R7: the KB stays. |
+| `### Leaning back` | prompt | `Do not drop an open question, a failing check, or a burn` | R7. |
+| `### Leaning back` | prompt | `The next ticket starts light` | R7. |
+| `### BURN: prove the claim in Lean` | prompt | `Only a human can skip a proof` | R8: a waiver with a due time. |
+| `## Speed` | help core | `subagent on a fast model` | R9: long mechanical work; a small task needs no subagent. |
 
 ## Honesty rules for discovery: they stay in the prompt
 

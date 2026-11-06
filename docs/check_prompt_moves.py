@@ -7,7 +7,8 @@ c2: each heading (# to ######, outside code fences) of the old prompt has at lea
 c4: each row with home "help TOPIC" names a key phrase (third cell, in backticks). The phrase
     must be in HELP_DIR/TOPIC.txt. TOPIC "general" means the general help text in the CLI
     (--cli). A "hook" row with a phrase must be in s1/questions.json or s1/hook.py. A
-    "PHILOSOPHY.md §N" row needs a "### N." heading in docs/PHILOSOPHY.md.
+    "PHILOSOPHY.md §N" row needs a "### N." heading in docs/PHILOSOPHY.md. A "prompt" row with a
+    phrase must be in the new prompt (--prompt, default prompt/SAGITTARIUS.md).
     Phrases match after whitespace is collapsed, without regard to case.
 
 Usage: python3 docs/check_prompt_moves.py [--old FILE] [--map FILE] [--help-dir DIR] [--cli FILE]
@@ -60,6 +61,7 @@ def main():
     ap.add_argument("--map", default=os.path.join(ROOT, "docs/PROMPT-MOVES.md"))
     ap.add_argument("--help-dir", default=os.path.join(ROOT, "kb/share/orbit-kb/help"))
     ap.add_argument("--cli", default=os.path.join(ROOT, "kb/bin/orbit-kb"))
+    ap.add_argument("--prompt", default=os.path.join(ROOT, "prompt/SAGITTARIUS.md"))
     ap.add_argument("--only", choices=["c2", "c4"])
     a = ap.parse_args()
 
@@ -123,6 +125,11 @@ def main():
                     missing.append(f"{h} -> {where}: missing {phrase!r}")
                 else:
                     present.append(f"{h} -> {where}: {phrase!r}")
+            elif home == "prompt" and phrase:
+                if "prompt" not in cache:
+                    cache["prompt"] = norm(open(a.prompt, encoding="utf-8").read())
+                (present if norm(phrase) in cache["prompt"] else missing).append(
+                    f"{h} -> prompt: {phrase!r}")
             elif home == "hook" and phrase:
                 (present if norm(phrase) in norm(s1) else missing).append(f"{h} -> hook: {phrase!r}")
             elif home.startswith("PHILOSOPHY.md §"):
