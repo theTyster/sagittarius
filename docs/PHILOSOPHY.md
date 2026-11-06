@@ -20,6 +20,10 @@ intent, and errors come from that explanation. Difficulty is a weak guide: what 
 model today is easy for a model next year. Misalignment does not go away. So Sagittarius aims at
 alignment on intent, not at the difficulty of the task.
 
+The audience is people who work with formal methods and AI. Users are expected to read Prolog,
+Lean, and the other formal languages. A general template is a byproduct: an informal release.
+<!-- d_audience_fm, decided 2026-11-05 -->
+
 > "I'm making the bet that even with ASI, humans will still need to explain what they want, and
 > that will continue to be a point of friction." (the author)
 
@@ -30,7 +34,10 @@ alignment on intent, not at the difficulty of the task.
 The human is the source of the intent and the owner of the result. The human is not always the
 source of clarity. People often do not know exactly what they want until they see it. The agent
 owns the build, and its first job is to make the request clear enough before it builds. When the
-human and the agent disagree on a decision, the human decides.
+human and the agent disagree on a decision, the human decides. The owner is not the only person
+who can answer a question or ratify a decision. Answers and decisions can come from
+people other than the owner.
+<!-- d_other_humans, decided 2026-11-05 -->
 
 Applied in: prompt "Roles", "GO / NO-GO: a weighted vote".
 
@@ -93,6 +100,13 @@ hypotheses, strong conclusions.
 Remove words until one more removal makes the hypothesis collapse or change its meaning. A weak
 hypothesis often takes more work to confirm or refute, but not always.
 
+Every stated hypothesis lists its premises beside it. This is a trial: UAT judges whether it adds
+too much noise. <!-- d_premises_beside, decided 2026-11-05 -->
+Hypotheses, premises, and claims err soft. Experiment just past the boundary of too brittle or
+too soft, then formalize. The formalism then localizes the definition. Annealing in the formal
+languages brings out the tempered position. Oscillation is an intentional heuristic.
+<!-- d_err_soft, d_oscillate, decided 2026-11-05 -->
+
 Applied in: prompt "The hypothesis". The exact definition is open (see the end).
 
 ### 6. A divergence is good news. A quiet failure is the enemy
@@ -116,6 +130,17 @@ misunderstanding appears: questions that one round does not settle, a disagreeme
 another party did, a claim that examples cannot cover, or work that changes hands. The size of a
 change does not decide. A one-line fix can need rigor, and a large change can need none. When the
 cause of a signal is resolved, the rigor that it added stops.
+
+Also, significant effort or verbosity from the human is a signal to shift into a formal
+language. The System 1 model, the LLM, and the human each have a part in deciding when to shift up.
+After a shift, the human, the agent, and the CPU (the machine that runs the solvers and provers)
+all work in the formal language. The human must read and review it, so shift up only when needed.
+<!-- d_effort_signal, d_shift_three, d_formal_substrate, decided 2026-11-05 -->
+
+Work has two levels. The orbit is discovery or build. The phase is research and specify (in
+discovery), or build and verify (in build). Rigor concentrates on specification and verification.
+The split between make and judge stays, because it marks a handoff.
+<!-- d_phase_tree, p_lifecycle, decided 2026-11-05 -->
 
 Fixed tiers, chosen at the start, failed. Nobody knows how much must be formal until a
 misunderstanding occurs. In practice, the middle tiers emptied into the lowest and the highest.
@@ -144,13 +169,16 @@ If your own earlier work is wrong, say so first.
 
 Applied in: prompt "Honesty rules", "Honesty rules for discovery".
 
-### 10. Formal artifacts catch honest mistakes. They do not stop cheating
+### 10. Each formal artifact catches its own kind of error. None stops cheating
 
 Sagittarius assumes trust between the human, the agents, and the code. If the process constrains
-one of them too much, the work fails. So the tools guard against honest mistakes. A hole that only
-deliberate cheating can use is a known limit, and the documents say so. They do not claim more
-than the checks give. Impartial also does not mean infallible: when two engines give different
+one of them too much, the work fails. Each tool catches its own kind of
+error. Lint catches syntax and schema errors. A check catches behavior on its cases. A proof
+covers its model. The human judges meaning. The tools do not stop deliberate cheating. A hole that
+only deliberate cheating can use is a known limit, and the documents say so. They do not claim
+more than the checks give. Impartial also does not mean infallible: when two engines give different
 answers, nobody uses either answer until a human looks.
+<!-- prop_retire_honest_mistakes, d_retire_honest, decided 2026-11-05 -->
 
 Applied in: prompt "Honesty rules" (rule 5), "Rules for the KB".
 
@@ -161,6 +189,9 @@ about the order of steps or about time fits a model checker. A claim about every
 needs a proof. Use the cheapest tool that can show the claim false. Use a model only when a few
 examples cannot cover the cases. A tool that does not fit the shape can prove something true and
 still lose the intent.
+
+Every orbit encodes domain knowledge, not only a record of the process.
+<!-- p_domain, decided 2026-11-05 -->
 
 Decide the shape of a claim by its meaning and its domain, not by its words. "Every" in a sentence
 does not make a claim universal. A claim is universal when its inputs are infinite or too many to
@@ -182,6 +213,10 @@ wants: that outcome stays a claim, and the agent checks it again against the new
 claim supersedes an old one. It does not overwrite it. An old guarantee does not carry over to a
 new design without new evidence.
 
+The main task is to give the LLM the right amount of context. Rules in the KB help select it.
+The prompt holds the philosophy only. The System 1 hook runs the classification steps.
+<!-- p_context, d_prompt_small, decided 2026-11-05 -->
+
 Applied in: prompt "Rules for the KB", "Shift up to a KB" (a divergence, a handoff), "BURN".
 
 ### 13. One principle, shown by examples
@@ -200,6 +235,11 @@ real failure, not from the shape of one test case. Never put the answer to a tes
 Tune on one set of cases, and decide on a separate set that nobody tuned on. A rule needs a case
 that fails when the rule is deleted. Decide on repeated runs, not on one run. When a case passes
 only if the prompt describes that exact case, the limit of the model is a result, not a target.
+
+Evals test whether agents can follow the rules of the prompt and the orbit-kb help. UAT tests
+whether the philosophy and the hypotheses pay off. No stakeholder instance is privileged, and
+results stay non-trivial.
+<!-- d_eval_scope, p_general, decided 2026-11-05 -->
 
 Applied in: `evals/REFINING.md`.
 

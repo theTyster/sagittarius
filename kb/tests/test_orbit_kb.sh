@@ -74,9 +74,9 @@
 #   VT  weighted vote: vote attestations, gate, sealed agent vote (D14)    (Discovery module; D14) : VT1-VT10
 #   LG  attest model_result reads the solver log (D18)    (CLI: attest; D18)               : LG1-LG3
 #   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10, D10 follow-up) : PV1-PV12
-#   FU  schema declared on first use, W7, E19 typo guard    (CLI: add, declare; Lint; D22)   : FU1-FU6
-#   RT  retired: declare-attest and depends/2              (D22)                            : RT1 RT2
-#   BL  blocking/1 and show blocking                       (Core and build rules; D22)      : BL1-BL9
+#   FU  schema declared on first use, W7, E19 typo guard    (CLI: add, declare; Lint; D22)   : FU1-FU6 FU8 (FU7 superseded, not run)
+#   RT  retired: declare-attest and depends/2              (D22)                            : RT1-RT3
+#   BL  blocking/1 and show blocking                       (Core and build rules; D22)      : BL1-BL10 BL6b BL8b
 #   PN  pin stamp                                          (CLI: pin; D22)                  : PN1 PN2
 #   PH  help names the phases                              (CLI: help; D22)                 : PH1
 #
@@ -2171,6 +2171,22 @@ t_BL1() { bl_base "$T/k"; K=$T/k
           echo "answer(q1, yes, human)." >> "$K/kb.pl"; is_false 'blocking(to_ask(X))'; }
 t_BL2() { kb_burn "$T/k"; K=$T/k; is_set 'blocking(burn_open(X))' 'X = c1|X = c3|X = c4'; }
 t_BL3() { bl_base "$T/k"; K=$T/k; echo "visual(c1)." >> "$K/kb.pl"; is_set 'blocking(flare_open(X))' 'X = c1'; }
+bl_checks() { kb_new "$1" <<'EOF'
+uses([build]).
+request(r1, 'Check things').
+claim(c1, introduce, 'Claim one').
+claim(c2, preserve, 'Claim two').
+cites(c1, 'Check things').
+cites(c2, 'Check things').
+check(k1, c1).
+check(k2, c1).
+check(k3, c2).
+check(k4, c2).
+check(k5, c2).
+EOF
+}
+t_BL10() { bl_checks "$T/k"; K=$T/k; add_result "$K" k1 1 fail; add_result "$K" k3 2 pass
+          is_set 'blocking(check_unrun(X))' 'X = k2' "k5 never ran, but its claim c2 is fulfilled"; }
 t_BL4() { kb_new "$T/k" <<'EOF'
 uses([build]).
 request(r1, 'Check things').
@@ -2184,8 +2200,7 @@ check(k3, c2).
 check(k4, c2).
 EOF
           K=$T/k; add_result "$K" k1 1 fail; add_result "$K" k3 2 pass; add_result "$K" k4 3 fail
-          is_set 'blocking(check_failing(X))' 'X = k1'
-          is_set 'blocking(check_unrun(X))' 'X = k2'; }
+          is_set 'blocking(check_failing(X))' 'X = k1'; }
 t_BL5() { kb_burndone "$T/k"; K=$T/k; wv_add w1 c1 2020-01-01T00:00:00Z
           is_set 'blocking(waiver_lapsed(X))' 'X = w1'; is_set 'blocking(burn_open(X))' 'X = c1'
           wv_add w2 c1 2999-01-01T00:00:00Z; is_false 'blocking(waiver_lapsed(X))' "a waiver in force closes the burn"
@@ -2207,6 +2222,73 @@ t_BL8() { kb_done "$T/k"; K=$T/k; okb --dir "$K" show blocking; rc_is 0; out_has
 t_BL9() { kb_done "$T/k"; K=$T/k; printf 'blocking(nothing).\n' > "$K/rules.pl"
           okb --dir "$K" lint; rc_is 1; out_has '^E16 .*blocking/1' "rules.pl cannot add to blocking/1"
           is_false 'blocking(X)' "the engine ignores the clause"; }
+
+# Added after review of de77192 (D22 c3, c6, c7).
+t_FU7() { K=$T/k; kb_init "$K" build
+          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          oadd 'colr_ov(widget1, blue)' 'clr_ov(widget1, blue)'; rc_is 0 "add"
+          okb --dir "$K" lint; rc_is 1 "edit distance 2 is an error"
+          out_has '^E19 .*colr_ov/2.*color_of/2' "colr_ov is 2 edits from color_of"
+          out_hasnt '^E19 .*clr_ov/2' "clr_ov is 3 edits from color_of: no finding"; }
+# FU8 replaces FU7, which is wrong and stays as committed: in FU7, colr_ov/2 and clr_ov/2 are
+# both new, and they are 1 edit apart, so E19 correctly names clr_ov/2 against colr_ov/2.
+# FU8 puts each case in its own KB.
+t_FU8() { K=$T/k; kb_init "$K" build
+          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          oadd 'colr_ov(widget1, blue)'; rc_is 0 "add"
+          okb --dir "$K" lint; rc_is 1 "edit distance 2 is an error"
+          out_has '^E19 .*colr_ov/2.*color_of/2' "colr_ov is 2 edits from color_of"
+          K=$T/k2; kb_init "$K" build
+          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          oadd 'clr_ov(widget1, blue)'; rc_is 0 "add"
+          okb --dir "$K" lint; rc_is 0 "distance 3: no error"
+          out_hasnt '^E19' "clr_ov is 3 edits from color_of: no finding"; }
+# CONTRACT keeps the history of the cut: a line that says the item was retired or removed is
+# exempt (the D22 entry names both items there). Every other line must not name them.
+t_RT3() { local f t; f=$LIB/../../CONTRACT.md
+          [ -f "$f" ] || { note "no CONTRACT.md at $f"; return 0; }
+          t=$(grep -nE 'depends\(|declare-attest' "$f" | grep -vE 'retire|removed')
+          [ -z "$t" ] || note "CONTRACT.md names a cut item outside its history: $(snip "$t")"
+          for t in build discovery codes answers; do
+              okb help "$t"; rc_is 0 "help $t"; any_hasnt 'depends\(|declare-attest' "help $t"
+          done; }
+t_BL6b() { kb_done "$T/k"; K=$T/k
+          printf "question(q2, c2, 'Is it two').\nquestion(q3, c2, 'Is it three').\nattest(d1, divergence, c2, claim(c2), agent, '2026-10-15T10:00:09Z').\nanswer(q3, yes, human).\nclaim(c3, preserve, 'Unchecked').\ncites(c3, 'Do two things').\ncheck(k9, c3).\ndue(q2, '2020-01-01T00:00:00Z').\ndue(q3, '2020-01-01T00:00:00Z').\ndue(k9, '2020-01-01T00:00:00Z').\ndue(k1, '2020-01-01T00:00:00Z').\n" >> "$K/kb.pl"
+          is_set 'blocking(past_due(X))' 'X = k9|X = q2' "q3 is answered and k1 is a check of a fulfilled claim"; }
+t_BL8b() { kb_new "$T/k" <<'EOF'
+uses([build]).
+request(r1, 'Every kind').
+claim(c1, preserve, 'Text of c1 contested').
+claim(c2, preserve, 'Text of c2 universal').
+claim(c3, preserve, 'Text of c3 visual').
+claim(c4, introduce, 'Text of c4 checks').
+claim(c5, preserve, 'Text of c5 cycle').
+claim(c6, preserve, 'Text of c6 cycle').
+cites(c1, 'Every kind').
+cites(c2, 'Every kind').
+cites(c3, 'Every kind').
+cites(c4, 'Every kind').
+cites(c5, 'Every kind').
+cites(c6, 'Every kind').
+question(q1, c1, 'Text of q1').
+attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
+universal(c2).
+attest(w1, waiver, c2, waive(c2, '2020-01-01T00:00:00Z', 'Text of w1'), human, '2026-10-15T10:00:02Z').
+visual(c3).
+check(k1, c4).
+check(k2, c4).
+due(c4, '2020-01-01T00:00:00Z').
+change(x1, 'Text of x1').
+supersedes(c5, c6).
+supersedes(c6, c5).
+EOF
+          K=$T/k; add_result "$K" k1 1 fail
+          okb --dir "$K" show blocking; rc_is 0
+          out_has 'to_ask q1.*Text of q1'; out_has 'burn_open c2.*Text of c2'; out_has 'flare_open c3.*Text of c3'
+          out_has 'under c4.*Text of c4'; out_has 'check_failing k1.*Text of c4'; out_has 'check_unrun k2.*Text of c4'
+          out_has 'waiver_lapsed w1.*Text of w1'; out_has 'past_due c4.*Text of c4'; out_has 'over x1.*Text of x1'
+          out_has 'supersede_cycle c5.*Text of c5'
+          K=$T/k2; kb_init "$K" build; okb --dir "$K" show blocking; rc_is 0; out_has 'no_claim: no claim is current'; }
 
 # PN: the pin stamp (c8).
 t_PN1() { mkclaim; local d s; d=$(sha "$K/kb.pl"); cp "$K/kb.pl" "$T/.b"
@@ -2524,16 +2606,22 @@ run_test t_FU3 FU3 "D22 c3: a first-use name within 2 edits of a declared one (s
 run_test t_FU4 FU4 "D22 c4: a declared predicate keeps its arity and types"
 run_test t_FU5 FU5 "D22 c5: declare adds a doc and types ahead of use"
 run_test t_FU6 FU6 "D22 c5: help says declare is optional"
+# FU7 is not run: FU8 supersedes it (see the comment above t_FU8).
+run_test t_FU8 FU8 "D22 c3: E19 at edit distance 2, none at distance 3 (each case alone)"
 run_test t_RT1 RT1 "D22 c6: declare-attest is an unknown command"
 run_test t_RT2 RT2 "D22 c6: depends/2 is not a fact kind"
+run_test t_RT3 RT3 "D22 c6: CONTRACT and the help topics do not name the cut items"
 run_test t_BL1 BL1 "D22 c7: blocking(to_ask(Q))"
 run_test t_BL2 BL2 "D22 c7: blocking(burn_open(C))"
 run_test t_BL3 BL3 "D22 c7: blocking(flare_open(C))"
-run_test t_BL4 BL4 "D22 c7: blocking(check_failing(K)) and blocking(check_unrun(K))"
+run_test t_BL4 BL4 "D22 c7: blocking(check_failing(K))"
+run_test t_BL10 BL10 "D22 c7: blocking(check_unrun(K))"
 run_test t_BL5 BL5 "D22 c7: blocking(waiver_lapsed(W))"
 run_test t_BL6 BL6 "D22 c7: blocking(past_due(X))"
+run_test t_BL6b BL6b "D22 c7: blocking(past_due(X)) for a question and a check"
 run_test t_BL7 BL7 "D22 c7: done holds exactly when nothing blocks (under, over, no_claim)"
 run_test t_BL8 BL8 "D22 c7: show blocking prints each item with its text"
+run_test t_BL8b BL8b "D22 c7: show blocking prints the text of every kind"
 run_test t_BL9 BL9 "D22 c7: rules.pl cannot add to blocking/1 (E16)"
 run_test t_PN1 PN1 "D22 c8: pin prints the stamp and the time; pin --check is 0 unchanged, 1 changed"
 run_test t_PN2 PN2 "D22 c8: pin usage errors exit 2"

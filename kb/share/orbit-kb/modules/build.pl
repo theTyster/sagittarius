@@ -193,3 +193,22 @@ check_waived(C) :- check(K, C), attest(W, waiver, _, waive(K, _, _), human, _),
                    not waiver_lapsed(W).
 question_waived(Q) :- question(Q, _, _), attest(W, waiver, _, waive(Q, _, _), human, _),
                       not waiver_lapsed(W).
+% D22 (T03): what blocks done. done does not read blocking/1. With this
+% module, done holds exactly when blocking(_) has no answer. rules.pl
+% cannot add clauses to these rules (lint E16).
+item_open(C) :- under(C).
+item_open(C) :- burn_open(C).
+item_open(C) :- flare_open(C).
+item_open(K) :- check(K, C), under(C).
+blocking(under(C)) :- under(C).
+blocking(over(X)) :- over(X).
+blocking(burn_open(C)) :- burn_open(C).
+blocking(flare_open(C)) :- flare_open(C).
+blocking(no_claim) :- no_current_claim.
+blocking(check_failing(K)) :- check(K, C), under(C), check_ran(K), not passed(K).
+blocking(check_unrun(K)) :- check(K, C), under(C), not check_ran(K).
+blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(C, _, _), human, _), waiver_lapsed(W), burn_open(C).
+blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(C, _, _), human, _), waiver_lapsed(W), flare_open(C).
+blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(K, _, _), human, _), waiver_lapsed(W),
+                              check(K, C), under(C).
+blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(Q, _, _), human, _), waiver_lapsed(W), to_ask(Q).

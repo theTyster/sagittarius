@@ -16,18 +16,24 @@ Core
   E11  a clause does not load in the SWI engine
   E14  unsafe negation: a not variable is in the head but in no positive body literal
   E15  supersedes cycle. add refuses it. done is false while it exists.
-  E16  rules.pl adds clauses to a protected predicate (done, burn and flare rules, vote rules). Ignored.
+  E16  rules.pl adds clauses to a protected predicate (done, burn and flare rules, blocking rules, vote rules). Ignored.
   E17  a form that orbit-kb does not read: classical negation -p, a # line, a global
        constraint (:- Body), or a #= constraint. add refuses it. Query, why, whynot,
        show, and report exit 2 until it is gone.
   E18  the rules are not stratified: a predicate depends on itself through not.
        Query, why, whynot, show, and report exit 2 until it is gone.
+  E19  typo guard: a predicate declared by its first use (add) has a name 2 edits or
+       fewer from a declared predicate of the same arity. The message names both.
+       A typo: correct the facts in kb.pl, and delete the decl/4 and first_use/3 lines
+       of the new name. A new predicate: choose a name more than 2 edits away.
   W1   subject digest differs from the file. Run orbit-kb subject again.
   W2   a local declaration, listed for review
   W3   a claim with no cites. Cite the request text, or drop the claim (drift).
   W4   a local fact predicate that no rule reads
   W5   a check tests a replaced claim, and the new claim has none. Add a new check. Run it.
   W6   a local rule extends a core or module predicate
+  W7   a predicate declared by its first use (add), with who and when. Review it:
+       is it needed, and is the name right? Its arguments have the type term.
 
 Discovery module
   WD1  a conflict, surprise, or scope finding raised no question. Ask one.
