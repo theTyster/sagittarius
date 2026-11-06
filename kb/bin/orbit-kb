@@ -435,6 +435,7 @@ kb_command(why).
 kb_command(whynot).
 kb_command(show).
 kb_command(report).
+kb_command(draft).
 
 top(Argv0, Code) :-
     take_dir(Argv0, DirOpt, Argv),
@@ -547,6 +548,7 @@ kb_cmd(why, KB, Args, Code) :- cmd_query(KB, Args, true, Code).
 kb_cmd(whynot, KB, Args, Code) :- cmd_whynot(KB, Args, Code).
 kb_cmd(show, KB, Args, Code) :- cmd_show(KB, Args, Code).
 kb_cmd(report, KB, Args, Code) :- cmd_report(KB, Args, Code).
+kb_cmd(draft, KB, Args, Code) :- cmd_draft(KB, Args, Code).
 
 % ---------------------------------------------------------------------
 % Library and KB location
@@ -3955,8 +3957,38 @@ blocking_line(_, Eng, waiver_lapsed(W), S) :- !,
         fmt(S, "- waiver_lapsed ~w: waiver ~w of ~w was due at ~w, and ~w still blocks: ~w", [W, W, XT, DT, XT, RT])
     ;   fmt(S, "- waiver_lapsed ~w: waiver ~w is past its due time.", [W, W])
     ).
+blocking_line(_, _, project_conflict(D), S) :- !,
+    fmt(S, "- project_conflict ~w: draft ~w and the tracker both changed: decide which side stays", [D, D]).
 blocking_line(_, _, X, S) :-
     term_text(X, XT), fmt(S, "- ~w", [XT]).
+
+% ---------------------------------------------------------------------
+% draft (D25): Markdown for a human to paste. Nothing is sent anywhere.
+% ---------------------------------------------------------------------
+% draft blocking: the stamp of kb.pl and each blocking item (as show blocking).
+% It writes nothing and takes no lock.
+
+cmd_draft(KB, Args, Code) :-
+    parse_opts(Args, [], Pos, _),
+    (   Pos == [blocking] -> true
+    ;   Pos == [outbound] -> true
+    ;   usage_error("draft takes one subject and nothing else: draft blocking, or draft outbound.", [])
+    ),
+    (   Pos == [blocking]
+    ->  kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
+        answer_gate(KB),
+        kb_engine(KB, Eng),
+        directory_file_path(Dir, 'kb.pl', KbFile),
+        sha256_file(KbFile, Digest),
+        say("## Blocking items", []), nl,
+        say("Stamp: spec-kb@~w", [Digest]), nl,
+        eng_all(Eng, [X], blocking(X), Xs),
+        (   Xs == [] -> say("- Nothing blocks done.", [])
+        ;   forall(member(X, Xs), ( blocking_line(KB, Eng, X, S), say("~w", [S]) ))
+        ),
+        Code = 0
+    ;   usage_error("draft outbound needs a KB that uses the project module (D23).", [])
+    ).
 
 % item_text(+Eng, +Id, -Text): the text of a claim or a question, or for a
 % check, the check and the text of its claim. '' for another id.
@@ -4917,6 +4949,7 @@ help_lines(general, [
 "  show [claims|questions|open|blocking|disclosures|extensions|all]",
 "  report [--html FILE [--open]]",
 "  pin [--check STAMP]",
+"  draft blocking | draft outbound",
 "  doctor",
 "  help [COMMAND|TOPIC]",
 "",
@@ -5104,6 +5137,16 @@ help_lines(pin, [
 "--check STAMP: exit 0 when kb.pl still has that digest, and 1 when it changed.",
 "The whole line of pin is a valid STAMP. A malformed STAMP is a usage error (exit 2).",
 "pin writes nothing."
+]).
+help_lines(draft, [
+"orbit-kb draft blocking",
+"orbit-kb --dir PROJECT draft outbound",
+"",
+"Drafts only: nothing is sent to a tracker, and no command uses a network.",
+"draft blocking prints Markdown: the stamp spec-kb@sha256:HEX of kb.pl, then each item that",
+"blocks done, as show blocking does. Paste it into the ticket. orbit-kb pin --check STAMP",
+"exits 1 once kb.pl has changed. It writes nothing.",
+"draft outbound lists the project KB drafts that are not pushed (needs the project module)."
 ]).
 help_lines(report, [
 "orbit-kb report [--html FILE [--open]]",
