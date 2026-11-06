@@ -2,8 +2,8 @@
 name: hub-rotate
 description: >
   Run the hub's weekly rotation (the ratchet) and hold the rules for what a week directory contains.
-  Retires W5 with git rm, renames W4→W5 … W0→W1, builds a new W0 by curated move-forward, lapses
-  and prunes the flow db, and checks that nothing and no citation was lost. Use for "rotate the hub",
+  Retires W5 with git rm, renames W4→W5 … W0→W1, builds a new W0 by curated move-forward, triages
+  the due items of the flow db and prunes it, and checks that nothing and no citation was lost. Use for "rotate the hub",
   "weekly ratchet", "start of week", "new week", and for "where does this go in W0", "what gets
   carried forward", "can I delete this at the rotation". Also use before writing into a week
   directory for the first time in a session.
@@ -30,7 +30,8 @@ W0/
 ```
 
 Empty slots are omitted. Flow state (asks, threads, holds, handoffs) is **not** a week slot: it lives
-in `flow/flow.db` (skill `hub-flow`), which rotates by age, not by week.
+in `flow/flow.db` (skill `hub-flow`), which ages by idle time, not by week: a due item gets a
+recorded disposition at the rotation, never a silent lapse.
 
 | Slot | Rule |
 |---|---|
@@ -72,8 +73,14 @@ Dropping durable knowledge at a week boundary is the one failure this design can
    dir is passed with `--leave <path>` and left for its owner. Check `W0/WEEK.md` line 1 is the week
    that just ended. Commit `flow/jsonl/` if dirty.
 1. **Citation baseline.** `$SK/check-citations.sh > $SCR/citations-before.tsv`
-2. **Flow db dry run.** `python3 .claude/scripts/hubflow.py rotate --week-start <today's Monday>`.
-   Read the lapse list. Any item a human still cares about: `hubflow.py renew ID --note "…"` now.
+2. **Triage.** `python3 .claude/scripts/hubflow.py rotate --week-start <today's Monday>` lists the
+   `untriaged` due items and exits 1 until each has a disposition. For each one, read
+   `hubflow.py show ID` (its capsule comes first) and record one:
+   `hubflow.py triage ID keep|lapse|capsule|escalate --note "why"`. Before a lapse, check that the
+   tracker holds the ticket's state. An item that outlived its context gets
+   `hubflow.py capsule ID --summary "…"` and then `triage ID capsule`. hubflow turns an agent's
+   keep or lapse of a blocking item into `escalate`. List the escalated items for the human in the
+   report: they stay open until the human decides. Rerun the dry run until it exits 0.
 3. **Mechanical rename.** `$SK/rotate.sh --dry-run --leave …`, then `$SK/rotate.sh --leave …`.
    Exit 3: stop and fix. Then `$SK/rotate.sh --verify && git commit -m "rotation <date>: retire W5,
    W4→W5 … W0→W1"`. This one commit has **no** pathspec, on purpose (a pathspec would sweep the
@@ -82,9 +89,10 @@ Dropping durable knowledge at a week boundary is the one failure this design can
 4. **Editorial lanes.** New `W0/WEEK.md` (rewritten, never copied). Move live analyses with
    tombstones. Move `outbound-staging/` items: sent → `W1/reports/`, unsent → `W0/outbound-staging/`
    with a dated note why. Read `W1/reports/` for lost facts.
-5. **Flow db.** `hubflow.py rotate --week-start <today's Monday> --yes`. Put the lapsed and pruned
-   ids in the commit message.
+5. **Flow db.** `hubflow.py rotate --week-start <today's Monday> --yes`. Put the triaged (with their
+   dispositions), escalated and pruned ids in the commit message. If the week dir that just became
+   `W1` holds Claude Code transcripts, `hubflow.py index-transcripts W1` (rerunning it is safe).
 6. **Citations after.** `$SK/check-citations.sh > $SCR/citations-after.tsv` and compare with the
    baseline. A citation that broke or now resolves to a different week: tombstone it.
-7. **Commit** the editorial half with a pathspec. Report: what moved, what lapsed, what was promoted,
-   and anything you could not check.
+7. **Commit** the editorial half with a pathspec. Report: what moved, each disposition, what is
+   escalated to the human, what was promoted, and anything you could not check.

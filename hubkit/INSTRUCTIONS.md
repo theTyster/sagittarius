@@ -17,8 +17,9 @@ files.
    around them, never copies of ticket text.
 4. **Flow state is relational, so it lives in SQLite.** Who an ask waits on, which session owns a
    thread, which handoffs are unaccepted, what has gone stale: rows in `flow/flow.db`, written only by
-   `hubflow.py`. Views answer the common questions. Items lapse after 28 days without a renewal and
-   are pruned five weeks after closing. Every write exports the tables to `flow/jsonl/`, which git
+   `hubflow.py`. Views answer the common questions. An item with no renewal for 28 days is due: at
+   the next rotation it gets a recorded decision (keep, lapse, capsule or escalate), never a silent
+   lapse. Closed items are pruned five weeks after closing. Every write exports the tables to `flow/jsonl/`, which git
    tracks; the db file itself is ignored and can be rebuilt from the JSONL.
 5. **A few named, long-lived sessions**, one per role (example: discovery, build, process, support),
    each in its own terminal pane, all with the hub as cwd. Each has an identity (`HUB_SESSION`) that
@@ -134,14 +135,19 @@ Say what you set up, each check's result, and what you did not check. Then tell 
 - **When an agent waits on the human:** `add ask --waits-on me`. Ask the human what is waiting on
   them with `view v_waiting_on --person me`.
 - **Passing work:** `handoff --to <role>`, then message that session with the id.
-- **Each Monday:** "rotate the hub" (skill `hub-rotate`). The db lapses what nobody renewed.
+- **Each Monday:** "rotate the hub" (skill `hub-rotate`). The agent records a decision for each due
+  item and escalates to the human what a spec KB still blocks.
 - **When a new template release is out:** "upgrade the hub to the new template", and give the
   agent `UPGRADING.md` from the new release.
 
 ## Known limits (tell your human)
 
 - The db is new. It has a test suite with mutation checks, but little time in daily use yet.
-- `rotate` requires `--week-start` to be a Monday, and lapse at exactly 28 idle days is inclusive.
+- `rotate` requires `--week-start` to be a Monday, and an item is due at exactly 28 idle days.
+- Escalation asks `orbit-kb` (or `HUBFLOW_ORBIT_KB`) whether a spec KB blocks. Without it, every item
+  with a `kb` ref counts as blocking, so an agent can never lapse it. An agent can still drop an
+  escalated item by other means the tool does not watch (for example by removing its `kb` ref
+  first): the rule stops mistakes, not cheating.
 - Nothing wakes an idle session by itself. A session sees db changes when it next reads the db, or
   when another session messages it.
 - `launch.sh` needs bash 4+ and `jq` (on macOS: `brew install bash jq`).

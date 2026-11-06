@@ -4,8 +4,9 @@ description: >
   Read and write the hub's flow-state db (flow/flow.db) through hubflow.py: asks waiting on a human,
   in-flight threads, holds, and handoffs between sessions. Use for "what is waiting on me", "what is
   open", "log an ask", "hand this to the build session", "accept the handoff", "is this still live",
-  "close it", "what is stale", "what does X own", and before any write to the db. Never edit the db
-  or its JSONL by hand.
+  "close it", "what is stale", "what does X own", "triage", "write a capsule", "index the
+  transcripts", "the human skipped it", and before any write to the db. Never edit the db or its
+  JSONL by hand.
 allowed-tools: Bash, Read, SendMessage, ListAgents
 ---
 
@@ -30,7 +31,7 @@ No identity → exit 1. `--by human` only records a human's own words and needs 
 |---|---|---|
 | `ask` | A- | a question or decision that waits on a person (`--waits-on`) |
 | `thread` | T- | a live problem this session is carrying |
-| `hold` | K- | something deliberately paused; `park --until` stops it lapsing |
+| `hold` | K- | something deliberately paused; `park --until` keeps it off the triage list |
 | `handoff` | H- | work passed to another session (`handoff --to`) |
 
 Statuses: `open`, `waiting`, then `done`, `dropped`, `lapsed` (closed).
@@ -40,10 +41,13 @@ Statuses: `open`, `waiting`, then `done`, `dropped`, `lapsed` (closed).
 ```
 $HF view v_inbox --session $HUB_SESSION    # mine, unaccepted handoffs first
 $HF view v_waiting_on --person me           # what waits on a person
-$HF view v_stale                            # idle ≥14 d (warn), ≥28 d (lapse_due), handoffs unaccepted >1 d
+$HF view                                    # open items, escalated ones (waiting on the human) first
+$HF view escalated                          # what only the human can decide
+$HF view v_stale                            # idle ≥14 d (warn), ≥28 d (lapse_due: due for triage), handoffs unaccepted >1 d
 $HF view v_dup_refs                         # one ticket on several open items: merge or link them
 $HF show A-0007                              # one item, with its events
 $HF sql "SELECT …"                           # read-only; one SELECT/WITH only
+$HF transcripts [--detail <session id>]       # the transcript index: summary, then user messages
 ```
 
 Read at session start and after every compaction: the db is the memory, not the conversation.
@@ -65,22 +69,62 @@ $HF ref A-0007 add issue:124 ;  $HF link T-0002 T-0005 duplicates
 The writing session owns what it adds, so it shows in that session's inbox. Pass `--owner <session>`
 to give it to another session, or `--owner none` to leave it unowned (no inbox shows it).
 
+**Asks.** An ask that waits only on the owner (seed key `owner`, else the person `me`) is owned
+by this ledger. An ask that waits on another person is owned by the tracker: give it the `issue`
+ref of the tracker item. `$HF check` flags an ask to another person with no issue ref (exit 3).
+
 Rules the script enforces: `issue` and `pr` refs are digits only; `--analysis` takes a slug, never a
 `W0/…` path (week paths move at every rotation; `$HF where <slug>` finds the current one).
 
 **A handoff is two steps:** the `handoff` row, then a `SendMessage` to the receiving session naming
 the id. A row nobody was told about is a silent handoff.
 
-## Ageing
+## Ageing and triage
 
-An item not renewed for 28 days lapses at the next `rotate` unless parked. Items closed more than
-five weeks before the rotation are pruned; the JSONL history in git keeps them. Renew what you touch;
-let the rest lapse. The `hub-rotate` skill runs `rotate`.
+Nothing lapses by itself. An open item not renewed for 28 days, and not parked through today, is
+**due**. At a rotation each due item needs one recorded disposition, and `rotate` exits 1 and lists
+the `untriaged` items until each has one:
+
+```
+$HF triage A-0007 keep     --note "why it still matters"      # renews it
+$HF triage A-0007 lapse    --note "why nobody needs it"       # closes it as lapsed
+$HF capsule A-0007 --summary "the context the tracker lacks"  # then:
+$HF triage A-0007 capsule  --note "context is in the capsule" # renews it
+$HF triage A-0007 escalate --note "only the human can decide" # stays open, top of `view`
+```
+
+An agent may triage. An item with a `kb` ref to a spec KB that blocks is not the agent's to end:
+an agent's keep, lapse or capsule of it is recorded as **escalate**, and an agent's `close` of it is
+refused. hubflow asks `orbit-kb --dir <kb dir> query 'blocking(X)'` (`HUBFLOW_ORBIT_KB` names
+another command). If the query fails, orbit-kb is missing, or the kb dir is not in W0–W5, the item
+counts as blocking. An escalated item stays open at the top of `view`, with no automatic action,
+until the human records a disposition (`--by human --note "<their words>"`).
+
+**Capsules** hold what the tracker lacks: a summary (at most 1000 characters), the hub's
+`git rev-parse HEAD` and the item's `kb` and `file` refs. `$HF show ID` prints the newest capsule
+first. Never copy a ticket's own events into a capsule: they stay in the tracker.
+
+**A human skip:** `$HF close ID --reason human_skip --by human --note "<their words>"` also closes
+the open items linked to ID by `blocks`, records why on each, and prints a `waiver:` command for each
+blocking item of each linked spec KB. hubflow never writes to a spec KB: show the human the
+waivers; the human sets the due time and runs them.
+
+Items closed more than five weeks before the rotation are pruned; the JSONL history in git keeps
+them. The `hub-rotate` skill runs `rotate`.
+
+## Transcripts
+
+`$HF index-transcripts W0` reads the Claude Code JSONL transcripts under a week dir into the
+ledger: per session the first and last time, the first user message, message and tool counts,
+and the path; plus each user message cut to 200 characters. It never stores a whole transcript,
+and a rerun gives the same rows. Read `$HF transcripts` first, then `--detail <id>`, then the file
+itself only if you still need it.
 
 ## Exit codes
 
 0 ok · 1 bad input or a refused rule (read stderr) · 2 db state (missing, exists, older or newer
-schema, locked) · 3 `check` found the db and JSONL disagree. Exit 2 is never "no".
+schema, locked) · 3 `check` found the db and JSONL disagree, or an untracked ask to another
+person. Exit 2 is never "no".
 
 ## Recovery
 
