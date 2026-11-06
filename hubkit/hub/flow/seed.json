@@ -2,6 +2,7 @@
   "sessions": [
     {"name": "discovery", "role": "discovery"},
     {"name": "build", "role": "build"},
+    {"name": "review", "role": "review"},
     {"name": "process", "role": "process"},
     {"name": "support", "role": "support"}
   ],

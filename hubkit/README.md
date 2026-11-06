@@ -26,29 +26,39 @@ example in your dotfiles, because they belong to one machine. The hub knows only
 
 ## Install
 
-Needs Python 3 (stdlib only) and git: no Prolog and no Lean. `KIT` is this directory (`hubkit/` in
-a Sagittarius checkout) and `HUB` is a new directory for the hub:
+Needs Python 3 (stdlib only), git and bash 4 or later: no Prolog and no Lean.
+
+The hub's scripts and tests also use these POSIX tools, which must be on the PATH: `awk`, `comm`,
+`date`, `diff`, `find`, `mkdir`, `mktemp`, `mv`, `rm`, `sed`, `sort`, `tail`, `tr`, `wc`.
+
+`KIT` is this directory (`hubkit/` in a Sagittarius checkout) and `HUB` is a new directory for the
+hub. Each may be absolute or relative to the current directory: the first line makes them absolute.
 
 ```sh
-mkdir -p "$HUB" && cd "$HUB" && git init -q
+KIT=$(cd "$KIT" && pwd) && mkdir -p "$HUB" && HUB=$(cd "$HUB" && pwd)
+cd "$HUB" && git init -q
 python3 "$KIT/tools/hubkit.py" install --hub "$HUB"
 python3 .claude/scripts/hubflow-test.py | tail -n 1
 python3 .claude/scripts/hubflow.py init
 python3 .claude/scripts/hubflow.py check
 ```
 
-The test line must say `N passed, 0 failed`. For a guided setup (the hub's place, its people, its
-tracker), give this directory to your agent and say: **"follow INSTRUCTIONS.md"**. It asks you up
-to three questions, sets up the hub, and checks each step.
+The test line must say `N passed, 0 failed`. The install picks the **informal edition** when
+`orbit-kb` is not on the PATH, and the formal edition when it is; `--edition informal|formal`
+chooses, `.hub-template.json` records it, and an upgrade keeps it. `hubkit.py edition --hub "$HUB"
+formal` switches a hub later (a dry run without `--yes`). For a guided setup (the hub's place, its
+people, its tracker), give this directory to your agent and say: **"follow INSTRUCTIONS.md"**. It
+asks you up to three questions, sets up the hub, and checks each step.
 
 ## What the informal release keeps
 
 The hub has five informal stores: the flow ledger (`flow/`), the memory files (`CLAUDE.md`,
 `PRINCIPLES.md`, `HEURISTICS.md`, `TECHNOLOGIES.md`), the weeks (`W0/` to `W5/`), the bespoke tools
-(listed in `TECHNOLOGIES.md`), and the tracker (outside the hub, by pointer). `HUB-CORE.md`, "Without
-orbit-kb", says what changes without the formal tools and where each fact kind is kept. The formal
-stores (a spec KB per ticket and a project KB, written with `orbit-kb`) are optional; the
-Sagittarius `README.md` says how to add them.
+(listed in `TECHNOLOGIES.md`), and the tracker (outside the hub, by pointer). An informal hub gets
+the informal `HUB-CORE.md`, `CLAUDE.md` and skills (from `editions/informal/`): their rules name only
+these five stores, and say where each fact kind is kept. The formal stores (a spec KB per ticket and
+a project KB, written with `orbit-kb`) come with the formal edition; the Sagittarius `README.md`
+says how to install them.
 
 ## Take a new release
 
@@ -71,8 +81,9 @@ Say to your agent: **"upgrade the hub to the new template; follow UPGRADING.md i
 | `INSTRUCTIONS.md` | Set up a new hub (for the agent) |
 | `UPGRADING.md` | Apply a release to an existing hub (for the agent), one section per release |
 | `kit.json` | The version, and which files are *engine* (shipped) or *owned* (the hub's) |
-| `tools/hubkit.py` | `install`, `status`, `upgrade`, `done` |
-| `hub/` | The files of a new hub, at their paths in the hub |
+| `tools/hubkit.py` | `install`, `status`, `upgrade`, `done`, `edition` |
+| `hub/` | The files of a new hub, at their paths in the hub (the formal edition) |
+| `editions/informal/` | The files that the informal edition takes instead (`kit.json`, `editions`) |
 | `docs/` | The briefing page |
 
 ## Tests

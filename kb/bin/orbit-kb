@@ -1108,17 +1108,30 @@ resolve_kb(none, Dir) :-
                  "3. the nearest directory, from here upward, with a kb.pl that starts with uses([...])."
                ], Below, Ls0),
         (   hub_root(W1)
-        ->  Hub = ["This is a hub root. A spec KB is at specs/<slug>/: hubflow where SLUG prints the path, then orbit-kb --dir PATH show open."]
+        ->  (   informal_hub(W1)
+            ->  Hub = ["This is an informal hub: it has no KB. Its open work is in the ledger: python3 .claude/scripts/hubflow.py view open."]
+            ;   Hub = ["This is a hub root. A spec KB is at specs/<slug>/: hubflow where SLUG prints the path, then orbit-kb --dir PATH show open."]
+            )
         ;   Hub = []
         ),
         append(Ls0, ["Fix: give --dir DIR, set ORBIT_KB, or create a KB with orbit-kb init DIR --request TEXT."|Hub], Ls),
         die(2, Ls)
     ).
 
-% hub_root(+Dir): Dir looks like a hub root (a specs directory and flow/seed.json). Only for the hint.
+% hub_root(+Dir): Dir looks like a hub root: flow/seed.json, and a specs directory or the
+% manifest .hub-template.json that hubkit.py install writes (T32 c8). Only for the hint.
 hub_root(Dir) :-
-    directory_file_path(Dir, specs, S), exists_directory(S),
-    directory_file_path(Dir, 'flow/seed.json', F), exists_file(F).
+    directory_file_path(Dir, 'flow/seed.json', F), exists_file(F),
+    (   directory_file_path(Dir, specs, S), exists_directory(S)
+    ->  true
+    ;   directory_file_path(Dir, '.hub-template.json', M), exists_file(M)
+    ).
+
+% informal_hub(+Dir): the hub's manifest records the informal edition (hubkit.py, T32 c1).
+informal_hub(Dir) :-
+    directory_file_path(Dir, '.hub-template.json', M), exists_file(M),
+    catch(read_file_to_string(M, Text, []), _, fail),
+    sub_string(Text, _, _, _, "\"edition\": \"informal\"").
 
 % find_down(+Dir, +Depth, -Rel): a KB in a subdirectory of Dir, at most Depth levels
 % down, as a path relative to Dir. Only for the hint when no KB is found: orbit-kb
