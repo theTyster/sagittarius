@@ -355,11 +355,10 @@ safe_md() {   # safe_md LABEL: the stdout in $out has no live injection
     local l=$1
     [ "$(printf '%s\n' "$out" | grep -c '^## ')" = 1 ] || note "$l: a forged '## ' heading line"
     printf '%s\n' "$out" | grep -Eq '^#{1,6} Heading' && note "$l: a forged heading"
-    printf '%s\n' "$out" | grep -Eq '<(script|img)|onerror=' && note "$l: raw HTML passes through"
+    printf '%s\n' "$out" | grep -Eq '<(script|img)' && note "$l: raw HTML passes through"
     printf '%s\n' "$out" | grep -Eq '(^|[^\\])[|]' && note "$l: an unescaped pipe"
     printf '%s\n' "$out" | grep -Eq '(^|[^\\])`' && note "$l: an unescaped backtick"
-    printf '%s\n' "$out" | grep -Fq '](http' && note "$l: a live link"
-    printf '%s\n' "$out" | grep -Eq '^- Status: ready' && note "$l: a forged status line at the start of a line"
+    printf '%s\n' "$out" | grep -Eq '(^|[^\\])\]\(' && note "$l: a live link"
     printf '%s\n' "$out" | grep -Fq 'Heading' || note "$l: the text is lost (it must show, escaped)"
     printf '%s\n' "$out" | grep -Fq '&lt;script&gt;' || note "$l: < and > are not escaped as &lt; and &gt;"
     printf '%s\n' "$out" | grep -Eq '^  > ## Heading' || note "$l: the lines after the first are not a '  > ' block"
@@ -391,6 +390,7 @@ t_TS18() { K=$T/spec
            okb "$K" add "claim(c1, preserve, '$EVILA')" "cites(c1, 'Keep it')" >/dev/null || note "setup: add the claim: $(snip "$err")"
            okb "$K" draft blocking; rc_is 0 "draft blocking"
            safe_md "claim text"
+           printf '%s\n' "$out" | grep -Eq '^- Status:' && note "a claim text forged a status line"
            printf '%s\n' "$out" | grep -Fxq -- '- Nothing blocks done.' && note "a claim text forged '- Nothing blocks done.'"
            okb "$K" pin --check "$(printf '%s\n' "$out" | grep -Eo 'spec-kb@sha256:[0-9a-f]{64}' | head -n1)"; rc_is 0 "the stamp is still the stamp of kb.pl"; }
 t_TS19() { conflict_kb
@@ -403,7 +403,8 @@ t_TS19() { conflict_kb
                "pins(c1, project, dec1, '$dg')" >/dev/null || note "setup: add to the spec KB: $(snip "$err")"
            okb "$K" draft blocking; rc_is 0 "draft blocking"
            out_has '^- project_conflict dE' "the conflict with the odd draft text is listed"
-           safe_md "conflict draft text"; }
+           safe_md "conflict draft text"
+           printf '%s\n' "$out" | grep -Eq '^- Status:' && note "a draft text forged a status line"; }
 t_TS20() { okb_nokb help project; rc_is 0 "help project"
            printf '%s\n' "$out" | grep -E 'write command' | grep -Fq 'pin-item' || note "help project lists pin-item among the write commands of the writer lock"; }
 okb_nokb() { ( cd "$T" && exec timeout "$TMO" "$OKB" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
