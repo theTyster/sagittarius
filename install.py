@@ -2,6 +2,7 @@
 """Link Sagittarius into the home directory. Safe to run again.
 
     ~/.local/bin/orbit-kb     -> kb/bin/orbit-kb
+    ~/.local/bin/repo-map     -> kb/bin/repo-map
     ~/.local/share/orbit-kb   -> kb/share/orbit-kb
     ~/.claude/sagittarius     -> prompt/  (holds SAGITTARIUS.md)
 
@@ -23,6 +24,7 @@ REPO = Path(__file__).resolve().parent
 HOME = Path.home()
 LINKS = [
     (HOME / ".local" / "bin" / "orbit-kb", REPO / "kb" / "bin" / "orbit-kb"),
+    (HOME / ".local" / "bin" / "repo-map", REPO / "kb" / "bin" / "repo-map"),
     (HOME / ".local" / "share" / "orbit-kb", REPO / "kb" / "share" / "orbit-kb"),
     (HOME / ".claude" / "sagittarius", REPO / "prompt"),
 ]
