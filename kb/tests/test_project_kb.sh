@@ -321,6 +321,7 @@ t_PC4() { pk_basic; K=$T/pk; tracker_changed p2 "$T3"; stage dr1 "$T1"
 # the third case: the tracker changed after the pin, the draft staged after the pin AND after the tracker change
 t_PC5() { pk_basic; K=$T/pk; tracker_changed p2 "$T2"; tracker_changed p3 "$T3"; stage dr1 "$T4"
           is_true 'conflict(dr1)' "after the pin, tracker changed twice"
+          stage dr2 "$T2"
           is_set 'conflict(D)' 'D = dr1|D = dr2' "dr2 is staged after the pin, and the tracker changed after it too"; }
 # a human resolves: the conflict goes, the other side is recorded as dropped
 t_PC6() { pk_basic; K=$T/pk; tracker_changed p2 "$T2"; stage dr1 "$T3"
