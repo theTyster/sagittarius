@@ -1,0 +1,59 @@
+orbit-kb project module: domain reasoning about where the product is and where it is going.
+
+Make a project KB:  orbit-kb init project-kb --request 'TEXT' --uses project
+A spec KB can pin a decision of it:  orbit-kb init DIR --request 'TEXT' --uses build,project
+
+Facts (write them with orbit-kb add; never edit kb.pl)
+  decision(Id, Text)                  a decision, in one plain sentence
+  decided_by(Id, Who, When)           who made it, and when (a time such as '2026-03-01T09:00:00Z')
+  reason(Id, Text)                    a reason for the decision
+  repo(Name, Location)                a repository of the product
+  analysis(Id, Path)                  the file with the analysis behind the decision
+  pin(Id, Kind, Source, Digest, ChangedAt)
+                                      a pin of the world. Kind is file or tracker.
+                                      file: Source is a subject id. Run orbit-kb subject first, and
+                                        copy its digest. The pin keeps its own digest.
+                                      tracker: Source names the item, such as 'gh:acme/widgets#12'.
+                                        Digest is the sha256 of the item as fetched, and ChangedAt is
+                                        the change time of the item. A new record of the same item is
+                                        a new pin. Never rewrite a pin.
+  concerns(Decision, Pin)             the decision rests on the pin
+  draft(Id, PinId, Text, StagedAt)    an edit staged for the tracker item. It never edits the pin.
+  pushed(Draft, Time)                 the draft was pushed to the tracker
+  resolved(Draft, Side, Time)         a human settled a conflict. Side is draft or tracker: the side that stays.
+  writer_takeover(From, To, Time)     written by --take only
+In a spec KB:
+  project_kb(Dir)                     the directory of the project KB, relative to this KB or absolute
+  pins(Claim, project, DecisionId, Digest)
+                                      the claim rests on the decision. Digest is its decision_digest.
+                                      Read it with: orbit-kb query 'project_decision_digest(d1, D)'
+
+Queries
+  stale_pin(P)                  the pin is old: the file has another digest now (or is missing), or a
+                                newer ChangedAt exists for the same tracker item
+  outbound(D)                   the drafts that are not pushed, not in conflict, and did not lose
+  conflict(D)                   the tracker changed after the pin, and the draft was staged after the
+                                pin. Both edits are new, so only a human can pick. Ask the human, then
+                                add resolved(D, draft|tracker, Time).
+  supersedes_by_date(D, Side)   no conflict: the later edit wins. Side is draft (the tracker did not
+                                change after the pin) or tracker (the draft is not later than the pin).
+  dropped(D, Side)              the side that lost. The facts stay in kb.pl: this is the record.
+  decision_digest(D, Digest)    the sha256 of the text of the decision (computed)
+  subject_now(S, Digest)        the digest of the file of the subject now (computed)
+A conflict is a blocking item (orbit-kb show blocking) for each spec KB that pins a decision that
+rests on the pin of the draft. It blocks no other KB.
+
+Lint
+  WP1   a pins fact: the decision changed since the claim was written. Read it, then pin the new digest.
+  WP2   a pins fact that cannot be checked: no project_kb, no kb.pl there, or no such decision.
+  WP3   the project KB has a lint error, so a conflict could hide in it. Run orbit-kb lint on it. It also blocks (project_kb_unclean).
+
+One writer
+  A project KB has one writer at a time. The writer is $ORBIT_KB_WRITER, or else $CLAUDE_SESSION_ID.
+  With neither, no lock is taken. A write command (add, declare, subject, attest, run, prove, uses)
+  claims the file writer.lock. The same writer goes on. Another writer gets exit 2 and the name of
+  the holder. Two ways forward:
+    orbit-kb release            the holder frees the lock
+    ... --take                  (for example: orbit-kb add 'FACT' --take) the new writer takes the lock,
+                                and writer_takeover(From, To, Time) is recorded in kb.pl
+  Reads never need the lock. The lock is a record, not a guard: it does not stop a hand edit of kb.pl.

@@ -27,6 +27,7 @@ vocabulary for one orbit:
 |---|---|---|
 | `build` | Build: specification, implementation, verification | Written. See section 7. |
 | `discovery` | Discovery | Rules for the discovery orbit: models, findings, hypotheses, and the gates `discovery_ready` and `discovery_decide`. The discovery-orbit session owns it. Example KB: `kb/tests/fixtures/discovery-a/`. |
+| `project` | Project | Decisions, pins of files and tracker items, drafts, conflicts, and a writer lock, for the project KB (D23). A spec KB pins a decision with `pins/4`. `orbit-kb help project`. |
 
 When an agent must record what a human asked for and then show with evidence
 that the work is done, use `orbit-kb`.
