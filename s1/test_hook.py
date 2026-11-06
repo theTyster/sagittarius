@@ -31,6 +31,10 @@ TICKET_LINE = ("System 1: work=build (0.83); divergence likely (0.85); effort si
                "consider a shift up; formal tool: prolog (0.72)")
 
 
+LONG_CHARS = 262000 * 3  # T30: the long-context limit (262k tokens) at the hook's 3 chars/token
+LONG_HEADER = "TypeSafe-Danger-Zone-Long-Context"  # TypeSafe docs, models page, "Long context"
+
+
 def hook():
     import hook as h  # imported per test, so a missing module fails each test on its own
     return h
@@ -370,8 +374,10 @@ class T20Context(Base):
         self.assertNotIn("trimmed", json.dumps(self.log_lines()[-1]))
 
     def test_t20_c2_over_budget_drops_extra_then_cuts_oldest_from_start(self):
+        # T30 changed this test: the cut now happens only past the long-context limit (262k
+        # tokens), not past the default 32k. Before T30 the oldest message was "B" * CONTEXT_CHARS.
         h = hook()
-        big = "B" * (h.CONTEXT_CHARS)  # one message alone fills the budget
+        big = "B" * LONG_CHARS  # one message alone fills the long-context budget
         self.write_transcript([utext("old one"), entry("assistant", ["old two"], "o2"),
                                utext("start-" + big), entry("assistant", ["middle"], "m"),
                                utext("newest")])
@@ -385,7 +391,7 @@ class T20Context(Base):
         self.assertFalse(first.startswith("start-"))
         q = json.loads(fake.calls[0]["body"])["questions"]
         longest = max(len(json.dumps(v)) for v in q.values())
-        self.assertLessEqual(len(json.dumps(st)) + longest, h.CONTEXT_CHARS)
+        self.assertLessEqual(len(json.dumps(st)) + longest, LONG_CHARS)
         self.assertTrue(self.log_lines()[-1].get("trimmed"), "the log line says trimmed")
 
     def test_t20_c2_extra_messages_dropped_before_any_cut(self):
@@ -399,6 +405,8 @@ class T20Context(Base):
         self.assertEqual([m["text"] for m in fake.state()["recent"]], ["x2", "x3", "x4", "x5"])
 
     def test_t20_c2_no_long_context_header(self):
+        # T30 changed this test: the header is absent only while the state fits the default
+        # context; T30 c1 covers the other branches (class T30LongContext).
         self.write_transcript(self.conv())
         fake = Fake()
         self.run_hook(fake)
@@ -460,6 +468,62 @@ class T20Context(Base):
             self.assertIn("S1_CONTEXT_MESSAGES", t)
             self.assertIn("trimmed", t)
             self.assertNotIn("600", t)
+
+
+class T30LongContext(Base):
+    """T30: the hook never cuts the last 3 messages while the long-context header can hold them."""
+
+    def sent(self, fake):
+        return fake.calls[0]["headers"]
+
+    def test_t30_c1_fits_default_context_no_header_no_trim(self):
+        self.write_transcript(T20Context.conv(self))
+        fake = Fake()
+        self.run_hook(fake)
+        self.assertNotIn(LONG_HEADER, self.sent(fake))
+        self.assertNotIn("trimmed", self.log_lines()[-1])
+
+    def test_t30_c1_extra_messages_dropped_first_then_it_fits_no_header(self):
+        h = hook()
+        over = "H" * h.CONTEXT_CHARS  # past the default budget, but beyond the last 3
+        self.write_transcript([utext("x1 " + over), entry("assistant", ["x2"], "a"),
+                               utext("x3"), entry("assistant", ["x4"], "b"), utext("x5")])
+        fake = Fake()
+        self.run_hook(fake, env=dict(self.env, S1_CONTEXT_MESSAGES="5"))
+        self.assertNotIn(LONG_HEADER, self.sent(fake))
+        self.assertEqual([m["text"] for m in fake.state()["recent"]], ["x2", "x3", "x4", "x5"])
+
+    def test_t30_c1_three_over_default_sent_whole_with_header(self):
+        h = hook()
+        big = "start-" + "B" * (h.CONTEXT_CHARS + 5000)  # the 3 do not fit the default context
+        self.write_transcript([utext(big), entry("assistant", ["middle"], "m"), utext("newest")])
+        fake = Fake()
+        out = self.run_hook(fake)
+        self.assertEqual(self.sent(fake).get(LONG_HEADER), "true")
+        self.assertEqual([m["text"] for m in fake.state()["recent"]], [big, "middle", "newest"])
+        line = self.log_lines()[-1]
+        self.assertNotIn("trimmed", line, "nothing was cut")
+        self.assertTrue(out, "the answers are used as usual")
+
+    def test_t30_c1_beyond_long_limit_cut_from_start_with_header_and_trimmed(self):
+        big = "start-" + "B" * LONG_CHARS  # past 262k tokens alone
+        self.write_transcript([utext(big), entry("assistant", ["middle"], "m"), utext("newest")])
+        fake = Fake()
+        self.run_hook(fake)
+        self.assertEqual(self.sent(fake).get(LONG_HEADER), "true")
+        st = fake.state()
+        self.assertEqual([m["text"] for m in st["recent"]][1:], ["middle", "newest"])
+        first = st["recent"][0]["text"]
+        self.assertTrue(first.endswith("BBBB"))
+        self.assertFalse(first.startswith("start-"), "the cut is at the start")
+        q = json.loads(fake.calls[0]["body"])["questions"]
+        longest = max(len(json.dumps(v)) for v in q.values())
+        self.assertLessEqual(len(json.dumps(st)) + longest, LONG_CHARS)
+        self.assertTrue(self.log_lines()[-1].get("trimmed"))
+
+    def test_t30_c2_timeout_default_and_hook_timeout_are_unchanged(self):
+        # c2's measurement is s1/measure_latency.py --long (live); the numbers are in the KB.
+        self.assertEqual(hook().DEFAULT_TIMEOUT, 4.0)
 
 
 class C2Output(Base):
