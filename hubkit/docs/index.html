@@ -134,12 +134,13 @@
     <div class="arrow">→</div>
     <div class="card"><h3>Renewed</h3><p>Someone confirms it still matters, with a next step.</p></div>
     <div class="arrow">→</div>
-    <div class="card"><h3>Closed <span class="pill ok">done / dropped</span></h3><p>Or <strong>lapsed</strong>: 28 days with no renewal.</p></div>
+    <div class="card"><h3>Closed <span class="pill ok">done / dropped</span></h3><p>Or <strong>lapsed</strong> at a rotation, by a recorded triage decision.</p></div>
     <div class="arrow">→</div>
     <div class="card"><h3>Pruned</h3><p>Five weeks after closing. Git history keeps it.</p></div>
   </div>
-  <p class="caption" style="margin-top:14px">Lapsing is the point: if nobody renews an item for four weeks, it is probably not live.
-  Before it lapses, it shows up as stale, so you get a chance to keep it.</p>
+  <p class="caption" style="margin-top:14px">After four weeks with no renewal an item is due. At the next rotation it gets one
+  recorded decision: keep, lapse, capsule (keep, with a note of its context) or escalate. Nothing lapses silently, and an
+  item that a spec still blocks goes to you, never to the bin.</p>
 </section>
 
 <section id="sessions">
@@ -161,7 +162,7 @@
   <p class="sub">About ten minutes a day and one rotation a week.</p>
   <div class="grid">
     <div class="card"><span class="num">D</span><h3>Daily</h3><p>Ask what is waiting on you. Answer, renew, or drop each item. Short answers are fine.</p></div>
-    <div class="card"><span class="num">M</span><h3>Monday</h3><p>Tell one session to rotate the hub. Read what lapsed and keep anything that still matters.</p></div>
+    <div class="card"><span class="num">M</span><h3>Monday</h3><p>Tell one session to rotate the hub. It triages each due item; you decide what it escalates.</p></div>
     <div class="card"><span class="num">!</span><h3>When something is wrong</h3><p>Say so plainly (“that is not what I meant”). That disagreement is the most useful signal the agents get.</p></div>
     <div class="card"><span class="num">✉</span><h3>Outbound</h3><p>Drafts wait in <code>outbound-staging/</code>. You read, edit and send. Agents never send for you.</p></div>
   </div>

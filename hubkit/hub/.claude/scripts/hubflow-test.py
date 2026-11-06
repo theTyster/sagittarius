@@ -2,11 +2,16 @@
 """Test for hubflow.py. Runs the script against temporary flow dirs (HUBFLOW_DB_DIR) with a fixed
 clock (HUBFLOW_NOW), never the real hub's flow/ dir.
 
-usage: python3 -I hubflow-test.py [--mutants]
+usage: python3 -I hubflow-test.py [--mutants] [--case NAME ...]
   --mutants  also apply each rule mutant to a temp copy of hubflow.py and run the suite on it;
              each mutant must make at least one case fail (KILLED).
+  --case NAME  run only the named scenario (repeatable), e.g. --case case_triage. A scenario that
+             needs another one's db (case_sql, case_state need case_basic) brings it along.
+Check names of the T05 ledger claims start with their claim id: c1- triage, c2- escalate,
+c3- capsule, c4- transcripts, c5- skip, c6- asks; schema- is the v1 -> v2 migration.
 Every scenario seeds its db from a seed file written into the temp dir (SEED_DATA below).
-Prints `PASS name` or `FAIL name: why` per case; the last line is `N passed, M failed`.
+Prints `PASS name` or `FAIL name: why` per case (`SKIP name: why` for a check that cannot run
+here, not counted); the last line is `N passed, M failed`.
 Exit 0 only if every case passes (and, with --mutants, every mutant is killed); 1 otherwise.
 """
 import json, os, re, shutil, sqlite3, subprocess, sys, tempfile
@@ -17,7 +22,9 @@ NOW = "2026-11-02T12:00:00Z"  # a Monday
 TABLES = ("meta", "session", "session_alias", "person", "item", "item_ref", "item_link", "handoff", "event")
 VIEWS = ("clock", "v_open", "v_waiting_on", "v_inbox", "v_stale", "v_dup_refs", "v_week", "v_retention_due")
 WRITE_CMDS = ("init", "migrate", "add", "handoff", "accept", "renew", "park", "set", "close", "reopen", "ref", "link",
-              "note", "session", "import", "rotate", "rebuild", "export")
+              "note", "session", "import", "rotate", "rebuild", "export", "triage", "capsule", "index-transcripts")
+# Tables added by schema 2 (T05). The JSONL checks below cover them when the db has them.
+NEW_TABLES = ("disposition", "capsule", "transcript", "transcript_msg")
 
 SEED_DATA = {
     "sessions": [{"name": n, "role": n} for n in ("discovery", "build", "process", "support")],
@@ -42,6 +49,16 @@ MUTANTS = [
     ("migrate-version-not-set", "c.execute(f\"PRAGMA user_version = {v + 1}\")  # migrate step", "pass"),
     ("rebuild-ignores-unknown-columns", "if extra:  # unknown JSONL columns", "if False:"),
     ("seed-file-ignored", "seed = load_seed(seed_path(o, d))  # seed file read", "seed = load_seed(None)"),
+    # T05: the flow ledger
+    ("escalate-fails-open", 'blocking = any(k["state"] != "clear" for k in checks)  # fail-safe',
+     'blocking = any(k["state"] == "blocking" for k in checks)'),
+    ("agent-may-lapse-blocking", 'if by != "human" and disp != "escalate" and kb_refs:  # agents escalate', "if False:"),
+    ("agent-guard-dropped", 'if esc or any(k["state"] != "clear" for k in checks):  # agent guard', "if False:"),
+    ("rotate-ignores-untriaged", "if untriaged:  # triage gate", "if False:"),
+    ("skip-not-propagated", 'if o["reason"] == "human_skip":  # propagate', "if False:"),
+    ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
+    ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
+    ("capsule-without-rev", "rev = git_head(hub_dir(g))  # capsule rev", "rev = None"),
 ]
 
 
@@ -51,6 +68,11 @@ class Run:
         self.results = []
         self.sync_bad = []
 
+    def skip(self, name, why):
+        """A check that cannot run here: printed, not counted."""
+        if not QUIET:
+            print(f"SKIP {name}: {why}")
+
     def check(self, name, ok, detail=""):
         self.results.append(bool(ok))
         if not QUIET:
@@ -58,6 +80,15 @@ class Run:
 
 
 QUIET = False
+ONLY = set()  # --case names; empty runs every scenario
+
+
+def script_version(path):
+    """The SCHEMA_VERSION of the script under test."""
+    m = re.search(r"^SCHEMA_VERSION = (\d+)$", open(path, encoding="utf-8").read(), re.M)
+    if not m:
+        raise RuntimeError("SCHEMA_VERSION not found in " + path)
+    return int(m.group(1))
 
 
 def hf(r, d, *args, now=NOW, session="discovery", hub=None, extra_env=None, cwd=None):
@@ -106,8 +137,14 @@ def rows(d, t):
         c.close()
 
 
+def db_tables(d):
+    """TABLES, then each NEW_TABLES entry that the db has."""
+    have = {x[0] for x in q(d, "select name from sqlite_master where type='table'")}
+    return TABLES + tuple(t for t in NEW_TABLES if t in have)
+
+
 def snapshot(d):
-    return {t: sorted(rows(d, t)) for t in TABLES}
+    return {t: sorted(rows(d, t)) for t in db_tables(d)}
 
 
 def jl_lines(d, t):
@@ -120,7 +157,7 @@ def jl_lines(d, t):
 
 def out_of_sync(d):
     bad = []
-    for t in TABLES:
+    for t in db_tables(d):
         disk = jl_lines(d, t)
         if disk is None:
             bad.append(t + " missing")
@@ -198,7 +235,7 @@ def case_init(r, root):
     r.check("init-db-exists", os.path.exists(dbfile(d)))
     if not os.path.exists(dbfile(d)):
         return
-    r.check("init-user-version-1", q(d, "pragma user_version")[0][0] == 1)
+    r.check("init-user-version-1", q(d, "pragma user_version")[0][0] == script_version(r.script))
     r.check("init-wal", q(d, "pragma journal_mode")[0][0] == "wal")
     names = {x[0] for x in q(d, "select name from sqlite_master")}
     r.check("init-tables", set(TABLES) <= names, sorted(set(TABLES) - names))
@@ -576,35 +613,44 @@ def case_rotate(r, root):
     add(r, d, "ask", "Owned by held", "--owner", "held-desk", now="2026-10-30T00:00:00Z")  # A-11
     ok(r, d, "session", "retire", "held-desk", now="2026-09-01T00:00:00Z")
 
+    # T05 c1 changed these checks: rotate no longer lapses an idle item by itself. A due item
+    # (idle 28 days, not parked through today) needs a recorded disposition first.
     pre = hf(r, d, "view", "retention_due", "--week-start", D, "--format", "json")
     pv = js(pre[1]) or []
-    r.check("v_retention_due-lapse-list", sorted(x["id"] for x in pv if x["would"] == "lapse") == ["A-0001", "A-0004"], pre[1][:400] + pre[2])
+    r.check("v_retention_due-triage-list", sorted(x["id"] for x in pv if x["would"] == "triage") == ["A-0001", "A-0004"], pre[1][:400] + pre[2])
     r.check("v_retention_due-prune-list", sorted(x["id"] for x in pv if x["would"] == "prune") == ["A-0006", "A-0010", "H-0001"], pre[1][:400])
 
     snap, files = snapshot(d), jl_bytes(d)
     code, out, err = hf(r, d, "rotate", "--week-start", D, session=None)
-    r.check("rotate-dry-run-needs-no-session", code == 0, err)
-    r.check("rotate-dry-run-lists", listed(out, "lapsed:") == ["A-0001", "A-0004"] and listed(out, "pruned:") == ["A-0006", "A-0010", "H-0001"]
+    r.check("rotate-dry-run-untriaged-exit-1", refused((code, out, err), 1, "disposition"), (code, err))
+    r.check("rotate-dry-run-lists", listed(out, "untriaged:") == ["A-0001", "A-0004"] and listed(out, "pruned:") == ["A-0006", "A-0010", "H-0001"]
             and listed(out, "pruned_sessions:") == ["older-desk"], out)
     r.check("rotate-dry-run-writes-nothing", snapshot(d) == snap and jl_bytes(d) == files)
     r.check("rotate-non-monday-refused", refused(hf(r, d, "rotate", "--week-start", "2026-11-03"), 1))
     r.check("rotate-bad-date-refused", refused(hf(r, d, "rotate", "--week-start", "soon"), 1))
     r.check("rotate-needs-week-start", refused(hf(r, d, "rotate"), 1))
     r.check("rotate-yes-needs-session", refused(hf(r, d, "rotate", "--week-start", D, "--yes", session=None), 1, "HUB_SESSION"))
+    code, out, err = hf(r, d, "rotate", "--week-start", D, "--yes")
+    r.check("rotate-yes-refused-while-untriaged", refused((code, out, err), 1, "disposition"), (code, out, err))
     r.check("rotate-refusals-write-nothing", snapshot(d) == snap)
+    for i in ("A-0001", "A-0004"):
+        hf(r, d, "triage", i, "lapse", "--note", "idle, nobody needs it")
+    code, out, err = hf(r, d, "rotate", "--week-start", D, session=None)
+    r.check("rotate-dry-run-needs-no-session", code == 0 and listed(out, "untriaged:") == [], out + err)
     code, out, err = hf(r, d, "rotate", "--week-start", D, "--yes")
     r.check("rotate-yes-exit-0", code == 0, err)
-    r.check("rotate-yes-reports-same-lists", listed(out, "lapsed:") == ["A-0001", "A-0004"] and listed(out, "pruned:") == ["A-0006", "A-0010", "H-0001"]
+    r.check("rotate-yes-reports-same-lists", listed(out, "untriaged:") == [] and listed(out, "pruned:") == ["A-0006", "A-0010", "H-0001"]
             and listed(out, "pruned_sessions:") == ["older-desk"], out)
     st = dict(q(d, "select id, status from item"))
-    r.check("rotate-lapses-at-28-days", st.get("A-0001") == "lapsed", st)
+    r.check("rotate-triage-lapses-at-28-days", st.get("A-0001") == "lapsed", st)
     r.check("rotate-keeps-27-days", st.get("A-0002") == "open", st)
     r.check("rotate-park-prevents-lapse", st.get("A-0003") == "open" and st.get("A-0005") == "open", st)
     r.check("rotate-lapses-expired-park", st.get("A-0004") == "lapsed", st)
     it = q(d, "select closed_at, close_reason from item where id='A-0001'")
-    r.check("rotate-lapse-fields", it and it[0][0] == NOW and it[0][1].startswith("lapsed: idle 28 days"), it)
+    r.check("rotate-lapse-fields", it and it[0][0] == NOW and it[0][1].startswith("lapsed: triage"), it)
     e = ev(d, "A-0001")
-    r.check("rotate-lapse-event-by-script", e[-1][0] == "lapsed" and e[-1][4] == "script" and e[-1][3] == "discovery", e)
+    r.check("rotate-lapse-event-by-agent-triage", any(x[0] == "triage" and x[2] == "lapse" and x[3] == "discovery" and x[4] == "agent" for x in e)
+            and e[-1][0] == "lapsed", e)
     r.check("prune-before-boundary-removed", "A-0006" not in st and "A-0010" not in st and "H-0001" not in st, sorted(st))
     r.check("prune-at-boundary-kept", "A-0007" in st, sorted(st))
     r.check("prune-one-second-after-kept", "A-0008" in st, sorted(st))
@@ -622,7 +668,7 @@ def case_rotate(r, root):
     r.check("prune-keeps-seed-sessions", {"discovery", "build", "process", "support"} <= sess)
     r.check("rotate-export-and-check", hf(r, d, "check")[0] == 0 and out_of_sync(d) == [])
     code, out, err = hf(r, d, "rotate", "--week-start", D, "--yes")
-    r.check("rotate-is-idempotent", code == 0 and listed(out, "lapsed:") == [] and listed(out, "pruned:") == [], out + err)
+    r.check("rotate-is-idempotent", code == 0 and listed(out, "untriaged:") == [] and listed(out, "pruned:") == [], out + err)
 
 
 def case_import(r, root):
@@ -727,7 +773,7 @@ def case_realclock(r, root):
     snap = snapshot(d)
     for s in ("INSERT INTO meta(key,value) VALUES('a','b')", "PRAGMA user_version = 9", "DELETE FROM item", "SELECT 1; SELECT 2"):
         r.check("real-clock-sql-refuses " + s[:20], refused(hf(r, d, "sql", s, now=None), 1))
-    r.check("real-clock-sql-no-change", snapshot(d) == snap and q(d, "pragma user_version") == [(1,)])
+    r.check("real-clock-sql-no-change", snapshot(d) == snap and q(d, "pragma user_version") == [(script_version(r.script),)])
     r.check("real-clock-bad-now-refused", refused(hf(r, d, "add", "ask", "--title", "Bad clock", now="2026-13-01"), 1))
     r.check("real-clock-bad-now-format", refused(hf(r, d, "add", "ask", "--title", "Bad clock", now="2026-11-01"), 1))
 
@@ -747,7 +793,7 @@ def case_state(r, root, base):
     r.check("rebuild-exit-0", res[0] == 0, res)
     r.check("rebuild-equals-original", snapshot(base) == snap)
     r.check("rebuild-check-clean", hf(r, base, "check")[0] == 0)
-    r.check("rebuild-user-version", q(base, "pragma user_version") == [(1,)] and q(base, "pragma journal_mode") == [("wal",)])
+    r.check("rebuild-user-version", q(base, "pragma user_version") == [(script_version(r.script),)] and q(base, "pragma journal_mode") == [("wal",)])
     r.check("rebuild-refuses-existing-db", refused(hf(r, base, "rebuild"), 2))
     r.check("rebuilt-db-is-writable", add(r, base, "ask", "After rebuild") != "")
     # tampered export
@@ -972,10 +1018,11 @@ def case_hub_default(r, root):
 
 
 def v2_script(r, root):
-    """A copy of the script under test, one schema step ahead: v2 adds item.probe."""
+    """A copy of the script under test, one schema step ahead (N -> N + 1): the step adds item.probe."""
     src = open(r.script, encoding="utf-8").read()
-    for a, b in (("SCHEMA_VERSION = 1", "SCHEMA_VERSION = 2"),
-                 ("MIGRATIONS = {}", "MIGRATIONS = {1: ['ALTER TABLE item ADD COLUMN probe TEXT']}")):
+    n = script_version(r.script)
+    for a, b in ((f"SCHEMA_VERSION = {n}\n", f"SCHEMA_VERSION = {n + 1}\n"),
+                 ("MIGRATIONS = {", f"MIGRATIONS = {{{n}: ['ALTER TABLE item ADD COLUMN probe TEXT'], ")):
         if src.count(a) != 1:
             raise RuntimeError(f"v2 anchor {a!r} occurs {src.count(a)} times")
         src = src.replace(a, b)
@@ -991,13 +1038,14 @@ def case_migrate(r, root):
     before = jl_bytes(d)
     res = hf(r, d, "migrate")
     r.check("migrate-at-current-is-noop", res[0] == 0 and "already" in res[1] and jl_bytes(d) == before, res)
+    n = script_version(r.script)
     v2 = Run(v2_script(r, root))
     res = hf(v2, d, "add", "ask", "--title", "Refused before migrate")
     r.check("old-db-refused-until-migrate", res[0] == 2 and "migrate" in res[2], res)
     res = hf(v2, d, "migrate")
     r.check("migrate-runs", res[0] == 0, res)
-    r.check("migrate-sets-version", q(d, "PRAGMA user_version")[0][0] == 2, q(d, "PRAGMA user_version"))
-    r.check("migrate-keeps-backup", os.path.exists(os.path.join(d, "flow.db.bak-v1")), os.listdir(d))
+    r.check("migrate-sets-version", q(d, "PRAGMA user_version")[0][0] == n + 1, q(d, "PRAGMA user_version"))
+    r.check("migrate-keeps-backup", os.path.exists(os.path.join(d, f"flow.db.bak-v{n}")), os.listdir(d))
     items = jl_lines(d, "item")
     r.check("migrate-reexports-jsonl", items and all("probe" in json.loads(x) for x in items), items[:1])
     r.check("migrate-keeps-rows", len(items) == 1 and "Before the migration" in items[0], items)
@@ -1030,28 +1078,707 @@ def case_rebuild_columns(r, root):
             and not os.path.exists(dbfile(d)), res)
 
 
+# ---- T05: the flow ledger ----------------------------------------------------------------------
+
+DUE = "2026-10-05T12:00:00Z"  # 28 days before NOW: due at the rotation of 2026-11-02
+WK = "2026-11-02"
+
+# A stand-in for `orbit-kb --dir REF query 'blocking(X)'` (ticket T03): a KB dir with a BLOCKING
+# file prints its lines and exits 0; an ERROR file, a missing dir or any other command exits 2;
+# otherwise exit 1 (nothing blocks). Every call is appended to $STUB_LOG.
+STUB_SRC = """#!@PY@ -I
+import os, sys
+a = sys.argv[1:]
+log = os.environ.get("STUB_LOG")
+if log:
+    with open(log, "a", encoding="utf-8") as f:
+        f.write(" ".join(a) + "\\n")
+if len(a) != 4 or a[0] != "--dir" or a[2] != "query" or a[3] != "blocking(X)":
+    sys.exit(2)
+d = a[1]
+if not os.path.isdir(d) or os.path.exists(os.path.join(d, "ERROR")):
+    sys.exit(2)
+p = os.path.join(d, "BLOCKING")
+if os.path.exists(p):
+    sys.stdout.write(open(p, encoding="utf-8").read())
+    sys.exit(0)
+sys.exit(1)
+"""
+
+
+def write_stub(root):
+    p = os.path.join(root, "orbit-kb-stub")
+    with open(p, "w", encoding="utf-8") as f:
+        f.write(STUB_SRC.replace("@PY@", sys.executable))
+    os.chmod(p, 0o755)
+    return p
+
+
+def kb_hub(root, name, kbs):
+    """A hub dir with spec KBs at W0/analyses/<slug>/kb. kbs: slug -> list of blocking items,
+    None (nothing blocks) or "ERROR" (the query fails)."""
+    h = os.path.join(root, name)
+    for slug, v in kbs.items():
+        k = os.path.join(h, "W0", "analyses", slug, "kb")
+        os.makedirs(k)
+        write_json(os.path.join(k, "kb.pl"), "% an invented spec KB\n")
+        if v == "ERROR":
+            write_json(os.path.join(k, "ERROR"), "")
+        elif v:
+            write_json(os.path.join(k, "BLOCKING"), "".join(x + "\n" for x in v))
+    return h
+
+
+def tree(path):
+    out = {}
+    for dp, _, fs in os.walk(path):
+        for f in fs:
+            with open(os.path.join(dp, f), "rb") as fh:
+                out[os.path.relpath(os.path.join(dp, f), path)] = fh.read()
+    return out
+
+
+def qs(d, sql, *params):
+    """q, but a table that does not exist yet reads as no rows (so a red run reports each check)."""
+    try:
+        return q(d, sql, *params)
+    except sqlite3.OperationalError:
+        return []
+
+
+def disp(d, item):
+    """The dispositions of an item, oldest first: (disposition, asked, note, by_session, by)."""
+    return qs(d, "select disposition, asked, note, by_session, by from disposition where item_id = ? order by seq", item)
+
+
+def status(d, item):
+    x = q(d, "select status from item where id = ?", item)
+    return x[0][0] if x else None
+
+
+def case_triage(r, root):
+    """c1 (d_triage_per_item): every due item needs one recorded disposition; no silent lapse."""
+    d = fresh(r, root, "triage")
+    add(r, d, "ask", "Due one", now=DUE)  # A-1
+    add(r, d, "ask", "Due two", now=DUE)  # A-2
+    add(r, d, "ask", "Not due yet", now="2026-10-06T12:00:00Z")  # A-3
+    add(r, d, "ask", "Due but parked", now=DUE)  # A-4
+    ok(r, d, "park", "A-0004", "--until", "2026-11-10", now="2026-10-20T00:00:00Z")
+    add(r, d, "thread", "Due thread", now=DUE)  # T-1
+    snap = snapshot(d)
+    res = hf(r, d, "rotate", "--week-start", WK, session=None)
+    r.check("c1-rotate-lists-untriaged", listed(res[1], "untriaged:") == ["A-0001", "A-0002", "T-0001"], res)
+    r.check("c1-rotate-dry-run-exit-1-until-triaged", refused(res, 1, "disposition"), res)
+    res = hf(r, d, "rotate", "--week-start", WK, "--yes")
+    r.check("c1-rotate-yes-exit-1-until-triaged", refused(res, 1, "disposition") and listed(res[1], "untriaged:") == ["A-0001", "A-0002", "T-0001"], res)
+    r.check("c1-no-silent-lapse", snapshot(d) == snap and {status(d, i) for i in ("A-0001", "A-0002", "T-0001")} == {"open"})
+    late = "2026-11-02T13:00:00Z"
+    res = hf(r, d, "triage", "A-0001", "keep", "--note", "still needed for the release", now=late)
+    r.check("c1-triage-keep-exit-0", res[0] == 0, res)
+    r.check("c1-triage-recorded-by-agent", disp(d, "A-0001") == [("keep", None, "still needed for the release", "discovery", "agent")], disp(d, "A-0001"))
+    r.check("c1-triage-keep-renews", q(d, "select status, renewed_at from item where id='A-0001'") == [("open", late)])
+    r.check("c1-triage-event", ev(d, "A-0001")[-1][:3] == ("triage", None, "keep") and ev(d, "A-0001")[-1][5] == "still needed for the release", ev(d, "A-0001"))
+    n = (qs(d, "select count(*) from disposition") or [(None,)])[0][0]
+    for name, args, text in (("bad-disposition", ["triage", "A-0002", "maybe", "--note", "x"], "keep"),
+                             ("needs-note", ["triage", "A-0002", "lapse"], "note"),
+                             ("needs-disposition", ["triage", "A-0002", "--note", "x"], None),
+                             ("unknown-item", ["triage", "A-0404", "keep", "--note", "x"], None),
+                             ("capsule-needs-a-capsule", ["triage", "A-0002", "capsule", "--note", "x"], "capsule"),
+                             ("human-needs-note", ["triage", "A-0002", "keep", "--by", "human"], "note")):
+        r.check("c1-triage-refused " + name, refused(hf(r, d, *args), 1, text), hf(r, d, *args))
+    r.check("c1-triage-refusals-record-nothing", (qs(d, "select count(*) from disposition") or [(None,)])[0][0] == n)
+    res = hf(r, d, "rotate", "--week-start", WK, session=None)
+    r.check("c1-rotate-lists-only-the-rest", refused(res, 1) and listed(res[1], "untriaged:") == ["A-0002", "T-0001"], res)
+    res = hf(r, d, "triage", "A-0002", "lapse", "--note", "nobody asked again", now=late)
+    it = q(d, "select status, closed_at, close_reason from item where id='A-0002'")
+    r.check("c1-triage-lapse-closes", res[0] == 0 and it and it[0][:2] == ("lapsed", late) and it[0][2].startswith("lapsed: triage"), (res, it))
+    r.check("c1-triage-closed-item-refused", refused(hf(r, d, "triage", "A-0002", "keep", "--note", "x"), 1))
+    res = hf(r, d, "triage", "T-0001", "escalate", "--note", "only the human can decide this", now=late)
+    r.check("c1-triage-escalate-stays-open", res[0] == 0 and status(d, "T-0001") == "open" and disp(d, "T-0001")[-1][0] == "escalate", res)
+    res = hf(r, d, "rotate", "--week-start", WK, session=None)
+    r.check("c1-rotate-exit-0-when-each-has-one", res[0] == 0 and listed(res[1], "untriaged:") == [] and listed(res[1], "escalated:") == ["T-0001"], res)
+    res = hf(r, d, "rotate", "--week-start", WK, "--yes")
+    r.check("c1-rotate-yes-after-triage", res[0] == 0 and status(d, "T-0001") == "open" and status(d, "A-0003") == "open"
+            and status(d, "A-0004") == "open" and status(d, "A-0002") == "lapsed", res)
+    r.check("c1-rotate-yes-acts-on-no-due-item", [x[0] for x in ev(d, "T-0001")] == ["opened", "triage"], ev(d, "T-0001"))
+    res = hf(r, d, "check")
+    r.check("c1-check-clean-with-dispositions", res[0] == 0 and os.path.exists(os.path.join(d, "jsonl", "disposition.jsonl")), res)
+
+
+def case_escalate(r, root):
+    """c2 (d_escalate_stays, fy7): an agent cannot keep or lapse an item whose spec KB blocks."""
+    stub = write_stub(root)
+    log = os.path.join(root, "escalate-stub.log")
+    h = kb_hub(root, "eschub", {"spec-a": ["q1", "burn_c2"], "spec-b": None, "spec-c": "ERROR"})
+    d = fresh(r, root, "escalate")
+    env = {"HUBFLOW_ORBIT_KB": stub, "STUB_LOG": log}
+
+    def t(*args, env=env, now=NOW):
+        return hf(r, d, *args, hub=h, extra_env=env, now=now)
+
+    add(r, d, "ask", "Blocked by spec a", "--ref", "kb:spec-a/kb", now=DUE)  # A-1
+    add(r, d, "ask", "Spec b is clear", "--ref", "kb:spec-b/kb", now=DUE)  # A-2
+    add(r, d, "ask", "Spec c query fails", "--ref", "kb:spec-c/kb", now=DUE)  # A-3
+    add(r, d, "ask", "Spec dir is gone", "--ref", "kb:spec-gone/kb", now=DUE)  # A-4
+    add(r, d, "ask", "Blocked, no orbit-kb", "--ref", "kb:spec-a/kb", now=DUE)  # A-5
+    add(r, d, "ask", "Plain due ask", now=DUE)  # A-6
+    res = t("triage", "A-0001", "lapse", "--note", "looks idle")
+    r.check("c2-agent-lapse-of-blocking-escalates", res[0] == 0 and disp(d, "A-0001") == [("escalate", "lapse", "looks idle", "discovery", "agent")]
+            and status(d, "A-0001") == "open", (res, disp(d, "A-0001")))
+    r.check("c2-escalate-says-why", "escalate" in res[1] and "q1" in res[1] + res[2], res)
+    res = t("triage", "A-0001", "keep", "--note", "keep it")
+    r.check("c2-agent-keep-of-blocking-escalates", res[0] == 0 and disp(d, "A-0001")[-1][:2] == ("escalate", "keep")
+            and q(d, "select renewed_at from item where id='A-0001'") == [(DUE,)], (res, disp(d, "A-0001")))
+    res = t("triage", "A-0002", "lapse", "--note", "nothing blocks")
+    r.check("c2-clear-kb-lapses", res[0] == 0 and status(d, "A-0002") == "lapsed" and disp(d, "A-0002")[-1][:2] == ("lapse", None), (res, disp(d, "A-0002")))
+    res = t("triage", "A-0003", "lapse", "--note", "x")
+    r.check("c2-failsafe-query-error-escalates", res[0] == 0 and status(d, "A-0003") == "open" and disp(d, "A-0003")[-1][0] == "escalate"
+            and "treated as blocking" in res[1] + res[2], res)
+    res = t("triage", "A-0004", "lapse", "--note", "x")
+    r.check("c2-failsafe-missing-kb-dir-escalates", res[0] == 0 and status(d, "A-0004") == "open" and disp(d, "A-0004")[-1][0] == "escalate"
+            and "treated as blocking" in res[1] + res[2], res)
+    res = t("triage", "A-0005", "lapse", "--note", "x", env={"HUBFLOW_ORBIT_KB": os.path.join(root, "no-such-orbit-kb"), "STUB_LOG": log})
+    r.check("c2-failsafe-missing-orbit-kb-escalates", res[0] == 0 and status(d, "A-0005") == "open" and disp(d, "A-0005")[-1][0] == "escalate"
+            and "treated as blocking" in res[1] + res[2], res)
+    calls = open(log, encoding="utf-8").read().splitlines() if os.path.exists(log) else []
+    res = t("triage", "A-0006", "lapse", "--note", "no spec KB")
+    calls2 = open(log, encoding="utf-8").read().splitlines() if os.path.exists(log) else []
+    r.check("c2-no-kb-ref-no-query", res[0] == 0 and status(d, "A-0006") == "lapsed" and calls2 == calls, (res, calls2[len(calls):]))
+    r.check("c2-only-queries-the-kb", calls and all(x.split()[0] == "--dir" and x.split()[2:] == ["query", "blocking(X)"] for x in calls), calls)
+    code, out, err = t("view", "open", "--format", "json")
+    v = js(out) or []
+    r.check("c2-escalated-at-top-of-view", [x["id"] for x in v][:4] == ["A-0001", "A-0003", "A-0004", "A-0005"]
+            and [x.get("escalated") for x in v] == [1, 1, 1, 1], out[:400] + err)
+    code, out, err = t("view")
+    rows_ = [x for x in out.splitlines() if x.startswith("| ") and not x.startswith("| id ")]
+    r.check("c2-view-default-shows-escalated-first", code == 0 and rows_ and rows_[0].startswith("| A-0001 |"), out[:300] + err)
+    code, out, err = t("view", "escalated", "--format", "json")
+    r.check("c2-view-escalated", code == 0 and ids(out) == ["A-0001", "A-0003", "A-0004", "A-0005"], out[:300] + err)
+    res = t("rotate", "--week-start", WK)
+    r.check("c2-rotate-lists-escalated-not-untriaged", res[0] == 0 and listed(res[1], "untriaged:") == []
+            and listed(res[1], "escalated:") == ["A-0001", "A-0003", "A-0004", "A-0005"], res)
+    n_ev = len(ev(d, "A-0001"))
+    res = t("rotate", "--week-start", WK, "--yes")
+    r.check("c2-no-automatic-action", res[0] == 0 and all(status(d, i) == "open" for i in ("A-0001", "A-0003", "A-0004", "A-0005"))
+            and len(ev(d, "A-0001")) == n_ev, res)
+    res = t("triage", "A-0001", "lapse", "--by", "human", "--note", "\"drop it, the spec moved\" (Me)")
+    r.check("c2-human-may-lapse-blocking", res[0] == 0 and status(d, "A-0001") == "lapsed" and disp(d, "A-0001")[-1][:2] == ("lapse", None), res)
+    calls = open(log, encoding="utf-8").read().splitlines() if os.path.exists(log) else []
+    r.check("c2-never-writes-the-kb", not any("attest" in x or "add" in x.split() for x in calls), calls)
+
+
+def git_hub(path):
+    os.makedirs(path)
+    g = ["git", "-C", path, "-c", "user.name=Test", "-c", "user.email=test@example.invalid"]
+    subprocess.run(["git", "init", "-q", path], check=True, capture_output=True)
+    subprocess.run(g + ["commit", "-q", "--allow-empty", "-m", "start"], check=True, capture_output=True)
+    return subprocess.run(["git", "-C", path, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+
+
+def case_capsule(r, root):
+    """c3 (m_capsule, r_ticket_log_split): a capsule holds a summary, the hub's HEAD and the item's paths."""
+    h = os.path.join(root, "caphub")
+    head = git_hub(h)
+    # the item's kb ref names a real spec KB dir whose (stub) orbit-kb answers: nothing blocks
+    os.makedirs(os.path.join(h, "W0", "analyses", "alpha", "kb"))
+    stub_env = {"HUBFLOW_ORBIT_KB": write_stub(root)}
+    d = fresh(r, root, "capsule")
+    add(r, d, "ask", "Long-lived ask", "--ref", "issue:12", "--ref", "file:alpha/notes.md", "--ref", "kb:alpha/kb", "--analysis", "alpha")  # A-1
+    add(r, d, "ask", "No capsule here")  # A-2
+    summary = "We chose the queue design for its bounded size; next: measure the batch path."
+    res = hf(r, d, "capsule", "A-0001", "--summary", summary, hub=h)
+    r.check("c3-capsule-exit-0", res[0] == 0, res)
+    row = qs(d, "select summary, git_rev, paths, by_session, by from capsule where item_id='A-0001'")
+    r.check("c3-capsule-stores-summary", row and row[0][0] == summary and row[0][3:] == ("discovery", "agent"), row)
+    r.check("c3-capsule-stores-hub-head", row and row[0][1] == head and len(head) == 40, (row, head))
+    r.check("c3-capsule-stores-item-paths", row and json.loads(row[0][2]) == ["alpha/kb", "alpha/notes.md"], row)
+    r.check("c3-capsule-event", ev(d, "A-0001")[-1][0] == "capsule", ev(d, "A-0001"))
+    code, out, err = hf(r, d, "show", "A-0001", hub=h)
+    lines = out.splitlines()
+    r.check("c3-show-prints-capsule-first", code == 0 and lines and lines[0].startswith("capsule:") and summary in lines[0]
+            and head in out and out.index(head) < out.index("id: A-0001"), out[:400] + err)
+    code, out, err = hf(r, d, "show", "A-0001", "--format", "json", hub=h)
+    v = js(out) or {}
+    r.check("c3-show-json-capsule-first", code == 0 and list(v)[:1] == ["capsule"] and (v.get("capsule") or {}).get("summary") == summary
+            and (v.get("capsule") or {}).get("git_rev") == head, out[:400] + err)
+    code, out, err = hf(r, d, "show", "A-0002", hub=h)
+    r.check("c3-show-without-capsule-unchanged", code == 0 and out.splitlines()[0] == "id: A-0002", out[:200])
+    newer = "Second capsule: the batch path is measured; the queue stays."
+    hf(r, d, "capsule", "A-0001", "--summary", newer, now="2026-11-03T12:00:00Z")
+    code, out, err = hf(r, d, "show", "A-0001", hub=h)
+    r.check("c3-show-newest-capsule-first", code == 0 and out.splitlines()[0].startswith("capsule:") and newer in out.splitlines()[0], out[:300])
+    n = (qs(d, "select count(*) from capsule") or [(None,)])[0][0]
+    for name, args in (("needs-summary", ["capsule", "A-0001"]), ("empty-summary", ["capsule", "A-0001", "--summary", "  "]),
+                       ("unknown-item", ["capsule", "A-0404", "--summary", "x y z"]),
+                       ("summary-capped", ["capsule", "A-0001", "--summary", "x" * 1001])):
+        r.check("c3-capsule-refused " + name, refused(hf(r, d, *args, hub=h), 1), hf(r, d, *args, hub=h))
+    r.check("c3-refusals-store-nothing", (qs(d, "select count(*) from capsule") or [(None,)])[0][0] == n)
+    res = hf(r, d, "triage", "A-0001", "capsule", "--note", "context kept in the capsule", hub=h, extra_env=stub_env)
+    r.check("c3-triage-capsule-after-capsule", res[0] == 0 and disp(d, "A-0001")[-1][0] == "capsule" and status(d, "A-0001") == "open", res)
+    r.check("c3-check-clean", hf(r, d, "check")[0] == 0)
+
+
+LONG_ASK = "Please plan the widget sorter so that each bin holds one colour, and say what you measured. " * 4
+
+
+def transcript_fixture(h):
+    """Two invented Claude Code transcripts and one JSONL that is not a transcript, in W0."""
+    w = os.path.join(h, "W0", "transcripts")
+    os.makedirs(w)
+    one = [
+        {"type": "summary", "summary": "Invented: the widget sorter", "leafUuid": "u0"},
+        {"type": "user", "sessionId": "sess-one", "timestamp": "2026-11-02T09:00:00.120Z",
+         "message": {"role": "user", "content": LONG_ASK}},
+        {"type": "assistant", "sessionId": "sess-one", "timestamp": "2026-11-02T09:00:05.000Z",
+         "message": {"role": "assistant", "content": [
+             {"type": "text", "text": "ASSISTANT-PRIVATE-TEXT: reading the sorter first."},
+             {"type": "tool_use", "id": "tu1", "name": "Read", "input": {"file_path": "/invented/sorter.py"}},
+             {"type": "tool_use", "id": "tu2", "name": "Bash", "input": {"command": "ls"}}]}},
+        {"type": "user", "sessionId": "sess-one", "timestamp": "2026-11-02T09:00:06.000Z",
+         "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "tu1", "content": "TOOL-RESULT-BODY"}]}},
+        "{a broken line",
+        {"type": "user", "sessionId": "sess-one", "timestamp": "2026-11-02T09:10:00Z",
+         "message": {"role": "user", "content": [{"type": "text", "text": "Second question: what about gadgets?"}]}},
+        {"type": "assistant", "sessionId": "sess-one", "timestamp": "2026-11-02T09:12:30.500Z",
+         "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "tu3", "name": "Grep", "input": {"pattern": "bin"}}]}},
+    ]
+    two = [
+        {"type": "user", "sessionId": "sess-two", "timestamp": "2026-11-03T14:00:00Z",
+         "message": {"role": "user", "content": "Short ask about the gadget feeder."}},
+        {"type": "assistant", "sessionId": "sess-two", "timestamp": "2026-11-03T14:01:00Z",
+         "message": {"role": "assistant", "content": [{"type": "text", "text": "ASSISTANT-PRIVATE-TEXT again."}]}},
+    ]
+    for name, lines in (("one.jsonl", one), ("two.jsonl", two)):
+        with open(os.path.join(w, name), "w", encoding="utf-8") as f:
+            f.write("".join((x if isinstance(x, str) else json.dumps(x)) + "\n" for x in lines))
+    write_json(os.path.join(h, "W0", "analyses", "x", "data.jsonl"), json.dumps({"kind": "not a transcript"}) + "\n")
+    return w
+
+
+def case_transcripts(r, root):
+    """c4 (oq_transcripts, u85): index transcripts in a week dir; summary first, detail on demand."""
+    h = os.path.join(root, "tshub")
+    w = transcript_fixture(h)
+    d = fresh(r, root, "transcripts")
+    code, out, err = hf(r, d, "transcripts", "--format", "json", hub=h)
+    r.check("c4-transcripts-empty-before-index", code == 0 and js(out) == [], out + err)
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    r.check("c4-index-exit-0", res[0] == 0 and "2" in res[1], res)
+    got = qs(d, "select session_id, first_at, last_at, first_user, messages, user_messages, tools, path from transcript order by session_id")
+    r.check("c4-index-row-sess-one", got[:1] == [("sess-one", "2026-11-02T09:00:00Z", "2026-11-02T09:12:30Z", LONG_ASK[:200], 5, 2, 3,
+                                                  "W0/transcripts/one.jsonl")], got[:1])
+    r.check("c4-index-row-sess-two", got[1:] == [("sess-two", "2026-11-03T14:00:00Z", "2026-11-03T14:01:00Z", "Short ask about the gadget feeder.",
+                                                 2, 1, 0, "W0/transcripts/two.jsonl")], got[1:])
+    r.check("c4-index-skips-other-jsonl", len(got) == 2, got)
+    code, out, err = hf(r, d, "transcripts", "--format", "json", hub=h)
+    v = js(out) or []
+    r.check("c4-transcripts-lists-summary", code == 0 and [x.get("session_id") for x in v] == ["sess-one", "sess-two"]
+            and v[0].get("first_user") == LONG_ASK[:200] and "user_messages" in v[0] and "tools" in v[0], out[:400] + err)
+    code, out, err = hf(r, d, "transcripts", hub=h)
+    r.check("c4-transcripts-md", code == 0 and "| session_id |" in out and "sess-two" in out, out[:300] + err)
+    code, out, err = hf(r, d, "transcripts", "--detail", "sess-one", hub=h)
+    r.check("c4-detail-summary-then-messages", code == 0 and "sess-one" in out and "Second question: what about gadgets?" in out
+            and out.index("sess-one") < out.index("Second question"), out[:500] + err)
+    r.check("c4-detail-cuts-each-to-200", LONG_ASK[:200] in out and LONG_ASK[:201] not in out, out[:600])
+    r.check("c4-detail-no-assistant-or-tool-text", "ASSISTANT-PRIVATE-TEXT" not in out and "TOOL-RESULT-BODY" not in out, out[:600])
+    code, out, err = hf(r, d, "transcripts", "--detail", "sess-one", "--format", "json", hub=h)
+    v = js(out) or {}
+    msgs = [x.get("text") for x in v.get("user_messages", [])]
+    r.check("c4-detail-json", code == 0 and (v.get("transcript") or {}).get("session_id") == "sess-one"
+            and msgs == [LONG_ASK[:200], "Second question: what about gadgets?"], out[:500] + err)
+    r.check("c4-detail-unknown-refused", refused(hf(r, d, "transcripts", "--detail", "sess-nope", hub=h), 1))
+    blob = open(dbfile(d), "rb").read() + b"".join(jl_bytes(d).values())
+    r.check("c4-never-copies-a-transcript", b"ASSISTANT-PRIVATE-TEXT" not in blob and b"TOOL-RESULT-BODY" not in blob
+            and LONG_ASK[:201].encode() not in blob and b"/invented/sorter.py" not in blob)
+    longest = (qs(d, "select max(length(text)) from transcript_msg") or [(None,)])[0][0]
+    r.check("c4-stored-texts-at-most-200", got and longest is not None and longest <= 200 and max(len(x[3]) for x in got) <= 200, longest)
+    snap, files = snapshot(d), jl_bytes(d)
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    r.check("c4-rerun-is-idempotent", res[0] == 0 and snapshot(d) == snap and jl_bytes(d) == files, res)
+    with open(os.path.join(w, "two.jsonl"), "a", encoding="utf-8") as f:
+        f.write(json.dumps({"type": "user", "sessionId": "sess-two", "timestamp": "2026-11-03T15:00:00Z",
+                            "message": {"role": "user", "content": "A later follow-up."}}) + "\n")
+    res = hf(r, d, "index-transcripts", os.path.join(h, "W0"), hub=h)
+    got = qs(d, "select session_id, last_at, messages, user_messages from transcript order by session_id")
+    r.check("c4-rerun-updates-a-grown-transcript", res[0] == 0 and got == [("sess-one", "2026-11-02T09:12:30Z", 5, 2),
+                                                                         ("sess-two", "2026-11-03T15:00:00Z", 3, 2)], (res, got))
+    r.check("c4-index-missing-dir-refused", refused(hf(r, d, "index-transcripts", "W9", hub=h), 1))
+    r.check("c4-index-needs-session", refused(hf(r, d, "index-transcripts", "W0", hub=h, session=None), 1, "HUB_SESSION"))
+    r.check("c4-check-clean", hf(r, d, "check")[0] == 0)
+
+
+def case_skip(r, root):
+    """c5 (d_skip_both_sides, m_skip_prop): a human skip closes the items linked by blocks and
+    prints, never runs, the waiver for each linked spec KB."""
+    stub = write_stub(root)
+    log = os.path.join(root, "skip-stub.log")
+    h = kb_hub(root, "skiphub", {"spec-s": ["q7", "burn_c3"], "spec-t": None})
+    d = fresh(r, root, "skip")
+    env = {"HUBFLOW_ORBIT_KB": stub, "STUB_LOG": log}
+    add(r, d, "thread", "Build behind spec s", "--ref", "kb:spec-s/kb")  # T-1
+    add(r, d, "ask", "Question that blocks the build")  # A-1
+    add(r, d, "ask", "Merely related")  # A-2
+    add(r, d, "ask", "Waits for the build", "--ref", "kb:spec-t/kb")  # A-3
+    add(r, d, "ask", "Closed already")  # A-4
+    ok(r, d, "link", "A-0001", "T-0001", "blocks")
+    ok(r, d, "link", "A-0002", "T-0001", "relates")
+    ok(r, d, "link", "T-0001", "A-0003", "blocks")
+    ok(r, d, "link", "A-0004", "T-0001", "blocks")
+    ok(r, d, "close", "A-0004", "--reason", "done")
+    kb_before = tree(os.path.join(h, "W0"))
+    for name, args in (("needs-human", ["close", "T-0001", "--reason", "human_skip", "--note", "x"]),
+                       ("by-agent", ["close", "T-0001", "--reason", "human_skip", "--by", "agent", "--note", "x"]),
+                       ("human-needs-note", ["close", "T-0001", "--reason", "human_skip", "--by", "human"])):
+        r.check("c5-skip-refused " + name, refused(hf(r, d, *args, hub=h, extra_env=env), 1), hf(r, d, *args, hub=h, extra_env=env))
+    r.check("c5-refusals-close-nothing", status(d, "T-0001") == "open")
+    quote = "\"skip the build, the client cancelled it\" (Me)"
+    code, out, err = hf(r, d, "close", "T-0001", "--reason", "human_skip", "--by", "human", "--note", quote, hub=h, extra_env=env)
+    r.check("c5-skip-exit-0", code == 0, out + err)
+    it = q(d, "select status, close_reason from item where id='T-0001'")
+    r.check("c5-skip-closes-item", it == [("dropped", "human_skip")], it)
+    r.check("c5-skip-closes-blocks-linked", status(d, "A-0001") == "dropped" and status(d, "A-0003") == "dropped", (status(d, "A-0001"), status(d, "A-0003")))
+    r.check("c5-skip-leaves-other-links", status(d, "A-0002") == "open" and status(d, "A-0004") == "done")
+    why = q(d, "select close_reason from item where id='A-0001'")[0][0] or ""
+    e = ev(d, "A-0001")
+    r.check("c5-skip-records-why", "human_skip" in why and "T-0001" in why and e[-1][0] == "closed" and "T-0001" in (e[-1][5] or ""), (why, e))
+    r.check("c5-skip-human-event", ev(d, "T-0001")[-1][:3] == ("closed", "open", "human_skip") and ev(d, "T-0001")[-1][4:6] == ("human", quote), ev(d, "T-0001"))
+    r.check("c5-skip-lists-closed", listed(out, "closed_linked:") == ["A-0001", "A-0003"], out)
+    waivers = [x for x in out.splitlines() if x.startswith("waiver: ")]
+    r.check("c5-skip-prints-waiver-per-blocking-item", len(waivers) == 2
+            and all("--dir W0/analyses/spec-s/kb attest waiver " in x and "--by human" in x for x in waivers)
+            and "waiver q7 " in waivers[0] and "waive(q7, " in waivers[0] and "waiver burn_c3 " in waivers[1], out)
+    r.check("c5-skip-names-clear-kb", "spec-t/kb" in out and not any("spec-t" in x for x in waivers), out)
+    calls = open(log, encoding="utf-8").read().splitlines() if os.path.exists(log) else []
+    r.check("c5-ledger-never-writes-a-spec-kb", tree(os.path.join(h, "W0")) == kb_before
+            and calls and all(x.split()[2:] == ["query", "blocking(X)"] for x in calls), calls)
+    r.check("c5-check-clean", hf(r, d, "check")[0] == 0)
+
+
+def case_asks(r, root):
+    """c6 (oq_asks_pin): an ask to another person carries the issue ref of the tracker item that owns it."""
+    d = fresh(r, root, "asks")
+    add(r, d, "ask", "Waits on the owner only", "--waits-on", "me")  # A-1
+    add(r, d, "ask", "Waits on Alex, tracked", "--waits-on", "alex", "--ref", "issue:5")  # A-2
+    r.check("c6-check-clean-owner-and-tracked", hf(r, d, "check")[0] == 0, hf(r, d, "check"))
+    add(r, d, "ask", "Waits on Alex, untracked", "--waits-on", "alex", "--ref", "pr:9")  # A-3
+    add(r, d, "thread", "Thread on Alex", "--waits-on", "alex")  # T-1
+    add(r, d, "ask", "Closed untracked", "--waits-on", "alex")  # A-4
+    ok(r, d, "close", "A-0004", "--reason", "done")
+    res = hf(r, d, "check")
+    r.check("c6-check-flags-untracked-ask-to-another", res[0] == 3 and "A-0003" in res[2] and "issue" in res[2], res)
+    r.check("c6-check-flags-only-that-ask", all(i not in res[2] for i in ("A-0001", "A-0002", "A-0004", "T-0001")), res)
+    ok(r, d, "ref", "A-0003", "add", "issue:77")
+    r.check("c6-issue-ref-clears-flag", hf(r, d, "check")[0] == 0, hf(r, d, "check"))
+    # the owner comes from the seed's "owner" key
+    sp = write_json(os.path.join(root, "seed-owner.json"), {**SEED_DATA, "owner": "alex"})
+    d2 = os.path.join(root, "asks-owner", "flow")
+    res = hf(r, d2, "init", "--seed", sp, session=None)
+    r.check("c6-seed-owner-accepted", res[0] == 0, res)
+    hf(r, d2, "add", "ask", "--title", "Waits on the owner alex", "--waits-on", "alex")
+    r.check("c6-seed-owner-is-the-owner", hf(r, d2, "check")[0] == 0, hf(r, d2, "check"))
+    hf(r, d2, "add", "ask", "--title", "Waits on me, now another person", "--waits-on", "me")
+    res = hf(r, d2, "check")
+    r.check("c6-seed-owner-flags-others", res[0] == 3 and "A-0002" in res[2], res)
+    sp = write_json(os.path.join(root, "seed-bad-owner.json"), {**SEED_DATA, "owner": "nobody"})
+    res = hf(r, os.path.join(root, "asks-bad-owner", "flow"), "init", "--seed", sp, session=None)
+    r.check("c6-seed-owner-must-be-a-person", refused(res, 1, "owner"), res)
+
+
+def v1_script(r, root):
+    """A copy of the script under test at schema 1: init then makes the tables and views of v1."""
+    src = open(r.script, encoding="utf-8").read()
+    n = script_version(r.script)
+    if n < 2:
+        raise RuntimeError(f"the script is at schema {n}; the T05 ledger needs schema 2")
+    a = f"SCHEMA_VERSION = {n}\n"
+    if src.count(a) != 1:
+        raise RuntimeError(f"anchor {a!r} occurs {src.count(a)} times")
+    path = os.path.join(root, "hubflow-v1.py")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(src.replace(a, "SCHEMA_VERSION = 1\n"))
+    return path
+
+
+def case_schema_v2(r, root):
+    """The schema 1 -> 2 step keeps an existing hub db readable (c7 preserve)."""
+    v1 = Run(v1_script(r, root))
+    d = os.path.join(root, "schema-v1", "flow")
+    res = hf(v1, d, "init", "--seed", SEED, session=None)
+    r.check("schema-v1-init", res[0] == 0 and q(d, "pragma user_version") == [(1,)], res)
+    names = {x[0] for x in q(d, "select name from sqlite_master")}
+    r.check("schema-v1-has-no-ledger-tables", not (set(NEW_TABLES) & names), names)
+    for t in ("A thread from v1", "An ask from v1"):
+        res = hf(v1, d, "add", "thread" if "thread" in t else "ask", "--title", t, "--waits-on", "me", now=DUE)
+        if res[0] != 0:
+            raise RuntimeError(res)
+    hf(v1, d, "link", "T-0001", "A-0001", "blocks")
+    before = {t: sorted(rows(d, t)) for t in TABLES if t != "meta"}
+    res = hf(r, d, "view", "open")
+    r.check("schema-v1-db-needs-migrate", res[0] == 2 and "migrate" in res[2], res)
+    res = hf(r, d, "migrate")
+    r.check("schema-migrate-v1-to-v2", res[0] == 0 and q(d, "pragma user_version") == [(script_version(r.script),)], res)
+    r.check("schema-migrate-backup", os.path.exists(os.path.join(d, "flow.db.bak-v1")), os.listdir(d))
+    r.check("schema-migrate-keeps-rows", {t: sorted(rows(d, t)) for t in TABLES if t != "meta"} == before)
+    names = {x[0] for x in q(d, "select name from sqlite_master")}
+    r.check("schema-migrate-adds-tables", set(NEW_TABLES) <= names, names)
+    r.check("schema-migrate-exports-new-tables", all(os.path.exists(os.path.join(d, "jsonl", t + ".jsonl")) for t in NEW_TABLES))
+    r.check("schema-check-after-migrate", hf(r, d, "check")[0] == 0, hf(r, d, "check"))
+    res = hf(r, d, "rotate", "--week-start", WK)
+    r.check("schema-migrated-due-items-untriaged", listed(res[1], "untriaged:") == ["A-0001", "T-0001"], res)
+    res = hf(r, d, "triage", "A-0001", "keep", "--note", "after the migration")
+    r.check("schema-triage-after-migrate", res[0] == 0 and disp(d, "A-0001")[-1][0] == "keep", res)
+    i2 = q(d, "select sql from sqlite_master where name='v_open'")[0][0]
+    d2 = fresh(r, root, "schema-fresh")
+    r.check("schema-init-equals-migrated", q(d2, "select name, sql from sqlite_master order by name")
+            == q(d, "select name, sql from sqlite_master order by name") and "escalated" in i2)
+    for s in ("", "-wal", "-shm"):
+        if os.path.exists(dbfile(d) + s):
+            os.remove(dbfile(d) + s)
+    res = hf(r, d, "rebuild")
+    r.check("schema-rebuild-v2", res[0] == 0 and hf(r, d, "check")[0] == 0 and disp(d, "A-0001")[-1][0] == "keep", res)
+
+
+def case_close_blocking(r, root):
+    """c2 (review): an agent's direct close of an item whose spec KB blocks is refused, as triage is."""
+    stub = write_stub(root)
+    h = kb_hub(root, "closehub", {"spec-a": ["q1"], "spec-b": None})
+    d = fresh(r, root, "close-blocking")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+    add(r, d, "ask", "Blocked by spec a", "--ref", "kb:spec-a/kb")  # A-1
+    add(r, d, "ask", "Spec b is clear", "--ref", "kb:spec-b/kb")  # A-2
+    add(r, d, "ask", "Blocked, no orbit-kb", "--ref", "kb:spec-a/kb")  # A-3
+    res = hf(r, d, "close", "A-0001", "--reason", "lapsed", hub=h, extra_env=env)
+    r.check("c2-close-reason-lapsed-refused", refused(res, 1) and status(d, "A-0001") == "open", res)
+    for reason in ("dropped", "done"):
+        res = hf(r, d, "close", "A-0001", "--reason", reason, hub=h, extra_env=env)
+        r.check(f"c2-agent-close-{reason}-of-blocking-refused", refused(res, 1, "block") and "q1" in res[2]
+                and status(d, "A-0001") == "open", res)
+    res = hf(r, d, "close", "A-0003", "--reason", "dropped", hub=h, extra_env={"HUBFLOW_ORBIT_KB": os.path.join(root, "no-such-orbit-kb")})
+    r.check("c2-agent-close-failsafe-refused", refused(res, 1, "treated as blocking") and status(d, "A-0003") == "open", res)
+    res = hf(r, d, "close", "A-0002", "--reason", "dropped", hub=h, extra_env=env)
+    r.check("c2-agent-close-of-clear-item", res[0] == 0 and status(d, "A-0002") == "dropped", res)
+    res = hf(r, d, "close", "A-0001", "--reason", "dropped", "--by", "human", "--note", "\"drop it\" (Me)", hub=h, extra_env=env)
+    r.check("c2-human-close-of-blocking", res[0] == 0 and status(d, "A-0001") == "dropped", res)
+
+
+def real_orbit_kb():
+    """The orbit-kb of this checkout (kb/bin/orbit-kb), or $HUBFLOW_TEST_ORBIT_KB."""
+    return os.environ.get("HUBFLOW_TEST_ORBIT_KB") or os.path.normpath(os.path.join(HERE, "..", "..", "..", "..", "kb", "bin", "orbit-kb"))
+
+
+def case_real_orbit_kb(r, root):
+    """c2 against the real `orbit-kb query 'blocking(X)'` (T03 c7). Skips until it exists."""
+    okb = real_orbit_kb()
+    name = "c2-real-orbit-kb"
+    if not os.access(okb, os.X_OK):
+        r.skip(name, f"no orbit-kb at {okb} (set HUBFLOW_TEST_ORBIT_KB)")
+        return
+    h = os.path.join(root, "realkb-hub")
+    kbs = {"spec-open": os.path.join(h, "W0", "analyses", "spec-open", "kb"),
+           "spec-none": os.path.join(h, "W0", "analyses", "spec-none", "kb")}
+
+    def okb_run(*args):
+        return subprocess.run([okb] + list(args), capture_output=True, text=True, timeout=120)
+
+    for k in kbs.values():
+        os.makedirs(os.path.dirname(k))
+        p = okb_run("init", k, "--request", "An invented request for a test fixture.", "--uses", "build")
+        if p.returncode != 0:
+            r.skip(name, f"orbit-kb init failed (exit {p.returncode}): {(p.stdout + p.stderr).strip()[:200]}")
+            return
+    # spec-open: one open question (to_ask: its claim is contested); spec-none: nothing at all
+    steps = [("--dir", kbs["spec-open"], "add", "claim(c1, preserve, 'Widgets stay blue.')", "question(q1, c1, 'Which blue?')"),
+             ("--dir", kbs["spec-open"], "attest", "divergence", "c1", "claim(c1)", "--by", "human")]
+    for st in steps:
+        p = okb_run(*st)
+        if p.returncode != 0:
+            r.skip(name, f"orbit-kb {st[2]} failed (exit {p.returncode}): {(p.stdout + p.stderr).strip()[:200]}")
+            return
+    p = okb_run("--dir", kbs["spec-none"], "query", "blocking(X)")
+    if p.returncode == 2 and "blocking/1" in p.stdout + p.stderr:
+        r.skip(name, f"{okb} has no blocking/1 yet (ticket T03 c7); rerun this suite after T03 lands")
+        return
+    r.check("c2-real-query-none-exit-1", p.returncode == 1, (p.returncode, p.stdout, p.stderr))
+    p = okb_run("--dir", kbs["spec-open"], "query", "blocking(X)")
+    r.check("c2-real-query-open-question", p.returncode == 0 and any(x.strip() in ("X = q1", "q1") for x in p.stdout.splitlines()),
+            (p.returncode, p.stdout, p.stderr))
+    d = fresh(r, root, "realkb")
+    env = {"HUBFLOW_ORBIT_KB": okb}
+    add(r, d, "ask", "Behind the open question", "--ref", "kb:spec-open/kb", now=DUE)  # A-1
+    add(r, d, "ask", "Behind a clear spec", "--ref", "kb:spec-none/kb", now=DUE)  # A-2
+    res = hf(r, d, "triage", "A-0001", "lapse", "--note", "looks idle", hub=h, extra_env=env)
+    r.check("c2-real-nonempty-answer-escalates", res[0] == 0 and status(d, "A-0001") == "open"
+            and disp(d, "A-0001")[-1][:2] == ("escalate", "lapse") and "q1" in res[1], res)
+    det = qs(d, "select detail from disposition where item_id='A-0001'")
+    r.check("c2-real-nonempty-answer-parsed", det and "q1" in det[-1][0] and "X =" not in det[-1][0] and "treated as blocking" not in det[-1][0], det)
+    res = hf(r, d, "triage", "A-0002", "lapse", "--note", "nothing blocks", hub=h, extra_env=env)
+    r.check("c2-real-empty-answer-lapses", res[0] == 0 and status(d, "A-0002") == "lapsed" and disp(d, "A-0002")[-1][:2] == ("lapse", None), res)
+
+
+def case_transcripts_clock(r, root):
+    """c4 (review): a rerun under another clock leaves the index rows as they were."""
+    h = os.path.join(root, "tsclock")
+    transcript_fixture(h)
+    d = fresh(r, root, "transcripts-clock")
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    r.check("c4-clock-first-index", res[0] == 0, res)
+    tabs = ("transcript", "transcript_msg")
+    before = {t: sorted(rows(d, t)) for t in tabs} if all(qs(d, f"select count(*) from {t}") for t in tabs) else None
+    files = {k: v for k, v in jl_bytes(d).items() if k.startswith("transcript")}
+    res = hf(r, d, "index-transcripts", "W0", hub=h, now="2026-11-09T08:00:00Z")
+    after = {t: sorted(rows(d, t)) for t in tabs} if before else None
+    r.check("c4-rerun-other-clock-rows-unchanged", res[0] == 0 and before and after == before
+            and {k: v for k, v in jl_bytes(d).items() if k.startswith("transcript")} == files and len(files) == 2, res)
+
+
+def case_skip_two_kbs(r, root):
+    """c5 (review): each linked item's own spec KB gets its waiver line too."""
+    stub = write_stub(root)
+    h = kb_hub(root, "skip2hub", {"spec-u": ["q1"], "spec-v": ["q2"]})
+    d = fresh(r, root, "skip-two")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+    add(r, d, "thread", "Build behind spec u", "--ref", "kb:spec-u/kb")  # T-1
+    add(r, d, "ask", "Question behind spec v", "--ref", "kb:spec-v/kb")  # A-1
+    ok(r, d, "link", "A-0001", "T-0001", "blocks")
+    code, out, err = hf(r, d, "close", "T-0001", "--reason", "human_skip", "--by", "human", "--note", "\"skip it\" (Me)", hub=h, extra_env=env)
+    waivers = [x for x in out.splitlines() if x.startswith("waiver: ")]
+    per_kb = {}
+    for x in waivers:
+        m = re.search(r"--dir (\S+) attest waiver (\S+) ", x)
+        if m:
+            per_kb.setdefault(m.group(1), []).append(m.group(2))
+    r.check("c5-waiver-line-for-each-linked-kb", code == 0 and status(d, "A-0001") == "dropped" and len(waivers) == 2
+            and per_kb == {"W0/analyses/spec-u/kb": ["q1"], "W0/analyses/spec-v/kb": ["q2"]}, out + err)
+
+
+def case_ref_guard(r, root):
+    """c2 (review): an agent cannot end an escalation by removing the item's kb ref first."""
+    stub = write_stub(root)
+    h = kb_hub(root, "refhub", {"spec-a": ["q1"], "spec-b": None})
+    d = fresh(r, root, "ref-guard")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+
+    def t(*args):
+        return hf(r, d, *args, hub=h, extra_env=env)
+
+    add(r, d, "ask", "Escalated, clear spec", "--ref", "kb:spec-b/kb")  # A-1
+    add(r, d, "ask", "Blocking spec, not escalated", "--ref", "kb:spec-a/kb")  # A-2
+    add(r, d, "ask", "Clear spec, not escalated", "--ref", "kb:spec-b/kb")  # A-3
+    t("triage", "A-0001", "escalate", "--note", "only the human can decide")
+    kb = lambda i: qs(d, "select ref from item_ref where item_id = ? and kind = 'kb'", i)
+    for name, item, ref in (("escalated", "A-0001", "kb:spec-b/kb"), ("would-be-blocking", "A-0002", "kb:spec-a/kb")):
+        n_ev = len(ev(d, item))
+        res = t("ref", item, "rm", ref)
+        r.check(f"c2-agent-kb-ref-rm-refused {name}", refused(res, 1, "--by human") and kb(item) == [(ref[3:],)]
+                and len(ev(d, item)) == n_ev, (res, kb(item)))
+    res = t("ref", "A-0003", "rm", "kb:spec-b/kb")
+    r.check("c2-agent-kb-ref-rm-of-clear-item", res[0] == 0 and kb("A-0003") == [], res)
+    res = t("ref", "A-0002", "rm", "kb:spec-a/kb", "--by", "human", "--note", "\"that spec is gone\" (Me)")
+    r.check("c2-human-kb-ref-rm", res[0] == 0 and kb("A-0002") == [] and ev(d, "A-0002")[-1][:5] == ("ref_rm", "kb:spec-a/kb", None, "discovery", "human"), res)
+
+
+def case_guard_more(r, root):
+    """c2 (review): renew, park and set --status by an agent on an escalated or blocking item are
+    the same hole as dropping its kb ref: refused unless --by human --note."""
+    stub = write_stub(root)
+    h = kb_hub(root, "guardhub", {"spec-a": ["q1"], "spec-b": None})
+    d = fresh(r, root, "guard-more")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+
+    def t(*args):
+        return hf(r, d, *args, hub=h, extra_env=env)
+
+    add(r, d, "ask", "Escalated, clear spec", "--ref", "kb:spec-b/kb", now=DUE)  # A-1
+    add(r, d, "ask", "Blocking spec, not escalated", "--ref", "kb:spec-a/kb", now=DUE)  # A-2
+    add(r, d, "ask", "Clear spec, not escalated", "--ref", "kb:spec-b/kb", now=DUE)  # A-3
+    t("triage", "A-0001", "escalate", "--note", "only the human can decide")
+    cases_ = (("renew", "A-0001", ["renew", "A-0001", "--note", "still live"]),
+              ("park", "A-0002", ["park", "A-0002", "--until", "2026-12-01", "--note", "later"]),
+              ("set-status", "A-0001", ["set", "A-0001", "--status", "waiting"]))
+    for name, item, args in cases_:
+        before = q(d, "select status, renewed_at, parked_until from item where id = ?", item)
+        n_ev = len(ev(d, item))
+        res = t(*args)
+        r.check(f"c2-agent-{name}-of-guarded-item-refused", refused(res, 1, "--by human")
+                and q(d, "select status, renewed_at, parked_until from item where id = ?", item) == before
+                and len(ev(d, item)) == n_ev, res)
+    res = t("renew", "A-0003", "--note", "still live")
+    r.check("c2-agent-renew-of-clear-item", res[0] == 0 and q(d, "select renewed_at from item where id='A-0003'") == [(NOW,)], res)
+    res = t("renew", "A-0002", "--by", "human", "--note", "\"keep it a while\" (Me)")
+    r.check("c2-human-renew-of-guarded-item", res[0] == 0 and q(d, "select renewed_at from item where id='A-0002'") == [(NOW,)]
+            and ev(d, "A-0002")[-1][0] == "renewed" and ev(d, "A-0002")[-1][4] == "human", res)
+
+
+def case_transcripts_same_session(r, root):
+    """c4 (review): two files with one sessionId make one row (the last file wins); the message
+    counts files and sessions, not rows it did not make."""
+    h = os.path.join(root, "tssame")
+    w = transcript_fixture(h)
+    with open(os.path.join(w, "one-resumed.jsonl"), "w", encoding="utf-8") as f:
+        f.write(json.dumps({"type": "user", "sessionId": "sess-one", "timestamp": "2026-11-04T10:00:00Z",
+                            "message": {"role": "user", "content": "Resumed: where were we?"}}) + "\n")
+    d = fresh(r, root, "transcripts-same")
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    n = qs(d, "select count(*) from transcript")
+    r.check("c4-index-message-counts-files-and-sessions", res[0] == 0 and n == [(2,)]
+            and "3 file(s)" in res[1] and "2 session(s)" in res[1], (res, n))
+
+
+def run_case(r, fn, *args):
+    """Run one scenario. A scenario that cannot even run is a failure, not a crash, and the
+    scenarios after it still run."""
+    if ONLY and fn.__name__ not in ONLY:
+        return None
+    try:
+        return fn(r, *args)
+    except Exception as e:
+        r.check("scenario-ran " + fn.__name__, False, repr(e))
+        return None
+
+
+CASE_NEEDS = {"case_sql": "case_basic", "case_state": "case_basic"}
+
+
 def cases(r):
     global SEED
     root = tempfile.mkdtemp(prefix="hubflow-test-")
     try:
         SEED = write_json(os.path.join(root, "seed.json"), SEED_DATA)
-        case_init(r, root)
-        base = case_basic(r, root)
-        case_handoff(r, root)
-        views = case_views(r, root)
-        case_week_view(r, root)
-        case_rotate(r, root)
-        case_import(r, root)
-        case_sql(r, root, base)
-        case_realclock(r, root)
-        case_session(r, root)
-        case_misc(r, root)
-        case_seed(r, root)
-        case_issue_ref(r, root)
-        case_hub_default(r, root)
-        case_state(r, root, base)
-        case_migrate(r, root)
-        case_rebuild_columns(r, root)
+        run_case(r, case_init, root)
+        base = run_case(r, case_basic, root)
+        run_case(r, case_handoff, root)
+        run_case(r, case_views, root)
+        run_case(r, case_week_view, root)
+        run_case(r, case_rotate, root)
+        run_case(r, case_import, root)
+        if base:
+            run_case(r, case_sql, root, base)
+        run_case(r, case_realclock, root)
+        run_case(r, case_session, root)
+        run_case(r, case_misc, root)
+        run_case(r, case_seed, root)
+        run_case(r, case_issue_ref, root)
+        run_case(r, case_hub_default, root)
+        if base:
+            run_case(r, case_state, root, base)
+        run_case(r, case_migrate, root)
+        run_case(r, case_rebuild_columns, root)
+        # T05: the flow ledger
+        run_case(r, case_triage, root)
+        run_case(r, case_escalate, root)
+        run_case(r, case_capsule, root)
+        run_case(r, case_transcripts, root)
+        run_case(r, case_skip, root)
+        run_case(r, case_asks, root)
+        run_case(r, case_schema_v2, root)
+        # T05, added after review
+        run_case(r, case_close_blocking, root)
+        run_case(r, case_real_orbit_kb, root)
+        run_case(r, case_transcripts_clock, root)
+        run_case(r, case_skip_two_kbs, root)
+        run_case(r, case_ref_guard, root)
+        run_case(r, case_guard_more, root)
+        run_case(r, case_transcripts_same_session, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))
@@ -1061,6 +1788,16 @@ def cases(r):
 
 def main():
     global QUIET
+    args = sys.argv[1:]
+    for i, a in enumerate(args):
+        if a == "--case":
+            if i + 1 >= len(args) or not args[i + 1].startswith("case_"):
+                print("usage: hubflow-test.py [--mutants] [--case case_NAME ...]")
+                sys.exit(1)
+            ONLY.add(args[i + 1])
+    for name in list(ONLY):
+        if name in CASE_NEEDS:
+            ONLY.add(CASE_NEEDS[name])
     r = Run(REAL)
     if not os.path.exists(REAL):
         print("FAIL hubflow.py-exists: " + REAL + " is missing")
