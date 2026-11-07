@@ -21,6 +21,9 @@
 #   T27 c2 one writer for every KB, as a lease     : PW9 (PW7 drops its last case: a KB without project has a lock now)
 #   T27 c3 the handoff texts (release, lease)      : PH1
 #   T27 c10 the request is pinned (--source)       : PR1
+# Ticket T37 (fixes found when T27 was verified; CONTRACT D23 P9 and D26 S12 amended):
+#   c2 a write command re-checks the lease before it writes : PW10
+#   c3 the request pin reads nested tracker JSON (ADO, Jira, Plane); a state move is no change : PR2
 # Ticket T23 (CONTRACT D27, the project KB reasons over the domain):
 #   c1 two sides: definition/2, concerns, help     : PT1
 #   c2 product rules, pinned by spec claims        : PT2
@@ -602,6 +605,45 @@ t_PR1() { local J=$T/item.json S=$T/spec
           no_fact "$T/own/kb.pl" "request_pin(_, _, _, _)" "no pin without --source"
           okb --dir "$T/own" pin-request --request-file "$J"; rc_is 1 "pin-request without a source"; }
 
+# ================================================================ T37 c2: a takeover during a long run stops the old holder
+t_PW10() { K=$T/spec; okb init "$K" --request 'plain' --uses build >/dev/null 2>&1
+          ORBIT_KB_WRITER=ann okb --dir "$K" add "claim(c1, introduce, 'x')" "cites(c1, 'x')" "check(k1, c1)"; rc_is 0 "ann sets up the KB"
+          ( cd "$T" && ORBIT_KB_WRITER=ann timeout "$TMO" "$OKB" --dir "$K" run k1 -- sleep 4 ) >"$T/.run.out" 2>"$T/.run.err" </dev/null &
+          local rp=$!
+          sleep 1.5
+          # bob's lease is 0 minutes: ann's lease lapses at once, and bob takes the lock during the run
+          ORBIT_KB_WRITER=bob ORBIT_KB_LEASE=0 okb --dir "$K" add "note(c1, 'bob took over')"; rc_is 0 "bob takes the lapsed lease during the run"
+          wait "$rp"; local rrc=$?
+          [ "$rrc" = 2 ] || note "ann's run after the takeover: exit $rrc, want 2 ($(snip "$(cat "$T/.run.err")"))"
+          grep -Fq 'bob' "$T/.run.err" || note "the refusal does not name the new holder: $(snip "$(cat "$T/.run.err")")"
+          no_fact "$K/kb.pl" "attest(_, test_result, k1, _, _, _)" "ann's result was written after the takeover"
+          ls "$K"/runs/*.log >/dev/null 2>&1 && note "a run log was left after the refused run"; return 0; }
+
+# ================================================================ T37 c3: the pin reads the nested JSON of the trackers in use
+t_PR2() { local S J want
+          printf '{"id": 7, "fields": {"System.Title": "Export must be daily", "System.Description": "Send the export each day.", "Microsoft.VSTS.Common.AcceptanceCriteria": "One file per day", "System.State": "Active", "System.BoardColumn": "Todo"}}\n' > "$T/ado.json"
+          printf '{"key": "WID-3", "fields": {"summary": "Export must be daily", "description": "Send the export each day.", "status": {"name": "To Do"}}}\n' > "$T/jira.json"
+          printf '{"id": "9f2", "name": "Export must be daily", "description_html": "<p>Send the export each day.</p>", "state": "uuid-todo"}\n' > "$T/plane.json"
+          for J in ado jira plane; do
+              S=$T/$J; okb init "$S" --request-file "$T/$J.json" --source "$J:acme/widgets#3" --uses build; rc_is 0 "$J: init --source"
+              has_goal "$S/kb.pl" "kb(request(r1, T)), sub_atom(T, _, _, _, 'Export must be daily'), sub_atom(T, _, _, _, 'Send the export each day.')" "$J: the request text is the title and the description"
+              no_fact "$S/kb.pl" "request(r1, T)), sub_atom(T, _, _, _, 'Todo'" "$J: the request text holds no column"
+              no_fact "$S/kb.pl" "request(r1, T)), sub_atom(T, _, _, _, 'fields'" "$J: the request text is not the raw JSON"
+          done
+          has_goal "$T/ado/kb.pl" "kb(request(r1, T)), sub_atom(T, _, _, _, 'One file per day')" "ado: the acceptance criteria"
+          # a State or BoardColumn move is no change
+          sed -i 's/"Todo"/"Doing"/; s/"Active"/"Resolved"/' "$T/ado.json"
+          sed -i 's/"To Do"/"Done"/' "$T/jira.json"
+          sed -i 's/uuid-todo/uuid-done/' "$T/plane.json"
+          for J in ado jira plane; do
+              okb --dir "$T/$J" pin-request --request-file "$T/$J.json"; rc_is 0 "$J: pin-request after a state move"
+              okb --dir "$T/$J" query 'request_stale(r1)'; rc_is 1 "$J: a state move is no change"
+          done
+          # a text change is a change
+          sed -i 's/each day/each hour/' "$T/jira.json"
+          okb --dir "$T/jira" pin-request --request-file "$T/jira.json"; rc_is 0
+          okb --dir "$T/jira" query 'request_stale(r1)'; rc_is 0 "jira: a text change makes the request stale"; return 0; }
+
 # ================================================================ T23: the project KB reasons (D27)
 # Fixtures are invented: the widget product of acme. Ids: d* decisions, df* definitions, ru* rules (r1 is the request id).
 
@@ -994,6 +1036,8 @@ run_test t_PW8 PW8 "T27 c1: CLAUDE_CODE_SESSION_ID names the writer; ORBIT_KB_WR
 run_test t_PW9 PW9 "T27 c2: every KB has one writer; the lock is a lease that lapses after ORBIT_KB_LEASE minutes"
 run_test t_PH1 PH1 "T27 c3: the handoff texts say release, the first write takes the lock, review has its own lease"
 run_test t_PR1 PR1 "T27 c10: init --source pins the request; a changed text is stale until a human accepts it"
+run_test t_PW10 PW10 "T37 c2: a takeover during a long run stops the old holder's append (exit 2, nothing written)"
+run_test t_PR2 PR2 "T37 c3: the request pin reads nested ADO, Jira and Plane JSON; a state move is no change"
 
 run_test t_PT1 PT1 "T23 c1: definition/2 and concerns of a definition; help project opens with the two sides"
 run_test t_PT2 PT2 "T23 c2: rule/2 is pinned by a spec claim; WP1 and WP2 cover rule pins"

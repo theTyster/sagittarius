@@ -21,6 +21,11 @@
 #   c7 the ledger, live from flow.db, with an answer form; quoted command    : QS21
 #   c8 a project KB's own questions                                          : QS22
 #   c9 fixes: default terms, option and text, project_kb paths, frame headers : QS23
+# Ticket T37 (fixes found when T27 was verified; CONTRACT D26 S10 S11 amended):
+#   c1 an answer to a pinned ledger ask reaches the spec KB; a non-ground queued line is reported : QS24
+#   c4 the workflow text says when to pin (help build, help discovery, review.md)               : QS26
+#   c5 the page: no form while an answer waits; a tracker-owned question shows its item; refused shown; numbers stay numbers : QS25 (and QS24)
+#   c6 subagents of one pane count as one writer (help core, PANES.md)                          : QS26
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -175,6 +180,13 @@ def main():
         else:
             c=[x.text() for x in cls(ls[0],"hubflow")]
             if not c or a[1] not in c[0]: bad.append("hubflow command %r lacks %r" % (c, a[1]))
+    elif mode=="noform":     # noform FILE LABEL QID: the to_ask item QID in section LABEL has no form
+        secs=kbsec(p, a[0]); its=[x for s in secs for x in items(s,"to_ask") if x.attrs.get("data-id")==a[1]]
+        if len(its)!=1: bad.append("want one to_ask item %s in %r, found %d" % (a[1], a[0], len(its)))
+        elif any(n.tag=="form" for n in its[0].walk()): bad.append("item %s has a form" % a[1])
+    elif mode=="refused":    # refused FILE LABEL QID: the KB section LABEL lists a refused queued answer for QID
+        secs=kbsec(p, a[0]); ls=[x for s in secs for x in s.walk() if "refused" in x.classes() and x.attrs.get("data-id")==a[1]]
+        if len(ls)<1: bad.append("no element with class refused and data-id %s in %r" % (a[1], a[0]))
     elif mode=="message":    # message FILE T: an element with class message holds T
         ms=[x.text() for x in p.all if "message" in x.classes()]
         if not any(a[0] in m for m in ms): bad.append("no .message with %r (messages %r)" % (a[0], ms))
@@ -664,6 +676,84 @@ EOF
     srv_stop
 }
 
+t_QS24() {  # T37 c1: an answer to a pinned ledger ask from the page reaches the spec KB; the number stays a number (c5)
+    mkhub "$T/h"; local A
+    A=$(hf "$T/h" --session build add ask --title 'How many retries' --waits-on me)
+    kb_new "$T/a" <<'EOF2'
+uses([build]).
+request(r1, 'Numbers must stay sane').
+claim(c1, preserve, 'Retries are bounded').
+cites(c1, 'Numbers must stay sane').
+question(q1, c1, 'How many retries').
+assumed(q1, 3).
+attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
+EOF2
+    okb --dir "$T/a" pin-question q1 ledger "$A"; rc_is 0 "pin-question"
+    srv --dir "$T/a" --hub "$T/h" || return
+    page_ok || return; local tok; tok=$(token)
+    post /answer "token=$tok" "ask=$A" 'text=3'; code_is 303 "POST an answer to the ask"
+    askjson "$T/h" "$A" "d['item']['status']=='done'"
+    has_goal "$T/a" 'answer(q1, 3, human:me)' "the spec KB has the answer, as the number 3"
+    hasnt_goal "$T/a" 'to_ask(q1)' "q1 is answered"
+    hasnt_goal "$T/a" 'defeated(q1)' "accepting the default 3 is not a defeat"
+    srv_stop
+    # pin-answer keeps a number as a number too
+    kb_new "$T/b" <<'EOF2'
+uses([build]).
+request(r1, 'Numbers must stay sane').
+claim(c1, preserve, 'Retries are bounded').
+cites(c1, 'Numbers must stay sane').
+question(q1, c1, 'How many retries').
+assumed(q1, 3).
+attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
+EOF2
+    printf '3\n' > "$T/ans.txt"
+    okb --dir "$T/b" pin-question q1 tracker 'gh:acme/billing#9'; rc_is 0
+    okb --dir "$T/b" pin-answer q1 'gh:acme/billing#9' --text-file "$T/ans.txt" --by alex; rc_is 0 "pin-answer"
+    has_goal "$T/b" 'answer(q1, 3, human:alex)' "pin-answer writes 3 as a number"
+    hasnt_goal "$T/b" 'defeated(q1)' "pin-answer of the default is not a defeat"
+    # a queued line that is not ground is reported, not skipped silently
+    printf 'pending(%s, %s, [answer(q1, X, human)]).\n' "'2026-11-06T10:00:00Z'" "'sha256:00'" >> "$T/b/answers.pending"
+    okb --dir "$T/b" add "note(c1, 'a write')"; rc_is 0 "a write with a bad queued line"
+    printf '%s\n' "$err" | grep -Fiq 'answers.pending' || note "the write did not report the bad line in answers.pending: $(snip "$err")"
+}
+
+t_QS25() {  # T37 c5: no form while an answer waits; a tracker-owned question shows its item; a refused queued answer shows
+    kb_a "$T/a"
+    wr ann --dir "$T/a" add "note(c1, 'ann works here')"; rc_is 0 "ann takes the lease" || return
+    wr ann --dir "$T/a" pin-question q2 tracker 'gh:acme/billing#7'; rc_is 0 "pin-question q2 to the tracker"
+    srv --dir "$T/a" || return
+    page_ok || return; local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" "$L_A")
+    chk form "$T/page.html" "$L_A" q1 yes no other
+    post /answer "token=$tok" "kb=$kb" q=q1 choice=no; code_is 303 "the answer is queued"
+    page_ok || return
+    chk pending "$T/page.html" "$L_A" q1
+    chk noform "$T/page.html" "$L_A" q1
+    post /answer "token=$tok" "kb=$kb" q=q1 choice=yes; code_is 409 "a second answer while one waits"
+    chk noform "$T/page.html" "$L_A" q2
+    chk ctx "$T/page.html" "$L_A" q2 'gh:acme/billing#7'
+    # a queued answer that the KB refuses: shown on the page
+    printf 'pending(%s, %s, [answer(q9, x, human)]).\n' "'2026-11-06T10:00:00Z'" "'sha256:0123'" >> "$T/a/answers.pending"
+    wr ann --dir "$T/a" add "note(c1, 'ann writes again')"
+    grep -q 'refused' "$T/a/answers.applied" 2>/dev/null || note "the bad queued answer was not refused: $(snip "$err")"
+    page_ok || return
+    chk refused "$T/page.html" "$L_A" q9
+    srv_stop
+}
+
+t_QS26() {  # T37 c4, c6: the workflow text says when to pin; subagents of one pane are one writer
+    local t
+    for t in build discovery; do
+        okb help $t
+        for w in 'pin-question' 'init' '--source' 'pin-request'; do
+            printf '%s\n' "$out" | grep -Fq -- "$w" || note "help $t lacks $w"
+        done
+    done
+    grep -Fq -- '--source' "$REPO/prompt/panes/review.md" || note "panes/review.md does not use --source"
+    okb help core; printf '%s\n' "$out" | grep -Fiq 'subagents' && printf '%s\n' "$out" | grep -Fq 'one writer' || note "help core does not say that subagents of a pane count as one writer"
+    grep -Fq 'CLAUDE_CODE_SESSION_ID' "$REPO/prompt/PANES.md" && grep -Fiq 'one writer' "$REPO/prompt/PANES.md" || note "PANES.md does not say that subagents of a pane count as one writer"
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -674,6 +764,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 23); do run_one QS$n; done
+for n in $(seq 1 26); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

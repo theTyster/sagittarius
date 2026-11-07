@@ -1,6 +1,7 @@
 orbit-kb help discovery: the discovery module (orbit-kb uses discovery)
 
 Start: orbit-kb init DIR --request-file F --uses discovery   (F holds the report word for word)
+       With a tracker item: add --source REF, so the request is pinned to the item (orbit-kb help build, PIN).
 Keep the models and the logs inside DIR. Record scope, risk, assumption, and not_explored.
 Sections: FACTS, ATTESTATIONS, QUERIES, LAPS, then one recipe for each move (SIGNAL and
 The hypothesis, SURVEY, SPECTRUM, FLYBY, TRAJECTORY, DISPROVE, GATE, ASKING, HANDOFF), then
@@ -223,6 +224,10 @@ ASKING: ask the human
   question, assumed, raised_by(Q, X) (X is the finding or hypothesis that raised Q),
   and option(Q, 'Text', 'Effect') for each option, with what choosing it changes.
   Then answer(Q, VALUE, human), and lap_done(N) when the round ends.
+  Owners (orbit-kb help build, PIN): a question that waits only on the hub owner is pinned to its
+  ledger ask (pin-question Q ledger ASK); any other goes to the tracker (draft questions, then
+  pin-question Q tracker ITEM, then pin-answer). When the request changes at its tracker item,
+  run pin-request --request-file F.
 
 HANDOFF to the build orbit
   orbit-kb uses build ; orbit-kb lint. The build orbit skips SURVEY.

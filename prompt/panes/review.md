@@ -22,7 +22,7 @@ the work: you judge it. Build makes; you judge.
   changed after that date. The time in UAT (below) is part of the evidence.
 - If the evidence does not decide, say so, and give what you found. Do not guess.
 - Start a KB for the report (`orbit-kb init DIR --request-file F --uses discovery`, with the
-  report word for word in F). Record your verdict, the evidence, and the time in UAT as
+  report word for word in F; add `--source REF` when the report is a tracker item). Record your verdict, the evidence, and the time in UAT as
   `world` facts, each with its `source`. Then send the KB path to **discovery**. That
   message is a handoff. Do not write the hypothesis or the ticket, and do not plan the fix.
 
