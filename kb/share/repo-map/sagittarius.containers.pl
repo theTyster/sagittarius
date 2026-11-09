@@ -13,7 +13,7 @@ external(pages, 'GitHub Pages', 'Publishes the decks.').
 container(prompt, 'System prompt', 'Markdown', 'prompt/SAGITTARIUS.md, plus the pane prompts in prompt/PANES.md and prompt/panes/.').
 container(orbit_kb, 'orbit-kb', 'SWI-Prolog', 'CLI in kb/bin that writes, lints and queries Prolog KBs; its rules, contract and tests live in kb/.').
 container(hubkit, 'hubkit', 'Python', 'hubkit/: the hub kit (hubflow and hubkit tools), imported from hubflow-starter.').
-container(s1, 's1', 'Python', 's1/: the System 1 (Jev) client, the prompt hook and the tempering tool.').
+container(s1, 's1', 'Python', 's1/: the System 1 model client, the prompt hook and the tempering tool.').
 container(evals, 'Evals', 'Shell and Python', 'evals/: planning and tool-use evals for the prompt, with graded runs.').
 container(site, 'Decks', 'HTML', 'site/: the full deck and the generated short deck.').
 container(docs, 'Docs', 'Markdown', 'docs/: the philosophy and the eval refining loop.').

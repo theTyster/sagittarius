@@ -2,7 +2,7 @@
 """T29 c4: the short deck (site/essentials.html) covers the redesign, for its audience.
 
 Fails when a redesign term is missing from the visible text of essentials.html:
-  - System 1 (the hook, the status line, Jev),
+  - System 1 (the hook, the status line, the System 1 model),
   - each of the seven stores by name (Spec KB, Project KB, Ledger, Memory, Weeks, Bespoke tools,
     Tracker),
   - the phase tree (its two orbits and four phases: research, specify, build, verify),
@@ -28,7 +28,7 @@ TERMS = [
     ("System 1", r"\bsystem 1\b"),
     ("the System 1 hook", r"\bhook\b"),
     ("the status line", r"status line"),
-    ("Jev", r"\bjev\b"),
+    ("the System 1 model", r"\bsystem 1 model\b"),
     ("store: Spec KB", r"\bspec kb\b"),
     ("store: Project KB", r"\bproject kb\b"),
     ("store: Ledger", r"\bledger\b"),

@@ -25,7 +25,7 @@ Only the hub, with no Prolog and no Lean? That is the informal release: see [`hu
    and `./install.py --check`. See "Install" below for the prompt flag.
 2. **Start a hub.** Give `hubkit/` to your agent and say "follow INSTRUCTIONS.md". It reads
    `hubkit/INSTRUCTIONS.md`, asks up to three questions, and sets up the hub. See "Hub kit" below.
-3. **Add the System 1 hook (optional).** The hook asks Jev about each prompt before the agent
+3. **Add the System 1 hook (optional).** The hook asks the System 1 model about each prompt before the agent
    answers. Follow `s1/README.md`. The hook is manual: you paste a snippet into your
    `~/.claude/settings.json`. No script writes that file. `install.py` never does.
 
