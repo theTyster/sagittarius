@@ -80,7 +80,7 @@
 #   PN  pin stamp                                          (CLI: pin; D22)                  : PN1 PN2
 #   PH  help names the phases                              (CLI: help; D22)                 : PH1
 #   AC  acceptance criteria: ac/1, show and draft blocking (D29)                             : AC1-AC5
-#   VR  verification records: actor, review_saw, verdicts, independently_verified, WR1 (D28) : VR1-VR6
+#   VR  verification records: actor, review_saw, verdicts, independently_verified, WR1 (D28) : VR1-VR11 (VR7-VR11: T38)
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -2427,7 +2427,7 @@ attest(v1, disproof, c1, verdict(c1, upheld('reran k1')), agent, '2026-11-01T10:
 actor(v1, review, s2).
 rests_on_run(v1, t1).
 EOF2
-          K=$T/d; is_true 'independently_verified(c1)' "no serving change: the upheld verdict and the rerun by the same actor (choice)"
+          K=$T/d; is_false 'independently_verified(c1)' "no change in the KB at all: no verdict counts (T38 c3 retires the choice of T25: fail closed)"
           vr_kb "$T/e"; K=$T/e
           ORBIT_KB_ROLE=build ORBIT_KB_WRITER=w1 okb --dir "$K" add "change(x1, 'Edit one')" "serves(x1, c1)"; rc_is 0 "add a change"
           has_fact "$K/kb.pl" "actor(x1, build, w1)" "add of a change records its actor"
@@ -2476,6 +2476,152 @@ t_VR6() { okb help build; rc_is 0
           local pr=$here/../../prompt
           grep -E 'help build' "$pr/SAGITTARIUS.md" | grep -Eqi 'fresh-eyes|FULFILL' || note "SAGITTARIUS.md: the help build line points to the fresh-eyes brief"
           grep -Eq 'help build.*FULFILL|FULFILL.*help build' "$pr/panes/review.md" || note "review.md (Verify) points to the FULFILL brief of help build"; }
+
+# ---------------------------------------------------------------- T38: fixes of D28 found when T25 was verified
+# VR7 (T38 c1): a digest is the sha256 of the bytes of the file, also for non-ASCII bytes:
+# subject, the pin stamp, and review start (ticket and diff) agree with sha256sum.
+t_VR7() { vr_kb "$T/k"; K=$T/k; local r=$T/repo d
+          printf 'a \342\200\223 b\n' > "$T/dash.txt"                      # an en dash (UTF-8 e2 80 93)
+          printf '\211PNG\r\n\032\n\000\377\376binary\n' > "$T/shot.png"    # bytes that are no UTF-8
+          for f in dash.txt shot.png; do
+              okb --dir "$K" subject "s_${f%%.*}" "$T/$f"; rc_is 0 "subject $f"
+              d=$(sha "$T/$f")
+              out_has "sha256:$d" "subject $f prints the sha256sum of its bytes"
+              has_fact "$K/kb.pl" "subject(s_${f%%.*}, _, 'sha256:$d')" "subject $f records the sha256sum of its bytes"
+          done
+          okb --dir "$K" lint; out_hasnt '^W1 ' "W1: no subject file changed since it was recorded"
+          printf "note(c1, 'Kept \342\200\224 with a dash').\n" >> "$K/kb.pl"
+          okb --dir "$K" pin; out_has "spec-kb@sha256:$(sha "$K/kb.pl")" "the pin stamp of a kb.pl with non-ASCII text is its sha256sum"
+          mkdir -p "$r"; git -C "$r" init -q; printf 'one\n' > "$r/a.txt"
+          git -C "$r" add a.txt; git -C "$r" -c user.name=t -c user.email=t@example.invalid commit -q -m one
+          printf 'two \342\200\223 en dash\n' >> "$r/a.txt"; git -C "$r" -c user.name=t -c user.email=t@example.invalid commit -q -am two
+          printf 'Ticket T1 \342\200\223 verify two things\n' > "$r/ticket.md"
+          local dt dd; dt=$(sha "$r/ticket.md"); dd=$(git -C "$r" diff HEAD~1..HEAD | sha256sum | cut -d' ' -f1)
+          ORBIT_KB_WRITER=r1 okb_in "$r" --dir "$K" review start --as review --ticket ticket.md --diff HEAD~1..HEAD; rc_is 0 "review start"
+          has_fact "$K/kb.pl" "review_saw(review, ticket, 'sha256:$dt')" "the ticket digest is the sha256sum of a ticket with an en dash"
+          has_fact "$K/kb.pl" "review_saw(review, diff, 'sha256:$dd')" "the diff digest is the sha256 of git diff with an en dash"; }
+
+# VR8 (T38 c2): independently_verified reads the latest verdict on the claim (the last in kb.pl).
+t_VR8() { vr_ind "$T/a"; K=$T/a
+          is_true 'independently_verified(c1)' "setup: v1 verifies c1"
+          local v
+          for v in "refuted('the empty input breaks it')" "inconclusive('ran out of time')" "inconclusive" "abstained('no way to run it')"; do
+              rm -rf "$T/b"; cp -r "$T/a" "$T/b"; K=$T/b
+              printf "attest(v2, disproof, c1, verdict(c1, %s), agent, '2026-11-01T10:06:00Z').\nactor(v2, review, s2).\nrests_on_run(v2, t1).\n" "$v" >> "$K/kb.pl"
+              is_false 'independently_verified(c1)' "an upheld verdict followed by $v"
+          done
+          rm -rf "$T/b"; cp -r "$T/a" "$T/b"; K=$T/b
+          printf "attest(v2, disproof, c1, verdict(c1, refuted('the empty input breaks it')), agent, '2026-11-01T10:05:00Z').\nactor(v2, review, s2).\n" >> "$K/kb.pl"
+          is_false 'independently_verified(c1)' "a refuted verdict after the upheld one in kb.pl, in the same second"
+          okb --dir "$K" report; rc_is 0 "report"
+          local sec; sec=$(printf '%s\n' "$out" | awk '/^# Review:/{f=1;next} /^# /{f=0} f')
+          printf '%s\n' "$sec" | grep -Eq 'c1: reviewer review \(session s2\), verdict refuted' || note "the report shows the latest verdict, refuted: [$(snip "$sec")]"
+          printf '%s\n' "$sec" | grep -Fq 'Every current claim is independently verified' && note "the report says every claim is verified next to a refuted verdict"
+          printf '%s\n' "$sec" | grep -Eq '^  - Not independently verified: c1\.$' || note "the report names c1 as not independently verified: [$(snip "$sec")]"
+          # a later upheld verdict that counts verifies the claim again
+          printf "attest(t2, test_result, k1, result(k1, 2, pass), script, '2026-11-01T10:07:00Z').\nactor(t2, review, s2).\nattest(v3, disproof, c1, verdict(c1, upheld('fixed; reran k1')), agent, '2026-11-01T10:08:00Z').\nactor(v3, review, s2).\nrests_on_run(v3, t2).\n" >> "$K/kb.pl"
+          is_true 'independently_verified(c1)' "a new upheld verdict after the refuted one"
+          printf 'later_verdict(v3).\n' > "$K/rules.pl"; okb --dir "$K" lint
+          out_has '^E16' "rules.pl cannot add to the computed later verdicts (E16)"; rm -f "$K/rules.pl"; }
+
+# VR9 (T38 c3): old data fails closed. A serving change with no change_at, or a claim that no change
+# serves in a KB with no change, never lets a verdict count; a claim with no serving change is
+# compared with every change of the KB (choice).
+t_VR9() { vr_ind "$T/a"
+          rm -rf "$T/b"; cp -r "$T/a" "$T/b"; K=$T/b
+          sed -i '/^change_at(x1/d; s/actor(v1, review, s2)/actor(v1, build, s1)/; s/actor(t1, review, s2)/actor(t1, build, s1)/' "$K/kb.pl"
+          is_false 'independently_verified(c1)' "a change with no change_at, and the builder's own verdict"
+          rm -rf "$T/b"; cp -r "$T/a" "$T/b"; K=$T/b
+          sed -i '/^change_at(x1/d' "$K/kb.pl"
+          is_false 'independently_verified(c1)' "a change with no change_at fails closed, also for another actor (choice)"
+          rm -rf "$T/b"; cp -r "$T/a" "$T/b"; K=$T/b
+          printf "change(x0, 'Edit zero').\nserves(x0, c1).\nactor(x0, build, s1).\n" >> "$K/kb.pl"
+          is_false 'independently_verified(c1)' "one of two serving changes has no change_at"
+          kb_new "$T/d" <<'EOF2'
+uses([build]).
+request(r1, 'Keep it').
+claim(c1, preserve, 'It stays').
+cites(c1, 'Keep it').
+check(k1, c1).
+attest(t1, test_result, k1, result(k1, 1, pass), script, '2026-11-01T10:04:00Z').
+actor(t1, build, s1).
+attest(v1, disproof, c1, verdict(c1, upheld('reran k1')), agent, '2026-11-01T10:05:00Z').
+actor(v1, build, s1).
+rests_on_run(v1, t1).
+EOF2
+          K=$T/d; is_false 'independently_verified(c1)' "no change at all: the builder's own verdict does not count"
+          sed -i 's/actor(t1, build, s1)/actor(t1, review, s2)/; s/actor(v1, build, s1)/actor(v1, review, s2)/' "$K/kb.pl"
+          is_false 'independently_verified(c1)' "no change at all: nothing tells who built, so no verdict counts"
+          # a claim with no serving change, in a KB whose change x1 (build, s1) at 10:00 serves another claim
+          cp -r "$T/a" "$T/e"; K=$T/e
+          printf "claim(c2, preserve, 'Two stays true').\ncites(c2, 'Verify one thing').\ncheck(k2, c2).\n" >> "$K/kb.pl"
+          printf "attest(t2, test_result, k2, result(k2, 2, pass), script, '2026-11-01T10:06:00Z').\nactor(t2, review, s2).\n" >> "$K/kb.pl"
+          printf "attest(v2, disproof, c2, verdict(c2, upheld('reran k2')), agent, '2026-11-01T10:07:00Z').\nactor(v2, review, s2).\nrests_on_run(v2, t2).\n" >> "$K/kb.pl"
+          is_true 'independently_verified(c2)' "no serving change: another role and session than every change of the KB, after it"
+          rm -rf "$T/f"; cp -r "$T/e" "$T/f"; K=$T/f
+          sed -i 's/actor(v2, review, s2)/actor(v2, build, s1)/; s/actor(t2, review, s2)/actor(t2, build, s1)/' "$K/kb.pl"
+          is_false 'independently_verified(c2)' "no serving change: the builder's own verdict does not count"
+          rm -rf "$T/f"; cp -r "$T/e" "$T/f"; K=$T/f
+          sed -i "s/10:06:00Z'/09:58:00Z'/; s/10:07:00Z'/09:59:00Z'/" "$K/kb.pl"
+          is_false 'independently_verified(c2)' "no serving change: a verdict before the last change of the KB"
+          rm -rf "$T/f"; cp -r "$T/e" "$T/f"; K=$T/f
+          printf "change(x9, 'Edit nine').\n" >> "$K/kb.pl"
+          is_false 'independently_verified(c2)' "no serving change: a change of the KB with no change_at fails closed"
+          grep -q 'T38' "$here/../CONTRACT.md" && awk '/V4 \(claim c4/' "$here/../CONTRACT.md" | grep -Eqi 'fail(s)? closed' \
+              || note "CONTRACT V4 states the fail-closed choice"; }
+
+# VR10 (T38 c4): a builder's subagent follows the FULFILL brief of help build literally. It shares
+# CLAUDE_CODE_SESSION_ID with the builder; the brief tells it to name itself, so its verdict counts.
+t_VR10() { local r=$T/repo f wl
+           okb help build; rc_is 0
+           f=$(printf '%s\n' "$out" | awk '/^FULFILL/{f=1;print;next} f && /^[A-Z]/{exit} f')
+           wl=$(printf '%s\n' "$f" | grep -E '^ *export ORBIT_KB_WRITER=' | head -n1)
+           [ -n "$wl" ] || note "FULFILL has no line that sets ORBIT_KB_WRITER (export ORBIT_KB_WRITER=...)"
+           printf '%s\n' "$wl" | grep -q 'ORBIT_KB_ROLE=' || note "the export line of FULFILL does not set ORBIT_KB_ROLE"
+           printf '%s\n' "$f" | grep -Fq 'CLAUDE_CODE_SESSION_ID' || note "FULFILL does not say why: subagents share CLAUDE_CODE_SESSION_ID"
+           printf '%s\n' "$f" | grep -Eq 'orbit-kb release' || note "FULFILL does not tell the builder to release the lock first"
+           mkdir -p "$r"; git -C "$r" init -q; printf 'one\n' > "$r/a.txt"
+           git -C "$r" add a.txt; git -C "$r" -c user.name=t -c user.email=t@example.invalid commit -q -m one
+           printf 'Ticket T1: one becomes true\n' > "$r/TICKET.md"
+           # the builder (one pane: CLAUDE_CODE_SESSION_ID=pane1, the build role)
+           local B=(env CLAUDE_CODE_SESSION_ID=pane1 ORBIT_KB_ROLE=build)
+           okb init "$T/k" --request 'One becomes true' --uses build; K=$T/k
+           "${B[@]}" "$OKB" --dir "$K" add "claim(c1, introduce, 'One becomes true')" "cites(c1, 'One becomes true')" "check(k1, c1)" >/dev/null 2>&1
+           "${B[@]}" "$OKB" --dir "$K" run k1 -- false >/dev/null 2>&1
+           sleep 1
+           printf 'two\n' >> "$r/a.txt"; git -C "$r" -c user.name=t -c user.email=t@example.invalid commit -q -am two
+           "${B[@]}" "$OKB" --dir "$K" add "change(x1, 'Edit one')" "serves(x1, c1)" >/dev/null 2>&1
+           "${B[@]}" "$OKB" --dir "$K" run k1 -- true >/dev/null 2>&1
+           is_true 'fulfilled(c1)' "setup: the builder fulfilled c1"
+           printf '%s\n' "$f" | grep -Eq 'orbit-kb release' && "${B[@]}" "$OKB" --dir "$K" release >/dev/null 2>&1
+           sleep 1
+           # the subagent: the same CLAUDE_CODE_SESSION_ID; it runs the brief as written
+           local sub; sub=$(printf '%s\n' "$wl" | sed -E 's/<[^>]*>/t1/g; s/^ *//')
+           ( export CLAUDE_CODE_SESSION_ID=pane1; [ -n "$sub" ] && eval "$sub"
+             cd "$r" || exit 9
+             XDG_CACHE_HOME="$T/.cache" "$OKB" --dir "$K" review start --as review --ticket TICKET.md --diff HEAD~1..HEAD || exit 3
+             XDG_CACHE_HOME="$T/.cache" "$OKB" --dir "$K" run --as review k1 -- true || exit 4
+             a=$(grep -oE '^attest\(a[0-9]+, test_result, k1, result\(k1, [0-9]+, pass\)' "$K/kb.pl" | tail -n1 | sed -E 's/^attest\((a[0-9]+).*/\1/')
+             XDG_CACHE_HOME="$T/.cache" "$OKB" --dir "$K" attest disproof c1 "verdict(c1, upheld('reran k1; tried an empty input'))" --as review --rests-on "$a" || exit 5
+           ) >"$T/.sub.out" 2>"$T/.sub.err"
+           local src=$?; [ "$src" = 0 ] || note "the subagent's commands failed (step $src): $(snip "$(cat "$T/.sub.err")")"
+           is_true 'independently_verified(c1)' "the subagent followed the brief literally"
+           okb --dir "$K" lint; out_hasnt '^WR1 c1' "no WR1 for c1"; }
+
+# VR11 (T38 c5): WR1 waits until a review is due: no current claim is under.
+t_VR11() { local W=(env ORBIT_KB_ROLE=build ORBIT_KB_WRITER=w1)
+           okb init "$T/k" --request 'Make one thing true' --uses build; K=$T/k
+           "${W[@]}" "$OKB" --dir "$K" add "claim(c1, introduce, 'One thing is true')" "cites(c1, 'Make one thing true')" "check(k1, c1)" >/dev/null 2>&1
+           "${W[@]}" "$OKB" --dir "$K" run k1 -- false >/dev/null 2>&1
+           has_goal "$K/kb.pl" "kb(actor(_, build, w1))" "setup: the red run recorded an actor"
+           okb --dir "$K" lint; rc_is 0; out_hasnt '^WR1' "no WR1 during the red run"
+           okb --dir "$K" lint --strict; rc_is 0 "lint --strict passes a fresh build KB"
+           "${W[@]}" "$OKB" --dir "$K" add "claim(c2, preserve, 'Two stays true')" "cites(c2, 'Make one thing true')" "check(k2, c2)" "change(x1, 'Edit one')" "serves(x1, c1)" >/dev/null 2>&1
+           "${W[@]}" "$OKB" --dir "$K" run k2 -- true >/dev/null 2>&1
+           okb --dir "$K" lint; out_hasnt '^WR1' "no WR1 while c1 is under, also for the fulfilled c2"
+           "${W[@]}" "$OKB" --dir "$K" run k1 -- true >/dev/null 2>&1
+           okb --dir "$K" lint; rc_is 0; out_has '^WR1 c1' "WR1 c1 once every claim is fulfilled"; out_has '^WR1 c2' "WR1 c2 too"
+           okb help codes; printf '%s\n' "$out" | grep -E 'WR1' | grep -Eqi 'under|fulfilled|due' || note "help codes does not say when WR1 fires"; }
 
 # BL11 (T18 c5): the usage line of help show lists blocking among the parts (D22 C7).
 t_BL11() { okb help show; rc_is 0 "help show"
@@ -2863,6 +3009,11 @@ run_test t_VR3 VR3 "D28 c3: verdicts carry what was tried, upheld(Text), and res
 run_test t_VR4 VR4 "D28 c4: independently_verified(C)"
 run_test t_VR5 VR5 "D28 c5: report Review section and lint WR1; done unchanged"
 run_test t_VR6 VR6 "D28 c6: the FULFILL brief for the fresh-eyes subagent"
+run_test t_VR7 VR7 "T38 c1: a digest is the sha256 of the bytes, also for non-ASCII files"
+run_test t_VR8 VR8 "T38 c2: independently_verified reads the latest verdict on the claim"
+run_test t_VR9 VR9 "T38 c3: old data fails closed"
+run_test t_VR10 VR10 "T38 c4: a builder's subagent that follows the FULFILL brief literally is independent"
+run_test t_VR11 VR11 "T38 c5: WR1 waits until no current claim is under"
 
 run_tests
 echo "----"
