@@ -52,7 +52,7 @@ The 29 fact kinds:
 | `models` | Formal models (Lean, SMT, TLA+) and the proofs that a claim rests on. | `bespoke` | `spec` | - | - |
 | `outbound` | Drafts of text meant for the tracker or for people, staged before anyone sends them. | `weeks` | - | - | - |
 | `product_rules` | The product's business rules: how the current system must behave (limits, permissions, prices, workflows). | `project` | `spec` | - | - |
-| `raw_reports` | Raw reports and meeting transcripts: the human touchpoints of the week. The project KB keeps a pinned digest; transcripts are parsed into the ledger for lookup. | `weeks` | `project` | `ledger` | - |
+| `raw_reports` | Raw reports and meeting transcripts: the human touchpoints of the week. The project KB keeps a pinned digest; an agent reads a transcript and records what is needed in the ledger, with a transcript ref. | `weeks` | `project` | `ledger` | - |
 | `repos` | Which repositories exist, what each holds, and how they connect. | `project` | `tracker` | `memory` | - |
 | `request` | The ticket's request, word for word, and the human's answers to its questions. | `tracker` | `spec` | - | - |
 | `routing` | Who owns each item, who it waits on, the threads around it, and what is on hold. | `ledger` | - | - | - |
