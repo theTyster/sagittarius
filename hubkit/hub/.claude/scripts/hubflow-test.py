@@ -13,7 +13,8 @@ Check names of the T28 rotation fix (the session index follows the week dirs) st
 Check names of rd/transcripts (an agent, not code, records what a meeting needs) start with mt-c1-
 (no code meeting rows), mt-c2- (transcript refs), mt-c3- (summary rows lapse by themselves) and
 mt-schema- (the v3 -> v4 migration). T40 checks start with t40-c10- (a summary never blocks a
-rotation), t40-c11- (retention_due agrees with rotate) and t40-c12- (words and ref names).
+rotation), t40-c11- (retention_due agrees with rotate), t40-c12- (words and ref names) and t40-c13-
+(skip-waived leaves an escalated item open).
 Every scenario seeds its db from a seed file written into the temp dir (SEED_DATA below).
 Prints `PASS name` or `FAIL name: why` per case (`SKIP name: why` for a check that cannot run
 here, not counted); the last line is `N passed, M failed`.
@@ -66,6 +67,8 @@ MUTANTS = [
     ("skip-not-propagated", 'if o["reason"] == "human_skip":  # propagate', "if False:"),
     # T39: a waiver in a spec KB ends the hub item
     ("skip-waived-ignores-remaining-blockers", "continue  # something still blocks, or the KB is unknown: not a skip", "pass"),
+    # T40 c13: skip-waived leaves an escalated item for the human (checked inside the write)
+    ("skip-waived-closes-escalated", "if is_escalated(c, iid):  # escalated stays for the human", "if False:"),
     # (no mutant for `not waiver_lapsed(W)`: a lapsed waiver is itself a blocking item, so the clear test already stops it)
     ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
     ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
@@ -2364,6 +2367,43 @@ def case_t40_retention_due_held(r, root):
     r.check("t40-c11-held-check-inside-the-write", in_write, "kb_held_summaries is not called in the write function of cmd_rotate")
 
 
+def case_t40_skip_waived_escalated(r, root):
+    """T40 c13 (review default, Ty not asked): skip-waived leaves an escalated item open and names it
+    (the human ends it with triage); a non-escalated item with the same waived, clear spec KB still closes."""
+    okb = real_orbit_kb()
+    name = "t40-c13-real-orbit-kb"
+    if not os.access(okb, os.X_OK):
+        r.skip(name, f"no orbit-kb at {okb}")
+        return
+    h = os.path.join(root, "t40-c13-hub")
+    k = os.path.join(h, "W0", "analyses", "spec-a", "kb")
+    os.makedirs(os.path.dirname(k))
+    for st in (("init", k, "--request", "An invented request for a test fixture.", "--uses", "build"),
+               ("--dir", k, "add", "claim(c1, preserve, 'Gadgets stay round.')", "check(k1, c1)"),
+               ("--dir", k, "attest", "waiver", "k1", "waive(k1, '2099-01-01T00:00:00Z', 'the human skips this')", "--by", "human")):
+        p = subprocess.run([okb] + list(st), capture_output=True, text=True, timeout=120)
+        if p.returncode != 0:
+            r.skip(name, f"orbit-kb {st[0]} failed (exit {p.returncode}): {(p.stdout + p.stderr).strip()[:200]}")
+            return
+    d = fresh(r, root, "t40-c13")
+    env = {"HUBFLOW_ORBIT_KB": okb}
+    esc = add(r, d, "ask", "Escalated, its spec is waived and clear", "--ref", "kb:spec-a/kb")
+    plain = add(r, d, "ask", "Not escalated, same spec", "--ref", "kb:spec-a/kb")
+    res = hf(r, d, "triage", esc, "escalate", "--note", "the human reads this one", hub=h, extra_env=env)
+    if res[0] != 0:
+        raise RuntimeError(res)
+    code, out, err = hf(r, d, "skip-waived", hub=h, extra_env=env)
+    r.check("t40-c13-exit-0", code == 0, out + err)
+    r.check("t40-c13-escalated-item-stays-open", status(d, esc) == "open", status(d, esc))
+    r.check("t40-c13-output-names-the-escalated-item",
+            any(x.startswith("escalated: ") and esc in x.split() and "triage" in x for x in out.splitlines()), out)
+    r.check("t40-c13-non-escalated-item-closes", status(d, plain) == "dropped" and listed(out, "closed:") == [plain],
+            (status(d, plain), out))
+    e = ev(d, esc)
+    r.check("t40-c13-no-close-event-on-the-escalated-item", not any(x[0] == "closed" for x in e), e)
+    r.check("t40-c13-check-clean", hf(r, d, "check")[0] == 0)
+
+
 def case_t40_words_and_refs(r, root):
     """T40 c12: the SKILL example summary states no decision; HUB-CORE raw_reports says an agent reads and
     records; --find of a deleted ref file says it is missing; a ref name with a newline, '..' or '@' is refused."""
@@ -2547,6 +2587,7 @@ def cases(r):
         run_case(r, case_t40_summary_never_blocks, root)
         run_case(r, case_t40_retention_due_held, root)
         run_case(r, case_t40_words_and_refs, root)
+        run_case(r, case_t40_skip_waived_escalated, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))

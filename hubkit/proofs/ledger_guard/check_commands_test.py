@@ -10,6 +10,9 @@ mutant copy below (a cmd_spec_triage that could change an item) it prints
 T40 c7: rotate is modelled (Cmd.rotate). check_commands.py checks its guard in hubflow.py (an escalated
 summary, or one whose kb answer is not clear, does not lapse); each rotate mutant below must print
 `FAIL rotate: the modelled rotate guard does not hold in hubflow.py: ...`.
+T40 c13: skip-waived is modelled (Cmd.skipWaived). check_commands.py checks that its write function
+leaves an escalated item open; each skip-waived mutant below (it closes an escalated item) must print
+`FAIL skip-waived: the modelled skip-waived guard does not hold in hubflow.py: ...`.
 Prints `PASS name` or `FAIL name: why` per check; the last line is `N passed, M failed`.
 Exit 0 only if every check passes.
 """
@@ -76,6 +79,18 @@ ROTATE_MUTANTS = [
      "\"SELECT id FROM item WHERE status IN ('open','waiting')\""),
 ]
 
+# T40 c13: skip-waived is modelled (Cmd.skipWaived drops an open item whose kb answer is clear and
+# waived, unless it is escalated). Each mutant below closes an escalated item.
+SKIP_FAIL = "FAIL skip-waived: the modelled skip-waived guard does not hold in hubflow.py"
+SKIP_MUTANTS = [
+    ("skip-waived-closes-escalated",
+     "if is_escalated(c, iid):  # escalated stays for the human",
+     "if False:"),
+    ("skip-waived-tests-a-status-not-the-escalation",
+     "if is_escalated(c, iid):  # escalated stays for the human",
+     "if it[\"status\"] == \"escalated\":"),
+]
+
 results = []
 
 
@@ -131,6 +146,24 @@ def main():
                 f.write(src.replace(anchor, repl))
             code, mout = run(path)
             check(f"t40-c7-mutant-{name}-caught", code == 1 and ROTATE_FAIL in mout, (code, mout))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    check("t40-c13-real-hubflow-skip-waived-guard-checked",
+          "FAIL skip-waived" not in real_out and re.search(r"OK skip-waived: modelled guard checked", real_out), real_out)
+    check("t40-c13-real-hubflow-no-problem", "0 problem(s)" in real_out, real_out)
+    for name, anchor, repl in SKIP_MUTANTS:
+        n = src.count(anchor)
+        if n != 1:
+            check(f"t40-c13-mutant-{name}-caught", False, f"anchor occurs {n} times")
+            continue
+        d = tempfile.mkdtemp(prefix="check-commands-mutant-")
+        try:
+            path = os.path.join(d, "hubflow.py")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(src.replace(anchor, repl))
+            code, mout = run(path)
+            check(f"t40-c13-mutant-{name}-caught", code == 1 and SKIP_FAIL in mout, (code, mout))
         finally:
             shutil.rmtree(d, ignore_errors=True)
 
