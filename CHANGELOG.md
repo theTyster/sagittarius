@@ -63,6 +63,18 @@ Ty makes the release. This entry lists what is in the `redesign` branch. The hub
   The old attestation still shows in `proof_changed(A)`; that is expected. ASCII files keep
   their digests.
 
+  A pin taken before T38 shows the same change (T40). `orbit-kb show pin P` of a kept tracker
+  text that nobody edited says that the digest rule changed, not that someone edited it. To
+  re-pin each one, in the project KB:
+
+      orbit-kb show pin P                         # SOURCE, HEX and T of the old pin
+      orbit-kb pin-item P2 SOURCE --text-file pins/HEX.txt --changed-at T
+      orbit-kb add "concerns(X, P2)"              # for each concerns(X, P)
+
+  A file pin (`stale_pin(P)`): `orbit-kb subject S PATH`, then
+  `orbit-kb pin-item P2 S --kind file --changed-at T`. The old pin stays as the record.
+  `orbit-kb help build` (Byte digests) has the same recipe.
+
 ### Not in this release yet
 
 - None.

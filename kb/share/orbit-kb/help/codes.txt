@@ -42,8 +42,9 @@ Core
        accepts the new text with orbit-kb pin-request --request-file F --accept --by human.
        It also blocks done (request_stale) until then.
   W9   a fact kind of kb.pl, or a head of rules.pl, with no description (T26). For a fact kind: give one in
-       the first add, orbit-kb add 'FACT' --doc TEXT. For a rule head: a line %% doc: TEXT just above its
-       first clause. orbit-kb show kinds names each one.
+       the first add, or in any later add of one of its facts while it has none: orbit-kb add 'FACT' --doc TEXT.
+       For a rule head (also an old decl(rule, ...) line of kb.pl with no doc): a line %% doc: TEXT just
+       above its first clause in rules.pl. orbit-kb show kinds names each one, also while E19 or E2 fires.
 
 Discovery module
   WD1  a conflict, surprise, or scope finding raised no question. Ask one.

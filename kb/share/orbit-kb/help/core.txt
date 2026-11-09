@@ -89,8 +89,10 @@ If the schema does not fit, add a fact of a new predicate. Its first use declare
 typo of a declared one (E19). The guard has a cost: a real name 2 edits from a declared
 one, such as cited/2 next to cites/2, is refused too. Then choose another name. In the
 first add of a new kind, add may take one line of description:
-orbit-kb add 'FACT' --doc TEXT. It is optional. orbit-kb show kinds lists each kind with
-its description, and lint W9 names a kind with none.
+orbit-kb add 'FACT' --doc TEXT. It is optional. A kind of kb.pl with no description can
+get one later, in an add of one of its facts with --doc (once; a description is never
+rewritten). orbit-kb show kinds lists each kind with its description, and lint W9 names a
+kind with none.
 
 Rules for the KB
   Size the KB to the work. A small change needs a few facts: the request, one claim, and one

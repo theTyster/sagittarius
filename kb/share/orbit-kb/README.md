@@ -291,8 +291,9 @@ A KB is a directory. You choose its location. There is no default location.
 | `rules.pl` | You (optional) | Local rules. |
 | `runs/<N>-<CheckId>.log` | `run` only | The combined output of one run of a check. |
 | `kb.lock` | The writing commands | An empty file. Each writing command holds a lock on it (section 8). |
-| `spec_kbs.txt` | `add` in a spec KB | In a project KB: one absolute directory per line, each spec KB that recorded a `project_kb` or `pins` fact naming it (T34). `project impact`, `project archive` and `impact/2` read it with the walk of the root. |
-| `pins/<HEX>.txt` | `pin-item` only | The text of a pinned tracker item, named by its sha256 (D27). `show pin ID` prints it, and reports a mismatch when it was edited. A file pin keeps no copy (T34). |
+| `spec_kbs.txt` | `add` in a spec KB | In a project KB: one absolute directory per line, each spec KB that recorded a `project_kb` or `pins` fact naming it (T34). `project impact`, `project archive` and `impact/2` read it with the walk of the root. `add` appends under the KB lock of the project KB, the lock under which `project archive` prunes it (T40). |
+| `spec_kbs.missing` | `project archive` only | In a project KB: the lines of `spec_kbs.txt` whose spec KB had no `kb.pl` at the last archive. The next archive prunes a line that is still missing (T40: one look prunes nothing). |
+| `pins/<HEX>.txt` | `pin-item` only | The text of a pinned tracker item, named by its sha256 (D27). `show pin ID` prints it, and reports a mismatch when it was edited; for a pin taken before T38 whose text is not edited, it says that the digest rule changed (T40). A file pin keeps no copy (T34). |
 | `analyses/` | You (a project KB) | The analyses of the project KB (`analysis/2`, D27). A path outside the KB is WP6. |
 | `writer.lock` | The write commands of a KB that uses `project` | One line `WRITER TIME`: the one writer of a project KB, until `release` (section 8, Locking). |
 

@@ -9,6 +9,13 @@ or a missing command all count as unknown).
 The model is one item. Each hubflow command that can change an existing item is one `Cmd`.
 `step` follows hubflow.py; `check_commands.py` (next to this file) compares hubflow.py's
 COMMANDS table with `modelledCommands` and `excludedCommands` below.
+
+T40 c7 (after the transcripts merge 0966a1c): `rotate` lapses an open summary row (kind `summary`)
+at the first rotation when it is 28 days old, unless it is escalated or its kb answer is not clear
+(guess q10 of the transcripts build). The model has that action (`Cmd.rotate old`, with
+`Item.summary`), and `agent_run_keeps_guarded` is proved again with it; its statement is the one
+of T05. check_commands.py checks the rotate guard in hubflow.py, and lean_mutant_test.py checks
+that a rotate that lapses an escalated summary fails the proof.
 -/
 namespace LedgerGuard
 
@@ -31,6 +38,8 @@ structure Item where
   parked : Bool
   /-- At least one capsule row exists (`triage ID capsule` needs one). -/
   hasCapsule : Bool
+  /-- item.kind is `summary` (S-, what an agent noted from a meeting; T40 c7). -/
+  summary : Bool
   deriving DecidableEq, Repr
 
 /-- The writer (`writer_by`): `--by agent` (the default), `--by script`, or `--by human`,
@@ -87,8 +96,10 @@ inductive Cmd
   /-- `close OTHER --reason human_skip`, where OTHER is linked to this item by `blocks`: the
   propagation drops this item too. -/
   | skipLinked
-  /-- `rotate --week-start W --yes`: it prunes only closed items -/
-  | rotate
+  /-- `rotate --week-start W --yes`: it prunes only closed items, and it lapses an open summary
+  row whose opened_at is 28 days or more before the rotation (`old`), unless it is escalated
+  or its kb answer is not clear (T40 c7). -/
+  | rotate (old : Bool)
   deriving Repr
 
 inductive Outcome
@@ -165,7 +176,13 @@ def stepAs (human : Bool) : Cmd → Item → Outcome
   | .skipLinked, s =>
       if !human then .error
       else if isOpen s then .ok { s with status := .dropped } else .ok s
-  | .rotate, s => .ok s
+  | .rotate old, s =>
+      -- hubflow.py rotate_plan: `lapse` is the open summary rows with opened_at <= now - 28 days
+      -- and `if not is_escalated(c, r[0])`; cmd_rotate drops `held` (kb_held_summaries: a kb ref
+      -- whose state is not clear, fail-safe). Every other open item is unchanged.
+      if old && s.summary && isOpen s && !s.esc && !nonclear s.kb then
+        .ok { s with status := .lapsed }
+      else .ok s
 
 def step (a : Actor) (c : Cmd) (s : Item) : Outcome :=
   match a.writer with
@@ -204,11 +221,12 @@ def allItems : List Item := Id.run do
       for k in allKb do
         for p in allBool do
           for c in allBool do
-            out := out ++ [{ status := st, esc := e, kb := k, parked := p, hasCapsule := c }]
+            for sm in allBool do
+              out := out ++ [{ status := st, esc := e, kb := k, parked := p, hasCapsule := c, summary := sm }]
   return out
 def allCmds : List Cmd :=
   [.renew, .park, .setFields, .close .done, .close .dropped, .close .humanSkip, .reopen,
-   .refOther, .link, .note, .accept, .capsule, .skipLinked, .rotate]
+   .refOther, .link, .note, .accept, .capsule, .skipLinked, .rotate false, .rotate true]
   ++ allStatus.map .setStatus ++ allKb.map .refAddKb ++ allKb.map .refRmKb
   ++ [Disp.keep, .lapse, .capsule, .escalate].map .triage
 
@@ -227,30 +245,32 @@ def agentCounterexamples : List (Item × Cmd) :=
 /-! ## The proof -/
 
 theorem guarded_iff (s : Item) : guarded s ↔ guardedB s = true := by
-  rcases s with ⟨st, e, k, p, c⟩
+  rcases s with ⟨st, e, k, p, c, sm⟩
   cases st <;> cases e <;> cases k <;> simp [guarded, guardedB, inView, isOpen, nonclear]
 
 theorem inView_iff (s : Item) : inView s ↔ inViewB s = true := by
-  rcases s with ⟨st, e, k, p, c⟩
+  rcases s with ⟨st, e, k, p, c, sm⟩
   cases st <;> simp [inView, inViewB, isOpen]
 
 /-- One step by a non-human writer (after `writer_by`) keeps a guarded item guarded. -/
 theorem stepAs_agent_keeps_guarded (c : Cmd) (s : Item) (h : guardedB s = true) :
     guardedB (match stepAs false c s with | .ok x => x | _ => s) = true := by
-  rcases s with ⟨st, e, k, p, hc⟩
+  rcases s with ⟨st, e, k, p, hc, sm⟩
   cases c with
   | setStatus st' =>
-    cases st' <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert h <;> decide
+    cases st' <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
   | close r =>
-    cases r <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert h <;> decide
+    cases r <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
   | refAddKb a =>
-    cases a <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert h <;> decide
+    cases a <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
   | refRmKb a =>
-    cases a <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert h <;> decide
+    cases a <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
   | triage d =>
-    cases d <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert h <;> decide
+    cases d <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
+  | rotate o =>
+    cases o <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
   | _ =>
-    cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert h <;> decide
+    cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
 
 theorem exec_agent_keeps_guarded (a : Actor) (ha : notHuman a) (c : Cmd) (s : Item)
     (h : guarded s) : guarded (exec a c s) := by
@@ -299,22 +319,24 @@ theorem agent_run_keeps_escalated (cs : List (Actor × Cmd)) (hcs : ∀ p ∈ cs
         | false =>
           simp only
           rw [inView_iff] at hv
-          rcases s with ⟨st, e, k, p, hc⟩
+          rcases s with ⟨st, e, k, p, hc, sm⟩
           simp only at he
           subst he
           cases c with
           | setStatus st' =>
-            cases st' <;> cases st <;> cases k <;> cases p <;> cases hc <;> revert hv <;> decide
+            cases st' <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
           | close r =>
-            cases r <;> cases st <;> cases k <;> cases p <;> cases hc <;> revert hv <;> decide
+            cases r <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
           | refAddKb a =>
-            cases a <;> cases st <;> cases k <;> cases p <;> cases hc <;> revert hv <;> decide
+            cases a <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
           | refRmKb a =>
-            cases a <;> cases st <;> cases k <;> cases p <;> cases hc <;> revert hv <;> decide
+            cases a <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
           | triage d =>
-            cases d <;> cases st <;> cases k <;> cases p <;> cases hc <;> revert hv <;> decide
+            cases d <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
+          | rotate o =>
+            cases o <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
           | _ =>
-            cases st <;> cases k <;> cases p <;> cases hc <;> revert hv <;> decide
+            cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
 
 /-- The guard is not vacuous: the human, with a note, can take any guarded item out of view
 (`close ID --reason dropped --by human --note ...`). -/
@@ -325,8 +347,8 @@ theorem human_close_leaves_view (n : String) (hn : n ≠ "") (s : Item) (hs : gu
   rw [inView_iff]
   unfold exec step
   rw [hw]
-  rcases s with ⟨st, e, k, p, hc⟩
-  cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert hs <;> decide
+  rcases s with ⟨st, e, k, p, hc, sm⟩
+  cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hs <;> decide
 
 /-- And the human's `triage ID lapse` lapses it (case_escalate: c2-human-may-lapse-blocking). -/
 theorem human_lapse_leaves_view (n : String) (hn : n ≠ "") (s : Item) (hs : guarded s) :
@@ -336,13 +358,25 @@ theorem human_lapse_leaves_view (n : String) (hn : n ≠ "") (s : Item) (hs : gu
   rw [inView_iff]
   unfold exec step
   rw [hw]
-  rcases s with ⟨st, e, k, p, hc⟩
-  cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> revert hs <;> decide
+  rcases s with ⟨st, e, k, p, hc, sm⟩
+  cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hs <;> decide
+
+/-- The rotate lapse is not vacuous (T40 c7): an old open summary row that is not guarded
+lapses at the rotation, whoever runs it, and leaves the view. -/
+theorem rotate_lapses_unguarded_summary (h : Bool) (s : Item) (hv : inView s)
+    (hsum : s.summary = true) (he : s.esc = false) (hk : s.kb = .none ∨ s.kb = .clear) :
+    stepAs h (.rotate true) s = .ok { s with status := .lapsed } := by
+  rw [inView_iff] at hv
+  rcases s with ⟨st, e, k, p, hc, sm⟩
+  simp only at hsum he hk
+  subst hsum he
+  rcases hk with rfl | rfl <;> cases st <;> revert hv <;> simp [stepAs, isOpen, nonclear, inViewB]
 
 /-! ## Rows that mirror hubflow-test.py checks -/
 
-def item (st : Status := .open_) (e : Bool := false) (k : Kb := .none) (cap : Bool := false) : Item :=
-  { status := st, esc := e, kb := k, parked := false, hasCapsule := cap }
+def item (st : Status := .open_) (e : Bool := false) (k : Kb := .none) (cap : Bool := false)
+    (sum : Bool := false) : Item :=
+  { status := st, esc := e, kb := k, parked := false, hasCapsule := cap, summary := sum }
 
 def me : Actor := .human "\"drop it\" (Me)"
 
@@ -368,8 +402,18 @@ def rows : List Row := [
     .ok (item (e := true) (k := .unknown))⟩,
   ⟨"c2-no-kb-ref-no-query", .agent, .triage .lapse, item,
     .ok (item (st := .lapsed))⟩,
-  ⟨"c2-no-automatic-action", .agent, .rotate, item (e := true) (k := .blocks),
+  ⟨"c2-no-automatic-action", .agent, .rotate true, item (e := true) (k := .blocks),
     .ok (item (e := true) (k := .blocks))⟩,
+  ⟨"mt-c3-summary-lapses", .agent, .rotate true, item (sum := true),
+    .ok (item (st := .lapsed) (sum := true))⟩,
+  ⟨"mt-c3-guard-escalated-summary-stays-open", .agent, .rotate true, item (e := true) (sum := true),
+    .ok (item (e := true) (sum := true))⟩,
+  ⟨"mt-c3-guard-blocking-summary-stays-open", .agent, .rotate true, item (k := .blocks) (sum := true),
+    .ok (item (k := .blocks) (sum := true))⟩,
+  ⟨"mt-c3-guard-fail-safe-without-orbit-kb", .agent, .rotate true, item (k := .unknown) (sum := true),
+    .ok (item (k := .unknown) (sum := true))⟩,
+  ⟨"mt-c3-guard-clear-summary-lapses", .agent, .rotate true, item (k := .clear) (sum := true),
+    .ok (item (st := .lapsed) (k := .clear) (sum := true))⟩,
   ⟨"c2-human-may-lapse-blocking", me, .triage .lapse, item (e := true) (k := .blocks),
     .ok (item (st := .lapsed) (k := .blocks))⟩,
   ⟨"c2-agent-close-dropped-of-blocking-refused", .agent, .close .dropped, item (k := .blocks), .refused⟩,
@@ -421,7 +465,7 @@ def modelledCommands : List (String × String) := [
   ("accept", "Cmd.accept"),
   ("capsule", "Cmd.capsule"),
   ("triage", "Cmd.triage"),
-  ("rotate", "Cmd.rotate (prunes closed items only; an open item is unchanged)")
+  ("rotate", "Cmd.rotate (prunes closed items; lapses an old open summary row unless it is escalated or its kb answer is not clear; check_commands.py checks that guard in hubflow.py)")
 ]
 
 /-- Commands left out, each with the reason. -/
@@ -454,5 +498,7 @@ open LedgerGuard in
 #print axioms human_close_leaves_view
 open LedgerGuard in
 #print axioms human_lapse_leaves_view
+open LedgerGuard in
+#print axioms rotate_lapses_unguarded_summary
 open LedgerGuard in
 #print axioms rows_pass

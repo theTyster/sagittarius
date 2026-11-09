@@ -1445,9 +1445,32 @@ load_kb(Dir, Lib, kb(Dir, Lib, Uses, Items)) :-
     directory_file_path(Dir, 'rules.pl', RulesFile),
     read_source_file(rules, RulesFile, RuleItems),
     derived_items(Dir, KbItems, DerivedItems),
-    append([CoreItems, ModItems, KbItems], Prior),
+    rules_doc_kb(RulesFile, RuleItems, KbItems, KbItemsD),
+    append([CoreItems, ModItems, KbItemsD], Prior),
     rules_decl_items(RulesFile, Prior, RuleItems, RuleDecls),
-    append([CoreItems, ModItems, KbItems, RuleDecls, RuleItems, DerivedItems], Items).
+    append([CoreItems, ModItems, KbItemsD, RuleDecls, RuleItems, DerivedItems], Items).
+
+% rules_doc_kb(+RulesFile, +RuleItems, +KbItems0, -KbItems) (T40 c8): a decl(rule, H, Doc, T) line
+% of kb.pl (from declare in an older KB) whose Doc is empty or the W7 placeholder takes the text of
+% a %% doc: line just above the first clause of H in rules.pl. kb.pl itself is not changed.
+rules_doc_kb(File, RuleItems, Kb0, Kb) :-
+    (   exists_file(File),
+        member(it(kb, _, _, D, _, _), Kb0), nonvar(D), D = decl(rule, _, OD, _), no_description(OD)
+    ->  read_file_to_string(File, Text, [encoding(utf8)]),
+        split_string(Text, "\n", "", Lines),
+        maplist(rules_doc_kb_item(Lines, RuleItems), Kb0, Kb)
+    ;   Kb = Kb0
+    ).
+
+rules_doc_kb_item(Lines, RuleItems, I0, I) :-
+    (   I0 = it(kb, F, L, D, X, Y), nonvar(D), D = decl(rule, H, OD, Tpl), no_description(OD),
+        callable(H), functor(H, N, A),
+        once(( member(RI, RuleItems), RI = it(rules, _, RL, T, _, _), nonvar(T),
+               item_head_pi(RI, N/A) )),
+        doc_above(Lines, RL, Doc), Doc \== ''
+    ->  I = it(kb, F, L, decl(rule, H, Doc, Tpl), X, Y)
+    ;   I = I0
+    ).
 
 % rules_decl_items(+File, +PriorItems, +RuleItems, -DeclItems) (T26): a head
 % of rules.pl that no decl/4 line of the core, a module, or kb.pl declares
@@ -1670,6 +1693,11 @@ register_spec_kb(Dir0, NewItems) :-
     absolute_file_name(Dir0, Dir),
     serve_kb_project(Dir, some(PA)), PA \== Dir,
     directory_file_path(PA, 'kb.pl', PF), exists_file(PF),
+    % T40 c3: under the KB lock of the project KB, the lock of the prune of archive, so a prune
+    % never renames over a line that this add appends.
+    with_kb_lock(PA, register_spec_line(PA, Dir)).
+
+register_spec_line(PA, Dir) :-
     spec_registry_dirs(PA, Ds),
     (   memberchk(Dir, Ds) -> true
     ;   spec_registry_file(PA, F),
@@ -3430,7 +3458,7 @@ cmd_add(KB, Args, Code) :-
     % D22: a fact whose name is declared nowhere declares its predicate by
     % its first use. The decl/4 lines take part in the checks of the batch.
     first_use_pis(KB, NewItems, FUs),
-    add_doc(Opts, FUs, Doc),
+    add_doc(KB, NewItems, Opts, FUs, Doc, Redoc),
     kb_file(KB, KbFile),
     findall(it(kb, KbFile, 0, D, [], 0-0), ( member(N/A, FUs), first_use_decl(N, A, Doc, D) ), DeclItems),
     KB = kb(Dir, Lib, Uses, _),
@@ -3443,6 +3471,7 @@ cmd_add(KB, Args, Code) :-
     ),
     utc_now(Now),
     add_lines(NewItems, FUs, Doc, By, Now, [], Lines),
+    apply_redoc(KbFile, Redoc),                  % T40 c8
     append_lines(KbFile, Lines),
     forall(member(L, Lines), format("~w~n", [L])),
     ignore(catch(register_spec_kb(Dir, NewItems), _, true)),   % T34 c2
@@ -3455,14 +3484,22 @@ cmd_add(KB, Args, Code) :-
     ),
     Code = 0.
 
-% add_doc(+Opts, +FirstUsePIs, -Doc) (T26): the one-line --doc TEXT is the
-% description of the one new kind of this add. Without --doc, Doc is ''.
-add_doc(Opts, FUs, Doc) :-
+% add_doc(+KB, +NewItems, +Opts, +FirstUsePIs, -Doc, -Redoc) (T26): the one-line --doc TEXT is
+% the description of the one new kind of this add. Without --doc, Doc is ''. T40 c8: when no fact
+% of the add is the first of a new kind, --doc describes the one kind of kb.pl that the facts
+% have, if its description is empty or the old W7 placeholder: Redoc = redoc(Old, New), its
+% decl/4 line with the new doc. A kind that has a description is refused. Else Redoc = none.
+add_doc(KB, NewItems, Opts, FUs, Doc, Redoc) :-
+    findall(D0, member('--doc'-D0, Opts), Docs),
+    (   Docs = [_, _|_]
+    ->  reject(["--doc is given more than once. A kind has one description.",       % T40 c9
+                "Fix: give --doc once."] >> fix_lines)
+    ;   true
+    ),
     (   memberchk('--doc'-DocOpt, Opts)
-    ->  (   FUs = [_] -> true
+    ->  (   FUs = [_] -> Redoc = none
         ;   FUs == []
-        ->  reject(["--doc describes a new kind, and no fact of this add is the first of a new kind.",
-                    "Fix: leave out --doc. A kind gets its description in its first add."] >> fix_lines)
+        ->  redoc_target(KB, NewItems, Redoc0)
         ;   reject(["--doc describes one new kind, and this add has more than one.",
                     "Fix: add the first fact of each new kind in its own command, each with its --doc."] >> fix_lines)
         ),
@@ -3477,8 +3514,48 @@ add_doc(Opts, FUs, Doc) :-
         ->  reject(["The --doc text is empty.", "Fix: write one plain sentence, or leave out --doc."] >> fix_lines)
         ;   true
         ),
-        atom_string(Doc, DocS)
-    ;   Doc = ''
+        atom_string(Doc, DocS),
+        (   FUs == [] -> Redoc0 = redoc(F, L, decl(K, H, OD, Tpl)), Redoc = redoc(F, L, decl(K, H, OD, Tpl), decl(K, H, Doc, Tpl))
+        ;   true
+        )
+    ;   Doc = '', Redoc = none
+    ).
+
+% redoc_target(+KB, +NewItems, -redoc(File, Line, Decl)) (T40 c8): the decl/4 line in kb.pl of the
+% one kind of the new facts, when its description is empty or the W7 placeholder.
+redoc_target(KB, NewItems, redoc(F, L, D)) :-
+    findall(N/A, ( member(it(_, _, _, T, _, _), NewItems), pos_fact(T), functor(T, N, A) ), PIs0),
+    sort(PIs0, PIs),
+    kb_items(KB, Items),
+    (   PIs = [N/A]
+    ->  true
+    ;   reject(["--doc describes one kind, and this add has facts of more than one kind.",
+                "Fix: add one fact of the kind with --doc in its own command."] >> fix_lines)
+    ),
+    (   member(it(kb, F, L, D, _, _), Items), nonvar(D), D = decl(_, H, OD, _),
+        callable(H), functor(H, N, A)
+    ->  (   no_description(OD) -> true
+        ;   fmt(M1, "--doc describes a kind with no description, and ~q/~w has one: ~w", [N, A, OD]),
+            reject([M1, "Fix: leave out --doc. A description is not rewritten."] >> fix_lines)
+        )
+    ;   fmt(M2, "--doc describes a new kind, or a kind of kb.pl with no description, and ~q/~w is neither.", [N, A]),
+        reject([M2, "Fix: leave out --doc. A kind gets its description in its first add, or in a later add while it has none."] >> fix_lines)
+    ).
+
+% apply_redoc(+KbFile, +Redoc) (T40 c8): write the new doc into the decl/4 line in place. The line
+% must hold exactly the old decl/4 term; else nothing is written (exit 1).
+apply_redoc(_, none) :- !.
+apply_redoc(KbFile, redoc(_, L, Old, New)) :-
+    read_file_to_string(KbFile, S, [encoding(utf8)]),
+    split_string(S, "\n", "", Lines),
+    (   nth1(L, Lines, Line),
+        catch(term_string(T, Line), _, fail), T =@= Old
+    ->  clause_line(New, [], NewLine),
+        nth1(L, Lines, _, Rest), nth1(L, Lines2, NewLine, Rest),
+        atomic_list_concat(Lines2, '\n', Out),
+        write_kb_text(KbFile, Out)
+    ;   reject(["The decl/4 line of the kind is not one line of its own in kb.pl, so --doc cannot set its description.",
+                "Fix: put the decl/4 term on one line, then run the add again."] >> fix_lines)
     ).
 
 % add_lines(+NewItems, +FirstUsePIs, +Doc, +By, +Time, +Done, -Lines): the lines
@@ -4471,6 +4548,13 @@ sha256_file(File, Digest) :-
     ->  true
     ;   die(2, ["Cannot compute sha256. library(crypto) and sha256sum are both missing.", "Fix: install coreutils or the SWI-Prolog ssl package."])
     ),
+    atom_concat('sha256:', Hex, Digest).
+
+% legacy_text_digest(+File, -Digest) (T40 c2): the digest rule before T38: the file read as UTF-8
+% text (crypto_file_hash with its default encoding). Fails without library(crypto).
+legacy_text_digest(File, Digest) :-
+    have_crypto,
+    catch(crypto:crypto_file_hash(File, Hex, [algorithm(sha256)]), _, fail),
     atom_concat('sha256:', Hex, Digest).
 
 subject_abs(KB, Path, Abs) :-
@@ -5594,7 +5678,7 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
     % W9 (T26): a fact kind of kb.pl with no description
     findall(diag('W9', F, L, M),
             ( member(d(N, A, fact, _, Doc, _, kb, F, L), Ds), no_description(Doc),
-              fmt(M, "The kind ~q/~w has no description. Describe a new kind in its first add: orbit-kb add 'FACT' --doc TEXT.", [N, A]) ),
+              fmt(M, "The kind ~q/~w has no description. Describe it in any later add of one of its facts: orbit-kb add 'FACT' --doc TEXT (a new kind: in its first add).", [N, A]) ),
             W9a),
     findall(diag('W9', F, L, M),
             ( member(d(N, A, rule, _, Doc, _, DS, F, L), Ds), ( DS == kb ; DS == rules ), no_description(Doc),
@@ -5721,14 +5805,27 @@ cmd_show(KB, Args, Code) :-
     ;   usage_error("show takes one of: claims, questions, open, blocking, disclosures, extensions, kinds, all, or pin ID.", [])
     ),
     kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
+    (   What == kinds
+    ->  % T40 c9: show kinds reads only the declarations, so it works while E19 or E2 fires
+        % (it is how the clash is found); a syntax error (E1) still stops it.
+        kinds_gate(KB), show_section(KB, none, kinds)
+    ;   show_parts(KB, What)
+    ),
+    Code = 0.
+
+show_parts(KB, What) :-
     answer_gate(KB),
     kb_engine(KB, Eng),
     (   What == all
     ->  forall(member(W, [claims, questions, open, disclosures, extensions]),
                ( show_section(KB, Eng, W), nl ))
     ;   show_section(KB, Eng, What)
-    ),
-    Code = 0.
+    ).
+
+% kinds_gate(+KB) (T40 c9): only a syntax error (E1) stops show kinds; it is exit 2 as in answer_gate.
+kinds_gate(KB) :-
+    kb_items(KB, Items),
+    (   memberchk(synerr(_, _, _, _), Items) -> answer_gate(KB) ; true ).
 
 % show pin ID (D27 c8): the pin, then the text that pin-item kept at pins/HEX.txt.
 show_pin(KB, Id, Code) :-
@@ -5749,8 +5846,16 @@ show_pin(KB, Id, Code) :-
             format("~s", [Text]),
             ( sub_string(Text, _, 1, 0, "\n") -> true ; Text == "" -> true ; nl ),
             Code = 0
-        ;   % T34 c4: the kept text was edited after pin-item kept it.
+        ;   legacy_text_digest(F, Old), Old == Digest
+        ->  % T40 c2: an unedited text of a pin taken before T38 (the digest of the text read as UTF-8)
+            say("MISMATCH: the kept text ~w does not match the digest of pin ~w under the byte digest (its sha256 is ~w now), but it matches under the digest rule before T38 (the text read as UTF-8). The digest rule changed; the text is not edited. Re-pin it: orbit-kb pin-item NEW_ID ~q --text-file ~w --changed-at ~w, then point each concerns(X, ~w) at NEW_ID (orbit-kb help build, Byte digests).", [F, Id, Now, Src, F, At, Id]),
+            Code = 1
+        ;   have_crypto
+        ->  % T34 c4: the kept text was edited after pin-item kept it.
             say("MISMATCH: the kept text ~w does not match the digest of pin ~w: its sha256 is ~w now. Someone edited it. Restore it from git, or pin the item again with orbit-kb pin-item.", [F, Id, Now]),
+            Code = 1
+        ;   % T40 c2: without library(crypto) the rule before T38 cannot be checked: name both causes.
+            say("MISMATCH: the kept text ~w does not match the digest of pin ~w: its sha256 is ~w now. Someone edited it, or the pin was taken before T38 and the digest rule changed (without library(crypto), orbit-kb cannot tell which). Restore it from git, or pin the item again with orbit-kb pin-item (orbit-kb help build, Byte digests).", [F, Id, Now]),
             Code = 1
         )
     ;   say("No text is kept for pin ~w. Only orbit-kb pin-item keeps the text of a pin (pins/HEX.txt).", [Id]),
@@ -6068,7 +6173,7 @@ request_text(File, Text) :-
     ;   J = none, Why = none
     ),
     (   is_dict(J),
-        req_field(J, [[title], [fields, 'System.Title'], [fields, summary], [name]], Title)
+        req_title(J, Title)
     ->  ( req_field(J, [[body], [description], [fields, 'System.Description'], [fields, description], [description_html]], B) -> Bs = [B] ; Bs = [] ),
         (   req_field(J, [[acceptance_criteria], [acceptanceCriteria], [acceptance],
                           [fields, 'Microsoft.VSTS.Common.AcceptanceCriteria']], AC)
@@ -6082,15 +6187,20 @@ request_text(File, Text) :-
 
 % req_unwrap(+Json, -Item, -Why) (T38 c11): a list wrapper {count, value:[Item]} (ADO REST) with one
 % item gives the item. Why says why JSON may be read raw: a wrapper with N items, or JSON that is
-% no object; else none (the title decides).
+% no object; else none (the title decides). T40 c4: only a top level with no title of its own is a
+% wrapper; a titled top level is the item, whatever its value field holds.
 req_unwrap(J0, J, Why) :-
-    (   is_dict(J0), get_dict(value, J0, L), is_list(L)
+    (   is_dict(J0), get_dict(value, J0, L), is_list(L), \+ req_title(J0, _)
     ->  (   L = [J1], is_dict(J1) -> J = J1, Why = no_title
         ;   length(L, N), J = J0, Why = wrapper(N)
         )
     ;   is_dict(J0) -> J = J0, Why = no_title
     ;   J = none, Why = not_object
     ).
+
+% req_title(+Dict, -Title): the title of a tracker item (title, fields.System.Title, fields.summary, name).
+req_title(J, Title) :-
+    req_field(J, [[title], [fields, 'System.Title'], [fields, summary], [name]], Title).
 
 req_raw_warning(File, Why) :-
     (   Why = wrapper(N) -> format(string(R), "it is a list wrapper {count, value} with ~w items, not one", [N])
@@ -6334,7 +6444,18 @@ project_archive(Dir, Date, RootOpt, Code) :-
 % archive_unseen_warning(+Dir, +RootOpt) (T38 c6): archive sees the spec KBs under the root and
 % those of spec_kbs.txt. A spec KB outside the root with no line (one that named this project KB
 % before T34) is not seen, so its pins keep nothing. Without --root, say so on stderr.
-archive_unseen_warning(_, some(_)) :- !.
+% T40 c5: with --root, say so too when a spec KB of spec_kbs.txt lies outside that root: the
+% spec KBs near it are not walked. With every registered spec KB under the root, no warning.
+archive_unseen_warning(Dir, some(Root0)) :- !,
+    absolute_file_name(Dir, PA), absolute_file_name(Root0, Root),
+    spec_registry_dirs(PA, RDs0), sort(RDs0, RDs),
+    exclude(under_dir(Root), RDs, Out),
+    (   Out == [] -> true
+    ;   atomic_list_concat(Out, ', ', OT), length(RDs, N),
+        format(user_error,
+               "Warning: archive saw the spec KBs under ~w and the ~w in spec_kbs.txt. These spec KBs of spec_kbs.txt lie outside ~w: ~w. A spec KB near them with no line in spec_kbs.txt (one that recorded project_kb before T34) is not seen, and its pins keep nothing. If one may exist, restore the removed facts from git and run archive again with --root DIR, a directory that holds every spec KB of this project.~n",
+               [Root, N, Root, OT])
+    ).
 archive_unseen_warning(Dir, none) :-
     absolute_file_name(Dir, PA), file_directory_name(PA, Root),
     spec_registry_dirs(PA, RDs), length(RDs, N),
@@ -6342,24 +6463,51 @@ archive_unseen_warning(Dir, none) :-
            "Warning: archive saw the spec KBs under ~w and the ~w in spec_kbs.txt. A spec KB outside ~w with no line in spec_kbs.txt (one that recorded project_kb before T34) is not seen, and its pins keep nothing. If one may exist, restore the removed facts from git and run archive again with --root DIR, a directory that holds every spec KB of this project.~n",
            [Root, N, Root]).
 
+% under_dir(+Root, +Dir): Dir is Root or lies below it (absolute paths).
+under_dir(Root, Dir) :-
+    absolute_file_name(Dir, D),
+    (   D == Root -> true
+    ;   ( sub_atom(Root, _, 1, 0, '/') -> R = Root ; atom_concat(Root, '/', R) ),
+        sub_atom(D, 0, _, _, R)
+    ).
+
 % prune_spec_registry(+Dir) (T38 c8): spec_kbs.txt keeps one line per spec KB that still has a
-% kb.pl, in its order; lines of gone KBs and repeated lines go. Called under the KB lock.
+% kb.pl, in its order; repeated lines go. Called under the KB lock, the lock under which add
+% registers a spec KB (T40 c3), so no line is lost between the read and the rename.
+% T40 c3: a KB that is briefly missing is not pruned on one look. The first archive that finds
+% its kb.pl missing keeps the line and writes it to spec_kbs.missing; the next archive prunes it
+% if it is still missing. A KB that is back at the next archive leaves spec_kbs.missing.
 prune_spec_registry(Dir) :-
     absolute_file_name(Dir, PA), spec_registry_file(PA, F),
+    directory_file_path(PA, 'spec_kbs.missing', MF),
     (   exists_file(F)
-    ->  read_file_to_string(F, S, [encoding(utf8)]),
-        split_string(S, "\n", " \t\r", Ls0),
-        exclude(==(""), Ls0, Ls),
-        spec_registry_dirs(PA, Ds0), list_to_set(Ds0, Ds),
-        length(Ls, NL), length(Ds, ND),
-        (   NL == ND -> true
-        ;   current_prolog_flag(pid, Pid), format(atom(Tmp), "~w.tmp-~w", [F, Pid]),
-            setup_call_cleanup(open(Tmp, write, O, [encoding(utf8)]),
-                               forall(member(D, Ds), format(O, "~w~n", [D])), close(O)),
-            rename_file(Tmp, F)
+    ->  registry_lines(F, Ls0),
+        list_to_set(Ls0, Ls),
+        ( exists_file(MF) -> registry_lines(MF, Prev) ; Prev = [] ),
+        partition([L]>>( atom_string(D, L), directory_file_path(D, 'kb.pl', KF), exists_file(KF) ),
+                  Ls, _Present, Missing),
+        exclude([L]>>memberchk(L, Prev), Missing, NewMissing),
+        exclude([L]>>( memberchk(L, Missing), memberchk(L, Prev) ), Ls, Keep),
+        (   Keep == Ls0 -> true
+        ;   write_registry_lines(F, Keep)
+        ),
+        (   NewMissing == [] -> ( exists_file(MF) -> delete_file(MF) ; true )
+        ;   NewMissing == Prev -> true
+        ;   write_registry_lines(MF, NewMissing)
         )
     ;   true
     ).
+
+registry_lines(F, Ls) :-
+    read_file_to_string(F, S, [encoding(utf8)]),
+    split_string(S, "\n", " \t\r", Ls0),
+    exclude(==(""), Ls0, Ls).
+
+write_registry_lines(F, Ls) :-
+    current_prolog_flag(pid, Pid), format(atom(Tmp), "~w.tmp-~w", [F, Pid]),
+    setup_call_cleanup(open(Tmp, write, O, [encoding(utf8)]),
+                       forall(member(L, Ls), format(O, "~s~n", [L])), close(O)),
+    rename_file(Tmp, F).
 
 % archive_set(+Cand, +Pinned, +Deps, -Arch) (D27 c9; Lean model kb/proofs/project_archive):
 % start from the candidates that no open spec KB pins, and drop each one that a
@@ -7526,7 +7674,8 @@ help_lines(add, [
 "lint lists each one as W7, and E19 when its name is 2 edits or fewer from a declared",
 "predicate of the same arity (a typo).",
 "--doc TEXT (one line, T26) describes the one new kind of this add. Give it in the first add of a kind.",
-"It stays optional. A kind with no description is W9, and orbit-kb show kinds says so.",
+"It stays optional. A kind with no description is W9, and orbit-kb show kinds says so. A later add of",
+"facts of one kind of kb.pl with no description may take --doc to describe it (T40). Give --doc once.",
 "add takes no decl(...) term. A head of rules.pl is declared by its first clause (not by add). Describe it in",
 "a line just above that clause: %% doc: TEXT. A head with no such line is W9.",
 "A name that only an unused module declares needs the module: orbit-kb uses MODULE.",
