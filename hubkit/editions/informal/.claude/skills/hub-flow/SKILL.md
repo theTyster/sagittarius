@@ -140,7 +140,7 @@ The ref still works after a rotation moves the file: `$HF transcripts --find NAM
 prints where the file is now, and exits 1 when the file changed or left the hub. Decisions go to the decisions file, not the ledger.
 
 ```
-$HF add summary --title "Standup 11-02: conveyor date moved to Friday" --ref transcript:standup.md@sha256:<hex>
+$HF add summary --title "Standup 11-02: the conveyor date, the test rig, two open questions" --ref transcript:standup.md@sha256:<hex>
 ```
 
 A `summary` row is not work. It is never due and never blocks `rotate`: the first rotation when it

@@ -12,7 +12,9 @@ c3- capsule, c4- transcripts, c5- skip, c6- asks; schema- is the v1 -> v2 migrat
 Check names of the T28 rotation fix (the session index follows the week dirs) start with t28-c4-.
 Check names of rd/transcripts (an agent, not code, records what a meeting needs) start with mt-c1-
 (no code meeting rows), mt-c2- (transcript refs), mt-c3- (summary rows lapse by themselves) and
-mt-schema- (the v3 -> v4 migration).
+mt-schema- (the v3 -> v4 migration). T40 checks start with t40-c10- (a summary never blocks a
+rotation), t40-c11- (retention_due agrees with rotate), t40-c12- (words and ref names) and t40-c13-
+(skip-waived leaves an escalated item open).
 Every scenario seeds its db from a seed file written into the temp dir (SEED_DATA below).
 Prints `PASS name` or `FAIL name: why` per case (`SKIP name: why` for a check that cannot run
 here, not counted); the last line is `N passed, M failed`.
@@ -65,6 +67,8 @@ MUTANTS = [
     ("skip-not-propagated", 'if o["reason"] == "human_skip":  # propagate', "if False:"),
     # T39: a waiver in a spec KB ends the hub item
     ("skip-waived-ignores-remaining-blockers", "continue  # something still blocks, or the KB is unknown: not a skip", "pass"),
+    # T40 c13: skip-waived leaves an escalated item for the human (checked inside the write)
+    ("skip-waived-closes-escalated", "if is_escalated(c, iid):  # escalated stays for the human", "if False:"),
     # (no mutant for `not waiver_lapsed(W)`: a lapsed waiver is itself a blocking item, so the clear test already stops it)
     ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
     ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
@@ -2309,6 +2313,132 @@ def case_mt_summary_guard(r, root):
     r.check("mt-c3-guard-fail-safe-without-orbit-kb", res[0] == 0 and dict(qs(d, "select id, status from item")).get(blk) == "open", res)
 
 
+def case_t40_summary_never_blocks(r, root):
+    """T40 c10 (Ty q5: a summary never blocks a rotation): a summary row is not an item that refers to a
+    spec KB for the spec KB triage. When a lapsed summary was the last item of kb:spec-b, the next
+    rotation does not stop on spec-b (the verifier's a4.sh case)."""
+    stub = write_stub(root)
+    h = spec_hub(root, "t40-c10-hub", {"spec-b": None, "spec-c": None})
+    d = fresh(r, root, "t40-c10")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+
+    def t(*args, **kw):
+        return hf(r, d, *args, hub=h, extra_env=env, **kw)
+
+    sid = add(r, d, "summary", "Standup on spec-b", "--ref", "kb:spec-b", now="2026-11-02T10:00:00Z")
+    res = t("rotate", "--week-start", "2026-11-30", "--yes", now="2026-11-30T12:00:00Z")
+    r.check("t40-c10-first-rotation-lapses-the-summary", res[0] == 0 and listed(res[1], "lapsed:") == [sid], res)
+    res = t("rotate", "--week-start", "2026-12-07", "--yes", now="2026-12-07T12:00:00Z")
+    r.check("t40-c10-next-rotation-runs", res[0] == 0 and listed(res[1], "spec_kbs_untriaged:") == [], res)
+    # a spec KB whose other (non-summary) item closed is still a triage item, as before
+    tid = add(r, d, "thread", "Ticket spec-c", "--ref", "kb:spec-c", now="2026-12-07T12:00:00Z")
+    add(r, d, "summary", "Standup on spec-c", "--ref", "kb:spec-c", now="2026-12-07T12:00:00Z")
+    t("close", tid, "--reason", "done", "--by", "human", "--note", "\"the ticket is closed\" (Me)", now="2026-12-08T12:00:00Z")
+    res = t("rotate", "--week-start", "2026-12-14", session=None, now="2026-12-14T12:00:00Z")
+    r.check("t40-c10-closed-ticket-still-gates", refused(res, 1, "spec") and listed(res[1], "spec_kbs_untriaged:") == ["spec-c"], res)
+
+
+def case_t40_retention_due_held(r, root):
+    """T40 c11: view retention_due shows would=lapse only for the summaries that rotate will lapse (not an
+    escalated one, not one whose spec KB is not clear); rotate checks the held summaries inside its write."""
+    stub = write_stub(root)
+    h = kb_hub(root, "t40-c11-hub", {"spec-a": ["q1"], "spec-b": None})
+    d = fresh(r, root, "t40-c11")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+    esc = add(r, d, "summary", "An escalated summary")
+    blk = add(r, d, "summary", "A summary of a blocking spec", "--ref", "kb:spec-a/kb")
+    clr = add(r, d, "summary", "A summary of a clear spec", "--ref", "kb:spec-b/kb")
+    res = hf(r, d, "triage", esc, "escalate", "--note", "the human reads this one", hub=h, extra_env=env)
+    if res[0] != 0:
+        raise RuntimeError(res)
+    late = "2026-11-30T12:00:00Z"
+    res = hf(r, d, "view", "retention_due", "--format", "json", hub=h, extra_env=env, now=late)
+    v = js(res[1]) or []
+    got = sorted(x.get("id") for x in v if x.get("would") == "lapse")
+    r.check("t40-c11-retention-due-lapse-only-what-rotate-lapses", res[0] == 0 and got == [clr], res)
+    res = hf(r, d, "rotate", "--week-start", "2026-11-30", hub=h, extra_env=env, now=late)
+    r.check("t40-c11-dry-run-agrees", res[0] == 0 and listed(res[1], "lapsed:") == got, res)
+    import ast
+    src = open(r.script, encoding="utf-8").read()
+    fn = next((n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "cmd_rotate"), None)
+    inner = [n for n in (fn.body if fn else []) if isinstance(n, ast.FunctionDef) and n.name == "fn"]
+    in_write = bool(inner) and any(isinstance(n, ast.Call) and getattr(n.func, "id", None) == "kb_held_summaries"
+                                   for n in ast.walk(inner[0]))
+    r.check("t40-c11-held-check-inside-the-write", in_write, "kb_held_summaries is not called in the write function of cmd_rotate")
+
+
+def case_t40_skip_waived_escalated(r, root):
+    """T40 c13 (review default, Ty not asked): skip-waived leaves an escalated item open and names it
+    (the human ends it with triage); a non-escalated item with the same waived, clear spec KB still closes."""
+    okb = real_orbit_kb()
+    name = "t40-c13-real-orbit-kb"
+    if not os.access(okb, os.X_OK):
+        r.skip(name, f"no orbit-kb at {okb}")
+        return
+    h = os.path.join(root, "t40-c13-hub")
+    k = os.path.join(h, "W0", "analyses", "spec-a", "kb")
+    os.makedirs(os.path.dirname(k))
+    for st in (("init", k, "--request", "An invented request for a test fixture.", "--uses", "build"),
+               ("--dir", k, "add", "claim(c1, preserve, 'Gadgets stay round.')", "check(k1, c1)"),
+               ("--dir", k, "attest", "waiver", "k1", "waive(k1, '2099-01-01T00:00:00Z', 'the human skips this')", "--by", "human")):
+        p = subprocess.run([okb] + list(st), capture_output=True, text=True, timeout=120)
+        if p.returncode != 0:
+            r.skip(name, f"orbit-kb {st[0]} failed (exit {p.returncode}): {(p.stdout + p.stderr).strip()[:200]}")
+            return
+    d = fresh(r, root, "t40-c13")
+    env = {"HUBFLOW_ORBIT_KB": okb}
+    esc = add(r, d, "ask", "Escalated, its spec is waived and clear", "--ref", "kb:spec-a/kb")
+    plain = add(r, d, "ask", "Not escalated, same spec", "--ref", "kb:spec-a/kb")
+    res = hf(r, d, "triage", esc, "escalate", "--note", "the human reads this one", hub=h, extra_env=env)
+    if res[0] != 0:
+        raise RuntimeError(res)
+    code, out, err = hf(r, d, "skip-waived", hub=h, extra_env=env)
+    r.check("t40-c13-exit-0", code == 0, out + err)
+    r.check("t40-c13-escalated-item-stays-open", status(d, esc) == "open", status(d, esc))
+    r.check("t40-c13-output-names-the-escalated-item",
+            any(x.startswith("escalated: ") and esc in x.split() and "triage" in x for x in out.splitlines()), out)
+    r.check("t40-c13-non-escalated-item-closes", status(d, plain) == "dropped" and listed(out, "closed:") == [plain],
+            (status(d, plain), out))
+    e = ev(d, esc)
+    r.check("t40-c13-no-close-event-on-the-escalated-item", not any(x[0] == "closed" for x in e), e)
+    r.check("t40-c13-check-clean", hf(r, d, "check")[0] == 0)
+
+
+def case_t40_words_and_refs(r, root):
+    """T40 c12: the SKILL example summary states no decision; HUB-CORE raw_reports says an agent reads and
+    records; --find of a deleted ref file says it is missing; a ref name with a newline, '..' or '@' is refused."""
+    hub_dir_ = os.path.dirname(os.path.dirname(HERE))
+    kit = os.path.dirname(hub_dir_)
+    if not os.path.isfile(os.path.join(kit, "tools", "storemap.py")):
+        # the words are those of the kit's full edition; an installed hub (or the informal edition) has its own
+        r.skip("t40-c12-skill-summary-is-no-decision", "not run from the kit tree (hubkit/hub)")
+        r.skip("t40-c12-hub-core-raw-reports-agent-reads", "not run from the kit tree (hubkit/hub)")
+    else:
+        skill = open(os.path.join(HERE, "..", "skills", "hub-flow", "SKILL.md"), encoding="utf-8").read()
+        ex = re.findall(r'add summary --title "([^"]*)"', skill)
+        inf = os.path.join(kit, "editions", "informal", ".claude", "skills", "hub-flow", "SKILL.md")
+        if os.path.isfile(inf):
+            ex += re.findall(r'add summary --title "([^"]*)"', open(inf, encoding="utf-8").read())
+        r.check("t40-c12-skill-summary-is-no-decision", ex and not any(re.search(r"\b(moved|decided|agreed|will|is now|to Friday)\b", x, re.I) for x in ex), ex)
+        core = open(os.path.join(hub_dir_, "HUB-CORE.md"), encoding="utf-8").read()
+        row = next((l for l in core.splitlines() if l.startswith("| `raw_reports`")), "")
+        r.check("t40-c12-hub-core-raw-reports-agent-reads", row and "parsed" not in row and re.search(r"agent reads", row)
+                and re.search(r"records what is needed", row), row)
+    h = os.path.join(root, "t40-c12")
+    p = write_text(os.path.join(h, "W2", "transcripts", "standup.md"), STANDUP)
+    ref = tref("standup.md", sha256_of(p))
+    write_text(os.path.join(h, "W0", "transcripts", "standup.md"), "a different standup\n")
+    d = fresh(r, root, "t40-c12")
+    os.remove(p)
+    res = hf(r, d, "transcripts", "--find", ref, hub=h)
+    r.check("t40-c12-find-deleted-says-missing", refused(res, 1, "missing") and "changed after the ref" not in res[2], res)
+    dg = "a" * 64
+    for name, bad in (("dotdot", tref("..", dg)), ("dotdot-in-name", tref("a..b.md", dg)), ("at", tref("x@y", dg)),
+                      ("newline-in-name", tref("nl.md\n", dg)), ("newline-inside-name", tref("n\nl.md", dg))):
+        r.check(f"t40-c12-bad-ref-name-refused {name}", refused(hf(r, d, "add", "thread", "--title", "Odd ref", "--ref", bad), 1))
+    r.check("t40-c12-plain-name-still-accepted", hf(r, d, "add", "thread", "--title", "Plain ref", "--ref", tref("réunion 東京.txt", dg))[0] == 0)
+
+
 def v3_script(r, root):
     """A copy of the script under test at schema 3 (T28): init makes the meeting tables."""
     src = open(r.script, encoding="utf-8").read()
@@ -2453,6 +2583,11 @@ def cases(r):
         run_case(r, case_mt_summary_lapses, root)
         run_case(r, case_mt_summary_guard, root)
         run_case(r, case_mt_schema_v4, root)
+        # T40: the T38/transcripts follow-ups
+        run_case(r, case_t40_summary_never_blocks, root)
+        run_case(r, case_t40_retention_due_held, root)
+        run_case(r, case_t40_words_and_refs, root)
+        run_case(r, case_t40_skip_waived_escalated, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))

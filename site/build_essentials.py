@@ -144,7 +144,7 @@ slides.append(head(11, 'i-db', 'The redesign') + '''  <h2>The hub and its seven 
   <dl class="gloss">
     <div><dt><svg class="ic"><use href="#i-formal"/></svg>Spec KB</dt><dd><code>orbit-kb</code>, one per ticket: claims, checks, questions, burns. It alone decides what blocks.</dd></div>
     <div><dt><svg class="ic"><use href="#i-box"/></svg>Project KB</dt><dd>Domain decisions, pins of files and tracker items, and drafts for the tracker. One writer at a time.</dd></div>
-    <div><dt><svg class="ic"><use href="#i-db"/></svg>Ledger</dt><dd><code>hubflow</code>: asks, threads, holds and handoffs. Items never lapse by themselves. Its guard is proved in Lean for its model.</dd></div>
+    <div><dt><svg class="ic"><use href="#i-db"/></svg>Ledger</dt><dd><code>hubflow</code>: asks, threads, holds and handoffs. Items never lapse by themselves, except a meeting summary row, which lapses after its fixed time unless it is escalated or its spec KB is not clear. Its guard is proved in Lean for its model.</dd></div>
     <div><dt><svg class="ic"><use href="#i-feather"/></svg>Memory</dt><dd>What every agent must know at the start: boot context, heuristics, technologies.</dd></div>
     <div><dt><svg class="ic"><use href="#i-cal"/></svg>Weeks</dt><dd>The weekly reports and raw transcripts. They rotate out; git history keeps them.</dd></div>
     <div><dt><svg class="ic"><use href="#i-hammer"/></svg>Bespoke tools</dt><dd>Helper scripts and small stores that agents add where nothing fits. A convention.</dd></div>

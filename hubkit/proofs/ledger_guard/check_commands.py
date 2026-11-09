@@ -6,8 +6,11 @@ usage: python3 -I check_commands.py [HUBFLOW_PY]
 Every key of hubflow.py's `COMMANDS = {...}` must be in exactly one of `modelledCommands` or
 `excludedCommands` (with a reason) in LedgerGuard.lean, and every listed name must be a real
 command. An excluded command named in REASON_CHECKS also has its reason checked against the source
-of its cmd_ function (T33: spec-triage). Exit 0 when they agree, 1 when not (each difference is
-printed), 2 on a parse error. Reads both files as text; runs and imports nothing.
+of its cmd_ function (T33: spec-triage). A modelled command named in MODEL_CHECKS has the guard
+that its Cmd assumes checked in hubflow.py (T40 c7: rotate lapses no escalated summary and no
+summary whose kb answer is not clear; T40 c13: skip-waived closes no escalated item). Exit 0
+when they agree, 1 when not (each difference is printed), 2 on a parse error.
+Reads both files as text; runs and imports nothing.
 """
 import ast
 import os
@@ -103,6 +106,123 @@ def changes_no_item(tree, fn):
 REASON_CHECKS = {"spec-triage": changes_no_item}
 
 
+def rotate_guard(tree, fn):
+    """The modelled rotate (Cmd.rotate, T40 c7): it lapses an open summary row only when it is not
+    escalated and its kb answer is clear. In hubflow.py:
+    - rotate_plan: `lapse = [r[0] for r in c.execute(SQL) if not is_escalated(c, r[0])]`, where SQL
+      selects open or waiting rows of kind summary;
+    - kb_held_summaries: `held.add(iid)` under an `if` that tests `k['state'] != 'clear'`;
+    - cmd_rotate: its write function sets `held = kb_held_summaries(...)` (inside the write, with its
+      clock: T40 c11) and `lapse = [x for x in lapse if x not in held]` before the only status UPDATE,
+      which is in a `for ... in lapse` loop;
+    - untriaged_spec_kbs (the triage gate of a closed spec KB) counts no summary row: it calls
+      `kb_slug_items(c, slug, summaries=False)`, and kb_slug_items leaves out kind summary then (T40 c10:
+      a summary never blocks a rotation, so Cmd.rotate's `blocked` never comes from this item).
+    Returns the problems (empty when the guard holds)."""
+    out = []
+    funcs = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+    plan = funcs.get("rotate_plan")
+    lapse = None
+    if plan is not None:
+        lapse = next((st.value for st in ast.walk(plan) if isinstance(st, ast.Assign)
+                      and any(isinstance(t, ast.Name) and t.id == "lapse" for t in st.targets)), None)
+    if not isinstance(lapse, ast.ListComp) or len(lapse.generators) != 1:
+        out.append("rotate_plan has no `lapse = [... for ... in c.execute(...) if ...]`")
+    else:
+        g = lapse.generators[0]
+        sql = " ".join(n.value for n in ast.walk(g.iter) if isinstance(n, ast.Constant) and isinstance(n.value, str))
+        if "kind = 'summary'" not in sql or "status IN ('open','waiting')" not in sql:
+            out.append("rotate_plan: the lapse rows are not the open or waiting rows of kind summary")
+        if not any(ast.unparse(c).replace(" ", "") == "notis_escalated(c,r[0])" for c in g.ifs):
+            out.append("rotate_plan: the lapse rows are not filtered by `if not is_escalated(c, r[0])`")
+    held_fn = funcs.get("kb_held_summaries")
+    if held_fn is None or not any(
+            isinstance(n, ast.If) and "!= 'clear'" in ast.unparse(n.test)
+            and any(isinstance(m, ast.Call) and call_name(m) == "held.add" for b in n.body for m in ast.walk(b))
+            for n in ast.walk(held_fn)):
+        out.append("kb_held_summaries does not hold a summary whose kb state is not clear (`if ... != 'clear'`: held.add)")
+    gate = funcs.get("untriaged_spec_kbs")
+    if gate is None or not any(isinstance(n, ast.Call) and call_name(n) == "kb_slug_items"
+                               and any(k.arg == "summaries" and isinstance(k.value, ast.Constant) and k.value.value is False
+                                       for k in n.keywords) for n in ast.walk(gate)):
+        out.append("untriaged_spec_kbs does not call kb_slug_items(c, slug, summaries=False): a summary row could block a rotation")
+    slug_fn = funcs.get("kb_slug_items")
+    if slug_fn is None or "kind <> 'summary'" not in " ".join(
+            n.value for n in ast.walk(slug_fn) if isinstance(n, ast.Constant) and isinstance(n.value, str)):
+        out.append("kb_slug_items has no `kind <> 'summary'` filter for summaries=False")
+    inner = {n.name: n for n in fn.body if isinstance(n, ast.FunctionDef)}
+    calls = [n for n in ast.walk(fn) if isinstance(n, ast.Call) and call_name(n) == "run_write"]
+    wfn = (inner.get(calls[0].args[2].id) if calls and len(calls[0].args) >= 3
+           and isinstance(calls[0].args[2], ast.Name) else None)
+    if wfn is None:
+        return out + [f"{fn.name}: the write function given to run_write is not a def in {fn.name}"]
+    body = wfn.body
+    if not any(isinstance(st, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "held" for t in st.targets)
+               and isinstance(st.value, ast.Call) and call_name(st.value) == "kb_held_summaries" for st in body):
+        out.append(f"{fn.name}: its write function does not compute `held = kb_held_summaries(...)` (inside the write)")
+    drop = [i for i, st in enumerate(body) if isinstance(st, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == "lapse" for t in st.targets)
+            and ast.unparse(st.value).replace(" ", "") == "[xforxinlapseifxnotinheld]"]
+    loops = [i for i, st in enumerate(body) if isinstance(st, ast.For)
+             and isinstance(st.iter, ast.Name) and st.iter.id == "lapse"]
+    updates = [n for n in ast.walk(wfn) if isinstance(n, ast.Constant) and isinstance(n.value, str)
+               and re.search(r"UPDATE\s+item\s+SET\s+status", n.value, re.I)]
+    in_loop = [n for i in loops for n in ast.walk(body[i]) if isinstance(n, ast.Constant)
+               and isinstance(n.value, str) and re.search(r"UPDATE\s+item\s+SET\s+status", n.value, re.I)]
+    if not drop:
+        out.append(f"{fn.name}: its write function does not drop the held rows (`lapse = [x for x in lapse if x not in held]`)")
+    if not loops or (drop and min(loops) < drop[0]):
+        out.append(f"{fn.name}: the lapse loop does not come after the held rows are dropped")
+    if len(updates) != 1 or len(in_loop) != 1:
+        out.append(f"{fn.name}: the status UPDATE is not one, in the `for ... in lapse` loop")
+    return out
+
+
+def skip_waived_guard(tree, fn):
+    """The modelled skip-waived (Cmd.skipWaived, T40 c13): it drops an open item whose kb answer is
+    clear and waived, unless the item is escalated. In hubflow.py, cmd_skip_waived:
+    - has write SQL only in its write function (the def given to run_write), and there exactly one
+      status UPDATE (`UPDATE item SET status`), inside a `for ID, ... in ...` loop of that function;
+    - in that loop, before the statement with the UPDATE, `if is_escalated(c, ID): ... continue`
+      (inside the write, so an item escalated between the read and the write stays open too).
+    Returns the problems (empty when the guard holds)."""
+    out = []
+    inner = {n.name: n for n in fn.body if isinstance(n, ast.FunctionDef)}
+    calls = [n for n in ast.walk(fn) if isinstance(n, ast.Call) and call_name(n) == "run_write"]
+    wfn = (inner.get(calls[0].args[2].id) if len(calls) == 1 and len(calls[0].args) >= 3
+           and isinstance(calls[0].args[2], ast.Name) else None)
+    if wfn is None:
+        return [f"{fn.name}: no single run_write whose write function is a def in {fn.name}"]
+    status_upd = re.compile(r"UPDATE\s+item\s+SET\s+status", re.I)
+    outside = [x for x in write_sql(fn) if x not in write_sql(wfn)]
+    if outside:
+        out.append(f"{fn.name} has write SQL outside its write function: {outside[0][:60]!r}")
+    updates = [n for n in ast.walk(wfn) if isinstance(n, ast.Constant) and isinstance(n.value, str)
+               and status_upd.search(n.value)]
+    if len(updates) != 1:
+        return out + [f"{fn.name}: its write function has {len(updates)} status UPDATEs, not one"]
+    loop = next((st for st in ast.walk(wfn) if isinstance(st, ast.For)
+                 and any(n is updates[0] for n in ast.walk(st))), None)
+    if loop is None:
+        return out + [f"{fn.name}: the status UPDATE is not in a `for` loop of its write function"]
+    tgt = loop.target.elts[0] if isinstance(loop.target, ast.Tuple) and loop.target.elts else loop.target
+    if not isinstance(tgt, ast.Name):
+        return out + [f"{fn.name}: the loop over the items has no item id name"]
+    at = next(i for i, st in enumerate(loop.body) if any(n is updates[0] for n in ast.walk(st)))
+    want = f"is_escalated(c,{tgt.id})"
+    guard = [i for i, st in enumerate(loop.body[:at]) if isinstance(st, ast.If)
+             and ast.unparse(st.test).replace(" ", "") == want and not st.orelse
+             and isinstance(st.body[-1], ast.Continue)]
+    if not guard:
+        out.append(f"{fn.name}: its write function does not skip an escalated item "
+                   f"(`if is_escalated(c, {tgt.id}): ... continue`) before the status UPDATE")
+    return out
+
+
+# modelled command -> the check that hubflow.py has the guard that its Cmd assumes (T40 c7, c13)
+MODEL_CHECKS = {"rotate": rotate_guard, "skip-waived": skip_waived_guard}
+
+
 def lean_list(text, name):
     m = re.search(r"def " + name + r" : List \(String × String\) := \[(.*?)\n\]", text, re.S)
     if not m:
@@ -144,6 +264,15 @@ def main():
             problems.append(f"{n}: the excluded reason does not hold in hubflow.py: " + "; ".join(bad))
         else:
             print(f"OK {n}: excluded reason checked ({REASON_CHECKS[n].__name__} in {table[n]})")
+    for n, _ in modelled:
+        if n not in MODEL_CHECKS or n not in table:
+            continue
+        fn = funcs.get(table[n])
+        bad = [f"no module function {table[n]}"] if fn is None else MODEL_CHECKS[n](tree, fn)
+        if bad:
+            problems.append(f"{n}: the modelled {n} guard does not hold in hubflow.py: " + "; ".join(bad))
+        else:
+            print(f"OK {n}: modelled guard checked ({MODEL_CHECKS[n].__name__} in {table[n]})")
     for p in problems:
         print("FAIL " + p)
     print(f"{len(real)} hubflow commands; {len(modelled)} modelled, {len(excluded)} excluded; "

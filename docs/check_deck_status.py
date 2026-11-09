@@ -19,6 +19,10 @@ merged yet", or "still a design" when every named ticket has landed.
 T29 c5 (d_triage_per_item): slide 34 (the hub kit) says that items never lapse by themselves: its
 text says "never lapse(s) by itself/themselves" (or "nothing lapses by itself"), and it never says
 that items lapse when nobody renews them (or lapse on a timer, after a time, or by themselves).
+T40 c6 (amends T29 c5, after the transcripts merge): slide 34 and the Ledger entry of
+site/essentials.html say that items never lapse by themselves, except a meeting summary row, which
+lapses after its fixed time unless it is escalated or its spec KB is not clear. That sentence is
+the only one that says something lapses.
 
 Usage: python3 docs/check_deck_status.py      Exit 0: pass. 1: fail. 2: cannot run.
 """
@@ -110,22 +114,43 @@ def slide_units():
 
 
 LAPSE_SLIDE = "s34"
+# T40 c6: the one exception, a meeting summary row (hubflow rotate, guess q10 of the transcripts build)
+LAPSE_EXCEPTION = (r"\bnever lapse\b[^.]*\bby themselves\b[^.]*\bexcept a meeting summary row\b[^.]*"
+                   r"\blapses after its fixed time\b[^.]*\bunless it is escalated or its spec kb is not clear\b")
+
+
+def lapse_text_check(where, text):
+    """The lapse sentences of one text (lower case). A list of failures."""
+    bad = []
+    if not re.search(r"\b(never|nothing|no item)\b[^.]*\blapses?\b[^.]*\bby (itself|themselves)\b", text):
+        bad.append("%s does not say that items never lapse by themselves" % where)
+    if not re.search(LAPSE_EXCEPTION, text):
+        bad.append("%s does not say the exception: a meeting summary row lapses after its fixed time unless it is"
+                   " escalated or its spec KB is not clear" % where)
+    for sentence in re.split(r"(?<=[.!?])\s+", text):
+        if re.search(LAPSE_EXCEPTION, sentence):
+            continue
+        if re.search(r"\blapses?\b", sentence) and not re.search(r"\b(never|nothing|no item|not)\b", sentence):
+            bad.append("%s says that items lapse: %r" % (where, sentence))
+    return bad
 
 
 def lapse_check():
-    """T29 c5: slide 34 says that items never lapse by themselves. A list of failures."""
+    """T29 c5 and T40 c6: slide 34 and the essentials Ledger entry say that items never lapse by
+    themselves, except a meeting summary row. A list of failures."""
     with open(os.path.join(ROOT, "site", "index.html"), encoding="utf-8") as f:
         page = f.read()
     m = re.search(r'<section class="slide" id="%s"[^>]*>(.*?)</section>' % LAPSE_SLIDE, page, re.S)
     if not m:
         return ["site/index.html has no slide %s" % LAPSE_SLIDE]
-    text = text_of(m.group(1)).lower()
-    bad = []
-    if not re.search(r"\b(never|nothing|no item)\b[^.]*\blapses?\b[^.]*\bby (itself|themselves)\b", text):
-        bad.append("slide %s does not say that items never lapse by themselves" % LAPSE_SLIDE)
-    for sentence in re.split(r"(?<=[.!?])\s+", text):
-        if re.search(r"\blapses?\b", sentence) and not re.search(r"\b(never|nothing|no item|not)\b", sentence):
-            bad.append("slide %s says that items lapse: %r" % (LAPSE_SLIDE, sentence))
+    bad = lapse_text_check("slide %s" % LAPSE_SLIDE, text_of(m.group(1)).lower())
+    with open(os.path.join(ROOT, "site", "essentials.html"), encoding="utf-8") as f:
+        ess = f.read()
+    e = re.search(r"<dt>(?:(?!</dt>).)*Ledger</dt><dd>(.*?)</dd>", ess, re.S)
+    if not e:
+        bad.append("site/essentials.html has no Ledger entry")
+    else:
+        bad += lapse_text_check("the essentials Ledger entry", text_of(e.group(1)).lower())
     return bad
 
 
@@ -168,7 +193,7 @@ def main():
     for b in bad:
         print("FAIL " + b)
     if not bad:
-        print("PASS slide %s: items never lapse by themselves" % LAPSE_SLIDE)
+        print("PASS slide %s and essentials: items never lapse by themselves, except a meeting summary row" % LAPSE_SLIDE)
         print("PASS slide %s: %d statuses name tickets, and they agree with the merges (%s)" % (SLIDE, len(named), " ".join(sorted(set(named)))))
     return 1 if bad else 0
 

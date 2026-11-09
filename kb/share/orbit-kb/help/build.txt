@@ -77,16 +77,17 @@ FULFILL: fulfillment in both directions (verify)
   Review with fresh eyes. Prefer one subagent with a fresh context. This is its brief:
   - It sees only the ticket, the KB, and the diff. It does not see the builder's reasoning.
   - It works under its own role and session. Subagents share CLAUDE_CODE_SESSION_ID, so the
-    builder runs orbit-kb release first, and the subagent names itself before its first
-    write (which takes the writer lock):
-      export ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review
-      orbit-kb review start --as review --ticket TICKET.md --diff BASE..HEAD
+    builder runs orbit-kb release first, and the subagent names itself in each write command.
+    Each Bash call of Claude Code is a new shell, so an export does not reach the next call:
+    put the writer and the role in front of every write command, as below. Its first write
+    takes the writer lock:
+      ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review orbit-kb review start --as review --ticket TICKET.md --diff BASE..HEAD
     This records what it saw: the ticket, the KB stamp, and the diff (review_saw).
   - It reruns every check of each claim itself:
-      orbit-kb run --as review k1 -- CMD
+      ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review orbit-kb run --as review k1 -- CMD
   - It records one verdict for every current claim, with what it tried, and the runs that
     the verdict rests on:
-      orbit-kb attest disproof c1 "verdict(c1, upheld('what I tried'))" --as review --rests-on a12
+      ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review orbit-kb attest disproof c1 "verdict(c1, upheld('what I tried'))" --as review --rests-on a12
     upheld(Text), refuted(Text), inconclusive(Text), or abstained(Text).
   - It reads orbit-kb report (the Review section: reviewer, verdict, reruns) and orbit-kb
     lint: WR1 names each claim that is not independently verified (independently_verified).
@@ -96,6 +97,8 @@ FULFILL: fulfillment in both directions (verify)
   - Open questions: orbit-kb query 'to_ask(Q)'.
   - Clean up: keep a test only if it guards a claim, records a human answer, or reproduces a
     fixed defect. Delete the other tests that you wrote.
+  - Last, it frees the writer lock, under its own writer, so the builder can write again:
+      ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review orbit-kb release
   The build is finished when done holds (orbit-kb show blocking lists what blocks it). Stop
   there. Do not polish beyond the claims.
 
@@ -144,6 +147,20 @@ When the human says it is wrong (a divergence, not a preference change)
   5. Query to_ask(Q). Ask that small cluster, not every dormant question.
   6. Rebuild, and run the checks again. If burn(C) now holds, prove the claim in Lean (Burns).
   The KB already holds the questions, so you continue from where you stopped.
+
+Byte digests (T38): a KB from before T38 after the upgrade
+  A digest is now the sha256 of the bytes of the file. A digest stored before T38 for a file
+  with a non-ASCII byte no longer matches, though the file is not edited.
+  Re-prove: for each attestation A of orbit-kb query 'proof_changed(A)', read its claim,
+  theorem and source file in runs/proof-A.log (head -3), then run
+      orbit-kb prove CLAIM PATH/TO/SOURCE.lean THEOREM
+  Re-pin: orbit-kb show pin P says "the digest rule changed" for a kept text that is not
+  edited. Pin it again under a new id, and move the facts that rest on the old pin:
+      orbit-kb pin-item P2 SOURCE --text-file pins/HEX.txt --changed-at T
+      orbit-kb add "concerns(X, P2)"            for each concerns(X, P)
+  SOURCE, HEX and T are those that show pin P prints. A file pin (stale_pin(P)): run
+  orbit-kb subject S PATH, then orbit-kb pin-item P2 S --kind file --changed-at T.
+  Never rewrite the old pin: it stays as the record.
 
 Waivers (the human only; the human sets the due time)
   orbit-kb attest waiver C "waive(C, '2026-11-30T17:00:00Z', 'why')" --by human

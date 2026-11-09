@@ -81,7 +81,8 @@ Commands
       lists the spec KBs that a change of X touches: those that pin X, and those that pin a fact
       that rests on X (the line says "rests on"). The default root is the parent of the project KB.
       The registry spec_kbs.txt of the project KB adds the spec KBs outside the root: add writes
-      the directory of a spec KB there when it records project_kb or pins. A spec KB that is in
+      the directory of a spec KB there when it records project_kb or pins, under the KB lock of
+      the project KB (kb.lock). A spec KB that is in
       neither (its pins written by hand, outside the root) is not seen: pass --root.
   orbit-kb --dir PROJECT project archive --superseded-before DATE [--root DIR]
       removes from kb.pl each superseded decision, definition or rule, and every fact that names
@@ -92,8 +93,11 @@ Commands
       DATE is a real date (2026-10-01) or UTC time; else exit 2. When the KB after the archive
       would have a lint error that it has not now, nothing is written (exit 1, the errors named).
       git keeps what is removed. It is a write command (writer lock). It prunes spec_kbs.txt
-      (lines of gone spec KBs). When it removes facts without --root, it warns that a spec KB
-      outside the root with no line in spec_kbs.txt is not seen: then pass --root DIR.
+      under the KB lock: a repeated line goes; the line of a spec KB with no kb.pl goes only when
+      a second archive in a row finds it missing (spec_kbs.missing holds the first look). When it
+      removes facts without --root, or with a --root that leaves out a spec KB of spec_kbs.txt, it
+      warns that a spec KB outside the root with no line in spec_kbs.txt is not seen: then pass
+      --root DIR, a directory over every spec KB.
   orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]
       records the pin. A tracker pin keeps the pinned text as pins/HEX.txt (HEX of the digest), so
       a draft is an edit of that text. A file pin (--kind file, a week's report) keeps only its
