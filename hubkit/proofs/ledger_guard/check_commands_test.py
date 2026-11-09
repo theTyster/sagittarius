@@ -63,6 +63,14 @@ ROTATE_MUTANTS = [
     ("rotate-kb-guard-only-blocks",
      'if refs and any(k["state"] != "clear" for k in kb_checks(hub, refs)):  # summary guard',
      'if refs and any(k["state"] == "blocks" for k in kb_checks(hub, refs)):  # summary guard'),
+    # T40 c10: a summary row never blocks a rotation through the spec KB triage gate
+    ("rotate-spec-gate-counts-summaries",
+     "kb_slug_items(c, slug, summaries=False)",
+     "kb_slug_items(c, slug)"),
+    # T40 c11: the held check runs inside the write, with the clock of the write
+    ("rotate-held-check-outside-the-write",
+     "        held = kb_held_summaries(c, hub_dir(g), lapse)  # inside the write\n",
+     "        held = set()\n"),
     ("rotate-lapses-other-kinds",
      "\"SELECT id FROM item WHERE status IN ('open','waiting') AND kind = 'summary'\"",
      "\"SELECT id FROM item WHERE status IN ('open','waiting')\""),

@@ -37,6 +37,9 @@ FROZEN = {
 
 # The rotate lapse in stepAs (one line); the mutants edit it.
 ANCHOR = "if old && s.summary && isOpen s && !s.esc && !nonclear s.kb then"
+# T40 c10: the triage gate of rotate (a due item lacks a disposition, or a spec KB lacks a decision;
+# a summary row is never one of them) refuses the rotation, and nothing is written.
+GATE = "if blocked then .refused"
 MUTANTS = [
     ("rotate-lapses-escalated-summary", "if old && s.summary && isOpen s && !nonclear s.kb then"),
     ("rotate-lapses-nonclear-summary", "if old && s.summary && isOpen s && !s.esc then"),
@@ -75,6 +78,8 @@ def main():
         check(f"t40-c7-statement-{key}-unchanged", got == norm(want), got)
     n = src.count(ANCHOR)
     check("t40-c7-model-has-rotate-lapse", n == 1, f"anchor occurs {n} times")
+    g = src.count(GATE)
+    check("t40-c10-model-has-rotate-gate", g == 1, f"the triage gate line occurs {g} times")
     d = tempfile.mkdtemp(prefix="ledger-guard-mutant-")
     try:
         path = os.path.join(d, "Model.lean")
@@ -95,9 +100,12 @@ def main():
             line1 = src[:src.index("theorem exec_agent_keeps_guarded")].count("\n") + 1
             err_lines = [int(x) for x in re.findall(r"Model\.lean:(\d+):\d+: error", out)]
             in_thm = any(line0 <= x < line1 for x in err_lines)
-            cex = re.search(r"\[\(\{ status := .*?summary := true.*?\}, LedgerGuard\.Cmd\.rotate true\)", out, re.S)
+            ev = src.index("#eval agentCounterexamples")
+            ev_line = src[:ev].count("\n") + 1
+            m = re.search(r"Model\.lean:%d:\d+: (?:info: )?(.*?)(?=\n\S+\.lean:\d+:\d+: |\Z)" % ev_line, out, re.S)
+            cex = m and m.group(1).strip() != "[]" and "summary := true" in m.group(1) and "Cmd.rotate" in m.group(1)
             sorry = re.search(r"'LedgerGuard\.agent_run_keeps_guarded' depends on axioms: \[[^\]]*sorryAx", out)
-            check(f"t40-c7-mutant-{name}-rejected", code != 0 and in_thm and cex and sorry,
+            check(f"t40-c7-mutant-{name}-rejected", code != 0 and in_thm and bool(cex) and bool(sorry),
                   (code, err_lines, bool(cex), bool(sorry), out[-1200:]))
     finally:
         shutil.rmtree(d, ignore_errors=True)
