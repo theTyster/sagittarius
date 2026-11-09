@@ -1723,6 +1723,7 @@ and `ONLY` are in section 14.
 | Path | Contents |
 |---|---|
 | `state-*.qs` and `state-*.qs.ok` | The saved state of the script, and its sidecar with the size and the SHA-1. |
+| `state-*.qs.PID-TIME.priv` | A private hard link of the state, one per call. The call checks the link against the sidecar and starts the link, so a call that deletes or replaces the shared state at the same time cannot make it abort. The started state deletes its link. The next build deletes a link that is over 1 h old when its process is gone. |
 
 Section 11 describes it. The s(CASP) result cache (`scasp/`) went with s(CASP)
 (D20). You can delete the directory at any time. `orbit-kb` builds again what

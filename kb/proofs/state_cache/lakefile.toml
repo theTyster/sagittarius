@@ -1,0 +1,6 @@
+name = "state_cache"
+version = "0.1.0"
+defaultTargets = ["StateCache"]
+
+[[lean_lib]]
+name = "StateCache"

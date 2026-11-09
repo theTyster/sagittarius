@@ -17,6 +17,8 @@
 #   CR3  c3: one byte appended to STATE; the next call exits 0 with the no-cache output.
 #   CR4  no private link stays behind after warm calls.
 #   CR5  prune removes a private link only when it is over 1 h old and its process is gone.
+#   CR6  rename before exec (row 2 of the Lean table, kb/proofs/state_cache): Y checks STATE
+#        and pauses; other bytes are renamed over STATE; Y still starts the bytes it checked.
 #
 # Usage: kb/tests/test_state_cache.sh [path-to-orbit-kb]   ONLY='<regex>' selects tests.
 # Exit: 0 all pass, 1 a test failed, 2 the suite cannot run.
@@ -120,6 +122,19 @@ t_CR5() {
     [ -e "$st.$dead-$young.priv" ] || note "a young private link was pruned"
 }
 
+t_CR6() {
+    setup; warm_up
+    st=$(states)
+    printf ':- initialization(main, main).\nmain :- format("other bytes~n").\n' >"$T/other.pl"
+    swipl -q -o "$T/other.qs" -c "$T/other.pl" || note "setup: cannot build the other state"
+    CR_PAUSE=3 "$CLI" help >"$T/y.out" 2>"$T/y.err" & y=$!
+    sleep 1
+    mv "$T/other.qs" "$st"                                       # a rename over STATE
+    kill -0 "$y" 2>/dev/null || note "setup: Y ended before the rename"
+    wait "$y"; rc=$?
+    same "$rc" "$T/y.out" "the paused call after a rename over STATE"
+}
+
 run_test() {  # run_test FN ID TITLE
     if [ -n "${ONLY:-}" ] && ! [[ $2 =~ $ONLY ]]; then return; fi
     FAILS=()
@@ -133,5 +148,6 @@ run_test t_CR2 CR2 "c5 60 s age counterexample: the paused call gives the no-cac
 run_test t_CR3 CR3 "c3: a state that does not match its .ok is not started"
 run_test t_CR4 CR4 "no private link stays behind after warm calls"
 run_test t_CR5 CR5 "prune removes only old private links of gone processes"
+run_test t_CR6 CR6 "rename before exec: the paused call starts the bytes it checked"
 echo "test_state_cache.sh: $pass passed, $fail failed"
 [ "$fail" = 0 ]
