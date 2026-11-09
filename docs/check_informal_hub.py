@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T32: an informal hub loads only informal rules. One check per claim.
 
-usage: python3 docs/check_informal_hub.py t32c1|...|t32c8|t36c1|...|t36c6|t41c1|...|t41c4 [--list]   (--list prints the claim ids)
+usage: python3 docs/check_informal_hub.py t32c1|...|t32c8|t36c1|...|t36c6|t41c1|...|t41c5 [--list]   (--list prints the claim ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 t32c1 installs hubs from this kit with --edition informal|formal and with no --edition (a PATH with
@@ -32,6 +32,8 @@ t41c2 installs an informal and a formal hub: the informal --help lists no kb ref
 t41c3 installs an informal hub at mono/hub inside `git init mono` and runs hubflow from mono/hub with
       no HUBFLOW_HUB and no --hub: the informal help, and the db at mono/hub/flow.
 t41c4 reads the skip principle for the agent park limit, and parks an item as an agent.
+t41c5 reads the formal What lives where hypothesis row of hub/HUB-CORE.md (from the hub design KB)
+      for the expected result, the falsifier and the premises.
 """
 import json
 import os
@@ -813,9 +815,20 @@ def t41c4():
         check("t41c4 the park event names the agent session and says agent", len(ev) == 1 and "| build | agent |" in ev[0], ev or s[-300:])
 
 
+def t41c5():
+    # The formal "What lives where" row comes from fact_desc(hypothesis) in the hub design KB,
+    # through store-facts.json (storemap.py --export); check_hub_guidance c1 keeps them equal.
+    rows = [ln for ln in read(CORE).splitlines() if ln.startswith("| `hypothesis` | ") and "| `spec` |" in ln]
+    check("t41c5 the formal HUB-CORE.md has the What lives where hypothesis row", len(rows) == 1, len(rows))
+    if rows:
+        hyp_parts("t41c5 the formal What lives where hypothesis row", rows[0])
+    p = run([sys.executable, STOREMAP, "--check"])
+    check("t41c5 storemap.py --check: both HUB-CORE files are current", p.returncode == 0, p.stderr)
+
+
 CLAIMS = {k: globals()[k] for k in ("t32c1", "t32c2", "t32c3", "t32c4", "t32c5", "t32c6", "t32c7", "t32c8",
                                       "t36c1", "t36c2", "t36c3", "t36c4", "t36c5", "t36c6",
-                                      "t41c1", "t41c2", "t41c3", "t41c4")}
+                                      "t41c1", "t41c2", "t41c3", "t41c4", "t41c5")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
