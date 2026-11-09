@@ -50,34 +50,66 @@ orbit_boot_ :-
     \+ ( getenv('ORBIT_KB_NO_CACHE', V), V \== '', V \== '0' ),
     prolog_load_context(file, Script),
     orbit_state_path(Script, State),
-    (   exists_file(State)
-    ->  (   orbit_state_valid(State)
+    (   orbit_state_link(State, Priv)
+    ->  (   orbit_state_valid(State, Priv)
         ->  current_prolog_flag(argv, Argv),
             current_prolog_flag(executable, Exe),
             use_module(library(unix), [exec/1]),
-            Cmd =.. [Exe, '-x', State, '--'|Argv],
+            Cmd =.. [Exe, '-x', Priv, '--'|Argv],
             exec(Cmd)
         ;   % A bad state is removed. This call loads the script as
             % usual; the next call builds a new state.
+            catch(delete_file(Priv), _, true),
             orbit_state_drop_bad(State)
         )
+    ;   exists_file(State)
+    ->  true                % no link (no hard links here): load as usual
     ;   atom_concat(State, '.failed', Failed),
         \+ exists_file(Failed)
     ->  assertz(orbit_state_wanted(State, Script))
     ;   true
     ).
 
+% The cache race (2026-11-09, model m3 of the cache-race KB). Other calls
+% delete the shared STATE at any time: drop_bad, the 60 s rule,
+% prune_states after a script edit, a builder that renames a new state
+% over it. A call that checked STATE and then ran "swipl -x STATE"
+% aborted when STATE went away in between ("Could not open resource
+% database"). So each call makes a hard link of STATE to a private name,
+% STATE.PID-TIME.priv, checks the bytes of that link against STATE.ok,
+% and starts the link. No other call deletes the link while this process
+% lives (prune_states/2 keeps it), and a delete of the shared name leaves
+% the bytes of the link in place. The started state deletes its own link
+% first thing (state_flags/0). A link cannot be opened and passed on: SWI
+% opens files close-on-exec, so swipl -x /proc/self/fd/N fails.
+%
+% link_file/3 is foreign code of library(filesex). Loading the whole
+% library costs about 20 ms (it loads library(predicate_options)), more
+% than the fast start saves. So only its foreign part is loaded here,
+% into the module of the library, as library(filesex) itself does; the
+% library loads later as usual. Any failure: no fast start.
+orbit_state_link(State, Priv) :-
+    (   current_predicate(files_ex:link_file/3)
+    ->  true
+    ;   files_ex:use_foreign_library(foreign(files))
+    ),
+    current_prolog_flag(pid, Pid),
+    get_time(Now),
+    T is truncate(Now),
+    format(atom(Priv), "~w.~w-~w.priv", [State, Pid, T]),
+    catch(files_ex:link_file(State, Priv, hard), _, fail).
+
 % A state is used only if its sidecar STATE.ok exists and records the
-% size and the SHA-1 of the state file. The builder writes the sidecar
-% (atomically) after the state is complete. So a truncated, overwritten,
-% or half-written state is never started: swipl -x would abort on it
-% before any fallback could run.
-orbit_state_valid(State) :-
+% size and the SHA-1 of the file (the private link) that is started.
+% The builder writes the sidecar (atomically) after the state is
+% complete. So a truncated, overwritten, or half-written state is never
+% started: swipl -x would abort on it before any fallback could run.
+orbit_state_valid(State, File) :-
     atom_concat(State, '.ok', Ok),
     catch(setup_call_cleanup(open(Ok, read, S), read_term(S, T, []), close(S)), _, fail),
     T = state_ok(Size, Hash),
-    size_file(State, Size),
-    orbit_file_sha(State, Hash).
+    size_file(File, Size),
+    orbit_file_sha(File, Hash).
 
 orbit_file_sha(File, Hash) :-
     setup_call_cleanup(open(File, read, S, [type(binary)]),
@@ -194,11 +226,22 @@ exit_now(Code) :-
 % flags that differ back to the values of a script run.
 state_flags :-
     (   current_prolog_flag(saved_program, true)
-    ->  set_prolog_flag(autoload, true),
+    ->  drop_own_link,
+        set_prolog_flag(autoload, true),
         set_prolog_flag(on_error, print),
         set_prolog_flag(on_warning, print),
         set_prolog_flag(verbose, normal),
         set_prolog_flag(encoding, text)
+    ;   true
+    ).
+
+% A state started from a private link (orbit_state_link/2) deletes the
+% link: the process keeps the state open, so the bytes stay.
+drop_own_link :-
+    (   current_prolog_flag(os_argv, OsArgv),
+        append(_, ['-x', Priv|_], OsArgv),
+        file_name_extension(_, priv, Priv)
+    ->  catch(delete_file(Priv), _, true)
     ;   true
     ).
 
@@ -258,19 +301,49 @@ prune_states(Dir, Keep) :-
     get_time(Now),
     forall(( member(F, Fs),
              atomic_list_concat([state|Parts], '-', F),
-             \+ sub_atom(F, 0, _, _, KeepStem),
              atomic_list_concat([Dir, '/', F], Path),
-             catch(time_file(Path, T), _, fail),
-             Age is Now - T,
-             (   file_name_extension(_, tmp, F)
-             ->  Age > 3600                      % a build may still run
-             ;   Parts = [_]
-             ->  true                            % the old name format
-             ;   Parts = [P|_]
-             ->  true                            % this script, other key
-             ;   Age > 7*24*3600                 % another script path
+             (   file_name_extension(_, priv, F)
+             ->  priv_link_stale(F, Now)
+             ;   \+ sub_atom(F, 0, _, _, KeepStem),
+                 catch(time_file(Path, T), _, fail),
+                 Age is Now - T,
+                 prune_by_age(F, Parts, P, Age)
              ) ),
            catch(delete_file(Path), _, true)).
+
+% A private link (orbit_state_link/2) is deleted only when it is over one
+% hour old (the time in its name; a hard link has the time of the state)
+% and its process is gone. A call that has not yet started its link
+% lives, so no prune deletes the link that it is about to start. A pid
+% that cannot be checked counts as alive.
+priv_link_stale(F, Now) :-
+    file_name_extension(Base, priv, F),
+    file_name_extension(_, PidTime, Base),
+    atomic_list_concat([PidA, TA], '-', PidTime),
+    atom_number(PidA, Pid), integer(Pid),
+    atom_number(TA, T), Now - T > 3600,
+    \+ pid_alive(Pid).
+
+pid_alive(Pid) :-
+    (   exists_directory('/proc/self')
+    ->  format(atom(D), "/proc/~d", [Pid]),
+        exists_directory(D)
+    ;   format(atom(PidA), "~d", [Pid]),
+        \+ catch(( process_create(path(kill), ['-0', PidA],
+                                   [stdin(null), stdout(null), stderr(null), process(K)]),
+                    process_wait(K, exit(Code)), Code \== 0 ),
+                  _, fail)
+    ).
+
+prune_by_age(F, Parts, P, Age) :-
+    (   file_name_extension(_, tmp, F)
+    ->  Age > 3600                      % a build may still run
+    ;   Parts = [_]
+    ->  true                            % the old name format
+    ;   Parts = [P|_]
+    ->  true                            % this script, other key
+    ;   Age > 7*24*3600                 % another script path
+    ).
 
 % The reader closed the pipe (for example `orbit-kb ... | head`). Exit
 % quietly: no message, no trace. Point the standard streams at a null
