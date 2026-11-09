@@ -48,7 +48,7 @@ The 29 fact kinds:
 | `divergences` | Where the human, the agent, or a result disagreed, and what the agent disclosed about its guesses and errors. | `spec` | - | - | - |
 | `handoffs` | Work passed from one session to another, and whether it was accepted. | `ledger` | - | - | - |
 | `heuristics` | Rules of thumb learned in this hub, for agents to apply. | `memory` | - | - | - |
-| `hypothesis` | What discovery believes the problem is, its premises, and the result that would show it false. | `spec` | - | - | - |
+| `hypothesis` | What discovery believes the problem is, its premises, the result it expects, and the result that would show it false. | `spec` | - | - | - |
 | `models` | Formal models (Lean, SMT, TLA+) and the proofs that a claim rests on. | `bespoke` | `spec` | - | - |
 | `outbound` | Drafts of text meant for the tracker or for people, staged before anyone sends them. | `weeks` | - | - | - |
 | `product_rules` | The product's business rules: how the current system must behave (limits, permissions, prices, workflows). | `project` | `spec` | - | - |
