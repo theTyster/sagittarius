@@ -45,6 +45,20 @@ Ty makes the release. This entry lists what is in the `redesign` branch. The hub
   one row per speaker turn or paragraph, with its line. `transcripts --detail ID` shows the turns,
   `transcripts --grep TEXT` finds them with file and line, and `rotate --yes` rebuilds the index,
   so a retired week's rows go with it.
+- Byte digests (T38): a digest is now the sha256 of the file's bytes, the same as `sha256sum`.
+  Before T38, `orbit-kb` read a file as UTF-8 text, so a digest of a file with non-ASCII text or
+  binary data (a PNG demo) was wrong. Such a stored digest now shows as changed: lint W1, a stale
+  pin, a reopened flare, and `done` false until the subject is recorded again. Every Lean proof
+  whose files hold non-ASCII text (for example `∀` or `→`) shows in `proof_changed(A)`, and its burn
+  is open again. To re-prove each one, in each KB:
+
+      orbit-kb query 'proof_changed(A)'          # each attestation A to renew
+      head -3 runs/proof-A.log                   # its claim, theorem, and source file
+      orbit-kb prove CLAIM PATH/TO/SOURCE.lean THEOREM
+
+  The proof itself does not change; only its recorded digest does. The new proof closes the burn.
+  The old attestation still shows in `proof_changed(A)`; that is expected. ASCII files keep
+  their digests.
 
 ### Not in this release yet
 
