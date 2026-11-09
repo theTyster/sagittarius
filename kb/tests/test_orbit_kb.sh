@@ -2190,6 +2190,17 @@ q(a).
 EOF
           okb --dir "$K" lint; rc_is 0 "a KB with decl/4 lines loads"
           okb --dir "$K" show kinds; rc_is 0; out_has '^- q/1: A q\.' "the doc of a decl/4 line shows in show kinds"; }
+t_KD6() { mkclaim
+          printf "%%%% doc: Some person owns the claim.\nhas_owner(C) :- claim(C, _, _).\nlonely(C) :- claim(C, _, _), not has_owner(C).\n" > "$K/rules.pl"
+          okb --dir "$K" lint; rc_is 0 "rules.pl heads are declared by their first definition: no E2"; out_hasnt '^E' "no error"
+          out_has '^W9 rules\.pl:3.*lonely/1' "W9 names a rule head with no doc comment"; out_hasnt '^W9 .*has_owner' "no W9 for a head with a doc comment"
+          okb --dir "$K" show kinds; rc_is 0; out_has '^- has_owner/1 \(rule\): Some person owns the claim\.' "show kinds lists the rule with its doc, marked as a rule"
+          out_has '^- lonely/1 \(rule\): \(no description\)' "show kinds says a rule has no description"
+          is_true 'has_owner(c1)'
+          rejects ruledecl 'rules\.pl.*doc' add "decl(rule, other(id), 'x', '')"
+          rejects factdecl '--doc' add "decl(fact, other(id), 'x', '')"
+          printf "decl(rule, old_rule(atom), 'An old rule.', '').\n" >> "$K/kb.pl"; printf "old_rule(a).\n" >> "$K/rules.pl"
+          okb --dir "$K" show kinds; out_has '^- old_rule/1 \(rule\): An old rule\.' "an old decl(rule, ...) line still loads, its doc shows"; }
 t_KD5() { local f n=0 hits=""; for f in "$here"/test_*.sh; do
               hits+=$(grep -nE "okb.* declare |orbit-kb declare " "$f" | grep -v 'KD1-call' | sed "s|^|${f##*/}:|"); done
           [ -z "$hits" ] || note "tests still call declare: $(snip "$hits")"; return 0; }
@@ -2882,6 +2893,7 @@ run_test t_KD1 KD1 "T26 c1: declare is removed: exit 2, one line that says add -
 run_test t_KD2 KD2 "T26 c2: the first add of a new kind may take --doc; optional; a W-lint and show kinds name a kind without one"
 run_test t_KD3 KD3 "T26 c3: show kinds lists each kind with its description"
 run_test t_KD4 KD4 "T26 c4: a KB with decl/4 lines still loads; their docs show in show kinds"
+run_test t_KD6 KD6 "T26 review: a rules.pl head is declared by its first definition, doc from a %% doc: comment; W9, show kinds; add refuses decl terms"
 run_test t_KD5 KD5 "T26 c5: no test calls declare any more"
 run_test t_RT1 RT1 "D22 c6: declare-attest is an unknown command"
 run_test t_RT2 RT2 "D22 c6: depends/2 is not a fact kind"
