@@ -48,7 +48,7 @@
 #   I   init                                                   (CLI: init)                      : I1-I8
 #   U   uses: add a module to an existing KB                   (CLI: uses)                      : U1-U9
 #   A   add: validation, all or nothing, rejections            (CLI: add; Declarations; Types)  : A1 A4-A22
-#   D   declare                                                (CLI: declare)                   : D1-D4 D6
+#   D   rule declarations by add (decl(rule, ...))            (CLI: add; T26 removed declare)  : D1-D4 D6
 #   AT  attest: id, time, writers, digest(current)             (CLI: attest)                    : AT1-AT9
 #   S   subject: sha256, relative paths, refresh               (CLI: subject; D3)               : S1-S8
 #   R   run: numbering, log header, tail, unknown check, D1    (CLI: run; Files; D1)            : R1-R9
@@ -729,18 +729,22 @@ t_A20() { mkclaim; rejects conjunction 'own argument' add "risk(rk1, 'a'), risk(
 t_A21() { mkclaim; rejects noteid 'does not create' add "note(n1, 'a note')"; any_hasi 'note\(c1|r1|existing' "the message shows how to attach a note"; }
 t_A22() { mkclaim; rejects barelabel 'verdict\(CLAIM, tested\(100\)\)' attest lean_result c1 'tested(100)'; }
 
-# ================================================================ D: declare
-t_D1() { mkclaim; okb --dir "$K" declare 'gizmo(id, text)' --doc 'A gizmo.' --template '@(1) is a gizmo called @(2)'; rc_is 0
-         has_goal "$K/kb.pl" "kb(decl(fact, gizmo(id, text), _, T)), sub_atom(T, _, _, _, '@(1)')" "decl/4 line with the template"; }
-t_D2() { mkclaim; okb --dir "$K" declare 'gizmo(id, text)' --doc 'A gizmo.'; rc_is 0 first; cp "$K/kb.pl" "$T/.b"
-         okb --dir "$K" declare 'gizmo(id, text)' --doc 'Again.'; rc_is 1 second; same_file "$K/kb.pl" "$T/.b"; }
-t_D3() { mkclaim; rejects badtype 'type|unknown|banana' declare 'gizmo(banana)' --doc 'x'; }
-t_D4() { mkclaim; okb --dir "$K" declare 'claim(id)' --doc 'x'; rc_is 0 "claim/1 is a new predicate: only an exact name and arity match is rejected"
-         has_fact "$K/kb.pl" "decl(fact, claim(id), _, _)" "decl line for claim/1"
-         cp "$K/kb.pl" "$T/.b"; okb --dir "$K" declare 'claim(id, text, text)' --doc 'x'; rc_is 1 "same name and arity as the core claim/3"; same_file "$K/kb.pl" "$T/.b"; }
+# ================================================================ D: rule declarations by add (T26: the declare command is gone)
+# A decl(rule, ...) fact of add declares a rule predicate of rules.pl, and is checked as declare was.
+old_decl() { printf '%s\n' "$1" >> "$K/kb.pl"; }   # a decl/4 line as an older KB has it (declare wrote it)
+t_D1() { mkclaim; oadd "decl(rule, gizmo(id, text), 'A gizmo.', '@(1) is a gizmo called @(2)')"; rc_is 0
+         has_goal "$K/kb.pl" "kb(decl(rule, gizmo(id, text), _, T)), sub_atom(T, _, _, _, '@(1)')" "decl/4 line with the template"; }
+t_D2() { mkclaim; oadd "decl(rule, gizmo(id, text), 'A gizmo.', '')"; rc_is 0 first; cp "$K/kb.pl" "$T/.b"
+         oadd "decl(rule, gizmo(id, text), 'Again.', '')"; rc_is 1 second; same_file "$K/kb.pl" "$T/.b"; }
+t_D3() { mkclaim; rejects badtype 'type|unknown|banana' add "decl(rule, gizmo(banana), 'x', '')"; }
+t_D4() { mkclaim; oadd "decl(rule, claim(id), 'x', '')"; rc_is 0 "claim/1 is a new predicate: only an exact name and arity match is rejected"
+         has_fact "$K/kb.pl" "decl(rule, claim(id), _, _)" "decl line for claim/1"
+         cp "$K/kb.pl" "$T/.b"; oadd "decl(rule, claim(id, text, text), 'x', '')"; rc_is 1 "same name and arity as the core claim/3"; same_file "$K/kb.pl" "$T/.b"; }
 # D5 (declare-attest then attest) went with D22: declare-attest is retired (RT1).
-t_D6() { mkclaim; okb --dir "$K" declare 'okay(ref(claim))' --doc 'A computed thing.' --kind rule; rc_is 0; has_fact "$K/kb.pl" "decl(rule, okay(ref(claim)), _, _)"
-         rejects rulefact 'rule' add "okay(c1)"; }
+t_D6() { mkclaim; oadd "decl(rule, okay(ref(claim)), 'A computed thing.', '')"; rc_is 0; has_fact "$K/kb.pl" "decl(rule, okay(ref(claim)), _, _)"
+         rejects rulefact 'rule' add "okay(c1)"
+         rejects factdecl '--doc' add "decl(fact, okay2(id), 'x', '')"
+         rejects reserved 'reserved' add "decl(rule, not(id), 'x', '')"; }
 
 # ================================================================ AT: attest
 t_AT1() { mkclaim; okb --dir "$K" attest disclosure c1 "unverified('Not measured')"; rc_is 0; any_has 'a1'
@@ -941,7 +945,7 @@ t_X10() { # D20 review: forms of s(CASP) in kb.pl and in a goal; no E2 for #<; E
     okb --dir "$K" lint; rc_is 1; out_has '^E17 kb\.pl'; out_hasnt '^E7 ' "E17 only"
     q 'current(c1)'; rc_is 2 "no answer while kb.pl holds a constraint"
     mkclaim; q '-current(c1)'; rc_is 2; any_hasi 'classical negation' "a clear message for -p in a goal"; any_hasnt 'SWI ERROR'
-    printf 'q :- current(X), X #< 3.\n' > "$K/rules.pl"; okb --dir "$K" declare q --doc q --kind rule >/dev/null
+    printf 'q :- current(X), X #< 3.\n' > "$K/rules.pl"; okb --dir "$K" add "decl(rule, q, 'q', '')" >/dev/null
     okb --dir "$K" lint; rc_is 1; out_has '^E17 rules\.pl:1'; out_hasnt '^E2 ' "no E2 for #<"
     printf 'superseded(C) :- current(C).\n' > "$K/rules.pl"
     okb --dir "$K" lint; rc_is 1; out_has '^E18 rules\.pl:1' "E18 names the rules.pl clause that closes the cycle"; }
@@ -1641,7 +1645,7 @@ t_FL10() { fl_kb; okb --dir "$K" report; rc_is 0
            fl_kb; printf "attest(w1, waiver, c1, waive(c1, '2020-01-01T00:00:00Z', 'Old'), human, '2019-12-01T00:00:00Z').\n" >> "$K/kb.pl"
            okb --dir "$K" report; rc_is 0
            rp_sec Open | grep -q 'Waiver w1 of the demo of claim c1 was due at 2020-01-01T00:00:00Z' || note "the lapsed waiver names the demo: $(snip "$(rp_sec Open)")"; }
-t_Y1() { mkclaim; okb --dir "$K" declare 'gizmo(id, text)' --doc 'A gizmo.' --template '@(1) is a gizmo called @(2)' >/dev/null; oadd "gizmo(g1, sprocket)" >/dev/null
+t_Y1() { mkclaim; old_decl "decl(fact, gizmo(id, text), 'A gizmo.', '@(1) is a gizmo called @(2)')."; oadd "gizmo(g1, sprocket)" >/dev/null
          okb --dir "$K" why 'gizmo(g1, N)'; rc_is 0; any_hasf 'g1 is a gizmo called sprocket' "the local template text"; }
 t_Y2() { kb_q "$T/k"; K=$T/k; okb --dir "$K" why 'current(c1)'; rc_is 0; out_has 'c1'; out_has 'because|holds|evidence'; }
 t_Y3() { kb_q "$T/k"; K=$T/k; okb --dir "$K" why 'current(c9)'; rc_is 1 "why on a false goal has no answer"; }
@@ -2126,7 +2130,7 @@ t_FU2() { K=$T/k; kb_init "$K" build; oadd 'colour_of(widget1, blue)' >/dev/null
           okb --dir "$K" lint --strict; rc_is 1 "--strict makes W7 an error"
           okb help codes; rc_is 0; out_has '^ +W7 ' "help codes documents W7"; }
 t_FU3() { K=$T/k; kb_init "$K" build
-          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          old_decl "decl(fact, color_of(id, atom), 'The color of a thing.', '')."
           oadd 'colour_of(widget1, blue)'; rc_is 0 "add still succeeds near a declared name"
           oadd 'paint_of(widget1, blue)' 'colr_of(a, b, c)'; rc_is 0 "a far name, and a near name of another arity"
           okb --dir "$K" lint; rc_is 1 "the typo guard is an error"
@@ -2139,15 +2143,13 @@ t_FU4() { mkclaim; rejects arity 'claim/1 is not declared\. claim is declared wi
           no_fact "$K/kb.pl" "first_use(_, _, _)" "a wrong arity of a declared name is no first use"
           rejects oneof 'E3' add "claim(c2, bogus, 'x')"
           rejects reftype 'E4' add "cites(c9, 'x')"; }
-t_FU5() { mkclaim; okb --dir "$K" declare 'gizmo(id, text)' --doc 'A gizmo.'; rc_is 0 declare
-          has_fact "$K/kb.pl" "decl(fact, gizmo(id, text), 'A gizmo.', _)" "declare writes the doc and the types"
-          oadd 'gizmo(g1, a)'; rc_is 0 "after declare"; has_fact "$K/kb.pl" "gizmo(g1, a)"
+t_FU5() { mkclaim; old_decl "decl(fact, gizmo(id, text), 'A gizmo.', '')."
+          oadd 'gizmo(g1, a)'; rc_is 0 "a predicate that a decl/4 line declares (an older KB)"; has_fact "$K/kb.pl" "gizmo(g1, a)"
           no_fact "$K/kb.pl" "first_use(gizmo/2, _, _)" "a declared predicate has no first use"
           rejects type 'E3' add 'gizmo(g2, 5)'
-          okb --dir "$K" lint; out_hasnt '^W7' "no W7 for a declared predicate"; }
-t_FU6() { okb help declare; rc_is 0; any_hasi 'optional' "help declare says declare is optional"
-          okb help add; rc_is 0; any_hasi 'first use' "help add names the first use"
-          okb help core; rc_is 0; any_hasi 'first use' "help core names the first use"; }
+          okb --dir "$K" lint; out_hasnt '^W7' "no W7 for a declared predicate"; out_hasnt '^W9' "no W9 for a kind with a doc"; }
+t_FU6() { okb help add; rc_is 0; any_hasi 'first use' "help add names the first use"; any_hasi '--doc' "help add names --doc"
+          okb help core; rc_is 0; any_hasi 'first use' "help core names the first use"; any_hasi '--doc' "help core names --doc"; }
 
 # KD: T26 (amends D22): declare is removed. The first add of a new kind may take --doc. show kinds.
 t_KD1() { local repo f; repo=$LIB/../../..; mkclaim
@@ -2156,7 +2158,7 @@ t_KD1() { local repo f; repo=$LIB/../../..; mkclaim
           [ "$(printf '%s\n' "$err" | grep -c .)" = 1 ] || note "declare prints one line on stderr (stderr: $(snip "$err"))"
           no_fact "$K/kb.pl" "decl(_, gizmo(_, _), _, _)" "declare wrote nothing"
           okb help declare; rc_is 2 "no help topic for declare"
-          okb help; any_hasnt '^ *declare ' "general help lists no declare command"
+          okb help; any_hasnt '^ *declare ' "general help lists no declare command"   # KD1-call
           for f in "$LIB"/help/*.txt "$LIB/README.md" "$repo/prompt/SAGITTARIUS.md"; do
               grep -qE 'orbit-kb declare|^ +declare ' "$f" && note "${f##*/} still names the declare command"; done
           return 0; }
@@ -2270,7 +2272,7 @@ t_BL9() { kb_done "$T/k"; K=$T/k; printf 'blocking(nothing).\n' > "$K/rules.pl"
 
 # Added after review of de77192 (D22 c3, c6, c7).
 t_FU7() { K=$T/k; kb_init "$K" build
-          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          old_decl "decl(fact, color_of(id, atom), 'The color of a thing.', '')."
           oadd 'colr_ov(widget1, blue)' 'clr_ov(widget1, blue)'; rc_is 0 "add"
           okb --dir "$K" lint; rc_is 1 "edit distance 2 is an error"
           out_has '^E19 .*colr_ov/2.*color_of/2' "colr_ov is 2 edits from color_of"
@@ -2279,12 +2281,12 @@ t_FU7() { K=$T/k; kb_init "$K" build
 # both new, and they are 1 edit apart, so E19 correctly names clr_ov/2 against colr_ov/2.
 # FU8 puts each case in its own KB.
 t_FU8() { K=$T/k; kb_init "$K" build
-          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          old_decl "decl(fact, color_of(id, atom), 'The color of a thing.', '')."
           oadd 'colr_ov(widget1, blue)'; rc_is 0 "add"
           okb --dir "$K" lint; rc_is 1 "edit distance 2 is an error"
           out_has '^E19 .*colr_ov/2.*color_of/2' "colr_ov is 2 edits from color_of"
           K=$T/k2; kb_init "$K" build
-          okb --dir "$K" declare 'color_of(id, atom)' --doc 'The color of a thing.'; rc_is 0 declare
+          old_decl "decl(fact, color_of(id, atom), 'The color of a thing.', '')."
           oadd 'clr_ov(widget1, blue)'; rc_is 0 "add"
           okb --dir "$K" lint; rc_is 0 "distance 3: no error"
           out_hasnt '^E19' "clr_ov is 3 edits from color_of: no finding"; }
@@ -2625,11 +2627,11 @@ run_test t_A17 A17 "add rejects a writer that is not allowed"
 run_test t_A20 A20 "add says to give each fact as its own argument"
 run_test t_A21 A21 "add explains that a ref argument names an existing id, as in note(Id, Text)"
 run_test t_A22 A22 "attest with only an inner label shows the whole predicate"
-run_test t_D1 D1 "declare appends decl/4 with the template"
-run_test t_D2 D2 "declare twice exits 1"
-run_test t_D3 D3 "declare with an unknown type exits 1"
-run_test t_D4 D4 "declare: a new arity of a core name is accepted, the same name and arity exits 1"
-run_test t_D6 D6 "declare --kind rule rejects facts for it"
+run_test t_D1 D1 "add of decl(rule, ...) appends decl/4 with the template"
+run_test t_D2 D2 "add of decl(rule, ...) twice exits 1"
+run_test t_D3 D3 "decl(rule, ...) with an unknown type exits 1"
+run_test t_D4 D4 "decl(rule, ...): a new arity of a core name is accepted, the same name and arity exits 1"
+run_test t_D6 D6 "decl(rule, ...) rejects facts for it, refuses decl(fact, ...) and reserved names"
 run_test t_AT1 AT1 "attest generates id a1 and the UTC time"
 run_test t_AT2 AT2 "attest takes the next free id"
 run_test t_AT3 AT3 "approval by agent is rejected"
@@ -2796,7 +2798,7 @@ run_test t_FL8 FL8 "D21: a claim that replaces a visual claim flares"
 run_test t_FL9 FL9 "D21: rules.pl cannot close a flare (E16)"
 run_test t_FL10 FL10 "D21: report: Flare part, Open item, lapsed waiver of the demo"
 run_test t_FL11 FL11 "D21 F3b: an edit of the demo file on disk reopens the flare"
-run_test t_Y1 Y1 "why shows the local declare --template text"
+run_test t_Y1 Y1 "why shows the template text of a local decl/4 line"
 run_test t_Y2 Y2 "why prints a justification"
 run_test t_Y3 Y3 "why on a false goal exits 1"
 run_test t_L0 L0 "valid fixture lints clean, also with --strict"
@@ -2872,8 +2874,8 @@ run_test t_FU1 FU1 "D22 c1: add declares a new predicate by its first use (who, 
 run_test t_FU2 FU2 "D22 c2: lint lists each first-use predicate as W7; help codes documents it"
 run_test t_FU3 FU3 "D22 c3: a first-use name within 2 edits of a declared one (same arity) is E19"
 run_test t_FU4 FU4 "D22 c4: a declared predicate keeps its arity and types"
-run_test t_FU5 FU5 "D22 c5: declare adds a doc and types ahead of use"
-run_test t_FU6 FU6 "D22 c5: help says declare is optional"
+run_test t_FU5 FU5 "T26 c4: a decl/4 line of an older KB keeps its doc and types; add of its facts works"
+run_test t_FU6 FU6 "T26 c2: help add and help core name the first use and --doc"
 # FU7 is not run: FU8 supersedes it (see the comment above t_FU8).
 run_test t_FU8 FU8 "D22 c3: E19 at edit distance 2, none at distance 3 (each case alone)"
 run_test t_KD1 KD1 "T26 c1: declare is removed: exit 2, one line that says add --doc; no help, README or prompt names it"

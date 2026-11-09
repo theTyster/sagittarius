@@ -287,7 +287,7 @@ A KB is a directory. You choose its location. There is no default location.
 
 | Path | Who writes it | Contents |
 |---|---|---|
-| `kb.pl` | `init`, `add`, `declare`, `subject`, `attest`, `run` | The first term is `uses([Module, …]).` The list can be empty. Then come facts and local `decl/4` lines (from `declare`, or from the first use of a new predicate in `add`). A local `attest_type/4` line written by hand also works. |
+| `kb.pl` | `init`, `add`, `subject`, `attest`, `run` | The first term is `uses([Module, …]).` The list can be empty. Then come facts and local `decl/4` lines (from the first use of a new predicate in `add`, with its `--doc`, or from older KBs). A local `attest_type/4` line written by hand also works. |
 | `rules.pl` | You (optional) | Local rules. |
 | `runs/<N>-<CheckId>.log` | `run` only | The combined output of one run of a check. |
 | `kb.lock` | The writing commands | An empty file. Each writing command holds a lock on it (section 8). |
@@ -653,20 +653,41 @@ $ orbit-kb add 'colour_of(widget1, blue)'
 decl(fact, colour_of(term, term), 'Declared by its first use. Review it (lint W7).', '').
 first_use(colour_of/2, agent, '2026-11-05T10:00:00Z').
 colour_of(widget1, blue).
-NOTE: colour_of/2 is a new predicate. Its first use declares it, with the type term for each argument (lint W7 lists it). To give a predicate a doc and types, declare it before its first use: orbit-kb declare.
+NOTE: colour_of/2 is a new predicate. Its first use declares it, with the type term for each argument (lint W7 lists it).
+NOTE: colour_of/2 has no description (lint W9). Describe a new kind in its first add: orbit-kb add 'FACT' --doc TEXT.
 ```
 
 Exit: 0 on success. 1 on a rejection. The message gives the fix. 2 on a usage
 error, such as `--by robot`.
 
-### `declare 'HEAD' --doc TEXT [--kind fact|rule] [--template T]`
+### `add 'FACT' --doc TEXT`, and rule declarations (T26)
 
-Optional (D22). Appends a local `decl/4` line to `kb.pl`, ahead of the first use
-of the predicate, with a doc, a template, and types. A declared predicate has no
-`first_use/3` fact, so W7 and E19 do not apply to it. The default kind is `fact`.
-Use `--kind rule` for a rule predicate of `rules.pl`.
-Exit: 0 on success. 1 if the name and arity are declared, a type is unknown, or
-the name is reserved.
+The first `add` of a new kind may take `--doc TEXT`: one line that describes the
+kind. The text becomes the doc of the `decl/4` line that the first use writes.
+`--doc` is optional, so orbit-kb stays loose. A kind with no description is
+lint W9, and `orbit-kb show kinds` says "(no description)" for it. `--doc` on a
+kind that already exists, a text with a line break, and an add with more than one
+new kind are exit 1. The `declare` command is gone (T26): calling it exits 2
+with one line that says to use `add ... --doc`.
+
+```text
+$ orbit-kb add "gizmo(g1, sprocket)" --doc 'A gizmo with a part name.'
+decl(fact, gizmo(term, term), 'A gizmo with a part name.', '').
+first_use(gizmo/2, agent, '2026-11-09T10:00:00Z').
+gizmo(g1, sprocket).
+NOTE: gizmo/2 is a new predicate. Its first use declares it, with the type term for each argument (lint W7 lists it).
+```
+
+A rule predicate of `rules.pl` is declared with the fact `decl(rule, HEAD, 'DOC', 'TEMPLATE')`:
+`orbit-kb add "decl(rule, has_owner(ref(claim)), 'Some person owns the claim.', '')"`.
+`add` checks the head, the types, the template, and that the name and arity are not
+declared yet. It refuses `decl(fact, ...)`: a fact kind comes by its first use.
+
+### `show kinds`
+
+Lists each fact kind of the KB with its description: the kinds of the core and of the
+modules in use (their `decl/4` docs), and the kinds of `kb.pl` (their `--doc`, or the
+`decl/4` doc of an older KB). A kind with no description says so. Not part of `show all`.
 
 No command declares an attestation type any more (D22: the command was cut).
 An `attest_type/4` line that is already in `kb.pl` still works, and lint lists it (W2).
@@ -1145,7 +1166,7 @@ result would have a new lint error. 2 for a missing or bad DATE.
 
 ### Locking
 
-The commands `add`, `declare`, `subject`, `attest`, and `uses` hold
+The commands `add`, `subject`, `attest`, and `uses` hold
 an exclusive lock on `kb.lock` in the KB directory for the whole cycle. The
 cycle is: read `kb.pl`, choose the ID, write, and append. Thus two writers in
 two processes cannot choose the same ID. `run` and `prove` take the lock only
@@ -1161,7 +1182,7 @@ KB too, and a lease). This lock is the file `writer.lock` in the KB directory.
 The writer is the first that is set of `$ORBIT_KB_WRITER`,
 `$CLAUDE_CODE_SESSION_ID` (Claude Code sets it), `$CLAUDE_SESSION_ID`, and
 `$HUB_SESSION`; with none, no writer lock is taken or checked. The write
-commands `add`, `declare`, `subject`, `attest`, `run`, `prove`, `uses`,
+commands `add`, `subject`, `attest`, `run`, `prove`, `uses`,
 `pin-item`, `pin-question`, `pin-answer`, `pin-request`, and `apply-pending`
 read it first. With no lock file, the command writes `writer.lock` (one line
 `WRITER TIME`) and goes on. When the same writer holds it, the command renews
@@ -1463,21 +1484,23 @@ Typical tickets have 1–20 claims. The speed work has these parts:
 
 A KB can add its own vocabulary without a change to the library.
 
-1. Add the facts of a new fact predicate: the first use declares it (W7). Or
-   declare it first with `orbit-kb declare`, to give it a doc and types.
+1. Add the facts of a new fact predicate: the first use declares it (W7). Give it
+   a one-line description in that first add: `--doc TEXT` (W9 names a kind with none).
 2. Declare each new rule predicate, helpers included, with
-   `orbit-kb declare --kind rule`.
+   `orbit-kb add "decl(rule, HEAD, 'DOC', '')"`.
 3. Write the rules in `rules.pl` in the KB directory.
 4. Run `orbit-kb lint`.
 
 A real example:
 
 ```text
-$ orbit-kb declare 'owner(ref(claim), text)' --doc 'The person who owns the claim.' --template 'claim @(1) is owned by @(2)'
-decl(fact, owner(ref(claim), text), 'The person who owns the claim.', 'claim @(1) is owned by @(2)').
-$ orbit-kb declare 'has_owner(ref(claim))' --kind rule --doc 'Some person owns the claim.'
+$ orbit-kb add "owner(c1, 'Ana')" --doc 'The person who owns the claim.'
+decl(fact, owner(term, term), 'The person who owns the claim.', '').
+first_use(owner/2, agent, '2026-11-09T10:00:00Z').
+owner(c1, 'Ana').
+$ orbit-kb add "decl(rule, has_owner(ref(claim)), 'Some person owns the claim.', '')"
 decl(rule, has_owner(ref(claim)), 'Some person owns the claim.', '').
-$ orbit-kb declare 'any_unowned' --kind rule --doc 'Some claim has no owner.'
+$ orbit-kb add "decl(rule, any_unowned, 'Some claim has no owner.', '')"
 decl(rule, any_unowned, 'Some claim has no owner.', '').
 ```
 
@@ -1490,14 +1513,10 @@ any_unowned :- claim(C, _, _), not has_owner(C).
 
 ```text
 $ orbit-kb lint
-W2 kb.pl:5: Local declaration of owner/2 (fact): The person who owns the claim. Review it.
-W2 kb.pl:6: Local declaration of has_owner/1 (rule): Some person owns the claim. Review it.
-W2 kb.pl:7: Local declaration of any_unowned/0 (rule): Some claim has no owner. Review it.
+W7 kb.pl:6: owner/2 was declared by its first use, by agent at 2026-11-09T10:00:00Z. Review the new predicate: is it needed, and is the name right? Its arguments have the type term.
+W2 kb.pl:8: Local declaration of has_owner/1 (rule): Some person owns the claim. Review it.
+W2 kb.pl:9: Local declaration of any_unowned/0 (rule): Some claim has no owner. Review it.
 Summary: 0 error(s), 3 warning(s).
-$ orbit-kb query any_unowned
-true
-$ orbit-kb add "owner(c1, 'Ana')"
-owner(c1, 'Ana').
 $ orbit-kb query any_unowned
 false
 ```
@@ -1512,12 +1531,12 @@ Lint lists each extension for a human to review:
 `orbit-kb show extensions` gives the same list in plain text. With
 `lint --strict`, these warnings make lint exit 1.
 
-`declare` refuses a name and arity that is declared anywhere:
+`add` of a `decl(rule, ...)` refuses a name and arity that is declared anywhere:
 
 ```text
-$ orbit-kb declare 'world(term)' --doc 'x'
+$ orbit-kb add "decl(rule, world(term), 'x', '')"
 Rejected. Nothing was written.
-world/1 is already declared in the core (/home/you/sagittarius/kb/share/orbit-kb/core.pl:77). Choose another name, or use the declaration that exists.
+Argument 1: world/1 is already declared in the core (/home/you/sagittarius/kb/share/orbit-kb/core.pl:77). Choose another name, or use the declaration that exists.
 ```
 
 ### Writing a new module
@@ -1559,7 +1578,7 @@ The rules for a module:
 
 Reserved names:
 
-- `declare` refuses these names: `decl`, `attest_type`, `uses`, `not`, `true`,
+- `add` of a rule declaration refuses these names: `decl`, `attest_type`, `uses`, `not`, `true`,
   `false`, `forall`, `call`, `is`, and the operators `=`, `\=`, `<`, `>`, `=<`,
   `>=`, `,`, `;`, `->`, `:-`, `#`, `\+`, `-`, `#=`, `#<>`, `#<`, `#>`, `#=<`,
   `#>=`. Until D20, it also refused `proved`, `chs`, `assume`, and `abduced`,
@@ -1875,7 +1894,7 @@ Changes in contract v2.1:
     burn is open again. `report` shows a waived claim as `NOT PROVED`.
   - A check of the code against the Lean model is optional
     (`conformance/1`, `conforms/1`).
-  - `declare` refused `proved`, `chs`, `assume`, and `abduced`. A rule named
+  - the old `declare` refused `proved`, `chs`, `assume`, and `abduced`. A rule named
     `proved/1` broke the s(CASP) compile. (Superseded by D20: the names are free.)
 
 The speed work (also on 2026-10-16) did not change any answer:
@@ -1976,7 +1995,8 @@ Known gaps:
   change (golden files in the tests). `--open` opens the page only when given.
 - **D22 (the spec KB, 2026-11-05).** Ticket T03 of the redesign. `add`
   declares a new predicate by its first use (`first_use/3`, lint W7), and lint
-  error E19 is the typo guard. `declare` is optional. The command for local
+  error E19 is the typo guard. (T26 removed `declare`: the first `add` of a kind
+  takes `--doc`.) The command for local
   attestation types and the fact `depends/2` are gone; `to_ask/1` now asks
   only the questions of a contested claim. New: `blocking/1` (one kind per
   item that blocks `done`), `due/2`, `show blocking`, `pin`, and the phases in

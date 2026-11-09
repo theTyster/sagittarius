@@ -239,7 +239,7 @@ t_PK7() { [ -f "$LIB/README.md" ] || { note "no README.md in $LIB"; return; }
           lock=$(readme_part '^### Locking' '^##? ')
           for c in writer.lock ORBIT_KB_WRITER CLAUDE_SESSION_ID --take release; do
               printf '%s\n' "$lock" | grep -Fq -- "$c" || note "README Locking does not name $c"; done
-          for c in add declare subject attest run prove uses pin-item; do
+          for c in add subject attest run prove uses pin-item; do
               printf '%s\n' "$lock" | grep -Fq -- "$bt$c$bt" || note "README Locking does not list the locked command $c"; done; }
 
 # ================================================================ c2: stale pins
@@ -882,7 +882,7 @@ t_PT9() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "deci
 t_PF1() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "decided_by(d2, ann, '$T2')" "supersedes(d2, d1)" \
                  "note(d1, 'Kept for the history')" "decision(d3, 'Retry an export three times')" "note(d3, 'Stays')"
           okb --dir "$K" attest disclosure d1 "other('The old export was a guess')"; rc_is 0 "setup: an attestation about d1"
-          okb --dir "$K" declare 'tag(ref(decision), text)' --doc 'A tag of a decision.'; rc_is 0 "setup: a local fact kind"
+          printf "decl(fact, tag(ref(decision), text), 'A tag of a decision.', '').\n" >> "$K/kb.pl"   # setup: a local fact kind (as an older KB has it)
           padd "tag(d1, 'legacy')" "tag(d3, 'current')" >/dev/null; rc_is 0 "setup: tags"
           okb --dir "$K" lint; rc_is 0 "setup: lint is clean before the archive"
           okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "archive"; out_has '(^|[^a-z0-9])d1([^a-z0-9]|$)' "names d1"
@@ -972,8 +972,7 @@ t_PF7() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "deci
                  "decision(d3, 'Retry an export three times')"
           okb --dir "$K" attest disclosure d1 "other('The old export was a guess')" --id a90; rc_is 0 "setup: an attestation about d1"
           okb --dir "$K" attest disclosure d3 "other('Retry is fine')" --id a91; rc_is 0 "setup: an attestation about d3"
-          okb --dir "$K" declare 'seen(id, ref, text)' --doc 'A reader saw a record.'; rc_is 0 "setup: a fact with an id that names any id"
-          okb --dir "$K" declare 'ack(ref, text)' --doc 'A reader acknowledged a record.'; rc_is 0 "setup: a fact that names any id"
+          printf "decl(fact, seen(id, ref, text), 'A reader saw a record.', '').\ndecl(fact, ack(ref, text), 'A reader acknowledged a record.', '').\n" >> "$K/kb.pl"   # setup: a fact with an id, and a fact, that name any id
           padd "seen(sn1, a90, 'Read by ann')" "ack(sn1, 'ok')" "seen(sn2, a91, 'Read by ann')" "ack(sn2, 'ok')" >/dev/null; rc_is 0 "setup: a chain a90 <- sn1 <- ack"
           okb --dir "$K" lint; rc_is 0 "setup: lint is clean before the archive"
           okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "archive"

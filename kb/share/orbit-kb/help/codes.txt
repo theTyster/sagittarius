@@ -3,7 +3,8 @@ Each message ends with the fix. Read it. orbit-kb lint --strict makes warnings e
 
 Core
   E1   syntax error. Query, why, whynot, show, and report exit 2.
-  E2   undeclared predicate or wrong arity. Declare it: orbit-kb declare.
+  E2   undeclared predicate or wrong arity. Fix the name, or add a fact of the new kind:
+       orbit-kb add 'FACT' --doc TEXT.
   E3   type error (also a label outside oneof)
   E4   dangling reference: the id does not exist, or is the wrong kind (also depends_on, excludes, ratified_by of the project module).
        supersedes takes two claims, or two hypotheses, or (project module) two decisions, two definitions, or two rules.
@@ -38,6 +39,8 @@ Core
   W8   the request text changed at its source (request_pin, T27): read the tracker item. A human
        accepts the new text with orbit-kb pin-request --request-file F --accept --by human.
        It also blocks done (request_stale) until then.
+  W9   a fact kind of kb.pl with no description (T26). Give one in the first add of a new kind:
+       orbit-kb add 'FACT' --doc TEXT. orbit-kb show kinds names each such kind.
 
 Discovery module
   WD1  a conflict, surprise, or scope finding raised no question. Ask one.
