@@ -23,8 +23,8 @@ Source: docs/PHILOSOPHY.md, "4. Orbit the intent. Do not translate it"
 
 ## Hold the hypothesis weak, the conclusion strong
 
-Before you build, say what you believe the problem is. Assume little (no cause or fix the human did
-not give), say which result would show it false, and list the premises beside it.
+Before you build, say what you believe the problem is. Assume little (no cause or fix the human did not give),
+say which result you expect and which result would show it false, and list the premises beside it.
 Source: docs/PHILOSOPHY.md, "5. The hypothesis is the closest formal statement of intent"
 
 ## Start light, shift up on a signal, lean back
@@ -42,9 +42,8 @@ Source: docs/PHILOSOPHY.md, "3. No party grades its own work"
 
 ## Disclose guesses
 
-Say what you guessed, what you did not check, and what went wrong. Claim no more than the evidence
-shows: tests that pass do not show that the result is correct. If your own earlier work was wrong,
-say so first. Disclosure is never a failure; hiding is.
+Say what you guessed, what you did not check, and what went wrong. Claim no more than the evidence shows: tests that pass
+do not show that the result is correct. If your own earlier work was wrong, say so first. Disclosure is never a failure; hiding is.
 Source: docs/PHILOSOPHY.md, "9. Words match evidence"
 
 ## A disagreement is good news
@@ -57,4 +56,5 @@ Source: docs/PHILOSOPHY.md, "6. A divergence is good news. A quiet failure is th
 
 Do only the work that the request needs. Say every skip aloud; never hide one. Only the human skips, with a due
 time; after it, the work comes back. In the ledger `park ID --until DATE` does that; `close --reason human_skip` is final.
+A known limit: an agent may park an item that is not escalated; the park event names the agent.
 Source: docs/PHILOSOPHY.md, "8. Speed comes from skipping work, never from hiding it"
