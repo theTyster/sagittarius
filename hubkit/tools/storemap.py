@@ -66,7 +66,7 @@ INFORMAL = {
     "models": ("bespoke", "A model that a tool or a test of this hub encodes stays with that tool, listed in `TECHNOLOGIES.md`."),
     "outbound": ("weeks", "Text for the tracker or for people, drafted in `W0/outbound-staging/`. A human sends."),
     "product_rules": ("memory", "In the decisions file, or a root file such as `PRODUCT.md` that `CLAUDE.md` imports."),
-    "raw_reports": ("weeks", "Raw reports in `W*/reports/` and meeting transcripts in `W*/transcripts/`; `hubflow.py index-transcripts` puts the transcripts in the ledger for lookup."),
+    "raw_reports": ("weeks", "Raw reports in `W*/reports/` and meeting transcripts in `W*/transcripts/`; an agent that reads a transcript records what is needed in the ledger with a `transcript:` ref (`hubflow.py transcripts --files`)."),
     "repos": ("memory", "The \"Repos\" section of the hub's `CLAUDE.md`."),
     "request": ("tracker", "The ticket's request and the human's answers, in the tracker item. The ledger holds its pointer."),
     "routing": ("ledger", "Who owns each item, who it waits on, links and holds: `--owner`, `--waits-on`, `link`, `park`."),

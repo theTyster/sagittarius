@@ -40,11 +40,14 @@ Ty makes the release. This entry lists what is in the `redesign` branch. The hub
   on the PATH. `HUB-CORE.md` "Without orbit-kb" says what changes and where each fact kind of the
   spec and project KBs is kept. `PRINCIPLES.md` brings the philosophy into each hub. `sessions/`
   left the kit; named sessions are set up outside the hub. The kit is named the hub kit.
-- Meeting transcripts (T28, hub kit 0.4.0, db schema 3): `hubflow.py index-transcripts` also reads
-  the Markdown and plain-text meeting transcripts in `W*/transcripts/`: one summary per file and
-  one row per speaker turn or paragraph, with its line. `transcripts --detail ID` shows the turns,
-  `transcripts --grep TEXT` finds them with file and line, and `rotate --yes` rebuilds the index,
-  so a retired week's rows go with it.
+- Meeting transcripts (hub kit 0.4.0, db schema 4): an agent, not code, puts what a meeting
+  transcript needs into the ledger (Ty: "Its the job of the agent to parse the transcripts and put
+  whats needed into the ledger. Not code."). An item points to a transcript with a
+  `transcript:NAME@sha256:HEX` ref, and `hubflow.py transcripts --find` finds the file in whichever
+  W slot holds it; `transcripts --files` lists the week files with their refs. A new `summary`
+  item kind lapses by itself at the first rotation when it is 28 days old, with no triage. The
+  T28 meeting parser, its tables and `transcripts --grep` are gone; `index-transcripts` indexes
+  Claude Code sessions only, and `rotate --yes` rebuilds that index.
 
 ### Not in this release yet
 

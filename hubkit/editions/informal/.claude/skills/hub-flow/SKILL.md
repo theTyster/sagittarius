@@ -40,6 +40,7 @@ No identity → exit 1. `--by human` only records a human's own words and needs 
 | `thread` | T- | a live problem this session is carrying |
 | `hold` | K- | something deliberately paused; `park --until` keeps it off the triage list |
 | `handoff` | H- | work passed to another session (`handoff --to`) |
+| `summary` | S- | a short note of a meeting transcript you read (see Transcripts); it lapses by itself |
 
 Statuses: `open`, `waiting`, then `done`, `dropped`, `lapsed` (closed).
 
@@ -54,8 +55,8 @@ $HF view v_stale                            # idle ≥14 d (warn), ≥28 d (laps
 $HF view v_dup_refs                         # one ticket on several open items: merge or link them
 $HF show A-0007                              # one item, with its events
 $HF sql "SELECT …"                           # read-only; one SELECT/WITH only
-$HF transcripts [--detail <id>]             # the transcript index: summary, then messages or turns
-$HF transcripts --grep "conveyor"           # meeting turns that say it, with file and line
+$HF transcripts [--detail <session id>]     # the Claude Code session index: summary, then user messages
+$HF transcripts --files                     # the week transcript files, each with its transcript: ref
 ```
 
 Read at session start and after every compaction: the db is the memory, not the conversation.
@@ -95,7 +96,7 @@ and the evidence. The maker closes the item only after a pass.
 
 ## Ageing and triage
 
-Nothing lapses by itself. An open item not renewed for 28 days, and not parked through today, is
+No work item lapses by itself. An open item not renewed for 28 days, and not parked through today, is
 **due**. At a rotation each due item needs one recorded disposition, and `rotate` exits 1 and lists
 the `untriaged` items until each has one:
 
@@ -127,12 +128,24 @@ them. The `hub-rotate` skill runs `rotate`.
 `$HF index-transcripts W0` reads the Claude Code JSONL transcripts under a week dir into the
 ledger: per session the first and last time, the first user message, message and tool counts,
 and the path; plus each user message cut to 200 characters. It never stores a whole transcript,
-and a rerun gives the same rows. It also reads the meeting transcripts (`.md`, `.txt`) in the week's
-`transcripts/`: per file the title, date, speakers and first lines, and one row per speaker turn
-(a line `Name: text` or `**Name:** text`), or per paragraph when no speaker is marked, with its
-line in the file. Read `$HF transcripts` first, then `--detail <id>`, then the file itself only if
-you still need it. `$HF transcripts --grep TEXT` finds the meeting turns that say TEXT, with file
-and line. `rotate --yes` rebuilds the index of W0..W5, so a retired week's rows go with it.
+and a rerun gives the same rows. Read `$HF transcripts` first, then `--detail <id>`, then the file
+itself only if you still need it. `rotate --yes` rebuilds this index from W0..W5, so a retired
+week's rows go with it.
+
+Code never parses a meeting transcript. When you read one, put what is needed into the ledger
+yourself: open work as normal items (asks, threads, holds, handoffs), a short `summary` row, or
+what else you judge useful. Point each one at the transcript with a `transcript:` ref: the file
+name and its sha256, which `$HF transcripts --files` prints for each file in `W*/transcripts/`.
+The ref still works after a rotation moves the file: `$HF transcripts --find NAME@sha256:HEX`
+prints where the file is now, and exits 1 when the file changed or left the hub. Decisions go to the decisions file, not the ledger.
+
+```
+$HF add summary --title "Standup 11-02: conveyor date moved to Friday" --ref transcript:standup.md@sha256:<hex>
+```
+
+A `summary` row is not work. It is never due and never blocks `rotate`: the first rotation when it
+is 28 days old (counted from when it was added) lapses it, and lists it as `lapsed:`. It is then
+pruned like any closed item.
 
 ## Exit codes
 
