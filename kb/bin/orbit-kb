@@ -938,7 +938,7 @@ cmd_pin_answer(KB, Args, Code) :-
     % T37 c5: Text that is the text of the default (or of an agent's answer) is written as that term
     (   member(it(kb, _, _, TA, _, _), Items), nonvar(TA), TA = assumed(Q, Def), plain_text(Def, DefT), atom_string(Text, TextS), DefT == TextS
     ->  AnsT = Def
-    ;   AnsT = Text
+    ;   answer_text_term(Text, AnsT)             % T38 c12: a number stays a number
     ),
     maplist([Fa, A]>>( term_text(Fa, S), atom_string(A, S) ),
             [answer(Q, AnsT, human:Name), answer_pin(Q, Ref, D, Now)], FAs),
@@ -1420,8 +1420,18 @@ derived_items(Dir, KbItems, Items) :-
     sort(Ts50, Ts5),
     project_derived(Dir, KbItems, Ts6),
     request_derived(KbItems, Ts7),
-    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7], Ts),
+    verdict_derived(KbItems, Ts8),
+    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
+
+% verdict_derived(+KbItems, -Facts) (T38 c2): later_verdict(V) for each disproof verdict V on a
+% claim C that another disproof verdict on C follows in kb.pl. In a KB that uses build only.
+verdict_derived(KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(build, Uses), !,
+    findall(V-C, ( kb_term(KbItems, attest(V, disproof, _, P, _, _)), nonvar(P), P = verdict(C, _), ground(V-C) ), VCs),
+    findall(later_verdict(V), ( append(_, [V-C|Rest], VCs), member(_-C2, Rest), C2 == C ), Fs0),
+    sort(Fs0, Facts).
+verdict_derived(_, []).
 
 % request_derived(+KbItems, -Facts) (T27 c10): request_stale(R) for a request whose latest
 % request_pin (the last one in kb.pl) has a digest that is neither the digest of the request
@@ -2355,6 +2365,13 @@ protected_pi(verdict_not_independent/2).
 protected_pi(run_before_last_change/2).
 protected_pi(verdict_fresh_run/2).
 protected_pi(verification_recorded/0).
+protected_pi(claim_change/2).
+protected_pi(claim_served/1).
+protected_pi(has_claim_change/1).
+protected_pi(change_dated/1).
+protected_pi(undated_change/1).
+protected_pi(later_verdict/1).
+protected_pi(review_due/0).
 protected_pi(any_request_stale/0).
 protected_pi(subject_now/2).
 protected_pi(decision_digest/2).
@@ -3826,13 +3843,17 @@ view_context_html(Eng, Q, Html) :-
 
 % view_form_or_owner(+Eng, +Token, +Dir, +Q, +Texts, -Html) (T37 c5): no form while an answer to Q waits
 % in answers.pending (the pending list shows it), and none for a question that a tracker item owns
-% (the page shows the item; a POST would only get 409).
+% (the page shows the item; a POST would only get 409), or that a ledger ask owns (T38 c10: the
+% page names the ask).
 view_form_or_owner(Eng, Token, Dir, Q, Texts, Html) :-
     (   pending_for_question(Dir, Q)
     ->  Html = "<p class=\"waiting\">An answer to this question waits to be applied (see below). The form is back when it is applied.</p>"
-    ;   eng_all(Eng, [Ref], question_pin(Q, tracker, Ref, _, _), Refs), last(Refs, Ref1)
+    ;   eng_all(Eng, [K, Ref], question_pin(Q, K, Ref, _, _), Pins), last(Pins, [Kind, Ref1])
     ->  plain_text(Ref1, RT), esc(RT, RH),
-        format(string(Html), "<p class=\"owner\">This question is owned by the tracker item <span class=\"ref\">~w</span>. Answer it there; the answer is pinned with orbit-kb pin-answer.</p>", [RH])
+        (   Kind == ledger      % T38 c10: the ask owns it; its answer closes the ask and reaches this KB
+        ->  format(string(Html), "<p class=\"owner\">This question is owned by the ledger ask <span class=\"ref\">~w</span>. Answer the ask (in the hub, or in the asks of this page when the server reads the hub); the answer closes the ask and reaches this KB.</p>", [RH])
+        ;   format(string(Html), "<p class=\"owner\">This question is owned by the tracker item <span class=\"ref\">~w</span>. Answer it there; the answer is pinned with orbit-kb pin-answer.</p>", [RH])
+        )
     ;   view_answer_form(Token, Dir, Q, Texts, Html)
     ).
 
@@ -4216,6 +4237,17 @@ serve_answer_text(Form, Text, Note) :-
 serve_answer_term(Eng, Q, Text, A) :-
     (   eng_all(Eng, [D], assumed(Q, D), Ds), member(D1, Ds), plain_text(D1, DT), DT == Text -> A = D1
     ;   eng_all(Eng, [B, By], answer(Q, B, By), Bs), member([B1, agent], Bs), plain_text(B1, BT), BT == Text -> A = B1
+    ;   answer_text_term(Text, A)
+    ).
+
+% answer_text_term(+Text, -A) (T38 c12): a plain integer or decimal that prints back as the same
+% text is that number (5, -2.5); any other text is an atom (007, 1e3, 0x1F, 1.50).
+answer_text_term(Text0, A) :-
+    atom_string(Text0, Text),
+    (   re_match("^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"/'', Text),
+        catch(number_string(N, Text), _, fail),
+        format(string(Back), "~w", [N]), Back == Text
+    ->  A = N
     ;   atom_string(A, Text)
     ).
 
@@ -4278,7 +4310,7 @@ serve_answer_ask(IdS, Form, R) :-
 serve_text_term(Dir, Q, Text, A) :-
     (   catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_engine(KB, Eng), serve_answer_term(Eng, Q, Text, A0) ), _, fail)
     ->  A = A0
-    ;   atom_string(A, Text)
+    ;   answer_text_term(Text, A)
     ).
 
 serve_kb_pins_ask(Dir, Id, Qs) :-
@@ -4319,9 +4351,11 @@ serve_child(Script, W, Args, Exit, Err) :-
 % subject
 % ---------------------------------------------------------------------
 
+% T38 c1: the sha256 of the bytes of the file (encoding(octet)), so a digest equals sha256sum
+% also for non-ASCII and binary files. Before T38 the file was read as UTF-8 text.
 sha256_file(File, Digest) :-
     (   have_crypto,
-        catch(crypto:crypto_file_hash(File, Hex, [algorithm(sha256)]), _, fail)
+        catch(crypto:crypto_file_hash(File, Hex, [algorithm(sha256), encoding(octet)]), _, fail)
     ->  true
     ;   catch(( process_create(path(sha256sum), [File], [stdout(pipe(O)), stderr(null), process(P)]),
                 read_string(O, _, Out), close(O), process_wait(P, exit(0)) ), _, fail),
@@ -5877,7 +5911,11 @@ outbound_section(Eng, r(D, P, T, S)) :-
 request_text(File, Text) :-
     read_file_to_string(File, S0, [encoding(utf8)]),
     use_module(library(http/json)),
-    (   catch(atom_json_dict(S0, J, [value_string_as(string)]), _, fail), is_dict(J),
+    (   catch(atom_json_dict(S0, J0, [value_string_as(string)]), _, fail)
+    ->  req_unwrap(J0, J, Why)
+    ;   J = none, Why = none
+    ),
+    (   is_dict(J),
         req_field(J, [[title], [fields, 'System.Title'], [fields, summary], [name]], Title)
     ->  ( req_field(J, [[body], [description], [fields, 'System.Description'], [fields, description], [description_html]], B) -> Bs = [B] ; Bs = [] ),
         (   req_field(J, [[acceptance_criteria], [acceptanceCriteria], [acceptance],
@@ -5885,9 +5923,29 @@ request_text(File, Text) :-
         ->  string_concat("Acceptance criteria:\n", AC, ACT), ACs = [ACT] ; ACs = [] ),
         append([[Title], Bs, ACs], Parts),
         atomic_list_concat(Parts, '\n\n', Text)
-    ;   ( sub_string(S0, B0, 1, 0, "\n") -> sub_string(S0, 0, B0, _, S1) ; S1 = S0 ),
+    ;   ( Why \== none -> req_raw_warning(File, Why) ; true ),
+        ( sub_string(S0, B0, 1, 0, "\n") -> sub_string(S0, 0, B0, _, S1) ; S1 = S0 ),
         atom_string(Text, S1)
     ).
+
+% req_unwrap(+Json, -Item, -Why) (T38 c11): a list wrapper {count, value:[Item]} (ADO REST) with one
+% item gives the item. Why says why JSON may be read raw: a wrapper with N items, or JSON that is
+% no object; else none (the title decides).
+req_unwrap(J0, J, Why) :-
+    (   is_dict(J0), get_dict(value, J0, L), is_list(L)
+    ->  (   L = [J1], is_dict(J1) -> J = J1, Why = no_title
+        ;   length(L, N), J = J0, Why = wrapper(N)
+        )
+    ;   is_dict(J0) -> J = J0, Why = no_title
+    ;   J = none, Why = not_object
+    ).
+
+req_raw_warning(File, Why) :-
+    (   Why = wrapper(N) -> format(string(R), "it is a list wrapper {count, value} with ~w items, not one", [N])
+    ;   Why == not_object -> R = "it is JSON, but not an object"
+    ;   R = "no title was found (title, fields.System.Title, fields.summary, or name)"
+    ),
+    format(user_error, "Warning: the request text of ~w is its raw text: ~w. A change of any field (a state or a column) then changes the request. Give the JSON of one item.~n", [File, R]).
 
 % req_field(+Dict, +Paths, -String) (T37 c3): the first path (a list of keys, nested) that holds a
 % non-empty string. Paths cover the trackers in use: a plain item (title, body), ADO
@@ -5896,8 +5954,29 @@ request_text(File, Text) :-
 % a State or BoardColumn move changes no text.
 req_field(J, Paths, V) :-
     member(Path, Paths),
-    req_path(J, Path, V0), string(V0), V0 \== "",
+    req_path(J, Path, V1), req_value_text(V1, V0), string(V0), V0 \== "",
     !, V = V0.
+
+% req_value_text(+Value, -String) (T38 c11): a string is itself; an Atlassian Document Format doc
+% (Jira Cloud REST v3: {type: doc, content: [...]}) is its text, one line per block.
+req_value_text(V, V) :- string(V), !.
+req_value_text(D, S) :- is_dict(D), get_dict(type, D, "doc"), !, adf_text(D, S0), split_string(S0, "", "\n ", [S]).
+
+adf_text(N, S) :-
+    (   is_dict(N), get_dict(type, N, "text"), get_dict(text, N, T), string(T) -> S = T
+    ;   is_dict(N), get_dict(type, N, "hardBreak") -> S = "\n"
+    ;   is_dict(N), get_dict(attrs, N, A), is_dict(A), get_dict(text, A, T), string(T) -> S = T
+    ;   is_dict(N), get_dict(content, N, Ks), is_list(Ks)
+    ->  maplist(adf_text, Ks, Ss),
+        (   forall(member(K, Ks), adf_inline(K)) -> atomic_list_concat(Ss, '', A0)
+        ;   atomic_list_concat(Ss, '\n', A0)
+        ),
+        atom_string(A0, S)
+    ;   S = ""
+    ).
+
+adf_inline(K) :- is_dict(K), get_dict(type, K, T), memberchk(T, ["text", "hardBreak", "mention", "emoji", "inlineCard", "date", "status"]).
+
 
 req_path(V, [], V).
 req_path(D, [K|Ks], V) :- is_dict(D), get_dict(K, D, V1), req_path(V1, Ks, V).
@@ -5952,10 +6031,14 @@ cmd_pin_item(KB, Args, Code) :-
     (   kb_uses(KB, Us), memberchk(project, Us) -> true
     ;   usage_error("pin-item needs a KB that uses the project module.", [])
     ),
-    (   memberchk('--text-file'-File, Opts) -> true ; usage_error("pin-item needs --text-file F.", []) ),
     (   memberchk('--changed-at'-At, Opts) -> true ; usage_error("pin-item needs --changed-at T.", []) ),
     opt(Opts, '--kind', tracker, Kind),
     (   memberchk(Kind, [tracker, file]) -> true ; usage_error("--kind takes tracker or file. It is ~w.", [Kind]) ),
+    (   Kind == file
+    ->  pin_file_path(KB, Src, Opts, File)       % T38 c9: the digest is of the pinned file
+    ;   memberchk('--text-file'-File, Opts) -> true
+    ;   usage_error("pin-item needs --text-file F.", [])
+    ),
     (   atom_string(At, AtS),
         re_match("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"/'', AtS) -> true
     ;   usage_error("--changed-at takes a UTC time such as 2026-10-01T09:00:00Z. It is ~w.", [At])
@@ -5966,6 +6049,24 @@ cmd_pin_item(KB, Args, Code) :-
     cmd_add(KB, [Fact], Code),
     % T34 c4 (u114): a file pin keeps only its digest and its path, never a copy.
     (   Code == 0, Kind == tracker -> kb_dir(KB, Dir), keep_pin_text(Dir, Digest, File) ; true ).
+
+% pin_file_path(+KB, +Src, +Opts, -File) (T38 c9): the pinned file of a file pin: the file of
+% subject Src when Src is a subject of the KB, else the path Src. A --text-file must name the
+% same file; else exit 2 and nothing is written.
+pin_file_path(KB, Src, Opts, File) :-
+    kb_items(KB, Items),
+    (   kb_term(Items, subject(S, P, _)), S == Src, atom(P) -> subject_abs(KB, P, File0)
+    ;   File0 = Src
+    ),
+    (   exists_file(File0) -> File = File0
+    ;   usage_error("The pinned file ~w does not exist. SOURCE of a file pin is a path or a subject id.", [File0])
+    ),
+    (   memberchk('--text-file'-TF, Opts)
+    ->  (   exists_file(TF), same_file(TF, File) -> true
+        ;   usage_error("--text-file ~w is not the pinned file ~w. A file pin digests the pinned file: leave out --text-file, or name the same file.", [TF, File])
+        )
+    ;   true
+    ).
 
 % keep_pin_text(+Dir, +Digest, +File) (D27 c8): the pinned text is kept as
 % pins/HEX.txt in the project KB, HEX of the digest sha256:HEX. Content-addressed:
@@ -6047,6 +6148,7 @@ archive_date(D0, Date) :-
 % project_archive(+Dir, +Date, +RootOpt, -Code): remove what archive_set/5 gives.
 project_archive(Dir, Date, RootOpt, Code) :-
     lib_dir(Lib), load_kb(Dir, Lib, KB), project_kb_check(KB),
+    prune_spec_registry(Dir),                    % T38 c8: under the KB lock of the project KB
     kb_items(KB, All),
     include([I]>>( I = it(kb, _, _, _, _, _) ), All, Items),
     findall(X, ( member(it(_, _, _, T, _, _), Items), nonvar(T),
@@ -6072,9 +6174,40 @@ project_archive(Dir, Date, RootOpt, Code) :-
         length(LTs, NF),
         atomic_list_concat(Arch, ', ', AT),
         say("Archived (removed from kb.pl; git keeps them): ~w", [AT]),
-        say("~w facts removed.", [NF])
+        say("~w facts removed.", [NF]),
+        archive_unseen_warning(Dir, RootOpt)
     ),
     Code = 0.
+
+% archive_unseen_warning(+Dir, +RootOpt) (T38 c6): archive sees the spec KBs under the root and
+% those of spec_kbs.txt. A spec KB outside the root with no line (one that named this project KB
+% before T34) is not seen, so its pins keep nothing. Without --root, say so on stderr.
+archive_unseen_warning(_, some(_)) :- !.
+archive_unseen_warning(Dir, none) :-
+    absolute_file_name(Dir, PA), file_directory_name(PA, Root),
+    spec_registry_dirs(PA, RDs), length(RDs, N),
+    format(user_error,
+           "Warning: archive saw the spec KBs under ~w and the ~w in spec_kbs.txt. A spec KB outside ~w with no line in spec_kbs.txt (one that recorded project_kb before T34) is not seen, and its pins keep nothing. If one may exist, restore the removed facts from git and run archive again with --root DIR, a directory that holds every spec KB of this project.~n",
+           [Root, N, Root]).
+
+% prune_spec_registry(+Dir) (T38 c8): spec_kbs.txt keeps one line per spec KB that still has a
+% kb.pl, in its order; lines of gone KBs and repeated lines go. Called under the KB lock.
+prune_spec_registry(Dir) :-
+    absolute_file_name(Dir, PA), spec_registry_file(PA, F),
+    (   exists_file(F)
+    ->  read_file_to_string(F, S, [encoding(utf8)]),
+        split_string(S, "\n", " \t\r", Ls0),
+        exclude(==(""), Ls0, Ls),
+        spec_registry_dirs(PA, Ds0), list_to_set(Ds0, Ds),
+        length(Ls, NL), length(Ds, ND),
+        (   NL == ND -> true
+        ;   current_prolog_flag(pid, Pid), format(atom(Tmp), "~w.tmp-~w", [F, Pid]),
+            setup_call_cleanup(open(Tmp, write, O, [encoding(utf8)]),
+                               forall(member(D, Ds), format(O, "~w~n", [D])), close(O)),
+            rename_file(Tmp, F)
+        )
+    ;   true
+    ).
 
 % archive_set(+Cand, +Pinned, +Deps, -Arch) (D27 c9; Lean model kb/proofs/project_archive):
 % start from the candidates that no open spec KB pins, and drop each one that a
@@ -7478,7 +7611,9 @@ help_lines('pin-answer', [
 "human:NAME) and answer_pin(Q, REF, DIGEST, DATE). A ledger ask: --hub DIR (or $HUBFLOW_HUB);",
 "the answer is the note of the human close of the ask, and NAME is the owner of the hub. Exit",
 "1 while the ask has no answer. A tracker item: --text-file F holds the answer as the item has",
-"it, and --by NAME names who gave it. Nothing is fetched. It is a write (writer lock)."
+"it, and --by NAME names who gave it. Nothing is fetched. It is a write (writer lock).",
+"A is the default term when the text is its text; else a plain number (5, -2.5) is that",
+"number, and any other text (007, 1e3) is an atom. The question server does the same (T38)."
 ]).
 help_lines('pin-request', [
 "orbit-kb pin-request --request-file F [--accept --by human]",

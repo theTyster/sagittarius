@@ -42,6 +42,11 @@
 #   c5 self-relations are refused (EP2); a depends_on cycle is WP7 : PF5
 #   c6 an agent's ratified_by is refused at add (any case); help states the trust limit : PF6
 #   c1 (divergence a21) the removal closes over references: a fact that names a removed fact goes too : PF7
+# T38 (fixes found when T34 was verified; CONTRACT D27 R10):
+#   c6 archive warns and names --root when a pinning spec KB may be unseen : PF8
+#   c7 the refusal path of archive                                          : PF9
+#   c8 archive prunes spec_kbs.txt under the lock                           : PF10
+#   c9 pin-item --kind file digests the pinned file                         : PF11
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -985,6 +990,78 @@ t_PF7() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "deci
           for x in "attest(a91, _, _, _, _, _)" "seen(sn2, _, _)" "ack(sn2, _)" "decision(d3, _)"; do has_fact "$K/kb.pl" "$x" "kept"; done
           okb --dir "$K" lint; rc_is 0 "lint is clean after the archive"; out_hasnt '^E[0-9A-Z]' "no error"; }
 
+# ================================================================ T38
+# PF8 (T38 c6): a pinning spec KB outside the root with no line in spec_kbs.txt (one made before
+# T34). archive does not remove the pinned decision silently: when it removes facts without
+# --root, it warns on stderr and names --root; with --root over the spec KB, d1 stays.
+t_PF8() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "decided_by(d2, ann, '$T2')" "supersedes(d2, d1)"
+          local o d; o=$(mktemp -d "$base/PF8out.XXXXXX"); o=$(cd "$o" && pwd -P)
+          okb init "$o/spec" --request 'Build far away' --uses build,project >/dev/null 2>&1 || note "setup: init far spec failed"
+          K=$o/spec; d=$(tdigest 'Old export')
+          padd "project_kb('$T/pk')" "claim(c1, preserve, 'The far work holds')" "cites(c1, 'Build far away')" \
+               "check(k1, c1)" "pins(c1, project, d1, '$d')" >/dev/null; rc_is 0 "setup: the far spec KB pins d1"
+          rm -f "$T/pk/spec_kbs.txt"                       # the spec KB recorded its pin before T34: no line
+          K=$T/pk; cp "$K/kb.pl" "$T/kb.before"
+          okb --dir "$K" project archive --superseded-before "$T3"
+          if kbq "$K/kb.pl" "kb(decision(d1, _))" >/dev/null; then :
+          else printf '%s\n' "$err" | grep -Fq -- '--root' || note "d1 was removed and stderr does not name --root (stderr: $(snip "$err"))"
+               printf '%s\n' "$err" | grep -Fq 'spec_kbs.txt' || note "the warning does not name spec_kbs.txt (stderr: $(snip "$err"))"
+          fi
+          cp "$T/kb.before" "$K/kb.pl"
+          okb --dir "$K" project archive --superseded-before "$T3" --root "$o"; rc_is 0 "archive --root over the far spec KB"
+          has_fact "$K/kb.pl" "decision(d1, _)" "with --root, the open far spec KB keeps d1"
+          okb help project; out_has '[-][-]root' "help project names --root for archive"; }
+
+# PF9 (T38 c7): the refusal path of archive (T34 c1): a result with a new lint error is refused
+# with exit 1, the error is named, and kb.pl does not change.
+t_PF9() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "decided_by(d2, ann, '$T2')" "supersedes(d2, d1)"
+          okb --dir "$K" declare 'legacy(text)' --doc 'A name of the old export.'; rc_is 0 "setup: a local fact"
+          padd "legacy('d1')" >/dev/null; rc_is 0 "setup"
+          printf "lint_issue('E77', d1, 'the legacy name needs decision d1') :- legacy(_), not decision(d1, _).\n" > "$K/rules.pl"
+          okb --dir "$K" lint; rc_is 0 "setup: lint is clean before the archive"
+          cp "$K/kb.pl" "$T/kb.before"
+          okb --dir "$K" project archive --superseded-before "$T3"; rc_is 1 "archive is refused"
+          any_has 'E77' "the refusal names the new lint error"
+          same_file "$K/kb.pl" "$T/kb.before" "a refused archive leaves kb.pl byte for byte"
+          has_fact "$K/kb.pl" "decision(d1, _)" "d1 stays"; }
+
+# PF10 (T38 c8): archive prunes spec_kbs.txt under the lock of the project KB: lines of gone KBs
+# and repeated lines go.
+t_PF10() { t23_pk "decision(d1, 'Old export')"
+           local o; o=$(mktemp -d "$base/PF10out.XXXXXX"); o=$(cd "$o" && pwd -P)
+           local s; for s in s1 s2 s3; do
+               okb init "$o/$s" --request "Build $s" --uses build,project >/dev/null 2>&1 || note "setup: init $s failed"
+               K=$o/$s; padd "project_kb('$T/pk')" >/dev/null; rc_is 0 "setup: $s names the project KB"
+           done
+           K=$T/pk; local R=$K/spec_kbs.txt
+           [ "$(grep -c . "$R" 2>/dev/null)" = 3 ] || note "setup: spec_kbs.txt has $(grep -c . "$R" 2>/dev/null) lines, want 3"
+           printf '%s\n' "$o/s1" >> "$R"; rm -rf "$o/s2"
+           ORBIT_KB_WRITER=ann okb --dir "$K" add "note(d1, 'ann holds the lease')" >/dev/null; rc_is 0 "setup: ann writes"
+           cp "$R" "$T/reg.before"
+           ORBIT_KB_WRITER=bob okb --dir "$K" project archive --superseded-before "$T3"; rc_is 2 "bob's archive is refused while ann holds the lease"
+           same_file "$R" "$T/reg.before" "a refused archive does not prune"
+           ORBIT_KB_WRITER=ann okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "archive"
+           [ "$(sort "$R" | tr '\n' ' ')" = "$o/s1 $o/s3 " ] || note "spec_kbs.txt after the archive: [$(tr '\n' ' ' < "$R")], want $o/s1 and $o/s3 once each"; }
+
+# PF11 (T38 c9): pin-item --kind file digests the pinned file (a path, or the file of a subject),
+# and refuses a --text-file that names another file.
+t_PF11() { t23_pk; mkdir -p "$T/weeks/w45"; printf 'raw report of week 45\n' > "$T/weeks/w45/report.md"
+           printf 'something else\n' > "$T/other.txt"
+           local h; h=$(sha "$T/weeks/w45/report.md")
+           cp "$K/kb.pl" "$T/kb.before"
+           okb --dir "$K" pin-item p1 weeks/w45/report.md --kind file --text-file "$T/other.txt" --changed-at "$T1"
+           rc_is 2 "a --text-file that names another file is refused"; any_has 'other.txt' "the refusal names the other file"
+           same_file "$K/kb.pl" "$T/kb.before" "nothing is written"
+           okb --dir "$K" pin-item p1 weeks/w45/report.md --kind file --changed-at "$T1"; rc_is 0 "a file pin needs no --text-file"
+           has_fact "$K/kb.pl" "pin(p1, file, _, 'sha256:$h', _)" "the digest is of the pinned path"
+           okb --dir "$K" pin-item p2 weeks/w45/report.md --kind file --text-file "$T/weeks/w45/../w45/report.md" --changed-at "$T1"
+           rc_is 0 "a --text-file that names the same file"; has_fact "$K/kb.pl" "pin(p2, file, _, 'sha256:$h', _)"
+           okb --dir "$K" subject s1 "$T/weeks/w45/report.md"; rc_is 0 "setup: a subject"
+           okb --dir "$K" pin-item p3 s1 --kind file --changed-at "$T1"; rc_is 0 "a file pin of a subject id"
+           has_fact "$K/kb.pl" "pin(p3, file, s1, 'sha256:$h', _)" "the digest is of the file of the subject"
+           okb --dir "$K" pin-item p4 weeks/nope.md --kind file --changed-at "$T1"; rc_is 2 "a missing pinned file"
+           okb help project; out_has 'text-file' "help project names --text-file"; }
+
 # ================================================================ run
 run_test t_PK1 PK1 "T06 c1: init --uses project; every fact of the module is accepted"
 run_test t_PK2 PK2 "T06 c1: dangling refs and duplicate ids are refused (E4, E5)"
@@ -1058,6 +1135,10 @@ run_test t_PF4 PF4 "T34 c4: pin-item --kind file keeps no copy; show pin reports
 run_test t_PF5 PF5 "T34 c5: excludes(X, X) and depends_on(X, X) are EP2; a depends_on cycle is WP7"
 run_test t_PF7 PF7 "T34 c1 (a21): the removal closes over references; lint is clean after the archive"
 run_test t_PF6 PF6 "T34 c6: ratified_by by an agent is refused at add in any case; Who is self-declared"
+run_test t_PF8 PF8 "T38 c6: archive does not silently remove a decision that an unseen spec KB pins"
+run_test t_PF9 PF9 "T38 c7: a refused archive exits 1, names the error, and leaves kb.pl as it was"
+run_test t_PF10 PF10 "T38 c8: archive prunes spec_kbs.txt under the lock"
+run_test t_PF11 PF11 "T38 c9: pin-item --kind file digests the pinned file"
 NT=${#REG_ID[@]}
 for ((i = 0; i < NT; i++)); do exec_test "$i"; done
 echo "----"

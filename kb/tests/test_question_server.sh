@@ -26,6 +26,10 @@
 #   c4 the workflow text says when to pin (help build, help discovery, review.md)               : QS26
 #   c5 the page: no form while an answer waits; a tracker-owned question shows its item; refused shown; numbers stay numbers : QS25 (and QS24)
 #   c6 subagents of one pane count as one writer (help core, PANES.md)                          : QS26
+# T38 (fixes found when T37 was verified; D26 S13, D23 P9):
+#   c10 a ledger-pinned question has no form; the page names its ask                           : QS27
+#   c11 tracker JSON: Jira Cloud v3 ADF description; a {count, value:[item]} wrapper; no silent raw : QS28
+#   c12 the ask path (and pin-answer) keeps a numeric answer as a number                        : QS29
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -754,6 +758,117 @@ t_QS26() {  # T37 c4, c6: the workflow text says when to pin; subagents of one p
     grep -Fq 'CLAUDE_CODE_SESSION_ID' "$REPO/prompt/PANES.md" && grep -Fiq 'one writer' "$REPO/prompt/PANES.md" || note "PANES.md does not say that subagents of a pane count as one writer"
 }
 
+# ================================================================ T38 (fixes found when T37 was verified; D26 S13, D23 P9)
+t_QS27() {  # T38 c10: a question pinned to a ledger ask has no answer form; the page names its ask
+    mkhub "$T/h"; local A
+    A=$(hf "$T/h" --session build add ask --title 'Should the list show the newest invoice first' --waits-on me)
+    kb_a "$T/a"
+    okb --dir "$T/a" pin-question q1 ledger "$A"; rc_is 0 "pin-question to the ledger"
+    srv --dir "$T/a" --hub "$T/h" || return; page_ok || return
+    chk noform "$T/page.html" "$L_A" q1
+    chk ctx "$T/page.html" "$L_A" q1 "$A"
+    python3 -I - "$T/page.html" "$A" <<'PY' || note "q1 has no <p class=\"owner\"> that names the ask $A"
+import sys, re
+raw = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r'data-id="q1".*?(<p class="owner">.*?</p>)', raw, re.S)
+sys.exit(0 if m and sys.argv[2] in m.group(1) else 1)
+PY
+    local tok; tok=$(token)
+    post /answer "token=$tok" "ask=$A" 'text=no'; code_is 303 "the answer goes through the ask"
+    askjson "$T/h" "$A" "d['item']['status']=='done'"
+    has_goal "$T/a" "answer(q1, no, human:me)" "the ask's answer reaches the spec KB"
+    srv_stop
+    srv --dir "$T/a" || return; page_ok || return       # no hub: the page still names the ask, no form
+    hasnt_goal "$T/a" 'to_ask(q1)' "q1 is answered"
+    srv_stop
+    kb_a "$T/b"; okb --dir "$T/b" pin-question q1 ledger "$A"
+    srv --dir "$T/b" || return; page_ok || return
+    chk noform "$T/page.html" "$L_A" q1
+    chk ctx "$T/page.html" "$L_A" q1 "$A"
+    srv_stop
+}
+
+# req_has KB T...: the request/2 line of KB/kb.pl has each text T; !T: lacks it
+req_has() { local f=$1/kb.pl x l; shift; l=$(grep -E '^request\(r1, ' "$f")
+            for x in "$@"; do case $x in '!'*) printf '%s' "$l" | grep -Fq -- "${x#!}" && note "the request text has ${x#!}: $(snip "$l")";;
+                                        *) printf '%s' "$l" | grep -Fq -- "$x" || note "the request text lacks $x: $(snip "$l")";; esac; done; }
+t_QS28() {  # T38 c11: Jira Cloud v3 (ADF description) and a list wrapper {count, value:[item]}
+    local S
+    cat > "$T/jira3.json" <<'J'
+{"key": "WID-4", "fields": {"summary": "Export must be daily", "status": {"name": "To Do"},
+ "description": {"type": "doc", "version": 1, "content": [
+   {"type": "paragraph", "content": [{"type": "text", "text": "Send the export "}, {"type": "text", "text": "each day.", "marks": [{"type": "strong"}]}]},
+   {"type": "bulletList", "content": [{"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "One file per day"}]}]}]}]}}}
+J
+    S=$T/jira3; okb init "$S" --request-file "$T/jira3.json" --source 'jira:acme/WID-4' --uses build; rc_is 0 "jira v3: init --source"
+    req_has "$S" 'Export must be daily' 'Send the export each day.' 'One file per day' '!paragraph' '!"type"'   # jira v3: the text of the ADF description, not the raw JSON
+    sed -i 's/"To Do"/"Done"/' "$T/jira3.json"
+    okb --dir "$S" pin-request --request-file "$T/jira3.json"; rc_is 0
+    hasnt_goal "$S" 'request_stale(r1)' "jira v3: a status move is no change"
+    sed -i 's/each day\./each hour./' "$T/jira3.json"
+    okb --dir "$S" pin-request --request-file "$T/jira3.json"; rc_is 0
+    has_goal "$S" 'request_stale(r1)' "jira v3: an edit of the ADF description makes the request stale"
+    # an ADO list wrapper with one item
+    printf '{"count": 1, "value": [{"id": 7, "rev": 3, "fields": {"System.Title": "Export must be daily", "System.Description": "Send the export each day.", "System.BoardColumn": "Todo"}}]}\n' > "$T/ado.json"
+    S=$T/ado; okb init "$S" --request-file "$T/ado.json" --source 'ado:acme/7' --uses build; rc_is 0 "ado wrapper: init --source"
+    req_has "$S" 'Export must be daily' 'Send the export each day.' '!Todo' '!"count"'   # ado wrapper: the item is unwrapped, no column
+    sed -i 's/"Todo"/"Doing"/; s/"rev": 3/"rev": 4/' "$T/ado.json"
+    okb --dir "$S" pin-request --request-file "$T/ado.json"; rc_is 0
+    hasnt_goal "$S" 'request_stale(r1)' "ado wrapper: a BoardColumn move is no change"
+    # a wrapper with two items, and JSON with no title: read raw, never in silence
+    printf '{"count": 2, "value": [{"id": 7, "fields": {"System.Title": "A"}}, {"id": 8, "fields": {"System.Title": "B"}}]}\n' > "$T/two.json"
+    okb init "$T/two" --request-file "$T/two.json" --source 'ado:acme/7' --uses build
+    printf '%s\n' "$err" | grep -Eqi 'warn|raw' || note "a wrapper with two items is read raw in silence (stderr: $(snip "$err"))"
+    printf '{"id": 9, "labels": ["x"]}\n' > "$T/notitle.json"
+    okb init "$T/notitle" --request-file "$T/notitle.json" --source 'gh:acme/widgets#9' --uses build
+    printf '%s\n' "$err" | grep -Eqi 'warn|raw' || note "JSON with no title is read raw in silence (stderr: $(snip "$err"))"
+}
+
+t_QS29() {  # T38 c12: the ask path keeps a numeric answer as a number; any other text stays an atom
+    mkhub "$T/h"; local A B
+    A=$(hf "$T/h" --session build add ask --title 'How many retries' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --title 'Which build number' --waits-on me)
+    kb_new "$T/a" <<'EOF2'
+uses([build]).
+request(r1, 'Numbers must stay sane').
+claim(c1, preserve, 'Retries are bounded').
+cites(c1, 'Numbers must stay sane').
+question(q1, c1, 'How many retries').
+assumed(q1, 3).
+question(q2, c1, 'Which build number').
+assumed(q2, latest).
+question(q3, c1, 'How long is the backoff').
+assumed(q3, 2).
+attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
+EOF2
+    okb --dir "$T/a" pin-question q1 ledger "$A"; rc_is 0
+    okb --dir "$T/a" pin-question q2 ledger "$B"; rc_is 0
+    srv --dir "$T/a" --hub "$T/h" || return
+    page_ok || return; local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" 'Numbers must stay sane')
+    post /answer "token=$tok" "ask=$A" 'text=5'; code_is 303 "answer the ask with 5"
+    has_goal "$T/a" 'answer(q1, 5, human:me)' "the ask path keeps 5 as the number 5"
+    has_goal "$T/a" 'defeated(q1)' "5 defeats the default 3"
+    post /answer "token=$tok" "ask=$B" 'text=007'; code_is 303 "answer the ask with 007"
+    has_goal "$T/a" "answer(q2, '007', human:me)" "007 stays an atom (it does not print back as 007)"
+    post /answer "token=$tok" "kb=$kb" q=q3 choice=other 'text=2.5'; code_is 303 "the KB form with 2.5"
+    has_goal "$T/a" 'answer(q3, 2.5, human)' "the KB form keeps 2.5 as a number"
+    srv_stop
+    # pin-answer of the same kind of answer writes the same term
+    kb_new "$T/b" <<'EOF2'
+uses([build]).
+request(r1, 'Numbers must stay sane').
+claim(c1, preserve, 'Retries are bounded').
+cites(c1, 'Numbers must stay sane').
+question(q1, c1, 'How many retries').
+assumed(q1, 3).
+attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
+EOF2
+    okb --dir "$T/b" pin-question q1 tracker 'gh:acme/billing#7'; rc_is 0
+    printf '5\n' > "$T/ans.txt"
+    okb --dir "$T/b" pin-answer q1 'gh:acme/billing#7' --text-file "$T/ans.txt" --by alex; rc_is 0
+    has_goal "$T/b" 'answer(q1, 5, human:alex)' "pin-answer keeps 5 as a number"
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -764,6 +879,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 26); do run_one QS$n; done
+for n in $(seq 1 29); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

@@ -91,11 +91,14 @@ Commands
       open spec KB (done does not hold) pins it. A pinned or rested-on fact is never removed.
       DATE is a real date (2026-10-01) or UTC time; else exit 2. When the KB after the archive
       would have a lint error that it has not now, nothing is written (exit 1, the errors named).
-      git keeps what is removed. It is a write command (writer lock).
+      git keeps what is removed. It is a write command (writer lock). It prunes spec_kbs.txt
+      (lines of gone spec KBs). When it removes facts without --root, it warns that a spec KB
+      outside the root with no line in spec_kbs.txt is not seen: then pass --root DIR.
   orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]
       records the pin. A tracker pin keeps the pinned text as pins/HEX.txt (HEX of the digest), so
       a draft is an edit of that text. A file pin (--kind file, a week's report) keeps only its
-      digest and its path: never a copy.
+      digest and its path: never a copy. Its digest is of the pinned file (SOURCE: a path, or a
+      subject id); --text-file is optional, and must name the same file.
   orbit-kb --dir PROJECT show pin ID
       prints the pin and its kept text. Exit 1 when no text is kept (a file pin, or a pin made with
       add), and when the kept text does not match the digest of the pin (MISMATCH: it was edited).
