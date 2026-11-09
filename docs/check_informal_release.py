@@ -31,6 +31,7 @@ KREADME = os.path.join(KITDIR, "README.md")
 INSTR = os.path.join(KITDIR, "INSTRUCTIONS.md")
 UPGRADING = os.path.join(KITDIR, "UPGRADING.md")
 KIT = os.path.join(KITDIR, "kit.json")
+T24_VERSION = "0.4.0"  # the kit version of the informal release (T24); later releases have their own sections
 FACTS = os.path.join(KITDIR, "tools", "store-facts.json")
 FLOWTEST = os.path.join(HUB, ".claude", "scripts", "hubflow-test.py")
 PRINCIPLES = os.path.join(HUB, "PRINCIPLES.md")
@@ -268,8 +269,8 @@ def c4():
     sess = [p for p in paragraphs(kr) if re.search(r"\bsessions?\b", p, re.I) and re.search(r"launch|role|dotfiles|set up", p, re.I)]
     check("c4 at most one paragraph of hubkit/README.md is about setting up sessions", len(sess) <= 1, [p[:80] for p in sess])
     up = read(UPGRADING)
-    sec = section(up, kit["version"], "###")
-    has(f"c4 UPGRADING.md {kit['version']}", sec, "sessions/", "may keep its own", "sessions/ROLES")
+    sec = section(up, T24_VERSION, "###")  # the release that made T24; the kit version moved on (T36)
+    has(f"c4 UPGRADING.md {T24_VERSION}", sec, "sessions/", "may keep its own", "sessions/ROLES")
     cmd = re.findall(r'`(git -C "\$HUB" checkout [^`]*sessions/launch\.sh[^`]*)`', sec)
     check("c4 UPGRADING.md gives the command that keeps sessions/launch.sh", len(cmd) == 1, cmd)
     with tempfile.TemporaryDirectory(prefix="t24-c4-") as t:
@@ -324,7 +325,8 @@ def c6():
     cl = read(CHANGELOG)
     entry = [ln for ln in cl.splitlines() if "T24" in ln]
     check("c6 CHANGELOG.md has a T24 entry", bool(entry), "no line names T24")
-    check(f"c6 the CHANGELOG entry names hub kit {v}", any(v in ln for ln in entry) or (bool(entry) and v in cl[cl.find(entry[0]):cl.find(entry[0]) + 600]), entry)
+    t = T24_VERSION  # the T24 entry names the release that made T24 (T36 moved the kit on)
+    check(f"c6 the CHANGELOG entry names hub kit {t}", any(t in ln for ln in entry) or (bool(entry) and t in cl[cl.find(entry[0]):cl.find(entry[0]) + 600]), entry)
     stale = [x for x in re.findall(r"hub kit is version (\d+\.\d+\.\d+)", words(cl)) if x != v]
     check("c6 CHANGELOG.md names no older hub kit version as current", not stale, stale)
 
