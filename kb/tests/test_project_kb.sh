@@ -1014,8 +1014,7 @@ t_PF8() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "deci
 # PF9 (T38 c7): the refusal path of archive (T34 c1): a result with a new lint error is refused
 # with exit 1, the error is named, and kb.pl does not change.
 t_PF9() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "decided_by(d2, ann, '$T2')" "supersedes(d2, d1)"
-          okb --dir "$K" declare 'legacy(text)' --doc 'A name of the old export.'; rc_is 0 "setup: a local fact"
-          padd "legacy('d1')" >/dev/null; rc_is 0 "setup"
+          okb --dir "$K" add "legacy('d1')" --doc 'A name of the old export.' >/dev/null; rc_is 0 "setup: a local fact"
           printf "lint_issue('E77', d1, 'the legacy name needs decision d1') :- legacy(_), not decision(d1, _).\n" > "$K/rules.pl"
           okb --dir "$K" lint; rc_is 0 "setup: lint is clean before the archive"
           cp "$K/kb.pl" "$T/kb.before"
