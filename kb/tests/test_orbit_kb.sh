@@ -729,22 +729,29 @@ t_A20() { mkclaim; rejects conjunction 'own argument' add "risk(rk1, 'a'), risk(
 t_A21() { mkclaim; rejects noteid 'does not create' add "note(n1, 'a note')"; any_hasi 'note\(c1|r1|existing' "the message shows how to attach a note"; }
 t_A22() { mkclaim; rejects barelabel 'verdict\(CLAIM, tested\(100\)\)' attest lean_result c1 'tested(100)'; }
 
-# ================================================================ D: rule declarations by add (T26: the declare command is gone)
-# A decl(rule, ...) fact of add declares a rule predicate of rules.pl, and is checked as declare was.
+# ================================================================ D: rule heads (T26: the declare command is gone; add takes no decl term)
+# A head of rules.pl is declared by its first clause. Lint checks it as it checked a declared head.
 old_decl() { printf '%s\n' "$1" >> "$K/kb.pl"; }   # a decl/4 line as an older KB has it (declare wrote it)
-t_D1() { mkclaim; oadd "decl(rule, gizmo(id, text), 'A gizmo.', '@(1) is a gizmo called @(2)')"; rc_is 0
-         has_goal "$K/kb.pl" "kb(decl(rule, gizmo(id, text), _, T)), sub_atom(T, _, _, _, '@(1)')" "decl/4 line with the template"; }
-t_D2() { mkclaim; oadd "decl(rule, gizmo(id, text), 'A gizmo.', '')"; rc_is 0 first; cp "$K/kb.pl" "$T/.b"
-         oadd "decl(rule, gizmo(id, text), 'Again.', '')"; rc_is 1 second; same_file "$K/kb.pl" "$T/.b"; }
-t_D3() { mkclaim; rejects badtype 'type|unknown|banana' add "decl(rule, gizmo(banana), 'x', '')"; }
-t_D4() { mkclaim; oadd "decl(rule, claim(id), 'x', '')"; rc_is 0 "claim/1 is a new predicate: only an exact name and arity match is rejected"
-         has_fact "$K/kb.pl" "decl(rule, claim(id), _, _)" "decl line for claim/1"
-         cp "$K/kb.pl" "$T/.b"; oadd "decl(rule, claim(id, text, text), 'x', '')"; rc_is 1 "same name and arity as the core claim/3"; same_file "$K/kb.pl" "$T/.b"; }
+t_D1() { mkclaim; printf "okay(C) :- claim(C, _, _).\n" > "$K/rules.pl"
+         okb --dir "$K" lint; rc_is 0 "the first clause declares okay/1: no E2"; out_hasnt '^E' "no error"; out_has '^W9 rules\.pl:1.*okay/1' "W9: no doc comment"
+         is_true 'okay(c1)'; }
+t_D2() { mkclaim; printf "%%%% doc: A thing.\nokay(C) :- claim(C, _, _).\nokay(C) :- claim(C, _, _), world(C).\n" > "$K/rules.pl"
+         okb --dir "$K" lint; rc_is 0; out_hasnt '^W9' "the doc comment above the first clause is the doc"
+         okb --dir "$K" show kinds; out_has '^- okay/1 \(rule\): A thing\.' "the doc shows once"; [ "$(printf '%s\n' "$out" | grep -c 'okay/1')" = 1 ] || note "okay/1 is listed once"; }
+t_D3() { mkclaim; printf "not(C) :- claim(C, _, _).\n" > "$K/rules.pl"
+         okb --dir "$K" lint; rc_is 1 "a reserved name is not a head"; out_has '^E2 rules\.pl:1' "E2 at the head"; }
+t_D4() { mkclaim; printf "claim(C) :- current(C).\n" > "$K/rules.pl"
+         okb --dir "$K" lint; out_hasnt '^E2' "claim/1 is a new predicate: only an exact name and arity match is an extension"
+         printf "claim(C, T, X) :- current(C), T = a, X = b.\n" >> "$K/rules.pl"
+         okb --dir "$K" lint; out_has '^(E7|W6) ' "claim/3 is the core fact: its clause is flagged"; }
 # D5 (declare-attest then attest) went with D22: declare-attest is retired (RT1).
-t_D6() { mkclaim; oadd "decl(rule, okay(ref(claim)), 'A computed thing.', '')"; rc_is 0; has_fact "$K/kb.pl" "decl(rule, okay(ref(claim)), _, _)"
+t_D6() { mkclaim; printf "okay(C) :- claim(C, _, _).\n" > "$K/rules.pl"
          rejects rulefact 'rule' add "okay(c1)"
-         rejects factdecl '--doc' add "decl(fact, okay2(id), 'x', '')"
-         rejects reserved 'reserved' add "decl(rule, not(id), 'x', '')"; }
+         rejects ruledecl 'rules\.pl.*doc' add "decl(rule, okay2(id), 'x', '')"
+         rejects factdecl '--doc' add "decl(fact, okay2(id), 'x', '')"; }
+t_D8() { mkclaim; printf "pk(C) :- claim(C, _, _).\n" > "$K/rules.pl"; old_decl "decl(fact, pq(atom), 'A pq.', '')."
+         printf "pp(C) :- claim(C, _, _).\n" >> "$K/rules.pl"; okb --dir "$K" lint; rc_is 1 "a head 2 edits from a declared name is a typo"
+         out_has '^E19 rules\.pl:2.*pp/1' "E19 names the head"; }
 
 # ================================================================ AT: attest
 t_AT1() { mkclaim; okb --dir "$K" attest disclosure c1 "unverified('Not measured')"; rc_is 0; any_has 'a1'
@@ -945,7 +952,7 @@ t_X10() { # D20 review: forms of s(CASP) in kb.pl and in a goal; no E2 for #<; E
     okb --dir "$K" lint; rc_is 1; out_has '^E17 kb\.pl'; out_hasnt '^E7 ' "E17 only"
     q 'current(c1)'; rc_is 2 "no answer while kb.pl holds a constraint"
     mkclaim; q '-current(c1)'; rc_is 2; any_hasi 'classical negation' "a clear message for -p in a goal"; any_hasnt 'SWI ERROR'
-    printf 'q :- current(X), X #< 3.\n' > "$K/rules.pl"; okb --dir "$K" add "decl(rule, q, 'q', '')" >/dev/null
+    printf 'q :- current(X), X #< 3.\n' > "$K/rules.pl"; true
     okb --dir "$K" lint; rc_is 1; out_has '^E17 rules\.pl:1'; out_hasnt '^E2 ' "no E2 for #<"
     printf 'superseded(C) :- current(C).\n' > "$K/rules.pl"
     okb --dir "$K" lint; rc_is 1; out_has '^E18 rules\.pl:1' "E18 names the rules.pl clause that closes the cycle"; }
@@ -2638,11 +2645,12 @@ run_test t_A17 A17 "add rejects a writer that is not allowed"
 run_test t_A20 A20 "add says to give each fact as its own argument"
 run_test t_A21 A21 "add explains that a ref argument names an existing id, as in note(Id, Text)"
 run_test t_A22 A22 "attest with only an inner label shows the whole predicate"
-run_test t_D1 D1 "add of decl(rule, ...) appends decl/4 with the template"
-run_test t_D2 D2 "add of decl(rule, ...) twice exits 1"
-run_test t_D3 D3 "decl(rule, ...) with an unknown type exits 1"
-run_test t_D4 D4 "decl(rule, ...): a new arity of a core name is accepted, the same name and arity exits 1"
-run_test t_D6 D6 "decl(rule, ...) rejects facts for it, refuses decl(fact, ...) and reserved names"
+run_test t_D1 D1 "T26: the first clause of a rules.pl head declares it (no E2, W9 without a doc comment)"
+run_test t_D2 D2 "T26: the %% doc: comment above the first clause is the doc of the head"
+run_test t_D3 D3 "T26: a reserved name is not a rules.pl head (E2)"
+run_test t_D4 D4 "T26: a new arity of a core name is a new head; the core arity is an extension"
+run_test t_D6 D6 "T26: add refuses facts of a rule head and every decl(...) term"
+run_test t_D8 D8 "T26: a rules.pl head within 2 edits of a declared name is E19"
 run_test t_AT1 AT1 "attest generates id a1 and the UTC time"
 run_test t_AT2 AT2 "attest takes the next free id"
 run_test t_AT3 AT3 "approval by agent is rejected"

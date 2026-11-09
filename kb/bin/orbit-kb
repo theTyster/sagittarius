@@ -1372,7 +1372,50 @@ load_kb(Dir, Lib, kb(Dir, Lib, Uses, Items)) :-
     directory_file_path(Dir, 'rules.pl', RulesFile),
     read_source_file(rules, RulesFile, RuleItems),
     derived_items(Dir, KbItems, DerivedItems),
-    append([CoreItems, ModItems, KbItems, RuleItems, DerivedItems], Items).
+    append([CoreItems, ModItems, KbItems], Prior),
+    rules_decl_items(RulesFile, Prior, RuleItems, RuleDecls),
+    append([CoreItems, ModItems, KbItems, RuleDecls, RuleItems, DerivedItems], Items).
+
+% rules_decl_items(+File, +PriorItems, +RuleItems, -DeclItems) (T26): a head
+% of rules.pl that no decl/4 line of the core, a module, or kb.pl declares
+% is declared by its first clause, as a fact kind is by its first use. Each
+% argument has the type term. The doc is the text of a line
+%   %% doc: TEXT
+% just above the first clause of the head, else ''. A reserved name gets no
+% declaration (lint E2 reports it). The other lint checks of a head (E7,
+% E16, W6) are those that an explicit declaration had.
+rules_decl_items(File, Prior, RuleItems, DeclItems) :-
+    items_decls(Prior, Ds),
+    (   exists_file(File)
+    ->  read_file_to_string(File, Text, [encoding(utf8)]),
+        split_string(Text, "\n", "", Lines)
+    ;   Lines = []
+    ),
+    rules_decls_(RuleItems, Ds, Lines, [], DeclItems).
+
+rules_decls_([], _, _, _, []).
+rules_decls_([I|Is], Ds, Lines, Seen, Out) :-
+    (   I = it(rules, F, L, T, _, _), nonvar(T),
+        item_head_pi(I, N/A), atom(N), \+ reserved_name(N),
+        \+ memberchk(N/A, Seen), \+ decl_of(Ds, N, A, _),
+        clause_parts(T, H0, _), callable(H0), H0 \= -(_)
+    ->  length(Ts, A), maplist(=(term), Ts), H =.. [N|Ts],
+        doc_above(Lines, L, Doc),
+        Out = [it(rules, F, L, decl(rule, H, Doc, ''), [], 0-0)|Out1],
+        Seen1 = [N/A|Seen]
+    ;   Out = Out1, Seen1 = Seen
+    ),
+    rules_decls_(Is, Ds, Lines, Seen1, Out1).
+
+doc_above(Lines, L, Doc) :-
+    L1 is L - 1,
+    L1 >= 1, nth1(L1, Lines, S0),
+    split_string(S0, "", " \t\r", [S]),
+    sub_string(S, 0, _, After, "%% doc:"), !,
+    sub_string(S, _, After, 0, Rest0),
+    split_string(Rest0, "", " \t", [Rest]),
+    atom_string(Doc, Rest).
+doc_above(_, _, '').
 
 % derived_items(+Dir, +KbItems, -Items) (D10): facts that orbit-kb
 % computes from the disk and the clock each time it reads the KB.
@@ -2293,7 +2336,7 @@ head_diags(Ds, Src, F, L, H0, Diags) :-
     ;   functor(H, N, A),
         (   \+ decl_of(Ds, N, A, _)
         ->  undeclared_msg(Ds, N, A, M0),
-            fmt(M, "Head: ~w Declare a rule predicate with orbit-kb add \"decl(rule, HEAD, 'DOC', '')\".", [M0]),
+            fmt(M, "Head: ~w The name may be reserved. A head of rules.pl is declared by its first clause: choose another name.", [M0]),
             Diags = [diag('E2', F, L, M)]
         ;   decl_of(Ds, N, A, d(_, _, Kind, _, _, _, DSrc, _, _)),
             (   Kind == fact
@@ -2744,11 +2787,12 @@ answer_gate(KB) :-
                      rule_item_diags(Ds, I, D0),
                      member(D, D0), D = diag('E2', _, _, _) ),
                 E2s),
+        e19_rule_diags(Ds, E19s),
         findall(D, ( member(I, Items), e17_diags(I, D0), member(D, D0) ), E17s),
         e18_diags(Items, Ds, E18s)
-    ;   E2s = [], E17s = [], E18s = []
+    ;   E2s = [], E19s = [], E17s = [], E18s = []
     ),
-    append([E1s, E2s, E17s, E18s], Bad),
+    append([E1s, E2s, E19s, E17s, E18s], Bad),
     (   Bad == []
     ->  true
     ;   findall(S, ( member(diag(C, F, L, M), Bad), show_loc(F, L, LT),
@@ -2758,6 +2802,8 @@ answer_gate(KB) :-
         ->  Why = "A source file has a syntax error. orbit-kb drops a clause that does not parse, so an answer could be wrong."
         ;   E2s \== []
         ->  Why = "rules.pl names a predicate that is not declared. Its clauses cannot take part, so an answer could be wrong."
+        ;   E19s \== []
+        ->  Why = "A head of rules.pl looks like a typo of a declared predicate. Its clauses may not reach the rule you mean, so an answer could be wrong."
         ;   E17s \== []
         ->  Why = "A source uses a form that orbit-kb does not read. The engine skips that clause, so an answer could be wrong."
         ;   Why = "The rules are not stratified, so negation as failure has no single answer."
@@ -3290,12 +3336,7 @@ cmd_add(KB, Args, Code) :-
     findall(R, ( nth1(I, Pos, A), add_item(ATs, I, A, R) ), Rs),
     findall(M, member(err(M), Rs), Errs),
     (   Errs \== [] -> reject(Errs) ; true ),
-    findall(It, member(ok(It), Rs), NewItems0),
-    % T26: a decl(rule, ...) argument declares a rule predicate. add_item
-    % checked it. It is written ahead of the facts.
-    partition([it(_, _, _, T0, _, _)]>>( nonvar(T0), T0 = decl(_, _, _, _) ), NewItems0, RuleDecls, NewItems),
-    findall(E, ( member(RD, RuleDecls), rule_decl_errs(KB, RD, Es0), member(E, Es0) ), RDErrs),
-    (   RDErrs \== [] -> reject(RDErrs) ; true ),
+    findall(It, member(ok(It), Rs), NewItems),
     % D22: a fact whose name is declared nowhere declares its predicate by
     % its first use. The decl/4 lines take part in the checks of the batch.
     first_use_pis(KB, NewItems, FUs),
@@ -3311,9 +3352,7 @@ cmd_add(KB, Args, Code) :-
     ;   true
     ),
     utc_now(Now),
-    add_lines(NewItems, FUs, Doc, By, Now, [], Lines0),
-    findall(RL, ( member(it(_, _, _, RT, _, _), RuleDecls), clause_line(RT, [], RL) ), RuleLines),
-    append(RuleLines, Lines0, Lines),
+    add_lines(NewItems, FUs, Doc, By, Now, [], Lines),
     append_lines(KbFile, Lines),
     forall(member(L, Lines), format("~w~n", [L])),
     ignore(catch(register_spec_kb(Dir, NewItems), _, true)),   % T34 c2
@@ -3416,9 +3455,9 @@ add_item(ATs, I, A, R) :-
         R = err(M)
     ;   P = ok(T, VN),
         (   nonvar(T), T = decl(rule, _, _, _)
-        ->  R = ok(it(new, '<arg>', I, T, VN, 0-0))
+        ->  fmt(M, "Argument ~w is a declaration of a rule predicate. add takes no declaration. Write the rule in rules.pl: its first clause declares the head. Put its description in a line above that clause: %% doc: TEXT.", [I]), R = err(M)
         ;   nonvar(T), T = decl(_, _, _, _)
-        ->  fmt(M, "Argument ~w is a declaration of a fact kind. Add a fact of the new kind instead, with its description: orbit-kb add 'FACT' --doc TEXT.", [I]), R = err(M)
+        ->  fmt(M, "Argument ~w is a declaration of a fact kind. add takes no declaration. Add a fact of the new kind instead, with its description: orbit-kb add 'FACT' --doc TEXT.", [I]), R = err(M)
         ;   nonvar(T), T = attest_type(_, _, _, _)
         ->  fmt(M, "Argument ~w is an attestation type. orbit-kb add does not declare attestation types. Use a type that orbit-kb help core or a module topic lists.", [I]), R = err(M)
         ;   nonvar(T), T = uses(_)
@@ -3447,30 +3486,6 @@ reserved_name(N) :-
     memberchk(N, [decl, attest_type, uses, not, true, false, forall, call, is,
                   '=', '\\=', '<', '>', '=<', '>=', ',', ';', '->', ':-', '#', '\\+', '-',
                   '#=', '#<>', '#<', '#>', '#=<', '#>=']).
-
-% rule_decl_errs(+KB, +Item, -Errs) (T26): add takes decl(rule, Head, Doc,
-% Template) for a rule predicate of rules.pl. The checks are those that the
-% declare command made.
-rule_decl_errs(KB, it(_, _, I, decl(rule, H, Doc, Tpl), _, _), Errs) :-
-    (   \+ ( ground(H), callable(H), H \= -(_) )
-    ->  fmt(M, "Argument ~w: the head of a rule declaration must be a name with types, such as has_owner(ref(claim)). It cannot have variables or a minus sign.", [I]), Errs = [M]
-    ;   \+ ( atom(Doc), atom(Tpl) )
-    ->  fmt(M, "Argument ~w: the doc and the template of a declaration must be text in single quotes.", [I]), Errs = [M]
-    ;   H =.. [N|Ts], length(Ts, A),
-        (   reserved_name(N)
-        ->  fmt(M, "Argument ~w: the name ~w is reserved. Choose another name.", [I, N]), Errs = [M]
-        ;   all_known_items(KB, Known),
-            items_decls(Known, KDs),
-            (   decl_of(KDs, N, A, d(_, _, _, _, _, _, DSrc, DF, DL))
-            ->  src_text(DSrc, ST),
-                fmt(M, "Argument ~w: ~q/~w is already declared in ~w (~w:~w). Choose another name, or use the declaration that exists.", [I, N, A, ST, DF, DL]), Errs = [M]
-            ;   findall(FN, member(d(FN, _, fact, _, _, _, _, _, _), KDs), FN0), sort(FN0, FactNames),
-                findall(E, ( member(T, Ts), type_errs(T, FactNames, Es0), member(E, Es0) ), TE0),
-                template_errs(Tpl, A, PE),
-                append(TE0, PE, Errs)
-            )
-        )
-    ).
 
 template_errs('', _, []) :- !.
 template_errs(Tpl, A, Errs) :-
@@ -5461,7 +5476,9 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
               edit_distance_at_most(N, N2, 2, Dist),
               fmt(M, "~q/~w was declared by its first use, and its name is ~w edit(s) from the declared ~q/~w. It may be a typo. If it is: correct the facts in kb.pl to ~q/~w, and delete the decl/4 and first_use/3 lines of ~q/~w. If it is a new predicate: choose a name more than 2 edits away.", [N, A, Dist, N2, A, N2, A, N, A]) ),
             E19a),
-    sort(E19a, E19),
+    sort(E19a, E19b),
+    e19_rule_diags(Ds, E19r),
+    append(E19b, E19r, E19),
     % W8 (T27 c10): a request whose tracker item has a new text that no human accepted
     findall(diag('W8', '', 0, M),
             ( member(it(derived, _, _, T8, _, _), Items), nonvar(T8), T8 = request_stale(R8),
@@ -5471,13 +5488,31 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
     findall(diag('W9', F, L, M),
             ( member(d(N, A, fact, _, Doc, _, kb, F, L), Ds), no_description(Doc),
               fmt(M, "The kind ~q/~w has no description. Describe a new kind in its first add: orbit-kb add 'FACT' --doc TEXT.", [N, A]) ),
-            W9),
+            W9a),
+    findall(diag('W9', F, L, M),
+            ( member(d(N, A, rule, _, Doc, _, DS, F, L), Ds), ( DS == kb ; DS == rules ), no_description(Doc),
+              fmt(M, "The rule ~q/~w has no description. Put a line %% doc: TEXT just above its first clause in rules.pl.", [N, A]) ),
+            W9b),
+    append(W9a, W9b, W9),
     append([W1, W2a, W2b, W3, W4, W5, W7, W8, W9, E19], Diags).
 
 % no_description(+Doc) (T26): the doc of a kind says nothing. Before T26, a
 % first use wrote the second text, which is no description either.
 no_description('') :- !.
 no_description('Declared by its first use. Review it (lint W7).').
+
+% e19_rule_diags(+Decls, -Diags) (T26): the typo guard for rules.pl. A head
+% that its first clause declared, at most 2 edits from a predicate that the
+% core, a module, or kb.pl declares with the same arity, is E19. The old
+% declare command made a misspelled head an E2; this keeps it an error.
+e19_rule_diags(Ds, Diags) :-
+    findall(diag('E19', F, L, M),
+            ( member(d(N, A, rule, _, _, _, rules, F, L), Ds),
+              member(d(N2, A, _, _, _, _, S2, _, _), Ds), S2 \== rules, N2 \== N, atom(N2),
+              edit_distance_at_most(N, N2, 2, Dist),
+              fmt(M, "The head ~q/~w of rules.pl is declared by its first clause, and its name is ~w edit(s) from the declared ~q/~w. It may be a typo. If it is: correct the name in rules.pl. If it is a new predicate: choose a name more than 2 edits away.", [N, A, Dist, N2, A]) ),
+            Ds0),
+    sort(Ds0, Diags).
 
 % edit_distance_at_most(+A, +B, +Max, -D) (D22): the Levenshtein distance D
 % of the names A and B (over their characters) is at most Max.
@@ -5719,16 +5754,18 @@ show_section(_, Eng, disclosures) :-
     (   Ds == [] -> say("- None.", []) ; true ),
     forall(member([I, S, P, B, T], Ds),
            ( term_text(P, PT), say("- ~w: ~w, about ~w, by ~w at ~w.", [I, PT, S, B, T]) )).
-% show kinds (T26): each fact kind of the KB (the core, the modules in use,
-% and kb.pl) with its description. A kind with none says so.
+% show kinds (T26): each fact kind and each rule head of the KB (the core,
+% the modules in use, kb.pl, rules.pl) with its description. A rule head is
+% marked (rule). One with no description says so.
 show_section(KB, _, kinds) :-
     say("Kinds:", []),
     kb_items(KB, Items),
     items_decls(Items, Ds),
-    findall(S, ( member(d(N, A, fact, _, Doc, _, _, _, _), Ds),
+    findall(S, ( member(d(N, A, K, _, Doc, _, _, _, _), Ds),
+                 (   K == rule -> fmt(KT, "~q/~w (rule)", [N, A]) ; fmt(KT, "~q/~w", [N, A]) ),
                  (   no_description(Doc)
-                 ->  fmt(S, "- ~q/~w: (no description)", [N, A])
-                 ;   fmt(S, "- ~q/~w: ~w", [N, A, Doc])
+                 ->  fmt(S, "- ~w: (no description)", [KT])
+                 ;   fmt(S, "- ~w: ~w", [KT, Doc])
                  ) ),
             Lines),
     (   Lines == [] -> say("- None.", []) ; forall(member(S, Lines), say("~w", [S])) ).
@@ -7284,10 +7321,8 @@ help_lines(add, [
 "predicate of the same arity (a typo).",
 "--doc TEXT (one line, T26) describes the one new kind of this add. Give it in the first add of a kind.",
 "It stays optional. A kind with no description is W9, and orbit-kb show kinds says so.",
-"For a rule predicate of rules.pl, add the fact decl(rule, HEAD, 'DOC', 'TEMPLATE'), such as",
-"  orbit-kb add \"decl(rule, has_owner(ref(claim)), 'Some person owns the claim.', '')\"",
-"HEAD is name(type1, ..., typeN). Types: id, ref(Name), ref([Name, ...]), ref, oneof([a, b]), alt([shape, ...]),",
-"text, atom, int, time, digest, by, term. The template is English text for why and whynot: @(1), @(2), ... stand for the arguments.",
+"add takes no decl(...) term. A head of rules.pl is declared by its first clause (not by add). Describe it in",
+"a line just above that clause: %% doc: TEXT. A head with no such line is W9.",
 "A name that only an unused module declares needs the module: orbit-kb uses MODULE.",
 "orbit-kb run writes test results. add refuses them."
 ]).
@@ -7412,7 +7447,7 @@ help_lines(show, [
 "",
 "List parts of the KB as plain text. The default is all (all does not include blocking).",
 "open lists to_ask, stale, contested, and supersede_cycle, and under, over, burn_open, flare_open, and no_claim (no claim is current) when the build module is in use.",
-"kinds lists each fact kind of the KB (the core, the modules in use, kb.pl) with its description (T26).",
+"kinds lists each fact kind and each rule head (marked rule) of the KB with its description (T26).",
 "blocking lists each answer of orbit-kb query 'blocking(X)' with its text: each item that blocks done.",
 "The kinds: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X), check_failing(K), check_unrun(K),",
 "waiver_lapsed(W), past_due(X) (an open item with a due/2 time in the past), supersede_cycle(C), no_claim.",

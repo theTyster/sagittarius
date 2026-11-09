@@ -678,16 +678,17 @@ gizmo(g1, sprocket).
 NOTE: gizmo/2 is a new predicate. Its first use declares it, with the type term for each argument (lint W7 lists it).
 ```
 
-A rule predicate of `rules.pl` is declared with the fact `decl(rule, HEAD, 'DOC', 'TEMPLATE')`:
-`orbit-kb add "decl(rule, has_owner(ref(claim)), 'Some person owns the claim.', '')"`.
-`add` checks the head, the types, the template, and that the name and arity are not
-declared yet. It refuses `decl(fact, ...)`: a fact kind comes by its first use.
+A rule predicate of `rules.pl` is declared by its first clause, as a fact kind is
+by its first use. Its description is a line `%% doc: TEXT` just above that first
+clause. `add` takes no `decl(...)` term: it refuses `decl(fact, ...)` and points to
+`--doc`, and it refuses `decl(rule, ...)` and points to the `%% doc:` line.
 
 ### `show kinds`
 
-Lists each fact kind of the KB with its description: the kinds of the core and of the
-modules in use (their `decl/4` docs), and the kinds of `kb.pl` (their `--doc`, or the
-`decl/4` doc of an older KB). A kind with no description says so. Not part of `show all`.
+Lists each fact kind and each rule head of the KB with its description: the core and
+the modules in use (their `decl/4` docs), `kb.pl` (a `--doc`, or the `decl/4` doc of an
+older KB), and `rules.pl` (the `%% doc:` line). A rule head is marked `(rule)`. One with
+no description says so. Not part of `show all`.
 
 No command declares an attestation type any more (D22: the command was cut).
 An `attest_type/4` line that is already in `kb.pl` still works, and lint lists it (W2).
@@ -1486,9 +1487,11 @@ A KB can add its own vocabulary without a change to the library.
 
 1. Add the facts of a new fact predicate: the first use declares it (W7). Give it
    a one-line description in that first add: `--doc TEXT` (W9 names a kind with none).
-2. Declare each new rule predicate, helpers included, with
-   `orbit-kb add "decl(rule, HEAD, 'DOC', '')"`.
-3. Write the rules in `rules.pl` in the KB directory.
+2. Write the rules in `rules.pl` in the KB directory. The first clause of a head,
+   helpers included, declares it. Describe it in a line `%% doc: TEXT` just above
+   that clause (W9 names a head with none).
+3. A head that is at most 2 edits from a declared predicate of the same arity is E19
+   (a typo guard, as for a fact kind).
 4. Run `orbit-kb lint`.
 
 A real example:
@@ -1498,32 +1501,29 @@ $ orbit-kb add "owner(c1, 'Ana')" --doc 'The person who owns the claim.'
 decl(fact, owner(term, term), 'The person who owns the claim.', '').
 first_use(owner/2, agent, '2026-11-09T10:00:00Z').
 owner(c1, 'Ana').
-$ orbit-kb add "decl(rule, has_owner(ref(claim)), 'Some person owns the claim.', '')"
-decl(rule, has_owner(ref(claim)), 'Some person owns the claim.', '').
-$ orbit-kb add "decl(rule, any_unowned, 'Some claim has no owner.', '')"
-decl(rule, any_unowned, 'Some claim has no owner.', '').
 ```
 
 The `rules.pl`:
 
 ```prolog
+%% doc: Some person owns the claim.
 has_owner(C) :- owner(C, _).
+%% doc: Some claim has no owner.
 any_unowned :- claim(C, _, _), not has_owner(C).
 ```
 
 ```text
 $ orbit-kb lint
 W7 kb.pl:6: owner/2 was declared by its first use, by agent at 2026-11-09T10:00:00Z. Review the new predicate: is it needed, and is the name right? Its arguments have the type term.
-W2 kb.pl:8: Local declaration of has_owner/1 (rule): Some person owns the claim. Review it.
-W2 kb.pl:9: Local declaration of any_unowned/0 (rule): Some claim has no owner. Review it.
-Summary: 0 error(s), 3 warning(s).
+Summary: 0 error(s), 1 warning(s).
 $ orbit-kb query any_unowned
 false
 ```
 
 Lint lists each extension for a human to review:
 
-- W2 lists each local declaration.
+- W2 lists each local declaration (a `decl/4` line of an older KB).
+- W9 lists each fact kind or rule head with no description.
 - W7 lists each predicate that a first use declared (D22), and E19 flags a name that looks like a typo of a declared one.
 - W6 lists each local rule that adds clauses to a core or module predicate.
 - W4 lists each local fact predicate that no rule reads.
@@ -1531,13 +1531,7 @@ Lint lists each extension for a human to review:
 `orbit-kb show extensions` gives the same list in plain text. With
 `lint --strict`, these warnings make lint exit 1.
 
-`add` of a `decl(rule, ...)` refuses a name and arity that is declared anywhere:
-
-```text
-$ orbit-kb add "decl(rule, world(term), 'x', '')"
-Rejected. Nothing was written.
-Argument 1: world/1 is already declared in the core (/home/you/sagittarius/kb/share/orbit-kb/core.pl:77). Choose another name, or use the declaration that exists.
-```
+A head of `rules.pl` that names a core or module predicate adds clauses to it (W6, or E16 for a protected one). A head that names a fact kind is E7.
 
 ### Writing a new module
 
@@ -1578,7 +1572,7 @@ The rules for a module:
 
 Reserved names:
 
-- `add` of a rule declaration refuses these names: `decl`, `attest_type`, `uses`, `not`, `true`,
+- A `rules.pl` head with one of these names is E2: `decl`, `attest_type`, `uses`, `not`, `true`,
   `false`, `forall`, `call`, `is`, and the operators `=`, `\=`, `<`, `>`, `=<`,
   `>=`, `,`, `;`, `->`, `:-`, `#`, `\+`, `-`, `#=`, `#<>`, `#<`, `#>`, `#=<`,
   `#>=`. Until D20, it also refused `proved`, `chs`, `assume`, and `abduced`,

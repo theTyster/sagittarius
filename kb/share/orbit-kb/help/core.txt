@@ -79,7 +79,8 @@ Queries (orbit-kb query 'current(C)' -n 0)
                      check_failing(K), check_unrun(K), waiver_lapsed(W), past_due(X),
                      supersede_cycle(C), no_claim. orbit-kb show blocking prints each with its text.
 
-Local rules go in rules.pl beside kb.pl. They cannot change done, or the burn and flare
+Local rules go in rules.pl beside kb.pl. The first clause of a head declares it. Describe it in a
+line above that clause: %% doc: TEXT (lint W9 names a head with none). They cannot change done, or the burn and flare
 rules (lint reports E16). not p means that p has no answer (negation as failure), so
 not under(_) means "no under at all". A predicate must not depend on itself through not
 (lint E18). There is no classical negation: a fact that is not recorded is false.
