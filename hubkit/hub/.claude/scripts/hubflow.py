@@ -1615,6 +1615,10 @@ def kb_checks(hub, refs):
     """One check per kb ref: {ref, path, state, items, why}. A dir that is not found is unknown."""
     out = []
     for ref in refs:
+        if informal_at(hub):  # no spec KB here: never run a tool; a kb ref stays blocking (fail-safe)
+            out.append({"ref": ref, "path": None, "state": "unknown", "items": [],
+                        "why": "this hub has no check for a kb ref"})
+            continue
         path = kb_dir(hub, ref)
         if path is None:
             out.append({"ref": ref, "path": None, "state": "unknown", "items": [],
@@ -2055,7 +2059,9 @@ def kb_slug_items(c, slug):
 
 def untriaged_spec_kbs(c, hub):
     """The spec KBs at specs/<slug> whose every referring item is closed and that have no recorded
-    decision (a spec_triage event) since the last of them closed."""
+    decision (a spec_triage event) since the last of them closed. None in an informal hub."""
+    if informal_at(hub):
+        return []
     slugs = set()
     for (ref,) in c.execute("SELECT DISTINCT ref FROM item_ref WHERE kind = 'kb'"):
         slugs.add(ref.partition("/")[0])
@@ -2123,7 +2129,8 @@ def cmd_rotate(g, a):
         print(f"week_start: {wk}")
         print("untriaged: " + (" ".join(untriaged) or "none"))
         print("lapsed: " + (" ".join(lapse) or "none"))
-        print("spec_kbs_untriaged: " + (" ".join(specs) or "none"))
+        if not informal(g):
+            print("spec_kbs_untriaged: " + (" ".join(specs) or "none"))
         print("escalated: " + (" ".join(escalated) or "none"))
         print("pruned: " + (" ".join(prune) or "none"))
         print("pruned_sessions: " + (" ".join(sessions) or "none"))
@@ -2302,12 +2309,61 @@ COMMANDS = {"init": cmd_init, "add": cmd_add, "handoff": cmd_handoff, "accept": 
             "transcripts": cmd_transcripts}
 
 
+# ---- the edition: an informal hub shows only the five informal stores (T36) ----
+
+def informal_at(hub):
+    """True when the hub's .hub-template.json records the informal edition. A hub with no manifest
+    or no edition (the formal text, or a test dir) is formal."""
+    try:
+        with open(os.path.join(hub, ".hub-template.json"), encoding="utf-8") as f:
+            return json.load(f).get("edition") == "informal"
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def informal(g):
+    return informal_at(hub_dir(g))
+
+
+INFORMAL_ONLY_COMMANDS = ("where", "spec-triage")  # they read a spec KB: not in an informal hub
+# The informal --help: the formal text, with these edits (old regex, new text). A pattern that no
+# longer matches leaves a formal word in the help, and docs/check_informal_hub.py t36c1 fails.
+INFORMAL_HELP = (
+    (r" \[--analysis SLUG(\|none)?\]", ""),
+    (r"\n\s+or whose spec KB blocks", ""),
+    (r"\n\s+linked spec KB; it never runs one", ""),
+    (r"close ID --reason human_skip --by human --note QUOTE\n(\s+)a person's skip: also closes the open items linked\n\s+to ID by `blocks` \(either way\), and prints the\n\s+waiver command for each blocking item of each",
+     "close ID --reason human_skip --by human --note QUOTE\n\\1a person's skip: also closes the open items linked\n\\1to ID by `blocks` (either way)"),
+    (r"\.? An agent's keep, lapse or capsule of\n\s+an item whose spec KB blocks becomes escalate", ""),
+    (r"  where SLUG .*?\n  spec-triage .*?\n  import ", "  import "),
+    (r" \(the\nquestion server, `orbit-kb serve questions --hub DIR`, closes an ask this way\)", ""),
+    (r"  HUBFLOW_ORBIT_KB .*?\n  HUBFLOW_NOW", "  HUBFLOW_NOW"),
+    (r"A spec KB has the ticket's clock.*?`where` and the retention windows below follow this\.", "The retention windows below follow this."),
+    (r"Copies\. The ledger holds a pointer.*?for a ticket, so the digest names what the agent read\.",
+     "The ledger holds a pointer (issue:123) and the flow state around it, never a copy of the tracker's text."),
+    (r", or one\n\s+whose spec KB is not clear, stays open", " stays open"),
+    (r"a kb ref is <slug> \(the spec KB at\n\s+specs/<slug>\) or, in an old hub, <slug>/kb; never W0/...;", "never W0/...;"),
+)
+
+
+def help_text(g):
+    doc = __doc__
+    if informal(g):
+        for rx, new in INFORMAL_HELP:
+            doc = re.sub(rx, new, doc, flags=re.S)
+    return doc
+
+
+def command_names(g):
+    return [c for c in COMMANDS if not (informal(g) and c in INFORMAL_ONLY_COMMANDS)]
+
+
 def main():
     a = sys.argv[1:]
     g = {}
     while a and a[0].startswith("-"):
         if a[0] in ("-h", "--help"):
-            print(__doc__)
+            print(help_text(g))
             sys.exit(0)
         if a[0] not in ("--hub", "--session", "--by"):
             die(1, f"unknown option {a[0]}")
@@ -2315,8 +2371,8 @@ def main():
             die(1, f"{a[0]} needs a value")
         g[a[0][2:]] = a[1]
         a = a[2:]
-    if not a or a[0] not in COMMANDS:
-        die(1, "command must be one of " + ", ".join(COMMANDS))
+    if not a or a[0] not in command_names(g):
+        die(1, "command must be one of " + ", ".join(command_names(g)))
     try:
         COMMANDS[a[0]](g, a[1:])
     except Bad as e:

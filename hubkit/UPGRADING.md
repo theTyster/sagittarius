@@ -43,6 +43,54 @@ human before you start; this is a one-time merge.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.5.0 (the informal edition: one rule set, one engine voice)
+
+The db schema is 4, as in 0.4.0. **Database:** a hub made at 0.4.0 before the transcripts change has
+schema 2 or 3 (`hubflow.py check` exits 2): run `python3 .claude/scripts/hubflow.py migrate`, then
+`check`, and read the 0.4.0 entry "An agent, not code, puts meeting transcripts into the ledger".
+A hub already at schema 4 has nothing to migrate. `HUB-CORE.md`, `PRINCIPLES.md` and both
+`SKILL.md` are engine files: merge each by intent.
+
+- **A hub knows its edition (T32).** Intent: an informal hub loads only informal rules (the five
+  stores and their commands; no spec KB, project KB or formal tool). `hubkit.py install --edition
+  informal|formal` (default: informal when `orbit-kb` is not on the PATH, else formal) records the
+  edition in `.hub-template.json`, and an upgrade keeps it. A hub made before has no edition
+  recorded: see "A hub with no edition" below. Files: `tools/hubkit.py`,
+  `kit.json` (`editions`), `editions/informal/` (the informal `HUB-CORE.md`, `CLAUDE.md` and the two
+  `SKILL.md`), `HUB-CORE.md` (the informal store map now has every fact kind, in the columns Fact
+  kind, Informal home, How), `PRINCIPLES.md` (three principles added), `flow/seed.json` (a `review`
+  session; owned, so an existing hub adds it with `hubflow.py session add review --role review` if
+  it wants one). To switch an existing hub to the informal edition:
+  `python3 "$KIT"/tools/hubkit.py edition --hub "$HUB" informal`, then again with `--yes`; merge
+  each pending file by intent, and rewrite `CLAUDE.md` by hand from `editions/informal/CLAUDE.md`
+  (an owned file: the switch never writes it). Check: `hubkit.py edition --hub "$HUB"` prints the
+  edition, and `hubkit.py status` names it.
+- **A hub with no edition (T36).** Intent: an upgrade picks the edition as install does. A hub made
+  before editions (0.4.0 and earlier) records none: it gets the informal edition when `orbit-kb` is
+  not on the PATH, else the formal one, and the dry run prints a `note:` line that says which and
+  how to change it (`python3 "$KIT"/tools/hubkit.py edition --hub "$HUB" informal|formal`). Read the
+  plan before `--yes`: a hub that used `orbit-kb` on another machine, or a PATH without it, needs
+  `edition formal`. Files: `tools/hubkit.py`. Check: the dry run names the edition; `hubkit.py
+  status` names it after the upgrade.
+- **An informal hub's engine shows only the five stores (T36).** Intent: `hubflow.py` reads the
+  edition from `.hub-template.json`; in an informal hub `--help` and its output name no spec KB,
+  `orbit-kb`, `specs/<slug>`, project KB or question server, `rotate` does not print
+  `spec_kbs_untriaged`, `where` and `spec-triage` are not commands, and a `kb` ref is never
+  queried (it stays blocking for an agent, as before). A formal hub is unchanged. Files:
+  `.claude/scripts/hubflow.py`. Check: `hubflow.py --help | grep -ci 'spec kb'` prints 0.
+- **The requirements are the same in the README and the informal `HUB-CORE.md` (T36).** Intent: an
+  informal hub needs Python 3, git, bash 4 or later and the POSIX tools that the README lists.
+  Files: `HUB-CORE.md` (informal edition). Check: the file names `bash 4 or later` and `awk`.
+- **Skip, never hide, in the ledger (T36).** Intent: the principle says what the ledger does with a
+  skip: `park ID --until DATE` brings the item back for triage after the date, and `close ID
+  --reason human_skip` is final and keeps the human's words. Files: `PRINCIPLES.md`. A hub that
+  edited it keeps its own text and adds that sentence.
+- **Premises beside the hypothesis (T36).** Intent: every stated hypothesis lists its premises beside
+  it. Files: `PRINCIPLES.md` (the hypothesis principle), `HUB-CORE.md` (the `hypothesis` row of the
+  informal store map). Check: `grep -c premises PRINCIPLES.md` prints 1 or more.
+  Owned file `CLAUDE.md`: it must import the principles (`@PRINCIPLES.md` below `@HUB-CORE.md`, see
+  0.4.0); an upgrade never writes `CLAUDE.md`. Check: `grep -x @PRINCIPLES.md CLAUDE.md` prints it.
+
 ### 0.4.0 (the informal release: the hub kit without Prolog or Lean)
 
 The db schema is 4. **Database:** run `python3 .claude/scripts/hubflow.py migrate`, then
@@ -87,21 +135,6 @@ and "Panes" no longer name `sessions/`).
   A hub that changed the rotation steps keeps its own steps and runs `rotate --yes` after its
   rename. Check: `hubflow.py transcripts --files` lists each file of `W0/transcripts/` with a
   `transcript:` ref, and `hubflow.py transcripts --find REF` prints its path.
-
-- **A hub knows its edition (T32).** Intent: an informal hub loads only informal rules (the five
-  stores and their commands; no spec KB, project KB or formal tool). `hubkit.py install --edition
-  informal|formal` (default: informal when `orbit-kb` is not on the PATH, else formal) records the
-  edition in `.hub-template.json`, and an upgrade keeps it. A hub made before has no edition
-  recorded: it is formal, keeps its text, and the upgrade records `formal`. Files: `tools/hubkit.py`,
-  `kit.json` (`editions`), `editions/informal/` (the informal `HUB-CORE.md`, `CLAUDE.md` and the two
-  `SKILL.md`), `HUB-CORE.md` (the informal store map now has every fact kind, in the columns Fact
-  kind, Informal home, How), `PRINCIPLES.md` (three principles added), `flow/seed.json` (a `review`
-  session; owned, so an existing hub adds it with `hubflow.py session add review --role review` if
-  it wants one). To switch an existing hub to the informal edition:
-  `python3 "$KIT"/tools/hubkit.py edition --hub "$HUB" informal`, then again with `--yes`; merge
-  each pending file by intent, and rewrite `CLAUDE.md` by hand from `editions/informal/CLAUDE.md`
-  (an owned file: the switch never writes it). Check: `hubkit.py edition --hub "$HUB"` prints the
-  edition, and `hubkit.py status` names it.
 
 ### 0.3.0 (agents know the stores and the workflow)
 

@@ -20,7 +20,8 @@ usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
 Editions. The formal edition is the hub/ tree. The informal edition (no Prolog, Lean or orbit-kb in
 its rules) takes the files that kit.json lists under "editions"."informal" from editions/informal/,
 and every other file from hub/. The manifest records the edition; upgrade keeps it. A hub whose
-manifest names no edition (made before editions) is formal.
+manifest names no edition (made before editions) gets the edition that install picks on this
+machine: informal when orbit-kb is not on the PATH, else formal. The upgrade says so.
 
 Two kinds of file, listed in the kit's kit.json:
   engine  shipped files that a hub should not edit (HUB-CORE.md, scripts, shipped skills). The
@@ -85,8 +86,15 @@ def kit_shas(kit, k, edition):
     return {r: sha(src(kit, k, edition, r)) for r in k["engine"]}
 
 
+def default_edition():
+    """The edition install picks when none is named."""
+    return "formal" if shutil.which("orbit-kb") else "informal"
+
+
 def edition_of(m):
-    return m.get("edition") or "formal"  # a hub made before editions has the formal text
+    """The recorded edition. A hub made before editions records none: it gets the edition that
+    install would pick here (informal with no orbit-kb on the PATH, else formal)."""
+    return m.get("edition") or default_edition()
 
 
 def load_manifest(hub):
@@ -144,7 +152,7 @@ def cmd_install(o):
     clash = [rel for rel in k["engine"] + k["owned"] if os.path.exists(os.path.join(hub, rel))]
     if clash:  # install never overwrites
         die(1, "these files already exist; nothing was written: " + ", ".join(clash))
-    ed = o["edition"] or ("formal" if shutil.which("orbit-kb") else "informal")
+    ed = o["edition"] or default_edition()
     for rel in k["engine"] + k["owned"]:
         copy(o["kit"], k, ed, hub, rel)
     save_manifest(hub, {"template_version": k["version"], "edition": ed,
@@ -216,6 +224,10 @@ def cmd_upgrade(o, edition=None):
             else:
                 plan.append(("keep-owned", rel))
     print(f"upgrade {old} -> {new} ({ed} edition)" + ("" if yes else " (dry run; --yes applies it)"))
+    if not m.get("edition") and not edition:
+        print(f"note: this hub records no edition; it gets the {ed} edition, as install picks it here"
+              f" ({'orbit-kb is on the PATH' if ed == 'formal' else 'this hub has no orbit-kb'}); to change it: hubkit.py edition --hub HUB "
+              f"{'informal' if ed == 'formal' else 'formal'}")
     for action, rel in plan:
         if action != "keep":
             print(f"{action}\t{rel}")
