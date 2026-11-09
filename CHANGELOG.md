@@ -3,7 +3,7 @@
 ## Redesign (informal release)
 
 Ty makes the release. This entry lists what is in the `redesign` branch. The hub kit is version
-0.4.0 (`hubkit/kit.json`).
+0.5.0 (`hubkit/kit.json`).
 
 ### What landed
 
@@ -54,6 +54,14 @@ Ty makes the release. This entry lists what is in the `redesign` branch. The hub
   pin, a reopened flare, and `done` false until the subject is recorded again. Every Lean proof
   whose files hold non-ASCII text (for example `∀` or `→`) shows in `proof_changed(A)`, and its burn
   is open again. To re-prove each one, in each KB:
+- Informal hub polish (T36, hub kit 0.5.0): an informal hub's engine shows only the five stores.
+  `hubflow.py` reads the edition from `.hub-template.json`: its `--help` and `rotate` output name
+  no spec KB, `orbit-kb`, `specs/`, project KB or question server, and `where` and `spec-triage`
+  are not commands there (Ty: the informal release "should really only use the informal stores").
+  An upgrade of a hub that records no edition picks the edition as install does. The informal
+  `HUB-CORE.md` states the README's requirements (bash 4 or later, the POSIX tools). The skip
+  principle says what the ledger does (`park --until` comes back, `human_skip` is final), and the
+  hypothesis principle and store-map row ask for the premises beside the hypothesis.
 
       orbit-kb query 'proof_changed(A)'          # each attestation A to renew
       head -3 runs/proof-A.log                   # its claim, theorem, and source file

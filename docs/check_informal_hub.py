@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T32: an informal hub loads only informal rules. One check per claim.
 
-usage: python3 docs/check_informal_hub.py t32c1|...|t32c8 [--list]   (--list prints the claim ids)
+usage: python3 docs/check_informal_hub.py t32c1|...|t32c8|t36c1|...|t36c6 [--list]   (--list prints the claim ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 t32c1 installs hubs from this kit with --edition informal|formal and with no --edition (a PATH with
@@ -482,7 +482,190 @@ def t32c8():
                 check("t32c8 informal: the hint names no spec KB path", "specs/<slug>/" not in out and "hubflow where" not in out, out[-300:])
 
 
-CLAIMS = {k: globals()[k] for k in ("t32c1", "t32c2", "t32c3", "t32c4", "t32c5", "t32c6", "t32c7", "t32c8")}
+# ------------------------------------------------------------------ T36
+# What an informal hub's engine output must not name (t36c1).
+FORMAL_OUT = (("spec KB", re.compile(r"spec kb", re.I)), ("orbit-kb", re.compile(r"orbit-kb", re.I)),
+              ("specs/", re.compile(r"specs/")), ("project KB", re.compile(r"project kb", re.I)),
+              ("question server", re.compile(r"question server", re.I)),
+              ("spec_kbs_untriaged", re.compile(r"spec_kbs_untriaged")),
+              ("analyses", re.compile(r"analyses", re.I)))
+WEEK = "2026-11-09"  # a Monday
+
+
+def formal_hits(text):
+    return [(n, ln.strip()[:90]) for ln in text.splitlines() for n, rx in FORMAL_OUT if rx.search(ln)]
+
+
+def t36c1():
+    with tempfile.TemporaryDirectory(prefix="t36-c1-") as t:
+        outs = {}
+        for ed in ("informal", "formal"):
+            hub, p = install(t, ed, ed)
+            check(f"t36c1 a {ed} hub installs", p.returncode == 0, p.stderr)
+            check(f"t36c1 the {ed} hub records its edition", manifest(hub).get("edition") == ed, manifest(hub))
+            p = hubflow(hub, ["init"])
+            check(f"t36c1 hubflow init in the {ed} hub", p.returncode == 0, p.stderr)
+            hubflow(hub, ["add", "ask", "--title", "Plain ask", "--ref", "kb:some-slug"], session="build")
+            got = {}
+            for name, args in (("--help", ["--help"]), ("rotate", ["rotate", "--week-start", WEEK]),
+                               ("where", ["where", "nope"]), ("spec-triage", ["spec-triage", "nope", "keep", "--note", "x"]),
+                               ("triage bad", ["triage", "A-0001", "bogus", "--note", "x"]),
+                               ("triage kb ref", ["triage", "A-0001", "keep", "--note", "x"]),
+                               ("no command", ["frobnicate"])):
+                p = hubflow(hub, args, session="build")
+                got[name] = p
+            outs[ed] = got
+        inf, frm = outs["informal"], outs["formal"]
+        for name, p in inf.items():
+            hits = formal_hits(p.stdout + p.stderr)
+            check(f"t36c1 informal `{name}` names no formal word", not hits, hits[:4])
+        check("t36c1 informal --help exits 0 and still gives usage", inf["--help"].returncode == 0 and "usage" in inf["--help"].stdout.lower()
+              and "rotate" in inf["--help"].stdout and "triage" in inf["--help"].stdout, inf["--help"].stderr)
+        check("t36c1 informal rotate runs (exit 0) and lists untriaged", inf["rotate"].returncode == 0 and "untriaged:" in inf["rotate"].stdout,
+              (inf["rotate"].returncode, inf["rotate"].stdout, inf["rotate"].stderr))
+        check("t36c1 informal where and spec-triage are refused (exit 1)", inf["where"].returncode == 1 and inf["spec-triage"].returncode == 1,
+              (inf["where"].returncode, inf["spec-triage"].returncode))
+        check("t36c1 informal triage of a bad disposition exits 1", inf["triage bad"].returncode == 1, inf["triage bad"].returncode)
+        check("t36c1 an informal agent triage of an item with a kb ref still escalates (fail-safe)",
+              "escalate" in inf["triage kb ref"].stdout, (inf["triage kb ref"].stdout, inf["triage kb ref"].stderr))
+        # the formal hub keeps the text
+        h = frm["--help"].stdout
+        for w in ("spec KB", "orbit-kb", "specs/", "project KB", "question server"):
+            check(f"t36c1 the formal --help still names {w}", w in h, w)
+        check("t36c1 the formal rotate prints spec_kbs_untriaged", "spec_kbs_untriaged" in frm["rotate"].stdout, frm["rotate"].stdout)
+        check("t36c1 the formal where error names the spec KB", "spec KB" in frm["where"].stderr, frm["where"].stderr)
+
+
+def make_old_hub(t):
+    """A hub of kit 0.4.0 made at commit 41377fc: {path} or None. The scratch worktree is removed."""
+    wt = os.path.join(t, "old-kit")
+    p = run(["git", "-C", ROOT, "worktree", "add", "--detach", wt, "41377fc"])
+    if p.returncode != 0:
+        return None, p.stderr
+    try:
+        hub = os.path.join(t, "old-hub")
+        os.makedirs(hub)
+        run(["git", "init", "-q", hub])
+        q = run([sys.executable, "-I", os.path.join(wt, "hubkit", "tools", "hubkit.py"), "install", "--hub", hub])
+        if q.returncode != 0:
+            return None, q.stderr
+        return hub, ""
+    finally:
+        run(["git", "-C", ROOT, "worktree", "remove", "--force", wt])
+        run(["git", "-C", ROOT, "worktree", "prune"])
+
+
+def t36c2():
+    with tempfile.TemporaryDirectory(prefix="t36-c2-") as t:
+        hub, err = make_old_hub(t)
+        check("t36c2 a 0.4.0 hub is made at 41377fc", hub is not None, err)
+        if hub is None:
+            return
+        m = manifest(hub)
+        check("t36c2 that hub is 0.4.0 and records no edition", m.get("template_version") == "0.4.0" and "edition" not in m, m)
+        bare = bin_with(os.path.join(t, "bare"), ["python3", "git"])
+        withb = bin_with(os.path.join(t, "withb"), ["python3", "git"], stub_okb=True)
+        check("t36c2 the PATH without orbit-kb has none", shutil.which("orbit-kb", path=bare) is None, bare)
+        for name, path, want in (("no orbit-kb", bare, "informal"), ("orbit-kb on PATH", withb, "formal")):
+            h = os.path.join(t, "h-" + want)
+            shutil.copytree(hub, h)
+            plan = hk(["upgrade", "--hub", h], path=path)
+            check(f"t36c2 the dry run with {name} exits 0", plan.returncode == 0, plan.stderr)
+            if want == "informal":
+                ok = (f"({want} edition)" in plan.stdout) or ("hubkit.py edition informal" in plan.stdout)
+                check("t36c2 the plan with no orbit-kb says informal or tells how to switch", ok, plan.stdout[:300])
+            p = hk(["upgrade", "--hub", h, "--yes"], path=path)
+            m = manifest(h)
+            check(f"t36c2 the upgrade with {name} exits 0", p.returncode == 0, (p.stdout[-200:], p.stderr))
+            plan_says = "hubkit.py edition informal" in plan.stdout
+            if want == "informal":
+                check("t36c2 the upgrade with no orbit-kb picks informal as install does, or the plan says how", m.get("edition") == "informal" or plan_says, (m.get("edition"), plan.stdout[:300]))
+                if m.get("edition") == "informal":
+                    check("t36c2 the picked informal hub has the informal HUB-CORE.md", read(os.path.join(h, "HUB-CORE.md")) == read(ICORE), "differs")
+            else:
+                check("t36c2 the upgrade with orbit-kb on PATH keeps the formal hub", m.get("edition") == "formal", m)
+        s = hk(["status", "--hub", os.path.join(t, "h-informal")], path=bare)
+        check("t36c2 status of the upgraded hub names its edition", "edition)" in s.stdout, s.stdout[:200])
+
+
+def t36c3():
+    core, rd = read(ICORE), read(KREADME)
+    inst = section(rd, "Install")
+    paras = [p for p in re.split(r"\n\s*\n", inst) if "POSIX" in p]
+    tools = re.findall(r"`([a-z]+)`", paras[0]) if paras else []
+    check("t36c3 README Install lists the POSIX tools", len(tools) >= 10, tools)
+    check("t36c3 README Install says bash 4 or later", re.search(r"bash 4 or later", inst) is not None, "missing")
+    w = words(core)
+    check("t36c3 the informal HUB-CORE.md says bash 4 or later", "bash 4 or later" in w, "missing")
+    check("t36c3 the informal HUB-CORE.md says Python 3 and git", "python 3" in w and "git" in w, "missing")
+    miss = [x for x in tools if f"`{x}`" not in core]
+    check("t36c3 the informal HUB-CORE.md names each POSIX tool of the README", not miss, miss)
+    check("t36c3 the informal HUB-CORE.md no longer says it needs nothing else", "and nothing else" not in w, "still there")
+
+
+def t36c4():
+    k = json.loads(read(os.path.join(KITDIR, "kit.json")) or "{}")
+    check("t36c4 kit.json version is 0.5.0", k.get("version") == "0.5.0", k.get("version"))
+    up = read(os.path.join(KITDIR, "UPGRADING.md"))
+    heads = re.findall(r"^### (\d+\.\d+\.\d+)", up, re.M)
+    check("t36c4 UPGRADING.md has a 0.5.0 section, newest first", heads[:2] == ["0.5.0", "0.4.0"], heads[:3])
+    sec = section(up, "0.5.0", level="###")
+    check("t36c4 the 0.5.0 section is not empty", len(sec) > 200, len(sec))
+    has("t36c4 the 0.5.0 section", sec, "T32", "T36", "--edition", "edition informal", "premises", "bash 4")
+    sec4 = section(up, "0.4.0", level="###")
+    check("t36c4 the 0.4.0 section no longer holds the T32 edition bullet", "A hub knows its edition" not in sec4, "still there")
+    check("t36c4 the 0.4.0 section keeps the transcripts bullet", "An agent, not code, puts meeting transcripts" in sec4, "missing")
+    has("t36c4 the 0.5.0 section tells a 0.4.0 hub with an older db to migrate", sec, "migrate")
+
+
+def t36c5():
+    pr = read(PRINCIPLES)
+    secs = re.split(r"^## ", pr, flags=re.M)[1:]
+    mine = [s for s in secs if s.startswith("Skip, never hide")]
+    check("t36c5 PRINCIPLES.md has the skip principle", len(mine) == 1, len(mine))
+    if mine:
+        has("t36c5 the skip principle states what the ledger does", mine[0], "human_skip", "park", "--until", "due", "comes back")
+    with tempfile.TemporaryDirectory(prefix="t36-c5-") as t:
+        hub, p = install(t, "hub", "informal")
+        hubflow(hub, ["init"])
+
+        def hf(args, now, session="build"):
+            env = {k: v for k, v in os.environ.items() if k not in ("HUB_SESSION", "HUBFLOW_DB_DIR", "HUBFLOW_HUB")}
+            env["HUBFLOW_NOW"] = now
+            env["HUB_SESSION"] = session
+            return run([sys.executable, "-I", os.path.join(hub, ".claude", "scripts", "hubflow.py")] + args, cwd=hub, env=env)
+
+        p = hf(["add", "ask", "--title", "Skipped for now", "--waits-on", "me", "--ref", "issue:5"], "2026-09-01T00:00:00Z")
+        check("t36c5 an ask is added", p.returncode == 0, p.stderr)
+        p = hf(["park", "A-0001", "--until", "2026-10-15", "--note", "human: later"], "2026-09-02T00:00:00Z")
+        check("t36c5 park --until records the hold", p.returncode == 0, p.stderr)
+        p = hf(["rotate", "--week-start", "2026-10-05"], "2026-10-06T00:00:00Z")
+        check("t36c5 before the date the item is not due", p.returncode == 0 and "untriaged: none" in p.stdout, (p.stdout, p.stderr))
+        p = hf(["rotate", "--week-start", "2026-10-19"], "2026-10-20T00:00:00Z")
+        check("t36c5 after the date the item is due again for triage", p.returncode == 1 and "untriaged: A-0001" in p.stdout, (p.returncode, p.stdout, p.stderr))
+
+
+def t36c6():
+    pr = read(PRINCIPLES)
+    secs = re.split(r"^## ", pr, flags=re.M)[1:]
+    mine = [s for s in secs if "5. The hypothesis is the closest formal statement of intent" in s]
+    check("t36c6 PRINCIPLES.md has the hypothesis principle", len(mine) == 1, len(mine))
+    if mine:
+        body = words(mine[0])
+        check("t36c6 the hypothesis principle asks for the premises beside the hypothesis", "premises" in body and "beside" in body, body[:300])
+    for name, path in (("informal", ICORE), ("formal", CORE)):
+        t = read(path)
+        rows = [ln for ln in t.splitlines() if ln.startswith("| `hypothesis` | `ledger`")]
+        check(f"t36c6 the {name} HUB-CORE.md has the informal hypothesis row", len(rows) == 1, len(rows))
+        if rows:
+            check(f"t36c6 the {name} hypothesis row asks for the premises beside it", "premises" in rows[0].lower() and "beside" in rows[0].lower(), rows[0][:200])
+    p = run([sys.executable, STOREMAP, "--check"])
+    check("t36c6 storemap.py --check: both HUB-CORE files are current", p.returncode == 0, p.stderr)
+    has("t36c6 PHILOSOPHY.md section 5 keeps the premises sentence", read(PHIL), "lists its premises beside it")
+
+
+CLAIMS = {k: globals()[k] for k in ("t32c1", "t32c2", "t32c3", "t32c4", "t32c5", "t32c6", "t32c7", "t32c8",
+                                      "t36c1", "t36c2", "t36c3", "t36c4", "t36c5", "t36c6")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
