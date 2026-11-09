@@ -62,7 +62,7 @@ MUTANTS = [
     ("skip-not-propagated", 'if o["reason"] == "human_skip":  # propagate', "if False:"),
     # T39: a waiver in a spec KB ends the hub item
     ("skip-waived-ignores-remaining-blockers", "continue  # something still blocks, or the KB is unknown: not a skip", "pass"),
-    ("skip-waived-counts-lapsed-waivers", 'waive(T, _, R), human, _), not waiver_lapsed(W)"', 'waive(T, _, R), human, _)"'),
+    # (no mutant for `not waiver_lapsed(W)`: a lapsed waiver is itself a blocking item, so the clear test already stops it)
     ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
     ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
     ("capsule-without-rev", "rev = git_head(hub_dir(g))  # capsule rev", "rev = None"),
