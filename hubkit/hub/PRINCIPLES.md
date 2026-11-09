@@ -24,7 +24,7 @@ Source: docs/PHILOSOPHY.md, "4. Orbit the intent. Do not translate it"
 ## Hold the hypothesis weak, the conclusion strong
 
 Before you build, say what you believe the problem is. Assume little (no cause or fix the human did
-not give), say which result you expect, and which result would show it false.
+not give), say which result would show it false, and list the premises beside it.
 Source: docs/PHILOSOPHY.md, "5. The hypothesis is the closest formal statement of intent"
 
 ## Start light, shift up on a signal, lean back
@@ -55,6 +55,6 @@ Source: docs/PHILOSOPHY.md, "6. A divergence is good news. A quiet failure is th
 
 ## Skip, never hide; only the human skips
 
-Do only the work that the request needs. Every skip of needed work is said aloud, never hidden. Only
-the human skips, with a due time; after it, the work comes back.
+Do only the work that the request needs. Say every skip aloud; never hide one. Only the human skips, with a due
+time; after it, the work comes back. In the ledger `park ID --until DATE` does that; `close --reason human_skip` is final.
 Source: docs/PHILOSOPHY.md, "8. Speed comes from skipping work, never from hiding it"

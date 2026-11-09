@@ -1,6 +1,6 @@
-# s1: the Jev client (T04)
+# s1: the System 1 model client (T04)
 
-`jev.py` is a Python 3 standard-library client for TypeSafe System One (Jev).
+`jev.py` is a Python 3 standard-library client for the System 1 model (today TypeSafe Jev).
 API: https://docs.typesafe.ai/api.md
 
 - `judge(state, questions, *, model="jev-1.14.0", timeout=20, redactions=None)` returns `{qid: answer}` or `None`. It never raises. The key comes from `$TYPESAFE_API_KEY`.
@@ -11,12 +11,12 @@ Tests (no network): `python3 -m unittest s1.test_jev -v` from the repo root.
 
 ## The hook (T07)
 
-`hook.py` is a Claude Code `UserPromptSubmit` hook. For each prompt it asks Jev the questions in
+`hook.py` is a Claude Code `UserPromptSubmit` hook. For each prompt it asks the System 1 model the questions in
 `questions.json` about `{message: the prompt, recent: the last 3 messages before it}`. `recent`
 is a list, oldest first; each item is `{"role": "you" | "agent", "text": the complete text}`. A
 message is a user prompt or an assistant reply; tool calls, tool results, meta lines and subagent
 lines are not messages; an assistant reply is all the agent text of one turn. `S1_CONTEXT_MESSAGES` raises the count (never below 3). Each text is sent
-whole. Only when the state and the longest question would pass Jev's per-question context (32k
+whole. Only when the state and the longest question would pass the model's per-question context (32k
 tokens) are the messages beyond 3 dropped, oldest first. If the 3 whole messages still do not
 fit, they are sent whole with the `TypeSafe-Danger-Zone-Long-Context: true` header (262k tokens;
 slower, same price; the log line has `"long_context": true`). Only beyond 262k is the oldest one
@@ -63,7 +63,7 @@ session's calibrated set (22 of 25 known cases), copied unchanged.
 }
 ```
 
-The `timeout` of 10 s is the Claude Code limit. The hook stops waiting for Jev before that: after
+The `timeout` of 10 s is the Claude Code limit. The hook stops waiting for the System 1 model before that: after
 `S1_TIMEOUT` seconds (default 4) plus 0.5 s.
 
 ### Turn it off
@@ -76,7 +76,7 @@ Set `S1_OFF=1`: for one session, start it with `S1_OFF=1 claude`; for all sessio
 | Env | Default | Meaning |
 |---|---|---|
 | `S1_OFF` | unset | `1` (any value but `0`): do nothing |
-| `S1_TIMEOUT` | `4` | seconds for the Jev call |
+| `S1_TIMEOUT` | `4` | seconds for the System 1 model call |
 | `S1_CONTEXT_MESSAGES` | `3` | messages in `recent` (never below 3) |
 | `S1_QUESTIONS` | `s1/questions.json` | the question set |
 | `S1_REDACT` | `s1/redact.txt` | names to redact |

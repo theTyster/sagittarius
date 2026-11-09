@@ -5,7 +5,9 @@ own rules and changes in `CLAUDE.md`, which imports this file. Where the two dis
 wins.
 
 This hub is the **informal edition**: five stores, kept in plain files, git and SQLite. It needs
-Python 3 and git, and nothing else. `.hub-template.json` records the edition.
+Python 3 (stdlib only), git and bash 4 or later, and these POSIX tools on the PATH: `awk`, `comm`,
+`date`, `diff`, `find`, `mkdir`, `mktemp`, `mv`, `rm`, `sed`, `sort`, `tail`, `tr`, `wc`. It needs no
+other tool. `.hub-template.json` records the edition.
 
 ## The hub exists to enable throughput
 
@@ -46,7 +48,7 @@ Where each fact kind is kept. The table is generated from the design: do not edi
 | `divergences` | `not kept` | No record. The agent says each guess, error and disagreement in its report to the human; one that waits on the human becomes an ask. |
 | `handoffs` | `ledger` | Work passed to another session: `hubflow.py handoff --to S`, then `accept ID` by the receiver. |
 | `heuristics` | `memory` | Rules of thumb learned here: `HEURISTICS.md`, promoted at rotation. |
-| `hypothesis` | `ledger` | A note on the ticket's thread (`hubflow.py note ID TEXT`): what the problem is believed to be, and the result that would show it false. |
+| `hypothesis` | `ledger` | A note on the ticket's thread (`hubflow.py note ID TEXT`): what the problem is believed to be, its premises beside it, and the result that would show it false. |
 | `models` | `bespoke` | A model that a tool or a test of this hub encodes stays with that tool, listed in `TECHNOLOGIES.md`. |
 | `outbound` | `weeks` | Text for the tracker or for people, drafted in `W0/outbound-staging/`. A human sends. |
 | `product_rules` | `memory` | In the decisions file, or a root file such as `PRODUCT.md` that `CLAUDE.md` imports. |

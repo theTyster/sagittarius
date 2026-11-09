@@ -170,6 +170,16 @@ Waivers (the human only; the human sets the due time)
   report lists every waiver. The delivery says "not proved" for a waived burn, and
   "not shown" for a waived flare.
 
+A result from CI or the tracker (pin it in the spec; the spec does not own it)
+  A check may read a run that happened elsewhere. The spec KB must use project (orbit-kb uses project).
+  1. Save the run log or its export to a file. Pin it: its source ref, digest and time are the pin.
+     orbit-kb pin-item ci42 'ci:acme/widgets/runs/42' --text-file ci42.txt --changed-at 2026-11-09T10:00:00Z
+  2. Make the check read the pin, not the file: orbit-kb show pin exits 1 when the kept text changed.
+     orbit-kb add "check(k1, c1)"
+     orbit-kb run k1 -- sh -c "orbit-kb show pin ci42 | grep -q 'conclusion: success'"
+  3. A run that failed first is red, a later green run passes, so the claim counts it like a local run.
+     A newer run is a new pin (ci43); its older pin of the same source is stale.
+
 Verdicts for disproof (orbit-kb help core): upheld(Text), refuted(Text), inconclusive(Text),
 abstained(Text). Name the runs with --rests-on.
 Do not weaken a claim to absorb a counterexample. Record it, and ask the human.

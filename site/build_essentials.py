@@ -134,7 +134,7 @@ slides.append(head(10, 'i-path', 'The redesign') + '''  <h2>The phase tree and S
   <p class="big">Two orbits, four phases. A small model reads each message before the agent does.</p>
   <div class="tiles">
     <div class="tile t-mid"><svg class="ic"><use href="#i-compass"/></svg><h3>The phase tree</h3><p class="muted">The orbit is discovery or build. Discovery has research and specify; build has build and verify. Rigor concentrates on specify and verify, and each make/judge split is a handoff.</p></div>
-    <div class="tile"><svg class="ic"><use href="#i-speech"/></svg><h3>System 1</h3><p class="muted">A hook (<code>s1/hook.py</code>) asks Jev (TypeSafe System One) five small questions about each message: the kind of work, a divergence, a change of plan, the effort, and a formal tool that fits. It adds one line of hints. The agent weighs it and decides.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-speech"/></svg><h3>System 1</h3><p class="muted">A hook (<code>s1/hook.py</code>) asks the System 1 model five small questions about each message: the kind of work, a divergence, a change of plan, the effort, and a formal tool that fits. It adds one line of hints. The agent weighs it and decides.</p></div>
     <div class="tile t-amber"><svg class="ic"><use href="#i-eye"/></svg><h3>The status line</h3><p class="muted"><code>s1/statusline.py</code> shows the five judgments of the newest message, each only outside the unsure band. Any error prints nothing: System 1 fails open.</p></div>
   </div>
 ''' + full_link(31, 'Full deck: the philosophy, amended') + full_link(32, 'Full deck: System 1'))

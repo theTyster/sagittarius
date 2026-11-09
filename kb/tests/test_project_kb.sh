@@ -33,6 +33,7 @@
 #   c6 dangling references (E4), help codes        : PT6
 #   c7 D27 notes the Lean limit (burn_model untouched: kb/tests/burn_model/check.sh) : PT7
 #   c8 pin-item keeps the pinned text; show pin    : PT8
+#   T39 c2 a CI or tracker run is pinned (help build recipe)  : PE1
 #   c9 project archive --superseded-before         : PT9
 # Ticket T34 (fixes of the project KB found when T23 was verified; CONTRACT D27 R10):
 #   c1 archive leaves no dangling reference; lint is clean after it : PF1
@@ -836,6 +837,25 @@ t_PT7() { local c=$here/../CONTRACT.md d
           awk '/\*\*D27/{on=1} on' "$c" | head -n 30 | grep -q 'burn_model' || note "D27 names the burn_model"
           awk '/\*\*D27/{on=1} on' "$c" | head -n 30 | grep -Eq 'OPEN.md item 5|limit' || note "D27 notes the limit"; }
 
+# PE1 (T39 c2, u89): a run result of CI or the tracker is pinned in the spec KB with the commands that exist
+# (pin-item, run, a check that reads the pin); the claim counts it like a local run; help build says how.
+t_PE1() { okb init "$T/ek" --request 'CI must pass' --uses build,project >/dev/null 2>&1 || note "setup: init failed"; K=$T/ek
+          padd "claim(c1, introduce, 'The CI run of the widget job passes')" "cites(c1, 'CI must pass')" "check(k1, c1)" >/dev/null; rc_is 0 "setup"
+          printf 'run 42 of widgets\nconclusion: failure\n' > "$T/ci42.txt"
+          okb --dir "$K" pin-item ci42 'ci:acme/widgets/runs/42' --text-file "$T/ci42.txt" --changed-at "$T1"; rc_is 0 "pin the failed run"
+          out_has 'sha256:' "pin-item prints the digest"
+          local chk="$OKB --dir $K show pin ci42 | grep -q 'conclusion: success'"
+          okb --dir "$K" run k1 -- sh -c "$chk"; rc_is 1 "the check on the failed run fails (red)"
+          is_false 'fulfilled(c1)'
+          printf 'run 43 of widgets\nconclusion: success\n' > "$T/ci43.txt"
+          okb --dir "$K" pin-item ci43 'ci:acme/widgets/runs/43' --text-file "$T/ci43.txt" --changed-at "$T2"; rc_is 0 "pin the green run"
+          okb --dir "$K" show pin ci43; rc_is 0 "show pin"; out_has 'ci:acme/widgets/runs/43' "the source ref"; out_has 'sha256:' "the digest"; out_has "$T2" "the time"
+          chk="$OKB --dir $K show pin ci43 | grep -q 'conclusion: success'"
+          okb --dir "$K" run k1 -- sh -c "$chk"; rc_is 0 "the check on the green run passes"
+          is_true 'was_red(k1)'; is_true 'fulfilled(c1)'
+          okb --dir "$K" lint; rc_is 0 "lint is clean"
+          okb help build; out_has 'CI' "help build names a CI run"; out_has 'pin-item' "and pin-item"; out_has 'show pin' "and the check that reads the pin"; }
+
 # PT8 (c8): pin-item keeps the pinned text at pins/HEX.txt; show pin ID prints it.
 t_PT8() { t23_pk; printf 'Title: Sort orders\nBody: sort by date\n' > "$T/item.txt"
           local h; h=$(sha "$T/item.txt")
@@ -1200,6 +1220,7 @@ run_test t_PT4 PT4 "T23 c4: an agent's decision is proposed until a human ratifi
 run_test t_PT5 PT5 "T23 c5: analyses live in the project KB (WP6); a week's report is a file pin"
 run_test t_PT6 PT6 "T23 c6: every new relation refuses a dangling reference (E4); help codes lists them"
 run_test t_PT7 PT7 "T23 c7: CONTRACT D27 notes the Lean limit again"
+run_test t_PE1 PE1 "T39 c2: a CI or tracker run is pinned with pin-item; a check reads the pin; the claim is fulfilled"
 run_test t_PT8 PT8 "T23 c8: pin-item keeps the pinned text at pins/HEX.txt; show pin ID prints it"
 run_test t_PT9 PT9 "T23 c9: project archive removes superseded facts that nothing keeps"
 run_test t_PF1 PF1 "T34 c1: archive removes the facts that name an archived id; lint is clean after it"
