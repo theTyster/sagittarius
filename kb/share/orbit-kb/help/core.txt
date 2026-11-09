@@ -79,14 +79,18 @@ Queries (orbit-kb query 'current(C)' -n 0)
                      check_failing(K), check_unrun(K), waiver_lapsed(W), past_due(X),
                      supersede_cycle(C), no_claim. orbit-kb show blocking prints each with its text.
 
-Local rules go in rules.pl beside kb.pl. They cannot change done, or the burn and flare
+Local rules go in rules.pl beside kb.pl. The first clause of a head declares it. Describe it in a
+line above that clause: %% doc: TEXT (lint W9 names a head with none). They cannot change done, or the burn and flare
 rules (lint reports E16). not p means that p has no answer (negation as failure), so
 not under(_) means "no under at all". A predicate must not depend on itself through not
 (lint E18). There is no classical negation: a fact that is not recorded is false.
 If the schema does not fit, add a fact of a new predicate. Its first use declares it
 (orbit-kb help add), and lint lists it (W7) for review, and flags a name that looks like a
-typo of a declared one (E19). declare is optional: use orbit-kb declare ... --doc TEXT
-before the first use to give the predicate a doc and types.
+typo of a declared one (E19). The guard has a cost: a real name 2 edits from a declared
+one, such as cited/2 next to cites/2, is refused too. Then choose another name. In the
+first add of a new kind, add may take one line of description:
+orbit-kb add 'FACT' --doc TEXT. It is optional. orbit-kb show kinds lists each kind with
+its description, and lint W9 names a kind with none.
 
 Rules for the KB
   Size the KB to the work. A small change needs a few facts: the request, one claim, and one

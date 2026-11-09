@@ -3,7 +3,8 @@ Each message ends with the fix. Read it. orbit-kb lint --strict makes warnings e
 
 Core
   E1   syntax error. Query, why, whynot, show, and report exit 2.
-  E2   undeclared predicate or wrong arity. Declare it: orbit-kb declare.
+  E2   undeclared predicate or wrong arity. Fix the name, or add a fact of the new kind:
+       orbit-kb add 'FACT' --doc TEXT.
   E3   type error (also a label outside oneof)
   E4   dangling reference: the id does not exist, or is the wrong kind (also depends_on, excludes, ratified_by of the project module).
        supersedes takes two claims, or two hypotheses, or (project module) two decisions, two definitions, or two rules.
@@ -27,6 +28,8 @@ Core
        fewer from a declared predicate of the same arity. The message names both.
        A typo: correct the facts in kb.pl, and delete the decl/4 and first_use/3 lines
        of the new name. A new predicate: choose a name more than 2 edits away.
+       Also a head of rules.pl (declared by its first clause) that is that close to a declared name:
+       correct the name in rules.pl. Query, why, whynot, show, and report exit 2 until it is gone.
   W1   subject digest differs from the file. Run orbit-kb subject again.
   W2   a local declaration, listed for review
   W3   a claim with no cites. Cite the request text, or drop the claim (drift).
@@ -38,6 +41,9 @@ Core
   W8   the request text changed at its source (request_pin, T27): read the tracker item. A human
        accepts the new text with orbit-kb pin-request --request-file F --accept --by human.
        It also blocks done (request_stale) until then.
+  W9   a fact kind of kb.pl, or a head of rules.pl, with no description (T26). For a fact kind: give one in
+       the first add, orbit-kb add 'FACT' --doc TEXT. For a rule head: a line %% doc: TEXT just above its
+       first clause. orbit-kb show kinds names each one.
 
 Discovery module
   WD1  a conflict, surprise, or scope finding raised no question. Ask one.

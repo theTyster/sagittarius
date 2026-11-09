@@ -122,7 +122,7 @@ Lint
 One writer (every KB, T27)
   Every KB has one writer at a time, a spec KB too. The writer is the first that is set of
   $ORBIT_KB_WRITER, $CLAUDE_CODE_SESSION_ID (Claude Code sets it), $CLAUDE_SESSION_ID, $HUB_SESSION.
-  With none, no lock is taken. A write command (add, declare, subject, attest, run, prove, uses, pin-item,
+  With none, no lock is taken. A write command (add, subject, attest, run, prove, uses, pin-item,
   pin-question, pin-answer, pin-request, apply-pending) claims the file writer.lock (NAME TIME). The holder goes on, and each
   write renews its lease (TIME is the time of its last write). Another writer gets exit 2 and the name
   of the holder.
