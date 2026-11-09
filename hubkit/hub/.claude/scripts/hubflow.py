@@ -13,7 +13,9 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                Seed: --seed FILE, else flow/seed.json if present,
                                                else no sessions, aliases or persons
   add KIND --title T [--owner S|none] [--waits-on P] [--analysis SLUG] [--ref KIND:REF ...]
-          [--status open|waiting] [--note N]   KIND: ask thread hold. Prints the new id
+          [--status open|waiting] [--note N]   KIND: ask thread hold summary. Prints the new id.
+                                               A summary (S-) is what an agent noted from a meeting
+                                               it read; it lapses by itself (see Retention)
   handoff --to S --title T [--gate G] [--analysis SLUG] [--ref ...] [--note N]
                                                H- item: from = the writer, owner = S, status open
   accept ID                                    only the to-session may accept; sets accepted_at
@@ -37,25 +39,21 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   capsule ID --summary T                       context the tracker lacks (at most 1000 characters),
                                                with the hub's git HEAD and the item's kb and file
                                                refs; `show` prints the newest capsule first
-  index-transcripts W_DIR                      index the transcripts of a week dir (relative to the
-                                               hub). Claude Code JSONL anywhere under it: counts,
-                                               times, and user messages cut to 200 characters.
-                                               Meeting transcripts (.md, .txt) in W_DIR/transcripts/:
-                                               a summary (title, date, speakers, first lines) and
-                                               one row per speaker turn (a line `Name: text` or
-                                               `**Name:** text`; two or more such lines mark the
-                                               file), else one row per paragraph, with its line.
-                                               Idempotent; it replaces the week's meeting rows
-  transcripts [--detail ID] [--grep TEXT] [--format md|json|tsv]
-                                               the index: sessions, then meetings (json: one list,
-                                               each row with kind session|meeting). --detail ID adds
-                                               a session's user messages or a meeting's turns (each
-                                               cut to 200 characters); then read the file at its
-                                               path. --grep TEXT: the meeting turns that contain
-                                               TEXT (any case) with id, path, line, speaker and the
-                                               text around the match; with --detail, in one meeting
+  index-transcripts W_DIR                      index the Claude Code JSONL transcripts under a week
+                                               dir (relative to the hub): counts, times, and user
+                                               messages cut to 200 characters. Idempotent. A meeting
+                                               transcript is never parsed: an agent reads it and
+                                               records what is needed (an item with a transcript ref)
+  transcripts [--detail SESSION_ID] [--format md|json|tsv]
+                                               the session index; --detail adds the user messages
+  transcripts --files [--format md|json|tsv]   the files in W0..W5/transcripts/: path, date (the
+                                               file's UTC modification day), size, sha256, and the
+                                               ref to give an item. Writes nothing
+  transcripts --find NAME@sha256:HEX           the path of that file in whichever W slot holds it
+                                               now; exit 1 if it is gone or its sha256 changed
   reopen ID [--note N]
   ref ID add|rm KIND:REF                       KIND: issue pr build release kb file commit url
+                                               transcript
   link FROM TO KIND                            KIND: blocks duplicates relates supersedes follows
   note ID TEXT                                 an event with verb note
   show ID [--format md|json]                   the item, refs, links, handoff and events
@@ -79,10 +77,11 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   import FILE [--yes] [--format md|json]       JSONL of items; a dry run without --yes; all or nothing
   rotate --week-start YYYY-MM-DD [--yes]       prune; a dry run without --yes. Lists the due items
                                                with no disposition (untriaged) and exits 1 until
-                                               each has one. --yes also rebuilds the transcript
-                                               index of the week dirs W0..W5 on disk (run it after
-                                               rotate.sh): moved weeks get their new paths, and a
-                                               retired week's rows go with it
+                                               each has one; `lapsed:` names the summary rows it
+                                               lapses. --yes also rebuilds the session index of the
+                                               week dirs W0..W5 on disk (run it after rotate.sh):
+                                               moved weeks get their new paths, and a retired week's
+                                               rows go with it
   export                                       rewrite the JSONL from the db
   rebuild                                      make the db from the JSONL (refuses if the db exists)
   check                                        schema, foreign keys, JSONL equal to the db, and
@@ -135,24 +134,31 @@ Exit codes
   3 check found a difference or an ask to another person without an issue ref
 
 Retention (rotate --week-start D, D the Monday of the new W0; W5 starts at D - 35 days)
-  due: open or waiting, idle 28 days or more, not parked through today, not escalated. Each due
-       item needs a disposition (`triage`) before `rotate` runs; nothing lapses by itself
+  due: open or waiting, idle 28 days or more, not parked through today, not escalated, not a
+       summary. Each due item needs a disposition (`triage`) before `rotate` runs; no due item
+       lapses by itself
+  summary: open 28 days or more (from opened_at; a renew or a park does not delay it) -> the
+       rotation lapses it, with no triage; it never blocks a rotation. An escalated summary, or one
+       whose spec KB is not clear, stays open for the human (the same guard as triage)
   prune: closed before D - 35 days -> deleted with refs, links, handoff and events; retired
          sessions retired before then and referenced by no item go with their aliases
   The caller commits flow/jsonl/ with the ids in the message; git history is the archive.
 
-Schema v3 (PRAGMA user_version = 3; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
+Schema v4 (PRAGMA user_version = 4; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
 db to v2 (it adds disposition, capsule, transcript, transcript_msg and remakes v_open and
-v_retention_due), and a v2 db to v3 (it adds meeting and meeting_turn).
-  meta(key, value)                  next_A next_T next_K next_H, owner_person, and now (tests only)
+v_retention_due), a v2 db to v3 (it adds meeting and meeting_turn), and a v3 db to v4 (it drops
+meeting and meeting_turn and their JSONL, adds the item kind summary and the ref kind transcript,
+and remakes v_stale and v_retention_due).
+  meta(key, value)                  next_A next_T next_K next_H next_S, owner_person, and now (tests only)
   session(name, role, status active|retired, started_on, retired_on)
   session_alias(alias, name, since)
   person(key, display)
-  item(id, kind ask|thread|hold|handoff, title 3..200, status open|waiting|done|dropped|lapsed,
+  item(id, kind ask|thread|hold|handoff|summary, title 3..200, status open|waiting|done|dropped|lapsed,
        owner_session, waits_on, analysis (a slug, never a W-slot path), opened_at, renewed_at,
        parked_until, closed_at, close_reason)       closed_at is set exactly when status is closed
   item_ref(item_id, kind, ref)      issue and pr refs are digits; a kb ref is <slug> (the spec KB at
-                                    specs/<slug>) or, in an old hub, <slug>/kb; never W0/...
+                                    specs/<slug>) or, in an old hub, <slug>/kb; never W0/...;
+                                    a transcript ref is NAME@sha256:HEX (no W slot)
   item_link(from_id, to_id, kind)
   handoff(item_id, from_session, to_session, gate, accepted_at)
   event(seq, at, item_id, verb, old, new, by_session, by human|agent|script, note)
@@ -162,19 +168,13 @@ v_retention_due), and a v2 db to v3 (it adds meeting and meeting_turn).
   capsule(seq, at, item_id, summary, git_rev, paths (a JSON list), by_session, by)
   transcript(session_id, first_at, last_at, first_user, messages, user_messages, tools, path)
   transcript_msg(session_id, n, at, text)   user messages only, each cut to 200 characters
-  meeting(id, path, title, date, speakers, first_lines, turns, lines)
-                                    a meeting transcript; id = file name slug + 6 hex digits of
-                                    its sha256 (a rename keeps it); first_lines cut to 200
-  meeting_turn(meeting_id, n, line, speaker, text)
-                                    one speaker turn (speaker empty: a paragraph), the whole text;
-                                    line is its first line in the file
-Views: clock v_open (with escalated) v_escalated v_waiting_on v_inbox v_stale v_dup_refs v_week
-       v_retention_due (would: triage | prune)
+Views: clock v_open (with escalated) v_escalated v_waiting_on v_inbox v_stale (no summary) v_dup_refs
+       v_week v_retention_due (would: triage | lapse (a summary) | prune)
 """
 import datetime, hashlib, json, os, re, shlex, sqlite3, subprocess, sys
 from urllib.parse import quote
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 # Schema steps: MIGRATIONS[v] is the SQL that takes a db from schema v to v + 1. DDL is the shape of
 # schema 1; init and rebuild run DDL and then every step, so a new db and a migrated db are the
 # same. A release that changes the schema raises SCHEMA_VERSION and adds its step to MIGRATIONS.
@@ -186,12 +186,15 @@ CAPSULE_MAX = 1000      # a capsule is a summary, not a copy
 ORBIT_KB_TIMEOUT = 60   # seconds for one `orbit-kb query`
 DISPOSITIONS = ("keep", "lapse", "capsule", "escalate")
 CLOSE_REASONS = ("done", "dropped", "human_skip")
-ITEM_KINDS = ("ask", "thread", "hold", "handoff")
-ADDABLE = ("ask", "thread", "hold")
+ITEM_KINDS = ("ask", "thread", "hold", "handoff", "summary")
+ADDABLE = ("ask", "thread", "hold", "summary")
 STATUSES = ("open", "waiting", "done", "dropped", "lapsed")
 OPEN = ("open", "waiting")
-PREFIX = {"ask": "A", "thread": "T", "hold": "K", "handoff": "H"}
-REF_KINDS = ("issue", "pr", "build", "release", "kb", "file", "commit", "url")
+PREFIX = {"ask": "A", "thread": "T", "hold": "K", "handoff": "H", "summary": "S"}
+REF_KINDS = ("issue", "pr", "build", "release", "kb", "file", "commit", "url", "transcript")
+# A transcript ref: the file name and its sha256, so it still resolves after the file moves to
+# another W slot at rotation (`transcripts --find REF`).
+TRANSCRIPT_REF = re.compile(r"^(?P<name>[^/\\]+)@sha256:(?P<digest>[0-9a-f]{64})$")
 LINK_KINDS = ("blocks", "duplicates", "relates", "supersedes", "follows")
 BY = ("human", "agent", "script")
 HUMAN_SESSION = "human"  # --session human --by human: a person, not a session (orbit-kb serve --hub)
@@ -204,11 +207,12 @@ SQL_OK = re.compile(r"^\s*(select|with)\b", re.I)
 TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
 TABLES = ("meta", "session", "session_alias", "person", "item", "item_ref", "item_link", "handoff", "event",
-          "disposition", "capsule", "transcript", "transcript_msg", "meeting", "meeting_turn")
+          "disposition", "capsule", "transcript", "transcript_msg")
+DROPPED_TABLES = ("meeting", "meeting_turn")  # schema 4 drops them; migrate removes their JSONL
 ORDER = {"meta": "key", "session": "name", "session_alias": "alias", "person": "key", "item": "id",
          "item_ref": "item_id, kind, ref", "item_link": "from_id, to_id, kind", "handoff": "item_id",
          "event": "seq", "disposition": "seq", "capsule": "seq", "transcript": "session_id",
-         "transcript_msg": "session_id, n", "meeting": "id", "meeting_turn": "meeting_id, n"}
+         "transcript_msg": "session_id, n"}
 
 SEED_KEYS = {"sessions": ("name", "role"), "aliases": ("alias", "name"), "persons": ("key", "display")}
 SEED_OWNER = "owner"  # optional seed key: the person key of the hub's owner
@@ -363,8 +367,8 @@ WHERE i.closed_at IS NOT NULL
   AND i.closed_at < strftime('%Y-%m-%dT00:00:00Z', p.wk, '-{PRUNE_DAYS} days')""",
 ]
 
-# Schema 3 (T28): meeting transcripts (Markdown and plain text in W*/transcripts/), one summary per
-# file and one row per speaker turn or paragraph. The text of a turn is kept whole, for --grep.
+# Schema 3 (T28): meeting transcripts parsed by code into two tables. Schema 4 drops them again; the
+# step stays so that a v2 db still migrates.
 V3_STEPS = [
     f"""CREATE TABLE meeting(id TEXT PRIMARY KEY, path TEXT NOT NULL, title TEXT, date TEXT,
   speakers TEXT, first_lines TEXT CHECK(first_lines IS NULL OR length(first_lines) <= {TEXT_CAP}),
@@ -373,9 +377,78 @@ V3_STEPS = [
   n INTEGER NOT NULL, line INTEGER NOT NULL, speaker TEXT, text TEXT NOT NULL, PRIMARY KEY(meeting_id, n))""",
 ]
 
+
+
+def _swap(text, a, b):
+    if text.count(a) != 1:
+        raise RuntimeError(f"schema anchor {a!r} occurs {text.count(a)} times")
+    return text.replace(a, b)
+
+
+ITEM_DDL = next(x for x in DDL if x.startswith("CREATE TABLE item("))
+ITEM_REF_DDL = next(x for x in DDL if x.startswith("CREATE TABLE item_ref("))
+
+# Schema 4: an agent, not code, puts what a meeting transcript needs into the ledger. The meeting
+# tables of schema 3 go. A new item kind `summary` (S-) lapses by itself at the first rotation when it
+# is LAPSE_DAYS old and is never due for a triage; a new ref kind `transcript` (NAME@sha256:HEX)
+# points to a transcript file in whichever W slot holds it. SQLite cannot change a CHECK in place, so
+# item and item_ref are copied into new tables (migrate runs with foreign keys off; legacy_alter_table
+# keeps the views and the other tables' references as they are).
+V4_STEPS = [
+    "DROP TABLE meeting_turn",
+    "DROP TABLE meeting",
+    "PRAGMA legacy_alter_table=ON",
+    _swap(_swap(ITEM_DDL, "CREATE TABLE item(", "CREATE TABLE item_v4("), "'handoff')", "'handoff','summary')"),
+    "INSERT INTO item_v4 SELECT * FROM item",
+    "DROP TABLE item",
+    "ALTER TABLE item_v4 RENAME TO item",
+    _swap(_swap(ITEM_REF_DDL, "CREATE TABLE item_ref(", "CREATE TABLE item_ref_v4("), "'url')", "'url','transcript')"),
+    "INSERT INTO item_ref_v4 SELECT * FROM item_ref",
+    "DROP TABLE item_ref",
+    "ALTER TABLE item_ref_v4 RENAME TO item_ref",
+    "PRAGMA legacy_alter_table=OFF",
+    "DROP VIEW v_stale",
+    f"""CREATE VIEW v_stale AS
+SELECT * FROM (
+  SELECT o.id, o.kind, o.title, o.owner_session, o.age_days, o.idle_days, o.parked_until,
+    CASE WHEN o.idle_days >= {LAPSE_DAYS} AND (o.parked_until IS NULL OR o.parked_until < date(clock.now)) THEN 'lapse_due'
+         WHEN o.idle_days >= {WARN_DAYS} THEN 'warn' END AS flag
+  FROM v_open o, clock WHERE o.kind <> 'summary'
+  UNION ALL
+  SELECT o.id, o.kind, o.title, o.owner_session, o.age_days, o.idle_days, o.parked_until, 'handoff_unaccepted'
+  FROM v_open o JOIN handoff h ON h.item_id = o.id, clock
+  WHERE h.accepted_at IS NULL
+    AND CAST(strftime('%s', clock.now) AS INTEGER) - CAST(strftime('%s', o.opened_at) AS INTEGER) > 86400
+) WHERE flag IS NOT NULL""",
+    "DROP VIEW v_retention_due",
+    f"""CREATE VIEW v_retention_due AS
+WITH p AS (SELECT clock.now AS now,
+                  COALESCE((SELECT value FROM meta WHERE key='rotate_week_start'),
+                           date(clock.now, '-6 days', 'weekday 1')) AS wk FROM clock)
+SELECT i.id, i.kind, i.title, i.status, 'triage' AS would,
+  'idle ' || ((CAST(strftime('%s', p.now) AS INTEGER) - CAST(strftime('%s', i.renewed_at) AS INTEGER)) / 86400) || ' days' AS detail
+FROM item i, p
+WHERE i.status IN ('open','waiting') AND i.kind <> 'summary'
+  AND i.renewed_at <= strftime('%Y-%m-%dT%H:%M:%SZ', p.now, '-{LAPSE_DAYS} days')
+  AND (i.parked_until IS NULL OR i.parked_until < date(p.now))
+  AND {ESCALATED} = 0
+UNION ALL
+SELECT i.id, i.kind, i.title, i.status, 'lapse',
+  'open ' || ((CAST(strftime('%s', p.now) AS INTEGER) - CAST(strftime('%s', i.opened_at) AS INTEGER)) / 86400) || ' days'
+FROM item i, p
+WHERE i.status IN ('open','waiting') AND i.kind = 'summary'
+  AND i.opened_at <= strftime('%Y-%m-%dT%H:%M:%SZ', p.now, '-{LAPSE_DAYS} days')
+UNION ALL
+SELECT i.id, i.kind, i.title, i.status, 'prune', 'closed ' || i.closed_at
+FROM item i, p
+WHERE i.closed_at IS NOT NULL
+  AND i.closed_at < strftime('%Y-%m-%dT00:00:00Z', p.wk, '-{PRUNE_DAYS} days')""",
+]
+
 MIGRATIONS = {
     1: V2_STEPS,
     2: V3_STEPS,
+    3: V4_STEPS,
 }
 
 # view name -> (sql view, filter option -> column, ORDER BY)
@@ -679,6 +752,10 @@ def parse_ref(s):
     elif kind == "url":
         if not re.match(r"^https?://\S+$", ref):
             raise Bad(f"url ref {ref!r} must start with http:// or https://")
+    elif kind == "transcript":
+        if not TRANSCRIPT_REF.match(ref):  # transcript ref form
+            raise Bad(f"transcript ref {ref!r} must be NAME@sha256:HEX: the file name (no directory, no W slot) and its"
+                      " sha256 in 64 lowercase hex digits; `hubflow.py transcripts --files` prints it")
     return kind, ref
 
 
@@ -787,9 +864,10 @@ def select_rows(c, sql, params=()):
 def new_item(c, kind, title, status, owner, waits_on, analysis, opened_at, renewed_at=None,
              parked_until=None, closed_at=None, close_reason=None):
     key = "next_" + PREFIX[kind]
-    n = int(c.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()[0])
+    r = c.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+    n = int(r[0]) if r else 1  # a migrated db has no next_S until its first summary
     iid = f"{PREFIX[kind]}-{n:04d}"
-    c.execute("UPDATE meta SET value = ? WHERE key = ?", (str(n + 1), key))
+    c.execute("INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)", (key, str(n + 1)))
     c.execute("INSERT INTO item(id, kind, title, status, owner_session, waits_on, analysis, opened_at, renewed_at,"
               " parked_until, closed_at, close_reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
               (iid, kind, title, status, owner, waits_on, analysis, opened_at, renewed_at or opened_at,
@@ -875,7 +953,7 @@ def cmd_init(g, a):
         c.execute("BEGIN IMMEDIATE")
         create_schema(c)
         today = now[:10]
-        for k in ("next_A", "next_T", "next_K", "next_H"):
+        for k in ("next_A", "next_T", "next_K", "next_H", "next_S"):
             c.execute("INSERT INTO meta(key, value) VALUES(?, '1')", (k,))
         if os.environ.get("HUBFLOW_NOW"):
             c.execute("INSERT INTO meta(key, value) VALUES('now', ?)", (now,))
@@ -1745,130 +1823,15 @@ def read_transcript(path):
             "tools": tools, "users": users}
 
 
-# ---- meeting transcripts (T28): Markdown and plain text in W*/transcripts/ ----
-
-MEETING_EXT = (".md", ".txt")
-WEEK_DIR = re.compile(r"^W\d$")
-_STAMP = r"(?:\[\d{1,2}:\d\d(?::\d\d)?\]|\(\d{1,2}:\d\d(?::\d\d)?\)|\d{1,2}:\d\d(?::\d\d)?)"
-# A marked speaker turn: `Name: text`, `**Name:** text` or `**Name**: text`; the name is one to four
-# capitalised words; a time stamp may stand before or after the name.
-SPEAKER_LINE = re.compile(r"^\s*(?:[-*]\s+)?(?:" + _STAMP + r"\s+)?(?:\*\*|__)?"
-                          r"(?P<name>[A-Z][\w.'-]*(?: [A-Z][\w.'-]*){0,3})"
-                          r"(?:\*\*|__)?(?:\s+" + _STAMP + r")?\s*:(?:\*\*|__)?\s+(?P<text>\S.*)$")
-# Header keys and note words that look like a speaker but are not one.
-NOT_SPEAKERS = {"date", "time", "title", "attendees", "participants", "present", "absent", "speakers", "location",
-                "subject", "meeting", "duration", "recording", "link", "url", "agenda", "note", "notes", "action",
-                "actions", "action items", "todo", "next", "next steps", "decision", "decisions", "question",
-                "questions", "answer", "summary", "update", "status", "owner", "topic", "re", "fyi", "where", "when"}
-META_LINE = re.compile(r"^\s*(?P<key>[A-Za-z][A-Za-z ]{0,20}):\s*(?P<value>.*)$")
-HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(?P<text>.*?)\s*#*\s*$")
-ISO_DAY = re.compile(r"(\d{4}-\d\d-\d\d)")
-
-
-def first_day(*texts):
-    """The first real YYYY-MM-DD in the texts, or None."""
-    for t in texts:
-        for m in ISO_DAY.finditer(t or ""):
-            try:
-                return datetime.date.fromisoformat(m.group(1)).isoformat()
-            except ValueError:
-                continue
-    return None
-
-
-def speaker_of(line):
-    """(name, text) when the line is a marked speaker turn, else None."""
-    m = SPEAKER_LINE.match(line)
-    if not m or m.group("name").lower() in NOT_SPEAKERS:
-        return None
-    return m.group("name"), m.group("text").strip()
-
-
-def read_meeting(path, rel):
-    """Index one meeting transcript (.md or .txt): its summary and one row per speaker turn, or per
-    paragraph when fewer than two lines mark a speaker. Lines are numbered from 1 in the file."""
-    with open(path, "rb") as f:
-        raw = f.read()
-    lines = raw.decode("utf-8", errors="replace").lstrip("\ufeff").splitlines()
-    stem = os.path.splitext(os.path.basename(path))[0]
-    slug = re.sub(r"[^a-z0-9]+", "-", stem.lower()).strip("-")[:40] or "meeting"
-    title, date, i = None, None, 0
-    if lines and lines[0].strip() == "---":  # YAML front matter: title and date only
-        for j in range(1, len(lines)):
-            if lines[j].strip() in ("---", "..."):
-                for x in lines[1:j]:
-                    m = META_LINE.match(x)
-                    if m and m.group("key").strip().lower() == "title" and m.group("value").strip():
-                        title = m.group("value").strip().strip("'\"")
-                    elif m and m.group("key").strip().lower() == "date":
-                        date = first_day(m.group("value"))
-                i = j + 1
-                break
-    body = list(enumerate(lines, 1))[i:]
-    if title is None:
-        for n, x in body:
-            h = HEADING.match(x)
-            if h and h.group("text"):
-                title, body = h.group("text"), [b for b in body if b[0] != n]
-                break
-    if title is None and path.endswith(".txt"):
-        for n, x in body:
-            if x.strip():
-                if not speaker_of(x) and len(x.strip()) <= 120:
-                    title, body = x.strip(), [b for b in body if b[0] != n]
-                break
-    marked = sum(1 for _, x in body if speaker_of(x))
-    turn_mode = marked >= 2
-    rows, cur, started = [], None, False
-
-    def flush():
-        if cur and cur[2]:
-            rows.append((cur[0], cur[1], " ".join(cur[2])))
-
-    for n, x in body:
-        t = x.strip()
-        if not started:  # header lines before the first turn or paragraph
-            m = META_LINE.match(x)
-            if m and not (turn_mode and speaker_of(x)) and m.group("key").strip().lower() in NOT_SPEAKERS:
-                if m.group("key").strip().lower() == "date" and date is None:
-                    date = first_day(m.group("value"))
-                continue
-        if HEADING.match(x):
-            flush()
-            cur = None
-            continue
-        sp = speaker_of(x) if turn_mode else None
-        if sp:
-            flush()
-            cur, started = (n, sp[0], [sp[1]]), True
-        elif not t:
-            if not turn_mode:
-                flush()
-                cur = None
-        elif cur is None:
-            cur, started = (n, None, [t]), True
-        else:
-            cur[2].append(t)
-    flush()
-    speakers = []
-    for _, sp, _ in rows:
-        if sp and sp not in speakers:
-            speakers.append(sp)
-    first = " ".join(x for _, _, x in rows[:3])
-    return {"id": f"{slug}-{hashlib.sha256(raw).hexdigest()[:6]}", "path": rel, "title": (title or stem)[:TEXT_CAP],
-            "date": date or first_day(title, stem), "speakers": ", ".join(speakers) or None,
-            "first_lines": first[:TEXT_CAP] or None, "turns": len(rows), "lines": len(lines), "rows": rows}
-
-
 def hub_rel(path, hub):
     rel = os.path.relpath(path, hub)
     return path if rel.startswith("..") else rel
 
 
 def scan_week(wd, hub):
-    """The Claude Code JSONL transcripts anywhere under the week dir wd, and the meeting transcripts
-    (.md, .txt) under wd/transcripts/: (sessions, meetings, JSONL files read)."""
-    sessions, meetings, files_read = [], [], 0
+    """The Claude Code JSONL transcripts anywhere under the week dir wd: (sessions, JSONL files read).
+    Meeting transcripts are not parsed: an agent reads one and records what is needed."""
+    sessions, files_read = [], 0
     for root, dirs, files in os.walk(wd):
         dirs.sort()
         for name in sorted(files):
@@ -1879,14 +1842,7 @@ def scan_week(wd, hub):
                     files_read += 1
                     t["path"] = hub_rel(path, hub)
                     sessions.append(t)
-    td = os.path.join(wd, "transcripts")
-    for root, dirs, files in os.walk(td):
-        dirs.sort()
-        for name in sorted(files):
-            if name.lower().endswith(MEETING_EXT):
-                path = os.path.join(root, name)
-                meetings.append(read_meeting(path, hub_rel(path, hub)))
-    return sessions, meetings, files_read
+    return sessions, files_read
 
 
 def store_sessions(c, found):
@@ -1899,13 +1855,7 @@ def store_sessions(c, found):
             c.execute("INSERT INTO transcript_msg(session_id, n, at, text) VALUES(?,?,?,?)", (t["session_id"], n, at, text))
 
 
-def store_meetings(c, meetings):
-    for m in meetings:
-        c.execute("DELETE FROM meeting WHERE id = ?", (m["id"],))  # turns cascade
-        c.execute("INSERT INTO meeting(id, path, title, date, speakers, first_lines, turns, lines) VALUES(?,?,?,?,?,?,?,?)",
-                  tuple(m[k] for k in ("id", "path", "title", "date", "speakers", "first_lines", "turns", "lines")))
-        for n, (line, sp, text) in enumerate(m["rows"], 1):
-            c.execute("INSERT INTO meeting_turn(meeting_id, n, line, speaker, text) VALUES(?,?,?,?,?)", (m["id"], n, line, sp, text))
+WEEK_DIR = re.compile(r"^W\d$")
 
 
 def week_dirs(hub):
@@ -1914,20 +1864,17 @@ def week_dirs(hub):
 
 
 def reindex_weeks(c, hub):
-    """Rebuild the week transcript index from the week dirs on disk (rotation): every meeting row and
-    every JSONL row whose path is in a week dir is replaced, so a moved week gets its new paths and a
-    retired week's rows go with it. Returns (weeks, meetings, sessions)."""
-    weeks, sessions, meetings = week_dirs(hub), [], []
+    """Rebuild the session index from the week dirs on disk (rotation): every JSONL row whose path is
+    in a week dir is replaced, so a moved week gets its new paths and a retired week's rows go with
+    it. Returns (weeks, sessions)."""
+    weeks, sessions = week_dirs(hub), []
     for wk in weeks:
-        s, m, _ = scan_week(os.path.join(hub, wk), hub)
+        s, _ = scan_week(os.path.join(hub, wk), hub)
         sessions += s
-        meetings += m
     if c is not None:
-        c.execute("DELETE FROM meeting")
         c.execute("DELETE FROM transcript WHERE path GLOB 'W[0-9]/*'")  # a retired week's rows go
         store_sessions(c, sessions)
-        store_meetings(c, meetings)
-    return weeks, len({m["id"] for m in meetings}), len({t["session_id"] for t in sessions})
+    return weeks, len({t["session_id"] for t in sessions})
 
 
 def cmd_index_transcripts(g, a):
@@ -1938,85 +1885,81 @@ def cmd_index_transcripts(g, a):
     wd = pos[0] if os.path.isabs(pos[0]) else os.path.join(hub, pos[0])
     if not os.path.isdir(wd):
         raise Bad(f"no week dir {wd}")
-    found, meetings, files_read = scan_week(wd, hub)
-    td = hub_rel(os.path.join(wd, "transcripts"), hub)
+    found, files_read = scan_week(wd, hub)
 
     def fn(c, w):
         store_sessions(c, found)
-        # the meetings of this week dir are replaced: an edited or removed file leaves no old row
-        c.execute("DELETE FROM meeting WHERE path GLOB ?", (td.replace("[", "[[]") + "/*",))
-        store_meetings(c, meetings)
 
     run_write(g, o, fn)
     print(f"indexed {files_read} file(s), {len({t['session_id'] for t in found})} session(s) from {pos[0]}"
-          " (files that share a session id: the last one read wins);"
-          f" {len({m['id'] for m in meetings})} meeting transcript(s) from {td}")
+          " (files that share a session id: the last one read wins)")
 
 
 TRANSCRIPT_COLS = ("session_id", "first_at", "last_at", "messages", "user_messages", "tools", "first_user", "path")
-MEETING_COLS = ("id", "date", "title", "speakers", "turns", "first_lines", "path")
+FILE_COLS = ("path", "date", "size", "sha256", "ref")
 
 
-def cut_around(text, needle):
-    """At most TEXT_CAP characters of text, around the first match of needle."""
-    if len(text) <= TEXT_CAP:
-        return text
-    at = text.casefold().find(needle.casefold())
-    start = max(0, min(at - TEXT_CAP // 3, len(text) - TEXT_CAP)) if at >= 0 else 0
-    return text[start:start + TEXT_CAP]
+def week_transcript_files(hub):
+    """Every file under W0..W5/transcripts/ (dot files skipped), read for its size and sha256 only:
+    code never parses a meeting transcript. Rows of FILE_COLS, sorted by path."""
+    out = []
+    for wk in week_dirs(hub):
+        td = os.path.join(hub, wk, "transcripts")
+        for root, dirs, files in os.walk(td):
+            dirs[:] = sorted(x for x in dirs if not x.startswith("."))
+            for name in sorted(files):
+                if name.startswith("."):
+                    continue
+                path = os.path.join(root, name)
+                h = hashlib.sha256()
+                with open(path, "rb") as f:
+                    for chunk in iter(lambda: f.read(1 << 20), b""):
+                        h.update(chunk)
+                st = os.stat(path)
+                day = datetime.datetime.fromtimestamp(st.st_mtime, datetime.timezone.utc).strftime("%Y-%m-%d")
+                out.append((hub_rel(path, hub), day, st.st_size, h.hexdigest(), f"transcript:{name}@sha256:{h.hexdigest()}"))
+    return sorted(out)
+
+
+def find_transcript(hub, ref):
+    """The hub-relative path of the file that a transcript ref names, in whichever W slot holds it."""
+    kind, sep, rest = ref.partition(":")
+    _, ref = parse_ref(ref if sep and kind == "transcript" else "transcript:" + ref)
+    m = TRANSCRIPT_REF.match(ref)
+    name, digest = m.group("name"), m.group("digest")
+    files = week_transcript_files(hub)
+    hits = [f[0] for f in files if os.path.basename(f[0]) == name and f[3] == digest]  # name and digest
+    if hits:
+        return hits[0]
+    same = [f[0] for f in files if os.path.basename(f[0]) == name]
+    if same:
+        raise Bad(f"{', '.join(same)} has another sha256 than {name}@sha256:{digest}: the file changed after the ref"
+                  " was written; read it again and record a new ref")
+    raise Bad(f"no transcript {name} with that sha256 in W0..W5/transcripts/ (a retired week leaves the hub; git history keeps it)")
 
 
 def cmd_transcripts(g, a):
-    pos, o = parse(a, {"--detail": "one", "--format": "one", "--grep": "one"})
-    if pos:
-        usage("transcripts [--detail ID] [--grep TEXT] [--format md|json|tsv]")
-    fmt = fmt_of(o, ("md", "json") if "detail" in o and "grep" not in o else ("md", "json", "tsv"))
+    pos, o = parse(a, {"--detail": "one", "--format": "one", "--files": "flag", "--find": "one"})
+    if pos or ("files" in o) + ("find" in o) + ("detail" in o) > 1:
+        usage("transcripts [--detail SESSION_ID | --files | --find NAME@sha256:HEX] [--format md|json|tsv]")
+    if "find" in o:
+        print(find_transcript(hub_dir(g), o["find"]))
+        return
+    fmt = fmt_of(o, ("md", "json") if "detail" in o else ("md", "json", "tsv"))
+    if "files" in o:
+        print(render(week_transcript_files(hub_dir(g)), FILE_COLS, fmt))
+        return
     c = connect_ro(flow_dir(g))
     sel = "SELECT " + ", ".join(TRANSCRIPT_COLS) + " FROM transcript"
-    msel = "SELECT " + ", ".join(MEETING_COLS) + " FROM meeting"
-    if "grep" in o:
-        if not o["grep"]:
-            c.close()
-            raise Bad("--grep needs a text")
-        sql = ("SELECT m.id, m.path, t.line, t.speaker, t.text FROM meeting_turn t JOIN meeting m ON m.id = t.meeting_id"
-               + (" WHERE m.id = ?" if "detail" in o else "") + " ORDER BY m.path, t.line")
-        cols, rows = select_rows(c, sql, (o["detail"],) if "detail" in o else ())
-        c.close()
-        needle = o["grep"].casefold()
-        hits = [r[:4] + (cut_around(r[4], o["grep"]),) for r in rows if needle in r[4].casefold()]
-        print(render(hits, cols, fmt))
-        return
     if "detail" not in o:
         cols, rows = select_rows(c, sel + " ORDER BY first_at, session_id")
-        mcols, mrows = select_rows(c, msel + " ORDER BY date, path")
         c.close()
-        if fmt == "json":
-            print(json.dumps([{"kind": "session", **dict(zip(cols, r))} for r in rows]
-                             + [{"kind": "meeting", **dict(zip(mcols, r))} for r in mrows],
-                             indent=1, ensure_ascii=False))
-            return
         print(render(rows, cols, fmt))
-        if mrows:
-            print()
-            print(render(mrows, mcols, fmt))
         return
     cols, rows = select_rows(c, sel + " WHERE session_id = ?", (o["detail"],))
     if not rows:
-        mcols, mrows = select_rows(c, msel + " WHERE id = ?", (o["detail"],))
-        if not mrows:
-            c.close()
-            raise Bad(f"no transcript {o['detail']!r}; run index-transcripts W_DIR")
-        tcols, trows = select_rows(c, f"SELECT n, line, speaker, substr(text, 1, {TEXT_CAP}) AS text FROM meeting_turn"
-                                      " WHERE meeting_id = ? ORDER BY n", (o["detail"],))
         c.close()
-        if fmt == "json":
-            print(json.dumps({"meeting": dict(zip(mcols, mrows[0])), "turns": [dict(zip(tcols, r)) for r in trows]},
-                             indent=1, ensure_ascii=False))
-            return
-        print(render(mrows, mcols, "md"))
-        print()
-        print(render(trows, tcols, "md"))
-        return
+        raise Bad(f"no transcript {o['detail']!r}; run index-transcripts W_DIR")
     mcols, mrows = select_rows(c, "SELECT n, at, text FROM transcript_msg WHERE session_id = ? ORDER BY n", (o["detail"],))
     c.close()
     if fmt == "json":
@@ -2054,8 +1997,13 @@ def untracked_asks(c):
 
 def rotate_plan(c, now, wk):
     lapse_before = ts_add(now, -LAPSE_DAYS * 86400)
-    due = c.execute("SELECT id, renewed_at FROM item WHERE status IN ('open','waiting') AND renewed_at <= ?"
-                      " AND (parked_until IS NULL OR parked_until < ?) ORDER BY id", (lapse_before, now[:10])).fetchall()
+    due = c.execute("SELECT id, renewed_at FROM item WHERE status IN ('open','waiting') AND kind <> 'summary'"
+                    " AND renewed_at <= ? AND (parked_until IS NULL OR parked_until < ?) ORDER BY id",
+                    (lapse_before, now[:10])).fetchall()
+    # a summary row lapses by itself at the first rotation when it is LAPSE_DAYS old (no triage);
+    # an escalated one stays for the human (the ledger guard), and so does one whose spec KB blocks
+    lapse = [r[0] for r in c.execute("SELECT id FROM item WHERE status IN ('open','waiting') AND kind = 'summary'"
+                                     " AND opened_at <= ? ORDER BY id", (lapse_before,)) if not is_escalated(c, r[0])]
     cutoff = ts_add(wk + "T00:00:00Z", -PRUNE_DAYS * 86400)
     prune = [r[0] for r in c.execute("SELECT id FROM item WHERE closed_at IS NOT NULL AND closed_at < ? ORDER BY id", (cutoff,))]
     gone = set(prune)
@@ -2071,7 +2019,18 @@ def rotate_plan(c, now, wk):
                                         (cutoff[:10],)) if r[0] not in held]
     untriaged = [r[0] for r in due if not is_escalated(c, r[0])]
     escalated = [r[0] for r in c.execute("SELECT id FROM item WHERE status IN ('open','waiting') ORDER BY id") if is_escalated(c, r[0])]
-    return untriaged, escalated, prune, sessions
+    return untriaged, escalated, prune, sessions, lapse
+
+
+def kb_held_summaries(c, hub, lapse):
+    """The summary rows of `lapse` with a kb ref whose spec KB is not clear (fail-safe, as for an
+    agent's triage): the rotation leaves them open. Runs orbit-kb, so call it outside a write."""
+    held = set()
+    for iid in lapse:
+        refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (iid,))]
+        if refs and any(k["state"] != "clear" for k in kb_checks(hub, refs)):  # summary guard
+            held.add(iid)
+    return held
 
 
 def triage_gate(untriaged, specs=()):
@@ -2160,34 +2119,45 @@ def cmd_rotate(g, a):
     if datetime.date.fromisoformat(wk).weekday() != 0:
         raise Bad(f"--week-start {wk} is not a Monday")
 
-    def report(untriaged, escalated, prune, sessions, specs):
+    def report(untriaged, escalated, prune, sessions, lapse, specs):
         print(f"week_start: {wk}")
         print("untriaged: " + (" ".join(untriaged) or "none"))
+        print("lapsed: " + (" ".join(lapse) or "none"))
         print("spec_kbs_untriaged: " + (" ".join(specs) or "none"))
         print("escalated: " + (" ".join(escalated) or "none"))
         print("pruned: " + (" ".join(prune) or "none"))
         print("pruned_sessions: " + (" ".join(sessions) or "none"))
         sys.stdout.flush()
 
-    def report_index(weeks, meetings, sessions):
-        print(f"transcripts_reindexed: {meetings} meeting(s), {sessions} session(s) from " + (" ".join(weeks) or "no week dir"))
+    def report_index(weeks, sessions):
+        print(f"transcripts_reindexed: {sessions} session(s) from " + (" ".join(weeks) or "no week dir"))
 
+    c = connect_ro(flow_dir(g))
+    held = kb_held_summaries(c, hub_dir(g), rotate_plan(c, clock(), wk)[4])
     if not o.get("yes"):
-        c = connect_ro(flow_dir(g))
-        plan = rotate_plan(c, clock(), wk) + (untriaged_spec_kbs(c, hub_dir(g)),)
+        plan = rotate_plan(c, clock(), wk)
+        plan = plan[:4] + ([x for x in plan[4] if x not in held], untriaged_spec_kbs(c, hub_dir(g)))
         c.close()
         print("dry-run: nothing written (add --yes to apply)")
         report(*plan)
-        triage_gate(plan[0], plan[4])
+        triage_gate(plan[0], plan[5])
         report_index(*reindex_weeks(None, hub_dir(g)))
         return
 
+    c.close()
+
     def fn(c, w):
-        untriaged, escalated, prune, sessions = rotate_plan(c, w.now, wk)
+        untriaged, escalated, prune, sessions, lapse = rotate_plan(c, w.now, wk)
+        lapse = [x for x in lapse if x not in held]
         specs = untriaged_spec_kbs(c, hub_dir(g))
         if untriaged or specs:
-            report(untriaged, escalated, prune, sessions, specs)
+            report(untriaged, escalated, prune, sessions, lapse, specs)
         triage_gate(untriaged, specs)
+        for iid in lapse:  # summary rows lapse by themselves
+            it = get_item(c, iid)
+            c.execute("UPDATE item SET status = 'lapsed', closed_at = ?, close_reason = ? WHERE id = ?",
+                      (w.now, f"lapsed: summary, open {idle_days(w.now, it['opened_at'])} days", iid))
+            w.event(iid, "lapsed", it["status"], "lapsed", note=None, by="script")
         for iid in prune:
             c.execute("DELETE FROM item WHERE id = ?", (iid,))
         c.execute("DELETE FROM event WHERE item_id IS NOT NULL AND item_id NOT IN (SELECT id FROM item)")
@@ -2195,7 +2165,7 @@ def cmd_rotate(g, a):
             c.execute("DELETE FROM session_alias WHERE name = ?", (name,))
             c.execute("DELETE FROM session WHERE name = ?", (name,))
         index = reindex_weeks(c, hub_dir(g))  # the week transcript index follows the rename
-        return (untriaged, escalated, prune, sessions, specs), index
+        return (untriaged, escalated, prune, sessions, lapse, specs), index
 
     plan, index = run_write(g, o, fn)
     report(*plan)
@@ -2283,6 +2253,7 @@ def cmd_migrate(g, a):
     b = sqlite3.connect(bak)
     c.backup(b)
     b.close()
+    c.execute("PRAGMA foreign_keys=OFF")  # a step may copy a table (schema 4); the check below stands in
     try:
         c.execute("BEGIN IMMEDIATE")
         while v < SCHEMA_VERSION:
@@ -2293,6 +2264,9 @@ def cmd_migrate(g, a):
         if c.execute("PRAGMA foreign_key_check").fetchall():
             raise Bad("the migrated db has a row that points to a row that does not exist")
         export_all(c, d)
+        for t in DROPPED_TABLES:  # git keeps the old JSONL in history
+            if os.path.exists(os.path.join(jsonl_dir(d), t + ".jsonl")):
+                os.remove(os.path.join(jsonl_dir(d), t + ".jsonl"))
         c.execute("COMMIT")
     except BaseException:
         if c.in_transaction:

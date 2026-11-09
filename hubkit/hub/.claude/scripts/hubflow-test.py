@@ -9,7 +9,10 @@ usage: python3 -I hubflow-test.py [--mutants] [--case NAME ...]
              needs another one's db (case_sql, case_state need case_basic) brings it along.
 Check names of the T05 ledger claims start with their claim id: c1- triage, c2- escalate,
 c3- capsule, c4- transcripts, c5- skip, c6- asks; schema- is the v1 -> v2 migration.
-Check names of the T28 claims (meeting transcripts) start with t28-c1- .. t28-c4-.
+Check names of the T28 rotation fix (the session index follows the week dirs) start with t28-c4-.
+Check names of rd/transcripts (an agent, not code, records what a meeting needs) start with mt-c1-
+(no code meeting rows), mt-c2- (transcript refs), mt-c3- (summary rows lapse by themselves) and
+mt-schema- (the v3 -> v4 migration).
 Every scenario seeds its db from a seed file written into the temp dir (SEED_DATA below).
 Prints `PASS name` or `FAIL name: why` per case (`SKIP name: why` for a check that cannot run
 here, not counted); the last line is `N passed, M failed`.
@@ -26,8 +29,8 @@ WRITE_CMDS = ("init", "migrate", "add", "handoff", "accept", "renew", "park", "s
               "note", "session", "import", "rotate", "rebuild", "export", "triage", "capsule", "index-transcripts",
               "spec-triage")
 # Tables added by schema 2 (T05). The JSONL checks below cover them when the db has them.
-# Tables added by schema 3 (T28): meeting transcripts.
-NEW_TABLES = ("disposition", "capsule", "transcript", "transcript_msg", "meeting", "meeting_turn")
+# Schema 3 (T28) added meeting and meeting_turn; schema 4 dropped them again.
+NEW_TABLES = ("disposition", "capsule", "transcript", "transcript_msg")
 
 SEED_DATA = {
     "sessions": [{"name": n, "role": n} for n in ("discovery", "build", "process", "support")],
@@ -63,12 +66,19 @@ MUTANTS = [
     ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
     ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
     ("capsule-without-rev", "rev = git_head(hub_dir(g))  # capsule rev", "rev = None"),
-    # T28: meeting transcripts
+    # T28: the session index follows the week dirs at rotation
     ("rotate-skips-transcript-reindex", "index = reindex_weeks(c, hub_dir(g))", "index = reindex_weeks(None, hub_dir(g))"),
-    ("grep-case-sensitive", 'needle = o["grep"].casefold()', 'needle = o["grep"]'),
-    ("speaker-turns-ignored", "turn_mode = marked >= 2", "turn_mode = False"),
-    ("meeting-index-keeps-stale-rows", 'c.execute("DELETE FROM meeting WHERE path GLOB ?"', 'print("DELETE FROM meeting WHERE path GLOB ?"'),
-    ("meeting-detail-text-uncut", "substr(text, 1, {TEXT_CAP}) AS text", "text"),
+    # rd/transcripts: transcript refs, summary rows, schema 4
+    ("transcript-ref-form-unchecked", "if not TRANSCRIPT_REF.match(ref):  # transcript ref form", "if False:"),
+    ("find-ignores-digest", "if os.path.basename(f[0]) == name and f[3] == digest]  # name and digest",
+     "if os.path.basename(f[0]) == name]"),
+    ("summary-never-lapses", "for iid in lapse:  # summary rows lapse by themselves", "for iid in []:"),
+    ("summary-due-for-triage", "WHERE status IN ('open','waiting') AND kind <> 'summary'\"", "WHERE status IN ('open','waiting')\""),
+    ("summary-lapse-follows-renew", "AND opened_at <= ? ORDER BY id\", (lapse_before,))", "AND renewed_at <= ? ORDER BY id\", (lapse_before,))"),
+    ("summary-escalated-lapses", "(lapse_before,)) if not is_escalated(c, r[0])]", "(lapse_before,))]"),
+    ("summary-kb-guard-dropped", 'if refs and any(k["state"] != "clear" for k in kb_checks(hub, refs)):  # summary guard', "if False:"),
+    ("migrate-keeps-meeting-jsonl", "for t in DROPPED_TABLES:  # git keeps", "for t in ():  # git keeps"),
+    ("migrate-with-foreign-keys-on", 'c.execute("PRAGMA foreign_keys=OFF")  # a step may copy', 'c.execute("PRAGMA foreign_keys=ON")  # a step may copy'),
 ]
 
 
@@ -1992,7 +2002,7 @@ def case_t24_no_orbit_kb(r, root):
     r.check("t24-c2-check-exit-0", code == 0, (code, out, err))
 
 
-# ---- T28: meeting transcripts (Markdown and plain text) in the ledger ----
+# ---- meeting transcripts in a week dir (fixtures); code reads them for size and sha256 only ----
 
 LONG_TURN = "I write the measurement plan by Friday. " * 6 + "The spare gearbox is in bay seven."
 WIDGET_SYNC = "\n".join([
@@ -2021,13 +2031,6 @@ GADGET_NOTES = "\n".join([
     "",                                                                                  # 7
     "Note: the hopper lid is cracked.",                                                  # 8
 ]) + "\n"
-WIDGET_TURNS = [(1, 6, "Robin Example", "Welcome. Today we look at the widget sorter bins. It still drops blue widgets."),
-                (2, 9, "Sam Sample", "The conveyor belt runs too fast for the blue bin."),
-                (3, 10, "Robin Example", "Then we slow the CONVEYOR to half speed and measure again."),
-                (4, 14, "Sam Sample", LONG_TURN)]
-GADGET_PARAS = [(1, 3, None, "The feeder jams when the hopper is more than half full. Nobody has measured the jam rate yet."),
-                (2, 6, None, "Next step: count the jams for one shift."),
-                (3, 8, None, "Note: the hopper lid is cracked.")]
 WS_PATH, GN_PATH = "W0/transcripts/widget-sync.md", "W0/transcripts/gadget-notes.txt"
 
 
@@ -2048,131 +2051,18 @@ def meeting_fixture(h, jsonl=True):
     write_text(os.path.join(h, "W0", "reports", "status.md"), "# Status\n\nRobin Example: not a transcript.\nSam Sample: a report.\n")
 
 
-def meeting_rows(d):
-    return qs(d, "select path, title, date, speakers, turns from meeting order by path")
-
-
-def meeting_id(d, path):
-    got = qs(d, "select id from meeting where path = ?", path)
-    return got[0][0] if got else None
-
-
-def turn_rows(d, path):
-    return qs(d, "select t.n, t.line, t.speaker, t.text from meeting_turn t join meeting m on m.id = t.meeting_id"
-                 " where m.path = ? order by t.n", path)
-
-
-def case_t28_index(r, root):
-    """T28 c1: index-transcripts also indexes the .md and .txt meeting transcripts in W*/transcripts/:
-    one summary per file, one row per speaker turn (or per paragraph), each with its line."""
-    h = os.path.join(root, "t28-index")
-    meeting_fixture(h, jsonl=False)
-    d = fresh(r, root, "t28-index")
-    res = hf(r, d, "index-transcripts", "W0", hub=h)
-    r.check("t28-c1-index-exit-0-counts-meetings", res[0] == 0 and "2 meeting" in res[1], res)
-    r.check("t28-c1-one-summary-per-file", meeting_rows(d) == [
-        (GN_PATH, "Gadget feeder notes 2026-11-04", "2026-11-04", None, 3),
-        (WS_PATH, "Widget sorter sync", "2026-11-03", "Robin Example, Sam Sample", 4)], meeting_rows(d))
-    fl = qs(d, "select path, first_lines from meeting order by path")
-    r.check("t28-c1-summary-first-lines", len(fl) == 2 and "The feeder jams when the hopper" in (fl[0][1] or "")
-            and "Welcome. Today we look at the widget sorter bins." in (fl[1][1] or "")
-            and all(len(x[1] or "") <= 200 for x in fl), fl)
-    r.check("t28-c1-one-row-per-speaker-turn", turn_rows(d, WS_PATH) == WIDGET_TURNS, turn_rows(d, WS_PATH))
-    r.check("t28-c1-one-row-per-paragraph", turn_rows(d, GN_PATH) == GADGET_PARAS, turn_rows(d, GN_PATH))
-    r.check("t28-c1-reports-not-indexed", not qs(d, "select 1 from meeting where path like '%reports%'"))
-    snap, files = snapshot(d), jl_bytes(d)
-    res = hf(r, d, "index-transcripts", "W0", hub=h)
-    r.check("t28-c1-rerun-is-idempotent", res[0] == 0 and snapshot(d) == snap and jl_bytes(d) == files, res)
-    with open(os.path.join(h, GN_PATH), "a", encoding="utf-8") as f:
-        f.write("\nA later paragraph about the feeder.\n")
-    old = meeting_id(d, GN_PATH)
-    res = hf(r, d, "index-transcripts", "W0", hub=h)
-    r.check("t28-c1-rerun-follows-an-edit", res[0] == 0 and len(meeting_rows(d)) == 2
-            and [x[1] for x in turn_rows(d, GN_PATH)] == [3, 6, 8, 10]
-            and old is not None and meeting_id(d, GN_PATH) != old
-            and not qs(d, "select 1 from meeting_turn where meeting_id = ?", old), (res, meeting_rows(d), turn_rows(d, GN_PATH)))
-    r.check("t28-c1-check-clean", hf(r, d, "check")[0] == 0)
-
-
-def case_t28_levels(r, root):
-    """T28 c2: the three levels for a meeting: the list, --detail ID, then the file itself."""
-    h = os.path.join(root, "t28-levels")
-    meeting_fixture(h)
-    d = fresh(r, root, "t28-levels")
-    res = hf(r, d, "index-transcripts", "W0", hub=h)
-    code, out, err = hf(r, d, "transcripts", "--format", "json", hub=h)
-    v = js(out) or []
-    meets = [x for x in v if isinstance(x, dict) and x.get("kind") == "meeting"]
-    sess = [x.get("session_id") for x in v if isinstance(x, dict) and x.get("kind") != "meeting"]
-    r.check("t28-c2-list-has-sessions-and-meetings", code == 0 and sess == ["sess-one", "sess-two"]
-            and sorted(x.get("path") for x in meets) == [GN_PATH, WS_PATH], (res, out[:600], err))
-    ws = ([x for x in meets if x.get("path") == WS_PATH] or [{}])[0]
-    r.check("t28-c2-list-summary-fields", ws.get("title") == "Widget sorter sync" and ws.get("date") == "2026-11-03"
-            and ws.get("speakers") == "Robin Example, Sam Sample" and ws.get("turns") == 4 and ws.get("id"), ws)
-    code, out, err = hf(r, d, "transcripts", hub=h)
-    r.check("t28-c2-list-md", code == 0 and "| session_id |" in out and "Widget sorter sync" in out and WS_PATH in out, out[:800] + err)
-    mid = ws.get("id") or "no-id"
-    code, out, err = hf(r, d, "transcripts", "--detail", mid, hub=h)
-    r.check("t28-c2-detail-summary-then-turns", code == 0 and "Widget sorter sync" in out and "| line |" in out
-            and "Then we slow the CONVEYOR" in out and out.index("Widget sorter sync") < out.index("Then we slow"), out[:800] + err)
-    r.check("t28-c2-detail-cuts-each-turn-to-200", LONG_TURN[:200] in out and LONG_TURN[:201] not in out, out[-600:])
-    code, out, err = hf(r, d, "transcripts", "--detail", mid, "--format", "json", hub=h)
-    v = js(out) or {}
-    turns = [(x.get("n"), x.get("line"), x.get("speaker"), x.get("text")) for x in v.get("turns", [])]
-    r.check("t28-c2-detail-json", code == 0 and (v.get("meeting") or {}).get("path") == WS_PATH
-            and turns == WIDGET_TURNS[:3] + [(4, 14, "Sam Sample", LONG_TURN[:200])], out[:800] + err)
-    r.check("t28-c2-the-file-itself", os.path.isfile(os.path.join(h, (v.get("meeting") or {}).get("path") or "nope")))
-    r.check("t28-c2-session-detail-unchanged", hf(r, d, "transcripts", "--detail", "sess-one", hub=h)[0] == 0)
-    r.check("t28-c2-detail-unknown-refused", refused(hf(r, d, "transcripts", "--detail", "widget-nope", hub=h), 1))
-
-
-def case_t28_grep(r, root):
-    """T28 c3: transcripts --grep TEXT returns the matching turns with their file and line."""
-    h = os.path.join(root, "t28-grep")
-    meeting_fixture(h)
-    d = fresh(r, root, "t28-grep")
-    hf(r, d, "index-transcripts", "W0", hub=h)
-
-    def grep(*a):
-        code, out, err = hf(r, d, "transcripts", "--grep", *a, "--format", "json", hub=h)
-        v = js(out)
-        return code, ([(x.get("path"), x.get("line"), x.get("speaker")) for x in v] if isinstance(v, list) else None), out + err
-
-    code, got, raw = grep("conveyor")
-    r.check("t28-c3-grep-turns-with-file-and-line", code == 0 and got == [(WS_PATH, 9, "Sam Sample"), (WS_PATH, 10, "Robin Example")], raw[:600])
-    v = js(hf(r, d, "transcripts", "--grep", "conveyor", "--format", "json", hub=h)[1]) or [{}]
-    r.check("t28-c3-grep-row-has-id-and-text", isinstance(v, list) and v and v[0].get("id") and "conveyor belt" in (v[0].get("text") or ""), v)
-    code, got, raw = grep("gearbox")
-    r.check("t28-c3-grep-finds-a-word-past-200", code == 0 and got == [(WS_PATH, 14, "Sam Sample")], raw[:600])
-    gv = js(hf(r, d, "transcripts", "--grep", "gearbox", "--format", "json", hub=h)[1]) or [{}]
-    r.check("t28-c3-grep-text-shows-the-match", isinstance(gv, list) and gv and "gearbox" in (gv[0].get("text") or "")
-            and len(gv[0].get("text") or "") <= 200, gv)
-    code, got, raw = grep("HOPPER")
-    r.check("t28-c3-grep-paragraphs-any-case", code == 0 and got == [(GN_PATH, 3, None), (GN_PATH, 8, None)], raw[:600])
-    code, got, raw = grep("no-such-word")
-    r.check("t28-c3-grep-no-match-no-rows", code == 0 and got == [], raw[:300])
-    code, out, err = hf(r, d, "transcripts", "--grep", "conveyor", hub=h)
-    r.check("t28-c3-grep-md", code == 0 and "| path |" in out and "| line |" in out and WS_PATH in out, out[:600] + err)
-    gid = meeting_id(d, GN_PATH) or "no-id"
-    code, got, raw = grep("conveyor", "--detail", gid)
-    r.check("t28-c3-grep-within-one-meeting", code == 0 and got == [], raw[:300])
-
-
 def case_t28_rotate(r, root):
-    """T28 c4: rotate --yes rebuilds the week transcript index from the week dirs on disk; a
-    retired week's rows go with it."""
+    """T28 c4 (kept for the session index): rotate --yes rebuilds the session index from the week dirs
+    on disk; a retired week's rows go with it. Meeting transcripts stay files."""
     h = os.path.join(root, "t28-rotate")
     meeting_fixture(h)
-    write_text(os.path.join(h, "W5", "transcripts", "old-review.md"),
-               "# Old review\n\nRobin Example: An old point about pallets.\nSam Sample: Agreed.\n")
     write_text(os.path.join(h, "W5", "transcripts", "old.jsonl"), json.dumps(
         {"type": "user", "sessionId": "sess-old", "timestamp": "2026-09-28T09:00:00Z",
          "message": {"role": "user", "content": "An old session."}}) + "\n")
     d = fresh(r, root, "t28-rotate")
     hf(r, d, "index-transcripts", "W0", hub=h)
     hf(r, d, "index-transcripts", "W5", hub=h)
-    ws_id = meeting_id(d, WS_PATH)
-    before = len(qs(d, "select 1 from meeting"))
+    before = qs(d, "select session_id from transcript order by session_id")
     # the mechanical rename (rotate.sh): retire W5 (git rm), then W0 -> W1
     shutil.rmtree(os.path.join(h, "W5"))
     os.rename(os.path.join(h, "W0"), os.path.join(h, "W1"))
@@ -2180,16 +2070,256 @@ def case_t28_rotate(r, root):
     res = hf(r, d, "rotate", "--week-start", WK, hub=h, session=None)
     r.check("t28-c4-dry-run-writes-nothing", res[0] == 0 and snapshot(d) == snap, res)
     res = hf(r, d, "rotate", "--week-start", WK, "--yes", hub=h)
-    paths = [x[0] for x in qs(d, "select path from meeting order by path")]
-    r.check("t28-c4-rotate-yes-exit-0", res[0] == 0, res)
-    r.check("t28-c4-moved-meetings-get-new-paths", before == 3 and paths == ["W1/transcripts/gadget-notes.txt", "W1/transcripts/widget-sync.md"]
-            and meeting_id(d, "W1/transcripts/widget-sync.md") == ws_id, (before, paths))
-    r.check("t28-c4-retired-week-meeting-rows-gone", not qs(d, "select 1 from meeting where path like 'W5/%'")
-            and not qs(d, "select 1 from meeting_turn where text like '%pallets%'"), qs(d, "select * from meeting"))
+    r.check("t28-c4-rotate-yes-exit-0", res[0] == 0 and "transcripts_reindexed: 2 session(s) from W1" in res[1], res)
     sess = qs(d, "select session_id, path from transcript order by session_id")
-    r.check("t28-c4-retired-week-session-rows-gone", sess == [("sess-one", "W1/transcripts/one.jsonl"), ("sess-two", "W1/transcripts/two.jsonl")], sess)
-    r.check("t28-c4-turns-follow", [x[1] for x in turn_rows(d, "W1/transcripts/widget-sync.md")] == [6, 9, 10, 14])
+    r.check("t28-c4-retired-week-session-rows-gone", before == [("sess-old",), ("sess-one",), ("sess-two",)]
+            and sess == [("sess-one", "W1/transcripts/one.jsonl"), ("sess-two", "W1/transcripts/two.jsonl")], (before, sess))
     r.check("t28-c4-check-clean", hf(r, d, "check", hub=h)[0] == 0)
+
+
+# ---- meeting transcripts: an agent, not code, puts what matters into the ledger (rd/transcripts) ----
+# c1 retire: code writes no meeting row. c2: an item points to a transcript by name and sha256, and
+# `transcripts --find` finds the file in whichever W slot holds it. c3: a summary row lapses by itself.
+
+STANDUP = "Standup 2026-11-02\n\nZoe: hello all\nAna: the conveyor date moved to Friday\nAna: I will tell the client\n"
+
+
+def sha256_of(path):
+    import hashlib
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def tref(name, digest):
+    return f"transcript:{name}@sha256:{digest}"
+
+
+def case_mt_no_code_meeting_rows(r, root):
+    """c1 retire: indexing a week writes no meeting row by itself; only the Claude Code JSONL index
+    stays (q4). No meeting table, no --grep, no meeting text anywhere in the ledger."""
+    h = os.path.join(root, "mt-c1")
+    meeting_fixture(h)
+    write_text(os.path.join(h, "W0", "transcripts", "standup.md"), STANDUP)
+    d = fresh(r, root, "mt-c1")
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    r.check("mt-c1-index-exit-0-sessions-only", res[0] == 0 and "2 session(s)" in res[1] and "meeting" not in res[1], res)
+    names = {x[0] for x in q(d, "select name from sqlite_master")}
+    r.check("mt-c1-no-meeting-tables", not ({"meeting", "meeting_turn"} & names), sorted(names))
+    files = jl_bytes(d)
+    r.check("mt-c1-no-meeting-jsonl", not [n for n in files if n.startswith("meeting")], sorted(files))
+    blob = open(dbfile(d), "rb").read() + b"".join(files.values())
+    r.check("mt-c1-no-meeting-text-in-the-ledger", all(w not in blob for w in (b"conveyor", b"Zoe", b"Robin Example", b"hopper")),
+            [w for w in (b"conveyor", b"Zoe", b"Robin Example", b"hopper") if w in blob])
+    r.check("mt-c1-no-item-written", qs(d, "select count(*) from item") == [(0,)])
+    code, out, err = hf(r, d, "transcripts", "--format", "json", hub=h)
+    v = js(out)
+    r.check("mt-c1-transcripts-lists-sessions-only", code == 0 and isinstance(v, list)
+            and [x.get("session_id") for x in v] == ["sess-one", "sess-two"] and all("kind" not in x for x in v), out[:600] + err)
+    r.check("mt-c1-grep-is-gone", refused(hf(r, d, "transcripts", "--grep", "conveyor", hub=h), 1), hf(r, d, "transcripts", "--grep", "conveyor", hub=h))
+    r.check("mt-c1-check-clean", hf(r, d, "check")[0] == 0)
+
+
+def case_mt_transcript_ref(r, root):
+    """c2: an agent that read a transcript records an item that points to it by file name plus sha256
+    (q3); `transcripts --files` lists the week files with that ref, and `transcripts --find REF` finds
+    the file in whichever W slot holds it."""
+    h = os.path.join(root, "mt-c2")
+    p = write_text(os.path.join(h, "W0", "transcripts", "standup.md"), STANDUP)
+    write_text(os.path.join(h, "W2", "transcripts", "sub", "review.txt"), "Review notes\n")
+    write_text(os.path.join(h, "W0", "reports", "status.md"), "# Status\n")
+    dig = sha256_of(p)
+    ref = tref("standup.md", dig)
+    d = fresh(r, root, "mt-c2")
+    code, out, err = hf(r, d, "transcripts", "--files", "--format", "json", hub=h)
+    v = js(out)
+    got = sorted((x.get("path"), x.get("size"), x.get("sha256"), x.get("ref")) for x in v) if isinstance(v, list) else None
+    r.check("mt-c2-files-lists-path-size-sha256-ref", code == 0 and got == [
+        ("W0/transcripts/standup.md", len(STANDUP.encode()), dig, ref),
+        ("W2/transcripts/sub/review.txt", 13, sha256_of(os.path.join(h, "W2", "transcripts", "sub", "review.txt")),
+         tref("review.txt", sha256_of(os.path.join(h, "W2", "transcripts", "sub", "review.txt"))))], out[:800] + err)
+    r.check("mt-c2-files-have-a-date", isinstance(v, list) and v and all(re.fullmatch(r"\d{4}-\d\d-\d\d", str(x.get("date"))) for x in v), v)
+    r.check("mt-c2-files-write-nothing", qs(d, "select count(*) from item") == [(0,)] and b"standup" not in open(dbfile(d), "rb").read())
+    code, out, err = hf(r, d, "add", "thread", "--title", "Ana tells the client the conveyor date moved to Friday", "--ref", ref)
+    iid = out.strip()
+    r.check("mt-c2-item-with-transcript-ref", code == 0 and qs(d, "select kind, ref from item_ref where item_id = ?", iid)
+            == [("transcript", "standup.md@sha256:" + dig)], (code, out, err))
+    sid = add(r, d, "ask", "Who owns the Friday date?", "--waits-on", "me")
+    res = hf(r, d, "ref", sid, "add", ref)
+    r.check("mt-c2-ref-add-transcript", res[0] == 0 and qs(d, "select count(*) from item_ref where kind = 'transcript'") == [(2,)], res)
+    for name, bad in (("w-slot-path", tref("W0/transcripts/standup.md", dig)), ("no-digest", "transcript:standup.md"),
+                      ("short-digest", tref("standup.md", dig[:12])), ("upper-hex", tref("standup.md", dig.upper())),
+                      ("dir-in-name", tref("sub/review.txt", dig)), ("no-name", tref("", dig))):
+        r.check(f"mt-c2-bad-transcript-ref-refused {name}", refused(hf(r, d, "add", "thread", "--title", "Bad ref", "--ref", bad), 1))
+    code, out, err = hf(r, d, "transcripts", "--find", ref, hub=h)
+    r.check("mt-c2-find-in-w0", code == 0 and out.strip() == "W0/transcripts/standup.md", (code, out, err))
+    code, out, err = hf(r, d, "transcripts", "--find", "standup.md@sha256:" + dig, hub=h)
+    r.check("mt-c2-find-without-kind-prefix", code == 0 and out.strip() == "W0/transcripts/standup.md", (code, out, err))
+    os.rename(os.path.join(h, "W2"), os.path.join(h, "W3"))
+    os.rename(os.path.join(h, "W0"), os.path.join(h, "W1"))
+    code, out, err = hf(r, d, "transcripts", "--find", ref, hub=h)
+    r.check("mt-c2-find-follows-the-rotation", code == 0 and out.strip() == "W1/transcripts/standup.md", (code, out, err))
+    code, out, err = hf(r, d, "transcripts", "--find", tref("review.txt", sha256_of(os.path.join(h, "W3", "transcripts", "sub", "review.txt"))), hub=h)
+    r.check("mt-c2-find-in-a-subdir", code == 0 and out.strip() == "W3/transcripts/sub/review.txt", (code, out, err))
+    with open(os.path.join(h, "W1", "transcripts", "standup.md"), "a", encoding="utf-8") as f:
+        f.write("Zoe: one more line\n")
+    res = hf(r, d, "transcripts", "--find", ref, hub=h)
+    r.check("mt-c2-find-refuses-a-changed-file", refused(res, 1, "W1/transcripts/standup.md") and not res[1].strip(), res)
+    shutil.rmtree(os.path.join(h, "W1"))
+    res = hf(r, d, "transcripts", "--find", ref, hub=h)
+    r.check("mt-c2-find-refuses-a-retired-file", refused(res, 1) and not res[1].strip(), res)
+    r.check("mt-c2-find-bad-ref-refused", refused(hf(r, d, "transcripts", "--find", "standup.md", hub=h), 1))
+    r.check("mt-c2-file-ref-into-w-slot-still-refused",
+            refused(hf(r, d, "add", "thread", "--title", "Old form", "--ref", "file:W0/transcripts/standup.md"), 1, "W-slot"))
+    imp = write_text(os.path.join(root, "mt-c2-import.jsonl"),
+                     json.dumps({"kind": "thread", "title": "Imported with a transcript ref", "refs": [ref]}) + "\n")
+    res = hf(r, d, "import", imp, "--yes")
+    r.check("mt-c2-import-transcript-ref", res[0] == 0 and qs(d, "select count(*) from item_ref where kind = 'transcript'") == [(3,)], res)
+    r.check("mt-c2-check-clean", hf(r, d, "check")[0] == 0)
+
+
+def case_mt_summary_lapses(r, root):
+    """c3: a summary row lapses by itself at the first rotation when it is 28 days old (q6); it never
+    needs a triage and never blocks a rotation; then it is pruned 35 days later like any closed row."""
+    d = fresh(r, root, "mt-c3")
+    code, out, err = hf(r, d, "add", "summary", "--title", "Standup 11-02: conveyor date moved to Friday", now=NOW)
+    sid = out.strip()
+    r.check("mt-c3-add-summary", code == 0 and sid == "S-0001" and qs(d, "select kind, status from item where id = ?", sid)
+            == [("summary", "open")], (code, out, err))
+    done = add(r, d, "summary", "Closed by hand before it lapses", now=NOW)
+    ok(r, d, "close", done, "--reason", "dropped", now="2026-11-03T12:00:00Z")
+    ok(r, d, "renew", sid, now="2026-11-20T12:00:00Z")  # a renew does not delay the lapse: the age counts
+    res = hf(r, d, "view", "stale", "--format", "json", now="2026-11-27T12:00:00Z")
+    r.check("mt-c3-never-stale", res[0] == 0 and sid not in res[1], res)
+    for wk, now in (("2026-11-23", "2026-11-23T12:00:00Z"), ("2026-11-23", "2026-11-30T11:59:59Z")):
+        res = hf(r, d, "rotate", "--week-start", wk, "--yes", now=now)
+        r.check(f"mt-c3-rotate-before-28-days-keeps-it-open {now}", res[0] == 0 and listed(res[1], "untriaged:") == []
+                and listed(res[1], "lapsed:") == [] and qs(d, "select status from item where id = ?", sid) == [("open",)], res)
+    res = hf(r, d, "view", "retention_due", "--format", "json", now="2026-11-30T12:00:00Z")
+    v = js(res[1]) or []
+    r.check("mt-c3-retention-due-says-lapse-not-triage", res[0] == 0 and [(x.get("id"), x.get("would")) for x in v if x.get("id") == sid]
+            == [(sid, "lapse")], res)
+    snap = snapshot(d)
+    res = hf(r, d, "rotate", "--week-start", "2026-11-30", now="2026-11-30T12:00:00Z")
+    r.check("mt-c3-dry-run-names-the-lapse", res[0] == 0 and listed(res[1], "lapsed:") == [sid] and listed(res[1], "untriaged:") == []
+            and snapshot(d) == snap, res)
+    res = hf(r, d, "rotate", "--week-start", "2026-11-30", "--yes", now="2026-11-30T12:00:00Z")
+    r.check("mt-c3-lapses-at-28-days-without-triage", res[0] == 0 and listed(res[1], "lapsed:") == [sid]
+            and qs(d, "select status, closed_at from item where id = ?", sid) == [("lapsed", "2026-11-30T12:00:00Z")], res)
+    r.check("mt-c3-no-disposition-recorded", qs(d, "select count(*) from disposition") == [(0,)])
+    e = ev(d, sid)
+    r.check("mt-c3-lapse-event-by-script", e and e[-1][:5] == ("lapsed", "open", "lapsed", "discovery", "script"), e)
+    r.check("mt-c3-closed-summary-untouched", qs(d, "select status from item where id = ?", done) == [("dropped",)])
+    res = hf(r, d, "rotate", "--week-start", "2027-01-04", "--yes", now="2027-01-04T12:00:00Z")
+    r.check("mt-c3-kept-until-35-days", res[0] == 0 and qs(d, "select status from item where id = ?", sid) == [("lapsed",)]
+            and listed(res[1], "pruned:") == [done], res)
+    res = hf(r, d, "rotate", "--week-start", "2027-01-11", "--yes", now="2027-01-11T12:00:00Z")
+    r.check("mt-c3-pruned-35-days-later", res[0] == 0 and listed(res[1], "pruned:") == [sid]
+            and qs(d, "select count(*) from item where id = ?", sid) == [(0,)], res)
+    t = add(r, d, "thread", "An idle thread still needs a triage", now="2027-01-11T12:00:00Z")
+    s2 = add(r, d, "summary", "Another summary", now="2027-01-11T12:00:00Z")
+    res = hf(r, d, "rotate", "--week-start", "2027-02-08", "--yes", now="2027-02-08T12:00:00Z")
+    r.check("mt-c3-other-items-still-need-triage", refused(res, 1, t) and s2 not in res[2]
+            and qs(d, "select status from item where id = ?", s2) == [("open",)], res)
+    r.check("mt-c3-check-clean", hf(r, d, "check")[0] == 0)
+
+
+def case_mt_summary_guard(r, root):
+    """c3 with the ledger guard (q10): the rotation never lapses a summary row that is escalated or
+    whose spec KB is not clear (fail-safe); such a row stays open and never blocks the rotation. A
+    summary whose spec KB is clear lapses as usual."""
+    stub = write_stub(root)
+    h = kb_hub(root, "mt-guard-hub", {"spec-a": ["q1"], "spec-b": None})
+    d = fresh(r, root, "mt-guard")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+    esc = add(r, d, "summary", "An escalated summary")
+    blk = add(r, d, "summary", "A summary of a blocking spec", "--ref", "kb:spec-a/kb")
+    clr = add(r, d, "summary", "A summary of a clear spec", "--ref", "kb:spec-b/kb")
+    res = hf(r, d, "triage", esc, "escalate", "--note", "the human reads this one", hub=h, extra_env=env)
+    if res[0] != 0:
+        raise RuntimeError(res)
+    late = "2026-11-30T12:00:00Z"
+    res = hf(r, d, "rotate", "--week-start", "2026-11-30", hub=h, extra_env=env, now=late)
+    r.check("mt-c3-guard-dry-run", res[0] == 0 and listed(res[1], "lapsed:") == [clr], res)
+    res = hf(r, d, "rotate", "--week-start", "2026-11-30", "--yes", hub=h, extra_env=env, now=late)
+    st = dict(qs(d, "select id, status from item"))
+    r.check("mt-c3-guard-rotation-runs", res[0] == 0 and listed(res[1], "lapsed:") == [clr]
+            and listed(res[1], "untriaged:") == [], res)
+    r.check("mt-c3-guard-escalated-summary-stays-open", st.get(esc) == "open", st)
+    r.check("mt-c3-guard-blocking-summary-stays-open", st.get(blk) == "open", st)
+    r.check("mt-c3-guard-clear-summary-lapses", st.get(clr) == "lapsed", st)
+    res = hf(r, d, "rotate", "--week-start", "2026-11-30", "--yes", hub=h, now=late,
+             extra_env={"HUBFLOW_ORBIT_KB": os.path.join(root, "no-such-orbit-kb")})
+    r.check("mt-c3-guard-fail-safe-without-orbit-kb", res[0] == 0 and dict(qs(d, "select id, status from item")).get(blk) == "open", res)
+
+
+def v3_script(r, root):
+    """A copy of the script under test at schema 3 (T28): init makes the meeting tables."""
+    src = open(r.script, encoding="utf-8").read()
+    n = script_version(r.script)
+    a = f"SCHEMA_VERSION = {n}\n"
+    if src.count(a) != 1:
+        raise RuntimeError(f"anchor {a!r} occurs {src.count(a)} times")
+    path = os.path.join(root, "hubflow-v3.py")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(src.replace(a, "SCHEMA_VERSION = 3\n"))
+    return path
+
+
+def case_mt_schema_v4(r, root):
+    """The schema 3 -> 4 step: a v3 db with meeting rows loses the meeting tables and their JSONL,
+    keeps every item, and then takes summary rows and transcript refs."""
+    v3 = Run(v3_script(r, root))
+    d = os.path.join(root, "mt-schema-v3", "flow")
+    res = hf(v3, d, "init", "--seed", SEED, session=None)
+    r.check("mt-schema-v3-init", res[0] == 0 and q(d, "pragma user_version") == [(3,)], res)
+    for args in (("add", "thread", "--title", "A thread from v3", "--ref", "file:notes/a.md"),
+                 ("add", "ask", "--title", "An ask from v3", "--waits-on", "me"),
+                 ("handoff", "--to", "build", "--title", "A handoff from v3"),
+                 ("link", "T-0001", "A-0001", "blocks"), ("close", "A-0001", "--reason", "done")):
+        res = hf(v3, d, *args)
+        if res[0] != 0:
+            raise RuntimeError(res)
+    c = sqlite3.connect(dbfile(d))
+    c.execute("INSERT INTO meeting(id, path, title, date, speakers, first_lines, turns, lines)"
+              " VALUES('standup-ceb598', 'W0/transcripts/standup.md', 'standup', NULL, 'Zoe, Ana', 'hello all', 2, 5)")
+    c.execute("INSERT INTO meeting_turn(meeting_id, n, line, speaker, text) VALUES('standup-ceb598', 1, 3, 'Zoe', 'hello all')")
+    c.execute("INSERT INTO meeting_turn(meeting_id, n, line, speaker, text) VALUES('standup-ceb598', 2, 4, 'Ana', 'the conveyor date')")
+    c.commit()
+    c.close()
+    for t, row in (("meeting", {"id": "standup-ceb598"}), ("meeting_turn", {"meeting_id": "standup-ceb598", "n": 1})):
+        write_text(os.path.join(d, "jsonl", t + ".jsonl"), json.dumps(row) + "\n")
+    before = {t: sorted(rows(d, t)) for t in TABLES + ("disposition", "capsule", "transcript", "transcript_msg") if t != "meta"}
+    res = hf(r, d, "view", "open")
+    r.check("mt-schema-v3-db-needs-migrate", res[0] == 2 and "migrate" in res[2], res)
+    res = hf(r, d, "migrate")
+    n = script_version(r.script)
+    r.check("mt-schema-migrate-v3-to-v4", res[0] == 0 and n == 4 and q(d, "pragma user_version") == [(4,)], res)
+    r.check("mt-schema-migrate-backup", os.path.exists(os.path.join(d, "flow.db.bak-v3")), os.listdir(d))
+    names = {x[0] for x in q(d, "select name from sqlite_master")}
+    r.check("mt-schema-meeting-tables-dropped", not ({"meeting", "meeting_turn"} & names), sorted(names))
+    r.check("mt-schema-meeting-jsonl-removed", not [x for x in os.listdir(os.path.join(d, "jsonl")) if x.startswith("meeting")],
+            os.listdir(os.path.join(d, "jsonl")))
+    r.check("mt-schema-keeps-rows", {t: sorted(rows(d, t)) for t in before} == before)
+    r.check("mt-schema-check-after-migrate", hf(r, d, "check")[0] == 0, hf(r, d, "check"))
+    res = hf(r, d, "add", "summary", "--title", "A summary after the migration")
+    r.check("mt-schema-summary-after-migrate", res[0] == 0 and res[1].strip() == "S-0001", res)
+    res = hf(r, d, "ref", "T-0001", "add", tref("standup.md", "0" * 64))
+    r.check("mt-schema-transcript-ref-after-migrate", res[0] == 0, res)
+    for iid in ("T-0001", "H-0001"):  # not due, so the rotation runs and prunes the closed A-0001
+        ok(r, d, "renew", iid, now="2027-01-04T11:00:00Z")
+    res = hf(r, d, "rotate", "--week-start", "2027-01-04", "--yes", now="2027-01-04T12:00:00Z")
+    r.check("mt-schema-fk-still-cascades", res[0] == 0 and listed(res[1], "pruned:") == ["A-0001"]
+            and qs(d, "select count(*) from item_link where to_id = 'A-0001'") == [(0,)]
+            and qs(d, "select count(*) from item where id = 'A-0001'") == [(0,)], res)
+    d2 = fresh(r, root, "mt-schema-fresh")
+    r.check("mt-schema-init-equals-migrated", q(d2, "select name, sql from sqlite_master order by name")
+            == q(d, "select name, sql from sqlite_master order by name"))
+    for s in ("", "-wal", "-shm"):
+        if os.path.exists(dbfile(d) + s):
+            os.remove(dbfile(d) + s)
+    res = hf(r, d, "rebuild")
+    r.check("mt-schema-rebuild-v4", res[0] == 0 and hf(r, d, "check")[0] == 0
+            and qs(d, "select id from item where kind = 'summary'") == [("S-0001",)], res)
 
 
 def run_case(r, fn, *args):
@@ -2256,11 +2386,14 @@ def cases(r):
         run_case(r, case_t33_spec_triage_guard, root)
         # T24: the informal release (no orbit-kb)
         run_case(r, case_t24_no_orbit_kb, root)
-        # T28: meeting transcripts
-        run_case(r, case_t28_index, root)
-        run_case(r, case_t28_levels, root)
-        run_case(r, case_t28_grep, root)
+        # T28: the session index follows the week dirs at rotation
         run_case(r, case_t28_rotate, root)
+        # rd/transcripts: an agent, not code, puts meeting transcripts into the ledger
+        run_case(r, case_mt_no_code_meeting_rows, root)
+        run_case(r, case_mt_transcript_ref, root)
+        run_case(r, case_mt_summary_lapses, root)
+        run_case(r, case_mt_summary_guard, root)
+        run_case(r, case_mt_schema_v4, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))

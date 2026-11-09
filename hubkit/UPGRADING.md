@@ -45,7 +45,7 @@ changed those files, and a check.
 
 ### 0.4.0 (the informal release: the hub kit without Prolog or Lean)
 
-The db schema is 3 (T28). **Database:** run `python3 .claude/scripts/hubflow.py migrate`, then
+The db schema is 4. **Database:** run `python3 .claude/scripts/hubflow.py migrate`, then
 `check`. The kit is now named the hub kit, part of Sagittarius
 (<https://github.com/theTyster/sagittarius>). `HUB-CORE.md` is an engine file: merge it by intent
 (the new section is "Without orbit-kb", with its generated informal store map; the structure tree
@@ -72,16 +72,21 @@ and "Panes" no longer name `sessions/`).
   `python3 "$KIT"/tools/hubkit.py done --hub "$HUB" sessions/launch.sh`. Owned files: `CLAUDE.md`'s
   "Sessions" section may say where the sessions are started. Check: `hubkit.py status` does not
   list `sessions/launch.sh`.
-- **Meeting transcripts can be queried.** Intent: `index-transcripts W_DIR` also reads the Markdown
-  and plain-text meeting transcripts in `W_DIR/transcripts/` (a summary and one row per speaker
-  turn or paragraph); `transcripts --detail ID` shows a meeting's turns; `transcripts --grep TEXT`
-  finds turns with their file and line; `rotate --yes` rebuilds the index of the week dirs, so a
-  retired week's rows go. Files: `.claude/scripts/hubflow.py`, `.claude/scripts/hubflow-test.py`,
-  `.claude/skills/hub-flow/SKILL.md`, `.claude/skills/hub-rotate/SKILL.md` (step 5: `rotate --yes`
-  runs after the rename and replaces the `index-transcripts W1` line), `HUB-CORE.md` ("What a week
-  holds"). A hub that changed the rotation steps keeps its own steps and runs `rotate --yes` after
-  its rename. Check: `hubflow.py index-transcripts W0`, then `hubflow.py transcripts` lists each
-  meeting file of `W0/transcripts/`.
+- **An agent, not code, puts meeting transcripts into the ledger.** Intent: code never parses a
+  meeting transcript; an agent that reads one records what is needed as ledger items that point to
+  the file with a `transcript:NAME@sha256:HEX` ref, which `transcripts --find` resolves in
+  whichever W slot holds the file. A new item kind `summary` (S-) lapses by itself at the first
+  rotation when it is 28 days old and never needs a triage. `transcripts --files` lists the week
+  transcript files with their refs. `index-transcripts` indexes only Claude Code sessions, and
+  `rotate --yes` rebuilds that index from the week dirs (run it after the rename). The schema 3 ->
+  4 step of `migrate` drops the `meeting` and `meeting_turn` tables (a db of the unreleased
+  redesign branch had them) and their JSONL. Files: `.claude/scripts/hubflow.py`,
+  `.claude/scripts/hubflow-test.py`, `.claude/skills/hub-flow/SKILL.md` ("Kinds", "Ageing and
+  triage", "Transcripts"), `.claude/skills/hub-rotate/SKILL.md` (step 5: `rotate --yes` runs after
+  the rename and replaces the `index-transcripts W1` line), `HUB-CORE.md` ("What a week holds").
+  A hub that changed the rotation steps keeps its own steps and runs `rotate --yes` after its
+  rename. Check: `hubflow.py transcripts --files` lists each file of `W0/transcripts/` with a
+  `transcript:` ref, and `hubflow.py transcripts --find REF` prints its path.
 
 - **A hub knows its edition (T32).** Intent: an informal hub loads only informal rules (the five
   stores and their commands; no spec KB, project KB or formal tool). `hubkit.py install --edition
