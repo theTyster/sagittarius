@@ -2386,7 +2386,7 @@ def informal(g):
     return informal_at(hub_dir(g))
 
 
-INFORMAL_ONLY_COMMANDS = ("where", "spec-triage")  # they read a spec KB: not in an informal hub
+INFORMAL_ONLY_COMMANDS = ("where", "spec-triage", "skip-waived")  # they read a spec KB: not in an informal hub
 # The informal --help: the formal text, with these edits (old regex, new text). A pattern that no
 # longer matches leaves a formal word in the help, and docs/check_informal_hub.py t36c1 fails.
 INFORMAL_HELP = (
@@ -2397,6 +2397,7 @@ INFORMAL_HELP = (
      "close ID --reason human_skip --by human --note QUOTE\n\\1a person's skip: also closes the open items linked\n\\1to ID by `blocks` (either way)"),
     (r"\.? An agent's keep, lapse or capsule of\n\s+an item whose spec KB blocks becomes escalate", ""),
     (r"  where SLUG .*?\n  spec-triage .*?\n  import ", "  import "),
+    (r"  skip-waived .*?Run it after the human runs a waiver command\n", ""),
     (r" \(the\nquestion server, `orbit-kb serve questions --hub DIR`, closes an ask this way\)", ""),
     (r"  HUBFLOW_ORBIT_KB .*?\n  HUBFLOW_NOW", "  HUBFLOW_NOW"),
     (r"A spec KB has the ticket's clock.*?`where` and the retention windows below follow this\.", "The retention windows below follow this."),
