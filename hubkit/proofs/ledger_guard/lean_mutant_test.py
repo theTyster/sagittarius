@@ -100,10 +100,10 @@ def main():
             line1 = src[:src.index("theorem exec_agent_keeps_guarded")].count("\n") + 1
             err_lines = [int(x) for x in re.findall(r"Model\.lean:(\d+):\d+: error", out)]
             in_thm = any(line0 <= x < line1 for x in err_lines)
-            ev = src.index("#eval agentCounterexamples")
-            ev_line = src[:ev].count("\n") + 1
-            m = re.search(r"Model\.lean:%d:\d+: (?:info: )?(.*?)(?=\n\S+\.lean:\d+:\d+: |\Z)" % ev_line, out, re.S)
-            cex = m and m.group(1).strip() != "[]" and "summary := true" in m.group(1) and "Cmd.rotate" in m.group(1)
+            # `lake env lean` prints #eval output bare (no file:line prefix): the counterexample list of
+            # `#eval agentCounterexamples` is the one output that starts with `[({ status := `
+            m = re.search(r"^\[\(\{ status := .*?\)\]$", out, re.S | re.M)
+            cex = m and "summary := true" in m.group(0) and "Cmd.rotate" in m.group(0)
             sorry = re.search(r"'LedgerGuard\.agent_run_keeps_guarded' depends on axioms: \[[^\]]*sorryAx", out)
             check(f"t40-c7-mutant-{name}-rejected", code != 0 and in_thm and bool(cex) and bool(sorry),
                   (code, err_lines, bool(cex), bool(sorry), out[-1200:]))

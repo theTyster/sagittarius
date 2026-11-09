@@ -111,9 +111,12 @@ def rotate_guard(tree, fn):
     - rotate_plan: `lapse = [r[0] for r in c.execute(SQL) if not is_escalated(c, r[0])]`, where SQL
       selects open or waiting rows of kind summary;
     - kb_held_summaries: `held.add(iid)` under an `if` that tests `k['state'] != 'clear'`;
-    - cmd_rotate: `held = kb_held_summaries(...)`, and its write function sets
-      `lapse = [x for x in lapse if x not in held]` before the only status UPDATE, which is in a
-      `for ... in lapse` loop.
+    - cmd_rotate: its write function sets `held = kb_held_summaries(...)` (inside the write, with its
+      clock: T40 c11) and `lapse = [x for x in lapse if x not in held]` before the only status UPDATE,
+      which is in a `for ... in lapse` loop;
+    - untriaged_spec_kbs (the triage gate of a closed spec KB) counts no summary row: it calls
+      `kb_slug_items(c, slug, summaries=False)`, and kb_slug_items leaves out kind summary then (T40 c10:
+      a summary never blocks a rotation, so Cmd.rotate's `blocked` never comes from this item).
     Returns the problems (empty when the guard holds)."""
     out = []
     funcs = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
@@ -137,9 +140,15 @@ def rotate_guard(tree, fn):
             and any(isinstance(m, ast.Call) and call_name(m) == "held.add" for b in n.body for m in ast.walk(b))
             for n in ast.walk(held_fn)):
         out.append("kb_held_summaries does not hold a summary whose kb state is not clear (`if ... != 'clear'`: held.add)")
-    if not any(isinstance(st, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "held" for t in st.targets)
-               and isinstance(st.value, ast.Call) and call_name(st.value) == "kb_held_summaries" for st in fn.body):
-        out.append(f"{fn.name} does not compute `held = kb_held_summaries(...)`")
+    gate = funcs.get("untriaged_spec_kbs")
+    if gate is None or not any(isinstance(n, ast.Call) and call_name(n) == "kb_slug_items"
+                               and any(k.arg == "summaries" and isinstance(k.value, ast.Constant) and k.value.value is False
+                                       for k in n.keywords) for n in ast.walk(gate)):
+        out.append("untriaged_spec_kbs does not call kb_slug_items(c, slug, summaries=False): a summary row could block a rotation")
+    slug_fn = funcs.get("kb_slug_items")
+    if slug_fn is None or "kind <> 'summary'" not in " ".join(
+            n.value for n in ast.walk(slug_fn) if isinstance(n, ast.Constant) and isinstance(n.value, str)):
+        out.append("kb_slug_items has no `kind <> 'summary'` filter for summaries=False")
     inner = {n.name: n for n in fn.body if isinstance(n, ast.FunctionDef)}
     calls = [n for n in ast.walk(fn) if isinstance(n, ast.Call) and call_name(n) == "run_write"]
     wfn = (inner.get(calls[0].args[2].id) if calls and len(calls[0].args) >= 3
@@ -147,6 +156,9 @@ def rotate_guard(tree, fn):
     if wfn is None:
         return out + [f"{fn.name}: the write function given to run_write is not a def in {fn.name}"]
     body = wfn.body
+    if not any(isinstance(st, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "held" for t in st.targets)
+               and isinstance(st.value, ast.Call) and call_name(st.value) == "kb_held_summaries" for st in body):
+        out.append(f"{fn.name}: its write function does not compute `held = kb_held_summaries(...)` (inside the write)")
     drop = [i for i, st in enumerate(body) if isinstance(st, ast.Assign)
             and any(isinstance(t, ast.Name) and t.id == "lapse" for t in st.targets)
             and ast.unparse(st.value).replace(" ", "") == "[xforxinlapseifxnotinheld]"]

@@ -2328,7 +2328,7 @@ def case_t40_words_and_refs(r, root):
     r.check("t40-c12-find-deleted-says-missing", refused(res, 1, "missing") and "changed after the ref" not in res[2], res)
     dg = "a" * 64
     for name, bad in (("dotdot", tref("..", dg)), ("dotdot-in-name", tref("a..b.md", dg)), ("at", tref("x@y", dg)),
-                      ("newline-in-name", tref("nl.md\n", dg)), ("trailing-newline", tref("nl.md", dg) + "\n")):
+                      ("newline-in-name", tref("nl.md\n", dg)), ("newline-inside-name", tref("n\nl.md", dg))):
         r.check(f"t40-c12-bad-ref-name-refused {name}", refused(hf(r, d, "add", "thread", "--title", "Odd ref", "--ref", bad), 1))
     r.check("t40-c12-plain-name-still-accepted", hf(r, d, "add", "thread", "--title", "Plain ref", "--ref", tref("réunion 東京.txt", dg))[0] == 0)
 

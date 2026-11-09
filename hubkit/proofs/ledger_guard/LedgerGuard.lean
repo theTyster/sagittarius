@@ -12,8 +12,8 @@ COMMANDS table with `modelledCommands` and `excludedCommands` below.
 
 T40 c7 (after the transcripts merge 0966a1c): `rotate` lapses an open summary row (kind `summary`)
 at the first rotation when it is 28 days old, unless it is escalated or its kb answer is not clear
-(guess q10 of the transcripts build). The model has that action (`Cmd.rotate old`, with
-`Item.summary`), and `agent_run_keeps_guarded` is proved again with it; its statement is the one
+(guess q10 of the transcripts build). The model has that action (`Cmd.rotate old blocked`, with
+`Item.summary`; T40 c10: the triage gate refuses a rotation and counts no summary row), and `agent_run_keeps_guarded` is proved again with it; its statement is the one
 of T05. check_commands.py checks the rotate guard in hubflow.py, and lean_mutant_test.py checks
 that a rotate that lapses an escalated summary fails the proof.
 -/
@@ -98,8 +98,11 @@ inductive Cmd
   | skipLinked
   /-- `rotate --week-start W --yes`: it prunes only closed items, and it lapses an open summary
   row whose opened_at is 28 days or more before the rotation (`old`), unless it is escalated
-  or its kb answer is not clear (T40 c7). -/
-  | rotate (old : Bool)
+  or its kb answer is not clear (T40 c7). `blocked`: the triage gate refuses the rotation (a due
+  item lacks a disposition, or the spec KB of a closed ticket lacks a decision; exit 1, nothing
+  written). The gate reads the other items; a summary row is never one of the items it counts
+  (T40 c10, checked in hubflow.py by check_commands.py), so `blocked` is an input here. -/
+  | rotate (old blocked : Bool)
   deriving Repr
 
 inductive Outcome
@@ -176,10 +179,13 @@ def stepAs (human : Bool) : Cmd → Item → Outcome
   | .skipLinked, s =>
       if !human then .error
       else if isOpen s then .ok { s with status := .dropped } else .ok s
-  | .rotate old, s =>
-      -- hubflow.py rotate_plan: `lapse` is the open summary rows with opened_at <= now - 28 days
-      -- and `if not is_escalated(c, r[0])`; cmd_rotate drops `held` (kb_held_summaries: a kb ref
-      -- whose state is not clear, fail-safe). Every other open item is unchanged.
+  | .rotate old blocked, s =>
+      -- hubflow.py cmd_rotate: triage_gate raises before any write when a due item lacks a
+      -- disposition or a spec KB lacks a decision (untriaged_spec_kbs counts no summary row).
+      -- rotate_plan: `lapse` is the open summary rows with opened_at <= now - 28 days and
+      -- `if not is_escalated(c, r[0])`; the write drops `held` (kb_held_summaries, inside the
+      -- write: a kb ref whose state is not clear, fail-safe). Every other open item is unchanged.
+      if blocked then .refused else
       if old && s.summary && isOpen s && !s.esc && !nonclear s.kb then
         .ok { s with status := .lapsed }
       else .ok s
@@ -226,7 +232,8 @@ def allItems : List Item := Id.run do
   return out
 def allCmds : List Cmd :=
   [.renew, .park, .setFields, .close .done, .close .dropped, .close .humanSkip, .reopen,
-   .refOther, .link, .note, .accept, .capsule, .skipLinked, .rotate false, .rotate true]
+   .refOther, .link, .note, .accept, .capsule, .skipLinked, .rotate false false, .rotate true false,
+   .rotate false true, .rotate true true]
   ++ allStatus.map .setStatus ++ allKb.map .refAddKb ++ allKb.map .refRmKb
   ++ [Disp.keep, .lapse, .capsule, .escalate].map .triage
 
@@ -267,8 +274,8 @@ theorem stepAs_agent_keeps_guarded (c : Cmd) (s : Item) (h : guardedB s = true) 
     cases a <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
   | triage d =>
     cases d <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
-  | rotate o =>
-    cases o <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
+  | rotate o b =>
+    cases o <;> cases b <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
   | _ =>
     cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
 
@@ -333,8 +340,8 @@ theorem agent_run_keeps_escalated (cs : List (Actor × Cmd)) (hcs : ∀ p ∈ cs
             cases a <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
           | triage d =>
             cases d <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
-          | rotate o =>
-            cases o <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
+          | rotate o b =>
+            cases o <;> cases b <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
           | _ =>
             cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
 
@@ -365,7 +372,7 @@ theorem human_lapse_leaves_view (n : String) (hn : n ≠ "") (s : Item) (hs : gu
 lapses at the rotation, whoever runs it, and leaves the view. -/
 theorem rotate_lapses_unguarded_summary (h : Bool) (s : Item) (hv : inView s)
     (hsum : s.summary = true) (he : s.esc = false) (hk : s.kb = .none ∨ s.kb = .clear) :
-    stepAs h (.rotate true) s = .ok { s with status := .lapsed } := by
+    stepAs h (.rotate true false) s = .ok { s with status := .lapsed } := by
   rw [inView_iff] at hv
   rcases s with ⟨st, e, k, p, hc, sm⟩
   simp only at hsum he hk
@@ -402,18 +409,19 @@ def rows : List Row := [
     .ok (item (e := true) (k := .unknown))⟩,
   ⟨"c2-no-kb-ref-no-query", .agent, .triage .lapse, item,
     .ok (item (st := .lapsed))⟩,
-  ⟨"c2-no-automatic-action", .agent, .rotate true, item (e := true) (k := .blocks),
+  ⟨"c2-no-automatic-action", .agent, .rotate true false, item (e := true) (k := .blocks),
     .ok (item (e := true) (k := .blocks))⟩,
-  ⟨"mt-c3-summary-lapses", .agent, .rotate true, item (sum := true),
+  ⟨"mt-c3-summary-lapses", .agent, .rotate true false, item (sum := true),
     .ok (item (st := .lapsed) (sum := true))⟩,
-  ⟨"mt-c3-guard-escalated-summary-stays-open", .agent, .rotate true, item (e := true) (sum := true),
+  ⟨"mt-c3-guard-escalated-summary-stays-open", .agent, .rotate true false, item (e := true) (sum := true),
     .ok (item (e := true) (sum := true))⟩,
-  ⟨"mt-c3-guard-blocking-summary-stays-open", .agent, .rotate true, item (k := .blocks) (sum := true),
+  ⟨"mt-c3-guard-blocking-summary-stays-open", .agent, .rotate true false, item (k := .blocks) (sum := true),
     .ok (item (k := .blocks) (sum := true))⟩,
-  ⟨"mt-c3-guard-fail-safe-without-orbit-kb", .agent, .rotate true, item (k := .unknown) (sum := true),
+  ⟨"mt-c3-guard-fail-safe-without-orbit-kb", .agent, .rotate true false, item (k := .unknown) (sum := true),
     .ok (item (k := .unknown) (sum := true))⟩,
-  ⟨"mt-c3-guard-clear-summary-lapses", .agent, .rotate true, item (k := .clear) (sum := true),
+  ⟨"mt-c3-guard-clear-summary-lapses", .agent, .rotate true false, item (k := .clear) (sum := true),
     .ok (item (st := .lapsed) (k := .clear) (sum := true))⟩,
+  ⟨"t40-c10-triage-gate-refuses-the-rotation", .agent, .rotate true true, item (sum := true), .refused⟩,
   ⟨"c2-human-may-lapse-blocking", me, .triage .lapse, item (e := true) (k := .blocks),
     .ok (item (st := .lapsed) (k := .blocks))⟩,
   ⟨"c2-agent-close-dropped-of-blocking-refused", .agent, .close .dropped, item (k := .blocks), .refused⟩,
@@ -465,7 +473,7 @@ def modelledCommands : List (String × String) := [
   ("accept", "Cmd.accept"),
   ("capsule", "Cmd.capsule"),
   ("triage", "Cmd.triage"),
-  ("rotate", "Cmd.rotate (prunes closed items; lapses an old open summary row unless it is escalated or its kb answer is not clear; check_commands.py checks that guard in hubflow.py)")
+  ("rotate", "Cmd.rotate (prunes closed items; lapses an old open summary row unless it is escalated or its kb answer is not clear; the triage gate refuses it, and counts no summary row; check_commands.py checks both in hubflow.py)")
 ]
 
 /-- Commands left out, each with the reason. -/

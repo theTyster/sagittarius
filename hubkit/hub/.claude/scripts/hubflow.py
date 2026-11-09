@@ -194,7 +194,8 @@ PREFIX = {"ask": "A", "thread": "T", "hold": "K", "handoff": "H", "summary": "S"
 REF_KINDS = ("issue", "pr", "build", "release", "kb", "file", "commit", "url", "transcript")
 # A transcript ref: the file name and its sha256, so it still resolves after the file moves to
 # another W slot at rotation (`transcripts --find REF`).
-TRANSCRIPT_REF = re.compile(r"^(?P<name>[^/\\]+)@sha256:(?P<digest>[0-9a-f]{64})$")
+# T40 c12: a name has no '/', '\\', '@', control character (a newline) or '..'; \Z, not $, so no trailing newline
+TRANSCRIPT_REF = re.compile(r"^(?P<name>(?!.*\.\.)[^/\\@\x00-\x1f\x7f]+)@sha256:(?P<digest>[0-9a-f]{64})\Z")
 LINK_KINDS = ("blocks", "duplicates", "relates", "supersedes", "follows")
 BY = ("human", "agent", "script")
 HUMAN_SESSION = "human"  # --session human --by human: a person, not a session (orbit-kb serve --hub)
@@ -1337,8 +1338,20 @@ def cmd_view(g, a):
         params.append(o["kind"])
     sql = f"SELECT * FROM {view}" + (" WHERE " + " AND ".join(where) if where else "") + f" ORDER BY {order}"
     cols, rows = select_rows(c, sql, params)
+    if name == "retention_due":  # T40 c11: would=lapse only for the summaries that rotate lapses
+        rows = retention_due_rows(c, hub_dir(g), cols, rows)
     c.close()
     print(render(rows, cols, fmt))
+
+
+def retention_due_rows(c, hub, cols, rows):
+    """The rows of v_retention_due without the lapse rows that rotate leaves open: an escalated summary,
+    or one whose spec KB is not clear (kb_held_summaries, fail-safe)."""
+    i_id, i_would = cols.index("id"), cols.index("would")
+    lapse = [r[i_id] for r in rows if r[i_would] == "lapse"]
+    keep = set(x for x in lapse if not is_escalated(c, x))
+    keep -= kb_held_summaries(c, hub, sorted(keep))
+    return [r for r in rows if r[i_would] != "lapse" or r[i_id] in keep]
 
 
 def sql_auth(action, a1, a2, dbname, source):
@@ -1932,10 +1945,12 @@ def find_transcript(hub, ref):
     if hits:
         return hits[0]
     same = [f[0] for f in files if os.path.basename(f[0]) == name]
-    if same:
-        raise Bad(f"{', '.join(same)} has another sha256 than {name}@sha256:{digest}: the file changed after the ref"
-                  " was written; read it again and record a new ref")
-    raise Bad(f"no transcript {name} with that sha256 in W0..W5/transcripts/ (a retired week leaves the hub; git history keeps it)")
+    if same:  # T40 c12: the file of the ref is missing; a file of that name may be it, edited, or another one
+        raise Bad(f"the transcript {name}@sha256:{digest} is missing from W0..W5/transcripts/ (deleted, edited or retired);"
+                  f" {', '.join(same)} has that name and another sha256: if it is the same transcript, edited, read it"
+                  " again and record a new ref")
+    raise Bad(f"the transcript {name}@sha256:{digest} is missing: no file {name} with that sha256 in W0..W5/transcripts/"
+              " (a retired week leaves the hub; git history keeps it)")
 
 
 def cmd_transcripts(g, a):
@@ -2024,7 +2039,8 @@ def rotate_plan(c, now, wk):
 
 def kb_held_summaries(c, hub, lapse):
     """The summary rows of `lapse` with a kb ref whose spec KB is not clear (fail-safe, as for an
-    agent's triage): the rotation leaves them open. Runs orbit-kb, so call it outside a write."""
+    agent's triage): the rotation leaves them open. Runs orbit-kb (each query has its timeout); rotate
+    --yes calls it inside its write, so the check and the lapse see the same clock (T40 c11)."""
     held = set()
     for iid in lapse:
         refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (iid,))]
@@ -2047,10 +2063,12 @@ def triage_gate(untriaged, specs=()):
 SPEC_DECISIONS = ("archive", "capsule", "keep", "escalate")
 
 
-def kb_slug_items(c, slug):
-    """The items whose kb ref is the spec KB slug (kb:<slug> or kb:<slug>/...): (id, status, closed_at)."""
+def kb_slug_items(c, slug, summaries=True):
+    """The items whose kb ref is the spec KB slug (kb:<slug> or kb:<slug>/...): (id, status, closed_at).
+    summaries=False leaves out summary rows (T40 c10: a summary never blocks a rotation)."""
     return c.execute("SELECT DISTINCT i.id, i.status, i.closed_at FROM item i JOIN item_ref r ON r.item_id = i.id"
-                     " WHERE r.kind = 'kb' AND (r.ref = ? OR r.ref LIKE ?) ORDER BY i.id", (slug, slug + "/%")).fetchall()
+                     " WHERE r.kind = 'kb' AND (r.ref = ? OR r.ref LIKE ?)" + ("" if summaries else " AND i.kind <> 'summary'")
+                     + " ORDER BY i.id", (slug, slug + "/%")).fetchall()
 
 
 def untriaged_spec_kbs(c, hub):
@@ -2063,7 +2081,7 @@ def untriaged_spec_kbs(c, hub):
     for slug in sorted(slugs):
         if not os.path.isdir(os.path.join(hub, "specs", slug)):
             continue
-        items = kb_slug_items(c, slug)
+        items = kb_slug_items(c, slug, summaries=False)  # a summary row is not a referring item
         if not items or any(st in OPEN for _, st, _ in items):
             continue
         last = max(x[2] for x in items)
@@ -2133,9 +2151,9 @@ def cmd_rotate(g, a):
         print(f"transcripts_reindexed: {sessions} session(s) from " + (" ".join(weeks) or "no week dir"))
 
     c = connect_ro(flow_dir(g))
-    held = kb_held_summaries(c, hub_dir(g), rotate_plan(c, clock(), wk)[4])
     if not o.get("yes"):
         plan = rotate_plan(c, clock(), wk)
+        held = kb_held_summaries(c, hub_dir(g), plan[4])
         plan = plan[:4] + ([x for x in plan[4] if x not in held], untriaged_spec_kbs(c, hub_dir(g)))
         c.close()
         print("dry-run: nothing written (add --yes to apply)")
@@ -2148,6 +2166,8 @@ def cmd_rotate(g, a):
 
     def fn(c, w):
         untriaged, escalated, prune, sessions, lapse = rotate_plan(c, w.now, wk)
+        # T40 c11: the held check reads the clock of the write, inside it (no gap before the UPDATE)
+        held = kb_held_summaries(c, hub_dir(g), lapse)  # inside the write
         lapse = [x for x in lapse if x not in held]
         specs = untriaged_spec_kbs(c, hub_dir(g))
         if untriaged or specs:
