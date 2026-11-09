@@ -2311,13 +2311,22 @@ def case_t40_words_and_refs(r, root):
     """T40 c12: the SKILL example summary states no decision; HUB-CORE raw_reports says an agent reads and
     records; --find of a deleted ref file says it is missing; a ref name with a newline, '..' or '@' is refused."""
     hub_dir_ = os.path.dirname(os.path.dirname(HERE))
-    skill = open(os.path.join(HERE, "..", "skills", "hub-flow", "SKILL.md"), encoding="utf-8").read()
-    ex = re.findall(r'add summary --title "([^"]*)"', skill)
-    r.check("t40-c12-skill-summary-is-no-decision", ex and not any(re.search(r"\b(moved|decided|agreed|will|is now|to Friday)\b", x, re.I) for x in ex), ex)
-    core = open(os.path.join(hub_dir_, "HUB-CORE.md"), encoding="utf-8").read()
-    row = next((l for l in core.splitlines() if l.startswith("| `raw_reports`")), "")
-    r.check("t40-c12-hub-core-raw-reports-agent-reads", row and "parsed" not in row and re.search(r"agent reads", row)
-            and re.search(r"records what is needed", row), row)
+    kit = os.path.dirname(hub_dir_)
+    if not os.path.isfile(os.path.join(kit, "tools", "storemap.py")):
+        # the words are those of the kit's full edition; an installed hub (or the informal edition) has its own
+        r.skip("t40-c12-skill-summary-is-no-decision", "not run from the kit tree (hubkit/hub)")
+        r.skip("t40-c12-hub-core-raw-reports-agent-reads", "not run from the kit tree (hubkit/hub)")
+    else:
+        skill = open(os.path.join(HERE, "..", "skills", "hub-flow", "SKILL.md"), encoding="utf-8").read()
+        ex = re.findall(r'add summary --title "([^"]*)"', skill)
+        inf = os.path.join(kit, "editions", "informal", ".claude", "skills", "hub-flow", "SKILL.md")
+        if os.path.isfile(inf):
+            ex += re.findall(r'add summary --title "([^"]*)"', open(inf, encoding="utf-8").read())
+        r.check("t40-c12-skill-summary-is-no-decision", ex and not any(re.search(r"\b(moved|decided|agreed|will|is now|to Friday)\b", x, re.I) for x in ex), ex)
+        core = open(os.path.join(hub_dir_, "HUB-CORE.md"), encoding="utf-8").read()
+        row = next((l for l in core.splitlines() if l.startswith("| `raw_reports`")), "")
+        r.check("t40-c12-hub-core-raw-reports-agent-reads", row and "parsed" not in row and re.search(r"agent reads", row)
+                and re.search(r"records what is needed", row), row)
     h = os.path.join(root, "t40-c12")
     p = write_text(os.path.join(h, "W2", "transcripts", "standup.md"), STANDUP)
     ref = tref("standup.md", sha256_of(p))
