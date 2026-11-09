@@ -123,14 +123,36 @@ decl(rule, conforms(ref(claim)),
 
 % D28 (T25): independent verification.
 decl(rule, independently_verified(ref(claim)),
-     'An upheld verdict on the claim comes from an actor whose role and session both differ from the actor of the last change that serves the claim, is after that change, and rests on a run of a check of the claim by the same actor after that change.',
+     'The latest verdict on the claim is upheld, comes from an actor whose role and session both differ from the actor of the last change of the claim, is after that change, and rests on a run of a check of the claim by the same actor after that change. A change with no change time, or a KB with no change at all, verifies nothing (fail closed).',
      'claim @(1) is independently verified').
 decl(rule, last_change(ref(claim), ref(change)),
-     'The change serves the claim and has a change time, and no other change that serves the claim has a later one.',
+     'The change is a change of the claim and has a change time, and no other change of the claim has a later one.',
      'change @(2) is the last change of claim @(1)').
 decl(rule, later_change(ref(claim), time),
-     'A change that serves the claim was recorded after the time.',
+     'A change of the claim was recorded after the time.',
      'a change of claim @(1) was recorded after @(2)').
+% T38 c2, c3: the latest verdict, and old data that fails closed.
+decl(rule, claim_change(ref(claim), ref(change)),
+     'The change serves the claim. A claim that no change serves has every change of the KB (T38 c3).',
+     'change @(2) is a change of claim @(1)').
+decl(rule, claim_served(ref(claim)),
+     'A change serves the claim.',
+     'a change serves claim @(1)').
+decl(rule, has_claim_change(ref(claim)),
+     'The claim has a change (its own, or a change of the KB).',
+     'claim @(1) has a change').
+decl(rule, change_dated(ref(change)),
+     'The change has a change time (change_at).',
+     'change @(1) has a change time').
+decl(rule, undated_change(ref(claim)),
+     'A change of the claim has no change time, so no verdict on the claim can be shown to come after it (T38 c3: fail closed).',
+     'a change of claim @(1) has no change time').
+decl(rule, later_verdict(ref(attest)),
+     'Another disproof verdict on the same claim comes after this one in kb.pl. orbit-kb computes it when it reads the KB (T38 c2).',
+     'a later verdict on the same claim follows @(1)').
+decl(rule, review_due,
+     'No current claim is under: every claim is fulfilled or covered by a waiver, so a fresh-eyes review is due and WR1 reports (T38 c5).',
+     'a review is due').
 decl(rule, has_actor(ref),
      'The record has an actor.',
      '@(1) has an actor').
@@ -253,9 +275,20 @@ blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(Q, _, _), human, _), wa
 % run of a check of the claim by the same actor after that change. done
 % does not read it. Lint warns (WR1) in a KB that records actors.
 % rules.pl cannot add clauses to these rules (lint E16).
-later_change(C, T) :- serves(Y, C), change_at(Y, T2), T2 @> T.
-last_change(C, X) :- serves(X, C), change_at(X, T), not later_change(C, T).
+later_change(C, T) :- claim_change(C, Y), change_at(Y, T2), T2 @> T.
+last_change(C, X) :- claim_change(C, X), change_at(X, T), not later_change(C, T).
 has_actor(X) :- actor(X, _, _).
+% T38 c3: the changes of a claim are the changes that serve it; a claim that no change serves
+% (a preserve claim) is compared with every change of the KB. Old data fails closed: a change
+% of the claim with no change_at, or no change at all, makes every verdict not independent.
+claim_served(C) :- serves(_, C).
+claim_change(C, X) :- serves(X, C).
+claim_change(C, X) :- claim(C, _, _), not claim_served(C), change(X, _).
+has_claim_change(C) :- claim_change(C, _).
+change_dated(X) :- change_at(X, _).
+undated_change(C) :- claim_change(C, X), not change_dated(X).
+verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), not has_claim_change(C).
+verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), undated_change(C).
 verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), last_change(C, X), not has_actor(X).
 verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), last_change(C, X),
                                   actor(V, R, _), actor(X, R, _).
@@ -268,9 +301,14 @@ run_before_last_change(A, C) :- attest(A, test_result, _, _, _, TA), last_change
 verdict_fresh_run(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), actor(V, R, S),
                            rests_on_run(V, A), attest(A, test_result, _, result(K, _, _), _, _),
                            check(K, C), actor(A, R, S), not run_before_last_change(A, C).
+% T38 c2: only the latest verdict on C counts (later_verdict/1: orbit-kb computes it from the
+% order of kb.pl, the order of the Review section of report).
 independently_verified(C) :- attest(V, disproof, _, verdict(C, upheld(_)), _, _), has_actor(V),
+                             not later_verdict(V),
                              not verdict_not_independent(V, C), verdict_fresh_run(V, C).
 verification_recorded :- actor(_, _, _).
 verification_recorded :- review_saw(_, _, _).
 lint_issue('WR1', C, 'No fresh-eyes verdict verifies this claim yet. A reviewer of another role and session must rerun a check of the claim after its last change (orbit-kb run --as ROLE), then record an upheld verdict that rests on that run (attest disproof --rests-on). orbit-kb report lists the review. This does not block done.') :-
-    verification_recorded, current(C), not independently_verified(C).
+    verification_recorded, review_due, current(C), not independently_verified(C).
+% T38 c5: WR1 waits until a review is due: no current claim is under.
+review_due :- not any_under.

@@ -25,8 +25,11 @@ Queries
   independently_verified(C)
                 an upheld verdict on C, by an actor whose role and session both differ from
                 the actor of the last change that serves C, after that change, rests on a run
-                of a check of C by the same actor after that change. done does not read it;
-                lint warns (WR1) on each current claim without it, in a KB that records actors
+                of a check of C by the same actor after that change. Only the latest verdict
+                on C counts. A claim that no change serves is compared with every change of
+                the KB; a change with no change_at, or no change at all, verifies nothing.
+                done does not read it; lint warns (WR1) on each current claim without it,
+                in a KB that records actors, once no claim is under (a review is due)
   done          at least one claim is current, nothing is under, nothing is over,
                 nothing is to ask, no burn or flare is open, and no claim is in a supersede cycle.
                 A KB with no current claim is not done. whynot done then says
@@ -73,7 +76,10 @@ BUILD: checks first
 FULFILL: fulfillment in both directions (verify)
   Review with fresh eyes. Prefer one subagent with a fresh context. This is its brief:
   - It sees only the ticket, the KB, and the diff. It does not see the builder's reasoning.
-  - It works under its own role and session (its first write takes the writer lock):
+  - It works under its own role and session. Subagents share CLAUDE_CODE_SESSION_ID, so the
+    builder runs orbit-kb release first, and the subagent names itself before its first
+    write (which takes the writer lock):
+      export ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review
       orbit-kb review start --as review --ticket TICKET.md --diff BASE..HEAD
     This records what it saw: the ticket, the KB stamp, and the diff (review_saw).
   - It reruns every check of each claim itself:
