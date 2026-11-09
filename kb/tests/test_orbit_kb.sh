@@ -80,7 +80,7 @@
 #   PN  pin stamp                                          (CLI: pin; D22)                  : PN1 PN2
 #   PH  help names the phases                              (CLI: help; D22)                 : PH1
 #   AC  acceptance criteria: ac/1, show and draft blocking (D29)                             : AC1-AC5
-#   VR  verification records: actor, review_saw, verdicts, independently_verified, WR1 (D28) : VR1-VR11 (VR7-VR11: T38)
+#   VR  verification records: actor, review_saw, verdicts, independently_verified, WR1 (D28) : VR1-VR12 (VR7-VR11: T38; VR12: T40)
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -2635,12 +2635,17 @@ EOF2
 
 # VR10 (T38 c4): a builder's subagent follows the FULFILL brief of help build literally. It shares
 # CLAUDE_CODE_SESSION_ID with the builder; the brief tells it to name itself, so its verdict counts.
+# T40 c1 amends it: the brief puts the writer in front of each write command (VR12 runs each step
+# in its own shell); here the subagent runs every step in one shell.
 t_VR10() { local r=$T/repo f wl
            okb help build; rc_is 0
            f=$(printf '%s\n' "$out" | awk '/^FULFILL/{f=1;print;next} f && /^[A-Z]/{exit} f')
-           wl=$(printf '%s\n' "$f" | grep -E '^ *export ORBIT_KB_WRITER=' | head -n1)
-           [ -n "$wl" ] || note "FULFILL has no line that sets ORBIT_KB_WRITER (export ORBIT_KB_WRITER=...)"
-           printf '%s\n' "$wl" | grep -q 'ORBIT_KB_ROLE=' || note "the export line of FULFILL does not set ORBIT_KB_ROLE"
+           # T40 c1 (amends T38 c4): the writer and the role stand in front of each write command;
+           # the subagent here runs all steps in one shell, so it exports that prefix once.
+           wl=$(printf '%s\n' "$f" | grep -E '^ *ORBIT_KB_WRITER=[^ ]+ +ORBIT_KB_ROLE=[^ ]+ +orbit-kb ' | head -n1 \
+                | sed -E 's/^ *(ORBIT_KB_WRITER=[^ ]+ +ORBIT_KB_ROLE=[^ ]+) +orbit-kb .*/export \1/')
+           [ -n "$wl" ] || note "FULFILL has no write line that sets ORBIT_KB_WRITER (ORBIT_KB_WRITER=... ORBIT_KB_ROLE=... orbit-kb ...)"
+           printf '%s\n' "$wl" | grep -q 'ORBIT_KB_ROLE=' || note "the write line of FULFILL does not set ORBIT_KB_ROLE"
            printf '%s\n' "$f" | grep -Fq 'CLAUDE_CODE_SESSION_ID' || note "FULFILL does not say why: subagents share CLAUDE_CODE_SESSION_ID"
            printf '%s\n' "$f" | grep -Eq 'orbit-kb release' || note "FULFILL does not tell the builder to release the lock first"
            mkdir -p "$r"; git -C "$r" init -q; printf 'one\n' > "$r/a.txt"
@@ -2670,6 +2675,49 @@ t_VR10() { local r=$T/repo f wl
            local src=$?; [ "$src" = 0 ] || note "the subagent's commands failed (step $src): $(snip "$(cat "$T/.sub.err")")"
            is_true 'independently_verified(c1)' "the subagent followed the brief literally"
            okb --dir "$K" lint; out_hasnt '^WR1 c1' "no WR1 for c1"; }
+
+# VR12 (T40 c1): the FULFILL brief works when each Bash call is a new shell (Claude Code). Every
+# write command of the subagent carries the writer and the role inline, and the subagent ends with
+# orbit-kb release. The test runs each such line of the brief in its own shell, with only the pane's
+# CLAUDE_CODE_SESSION_ID: the verdict is independent, and the builder's next add succeeds.
+t_VR12() { local r=$T/repo f ls n line cmd a
+           okb help build; rc_is 0
+           f=$(printf '%s\n' "$out" | awk '/^FULFILL/{f=1;print;next} f && /^[A-Z]/{exit} f')
+           ls=$(printf '%s\n' "$f" | grep -E '^ *ORBIT_KB_WRITER=[^ ]+ +ORBIT_KB_ROLE=[^ ]+ +orbit-kb ')
+           for n in 'review start' 'run --as' 'attest disproof' 'release'; do
+               printf '%s\n' "$ls" | grep -Eq "orbit-kb $n" || note "FULFILL has no line 'ORBIT_KB_WRITER=... ORBIT_KB_ROLE=... orbit-kb $n'"
+           done
+           printf '%s\n' "$f" | grep -Eqi 'new shell|each (Bash )?call' || note "FULFILL does not say why: each Bash call is a new shell"
+           printf '%s\n' "$f" | grep -E 'orbit-kb (review start|run --as|attest disproof)' | grep -Ev '^ *ORBIT_KB_WRITER=' \
+               | grep -q . && note "FULFILL has a subagent write line without the writer inline"
+           mkdir -p "$r"; git -C "$r" init -q; printf 'one\n' > "$r/a.txt"
+           git -C "$r" add a.txt; git -C "$r" -c user.name=t -c user.email=t@example.invalid commit -q -m one
+           printf 'Ticket T1: one becomes true\n' > "$r/TICKET.md"
+           local B=(env CLAUDE_CODE_SESSION_ID=pane1 ORBIT_KB_ROLE=build)
+           okb init "$T/k" --request 'One becomes true' --uses build; K=$T/k
+           "${B[@]}" "$OKB" --dir "$K" add "claim(c1, introduce, 'One becomes true')" "cites(c1, 'One becomes true')" "check(k1, c1)" >/dev/null 2>&1
+           "${B[@]}" "$OKB" --dir "$K" run k1 -- false >/dev/null 2>&1
+           sleep 1
+           printf 'two\n' >> "$r/a.txt"; git -C "$r" -c user.name=t -c user.email=t@example.invalid commit -q -am two
+           "${B[@]}" "$OKB" --dir "$K" add "change(x1, 'Edit one')" "serves(x1, c1)" >/dev/null 2>&1
+           "${B[@]}" "$OKB" --dir "$K" run k1 -- true >/dev/null 2>&1
+           is_true 'fulfilled(c1)' "setup: the builder fulfilled c1"
+           "${B[@]}" "$OKB" --dir "$K" release >/dev/null 2>&1
+           sleep 1
+           # each step of the brief in its own shell: nothing carries over but the pane's session
+           for n in 'review start' 'run --as' 'attest disproof' 'release'; do
+               line=$(printf '%s\n' "$ls" | grep -E "orbit-kb $n" | head -n1)
+               [ -n "$line" ] || continue
+               a=$(grep -oE '^attest\(a[0-9]+, test_result, k1, result\(k1, [0-9]+, pass\)' "$K/kb.pl" | tail -n1 | sed -E 's/^attest\((a[0-9]+).*/\1/')
+               cmd=$(printf '%s\n' "$line" | sed -E "s/^ *//; s/<[^>]*>/t1/g; s#orbit-kb #'$OKB' --dir '$K' #; s/BASE\.\.HEAD/HEAD~1..HEAD/; s/-- CMD\$/-- true/; s/--rests-on a[0-9]+/--rests-on $a/")
+               ( cd "$r" && env -i PATH="$PATH" HOME="$HOME" XDG_CACHE_HOME="$T/.cache" ORBIT_KB_LIB="$ORBIT_KB_LIB" \
+                     CLAUDE_CODE_SESSION_ID=pane1 bash -c "$cmd" ) >"$T/.step.out" 2>"$T/.step.err" \
+                   || note "the step '$n' failed in its own shell: $(snip "$cmd") :: $(snip "$(cat "$T/.step.err")")"
+           done
+           is_true 'independently_verified(c1)' "each step in its own shell"
+           okb --dir "$K" lint; out_hasnt '^WR1 c1' "no WR1 for c1"
+           "${B[@]}" "$OKB" --dir "$K" add "note(c1, 'the builder writes after the review')" >"$T/.b.out" 2>&1
+           [ $? = 0 ] || note "the builder's next add fails after the review: $(snip "$(cat "$T/.b.out")")"; }
 
 # VR11 (T38 c5): WR1 waits until a review is due: no current claim is under.
 t_VR11() { local W=(env ORBIT_KB_ROLE=build ORBIT_KB_WRITER=w1)
@@ -3084,6 +3132,7 @@ run_test t_VR8 VR8 "T38 c2: independently_verified reads the latest verdict on t
 run_test t_VR9 VR9 "T38 c3: old data fails closed"
 run_test t_VR10 VR10 "T38 c4: a builder's subagent that follows the FULFILL brief literally is independent"
 run_test t_VR11 VR11 "T38 c5: WR1 waits until no current claim is under"
+run_test t_VR12 VR12 "T40 c1: the FULFILL brief works when each step runs in its own shell"
 
 run_tests
 echo "----"

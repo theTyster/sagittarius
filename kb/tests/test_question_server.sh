@@ -30,6 +30,8 @@
 #   c10 a ledger-pinned question has no form; the page names its ask                           : QS27
 #   c11 tracker JSON: Jira Cloud v3 ADF description; a {count, value:[item]} wrapper; no silent raw : QS28
 #   c12 the ask path (and pin-answer) keeps a numeric answer as a number                        : QS29
+# T40 (fixes found when T38 was verified; D26 S13):
+#   c4 a {count, value:[item]} wrapper is unwrapped only when the top level has no title        : QS30
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -869,6 +871,18 @@ EOF2
     has_goal "$T/b" 'answer(q1, 5, human:alex)' "pin-answer keeps 5 as a number"
 }
 
+t_QS30() {  # T40 c4: a top level with a title of its own is the item, even with a value list
+    printf '{"title": "Top title", "body": "Top body", "count": 1, "value": [{"title": "Inner title", "body": "Inner body"}]}\n' > "$T/top.json"
+    okb init "$T/top" --request-file "$T/top.json" --source 'gh:acme/widgets#30' --uses build; rc_is 0 "a titled top level with a value list: init"
+    req_has "$T/top" 'Top title' 'Top body' '!Inner title' '!Inner body'
+    printf '{"fields": {"System.Title": "Ado top"}, "count": 1, "value": [{"fields": {"System.Title": "Ado inner"}}]}\n' > "$T/adotop.json"
+    okb init "$T/adotop" --request-file "$T/adotop.json" --source 'ado:acme/30' --uses build; rc_is 0
+    req_has "$T/adotop" 'Ado top' '!Ado inner'
+    printf '{"count": 1, "value": [{"title": "Only inner"}]}\n' > "$T/wrap.json"
+    okb init "$T/wrap" --request-file "$T/wrap.json" --source 'gh:acme/widgets#31' --uses build; rc_is 0
+    req_has "$T/wrap" 'Only inner' '!"count"'   # a wrapper with no title of its own is still unwrapped
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -879,6 +893,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 29); do run_one QS$n; done
+for n in $(seq 1 30); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

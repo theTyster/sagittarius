@@ -7,6 +7,9 @@ spec-triage changes no item row, so LedgerGuard.lean excludes it. check_commands
 reason against hubflow.py: on the real hubflow.py it reports no problem for spec-triage, and on each
 mutant copy below (a cmd_spec_triage that could change an item) it prints
 `FAIL spec-triage: the excluded reason does not hold in hubflow.py: ...`.
+T40 c7: rotate is modelled (Cmd.rotate). check_commands.py checks its guard in hubflow.py (an escalated
+summary, or one whose kb answer is not clear, does not lapse); each rotate mutant below must print
+`FAIL rotate: the modelled rotate guard does not hold in hubflow.py: ...`.
 Prints `PASS name` or `FAIL name: why` per check; the last line is `N passed, M failed`.
 Exit 0 only if every check passes.
 """
@@ -47,6 +50,24 @@ MUTANTS = [
      '        close_items(c, w, [i[0] for i in items])'),
 ]
 
+# T40 c7: rotate is modelled (Cmd.rotate lapses an old open summary row unless it is guarded).
+# check_commands.py checks that guard in hubflow.py; each mutant below lapses a guarded summary.
+ROTATE_FAIL = "FAIL rotate: the modelled rotate guard does not hold in hubflow.py"
+ROTATE_MUTANTS = [
+    ("rotate-lapses-escalated-summary",
+     "(lapse_before,)) if not is_escalated(c, r[0])]",
+     "(lapse_before,))]"),
+    ("rotate-ignores-kb-held-summaries",
+     "        lapse = [x for x in lapse if x not in held]\n",
+     "        lapse = list(lapse)\n"),
+    ("rotate-kb-guard-only-blocks",
+     'if refs and any(k["state"] != "clear" for k in kb_checks(hub, refs)):  # summary guard',
+     'if refs and any(k["state"] == "blocks" for k in kb_checks(hub, refs)):  # summary guard'),
+    ("rotate-lapses-other-kinds",
+     "\"SELECT id FROM item WHERE status IN ('open','waiting') AND kind = 'summary'\"",
+     "\"SELECT id FROM item WHERE status IN ('open','waiting')\""),
+]
+
 results = []
 
 
@@ -68,6 +89,7 @@ def main():
           sorted(excluded))
 
     code, out = run(HUBFLOW)
+    real_out = out
     check("t33-c1-real-hubflow-spec-triage-no-problem",
           "FAIL spec-triage" not in out and re.search(r"spec-triage: excluded reason checked", out), out)
 
@@ -84,6 +106,23 @@ def main():
                 f.write(src.replace(anchor, repl))
             code, out = run(path)
             check(f"t33-c1-mutant-{name}-caught", code == 1 and REASON_FAIL in out, (code, out))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    check("t40-c7-real-hubflow-rotate-guard-checked",
+          "FAIL rotate" not in real_out and re.search(r"OK rotate: modelled guard checked", real_out), real_out)
+    for name, anchor, repl in ROTATE_MUTANTS:
+        n = src.count(anchor)
+        if n != 1:
+            check(f"t40-c7-mutant-{name}-caught", False, f"anchor occurs {n} times")
+            continue
+        d = tempfile.mkdtemp(prefix="check-commands-mutant-")
+        try:
+            path = os.path.join(d, "hubflow.py")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(src.replace(anchor, repl))
+            code, mout = run(path)
+            check(f"t40-c7-mutant-{name}-caught", code == 1 and ROTATE_FAIL in mout, (code, mout))
         finally:
             shutil.rmtree(d, ignore_errors=True)
 

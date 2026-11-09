@@ -47,6 +47,10 @@
 #   c7 the refusal path of archive                                          : PF9
 #   c8 archive prunes spec_kbs.txt under the lock                           : PF10
 #   c9 pin-item --kind file digests the pinned file                         : PF11
+# T40 (fixes found when T38 was verified; CONTRACT D28 T38, D27 R10):
+#   c2 show pin of a pin taken before byte digests; the re-pin recipe       : PF12
+#   c3 spec_kbs.txt: register under the project KB lock; two looks to prune : PF13 (PF10 amended)
+#   c5 archive --root warns about a registered spec KB outside the root     : PF14
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -1039,7 +1043,79 @@ t_PF10() { t23_pk "decision(d1, 'Old export')"
            ORBIT_KB_WRITER=bob okb --dir "$K" project archive --superseded-before "$T3"; rc_is 2 "bob's archive is refused while ann holds the lease"
            same_file "$R" "$T/reg.before" "a refused archive does not prune"
            ORBIT_KB_WRITER=ann okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "archive"
-           [ "$(sort "$R" | tr '\n' ' ')" = "$o/s1 $o/s3 " ] || note "spec_kbs.txt after the archive: [$(tr '\n' ' ' < "$R")], want $o/s1 and $o/s3 once each"; }
+           # T40 c3 (amends T38 c8): a missing KB is not pruned on one look; the repeated line goes at once
+           [ "$(sort "$R" | tr '\n' ' ')" = "$o/s1 $o/s2 $o/s3 " ] || note "spec_kbs.txt after the first archive: [$(tr '\n' ' ' < "$R")], want $o/s1, $o/s2 and $o/s3 once each"
+           ORBIT_KB_WRITER=ann okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "a second archive"
+           [ "$(sort "$R" | tr '\n' ' ')" = "$o/s1 $o/s3 " ] || note "spec_kbs.txt after the second archive: [$(tr '\n' ' ' < "$R")], want $o/s1 and $o/s3 once each"; }
+
+# PF12 (T40 c2): show pin of a tracker pin taken before T38 (a digest of the text read as UTF-8, not
+# of the bytes): the kept text is not edited, so show pin says that the digest rule changed, not that
+# someone edited it, and names the re-pin. An edited kept text still says that it was edited. help
+# build and the CHANGELOG give the re-pin and the re-prove recipe.
+t_PF12() { t23_pk; printf 'Title: Café orders for ∀ weeks\n' > "$T/item.txt"
+           local old; old=$(swipl -g "use_module(library(crypto)), crypto_file_hash('$T/item.txt', H, [algorithm(sha256)]), write(H), halt" 2>/dev/null)
+           { [ -n "$old" ] && [ "$old" != "$(sha "$T/item.txt")" ]; } || note "setup: the digest rule before T38 gives no other digest ($old)"
+           mkdir -p "$K/pins"; cp "$T/item.txt" "$K/pins/$old.txt"
+           printf "pin(p3, tracker, 'gh:acme/widgets#13', 'sha256:%s', '%s').\n" "$old" "$T1" >> "$K/kb.pl"
+           okb --dir "$K" show pin p3; rc_is 1 "no text matches under the byte digest"
+           any_hasi 'digest rule' "show pin says that the digest rule changed"
+           anyout | grep -q 'Someone edited' && note "show pin of an unedited old pin says Someone edited it: $(snip "$out")"
+           any_has 'pin-item' "show pin names the re-pin (pin-item)"
+           printf 'Title: Sort orders\n' > "$T/i2.txt"; local h2; h2=$(sha "$T/i2.txt")
+           okb --dir "$K" pin-item p4 'gh:acme/widgets#14' --text-file "$T/i2.txt" --changed-at "$T1"; rc_is 0 "setup: a byte-digest pin"
+           printf 'Title: Sort orders (edited)\n' > "$K/pins/$h2.txt"
+           okb --dir "$K" show pin p4; rc_is 1 "an edited kept text"; any_hasi 'edited' "show pin still says an edit"
+           okb help build; rc_is 0
+           local bd; bd=$(printf '%s\n' "$out" | awk '/[Bb]yte digest/{f=1} f')
+           printf '%s\n' "$bd" | grep -q 'pin-item' || note "help build has no re-pin recipe (pin-item) under byte digests"
+           printf '%s\n' "$bd" | grep -q 'proof_changed' || note "help build has no re-prove recipe (proof_changed) under byte digests"
+           local cl; cl=$(awk '/^- Byte digests/{f=1;print;next} f && /^(- |#)/{exit} f' "$here/../../CHANGELOG.md")
+           printf '%s\n' "$cl" | grep -q 'pin-item' || note "the CHANGELOG Byte digests entry has no re-pin recipe (pin-item)"
+           printf '%s\n' "$cl" | grep -q 'proof_changed' || note "the CHANGELOG Byte digests entry lost its re-prove recipe"; }
+
+# PF13 (T40 c3): spec_kbs.txt loses no line. add registers a spec KB under the KB lock of the project
+# KB (the lock of the archive prune): while another process holds it, add waits. A spec KB whose kb.pl
+# is missing is pruned only when a second archive in a row finds it missing.
+t_PF13() { t23_pk "decision(d1, 'Old export')"
+           local o; o=$(mktemp -d "$base/PF13out.XXXXXX"); o=$(cd "$o" && pwd -P)
+           local R=$T/pk/spec_kbs.txt s
+           for s in s1 s2; do okb init "$o/$s" --request "Build $s" --uses build,project >/dev/null 2>&1 || note "setup: init $s failed"; done
+           flock -x "$T/pk/kb.lock" -c 'sleep 3' & local lp=$!
+           sleep 0.5
+           local t0 t1; t0=$(date +%s)
+           K=$o/s1; padd "project_kb('$T/pk')" >/dev/null; rc_is 0 "add project_kb while the project KB lock is held"
+           t1=$(date +%s); wait "$lp"
+           [ $((t1 - t0)) -ge 2 ] || note "add wrote spec_kbs.txt while another process held the project KB lock (it took $((t1 - t0)) s, the lock was held 2.5 s more)"
+           grep -qxF "$o/s1" "$R" || note "the line of s1 is missing: [$(tr '\n' ' ' < "$R" 2>/dev/null)]"
+           K=$o/s2; padd "project_kb('$T/pk')" >/dev/null; rc_is 0 "setup: s2 names the project KB"
+           K=$T/pk
+           mv "$o/s2" "$o/s2.away"
+           okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "archive, s2 missing (look 1)"
+           grep -qxF "$o/s2" "$R" || note "one archive pruned the briefly missing s2"
+           mv "$o/s2.away" "$o/s2"
+           okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "archive, s2 back"
+           grep -qxF "$o/s2" "$R" || note "s2 came back and was pruned"
+           mv "$o/s2" "$o/s2.away"
+           okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "archive, s2 missing again (look 1 after its return)"
+           grep -qxF "$o/s2" "$R" || note "s2 was pruned on its first look after it came back"
+           okb --dir "$K" project archive --superseded-before "$T3"; rc_is 0 "archive, s2 still missing (look 2)"
+           grep -qxF "$o/s2" "$R" && note "s2 is still in spec_kbs.txt after two archives in a row found it missing"
+           grep -qxF "$o/s1" "$R" || note "s1 was lost"; okb help project; out_has 'spec_kbs' "help project documents the registry"; }
+
+# PF14 (T40 c5): archive with --root warns when a spec KB of spec_kbs.txt lies outside the root,
+# as it warns without --root; with every registered spec KB under the root it does not warn.
+t_PF14() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "decided_by(d2, ann, '$T2')" "supersedes(d2, d1)"
+           local o; o=$(mktemp -d "$base/PF14out.XXXXXX"); o=$(cd "$o" && pwd -P)
+           okb init "$o/spec" --request 'Build far away' --uses build,project >/dev/null 2>&1 || note "setup: init far spec failed"
+           K=$o/spec; padd "project_kb('$T/pk')" >/dev/null; rc_is 0 "setup: the far spec KB is registered"
+           K=$T/pk; mkdir -p "$T/near"; cp "$K/kb.pl" "$T/kb.before"
+           okb --dir "$K" project archive --superseded-before "$T3" --root "$T/near"; rc_is 0 "archive --root near"
+           no_fact "$K/kb.pl" "decision(d1, _)" "setup: d1 is archived"
+           printf '%s\n' "$err" | grep -Fq "$o/spec" || note "archive --root does not name the registered spec KB outside the root (stderr: $(snip "$err"))"
+           printf '%s\n' "$err" | grep -Fq 'spec_kbs.txt' || note "the --root warning does not name spec_kbs.txt (stderr: $(snip "$err"))"
+           cp "$T/kb.before" "$K/kb.pl"
+           okb --dir "$K" project archive --superseded-before "$T3" --root "$o"; rc_is 0 "archive --root over every registered spec KB"
+           printf '%s\n' "$err" | grep -qi 'warning' && note "archive --root warns with every registered spec KB under the root (stderr: $(snip "$err"))"; return 0; }
 
 # PF11 (T38 c9): pin-item --kind file digests the pinned file (a path, or the file of a subject),
 # and refuses a --text-file that names another file.
@@ -1137,6 +1213,9 @@ run_test t_PF8 PF8 "T38 c6: archive does not silently remove a decision that an 
 run_test t_PF9 PF9 "T38 c7: a refused archive exits 1, names the error, and leaves kb.pl as it was"
 run_test t_PF10 PF10 "T38 c8: archive prunes spec_kbs.txt under the lock"
 run_test t_PF11 PF11 "T38 c9: pin-item --kind file digests the pinned file"
+run_test t_PF12 PF12 "T40 c2: show pin of a pin taken before byte digests says the digest rule changed"
+run_test t_PF13 PF13 "T40 c3: spec_kbs.txt loses no line: register under the lock, prune after two looks"
+run_test t_PF14 PF14 "T40 c5: archive --root warns about a registered spec KB outside the root"
 NT=${#REG_ID[@]}
 for ((i = 0; i < NT; i++)); do exec_test "$i"; done
 echo "----"
