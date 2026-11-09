@@ -2149,6 +2149,49 @@ t_FU6() { okb help declare; rc_is 0; any_hasi 'optional' "help declare says decl
           okb help add; rc_is 0; any_hasi 'first use' "help add names the first use"
           okb help core; rc_is 0; any_hasi 'first use' "help core names the first use"; }
 
+# KD: T26 (amends D22): declare is removed. The first add of a new kind may take --doc. show kinds.
+t_KD1() { local repo f; repo=$LIB/../../..; mkclaim
+          okb --dir "$K" declare 'gizmo(id, text)' --doc 'A gizmo.'   # KD1-call
+          rc_is 2 "declare is gone"; any_hasi 'add.*--doc' "the line says to use add --doc"
+          [ "$(printf '%s\n' "$err" | grep -c .)" = 1 ] || note "declare prints one line on stderr (stderr: $(snip "$err"))"
+          no_fact "$K/kb.pl" "decl(_, gizmo(_, _), _, _)" "declare wrote nothing"
+          okb help declare; rc_is 2 "no help topic for declare"
+          okb help; any_hasnt '^ *declare ' "general help lists no declare command"
+          for f in "$LIB"/help/*.txt "$LIB/README.md" "$repo/prompt/SAGITTARIUS.md"; do
+              grep -qE 'orbit-kb declare|^ +declare ' "$f" && note "${f##*/} still names the declare command"; done
+          return 0; }
+t_KD2() { mkclaim
+          oadd 'gizmo(g1, a)' --doc 'A gizmo.'; rc_is 0 "the first add of a new kind takes --doc"
+          has_fact "$K/kb.pl" "decl(fact, gizmo(_, _), 'A gizmo.', _)" "the doc is the description of the kind"
+          has_fact "$K/kb.pl" "first_use(gizmo/2, agent, _)" "the first use is recorded"
+          any_hasnt 'orbit-kb declare' "the NOTE does not name declare"
+          oadd 'gizmo(g2, b)' --doc 'Again.'; rc_is 1 "--doc on a kind that exists is refused"
+          rejects multiline '' add 'sprocket(s1)' --doc 'one
+two'
+          oadd 'widget(w1)'; rc_is 0 "--doc is optional"
+          okb --dir "$K" lint; out_has '^W9 .*widget/1' "a W-lint names a kind with no description"
+          out_hasnt '^W9 .*gizmo/2' "no W-lint for a kind with a --doc"
+          okb --dir "$K" show kinds; rc_is 0; out_has 'widget/1.*no description' "show kinds names it"
+          okb help codes; out_has '^ +W9 ' "help codes documents W9"; }
+t_KD3() { mkclaim; oadd 'gizmo(g1, a)' --doc 'A gizmo.' >/dev/null
+          okb --dir "$K" show kinds; rc_is 0 "show kinds"
+          out_has '^- claim/3: .*[A-Za-z]' "a core kind with its decl doc"
+          out_has '^- change/2: .*[A-Za-z]' "a module kind with its decl doc"
+          out_has '^- gizmo/2: A gizmo\.' "a new kind with its --doc"
+          okb --dir "$K" show nosuch; rc_is 2 "show takes only known sections"; any_has 'kinds' "the usage names kinds"; }
+t_KD4() { K=$T/k; kb_new "$K" <<'EOF'
+uses([]).
+request(r1, 'x').
+decl(fact, q(atom), 'A q.', '').
+decl(rule, p(atom), 'A p.', '').
+q(a).
+EOF
+          okb --dir "$K" lint; rc_is 0 "a KB with decl/4 lines loads"
+          okb --dir "$K" show kinds; rc_is 0; out_has '^- q/1: A q\.' "the doc of a decl/4 line shows in show kinds"; }
+t_KD5() { local f n=0 hits=""; for f in "$here"/test_*.sh; do
+              hits+=$(grep -nE "okb.* declare |orbit-kb declare " "$f" | grep -v 'KD1-call' | sed "s|^|${f##*/}:|"); done
+          [ -z "$hits" ] || note "tests still call declare: $(snip "$hits")"; return 0; }
+
 # RT: retired with D22 (c6): declare-attest and the depends fact kind.
 t_RT1() { mkclaim; okb --dir "$K" declare-attest reading 'level(text, int)' --doc 'A reading.' --writers human,agent
           rc_is 2 "declare-attest is gone"; any_hasi 'unknown command'
@@ -2833,6 +2876,11 @@ run_test t_FU5 FU5 "D22 c5: declare adds a doc and types ahead of use"
 run_test t_FU6 FU6 "D22 c5: help says declare is optional"
 # FU7 is not run: FU8 supersedes it (see the comment above t_FU8).
 run_test t_FU8 FU8 "D22 c3: E19 at edit distance 2, none at distance 3 (each case alone)"
+run_test t_KD1 KD1 "T26 c1: declare is removed: exit 2, one line that says add --doc; no help, README or prompt names it"
+run_test t_KD2 KD2 "T26 c2: the first add of a new kind may take --doc; optional; a W-lint and show kinds name a kind without one"
+run_test t_KD3 KD3 "T26 c3: show kinds lists each kind with its description"
+run_test t_KD4 KD4 "T26 c4: a KB with decl/4 lines still loads; their docs show in show kinds"
+run_test t_KD5 KD5 "T26 c5: no test calls declare any more"
 run_test t_RT1 RT1 "D22 c6: declare-attest is an unknown command"
 run_test t_RT2 RT2 "D22 c6: depends/2 is not a fact kind"
 run_test t_RT3 RT3 "D22 c6: CONTRACT and the help topics do not name the cut items"
