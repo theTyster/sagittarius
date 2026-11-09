@@ -76,6 +76,7 @@
 #   PV  prove with real Lean (skipped without lake)        (CLI: prove; D10, D10 follow-up) : PV1-PV12
 #   FU  schema declared on first use, W7, E19 typo guard    (CLI: add, declare; Lint; D22)   : FU1-FU6 FU8 (FU7 superseded, not run)
 #   RT  retired: declare-attest and depends/2              (D22)                            : RT1-RT3
+#   KD  declare removed, --doc, show kinds (T26); a later --doc, show kinds under E19/E2, repeated --doc (T40) : KD1-KD9
 #   BL  blocking/1 and show blocking                       (Core and build rules; D22)      : BL1-BL11 BL6b BL8b
 #   PN  pin stamp                                          (CLI: pin; D22)                  : PN1 PN2
 #   PH  help names the phases                              (CLI: help; D22)                 : PH1
@@ -2208,6 +2209,52 @@ t_KD6() { mkclaim
           rejects factdecl '--doc' add "decl(fact, other(id), 'x', '')"
           printf "decl(rule, old_rule(atom), 'An old rule.', '').\n" >> "$K/kb.pl"; printf "old_rule(a).\n" >> "$K/rules.pl"
           okb --dir "$K" show kinds; out_has '^- old_rule/1 \(rule\): An old rule\.' "an old decl(rule, ...) line still loads, its doc shows"; }
+# KD7 (T40 c8): a kind with no description can get one later. --doc on an add of an existing kind of
+# kb.pl whose description is empty or the old W7 placeholder sets it (refused when it has one); W9's
+# advice says so. A kb.pl decl(rule, H, '', T) takes the doc of a %% doc: line in rules.pl.
+t_KD7() { mkclaim
+          oadd 'widget(w1)'; rc_is 0 "setup: a kind with no description"
+          oadd 'widget(w2)' --doc 'A widget of the shop.'; rc_is 0 "--doc on an existing kind with no description"
+          has_fact "$K/kb.pl" "decl(fact, widget(_), 'A widget of the shop.', _)" "the kind has its description"
+          no_fact "$K/kb.pl" "decl(fact, widget(_), '', _)" "the empty description is gone, not kept beside the new one"
+          has_fact "$K/kb.pl" "widget(w2)" "the fact is written"
+          okb --dir "$K" lint; out_hasnt '^W9 .*widget/1' "no W9 for widget/1"; out_hasnt '^E' "no lint error"
+          rejects has-doc '' add 'widget(w3)' --doc 'Again.'
+          printf "decl(fact, sprocket(term), 'Declared by its first use. Review it (lint W7).', '').\nsprocket(s1).\n" >> "$K/kb.pl"
+          oadd 'sprocket(s2)' --doc 'A sprocket.'; rc_is 0 "--doc on a kind with the old W7 placeholder"
+          has_fact "$K/kb.pl" "decl(fact, sprocket(_), 'A sprocket.', _)" "the placeholder is replaced"
+          printf "decl(fact, cog(term), '', '').\ncog(c1).\n" >> "$K/kb.pl"
+          okb --dir "$K" lint; out_has '^W9 .*cog/1' "setup: W9 for cog/1"
+          printf '%s\n' "$out" | grep -E '^W9 .*cog/1' | grep -Eqi 'later|existing|next add|any add' \
+              || note "W9 does not say that a later add can describe the kind: $(snip "$(printf '%s\n' "$out" | grep -E '^W9 .*cog/1')")"
+          printf "decl(rule, hot(term), '', '').\n" >> "$K/kb.pl"
+          printf "%%%% doc: A hot claim.\nhot(C) :- claim(C, _, _).\n" > "$K/rules.pl"
+          okb --dir "$K" lint; out_hasnt '^W9 .*hot/1' "a %% doc: line in rules.pl describes the kb.pl rule with no description"
+          okb --dir "$K" show kinds; rc_is 0; out_has '^- hot/1 \(rule\): A hot claim\.' "show kinds shows the rules.pl doc"; }
+
+# KD8 (T40 c9): show kinds works while E19 or E2 fires (it is how the clash is found); a repeated
+# --doc is refused, not silently the first.
+t_KD8() { mkclaim
+          rejects repeated-doc 'doc' add 'gear(g1)' --doc 'One.' --doc 'Two.'
+          printf "claimm(C, L, X) :- claim(C, L, X).\n" > "$K/rules.pl"
+          okb --dir "$K" lint; out_has '^E19 ' "setup: E19 fires"
+          okb --dir "$K" show kinds; rc_is 0 "show kinds while E19 fires"; out_has '^- claim/3: ' "show kinds lists the kinds"
+          out_has '^- claimm/3' "show kinds lists the clashing head"
+          printf "lone(C) :- nosuch_pred(C).\n" > "$K/rules.pl"
+          okb --dir "$K" lint; out_has '^E2 ' "setup: E2 fires"
+          okb --dir "$K" show kinds; rc_is 0 "show kinds while E2 fires"; out_has '^- claim/3: ' "show kinds lists the kinds"
+          okb --dir "$K" show claims; rc_is 2 "the answer gate still holds for the other sections"; }
+
+# KD9 (T40 c9): CONTRACT D22 C1 and C3, D23 P7 and D25 T4 no longer name the removed declare command;
+# evals/grade_tools.py WRITES drops declare.
+t_KD9() { local c=$here/../CONTRACT.md g=$here/../../evals/grade_tools.py id l
+          for id in '  - C1 (first use' '  - C3 (E19' '  - P7 (' '  - T4 ('; do
+              l=$(grep -F -- "$id" "$c" | head -n1)
+              [ -n "$l" ] || { note "CONTRACT has no item '$id'"; continue; }
+              printf '%s\n' "$l" | grep -Eq '`declare`|orbit-kb declare' && note "CONTRACT item '$id' still names declare"
+          done
+          grep -E '^WRITES = ' "$g" | grep -q '"declare"' && note "evals/grade_tools.py WRITES still lists declare"; return 0; }
+
 t_KD5() { local f n=0 hits=""; for f in "$here"/test_*.sh; do
               hits+=$(grep -nE "okb.* declare |orbit-kb declare " "$f" | grep -v 'KD1-call' | sed "s|^|${f##*/}:|"); done
           [ -z "$hits" ] || note "tests still call declare: $(snip "$hits")"; return 0; }
@@ -3097,6 +3144,9 @@ run_test t_KD3 KD3 "T26 c3: show kinds lists each kind with its description"
 run_test t_KD4 KD4 "T26 c4: a KB with decl/4 lines still loads; their docs show in show kinds"
 run_test t_KD6 KD6 "T26 review: a rules.pl head is declared by its first definition, doc from a %% doc: comment; W9, show kinds; add refuses decl terms"
 run_test t_KD5 KD5 "T26 c5: no test calls declare any more"
+run_test t_KD7 KD7 "T40 c8: a kind with no description can get one later; rules.pl doc describes an empty kb.pl rule decl"
+run_test t_KD8 KD8 "T40 c9: show kinds works while E19 or E2 fires; a repeated --doc is refused"
+run_test t_KD9 KD9 "T40 c9: CONTRACT and grade_tools.py no longer name declare"
 run_test t_RT1 RT1 "D22 c6: declare-attest is an unknown command"
 run_test t_RT2 RT2 "D22 c6: depends/2 is not a fact kind"
 run_test t_RT3 RT3 "D22 c6: CONTRACT and the help topics do not name the cut items"
