@@ -34,7 +34,9 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                each open item whose spec KBs have a live waiver by a human
                                                and nothing else that blocks. The note names the KB and the
                                                waiver; the waiver is the person's word. It never writes a
-                                               spec KB. Run it after the human runs a waiver command
+                                               spec KB. An escalated item stays open, and is printed
+                                               (escalated: ID): the human ends it with triage.
+                                               Run it after the human runs a waiver command
   triage ID keep|lapse|capsule|escalate --note T
                                                one recorded disposition for a due item. keep and
                                                capsule renew it (capsule needs a capsule first),
@@ -1680,7 +1682,7 @@ def print_waivers(hub, iid, kbs):
             print(f"# kb:{k['ref']}: {k['why']}; find the spec KB and waive its blocking items by hand")
     if kbs:
         print("# the human runs each waiver and sets <DUE>; hubflow never writes to a spec KB")
-        print("# then `hubflow.py skip-waived` ends the items whose spec KB is waived and clear")
+        print("# then `hubflow.py skip-waived` ends the items whose spec KB is waived and clear; an escalated item stays for the human")
 
 
 def live_waivers(path):
@@ -1723,18 +1725,24 @@ def cmd_skip_waived(g, a):
             ending.append((iid, f"the human waived {target} in kb:{ref} ({wid}): {why}"))
 
     def fn(c, w):
-        done = []
+        done, kept = [], []
         for iid, note in ending:
             it = get_item(c, iid)
             if it["status"] not in OPEN:
                 continue
+            # inside the write: an item escalated after the read above stays open too (T40 c13)
+            if is_escalated(c, iid):  # escalated stays for the human
+                kept.append(iid)
+                continue
             c.execute("UPDATE item SET status = 'dropped', closed_at = ?, close_reason = 'human_skip' WHERE id = ?", (w.now, iid))
             w.event(iid, "closed", it["status"], "human_skip", note=note, by="script")
             done.append(iid)
-        return done
+        return done, kept
 
-    done = run_write(g, o, fn) if ending else []
+    done, kept = run_write(g, o, fn) if ending else ([], [])
     print("closed: " + (" ".join(done) or "none"))
+    for iid in kept:
+        print(f"escalated: {iid} (the human ends it with triage)")
 
 
 def is_escalated(c, iid):

@@ -16,6 +16,15 @@ at the first rotation when it is 28 days old, unless it is escalated or its kb a
 `Item.summary`; T40 c10: the triage gate refuses a rotation and counts no summary row), and `agent_run_keeps_guarded` is proved again with it; its statement is the one
 of T05. check_commands.py checks the rotate guard in hubflow.py, and lean_mutant_test.py checks
 that a rotate that lapses an escalated summary fails the proof.
+
+T40 c13 (after T39 c3 added `skip-waived`; review default, Ty not asked): `skip-waived` drops an
+open item whose kb refs are all clear and one of whose spec KBs has a live human waiver, unless
+the item is escalated: an escalated item stays open for the human, who ends it with triage. Any
+writer may run it (it writes by=script). The model has that action (`Cmd.skipWaived waived`), and
+`agent_run_keeps_guarded` and `agent_run_keeps_escalated` are proved again with it, their
+statements unchanged. check_commands.py checks the escalated filter inside the write of
+cmd_skip_waived, and lean_mutant_test.py checks that a skip-waived that drops an escalated item
+fails the proof.
 -/
 namespace LedgerGuard
 
@@ -103,6 +112,11 @@ inductive Cmd
   written). The gate reads the other items; a summary row is never one of the items it counts
   (T40 c10, checked in hubflow.py by check_commands.py), so `blocked` is an input here. -/
   | rotate (old blocked : Bool)
+  /-- `skip-waived` (T39 c3, T40 c13): `waived` = one of the item's spec KBs has a live human
+  waiver. It drops (human_skip, by=script) an open item that has kb refs, all clear, and is
+  waived, unless the item is escalated (checked inside the write: an escalated item stays open,
+  and its id is printed). Any writer may run it; it reads the writer from no flag. -/
+  | skipWaived (waived : Bool)
   deriving Repr
 
 inductive Outcome
@@ -189,6 +203,11 @@ def stepAs (human : Bool) : Cmd → Item → Outcome
       if old && s.summary && isOpen s && !s.esc && !nonclear s.kb then
         .ok { s with status := .lapsed }
       else .ok s
+  | .skipWaived waived, s =>
+      -- hubflow.py cmd_skip_waived: candidates are open or waiting items with kb refs, every
+      -- kb_checks state clear and a live human waiver; the write skips `is_escalated` items.
+      if waived && isOpen s && !s.esc && s.kb == .clear then .ok { s with status := .dropped }
+      else .ok s
 
 def step (a : Actor) (c : Cmd) (s : Item) : Outcome :=
   match a.writer with
@@ -233,7 +252,7 @@ def allItems : List Item := Id.run do
 def allCmds : List Cmd :=
   [.renew, .park, .setFields, .close .done, .close .dropped, .close .humanSkip, .reopen,
    .refOther, .link, .note, .accept, .capsule, .skipLinked, .rotate false false, .rotate true false,
-   .rotate false true, .rotate true true]
+   .rotate false true, .rotate true true, .skipWaived false, .skipWaived true]
   ++ allStatus.map .setStatus ++ allKb.map .refAddKb ++ allKb.map .refRmKb
   ++ [Disp.keep, .lapse, .capsule, .escalate].map .triage
 
@@ -276,6 +295,8 @@ theorem stepAs_agent_keeps_guarded (c : Cmd) (s : Item) (h : guardedB s = true) 
     cases d <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
   | rotate o b =>
     cases o <;> cases b <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
+  | skipWaived w =>
+    cases w <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
   | _ =>
     cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
 
@@ -342,6 +363,8 @@ theorem agent_run_keeps_escalated (cs : List (Actor × Cmd)) (hcs : ∀ p ∈ cs
             cases d <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
           | rotate o b =>
             cases o <;> cases b <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
+          | skipWaived w =>
+            cases w <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
           | _ =>
             cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
 
@@ -378,6 +401,17 @@ theorem rotate_lapses_unguarded_summary (h : Bool) (s : Item) (hv : inView s)
   simp only at hsum he hk
   subst hsum he
   rcases hk with rfl | rfl <;> cases st <;> revert hv <;> simp [stepAs, isOpen, nonclear, inViewB]
+
+/-- skip-waived is not vacuous (T40 c13): a waived open item whose kb answer is clear and that is
+not escalated is dropped, whoever runs it, and leaves the view. -/
+theorem skipWaived_drops_unescalated (h : Bool) (s : Item) (hv : inView s) (he : s.esc = false)
+    (hk : s.kb = .clear) :
+    stepAs h (.skipWaived true) s = .ok { s with status := .dropped } := by
+  rw [inView_iff] at hv
+  rcases s with ⟨st, e, k, p, hc, sm⟩
+  simp only at he hk
+  subst he hk
+  cases st <;> revert hv <;> simp [stepAs, isOpen, inViewB]
 
 /-! ## Rows that mirror hubflow-test.py checks -/
 
@@ -422,6 +456,10 @@ def rows : List Row := [
   ⟨"mt-c3-guard-clear-summary-lapses", .agent, .rotate true false, item (k := .clear) (sum := true),
     .ok (item (st := .lapsed) (k := .clear) (sum := true))⟩,
   ⟨"t40-c10-triage-gate-refuses-the-rotation", .agent, .rotate true true, item (sum := true), .refused⟩,
+  ⟨"t40-c13-escalated-item-stays-open", .script, .skipWaived true, item (e := true) (k := .clear),
+    .ok (item (e := true) (k := .clear))⟩,
+  ⟨"t40-c13-non-escalated-item-closes", .script, .skipWaived true, item (k := .clear),
+    .ok (item (st := .dropped) (k := .clear))⟩,
   ⟨"c2-human-may-lapse-blocking", me, .triage .lapse, item (e := true) (k := .blocks),
     .ok (item (st := .lapsed) (k := .blocks))⟩,
   ⟨"c2-agent-close-dropped-of-blocking-refused", .agent, .close .dropped, item (k := .blocks), .refused⟩,
@@ -473,7 +511,8 @@ def modelledCommands : List (String × String) := [
   ("accept", "Cmd.accept"),
   ("capsule", "Cmd.capsule"),
   ("triage", "Cmd.triage"),
-  ("rotate", "Cmd.rotate (prunes closed items; lapses an old open summary row unless it is escalated or its kb answer is not clear; the triage gate refuses it, and counts no summary row; check_commands.py checks both in hubflow.py)")
+  ("rotate", "Cmd.rotate (prunes closed items; lapses an old open summary row unless it is escalated or its kb answer is not clear; the triage gate refuses it, and counts no summary row; check_commands.py checks both in hubflow.py)"),
+  ("skip-waived", "Cmd.skipWaived (drops an open item whose kb answer is clear and waived, unless it is escalated; check_commands.py checks the escalated filter inside the write in hubflow.py)")
 ]
 
 /-- Commands left out, each with the reason. -/
@@ -508,5 +547,7 @@ open LedgerGuard in
 #print axioms human_lapse_leaves_view
 open LedgerGuard in
 #print axioms rotate_lapses_unguarded_summary
+open LedgerGuard in
+#print axioms skipWaived_drops_unescalated
 open LedgerGuard in
 #print axioms rows_pass

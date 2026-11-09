@@ -8,8 +8,9 @@ Every key of hubflow.py's `COMMANDS = {...}` must be in exactly one of `modelled
 command. An excluded command named in REASON_CHECKS also has its reason checked against the source
 of its cmd_ function (T33: spec-triage). A modelled command named in MODEL_CHECKS has the guard
 that its Cmd assumes checked in hubflow.py (T40 c7: rotate lapses no escalated summary and no
-summary whose kb answer is not clear). Exit 0 when they agree, 1 when not (each difference is
-printed), 2 on a parse error. Reads both files as text; runs and imports nothing.
+summary whose kb answer is not clear; T40 c13: skip-waived closes no escalated item). Exit 0
+when they agree, 1 when not (each difference is printed), 2 on a parse error.
+Reads both files as text; runs and imports nothing.
 """
 import ast
 import os
@@ -177,8 +178,49 @@ def rotate_guard(tree, fn):
     return out
 
 
-# modelled command -> the check that hubflow.py has the guard that its Cmd assumes (T40 c7)
-MODEL_CHECKS = {"rotate": rotate_guard}
+def skip_waived_guard(tree, fn):
+    """The modelled skip-waived (Cmd.skipWaived, T40 c13): it drops an open item whose kb answer is
+    clear and waived, unless the item is escalated. In hubflow.py, cmd_skip_waived:
+    - has write SQL only in its write function (the def given to run_write), and there exactly one
+      status UPDATE (`UPDATE item SET status`), inside a `for ID, ... in ...` loop of that function;
+    - in that loop, before the statement with the UPDATE, `if is_escalated(c, ID): ... continue`
+      (inside the write, so an item escalated between the read and the write stays open too).
+    Returns the problems (empty when the guard holds)."""
+    out = []
+    inner = {n.name: n for n in fn.body if isinstance(n, ast.FunctionDef)}
+    calls = [n for n in ast.walk(fn) if isinstance(n, ast.Call) and call_name(n) == "run_write"]
+    wfn = (inner.get(calls[0].args[2].id) if len(calls) == 1 and len(calls[0].args) >= 3
+           and isinstance(calls[0].args[2], ast.Name) else None)
+    if wfn is None:
+        return [f"{fn.name}: no single run_write whose write function is a def in {fn.name}"]
+    status_upd = re.compile(r"UPDATE\s+item\s+SET\s+status", re.I)
+    outside = [x for x in write_sql(fn) if x not in write_sql(wfn)]
+    if outside:
+        out.append(f"{fn.name} has write SQL outside its write function: {outside[0][:60]!r}")
+    updates = [n for n in ast.walk(wfn) if isinstance(n, ast.Constant) and isinstance(n.value, str)
+               and status_upd.search(n.value)]
+    if len(updates) != 1:
+        return out + [f"{fn.name}: its write function has {len(updates)} status UPDATEs, not one"]
+    loop = next((st for st in ast.walk(wfn) if isinstance(st, ast.For)
+                 and any(n is updates[0] for n in ast.walk(st))), None)
+    if loop is None:
+        return out + [f"{fn.name}: the status UPDATE is not in a `for` loop of its write function"]
+    tgt = loop.target.elts[0] if isinstance(loop.target, ast.Tuple) and loop.target.elts else loop.target
+    if not isinstance(tgt, ast.Name):
+        return out + [f"{fn.name}: the loop over the items has no item id name"]
+    at = next(i for i, st in enumerate(loop.body) if any(n is updates[0] for n in ast.walk(st)))
+    want = f"is_escalated(c,{tgt.id})"
+    guard = [i for i, st in enumerate(loop.body[:at]) if isinstance(st, ast.If)
+             and ast.unparse(st.test).replace(" ", "") == want and not st.orelse
+             and isinstance(st.body[-1], ast.Continue)]
+    if not guard:
+        out.append(f"{fn.name}: its write function does not skip an escalated item "
+                   f"(`if is_escalated(c, {tgt.id}): ... continue`) before the status UPDATE")
+    return out
+
+
+# modelled command -> the check that hubflow.py has the guard that its Cmd assumes (T40 c7, c13)
+MODEL_CHECKS = {"rotate": rotate_guard, "skip-waived": skip_waived_guard}
 
 
 def lean_list(text, name):
