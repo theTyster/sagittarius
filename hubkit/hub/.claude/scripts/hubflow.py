@@ -30,6 +30,11 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                to ID by `blocks` (either way), and prints the
                                                waiver command for each blocking item of each
                                                linked spec KB; it never runs one
+  skip-waived                                  honor a waiver from the spec KB side: close, as human_skip,
+                                               each open item whose spec KBs have a live waiver by a human
+                                               and nothing else that blocks. The note names the KB and the
+                                               waiver; the waiver is the person's word. It never writes a
+                                               spec KB. Run it after the human runs a waiver command
   triage ID keep|lapse|capsule|escalate --note T
                                                one recorded disposition for a due item. keep and
                                                capsule renew it (capsule needs a capsule first),
@@ -1658,6 +1663,61 @@ def print_waivers(hub, iid, kbs):
             print(f"# kb:{k['ref']}: {k['why']}; find the spec KB and waive its blocking items by hand")
     if kbs:
         print("# the human runs each waiver and sets <DUE>; hubflow never writes to a spec KB")
+        print("# then `hubflow.py skip-waived` ends the items whose spec KB is waived and clear")
+
+
+def live_waivers(path):
+    """The human waivers of a spec KB that are not past due: [(attestation id, target, reason text)]. Only `query` runs."""
+    try:
+        p = subprocess.run(orbit_kb_cmd() + ["--dir", path, "query", "attest(W, waiver, _, waive(T, _, R), human, _), not waiver_lapsed(W)", "-n", "0"],
+                           capture_output=True, text=True, timeout=ORBIT_KB_TIMEOUT)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+    if p.returncode != 0:
+        return []
+    out = []
+    for line in p.stdout.splitlines():
+        m = re.match(r"W = (\S+?), T = (\S+?), R = (.*)$", line.strip())
+        if m:
+            out.append((m.group(1), m.group(2), m.group(3).strip("'")))
+    return out
+
+
+def cmd_skip_waived(g, a):
+    pos, o = parse(a, WOPT)
+    if pos:
+        usage("skip-waived")
+    hub = hub_dir(g)
+    c = connect_ro(flow_dir(g))
+    cand = []
+    for it in c.execute("SELECT id FROM item WHERE status IN ('open','waiting') ORDER BY id").fetchall():
+        refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (it[0],))]
+        if refs:
+            cand.append((it[0], refs))
+    c.close()
+    ending = []  # (item id, note)
+    for iid, refs in cand:
+        checks = kb_checks(hub, refs)
+        if any(k["state"] != "clear" for k in checks):
+            continue  # something still blocks, or the KB is unknown: not a skip
+        waived = [(k["ref"], w) for k in checks for w in live_waivers(k["path"])]
+        if waived:
+            ref, (wid, target, why) = waived[0]
+            ending.append((iid, f"the human waived {target} in kb:{ref} ({wid}): {why}"))
+
+    def fn(c, w):
+        done = []
+        for iid, note in ending:
+            it = get_item(c, iid)
+            if it["status"] not in OPEN:
+                continue
+            c.execute("UPDATE item SET status = 'dropped', closed_at = ?, close_reason = 'human_skip' WHERE id = ?", (w.now, iid))
+            w.event(iid, "closed", it["status"], "human_skip", note=note, by="script")
+            done.append(iid)
+        return done
+
+    done = run_write(g, o, fn) if ending else []
+    print("closed: " + (" ".join(done) or "none"))
 
 
 def is_escalated(c, iid):
@@ -2298,6 +2358,7 @@ COMMANDS = {"init": cmd_init, "add": cmd_add, "handoff": cmd_handoff, "accept": 
             "link": cmd_link, "note": cmd_note, "show": cmd_show, "view": cmd_view, "sql": cmd_sql,
             "session": cmd_session, "where": cmd_where, "spec-triage": cmd_spec_triage, "import": cmd_import, "rotate": cmd_rotate,
             "export": cmd_export, "rebuild": cmd_rebuild, "check": cmd_check, "migrate": cmd_migrate,
+            "skip-waived": cmd_skip_waived,
             "triage": cmd_triage, "capsule": cmd_capsule, "index-transcripts": cmd_index_transcripts,
             "transcripts": cmd_transcripts}
 

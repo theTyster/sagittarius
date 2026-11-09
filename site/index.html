@@ -1534,10 +1534,10 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
 
 <section class="slide" id="s32" tabindex="-1">
   <div class="num"><svg class="ic"><use href="#i-speech"/></svg>32 of 35 · The redesign</div>
-  <h2>System 1: the hook and the Jev client</h2>
+  <h2>System 1: the hook and the model client</h2>
   <p class="big">A small model reads each message before the agent does, and adds one line of context.</p>
   <div class="tiles">
-    <div class="tile"><svg class="ic"><use href="#i-speech"/></svg><h3>The Jev client</h3><p class="muted"><code>s1/jev.py</code> sends a state and small questions to Jev (TypeSafe System One). It returns an answer with a probability for each question, or nothing. It never raises, and it redacts names before the call.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-speech"/></svg><h3>The model client</h3><p class="muted"><code>s1/jev.py</code> sends a state and small questions to the System 1 model. It returns an answer with a probability for each question, or nothing. It never raises, and it redacts names before the call.</p></div>
     <div class="tile t-mid"><svg class="ic"><use href="#i-bolt"/></svg><h3>The hook</h3><p class="muted"><code>s1/hook.py</code> is a <code>UserPromptSubmit</code> hook. It asks the question set about the prompt and the last agent message, and prints one line: the kind of work, a likely divergence, or an effort that suggests a shift up.</p></div>
     <div class="tile"><svg class="ic"><use href="#i-eye"/></svg><h3>The status line</h3><p class="muted"><code>s1/statusline.py</code> shows the newest answer of the session: all five judgments of the hook (the work kind, divergence, change of plan, effort, and the formal tool), each only when it is outside the unsure band.</p></div>
     <div class="tile t-amber"><svg class="ic"><use href="#i-lock"/></svg><h3>It fails open</h3><p class="muted">Any error, a missing key, a timeout or bad input prints nothing and never blocks a prompt. The hook reads only the last 2 MB of the transcript, and the read and the call both run inside the timeout (4 seconds by default, plus a short grace). An unsure answer is left out. Ty approves the question set before it is final.</p></div>
@@ -1553,7 +1553,7 @@ html.js .slide.active{opacity:1;visibility:visible;transform:none;transition:opa
   <p class="big">Take a statement and find the point where it stops being acceptable.</p>
   <p>A hypothesis or a requirement should say what is wrong or wanted, not a cause or a design. <code>s1/temper.py</code> tests this. Each step makes one move: drop an assumption, or sharpen the conclusion. Then it asks whether the result adds a mechanism, whether a falsifier contradicts it, and whether it is still faithful to the source.</p>
   <div class="tiles">
-    <div class="tile"><svg class="ic"><use href="#i-speech"/></svg><h3>Judges decide</h3><p class="muted">Jev answers the small questions. A separate, fresh model call judges faithfulness.</p></div>
+    <div class="tile"><svg class="ic"><use href="#i-speech"/></svg><h3>Judges decide</h3><p class="muted">The System 1 model answers the small questions. A separate, fresh model call judges faithfulness.</p></div>
     <div class="tile t-mid"><svg class="ic"><use href="#i-hammer"/></svg><h3>Proposers only propose</h3><p class="muted">A small model writes each move and each falsifier. Its output is text to be judged, never a verdict.</p></div>
     <div class="tile t-amber"><svg class="ic"><use href="#i-target"/></svg><h3>The result is a bracket</h3><p class="muted">The last accepted statement, the first rejected one, and why, as text and as Prolog facts. When a judge is unsure, the result goes to Ty.</p></div>
   </div>

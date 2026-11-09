@@ -63,6 +63,9 @@ MUTANTS = [
     ("agent-guard-dropped", 'if esc or any(k["state"] != "clear" for k in checks):  # agent guard', "if False:"),
     ("rotate-ignores-untriaged", "if untriaged:  # triage gate", "if False:"),
     ("skip-not-propagated", 'if o["reason"] == "human_skip":  # propagate', "if False:"),
+    # T39: a waiver in a spec KB ends the hub item
+    ("skip-waived-ignores-remaining-blockers", "continue  # something still blocks, or the KB is unknown: not a skip", "pass"),
+    # (no mutant for `not waiver_lapsed(W)`: a lapsed waiver is itself a blocking item, so the clear test already stops it)
     ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
     ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
     ("capsule-without-rev", "rev = git_head(hub_dir(g))  # capsule rev", "rev = None"),
@@ -1474,6 +1477,60 @@ def case_skip(r, root):
     r.check("c5-check-clean", hf(r, d, "check")[0] == 0)
 
 
+def case_t39_waiver(r, root):
+    """T39 c3 (u11): a human waiver in a spec KB ends the linked hub item, as a hub skip writes the KB side.
+    `skip-waived` closes each open item whose spec KB has a live human waiver and nothing else that blocks."""
+    okb = real_orbit_kb()
+    name = "t39c3-real-orbit-kb"
+    if not os.access(okb, os.X_OK):
+        r.skip(name, f"no orbit-kb at {okb}")
+        return
+    h = os.path.join(root, "t39-hub")
+    kbs = {s: os.path.join(h, "W0", "analyses", s, "kb") for s in ("spec-w", "spec-p", "spec-n", "spec-l")}
+
+    def okb_run(*args):
+        return subprocess.run([okb] + list(args), capture_output=True, text=True, timeout=120)
+
+    for k in kbs.values():
+        os.makedirs(os.path.dirname(k))
+        for st in (("init", k, "--request", "An invented request for a test fixture.", "--uses", "build"),
+                   ("--dir", k, "add", "claim(c1, preserve, 'Gadgets stay round.')", "check(k1, c1)")):
+            p = okb_run(*st)
+            if p.returncode != 0:
+                r.skip(name, f"orbit-kb {st[0]} failed (exit {p.returncode}): {(p.stdout + p.stderr).strip()[:200]}")
+                return
+    # spec-p has a second claim whose check is not waived, so it still blocks after one waiver.
+    okb_run("--dir", kbs["spec-p"], "add", "claim(c2, preserve, 'Gadgets stay light.')", "check(k2, c2)")
+    live = "waive(k1, '2099-01-01T00:00:00Z', 'the human skips this')"
+    lapsed = "waive(k1, '2020-01-01T00:00:00Z', 'an old skip')"
+    for s, term in (("spec-w", live), ("spec-p", live), ("spec-l", lapsed)):
+        p = okb_run("--dir", kbs[s], "attest", "waiver", "k1", term, "--by", "human")
+        r.check(f"t39c3-setup-waiver-{s}", p.returncode == 0, (p.stdout, p.stderr))
+    d = fresh(r, root, "t39")
+    env = {"HUBFLOW_ORBIT_KB": okb}
+    add(r, d, "thread", "Build behind the waived spec", "--ref", "kb:spec-w/kb")  # T-1
+    add(r, d, "ask", "Still blocked after one waiver", "--ref", "kb:spec-p/kb")  # A-1
+    add(r, d, "ask", "No waiver in its spec", "--ref", "kb:spec-n/kb")  # A-2
+    add(r, d, "ask", "Waiver is past due", "--ref", "kb:spec-l/kb")  # A-3
+    add(r, d, "ask", "No spec at all")  # A-4
+    kb_before = {s: tree(k) for s, k in kbs.items()}
+    code, out, err = hf(r, d, "skip-waived", hub=h, extra_env=env)
+    r.check("t39c3-exit-0", code == 0, out + err)
+    r.check("t39c3-waived-item-is-no-longer-open", status(d, "T-0001") == "dropped", status(d, "T-0001"))
+    it = q(d, "select close_reason from item where id='T-0001'")
+    r.check("t39c3-close-reason-human_skip", it == [("human_skip",)], it)
+    e = ev(d, "T-0001")
+    r.check("t39c3-event-names-the-kb-and-the-waiver", e[-1][:3] == ("closed", "open", "human_skip") and "spec-w" in (e[-1][5] or "")
+            and "the human skips this" in (e[-1][5] or ""), e)
+    r.check("t39c3-lists-closed", listed(out, "closed:") == ["T-0001"], out)
+    r.check("t39c3-others-stay-open", all(status(d, i) == "open" for i in ("A-0001", "A-0002", "A-0003", "A-0004")),
+            [status(d, i) for i in ("A-0001", "A-0002", "A-0003", "A-0004")])
+    r.check("t39c3-never-writes-a-spec-kb", all(tree(k) == kb_before[s] for s, k in kbs.items()))
+    code, out, err = hf(r, d, "skip-waived", hub=h, extra_env=env)
+    r.check("t39c3-again-closes-nothing", code == 0 and listed(out, "closed:") == [] and len(ev(d, "T-0001")) == len(e), out + err)
+    r.check("t39c3-check-clean", hf(r, d, "check")[0] == 0)
+
+
 def case_asks(r, root):
     """c6 (oq_asks_pin): an ask to another person carries the issue ref of the tracker item that owns it."""
     d = fresh(r, root, "asks")
@@ -2386,6 +2443,8 @@ def cases(r):
         run_case(r, case_t33_spec_triage_guard, root)
         # T24: the informal release (no orbit-kb)
         run_case(r, case_t24_no_orbit_kb, root)
+        # T39: a waiver in a spec KB ends the hub item
+        run_case(r, case_t39_waiver, root)
         # T28: the session index follows the week dirs at rotation
         run_case(r, case_t28_rotate, root)
         # rd/transcripts: an agent, not code, puts meeting transcripts into the ledger
