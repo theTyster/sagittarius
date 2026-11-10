@@ -12,10 +12,21 @@
 #   c1 the blocking draft carries the stamp; pin --check fails after a change : TS1-TS4
 #   c2 each outbound draft names its pin and the pin's ChangedAt; pin-item     : TS5-TS9
 #   c3 a conflict shows as "decide", never resolved by date                    : TS10-TS12 TS15
+#      (T43 c3 amends c3, Ty's u123: the dates decide and nothing blocks. TS10-TS13, TS15 and TS19
+#      are amended to the date rule; each amendment is marked "T43 c3 amended".)
 #   c4 no command writes to a network                                          : TS13-TS14
 #   text injection (Markdown and HTML in free text), help project              : TS16-TS20
 #   T18 c6: draft outbound with no draft facts names --dir PROJECT          : TS21
 #   T22 c6: draft attach names the file to attach and the line to paste     : TS60-TS61
+# Ticket T43 c3 (CONTRACT D25 T3 and D23 P4 amended; u123, u66): when the tracker and a draft both
+# changed after the pin, the later edit wins (equal times: the tracker), nothing blocks, the losing
+# side is dropped(D, Side), and `project dropped` records it in the hub ledger once:
+#   tracker later: the draft is dropped, one ledger item                       : TS30
+#   draft later: the draft is outbound and ready, the tracker text dropped     : TS31
+#   equal times: the tracker wins                                              : TS32
+#   a human's resolved() still wins over the dates, and gets no ledger item    : TS33
+#   it blocks no spec KB; draft blocking and outbound never say decide         : TS34
+#   help project, the README and CONTRACT state the date rule                  : TS35
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -210,51 +221,43 @@ conflict_kb() {
     pin_item p5 tracker:ITEM-5 'Title: Quiet' "$T0"
     add_draft dC p5 'No tracker change' "$T3"
 }
-t_TS10() { conflict_kb
-           okb "$P" query 'conflict(dA)'; rc_is 0 "conflict(dA)"
-           okb "$P" query 'conflict(dB)'; rc_is 0 "conflict(dB)"
-           okb "$P" query 'conflict(dC)'; rc_is 1 "dC is no conflict"
+t_TS10() { conflict_kb   # T43 c3 amended: was "dA and dB are conflicts and say decide"
+           okb "$P" query 'dropped(dA, draft)'; rc_is 0 "dA: the tracker changed later, so the draft is dropped"
+           okb "$P" query 'outbound(dB)'; rc_is 0 "dB: the draft is later, so it is outbound"
+           okb "$P" query 'outbound(dC)'; rc_is 0 "dC: no tracker change"
            okb "$P" draft outbound; rc_is 0
            local a b c; a=$(section dA); b=$(section dB); c=$(section dC)
-           printf '%s\n' "$a" | grep -Eq '^- Status: decide$' || note "dA (the tracker changed after the staging) has '- Status: decide'"
-           printf '%s\n' "$b" | grep -Eq '^- Status: decide$' || note "dB (the draft staged after the tracker change) has '- Status: decide'"
+           [ -z "$a" ] || note "dA lost by date and is not listed"
+           printf '%s\n' "$b" | grep -Eq '^- Status: ready$' || note "dB (the draft staged after the tracker change) has '- Status: ready'"
            printf '%s\n' "$c" | grep -Eq '^- Status: ready$' || note "dC has '- Status: ready'"
-           printf '%s\n' "$a$b" | grep -Eq '^- Status: ready$' && note "a conflict is never ready"; }
-t_TS11() { conflict_kb
+           printf '%s\n' "$out" | grep -Eqi 'decide' && note "no draft says decide"; return 0; }
+t_TS11() { conflict_kb   # T43 c3 amended: dA lost by date, so only dB (the draft won) shows both sides
            okb "$P" draft outbound; rc_is 0
-           local a b; a=$(section dA); b=$(section dB)
-           printf '%s\n' "$a" | grep -Fq 'Staged before the tracker changed' || note "dA shows its draft text (the edit is not lost)"
-           printf '%s\n' "$a" | grep -Eq "^- Tracker changed: $T2\$" || note "dA shows when the tracker changed (the other side)"
-           printf '%s\n' "$a" | grep -Eq '^- Pin: p1$' || note "dA names its pin"
+           local b; b=$(section dB)
+           printf '%s\n' "$b" | grep -Eq '^- Pin: p3$' || note "dB names its pin"
            printf '%s\n' "$b" | grep -Fq 'Staged after the tracker changed' || note "dB shows its draft text"
            printf '%s\n' "$b" | grep -Eq "^- Tracker changed: $T1\$" || note "dB shows when the tracker changed"
            printf '%s\n' "$b" | grep -Eq "^- Staged: $T3\$" || note "dB shows its staged time"
-           printf '%s\n' "$a" | grep -Eqi 'decide' || note "dA says decide"; }
-t_TS12() { conflict_kb
+           okb "$P" query 'draft(dA, _, _, _)'; rc_is 0 "the dropped draft dA stays in the project KB"; }
+t_TS12() { conflict_kb   # T43 c3 amended: was "a conflict section has a Decide line and the same status for both orders"
            okb "$P" draft outbound; rc_is 0
-           local a b; a=$(section dA); b=$(section dB)
-           printf '%s\n%s\n' "$a" "$b" | grep -Eqi 'supersed|overrid|overwr|wins|resolved|newer|later|latest|dropped|auto' && note "a conflict section decides by date or hides a side (found a word that picks a side)"
-           printf '%s\n' "$a" | grep -Eq '^- Decide: .*(tracker|draft)' || note "dA has a '- Decide:' line that names the two sides"
-           # the same decision whatever the order of times: both conflicts get the same status word
-           local sa sb
-           sa=$(printf '%s\n' "$a" | grep -E '^- Status:'); sb=$(printf '%s\n' "$b" | grep -E '^- Status:')
-           [ -n "$sa" ] && [ "$sa" = "$sb" ] || note "both orders of times give the same status (got '$sa' and '$sb')"
+           printf '%s\n' "$out" | grep -Eq '^- Decide:' && note "no section has a '- Decide:' line"
            okb "$P" draft outbound >/dev/null; local first=$out; okb "$P" draft outbound; [ "$out" = "$first" ] || note "the draft does not change when nothing changed"
-           okb "$P" query 'conflict(D)' -n 0; rc_is 0 "conflict(D) lists the conflicts"; }
+           okb "$P" query 'dropped(D, S)' -n 0; rc_is 0 "dropped(D, S) lists the losing sides"
+           out_has 'D = dA, S = draft' "dA: the draft side lost"; out_has 'D = dB, S = tracker' "dB: the tracker side lost"; }
 
-# A conflict also blocks a spec KB that pins the decision the conflict concerns (D23 P5); the
-# blocking draft shows it as "decide" as well.
+# T43 c3 amended: a draft whose pin both sides changed no longer blocks a spec KB that pins the
+# decision it concerns (was: it blocks, and the blocking draft shows it as "decide").
 t_TS15() { conflict_kb
            okb "$P" add "decision(dec1, 'Orders are sorted by number')" "concerns(dec1, p1)" "concerns(dec1, p3)" >/dev/null || note "setup: decision"
            local dg; dg=sha256:$(printf '%s' 'Orders are sorted by number' | sha256sum | cut -d' ' -f1)
            K=$T/spec2; "$OKB" init "$K" --request 'Test request' --uses build,project >/dev/null 2>&1 || note "setup: init spec KB"
            okb "$K" add "project_kb('$P')" "claim(c1, preserve, 'Orders keep their number')" "cites(c1, 'Keep the order number')" \
                "pins(c1, project, dec1, '$dg')" >/dev/null || note "setup: add to the spec KB: $(snip "$err")"
-           okb "$K" query 'blocking(project_conflict(X))'; rc_is 0 "the conflict blocks the spec KB that pins dec1"
+           okb "$K" query 'blocking(project_conflict(X))'; rc_is 1 "nothing blocks the spec KB that pins dec1"
            okb "$K" draft blocking; rc_is 0
-           out_has '^- project_conflict dA.*decide' "the blocking draft lists the conflict as decide"
-           out_has '^- project_conflict dB.*decide' "also the conflict where the draft is the later side"
-           out_hasnt 'project_conflict dC' "a draft without a conflict is not listed"; }
+           out_hasnt 'project_conflict' "the blocking draft lists no conflict"
+           out_hasnt '[Dd]ecide' "and says decide nowhere"; }
 
 # ================================================================ c4: no command writes to a network
 # Each T11 command runs traced (see traced_run): any AF_INET/AF_INET6 socket, connect, or
@@ -328,7 +331,7 @@ t_TS13() { net_setup
            else [ -s "$T/.net" ] || note "the harness ($NETMETHOD) did not see a deliberate connect"; fi
            spec_kb; conflict_kb
            traced_run "$K" draft blocking; rc_is 0 "draft blocking ($NETMETHOD)"; out_has 'spec-kb@sha256:[0-9a-f]{64}' "its output is complete"; no_net "draft blocking"
-           traced_run "$P" draft outbound; rc_is 0 "draft outbound ($NETMETHOD)"; out_has '^### dA' "its output is complete"; no_net "draft outbound"
+           traced_run "$P" draft outbound; rc_is 0 "draft outbound ($NETMETHOD)"; out_has '^### dB' "its output is complete (T43 c3 amended: dA lost by date, dB is listed)"; no_net "draft outbound"
            item_text "$T/n.txt" 'Title: N'
            traced_run "$P" pin-item p9 tracker:ITEM-9 --text-file "$T/n.txt" --changed-at "$T4"; rc_is 0 "pin-item ($NETMETHOD)"; no_net "pin-item"
            cp "$P/kb.pl" "$T/.before"
@@ -403,10 +406,14 @@ t_TS19() { conflict_kb
            K=$T/spec2; "$OKB" init "$K" --request 'Test request' --uses build,project >/dev/null 2>&1 || note "setup: init spec KB"
            okb "$K" add "project_kb('$P')" "claim(c1, preserve, 'Orders keep their number')" "cites(c1, 'Keep the order number')" \
                "pins(c1, project, dec1, '$dg')" >/dev/null || note "setup: add to the spec KB: $(snip "$err")"
+           # T43 c3 amended: dE is no conflict now (the draft is later and wins), so the odd text shows
+           # in draft outbound, not in draft blocking (was: "- project_conflict dE" in draft blocking)
            okb "$K" draft blocking; rc_is 0 "draft blocking"
-           out_has '^- project_conflict dE' "the conflict with the odd draft text is listed"
-           safe_md "conflict draft text"
-           printf '%s\n' "$out" | grep -Eq '^- Status:' && note "a draft text forged a status line"; }
+           out_hasnt 'project_conflict' "no draft blocks"
+           okb "$P" draft outbound; rc_is 0 "draft outbound"
+           out_has '^### dE' "the draft with the odd text is listed"
+           safe_md "draft text of a draft that won by date"
+           [ "$(printf '%s\n' "$out" | grep -c '^- Status:')" = "$(printf '%s\n' "$out" | grep -c '^### ')" ] || note "a draft text forged a status line"; }
 t_TS20() { okb_nokb help project; rc_is 0 "help project"
            printf '%s\n' "$out" | grep -E 'write command' | grep -Fq 'pin-item' || note "help project lists pin-item among the write commands of the writer lock"; }
 # TS21 (T18 c6): draft outbound in a KB with no draft facts says that it reads only this KB and
@@ -446,6 +453,98 @@ t_TS61() { spec_kb
            out_hasnt 'Paste it' "help draft does not give the order Paste it"; }
 out_hasi_ts() { printf '%s\n' "$out" | grep -Fiq -- "$1" && return 0; note "${2:+$2: }stdout lacks '$1' (stdout: $(snip "$out"))"; return 1; }
 okb_nokb() { ( cd "$T" && exec timeout "$TMO" "$OKB" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
+
+# ================================================================ T43 c3: the dates decide (u123, u66)
+REPO=$(cd "$here/../.." && pwd -P)
+# hub_pk: a hub $T/hub with the ledger (seeded sessions) and the project KB at its root, P=$T/hub/project-kb
+hub_pk() {
+    H=$T/hub; mkdir -p "$H/.claude/scripts"
+    cp "$REPO/hubkit/hub/.claude/scripts/hubflow.py" "$H/.claude/scripts/"
+    cp "$REPO/hubkit/hub/flow/seed.json" "$H/seed.json"
+    ( cd "$H" && python3 .claude/scripts/hubflow.py --hub "$H" init --seed seed.json ) >/dev/null 2>&1 || note "setup: hub init failed"
+    P=$H/project-kb
+    "$OKB" init "$P" --request 'Test project' --uses project >/dev/null 2>&1 || note "setup: init project KB failed"
+}
+# dropped_run: project dropped, as the build session of the hub
+dropped_run() { ( cd "$T" && HUB_SESSION=build exec timeout "$TMO" "$OKB" --dir "$P" project dropped "$@" ) >"$T/.out" 2>"$T/.err" </dev/null
+                rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
+# ledger PYEXPR [LABEL]: rows = every ledger item (id, kind, status, title, refs); the expression must hold
+ledger() {
+    ( cd "$H" && python3 .claude/scripts/hubflow.py --hub "$H" sql "SELECT i.id, i.kind, i.status, i.title, (SELECT group_concat(r.kind || ':' || r.ref, ' ') FROM item_ref r WHERE r.item_id = i.id) AS refs FROM item i ORDER BY i.id" --format json ) >"$T/.ledger.json" 2>"$T/.ledger.err"
+    python3 -I -c "import json,sys; rows=json.load(open(sys.argv[1])); sys.exit(0 if ($1) else 1)" "$T/.ledger.json" 2>/dev/null \
+        || note "${2:+$2: }ledger: not ($1): $(snip "$(cat "$T/.ledger.json" "$T/.ledger.err")")"
+}
+t_TS30() { hub_pk   # tracker later: the draft is dropped, nothing blocks, one ledger item
+           pin_item p1 tracker:ITEM-1 'Title: Sort orders' "$T0"
+           pin_item p2 tracker:ITEM-1 'Title: Sort all orders' "$T2"
+           add_draft dA p1 'Sort orders by their number' "$T1"
+           okb "$P" query 'supersedes_by_date(dA, tracker)'; rc_is 0 "the tracker is later and wins"
+           okb "$P" query 'dropped(dA, draft)'; rc_is 0 "the draft is dropped"
+           okb "$P" query 'outbound(dA)'; rc_is 1 "a dropped draft is not outbound"
+           okb "$P" query 'draft(dA, p1, _, _)'; rc_is 0 "the dropped draft stays in the project KB"
+           dropped_run; rc_is 0 "project dropped"
+           out_has 'dA' "it names the draft it recorded"
+           ledger "len(rows) == 1" "one ledger item"
+           ledger "rows[0]['status'] == 'open'" "the item is open"
+           ledger "all(w in rows[0]['title'] + ' ' + (rows[0]['refs'] or '') for w in ['dA', 'p1', '$T2', '$T1', 'draft'])" "the item names the draft, the pin, both times and the side that lost"
+           ledger "'kb:project-kb' in (rows[0]['refs'] or '').split()" "the item has a kb ref to the project KB"
+           dropped_run; rc_is 0 "project dropped again"
+           ledger "len(rows) == 1" "a second run adds no item"; }
+t_TS31() { hub_pk   # draft later: the draft wins and is outbound; the tracker text is dropped; one ledger item
+           pin_item p3 tracker:ITEM-3 'Title: Other' "$T0"
+           pin_item p4 tracker:ITEM-3 'Title: Other, edited' "$T1"
+           add_draft dB p3 'Other, as we want it' "$T3"
+           okb "$P" query 'supersedes_by_date(dB, draft)'; rc_is 0 "the draft is later and wins"
+           okb "$P" query 'outbound(dB)'; rc_is 0 "the draft is outbound"
+           okb "$P" query 'dropped(dB, tracker)'; rc_is 0 "the tracker text is dropped"
+           okb "$P" draft outbound; rc_is 0
+           local b; b=$(section dB)
+           printf '%s\n' "$b" | grep -Eq '^- Status: ready$' || note "dB has '- Status: ready'"
+           dropped_run; rc_is 0 "project dropped"
+           ledger "len(rows) == 1" "one ledger item"
+           ledger "all(w in rows[0]['title'] for w in ['dB', 'p3', '$T1', '$T3', 'tracker'])" "the item names the draft, the pin, both times and the tracker side"
+           ledger "rows[0]['status'] == 'open' and 'kb:project-kb' in (rows[0]['refs'] or '').split()" "open, with the kb ref"; }
+t_TS32() { project_kb   # equal times: the tracker wins (review's default, u66)
+           pin_item p5 tracker:ITEM-5 'Title: Quiet' "$T0"
+           pin_item p6 tracker:ITEM-5 'Title: Quiet, edited' "$T2"
+           add_draft dC p5 'Same second' "$T2"
+           okb "$P" query 'supersedes_by_date(dC, tracker)'; rc_is 0 "equal times: the tracker wins"
+           okb "$P" query 'dropped(dC, draft)'; rc_is 0 "the draft is dropped"
+           okb "$P" query 'outbound(dC)'; rc_is 1 "it is not outbound"; }
+t_TS33() { hub_pk   # a human's resolved() wins over the dates and gets no ledger item
+           pin_item p1 tracker:ITEM-1 'Title: Sort orders' "$T0"
+           pin_item p2 tracker:ITEM-1 'Title: Sort all orders' "$T2"
+           add_draft dA p1 'Sort orders by their number' "$T1"
+           okb "$P" add "resolved(dA, draft, '$T3')"; rc_is 0 "a human settles it for the draft"
+           okb "$P" query 'dropped(dA, tracker)'; rc_is 0 "the tracker side is dropped, by the human"
+           okb "$P" query 'dropped(dA, draft)'; rc_is 1 "the draft is not dropped, though the tracker is later"
+           okb "$P" query 'outbound(dA)'; rc_is 0 "the draft can go out"
+           dropped_run; rc_is 0 "project dropped"
+           ledger "len(rows) == 0" "a human's choice is not lost quietly: no ledger item"; }
+t_TS34() { conflict_kb   # nothing blocks: no project_conflict item, no decide anywhere
+           okb "$P" add "decision(dec1, 'Orders are sorted by number')" "concerns(dec1, p1)" "concerns(dec1, p3)" >/dev/null || note "setup: decision"
+           local dg; dg=sha256:$(printf '%s' 'Orders are sorted by number' | sha256sum | cut -d' ' -f1)
+           K=$T/spec2; "$OKB" init "$K" --request 'Test request' --uses build,project >/dev/null 2>&1 || note "setup: init spec KB"
+           okb "$K" add "project_kb('$P')" "claim(c1, preserve, 'Orders keep their number')" "cites(c1, 'Keep the order number')" \
+               "pins(c1, project, dec1, '$dg')" >/dev/null || note "setup: add to the spec KB: $(snip "$err")"
+           okb "$K" query 'blocking(X)' -n 0
+           out_hasnt 'project_conflict' "no blocking item for a draft"
+           okb "$K" show blocking; out_hasnt 'project_conflict' "show blocking lists no conflict"
+           okb "$K" draft blocking; out_hasnt '[Dd]ecide' "draft blocking says decide nowhere"
+           okb "$P" draft outbound; out_hasnt '[Dd]ecide' "draft outbound says decide nowhere"; }
+t_TS35() { okb_nokb help project; rc_is 0 "help project"
+           out_hasnt 'only a human can pick' "help project no longer says only a human can pick"
+           out_has 'later edit wins' "help project states that the later edit wins"
+           out_has '[Ee]qual times' "help project states the rule for equal times"
+           out_has 'project dropped' "help project documents project dropped"
+           grep -Fq 'only a human can pick' "$LIB/README.md" && note "the README no longer says only a human can pick"
+           grep -Fq 'never picks a side by date' "$LIB/README.md" && note "the README no longer says the command never picks a side by date"
+           grep -Fq 'project dropped' "$LIB/README.md" || note "the README documents project dropped"
+           local c=$here/../CONTRACT.md
+           grep -Eq 'T43 c3' "$c" || note "CONTRACT names the T43 c3 amendment"
+           grep -Fq 'only a human can pick' "$c" && note "CONTRACT no longer says only a human can pick"
+           grep -Fq 'project dropped' "$c" || note "CONTRACT documents project dropped"
+           return 0; }
 
 # ---------------------------------------------------------------- driver
 for fn in $(declare -F | awk '{print $3}' | grep -E '^t_TS[0-9]+$' | sort -t S -k2 -n); do
