@@ -1049,7 +1049,8 @@ if mode == "asks":
             for r in c.execute("SELECT * FROM item WHERE kind = \'ask\' AND status IN (\'open\', \'waiting\') ORDER BY id")]
     print(json.dumps({"owner": owner(), "asks": rows}))
 elif mode == "titles":
-    print(json.dumps([dict(id=r["id"], title=r["title"]) for r in c.execute("SELECT id, title FROM item ORDER BY id")]))
+    print(json.dumps([dict(id=r["id"], title=r["title"], kb=[x[0] for x in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = \'kb\'", (r["id"],))])
+                      for r in c.execute("SELECT id, title FROM item ORDER BY id")]))
 else:
     r = c.execute("SELECT * FROM item WHERE id = ?", (sys.argv[3],)).fetchone()
     if r is None:
@@ -6040,7 +6041,11 @@ blocking_line(_, _, X, S) :-
 % It writes nothing and takes no lock.
 
 cmd_draft(KB, Args, Code) :-
-    parse_opts(Args, [], Pos, _),
+    parse_opts(Args, ['--hub'-value, '--session'-value], Pos, Opts),
+    cmd_draft_(KB, Pos, Code),
+    ( Code == 0, Pos \== [questions] -> auto_record_drops(KB, Opts) ; true ).   % T45 c1
+
+cmd_draft_(KB, Pos, Code) :-
     (   Pos == [blocking] -> true
     ;   Pos == [outbound] -> true
     ;   Pos == [questions] -> true
@@ -6269,7 +6274,7 @@ cmd_pin_request(KB, Args, Code) :-
     Code = 0.
 
 cmd_pin_item(KB, Args, Code) :-
-    parse_opts(Args, ['--text-file'-value, '--changed-at'-value, '--kind'-value], Pos, Opts),
+    parse_opts(Args, ['--text-file'-value, '--changed-at'-value, '--kind'-value, '--hub'-value, '--session'-value], Pos, Opts),
     (   Pos = [Id, Src] -> true
     ;   usage_error("pin-item takes an id and a source: orbit-kb pin-item ID SOURCE --text-file F --changed-at T.", [])
     ),
@@ -6293,7 +6298,8 @@ cmd_pin_item(KB, Args, Code) :-
     format(atom(Fact), "pin(~q, ~q, ~q, ~q, ~q)", [Id, Kind, Src, Digest, At]),
     cmd_add(KB, [Fact], Code),
     % T34 c4 (u114): a file pin keeps only its digest and its path, never a copy.
-    (   Code == 0, Kind == tracker -> kb_dir(KB, Dir), keep_pin_text(Dir, Digest, File) ; true ).
+    (   Code == 0, Kind == tracker -> kb_dir(KB, Dir), keep_pin_text(Dir, Digest, File) ; true ),
+    ( Code == 0 -> auto_record_drops(KB, Opts) ; true ).   % T45 c1
 
 % pin_file_path(+KB, +Src, +Opts, -File) (T38 c9): the pinned file of a file pin: the file of
 % subject Src when Src is a subject of the KB, else the path Src. A --text-file must name the
@@ -6378,46 +6384,112 @@ cmd_project(DirOpt, [dropped|Args], Code) :- !,
     resolve_kb(DirOpt, Dir), lib_dir(Lib), load_kb(Dir, Lib, KB),
     project_kb_check(KB),
     absolute_file_name(Dir, ADir),
-    (   memberchk('--hub'-H0, Opts) -> hub_root(H0, Hub)
-    ;   file_directory_name(ADir, H1), hub_db(H1, Db1), exists_file(Db1) -> Hub = H1
+    (   drop_hub(ADir, Opts, Hub) -> true
     ;   usage_error("project dropped needs the hub of the ledger: --hub DIR (the default is the parent of the project KB, when it has flow/flow.db).", [])
     ),
-    (   atom_concat(Hub, '/', HubS), atom_concat(HubS, Rel, ADir), Rel \== ''
+    (   drop_rel(Hub, ADir, Rel)
     ->  true
     ;   usage_error("The project KB ~w is not inside the hub ~w, so the ledger item cannot refer to it (kb:PATH).", [ADir, Hub])
     ),
     ( memberchk('--session'-Ss, Opts) -> SessArgs = ['--session', Ss] ; SessArgs = [] ),
     kb_engine(KB, Eng),
     eng_all(Eng, [D, Side], lost_by_date(D, Side), L0), sort(L0, L),
-    hub_read(Hub, [titles], J),
     (   L == []
     ->  say("- Nothing was dropped by date.", [])
-    ;   forall(member([D, Side], L),
-               (   dropped_item_title(Eng, D, Side, Title),
-                   (   atom_string(Title, TitleS), member(It, J), It.title == TitleS
-                   ->  say("- ~w: the ~w edit lost by date; already in the ledger as ~w", [D, Side, It.id])
-                   ;   dropped_item_note(Eng, D, Side, Rel, Note),
-                       atom_concat('kb:', Rel, Ref),
-                       hub_add_thread(Hub, SessArgs, Title, Ref, Note, Id),
-                       say("- ~w: the ~w edit lost by date; recorded in the ledger as ~w", [D, Side, Id])
-                   ) ))
+    ;   hub_read(Hub, [titles], J),
+        forall(member([D, Side], L),
+               (   drop_in_ledger(Eng, D, Side, Rel, J, Id0)
+               ->  say("- ~w: the ~w edit lost by date; already in the ledger as ~w", [D, Side, Id0])
+               ;   drop_record(Eng, Hub, SessArgs, D, Side, Rel, Id),
+                   say("- ~w: the ~w edit lost by date; recorded in the ledger as ~w", [D, Side, Id])
+               ))
     ),
     Code = 0.
 cmd_project(_, _, _) :-
     usage_error("project takes impact X, archive --superseded-before DATE, or dropped [--hub DIR].", []).
 
 % T43 c3: the ledger item of an edit that lost by date names the draft, the pin, both times and
-% the side that lost. The title is the key: a run skips a drop whose title is in the ledger.
-dropped_item_title(Eng, D, Side, Title) :-
-    eng_all(Eng, [P, S], draft(D, P, _, S), [[P1, S1]|_]),
-    eng_all(Eng, [T], both_changed(D, T), [T1|_]),
-    format(atom(Title), "Project KB: draft ~w of pin ~w: the ~w edit lost by date (tracker changed ~w, draft staged ~w)",
-           [D, P1, Side, T1, S1]).
-dropped_item_note(Eng, D, Side, Rel, Note) :-
+% the side that lost. T45 c1: the key of a drop is the draft, its pin, the side and the kb ref
+% (the title up to the times): a later tracker change of a recorded drop adds no item.
+dropped_item_key(Eng, D, Side, Key) :-
     eng_all(Eng, [P], draft(D, P, _, _), [P1|_]),
+    format(atom(Key), "Project KB: draft ~w of pin ~w: the ~w edit lost by date (", [D, P1, Side]).
+dropped_item_title(Eng, D, Side, Title) :-
+    dropped_item_key(Eng, D, Side, Key),
+    eng_all(Eng, [P, S], draft(D, P, _, S), [[P1, S1]|_]),
+    eng_all(Eng, [T], tracker_latest(P1, T), [T1|_]),
+    format(atom(Title), "~wtracker changed ~w, draft staged ~w)", [Key, T1, S1]).
+dropped_item_note(Eng, D, Side, Rel, Note) :-
+    eng_all(Eng, [P, S], draft(D, P, _, S), [[P1, S1]|_]),
     (   eng_all(Eng, [Src, C], pin(P1, _, Src, _, C), [[Src1, C1]|_]) -> true ; Src1 = '?', C1 = '?' ),
-    format(atom(Note), "The tracker item ~w (pin ~w at ~w) and draft ~w both changed after the pin. The later edit won (on equal times the tracker); the ~w edit lost and stays in the project KB (~w) as dropped(~w, ~w).",
-           [Src1, P1, C1, D, Side, Rel, D, Side]).
+    (   eng_true(Eng, both_changed(D, _))
+    ->  format(atom(How), "The tracker item ~w (pin ~w at ~w) and draft ~w both changed after the pin. The later edit won (on equal times the tracker)",
+               [Src1, P1, C1, D])
+    ;   format(atom(How), "Draft ~w was staged at ~w, no later than pin ~w of the tracker item ~w (at ~w), and the tracker changed after the pin. The tracker won",
+               [D, S1, P1, Src1, C1])
+    ),
+    format(atom(Note), "~w; the ~w edit lost and stays in the project KB (~w) as dropped(~w, ~w). A dropped edit: only a human closes this item, on purpose (T45).",
+           [How, Side, Rel, D, Side]).
+
+% drop_hub(+ADir, +Opts, -Hub) (T45 c1): the hub of the ledger: --hub DIR, else the parent of the
+% KB when it has flow/flow.db. Fails when there is none.
+drop_hub(ADir, Opts, Hub) :-
+    (   memberchk('--hub'-H0, Opts) -> hub_root(H0, Hub)
+    ;   file_directory_name(ADir, H1), hub_db(H1, Db1), exists_file(Db1) -> Hub = H1
+    ).
+drop_rel(Hub, ADir, Rel) :-
+    atom_concat(Hub, '/', HubS), atom_concat(HubS, Rel, ADir), Rel \== ''.
+
+% drop_in_ledger(+Eng, +D, +Side, +Rel, +Items, -Id): an item of the ledger (any status) has the
+% key of the drop in its title and the kb ref of this KB (an item from before T45 has no other kb ref).
+drop_in_ledger(Eng, D, Side, Rel, Items, Id) :-
+    dropped_item_key(Eng, D, Side, Key), atom_string(Key, KeyS), atom_string(Rel, RelS),
+    member(It, Items), sub_string(It.title, 0, _, _, KeyS),
+    (   get_dict(kb, It, Kbs) -> memberchk(RelS, Kbs) ; true ),
+    !, Id = It.id.
+
+% drop_record(+Eng, +Hub, +SessArgs, +D, +Side, +Rel, -Id): one open thread for the drop, escalated
+% to the human at once (T45 c2): only a human closes it, on purpose.
+drop_record(Eng, Hub, SessArgs, D, Side, Rel, Id) :-
+    dropped_item_title(Eng, D, Side, Title),
+    dropped_item_note(Eng, D, Side, Rel, Note),
+    atom_concat('kb:', Rel, Ref),
+    hub_add_thread(Hub, SessArgs, Title, Ref, Note, Id),
+    format(atom(EscNote), "a dropped edit of the project KB (~w): only a human closes it, on purpose, with hubflow close ~w --reason done --by human --session human --note \"<their words>\"", [Ref, Id]),
+    hub_escalate(Hub, SessArgs, Id, EscNote).
+
+% auto_record_drops(+KB, +Opts) (T45 c1): pin-item and draft record each new lost_by_date drop of
+% the KB in the hub ledger themselves (once per drop), and print the item id on stderr. With no
+% hub, or when the ledger does not take it, one line names the drop and the command to run. It
+% never changes the exit code of the command, and writes nothing to the KB.
+auto_record_drops(KB, Opts) :-
+    (   kb_uses(KB, Us), memberchk(project, Us)
+    ->  catch(auto_record_drops_(KB, Opts), E,
+              ( (E = orbit_error(_, Ls) -> atomic_list_concat(Ls, ' ', M) ; err_text(E, M)),
+                format(user_error, "Warning: the dropped edits were not recorded in the hub ledger: ~w~n", [M]) ))
+    ;   true
+    ).
+auto_record_drops_(KB, Opts) :-
+    kb_dir(KB, Dir), lib_dir(Lib), load_kb(Dir, Lib, KB1),     % read the KB again: the command may have written it
+    kb_engine(KB1, Eng),
+    eng_all(Eng, [D, Side], lost_by_date(D, Side), L0), sort(L0, L),
+    (   L == [] -> true
+    ;   absolute_file_name(Dir, ADir),
+        ( memberchk('--session'-Ss, Opts) -> SessArgs = ['--session', Ss] ; SessArgs = [] ),
+        (   drop_hub(ADir, Opts, Hub), drop_rel(Hub, ADir, Rel)
+        ->  hub_read(Hub, [titles], J),
+            forall(member([D, Side], L),
+                   (   drop_in_ledger(Eng, D, Side, Rel, J, _) -> true
+                   ;   catch(( drop_record(Eng, Hub, SessArgs, D, Side, Rel, Id),
+                               format(user_error, "- ~w: the ~w edit lost by date; recorded in the hub ledger as ~w (only a human closes it)~n", [D, Side, Id]) ),
+                             orbit_error(_, Ls),
+                             ( atomic_list_concat(Ls, ' ', M),
+                               format(user_error, "- ~w: the ~w edit lost by date; the hub ledger did not take it (~w). Run: orbit-kb --dir ~w project dropped --hub ~w --session S~n", [D, Side, M, ADir, Hub]) ))
+                   ))
+        ;   forall(member([D, Side], L),
+                   format(user_error, "- ~w: the ~w edit lost by date; no hub ledger was found to record it. Run: orbit-kb --dir ~w project dropped --hub DIR~n", [D, Side, ADir]))
+        )
+    ).
 
 % hub_add_thread(+Hub, +SessArgs, +Title, +Ref, +Note, -Id): one open thread in the ledger, written by
 % hubflow itself (run from the hub root, --by script). The session is --session S, else HUB_SESSION.
@@ -6435,6 +6507,21 @@ hub_add_thread(Hub, SessArgs, Title, Ref, Note, Id) :-
     ;   split_string(Err, "", " \n", [E1]),
         die(2, ["The ledger did not take the item for " + Title + ". hubflow said: " + E1,
                 "Fix: set HUB_SESSION to a session of the hub, or pass --session S."])
+    ).
+
+% hub_escalate(+Hub, +SessArgs, +Id, +Note) (T45 c2): hubflow triage ID escalate --by script. An
+% agent then cannot close the item; the refusal names the note.
+hub_escalate(Hub, SessArgs, Id, Note) :-
+    directory_file_path(Hub, '.claude/scripts/hubflow.py', Hf),
+    absolute_file_name(path(python3), Exe, [access(execute), file_errors(fail)]),
+    append([[Hf, '--hub', Hub], SessArgs, ['--by', script, triage, Id, escalate, '--note', Note]], Argv),
+    catch(( process_create(Exe, Argv, [cwd(Hub), stdin(null), stdout(pipe(O)), stderr(pipe(E)), process(Pr)]),
+            read_string(O, _, _), read_string(E, _, Err), close(O), close(E), process_wait(Pr, St) ),
+          X, ( err_text(X, Err), St = exit(2) )),
+    (   St == exit(0) -> true
+    ;   split_string(Err, "", " \n", [E1]),
+        die(2, ["The ledger took " + Id + " but did not escalate it. hubflow said: " + E1,
+                "Fix: escalate it by hand: hubflow triage " + Id + " escalate --note 'a dropped edit: only a human closes it'."])
     ).
 
 project_kb_check(KB) :-
@@ -7651,8 +7738,8 @@ help_lines(general, [
 "  release",
 "  view questions [--dir KB]... [--ledger FILE [--owner KEY]] [--out F]",
 "  serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--hub DIR] [--port N]",
-"  draft blocking | draft attach | draft outbound | draft questions",
-"  pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",
+"  draft blocking | draft attach | draft outbound | draft questions  [--hub DIR] [--session S]",
+"  pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file] [--hub DIR] [--session S]",
 "  pin-question Q ledger|tracker REF",
 "  pin-answer Q REF [--hub DIR | --text-file F --by NAME]",
 "  pin-request --request-file F [--accept --by human]",
@@ -7932,7 +8019,9 @@ help_lines(draft, [
 "It reads only the KB it runs in, so give the project KB: orbit-kb --dir PROJECT draft outbound.",
 "draft questions prints Markdown of the questions for the tracker (T27): each question to ask",
 "that the ledger does not own, and each question pinned to a tracker item with no answer, with",
-"its case, notes, examples, default, options and their effects, and due date. A human posts it."
+"its case, notes, examples, default, options and their effects, and due date. A human posts it.",
+"In a KB with the project module, draft blocking, attach and outbound also record each new edit",
+"that lost by date (lost_by_date) in the hub ledger, as pin-item does (orbit-kb help pin-item, T45)."
 ]).
 help_lines('pin-question', [
 "orbit-kb pin-question Q ledger|tracker REF",
@@ -7970,14 +8059,20 @@ help_lines('apply-pending', [
 "writer applies them. Exit 1 when an answer was refused (answers.applied records it)."
 ]).
 help_lines('pin-item', [
-"orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]",
+"orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file] [--hub DIR] [--session S]",
 "",
 "Record a pin of a tracker item in a project KB, from item text that you pasted or exported",
 "into the file F. orbit-kb computes the digest (sha256 of F). You give the change time",
 "(--changed-at, UTC, such as 2026-10-01T09:00:00Z). --kind defaults to tracker.",
 "It writes pin/5, so it takes the writer lock and accepts --take (D23). A pin id that exists",
 "is rejected (exit 1). Nothing is fetched: no command uses a network.",
-"It keeps the text of F as pins/HEX.txt in the KB (HEX of the digest; D27). orbit-kb show pin ID prints it."
+"It keeps the text of F as pins/HEX.txt in the KB (HEX of the digest; D27). orbit-kb show pin ID prints it.",
+"A new pin can make a draft lose by date (lost_by_date). pin-item then records each new drop in",
+"the hub ledger itself, once, as project dropped does (T45): the hub is --hub DIR, else the parent",
+"of the KB when it has flow/flow.db; the session is --session S, else HUB_SESSION. It prints the",
+"item id on stderr. The item is escalated: only a human closes it. With no hub, or when the ledger",
+"does not take it, it prints one line that names the drop and the project dropped command to run.",
+"The exit code is that of the pin."
 ]).
 help_lines(report, [
 "orbit-kb report [--html FILE [--open]]",

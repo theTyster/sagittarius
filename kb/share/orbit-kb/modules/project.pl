@@ -119,10 +119,10 @@ decl(rule, supersedes_by_date(ref(draft), oneof([draft, tracker])),
      'No human settled it: the later edit wins (T43, u123). The draft wins when the tracker did not change after the pin, or when both changed and the draft was staged after the latest change of the tracker. The tracker wins when the draft was staged no later than the pin, or when both changed and the tracker changed at the staged time or later: on equal times the tracker wins (u66).',
      'for draft @(1), the later edit is the @(2)').
 decl(rule, lost_by_date(ref(draft), oneof([draft, tracker])),
-     'Both changed after the pin, no human settled it, and the dates dropped the edit of this side (T43). orbit-kb project dropped records it in the hub ledger.',
+     'No human settled it, and the dates dropped the edit of this side (T43): the draft lost to a later tracker change (also a draft staged at or before the pin, T45; never a pushed draft, T45), or the tracker lost when both changed after the pin. pin-item, draft and project dropped record it in the hub ledger (T45).',
      'for draft @(1), the edit of the @(2) lost by date').
 decl(rule, dropped(ref(draft), oneof([draft, tracker])),
-     'The edit of this side lost, by date or by the choice of a human. It stays in kb.pl: this is the record.',
+     'The edit of this side lost, by date or by the choice of a human. A pushed draft is not dropped by date (T45): its text reached the tracker. It stays in kb.pl: this is the record.',
      'for draft @(1), the edit of the @(2) was dropped').
 decl(rule, current_fact(ref([decision, definition, rule])),
      'The decision, definition or rule is not superseded (D27).',
@@ -163,10 +163,12 @@ supersedes_by_date(D, tracker) :- draft(D, P, _, S), pin(P, _, _, _, C), tracker
                                   not (S @> C), not resolved(D, _, _).
 supersedes_by_date(D, tracker) :- both_changed(D, T), draft(D, _, _, S), not (S @> T), not resolved(D, _, _).
 
-lost_by_date(D, draft) :- both_changed(D, _), supersedes_by_date(D, tracker).
+% T45 c3 (u123): a draft staged at or before the pin that a later tracker change drops lost by date too.
+% T45 c6 (review a21): a pushed draft reached the tracker, so the dates drop nothing of it.
+lost_by_date(D, draft) :- supersedes_by_date(D, tracker), not pushed(D, _).
 lost_by_date(D, tracker) :- both_changed(D, _), supersedes_by_date(D, draft).
 
-dropped(D, draft) :- supersedes_by_date(D, tracker).
+dropped(D, draft) :- supersedes_by_date(D, tracker), not pushed(D, _).
 dropped(D, tracker) :- lost_by_date(D, tracker).
 dropped(D, draft) :- resolved(D, tracker, _).
 dropped(D, tracker) :- resolved(D, draft, _).

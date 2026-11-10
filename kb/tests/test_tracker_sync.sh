@@ -27,6 +27,12 @@
 #   a human's resolved() still wins over the dates, and gets no ledger item    : TS33
 #   it blocks no spec KB; draft blocking and outbound never say decide         : TS34
 #   help project, the README and CONTRACT state the date rule                  : TS35
+# Ticket T45 (follow-ups of the T43 verify; CONTRACT D23 P4 amended by T45):
+#   c1 pin-item and draft record a new drop in the ledger themselves, once     : TS36
+#   c2 only a human closes the ledger item of a dropped edit                   : TS37
+#   c3 a draft staged at or before the pin and dropped by the tracker is recorded : TS38
+#   c4 the declaration of any_project_conflict names what it covers now        : TS39
+#   c6 (review divergence a21 on c1) a pushed draft is not lost or dropped by date : TS40
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -547,6 +553,120 @@ t_TS35() { okb_nokb help project; rc_is 0 "help project"
            grep -Fq 'only a human can pick' "$c" && note "CONTRACT no longer says only a human can pick"
            grep -Fq 'project dropped' "$c" || note "CONTRACT documents project dropped"
            return 0; }
+
+# ================================================================ T45: follow-ups of the T43 verify (u123, u66)
+# okb_hub DIR ARGS...: okb as the build session of the hub (HUB_SESSION=build).
+okb_hub() { local d=$1; shift
+            ( cd "$T" && HUB_SESSION=build exec timeout "$TMO" "$OKB" --dir "$d" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null
+            rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
+# hf ARGS...: hubflow in the hub $H. Sets out, err, rc.
+hf() { ( cd "$H" && exec python3 .claude/scripts/hubflow.py --hub "$H" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null
+       rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
+ledger_id() { python3 -I -c "import json,sys; rows=json.load(open(sys.argv[1])); print(rows[0]['id'] if rows else '')" "$T/.ledger.json" 2>/dev/null; }
+t_TS36() { hub_pk   # T45 c1: pin-item and draft record a new drop in the ledger themselves, once
+           pin_item p1 tracker:ITEM-1 'Title: Sort orders' "$T0"
+           add_draft dA p1 'Sort orders by their number' "$T1"
+           item_text "$T/item-p2.txt" 'Title: Sort all orders'
+           okb_hub "$P" pin-item p2 tracker:ITEM-1 --text-file "$T/item-p2.txt" --changed-at "$T2"; rc_is 0 "pin-item p2 in a hub"
+           local o2="$out $err"
+           ledger "len(rows) == 1" "pin-item recorded the drop with no project dropped run"
+           ledger "'dA' in rows[0]['title'] and rows[0]['status'] == 'open'" "the open item names the draft"
+           local id; id=$(ledger_id)
+           [ -n "$id" ] && { printf '%s' "$o2" | grep -Fq -- "$id" || note "pin-item prints the item id $id ($(snip "$o2"))"; }
+           item_text "$T/item-p3.txt" 'Title: Sort all orders, again'
+           okb_hub "$P" pin-item p3 tracker:ITEM-1 --text-file "$T/item-p3.txt" --changed-at "$T3"; rc_is 0 "a second pin-item"
+           ledger "len(rows) == 1" "a second pin-item adds no item"
+           for sub in outbound blocking attach; do
+               okb_hub "$P" draft "$sub"; rc_is 0 "draft $sub"
+               ledger "len(rows) == 1" "draft $sub adds no item for a recorded drop"
+           done
+           add_draft dB p1 'Sort orders, a later idea' "$T1"
+           okb_hub "$P" draft outbound; rc_is 0 "draft outbound with a new drop"
+           ledger "len(rows) == 2 and any('dB' in r['title'] for r in rows)" "draft outbound records the new drop of dB"
+           okb_hub "$P" draft blocking; rc_is 0
+           ledger "len(rows) == 2" "draft blocking adds none after it"
+           dropped_run; rc_is 0 "project dropped stays for a manual run"
+           ledger "len(rows) == 2" "project dropped adds none after them"
+           # no hub: one line names the drop and project dropped --hub DIR; exit 0
+           project_kb
+           pin_item p1 tracker:ITEM-1 'Title: Sort orders' "$T0"
+           add_draft dA p1 'Sort orders by their number' "$T1"
+           item_text "$T/item-p2.txt" 'Title: Sort all orders'
+           okb_hub "$P" pin-item p2 tracker:ITEM-1 --text-file "$T/item-p2.txt" --changed-at "$T2"; rc_is 0 "pin-item with no hub"
+           local n; n=$(printf '%s\n%s\n' "$out" "$err" | grep -c 'dA.*project dropped --hub')
+           [ "$n" = 1 ] || note "with no hub, one line names dA and project dropped --hub DIR (found $n; stdout: $(snip "$out") | stderr: $(snip "$err"))"
+           okb_hub "$P" draft outbound; rc_is 0 "draft outbound with no hub"
+           any_hasi 'dA.*project dropped --hub' "draft outbound with no hub names the drop and the command"; }
+t_TS37() { hub_pk   # T45 c2: only a human closes the ledger item of a dropped edit (project KB at the hub root)
+           pin_item p1 tracker:ITEM-1 'Title: Sort orders' "$T0"
+           pin_item p2 tracker:ITEM-1 'Title: Sort all orders' "$T2"
+           add_draft dA p1 'Sort orders by their number' "$T1"
+           dropped_run; rc_is 0 "project dropped"
+           ledger "len(rows) == 1 and 'kb:project-kb' in (rows[0]['refs'] or '').split()" "one item, its kb ref names the project KB at the hub root"
+           local id; id=$(ledger_id)
+           [ -n "$id" ] || { note "no ledger item"; return 0; }
+           hf --session build close "$id" --reason done
+           [ "$rc" != 0 ] || note "an agent close of the dropped edit $id must be refused (exit $rc)"
+           any_hasi 'dropped edit' "the refusal says it is a dropped edit"
+           hf --session build close "$id" --reason dropped
+           [ "$rc" != 0 ] || note "an agent close --reason dropped must be refused too"
+           ledger "rows[0]['status'] == 'open'" "the item stays open after the agent's tries"
+           hf --session human --by human close "$id" --reason done --note 'I read the dropped draft; the tracker text stays'
+           rc_is 0 "a human closes it"
+           ledger "rows[0]['status'] == 'done'" "the human's close is recorded"
+           okb_nokb help project; rc_is 0
+           out_has 'only a human closes' "help project says only a human closes the item"
+           grep -Fq 'only a human closes' "$LIB/README.md" || note "the README says only a human closes the item"; }
+t_TS38() { hub_pk   # T45 c3: a draft staged at or before the pin, dropped by a later tracker change, is recorded
+           pin_item p1 tracker:ITEM-1 'Title: Sort orders' "$T1"
+           add_draft dA p1 'Sort orders by their number' "$T0"
+           add_draft dE p1 'Sort orders, staged at the pin' "$T1"
+           pin_item p2 tracker:ITEM-1 'Title: Sort all orders' "$T2"
+           okb "$P" query 'lost_by_date(dA, draft)'; rc_is 0 "dA (staged before the pin) lost by date"
+           okb "$P" query 'lost_by_date(dE, draft)'; rc_is 0 "dE (staged at the pin) lost by date"
+           okb "$P" query 'dropped(dA, draft)'; rc_is 0 "dA is dropped"
+           dropped_run; rc_is 0 "project dropped"
+           ledger "len(rows) == 2" "one ledger item per drop"
+           ledger "any('dA' in r['title'] and '$T2' in r['title'] and '$T0' in r['title'] for r in rows)" "the item of dA names both times"
+           dropped_run; rc_is 0
+           ledger "len(rows) == 2" "a second run adds none"; }
+t_TS39() { # T45 c4: the declaration text of any_project_conflict names what it covers now
+           local d; d=$(grep -A2 '^decl(rule, any_project_conflict' "$LIB/core.pl")
+           [ -n "$d" ] || { note "no declaration of any_project_conflict in core.pl"; return 0; }
+           printf '%s' "$d" | grep -Fq 'project_kb_unclean' || note "the declaration names project_kb_unclean: $d"
+           printf '%s' "$d" | grep -Fq 'project_contradiction' || note "the declaration names project_contradiction: $d"
+           printf '%s' "$d" | grep -Fiq 'a conflict of the project KB blocks' && note "the declaration no longer says a conflict of the project KB blocks: $d"
+           printf '%s' "$d" | grep -Fiq 'decision that the conflict concerns' && note "the declaration no longer names a draft conflict: $d"
+           return 0; }
+t_TS40() { hub_pk   # T45 (review divergence a21 on c1): a pushed draft is not lost by date; its text reached the tracker
+           # A: the normal push flow. The draft is pushed, then the tracker is pinned again with the pushed text.
+           pin_item p1 tracker:ITEM-1 'Title: Sort orders' "$T0"
+           add_draft dA p1 'Sort orders by their number' "$T1"
+           okb "$P" add "pushed(dA, '$T2')"; rc_is 0 "record the push"
+           item_text "$T/item-p2.txt" 'Sort orders by their number'
+           okb_hub "$P" pin-item p2 tracker:ITEM-1 --text-file "$T/item-p2.txt" --changed-at "$T3"; rc_is 0 "pin-item after the push"
+           ledger "len(rows) == 0" "a push makes no ledger item"
+           printf '%s\n%s\n' "$out" "$err" | grep -q 'dA.*lost by date' && note "pin-item names no drop of the pushed draft dA ($(snip "$err"))"
+           okb "$P" query 'lost_by_date(dA, draft)'; rc_is 1 "a pushed draft is not lost by date"
+           okb "$P" query 'dropped(dA, draft)'; rc_is 1 "a pushed draft is not dropped by date"
+           okb "$P" query 'outbound(dA)'; rc_is 1 "a pushed draft is not outbound"
+           # B: the tracker changed (someone else's edit) BEFORE the push. pin-item records the drop of the
+           # draft then (it was dropped by date at that time); the push that follows clears lost_by_date and
+           # dropped(D, draft), and adds no item; the item already recorded stays open for a human.
+           pin_item p5 tracker:ITEM-5 'Title: Other' "$T0"
+           add_draft dB p5 'Other, as we want it' "$T1"
+           item_text "$T/item-p6.txt" 'Title: Other, edited by someone'
+           okb_hub "$P" pin-item p6 tracker:ITEM-5 --text-file "$T/item-p6.txt" --changed-at "$T2"; rc_is 0 "pin-item of the other edit"
+           ledger "len(rows) == 1 and 'dB' in rows[0]['title']" "before the push, the drop of dB is recorded"
+           okb "$P" add "pushed(dB, '$T3')"; rc_is 0 "the human pushes dB anyway"
+           okb "$P" query 'lost_by_date(dB, draft)'; rc_is 1 "after the push, dB is not lost by date"
+           okb "$P" query 'dropped(dB, draft)'; rc_is 1 "after the push, dB is not dropped by date"
+           item_text "$T/item-p7.txt" 'Other, as we want it'
+           okb_hub "$P" pin-item p7 tracker:ITEM-5 --text-file "$T/item-p7.txt" --changed-at "$T4"; rc_is 0 "pin-item after the push"
+           ledger "len(rows) == 1 and rows[0]['status'] == 'open'" "the push adds no item; the recorded one stays open"
+           # resolved() is unchanged: a human's choice of the tracker still drops a pushed draft
+           okb "$P" add "resolved(dA, tracker, '$T4')"; rc_is 0
+           okb "$P" query 'dropped(dA, draft)'; rc_is 0 "resolved(dA, tracker) still drops the draft"; }
 
 # ---------------------------------------------------------------- driver
 for fn in $(declare -F | awk '{print $3}' | grep -E '^t_TS[0-9]+$' | sort -t S -k2 -n); do

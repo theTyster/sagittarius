@@ -1885,11 +1885,16 @@ def agent_guard(g, o, iid, what):
     c = connect_ro(flow_dir(g))
     it = get_item(c, iid)
     esc = it["status"] in OPEN and is_escalated(c, it["id"])
+    # T45 c2: the refusal names why it was escalated (the note of its newest disposition), such as a
+    # dropped edit of a project KB, which only a human closes
+    esc_note = c.execute("SELECT note FROM disposition WHERE item_id = ? ORDER BY seq DESC LIMIT 1",
+                         (it["id"],)).fetchone() if esc else None
     refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (it["id"],))]
     c.close()
     checks = kb_checks(hub_dir(g), refs) if it["status"] in OPEN and refs and not esc else []
     if esc or any(k["state"] != "clear" for k in checks):  # agent guard
-        why = "escalated to the human" if esc else f"blocking ({blocking_detail(checks)})"
+        why = (f"escalated to the human ({esc_note[0]})" if esc_note and esc_note[0] else "escalated to the human") \
+            if esc else f"blocking ({blocking_detail(checks)})"
         raise Bad(f"{it['id']} is {why}; an agent cannot {what} it. A human can: add --by human --note \"<their words>\"")
 
 

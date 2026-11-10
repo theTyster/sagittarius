@@ -1086,11 +1086,12 @@ T27 c4. Applies the answers that the question server queued in
 `answers.pending` (one line per answer, `pending(TIME, DIGEST, FACTS)`,
 append-only); `answers.applied` records each. Every write does this first.
 
-### `draft blocking | draft attach | draft outbound`
+### `draft blocking | draft attach | draft outbound` `[--hub DIR] [--session S]`
 
 Drafts only (D25): each prints Markdown on stdout for a person to paste into a
 tracker. Nothing is sent to a tracker, and no command uses a network. Neither
-command writes a file or takes a lock.
+command writes a file of the KB or takes a lock. In a KB that uses `project`,
+each also records a new drop in the hub ledger, as `pin-item` does (T45, below).
 
 - `draft blocking` prints the heading `## Blocking items`, the line
   `Stamp: spec-kb@sha256:HEX` (the digest of `kb.pl`, as `pin` computes it), and
@@ -1129,6 +1130,17 @@ same text is kept once, and only pinned items are kept. A draft is an edit of
 that text; `show pin ID` prints it. A file pin (`--kind file`, such as a week's
 report) keeps only its digest and its path, never a copy (T34): the week owns
 the file.
+A new pin can make a draft lose by date (`lost_by_date`). So that a dropped
+edit reaches the hub ledger without anyone remembering a command (T45, u123),
+`pin-item` and `draft blocking`, `draft attach` and `draft outbound` record each
+new drop themselves, as `project dropped` does: the hub is `--hub DIR`, else the
+parent of the KB when it has `flow/flow.db`; the session is `--session S`, else
+`$HUB_SESSION`. Each new item id is printed on stderr
+(`- D: the SIDE edit lost by date; recorded in the hub ledger as ID`). A drop
+in the ledger already adds nothing. With no hub, they print one line per drop on
+stderr that names it and the command `orbit-kb --dir KB project dropped --hub DIR`;
+when the ledger does not take it (no session), the line names the hub and
+`--session S`. The exit code stays that of the command.
 Exit: 0 prints the pin id and digest. 1 when the pin id exists. 2 for a missing
 F, a missing option, or a T that is not a time.
 
@@ -1152,17 +1164,29 @@ no decision, definition or rule of the KB.
 
 Run in a project KB (T43 c3). When the tracker and a draft both changed after
 the pin, the later edit wins (equal times: the tracker), and the losing side is
-`dropped(D, Side)` in the project KB (`lost_by_date(D, Side)`). So that the
+`dropped(D, Side)` in the project KB (`lost_by_date(D, Side)`). A draft staged at
+or before its pin that a later tracker change drops is `lost_by_date(D, draft)`
+too (T45 c3). A draft with a `pushed(D, _)` fact is never `lost_by_date(D, draft)`
+or `dropped(D, draft)` by date: its text reached the tracker, so a pin taken after
+the push records no drop (T45 c6). `lost_by_date(D, tracker)` and `resolved/3`
+are unchanged. A drop recorded before the push stays in the ledger for a human. So that the
 dropped edit is not lost quietly, this command records each such drop as one
 open thread in the hub ledger, written by `hubflow add thread --by script` in
 the session of `--session S`, else `$HUB_SESSION`. The title names the draft,
 the pin, the side that lost, and both times (the latest tracker change and the
 staged time); the item has the ref `kb:PATH`, the project KB relative to the
 hub. The hub is `--hub DIR`, else the parent directory of the project KB when
-it has `flow/flow.db`. A drop whose title is in the ledger already, in any
-status, is skipped, so a second run adds nothing. A drop by `resolved/3` gets
-no item: a human chose it. It writes nothing to the KB. Run it after
-`pin-item` or a new draft.
+it has `flow/flow.db`. A drop that is in the ledger already, in any status, is
+skipped (the title up to the times names the draft, the pin and the side, and
+the item has the same `kb:` ref), so a second run, or a later tracker change,
+adds nothing. A drop by `resolved/3` gets no item: a human chose it. It writes
+nothing to the KB. `pin-item` and the `draft` commands do the same by
+themselves (T45); this command stays for a manual run.
+Each new item is escalated at once (`hubflow triage ID escalate --by script`,
+T45 c2): only a human closes it, on purpose
+(`hubflow close ID --reason done --by human --session human --note "<their words>"`). An agent's
+close, renew, park or `ref rm` of it is refused, and the refusal names it as a
+dropped edit.
 Exit: 0 (one line per drop, or `- Nothing was dropped by date.`). 2 with no
 hub, a project KB outside the hub, or an item that the ledger refuses (no
 session).

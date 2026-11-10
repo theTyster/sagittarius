@@ -85,12 +85,33 @@ EXEMPT_C9 = {
 EXEMPT_C9_PREFIX = ("s1/fixtures/", "evals/", "tmp/")
 # API names, matched case-sensitively and removed before the case-insensitive search: the file name
 # jev.py (test_jev.py too), a model id (jev-1.14.0, jev-latest), and the Python module jev with its
-# names (import jev, jev.judge, jev_log, run.jev(...), self.jevlog, "jev" as a step name).
+# names (import jev, jev.judge, jev_log, run.jev(...), self.jevlog). T45 c5 (u45): prose is not
+# masked. "jev" as a step name is exempt only as a code token (after one of [({,=: and before one of
+# ])},: such as RSTEP[st]["jev"] or {"jev", "sonnet"}), and .jev only as a member (run.jev, self.jevlog);
+# a quoted 'jev' or ".jev" in a sentence is flagged.
 API_NAME = re.compile(r"[\w.]*jev\.py|\bjev-[\w.]+|\bimport jev\b|\bjev(?=\.[A-Za-z_])|\w*_jev\w*|\bjev_\w+"
-                      r"|[\"']jev[\"']|\bdef jev\(|\.jev\w*")
+                      r"|(?:(?<=[\[({,=:])|(?<=[\[({,=:] ))[\"']jev[\"'](?=\s*[\])},:])|\bdef jev\(|(?<=\w)\.jev\w*")
+
+
+def c9_flags(ln):
+    """True when the line says jev (any case) outside an API name."""
+    return re.search(r"jev", API_NAME.sub("", ln.replace(ONCE, "")), re.I) is not None
+
+
+# T45 c5 (u45): prose is flagged; only code names are exempt.
+C9_PROSE = ["Run the 'jev' step first.", 'Run the "jev" step first.', "Name the file .jev here.",
+            'Agents read the ".jev" log.', "The JEV model answers."]
+C9_CODE = ["import jev", "a = jev.judge(state, JQ)", "jid, a = run.jev({'statement': s})",
+           "self.jevlog = os.path.join(d, 'x')", "return self._call(\"judge\", \"jev\", lambda: x)",
+           "self.assertEqual(by[\"judge\"], {\"jev\", \"sonnet\"})", "RSTEP[st][\"jev\"]",
+           "See s1/jev.py and jev-1.14.0.", "log_path=self.jev_log"]
 
 
 def t42c9():
+    for s in C9_PROSE:
+        check(f"t42c9 prose is flagged: {s}", c9_flags(s), s)
+    for s in C9_CODE:
+        check(f"t42c9 a code name is exempt: {s}", not c9_flags(s), s)
     check("t42c9 the exempt files exist",
           all(os.path.exists(os.path.join(ROOT, f)) for f in EXEMPT_C9), [f for f in EXEMPT_C9 if not os.path.exists(os.path.join(ROOT, f))])
     seen = 0
@@ -104,7 +125,7 @@ def t42c9():
             continue
         seen += 1
         for n, ln in enumerate(lines, 1):
-            if re.search(r"jev", API_NAME.sub("", ln.replace(ONCE, "")), re.I):
+            if c9_flags(ln):
                 check(f"t42c9 {f}:{n} says jev (any case) outside an API name", False, ln.strip())
     check("t42c9 it scanned files", seen > 20, seen)
 
