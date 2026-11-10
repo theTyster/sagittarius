@@ -1532,10 +1532,37 @@ t_PV6() { lean_proj || return 0; prove_rejects othermodule 'declared in module F
           prove_rejects library 'declared in module Init' "$LP/Fx/Good.lean" Nat.add_comm; }
 t_PV7() { lean_proj || return 0; prove_rejects kernel 'leanchecker' "$LP/Fx/Hack.lean" bogus; }
 t_PV8() { lean_proj || return 0; prove_rejects build 'lake build' "$LP/Fx/Broken.lean" bad; }
-t_PV9() { lean_proj || return 0; okb --dir "$K" prove c9 "$LP/Fx/Good.lean" load_linear; rc_is 2 "no such claim"
+pv9_body() {  # pv9_body DIR: the usage errors of prove; DIR holds the loose file (see t_PV9)
+          okb --dir "$K" prove c9 "$LP/Fx/Good.lean" load_linear; rc_is 2 "no such claim"
           okb --dir "$K" prove c1 "$T/nope.lean" load_linear; rc_is 2 "no such file"
-          printf 'theorem t : True := trivial\n' > "$T/loose.lean"; okb --dir "$K" prove c1 "$T/loose.lean" t; rc_is 2 "no Lake project"; any_has 'lakefile'
+          printf 'theorem t : True := trivial\n' > "$1/loose.lean"; okb --dir "$K" prove c1 "$1/loose.lean" t; rc_is 2 "no Lake project"; any_has 'lakefile'
           okb --dir "$K" prove c1; rc_is 2 "usage"; }
+lakefree_dir() {  # lakefree_dir: print a new dir with no lakefile in it or above it, or nothing. The "no Lake project"
+    # case must not depend on what sits above $TMPDIR (T44 c3): a stray Lean project in /tmp made PV9 red.
+    local root d p
+    for root in /dev/shm /var/tmp "${XDG_RUNTIME_DIR:-}" "${HOME:-}"; do
+        [ -n "$root" ] && [ -d "$root" ] && [ -w "$root" ] || continue
+        d=$(mktemp -d "$root/orbit-kb-nolake.XXXXXX" 2>/dev/null) || continue
+        d=$(cd "$d" && pwd -P); p=$d
+        while :; do
+            if [ -e "$p/lakefile.toml" ] || [ -e "$p/lakefile.lean" ]; then break; fi
+            [ "$p" = / ] && { printf '%s\n' "$d"; return 0; }
+            p=$(dirname "$p")
+        done
+        rmdir "$d"
+    done
+    return 1
+}
+t_PV9() { lean_proj || return 0; local d
+          d=$(lakefree_dir) || { skip_test "no writable dir without a lakefile above it"; return 0; }
+          pv9_body "$d"; rm -rf "$d"; }
+# T44 c3: a lakefile.toml in the parent of the test's own temp dir does not change PV9. The parent is the run's
+# private base dir; the file is removed at the end, and nothing is made outside it.
+t_PV9b() { lean_proj || return 0; local d stray; stray=$(dirname "$T")/lakefile.toml
+          [ -e "$stray" ] && { note "a lakefile.toml is already in the parent of the temp dir"; return 0; }
+          printf 'name = "stray"\n' > "$stray"
+          d=$(lakefree_dir) || { rm -f "$stray"; skip_test "no writable dir without a lakefile above it"; return 0; }
+          pv9_body "$d"; rm -rf "$d"; rm -f "$stray"; }
 # D10 follow-up: the log records the statement (MS) and the absent config files (F7); a
 # config file that changes, or appears, reopens the burn (MC, F7).
 t_PV10() { lean_proj || return 0
@@ -3013,6 +3040,7 @@ run_test t_PV6 PV6 "D10: prove rejects a theorem from another module"
 run_test t_PV7 PV7 "D10: prove rejects a declaration that skipped the kernel (leanchecker)"
 run_test t_PV8 PV8 "D10: prove rejects a file that does not build"
 run_test t_PV9 PV9 "D10: prove usage errors exit 2"
+run_test t_PV9b PV9b "T44 c3: PV9 does not depend on a lakefile above its temp dir"
 run_test t_PV10 PV10 "D10 follow-up: the log has the statement and absent config files; a config change reopens (F7, MS, MC)"
 run_test t_PV11 PV11 "D10 follow-up: prove rejects a --module that is not the module of FILE (MF)"
 run_test t_PV12 PV12 "D10 follow-up: prove rejects a file that changes during the checks (MN)"

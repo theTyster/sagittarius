@@ -1006,8 +1006,10 @@ def cmd_init(g, a):
     c.close()
 
 
-def common_item_opts(o):
+def common_item_opts(g, o):
     refs = [parse_ref(x) for x in o.get("ref", [])]
+    if any(k == "kb" for k, _ in refs):
+        formal_only(g, "a kb ref")  # T44 c1: no kb ref on any path of an informal hub
     if o.get("title") is not None:
         check_title(o["title"])
     if o.get("analysis") is not None:
@@ -1032,7 +1034,7 @@ def cmd_add(g, a):
     status = o.get("status", "open")
     if status not in OPEN:
         raise Bad("--status is open or waiting (close with the close command)")
-    refs = common_item_opts(o)
+    refs = common_item_opts(g, o)
 
     def fn(c, w):
         if o.get("owner") == "none":
@@ -1054,7 +1056,7 @@ def cmd_handoff(g, a):
         usage("handoff --to S --title T [--gate G] [--analysis SLUG] [--ref KIND:REF ...] [--note N]")
     if o.get("analysis") is not None:
         formal_only(g, "--analysis")
-    refs = common_item_opts(o)
+    refs = common_item_opts(g, o)
 
     def fn(c, w):
         frm = w.session
@@ -1318,6 +1320,8 @@ def cmd_show(g, a):
     for x in caps:
         x["paths"] = json.loads(x["paths"])
     c.close()
+    if informal(g):  # T44 c1: no analysis key in an informal hub
+        d["item"].pop("analysis", None)
     d = {"capsule": caps[0] if caps else None, "capsules": caps, **d}  # the capsule comes first
     if fmt == "json":
         print(json.dumps(d, indent=1, ensure_ascii=False))
@@ -1331,6 +1335,8 @@ def cmd_show(g, a):
               + (f"; {len(caps) - 1} older capsule(s) in --format json" if len(caps) > 1 else ""))
         print()
     for k, v in d["item"].items():
+        if k == "analysis" and informal(g):  # T44 c1: an informal hub shows no analysis line
+            continue
         print(f"{k}: {'' if v is None else v}")
     if d["handoff"]:
         print("handoff: " + ", ".join(f"{k}={'' if v is None else v}" for k, v in d["handoff"].items() if k != "item_id"))
@@ -1374,6 +1380,10 @@ def cmd_view(g, a):
     if name == "retention_due":  # T40 c11: would=lapse only for the summaries that rotate lapses
         rows = retention_due_rows(c, hub_dir(g), cols, rows)
     c.close()
+    if informal(g) and "analysis" in cols:  # T44 c1: an informal hub shows no analysis column
+        i = cols.index("analysis")
+        cols = [x for j, x in enumerate(cols) if j != i]
+        rows = [[x for j, x in enumerate(r) if j != i] for r in rows]
     print(render(rows, cols, fmt))
 
 
@@ -1487,7 +1497,7 @@ IMPORT_KEYS = {"kind", "title", "status", "owner", "waits_on", "analysis", "refs
                "parked_until", "closed_at", "close_reason", "note", "from", "to", "gate", "accepted_at"}
 
 
-def validate_row(c, obj):
+def validate_row(c, obj, formal=True):
     if not isinstance(obj, dict):
         raise Bad("the row is not a JSON object")
     extra = sorted(set(obj) - IMPORT_KEYS)
@@ -1503,11 +1513,15 @@ def validate_row(c, obj):
     row = {"kind": kind, "title": obj["title"], "status": status, "note": obj.get("note")}
     row["owner"] = resolve_session(c, obj["owner"]) if obj.get("owner") else None
     row["waits_on"] = check_person(c, obj["waits_on"]) if obj.get("waits_on") else None
+    if obj.get("analysis") and not formal:
+        raise Bad("an analysis belongs to the formal edition; this hub is informal (`hubkit.py edition formal` switches it)")
     row["analysis"] = check_analysis(obj["analysis"]) if obj.get("analysis") else None
     refs = obj.get("refs", [])
     if not isinstance(refs, list):
         raise Bad("refs must be a list of KIND:REF strings")
     row["refs"] = [parse_ref(x) for x in refs]
+    if not formal and any(k == "kb" for k, _ in row["refs"]):
+        raise Bad("a kb ref belongs to the formal edition; this hub is informal (`hubkit.py edition formal` switches it)")
     row["opened_at"] = parse_ts(obj["opened_at"], "opened_at") if obj.get("opened_at") else None
     row["renewed_at"] = parse_ts(obj["renewed_at"], "renewed_at") if obj.get("renewed_at") else None
     row["parked_until"] = parse_date(obj["parked_until"], "parked_until") if obj.get("parked_until") else None
@@ -1552,13 +1566,13 @@ def read_import(path):
     return out
 
 
-def validate_all(c, parsed):
+def validate_all(c, parsed, formal=True):
     rows, rejected = [], []
     for n, obj, err in parsed:
         try:
             if err:
                 raise Bad(err)
-            rows.append((n, validate_row(c, obj)))
+            rows.append((n, validate_row(c, obj, formal)))
         except Bad as e:
             rejected.append({"line": n, "reason": str(e)})
     return rows, rejected
@@ -1572,7 +1586,7 @@ def cmd_import(g, a):
     parsed = read_import(pos[0])
     if not o.get("yes"):
         c = connect_ro(flow_dir(g))
-        rows, rejected = validate_all(c, parsed)
+        rows, rejected = validate_all(c, parsed, not informal(g))
         c.close()
         counts = {"kind": {}, "owner": {}, "waits_on": {}}
         for _, r in rows:
@@ -1593,7 +1607,7 @@ def cmd_import(g, a):
         return
 
     def fn(c, w):
-        rows, rejected = validate_all(c, parsed)
+        rows, rejected = validate_all(c, parsed, not informal(g))
         if rejected:
             shown = "; ".join(f"line {x['line']}: {x['reason']}" for x in rejected[:5])
             raise Bad(f"import refused, {len(rejected)} row(s) rejected, nothing written: {shown}")
@@ -2545,6 +2559,7 @@ INFORMAL_ONLY_COMMANDS = ("where", "spec-triage", "skip-waived")  # they read a 
 # The informal --help: the formal text, with these edits (old regex, new text). A pattern that no
 # longer matches leaves a formal word in the help, and docs/check_informal_hub.py t36c1 fails.
 INFORMAL_HELP = (
+    (r"(set --status\n\s+)or ref rm the kb ref of an item that is escalated\n\s+or whose spec KB blocks", "\\1of an item that is escalated"),
     (r" \[--analysis SLUG(\|none)?\]", ""),
     (r"\n\s+or whose spec KB blocks", ""),
     (r"\n\s+linked spec KB; it never runs one", ""),
