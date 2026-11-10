@@ -21,7 +21,6 @@ count = 0
 
 # Files and trees where "Jev" names the vendor thing itself or is a record. Anything else is prose.
 ALLOW = {
-    "CLAUDE.md": "pending owner edit (line 16 says 'The Jev client'); agents do not edit CLAUDE.md",
     "CHANGELOG.md": "history of releases; kb/tests/test_release.sh reads the word there",
     "s1/jev.py": "the client of the vendor API",
     "s1/hook.py": "code that calls the client",
