@@ -125,9 +125,10 @@ waivers; the human sets the due time and runs them.
 
 **A waiver from the KB side:** after the human runs a waiver in a spec KB (from a hub skip, or on their
 own), run `$HF skip-waived`. It parks each open item whose spec KB is clear only because of a live human
-waiver, until the date of the waiver's due time, with the waiver in the note; after that date the item
-is back, and blocks again if the KB does. It never drops an item, and an escalated item stays for the
-human. You need not remember it: `$HF check` prints `skip_waived: <ids>` when there is something to
+waiver, until the waiver's due time, with the waiver in the note; after that time the item is back, and
+blocks again if the KB does. It never drops an item, and an escalated item stays for the human. While
+the waiver holds the item, you cannot close it, set its status or remove its kb ref (the waiver ends
+the work only for its time); you may park it, and only the human closes it (`--by human --note`). You need not remember it: `$HF check` prints `skip_waived: <ids>` when there is something to
 park, so run it when check names an item, and at the start of a session.
 
 Items closed more than five weeks before the rotation are pruned; the JSONL history in git keeps

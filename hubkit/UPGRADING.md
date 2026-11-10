@@ -45,11 +45,12 @@ changed those files, and a check.
 
 ### 0.5.0 (the informal edition: one rule set, one engine voice)
 
-The db schema is 4, as in 0.4.0. **Database:** a hub made at 0.4.0 before the transcripts change has
+The db schema is 5. **Database:** a hub made at 0.4.0 before the transcripts change has
 schema 2 or 3 (`hubflow.py check` exits 2): run `python3 .claude/scripts/hubflow.py migrate`, then
 `check`, and read the 0.4.0 entry "An agent, not code, puts meeting transcripts into the ledger".
-A hub already at schema 4 has nothing to migrate. `HUB-CORE.md`, `PRINCIPLES.md` and both
-`SKILL.md` are engine files: merge each by intent.
+A hub at schema 4 also runs `migrate` once (T47 c2: the step to 5 remakes `v_stale` and
+`v_retention_due`, so a park by `skip-waived` ends at the waiver's due time, not at the end of its day).
+`HUB-CORE.md`, `PRINCIPLES.md` and both `SKILL.md` are engine files: merge each by intent.
 
 - **A hub knows its edition (T32).** Intent: an informal hub loads only informal rules (the five
   stores and their commands; no spec KB, project KB or formal tool). `hubkit.py install --edition

@@ -24,14 +24,17 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   set ID [--title T] [--owner S] [--waits-on P|none] [--status open|waiting] [--analysis SLUG|none]
   close ID --reason done|dropped [--note N]   an agent cannot close, renew, park, set --status
                                                or ref rm the kb ref of an item that is escalated
-                                               or whose spec KB blocks (--by human may)
+                                               or whose spec KB blocks (--by human may); nor close,
+                                               set --status or ref rm the kb ref of one whose spec
+                                               KB is clear only by a live human waiver (it may park
+                                               it; an agent's triage lapse of it is escalate)
   close ID --reason human_skip --by human --note QUOTE
                                                a person's skip: also closes the open items linked
                                                to ID by `blocks` (either way), and prints the
                                                waiver command for each blocking item of each
                                                linked spec KB; it never runs one
   skip-waived                                  honor a waiver from the spec KB side: park, until the
-                                               date of the waiver's due time, each open item whose spec
+                                               waiver's due time (not the end of its day), each open item whose spec
                                                KBs are clear only because a human waived what blocked
                                                (a precaution waiver on a clear KB does not count). It
                                                checks the kb refs again in its write, and never drops
@@ -150,28 +153,33 @@ Exit codes
   3 check found a difference or an ask to another person without an issue ref
 
 Retention (rotate --week-start D, D the Monday of the new W0; W5 starts at D - 35 days)
-  due: open or waiting, idle 28 days or more, not parked through today, not escalated, not a
+  due: open or waiting, idle 28 days or more, not parked now, not escalated, not a
        summary. Each due item needs a disposition (`triage`) before `rotate` runs; no due item
        lapses by itself
   summary: open 28 days or more (from opened_at; a renew or a park does not delay it) -> the
        rotation lapses it, with no triage; it never blocks a rotation. An escalated summary, or one
-       whose spec KB is not clear, stays open for the human (the same guard as triage)
+       whose spec KB is not clear or is clear only by a live waiver, stays open for the human (the
+       same guard as triage). A kb ref whose specs/<slug> is gone and whose newest spec-triage
+       decision is archive reads as archived (clear), not as unknown
   prune: closed before D - 35 days -> deleted with refs, links, handoff and events; retired
          sessions retired before then and referenced by no item go with their aliases
   The caller commits flow/jsonl/ with the ids in the message; git history is the archive.
 
-Schema v4 (PRAGMA user_version = 4; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
+Schema v5 (PRAGMA user_version = 5; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
 db to v2 (it adds disposition, capsule, transcript, transcript_msg and remakes v_open and
-v_retention_due), a v2 db to v3 (it adds meeting and meeting_turn), and a v3 db to v4 (it drops
+v_retention_due), a v2 db to v3 (it adds meeting and meeting_turn), a v3 db to v4 (it drops
 meeting and meeting_turn and their JSONL, adds the item kind summary and the ref kind transcript,
-and remakes v_stale and v_retention_due).
+and remakes v_stale and v_retention_due), and a v4 db to v5 (it remakes v_stale and v_retention_due:
+a park that holds a time ends at that time).
   meta(key, value)                  next_A next_T next_K next_H next_S, owner_person, and now (tests only)
   session(name, role, status active|retired, started_on, retired_on)
   session_alias(alias, name, since)
   person(key, display)
   item(id, kind ask|thread|hold|handoff|summary, title 3..200, status open|waiting|done|dropped|lapsed,
        owner_session, waits_on, analysis (a slug, never a W-slot path), opened_at, renewed_at,
-       parked_until, closed_at, close_reason)       closed_at is set exactly when status is closed
+       parked_until, closed_at, close_reason)       closed_at is set exactly when status is closed;
+                                    parked_until is a date (park --until: through that day) or a
+                                    time (skip-waived: until the waiver's due time)
   item_ref(item_id, kind, ref)      issue and pr refs are digits; a kb ref is <slug> (the spec KB at
                                     specs/<slug>) or, in an old hub, <slug>/kb; never W0/...;
                                     a transcript ref is NAME@sha256:HEX (no W slot)
@@ -190,7 +198,7 @@ Views: clock v_open (with escalated) v_escalated v_waiting_on v_inbox v_stale (n
 import datetime, hashlib, json, os, re, shlex, sqlite3, subprocess, sys
 from urllib.parse import quote
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 # Schema steps: MIGRATIONS[v] is the SQL that takes a db from schema v to v + 1. DDL is the shape of
 # schema 1; init and rebuild run DDL and then every step, so a new db and a migrated db are the
 # same. A release that changes the schema raises SCHEMA_VERSION and adds its step to MIGRATIONS.
@@ -462,10 +470,28 @@ WHERE i.closed_at IS NOT NULL
   AND i.closed_at < strftime('%Y-%m-%dT00:00:00Z', p.wk, '-{PRUNE_DAYS} days')""",
 ]
 
+# Schema 5 (T47 c2): a park by skip-waived holds the waiver's due time (YYYY-MM-DDTHH:MM:SSZ) and ends
+# at that time; a park --until YYYY-MM-DD still holds the date and parks through that day. v_stale and
+# v_retention_due are remade to compare a park's end (a date D ends at DT24:00:00Z) with the clock.
+def park_over(col, now):
+    """SQL: the park in col is over at now (no park, a date before now's day, or a time at or before now)."""
+    return f"({col} IS NULL OR (CASE WHEN length({col}) = 10 THEN {col} || 'T24:00:00Z' ELSE {col} END) <= {now})"
+
+
+def _v5(stmt):
+    for old, new in (("(o.parked_until IS NULL OR o.parked_until < date(clock.now))", park_over("o.parked_until", "clock.now")),
+                     ("(i.parked_until IS NULL OR i.parked_until < date(p.now))", park_over("i.parked_until", "p.now"))):
+        stmt = stmt.replace(old, new)
+    return stmt
+
+
+V5_STEPS = [_v5(x) for x in V4_STEPS[V4_STEPS.index("DROP VIEW v_stale"):]]
+
 MIGRATIONS = {
     1: V2_STEPS,
     2: V3_STEPS,
     3: V4_STEPS,
+    4: V5_STEPS,
 }
 
 # view name -> (sql view, filter option -> column, ORDER BY)
@@ -516,6 +542,16 @@ def parse_date(v, what):
         return datetime.date.fromisoformat(v).isoformat()
     except ValueError:
         raise Bad(f"{what} {v!r} is not a real date")
+
+
+def parse_park(v):
+    """parked_until: a date (park --until) or a time (skip-waived, T47 c2)."""
+    return parse_ts(v, "parked_until") if isinstance(v, str) and len(v) > 10 else parse_date(v, "parked_until")
+
+
+def park_end(v):
+    """The time a park ends: a date D parks through that day (DT24:00:00Z); a time is its own end."""
+    return v + "T24:00:00Z" if v and len(v) == 10 else v
 
 
 def ts_add(ts, seconds):
@@ -1144,7 +1180,7 @@ def cmd_set(g, a):
         formal_only(g, "--analysis")
         check_analysis(o["analysis"])
     if "status" in o:
-        agent_guard(g, o, pos[0], "change the status of")
+        agent_guard(g, o, pos[0], "change the status of", waiver=True)
 
     def fn(c, w):
         it = get_item(c, pos[0])
@@ -1186,7 +1222,7 @@ def cmd_close(g, a):
     if skip and writer_by(o, g) != "human":
         raise Bad("--reason human_skip records a person's skip: pass --by human --note with their words")
     if not skip:  # an agent never closes a blocking item
-        agent_guard(g, o, pos[0], "close")
+        agent_guard(g, o, pos[0], "close", waiver=True)
 
     def fn(c, w):
         it = get_item(c, pos[0])
@@ -1247,7 +1283,7 @@ def cmd_ref(g, a):
     if pos[1] == "add" and kind == "kb":
         formal_only(g, "a kb ref")
     if pos[1] == "rm" and kind == "kb":
-        agent_guard(g, o, pos[0], "remove the kb ref of")
+        agent_guard(g, o, pos[0], "remove the kb ref of", waiver=True)
 
     def fn(c, w):
         it = get_item(c, pos[0])
@@ -1524,7 +1560,7 @@ def validate_row(c, obj, formal=True):
         raise Bad("a kb ref belongs to the formal edition; this hub is informal (`hubkit.py edition formal` switches it)")
     row["opened_at"] = parse_ts(obj["opened_at"], "opened_at") if obj.get("opened_at") else None
     row["renewed_at"] = parse_ts(obj["renewed_at"], "renewed_at") if obj.get("renewed_at") else None
-    row["parked_until"] = parse_date(obj["parked_until"], "parked_until") if obj.get("parked_until") else None
+    row["parked_until"] = parse_park(obj["parked_until"]) if obj.get("parked_until") else None
     row["closed_at"] = parse_ts(obj["closed_at"], "closed_at") if obj.get("closed_at") else None
     row["close_reason"] = obj.get("close_reason")
     closed = status in ("done", "dropped", "lapsed")
@@ -1793,15 +1829,33 @@ def needed_waivers(path):
     return out
 
 
-def waiver_park(checks):
-    """(until, note) for an item whose kb checks all read clear: the date of the earliest due time of
-    the waivers it rests on (after it the KB blocks again), and the note that names the waiver. None
-    when no such waiver exists (the KB is clear on its own: not a skip, T42 c5)."""
+def live_waiver(checks):
+    """For kb checks that all read clear: (ref, attestation id, target, due, reason) of the live human
+    waiver with the earliest due time that something rests on (after it the KB blocks again). None
+    when no such waiver exists (the KB is clear on its own: not a skip, T42 c5). T47 c1: such a KB is
+    clear only by the waiver, so agent_guard holds the item for the human."""
     waived = [(k["ref"], w) for k in checks if k["path"] for w in needed_waivers(k["path"])]
     if not waived:
         return None
     ref, (wid, target, due, why) = min(waived, key=lambda x: (x[1][2], x[0], x[1][0]))
-    return due[:10], f"the human waived {target} in kb:{ref} ({wid}) until {due}: {why}; parked until then"
+    return ref, wid, target, due, why
+
+
+def waiver_words(hold):
+    ref, wid, target, due, why = hold
+    return f"the human waived {target} in kb:{ref} ({wid}) until {due}: {why}"
+
+
+def waiver_park(checks):
+    """(until, note) for an item whose kb checks all read clear: the earliest due time of the waivers it
+    rests on, as a time (T47 c2: the park ends at the due time, not at the end of its day), and the note
+    that names the waiver. None when no such waiver exists (T42 c5)."""
+    hold = live_waiver(checks)
+    if hold is None:
+        return None
+    due = hold[3]
+    until = due if TS.match(due) else due[:10]  # a due time that is not YYYY-MM-DDTHH:MM:SSZ parks through its day
+    return until, waiver_words(hold) + "; parked until then"
 
 
 def item_kb_refs(c, iid):
@@ -1827,7 +1881,7 @@ def skip_candidates(g):
         if any(k["state"] != "clear" for k in checks):
             continue  # something still blocks, or the KB is unknown: not a skip
         plan = waiver_park(checks)
-        if plan and not (parked_until and parked_until >= plan[0]):
+        if plan and not (parked_until and park_end(parked_until) >= park_end(plan[0])):
             out.append((iid, plan[0], esc))
     return out
 
@@ -1858,8 +1912,8 @@ def cmd_skip_waived(g, a):
             if plan is None:
                 continue
             until, note = plan
-            if it["parked_until"] and it["parked_until"] >= until:
-                continue  # parked through the due date already
+            if it["parked_until"] and park_end(it["parked_until"]) >= park_end(until):
+                continue  # parked through the due time already
             # T42 c4: the waiver ends the item only for its time: park it until the due date, never drop it
             c.execute("UPDATE item SET parked_until = ? WHERE id = ?", (until, iid))
             w.event(iid, "parked", it["parked_until"], until, note=note, by="script")
@@ -1877,9 +1931,11 @@ def is_escalated(c, iid):
     return r is not None and r[0] == "escalate"
 
 
-def agent_guard(g, o, iid, what):
+def agent_guard(g, o, iid, what, waiver=False):
     """An agent may not `what` an open item that is escalated or whose spec KB blocks (same
-    fail-safe as triage): only a human, with --by human --note, may."""
+    fail-safe as triage): only a human, with --by human --note, may. waiver=True (T47 c1: close,
+    set --status, ref rm kb): nor an item whose spec KB is clear only by a live human waiver; the
+    waiver ends the item only for its time, so an agent may park it, never end it."""
     if writer_by(o, g) == "human":
         return
     c = connect_ro(flow_dir(g))
@@ -1896,6 +1952,10 @@ def agent_guard(g, o, iid, what):
         why = (f"escalated to the human ({esc_note[0]})" if esc_note and esc_note[0] else "escalated to the human") \
             if esc else f"blocking ({blocking_detail(checks)})"
         raise Bad(f"{it['id']} is {why}; an agent cannot {what} it. A human can: add --by human --note \"<their words>\"")
+    hold = live_waiver(checks) if waiver and not esc else None  # waiver read
+    if hold:
+        raise Bad(f"{it['id']} is held by a live waiver ({waiver_words(hold)}); after {hold[3]} the work comes back,"
+                  f" so an agent cannot {what} it (it may park it). A human can: add --by human --note \"<their words>\"")
 
 
 def cmd_triage(g, a):
@@ -1922,6 +1982,10 @@ def cmd_triage(g, a):
         blocking = any(k["state"] != "clear" for k in checks)  # fail-safe
         if blocking:
             final, asked, detail = "escalate", disp, blocking_detail(checks)
+        elif disp == "lapse":  # T47 c1: a live waiver ends the item only for its time
+            hold = live_waiver(checks)
+            if hold:
+                final, asked, detail = "escalate", disp, f"held by a live waiver ({waiver_words(hold)})"
 
     def fn(c, w):
         it = get_item(c, iid)
@@ -2217,8 +2281,9 @@ def untracked_asks(c):
 def rotate_plan(c, now, wk):
     lapse_before = ts_add(now, -LAPSE_DAYS * 86400)
     due = c.execute("SELECT id, renewed_at FROM item WHERE status IN ('open','waiting') AND kind <> 'summary'"
-                    " AND renewed_at <= ? AND (parked_until IS NULL OR parked_until < ?) ORDER BY id",
-                    (lapse_before, now[:10])).fetchall()
+                    " AND renewed_at <= ? AND (parked_until IS NULL OR (CASE WHEN length(parked_until) = 10"
+                    " THEN parked_until || 'T24:00:00Z' ELSE parked_until END) <= ?) ORDER BY id",
+                    (lapse_before, now)).fetchall()
     # a summary row lapses by itself at the first rotation when it is LAPSE_DAYS old (no triage);
     # an escalated one stays for the human (the ledger guard), and so does one whose spec KB blocks
     lapse = [r[0] for r in c.execute("SELECT id FROM item WHERE status IN ('open','waiting') AND kind = 'summary'"
@@ -2241,14 +2306,29 @@ def rotate_plan(c, now, wk):
     return untriaged, escalated, prune, sessions, lapse
 
 
+def spec_archived(c, hub, ref):
+    """T47 c3: the kb ref's spec KB was archived: it has no dir, and the newest spec-triage decision of
+    its slug is archive (a human's `git rm -r specs/<slug>` first; history keeps it)."""
+    if kb_dir(hub, ref) is not None:
+        return False
+    r = c.execute("SELECT new FROM event WHERE verb = 'spec_triage' AND old = ? ORDER BY seq DESC LIMIT 1",
+                  (ref.partition("/")[0],)).fetchone()
+    return r is not None and r[0] == "archive"
+
+
 def kb_held_summaries(c, hub, lapse):
     """The summary rows of `lapse` with a kb ref whose spec KB is not clear (fail-safe, as for an
-    agent's triage): the rotation leaves them open. Runs orbit-kb (each query has its timeout); rotate
-    --yes calls it inside its write, so the check and the lapse see the same clock (T40 c11)."""
+    agent's triage), or is clear only by a live human waiver (T47 c1): the rotation leaves them open.
+    A kb ref whose spec KB was archived reads as archived, not as unknown (T47 c3). Runs orbit-kb
+    (each query has its timeout); rotate --yes calls it inside its write, so the check and the lapse
+    see the same clock (T40 c11)."""
     held = set()
     for iid in lapse:
-        refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (iid,))]
+        refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (iid,))
+                if not spec_archived(c, hub, r[0])]  # archived: a human decision, not unknown
         if refs and any(k["state"] != "clear" for k in kb_checks(hub, refs)):  # summary guard
+            held.add(iid)
+        elif refs and live_waiver(kb_checks(hub, refs)):  # T47 c1: the waiver holds it for its time
             held.add(iid)
     return held
 
@@ -2579,7 +2659,9 @@ INFORMAL_HELP = (
     (r"A spec KB has the ticket's clock.*?`where` and the retention windows below follow this\.", "The retention windows below follow this."),
     (r"Copies\. The ledger holds a pointer.*?for a ticket, so the digest names what the agent read\.",
      "The ledger holds a pointer (issue:123) and the flow state around it, never a copy of the tracker's text."),
-    (r", or one\n\s+whose spec KB is not clear, stays open", " stays open"),
+    (r", or one\n\s+whose spec KB is not clear or is clear only by a live waiver, stays open", " stays open"),
+    (r" A kb ref whose specs/<slug> is gone.*?not as unknown", ""),
+    (r"; nor close,\n.*?an agent's triage lapse of it is escalate\)", ""),
     (r"a kb ref is <slug> \(the spec KB at\n\s+specs/<slug>\) or, in an old hub, <slug>/kb; never W0/...;", "never W0/...;"),
     (r"(KIND: issue pr build release) kb (file commit url)", "\\1 \\2"),
     (r"the item's kb and file\n(\s+)refs", "the item's file\n\\1refs"),

@@ -8,7 +8,7 @@ Every key of hubflow.py's `COMMANDS = {...}` must be in exactly one of `modelled
 command. An excluded command named in REASON_CHECKS also has its reason checked against the source
 of its cmd_ function (T33: spec-triage). A modelled command named in MODEL_CHECKS has the guard
 that its Cmd assumes checked in hubflow.py (T40 c7: rotate lapses no escalated summary and no
-summary whose kb answer is not clear; T40 c13, T42 c2 and c4: skip-waived parks no escalated item and
+summary whose kb answer is not clear, or is clear only by a live waiver (T47 c1); T40 c13, T42 c2 and c4: skip-waived parks no escalated item and
 no item whose kb answer is not clear in its write, and drops none). Exit 0
 when they agree, 1 when not (each difference is printed), 2 on a parse error.
 Reads both files as text; runs and imports nothing.
@@ -142,6 +142,13 @@ def rotate_guard(tree, fn):
             and any(isinstance(m, ast.Call) and call_name(m) == "held.add" for b in n.body for m in ast.walk(b))
             for n in ast.walk(held_fn)):
         out.append("kb_held_summaries does not hold a summary whose kb state is not clear (`if ... != 'clear'`: held.add)")
+    # T47 c1: nor one whose spec KB is clear only by a live human waiver (Cmd.rotate: `s.kb != .waived`)
+    if held_fn is None or not any(
+            isinstance(n, ast.If) and any(isinstance(m, ast.Call) and call_name(m) == "live_waiver" for m in ast.walk(n.test))
+            and any(isinstance(m, ast.Call) and call_name(m) == "held.add" for b in n.body for m in ast.walk(b))
+            for n in ast.walk(held_fn)):
+        out.append("kb_held_summaries does not hold a summary whose spec KB is clear only by a live waiver"
+                   " (`if ... live_waiver(...)`: held.add; T47 c1)")
     gate = funcs.get("untriaged_spec_kbs")
     if gate is None or not any(isinstance(n, ast.Call) and call_name(n) == "kb_slug_items"
                                and any(k.arg == "summaries" and isinstance(k.value, ast.Constant) and k.value.value is False

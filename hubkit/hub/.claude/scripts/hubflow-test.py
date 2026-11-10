@@ -19,7 +19,9 @@ rotation), t40-c11- (retention_due agrees with rotate), t40-c12- (words and ref 
 summary row either), t42-c2- (skip-waived checks the kb refs again in its write), t42-c3- (the printed
 waiver commands run in orbit-kb), t42-c4- (skip-waived parks until the waiver's due time), t42-c5- (a
 precaution waiver does not skip), t42-c6- (check names what skip-waived would park) and t42-c7- (a lapsed
-waiver never counts).
+waiver never counts). T47 checks start with t47-c1- (an agent cannot end an item that a live waiver
+holds), t47-c2- (the park lasts until the waiver's due time) and t47-c3- (an archived spec KB's summary
+lapses).
 Every scenario seeds its db from a seed file written into the temp dir (SEED_DATA below).
 Prints `PASS name` or `FAIL name: why` per case (`SKIP name: why` for a check that cannot run
 here, not counted); the last line is `N passed, M failed`.
@@ -55,7 +57,9 @@ MUTANTS = [
     ("analysis-w-slot-check-dropped", "if W_SLOT.match(v):  # W-slot check", "if False:"),
     ("export-dropped-from-write", "export_all(c, d)  # in the write transaction", "pass"),
     ("accept-by-any-session", "if me != to_session:  # only the to_session accepts", "if False:"),
-    ("park-ignored-by-rotate", "(parked_until IS NULL OR parked_until < ?)", "1 = 1"),
+    # T47 c2: the park's end is a time (a date D ends at DT24:00:00Z); the anchor follows the new SQL
+    ("park-ignored-by-rotate", "(parked_until IS NULL OR (CASE WHEN length(parked_until) = 10\"\n"
+     "                    \" THEN parked_until || 'T24:00:00Z' ELSE parked_until END) <= ?)", "(1 = 1 OR \"\n                    \"? IS NULL)"),
     ("issue-ref-digits-dropped", "if not re.fullmatch(r\"\\d+\", ref):  # digits check", "if False:"),
     ("handoff-owner-not-to", "owner_session = to  # handoff owner is the to_session", "owner_session = frm"),
     ("owner-default-dropped", "owner = resolve_active(c, o.get(\"owner\") or w.session)", "owner = resolve_active(c, o[\"owner\"]) if o.get(\"owner\") else None"),
@@ -84,6 +88,13 @@ MUTANTS = [
     # when it covers something that would block, which stops that case too; case_t42_lapsed_waiver kills the
     # mutant where a lapsed and a live waiver cover one claim: the lapsed one must not set the park date.
     ("skip-waived-counts-lapsed-waivers", "not waiver_lapsed(W), (check(T, _C)", "(check(T, _C)"),
+    # T47 c1: agent_guard reads the live waiver that a clear spec KB rests on (close, set --status, ref rm kb)
+    ("agent-guard-skips-waiver-read", "hold = live_waiver(checks) if waiver and not esc else None  # waiver read", "hold = None"),
+    ("agent-may-lapse-waived", 'elif disp == "lapse":  # T47 c1: a live waiver ends the item only for its time', "elif False:"),
+    ("rotate-lapses-waived-summary", "elif refs and live_waiver(kb_checks(hub, refs)):  # T47 c1: the waiver holds it for its time",
+     "elif False:"),
+    # T47 c3: an archived spec KB reads as archived, not as unknown
+    ("archived-kb-reads-unknown", "if not spec_archived(c, hub, r[0])]  # archived: a human decision, not unknown", "]"),
     ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
     ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
     ("capsule-without-rev", "rev = git_head(hub_dir(g))  # capsule rev", "rev = None"),
@@ -1292,7 +1303,10 @@ def case_escalate(r, root):
     res = t("triage", "A-0006", "lapse", "--note", "no spec KB")
     calls2 = open(log, encoding="utf-8").read().splitlines() if os.path.exists(log) else []
     r.check("c2-no-kb-ref-no-query", res[0] == 0 and status(d, "A-0006") == "lapsed" and calls2 == calls, (res, calls2[len(calls):]))
-    r.check("c2-only-queries-the-kb", calls and all(x.split()[0] == "--dir" and x.split()[2:] in (["query", "blocking(X)"], ["query", "blocking(X)", "-n", "0"]) for x in calls), calls)
+    # T47 c1: an agent's lapse of an item whose KB reads clear also asks for the live waivers (a query)
+    r.check("c2-only-queries-the-kb", calls and all(x.split()[0] == "--dir" and (x.split()[2:] in (["query", "blocking(X)"], ["query", "blocking(X)", "-n", "0"])
+                                                      or (x.split()[2] == "query" and x.split()[3].startswith("attest(W,") and x.split()[-2:] == ["-n", "0"]))
+                                    for x in calls), calls)
     code, out, err = t("view", "open", "--format", "json")
     v = js(out) or []
     r.check("c2-escalated-at-top-of-view", [x["id"] for x in v][:4] == ["A-0001", "A-0003", "A-0004", "A-0005"]
@@ -1312,7 +1326,7 @@ def case_escalate(r, root):
     res = t("triage", "A-0001", "lapse", "--by", "human", "--note", "\"drop it, the spec moved\" (Me)")
     r.check("c2-human-may-lapse-blocking", res[0] == 0 and status(d, "A-0001") == "lapsed" and disp(d, "A-0001")[-1][:2] == ("lapse", None), res)
     calls = open(log, encoding="utf-8").read().splitlines() if os.path.exists(log) else []
-    r.check("c2-never-writes-the-kb", not any("attest" in x or "add" in x.split() for x in calls), calls)
+    r.check("c2-never-writes-the-kb", calls and all(x.split()[2] == "query" for x in calls), calls)
 
 
 def git_hub(path):
@@ -1542,9 +1556,9 @@ def case_t39_waiver(r, root):
     kb_before = {s: tree(k) for s, k in kbs.items()}
     code, out, err = hf(r, d, "skip-waived", hub=h, extra_env=env)
     r.check("t39c3-exit-0", code == 0, out + err)
-    r.check("t39c3-waived-item-is-parked-until-the-due-date", parked(d, "T-0001") == ("open", "2099-01-01"), parked(d, "T-0001"))
+    r.check("t39c3-waived-item-is-parked-until-the-due-date", parked(d, "T-0001") == ("open", "2099-01-01T00:00:00Z"), parked(d, "T-0001"))
     e = ev(d, "T-0001")
-    r.check("t39c3-event-names-the-kb-and-the-waiver", e[-1][:3] == ("parked", None, "2099-01-01") and "spec-w" in (e[-1][5] or "")
+    r.check("t39c3-event-names-the-kb-and-the-waiver", e[-1][:3] == ("parked", None, "2099-01-01T00:00:00Z") and "spec-w" in (e[-1][5] or "")
             and "the human skips this" in (e[-1][5] or ""), e)
     r.check("t39c3-lists-parked", listed(out, "parked:") == ["T-0001"], out)
     r.check("t39c3-others-stay-open", all(parked(d, i) == ("open", None) for i in ("A-0001", "A-0002", "A-0003", "A-0004")),
@@ -2418,7 +2432,7 @@ def case_t40_skip_waived_escalated(r, root):
     r.check("t40-c13-escalated-item-stays-open", parked(d, esc) == ("open", None), parked(d, esc))
     r.check("t40-c13-output-names-the-escalated-item",
             any(x.startswith("escalated: ") and esc in x.split() and "triage" in x for x in out.splitlines()), out)
-    r.check("t40-c13-non-escalated-item-parked", parked(d, plain) == ("open", "2099-01-01") and listed(out, "parked:") == [plain],
+    r.check("t40-c13-non-escalated-item-parked", parked(d, plain) == ("open", "2099-01-01T00:00:00Z") and listed(out, "parked:") == [plain],
             (parked(d, plain), out))
     e = ev(d, esc)
     r.check("t40-c13-no-close-or-park-event-on-the-escalated-item", not any(x[0] in ("closed", "parked") for x in e), e)
@@ -2543,7 +2557,7 @@ def case_t42_skip_recheck(r, root):
             (os.listdir(marks), q(d, "select ref from item_ref where item_id = ?", b1)))
     r.check("t42-c2-kb-that-starts-to-block-stays-open-not-parked", parked(d, a1) == ("open", None), parked(d, a1))
     r.check("t42-c2-blocking-ref-added-stays-open-not-parked", parked(d, b1) == ("open", None), parked(d, b1))
-    r.check("t42-c2-clear-waived-item-is-parked", parked(d, d1) == ("open", "2099-01-01"), parked(d, d1))
+    r.check("t42-c2-clear-waived-item-is-parked", parked(d, d1) == ("open", "2099-01-01T00:00:00Z"), parked(d, d1))
     r.check("t42-c2-no-park-event-on-the-guarded-items", not any(x[0] == "parked" for i in (a1, b1) for x in ev(d, i)),
             [ev(d, a1), ev(d, b1)])
     r.check("t42-c2-check-clean", hf(r, d, "check")[0] == 0)
@@ -2630,9 +2644,9 @@ def case_t42_park(r, root):
         r.skip(name, "the skip-waived run took longer than the waiver's 8 seconds")
         return
     r.check("t42-c4-exit-0", code == 0, out + err)
-    r.check("t42-c4-item-parked-until-the-due-date-not-dropped", parked(d, tid) == ("open", utc(due)[:10]), parked(d, tid))
+    r.check("t42-c4-item-parked-until-the-due-date-not-dropped", parked(d, tid) == ("open", utc(due)), parked(d, tid))
     e = ev(d, tid)
-    r.check("t42-c4-park-event-names-the-kb-and-the-waiver", e and e[-1][0] == "parked" and e[-1][2] == utc(due)[:10]
+    r.check("t42-c4-park-event-names-the-kb-and-the-waiver", e and e[-1][0] == "parked" and e[-1][2] == utc(due)
             and "kb:spec-w" in (e[-1][5] or "") and "skips this for now" in (e[-1][5] or "")
             and re.search(r"\(a\d+\)", e[-1][5] or ""), e)
     r.check("t42-c4-output-names-the-parked-item", any(x.startswith("parked: ") and tid in x.split() for x in out.splitlines()), out)
@@ -2650,7 +2664,7 @@ def case_t42_park(r, root):
     res = hf(r, d, "close", tid, "--reason", "done", hub=h, extra_env=env, now=later)
     r.check("t42-c4-after-due-kb-blocks-again-agent-close-refused", refused(res, 1, "blocking") and "kb:spec-w" in res[2], res)
     code, out3, err = hf(r, d, "skip-waived", hub=h, extra_env=env, now=later)
-    r.check("t42-c4-after-due-skip-waived-parks-nothing", code == 0 and parked(d, tid)[1] == utc(due)[:10]
+    r.check("t42-c4-after-due-skip-waived-parks-nothing", code == 0 and parked(d, tid)[1] == utc(due)
             and not any(tid in x.split() for x in out3.splitlines() if x.startswith("parked:")), (out3, err))
 
 
@@ -2749,9 +2763,146 @@ def case_t42_lapsed_waiver(r, root):
     r.check("t42-c7-exit-0", code == 0, out + err)
     r.check("t42-c7-lapsed-waiver-over-passing-check-does-not-park", parked(d, a1) == ("open", None), parked(d, a1))
     e = ev(d, a2)
-    r.check("t42-c7-only-the-live-waiver-sets-the-park-date", parked(d, a2) == ("open", "2099-03-01")
+    r.check("t42-c7-only-the-live-waiver-sets-the-park-date", parked(d, a2) == ("open", "2099-03-01T00:00:00Z")
             and e and "the live skip" in (e[-1][5] or "") and "an old skip" not in (e[-1][5] or ""), (parked(d, a2), e))
 
+
+
+# ---- T47: follow-ups of the T42 verify (c1-c3) ----
+
+WAIVED_DUE = "2099-01-01T00:00:00Z"
+
+
+def case_t47_waiver_guard(r, root):
+    """T47 c1 (u11, PHILOSOPHY 8; review default, Ty not asked): an agent cannot end, for good, an item
+    whose spec KB is clear only by a live human waiver. skip-waived parks it; an agent's close (done or
+    dropped), set --status and ref rm kb are refused with a line that names the waiver and its due time; an
+    agent may still park it; an agent's triage lapse becomes escalate; a rotation leaves a waived summary
+    open; a human closes it with --by human --note."""
+    okb = real_orbit_kb()
+    name = "t47-c1-real-orbit-kb"
+    if not os.access(okb, os.X_OK):
+        r.skip(name, f"no orbit-kb at {okb}")
+        return
+    h = os.path.join(root, "t47-c1-hub")
+    bad = okb_steps(okb, os.path.join(h, "specs", "spec-w"), CLAIM,
+                    ("attest", "waiver", "k1", f"waive(k1, '{WAIVED_DUE}', 'the human skips this')", "--by", "human"))
+    if bad:
+        r.skip(name, bad)
+        return
+    d = fresh(r, root, "t47-c1")
+    env = {"HUBFLOW_ORBIT_KB": okb}
+
+    def t(*args, **kw):
+        return hf(r, d, *args, hub=h, extra_env=env, **kw)
+
+    tid = add(r, d, "thread", "Build behind the waived spec", "--ref", "kb:spec-w")
+    a2 = add(r, d, "ask", "Another item behind the waived spec", "--ref", "kb:spec-w")
+    sid = add(r, d, "summary", "Standup on the waived spec", "--ref", "kb:spec-w", now=DUE)
+    code, out, err = t("skip-waived")
+    r.check("t47-c1-setup-skip-waived-parks", code == 0 and tid in (listed(out, "parked:") or []), (code, out, err))
+    res = t("close", tid, "--reason", "done")
+    r.check("t47-c1-agent-close-done-refused", refused(res, 1, "waive") and status(d, tid) == "open", (res, status(d, tid)))
+    r.check("t47-c1-refusal-names-the-waiver-and-its-due-time", "kb:spec-w" in res[2] and WAIVED_DUE in res[2]
+            and re.search(r"\(a\d+\)", res[2]) and "--by human" in res[2], res)
+    res = t("close", tid, "--reason", "dropped")
+    r.check("t47-c1-agent-close-dropped-refused", refused(res, 1, "waive") and status(d, tid) == "open", res)
+    res = t("set", tid, "--status", "waiting")
+    r.check("t47-c1-agent-set-status-refused", refused(res, 1, "waive") and status(d, tid) == "open", res)
+    res = t("ref", tid, "rm", "kb:spec-w")
+    r.check("t47-c1-agent-ref-rm-kb-refused", refused(res, 1, "waive")
+            and q(d, "select ref from item_ref where item_id = ? and kind = 'kb'", tid) == [("spec-w",)], res)
+    res = t("park", tid, "--until", "2026-12-01")
+    r.check("t47-c1-agent-may-still-park", res[0] == 0 and parked(d, tid) == ("open", "2026-12-01"), (res, parked(d, tid)))
+    res = t("triage", a2, "lapse", "--note", "nothing left to do")
+    r.check("t47-c1-agent-triage-lapse-escalates", res[0] == 0 and status(d, a2) == "open"
+            and disp(d, a2)[-1][:2] == ("escalate", "lapse"), (res, disp(d, a2)))
+    res = t("rotate", "--week-start", "2026-11-02", "--yes")
+    r.check("t47-c1-rotate-keeps-a-waived-summary-open", res[0] == 0 and sid not in (listed(res[1], "lapsed:") or [])
+            and status(d, sid) == "open", (res, status(d, sid)))
+    res = t("close", tid, "--reason", "done", "--by", "human", "--note", "\"it is done, I checked\" (Me)")
+    r.check("t47-c1-human-close-exits-0", res[0] == 0 and status(d, tid) == "done", (res, status(d, tid)))
+    r.check("t47-c1-check-clean", hf(r, d, "check")[0] == 0)
+
+
+def case_t47_park_time(r, root):
+    """T47 c2: the park of skip-waived lasts until the waiver's due time, not to the end of its day:
+    parked_until holds the time. A waiver due at 15:44Z: at 15:00Z the idle item is parked (not due for
+    triage); at 15:45Z it is not parked (due for triage, flagged lapse_due)."""
+    okb = real_orbit_kb()
+    name = "t47-c2-real-orbit-kb"
+    if not os.access(okb, os.X_OK):
+        r.skip(name, f"no orbit-kb at {okb}")
+        return
+    due = "2099-01-01T15:44:00Z"
+    h = os.path.join(root, "t47-c2-hub")
+    bad = okb_steps(okb, os.path.join(h, "specs", "spec-t"), CLAIM,
+                    ("attest", "waiver", "k1", f"waive(k1, '{due}', 'the human skips this until 15:44')", "--by", "human"))
+    if bad:
+        r.skip(name, bad)
+        return
+    d = fresh(r, root, "t47-c2")
+    env = {"HUBFLOW_ORBIT_KB": okb}
+    tid = add(r, d, "thread", "Idle behind a waiver due at 15:44Z", "--ref", "kb:spec-t", now="2098-11-01T12:00:00Z")
+    code, out, err = hf(r, d, "skip-waived", hub=h, extra_env=env, now="2098-12-31T12:00:00Z")
+    r.check("t47-c2-setup-parked", code == 0 and tid in (listed(out, "parked:") or []), (code, out, err))
+    r.check("t47-c2-parked-until-holds-the-time", parked(d, tid) == ("open", due), parked(d, tid))
+
+    def due_ids(now):
+        res = hf(r, d, "view", "retention_due", "--format", "json", hub=h, extra_env=env, now=now)
+        return [x["id"] for x in (js(res[1]) or []) if x.get("would") == "triage"]
+
+    def stale(now):
+        res = hf(r, d, "view", "stale", "--format", "json", hub=h, extra_env=env, now=now)
+        return [x["id"] for x in (js(res[1]) or []) if x.get("flag") == "lapse_due"]
+
+    r.check("t47-c2-parked-before-the-due-time", tid not in due_ids("2099-01-01T15:00:00Z")
+            and tid not in stale("2099-01-01T15:00:00Z"), (due_ids("2099-01-01T15:00:00Z"), stale("2099-01-01T15:00:00Z")))
+    r.check("t47-c2-not-parked-at-15-45", tid in due_ids("2099-01-01T15:45:00Z"), due_ids("2099-01-01T15:45:00Z"))
+    r.check("t47-c2-lapse-due-at-15-45", tid in stale("2099-01-01T15:45:00Z"), stale("2099-01-01T15:45:00Z"))
+    res = hf(r, d, "rotate", "--week-start", "2098-12-29", hub=h, extra_env=env, now="2099-01-01T15:45:00Z", session=None)
+    r.check("t47-c2-rotate-asks-for-its-triage-at-15-45", tid in (listed(res[1], "untriaged:") or []), res)
+    r.check("t47-c2-check-clean", hf(r, d, "check", hub=h, extra_env=env, now="2099-01-01T15:45:00Z")[0] == 0)
+    # schema 5 remakes v_stale and v_retention_due: a v4 db migrates, and its views then end a park at its time
+    src = open(r.script, encoding="utf-8").read()
+    n = script_version(r.script)
+    v4 = os.path.join(root, "hubflow-v4.py")
+    with open(v4, "w", encoding="utf-8") as f:
+        f.write(src.replace(f"SCHEMA_VERSION = {n}\n", "SCHEMA_VERSION = 4\n"))
+    d4 = os.path.join(root, "t47-c2-v4", "flow")
+    res = hf(Run(v4), d4, "init", "--seed", SEED, session=None)
+    r.check("t47-c2-setup-v4-init", res[0] == 0 and q(d4, "pragma user_version") == [(4,)], res)
+    res = hf(r, d4, "migrate")
+    views = "".join(x[0] for x in q(d4, "select sql from sqlite_master where name in ('v_stale', 'v_retention_due')"))
+    r.check("t47-c2-migrate-v4-to-v5-remakes-the-views", res[0] == 0 and q(d4, "pragma user_version") == [(n,)]
+            and views.count("T24:00:00Z") == 2 and "< date(" not in views, (res, views[:300]))
+    r.check("t47-c2-check-after-migrate", hf(r, d4, "check")[0] == 0)
+
+
+def case_t47_archived_summary(r, root):
+    """T47 c3: an open summary whose spec KB was archived (spec-triage archive) lapses at 28 days, like
+    other summaries: archive is a human decision, so its missing dir reads as archived, not as unknown. A
+    summary whose kb dir is missing and was never archived still stays open (fail-safe)."""
+    stub = write_stub(root)
+    h = spec_hub(root, "t47-c3-hub", {"spec-x": None})
+    d = fresh(r, root, "t47-c3")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+
+    def t(*args, **kw):
+        return hf(r, d, *args, hub=h, extra_env=env, **kw)
+
+    tid = add(r, d, "thread", "Ticket spec-x", "--ref", "kb:spec-x", now="2026-12-07T12:00:00Z")
+    sid = add(r, d, "summary", "Standup on spec-x", "--ref", "kb:spec-x", now="2026-12-07T12:00:00Z")
+    gone = add(r, d, "summary", "Standup on a spec KB that is not there", "--ref", "kb:spec-gone", now="2026-12-07T12:00:00Z")
+    t("close", tid, "--reason", "done", "--by", "human", "--note", "\"the ticket is closed\" (Me)", now="2026-12-08T12:00:00Z")
+    shutil.rmtree(os.path.join(h, "specs", "spec-x"))  # the human's `git rm -r specs/spec-x`
+    res = t("spec-triage", "spec-x", "archive", "--note", "git rm done, history keeps it", now="2026-12-14T12:00:00Z")
+    r.check("t47-c3-setup-archived", res[0] == 0 and "spec-x archive" in res[1], res)
+    res = t("rotate", "--week-start", "2027-01-04", "--yes", now="2027-01-04T12:00:00Z")
+    r.check("t47-c3-archived-summary-lapses-at-28-days", res[0] == 0 and sid in (listed(res[1], "lapsed:") or [])
+            and status(d, sid) == "lapsed", (res, status(d, sid)))
+    r.check("t47-c3-missing-unarchived-kb-stays-open", status(d, gone) == "open" and gone not in (listed(res[1], "lapsed:") or []),
+            (res, status(d, gone)))
 
 
 def case_t40_words_and_refs(r, root):
@@ -2830,7 +2981,8 @@ def case_mt_schema_v4(r, root):
     r.check("mt-schema-v3-db-needs-migrate", res[0] == 2 and "migrate" in res[2], res)
     res = hf(r, d, "migrate")
     n = script_version(r.script)
-    r.check("mt-schema-migrate-v3-to-v4", res[0] == 0 and n == 4 and q(d, "pragma user_version") == [(4,)], res)
+    # T47 c2: the script is at schema 5, so migrate takes the v3 db through v4 to 5
+    r.check("mt-schema-migrate-v3-to-v4", res[0] == 0 and n >= 4 and q(d, "pragma user_version") == [(n,)], res)
     r.check("mt-schema-migrate-backup", os.path.exists(os.path.join(d, "flow.db.bak-v3")), os.listdir(d))
     names = {x[0] for x in q(d, "select name from sqlite_master")}
     r.check("mt-schema-meeting-tables-dropped", not ({"meeting", "meeting_turn"} & names), sorted(names))
@@ -2948,6 +3100,10 @@ def cases(r):
         run_case(r, case_t42_precaution, root)
         run_case(r, case_t42_check_names, root)
         run_case(r, case_t42_lapsed_waiver, root)
+        # T47: the T42 follow-ups
+        run_case(r, case_t47_waiver_guard, root)
+        run_case(r, case_t47_park_time, root)
+        run_case(r, case_t47_archived_summary, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))
