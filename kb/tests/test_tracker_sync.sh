@@ -192,7 +192,9 @@ t_TS8() { project_kb
           okb "$P" query 'pin(p1, _, _, D1, _), pin(p2, _, _, D2, _), D1 \== D2'; rc_is 0 "a changed text has another digest"
           okb "$P" query 'stale_pin(p1)'; rc_is 0 "the older pin of a source is stale (T06 c2)"
           okb "$P" query 'stale_pin(p2)'; rc_is 1 "the newest pin is not stale"
-          add_draft d1 p1 'Reword the sort title' "$T1"
+          # T43 c3 amended: staged at T3, after the tracker change, so the draft wins by date and is
+          # listed (staged at T1 it would lose to the tracker change at T2, and not be listed)
+          add_draft d1 p1 'Reword the sort title' "$T3"
           okb "$P" draft outbound; rc_is 0
           local s; s=$(section d1)
           printf '%s\n' "$s" | grep -Eq '^- Pin: p1$' || note "the draft names the pin it was made against (p1), not the newest"

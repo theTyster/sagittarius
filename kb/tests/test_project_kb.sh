@@ -366,18 +366,18 @@ t_PC1() { pk_basic; K=$T/pk; tracker_changed p2 "$T2"; stage dr1 "$T3"
           is_set 'dropped(D, S)' 'D = dr1, S = tracker' "the tracker text is dropped"; }
 # tracker unchanged since the pin: the draft is later and wins
 t_PC2() { pk_basic; K=$T/pk; stage dr1 "$T2"
-          is_false 'conflict(dr1)'; is_set 'supersedes_by_date(D, S)' 'D = dr1, S = draft'
+          is_set 'supersedes_by_date(D, S)' 'D = dr1, S = draft'   # T43 c3 amended: is_false 'conflict(dr1)' dropped (conflict/1 is gone)
           is_true 'outbound(dr1)'; is_false 'dropped(dr1, S)' "the draft wins: nothing dropped (the tracker did not change)"; }
 # draft staged before the pin's ChangedAt, tracker changed later: the tracker is later and wins
 t_PC3() { pk_basic; K=$T/pk; tracker_changed p2 "$T3"
           padd "draft(dr1, p1, 'An old edit', '2026-02-28T09:00:00Z')" >/dev/null
-          is_false 'conflict(dr1)'; is_set 'supersedes_by_date(D, S)' 'D = dr1, S = tracker'
+          is_set 'supersedes_by_date(D, S)' 'D = dr1, S = tracker'   # T43 c3 amended: is_false 'conflict(dr1)' dropped (conflict/1 is gone)
           is_set 'dropped(D, S)' 'D = dr1, S = draft' "the dropped edit is recorded"
           is_false 'outbound(dr1)' "a dropped draft is not pushed"
           has_fact "$K/kb.pl" "draft(dr1, _, _, _)" "the draft is still in kb.pl, never lost"; }
 # the boundary: staged exactly at the pin's ChangedAt is not after it
-t_PC4() { pk_basic; K=$T/pk; tracker_changed p2 "$T3"; stage dr1 "$T1"
-          is_false 'conflict(dr1)' "staged at ChangedAt is not after it"; is_set 'supersedes_by_date(D, S)' 'D = dr1, S = tracker'; }
+t_PC4() { pk_basic; K=$T/pk; tracker_changed p2 "$T3"; stage dr1 "$T1"   # T43 c3 amended: is_false 'conflict(dr1)' dropped (conflict/1 is gone)
+          is_set 'supersedes_by_date(D, S)' 'D = dr1, S = tracker'; }
 # the third case: the tracker changed after the pin, the draft staged after the pin AND after the tracker change
 # T43 c3 amended (was: both are conflicts): the latest tracker change (T3) is the one that counts.
 t_PC5() { pk_basic; K=$T/pk; tracker_changed p2 "$T2"; tracker_changed p3 "$T3"; stage dr1 "$T4"

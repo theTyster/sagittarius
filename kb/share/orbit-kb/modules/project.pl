@@ -54,8 +54,8 @@ decl(fact, pushed(ref(draft), time),
      'The draft was pushed to the tracker at the time.',
      'draft @(1) was pushed at @(2)').
 decl(fact, resolved(ref(draft), oneof([draft, tracker]), time),
-     'A human settled the conflict of the draft, and named the side that stays: the draft, or the tracker.',
-     'the conflict of draft @(1) was settled for the @(2)').
+     'A human settled the draft, and named the side that stays: the draft, or the tracker. It wins over the dates (T43).',
+     'draft @(1) was settled for the @(2)').
 % T27: writer_takeover/3 is declared in core.pl: every KB has the writer lock.
 decl(fact, project_kb(text),
      'In a spec KB: the directory of the project KB, relative to this KB or absolute.',
@@ -77,15 +77,9 @@ decl(rule, decision_digest(ref(decision), digest),
 decl(rule, project_decision_digest(atom, digest),
      'The sha256 of the text of a decision, a definition or a rule in the project KB of project_kb/1, as it is now. orbit-kb computes it when it reads the KB.',
      '@(1) of the project KB has digest @(2) now').
-decl(rule, project_draft_text(atom, text),
-     'The text of a draft of the project KB that is in conflict (see project_conflict). orbit-kb computes it when it reads the KB.',
-     'the conflicting draft @(1) says: @(2)').
 decl(rule, project_kb_unclean,
      'The project KB of project_kb/1 does not load clean: lint finds an error in it, so a conflict could hide there. orbit-kb computes it when it reads the KB.',
      'the project KB does not load clean').
-decl(rule, project_conflict(atom, atom),
-     'A draft of the project KB is in conflict, and its pin is one that the decision or definition rests on, and that fact is not proposed. orbit-kb computes it when it reads the KB.',
-     'draft @(1) of the project KB is in conflict, and @(2) rests on its pin').
 decl(rule, rests_on(ref, ref),
      'The first fact depends on the second through one or more depends_on facts (D27). orbit-kb computes it when it reads the KB.',
      '@(1) rests on @(2)').
@@ -118,12 +112,15 @@ decl(rule, tracker_latest(ref(pin), time),
 decl(rule, stale_pin(ref(pin)),
      'The pin is old. A file pin: the file now has another digest, or is missing. A tracker pin: a newer change time is recorded for the same source.',
      'pin @(1) is old').
-decl(rule, conflict(ref(draft)),
-     'The tracker changed after the pin, and the draft was staged after the pin, and no human settled it. Both edits are new, so only a human can pick.',
-     'draft @(1) conflicts with a change of the tracker').
+decl(rule, both_changed(ref(draft), time),
+     'The tracker changed after the pin of the draft, and the draft was staged after the pin too: both edits are new (T43). The time is the latest change of the tracker.',
+     'draft @(1) and the tracker (last changed at @(2)) both changed after the pin').
 decl(rule, supersedes_by_date(ref(draft), oneof([draft, tracker])),
-     'Not a conflict, and no human settled it: the later edit wins. The draft wins when the tracker did not change after the pin. The tracker wins when the draft was staged no later than the pin.',
+     'No human settled it: the later edit wins (T43, u123). The draft wins when the tracker did not change after the pin, or when both changed and the draft was staged after the latest change of the tracker. The tracker wins when the draft was staged no later than the pin, or when both changed and the tracker changed at the staged time or later: on equal times the tracker wins (u66).',
      'for draft @(1), the later edit is the @(2)').
+decl(rule, lost_by_date(ref(draft), oneof([draft, tracker])),
+     'Both changed after the pin, no human settled it, and the dates dropped the edit of this side (T43). orbit-kb project dropped records it in the hub ledger.',
+     'for draft @(1), the edit of the @(2) lost by date').
 decl(rule, dropped(ref(draft), oneof([draft, tracker])),
      'The edit of this side lost, by date or by the choice of a human. It stays in kb.pl: this is the record.',
      'for draft @(1), the edit of the @(2) was dropped').
@@ -146,7 +143,7 @@ decl(rule, project_pinned(atom),
      'In a spec KB: a claim pins this fact of the project KB directly (D27).',
      'a claim pins @(1) of the project KB').
 decl(rule, outbound(ref(draft)),
-     'The draft is not pushed yet, is no conflict, and did not lose.',
+     'The draft is not pushed yet, and did not lose.',
      'draft @(1) waits to be pushed').
 
 tracker_changed_after(P, C2) :- pin(P, tracker, Src, _, C), pin(_, tracker, Src, _, C2), C2 @> C.
@@ -156,18 +153,25 @@ stale_pin(P) :- pin(P, file, S, D, _), subject_now(S, Now), Now \== D.
 stale_pin(P) :- pin(P, file, S, _, _), not subject_now(S, _).
 stale_pin(P) :- pin(P, tracker, _, _, _), tracker_changed_after(P, _).
 
-conflict(D) :- draft(D, P, _, S), pin(P, tracker, _, _, C), tracker_changed_after(P, _),
-               S @> C, not resolved(D, _, _).
+% T43 c3 (u123, u66): when both sides changed after the pin, the dates decide; there is no
+% conflict that blocks. On equal times the tracker wins. A human's resolved/3 wins over the dates.
+both_changed(D, T) :- draft(D, P, _, S), pin(P, tracker, _, _, C), S @> C, tracker_latest(P, T).
 
 supersedes_by_date(D, draft) :- draft(D, P, _, _), not tracker_changed_after(P, _), not resolved(D, _, _).
+supersedes_by_date(D, draft) :- both_changed(D, T), draft(D, _, _, S), S @> T, not resolved(D, _, _).
 supersedes_by_date(D, tracker) :- draft(D, P, _, S), pin(P, _, _, _, C), tracker_changed_after(P, _),
                                   not (S @> C), not resolved(D, _, _).
+supersedes_by_date(D, tracker) :- both_changed(D, T), draft(D, _, _, S), not (S @> T), not resolved(D, _, _).
+
+lost_by_date(D, draft) :- both_changed(D, _), supersedes_by_date(D, tracker).
+lost_by_date(D, tracker) :- both_changed(D, _), supersedes_by_date(D, draft).
 
 dropped(D, draft) :- supersedes_by_date(D, tracker).
+dropped(D, tracker) :- lost_by_date(D, tracker).
 dropped(D, draft) :- resolved(D, tracker, _).
 dropped(D, tracker) :- resolved(D, draft, _).
 
-outbound(D) :- draft(D, _, _, _), not pushed(D, _), not conflict(D), not dropped(D, draft).
+outbound(D) :- draft(D, _, _, _), not pushed(D, _), not dropped(D, draft).
 
 % D27: the two sides, product rules, and their relations.
 current_fact(X) :- decision(X, _), not superseded(X).
@@ -187,10 +191,8 @@ project_pinned(X) :- pins(_, project, X, _).
 blocking(project_contradiction(X)) :- project_contradiction(X, _), project_pinned(X).
 any_project_conflict :- blocking(project_contradiction(_)).
 
-% A conflict blocks a spec KB that pins a decision that rests on the pin.
-blocking(project_conflict(Dr)) :- project_conflict(Dr, Dec), pins(_, project, Dec, _).
+% T43 c3: a draft blocks no spec KB (the dates decide). A project KB that does not load clean does.
 blocking(project_kb_unclean) :- project_kb_unclean.
-any_project_conflict :- blocking(project_conflict(_)).
 any_project_conflict :- blocking(project_kb_unclean).
 
 % ---------------------------------------------------------------------
