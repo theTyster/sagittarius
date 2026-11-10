@@ -810,5 +810,64 @@ class Discovery(unittest.TestCase):
         self.assertEqual((p.returncode, p.stdout, p.stderr), (0, "", ""))
 
 
+class T43C1Questions(unittest.TestCase):
+    """T43 c1 (u123 + u44): h_divergence takes the tested candidate wording (fy28,
+    tmp/hub-design-kb/s1/hook_cal2_v2.py) word for word; the other four questions keep the
+    shipped text (as of e040de6). No model call (u119): this reads the file only."""
+
+    H_DIVERGENCE = ("Does the newest message in `message` say or suggest that the agent's own result, plan, or "
+                    "reading of the request is wrong, missed something, or is not what was meant? Doubt, surprise or a "
+                    "pointed question about the agent's work counts. A report of a problem in the system that the agent "
+                    "did not cause, a new request, or a change of preference does not count.")
+    SHIPPED = {
+        "h_work": {
+            "type": "choice",
+            "instructions": "What kind of work does the newest message in `message` ask for, given the conversation in `recent`?",
+            "criteria": {
+                "research": "Learn how something behaves now, or whether a problem is real",
+                "specify": "Decide or state what must become true: requirements, examples, a plan",
+                "build": "Change code, configuration or documents",
+                "verify": "Check, test or review work that was done",
+                "question": "An answer or advice only, with no change to make",
+                "other": "None of these, such as a greeting or thanks",
+            },
+        },
+        "h_change_of_plan": {
+            "type": "noul",
+            "instructions": "Does the newest message in `message` change what is wanted: a new goal, a dropped part, or a new preference, while the earlier result did match what was asked at the time?",
+        },
+        "h_effort": {
+            "type": "noul",
+            "instructions": "Does the newest message in `message` show significant effort by its writer: long, detailed, carefully reasoned, or a decision written out in full?",
+        },
+        "h_language": {
+            "type": "choice",
+            "instructions": "If the work in `message` needs a formal tool to settle what is meant, which fits the claim best?",
+            "criteria": {
+                "prolog": "Decisions, rules, ownership, who knows what: facts and rules to query",
+                "lean": "A property for every input, or a proof is asked for",
+                "z3": "Combinations of rules, limits, prices or permissions",
+                "tla": "Orders of steps, retries, timeouts, concurrency",
+                "tests": "Behavior on concrete cases is enough",
+                "none": "No formal tool is needed",
+            },
+        },
+    }
+
+    def load(self):
+        with open(os.path.join(HERE, "questions.json"), encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_t43_c1_h_divergence_is_the_tested_wording(self):
+        q = self.load()
+        self.assertEqual(q["h_divergence"], {"type": "noul", "instructions": self.H_DIVERGENCE})
+
+    def test_t43_c1_other_four_questions_unchanged(self):
+        q = self.load()
+        self.assertEqual(sorted(q), sorted(QIDS))
+        for k, v in self.SHIPPED.items():
+            self.assertEqual(q[k], v, k)
+
+
 if __name__ == "__main__":
     unittest.main()
