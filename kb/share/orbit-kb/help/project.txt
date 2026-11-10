@@ -74,16 +74,25 @@ Queries (the derived answers)
                                 change (also a draft staged at or before the pin, T45), or the
                                 tracker lost when both changed after the pin. A pushed draft
                                 (pushed/2) never loses by date: its text reached the tracker (T45)
+  pushed_over(D, P)             the push of draft D overwrote the tracker edit of pin P: P is a newer
+                                pin of the same tracker item, changed after the pin of D, after its
+                                staging and before pushed(D, T), and no resolved/3 settled it (T46)
   dropped(D, Side)              the side that lost, by date or by resolved (a pushed draft is
-                                dropped only by resolved). The facts stay in kb.pl:
-                                this is the record.
+                                dropped only by resolved); the tracker side also by pushed_over
+                                (T46). The facts stay in kb.pl: this is the record.
   decision_digest(D, Digest)    the sha256 of the text of the decision (computed)
   subject_now(S, Digest)        the digest of the file of the subject now (computed)
 When the tracker and a draft both changed after the pin, it is not a conflict that blocks: the
 dates decide, and nothing blocks a spec KB for a draft. A human who disagrees adds
 resolved(D, draft|tracker, Time). So that a dropped edit is not lost quietly, pin-item and
 draft blocking, attach and outbound record each new drop in the hub ledger themselves (T45), and
-project dropped does it by hand. The ledger item is escalated: only a human closes it, on purpose
+project dropped does it by hand. A push over a newer tracker edit (pushed_over) is recorded too
+(T46): one note on the open ledger item of the drop of the draft, else one new item; once.
+The record is written in the session of --session S, else HUB_SESSION. A pane gets HUB_SESSION
+where it is started, in the hub: cd "$HUB" && HUB_SESSION=<name> claude --name "hub-<name>"
+(hubkit/INSTRUCTIONS.md, Step 5; <name> is a session of flow/seed.json). In a pane with no
+HUB_SESSION and no --session, the ledger refuses the record: the command warns on stderr, names
+project dropped --session S, and exits 0. The ledger item is escalated: only a human closes it, on purpose
 (hubflow close ID --reason done --by human --session human --note "<their words>"). An agent's close is refused as a dropped edit.
 A contradiction is the blocking item project_contradiction(X) for each spec KB with a claim that
 pins X directly. A spec KB that reaches X only through rests_on gets the warning WP5, not a block.
@@ -121,7 +130,9 @@ Commands
       resolved gets no item: a human chose it. It writes nothing to the KB. It escalates each new
       item (hubflow triage ID escalate): only a human closes it. pin-item and draft blocking,
       attach and outbound do the same by themselves for each new drop, and print the item id; with
-      no hub they print one line that names the drop and this command (T45).
+      no hub they print one line that names the drop and this command (T45). Each pushed_over(D, P)
+      gets one note on the open item of the drop of D (status open or waiting), else one new
+      escalated item; a note or item that names D and P already is skipped (T46).
   orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file] [--hub DIR] [--session S]
       records the pin. A tracker pin keeps the pinned text as pins/HEX.txt (HEX of the digest), so
       a draft is an edit of that text. A file pin (--kind file, a week's report) keeps only its
