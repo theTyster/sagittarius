@@ -1537,14 +1537,32 @@ pv9_body() {  # pv9_body DIR: the usage errors of prove; DIR holds the loose fil
           okb --dir "$K" prove c1 "$T/nope.lean" load_linear; rc_is 2 "no such file"
           printf 'theorem t : True := trivial\n' > "$1/loose.lean"; okb --dir "$K" prove c1 "$1/loose.lean" t; rc_is 2 "no Lake project"; any_has 'lakefile'
           okb --dir "$K" prove c1; rc_is 2 "usage"; }
+lakefree_dir() {  # lakefree_dir: print a new dir with no lakefile in it or above it, or nothing. The "no Lake project"
+    # case must not depend on what sits above $TMPDIR (T44 c3): a stray Lean project in /tmp made PV9 red.
+    local root d p
+    for root in /dev/shm /var/tmp "${XDG_RUNTIME_DIR:-}" "${HOME:-}"; do
+        [ -n "$root" ] && [ -d "$root" ] && [ -w "$root" ] || continue
+        d=$(mktemp -d "$root/orbit-kb-nolake.XXXXXX" 2>/dev/null) || continue
+        d=$(cd "$d" && pwd -P); p=$d
+        while :; do
+            if [ -e "$p/lakefile.toml" ] || [ -e "$p/lakefile.lean" ]; then break; fi
+            [ "$p" = / ] && { printf '%s\n' "$d"; return 0; }
+            p=$(dirname "$p")
+        done
+        rmdir "$d"
+    done
+    return 1
+}
 t_PV9() { lean_proj || return 0; local d
-          d=$T; pv9_body "$d"; }
+          d=$(lakefree_dir) || { skip_test "no writable dir without a lakefile above it"; return 0; }
+          pv9_body "$d"; rm -rf "$d"; }
 # T44 c3: a lakefile.toml in the parent of the test's own temp dir does not change PV9. The parent is the run's
 # private base dir; the file is removed at the end, and nothing is made outside it.
 t_PV9b() { lean_proj || return 0; local d stray; stray=$(dirname "$T")/lakefile.toml
           [ -e "$stray" ] && { note "a lakefile.toml is already in the parent of the temp dir"; return 0; }
           printf 'name = "stray"\n' > "$stray"
-          d=$T; pv9_body "$d"; rm -f "$stray"; }
+          d=$(lakefree_dir) || { rm -f "$stray"; skip_test "no writable dir without a lakefile above it"; return 0; }
+          pv9_body "$d"; rm -rf "$d"; rm -f "$stray"; }
 # D10 follow-up: the log records the statement (MS) and the absent config files (F7); a
 # config file that changes, or appears, reopens the burn (MC, F7).
 t_PV10() { lean_proj || return 0

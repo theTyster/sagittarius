@@ -1006,8 +1006,10 @@ def cmd_init(g, a):
     c.close()
 
 
-def common_item_opts(o):
+def common_item_opts(g, o):
     refs = [parse_ref(x) for x in o.get("ref", [])]
+    if any(k == "kb" for k, _ in refs):
+        formal_only(g, "a kb ref")  # T44 c1: no kb ref on any path of an informal hub
     if o.get("title") is not None:
         check_title(o["title"])
     if o.get("analysis") is not None:
@@ -1032,7 +1034,7 @@ def cmd_add(g, a):
     status = o.get("status", "open")
     if status not in OPEN:
         raise Bad("--status is open or waiting (close with the close command)")
-    refs = common_item_opts(o)
+    refs = common_item_opts(g, o)
 
     def fn(c, w):
         if o.get("owner") == "none":
@@ -1054,7 +1056,7 @@ def cmd_handoff(g, a):
         usage("handoff --to S --title T [--gate G] [--analysis SLUG] [--ref KIND:REF ...] [--note N]")
     if o.get("analysis") is not None:
         formal_only(g, "--analysis")
-    refs = common_item_opts(o)
+    refs = common_item_opts(g, o)
 
     def fn(c, w):
         frm = w.session
@@ -1331,6 +1333,8 @@ def cmd_show(g, a):
               + (f"; {len(caps) - 1} older capsule(s) in --format json" if len(caps) > 1 else ""))
         print()
     for k, v in d["item"].items():
+        if k == "analysis" and informal(g):  # T44 c1: an informal hub shows no analysis line
+            continue
         print(f"{k}: {'' if v is None else v}")
     if d["handoff"]:
         print("handoff: " + ", ".join(f"{k}={'' if v is None else v}" for k, v in d["handoff"].items() if k != "item_id"))
@@ -2545,6 +2549,7 @@ INFORMAL_ONLY_COMMANDS = ("where", "spec-triage", "skip-waived")  # they read a 
 # The informal --help: the formal text, with these edits (old regex, new text). A pattern that no
 # longer matches leaves a formal word in the help, and docs/check_informal_hub.py t36c1 fails.
 INFORMAL_HELP = (
+    (r"(set --status\n\s+)or ref rm the kb ref of an item that is escalated\n\s+or whose spec KB blocks", "\\1of an item that is escalated"),
     (r" \[--analysis SLUG(\|none)?\]", ""),
     (r"\n\s+or whose spec KB blocks", ""),
     (r"\n\s+linked spec KB; it never runs one", ""),
