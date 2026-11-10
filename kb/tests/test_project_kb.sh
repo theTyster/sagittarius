@@ -52,6 +52,8 @@
 #   c2 show pin of a pin taken before byte digests; the re-pin recipe       : PF12
 #   c3 spec_kbs.txt: register under the project KB lock; two looks to prune : PF13 (PF10 amended)
 #   c5 archive --root warns about a registered spec KB outside the root     : PF14
+# T42 (follow-ups of the T39 verify):
+#   c8 help build's CI example agrees with stale_pin (one source; check again) : PE2
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -856,6 +858,28 @@ t_PE1() { okb init "$T/ek" --request 'CI must pass' --uses build,project >/dev/n
           okb --dir "$K" lint; rc_is 0 "lint is clean"
           okb help build; out_has 'CI' "help build names a CI run"; out_has 'pin-item' "and pin-item"; out_has 'show pin' "and the check that reads the pin"; }
 
+# PE2 (T42 c8): the CI example of help build agrees with stale_pin (D27 P2, T10). Its pin-item lines, run as
+# printed, pin both runs under one source, so the older pin is stale and the newer is not; and the text says
+# that a newer run needs the check run again (a check reads one pin).
+t_PE2() { okb init "$T/ek2" --request 'CI must pass' --uses build,project >/dev/null 2>&1 || note "setup: init failed"; K=$T/ek2
+          okb help build; rc_is 0 "help build"
+          local sec; sec=$(printf '%s\n' "$out" | awk '/^A result from CI or the tracker/{on=1; next} on && /^[^ ]/{exit} on')
+          [ -n "$sec" ] || note "help build has no section 'A result from CI or the tracker'"
+          local re="pin-item ([a-z0-9]+) '([^']+)' --text-file [^ ]+ --changed-at ([0-9TZ:-]+)" line ids=() n=0
+          while IFS= read -r line; do
+              [[ $line =~ $re ]] || continue
+              n=$((n+1)); ids+=("${BASH_REMATCH[1]}")
+              printf 'run %s\n' "$n" > "$T/run$n.txt"
+              okb --dir "$K" pin-item "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" --text-file "$T/run$n.txt" --changed-at "${BASH_REMATCH[3]}"
+              rc_is 0 "the example line $n runs: $line"
+          done <<< "$sec"
+          [ "$n" -ge 2 ] || note "the example pins $n run(s); it must pin the older and the newer run"
+          if [ "$n" -ge 2 ]; then
+              is_true "stale_pin(${ids[0]})" "the older pin of the example is stale"
+              is_false "stale_pin(${ids[$((n-1))]})" "the newer pin of the example is not stale"
+          fi
+          printf '%s\n' "$sec" | grep -Eiq 'check (it )?again|run the check again|again on the new' || note "the section says to run the check again on a newer run"; }
+
 # PT8 (c8): pin-item keeps the pinned text at pins/HEX.txt; show pin ID prints it.
 t_PT8() { t23_pk; printf 'Title: Sort orders\nBody: sort by date\n' > "$T/item.txt"
           local h; h=$(sha "$T/item.txt")
@@ -1221,6 +1245,7 @@ run_test t_PT5 PT5 "T23 c5: analyses live in the project KB (WP6); a week's repo
 run_test t_PT6 PT6 "T23 c6: every new relation refuses a dangling reference (E4); help codes lists them"
 run_test t_PT7 PT7 "T23 c7: CONTRACT D27 notes the Lean limit again"
 run_test t_PE1 PE1 "T39 c2: a CI or tracker run is pinned with pin-item; a check reads the pin; the claim is fulfilled"
+run_test t_PE2 PE2 "T42 c8: the CI example of help build agrees with stale_pin: one source, the older pin is stale"
 run_test t_PT8 PT8 "T23 c8: pin-item keeps the pinned text at pins/HEX.txt; show pin ID prints it"
 run_test t_PT9 PT9 "T23 c9: project archive removes superseded facts that nothing keeps"
 run_test t_PF1 PF1 "T34 c1: archive removes the facts that name an archived id; lint is clean after it"

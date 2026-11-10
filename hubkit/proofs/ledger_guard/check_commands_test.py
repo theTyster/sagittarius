@@ -10,8 +10,9 @@ mutant copy below (a cmd_spec_triage that could change an item) it prints
 T40 c7: rotate is modelled (Cmd.rotate). check_commands.py checks its guard in hubflow.py (an escalated
 summary, or one whose kb answer is not clear, does not lapse); each rotate mutant below must print
 `FAIL rotate: the modelled rotate guard does not hold in hubflow.py: ...`.
-T40 c13: skip-waived is modelled (Cmd.skipWaived). check_commands.py checks that its write function
-leaves an escalated item open; each skip-waived mutant below (it closes an escalated item) must print
+T40 c13: skip-waived is modelled. check_commands.py checks that its write function leaves an escalated
+item open; T42 c2, c4: that it checks the kb refs again in the write, and that it parks, never drops.
+Each skip-waived mutant below must print
 `FAIL skip-waived: the modelled skip-waived guard does not hold in hubflow.py: ...`.
 Prints `PASS name` or `FAIL name: why` per check; the last line is `N passed, M failed`.
 Exit 0 only if every check passes.
@@ -89,6 +90,17 @@ SKIP_MUTANTS = [
     ("skip-waived-tests-a-status-not-the-escalation",
      "if is_escalated(c, iid):  # escalated stays for the human",
      "if it[\"status\"] == \"escalated\":"),
+    # T42 c2: the write does not check the kb refs again (Cmd.skipWrite without the recheck)
+    ("skip-waived-write-skips-kb-recheck",
+     'if not refs or any(k["state"] != "clear" for k in checks):  # recheck in the write',
+     "if False:"),
+    ("skip-waived-recheck-fails-open",
+     'if not refs or any(k["state"] != "clear" for k in checks):  # recheck in the write',
+     'if not refs or any(k["state"] == "blocking" for k in checks):  # recheck in the write'),
+    # T42 c4: the write drops the item instead of parking it
+    ("skip-waived-drops-the-item",
+     'c.execute("UPDATE item SET parked_until = ? WHERE id = ?", (until, iid))',
+     'c.execute("UPDATE item SET status = \'dropped\', parked_until = ? WHERE id = ?", (until, iid))'),
 ]
 
 results = []
