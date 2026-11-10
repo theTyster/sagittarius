@@ -75,6 +75,10 @@ ROTATE_MUTANTS = [
     ("rotate-held-check-outside-the-write",
      "        held = kb_held_summaries(c, hub_dir(g), lapse)  # inside the write\n",
      "        held = set()\n"),
+    # T47 c1: a summary whose spec KB is clear only by a live waiver stays open
+    ("rotate-lapses-waived-summary",
+     "elif refs and live_waiver(kb_checks(hub, refs)):  # T47 c1: the waiver holds it for its time",
+     "elif False:"),
     ("rotate-lapses-other-kinds",
      "\"SELECT id FROM item WHERE status IN ('open','waiting') AND kind = 'summary'\"",
      "\"SELECT id FROM item WHERE status IN ('open','waiting')\""),

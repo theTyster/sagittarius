@@ -114,7 +114,8 @@ def decl(text, key):
 
 
 def lean(path):
-    p = subprocess.run(["lake", "env", "lean", path], cwd=HERE, capture_output=True, text=True)
+    # T47: a mutant can make more than Lean's default 100 errors; then Lean stops before #print axioms
+    p = subprocess.run(["lake", "env", "lean", "-DmaxErrors=100000", path], cwd=HERE, capture_output=True, text=True)
     return p.returncode, p.stdout + p.stderr
 
 

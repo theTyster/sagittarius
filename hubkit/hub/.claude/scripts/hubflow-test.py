@@ -57,7 +57,9 @@ MUTANTS = [
     ("analysis-w-slot-check-dropped", "if W_SLOT.match(v):  # W-slot check", "if False:"),
     ("export-dropped-from-write", "export_all(c, d)  # in the write transaction", "pass"),
     ("accept-by-any-session", "if me != to_session:  # only the to_session accepts", "if False:"),
-    ("park-ignored-by-rotate", "(parked_until IS NULL OR parked_until < ?)", "1 = 1"),
+    # T47 c2: the park's end is a time (a date D ends at DT24:00:00Z); the anchor follows the new SQL
+    ("park-ignored-by-rotate", "(parked_until IS NULL OR (CASE WHEN length(parked_until) = 10\"\n"
+     "                    \" THEN parked_until || 'T24:00:00Z' ELSE parked_until END) <= ?)", "(1 = 1 OR \"\n                    \"? IS NULL)"),
     ("issue-ref-digits-dropped", "if not re.fullmatch(r\"\\d+\", ref):  # digits check", "if False:"),
     ("handoff-owner-not-to", "owner_session = to  # handoff owner is the to_session", "owner_session = frm"),
     ("owner-default-dropped", "owner = resolve_active(c, o.get(\"owner\") or w.session)", "owner = resolve_active(c, o[\"owner\"]) if o.get(\"owner\") else None"),
@@ -88,6 +90,11 @@ MUTANTS = [
     ("skip-waived-counts-lapsed-waivers", "not waiver_lapsed(W), (check(T, _C)", "(check(T, _C)"),
     # T47 c1: agent_guard reads the live waiver that a clear spec KB rests on (close, set --status, ref rm kb)
     ("agent-guard-skips-waiver-read", "hold = live_waiver(checks) if waiver and not esc else None  # waiver read", "hold = None"),
+    ("agent-may-lapse-waived", 'elif disp == "lapse":  # T47 c1: a live waiver ends the item only for its time', "elif False:"),
+    ("rotate-lapses-waived-summary", "elif refs and live_waiver(kb_checks(hub, refs)):  # T47 c1: the waiver holds it for its time",
+     "elif False:"),
+    # T47 c3: an archived spec KB reads as archived, not as unknown
+    ("archived-kb-reads-unknown", "if not spec_archived(c, hub, r[0])]  # archived: a human decision, not unknown", "]"),
     ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
     ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
     ("capsule-without-rev", "rev = git_head(hub_dir(g))  # capsule rev", "rev = None"),
@@ -1296,7 +1303,10 @@ def case_escalate(r, root):
     res = t("triage", "A-0006", "lapse", "--note", "no spec KB")
     calls2 = open(log, encoding="utf-8").read().splitlines() if os.path.exists(log) else []
     r.check("c2-no-kb-ref-no-query", res[0] == 0 and status(d, "A-0006") == "lapsed" and calls2 == calls, (res, calls2[len(calls):]))
-    r.check("c2-only-queries-the-kb", calls and all(x.split()[0] == "--dir" and x.split()[2:] in (["query", "blocking(X)"], ["query", "blocking(X)", "-n", "0"]) for x in calls), calls)
+    # T47 c1: an agent's lapse of an item whose KB reads clear also asks for the live waivers (a query)
+    r.check("c2-only-queries-the-kb", calls and all(x.split()[0] == "--dir" and (x.split()[2:] in (["query", "blocking(X)"], ["query", "blocking(X)", "-n", "0"])
+                                                      or (x.split()[2] == "query" and x.split()[3].startswith("attest(W,") and x.split()[-2:] == ["-n", "0"]))
+                                    for x in calls), calls)
     code, out, err = t("view", "open", "--format", "json")
     v = js(out) or []
     r.check("c2-escalated-at-top-of-view", [x["id"] for x in v][:4] == ["A-0001", "A-0003", "A-0004", "A-0005"]
@@ -1316,7 +1326,7 @@ def case_escalate(r, root):
     res = t("triage", "A-0001", "lapse", "--by", "human", "--note", "\"drop it, the spec moved\" (Me)")
     r.check("c2-human-may-lapse-blocking", res[0] == 0 and status(d, "A-0001") == "lapsed" and disp(d, "A-0001")[-1][:2] == ("lapse", None), res)
     calls = open(log, encoding="utf-8").read().splitlines() if os.path.exists(log) else []
-    r.check("c2-never-writes-the-kb", not any("attest" in x or "add" in x.split() for x in calls), calls)
+    r.check("c2-never-writes-the-kb", calls and all(x.split()[2] == "query" for x in calls), calls)
 
 
 def git_hub(path):
@@ -1546,9 +1556,9 @@ def case_t39_waiver(r, root):
     kb_before = {s: tree(k) for s, k in kbs.items()}
     code, out, err = hf(r, d, "skip-waived", hub=h, extra_env=env)
     r.check("t39c3-exit-0", code == 0, out + err)
-    r.check("t39c3-waived-item-is-parked-until-the-due-date", parked(d, "T-0001") == ("open", "2099-01-01"), parked(d, "T-0001"))
+    r.check("t39c3-waived-item-is-parked-until-the-due-date", parked(d, "T-0001") == ("open", "2099-01-01T00:00:00Z"), parked(d, "T-0001"))
     e = ev(d, "T-0001")
-    r.check("t39c3-event-names-the-kb-and-the-waiver", e[-1][:3] == ("parked", None, "2099-01-01") and "spec-w" in (e[-1][5] or "")
+    r.check("t39c3-event-names-the-kb-and-the-waiver", e[-1][:3] == ("parked", None, "2099-01-01T00:00:00Z") and "spec-w" in (e[-1][5] or "")
             and "the human skips this" in (e[-1][5] or ""), e)
     r.check("t39c3-lists-parked", listed(out, "parked:") == ["T-0001"], out)
     r.check("t39c3-others-stay-open", all(parked(d, i) == ("open", None) for i in ("A-0001", "A-0002", "A-0003", "A-0004")),
@@ -2422,7 +2432,7 @@ def case_t40_skip_waived_escalated(r, root):
     r.check("t40-c13-escalated-item-stays-open", parked(d, esc) == ("open", None), parked(d, esc))
     r.check("t40-c13-output-names-the-escalated-item",
             any(x.startswith("escalated: ") and esc in x.split() and "triage" in x for x in out.splitlines()), out)
-    r.check("t40-c13-non-escalated-item-parked", parked(d, plain) == ("open", "2099-01-01") and listed(out, "parked:") == [plain],
+    r.check("t40-c13-non-escalated-item-parked", parked(d, plain) == ("open", "2099-01-01T00:00:00Z") and listed(out, "parked:") == [plain],
             (parked(d, plain), out))
     e = ev(d, esc)
     r.check("t40-c13-no-close-or-park-event-on-the-escalated-item", not any(x[0] in ("closed", "parked") for x in e), e)
@@ -2547,7 +2557,7 @@ def case_t42_skip_recheck(r, root):
             (os.listdir(marks), q(d, "select ref from item_ref where item_id = ?", b1)))
     r.check("t42-c2-kb-that-starts-to-block-stays-open-not-parked", parked(d, a1) == ("open", None), parked(d, a1))
     r.check("t42-c2-blocking-ref-added-stays-open-not-parked", parked(d, b1) == ("open", None), parked(d, b1))
-    r.check("t42-c2-clear-waived-item-is-parked", parked(d, d1) == ("open", "2099-01-01"), parked(d, d1))
+    r.check("t42-c2-clear-waived-item-is-parked", parked(d, d1) == ("open", "2099-01-01T00:00:00Z"), parked(d, d1))
     r.check("t42-c2-no-park-event-on-the-guarded-items", not any(x[0] == "parked" for i in (a1, b1) for x in ev(d, i)),
             [ev(d, a1), ev(d, b1)])
     r.check("t42-c2-check-clean", hf(r, d, "check")[0] == 0)
@@ -2634,9 +2644,9 @@ def case_t42_park(r, root):
         r.skip(name, "the skip-waived run took longer than the waiver's 8 seconds")
         return
     r.check("t42-c4-exit-0", code == 0, out + err)
-    r.check("t42-c4-item-parked-until-the-due-date-not-dropped", parked(d, tid) == ("open", utc(due)[:10]), parked(d, tid))
+    r.check("t42-c4-item-parked-until-the-due-date-not-dropped", parked(d, tid) == ("open", utc(due)), parked(d, tid))
     e = ev(d, tid)
-    r.check("t42-c4-park-event-names-the-kb-and-the-waiver", e and e[-1][0] == "parked" and e[-1][2] == utc(due)[:10]
+    r.check("t42-c4-park-event-names-the-kb-and-the-waiver", e and e[-1][0] == "parked" and e[-1][2] == utc(due)
             and "kb:spec-w" in (e[-1][5] or "") and "skips this for now" in (e[-1][5] or "")
             and re.search(r"\(a\d+\)", e[-1][5] or ""), e)
     r.check("t42-c4-output-names-the-parked-item", any(x.startswith("parked: ") and tid in x.split() for x in out.splitlines()), out)
@@ -2654,7 +2664,7 @@ def case_t42_park(r, root):
     res = hf(r, d, "close", tid, "--reason", "done", hub=h, extra_env=env, now=later)
     r.check("t42-c4-after-due-kb-blocks-again-agent-close-refused", refused(res, 1, "blocking") and "kb:spec-w" in res[2], res)
     code, out3, err = hf(r, d, "skip-waived", hub=h, extra_env=env, now=later)
-    r.check("t42-c4-after-due-skip-waived-parks-nothing", code == 0 and parked(d, tid)[1] == utc(due)[:10]
+    r.check("t42-c4-after-due-skip-waived-parks-nothing", code == 0 and parked(d, tid)[1] == utc(due)
             and not any(tid in x.split() for x in out3.splitlines() if x.startswith("parked:")), (out3, err))
 
 
@@ -2753,7 +2763,7 @@ def case_t42_lapsed_waiver(r, root):
     r.check("t42-c7-exit-0", code == 0, out + err)
     r.check("t42-c7-lapsed-waiver-over-passing-check-does-not-park", parked(d, a1) == ("open", None), parked(d, a1))
     e = ev(d, a2)
-    r.check("t42-c7-only-the-live-waiver-sets-the-park-date", parked(d, a2) == ("open", "2099-03-01")
+    r.check("t42-c7-only-the-live-waiver-sets-the-park-date", parked(d, a2) == ("open", "2099-03-01T00:00:00Z")
             and e and "the live skip" in (e[-1][5] or "") and "an old skip" not in (e[-1][5] or ""), (parked(d, a2), e))
 
 
@@ -2853,6 +2863,20 @@ def case_t47_park_time(r, root):
     res = hf(r, d, "rotate", "--week-start", "2098-12-29", hub=h, extra_env=env, now="2099-01-01T15:45:00Z", session=None)
     r.check("t47-c2-rotate-asks-for-its-triage-at-15-45", tid in (listed(res[1], "untriaged:") or []), res)
     r.check("t47-c2-check-clean", hf(r, d, "check", hub=h, extra_env=env, now="2099-01-01T15:45:00Z")[0] == 0)
+    # schema 5 remakes v_stale and v_retention_due: a v4 db migrates, and its views then end a park at its time
+    src = open(r.script, encoding="utf-8").read()
+    n = script_version(r.script)
+    v4 = os.path.join(root, "hubflow-v4.py")
+    with open(v4, "w", encoding="utf-8") as f:
+        f.write(src.replace(f"SCHEMA_VERSION = {n}\n", "SCHEMA_VERSION = 4\n"))
+    d4 = os.path.join(root, "t47-c2-v4", "flow")
+    res = hf(Run(v4), d4, "init", "--seed", SEED, session=None)
+    r.check("t47-c2-setup-v4-init", res[0] == 0 and q(d4, "pragma user_version") == [(4,)], res)
+    res = hf(r, d4, "migrate")
+    views = "".join(x[0] for x in q(d4, "select sql from sqlite_master where name in ('v_stale', 'v_retention_due')"))
+    r.check("t47-c2-migrate-v4-to-v5-remakes-the-views", res[0] == 0 and q(d4, "pragma user_version") == [(n,)]
+            and views.count("T24:00:00Z") == 2 and "< date(" not in views, (res, views[:300]))
+    r.check("t47-c2-check-after-migrate", hf(r, d4, "check")[0] == 0)
 
 
 def case_t47_archived_summary(r, root):
@@ -2957,7 +2981,8 @@ def case_mt_schema_v4(r, root):
     r.check("mt-schema-v3-db-needs-migrate", res[0] == 2 and "migrate" in res[2], res)
     res = hf(r, d, "migrate")
     n = script_version(r.script)
-    r.check("mt-schema-migrate-v3-to-v4", res[0] == 0 and n == 4 and q(d, "pragma user_version") == [(4,)], res)
+    # T47 c2: the script is at schema 5, so migrate takes the v3 db through v4 to 5
+    r.check("mt-schema-migrate-v3-to-v4", res[0] == 0 and n >= 4 and q(d, "pragma user_version") == [(n,)], res)
     r.check("mt-schema-migrate-backup", os.path.exists(os.path.join(d, "flow.db.bak-v3")), os.listdir(d))
     names = {x[0] for x in q(d, "select name from sqlite_master")}
     r.check("mt-schema-meeting-tables-dropped", not ({"meeting", "meeting_turn"} & names), sorted(names))
