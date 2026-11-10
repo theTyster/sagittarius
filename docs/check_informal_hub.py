@@ -34,8 +34,8 @@ t41c3 installs an informal hub at mono/hub inside `git init mono` and runs hubfl
 t41c4 reads the skip principle for the agent park limit, and parks an item as an agent.
 t41c5 reads the formal What lives where hypothesis row of hub/HUB-CORE.md (from the hub design KB)
       for the expected result, the falsifier and the premises.
-t44c1 an informal hub accepts no formal-only part on any path: `add KIND --ref kb:X` exits 1 and makes
-      no item, `show` has no analysis line, --help has no "kb ref"; the formal hub keeps the three.
+t44c1 an informal hub accepts no formal-only part on any path: `add KIND --ref kb:X` and import of a kb
+      ref or analysis exit 1 and make no item, `show` (md and json) and `view` have no analysis, --help has no "kb ref"; the formal hub keeps the three.
 t44c2 the informal hypothesis row of storemap.py (INFORMAL) names the expected result, the falsifier and
       the premises; the check also runs on mutant copies of the row, which must each fail. T44_STOREMAP
       names another storemap.py to read (a red run on a mutant copy).
@@ -851,8 +851,40 @@ def t44c1():
             r["list"] = hubflow(hub, ["sql", "SELECT id, kind FROM item ORDER BY id"], session="build")
             r["show"] = hubflow(hub, ["show", "A-0001"], session="build")
             r["help"] = hubflow(hub, ["--help"]).stdout
+            r["show json"] = hubflow(hub, ["show", "A-0001", "--format", "json"], session="build")
+            r["view"] = hubflow(hub, ["view", "open", "--format", "tsv"], session="build")
+            for nm, row in (("kb", {"kind": "ask", "title": "Imported kb", "refs": ["kb:some-slug"]}),
+                            ("analysis", {"kind": "ask", "title": "Imported analysis", "analysis": "some-slug"}),
+                            ("plain", {"kind": "ask", "title": "Imported plain", "refs": ["issue:9"]})):
+                f = os.path.join(t, f"imp-{ed}-{nm}.jsonl")
+                with open(f, "w") as fh:
+                    fh.write(json.dumps(row) + "\n")
+                r["import " + nm + " dry"] = hubflow(hub, ["import", f], session="build")
+                r["import " + nm] = hubflow(hub, ["import", f, "--yes"], session="build")
+            r["items after import"] = hubflow(hub, ["sql", "SELECT title FROM item ORDER BY id"], session="build")
             res[ed] = r
         inf, frm = res["informal"], res["formal"]
+        for nm in ("kb", "analysis"):
+            for how in (" dry", ""):
+                p = inf["import " + nm + how]
+                check(f"t44c1 informal import of a {nm} row{' (dry run)' if how else ' --yes'} exits 1 and names the formal edition",
+                      p.returncode == 1 and "formal edition" in p.stdout + p.stderr, (p.returncode, p.stdout[-200:], p.stderr))
+            check(f"t44c1 informal import of a {nm} row made no item", f"Imported {nm}" not in inf["items after import"].stdout,
+                  inf["items after import"].stdout)
+        check("t44c1 informal import of a plain row works", inf["import plain"].returncode == 0 and "Imported plain" in inf["items after import"].stdout,
+              (inf["import plain"].returncode, inf["import plain"].stderr))
+        try:
+            ij = json.loads(inf["show json"].stdout)
+        except ValueError:
+            ij = {"item": {"analysis": "unparsed"}}
+        check("t44c1 informal `show --format json` has no analysis key", "analysis" not in ij["item"], list(ij["item"]))
+        check("t44c1 informal `view open` has no analysis column", "analysis" not in inf["view"].stdout.splitlines()[0].split("\t"),
+              inf["view"].stdout[:200])
+        for nm in ("kb", "analysis"):
+            check(f"t44c1 formal import of a {nm} row still works", frm["import " + nm].returncode == 0 and f"Imported {nm}" in frm["items after import"].stdout,
+                  (frm["import " + nm].returncode, frm["import " + nm].stderr))
+        check("t44c1 formal `show --format json` keeps the analysis key", "analysis" in json.loads(frm["show json"].stdout)["item"], "missing")
+        check("t44c1 formal `view open` keeps the analysis column", "analysis" in frm["view"].stdout.splitlines()[0].split("\t"), frm["view"].stdout[:200])
         p = inf["add kb"]
         check("t44c1 informal `add ask --ref kb:X` exits 1", p.returncode == 1, (p.returncode, p.stdout, p.stderr))
         check("t44c1 informal `add ask --ref kb:X` names the formal edition", "formal edition" in p.stderr, p.stderr)
