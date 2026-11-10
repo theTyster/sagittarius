@@ -72,8 +72,10 @@ Queries (the derived answers)
   both_changed(D, T)            the tracker (last change T) and the draft both changed after the pin
   lost_by_date(D, Side)         the dates dropped the edit of Side: the draft lost to a later tracker
                                 change (also a draft staged at or before the pin, T45), or the
-                                tracker lost when both changed after the pin
-  dropped(D, Side)              the side that lost, by date or by resolved. The facts stay in kb.pl:
+                                tracker lost when both changed after the pin. A pushed draft
+                                (pushed/2) never loses by date: its text reached the tracker (T45)
+  dropped(D, Side)              the side that lost, by date or by resolved (a pushed draft is
+                                dropped only by resolved). The facts stay in kb.pl:
                                 this is the record.
   decision_digest(D, Digest)    the sha256 of the text of the decision (computed)
   subject_now(S, Digest)        the digest of the file of the subject now (computed)

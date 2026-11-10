@@ -1166,7 +1166,10 @@ Run in a project KB (T43 c3). When the tracker and a draft both changed after
 the pin, the later edit wins (equal times: the tracker), and the losing side is
 `dropped(D, Side)` in the project KB (`lost_by_date(D, Side)`). A draft staged at
 or before its pin that a later tracker change drops is `lost_by_date(D, draft)`
-too (T45 c3). So that the
+too (T45 c3). A draft with a `pushed(D, _)` fact is never `lost_by_date(D, draft)`
+or `dropped(D, draft)` by date: its text reached the tracker, so a pin taken after
+the push records no drop (T45 c6). `lost_by_date(D, tracker)` and `resolved/3`
+are unchanged. A drop recorded before the push stays in the ledger for a human. So that the
 dropped edit is not lost quietly, this command records each such drop as one
 open thread in the hub ledger, written by `hubflow add thread --by script` in
 the session of `--session S`, else `$HUB_SESSION`. The title names the draft,
