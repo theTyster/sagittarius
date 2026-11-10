@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """System 1 hook for Claude Code (T07). Event: UserPromptSubmit. Python 3 standard library only.
 
-Reads the hook JSON on stdin (prompt, transcript_path, session_id), asks Jev the questions in
+Reads the hook JSON on stdin (prompt, transcript_path, session_id), asks the System 1 model the questions in
 s1/questions.json about {message: the prompt, recent: the last 3 messages before it}, and prints
 one line of the answers outside the unsure band as additionalContext:
 
@@ -15,7 +15,7 @@ What is sent (T20): `recent` is a list, oldest first, of the last 3 messages bef
 "text": the complete text}. A message is a user prompt or an assistant reply; tool calls, tool
 results, meta lines and subagent (sidechain) lines are not messages. An assistant reply is all
 the agent text of one turn (between two user prompts). Each text is sent whole.
-Only when the state and the longest question would pass Jev's per-question context (32k tokens,
+Only when the state and the longest question would pass the System 1 model's per-question context (32k tokens,
 counted here as CONTEXT_CHARS characters) are the messages beyond 3 dropped, oldest first. If the
 3 whole messages still do not fit, they are sent whole with the TypeSafe-Danger-Zone-Long-Context
 header (262k tokens; slower, same price; the log line has "long_context": true). Only beyond 262k
@@ -45,7 +45,7 @@ GRACE = 0.5  # seconds past the timeout before the hook stops waiting for the ca
 CONTEXT_MESSAGES = 3  # the least number of messages in recent (T20, Ty)
 TAIL_BYTES = 2 * 1024 * 1024  # the first read: the end of the transcript
 MAX_TAIL_BYTES = 8 * 1024 * 1024  # the read goes back at most this far (as the status line)
-CONTEXT_TOKENS = 32000  # Jev's default per-question context (models page)
+CONTEXT_TOKENS = 32000  # the System 1 model's default per-question context (models page)
 CHARS_PER_TOKEN = 3  # a cautious count: fewer characters per token than English text has
 CONTEXT_CHARS = CONTEXT_TOKENS * CHARS_PER_TOKEN
 LONG_CONTEXT_TOKENS = 262000  # with the long-context header (TypeSafe docs, models page)

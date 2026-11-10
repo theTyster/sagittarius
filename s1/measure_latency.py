@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""T20 c6: measure the Jev call of the hook with 3-message states of about 4k, 12k and 30k tokens.
+"""T20 c6: measure the System 1 model call of the hook with 3-message states of about 4k, 12k and 30k tokens.
 
 One live call each, through jev.judge, with $TYPESAFE_API_KEY. The text is invented. It is not a
 unit test (it needs the network and the key), so `unittest discover` does not run it.
