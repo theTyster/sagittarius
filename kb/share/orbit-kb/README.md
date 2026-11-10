@@ -1140,7 +1140,12 @@ parent of the KB when it has `flow/flow.db`; the session is `--session S`, else
 in the ledger already adds nothing. With no hub, they print one line per drop on
 stderr that names it and the command `orbit-kb --dir KB project dropped --hub DIR`;
 when the ledger does not take it (no session), the line names the hub and
-`--session S`. The exit code stays that of the command.
+`--session S`. The exit code stays that of the command. A pane gets
+`HUB_SESSION` where it is started, in the hub
+(`cd "$HUB" && HUB_SESSION=<name> claude --name "hub-<name>"`, hubkit
+`INSTRUCTIONS.md` Step 5); in a pane without it the record is refused with that
+warning (T46 c2). A push over a newer tracker edit is recorded the same way
+(`pushed_over`, T46; see `project dropped`).
 Exit: 0 prints the pin id and digest. 1 when the pin id exists. 2 for a missing
 F, a missing option, or a T that is not a time.
 
@@ -1182,6 +1187,16 @@ the item has the same `kb:` ref), so a second run, or a later tracker change,
 adds nothing. A drop by `resolved/3` gets no item: a human chose it. It writes
 nothing to the KB. `pin-item` and the `draft` commands do the same by
 themselves (T45); this command stays for a manual run.
+A push can overwrite a tracker edit (T46 c1, review's default): when a draft
+has `pushed(D, T)` and a newer pin P of the same tracker item changed after the
+pin of D, after its staging and before T (and no `resolved/3` settled it),
+`pushed_over(D, P)` holds and `dropped(D, tracker)` holds by it. This command,
+`pin-item` and the `draft` commands record it once: one note on the open
+ledger item (status open or waiting) of the drop of D ("the draft was pushed at
+T and overwrote the tracker edit of C2"), else one new escalated item titled
+`Project KB: draft D overwrote the tracker edit of pin P when it was pushed
+(pushed T, tracker changed C2)`. A note or an item (any status, the same `kb:`
+ref) that holds that key up to `(` is skipped, so a second run adds none.
 Each new item is escalated at once (`hubflow triage ID escalate --by script`,
 T45 c2): only a human closes it, on purpose
 (`hubflow close ID --reason done --by human --session human --note "<their words>"`). An agent's

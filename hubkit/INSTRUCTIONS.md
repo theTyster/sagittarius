@@ -133,6 +133,7 @@ cd "$HUB" && HUB_SESSION=<name> claude --resume "hub-<name>"
 
 Never resume with `claude --continue`: every role shares the hub as cwd, so `--continue` can pick
 another role's conversation. A pane without `HUB_SESSION` can read the db, but every write fails.
+A formal hub has more writes that need `HUB_SESSION`: see "The formal edition" below.
 
 **Check:** in each role's pane, `echo "$HUB_SESSION"` prints that role's name, and
 `python3 .claude/scripts/hubflow.py view v_inbox --session "$HUB_SESSION"` exits 0.
@@ -183,5 +184,10 @@ domain decisions, pins of the world, and drafts for the tracker. Make it with
   informal hub with `python3 "$KIT"/tools/hubkit.py edition --hub "$HUB" formal --yes`. The switch
   replaces the shipped rules and skills; `CLAUDE.md` is the hub's own, so add its "Repos and the
   project KB" section by hand (copy it from `hub/CLAUDE.md`).
+- `orbit-kb pin-item` and `orbit-kb draft` record a dropped edit of the project KB in the ledger by
+  themselves, in the session of `HUB_SESSION` (or `--session S`). A pane gets `HUB_SESSION` where it
+  is started (Step 5: `cd "$HUB" && HUB_SESSION=<name> claude --name "hub-<name>"`). In a pane
+  without it, the ledger refuses the record: orbit-kb warns, names `project dropped --session S`, and
+  exits 0, so the dropped edit is not in the ledger until someone runs that command.
 - Escalation asks `orbit-kb` (or `HUBFLOW_ORBIT_KB`) whether a spec KB blocks. If the query fails,
   or `orbit-kb` is missing, an item with a `kb` ref counts as blocking (fail-safe).
