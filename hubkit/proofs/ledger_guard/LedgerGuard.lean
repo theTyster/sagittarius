@@ -20,11 +20,25 @@ that a rotate that lapses an escalated summary fails the proof.
 T40 c13 (after T39 c3 added `skip-waived`; review default, Ty not asked): `skip-waived` drops an
 open item whose kb refs are all clear and one of whose spec KBs has a live human waiver, unless
 the item is escalated: an escalated item stays open for the human, who ends it with triage. Any
-writer may run it (it writes by=script). The model has that action (`Cmd.skipWaived waived`), and
+writer may run it (it writes by=script). The model had that action as one step (T42 c2 splits it in two), and
 `agent_run_keeps_guarded` and `agent_run_keeps_escalated` are proved again with it, their
 statements unchanged. check_commands.py checks the escalated filter inside the write of
 cmd_skip_waived, and lean_mutant_test.py checks that a skip-waived that drops an escalated item
 fails the proof.
+
+T42 c2, c4 (after the T40 verify, divergence a75; c4 is review's default, Ty not asked): skip-waived
+is two steps. Its read (`Cmd.skipRead waived`) picks the open items whose kb answer is clear and
+waived: it marks the item `planned`. Its write (`Cmd.skipWrite`) acts on a planned item only if the
+item is open, not escalated, and its kb answer, read again in the write, is still clear; then it
+parks the item (until the waiver's due date; the model has `parked := true`) and never drops it.
+Between the two steps any command may run (a `ref add kb:...`), and the spec KB itself may change:
+the theorems quantify over every start item, so a planned item whose kb answer now blocks is one of
+them. A park keeps the item in view, so `agent_run_keeps_guarded` (proved again, its statement
+unchanged) does not see a wrong park; `agent_run_keeps_guarded_unparked` does: an agent run keeps a
+guarded item that is not parked guarded and not parked (its statement is the conclusion of
+`agent_run_keeps_guarded` and `parked = false`, so it is no weaker). A park ends when its date is
+past; the model has no clock, so that return is outside it (hubflow-test checks it). lean_mutant_test.py
+checks that a write without the recheck, and a write that parks an escalated item, fail that proof.
 -/
 namespace LedgerGuard
 
@@ -49,6 +63,9 @@ structure Item where
   hasCapsule : Bool
   /-- item.kind is `summary` (S-, what an agent noted from a meeting; T40 c7). -/
   summary : Bool
+  /-- A running skip-waived read the item as a candidate (T42 c2): its kb answer was clear and
+  waived at the read. The write reads the kb answer again. -/
+  planned : Bool
   deriving DecidableEq, Repr
 
 /-- The writer (`writer_by`): `--by agent` (the default), `--by script`, or `--by human`,
@@ -112,11 +129,14 @@ inductive Cmd
   written). The gate reads the other items; a summary row is never one of the items it counts
   (T40 c10, checked in hubflow.py by check_commands.py), so `blocked` is an input here. -/
   | rotate (old blocked : Bool)
-  /-- `skip-waived` (T39 c3, T40 c13): `waived` = one of the item's spec KBs has a live human
-  waiver. It drops (human_skip, by=script) an open item that has kb refs, all clear, and is
-  waived, unless the item is escalated (checked inside the write: an escalated item stays open,
-  and its id is printed). Any writer may run it; it reads the writer from no flag. -/
-  | skipWaived (waived : Bool)
+  /-- The read of `skip-waived` (T39 c3, T42 c2): `waived` = the item's spec KBs rest on a live
+  human waiver that covers what would block (T42 c5). It plans an open item whose kb answer is
+  clear and waived; it writes nothing. -/
+  | skipRead (waived : Bool)
+  /-- The write of `skip-waived` (T40 c13, T42 c2 and c4): a planned item that is open, not
+  escalated, and whose kb answer is clear again in the write is parked (by=script), never dropped.
+  An escalated item stays open, and its id is printed. Any writer may run it. -/
+  | skipWrite
   deriving Repr
 
 inductive Outcome
@@ -203,11 +223,15 @@ def stepAs (human : Bool) : Cmd → Item → Outcome
       if old && s.summary && isOpen s && !s.esc && !nonclear s.kb then
         .ok { s with status := .lapsed }
       else .ok s
-  | .skipWaived waived, s =>
-      -- hubflow.py cmd_skip_waived: candidates are open or waiting items with kb refs, every
-      -- kb_checks state clear and a live human waiver; the write skips `is_escalated` items.
-      if waived && isOpen s && !s.esc && s.kb == .clear then .ok { s with status := .dropped }
-      else .ok s
+  | .skipRead waived, s =>
+      -- hubflow.py skip_candidates: open or waiting items with kb refs, every kb_checks state
+      -- clear, and a live human waiver that something rests on (waiver_park).
+      .ok { s with planned := waived && isOpen s && s.kb == .clear }
+  | .skipWrite, s =>
+      -- hubflow.py cmd_skip_waived, its write: skip `is_escalated` items, read the kb refs again
+      -- (item_kb_refs, kb_checks) and skip one that is not clear; park the rest (parked_until).
+      if s.planned && isOpen s && !s.esc && s.kb == .clear then .ok { s with parked := true, planned := false }
+      else .ok { s with planned := false }
 
 def step (a : Actor) (c : Cmd) (s : Item) : Outcome :=
   match a.writer with
@@ -247,12 +271,14 @@ def allItems : List Item := Id.run do
         for p in allBool do
           for c in allBool do
             for sm in allBool do
-              out := out ++ [{ status := st, esc := e, kb := k, parked := p, hasCapsule := c, summary := sm }]
+              for pl in allBool do
+                out := out ++ [{ status := st, esc := e, kb := k, parked := p, hasCapsule := c, summary := sm,
+                                 planned := pl }]
   return out
 def allCmds : List Cmd :=
   [.renew, .park, .setFields, .close .done, .close .dropped, .close .humanSkip, .reopen,
    .refOther, .link, .note, .accept, .capsule, .skipLinked, .rotate false false, .rotate true false,
-   .rotate false true, .rotate true true, .skipWaived false, .skipWaived true]
+   .rotate false true, .rotate true true, .skipRead false, .skipRead true, .skipWrite]
   ++ allStatus.map .setStatus ++ allKb.map .refAddKb ++ allKb.map .refRmKb
   ++ [Disp.keep, .lapse, .capsule, .escalate].map .triage
 
@@ -266,39 +292,49 @@ def agentCounterexamples : List (Item × Cmd) :=
     if guardedB s && !guardedB s' then some (s, c) else none
 
 #eval agentCounterexamples  -- expect []
+
+/-- Pairs (state, command) where one agent step parks a guarded item that was not parked (T42 c2). -/
+def agentParkCounterexamples : List (Item × Cmd) :=
+  allItems.flatMap fun s => allCmds.filterMap fun c =>
+    let s' := match stepAs false c s with | .ok x => x | _ => s
+    if guardedB s && !s.parked && !(guardedB s' && !s'.parked) then some (s, c) else none
+
+#eval agentParkCounterexamples  -- expect []
 #eval (allItems.length, allCmds.length)
 
 /-! ## The proof -/
 
 theorem guarded_iff (s : Item) : guarded s ↔ guardedB s = true := by
-  rcases s with ⟨st, e, k, p, c, sm⟩
+  rcases s with ⟨st, e, k, p, c, sm, pl⟩
   cases st <;> cases e <;> cases k <;> simp [guarded, guardedB, inView, isOpen, nonclear]
 
 theorem inView_iff (s : Item) : inView s ↔ inViewB s = true := by
-  rcases s with ⟨st, e, k, p, c, sm⟩
+  rcases s with ⟨st, e, k, p, c, sm, pl⟩
   cases st <;> simp [inView, inViewB, isOpen]
 
+-- T42: the field `planned` doubles the cases that `decide` checks, so this proof has a larger budget.
+set_option maxHeartbeats 800000 in
 /-- One step by a non-human writer (after `writer_by`) keeps a guarded item guarded. -/
 theorem stepAs_agent_keeps_guarded (c : Cmd) (s : Item) (h : guardedB s = true) :
     guardedB (match stepAs false c s with | .ok x => x | _ => s) = true := by
-  rcases s with ⟨st, e, k, p, hc, sm⟩
+  rcases s with ⟨st, e, k, p, hc, sm, pl⟩
   cases c with
   | setStatus st' =>
-    cases st' <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
+    cases st' <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
   | close r =>
-    cases r <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
+    cases r <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
   | refAddKb a =>
-    cases a <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
+    cases a <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
   | refRmKb a =>
-    cases a <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
+    cases a <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
   | triage d =>
-    cases d <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
+    cases d <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
   | rotate o b =>
-    cases o <;> cases b <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
-  | skipWaived w =>
-    cases w <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
+    cases o <;> cases b <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
+  | skipRead w =>
+    cases w <;> cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
   | _ =>
-    cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert h <;> decide
+    cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
 
 theorem exec_agent_keeps_guarded (a : Actor) (ha : notHuman a) (c : Cmd) (s : Item)
     (h : guarded s) : guarded (exec a c s) := by
@@ -347,26 +383,82 @@ theorem agent_run_keeps_escalated (cs : List (Actor × Cmd)) (hcs : ∀ p ∈ cs
         | false =>
           simp only
           rw [inView_iff] at hv
-          rcases s with ⟨st, e, k, p, hc, sm⟩
+          rcases s with ⟨st, e, k, p, hc, sm, pl⟩
           simp only at he
           subst he
           cases c with
           | setStatus st' =>
-            cases st' <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
+            cases st' <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert hv <;> decide
           | close r =>
-            cases r <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
+            cases r <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert hv <;> decide
           | refAddKb a =>
-            cases a <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
+            cases a <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert hv <;> decide
           | refRmKb a =>
-            cases a <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
+            cases a <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert hv <;> decide
           | triage d =>
-            cases d <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
+            cases d <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert hv <;> decide
           | rotate o b =>
-            cases o <;> cases b <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
-          | skipWaived w =>
-            cases w <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
+            cases o <;> cases b <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert hv <;> decide
+          | skipRead w =>
+            cases w <;> cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert hv <;> decide
           | _ =>
-            cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hv <;> decide
+            cases st <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert hv <;> decide
+
+/-! ## The park guard (T42 c2): an agent run parks no guarded item -/
+
+/-- One step by a non-human writer parks no guarded item that is not parked. -/
+theorem stepAs_agent_keeps_unparked (c : Cmd) (s : Item) (h : guardedB s = true) (hp : s.parked = false) :
+    (match stepAs false c s with | .ok x => x | _ => s).parked = false := by
+  rcases s with ⟨st, e, k, p, hc, sm, pl⟩
+  simp only at hp
+  subst hp
+  cases c with
+  | setStatus st' =>
+    cases st' <;> cases st <;> cases e <;> cases k <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
+  | close r =>
+    cases r <;> cases st <;> cases e <;> cases k <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
+  | refAddKb a =>
+    cases a <;> cases st <;> cases e <;> cases k <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
+  | refRmKb a =>
+    cases a <;> cases st <;> cases e <;> cases k <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
+  | triage d =>
+    cases d <;> cases st <;> cases e <;> cases k <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
+  | rotate o b =>
+    cases o <;> cases b <;> cases st <;> cases e <;> cases k <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
+  | skipRead w =>
+    cases w <;> cases st <;> cases e <;> cases k <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
+  | _ =>
+    cases st <;> cases e <;> cases k <;> cases hc <;> cases sm <;> cases pl <;> revert h <;> decide
+
+theorem exec_agent_keeps_unparked (a : Actor) (ha : notHuman a) (c : Cmd) (s : Item)
+    (h : guarded s) (hp : s.parked = false) : (exec a c s).parked = false := by
+  rw [guarded_iff] at h
+  unfold exec step
+  cases hw : a.writer with
+  | none => simpa using hp
+  | some b =>
+    cases b with
+    | true => exact absurd hw ha
+    | false =>
+      have := stepAs_agent_keeps_unparked c s h hp
+      simpa using this
+
+/-- **Theorem (T42 c2).** In plain words: start from an item that is open or waiting, is not
+parked, and is escalated, or whose kb answer blocks or is unknown (it may be planned by a
+skip-waived read that saw an older kb answer). Run any finite list of hubflow commands in which
+no command is written `--by human --note ...`, with the two steps of skip-waived anywhere in it.
+Then the item is still in view, still guarded (as `agent_run_keeps_guarded` says), and not
+parked. -/
+theorem agent_run_keeps_guarded_unparked (cs : List (Actor × Cmd)) (hcs : ∀ p ∈ cs, notHuman p.1)
+    (s : Item) (hs : guarded s) (hp : s.parked = false) :
+    inView (run cs s) ∧ guarded (run cs s) ∧ (run cs s).parked = false := by
+  induction cs generalizing s with
+  | nil => exact ⟨hs.1, hs, hp⟩
+  | cons p rest ih =>
+    obtain ⟨a, c⟩ := p
+    have ha := hcs (a, c) List.mem_cons_self
+    exact ih (fun q hq => hcs q (List.mem_cons_of_mem _ hq)) _
+      (exec_agent_keeps_guarded a ha c s hs) (exec_agent_keeps_unparked a ha c s hs hp)
 
 /-- The guard is not vacuous: the human, with a note, can take any guarded item out of view
 (`close ID --reason dropped --by human --note ...`). -/
@@ -377,8 +469,8 @@ theorem human_close_leaves_view (n : String) (hn : n ≠ "") (s : Item) (hs : gu
   rw [inView_iff]
   unfold exec step
   rw [hw]
-  rcases s with ⟨st, e, k, p, hc, sm⟩
-  cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hs <;> decide
+  rcases s with ⟨st, e, k, p, hc, sm, pl⟩
+  cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert hs <;> decide
 
 /-- And the human's `triage ID lapse` lapses it (case_escalate: c2-human-may-lapse-blocking). -/
 theorem human_lapse_leaves_view (n : String) (hn : n ≠ "") (s : Item) (hs : guarded s) :
@@ -388,8 +480,8 @@ theorem human_lapse_leaves_view (n : String) (hn : n ≠ "") (s : Item) (hs : gu
   rw [inView_iff]
   unfold exec step
   rw [hw]
-  rcases s with ⟨st, e, k, p, hc, sm⟩
-  cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> revert hs <;> decide
+  rcases s with ⟨st, e, k, p, hc, sm, pl⟩
+  cases st <;> cases e <;> cases k <;> cases p <;> cases hc <;> cases sm <;> cases pl <;> revert hs <;> decide
 
 /-- The rotate lapse is not vacuous (T40 c7): an old open summary row that is not guarded
 lapses at the rotation, whoever runs it, and leaves the view. -/
@@ -397,27 +489,34 @@ theorem rotate_lapses_unguarded_summary (h : Bool) (s : Item) (hv : inView s)
     (hsum : s.summary = true) (he : s.esc = false) (hk : s.kb = .none ∨ s.kb = .clear) :
     stepAs h (.rotate true false) s = .ok { s with status := .lapsed } := by
   rw [inView_iff] at hv
-  rcases s with ⟨st, e, k, p, hc, sm⟩
+  rcases s with ⟨st, e, k, p, hc, sm, pl⟩
   simp only at hsum he hk
   subst hsum he
   rcases hk with rfl | rfl <;> cases st <;> revert hv <;> simp [stepAs, isOpen, nonclear, inViewB]
 
-/-- skip-waived is not vacuous (T40 c13): a waived open item whose kb answer is clear and that is
-not escalated is dropped, whoever runs it, and leaves the view. -/
-theorem skipWaived_drops_unescalated (h : Bool) (s : Item) (hv : inView s) (he : s.esc = false)
-    (hk : s.kb = .clear) :
-    stepAs h (.skipWaived true) s = .ok { s with status := .dropped } := by
+/-- skip-waived is not vacuous (T40 c13, T42 c4): its read and then its write park a waived open
+item whose kb answer is clear and that is not escalated, whoever runs them; the item stays in view
+and keeps its status. -/
+theorem skip_read_write_parks_unescalated (a b : Actor) (s : Item) (hv : inView s) (he : s.esc = false)
+    (hk : s.kb = .clear) (ha : a.writer ≠ none) (hb : b.writer ≠ none) :
+    run [(a, .skipRead true), (b, .skipWrite)] s = { s with parked := true, planned := false } := by
   rw [inView_iff] at hv
-  rcases s with ⟨st, e, k, p, hc, sm⟩
+  rcases s with ⟨st, e, k, p, hc, sm, pl⟩
   simp only at he hk
   subst he hk
-  cases st <;> revert hv <;> simp [stepAs, isOpen, inViewB]
+  cases hwa : a.writer with
+  | none => exact absurd hwa ha
+  | some x =>
+    cases hwb : b.writer with
+    | none => exact absurd hwb hb
+    | some y =>
+      cases st <;> revert hv <;> simp [run, exec, step, hwa, hwb, stepAs, isOpen, inViewB]
 
 /-! ## Rows that mirror hubflow-test.py checks -/
 
 def item (st : Status := .open_) (e : Bool := false) (k : Kb := .none) (cap : Bool := false)
-    (sum : Bool := false) : Item :=
-  { status := st, esc := e, kb := k, parked := false, hasCapsule := cap, summary := sum }
+    (sum : Bool := false) (pk : Bool := false) (pl : Bool := false) : Item :=
+  { status := st, esc := e, kb := k, parked := pk, hasCapsule := cap, summary := sum, planned := pl }
 
 def me : Actor := .human "\"drop it\" (Me)"
 
@@ -456,10 +555,22 @@ def rows : List Row := [
   ⟨"mt-c3-guard-clear-summary-lapses", .agent, .rotate true false, item (k := .clear) (sum := true),
     .ok (item (st := .lapsed) (k := .clear) (sum := true))⟩,
   ⟨"t40-c10-triage-gate-refuses-the-rotation", .agent, .rotate true true, item (sum := true), .refused⟩,
-  ⟨"t40-c13-escalated-item-stays-open", .script, .skipWaived true, item (e := true) (k := .clear),
+  ⟨"t40-c13-escalated-item-stays-open", .script, .skipWrite, item (e := true) (k := .clear) (pl := true),
     .ok (item (e := true) (k := .clear))⟩,
-  ⟨"t40-c13-non-escalated-item-closes", .script, .skipWaived true, item (k := .clear),
-    .ok (item (st := .dropped) (k := .clear))⟩,
+  ⟨"t40-c13-non-escalated-item-parked", .script, .skipWrite, item (k := .clear) (pl := true),
+    .ok (item (k := .clear) (pk := true))⟩,
+  ⟨"t42-c2-clear-waived-item-is-parked (read)", .script, .skipRead true, item (k := .clear),
+    .ok (item (k := .clear) (pl := true))⟩,
+  ⟨"t42-c2-kb-that-starts-to-block-stays-open-not-parked", .script, .skipWrite, item (k := .blocks) (pl := true),
+    .ok (item (k := .blocks))⟩,
+  ⟨"t42-c2-blocking-ref-added-stays-open-not-parked", .script, .skipWrite, item (k := .blocks) (pl := true),
+    .ok (item (k := .blocks))⟩,
+  ⟨"t42-c2-unknown-kb-in-the-write-stays-open", .script, .skipWrite, item (k := .unknown) (pl := true),
+    .ok (item (k := .unknown))⟩,
+  ⟨"t42-c5-precaution-check-waiver-does-not-park (read)", .script, .skipRead false, item (k := .clear),
+    .ok (item (k := .clear))⟩,
+  ⟨"t42-c5-precaution-check-waiver-does-not-park (write)", .script, .skipWrite, item (k := .clear),
+    .ok (item (k := .clear))⟩,
   ⟨"c2-human-may-lapse-blocking", me, .triage .lapse, item (e := true) (k := .blocks),
     .ok (item (st := .lapsed) (k := .blocks))⟩,
   ⟨"c2-agent-close-dropped-of-blocking-refused", .agent, .close .dropped, item (k := .blocks), .refused⟩,
@@ -512,7 +623,7 @@ def modelledCommands : List (String × String) := [
   ("capsule", "Cmd.capsule"),
   ("triage", "Cmd.triage"),
   ("rotate", "Cmd.rotate (prunes closed items; lapses an old open summary row unless it is escalated or its kb answer is not clear; the triage gate refuses it, and counts no summary row; check_commands.py checks both in hubflow.py)"),
-  ("skip-waived", "Cmd.skipWaived (drops an open item whose kb answer is clear and waived, unless it is escalated; check_commands.py checks the escalated filter inside the write in hubflow.py)")
+  ("skip-waived", "Cmd.skipRead, then Cmd.skipWrite (the write parks a planned open item whose kb answer, read again in the write, is clear, unless it is escalated; it never drops one; check_commands.py checks the escalated filter, the recheck and the park inside the write in hubflow.py)")
 ]
 
 /-- Commands left out, each with the reason. -/
@@ -548,6 +659,8 @@ open LedgerGuard in
 open LedgerGuard in
 #print axioms rotate_lapses_unguarded_summary
 open LedgerGuard in
-#print axioms skipWaived_drops_unescalated
+#print axioms agent_run_keeps_guarded_unparked
+open LedgerGuard in
+#print axioms skip_read_write_parks_unescalated
 open LedgerGuard in
 #print axioms rows_pass

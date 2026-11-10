@@ -173,12 +173,16 @@ Waivers (the human only; the human sets the due time)
 A result from CI or the tracker (pin it in the spec; the spec does not own it)
   A check may read a run that happened elsewhere. The spec KB must use project (orbit-kb uses project).
   1. Save the run log or its export to a file. Pin it: its source ref, digest and time are the pin.
-     orbit-kb pin-item ci42 'ci:acme/widgets/runs/42' --text-file ci42.txt --changed-at 2026-11-09T10:00:00Z
+     The source is the job (one source for all its runs), so a newer run makes the older pin stale.
+     orbit-kb pin-item ci42 'ci:acme/widgets/main' --text-file ci42.txt --changed-at 2026-11-09T10:00:00Z
   2. Make the check read the pin, not the file: orbit-kb show pin exits 1 when the kept text changed.
      orbit-kb add "check(k1, c1)"
      orbit-kb run k1 -- sh -c "orbit-kb show pin ci42 | grep -q 'conclusion: success'"
   3. A run that failed first is red, a later green run passes, so the claim counts it like a local run.
-     A newer run is a new pin (ci43); its older pin of the same source is stale.
+     A newer run is a new pin of the same source; then the older pin is stale (stale_pin):
+     orbit-kb pin-item ci43 'ci:acme/widgets/main' --text-file ci43.txt --changed-at 2026-11-10T10:00:00Z
+     A check reads one pin, so run the check again on the new pin (ci43). If that run fails, the
+     claim is not fulfilled. A pin under another source does not make the old pin stale.
 
 Verdicts for disproof (orbit-kb help core): upheld(Text), refuted(Text), inconclusive(Text),
 abstained(Text). Name the runs with --rests-on.

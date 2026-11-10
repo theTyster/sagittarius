@@ -8,7 +8,8 @@ Every key of hubflow.py's `COMMANDS = {...}` must be in exactly one of `modelled
 command. An excluded command named in REASON_CHECKS also has its reason checked against the source
 of its cmd_ function (T33: spec-triage). A modelled command named in MODEL_CHECKS has the guard
 that its Cmd assumes checked in hubflow.py (T40 c7: rotate lapses no escalated summary and no
-summary whose kb answer is not clear; T40 c13: skip-waived closes no escalated item). Exit 0
+summary whose kb answer is not clear; T40 c13, T42 c2 and c4: skip-waived parks no escalated item and
+no item whose kb answer is not clear in its write, and drops none). Exit 0
 when they agree, 1 when not (each difference is printed), 2 on a parse error.
 Reads both files as text; runs and imports nothing.
 """
@@ -179,12 +180,16 @@ def rotate_guard(tree, fn):
 
 
 def skip_waived_guard(tree, fn):
-    """The modelled skip-waived (Cmd.skipWaived, T40 c13): it drops an open item whose kb answer is
-    clear and waived, unless the item is escalated. In hubflow.py, cmd_skip_waived:
-    - has write SQL only in its write function (the def given to run_write), and there exactly one
-      status UPDATE (`UPDATE item SET status`), inside a `for ID, ... in ...` loop of that function;
-    - in that loop, before the statement with the UPDATE, `if is_escalated(c, ID): ... continue`
-      (inside the write, so an item escalated between the read and the write stays open too).
+    """The modelled skip-waived (Cmd.skipRead, then Cmd.skipWrite; T40 c13, T42 c2 and c4): its write
+    parks an open item whose kb answer, read again in the write, is clear, unless the item is escalated;
+    it never drops an item. In hubflow.py, cmd_skip_waived:
+    - has write SQL only in its write function (the def given to run_write), and there no status UPDATE
+      (`UPDATE item SET status`: T42 c4, it never drops) and exactly one `UPDATE item SET parked_until`,
+      inside a `for ID in ...` loop of that function;
+    - in that loop, before the statement with the park UPDATE: `if is_escalated(c, ID): ... continue`
+      (T40 c13); `REFS = item_kb_refs(c, ID)` (the refs read again, in the write), `CHECKS =
+      kb_checks(hub, REFS)`, and an `if` that tests `!= 'clear'` over CHECKS and ends in `continue`
+      (T42 c2: an item whose kb answer is no longer clear in the write stays open, not parked).
     Returns the problems (empty when the guard holds)."""
     out = []
     inner = {n.name: n for n in fn.body if isinstance(n, ast.FunctionDef)}
@@ -193,29 +198,48 @@ def skip_waived_guard(tree, fn):
            and isinstance(calls[0].args[2], ast.Name) else None)
     if wfn is None:
         return [f"{fn.name}: no single run_write whose write function is a def in {fn.name}"]
-    status_upd = re.compile(r"UPDATE\s+item\s+SET\s+status", re.I)
+    status_upd = re.compile(r"UPDATE\s+item\s+SET\s+(\w+\s*=\s*[^,]*,\s*)*status\b", re.I)
+    park_upd = re.compile(r"UPDATE\s+item\s+SET\s+parked_until", re.I)
     outside = [x for x in write_sql(fn) if x not in write_sql(wfn)]
     if outside:
         out.append(f"{fn.name} has write SQL outside its write function: {outside[0][:60]!r}")
-    updates = [n for n in ast.walk(wfn) if isinstance(n, ast.Constant) and isinstance(n.value, str)
-               and status_upd.search(n.value)]
+    strs = [n for n in ast.walk(wfn) if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+    if any(status_upd.search(n.value) for n in strs):
+        out.append(f"{fn.name}: its write function changes a status (T42 c4: it parks, it never drops)")
+    updates = [n for n in strs if park_upd.search(n.value)]
     if len(updates) != 1:
-        return out + [f"{fn.name}: its write function has {len(updates)} status UPDATEs, not one"]
+        return out + [f"{fn.name}: its write function has {len(updates)} parked_until UPDATEs, not one"]
     loop = next((st for st in ast.walk(wfn) if isinstance(st, ast.For)
                  and any(n is updates[0] for n in ast.walk(st))), None)
     if loop is None:
-        return out + [f"{fn.name}: the status UPDATE is not in a `for` loop of its write function"]
+        return out + [f"{fn.name}: the park UPDATE is not in a `for` loop of its write function"]
     tgt = loop.target.elts[0] if isinstance(loop.target, ast.Tuple) and loop.target.elts else loop.target
     if not isinstance(tgt, ast.Name):
         return out + [f"{fn.name}: the loop over the items has no item id name"]
     at = next(i for i, st in enumerate(loop.body) if any(n is updates[0] for n in ast.walk(st)))
+    before = loop.body[:at]
     want = f"is_escalated(c,{tgt.id})"
-    guard = [i for i, st in enumerate(loop.body[:at]) if isinstance(st, ast.If)
-             and ast.unparse(st.test).replace(" ", "") == want and not st.orelse
-             and isinstance(st.body[-1], ast.Continue)]
-    if not guard:
+    if not [st for st in before if isinstance(st, ast.If) and ast.unparse(st.test).replace(" ", "") == want
+            and not st.orelse and isinstance(st.body[-1], ast.Continue)]:
         out.append(f"{fn.name}: its write function does not skip an escalated item "
-                   f"(`if is_escalated(c, {tgt.id}): ... continue`) before the status UPDATE")
+                   f"(`if is_escalated(c, {tgt.id}): ... continue`) before the park UPDATE")
+
+    def assigned(name_call, arg_ok):
+        return next((i for i, st in enumerate(before) if isinstance(st, ast.Assign) and len(st.targets) == 1
+                     and isinstance(st.targets[0], ast.Name) and isinstance(st.value, ast.Call)
+                     and call_name(st.value) == name_call and arg_ok(st.value)), None)
+
+    r_i = assigned("item_kb_refs", lambda v: [ast.unparse(x) for x in v.args] == ["c", tgt.id])
+    refs = before[r_i].targets[0].id if r_i is not None else None
+    k_i = assigned("kb_checks", lambda v: refs is not None and len(v.args) == 2 and ast.unparse(v.args[1]) == refs)
+    checks = before[k_i].targets[0].id if k_i is not None else None
+    guard = [i for i, st in enumerate(before) if isinstance(st, ast.If) and checks is not None and i > k_i
+             and "!= 'clear'" in ast.unparse(st.test) and re.search(r"\bin " + checks + r"\b", ast.unparse(st.test))
+             and not st.orelse and isinstance(st.body[-1], ast.Continue)]
+    if r_i is None or k_i is None or not guard:
+        out.append(f"{fn.name}: its write function does not check the kb refs again before the park UPDATE "
+                   f"(`refs = item_kb_refs(c, {tgt.id})`, `checks = kb_checks(hub, refs)`, "
+                   f"`if ... != 'clear' ... in checks: continue`; T42 c2)")
     return out
 
 
