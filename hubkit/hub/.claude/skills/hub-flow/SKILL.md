@@ -123,6 +123,13 @@ the open items linked to ID by `blocks`, records why on each, and prints a `waiv
 blocking item of each linked spec KB. hubflow never writes to a spec KB: show the human the
 waivers; the human sets the due time and runs them.
 
+**A waiver from the KB side:** after the human runs a waiver in a spec KB (from a hub skip, or on their
+own), run `$HF skip-waived`. It parks each open item whose spec KB is clear only because of a live human
+waiver, until the date of the waiver's due time, with the waiver in the note; after that date the item
+is back, and blocks again if the KB does. It never drops an item, and an escalated item stays for the
+human. You need not remember it: `$HF check` prints `skip_waived: <ids>` when there is something to
+park, so run it when check names an item, and at the start of a session.
+
 Items closed more than five weeks before the rotation are pruned; the JSONL history in git keeps
 them. The `hub-rotate` skill runs `rotate`.
 

@@ -30,12 +30,16 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                to ID by `blocks` (either way), and prints the
                                                waiver command for each blocking item of each
                                                linked spec KB; it never runs one
-  skip-waived                                  honor a waiver from the spec KB side: close, as human_skip,
-                                               each open item whose spec KBs have a live waiver by a human
-                                               and nothing else that blocks. The note names the KB and the
-                                               waiver; the waiver is the person's word. It never writes a
-                                               spec KB. An escalated item stays open, and is printed
-                                               (escalated: ID): the human ends it with triage.
+  skip-waived                                  honor a waiver from the spec KB side: park, until the
+                                               date of the waiver's due time, each open item whose spec
+                                               KBs are clear only because a human waived what blocked
+                                               (a precaution waiver on a clear KB does not count). It
+                                               checks the kb refs again in its write, and never drops
+                                               the item: after the due time it is back. The note names
+                                               the KB and the waiver; the waiver is the person's word.
+                                               It never writes a spec KB. An escalated item stays open,
+                                               and is printed (escalated: ID): the human ends it with
+                                               triage. `check` names the items it would park.
                                                Run it after the human runs a waiver command
   triage ID keep|lapse|capsule|escalate --note T
                                                one recorded disposition for a due item. keep and
@@ -92,7 +96,9 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   export                                       rewrite the JSONL from the db
   rebuild                                      make the db from the JSONL (refuses if the db exists)
   check                                        schema, foreign keys, JSONL equal to the db, and
-                                               no ask to another person without an issue ref
+                                               no ask to another person without an issue ref; it
+                                               also names the items that skip-waived would park
+                                               (skip_waived: IDs; the exit code does not change)
   migrate                                      bring an older db up to this script's schema: copies
                                                the db to flow/flow.db.bak-v<N> first, then runs each
                                                step and rewrites the JSONL, all in one transaction
@@ -117,9 +123,11 @@ Environment
   HUBFLOW_HUB          the hub root, when --hub is not given
   HUBFLOW_DB_DIR       the flow/ directory (tests). It wins over --hub; default <hub>/flow
   HUBFLOW_ORBIT_KB     the orbit-kb command for spec KB queries (default `orbit-kb`; split like
-                       shell words). hubflow only runs `--dir KB query 'blocking(X)'`: exit 0 with
-                       lines = blocking, exit 1 = clear. Any other exit, a missing command or a kb
-                       ref with no dir in specs/<slug> or W0..W5/analyses counts as blocking (fail-safe)
+                       shell words). hubflow only runs `--dir KB query GOAL -n 0`: for the state,
+                       GOAL is blocking(X): exit 0 with lines = blocking, exit 1 = clear. Any other
+                       exit, a missing command or a kb ref with no dir in specs/<slug> or
+                       W0..W5/analyses counts as blocking (fail-safe). The waiver commands of a skip
+                       and skip-waived also query the checks and the waivers of the KB
   HUBFLOW_NOW          fixes the clock, YYYY-MM-DDTHH:MM:SSZ (tests). Every write stores it as
                        meta.now so views read the same clock; a read applies it to a private copy
   --hub DIR            the hub root (default: HUBFLOW_HUB, else the nearest directory from the
@@ -1629,9 +1637,9 @@ def kb_dir(hub, ref):
 
 def query_blocking(path):
     """Ask one spec KB what blocks: (state, items, why). state: blocking | clear | unknown.
-    Only `query` is run: the ledger never writes to a spec KB."""
+    Only `query` is run: the ledger never writes to a spec KB. `-n 0`: every answer (T42 c3)."""
     try:
-        p = subprocess.run(orbit_kb_cmd() + ["--dir", path, "query", "blocking(X)"],
+        p = subprocess.run(orbit_kb_cmd() + ["--dir", path, "query", "blocking(X)", "-n", "0"],
                            capture_output=True, text=True, timeout=ORBIT_KB_TIMEOUT)
     except (OSError, ValueError, subprocess.SubprocessError) as e:
         return "unknown", [], f"orbit-kb did not run ({e.__class__.__name__}: {e})"
@@ -1681,6 +1689,41 @@ def waive_quote(term):
     return f'"{term}"' if not re.search(r'["$`\\]', term) else shlex.quote(term)
 
 
+def kb_query(path, goal):
+    """The answer lines of one read-only orbit-kb query (`-n 0`), or None when it did not answer."""
+    try:
+        p = subprocess.run(orbit_kb_cmd() + ["--dir", path, "query", goal, "-n", "0"],
+                           capture_output=True, text=True, timeout=ORBIT_KB_TIMEOUT)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    if p.returncode not in (0, 1):
+        return None
+    return [x.strip() for x in p.stdout.splitlines() if x.strip()] if p.returncode == 0 else []
+
+
+BLOCKING_ID = re.compile(r"^(under|check_failing|check_unrun|to_ask|burn_open|flare_open|past_due|waiver_lapsed)\((\w+)\)$")
+
+
+def waiver_targets(path, item):
+    """The ids that a waiver names to end one blocking item X of a spec KB (T42 c3): under(C) -> each
+    check of C (a waived check covers its claim); check_failing(K), check_unrun(K) -> K; to_ask(Q) -> Q;
+    burn_open(C), flare_open(C) -> C; past_due(X) -> X; waiver_lapsed(W) -> the target of W; a bare id ->
+    itself. [] when no waiver ends it (over, no_claim, a supersede cycle, a stale request)."""
+    if re.fullmatch(r"\w+", item):
+        return [item]
+    m = BLOCKING_ID.match(item)
+    if not m:
+        return []
+    kind, x = m.groups()
+    if kind == "under":
+        ks = [l[4:] for l in kb_query(path, f"check(K, {x})") or [] if l.startswith("K = ")]
+        return ks or [x]
+    if kind == "waiver_lapsed":
+        ts = [l[4:] for l in kb_query(path, f"attest({x}, waiver, _, waive(T, _, _), _, _)") or [] if l.startswith("T = ")]
+        return ts[:1]
+    return [x]
+
+
 def print_waivers(hub, iid, kbs):
     """Print, never run, the waiver command for each blocking item of each linked spec KB."""
     cmd = shlex.join(orbit_kb_cmd())
@@ -1690,33 +1733,88 @@ def print_waivers(hub, iid, kbs):
         if k["state"] == "clear":
             print(f"# kb:{k['ref']}: nothing blocks; no waiver needed")
         elif k["state"] == "blocking":
+            seen = []
             for x in k["items"]:
-                term = f"waive({x}, '<DUE>', '{reason}')"
-                print(f"waiver: {cmd} --dir {rel} attest waiver {x} {waive_quote(term)} --by human")
+                ts = waiver_targets(k["path"], x)
+                if not ts:
+                    print(f"# kb:{k['ref']}: {x}: a waiver does not end it; the spec KB's own work does")
+                if x.startswith("under(") and len(ts) > 1:
+                    print(f"# kb:{k['ref']}: {x}: one waived check covers its claim")
+                for t in ts:
+                    if t in seen:
+                        continue
+                    seen.append(t)
+                    term = f"waive({t}, '<DUE>', '{reason}')"
+                    print(f"waiver: {cmd} --dir {rel} attest waiver {t} {waive_quote(term)} --by human")
         elif rel:
-            print(f"# kb:{k['ref']}: {k['why']}; run `{cmd} --dir {rel} query 'blocking(X)'` and waive each item:")
+            print(f"# kb:{k['ref']}: {k['why']}; run `{cmd} --dir {rel} query 'blocking(X)' -n 0` and waive each item:")
             print(f"waiver: {cmd} --dir {rel} attest waiver <ITEM> {waive_quote(f'waive(<ITEM>, <DUE>, {reason!r})')} --by human")
         else:
             print(f"# kb:{k['ref']}: {k['why']}; find the spec KB and waive its blocking items by hand")
     if kbs:
         print("# the human runs each waiver and sets <DUE>; hubflow never writes to a spec KB")
-        print("# then `hubflow.py skip-waived` ends the items whose spec KB is waived and clear; an escalated item stays for the human")
+        print("# then `hubflow.py skip-waived` parks the items whose spec KB is waived and clear until the due time;"
+              " an escalated item stays for the human")
 
 
-def live_waivers(path):
-    """The human waivers of a spec KB that are not past due: [(attestation id, target, reason text)]. Only `query` runs."""
-    try:
-        p = subprocess.run(orbit_kb_cmd() + ["--dir", path, "query", "attest(W, waiver, _, waive(T, _, R), human, _), not waiver_lapsed(W)", "-n", "0"],
-                           capture_output=True, text=True, timeout=ORBIT_KB_TIMEOUT)
-    except (OSError, ValueError, subprocess.SubprocessError):
+# A live human waiver that covers something that would block without it (T42 c5): a check of a claim
+# that is not fulfilled, a question that would be asked, a burn with no proof, a flare with no approved
+# demo. A precaution waiver on a KB that is clear on its own is not one. T42 c7: a lapsed waiver never
+# counts (over a check that passes now it does not block either, so the KB reads clear).
+WAIVER_QUERY = ("attest(W, waiver, _, waive(T, D, R), human, _), "
+                "not waiver_lapsed(W), (check(T, _C), current(_C), not fulfilled(_C) ; "
+                "question(T, _Q, _), current(_Q), contested(_Q), not answered(T) ; "
+                "burn(T), current(T), not burn_proved(T) ; flare(T), current(T), not flare_shown(T))")
+
+
+def needed_waivers(path):
+    """The live human waivers of a spec KB that something rests on: [(attestation id, target, due,
+    reason text)], one per waiver. Only `query` runs."""
+    out, seen = [], set()
+    for line in kb_query(path, WAIVER_QUERY) or []:
+        m = re.match(r"W = (\S+?), T = (\S+?), D = '([^']*)', R = (.*)$", line)
+        if m and m.group(1) not in seen:
+            seen.add(m.group(1))
+            out.append((m.group(1), m.group(2), m.group(3), m.group(4).strip("'")))
+    return out
+
+
+def waiver_park(checks):
+    """(until, note) for an item whose kb checks all read clear: the date of the earliest due time of
+    the waivers it rests on (after it the KB blocks again), and the note that names the waiver. None
+    when no such waiver exists (the KB is clear on its own: not a skip, T42 c5)."""
+    waived = [(k["ref"], w) for k in checks if k["path"] for w in needed_waivers(k["path"])]
+    if not waived:
+        return None
+    ref, (wid, target, due, why) = min(waived, key=lambda x: (x[1][2], x[0], x[1][0]))
+    return due[:10], f"the human waived {target} in kb:{ref} ({wid}) until {due}: {why}; parked until then"
+
+
+def item_kb_refs(c, iid):
+    return [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (iid,))]
+
+
+def skip_candidates(g):
+    """The read of skip-waived: [(item id, until, escalated)] for each open item whose kb refs all read
+    clear and rest on a live human waiver, and that is not parked through `until` yet."""
+    hub = hub_dir(g)
+    if informal_at(hub):
         return []
-    if p.returncode != 0:
-        return []
+    c = connect_ro(flow_dir(g))
+    cand = []
+    for it in c.execute("SELECT id, parked_until FROM item WHERE status IN ('open','waiting') ORDER BY id").fetchall():
+        refs = item_kb_refs(c, it[0])
+        if refs:
+            cand.append((it[0], it[1], refs, is_escalated(c, it[0])))
+    c.close()
     out = []
-    for line in p.stdout.splitlines():
-        m = re.match(r"W = (\S+?), T = (\S+?), R = (.*)$", line.strip())
-        if m:
-            out.append((m.group(1), m.group(2), m.group(3).strip("'")))
+    for iid, parked_until, refs, esc in cand:
+        checks = kb_checks(hub, refs)
+        if any(k["state"] != "clear" for k in checks):
+            continue  # something still blocks, or the KB is unknown: not a skip
+        plan = waiver_park(checks)
+        if plan and not (parked_until and parked_until >= plan[0]):
+            out.append((iid, plan[0], esc))
     return out
 
 
@@ -1725,26 +1823,11 @@ def cmd_skip_waived(g, a):
     if pos:
         usage("skip-waived")
     hub = hub_dir(g)
-    c = connect_ro(flow_dir(g))
-    cand = []
-    for it in c.execute("SELECT id FROM item WHERE status IN ('open','waiting') ORDER BY id").fetchall():
-        refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (it[0],))]
-        if refs:
-            cand.append((it[0], refs))
-    c.close()
-    ending = []  # (item id, note)
-    for iid, refs in cand:
-        checks = kb_checks(hub, refs)
-        if any(k["state"] != "clear" for k in checks):
-            continue  # something still blocks, or the KB is unknown: not a skip
-        waived = [(k["ref"], w) for k in checks for w in live_waivers(k["path"])]
-        if waived:
-            ref, (wid, target, why) = waived[0]
-            ending.append((iid, f"the human waived {target} in kb:{ref} ({wid}): {why}"))
+    ending = [iid for iid, _, _ in skip_candidates(g)]
 
     def fn(c, w):
         done, kept = [], []
-        for iid, note in ending:
+        for iid in ending:
             it = get_item(c, iid)
             if it["status"] not in OPEN:
                 continue
@@ -1752,13 +1835,25 @@ def cmd_skip_waived(g, a):
             if is_escalated(c, iid):  # escalated stays for the human
                 kept.append(iid)
                 continue
-            c.execute("UPDATE item SET status = 'dropped', closed_at = ?, close_reason = 'human_skip' WHERE id = ?", (w.now, iid))
-            w.event(iid, "closed", it["status"], "human_skip", note=note, by="script")
+            # T42 c2: so does an item whose kb refs (read again, with any ref added since) no longer read clear
+            refs = item_kb_refs(c, iid)
+            checks = kb_checks(hub, refs)
+            if not refs or any(k["state"] != "clear" for k in checks):  # recheck in the write
+                continue
+            plan = waiver_park(checks)
+            if plan is None:
+                continue
+            until, note = plan
+            if it["parked_until"] and it["parked_until"] >= until:
+                continue  # parked through the due date already
+            # T42 c4: the waiver ends the item only for its time: park it until the due date, never drop it
+            c.execute("UPDATE item SET parked_until = ? WHERE id = ?", (until, iid))
+            w.event(iid, "parked", it["parked_until"], until, note=note, by="script")
             done.append(iid)
         return done, kept
 
     done, kept = run_write(g, o, fn) if ending else ([], [])
-    print("closed: " + (" ".join(done) or "none"))
+    print("parked: " + (" ".join(done) or "none"))
     for iid in kept:
         print(f"escalated: {iid} (the human ends it with triage)")
 
@@ -2193,8 +2288,11 @@ def cmd_spec_triage(g, a):
         raise Bad("spec-triage needs --note: why this decision")
     by, hub = writer_by(o, g), hub_dir(g)
     c = connect_ro(flow_dir(g))
-    items = kb_slug_items(c, slug)
-    has_capsule = any(c.execute("SELECT 1 FROM capsule WHERE item_id = ?", (i[0],)).fetchone() for i in items)
+    # a summary row is not an item of the ticket (T42 c1, as untriaged_spec_kbs): an open one never
+    # keeps the decision out, so it never blocks a rotation (Ty q5)
+    items = kb_slug_items(c, slug, False)  # summaries=False
+    has_capsule = any(c.execute("SELECT 1 FROM capsule WHERE item_id = ?", (i[0],)).fetchone()
+                      for i in kb_slug_items(c, slug))
     c.close()
     if not items:
         raise Bad(f"no item refers to kb:{slug}")
@@ -2402,6 +2500,11 @@ def cmd_check(g, a):
     problems += untracked_asks(c)
     c.execute("ROLLBACK")
     c.close()
+    # T42 c6: the KB-to-hub direction of a waiver needs no one to remember a command
+    due = [iid for iid, _, esc in skip_candidates(g) if not esc]
+    if due:
+        print("skip_waived: " + " ".join(due))
+        print("# a human waiver in the spec KB clears each of them: run `hubflow.py skip-waived` to park them until its due time")
     if problems:
         die(3, "; ".join(problems))
 
@@ -2450,6 +2553,7 @@ INFORMAL_HELP = (
     (r"\.? An agent's keep, lapse or capsule of\n\s+an item whose spec KB blocks becomes escalate", ""),
     (r"  where SLUG .*?\n  spec-triage .*?\n  import ", "  import "),
     (r"  skip-waived .*?Run it after the human runs a waiver command\n", ""),
+    (r"; it\n\s+also names the items that skip-waived would park\n\s+\(skip_waived: IDs; the exit code does not change\)", ""),
     (r" \(the\nquestion server, `orbit-kb serve questions --hub DIR`, closes an ask this way\)", ""),
     (r"  HUBFLOW_ORBIT_KB .*?\n  HUBFLOW_NOW", "  HUBFLOW_NOW"),
     (r"A spec KB has the ticket's clock.*?`where` and the retention windows below follow this\.", "The retention windows below follow this."),
