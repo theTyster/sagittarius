@@ -85,9 +85,12 @@ EXEMPT_C9 = {
 EXEMPT_C9_PREFIX = ("s1/fixtures/", "evals/", "tmp/")
 # API names, matched case-sensitively and removed before the case-insensitive search: the file name
 # jev.py (test_jev.py too), a model id (jev-1.14.0, jev-latest), and the Python module jev with its
-# names (import jev, jev.judge, jev_log, run.jev(...), self.jevlog, "jev" as a step name).
+# names (import jev, jev.judge, jev_log, run.jev(...), self.jevlog). T45 c5 (u45): prose is not
+# masked. "jev" as a step name is exempt only as a code token (after one of [({,=: and before one of
+# ])},: such as RSTEP[st]["jev"] or {"jev", "sonnet"}), and .jev only as a member (run.jev, self.jevlog);
+# a quoted 'jev' or ".jev" in a sentence is flagged.
 API_NAME = re.compile(r"[\w.]*jev\.py|\bjev-[\w.]+|\bimport jev\b|\bjev(?=\.[A-Za-z_])|\w*_jev\w*|\bjev_\w+"
-                      r"|[\"']jev[\"']|\bdef jev\(|\.jev\w*")
+                      r"|(?:(?<=[\[({,=:])|(?<=[\[({,=:] ))[\"']jev[\"'](?=\s*[\])},:])|\bdef jev\(|(?<=\w)\.jev\w*")
 
 
 def c9_flags(ln):

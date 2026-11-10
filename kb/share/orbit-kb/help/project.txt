@@ -70,15 +70,19 @@ Queries (the derived answers)
                                 the staged time or later. Equal times: the tracker wins (the tracker
                                 holds most of the information).
   both_changed(D, T)            the tracker (last change T) and the draft both changed after the pin
-  lost_by_date(D, Side)         both changed, and the dates dropped the edit of Side
+  lost_by_date(D, Side)         the dates dropped the edit of Side: the draft lost to a later tracker
+                                change (also a draft staged at or before the pin, T45), or the
+                                tracker lost when both changed after the pin
   dropped(D, Side)              the side that lost, by date or by resolved. The facts stay in kb.pl:
                                 this is the record.
   decision_digest(D, Digest)    the sha256 of the text of the decision (computed)
   subject_now(S, Digest)        the digest of the file of the subject now (computed)
 When the tracker and a draft both changed after the pin, it is not a conflict that blocks: the
 dates decide, and nothing blocks a spec KB for a draft. A human who disagrees adds
-resolved(D, draft|tracker, Time). So that a dropped edit is not lost quietly, run
-orbit-kb --dir PROJECT project dropped after pin-item or a new draft: it records it in the hub ledger.
+resolved(D, draft|tracker, Time). So that a dropped edit is not lost quietly, pin-item and
+draft blocking, attach and outbound record each new drop in the hub ledger themselves (T45), and
+project dropped does it by hand. The ledger item is escalated: only a human closes it, on purpose
+(hubflow close ID --reason done --by human --session human --note "<their words>"). An agent's close is refused as a dropped edit.
 A contradiction is the blocking item project_contradiction(X) for each spec KB with a claim that
 pins X directly. A spec KB that reaches X only through rests_on gets the warning WP5, not a block.
 Only ratified facts block: a contradiction on a proposed fact blocks nothing.
@@ -110,10 +114,13 @@ Commands
       title names the draft, the pin, the side that lost and both times, with a kb ref to the
       project KB (a path inside the hub). hubflow writes it (--by script) in the session of
       --session S, else HUB_SESSION. The hub is --hub DIR, else the parent of the project KB when it
-      has flow/flow.db. A drop whose title is in the ledger already (in any status) is skipped, so a
-      second run adds nothing. A drop by resolved gets no item: a human chose it. It writes nothing
-      to the KB.
-  orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]
+      has flow/flow.db. A drop that is in the ledger already (in any status; the same draft, pin,
+      side and kb ref, whatever the times) is skipped, so a second run adds nothing. A drop by
+      resolved gets no item: a human chose it. It writes nothing to the KB. It escalates each new
+      item (hubflow triage ID escalate): only a human closes it. pin-item and draft blocking,
+      attach and outbound do the same by themselves for each new drop, and print the item id; with
+      no hub they print one line that names the drop and this command (T45).
+  orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file] [--hub DIR] [--session S]
       records the pin. A tracker pin keeps the pinned text as pins/HEX.txt (HEX of the digest), so
       a draft is an edit of that text. A file pin (--kind file, a week's report) keeps only its
       digest and its path: never a copy. Its digest is of the pinned file (SOURCE: a path, or a

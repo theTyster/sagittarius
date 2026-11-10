@@ -228,8 +228,8 @@ decl(rule, blocking(term),
      'The item blocks done. The term names its kind and its id, such as to_ask(q1) or burn_open(c1).',
      '@(1) blocks done').
 decl(rule, any_project_conflict,
-     'A conflict of the project KB blocks this KB, because a claim rests on a decision that the conflict concerns. The project module adds the clause (D23).',
-     'a conflict of the project KB blocks this KB').
+     'An item of the project KB blocks this KB: the project KB does not load clean (project_kb_unclean), or a claim pins a fact that is in a contradiction there (project_contradiction). No draft blocks (T43). The project module adds the clauses (D23, D27).',
+     'the project KB blocks this KB (project_kb_unclean or project_contradiction)').
 decl(rule, lint_issue(atom, ref, text),
      'A lint result that a module adds, with a code, an id, and a message.',
      'lint issue @(1) on @(2): @(3)').
