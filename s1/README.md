@@ -5,7 +5,7 @@ API: https://docs.typesafe.ai/api.md
 
 - `judge(state, questions, *, model="jev-1.14.0", timeout=20, redactions=None)` returns `{qid: answer}` or `None`. It never raises. The key comes from `$TYPESAFE_API_KEY`.
 - `redact(obj, pairs)`, `band(p)`, `to_prolog(run_id, answers)`: see the docstrings.
-- Log: one JSON line per call in `$S1_LOG`, else `~/.claude/logs/s1.jsonl`. No key. State only after redaction.
+- Log: one JSON line per call in `$S1_LOG`, else `~/.claude/logs/s1.jsonl`. No key. The state only after any redaction that the caller asks for (the hook asks for none).
 
 Tests (no network): `python3 -m unittest s1.test_jev -v` from the repo root.
 
@@ -20,8 +20,8 @@ whole. Only when the state and the longest question would pass the model's per-q
 tokens) are the messages beyond 3 dropped, oldest first. If the 3 whole messages still do not
 fit, they are sent whole with the `TypeSafe-Danger-Zone-Long-Context: true` header (262k tokens;
 slower, same price; the log line has `"long_context": true`). Only beyond 262k is the oldest one
-cut from its start; the log line then has `"trimmed": true`. Every text is
-redacted. It adds one line of context for the agent, for example:
+cut from its start; the log line then has `"trimmed": true`. The hook sends the complete messages
+as written, with no redaction (T43, u123). It adds one line of context for the agent, for example:
 
     System 1: work=build (0.83); divergence likely (0.85); effort significant (0.91): consider a shift up; formal tool: prolog (0.72)
 
@@ -39,10 +39,8 @@ session's calibrated set (22 of 25 known cases), copied unchanged.
 
 ### Install (Ty pastes this; no script installs it)
 
-1. Copy `s1/redact.example.txt` to `s1/redact.txt` and put in it the names that must not leave the
-   machine, one per line. `s1/redact.txt` is gitignored. Without it, nothing is redacted.
-2. Set `TYPESAFE_API_KEY` in the environment that starts `claude`.
-3. Paste this into the `hooks` of your `~/.claude/settings.json`. Change the path if the checkout
+1. Set `TYPESAFE_API_KEY` in the environment that starts `claude`.
+2. Paste this into the `hooks` of your `~/.claude/settings.json`. Change the path if the checkout
    is not at `/path/to/sagittarius`:
 
 ```json
@@ -79,10 +77,9 @@ Set `S1_OFF=1`: for one session, start it with `S1_OFF=1 claude`; for all sessio
 | `S1_TIMEOUT` | `4` | seconds for the System 1 model call |
 | `S1_CONTEXT_MESSAGES` | `3` | messages in `recent` (never below 3) |
 | `S1_QUESTIONS` | `s1/questions.json` | the question set |
-| `S1_REDACT` | `s1/redact.txt` | names to redact |
 | `S1_LOG` | `~/.claude/logs/s1.jsonl` | the log (`jev.py` writes it) |
 
-Each log line is the `jev.py` record (no key; the state after redaction) plus `session_id` and
+Each log line is the `jev.py` record (no key; the state as sent) plus `session_id` and
 `transcript` (the basename of the transcript path).
 When the hook makes no call or prints nothing because of a problem (bad stdin, no
 questions, no key, a timeout, no answers, bad answers), it writes one line with a `skipped`

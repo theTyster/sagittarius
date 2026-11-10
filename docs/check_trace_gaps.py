@@ -29,7 +29,6 @@ ALLOW = {
     "s1/measure_latency.py": "measures the vendor call",
     "s1/test_temper.py": "tests of code that calls the client",
     "s1/TEMPER_LIVE_RUN.md": "a record of a run against jev-1.14.0",
-    "s1/redact.example.txt": "an example file of the client",
     "kb/tests/test_release.sh": "reads the word in CHANGELOG.md",
     "docs/check_trace_gaps.py": "this check",
 }

@@ -20,15 +20,16 @@ counted here as CONTEXT_CHARS characters) are the messages beyond 3 dropped, old
 3 whole messages still do not fit, they are sent whole with the TypeSafe-Danger-Zone-Long-Context
 header (262k tokens; slower, same price; the log line has "long_context": true). Only beyond 262k
 is the oldest message cut from its start; the log line then has "trimmed": true. The transcript
-read starts with the last 2 MiB and goes back, at most 8 MiB, until it has the messages. Every text is redacted.
+read starts with the last 2 MiB and goes back, at most 8 MiB, until it has the messages.
+The hook sends the complete messages as written, with no redaction (T43, u123): no name list is
+applied to them.
 
 Fails open: on any error, a timeout, a missing key, a missing questions file or bad stdin it
 prints nothing and exits 0. It never blocks a prompt.
 
 Env: TYPESAFE_API_KEY (the key), S1_OFF=1 (do nothing), S1_TIMEOUT (seconds, default 4),
 S1_CONTEXT_MESSAGES (default 3, never below 3),
-S1_QUESTIONS (default s1/questions.json), S1_REDACT (default s1/redact.txt: one name per line,
-'#' starts a comment), S1_LOG (default ~/.claude/logs/s1.jsonl).
+S1_QUESTIONS (default s1/questions.json), S1_LOG (default ~/.claude/logs/s1.jsonl).
 """
 import json
 import os
@@ -49,7 +50,6 @@ CHARS_PER_TOKEN = 3  # a cautious count: fewer characters per token than English
 CONTEXT_CHARS = CONTEXT_TOKENS * CHARS_PER_TOKEN
 LONG_CONTEXT_TOKENS = 262000  # with the long-context header (TypeSafe docs, models page)
 LONG_CONTEXT_CHARS = LONG_CONTEXT_TOKENS * CHARS_PER_TOKEN
-REDACTED = "[redacted]"
 CHOICE_MIN = 0.5  # a choice is shown when P(choice) >= 0.5, as in the calibration
 
 
@@ -59,17 +59,6 @@ def _timeout(env):
         return t if t > 0 else DEFAULT_TIMEOUT
     except (TypeError, ValueError):
         return DEFAULT_TIMEOUT
-
-
-def load_redactions(path):
-    """[(name, REDACTED), ...] from a file with one name per line. A missing file gives []."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            lines = f.read().splitlines()
-    except FileNotFoundError:
-        return []
-    names = [x.strip() for x in lines]
-    return [(n, REDACTED) for n in names if n and not n.startswith("#")]
 
 
 def _tail_lines(path, size=TAIL_BYTES):
@@ -191,10 +180,10 @@ def _fit(state, questions):
     return trimmed, long_context
 
 
-def build_state(prompt, transcript_path, pairs, n=CONTEXT_MESSAGES, questions=None):
-    """{message, recent}, redacted, then fitted. Returns (state, trimmed, long_context)."""
+def build_state(prompt, transcript_path, n=CONTEXT_MESSAGES, questions=None):
+    """{message, recent} as written (no redaction, T43), then fitted. Returns (state, trimmed, long_context)."""
     recent = recent_messages(transcript_path, n, prompt)
-    st = jev.redact({"message": prompt, "recent": recent}, pairs)
+    st = {"message": prompt, "recent": recent}
     trimmed, long_context = _fit(st, questions or {})
     return st, trimmed, long_context
 
@@ -288,7 +277,6 @@ def run(raw, env, transport=None):
         except (OSError, ValueError) as e:
             _skip(log_path, key, f"questions: {type(e).__name__}: {e}", extra)
             return ""
-        redact_path = env.get("S1_REDACT") or os.path.join(HERE, "redact.txt")
         timeout = _timeout(env)
         if not key:  # judge would fall back to os.environ; the hook reads only env
             _skip(log_path, None, "no API key", extra, model=jev.DEFAULT_MODEL,
@@ -299,8 +287,7 @@ def run(raw, env, transport=None):
 
         def call():  # the transcript read and the request both run inside the timeout
             try:
-                state, trimmed, long_context = build_state(payload["prompt"], tpath, load_redactions(redact_path),
-                                             _count(env), questions)
+                state, trimmed, long_context = build_state(payload["prompt"], tpath, _count(env), questions)
             except Exception as e:
                 box["error"] = f"state: {type(e).__name__}: {e}"
                 return
