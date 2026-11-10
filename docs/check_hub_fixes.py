@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T31: an agent in a hub can run what the hub guidance tells it. One check per claim.
 
-usage: python3 docs/check_hub_fixes.py t31c1|...|t31c9 (t31c7 is superseded by t31c8) [--list]   (--list prints the claim ids)
+usage: python3 docs/check_hub_fixes.py t31c1|...|t31c9|t46c2 (t31c7 is superseded by t31c8) [--list]   (--list prints the claim ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 t31c1 runs the project KB setup line that hubkit/INSTRUCTIONS.md (and hubkit/README.md, when it has one) gives.
@@ -16,6 +16,8 @@ t31c8 (u47) the prompt, PHILOSOPHY and the core help say: after a shift up the h
       the formal language as the shared substrate, and the human reads, reviews and understands it.
 t31c9 (u57) the hypothesis paragraph of the prompt names hypotheses, premises and claims for err-soft, and keeps
       "oscillation is an intentional heuristic".
+t46c2 help project, next to the automatic record of a dropped edit (T45), and the session setup of the hub kit
+      (INSTRUCTIONS.md Step 5, HUB-CORE.md) say how a pane gets HUB_SESSION.
 """
 import os
 import re
@@ -185,9 +187,34 @@ def t31c9():
     check("t31c9 the prompt stays within 230 lines", len(read(os.path.join(ROOT, "prompt", "SAGITTARIUS.md")).splitlines()) <= 230, "too long")
 
 
+def t46c2():
+    # T46 c2: the automatic record of a dropped edit (T45) runs in the session of HUB_SESSION; help project
+    # says, next to the auto record, how a pane gets it, and so does the session setup of the hub kit.
+    hp = re.sub(r"\s+", " ", read(os.path.join(ROOT, "kb", "share", "orbit-kb", "help", "project.txt")))
+    i = hp.find("record each new drop in the hub ledger themselves")
+    check("t46c2 help project states the auto record", i >= 0, "phrase missing")
+    near = hp[max(0, i - 300):i + 900] if i >= 0 else ""
+    check("t46c2 help project names HUB_SESSION next to the auto record", "HUB_SESSION" in near, near[:300])
+    check("t46c2 help project says how a pane gets HUB_SESSION (set where it is started: HUB_SESSION=NAME claude)",
+          re.search(r"HUB_SESSION=\S+ claude", near) is not None, near[:300])
+    check("t46c2 help project says that with no session the record is refused with a warning",
+          re.search(r"no HUB_SESSION.{0,200}warn", near, re.I) is not None, near[:300])
+    ins = read(os.path.join(ROOT, "hubkit", "INSTRUCTIONS.md"))
+    m = re.search(r"^## Step 5[^\n]*\n(.*?)(?=^## )", ins, re.S | re.M)
+    step5 = re.sub(r"\s+", " ", m.group(1)) if m else ""
+    check("t46c2 INSTRUCTIONS.md has Step 5 (sessions)", bool(step5), "missing")
+    check("t46c2 INSTRUCTIONS.md Step 5 says orbit-kb records a dropped edit in the session of HUB_SESSION",
+          "orbit-kb" in step5 and "dropped edit" in step5 and "HUB_SESSION" in step5, step5[-400:])
+    core = read(os.path.join(HUB, "HUB-CORE.md"))
+    m = re.search(r"^## Flow state lives in the db\n(.*?)(?=^## )", core, re.S | re.M)
+    flow = re.sub(r"\s+", " ", m.group(1)) if m else ""
+    check("t46c2 HUB-CORE.md (flow state) says orbit-kb records a dropped edit in the session of HUB_SESSION",
+          "orbit-kb" in flow and "dropped edit" in flow and "HUB_SESSION" in flow, flow[:400])
+
+
 # t31c7 is superseded by t31c8 (u47): its second check pinned the T29 wording, which u47 says is too narrow.
 # The function stays above as the record. It is no longer a claim of this file.
-CLAIMS = {k: globals()[k] for k in ("t31c1", "t31c2", "t31c3", "t31c4", "t31c5", "t31c6", "t31c8", "t31c9")}
+CLAIMS = {k: globals()[k] for k in ("t31c1", "t31c2", "t31c3", "t31c4", "t31c5", "t31c6", "t31c8", "t31c9", "t46c2")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]

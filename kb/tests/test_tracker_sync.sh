@@ -33,6 +33,8 @@
 #   c3 a draft staged at or before the pin and dropped by the tracker is recorded : TS38
 #   c4 the declaration of any_project_conflict names what it covers now        : TS39
 #   c6 (review divergence a21 on c1) a pushed draft is not lost or dropped by date : TS40
+# Ticket T46 (follow-ups of the T45 verify; CONTRACT D23 P4 amended by T46):
+#   c1 a push over a newer tracker edit leaves a record, once                  : TS41
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -667,6 +669,54 @@ t_TS40() { hub_pk   # T45 (review divergence a21 on c1): a pushed draft is not l
            # resolved() is unchanged: a human's choice of the tracker still drops a pushed draft
            okb "$P" add "resolved(dA, tracker, '$T4')"; rc_is 0
            okb "$P" query 'dropped(dA, draft)'; rc_is 0 "resolved(dA, tracker) still drops the draft"; }
+# notes PYEXPR [LABEL]: rows = every note event of the ledger (item, note); the expression must hold
+notes() {
+    ( cd "$H" && python3 .claude/scripts/hubflow.py --hub "$H" sql "SELECT item_id AS item, note FROM event WHERE verb = 'note' ORDER BY seq" --format json ) >"$T/.notes.json" 2>"$T/.notes.err"
+    python3 -I -c "import json,sys; rows=json.load(open(sys.argv[1])); sys.exit(0 if ($1) else 1)" "$T/.notes.json" 2>/dev/null \
+        || note "${2:+$2: }notes: not ($1): $(snip "$(cat "$T/.notes.json" "$T/.notes.err")")"
+}
+t_TS41() { hub_pk   # T46 c1: a push over a newer tracker edit leaves a record (review's b.sh, case B)
+           pin_item p5 tracker:ITEM-5 'Title: Other' "$T0"
+           add_draft dB p5 'Other, as we want it' "$T1"
+           item_text "$T/item-p6.txt" 'Title: Other, edited by someone else (important content)'
+           okb_hub "$P" pin-item p6 tracker:ITEM-5 --text-file "$T/item-p6.txt" --changed-at "$T2"; rc_is 0 "pin-item of the other edit"
+           ledger "len(rows) == 1 and 'dB' in rows[0]['title']" "before the push, the drop of dB is recorded"
+           local id; id=$(ledger_id)
+           okb "$P" add "pushed(dB, '$T3')"; rc_is 0 "a human pushes dB anyway"
+           item_text "$T/item-p7.txt" 'Other, as we want it'
+           okb_hub "$P" pin-item p7 tracker:ITEM-5 --text-file "$T/item-p7.txt" --changed-at "$T4"; rc_is 0 "pin-item after the push"
+           any_hasi "$id" "pin-item names the item it noted"
+           okb "$P" query 'pushed_over(dB, p6)'; rc_is 0 "the KB holds that the push of dB overwrote the tracker edit of pin p6"
+           okb "$P" query 'pushed_over(dB, p7)'; rc_is 1 "the pin taken after the push is not overwritten"
+           okb "$P" query 'dropped(dB, tracker)'; rc_is 0 "the tracker edit is dropped"
+           ledger "len(rows) == 1" "the push adds a note, not a second item, while the item of the drop is open"
+           notes "len([r for r in rows if r['item'] == '$id']) == 1" "one note on $id"
+           notes "any(r['item'] == '$id' and 'pushed at $T3' in r['note'] and 'overwrote the tracker edit of $T2' in r['note'] for r in rows)" "the note says the draft was pushed at T3 and overwrote the tracker edit of T2"
+           # a second run of each command adds none
+           for sub in outbound blocking attach; do
+               okb_hub "$P" draft "$sub"; rc_is 0 "draft $sub"
+           done
+           item_text "$T/item-p8.txt" 'Other, as we want it'
+           okb_hub "$P" pin-item p8 tracker:ITEM-5 --text-file "$T/item-p8.txt" --changed-at "$T4"; rc_is 0 "a second pin-item"
+           dropped_run; rc_is 0 "project dropped"
+           ledger "len(rows) == 1" "a second run adds no item"
+           notes "len(rows) == 1" "a second run adds no note"
+           # no item for the drop (the pin before the push had no session): one new item, escalated
+           rm -rf "$T/hub"; hub_pk
+           pin_item p5 tracker:ITEM-5 'Title: Other' "$T0"
+           add_draft dB p5 'Other, as we want it' "$T1"
+           pin_item p6 tracker:ITEM-5 'Title: Other, edited by someone else' "$T2"
+           ledger "len(rows) == 0" "with no session, the drop was not recorded"
+           okb "$P" add "pushed(dB, '$T3')"; rc_is 0
+           item_text "$T/item-p7.txt" 'Other, as we want it'
+           okb_hub "$P" pin-item p7 tracker:ITEM-5 --text-file "$T/item-p7.txt" --changed-at "$T4"; rc_is 0 "pin-item after the push"
+           ledger "len(rows) == 1 and rows[0]['status'] == 'open' and 'dB' in rows[0]['title'] and 'p6' in rows[0]['title']" "one new item names the draft and the pin of the overwritten edit"
+           ledger "'kb:project-kb' in (rows[0]['refs'] or '').split()" "the new item has a kb ref to the project KB"
+           id=$(ledger_id)
+           [ -n "$id" ] && { hf --session build close "$id" --reason done; [ "$rc" != 0 ] || note "an agent close of the overwrite item $id must be refused (it is escalated)"; }
+           okb_hub "$P" draft outbound; rc_is 0
+           dropped_run; rc_is 0
+           ledger "len(rows) == 1" "a second run adds no item"; }
 
 # ---------------------------------------------------------------- driver
 for fn in $(declare -F | awk '{print $3}' | grep -E '^t_TS[0-9]+$' | sort -t S -k2 -n); do
