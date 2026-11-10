@@ -1048,6 +1048,8 @@ if mode == "asks":
     rows = [dict(id=r["id"], kind=r["kind"], title=r["title"], status=r["status"], waits_on=r["waits_on"], age_days=age(r))
             for r in c.execute("SELECT * FROM item WHERE kind = \'ask\' AND status IN (\'open\', \'waiting\') ORDER BY id")]
     print(json.dumps({"owner": owner(), "asks": rows}))
+elif mode == "titles":
+    print(json.dumps([dict(id=r["id"], title=r["title"]) for r in c.execute("SELECT id, title FROM item ORDER BY id")]))
 else:
     r = c.execute("SELECT * FROM item WHERE id = ?", (sys.argv[3],)).fetchone()
     if r is None:
@@ -1588,8 +1590,7 @@ request_derived(KbItems, Facts) :-
 %   subject_now(S, D)        the file of subject S exists, and its digest now is D.
 %   decision_digest(X, D)    D is the sha256 of the text of decision X.
 %   project_decision_digest(X, D)   the same, for a decision of the KB at project_kb/1.
-%   project_conflict(Dr, X)  draft Dr of that KB is in conflict, and decision X
-%                            rests on the pin of the draft.
+%   (T43 c3: no draft is a conflict now, so no project_conflict fact is computed.)
 project_derived(Dir, KbItems, Facts) :-
     items_uses(KbItems, Uses),
     memberchk(project, Uses),
@@ -1726,7 +1727,6 @@ project_kb_facts(Dir, P, Facts) :-
     kb_items(PKB, AllItems), items_decls(AllItems, Ds),
     build_engine(AllItems, Ds, Eng),
     % D27: a proposed fact (an agent made it, no human ratified it) blocks nothing.
-    swi_raw(Eng, (conflict(Dr), draft(Dr, Pn, Tx, _), concerns(X, Pn), not(proposed(X))), t(Dr, X, Tx), Res),
     swi_raw(Eng, (contradiction(CA, CB), not(proposed(CA)), not(proposed(CB))), CA-CB, ResC),
     (   ResC = answers(LC, _)
     ->  findall(project_contradiction(X1, Y1), ( member(X0-Y0, LC), ( X1-Y1 = X0-Y0 ; X1-Y1 = Y0-X0 ) ), FC0),
@@ -1735,15 +1735,8 @@ project_kb_facts(Dir, P, Facts) :-
     ),
     swi_raw(Eng, rests_on(RZ, RY), RZ-RY, ResR),
     (   ResR = answers(LR, _) -> findall(project_rests_on(Z1, Y2), member(Z1-Y2, LR), FR) ; FR = [] ),
-    (   Res = answers(L, _)
-    ->  findall(project_conflict(Dr, X), member(t(Dr, X, _), L), F2a),
-        findall(project_draft_text(Dr, Tx), member(t(Dr, _, Tx), L), F2b0),
-        sort(F2b0, F2b),
-        append(F2a, F2b, F2)
-    ;   F2 = []
-    ),
     (   project_unclean(PKB) -> F3 = [project_kb_unclean] ; F3 = [] ),
-    append([F1, F2, F3, FC, FR], Facts).
+    append([F1, F3, FC, FR], Facts).
 
 % The project KB does not load clean: lint finds an error in it (D23).
 project_unclean(PKB) :-
@@ -2519,8 +2512,6 @@ protected_pi(any_request_stale/0).
 protected_pi(subject_now/2).
 protected_pi(decision_digest/2).
 protected_pi(project_decision_digest/2).
-protected_pi(project_conflict/2).
-protected_pi(project_draft_text/2).
 protected_pi(project_kb_unclean/0).
 % D27: the computed facts of the project module.
 protected_pi(rests_on/2).
@@ -3922,7 +3913,6 @@ view_kind_label(no_claim, "No current claim").
 view_kind_label(check_failing, "Check that failed").
 view_kind_label(check_unrun, "Check that never ran").
 view_kind_label(waiver_lapsed, "Waiver that lapsed").
-view_kind_label(project_conflict, "Draft that conflicts with the tracker").
 view_kind_label(project_kb_unclean, "Project KB that does not load clean").
 view_kind_label(project_contradiction, "Pinned fact in a contradiction").
 
@@ -3949,7 +3939,7 @@ view_item_html(Mode, Dir, Eng, Item, Html) :-
         )
     ;   Kind == no_claim
     ->  Text = "Add a claim; the work is not done without one."
-    ;   memberchk(Kind, [project_conflict, project_kb_unclean, project_contradiction])
+    ;   memberchk(Kind, [project_kb_unclean, project_contradiction])
     ->  view_blocking_sentence(Eng, Item, Text)
     ;   view_xtext(Eng, Id, Text),
         ( view_xclaim(Eng, Id, Cl) -> true ; true )
@@ -6032,12 +6022,6 @@ blocking_line(_, Eng, waiver_lapsed(W), S) :- !,
         fmt(S, "- waiver_lapsed ~w: waiver ~w of ~w was due at ~w, and ~w still blocks: ~w", [W, W, XT, DT, XT, RT])
     ;   fmt(S, "- waiver_lapsed ~w: waiver ~w is past its due time.", [W, W])
     ).
-blocking_line(_, Eng, project_conflict(Dr), S) :- !,
-    (   eng_all(Eng, [Dc, Tx], ( project_conflict(Dr, Dc), project_draft_text(Dr, Tx) ), [[Dc1, Tx1]|_])
-    ->  txt(Dc1, DcT), txt(Tx1, TxT)
-    ;   DcT = '?', TxT = ''
-    ),
-    fmt(S, "- project_conflict ~w: draft ~w of the project KB conflicts with a change of the tracker, and decision ~w rests on it: ~w", [Dr, Dr, DcT, TxT]).
 blocking_line(_, Eng, request_stale(R), S) :- !,
     eng_all(Eng, [Ref], request_pin(R, Ref, _, _), Refs), ( last(Refs, Ref1) -> true ; Ref1 = '?' ),
     fmt(S, "- request_stale ~w: the request text of ~w changed since the KB pinned it. Read the item; a human accepts the new text with orbit-kb pin-request --request-file F --accept --by human.", [R, Ref1]).
@@ -6087,8 +6071,7 @@ cmd_draft(KB, Args, Code) :-
         say("Stamp: spec-kb@~w", [Digest]), nl,
         eng_all(Eng, [X], blocking(X), Xs),
         (   Xs == [] -> say("- Nothing blocks done.", [])
-        ;   forall(member(X, Xs), ( blocking_line(KB, Eng, X, S),
-                                   ( X = project_conflict(_) -> md_say("", S, " Status: decide. A human settles it, never the date.") ; md_say("", S, "") ) ))
+        ;   forall(member(X, Xs), ( blocking_line(KB, Eng, X, S), md_say("", S, "") ))
         ),
         Code = 0
     ;   kb_uses(KB, Us), memberchk(project, Us)
@@ -6097,7 +6080,7 @@ cmd_draft(KB, Args, Code) :-
         eng_all(Eng, [D, P, T, S], draft(D, P, T, S), Ds0),
         findall(r(D, P, T, S), ( member([D, P, T, S], Ds0),
                                  \+ eng_true(Eng, pushed(D, _)),
-                                 ( eng_true(Eng, outbound(D)) ; eng_true(Eng, conflict(D)) ) ), Rows),
+                                 eng_true(Eng, outbound(D)) ), Rows),
         (   Rows == [] -> say("- Nothing to push.", [])
         ;   forall(member(Row, Rows), outbound_section(Eng, Row))
         ),
@@ -6147,13 +6130,13 @@ outbound_section(Eng, r(D, P, T, S)) :-
     md_say("- Source: ", Src1, ""),
     md_inline(C1, C1m), say("- ChangedAt: ~w", [C1m]),
     md_inline(S, Sm), say("- Staged: ~w", [Sm]),
-    (   eng_true(Eng, conflict(D))
-    ->  (   eng_all(Eng, [C2], tracker_changed_after(P, C2), Cs2), Cs2 \== [] -> max_member(C2a, Cs2) ; C2a = '?' ),
-        md_inline(C2a, C2m), say("- Tracker changed: ~w", [C2m]),
-        say("- Status: decide", []),
-        say("- Decide: a human picks one side, the tracker edit or the draft edit. orbit-kb does not pick.", [])
-    ;   say("- Status: ready", [])
+    % T43 c3: both sides changed after the pin, and the draft is listed, so it won (by date or by a
+    % human): the time of the tracker change shows what it replaces.
+    (   eng_all(Eng, [C2], both_changed(D, C2), [C2a|_])
+    ->  md_inline(C2a, C2m), say("- Tracker changed: ~w", [C2m])
+    ;   true
     ),
+    say("- Status: ready", []),
     md_say("- Draft: ", T, ""), nl.
 
 % pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file] (D25 T4):
@@ -6389,8 +6372,70 @@ cmd_project(DirOpt, [archive|Args0], Code) :- !,
     archive_date(D0, Date),
     ( memberchk('--root'-R, Opts) -> RootOpt = some(R) ; RootOpt = none ),
     with_kb_lock(Dir, project_archive(Dir, Date, RootOpt, Code)).
+cmd_project(DirOpt, [dropped|Args], Code) :- !,
+    parse_opts(Args, ['--hub'-value, '--session'-value], Pos, Opts),
+    (   Pos == [] -> true ; usage_error("project dropped takes no positional argument: orbit-kb project dropped [--hub DIR].", []) ),
+    resolve_kb(DirOpt, Dir), lib_dir(Lib), load_kb(Dir, Lib, KB),
+    project_kb_check(KB),
+    absolute_file_name(Dir, ADir),
+    (   memberchk('--hub'-H0, Opts) -> hub_root(H0, Hub)
+    ;   file_directory_name(ADir, H1), hub_db(H1, Db1), exists_file(Db1) -> Hub = H1
+    ;   usage_error("project dropped needs the hub of the ledger: --hub DIR (the default is the parent of the project KB, when it has flow/flow.db).", [])
+    ),
+    (   atom_concat(Hub, '/', HubS), atom_concat(HubS, Rel, ADir), Rel \== ''
+    ->  true
+    ;   usage_error("The project KB ~w is not inside the hub ~w, so the ledger item cannot refer to it (kb:PATH).", [ADir, Hub])
+    ),
+    ( memberchk('--session'-Ss, Opts) -> SessArgs = ['--session', Ss] ; SessArgs = [] ),
+    kb_engine(KB, Eng),
+    eng_all(Eng, [D, Side], lost_by_date(D, Side), L0), sort(L0, L),
+    hub_read(Hub, [titles], J),
+    (   L == []
+    ->  say("- Nothing was dropped by date.", [])
+    ;   forall(member([D, Side], L),
+               (   dropped_item_title(Eng, D, Side, Title),
+                   (   atom_string(Title, TitleS), member(It, J), It.title == TitleS
+                   ->  say("- ~w: the ~w edit lost by date; already in the ledger as ~w", [D, Side, It.id])
+                   ;   dropped_item_note(Eng, D, Side, Rel, Note),
+                       atom_concat('kb:', Rel, Ref),
+                       hub_add_thread(Hub, SessArgs, Title, Ref, Note, Id),
+                       say("- ~w: the ~w edit lost by date; recorded in the ledger as ~w", [D, Side, Id])
+                   ) ))
+    ),
+    Code = 0.
 cmd_project(_, _, _) :-
-    usage_error("project takes impact X, or archive --superseded-before DATE.", []).
+    usage_error("project takes impact X, archive --superseded-before DATE, or dropped [--hub DIR].", []).
+
+% T43 c3: the ledger item of an edit that lost by date names the draft, the pin, both times and
+% the side that lost. The title is the key: a run skips a drop whose title is in the ledger.
+dropped_item_title(Eng, D, Side, Title) :-
+    eng_all(Eng, [P, S], draft(D, P, _, S), [[P1, S1]|_]),
+    eng_all(Eng, [T], both_changed(D, T), [T1|_]),
+    format(atom(Title), "Project KB: draft ~w of pin ~w: the ~w edit lost by date (tracker changed ~w, draft staged ~w)",
+           [D, P1, Side, T1, S1]).
+dropped_item_note(Eng, D, Side, Rel, Note) :-
+    eng_all(Eng, [P], draft(D, P, _, _), [P1|_]),
+    (   eng_all(Eng, [Src, C], pin(P1, _, Src, _, C), [[Src1, C1]|_]) -> true ; Src1 = '?', C1 = '?' ),
+    format(atom(Note), "The tracker item ~w (pin ~w at ~w) and draft ~w both changed after the pin. The later edit won (on equal times the tracker); the ~w edit lost and stays in the project KB (~w) as dropped(~w, ~w).",
+           [Src1, P1, C1, D, Side, Rel, D, Side]).
+
+% hub_add_thread(+Hub, +SessArgs, +Title, +Ref, +Note, -Id): one open thread in the ledger, written by
+% hubflow itself (run from the hub root, --by script). The session is --session S, else HUB_SESSION.
+hub_add_thread(Hub, SessArgs, Title, Ref, Note, Id) :-
+    directory_file_path(Hub, '.claude/scripts/hubflow.py', Hf),
+    (   absolute_file_name(path(python3), Exe, [access(execute), file_errors(fail)]), exists_file(Hf) -> true
+    ;   die(2, ["The hub " + Hub + " has no .claude/scripts/hubflow.py (or python3 is missing). Nothing was written."])
+    ),
+    append([[Hf, '--hub', Hub], SessArgs, ['--by', script, add, thread, '--title', Title, '--ref', Ref, '--note', Note]], Argv),
+    catch(( process_create(Exe, Argv, [cwd(Hub), stdin(null), stdout(pipe(O)), stderr(pipe(E)), process(Pr)]),
+            read_string(O, _, Out), read_string(E, _, Err), close(O), close(E), process_wait(Pr, St) ),
+          X, ( err_text(X, Err), St = exit(2), Out = "" )),
+    (   St == exit(0), split_string(Out, "", " \n", [Id0]), Id0 \== ""
+    ->  atom_string(Id, Id0)
+    ;   split_string(Err, "", " \n", [E1]),
+        die(2, ["The ledger did not take the item for " + Title + ". hubflow said: " + E1,
+                "Fix: set HUB_SESSION to a session of the hub, or pass --session S."])
+    ).
 
 project_kb_check(KB) :-
     (   kb_uses(KB, Us), memberchk(project, Us) -> true
@@ -7571,7 +7616,7 @@ help_lines(general, [
 "    orbit-kb help core      facts, claim labels, attestation types, and core queries",
 "    orbit-kb help build     build-module facts and queries, burns, flares, proofs, waivers",
 "    orbit-kb help discovery discovery-module facts, verdicts, queries, and the recipe for each move",
-"    orbit-kb help project   project-module facts: decisions, definitions, rules, relations, pins, drafts, conflicts, and the writer lock",
+"    orbit-kb help project   project-module facts: decisions, definitions, rules, relations, pins, drafts, the date rule, and the writer lock",
 "    orbit-kb help codes     each lint code and what to do",
 "    orbit-kb help answers   exit codes, SWI ERROR, why and whynot",
 "  Never type a digest or a test result: orbit-kb subject and orbit-kb run write them.",
@@ -7612,7 +7657,7 @@ help_lines(general, [
 "  pin-answer Q REF [--hub DIR | --text-file F --by NAME]",
 "  pin-request --request-file F [--accept --by human]",
 "  apply-pending",
-"  project impact X [--root DIR] | project archive --superseded-before DATE [--root DIR]",
+"  project impact X [--root DIR] | project archive --superseded-before DATE [--root DIR] | project dropped [--hub DIR]",
 "  doctor",
 "  Every write command takes --as ROLE: actor(A, Role, Session) records who wrote (help core).",
 "  help [COMMAND|TOPIC]",
@@ -7806,7 +7851,7 @@ help_lines(show, [
 "blocking lists each answer of orbit-kb query 'blocking(X)' with its text: each item that blocks done.",
 "The kinds: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X), check_failing(K), check_unrun(K),",
 "waiver_lapsed(W), past_due(X) (an open item with a due/2 time in the past), supersede_cycle(C), no_claim.",
-"With the project module: project_conflict(D), project_contradiction(X), and project_kb_unclean (orbit-kb help project).",
+"With the project module: project_contradiction(X) and project_kb_unclean (orbit-kb help project).",
 "pin ID prints a pin and the text that pin-item kept for it (pins/HEX.txt); exit 1 when no text is kept."
 ]).
 help_lines(release, [

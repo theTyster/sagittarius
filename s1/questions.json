@@ -13,7 +13,7 @@
  },
  "h_divergence": {
   "type": "noul",
-  "instructions": "Does the newest message in `message` say or suggest that a result, a plan or the agent's reading is wrong, missed something, or is not what was meant? Doubt, surprise or a pointed question counts."
+  "instructions": "Does the newest message in `message` say or suggest that the agent's own result, plan, or reading of the request is wrong, missed something, or is not what was meant? Doubt, surprise or a pointed question about the agent's work counts. A report of a problem in the system that the agent did not cause, a new request, or a change of preference does not count."
  },
  "h_change_of_plan": {
   "type": "noul",

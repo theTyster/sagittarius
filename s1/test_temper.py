@@ -1,4 +1,4 @@
-"""Tests for s1/temper.py (T13). No network and no real claude: Jev goes through a replay
+"""Tests for s1/temper.py (T13). No network and no real claude: the System 1 model goes through a replay
 transport, claude through a replay callable (c1, c3) or a fake `claude` executable on PATH (c2).
 
 Run from the repo root:  python3 -m unittest s1.test_temper -v
@@ -10,7 +10,7 @@ Interface under test (temper.py):
                               bracket: (kind, last_accepted, first_rejected, why)
     temper.run_claude(prompt, model, system=None)   spawns the real `claude`, returns stdout
     temper.facts(step, item, trace, bracket)        Prolog facts, one per line
-    claude(prompt, model) -> str is the injectable caller; transport is jev's transport.
+    claude(prompt, model) -> str is the injectable caller; transport is the transport of jev.py.
     log_path: JSONL of every call, one "role" per record (proposer | falsifier | judge) and one
     {"event": "verdict", "calls": [ids]} record per judged statement.
 
@@ -315,7 +315,7 @@ class C3Roles(Base):
 
 # ---------------------------------------------------------------------------------------------
 # Review's recorded responses (runs.jsonl, step "loopcal", last run; see
-# fixtures/build_loopcal_fixture.py). Jev answers are exact. The Sonnet booleans are the logged
+# fixtures/build_loopcal_fixture.py). The System 1 model answers are exact. The Sonnet booleans are the logged
 # ones (rebuilt into the JSON reply the judge prompt asks for). Haiku's statements and
 # falsifiers are the ones the later steps were judged on. Not logged: raw Sonnet text, raw haiku
 # stdout.
@@ -362,7 +362,7 @@ def start_of(item):
 
 
 class C1Recorded(unittest.TestCase):
-    """c1 on review's own recorded Jev and Sonnet answers (loyalty trio, loopcal run)."""
+    """c1 on review's own recorded System 1 model and Sonnet answers (loyalty trio, loopcal run)."""
 
     def go(self, item, kind="hypothesis"):
         d = tempfile.TemporaryDirectory()
@@ -472,7 +472,7 @@ runpy.run_path(os.path.join(%(here)r, "temper.py"), run_name="__main__")
 
 class CliTest(unittest.TestCase):
     """python3 s1/temper.py STATEMENT --source TEXT --kind ... as a subprocess, stdin /dev/null,
-    claude replaced on PATH, Jev replaced inside the process: no network."""
+    claude replaced on PATH, the System 1 model replaced inside the process: no network."""
 
     def setUp(self):
         d = tempfile.TemporaryDirectory()

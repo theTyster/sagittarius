@@ -9,6 +9,11 @@ t39c1 (u45 "we should just refer to Jev as The System 1 Model") a tracked file t
       it once as "the System 1 model (today TypeSafe Jev)". The file names jev.py and jev-1.14.0 stay: they
       are lower case, and name the thing itself.
 t39c2 and t39c3 are tested elsewhere (kb/tests/test_project_kb.sh PX1..; hubflow-test.py case_t39_waiver).
+t42c9 (u45; T42 c9, moved to T43) the same rule, not case-sensitive, and with no whole file of prose exempt:
+      a tracked file does not say "jev" in any case, except in the client file s1/jev.py, in run records
+      (s1/fixtures/, evals/, tmp/, s1/TEMPER_LIVE_RUN.md), in history (CHANGELOG.md, and
+      kb/tests/test_release.sh, which reads the word there), in this check, in an API name (API_NAME below:
+      jev.py, a model id such as jev-1.14.0, the Python module jev and its names), and in the agreed words ONCE.
 """
 import os
 import re
@@ -21,7 +26,6 @@ count = 0
 
 # Files and trees where "Jev" names the vendor thing itself or is a record. Anything else is prose.
 ALLOW = {
-    "CLAUDE.md": "pending owner edit (line 16 says 'The Jev client'); agents do not edit CLAUDE.md",
     "CHANGELOG.md": "history of releases; kb/tests/test_release.sh reads the word there",
     "s1/jev.py": "the client of the vendor API",
     "s1/hook.py": "code that calls the client",
@@ -29,7 +33,6 @@ ALLOW = {
     "s1/measure_latency.py": "measures the vendor call",
     "s1/test_temper.py": "tests of code that calls the client",
     "s1/TEMPER_LIVE_RUN.md": "a record of a run against jev-1.14.0",
-    "s1/redact.example.txt": "an example file of the client",
     "kb/tests/test_release.sh": "reads the word in CHANGELOG.md",
     "docs/check_trace_gaps.py": "this check",
 }
@@ -71,7 +74,42 @@ def t39c1():
     check("t39c1 s1/README.md names the vendor once, in the agreed words", once == 1, once)
 
 
-CLAIMS = {"t39c1": t39c1}
+# t42c9: the only exemptions (r2 of T43): the client, run records, history, this check.
+EXEMPT_C9 = {
+    "s1/jev.py": "the client of the vendor API",
+    "s1/TEMPER_LIVE_RUN.md": "a record of a run against jev-1.14.0",
+    "CHANGELOG.md": "history of releases",
+    "kb/tests/test_release.sh": "reads the word in CHANGELOG.md (history)",
+    "docs/check_trace_gaps.py": "this check",
+}
+EXEMPT_C9_PREFIX = ("s1/fixtures/", "evals/", "tmp/")
+# API names, matched case-sensitively and removed before the case-insensitive search: the file name
+# jev.py (test_jev.py too), a model id (jev-1.14.0, jev-latest), and the Python module jev with its
+# names (import jev, jev.judge, jev_log, run.jev(...), self.jevlog, "jev" as a step name).
+API_NAME = re.compile(r"[\w.]*jev\.py|\bjev-[\w.]+|\bimport jev\b|\bjev(?=\.[A-Za-z_])|\w*_jev\w*|\bjev_\w+"
+                      r"|[\"']jev[\"']|\bdef jev\(|\.jev\w*")
+
+
+def t42c9():
+    check("t42c9 the exempt files exist",
+          all(os.path.exists(os.path.join(ROOT, f)) for f in EXEMPT_C9), [f for f in EXEMPT_C9 if not os.path.exists(os.path.join(ROOT, f))])
+    seen = 0
+    for f in tracked():
+        if f in EXEMPT_C9 or f.startswith(EXEMPT_C9_PREFIX):
+            continue
+        try:
+            with open(os.path.join(ROOT, f), encoding="utf-8") as fh:
+                lines = fh.read().splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        seen += 1
+        for n, ln in enumerate(lines, 1):
+            if re.search(r"jev", API_NAME.sub("", ln.replace(ONCE, "")), re.I):
+                check(f"t42c9 {f}:{n} says jev (any case) outside an API name", False, ln.strip())
+    check("t42c9 it scanned files", seen > 20, seen)
+
+
+CLAIMS = {"t39c1": t39c1, "t42c9": t42c9}
 
 if __name__ == "__main__":
     a = sys.argv[1:]

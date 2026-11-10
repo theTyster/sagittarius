@@ -41,7 +41,8 @@ Facts (write them with orbit-kb add; never edit kb.pl)
   concerns(Id, Pin)                   the decision or the definition rests on the pin
   draft(Id, PinId, Text, StagedAt)    an edit staged for the tracker item. It never edits the pin.
   pushed(Draft, Time)                 the draft was pushed to the tracker
-  resolved(Draft, Side, Time)         a human settled a conflict. Side is draft or tracker: the side that stays.
+  resolved(Draft, Side, Time)         a human settled a draft. Side is draft or tracker: the side that stays.
+                                      It wins over the dates.
   writer_takeover(From, To, Time)     written by --take only
 In a spec KB:
   project_kb(Dir)                     the directory of the project KB, relative to this KB or absolute
@@ -61,20 +62,26 @@ Queries (the derived answers)
                                 and in its registry spec_kbs.txt (below), wherever they are.
   stale_pin(P)                  the pin is old: the file has another digest now (or is missing), or a
                                 newer ChangedAt exists for the same tracker item
-  outbound(D)                   the drafts that are not pushed, not in conflict, and did not lose
-  conflict(D)                   the tracker changed after the pin, and the draft was staged after the
-                                pin. Both edits are new, so only a human can pick. Ask the human, then
-                                add resolved(D, draft|tracker, Time).
-  supersedes_by_date(D, Side)   no conflict: the later edit wins. Side is draft (the tracker did not
-                                change after the pin) or tracker (the draft is not later than the pin).
-  dropped(D, Side)              the side that lost. The facts stay in kb.pl: this is the record.
+  outbound(D)                   the drafts that are not pushed and did not lose
+  supersedes_by_date(D, Side)   no human settled it: the later edit wins (T43, Ty). Side is draft
+                                when the tracker did not change after the pin, or when the draft was
+                                staged after the latest change of the tracker. Side is tracker when
+                                the draft is not later than the pin, or when the tracker changed at
+                                the staged time or later. Equal times: the tracker wins (the tracker
+                                holds most of the information).
+  both_changed(D, T)            the tracker (last change T) and the draft both changed after the pin
+  lost_by_date(D, Side)         both changed, and the dates dropped the edit of Side
+  dropped(D, Side)              the side that lost, by date or by resolved. The facts stay in kb.pl:
+                                this is the record.
   decision_digest(D, Digest)    the sha256 of the text of the decision (computed)
   subject_now(S, Digest)        the digest of the file of the subject now (computed)
-A conflict is a blocking item (orbit-kb show blocking) for each spec KB that pins a decision that
-rests on the pin of the draft. It blocks no other KB.
+When the tracker and a draft both changed after the pin, it is not a conflict that blocks: the
+dates decide, and nothing blocks a spec KB for a draft. A human who disagrees adds
+resolved(D, draft|tracker, Time). So that a dropped edit is not lost quietly, run
+orbit-kb --dir PROJECT project dropped after pin-item or a new draft: it records it in the hub ledger.
 A contradiction is the blocking item project_contradiction(X) for each spec KB with a claim that
 pins X directly. A spec KB that reaches X only through rests_on gets the warning WP5, not a block.
-Only ratified facts block: a conflict or a contradiction on a proposed fact blocks nothing.
+Only ratified facts block: a contradiction on a proposed fact blocks nothing.
 
 Commands
   orbit-kb --dir PROJECT project impact X [--root DIR]
@@ -98,6 +105,14 @@ Commands
       removes facts without --root, or with a --root that leaves out a spec KB of spec_kbs.txt, it
       warns that a spec KB outside the root with no line in spec_kbs.txt is not seen: then pass
       --root DIR, a directory over every spec KB.
+  orbit-kb --dir PROJECT project dropped [--hub DIR] [--session S]
+      records each edit that lost by date (lost_by_date) as one open thread in the hub ledger: its
+      title names the draft, the pin, the side that lost and both times, with a kb ref to the
+      project KB (a path inside the hub). hubflow writes it (--by script) in the session of
+      --session S, else HUB_SESSION. The hub is --hub DIR, else the parent of the project KB when it
+      has flow/flow.db. A drop whose title is in the ledger already (in any status) is skipped, so a
+      second run adds nothing. A drop by resolved gets no item: a human chose it. It writes nothing
+      to the KB.
   orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]
       records the pin. A tracker pin keeps the pinned text as pins/HEX.txt (HEX of the digest), so
       a draft is an edit of that text. A file pin (--kind file, a week's report) keeps only its
