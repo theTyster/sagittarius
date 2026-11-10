@@ -219,6 +219,9 @@ Asks to a human, in-flight threads, holds and handoffs between sessions are rows
 written only by `hubflow.py`. Load the `hub-flow` skill before any write. Each session has an
 identity (`HUB_SESSION`), set where the session is started. Named sessions are set up outside the
 hub; the hub knows only their names (`flow/seed.json`).
+`orbit-kb pin-item` and `orbit-kb draft` record a dropped edit of the project KB in the ledger by
+themselves, in the session of `HUB_SESSION`. With no `HUB_SESSION`, the record is refused with a
+warning; run the `project dropped --session S` command that the warning names.
 
 ## Shipped files and local changes
 

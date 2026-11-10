@@ -121,8 +121,11 @@ decl(rule, supersedes_by_date(ref(draft), oneof([draft, tracker])),
 decl(rule, lost_by_date(ref(draft), oneof([draft, tracker])),
      'No human settled it, and the dates dropped the edit of this side (T43): the draft lost to a later tracker change (also a draft staged at or before the pin, T45; never a pushed draft, T45), or the tracker lost when both changed after the pin. pin-item, draft and project dropped record it in the hub ledger (T45).',
      'for draft @(1), the edit of the @(2) lost by date').
+decl(rule, pushed_over(ref(draft), ref(pin)),
+     'The draft was pushed over a newer tracker edit (T46): pin P of the same tracker item changed after the pin of the draft, after its staging and before its push, and no human settled it. The push overwrote that edit. pin-item, draft and project dropped note it on the open ledger item of the drop, or add one item.',
+     'the push of draft @(1) overwrote the tracker edit of pin @(2)').
 decl(rule, dropped(ref(draft), oneof([draft, tracker])),
-     'The edit of this side lost, by date or by the choice of a human. A pushed draft is not dropped by date (T45): its text reached the tracker. It stays in kb.pl: this is the record.',
+     'The edit of this side lost, by date or by the choice of a human. A pushed draft is not dropped by date (T45): its text reached the tracker. A push over a newer tracker edit drops the tracker edit (pushed_over, T46). It stays in kb.pl: this is the record.',
      'for draft @(1), the edit of the @(2) was dropped').
 decl(rule, current_fact(ref([decision, definition, rule])),
      'The decision, definition or rule is not superseded (D27).',
@@ -168,9 +171,15 @@ supersedes_by_date(D, tracker) :- both_changed(D, T), draft(D, _, _, S), not (S 
 lost_by_date(D, draft) :- supersedes_by_date(D, tracker), not pushed(D, _).
 lost_by_date(D, tracker) :- both_changed(D, _), supersedes_by_date(D, draft).
 
+% T46 c1 (review default): a push over a tracker edit that came after the staging (and before the push)
+% overwrote it. A pin whose change time is at or after the push reads the pushed text.
+pushed_over(D, P2) :- pushed(D, Tp), draft(D, P, _, S), pin(P, tracker, Src, _, C),
+                      pin(P2, tracker, Src, _, C2), C2 @> C, C2 @> S, C2 @< Tp, not resolved(D, _, _).
+
 dropped(D, draft) :- supersedes_by_date(D, tracker), not pushed(D, _).
 dropped(D, tracker) :- lost_by_date(D, tracker).
 dropped(D, draft) :- resolved(D, tracker, _).
+dropped(D, tracker) :- pushed_over(D, _).
 dropped(D, tracker) :- resolved(D, draft, _).
 
 outbound(D) :- draft(D, _, _, _), not pushed(D, _), not dropped(D, draft).

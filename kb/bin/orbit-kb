@@ -1049,8 +1049,9 @@ if mode == "asks":
             for r in c.execute("SELECT * FROM item WHERE kind = \'ask\' AND status IN (\'open\', \'waiting\') ORDER BY id")]
     print(json.dumps({"owner": owner(), "asks": rows}))
 elif mode == "titles":
-    print(json.dumps([dict(id=r["id"], title=r["title"], kb=[x[0] for x in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = \'kb\'", (r["id"],))])
-                      for r in c.execute("SELECT id, title FROM item ORDER BY id")]))
+    print(json.dumps([dict(id=r["id"], title=r["title"], status=r["status"], kb=[x[0] for x in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = \'kb\'", (r["id"],))],
+                           notes=[x[0] for x in c.execute("SELECT note FROM event WHERE item_id = ? AND verb = \'note\' AND note IS NOT NULL ORDER BY seq", (r["id"],))])
+                      for r in c.execute("SELECT id, title, status FROM item ORDER BY id")]))
 else:
     r = c.execute("SELECT * FROM item WHERE id = ?", (sys.argv[3],)).fetchone()
     if r is None:
@@ -6394,7 +6395,8 @@ cmd_project(DirOpt, [dropped|Args], Code) :- !,
     ( memberchk('--session'-Ss, Opts) -> SessArgs = ['--session', Ss] ; SessArgs = [] ),
     kb_engine(KB, Eng),
     eng_all(Eng, [D, Side], lost_by_date(D, Side), L0), sort(L0, L),
-    (   L == []
+    eng_all(Eng, [D, P], pushed_over(D, P), Ov0), sort(Ov0, Ov),   % T46 c1
+    (   L == [], Ov == []
     ->  say("- Nothing was dropped by date.", [])
     ;   hub_read(Hub, [titles], J),
         forall(member([D, Side], L),
@@ -6402,7 +6404,10 @@ cmd_project(DirOpt, [dropped|Args], Code) :- !,
                ->  say("- ~w: the ~w edit lost by date; already in the ledger as ~w", [D, Side, Id0])
                ;   drop_record(Eng, Hub, SessArgs, D, Side, Rel, Id),
                    say("- ~w: the ~w edit lost by date; recorded in the ledger as ~w", [D, Side, Id])
-               ))
+               )),
+        forall(member([D, P], Ov),
+               ( overwrite_handle(Eng, Hub, SessArgs, Rel, J, D, P, R),
+                 overwrite_line(Eng, D, P, R, Line), say("~w", [Line]) ))
     ),
     Code = 0.
 cmd_project(_, _, _) :-
@@ -6458,6 +6463,72 @@ drop_record(Eng, Hub, SessArgs, D, Side, Rel, Id) :-
     format(atom(EscNote), "a dropped edit of the project KB (~w): only a human closes it, on purpose, with hubflow close ~w --reason done --by human --session human --note \"<their words>\"", [Ref, Id]),
     hub_escalate(Hub, SessArgs, Id, EscNote).
 
+% T46 c1 (review default): pushed_over(D, P) holds when the push of draft D overwrote the newer tracker
+% edit of pin P. The record is one note on the open ledger item of the drop of D (status open or
+% waiting, the same kb ref), else one new escalated item. The key of the record (in a title or a note
+% of any item with the kb ref, any status) names the draft and the pin, so a second run adds none.
+overwrite_key(D, P, Key) :-
+    format(atom(Key), "Project KB: draft ~w overwrote the tracker edit of pin ~w when it was pushed (", [D, P]).
+overwrite_texts(Eng, D, P, Rel, Title, Note) :-
+    overwrite_key(D, P, Key),
+    eng_all(Eng, [Tp], pushed(D, Tp), [Tp1|_]),
+    eng_all(Eng, [Src, C2], pin(P, _, Src, _, C2), [[Src1, C21]|_]),
+    format(atom(Title), "~wpushed ~w, tracker changed ~w)", [Key, Tp1, C21]),
+    format(atom(Note), "~w: the draft was pushed at ~w and overwrote the tracker edit of ~w (pin ~w of the tracker item ~w). The tracker edit stays in the project KB (~w) as pin ~w and dropped(~w, tracker). A dropped edit: only a human closes this item, on purpose (T46).",
+           [Title, Tp1, C21, P, Src1, Rel, P, D]).
+overwrite_in_ledger(D, P, Rel, Items, Id) :-
+    overwrite_key(D, P, Key), atom_string(Key, KeyS), atom_string(Rel, RelS),
+    member(It, Items),
+    (   get_dict(kb, It, Kbs) -> memberchk(RelS, Kbs) ; true ),
+    (   sub_string(It.title, _, _, _, KeyS) -> true
+    ;   get_dict(notes, It, Ns), member(N, Ns), string(N), sub_string(N, _, _, _, KeyS) -> true
+    ),
+    !, Id = It.id.
+drop_open_item(Eng, D, Rel, Items, Id) :-
+    dropped_item_key(Eng, D, draft, Key), atom_string(Key, KeyS), atom_string(Rel, RelS),
+    member(It, Items), sub_string(It.title, 0, _, _, KeyS),
+    get_dict(status, It, St), memberchk(St, ["open", "waiting"]),
+    (   get_dict(kb, It, Kbs) -> memberchk(RelS, Kbs) ; true ),
+    !, Id = It.id.
+% overwrite_handle(+Eng, +Hub, +SessArgs, +Rel, +Items, +D, +P, -R): R is already(Id), noted(Id) or
+% recorded(Id). Throws orbit_error when the ledger refuses it.
+overwrite_handle(Eng, Hub, SessArgs, Rel, Items, D, P, R) :-
+    (   overwrite_in_ledger(D, P, Rel, Items, Id0)
+    ->  R = already(Id0)
+    ;   overwrite_texts(Eng, D, P, Rel, Title, Note),
+        (   drop_open_item(Eng, D, Rel, Items, Id1)
+        ->  hub_note(Hub, SessArgs, Id1, Note), R = noted(Id1)
+        ;   atom_concat('kb:', Rel, Ref),
+            hub_add_thread(Hub, SessArgs, Title, Ref, Note, Id2),
+            format(atom(EscNote), "a dropped edit of the project KB (~w): only a human closes it, on purpose, with hubflow close ~w --reason done --by human --session human --note \"<their words>\"", [Ref, Id2]),
+            hub_escalate(Hub, SessArgs, Id2, EscNote),
+            R = recorded(Id2)
+        )
+    ).
+overwrite_line(Eng, D, P, R, Line) :-
+    eng_all(Eng, [Tp], pushed(D, Tp), [Tp1|_]),
+    format(atom(What), "- ~w: the push at ~w overwrote the tracker edit of pin ~w", [D, Tp1, P]),
+    (   R = already(Id) -> format(atom(Line), "~w; already in the ledger (~w)", [What, Id])
+    ;   R = noted(Id) -> format(atom(Line), "~w; noted on the ledger item ~w of the drop (only a human closes it)", [What, Id])
+    ;   R = recorded(Id), format(atom(Line), "~w; recorded in the ledger as ~w (only a human closes it)", [What, Id])
+    ).
+
+% hub_note(+Hub, +SessArgs, +Id, +Note) (T46 c1): hubflow note ID TEXT --by script.
+hub_note(Hub, SessArgs, Id, Note) :-
+    directory_file_path(Hub, '.claude/scripts/hubflow.py', Hf),
+    (   absolute_file_name(path(python3), Exe, [access(execute), file_errors(fail)]), exists_file(Hf) -> true
+    ;   die(2, ["The hub " + Hub + " has no .claude/scripts/hubflow.py (or python3 is missing). Nothing was written."])
+    ),
+    append([[Hf, '--hub', Hub], SessArgs, ['--by', script, note, Id, Note]], Argv),
+    catch(( process_create(Exe, Argv, [cwd(Hub), stdin(null), stdout(pipe(O)), stderr(pipe(E)), process(Pr)]),
+            read_string(O, _, _), read_string(E, _, Err), close(O), close(E), process_wait(Pr, St) ),
+          X, ( err_text(X, Err), St = exit(2) )),
+    (   St == exit(0) -> true
+    ;   split_string(Err, "", " \n", [E1]),
+        die(2, ["The ledger did not take the note on " + Id + ". hubflow said: " + E1,
+                "Fix: set HUB_SESSION to a session of the hub, or pass --session S."])
+    ).
+
 % auto_record_drops(+KB, +Opts) (T45 c1): pin-item and draft record each new lost_by_date drop of
 % the KB in the hub ledger themselves (once per drop), and print the item id on stderr. With no
 % hub, or when the ledger does not take it, one line names the drop and the command to run. It
@@ -6473,7 +6544,8 @@ auto_record_drops_(KB, Opts) :-
     kb_dir(KB, Dir), lib_dir(Lib), load_kb(Dir, Lib, KB1),     % read the KB again: the command may have written it
     kb_engine(KB1, Eng),
     eng_all(Eng, [D, Side], lost_by_date(D, Side), L0), sort(L0, L),
-    (   L == [] -> true
+    eng_all(Eng, [D, P], pushed_over(D, P), Ov0), sort(Ov0, Ov),   % T46 c1
+    (   L == [], Ov == [] -> true
     ;   absolute_file_name(Dir, ADir),
         ( memberchk('--session'-Ss, Opts) -> SessArgs = ['--session', Ss] ; SessArgs = [] ),
         (   drop_hub(ADir, Opts, Hub), drop_rel(Hub, ADir, Rel)
@@ -6485,9 +6557,19 @@ auto_record_drops_(KB, Opts) :-
                              orbit_error(_, Ls),
                              ( atomic_list_concat(Ls, ' ', M),
                                format(user_error, "- ~w: the ~w edit lost by date; the hub ledger did not take it (~w). Run: orbit-kb --dir ~w project dropped --hub ~w --session S~n", [D, Side, M, ADir, Hub]) ))
-                   ))
+                   )),
+            forall(member([D, P], Ov),
+                   catch(( overwrite_handle(Eng, Hub, SessArgs, Rel, J, D, P, R),
+                           (   R = already(_) -> true
+                           ;   overwrite_line(Eng, D, P, R, Line), format(user_error, "~w~n", [Line])
+                           ) ),
+                         orbit_error(_, Ls),
+                         ( atomic_list_concat(Ls, ' ', M),
+                           format(user_error, "- ~w: the push overwrote the tracker edit of pin ~w; the hub ledger did not take it (~w). Run: orbit-kb --dir ~w project dropped --hub ~w --session S~n", [D, P, M, ADir, Hub]) )))
         ;   forall(member([D, Side], L),
-                   format(user_error, "- ~w: the ~w edit lost by date; no hub ledger was found to record it. Run: orbit-kb --dir ~w project dropped --hub DIR~n", [D, Side, ADir]))
+                   format(user_error, "- ~w: the ~w edit lost by date; no hub ledger was found to record it. Run: orbit-kb --dir ~w project dropped --hub DIR~n", [D, Side, ADir])),
+            forall(member([D, P], Ov),
+                   format(user_error, "- ~w: the push overwrote the tracker edit of pin ~w; no hub ledger was found to record it. Run: orbit-kb --dir ~w project dropped --hub DIR~n", [D, P, ADir]))
         )
     ).
 
@@ -8072,6 +8154,8 @@ help_lines('pin-item', [
 "of the KB when it has flow/flow.db; the session is --session S, else HUB_SESSION. It prints the",
 "item id on stderr. The item is escalated: only a human closes it. With no hub, or when the ledger",
 "does not take it, it prints one line that names the drop and the project dropped command to run.",
+"A push over a newer tracker edit (pushed_over, T46) is recorded too: a note on the open item of",
+"the drop, else one new item. A pane gets HUB_SESSION where it is started (orbit-kb help project).",
 "The exit code is that of the pin."
 ]).
 help_lines(report, [
