@@ -2693,7 +2693,9 @@ def case_t42_check_names(r, root):
     else:
         h = os.path.join(root, "t42-c6-hub")
         bad = okb_steps(okb, os.path.join(h, "specs", "spec-w"), CLAIM, ("attest", "waiver", "k1", LIVE, "--by", "human")) \
-            or okb_steps(okb, os.path.join(h, "specs", "spec-n"), CLAIM)
+            or okb_steps(okb, os.path.join(h, "specs", "spec-n"), CLAIM) \
+            or okb_steps(okb, os.path.join(h, "specs", "spec-p"), CLAIM + ("claim(c2, preserve, 'Gadgets stay light.')", "check(k2, c2)"),
+                         ("attest", "waiver", "k1", LIVE, "--by", "human"))
         if bad:
             r.skip(name, bad)
         else:
@@ -2701,6 +2703,7 @@ def case_t42_check_names(r, root):
             env = {"HUBFLOW_ORBIT_KB": okb}
             tid = add(r, d, "thread", "Build behind the waived spec", "--ref", "kb:spec-w")
             add(r, d, "ask", "Its spec blocks", "--ref", "kb:spec-n")
+            add(r, d, "ask", "Its spec still blocks after one waiver", "--ref", "kb:spec-p")
             code, out, err = hf(r, d, "check", hub=h, extra_env=env)
             r.check("t42-c6-check-names-the-item", code == 0 and listed(out, "skip_waived:") == [tid]
                     and "skip-waived" in out, (code, out, err))
