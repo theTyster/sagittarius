@@ -27,7 +27,7 @@ vocabulary for one orbit:
 |---|---|---|
 | `build` | Build: specification, implementation, verification | Written. See section 7. |
 | `discovery` | Discovery | Rules for the discovery orbit: models, findings, hypotheses, and the gates `discovery_ready` and `discovery_decide`. The discovery-orbit session owns it. Example KB: `kb/tests/fixtures/discovery-a/`. |
-| `project` | Project | Two sides (D27): decisions (where the product is going) and definitions (where it is now), and product rules; relations between them (`supersedes`, `depends_on`, `excludes`) with derived answers (`current_fact`, `rests_on`, `contradiction`, `impact`); who decided and who ratified; pins of files and tracker items, with the pinned text; drafts, conflicts, and a writer lock, for the project KB (D23). A spec KB pins a decision, a definition or a rule with `pins/4`. `orbit-kb help project`. |
+| `project` | Project | Two sides (D27): decisions (where the product is going) and definitions (where it is now), and product rules; relations between them (`supersedes`, `depends_on`, `excludes`) with derived answers (`current_fact`, `rests_on`, `contradiction`, `impact`); who decided and who ratified; pins of files and tracker items, with the pinned text; drafts, the date rule that settles them (T43), and a writer lock, for the project KB (D23). A spec KB pins a decision, a definition or a rule with `pins/4`. `orbit-kb help project`. |
 
 When an agent must record what a human asked for and then show with evidence
 that the work is done, use `orbit-kb`.
@@ -1095,7 +1095,8 @@ command writes a file or takes a lock.
 - `draft blocking` prints the heading `## Blocking items`, the line
   `Stamp: spec-kb@sha256:HEX` (the digest of `kb.pl`, as `pin` computes it), and
   one bullet for each item that blocks `done`, as `show blocking` prints it, or
-  `- Nothing blocks done.`. A `project_conflict` bullet says `decide`.
+  `- Nothing blocks done.`. (Before T43 a `project_conflict` bullet said `decide`; no draft
+  blocks now.)
   `pin --check` with the stamp exits 1 once `kb.pl` changes.
 - `draft attach` (T22, u93) prints `## Attach the spec KB to the tracker item`, then the
   lines `- File:` (the absolute path of this spec KB's `kb.pl`: a plain file copy is
@@ -1104,9 +1105,12 @@ command writes a file or takes a lock.
   copies, writes and posts nothing.
 - `orbit-kb --dir PROJECT draft outbound` prints `## Outbound drafts`, then a
   section `### DRAFT_ID` for each draft of the project KB that is not pushed
-  and not dropped, with its pin, source, ChangedAt, staged time, and
-  `- Status: ready`, or `- Status: decide` for a conflict. A human settles a
-  conflict with `resolved/3`; the command never picks a side by date. It reads
+  and not dropped, with its pin, source, ChangedAt, staged time,
+  `- Tracker changed: T` when the tracker also changed after the pin (the draft
+  won), and `- Status: ready`. The date rule of T43 (Ty, u123) picks the side:
+  when the tracker and the draft both changed after the pin, the later edit
+  wins, and on equal times the tracker wins; nothing blocks. A human's
+  `resolved/3` wins over the dates. It reads
   only the KB of `--dir`; it needs a KB that uses `project` (else exit 2).
 
 Free text in a draft is escaped, so it cannot act as Markdown or HTML (D25 T7).
@@ -1143,6 +1147,25 @@ written by hand, outside the root) is not seen. The query `impact(X, SpecKB)`
 gives the same set, with the default root. Read-only.
 Exit: 0, also when no spec KB is touched (`No spec KB pins ...`). 2 when X is
 no decision, definition or rule of the KB.
+
+### `project dropped [--hub DIR] [--session S]`
+
+Run in a project KB (T43 c3). When the tracker and a draft both changed after
+the pin, the later edit wins (equal times: the tracker), and the losing side is
+`dropped(D, Side)` in the project KB (`lost_by_date(D, Side)`). So that the
+dropped edit is not lost quietly, this command records each such drop as one
+open thread in the hub ledger, written by `hubflow add thread --by script` in
+the session of `--session S`, else `$HUB_SESSION`. The title names the draft,
+the pin, the side that lost, and both times (the latest tracker change and the
+staged time); the item has the ref `kb:PATH`, the project KB relative to the
+hub. The hub is `--hub DIR`, else the parent directory of the project KB when
+it has `flow/flow.db`. A drop whose title is in the ledger already, in any
+status, is skipped, so a second run adds nothing. A drop by `resolved/3` gets
+no item: a human chose it. It writes nothing to the KB. Run it after
+`pin-item` or a new draft.
+Exit: 0 (one line per drop, or `- Nothing was dropped by date.`). 2 with no
+hub, a project KB outside the hub, or an item that the ledger refuses (no
+session).
 
 ### `project archive --superseded-before DATE [--root DIR]`
 

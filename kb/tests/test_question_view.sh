@@ -14,6 +14,7 @@
 #   errors, read-only, --out                                    : QV20-QV22
 #   c3 textual (no bare id), fy16 options                       : QV23-QV24
 #   T18 c4: project_conflict and project_kb_unclean items        : QV36-QV37
+#   (T43 c3 amends QV36: a draft whose pin both sides changed is no blocking item now)
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -594,14 +595,14 @@ EOF
 }
 # blocking_sentence KB KIND: the text after "- KIND[ ID]: " of the show blocking line of KIND.
 blocking_sentence() { okb --dir "$1" show blocking; printf '%s\n' "$out" | grep -E "^- $2[ :]" | head -n1 | sed -E 's/^- [a-z_]+( [^ :]+)?: //'; }
-t_QV36() {  # a project conflict shows its sentence and the draft text, as show blocking does
+t_QV36() {  # T43 c3 amended (was: a project conflict item with its sentence and the draft text):
+    # the tracker changed after the draft (p2 after dA), so the tracker wins by date and nothing blocks
     pc_kbs "$T"
     local sen; sen=$(blocking_sentence "$T/spec" project_conflict)
-    [ -n "$sen" ] || { note "setup: show blocking has no project_conflict line: $(snip "$out")"; return; }
+    [ -z "$sen" ] || note "show blocking has no project_conflict line now: $(snip "$sen")"
     view --dir "$T/spec" || return
-    chk item "$T/page.html" project_conflict dA "has:$sen" 'has:Sort orders by their number'
-    chk alltext "$T/page.html" '!no text is recorded'
-    chk refs "$T/page.html" 1
+    grep -Fq 'data-kind="project_conflict"' "$T/page.html" && note "the page has no project_conflict item"
+    chk alltext "$T/page.html" '!Sort orders by their number'
 }
 t_QV37() {  # a project KB that does not load clean: the page is written, and the item has its sentence
     pc_kbs "$T"; printf 'this is not (valid.\n' >> "$T/proj/kb.pl"

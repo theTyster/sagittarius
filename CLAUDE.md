@@ -13,7 +13,7 @@ For what the project is, its install and layout, see @README.md.
 | `orbit-kb` | `kb/share/orbit-kb/README.md` (full reference); CLI `kb/bin/orbit-kb`; contract `kb/CONTRACT.md` (the only source of what the tests expect); tests `kb/tests/test_orbit_kb.sh` |
 | `orbit-kb` help topics | `kb/share/orbit-kb/help/*.txt` (read by `orbit-kb help TOPIC`). The agent-facing syntax and recipes live here, not in the prompt. A new fact or lint code goes in its topic. |
 | `repo-map` | `kb/share/repo-map/README.md` (spec, formats, input hash); CLI `kb/bin/repo-map`; tests `kb/tests/test_repo_map.sh` |
-| `s1/` | `s1/README.md`. The Jev client `s1/jev.py`; the `UserPromptSubmit` hook `s1/hook.py` and its question set `s1/questions.json`; the tempering tool `s1/temper.py`; the status line segment `s1/statusline.py`. Tests: `python3 -m unittest s1.test_jev s1.test_hook s1.test_temper s1.test_statusline`. |
+| `s1/` | `s1/README.md`. The System 1 model client `s1/jev.py`; the `UserPromptSubmit` hook `s1/hook.py` and its question set `s1/questions.json`; the tempering tool `s1/temper.py`; the status line segment `s1/statusline.py`. Tests: `python3 -m unittest s1.test_jev s1.test_hook s1.test_temper s1.test_statusline`. |
 | Project KB module | `kb/share/orbit-kb/modules/project.pl`; help `orbit-kb help project`; tests `kb/tests/test_project_kb.sh`. |
 | Question view and question server | `orbit-kb view questions` (a static page) and `orbit-kb serve questions` (a local page that records answers); tests `kb/tests/test_question_view.sh`, `kb/tests/test_question_server.sh`. |
 | Draft and pin-item | `orbit-kb draft blocking`, `draft attach`, `draft outbound` and `orbit-kb pin-item` (drafts only, nothing is posted); tests `kb/tests/test_tracker_sync.sh`. |

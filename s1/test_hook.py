@@ -7,7 +7,8 @@ One claim alone:         python3 -m unittest s1.test_hook.C2Output -v
 The hook API under test:
     hook.run(raw_stdin_text, env, transport=None) -> stdout text ("" = print nothing)
     hook.main(transport=None) -> 0   reads sys.stdin, writes sys.stdout (the script entry)
-Env: TYPESAFE_API_KEY, S1_OFF, S1_TIMEOUT, S1_QUESTIONS, S1_REDACT, S1_LOG.
+Env: TYPESAFE_API_KEY, S1_OFF, S1_TIMEOUT, S1_QUESTIONS, S1_LOG. (T43 c2: S1_REDACT is gone; the tests
+still set it to a name list, to show that the hook ignores it and sends the messages as written.)
 """
 import json
 import os
@@ -73,7 +74,7 @@ class Base(unittest.TestCase):
         self.addCleanup(d.cleanup)
         self.dir = d.name
         self.log = os.path.join(d.name, "logs", "s1.jsonl")
-        self.redact = os.path.join(d.name, "redact.txt")
+        self.redact = os.path.join(d.name, "redact.txt")  # the old name list (T43 c2: ignored now)
         with open(self.redact, "w") as f:
             f.write("# invented names for tests\nAcme Widgets\n\nZorblax\n")
         self.transcript = os.path.join(d.name, "0000-fixture-session.jsonl")
@@ -143,7 +144,8 @@ def subprocess_hook(stdin_text, env, fake_spec=None, timeout=20):
 
 class C1State(Base):
     """c1: the state sent is {message: prompt, recent: the last messages} (T20 supersedes the
-    600-character cut of T07 c1), redacted with the names in redact.txt."""
+    600-character cut of T07 c1). T43 c2 supersedes the redaction of T07 c1: the names that the
+    old list held are sent as written."""
 
     def test_c1_questions_file_is_the_calibrated_set(self):
         with open(os.path.join(HERE, "questions.json")) as f:
@@ -161,23 +163,19 @@ class C1State(Base):
             q = json.load(f)
         self.assertEqual(json.loads(fake.calls[0]["body"])["questions"], q)
 
-    def test_c1_state_shape_and_redaction(self):
+    def test_c1_state_shape_names_as_written(self):  # T43 c2 changed it: was ..._and_redaction
         fake = Fake()
         self.run_hook(fake)
         st = fake.state()
         self.assertEqual(sorted(st), ["message", "recent"])
-        self.assertNotIn("zorblax", st["message"].lower())
-        self.assertTrue(st["message"].startswith("Looks good. Ask "))
-        self.assertIn("renamed the tab to Reports", texts(st))
-        self.assertNotIn("acme", texts(st).lower())
-        self.assertNotIn("acme", fake.calls[0]["body"].decode().lower())
+        self.assertEqual(st["message"], "Looks good. Ask Zorblax about it.")
+        self.assertIn("I renamed the tab to Reports for Acme Widgets.", texts(st))
+        self.assertIn("Acme Widgets", fake.calls[0]["body"].decode())
 
-    def test_c1_redaction_is_case_insensitive(self):
+    def test_c1_names_in_any_case_as_written(self):  # T43 c2 changed it: was ..._redaction_is_case_insensitive
         fake = Fake()
         self.run_hook(fake, raw=self.payload(prompt="ACME WIDGETS and zorblax"))
-        msg = fake.state()["message"].lower()
-        self.assertNotIn("acme", msg)
-        self.assertNotIn("zorblax", msg)
+        self.assertEqual(fake.state()["message"], "ACME WIDGETS and zorblax")
 
     def test_c1_recent_is_the_last_assistant_message_with_text(self):
         self.write_transcript([
@@ -208,14 +206,16 @@ class C1State(Base):
         self.run_hook(fake, raw=self.payload(transcript_path=os.path.join(self.dir, "none.jsonl")))
         self.assertEqual(fake.state()["recent"], [])
 
-    def test_c1_missing_redact_file_sends_unredacted(self):
+    def test_c1_missing_redact_file_sends_as_written(self):
         env = dict(self.env, S1_REDACT=os.path.join(self.dir, "absent.txt"))
         fake = Fake()
         self.run_hook(fake, env=env)
         self.assertIn("Zorblax", fake.state()["message"])
 
-    def test_c1_redact_example_committed_and_redact_txt_ignored(self):
-        self.assertTrue(os.path.isfile(os.path.join(HERE, "redact.example.txt")))
+    def test_c1_redact_example_gone_and_redact_txt_still_ignored(self):
+        # T43 c2 changed it (was: redact.example.txt is committed). An old s1/redact.txt may still
+        # hold real names on a machine, so it stays gitignored and is never committed.
+        self.assertFalse(os.path.exists(os.path.join(HERE, "redact.example.txt")))
         p = subprocess.run(["git", "check-ignore", "-q", "s1/redact.txt"], cwd=ROOT,
                            stdin=subprocess.DEVNULL, capture_output=True)
         self.assertEqual(p.returncode, 0, "s1/redact.txt is not gitignored")
@@ -434,16 +434,15 @@ class T20Context(Base):
         self.assertEqual([m["text"] for m in fake.state()["recent"]], ["Near the end."])
 
     # c4 ------------------------------------------------------------------
-    def test_t20_c4_redaction_covers_every_message(self):
+    def test_t20_c4_every_message_sent_as_written(self):  # T43 c2 changed it: was ..._redaction_covers_every_message
         self.write_transcript([utext("Ask Acme Widgets."), entry("assistant", ["ZORBLAX said no."], "a"),
                                utext("And zorblax again?")])
         fake = Fake()
         self.run_hook(fake)
-        body = fake.calls[0]["body"].decode().lower()
-        self.assertNotIn("acme", body)
-        self.assertNotIn("zorblax", body)
-        self.assertEqual([m["role"] for m in fake.state()["recent"]], ["you", "agent", "you"])
-        self.assertIn("[redacted]", texts(fake.state()))
+        self.assertEqual(fake.state()["recent"], [{"role": "you", "text": "Ask Acme Widgets."},
+                                                  {"role": "agent", "text": "ZORBLAX said no."},
+                                                  {"role": "you", "text": "And zorblax again?"}])
+        self.assertNotIn("[redacted]", fake.calls[0]["body"].decode())
 
     # c5 ------------------------------------------------------------------
     def test_t20_c5_wording_is_the_conversation_in_recent_and_nothing_else(self):
@@ -666,8 +665,8 @@ class C3FailOpen(Base):
 
 
 class C4Log(Base):
-    """c4: each call is logged by jev.py (no key, redacted state) with the session id and the
-    transcript basename."""
+    """c4: each call is logged by jev.py (no key; the state as sent, T43 c2) with the session id and
+    the transcript basename."""
 
     def test_c4_hook_call_logged_with_session_and_transcript(self):
         self.run_hook(Fake())
@@ -680,13 +679,12 @@ class C4Log(Base):
         self.assertIsNotNone(rec["answers"])
         self.assertIsNone(rec["error"])
 
-    def test_c4_log_has_no_key_and_no_names(self):
+    def test_c4_log_has_no_key_and_the_state_as_sent(self):  # T43 c2 changed it: was ..._no_key_and_no_names
         self.run_hook(Fake())
         with open(self.log) as f:
             text = f.read()
         self.assertNotIn(KEY, text)
-        self.assertNotIn("acme", text.lower())
-        self.assertNotIn("zorblax", text.lower())
+        self.assertIn("Zorblax", text)  # no redaction: the log holds the state as sent
         self.assertNotIn(self.dir, text)  # basename only, not the full transcript path
 
     def test_c4_failed_call_logged_with_fields(self):
@@ -808,6 +806,104 @@ class Discovery(unittest.TestCase):
                            capture_output=True, text=True, cwd=ROOT, timeout=20,
                            env={"PATH": os.environ.get("PATH", ""), "S1_LOG": os.devnull})
         self.assertEqual((p.returncode, p.stdout, p.stderr), (0, "", ""))
+
+
+class T43C1Questions(unittest.TestCase):
+    """T43 c1 (u123 + u44): h_divergence takes the tested candidate wording (fy28,
+    tmp/hub-design-kb/s1/hook_cal2_v2.py) word for word; the other four questions keep the
+    shipped text (as of e040de6). No model call (u119): this reads the file only."""
+
+    H_DIVERGENCE = ("Does the newest message in `message` say or suggest that the agent's own result, plan, or "
+                    "reading of the request is wrong, missed something, or is not what was meant? Doubt, surprise or a "
+                    "pointed question about the agent's work counts. A report of a problem in the system that the agent "
+                    "did not cause, a new request, or a change of preference does not count.")
+    SHIPPED = {
+        "h_work": {
+            "type": "choice",
+            "instructions": "What kind of work does the newest message in `message` ask for, given the conversation in `recent`?",
+            "criteria": {
+                "research": "Learn how something behaves now, or whether a problem is real",
+                "specify": "Decide or state what must become true: requirements, examples, a plan",
+                "build": "Change code, configuration or documents",
+                "verify": "Check, test or review work that was done",
+                "question": "An answer or advice only, with no change to make",
+                "other": "None of these, such as a greeting or thanks",
+            },
+        },
+        "h_change_of_plan": {
+            "type": "noul",
+            "instructions": "Does the newest message in `message` change what is wanted: a new goal, a dropped part, or a new preference, while the earlier result did match what was asked at the time?",
+        },
+        "h_effort": {
+            "type": "noul",
+            "instructions": "Does the newest message in `message` show significant effort by its writer: long, detailed, carefully reasoned, or a decision written out in full?",
+        },
+        "h_language": {
+            "type": "choice",
+            "instructions": "If the work in `message` needs a formal tool to settle what is meant, which fits the claim best?",
+            "criteria": {
+                "prolog": "Decisions, rules, ownership, who knows what: facts and rules to query",
+                "lean": "A property for every input, or a proof is asked for",
+                "z3": "Combinations of rules, limits, prices or permissions",
+                "tla": "Orders of steps, retries, timeouts, concurrency",
+                "tests": "Behavior on concrete cases is enough",
+                "none": "No formal tool is needed",
+            },
+        },
+    }
+
+    def load(self):
+        with open(os.path.join(HERE, "questions.json"), encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_t43_c1_h_divergence_is_the_tested_wording(self):
+        q = self.load()
+        self.assertEqual(q["h_divergence"], {"type": "noul", "instructions": self.H_DIVERGENCE})
+
+    def test_t43_c1_other_four_questions_unchanged(self):
+        q = self.load()
+        self.assertEqual(sorted(q), sorted(QIDS))
+        for k, v in self.SHIPPED.items():
+            self.assertEqual(q[k], v, k)
+
+
+class T43C2NoRedaction(Base):
+    """T43 c2 (u123 + u106): the hook sends the messages as written. The name-list redaction is
+    gone from hook.py (S1_REDACT, load_redactions, the redact step), s1/redact.example.txt is
+    removed, and the docs say that the hook sends the complete messages with no redaction."""
+
+    def test_t43_c2_a_listed_name_reaches_the_request_body_unchanged(self):
+        # self.env sets S1_REDACT to a list that holds Zorblax and Acme Widgets (the old fixture)
+        fake = Fake()
+        self.run_hook(fake, raw=self.payload(prompt="Ask Zorblax and Acme Widgets."))
+        body = json.loads(fake.calls[0]["body"])
+        self.assertEqual(body["state"]["message"], "Ask Zorblax and Acme Widgets.")
+        self.assertIn("I renamed the tab to Reports for Acme Widgets.", texts(body["state"]))
+
+    def test_t43_c2_hook_has_no_redaction(self):
+        h = hook()
+        self.assertFalse(hasattr(h, "load_redactions"))
+        self.assertFalse(hasattr(h, "REDACTED"))
+        with open(os.path.join(HERE, "hook.py"), encoding="utf-8") as f:
+            src = f.read()
+        self.assertNotIn("S1_REDACT", src)
+        self.assertNotIn("redact(", src)
+        self.assertIn("no redaction", " ".join((h.__doc__ or "").split()))
+
+    def test_t43_c2_redact_example_removed(self):
+        self.assertFalse(os.path.exists(os.path.join(HERE, "redact.example.txt")))
+        p = subprocess.run(["git", "ls-files", "s1/redact.example.txt"], cwd=ROOT,
+                           stdin=subprocess.DEVNULL, capture_output=True, text=True)
+        self.assertEqual(p.stdout.strip(), "")
+
+    def test_t43_c2_docs_say_complete_messages_with_no_redaction(self):
+        for rel in ("s1/README.md", "site/index.html"):
+            with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+                text = " ".join(f.read().split())
+            self.assertNotIn("S1_REDACT", text, rel)
+            self.assertNotIn("redact.example.txt", text, rel)
+            self.assertRegex(text, r"(?i)complete messages[^.]*no redaction", rel)
+            self.assertNotRegex(text, r"(?i)every text is redacted|redacts names|names to redact", rel)
 
 
 if __name__ == "__main__":

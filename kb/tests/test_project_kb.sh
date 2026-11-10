@@ -14,6 +14,8 @@
 #   c3 one writer: the lock, --take, release     : PW1 PW2 PW3 PW4 PW5 PW6 PW7
 #   c4 outbound drafts                           : PD1 PD2 PD3 PD4
 #   c5 conflict, supersedes_by_date, blocking    : PC1 PC2 PC3 PC4 PC5 PC6 PC7
+#      (T43 c3, Ty's u123, amends c5: when both sides changed after the pin the dates decide and
+#      nothing blocks. PK5, PC1, PC5, PC6, PC7, PB5, PB11 and PT4 are amended; each says so.)
 #   c6 a spec KB pins a decision (WP1, WP2)      : PX1 PX2 PX3 PX4
 #   T18 c2 help codes lists WP1 to WP4           : PK6
 #   T18 c3 the README documents the module       : PK7
@@ -225,7 +227,8 @@ t_PK4() { pk_basic; K=$T/pk
           q 'decision_digest(d1, D)'; rc_is 0 "decision_digest(d1, D)"; out_has "D = '?$want'?" "the sha256 of the decision text"
           is_set 'decision(X, Y)' "X = d1, Y = 'Export goes through the queue'"; }
 t_PK5() { okb help project; rc_is 0 "help project"
-          local n; for n in decision decided_by reason repo analysis pin draft pins stale_pin outbound conflict supersedes_by_date; do
+          # T43 c3 amended: conflict is gone from the list (no draft is a conflict now); dropped is in it
+          local n; for n in decision decided_by reason repo analysis pin draft pins stale_pin outbound dropped supersedes_by_date; do
               out_has "(^|[^a-z_])$n([^a-z_]|\$)" "help project documents $n"; done
           out_has 'ORBIT_KB_WRITER' "help project documents the writer lock"; out_has '--take' "help project documents --take"
           out_has 'release' "help project documents release"
@@ -354,54 +357,51 @@ t_PD4() { pk_basic; K=$T/pk; stage dr1 "$T2"
           okb --dir "$K" whynot 'outbound(dr1)'; out_has '^absent' "absent once pushed"; }
 
 # ================================================================ c5: conflict and supersedes_by_date
-# pin p1 at T1. Tracker changed at T2 (p2). Draft staged at T3 (after both): a conflict.
+# pin p1 at T1. Tracker changed at T2 (p2). Draft staged at T3 (after both).
+# T43 c3 amended (was: a conflict, not decided by date, not outbound, nothing dropped): the draft is
+# later and wins; the tracker text is dropped.
 t_PC1() { pk_basic; K=$T/pk; tracker_changed p2 "$T2"; stage dr1 "$T3"
-          is_true 'conflict(dr1)'; is_set 'conflict(D)' 'D = dr1'
-          is_false 'supersedes_by_date(dr1, S)' "a conflict is not decided by date"
-          is_false 'outbound(dr1)' "a conflicting draft is not outbound"
-          is_false 'dropped(dr1, S)' "nothing is dropped while it is open"; }
+          is_set 'supersedes_by_date(D, S)' 'D = dr1, S = draft' "both changed: the later edit (the draft) wins"
+          is_true 'outbound(dr1)' "the draft that won is outbound"
+          is_set 'dropped(D, S)' 'D = dr1, S = tracker' "the tracker text is dropped"; }
 # tracker unchanged since the pin: the draft is later and wins
 t_PC2() { pk_basic; K=$T/pk; stage dr1 "$T2"
-          is_false 'conflict(dr1)'; is_set 'supersedes_by_date(D, S)' 'D = dr1, S = draft'
+          is_set 'supersedes_by_date(D, S)' 'D = dr1, S = draft'   # T43 c3 amended: is_false 'conflict(dr1)' dropped (conflict/1 is gone)
           is_true 'outbound(dr1)'; is_false 'dropped(dr1, S)' "the draft wins: nothing dropped (the tracker did not change)"; }
 # draft staged before the pin's ChangedAt, tracker changed later: the tracker is later and wins
 t_PC3() { pk_basic; K=$T/pk; tracker_changed p2 "$T3"
           padd "draft(dr1, p1, 'An old edit', '2026-02-28T09:00:00Z')" >/dev/null
-          is_false 'conflict(dr1)'; is_set 'supersedes_by_date(D, S)' 'D = dr1, S = tracker'
+          is_set 'supersedes_by_date(D, S)' 'D = dr1, S = tracker'   # T43 c3 amended: is_false 'conflict(dr1)' dropped (conflict/1 is gone)
           is_set 'dropped(D, S)' 'D = dr1, S = draft' "the dropped edit is recorded"
           is_false 'outbound(dr1)' "a dropped draft is not pushed"
           has_fact "$K/kb.pl" "draft(dr1, _, _, _)" "the draft is still in kb.pl, never lost"; }
 # the boundary: staged exactly at the pin's ChangedAt is not after it
-t_PC4() { pk_basic; K=$T/pk; tracker_changed p2 "$T3"; stage dr1 "$T1"
-          is_false 'conflict(dr1)' "staged at ChangedAt is not after it"; is_set 'supersedes_by_date(D, S)' 'D = dr1, S = tracker'; }
+t_PC4() { pk_basic; K=$T/pk; tracker_changed p2 "$T3"; stage dr1 "$T1"   # T43 c3 amended: is_false 'conflict(dr1)' dropped (conflict/1 is gone)
+          is_set 'supersedes_by_date(D, S)' 'D = dr1, S = tracker'; }
 # the third case: the tracker changed after the pin, the draft staged after the pin AND after the tracker change
+# T43 c3 amended (was: both are conflicts): the latest tracker change (T3) is the one that counts.
 t_PC5() { pk_basic; K=$T/pk; tracker_changed p2 "$T2"; tracker_changed p3 "$T3"; stage dr1 "$T4"
-          is_true 'conflict(dr1)' "after the pin, tracker changed twice"
+          is_set 'supersedes_by_date(D, S)' 'D = dr1, S = draft' "after the pin, the tracker changed twice; the draft is later than both"
           stage dr2 "$T2"
-          is_set 'conflict(D)' 'D = dr1|D = dr2' "dr2 is staged after the pin, and the tracker changed after it too"; }
-# a human resolves: the conflict goes, the other side is recorded as dropped
+          is_set 'supersedes_by_date(D, S)' 'D = dr1, S = draft|D = dr2, S = tracker' "dr2 is later than the first tracker change, not the latest"; }
+# a human resolves: the other side is recorded as dropped, also against the dates
+# (T43 c3 amended: the assertion that the conflict goes is dropped; no draft is a conflict now)
 t_PC6() { pk_basic; K=$T/pk; tracker_changed p2 "$T2"; stage dr1 "$T3"
           padd "resolved(dr1, draft, '$T4')"; rc_is 0 "resolved(Draft, Side, Time)"
-          is_false 'conflict(dr1)' "resolved"; is_set 'dropped(D, S)' 'D = dr1, S = tracker'; is_true 'outbound(dr1)' "the draft wins and can go out"
+          is_false 'supersedes_by_date(dr1, S)' "resolved: the dates do not decide"; is_set 'dropped(D, S)' 'D = dr1, S = tracker'; is_true 'outbound(dr1)' "the draft wins and can go out"
           stage dr2 "$T3"; padd "resolved(dr2, tracker, '$T4')" >/dev/null
           is_set 'dropped(D, S)' 'D = dr1, S = tracker|D = dr2, S = draft'; is_false 'outbound(dr2)' "a dropped draft is not outbound"
           padd "resolved(dr1, nobody, '$T4')"; rc_is 1 "a side outside draft|tracker"; }
-# a conflict blocks the spec KBs that pin the decision
+# T43 c3 amended (was: a conflict blocks the spec KBs that pin the decision, until resolved): a
+# draft whose pin both sides changed blocks no spec KB.
 t_PC7() { pk_basic; tracker_changed p2 "$T2"; stage dr1 "$T3"
           local pk=$K spec=$T/spec dd; dd=$(tdigest 'Export goes through the queue')
           okb init "$spec" --request 'Build the export' --uses build,project >/dev/null 2>&1 || note "setup: spec init failed: $(snip "$err")"
           K=$spec
           padd "project_kb('../pk')" "claim(c1, introduce, 'Export uses the queue')" "cites(c1, 'Build the export')" "check(k1, c1)" \
                "pins(c1, project, d1, '$dd')" >/dev/null; rc_is 0 "the spec KB pins decision d1"
-          is_true 'blocking(project_conflict(dr1))' "the conflict blocks the spec KB that pins d1"
-          okb --dir "$K" show blocking; out_has 'project_conflict.*dr1' "show blocking names it"
-          is_false 'done' "done waits"
-          # the same conflict does not block a spec KB that pins no decision it rests on
-          local other=$T/other; okb init "$other" --request 'Build something else' --uses build,project >/dev/null 2>&1; K=$other
-          padd "project_kb('../pk')" >/dev/null
-          padd "claim(c1, introduce, 'Other')" "cites(c1, 'Build something else')" >/dev/null
-          is_false 'blocking(project_conflict(D))' "a spec KB that pins nothing is not blocked"
-          # resolving the conflict frees the spec KB
+          is_false 'blocking(project_conflict(D))' "both changed: the draft blocks no spec KB that pins d1"
+          okb --dir "$K" show blocking; out_hasnt 'project_conflict' "show blocking names no conflict"
           K=$pk; padd "resolved(dr1, draft, '$T4')" >/dev/null; K=$spec
           is_false 'blocking(project_conflict(D))' "resolved: nothing blocks"; }
 
@@ -465,7 +465,7 @@ t_PB12() { spec_with_pin
 # PB5: a project KB that does not load clean is never silent.
 t_PB5() { pk_basic; tracker_changed p2 "$T2"; stage dr1 "$T3"
           local pk=$K; spec_with_conflict_pin "$pk"
-          is_true 'blocking(project_conflict(dr1))' "clean project KB: the conflict blocks"
+          is_false 'blocking(project_conflict(D))' "clean project KB: nothing blocks (T43 c3 amended: was the conflict blocks)"
           printf 'this is not (valid.\n' >> "$pk/kb.pl"
           okb --dir "$K" lint; rc_is 0 "lint is not an error in the spec KB"; out_has '^WP3' "WP3 names the broken project KB"
           is_true 'blocking(project_kb_unclean)' "the broken project KB blocks"
@@ -530,7 +530,8 @@ t_PB10() { local b
 # PB11: show blocking follows D22: "- KIND ID: SENTENCE: TEXT".
 t_PB11() { pk_basic; tracker_changed p2 "$T2"; stage dr1 "$T3"; spec_with_conflict_pin "$K"
            okb --dir "$K" show blocking; rc_is 0
-           out_has '^- project_conflict dr1: .+: Retitle the issue to match the queue decision' "KIND ID: SENTENCE: TEXT of the draft"
+           # T43 c3 amended (was: the line "- project_conflict dr1: SENTENCE: TEXT"): no draft blocks now
+           out_hasnt 'project_conflict' "no conflict line"
            printf 'this is not (valid.\n' >> "$T/pk/kb.pl"
            okb --dir "$K" show blocking; out_has '^- project_kb_unclean: .+' "the unclean item has a sentence"; }
 
@@ -785,11 +786,11 @@ t_PT4() { t23_pk "decision(d1, 'Export goes through the queue')" "decided_by(d1,
           rm -rf "$T/pk" "$T/spec"; t23_pk "decision(d5, 'Export goes through the queue')" "decided_by(d5, agent, '$T1')" \
                  "pin(p1, tracker, 'gh:acme/widgets#12', '$H1', '$T1')" "concerns(d5, p1)" \
                  "pin(p2, tracker, 'gh:acme/widgets#12', '$H2', '$T2')" "draft(dr1, p1, 'Retitle the issue', '$T3')"
-          is_true 'conflict(dr1)'
+          # T43 c3 amended (was: it blocks after the ratification): a draft blocks nothing, ratified or not
           t23_spec spec d5
-          is_false 'blocking(project_conflict(_))' "a conflict on a proposed decision does not block"
+          is_false 'blocking(project_conflict(_))' "a draft on a proposed decision does not block"
           K=$T/pk; padd "ratified_by(d5, ann, '$T3')" >/dev/null
-          K=$T/spec; is_true 'blocking(project_conflict(dr1))' "after the ratification it blocks"
+          K=$T/spec; is_false 'blocking(project_conflict(_))' "after the ratification it does not block either"
           okb help project; out_has 'ratified_by' "help project documents ratified_by"; out_has 'proposed' "and proposed"; }
 
 # PT5 (c5): analyses live in the project KB; a path outside it is WP6; a week's report is a file pin.

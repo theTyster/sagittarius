@@ -23,5 +23,6 @@ Thumbs.db
 *.swo
 *~
 
-# System 1 hook: real names to redact stay on this machine (see s1/redact.example.txt)
+# System 1 hook: the name list of the old redaction (removed in T43). An old copy may hold real
+# names, so it stays ignored and is never committed.
 s1/redact.txt
