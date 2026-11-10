@@ -48,7 +48,7 @@ Where each fact kind is kept. The table is generated from the design: do not edi
 | `divergences` | `not kept` | No record. The agent says each guess, error and disagreement in its report to the human; one that waits on the human becomes an ask. |
 | `handoffs` | `ledger` | Work passed to another session: `hubflow.py handoff --to S`, then `accept ID` by the receiver. |
 | `heuristics` | `memory` | Rules of thumb learned here: `HEURISTICS.md`, promoted at rotation. |
-| `hypothesis` | `ledger` | A note on the ticket's thread (`hubflow.py note ID TEXT`): what the problem is believed to be, its premises beside it, and the result that would show it false. |
+| `hypothesis` | `ledger` | A note on the ticket's thread (`hubflow.py note ID TEXT`): what the problem is believed to be, its premises beside it, the result expected, and the result that would show it false. |
 | `models` | `bespoke` | A model that a tool or a test of this hub encodes stays with that tool, listed in `TECHNOLOGIES.md`. |
 | `outbound` | `weeks` | Text for the tracker or for people, drafted in `W0/outbound-staging/`. A human sends. |
 | `product_rules` | `memory` | In the decisions file, or a root file such as `PRODUCT.md` that `CLAUDE.md` imports. |

@@ -89,6 +89,9 @@ MUTANTS = [
 ]
 
 
+NEUTRAL_CWD = None  # set by cases(): the cwd of a case that names none
+
+
 class Run:
     def __init__(self, script):
         self.script = script
@@ -119,6 +122,9 @@ def script_version(path):
 
 
 def hf(r, d, *args, now=NOW, session="discovery", hub=None, extra_env=None, cwd=None):
+    # A case that names no cwd runs in the test root (no .hub-template.json, no git): the engine then
+    # reads the formal edition wherever the suite is launched, also from an installed informal hub (T41).
+    cwd = cwd or NEUTRAL_CWD
     env = {k: v for k, v in os.environ.items() if not k.startswith("HUBFLOW_") and k != "HUB_SESSION"}
     if d is not None:
         env["HUBFLOW_DB_DIR"] = d
@@ -2526,7 +2532,9 @@ CASE_NEEDS = {"case_sql": "case_basic", "case_state": "case_basic"}
 
 def cases(r):
     global SEED
+    global NEUTRAL_CWD
     root = tempfile.mkdtemp(prefix="hubflow-test-")
+    NEUTRAL_CWD = root
     try:
         SEED = write_json(os.path.join(root, "seed.json"), SEED_DATA)
         run_case(r, case_init, root)

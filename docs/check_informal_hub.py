@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T32: an informal hub loads only informal rules. One check per claim.
 
-usage: python3 docs/check_informal_hub.py t32c1|...|t32c8|t36c1|...|t36c6 [--list]   (--list prints the claim ids)
+usage: python3 docs/check_informal_hub.py t32c1|...|t32c8|t36c1|...|t36c6|t41c1|...|t41c5 [--list]   (--list prints the claim ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 t32c1 installs hubs from this kit with --edition informal|formal and with no --edition (a PATH with
@@ -24,6 +24,16 @@ t32c7 reads INSTRUCTIONS.md step 5 for the command that resumes a named session.
 t32c8 installs a formal and an informal hub (hubkit.py install, then hubflow.py init) and runs
       `orbit-kb show open` at each root: the formal hint names specs/<slug>/ and hubflow where SLUG,
       the informal one names the ledger and no spec KB path.
+t41c1 reads the hypothesis principle, the informal hypothesis row of both HUB-CORE files and of
+      storemap.py for the expected result, the falsifier and the premises.
+t41c2 installs an informal and a formal hub: the informal --help lists no kb ref kind, no --analysis
+      and no analysis column, and refuses `ref ID add kb:X` and --analysis (add, handoff, set) with a
+      line that names the formal edition; the formal hub keeps all of it.
+t41c3 installs an informal hub at mono/hub inside `git init mono` and runs hubflow from mono/hub with
+      no HUBFLOW_HUB and no --hub: the informal help, and the db at mono/hub/flow.
+t41c4 reads the skip principle for the agent park limit, and parks an item as an agent.
+t41c5 reads the formal What lives where hypothesis row of hub/HUB-CORE.md (from the hub design KB)
+      for the expected result, the falsifier and the premises.
 """
 import json
 import os
@@ -664,8 +674,161 @@ def t36c6():
     has("t36c6 PHILOSOPHY.md section 5 keeps the premises sentence", read(PHIL), "lists its premises beside it")
 
 
+# ------------------------------------------------------------------ T41
+HYP_PARTS = (("the expected result", re.compile(r"\bexpect", re.I)), ("the falsifier", re.compile(r"show (it|the hypothesis) false", re.I)),
+             ("the premises", re.compile(r"\bpremises\b", re.I)))
+
+
+def hyp_parts(name, text):
+    for part, rx in HYP_PARTS:
+        check(f"{name} names {part}", rx.search(words(text)) is not None, text[:300])
+
+
+def t41c1():
+    pr = read(PRINCIPLES)
+    secs = re.split(r"^## ", pr, flags=re.M)[1:]
+    mine = [s for s in secs if "5. The hypothesis is the closest formal statement of intent" in s]
+    check("t41c1 PRINCIPLES.md has the hypothesis principle", len(mine) == 1, len(mine))
+    if mine:
+        hyp_parts("t41c1 the hypothesis principle", mine[0])
+        has("t41c1 the hypothesis principle", mine[0], "assume little", "which result you expect", "beside")
+    for name, path in (("informal", ICORE), ("formal", CORE)):
+        rows = [ln for ln in read(path).splitlines() if ln.startswith("| `hypothesis` | `ledger`")]
+        check(f"t41c1 the {name} HUB-CORE.md has the informal hypothesis row", len(rows) == 1, len(rows))
+        if rows:
+            hyp_parts(f"t41c1 the {name} HUB-CORE.md hypothesis row", rows[0])
+    src = [ln for ln in read(STOREMAP).splitlines() if ln.strip().startswith('"hypothesis":')]
+    check("t41c1 storemap.py has one hypothesis row", len(src) == 1, len(src))
+    if src:
+        hyp_parts("t41c1 the storemap.py hypothesis row", src[0])
+    p = run([sys.executable, STOREMAP, "--check"])
+    check("t41c1 storemap.py --check: both HUB-CORE files are current", p.returncode == 0, p.stderr)
+
+
+def ref_kinds(helptext):
+    m = re.search(r"ref ID add\|rm KIND:REF\s+KIND:(.*?)\n  link ", helptext, re.S)
+    return m.group(1).split() if m else None
+
+
+def t41c2():
+    with tempfile.TemporaryDirectory(prefix="t41-c2-") as t:
+        res = {}
+        for ed in ("informal", "formal"):
+            hub, p = install(t, ed, ed)
+            check(f"t41c2 a {ed} hub installs", p.returncode == 0, p.stderr)
+            hubflow(hub, ["init"])
+            p = hubflow(hub, ["add", "ask", "--title", "Plain ask", "--waits-on", "me", "--ref", "issue:1"], session="build")
+            check(f"t41c2 a plain ask is added in the {ed} hub", p.returncode == 0, p.stderr)
+            r = {"help": hubflow(hub, ["--help"]).stdout}
+            r["ref kb"] = hubflow(hub, ["ref", "A-0001", "add", "kb:some-slug"], session="build")
+            r["show"] = hubflow(hub, ["show", "A-0001"], session="build").stdout
+            r["add analysis"] = hubflow(hub, ["add", "ask", "--title", "With analysis", "--waits-on", "me", "--ref", "issue:2",
+                                              "--analysis", "some-slug"], session="build")
+            r["handoff analysis"] = hubflow(hub, ["handoff", "--to", "review", "--title", "Hand over", "--analysis", "some-slug"], session="build")
+            r["set analysis"] = hubflow(hub, ["set", "A-0001", "--analysis", "some-slug"], session="build")
+            res[ed] = r
+        inf, frm = res["informal"], res["formal"]
+        h = inf["help"]
+        check("t41c2 the informal --help has a ref kind list", ref_kinds(h) is not None, h[-400:])
+        check("t41c2 the informal --help lists no kb ref kind", "kb" not in (ref_kinds(h) or ["kb"]), ref_kinds(h))
+        check("t41c2 the informal --help names no kb ref of a capsule", "kb and file" not in words(h), "still there")
+        check("t41c2 the informal --help shows no --analysis", "--analysis" not in h, "still there")
+        check("t41c2 the informal --help shows no analysis column", re.search(r"\banalysis\b", h) is None,
+              [ln for ln in h.splitlines() if "analysis" in ln][:3])
+        for name in ("ref kb", "add analysis", "handoff analysis", "set analysis"):
+            p = inf[name]
+            check(f"t41c2 informal `{name}` is refused (exit 1)", p.returncode == 1, (p.returncode, p.stdout, p.stderr))
+            check(f"t41c2 informal `{name}` says it belongs to the formal edition", "formal edition" in p.stderr, p.stderr)
+            check(f"t41c2 informal `{name}` names no formal word", not formal_hits(p.stdout + p.stderr), formal_hits(p.stdout + p.stderr))
+        check("t41c2 the refused kb ref is not on the informal item", "kb:some-slug" not in inf["show"], inf["show"])
+        # the formal hub is unchanged
+        f = frm["help"]
+        check("t41c2 the formal --help lists the kb ref kind", "kb" in (ref_kinds(f) or []), ref_kinds(f))
+        check("t41c2 the formal --help shows --analysis and the analysis column", "--analysis SLUG" in f and "analysis (a slug" in f, "missing")
+        check("t41c2 the formal --help names the kb ref of a capsule", "kb and file" in words(f), "missing")
+        for name in ("ref kb", "add analysis", "handoff analysis", "set analysis"):
+            p = frm[name]
+            check(f"t41c2 formal `{name}` still works (exit 0)", p.returncode == 0, (p.returncode, p.stderr))
+        check("t41c2 the formal item keeps its kb ref", "kb:some-slug" in frm["show"], frm["show"])
+
+
+def t41c3():
+    with tempfile.TemporaryDirectory(prefix="t41-c3-") as t:
+        mono = os.path.join(t, "mono")
+        os.makedirs(mono)
+        run(["git", "init", "-q", mono])
+        hub = os.path.join(mono, "hub")
+        os.makedirs(hub)
+        p = hk(["install", "--hub", hub, "--edition", "informal"])
+        check("t41c3 an informal hub installs at mono/hub", p.returncode == 0 and manifest(hub).get("edition") == "informal", (p.stderr, manifest(hub)))
+        env = {k: v for k, v in os.environ.items() if k not in ("HUB_SESSION", "HUBFLOW_DB_DIR", "HUBFLOW_HUB")}
+        flow = os.path.join(hub, ".claude", "scripts", "hubflow.py")
+
+        def hf(cwd, args):
+            return run([sys.executable, "-I", flow] + args, cwd=cwd, env=env)
+
+        top = run(["git", "rev-parse", "--show-toplevel"], cwd=hub).stdout.strip()
+        check("t41c3 the git toplevel of mono/hub is mono", os.path.realpath(top) == os.path.realpath(mono), top)
+        h = hf(hub, ["--help"])
+        check("t41c3 --help from mono/hub exits 0", h.returncode == 0, h.stderr)
+        check("t41c3 --help from mono/hub is the informal help", not formal_hits(h.stdout), formal_hits(h.stdout)[:4])
+        sub = os.path.join(hub, "W0")
+        os.makedirs(sub, exist_ok=True)
+        h = hf(sub, ["--help"])
+        check("t41c3 --help from mono/hub/W0 is the informal help", h.returncode == 0 and not formal_hits(h.stdout), formal_hits(h.stdout)[:4])
+        p = hf(hub, ["init"])
+        check("t41c3 init from mono/hub exits 0", p.returncode == 0, p.stderr)
+        check("t41c3 init from mono/hub makes mono/hub/flow/flow.db", os.path.isfile(os.path.join(hub, "flow", "flow.db")), os.listdir(hub))
+        check("t41c3 init from mono/hub makes no mono/flow", not os.path.exists(os.path.join(mono, "flow")), os.listdir(mono))
+        # no manifest on the way up: the git toplevel, as before
+        other = os.path.join(mono, "other")
+        os.makedirs(other)
+        h = hf(other, ["--help"])
+        check("t41c3 --help from mono/other (no manifest above) falls back to mono: the formal help", "spec KB" in h.stdout, h.stdout[-300:])
+        # --hub and HUBFLOW_HUB still win
+        h = run([sys.executable, "-I", flow, "--hub", mono, "--help"], cwd=hub, env=env)
+        check("t41c3 --hub mono from mono/hub gives the formal help", "spec KB" in h.stdout, h.stdout[-300:])
+        h = run([sys.executable, "-I", flow, "--help"], cwd=hub, env={**env, "HUBFLOW_HUB": mono})
+        check("t41c3 HUBFLOW_HUB=mono from mono/hub gives the formal help", "spec KB" in h.stdout, h.stdout[-300:])
+
+
+def t41c4():
+    pr = read(PRINCIPLES)
+    secs = re.split(r"^## ", pr, flags=re.M)[1:]
+    mine = [s for s in secs if s.startswith("Skip, never hide")]
+    check("t41c4 PRINCIPLES.md has the skip principle", len(mine) == 1, len(mine))
+    if mine:
+        w = words(mine[0])
+        check("t41c4 the skip principle says an agent may park", re.search(r"an agent (can|may)( still)? park", w) is not None, w[:400])
+        check("t41c4 the skip principle says only an item that is not escalated", "not escalated" in w or "non-escalated" in w, w[:400])
+        check("t41c4 the skip principle says the park event names the agent", re.search(r"park event names the agent", w) is not None, w[:400])
+        check("t41c4 the skip principle calls it a known limit", "known limit" in w, w[:400])
+    with tempfile.TemporaryDirectory(prefix="t41-c4-") as t:
+        hub, p = install(t, "hub", "informal")
+        hubflow(hub, ["init"])
+        p = hubflow(hub, ["add", "ask", "--title", "Park me", "--waits-on", "me", "--ref", "issue:5"], session="build")
+        check("t41c4 an ask is added", p.returncode == 0, p.stderr)
+        p = hubflow(hub, ["park", "A-0001", "--until", "2026-12-01"], session="build")
+        check("t41c4 an agent parks a non-escalated item (exit 0)", p.returncode == 0, p.stderr)
+        s = hubflow(hub, ["show", "A-0001"], session="build").stdout
+        ev = [ln for ln in s.splitlines() if "| parked |" in ln]
+        check("t41c4 the park event names the agent session and says agent", len(ev) == 1 and "| build | agent |" in ev[0], ev or s[-300:])
+
+
+def t41c5():
+    # The formal "What lives where" row comes from fact_desc(hypothesis) in the hub design KB,
+    # through store-facts.json (storemap.py --export); check_hub_guidance c1 keeps them equal.
+    rows = [ln for ln in read(CORE).splitlines() if ln.startswith("| `hypothesis` | ") and "| `spec` |" in ln]
+    check("t41c5 the formal HUB-CORE.md has the What lives where hypothesis row", len(rows) == 1, len(rows))
+    if rows:
+        hyp_parts("t41c5 the formal What lives where hypothesis row", rows[0])
+    p = run([sys.executable, STOREMAP, "--check"])
+    check("t41c5 storemap.py --check: both HUB-CORE files are current", p.returncode == 0, p.stderr)
+
+
 CLAIMS = {k: globals()[k] for k in ("t32c1", "t32c2", "t32c3", "t32c4", "t32c5", "t32c6", "t32c7", "t32c8",
-                                      "t36c1", "t36c2", "t36c3", "t36c4", "t36c5", "t36c6")}
+                                      "t36c1", "t36c2", "t36c3", "t36c4", "t36c5", "t36c6",
+                                      "t41c1", "t41c2", "t41c3", "t41c4", "t41c5")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]

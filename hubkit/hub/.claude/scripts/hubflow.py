@@ -122,7 +122,8 @@ Environment
                        ref with no dir in specs/<slug> or W0..W5/analyses counts as blocking (fail-safe)
   HUBFLOW_NOW          fixes the clock, YYYY-MM-DDTHH:MM:SSZ (tests). Every write stores it as
                        meta.now so views read the same clock; a read applies it to a private copy
-  --hub DIR            the hub root (default: HUBFLOW_HUB, else the git toplevel of the current
+  --hub DIR            the hub root (default: HUBFLOW_HUB, else the nearest directory from the
+                       current one up with .hub-template.json, else the git toplevel of the current
                        directory, else the current directory); `where` reads it
 
 The hub is a weekly calendar: W0 is the current week, W5 five weeks back; a week holds only what
@@ -520,10 +521,20 @@ def idle_days(now, then):
 
 
 def default_hub():
-    """HUBFLOW_HUB, else the git toplevel of the current directory, else the current directory."""
+    """HUBFLOW_HUB, else the first directory from the current one up that holds .hub-template.json
+    (a hub inside a parent git repo, T41), else the git toplevel of the current directory, else the
+    current directory."""
     env = os.environ.get("HUBFLOW_HUB")
     if env:
         return env
+    d = os.getcwd()
+    while True:
+        if os.path.isfile(os.path.join(d, ".hub-template.json")):
+            return d
+        up = os.path.dirname(d)
+        if up == d:
+            break
+        d = up
     try:
         p = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=10)
         if p.returncode == 0 and p.stdout.strip():
@@ -999,6 +1010,8 @@ def common_item_opts(o):
 def cmd_add(g, a):
     pos, o = parse(a, {**WOPT, "--title": "one", "--owner": "one", "--waits-on": "one", "--analysis": "one",
                        "--ref": "many", "--status": "one"})
+    if o.get("analysis") is not None:
+        formal_only(g, "--analysis")
     if len(pos) != 1:
         usage("add ask|thread|hold --title T [--owner S] [--waits-on P] [--analysis SLUG] [--ref KIND:REF ...]")
     kind = pos[0]
@@ -1031,6 +1044,8 @@ def cmd_handoff(g, a):
     pos, o = parse(a, {**WOPT, "--to": "one", "--title": "one", "--gate": "one", "--analysis": "one", "--ref": "many"})
     if pos or not o.get("to") or o.get("title") is None:
         usage("handoff --to S --title T [--gate G] [--analysis SLUG] [--ref KIND:REF ...] [--note N]")
+    if o.get("analysis") is not None:
+        formal_only(g, "--analysis")
     refs = common_item_opts(o)
 
     def fn(c, w):
@@ -1116,6 +1131,7 @@ def cmd_set(g, a):
     if "status" in o and o["status"] not in OPEN:
         raise Bad("--status is open or waiting (close with the close command)")
     if o.get("analysis") not in (None, "none"):
+        formal_only(g, "--analysis")
         check_analysis(o["analysis"])
     if "status" in o:
         agent_guard(g, o, pos[0], "change the status of")
@@ -1218,6 +1234,8 @@ def cmd_ref(g, a):
     if len(pos) != 3 or pos[1] not in ("add", "rm"):
         usage("ref ID add|rm KIND:REF")
     kind, ref = parse_ref(pos[2])
+    if pos[1] == "add" and kind == "kb":
+        formal_only(g, "a kb ref")
     if pos[1] == "rm" and kind == "kb":
         agent_guard(g, o, pos[0], "remove the kb ref of")
 
@@ -2414,6 +2432,12 @@ def informal(g):
     return informal_at(hub_dir(g))
 
 
+def formal_only(g, what):
+    """Refuse a formal-only option in an informal hub (T41): the line names the formal edition."""
+    if informal(g):
+        raise Bad(f"{what} belongs to the formal edition; this hub is informal (`hubkit.py edition formal` switches it)")
+
+
 INFORMAL_ONLY_COMMANDS = ("where", "spec-triage", "skip-waived")  # they read a spec KB: not in an informal hub
 # The informal --help: the formal text, with these edits (old regex, new text). A pattern that no
 # longer matches leaves a formal word in the help, and docs/check_informal_hub.py t36c1 fails.
@@ -2433,6 +2457,9 @@ INFORMAL_HELP = (
      "The ledger holds a pointer (issue:123) and the flow state around it, never a copy of the tracker's text."),
     (r", or one\n\s+whose spec KB is not clear, stays open", " stays open"),
     (r"a kb ref is <slug> \(the spec KB at\n\s+specs/<slug>\) or, in an old hub, <slug>/kb; never W0/...;", "never W0/...;"),
+    (r"(KIND: issue pr build release) kb (file commit url)", "\\1 \\2"),
+    (r"the item's kb and file\n(\s+)refs", "the item's file\n\\1refs"),
+    (r" analysis \(a slug, never a W-slot path\),", ""),
 )
 
 
