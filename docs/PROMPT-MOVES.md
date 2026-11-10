@@ -50,7 +50,7 @@ parts went to different homes.
 | `### BURN: prove the claim in Lean` | help build | `Burns: prove the claim in Lean` | |
 | `### EXPLAIN` | dropped, because the purpose (clear) and the plain-language rule of the prompt already cover it | | |
 | `## When the human says that it is wrong` | prompt | | The examples of a divergence and the preference-change rule stay. |
-| `## When the human says that it is wrong` | hook | `Doubt, surprise or a pointed question counts` | h_divergence and h_change_of_plan give the hints. |
+| `## When the human says that it is wrong` | hook | `Doubt, surprise or a pointed question about the agent's work counts` | h_divergence and h_change_of_plan give the hints. |
 | `## When the human says that it is wrong` | help build | `A preference change` | The record steps. |
 | `## Honesty rules` | prompt | | Every rule (c3); rule 5 reworded (see below). |
 | `## Delivery` | prompt | | Every rule (c3); one section name changed (see below). |
