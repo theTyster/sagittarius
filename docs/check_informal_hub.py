@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T32: an informal hub loads only informal rules. One check per claim.
 
-usage: python3 docs/check_informal_hub.py t32c1|...|t32c8|t36c1|...|t36c6|t41c1|...|t41c5 [--list]   (--list prints the claim ids)
+usage: python3 docs/check_informal_hub.py t32c1|...|t32c8|t36c1|...|t36c6|t41c1|...|t41c5|t44c1|t44c2 [--list]   (--list prints the claim ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 t32c1 installs hubs from this kit with --edition informal|formal and with no --edition (a PATH with
@@ -34,6 +34,11 @@ t41c3 installs an informal hub at mono/hub inside `git init mono` and runs hubfl
 t41c4 reads the skip principle for the agent park limit, and parks an item as an agent.
 t41c5 reads the formal What lives where hypothesis row of hub/HUB-CORE.md (from the hub design KB)
       for the expected result, the falsifier and the premises.
+t44c1 an informal hub accepts no formal-only part on any path: `add KIND --ref kb:X` and import of a kb
+      ref or analysis exit 1 and make no item, `show` (md and json) and `view` have no analysis, --help has no "kb ref"; the formal hub keeps the three.
+t44c2 the informal hypothesis row of storemap.py (INFORMAL) names the expected result, the falsifier and
+      the premises; the check also runs on mutant copies of the row, which must each fail. T44_STOREMAP
+      names another storemap.py to read (a red run on a mutant copy).
 """
 import json
 import os
@@ -515,7 +520,12 @@ def t36c1():
             check(f"t36c1 the {ed} hub records its edition", manifest(hub).get("edition") == ed, manifest(hub))
             p = hubflow(hub, ["init"])
             check(f"t36c1 hubflow init in the {ed} hub", p.returncode == 0, p.stderr)
-            hubflow(hub, ["add", "ask", "--title", "Plain ask", "--ref", "kb:some-slug"], session="build")
+            if ed == "informal":  # T44 c1: an informal hub refuses a kb ref (the t36c1 fixture added one)
+                p = hubflow(hub, ["add", "ask", "--title", "Plain ask", "--ref", "kb:some-slug"], session="build")
+                check("t36c1 the informal hub refuses an item with a kb ref (exit 1)", p.returncode == 1, (p.returncode, p.stderr))
+                hubflow(hub, ["add", "ask", "--title", "Plain ask"], session="build")
+            else:
+                hubflow(hub, ["add", "ask", "--title", "Plain ask", "--ref", "kb:some-slug"], session="build")
             got = {}
             for name, args in (("--help", ["--help"]), ("rotate", ["rotate", "--week-start", WEEK]),
                                ("where", ["where", "nope"]), ("spec-triage", ["spec-triage", "nope", "keep", "--note", "x"]),
@@ -536,8 +546,8 @@ def t36c1():
         check("t36c1 informal where and spec-triage are refused (exit 1)", inf["where"].returncode == 1 and inf["spec-triage"].returncode == 1,
               (inf["where"].returncode, inf["spec-triage"].returncode))
         check("t36c1 informal triage of a bad disposition exits 1", inf["triage bad"].returncode == 1, inf["triage bad"].returncode)
-        check("t36c1 an informal agent triage of an item with a kb ref still escalates (fail-safe)",
-              "escalate" in inf["triage kb ref"].stdout, (inf["triage kb ref"].stdout, inf["triage kb ref"].stderr))
+        check("t36c1 the formal agent triage of an item with a kb ref still escalates (fail-safe)",
+              "escalate" in frm["triage kb ref"].stdout, (frm["triage kb ref"].stdout, frm["triage kb ref"].stderr))
         # the formal hub keeps the text
         h = frm["--help"].stdout
         for w in ("spec KB", "orbit-kb", "specs/", "project KB", "question server"):
@@ -826,9 +836,106 @@ def t41c5():
     check("t41c5 storemap.py --check: both HUB-CORE files are current", p.returncode == 0, p.stderr)
 
 
+def t44c1():
+    with tempfile.TemporaryDirectory(prefix="t44-c1-") as t:
+        res = {}
+        for ed in ("informal", "formal"):
+            hub, p = install(t, ed, ed)
+            check(f"t44c1 a {ed} hub installs", p.returncode == 0, p.stderr)
+            hubflow(hub, ["init"])
+            r = {"add kb": hubflow(hub, ["add", "ask", "--title", "Kb ask", "--ref", "kb:some-slug"], session="build"),
+                 "handoff kb": hubflow(hub, ["handoff", "--to", "review", "--title", "Hand over", "--ref", "kb:some-slug"], session="build"),
+                 "ref kb": None}
+            r["after refused"] = hubflow(hub, ["add", "ask", "--title", "Plain ask", "--ref", "issue:1"], session="build")
+            r["ref kb"] = hubflow(hub, ["ref", "A-0001", "add", "kb:some-slug"], session="build")
+            r["list"] = hubflow(hub, ["sql", "SELECT id, kind FROM item ORDER BY id"], session="build")
+            r["show"] = hubflow(hub, ["show", "A-0001"], session="build")
+            r["help"] = hubflow(hub, ["--help"]).stdout
+            r["show json"] = hubflow(hub, ["show", "A-0001", "--format", "json"], session="build")
+            r["view"] = hubflow(hub, ["view", "open", "--format", "tsv"], session="build")
+            for nm, row in (("kb", {"kind": "ask", "title": "Imported kb", "refs": ["kb:some-slug"]}),
+                            ("analysis", {"kind": "ask", "title": "Imported analysis", "analysis": "some-slug"}),
+                            ("plain", {"kind": "ask", "title": "Imported plain", "refs": ["issue:9"]})):
+                f = os.path.join(t, f"imp-{ed}-{nm}.jsonl")
+                with open(f, "w") as fh:
+                    fh.write(json.dumps(row) + "\n")
+                r["import " + nm + " dry"] = hubflow(hub, ["import", f], session="build")
+                r["import " + nm] = hubflow(hub, ["import", f, "--yes"], session="build")
+            r["items after import"] = hubflow(hub, ["sql", "SELECT title FROM item ORDER BY id"], session="build")
+            res[ed] = r
+        inf, frm = res["informal"], res["formal"]
+        for nm in ("kb", "analysis"):
+            for how in (" dry", ""):
+                p = inf["import " + nm + how]
+                check(f"t44c1 informal import of a {nm} row{' (dry run)' if how else ' --yes'} exits 1 and names the formal edition",
+                      p.returncode == 1 and "formal edition" in p.stdout + p.stderr, (p.returncode, p.stdout[-200:], p.stderr))
+            check(f"t44c1 informal import of a {nm} row made no item", f"Imported {nm}" not in inf["items after import"].stdout,
+                  inf["items after import"].stdout)
+        check("t44c1 informal import of a plain row works", inf["import plain"].returncode == 0 and "Imported plain" in inf["items after import"].stdout,
+              (inf["import plain"].returncode, inf["import plain"].stderr))
+        try:
+            ij = json.loads(inf["show json"].stdout)
+        except ValueError:
+            ij = {"item": {"analysis": "unparsed"}}
+        check("t44c1 informal `show --format json` has no analysis key", "analysis" not in ij["item"], list(ij["item"]))
+        check("t44c1 informal `view open` has no analysis column", "analysis" not in inf["view"].stdout.splitlines()[0].split("\t"),
+              inf["view"].stdout[:200])
+        for nm in ("kb", "analysis"):
+            check(f"t44c1 formal import of a {nm} row still works", frm["import " + nm].returncode == 0 and f"Imported {nm}" in frm["items after import"].stdout,
+                  (frm["import " + nm].returncode, frm["import " + nm].stderr))
+        check("t44c1 formal `show --format json` keeps the analysis key", "analysis" in json.loads(frm["show json"].stdout)["item"], "missing")
+        check("t44c1 formal `view open` keeps the analysis column", "analysis" in frm["view"].stdout.splitlines()[0].split("\t"), frm["view"].stdout[:200])
+        p = inf["add kb"]
+        check("t44c1 informal `add ask --ref kb:X` exits 1", p.returncode == 1, (p.returncode, p.stdout, p.stderr))
+        check("t44c1 informal `add ask --ref kb:X` names the formal edition", "formal edition" in p.stderr, p.stderr)
+        p = inf["handoff kb"]
+        check("t44c1 informal `handoff --ref kb:X` exits 1", p.returncode == 1, (p.returncode, p.stdout, p.stderr))
+        check("t44c1 the refused add made no item: the next item is A-0001", inf["after refused"].stdout.strip() == "A-0001",
+              (inf["after refused"].stdout, inf["after refused"].stderr))
+        check("t44c1 the informal ledger holds only that one item", "A-0001" in inf["list"].stdout and "H-" not in inf["list"].stdout
+              and inf["list"].stdout.count("A-") == 1, inf["list"].stdout)
+        check("t44c1 informal `ref ID add kb:X` is still refused", inf["ref kb"].returncode == 1, inf["ref kb"].returncode)
+        check("t44c1 informal `show` has an item and no analysis line", inf["show"].returncode == 0 and "title: Plain ask" in inf["show"].stdout
+              and not re.search(r"^analysis:", inf["show"].stdout, re.M), inf["show"].stdout[:300])
+        h = inf["help"]
+        check("t44c1 the informal --help has no \"kb ref\"", "kb ref" not in words(h), [ln for ln in h.splitlines() if "kb ref" in words(ln)])
+        # the formal hub is unchanged
+        check("t44c1 formal `add ask --ref kb:X` exits 0", frm["add kb"].returncode == 0, (frm["add kb"].returncode, frm["add kb"].stderr))
+        check("t44c1 formal `handoff --ref kb:X` exits 0", frm["handoff kb"].returncode == 0, (frm["handoff kb"].returncode, frm["handoff kb"].stderr))
+        check("t44c1 formal `show` keeps the analysis line", re.search(r"^analysis:", frm["show"].stdout, re.M) is not None, frm["show"].stdout[:300])
+        check("t44c1 the formal --help still has the kb ref line", "ref rm the kb ref of an item that is escalated" in words(frm["help"]), "missing")
+
+
+def informal_hyp_row(path):
+    """The informal hypothesis row of a storemap.py: its INFORMAL[\"hypothesis\"] text."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("storemap_t44", path)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m.INFORMAL["hypothesis"][1]
+
+
+def hyp_missing(text):
+    return [part for part, rx in HYP_PARTS if rx.search(words(text)) is None]
+
+
+def t44c2():
+    path = os.environ.get("T44_STOREMAP") or STOREMAP
+    row = informal_hyp_row(path)
+    miss = hyp_missing(row)
+    check("t44c2 the informal hypothesis row of storemap.py names the expected result, the falsifier and the premises", not miss,
+          (miss, row[:300]))
+    # the check can fail: each part, cut from a copy of the real row, is found missing
+    base = informal_hyp_row(STOREMAP)
+    for part, cut in (("the expected result", (r"the result expected", "")), ("the falsifier", (r"the result that would show it false", "")),
+                      ("the premises", (r"its premises beside it, ", ""))):
+        mutant = re.sub(cut[0], cut[1], base)
+        check(f"t44c2 a copy of the row without {part} is rejected", mutant != base and hyp_missing(mutant) == [part], (part, hyp_missing(mutant)))
+
+
 CLAIMS = {k: globals()[k] for k in ("t32c1", "t32c2", "t32c3", "t32c4", "t32c5", "t32c6", "t32c7", "t32c8",
                                       "t36c1", "t36c2", "t36c3", "t36c4", "t36c5", "t36c6",
-                                      "t41c1", "t41c2", "t41c3", "t41c4", "t41c5")}
+                                      "t41c1", "t41c2", "t41c3", "t41c4", "t41c5", "t44c1", "t44c2")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
