@@ -32,6 +32,7 @@
 #   c2 only a human closes the ledger item of a dropped edit                   : TS37
 #   c3 a draft staged at or before the pin and dropped by the tracker is recorded : TS38
 #   c4 the declaration of any_project_conflict names what it covers now        : TS39
+#   c6 (review divergence a21 on c1) a pushed draft is not lost or dropped by date : TS40
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -637,6 +638,35 @@ t_TS39() { # T45 c4: the declaration text of any_project_conflict names what it 
            printf '%s' "$d" | grep -Fiq 'a conflict of the project KB blocks' && note "the declaration no longer says a conflict of the project KB blocks: $d"
            printf '%s' "$d" | grep -Fiq 'decision that the conflict concerns' && note "the declaration no longer names a draft conflict: $d"
            return 0; }
+t_TS40() { hub_pk   # T45 (review divergence a21 on c1): a pushed draft is not lost by date; its text reached the tracker
+           # A: the normal push flow. The draft is pushed, then the tracker is pinned again with the pushed text.
+           pin_item p1 tracker:ITEM-1 'Title: Sort orders' "$T0"
+           add_draft dA p1 'Sort orders by their number' "$T1"
+           okb "$P" add "pushed(dA, '$T2')"; rc_is 0 "record the push"
+           item_text "$T/item-p2.txt" 'Sort orders by their number'
+           okb_hub "$P" pin-item p2 tracker:ITEM-1 --text-file "$T/item-p2.txt" --changed-at "$T3"; rc_is 0 "pin-item after the push"
+           ledger "len(rows) == 0" "a push makes no ledger item"
+           printf '%s\n%s\n' "$out" "$err" | grep -q 'dA.*lost by date' && note "pin-item names no drop of the pushed draft dA ($(snip "$err"))"
+           okb "$P" query 'lost_by_date(dA, draft)'; rc_is 1 "a pushed draft is not lost by date"
+           okb "$P" query 'dropped(dA, draft)'; rc_is 1 "a pushed draft is not dropped by date"
+           okb "$P" query 'outbound(dA)'; rc_is 1 "a pushed draft is not outbound"
+           # B: the tracker changed (someone else's edit) BEFORE the push. pin-item records the drop of the
+           # draft then (it was dropped by date at that time); the push that follows clears lost_by_date and
+           # dropped(D, draft), and adds no item; the item already recorded stays open for a human.
+           pin_item p5 tracker:ITEM-5 'Title: Other' "$T0"
+           add_draft dB p5 'Other, as we want it' "$T1"
+           item_text "$T/item-p6.txt" 'Title: Other, edited by someone'
+           okb_hub "$P" pin-item p6 tracker:ITEM-5 --text-file "$T/item-p6.txt" --changed-at "$T2"; rc_is 0 "pin-item of the other edit"
+           ledger "len(rows) == 1 and 'dB' in rows[0]['title']" "before the push, the drop of dB is recorded"
+           okb "$P" add "pushed(dB, '$T3')"; rc_is 0 "the human pushes dB anyway"
+           okb "$P" query 'lost_by_date(dB, draft)'; rc_is 1 "after the push, dB is not lost by date"
+           okb "$P" query 'dropped(dB, draft)'; rc_is 1 "after the push, dB is not dropped by date"
+           item_text "$T/item-p7.txt" 'Other, as we want it'
+           okb_hub "$P" pin-item p7 tracker:ITEM-5 --text-file "$T/item-p7.txt" --changed-at "$T4"; rc_is 0 "pin-item after the push"
+           ledger "len(rows) == 1 and rows[0]['status'] == 'open'" "the push adds no item; the recorded one stays open"
+           # resolved() is unchanged: a human's choice of the tracker still drops a pushed draft
+           okb "$P" add "resolved(dA, tracker, '$T4')"; rc_is 0
+           okb "$P" query 'dropped(dA, draft)'; rc_is 0 "resolved(dA, tracker) still drops the draft"; }
 
 # ---------------------------------------------------------------- driver
 for fn in $(declare -F | awk '{print $3}' | grep -E '^t_TS[0-9]+$' | sort -t S -k2 -n); do
