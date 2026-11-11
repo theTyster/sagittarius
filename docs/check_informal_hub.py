@@ -625,10 +625,15 @@ def t36c3():
 
 def t36c4():
     k = json.loads(read(os.path.join(KITDIR, "kit.json")) or "{}")
-    check("t36c4 kit.json version is 0.5.0", k.get("version") == "0.5.0", k.get("version"))
+    # T48 c3: schema 5 ships as the next kit version (0.5.1), so 0.5.0 is no longer the newest release;
+    # T36 c4 still holds for the 0.5.0 section: it exists, right above 0.4.0, and the kit is 0.5.0 or later
+    ver = tuple(int(x) for x in k.get("version", "0.0.0").split("."))
+    check("t36c4 kit.json version is 0.5.0 or later", ver >= (0, 5, 0), k.get("version"))
     up = read(os.path.join(KITDIR, "UPGRADING.md"))
     heads = re.findall(r"^### (\d+\.\d+\.\d+)", up, re.M)
-    check("t36c4 UPGRADING.md has a 0.5.0 section, newest first", heads[:2] == ["0.5.0", "0.4.0"], heads[:3])
+    at = heads.index("0.5.0") if "0.5.0" in heads else -1
+    check("t36c4 UPGRADING.md has a 0.5.0 section, newest first", at >= 0 and heads[at:at + 2] == ["0.5.0", "0.4.0"]
+          and heads == sorted(heads, key=lambda v: tuple(int(x) for x in v.split(".")), reverse=True), heads[:3])
     sec = section(up, "0.5.0", level="###")
     check("t36c4 the 0.5.0 section is not empty", len(sec) > 200, len(sec))
     has("t36c4 the 0.5.0 section", sec, "T32", "T36", "--edition", "edition informal", "premises", "bash 4")
