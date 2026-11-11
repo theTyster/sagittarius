@@ -1,0 +1,17 @@
+{
+  "sessions": [
+    {"name": "discovery", "role": "discovery"},
+    {"name": "build", "role": "build"},
+    {"name": "review", "role": "review"},
+    {"name": "process", "role": "process"},
+    {"name": "support", "role": "support"}
+  ],
+  "aliases": [
+    {"alias": "helpdesk", "name": "support"}
+  ],
+  "persons": [
+    {"key": "me", "display": "Me"},
+    {"key": "alex", "display": "Alex Example"}
+  ],
+  "owner": "me"
+}

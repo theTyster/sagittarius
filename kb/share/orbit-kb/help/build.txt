@@ -7,7 +7,11 @@ Facts
   visual(Claim)         a human must see the claim to judge it (a look, a layout, a name);
                         mark it at DECOMPOSE, or when the human asks to see it
   demo(Subject, Claim)  a screenshot or a recording (orbit-kb subject) shows the claim
+  ac(Claim)             the claim is an acceptance criterion (AC) of the ticket. It changes no
+                        rule: show blocking and draft blocking name an unmet AC as such
   conformance(Check)    an optional check that runs the code against the Lean model
+  change_at(X, Time)    when change X was recorded; add writes it with change(X, Text),
+                        and actor(X, Role, Session) too (orbit-kb help core). add refuses it
 
 Attestation types
   lean_result   stated | refuted(Counterexample) | tested(N)    progress on a Lean model
@@ -18,6 +22,14 @@ Queries
   fulfilled(C)  a check of C passed; for retire and introduce, it failed first; C is not refuted
   under(C)      current claim C is not fulfilled, and no human waived a check of it
   over(X)       change X serves no claim
+  independently_verified(C)
+                an upheld verdict on C, by an actor whose role and session both differ from
+                the actor of the last change that serves C, after that change, rests on a run
+                of a check of C by the same actor after that change. Only the latest verdict
+                on C counts. A claim that no change serves is compared with every change of
+                the KB; a change with no change_at, or no change at all, verifies nothing.
+                done does not read it; lint warns (WR1) on each current claim without it,
+                in a KB that records actors, once no claim is under (a review is due)
   done          at least one claim is current, nothing is under, nothing is over,
                 nothing is to ask, no burn or flare is open, and no claim is in a supersede cycle.
                 A KB with no current claim is not done. whynot done then says
@@ -30,11 +42,68 @@ Queries
   flare_open(C) current claim C flares, and no human approved a demo of it at the demo's
                 current digest, and no waiver is before its due time
 
-Checks
-  orbit-kb add "check(k1, c1)"
-  orbit-kb run k1 -- npm test -- button     run it; the output goes to runs/N-k1.log
-  Run each retire and introduce check against the current code first. It must fail.
-  Do not edit a check to make it pass. If a claim was wrong, add a claim that supersedes it.
+SURVEY: close the world (build)
+  1. Record as world facts the current behavior that the claims rest on. Under the
+     closed-world assumption, a fact that you did not record is false. So record the slice
+     that the ticket touches, and nothing more.
+  2. For a defect, reproduce it first. If you cannot reproduce it, or the feature already
+     exists, stop and tell the human.
+  3. Skip SURVEY when discovery ran. When the change site is obvious, skip step 1, never step 2.
+
+PIN: when the request or a question has an owner (the tracker or the ledger)
+  1. The request is a tracker item: start with orbit-kb init DIR --request-file F --source REF
+     (F holds the item as you read it, plain text or its JSON). Read the item again before
+     done and after each handoff: orbit-kb pin-request --request-file F. A changed text blocks
+     done until a human accepts it (pin-request --accept --by human).
+  2. A question that waits only on the hub owner: orbit-kb pin-question Q ledger ASK. Any other
+     question that a person must answer in the tracker: orbit-kb draft questions, the human
+     posts it, then orbit-kb pin-question Q tracker ITEM. The answer comes back with
+     orbit-kb pin-answer Q ITEM --text-file F --by NAME.
+  3. Never copy a request or an answer by hand: pin it.
+
+BUILD: checks first
+  1. Write the checks first, from the claims and the examples. Add a screenshot check when
+     the change has a user surface.
+       orbit-kb add "check(k1, c1)"
+       orbit-kb run k1 -- npm test -- button     run it; the output goes to runs/N-k1.log
+  2. Run each retire and introduce check against the current code first. It must fail.
+     The red run proves that the check can fail. Run every check with orbit-kb run.
+  3. Build the change. Change only what the claims need. Record each change and the claim
+     that it serves: change(X, Text), serves(X, Claim).
+  4. Do not edit a check to make it pass: that hides a divergence. If a claim was wrong, add
+     a claim that supersedes it, and disclose the change.
+
+FULFILL: fulfillment in both directions (verify)
+  Review with fresh eyes. Prefer one subagent with a fresh context. This is its brief:
+  - It sees only the ticket, the KB, and the diff. It does not see the builder's reasoning.
+  - It works under its own role and session. Subagents share CLAUDE_CODE_SESSION_ID, so the
+    builder runs orbit-kb release first, and the subagent names itself in each write command.
+    Each Bash call of Claude Code is a new shell, so an export does not reach the next call:
+    put the writer and the role in front of every write command, as below. Its first write
+    takes the writer lock:
+      ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review orbit-kb review start --as review --ticket TICKET.md --diff BASE..HEAD
+    This records what it saw: the ticket, the KB stamp, and the diff (review_saw).
+  - It reruns every check of each claim itself:
+      ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review orbit-kb run --as review k1 -- CMD
+  - It records one verdict for every current claim, with what it tried, and the runs that
+    the verdict rests on:
+      ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review orbit-kb attest disproof c1 "verdict(c1, upheld('what I tried'))" --as review --rests-on a12
+    upheld(Text), refuted(Text), inconclusive(Text), or abstained(Text).
+  - It reads orbit-kb report (the Review section: reviewer, verdict, reruns) and orbit-kb
+    lint: WR1 names each claim that is not independently verified (independently_verified).
+  - Under: orbit-kb query 'under(C)'. Each answer is a claim that is not fulfilled.
+  - Over: orbit-kb query 'over(X)'. Each answer is a change that serves no claim. Remove it,
+    or propose it to the human.
+  - Open questions: orbit-kb query 'to_ask(Q)'.
+  - Clean up: keep a test only if it guards a claim, records a human answer, or reproduces a
+    fixed defect. Delete the other tests that you wrote.
+  - Last, it frees the writer lock, under its own writer, so the builder can write again:
+      ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review orbit-kb release
+  The build is finished when done holds (orbit-kb show blocking lists what blocks it). Stop
+  there. Do not polish beyond the claims.
+
+DISPROVE (verify, and in discovery): before you deliver a burned claim, or when you doubt any
+claim, try to break it within a small budget. Record one disproof verdict (orbit-kb help core).
 
 Burns: prove the claim in Lean
   A statement with sorry is not a proof. "No counterexample in N trials" is not a proof.
@@ -67,6 +136,32 @@ Flares: show the claim to the human (burns get proved, flares get shown)
   A preference change (a new name or color, and no one misread the intent) is a new claim
   that supersedes the old one. It is not a divergence.
 
+When the human says it is wrong (a divergence, not a preference change)
+  1. On the light path, shift up now: start a KB, and record the request, your claims, and
+     the checks so far.
+  2. Record a divergence on the claim: orbit-kb attest divergence C 'claim(C)', and a note.
+  3. Decide which is wrong: the build, or the problem itself. If the problem is wrong, run
+     orbit-kb uses discovery, and go back to discovery (orbit-kb help discovery, BACK).
+  4. Record the human's answer: answer(Q, Answer, human). Defaults that conflict with it are
+     now defeated.
+  5. Query to_ask(Q). Ask that small cluster, not every dormant question.
+  6. Rebuild, and run the checks again. If burn(C) now holds, prove the claim in Lean (Burns).
+  The KB already holds the questions, so you continue from where you stopped.
+
+Byte digests (T38): a KB from before T38 after the upgrade
+  A digest is now the sha256 of the bytes of the file. A digest stored before T38 for a file
+  with a non-ASCII byte no longer matches, though the file is not edited.
+  Re-prove: for each attestation A of orbit-kb query 'proof_changed(A)', read its claim,
+  theorem and source file in runs/proof-A.log (head -3), then run
+      orbit-kb prove CLAIM PATH/TO/SOURCE.lean THEOREM
+  Re-pin: orbit-kb show pin P says "the digest rule changed" for a kept text that is not
+  edited. Pin it again under a new id, and move the facts that rest on the old pin:
+      orbit-kb pin-item P2 SOURCE --text-file pins/HEX.txt --changed-at T
+      orbit-kb add "concerns(X, P2)"            for each concerns(X, P)
+  SOURCE, HEX and T are those that show pin P prints. A file pin (stale_pin(P)): run
+  orbit-kb subject S PATH, then orbit-kb pin-item P2 S --kind file --changed-at T.
+  Never rewrite the old pin: it stays as the record.
+
 Waivers (the human only; the human sets the due time)
   orbit-kb attest waiver C "waive(C, '2026-11-30T17:00:00Z', 'why')" --by human
   C is a claim (its proof and its demo), a check, or a question.
@@ -75,5 +170,20 @@ Waivers (the human only; the human sets the due time)
   report lists every waiver. The delivery says "not proved" for a waived burn, and
   "not shown" for a waived flare.
 
-Verdicts for disproof (orbit-kb help core): refuted(Text), inconclusive, abstained.
+A result from CI or the tracker (pin it in the spec; the spec does not own it)
+  A check may read a run that happened elsewhere. The spec KB must use project (orbit-kb uses project).
+  1. Save the run log or its export to a file. Pin it: its source ref, digest and time are the pin.
+     The source is the job (one source for all its runs), so a newer run makes the older pin stale.
+     orbit-kb pin-item ci42 'ci:acme/widgets/main' --text-file ci42.txt --changed-at 2026-11-09T10:00:00Z
+  2. Make the check read the pin, not the file: orbit-kb show pin exits 1 when the kept text changed.
+     orbit-kb add "check(k1, c1)"
+     orbit-kb run k1 -- sh -c "orbit-kb show pin ci42 | grep -q 'conclusion: success'"
+  3. A run that failed first is red, a later green run passes, so the claim counts it like a local run.
+     A newer run is a new pin of the same source; then the older pin is stale (stale_pin):
+     orbit-kb pin-item ci43 'ci:acme/widgets/main' --text-file ci43.txt --changed-at 2026-11-10T10:00:00Z
+     A check reads one pin, so run the check again on the new pin (ci43). If that run fails, the
+     claim is not fulfilled. A pin under another source does not make the old pin stale.
+
+Verdicts for disproof (orbit-kb help core): upheld(Text), refuted(Text), inconclusive(Text),
+abstained(Text). Name the runs with --rests-on.
 Do not weaken a claim to absorb a counterexample. Record it, and ask the human.

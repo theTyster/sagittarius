@@ -24,7 +24,7 @@ import shlex
 import subprocess
 import sys
 
-WRITES = {"init", "uses", "add", "declare", "declare-attest", "subject", "attest", "run", "prove"}
+WRITES = {"init", "uses", "add", "declare-attest", "subject", "attest", "run", "prove"}
 QUERIES = {
     "test_result_fail": "attest(_, test_result, _, result(_, _, fail), _, _)",
     "divergence_recorded": "attest(_, divergence, _, _, _, _)",

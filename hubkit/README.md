@@ -1,0 +1,97 @@
+# The hub kit
+
+The hub kit is part of Sagittarius (<https://github.com/theTyster/sagittarius>). It is the
+**informal release**: a template for a **hub**, one git repo that a few long-lived Claude Code
+sessions share as their working memory. It uses only plain files, git and SQLite. You do not need
+Prolog, Lean, or any other part of Sagittarius to use it.
+
+It has three ideas:
+
+- **The hub is a calendar.** `W0/` is this week and `W5/` is five weeks back. A rotation each Monday
+  retires the oldest week, and git history keeps it. Durable knowledge moves into root files and
+  skills before a week rolls off.
+- **Flow state is in SQLite.** Asks waiting on a person, in-flight threads, holds and handoffs
+  are rows in `flow/flow.db`, written only by `hubflow.py`. Each write also exports JSONL, which
+  git tracks. An item nobody renews comes due, and each rotation records one decision for every due
+  item (keep, lapse, capsule or escalate) instead of a silent lapse.
+- **The principles come with it.** `PRINCIPLES.md` states the Sagittarius philosophy in plain
+  words (clear, accurate, honest, fast; start light and shift up on a signal; no party grades its
+  own work; disclose guesses). The hub's `CLAUDE.md` imports it, so every agent reads it at start.
+
+Named sessions (one per role, each with its own `HUB_SESSION`) are set up outside the hub, for
+example in your dotfiles, because they belong to one machine. The hub knows only their names, in
+`flow/seed.json`.
+
+**Briefing for people:** open `docs/index.html` in a browser.
+
+## Install
+
+Needs Python 3 (stdlib only), git and bash 4 or later: no Prolog and no Lean.
+
+The hub's scripts and tests also use these POSIX tools, which must be on the PATH: `awk`, `comm`,
+`date`, `diff`, `find`, `mkdir`, `mktemp`, `mv`, `rm`, `sed`, `sort`, `tail`, `tr`, `wc`.
+
+`KIT` is this directory (`hubkit/` in a Sagittarius checkout) and `HUB` is a new directory for the
+hub. Each may be absolute or relative to the current directory: the first line makes them absolute.
+
+```sh
+KIT=$(cd "$KIT" && pwd) && mkdir -p "$HUB" && HUB=$(cd "$HUB" && pwd)
+cd "$HUB" && git init -q
+python3 "$KIT/tools/hubkit.py" install --hub "$HUB"
+python3 .claude/scripts/hubflow-test.py | tail -n 1
+python3 .claude/scripts/hubflow.py init
+python3 .claude/scripts/hubflow.py check
+```
+
+The test line must say `N passed, 0 failed`. The install picks the **informal edition** when
+`orbit-kb` is not on the PATH, and the formal edition when it is; `--edition informal|formal`
+chooses, `.hub-template.json` records it, and an upgrade keeps it. `hubkit.py edition --hub "$HUB"
+formal` switches a hub later (a dry run without `--yes`). For a guided setup (the hub's place, its
+people, its tracker), give this directory to your agent and say: **"follow INSTRUCTIONS.md"**. It
+asks you up to three questions, sets up the hub, and checks each step.
+
+## What the informal release keeps
+
+The hub has five informal stores: the flow ledger (`flow/`), the memory files (`CLAUDE.md`,
+`PRINCIPLES.md`, `HEURISTICS.md`, `TECHNOLOGIES.md`), the weeks (`W0/` to `W5/`), the bespoke tools
+(listed in `TECHNOLOGIES.md`), and the tracker (outside the hub, by pointer). An informal hub gets
+the informal `HUB-CORE.md`, `CLAUDE.md` and skills (from `editions/informal/`): their rules name only
+these five stores, and say where each fact kind is kept. The formal stores (a spec KB per ticket and
+a project KB, written with `orbit-kb`) come with the formal edition; the Sagittarius `README.md`
+says how to install them.
+
+## Take a new release
+
+Your hub changes from day one, so a release can't simply be merged into it. Instead:
+
+- Files the hub owns (`CLAUDE.md`, `HEURISTICS.md`, `flow/seed.json`, …) are never touched by an
+  upgrade. Shipped rules live in `HUB-CORE.md` and `PRINCIPLES.md`, which `CLAUDE.md` imports.
+  Local changes to a shipped skill go in a `LOCAL.md` next to it.
+- `.hub-template.json` in your hub records the release it came from and a checksum of each shipped
+  file. So `tools/hubkit.py` knows which shipped files you changed.
+- An upgrade replaces the shipped files you did not change. For the ones you did change, your agent
+  applies each change by its intent, following `UPGRADING.md`, and shows you the diff.
+
+Say to your agent: **"upgrade the hub to the new template; follow UPGRADING.md in the new release."**
+
+## Layout
+
+| Path | What |
+|---|---|
+| `INSTRUCTIONS.md` | Set up a new hub (for the agent) |
+| `UPGRADING.md` | Apply a release to an existing hub (for the agent), one section per release |
+| `kit.json` | The version, and which files are *engine* (shipped) or *owned* (the hub's) |
+| `tools/hubkit.py` | `install`, `status`, `upgrade`, `done`, `edition` |
+| `hub/` | The files of a new hub, at their paths in the hub (the formal edition) |
+| `editions/informal/` | The files that the informal edition takes instead (`kit.json`, `editions`) |
+| `docs/` | The briefing page |
+
+## Tests
+
+```
+python3 -I tools/hubkit-test.py --mutants
+python3 -I hub/.claude/scripts/hubflow-test.py --mutants
+```
+
+Each suite also runs a set of mutants (deliberately broken copies of the tool). Every mutant must
+fail at least one test, which shows that the tests can catch the defect.

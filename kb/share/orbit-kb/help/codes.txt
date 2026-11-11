@@ -3,10 +3,12 @@ Each message ends with the fix. Read it. orbit-kb lint --strict makes warnings e
 
 Core
   E1   syntax error. Query, why, whynot, show, and report exit 2.
-  E2   undeclared predicate or wrong arity. Declare it: orbit-kb declare.
+  E2   undeclared predicate or wrong arity. Fix the name, or add a fact of the new kind:
+       orbit-kb add 'FACT' --doc TEXT.
   E3   type error (also a label outside oneof)
-  E4   dangling reference: the id does not exist, or is the wrong kind.
-       supersedes takes two claims, or two hypotheses.
+  E4   dangling reference: the id does not exist, or is the wrong kind (also depends_on, excludes, ratified_by of the project module).
+       supersedes takes two claims, or two hypotheses, or (project module) two decisions, two definitions, or two rules.
+       The other project relations (decided_by, analysis, concerns) refuse a missing id too.
   E5   duplicate id
   E6   non-ground fact in kb.pl
   E7   a clause in the wrong place (a rule as a fact in kb.pl, or a fact outside kb.pl)
@@ -16,18 +18,33 @@ Core
   E11  a clause does not load in the SWI engine
   E14  unsafe negation: a not variable is in the head but in no positive body literal
   E15  supersedes cycle. add refuses it. done is false while it exists.
-  E16  rules.pl adds clauses to a protected predicate (done, burn and flare rules, vote rules). Ignored.
+  E16  rules.pl adds clauses to a protected predicate (done, burn and flare rules, blocking rules, vote rules). Ignored.
   E17  a form that orbit-kb does not read: classical negation -p, a # line, a global
        constraint (:- Body), or a #= constraint. add refuses it. Query, why, whynot,
        show, and report exit 2 until it is gone.
   E18  the rules are not stratified: a predicate depends on itself through not.
        Query, why, whynot, show, and report exit 2 until it is gone.
+  E19  typo guard: a predicate declared by its first use (add) has a name 2 edits or
+       fewer from a declared predicate of the same arity. The message names both.
+       A typo: correct the facts in kb.pl, and delete the decl/4 and first_use/3 lines
+       of the new name. A new predicate: choose a name more than 2 edits away.
+       Also a head of rules.pl (declared by its first clause) that is that close to a declared name:
+       correct the name in rules.pl. Query, why, whynot, show, and report exit 2 until it is gone.
   W1   subject digest differs from the file. Run orbit-kb subject again.
   W2   a local declaration, listed for review
   W3   a claim with no cites. Cite the request text, or drop the claim (drift).
   W4   a local fact predicate that no rule reads
   W5   a check tests a replaced claim, and the new claim has none. Add a new check. Run it.
   W6   a local rule extends a core or module predicate
+  W7   a predicate declared by its first use (add), with who and when. Review it:
+       is it needed, and is the name right? Its arguments have the type term.
+  W8   the request text changed at its source (request_pin, T27): read the tracker item. A human
+       accepts the new text with orbit-kb pin-request --request-file F --accept --by human.
+       It also blocks done (request_stale) until then.
+  W9   a fact kind of kb.pl, or a head of rules.pl, with no description (T26). For a fact kind: give one in
+       the first add, or in any later add of one of its facts while it has none: orbit-kb add 'FACT' --doc TEXT.
+       For a rule head (also an old decl(rule, ...) line of kb.pl with no doc): a line %% doc: TEXT just
+       above its first clause in rules.pl. orbit-kb show kinds names each one, also while E19 or E2 fires.
 
 Discovery module
   WD1  a conflict, surprise, or scope finding raised no question. Ask one.
@@ -53,3 +70,22 @@ Discovery module
   ED9  a model is derived from a derived model, or from itself. Derive from existing-world models.
   ED10 a writer voted twice in one round. Keep one vote. After a HOLD, vote in the next round.
 What blocks discovery_ready blocks GO. The list can change: read orbit-kb whynot 'discovery_ready'.
+
+Build module (orbit-kb help build)
+  WR1  a current claim is not independently verified, and a review is due: no claim is under
+       (D28, T38). A reviewer of another role and session reruns a check of it after its
+       last change (orbit-kb run --as ROLE), then records an upheld verdict that rests on
+       that run (attest disproof --rests-on). Only in a KB that records actors or a review.
+       A warning: it does not block done.
+
+Project module (orbit-kb help project)
+  WP1  a pins fact: the decision (or definition or rule) changed since the claim was written. Read it, then pin the new digest.
+  WP2  a pins fact that cannot be checked: no project_kb, no kb.pl there, or no such decision, definition or rule.
+  WP3  the project KB has a lint error, so a conflict could hide in it. Run orbit-kb lint on it.
+       It also blocks (project_kb_unclean).
+  WP4  a KB has more than one project_kb fact. Only the first is read. Keep one.
+  WP5  a claim pins a fact that rests on a fact in a contradiction. A warning: only a direct pin blocks.
+  WP6  an analysis path is outside the project KB. Move the file under analyses/ of the project KB.
+  WP7  a fact rests on itself: its depends_on facts make a cycle. A warning: check each depends_on of the cycle.
+  EP1  an agent (agent or agent:NAME, in any case) ratified a fact (an error; add refuses it). Only a human ratifies.
+  EP2  a fact depends on itself or excludes itself (depends_on(X, X), excludes(X, X); an error; add refuses it).

@@ -2,7 +2,8 @@
 
 This document states the beliefs under Sagittarius: what is true about humans, agents, intent,
 evidence, and formal methods that makes the design right. It does not say how to do the work. The
-procedure is in [`prompt/SAGITTARIUS.md`](../prompt/SAGITTARIUS.md) and in `orbit-kb help`.
+procedure is in `orbit-kb help` and its topics. The prompt,
+[`prompt/SAGITTARIUS.md`](../prompt/SAGITTARIUS.md), states the philosophy in short.
 
 The prompt is one way to apply these beliefs. Each principle must stay true even if every section
 of the prompt changes. Use this document to judge a proposed change to the prompt or to `orbit-kb`.
@@ -20,6 +21,17 @@ intent, and errors come from that explanation. Difficulty is a weak guide: what 
 model today is easy for a model next year. Misalignment does not go away. So Sagittarius aims at
 alignment on intent, not at the difficulty of the task.
 
+The audience is people who work with formal methods and AI. Users are expected to read Prolog,
+Lean, and the other formal languages. A general template is a byproduct: an informal release.
+<!-- d_audience_fm, decided 2026-11-05 -->
+
+The position: Sagittarius is an extension of the harness, between the human-agent interface and
+the software factory. The harness is the interface between the human and the agent; the software
+factory is the interface between the agent and the project. Sagittarius fills the gap between them
+as an inference, reasoning and knowledge-graph layer. It is opinionated: it puts everything into
+one shape.
+<!-- u08, u37 -->
+
 > "I'm making the bet that even with ASI, humans will still need to explain what they want, and
 > that will continue to be a point of friction." (the author)
 
@@ -30,9 +42,12 @@ alignment on intent, not at the difficulty of the task.
 The human is the source of the intent and the owner of the result. The human is not always the
 source of clarity. People often do not know exactly what they want until they see it. The agent
 owns the build, and its first job is to make the request clear enough before it builds. When the
-human and the agent disagree on a decision, the human decides.
+human and the agent disagree on a decision, the human decides. The owner is not the only person
+who can answer a question or ratify a decision. Answers and decisions can come from
+people other than the owner.
+<!-- d_other_humans, decided 2026-11-05 -->
 
-Applied in: prompt "Roles", "GO / NO-GO: a weighted vote".
+Applied in: prompt "Roles", "The phase tree" (the vote); `orbit-kb help discovery` (GATE).
 
 ### 2. Alignment is the goal. A proof is one tool for it
 
@@ -51,10 +66,13 @@ base). Like two eyes, different views find depth that one view cannot. The forma
 impartial: they can disagree with the agent and with the human. Thus each result must go through a
 party that did not make it.
 
-Show the human concrete examples and results, not formal text or test logs. The human judges
-meaning. The machines judge consistency.
+Show the human concrete examples and results first, not test logs. When the work has shifted up,
+the human, the agent and the CPU all use the formal language as the shared substrate, and the human
+reads, reviews and understands it, so write it to be read. The human judges meaning.
+The machines judge consistency.
+<!-- d_formal_substrate, decided 2026-11-05 -->
 
-Applied in: prompt "The orbit" (Parallax), "Roles", "Delivery".
+Applied in: prompt "The phase tree" (Parallax), "Roles", "Delivery".
 
 ### 4. Orbit the intent. Do not translate it
 
@@ -77,7 +95,8 @@ statement. Then a difference between them is information.
 
 > "We do not write to achieve understanding; we orbit to achieve understanding."
 
-Applied in: prompt "The orbit", "Moves" (each move reads the ticket), "SPECTRUM".
+Applied in: prompt "The phase tree" (Parallax: each lap goes back to the source); `orbit-kb help
+discovery` (SPECTRUM).
 
 ### 5. The hypothesis is the closest formal statement of intent
 
@@ -93,7 +112,14 @@ hypotheses, strong conclusions.
 Remove words until one more removal makes the hypothesis collapse or change its meaning. A weak
 hypothesis often takes more work to confirm or refute, but not always.
 
-Applied in: prompt "The hypothesis". The exact definition is open (see the end).
+Every stated hypothesis lists its premises beside it. This is a trial: UAT judges whether it adds
+too much noise. <!-- d_premises_beside, decided 2026-11-05 -->
+Hypotheses, premises, and claims err soft. Experiment just past the boundary of too brittle or
+too soft, then formalize. The formalism then localizes the definition. Annealing in the formal
+languages brings out the tempered position. Oscillation is an intentional heuristic.
+<!-- d_err_soft, d_oscillate, decided 2026-11-05 -->
+
+Applied in: prompt "The phase tree" (the hypothesis). The exact definition is open (see the end).
 
 ### 6. A divergence is good news. A quiet failure is the enemy
 
@@ -107,20 +133,33 @@ tested, an empty answer, a theorem that cannot fail. Evidence that cannot fail i
 > "Silence, negative space, emptiness, and vacuity are often the predators of clarity, accuracy,
 > and honesty."
 
-Applied in: prompt "The orbit" (quiet failures), "The light path" (a new check fails first).
+Applied in: prompt "The phase tree" (quiet failures), "Start light" (a new check fails first).
 
 ### 7. Rigor follows signals of misunderstanding, not size or difficulty
 
 Most work needs little process. Rigor starts light and increases only when a signal of
 misunderstanding appears: questions that one round does not settle, a disagreement, work that
-another party did, a claim that examples cannot cover, or work that changes hands. The size of a
+another party did, a claim that examples cannot cover, work that changes hands, or significant
+effort or verbosity from the human. The size of a
 change does not decide. A one-line fix can need rigor, and a large change can need none. When the
 cause of a signal is resolved, the rigor that it added stops.
+
+Effort is a signal to shift into a formal
+language. A long, careful message holds decisions that must not be lost. The System 1 model, the LLM, and the human each have a part in deciding when to shift up.
+After a shift, the human, the agent, and the CPU (the machine that runs the solvers and provers)
+all work in the formal language. The human must read and review it, so shift up only when needed.
+<!-- d_effort_signal, d_shift_three, d_formal_substrate, decided 2026-11-05 -->
+
+Work has two levels. The orbit is discovery or build. The phase is research and specify (in
+discovery), or build and verify (in build). Rigor concentrates on specification and verification.
+The split between make and judge stays, because it marks a handoff.
+<!-- d_phase_tree, p_lifecycle, decided 2026-11-05 -->
 
 Fixed tiers, chosen at the start, failed. Nobody knows how much must be formal until a
 misunderstanding occurs. In practice, the middle tiers emptied into the lowest and the highest.
 
-Applied in: prompt "The light path", "Shift up to a KB", "Leaning back"; deck slides 12 and 30.
+Applied in: prompt "Start light", "When to shift up" (also leaning back); the System 1 hook
+(`s1/hook.py`); deck slides 12 and 30.
 
 ### 8. Speed comes from skipping work, never from hiding it
 
@@ -142,17 +181,20 @@ Hiding is a failure. Claim no more than the evidence shows:
 
 If your own earlier work is wrong, say so first.
 
-Applied in: prompt "Honesty rules", "Honesty rules for discovery".
+Applied in: prompt "Honesty rules" (with the rules for discovery).
 
-### 10. Formal artifacts catch honest mistakes. They do not stop cheating
+### 10. Each formal artifact catches its own kind of error. None stops cheating
 
 Sagittarius assumes trust between the human, the agents, and the code. If the process constrains
-one of them too much, the work fails. So the tools guard against honest mistakes. A hole that only
-deliberate cheating can use is a known limit, and the documents say so. They do not claim more
-than the checks give. Impartial also does not mean infallible: when two engines give different
+one of them too much, the work fails. Each tool catches its own kind of
+error. Lint catches syntax and schema errors. A check catches behavior on its cases. A proof
+covers its model. The human judges meaning. The tools do not stop deliberate cheating. A hole that
+only deliberate cheating can use is a known limit, and the documents say so. They do not claim
+more than the checks give. Impartial also does not mean infallible: when two engines give different
 answers, nobody uses either answer until a human looks.
+<!-- prop_retire_honest_mistakes, d_retire_honest, decided 2026-11-05 -->
 
-Applied in: prompt "Honesty rules" (rule 5), "Rules for the KB".
+Applied in: prompt "Honesty rules" (rule 5), "Where the procedure is"; `orbit-kb help core`.
 
 ### 11. Each claim has a shape. Use the tool that fits it
 
@@ -161,6 +203,9 @@ about the order of steps or about time fits a model checker. A claim about every
 needs a proof. Use the cheapest tool that can show the claim false. Use a model only when a few
 examples cannot cover the cases. A tool that does not fit the shape can prove something true and
 still lose the intent.
+
+Every orbit encodes domain knowledge, not only a record of the process.
+<!-- p_domain, decided 2026-11-05 -->
 
 Decide the shape of a claim by its meaning and its domain, not by its words. "Every" in a sentence
 does not make a claim universal. A claim is universal when its inputs are infinite or too many to
@@ -171,7 +216,8 @@ demands precision: a statement says exactly what it means, or it does not check.
 store (Prolog, with SWI-Prolog as the engine) keeps the facts of the work in one place. Its rules keep attention on
 what is still open.
 
-Applied in: prompt "SPECTRUM", "Shift up to a KB" (a claim that burns); deck slide 14.
+Applied in: prompt "When to shift up" (a claim that burns); `orbit-kb help discovery` (SPECTRUM);
+deck slide 14.
 
 ### 12. Memory lives outside the agent
 
@@ -182,7 +228,12 @@ wants: that outcome stays a claim, and the agent checks it again against the new
 claim supersedes an old one. It does not overwrite it. An old guarantee does not carry over to a
 new design without new evidence.
 
-Applied in: prompt "Rules for the KB", "Shift up to a KB" (a divergence, a handoff), "BURN".
+The main task is to give the LLM the right amount of context. Rules in the KB help select it.
+The prompt holds the philosophy only. The System 1 hook runs the classification steps.
+<!-- p_context, d_prompt_small, decided 2026-11-05 -->
+
+Applied in: prompt "Where the procedure is", "When to shift up" (a divergence, a handoff);
+`orbit-kb help build` (burns).
 
 ### 13. One principle, shown by examples
 
@@ -190,8 +241,8 @@ State one principle, and let examples show its meaning. A checklist of trigger w
 catches the words and misses the meaning. Examples show meaning, not strings to match. Give each
 term one meaning. When two meanings share a word, the result is confusion.
 
-Applied in: prompt "When the human says that it is wrong", "The hypothesis" (an example of the
-meaning, not a template).
+Applied in: prompt "When the human says that it is wrong"; `orbit-kb help discovery` (SIGNAL: an
+example of a hypothesis, of the meaning, not a template).
 
 ### 14. Improve the process as you improve a hypothesis
 
@@ -201,7 +252,12 @@ Tune on one set of cases, and decide on a separate set that nobody tuned on. A r
 that fails when the rule is deleted. Decide on repeated runs, not on one run. When a case passes
 only if the prompt describes that exact case, the limit of the model is a result, not a target.
 
-Applied in: `evals/REFINING.md`.
+Evals test whether agents can follow the rules of the prompt and the orbit-kb help. UAT tests
+whether the philosophy and the hypotheses pay off. No stakeholder instance is privileged, and
+results stay non-trivial.
+<!-- d_eval_scope, p_general, decided 2026-11-05 -->
+
+Applied in: `docs/REFINING.md`.
 
 ## Open questions
 
@@ -254,7 +310,7 @@ stays out of the prompt until an eval shows one. Four points are not decided:
 - When does a language lean back? "The cause of the trigger is resolved" lets an agent stay in a
   model too long, or leave it early to reach the next language. It needs an exit test, such as
   "the model is trusted and its verdicts are recorded, or it is dropped with a disclosure".
-- That exit test rests on sanity and calibration. The prompt states them per tool (FLYBY steps 1
+- That exit test rests on sanity and calibration. `orbit-kb help discovery` states them per tool (FLYBY steps 1
   and 2, TRAJECTORY steps 2 and 3), but the agent attests them, and `orbit-kb` counts one result
   of each. In the cache-race discovery of 2026-10-30, a TLA+ model was attested calibrated on the
   outcome (the same abort) before any system log showed the same sequence of steps, which

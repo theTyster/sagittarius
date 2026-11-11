@@ -25,9 +25,18 @@ decl(fact, burn_requested(ref(claim)),
 decl(fact, visual(ref(claim)),
      'A human must see the claim to judge it: a look, a layout, a name, or another preference.',
      'claim @(1) is visual: a human must see it').
+% D29 (ticket T29 c7, u93): an acceptance criterion of the ticket is a claim marked ac/1. It changes
+% no rule: show blocking and draft blocking name an unmet one as such.
+decl(fact, ac(ref(claim)),
+     'The claim is an acceptance criterion (AC) of the ticket.',
+     'claim @(1) is an acceptance criterion of the ticket').
 decl(fact, demo(ref(subject), ref(claim)),
      'The subject, a screenshot or a recording, shows the claim to a human.',
      'subject @(1) is a demo of claim @(2)').
+% D28 (T25): add writes change_at/2 with each change/2 fact, and actor/3.
+decl(fact, change_at(ref(change), time),
+     'The time at which the change was recorded. orbit-kb add writes it with the change.',
+     'change @(1) was recorded at @(2)').
 decl(fact, conformance(ref(check)),
      'The check runs the code against the Lean model of its claim.',
      'check @(1) runs the code against the Lean model').
@@ -61,7 +70,7 @@ decl(rule, no_current_claim,
      'No claim is current. Then the work is not done.',
      'no claim is current').
 decl(rule, done,
-     'At least one claim is current, no current claim is unfulfilled, no change is without a claim, no question must be asked, no burn or flare is open, and no claim is in a supersede cycle.',
+     'At least one claim is current, no current claim is unfulfilled, no change is without a claim, no question must be asked, no burn or flare is open, no request is stale, and no claim is in a supersede cycle.',
      'the work is done').
 decl(rule, burn_reason(ref(claim)),
      'The claim was contested twice and is not visual, it is universal, or a human asked for a Lean proof.',
@@ -112,6 +121,54 @@ decl(rule, conforms(ref(claim)),
      'A conformance check of the claim passed: the code agrees with the Lean model on its cases.',
      'the code conforms to the Lean model of claim @(1)').
 
+% D28 (T25): independent verification.
+decl(rule, independently_verified(ref(claim)),
+     'The latest verdict on the claim is upheld, comes from an actor whose role and session both differ from the actor of the last change of the claim, is after that change, and rests on a run of a check of the claim by the same actor after that change. A change with no change time, or a KB with no change at all, verifies nothing (fail closed).',
+     'claim @(1) is independently verified').
+decl(rule, last_change(ref(claim), ref(change)),
+     'The change is a change of the claim and has a change time, and no other change of the claim has a later one.',
+     'change @(2) is the last change of claim @(1)').
+decl(rule, later_change(ref(claim), time),
+     'A change of the claim was recorded after the time.',
+     'a change of claim @(1) was recorded after @(2)').
+% T38 c2, c3: the latest verdict, and old data that fails closed.
+decl(rule, claim_change(ref(claim), ref(change)),
+     'The change serves the claim. A claim that no change serves has every change of the KB (T38 c3).',
+     'change @(2) is a change of claim @(1)').
+decl(rule, claim_served(ref(claim)),
+     'A change serves the claim.',
+     'a change serves claim @(1)').
+decl(rule, has_claim_change(ref(claim)),
+     'The claim has a change (its own, or a change of the KB).',
+     'claim @(1) has a change').
+decl(rule, change_dated(ref(change)),
+     'The change has a change time (change_at).',
+     'change @(1) has a change time').
+decl(rule, undated_change(ref(claim)),
+     'A change of the claim has no change time, so no verdict on the claim can be shown to come after it (T38 c3: fail closed).',
+     'a change of claim @(1) has no change time').
+decl(rule, later_verdict(ref(attest)),
+     'Another disproof verdict on the same claim comes after this one in kb.pl. orbit-kb computes it when it reads the KB (T38 c2).',
+     'a later verdict on the same claim follows @(1)').
+decl(rule, review_due,
+     'No current claim is under: every claim is fulfilled or covered by a waiver, so a fresh-eyes review is due and WR1 reports (T38 c5).',
+     'a review is due').
+decl(rule, has_actor(ref),
+     'The record has an actor.',
+     '@(1) has an actor').
+decl(rule, verdict_not_independent(ref(attest), ref(claim)),
+     'The verdict on the claim is not independent of the last change: the change has no actor, the role or the session is the same, or the verdict is not after the change.',
+     'verdict @(1) on claim @(2) is not independent of its last change').
+decl(rule, run_before_last_change(ref(attest), ref(claim)),
+     'The run is not after the last change of the claim.',
+     'run @(1) is not after the last change of claim @(2)').
+decl(rule, verdict_fresh_run(ref(attest), ref(claim)),
+     'The verdict rests on a run of a check of the claim by the same actor, after the last change of the claim.',
+     'verdict @(1) rests on a fresh run of a check of claim @(2)').
+decl(rule, verification_recorded,
+     'The KB records actors or a review (D28). Then lint warns about each current claim that is not independently verified (WR1).',
+     'the KB records who verified what').
+
 % ---------------------------------------------------------------------
 % Build attestation types
 % ---------------------------------------------------------------------
@@ -149,7 +206,7 @@ any_over :- over(_).
 any_current_claim :- current(_).
 no_current_claim :- not any_current_claim.
 done :- not any_under, not any_over, not any_to_ask, not any_burn_open,
-        not any_flare_open, not any_supersede_cycle, not no_current_claim.
+        not any_flare_open, not any_project_conflict, not any_request_stale, not any_supersede_cycle, not no_current_claim.
 % D21: contests on a visual claim escalate to its flare, not to a proof.
 burn_reason(C) :- contested_twice(C), not visual(C).
 burn_reason(C) :- universal(C).
@@ -193,3 +250,65 @@ check_waived(C) :- check(K, C), attest(W, waiver, _, waive(K, _, _), human, _),
                    not waiver_lapsed(W).
 question_waived(Q) :- question(Q, _, _), attest(W, waiver, _, waive(Q, _, _), human, _),
                       not waiver_lapsed(W).
+% D22 (T03): what blocks done. done does not read blocking/1. With this
+% module, done holds exactly when blocking(_) has no answer. rules.pl
+% cannot add clauses to these rules (lint E16).
+item_open(C) :- under(C).
+item_open(C) :- burn_open(C).
+item_open(C) :- flare_open(C).
+item_open(K) :- check(K, C), under(C).
+blocking(under(C)) :- under(C).
+blocking(over(X)) :- over(X).
+blocking(burn_open(C)) :- burn_open(C).
+blocking(flare_open(C)) :- flare_open(C).
+blocking(no_claim) :- no_current_claim.
+blocking(check_failing(K)) :- check(K, C), under(C), check_ran(K), not passed(K).
+blocking(check_unrun(K)) :- check(K, C), under(C), not check_ran(K).
+blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(C, _, _), human, _), waiver_lapsed(W), burn_open(C).
+blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(C, _, _), human, _), waiver_lapsed(W), flare_open(C).
+blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(K, _, _), human, _), waiver_lapsed(W),
+                              check(K, C), under(C).
+blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(Q, _, _), human, _), waiver_lapsed(W), to_ask(Q).
+% D28 (T25): independent verification. A verdict counts only when it is
+% upheld, its actor differs in role and in session from the actor of the
+% last change of the claim, it is after that change, and it rests on a
+% run of a check of the claim by the same actor after that change. done
+% does not read it. Lint warns (WR1) in a KB that records actors.
+% rules.pl cannot add clauses to these rules (lint E16).
+later_change(C, T) :- claim_change(C, Y), change_at(Y, T2), T2 @> T.
+last_change(C, X) :- claim_change(C, X), change_at(X, T), not later_change(C, T).
+has_actor(X) :- actor(X, _, _).
+% T38 c3: the changes of a claim are the changes that serve it; a claim that no change serves
+% (a preserve claim) is compared with every change of the KB. Old data fails closed: a change
+% of the claim with no change_at, or no change at all, makes every verdict not independent.
+claim_served(C) :- serves(_, C).
+claim_change(C, X) :- serves(X, C).
+claim_change(C, X) :- claim(C, _, _), not claim_served(C), change(X, _).
+has_claim_change(C) :- claim_change(C, _).
+change_dated(X) :- change_at(X, _).
+undated_change(C) :- claim_change(C, X), not change_dated(X).
+verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), not has_claim_change(C).
+verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), undated_change(C).
+verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), last_change(C, X), not has_actor(X).
+verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), last_change(C, X),
+                                  actor(V, R, _), actor(X, R, _).
+verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), last_change(C, X),
+                                  actor(V, _, S), actor(X, _, S).
+verdict_not_independent(V, C) :- attest(V, disproof, _, verdict(C, _), _, TV), last_change(C, X),
+                                  change_at(X, TX), TV @=< TX.
+run_before_last_change(A, C) :- attest(A, test_result, _, _, _, TA), last_change(C, X),
+                                change_at(X, TX), TA @=< TX.
+verdict_fresh_run(V, C) :- attest(V, disproof, _, verdict(C, _), _, _), actor(V, R, S),
+                           rests_on_run(V, A), attest(A, test_result, _, result(K, _, _), _, _),
+                           check(K, C), actor(A, R, S), not run_before_last_change(A, C).
+% T38 c2: only the latest verdict on C counts (later_verdict/1: orbit-kb computes it from the
+% order of kb.pl, the order of the Review section of report).
+independently_verified(C) :- attest(V, disproof, _, verdict(C, upheld(_)), _, _), has_actor(V),
+                             not later_verdict(V),
+                             not verdict_not_independent(V, C), verdict_fresh_run(V, C).
+verification_recorded :- actor(_, _, _).
+verification_recorded :- review_saw(_, _, _).
+lint_issue('WR1', C, 'No fresh-eyes verdict verifies this claim yet. A reviewer of another role and session must rerun a check of the claim after its last change (orbit-kb run --as ROLE), then record an upheld verdict that rests on that run (attest disproof --rests-on). orbit-kb report lists the review. This does not block done.') :-
+    verification_recorded, review_due, current(C), not independently_verified(C).
+% T38 c5: WR1 waits until a review is due: no current claim is under.
+review_due :- not any_under.

@@ -1,0 +1,197 @@
+#!/usr/bin/env swipl
+% repo-map: write the C4 map of a repo (levels C1 and C2, and C3 for one container) as Mermaid
+% in Markdown.
+%
+%   repo-map --facts KB_PL --containers CONTAINERS_PL [--level c1|c2|both] [--strict]
+%   repo-map --facts KB_PL --containers CONTAINERS_PL --level c3 --container ID [--strict]
+%
+% Spec and file formats: kb/share/repo-map/README.md. Nothing here touches the network, and
+% nothing is executed from the input files: they are only read as data.
+:- initialization(main, main).
+:- use_module(library(sha)).
+:- use_module(library(readutil)).
+:- use_module(library(apply)).
+:- use_module(library(lists)).
+
+:- dynamic r_repo/2, c_repo/1, c_person/3, c_external/3, c_container/4, c_link/3, c_about/2,
+           c_component/5.
+
+usage :-
+    format(user_error, "usage: repo-map --facts KB_PL --containers CONTAINERS_PL [--level c1|c2|both]~n", []),
+    format(user_error, "       repo-map --facts KB_PL --containers CONTAINERS_PL --level c3 --container ID~n", []),
+    halt(2).
+die(Fmt, Args) :- format(user_error, Fmt, Args), nl, halt(2).
+
+main(Argv) :-
+    parse_args(Argv, Facts, Cont, Level, Box),
+    (   ( Facts == none ; Cont == none ) -> usage ; true ),
+    (   Level == c3, Box == none -> die("repo-map: --level c3 needs --container ID (the container to show)", [])
+    ;   Level \== c3, Box \== none -> die("repo-map: --container is only for --level c3", [])
+    ;   true ),
+    forall(member(F, [Facts, Cont]),
+           ( exists_file(F) -> true ; die("repo-map: cannot read a file", []) )),
+    read_data(Facts, Cont),
+    input_hash(Facts, Cont, Hex),
+    sub_atom(Hex, 0, 12, _, Short),
+    (   c_repo(This) -> true ; die("repo-map: the containers file has no repo(Name) fact", []) ),
+    check_ids(This),
+    (   Box == none -> true
+    ;   c_container(Box, _, _, _) -> true
+    ;   die("repo-map: the containers file has no container(~w, ...)", [Box]) ),
+    ( strict, warned -> halt(1) ; true ),
+    md_escape(This, ThisE),
+    (   Box == none -> ThisBox = '' ; md_escape(Box, ThisBox) ),
+    format("# Repo map: ~w~n~nmap@~w~n", [ThisE, Short]),
+    (   Level == c3 -> format("~n## C3 Components of ~w~n~n", [ThisBox]), c3(This, Box)
+    ;   (   Level \== c2 -> format("~n## C1 System context~n~n"), c1(This) ; true ),
+        (   Level \== c1 -> format("~n## C2 Containers~n~n"), c2(This) ; true )
+    ).
+
+parse_args(Argv0, F, C, L, B) :-
+    (   selectchk('--strict', Argv0, Argv) -> assertz(strict) ; Argv = Argv0 ),
+    parse_args_(Argv, a(none, none, both, none), a(F, C, L, B)).
+parse_args_([], A, A).
+parse_args_(['--facts', V|T], a(_, C, L, B), A) :- !, parse_args_(T, a(V, C, L, B), A).
+parse_args_(['--containers', V|T], a(F, _, L, B), A) :- !, parse_args_(T, a(F, V, L, B), A).
+parse_args_(['--container', V|T], a(F, C, L, _), A) :- !, parse_args_(T, a(F, C, L, V), A).
+parse_args_(['--level', V|T], a(F, C, _, B), A) :- !,
+    (   memberchk(V, [c1, c2, c3, both]) -> parse_args_(T, a(F, C, V, B), A)
+    ;   die("repo-map: --level must be c1, c2, c3 or both", []) ).
+parse_args_(['--container'], _, _) :- !, die("repo-map: --container needs a container id", []).
+parse_args_([A|_], _, _) :- die("repo-map: unknown argument ~w", [A]).
+
+% ---- reading: terms are data. A line that does not parse is skipped with a warning on stderr
+% (file and line). With --strict, any warning makes the exit status 1 after the map is not written.
+:- dynamic warned/0, strict/0.
+warn(File, Line, Fmt, Args) :-
+    assertz(warned),
+    format(user_error, "repo-map: warning: ~w:~w: ", [File, Line]),
+    format(user_error, Fmt, Args), nl(user_error).
+read_terms(File, Terms) :-
+    setup_call_cleanup(open(File, read, S, [encoding(utf8)]), rt(File, S, Terms), close(S)).
+rt(File, S, Ts) :-
+    catch(read_term(S, T, [syntax_errors(error), term_position(P)]), E, (T = '$bad', bad_line(E, S, L))),
+    (   T == end_of_file -> Ts = []
+    ;   T == '$bad' -> warn(File, L, "cannot parse this line, skipped", []), rt(File, S, Ts)
+    ;   stream_position_data(line_count, P, L0), Ts = [L0-T|R], rt(File, S, R) ).
+bad_line(error(_, stream(_, L, _, _)), _, L) :- !.
+bad_line(error(_, file(_, L, _, _)), _, L) :- !.
+bad_line(_, S, L) :- line_count(S, L).
+
+read_data(Facts, Cont) :-
+    read_terms(Facts, FT),
+    forall(member(L0-repo(N, L), FT), ( atomic(N), \+ r_repo(N, _) -> assertz(r_repo(N, L)) ; ( atomic(N) -> warn(Facts, L0, "repo(~w, _) is repeated, ignored", [N]) ; true ) )),
+    read_terms(Cont, CT),
+    forall(member(L1-T, CT), keep(Cont, L1, T)).
+keep(_, _, repo(N)) :- atomic(N), \+ c_repo(_), !, assertz(c_repo(N)).
+keep(F, L, repo(N)) :- !, warn(F, L, "a second repo(~w) is ignored: the file describes one repo", [N]).
+keep(_, _, person(I, L, D)) :- !, assertz(c_person(I, L, D)).
+keep(_, _, external(I, L, D)) :- !, assertz(c_external(I, L, D)).
+keep(_, _, container(I, L, T, D)) :- !, assertz(c_container(I, L, T, D)).
+keep(_, _, link(A, B, L)) :- !, assertz(c_link(A, B, L)).
+keep(_, _, about(N, D)) :- !, assertz(c_about(N, D)).
+keep(_, _, component(I, C, L, T, D)) :- !, assertz(c_component(I, C, L, T, D)).
+keep(_, _, _).
+
+% two different names must not give the same Mermaid id
+check_ids(This) :-
+    findall(N, ( r_repo(N, _) ; c_repo(N) ; N = This ; c_person(N, _, _) ; c_external(N, _, _) ; c_container(N, _, _, _)
+               ; c_component(N, _, _, _, _) ; c_link(N, _, _) ; c_link(_, N, _) ), Ns0),
+    sort(Ns0, Ns),
+    forall(( member(A, Ns), member(B, Ns), A @< B, id_atom(A, I), id_atom(B, I) ),
+           die("repo-map: the names '~w' and '~w' give the same diagram id ~w; rename one", [A, B, I])).
+
+md_escape(X, E) :-
+    format(atom(T0), "~w", [X]), atom_codes(T0, Cs),
+    foldl([C, A0, A]>>( memberchk(C, [10, 13, 9]) -> append(A0, [0'\s], A)
+                      ; ( char_code(Ch, C), sub_atom('\\`*_{}[]<>()#+-.!|~&', _, 1, _, Ch) ) -> append(A0, [0'\\, C], A)
+                      ; append(A0, [C], A) ), Cs, [], Es),
+    atom_codes(E, Es).
+
+% ---- the input hash: sha256 over facts bytes, one NUL byte, containers bytes
+input_hash(Facts, Cont, Hex) :-
+    read_file_to_codes(Facts, A, [type(binary)]),
+    read_file_to_codes(Cont, B, [type(binary)]),
+    append([A, [0], B], All),
+    sha_hash(All, Hash, [algorithm(sha256), encoding(octet)]),
+    hash_atom(Hash, Hex).
+
+% ---- text and ids. Locations of repos are never printed.
+id_atom(X, Id) :-
+    format(atom(A0), "~w", [X]), atom_codes(A0, Cs0),
+    maplist([C, D]>>( code_type(C, alnum) -> D = C ; D = 0'_ ), Cs0, Cs),
+    atom_codes(A1, Cs),
+    (   A1 == '' -> Id = n_ ; sub_atom(A1, 0, 1, _, F), char_type(F, digit) -> atom_concat(n_, A1, Id) ; Id = A1 ).
+qtext(X, Q) :-
+    (   atomic(X) -> format(atom(T0), "~w", [X]) ; T0 = '' ),
+    atom_codes(T0, Cs0),
+    maplist([C, D]>>( memberchk(C, [0'", 10, 13, 9]) -> ( C == 0'" -> D = 0'\' ; D = 0'\s ) ; D = C ), Cs0, Cs),
+    atom_codes(T, Cs),
+    format(atom(Q), "\"~w\"", [T]).
+desc_of(N, D) :- ( c_about(N, D0) -> D = D0 ; D = '' ).
+
+% endpoints
+is_person(I) :- c_person(I, _, _).
+is_cont(I) :- c_container(I, _, _, _).
+is_ext(I) :- c_external(I, _, _).
+is_sys(I) :- r_repo(I, _).
+
+lift(This, I, This) :- is_cont(I), !.
+lift(_, I, I).
+
+% ---- C1
+c1(This) :-
+    format("```mermaid~nC4Context~n"),
+    format("  title ~w~n", ['"System context of the repo"']),
+    forall(c_person(I, L, D), ( id_atom(I, Id), qtext(L, QL), qtext(D, QD), format("  Person(~w, ~w, ~w)~n", [Id, QL, QD]) )),
+    forall(r_repo(N, _),
+           ( id_atom(N, Id), qtext(N, QN), desc_of(N, D), qtext(D, QD),
+             (   N == This -> K = 'System' ; K = 'System_Ext' ),
+             format("  ~w(~w, ~w, ~w)~n", [K, Id, QN, QD]) )),
+    (   is_sys(This) -> true
+    ;   id_atom(This, Id), qtext(This, QN), desc_of(This, D), qtext(D, QD), format("  System(~w, ~w, ~w)~n", [Id, QN, QD]) ),
+    forall(c_external(I, L, D), ( id_atom(I, Id), qtext(L, QL), qtext(D, QD), format("  System_Ext(~w, ~w, ~w)~n", [Id, QL, QD]) )),
+    findall(A-B-L, ( c_link(A0, B0, L), lift(This, A0, A), lift(This, B0, B), A \== B, c1_node(This, A), c1_node(This, B) ), Ls0),
+    list_to_set(Ls0, Ls),
+    forall(member(A-B-L, Ls), rel(A, B, L)),
+    format("```~n").
+c1_node(This, X) :- ( X == This ; is_person(X) ; is_sys(X) ; is_ext(X) ), !.
+
+rel(A, B, L) :- id_atom(A, IA), id_atom(B, IB), qtext(L, QL), format("  Rel(~w, ~w, ~w)~n", [IA, IB, QL]).
+
+% ---- C2: the containers of this repo, and what they link to
+c2(This) :-
+    format("```mermaid~nC4Container~n"),
+    format("  title ~w~n", ['"Containers of the repo"']),
+    findall(X, ( c_link(A, B, _), member(X, [A, B]), \+ is_cont(X) ), Xs0), list_to_set(Xs0, Xs),
+    forall(( member(X, Xs), is_person(X) ), ( c_person(X, L, D), id_atom(X, Id), qtext(L, QL), qtext(D, QD), format("  Person(~w, ~w, ~w)~n", [Id, QL, QD]) )),
+    id_atom(This, TI), qtext(This, QT),
+    format("  Container_Boundary(~w, ~w) {~n", [TI, QT]),
+    forall(c_container(I, L, T, D), ( id_atom(I, Id), qtext(L, QL), qtext(T, QTe), qtext(D, QD), format("    Container(~w, ~w, ~w, ~w)~n", [Id, QL, QTe, QD]) )),
+    format("  }~n"),
+    forall(( member(X, Xs), \+ is_person(X), is_sys(X), X \== This ), ( id_atom(X, Id), qtext(X, QN), desc_of(X, D), qtext(D, QD), format("  System_Ext(~w, ~w, ~w)~n", [Id, QN, QD]) )),
+    forall(( member(X, Xs), \+ is_person(X), \+ is_sys(X), is_ext(X) ), ( c_external(X, L, D), id_atom(X, Id), qtext(L, QL), qtext(D, QD), format("  System_Ext(~w, ~w, ~w)~n", [Id, QL, QD]) )),
+    forall(( c_link(A, B, L), c2_node(This, A), c2_node(This, B) ), rel(A, B, L)),
+    format("```~n").
+c2_node(This, X) :- ( is_cont(X) ; is_person(X) ; is_sys(X) ; is_ext(X) ; X == This ), !.
+
+% ---- C3: the components of one container (Box), and what their links touch
+is_comp(I) :- c_component(I, _, _, _, _).
+c3(This, Box) :-
+    format("```mermaid~nC4Component~n"),
+    format("  title ~w~n", ['"Components of the container"']),
+    findall(A-B-L, ( c_link(A, B, L), ( c_component(A, Box, _, _, _) ; c_component(B, Box, _, _, _) ) ), Ls0),
+    list_to_set(Ls0, Ls),
+    findall(X, ( member(A-B-_, Ls), member(X, [A, B]), \+ c_component(X, Box, _, _, _) ), Xs0), list_to_set(Xs0, Xs),
+    forall(( member(X, Xs), is_person(X) ), ( c_person(X, L, D), id_atom(X, Id), qtext(L, QL), qtext(D, QD), format("  Person(~w, ~w, ~w)~n", [Id, QL, QD]) )),
+    c_container(Box, BL, _, _), id_atom(Box, BI), qtext(BL, QB),
+    format("  Container_Boundary(~w, ~w) {~n", [BI, QB]),
+    forall(c_component(I, Box, L, T, D), ( id_atom(I, Id), qtext(L, QL), qtext(T, QTe), qtext(D, QD), format("    Component(~w, ~w, ~w, ~w)~n", [Id, QL, QTe, QD]) )),
+    format("  }~n"),
+    forall(( member(X, Xs), \+ is_person(X), is_comp(X) ), ( c_component(X, _, L, T, D), id_atom(X, Id), qtext(L, QL), qtext(T, QTe), qtext(D, QD), format("  Component_Ext(~w, ~w, ~w, ~w)~n", [Id, QL, QTe, QD]) )),
+    forall(( member(X, Xs), \+ is_person(X), \+ is_comp(X), is_cont(X) ), ( c_container(X, L, T, D), id_atom(X, Id), qtext(L, QL), qtext(T, QTe), qtext(D, QD), format("  Container(~w, ~w, ~w, ~w)~n", [Id, QL, QTe, QD]) )),
+    forall(( member(X, Xs), \+ is_person(X), \+ is_comp(X), \+ is_cont(X), is_sys(X), X \== This ), ( id_atom(X, Id), qtext(X, QN), desc_of(X, D), qtext(D, QD), format("  System_Ext(~w, ~w, ~w)~n", [Id, QN, QD]) )),
+    forall(( member(X, Xs), \+ is_person(X), \+ is_comp(X), \+ is_cont(X), \+ is_sys(X), is_ext(X) ), ( c_external(X, L, D), id_atom(X, Id), qtext(L, QL), qtext(D, QD), format("  System_Ext(~w, ~w, ~w)~n", [Id, QL, QD]) )),
+    forall(( member(A-B-L, Ls), c3_node(A), c3_node(B) ), rel(A, B, L)),
+    format("```~n").
+c3_node(X) :- ( is_comp(X) ; is_cont(X) ; is_person(X) ; is_sys(X) ; is_ext(X) ), !.

@@ -102,12 +102,40 @@ decl(fact, question(id, ref(claim), text),
 decl(fact, assumed(ref(question), term),
      'The default answer to a question.',
      'the default answer to question @(1) is @(2)').
-decl(fact, answer(ref(question), term, oneof([human, agent])),
-     'An answer to a question, and who gave it.',
-     'the @(3) answered question @(1) with @(2)').
-decl(fact, depends(ref(question), ref(question)),
-     'The first question depends on the answer to the second question.',
-     'question @(1) depends on question @(2)').
+decl(fact, option(ref(question), text, text),
+     'An option of a question, and what choosing it changes (D24).',
+     'option @(2) of question @(1) changes: @(3)').
+decl(fact, answer(ref(question), term, alt([human, agent, oneof([human]):atom])),
+     'An answer to a question, and who gave it: human, agent, or human:NAME for a pinned answer that NAME gave (T27).',
+     '@(3) answered question @(1) with @(2)').
+% T27: who owns a question (u58), and the pins of a question and of its answer.
+decl(fact, question_pin(ref(question), oneof([ledger, tracker]), atom, digest, time),
+     'The question is owned by a ledger ask or a tracker item (the ref); the digest is of the question text when it was pinned. Only orbit-kb pin-question writes it.',
+     'question @(1) is owned by the @(2) item @(3), pinned at @(5)').
+decl(fact, answer_pin(ref(question), atom, digest, time),
+     'The answer of the question was copied from its owner (the ref); the digest is of the answer text. Only orbit-kb pin-answer and the question server write it.',
+     'the answer of question @(1) was pinned from @(2) at @(4)').
+% T27: the request is pinned to its tracker item (u84, u52).
+decl(fact, request_pin(ref(request), atom, digest, time),
+     'A reading of the tracker item of the request: its ref, the digest of its request text (title, description, acceptance criteria), and the date. Only orbit-kb init --source and pin-request write it.',
+     'request @(1) was read from @(2) at @(4)').
+decl(fact, request_accepted(ref(request), digest, text),
+     'A human accepted a new text of the request: its digest, and the text (the cached snapshot). Only orbit-kb pin-request --accept --by human writes it.',
+     'a human accepted a new text of request @(1)').
+decl(rule, request_stale(ref(request)),
+     'The latest reading of the tracker item has a request text that is not the one in the KB, and no human accepted it. orbit-kb computes it when it reads the KB.',
+     'the text of request @(1) changed at its source').
+decl(rule, any_request_stale,
+     'A request of the KB is stale.',
+     'a request of the KB is stale').
+% D22: the item is due at the time. A past due time blocks an open item.
+decl(fact, due(ref([claim, check, question]), time),
+     'The claim, check, or question is due at the time.',
+     '@(1) is due at @(2)').
+% D22: orbit-kb add writes it when a fact declares its predicate by its first use.
+decl(fact, first_use(term, by, time),
+     'The predicate Name/Arity was declared by its first use in orbit-kb add, by the writer, at the time.',
+     'predicate @(1) was declared by its first use, by the @(2) at @(3)').
 decl(fact, note(ref, text),
      'A free-text note about any id.',
      'a note on @(1) says @(2)').
@@ -117,6 +145,17 @@ decl(fact, subject(id, text, digest),
 decl(fact, attest(id, atom, ref, attest_predicate, by, time),
      'An attestation with its id, type, subject, predicate, writer, and time.',
      'attestation @(1) of type @(2) records @(4) about @(3), by the @(5) at @(6)').
+% D28 (T25): who made a record, and what a reviewer saw. Only the commands
+% write these facts (add refuses them). The role is self-reported.
+decl(fact, actor(ref, atom, atom),
+     'Who made the record: its role (from --as or ORBIT_KB_ROLE) and its session (the writer of the KB, T27). orbit-kb writes it with each attestation and each change.',
+     '@(1) was made by role @(2) in session @(3)').
+decl(fact, review_saw(atom, oneof([ticket, kb, diff]), digest),
+     'What a reviewer saw when the review started: the ticket file, the KB (its spec-kb stamp), and the diff. Only orbit-kb review start writes it.',
+     'reviewer @(1) saw the @(2) with digest @(3)').
+decl(fact, rests_on_run(ref(attest), ref(attest)),
+     'The verdict rests on the run: a test_result attestation that the reviewer read or ran.',
+     'verdict @(1) rests on run @(2)').
 
 % ---------------------------------------------------------------------
 % Core rule predicates
@@ -128,6 +167,9 @@ decl(rule, superseded(ref),
 decl(rule, current(ref(claim)),
      'The claim is in force, because no other claim replaces it.',
      'claim @(1) is current').
+decl(fact, writer_takeover(atom, atom, time),
+     'A writer took the lock of the KB from another writer: with --take, or because the lease of the holder lapsed (T27).',
+     '@(2) took the writer lock from @(1) at @(3)').
 decl(rule, answered(ref(question)),
      'A human answered the question.',
      'a human answered question @(1)').
@@ -144,7 +186,7 @@ decl(rule, contested_twice(ref(claim)),
      'Two or more different divergence attestations name the claim.',
      'claim @(1) is contested two or more times').
 decl(rule, to_ask(ref(question)),
-     'Ask this question now, because no human answered it, no human waived it, its claim is current, and its claim is contested or a question that it depends on is defeated.',
+     'Ask this question now, because no human answered it, no human waived it, and its claim is current and contested.',
      'question @(1) must be asked now').
 decl(rule, question_waived(ref(question)),
      'A human waived the question, and the due time of the waiver is not past. The build module adds the clause.',
@@ -173,6 +215,21 @@ decl(rule, supersede_cycle(ref),
 decl(rule, any_supersede_cycle,
      'At least one claim or hypothesis is in a supersede cycle.',
      'some claim or hypothesis is in a supersede cycle').
+decl(rule, check_ran(ref(check)),
+     'The check has at least one test result.',
+     'check @(1) ran').
+decl(rule, due_passed(ref),
+     'The due time of the item is past, or it is not a valid time. orbit-kb computes it when it reads the KB.',
+     'the due time of @(1) is past').
+decl(rule, item_open(ref),
+     'The item still blocks done: a question to ask, or (build module) a claim that is under or has an open burn or flare, or a check of a claim that is under.',
+     '@(1) is still open').
+decl(rule, blocking(term),
+     'The item blocks done. The term names its kind and its id, such as to_ask(q1) or burn_open(c1).',
+     '@(1) blocks done').
+decl(rule, any_project_conflict,
+     'An item of the project KB blocks this KB: the project KB does not load clean (project_kb_unclean), or a claim pins a fact that is in a contradiction there (project_contradiction). No draft blocks (T43). The project module adds the clauses (D23, D27).',
+     'the project KB blocks this KB (project_kb_unclean or project_contradiction)').
 decl(rule, lint_issue(atom, ref, text),
      'A lint result that a module adds, with a code, an id, and a message.',
      'lint issue @(1) on @(2): @(3)').
@@ -191,9 +248,10 @@ attest_type(divergence,
             [human, agent],
             'A view does not agree with a claim, a hypothesis, or a model; a note holds the description.').
 attest_type(disproof,
-            verdict(ref(claim), alt([refuted(text), inconclusive, abstained])),
+            verdict(ref(claim), alt([refuted(text), upheld(text), inconclusive(text), abstained(text),
+                                     inconclusive, abstained])),
             [agent],
-            'The verdict of an attempt to break a claim. A refuted verdict carries the counterexample as text.').
+            'The verdict of an attempt to break a claim. The text says what was tried; a refuted verdict carries the counterexample. upheld: the attempt did not break the claim. The bare inconclusive and abstained are for old KBs.').
 attest_type(approval,
             digest(digest),
             [human],
@@ -210,13 +268,14 @@ attest_type(test_result,
 superseded(C) :- supersedes(_, C).
 current(C) :- claim(C, _, _), not superseded(C).
 answered(Q) :- answer(Q, _, human).
+answered(Q) :- answer(Q, _, human:_).
 defeated(Q) :- assumed(Q, A), answer(Q, B, human), A \= B.
+defeated(Q) :- assumed(Q, A), answer(Q, B, human:_), A \= B.
 refuted(C) :- attest(_, _, _, verdict(C, refuted(_)), _, _).
 contested(C) :- attest(_, divergence, _, claim(C), _, _).
 contested_twice(C) :- attest(D1, divergence, _, claim(C), _, _),
                       attest(D2, divergence, _, claim(C), _, _), D1 \= D2.
-to_ask(Q) :- question(Q, C, _), current(C), depends(Q, P), defeated(P), not answered(Q),
-             not question_waived(Q).
+% D22: a question whose prerequisite is defeated has no clause here any more.
 to_ask(Q) :- question(Q, C, _), current(C), contested(C), not answered(Q),
              not question_waived(Q).
 % question_waived/1 has no clause here. The build module adds it (D13):
@@ -233,4 +292,16 @@ was_red(K) :- attest(_, test_result, _, result(K, R1, fail), _, _),
 % Thus no rule recurses through supersedes/2, and the engine finishes on
 % every KB. Lint E15 reports a cycle.
 any_supersede_cycle :- supersede_cycle(_).
+% D22: blocking(X) lists each item that blocks done. done does not read it.
+% The build module adds the kinds of its own rules. due_passed/1 has no
+% clauses here: orbit-kb adds its facts when it reads the KB, as for
+% waiver_lapsed/1. rules.pl cannot add clauses to these rules (lint E16).
+check_ran(K) :- attest(_, test_result, _, result(K, _, _), _, _).
+item_open(Q) :- to_ask(Q).
+blocking(to_ask(Q)) :- to_ask(Q).
+blocking(supersede_cycle(C)) :- supersede_cycle(C).
+blocking(past_due(X)) :- due_passed(X), item_open(X).
+% T27: request_stale/1 has no clauses here: orbit-kb computes its facts.
+blocking(request_stale(R)) :- request_stale(R).
+any_request_stale :- request_stale(_).
 % lint_issue/3 has no clauses here. Modules add them (the module lint hook).

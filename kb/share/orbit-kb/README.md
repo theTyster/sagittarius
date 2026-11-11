@@ -27,6 +27,7 @@ vocabulary for one orbit:
 |---|---|---|
 | `build` | Build: specification, implementation, verification | Written. See section 7. |
 | `discovery` | Discovery | Rules for the discovery orbit: models, findings, hypotheses, and the gates `discovery_ready` and `discovery_decide`. The discovery-orbit session owns it. Example KB: `kb/tests/fixtures/discovery-a/`. |
+| `project` | Project | Two sides (D27): decisions (where the product is going) and definitions (where it is now), and product rules; relations between them (`supersedes`, `depends_on`, `excludes`) with derived answers (`current_fact`, `rests_on`, `contradiction`, `impact`); who decided and who ratified; pins of files and tracker items, with the pinned text; drafts, the date rule that settles them (T43), and a writer lock, for the project KB (D23). A spec KB pins a decision, a definition or a rule with `pins/4`. `orbit-kb help project`. |
 
 When an agent must record what a human asked for and then show with evidence
 that the work is done, use `orbit-kb`.
@@ -133,15 +134,14 @@ The digest in step 7 depends on the text of your `ticket.md`.
    E3 in argument 1 (claim(c2, add, 'The label stays Buy.')): claim/3 argument 2: The label must be one of: preserve, retire, introduce. It is add.
    ```
 
-6. Add two questions with default answers. Question `q2` depends on `q1`:
+6. Add two questions with default answers:
 
    ```text
-   $ orbit-kb add "question(q1, c1, 'Which shade of purple?')" "assumed(q1, rebeccapurple)" "question(q2, c1, 'Does the hover color change too?')" "assumed(q2, yes)" "depends(q2, q1)"
+   $ orbit-kb add "question(q1, c1, 'Which shade of purple?')" "assumed(q1, rebeccapurple)" "question(q2, c1, 'Does the hover color change too?')" "assumed(q2, yes)"
    question(q1, c1, 'Which shade of purple?').
    assumed(q1, rebeccapurple).
    question(q2, c1, 'Does the hover color change too?').
    assumed(q2, yes).
-   depends(q2, q1).
    ```
 
 7. Record the ticket file as a subject, and mark it as the ticket:
@@ -215,15 +215,18 @@ The digest in step 7 depends on the text of your `ticket.md`.
     answer(q1, indigo, human).
     ```
 
-15. Query `to_ask` and `done` again. Question `q2` is still open. Its claim
-    is contested, and the answer defeated the default of `q1`, on which `q2`
-    depends:
+15. Query `to_ask` and `done` again. Question `q2` is still open: its claim
+    is contested, and no human answered it. `show blocking` lists what blocks
+    `done`:
 
     ```text
     $ orbit-kb query 'to_ask(Q)' -n 0
     Q = q2
     $ orbit-kb query done
     false
+    $ orbit-kb show blocking
+    Blocking:
+    - to_ask q2: ask question q2 now: Does the hover color change too? (a question about claim c1)
     ```
 
 16. Lint the KB, and print the report:
@@ -269,7 +272,6 @@ question(q1, c1, 'Which shade of purple?').
 assumed(q1, rebeccapurple).
 question(q2, c1, 'Does the hover color change too?').
 assumed(q2, yes).
-depends(q2, q1).
 subject(s1, 'ticket.md', 'sha256:6f2a6395ccceef334e4e8f37a147facff03474208405b9533f12976298a4c0a4').
 ticket(s1).
 attest(a1, test_result, k1, result(k1, 1, fail), script, '2026-10-16T21:59:43Z').
@@ -285,10 +287,15 @@ A KB is a directory. You choose its location. There is no default location.
 
 | Path | Who writes it | Contents |
 |---|---|---|
-| `kb.pl` | `init`, `add`, `declare`, `declare-attest`, `subject`, `attest`, `run` | The first term is `uses([Module, …]).` The list can be empty. Then come facts and local `decl/4` and `attest_type/4` lines. |
+| `kb.pl` | `init`, `add`, `subject`, `attest`, `run` | The first term is `uses([Module, …]).` The list can be empty. Then come facts and local `decl/4` lines (from the first use of a new predicate in `add`, with its `--doc`, or from older KBs). A local `attest_type/4` line written by hand also works. |
 | `rules.pl` | You (optional) | Local rules. |
 | `runs/<N>-<CheckId>.log` | `run` only | The combined output of one run of a check. |
 | `kb.lock` | The writing commands | An empty file. Each writing command holds a lock on it (section 8). |
+| `spec_kbs.txt` | `add` in a spec KB | In a project KB: one absolute directory per line, each spec KB that recorded a `project_kb` or `pins` fact naming it (T34). `project impact`, `project archive` and `impact/2` read it with the walk of the root. `add` appends under the KB lock of the project KB, the lock under which `project archive` prunes it (T40). |
+| `spec_kbs.missing` | `project archive` only | In a project KB: the lines of `spec_kbs.txt` whose spec KB had no `kb.pl` at the last archive. The next archive prunes a line that is still missing (T40: one look prunes nothing). |
+| `pins/<HEX>.txt` | `pin-item` only | The text of a pinned tracker item, named by its sha256 (D27). `show pin ID` prints it, and reports a mismatch when it was edited; for a pin taken before T38 whose text is not edited, it says that the digest rule changed (T40). A file pin keeps no copy (T34). |
+| `analyses/` | You (a project KB) | The analyses of the project KB (`analysis/2`, D27). A path outside the KB is WP6. |
+| `writer.lock` | The write commands of a KB that uses `project` | One line `WRITER TIME`: the one writer of a project KB, until `release` (section 8, Locking). |
 
 While a check runs, its output is in a temp file `runs/.tmp-*`. `run` removes
 that file when it ends.
@@ -413,7 +420,8 @@ The core (`core.pl`) is always loaded. It does not mention software.
 | `question(id, ref(claim), text)` | A dormant question about a claim. |
 | `assumed(ref(question), term)` | The default answer to a question. |
 | `answer(ref(question), term, oneof([human, agent]))` | An answer, and who gave it. |
-| `depends(ref(question), ref(question))` | The first question depends on the answer to the second. |
+| `due(ref([claim, check, question]), time)` | The item is due at the time. While the item is open after that time, `blocking(past_due(X))` holds. |
+| `first_use(term, by, time)` | The predicate `Name/Arity` was declared by its first use in `add`, by that writer, at that time. Only `add` writes it. Lint lists it (W7). |
 | `note(ref, text)` | A free-text note about an ID of any kind. |
 | `subject(id, text, digest)` | An artifact path and its sha256. A relative path starts at the KB directory. |
 | `attest(id, atom, ref, attest_predicate, by, time)` | An attestation: ID, type, subject, predicate, writer, time. |
@@ -439,7 +447,7 @@ The core (`core.pl`) is always loaded. It does not mention software.
 | `refuted(C)` | An attestation gives `verdict(C, refuted(_))`. The text is the counterexample. A bare `refuted` is rejected (E3). |
 | `contested(C)` | One or more `divergence` attestations name `claim(C)`. |
 | `contested_twice(C)` | Two or more different `divergence` attestations name `claim(C)`. |
-| `to_ask(Q)` | No human answered `Q`, no human waived `Q` (`question_waived`), its claim is current, and one of these is true: a question that `Q` depends on is defeated, or the claim is contested. |
+| `to_ask(Q)` | No human answered `Q`, no human waived `Q` (`question_waived`), and its claim is current and contested. |
 | `question_waived(Q)` | Declared with no core clause. The build module adds it: a human `waiver` of question `Q` exists, and its due time is not past (D13). |
 | `any_to_ask` | `to_ask(Q)` is true for one or more questions. |
 | `stale(A)` | Human approval `A` names a digest that differs from the recorded digest of its subject. |
@@ -449,6 +457,10 @@ The core (`core.pl`) is always loaded. It does not mention software.
 | `passed(K)` | Check `K` passed in a run, and no run with a higher number failed. |
 | `failed_after(K, R)` | Check `K` failed in a run with a number higher than `R`. |
 | `was_red(K)` | Check `K` failed in a run before a run in which it passed. |
+| `check_ran(K)` | Check `K` has at least one `test_result`. |
+| `due_passed(X)` | Computed by `orbit-kb` when it reads the KB. The time of a `due(X, T)` fact is past, or it is not a valid time. |
+| `item_open(X)` | `X` still blocks `done`: a question to ask. The build module adds: a claim that is `under` or has an open burn or flare, and a check of an `under` claim. |
+| `blocking(X)` | `X` blocks `done`. Core kinds: `to_ask(Q)`, `supersede_cycle(C)`, `past_due(X)` (an open item past its due time). The build module adds `under(C)`, `over(X)`, `burn_open(C)`, `flare_open(C)`, `no_claim`, `check_failing(K)` and `check_unrun(K)` (a check of an `under` claim that did not pass its last run, or never ran), and `waiver_lapsed(W)` (a lapsed human waiver whose target still blocks). `done` does not read `blocking/1`; with the build module, `done` holds exactly when `blocking(_)` has no answer. `orbit-kb show blocking` prints each item with its text. |
 | `lint_issue(Code, Id, Message)` | Declared with no core clauses. Modules add clauses. See section 10. |
 
 The source of these rules is in `core.pl`. A pass followed by a later fail
@@ -468,6 +480,7 @@ Load it with `uses([build])`. Its file is `modules/build.pl`.
 | `conformance(ref(check))` | The check runs the code against the Lean model of its claim. Optional. |
 | `visual(ref(claim))` | A human must see the claim to judge it: a look, a layout, a name, or another preference (D21). |
 | `demo(ref(subject), ref(claim))` | The subject, a screenshot or a recording, shows the claim to a human (D21). |
+| `ac(ref(claim))` | The claim is an acceptance criterion (AC) of the ticket (D29). It changes no rule. `show blocking` and `draft blocking` name an unmet AC: `- under C: acceptance criterion C is not met (claim C is current but not fulfilled): TEXT`. |
 
 ### Build attestation types
 
@@ -598,7 +611,7 @@ optional. `conforms(C)` shows the result.
 Usage: `orbit-kb [--dir DIR] COMMAND [ARGS]`. Run `orbit-kb help COMMAND` for
 the text that the CLI prints.
 
-### `init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID]`
+### `init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]`
 
 Makes `DIR/kb.pl` with `uses([…]).` and `request(ID, 'TEXT').` The default ID
 is `r1`. It prints the path of the new `kb.pl`.
@@ -620,24 +633,66 @@ Exit: 0, also when the KB already uses every module. 1 on an unknown module, or
 a first term that is not `uses/1` with a list of module names. 2 on a usage
 error, or when `kb.pl` cannot be written.
 
-### `add 'FACT' …`
+### `add 'FACT' … [--by human|agent]`
 
 Appends facts to `kb.pl`. The final full stop is optional. Facts in one command
 can refer to each other. If one fact is wrong, nothing is written. `add` refuses
 a classical negation `-world(x)` (E17): a fact that is not recorded is false. `add` refuses types whose writers are
 `[script]`. Use `run` or `prove` for those.
-Exit: 0 on success. 1 on a rejection. The message gives the fix.
 
-### `declare 'HEAD' --doc TEXT [--kind fact|rule] [--template T]`
+A new predicate is declared by its first use (D22). When no declaration names
+the predicate (the core, any library module, `kb.pl`, at any arity), `add`
+writes a `decl/4` line, with the type `term` for each argument, and a
+`first_use(Name/Arity, By, Time)` fact before the first fact of the predicate.
+`--by` names the writer (default `agent`). Lint lists each first use (W7), and
+reports E19 when the name is 2 edits or fewer from a declared predicate of the
+same arity (a typo). A second arity of the new name is E2, as for a declared
+name. A name that only an unused module declares needs that module: `orbit-kb uses MODULE`.
 
-Appends a local `decl/4` line to `kb.pl`. The default kind is `fact`.
-Exit: 0 on success. 1 if the name and arity are declared, a type is unknown, or
-the name is reserved.
+```text
+$ orbit-kb add 'colour_of(widget1, blue)'
+decl(fact, colour_of(term, term), 'Declared by its first use. Review it (lint W7).', '').
+first_use(colour_of/2, agent, '2026-11-05T10:00:00Z').
+colour_of(widget1, blue).
+NOTE: colour_of/2 is a new predicate. Its first use declares it, with the type term for each argument (lint W7 lists it).
+NOTE: colour_of/2 has no description (lint W9). Describe a new kind in its first add: orbit-kb add 'FACT' --doc TEXT.
+```
 
-### `declare-attest TYPE 'SHAPE' --doc TEXT --writers human,agent`
+Exit: 0 on success. 1 on a rejection. The message gives the fix. 2 on a usage
+error, such as `--by robot`.
 
-Appends a local `attest_type/4` line to `kb.pl`. The checks of `declare` apply.
-Exit: 0 on success. 1 on a rejection.
+### `add 'FACT' --doc TEXT`, and rule declarations (T26)
+
+The first `add` of a new kind may take `--doc TEXT`: one line that describes the
+kind. The text becomes the doc of the `decl/4` line that the first use writes.
+`--doc` is optional, so orbit-kb stays loose. A kind with no description is
+lint W9, and `orbit-kb show kinds` says "(no description)" for it. `--doc` on a
+kind that already exists, a text with a line break, and an add with more than one
+new kind are exit 1. The `declare` command is gone (T26): calling it exits 2
+with one line that says to use `add ... --doc`.
+
+```text
+$ orbit-kb add "gizmo(g1, sprocket)" --doc 'A gizmo with a part name.'
+decl(fact, gizmo(term, term), 'A gizmo with a part name.', '').
+first_use(gizmo/2, agent, '2026-11-09T10:00:00Z').
+gizmo(g1, sprocket).
+NOTE: gizmo/2 is a new predicate. Its first use declares it, with the type term for each argument (lint W7 lists it).
+```
+
+A rule predicate of `rules.pl` is declared by its first clause, as a fact kind is
+by its first use. Its description is a line `%% doc: TEXT` just above that first
+clause. `add` takes no `decl(...)` term: it refuses `decl(fact, ...)` and points to
+`--doc`, and it refuses `decl(rule, ...)` and points to the `%% doc:` line.
+
+### `show kinds`
+
+Lists each fact kind and each rule head of the KB with its description: the core and
+the modules in use (their `decl/4` docs), `kb.pl` (a `--doc`, or the `decl/4` doc of an
+older KB), and `rules.pl` (the `%% doc:` line). A rule head is marked `(rule)`. One with
+no description says so. Not part of `show all`.
+
+No command declares an attestation type any more (D22: the command was cut).
+An `attest_type/4` line that is already in `kb.pl` still works, and lint lists it (W2).
 
 ### `subject ID PATH`
 
@@ -801,9 +856,17 @@ answer. For `absent`, it prints, for each rule of GOAL, the first body literal
 that no answer gets past, and why, recursively. Exit: 0. 2 on a syntax error
 (E1), an undeclared predicate (E2), E17, or E18 in a source file.
 
-### `show [claims|questions|open|disclosures|extensions|all]`
+### `show [claims|questions|open|blocking|disclosures|extensions|all]`, `show pin ID`
 
-Lists parts of the KB as plain text. The default is `all`. `open` lists
+`show pin ID` (D27) prints the pin, then the text that `pin-item` kept for it
+(`pins/HEX.txt`). It checks the kept text against the digest of the pin first
+(T34): when they differ, it prints `MISMATCH: ...` and no text. Exit 1 when no
+text is kept (a file pin, or a pin made with `add`) and on a mismatch, 2 when
+ID is no pin.
+
+Lists parts of the KB as plain text. The default is `all` (without `blocking`).
+`blocking` (D22) prints `Blocking:`, then one line for each answer of
+`blocking(X)` with the text of its item, or `- Nothing blocks done.`. `open` lists
 `to_ask`, `stale`, and `contested`. When the `build` module is in use, `open`
 also lists `under`, `over`, `burn_open`, and `flare_open` (D21), and `no_claim` when no claim is
 current (D17). `claims` shows the burn state of
@@ -906,14 +969,268 @@ rules.
 The topics are plain files in `help/` beside this README: `core`, `build`,
 `discovery` (with one recipe for each move), `codes` (the lint codes), and
 `answers` (exit codes, `why`, and `whynot`). They exist so that an agent
-loads the syntax when a move needs it. The agent prompt
-(`prompt/SAGITTARIUS.md`) holds only the rules that come before the first
-command, and tells the agent to run `orbit-kb help`. Test HP4 to HP6 check
+loads the syntax and the recipe when a move needs it. The agent prompt
+(`prompt/SAGITTARIUS.md`) holds only the philosophy (T08): the procedure, with
+the steps of each move, is in these topics, and the prompt tells the agent to
+run `orbit-kb help`. Test HP4 to HP6 check
 the topics. Exit: 0. An unknown name exits 2.
+
+### `view questions [--dir KB]... [--ledger FILE [--owner KEY]] [--out F]`
+
+Writes one self-contained HTML page (D24): for each KB a section named by its
+pin stamp, with each blocking item (a question to ask, with its default, its
+options with their effects, the claim it blocks, and the request text the claim cites),
+labeled with the KB's first request, and, with `--ledger FILE`, the owner's asks and their
+age. The ledger file is a JSON array of objects with `id`, `kind`, `title`, `status`,
+`waits_on` and `age_days`, and optionally `owner`. The owner is `--owner KEY`, else the `owner`
+of the export, else `me`; an ask with `waits_on` null is nobody's and is not shown. Make the
+export with `hubflow sql "SELECT id, kind, title, status, waits_on, age_days, COALESCE((SELECT value
+FROM meta WHERE key='owner_person'), (SELECT key FROM person WHERE key='me')) AS owner FROM v_open"
+--format json`. Every KB id on the page sits next to its text. The options of a question are its
+default, an agent's answer, the texts of its `option/3` facts, and other; the effect of each
+comes from `option(Q, Text, Effect)`, and the page says so when none is recorded.
+The view reads only. Exit 2 for a usage error, an unreadable KB, or a bad ledger file.
+
+### `serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--hub DIR] [--port N]`
+
+Serves the page of `view questions` on `http://127.0.0.1:PORT/` (D26). The default port is
+8737; `--port 0` picks a free port, and the first line on stdout gives the address. Each reload
+reads the KBs and the ledger again, so the page is live; the server keeps no state of its own,
+and Ctrl-C stops it. `--dir` may repeat; `--root DIR` serves each `kb.pl` under DIR (hidden
+directories and `runs/` are skipped). The page groups the spec KBs by the project KB that they
+name with `project_kb/1`, each group labeled with that project KB's first request; a spec KB
+with no `project_kb` is in the group `no project`. A project KB has no section of its own,
+unless it has its own questions to ask (T27 c8). `project_kb` paths are normalized, so a
+trailing slash makes no second group.
+Each question to ask shows its notes, its claim's notes and examples, and its due date (T27 c6),
+and has a form: its options as in `view questions`, `other`, and a free text. A picked default
+keeps its term (`3`, not `'3'`); typed text next to a picked option is kept as `note(Q, Text)`.
+The answer never waits on an agent (T27 c4): it goes at once to `answers.pending` next to
+`kb.pl`. When no other writer holds the writer lock (D23 P7), the server applies it at once,
+as `$ORBIT_KB_WRITER`, else as `human` (`orbit-kb apply-pending` in a child process), and gives
+back a lock that was free before it. Else the holder's next write applies it; until then the
+page and `show open` list it as pending. The server never uses `--take`. A question pinned to a
+ledger ask (`pin-question`) is answered in the ledger first (the ask is closed), then its pinned
+copy `answer(Q, A, human:OWNER)` and `answer_pin` go to the queue; a question pinned to a
+tracker item is answered in the tracker (409). The ledger's asks show the shell-quoted
+`hubflow.py --by human close ID --reason done --note 'YOUR ANSWER' --session human` command.
+With `--ledger FILE` they are read-only. With `--hub DIR` (T27 c7) the asks are read live from
+`DIR/flow/flow.db`, read only, and each ask that waits on the owner has a form: the server runs
+that command from the hub root. The page sends `X-Frame-Options: DENY` and
+`Content-Security-Policy: frame-ancestors 'none'`. Safety: the server listens on 127.0.0.1 only; a request whose `Host` is not
+`127.0.0.1` or `localhost` gets 403; a POST needs the token of this run, which the page carries;
+free text is escaped on the page and written as one quoted term that `add` checks. There is no
+login. Exit 2 for a usage error, a KB that cannot be found, a bad ledger file, or a port in use.
+
+### `pin [--check STAMP]`
+
+Prints one line: `spec-kb@sha256:HEX TIME`. HEX is the sha256 of `kb.pl`, which
+the CLI computes; never type it. TIME is now, in UTC. Attach the stamp to the
+ticket, so the ticket names the copy of the spec KB that it relies on (D22).
+`pin --check STAMP` reads the first word of STAMP, so the whole line of `pin`
+also works. `pin` writes nothing and takes no lock.
+Exit: 0 when `kb.pl` still has the digest of STAMP. 1 when it changed. 2 on a
+malformed STAMP or another argument.
+
+### `release`
+
+Frees the writer lock of the KB (D23 P7; see Locking). Only the holder can
+release it: the writer named as in Locking. With no lock it does nothing.
+Exit: 0 on success and when there is no lock. 2 when another writer holds the
+lock; the message names the holder.
+
+### `review start --as ROLE --ticket F --diff A..B`
+
+D28 (T25). Records what a fresh-eyes reviewer saw before the review:
+`review_saw(ROLE, ticket, D)` (the sha256 of F), `review_saw(ROLE, kb, D)` (the
+digest of the `pin` stamp of `kb.pl`), and `review_saw(ROLE, diff, D)` (the sha256
+of `git diff A..B`, run in the current directory). ROLE is `--as`, else
+`$ORBIT_KB_ROLE`. It is a write command (the writer lock, `--take`).
+Every write command takes `--as ROLE`. After each attestation (`attest`, `run`,
+`prove`, and `add` of an `attest/6` fact) and each `change/2` fact, the CLI writes
+`actor(ID, ROLE, SESSION)`, where SESSION is the writer of Locking; a change also
+gets `change_at(ID, TIME)`. `attest disproof ... --rests-on A1,A2` writes
+`rests_on_run(V, A)` for each run. The rule `independently_verified(C)` (build),
+the `Review:` section of `report`, and the lint warning WR1 read these facts.
+The role is self-reported: the tools catch mistakes, not cheating.
+Exit: 0 when the facts are written. 2 for a missing option, a missing F, or a
+`git diff` that fails; nothing is written.
+
+### `pin-question Q ledger|tracker REF` and `pin-answer Q REF [--hub DIR | --text-file F --by NAME]`
+
+T27 (u58, u84). A question that depends only on the owner of the hub is owned
+by a ledger ask; a question for anyone else by a tracker item (drafted with
+`draft questions`, posted by a human). `pin-question` records the owner:
+`question_pin(Q, ledger|tracker, REF, DIGEST, DATE)`. `pin-answer` copies the
+answer from its owner: `answer(Q, A, human:NAME)` and `answer_pin(Q, REF,
+DIGEST, DATE)`. For a ledger ask it reads `DIR/flow/flow.db` read only (the
+note of the human close of the ask; NAME is the hub owner) and exits 1 while
+the ask has no answer. For a tracker item, `--text-file F` holds the answer
+and `--by NAME` names who gave it. A question with no pin belongs to the spec
+KB, as before.
+
+### `pin-request --request-file F [--accept --by human]`
+
+T27 c10. With `init --source REF`, the request is pinned to its tracker item:
+`request_pin(R, REF, DIGEST, DATE)`; DIGEST covers the request text only
+(title, description, acceptance criteria). `pin-request` reads the exported
+item again and records a new pin when the text changed. Then
+`request_stale(R)` holds, lint gives W8, and `blocking(request_stale(R))`
+blocks done, until a human accepts the text (`--accept --by human` writes
+`request_accepted(R, DIGEST, TEXT)`). A KB without `--source` owns its request
+(exit 1).
+
+### `apply-pending`
+
+T27 c4. Applies the answers that the question server queued in
+`answers.pending` (one line per answer, `pending(TIME, DIGEST, FACTS)`,
+append-only); `answers.applied` records each. Every write does this first.
+
+### `draft blocking | draft attach | draft outbound` `[--hub DIR] [--session S]`
+
+Drafts only (D25): each prints Markdown on stdout for a person to paste into a
+tracker. Nothing is sent to a tracker, and no command uses a network. Neither
+command writes a file of the KB or takes a lock. In a KB that uses `project`,
+each also records a new drop in the hub ledger, as `pin-item` does (T45, below).
+
+- `draft blocking` prints the heading `## Blocking items`, the line
+  `Stamp: spec-kb@sha256:HEX` (the digest of `kb.pl`, as `pin` computes it), and
+  one bullet for each item that blocks `done`, as `show blocking` prints it, or
+  `- Nothing blocks done.`. (Before T43 a `project_conflict` bullet said `decide`; no draft
+  blocks now.)
+  `pin --check` with the stamp exits 1 once `kb.pl` changes.
+- `draft attach` (T22, u93) prints `## Attach the spec KB to the tracker item`, then the
+  lines `- File:` (the absolute path of this spec KB's `kb.pl`: a plain file copy is
+  what a human attaches), `- Stamp: spec-kb@sha256:HEX`, `- Paste:` (the line to paste
+  into the item) and a line that a human attaches the file. It takes no argument and
+  copies, writes and posts nothing.
+- `orbit-kb --dir PROJECT draft outbound` prints `## Outbound drafts`, then a
+  section `### DRAFT_ID` for each draft of the project KB that is not pushed
+  and not dropped, with its pin, source, ChangedAt, staged time,
+  `- Tracker changed: T` when the tracker also changed after the pin (the draft
+  won), and `- Status: ready`. The date rule of T43 (Ty, u123) picks the side:
+  when the tracker and the draft both changed after the pin, the later edit
+  wins, and on equal times the tracker wins; nothing blocks. A human's
+  `resolved/3` wins over the dates. It reads
+  only the KB of `--dir`; it needs a KB that uses `project` (else exit 2).
+
+Free text in a draft is escaped, so it cannot act as Markdown or HTML (D25 T7).
+Exit: 0, or 2 for a usage error.
+
+### `pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file]`
+
+Appends `pin(ID, Kind, SOURCE, Digest, T)` to a KB that uses `project` (D25 T4).
+F holds the text of the tracker item that a person pasted or exported; the CLI
+computes Digest, the sha256 of F, and never changes F. T is the change time of
+the item, in UTC (`2026-10-01T09:00:00Z`). Kind defaults to `tracker`. Nothing
+is fetched. It is a write command: it takes the writer lock and accepts
+`--take`. After a tracker pin is recorded, the CLI keeps a copy of F as
+`pins/HEX.txt` in the KB, HEX of the digest (D27): content-addressed, so the
+same text is kept once, and only pinned items are kept. A draft is an edit of
+that text; `show pin ID` prints it. A file pin (`--kind file`, such as a week's
+report) keeps only its digest and its path, never a copy (T34): the week owns
+the file.
+A new pin can make a draft lose by date (`lost_by_date`). So that a dropped
+edit reaches the hub ledger without anyone remembering a command (T45, u123),
+`pin-item` and `draft blocking`, `draft attach` and `draft outbound` record each
+new drop themselves, as `project dropped` does: the hub is `--hub DIR`, else the
+parent of the KB when it has `flow/flow.db`; the session is `--session S`, else
+`$HUB_SESSION`. Each new item id is printed on stderr
+(`- D: the SIDE edit lost by date; recorded in the hub ledger as ID`). A drop
+in the ledger already adds nothing. With no hub, they print one line per drop on
+stderr that names it and the command `orbit-kb --dir KB project dropped --hub DIR`;
+when the ledger does not take it (no session), the line names the hub and
+`--session S`. The exit code stays that of the command. A pane gets
+`HUB_SESSION` where it is started, in the hub
+(`cd "$HUB" && HUB_SESSION=<name> claude --name "hub-<name>"`, hubkit
+`INSTRUCTIONS.md` Step 5); in a pane without it the record is refused with that
+warning (T46 c2). A push over a newer tracker edit is recorded the same way
+(`pushed_over`, T46; see `project dropped`).
+Exit: 0 prints the pin id and digest. 1 when the pin id exists. 2 for a missing
+F, a missing option, or a T that is not a time.
+
+### `project impact X [--root DIR]`
+
+Run in a project KB (D27). Lists the spec KBs that a change of decision,
+definition or rule X touches: each claim that pins X (`- DIR: claim C pins X`)
+and each claim that pins a fact that rests on X (`- DIR: claim C pins Z, which
+rests on X`). The spec KBs are the KBs under DIR (default: the parent
+directory of the project KB; the walk of `serve --root`), and the KBs of the
+registry `spec_kbs.txt` of the project KB (T34), whose `project_kb` names this
+project KB. `add` writes the absolute directory of a spec KB in that registry
+when it records a `project_kb` or a `pins` fact that names the project KB, so
+a spec KB outside the root is found too. A spec KB in neither place (its pins
+written by hand, outside the root) is not seen. The query `impact(X, SpecKB)`
+gives the same set, with the default root. Read-only.
+Exit: 0, also when no spec KB is touched (`No spec KB pins ...`). 2 when X is
+no decision, definition or rule of the KB.
+
+### `project dropped [--hub DIR] [--session S]`
+
+Run in a project KB (T43 c3). When the tracker and a draft both changed after
+the pin, the later edit wins (equal times: the tracker), and the losing side is
+`dropped(D, Side)` in the project KB (`lost_by_date(D, Side)`). A draft staged at
+or before its pin that a later tracker change drops is `lost_by_date(D, draft)`
+too (T45 c3). A draft with a `pushed(D, _)` fact is never `lost_by_date(D, draft)`
+or `dropped(D, draft)` by date: its text reached the tracker, so a pin taken after
+the push records no drop (T45 c6). `lost_by_date(D, tracker)` and `resolved/3`
+are unchanged. A drop recorded before the push stays in the ledger for a human. So that the
+dropped edit is not lost quietly, this command records each such drop as one
+open thread in the hub ledger, written by `hubflow add thread --by script` in
+the session of `--session S`, else `$HUB_SESSION`. The title names the draft,
+the pin, the side that lost, and both times (the latest tracker change and the
+staged time); the item has the ref `kb:PATH`, the project KB relative to the
+hub. The hub is `--hub DIR`, else the parent directory of the project KB when
+it has `flow/flow.db`. A drop that is in the ledger already, in any status, is
+skipped (the title up to the times names the draft, the pin and the side, and
+the item has the same `kb:` ref), so a second run, or a later tracker change,
+adds nothing. A drop by `resolved/3` gets no item: a human chose it. It writes
+nothing to the KB. `pin-item` and the `draft` commands do the same by
+themselves (T45); this command stays for a manual run.
+A push can overwrite a tracker edit (T46 c1, review's default): when a draft
+has `pushed(D, T)` and a newer pin P of the same tracker item changed after the
+pin of D, after its staging and before T (and no `resolved/3` settled it),
+`pushed_over(D, P)` holds and `dropped(D, tracker)` holds by it. This command,
+`pin-item` and the `draft` commands record it once: one note on the open
+ledger item (status open or waiting) of the drop of D ("the draft was pushed at
+T and overwrote the tracker edit of C2"), else one new escalated item titled
+`Project KB: draft D overwrote the tracker edit of pin P when it was pushed
+(pushed T, tracker changed C2)`. A note or an item (any status, the same `kb:`
+ref) that holds that key up to `(` is skipped, so a second run adds none.
+Each new item is escalated at once (`hubflow triage ID escalate --by script`,
+T45 c2): only a human closes it, on purpose
+(`hubflow close ID --reason done --by human --session human --note "<their words>"`). An agent's
+close, renew, park or `ref rm` of it is refused, and the refusal names it as a
+dropped edit.
+Exit: 0 (one line per drop, or `- Nothing was dropped by date.`). 2 with no
+hub, a project KB outside the hub, or an item that the ledger refuses (no
+session).
+
+### `project archive --superseded-before DATE [--root DIR]`
+
+Run in a project KB (D27). Keeps the project KB bounded. It removes from
+`kb.pl` each decision, definition and rule that is superseded by a fact whose
+`decided_by` time is before DATE (`2026-10-01` or a UTC time; a real date:
+`2026-13-45` and `2026-02-30` are exit 2), and every fact that names it
+(`decided_by`, `ratified_by`, `reason`, `analysis`, `concerns`, `depends_on`,
+`supersedes`, `excludes`, and every fact of any kind with a ref argument that
+names it, such as `note/2`, the subject of an `attest/6`, or a local fact; T34).
+The removal closes over references: the id of a removed fact (an attestation
+about the fact) joins the removed set, so the facts that name it (its `actor`
+record) go too, until nothing changes.
+Before it writes, it lints the KB as it would be after the archive: a lint
+error that the KB does not have now refuses the archive (exit 1, the errors
+named, nothing written). So no archive leaves a dangling reference. It never
+removes a fact that an open spec KB (one where `done` does not hold) pins, and
+never a fact that a kept fact depends on, directly or through `rests_on`. The
+spec KBs are those of `project impact`. git keeps what it removes.
+It is a write command: it takes the writer lock and accepts `--take`.
+Exit: 0, also when nothing is removed (`Nothing to archive`). 1 when the
+result would have a new lint error. 2 for a missing or bad DATE.
 
 ### Locking
 
-The commands `add`, `declare`, `declare-attest`, `subject`, `attest`, and `uses` hold
+The commands `add`, `subject`, `attest`, and `uses` hold
 an exclusive lock on `kb.lock` in the KB directory for the whole cycle. The
 cycle is: read `kb.pl`, choose the ID, write, and append. Thus two writers in
 two processes cannot choose the same ID. `run` and `prove` take the lock only
@@ -923,6 +1240,28 @@ to record their result (see `run`). The commands that only read the KB take no l
 ends, for any reason, so a stale lock cannot occur. If `flock(1)` is not on
 `PATH`, for example on macOS, `orbit-kb` uses the lock that SWI-Prolog takes on
 `kb.lock`.
+
+Every KB also has one writer at a time (D23 P7; T27 made it every KB, a spec
+KB too, and a lease). This lock is the file `writer.lock` in the KB directory.
+The writer is the first that is set of `$ORBIT_KB_WRITER`,
+`$CLAUDE_CODE_SESSION_ID` (Claude Code sets it), `$CLAUDE_SESSION_ID`, and
+`$HUB_SESSION`; with none, no writer lock is taken or checked. The write
+commands `add`, `subject`, `attest`, `run`, `prove`, `uses`,
+`pin-item`, `pin-question`, `pin-answer`, `pin-request`, and `apply-pending`
+read it first. With no lock file, the command writes `writer.lock` (one line
+`WRITER TIME`) and goes on. When the same writer holds it, the command renews
+the lease (TIME is the time of the last write) and goes on. When another
+writer holds it, the command exits 2, writes nothing, and names the holder and
+the time. The lock is a lease: after `$ORBIT_KB_LEASE` minutes (default 30)
+with no write by the holder, the next writer takes it and appends
+`writer_takeover(From, To, Time)` to `kb.pl`; the former holder then gets exit
+2 until a release. Else the holder runs `orbit-kb release` (a pane runs it when
+it hands the KB on; the receiver's first write takes the lock), or the new
+writer adds `--take` to the command: `--take` makes it the holder and appends
+`writer_takeover(From, To, Time)` to `kb.pl`. Before its own facts, every
+write applies the answers that the question server queued in
+`answers.pending`. Reads never touch the writer lock. It is a record, not a
+guard: it does not stop a hand edit of `kb.pl`.
 
 ## 9. Exit codes, and how to read answers
 
@@ -1031,7 +1370,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E1 | Syntax error, with file and line. In any source, E1 makes `query`, `why`, `whynot`, `show`, and `report` exit 2. |
 | E2 | Undeclared predicate or wrong arity, in `kb.pl` facts or in the heads and bodies of `rules.pl`, `core.pl`, and the modules. If a declaration has the same name but a different arity, the message names it. In `rules.pl`, E2 makes the commands that answer exit 2. |
 | E3 | Type error. This includes a label outside `oneof`. |
-| E4 | Dangling `ref`, or a `ref` to the wrong kind of id. A `supersedes` fact must name two claims or two hypotheses (D15). |
+| E4 | Dangling `ref`, or a `ref` to the wrong kind of id. A `supersedes` fact must name two claims or two hypotheses (D15), or two decisions, two definitions or two rules of the project module (D27). The project relations `depends_on`, `excludes`, `ratified_by`, `decided_by`, `analysis` and `concerns` refuse a missing id the same way (D27). |
 | E5 | Duplicate ID. |
 | E6 | Non-ground fact in `kb.pl`. |
 | E7 | A clause in the wrong place: a `rule` predicate as a fact in `kb.pl`, or a `fact` predicate with clauses outside `kb.pl`. |
@@ -1041,18 +1380,31 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E11 | A clause does not load in the SWI engine. |
 | E14 | Unsafe negation: a variable of a `not` literal occurs in the head, but in no positive body literal. A call with that variable unbound then gives a wrong answer. |
 | E15 | A `supersedes` fact on a cycle: a claim (or a hypothesis) replaces itself, directly (`supersedes(C, C)`) or through others. `done` is false while the cycle exists. `add` refuses such a fact. |
-| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `flare`, `flare_shown`, `flare_waived`, `flare_open`, `any_flare_open`, `demo_changed` (D21), `any_current_claim`, `proof_changed`, `waiver_lapsed`, `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engine ignores the clause. |
+| E16 | `rules.pl` adds clauses to a protected library predicate: `done`, `burn`, `burn_reason`, `burn_proved`, `burn_waived`, `burn_open`, `any_burn_open`, `flare`, `flare_shown`, `flare_waived`, `flare_open`, `any_flare_open`, `demo_changed` (D21), `any_current_claim`, `proof_changed`, `waiver_lapsed`, `blocking`, `item_open`, `check_ran`, `due_passed` (D22), `check_waived`, `question_waived`, `supersedes_closure`, `supersede_cycle`, `any_supersede_cycle`, or a vote rule of the discovery module (`vote_cast`, `discovery_vote_raised`, `vote_round`, `human_vote`, `agent_vote`, `artifact_vote`, `discovery_gate_agreed`, `gate`, `gate_split`). The engine ignores the clause. |
 | E17 | A form that `orbit-kb` does not read (it is s(CASP) syntax): classical negation `-p` (in a fact, a rule head, or a body literal), a `#` line, a global constraint `(:- Body)`, or a `#=`-family constraint. `add` refuses it. It applies in `kb.pl` too, and a goal with such a form exits 2 with the E17 text. `query`, `why`, `whynot`, `show`, and `report` exit 2 while an E17 exists. |
 | E18 | The rules are not stratified: a predicate depends on itself through `not`. The same commands exit 2 while an E18 exists. |
+| EP1 | An agent ratified a fact: `ratified_by(X, Who, _)` where Who is `agent` or starts with `agent:`, in any case (`Agent:review` too). Only a human ratifies what an agent made. `add` refuses it (T34). Who is self-declared: the check reads the name, it cannot know who wrote the fact (D27). |
+| EP2 | A fact depends on itself or excludes itself: `depends_on(X, X)` or `excludes(X, X)`. `add` refuses it (T34). To end a fact, supersede it. |
+| E19 | Typo guard (D22): a predicate declared by its first use has a name 2 edits or fewer (Levenshtein) from another declared predicate of the same arity. The message names both. `add` does not refuse it. For a typo, correct the facts in `kb.pl` and delete the `decl/4` and `first_use/3` lines of the new name. For a new predicate, choose a name more than 2 edits away. |
 
 | Code | Warning |
 |---|---|
 | W1 | The subject digest differs from the file on disk, or the file is missing. Refresh it with `orbit-kb subject`. |
-| W2 | A local declaration, listed for review. |
+| W2 | A local declaration, listed for review. A declaration that a first use made gets W7 instead. |
 | W3 | A claim with no `cites`. |
 | W4 | A local fact predicate that no rule reads. |
 | W5 | A `check` of a superseded claim, while the current claim that replaces it (directly or through a chain) has no check. Check ids are unique (E5) and facts are append-only, so the message says to add a new check of the current claim and run it (D15). |
 | W6 | A local rule that adds clauses to a core or module predicate (an extension). For a protected predicate, it is E16 instead. |
+| W7 | A predicate declared by its first use in `add` (D22), with who and when. Review it. |
+| W8 | The request text changed at its source (T27): the latest `request_pin` has another digest and no human accepted it. It also blocks done. |
+| WR1 | A current claim that is not independently verified (D28): no upheld verdict by an actor of another role and session than the last change, resting on a rerun of a check of the claim after that change. Only in a KB with an `actor/3` or `review_saw/3` fact, and only once no current claim is under (a review is due, T38). Only the latest verdict on a claim counts; a change with no `change_at`, or no change at all, verifies nothing (T38). Module hook of build; it does not block `done`. |
+| WP1 | A `pins(Claim, project, Decision, Digest)` fact whose digest differs from the digest of the decision (or definition or rule, D27) in the project KB now: the decision changed since the claim was written. Read it, then add a `pins` fact with the new digest. Module hook; the id is the claim (D23 P6). |
+| WP2 | A `pins/4` fact that cannot be checked: no `project_kb` fact, no `kb.pl` at that path, or no such decision. Module hook; the id is the claim (D23 P6). |
+| WP3 | The project KB of `project_kb/1` has a lint error, so a conflict could hide in it. Run `orbit-kb lint` on it. It also blocks (`project_kb_unclean`). Module hook (D23 P8). |
+| WP4 | A KB has more than one `project_kb` fact. Only the first is read. Keep one. The id is the later directory (D23 follow-up). |
+| WP5 | A claim pins a fact of the project KB that rests on a fact in a contradiction, and no claim pins that fact directly. Only a direct pin blocks (`project_contradiction`); this is a warning. Module hook; the id is the claim (D27). |
+| WP6 | An `analysis(X, Path)` whose Path is outside the project KB directory. Analyses are written in the project KB (`analyses/`); a week's raw report is pinned, not an analysis. Module hook (D27). |
+| WP7 | A fact rests on itself: its `depends_on` facts make a cycle (`rests_on(X, X)`). A cycle is allowed, but it is often a mistake. Module hook; the id is each fact of the cycle (T34). |
 
 Built-ins that E2 permits: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `true`,
 `false`, `forall/2`. Lint unwraps `not G`.
@@ -1196,60 +1548,53 @@ Typical tickets have 1–20 claims. The speed work has these parts:
 
 A KB can add its own vocabulary without a change to the library.
 
-1. Declare each new fact predicate with `orbit-kb declare`.
-2. Declare each new rule predicate, helpers included, with
-   `orbit-kb declare --kind rule`.
-3. Write the rules in `rules.pl` in the KB directory.
+1. Add the facts of a new fact predicate: the first use declares it (W7). Give it
+   a one-line description in that first add: `--doc TEXT` (W9 names a kind with none).
+2. Write the rules in `rules.pl` in the KB directory. The first clause of a head,
+   helpers included, declares it. Describe it in a line `%% doc: TEXT` just above
+   that clause (W9 names a head with none).
+3. A head that is at most 2 edits from a declared predicate of the same arity is E19
+   (a typo guard, as for a fact kind).
 4. Run `orbit-kb lint`.
 
 A real example:
 
 ```text
-$ orbit-kb declare 'owner(ref(claim), text)' --doc 'The person who owns the claim.' --template 'claim @(1) is owned by @(2)'
-decl(fact, owner(ref(claim), text), 'The person who owns the claim.', 'claim @(1) is owned by @(2)').
-$ orbit-kb declare 'has_owner(ref(claim))' --kind rule --doc 'Some person owns the claim.'
-decl(rule, has_owner(ref(claim)), 'Some person owns the claim.', '').
-$ orbit-kb declare 'any_unowned' --kind rule --doc 'Some claim has no owner.'
-decl(rule, any_unowned, 'Some claim has no owner.', '').
+$ orbit-kb add "owner(c1, 'Ana')" --doc 'The person who owns the claim.'
+decl(fact, owner(term, term), 'The person who owns the claim.', '').
+first_use(owner/2, agent, '2026-11-09T10:00:00Z').
+owner(c1, 'Ana').
 ```
 
 The `rules.pl`:
 
 ```prolog
+%% doc: Some person owns the claim.
 has_owner(C) :- owner(C, _).
+%% doc: Some claim has no owner.
 any_unowned :- claim(C, _, _), not has_owner(C).
 ```
 
 ```text
 $ orbit-kb lint
-W2 kb.pl:5: Local declaration of owner/2 (fact): The person who owns the claim. Review it.
-W2 kb.pl:6: Local declaration of has_owner/1 (rule): Some person owns the claim. Review it.
-W2 kb.pl:7: Local declaration of any_unowned/0 (rule): Some claim has no owner. Review it.
-Summary: 0 error(s), 3 warning(s).
-$ orbit-kb query any_unowned
-true
-$ orbit-kb add "owner(c1, 'Ana')"
-owner(c1, 'Ana').
+W7 kb.pl:6: owner/2 was declared by its first use, by agent at 2026-11-09T10:00:00Z. Review the new predicate: is it needed, and is the name right? Its arguments have the type term.
+Summary: 0 error(s), 1 warning(s).
 $ orbit-kb query any_unowned
 false
 ```
 
 Lint lists each extension for a human to review:
 
-- W2 lists each local declaration.
+- W2 lists each local declaration (a `decl/4` line of an older KB).
+- W9 lists each fact kind or rule head with no description.
+- W7 lists each predicate that a first use declared (D22), and E19 flags a name that looks like a typo of a declared one.
 - W6 lists each local rule that adds clauses to a core or module predicate.
 - W4 lists each local fact predicate that no rule reads.
 
 `orbit-kb show extensions` gives the same list in plain text. With
 `lint --strict`, these warnings make lint exit 1.
 
-`declare` refuses a name and arity that is declared anywhere:
-
-```text
-$ orbit-kb declare 'world(term)' --doc 'x'
-Rejected. Nothing was written.
-world/1 is already declared in the core (/home/you/sagittarius/kb/share/orbit-kb/core.pl:77). Choose another name, or use the declaration that exists.
-```
+A head of `rules.pl` that names a core or module predicate adds clauses to it (W6, or E16 for a protected one). A head that names a fact kind is E7.
 
 ### Writing a new module
 
@@ -1290,7 +1635,7 @@ The rules for a module:
 
 Reserved names:
 
-- `declare` refuses these names: `decl`, `attest_type`, `uses`, `not`, `true`,
+- A `rules.pl` head with one of these names is E2: `decl`, `attest_type`, `uses`, `not`, `true`,
   `false`, `forall`, `call`, `is`, and the operators `=`, `\=`, `<`, `>`, `=<`,
   `>=`, `,`, `;`, `->`, `:-`, `#`, `\+`, `-`, `#=`, `#<>`, `#<`, `#>`, `#=<`,
   `#>=`. Until D20, it also refused `proved`, `chs`, `assume`, and `abduced`,
@@ -1429,6 +1774,8 @@ Rules of the harness:
 |---|---|---|
 | `ORBIT_KB` | The KB directory, when `--dir` is not given. | None. `orbit-kb` searches upward from the current directory. |
 | `ORBIT_KB_LIB` | The library directory that holds `core.pl` and `modules/`. | `<real dir of the orbit-kb script>/../share/orbit-kb` |
+| `ORBIT_KB_WRITER` | The writer of the writer lock (section 8, Locking). Else `CLAUDE_CODE_SESSION_ID`, `CLAUDE_SESSION_ID`, `HUB_SESSION`. | None: no writer lock |
+| `ORBIT_KB_LEASE` | Minutes after the holder's last write when its writer lock lapses. | 30 |
 | `ORBIT_KB_NO_CACHE` | A value other than empty or `0` turns off the saved state. | Not set: cache on |
 | `XDG_CACHE_HOME` | The base of the cache directory. It must be an absolute path. The saved state is in `$XDG_CACHE_HOME/orbit-kb/`. | `~/.cache` |
 | `ORBIT_KB_TEST_JOBS` | The number of parallel workers of the test suite (section 14). | The number of CPUs, at most 4 |
@@ -1452,6 +1799,7 @@ and `ONLY` are in section 14.
 | Path | Contents |
 |---|---|
 | `state-*.qs` and `state-*.qs.ok` | The saved state of the script, and its sidecar with the size and the SHA-1. |
+| `state-*.qs.PID-TIME.priv` | A private hard link of the state, one per call. The call checks the link against the sidecar and starts the link, so a call that deletes or replaces the shared state at the same time cannot make it abort. The started state deletes its link. The next build deletes a link that is over 1 h old when its process is gone. |
 
 Section 11 describes it. The s(CASP) result cache (`scasp/`) went with s(CASP)
 (D20). You can delete the directory at any time. `orbit-kb` builds again what
@@ -1543,6 +1891,7 @@ In this section, "Ty" is the author of the project. The author's decisions are c
 
 | Decision | Reason |
 |---|---|
+| The spec KB (D22) | Ticket T03 of the redesign. The schema is declared on first use, so no declare step comes before use; lint lists each new predicate (W7) and flags a near name (E19). The design KB cut the attestation-type command and the question dependency fact. `blocking/1` lists what blocks `done`, because only the spec KB decides what blocks. `pin` stamps the copy of the KB that a ticket relies on. |
 | Flares beside burns (D21) | Burns get proved, flares get shown. Before D21, a renamed alias was a second divergence, its claim burned, and `done` waited for a Lean proof of an alias name (GitHub issue #9). A visual claim now needs a human approval of a demo, not a proof. |
 | One engine (D20) | SWI-Prolog gives the verdict and, from the same clauses, the explanation. Until 2026-11-02, s(CASP) explained the answers and a cross-check compared the two. It cost about 23% of the CLI, and in the audits it found no error in a KB, only tool bugs. |
 | Exit 2 for typos and broken sources | A typo or a broken source must never look like "false". D7 added broken sources to this rule. D20 added E17 and E18. |
@@ -1603,7 +1952,7 @@ Changes in contract v2.1:
     burn is open again. `report` shows a waived claim as `NOT PROVED`.
   - A check of the code against the Lean model is optional
     (`conformance/1`, `conforms/1`).
-  - `declare` refused `proved`, `chs`, `assume`, and `abduced`. A rule named
+  - the old `declare` refused `proved`, `chs`, `assume`, and `abduced`. A rule named
     `proved/1` broke the s(CASP) compile. (Superseded by D20: the names are free.)
 
 The speed work (also on 2026-10-16) did not change any answer:
@@ -1702,6 +2051,14 @@ Known gaps:
   "a few UX offerings": open items first, evidence under each claim, and
   review marks that become text to paste back. The text of `report` does not
   change (golden files in the tests). `--open` opens the page only when given.
+- **D22 (the spec KB, 2026-11-05).** Ticket T03 of the redesign. `add`
+  declares a new predicate by its first use (`first_use/3`, lint W7), and lint
+  error E19 is the typo guard. (T26 removed `declare`: the first `add` of a kind
+  takes `--doc`.) The command for local
+  attestation types and the fact `depends/2` are gone; `to_ask/1` now asks
+  only the questions of a contested claim. New: `blocking/1` (one kind per
+  item that blocks `done`), `due/2`, `show blocking`, `pin`, and the phases in
+  the general help. See `kb/CONTRACT.md`, D22.
 - **D21 (a visual claim flares, 2026-11-04).** GitHub issue #9; Ty chose
   "Both". `visual(C)` and `demo(S, C)` are new build facts. `flare(C)` holds for
   a visual claim, and for a claim that replaces one. A human approval of a demo

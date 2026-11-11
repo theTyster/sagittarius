@@ -1,0 +1,178 @@
+Project KB: Two sides: Decisions about future work and definitions about the current system. Where the product is and where it is going. (Ty)
+orbit-kb project module: a KB that reasons over the domain of the product, not a ledger.
+
+Make a project KB:  orbit-kb init project-kb --request 'TEXT' --uses project
+A spec KB can pin a decision of it:  orbit-kb init DIR --request 'TEXT' --uses build,project
+
+Facts (write them with orbit-kb add; never edit kb.pl)
+  The two sides, and the product rules (ids are global: r1 is the request, so use ru1 for a rule)
+  decision(Id, Text)                  where the product is going: what future work will do
+  definition(Id, Text)                where the product is: how the current system is now
+  rule(Id, Text)                      a product rule. The project KB owns it; a spec claim that relies
+                                      on it pins it (pins/4 below). Its examples are checks in those spec KBs.
+  decided_by(Id, Who, When)           who made a decision, definition or rule, and when (a time such as
+                                      '2026-03-01T09:00:00Z'). Who is any person or role. Who is an
+                                      agent when it is agent or starts with agent: (agent:build), in
+                                      any case (Agent:build too).
+  ratified_by(Id, Who, When)          a human ratified what an agent made. add refuses a Who that is
+                                      an agent (EP1).
+  Trust limit: the Who of a fact is self-declared. orbit-kb reads the name that the writer gives; it
+  cannot know who wrote the fact. A name that is not an agent's is taken as a human's.
+  reason(Id, Text)                    a reason for the decision
+  repo(Name, Location)                a repository of the product
+  analysis(Id, Path)                  the file with the analysis behind a decision, definition or rule.
+                                      Analyses are written in the project KB when they are made: the
+                                      file lives under analyses/ of the project KB. A Path outside the
+                                      project KB is WP6.
+  Relations (each refuses an id that does not exist: E4)
+  supersedes(New, Old)                two decisions, two definitions, or two rules. Old stays in kb.pl.
+  depends_on(X, Y)                    X depends on Y; any two of decision, definition, rule.
+                                      depends_on(X, X) is refused (EP2); a cycle is the warning WP7.
+  excludes(X, Y)                      a human or an agent records that X and Y cannot both hold. It is
+                                      never inferred from the text. excludes(X, X) is refused (EP2).
+  pin(Id, Kind, Source, Digest, ChangedAt)
+                                      a pin of the world. Kind is file or tracker.
+                                      file: Source is a subject id. Run orbit-kb subject first, and
+                                        copy its digest. The pin keeps its own digest.
+                                      tracker: Source names the item, such as 'gh:acme/widgets#12'.
+                                        Digest is the sha256 of the item as fetched, and ChangedAt is
+                                        the change time of the item. A new record of the same item is
+                                        a new pin. Never rewrite a pin.
+  concerns(Id, Pin)                   the decision or the definition rests on the pin
+  draft(Id, PinId, Text, StagedAt)    an edit staged for the tracker item. It never edits the pin.
+  pushed(Draft, Time)                 the draft was pushed to the tracker
+  resolved(Draft, Side, Time)         a human settled a draft. Side is draft or tracker: the side that stays.
+                                      It wins over the dates.
+  writer_takeover(From, To, Time)     written by --take only
+In a spec KB:
+  project_kb(Dir)                     the directory of the project KB, relative to this KB or absolute
+  pins(Claim, project, Id, Digest)    the claim rests on a decision, a definition or a rule (a product
+                                      rule: the spec pins the rules its claims rely on). Digest is
+                                      the sha256 of its text. Read it in the spec KB with:
+                                      orbit-kb query 'project_decision_digest(ru1, D)'
+
+Queries (the derived answers)
+  current_fact(X)               X is a decision, definition or rule that is not superseded.
+                                (current/1 stays the rule for claims.)
+  rests_on(X, Y)                X depends on Y through one or more depends_on facts
+  contradiction(X, Y)           excludes(X, Y), and both are current
+  proposed(X)                   an agent made X and no human ratified it. A proposed fact blocks nothing.
+  impact(X, SpecKB)             a claim of the spec KB pins X, or pins a fact that rests on X.
+                                The spec KBs are found under the parent directory of the project KB,
+                                and in its registry spec_kbs.txt (below), wherever they are.
+  stale_pin(P)                  the pin is old: the file has another digest now (or is missing), or a
+                                newer ChangedAt exists for the same tracker item
+  outbound(D)                   the drafts that are not pushed and did not lose
+  supersedes_by_date(D, Side)   no human settled it: the later edit wins (T43, Ty). Side is draft
+                                when the tracker did not change after the pin, or when the draft was
+                                staged after the latest change of the tracker. Side is tracker when
+                                the draft is not later than the pin, or when the tracker changed at
+                                the staged time or later. Equal times: the tracker wins (the tracker
+                                holds most of the information).
+  both_changed(D, T)            the tracker (last change T) and the draft both changed after the pin
+  lost_by_date(D, Side)         the dates dropped the edit of Side: the draft lost to a later tracker
+                                change (also a draft staged at or before the pin, T45), or the
+                                tracker lost when both changed after the pin. A pushed draft
+                                (pushed/2) never loses by date: its text reached the tracker (T45)
+  pushed_over(D, P)             the push of draft D overwrote the tracker edit of pin P: P is a newer
+                                pin of the same tracker item, changed after the pin of D, after its
+                                staging and before pushed(D, T), and no resolved/3 settled it (T46)
+  dropped(D, Side)              the side that lost, by date or by resolved (a pushed draft is
+                                dropped only by resolved); the tracker side also by pushed_over
+                                (T46). The facts stay in kb.pl: this is the record.
+  decision_digest(D, Digest)    the sha256 of the text of the decision (computed)
+  subject_now(S, Digest)        the digest of the file of the subject now (computed)
+When the tracker and a draft both changed after the pin, it is not a conflict that blocks: the
+dates decide, and nothing blocks a spec KB for a draft. A human who disagrees adds
+resolved(D, draft|tracker, Time). So that a dropped edit is not lost quietly, pin-item and
+draft blocking, attach and outbound record each new drop in the hub ledger themselves (T45), and
+project dropped does it by hand. A push over a newer tracker edit (pushed_over) is recorded too
+(T46): one note on the open ledger item of the drop of the draft, else one new item; once.
+The record is written in the session of --session S, else HUB_SESSION. A pane gets HUB_SESSION
+where it is started, in the hub: cd "$HUB" && HUB_SESSION=<name> claude --name "hub-<name>"
+(hubkit/INSTRUCTIONS.md, Step 5; <name> is a session of flow/seed.json). In a pane with no
+HUB_SESSION and no --session, the ledger refuses the record: the command warns on stderr, names
+project dropped --session S, and exits 0. The ledger item is escalated: only a human closes it, on purpose
+(hubflow close ID --reason done --by human --session human --note "<their words>"). An agent's close is refused as a dropped edit.
+A contradiction is the blocking item project_contradiction(X) for each spec KB with a claim that
+pins X directly. A spec KB that reaches X only through rests_on gets the warning WP5, not a block.
+Only ratified facts block: a contradiction on a proposed fact blocks nothing.
+
+Commands
+  orbit-kb --dir PROJECT project impact X [--root DIR]
+      lists the spec KBs that a change of X touches: those that pin X, and those that pin a fact
+      that rests on X (the line says "rests on"). The default root is the parent of the project KB.
+      The registry spec_kbs.txt of the project KB adds the spec KBs outside the root: add writes
+      the directory of a spec KB there when it records project_kb or pins, under the KB lock of
+      the project KB (kb.lock). A spec KB that is in
+      neither (its pins written by hand, outside the root) is not seen: pass --root.
+  orbit-kb --dir PROJECT project archive --superseded-before DATE [--root DIR]
+      removes from kb.pl each superseded decision, definition or rule, and every fact that names
+      it (decided_by, reason, a note, an attestation about it, any fact with a ref to it; and
+      then each fact that names a removed fact, such as the actor record of that attestation), when
+      its superseding fact was decided (decided_by) before DATE, no kept fact rests on it, and no
+      open spec KB (done does not hold) pins it. A pinned or rested-on fact is never removed.
+      DATE is a real date (2026-10-01) or UTC time; else exit 2. When the KB after the archive
+      would have a lint error that it has not now, nothing is written (exit 1, the errors named).
+      git keeps what is removed. It is a write command (writer lock). It prunes spec_kbs.txt
+      under the KB lock: a repeated line goes; the line of a spec KB with no kb.pl goes only when
+      a second archive in a row finds it missing (spec_kbs.missing holds the first look). When it
+      removes facts without --root, or with a --root that leaves out a spec KB of spec_kbs.txt, it
+      warns that a spec KB outside the root with no line in spec_kbs.txt is not seen: then pass
+      --root DIR, a directory over every spec KB.
+  orbit-kb --dir PROJECT project dropped [--hub DIR] [--session S]
+      records each edit that lost by date (lost_by_date) as one open thread in the hub ledger: its
+      title names the draft, the pin, the side that lost and both times, with a kb ref to the
+      project KB (a path inside the hub). hubflow writes it (--by script) in the session of
+      --session S, else HUB_SESSION. The hub is --hub DIR, else the parent of the project KB when it
+      has flow/flow.db. A drop that is in the ledger already (in any status; the same draft, pin,
+      side and kb ref, whatever the times) is skipped, so a second run adds nothing. A drop by
+      resolved gets no item: a human chose it. It writes nothing to the KB. It escalates each new
+      item (hubflow triage ID escalate): only a human closes it. pin-item and draft blocking,
+      attach and outbound do the same by themselves for each new drop, and print the item id; with
+      no hub they print one line that names the drop and this command (T45). Each pushed_over(D, P)
+      gets one note on the open item of the drop of D (status open or waiting), else one new
+      escalated item; a note or item that names D and P already is skipped (T46).
+  orbit-kb --dir PROJECT pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file] [--hub DIR] [--session S]
+      records the pin. A tracker pin keeps the pinned text as pins/HEX.txt (HEX of the digest), so
+      a draft is an edit of that text. A file pin (--kind file, a week's report) keeps only its
+      digest and its path: never a copy. Its digest is of the pinned file (SOURCE: a path, or a
+      subject id); --text-file is optional, and must name the same file.
+  orbit-kb --dir PROJECT show pin ID
+      prints the pin and its kept text. Exit 1 when no text is kept (a file pin, or a pin made with
+      add), and when the kept text does not match the digest of the pin (MISMATCH: it was edited).
+
+Weeks and the project KB
+  The weeks own the raw reports and the transcripts. The project KB keeps only a pin of the ones
+  that a lasting fact relies on: a pin of kind file (orbit-kb subject, then pin), and concerns.
+  It keeps no copy of the week's files.
+
+Lint
+  WP1   a pins fact: the decision changed since the claim was written. Read it, then pin the new digest.
+  WP2   a pins fact that cannot be checked: no project_kb, no kb.pl there, or no such decision.
+  WP3   the project KB has a lint error, so a conflict could hide in it. Run orbit-kb lint on it. It also blocks (project_kb_unclean).
+  WP4   a KB has more than one project_kb fact. Only the first is read. Keep one.
+  WP5   a claim pins a fact that rests on a fact in a contradiction. Only a warning: no claim pins it directly.
+  WP6   an analysis path is outside the project KB. Move the file under analyses/ of the project KB.
+  WP7   a fact rests on itself: a cycle of depends_on facts. Check each fact of the cycle.
+  EP1   an agent ratified a fact (error; add refuses it). Only a human ratifies.
+  EP2   a fact depends on itself or excludes itself (error; add refuses it).
+
+One writer (every KB, T27)
+  Every KB has one writer at a time, a spec KB too. The writer is the first that is set of
+  $ORBIT_KB_WRITER, $CLAUDE_CODE_SESSION_ID (Claude Code sets it), $CLAUDE_SESSION_ID, $HUB_SESSION.
+  With none, no lock is taken. A write command (add, subject, attest, run, prove, uses, pin-item,
+  pin-question, pin-answer, pin-request, apply-pending) claims the file writer.lock (NAME TIME). The holder goes on, and each
+  write renews its lease (TIME is the time of its last write). Another writer gets exit 2 and the name
+  of the holder.
+  The lock is a lease: after $ORBIT_KB_LEASE minutes (default 30) with no write by the holder, it lapses.
+  The next writer then takes it, and writer_takeover(From, To, Time) is recorded in kb.pl. From then on
+  the former holder gets exit 2, naming the new holder, until a release gives the lock back.
+  Ways forward:
+    orbit-kb release            the holder frees the lock. Run it when you hand the KB to another pane;
+                                the receiver's first write takes the lock.
+    ... --take                  (for example: orbit-kb add 'FACT' --take) the new writer takes the lock,
+                                and writer_takeover(From, To, Time) is recorded in kb.pl
+  Answers that the question server queued (answers.pending) are applied by the next write, before
+  its own facts (orbit-kb help serve).
+  Reads never need the lock. The lock is a record, not a guard: it does not stop a hand edit of kb.pl.

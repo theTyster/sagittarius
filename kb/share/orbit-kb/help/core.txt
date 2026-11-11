@@ -19,7 +19,11 @@ Facts
                                  for a claim that replaces it, add a new check (lint W5).
   world(Fact), source(Fact, Where)   the current state, and where you saw it.
                                  A fact that you did not record is false.
-  question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By), depends(Q, Q0)
+  question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By)
+  option(Q, Text, Effect)        an option of question Q, and what choosing it changes. The question
+                                 view (orbit-kb help view) shows each option with its effect. It changes no rule.
+  due(X, 'TIME')                 claim, check, or question X is due at TIME. While X is open
+                                 after TIME, blocking(past_due(X)) holds.
   ticket(S)                      subject S holds the ratified ticket
   scope(in|out, Text), risk(Id, Text), assumption(Id, Text), not_explored(Text)
   note(X, Text)                  a note about an existing id X (a claim, a question, r1).
@@ -32,31 +36,110 @@ Artifacts and records
     D=$(orbit-kb subject M PATH)   then use '$D' in the fact.
   The predicate digest(current) means the recorded digest of the subject.
 
+Who made a record (D28)
+  actor(A, Role, Session)        orbit-kb writes it after each attestation (attest, run, prove,
+                                 add) and each change. Role is --as ROLE of the command, else
+                                 ORBIT_KB_ROLE (build, review, discovery, a subagent label),
+                                 else unknown. Session is the writer of the KB: the first of
+                                 ORBIT_KB_WRITER, CLAUDE_CODE_SESSION_ID, CLAUDE_SESSION_ID,
+                                 HUB_SESSION, else unknown. --by human|agent keeps its meaning.
+                                 For run, put --as before --: orbit-kb run --as review k1 -- CMD
+  review_saw(R, Kind, Digest)    what reviewer R saw: the ticket, the KB, and the diff.
+                                 orbit-kb review start --as R --ticket F --diff A..B writes it.
+  rests_on_run(V, Run)           verdict V rests on run Run (attest disproof --rests-on).
+  add refuses these three facts: orbit-kb writes them. A limit: the role is self-reported.
+  orbit-kb cannot check it, as it cannot check --by human.
+  The tools catch mistakes, not cheating.
+
 Attestation types
   disclosure   guess(Q) | unverified(Text) | disagreement(Text) | out_of_scope(Text)
                | self_error(Text) | other(Text)                      agent or human
   divergence   claim(C) | hypothesis(H) | model(M)                   human or agent
                Put the description in a note.
-  disproof     verdict(C, refuted(Text) | inconclusive | abstained)  agent
-               Put the counterexample in the text of refuted.
+  disproof     verdict(C, upheld(Text) | refuted(Text) | inconclusive(Text) | abstained(Text))
+               agent. The text says what was tried. upheld(Text): the attempt did not break
+               the claim. Put the counterexample in the text of refuted. The bare inconclusive
+               and abstained are still valid (old KBs). Name the runs that the verdict rests
+               on: attest disproof C 'verdict(C, upheld(...))' --rests-on a7,a9 writes
+               rests_on_run(V, a7) and rests_on_run(V, a9). Each must be a test_result.
   approval     digest(current)                                       human only
   test_result  written by orbit-kb run only
 
 Queries (orbit-kb query 'current(C)' -n 0)
   current(C)         claim C is not superseded
   defeated(Q)        a human answer differs from the default of Q
-  to_ask(Q)          Q is unanswered, no human waived it, its claim is current, and the
-                     claim is contested or a question that Q depends on is defeated
+  to_ask(Q)          Q is unanswered, no human waived it, and its claim is current and contested
   contested(C)       one or more divergences name C
   contested_twice(C) two or more divergences name C
   refuted(C)         a verdict says that C is refuted
   passed(K)          the latest run of K passed
   was_red(K)         K failed before it passed
   stale(A)           approval A is for a digest that is no longer current
+  blocking(X)        X blocks done: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X),
+                     check_failing(K), check_unrun(K), waiver_lapsed(W), past_due(X),
+                     supersede_cycle(C), no_claim. orbit-kb show blocking prints each with its text.
 
-Local rules go in rules.pl beside kb.pl. They cannot change done, or the burn and flare
+Local rules go in rules.pl beside kb.pl. The first clause of a head declares it. Describe it in a
+line above that clause: %% doc: TEXT (lint W9 names a head with none). They cannot change done, or the burn and flare
 rules (lint reports E16). not p means that p has no answer (negation as failure), so
 not under(_) means "no under at all". A predicate must not depend on itself through not
 (lint E18). There is no classical negation: a fact that is not recorded is false.
-If the schema does not fit, declare what you need: orbit-kb declare ... --doc TEXT.
-Write one sentence about why. lint lists your extensions for review.
+If the schema does not fit, add a fact of a new predicate. Its first use declares it
+(orbit-kb help add), and lint lists it (W7) for review, and flags a name that looks like a
+typo of a declared one (E19). The guard has a cost: a real name 2 edits from a declared
+one, such as cited/2 next to cites/2, is refused too. Then choose another name. In the
+first add of a new kind, add may take one line of description:
+orbit-kb add 'FACT' --doc TEXT. It is optional. A kind of kb.pl with no description can
+get one later, in an add of one of its facts with --doc (once; a description is never
+rewritten). orbit-kb show kinds lists each kind with its description, and lint W9 names a
+kind with none.
+
+Rules for the KB
+  Size the KB to the work. A small change needs a few facts: the request, one claim, and one
+  check. Write a fact only if a query or the delivery report reads it.
+  Put the KB where it is useful. Commands find it from --dir, then $ORBIT_KB, then the nearest
+  parent directory that holds one. Do not commit the KB or its runs/ logs unless the human
+  asks: the delivery carries the evidence. In a hub (a project with HUB-CORE.md) the spec KB
+  lives at specs/<slug>/ and is committed, because git is the archive.
+  When the work moves to the other orbit, add its module (orbit-kb uses build, or orbit-kb
+  uses discovery), then run orbit-kb lint. The new module can add findings.
+
+DECOMPOSE: claims and questions
+  Every move reads the ticket text itself, so that an error in an earlier move does not pass on.
+  1. Split the ticket into claims. Give each claim one label (preserve, retire, introduce).
+  2. Each claim cites the ticket text that it serves. A claim with no citation is drift. Drop
+     it, or propose it to the human as a ticket change.
+  3. For each claim, record the questions that a careful reader would ask, each with your
+     default answer (assumed). These questions stay dormant: asking them all now would bury
+     the human in questions that may never matter. A question becomes to_ask when its claim
+     is contested. For each option, add option(Q, 'Text', 'Effect'): what choosing it
+     changes. Without options and effects, the human gets only an id, a text, and a default.
+  4. Restate each claim as one or more concrete examples, for example "Submit on /checkout
+     renders #6B3FA0". The human reads examples first. When the work has shifted up, the
+     human, the agent and the CPU all use the formal language as the shared substrate, and the
+     human reads, reviews and understands it, so write it to be read.
+  5. Mark a claim visual when the human must see the result to judge it (orbit-kb help build).
+
+Asking the human
+  Build on your default assumptions, unless a wrong default is costly or impossible to undo
+  (data loss, external effects, public interfaces, security, or money), or two defaults are
+  equally likely and the build is large. Then ask before you build:
+  - Ask at most three questions in one round. Choose them in this order. First, the questions
+    whose default is the most costly if it is wrong. Then, the questions whose answers also
+    settle other questions. The rest wait for the next round.
+  - Give concrete options, and mark your default.
+  - Do not ask the human to approve a list. A long list invites "approve all", and that is a
+    quiet failure.
+  In discovery, see also orbit-kb help discovery (ASKING).
+  Who owns a question: the ledger owns a question that waits only on the hub owner, the
+  tracker owns the others, and the spec KB pins both. When to pin: orbit-kb help build (PIN).
+
+One writer
+  Subagents of one pane share CLAUDE_CODE_SESSION_ID, so they count as one writer. The
+  writer lock does not keep them apart: two subagents that write one KB at once can
+  interleave their records. Give a KB to one subagent at a time, or write it yourself.
+
+Speed
+  Run independent tool calls in parallel. Give long mechanical work (wide searches, long test
+  runs) to a subagent on a fast model. A small task does not need a subagent.
+  Report results, not process.
