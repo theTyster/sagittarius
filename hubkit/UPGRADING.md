@@ -43,13 +43,39 @@ human before you start; this is a one-time merge.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.5.1 (db schema 5: a waiver holds an item for the human)
+
+The db schema is 5. **Database:** every hub at schema 4 (0.5.0, or 0.4.0 after the transcripts
+change) runs `python3 .claude/scripts/hubflow.py migrate` once, then `check` (T47 c2: the step to 5
+remakes `v_stale` and `v_retention_due`). A hub at schema 2 or 3 also follows the 0.5.0 section first.
+The kit version moves with the db schema (T48 c3): a hub that needs `migrate` sees a version change
+in the dry run (`upgrade 0.5.0 -> 0.5.1`). `.claude/scripts/hubflow.py`, `hubflow-test.py` and
+`.claude/skills/hub-flow/SKILL.md` are engine files: replace each that the hub did not change, and
+merge the others by intent (`git -C "$KIT" diff`).
+Owned file `CLAUDE.md`: no change in 0.5.1; it still imports the principles (`@PRINCIPLES.md` below
+`@HUB-CORE.md`, see 0.4.0). A hub that skipped 0.5.0 reads that section too.
+
+- **A park by `skip-waived` ends at the waiver's due time (T47 c2).** Intent: `parked_until` holds the
+  due time, not its date, so the item comes back when the waiver ends, not at the end of that day.
+  Files: `.claude/scripts/hubflow.py` (schema 5). Check: after `migrate`, `hubflow.py check` exits 0.
+- **A live waiver holds an item for the human (T47 c1, T48 c4).** Intent: an agent cannot end, for
+  good, an item whose spec KB is clear only by a live human waiver: its `close`, `set --status` and
+  `ref rm` of the kb ref are refused with a line that names the waiver, and its `triage lapse` becomes
+  escalate with a line that names the waiver; it may still keep or park such an item. Files:
+  `.claude/scripts/hubflow.py`, `.claude/skills/hub-flow/SKILL.md` (the skip-waived paragraph).
+  Check: `hubflow-test.py` passes (the t47-c1 and t48-c4 checks).
+- **An archived spec KB reads as archived (T47 c3, T48 c1).** Intent: a kb ref whose `specs/<slug>` is
+  gone and whose newest `spec-triage` decision is archive reads as archived (clear) in `rotate`,
+  `triage` and the agent guard, so its summary lapses at 28 days; a missing dir that was never
+  archived still counts as blocking. Files: `.claude/scripts/hubflow.py`. Check: `hubflow-test.py`
+  passes (the t47-c3 and t48-c1 checks).
+
 ### 0.5.0 (the informal edition: one rule set, one engine voice)
 
-The db schema is 5. **Database:** a hub made at 0.4.0 before the transcripts change has
+The db schema is 4, as in 0.4.0. **Database:** a hub made at 0.4.0 before the transcripts change has
 schema 2 or 3 (`hubflow.py check` exits 2): run `python3 .claude/scripts/hubflow.py migrate`, then
 `check`, and read the 0.4.0 entry "An agent, not code, puts meeting transcripts into the ledger".
-A hub at schema 4 also runs `migrate` once (T47 c2: the step to 5 remakes `v_stale` and
-`v_retention_due`, so a park by `skip-waived` ends at the waiver's due time, not at the end of its day).
+A hub already at schema 4 has nothing to migrate for 0.5.0 (0.5.1 moves it to schema 5).
 `HUB-CORE.md`, `PRINCIPLES.md` and both `SKILL.md` are engine files: merge each by intent.
 
 - **A hub knows its edition (T32).** Intent: an informal hub loads only informal rules (the five

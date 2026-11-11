@@ -129,7 +129,9 @@ Environment
                        shell words). hubflow only runs `--dir KB query GOAL -n 0`: for the state,
                        GOAL is blocking(X): exit 0 with lines = blocking, exit 1 = clear. Any other
                        exit, a missing command or a kb ref with no dir in specs/<slug> or
-                       W0..W5/analyses counts as blocking (fail-safe). The waiver commands of a skip
+                       W0..W5/analyses counts as blocking (fail-safe), unless the newest
+                       spec-triage decision of its slug is archive: then triage, the agent guard
+                       and rotate read it as archived (clear). The waiver commands of a skip
                        and skip-waived also query the checks and the waivers of the KB
   HUBFLOW_NOW          fixes the clock, YYYY-MM-DDTHH:MM:SSZ (tests). Every write stores it as
                        meta.now so views read the same clock; a read applies it to a private copy
@@ -1946,6 +1948,7 @@ def agent_guard(g, o, iid, what, waiver=False):
     esc_note = c.execute("SELECT note FROM disposition WHERE item_id = ? ORDER BY seq DESC LIMIT 1",
                          (it["id"],)).fetchone() if esc else None
     refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (it["id"],))]
+    refs = unarchived(c, hub_dir(g), refs)  # T48 c1: an archived spec KB reads as archived here too
     c.close()
     checks = kb_checks(hub_dir(g), refs) if it["status"] in OPEN and refs and not esc else []
     if esc or any(k["state"] != "clear" for k in checks):  # agent guard
@@ -1972,9 +1975,10 @@ def cmd_triage(g, a):
     it = get_item(c, iid)
     need_open(it)
     kb_refs = [r[0] for r in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (iid,))]
+    kb_refs = unarchived(c, hub_dir(g), kb_refs)  # T48 c1: an archived spec KB reads as archived here too
     esc = is_escalated(c, it["id"])
     c.close()
-    final, asked, detail = disp, None, None
+    final, asked, detail, hold = disp, None, None, None
     if by != "human" and disp != "escalate" and esc:  # escalated stays
         final, asked, detail = "escalate", disp, "escalated to the human; only --by human --note decides it"
     elif by != "human" and disp != "escalate" and kb_refs:  # agents escalate
@@ -2005,7 +2009,11 @@ def cmd_triage(g, a):
     run_write(g, o, fn)
     if asked:
         print(f"{iid} escalate (asked {asked}): {detail}")
-        print(f"{iid} stays open at the top of `view open` for the human; an agent cannot keep or lapse a blocking item")
+        if hold:  # T48 c4: the item is not blocking; the waiver holds it, and an agent may keep or park such an item
+            print(f"{iid} stays open at the top of `view open` for the human: the waiver ends it only until {hold[3]},"
+                  f" so an agent cannot lapse it (an agent may keep or park an item that a waiver holds)")
+        else:
+            print(f"{iid} stays open at the top of `view open` for the human; an agent cannot keep or lapse a blocking item")
     else:
         print(f"{iid} {final}")
 
@@ -2314,6 +2322,13 @@ def spec_archived(c, hub, ref):
     r = c.execute("SELECT new FROM event WHERE verb = 'spec_triage' AND old = ? ORDER BY seq DESC LIMIT 1",
                   (ref.partition("/")[0],)).fetchone()
     return r is not None and r[0] == "archive"
+
+
+def unarchived(c, hub, refs):
+    """T48 c1: the kb refs of `refs` whose spec KB was not archived (spec_archived). agent_guard and triage
+    read an archived spec KB as archived (clear), as rotate does; a missing dir that was never archived stays
+    in the list, and kb_checks reads it as unknown (fail-safe)."""
+    return [ref for ref in refs if not spec_archived(c, hub, ref)]
 
 
 def kb_held_summaries(c, hub, lapse):

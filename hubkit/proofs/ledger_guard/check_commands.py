@@ -9,7 +9,8 @@ command. An excluded command named in REASON_CHECKS also has its reason checked 
 of its cmd_ function (T33: spec-triage). A modelled command named in MODEL_CHECKS has the guard
 that its Cmd assumes checked in hubflow.py (T40 c7: rotate lapses no escalated summary and no
 summary whose kb answer is not clear, or is clear only by a live waiver (T47 c1); T40 c13, T42 c2 and c4: skip-waived parks no escalated item and
-no item whose kb answer is not clear in its write, and drops none). Exit 0
+no item whose kb answer is not clear in its write, and drops none; T48 c2: close, set and ref call agent_guard
+with waiver=True, the endGuard of Cmd.close, Cmd.setStatus and Cmd.refRmKb). Exit 0
 when they agree, 1 when not (each difference is printed), 2 on a parse error.
 Reads both files as text; runs and imports nothing.
 """
@@ -250,8 +251,29 @@ def skip_waived_guard(tree, fn):
     return out
 
 
-# modelled command -> the check that hubflow.py has the guard that its Cmd assumes (T40 c7, c13)
-MODEL_CHECKS = {"rotate": rotate_guard, "skip-waived": skip_waived_guard}
+def end_guard(tree, fn):
+    """The endGuard of Cmd.close, Cmd.setStatus and Cmd.refRmKb (T47 c1, checked since T48 c2): an agent may
+    not end an item whose kb answer is clear only by a live human waiver. In hubflow.py the cmd_ function
+    (cmd_close, cmd_set, cmd_ref) calls `agent_guard(...)` with the keyword `waiver=True` (a constant), at
+    its own level (not inside its write function), before its run_write. Returns the problems."""
+    inner = {id(n) for st in fn.body if isinstance(st, ast.FunctionDef) for n in ast.walk(st)}
+    writes = [i for i, st in enumerate(fn.body) if not isinstance(st, ast.FunctionDef)
+              and any(isinstance(n, ast.Call) and call_name(n) == "run_write" for n in ast.walk(st))]
+    guards = [(i, n) for i, st in enumerate(fn.body) for n in ast.walk(st)
+              if isinstance(n, ast.Call) and call_name(n) == "agent_guard" and id(n) not in inner]
+    ok = [i for i, n in guards if any(k.arg == "waiver" and isinstance(k.value, ast.Constant) and k.value.value is True
+                                      for k in n.keywords)]
+    if not ok:
+        return [f"{fn.name} does not call agent_guard(..., waiver=True) (Cmd endGuard: an agent may not end an item"
+                f" that a live waiver holds; T47 c1)"]
+    if writes and min(ok) > writes[0]:
+        return [f"{fn.name} calls agent_guard(..., waiver=True) after its run_write"]
+    return []
+
+
+# modelled command -> the check that hubflow.py has the guard that its Cmd assumes (T40 c7, c13; T48 c2)
+MODEL_CHECKS = {"rotate": rotate_guard, "skip-waived": skip_waived_guard,
+                "close": end_guard, "set": end_guard, "ref": end_guard}
 
 
 def lean_list(text, name):

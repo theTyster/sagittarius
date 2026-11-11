@@ -21,7 +21,8 @@ waiver commands run in orbit-kb), t42-c4- (skip-waived parks until the waiver's 
 precaution waiver does not skip), t42-c6- (check names what skip-waived would park) and t42-c7- (a lapsed
 waiver never counts). T47 checks start with t47-c1- (an agent cannot end an item that a live waiver
 holds), t47-c2- (the park lasts until the waiver's due time) and t47-c3- (an archived spec KB's summary
-lapses).
+lapses). T48 checks start with t48-c1- (an archived spec KB reads as archived in agent_guard and
+triage too) and t48-c4- (the message of a lapse that a waiver escalates names the waiver).
 Every scenario seeds its db from a seed file written into the temp dir (SEED_DATA below).
 Prints `PASS name` or `FAIL name: why` per case (`SKIP name: why` for a check that cannot run
 here, not counted); the last line is `N passed, M failed`.
@@ -95,6 +96,11 @@ MUTANTS = [
      "elif False:"),
     # T47 c3: an archived spec KB reads as archived, not as unknown
     ("archived-kb-reads-unknown", "if not spec_archived(c, hub, r[0])]  # archived: a human decision, not unknown", "]"),
+    # T48 c1: agent_guard and triage read an archived spec KB as archived too
+    ("archived-kb-reads-unknown-in-guard", "refs = unarchived(c, hub_dir(g), refs)  # T48 c1", "pass  # T48 c1"),
+    ("archived-kb-reads-unknown-in-triage", "kb_refs = unarchived(c, hub_dir(g), kb_refs)  # T48 c1", "pass  # T48 c1"),
+    ("archived-reading-not-fail-safe", "return [ref for ref in refs if not spec_archived(c, hub, ref)]",
+     "return [ref for ref in refs if kb_dir(hub, ref) is not None]"),
     ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
     ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
     ("capsule-without-rev", "rev = git_head(hub_dir(g))  # capsule rev", "rev = None"),
@@ -2905,6 +2911,77 @@ def case_t47_archived_summary(r, root):
             (res, status(d, gone)))
 
 
+
+# ---- T48: follow-ups of the T47 verify (c1, c4; c2 is in check_commands_test.py, c3 in hubkit-test.py) ----
+
+def case_t48_archived_reads(r, root):
+    """T48 c1: an archived spec KB reads as archived in agent_guard and triage too, not only in rotate.
+    After spec-triage archive (the dir is gone): an agent's triage lapse of a summary on it lapses, not
+    escalate; an agent's keep keeps, and rotate at 28 days lapses that summary; an agent may close one.
+    A summary whose kb dir is missing and was never archived still escalates and is refused (fail-safe)."""
+    stub = write_stub(root)
+    h = spec_hub(root, "t48-c1-hub", {"spec-x": None})
+    d = fresh(r, root, "t48-c1")
+    env = {"HUBFLOW_ORBIT_KB": stub}
+
+    def t(*args, **kw):
+        return hf(r, d, *args, hub=h, extra_env=env, **kw)
+
+    born = "2026-12-07T12:00:00Z"
+    tid = add(r, d, "thread", "Ticket spec-x", "--ref", "kb:spec-x", now=born)
+    s1 = add(r, d, "summary", "Standup one on spec-x", "--ref", "kb:spec-x", now=born)
+    s2 = add(r, d, "summary", "Standup two on spec-x", "--ref", "kb:spec-x", now=born)
+    s3 = add(r, d, "summary", "Standup three on spec-x", "--ref", "kb:spec-x", now=born)
+    g1 = add(r, d, "summary", "Standup on a spec KB that is not there", "--ref", "kb:spec-gone", now=born)
+    g2 = add(r, d, "summary", "Another standup on the missing spec KB", "--ref", "kb:spec-gone", now=born)
+    t("close", tid, "--reason", "done", "--by", "human", "--note", "\"the ticket is closed\" (Me)", now="2026-12-08T12:00:00Z")
+    shutil.rmtree(os.path.join(h, "specs", "spec-x"))  # the human's `git rm -r specs/spec-x`
+    res = t("spec-triage", "spec-x", "archive", "--note", "git rm done, history keeps it", now="2026-12-14T12:00:00Z")
+    r.check("t48-c1-setup-archived", res[0] == 0 and "spec-x archive" in res[1], res)
+    later = "2026-12-15T12:00:00Z"
+    res = t("triage", s1, "lapse", "--note", "the spec is archived", now=later)
+    r.check("t48-c1-agent-triage-lapse-of-archived-lapses", res[0] == 0 and status(d, s1) == "lapsed"
+            and disp(d, s1)[-1][:2] == ("lapse", None), (res, status(d, s1), disp(d, s1)))
+    res = t("triage", s2, "keep", "--note", "still read in standups", now=later)
+    r.check("t48-c1-agent-triage-keep-of-archived-keeps", res[0] == 0 and status(d, s2) == "open"
+            and disp(d, s2)[-1][:2] == ("keep", None), (res, disp(d, s2)))
+    res = t("close", s3, "--reason", "done", now=later)
+    r.check("t48-c1-agent-close-of-archived-not-refused", res[0] == 0 and status(d, s3) == "done", (res, status(d, s3)))
+    res = t("triage", g1, "lapse", "--note", "x", now=later)
+    r.check("t48-c1-missing-unarchived-triage-still-escalates", res[0] == 0 and status(d, g1) == "open"
+            and disp(d, g1)[-1][:2] == ("escalate", "lapse"), (res, disp(d, g1)))
+    res = t("close", g2, "--reason", "done", now=later)
+    r.check("t48-c1-missing-unarchived-close-still-refused", refused(res, 1, "treated as blocking") and status(d, g2) == "open", res)
+    res = t("rotate", "--week-start", "2027-01-04", "--yes", now="2027-01-04T12:00:00Z")
+    r.check("t48-c1-rotate-lapses-the-triaged-archived-summary-at-28-days", res[0] == 0 and s2 in (listed(res[1], "lapsed:") or [])
+            and status(d, s2) == "lapsed", (res, status(d, s2)))
+    r.check("t48-c1-rotate-keeps-the-unarchived-ones-open", status(d, g1) == "open" and status(d, g2) == "open", res)
+
+
+def case_t48_waiver_lapse_message(r, root):
+    """T48 c4: when a live waiver turns an agent's triage lapse into escalate, the message names the waiver
+    and its due time and says an agent may keep or park such an item; it does not say the item blocks."""
+    okb = real_orbit_kb()
+    name = "t48-c4-real-orbit-kb"
+    if not os.access(okb, os.X_OK):
+        r.skip(name, f"no orbit-kb at {okb}")
+        return
+    h = os.path.join(root, "t48-c4-hub")
+    bad = okb_steps(okb, os.path.join(h, "specs", "spec-w"), CLAIM,
+                    ("attest", "waiver", "k1", f"waive(k1, '{WAIVED_DUE}', 'the human skips this')", "--by", "human"))
+    if bad:
+        r.skip(name, bad)
+        return
+    d = fresh(r, root, "t48-c4")
+    env = {"HUBFLOW_ORBIT_KB": okb}
+    a1 = add(r, d, "ask", "An item behind the waived spec", "--ref", "kb:spec-w")
+    code, out, err = hf(r, d, "triage", a1, "lapse", "--note", "nothing left to do", hub=h, extra_env=env)
+    r.check("t48-c4-setup-lapse-escalates", code == 0 and disp(d, a1)[-1][:2] == ("escalate", "lapse"), (code, out, err))
+    r.check("t48-c4-message-names-the-waiver", "kb:spec-w" in out and WAIVED_DUE in out and "waive" in out, out)
+    r.check("t48-c4-message-says-an-agent-may-keep-or-park", re.search(r"may keep or park", out) is not None, out)
+    r.check("t48-c4-message-does-not-say-blocking", "blocking" not in out and "cannot keep" not in out, out)
+
+
 def case_t40_words_and_refs(r, root):
     """T40 c12: the SKILL example summary states no decision; HUB-CORE raw_reports says an agent reads and
     records; --find of a deleted ref file says it is missing; a ref name with a newline, '..' or '@' is refused."""
@@ -3104,6 +3181,9 @@ def cases(r):
         run_case(r, case_t47_waiver_guard, root)
         run_case(r, case_t47_park_time, root)
         run_case(r, case_t47_archived_summary, root)
+        # T48: the T47 follow-ups
+        run_case(r, case_t48_archived_reads, root)
+        run_case(r, case_t48_waiver_lapse_message, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))

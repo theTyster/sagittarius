@@ -5,7 +5,7 @@ usage: python3 -I tools/hubkit-test.py [--mutants]
   --mutants  also run the suite against each rule mutant of hubkit.py; each must make a case fail.
 Prints `PASS name` or `FAIL name: why` per case; the last line is `N passed, M failed`.
 """
-import hashlib, json, os, shutil, stat, subprocess, sys, tempfile
+import hashlib, json, os, re, shutil, stat, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
@@ -155,12 +155,63 @@ def case_status_upgrade(r, root, hub):
     r.check("done-clears-pending", res[0] == 0 and manifest(hub).get("pending") == [], (res, manifest(hub)))
 
 
+
+# T48 c3: the kit version moves with the db schema. 0.5.0 shipped db schema 4 (92cf33b); schema 5 (T47 c2)
+# is a new kit version, so `upgrade` of a 0.5.0 hub shows a version change and its section says `migrate`.
+SHIPPED_SCHEMA = {"0.5.0": 4}
+
+
+def upgrading_sections(text):
+    """[(version, body)] of the `### X.Y.Z` release sections of UPGRADING.md, newest first."""
+    parts = re.split(r"^### (\d+\.\d+\.\d+)[^\n]*\n", text, flags=re.M)
+    return list(zip(parts[1::2], parts[2::2]))
+
+
+def case_t48_version_moves_with_schema(r, root):
+    with open(os.path.join(KIT, "kit.json"), encoding="utf-8") as f:
+        version = json.load(f)["version"]
+    with open(os.path.join(KIT, "UPGRADING.md"), encoding="utf-8") as f:
+        secs = upgrading_sections(f.read())
+    with open(os.path.join(KIT, "hub", ".claude", "scripts", "hubflow.py"), encoding="utf-8") as f:
+        m = re.search(r"^SCHEMA_VERSION = (\d+)$", f.read(), re.M)
+    schema = int(m.group(1)) if m else None
+
+    def stated(body):
+        x = re.search(r"The db schema is (\d+)", body)
+        return int(x.group(1)) if x else None
+
+    heads = [v for v, _ in secs]
+    r.check("t48-c3-newest-upgrading-section-is-the-kit-version", heads[:1] == [version], (version, heads[:3]))
+    r.check("t48-c3-newest-section-states-the-script-schema", secs and stated(secs[0][1]) == schema,
+            (schema, secs[0][1][:200] if secs else None))
+    r.check("t48-c3-newest-section-says-migrate", secs and "hubflow.py migrate" in secs[0][1], secs[0][1][:300] if secs else None)
+    for v, n in SHIPPED_SCHEMA.items():
+        body = dict(secs).get(v, "")
+        r.check(f"t48-c3-section-{v}-states-the-schema-it-shipped", stated(body) == n, (v, n, stated(body)))
+    # a release may keep the schema (0.4.0 and 0.5.0 both shipped 4); a newer section never states an older one
+    seen = [stated(b) for _, b in secs if stated(b) is not None]
+    r.check("t48-c3-db-schema-never-goes-down-in-a-newer-section", seen == sorted(seen, reverse=True), seen)
+    # a hub at the release before this schema: upgrade shows a version change
+    hub = os.path.join(root, "t48-c3-hub")
+    res = hk(r, "install", "--kit", KIT, "--hub", hub, "--edition", "informal")
+    r.check("t48-c3-setup-install-real-kit", res[0] == 0, res)
+    old = "0.5.0"  # shipped schema 4 (SHIPPED_SCHEMA); a hub made then needs `migrate` to reach schema 5
+    mf = manifest(hub)
+    mf["template_version"] = old
+    with open(os.path.join(hub, ".hub-template.json"), "w", encoding="utf-8") as f:
+        json.dump(mf, f)
+    res = hk(r, "upgrade", "--kit", KIT, "--hub", hub)
+    r.check("t48-c3-upgrade-of-a-0.5.0-hub-shows-a-version-change", res[0] == 0
+            and f"upgrade {old} -> {version} " in res[1] and old != version, res)
+
+
 def cases(r):
     root = tempfile.mkdtemp(prefix="hubkit-test-")
     try:
         case_real_kit(r)
         hub = case_install(r, root)
         case_status_upgrade(r, root, hub)
+        case_t48_version_moves_with_schema(r, root)
     except Exception as e:
         r.check("scenario-ran", False, repr(e))
     finally:

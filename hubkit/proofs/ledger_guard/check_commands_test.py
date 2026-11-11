@@ -14,6 +14,9 @@ T40 c13: skip-waived is modelled. check_commands.py checks that its write functi
 item open; T42 c2, c4: that it checks the kb refs again in the write, and that it parks, never drops.
 Each skip-waived mutant below must print
 `FAIL skip-waived: the modelled skip-waived guard does not hold in hubflow.py: ...`.
+T48 c2: close, set and ref are modelled with endGuard (Cmd.close, Cmd.setStatus, Cmd.refRmKb).
+check_commands.py checks that each calls agent_guard with waiver=True; each END_MUTANTS entry must print
+`FAIL CMD: the modelled CMD guard does not hold in hubflow.py: ...` naming waiver=True.
 Prints `PASS name` or `FAIL name: why` per check; the last line is `N passed, M failed`.
 Exit 0 only if every check passes.
 """
@@ -107,6 +110,21 @@ SKIP_MUTANTS = [
      'c.execute("UPDATE item SET status = \'dropped\', parked_until = ? WHERE id = ?", (until, iid))'),
 ]
 
+# T48 c2: close, set --status and ref rm kb call agent_guard with waiver=True (the endGuard of Cmd.close,
+# Cmd.setStatus and Cmd.refRmKb). check_commands.py checks each call; each mutant below drops it.
+END_MUTANTS = [
+    ("close", "close-drops-waiver",
+     'agent_guard(g, o, pos[0], "close", waiver=True)', 'agent_guard(g, o, pos[0], "close")'),
+    ("set", "set-status-drops-waiver",
+     'agent_guard(g, o, pos[0], "change the status of", waiver=True)', 'agent_guard(g, o, pos[0], "change the status of")'),
+    ("ref", "ref-rm-drops-waiver",
+     'agent_guard(g, o, pos[0], "remove the kb ref of", waiver=True)', 'agent_guard(g, o, pos[0], "remove the kb ref of")'),
+    ("close", "close-waiver-false",
+     'agent_guard(g, o, pos[0], "close", waiver=True)', 'agent_guard(g, o, pos[0], "close", waiver=False)'),
+    ("close", "close-guard-dropped",
+     '        agent_guard(g, o, pos[0], "close", waiver=True)\n', '        pass\n'),
+]
+
 results = []
 
 
@@ -180,6 +198,25 @@ def main():
                 f.write(src.replace(anchor, repl))
             code, mout = run(path)
             check(f"t40-c13-mutant-{name}-caught", code == 1 and SKIP_FAIL in mout, (code, mout))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    for cmd in ("close", "set", "ref"):
+        check(f"t48-c2-real-hubflow-{cmd}-end-guard-checked",
+              f"FAIL {cmd}:" not in real_out and re.search(rf"OK {cmd}: modelled guard checked", real_out), real_out)
+    for cmd, name, anchor, repl in END_MUTANTS:
+        n = src.count(anchor)
+        if n != 1:
+            check(f"t48-c2-mutant-{name}-caught", False, f"anchor occurs {n} times")
+            continue
+        d = tempfile.mkdtemp(prefix="check-commands-mutant-")
+        try:
+            path = os.path.join(d, "hubflow.py")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(src.replace(anchor, repl))
+            code, mout = run(path)
+            want = f"FAIL {cmd}: the modelled {cmd} guard does not hold in hubflow.py"
+            check(f"t48-c2-mutant-{name}-caught", code == 1 and want in mout and "waiver=True" in mout, (code, mout))
         finally:
             shutil.rmtree(d, ignore_errors=True)
 

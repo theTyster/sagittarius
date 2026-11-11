@@ -3,7 +3,8 @@
 ## Redesign (informal release)
 
 Ty makes the release. This entry lists what is in the `redesign` branch. The hub kit is version
-0.5.0 (`hubkit/kit.json`).
+0.5.1 (`hubkit/kit.json`; T48 c3: db schema 5 ships as 0.5.1, the kit version moves with the
+schema).
 
 ### What landed
 
