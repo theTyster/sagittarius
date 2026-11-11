@@ -10,7 +10,7 @@
 #
 # Input hash (the contract of c2): sha256 over the bytes of the facts file, then one NUL byte,
 # then the bytes of the containers file. The map carries `map@` and the first 12 hex digits.
-# Requirement map: C1a-C1d (c1), C2a-C2d (c2), C3a-C3b (c3), U1 U2 (usage), D1 D2a-c D3 (review fixes),
+# Requirement map: C1a-C1d (c1), C2a-C2d (c2), C3a-C3b (c3), U1 U2 H1 (usage; H1 is T51 c4: --help), D1 D2a-c D3 (review fixes),
 #   L3a-L3e (ticket T29 c8: --level c3 --container ID, the components of one container).
 # ONLY='<regex>' runs only the tests whose id matches.
 set -u
@@ -192,6 +192,12 @@ t_U2() {  # no arguments: the usage line, not a file error (T15 found the preced
     rm_run; rc_is 2 "no args"; err_has '^usage: repo-map' "no args prints usage"; err_hasnt 'cannot read a file' "no args is not a file error"
 }
 
+t_H1() {  # T51 c4: --help prints the usage on stdout and exits 0; no arguments still exits 2
+    rm_run --help; rc_is 0 "--help"; out_has '^usage: repo-map' "--help prints usage on stdout"
+    out_has 'level c3' "--help names the c3 form"
+    rm_run; rc_is 2 "no args still exits 2"
+}
+
 # ---------------------------------------------------------------- review fixes (D1-D3)
 err_has() { printf '%s\n' "$err" | grep -Eq -- "$1" || note "${2:+$2: }stderr lacks /$1/ (stderr: $(snip "$err"))"; }
 err_hasnt() { printf '%s\n' "$err" | grep -Eq -- "$1" && note "${2:+$2: }stderr has /$1/, it must not (stderr: $(snip "$err"))"; return 0; }
@@ -310,7 +316,7 @@ t_L3e() {  # the map of a C3 level: same hash rule; no path, no location
     rm_run --facts "$base/l3e/kb.pl" --containers "$base/l3e/containers.pl" --level c3 --container web; rc_is 2 "colliding component ids are refused"
 }
 
-for t in C1a C1b C1c C1d C2a C2b C2c C2d C3a C3b U1 U2 D2a D2b D2c D1 D3 L3a L3b L3c L3d L3e; do
+for t in C1a C1b C1c C1d C2a C2b C2c C2d C3a C3b U1 U2 H1 D2a D2b D2c D1 D3 L3a L3b L3c L3d L3e; do
     if [ -n "${ONLY:-}" ] && ! [[ $t =~ $ONLY ]]; then continue; fi
     FAILS=(); "t_$t"
     if [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $t"
