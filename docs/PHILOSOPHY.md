@@ -159,7 +159,7 @@ Fixed tiers, chosen at the start, failed. Nobody knows how much must be formal u
 misunderstanding occurs. In practice, the middle tiers emptied into the lowest and the highest.
 
 Applied in: prompt "Start light", "When to shift up" (also leaning back); the System 1 hook
-(`s1/hook.py`); deck slides 12 and 30.
+(`s1/hook.py`).
 
 ### 8. Speed comes from skipping work, never from hiding it
 
@@ -216,8 +216,7 @@ demands precision: a statement says exactly what it means, or it does not check.
 store (Prolog, with SWI-Prolog as the engine) keeps the facts of the work in one place. Its rules keep attention on
 what is still open.
 
-Applied in: prompt "When to shift up" (a claim that burns); `orbit-kb help discovery` (SPECTRUM);
-deck slide 14.
+Applied in: prompt "When to shift up" (a claim that burns); `orbit-kb help discovery` (SPECTRUM).
 
 ### 12. Memory lives outside the agent
 

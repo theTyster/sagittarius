@@ -96,10 +96,10 @@ t_C1a() {  # the example renders both diagrams for sagittarius
     out_has 'System\(sagittarius,' "this repo is a System in C1"
     out_has 'Container_Boundary\(sagittarius,' "this repo is the boundary in C2"
 }
-t_C1b() {  # C2 lists the seven parts of the repo
+t_C1b() {  # C2 lists the six parts of the repo (T50 removed site)
     rm_run --facts "$EX_KB" --containers "$EX_CT"; rc_is 0
     local c
-    for c in prompt orbit_kb hubkit s1 evals site docs; do out_has "Container\\($c," "container $c"; done
+    for c in prompt orbit_kb hubkit s1 evals docs; do out_has "Container\\($c," "container $c"; done
     out_has 'Rel\(' "links"
 }
 t_C1c() {  # the output is well-formed Mermaid C4 (structure only, not rendered)
@@ -111,7 +111,7 @@ t_C1c() {  # the output is well-formed Mermaid C4 (structure only, not rendered)
 }
 t_C1d() {  # the example is truthful: the paths of the parts that exist today exist
     local p
-    for p in prompt/SAGITTARIUS.md kb/bin/orbit-kb hubkit/hub/.claude/scripts/hubflow.py s1/jev.py evals/run.sh site/index.html docs/PHILOSOPHY.md; do
+    for p in prompt/SAGITTARIUS.md kb/bin/orbit-kb hubkit/hub/.claude/scripts/hubflow.py s1/jev.py evals/run.sh docs/PHILOSOPHY.md; do
         [ -e "$repo/$p" ] || note "missing $p"
     done
     [ -f "$EX_CT" ] || { note "no committed containers example $EX_CT"; return; }

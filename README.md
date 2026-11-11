@@ -13,9 +13,6 @@ interface (the harness, such as Claude Code) and the software factory (the inter
 agent and the project). It is an inference, reasoning and knowledge-graph layer: Prolog KBs,
 Lean proofs, and a small model (System 1) that reads each message.
 
-The idea in thirteen slides: [`site/essentials.html`](site/essentials.html). The full story, with
-the timeline and every mechanism, is in 35 slides: [`site/index.html`](site/index.html).
-
 ## Use it
 
 Only the hub, with no Prolog and no Lean? That is the informal release: see [`hubkit/README.md`](hubkit/README.md).
@@ -107,7 +104,6 @@ python3 hubkit/tools/hubkit-test.py
 |---|---|
 | `prompt/` | The live system prompt, and the prompts for the three panes (`PANES.md`, `panes/`). |
 | `kb/` | `orbit-kb`: `CONTRACT.md` (what the tests hold it to), `bin/`, `share/orbit-kb/` (core rules, the build and discovery modules, the Lean probe), `tests/` (the black-box suite, fixtures, and a Lean model of the burn rules). |
-| `site/` | The two decks, published at https://thetyster.github.io/sagittarius/ (the short deck; the full deck is at `full.html`) by `.github/workflows/pages.yml` on each push to `main` that touches `site/`. `essentials.html` is generated from `index.html` by `build_essentials.py`; the workflow fails if it is stale. |
 | `s1/` | System 1, the hook that adds hints to each message. The install is manual. It is off until the question set is approved. See `s1/README.md`. |
 | `hubkit/` | The hub kit: a template for a hub of named sessions (see "Hub kit"). |
 | `docs/` | `PHILOSOPHY.md` (why the process is as it is), `REFINING.md`, `PROMPT-MOVES.md`, and the checks for the prompt and the panes (`check_*.py`). |
@@ -130,5 +126,4 @@ repository, not to this one.
 ```sh
 bash kb/tests/test_orbit_kb.sh             # the orbit-kb suite (about a minute)
 kb/tests/burn_model/check.sh               # the Lean model of the burn rules (needs Lean 4)
-python3 site/build_essentials.py           # regenerate the short deck
 ```
