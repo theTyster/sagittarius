@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T31: an agent in a hub can run what the hub guidance tells it. One check per claim.
 
-usage: python3 docs/check_hub_fixes.py t31c1|...|t31c9|t46c3 (t31c7 is superseded by t31c8, t46c2 by t46c3) [--list]   (--list prints the claim ids)
+usage: python3 docs/check_hub_fixes.py t31c1|...|t31c9|t46c3|t49c1 (t31c7 is superseded by t31c8, t46c2 by t46c3) [--list]   (--list prints the claim ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 t31c1 runs the project KB setup line that hubkit/INSTRUCTIONS.md (and hubkit/README.md, when it has one) gives.
@@ -20,6 +20,8 @@ t46c2 help project, next to the automatic record of a dropped edit (T45), and th
       (INSTRUCTIONS.md Step 5, HUB-CORE.md) say how a pane gets HUB_SESSION. Superseded by t46c3.
 t46c3 the same, with the orbit-kb text of INSTRUCTIONS.md in "The formal edition" (t32c2 bans formal words
       elsewhere) and Step 5 pointing to it.
+t49c1 (u114, u120, u125, u127) the formal weeks row of "What lives where" in hubkit/hub/HUB-CORE.md takes the
+      design KB text of kg_def_v2(weeks) word for word: it names human transcripts and Claude Code session logs.
 """
 import os
 import re
@@ -244,10 +246,32 @@ def t46c3():
     t46_core()
 
 
+T49C1_TEXT = ("The raw material of each week: meeting and other human transcripts, Claude Code session logs, and the "
+              "reports written that week. An agent reads a human transcript and records what is needed in the ledger, "
+              "with a transcript ref; Claude Code session logs are indexed into the ledger; analyses that last go to "
+              "the project KB.")
+
+
+def t49c1():
+    core = read(os.path.join(HUB, "HUB-CORE.md"))
+    m = re.search(r"^## What lives where\n(.*?)(?=^## )", core, re.S | re.M)
+    sec = m.group(1) if m else ""
+    check("t49c1 HUB-CORE.md has the What lives where section", bool(sec), "missing")
+    rows = [l for l in sec.splitlines() if l.startswith("| `weeks` |")]
+    check("t49c1 the formal weeks row is found", len(rows) == 1, rows)
+    row = rows[0] if rows else ""
+    check("t49c1 the weeks row names human transcripts", "human transcripts" in row, row[:300])
+    check("t49c1 the weeks row names Claude Code session logs", "Claude Code session logs" in row, row[:300])
+    check("t49c1 the weeks row has the design KB text word for word", T49C1_TEXT in row, row[:400])
+    p = subprocess.run([sys.executable, os.path.join(ROOT, "hubkit", "tools", "storemap.py"), "--check"],
+                       capture_output=True, text=True)
+    check("t49c1 storemap --check passes", p.returncode == 0, p.stdout[-200:] + p.stderr[-200:])
+
+
 # t46c2 is superseded by t46c3: its Step 5 check conflicts with t32c2. It stays above as the record.
 # t31c7 is superseded by t31c8 (u47): its second check pinned the T29 wording, which u47 says is too narrow.
 # The function stays above as the record. It is no longer a claim of this file.
-CLAIMS = {k: globals()[k] for k in ("t31c1", "t31c2", "t31c3", "t31c4", "t31c5", "t31c6", "t31c8", "t31c9", "t46c3")}
+CLAIMS = {k: globals()[k] for k in ("t31c1", "t31c2", "t31c3", "t31c4", "t31c5", "t31c6", "t31c8", "t31c9", "t46c3", "t49c1")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
