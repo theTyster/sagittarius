@@ -96,6 +96,11 @@ MUTANTS = [
      "elif False:"),
     # T47 c3: an archived spec KB reads as archived, not as unknown
     ("archived-kb-reads-unknown", "if not spec_archived(c, hub, r[0])]  # archived: a human decision, not unknown", "]"),
+    # T48 c1: agent_guard and triage read an archived spec KB as archived too
+    ("archived-kb-reads-unknown-in-guard", "refs = unarchived(c, hub_dir(g), refs)  # T48 c1", "pass  # T48 c1"),
+    ("archived-kb-reads-unknown-in-triage", "kb_refs = unarchived(c, hub_dir(g), kb_refs)  # T48 c1", "pass  # T48 c1"),
+    ("archived-reading-not-fail-safe", "return [ref for ref in refs if not spec_archived(c, hub, ref)]",
+     "return [ref for ref in refs if kb_dir(hub, ref) is not None]"),
     ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
     ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
     ("capsule-without-rev", "rev = git_head(hub_dir(g))  # capsule rev", "rev = None"),

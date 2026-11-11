@@ -188,8 +188,9 @@ def case_t48_version_moves_with_schema(r, root):
     for v, n in SHIPPED_SCHEMA.items():
         body = dict(secs).get(v, "")
         r.check(f"t48-c3-section-{v}-states-the-schema-it-shipped", stated(body) == n, (v, n, stated(body)))
+    # a release may keep the schema (0.4.0 and 0.5.0 both shipped 4); a newer section never states an older one
     seen = [stated(b) for _, b in secs if stated(b) is not None]
-    r.check("t48-c3-each-db-schema-ships-in-one-kit-version", len(seen) == len(set(seen)), seen)
+    r.check("t48-c3-db-schema-never-goes-down-in-a-newer-section", seen == sorted(seen, reverse=True), seen)
     # a hub at the release before this schema: upgrade shows a version change
     hub = os.path.join(root, "t48-c3-hub")
     res = hk(r, "install", "--kit", KIT, "--hub", hub, "--edition", "informal")
