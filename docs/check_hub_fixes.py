@@ -268,10 +268,18 @@ def t49c1():
     check("t49c1 storemap --check passes", p.returncode == 0, p.stdout[-200:] + p.stderr[-200:])
 
 
+def t51c5():
+    ins = read(os.path.join(ROOT, "hubkit", "INSTRUCTIONS.md"))
+    lines = [l for l in ins.splitlines() if l.startswith("docs/index.html")]
+    check("t51c5 INSTRUCTIONS lists docs/index.html", len(lines) == 1, lines)
+    check("t51c5 nothing says the briefing is published as the repo's site", "published as the repo" not in ins,
+          [l for l in ins.splitlines() if "published as the repo" in l])
+
+
 # t46c2 is superseded by t46c3: its Step 5 check conflicts with t32c2. It stays above as the record.
 # t31c7 is superseded by t31c8 (u47): its second check pinned the T29 wording, which u47 says is too narrow.
 # The function stays above as the record. It is no longer a claim of this file.
-CLAIMS = {k: globals()[k] for k in ("t31c1", "t31c2", "t31c3", "t31c4", "t31c5", "t31c6", "t31c8", "t31c9", "t46c3", "t49c1")}
+CLAIMS = {k: globals()[k] for k in ("t31c1", "t31c2", "t31c3", "t31c4", "t31c5", "t31c6", "t31c8", "t31c9", "t46c3", "t49c1", "t51c5")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
