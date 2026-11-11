@@ -233,8 +233,8 @@ def case_t51_c1_installed_hub_orbit_kb(r, root):
     tools = [os.path.dirname(x) for x in (shutil.which("env"), shutil.which("sh")) if x]
     p = subprocess.run([sys.executable, "-I", script, "--case", "case_real_orbit_kb"], capture_output=True, text=True,
                        cwd=hub, env=clean_env(os.pathsep.join([bindir] + tools)), timeout=600)
-    r.check("t51c1-orbit-kb-on-path-runs-the-real-case", p.returncode == 0 and "PASS c2-real-orbit-kb" in p.stdout
-            and "SKIP" not in p.stdout, (p.returncode, p.stdout[-400:], p.stderr[-200:]))
+    r.check("t51c1-orbit-kb-on-path-runs-the-real-case", p.returncode == 0 and "PASS c2-real-query-open-question" in p.stdout
+            and "SKIP" not in p.stdout and "FAIL" not in p.stdout, (p.returncode, p.stdout[-400:], p.stderr[-200:]))
     empty = os.path.join(root, "t51c1-empty")
     os.makedirs(empty)
     p = subprocess.run([sys.executable, "-I", script, "--case", "case_real_orbit_kb"], capture_output=True, text=True,

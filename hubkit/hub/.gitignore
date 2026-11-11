@@ -2,3 +2,6 @@ flow/flow.db
 flow/flow.db-wal
 flow/flow.db-shm
 flow/flow.db.bak-*
+# orbit-kb lock files (a KB's kb.lock and writer.lock); the KB itself is committed
+kb.lock
+writer.lock

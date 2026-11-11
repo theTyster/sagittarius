@@ -16,13 +16,14 @@
 :- dynamic r_repo/2, c_repo/1, c_person/3, c_external/3, c_container/4, c_link/3, c_about/2,
            c_component/5.
 
-usage :-
-    format(user_error, "usage: repo-map --facts KB_PL --containers CONTAINERS_PL [--level c1|c2|both]~n", []),
-    format(user_error, "       repo-map --facts KB_PL --containers CONTAINERS_PL --level c3 --container ID~n", []),
-    halt(2).
+usage_lines(S) :-
+    format(S, "usage: repo-map --facts KB_PL --containers CONTAINERS_PL [--level c1|c2|both]~n", []),
+    format(S, "       repo-map --facts KB_PL --containers CONTAINERS_PL --level c3 --container ID~n", []).
+usage :- usage_lines(user_error), halt(2).
 die(Fmt, Args) :- format(user_error, Fmt, Args), nl, halt(2).
 
 main(Argv) :-
+    (   memberchk('--help', Argv) -> usage_lines(user_output), halt(0) ; true ),
     parse_args(Argv, Facts, Cont, Level, Box),
     (   ( Facts == none ; Cont == none ) -> usage ; true ),
     (   Level == c3, Box == none -> die("repo-map: --level c3 needs --container ID (the container to show)", [])

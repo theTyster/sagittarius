@@ -140,12 +140,23 @@ A formal hub has more writes that need `HUB_SESSION`: see "The formal edition" b
 
 ## Step 6: commit
 
+Informal edition:
+
 ```
 git add .gitignore .hub-template.json CLAUDE.md HUB-CORE.md PRINCIPLES.md HEURISTICS.md TECHNOLOGIES.md .claude flow/seed.json flow/jsonl W0
 git commit -m "hub: initial layout and flow db"
 ```
 
-**Check:** `git status` is clean, and `git ls-files flow` lists the JSONL but no `flow.db`.
+Formal edition: the same, and the two stores of "The formal edition" below, `project-kb/` and `specs/`
+(skip a store that does not exist yet; `git add` names no missing path):
+
+```
+git add .gitignore .hub-template.json CLAUDE.md HUB-CORE.md PRINCIPLES.md HEURISTICS.md TECHNOLOGIES.md .claude flow/seed.json flow/jsonl W0 project-kb specs
+git commit -m "hub: initial layout and flow db"
+```
+
+**Check:** `git status` is clean, and `git ls-files flow` lists the JSONL but no `flow.db`. A KB's
+`kb.lock` and `writer.lock` are ignored by the kit `.gitignore`.
 
 ## Step 7: report to your human
 
