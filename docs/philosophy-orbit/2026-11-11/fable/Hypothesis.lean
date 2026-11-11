@@ -13,6 +13,11 @@ examples: a defect ("members got the wrong loyalty points") and a feature ("add 
 mode", with the author's own attempt at its hypothesis). Section 11 shows what the
 definition does not decide. Astra's review of the first version of this file found it.
 
+Two words stay apart in this file. **Held** is about the statement: the statement needs
+the word. A **guess** is about the human: the statement speaks about a case that nobody
+has judged. A hypothesis can have every word held, and still guess. Section 3 has both.
+Astra's review of the second version asked for this.
+
 The author's words that this file tries to state exactly:
 
 * "A properly written hypothesis is the weakest form of a statement that doesn't collapse
@@ -21,7 +26,7 @@ The author's words that this file tries to state exactly:
 * "We call it a hypothesis because it's an attempt at defining the actual intent that the
   user is chasing."
 * The question that a case asks the human: "is this case your intent?"
-* "now you've got clear defaults to work from" (a default is a guess: section 2)
+* "now you've got clear defaults to work from" (a default is a guess: section 3)
 * "narrow down what was liked and what was disliked" (section 7)
 -/
 
@@ -114,15 +119,17 @@ theorem fewer_claims_demand_less (h : Hyp Case) (q₀ : h.Claim) (c : Case) :
     h.req c → h.withoutClaim q₀ c :=
   fun hr hp q _ => hr hp q
 
-/-- A premise is held in place: without it, the statement is out. -/
+/-- A premise is held in place: the statement needs it. Without it, the statement is out. -/
 def PremiseHeld (j : Judgments Case) (h : Hyp Case) (p : h.Premise) : Prop :=
   Out j (h.withoutPremise p)
 
-/-- A claim is held in place: without it, the statement is out.
+/-- A claim is held in place: the statement needs it. Without it, the statement is out.
 
-A word that is not held is a **guess**: a default of the writer that no judgment supports
-yet. A hypothesis can carry guesses while the work goes on. Each guess is listed, and one
-case would decide it. -/
+A word that is not held is spare: without it, the statement still fits, and it can still
+fail. Remove a spare word, or show the human the case that would hold it.
+
+"Held" is about the statement. It does not say that the human agrees with what the word
+says. Section 3 keeps the two apart. -/
 def ClaimHeld (j : Judgments Case) (h : Hyp Case) (q : h.Claim) : Prop :=
   Out j (h.withoutClaim q)
 
@@ -137,10 +144,13 @@ def Hyp.HasExample (h : Hyp Case) : Prop :=
 2. `can_hold`: it has an example. Some case meets it, so a build can fulfill it.
 3. `can_fail`: it has a falsifier. Some case would show a build wrong.
 4. `premises_held`, `claims_held`: no word can be removed. Every premise and every claim
-   is held in place. It has no guess left.
+   is held in place. No word is spare.
 
 Points 2 and 3 together are "it does not collapse": it is not true of every case, and it
-is not false of every case. -/
+is not false of every case.
+
+Properly written is a test of the form of an attempt, for what is known so far. It is not
+a confirmation by the human (section 3). -/
 structure ProperlyWritten (j : Judgments Case) (h : Hyp Case) : Prop where
   fits : Fits j h.req
   can_hold : h.HasExample
@@ -148,10 +158,22 @@ structure ProperlyWritten (j : Judgments Case) (h : Hyp Case) : Prop where
   premises_held : ∀ p, PremiseHeld j h p
   claims_held : ∀ q, ClaimHeld j h q
 
-/-! ## 3. What holds each word in place
+/-! ## 3. What holds each word in place, and what a guess is
 
-These theorems are why "is this case your intent?" is the question to ask. Each word of
-a properly written hypothesis rests on a case that the human judged. -/
+"Held" and "confirmed" are two judgments. Held: the statement needs the word. Confirmed:
+the human judged a case that way. This section keeps them apart.
+
+* A premise of a properly written hypothesis always has a judged case behind it
+  (`premise_held_by_wanted_case`).
+* A claim has a judged case behind it (`ClaimSupported`), or it is all that keeps the
+  statement from collapse (`ClaimIsCore`), or both (`claim_held_two_ways`).
+* With no judgment at all, a statement can still be properly written
+  (`proper_with_no_judgments`). So "properly written" does not mean "confirmed".
+* A guess is what a statement says about a case that nobody has judged (`Unjudged`). The
+  judgments do not test it (`fits_ignores_unjudged`).
+
+This is why "is this case your intent?" is the question to ask. A judged case is the only
+thing that turns a guess into support. -/
 
 /-- What holds a premise in place: a case that the human wants, and that the hypothesis
 would reject without that premise. -/
@@ -169,12 +191,20 @@ theorem premise_held_by_wanted_case (j : Judgments Case) (h : Hyp Case)
   | inr hcol =>
     exact absurd (fun c => fewer_premises_demand_more h p₀ c (hcol c)) hp.can_fail
 
-/-- What holds a claim in place: a case that the human rejects, that the hypothesis
-rejects, and that it would accept without that claim. Or the claim is all that keeps the
-hypothesis from collapse. -/
-theorem claim_held_by_unwanted_case (j : Judgments Case) (h : Hyp Case)
+/-- The human supports the claim `q`: the human rejected a case that the hypothesis
+rejects, and that it would accept without `q`. -/
+def ClaimSupported (j : Judgments Case) (h : Hyp Case) (q : h.Claim) : Prop :=
+  ∃ c, Unwanted j c ∧ ¬ h.req c ∧ h.withoutClaim q c
+
+/-- The claim `q` is the core of the attempt: without it, the statement accepts every
+case. The statement needs `q`. That alone is no support from the human. -/
+def ClaimIsCore (h : Hyp Case) (q : h.Claim) : Prop := Collapsed (h.withoutClaim q)
+
+/-- What holds a claim in place, in a properly written hypothesis. The human supports
+it, or it is the core of the attempt. Both can be true at once. -/
+theorem claim_held_two_ways (j : Judgments Case) (h : Hyp Case)
     (hp : ProperlyWritten j h) (q₀ : h.Claim) :
-    (∃ c, Unwanted j c ∧ ¬ h.req c ∧ h.withoutClaim q₀ c) ∨ Collapsed (h.withoutClaim q₀) := by
+    ClaimSupported j h q₀ ∨ ClaimIsCore h q₀ := by
   cases hp.claims_held q₀ with
   | inl hf =>
     cases hf with
@@ -193,6 +223,54 @@ theorem claim_false_at_its_case (h : Hyp Case) [DecidableEq h.Claim] (q₀ : h.C
     (hr : ¬ h.req c) (hw : h.withoutClaim q₀ c) : ¬ h.claim q₀ c :=
   fun hq => hr (fun hp q =>
     if e : q = q₀ then e ▸ hq else hw hp q e)
+
+/-- A hypothesis with no premise and one claim. -/
+def oneClaim (R : Req Case) : Hyp Case where
+  Premise := Empty
+  Claim := Unit
+  premise := fun p => nomatch p
+  claim := fun _ => R
+
+/-- **Held is not confirmed.** The human has judged nothing. A statement with one claim
+that some case meets and some case fails is properly written all the same. Its claim is
+held only against collapse. No judgment supports what it says. -/
+theorem proper_with_no_judgments (R : Req Case) (c₁ c₂ : Case) (h₁ : R c₁) (h₂ : ¬ R c₂) :
+    ProperlyWritten (fun _ => none) (oneClaim R) where
+  fits := by
+    intro c hf
+    cases hf with
+    | inl hw =>
+      have e : (none : Option Bool) = some true := hw.1
+      cases e
+    | inr hu =>
+      have e : (none : Option Bool) = some false := hu.1
+      cases e
+  can_hold := ⟨c₁, And.intro (fun p => nomatch p) (fun _ => h₁)⟩
+  can_fail := fun hc => h₂ (hc c₂ (fun p => nomatch p) ())
+  premises_held := fun p => nomatch p
+  claims_held := fun _ => Or.inr (fun _ _ q hq => absurd rfl hq)
+
+/-- Nobody has judged the case `c` yet. What a statement says about `c` is a **guess**: a
+default of its writer, with no support from the human. -/
+def Unjudged (j : Judgments Case) (c : Case) : Prop := j c = none
+
+/-- **The judgments do not test a guess.** When two statements agree on every judged
+case, and one of them fits, the other fits too. What each one says about the other cases
+is free. -/
+theorem fits_ignores_unjudged (j : Judgments Case) (R R' : Req Case)
+    (hsame : ∀ c, ¬ Unjudged j c → (R c ↔ R' c)) : Fits j R → Fits j R' := by
+  intro hf c hc
+  cases hc with
+  | inl hw =>
+    have hj : ¬ Unjudged j c := fun hn => by
+      have e : some true = none := hw.1.symm.trans hn
+      cases e
+    exact hf c (Or.inl ⟨hw.1, fun hr => hw.2 ((hsame c hj).mp hr)⟩)
+  | inr hu =>
+    have hj : ¬ Unjudged j c := fun hn => by
+      have e : some false = none := hu.1.symm.trans hn
+      cases e
+    exact hf c (Or.inr ⟨hu.1, (hsame c hj).mpr hu.2⟩)
 
 /-! ## 4. The system is the second witness -/
 
@@ -275,8 +353,8 @@ theorem fits_before (j j' : Judgments Case) (R : Req Case) (he : Extends j j') :
     Fits j' R → Fits j R :=
   fun hf c hc => hf c (falsifier_stays j j' R c he hc)
 
-/-- A premise that is held stays held. (A guess can become held. The reverse does not
-happen while the judgments are kept.) -/
+/-- A premise that is held stays held. (A word that nothing holds can become held. The
+reverse does not happen while the judgments are kept.) -/
 theorem premise_held_stays (j j' : Judgments Case) (h : Hyp Case) (p : h.Premise)
     (he : Extends j j') : PremiseHeld j h p → PremiseHeld j' h p :=
   fun ho => out_stays j j' (h.withoutPremise p) he ho
@@ -332,8 +410,8 @@ to the human and ask: "is this case your intent?" Whatever the answer is, exactl
 the two statements gets an intent falsifier.
 
 For a word of a hypothesis, take `R` and `R'` to be the hypothesis with the word and
-without it. The case on which they disagree is the case just past the boundary. It turns
-a guess into a held word, or it removes the word. -/
+without it. The case on which they disagree is the case just past the boundary. The
+answer holds the word in place, or it removes the word. -/
 theorem one_case_decides (j : Judgments Case) (R R' : Req Case) (c : Case)
     (hr : R c) (hr' : ¬ R' c) :
     (Wanted j c → IntentFalsifier j R' c ∧ ¬ IntentFalsifier j R c) ∧
@@ -387,7 +465,8 @@ def said : Judgments Purchase := fun c =>
   else none
 
 /-- Fit: "The amount of a purchase and the member's tier on that day decide its points."
-No premise, one claim. -/
+No premise, one claim. (The prompt gives this sentence a premise: the points table did not
+change in that time. The cases here have one table, so this small version has none.) -/
 def fitHyp : Hyp Purchase where
   Premise := Empty
   Claim := Unit
@@ -463,6 +542,12 @@ theorem fit_properly_written : ProperlyWritten said fitHyp where
   can_fail := fun hc => fit_rejects_reported (hc reported)
   premises_held := fun p => nomatch p
   claims_held := fun _ => Or.inr (fun _ _ q hq => absurd rfl hq)
+
+/-- The one claim of the fit hypothesis is the core of the attempt, and the human
+supports it too: the human rejected the reported case, and only this claim forbids it. -/
+theorem fit_claim_supported : ClaimSupported said fitHyp () :=
+  ⟨reported, show said reported = some false by decide, fit_rejects_reported,
+    fun _ q hq => absurd rfl hq⟩
 
 /-- **Too strong.** The cause hypothesis accepts a case that the human rejects: wrong
 points with a fresh cache. The cause added meaning that the human did not give. -/
@@ -782,10 +867,24 @@ theorem wide_properly_written_at_first : ProperlyWritten saidFirst wideHyp where
       · intro hq
         exact absurd rfl hq
 
-/-- **At first, a narrower scope is a guess.** Nothing that the human has said holds the
-premise "only the settings page" in place. To write it then is to assume what the human
-did not say. -/
-theorem scope_was_a_guess : ¬ PremiseHeld saidFirst narrowHyp () := by
+/-- **At first, the wide scope is a guess.** Nobody has judged a page that stays light
+while dark mode is on. The wide attempt rejects that case: its default is "every page".
+The attempt is properly written, and it still guesses. -/
+theorem wide_guesses_the_scope :
+    Unjudged saidFirst reportsLight ∧ ¬ wideHyp.req reportsLight :=
+  ⟨show saidFirst reportsLight = none by decide, wide_rejects_reportsLight⟩
+
+/-- **A narrower scope is a guess too.** The narrowed attempt accepts the same case, and
+nobody has judged it. -/
+theorem narrow_guesses_the_scope :
+    Unjudged saidFirst reportsLight ∧ narrowHyp.req reportsLight :=
+  ⟨show saidFirst reportsLight = none by decide, narrow_accepts_reportsLight⟩
+
+/-- **At first, nothing holds a narrower scope.** No judgment holds the premise "only the
+settings page" in place: the statement fits, and it can fail, without that premise. Of
+the two guesses about the scope, the narrow one adds a premise that nobody gave. So the
+wide attempt is the one to write. -/
+theorem scope_not_held_at_first : ¬ PremiseHeld saidFirst narrowHyp () := by
   intro ho
   cases ho with
   | inl hf =>
@@ -810,9 +909,10 @@ theorem scope_was_a_guess : ¬ PremiseHeld saidFirst narrowHyp () := by
     exact narrow_rejects_staysLight
       (fewer_premises_demand_more narrowHyp () staysLight (hcol staysLight))
 
-/-- **At first, "light mode stays" is a guess too.** It is a sensible default. But no
-judgment holds it in place until someone asks about the case `alwaysDark`. -/
-theorem keepsLight_was_a_guess : ¬ ClaimHeld saidFirst narrowHyp DarkClaim.keepsLight := by
+/-- **At first, nothing holds "light mode stays" either.** It is a sensible default. But
+no judgment holds it in place until someone asks about the case `alwaysDark`. -/
+theorem keepsLight_not_held_at_first :
+    ¬ ClaimHeld saidFirst narrowHyp DarkClaim.keepsLight := by
   intro ho
   cases ho with
   | inl hf =>
@@ -846,7 +946,7 @@ theorem wide_not_properly_written_later : ¬ ProperlyWritten saidLater wideHyp :
 
 /-- **After the two answers, the narrowed attempt is properly written.** The answer
 "only on this page" holds its premise in place. The rejected case `alwaysDark` holds the
-claim `keepsLight` in place. The two guesses became held words. -/
+claim `keepsLight` in place. The two words that nothing held at first are held now. -/
 theorem narrow_properly_written : ProperlyWritten saidLater narrowHyp where
   fits := by
     intro c hf
@@ -1040,7 +1140,10 @@ theorem fits_accepts_no_more {Case : Type} (j : Judgments Case) (R : Req Case)
 4. Who writes `Case`. The agent chooses it, so the human must read it: a requirement over
    the wrong cases can be properly written and still miss the point. Section 10 shows the
    risk: `Screen` has one flag for "accessibility, readability, or useability".
-5. How sure a guess is. Here a word is held or it is not.
+5. The agent's defaults. A default is an answer that the agent gives itself to a question
+   that nobody asked the human. This file has only the human's judgments: a case that
+   only a default covers is `Unjudged` here. The file also does not say how likely a
+   guess is.
 6. Which of two properly written attempts is the better one (section 11).
 -/
 
@@ -1056,9 +1159,13 @@ open Sagittarius in
 open Sagittarius in
 #print axioms premise_held_by_wanted_case
 open Sagittarius in
-#print axioms claim_held_by_unwanted_case
+#print axioms claim_held_two_ways
 open Sagittarius in
 #print axioms claim_false_at_its_case
+open Sagittarius in
+#print axioms proper_with_no_judgments
+open Sagittarius in
+#print axioms fits_ignores_unjudged
 open Sagittarius in
 #print axioms collapsed_cannot_fail
 open Sagittarius in
@@ -1090,19 +1197,77 @@ open Sagittarius in
 open Sagittarius in
 #print axioms one_case_decides
 open Sagittarius in
+#print axioms said_wanted
+open Sagittarius in
+#print axioms said_unwanted
+open Sagittarius in
+#print axioms fit_rejects_reported
+open Sagittarius in
+#print axioms fit_rejects_freshButWrong
+open Sagittarius in
+#print axioms fit_accepts_rightCase
+open Sagittarius in
 #print axioms fit_properly_written
+open Sagittarius in
+#print axioms fit_claim_supported
+open Sagittarius in
+#print axioms cause_has_intent_falsifier
 open Sagittarius in
 #print axioms cause_not_properly_written
 open Sagittarius in
+#print axioms vague_collapsed
+open Sagittarius in
 #print axioms vague_not_properly_written
+open Sagittarius in
+#print axioms saidFirst_wanted
+open Sagittarius in
+#print axioms saidFirst_unwanted
+open Sagittarius in
+#print axioms saidLater_wanted
+open Sagittarius in
+#print axioms saidLater_unwanted
+open Sagittarius in
+#print axioms wide_accepts_goodDark
+open Sagittarius in
+#print axioms wide_accepts_alwaysDark
+open Sagittarius in
+#print axioms wide_rejects_staysLight
+open Sagittarius in
+#print axioms wide_rejects_unreadable
+open Sagittarius in
+#print axioms wide_rejects_reportsLight
+open Sagittarius in
+#print axioms onSettings
+open Sagittarius in
+#print axioms narrow_accepts_goodDark
+open Sagittarius in
+#print axioms narrow_accepts_reportsLight
+open Sagittarius in
+#print axioms narrow_rejects_staysLight
+open Sagittarius in
+#print axioms narrow_rejects_unreadable
+open Sagittarius in
+#print axioms narrow_rejects_alwaysDark
+open Sagittarius in
+#print axioms narrow_without_premise_accepts_goodDark
+open Sagittarius in
+#print axioms narrow_without_premise_rejects_reportsLight
+open Sagittarius in
+#print axioms narrow_without_keepsLight_rejects_staysLight
+open Sagittarius in
+#print axioms narrow_without_keepsLight_rejects_unreadable
 open Sagittarius in
 #print axioms later_extends_first
 open Sagittarius in
 #print axioms wide_properly_written_at_first
 open Sagittarius in
-#print axioms scope_was_a_guess
+#print axioms wide_guesses_the_scope
 open Sagittarius in
-#print axioms keepsLight_was_a_guess
+#print axioms narrow_guesses_the_scope
+open Sagittarius in
+#print axioms scope_not_held_at_first
+open Sagittarius in
+#print axioms keepsLight_not_held_at_first
 open Sagittarius in
 #print axioms wide_scope_falsified
 open Sagittarius in

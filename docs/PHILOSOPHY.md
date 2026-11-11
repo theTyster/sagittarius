@@ -1,13 +1,8 @@
 # The philosophy of Sagittarius
 
-> **Draft of 2026-11-11, by Fable, for the author.** It is a full rework, not an edit. It is on
-> a branch, and nothing that is installed reads it. The whole text is a proposal until the
-> author ratifies it. **(P)** marks a position that is new, and that no human has ratified. A
-> sentence with no mark comes from the earlier text, or from the author's words of 2026-11-11,
-> but its wording and its place here are this draft's. Words in quote marks, with "(the
-> author)", are word for word. The author ruled on three points on 2026-11-11 (in principles
-> 2, 3 and 4). Astra reviewed the first version of this draft, and that review changed it:
-> see the end of "A properly written hypothesis".
+> Proposed on 2026-11-11, for the author's review. It is a full rework of the text of
+> 2026-11-05, and it replaces that text when the author ratifies it. Words in quote marks with
+> "(the author)" are word for word.
 
 Sagittarius helps a human and an agent to find what the human wants, and then to build it.
 This document holds the beliefs under it. It says why. The prompt says how to act, and
@@ -40,8 +35,6 @@ shows. In practice, the middle tiers emptied into the lowest and the highest.
 
 ## The center
 
-**(P)** The image of this section is new. The three points under it are the author's.
-
 Sagittarius A* is the black hole at the center of our galaxy. Nobody found it by looking at
 it. Astronomers tracked the stars that orbit it, and the orbits showed where it is and how
 heavy it is.
@@ -62,31 +55,34 @@ We find where from differences. Each party sees the intent from its own position
 sees it through words and judgments. The agent sees it through the statements that it writes.
 The machine sees what follows from those statements. The system shows what is true now. The
 parties are not tied to each other. As with two eyes, two positions find a depth that one
-position cannot. Where two views differ, there is a **divergence**. A divergence shows that
-an attempt is wrong, while someone can still fix it. It does not say which attempt. Each one
-that is settled leaves less room for the intent to be somewhere else.
+position cannot.
+
+Where two views differ, there is a **divergence**. A divergence shows that two views do not
+line up. It does not say why. An attempt can be wrong. The intent can have moved since one of
+the views was made. Or the two views are about different cases. To get more specific at that
+point says which. Each divergence that is settled leaves less room for the intent to be
+somewhere else.
 
 Everything in Sagittarius exists to help the human find the intent. Ideally the finding is
 monotonic: what one lap learned, the next lap keeps.
 
 ## The hypothesis of Sagittarius
 
-**(P)** The frame of this section is new: one statement, with its premises beside it. The
-content is the author's.
+The whole method is one statement, with its premises beside it.
 
 > **Nobody can see the intent. Independent views of it can be compared, and where they differ,
-> at least one of them is wrong about it. So the way to what the human wants is an orbit, and
+> there is something to learn about it. So the way to what the human wants is an orbit, and
 > not a translation: state the intent, compare the statement with a view that its author does
-> not control, and correct what the difference shows to be wrong. Then go around again.**
+> not control, and get more specific where the two differ. Then go around again.**
 
 Premises:
 
 1. **The bet.** A human must explain what they want. No model removes that.
 2. **Nobody holds the intent.** Each statement of it is an attempt.
 3. **An author does not see their own misreading.** A view from outside can see it.
-4. **A comparison must be able to fail.** A difference shows that an attempt is wrong. An
-   agreement that could have been a difference is evidence. An agreement that could not have
-   been one says nothing.
+4. **A comparison must be able to fail.** A difference is information. An agreement that
+   could have been a difference is evidence. An agreement that could not have been one says
+   nothing.
 5. **A sharper statement costs more.** It costs more to write, and the human must read it.
 
 What would show it false: work that is done this way needs as many corrections after the
@@ -96,8 +92,7 @@ prevents. The bet itself is false if agents appear that need no explanation. Use
 
 ## The orbit
 
-An orbit is a loop through parties that can disagree. **(P)** The three steps are this draft's
-way to say it. Astra's review kept them and made the third step and the end more exact.
+An orbit is a loop through parties that can disagree. One lap has three steps.
 
 1. **State.** Say the intent, as specifically as the work needs now. Write the statement from
    the source: the human's words and the current system. Do not write it from the last
@@ -105,10 +100,10 @@ way to say it. Astra's review kept them and made the third step and the end more
 2. **Compare.** Put the statement beside a view that its author does not control: the human's
    judgment of a concrete case, a check that can fail, a query, a proof, a reviewer who did not
    build. Say what you expect before you look.
-3. **Sharpen.** Where the two differ, at least one attempt is wrong: the statement, the build,
-   or the check. Say the difference. Find which one is wrong, and correct that one. When
-   nothing says which one, make the statement more specific there, and ask. Then go around
-   again.
+3. **Sharpen.** Where the two differ, say the difference. Then find the reason: an attempt is
+   wrong (the statement, the build, or the check), or the intent moved, or the two are about
+   different cases. Correct what is wrong. When nothing says which it is, make the statement
+   more specific at that point, and ask. Then go around again.
 
 The orbit closes when a lap changes nothing. That counts only if each comparison in the lap
 could have shown a difference: a lap in which nothing could differ is quiet, and it closes
@@ -158,9 +153,9 @@ decisions can come from other people.
 
 The goal is alignment: the human, the agent, and the formal artifacts agree on what to build
 and on when it is done. Agreement is always possible before a change lands. A full proof is
-not always possible, and it is not always necessary. **(P)** The agreement is about the
-current statement of the intent. It can be right today and be superseded tomorrow, and nobody
-was wrong.
+not always possible, and it is not always necessary. The agreement is about the current
+statement of the intent. It can be right today and be superseded tomorrow, and nobody was
+wrong.
 
 Four qualities measure each change and each rule: fast, clear, accurate, and honest. A rule
 that improves none of them does not belong.
@@ -185,17 +180,15 @@ request is clear, the agent states the hypothesis itself, and the work starts in
 > defaults to work from. (the author, 2026-11-11)
 
 So the hypothesis is wide on purpose. Each default of the agent is in the sentence, where the
-human can see it and correct it. **(P)** To state a hypothesis is not to ask a question. The
-agent states it and goes on. It stops to ask only when a wrong default is costly or hard to
-undo.
+human can see it and correct it. To state a hypothesis is not to ask a question. The agent
+states it and goes on. It stops to ask only when a wrong default is costly or hard to undo.
 
-**(P)** The hypothesis says what the human wants. A report of a defect says one thing more:
-that the system falls short of it today. That second statement is a finding about the system.
-It is not part of the law. The reproduction tests it. When the build is done, it is false,
-and the law still stands. (Astra's distinction. Today the help of discovery writes the two as
-one hypothesis.)
+The hypothesis says what the human wants. A report of a defect says one thing more: that the
+system falls short of it today. That second statement is a finding about the system. It is not
+part of the law. The reproduction tests it. When the build is done, the finding is false, and
+the law still stands.
 
-It follows a value of the Mathlib community: weak hypotheses, strong conclusions.
+The hypothesis follows a value of the Mathlib community: weak hypotheses, strong conclusions.
 
 - **Assume little.** A cause, a mechanism, or a fix in the hypothesis adds meaning that the
   human did not give. It also chooses a design too early. A cause that the agent finds is a
@@ -207,40 +200,41 @@ It follows a value of the Mathlib community: weak hypotheses, strong conclusions
 Remove words until one more removal makes the hypothesis collapse or change its meaning. A weak
 hypothesis often takes more work to confirm or refute, but not always.
 
-Every stated hypothesis lists its premises beside it. Hypotheses, premises, and claims err
-soft. Experiment just past the boundary of too brittle or too soft, then formalize. The
-formalism then localizes the definition. Annealing in the formal languages brings out the
-tempered position. Oscillation is an intentional heuristic.
+Every stated hypothesis lists its premises beside it. A premise is a condition that the
+hypothesis takes as given. Where a premise does not hold, the hypothesis says nothing. So a
+premise is also a place where the checks stop looking, and a premise that nobody gave can hide
+a wrong default. That is the reason to write wide.
 
-**(P)** A word of a hypothesis that no judgment of the human holds in place yet is a
-**guess**. A hypothesis can carry guesses while the work goes on. Each one is a default: the
-delivery lists it, and one case would decide it.
+Hypotheses, premises, and claims err soft. Experiment just past the boundary of too brittle or
+too soft, then formalize. The formalism then localizes the definition. Annealing in the formal
+languages brings out the tempered position. Oscillation is an intentional heuristic.
 
-**(P)** A hypothesis has two falsifiers, and each has its own witness. The system is the
-witness of one: a result that the system shows. The human is the witness of the other: a
-concrete case that the human judges. The question for the human is the author's: "is this case
-your intent?" When the system shows a case that the hypothesis rejects, the case alone does
-not say which is wrong, the build or the hypothesis. The human's judgment of that case says it.
+A **guess** is something that the agent assumed and that nobody confirmed: a default about
+what the human wants, or a fact about the system that the agent did not check. A wide
+hypothesis carries its guesses in view. The delivery lists them, and one concrete case, or
+one check, decides each of them.
 
-**(P)** A premise can fail too. A premise that nobody checked is a guess. When the system
-shows that a premise is false, the hypothesis does not apply as it is written, and the agent
-restates it. So a result can challenge three things: a premise, the build, or the reading of
-the intent. The agent says which one. (Astra's point.)
+A hypothesis has two falsifiers, and each has its own witness. The system is the witness of
+one: a result that the system shows. The human is the witness of the other: a concrete case
+that the human judges. The question for the human is the author's: "is this case your intent?"
+When the system shows a case that the hypothesis rejects, the case alone does not say which is
+wrong, the build or the hypothesis. The human's judgment of that case says it.
 
-**(P)** The law is also a default. A check that fails is judged against the hypothesis, and
-nobody asks the human again about what they accepted. The agent asks only when a case gives a
-reason to doubt the hypothesis itself.
+A premise can fail too. When the system shows that a premise is false, the hypothesis does not
+apply as it is written, and the agent restates it. So a result can challenge three things: a
+premise, the build, or the reading of the intent. The agent says which one.
 
-The build goes back to discovery only when the hypothesis itself must change. A claim that
-changes inside the hypothesis stays in the build. Discovery exists to form the hypothesis, and
-in a workspace discovery is another agent, so a return has a cost. (The author holds this one
-loosely: "I might say".)
+The law is also a default. A check that fails is judged against the hypothesis, and nobody
+asks the human again about what they accepted. The agent asks only when a case gives a reason
+to doubt the hypothesis itself.
 
-And not every change of the hypothesis needs discovery. Sometimes the human's answer says what
-the hypothesis changes to: "only on this page". Then the agent restates it where it is. A new
-hypothesis supersedes the old one, and the human sees it. The work goes to discovery when the
-agent can no longer say what to change. Clarity decides. (This draft proposed it, and the
-author agreed on 2026-11-11.)
+The build goes back to discovery only when the hypothesis itself must change, and then only
+when the agent can no longer say what it changes to. A claim that changes inside the
+hypothesis stays in the build. Sometimes the human's answer says what the hypothesis changes
+to: "only on this page". Then the agent restates the hypothesis where it is. The new
+hypothesis supersedes the old one, and the human sees it. Discovery exists to form the
+hypothesis, and in a workspace discovery is another agent, so a return has a cost. Clarity
+decides. (The author holds the first half of this rule loosely: "I might say".)
 
 "A properly written hypothesis" (below) gives the definition.
 
@@ -255,8 +249,8 @@ the recollection of one agent.
 A change of plan does not erase an earlier outcome that the human still wants. That outcome
 stays a claim, and the agent checks it again against the new design. A new claim supersedes an
 old one. It does not overwrite it. An old guarantee does not carry over to a new design without
-new evidence. **(P)** This is how the finding stays monotonic: the record keeps what was
-learned, and also what was replaced.
+new evidence. This is how the finding stays monotonic: the record keeps what was learned, and
+also what was replaced.
 
 When the human liked a result and now wants to change it, the first step is to narrow down
 what was liked and what was disliked. What the human liked stays: its claims stand, and their
@@ -268,22 +262,23 @@ stacks on top of the earlier result, and changes nothing in it, is a new ticket.
 > request without modifying the previous work, then it just counts as a new ticket with its
 > own spec KB. (the author, 2026-11-11)
 
-**(P)** Sometimes nothing says if the agent misread the request, or if the intent moved. Then
-the agent does not guess. It says so, and it treats the case as a divergence. (Astra's point.)
+A new ticket starts as every ticket starts (principle 10): in words, and in a knowledge base
+of its own when a signal comes. It does not close an old ticket. The earlier ticket keeps what
+is open in it: its checks, its proofs that are owed, and its questions.
 
-**(P)** A new ticket does not close an old one. The earlier ticket keeps what is open in it:
-its checks, its proofs that are owed, and its questions.
+Sometimes nothing says if the agent misread the request, or if the intent moved. Then the
+agent does not guess. It says so, and it treats the case as a divergence.
 
-**(P)** An outcome that must outlive its ticket needs a home that outlives the ticket: a rule
-of the project, with a test beside it. When a ticket closes, the agent proposes each such
-outcome, and a human ratifies it. With no project record, the test in the project's suite is
-the home.
+An outcome that must outlive its ticket needs a home that outlives the ticket: a rule of the
+project, with a test beside it. When a ticket closes, the agent proposes each such outcome,
+and a human ratifies it. With no project record, the test in the project's suite is the home.
 
 The main task with a model is to give it the right amount of context. A record that can be
 queried helps to select it. Every orbit encodes knowledge of the domain, not only a record of
 the process.
 
-In the prompt: "Signals" (a handoff), "One response", "The tool".
+In the prompt: "Signals" (a handoff), "One response", "When the human says that it is wrong",
+"Delivery", "The tool".
 
 ### Because an author does not see their own misreading
 
@@ -309,10 +304,10 @@ When System 1 and the agent disagree, the agent does not settle it alone.
 > "Yeah if S1 and the agent disagree, then it needs to either go to some kind of formalism, or
 > it needs to come to the human, or both." (the author, 2026-11-11)
 
-**(P)** This is the one response again (principle 10), and not a new rule. A disagreement
-between System 1 and the agent is a difference between two views. So the agent says it where
-the human can contradict it, or it makes the claim specific enough that a check or a query
-decides, or both. A signal that the agent notices by itself, it says aloud too.
+This is the one response again (principle 10), and not a new rule. A disagreement between
+System 1 and the agent is a difference between two views. So the agent says it where the human
+can contradict it, or it makes the claim specific enough that a check or a query decides, or
+both. A signal that the agent notices by itself, it says aloud too.
 
 A case: the author has never seen an agent shift up by itself. An audit of one long session
 (2026-10-22) found no record at all. Each divergence got an answer ("You're right to flag it")
@@ -329,9 +324,9 @@ It does not come from another statement. An orbit goes back to the source on eac
 When two tools state the same claim, write each statement from the source, not from the other
 statement. Then a difference between them is information.
 
-**(P)** The same holds for a build and its check. An agent can put one misreading into the
-code and into the test of that code. Then the two agree, and the agreement says nothing. So
-the check comes from the request, not from the build. (Astra's point.)
+The same holds for a build and its check. An agent can put one misreading into the code and
+into the test of that code. Then the two agree, and the agreement says nothing. So the check
+comes from the request, not from the build.
 
 In the prompt: "The idea", "The orbit", "The light path".
 
@@ -340,21 +335,21 @@ In the prompt: "The idea", "The orbit", "The light path".
 The formal artifacts are impartial: a test, a query, and a proof can disagree with the agent
 and with the human.
 
-**(P)** Impartial has a limit. The formal artifacts are impartial about what follows from a
-statement. They are not impartial about which statement was written, because an agent chose
-it. A case from 2026-11-11: an agent recorded that two sentences of the author exclude each
-other, and the knowledge base then reported a contradiction. The inference was sound. The
-reading was the agent's.
+Impartial has a limit. The formal artifacts are impartial about what follows from a statement.
+They are not impartial about which statement was written, because an agent chose it. A case
+from 2026-11-11: an agent recorded that two sentences of the author exclude each other, and
+the knowledge base then reported a contradiction. The inference was sound. The reading was the
+agent's.
 
 So the human reads the statement. Show the human concrete examples and results first, not test
 logs. When the work has shifted up, the human, the agent and the CPU all use the formal
 language as the shared substrate, and the human reads, reviews and understands it, so write it
 to be read. The human judges meaning. The machines judge consistency.
 
-**(P)** And show it. The human can read the formal language only if someone puts it in front
-of them. The plain claim and its formal statement go to the human together. A case: on
-2026-11-11 the author reported that they had seen no Lean proof and no Prolog statement since
-they started to use Sagittarius.
+And show it. The human can read the formal language only if someone puts it in front of them.
+The plain claim and its formal statement go to the human together. A case: on 2026-11-11 the
+author reported that they had seen no Lean proof and no Prolog statement since they started to
+use Sagittarius.
 
 In the prompt: "Who judges what", "Delivery".
 
@@ -380,22 +375,25 @@ Where the views of the parties do not agree, there is a divergence: a check that
 counterexample, or a human who says "that is not what I meant". A divergence is loud, so
 someone can fix it. It shows that clarity increases. Record it.
 
+A divergence does not accuse anyone. The intent can have moved, and then the earlier statement
+was right when it was made (principle 3).
+
 The ways in which a human can find or describe a divergence have no end. So the agents try to
 detect them, and the formal tools help to specify them.
 
 The worst failures are quiet: a check that passes while the result is wrong, a claim that
-nobody tested, an empty answer, a theorem that cannot fail. **(P)** A signal that someone saw
-and did not say is quiet too. Evidence that cannot fail is not evidence.
+nobody tested, an empty answer, a theorem that cannot fail, a signal that someone saw and did
+not say. Evidence that cannot fail is not evidence.
 
-**(P)** A theorem is not empty because it is true. It is empty when its premises never occur,
-or when it does not tell a wanted behavior from an unwanted one. A function that always
-returns the empty list has a proof that its output is sorted. The proof is correct, and the
-elements are gone.
+A theorem is not empty because it is true. It is empty when its premises never occur, or when
+it does not tell a wanted behavior from an unwanted one. A function that always returns the
+empty list has a proof that its output is sorted. The proof is correct, and the elements are
+gone.
 
-**(P)** A check of a change fails before the change. That failure is not a new divergence: it
-is the gap that the request named, seen again. The same check, if it passes there, is a
-divergence. A prediction does not make a bad result good. A check that fails after the build
-is a claim that is not met, also when the agent expected it.
+A check of a change fails before the change. That failure is not a new divergence: it is the
+gap that the request named, seen again. The same check, if it passes there, is a divergence.
+A prediction does not make a bad result good. A check that fails after the build is a claim
+that is not met, also when the agent expected it.
 
 > "Silence, negative space, emptiness, and vacuity are often the predators of clarity,
 > accuracy, and honesty." (the author)
@@ -412,11 +410,11 @@ failure. Hiding is a failure. Claim no more than the evidence shows:
 - A proof is about its definitions, not about the shipped code. Examples carry it to the code:
   each example of the definitions becomes a test of the code.
 - A result inside bounds is not "always" or "never".
-- **(P)** A model speaks for the system only after it has matched the system: on a real case
-  where the system fails, and on a real case where it passes. A match of the outcome does not
-  show the cause.
-- **(P)** A file that changed can show that evidence is stale. It cannot show that the
-  evidence still applies.
+- A model speaks for the system only after it has matched the system: on a real case where the
+  system fails, and on a real case where it passes. A match of the outcome does not show the
+  cause.
+- A file that changed can show that evidence is stale. It cannot show that the evidence still
+  applies.
 
 If your own earlier work is wrong, say so first.
 
@@ -444,7 +442,7 @@ The signals are many, and each needs a well-tempered definition. The response is
 is easy to trigger. A light model can follow one shape of response. The attention that the
 response needs stays low, so the agent keeps its attention on the orbit, not on the process.
 
-**(P)** "More specific" has three levels of statement:
+"More specific" has three levels of statement:
 
 1. **Words.** The hypothesis in one sentence, its premises, one concrete example, and one
    check that can fail. This is the light path: the first response to any request for a
@@ -461,8 +459,8 @@ at once. A claim that words and records did not settle goes there next. A count 
 does not choose it: the claim does. A discussion with no change to make gets no knowledge
 base. When the cause of a signal is resolved, the rigor that it added stops.
 
-**(P)** Every ticket has a hypothesis, and that costs one sentence. It must not cost more. The
-first level has no knowledge base, and the agent does not wait for the human to approve the
+Every ticket has a hypothesis, and that costs one sentence. It must not cost more. The first
+level has no knowledge base, and the agent does not wait for the human to approve the
 sentence. The author's concern is on record, and use will judge it (see "Under trial"):
 
 > "My concern is that this is going to add a slowdown since there will be more of a process for
@@ -475,14 +473,13 @@ the intent. When the intent is clear, there is nothing for it to find.
 > "your typo example speaks clearly to me as a trivial change that would never need a KB to
 > discover the intent." (the author, 2026-11-11)
 
-**(P)** Where a workspace keeps a record for every ticket, the hypothesis goes into that
-record. And the step from words to records must become cheap (see "Known limits"): the step
-is rare, so it must be easy when it comes.
+Where a workspace keeps a record for every ticket, the hypothesis goes into that record. The
+step from words to records is rare, so it must be easy when it comes.
 
-Effort is a signal to shift into a formal language. A long, careful message holds decisions
+Effort is a signal to shift into a formal language: a long, careful message holds decisions
 that must not be lost. After a shift, the human, the agent, and the CPU (the machine that runs
-the solvers and provers) all work in the formal language. The human must read and review it,
-so shift up only when needed.
+the solvers and provers) all work in the formal language. The human must read and review what
+a shift adds, so the work shifts up only on a signal.
 
 In the prompt: "The light path", "Signals", "One response".
 
@@ -499,22 +496,23 @@ sentence does not make a claim universal. A claim is universal when its inputs a
 too many to check one by one.
 
 Two kinds of formal tool help the human and the agent to see the intent. A proof language
-(Lean) demands precision: a statement says exactly what it means, or it does not check. A
-logic store that can be queried (Prolog, with SWI-Prolog as the engine) keeps the facts of the
-work in one place. Its rules keep attention on what is still open.
+(Lean) demands precision: a statement says exactly what it means, or it does not check. Lean
+is not a modeling language: a Lean file holds definitions, and theorems about them. A logic
+store that can be queried (Prolog, with SWI-Prolog as the engine) keeps the facts of the work
+in one place. Its rules keep attention on what is still open.
 
 > "We use one language because one language gives us one lens. we should use the right lens
 > for the right problem depending on what we're trying to uncover." (the author)
 
 The work uses one formal language at a time. The knowledge base is the exception, because it
 tracks the ticket itself. The aim is to stop a recursive shift up: a signal that fires while
-one model is written must not start a second language. The author saw that failure in an
-earlier version of the method. System 1 and the agent can help to choose the lens, after a
-divergence is detected.
+one language is in use must not start a second one. The author saw that failure in an earlier
+version of the method. System 1 and the agent can help to choose the lens, after a divergence
+is detected.
 
-**(P)** "At a time" is about writing. One language is written at a time, and a finished
-artifact can be read as evidence beside it. A language leans back when its question has an
-answer: its results are recorded, or it is dropped with a disclosure.
+"At a time" is about writing. One language is written at a time, and a finished artifact can
+be read as evidence beside it. A language leans back when its question has an answer: its
+results are recorded, or it is dropped with a disclosure.
 
 In the prompt: "Signals" (a claim that burns), "One response" (one lens at a time).
 
@@ -534,7 +532,7 @@ State one principle, and let examples show its meaning. A checklist of trigger w
 it catches the words and misses the meaning. Examples show meaning, not strings to match. Give
 each term one meaning. When two meanings share a word, the result is confusion.
 
-In the prompt: "When the human says that it is wrong", "The hypothesis" (the example).
+In the prompt: "When the human says that it is wrong", "The hypothesis" (the examples).
 
 #### 14. The method is an attempt too
 
@@ -558,55 +556,103 @@ In the repository: `docs/REFINING.md`.
 
 ## A properly written hypothesis
 
-**(P)** This section proposes the definition that the earlier text left open. The author's
-working sentence was: "a properly written hypothesis is the weakest form of a statement that
-doesn't collapse (it is provable) and doesn't generalize so far as to lose its intent."
+The author's working sentence is: "a properly written hypothesis is the weakest form of a
+statement that doesn't collapse (it is provable) and doesn't generalize so far as to lose its
+intent." This section makes that sentence exact.
+
+The Lean file `docs/philosophy-orbit/2026-11-11/fable/Hypothesis.lean` holds the definitions,
+and 68 theorems about them. The Lean kernel accepts each theorem, and none uses an axiom. The
+theorems are about the definitions. They say nothing about any code. The definitions are the
+part to judge: do they say what you mean?
+
+### The definition
 
 A hypothesis is a list of premises and a list of claims. A premise says when the hypothesis
-applies. A claim says what must then hold. A **case** is one concrete behavior that the system
-can show and the human can judge. The hypothesis accepts a case, or it rejects it. The
+applies. A claim says what must then hold. Each premise and each claim is one **word**: one
+part that can be removed.
+
+A **case** is one concrete behavior that the system can show and the human can judge. "A Gold
+member buys for 100 and gets 200 points" is a case. A hypothesis accepts a case, or it rejects
+it.
+
+The intent itself is not in the definition, because nobody holds it. The **judgments** of the
+human stand in for it: what the human has said about cases so far. Each lap adds to them. The
 judgments belong to one ticket. The question to the human is always: "is this case what you
 want with this request?"
 
 A hypothesis is **properly written**, for what the human has judged so far, when:
 
-1. **It fits.** No case that the human judged disagrees with it. It rejects no case that the
-   human wants, and it accepts no case that the human rejects.
+1. **It fits.** No judged case disagrees with it. It rejects no case that the human wants, and
+   it accepts no case that the human rejects.
 2. **It can hold.** It has an example: some case meets its premises and its claims. If no case
    can meet a statement, no build can fulfill it.
 3. **It can fail.** It has a falsifier: some case would show a build wrong. A statement that
    accepts every case has collapsed.
-4. **No word can be removed.** Without any one premise, or without any one claim, the
+4. **No word can be removed.** Every premise and every claim is **held**: without it, the
    statement no longer fits, or it has collapsed.
 
-Point 1 is "does not lose its intent". Points 2 and 3 are "does not collapse". Point 4 is this
-draft's reading of "the weakest form": the form with no word left to remove. It is not "the
-statement that accepts the most cases" (see "What the definition does not decide"). The intent
-is not in the definition, because nobody holds it. The judgments of the human stand in for
-it, and each lap adds to them.
+Point 1 is "does not lose its intent". Points 2 and 3 are "does not collapse". Point 4 is "the
+weakest form": the form with no word left to remove. It is not "the statement that accepts the
+most cases" (see "What the definition does not decide").
 
-A word that fails point 4 is a **guess**: a default of the writer that no judgment holds in
-place yet. A hypothesis at work can carry guesses. It is properly written when the last guess
-is held in place, or removed.
+### Held is not confirmed
 
-The same definition, in Lean. `j` is what the human has judged so far, and `h.req` is what the
-hypothesis `h` requires of a case:
+"Held" is about the statement: the statement needs the word. It does not say that the human
+agrees with what the word says. The two judgments stay apart.
+
+- A premise of a properly written hypothesis always has a judged case behind it: a case that
+  the human wants, and that the hypothesis would reject without the premise. So no premise
+  comes in without a judgment. This is "assume little".
+- A claim can have a judged case behind it: a case that the human rejected, and that only this
+  claim forbids. Then the human **supports** the claim.
+- A claim can also be held only because the statement collapses without it. It is the **core**
+  of the attempt. The statement needs it, and no judgment supports what it says. When the
+  human has judged nothing, a statement with one claim that can hold and can fail is properly
+  written all the same.
+
+So "properly written" is a test of the form of an attempt, for what is known so far. It is not
+a confirmation.
+
+A **guess** is the other judgment. In the definitions, it is what a statement says about a
+case that nobody has judged. The judgments do not test a guess: when two statements agree on
+every judged case, and one of them fits, the other fits too. Every useful hypothesis guesses,
+because it says more than the list of the judged cases. A properly written hypothesis guesses
+too. Only a judged case turns a guess into support. That is why "is this case your intent?"
+is the question of the method.
+
+A word that nothing holds is **spare**. The statement fits, and it can fail, without that
+word. Remove it, or show the human the case that would hold it.
+
+### In Lean
+
+`j` is what the human has judged so far, and `h.req` is what the hypothesis `h` requires of a
+case. The comments are shorter here than in the file.
 
 ```lean
+/-- What the human has judged so far: wanted, not wanted, or nobody has asked. -/
+abbrev Judgments (Case : Type) := Case → Option Bool
+/-- A statement of the intent, as a requirement: the cases that it accepts. -/
+abbrev Req (Case : Type) := Case → Prop
+
 /-- A judged case where `R` and the human disagree. -/
 def IntentFalsifier (j : Judgments Case) (R : Req Case) (c : Case) : Prop :=
   (Wanted j c ∧ ¬ R c) ∨ (Unwanted j c ∧ R c)
 
 def Fits (j : Judgments Case) (R : Req Case) : Prop := ∀ c, ¬ IntentFalsifier j R c
 def Collapsed (R : Req Case) : Prop := ∀ c, R c
+/-- A statement is out: a judged case refutes it, or it has collapsed. -/
 def Out (j : Judgments Case) (R : Req Case) : Prop :=
   (∃ c, IntentFalsifier j R c) ∨ Collapsed R
+
+/-- What a hypothesis requires: if every premise holds, then every claim holds. -/
+def Hyp.req (h : Hyp Case) : Req Case :=
+  fun c => (∀ p, h.premise p c) → ∀ q, h.claim q c
 
 /-- An example: a case that meets the premises and the claims. -/
 def Hyp.HasExample (h : Hyp Case) : Prop :=
   ∃ c, (∀ p, h.premise p c) ∧ ∀ q, h.claim q c
 
-/-- A word is held in place: without it, the statement is out. If not, it is a guess. -/
+/-- A word is held: the statement needs it. Without it, the statement is out. -/
 def PremiseHeld (j : Judgments Case) (h : Hyp Case) (p : h.Premise) : Prop :=
   Out j (h.withoutPremise p)
 def ClaimHeld (j : Judgments Case) (h : Hyp Case) (q : h.Claim) : Prop :=
@@ -618,17 +664,26 @@ structure ProperlyWritten (j : Judgments Case) (h : Hyp Case) : Prop where
   can_fail : ¬ Collapsed h.req
   premises_held : ∀ p, PremiseHeld j h p
   claims_held : ∀ q, ClaimHeld j h q
+
+/-- The human supports a claim: the human rejected a case that only this claim forbids. -/
+def ClaimSupported (j : Judgments Case) (h : Hyp Case) (q : h.Claim) : Prop :=
+  ∃ c, Unwanted j c ∧ ¬ h.req c ∧ h.withoutClaim q c
+/-- The claim is the core of the attempt: without it, the statement accepts every case. -/
+def ClaimIsCore (h : Hyp Case) (q : h.Claim) : Prop := Collapsed (h.withoutClaim q)
+/-- Nobody has judged the case yet. What a statement says about it is a guess. -/
+def Unjudged (j : Judgments Case) (c : Case) : Prop := j c = none
 ```
 
-The file is `docs/philosophy-orbit/2026-11-11/fable/Hypothesis.lean`. The Lean kernel accepts
-each of its 63 theorems, and none uses an axiom. The theorems are about these definitions.
-They say nothing about any code. What follows from the definitions:
+### What follows from the definitions
 
 | In plain words | Theorem |
 |---|---|
-| Each premise is held in place by a case that the human wants, and that the hypothesis would reject without the premise. | `premise_held_by_wanted_case` |
-| Each claim is held in place by a case that the human rejects, and that only this claim forbids. Or the claim is all that keeps the hypothesis from collapse. | `claim_held_by_unwanted_case`, `claim_false_at_its_case` |
-| Two statements disagree on a case. Ask the human about that case. Whatever the answer is, exactly one of the two is refuted. | `one_case_decides` |
+| Each premise is held by a case that the human wants, and that the hypothesis would reject without the premise. | `premise_held_by_wanted_case` |
+| Each claim is held in one of two ways, or in both: the human supports it, or it is the core of the attempt. | `claim_held_two_ways` |
+| The case that supports a claim is the falsifier of that claim: at that case, the claim itself is false. | `claim_false_at_its_case` |
+| Held is not confirmed. With no judgment at all, a statement with one claim that can hold and can fail is properly written. | `proper_with_no_judgments` |
+| The judgments do not test a guess. When two statements agree on every judged case, and one of them fits, the other fits too. | `fits_ignores_unjudged` |
+| Two statements disagree on a case. Ask the human about that case. Whatever the answer is, the case refutes exactly one of the two. | `one_case_decides` |
 | The system shows a case that the hypothesis rejects, and the human rejects it too. The hypothesis stands, and the build is wrong. | `stay_in_build` |
 | The human wants a case that the hypothesis rejects. The hypothesis must change. | `hypothesis_must_change` |
 | A collapsed statement cannot fail: every system fulfills it. A premise that the system never meets has the same effect. | `collapsed_cannot_fail`, `unmet_premise_cannot_fail` |
@@ -636,17 +691,22 @@ They say nothing about any code. What follows from the definitions:
 | While the human keeps the earlier judgments: a falsifier that was found stays found, a word that is held stays held, and a properly written hypothesis stays properly written until a new judgment disagrees with it. | `falsifier_stays`, `premise_held_stays`, `claim_held_stays`, `proper_until_falsified` |
 | The human changes a part of what they wanted. Outside that part, every falsifier stays. The narrower the part, the more is kept. When the part is empty, nothing changed: the new wish is a new ticket. | `falsifier_stays_outside`, `narrower_keeps_more`, `keepsOutside_nothing` |
 
-Five habits of the method follow from the definition. They are not separate rules.
+Six habits of the method follow from the definitions. They are not separate rules.
 
+- **Write wide.** A premise needs a judged case behind it. So a limit that nobody gave does
+  not go into the hypothesis. The hypothesis then speaks about every case, and its wide scope
+  is a guess in view. A narrow scope is a guess too, and it is out of view: outside its
+  premise, the hypothesis accepts every case, so no check looks there.
 - **Each claim gets one concrete example and its falsifier.** Points 2 and 3 ask for both. The
   falsifier is the case that holds the claim in place.
 - **The question is "is this case your intent?"** To test one word, take the case on which the
   hypothesis with the word and the hypothesis without it disagree, and ask. This is the
-  oscillation as one step: the case just past the boundary. It turns a guess into a held
-  word, or it removes the word.
+  oscillation as one step: the case just past the boundary. The answer holds the word in
+  place, or it removes the word.
 - **A check of a change fails before the change.** The failure shows that the statement can
   fail.
-- **The delivery lists the guesses.** They are the words that no judgment holds in place.
+- **The delivery lists the guesses.** It lists what the hypothesis says about cases that
+  nobody has judged, where the human might disagree.
 - **Liked, then changed: narrow it down.** The narrower the part that changes, the more of
   what was learned is kept.
 
@@ -657,33 +717,38 @@ one case with right points. The verdicts are theorems of the same file.
 
 | Attempt | Verdict | Why |
 |---|---|---|
-| "The tier is read from a cache that loads once." | Too strong | It accepts a case that the human rejects: wrong points with a fresh cache. The cause added meaning that the human did not give. |
-| "Points depend on something other than the purchase." | Collapsed | It accepts every case, as the file encodes it: no one purchase can contradict the sentence. Another reading of the sentence can give another verdict. |
-| "The amount of a purchase and the member's tier on that day decide its points." | Properly written | It fits the three judgments, the right case is its example, the reported case is its falsifier, and it has no word to remove. |
+| "The tier is read from a cache that loads once." | Too strong | It accepts a case that the human rejects: wrong points with a fresh cache. The cause added meaning that the human did not give. (`cause_not_properly_written`) |
+| "Points depend on something other than the purchase." | Collapsed | It accepts every case, as the file encodes it: no one purchase can contradict the sentence. Another reading of the sentence can give another verdict. (`vague_not_properly_written`) |
+| "The amount of a purchase and the member's tier on that day decide its points." | Properly written | It fits the three judgments, the right case is its example, the reported case is its falsifier, and it has no word to remove. Its one claim is the core of the attempt, and the human supports it too. (`fit_properly_written`, `fit_claim_supported`) |
+
+The prompt gives this hypothesis a premise: the points table did not change in that time. The
+cases of the file have one table, so the small version in the file has no premise.
 
 ### A feature: "add a dark mode"
 
-The hypothesis is the author's own attempt (quoted in principle 2). The Lean file holds a small
-version of it, and that version is this draft's reading of the sentence. Every page is in
-scope. "Accessibility, readability, or useability" is one flag. The small version says nothing
-about a screen while dark mode is off.
+The hypothesis is the author's own attempt (quoted in principle 2). The file holds a small
+version of it, and that version is one reading of the sentence. Every page is in scope.
+"Accessibility, readability, or useability" is one flag. The small version says nothing about
+a screen while dark mode is off.
 
-| When | Verdict | Theorem |
+| When | What the definitions say | Theorem |
 |---|---|---|
-| At first. The human has rejected today's behavior (that is the request), and a screen that is hard to read (an earlier outcome that they still want). | The wide attempt is properly written. It assumes nothing about the scope. | `wide_properly_written_at_first` |
-| At first. | "Only the settings page" is a guess. "Light mode stays" is a guess too. No judgment holds either in place. | `scope_was_a_guess`, `keepsLight_was_a_guess` |
+| At first. The human has rejected today's behavior (that is the request), and a screen that is hard to read (an earlier outcome that they still want). | The wide attempt is properly written. It has no premise, so it assumes nothing about the scope. | `wide_properly_written_at_first` |
+| At first. | The wide scope is a guess: nobody has judged a page that stays light. A narrower scope is a guess too. | `wide_guesses_the_scope`, `narrow_guesses_the_scope` |
+| At first. | Nothing holds the premise "only the settings page", and nothing holds the claim "light mode stays". Each is a spare word. | `scope_not_held_at_first`, `keepsLight_not_held_at_first` |
 | The human answers: "only on this page". | That one case refutes the wide attempt, and it shows where the failure is: the scope. | `wide_scope_falsified` |
 | The human rejects a screen that is dark while dark mode is off. | A claim was missing. | `wide_alwaysDark_falsified` |
-| After both answers. | The narrowed attempt is properly written: one premise and three claims, each held in place by one of the cases above. | `narrow_properly_written` |
+| After both answers. | The narrowed attempt is properly written: one premise and three claims, each held by one of the cases above. | `narrow_properly_written` |
 
-So the definition agrees with the author's reason for the wide sentence. At the moment of the
-request, the wide attempt is the properly written one, and a narrower scope is a guess. The
-answer "only on this page" then turns that guess into a held word.
+So the definitions agree with the author's reason for the wide sentence. At the moment of the
+request, both scopes are guesses. The wide attempt is the properly written one, because the
+narrow one needs a premise that nothing holds. The answer "only on this page" then refutes the
+wide attempt at exactly one point, and it holds the new premise in place.
 
 Two notes on the sentence itself, by the rule "remove words":
 
-- This draft cannot name a case that "contain and" rejects, or a case that "compatible"
-  rejects. By the rule, such a word goes, or its writer names the case.
+- Nobody has named a case that "contain and" rejects, or a case that "compatible" rejects. By
+  the rule, such a word goes, or its writer names the case.
 - The sentence may not say what happens while dark mode is off. The case to show is: "the app
   is dark for every user, with no way back to light". If the author rejects that case, either
   a claim is missing, or the word "mode" carries it already and the small version reads the
@@ -702,32 +767,25 @@ Two notes on the sentence itself, by the rule "remove words":
 
 ### What the definition does not decide
 
-Astra reviewed the first version of this definition and proved two things about it
-(`FableReview.lean`, on Astra's branch). Both changed this section.
-
-- **That version had no point 2.** When the human had judged nothing, it accepted a statement
-  that rejects every case. Point 2 is the answer.
-- **Properly written is not unique, and it is not the logically weakest.** Two attempts can
-  both be properly written and disagree on a case that nobody judged
-  (`proper_attempts_can_disagree`). The definition does not choose between them.
-  `one_case_decides` says what to do: show that case to the human.
-
-One more theorem says why "weakest" cannot mean "accepts the most cases". The statement that
-accepts the most cases, and still fits, is the bare list of the cases that the human rejected
-(`onlyTheRejected_fits`, `fits_accepts_no_more`). It says nothing about a new case. A
-hypothesis must say more than that list: its claims say which facts decide the outcome. So
-the deletion test is about the words of a statement, and the choice between two statements
-stays with the human.
-
-Three more limits:
-
-- The definition tests the words as the writer cut them. It does not test the cut. One claim
-  that packs two demands is one word, and it passes. The habit "one example and one falsifier
-  for each claim" is the guard: a claim that needs two different falsifiers is two claims.
-- A case here is one behavior. A claim about an order of steps, or about time, needs a case
-  that is a sequence.
-- The agent chooses what a case is, so the human must read it (principle 6). The dark-mode
+- **It does not confirm.** See "Held is not confirmed".
+- **Properly written is not unique.** Two attempts can both be properly written and disagree
+  on a case that nobody judged (`proper_attempts_can_disagree`). The definition does not
+  choose between them. `one_case_decides` says what to do: show that case to the human.
+- **"Weakest" cannot mean "accepts the most cases".** The statement that accepts the most
+  cases, and still fits, is the bare list of the cases that the human rejected
+  (`onlyTheRejected_fits`, `fits_accepts_no_more`). It says nothing about a new case. A
+  hypothesis must say more than that list: its claims say which facts decide the outcome. So
+  the test of removal is about the words of a statement, and the choice between two statements
+  stays with the human.
+- **It tests the words as the writer cut them.** It does not test the cut. One claim that
+  packs two demands is one word, and it passes. The habit "one example and one falsifier for
+  each claim" is the guard: a claim that needs two different falsifiers is two claims.
+- **A case here is one behavior.** A claim about an order of steps, or about time, needs a
+  case that is a sequence.
+- **The agent chooses what a case is,** so the human must read it (principle 6). The dark-mode
   example shows the risk: one flag stands for three words of the author.
+- **It has only the human's judgments.** A default of the agent is an answer that the agent
+  gave itself. In the definitions, the case of a default is a case that nobody has judged.
 
 ## Where Sagittarius sits
 
@@ -750,21 +808,20 @@ Sagittarius runs in two interfaces.
    workspace. It is for power-work, where throughput, explainability and automation are
    central.
 
-The two work best together, and neither depends on the other. **(P)** So the prompt must be
-true alone: with no hub, with another version of `orbit-kb`, and when System 1 is silent.
+The two work best together, and neither depends on the other. So the prompt must be true
+alone: with no hub, with another version of `orbit-kb`, and when System 1 is silent.
 
-**(P)** The prompt holds the philosophy in words that change how a model acts. That is what a
-session needs before it reads any help: the orbit, the light path, and the signals. The tool
-holds the procedure and its syntax. (This replaces "the prompt holds the philosophy only". A
-session on the light path never runs `orbit-kb`, so it never reads the help.)
+The prompt holds the philosophy in words that change how a model acts. That is what a session
+needs before it reads any help: the orbit, the light path, and the signals. The tool holds the
+procedure and its syntax. A session on the light path never runs `orbit-kb`, so it never reads
+the help.
 
-**(P)** Each release of Sagittarius has a semantic version, and the prompt names its own
-version. Then a report from use can say what it ran.
+Each release of Sagittarius has a semantic version, and the prompt names its own version. Then
+a report from use can say what it ran.
 
 ## Under trial
 
-Use has not yet judged these positions. Each one names what would show it wrong. **(P)** The
-right column is this draft's.
+Use has not yet judged these positions. Each one names what would show it wrong.
 
 | Position | What would show it wrong |
 |---|---|
@@ -775,58 +832,23 @@ right column is this draft's.
 | System 1 is recommended, not required. | Sessions without it miss signals that sessions with it catch. Then it is required. |
 | When System 1 and the agent disagree, it goes to the human, or to a formalism, or both. | System 1 names so many false signals that these lines become noise. |
 | Liked, then changed: narrow down what stays and what changes. | The narrowing costs more than the change, or a part that the author liked is lost anyway. |
-| The build goes back to discovery only when the hypothesis must change, and then only when the agent can no longer say what to change. | A hypothesis that was restated in build is later found to have changed what the ticket was for. |
+| The build goes back to discovery only when the agent can no longer say what the hypothesis changes to. | A hypothesis that was restated in build is later found to have changed what the ticket was for. |
 | A ticket starts in words. Records start on a signal. | Agents still miss the step from words to a record, as the audit of 2026-10-22 found, also when the step is cheap. |
-| **(P)** The claim chooses the third level, not a count of signals. (The tool today counts: a claim that is contested twice needs a proof. Astra's plan for the tool drops that rule.) | Claims that needed a formal statement stay in words and records, and the same correction comes back. |
-| **(P)** A predicted result is not a signal, and the agent says what it expects before it looks. | Agents write the expectation after the result, or the line becomes a ritual. |
-| **(P)** The definition of a properly written hypothesis, and of a guess. | A hypothesis that the definition accepts and the author calls badly written, or the reverse. |
-| **(P)** The formal statement goes to the human with the plain claim. | The author reports it as noise, or still does not see it. |
+| The claim chooses the third level, not a count of signals. | Claims that needed a formal statement stay in words and records, and the same correction comes back. |
+| The agent says what it expects before it looks. The failure of a check before its change is not a new divergence. | Agents write the expectation after the result, or the line becomes a ritual. |
+| The definition of a properly written hypothesis, with "held" and "guess" as two judgments. | A hypothesis that the definition accepts and the author calls badly written, or the reverse. |
+| The formal statement goes to the human with the plain claim. | The author reports it as noise, or still does not see it. |
+| The formal artifacts vote by readiness, with a knowledge base and without one. | A discovery that was not ready gets a GO that proves right, or a ready one proves wrong, often enough to matter. |
 | One response for every signal. | A signal appears for which the right response has another shape. |
 
-## Known limits
-
-**(P)** These are limits of the tools today. Each is work for the tools. None is an open
-question of the philosophy.
-
-- The System 1 hook prints nothing when it has no confident answer, and nothing when it fails.
-  The agent cannot tell either of these from "no signal".
-- The hook runs only when the human sends a message. A signal inside the turn of the agent has
-  no outside witness. The spoken line of the agent is all that there is.
-- The question set of System 1 does not count a new request or a change of preference as a
-  divergence. This document does.
-- The step from words to records costs several commands and a long read of the help. At that
-  same moment, "you're right" and a fast fix cost nothing.
-- The tool has a hypothesis fact only in discovery. The hypothesis of a direct build has no
-  record of its own.
-- In the tool, the human and the agent can vote GO and win while the discovery is not ready.
-  The rule for the outcome of the vote does not read the readiness.
-- In the tool, one matching case makes a model count as calibrated, and a model that is
-  derived from it inherits that.
-- `orbit-kb pin` stamps the whole KB file. It does not cover the artifacts that the KB names,
-  and it does not tell a dependent ticket that something changed.
-- Nothing reopens a proof when the code changes. A change of the Lean files does reopen it.
-- A fact of the project that became stale is quiet in the records that rest on it.
-- The tool records who made a decision. It does not record who made a relation between two
-  decisions, so a relation that an agent wrote reads like a fact.
-- `orbit-kb prove` prints the statement of the theorem. The report of the tool does not put
-  that statement, or the facts of the KB, beside the plain claim.
-- The help of discovery writes the wanted outcome and "the system falls short" as one
-  hypothesis, with one falsifier.
-
-Where these come from:
-
-- The hook, its question set, the help of discovery, and the report: read for this draft (the
-  report in one real KB).
-- The hypothesis fact, the vote, the calibration, and the pin: Astra's audit of the source
-  (`docs/REWORK-PLAN.md` on Astra's branch). This draft read those rules and the help of
-  `pin`, and they are as Astra says.
-- The proof, the stale fact, the relation, and the cost of the step: the review session's
-  tests of 2026-11-11, one test each. This draft did not repeat them.
+This text is the frontier, and the build is behind it in places. Three examples: the report of
+the tool does not yet put a formal statement beside its plain claim, the step from words to
+records costs several commands, and System 1 prints nothing when it is unsure. Each gap is
+work for the tools. None is an open question of this text.
 
 ## How to judge a change
 
-Ask these questions about a proposed change to the prompt, the tool, or the hub. **(P)**
-Questions 6, 8 and 10 are new, and so are the second halves of questions 2 and 4.
+Ask these questions about a proposed change to the prompt, the tool, or the hub.
 
 1. Which premise or principle does it serve? Does it break one?
 2. Does it let a party grade its own work, or its own noticing?
@@ -840,29 +862,3 @@ Questions 6, 8 and 10 are new, and so are the second halves of questions 2 and 4
    enough?
 10. Is it still true with no hub, with another version of `orbit-kb`, and when System 1 is
     silent?
-
-## Where the earlier text went
-
-This text supersedes the text of 2026-11-05 (14 principles and six open questions). It does
-not erase it: `git log -- docs/PHILOSOPHY.md` has it.
-
-| Earlier | Now |
-|---|---|
-| Principles 1 and 2 | Principle 1 |
-| Principle 3 | Principles 4 and 6, and "The center" (parallax) |
-| Principle 4 | "The orbit", and principle 5 |
-| Principle 5 | Principle 2, and "A properly written hypothesis" |
-| Principle 6 | Principle 8 |
-| Principle 7 | Principle 10, "The bet" (the tiers), and "The orbit" (the two levels) |
-| Principle 8 | Principle 12 |
-| Principle 9 | Principle 9 |
-| Principle 10 | Principle 7 |
-| Principle 11 | Principle 11 |
-| Principle 12 | Principle 3, and "Where Sagittarius sits" (the job of the prompt) |
-| Principles 13 and 14 | Principles 13 and 14 |
-| Question A (the hypothesis) | "A properly written hypothesis" |
-| Question B (back to discovery) | Principle 2; under trial |
-| Question C (across tickets) | Principle 3; "Known limits" |
-| Question D (a proof and the code) | Principle 9; "Known limits" |
-| Question E (sizes as tiers) | Principle 10: clarity decides |
-| Question F (one language at a time) | Principles 11 and 9 |
