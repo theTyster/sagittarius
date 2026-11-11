@@ -54,7 +54,7 @@ hub/                            the files of a new hub, at the paths they take i
   .claude/scripts/hubflow.py      the db tool (Python 3 stdlib only), and hubflow-test.py
   .claude/skills/hub-flow, hub-rotate   the two skills; a LOCAL.md next to SKILL.md holds local changes
   flow/seed.json                  sessions, aliases and people to seed
-docs/index.html                 a one-page briefing for your human (also published as the repo's site)
+docs/index.html                 a one-page briefing for your human
 ```
 
 **Engine and owned files.** Engine files ship with the template, and an upgrade replaces them.
