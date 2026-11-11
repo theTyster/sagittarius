@@ -446,7 +446,7 @@ def t32c6():
         check("t32c6 the hub is at the relative HUB, with its manifest and flow db",
               os.path.isfile(os.path.join(hub, ".hub-template.json")) and os.path.isfile(os.path.join(hub, "flow", "flow.db")), hub)
         last = [ln for ln in p.stdout.splitlines() if re.match(r"\d+ passed, \d+ failed", ln)]
-        check("t32c6 the hub's tests say N passed, 0 failed", bool(last) and last[-1].endswith(" 0 failed"), last)
+        check("t32c6 the hub's tests say N passed, 0 failed", bool(last) and re.search(r" 0 failed(, \d+ skipped)?$", last[-1]), last)
     p = run([sys.executable, os.path.join(ROOT, "docs", "check_informal_release.py"), "c1"], timeout=1800)
     check("t32c6 check_informal_release.py c1 (T24) passes", p.returncode == 0, p.stdout[-400:])
     m = re.search(r"^c1: PATH tools: (.*)$", p.stdout, re.M)

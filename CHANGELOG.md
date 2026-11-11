@@ -3,11 +3,15 @@
 ## Redesign (informal release)
 
 Ty makes the release. This entry lists what is in the `redesign` branch. The hub kit is version
-0.5.1 (`hubkit/kit.json`; T48 c3: db schema 5 ships as 0.5.1, the kit version moves with the
-schema).
+0.5.2 (`hubkit/kit.json`; T48 c3: db schema 5 shipped as 0.5.1, the kit version moves with the
+schema; 0.5.2 keeps schema 5 and fixes the kit defects of the first formal install, T51).
 
 ### What landed
 
+- Hub kit 0.5.2 (T51): in an installed formal hub `hubflow-test.py` finds `orbit-kb` on PATH, fails
+  (not skips) a real-orbit-kb case it cannot run, and counts skips on its last line; the kit
+  `.gitignore` ignores `kb.lock` and `writer.lock`; INSTRUCTIONS step 6 commits `project-kb/` and
+  `specs/` in the formal edition; `repo-map --help` prints the usage and exits 0.
 - Hub kit (T01): `hubkit/` holds the hub template, its install tool, and its tests. It was the
   separate hubflow-starter repo.
 - Philosophy (T02): `docs/PHILOSOPHY.md` has the new beliefs and the way to judge a change.

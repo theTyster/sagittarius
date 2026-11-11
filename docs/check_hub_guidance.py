@@ -323,8 +323,9 @@ def c11(_):
     first = re.search(r"^### (\d+\.\d+\.\d+)", up, re.M)
     check("c11 the newest UPGRADING section is the kit version", first is not None and first.group(1) == v, first and first.group(1))
     check("c11 HUB-CORE.md is an engine file", "HUB-CORE.md" in kit["engine"], kit["engine"])
-    sec = up[up.find("### " + v):] if f"### {v}" in up else ""
-    has("c11 the entry names what changes", sec[:3000], "HUB-CORE.md", "specs/<slug>", "spec-triage")
+    # the entry that made these changes is 0.3.0 (T22); a later release need not repeat its words
+    sec = up[up.find("### 0.3.0"):] if "### 0.3.0" in up else ""
+    has("c11 the 0.3.0 entry names what changes", sec[:3000], "HUB-CORE.md", "specs/<slug>", "spec-triage")
 
 
 # ------------------------------------------------------------------ c12

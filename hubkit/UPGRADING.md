@@ -43,6 +43,27 @@ human before you start; this is a one-time merge.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.5.2 (hub kit fixes from the first formal-edition install; db schema stays 5)
+
+The db schema is 5, as in 0.5.1: no `hubflow.py migrate` is needed. `.claude/scripts/hubflow-test.py`
+is an engine file: replace it if the hub did not change it, else merge by intent. `INSTRUCTIONS.md` is
+not in the hub; the changes to it are for whoever sets up a hub. Owned file `.gitignore`: add the two
+lines below by hand (an upgrade never writes an owned file). Owned file `CLAUDE.md`: no change in 0.5.2; it still
+imports the principles (`@PRINCIPLES.md` below `@HUB-CORE.md`, see 0.4.0).
+
+- **The hub's tests find `orbit-kb` on PATH (T51 c1).** Intent: `hubflow-test.py` ran its real-orbit-kb
+  cases only beside the kit tree, so in an installed formal hub they skipped, the suite said
+  `N passed, 0 failed`, and waiver mutants survived. Now it looks at `$HUBFLOW_TEST_ORBIT_KB`, the kit
+  tree, then `orbit-kb` on PATH. In a formal hub (a `.hub-template.json` that does not record the informal
+  edition) a skipped real-orbit-kb case is a failure, and the last line counts skips (`N passed, M failed,
+  K skipped`). An informal hub still skips them. Files: `.claude/scripts/hubflow-test.py`. Check: in the
+  hub, `python3 .claude/scripts/hubflow-test.py` shows no `SKIP` of a real-orbit-kb case and exits 0.
+- **Lock files are not committed (T51 c3).** Intent: ignore the lock files of orbit-kb KBs. Owned file
+  `.gitignore`: add the lines `kb.lock` and `writer.lock`. Check: `git check-ignore project-kb/writer.lock`
+  exits 0.
+- **Step 6 commits the stores of the formal edition (T51 c2).** Intent: a formal hub's first commit includes
+  `project-kb/` and `specs/`. No hub file changes; this is in `INSTRUCTIONS.md` only.
+
 ### 0.5.1 (db schema 5: a waiver holds an item for the human)
 
 The db schema is 5. **Database:** every hub at schema 4 (0.5.0, or 0.4.0 after the transcripts

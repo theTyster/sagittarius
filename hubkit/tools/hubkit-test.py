@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for hubkit.py. Builds throwaway kits and hubs in temp dirs; never touches a real hub.
 
-usage: python3 -I tools/hubkit-test.py [--mutants]
+usage: python3 -I tools/hubkit-test.py [--mutants] [--case case_NAME ...]
   --mutants  also run the suite against each rule mutant of hubkit.py; each must make a case fail.
 Prints `PASS name` or `FAIL name: why` per case; the last line is `N passed, M failed`.
 """
@@ -11,6 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
 REAL = os.path.join(HERE, "hubkit.py")
 QUIET = False
+ONLY = []  # --case NAME: run only these case functions
 
 MUTANTS = [
     ("upgrade-overwrites-modified", "if state == \"modified\" and changed:  # merge, never overwrite",
@@ -205,13 +206,97 @@ def case_t48_version_moves_with_schema(r, root):
             and f"upgrade {old} -> {version} " in res[1] and old != version, res)
 
 
+def clean_env(path):
+    """The environment of a run from an installed hub: no HUBFLOW_ variables, the given PATH."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("HUBFLOW_") and k != "HUB_SESSION"}
+    env["PATH"] = path
+    return env
+
+
+def case_t51_c1_installed_hub_orbit_kb(r, root):
+    """T51 c1: from an installed formal hub (the kit's hub/ copied by install), hubflow-test.py finds an
+    orbit-kb on PATH and runs its real-orbit-kb case; with none, the skip is a failure and the last line counts it."""
+    hub = os.path.join(root, "t51c1-hub")
+    res = hk(r, "install", "--kit", KIT, "--hub", hub, "--edition", "formal")
+    r.check("t51c1-setup-install-formal", res[0] == 0, res)
+    script = os.path.join(hub, ".claude", "scripts", "hubflow-test.py")
+    real_okb = os.path.join(os.path.dirname(KIT), "kb", "bin", "orbit-kb")
+    r.check("t51c1-setup-kit-tree-has-orbit-kb", os.access(real_okb, os.X_OK), real_okb)
+    swipl = shutil.which("swipl")
+    if not swipl or not os.access(real_okb, os.X_OK):
+        r.check("t51c1-setup-swipl-and-orbit-kb-to-run-the-case", False, (swipl, real_okb))
+        return
+    bindir = os.path.join(root, "t51c1-bin")  # orbit-kb and swipl, nothing else of the machine's PATH
+    os.makedirs(bindir)
+    os.symlink(real_okb, os.path.join(bindir, "orbit-kb"))
+    os.symlink(swipl, os.path.join(bindir, "swipl"))
+    tools = [os.path.dirname(x) for x in (shutil.which("env"), shutil.which("sh")) if x]
+    p = subprocess.run([sys.executable, "-I", script, "--case", "case_real_orbit_kb"], capture_output=True, text=True,
+                       cwd=hub, env=clean_env(os.pathsep.join([bindir] + tools)), timeout=600)
+    r.check("t51c1-orbit-kb-on-path-runs-the-real-case", p.returncode == 0 and "PASS c2-real-query-open-question" in p.stdout
+            and "SKIP" not in p.stdout and "FAIL" not in p.stdout, (p.returncode, p.stdout[-400:], p.stderr[-200:]))
+    empty = os.path.join(root, "t51c1-empty")
+    os.makedirs(empty)
+    p = subprocess.run([sys.executable, "-I", script, "--case", "case_real_orbit_kb"], capture_output=True, text=True,
+                       cwd=hub, env=clean_env(empty), timeout=600)
+    lines = p.stdout.strip().splitlines()
+    r.check("t51c1-no-orbit-kb-in-a-formal-hub-fails", p.returncode == 1 and any(x.startswith("FAIL c2-real-orbit-kb") for x in lines)
+            and "SKIP" not in p.stdout, (p.returncode, p.stdout[-400:]))
+    r.check("t51c1-last-line-counts-skips", bool(lines) and re.fullmatch(r"\d+ passed, \d+ failed, 1 skipped", lines[-1]) is not None,
+            lines[-1:] )
+    # an informal hub has no orbit-kb rules: the skip stays a skip
+    ihub = os.path.join(root, "t51c1-informal")
+    res = hk(r, "install", "--kit", KIT, "--hub", ihub, "--edition", "informal")
+    p = subprocess.run([sys.executable, "-I", os.path.join(ihub, ".claude", "scripts", "hubflow-test.py"), "--case", "case_real_orbit_kb"],
+                       capture_output=True, text=True, cwd=ihub, env=clean_env(empty), timeout=600)
+    r.check("t51c1-informal-hub-skip-is-not-a-failure", res[0] == 0 and p.returncode == 0 and "SKIP c2-real-orbit-kb" in p.stdout
+            and p.stdout.strip().splitlines()[-1].endswith("0 failed, 1 skipped"), (p.returncode, p.stdout[-300:]))
+
+
+def case_t51_c2_step6_formal_git_add(r):
+    """T51 c2: INSTRUCTIONS step 6 has a formal git add line that names project-kb and specs; the informal line does not."""
+    with open(os.path.join(KIT, "INSTRUCTIONS.md"), encoding="utf-8") as f:
+        text = f.read()
+    m = re.search(r"^## Step 6: commit\n(.*?)^## Step 7", text, re.M | re.S)
+    r.check("t51c2-step6-found", m is not None)
+    body = m.group(1) if m else ""
+    adds = [ln for ln in body.splitlines() if ln.startswith("git add ")]
+    formal = [ln for ln in adds if "project-kb" in ln and "specs" in ln]
+    plain = [ln for ln in adds if "project-kb" not in ln and "specs" not in ln]
+    r.check("t51c2-step6-formal-add-names-project-kb-and-specs", len(formal) == 1, adds)
+    r.check("t51c2-step6-informal-add-stays", len(plain) == 1 and ".claude" in plain[0], adds)
+    r.check("t51c2-step6-says-which-edition", "formal" in body.lower(), body[:300])
+
+
+def case_t51_c3_gitignore_locks(r, root):
+    """T51 c3: the kit .gitignore ignores kb.lock and writer.lock, wherever an orbit-kb KB lies in the hub."""
+    hub = os.path.join(root, "t51c3-hub")
+    res = hk(r, "install", "--kit", KIT, "--hub", hub, "--edition", "formal")
+    r.check("t51c3-setup-install-formal", res[0] == 0, res)
+    g = subprocess.run(["git", "init", "-q", hub], capture_output=True, text=True)
+    r.check("t51c3-setup-git-init", g.returncode == 0, g)
+    for rel in ("specs/some-spec/kb.lock", "project-kb/writer.lock", "W0/analyses/a/kb/kb.lock", "flow/flow.db"):
+        p = subprocess.run(["git", "-C", hub, "check-ignore", "-q", rel], capture_output=True, text=True)
+        r.check("t51c3-ignored-" + rel.replace("/", "-"), p.returncode == 0, rel)
+    p = subprocess.run(["git", "-C", hub, "check-ignore", "-q", "specs/some-spec/kb.pl"], capture_output=True, text=True)
+    r.check("t51c3-kb-pl-not-ignored", p.returncode == 1, p)
+
+
 def cases(r):
     root = tempfile.mkdtemp(prefix="hubkit-test-")
     try:
+        if ONLY:
+            for n in ONLY:
+                fn = globals()[n]
+                fn(r, root) if "root" in fn.__code__.co_varnames[:fn.__code__.co_argcount] else fn(r)
+            return
         case_real_kit(r)
         hub = case_install(r, root)
         case_status_upgrade(r, root, hub)
         case_t48_version_moves_with_schema(r, root)
+        case_t51_c1_installed_hub_orbit_kb(r, root)
+        case_t51_c2_step6_formal_git_add(r)
+        case_t51_c3_gitignore_locks(r, root)
     except Exception as e:
         r.check("scenario-ran", False, repr(e))
     finally:
@@ -224,6 +309,13 @@ def main():
     if not os.path.exists(REAL):
         print("FAIL hubkit.py-exists\n0 passed, 1 failed")
         sys.exit(1)
+    args = sys.argv[1:]
+    for i, a in enumerate(args):
+        if a == "--case":
+            if i + 1 >= len(args) or not args[i + 1].startswith("case_") or args[i + 1] not in globals():
+                print("usage: hubkit-test.py [--mutants] [--case case_NAME ...]")
+                sys.exit(1)
+            ONLY.append(args[i + 1])
     cases(r)
     total, passed = len(r.results), r.results.count(True)
     if "--mutants" in sys.argv[1:]:

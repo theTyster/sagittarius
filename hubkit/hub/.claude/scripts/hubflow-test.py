@@ -25,7 +25,8 @@ lapses). T48 checks start with t48-c1- (an archived spec KB reads as archived in
 triage too) and t48-c4- (the message of a lapse that a waiver escalates names the waiver).
 Every scenario seeds its db from a seed file written into the temp dir (SEED_DATA below).
 Prints `PASS name` or `FAIL name: why` per case (`SKIP name: why` for a check that cannot run
-here, not counted); the last line is `N passed, M failed`.
+here, counted in the last line); the last line is `N passed, M failed`, with `, K skipped` when K checks skipped.
+In an installed formal hub a skipped real-orbit-kb check is a failure (orbit-kb on PATH or $HUBFLOW_TEST_ORBIT_KB).
 Exit 0 only if every case passes (and, with --mutants, every mutant is killed); 1 otherwise.
 """
 import datetime, json, os, re, shlex, shutil, sqlite3, subprocess, sys, tempfile, time
@@ -120,6 +121,16 @@ MUTANTS = [
 ]
 
 
+def formal_hub():
+    """True when this script runs from an installed formal hub: the hub root (three levels up) has a
+    .hub-template.json that does not record the informal edition. The kit tree has no manifest."""
+    try:
+        with open(os.path.join(HERE, "..", "..", ".hub-template.json"), encoding="utf-8") as f:
+            return json.load(f).get("edition") != "informal"
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 NEUTRAL_CWD = None  # set by cases(): the cwd of a case that names none
 
 
@@ -128,9 +139,17 @@ class Run:
         self.script = script
         self.results = []
         self.sync_bad = []
+        self.skips = 0
 
-    def skip(self, name, why):
-        """A check that cannot run here: printed, not counted."""
+    def skip(self, name, why, needs_orbit_kb=True):
+        """A check that cannot run here: printed and counted as a skip (the last line says how many).
+        A real-orbit-kb check that cannot run in an installed formal hub is a failure instead (T51 c1):
+        the hub's own rules need orbit-kb, so a suite that skips them proves less than it says."""
+        if needs_orbit_kb and formal_hub():
+            self.skips += 1
+            self.check(name, False, f"skipped in a formal hub: {why} (put orbit-kb on PATH or set HUBFLOW_TEST_ORBIT_KB)")
+            return
+        self.skips += 1
         if not QUIET:
             print(f"SKIP {name}: {why}")
 
@@ -1683,8 +1702,12 @@ def case_close_blocking(r, root):
 
 
 def real_orbit_kb():
-    """The orbit-kb of this checkout (kb/bin/orbit-kb), or $HUBFLOW_TEST_ORBIT_KB."""
-    return os.environ.get("HUBFLOW_TEST_ORBIT_KB") or os.path.normpath(os.path.join(HERE, "..", "..", "..", "..", "kb", "bin", "orbit-kb"))
+    """The orbit-kb to test against: $HUBFLOW_TEST_ORBIT_KB, else the kit tree's own (kb/bin/orbit-kb, which
+    exists only beside hubkit/), else `orbit-kb` on PATH (an installed hub). With none, the kit tree's path."""
+    if os.environ.get("HUBFLOW_TEST_ORBIT_KB"):
+        return os.environ["HUBFLOW_TEST_ORBIT_KB"]
+    kit = os.path.normpath(os.path.join(HERE, "..", "..", "..", "..", "kb", "bin", "orbit-kb"))
+    return kit if os.access(kit, os.X_OK) else (shutil.which("orbit-kb") or kit)
 
 
 def case_real_orbit_kb(r, root):
@@ -2733,7 +2756,7 @@ def case_t42_check_names(r, root):
     hub_dir_ = os.path.dirname(os.path.dirname(HERE))
     kit = os.path.dirname(hub_dir_)
     if not os.path.isfile(os.path.join(kit, "tools", "storemap.py")):
-        r.skip("t42-c6-skill-says-when-to-run-skip-waived", "not run from the kit tree (hubkit/hub)")
+        r.skip("t42-c6-skill-says-when-to-run-skip-waived", "not run from the kit tree (hubkit/hub)", needs_orbit_kb=False)
         return
     skill = open(os.path.join(HERE, "..", "skills", "hub-flow", "SKILL.md"), encoding="utf-8").read()
     para = next((p for p in skill.split("\n\n") if "$HF skip-waived" in p), "")
@@ -2989,8 +3012,8 @@ def case_t40_words_and_refs(r, root):
     kit = os.path.dirname(hub_dir_)
     if not os.path.isfile(os.path.join(kit, "tools", "storemap.py")):
         # the words are those of the kit's full edition; an installed hub (or the informal edition) has its own
-        r.skip("t40-c12-skill-summary-is-no-decision", "not run from the kit tree (hubkit/hub)")
-        r.skip("t40-c12-hub-core-raw-reports-agent-reads", "not run from the kit tree (hubkit/hub)")
+        r.skip("t40-c12-skill-summary-is-no-decision", "not run from the kit tree (hubkit/hub)", needs_orbit_kb=False)
+        r.skip("t40-c12-hub-core-raw-reports-agent-reads", "not run from the kit tree (hubkit/hub)", needs_orbit_kb=False)
     else:
         skill = open(os.path.join(HERE, "..", "skills", "hub-flow", "SKILL.md"), encoding="utf-8").read()
         ex = re.findall(r'add summary --title "([^"]*)"', skill)
@@ -3245,7 +3268,7 @@ def main():
             total += 1
             passed += 1 if killed else 0
         QUIET = False
-    print(f"{passed} passed, {total - passed} failed")
+    print(f"{passed} passed, {total - passed} failed" + (f", {r.skips} skipped" if r.skips else ""))
     sys.exit(0 if passed == total else 1)
 
 
