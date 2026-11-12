@@ -195,5 +195,6 @@ kb/tests/burn_model/check.sh               # the Lean files of the burn rules (n
 python3 docs/check_lean.py                 # Lean on Hypothesis.lean (count, axioms, cited names) and kb/proofs (needs Lean 4)
 python3 docs/test_check_lean.py            # the tests of that check
 python3 docs/check_mutants.py              # each docs check passes on the tree, and fails on a copy that lost what it holds
+python3 docs/check_mindhole.py --list      # the MindHole checks of 0.3.0, one id each (mb2 to mb5 read the kit only, not the design KB)
 python3 docs/test_check_mutants.py         # the tests of that check
 ```
