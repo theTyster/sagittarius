@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """0.3.0 D-A: each docs check that holds the new texts must FAIL when the thing that it holds is gone.
 
-For each case, the check runs on a scratch copy of the tree where one sentence or heading is
-changed. The copy holds only the files that the docs checks read. A check that still passes on
+For each case, the check runs twice on a scratch copy of the tree: first unchanged, where it must
+pass (a check that fails there cannot show the change), then with one sentence or heading changed,
+where it must fail. The copy holds only the files that the docs checks read. A check that still passes on
 its case is a quiet check (it cannot fail), and this script fails.
 
 Usage: python3 docs/check_mutants.py
-Exit 0: every check failed on its case. Exit 1: one passed, or a case did not apply.
+Exit 0: every check passed on the unchanged copy and failed on its case. Exit 1: one failed on the\nunchanged copy, passed on its case, or a case did not apply.
 """
 import os
 import shutil
@@ -46,6 +47,12 @@ def main():
                 elif os.path.isfile(src):
                     os.makedirs(os.path.dirname(dst), exist_ok=True)
                     shutil.copy2(src, dst)
+            label = " ".join(cmd)
+            base = subprocess.run([sys.executable, "-B"] + cmd, cwd=root, capture_output=True, text=True)
+            if base.returncode != 0:
+                print(f"FAIL {label} fails on the unchanged copy, so its failure on the case ({what}) shows nothing")
+                bad += 1
+                continue
             p = os.path.join(root, rel)
             t = open(p, encoding="utf-8").read()
             if old not in t:
@@ -61,7 +68,7 @@ def main():
                 print(f"FAIL {' '.join(cmd)} stops with a traceback on a copy where {what}")
                 bad += 1
             else:
-                print(f"ok   {' '.join(cmd)} fails where {what}")
+                print(f"ok   {label} passes unchanged, fails where {what}")
     return 1 if bad else 0
 
 
