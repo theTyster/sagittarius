@@ -102,12 +102,20 @@ check_ids(This) :-
     forall(( member(A, Ns), member(B, Ns), A @< B, id_atom(A, I), id_atom(B, I) ),
            die("repo-map: the names '~w' and '~w' give the same diagram id ~w; rename one", [A, B, I])).
 
+% Markdown escape of a name. The escape characters are plain character codes, not a quoted atom
+% or 0'c: SWI-Prolog before 10.1.6 can misread a 0'c number that falls on the end of its read
+% buffer (swipl-devel #1483), and the old clause failed that way in about 1 run in 400.
 md_escape(X, E) :-
     format(atom(T0), "~w", [X]), atom_codes(T0, Cs),
-    foldl([C, A0, A]>>( memberchk(C, [10, 13, 9]) -> append(A0, [0'\s], A)
-                      ; ( char_code(Ch, C), sub_atom('\\`*_{}[]<>()#+-.!|~&', _, 1, _, Ch) ) -> append(A0, [0'\\, C], A)
-                      ; append(A0, [C], A) ), Cs, [], Es),
+    maplist(md_esc_code, Cs, Ess), append(Ess, Es),
     atom_codes(E, Es).
+
+% newline, carriage return and tab become a space
+md_esc_code(C, [32]) :- memberchk(C, [10, 13, 9]), !.
+% \ ` * _ { } [ ] < > ( ) # + - . ! | ~ & get a backslash (92) before them
+md_esc_code(C, [92, C]) :-
+    memberchk(C, [92, 96, 42, 95, 123, 125, 91, 93, 60, 62, 40, 41, 35, 43, 45, 46, 33, 124, 126, 38]), !.
+md_esc_code(C, [C]).
 
 % ---- the input hash: sha256 over facts bytes, one NUL byte, containers bytes
 input_hash(Facts, Cont, Hex) :-
