@@ -5839,8 +5839,8 @@ cmd_show(KB, Args, Code) :-
 cmd_show(KB, Args, Code) :-
     parse_opts(Args, [], Pos, _),
     (   Pos == [] -> What = all
-    ;   Pos = [What], memberchk(What, [claims, questions, open, blocking, disclosures, extensions, kinds, all]) -> true
-    ;   usage_error("show takes one of: claims, questions, open, blocking, disclosures, extensions, kinds, all, or pin ID.", [])
+    ;   Pos = [What], memberchk(What, [hypothesis, claims, questions, open, blocking, disclosures, extensions, kinds, all]) -> true
+    ;   usage_error("show takes one of: hypothesis, claims, questions, open, blocking, disclosures, extensions, kinds, all, or pin ID.", [])
     ),
     kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
     (   What == kinds
@@ -5855,7 +5855,7 @@ show_parts(KB, What) :-
     answer_gate(KB),
     kb_engine(KB, Eng),
     (   What == all
-    ->  forall(member(W, [claims, questions, open, disclosures, extensions]),
+    ->  forall(member(W, [hypothesis, claims, questions, open, disclosures, extensions]),
                ( show_section(KB, Eng, W), nl ))
     ;   show_section(KB, Eng, What)
     ).
@@ -5900,6 +5900,19 @@ show_pin(KB, Id, Code) :-
         Code = 1
     ).
 
+% D31 B1: the hypothesis of the ticket and its premises, before the claims.
+show_section(_, Eng, hypothesis) :-
+    say("Hypothesis:", []),
+    eng_all(Eng, [H, K, T], hypothesis(H, K, T), Hs),
+    (   Hs == [] -> say("- None. Every ticket has one: add hypothesis(H, KIND, TEXT).", []) ; true ),
+    forall(member([H, K, T], Hs),
+           ( txt(T, TT), say("- ~w (~w): ~w", [H, K, TT]),
+             (   eng_all(Eng, [N], supersedes(N, H), Ns), Ns \== []
+             ->  atomic_list_concat(Ns, ', ', NT), say("  State: superseded by ~w.", [NT])
+             ;   say("  State: current.", [])
+             ),
+             premise_lines(Eng, H, PLs),
+             forall(member(L, PLs), say("  ~w", [L])) )).
 show_section(KB, Eng, claims) :-
     say("Claims:", []),
     eng_all(Eng, [C, L, T], claim(C, L, T), Cs),
@@ -7114,6 +7127,7 @@ report_text(KB, Eng) :-
     Build = has_build(KB),
     rhead('Delivered'),
     rsay(placeholder, "(Write what you delivered here.)", []),
+    hypothesis_section(Eng),
     rhead('Claims'),
     eng_all(Eng, [C, L, T], ( claim(C, L, T), current(C) ), Cs),
     (   Cs == [] -> rsay(none, "No current claims.", []) ; true ),
@@ -7294,6 +7308,40 @@ report_text(KB, Eng) :-
     ( has_discovery(KB) -> vote_section(Eng) ; true ),
     rhead('To land'),
     rsay(placeholder, "(Write the steps to land the work here.)", []).
+
+% hypothesis_section(+Eng) (D31 B1): the current hypothesis of the ticket, with its premises
+% beside it, or "Premises: none" (D30 H2). A superseded hypothesis is not current.
+hypothesis_section(Eng) :-
+    rhead('Hypothesis'),
+    eng_all(Eng, [H, K, T], ( hypothesis(H, K, T), not(superseded(H)) ), Hs),
+    (   Hs == []
+    ->  rsay(none, "None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).", [])
+    ;   true
+    ),
+    forall(member([H, K, T], Hs),
+           ( txt(T, TT),
+             premise_lines(Eng, H, PLs),
+             format(string(Head), "~w **~w**: ~w", [H, K, TT]),
+             as_sentence(TT, TS),
+             atomic_list_concat(PLs, ' ', PT),
+             format(string(Plain), "~w (~w): ~w ~w", [H, K, TS, PT]),
+             findall(L-[], member(L, PLs), Kids),
+             rtree(item(H), Plain, Head-Kids) )).
+
+% premise_lines(+Eng, +H, -Lines) (D30 H2, D31 B1): one sentence per premise of hypothesis H
+% with its state, or "Premises: none.", or a pointer to lint W10.
+premise_lines(Eng, H, Lines) :-
+    eng_all(Eng, [P, PT], premise(P, H, PT), Ps),
+    (   Ps \== []
+    ->  findall(L, ( member([P, PT], Ps), txt(PT, PTT), as_sentence(PTT, PTS),
+                     (   eng_all(Eng, [W], premise_checked(P, W), [W1|_])
+                     ->  txt(W1, WT), format(string(L), "Premise ~w: ~w Checked on the system at ~w.", [P, PTS, WT])
+                     ;   format(string(L), "Premise ~w: ~w Not checked.", [P, PTS])
+                     ) ), Lines)
+    ;   eng_true(Eng, no_premises(H))
+    ->  Lines = ["Premises: none."]
+    ;   Lines = ["Premises: not stated. Add premise(P, H, TEXT) or no_premises(H) (lint W10)."]
+    ).
 
 % review_section(+Eng, +Cs) (D28): for each current claim, its latest
 % verdict (the last in kb.pl) with the actor and the runs it rests on;
@@ -7536,6 +7584,8 @@ page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js) :-
         format("</ul>~n", [])
     ),
     format("</section>~n", []),
+    % D31 B1: the hypothesis of the ticket, before the claims
+    page_list(Recs, 'Hypothesis', hypothesis, "Hypothesis", "What must be true when the ticket is done, with its premises. Say if it is wrong."),
     % claims
     format("<section data-section=\"claims\" id=\"claims\" aria-labelledby=\"h-claims\">~n<h2 id=\"h-claims\">Claims</h2>~n", []),
     (   NC =:= 0 -> format("<p class=\"empty\">No current claims.</p>~n", []) ; true ),
@@ -8076,9 +8126,11 @@ help_lines(whynot, [
 "The explanation is 6 levels deep; --long goes 30 levels deep. Exit 0."
 ]).
 help_lines(show, [
-"orbit-kb show [claims|questions|open|blocking|disclosures|extensions|kinds|all] | show pin ID",
+"orbit-kb show [hypothesis|claims|questions|open|blocking|disclosures|extensions|kinds|all] | show pin ID",
 "",
 "List parts of the KB as plain text. The default is all (all does not include blocking).",
+"hypothesis lists each hypothesis with its state and its premises, or Premises: none. all starts with it.",
+"claims lists each claim with its state, its examples, its citations, and its checks.",
 "open lists to_ask, stale, contested, and supersede_cycle, and under, over, burn_open, flare_open, and no_claim (no claim is current) when the build module is in use.",
 "kinds lists each fact kind and each rule head (marked rule) of the KB with its description (T26).",
 "blocking lists each answer of orbit-kb query 'blocking(X)' with its text: each item that blocks done.",

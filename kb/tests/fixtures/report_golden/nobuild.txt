@@ -1,6 +1,9 @@
 # Delivered:
   - (Write what you delivered here.)
 
+# Hypothesis:
+  - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).
+
 # Claims:
   - c1 **preserve**: x
     - Checks: none.
