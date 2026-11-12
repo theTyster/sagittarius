@@ -510,6 +510,17 @@ t_QS17() {  # every row of the model's table: the HTTP status of its action; onl
     srv_stop
 }
 
+t_QS31() {  # review of K-A (finding 8): with lake on PATH, a Lean model that does not compile is a failure, not the copied table
+    command -v lake >/dev/null 2>&1 || { SKIPPED=1; return; }
+    mkdir -p "$T/qs"; cp "$here/../proofs/question_server/"{lakefile.toml,lean-toolchain,lake-manifest.json,QuestionServer.lean} "$T/qs/"
+    printf '\ntheorem qs31_broken : (1 : Nat) = 2 := rfl\n' >> "$T/qs/QuestionServer.lean"
+    local before=${#FAILS[@]}
+    qs17_rows "$T/qs"
+    if [ "${#FAILS[@]}" -gt "$before" ]; then FAILS=("${FAILS[@]:0:$before}")
+    else note "qs17_rows took the copied table while lake env lean failed on the model"; fi
+    [ -n "$QS17_ROWS" ] || note "qs17_rows sets no rows"
+}
+
 # ================================================================ c7 ledger
 t_QS15() {  # the ledger's asks show as in T10, read-only, with the hubflow command that answers each; live
     kb_a "$T/a"; ledger_json "$T/asks.json"
@@ -909,6 +920,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 30); do run_one QS$n; done
+for n in $(seq 1 31); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

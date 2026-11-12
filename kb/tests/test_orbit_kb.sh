@@ -82,7 +82,7 @@
 #   PH  help names the phases                              (CLI: help; D22)                 : PH1
 #   AC  acceptance criteria: ac/1, show and draft blocking (D29)                             : AC1-AC5
 #   VR  verification records: actor, review_saw, verdicts, independently_verified, WR1 (D28) : VR1-VR12 (VR7-VR11: T38; VR12: T40)
-#   HY  the hypothesis and its premises in every KB; the open discovery orbit (D30, 0.3.0 K-A) : HY1-HY8
+#   HY  the hypothesis and its premises in every KB; the open discovery orbit (D30, 0.3.0 K-A) : HY1-HY8; review fixes HY9-HY18
 #   KR  the report and show print what the KB holds: hypothesis, examples, KB, Signals, Formal, the discovery report (D31, 0.3.0 K-B) : KR1-KR7
 #   OP  no quiet "Nothing is open": blocking, what blocks readiness, stale pins (D32, 0.3.0 K-C) : OP1-OP4
 #   RD  readiness and the vote: examples, preserve checks, calibration, red system runs, the gate (D33, 0.3.0 K-D) : RD1-RD5
@@ -1593,6 +1593,84 @@ t_HY8() { hy_disc "$T/d"
           any_hasi 'discovery orbit.*open|open.*discovery orbit' "a NOTE says that the orbit stays open: gate(go) does not hold"
           is_false 'discovery_end(A)' "no GO, so the approval does not end the orbit"; is_true 'discovery_open'
           rejects "only orbit-kb attest writes discovery_end" 'discovery_end' add "discovery_end(a1)"; }
+
+# ---- Review of K-A and K-B on e9f9a4b (claim c_k_a_3b refuted; CONTRACT D30 H5 to H10, D31 B7, B8).
+hy_closed() {  # hy_closed DIR: hy_go, then the build: the discovery orbit is closed
+    hy_go "$1"; okb --dir "$K" uses build >/dev/null; }
+t_HY9() { hy_closed "$T/d"   # finding 1: after a return to discovery, a new round of votes and readiness
+          okb --dir "$K" attest back h1 "back('The human cannot say what the hypothesis changes to.')"; rc_is 0
+          is_false 'gate(V)' "after a return to discovery, the votes of the earlier orbit do not count"
+          oadd "hypothesis(h3, defect, 'Refunds take the points back.')" "supersedes(h3, h1)" "no_premises(h3)" >/dev/null
+          okb --dir "$K" attest approval tk 'digest(current)' --by human; rc_is 0 "the human's approval is never refused"
+          fact_count "$K/kb.pl" 'discovery_end(_)' 1 "an approval with no new vote does not close the orbit again"
+          is_true 'discovery_open'; okb --dir "$K" lint; out_has '^WD7 h3' "h3 still needs its system result"
+          is_false 'discovery_ready'
+          okb --dir "$K" attest reproduction t1 'result(h3, reproduced)' >/dev/null; is_true 'discovery_ready' "setup"
+          okb --dir "$K" attest vote r1 'vote(2, go)'; rc_is 0 "the agent votes in a new round"
+          okb --dir "$K" attest vote r1 'vote(2, go)' --by human; rc_is 0
+          is_set 'gate(V)' 'V = go'
+          okb --dir "$K" attest approval tk 'digest(current)' --by human; rc_is 0
+          fact_count "$K/kb.pl" 'discovery_end(_)' 2 "a new round and readiness close the orbit again"
+          is_true 'discovery_closed'; }
+t_HY10() { kb_init "$T/d" discovery; K=$T/d   # finding 2: no closure while not ready, and the round keeps its record
+          oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "no_premises(h1)" "budget(laps, 3)" \
+               "claim(c1, introduce, 'Every purchase gets the points that its amount and tier give.')" "cites(c1, 'Test request')" \
+               "example(c1, 'gold, 40, gives 80')" "check(t1, c1)" >/dev/null
+          okb --dir "$K" run t1 -- false >/dev/null
+          is_false 'discovery_ready' "setup: h1 was never reproduced"
+          vt_add v1 agent 1 go
+          okb --dir "$K" attest vote r1 'vote(1, go)' --by human; rc_is 0
+          printf '# ticket\n' > "$K/ticket.md"; okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null
+          okb --dir "$K" attest approval tk 'digest(current)' --by human; rc_is 0
+          is_false 'discovery_end(A)' "an approval while discovery is not ready does not close the orbit"
+          okb --dir "$K" lint; out_has '^WD7 h1' "WD7 h1 stays"
+          okb --dir "$K" show open; out_hasnt 'Nothing is open'
+          okb --dir "$K" report; rp_sec Vote | grep -q 'Formal artifacts (0.24): hold' || note "the round keeps the artifacts' hold: [$(rp_sec Vote)]"
+          # a closed orbit keeps the record of its round: the artifacts' go stays, whatever the build adds
+          hy_closed "$T/c"; oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" >/dev/null
+          is_set 'artifact_vote(V)' 'V = go' "after closure the round keeps the artifacts' vote"
+          okb --dir "$K" report; rp_sec Vote | grep -q 'Formal artifacts (0.24): go' || note "the report keeps the round: [$(rp_sec Vote)]"; }
+t_HY11() { hy_disc "$T/d"   # finding 3: a stale approval of the ticket does not close the orbit
+          okb --dir "$K" attest vote r1 'vote(1, go)' >/dev/null; okb --dir "$K" attest vote r1 'vote(1, go)' --by human >/dev/null
+          printf '# ticket\n' > "$K/ticket.md"; okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null
+          okb --dir "$K" attest approval tk "digest('sha256:$(printf '0%.0s' $(seq 1 64))')" --by human; rc_is 0 "the human's approval is never refused"
+          is_false 'discovery_end(A)' "a stale approval (a digest that is not the ticket's) does not close the orbit"
+          any_hasi 'stale|digest' "a NOTE says why"
+          is_true 'discovery_open'; }
+t_HY12() { hy_closed "$T/d"   # finding 6: a vote after the orbit closed
+          rejects "an agent vote after the orbit closed" 'closed' attest vote r1 'vote(2, no_go)'
+          okb --dir "$K" attest vote r1 'vote(2, no_go)' --by human; rc_is 0 "the human's vote is never refused"
+          err_has 'closed' "a NOTE says that the orbit is closed and the vote does not change the outcome"
+          is_set 'gate(V)' 'V = go' "a vote after closure does not change the outcome"
+          okb --dir "$K" report; rp_sec Vote | grep -qi 'after the discovery orbit closed' || note "the report says that the vote came after the orbit closed: [$(rp_sec Vote)]"; }
+t_HY13() { hy_disc "$T/d"   # finding 7: a hand-written discovery_end of something that is no human approval of the ticket
+          printf 'discovery_end(a1).\n' >> "$K/kb.pl"
+          okb --dir "$K" lint; rc_is 1 "lint finds an error"; out_has '^ED11 a1' "ED11 names it"
+          okb help codes; any_has '^ *ED11 ' "help codes lists ED11"; }
+t_HY14() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" "premise(p1, h1, 'The app has one color scheme today.')" "no_premises(h1)" >/dev/null   # finding 9
+          okb --dir "$K" lint; out_has '^W11 h1' "lint names a hypothesis with a premise and the record Premises: none"
+          okb --dir "$K" report; rp_sec Hypothesis | grep -qi 'none.*conflict\|conflict.*none\|W11' || note "the report shows the conflict: [$(rp_sec Hypothesis)]"
+          okb help codes; any_has '^ *W11 ' "help codes lists W11"; }
+t_HY15() { kb_init "$T/d" discovery; kb_init "$T/n" ""   # finding 10: the CONTRACT reserves each fact kind of the discovery module
+          okb --dir "$T/d" show kinds; local dk; dk=$(printf '%s\n' "$out" | sed -n 's/^- \([a-z_]*\/[0-9]*\): .*/\1/p' | LC_ALL=C sort)
+          okb --dir "$T/n" show kinds; local nk; nk=$(printf '%s\n' "$out" | sed -n 's/^- \([a-z_]*\/[0-9]*\): .*/\1/p' | LC_ALL=C sort)
+          local res k; res=$(awk '/^- Facts: `budget\/2`/,/^- Lint codes/' "$here/../CONTRACT.md")
+          [ -n "$res" ] || { note "setup: the reserved facts of the discovery module in CONTRACT"; return; }
+          for k in $(LC_ALL=C comm -23 <(printf '%s\n' "$dk") <(printf '%s\n' "$nk")); do
+              printf '%s\n' "$res" | grep -qF "\`$k\`" || note "CONTRACT does not reserve the discovery fact $k"
+          done; }
+t_HY16() { hy_disc "$T/d"; okb --dir "$K" run t1 -- true >/dev/null   # finding 11
+          okb --dir "$K" report; local s; s=$(rp_sec System)
+          printf '%s\n' "$s" | grep -q 'failed on the current system (run 1)\.$' && note "System says t1 fails now, though run 2 passed: [$s]"
+          printf '%s\n' "$s" | grep -q 'run 2' || note "System names the later run that passed: [$s]"; }
+t_HY17() { hy_disc "$T/d"   # finding 12: back needs a closed orbit and a hypothesis
+          rejects "back while the discovery orbit is open" 'open' attest back h1 "back('No approval yet.')"
+          hy_closed "$T/c"
+          rejects "back on a claim" 'hypothesis' attest back c1 "back('A claim.')"; }
+t_HY18() { hy_build "$T/b"; oadd "hypothesis(h1, feature, 'Line one.\nLine two.')" "premise(p1, h1, 'First.\nSecond.')" >/dev/null   # finding 12
+          okb --dir "$K" report; local h; h=$(rp_sec Hypothesis)
+          printf '%s\n' "$h" | grep -qvE '^  +- ' && note "a newline in the text breaks the bullets: [$h]"
+          printf '%s\n' "$h" | grep -q 'Line one. Line two.' || note "the text keeps its words on one line: [$h]"; true; }
 
 # ---- 0.3.0 K-B: the tool shows what it holds (CONTRACT D31). report: KB, Signals, Hypothesis with its
 # premises, an example under each claim, Formal (a theorem with its statement, or a model with its property),
@@ -3504,6 +3582,16 @@ run_test t_HY5 HY5 "0.3.0 c_k_a_4: Guesses lists unchecked premises and the defa
 run_test t_HY6 HY6 "0.3.0 c_k_a_3b: a restated hypothesis in build needs no system result, also after an approved GO"
 run_test t_HY7 HY7 "0.3.0 q_k_a_3b: after a recorded return to discovery, a new hypothesis needs its system result"
 run_test t_HY8 HY8 "0.3.0 c_k_a_3b: an approval with no GO does not end the orbit; add refuses discovery_end"
+run_test t_HY9 HY9 "review of K-A (1): after a return to discovery, closing needs a new round of votes and readiness"
+run_test t_HY10 HY10 "review of K-A (2): no closure while not ready; a closed orbit keeps the record of its round"
+run_test t_HY11 HY11 "review of K-A (3): a stale approval of the ticket does not close the orbit"
+run_test t_HY12 HY12 "review of K-A (6): a vote after closure: the agent's is refused, the human's is noted and does not count"
+run_test t_HY13 HY13 "review of K-A (7): lint ED11 on a discovery_end that is no human approval of the ticket"
+run_test t_HY14 HY14 "review of K-A (9): lint W11 on a premise and no_premises together; the report shows it"
+run_test t_HY15 HY15 "review of K-A (10): CONTRACT reserves each fact kind of the discovery module"
+run_test t_HY16 HY16 "review of K-A (11): System does not say that a check fails now when a later run passed"
+run_test t_HY17 HY17 "review of K-A (12): attest back needs a closed orbit and a hypothesis"
+run_test t_HY18 HY18 "review of K-A (12): a newline in a hypothesis or premise keeps the bullets of the report"
 run_test t_KR1 KR1 "0.3.0 c_k_b_1: report and show all print the current hypothesis with its premises before the claims"
 run_test t_KR2 KR2 "0.3.0 c_k_b_2: report and show claims print the example of each claim"
 run_test t_KR3 KR3 "0.3.0 c_k_b_3: report has KB, Signals and Formal in the order of the delivery block; the page too"
