@@ -28,8 +28,14 @@ KEY = "sk-test-HOOK-SECRET-456"
 with open(os.path.join(HERE, "fixtures", "hook_responses.json")) as _f:
     RECORDED = json.load(_f)
 QIDS = ["h_work", "h_divergence", "h_change_of_plan", "h_effort", "h_language"]
-TICKET_LINE = ("System 1: work=build (0.83); divergence likely (0.85); effort significant (0.91): "
-               "consider a shift up; formal tool: prolog (0.72)")
+TICKET_LINE = ("System 1: work=build (0.83); divergence likely (0.85); effort significant (0.91); "
+               "formal tool: prolog (0.72)")  # 0.3.0 S-A: the line only reports (": consider a shift up" went)
+UNSURE_LINE = "System 1: unsure"  # 0.3.0 S-A: every answer in the unsure band
+
+
+def no_view(reason):
+    """0.3.0 S-A: the one line of a hook that failed."""
+    return "System 1: no view (%s)" % reason
 
 
 LONG_CHARS = 262000 * 3  # T30: the long-context limit (262k tokens) at the hook's 3 chars/token
@@ -538,10 +544,12 @@ class C2Output(Base):
         self.assertEqual(sorted(d["hookSpecificOutput"]), ["additionalContext", "hookEventName"])
         self.assertNotIn("\n", d["hookSpecificOutput"]["additionalContext"])
 
-    def test_c2_divergence_and_change_of_plan_combined(self):
+    def test_c2_divergence_and_change_of_plan_both_reported(self):
+        # 0.3.0 S-A (c_s_a_2): was "divergence or change of plan: check which (prompt rule)". The line
+        # only reports; the prompt says what to do with a hint.
         ctx = self.context(self.run_hook(Fake(RECORDED["both_likely"])))
-        self.assertEqual(ctx, "System 1: work=build (0.90); divergence or change of plan: check "
-                              "which (prompt rule); formal tool: tests (0.80)")
+        self.assertEqual(ctx, "System 1: work=build (0.90); divergence likely (0.80); "
+                              "change of plan likely (0.75); formal tool: tests (0.80)")
 
     def test_c2_change_of_plan_alone(self):
         ctx = self.context(self.run_hook(Fake(RECORDED["change_only"])))
@@ -550,22 +558,26 @@ class C2Output(Base):
 
     def test_c2_no_band_answers_shown(self):
         ctx = self.context(self.run_hook(Fake(RECORDED["thanks"])))
+        # 0.3.0 S-A (c_s_a_3): no signal on the line, so no formal tool (was "formal tool: none (0.95)")
         self.assertEqual(ctx, "System 1: work=other (1.00); divergence unlikely (0.03); "
-                              "change of plan unlikely (0.05); effort not significant (0.02); "
-                              "formal tool: none (0.95)")
+                              "change of plan unlikely (0.05); effort not significant (0.02)")
 
     def test_c2_unsure_answers_left_out(self):
         ctx = self.context(self.run_hook(Fake(RECORDED["mixed_unsure"])))
-        self.assertEqual(ctx, "System 1: effort significant (0.81): consider a shift up")
+        self.assertEqual(ctx, "System 1: effort significant (0.81)")  # 0.3.0 S-A: no instruction
 
     def test_c2_choice_band_uses_probability_of_choice(self):
-        # confidence 0.9 but P(choice) 0.45 -> unsure (as the calibration called it)
-        ctx = self.context(self.run_hook(Fake(RECORDED["choice_low_p"])))
+        # confidence 0.9 but P(choice) 0.45 -> unsure (as the calibration called it).
+        # 0.3.0 S-A: the tool (z3, 0.50) shows only beside a signal, so here a divergence is added.
+        resp = json.loads(json.dumps(RECORDED["choice_low_p"]))
+        resp["answers"]["h_divergence"]["noul"] = 0.85
+        ctx = self.context(self.run_hook(Fake(resp)))
         self.assertNotIn("work=", ctx)
         self.assertIn("formal tool: z3 (0.50)", ctx)
 
-    def test_c2_nothing_outside_band_prints_nothing(self):
-        self.assertEqual(self.run_hook(Fake(RECORDED["all_unsure"])), "")
+    def test_c2_nothing_outside_band_says_unsure(self):
+        # 0.3.0 S-A (c_s_a_1): was "prints nothing". No line now means no outside view only when off.
+        self.assertEqual(self.context(self.run_hook(Fake(RECORDED["all_unsure"]))), UNSURE_LINE)
 
     def test_c2_subprocess_prints_the_hook_result(self):
         p, _ = subprocess_hook(self.payload(), self.env,
@@ -575,42 +587,49 @@ class C2Output(Base):
 
 
 class C3FailOpen(Base):
-    """c3: any error, timeout, missing key or questions file -> no output, exit 0."""
+    """c3: any error, timeout, missing key or questions file -> exit 0, never a block.
+    0.3.0 S-A (c_s_a_1): a failure prints one short line "System 1: no view (<reason>)"; only S1_OFF
+    prints nothing. (Was: no output on every failure.)"""
 
-    def assertSilent(self, out):
+    def assertSilent(self, out):  # only S1_OFF
         self.assertEqual(out, "")
+
+    def assertNoView(self, out, reason=None):
+        ctx = self.context(out)
+        self.assertTrue(ctx.startswith("System 1: no view ("), ctx)
+        if reason:
+            self.assertEqual(ctx, no_view(reason))
 
     def test_c3_missing_key(self):
         env = {k: v for k, v in self.env.items() if k != "TYPESAFE_API_KEY"}
         fake = Fake()
-        self.assertSilent(self.run_hook(fake, env=env))
+        self.assertNoView(self.run_hook(fake, env=env), "no API key")
         self.assertEqual(fake.calls, [])
 
     def test_c3_missing_questions_file(self):
         env = dict(self.env, S1_QUESTIONS=os.path.join(self.dir, "absent.json"))
-        self.assertSilent(self.run_hook(Fake(), env=env))
+        self.assertNoView(self.run_hook(Fake(), env=env), "no question set")
 
     def test_c3_bad_questions_file(self):
         bad = os.path.join(self.dir, "bad.json")
         with open(bad, "w") as f:
             f.write("{not json")
-        self.assertSilent(self.run_hook(Fake(), env=dict(self.env, S1_QUESTIONS=bad)))
+        self.assertNoView(self.run_hook(Fake(), env=dict(self.env, S1_QUESTIONS=bad)), "no question set")
 
     def test_c3_bad_stdin_json(self):
-        self.assertSilent(self.run_hook(Fake(), raw="{oops"))
-        self.assertSilent(self.run_hook(Fake(), raw=""))
-        self.assertSilent(self.run_hook(Fake(), raw="[1, 2]"))
+        for raw in ("{oops", "", "[1, 2]"):
+            self.assertNoView(self.run_hook(Fake(), raw=raw), "bad input")
 
     def test_c3_no_prompt(self):
-        self.assertSilent(self.run_hook(Fake(), raw=json.dumps({"session_id": "x"})))
+        self.assertNoView(self.run_hook(Fake(), raw=json.dumps({"session_id": "x"})), "bad input")
 
     def test_c3_transport_errors(self):
         for fake in (Fake(exc=TimeoutError("slow")), Fake(exc=OSError("down")),
                      Fake(status=500, payload="boom"), Fake(payload="not json")):
-            self.assertSilent(self.run_hook(fake))
+            self.assertNoView(self.run_hook(fake), "no answer")
 
     def test_c3_malformed_answers(self):
-        self.assertSilent(self.run_hook(Fake(RECORDED["malformed"])))
+        self.assertNoView(self.run_hook(Fake(RECORDED["malformed"])), "bad answers")
 
     def test_c3_timeout_default_and_env(self):
         fake = Fake()
@@ -629,7 +648,7 @@ class C3FailOpen(Base):
         self.addCleanup(time.sleep, 2.0)  # let the abandoned call finish before the tmp dir goes
         t0 = time.monotonic()
         out = self.run_hook(Fake(sleep=1.5), env=dict(self.env, S1_TIMEOUT="0.3"))
-        self.assertSilent(out)
+        self.assertNoView(out, "timeout")
         self.assertLess(time.monotonic() - t0, 1.2)
 
     def test_c3_off(self):
@@ -641,12 +660,14 @@ class C3FailOpen(Base):
     def test_c3_subprocess_bad_stdin(self):
         for raw in ("{oops", "", "null"):
             p, _ = subprocess_hook(raw, self.env)
-            self.assertEqual((p.returncode, p.stdout), (0, ""), raw)
+            self.assertEqual(p.returncode, 0, raw)
+            self.assertNoView(p.stdout, "bad input")
 
     def test_c3_subprocess_missing_key(self):
         env = {k: v for k, v in self.env.items() if k != "TYPESAFE_API_KEY"}
         p, _ = subprocess_hook(self.payload(), env)
-        self.assertEqual((p.returncode, p.stdout), (0, ""))
+        self.assertEqual(p.returncode, 0)
+        self.assertNoView(p.stdout, "no API key")
 
     def test_c3_subprocess_off(self):
         p, _ = subprocess_hook(self.payload(), dict(self.env, S1_OFF="1"))
@@ -655,13 +676,23 @@ class C3FailOpen(Base):
     def test_c3_subprocess_missing_questions(self):
         env = dict(self.env, S1_QUESTIONS=os.path.join(self.dir, "absent.json"))
         p, _ = subprocess_hook(self.payload(), env, fake_spec={"payload": RECORDED["ticket_example"]})
-        self.assertEqual((p.returncode, p.stdout), (0, ""))
+        self.assertEqual(p.returncode, 0)
+        self.assertNoView(p.stdout, "no question set")
 
     def test_c3_subprocess_hung_transport(self):
         p, took = subprocess_hook(self.payload(), dict(self.env, S1_TIMEOUT="0.5"),
                                   fake_spec={"payload": RECORDED["ticket_example"], "sleep": 30})
-        self.assertEqual((p.returncode, p.stdout), (0, ""))
+        self.assertEqual(p.returncode, 0)
+        self.assertNoView(p.stdout, "timeout")
         self.assertLess(took, 5)
+
+
+    def test_s_a_1_no_view_is_one_short_line_with_no_details(self):
+        # 0.3.0 S-A (c_s_a_1): one short line; the details (the error text) stay in the log.
+        ctx = self.context(self.run_hook(Fake(exc=OSError("down at 10.0.0.1"))))
+        self.assertNotIn("\n", ctx)
+        self.assertNotIn("10.0.0.1", ctx)
+        self.assertLess(len(ctx), 60)
 
 
 class C4Log(Base):
@@ -726,7 +757,8 @@ class C4Log(Base):
     def _one_reason(self, *, raw=None, env=None, fake=None, want=""):
         if os.path.exists(self.log):
             os.remove(self.log)
-        self.assertEqual(self.run_hook(fake or Fake(), raw=raw, env=env), "")
+        out = self.run_hook(fake or Fake(), raw=raw, env=env)
+        self.assertIn("System 1: no view (", out)  # 0.3.0 S-A: was "" (no output)
         with open(self.log) as f:
             text = f.read()
         self.assertNotIn(KEY, text)
@@ -755,8 +787,10 @@ class C4Log(Base):
 
 
 class C5Readme(unittest.TestCase):
-    """c5: s1/README.md shows the settings.json snippet, S1_OFF=1, and says the question set is
-    not approved yet (u44)."""
+    """c5: s1/README.md shows the settings.json snippet and S1_OFF=1.
+    0.3.0 S-A (c_s_a_4): it says that the hook is recommended, not required (was: "not approved yet
+    (u44)"), and which signals the hook cannot see. 0.3.0 S-D (c_s_d_1): the snippet names the
+    installed link ~/.claude/sagittarius-s1 (was: /path/to/sagittarius, edited by hand)."""
 
     def setUp(self):
         with open(os.path.join(HERE, "README.md")) as f:
@@ -768,15 +802,33 @@ class C5Readme(unittest.TestCase):
         self.assertEqual(len(snippets), 1)
         h = snippets[0]["hooks"]["UserPromptSubmit"][0]["hooks"][0]
         self.assertEqual(h["type"], "command")
-        self.assertIn("s1/hook.py", h["command"])
+        self.assertEqual(h["command"], "python3 ~/.claude/sagittarius-s1/hook.py")
         self.assertGreater(h["timeout"], 4)
+
+    def test_s_d_1_snippets_use_the_installed_link(self):
+        self.assertNotIn("/path/to/sagittarius", self.text)
+        self.assertIn("~/.claude/sagittarius-s1/statusline.py", self.text)
 
     def test_c5_off_switch(self):
         self.assertIn("S1_OFF=1", self.text)
 
-    def test_c5_not_approved_u44(self):
-        self.assertIn("u44", self.text)
-        self.assertRegex(self.text, r"(?i)not (yet )?approved")
+    def test_s_a_4_recommended_not_required(self):
+        # 0.3.0 S-A (c_s_a_4): was test_c5_not_approved_u44 ("not approved yet"). No code turns the hook
+        # off until an approval, so the README does not say so.
+        flat = " ".join(self.text.split())
+        self.assertIn("recommended, not required", flat)
+        self.assertNotRegex(flat, r"(?i)not (yet )?approved")
+
+    def test_s_a_4_says_which_signals_the_hook_cannot_see(self):
+        flat = " ".join(self.text.split())
+        for word in ("inside a turn", "subagent", "compaction", "peer"):
+            self.assertIn(word, flat)
+
+    def test_s_a_1_readme_says_no_view_and_unsure(self):
+        flat = " ".join(self.text.split())
+        self.assertIn("System 1: no view (", flat)
+        self.assertIn("System 1: unsure", flat)
+        self.assertNotIn("prints nothing and exits 0", flat)
 
     def test_c5_installed_by_ty_not_a_script(self):
         self.assertRegex(self.text, r"(?i)paste")
@@ -805,7 +857,9 @@ class Discovery(unittest.TestCase):
         p = subprocess.run([sys.executable, os.path.join(HERE, "hook.py")], input="{}",
                            capture_output=True, text=True, cwd=ROOT, timeout=20,
                            env={"PATH": os.environ.get("PATH", ""), "S1_LOG": os.devnull})
-        self.assertEqual((p.returncode, p.stdout, p.stderr), (0, "", ""))
+        # 0.3.0 S-A: "{}" has no prompt, so the hook says it has no view (was: stdout "")
+        self.assertEqual((p.returncode, p.stderr), (0, ""))
+        self.assertIn("System 1: no view (bad input)", p.stdout)
 
 
 class T43C1Questions(unittest.TestCase):
@@ -908,3 +962,68 @@ class T43C2NoRedaction(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SA3FormalTool(Base):
+    """0.3.0 S-A (c_s_a_3): the line names a formal tool only beside a signal (a likely divergence, a
+    likely change of plan, significant effort), or when the tool is Lean (a proof is asked for).
+    (c_s_a_2): the line only reports; it gives no instruction."""
+
+    def answers(self, div=0.5, plan=0.5, effort=0.5, lang="z3", lang_p=0.9, extra=None):
+        probs = {k: 0.02 for k in ("prolog", "lean", "z3", "tla", "tests", "none")}
+        probs[lang] = lang_p
+        a = {"h_work": {"type": "choice", "choice": "build", "confidence": 0.9,
+                        "probabilities": {"build": 0.9, "research": 0.02, "specify": 0.02,
+                                          "verify": 0.02, "question": 0.02, "other": 0.02}},
+             "h_divergence": {"type": "noul", "noul": div},
+             "h_change_of_plan": {"type": "noul", "noul": plan},
+             "h_effort": {"type": "noul", "noul": effort},
+             "h_language": {"type": "choice", "choice": lang, "confidence": lang_p, "probabilities": probs}}
+        a.update(extra or {})
+        return {"model": "test", "usage": None, "answers": a}
+
+    def line(self, **kw):
+        return self.context(self.run_hook(Fake(self.answers(**kw))))
+
+    def test_no_signal_no_tool(self):
+        self.assertEqual(self.line(), "System 1: work=build (0.90)")
+
+    def test_unlikely_answers_are_not_signals(self):
+        self.assertNotIn("formal tool", self.line(div=0.1, plan=0.1, effort=0.1))
+
+    def test_tool_beside_each_signal(self):
+        for kw in ({"div": 0.85}, {"plan": 0.85}, {"effort": 0.85}):
+            self.assertIn("formal tool: z3 (0.90)", self.line(**kw), kw)
+
+    def test_lean_alone_is_named(self):
+        self.assertEqual(self.line(lang="lean"), "System 1: work=build (0.90); formal tool: lean (0.90)")
+
+    def test_a_proof_answer_decides_when_present(self):
+        # after c_s_c_1 a proof that is asked for is the answer h_proof; a response without it stays valid
+        no = {"h_proof": {"type": "noul", "noul": 0.1}}
+        self.assertNotIn("formal tool", self.line(lang="lean", extra=no))
+        yes = {"h_proof": {"type": "noul", "noul": 0.9}}
+        self.assertIn("formal tool: z3 (0.90)", self.line(lang="z3", extra=yes))
+
+    def test_the_line_gives_no_instruction(self):
+        for kw in ({"div": 0.9, "plan": 0.9, "effort": 0.9}, {"effort": 0.95}, {"div": 0.9}):
+            ctx = self.line(**kw)
+            self.assertNotRegex(ctx, r"(?i)consider|check which|prompt rule|shift up|should|please")
+
+
+class SA1Silence(Base):
+    """0.3.0 S-A (c_s_a_1): the hook prints nothing only when it is off."""
+
+    def test_off_is_the_only_silence(self):
+        cases = [dict(raw="{oops"), dict(env={k: v for k, v in self.env.items() if k != "TYPESAFE_API_KEY"}),
+                 dict(fake=Fake(exc=OSError("down"))), dict(fake=Fake(RECORDED["malformed"])),
+                 dict(fake=Fake(RECORDED["all_unsure"]))]
+        for c in cases:
+            out = self.run_hook(c.get("fake") or Fake(), raw=c.get("raw"), env=c.get("env"))
+            self.assertTrue(out, c)
+            self.assertTrue(self.context(out).startswith("System 1: "), c)
+        self.assertEqual(self.run_hook(Fake(), env=dict(self.env, S1_OFF="1")), "")
+
+    def test_main_never_raises_and_returns_zero(self):
+        p, _ = subprocess_hook("{oops", self.env)
+        self.assertEqual((p.returncode, p.stderr), (0, ""))

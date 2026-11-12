@@ -71,7 +71,8 @@ class C1Render(Base):
         self.write(line("sess-A", work="research", div=0.1, eff=0.2),
                    line("sess-B", work="verify", div=0.9, eff=0.9),
                    line("sess-C"))
-        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 research | div 0.10 | eff 0.20 | tool none")
+        # 0.3.0 S-A (c_s_a_3): no signal in the yes band, so no tool (was "... | tool none")
+        self.assertEqual(sl().render("sess-A", self.log, now=T0), "S1 research | div 0.10 | eff 0.20")
 
     def test_newest_line_of_the_session_wins(self):
         self.write(line(work="research"), line("sess-B"), line(work="verify"))
@@ -186,6 +187,18 @@ class C4FiveJudgments(Base):
                        h_effort=self.noul(0.91),
                        h_language={"type": "choice", "choice": "lean", "confidence": 0.8})
         self.assertEqual(got, "S1 build | div 0.85 | plan 0.10 | eff 0.91 | tool lean")
+
+    def test_s_a_3_tool_only_beside_a_signal_or_lean(self):
+        # 0.3.0 S-A (c_s_a_3), as the hook: the tool shows beside a likely divergence, a likely change
+        # of plan or significant effort, or when it is Lean (a proof is asked for).
+        quiet = dict(h_divergence=self.noul(0.1), h_change_of_plan=self.noul(0.1), h_effort=self.noul(0.1))
+        z3 = {"type": "choice", "choice": "z3", "confidence": 0.9}
+        self.assertNotIn("tool", self.seg(h_language=z3, **quiet))
+        for qid in ("h_divergence", "h_change_of_plan", "h_effort"):
+            got = self.seg(h_language=z3, **dict(quiet, **{qid: self.noul(0.8)}))
+            self.assertTrue(got.endswith("| tool z3"), (qid, got))
+        lean = {"type": "choice", "choice": "lean", "confidence": 0.9}
+        self.assertTrue(self.seg(h_language=lean, **quiet).endswith("| tool lean"))
 
     def test_change_of_plan_yes_shows(self):
         got = self.seg(h_change_of_plan=self.noul(0.75))
