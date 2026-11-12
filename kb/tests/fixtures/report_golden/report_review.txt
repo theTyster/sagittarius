@@ -5,7 +5,10 @@
   - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).
 
 # Claims:
-  - c1 **introduce**: The widget can be saved. Status: fulfilled. Checks: k1 (passed).
+  - c1 **introduce**: The widget can be saved
+    - Status: fulfilled.
+    - Example: Save a widget, close the app, open it again, and see the widget.
+    - Checks: k1 (passed).
   - c2 **preserve**: Loading stays fast
     - Status: under.
       - It is not fulfilled yet.
@@ -30,6 +33,7 @@
     - Checks: none.
   - c7 **preserve**: Names like <b>bold</b> & "quoted" stay plain
     - Status: fulfilled.
+    - Example: A widget named <b>x</b> shows the text <b>x</b>.
     - Checks: k7 (passed).
 
 # Guesses:

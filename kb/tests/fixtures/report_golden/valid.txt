@@ -5,7 +5,10 @@
   - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).
 
 # Claims:
-  - c1 **introduce**: The widget can be saved. Status: fulfilled. Checks: k1 (passed).
+  - c1 **introduce**: The widget can be saved
+    - Status: fulfilled.
+    - Example: Save a widget, close the app, open it again, and see the widget.
+    - Checks: k1 (passed).
   - c2 **preserve**: Loading stays fast
     - Status: fulfilled.
     - Burn: proved in Lean.

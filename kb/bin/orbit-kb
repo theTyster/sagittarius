@@ -5927,6 +5927,7 @@ show_section(KB, Eng, claims) :-
     ;   true
     ),
     eng_groups(Eng, C5, X5, cites(C5, X5), CitesBy),
+    eng_groups(Eng, C7, E7, example(C7, E7), ExBy),
     eng_groups(Eng, C6, K6, check(K6, C6), ChecksBy),
     check_sets(Eng, KSets),
     forall(member([C, L, T], Cs),
@@ -5946,6 +5947,8 @@ show_section(KB, Eng, claims) :-
              ->  sub_string(BT, 1, _, 0, BT1), say("  ~w", [BT1])
              ;   true
              ),
+             eng_lookup(Eng, ExBy, C, E, example(C, E), Es),
+             forall(member(E, Es), ( txt(E, ET), say("  Example: ~w", [ET]) )),
              eng_lookup(Eng, CitesBy, C, X, cites(C, X), Xs),
              forall(member(X, Xs), ( txt(X, XT), say("  Cites: ~w", [XT]) )),
              eng_lookup(Eng, ChecksBy, C, K, check(K, C), Ks),
@@ -7079,7 +7082,7 @@ cmd_report(KB, Args, Code) :-
     ;   report_page(KB, Eng, Html, Open, Code)
     ).
 
-% claim_node(+Build, +C, +L, +TT, +SK, +StHead, +StDetail, +Parts, +KStates, -Node)
+% claim_node(+Build, +C, +L, +TT, +SK, +StHead, +StDetail, +Exs, +Parts, +KStates, -Node)
 % Parts: the Head-Detail pairs of the burn and the flare (esc_parts/4).
 % A claim that is fulfilled, with nothing to add, is one line: its checks
 % all passed, its burn is proved or absent, it has no flare (D21: the
@@ -7087,14 +7090,18 @@ cmd_report(KB, Args, Code) :-
 % bullet, fits in 100 columns. Any other claim breaks its status, burn,
 % and checks into nested bullets, so that its status never wraps off
 % the end of a long line.
-claim_node(Build, C, L, TT, SK, StHead, StDetail, Parts, KStates, Node) :-
+% D31 B2: Exs are the "Example: X." lines of the claim. They come after the status. A claim
+% with more than one example is never one line.
+claim_node(Build, C, L, TT, SK, StHead, StDetail, Exs, Parts, KStates, Node) :-
     format(string(Head), "~w **~w**: ~w", [C, L, TT]),
     (   memberchk(SK, [fulfilled, none]),
         ( Parts == [] ; Parts = ["Burn: proved in Lean."-_] ),
         KStates \== [],
         forall(member(_-KS, KStates), KS == "passed"),
+        ( Exs = [] ; Exs = [_] ),
         (   ends_sentence(TT) -> Sep = " " ; Sep = ". " ),
         findall(P, ( call(Build), StHead \== "", P = StHead
+                   ; member(P, Exs)
                    ; member(P-_, Parts)
                    ; check_line(KStates, P, _) ),
                 Ps),
@@ -7103,17 +7110,19 @@ claim_node(Build, C, L, TT, SK, StHead, StDetail, Parts, KStates, Node) :-
         string_length(Line, Len),
         Len + 4 =< 100
     ->  Node = Line-[]
-    ;   findall(N, claim_kid(Build, StHead, StDetail, Parts, KStates, N), Kids),
+    ;   findall(N, claim_kid(Build, StHead, StDetail, Exs, Parts, KStates, N), Kids),
         Node = Head-Kids
     ).
 
-claim_kid(Build, StHead, StDetail, _, _, N) :-
+claim_kid(Build, StHead, StDetail, _, _, _, N) :-
     call(Build), StHead \== "",
     ( StDetail == "" -> N = StHead-[] ; N = StHead-[StDetail-[]] ).
-claim_kid(_, _, _, Parts, _, N) :-
+claim_kid(_, _, _, Exs, _, _, E-[]) :-
+    member(E, Exs).
+claim_kid(_, _, _, _, Parts, _, N) :-
     member(BHead-BDetail, Parts),
     ( BDetail == "" -> N = BHead-[] ; N = BHead-[BDetail-[]] ).
-claim_kid(_, _, _, _, KStates, N) :-
+claim_kid(_, _, _, _, _, KStates, N) :-
     check_line(KStates, T, Kids), N = T-Kids.
 
 % check_line(+KStates, -Text, -Kids): "Checks: none.", "Checks: k1 (passed).",
@@ -7134,9 +7143,12 @@ report_text(KB, Eng) :-
     % One query per relation, then lookups (see eng_set/4).
     ( call(Build) -> eng_set(Eng, X1, fulfilled(X1), FulS), burn_sets(Eng, BSets) ; true ),
     eng_groups(Eng, C2, K2, check(K2, C2), ChecksBy),
+    eng_groups(Eng, C7, E7, example(C7, E7), ExBy),
     check_sets(Eng, KSets),
     forall(member([C, L, T], Cs),
            ( txt(T, TT),
+             eng_lookup(Eng, ExBy, C, E, example(C, E), Es),
+             findall(EL, ( member(E, Es), txt(E, ET), as_sentence(ET, ES), format(string(EL), "Example: ~w", [ES]) ), Exs),
              (   call(Build)
              ->  (   eng_member(Eng, FulS, C, fulfilled(C)) -> StHead = "Status: fulfilled.", StDetail = "", SK = fulfilled
                  ;   eng_all(Eng, [WK, WD], ( check(WK, C), attest(WW, waiver, _, waive(WK, WD, _), human, _), not(waiver_lapsed(WW)) ), [[WK1, WD1]|_])
@@ -7161,7 +7173,7 @@ report_text(KB, Eng) :-
              ;   findall(S, ( member(K-KS, KStates), fmt(S, "~w (~w)", [K, KS]) ), Ss),
                  atomic_list_concat(Ss, ', ', SsT), fmt(KT, " Checks: ~w.", [SsT])
              ),
-             claim_node(Build, C, L, TT, SK, StHead, StDetail, Parts, KStates, Node),
+             claim_node(Build, C, L, TT, SK, StHead, StDetail, Exs, Parts, KStates, Node),
              format(string(Plain), "~w (~w): ~w~w~w", [C, L, TT, St, KT]),
              rtree(claim(C, L, TT, SK, St0, BT, KStates), Plain, Node) )),
     % D28: who verified each claim, in a KB that records actors or a review.

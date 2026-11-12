@@ -2090,7 +2090,11 @@ t_RL2() { # every other line is a bullet at two spaces plus two per level; no ta
     done; true; }
 t_RL3() { # a fulfilled claim with nothing to add stays on one line; a claim that needs attention nests its status and checks
     rh_kb report_review; okb --dir "$K" report; rc_is 0
-    rl_is "c1 (fulfilled)" "  - c1 **introduce**: The widget can be saved. Status: fulfilled. Checks: k1 (passed)." "$(rp_item c1)"
+    # D31 B2: c1 has an example, which nests under the claim (the one line would pass 100 columns)
+    rl_is "c1 (fulfilled, with its example)" "  - c1 **introduce**: The widget can be saved
+    - Status: fulfilled.
+    - Example: Save a widget, close the app, open it again, and see the widget.
+    - Checks: k1 (passed)." "$(rp_item c1)"
     rl_is "c2 (under)" "  - c2 **preserve**: Loading stays fast
     - Status: under.
       - It is not fulfilled yet.
@@ -2124,6 +2128,7 @@ t_RL4() { # more than one check: they nest under Checks
     rh_kb report_review; printf "check(k8, c1).\n" >> "$K/kb.pl"; okb --dir "$K" report; rc_is 0
     rl_is "c1 with two checks" "  - c1 **introduce**: The widget can be saved
     - Status: fulfilled.
+    - Example: Save a widget, close the app, open it again, and see the widget.
     - Checks:
       - k1 (passed)
       - k8 (never run)" "$(rp_item c1)"; }
