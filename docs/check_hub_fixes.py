@@ -39,7 +39,9 @@ iuxc6u (Ty, 2026-11-12; beside iuxc6) a normal upgrade (hubkit/UPGRADING.md, "Th
 m030d1 (0.3.0 M-D c_m_d_1) "The formal edition" of hubkit/INSTRUCTIONS.md gives one launcher line for a pane
       that sets HUB_SESSION and appends the prompt, PANES.md and the role file; the check runs that line with
       a stub claude and a scratch HOME, and reads what the stub got. The step checks that the pane can say
-      the last line of its prompt. (The launcher of the root README.md is outside this check.)
+      the last line of its prompt. Review findings 4 and 5 (kit3): the file gives that launcher once (a resume is
+      the same line with --resume in place of --name, said in words), and the "Panes" section of the root
+      README.md gives the same line, character for character, and no other launcher.
 m030d3 (0.3.0 M-D c_m_d_3) hubkit/README.md and hubkit/UPGRADING.md say which Sagittarius version the kit
       pairs with: the major and minor version of the last line of prompt/SAGITTARIUS.md.
 t50c1 (retire) the repo has no microsite: neither the deck directory nor the Pages workflow is in the tree, and no
@@ -451,6 +453,18 @@ def m030d1():
     for ln in lines:
         check("m030d1 the launcher appends the prompt, PANES.md and the role file",
               all(x in ln for x in ("SAGITTARIUS.md", "PANES.md", "panes/<name>.md")), ln)
+    check("m030d1 the formal edition gives the launcher once (no second, resume line)", len(lines) == 1, lines)
+    every = [ln.strip() for ln in ins.splitlines() if "--append-system-prompt" in ln]
+    check("m030d1 INSTRUCTIONS.md holds one launcher line in all", len(every) == 1, every)
+    check("m030d1 the formal edition says how to resume: the same line with --resume in place of --name",
+          re.search(r'`--resume "hub-<name>"` in place of `--name "hub-<name>"`', w) is not None, w[-600:])
+    rd = read(os.path.join(ROOT, "README.md"))
+    pm = re.search(r"^## Panes\n(.*?)(?=^## )", rd, re.M | re.S)
+    panes = pm.group(1) if pm else ""
+    rl = [ln.strip() for ln in panes.splitlines() if "claude" in ln and ("--append-system-prompt" in ln or "--name" in ln)]
+    check("m030d1 README.md Panes gives the launcher line of INSTRUCTIONS.md, character for character", start and rl == start[:1], (rl, start[:1]))
+    check("m030d1 README.md Panes keeps: command claude, or the full path of the binary",
+          "command claude" in panes and "full path of the binary" in re.sub(r"\s+", " ", panes), panes[-300:])
     if len(start) != 1:
         return
     with tempfile.TemporaryDirectory(prefix="m030d1-") as t:

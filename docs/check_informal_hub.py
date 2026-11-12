@@ -23,7 +23,8 @@ t32c5 reads hubkit/hub/PRINCIPLES.md for the parts that come from the prompt sec
 t32c6 reads the tool list of hubkit/README.md "## Install", runs its sh block with relative KIT and
       HUB and a PATH of exactly those tools, and runs check_informal_release.py c1 (T24), which
       must print the same list as its PATH.
-t32c7 reads INSTRUCTIONS.md step 5 for the command that resumes a named session.
+t32c7 reads INSTRUCTIONS.md step 5 for the one launcher line of a named session, and how to resume it (0.3.0: in words,
+      the same line with --resume).
 t32c8 installs a formal and an informal hub (hubkit.py install, then hubflow.py init) and runs
       `orbit-kb show open` at each root: the formal hint names specs/<slug>/ and hubflow where SLUG,
       the informal one names the ledger and no spec KB path.
@@ -483,11 +484,15 @@ def t32c7():
     sec = section(read(INSTR), "Step 5")
     check("t32c7 INSTRUCTIONS.md has a step 5", bool(sec), "missing")
     start = re.findall(r'claude --name "([^"]+)"', sec)
-    resume = re.findall(r'claude --resume "([^"]+)"', sec)
     check("t32c7 step 5 starts a session with a name", len(start) == 1, start)
-    check("t32c7 step 5 gives the command that resumes it by that name", len(resume) == 1 and resume == start, (start, resume))
-    check("t32c7 the resume line sets HUB_SESSION and the hub cwd",
-          re.search(r'cd "\$HUB" && HUB_SESSION=<name> claude --resume', sec) is not None, sec[:300])
+    # 0.3.0 c_m_d_1, review finding 5 (kit3): one launcher line; the resume is that line with --resume in place
+    # of --name, said in words (it was a second command line).
+    check("t32c7 the launcher line sets HUB_SESSION and the hub cwd",
+          re.search(r'cd "\$HUB" && HUB_SESSION=<name> claude --name', sec) is not None, sec[:300])
+    check("t32c7 step 5 says how to resume it by that name: the same line with --resume in place of --name",
+          start and re.search(r'`--resume "%s"` in place of `--name "%s"`' % (re.escape(start[0]), re.escape(start[0])), re.sub(r"\s+", " ", sec)) is not None,
+          sec[:500])
+    check("t32c7 step 5 gives no second (resume) command line", not re.findall(r'^\s*cd [^\n]*claude --resume', sec, re.M), sec[:300])
     check("t32c7 step 5 names no launch.sh", "launch.sh" not in sec, "still there")
 
 
