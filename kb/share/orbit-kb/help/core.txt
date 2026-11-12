@@ -8,6 +8,11 @@ Facts
   hypothesis(Id, Kind, Text)     what must be true when the ticket is done. Every ticket has one.
                                  Kind is defect, feature, risk, or change (a direct build of a
                                  document or a configuration).
+  premise(P, Hyp, Text)          a condition that the hypothesis takes as given
+  premise_checked(P, Where)      you checked premise P on the system, at Where (file:line, a query)
+  no_premises(Hyp)               "Premises: none". lint W10 names a hypothesis with neither.
+                                 A premise that the system shows false: record a divergence on
+                                 the hypothesis, and restate it (a new hypothesis supersedes it).
   claim(Id, Label, Text)         Label is preserve (true now, must stay true),
                                  retire (true now, must become false),
                                  or introduce (false now, must become true)
@@ -78,6 +83,7 @@ Queries (orbit-kb query 'current(C)' -n 0)
   passed(K)          the latest run of K passed
   was_red(K)         K failed before it passed
   stale(A)           approval A is for a digest that is no longer current
+  premise_unchecked(P)  nobody checked premise P on the system: a guess (report, Guesses)
   blocking(X)        X blocks done: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X),
                      check_failing(K), check_unrun(K), waiver_lapsed(W), past_due(X),
                      supersede_cycle(C), no_claim. orbit-kb show blocking prints each with its text.
