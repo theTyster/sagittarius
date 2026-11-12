@@ -126,4 +126,6 @@ repository, not to this one.
 ```sh
 bash kb/tests/test_orbit_kb.sh             # the orbit-kb suite (about a minute)
 kb/tests/burn_model/check.sh               # the Lean model of the burn rules (needs Lean 4)
+python3 docs/check_lean.py                 # Lean on Hypothesis.lean (count, axioms, cited names) and kb/proofs (needs Lean 4)
+python3 docs/test_check_lean.py            # the tests of that check
 ```
