@@ -200,6 +200,16 @@ class C4FiveJudgments(Base):
         lean = {"type": "choice", "choice": "lean", "confidence": 0.9}
         self.assertTrue(self.seg(h_language=lean, **quiet).endswith("| tool lean"))
 
+    def test_a_proof_answer_decides_as_in_the_hook(self):
+        # review of 0.3.0 (finding 7): when the line has h_proof, it decides whether a proof is asked
+        # for (the hook's _proof_asked); without it, the choice lean does
+        quiet = dict(h_divergence=self.noul(0.1), h_change_of_plan=self.noul(0.1), h_effort=self.noul(0.1))
+        lean = {"type": "choice", "choice": "lean", "confidence": 0.9}
+        z3 = {"type": "choice", "choice": "z3", "confidence": 0.9}
+        self.assertNotIn("tool", self.seg(h_language=lean, h_proof=self.noul(0.1), **quiet))
+        self.assertTrue(self.seg(h_language=z3, h_proof=self.noul(0.9), **quiet).endswith("| tool z3"))
+        self.assertNotIn("tool", self.seg(h_language=z3, h_proof=self.noul(0.5), **quiet))
+
     def test_change_of_plan_yes_shows(self):
         got = self.seg(h_change_of_plan=self.noul(0.75))
         self.assertIn("plan 0.75", got)

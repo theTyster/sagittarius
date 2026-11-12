@@ -28,9 +28,11 @@ as written, with no redaction (T43, u123). It adds one line of context for the a
 - The line only reports. It gives the agent no instruction: the prompt says what to do with a
   hint ("System 1" in `prompt/SAGITTARIUS.md`).
 - An answer in the unsure band is left out (yes/no: `jev.band`; a choice: P(choice) < 0.5).
-  When every answer is in the band, the line is `System 1: unsure`.
+  When every answer is in the band, the line is `System 1: unsure`. When only the formal tool is
+  outside the band and the next rule holds it back, the line is `System 1: no signal`.
 - The line names a formal tool only beside a signal (divergence likely, change of plan likely,
-  effort significant), or when a proof is asked for (the tool is `lean`).
+  effort significant), or when a proof is asked for: `h_proof` in the yes band when the response
+  has it, else the tool is `lean`. The status line uses the same rule.
 - Output: `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "..."}}`
   (https://code.claude.com/docs/en/hooks, "UserPromptSubmit decision control").
 - It fails open, and says so. On any error, a timeout, a missing key, a missing questions file or
@@ -122,7 +124,8 @@ The parts are the five judgments of the hook (T29 c6): the `h_work` choice, P(`h
 P(`h_change_of_plan`), P(`h_effort`), and the `h_language` choice (the formal tool). Each part shows
 only outside the unsure band, as the hook decides it: a yes/no answer when P <= 0.3 or P >= 0.7, a
 choice when its P is 0.5 or more. As in the hook, the tool shows only beside a signal (a yes/no
-part at 0.7 or more), or when it is `lean`.
+part at 0.7 or more), or when a proof is asked for (`h_proof` at 0.7 or more when the line has it,
+else the tool `lean`).
 
 - It prints nothing when the log is missing, when the session has no line, when stdin has no
   `session_id`, or when the newest line of the session is 10 minutes old or older.

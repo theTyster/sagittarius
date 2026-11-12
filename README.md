@@ -39,13 +39,15 @@ Only the hub, with no Prolog and no Lean? That is the informal release: see [`hu
 
 1. **Install.** Install SWI-Prolog 9+, then run `./install.py` from this folder. It links
    `orbit-kb`, `repo-map`, the prompt, and the System 1 hook into your home directory. Check it
-   with `orbit-kb doctor` and `./install.py --check`. "Install" below is a sequence that an agent
-   can follow for you, and it ends with a check that a session got the prompt.
-2. **Add the System 1 hook (recommended, not required; it is optional).** The hook asks the
-   System 1 model about each prompt before the agent answers. It goes where the prompt goes.
-   `install.py` links it to `~/.claude/sagittarius-s1`. Follow `s1/README.md`. The last step is
-   manual: you paste a snippet into your `~/.claude/settings.json`. No script writes that file.
-   `install.py` never does.
+   with `orbit-kb doctor` and `./install.py --check`. Then give the prompt to each session: a
+   shell function adds `--append-system-prompt` to `claude` (step 3 of "Install"). "Install"
+   below is a sequence that an agent can follow for you. Each step ends with a check, and step 5
+   checks that a session got the prompt.
+2. **Add the System 1 hook (optional: recommended, not required).** The hook asks the System 1
+   model about each prompt before the agent answers. `install.py` links it beside the prompt, to
+   `~/.claude/sagittarius-s1`. Follow `s1/README.md`. Its last step is
+   manual: you paste a snippet into your `~/.claude/settings.json`. No script writes that file,
+   `install.py` included.
 3. **Start a hub.** Give `hubkit/` to your agent and say "follow INSTRUCTIONS.md". It reads
    `hubkit/INSTRUCTIONS.md`, asks up to three questions, and sets up the hub (a MindHole). See
    "MindHole" below.
@@ -105,8 +107,11 @@ ends with a check. Do the steps in order. Stop at a check that fails, and say wh
    ```
 
    If the user already has a `claude` function or alias, add the flag to it; do not make a
-   second one. Another agent tool works the same way: put the text of `SAGITTARIUS.md` in its
-   system prompt.
+   second one. `command claude` runs the `claude` program on the `PATH`: it skips functions and
+   aliases. If `claude` is only an alias (`alias claude` prints its target, for example
+   `~/.claude/local/claude`), `command claude` fails with "command not found". Then write the
+   full path of the binary in place of `command claude`. Another agent tool works the same way:
+   put the text of `SAGITTARIUS.md` in its system prompt.
 4. **One session.** Open a new shell, so that it reads the function, and start one session with
    `claude`.
 5. **Ask it which prompt it got.** Ask the session: "What is the last line of your system
@@ -141,7 +146,9 @@ Your window: $ROLE.
 $(cat "$p/panes/$ROLE.md")"
 ```
 
-`command claude` skips the shell function of "Install", so the prompt is appended once. Any
+`command claude` skips the shell function of "Install", so the prompt is appended once. If your
+`claude` is only an alias, write the full path of the binary in place of `command claude` (see
+step 3 of "Install"). Any
 terminal multiplexer or editor can hold the three sessions. The author starts them as
 three tmux windows named after the roles. That launcher is not part of this repository.
 
@@ -189,4 +196,6 @@ bash kb/tests/test_orbit_kb.sh             # the orbit-kb suite (about a minute)
 kb/tests/burn_model/check.sh               # the Lean files of the burn rules (needs Lean 4)
 python3 docs/check_lean.py                 # Lean on Hypothesis.lean (count, axioms, cited names) and kb/proofs (needs Lean 4)
 python3 docs/test_check_lean.py            # the tests of that check
+python3 docs/check_mutants.py              # each docs check passes on the tree, and fails on a copy that lost what it holds
+python3 docs/test_check_mutants.py         # the tests of that check
 ```

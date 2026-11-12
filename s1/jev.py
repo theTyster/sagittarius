@@ -80,9 +80,11 @@ def band(p):
 
 
 def sagittarius_version():
-    """The version of Sagittarius, from the VERSION file at the root of this checkout ("unknown" if none)."""
+    """The version of Sagittarius, from the VERSION file at the root of this checkout ("unknown" if none).
+    realpath, not abspath: the installed hook imports this file through the link
+    ~/.claude/sagittarius-s1, and VERSION is at the root of the real checkout."""
     try:
-        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION"), encoding="utf-8") as f:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "VERSION"), encoding="utf-8") as f:
             return f.read().strip() or "unknown"
     except OSError:
         return "unknown"

@@ -961,10 +961,6 @@ class T43C2NoRedaction(Base):
             self.assertNotRegex(text, r"(?i)every text is redacted|redacts names|names to redact", rel)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class SA3FormalTool(Base):
     """0.3.0 S-A (c_s_a_3): the line names a formal tool only beside a signal (a likely divergence, a
     likely change of plan, significant effort), or when the tool is Lean (a proof is asked for).
@@ -1006,6 +1002,14 @@ class SA3FormalTool(Base):
         yes = {"h_proof": {"type": "noul", "noul": 0.9}}
         self.assertIn("formal tool: z3 (0.90)", self.line(lang="z3", extra=yes))
 
+    def test_unsure_only_when_every_answer_is_unsure(self):
+        # review of 0.3.0 (finding 7): a confident tool that the rule holds back is not "unsure"
+        un = {"h_work": {"type": "choice", "choice": "build", "confidence": 0.3,
+                         "probabilities": {"build": 0.3}}}
+        got = self.line(div=0.5, plan=0.5, effort=0.5, lang="z3", lang_p=0.9, extra=un)
+        self.assertEqual(got, "System 1: no signal")
+        self.assertEqual(self.line(div=0.5, plan=0.5, effort=0.5, lang="z3", lang_p=0.3, extra=un), UNSURE_LINE)
+
     def test_the_line_gives_no_instruction(self):
         for kw in ({"div": 0.9, "plan": 0.9, "effort": 0.9}, {"effort": 0.95}, {"div": 0.9}):
             ctx = self.line(**kw)
@@ -1028,3 +1032,46 @@ class SA1Silence(Base):
     def test_main_never_raises_and_returns_zero(self):
         p, _ = subprocess_hook("{oops", self.env)
         self.assertEqual((p.returncode, p.stderr), (0, ""))
+
+
+class VA4Link(Base):
+    """0.3.0 V-A (c_v_a_4): the installed hook runs through the link ~/.claude/sagittarius-s1, and
+    each log line still holds the version of this checkout (VERSION at the root), not "unknown"."""
+
+    def setUp(self):
+        super().setUp()
+        self.home = os.path.join(self.dir, "home")
+        os.makedirs(os.path.join(self.home, ".claude"))
+        self.link = os.path.join(self.home, ".claude", "sagittarius-s1")
+        os.symlink(HERE, self.link)
+        with open(os.path.join(ROOT, "VERSION"), encoding="utf-8") as f:
+            self.want = f.read().strip()
+
+    def run_linked(self, code):
+        env = dict(self.env, HOME=self.home, PATH=os.environ.get("PATH", "/usr/bin:/bin"))
+        return subprocess.run([sys.executable, "-c", code], input=self.payload(), capture_output=True,
+                              text=True, env=env, cwd=self.home, timeout=20)
+
+    def test_version_through_the_link(self):
+        p = self.run_linked(f"import sys; sys.path.insert(0, {self.link!r}); import jev; "
+                            "print(jev.__file__); print(jev.sagittarius_version())")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        where, version = p.stdout.split()
+        self.assertTrue(where.startswith(self.link), where)  # the import did go through the link
+        self.assertEqual(version, self.want)
+
+    def test_hook_log_line_through_the_link(self):
+        code = (f"import json, sys; sys.path.insert(0, {self.link!r}); import hook\n"
+                f"payload = {json.dumps(RECORDED['ticket_example'])!r}\n"
+                "def fake(url, headers, body, timeout):\n"
+                "    return 200, payload\n"
+                "sys.exit(hook.main(transport=fake))\n")
+        p = self.run_linked(code)
+        self.assertEqual((p.returncode, p.stderr), (0, ""))
+        lines = self.log_lines()
+        self.assertTrue(lines)
+        self.assertEqual({x["sagittarius"] for x in lines}, {self.want})
+
+
+if __name__ == "__main__":
+    unittest.main()

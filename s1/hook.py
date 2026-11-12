@@ -26,7 +26,8 @@ applied to them.
 
 Fails open, and says so (0.3.0 S-A): on any error, a timeout, a missing key, a missing questions
 file or bad stdin it prints one short line, "System 1: no view (<reason>)", and exits 0. When every
-answer is in the unsure band it prints "System 1: unsure". It prints nothing only when it is off
+answer is in the unsure band it prints "System 1: unsure"; when only the formal tool is sure and no
+signal shows it, "System 1: no signal". It prints nothing only when it is off
 (S1_OFF). It never blocks a prompt. The line only reports: it gives the agent no instruction (the
 prompt says what to do with a hint). It names a formal tool only beside a signal (a likely
 divergence, a likely change of plan, significant effort), or when a proof is asked for.
@@ -56,6 +57,7 @@ LONG_CONTEXT_TOKENS = 262000  # with the long-context header (TypeSafe docs, mod
 LONG_CONTEXT_CHARS = LONG_CONTEXT_TOKENS * CHARS_PER_TOKEN
 CHOICE_MIN = 0.5  # a choice is shown when P(choice) >= 0.5, as in the calibration
 UNSURE = "System 1: unsure"  # every answer in the unsure band (0.3.0 S-A)
+NO_SIGNAL = "System 1: no signal"  # only a formal tool is sure, and no signal shows it (review of 0.3.0)
 
 
 def no_view(reason):
@@ -232,7 +234,8 @@ def _proof_asked(answers, lang):
 
 
 def format_answers(answers, questions):
-    """One line, or UNSURE when every answer is unsure. Raises on a malformed answer.
+    """One line; UNSURE when every answer is unsure; NO_SIGNAL when only the formal tool is outside the
+    band and the rule holds it back (no signal, no proof). Raises on a malformed answer.
     The line only reports (0.3.0 S-A): no instruction. The formal tool is named only beside a
     signal (divergence likely, change of plan likely, effort significant) or when a proof is asked."""
     parts = []
@@ -254,7 +257,9 @@ def format_answers(answers, questions):
     lang = _choice(answers["h_language"], questions["h_language"])
     if lang and (signal or _proof_asked(answers, lang)):
         parts.append(f"formal tool: {lang[0]} ({lang[1]:.2f})")
-    return ("System 1: " + "; ".join(parts)) if parts else UNSURE
+    if parts:
+        return "System 1: " + "; ".join(parts)
+    return NO_SIGNAL if lang else UNSURE
 
 
 def _skip(log_path, key, reason, extra=None, **fields):
