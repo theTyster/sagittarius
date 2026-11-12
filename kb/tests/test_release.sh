@@ -3,7 +3,8 @@
 # c1  README.md has a "Use it" section: install, start a hub, the hook (optional, manual).
 # c2  A fresh install in a scratch HOME works (five links, the System 1 link too); install.py never writes a settings file.
 # c3  hubkit/kit.json version is higher than the first one; CHANGELOG.md has the redesign entry.
-# c4  (0.3.0) VERSION, the last line of the prompt and a CHANGELOG heading agree; install.py --check prints the version.
+# c4  (0.3.0) VERSION, the last line of the prompt and a CHANGELOG heading agree; install.py --check prints the version;
+#     the installed orbit-kb and a formal hub's copy of it print it (orbit-kb version).
 # Exit: 0 all pass, 1 a check failed.  Prints `pass=N fail=N`.
 set -u
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
@@ -85,6 +86,12 @@ python3 "$repo/docs/check_version.py" >"$scratch/ver.out" 2>&1 && ok c4-version-
 v=$(tr -d '[:space:]' <"$repo/VERSION")
 export_home python3 "$repo/install.py" --check 2>&1 </dev/null | grep -q "Sagittarius $v" \
     && ok c4-install-check-prints-version || bad c4-install-check-prints-version "install.py --check does not print Sagittarius $v"
+# c4 (0.3.0, c_v_a_2): the installed link and a formal hub's own copy of orbit-kb print the version
+HOME=$scratch PATH="$scratch/.local/bin:$PATH" env -u ORBIT_KB_LIB orbit-kb version </dev/null 2>&1 | grep -qx "orbit-kb $v" \
+    && ok c4-orbit-kb-link-version || bad c4-orbit-kb-link-version "the installed orbit-kb does not print orbit-kb $v"
+python3 "$repo/hubkit/tools/hubkit.py" install --hub "$scratch/hub" --edition formal >/dev/null 2>&1 </dev/null
+env -u ORBIT_KB_LIB "$scratch/hub/.claude/orbit-kb/bin/orbit-kb" version </dev/null 2>&1 | grep -qx "orbit-kb $v" \
+    && ok c4-orbit-kb-hub-copy-version || bad c4-orbit-kb-hub-copy-version "the hub's copy of orbit-kb does not print orbit-kb $v"
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

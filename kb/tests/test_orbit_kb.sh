@@ -86,6 +86,7 @@
 #   KR  the report and show print what the KB holds: hypothesis, examples, KB, Signals, Formal, the discovery report (D31, 0.3.0 K-B) : KR1-KR7
 #   OP  no quiet "Nothing is open": blocking, what blocks readiness, stale pins (D32, 0.3.0 K-C) : OP1-OP5
 #   RD  readiness and the vote: examples, preserve checks, calibration, red system runs, the gate (D33, 0.3.0 K-D) : RD1-RD6
+#   VN  the version of the tool: version, help, init, a link and a copy (D34, 0.3.0 V-A) : VN1-VN3
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -2218,6 +2219,41 @@ t_GD() { # query done on 20 claims x 2 runs
          add_result "$K" k20 41 fail
          q 'done'; rc_is 1 "k20 failed last: done is false"
          is_set 'under(X)' 'X = c20'; }
+
+# ================================================================ 0.3.0: V-A, K-G, K-E, K-H, K-J, K-F (D34 to D39)
+# VN (D34, c_v_a_2, c_v_a_3): the tool names the version of Sagittarius. The one source is the
+# file VERSION at the root of the repository; the library holds kb/share/orbit-kb/VERSION, a
+# link to it, so a copy of kb/bin and kb/share (a hub's .claude/orbit-kb) carries the number.
+vn_want() { tr -d '[:space:]' < "$here/../../VERSION"; }
+t_VN1() { local v; v=$(vn_want)
+          [ -n "$v" ] || { note "no VERSION file at the root of the repository"; return; }
+          okb version; rc_is 0 "orbit-kb version"; out_has "^orbit-kb ${v//./\\.}\$" "version prints the number of VERSION"
+          okb --version; rc_is 0 "orbit-kb --version"; out_has "^orbit-kb ${v//./\\.}\$"
+          okb help; rc_is 0; [[ $(first_line) == "orbit-kb $v:"* ]] || note "the first help line names the version: [$(first_line)]"
+          okb version extra; rc_is 2 "version takes no arguments"; }
+t_VN2() { local v; v=$(vn_want); K=$T/k; okb init "$K" --request 'a'; rc_is 0
+          grep -qxF "% Made by orbit-kb $v." "$K/kb.pl" || note "init writes the version of the tool into kb.pl: [$(head -c 300 "$K/kb.pl" | tr '\n' '~')]"
+          head -1 "$K/kb.pl" | grep -Eq '^uses\(\[\]\)\.$' || note "uses/1 stays the first line: [$(head -1 "$K/kb.pl")]"
+          okb --dir "$K" lint; rc_is 0 "the line is a comment: lint is clean"; }
+t_VN3() { local v h; v=$(vn_want); h=$T/hub/.claude/orbit-kb
+          # a copy, as hubkit.py copies kit.json orbit_kb.paths: links are followed, no VERSION at a root
+          mkdir -p "$h" && cp -RL "$here/../bin" "$here/../share" "$h/" || { note "setup: the copy"; return; }
+          [ -L "$here/../share/orbit-kb/VERSION" ] || note "kb/share/orbit-kb/VERSION is a link to the one source"
+          [ ! -e "$T/hub/VERSION" ] && [ ! -e "$T/hub/.claude/VERSION" ] || note "setup: a VERSION file above the copy"
+          ( unset ORBIT_KB_LIB; cd "$T" && timeout "$TMO" "$h/bin/orbit-kb" version ) > "$T/.out" 2>&1
+          grep -qx "orbit-kb $v" "$T/.out" || note "the hub's copy prints the version: [$(head -c 200 "$T/.out")]"
+          # a link, as install.py makes ~/.local/bin/orbit-kb
+          mkdir -p "$T/home/.local/bin" && ln -s "$OKB" "$T/home/.local/bin/orbit-kb"
+          ( unset ORBIT_KB_LIB; cd "$T" && timeout "$TMO" "$T/home/.local/bin/orbit-kb" version ) > "$T/.out" 2>&1
+          grep -qx "orbit-kb $v" "$T/.out" || note "the linked CLI prints the version: [$(head -c 200 "$T/.out")]"
+          # a library with no VERSION file: no guess
+          mkdir -p "$T/old" && cp -R "$h/bin" "$h/share" "$T/old/" && rm -f "$T/old/share/orbit-kb/VERSION"
+          ( unset ORBIT_KB_LIB; cd "$T" && timeout "$TMO" "$T/old/bin/orbit-kb" version ) > "$T/.out" 2>&1; rc=$?
+          [ "$rc" = 2 ] || note "no VERSION file: exit $rc, want 2"
+          grep -q 'VERSION' "$T/.out" || note "no VERSION file: the message names the file: [$(head -c 200 "$T/.out")]"
+          ( unset ORBIT_KB_LIB; cd "$T" && timeout "$TMO" "$T/old/bin/orbit-kb" help ) > "$T/.out" 2>&1
+          head -1 "$T/.out" | grep -q '^orbit-kb (version unknown):' || note "no VERSION file: the first help line says so: [$(head -1 "$T/.out")]"; }
+
 # ================================================================ WN: whynot, Y: why
 t_WN1() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'current(c1)'; rc_is 0; [ "$(first_line)" = holds ] || note "first line '$(first_line)'"; out_has 'because' "the clauses that prove it"; }
 t_WN2() { # D20: absent names, for each rule, the literal that blocks, and why
@@ -3708,6 +3744,9 @@ run_test t_RD4 RD4 "0.3.0 c_k_d_3b: a red run of a system check of an introduce 
 run_test t_RD5 RD5 "0.3.0 c_k_d_1b: an agent GO is refused while not ready; GO cannot win then; the approved GO stays"
 run_test t_OP5 OP5 "0.3.0 c_k_c_1b: show open agrees with the examples of the Lean model kb/proofs/open_items"
 run_test t_RD6 RD6 "0.3.0 c_k_d_1b: attest and gate agree with the examples of the Lean model kb/proofs/gate_ready"
+run_test t_VN1 VN1 "0.3.0 c_v_a_2: orbit-kb version prints the version of VERSION; the first help line names it"
+run_test t_VN2 VN2 "0.3.0 c_v_a_3: orbit-kb init writes the version of the tool into kb.pl"
+run_test t_VN3 VN3 "0.3.0 c_v_a_2: the version reaches a linked CLI and a hub's copy; no VERSION file: exit 2"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"
