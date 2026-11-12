@@ -7171,6 +7171,7 @@ report_text(KB, Eng) :-
     rhead('Signals'),
     rsay(placeholder, "(Compare the work with each signal: questions, divergence, someone else built, burns, handoff, effort. Write no, or yes and what fired it.)", []),
     hypothesis_section(Eng),
+    ( has_discovery(KB) -> system_section(Eng), findings_section(Eng) ; true ),
     rhead('Claims'),
     eng_all(Eng, [C, L, T], ( claim(C, L, T), current(C) ), Cs),
     (   Cs == [] -> rsay(none, "No current claims.", []) ; true ),
@@ -7216,6 +7217,7 @@ report_text(KB, Eng) :-
     ;   true
     ),
     formal_section(KB, Eng, Cs),
+    scope_sections(KB, Eng),
     rhead('Guesses'),
     eng_all(Eng, [Q, A], ( assumed(Q, A), not(answered(Q)) ), Gs),
     % D30 H3: each premise that nobody checked is a guess about the system.
@@ -7355,6 +7357,65 @@ report_text(KB, Eng) :-
     ( has_discovery(KB) -> vote_section(Eng) ; true ),
     rhead('To land'),
     rsay(placeholder, "(Write the steps to land the work here.)", []).
+
+% system_section(+Eng) (D31 B6): what the current system showed: each reproduction on system
+% evidence, and the last failed run of each check that is tagged as system evidence.
+system_section(Eng) :-
+    rhead('System'),
+    eng_all(Eng, [A, S, P, B], ( attest(A, reproduction, S, P, B, _), discovery_system_evidence(S) ), Rs),
+    eng_all(Eng, [K, N], ( attest(_, test_result, _, result(K, N, fail), _, _), discovery_system_evidence(K) ), Fs0),
+    findall(K-N, ( member([K, N], Fs0), \+ ( member([K, N2], Fs0), N2 > N ) ), Fs1), sort(Fs1, Fs),
+    (   Rs == [], Fs == []
+    ->  rsay(none, "Nothing yet. No result from the current system.", [])
+    ;   true
+    ),
+    forall(member([A, S, P, B], Rs),
+           (   P = result(H, R)
+           ->  ( R == reproduced -> RT = "reproduced" ; RT = "not reproduced" ),
+               rsay(item(H), "~w: ~w, on ~w (~w, by ~w).", [H, RT, S, A, B])
+           ;   P = confirms(F)
+           ->  rsay(item(F), "Finding ~w: the system confirms it, on ~w (~w, by ~w).", [F, S, A, B])
+           ;   term_text(P, PT), rsay(item(A), "~w: ~w, on ~w.", [A, PT, S])
+           )),
+    forall(member(K-N, Fs), rsay(item(K), "Check ~w failed on the current system (run ~w).", [K, N])).
+
+% findings_section(+Eng) (D31 B6): each finding, marked as from the system or from a model only.
+findings_section(Eng) :-
+    rhead('Findings'),
+    eng_all(Eng, [F, W, From], finding(F, W, From), Fs),
+    (   Fs == [] -> rsay(none, "None.", []) ; true ),
+    forall(member([F, W, From], Fs),
+           ( (   compound(W), compound_name_arguments(W, Kind, [Arg]) -> plain_text(Arg, AT)
+             ;   Kind = finding, plain_text(W, AT) ),
+             (   From == system -> Mark = "From the system."
+             ;   eng_true(Eng, finding_confirmed(F)) -> Mark = "From a model, and the system confirms it."
+             ;   Mark = "From a model only. It is a lead until the system confirms it."
+             ),
+             format(string(Head), "~w **~w**: ~w", [F, Kind, AT]),
+             as_sentence(AT, ATS),
+             format(string(Plain), "~w (~w): ~w ~w", [F, Kind, ATS, Mark]),
+             rtree(item(F), Plain, Head-[Mark-[]]) )).
+
+% scope_sections(+KB, +Eng) (D31 B6): Scope, Risk and Not explored, in a KB that uses discovery
+% or that holds such facts.
+scope_sections(KB, Eng) :-
+    eng_all(Eng, [W, T], scope(W, T), Ss),
+    eng_all(Eng, [R, RT], risk(R, RT), Rs),
+    eng_all(Eng, [N], not_explored(N), Ns),
+    (   ( has_discovery(KB) ; Ss \== [] ; Rs \== [] ; Ns \== [] )
+    ->  rhead('Scope'),
+        (   Ss == [] -> rsay(none, "None. No scope is recorded.", []) ; true ),
+        forall(member(W-_, [in-"In", out-"Out"]),
+               forall(member([W, T], Ss),
+                      ( memberchk(W-L, [in-"In", out-"Out"]), txt(T, TT), rsay(scope, "~w: ~w", [L, TT]) ))),
+        rhead('Risk'),
+        (   Rs == [] -> rsay(none, "None. No risk is recorded.", []) ; true ),
+        forall(member([R, RT], Rs), ( txt(RT, RTT), rsay(item(R), "~w: ~w", [R, RTT]) )),
+        rhead('Not explored'),
+        (   Ns == [] -> rsay(none, "None is recorded. Say what you did not explore.", []) ; true ),
+        forall(member(N, Ns), ( txt(N, NT), rsay(not_explored, "~w", [NT]) ))
+    ;   true
+    ).
 
 % formal_section(+Eng, +Cs) (D31 B3): the formal statement of each current claim that has one,
 % beside its plain sentence; or "None." B4 and B5 add the statements.
@@ -7670,6 +7731,11 @@ page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js) :-
     page_list(Recs, 'KB', kb, "KB", ""),
     page_list(Recs, 'Signals', signals, "Signals", ""),
     page_list(Recs, 'Hypothesis', hypothesis, "Hypothesis", "What must be true when the ticket is done, with its premises. Say if it is wrong."),
+    (   has_discovery(KB)
+    ->  page_list(Recs, 'System', system, "System", "What the current system showed."),
+        page_list(Recs, 'Findings', findings, "Findings", "Each finding, from the system or from a model only.")
+    ;   true
+    ),
     % claims
     format("<section data-section=\"claims\" id=\"claims\" aria-labelledby=\"h-claims\">~n<h2 id=\"h-claims\">Claims</h2>~n", []),
     (   NC =:= 0 -> format("<p class=\"empty\">No current claims.</p>~n", []) ; true ),
@@ -7678,6 +7744,8 @@ page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js) :-
     format("</section>~n", []),
     % the other sections, from the text lines
     page_list(Recs, 'Formal', formal, "Formal", "The formal statement of each claim that has one, beside its plain sentence."),
+    forall(member(SN-SI, ['Scope'-scope, 'Risk'-risk, 'Not explored'-not_explored]),
+           ( memberchk(head(SN)-_, Recs) -> page_list(Recs, SN, SI, SN, "") ; true )),
     page_list(Recs, 'Guesses', guesses, "Guesses", "Defaults that no human answered, and premises that nobody checked. Say if one is wrong."),
     page_list(Recs, 'Disclosures', disclosures, "Disclosures", ""),
     (   has_build(KB) -> page_list(Recs, 'Waivers', waivers, "Waivers", "") ; true ),

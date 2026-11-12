@@ -10,11 +10,26 @@
 # Hypothesis:
   - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).
 
+# System:
+  - Nothing yet. No result from the current system.
+
+# Findings:
+  - None.
+
 # Claims:
   - No current claims.
 
 # Formal:
   - None. No claim has a formal statement.
+
+# Scope:
+  - None. No scope is recorded.
+
+# Risk:
+  - None. No risk is recorded.
+
+# Not explored:
+  - None is recorded. Say what you did not explore.
 
 # Guesses:
   - None. No question has a default.

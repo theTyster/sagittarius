@@ -26,6 +26,16 @@
   - c2: theorem load_fast (Lean, proof a9): True
     - Claim c2: Loading stays fast.
 
+# Scope:
+  - In: The save path
+  - Out: The loader
+
+# Risk:
+  - rk1: Old files may not load
+
+# Not explored:
+  - The network save path
+
 # Guesses:
   - q2: Does saving need a progress bar
     - The default is no. No human answered it.

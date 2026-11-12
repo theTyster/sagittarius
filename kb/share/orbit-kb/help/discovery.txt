@@ -245,8 +245,10 @@ HANDOFF to the build orbit
   examples. Record a divergence where the two disagree.
 
 REPORT: the discovery report
-  Write it from the queries. orbit-kb report prints the build-orbit sections and a Vote:
-  section; write the rest yourself.
+  orbit-kb report drafts it from the facts: Hypothesis (with its premises), System (what the
+  system showed), Findings (each from the system or a model only), Claims (each with its
+  example and its checks, the falsifiers), Formal, Scope, Risk, Not explored, and a Vote:
+  section that keeps your vote sealed. Write Decide and Ask yourself.
     Hypothesis:   <one sentence, and its falsifier>
     System:       <reproduced, not reproduced, or exists; the evidence>
     Findings:     <concrete cases, each from the system or a model only>
