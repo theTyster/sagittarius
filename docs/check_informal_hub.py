@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T32: an informal hub loads only informal rules. One check per claim.
 
-usage: python3 docs/check_informal_hub.py t32c2|...|t32c8|t36c1|...|t36c6|t41c1|...|t41c5|t44c1|t44c2|iuxc3e|iuxc4 (t32c1 is superseded by iuxc3e, t32c6 and t36c3 by iuxc4) [--list]   (--list prints the claim ids)
+usage: python3 docs/check_informal_hub.py t32c2|...|t32c8|t36c1|...|t36c6|t41c1|...|t41c5|t44c1|t44c2|iuxc3e|iuxc4 (t32c1 and t32c8 are superseded by iuxc3e, t32c6 and t36c3 by iuxc4) [--list]   (--list prints the claim ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 t32c1 installs hubs from this kit with --edition informal|formal and with no --edition (a PATH with
@@ -39,8 +39,9 @@ t44c1 an informal hub accepts no formal-only part on any path: `add KIND --ref k
 t44c2 the informal hypothesis row of storemap.py (INFORMAL) names the expected result, the falsifier and
       the premises; the check also runs on mutant copies of the row, which must each fail. T44_STOREMAP
       names another storemap.py to read (a red run on a mutant copy).
-iuxc3e (install UX c3; supersedes t32c1) t32c1 with one change: with no --edition, install picks informal also
-      when an orbit-kb is on PATH (the human chooses formal at setup, not the PATH).
+iuxc3e (install UX c3; supersedes t32c1 and t32c8) t32c1 with one change: with no --edition, install picks
+      informal also when an orbit-kb is on PATH (the human chooses formal at setup, not the PATH); and t32c8
+      with the formal hub installed with --edition formal. t32c1 copies the kit's orbit-kb (../kb) beside its kit copy.
 iuxc4 (install UX c4; supersedes t32c6 and t36c3) no engine file of the kit is a shell script; the install of
       hubkit/README.md needs no bash: each line of its sh block is one python3 or git command, run here with no
       shell and a PATH of only python3 and git, KIT and HUB relative; README and the informal HUB-CORE.md name
@@ -232,6 +233,8 @@ def t32c1(okb_default="formal"):
         for d in ("hub", "editions", "tools"):
             if os.path.isdir(os.path.join(KITDIR, d)):
                 shutil.copytree(os.path.join(KITDIR, d), os.path.join(kit2, d))
+        if kit.get("orbit_kb"):  # install UX c3: a formal hub's orbit-kb comes from beside the kit (../kb)
+            shutil.copytree(os.path.normpath(os.path.join(KITDIR, kit["orbit_kb"]["from"])), os.path.normpath(os.path.join(kit2, kit["orbit_kb"]["from"])))
         k2 = dict(kit, version="9.9.9")
         with open(os.path.join(kit2, "kit.json"), "w") as f:
             json.dump(k2, f)
@@ -475,14 +478,14 @@ def t32c7():
 
 
 # ------------------------------------------------------------------ c8
-def t32c8():
+def t32c8(formal_args=()):
     with tempfile.TemporaryDirectory(prefix="t32-c8-") as t:
         withb = bin_with(os.path.join(t, "withb"), ["python3", "git"], stub_okb=True)
         for ed in ("formal", "informal"):
             if ed == "formal":  # the default install where orbit-kb is on PATH: no --edition, so a kit before T32 makes it too
                 hub = os.path.join(t, ed)
                 os.makedirs(hub)
-                p = hk(["install", "--hub", hub], path=withb)
+                p = hk(["install", "--hub", hub] + list(formal_args), path=withb)
                 check("t32c8 the default install with orbit-kb on PATH makes a formal hub",
                       p.returncode == 0 and manifest(hub).get("edition", "formal") == "formal", (p.stderr, manifest(hub)))
             else:
@@ -948,6 +951,7 @@ def t44c2():
 # ------------------------------------------------------------------ install UX (discovery GO 2026-11-11)
 def iuxc3e():
     t32c1(okb_default="informal")
+    t32c8(formal_args=("--edition", "formal"))
 
 
 def iuxc4():
@@ -1003,9 +1007,9 @@ def iuxc4():
     check("iuxc4 check_informal_release.py c1 (T24) passes", p.returncode == 0, p.stdout[-400:])
 
 
-# t32c1 is superseded by iuxc3e (install UX c3: with no --edition, install no longer reads the PATH), and t32c6 and
+# t32c1 and t32c8 are superseded by iuxc3e (install UX c3: with no --edition, install no longer reads the PATH), and t32c6 and
 # t36c3 by iuxc4 (install UX c4: the kit needs no bash and no POSIX tools). The functions stay above as the record.
-CLAIMS = {k: globals()[k] for k in ("t32c2", "t32c3", "t32c4", "t32c5", "t32c7", "t32c8",
+CLAIMS = {k: globals()[k] for k in ("t32c2", "t32c3", "t32c4", "t32c5", "t32c7",
                                       "t36c1", "t36c2", "t36c4", "t36c5", "t36c6", "iuxc3e", "iuxc4",
                                       "t41c1", "t41c2", "t41c3", "t41c4", "t41c5", "t44c1", "t44c2")}
 

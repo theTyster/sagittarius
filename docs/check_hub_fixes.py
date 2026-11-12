@@ -295,7 +295,7 @@ HUBKIT = os.path.join(ROOT, "hubkit", "tools", "hubkit.py")
 
 def ins_sections():
     ins = read(os.path.join(ROOT, "hubkit", "INSTRUCTIONS.md"))
-    return ins, {m.group(1): m.group(2) for m in re.finditer(r"^## (.+)\n(.*?)(?=^## |\Z)", ins, re.M | re.S)}
+    return ins, {m.group(1): m.group(2) for m in re.finditer(r"^## ([^\n]+)\n(.*?)(?=^## |\Z)", ins, re.M | re.S)}
 
 
 def sec_of(secs, prefix):
