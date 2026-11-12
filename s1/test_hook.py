@@ -961,10 +961,6 @@ class T43C2NoRedaction(Base):
             self.assertNotRegex(text, r"(?i)every text is redacted|redacts names|names to redact", rel)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class SA3FormalTool(Base):
     """0.3.0 S-A (c_s_a_3): the line names a formal tool only beside a signal (a likely divergence, a
     likely change of plan, significant effort), or when the tool is Lean (a proof is asked for).
@@ -1028,3 +1024,7 @@ class SA1Silence(Base):
     def test_main_never_raises_and_returns_zero(self):
         p, _ = subprocess_hook("{oops", self.env)
         self.assertEqual((p.returncode, p.stderr), (0, ""))
+
+
+if __name__ == "__main__":
+    unittest.main()
