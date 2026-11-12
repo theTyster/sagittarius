@@ -7,8 +7,8 @@
 Scan mode. Over every tracked *.md file, emits one TSV row per citation:
     file  line  kind  citation  resolved  status
   kind      link     a relative markdown link or image target, resolved from the citing file's dir
-            mention  a W[0-5]/... or hub/W[0-5]/... path in prose or code, resolved from the hub
-                     root (a ../-prefixed mention resolves from the citing file's dir)
+            mention  a W[0-5]/... or hub/W[0-5]/... path in prose or code (or NAME/W[0-5]/..., NAME the
+                     hub directory's own name), resolved from the hub root (a ../-prefixed mention resolves from the citing file's dir)
   resolved  the target, relative to the hub root (outside-hub targets keep their ../ prefix)
   status    ok | missing   (on disk; a tracked-but-deleted file is missing, an untracked file is ok)
 URLs, #anchors, and placeholder or glob mentions (W1/analyses/<file>, W5/**) are skipped.
@@ -42,7 +42,15 @@ import urllib.parse
 from collections import defaultdict
 
 LINK = re.compile(r"!?\[(?:[^\[\]]|\[[^\]]*\])*\]\(\s*(<[^>]+>|[^)\s]+)(?:\s+\"[^\"]*\")?\s*\)")
-MENTION = re.compile(r"(?:(?<=hub/)|(?<![\w/.\-])((?:\.\./)+)?)(W[0-5]/[A-Za-z0-9._/@+~%\-]*)")
+PATH_TAIL = r"(W[0-5]/[A-Za-z0-9._/@+~%\-]*)"
+MENTION = re.compile(r"(?:(?<=hub/)|(?<![\w/.\-])((?:\.\./)+)?)" + PATH_TAIL)
+
+
+def mention_rx(prefixes):
+    """MENTION, with a hub-relative prefix for each of PREFIXES: "hub" and the hub directory's own name (a hub
+    named mindhole writes mindhole/W0/...; 0.3.0 kit3)."""
+    behind = "".join(f"(?<={re.escape(p)}/)|" for p in prefixes)
+    return re.compile(r"(?:" + behind + r"(?<![\w/.\-])((?:\.\./)+)?)" + PATH_TAIL)
 SKIP_AFTER = set("<*{[$")
 
 
@@ -58,6 +66,8 @@ def scan(hub):
         sys.exit(p.returncode)
     hub = p.stdout.strip()
     os.chdir(hub)
+    prefixes = ["hub"] + [n for n in [os.path.basename(hub)] if n and n != "hub"]
+    mention = mention_rx(prefixes)
     p = subprocess.run(["git", "ls-files", "-z", "--", "*.md"], capture_output=True)
     files = [f for f in p.stdout.decode("utf-8", "surrogateescape").split("\0") if f]
 
@@ -89,7 +99,7 @@ def scan(hub):
                 for i in range(a, b):
                     masked[i] = " "
             masked = "".join(masked)
-            for m in MENTION.finditer(masked):
+            for m in mention.finditer(masked):
                 dots, path = m.group(1) or "", m.group(2)
                 end = m.end(2)
                 if end < len(masked) and masked[end] in SKIP_AFTER:
@@ -100,8 +110,10 @@ def scan(hub):
                     continue
                 rel = os.path.normpath(os.path.join(base, dots + path)) if dots else os.path.normpath(path)
                 cite = dots + path
-                if masked[max(0, m.start() - 4):m.start()] == "hub/":
-                    cite = "hub/" + cite
+                for pre in prefixes:
+                    if masked[max(0, m.start() - len(pre) - 1):m.start()] == pre + "/":
+                        cite = pre + "/" + cite
+                        break
                 out.write(f"{f}\t{ln}\tmention\t{cite}\t{rel}\t{status(rel)}\n")
 
 
