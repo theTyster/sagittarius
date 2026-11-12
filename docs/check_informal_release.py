@@ -11,6 +11,11 @@ c2 runs hubflow-test.py --case case_t24_no_orbit_kb (HUBFLOW_ORBIT_KB unset, no 
    reads HUB-CORE.md "Without orbit-kb", and compares its informal store map with the fact kinds of
    hubkit/tools/store-facts.json (all of them since T32 c3). store-facts.json is the
    design KB's export; check_hub_guidance.py c1 keeps it equal to the design KB, and c2 runs it.
+c3 (0.3.0 M-C) reads hubkit/hub/PRINCIPLES.md: a short file (60 lines or fewer) that comes from the
+   prompt. It names the version on the last line of prompt/SAGITTARIUS.md ("Sagittarius X.Y.Z"), each
+   part (## heading) has a line From the prompt: "Section" that names a section of the prompt, and it
+   cites no section of docs/PHILOSOPHY.md. hubkit/README.md and INSTRUCTIONS.md say that it comes from
+   the prompt, not that it states the philosophy.
 c4 also upgrades a hub made from the 0.3.0 kit (git archive 4d0c5bc) to this kit, and runs the
    UPGRADING.md command that keeps the hub's own sessions/launch.sh.
 """
@@ -35,7 +40,7 @@ T24_VERSION = "0.4.0"  # the kit version of the informal release (T24); later re
 FACTS = os.path.join(KITDIR, "tools", "store-facts.json")
 FLOWTEST = os.path.join(HUB, ".claude", "scripts", "hubflow-test.py")
 PRINCIPLES = os.path.join(HUB, "PRINCIPLES.md")
-PHIL = os.path.join(ROOT, "docs", "PHILOSOPHY.md")
+PROMPT = os.path.join(ROOT, "prompt", "SAGITTARIUS.md")
 CHANGELOG = os.path.join(ROOT, "CHANGELOG.md")
 REPO_URL = "https://github.com/theTyster/sagittarius"
 OLD_KIT_COMMIT = "4d0c5bc"  # the redesign branch with hub kit 0.3.0 (T22), before T24
@@ -234,15 +239,26 @@ def c3():
     lacks("c3 PRINCIPLES.md has no KB syntax", pr, *KB_SYNTAX)
     m = re.search(r"\b[a-z_]+\([^)]*\)", pr)
     check("c3 PRINCIPLES.md has no term like name(args)", m is None, m and m.group(0))
-    heads = {re.sub(r"^#+\s*", "", ln).strip() for ln in read(PHIL).splitlines() if ln.startswith("#")}
+    prompt = read(PROMPT)
+    heads = {ln[3:].strip() for ln in prompt.splitlines() if ln.startswith("## ")}
+    last = [ln for ln in prompt.splitlines() if ln.strip()][-1:]
+    pv = re.search(r"Sagittarius (\d+\.\d+\.\d+)", last[0]) if last else None
+    check("c3 the last line of prompt/SAGITTARIUS.md names its version", pv is not None, last)
+    if pv:
+        check(f"c3 PRINCIPLES.md names the version of the prompt (Sagittarius {pv.group(1)})", f"Sagittarius {pv.group(1)}" in pr, "missing")
+    check("c3 PRINCIPLES.md cites no section of docs/PHILOSOPHY.md", "PHILOSOPHY" not in pr, "still there")
     secs = re.split(r"^## ", pr, flags=re.M)[1:]
     check("c3 PRINCIPLES.md has at least four principles (## headings)", len(secs) >= 4, len(secs))
     for s in secs:
         title = s.splitlines()[0].strip()
-        src = re.findall(r'^Source: docs/PHILOSOPHY\.md, "([^"]+)"\s*$', s, re.M)
-        check(f"c3 principle '{title}' names its source section", len(src) >= 1, "no 'Source: docs/PHILOSOPHY.md, \"...\"' line")
+        src = re.findall(r'^From the prompt: "([^"]+)"\s*$', s, re.M)
+        check(f"c3 principle '{title}' names the section of the prompt that it comes from", len(src) >= 1, "no 'From the prompt: \"...\"' line")
         for x in src:
-            check(f"c3 principle '{title}': the section '{x}' is in docs/PHILOSOPHY.md", x in heads, x)
+            check(f"c3 principle '{title}': the section '{x}' is in prompt/SAGITTARIUS.md", x in heads, x)
+    for rel in (KREADME, INSTR):
+        t = words(read(rel))
+        check(f"c3 {os.path.basename(rel)} no longer says that PRINCIPLES.md states the philosophy", "states the sagittarius philosophy" not in t, "still there")
+        check(f"c3 {os.path.basename(rel)} says that PRINCIPLES.md comes from the prompt", re.search(r"principles\.md`? comes from the (sagittarius )?prompt", t) is not None, "missing")
     up = read(UPGRADING)
     v = kit["version"]
     has(f"c3 UPGRADING.md {v} tells a hub to import it", section(up, v, "###"), "@PRINCIPLES.md", "CLAUDE.md")
