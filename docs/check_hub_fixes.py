@@ -442,7 +442,7 @@ def iuxc6u():
 def m030d1():
     ins, secs = ins_sections()
     formal = secs.get("The formal edition", "")
-    lines = [ln.strip() for ln in formal.splitlines() if re.search(r"HUB_SESSION=\S+ claude[^\n]*--append-system-prompt", ln)]
+    lines = [ln.strip() for ln in formal.splitlines() if re.search(r"HUB_SESSION=\S+ (command )?claude[^\n]*--append-system-prompt", ln)]
     start = [ln for ln in lines if "--name" in ln]
     check("m030d1 The formal edition gives one launcher line that sets HUB_SESSION and appends the prompt", len(start) == 1, lines)
     w = re.sub(r"\s+", " ", formal)

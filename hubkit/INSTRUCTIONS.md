@@ -32,8 +32,9 @@ files. Step 3 is for a UAT install only; a normal install skips it.
    to one machine. The hub knows only the names, in `flow/seed.json`.
 6. **No one grades their own work.** The `review` session verifies what another session made, and
    records its verdict as a note on the item (`HUB-CORE.md`, "Verify").
-7. **The principles.** `PRINCIPLES.md` states the Sagittarius philosophy in plain words, and
-   `CLAUDE.md` imports it. Read it to your human too.
+7. **The principles.** `PRINCIPLES.md` comes from the Sagittarius prompt, in plain words: each
+   part names the section of the prompt it comes from. `CLAUDE.md` imports it. Read it to your
+   human too.
 
 This kit installs the **informal edition**: five stores (the flow ledger, the memory files, the
 weeks, the bespoke tools, the tracker), and rules that name only those. `HUB-CORE.md` says where
@@ -230,6 +231,22 @@ domain decisions, pins of the world, and drafts for the tracker.
 - **The project KB request is what the hub is for.** Make the project KB with
   `.claude/orbit-kb/bin/orbit-kb init project-kb --request '<answer 1 of step 1, word for word>' --uses project`:
   the same words as `CLAUDE.md` "What this hub is for". See `.claude/orbit-kb/bin/orbit-kb help project`.
+- **A pane gets the prompt.** The panes (review, discovery, build) run the Sagittarius prompt, then
+  `PANES.md`, then their role file, as the Sagittarius `README.md` installs them under
+  `~/.claude/sagittarius/` (its "Panes"). Start a pane with this one launcher line in place of the
+  line of Step 5 (`<name>` is the role; the line sets `HUB_SESSION` too), and resume it with the
+  second:
+
+  ```
+  cd "$HUB" && p=~/.claude/sagittarius && HUB_SESSION=<name> command claude --name "hub-<name>" --append-system-prompt "$(cat "$p/SAGITTARIUS.md" "$p/PANES.md" "$p/panes/<name>.md")"
+  cd "$HUB" && p=~/.claude/sagittarius && HUB_SESSION=<name> command claude --resume "hub-<name>" --append-system-prompt "$(cat "$p/SAGITTARIUS.md" "$p/PANES.md" "$p/panes/<name>.md")"
+  ```
+
+  `command claude` skips a shell function `claude` that already appends the prompt (the
+  Sagittarius `README.md`, "Install"), so the prompt is appended once. A session whose role has no
+  pane file (for example `process`) uses the line of Step 5. **Check:** ask each pane for the last
+  line of its prompt. It must say the last line of `~/.claude/sagittarius/SAGITTARIUS.md`
+  (`This is Sagittarius <version> ...`); a pane that cannot say it did not get the prompt.
 - Install with `--edition formal` (only when your human asks for it; which `orbit-kb` is on the
   PATH plays no part: with no `--edition`, install picks informal), or switch an informal hub with
   `python3 "$KIT/tools/hubkit.py" edition --hub "$HUB" formal --yes`. The switch replaces the shipped

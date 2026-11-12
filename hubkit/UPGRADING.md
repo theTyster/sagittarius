@@ -4,6 +4,10 @@ For the agent. Your human asked you to upgrade their hub to a newer release of t
 this whole file first. A hub belongs to its people: never replace a file the hub changed, and show
 your human every merge before you commit.
 
+**Versions.** This release pairs with Sagittarius 0.3: its `PRINCIPLES.md` comes from that prompt,
+and a formal hub copies the orbit-kb of the same Sagittarius checkout. The kit's own version is
+`MindHole <version>` in `kit.json`; a release section says so when the Sagittarius pair changes.
+
 ## The procedure (every release)
 
 `KIT` is a checkout of the new release; `HUB` is the hub.
@@ -22,8 +26,17 @@ your human every merge before you commit.
    a change. Make it by intent; an upgrade never writes these.
 6. **Database.** If a section says the schema changed: `python3 .claude/scripts/hubflow.py migrate`,
    then `hubflow.py check`.
-7. **Checks.** In the hub: `python3 .claude/scripts/hubflow-test.py --mutants` (every mutant
-   KILLED), `hubflow.py check` (exit 0), and each check that the release sections name.
+7. **Checks.** In the hub, run each check that the release sections name. Then end with two checks
+   that read this hub, and give your human the reason for each with its result:
+   `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` shows you that each shipped file is the
+   release's own (`unchanged`) or merged by intent (`modified`), and that no merge is still pending
+   (no `pending` line).
+   `python3 .claude/scripts/hubflow.py check` (exit 0) shows you that the ledger and its git copy
+   agree, so nothing written to the ledger is lost at the commit. A normal upgrade skips the test
+   suites: they test the kit itself, not your hub. Only a UAT upgrade (a hub whose
+   `.hub-template.json` records `"uat": true`; `hubkit.py status` says `UAT install`) also runs
+   `python3 .claude/scripts/hubflow-test.py` and `hubflow-test.py --mutants` (every mutant KILLED),
+   as step 3 of `INSTRUCTIONS.md` does for a UAT install.
 8. **Report and commit.** Show your human the diff of each merged and owned file, and the checks.
    Commit after they agree: `git commit -m "template <old> -> <new>" -- <paths>`.
 
