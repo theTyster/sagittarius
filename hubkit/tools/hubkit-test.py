@@ -20,6 +20,10 @@ MUTANTS = [
     ("pending-not-recorded", "m[\"pending\"] = pending  # merges left for the agent", "m[\"pending\"] = []"),
     ("install-overwrites", "if clash:  # install never overwrites", "if False:"),
     ("dry-run-writes", "if not yes:  # dry run", "if False:"),
+    # install UX c3: a formal hub gets the kit's orbit-kb as engine files
+    ("orbit-kb-copy-not-installed", "if edition == \"formal\":  # the hub's own orbit-kb (install UX c3)", "if False:"),
+    # install UX c3: the human chooses the edition; install never reads the PATH for it
+    ("edition-from-path", "return \"informal\"  # install UX c3: the human chooses formal", "return \"formal\" if shutil.which(\"orbit-kb\") else \"informal\""),
 ]
 
 
@@ -282,6 +286,126 @@ def case_t51_c3_gitignore_locks(r, root):
     r.check("t51c3-kb-pl-not-ignored", p.returncode == 1, p)
 
 
+# ---- install UX (discovery GO 2026-11-11) ----
+REPO = os.path.dirname(KIT)
+OKB_FILES = ("bin/orbit-kb", "bin/repo-map", "share/orbit-kb/core.pl", "share/orbit-kb/help/project.txt", "share/repo-map/README.md")
+
+
+def case_iux_c3_copy_real_kit(r, root):
+    """c3: a formal install copies the kit's orbit-kb (kb/bin/orbit-kb, kb/bin/repo-map, kb/share) to
+    .claude/orbit-kb/ as engine files; an informal install does not."""
+    hub = os.path.join(root, "iux-c3-formal")
+    res = hk(r, "install", "--kit", KIT, "--hub", hub, "--edition", "formal")
+    r.check("iux-c3-install-formal", res[0] == 0, res)
+    got = {rel: os.path.join(hub, ".claude", "orbit-kb", rel) for rel in OKB_FILES}
+    r.check("iux-c3-copy-byte-equal-to-the-kit", all(os.path.isfile(p) and sha(p) == sha(os.path.join(REPO, "kb", rel)) for rel, p in got.items()),
+            [rel for rel, p in got.items() if not os.path.isfile(p)])
+    r.check("iux-c3-copy-executable", all(os.access(got[x], os.X_OK) for x in ("bin/orbit-kb", "bin/repo-map")))
+    share = sorted(os.path.relpath(os.path.join(b, f), os.path.join(REPO, "kb")) for b, _, fs in os.walk(os.path.join(REPO, "kb", "share")) for f in fs)
+    files = manifest(hub).get("files", {}) if res[0] == 0 else {}
+    r.check("iux-c3-manifest-lists-the-copy-as-engine", all(".claude/orbit-kb/" + x in files for x in ["bin/orbit-kb", "bin/repo-map"] + share), sorted(files)[:12])
+    st = hk(r, "status", "--kit", KIT, "--hub", hub)
+    r.check("iux-c3-status-copy-unchanged", st[0] == 0 and "unchanged\t\t.claude/orbit-kb/bin/orbit-kb" in st[1], st[1][-400:])
+    ihub = os.path.join(root, "iux-c3-informal")
+    res = hk(r, "install", "--kit", KIT, "--hub", ihub, "--edition", "informal")
+    r.check("iux-c3-informal-has-no-copy", res[0] == 0 and not os.path.exists(os.path.join(ihub, ".claude", "orbit-kb"))
+            and not any(k.startswith(".claude/orbit-kb/") for k in manifest(ihub).get("files", {})), res)
+
+
+def fake_repo(root, name, version, okb_text):
+    """A repo dir with hubkit/ (one engine file, CLAUDE.md owned) and kb/ (an orbit-kb copy source)."""
+    repo = os.path.join(root, name)
+    kit = os.path.join(repo, "hubkit")
+    write(os.path.join(kit, "hub", "CORE.md"), "core\\n")
+    write(os.path.join(kit, "hub", "CLAUDE.md"), "mine\\n")
+    for rel, text in (("bin/orbit-kb", okb_text), ("bin/repo-map", "#!/usr/bin/env swipl\\n% repo-map\\n"),
+                      ("share/orbit-kb/core.pl", "% core " + version + "\\n"), ("share/repo-map/README.md", "repo-map\\n")):
+        write(os.path.join(repo, "kb", rel), text)
+    for x in ("orbit-kb", "repo-map"):
+        os.chmod(os.path.join(repo, "kb", "bin", x), 0o755)
+    write(os.path.join(kit, "kit.json"), json.dumps({"version": version, "engine": ["CORE.md"], "owned": ["CLAUDE.md"],
+                                                    "orbit_kb": {"from": "../kb", "to": ".claude/orbit-kb",
+                                                                 "paths": ["bin/orbit-kb", "bin/repo-map", "share"]}}))
+    return kit
+
+
+def case_iux_c3_copy_upgrade(r, root):
+    """c3: an upgrade replaces the orbit-kb copy with the new kit's; a switch to informal removes it."""
+    v1 = fake_repo(root, "iux-repo1", "1.0.0", "#!/usr/bin/env swipl\\n% orbit-kb v1\\n")
+    v2 = fake_repo(root, "iux-repo2", "1.1.0", "#!/usr/bin/env swipl\\n% orbit-kb v2\\n")
+    hub = os.path.join(root, "iux-c3-up")
+    res = hk(r, "install", "--kit", v1, "--hub", hub, "--edition", "formal")
+    okb = os.path.join(hub, ".claude", "orbit-kb", "bin", "orbit-kb")
+    r.check("iux-c3-fake-install", res[0] == 0 and os.path.isfile(okb) and "v1" in open(okb).read(), res)
+    res = hk(r, "upgrade", "--kit", v2, "--hub", hub, "--yes")
+    r.check("iux-c3-upgrade-replaces-the-copy", res[0] == 0 and "replace\t.claude/orbit-kb/bin/orbit-kb" in res[1]
+            and "v2" in open(okb).read() and os.access(okb, os.X_OK)
+            and manifest(hub)["files"].get(".claude/orbit-kb/share/orbit-kb/core.pl") == sha(os.path.join(root, "iux-repo2", "kb", "share", "orbit-kb", "core.pl")), res)
+    res = hk(r, "edition", "--kit", v2, "--hub", hub, "informal", "--yes")
+    r.check("iux-c3-switch-to-informal-removes-the-copy", res[0] == 0 and not os.path.exists(okb)
+            and not any(k.startswith(".claude/orbit-kb/") for k in manifest(hub)["files"]), (res, manifest(hub)))
+
+
+def case_iux_c3_default_edition(r, root):
+    """c3: the human chooses formal at setup. With no --edition, install picks informal, also with an orbit-kb on PATH."""
+    b = os.path.join(root, "iux-c3-path")
+    write(os.path.join(b, "orbit-kb"), "#!/bin/sh\\nexit 0\\n")
+    os.chmod(os.path.join(b, "orbit-kb"), 0o755)
+    hub = os.path.join(root, "iux-c3-default")
+    env = dict(os.environ, PATH=b + os.pathsep + os.environ.get("PATH", ""))
+    p = subprocess.run([sys.executable, "-I", r.script, "install", "--kit", KIT, "--hub", hub], capture_output=True, text=True, env=env)
+    r.check("iux-c3-default-is-informal-with-orbit-kb-on-path", p.returncode == 0 and manifest(hub).get("edition") == "informal",
+            (p.returncode, p.stderr))
+
+
+def case_iux_c3_installed_hub_runs_copy(r, root):
+    """c3: an installed formal hub runs its tests and its project KB lint with its own orbit-kb, while an
+    old orbit-kb (a stand-in that fails) is first on PATH. Needs swipl."""
+    hub = os.path.join(root, "iux-c3-run")
+    res = hk(r, "install", "--kit", KIT, "--hub", hub, "--edition", "formal")
+    swipl = shutil.which("swipl")
+    r.check("iux-c3-run-setup", res[0] == 0 and swipl is not None, (res, swipl))
+    if res[0] != 0 or not swipl:
+        return
+    bindir = os.path.join(root, "iux-c3-run-bin")
+    write(os.path.join(bindir, "orbit-kb"), "#!/bin/sh\\necho old orbit-kb >&2\\nexit 2\\n")
+    os.chmod(os.path.join(bindir, "orbit-kb"), 0o755)
+    os.symlink(swipl, os.path.join(bindir, "swipl"))
+    tools = [os.path.dirname(x) for x in (shutil.which("env"), shutil.which("sh"), shutil.which("git")) if x]
+    env = clean_env(os.pathsep.join([bindir] + tools))
+    p = subprocess.run([sys.executable, "-I", os.path.join(hub, ".claude", "scripts", "hubflow-test.py"), "--case", "case_real_orbit_kb"],
+                       capture_output=True, text=True, cwd=hub, env=env, timeout=600)
+    r.check("iux-c3-installed-hub-tests-use-the-copy", p.returncode == 0 and "PASS c2-real-query-open-question" in p.stdout
+            and "SKIP" not in p.stdout, (p.returncode, p.stdout[-400:], p.stderr[-200:]))
+    okb = os.path.join(hub, ".claude", "orbit-kb", "bin", "orbit-kb")
+    if not os.path.isfile(okb):
+        r.check("iux-c3-copy-reads-its-own-share", False, "no copy at " + okb)
+        return
+    p = subprocess.run([okb, "init", "project-kb", "--request", "An invented request.", "--uses", "project"], capture_output=True, text=True, cwd=hub, env=env, timeout=120)
+    p2 = subprocess.run([okb, "--dir", "project-kb", "lint"], capture_output=True, text=True, cwd=hub, env=env, timeout=120)
+    r.check("iux-c3-copy-reads-its-own-share", p.returncode == 0 and p2.returncode == 0 and "Summary: 0 error(s)" in p2.stdout,
+            (p.returncode, p.stderr[-200:], p2.stdout[-200:]))
+
+
+def case_iux_c6_uat(r, root):
+    """c6: install --uat records a UAT install in .hub-template.json, status shows it, and upgrade keeps it."""
+    hub = os.path.join(root, "iux-c6-uat")
+    res = hk(r, "install", "--kit", KIT, "--hub", hub, "--edition", "informal", "--uat")
+    r.check("iux-c6-install-uat-records-it", res[0] == 0 and manifest(hub).get("uat") is True, (res, manifest(hub) if res[0] == 0 else None))
+    st = hk(r, "status", "--kit", KIT, "--hub", hub)
+    r.check("iux-c6-status-shows-uat", st[0] == 0 and "UAT install" in st[1].splitlines()[0], st[1][:200])
+    m = manifest(hub)
+    m["template_version"] = "0.0.1"
+    with open(os.path.join(hub, ".hub-template.json"), "w", encoding="utf-8") as f:
+        json.dump(m, f)
+    res = hk(r, "upgrade", "--kit", KIT, "--hub", hub, "--yes")
+    r.check("iux-c6-upgrade-keeps-uat", res[0] == 0 and manifest(hub).get("uat") is True, res)
+    plain = os.path.join(root, "iux-c6-plain")
+    res = hk(r, "install", "--kit", KIT, "--hub", plain, "--edition", "informal")
+    st = hk(r, "status", "--kit", KIT, "--hub", plain)
+    r.check("iux-c6-plain-install-is-not-uat", res[0] == 0 and not manifest(plain).get("uat") and "UAT" not in st[1], (res, st[1][:200]))
+
+
 def cases(r):
     root = tempfile.mkdtemp(prefix="hubkit-test-")
     try:
@@ -297,6 +421,11 @@ def cases(r):
         case_t51_c1_installed_hub_orbit_kb(r, root)
         case_t51_c2_step6_formal_git_add(r)
         case_t51_c3_gitignore_locks(r, root)
+        case_iux_c3_copy_real_kit(r, root)
+        case_iux_c3_copy_upgrade(r, root)
+        case_iux_c3_default_edition(r, root)
+        case_iux_c3_installed_hub_runs_copy(r, root)
+        case_iux_c6_uat(r, root)
     except Exception as e:
         r.check("scenario-ran", False, repr(e))
     finally:

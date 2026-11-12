@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T32: an informal hub loads only informal rules. One check per claim.
 
-usage: python3 docs/check_informal_hub.py t32c1|...|t32c8|t36c1|...|t36c6|t41c1|...|t41c5|t44c1|t44c2 [--list]   (--list prints the claim ids)
+usage: python3 docs/check_informal_hub.py t32c2|...|t32c8|t36c1|...|t36c6|t41c1|...|t41c5|t44c1|t44c2|iuxc3e|iuxc4 (t32c1 is superseded by iuxc3e, t32c6 and t36c3 by iuxc4) [--list]   (--list prints the claim ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 t32c1 installs hubs from this kit with --edition informal|formal and with no --edition (a PATH with
@@ -39,10 +39,17 @@ t44c1 an informal hub accepts no formal-only part on any path: `add KIND --ref k
 t44c2 the informal hypothesis row of storemap.py (INFORMAL) names the expected result, the falsifier and
       the premises; the check also runs on mutant copies of the row, which must each fail. T44_STOREMAP
       names another storemap.py to read (a red run on a mutant copy).
+iuxc3e (install UX c3; supersedes t32c1) t32c1 with one change: with no --edition, install picks informal also
+      when an orbit-kb is on PATH (the human chooses formal at setup, not the PATH).
+iuxc4 (install UX c4; supersedes t32c6 and t36c3) no engine file of the kit is a shell script; the install of
+      hubkit/README.md needs no bash: each line of its sh block is one python3 or git command, run here with no
+      shell and a PATH of only python3 and git, KIT and HUB relative; README and the informal HUB-CORE.md name
+      Python 3 and git and no bash and no POSIX tool list; check_informal_release.py c1 (T24) still passes.
 """
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -196,7 +203,7 @@ def banned_hits(text):
 
 
 # ------------------------------------------------------------------ c1
-def t32c1():
+def t32c1(okb_default="formal"):
     h = hk(["--help"])
     has("t32c1 hubkit.py --help", h.stdout, "--edition", "informal", "formal", "edition --hub")
     kit = json.loads(read(os.path.join(KITDIR, "kit.json")))
@@ -215,8 +222,8 @@ def t32c1():
         check("t32c1 install --edition semi is refused (exit 1)", p.returncode == 1 and not os.path.exists(os.path.join(hub, "HUB-CORE.md")), (p.returncode, p.stderr))
         nob = bin_with(os.path.join(t, "nob"), ["python3", "git"])
         withb = bin_with(os.path.join(t, "withb"), ["python3", "git"], stub_okb=True)
-        for name, b, want in (("no orbit-kb on PATH", nob, "informal"), ("orbit-kb on PATH", withb, "formal")):
-            hub = os.path.join(t, "default-" + want)
+        for name, b, want in (("no orbit-kb on PATH", nob, "informal"), ("orbit-kb on PATH", withb, okb_default)):
+            hub = os.path.join(t, "default-" + want + ("-okb" if b == withb else ""))
             os.makedirs(hub)
             p = hk(["install", "--hub", hub], path=b)
             check(f"t32c1 default with {name}: {want}", p.returncode == 0 and manifest(hub).get("edition") == want, (p.stderr, manifest(hub)))
@@ -938,8 +945,68 @@ def t44c2():
         check(f"t44c2 a copy of the row without {part} is rejected", mutant != base and hyp_missing(mutant) == [part], (part, hyp_missing(mutant)))
 
 
-CLAIMS = {k: globals()[k] for k in ("t32c1", "t32c2", "t32c3", "t32c4", "t32c5", "t32c6", "t32c7", "t32c8",
-                                      "t36c1", "t36c2", "t36c3", "t36c4", "t36c5", "t36c6",
+# ------------------------------------------------------------------ install UX (discovery GO 2026-11-11)
+def iuxc3e():
+    t32c1(okb_default="informal")
+
+
+def iuxc4():
+    kit = json.loads(read(os.path.join(KITDIR, "kit.json")) or "{}")
+    sh = [f for f in kit.get("engine", []) if f.endswith(".sh") or read(os.path.join(HUB, f)).startswith("#!/usr/bin/env bash")
+          or read(os.path.join(HUB, f)).startswith("#!/bin/")]
+    check("iuxc4 kit.json lists no shell engine file", not sh, sh)
+    sh_files = [os.path.relpath(os.path.join(b, f), KITDIR) for b, _, fs in os.walk(KITDIR) for f in fs if f.endswith(".sh")]
+    check("iuxc4 the kit holds no .sh file", not sh_files, sh_files)
+    rd = read(KREADME)
+    inst = section(rd, "Install")
+    w = words(inst)
+    check("iuxc4 README Install says Python 3 and git", "python 3" in w and "git" in w, inst[:200])
+    check("iuxc4 README Install says it needs no bash", "no bash" in w, inst[:300])
+    check("iuxc4 README Install has no POSIX tool list", "posix" not in w and "`awk`" not in inst, inst[:300])
+    core = read(ICORE)
+    wc = words(core)
+    check("iuxc4 the informal HUB-CORE.md says Python 3 and git", "python 3" in wc and "git" in wc, "missing")
+    check("iuxc4 the informal HUB-CORE.md needs no bash and no POSIX tool list", "bash 4" not in wc and "`awk`" not in core, "still there")
+    blocks = re.findall(r"```sh\n(.*?)```", inst, re.S)
+    check("iuxc4 the Install section has one sh block", len(blocks) == 1, len(blocks))
+    if len(blocks) != 1:
+        return
+    lines = [ln for ln in blocks[0].splitlines() if ln.strip()]
+    shellish = [ln for ln in lines if not re.match(r"^(python3|git) ", ln) or re.search(r"\$\(|&&|\|\||[|;<>`]|\bcd\b", ln)]
+    check("iuxc4 each line of the block is one python3 or git command, with no shell syntax", not shellish, shellish)
+    if shellish:
+        return
+    with tempfile.TemporaryDirectory(prefix="iux-c4-") as t:
+        b = bin_with(t, ["python3", "git"])
+        work = os.path.join(t, "work")
+        os.makedirs(work)
+        home = os.path.join(t, "home")
+        os.makedirs(home)
+        env = {"PATH": b, "HOME": home, "TMPDIR": t, "LANG": "C.UTF-8",
+               "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@example.invalid",
+               "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@example.invalid"}
+        sub = {"KIT": os.path.relpath(KITDIR, work), "HUB": "myhub"}
+        outs = []
+        for ln in lines:
+            argv = [re.sub(r"\$\{?(KIT|HUB)\}?", lambda m: sub[m.group(1)], a) for a in shlex.split(ln)]
+            argv[0] = os.path.join(b, argv[0])
+            p = run(argv, cwd=work, env=env, timeout=600)
+            outs.append((ln, p.returncode, p.stdout[-200:], p.stderr[-200:]))
+            if p.returncode != 0:
+                break
+        check("iuxc4 every line of the block runs with no shell, relative KIT and HUB, and only python3 and git on PATH",
+              outs and all(o[1] == 0 for o in outs) and len(outs) == len(lines), outs[-1:] if outs else "no lines")
+        hub = os.path.join(work, "myhub")
+        check("iuxc4 the hub is at the relative HUB, with its manifest and flow db",
+              os.path.isfile(os.path.join(hub, ".hub-template.json")) and os.path.isfile(os.path.join(hub, "flow", "flow.db")), hub)
+    p = run([sys.executable, os.path.join(ROOT, "docs", "check_informal_release.py"), "c1"], timeout=1800)
+    check("iuxc4 check_informal_release.py c1 (T24) passes", p.returncode == 0, p.stdout[-400:])
+
+
+# t32c1 is superseded by iuxc3e (install UX c3: with no --edition, install no longer reads the PATH), and t32c6 and
+# t36c3 by iuxc4 (install UX c4: the kit needs no bash and no POSIX tools). The functions stay above as the record.
+CLAIMS = {k: globals()[k] for k in ("t32c2", "t32c3", "t32c4", "t32c5", "t32c7", "t32c8",
+                                      "t36c1", "t36c2", "t36c4", "t36c5", "t36c6", "iuxc3e", "iuxc4",
                                       "t41c1", "t41c2", "t41c3", "t41c4", "t41c5", "t44c1", "t44c2")}
 
 if __name__ == "__main__":
