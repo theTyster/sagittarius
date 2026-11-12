@@ -1,8 +1,20 @@
 # Delivered:
   - (Write what you delivered here.)
 
+# KB:
+  - KBDIR
+
+# Signals:
+  - (Compare the work with each signal: questions, divergence, someone else built, burns, handoff, effort. Write no, or yes and what fired it.)
+
+# Hypothesis:
+  - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).
+
 # Claims:
-  - c1 **introduce**: The widget can be saved. Status: fulfilled. Checks: k1 (passed).
+  - c1 **introduce**: The widget can be saved
+    - Status: fulfilled.
+    - Example: Save a widget, close the app, open it again, and see the widget.
+    - Checks: k1 (passed).
   - c2 **preserve**: Loading stays fast
     - Status: under.
       - It is not fulfilled yet.
@@ -27,7 +39,11 @@
     - Checks: none.
   - c7 **preserve**: Names like <b>bold</b> & "quoted" stay plain
     - Status: fulfilled.
+    - Example: A widget named <b>x</b> shows the text <b>x</b>.
     - Checks: k7 (passed).
+
+# Formal:
+  - None. No claim has a formal statement.
 
 # Guesses:
   - q1: Is a cold start in scope

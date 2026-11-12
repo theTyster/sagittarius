@@ -1127,7 +1127,9 @@ draft_questions(KB) :-
 draft_question(Eng, Q, C, T) :-
     txt(T, TT), md_escape(TT, TE), md_inline(Q, Qm), say("### ~w: ~w", [Qm, TE]), nl,
     (   eng_all(Eng, [Ref], question_pin(Q, tracker, Ref, _, _), Rs), last(Rs, R1) -> md_say("- Tracker item: ", R1, "") ; say("- Tracker item: not posted yet", []) ),
-    (   eng_all(Eng, [CT], claim(C, _, CT), [CT1|_]) -> txt(CT1, CTT), md_say("- Case (claim): ", CTT, "") ; true ),
+    (   eng_all(Eng, [CT], claim(C, _, CT), [CT1|_]) -> txt(CT1, CTT), md_say("- Case (claim): ", CTT, "")
+    ;   eng_all(Eng, [HT], hypothesis(C, _, HT), [HT1|_]) -> txt(HT1, HTT), md_say("- Case (hypothesis): ", HTT, "")
+    ;   true ),
     eng_all(Eng, [Ci], cites(C, Ci), Cis), forall(member(X1, Cis), ( txt(X1, Y1), md_say("- Cites: ", Y1, "") )),
     eng_all(Eng, [N], note(Q, N), Ns), forall(member(X2, Ns), ( txt(X2, Y2), md_say("- Note: ", Y2, "") )),
     eng_all(Eng, [N2], note(C, N2), N2s), forall(member(X3, N2s), ( txt(X3, Y3), md_say("- Note on the claim: ", Y3, "") )),
@@ -1563,7 +1565,8 @@ derived_items(Dir, KbItems, Items) :-
     project_derived(Dir, KbItems, Ts6),
     request_derived(KbItems, Ts7),
     verdict_derived(KbItems, Ts8),
-    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8], Ts),
+    reopen_derived(KbItems, Ts9),
+    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
 
 % verdict_derived(+KbItems, -Facts) (T38 c2): later_verdict(V) for each disproof verdict V on a
@@ -1574,6 +1577,18 @@ verdict_derived(KbItems, Facts) :-
     findall(later_verdict(V), ( append(_, [V-C|Rest], VCs), member(_-C2, Rest), C2 == C ), Fs0),
     sort(Fs0, Facts).
 verdict_derived(_, []).
+
+% reopen_derived(+KbItems, -Facts) (D30 H4): discovery_reopened(A) for each discovery_end(A)
+% record that a back attestation follows in kb.pl. In a KB that uses discovery only.
+reopen_derived(KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
+    findall(T, kb_term(KbItems, T), Ts),
+    findall(discovery_reopened(A),
+            ( append(_, [E|Rest], Ts), nonvar(E), E = discovery_end(A), ground(A),
+              once(( member(B, Rest), nonvar(B), B = attest(_, Ty, _, _, _, _), Ty == back )) ),
+            Fs0),
+    sort(Fs0, Facts).
+reopen_derived(_, []).
 
 % request_derived(+KbItems, -Facts) (T27 c10): request_stale(R) for a request whose latest
 % request_pin (the last one in kb.pl) has a digest that is neither the digest of the request
@@ -2229,14 +2244,14 @@ unused_module_decl(KB, N, A, M) :-
     decl_of(MDs, N, A, _), !.
 
 % supersedes_kind_diags(+Env, +Fact, +F, +L, -Diags) (D15): supersedes/2 has the
-% type ref in core.pl, because core.pl cannot name the discovery fact
-% hypothesis/3. Here each side must be a claim or a hypothesis, and both sides
+% type ref in core.pl, because one type cannot name every kind that it takes
+% (claims, hypotheses, and the project kinds). Here each side must be a claim or a hypothesis, and both sides
 % the same kind. An id that does not exist is E4 of the ref type already.
 supersedes_kind_diags(env(_, _, IdA, FAA), supersedes(N, O), F, L, Diags) :-
     findall(diag('E4', F, L, M),
             ( nth1(I, [N, O], X), atom(X), get_assoc(X, IdA, _),
               \+ sup_kind(FAA, X, _),
-              fmt(M, "supersedes/2 argument ~w: ~q is not the id of a claim or a hypothesis. supersedes takes two claims, two hypotheses (discovery module), or two decisions, two definitions, or two rules (project module). Fix the id.", [I, X]) ),
+              fmt(M, "supersedes/2 argument ~w: ~q is not the id of a claim or a hypothesis. supersedes takes two claims, two hypotheses, or two decisions, two definitions, or two rules (project module). Fix the id.", [I, X]) ),
             D1),
     (   sup_kind(FAA, N, KN), sup_kind(FAA, O, KO), KN \== KO
     ->  fmt(M2, "supersedes/2: ~q is a ~w and ~q is a ~w. Both sides must be the same kind: a claim cannot replace a hypothesis, and a decision cannot replace a definition. To reword a hypothesis, add a new hypothesis, then supersedes(NewHypothesis, ~q).", [N, KN, O, KO, O]),
@@ -2522,6 +2537,10 @@ protected_pi(analysis_outside/2).
 protected_pi(spec_pin/3).
 protected_pi(project_contradiction/2).
 protected_pi(project_rests_on/2).
+% D30 H4: the open discovery orbit.
+protected_pi(discovery_reopened/1).
+protected_pi(discovery_closed/0).
+protected_pi(discovery_open/0).
 % D14: the weighted vote of the discovery module.
 protected_pi(vote_cast/3).
 protected_pi(discovery_vote_raised/1).
@@ -3622,6 +3641,8 @@ add_item(ATs, I, A, R) :-
         ->  fmt(M, "Argument ~w is an attestation type. orbit-kb add does not declare attestation types. Use a type that orbit-kb help core or a module topic lists.", [I]), R = err(M)
         ;   nonvar(T), T = uses(_)
         ->  fmt(M, "Argument ~w is uses/1. orbit-kb init writes it. To add a module, run orbit-kb uses MODULE.", [I]), R = err(M)
+        ;   nonvar(T), T = discovery_end(_)
+        ->  fmt(M, "Argument ~w: orbit-kb attest approval writes discovery_end/1 itself (D30), when the human approves the ticket while gate(go) holds. add refuses it.", [I]), R = err(M)
         ;   nonvar(T), functor(T, RN, RA), memberchk(RN/RA, [actor/3, change_at/2, review_saw/3])
         ->  fmt(M, "Argument ~w: orbit-kb writes ~w/~w itself (D28): with each attestation and change, or with orbit-kb review start. add refuses it.", [I, RN, RA]), R = err(M)
         ;   nonvar(T), T = attest(_, Type, _, _, _, _), atom(Type), script_only_type(ATs, Type)
@@ -4672,13 +4693,33 @@ cmd_attest(KB, Args, Code) :-
     ),
     late_vote_check(Items, Type, By, Pred),
     log_check(KB, Items, Type, Subject, Pred),
-    rests_on_lines(Opts, Items, Type, Id, RLines),
+    rests_on_lines(Opts, Items, Type, Id, RLines0),
+    end_lines(KB, Items, Type, Subject, By, Id, ELines),
+    append(RLines0, ELines, RLines),
     clause_line(T, [], Line),
     actor_line(Id, ALine),
     kb_file(KB, KbFile),
     append_lines(KbFile, [Line, ALine|RLines]),
     forall(member(L, [Line, ALine|RLines]), format("~w~n", [L])),
     Code = 0.
+
+% end_lines(+KB, +Items, +Type, +Subject, +By, +Id, -Lines) (D30 H4): a human approval of the
+% ticket (ticket(Subject)) in a KB that uses discovery ends the discovery orbit when the orbit
+% is open and gate(go) holds before the approval: one line discovery_end(Id). With no GO, the
+% approval is written as always (a human act is never refused), and a NOTE says that the orbit
+% stays open.
+end_lines(KB, Items, approval, Subject, human, Id, Lines) :-
+    has_discovery(KB),
+    kb_term(Items, ticket(S)), S == Subject, !,
+    kb_engine(KB, Eng),
+    (   \+ eng_true(Eng, discovery_open)
+    ->  Lines = []
+    ;   eng_true(Eng, gate(go))
+    ->  clause_line(discovery_end(Id), [], L), Lines = [L]
+    ;   format(user_error, "NOTE: the discovery orbit stays open. gate(go) does not hold, so this approval of the ticket does not end it. Run orbit-kb query 'gate(V)' and orbit-kb report (Vote).~n", []),
+        Lines = []
+    ).
+end_lines(_, _, _, _, _, _, []).
 
 % rests_on_lines(+Opts, +Items, +Type, +Id, -Lines) (D28): --rests-on A1,A2
 % names the runs that a disproof verdict rests on. Each must be a
@@ -5772,6 +5813,11 @@ vote_section(Eng) :-
             ;   true
             )
         )
+    ),
+    % D30 H4: after the human approves the ticket on a GO, the discovery orbit is closed.
+    (   eng_all(Eng, [E], ( discovery_end(E), not(discovery_reopened(E)) ), [E1|_])
+    ->  rsplit(vote, "The discovery orbit is closed: the human approved the ticket after a GO (~w). Readiness and the vote are not asked again until a return to discovery: orbit-kb attest back H 'back(TEXT)'.", [E1])
+    ;   true
     ).
 
 kb_engine(KB, Eng) :-
@@ -5793,8 +5839,8 @@ cmd_show(KB, Args, Code) :-
 cmd_show(KB, Args, Code) :-
     parse_opts(Args, [], Pos, _),
     (   Pos == [] -> What = all
-    ;   Pos = [What], memberchk(What, [claims, questions, open, blocking, disclosures, extensions, kinds, all]) -> true
-    ;   usage_error("show takes one of: claims, questions, open, blocking, disclosures, extensions, kinds, all, or pin ID.", [])
+    ;   Pos = [What], memberchk(What, [hypothesis, claims, questions, open, blocking, disclosures, extensions, kinds, all]) -> true
+    ;   usage_error("show takes one of: hypothesis, claims, questions, open, blocking, disclosures, extensions, kinds, all, or pin ID.", [])
     ),
     kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
     (   What == kinds
@@ -5809,7 +5855,7 @@ show_parts(KB, What) :-
     answer_gate(KB),
     kb_engine(KB, Eng),
     (   What == all
-    ->  forall(member(W, [claims, questions, open, disclosures, extensions]),
+    ->  forall(member(W, [hypothesis, claims, questions, open, disclosures, extensions]),
                ( show_section(KB, Eng, W), nl ))
     ;   show_section(KB, Eng, What)
     ).
@@ -5854,6 +5900,19 @@ show_pin(KB, Id, Code) :-
         Code = 1
     ).
 
+% D31 B1: the hypothesis of the ticket and its premises, before the claims.
+show_section(_, Eng, hypothesis) :-
+    say("Hypothesis:", []),
+    eng_all(Eng, [H, K, T], hypothesis(H, K, T), Hs),
+    (   Hs == [] -> say("- None. Every ticket has one: add hypothesis(H, KIND, TEXT).", []) ; true ),
+    forall(member([H, K, T], Hs),
+           ( txt(T, TT), say("- ~w (~w): ~w", [H, K, TT]),
+             (   eng_all(Eng, [N], supersedes(N, H), Ns), Ns \== []
+             ->  atomic_list_concat(Ns, ', ', NT), say("  State: superseded by ~w.", [NT])
+             ;   say("  State: current.", [])
+             ),
+             premise_lines(Eng, H, PLs),
+             forall(member(L, PLs), say("  ~w", [L])) )).
 show_section(KB, Eng, claims) :-
     say("Claims:", []),
     eng_all(Eng, [C, L, T], claim(C, L, T), Cs),
@@ -5868,6 +5927,7 @@ show_section(KB, Eng, claims) :-
     ;   true
     ),
     eng_groups(Eng, C5, X5, cites(C5, X5), CitesBy),
+    eng_groups(Eng, C7, E7, example(C7, E7), ExBy),
     eng_groups(Eng, C6, K6, check(K6, C6), ChecksBy),
     check_sets(Eng, KSets),
     forall(member([C, L, T], Cs),
@@ -5887,6 +5947,8 @@ show_section(KB, Eng, claims) :-
              ->  sub_string(BT, 1, _, 0, BT1), say("  ~w", [BT1])
              ;   true
              ),
+             eng_lookup(Eng, ExBy, C, E, example(C, E), Es),
+             forall(member(E, Es), ( txt(E, ET), say("  Example: ~w", [ET]) )),
              eng_lookup(Eng, CitesBy, C, X, cites(C, X), Xs),
              forall(member(X, Xs), ( txt(X, XT), say("  Cites: ~w", [XT]) )),
              eng_lookup(Eng, ChecksBy, C, K, check(K, C), Ks),
@@ -5903,7 +5965,9 @@ show_section(_, Eng, questions) :-
     eng_groups(Eng, Q2, [B2, W2], answer(Q2, B2, W2), AnsBy),
     eng_set(Eng, Q3, to_ask(Q3), AskS),
     forall(member([Q, C, T], Qs),
-           ( txt(T, TT), say("- ~w (claim ~w): ~w", [Q, C, TT]),
+           ( txt(T, TT),
+             ( eng_true(Eng, hypothesis(C, _, _)) -> CK = hypothesis ; CK = claim ),
+             say("- ~w (~w ~w): ~w", [Q, CK, C, TT]),
              eng_lookup(Eng, AssBy, Q, A, assumed(Q, A), As),
              forall(member(A, As), ( term_text(A, AT), say("  Default: ~w.", [AT]) )),
              eng_lookup2(Eng, AnsBy, Q, [B, W], answer(Q, B, W), Bs),
@@ -6879,10 +6943,38 @@ flare_parts(Eng, bs(_, _, WaivBy, FlareS, ShownS), C, Head, Detail) :-
 
 burn_parts(Eng, bs(BurnS, ProvS, WaivBy, _, _), C, Head, Detail) :-
     (   \+ eng_member(Eng, BurnS, C, burn(C)) -> Head = "", Detail = ""
-    ;   eng_member(Eng, ProvS, C, burn_proved(C)) -> Head = "Burn: proved in Lean.", Detail = ""
+    ;   eng_member(Eng, ProvS, C, burn_proved(C))
+    ->  (   proof_statement(Eng, C, _, Thm, _)
+        ->  format(string(Head), "Burn: proved in Lean: theorem ~w.", [Thm])
+        ;   Head = "Burn: proved in Lean."
+        ),
+        conformance_sentence(Eng, C, CS),
+        format(string(Detail), "The proof is about the Lean definitions, not the code. ~w", [CS])
     ;   eng_lookup(Eng, WaivBy, C, D, ( attest(W, waiver, _, waive(C, D, _), human, _), not(waiver_lapsed(W)) ), [D1|_])
     ->  Head = "Burn: NOT PROVED.", fmt(Detail, "A human waived the proof until ~w.", [D1])
     ;   Head = "Burn: NOT PROVED.", Detail = "A Lean proof is required."
+    ).
+
+% proof_statement(+Eng, +C, -A, -Theorem, -Statement) (D31 B4): the theorem and its statement
+% from the log runs/proof-A.log of the last lean_proof A of claim C that still counts.
+proof_statement(Eng, C, A, Thm, St) :-
+    show_base(Dir),
+    eng_all(Eng, [A0], ( attest(A0, lean_proof, _, proof(C, _), script, _), not(proof_changed(A0)) ), As),
+    last(As, A),
+    catch(proof_log(Dir, A, plog(_, _, _, _, _, Info)), _, fail),
+    memberchk(theorem(Thm), Info), memberchk(statement(St), Info).
+
+% conformance_sentence(+Eng, +C, -S) (D31 B4): whether a check carries the examples of the Lean
+% definitions to the code (conformance/1, conforms/1 of the build module).
+conformance_sentence(Eng, C, S) :-
+    eng_all(Eng, [K], ( check(K, C), conformance(K) ), Ks),
+    (   Ks == []
+    ->  S = "No conformance check carries the examples of the definitions to the code."
+    ;   atomic_list_concat(Ks, ', ', KT),
+        (   eng_true(Eng, conforms(C))
+        ->  format(string(S), "Conformance check ~w carries the examples of the Lean definitions to the code, and it passed.", [KT])
+        ;   format(string(S), "Conformance check ~w carries the examples of the Lean definitions to the code, but it has not passed.", [KT])
+        )
     ).
 
 burn_text(Eng, BSets, C, T) :-
@@ -7018,7 +7110,7 @@ cmd_report(KB, Args, Code) :-
     ;   report_page(KB, Eng, Html, Open, Code)
     ).
 
-% claim_node(+Build, +C, +L, +TT, +SK, +StHead, +StDetail, +Parts, +KStates, -Node)
+% claim_node(+Build, +C, +L, +TT, +SK, +StHead, +StDetail, +Exs, +Parts, +KStates, -Node)
 % Parts: the Head-Detail pairs of the burn and the flare (esc_parts/4).
 % A claim that is fulfilled, with nothing to add, is one line: its checks
 % all passed, its burn is proved or absent, it has no flare (D21: the
@@ -7026,14 +7118,18 @@ cmd_report(KB, Args, Code) :-
 % bullet, fits in 100 columns. Any other claim breaks its status, burn,
 % and checks into nested bullets, so that its status never wraps off
 % the end of a long line.
-claim_node(Build, C, L, TT, SK, StHead, StDetail, Parts, KStates, Node) :-
+% D31 B2: Exs are the "Example: X." lines of the claim. They come after the status. A claim
+% with more than one example is never one line.
+claim_node(Build, C, L, TT, SK, StHead, StDetail, Exs, Parts, KStates, Node) :-
     format(string(Head), "~w **~w**: ~w", [C, L, TT]),
     (   memberchk(SK, [fulfilled, none]),
-        ( Parts == [] ; Parts = ["Burn: proved in Lean."-_] ),
+        Parts == [],
         KStates \== [],
         forall(member(_-KS, KStates), KS == "passed"),
+        ( Exs = [] ; Exs = [_] ),
         (   ends_sentence(TT) -> Sep = " " ; Sep = ". " ),
         findall(P, ( call(Build), StHead \== "", P = StHead
+                   ; member(P, Exs)
                    ; member(P-_, Parts)
                    ; check_line(KStates, P, _) ),
                 Ps),
@@ -7042,17 +7138,19 @@ claim_node(Build, C, L, TT, SK, StHead, StDetail, Parts, KStates, Node) :-
         string_length(Line, Len),
         Len + 4 =< 100
     ->  Node = Line-[]
-    ;   findall(N, claim_kid(Build, StHead, StDetail, Parts, KStates, N), Kids),
+    ;   findall(N, claim_kid(Build, StHead, StDetail, Exs, Parts, KStates, N), Kids),
         Node = Head-Kids
     ).
 
-claim_kid(Build, StHead, StDetail, _, _, N) :-
+claim_kid(Build, StHead, StDetail, _, _, _, N) :-
     call(Build), StHead \== "",
     ( StDetail == "" -> N = StHead-[] ; N = StHead-[StDetail-[]] ).
-claim_kid(_, _, _, Parts, _, N) :-
+claim_kid(_, _, _, Exs, _, _, E-[]) :-
+    member(E, Exs).
+claim_kid(_, _, _, _, Parts, _, N) :-
     member(BHead-BDetail, Parts),
     ( BDetail == "" -> N = BHead-[] ; N = BHead-[BDetail-[]] ).
-claim_kid(_, _, _, _, KStates, N) :-
+claim_kid(_, _, _, _, _, KStates, N) :-
     check_line(KStates, T, Kids), N = T-Kids.
 
 % check_line(+KStates, -Text, -Kids): "Checks: none.", "Checks: k1 (passed).",
@@ -7066,15 +7164,26 @@ report_text(KB, Eng) :-
     Build = has_build(KB),
     rhead('Delivered'),
     rsay(placeholder, "(Write what you delivered here.)", []),
+    % D31 B3: the fields of the delivery block of the prompt, in its order.
+    rhead('KB'),
+    kb_dir(KB, KDir0),
+    rsay(kb_dir, "~w", [KDir0]),
+    rhead('Signals'),
+    rsay(placeholder, "(Compare the work with each signal: questions, divergence, someone else built, burns, handoff, effort. Write no, or yes and what fired it.)", []),
+    hypothesis_section(Eng),
+    ( has_discovery(KB) -> system_section(Eng), findings_section(Eng) ; true ),
     rhead('Claims'),
     eng_all(Eng, [C, L, T], ( claim(C, L, T), current(C) ), Cs),
     (   Cs == [] -> rsay(none, "No current claims.", []) ; true ),
     % One query per relation, then lookups (see eng_set/4).
     ( call(Build) -> eng_set(Eng, X1, fulfilled(X1), FulS), burn_sets(Eng, BSets) ; true ),
     eng_groups(Eng, C2, K2, check(K2, C2), ChecksBy),
+    eng_groups(Eng, C7, E7, example(C7, E7), ExBy),
     check_sets(Eng, KSets),
     forall(member([C, L, T], Cs),
            ( txt(T, TT),
+             eng_lookup(Eng, ExBy, C, E, example(C, E), Es),
+             findall(EL, ( member(E, Es), txt(E, ET), as_sentence(ET, ES), format(string(EL), "Example: ~w", [ES]) ), Exs),
              (   call(Build)
              ->  (   eng_member(Eng, FulS, C, fulfilled(C)) -> StHead = "Status: fulfilled.", StDetail = "", SK = fulfilled
                  ;   eng_all(Eng, [WK, WD], ( check(WK, C), attest(WW, waiver, _, waive(WK, WD, _), human, _), not(waiver_lapsed(WW)) ), [[WK1, WD1]|_])
@@ -7099,7 +7208,7 @@ report_text(KB, Eng) :-
              ;   findall(S, ( member(K-KS, KStates), fmt(S, "~w (~w)", [K, KS]) ), Ss),
                  atomic_list_concat(Ss, ', ', SsT), fmt(KT, " Checks: ~w.", [SsT])
              ),
-             claim_node(Build, C, L, TT, SK, StHead, StDetail, Parts, KStates, Node),
+             claim_node(Build, C, L, TT, SK, StHead, StDetail, Exs, Parts, KStates, Node),
              format(string(Plain), "~w (~w): ~w~w~w", [C, L, TT, St, KT]),
              rtree(claim(C, L, TT, SK, St0, BT, KStates), Plain, Node) )),
     % D28: who verified each claim, in a KB that records actors or a review.
@@ -7107,13 +7216,25 @@ report_text(KB, Eng) :-
     ->  review_section(Eng, Cs)
     ;   true
     ),
+    formal_section(KB, Eng, Cs),
+    scope_sections(KB, Eng),
     rhead('Guesses'),
     eng_all(Eng, [Q, A], ( assumed(Q, A), not(answered(Q)) ), Gs),
+    % D30 H3: each premise that nobody checked is a guess about the system.
+    eng_all(Eng, [P7, H7, PT7], ( premise(P7, H7, PT7), premise_unchecked(P7) ), Ps7),
     % D17: say that a human answered only when a question with a default exists.
-    (   Gs \== [] -> true
-    ;   eng_all(Eng, [Q0], assumed(Q0, _), [_|_])
-    ->  rsay(none, "None. A human answered every question with a default.", [])
-    ;   rsay(none, "None. No question has a default.", [])
+    % D30 H3: say that each premise is checked only when a premise of a current hypothesis exists.
+    (   ( Gs \== [] ; Ps7 \== [] ) -> true
+    ;   (   eng_all(Eng, [P8], ( premise(P8, H8, _), not(superseded(H8)) ), [_|_])
+        ->  PremT = "Each premise is checked, and " ; PremT = "" ),
+        (   eng_all(Eng, [Q0], assumed(Q0, _), [_|_])
+        ->  AskT = "a human answered every question with a default.", AskU = "A human answered every question with a default."
+        ;   AskT = "no question has a default.", AskU = "No question has a default."
+        ),
+        (   PremT == "" -> format(string(NoneT), "None. ~w", [AskU])
+        ;   format(string(NoneT), "None. ~w~w", [PremT, AskT])
+        ),
+        rsay(none, "~w", [NoneT])
     ),
     eng_groups(Eng, Q5, QT5, question(Q5, _, QT5), QTextBy),
     forall(member([Q, A], Gs),
@@ -7124,6 +7245,12 @@ report_text(KB, Eng) :-
              format(string(Head), "~w: ~w", [Q, QTT]),
              format(string(Kid), "The default is ~w. No human answered it.", [AT]),
              rtree(item(Q), Plain, Head-[Kid-[]]) )),
+    forall(member([P7, H7, PT7], Ps7),
+           ( txt(PT7, PTT7), as_sentence(PTT7, PTS7),
+             format(string(Kid7), "A premise of hypothesis ~w. Nobody checked it on the system.", [H7]),
+             format(string(Plain7), "~w: ~w ~w", [P7, PTS7, Kid7]),
+             format(string(Head7), "~w: ~w", [P7, PTT7]),
+             rtree(item(P7), Plain7, Head7-[Kid7-[]]) )),
     rhead('Disclosures'),
     eng_all(Eng, [I, S0, P, B], attest(I, disclosure, S0, P, B, _), Ds),
     (   Ds == [] -> rsay(none, "None.", []) ; true ),
@@ -7230,6 +7357,134 @@ report_text(KB, Eng) :-
     ( has_discovery(KB) -> vote_section(Eng) ; true ),
     rhead('To land'),
     rsay(placeholder, "(Write the steps to land the work here.)", []).
+
+% system_section(+Eng) (D31 B6): what the current system showed: each reproduction on system
+% evidence, and the last failed run of each check that is tagged as system evidence.
+system_section(Eng) :-
+    rhead('System'),
+    eng_all(Eng, [A, S, P, B], ( attest(A, reproduction, S, P, B, _), discovery_system_evidence(S) ), Rs),
+    eng_all(Eng, [K, N], ( attest(_, test_result, _, result(K, N, fail), _, _), discovery_system_evidence(K) ), Fs0),
+    findall(K-N, ( member([K, N], Fs0), \+ ( member([K, N2], Fs0), N2 > N ) ), Fs1), sort(Fs1, Fs),
+    (   Rs == [], Fs == []
+    ->  rsay(none, "Nothing yet. No result from the current system.", [])
+    ;   true
+    ),
+    forall(member([A, S, P, B], Rs),
+           (   P = result(H, R)
+           ->  ( R == reproduced -> RT = "reproduced" ; RT = "not reproduced" ),
+               rsay(item(H), "~w: ~w, on ~w (~w, by ~w).", [H, RT, S, A, B])
+           ;   P = confirms(F)
+           ->  rsay(item(F), "Finding ~w: the system confirms it, on ~w (~w, by ~w).", [F, S, A, B])
+           ;   term_text(P, PT), rsay(item(A), "~w: ~w, on ~w.", [A, PT, S])
+           )),
+    forall(member(K-N, Fs), rsay(item(K), "Check ~w failed on the current system (run ~w).", [K, N])).
+
+% findings_section(+Eng) (D31 B6): each finding, marked as from the system or from a model only.
+findings_section(Eng) :-
+    rhead('Findings'),
+    eng_all(Eng, [F, W, From], finding(F, W, From), Fs),
+    (   Fs == [] -> rsay(none, "None.", []) ; true ),
+    forall(member([F, W, From], Fs),
+           ( (   compound(W), compound_name_arguments(W, Kind, [Arg]) -> plain_text(Arg, AT)
+             ;   Kind = finding, plain_text(W, AT) ),
+             (   From == system -> Mark = "From the system."
+             ;   eng_true(Eng, finding_confirmed(F)) -> Mark = "From a model, and the system confirms it."
+             ;   Mark = "From a model only. It is a lead until the system confirms it."
+             ),
+             format(string(Head), "~w **~w**: ~w", [F, Kind, AT]),
+             as_sentence(AT, ATS),
+             format(string(Plain), "~w (~w): ~w ~w", [F, Kind, ATS, Mark]),
+             rtree(item(F), Plain, Head-[Mark-[]]) )).
+
+% scope_sections(+KB, +Eng) (D31 B6): Scope, Risk and Not explored, in a KB that uses discovery
+% or that holds such facts.
+scope_sections(KB, Eng) :-
+    eng_all(Eng, [W, T], scope(W, T), Ss),
+    eng_all(Eng, [R, RT], risk(R, RT), Rs),
+    eng_all(Eng, [N], not_explored(N), Ns),
+    (   ( has_discovery(KB) ; Ss \== [] ; Rs \== [] ; Ns \== [] )
+    ->  rhead('Scope'),
+        (   Ss == [] -> rsay(none, "None. No scope is recorded.", []) ; true ),
+        forall(member(W-_, [in-"In", out-"Out"]),
+               forall(member([W, T], Ss),
+                      ( memberchk(W-L, [in-"In", out-"Out"]), txt(T, TT), rsay(scope, "~w: ~w", [L, TT]) ))),
+        rhead('Risk'),
+        (   Rs == [] -> rsay(none, "None. No risk is recorded.", []) ; true ),
+        forall(member([R, RT], Rs), ( txt(RT, RTT), rsay(item(R), "~w: ~w", [R, RTT]) )),
+        rhead('Not explored'),
+        (   Ns == [] -> rsay(none, "None is recorded. Say what you did not explore.", []) ; true ),
+        forall(member(N, Ns), ( txt(N, NT), rsay(not_explored, "~w", [NT]) ))
+    ;   true
+    ).
+
+% formal_section(+Eng, +Cs) (D31 B3): the formal statement of each current claim that has one,
+% beside its plain sentence; or "None." B4 and B5 add the statements.
+formal_section(KB, Eng, Cs) :-
+    rhead('Formal'),
+    findall(C-Items, ( member([C, _, _], Cs), formal_items(KB, Eng, C, Items), Items \== [] ), CIs),
+    (   CIs == []
+    ->  rsay(none, "None. No claim has a formal statement.", [])
+    ;   forall(member(C-Items, CIs),
+               ( memberchk([C, _, T], Cs), txt(T, TT), as_sentence(TT, TS),
+                 forall(member(Head, Items),
+                        ( format(string(Kid), "Claim ~w: ~w", [C, TS]),
+                          format(string(Plain), "~w ~w", [Head, Kid]),
+                          rtree(item(C), Plain, Head-[Kid-[]]) )) ))
+    ).
+
+% formal_items(+KB, +Eng, +C, -Heads): one line per formal statement of claim C: the theorem of
+% its Lean proof with the statement from the proof log (B4), and with the discovery module each
+% model that states it, with its property (B5).
+formal_items(KB, Eng, C, Heads) :-
+    findall(H, formal_item(KB, Eng, C, H), Heads).
+
+formal_item(_, Eng, C, H) :-
+    proof_statement(Eng, C, A, Thm, St),
+    format(string(H), "~w: theorem ~w (Lean, proof ~w): ~w", [C, Thm, A, St]).
+formal_item(KB, Eng, C, H) :-
+    has_discovery(KB),
+    eng_all(Eng, [M, Tool], ( encodes(M, C), model(M, Tool) ), MTs),
+    member([M, Tool], MTs),
+    eng_all(Eng, [P], property(M, C, P), Ps),
+    (   Ps == []
+    ->  format(string(H), "~w: model ~w (~w) states it. No property is recorded: add property(~w, ~w, TEXT).", [C, M, Tool, M, C])
+    ;   member(P, Ps), txt(P, PT),
+        format(string(H), "~w: model ~w (~w), property: ~w", [C, M, Tool, PT])
+    ).
+
+% hypothesis_section(+Eng) (D31 B1): the current hypothesis of the ticket, with its premises
+% beside it, or "Premises: none" (D30 H2). A superseded hypothesis is not current.
+hypothesis_section(Eng) :-
+    rhead('Hypothesis'),
+    eng_all(Eng, [H, K, T], ( hypothesis(H, K, T), not(superseded(H)) ), Hs),
+    (   Hs == []
+    ->  rsay(none, "None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).", [])
+    ;   true
+    ),
+    forall(member([H, K, T], Hs),
+           ( txt(T, TT),
+             premise_lines(Eng, H, PLs),
+             format(string(Head), "~w **~w**: ~w", [H, K, TT]),
+             as_sentence(TT, TS),
+             atomic_list_concat(PLs, ' ', PT),
+             format(string(Plain), "~w (~w): ~w ~w", [H, K, TS, PT]),
+             findall(L-[], member(L, PLs), Kids),
+             rtree(item(H), Plain, Head-Kids) )).
+
+% premise_lines(+Eng, +H, -Lines) (D30 H2, D31 B1): one sentence per premise of hypothesis H
+% with its state, or "Premises: none.", or a pointer to lint W10.
+premise_lines(Eng, H, Lines) :-
+    eng_all(Eng, [P, PT], premise(P, H, PT), Ps),
+    (   Ps \== []
+    ->  findall(L, ( member([P, PT], Ps), txt(PT, PTT), as_sentence(PTT, PTS),
+                     (   eng_all(Eng, [W], premise_checked(P, W), [W1|_])
+                     ->  txt(W1, WT), format(string(L), "Premise ~w: ~w Checked on the system at ~w.", [P, PTS, WT])
+                     ;   format(string(L), "Premise ~w: ~w Not checked.", [P, PTS])
+                     ) ), Lines)
+    ;   eng_true(Eng, no_premises(H))
+    ->  Lines = ["Premises: none."]
+    ;   Lines = ["Premises: not stated. Add premise(P, H, TEXT) or no_premises(H) (lint W10)."]
+    ).
 
 % review_section(+Eng, +Cs) (D28): for each current claim, its latest
 % verdict (the last in kb.pl) with the actor and the runs it rests on;
@@ -7472,6 +7727,15 @@ page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js) :-
         format("</ul>~n", [])
     ),
     format("</section>~n", []),
+    % D31 B3: the fields of the delivery block before the claims; B1: the hypothesis
+    page_list(Recs, 'KB', kb, "KB", ""),
+    page_list(Recs, 'Signals', signals, "Signals", ""),
+    page_list(Recs, 'Hypothesis', hypothesis, "Hypothesis", "What must be true when the ticket is done, with its premises. Say if it is wrong."),
+    (   has_discovery(KB)
+    ->  page_list(Recs, 'System', system, "System", "What the current system showed."),
+        page_list(Recs, 'Findings', findings, "Findings", "Each finding, from the system or from a model only.")
+    ;   true
+    ),
     % claims
     format("<section data-section=\"claims\" id=\"claims\" aria-labelledby=\"h-claims\">~n<h2 id=\"h-claims\">Claims</h2>~n", []),
     (   NC =:= 0 -> format("<p class=\"empty\">No current claims.</p>~n", []) ; true ),
@@ -7479,7 +7743,10 @@ page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js) :-
            page_claim(KB, Eng, C, L, TT, SK, St0, BT, KStates)),
     format("</section>~n", []),
     % the other sections, from the text lines
-    page_list(Recs, 'Guesses', guesses, "Guesses", "Defaults that no human answered. Say if one is wrong."),
+    page_list(Recs, 'Formal', formal, "Formal", "The formal statement of each claim that has one, beside its plain sentence."),
+    forall(member(SN-SI, ['Scope'-scope, 'Risk'-risk, 'Not explored'-not_explored]),
+           ( memberchk(head(SN)-_, Recs) -> page_list(Recs, SN, SI, SN, "") ; true )),
+    page_list(Recs, 'Guesses', guesses, "Guesses", "Defaults that no human answered, and premises that nobody checked. Say if one is wrong."),
     page_list(Recs, 'Disclosures', disclosures, "Disclosures", ""),
     (   has_build(KB) -> page_list(Recs, 'Waivers', waivers, "Waivers", "") ; true ),
     page_list(Recs, 'Not checked', not_checked, "Not checked", ""),
@@ -8012,9 +8279,11 @@ help_lines(whynot, [
 "The explanation is 6 levels deep; --long goes 30 levels deep. Exit 0."
 ]).
 help_lines(show, [
-"orbit-kb show [claims|questions|open|blocking|disclosures|extensions|kinds|all] | show pin ID",
+"orbit-kb show [hypothesis|claims|questions|open|blocking|disclosures|extensions|kinds|all] | show pin ID",
 "",
 "List parts of the KB as plain text. The default is all (all does not include blocking).",
+"hypothesis lists each hypothesis with its state and its premises, or Premises: none. all starts with it.",
+"claims lists each claim with its state, its examples, its citations, and its checks.",
 "open lists to_ask, stale, contested, and supersede_cycle, and under, over, burn_open, flare_open, and no_claim (no claim is current) when the build module is in use.",
 "kinds lists each fact kind and each rule head (marked rule) of the KB with its description (T26).",
 "blocking lists each answer of orbit-kb query 'blocking(X)' with its text: each item that blocks done.",
@@ -8161,11 +8430,16 @@ help_lines('pin-item', [
 help_lines(report, [
 "orbit-kb report [--html FILE [--open]]",
 "",
-"Print a delivery report skeleton with these sections:",
-"Delivered, Claims, Guesses, Disclosures, Waivers (build), Not checked, Open, To land.",
+"Print a delivery report skeleton with these sections, in the order of the delivery block:",
+"Delivered, KB (the KB directory), Signals, Hypothesis (with its premises), Claims (each with its",
+"examples), Formal (a theorem and its statement, or a model and its property; or None), Guesses",
+"(defaults and unchecked premises), Disclosures, Waivers (build), Not checked, Open, To land.",
+"With the discovery module it drafts the discovery report too: System (what the system showed) and",
+"Findings (each marked as from the system or from a model only) before Claims; Scope, Risk and",
+"Not explored after Formal (also without the module, when the KB has such facts).",
 "With the discovery module, a Vote section comes before To land. It shows the agent's vote",
 "and the formal artifacts' vote only after the human votes in the current round.",
-"Fill in Delivered and To land yourself.",
+"Fill in Delivered, Signals and To land yourself.",
 "",
 "The text is plain Markdown. Each section has a heading (# Claims:) and a blank line after it.",
 "Each item is a bullet, with two more spaces for each level. The label is in **bold**.",

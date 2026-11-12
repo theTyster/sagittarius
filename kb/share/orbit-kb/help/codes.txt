@@ -45,6 +45,8 @@ Core
        the first add, or in any later add of one of its facts while it has none: orbit-kb add 'FACT' --doc TEXT.
        For a rule head (also an old decl(rule, ...) line of kb.pl with no doc): a line %% doc: TEXT just
        above its first clause in rules.pl. orbit-kb show kinds names each one, also while E19 or E2 fires.
+  W10  a current hypothesis has no premise and no record no_premises(H) (D30). Add
+       premise(P, H, Text) for each condition that it takes as given, or no_premises(H).
 
 Discovery module
   WD1  a conflict, surprise, or scope finding raised no question. Ask one.
@@ -54,7 +56,8 @@ Discovery module
   WD5  a result is unknown. Report a gap, never UNSAT.
   WD6  the problem did not reproduce. Tell the human what you tried.
   WD7  a hypothesis has no system result. Reproduce it, or ask if it is another ticket.
-       A superseded hypothesis needs none.
+       A superseded hypothesis needs none, and none is asked while the discovery orbit is
+       closed (the human approved the ticket after a GO; BACK opens it again).
   WD8  this result's log has a run of an older model file. Run orbit-kb subject on the
        model. Run the solver into a new log. When a newer result of the same check
        exists, the message says so, and nothing is left to do.

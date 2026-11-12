@@ -66,9 +66,30 @@ decl(fact, cites(ref(claim), text),
 decl(fact, example(ref(claim), text),
      'A concrete case of the claim.',
      'an example of claim @(1) is @(2)').
-% supersedes/2 takes two claims, or two hypotheses of the discovery module.
-% The type is ref (any id), because core.pl cannot name the module fact
-% hypothesis/3. orbit-kb checks the kinds: a claim and a hypothesis is E4.
+% 0.3.0 (K-A, D30): every ticket has a hypothesis, so hypothesis/3 is a core
+% fact (it was a fact of the discovery module). The kind change is for a
+% direct build of a document or a configuration, which is no defect, feature,
+% or risk (question q_k_a_1).
+decl(fact, hypothesis(id, oneof([defect, feature, risk, change]), text),
+     'A falsifiable and wide restatement of the request: what must be true when the ticket is done.',
+     'hypothesis @(1) is a @(2): @(3)').
+% 0.3.0 (K-A, D30 H2): a premise is a condition that the hypothesis takes as
+% given. It has two states: checked on the system (and where), or not
+% (question q_k_a_2: a premise that the system shows false is a divergence on
+% the hypothesis, and the hypothesis is restated).
+decl(fact, premise(id, ref(hypothesis), text),
+     'A premise of the hypothesis: a condition that it takes as given. Where the premise does not hold, the hypothesis says nothing.',
+     '@(1) is a premise of hypothesis @(2): @(3)').
+decl(fact, premise_checked(ref(premise), text),
+     'The premise was checked on the current system, and where (a file and line, a query, a log).',
+     'premise @(1) was checked on the system at @(2)').
+decl(fact, no_premises(ref(hypothesis)),
+     'The hypothesis takes nothing as given: the record of "Premises: none".',
+     'hypothesis @(1) has no premises').
+% supersedes/2 takes two claims, or two hypotheses (or, with the project
+% module, two decisions, definitions, or rules). The type is ref (any id),
+% because one type cannot name all these kinds. orbit-kb checks the kinds:
+% a claim and a hypothesis is E4.
 decl(fact, supersedes(ref, ref),
      'The first claim replaces the second claim, or the first hypothesis replaces the second hypothesis.',
      '@(1) replaces @(2)').
@@ -96,9 +117,11 @@ decl(fact, assumption(id, text),
 decl(fact, not_explored(text),
      'An area that nobody explored.',
      'nobody explored @(1)').
-decl(fact, question(id, ref(claim), text),
-     'A dormant question about a claim.',
-     '@(1) is a question about claim @(2): @(3)').
+% D30 H3: a question can hang on a hypothesis. Its default is a default of the
+% hypothesis that the agent marks, such as the scope "every screen".
+decl(fact, question(id, ref([claim, hypothesis]), text),
+     'A dormant question about a claim, or about a default of the hypothesis.',
+     '@(1) is a question about @(2): @(3)').
 decl(fact, assumed(ref(question), term),
      'The default answer to a question.',
      'the default answer to question @(1) is @(2)').
@@ -230,6 +253,16 @@ decl(rule, blocking(term),
 decl(rule, any_project_conflict,
      'An item of the project KB blocks this KB: the project KB does not load clean (project_kb_unclean), or a claim pins a fact that is in a contradiction there (project_contradiction). No draft blocks (T43). The project module adds the clauses (D23, D27).',
      'the project KB blocks this KB (project_kb_unclean or project_contradiction)').
+% D30 H2: the state of a premise, and lint W10.
+decl(rule, premise_was_checked(ref(premise)),
+     'A premise_checked fact names the premise.',
+     'premise @(1) was checked on the system').
+decl(rule, premise_unchecked(ref(premise)),
+     'The premise of a hypothesis that no other hypothesis replaces was not checked on the system. It is a guess about the system.',
+     'premise @(1) was not checked on the system').
+decl(rule, premises_stated(ref(hypothesis)),
+     'The hypothesis has a premise, or the record no_premises.',
+     'the premises of hypothesis @(1) are stated').
 decl(rule, lint_issue(atom, ref, text),
      'A lint result that a module adds, with a code, an id, and a message.',
      'lint issue @(1) on @(2): @(3)').
@@ -304,4 +337,12 @@ blocking(past_due(X)) :- due_passed(X), item_open(X).
 % T27: request_stale/1 has no clauses here: orbit-kb computes its facts.
 blocking(request_stale(R)) :- request_stale(R).
 any_request_stale :- request_stale(_).
-% lint_issue/3 has no clauses here. Modules add them (the module lint hook).
+% lint_issue/3: the core adds W10 below (D30); modules add their own (the module lint hook).
+% D30 H2: premises. A premise of a superseded hypothesis is not asked for: it is no
+% guess, and W10 does not name its hypothesis.
+premise_was_checked(P) :- premise_checked(P, _).
+premise_unchecked(P) :- premise(P, H, _), not superseded(H), not premise_was_checked(P).
+premises_stated(H) :- premise(_, H, _).
+premises_stated(H) :- no_premises(H).
+lint_issue('W10', H, 'This hypothesis has no premise and no record "Premises: none". Add premise(P, H, Text) for each condition that it takes as given, or no_premises(H).') :-
+    hypothesis(H, _, _), not superseded(H), not premises_stated(H).

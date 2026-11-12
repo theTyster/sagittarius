@@ -5,13 +5,21 @@ Quote text with single marks. Do not edit kb.pl by hand.
 
 Facts
   request(Id, Text)              the human's words, word for word
+  hypothesis(Id, Kind, Text)     what must be true when the ticket is done. Every ticket has one.
+                                 Kind is defect, feature, risk, or change (a direct build of a
+                                 document or a configuration).
+  premise(P, Hyp, Text)          a condition that the hypothesis takes as given
+  premise_checked(P, Where)      you checked premise P on the system, at Where (file:line, a query)
+  no_premises(Hyp)               "Premises: none". lint W10 names a hypothesis with neither.
+                                 A premise that the system shows false: record a divergence on
+                                 the hypothesis, and restate it (a new hypothesis supersedes it).
   claim(Id, Label, Text)         Label is preserve (true now, must stay true),
                                  retire (true now, must become false),
                                  or introduce (false now, must become true)
   cites(Claim, Text)             the request text that the claim serves
   example(Claim, Text)           a concrete case of the claim
   supersedes(New, Old)           New replaces Old. Never edit a claim or a hypothesis.
-                                 Both are claims, or both are hypotheses (discovery).
+                                 Both are claims, or both are hypotheses.
                                  Nothing can replace itself, also through a chain.
                                  add refuses it, and lint reports E15.
   universal(Claim)               the claim is about every input; it burns (orbit-kb help build)
@@ -20,6 +28,8 @@ Facts
   world(Fact), source(Fact, Where)   the current state, and where you saw it.
                                  A fact that you did not record is false.
   question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By)
+                                 A question can hang on a hypothesis: its default marks a default
+                                 of the hypothesis ("every screen"). report lists it under Guesses.
   option(Q, Text, Effect)        an option of question Q, and what choosing it changes. The question
                                  view (orbit-kb help view) shows each option with its effect. It changes no rule.
   due(X, 'TIME')                 claim, check, or question X is due at TIME. While X is open
@@ -75,6 +85,7 @@ Queries (orbit-kb query 'current(C)' -n 0)
   passed(K)          the latest run of K passed
   was_red(K)         K failed before it passed
   stale(A)           approval A is for a digest that is no longer current
+  premise_unchecked(P)  nobody checked premise P on the system: a guess (report, Guesses)
   blocking(X)        X blocks done: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X),
                      check_failing(K), check_unrun(K), waiver_lapsed(W), past_due(X),
                      supersede_cycle(C), no_claim. orbit-kb show blocking prints each with its text.

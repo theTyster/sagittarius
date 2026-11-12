@@ -17,6 +17,8 @@ FACTS
   model_run(Log, M, Digest)       Log is a run of model M at that digest. It counts while M keeps it.
   derived_from(Target, Existing)  the target model changes the existing-world model
   encodes(M, C)                   model M states claim C
+  property(M, C, Text)            the property of M that states C (an assertion, an invariant).
+                                  orbit-kb report shows it under Formal, beside the claim.
   finding(F, Kind, From)          Kind: root_cause(X) | conflict(Core) | surprise(Case) | trace(T) | scope(Item)
   reason(M, Rule, Text)           why the rule of model M survived its mutation
   raised_by(Q, X)                 finding or hypothesis X raised question Q
@@ -231,6 +233,10 @@ ASKING: ask the human
 
 HANDOFF to the build orbit
   orbit-kb uses build ; orbit-kb lint. The build orbit skips SURVEY.
+  The discovery orbit is open until the human approves the ticket after a GO
+  (attest approval TICKET 'digest(current)' --by human writes discovery_end). Then readiness
+  and the vote are not asked again: a hypothesis that the human restates in build
+  supersedes the old one and needs no system result. Only BACK opens the orbit again.
   DECOMPOSE starts from the discovery claims. Each witness, trace, and counterexample
   becomes a test case. The build orbit reuses each red test_result as its baseline.
   A universal claim always burns. A solver or TLC result holds only within its bounds;
@@ -239,8 +245,10 @@ HANDOFF to the build orbit
   examples. Record a divergence where the two disagree.
 
 REPORT: the discovery report
-  Write it from the queries. orbit-kb report prints the build-orbit sections and a Vote:
-  section; write the rest yourself.
+  orbit-kb report drafts it from the facts: Hypothesis (with its premises), System (what the
+  system showed), Findings (each from the system or a model only), Claims (each with its
+  example and its checks, the falsifiers), Formal, Scope, Risk, Not explored, and a Vote:
+  section that keeps your vote sealed. Write Decide and Ask yourself.
     Hypothesis:   <one sentence, and its falsifier>
     System:       <reproduced, not reproduced, or exists; the evidence>
     Findings:     <concrete cases, each from the system or a model only>
@@ -259,6 +267,9 @@ REPORT: the discovery report
 
 BACK: back to discovery
   When a divergence shows that the problem is wrong, not the build, file a disclosure, and
-  run orbit-kb uses discovery. Then go to SIGNAL if the hypothesis is wrong, SPECTRUM if a
+  run orbit-kb uses discovery. Record the return:
+     orbit-kb attest back h1 "back('The human cannot say what the hypothesis changes to.')"
+  It opens the discovery orbit again: a new hypothesis needs its system result (WD7), and
+  readiness and the vote are asked again (next round). Then go to SIGNAL if the hypothesis is wrong, SPECTRUM if a
   claim is wrong or missing, FLYBY or TRAJECTORY if a model missed a behavior, and FLYBY and
   then the human if BURN shows that the requirements conflict.

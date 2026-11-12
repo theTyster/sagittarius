@@ -82,6 +82,8 @@
 #   PH  help names the phases                              (CLI: help; D22)                 : PH1
 #   AC  acceptance criteria: ac/1, show and draft blocking (D29)                             : AC1-AC5
 #   VR  verification records: actor, review_saw, verdicts, independently_verified, WR1 (D28) : VR1-VR12 (VR7-VR11: T38; VR12: T40)
+#   HY  the hypothesis and its premises in every KB; the open discovery orbit (D30, 0.3.0 K-A) : HY1-HY8
+#   KR  the report and show print what the KB holds: hypothesis, examples, KB, Signals, Formal, the discovery report (D31, 0.3.0 K-B) : KR1-KR7
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -1483,6 +1485,186 @@ t_NC5() { K=$T/k; kb_init "$K" discovery
           is_false 'discovery_ready' "no hypothesis and no claim: not ready"; is_false 'discovery_decide'
           is_set 'artifact_vote(V)' 'V = hold' "an empty discovery KB votes hold"; }
 
+# ---- 0.3.0 K-A: the hypothesis and its premises in every KB (CONTRACT D30). hypothesis/3 is a core fact
+# with a fourth kind, change; premise/3, premise_checked/2, no_premises/1 and the query premise_unchecked/1;
+# lint W10; Guesses lists unchecked premises and the defaults of the hypothesis; the discovery orbit is open
+# until the human approves the ticket after a GO (discovery_end/1), and again after a back attestation.
+DARK='With dark mode on, every screen shows a dark scheme.'
+hy_build() {  # hy_build DIR: a build KB with one claim, its example and its check
+    kb_init "$1" build; K=$1
+    oadd "claim(c1, introduce, '$DARK')" "cites(c1, 'Test request')" "example(c1, 'the reports page is dark')" "check(k1, c1)" >/dev/null || note "setup: the claim: $(snip "$out$err")"
+}
+hy_disc() {  # hy_disc DIR: a discovery KB that is ready: a hypothesis, one claim with an example, a red system check, a reproduction
+    kb_init "$1" discovery; K=$1
+    oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "budget(laps, 3)" \
+         "claim(c1, introduce, 'Every purchase gets the points that its amount and tier give.')" "cites(c1, 'Test request')" \
+         "check(t1, c1)" "discovery_evidence(t1, system)" "example(c1, 'gold, 40, gives 80')" >/dev/null || note "setup: the discovery facts: $(snip "$out$err")"
+    okb --dir "$K" run t1 -- false >/dev/null
+    okb --dir "$K" attest reproduction t1 'result(h1, reproduced)' >/dev/null || note "setup: the reproduction: $(snip "$out$err")"
+}
+hy_go() {  # hy_go DIR: hy_disc, both vote go, and the human approves the ticket
+    hy_disc "$1"
+    okb --dir "$K" attest vote r1 'vote(1, go)'; rc_is 0 "setup: the agent votes go"
+    okb --dir "$K" attest vote r1 'vote(1, go)' --by human; rc_is 0 "setup: the human votes go"
+    printf '# ticket\n' > "$K/ticket.md"
+    okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null
+    okb --dir "$K" attest approval tk 'digest(current)' --by human; rc_is 0 "setup: the human approves the ticket"
+}
+t_HY1() { hy_build "$T/b"
+          oadd "hypothesis(h1, feature, '$DARK')"; rc_is 0 "a build KB takes the hypothesis of its ticket"
+          okb --dir "$K" lint; out_hasnt '^WD7' "no discovery finding in a build KB"
+          okb --dir "$K" report; rc_is 0; out_hasnt '^# Vote:' "no Vote section in a build KB"; out_hasnt 'not ready' "no readiness in a build KB"
+          oadd "hypothesis(h2, change, 'The README names the two interfaces.')"; rc_is 0 "the kind change, for a direct build of a document or a configuration"
+          rejects "a kind outside defect, feature, risk, change" 'E3' add "hypothesis(h3, wish, 'Other words.')"
+          kb_new "$T/c" <<'EOF2'
+uses([]).
+request(r1, 'Fix the thing').
+EOF2
+          K=$T/c; oadd "hypothesis(h1, defect, 'The thing is broken.')"; rc_is 0 "a KB with no module takes a hypothesis"
+          okb --dir "$K" lint; out_hasnt '^E' "core only: no lint error"; }
+t_HY2() { hy_disc "$T/d"
+          okb --dir "$K" lint; out_hasnt '^WD7' "setup: h1 has its system result"; is_true 'discovery_ready' "setup: ready"
+          oadd "hypothesis(h2, risk, 'A refund takes the points back.')"; rc_is 0
+          okb --dir "$K" lint; out_has '^WD7 h2' "the discovery rules hold in a KB that uses discovery: WD7"
+          is_false 'discovery_ready' "a hypothesis with no system result blocks readiness"
+          okb --dir "$K" attest reproduction t1 'result(h2, reproduced)'; rc_is 0
+          okb --dir "$K" lint; out_hasnt '^WD7'; is_true 'discovery_ready'; }
+t_HY3() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" >/dev/null
+          okb --dir "$K" lint; out_has '^W10 h1' "lint names a hypothesis with no premise and no no_premises"
+          oadd "premise(p1, h1, 'The app has one color scheme today.')"; rc_is 0; any_hasnt 'new predicate|first use' "premise/3 is declared"
+          okb --dir "$K" lint; out_hasnt '^W10' "a premise answers W10"
+          is_true 'premise_unchecked(p1)' "a new premise is not checked"
+          oadd "premise_checked(p1, 'src/theme.css:1')"; rc_is 0; any_hasnt 'new predicate|first use' "premise_checked/2 is declared"
+          is_false 'premise_unchecked(p1)' "a checked premise"
+          rejects "a premise of an id that is no hypothesis" 'E4' add "premise(p2, c1, 'Other words.')"
+          hy_build "$T/b2"; oadd "hypothesis(h1, feature, '$DARK')" >/dev/null
+          oadd "no_premises(h1)"; rc_is 0; any_hasnt 'new predicate|first use' "no_premises/1 is declared"
+          okb --dir "$K" lint; out_hasnt '^W10' "the record Premises: none answers W10"
+          okb help codes; any_has '^ *W10 ' "help codes lists W10"; }
+t_HY4() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" "premise(p1, h1, 'Only the settings page has a theme.')" >/dev/null
+          is_true 'premise_unchecked(p1)' "setup"
+          oadd "hypothesis(h2, feature, 'With dark mode on, the settings page shows a dark scheme.')" "supersedes(h2, h1)" "no_premises(h2)"; rc_is 0
+          is_false 'premise_unchecked(p1)' "a premise of a superseded hypothesis is not asked for"
+          okb --dir "$K" lint; out_hasnt '^W10' "W10 names no superseded hypothesis"
+          okb --dir "$K" report; rc_is 0
+          printf '%s\n' "$(rp_sec Guesses)" | grep -q 'settings page has a theme' && note "Guesses lists a premise of a superseded hypothesis"; true; }
+t_HY5() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" \
+              "premise(p1, h1, 'The app has one color scheme today.')" "premise(p2, h1, 'The app has twelve screens.')" \
+              "premise_checked(p2, 'src/routes.ts:4')" >/dev/null
+          oadd "question(q1, h1, 'Every screen, or only the settings page?')" "assumed(q1, 'all twelve screens')"; rc_is 0 "a question on the hypothesis marks its default"
+          okb --dir "$K" report; rc_is 0
+          local g; g=$(rp_sec Guesses)
+          printf '%s\n' "$g" | grep -q 'p1.*The app has one color scheme today' || note "Guesses lists the unchecked premise p1: [$g]"
+          printf '%s\n' "$g" | grep -q 'all twelve screens' || note "Guesses lists the default of the hypothesis: [$g]"
+          printf '%s\n' "$g" | grep -q 'The app has twelve screens' && note "Guesses lists a checked premise: [$g]"
+          printf '%s\n' "$g" | grep -q 'None' && note "Guesses says None: [$g]"
+          oadd "premise_checked(p1, 'src/theme.css:1')" "answer(q1, 'all twelve screens', human)" >/dev/null
+          okb --dir "$K" report; rl_is "Guesses when each premise is checked and each default answered" "  - None. Each premise is checked, and a human answered every question with a default." "$(rp_sec Guesses)"; }
+t_HY6() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" >/dev/null
+          oadd "hypothesis(h2, feature, 'With dark mode on, the settings page shows a dark scheme.')" "supersedes(h2, h1)"; rc_is 0 "a build KB restates its hypothesis"
+          okb --dir "$K" lint; out_hasnt '^WD7' "no WD7 in a build KB"
+          hy_go "$T/d"
+          is_true 'discovery_end(A)' "the approval of the ticket after a GO ends the discovery orbit"
+          is_true 'discovery_closed'; is_false 'discovery_open'
+          okb --dir "$K" uses build >/dev/null
+          oadd "hypothesis(h2, defect, 'The amount and the tier decide the points, for members only.')" "supersedes(h2, h1)"; rc_is 0
+          okb --dir "$K" lint; out_hasnt '^WD7' "after the GO, a restated hypothesis needs no system result"
+          is_true 'discovery_ready' "the restatement does not change readiness"; is_true 'gate(go)' "nor the outcome of the vote"
+          okb --dir "$K" show open; out_hasnt 'not ready'
+          okb --dir "$K" report; printf '%s\n' "$(rp_sec Open)" | grep -q 'not ready' && note "the report shows the closed orbit as not ready"; true; }
+t_HY7() { hy_go "$T/d"; okb --dir "$K" uses build >/dev/null
+          okb --dir "$K" attest back h1 "back('The human cannot say what the hypothesis changes to.')"; rc_is 0 "a return to discovery is a record"
+          is_true 'discovery_open' "after the back attestation the discovery orbit is open again"
+          is_false 'discovery_closed'
+          oadd "hypothesis(h3, defect, 'Refunds take the points back.')" "supersedes(h3, h1)"; rc_is 0
+          okb --dir "$K" lint; out_has '^WD7 h3' "after a return to discovery, a new hypothesis needs its system result"
+          is_false 'discovery_ready' "and readiness is asked again"
+          okb --dir "$K" attest reproduction t1 'result(h3, reproduced)'; rc_is 0
+          is_true 'discovery_ready' "its system result makes discovery ready again"; }
+t_HY8() { hy_disc "$T/d"
+          okb --dir "$K" attest vote r1 'vote(1, hold)'; okb --dir "$K" attest vote r1 'vote(1, no_go)' --by human
+          is_false 'gate(go)' "setup: the vote is split (the artifacts vote go)"
+          printf '# ticket\n' > "$K/ticket.md"; okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null
+          okb --dir "$K" attest approval tk 'digest(current)' --by human; rc_is 0 "the human's approval is never refused"
+          any_hasi 'discovery orbit.*open|open.*discovery orbit' "a NOTE says that the orbit stays open: gate(go) does not hold"
+          is_false 'discovery_end(A)' "no GO, so the approval does not end the orbit"; is_true 'discovery_open'
+          rejects "only orbit-kb attest writes discovery_end" 'discovery_end' add "discovery_end(a1)"; }
+
+# ---- 0.3.0 K-B: the tool shows what it holds (CONTRACT D31). report: KB, Signals, Hypothesis with its
+# premises, an example under each claim, Formal (a theorem with its statement, or a model with its property),
+# and in a discovery KB the parts of the discovery report (System, Findings, Scope, Risk, Not explored).
+# show all starts with the hypothesis; show claims prints the examples.
+t_KR1() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" "premise(p1, h1, 'The app has one color scheme today.')" >/dev/null
+          okb --dir "$K" report; rc_is 0
+          local head; head=$(printf '%s\n' "$out" | sed '/^# Claims:/,$d')
+          printf '%s\n' "$head" | grep -q '^# Hypothesis:' || note "report: a Hypothesis section before Claims: [$(snip "$head")]"
+          printf '%s\n' "$head" | grep -qF "$DARK" || note "report: the hypothesis before the claims"
+          printf '%s\n' "$head" | grep -q 'p1.*The app has one color scheme today' || note "report: the premise beside the hypothesis"
+          okb --dir "$K" show all; rc_is 0
+          local sh; sh=$(printf '%s\n' "$out" | sed '/^Claims:/,$d')
+          printf '%s\n' "$sh" | grep -qF "$DARK" || note "show all: the hypothesis before the claims: [$(snip "$out")]"
+          printf '%s\n' "$sh" | grep -q 'The app has one color scheme today' || note "show all: the premise beside the hypothesis"
+          okb --dir "$K" show hypothesis; rc_is 0 "show hypothesis is a section"; any_hasf "$DARK" "show hypothesis prints it"
+          hy_build "$T/b2"; oadd "hypothesis(h1, feature, '$DARK')" "no_premises(h1)" >/dev/null
+          okb --dir "$K" report; rp_sec Hypothesis | grep -q 'Premises: none' || note "report: Premises: none [$(snip "$(rp_sec Hypothesis)")]"
+          okb --dir "$K" show all; out_has 'Premises: none' "show all: Premises: none"
+          oadd "hypothesis(h2, feature, 'With dark mode on, the settings page is dark.')" "supersedes(h2, h1)" "no_premises(h2)" >/dev/null
+          okb --dir "$K" report; rp_sec Hypothesis | grep -qF "$DARK" && note "report: a superseded hypothesis is not the current one"
+          rp_sec Hypothesis | grep -q 'settings page is dark' || note "report: the current hypothesis"
+          hy_build "$T/b3"; okb --dir "$K" report; rl_is "no hypothesis" "  - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT)." "$(rp_sec Hypothesis)"; }
+t_KR2() { hy_build "$T/b"; okb --dir "$K" report; rc_is 0
+          rp_item c1 | grep -q 'Example: the reports page is dark' || note "report: the example under the claim: [$(snip "$(rp_item c1)")]"
+          okb --dir "$K" show claims; rc_is 0; out_has '^  Example: the reports page is dark' "show claims: the example under the claim"; }
+t_KR3() { hy_build "$T/b"; okb --dir "$K" report; rc_is 0
+          local heads; heads=$(printf '%s\n' "$out" | grep -oE '^# (Delivered|KB|Signals|Claims|Formal|Guesses):' | sed 's/^# //' | paste -sd' ')
+          rl_is "the fields of the delivery block, in its order" "Delivered: KB: Signals: Claims: Formal: Guesses:" "$heads"
+          rp_sec KB | grep -qF "$K" || note "KB names the KB directory: [$(rp_sec KB)]"
+          rp_sec Signals | grep -q 'questions.*divergence.*effort' || note "Signals names the six signals: [$(rp_sec Signals)]"
+          rl_is "Formal with no formal statement" "  - None. No claim has a formal statement." "$(rp_sec Formal)"
+          okb --dir "$K" report --html "$T/r.html"; rc_is 0
+          local s; for s in kb signals hypothesis formal; do grep -q "data-section=\"$s\"" "$T/r.html" || note "the page has the section $s"; done; }
+t_KR4() { kb_burndone "$T/k"; K=$T/k; add_proof "$K" p1 c1
+          okb --dir "$K" report; rc_is 0
+          local f; f=$(rp_sec Formal)
+          printf '%s\n' "$f" | grep -q 'c1.*theorem t.*True' || note "Formal gives the theorem and its statement from the proof log: [$f]"
+          printf '%s\n' "$f" | grep -q 'One stays true' || note "Formal puts the plain sentence of the claim beside it: [$f]"
+          local b; b=$(rp_item c1)
+          printf '%s\n' "$b" | grep -q 'Burn: proved in Lean: theorem t' || note "the Burn part names the theorem: [$(snip "$b")]"
+          printf '%s\n' "$b" | grep -q 'about the Lean definitions' || note "the Burn part says that the proof is about the Lean definitions"
+          printf '%s\n' "$b" | grep -q 'No conformance check carries the examples' || note "the Burn part says that no check carries the examples to the code"
+          oadd "conformance(k1)" >/dev/null
+          okb --dir "$K" report; rp_item c1 | grep -q 'Conformance check k1 carries the examples' || note "the Burn part names the conformance check: [$(snip "$(rp_item c1)")]"; }
+t_KR5() { hy_disc "$T/d"; printf '(check-sat)\n' > "$T/m1.smt"
+          okb --dir "$K" subject m1 "$T/m1.smt" >/dev/null; oadd "model(m1, smt)" "encodes(m1, c1)" >/dev/null
+          okb --dir "$K" report; rp_sec Formal | grep -q 'c1.*model m1' || note "Formal names a model that states the claim: [$(rp_sec Formal)]"
+          oadd "property(m1, c1, '(assert (not (= points 80)))')"; rc_is 0; any_hasnt 'new predicate|first use' "property/3 is declared"
+          okb --dir "$K" report; rp_sec Formal | grep -qF '(assert (not (= points 80)))' || note "Formal gives the property: [$(rp_sec Formal)]"
+          rejects "a property of a model that is no model" 'E4' add "property(c1, c1, 'x')"; }
+t_KR6() { hy_disc "$T/d"
+          oadd "scope(in, 'the points of one purchase')" "scope(out, 'the tiers themselves')" \
+               "risk(rk1, 'a wrong build changes the balance of a member')" "not_explored('refunds')" \
+               "finding(f1, surprise('a guest got 12 points in the model'), model)" "finding(f2, trace('the tier is read once a day'), system)" >/dev/null
+          okb --dir "$K" report; rc_is 0
+          local heads; heads=$(printf '%s\n' "$out" | grep -oE '^# [A-Za-z ]+:' | sed 's/^# //' | paste -sd'|')
+          rl_is "the sections of a discovery report" "Delivered:|KB:|Signals:|Hypothesis:|System:|Findings:|Claims:|Formal:|Scope:|Risk:|Not explored:|Guesses:|Disclosures:|Not checked:|Open:|Vote:|To land:" "$heads"
+          rp_sec Hypothesis | grep -q 'The amount and the tier decide the points' || note "the hypothesis"
+          rp_sec System | grep -q 'h1.*reproduced' || note "what the system showed: [$(rp_sec System)]"
+          rp_item f1 | grep -q 'From a model only' || note "the finding f1 is marked as from a model only: [$(rp_sec Findings)]"
+          rp_item f2 | grep -q 'From the system' || note "the finding f2 is marked as from the system: [$(rp_sec Findings)]"
+          rp_item c1 | grep -q 'Example: gold, 40, gives 80' || note "the example of the claim"
+          rp_item c1 | grep -q 't1' || note "the falsifier of the claim (its check)"
+          rp_sec Scope | grep -q 'In: the points of one purchase' || note "scope in: [$(rp_sec Scope)]"
+          rp_sec Scope | grep -q 'Out: the tiers themselves' || note "scope out"
+          rp_sec Risk | grep -q 'rk1.*a wrong build changes the balance' || note "the risk: [$(rp_sec Risk)]"
+          rp_sec 'Not explored' | grep -q 'refunds' || note "not explored: [$(rp_sec 'Not explored')]"; }
+t_KR7() { hy_disc "$T/d"; okb --dir "$K" attest vote r1 'vote(1, go)'; rc_is 0 "setup: the agent votes"
+          okb --dir "$K" report; rc_is 0
+          local v; v=$(rp_sec Vote)
+          printf '%s\n' "$v" | grep -Eq '\bgo\b|Agent \(0.24\)|Formal artifacts' && note "the report shows the agent's vote before the human votes: [$v]"
+          printf '%s\n' "$out" | grep -Eq 'Agent \(0.24\)|artifacts vote' && note "no section leaks the vote"
+          okb --dir "$K" attest vote r1 'vote(1, go)' --by human; okb --dir "$K" report
+          rp_sec Vote | grep -q 'Agent (0.24): go' || note "after the human votes, the vote shows: [$(rp_sec Vote)]"; }
+
 # ---- D10: orbit-kb prove with real Lean. The Lake project is built once (prototype lake).
 # Each test copies it, so lake build has little to do. Skip when lake is missing.
 # LEAN_TC is the newest installed toolchain, named exactly as elan lists it (an -rc name must not be cut to a release that is not installed).
@@ -1887,13 +2069,13 @@ rl_is() {  # rl_is LABEL WANT GOT: exact text
 t_RL1() { # headings: "# Name:" in contract order, one blank line before each but the first, no trailing blank line
     rh_kb report_review; okb --dir "$K" report; rc_is 0
     local heads; heads=$(printf '%s\n' "$out" | grep -E '^# ' | paste -sd'|')
-    rl_is "headings" "# Delivered:|# Claims:|# Guesses:|# Disclosures:|# Waivers:|# Not checked:|# Open:|# To land:" "$heads"
+    rl_is "headings" "# Delivered:|# KB:|# Signals:|# Hypothesis:|# Claims:|# Formal:|# Guesses:|# Disclosures:|# Waivers:|# Not checked:|# Open:|# To land:" "$heads"
     printf '%s\n' "$out" | grep -qE '^[A-Z][A-Za-z ]*:$' && note "a heading without the # mark"
     local n; n=$(printf '%s\n' "$out" | awk '/^# / && NR > 1 && prev != "" {bad++} {prev = $0} END {print bad + 0}')
     rl_is "a blank line before every heading but the first" 0 "$n"
     [ "$(printf '%s\n' "$out" | sed -n 1p)" = "# Delivered:" ] || note "the first line is the Delivered heading"
     [ -n "$(printf '%s\n' "$out" | tail -n 1)" ] || note "the last line is blank"
-    [ "$(printf '%s\n' "$out" | grep -c '^$')" = 7 ] || note "want exactly 7 blank lines (one between sections), got $(printf '%s\n' "$out" | grep -c '^$')"
+    [ "$(printf '%s\n' "$out" | grep -c '^$')" = 11 ] || note "want exactly 11 blank lines (one between sections), got $(printf '%s\n' "$out" | grep -c '^$')"
     rh_kb discovery; okb --dir "$K" report; rc_is 0; out_has '^# Vote:' "the Vote heading"; }
 t_RL2() { # every other line is a bullet at two spaces plus two per level; no tabs, no colour codes, no box drawing
     local k bl
@@ -1908,7 +2090,11 @@ t_RL2() { # every other line is a bullet at two spaces plus two per level; no ta
     done; true; }
 t_RL3() { # a fulfilled claim with nothing to add stays on one line; a claim that needs attention nests its status and checks
     rh_kb report_review; okb --dir "$K" report; rc_is 0
-    rl_is "c1 (fulfilled)" "  - c1 **introduce**: The widget can be saved. Status: fulfilled. Checks: k1 (passed)." "$(rp_item c1)"
+    # D31 B2: c1 has an example, which nests under the claim (the one line would pass 100 columns)
+    rl_is "c1 (fulfilled, with its example)" "  - c1 **introduce**: The widget can be saved
+    - Status: fulfilled.
+    - Example: Save a widget, close the app, open it again, and see the widget.
+    - Checks: k1 (passed)." "$(rp_item c1)"
     rl_is "c2 (under)" "  - c2 **preserve**: Loading stays fast
     - Status: under.
       - It is not fulfilled yet.
@@ -1933,15 +2119,18 @@ t_RL3() { # a fulfilled claim with nothing to add stays on one line; a claim tha
     - Checks: none." "$(rp_item c6)"
     rh_kb valid; okb --dir "$K" report; rc_is 0
     rl_is "c4 (fulfilled, fits in 100 columns)" "  - c4 **preserve**: The new save button is shown. Status: fulfilled. Checks: k3 (passed)." "$(rp_item c4)"
-    rl_is "c2 (burn proved) is long, so it nests" "  - c2 **preserve**: Loading stays fast
+    # D31 B4: a proved burn names its theorem, and nests what the proof is about
+    rl_is "c2 (burn proved) nests" "  - c2 **preserve**: Loading stays fast
     - Status: fulfilled.
-    - Burn: proved in Lean.
+    - Burn: proved in Lean: theorem load_fast.
+      - The proof is about the Lean definitions, not the code. No conformance check carries the examples of the definitions to the code.
     - Checks: k2 (passed)." "$(rp_item c2)"
     rl_is "no line of a one-line claim is over 100 columns" 0 "$(printf '%s\n' "$out" | awk '/^  - c[0-9]+ \*\*[a-z]+\*\*: .*Status: fulfilled\. / && length($0) > 100 {n++} END {print n + 0}')"; }
 t_RL4() { # more than one check: they nest under Checks
     rh_kb report_review; printf "check(k8, c1).\n" >> "$K/kb.pl"; okb --dir "$K" report; rc_is 0
     rl_is "c1 with two checks" "  - c1 **introduce**: The widget can be saved
     - Status: fulfilled.
+    - Example: Save a widget, close the app, open it again, and see the widget.
     - Checks:
       - k1 (passed)
       - k8 (never run)" "$(rp_item c1)"; }
@@ -2020,10 +2209,11 @@ rh_hasnt() {
 t_RH1() { # c2 (D16 C4): plain report text is byte-identical to the golden files (made again from the CLI after C4, read by eye); --html prints the same text
     local k
     for k in valid report_review overunder nobuild discovery; do
-        rh_kb "$k"; okb --dir "$K" report; rc_is 0 "report $k"
-        cmp -s "$T/.out" "$GOLD/$k.txt" || note "report $k: the text differs from $GOLD/$k.txt: $(diff "$GOLD/$k.txt" "$T/.out" | head -n 6 | tr '\n' '~')"
-        okb --dir "$K" report --html "$T/$k.html"; rc_is 0 "report --html $k"
-        cmp -s "$T/.out" "$GOLD/$k.txt" || note "report --html $k: stdout differs from $GOLD/$k.txt"
+        # D31 B3: the KB field names the KB directory; the golden files have KBDIR in its place
+        rh_kb "$k"; okb --dir "$K" report; rc_is 0 "report $k"; printf '%s\n' "$out" | sed "s#$K#KBDIR#g" > "$T/.outn"
+        cmp -s "$T/.outn" "$GOLD/$k.txt" || note "report $k: the text differs from $GOLD/$k.txt: $(diff "$GOLD/$k.txt" "$T/.outn" | head -n 6 | tr '\n' '~')"
+        okb --dir "$K" report --html "$T/$k.html"; rc_is 0 "report --html $k"; printf '%s\n' "$out" | sed "s#$K#KBDIR#g" > "$T/.outn"
+        cmp -s "$T/.outn" "$GOLD/$k.txt" || note "report --html $k: stdout differs from $GOLD/$k.txt"
         [ -s "$T/$k.html" ] || note "report --html $k wrote no file"
     done; }
 t_RH2() { # c1: one self-contained page with each claim, its status as a label, and its checks
@@ -2588,8 +2778,8 @@ t_VR5() { vr_ind "$T/k"; K=$T/k
           okb --dir "$K" report; rc_is 0 "report"
           local sec; sec=$(printf '%s\n' "$out" | awk '/^# Review:/{f=1;next} /^# /{f=0} f')
           [ -n "$sec" ] || note "report has no Review section"
-          printf '%s\n' "$out" | grep -E '^# ' | paste -sd' ' | grep -qF '# Claims: # Review: # Guesses:' \
-              || note "the Review section comes after Claims, before Guesses"
+          printf '%s\n' "$out" | grep -E '^# ' | paste -sd' ' | grep -qF '# Claims: # Review: # Formal: # Guesses:' \
+              || note "the Review section comes after Claims, before Formal and Guesses (D31 B3)"
           printf '%s\n' "$sec" | grep -Eq '^  - c1: reviewer review \(session s2\), verdict upheld: reran k1; tried an empty input\.$' || note "c1: reviewer, verdict, text: [$(snip "$sec")]"
           printf '%s\n' "$sec" | grep -Eq '^    - Reruns: run 1 k1 pass\.$' || note "c1: its reruns: [$(snip "$sec")]"
           printf '%s\n' "$sec" | grep -Eq '^  - c2: no verdict\.$' || note "c2 has no verdict: [$(snip "$sec")]"
@@ -3030,6 +3220,21 @@ run_test t_NC2 NC2 "D17: report and show open on a KB with no claim"
 run_test t_NC3 NC3 "D17: Guesses says no question has a default, unless a human answered one"
 run_test t_NC4 NC4 "D17: a rules.pl clause for any_current_claim is E16"
 run_test t_NC5 NC5 "D17: an empty discovery KB is not ready and votes hold"
+run_test t_HY1 HY1 "0.3.0 c_k_a_1: a build KB and a core KB take the hypothesis of the ticket; the kind change"
+run_test t_HY2 HY2 "0.3.0 c_k_a_1: WD7 and readiness still hold in a KB that uses discovery"
+run_test t_HY3 HY3 "0.3.0 c_k_a_2: premise, premise_checked, no_premises, premise_unchecked; lint W10"
+run_test t_HY4 HY4 "0.3.0 c_k_a_2: a premise of a superseded hypothesis is not asked for"
+run_test t_HY5 HY5 "0.3.0 c_k_a_4: Guesses lists unchecked premises and the defaults of the hypothesis"
+run_test t_HY6 HY6 "0.3.0 c_k_a_3b: a restated hypothesis in build needs no system result, also after an approved GO"
+run_test t_HY7 HY7 "0.3.0 q_k_a_3b: after a recorded return to discovery, a new hypothesis needs its system result"
+run_test t_HY8 HY8 "0.3.0 c_k_a_3b: an approval with no GO does not end the orbit; add refuses discovery_end"
+run_test t_KR1 KR1 "0.3.0 c_k_b_1: report and show all print the current hypothesis with its premises before the claims"
+run_test t_KR2 KR2 "0.3.0 c_k_b_2: report and show claims print the example of each claim"
+run_test t_KR3 KR3 "0.3.0 c_k_b_3: report has KB, Signals and Formal in the order of the delivery block; the page too"
+run_test t_KR4 KR4 "0.3.0 c_k_b_4: Formal gives the theorem and its statement; Burn names it, the Lean definitions, and conformance"
+run_test t_KR5 KR5 "0.3.0 c_k_b_5: property(Model, Claim, Text); Formal gives the model and the property"
+run_test t_KR6 KR6 "0.3.0 c_k_b_6b: the report of a discovery KB drafts the discovery report from the facts"
+run_test t_KR7 KR7 "0.3.0 c_k_b_6b: the report never shows the agent vote before the human votes"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"

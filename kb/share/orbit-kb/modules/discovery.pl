@@ -20,11 +20,13 @@
 % - D15: to reword a hypothesis, add a new hypothesis and supersedes(New, Old), as for a
 %   claim. A superseded hypothesis is out of play: it needs no system result (WD7, the
 %   readiness check), its not_reproduced result is no outcome, and it raises no WD6.
+% - D30 H4: the discovery orbit is open until the human approves the ticket after a GO
+%   (orbit-kb attest writes discovery_end), and again after a `back` attestation. While it
+%   is closed, discovery_ready holds and WD7 is not asked: a hypothesis restated in build
+%   needs no system result of its own.
 
 % --- Facts ---
-decl(fact, hypothesis(id, oneof([defect, feature, risk]), text),
-     'A falsifiable and scoped restatement of the request.',
-     'hypothesis @(1) is a @(2): @(3)').
+% hypothesis/3 is a core fact since 0.3.0 (K-A, D30).
 decl(fact, budget(oneof([laps]), int),
      'A lap budget; when there are several, the largest one counts.',
      'the budget is @(2) @(1)').
@@ -43,6 +45,10 @@ decl(fact, derived_from(ref(model), ref(model)),
 decl(fact, encodes(ref(model), ref(claim)),
      'A model states a claim, so the model can falsify the claim.',
      'model @(1) states claim @(2)').
+% D31 B5: the property of a model that states a claim, so that the report can show it.
+decl(fact, property(ref(model), ref(claim), text),
+     'The property of the model that states the claim: an SMT assertion or a TLA+ invariant, as written in the model.',
+     'model @(1) states claim @(2) with the property @(3)').
 decl(fact, finding(id, alt([root_cause(term), conflict(term), surprise(term), trace(term), scope(term)]), oneof([system, model])),
      'Something that the evidence showed, and the source of that evidence.',
      'finding @(1) is @(2), from the @(3)').
@@ -55,6 +61,11 @@ decl(fact, raised_by(ref(question), ref),
 decl(fact, discovery_evidence(ref, oneof([system, model])),
      'A subject or check, tagged as evidence from the current system or from a model.',
      '@(1) is evidence from the @(2)').
+% D30 H4 (0.3.0, K-A): the discovery orbit is open from the start of the KB until the
+% human approves the ticket after a GO, and again after a recorded return to discovery.
+decl(fact, discovery_end(ref(attest)),
+     'The human approval of the ticket that ended the discovery orbit: gate(go) held when the human approved it. Only orbit-kb attest approval writes it.',
+     'approval @(1) ended the discovery orbit after a GO').
 
 % --- Attestation types ---
 attest_type(reproduction,
@@ -84,7 +95,16 @@ attest_type(vote,
     [agent, human],
     'A vote at the GO / NO-GO gate: the round, then go, no_go, or hold. The agent votes first.').
 
+% D30 H4: a return to discovery (BACK) opens the discovery orbit again.
+attest_type(back,
+    back(text),
+    [agent, human],
+    'A return to discovery: the build cannot say what the hypothesis changes to, so the ticket is a report again. It opens the discovery orbit again.').
+
 % --- Rule declarations ---
+decl(rule, discovery_reopened(ref(attest)), 'A back attestation follows the discovery_end record of this approval in kb.pl. orbit-kb computes it when it reads the KB.', 'a return to discovery came after approval @(1)').
+decl(rule, discovery_closed, 'The human approved the ticket after a GO (discovery_end), and no return to discovery came after it. Readiness and the gate are not asked again.', 'the discovery orbit is closed').
+decl(rule, discovery_open, 'The discovery orbit is open: from the start of the KB until the human approves the ticket after a GO, and again after a return to discovery (a back attestation).', 'the discovery orbit is open').
 decl(rule, discovery_disproof_filed(ref(claim)), 'A disproof attestation refutes the claim.', 'a disproof of claim @(1) is filed').
 decl(rule, discovery_model_artifact(ref), 'The id is a model file, a solver log, or is tagged as model evidence.', '@(1) is a model artifact').
 decl(rule, discovery_system_evidence(ref), 'The id is tagged as system evidence and is not a model artifact.', '@(1) is evidence from the current system').
@@ -101,7 +121,7 @@ decl(rule, discovery_ratified(ref(claim)), 'A human answered a question about th
 decl(rule, discovery_disputed(ref(claim)), 'The claim is refuted, or a claim divergence contests it.', 'claim @(1) is disputed').
 decl(rule, discovery_unratified(ref(claim)), 'A claim that supersedes a disputed claim with no human answer behind it.', 'claim @(1) replaces a disputed claim without a human answer').
 decl(rule, discovery_budget_raised(int), 'A larger lap budget replaces this one.', 'a budget larger than @(1) laps exists').
-decl(rule, discovery_ready, 'Discovery is clean and ready for the human to decide GO, NO-GO, or HOLD.', 'discovery is ready for the human to decide').
+decl(rule, discovery_ready, 'Discovery is clean and ready for the human to decide GO, NO-GO, or HOLD. Once the discovery orbit is closed, it holds: readiness is asked only while the orbit is open.', 'discovery is ready for the human to decide').
 decl(rule, discovery_decide, 'The human must decide now: discovery is ready, or the budget is spent.', 'the human must decide now').
 decl(rule, model_run_of(ref(subject), ref(model)), 'The log is a run of the model at some digest.', 'log @(1) is a run of model @(2)').
 decl(rule, discovery_old_run(ref(subject), ref(model)), 'The log has a run of the model at a digest that is not the current one.', 'log @(1) has a run of an older digest of model @(2)').
@@ -324,8 +344,16 @@ gate_split :- human_vote(_), not discovery_gate_agreed.
 discovery_agent_voted(R) :- vote_cast(agent, R, _).
 discovery_vote_twin(A) :- attest(A, vote, _, vote(R, _), W, _), attest(B, vote, _, vote(R, _), W, _), A \= B.
 
-% --- The gate: clean only ---
-discovery_ready :- some_hypothesis, touched_system, discovery_has_outcome,
+% --- D30 H4: the open discovery orbit ---
+% discovery_reopened/1 has no clauses here: orbit-kb computes its facts from the order of
+% kb.pl, as later_verdict/1. Neither rule reads readiness or the vote, so the order of the
+% strata stays: the orbit, then readiness, then the vote.
+discovery_closed :- discovery_end(A), not discovery_reopened(A).
+discovery_open :- not discovery_closed.
+
+% --- The gate: clean only, and asked only while the discovery orbit is open (D30 H4) ---
+discovery_ready :- discovery_closed.
+discovery_ready :- discovery_open, some_hypothesis, touched_system, discovery_has_outcome,
     not some_untouched_hypothesis,
     not some_no_falsifier,
     not some_question_waits,
@@ -355,7 +383,7 @@ lint_issue('WD6', A, 'The problem did not reproduce on the current system. Tell 
     attest(A, reproduction, S, result(H, not_reproduced), _, _), discovery_system_evidence(S),
     not superseded(H).
 lint_issue('WD7', H, 'No result from the current system exists for this hypothesis. Reproduce it, or ask the human if it is a separate ticket.') :-
-    hypothesis(H, _, _), not superseded(H), not discovery_hypothesis_touched(H).
+    discovery_open, hypothesis(H, _, _), not superseded(H), not discovery_hypothesis_touched(H).
 lint_issue('WD8', A, 'This model result is on a log of an older digest of the model. It does not count. Run the solver again, into a new log.') :-
     attest(A, model_result, S, P, _, _), discovery_result_model(P, M), model_run_stale(S, M),
     not discovery_result_renewed(A).
