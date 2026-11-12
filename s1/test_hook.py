@@ -1002,6 +1002,14 @@ class SA3FormalTool(Base):
         yes = {"h_proof": {"type": "noul", "noul": 0.9}}
         self.assertIn("formal tool: z3 (0.90)", self.line(lang="z3", extra=yes))
 
+    def test_unsure_only_when_every_answer_is_unsure(self):
+        # review of 0.3.0 (finding 7): a confident tool that the rule holds back is not "unsure"
+        un = {"h_work": {"type": "choice", "choice": "build", "confidence": 0.3,
+                         "probabilities": {"build": 0.3}}}
+        got = self.line(div=0.5, plan=0.5, effort=0.5, lang="z3", lang_p=0.9, extra=un)
+        self.assertEqual(got, "System 1: no signal")
+        self.assertEqual(self.line(div=0.5, plan=0.5, effort=0.5, lang="z3", lang_p=0.3, extra=un), UNSURE_LINE)
+
     def test_the_line_gives_no_instruction(self):
         for kw in ({"div": 0.9, "plan": 0.9, "effort": 0.9}, {"effort": 0.95}, {"div": 0.9}):
             ctx = self.line(**kw)
