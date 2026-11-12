@@ -43,7 +43,7 @@ u4  (UAT U4) a numbered step before the commit step makes the project store of a
 lp  (review 2, finding 6) the informal HUB-CORE.md states the light path in its own paragraph, in its own words:
     an informal hub has no Sagittarius prompt, so the paragraph cites no prompt and names what brings review in.
 pr  (review 2, finding 10) PRINCIPLES.md cites the sections that its text comes from: "Start light" cites
-    "The light path" and "Signals" and names the six signals (a claim that burns too); the part with "only the
+    "The light path" and "Signals" and names the six signals (a claim that burns too, as "a claim that needs a proof"); the part with "only the
     work that the request needs" cites "The orbit"; no part says "not logs", which the prompt does not say.
 u6  (UAT U6) both CLAUDE.md templates (formal and informal) have a section for the human's own notes, such
     as a project order.
@@ -366,7 +366,7 @@ def pr():
         s, c = flat(parts[sl[0]]), cites[sl[0]]
         check("pr Start light cites The light path and Signals", "The light path" in c and "Signals" in c, c)
         for w, what in (("question", "questions"), ("disagree", "a divergence"), ("someone else built", "a build by someone else"),
-                        ("burns", "a claim that burns"), ("changes hands", "a handoff"), ("careful message", "effort")):
+                        ("needs a proof", "a claim that burns (in words without the KB term burn, which check_informal_release c3 bans)"), ("changes hands", "a handoff"), ("careful message", "effort")):
             check(f"pr Start light names the signal {what}", w in s, s[:300])
     for k, v in parts.items():
         if "only the work that the request needs" in flat(v):
