@@ -459,7 +459,8 @@ t_QS14() {  # every request but a valid POST /answer leaves every KB as it was
 }
 
 # QS17 (conformance, D26 S5 S6): the server against the Lean model kb/proofs/question_server
-# (#eval table). Rows: METHOD PATH HOST-OK TOKEN-OK ACTION, copied from the #eval output.
+# (#eval table). Rows: METHOD PATH HOST-OK TOKEN-OK ACTION. QS17 reads them from the #eval output
+# (qs17_rows); this copy is the table when lake is missing, and must equal the output.
 QS17_TABLE='get root 1 1 page|get root 1 0 page|get root 0 1 forbidden|get root 0 0 forbidden
 get answer 1 1 badMethod|get answer 1 0 badMethod|get answer 0 1 forbidden|get answer 0 0 forbidden
 get other 1 1 notFound|get other 1 0 notFound|get other 0 1 forbidden|get other 0 0 forbidden
@@ -472,11 +473,26 @@ put other 1 1 notFound|put other 1 0 notFound|put other 0 1 forbidden|put other 
 delete root 1 1 badMethod|delete root 1 0 badMethod|delete root 0 1 forbidden|delete root 0 0 forbidden
 delete answer 1 1 badMethod|delete answer 1 0 badMethod|delete answer 0 1 forbidden|delete answer 0 0 forbidden
 delete other 1 1 notFound|delete other 1 0 notFound|delete other 0 1 forbidden|delete other 0 0 forbidden'
+# qs17_rows: sets QS17_ROWS, the rows of the table (no subshell, so its note counts). With lake on PATH they come from the #eval output of the model
+# itself (lake env lean, about 0.5 s; the project has no packages), so the copy above cannot drift
+# from the model: a copy that differs is a failure. Without lake, the copy is the table.
+qs17_rows() {
+    local copy lean d=$here/../proofs/question_server
+    copy=$(printf '%s' "$QS17_TABLE" | tr '|' '\n')
+    if command -v lake >/dev/null 2>&1 && lean=$(cd "$d" && timeout 300 lake env lean QuestionServer.lean 2>&1); then
+        lean=$(printf '%s\n' "$lean" | grep -oE '\(QuestionServer\.Method\.[a-z]+, QuestionServer\.Path\.[a-z]+, (true|false), (true|false), QuestionServer\.Action\.[A-Za-z]+\)' \
+               | sed -E 's/QuestionServer\.[A-Za-z]+\.//g; s/[(),]//g; s/true/1/g; s/false/0/g')
+        [ "$lean" = "$copy" ] || note "the copy QS17_TABLE differs from the #eval table of QuestionServer.lean: $(diff <(printf '%s\n' "$copy") <(printf '%s\n' "$lean") | head -n 4 | tr '\n' '~')"
+        QS17_ROWS=$lean
+    else
+        QS17_ROWS=$copy
+    fi
+}
 t_QS17() {  # every row of the model's table: the HTTP status of its action; only the answer row writes
     kb_a "$T/a"; srv --dir "$T/a" || return
     page_ok || return; local tok kb port=${URL##*:}; tok=$(token); kb=$(pg kbval "$T/page.html" "$L_A")
     local rows n=0 m p h t act want path hostarg tokarg
-    rows=$(printf '%s' "$QS17_TABLE" | tr '|' '\n')
+    qs17_rows; rows=$QS17_ROWS
     while read -r m p h t act; do
         [ -n "$m" ] || continue; n=$((n+1))
         case $act in page) want=200;; answer) want=303;; forbidden) want=403;; badMethod) want=405;; notFound) want=404;; esac
