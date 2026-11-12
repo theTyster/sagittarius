@@ -88,6 +88,7 @@
 #   RD  readiness and the vote: examples, preserve checks, calibration, red system runs, the gate (D33, 0.3.0 K-D) : RD1-RD6
 #   VN  the version of the tool: version, help, init, a link and a copy (D34, 0.3.0 V-A) : VN1-VN3
 #   SG  signals have records: signal/4, lean_back/2, further requests, report Signals (D35, 0.3.0 K-G) : SG1-SG4
+#   HE  the help follows the prompt: the human says it is wrong, back, the hypothesis, one lens (D36, 0.3.0 K-E) : HE1-HE5
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -2307,6 +2308,52 @@ t_SG4() { hy_build "$T/b"; okb --dir "$K" report; rc_is 0
           printf '%s\n' "$s" | grep -qx '  - burns: no.' || note "a visual claim does not burn when contested (D21 F6): [$(printf '%s' "$s" | tr '\n' '~')]"
           okb --dir "$K" report --html "$T/r.html"; grep -qF 'divergence: yes.' "$T/r.html" || note "the page prints the signals"; }
 
+# HE (D36, c_k_e_1 to c_k_e_5): the help follows the prompt (0.3.0). The tests read the help as text,
+# with white space joined, because the wording may wrap anywhere.
+he_text() { timeout 20 "$OKB" help "$@" 2>&1 | tr '\n' ' ' | tr -s ' '; }
+t_HE1() { local hb; hb=$(he_text build)
+          grep -qE 'Kept: .*Changed: ' <<< "$hb" || note "help build has the line Kept: ... Changed: ..."
+          grep -qiP 'misread[^.]*\. [^.]*divergence|misread.{0,200}divergence' <<< "$hb" || note "help build: a misread is a divergence on its claim"
+          grep -qiP 'intent moved.{0,300}supersedes.{0,300}no divergence' <<< "$hb" || note "help build: the intent moved: a new claim supersedes, and no divergence"
+          grep -qiP 'adds to the result.{0,200}new ticket' <<< "$hb" || note "help build: a wish that adds to the result is a new ticket"
+          grep -qiP 'cannot tell.{0,200}divergence' <<< "$hb" || note "help build: if you cannot tell, say so, and treat it as a divergence"; }
+t_HE2() { local hb hd h0; hb=$(he_text build); hd=$(he_text discovery); okb help; h0=$out
+          grep -qF 'If the problem is wrong, run orbit-kb uses discovery, and go back to discovery' <<< "$hb" && note "help build sends every wrong problem back to discovery"
+          grep -qE 'supersedes\(h2, ?h1\)' <<< "$hb" || note "help build has the recipe to restate the hypothesis: supersedes(h2, h1)"
+          grep -qiE 'no longer say what (the hypothesis|it) changes to' <<< "$hb" || note "help build: discovery only when you can no longer say what the hypothesis changes to"
+          grep -qF 'When a divergence shows that the problem is wrong, not the build, file a disclosure, and run orbit-kb uses discovery' <<< "$hd" && note "help discovery BACK takes every wrong problem back"
+          grep -qiP 'BACK.{0,400}no longer say what' <<< "$hd" || note "help discovery BACK: only when the agent can no longer say what the hypothesis changes to"
+          grep -qF '"why?" question' <<< "$h0" && note "the first help screen sends a why? question to discovery"
+          grep -qF 'you no longer agree with the human on the problem' <<< "$(tr '\n' ' ' <<< "$h0" | tr -s ' ')" && note "the first help screen sends a disagreement on the problem to discovery"
+          return 0; }
+t_HE3() { local hd; hd=$(he_text discovery)
+          grep -qF 'two falsifiers' <<< "$hd" || note "help discovery: the hypothesis has two falsifiers"
+          grep -qiF 'the system is the witness' <<< "$hd" && grep -qiF 'the human is the witness' <<< "$hd" || note "help discovery: each falsifier has its witness, the system and the human"
+          grep -qF 'Then say that the system can fail to give it' <<< "$hd" && note "help discovery still puts the failure into the hypothesis"
+          grep -qF 'decide its points. Some purchases get a different' <<< "$hd" && note "the example hypothesis still holds the finding"
+          grep -qiP 'finding about the system.{0,200}apart' <<< "$hd" || note "help discovery keeps the finding apart from the hypothesis"
+          grep -qiE 'Premise: the points table did not change' <<< "$hd" || note "the example hypothesis has its premise beside it"
+          grep -qF 'in the scope of the report' <<< "$hd" && note "help discovery says scope"
+          grep -qiE '\bwide\b' <<< "$hd" || note "help discovery: the hypothesis is wide"
+          grep -qF 'backbone of discovery' <<< "$hd" && note "help discovery: the backbone of discovery"
+          grep -qiE 'law of (its|the|every) ticket' <<< "$hd" || note "help discovery: the hypothesis is the law of its ticket"
+          kb_init "$T/k" discovery; okb --dir "$K" show kinds; out_hasnt 'falsifiable and scoped' "show kinds: hypothesis/3 is not scoped"; }
+t_HE4() { local hd; hd=$(he_text discovery)
+          grep -qF 'and the rules alone in SMT, with the same claim ids' <<< "$hd" && note "SPECTRUM writes one claim in two formal languages by default"
+          grep -qiE 'one formal language (at a time|first)' <<< "$hd" || note "help discovery: one formal language first"
+          grep -qiE 'second (one|language) only when a question is left' <<< "$hd" || note "help discovery: a second language only when a question is left"
+          grep -qiP 'HANDOFF.{0,1500}(one formal language|second language only)' <<< "$hd" || note "HANDOFF follows one language first"; }
+t_HE5() { local h0 hc hb; okb help; h0=$(printf '%s' "$out" | sed -n '/How to use/,/Topics:/p')
+          grep -qi 'hypothesis' <<< "$h0" || note "the steps of the first help screen name the hypothesis"
+          local nh nc; nh=$(grep -n -i 'hypothesis' <<< "$h0" | head -1 | cut -d: -f1); nc=$(grep -n "claim(" <<< "$h0" | head -1 | cut -d: -f1)
+          [ -n "$nh" ] && [ -n "$nc" ] && [ "$nh" -le "$nc" ] || note "the hypothesis comes before the claims in the steps (lines $nh, $nc)"
+          okb help core; hc=$out
+          [ "$(grep -n 'hypothesis(Id' <<< "$hc" | head -1 | cut -d: -f1)" -lt "$(grep -n 'claim(Id' <<< "$hc" | head -1 | cut -d: -f1)" ] || note "help core lists the hypothesis before the claim"
+          grep -q 'premise(P' <<< "$hc" || note "help core lists premise"
+          hb=$(he_text build)
+          grep -qF 'record the request, your claims, and the checks so far' <<< "$hb" && note "help build starts a KB on a divergence with no hypothesis"
+          grep -qiP 'shift up.{0,300}hypothesis' <<< "$hb" || note "help build starts the KB with the hypothesis"; }
+
 # ================================================================ WN: whynot, Y: why
 t_WN1() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'current(c1)'; rc_is 0; [ "$(first_line)" = holds ] || note "first line '$(first_line)'"; out_has 'because' "the clauses that prove it"; }
 t_WN2() { # D20: absent names, for each rule, the literal that blocks, and why
@@ -3804,6 +3851,11 @@ run_test t_SG1 SG1 "0.3.0 c_k_g_1: signal(Id, Kind, NoticedBy, Text): the six ki
 run_test t_SG2 SG2 "0.3.0 c_k_g_2: lean_back(Id, Text); report Signals prints it"
 run_test t_SG3 SG3 "0.3.0 c_k_g_3: a decision of the human is a further request in their words; report KB prints each request"
 run_test t_SG4 SG4 "0.3.0 c_k_g_4b: report Signals comes from the records: signal facts, divergence attestations, burns"
+run_test t_HE1 HE1 "0.3.0 c_k_e_1: help build gives the three cases of the human says it is wrong, after Kept/Changed"
+run_test t_HE2 HE2 "0.3.0 c_k_e_2: back to discovery only when the agent cannot say what the hypothesis changes to"
+run_test t_HE3 HE3 "0.3.0 c_k_e_3: help discovery states the hypothesis as the prompt: two falsifiers, witnesses, wide, the finding apart"
+run_test t_HE4 HE4 "0.3.0 c_k_e_4: SPECTRUM and HANDOFF: one formal language first, a second only when a question is left"
+run_test t_HE5 HE5 "0.3.0 c_k_e_5: the first help screen and help core put the hypothesis before the claims; help build too"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"
