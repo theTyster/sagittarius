@@ -44,6 +44,9 @@ CASES = [
     (["docs/check_prompt_small.py"], P, " Ask at most\nthree questions a round.", "", "the three-questions rule is gone"),
     (["docs/check_prompt_small.py"], P, "Do not edit a KB file by hand. ", "", "the no-hand-edit rule is gone"),
     (["docs/check_prompt_small.py"], P, "Seal your vote before the report. ", "", "the seal-the-vote rule is gone"),
+    (["docs/check_prompt_small.py"], P, "- discovery: research, specify.", "- discovery: explore.", "the phases of discovery are gone"),
+    (["docs/check_prompt_small.py"], P, "- build: build, verify.", "- build: make.", "the phases of build are gone"),
+    (["docs/check_prompt_small.py"], P, "significant effort or verbosity from the human", "a long message", "the effort signal lost its words"),
     # c4 holds the route of a report in PANES.md, not four words anywhere in it (review finding 5)
     (["docs/check_consistency.py", "c4"], "prompt/PANES.md",
      "Intake is where new work starts: it finds the ticket that a\n  report is about and hands the report to the pane that holds it; a report with no ticket it\n  judges (regression or gap) and sends to discovery. ",
