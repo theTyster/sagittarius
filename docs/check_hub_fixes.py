@@ -289,7 +289,7 @@ def t51c5():
 
 
 # ---- install UX (discovery GO 2026-11-11) ----
-CO_HUB = re.compile(r"prompt/(PANES|SAGITTARIUS)\.md|(?<![\w.\-/])kb/bin/|(?<![\w.\-/])kb/share/|kb/tests/|hubkit/|docs/[A-Z]+\.md|site/")
+CO_HUB = re.compile(r"prompt/(PANES|SAGITTARIUS)\.md|(?<!orbit-)kb/bin/|(?<!orbit-)kb/share/|kb/tests/|hubkit/|docs/[A-Z]+\.md|site/")
 HUBKIT = os.path.join(ROOT, "hubkit", "tools", "hubkit.py")
 
 
