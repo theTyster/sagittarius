@@ -60,6 +60,14 @@ CASES = [
      "The **MindHole** is the hub", "the kit README says the MindHole is the hub"),
     (["docs/check_mindhole.py", "mb7"], "hubkit/editions/informal/.claude/skills/hub-flow/SKILL.md",
      '$HF note T-0002 "vote: GO: ', '$HF note T-0002 "ballot: ', "the informal skill lost the vote note"),
+    # 0.3.0 c_sg5b: a retired term in a text that an agent reads
+    (["docs/check_terms.py"], "prompt/PANES.md", "A handoff is a signal", "A handoff is a trigger",
+     "PANES.md calls a handoff a trigger (the term is signal)"),
+    # 0.3.0 c_sg4b: the prompt gives the sentence with a cause another verdict than the Lean file and the help
+    (["docs/check_examples.py", "c1"], P, '- Too strong: "The tier is read from a cache that loads once."',
+     '- Fit: "The tier is read from a cache that loads once."', "the prompt calls the sentence with a cause Fit (Lean)"),
+    (["docs/check_examples.py", "c2"], P, '- Too strong: "The tier is read from a cache that loads once."',
+     '- Fit: "The tier is read from a cache that loads once."', "the prompt calls the sentence with a cause Fit (help)"),
 ]
 
 
