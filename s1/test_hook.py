@@ -897,7 +897,7 @@ class T43C2NoRedaction(Base):
         self.assertEqual(p.stdout.strip(), "")
 
     def test_t43_c2_docs_say_complete_messages_with_no_redaction(self):
-        for rel in ("s1/README.md", "site/index.html"):
+        for rel in ("s1/README.md",):
             with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
                 text = " ".join(f.read().split())
             self.assertNotIn("S1_REDACT", text, rel)

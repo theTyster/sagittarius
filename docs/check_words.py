@@ -63,7 +63,6 @@ def c1():
 #   prompt:SECTION   the text of "## SECTION" in prompt/SAGITTARIUS.md, up to the next "## "
 #   help:TOPIC       kb/share/orbit-kb/help/TOPIC.txt
 #   file:PATH        the file at PATH
-#   slide:N          slide sN of site/index.html
 APPLIED = {
     1: {"prompt:Roles": [r"human owns the intent"],
         "prompt:The phase tree": [r"against the human's vote"],
@@ -80,9 +79,7 @@ APPLIED = {
         "prompt:Start light": [r"must fail before the change"]},
     7: {"prompt:Start light": [r"start light"],
         "prompt:When to shift up": [r"leaning back", r"effort"],
-        "file:s1/hook.py": [r"effort"],
-        "slide:12": [r"tiers"],
-        "slide:30": [r"signal"]},
+        "file:s1/hook.py": [r"effort"]},
     8: {"prompt:Purpose": [r"speed never comes from hiding"],
         "prompt:Delivery": [r"waiver"]},
     9: {"prompt:Honesty rules": [r"match your words to your evidence", r"in discovery"]},
@@ -90,8 +87,7 @@ APPLIED = {
          "prompt:Where the procedure is": [r"never type a digest"],
          "help:core": [r"never type a digest"]},
     11: {"prompt:When to shift up": [r"a claim that burns"],
-         "help:discovery": [r"\bspectrum\b"],
-         "slide:14": [r"lean", r"prolog"]},
+         "help:discovery": [r"\bspectrum\b"]},
     12: {"prompt:Where the procedure is": [r"do not rely on what you remember"],
          "prompt:When to shift up": [r"a handoff"],
          "help:build": [r"supersedes a burning claim needs its own proof"]},
@@ -126,9 +122,6 @@ def targets(line):
             keys.append("help:" + topic)
         for path in re.findall(r"`([\w./-]+\.(?:py|md|sh|html))`", part):
             keys.append("file:" + path)
-        if "slide" in part:
-            for n in re.findall(r"\b(\d+)\b", part):
-                keys.append("slide:" + n)
     return keys
 
 
@@ -143,10 +136,6 @@ def target_text(key):
         return read(os.path.relpath(p, ROOT)) if os.path.exists(p) else None
     if kind == "file":
         return read(name) if os.path.exists(os.path.join(ROOT, name)) else None
-    if kind == "slide":
-        page = read("site/index.html")
-        m = re.search(r'<section class="slide" id="s%s"[^>]*>(.*?)</section>' % name, page, re.S)
-        return re.sub(r"<[^>]+>", " ", m.group(1)) if m else None
     return None
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T31: an agent in a hub can run what the hub guidance tells it. One check per claim.
 
-usage: python3 docs/check_hub_fixes.py t31c3|...|t31c9|t46c3|t49c1|t51c5|iuxc1|iuxc3k|iuxc6 (t31c7 is superseded by t31c8, t46c2 by t46c3, t31c1 and t31c2 by iuxc3k) [--list]   (--list prints the claim ids)
+usage: python3 docs/check_hub_fixes.py t31c3|...|t31c9|t46c3|t49c1|t50c1|t50c2|t50c4|t51c5|iuxc1|iuxc3k|iuxc6 (t31c7 is superseded by t31c8, t46c2 by t46c3, t31c1 and t31c2 by iuxc3k) [--list]   (--list prints the claim ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 t31c1 runs the project KB setup line that hubkit/INSTRUCTIONS.md (and hubkit/README.md, when it has one) gives.
@@ -32,6 +32,10 @@ iuxc3k (install UX c3; supersedes t31c1 and t31c2) the project KB setup line of 
 iuxc6 (install UX c6) a normal install runs no test suite and ends with hubkit status and hubflow check, each with
       a reason for the user; a UAT install (step 1 asks; install --uat records it) also runs the plain suite and
       the mutants, with the reason that they test the kit.
+t50c1 (retire) the repo has no microsite: neither the deck directory nor the Pages workflow is in the tree, and no
+      tracked file outside tmp/ names the deck files, their build and check scripts, or the workflow.
+t50c2 (retire) README.md, CLAUDE.md and docs/PHILOSOPHY.md do not point at the decks.
+t50c4 (preserve) hubkit/docs/index.html stays: the local briefing that step 1 of hubkit/INSTRUCTIONS.md opens.
 """
 import json
 import os
@@ -85,7 +89,7 @@ def t31c1():
             check(f"t31c1 {f}: `{cmd}` exits 0", p.returncode == 0, f"exit {p.returncode}: {p.stderr.strip()[:200]}")
 
 
-CO = re.compile(r"prompt/(PANES|SAGITTARIUS)\.md|kb/bin/|kb/share/|kb/tests/|hubkit/|docs/[A-Z]+\.md|site/")
+CO = re.compile(r"prompt/(PANES|SAGITTARIUS)\.md|kb/bin/|kb/share/|kb/tests/|hubkit/|docs/[A-Z]+\.md")
 PLACE = re.compile(r"checkout|Sagittarius repository|installed|on PATH|on your PATH", re.I)
 
 
@@ -399,13 +403,56 @@ def iuxc6():
     check("iuxc6 hubkit.py --help names --uat", "--uat" in h.stdout, h.stdout[:200])
 
 
+def git(*args):
+    return subprocess.run(["git"] + list(args), cwd=ROOT, capture_output=True, text=True)
+
+
+# The names are split so this file does not name them itself (t50c1 scans every tracked file).
+T50_GONE = ("si" "te/index.html", "si" "te/essentials.html", "build_" "essentials", "check_" "essentials",
+            "si" "te/check_names.sh", "pages" ".yml")
+T50_PATHS = ("si" "te", ".github/workflows/pages" ".yml")
+
+
+def t50c1():
+    for p in T50_PATHS:
+        check(f"t50c1 {p} is not on disk", not os.path.exists(os.path.join(ROOT, p)), "present")
+        g = git("ls-files", "--", p)
+        check(f"t50c1 {p} is not tracked", g.returncode == 0 and not g.stdout.strip(), g.stdout[:200] + g.stderr[:200])
+    for name in T50_GONE:
+        g = git("grep", "-n", "-F", name, "--", ".", ":!tmp")
+        check(f"t50c1 no tracked file outside tmp/ names {name}", g.returncode == 1, g.stdout[:300] + g.stderr[:200])
+
+
+def t50c2():
+    deck = re.compile(r"\bsite/|github\.io|\bdecks?\b|\bslides?\b", re.I)
+    for p in ("README.md", "CLAUDE.md", "docs/PHILOSOPHY.md"):
+        for i, ln in enumerate(read(os.path.join(ROOT, *p.split("/"))).splitlines(), 1):
+            m = deck.search(ln)
+            check(f"t50c2 {p}:{i} does not point at the decks", m is None, ln.strip())
+    claude = read(os.path.join(ROOT, "CLAUDE.md"))
+    check("t50c2 CLAUDE.md has no Decks row", "| Decks |" not in claude, "row present")
+
+
+def t50c4():
+    p = os.path.join(ROOT, "hubkit", "docs", "index.html")
+    check("t50c4 hubkit/docs/index.html is on disk", os.path.isfile(p), "missing")
+    g = git("ls-files", "--", "hubkit/docs/index.html")
+    check("t50c4 hubkit/docs/index.html is tracked", g.stdout.strip() == "hubkit/docs/index.html", g.stdout + g.stderr)
+    check("t50c4 the briefing is the hubkit briefing", "hubflow-starter" not in read(p) and "hub kit" in read(p).lower(),
+          read(p)[:200])
+    ins = read(os.path.join(ROOT, "hubkit", "INSTRUCTIONS.md"))
+    m = re.search(r"^## Step 1[^\n]*\n(.*?)(?=^## )", ins, re.S | re.M)
+    step1 = m.group(1) if m else ""
+    check("t50c4 Step 1 of hubkit/INSTRUCTIONS.md opens docs/index.html", "`docs/index.html`" in step1, step1[:300])
+
+
 # t46c2 is superseded by t46c3: its Step 5 check conflicts with t32c2. It stays above as the record.
 # t31c7 is superseded by t31c8 (u47): its second check pinned the T29 wording, which u47 says is too narrow.
 # The function stays above as the record. It is no longer a claim of this file.
 # t31c1 and t31c2 are superseded by iuxc3k (install UX c3): the setup line runs the hub's own orbit-kb at
 # .claude/orbit-kb/bin/orbit-kb, which the t31c1 pattern does not match and the t31c2 scan reads as the checkout's
 # kb/bin/. Both functions stay above as the record; iuxc3k reruns the t31c2 scan with the narrower pattern.
-CLAIMS = {k: globals()[k] for k in ("t31c3", "t31c4", "t31c5", "t31c6", "t31c8", "t31c9", "t46c3", "t49c1", "t51c5",
+CLAIMS = {k: globals()[k] for k in ("t31c3", "t31c4", "t31c5", "t31c6", "t31c8", "t31c9", "t46c3", "t49c1", "t50c1", "t50c2", "t50c4", "t51c5",
                                       "iuxc1", "iuxc3k", "iuxc6")}
 
 if __name__ == "__main__":
