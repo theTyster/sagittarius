@@ -54,7 +54,9 @@ kit's own (`unchanged`); `hubflow.py check` shows you that the ledger and its gi
 install of the kit runs them). `--edition informal|formal` chooses the edition (informal when
 omitted; which `orbit-kb` is on the PATH plays no part), `.hub-template.json` records it, and an
 upgrade keeps it. `hubkit.py edition --hub "$HUB" formal` switches a hub later (a dry run without
-`--yes`). For a guided setup, give this directory to your agent and say: **"follow
+`--yes`). A formal hub also records what it runs (its orbit-kb copy, the
+Sagittarius prompt and the pane files, each with its version) and `hubkit.py status` prints them in
+its `runs` lines: each MindHole runs its own pinned version. For a guided setup, give this directory to your agent and say: **"follow
 INSTRUCTIONS.md"**. It asks you first what the hub is for, and keeps your answer word for word in the
 hub's `CLAUDE.md`; then where the hub lives, its sessions and people, its tracker, and whether this is
 a UAT install. It sets up the hub and checks each step.

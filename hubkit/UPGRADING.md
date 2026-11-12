@@ -58,10 +58,153 @@ skill's `LOCAL.md`, then copy the release's engine files and run
 `python3 "$KIT"/tools/hubkit.py install --hub <an empty dir>` to get a manifest to copy in. Ask your
 human before you start; this is a one-time merge.
 
+Lessons from a real migration (2026-11-12). Do them in this order, and ask your human before each
+step that writes.
+
+1. **Local rules: synthesize them into the shipped rules.** The human's ruling: "synthesize local
+   rules into shipped rules. If there are problematic conflicts, you can bring them to me." So each
+   shipped `SKILL.md` and `HUB-CORE.md` stays as shipped. A local rule that the kit does not have
+   goes to the skill's `LOCAL.md` (or to `CLAUDE.md` for a rule of the whole hub). A local rule that
+   the kit already has, in other words, is dropped. Only a real conflict (the local rule and the
+   shipped rule ask for different things) goes to the human, with both texts side by side.
+2. **Old asks and work in flight: import them into the ledger.** A hub of the first starter kit
+   keeps asks and in-flight lines in its week files (`W*/WEEK.md`). Write one JSONL row per line
+   for `python3 .claude/scripts/hubflow.py import FILE`: `kind` (`ask`, `thread` or `hold`),
+   `title`, `waits_on` for an ask, no `owner` (the owner is none until a session takes the item),
+   and a `note` that holds the old row text word for word and the date and week file it came from.
+   Run the dry run first (`hubflow.py import FILE`, no `--yes`): it prints the counts by kind, owner
+   and waits-on, and the rejected lines. Show the counts to your human; run `--yes` only after they
+   approve the count. Then `hubflow.py check` (exit 0) and commit `flow/jsonl/`.
+3. **Moving the hub directory.** Claude Code keeps each session under
+   `~/.claude/projects/<the cwd with each / as ->`. Before the first session starts in the new
+   place, copy every `~/.claude/projects/<old-cwd-name>*` directory to the same name with the new
+   path, so that `claude --resume "hub-<name>"` finds the session and appends to it in the new
+   place. Copy; do not move, until the human has resumed each role once.
+4. **References outside the hub.** Update every path to the old directory: the parent directory's
+   `CLAUDE.md`, symbolic links in git worktrees, terminal and tmux profiles (the launcher lines),
+   `.claude/settings.local.json`, and `.claude/scheduled_tasks.json` with its `.lock` file (stop the
+   scheduled tasks first; remove a stale `.lock` only when no session runs). Search for the old path
+   with `grep -rn` in each of these places; list each change for your human.
+5. **Tell the running sessions.** A session that started before the migration still holds the old
+   rules and paths. Send each one a short text, for example: "This hub moved to <new path> and now
+   runs MindHole <version>. Stop, then resume in the new place with your launcher line
+   (`--resume "hub-<name>"`). Read your inbox first (`hubflow.py view v_inbox --session
+   <name>`): your open asks and work in flight are ledger items now. Local rules are in each skill's
+   `LOCAL.md`."
+
 ## Release sections
 
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
+
+### 0.7.0 (Sagittarius 0.3.0 alignment; db schema 6: the session index is dropped)
+
+This release pairs with Sagittarius 0.3 (0.3.0). The version 0.7.0 is a guess of the build: it
+moves with the db schema (5 -> 6), above 0.6.0; the human has not confirmed it. The db schema is 6.
+**Database:** every hub at schema 5 (0.5.1 to 0.6.0) runs
+`python3 .claude/scripts/hubflow.py migrate` once, then `hubflow.py check`. Engine files changed since 0.6.0: `HUB-CORE.md`,
+`PRINCIPLES.md`, `.claude/scripts/hubflow.py`, `.claude/scripts/hubflow-test.py`, both `SKILL.md`,
+`.claude/skills/hub-rotate/scripts/check-citations.py`, and in a formal hub the orbit-kb copy under
+`.claude/orbit-kb/` (`share/orbit-kb/VERSION` and `share/orbit-kb/help/shift.txt` are new files).
+Replace each engine file the hub did not change; merge the others by intent. Owned file
+`CLAUDE.md`: add one section by hand (below); it still imports the principles (`@PRINCIPLES.md`
+below `@HUB-CORE.md`, see 0.4.0). A hub that skipped 0.6.0 reads that section too.
+
+- **The session index is dropped (db schema 6).** Intent: the hub keeps no index of Claude Code
+  session logs. The human cut the feature on 2026-11-12 ("I want to cut this feature. 'drop it'"):
+  it came from a misunderstanding, since the transcripts that matter are meeting transcripts. Gone:
+  `hubflow.py index-transcripts`, `transcripts` with no flag and `transcripts --detail`, the tables
+  `transcript` and `transcript_msg` with their JSONL, and the re-index of `rotate --yes` (no
+  `transcripts_reindexed:` line). Kept: meeting transcripts in `W*/transcripts/`, the `transcript:`
+  ref, `transcripts --files` and `--find`, the `summary` item kind, capsules. The schema 5 -> 6 step
+  of `migrate` drops the two tables and removes `flow/jsonl/transcript.jsonl` and
+  `transcript_msg.jsonl` (git history keeps them; commit the removal). Files:
+  `.claude/scripts/hubflow.py`, `.claude/scripts/hubflow-test.py`, `HUB-CORE.md` ("What lives
+  where", the weeks row; "What a week holds"), `.claude/skills/hub-flow/SKILL.md` ("Read",
+  "Transcripts"), `.claude/skills/hub-rotate/SKILL.md` (step 5). A hub script or `LOCAL.md` that runs
+  `index-transcripts` or reads `transcripts_reindexed:`: drop that step. Check: after `migrate`,
+  `hubflow.py check` exits 0, and `ls flow/jsonl/transcript*.jsonl` finds nothing.
+- **The inbox rule is the hub's own (M-B).** Intent: in a hub, every session reads its inbox first,
+  at session start and after every compaction, from the hub's own text (the prompt names no hub
+  tool): `python3 .claude/scripts/hubflow.py view v_inbox --session "$HUB_SESSION"`, then each item's
+  refs (in a formal hub: `hubflow.py where <slug>`, then `.claude/orbit-kb/bin/orbit-kb show open`
+  there). Files: `HUB-CORE.md` ("Flow state lives in the db", both editions). Check: that section
+  names `v_inbox`, the session start and the compaction.
+- **The store map gets the vote, and new descriptions (M-B).** Intent: the vote that ends discovery
+  (GO, NO-GO or HOLD) has a home: the spec KB in a formal hub, a note `vote: GO: ...` on the ticket's
+  thread in an informal hub; the hypothesis is "what the human wants for this ticket", and models
+  are solver and model-checker models and Lean definitions and theorems. The informal map keeps a
+  divergence as a note `divergence: ...` on the ticket's thread (it was "not kept"). Files:
+  `HUB-CORE.md` ("What lives where": 30 fact kinds; the informal map), the informal
+  `.claude/skills/hub-flow/SKILL.md` (two example notes and a paragraph after "A verdict"). Check:
+  `python3 "$KIT"/tools/storemap.py --hub-core HUB-CORE.md --check` exits 0 in a formal hub that did
+  not change the maps.
+- **The new `PRINCIPLES.md` comes from the prompt (M-C).** Intent: the hub's principles are the
+  Sagittarius 0.3.0 prompt in plain words; each part names the sections of the prompt it comes from
+  ("From the prompt: ..."), not a section of the philosophy. "Start light" names the six signals,
+  with a claim that needs a proof. The file stays at 60 lines or fewer. Files: `PRINCIPLES.md`. A hub
+  that changed it keeps its own lines and merges each part by intent. Check: each `## ` part has a
+  line `From the prompt:`.
+- **A hub has a light path (M-E).** Intent: a clear change with no signal is delivered by the
+  session that made it, with its check, and with no spec KB and no review; a signal (or the human)
+  brings the spec KB and the review pane. In the informal edition the paragraph says it in its own
+  words, and the maker closes after a pass only when review came in. Files: `HUB-CORE.md` ("Panes"
+  in the formal edition, "Verify" in the informal one). Check: `grep -c "light path" HUB-CORE.md`
+  prints 1 or more.
+- **A handoff carries its kb ref (M-F).** Intent: the receiver of a handoff finds the KB from the
+  row: the handoff example of the formal skill is `$HF handoff --to build --title "…" --ref kb:<slug>
+  --ref issue:123 --note "where to start"`. The pane prompt `PANES.md` (outside the hub, appended by
+  the launcher) also has the receiver record the handoff in the KB as a signal (`orbit-kb add
+  "signal(s1, handoff, agent, '...')"`). Files: `.claude/skills/hub-flow/SKILL.md` (formal edition).
+  Check: `hubflow-test.py --case case_030_handoff_example` passes.
+- **A closed ticket proposes its lasting outcomes (M-F).** Intent: before the spec-triage decision
+  (always before an archive), the agent proposes each lasting outcome of the ticket to the project
+  KB and lists the proposals in its report for the human to ratify. Files: both formal skills
+  (`hub-flow` "Spec KBs", `hub-rotate` steps 4 and 7). A hub that changed its rotation steps adds
+  this before its `spec-triage` step. Check: the `hub-rotate` skill says "propose each lasting
+  outcome".
+- **What the hub runs (M-D).** Intent: each MindHole runs its own pinned version. `install` and
+  `upgrade --yes` record in `.hub-template.json` (`runs`) the orbit-kb copy and its version, the
+  prompt that the launcher appends (`~/.claude/sagittarius/SAGITTARIUS.md`, with its Sagittarius
+  version and sha256) and the pane files (`PANES.md`, `panes/<role>.md`); `hubkit.py status` prints
+  them in `runs` lines and says whether the files there are still the same. The pane launcher sets
+  `HUB_SESSION` and appends the prompt: `cd "$HUB" && p=~/.claude/sagittarius &&
+  HUB_SESSION=<name> command claude --name "hub-<name>" --append-system-prompt "$(cat
+  "$p/SAGITTARIUS.md" "$p/PANES.md" "$p/panes/<name>.md")"` (`INSTRUCTIONS.md`, "The formal
+  edition"). No hub file changes; `tools/hubkit.py` writes the manifest. Check: after the upgrade,
+  `hubkit.py status` prints `runs prompt: ... the file there: same`. If it says `differs`, the panes
+  run another prompt than this kit's: tell your human.
+- **The orbit-kb copy is Sagittarius 0.3.0 and carries its version (formal edition).** Intent: the
+  hub's own orbit-kb is the one this kit was tested with. New in it: `orbit-kb version` (it reads
+  `share/orbit-kb/VERSION`, a new file of the copy), the hypothesis and its premises in every KB,
+  `signal/4`, `lean_back/2`, `orbit-kb shift` and `help shift`, and the discovery orbit that stays
+  open until the human approves the ticket after a GO. The plan shows `replace` (or `merge` for a
+  file the hub changed) for `bin/orbit-kb` and the changed `share/` files, and `add` for the new
+  ones. Check: `.claude/orbit-kb/bin/orbit-kb version` prints `orbit-kb 0.3.0`, and
+  `.claude/orbit-kb/bin/orbit-kb --dir project-kb lint` ends `0 error(s)`.
+- **`init` prints one line (UAT U5).** Intent: an agent sees that the db was made:
+  `initialized <flow dir>/flow.db: schema 6, N sessions, M people`. Exit codes and files do not
+  change. A hub script that wraps `init` and expects no output: allow the line. Files:
+  `.claude/scripts/hubflow.py`. Check: `hubflow-test.py --case case_init` passes.
+- **The test suite streams, and follows the changes (UAT U2).** Intent: `hubflow-test.py --mutants`
+  prints one line per mutant as each one ends, so a log shows progress. New cases:
+  `case_030_handoff_example`, `case_030_session_index_dropped`, `case_k3_citations_hub_name`; new
+  mutants `init-prints-nothing` and `session-index-kept`; the session index cases and mutants are
+  gone. Files: `.claude/scripts/hubflow-test.py`. A hub that changed it: merge
+  `sys.stdout.reconfigure(line_buffering=True)` at the start of `main()` and the new cases. Check:
+  only a UAT upgrade runs the suites (step 7).
+- **check-citations reads the hub's own directory name (review 2, finding 13).** Intent: a hub in a
+  directory named `mindhole` that writes `mindhole/W0/reports/a.md` gets that citation checked across
+  a rotation; `hub/W0/...` still counts. Files:
+  `.claude/skills/hub-rotate/scripts/check-citations.py`. Check: `hubflow-test.py --case
+  case_k3_citations_hub_name` passes.
+- **The kit is the MindHole.** Intent: line 3 of `HUB-CORE.md` (both editions) says "This file ships
+  with the MindHole (the kit that made this hub)"; `hubkit.py` prints `installed MindHole X`, `hub
+  from MindHole X (...); this kit MindHole Y` and `upgrade MindHole X -> MindHole Y`. A hub script that
+  reads the old lines (`installed template`, `hub template`, `upgrade X -> Y`) must read the new ones.
+- **Owned file `CLAUDE.md`: a section for the human's notes (UAT U6).** Intent: the human has a place
+  for their own notes, such as a project order. An upgrade never writes `CLAUDE.md`: add the section
+  `## Your notes` by hand, below "What this hub is for", if the human wants it.
 
 ### 0.6.0 (the install experience: what the hub is for, its own orbit-kb, no shell; db schema stays 5)
 
@@ -100,7 +243,8 @@ intent. Owned file `CLAUDE.md`: add one section by hand (below); it still import
   not the hub, so only a UAT install (one that tests the kit) runs them; a normal install ends with
   `hubkit.py status` and `hubflow.py check`. `hubkit.py install --uat` records a UAT install in
   `.hub-template.json`, and `status` shows it. No hub file changes; this is in `INSTRUCTIONS.md` and
-  `README.md` only. The upgrade procedure above still runs the suite: an upgrade changes the engine.
+  `README.md` only. An upgrade follows the same rule: only a UAT upgrade runs the suites (step 7 of
+  the procedure above).
 
 ### 0.5.2 (hub kit fixes from the first formal-edition install; db schema stays 5)
 
@@ -233,7 +377,8 @@ and "Panes" no longer name `sessions/`).
   whichever W slot holds the file. A new item kind `summary` (S-) lapses by itself at the first
   rotation when it is 28 days old and never needs a triage. `transcripts --files` lists the week
   transcript files with their refs. `index-transcripts` indexes only Claude Code sessions, and
-  `rotate --yes` rebuilds that index from the week dirs (run it after the rename). The schema 3 ->
+  `rotate --yes` rebuilds that index from the week dirs (run it after the rename; 0.7.0 drops that
+  session index). The schema 3 ->
   4 step of `migrate` drops the `meeting` and `meeting_turn` tables (a db of the unreleased
   redesign branch had them) and their JSONL. Files: `.claude/scripts/hubflow.py`,
   `.claude/scripts/hubflow-test.py`, `.claude/skills/hub-flow/SKILL.md` ("Kinds", "Ageing and
@@ -282,7 +427,8 @@ The db schema is 2. **Database:** run `python3 .claude/scripts/hubflow.py migrat
   and adds the triage step before the `rotate --yes` step. Check: `rotate --week-start <Monday>`
   lists `untriaged:`.
 - **Capsules, transcript index, human skip.** Intent: new commands `capsule`, `index-transcripts`,
-  `transcripts`, and `close --reason human_skip --by human`. Files: the same. Check:
+  `transcripts`, and `close --reason human_skip --by human` (0.7.0 drops `index-transcripts` and the
+  session index). Files: the same. Check:
   `hubflow-test.py --mutants`.
 - **Asks to other people.** Intent: `check` exits 3 for an open ask that waits on someone other than
   the owner and has no `issue` ref. Owned file `flow/seed.json`: add `"owner": "<your person key>"`

@@ -270,6 +270,13 @@ domain decisions, pins of the world, and drafts for the tracker.
   pane file (for example `process`) uses the line of Step 5. **Check:** ask each pane for the last
   line of its prompt. It must say the last line of `~/.claude/sagittarius/SAGITTARIUS.md`
   (`This is Sagittarius <version> ...`); a pane that cannot say it did not get the prompt.
+- **What the hub runs.** Each MindHole runs its own pinned version. `.hub-template.json` records
+  (`runs`) the orbit-kb copy and its version, the prompt that the launcher appends
+  (`~/.claude/sagittarius/SAGITTARIUS.md`, with its Sagittarius version) and the pane files, as this
+  kit's Sagittarius checkout holds them; an upgrade records them again. `hubkit.py status` prints
+  them in its `runs` lines and says whether the files under `~/.claude/sagittarius/` are still the
+  same. **Check:** the `runs prompt:` line says `the file there: same`; if not, the panes run
+  another prompt than the one this hub was set up with: tell your human.
 - Install with `--edition formal` (only when your human asks for it; which `orbit-kb` is on the
   PATH plays no part: with no `--edition`, install picks informal), or switch an informal hub with
   `python3 "$KIT/tools/hubkit.py" edition --hub "$HUB" formal --yes`. The switch replaces the shipped

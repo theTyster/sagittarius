@@ -9,8 +9,8 @@ usage: python3 -I hubflow-test.py [--mutants [--mutant NAME ...]] [--case NAME .
   --case NAME  run only the named scenario (repeatable), e.g. --case case_triage. A scenario that
              needs another one's db (case_sql, case_state need case_basic) brings it along.
 Check names of the T05 ledger claims start with their claim id: c1- triage, c2- escalate,
-c3- capsule, c4- transcripts, c5- skip, c6- asks; schema- is the v1 -> v2 migration.
-Check names of the T28 rotation fix (the session index follows the week dirs) start with t28-c4-.
+c3- capsule, c5- skip, c6- asks; schema- is the v1 -> v2 migration. (c4-, the index of Claude Code
+session logs, and t28-c4-, its rebuild at rotation, are gone with the index: 0.3.0, si- checks.)
 Check names of rd/transcripts (an agent, not code, records what a meeting needs) start with mt-c1-
 (no code meeting rows), mt-c2- (transcript refs), mt-c3- (summary rows lapse by themselves) and
 mt-schema- (the v3 -> v4 migration). T40 checks start with t40-c10- (a summary never blocks a
@@ -37,11 +37,12 @@ NOW = "2026-11-02T12:00:00Z"  # a Monday
 TABLES = ("meta", "session", "session_alias", "person", "item", "item_ref", "item_link", "handoff", "event")
 VIEWS = ("clock", "v_open", "v_waiting_on", "v_inbox", "v_stale", "v_dup_refs", "v_week", "v_retention_due")
 WRITE_CMDS = ("init", "migrate", "add", "handoff", "accept", "renew", "park", "set", "close", "reopen", "ref", "link",
-              "note", "session", "import", "rotate", "rebuild", "export", "triage", "capsule", "index-transcripts",
+              "note", "session", "import", "rotate", "rebuild", "export", "triage", "capsule",
               "spec-triage")
 # Tables added by schema 2 (T05). The JSONL checks below cover them when the db has them.
-# Schema 3 (T28) added meeting and meeting_turn; schema 4 dropped them again.
-NEW_TABLES = ("disposition", "capsule", "transcript", "transcript_msg")
+# Schema 3 (T28) added meeting and meeting_turn; schema 4 dropped them again. Schema 2 also added
+# transcript and transcript_msg (the session index); schema 6 dropped them (0.3.0, Ty: "drop it").
+NEW_TABLES = ("disposition", "capsule")
 
 SEED_DATA = {
     "sessions": [{"name": n, "role": n} for n in ("discovery", "build", "process", "support")],
@@ -103,11 +104,10 @@ MUTANTS = [
     ("archived-kb-reads-unknown-in-triage", "kb_refs = unarchived(c, hub_dir(g), kb_refs)  # T48 c1", "pass  # T48 c1"),
     ("archived-reading-not-fail-safe", "return [ref for ref in refs if not spec_archived(c, hub, ref)]",
      "return [ref for ref in refs if kb_dir(hub, ref) is not None]"),
-    ("transcript-text-uncut", "TEXT_CAP = 200", "TEXT_CAP = 100000"),
     ("check-ignores-untracked-asks", "problems += untracked_asks(c)", "pass"),
     ("capsule-without-rev", "rev = git_head(hub_dir(g))  # capsule rev", "rev = None"),
-    # T28: the session index follows the week dirs at rotation
-    ("rotate-skips-transcript-reindex", "index = reindex_weeks(c, hub_dir(g))", "index = reindex_weeks(None, hub_dir(g))"),
+    # 0.3.0 kitrel: schema 6 drops the session index (a new db and a migrated one)
+    ("session-index-kept", 'V6_STEPS = ["DROP TABLE transcript_msg", "DROP TABLE transcript"]', "V6_STEPS = []"),
     # rd/transcripts: transcript refs, summary rows, schema 4
     ("transcript-ref-form-unchecked", "if not TRANSCRIPT_REF.match(ref):  # transcript ref form", "if False:"),
     ("find-ignores-digest", "if os.path.basename(f[0]) == name and f[3] == digest]  # name and digest",
@@ -1416,7 +1416,8 @@ LONG_ASK = "Please plan the widget sorter so that each bin holds one colour, and
 
 
 def transcript_fixture(h):
-    """Two invented Claude Code transcripts and one JSONL that is not a transcript, in W0."""
+    """Two invented Claude Code transcripts and one JSONL that is not a transcript, in W0. Since 0.3.0
+    nothing indexes them: they are files like any other, and their text never reaches the ledger."""
     w = os.path.join(h, "W0", "transcripts")
     os.makedirs(w)
     one = [
@@ -1447,58 +1448,6 @@ def transcript_fixture(h):
             f.write("".join((x if isinstance(x, str) else json.dumps(x)) + "\n" for x in lines))
     write_json(os.path.join(h, "W0", "analyses", "x", "data.jsonl"), json.dumps({"kind": "not a transcript"}) + "\n")
     return w
-
-
-def case_transcripts(r, root):
-    """c4 (oq_transcripts, u85): index transcripts in a week dir; summary first, detail on demand."""
-    h = os.path.join(root, "tshub")
-    w = transcript_fixture(h)
-    d = fresh(r, root, "transcripts")
-    code, out, err = hf(r, d, "transcripts", "--format", "json", hub=h)
-    r.check("c4-transcripts-empty-before-index", code == 0 and js(out) == [], out + err)
-    res = hf(r, d, "index-transcripts", "W0", hub=h)
-    r.check("c4-index-exit-0", res[0] == 0 and "2" in res[1], res)
-    got = qs(d, "select session_id, first_at, last_at, first_user, messages, user_messages, tools, path from transcript order by session_id")
-    r.check("c4-index-row-sess-one", got[:1] == [("sess-one", "2026-11-02T09:00:00Z", "2026-11-02T09:12:30Z", LONG_ASK[:200], 5, 2, 3,
-                                                  "W0/transcripts/one.jsonl")], got[:1])
-    r.check("c4-index-row-sess-two", got[1:] == [("sess-two", "2026-11-03T14:00:00Z", "2026-11-03T14:01:00Z", "Short ask about the gadget feeder.",
-                                                 2, 1, 0, "W0/transcripts/two.jsonl")], got[1:])
-    r.check("c4-index-skips-other-jsonl", len(got) == 2, got)
-    code, out, err = hf(r, d, "transcripts", "--format", "json", hub=h)
-    v = js(out) or []
-    r.check("c4-transcripts-lists-summary", code == 0 and [x.get("session_id") for x in v] == ["sess-one", "sess-two"]
-            and v[0].get("first_user") == LONG_ASK[:200] and "user_messages" in v[0] and "tools" in v[0], out[:400] + err)
-    code, out, err = hf(r, d, "transcripts", hub=h)
-    r.check("c4-transcripts-md", code == 0 and "| session_id |" in out and "sess-two" in out, out[:300] + err)
-    code, out, err = hf(r, d, "transcripts", "--detail", "sess-one", hub=h)
-    r.check("c4-detail-summary-then-messages", code == 0 and "sess-one" in out and "Second question: what about gadgets?" in out
-            and out.index("sess-one") < out.index("Second question"), out[:500] + err)
-    r.check("c4-detail-cuts-each-to-200", LONG_ASK[:200] in out and LONG_ASK[:201] not in out, out[:600])
-    r.check("c4-detail-no-assistant-or-tool-text", "ASSISTANT-PRIVATE-TEXT" not in out and "TOOL-RESULT-BODY" not in out, out[:600])
-    code, out, err = hf(r, d, "transcripts", "--detail", "sess-one", "--format", "json", hub=h)
-    v = js(out) or {}
-    msgs = [x.get("text") for x in v.get("user_messages", [])]
-    r.check("c4-detail-json", code == 0 and (v.get("transcript") or {}).get("session_id") == "sess-one"
-            and msgs == [LONG_ASK[:200], "Second question: what about gadgets?"], out[:500] + err)
-    r.check("c4-detail-unknown-refused", refused(hf(r, d, "transcripts", "--detail", "sess-nope", hub=h), 1))
-    blob = open(dbfile(d), "rb").read() + b"".join(jl_bytes(d).values())
-    r.check("c4-never-copies-a-transcript", b"ASSISTANT-PRIVATE-TEXT" not in blob and b"TOOL-RESULT-BODY" not in blob
-            and LONG_ASK[:201].encode() not in blob and b"/invented/sorter.py" not in blob)
-    longest = (qs(d, "select max(length(text)) from transcript_msg") or [(None,)])[0][0]
-    r.check("c4-stored-texts-at-most-200", got and longest is not None and longest <= 200 and max(len(x[3]) for x in got) <= 200, longest)
-    snap, files = snapshot(d), jl_bytes(d)
-    res = hf(r, d, "index-transcripts", "W0", hub=h)
-    r.check("c4-rerun-is-idempotent", res[0] == 0 and snapshot(d) == snap and jl_bytes(d) == files, res)
-    with open(os.path.join(w, "two.jsonl"), "a", encoding="utf-8") as f:
-        f.write(json.dumps({"type": "user", "sessionId": "sess-two", "timestamp": "2026-11-03T15:00:00Z",
-                            "message": {"role": "user", "content": "A later follow-up."}}) + "\n")
-    res = hf(r, d, "index-transcripts", os.path.join(h, "W0"), hub=h)
-    got = qs(d, "select session_id, last_at, messages, user_messages from transcript order by session_id")
-    r.check("c4-rerun-updates-a-grown-transcript", res[0] == 0 and got == [("sess-one", "2026-11-02T09:12:30Z", 5, 2),
-                                                                         ("sess-two", "2026-11-03T15:00:00Z", 3, 2)], (res, got))
-    r.check("c4-index-missing-dir-refused", refused(hf(r, d, "index-transcripts", "W9", hub=h), 1))
-    r.check("c4-index-needs-session", refused(hf(r, d, "index-transcripts", "W0", hub=h, session=None), 1, "HUB_SESSION"))
-    r.check("c4-check-clean", hf(r, d, "check")[0] == 0)
 
 
 def case_skip(r, root):
@@ -1773,22 +1722,6 @@ def case_real_orbit_kb(r, root):
     r.check("c2-real-empty-answer-lapses", res[0] == 0 and status(d, "A-0002") == "lapsed" and disp(d, "A-0002")[-1][:2] == ("lapse", None), res)
 
 
-def case_transcripts_clock(r, root):
-    """c4 (review): a rerun under another clock leaves the index rows as they were."""
-    h = os.path.join(root, "tsclock")
-    transcript_fixture(h)
-    d = fresh(r, root, "transcripts-clock")
-    res = hf(r, d, "index-transcripts", "W0", hub=h)
-    r.check("c4-clock-first-index", res[0] == 0, res)
-    tabs = ("transcript", "transcript_msg")
-    before = {t: sorted(rows(d, t)) for t in tabs} if all(qs(d, f"select count(*) from {t}") for t in tabs) else None
-    files = {k: v for k, v in jl_bytes(d).items() if k.startswith("transcript")}
-    res = hf(r, d, "index-transcripts", "W0", hub=h, now="2026-11-09T08:00:00Z")
-    after = {t: sorted(rows(d, t)) for t in tabs} if before else None
-    r.check("c4-rerun-other-clock-rows-unchanged", res[0] == 0 and before and after == before
-            and {k: v for k, v in jl_bytes(d).items() if k.startswith("transcript")} == files and len(files) == 2, res)
-
-
 def case_skip_two_kbs(r, root):
     """c5 (review): each linked item's own spec KB gets its waiver line too."""
     stub = write_stub(root)
@@ -1865,21 +1798,6 @@ def case_guard_more(r, root):
     res = t("renew", "A-0002", "--by", "human", "--note", "\"keep it a while\" (Me)")
     r.check("c2-human-renew-of-guarded-item", res[0] == 0 and q(d, "select renewed_at from item where id='A-0002'") == [(NOW,)]
             and ev(d, "A-0002")[-1][0] == "renewed" and ev(d, "A-0002")[-1][4] == "human", res)
-
-
-def case_transcripts_same_session(r, root):
-    """c4 (review): two files with one sessionId make one row (the last file wins); the message
-    counts files and sessions, not rows it did not make."""
-    h = os.path.join(root, "tssame")
-    w = transcript_fixture(h)
-    with open(os.path.join(w, "one-resumed.jsonl"), "w", encoding="utf-8") as f:
-        f.write(json.dumps({"type": "user", "sessionId": "sess-one", "timestamp": "2026-11-04T10:00:00Z",
-                            "message": {"role": "user", "content": "Resumed: where were we?"}}) + "\n")
-    d = fresh(r, root, "transcripts-same")
-    res = hf(r, d, "index-transcripts", "W0", hub=h)
-    n = qs(d, "select count(*) from transcript")
-    r.check("c4-index-message-counts-files-and-sessions", res[0] == 0 and n == [(2,)]
-            and "3 file(s)" in res[1] and "2 session(s)" in res[1], (res, n))
 
 
 def case_triage_escalated(r, root):
@@ -2186,32 +2104,6 @@ def meeting_fixture(h, jsonl=True):
     write_text(os.path.join(h, "W0", "reports", "status.md"), "# Status\n\nRobin Example: not a transcript.\nSam Sample: a report.\n")
 
 
-def case_t28_rotate(r, root):
-    """T28 c4 (kept for the session index): rotate --yes rebuilds the session index from the week dirs
-    on disk; a retired week's rows go with it. Meeting transcripts stay files."""
-    h = os.path.join(root, "t28-rotate")
-    meeting_fixture(h)
-    write_text(os.path.join(h, "W5", "transcripts", "old.jsonl"), json.dumps(
-        {"type": "user", "sessionId": "sess-old", "timestamp": "2026-09-28T09:00:00Z",
-         "message": {"role": "user", "content": "An old session."}}) + "\n")
-    d = fresh(r, root, "t28-rotate")
-    hf(r, d, "index-transcripts", "W0", hub=h)
-    hf(r, d, "index-transcripts", "W5", hub=h)
-    before = qs(d, "select session_id from transcript order by session_id")
-    # the mechanical rename (rotate.sh): retire W5 (git rm), then W0 -> W1
-    shutil.rmtree(os.path.join(h, "W5"))
-    os.rename(os.path.join(h, "W0"), os.path.join(h, "W1"))
-    snap = snapshot(d)
-    res = hf(r, d, "rotate", "--week-start", WK, hub=h, session=None)
-    r.check("t28-c4-dry-run-writes-nothing", res[0] == 0 and snapshot(d) == snap, res)
-    res = hf(r, d, "rotate", "--week-start", WK, "--yes", hub=h)
-    r.check("t28-c4-rotate-yes-exit-0", res[0] == 0 and "transcripts_reindexed: 2 session(s) from W1" in res[1], res)
-    sess = qs(d, "select session_id, path from transcript order by session_id")
-    r.check("t28-c4-retired-week-session-rows-gone", before == [("sess-old",), ("sess-one",), ("sess-two",)]
-            and sess == [("sess-one", "W1/transcripts/one.jsonl"), ("sess-two", "W1/transcripts/two.jsonl")], (before, sess))
-    r.check("t28-c4-check-clean", hf(r, d, "check", hub=h)[0] == 0)
-
-
 # ---- meeting transcripts: an agent, not code, puts what matters into the ledger (rd/transcripts) ----
 # c1 retire: code writes no meeting row. c2: an item points to a transcript by name and sha256, and
 # `transcripts --find` finds the file in whichever W slot holds it. c3: a summary row lapses by itself.
@@ -2230,26 +2122,22 @@ def tref(name, digest):
 
 
 def case_mt_no_code_meeting_rows(r, root):
-    """c1 retire: indexing a week writes no meeting row by itself; only the Claude Code JSONL index
-    stays (q4). No meeting table, no --grep, no meeting text anywhere in the ledger."""
+    """c1 retire: reading a week writes no meeting row by itself (since 0.3.0 no session row either).
+    No meeting table, no --grep, no meeting or session text anywhere in the ledger."""
     h = os.path.join(root, "mt-c1")
     meeting_fixture(h)
     write_text(os.path.join(h, "W0", "transcripts", "standup.md"), STANDUP)
     d = fresh(r, root, "mt-c1")
-    res = hf(r, d, "index-transcripts", "W0", hub=h)
-    r.check("mt-c1-index-exit-0-sessions-only", res[0] == 0 and "2 session(s)" in res[1] and "meeting" not in res[1], res)
+    res = hf(r, d, "transcripts", "--files", hub=h)
+    r.check("mt-c1-files-exit-0-no-meeting-words", res[0] == 0 and "standup.md" in res[1] and "conveyor" not in res[1], res)
     names = {x[0] for x in q(d, "select name from sqlite_master")}
     r.check("mt-c1-no-meeting-tables", not ({"meeting", "meeting_turn"} & names), sorted(names))
     files = jl_bytes(d)
     r.check("mt-c1-no-meeting-jsonl", not [n for n in files if n.startswith("meeting")], sorted(files))
     blob = open(dbfile(d), "rb").read() + b"".join(files.values())
-    r.check("mt-c1-no-meeting-text-in-the-ledger", all(w not in blob for w in (b"conveyor", b"Zoe", b"Robin Example", b"hopper")),
-            [w for w in (b"conveyor", b"Zoe", b"Robin Example", b"hopper") if w in blob])
+    words = (b"conveyor", b"Zoe", b"Robin Example", b"hopper", b"sess-one", b"ASSISTANT-PRIVATE-TEXT", b"widget sorter")
+    r.check("mt-c1-no-meeting-text-in-the-ledger", all(w not in blob for w in words), [w for w in words if w in blob])
     r.check("mt-c1-no-item-written", qs(d, "select count(*) from item") == [(0,)])
-    code, out, err = hf(r, d, "transcripts", "--format", "json", hub=h)
-    v = js(out)
-    r.check("mt-c1-transcripts-lists-sessions-only", code == 0 and isinstance(v, list)
-            and [x.get("session_id") for x in v] == ["sess-one", "sess-two"] and all("kind" not in x for x in v), out[:600] + err)
     r.check("mt-c1-grep-is-gone", refused(hf(r, d, "transcripts", "--grep", "conveyor", hub=h), 1), hf(r, d, "transcripts", "--grep", "conveyor", hub=h))
     r.check("mt-c1-check-clean", hf(r, d, "check")[0] == 0)
 
@@ -3087,7 +2975,7 @@ def case_mt_schema_v4(r, root):
     c.close()
     for t, row in (("meeting", {"id": "standup-ceb598"}), ("meeting_turn", {"meeting_id": "standup-ceb598", "n": 1})):
         write_text(os.path.join(d, "jsonl", t + ".jsonl"), json.dumps(row) + "\n")
-    before = {t: sorted(rows(d, t)) for t in TABLES + ("disposition", "capsule", "transcript", "transcript_msg") if t != "meta"}
+    before = {t: sorted(rows(d, t)) for t in TABLES + ("disposition", "capsule") if t != "meta"}
     res = hf(r, d, "view", "open")
     r.check("mt-schema-v3-db-needs-migrate", res[0] == 2 and "migrate" in res[2], res)
     res = hf(r, d, "migrate")
@@ -3309,6 +3197,94 @@ def case_030_handoff_example(r, root):
         r.check(f"030-handoff-example-{n}-runs-and-keeps-the-kb-ref", code == 0 and refs == [("kb",)], (args, code, out, err, refs))
 
 
+SESSION_INDEX_TABLES = ("transcript", "transcript_msg")  # schema 2 to 5; schema 6 drops them (0.3.0 kitrel)
+
+
+def v5_script(r, root):
+    """A copy of the script under test at schema 5: init makes the session index tables of MindHole 0.6.0."""
+    src = open(r.script, encoding="utf-8").read()
+    a = f"SCHEMA_VERSION = {script_version(r.script)}\n"
+    if src.count(a) != 1:
+        raise RuntimeError(f"anchor {a!r} occurs {src.count(a)} times")
+    path = os.path.join(root, "hubflow-v5.py")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(src.replace(a, "SCHEMA_VERSION = 5\n"))
+    return path
+
+
+def case_030_session_index_dropped(r, root):
+    """Sagittarius 0.3.0 (kitrel; Ty, 2026-11-12: "I want to cut this feature. 'drop it'"): the index of
+    Claude Code session logs is gone. No index-transcripts, no `transcripts` with no flag or with --detail,
+    no transcript tables or JSONL, no re-index at rotation. Meeting transcripts stay files: --files and
+    --find stay, and so does the transcript ref."""
+    h = os.path.join(root, "si-hub")
+    for n in range(6):
+        os.makedirs(os.path.join(h, f"W{n}"), exist_ok=True)
+    write_text(os.path.join(h, "W0", "transcripts", "one.jsonl"), json.dumps(
+        {"type": "user", "sessionId": "sess-one", "timestamp": "2026-11-02T09:00:00Z",
+         "message": {"role": "user", "content": "an invented session"}}) + "\n")
+    p = write_text(os.path.join(h, "W0", "transcripts", "standup.md"), STANDUP)
+    dig = sha256_of(p)
+    d = fresh(r, root, "si-fresh")
+    names = {x[0] for x in q(d, "select name from sqlite_master")}
+    r.check("si-fresh-db-has-no-session-index-tables", not (set(SESSION_INDEX_TABLES) & names), sorted(names))
+    r.check("si-fresh-db-has-no-session-index-jsonl",
+            not [x for x in os.listdir(os.path.join(d, "jsonl")) if x.startswith("transcript")], os.listdir(os.path.join(d, "jsonl")))
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    r.check("si-index-transcripts-is-gone", refused(res, 1, "command must be one of") and "index-transcripts" not in res[2], res)
+    r.check("si-transcripts-with-no-flag-refused", refused(hf(r, d, "transcripts", hub=h), 1, "usage"), hf(r, d, "transcripts", hub=h))
+    r.check("si-transcripts-detail-refused", refused(hf(r, d, "transcripts", "--detail", "sess-one", hub=h), 1),
+            hf(r, d, "transcripts", "--detail", "sess-one", hub=h))
+    code, out, err = hf(r, d, "transcripts", "--files", "--format", "json", hub=h)
+    v = js(out) or []
+    r.check("si-transcripts-files-stays", code == 0 and [x.get("path") for x in v] == ["W0/transcripts/one.jsonl", "W0/transcripts/standup.md"],
+            (code, out[:400], err))
+    code, out, err = hf(r, d, "transcripts", "--find", f"standup.md@sha256:{dig}", hub=h)
+    r.check("si-transcripts-find-stays", code == 0 and out.strip() == "W0/transcripts/standup.md", (code, out, err))
+    res = hf(r, d, "add", "thread", "--title", "From the standup", "--ref", tref("standup.md", dig))
+    r.check("si-transcript-ref-stays", res[0] == 0, res)
+    helptext = hf(r, None, "--help")[1]
+    r.check("si-help-names-no-session-index", "index-transcripts" not in helptext and "--detail" not in helptext
+            and "transcript_msg" not in helptext and "transcripts --files" in helptext, helptext[-600:])
+    for args in (("rotate", "--week-start", "2026-11-02"), ("rotate", "--week-start", "2026-11-02", "--yes")):
+        res = hf(r, d, *args, hub=h)
+        r.check("si-no-reindex-line " + " ".join(args[3:]), res[0] == 0 and "transcripts_reindexed" not in res[1], res)
+    # an existing hub: a schema-5 db with session index rows and JSONL migrates, and loses both
+    v5 = Run(v5_script(r, root))
+    d5 = os.path.join(root, "si-v5", "flow")
+    res = hf(v5, d5, "init", "--seed", SEED, session=None)
+    r.check("si-setup-v5-init", res[0] == 0 and q(d5, "pragma user_version") == [(5,)], res)
+    ok(v5, d5, "add", "ask", "--title", "An ask from 0.6.0", "--waits-on", "me")
+    c = sqlite3.connect(dbfile(d5))
+    try:
+        c.execute("INSERT INTO transcript(session_id, first_at, last_at, first_user, messages, user_messages, tools, path)"
+                  " VALUES('sess-one', '2026-11-02T09:00:00Z', '2026-11-02T09:00:00Z', 'hi', 1, 1, 0, 'W0/transcripts/one.jsonl')")
+        c.execute("INSERT INTO transcript_msg(session_id, n, at, text) VALUES('sess-one', 1, '2026-11-02T09:00:00Z', 'hi')")
+        c.commit()
+    except sqlite3.Error as e:
+        r.check("si-setup-v5-has-the-session-index", False, repr(e))
+    finally:
+        c.close()
+    for t in SESSION_INDEX_TABLES:
+        write_text(os.path.join(d5, "jsonl", t + ".jsonl"), json.dumps({"session_id": "sess-one"}) + "\n")
+    before = {t: sorted(rows(d5, t)) for t in TABLES if t != "meta"}
+    res = hf(r, d5, "view", "open")
+    r.check("si-v5-db-needs-migrate", res[0] == 2 and "migrate" in res[2], res)
+    res = hf(r, d5, "migrate")
+    n = script_version(r.script)
+    r.check("si-migrate-v5-to-current", res[0] == 0 and n >= 6 and q(d5, "pragma user_version") == [(n,)], res)
+    r.check("si-migrate-keeps-backup", os.path.exists(os.path.join(d5, "flow.db.bak-v5")), os.listdir(d5))
+    names = {x[0] for x in q(d5, "select name from sqlite_master")}
+    r.check("si-migrate-drops-session-index-tables", not (set(SESSION_INDEX_TABLES) & names), sorted(names))
+    r.check("si-migrate-removes-session-index-jsonl",
+            not [x for x in os.listdir(os.path.join(d5, "jsonl")) if x.startswith("transcript")], os.listdir(os.path.join(d5, "jsonl")))
+    r.check("si-migrate-keeps-rows", {t: sorted(rows(d5, t)) for t in before} == before)
+    r.check("si-check-after-migrate", hf(r, d5, "check")[0] == 0, hf(r, d5, "check"))
+    d6 = fresh(r, root, "si-fresh-compare")
+    r.check("si-init-equals-migrated", q(d6, "select name, sql from sqlite_master order by name")
+            == q(d5, "select name, sql from sqlite_master order by name"))
+
+
 def run_case(r, fn, *args):
     """Run one scenario. A scenario that cannot even run is a failure, not a crash, and the
     scenarios after it still run."""
@@ -3354,18 +3330,15 @@ def cases(r):
         run_case(r, case_triage, root)
         run_case(r, case_escalate, root)
         run_case(r, case_capsule, root)
-        run_case(r, case_transcripts, root)
         run_case(r, case_skip, root)
         run_case(r, case_asks, root)
         run_case(r, case_schema_v2, root)
         # T05, added after review
         run_case(r, case_close_blocking, root)
         run_case(r, case_real_orbit_kb, root)
-        run_case(r, case_transcripts_clock, root)
         run_case(r, case_skip_two_kbs, root)
         run_case(r, case_ref_guard, root)
         run_case(r, case_guard_more, root)
-        run_case(r, case_transcripts_same_session, root)
         run_case(r, case_triage_escalated, root)
         # T22: the spec KB home and the spec KB triage
         run_case(r, case_t22_spec_home, root)
@@ -3377,8 +3350,6 @@ def cases(r):
         run_case(r, case_t24_no_orbit_kb, root)
         # T39: a waiver in a spec KB ends the hub item
         run_case(r, case_t39_waiver, root)
-        # T28: the session index follows the week dirs at rotation
-        run_case(r, case_t28_rotate, root)
         # rd/transcripts: an agent, not code, puts meeting transcripts into the ledger
         run_case(r, case_mt_no_code_meeting_rows, root)
         run_case(r, case_mt_transcript_ref, root)
@@ -3411,6 +3382,8 @@ def cases(r):
         run_case(r, case_k3_citations_hub_name, root)
         # Sagittarius 0.3.0 (c_m_f_1): the skill's handoff example carries a kb ref
         run_case(r, case_030_handoff_example, root)
+        # Sagittarius 0.3.0 (kitrel): the session index is dropped (Ty, 2026-11-12)
+        run_case(r, case_030_session_index_dropped, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))

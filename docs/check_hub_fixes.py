@@ -20,8 +20,10 @@ t46c2 help project, next to the automatic record of a dropped edit (T45), and th
       (INSTRUCTIONS.md Step 5, HUB-CORE.md) say how a pane gets HUB_SESSION. Superseded by t46c3.
 t46c3 the same, with the orbit-kb text of INSTRUCTIONS.md in "The formal edition" (t32c2 bans formal words
       elsewhere) and Step 5 pointing to it.
-t49c1 (u114, u120, u125, u127) the formal weeks row of "What lives where" in hubkit/hub/HUB-CORE.md takes the
-      design KB text of kg_def_v2(weeks) word for word: it names human transcripts and Claude Code session logs.
+t49c1 (u114, u120, u125, u127; changed in Sagittarius 0.3.0) the formal weeks row of "What lives where" in
+      hubkit/hub/HUB-CORE.md takes the design KB text of the weeks store word for word: it names human transcripts.
+      Ty dropped the session index on 2026-11-12 ("I want to cut this feature. 'drop it'"): the row names no
+      Claude Code session logs and no index, and no hub text of the kit names index-transcripts.
 iuxc1 (install UX c1) setup asks the human what the hub is for, first, and keeps the answer word for word in
       CLAUDE.md under "What this hub is for" (both editions; an owned file), and in the formal edition as the
       project KB request; more than three questions are allowed at setup only.
@@ -275,10 +277,10 @@ def t46c3():
     t46_core()
 
 
-T49C1_TEXT = ("The raw material of each week: meeting and other human transcripts, Claude Code session logs, and the "
-              "reports written that week. An agent reads a human transcript and records what is needed in the ledger, "
-              "with a transcript ref; Claude Code session logs are indexed into the ledger; analyses that last go to "
-              "the project KB.")
+# Sagittarius 0.3.0 (Ty, 2026-11-12: "drop it"): changed_def(weeks, ...) in the design KB's design_1106.pl
+T49C1_TEXT = ("The raw material of each week: meeting and other human transcripts, and the reports written that "
+              "week. An agent reads a human transcript and records what is needed in the ledger, with a transcript "
+              "ref; analyses that last go to the project KB.")
 
 
 def t49c1():
@@ -290,7 +292,15 @@ def t49c1():
     check("t49c1 the formal weeks row is found", len(rows) == 1, rows)
     row = rows[0] if rows else ""
     check("t49c1 the weeks row names human transcripts", "human transcripts" in row, row[:300])
-    check("t49c1 the weeks row names Claude Code session logs", "Claude Code session logs" in row, row[:300])
+    check("t49c1 the weeks row names no Claude Code session logs (0.3.0: the index is dropped)",
+          "session log" not in row and "indexed into the ledger" not in row and "index-transcripts" not in row, row[:400])
+    kit_texts = []
+    for base in (os.path.join(ROOT, "hubkit", "hub"), os.path.join(ROOT, "hubkit", "editions")):
+        for dp, dn, fn in os.walk(base):
+            kit_texts += [os.path.join(dp, f) for f in fn if f.endswith((".md", ".py")) and not f.endswith("-test.py")]
+    named = [os.path.relpath(f, ROOT) for f in kit_texts
+             if re.search(r"index-transcripts|transcripts_reindexed|Claude Code session (logs|index|transcripts)", read(f))]
+    check("t49c1 no hub text of the kit names the dropped session index", not named, named)
     check("t49c1 the weeks row has the design KB text word for word", T49C1_TEXT in row, row[:400])
     p = subprocess.run([sys.executable, os.path.join(ROOT, "hubkit", "tools", "storemap.py"), "--check"],
                        capture_output=True, text=True)

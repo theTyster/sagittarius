@@ -53,16 +53,11 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   capsule ID --summary T                       context the tracker lacks (at most 1000 characters),
                                                with the hub's git HEAD and the item's kb and file
                                                refs; `show` prints the newest capsule first
-  index-transcripts W_DIR                      index the Claude Code JSONL transcripts under a week
-                                               dir (relative to the hub): counts, times, and user
-                                               messages cut to 200 characters. Idempotent. A meeting
-                                               transcript is never parsed: an agent reads it and
-                                               records what is needed (an item with a transcript ref)
-  transcripts [--detail SESSION_ID] [--format md|json|tsv]
-                                               the session index; --detail adds the user messages
   transcripts --files [--format md|json|tsv]   the files in W0..W5/transcripts/: path, date (the
                                                file's UTC modification day), size, sha256, and the
-                                               ref to give an item. Writes nothing
+                                               ref to give an item. Writes nothing. Code never
+                                               parses a transcript: an agent reads it and records
+                                               what is needed (an item with a transcript ref)
   transcripts --find NAME@sha256:HEX           the path of that file in whichever W slot holds it
                                                now; exit 1 if it is gone or its sha256 changed
   reopen ID [--note N]
@@ -92,10 +87,7 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   rotate --week-start YYYY-MM-DD [--yes]       prune; a dry run without --yes. Lists the due items
                                                with no disposition (untriaged) and exits 1 until
                                                each has one; `lapsed:` names the summary rows it
-                                               lapses. --yes also rebuilds the session index of the
-                                               week dirs W0..W5 on disk (run it after rotate.py):
-                                               moved weeks get their new paths, and a retired week's
-                                               rows go with it
+                                               lapses. Run --yes after rotate.py
   export                                       rewrite the JSONL from the db
   rebuild                                      make the db from the JSONL (refuses if the db exists)
   check                                        schema, foreign keys, JSONL equal to the db, and
@@ -168,12 +160,13 @@ Retention (rotate --week-start D, D the Monday of the new W0; W5 starts at D - 3
          sessions retired before then and referenced by no item go with their aliases
   The caller commits flow/jsonl/ with the ids in the message; git history is the archive.
 
-Schema v5 (PRAGMA user_version = 5; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
-db to v2 (it adds disposition, capsule, transcript, transcript_msg and remakes v_open and
+Schema v6 (PRAGMA user_version = 6; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
+db to v2 (it adds disposition, capsule, the two tables of a session index and remakes v_open and
 v_retention_due), a v2 db to v3 (it adds meeting and meeting_turn), a v3 db to v4 (it drops
 meeting and meeting_turn and their JSONL, adds the item kind summary and the ref kind transcript,
-and remakes v_stale and v_retention_due), and a v4 db to v5 (it remakes v_stale and v_retention_due:
-a park that holds a time ends at that time).
+and remakes v_stale and v_retention_due), a v4 db to v5 (it remakes v_stale and v_retention_due:
+a park that holds a time ends at that time), and a v5 db to v6 (it drops the session index, the two
+tables that v2 added, and their JSONL).
   meta(key, value)                  next_A next_T next_K next_H next_S, owner_person, and now (tests only)
   session(name, role, status active|retired, started_on, retired_on)
   session_alias(alias, name, since)
@@ -193,22 +186,20 @@ a park that holds a time ends at that time).
        by_session, by)              asked: what an agent asked for when it became escalate;
                                     an open item is escalated while its newest disposition is
   capsule(seq, at, item_id, summary, git_rev, paths (a JSON list), by_session, by)
-  transcript(session_id, first_at, last_at, first_user, messages, user_messages, tools, path)
-  transcript_msg(session_id, n, at, text)   user messages only, each cut to 200 characters
 Views: clock v_open (with escalated) v_escalated v_waiting_on v_inbox v_stale (no summary) v_dup_refs
        v_week v_retention_due (would: triage | lapse (a summary) | prune)
 """
 import datetime, hashlib, json, os, re, shlex, sqlite3, subprocess, sys
 from urllib.parse import quote
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 # Schema steps: MIGRATIONS[v] is the SQL that takes a db from schema v to v + 1. DDL is the shape of
 # schema 1; init and rebuild run DDL and then every step, so a new db and a migrated db are the
 # same. A release that changes the schema raises SCHEMA_VERSION and adds its step to MIGRATIONS.
 WARN_DAYS = 14
 LAPSE_DAYS = 28
 PRUNE_DAYS = 35
-TEXT_CAP = 200          # transcript texts kept in the ledger, in characters
+TEXT_CAP = 200          # the text cap of the meeting tables of schema 3 (the schema steps keep it)
 CAPSULE_MAX = 1000      # a capsule is a summary, not a copy
 ORBIT_KB_TIMEOUT = 60   # seconds for one `orbit-kb query`
 DISPOSITIONS = ("keep", "lapse", "capsule", "escalate")
@@ -235,12 +226,13 @@ SQL_OK = re.compile(r"^\s*(select|with)\b", re.I)
 TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
 TABLES = ("meta", "session", "session_alias", "person", "item", "item_ref", "item_link", "handoff", "event",
-          "disposition", "capsule", "transcript", "transcript_msg")
-DROPPED_TABLES = ("meeting", "meeting_turn")  # schema 4 drops them; migrate removes their JSONL
+          "disposition", "capsule")
+# Schema 4 drops meeting and meeting_turn; schema 6 drops transcript and transcript_msg. migrate
+# removes their JSONL (git keeps it in history).
+DROPPED_TABLES = ("meeting", "meeting_turn", "transcript", "transcript_msg")
 ORDER = {"meta": "key", "session": "name", "session_alias": "alias", "person": "key", "item": "id",
          "item_ref": "item_id, kind, ref", "item_link": "from_id, to_id, kind", "handoff": "item_id",
-         "event": "seq", "disposition": "seq", "capsule": "seq", "transcript": "session_id",
-         "transcript_msg": "session_id, n"}
+         "event": "seq", "disposition": "seq", "capsule": "seq"}
 
 SEED_KEYS = {"sessions": ("name", "role"), "aliases": ("alias", "name"), "persons": ("key", "display")}
 SEED_OWNER = "owner"  # optional seed key: the person key of the hub's owner
@@ -342,7 +334,7 @@ WHERE i.closed_at IS NOT NULL
 ESCALATED = """COALESCE((SELECT d.disposition = 'escalate' FROM disposition d WHERE d.item_id = i.id
                   ORDER BY d.seq DESC LIMIT 1), 0)"""
 
-# Schema 2 (T05, the flow ledger): triage dispositions, context capsules, the transcript index;
+# Schema 2 (T05, the flow ledger): triage dispositions, context capsules, the session index (schema 6 drops it);
 # v_open gains `escalated`; v_retention_due lists due items as `triage`, never `lapse`.
 V2_STEPS = [
     """CREATE TABLE disposition(seq INTEGER PRIMARY KEY, at TEXT NOT NULL,
@@ -490,11 +482,17 @@ def _v5(stmt):
 
 V5_STEPS = [_v5(x) for x in V4_STEPS[V4_STEPS.index("DROP VIEW v_stale"):]]
 
+# Schema 6 (Sagittarius 0.3.0; Ty, 2026-11-12: "drop it"): the session index (transcript, transcript_msg) goes.
+# It came from a misunderstanding: the transcripts that matter are meeting transcripts, which stay
+# files that an agent reads. Schema 2 made the two tables; init still runs that step, then this one.
+V6_STEPS = ["DROP TABLE transcript_msg", "DROP TABLE transcript"]
+
 MIGRATIONS = {
     1: V2_STEPS,
     2: V3_STEPS,
     3: V4_STEPS,
     4: V5_STEPS,
+    5: V6_STEPS,
 }
 
 # view name -> (sql view, filter option -> column, ORDER BY)
@@ -2061,97 +2059,9 @@ def cmd_capsule(g, a):
     print(f"{iid} capsule at {rev or 'no git revision'}")
 
 
-def norm_ts(v):
-    """A transcript timestamp as YYYY-MM-DDTHH:MM:SSZ (UTC), or None."""
-    if not isinstance(v, str):
-        return None
-    try:
-        t = datetime.datetime.fromisoformat(v.replace("Z", "+00:00"))
-    except ValueError:
-        m = re.match(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)", v)
-        return m.group(1) + "Z" if m else None
-    if t.tzinfo is None:
-        t = t.replace(tzinfo=datetime.timezone.utc)
-    return t.astimezone(datetime.timezone.utc).strftime(TS_FMT)
-
-
-def user_text(content):
-    """The words a person typed in a user message; tool results are not."""
-    if isinstance(content, str):
-        return content.strip()
-    if isinstance(content, list):
-        parts = [b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"]
-        return " ".join(x.strip() for x in parts if isinstance(x, str) and x.strip())
-    return ""
-
-
-def read_transcript(path):
-    """Index one Claude Code JSONL transcript, or None when it holds no messages. Keeps counts and
-    the user messages cut to TEXT_CAP characters, nothing else."""
-    sid, times, msgs, tools, users = None, [], 0, 0, []
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            try:
-                obj = json.loads(line)
-            except ValueError:
-                continue
-            if not isinstance(obj, dict) or obj.get("type") not in ("user", "assistant"):
-                continue
-            m = obj.get("message")
-            if not isinstance(m, dict):
-                continue
-            if sid is None and isinstance(obj.get("sessionId"), str) and obj["sessionId"]:
-                sid = obj["sessionId"]
-            ts = norm_ts(obj.get("timestamp"))
-            if ts:
-                times.append(ts)
-            msgs += 1
-            content = m.get("content")
-            if obj["type"] == "assistant":
-                if isinstance(content, list):
-                    tools += sum(1 for b in content if isinstance(b, dict) and b.get("type") == "tool_use")
-            elif not obj.get("isMeta"):
-                text = user_text(content)
-                if text:
-                    users.append((ts, text[:TEXT_CAP]))
-    if msgs == 0:
-        return None
-    return {"session_id": sid or os.path.splitext(os.path.basename(path))[0],
-            "first_at": min(times) if times else None, "last_at": max(times) if times else None,
-            "first_user": users[0][1] if users else None, "messages": msgs, "user_messages": len(users),
-            "tools": tools, "users": users}
-
-
 def hub_rel(path, hub):
     rel = os.path.relpath(path, hub)
     return path if rel.startswith("..") else rel
-
-
-def scan_week(wd, hub):
-    """The Claude Code JSONL transcripts anywhere under the week dir wd: (sessions, JSONL files read).
-    Meeting transcripts are not parsed: an agent reads one and records what is needed."""
-    sessions, files_read = [], 0
-    for root, dirs, files in os.walk(wd):
-        dirs.sort()
-        for name in sorted(files):
-            path = os.path.join(root, name)
-            if name.endswith(".jsonl"):
-                t = read_transcript(path)
-                if t:
-                    files_read += 1
-                    t["path"] = hub_rel(path, hub)
-                    sessions.append(t)
-    return sessions, files_read
-
-
-def store_sessions(c, found):
-    for t in found:
-        c.execute("DELETE FROM transcript WHERE session_id = ?", (t["session_id"],))  # msgs cascade
-        c.execute("INSERT INTO transcript(session_id, first_at, last_at, first_user, messages, user_messages, tools, path)"
-                  " VALUES(?,?,?,?,?,?,?,?)", tuple(t[k] for k in ("session_id", "first_at", "last_at", "first_user",
-                                                                   "messages", "user_messages", "tools", "path")))
-        for n, (at, text) in enumerate(t["users"], 1):
-            c.execute("INSERT INTO transcript_msg(session_id, n, at, text) VALUES(?,?,?,?)", (t["session_id"], n, at, text))
 
 
 WEEK_DIR = re.compile(r"^W\d$")
@@ -2162,39 +2072,6 @@ def week_dirs(hub):
         if os.path.isdir(hub) else []
 
 
-def reindex_weeks(c, hub):
-    """Rebuild the session index from the week dirs on disk (rotation): every JSONL row whose path is
-    in a week dir is replaced, so a moved week gets its new paths and a retired week's rows go with
-    it. Returns (weeks, sessions)."""
-    weeks, sessions = week_dirs(hub), []
-    for wk in weeks:
-        s, _ = scan_week(os.path.join(hub, wk), hub)
-        sessions += s
-    if c is not None:
-        c.execute("DELETE FROM transcript WHERE path GLOB 'W[0-9]/*'")  # a retired week's rows go
-        store_sessions(c, sessions)
-    return weeks, len({t["session_id"] for t in sessions})
-
-
-def cmd_index_transcripts(g, a):
-    pos, o = parse(a, WOPT)
-    if len(pos) != 1:
-        usage("index-transcripts W_DIR")
-    hub = hub_dir(g)
-    wd = pos[0] if os.path.isabs(pos[0]) else os.path.join(hub, pos[0])
-    if not os.path.isdir(wd):
-        raise Bad(f"no week dir {wd}")
-    found, files_read = scan_week(wd, hub)
-
-    def fn(c, w):
-        store_sessions(c, found)
-
-    run_write(g, o, fn)
-    print(f"indexed {files_read} file(s), {len({t['session_id'] for t in found})} session(s) from {pos[0]}"
-          " (files that share a session id: the last one read wins)")
-
-
-TRANSCRIPT_COLS = ("session_id", "first_at", "last_at", "messages", "user_messages", "tools", "first_user", "path")
 FILE_COLS = ("path", "date", "size", "sha256", "ref")
 
 
@@ -2240,36 +2117,13 @@ def find_transcript(hub, ref):
 
 
 def cmd_transcripts(g, a):
-    pos, o = parse(a, {"--detail": "one", "--format": "one", "--files": "flag", "--find": "one"})
-    if pos or ("files" in o) + ("find" in o) + ("detail" in o) > 1:
-        usage("transcripts [--detail SESSION_ID | --files | --find NAME@sha256:HEX] [--format md|json|tsv]")
+    pos, o = parse(a, {"--format": "one", "--files": "flag", "--find": "one"})
+    if pos or ("files" in o) + ("find" in o) != 1:
+        usage("transcripts --files [--format md|json|tsv] | transcripts --find NAME@sha256:HEX")
     if "find" in o:
         print(find_transcript(hub_dir(g), o["find"]))
         return
-    fmt = fmt_of(o, ("md", "json") if "detail" in o else ("md", "json", "tsv"))
-    if "files" in o:
-        print(render(week_transcript_files(hub_dir(g)), FILE_COLS, fmt))
-        return
-    c = connect_ro(flow_dir(g))
-    sel = "SELECT " + ", ".join(TRANSCRIPT_COLS) + " FROM transcript"
-    if "detail" not in o:
-        cols, rows = select_rows(c, sel + " ORDER BY first_at, session_id")
-        c.close()
-        print(render(rows, cols, fmt))
-        return
-    cols, rows = select_rows(c, sel + " WHERE session_id = ?", (o["detail"],))
-    if not rows:
-        c.close()
-        raise Bad(f"no transcript {o['detail']!r}; run index-transcripts W_DIR")
-    mcols, mrows = select_rows(c, "SELECT n, at, text FROM transcript_msg WHERE session_id = ? ORDER BY n", (o["detail"],))
-    c.close()
-    if fmt == "json":
-        print(json.dumps({"transcript": dict(zip(cols, rows[0])), "user_messages": [dict(zip(mcols, r)) for r in mrows]},
-                         indent=1, ensure_ascii=False))
-        return
-    print(render(rows, cols, "md"))
-    print()
-    print(render(mrows, mcols, "md"))
+    print(render(week_transcript_files(hub_dir(g)), FILE_COLS, fmt_of(o, ("md", "json", "tsv"))))
 
 
 def owner_person(c):
@@ -2462,9 +2316,6 @@ def cmd_rotate(g, a):
         print("pruned_sessions: " + (" ".join(sessions) or "none"))
         sys.stdout.flush()
 
-    def report_index(weeks, sessions):
-        print(f"transcripts_reindexed: {sessions} session(s) from " + (" ".join(weeks) or "no week dir"))
-
     c = connect_ro(flow_dir(g))
     if not o.get("yes"):
         plan = rotate_plan(c, clock(), wk)
@@ -2474,7 +2325,6 @@ def cmd_rotate(g, a):
         print("dry-run: nothing written (add --yes to apply)")
         report(*plan)
         triage_gate(plan[0], plan[5])
-        report_index(*reindex_weeks(None, hub_dir(g)))
         return
 
     c.close()
@@ -2499,12 +2349,9 @@ def cmd_rotate(g, a):
         for name in sessions:
             c.execute("DELETE FROM session_alias WHERE name = ?", (name,))
             c.execute("DELETE FROM session WHERE name = ?", (name,))
-        index = reindex_weeks(c, hub_dir(g))  # the week transcript index follows the rename
-        return (untriaged, escalated, prune, sessions, lapse, specs), index
+        return untriaged, escalated, prune, sessions, lapse, specs
 
-    plan, index = run_write(g, o, fn)
-    report(*plan)
-    report_index(*index)
+    report(*run_write(g, o, fn))
 
 
 # ---- export, rebuild, check ----
@@ -2639,8 +2486,7 @@ COMMANDS = {"init": cmd_init, "add": cmd_add, "handoff": cmd_handoff, "accept": 
             "session": cmd_session, "where": cmd_where, "spec-triage": cmd_spec_triage, "import": cmd_import, "rotate": cmd_rotate,
             "export": cmd_export, "rebuild": cmd_rebuild, "check": cmd_check, "migrate": cmd_migrate,
             "skip-waived": cmd_skip_waived,
-            "triage": cmd_triage, "capsule": cmd_capsule, "index-transcripts": cmd_index_transcripts,
-            "transcripts": cmd_transcripts}
+            "triage": cmd_triage, "capsule": cmd_capsule, "transcripts": cmd_transcripts}
 
 
 # ---- the edition: an informal hub shows only the five informal stores (T36) ----

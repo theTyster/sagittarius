@@ -10,7 +10,8 @@ usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
                                already has a manifest, or if any target file exists
   status --hub DIR             each shipped (engine) file: unchanged, modified, or deleted since it
                                was installed, and whether this kit's version of it differs; the
-                               first line names the edition, and a UAT install
+                               first line names the edition, and a UAT install; the `runs` lines
+                               name what the hub runs (below)
   upgrade --hub DIR [--yes]    plan an upgrade to this kit's version; a dry run without --yes
   done --hub DIR PATH ...      mark pending merges as finished
   edition --hub DIR [informal|formal] [--yes]
@@ -31,6 +32,14 @@ copied to "to" in the hub (.claude/orbit-kb/bin/orbit-kb, bin/repo-map, share/..
 files of a formal hub: an upgrade replaces them, and a switch to informal removes them. hubflow.py,
 the skills and HUB-CORE.md run that copy, never an orbit-kb on the PATH.
 
+What a hub runs (Sagittarius 0.3.0, c_m_d_2). Each MindHole runs its own pinned version: install and
+upgrade --yes record in .hub-template.json "runs" which orbit-kb (the copy above and the version in its
+share/orbit-kb/VERSION), which prompt (kit.json "prompt": the file that the pane launcher appends,
+~/.claude/sagittarius/SAGITTARIUS.md, with the Sagittarius version and sha256 of the kit's own copy) and
+which pane files (PANES.md and panes/<role>.md, with their sha256) it was set up with. status prints them,
+and says whether the files at the launcher path are still the same. An informal hub runs none of them.
+A kit outside a Sagittarius checkout (no kit.json "prompt" source) records no prompt.
+
 Two kinds of file, listed in the kit's kit.json:
   engine  shipped files that a hub should not edit (HUB-CORE.md, scripts, shipped skills). The
           manifest records the sha256 of each as installed. An upgrade replaces an engine file the
@@ -48,7 +57,7 @@ Upgrade actions per engine file (hub state against the manifest, and whether the
 Exit codes: 0 ok, 1 bad input or a refused rule, 2 hub state (no manifest, already installed,
 merges pending).
 """
-import hashlib, json, os, shutil, sys
+import hashlib, json, os, re, shutil, sys
 
 MANIFEST = ".hub-template.json"
 EDITIONS = ("informal", "formal")
@@ -148,6 +157,103 @@ def edition_of(m):
     return m.get("edition") or legacy_edition()
 
 
+SAG_LINE = re.compile(r"This is Sagittarius (\d+\.\d+\.\d+)")
+
+
+def prompt_version(path):
+    """The Sagittarius version that the last such line of a prompt file names, or None."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            found = SAG_LINE.findall(f.read())
+    except OSError:
+        return None
+    return found[-1] if found else None
+
+
+def okb_version(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read().strip() or None
+    except OSError:
+        return None
+
+
+def runs_of(kit, k, edition):
+    """What a hub of this kit runs (c_m_d_2): the orbit-kb copy, the prompt and the pane files. An
+    informal hub runs none of them; a kit with no prompt source records no prompt and no pane files."""
+    if edition != "formal":
+        return {"orbit_kb": None, "prompt": None, "panes": None}
+    runs = {"orbit_kb": None, "prompt": None, "panes": None}
+    o = k.get("orbit_kb")
+    if o:
+        okb = okb_sources(kit, k)
+        vrel = o["to"] + "/share/orbit-kb/VERSION"
+        runs["orbit_kb"] = {"command": o["to"] + "/bin/orbit-kb", "version": okb_version(okb[vrel]) if vrel in okb else None}
+    pc = k.get("prompt")
+    base = os.path.normpath(os.path.join(kit, pc["from"])) if pc else None
+    if pc and os.path.isfile(os.path.join(base, pc["prompt"])):
+        main = os.path.join(base, pc["prompt"])
+        runs["prompt"] = {"file": pc["launcher"].rstrip("/") + "/" + pc["prompt"], "version": prompt_version(main), "sha256": sha(main)}
+        files = {}
+        for rel in pc["panes"]:
+            p = os.path.join(base, rel)
+            if os.path.isdir(p):
+                for f in sorted(os.listdir(p)):
+                    if f.endswith(".md"):
+                        files[rel + "/" + f] = sha(os.path.join(p, f))
+            elif os.path.isfile(p):
+                files[rel] = sha(p)
+        runs["panes"] = {"dir": pc["launcher"].rstrip("/"), "files": files}
+    return runs
+
+
+def runs_lines(hub, m):
+    """The `runs` lines of status: what the manifest records, and how the files are now."""
+    if "runs" not in m:
+        return ["runs: not recorded (an upgrade to this kit records it)"]
+    r = m["runs"] or {}
+    if not any(r.get(x) for x in ("orbit_kb", "prompt", "panes")):
+        return ["runs: no orbit-kb, no Sagittarius prompt, no pane files (" + edition_of(m) + " edition)"]
+    out = []
+    okb = r.get("orbit_kb")
+    if okb:
+        now = okb_version(os.path.join(hub, os.path.dirname(os.path.dirname(okb["command"])), "share", "orbit-kb", "VERSION"))
+        out.append(f"runs orbit-kb: {okb['command']} (orbit-kb {okb.get('version') or 'version unknown'}"
+                   + ("" if now == okb.get("version") else f"; the copy now says {now or 'no version'}") + ")")
+    else:
+        out.append("runs orbit-kb: none")
+    pr = r.get("prompt")
+    if pr:
+        there = os.path.expanduser(pr["file"])
+        if not os.path.isfile(there):
+            state = "missing"
+        else:
+            want = pr.get("sha256")
+            same = sha(there) == want  # the launcher file now (c_m_d_2)
+            state = "same" if same else f"differs (Sagittarius {prompt_version(there) or 'version unknown'})"
+        out.append(f"runs prompt: {pr['file']} (Sagittarius {pr.get('version') or 'version unknown'}); the file there: {state}")
+    else:
+        out.append("runs prompt: not known (the kit has no Sagittarius prompt)")
+    pn = r.get("panes")
+    if pn:
+        d = os.path.expanduser(pn["dir"])
+        missing = [x for x in sorted(pn["files"]) if not os.path.isfile(os.path.join(d, x))]
+        differ = [x for x in sorted(pn["files"]) if x not in missing and sha(os.path.join(d, x)) != pn["files"][x]]
+        state = "; ".join(([f"missing {' '.join(missing)}"] if missing else []) + ([f"differs {' '.join(differ)}"] if differ else [])) or "same"
+        ver = (pr or {}).get("version") or "version unknown"
+        out.append(f"runs panes: {pn['dir']}/ {' '.join(sorted(pn['files']))} (Sagittarius {ver}); the files there: {state}")
+    return out
+
+
+def runs_summary(runs):
+    if not any(runs.get(x) for x in ("orbit_kb", "prompt", "panes")):
+        return "runs: no orbit-kb, no Sagittarius prompt, no pane files"
+    okb, pr, pn = runs.get("orbit_kb"), runs.get("prompt"), runs.get("panes")
+    return ("runs: " + (f"orbit-kb {okb.get('version') or 'version unknown'}" if okb else "no orbit-kb") + ", "
+            + (f"Sagittarius {pr.get('version') or 'version unknown'} prompt" if pr else "no prompt") + ", "
+            + f"{len(pn['files']) if pn else 0} pane files (recorded in {MANIFEST})")
+
+
 def load_manifest(hub):
     p = os.path.join(hub, MANIFEST)
     if not os.path.exists(p):
@@ -224,6 +330,7 @@ def cmd_install(o):
          "owned": sorted(k["owned"]), "pending": []}
     if o["uat"]:
         m["uat"] = True  # a UAT install: it tests the kit itself (INSTRUCTIONS.md step 3)
+    m["runs"] = runs_of(o["kit"], k, ed)  # what the hub runs (c_m_d_2)
     save_manifest(hub, m)
     print(f"installed MindHole {k['version']} ({ed} edition{', UAT install' if o['uat'] else ''}) into {hub}: "
           f"{len(engine)} engine, {len(k['owned'])} owned files")
@@ -240,6 +347,8 @@ def cmd_status(o):
     k = load_kit(o["kit"])
     m = load_manifest(o["hub"])
     print(f"hub from MindHole {m['template_version']} ({edition_of(m)} edition{', UAT install' if m.get('uat') else ''}); this kit MindHole {k['version']}")
+    for line in runs_lines(o["hub"], m):
+        print(line)
     kit_files = kit_shas(o["kit"], k, edition_of(m))
     for rel in sorted(set(m["files"]) | set(kit_files)):
         if rel not in m["files"]:
@@ -312,7 +421,9 @@ def cmd_upgrade(o, edition=None):
     m["files"] = kit_files
     m["owned"] = sorted(known_owned | set(k["owned"]))
     m["pending"] = pending  # merges left for the agent
+    m["runs"] = runs_of(o["kit"], k, ed)
     save_manifest(hub, m)
+    print(runs_summary(m["runs"]))
     print(f"done: {len(pending)} merge(s) pending; follow UPGRADING.md for each, then `hubkit.py done PATH`")
 
 

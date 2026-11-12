@@ -37,7 +37,7 @@ HOME = {
     "memory": ("the root files `CLAUDE.md`, `HUB-CORE.md`, `HEURISTICS.md`, `TECHNOLOGIES.md`",
                "read at boot; promote into them at rotation (skill `hub-rotate`)"),
     "weeks": ("`W0/` to `W5/`: `reports/`, `transcripts/`, `outbound-staging/`",
-              "`hubflow.py index-transcripts`; skill `hub-rotate`"),
+              "`hubflow.py transcripts --files`, `transcripts --find`; skill `hub-rotate`"),
     "bespoke": ("a tool or skill, listed in `TECHNOLOGIES.md` (or the memory file the hub names)",
                 "the tool's own help; skill `hub-rotate` prunes the unused"),
     "tracker": ("outside the hub: a pointer such as `issue:123` in a ledger ref",

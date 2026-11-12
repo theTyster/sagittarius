@@ -1,5 +1,5 @@
 {
-  "version": "0.6.0",
+  "version": "0.7.0",
   "engine": [
     "HUB-CORE.md",
     "PRINCIPLES.md",
@@ -26,6 +26,15 @@
       ".claude/skills/hub-rotate/SKILL.md"
     ],
     "formal": []
+  },
+  "prompt": {
+    "from": "../prompt",
+    "prompt": "SAGITTARIUS.md",
+    "panes": [
+      "PANES.md",
+      "panes"
+    ],
+    "launcher": "~/.claude/sagittarius"
   },
   "orbit_kb": {
     "from": "../kb",

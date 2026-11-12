@@ -1,12 +1,15 @@
 % Writes hubkit/tools/store-facts.json from the hub design KB (T22 c1).
 %   cd <hub design KB> && swipl -g "consult(load), consult('<this file>'), export_store_facts('<out.json>'), halt"
 % It copies only what the store map needs: the seven stores with their definitions (Ty's own
-% definition where Ty wrote one, else the definition of kg_def_v2), and the fact kinds of
+% definition where Ty wrote one, else the definition of kg_def_v2; changed_def/3 wins over both), and the fact kinds of
 % eff_fact/2 with fact_desc/2 and eff_cell/3 (owner O, pinned P, read R, copied C).
 :- use_module(library(http/json)).
 
 store_order([spec, project, ledger, memory, weeks, bespoke, tracker]).
 
+% A definition that the design KB changed after Ty's cells (changed_def/3, design_1106.pl: the weeks
+% store loses the session index, Ty 2026-11-12) wins; a design KB without changed_def/3 reads as before.
+store_owns(S, Text) :- catch(changed_def(S, T, _), error(existence_error(_, _), _), fail), !, first_para(T, Text).
 store_owns(S, Text) :- ty_def(S, ty, T), !, first_para(T, Text).
 store_owns(S, Text) :- kg_def_v2(S, T), first_para(T, Text).
 

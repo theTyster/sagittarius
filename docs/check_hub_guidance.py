@@ -256,6 +256,17 @@ def c5(_):
     has("c5 hub-flow SKILL.md reads the inbox", read(SKILL_FLOW), "v_inbox")
     has("c5 hub-flow SKILL.md points to PANES.md", read(SKILL_FLOW), "PANES.md")
     check("c5 the procedure is written once (one 'hubflow handoff' recipe in PANES.md)", words(pan).count("hubflow handoff") == 1, words(pan).count("hubflow handoff"))
+    # Sagittarius 0.3.0 (c_m_f_3): the receiver records the handoff in the KB as a signal; the example runs as written
+    ex = re.findall(r"`(orbit-kb add \"signal\([^`]*\)\")`", pan)
+    check("c5 PANES.md: the receiver records the handoff in the KB as a signal (an orbit-kb add example)", len(ex) == 1 and "handoff" in ex[0], ex)
+    if len(ex) == 1 and os.access(OKB, os.X_OK):  # the scratch copy of check_mutants.py holds no kb/bin
+        with tempfile.TemporaryDirectory() as d:
+            kb = os.path.join(d, "kb")
+            init = run([OKB, "init", kb, "--request", "an invented request"])
+            fact = re.search(r'"(signal\(.*\))"', ex[0]).group(1)
+            add = run([OKB, "--dir", kb, "add", fact], env=dict(os.environ, CLAUDE_CODE_SESSION_ID="c5-check"))
+            check("c5 the signal example of PANES.md runs in orbit-kb add", init.returncode == 0 and add.returncode == 0,
+                  (init.stderr[-200:], add.stdout[-200:], add.stderr[-300:]))
 
 
 # ------------------------------------------------------------------ c6

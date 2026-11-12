@@ -94,10 +94,8 @@ Dropping durable knowledge at a week boundary is the one failure this design can
    `outbound-staging/` items: sent → `W1/reports/`, unsent → `W0/outbound-staging/`
    with a dated note why. Read `W1/reports/` for lost facts.
 5. **Flow db.** `hubflow.py rotate --week-start <today's Monday> --yes`. Put the triaged (with their
-   dispositions), escalated, lapsed and pruned ids in the commit message. Run it after step 3:
-   `--yes` also rebuilds the Claude Code session index from the renamed week dirs
-   (`transcripts_reindexed:`), so moved sessions get their new paths and the retired `W5`'s rows
-   go. It lapses each `summary` row that is 28 days old by itself (`lapsed:`); none needs a triage.
+   dispositions), escalated, lapsed and pruned ids in the commit message. Run it after step 3.
+   It lapses each `summary` row that is 28 days old by itself (`lapsed:`); none needs a triage.
 6. **Citations after.** `python3 $SK/check-citations.py > $SCR/citations-after.tsv` and compare with the
    baseline. A citation that broke or now resolves to a different week: tombstone it.
 7. **Commit** the editorial half with a pathspec. Report: what moved, each disposition, what is
