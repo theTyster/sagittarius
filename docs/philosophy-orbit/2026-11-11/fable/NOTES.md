@@ -11,12 +11,22 @@ The final revision of `prompt/SAGITTARIUS.md` and `docs/PHILOSOPHY.md` is done a
 on this branch. Ty reviews it in the morning of 2026-11-12, with the Lean file. Nothing is
 pushed, installed or merged. `main` is not touched.
 
-What comes next is Ty's to start (see section 7):
+On 2026-11-12 00:25 UTC Ty started the next step (section 2, the last instruction):
 
-1. Ty checks the two files.
-2. Then an analysis: what must change in the build (the tools, the hub kit, the checks, the
-   other documents) so that it agrees with the new prompt and philosophy.
-3. Then subagents begin that work. Ty checks before they start.
+1. Versions are in the files (commit `979dff7`): Sagittarius 0.3.0, Philosophy 2.0.0, and the
+   hub kit stays 0.5.1. Fable chose the numbers. Ty has not seen them yet.
+2. The analysis is done and waits for Ty: `ALIGNMENT.md` (86 findings in 27 work packages,
+   three questions for Ty, the defaults that Fable took, a proposed order) and `SUGGESTIONS.md`
+   (33 improvements beyond alignment; Ty reviews them before a spec KB is made for any of
+   them), both in this folder. The four audit reports and their brief are in `audit/`. Its KB:
+   `/home/ty/Projects/mine/sagittarius/tmp/alignment-kb` (project module; the request is Ty's
+   words; each finding is a `definition` `b_<id>`, each work package a proposed `decision`
+   `wp_<area>_<letter>`; copies of the reports are in its `analyses/`). Section 7 of these
+   notes was the list of leads for it: `ALIGNMENT.md` supersedes that section.
+   An incident: the System 1 audit agent printed line 24 of `~/.zshenv` (the System 1 API key)
+   into its own transcript. Fable told Ty. Nothing was deleted.
+3. Subagents begin the build work only after Ty checks the analysis.
+4. Ty reviews the Lean definition in the morning of 2026-11-12.
 
 ## 2. The instructions (Ty, word for word)
 
@@ -45,6 +55,26 @@ What comes next is Ty's to start (see section 7):
 
 > This time around you can drop all the (P) stuff. I'll review the finished product myself
 > tomorrow morning with the Lean.
+
+2026-11-12 00:25 UTC (`ty_tests_are_artifacts`, `ty_likes_contested_twice_and_fields`,
+`ty_add_versions`, `ty_alignment_analysis`):
+
+> On the previous points you stated, I need to rule on whether it's okay to allow artifacts to
+> continue to be a third voter, keeping in mind that tests count as artifacts. Any test of any
+> kind counts as an artifact. I like the twice-contested claim rule and the fields you added.
+>
+> Go ahead and add a version to Sagittarius philosophies and the mind hole. We'll be using all
+> these things. I'll review the Lean definition in the morning for the properly formed and
+> properly written hypothesis definition.
+>
+> Next let's analyze what else in the project needs to change to come into alignment with
+> these documents that we've made. start a KB if there are any.You're doing a pretty good job
+> here so I'll also give you license to suggest any other improvements that might be good for
+> the project while you're working through this analysis. Put all those suggestions in their
+> own Markdown document for now. I'll review them before suggesting a spec KB for the
+> individual changes you suggest. First and foremost though, let's identify areas where the
+> Mindhole and Orbit KB, and any other tools, could improve to come into better alignment with
+> the philosophies of the project.
 
 ## 3. Where everything is
 
@@ -142,7 +172,14 @@ Checks that this pass ran:
   held-out case.
 - No eval ran on this prompt. Nobody but Fable has read the final revision.
 
-## 6. Defaults of Fable that Ty has not ruled on
+## 6. Defaults of Fable: what Ty ruled on 2026-11-12, and what is open
+
+Ruled: points 2 and 3 stand ("I like the twice-contested claim rule and the fields you
+added."). Point 4 is done (the versions). Open: point 1 (Ty: "I need to rule on whether it's
+okay to allow artifacts to continue to be a third voter, keeping in mind that tests count as
+artifacts."), and point 5 (Ty reads the Lean definition in the morning). In point 2, which
+language a twice-contested claim goes to (Lean in the tool, "the language that fits" in the
+files) is not settled by Ty's words: it is a question in the analysis.
 
 1. **The vote of the artifacts with no KB** (section 5, point 2). Astra would drop that ballot
    when there is no KB: then the human and the agent can concur. The files keep three voters
