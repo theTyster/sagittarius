@@ -34,5 +34,13 @@
    "tests": "Behavior on concrete cases is enough",
    "none": "No formal tool is needed"
   }
+ },
+ "h_questions": {
+  "type": "noul",
+  "instructions": "Does the newest message in `message` show that a round of questions did not settle the matter: it answers the questions in `recent` but leaves one open, answers with a new question, or raises a new doubt that needs another round?"
+ },
+ "h_proof": {
+  "type": "noul",
+  "instructions": "Does the newest message in `message` ask for a proof, or for certainty that a property holds in every case? Asking to test the work, or to try to break it, is not a proof."
  }
 }

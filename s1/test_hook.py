@@ -976,8 +976,10 @@ class SA3FormalTool(Base):
              "h_divergence": {"type": "noul", "noul": div},
              "h_change_of_plan": {"type": "noul", "noul": plan},
              "h_effort": {"type": "noul", "noul": effort},
-             "h_language": {"type": "choice", "choice": lang, "confidence": lang_p, "probabilities": probs}}
+             "h_language": {"type": "choice", "choice": lang, "confidence": lang_p, "probabilities": probs},
+             "h_questions": {"type": "noul", "noul": 0.1}, "h_proof": {"type": "noul", "noul": 0.1}}  # 0.3.0 S-C
         a.update(extra or {})
+        a = {k: v for k, v in a.items() if v is not None}  # extra {id: None} removes an answer
         return {"model": "test", "usage": None, "answers": a}
 
     def line(self, **kw):
@@ -994,7 +996,14 @@ class SA3FormalTool(Base):
             self.assertIn("formal tool: z3 (0.90)", self.line(**kw), kw)
 
     def test_lean_alone_is_named(self):
-        self.assertEqual(self.line(lang="lean"), "System 1: work=build (0.90); formal tool: lean (0.90)")
+        # a response with no h_proof (an older question set): the choice lean says that a proof is asked
+        # (the hook asks every question of its set, so this is format_answers alone)
+        got = hook().format_answers(self.answers(lang="lean", extra={"h_proof": None})["answers"],
+                                    json.load(open(os.path.join(HERE, "questions.json"))))
+        self.assertEqual(got, "System 1: work=build (0.90); formal tool: lean (0.90)")
+        # a response with h_proof: the answer decides (S-C), and the line names the proof
+        self.assertEqual(self.line(lang="lean", extra={"h_proof": {"type": "noul", "noul": 0.9}}),
+                         "System 1: work=build (0.90); proof asked (0.90); formal tool: lean (0.90)")
 
     def test_a_proof_answer_decides_when_present(self):
         # after c_s_c_1 a proof that is asked for is the answer h_proof; a response without it stays valid

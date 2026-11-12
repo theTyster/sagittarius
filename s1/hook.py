@@ -237,7 +237,8 @@ def format_answers(answers, questions):
     """One line; UNSURE when every answer is unsure; NO_SIGNAL when only the formal tool is outside the
     band and the rule holds it back (no signal, no proof). Raises on a malformed answer.
     The line only reports (0.3.0 S-A): no instruction. The formal tool is named only beside a
-    signal (divergence likely, change of plan likely, effort significant) or when a proof is asked."""
+    signal (divergence likely, change of plan likely, effort significant, questions not settled) or when
+    a proof is asked."""
     parts = []
     signal = False
     w = _choice(answers["h_work"], questions["h_work"])
@@ -254,6 +255,14 @@ def format_answers(answers, questions):
         signal = True
     elif e == "no":
         parts.append(f"effort not significant ({ep:.2f})")
+    # 0.3.0 S-C: a round of questions that did not settle, and a proof that the human asks for. Each is
+    # reported in the yes band only, and only when the response has it (an older response has neither).
+    for qid, text in (("h_questions", "questions not settled"), ("h_proof", "proof asked")):
+        if isinstance(answers.get(qid), dict):
+            b, p = _noul(answers[qid])
+            if b == "yes":
+                parts.append(f"{text} ({p:.2f})")
+                signal = signal or qid == "h_questions"
     lang = _choice(answers["h_language"], questions["h_language"])
     if lang and (signal or _proof_asked(answers, lang)):
         parts.append(f"formal tool: {lang[0]} ({lang[1]:.2f})")
