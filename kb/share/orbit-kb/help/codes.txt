@@ -26,8 +26,9 @@ Core
        Query, why, whynot, show, and report exit 2 until it is gone.
   E19  typo guard: a predicate declared by its first use (add) has a name 2 edits or
        fewer from a declared predicate of the same arity. The message names both.
-       A typo: correct the facts in kb.pl, and delete the decl/4 and first_use/3 lines
-       of the new name. A new predicate: choose a name more than 2 edits away.
+       A typo: withdraw the new kind, and add its facts again under the declared name:
+         orbit-kb withdraw cited/2     removes its declaration and its facts, with a record
+       Never edit kb.pl by hand. A new predicate: choose a name more than 2 edits away.
        Also a head of rules.pl (declared by its first clause) that is that close to a declared name:
        correct the name in rules.pl. Query, why, whynot, show, and report exit 2 until it is gone.
   W1   subject digest differs from the file. Run orbit-kb subject again.

@@ -3,7 +3,7 @@ orbit-kb help discovery: the discovery module (orbit-kb uses discovery)
 Start: orbit-kb init DIR --request-file F --uses discovery   (F holds the report word for word)
        With a tracker item: add --source REF, so the request is pinned to the item (orbit-kb help build, PIN).
 Keep the models and the logs inside DIR. Record scope, risk, assumption, and not_explored.
-Sections: FACTS, ATTESTATIONS, QUERIES, LAPS, then one recipe for each move (SIGNAL and
+Sections: FACTS, ATTESTATIONS, QUERIES, LAPS, then one recipe for each move (RESTATE and
 The hypothesis, SURVEY, SPECTRUM, FLYBY, TRAJECTORY, DISPROVE, GATE, ASKING, HANDOFF), then
 REPORT and BACK. Run only the moves that the report needs, in the order that the KB state
 calls for. Every move rereads the report. Describe each divergence in a note.
@@ -72,7 +72,7 @@ LAPS
   follows. Stop when discovery_decide holds. Out of budget is not ready: report what you
   know, each open item, and what you do not know. Only the human raises the budget.
 
-SIGNAL: pin the report
+RESTATE: pin the report
   1. Classify the report: a defect, a feature, a risk (can something happen?), or unclear.
   2. Restate it as one hypothesis, wide: the widest reading that the report allows (see The
      hypothesis, below), with its premises beside it.
@@ -321,6 +321,6 @@ BACK: back to discovery
   It opens the discovery orbit again: a new hypothesis needs its system result (WD7), and
   readiness and the vote are asked again: the votes before the back do not count, so both
   vote again (next round) before an approval can close the orbit. A back names a hypothesis,
-  and only a closed orbit has a back (attest refuses it otherwise). Then go to SIGNAL if the hypothesis is wrong, SPECTRUM if a
+  and only a closed orbit has a back (attest refuses it otherwise). Then go to RESTATE if the hypothesis is wrong, SPECTRUM if a
   claim is wrong or missing, FLYBY or TRAJECTORY if a model missed a behavior, and FLYBY and
   then the human if BURN shows that the requirements conflict.

@@ -102,6 +102,10 @@ decl(fact, signal(id, oneof([questions, divergence, built_by_other, burn, handof
 decl(fact, lean_back(id, text),
      'A lean back: what stopped, and what stays active. report prints it under Signals.',
      'the agent leaned back (@(1)): @(2)').
+% 0.3.0 (K-J, D39): orbit-kb withdraw writes the record of a kind that it removed.
+decl(fact, withdrawn(term, by, time, int),
+     'orbit-kb withdraw removed this kind (NAME/ARITY) from kb.pl: who, when, and how many facts. The removed lines stay in kb.pl as comments.',
+     'the kind @(1) was withdrawn by @(2) at @(3) (@(4) facts)').
 decl(fact, universal(ref(claim)),
      'The claim says that something is true for every input.',
      'claim @(1) is about every input').

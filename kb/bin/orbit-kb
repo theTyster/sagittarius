@@ -516,6 +516,7 @@ kb_command('pin-answer').
 kb_command('pin-request').
 kb_command('apply-pending').
 kb_command(review).
+kb_command(withdraw).
 
 top(Argv0, Code) :-
     take_dirs(Argv0, Dirs, [view|ViewArgs]), !,
@@ -610,6 +611,7 @@ writer_command('apply-pending').
 writer_command(review).
 writer_command(subject).
 writer_command(attest).
+writer_command(withdraw).
 % run and prove take the lock themselves, only to record the result
 % (see cmd_run/3 and cmd_prove/3).
 
@@ -628,7 +630,7 @@ writer_command(attest).
 % --take replaces the holder at once and records writer_takeover/3 too.
 % The lock is a record, not a guard: nothing stops a hand edit of kb.pl.
 
-lock_command(C) :- memberchk(C, [add, subject, attest, run, prove, uses, 'pin-item',
+lock_command(C) :- memberchk(C, [add, subject, attest, run, prove, uses, withdraw, 'pin-item',
                                  'pin-question', 'pin-answer', 'pin-request', 'apply-pending', review]).
 
 writer_name(W) :-
@@ -1214,6 +1216,7 @@ kb_cmd('pin-answer', KB, Args, Code) :- cmd_pin_answer(KB, Args, Code).
 kb_cmd('pin-request', KB, Args, Code) :- cmd_pin_request(KB, Args, Code).
 kb_cmd('apply-pending', KB, Args, Code) :- cmd_apply_pending(KB, Args, Code).
 kb_cmd(review, KB, Args, Code) :- cmd_review(KB, Args, Code).
+kb_cmd(withdraw, KB, Args, Code) :- cmd_withdraw(KB, Args, Code).
 
 % ---------------------------------------------------------------------
 % Library and KB location
@@ -3443,6 +3446,66 @@ cmd_init(Args, Code) :-
     format("~w~n", [KbFile]),
     format(user_error, "Next: add the claims and the checks. Vocabulary: orbit-kb help core.~n", []),
     Code = 0.
+
+% ---------------------------------------------------------------------
+% withdraw: remove a kind that a typo declared (D39, 0.3.0 K-J c_k_j_3)
+% ---------------------------------------------------------------------
+% orbit-kb withdraw NAME/ARITY [--by human|agent] removes from kb.pl the decl/4 line of a kind
+% that kb.pl declares (a first use, D22), its first_use/3 fact and every fact of the kind. Each
+% removed line stays in kb.pl as a comment "% withdrawn: LINE", and the record
+% withdrawn(NAME/ARITY, By, Time, N) (N facts) is appended. A kind that the library declares
+% is never withdrawn. The fix for E19 needs no edit of kb.pl by hand.
+
+cmd_withdraw(KB, Args, Code) :-
+    parse_opts(Args, ['--by'-value], Pos, Opts),
+    (   Pos = [PIA], atomic_list_concat([NA, AA], '/', PIA), NA \== '',
+        catch(atom_number(AA, Ar), _, fail), integer(Ar), Ar >= 0
+    ->  N = NA
+    ;   usage_error("Give one kind as NAME/ARITY: orbit-kb withdraw cited/2.", [])
+    ),
+    opt(Opts, '--by', agent, By),
+    ( memberchk(By, [human, agent]) -> true ; usage_error("--by takes human or agent. It is ~w.", [By]) ),
+    KB = kb(_, _, _, Items),
+    kb_file(KB, KbFile),
+    findall(L-T, ( member(it(kb, _, L, T, _, _), Items), nonvar(T), T = decl(_, H, _, _), nonvar(H), functor(H, N, Ar) ), Decls),
+    (   Decls == []
+    ->  (   member(it(Src, _, _, decl(_, H2, _, _), _, _), Items), Src \== kb, nonvar(H2), functor(H2, N, Ar)
+        ->  fmt(M1, "~w/~w is a kind of the library (~w), not of this KB. withdraw takes only a kind that kb.pl declares (a first use).", [N, Ar, Src]),
+            reject([M1])
+        ;   fmt(M1, "kb.pl declares no kind ~w/~w. orbit-kb show kinds lists the kinds; lint E19 names a kind that a typo declared.", [N, Ar]),
+            reject([M1])
+        )
+    ;   true
+    ),
+    findall(L-T, ( member(it(kb, _, L, T, _, _), Items), nonvar(T),
+                   ( T = first_use(N/Ar, _, _) ; pos_fact(T), \+ T = decl(_, _, _, _), functor(T, N, Ar) ) ), Others),
+    findall(x, ( member(_-T, Others), \+ T = first_use(_, _, _) ), Fs), length(Fs, NF),
+    append(Decls, Others, LTs0), sort(LTs0, LTs),
+    kb_lines_commented(KbFile, LTs, Out0),
+    utc_now(Now),
+    clause_line(withdrawn(N/Ar, By, Now, NF), [], Rec),
+    (   sub_string(Out0, _, 1, 0, "\n") -> Sep = "" ; Sep = "\n" ),
+    atomic_list_concat([Out0, Sep, Rec, "\n"], Out),
+    write_kb_text(KbFile, Out),
+    format("~w~n", [Rec]),
+    format(user_error, "Withdrew ~w/~w: its declaration and ~w fact(s). They stay in kb.pl as comments. Run orbit-kb lint next.~n", [N, Ar, NF]),
+    Code = 0.
+
+% kb_lines_commented(+File, +Line-Term pairs, -Out): the text of File with each of these lines
+% turned into the comment "% withdrawn: LINE". Each term must be the whole of its line.
+kb_lines_commented(File, LTs, Out) :-
+    read_file_to_string(File, Str, [encoding(utf8)]),
+    split_string(Str, "\n", "", Lines),
+    forall(member(L-T, LTs),
+           (   nth1(L, Lines, LS),
+               catch(term_string(T2, LS, [module(orbit_ops)]), _, fail), T2 =@= T
+           ->  true
+           ;   die(2, ["withdraw: line " + L + " of kb.pl does not hold exactly one term. Nothing was written.",
+                       "Fix: keep one fact per line in kb.pl (orbit-kb add writes them so)."] >> fix_lines)
+           )),
+    pairs_keys(LTs, Ls),
+    findall(O, ( nth1(I, Lines, LS), ( memberchk(I, Ls) -> string_concat("% withdrawn: ", LS, O) ; O = LS ) ), Outs),
+    atomic_list_concat(Outs, '\n', Out).
 
 % ---------------------------------------------------------------------
 % shift: the step from words to records in one command (D37, 0.3.0 K-H)
@@ -5965,7 +6028,7 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
             ( member(fu(N, A, _, _, F, L), FUs),
               member(d(N2, A, _, _, _, _, _, _, _), Ds), N2 \== N, atom(N2),
               edit_distance_at_most(N, N2, 2, Dist),
-              fmt(M, "~q/~w was declared by its first use, and its name is ~w edit(s) from the declared ~q/~w. It may be a typo. If it is: correct the facts in kb.pl to ~q/~w, and delete the decl/4 and first_use/3 lines of ~q/~w. If it is a new predicate: choose a name more than 2 edits away.", [N, A, Dist, N2, A, N2, A, N, A]) ),
+              fmt(M, "~q/~w was declared by its first use, and its name is ~w edit(s) from the declared ~q/~w. It may be a typo. If it is: run orbit-kb withdraw ~q/~w (it removes the kind and its facts, with a record), and add the facts again as ~q/~w. If it is a new predicate: choose a name more than 2 edits away.", [N, A, Dist, N2, A, N, A, N2, A]) ),
             E19a),
     sort(E19a, E19b),
     e19_rule_diags(Ds, E19r),
@@ -8521,7 +8584,7 @@ help_general([
 "Phases (each orbit has two phases; each move belongs to one phase):",
 "  discovery: research, specify",
 "  build: build, verify",
-"  research  SIGNAL, SURVEY, FLYBY, TRAJECTORY, DISPROVE (discovery)",
+"  research  RESTATE, SURVEY, FLYBY, TRAJECTORY, DISPROVE (discovery)",
 "  specify   SPECTRUM, DECOMPOSE, the vote (GATE)",
 "  build     BUILD",
 "  verify    FULFILL, DISPROVE, BURN",
@@ -8532,6 +8595,7 @@ help_general([
 "Commands:",
 "  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
 "  uses MODULE ...",
+"  withdraw NAME/ARITY [--by human|agent]      remove a kind that a typo declared (lint E19)",
 "  shift DIR --request-file F --hypothesis T (--no-premises|--premise T ...) --claim T --example T --check ID",
 "  add 'FACT' ... [--by human|agent] [--doc TEXT]",
 "  subject ID PATH",
@@ -8935,6 +8999,15 @@ help_lines(doctor, [
 "arithmetic under not gives exactly k2, k3, k4;",
 "E18 flags p :- not q, q :- not p; E17 flags -p(b).",
 "Exit 2 if something is missing or a self-test fails."
+]).
+help_lines(withdraw, [
+"orbit-kb withdraw NAME/ARITY [--by human|agent]",
+"",
+"Remove a kind that kb.pl declares by its first use (a typo that lint E19 names, such as",
+"cited/2 next to cites/2): its decl/4 line, its first_use/3 fact, and every fact of the kind.",
+"Each removed line stays in kb.pl as the comment \"% withdrawn: LINE\", and the record",
+"withdrawn(NAME/ARITY, By, Time, N) is appended (N facts). Then add the facts again under the",
+"declared name. A kind of the library is never withdrawn (exit 1). Takes the writer lock."
 ]).
 help_lines(version, [
 "orbit-kb version   (also: orbit-kb --version)",
