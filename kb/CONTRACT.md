@@ -219,6 +219,8 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
   - A3 (the text): `show blocking` and `draft blocking` print the item `under(C)` of a claim C with an `ac(C)` fact as `- under C: acceptance criterion C is not met (claim C is current but not fulfilled): TEXT`. Every other `under` line stays `- under C: claim C is current but not fulfilled: TEXT`. The term `under(C)` and the other kinds do not change, so the question view (D24) and the question server (D26) list it as before.
   - Not in scope: a blocking kind of its own for an AC; a check of an AC that failed (`check_failing`, `check_unrun`) keeps its line.
   - Tests added: AC1 to AC5, in `kb/tests/test_orbit_kb.sh`.
+- **D30 (the hypothesis and its premises in every KB, 2026-11-12).** Sagittarius 0.3.0, package K-A of the alignment (spec KB `tmp/kb-sagittarius-030`, claims `c_k_a_1`, `c_k_a_2`, `c_k_a_4`, `c_k_a_3b`). The prompt: every ticket has a hypothesis; in build the agent states it from the request, with its premises beside it ("Premises: none" when there are none); a premise that nobody checked is a guess; when the human says what the hypothesis changes to, the new hypothesis supersedes the old one, "Show it, and go on." The changes:
+  - H1 (`c_k_a_1`; amends the reserved names of the discovery module, D15 R1): `hypothesis(id, oneof([defect, feature, risk, change]), text)` is a core fact. It was a fact of the discovery module. The fourth kind `change` is for a direct build of a document or a configuration, which is no defect, feature, or risk (default of question `q_k_a_1`). A KB that uses build only, or no module, takes a hypothesis and `supersedes(HNew, HOld)` of two hypotheses; it gets no discovery finding (WD7 is a rule of the discovery module) and its report has no `Vote:` section and no "not ready" item. In a KB that uses discovery, WD7 and `discovery_ready` read hypotheses as before. Tests HY1, HY2.
 - **D21 (a visual claim flares, 2026-11-04).** GitHub issue #9. Decision by Ty ("Both"). A burn closes with a Lean proof; some claims are a look, a layout, or a name, and only a human who sees the result can close them. Before D21, a renamed alias was recorded as a second divergence, its claim burned, and `done` waited for a Lean proof of an alias name. Mnemonic: burns get proved, flares get shown. The changes, all in `modules/build.pl`:
   - F1: new facts `visual(ref(claim))` (the agent marks it at DECOMPOSE, or a human asks for it) and `demo(ref(subject), ref(claim))` (a screenshot or a recording, recorded with `orbit-kb subject`, shows the claim).
   - F2: `flare(C)` holds when C is visual, or when C replaces a visual claim through one or more `supersedes` steps, as an inherited burn does. A claim can burn and flare at once: prove the invariant, show the look.
@@ -275,7 +277,7 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
   - Out of scope: the light path (no KB). `Delivered:` and `To land:` stay placeholders in the text, and the page leaves them out.
   - Tests: RH1 to RH9.
 - **D15 (reword a hypothesis; W5 asks for a new check, 2026-10-27).** Decision by Ty: no new command and no new attestation type for what is a small reword. Choices made by the builder:
-  - R1: `supersedes` takes two claims, or two hypotheses. Its declaration is `supersedes(ref, ref)`: core cannot name the discovery fact `hypothesis/3` in a type, and `ref([claim, hypothesis])` is E3 without the module. The CLI checks the kinds. A side that is an existing id but no claim and no hypothesis is E4. A claim and a hypothesis in one fact is E4, and the message says how to reword a hypothesis. `add` refuses both. `superseded/1`, `supersedes_closure/2`, and `supersede_cycle/1` are declared with `ref`. Their rules do not change, so the Lean burn model is not rerun.
+  - R1: `supersedes` takes two claims, or two hypotheses. Its declaration is `supersedes(ref, ref)`: core cannot name the discovery fact `hypothesis/3` in a type, and `ref([claim, hypothesis])` is E3 without the module. (D30 H1: `hypothesis/3` is a core fact now; the type stays `ref`, because the project module adds its own kinds.) The CLI checks the kinds. A side that is an existing id but no claim and no hypothesis is E4. A claim and a hypothesis in one fact is E4, and the message says how to reword a hypothesis. `add` refuses both. `superseded/1`, `supersedes_closure/2`, and `supersede_cycle/1` are declared with `ref`. Their rules do not change, so the Lean burn model is not rerun.
   - R2: `current/1` keeps `claim(C, _, _)`, so a hypothesis is never current, under, or a burn (`burn_reason/1` reads claims only). A hypothesis cycle is E15 and makes `any_supersede_cycle` true, so `done` is false, as for claims. The E15 message, `show open`, and `report` name the kind.
   - R3 (discovery): a superseded hypothesis is out of play. `some_hypothesis :- hypothesis(H, _, _), not superseded(H).`, `some_untouched_hypothesis :- hypothesis(H, _, _), not superseded(H), not discovery_hypothesis_touched(H).`, the not_reproduced clause of `discovery_has_outcome` adds `not superseded(H)`, WD7 adds `not superseded(H)`, and WD6 adds `not superseded(H)` for the hypothesis of its result. `artifact_vote/1` reads these through `discovery_ready`. `raised_by/2`, ED8, and `decision` (`no_go`, `hold`) do not change. `discovery_ready` does not read `any_supersede_cycle`; E15 reports a cycle.
   - R4 (W5): a check of a superseded claim gets W5 once for each current claim (a claim that no claim supersedes) that replaces the claim, directly or through a chain, and that has no check of its own. The message names that claim and says to add a new check of it with a new id, then run it (check ids are unique, E5, and facts are append-only). No W5 when no such claim exists.
@@ -488,7 +490,7 @@ Every fact must be ground.
 The discovery orbit and the build orbit both use the core vocabulary. Names that the
 discovery module reserves must not appear in the core or the build module:
 
-- Facts: `hypothesis/3`, `budget/2`, `lap_done/1`, `model/2`,
+- Facts: `budget/2`, `lap_done/1`, `model/2`,
   `model_run/3`, `derived_from/2`, `encodes/2`, `finding/3`, `reason/3`,
   `raised_by/2`, `discovery_evidence/2`.
 - Gates: `discovery_ready/0` (clean) and `discovery_decide/0` (ready, or the
@@ -509,6 +511,7 @@ discovery module reserves must not appear in the core or the build module:
 Core facts:
 
 - `request(id, text)`: the human's words, verbatim.
+- `hypothesis(id, oneof([defect, feature, risk, change]), text)`: the hypothesis of the ticket (D30 H1; a fact of the discovery module before 0.3.0).
 - `ticket(ref(subject))`: the subject that holds the ratified ticket.
 - `claim(id, oneof([preserve, retire, introduce]), text)`:
   - `preserve`: true now, and must stay true;
@@ -517,8 +520,8 @@ Core facts:
 - `cites(ref(claim), text)`: the request or ticket text that the claim serves.
 - `example(ref(claim), text)`: a concrete case. Discovery's witnesses and reproductions
   go here, and build turns them into tests.
-- `supersedes(ref, ref)`: the new claim, then the old one; or, with the discovery module,
-  the new hypothesis, then the old one (D15). Both sides are the same kind; otherwise E4.
+- `supersedes(ref, ref)`: the new claim, then the old one; or the new hypothesis, then the
+  old one (D15; in any KB since D30 H1). Both sides are the same kind; otherwise E4.
 - `universal(ref(claim))`: the claim says "for every input".
 - `check(id, ref(claim))`: an executable check of the claim.
 - `world(term)`: a closed-world fact about the current state.

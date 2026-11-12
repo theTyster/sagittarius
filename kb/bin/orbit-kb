@@ -2229,14 +2229,14 @@ unused_module_decl(KB, N, A, M) :-
     decl_of(MDs, N, A, _), !.
 
 % supersedes_kind_diags(+Env, +Fact, +F, +L, -Diags) (D15): supersedes/2 has the
-% type ref in core.pl, because core.pl cannot name the discovery fact
-% hypothesis/3. Here each side must be a claim or a hypothesis, and both sides
+% type ref in core.pl, because one type cannot name every kind that it takes
+% (claims, hypotheses, and the project kinds). Here each side must be a claim or a hypothesis, and both sides
 % the same kind. An id that does not exist is E4 of the ref type already.
 supersedes_kind_diags(env(_, _, IdA, FAA), supersedes(N, O), F, L, Diags) :-
     findall(diag('E4', F, L, M),
             ( nth1(I, [N, O], X), atom(X), get_assoc(X, IdA, _),
               \+ sup_kind(FAA, X, _),
-              fmt(M, "supersedes/2 argument ~w: ~q is not the id of a claim or a hypothesis. supersedes takes two claims, two hypotheses (discovery module), or two decisions, two definitions, or two rules (project module). Fix the id.", [I, X]) ),
+              fmt(M, "supersedes/2 argument ~w: ~q is not the id of a claim or a hypothesis. supersedes takes two claims, two hypotheses, or two decisions, two definitions, or two rules (project module). Fix the id.", [I, X]) ),
             D1),
     (   sup_kind(FAA, N, KN), sup_kind(FAA, O, KO), KN \== KO
     ->  fmt(M2, "supersedes/2: ~q is a ~w and ~q is a ~w. Both sides must be the same kind: a claim cannot replace a hypothesis, and a decision cannot replace a definition. To reword a hypothesis, add a new hypothesis, then supersedes(NewHypothesis, ~q).", [N, KN, O, KO, O]),

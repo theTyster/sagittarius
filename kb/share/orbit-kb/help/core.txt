@@ -5,13 +5,16 @@ Quote text with single marks. Do not edit kb.pl by hand.
 
 Facts
   request(Id, Text)              the human's words, word for word
+  hypothesis(Id, Kind, Text)     what must be true when the ticket is done. Every ticket has one.
+                                 Kind is defect, feature, risk, or change (a direct build of a
+                                 document or a configuration).
   claim(Id, Label, Text)         Label is preserve (true now, must stay true),
                                  retire (true now, must become false),
                                  or introduce (false now, must become true)
   cites(Claim, Text)             the request text that the claim serves
   example(Claim, Text)           a concrete case of the claim
   supersedes(New, Old)           New replaces Old. Never edit a claim or a hypothesis.
-                                 Both are claims, or both are hypotheses (discovery).
+                                 Both are claims, or both are hypotheses.
                                  Nothing can replace itself, also through a chain.
                                  add refuses it, and lint reports E15.
   universal(Claim)               the claim is about every input; it burns (orbit-kb help build)

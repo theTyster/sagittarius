@@ -66,9 +66,17 @@ decl(fact, cites(ref(claim), text),
 decl(fact, example(ref(claim), text),
      'A concrete case of the claim.',
      'an example of claim @(1) is @(2)').
-% supersedes/2 takes two claims, or two hypotheses of the discovery module.
-% The type is ref (any id), because core.pl cannot name the module fact
-% hypothesis/3. orbit-kb checks the kinds: a claim and a hypothesis is E4.
+% 0.3.0 (K-A, D30): every ticket has a hypothesis, so hypothesis/3 is a core
+% fact (it was a fact of the discovery module). The kind change is for a
+% direct build of a document or a configuration, which is no defect, feature,
+% or risk (question q_k_a_1).
+decl(fact, hypothesis(id, oneof([defect, feature, risk, change]), text),
+     'A falsifiable and wide restatement of the request: what must be true when the ticket is done.',
+     'hypothesis @(1) is a @(2): @(3)').
+% supersedes/2 takes two claims, or two hypotheses (or, with the project
+% module, two decisions, definitions, or rules). The type is ref (any id),
+% because one type cannot name all these kinds. orbit-kb checks the kinds:
+% a claim and a hypothesis is E4.
 decl(fact, supersedes(ref, ref),
      'The first claim replaces the second claim, or the first hypothesis replaces the second hypothesis.',
      '@(1) replaces @(2)').

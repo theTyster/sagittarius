@@ -22,9 +22,7 @@
 %   readiness check), its not_reproduced result is no outcome, and it raises no WD6.
 
 % --- Facts ---
-decl(fact, hypothesis(id, oneof([defect, feature, risk]), text),
-     'A falsifiable and scoped restatement of the request.',
-     'hypothesis @(1) is a @(2): @(3)').
+% hypothesis/3 is a core fact since 0.3.0 (K-A, D30).
 decl(fact, budget(oneof([laps]), int),
      'A lap budget; when there are several, the largest one counts.',
      'the budget is @(2) @(1)').
