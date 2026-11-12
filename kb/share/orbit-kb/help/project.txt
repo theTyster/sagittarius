@@ -56,7 +56,12 @@ Queries (the derived answers)
                                 (current/1 stays the rule for claims.)
   rests_on(X, Y)                X depends on Y through one or more depends_on facts
   contradiction(X, Y)           excludes(X, Y), and both are current
-  proposed(X)                   an agent made X and no human ratified it. A proposed fact blocks nothing.
+  proposed(X)                   an agent made X and no human ratified it; or X is a relation (excludes,
+                                depends_on) that only an agent wrote. A proposed fact or relation blocks nothing.
+  relation_by(R, By, Time)      who wrote relation R (human or agent, the --by of add) and when. add writes
+                                it after each excludes and depends_on fact. A human ratifies an agent's
+                                relation by adding the same relation: orbit-kb add 'excludes(d1, d2)' --by human.
+                                A relation with no relation_by (an older KB) counts as a human's.
   impact(X, SpecKB)             a claim of the spec KB pins X, or pins a fact that rests on X.
                                 The spec KBs are found under the parent directory of the project KB,
                                 and in its registry spec_kbs.txt (below), wherever they are.
@@ -96,7 +101,7 @@ project dropped --session S, and exits 0. The ledger item is escalated: only a h
 (hubflow close ID --reason done --by human --session human --note "<their words>"). An agent's close is refused as a dropped edit.
 A contradiction is the blocking item project_contradiction(X) for each spec KB with a claim that
 pins X directly. A spec KB that reaches X only through rests_on gets the warning WP5, not a block.
-Only ratified facts block: a contradiction on a proposed fact blocks nothing.
+Only ratified facts block: a contradiction on a proposed fact, or from a proposed relation, blocks nothing.
 
 Commands
   orbit-kb --dir PROJECT project impact X [--root DIR]
@@ -157,6 +162,7 @@ Lint
   WP7   a fact rests on itself: a cycle of depends_on facts. Check each fact of the cycle.
   WP8   a stale pin that the KB still rests on: a current decision or definition concerns it and no newer
         pin of its source, or nothing concerns it and its source has no newer pin. show open and the report name it.
+  WP9   only an agent wrote this relation: it is proposed and blocks nothing. A human adds it too (--by human).
   EP1   an agent ratified a fact (error; add refuses it). Only a human ratifies.
   EP2   a fact depends on itself or excludes itself (error; add refuses it).
 

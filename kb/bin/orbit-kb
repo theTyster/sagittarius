@@ -1833,7 +1833,8 @@ project_kb_facts(Dir, P, Facts) :-
     kb_items(PKB, AllItems), items_decls(AllItems, Ds),
     build_engine(AllItems, Ds, Eng),
     % D27: a proposed fact (an agent made it, no human ratified it) blocks nothing.
-    swi_raw(Eng, (contradiction(CA, CB), not(proposed(CA)), not(proposed(CB))), CA-CB, ResC),
+    % D38: an excludes fact that only an agent wrote is proposed too.
+    swi_raw(Eng, (contradiction(CA, CB), not(proposed(CA)), not(proposed(CB)), not(proposed(excludes(CA, CB)))), CA-CB, ResC),
     (   ResC = answers(LC, _)
     ->  findall(project_contradiction(X1, Y1), ( member(X0-Y0, LC), ( X1-Y1 = X0-Y0 ; X1-Y1 = Y0-X0 ) ), FC0),
         sort(FC0, FC)
@@ -3787,7 +3788,8 @@ add_lines([it(_, _, _, T, _, _)|Is], FUs, Doc, By, Now, Done, Lines) :-
     ;   Pre = [], Done1 = Done
     ),
     clause_line(T, [], L),
-    record_lines(T, Now, Post),
+    record_lines(T, Now, Post0),
+    relation_lines(T, By, Now, Post1), append(Post0, Post1, Post),
     add_lines(Is, FUs, Doc, By, Now, Done1, Rest),
     append(Post, Rest, Rest1),
     append(Pre, [L|Rest1], Lines).
@@ -3802,6 +3804,13 @@ record_lines(T, Now, [A, C]) :-
     actor_line(Id, A),
     clause_line(change_at(Id, Now), [], C).
 record_lines(_, _, []).
+
+% relation_lines(+Fact, +By, +Time, -Lines) (D38): after a relation of the project module, who
+% wrote it and when.
+relation_lines(T, By, Now, [L]) :-
+    nonvar(T), ( T = excludes(_, _) ; T = depends_on(_, _) ), !,
+    clause_line(relation_by(T, By, Now), [], L).
+relation_lines(_, _, _, []).
 
 first_use_decl(N, A, Doc, decl(fact, H, Doc, '')) :-
     length(Ts, A), maplist(=(term), Ts),
@@ -3849,6 +3858,8 @@ add_item(ATs, I, A, R) :-
         ->  fmt(M, "Argument ~w: orbit-kb attest approval writes discovery_end/1 itself (D30), when the human approves the ticket while gate(go) holds. add refuses it.", [I]), R = err(M)
         ;   nonvar(T), functor(T, RN, RA), memberchk(RN/RA, [actor/3, change_at/2, review_saw/3])
         ->  fmt(M, "Argument ~w: orbit-kb writes ~w/~w itself (D28): with each attestation and change, or with orbit-kb review start. add refuses it.", [I, RN, RA]), R = err(M)
+        ;   nonvar(T), T = relation_by(_, _, _)
+        ->  fmt(M, "Argument ~w: orbit-kb writes relation_by/3 itself (D38), after each excludes and depends_on fact, with the --by of the add. To ratify an agent's relation, add the same relation with --by human. add refuses it.", [I]), R = err(M)
         ;   nonvar(T), T = attest(_, Type, _, _, _, _), atom(Type), script_only_type(ATs, Type)
         ->  script_use(Type, Use),
             fmt(M, "Argument ~w: only ~w writes attestations of type ~q.", [I, Use, Type]), R = err(M)

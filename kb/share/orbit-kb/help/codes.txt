@@ -99,5 +99,7 @@ Project module (orbit-kb help project)
   WP7  a fact rests on itself: its depends_on facts make a cycle. A warning: check each depends_on of the cycle.
   WP8  a stale pin that the KB still rests on (a current decision or definition, or nothing names it and
        its source has no newer pin). Read it; pin the source again and move the concerns facts. show open names it.
+  WP9  only an agent wrote this relation (relation_by): it is proposed and blocks nothing. A human
+       ratifies it by adding the same relation with --by human.
   EP1  an agent (agent or agent:NAME, in any case) ratified a fact (an error; add refuses it). Only a human ratifies.
   EP2  a fact depends on itself or excludes itself (depends_on(X, X), excludes(X, X); an error; add refuses it).

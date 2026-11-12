@@ -32,6 +32,12 @@ decl(fact, depends_on(ref([decision, definition, rule]), ref([decision, definiti
 decl(fact, excludes(ref([decision, definition, rule]), ref([decision, definition, rule])),
      'A human or an agent records that the two facts cannot both hold (D27). It is never inferred from the text.',
      '@(1) and @(2) cannot both hold').
+% 0.3.0 (K-I, D38): who wrote a relation. orbit-kb add writes it after each
+% excludes and depends_on fact (add refuses it by hand). An agent's relation
+% is proposed until a human adds the same relation (--by human).
+decl(fact, relation_by(term, oneof([human, agent]), time),
+     'Who wrote the relation (an excludes or a depends_on fact) and when: the --by of orbit-kb add. orbit-kb writes it (D38).',
+     'the relation @(1) was written by the @(2) at @(3)').
 decl(fact, reason(ref(decision), text),
      'A reason for the decision.',
      'a reason for decision @(1): @(2)').
@@ -145,9 +151,12 @@ decl(rule, current_fact(ref([decision, definition, rule])),
 decl(rule, contradiction(ref([decision, definition, rule]), ref([decision, definition, rule])),
      'An excludes fact names the two facts, and both are current (D27).',
      '@(1) and @(2) contradict each other').
-decl(rule, proposed(ref([decision, definition, rule])),
-     'An agent made the fact, and no human ratified it (D27). A proposed fact blocks nothing.',
+decl(rule, proposed(term),
+     'An agent made the fact, and no human ratified it (D27); or only an agent wrote the relation (excludes, depends_on), and no human wrote it too (D38). A proposed fact or relation blocks nothing.',
      '@(1) is proposed: an agent made it, and no human ratified it').
+decl(rule, relation_ratified(term),
+     'A human wrote the relation, or added it again after an agent (D38).',
+     'a human wrote the relation @(1)').
 decl(rule, human_ratified(ref([decision, definition, rule])),
      'A ratified_by fact by a person who is not an agent names the fact (D27).',
      'a human ratified @(1)').
@@ -215,6 +224,8 @@ contradiction(X, Y) :- excludes(X, Y), current_fact(X), current_fact(Y).
 
 human_ratified(X) :- ratified_by(X, W, _), not agent_who(W).
 proposed(X) :- decided_by(X, W, _), agent_who(W), not human_ratified(X).
+relation_ratified(R) :- relation_by(R, human, _).
+proposed(R) :- relation_by(R, agent, _), not relation_ratified(R).
 
 impact(X, S) :- spec_pin(S, _, X).
 impact(X, S) :- spec_pin(S, _, Z), rests_on(Z, X).
@@ -247,5 +258,7 @@ lint_issue('WP7', X, 'This fact rests on itself: its depends_on facts make a cyc
     rests_on(X, X).
 lint_issue('WP8', P, 'This pin is stale, and the KB still rests on it: the file or the tracker item changed after the pin. Read it. If what rests on the pin still holds, pin the source again and move the facts that rest on the old pin (help build, Re-pin); if not, change them.') :-
     stale_pin_open(P).
+lint_issue('WP9', R, 'Only an agent wrote this relation, so it is proposed: it blocks nothing. A human ratifies it by adding the same relation: orbit-kb add ''RELATION'' --by human (D38).') :-
+    proposed(R), relation_by(R, agent, _).
 lint_issue('WP4', Dir, 'This KB has more than one project_kb fact. Only the first is read. Keep one project_kb fact.') :-
     project_kb(First), project_kb(Dir), First @< Dir.

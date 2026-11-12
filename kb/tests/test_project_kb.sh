@@ -1207,10 +1207,10 @@ t_PP1() { pp_pair agent; K=$T/pk
           K=$T/pk; padd "relation_by(excludes(d1, d2), human, '$T1')"; rc_is 1 "add refuses relation_by: orbit-kb writes it"; }
 t_PP2() { pp_pair agent; K=$T/pk
           padd "depends_on(d2, d1)"; rc_is 0
-          is_set 'proposed(X)' "X = depends_on(d2,d1)|X = excludes(d1,d2)"
+          is_set 'proposed(X)' "X = depends_on(d2, d1)|X = excludes(d1, d2)"
           okb --dir "$K" lint; rc_is 0 "a proposed relation is a warning"; out_has '^WP9 excludes\(d1, ?d2\):.*agent' "WP9 names the relation and the agent"
           padd "excludes(d1, d2)" --by human >/dev/null
-          is_set 'proposed(X)' "X = depends_on(d2,d1)"
+          is_set 'proposed(X)' "X = depends_on(d2, d1)"
           okb help project; any_hasi 'relation_by' "help project names relation_by"; any_hasi 'proposed.*relation|relation.*proposed' "help project: an agent's relation is proposed"
           okb help codes; out_has '^ *WP9 ' "help codes lists WP9"; }
 

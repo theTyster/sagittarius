@@ -1409,6 +1409,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | WP5 | A claim pins a fact of the project KB that rests on a fact in a contradiction, and no claim pins that fact directly. Only a direct pin blocks (`project_contradiction`); this is a warning. Module hook; the id is the claim (D27). |
 | WP6 | An `analysis(X, Path)` whose Path is outside the project KB directory. Analyses are written in the project KB (`analyses/`); a week's raw report is pinned, not an analysis. Module hook (D27). |
 | WP7 | A fact rests on itself: its `depends_on` facts make a cycle (`rests_on(X, X)`). A cycle is allowed, but it is often a mistake. Module hook; the id is each fact of the cycle (T34). |
+| WP9 | Only an agent wrote this relation (`relation_by(R, agent, T)` and none by a human): it is `proposed` and blocks nothing. A human ratifies it by adding the same relation with `--by human` (D38). Module hook; the id is the relation. |
 
 Built-ins that E2 permits: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `true`,
 `false`, `forall/2`. Lint unwraps `not G`.
