@@ -89,6 +89,7 @@
 #   VN  the version of the tool: version, help, init, a link and a copy (D34, 0.3.0 V-A) : VN1-VN3
 #   SG  signals have records: signal/4, lean_back/2, further requests, report Signals (D35, 0.3.0 K-G) : SG1-SG4
 #   HE  the help follows the prompt: the human says it is wrong, back, the hypothesis, one lens (D36, 0.3.0 K-E) : HE1-HE5
+#   SF  orbit-kb shift and help shift: the step from words to records (D37, 0.3.0 K-H) : SF1-SF3
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -2354,6 +2355,46 @@ t_HE5() { local h0 hc hb; okb help; h0=$(printf '%s' "$out" | sed -n '/How to us
           grep -qF 'record the request, your claims, and the checks so far' <<< "$hb" && note "help build starts a KB on a divergence with no hypothesis"
           grep -qiP 'shift up.{0,300}hypothesis' <<< "$hb" || note "help build starts the KB with the hypothesis"; }
 
+# SF (D37, c_k_h_1, c_k_h_3): one command for the step from words to records (orbit-kb shift), and
+# one help topic of one screen for it (orbit-kb help shift).
+sf_shift() {  # sf_shift DIR [EXTRA ARGS]: the light path of "add a dark mode" as one command
+    local d=$1; shift; printf 'add a dark mode\nfor every screen\n' > "$T/req.txt"
+    okb shift "$d" --request-file "$T/req.txt" --hypothesis "$DARK" --kind feature "$@" \
+        --claim "$DARK" --example 'the reports page is dark' --check k1; }
+t_SF1() { K=$T/s; sf_shift "$K" --no-premises; rc_is 0 "shift writes a KB"
+          [ -f "$K/kb.pl" ] || { note "no kb.pl"; return; }
+          has_goal "$K/kb.pl" "kb(request(r1, T)), sub_atom(T, _, _, _, 'add a dark mode'), sub_atom(T, _, _, _, 'every screen')" "the request word for word"
+          has_fact "$K/kb.pl" "uses([build])" "a build KB by default"
+          has_goal "$K/kb.pl" "kb(hypothesis(h1, feature, T)), sub_atom(T, 0, _, _, 'With dark mode on')" "the hypothesis"
+          has_fact "$K/kb.pl" "no_premises(h1)" "Premises: none"
+          has_goal "$K/kb.pl" "kb(claim(c1, introduce, T)), sub_atom(T, 0, _, _, 'With dark mode on')" "the claim"
+          has_fact "$K/kb.pl" "example(c1, 'the reports page is dark')" "the example"
+          has_fact "$K/kb.pl" "check(k1, c1)" "the check"
+          has_goal "$K/kb.pl" "kb(cites(c1, _))" "the claim cites the request"
+          okb --dir "$K" lint; rc_is 0 "lint accepts the KB"; out_has '0 errors?' "no error"
+          okb --dir "$K" show open; out_has 'check_unrun k1|k1' "show open names the check that never ran"
+          K=$T/p; sf_shift "$K" --premise 'the app has a theme switch' --premise 'the screens use the theme colors'; rc_is 0 "two premises"
+          has_fact "$K/kb.pl" "premise(p1, h1, 'the app has a theme switch')"; has_fact "$K/kb.pl" "premise(p2, h1, 'the screens use the theme colors')"
+          no_fact "$K/kb.pl" "no_premises(_)"
+          okb --dir "$K" lint; rc_is 0 "lint accepts the KB with premises"
+          okb --dir "$K" report; rp_sec Guesses | grep -q 'p1' || note "an unchecked premise is a guess"; }
+t_SF2() { sf_shift "$T/a"; rc_is 2 "neither --no-premises nor --premise"; [ -e "$T/a" ] && note "a usage error leaves no directory"
+          sf_shift "$T/b" --no-premises --premise 'x'; rc_is 2 "both --no-premises and --premise"
+          okb shift "$T/c" --request-file "$T/req.txt" --no-premises --claim x --example y --check k1; rc_is 2 "no --hypothesis"
+          [ -e "$T/c" ] && note "no KB without a hypothesis"
+          sf_shift "$T/d" --no-premises --kind bogus; rc_is 1 "a bad kind is refused"; [ -e "$T/d/kb.pl" ] && note "a refused shift leaves no kb.pl"
+          mkdir -p "$T/e"; printf 'keep\n' > "$T/e/notes.txt"; sf_shift "$T/e" --no-premises --kind bogus; rc_is 1
+          [ -f "$T/e/notes.txt" ] || note "a refused shift keeps the files of a directory that existed"
+          [ -e "$T/e/kb.pl" ] && note "a refused shift leaves no kb.pl in an existing directory"
+          sf_shift "$T/f" --no-premises; rc_is 0; cp "$T/f/kb.pl" "$T/.f"; sf_shift "$T/f" --no-premises; rc_is 1 "an existing KB"
+          same_file "$T/f/kb.pl" "$T/.f" "shift never overwrites a KB"; }
+t_SF3() { okb help shift; rc_is 0 "help shift"
+          local n; n=$(printf '%s\n' "$out" | wc -l); [ "$n" -le 60 ] || note "help shift is $n lines; one screen is 60 or fewer"
+          out_has 'orbit-kb shift' "it names the command"; out_has 'hypothesis' "the hypothesis"; out_has 'premise' "the premises"
+          out_has 'run' "the next step runs the check"
+          okb shift --help; rc_is 0; out_has 'orbit-kb shift'
+          okb help; out_has 'help shift' "the first help screen names the topic"; out_has '^ +shift DIR' "the command list names shift"; }
+
 # ================================================================ WN: whynot, Y: why
 t_WN1() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'current(c1)'; rc_is 0; [ "$(first_line)" = holds ] || note "first line '$(first_line)'"; out_has 'because' "the clauses that prove it"; }
 t_WN2() { # D20: absent names, for each rule, the literal that blocks, and why
@@ -3856,6 +3897,9 @@ run_test t_HE2 HE2 "0.3.0 c_k_e_2: back to discovery only when the agent cannot 
 run_test t_HE3 HE3 "0.3.0 c_k_e_3: help discovery states the hypothesis as the prompt: two falsifiers, witnesses, wide, the finding apart"
 run_test t_HE4 HE4 "0.3.0 c_k_e_4: SPECTRUM and HANDOFF: one formal language first, a second only when a question is left"
 run_test t_HE5 HE5 "0.3.0 c_k_e_5: the first help screen and help core put the hypothesis before the claims; help build too"
+run_test t_SF1 SF1 "0.3.0 c_k_h_1: orbit-kb shift writes the light path as a KB that lint accepts"
+run_test t_SF2 SF2 "0.3.0 c_k_h_1: orbit-kb shift refuses a usage error or a bad fact and leaves no KB"
+run_test t_SF3 SF3 "0.3.0 c_k_h_3: orbit-kb help shift is one screen; the first help screen names it"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"
