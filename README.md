@@ -21,7 +21,7 @@ Only the hub, with no Prolog and no Lean? That is the informal release: see [`hu
    `orbit-kb`, `repo-map`, and the prompt into your home directory. Check it with `orbit-kb doctor`
    and `./install.py --check`. See "Install" below for the prompt flag.
 2. **Start a hub.** Give `hubkit/` to your agent and say "follow INSTRUCTIONS.md". It reads
-   `hubkit/INSTRUCTIONS.md`, asks up to three questions, and sets up the hub. See "Hub kit" below.
+   `hubkit/INSTRUCTIONS.md`, asks up to three questions, and sets up the hub. See "MindHole" below.
 3. **Add the System 1 hook (optional).** The hook asks the System 1 model about each prompt before the agent
    answers. Follow `s1/README.md`. The hook is manual: you paste a snippet into your
    `~/.claude/settings.json`. No script writes that file. `install.py` never does.
@@ -85,13 +85,14 @@ $(cat "$p/panes/$ROLE.md")"
 Any terminal multiplexer or editor can hold the three sessions. The author starts them as
 three tmux windows named after the roles. That launcher is not part of this repository.
 
-## Hub kit
+## MindHole (the hub kit)
 
-`hubkit/` is the hub kit: a template for a hub, one git repo that a few named Claude Code
-sessions share as working memory (a weekly calendar plus flow state in SQLite). To start a hub from
-it, give `hubkit/` to your agent and say "follow INSTRUCTIONS.md" (`hubkit/INSTRUCTIONS.md`). The
-agent asks up to three questions, sets up the hub, and checks each step. To take a new release into
-a hub, see `hubkit/UPGRADING.md`. Its tests run from the repo root:
+The MindHole is the hub of Sagittarius. `hubkit/` is the hub kit that makes one: a template for a
+hub, one git repo that a few named Claude Code sessions share as working memory (a weekly calendar
+plus flow state in SQLite). To start a hub from it, give `hubkit/` to your agent and say "follow
+INSTRUCTIONS.md" (`hubkit/INSTRUCTIONS.md`). The agent asks up to three questions, sets up the hub,
+and checks each step. To take a new release into a hub, see `hubkit/UPGRADING.md`. Its tests run
+from the repo root:
 
 ```
 python3 hubkit/hub/.claude/scripts/hubflow-test.py

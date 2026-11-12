@@ -132,7 +132,7 @@ def mb3():
 
 def mb4():
     f = facts().get("models", {})
-    want = "solver and model-checker models, and Lean definitions and theorems"
+    want = "solver and model-checker models, and lean definitions and theorems"
     check("mb4 store-facts.json: the models description", want in f.get("desc", "").lower(), f.get("desc"))
     rs = rows(read(CORE), "models")
     check("mb4 the formal fact table has one models row", len(rs) >= 1, rs)

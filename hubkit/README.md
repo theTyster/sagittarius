@@ -1,9 +1,10 @@
-# The hub kit
+# The MindHole hub kit
 
-The hub kit is part of Sagittarius (<https://github.com/theTyster/sagittarius>). It is the
-**informal release**: a template for a **hub**, one git repo that a few long-lived Claude Code
-sessions share as their working memory. It uses only plain files, git and SQLite. You do not need
-Prolog, Lean, or any other part of Sagittarius to use it.
+The **MindHole** is the hub of Sagittarius, and the hub kit makes one. The hub kit is part of
+Sagittarius (<https://github.com/theTyster/sagittarius>). It is the **informal release**: a template
+for a **hub**, one git repo that a few long-lived Claude Code sessions share as their working
+memory. It uses only plain files, git and SQLite. You do not need Prolog, Lean, or any other part of
+Sagittarius to use it.
 
 It has three ideas:
 

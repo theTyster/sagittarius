@@ -31,7 +31,7 @@ below are generated from the design: do not edit them by hand
 | `bespoke` | Helper scripts, skills and small stores an agent makes for this project where nothing else fits: listed where agents look, and pruned like everything else if they stop being used. | a tool or skill, listed in `TECHNOLOGIES.md` (or the memory file the hub names) | the tool's own help; skill `hub-rotate` prunes the unused |
 | `tracker` | The client's system of record. It owns the tickets (request, answers, events), checks and runs, world facts (the code and git), and all designs, bugs and features. A copy that the hub shows there belongs to the store it comes from. | outside the hub: a pointer such as `issue:123` in a ledger ref | `hubflow.py add --ref`; `.claude/orbit-kb/bin/orbit-kb pin-item`; `.claude/orbit-kb/bin/orbit-kb draft` |
 
-The 29 fact kinds:
+The 30 fact kinds:
 
 | Fact kind | What it is | Owner | Pinned in | Read from | Copied in |
 |---|---|---|---|---|---|
@@ -48,8 +48,8 @@ The 29 fact kinds:
 | `divergences` | Where the human, the agent, or a result disagreed, and what the agent disclosed about its guesses and errors. | `spec` | - | - | - |
 | `handoffs` | Work passed from one session to another, and whether it was accepted. | `ledger` | - | - | - |
 | `heuristics` | Rules of thumb learned in this hub, for agents to apply. | `memory` | - | - | - |
-| `hypothesis` | What discovery believes the problem is, its premises, the result it expects, and the result that would show it false. | `spec` | - | - | - |
-| `models` | Formal models (Lean, SMT, TLA+) and the proofs that a claim rests on. | `bespoke` | `spec` | - | - |
+| `hypothesis` | The hypothesis: what the human wants for this ticket, as the agent states it, with its premises beside it, the result it expects, and the result that would show it false. | `spec` | - | - | - |
+| `models` | The solver and model-checker models, and Lean definitions and theorems, that a claim rests on. | `bespoke` | `spec` | - | - |
 | `outbound` | Drafts of text meant for the tracker or for people, staged before anyone sends them. | `weeks` | - | - | - |
 | `product_rules` | The product's business rules: how the current system must behave (limits, permissions, prices, workflows). | `project` | `spec` | - | - |
 | `raw_reports` | Raw reports and meeting transcripts: the human touchpoints of the week. The project KB keeps a pinned digest; an agent reads a transcript and records what is needed in the ledger, with a transcript ref. | `weeks` | `project` | `ledger` | - |
@@ -63,6 +63,7 @@ The 29 fact kinds:
 | `ticket_capsules` | A short summary of a ticket's history, written when its details are too old to keep. | `ledger` | - | - | - |
 | `ticket_events` | What happened to a ticket and when: opened, moved, blocked, closed. | `tracker` | - | `ledger` | - |
 | `triage` | At each weekly rotation, the decision recorded for each item that came due: keep, lapse, capsule, escalate. | `ledger` | - | - | - |
+| `vote` | The vote that ends discovery: GO, NO-GO or HOLD, with who voted. A HOLD says what it waits for. | `spec` | - | - | - |
 | `world` | Facts about how the current system behaves now, each with where it was observed. | `tracker` | `project`, `spec` | - | - |
 
 <!-- store-map:end -->
@@ -170,10 +171,10 @@ of it):
 | `claims` | `tracker` | The ticket's acceptance criteria, each with an example, in the tracker item. The ticket's ledger thread points to it with its `issue:` ref. |
 | `decisions` | `memory` | A decisions file such as `DECISIONS.md`, imported by `CLAUDE.md`: one line per decision, with who decided and when. |
 | `designs` | `tracker` | Design documents stay where they live; the ledger holds a pointer (`url:` or `file:` ref) on the item that needs one. |
-| `divergences` | `not kept` | No record. The agent says each guess, error and disagreement in its report to the human; one that waits on the human becomes an ask. |
+| `divergences` | `ledger` | A note on the ticket's thread (`hubflow.py note ID "divergence: ..."`): who disagreed (the human, the agent, or a result), about what, and what the agent disclosed about its guesses and errors. The agent also says it in its report; one that waits on the human becomes an ask. |
 | `handoffs` | `ledger` | Work passed to another session: `hubflow.py handoff --to S`, then `accept ID` by the receiver. |
 | `heuristics` | `memory` | Rules of thumb learned here: `HEURISTICS.md`, promoted at rotation. |
-| `hypothesis` | `ledger` | A note on the ticket's thread (`hubflow.py note ID TEXT`): what the problem is believed to be, its premises beside it, the result expected, and the result that would show it false. |
+| `hypothesis` | `ledger` | A note on the ticket's thread (`hubflow.py note ID TEXT`): what the human wants for this ticket, as the agent states it, with its premises beside it, the result expected, and the result that would show it false. |
 | `models` | `bespoke` | A model that a tool or a test of this hub encodes stays with that tool, listed in `TECHNOLOGIES.md`. |
 | `outbound` | `weeks` | Text for the tracker or for people, drafted in `W0/outbound-staging/`. A human sends. |
 | `product_rules` | `memory` | In the decisions file, or a root file such as `PRODUCT.md` that `CLAUDE.md` imports. |
@@ -188,6 +189,7 @@ of it):
 | `ticket_capsules` | `ledger` | A short summary of an old ticket's history: a capsule on its item (`hubflow.py capsule`). |
 | `ticket_events` | `tracker` | What happened to a ticket and when stays in the tracker; never copied into a capsule. |
 | `triage` | `ledger` | The decision for each due item at rotation: `hubflow.py triage ID keep|lapse|capsule|escalate --note T`. |
+| `vote` | `ledger` | The vote that ends discovery (GO, NO-GO or HOLD): a note on the ticket's thread (`hubflow.py note ID "vote: GO: ..."`): who voted, and for the human's vote the human's own words. A HOLD says what it waits for. |
 | `world` | `tracker` | How the current system behaves: the code, git and the tracker; a note names where it was seen. |
 
 <!-- informal-map:end -->
@@ -228,6 +230,10 @@ Asks to a human, in-flight threads, holds and handoffs between sessions are rows
 written only by `hubflow.py`. Load the `hub-flow` skill before any write. Each session has an
 identity (`HUB_SESSION`), set where the session is started. Named sessions are set up outside the
 hub; the hub knows only their names (`flow/seed.json`).
+**At session start and after every compaction, read your inbox first**:
+`python3 .claude/scripts/hubflow.py view v_inbox --session "$HUB_SESSION"` (unaccepted handoffs come
+first). The db is the memory, not the conversation. For each item, follow its kb ref
+(`hubflow.py where <slug>`) and run `.claude/orbit-kb/bin/orbit-kb show open` there.
 `.claude/orbit-kb/bin/orbit-kb pin-item` and `.claude/orbit-kb/bin/orbit-kb draft` record a dropped edit of the project KB in the ledger by
 themselves, in the session of `HUB_SESSION`. With no `HUB_SESSION`, the record is refused with a
 warning; run the `project dropped --session S` command that the warning names.

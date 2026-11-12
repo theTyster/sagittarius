@@ -319,7 +319,8 @@ def block(text):
 def t32c3():
     facts = json.loads(read(FACTS) or "{}")
     kinds = {f["name"]: f["owner"] for f in facts.get("facts", [])}
-    check("t32c3 store-facts.json has 29 fact kinds", len(kinds) == 29, len(kinds))
+    # Sagittarius 0.3.0 (c_m_b_3): the vote is the 30th fact kind.
+    check("t32c3 store-facts.json has 30 fact kinds", len(kinds) == 30, len(kinds))
     fb, ib = block(read(CORE)), block(read(ICORE))
     check("t32c3 the formal HUB-CORE.md has the informal map", bool(fb), "missing")
     check("t32c3 the informal HUB-CORE.md has the informal map", bool(ib), "missing")
