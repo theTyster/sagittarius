@@ -475,11 +475,16 @@ delete answer 1 1 badMethod|delete answer 1 0 badMethod|delete answer 0 1 forbid
 delete other 1 1 notFound|delete other 1 0 notFound|delete other 0 1 forbidden|delete other 0 0 forbidden'
 # qs17_rows: sets QS17_ROWS, the rows of the table (no subshell, so its note counts). With lake on PATH they come from the #eval output of the model
 # itself (lake env lean, about 0.5 s; the project has no packages), so the copy above cannot drift
-# from the model: a copy that differs is a failure. Without lake, the copy is the table.
+# from the model: a copy that differs is a failure. Without lake, the copy is the table. With lake, a
+# model that does not compile is a failure too (review of K-A, finding 8): the copy is then used only
+# to run the rest of the test. qs17_rows [DIR]: DIR is the Lean project (default: kb/proofs/question_server).
 qs17_rows() {
-    local copy lean d=$here/../proofs/question_server
+    local copy lean d=${1:-$here/../proofs/question_server}
     copy=$(printf '%s' "$QS17_TABLE" | tr '|' '\n')
-    if command -v lake >/dev/null 2>&1 && lean=$(cd "$d" && timeout 300 lake env lean QuestionServer.lean 2>&1); then
+    if command -v lake >/dev/null 2>&1 && ! lean=$(cd "$d" && timeout 300 lake env lean QuestionServer.lean 2>&1); then
+        note "lake env lean failed on $d/QuestionServer.lean, so the table of the model is not read: $(printf '%s' "$lean" | head -c 300 | tr '\n' '~')"
+        QS17_ROWS=$copy
+    elif command -v lake >/dev/null 2>&1; then
         lean=$(printf '%s\n' "$lean" | grep -oE '\(QuestionServer\.Method\.[a-z]+, QuestionServer\.Path\.[a-z]+, (true|false), (true|false), QuestionServer\.Action\.[A-Za-z]+\)' \
                | sed -E 's/QuestionServer\.[A-Za-z]+\.//g; s/[(),]//g; s/true/1/g; s/false/0/g')
         [ "$lean" = "$copy" ] || note "the copy QS17_TABLE differs from the #eval table of QuestionServer.lean: $(diff <(printf '%s\n' "$copy") <(printf '%s\n' "$lean") | head -n 4 | tr '\n' '~')"

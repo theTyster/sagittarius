@@ -254,9 +254,13 @@ ASKING: ask the human
 HANDOFF to the build orbit
   orbit-kb uses build ; orbit-kb lint. The build orbit skips SURVEY.
   The discovery orbit is open until the human approves the ticket after a GO
-  (attest approval TICKET 'digest(current)' --by human writes discovery_end). Then readiness
-  and the vote are not asked again: a hypothesis that the human restates in build
+  (attest approval TICKET 'digest(current)' --by human writes discovery_end, when gate(go)
+  and the artifacts' go hold in the current round, and the approval is not stale). Then
+  readiness and the vote are not asked again: a hypothesis that the human restates in build
   supersedes the old one and needs no system result. Only BACK opens the orbit again.
+  After that, the agent's vote is refused, and a vote of the human does not count.
+  A KB whose ticket the human approved before 0.3.0 has no discovery_end, so its orbit is
+  still open: a second approval of the ticket, after a GO in the current round, closes it.
   DECOMPOSE starts from the discovery claims. Each witness, trace, and counterexample
   becomes a test case. The build orbit reuses each red test_result as its baseline.
   A universal claim always burns. A solver or TLC result holds only within its bounds;
@@ -290,6 +294,8 @@ BACK: back to discovery
   run orbit-kb uses discovery. Record the return:
      orbit-kb attest back h1 "back('The human cannot say what the hypothesis changes to.')"
   It opens the discovery orbit again: a new hypothesis needs its system result (WD7), and
-  readiness and the vote are asked again (next round). Then go to SIGNAL if the hypothesis is wrong, SPECTRUM if a
+  readiness and the vote are asked again: the votes before the back do not count, so both
+  vote again (next round) before an approval can close the orbit. A back names a hypothesis,
+  and only a closed orbit has a back (attest refuses it otherwise). Then go to SIGNAL if the hypothesis is wrong, SPECTRUM if a
   claim is wrong or missing, FLYBY or TRAJECTORY if a model missed a behavior, and FLYBY and
   then the human if BURN shows that the requirements conflict.

@@ -1567,7 +1567,8 @@ derived_items(Dir, KbItems, Items) :-
     verdict_derived(KbItems, Ts8),
     reopen_derived(KbItems, Ts9),
     run_after_derived(KbItems, Ts10),
-    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10], Ts),
+    vote_void_derived(KbItems, Ts11),
+    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10, Ts11], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
 
 % verdict_derived(+KbItems, -Facts) (T38 c2): later_verdict(V) for each disproof verdict V on a
@@ -1590,6 +1591,30 @@ reopen_derived(KbItems, Facts) :-
             Fs0),
     sort(Fs0, Facts).
 reopen_derived(_, []).
+
+% vote_void_derived(+KbItems, -Facts) (D30 H5, H8): vote_void(V) for each vote V that a back
+% attestation follows in kb.pl (it belongs to an earlier orbit: after a return to discovery,
+% a new round of votes is needed), and for each vote V that comes after a discovery_end(E) of a
+% human approval of the ticket when no back follows E (the orbit was closed when V came).
+vote_void_derived(KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
+    findall(T, kb_term(KbItems, T), Ts),
+    findall(S, ( member(T, Ts), nonvar(T), T = ticket(S) ), Tks),
+    findall(vote_void(V),
+            ( append(Before, [X|After], Ts), nonvar(X), X = attest(V, Ty, _, _, _, _), Ty == vote, ground(V),
+              (   member(B, After), is_back(B)
+              ->  true
+              ;   append(_, [E|Mid], Before), nonvar(E), E = discovery_end(A),
+                  valid_end(Ts, Tks, A),
+                  \+ ( member(B2, Mid), is_back(B2) )
+              ) ),
+            Fs0),
+    sort(Fs0, Facts).
+vote_void_derived(_, []).
+
+is_back(B) :- nonvar(B), B = attest(_, Ty, _, _, _, _), Ty == back.
+valid_end(Ts, Tks, A) :-
+    once(( member(T, Ts), nonvar(T), T = attest(A1, Ty, S, _, By, _), A1 == A, Ty == approval, By == human, memberchk(S, Tks) )).
 
 % run_after_derived(+KbItems, -Facts) (D33 R3): discovery_run_after(A, H) for each failed
 % test_result A that follows hypothesis(H, _, _) in kb.pl. In a KB that uses discovery only.
@@ -2554,6 +2579,8 @@ protected_pi(project_rests_on/2).
 % D30 H4: the open discovery orbit.
 protected_pi(discovery_reopened/1).
 protected_pi(discovery_run_after/2).
+protected_pi(vote_void/1).
+protected_pi(discovery_end_valid/1).
 protected_pi(discovery_closed/0).
 protected_pi(discovery_open/0).
 % D14: the weighted vote of the discovery module.
@@ -4714,9 +4741,10 @@ cmd_attest(KB, Args, Code) :-
     ),
     late_vote_check(Items, Type, By, Pred),
     go_vote_check(KB, Type, By, Pred),
+    back_check(KB, Items, Type, Subject),
     log_check(KB, Items, Type, Subject, Pred),
     rests_on_lines(Opts, Items, Type, Id, RLines0),
-    end_lines(KB, Items, Type, Subject, By, Id, ELines),
+    end_lines(KB, Items, Type, Subject, By, Id, Pred, ELines),
     append(RLines0, ELines, RLines),
     clause_line(T, [], Line),
     actor_line(Id, ALine),
@@ -4725,23 +4753,28 @@ cmd_attest(KB, Args, Code) :-
     forall(member(L, [Line, ALine|RLines]), format("~w~n", [L])),
     Code = 0.
 
-% end_lines(+KB, +Items, +Type, +Subject, +By, +Id, -Lines) (D30 H4): a human approval of the
+% end_lines(+KB, +Items, +Type, +Subject, +By, +Id, +Pred, -Lines) (D30 H4, H6, H7): a human approval of the
 % ticket (ticket(Subject)) in a KB that uses discovery ends the discovery orbit when the orbit
 % is open and gate(go) holds before the approval: one line discovery_end(Id). With no GO, the
 % approval is written as always (a human act is never refused), and a NOTE says that the orbit
 % stays open.
-end_lines(KB, Items, approval, Subject, human, Id, Lines) :-
+end_lines(KB, Items, approval, Subject, human, Id, Pred, Lines) :-
     has_discovery(KB),
     kb_term(Items, ticket(S)), S == Subject, !,
     kb_engine(KB, Eng),
+    findall(D, ( kb_term(Items, subject(S2, _, D)), S2 == Subject ), Ds),
     (   \+ eng_true(Eng, discovery_open)
     ->  Lines = []
-    ;   eng_true(Eng, gate(go))
+    ;   Pred = digest(D0), member(D1, Ds), D1 \== D0
+    ->  % D30 H7 (review of K-A, finding 3): a stale approval does not end the orbit.
+        format(user_error, "NOTE: the discovery orbit stays open. This approval names a digest that is not the current digest of the ticket (stale), so it does not end the orbit. Approve the ticket as it is now: orbit-kb attest approval ~w 'digest(current)' --by human.~n", [Subject]),
+        Lines = []
+    ;   eng_true(Eng, gate(go)), eng_true(Eng, artifact_vote(go))
     ->  clause_line(discovery_end(Id), [], L), Lines = [L]
-    ;   format(user_error, "NOTE: the discovery orbit stays open. gate(go) does not hold, so this approval of the ticket does not end it. Run orbit-kb query 'gate(V)' and orbit-kb report (Vote).~n", []),
+    ;   format(user_error, "NOTE: the discovery orbit stays open. gate(go) and the artifacts' go (discovery_ready with a current claim) do not both hold in the current round, so this approval of the ticket does not end it. Run orbit-kb query 'gate(V)', orbit-kb show open, and orbit-kb report (Vote).~n", []),
         Lines = []
     ).
-end_lines(_, _, _, _, _, _, []).
+end_lines(_, _, _, _, _, _, _, []).
 
 % rests_on_lines(+Opts, +Items, +Type, +Id, -Lines) (D28): --rests-on A1,A2
 % names the runs that a disproof verdict rests on. Each must be a
@@ -4880,7 +4913,8 @@ log_refuse(Subject, Res, Text) :-
 % kb.pl by hand.
 late_vote_check(Items, vote, agent, vote(R, _)) :-
     member(it(kb, _, _, T, _, _), Items), nonvar(T),
-    T = attest(_, vote, _, vote(R1, _), human, _), R1 == R, !,
+    T = attest(V1, vote, _, vote(R1, _), human, _), R1 == R,
+    \+ ( vote_void_derived(Items, Vs), memberchk(vote_void(V1), Vs) ), !,
     reject([ "The human already voted in round " + R + ", so an agent vote in this round cannot be sealed.",
              "Fix: do not vote in this round. Say what you think in the discussion after the reveal.",
              "In the next round, vote before the human: vote(N, CHOICE) with a larger N."
@@ -4891,6 +4925,17 @@ late_vote_check(_, _, _, _).
 % an agent's GO vote is refused when discovery is not ready, and the refusal names each thing
 % that blocks readiness (ready_blocker, as show open names it). A vote of no_go or hold, and
 % every vote of the human, are never refused.
+% D30 H8 (review of K-A, finding 6): after the discovery orbit closed, an agent vote is refused,
+% and a vote of the human is written with a NOTE: it does not count (vote_void) until a back.
+go_vote_check(KB, vote, By, _) :-
+    has_discovery(KB),
+    kb_engine(KB, Eng), eng_true(Eng, discovery_closed), !,
+    (   By == agent
+    ->  reject([ "The discovery orbit is closed: the human approved the ticket after a GO. A vote now does not count.",
+                 "Fix: to return to discovery, record it: orbit-kb attest back H 'back(TEXT)'. Then vote in a new round."
+               ] >> fix_lines)
+    ;   format(user_error, "NOTE: the discovery orbit is closed (the human approved the ticket after a GO). This vote is written, but it does not change the outcome. To return to discovery: orbit-kb attest back H 'back(TEXT)'.~n", [])
+    ).
 go_vote_check(KB, vote, agent, vote(_, C)) :-
     C == go, has_discovery(KB),
     kb_engine(KB, Eng),
@@ -4903,6 +4948,22 @@ go_vote_check(KB, vote, agent, vote(_, C)) :-
              ["Fix: clear what blocks readiness (orbit-kb show open), then vote. A vote of no_go or hold is accepted now. The human's vote is never refused."] ], Msg),
     reject(Msg).
 go_vote_check(_, _, _, _).
+
+% back_check(+KB, +Items, +Type, +Subject) (D30 H9, review of K-A finding 12): a back names a
+% hypothesis, and returns from a closed discovery orbit. Else it is refused.
+back_check(KB, Items, back, Subject) :- !,
+    (   kb_term(Items, hypothesis(H, _, _)), H == Subject -> true
+    ;   reject([ "A back names the hypothesis that the build cannot restate. " + Subject + " is no hypothesis.",
+                 "Fix: orbit-kb attest back H 'back(TEXT)' with H a hypothesis (orbit-kb show hypothesis)."
+               ] >> fix_lines)
+    ),
+    kb_engine(KB, Eng),
+    (   has_discovery(KB), eng_true(Eng, discovery_closed) -> true
+    ;   reject([ "The discovery orbit is open: there is nothing to return from. A back follows the human's approval of the ticket after a GO.",
+                 "Fix: stay in discovery. After a HOLD, vote in the next round."
+               ] >> fix_lines)
+    ).
+back_check(_, _, _, _).
 
 % digest(current): the recorded digest of the subject. The file on disk
 % must still have that digest, so an approval never names a file that
@@ -5853,6 +5914,10 @@ vote_section(Eng) :-
             )
         )
     ),
+    % D30 H5, H8: a vote that does not count, and why.
+    eng_all(Eng, [VA, VW, VR, VC], ( attest(VA, vote, _, vote(VR, VC), VW, _), vote_void(VA) ), Voids),
+    forall(member([VA, VW, VR, VC], Voids),
+           rsplit(vote, "Vote ~w of the ~w (round ~w, ~w) does not count. It came after the discovery orbit closed, or before a return to discovery (back).", [VA, VW, VR, VC])),
     % D30 H4: after the human approves the ticket on a GO, the discovery orbit is closed.
     (   eng_all(Eng, [E], ( discovery_end(E), not(discovery_reopened(E)) ), [E1|_])
     ->  rsplit(vote, "The discovery orbit is closed: the human approved the ticket after a GO (~w). Readiness and the vote are not asked again until a return to discovery: orbit-kb attest back H 'back(TEXT)'.", [E1])
@@ -5945,7 +6010,7 @@ show_section(_, Eng, hypothesis) :-
     eng_all(Eng, [H, K, T], hypothesis(H, K, T), Hs),
     (   Hs == [] -> say("- None. Every ticket has one: add hypothesis(H, KIND, TEXT).", []) ; true ),
     forall(member([H, K, T], Hs),
-           ( txt(T, TT), say("- ~w (~w): ~w", [H, K, TT]),
+           ( one_line(T, TT), say("- ~w (~w): ~w", [H, K, TT]),
              (   eng_all(Eng, [N], supersedes(N, H), Ns), Ns \== []
              ->  atomic_list_concat(Ns, ', ', NT), say("  State: superseded by ~w.", [NT])
              ;   say("  State: current.", [])
@@ -7512,7 +7577,14 @@ system_section(Eng) :-
            ->  rsay(item(F), "Finding ~w: the system confirms it, on ~w (~w, by ~w).", [F, S, A, B])
            ;   term_text(P, PT), rsay(item(A), "~w: ~w, on ~w.", [A, PT, S])
            )),
-    forall(member(K-N, Fs), rsay(item(K), "Check ~w failed on the current system (run ~w).", [K, N])).
+    % D31 B9 (review of K-A, finding 11): a red run that a later run passed is not "fails now".
+    eng_all(Eng, [K, M], ( attest(_, test_result, _, result(K, M, pass), _, _), discovery_system_evidence(K) ), Ps0),
+    forall(member(K-N, Fs),
+           (   findall(M, ( member([K, M], Ps0), M > N ), Ms), Ms \== []
+           ->  max_list(Ms, M1),
+               rsay(item(K), "Check ~w failed on the current system in run ~w; a later run passed (run ~w).", [K, N, M1])
+           ;   rsay(item(K), "Check ~w failed on the current system (run ~w).", [K, N])
+           )).
 
 % findings_section(+Eng) (D31 B6): each finding, marked as from the system or from a model only.
 findings_section(Eng) :-
@@ -7597,7 +7669,7 @@ hypothesis_section(Eng) :-
     ;   true
     ),
     forall(member([H, K, T], Hs),
-           ( txt(T, TT),
+           ( one_line(T, TT),
              premise_lines(Eng, H, PLs),
              format(string(Head), "~w **~w**: ~w", [H, K, TT]),
              as_sentence(TT, TS),
@@ -7606,16 +7678,25 @@ hypothesis_section(Eng) :-
              findall(L-[], member(L, PLs), Kids),
              rtree(item(H), Plain, Head-Kids) )).
 
+% one_line(+Text, -S) (D31 B8, review of K-A finding 12): the text with each run of white space,
+% a line break too, as one space, so that a text never breaks the bullets of the report.
+one_line(T, S) :- txt(T, T0), normalize_space(string(S), T0).
+
 % premise_lines(+Eng, +H, -Lines) (D30 H2, D31 B1): one sentence per premise of hypothesis H
 % with its state, or "Premises: none.", or a pointer to lint W10.
 premise_lines(Eng, H, Lines) :-
     eng_all(Eng, [P, PT], premise(P, H, PT), Ps),
     (   Ps \== []
-    ->  findall(L, ( member([P, PT], Ps), txt(PT, PTT), as_sentence(PTT, PTS),
+    ->  findall(L, ( member([P, PT], Ps), one_line(PT, PTT), as_sentence(PTT, PTS),
                      (   eng_all(Eng, [W], premise_checked(P, W), [W1|_])
-                     ->  txt(W1, WT), format(string(L), "Premise ~w: ~w Checked on the system at ~w.", [P, PTS, WT])
+                     ->  one_line(W1, WT), format(string(L), "Premise ~w: ~w Checked on the system at ~w.", [P, PTS, WT])
                      ;   format(string(L), "Premise ~w: ~w Not checked.", [P, PTS])
-                     ) ), Lines)
+                     ) ), Lines0),
+        % D31 B7 (review of K-A, finding 9): a premise and the record "Premises: none" conflict.
+        (   eng_true(Eng, no_premises(H))
+        ->  append(Lines0, ["Premises: none is also recorded, and it conflicts with the premises (lint W11)."], Lines)
+        ;   Lines = Lines0
+        )
     ;   eng_true(Eng, no_premises(H))
     ->  Lines = ["Premises: none."]
     ;   Lines = ["Premises: not stated. Add premise(P, H, TEXT) or no_premises(H) (lint W10)."]

@@ -47,6 +47,8 @@ Core
        above its first clause in rules.pl. orbit-kb show kinds names each one, also while E19 or E2 fires.
   W10  a current hypothesis has no premise and no record no_premises(H) (D30). Add
        premise(P, H, Text) for each condition that it takes as given, or no_premises(H).
+  W11  a current hypothesis has a premise and also no_premises(H). They contradict. Restate the
+       hypothesis (supersedes) with its premises, or with no_premises only.
 
 Discovery module
   WD1  a conflict, surprise, or scope finding raised no question. Ask one.
@@ -74,6 +76,8 @@ Discovery module
   ED8  no finding or hypothesis raised this question. Correct raised_by.
   ED9  a model is derived from a derived model, or from itself. Derive from existing-world models.
   ED10 a writer voted twice in one round. Keep one vote. After a HOLD, vote in the next round.
+  ED11 a discovery_end that names no human approval of the ticket. Only attest approval writes
+       it; it does not close the orbit. Remove the line.
 What blocks discovery_ready blocks GO: orbit-kb show open names each item (ready_blocker),
 and the tool refuses an agent's GO vote while one is left. Also orbit-kb whynot 'discovery_ready'.
 

@@ -1634,8 +1634,8 @@ t_HY11() { hy_disc "$T/d"   # finding 3: a stale approval of the ticket does not
           okb --dir "$K" attest vote r1 'vote(1, go)' >/dev/null; okb --dir "$K" attest vote r1 'vote(1, go)' --by human >/dev/null
           printf '# ticket\n' > "$K/ticket.md"; okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null
           okb --dir "$K" attest approval tk "digest('sha256:$(printf '0%.0s' $(seq 1 64))')" --by human; rc_is 0 "the human's approval is never refused"
-          is_false 'discovery_end(A)' "a stale approval (a digest that is not the ticket's) does not close the orbit"
           any_hasi 'stale|digest' "a NOTE says why"
+          is_false 'discovery_end(A)' "a stale approval (a digest that is not the ticket's) does not close the orbit"
           is_true 'discovery_open'; }
 t_HY12() { hy_closed "$T/d"   # finding 6: a vote after the orbit closed
           rejects "an agent vote after the orbit closed" 'closed' attest vote r1 'vote(2, no_go)'
@@ -2011,7 +2011,8 @@ t_RD5() { kb_init "$T/n" discovery; K=$T/n; oadd "hypothesis(h1, defect, 'The am
           oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" >/dev/null
           is_set 'gate(V)' 'V = go' "the approved GO stays"
           okb --dir "$K" attest back h1 "back('The human cannot say what the hypothesis changes to.')" >/dev/null
-          is_false 'discovery_ready' "after a return to discovery, readiness is asked again"; is_set 'gate(V)' 'V = hold' "and GO cannot win"; }
+          is_false 'discovery_ready' "after a return to discovery, readiness is asked again"
+          is_false 'gate(V)' "and the votes of the earlier orbit do not count (D30 H5): a new round is needed"; }
 
 # ---- D10: orbit-kb prove with real Lean. The Lake project is built once (prototype lake).
 # Each test copies it, so lake build has little to do. Skip when lake is missing.

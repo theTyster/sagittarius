@@ -111,7 +111,9 @@ attest_type(back,
 
 % --- Rule declarations ---
 decl(rule, discovery_reopened(ref(attest)), 'A back attestation follows the discovery_end record of this approval in kb.pl. orbit-kb computes it when it reads the KB.', 'a return to discovery came after approval @(1)').
-decl(rule, discovery_closed, 'The human approved the ticket after a GO (discovery_end), and no return to discovery came after it. Readiness and the gate are not asked again.', 'the discovery orbit is closed').
+decl(rule, discovery_closed, 'The human approved the ticket after a GO (discovery_end of a human approval of the ticket), and no return to discovery came after it. Readiness and the gate are not asked again.', 'the discovery orbit is closed').
+decl(rule, discovery_end_valid(ref(attest)), 'The discovery_end record names a human approval of the ticket subject (lint ED11 names one that does not).', 'approval @(1) is a human approval of the ticket').
+decl(rule, vote_void(ref(attest)), 'The vote does not count: a return to discovery (back) follows it in kb.pl, so it belongs to an earlier orbit, or it came after the discovery orbit closed. orbit-kb computes it when it reads the KB (D30 H5, H8).', 'vote @(1) does not count').
 decl(rule, discovery_open, 'The discovery orbit is open: from the start of the KB until the human approves the ticket after a GO, and again after a return to discovery (a back attestation).', 'the discovery orbit is open').
 decl(rule, discovery_disproof_filed(ref(claim)), 'A disproof attestation refutes the claim.', 'a disproof of claim @(1) is filed').
 decl(rule, discovery_model_artifact(ref), 'The id is a model file, a solver log, or is tagged as model evidence.', '@(1) is a model artifact').
@@ -192,7 +194,7 @@ decl(rule, vote_round(int), 'The current round: the largest round with a vote.',
 decl(rule, human_vote(atom), 'The vote of the human in the current round.', 'the human votes @(1)').
 decl(rule, agent_vote(atom), 'The vote of the agent in the current round.', 'the agent votes @(1)').
 decl(rule, discovery_some_current, 'Some claim is current.', 'some claim is current').
-decl(rule, artifact_vote(atom), 'The vote of the formal artifacts: go when discovery is ready with a current claim, no_go when it is ready with no current claim, else hold.', 'the formal artifacts vote @(1)').
+decl(rule, artifact_vote(atom), 'The vote of the formal artifacts: go when discovery is ready with a current claim, no_go when it is ready with no current claim, else hold. Once the orbit is closed, go: the vote of the round that closed it (D30 H6).', 'the formal artifacts vote @(1)').
 decl(rule, discovery_gate_agreed, 'The human and at least one other role vote the same.', 'the human and another role agree').
 decl(rule, gate(atom), 'The outcome of the vote: a choice of the human and at least one other role that can win (gate_allowed: GO cannot win while discovery is not ready), else hold. No answer until the human votes.', 'the outcome of the vote is @(1)').
 decl(rule, gate_split, 'The human voted, and no other role agrees with the human. The outcome is hold; record a divergence.', 'the vote is split, so the outcome is hold').
@@ -354,15 +356,20 @@ some_unratified_supersession :- discovery_unratified(_).
 % and the agent and the artifacts together cannot win (0.48 < 0.5). So a choice wins only
 % when the human and at least one other role vote for it; the rules below encode that
 % directly. Any other result is hold.
-vote_cast(W, R, C) :- attest(_, vote, _, vote(R, C), W, _).
+% D30 H5, H8: vote_void/1 has no clauses here. orbit-kb computes it: a vote that a back
+% attestation follows (an earlier orbit), or a vote after a discovery_end that no back follows.
+vote_cast(W, R, C) :- attest(A, vote, _, vote(R, C), W, _), not vote_void(A).
 discovery_vote_raised(R) :- vote_cast(_, R, _), vote_cast(_, R2, _), R2 > R.
 vote_round(R) :- vote_cast(_, R, _), not discovery_vote_raised(R).
 human_vote(C) :- vote_cast(human, R, C), vote_round(R).
 agent_vote(C) :- vote_cast(agent, R, C), vote_round(R).
 discovery_some_current :- current(_).
-artifact_vote(go) :- discovery_ready, discovery_some_current.
-artifact_vote(no_go) :- discovery_ready, not discovery_some_current.
-artifact_vote(hold) :- not discovery_ready.
+% D30 H6: a closed orbit keeps the record of the round that closed it. The orbit closes only when
+% the artifacts vote go (orbit-kb attest approval), so their vote stays go.
+artifact_vote(go) :- discovery_closed.
+artifact_vote(go) :- discovery_open, discovery_ready, discovery_some_current.
+artifact_vote(no_go) :- discovery_open, discovery_ready, not discovery_some_current.
+artifact_vote(hold) :- discovery_open, not discovery_ready.
 discovery_gate_agreed :- human_vote(C), agent_vote(C).
 discovery_gate_agreed :- human_vote(C), artifact_vote(C).
 % D33 R5 (c_k_d_1b, question q_k_d_1b, default a): GO cannot win while discovery is not ready,
@@ -377,13 +384,15 @@ gate(hold) :- human_vote(_), not discovery_gate_agreed.
 gate(hold) :- human_vote(go), not gate_allowed(go).
 gate_split :- human_vote(_), not discovery_gate_agreed.
 discovery_agent_voted(R) :- vote_cast(agent, R, _).
-discovery_vote_twin(A) :- attest(A, vote, _, vote(R, _), W, _), attest(B, vote, _, vote(R, _), W, _), A \= B.
+discovery_vote_twin(A) :- attest(A, vote, _, vote(R, _), W, _), not vote_void(A),
+    attest(B, vote, _, vote(R, _), W, _), A \= B, not vote_void(B).
 
 % --- D30 H4: the open discovery orbit ---
 % discovery_reopened/1 has no clauses here: orbit-kb computes its facts from the order of
 % kb.pl, as later_verdict/1. Neither rule reads readiness or the vote, so the order of the
 % strata stays: the orbit, then readiness, then the vote.
-discovery_closed :- discovery_end(A), not discovery_reopened(A).
+discovery_end_valid(A) :- attest(A, approval, S, _, human, _), ticket(S).
+discovery_closed :- discovery_end(A), discovery_end_valid(A), not discovery_reopened(A).
 discovery_open :- not discovery_closed.
 
 % --- The gate: clean only, and asked only while the discovery orbit is open (D30 H4) ---
@@ -443,7 +452,7 @@ lint_issue('WD8', A, 'This model result is on a log of an older digest of the mo
 lint_issue('WD10', C, 'This current claim has no example. Discovery is not ready until each current claim has a concrete case: add example(C, Text).') :-
     discovery_open, discovery_no_example(C).
 lint_issue('WD9', A, 'The human voted in this round, and the agent did not vote first. The agent vote must be sealed before the human votes.') :-
-    attest(A, vote, _, vote(R, _), human, _), not discovery_agent_voted(R).
+    attest(A, vote, _, vote(R, _), human, _), not vote_void(A), not discovery_agent_voted(R).
 lint_issue('ED1', A, 'This reproduction must point at evidence from the current system. Tag the subject with discovery_evidence(Subject, system); a model or a solver log is not system evidence.') :-
     attest(A, reproduction, S, _, _, _), not discovery_system_evidence(S).
 lint_issue('ED2', A, 'This model result must point at a solver log of its own model. Add model_run(Log, Model, Digest) for the log.') :-
@@ -462,5 +471,7 @@ lint_issue('ED8', Q, 'This question must be raised by a finding or a hypothesis.
     raised_by(Q, X), not discovery_is_finding(X), not discovery_is_hypothesis(X).
 lint_issue('ED9', M, 'This model is derived from a model that is itself derived from a model. Derive a target model only from an existing-world model.') :-
     derived_from(M, M0), not model_root(M0).
+lint_issue('ED11', A, 'This discovery_end does not name a human approval of the ticket subject, so it does not close the discovery orbit. Only orbit-kb attest approval TICKET --by human writes it. Remove the line.') :-
+    discovery_end(A), not discovery_end_valid(A).
 lint_issue('ED10', A, 'Its writer has another vote in this round. Keep one vote per writer in each round. After a HOLD, vote in the next round.') :-
     discovery_vote_twin(A).
