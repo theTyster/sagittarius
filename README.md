@@ -105,8 +105,11 @@ ends with a check. Do the steps in order. Stop at a check that fails, and say wh
    ```
 
    If the user already has a `claude` function or alias, add the flag to it; do not make a
-   second one. Another agent tool works the same way: put the text of `SAGITTARIUS.md` in its
-   system prompt.
+   second one. `command claude` runs the `claude` program on the `PATH`: it skips functions and
+   aliases. If `claude` is only an alias (`alias claude` prints its target, for example
+   `~/.claude/local/claude`), `command claude` fails with "command not found". Then write the
+   full path of the binary in place of `command claude`. Another agent tool works the same way:
+   put the text of `SAGITTARIUS.md` in its system prompt.
 4. **One session.** Open a new shell, so that it reads the function, and start one session with
    `claude`.
 5. **Ask it which prompt it got.** Ask the session: "What is the last line of your system
@@ -141,7 +144,9 @@ Your window: $ROLE.
 $(cat "$p/panes/$ROLE.md")"
 ```
 
-`command claude` skips the shell function of "Install", so the prompt is appended once. Any
+`command claude` skips the shell function of "Install", so the prompt is appended once. If your
+`claude` is only an alias, write the full path of the binary in place of `command claude` (see
+step 3 of "Install"). Any
 terminal multiplexer or editor can hold the three sessions. The author starts them as
 three tmux windows named after the roles. That launcher is not part of this repository.
 
