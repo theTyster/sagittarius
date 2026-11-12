@@ -1127,7 +1127,9 @@ draft_questions(KB) :-
 draft_question(Eng, Q, C, T) :-
     txt(T, TT), md_escape(TT, TE), md_inline(Q, Qm), say("### ~w: ~w", [Qm, TE]), nl,
     (   eng_all(Eng, [Ref], question_pin(Q, tracker, Ref, _, _), Rs), last(Rs, R1) -> md_say("- Tracker item: ", R1, "") ; say("- Tracker item: not posted yet", []) ),
-    (   eng_all(Eng, [CT], claim(C, _, CT), [CT1|_]) -> txt(CT1, CTT), md_say("- Case (claim): ", CTT, "") ; true ),
+    (   eng_all(Eng, [CT], claim(C, _, CT), [CT1|_]) -> txt(CT1, CTT), md_say("- Case (claim): ", CTT, "")
+    ;   eng_all(Eng, [HT], hypothesis(C, _, HT), [HT1|_]) -> txt(HT1, HTT), md_say("- Case (hypothesis): ", HTT, "")
+    ;   true ),
     eng_all(Eng, [Ci], cites(C, Ci), Cis), forall(member(X1, Cis), ( txt(X1, Y1), md_say("- Cites: ", Y1, "") )),
     eng_all(Eng, [N], note(Q, N), Ns), forall(member(X2, Ns), ( txt(X2, Y2), md_say("- Note: ", Y2, "") )),
     eng_all(Eng, [N2], note(C, N2), N2s), forall(member(X3, N2s), ( txt(X3, Y3), md_say("- Note on the claim: ", Y3, "") )),
@@ -5903,7 +5905,9 @@ show_section(_, Eng, questions) :-
     eng_groups(Eng, Q2, [B2, W2], answer(Q2, B2, W2), AnsBy),
     eng_set(Eng, Q3, to_ask(Q3), AskS),
     forall(member([Q, C, T], Qs),
-           ( txt(T, TT), say("- ~w (claim ~w): ~w", [Q, C, TT]),
+           ( txt(T, TT),
+             ( eng_true(Eng, hypothesis(C, _, _)) -> CK = hypothesis ; CK = claim ),
+             say("- ~w (~w ~w): ~w", [Q, CK, C, TT]),
              eng_lookup(Eng, AssBy, Q, A, assumed(Q, A), As),
              forall(member(A, As), ( term_text(A, AT), say("  Default: ~w.", [AT]) )),
              eng_lookup2(Eng, AnsBy, Q, [B, W], answer(Q, B, W), Bs),
@@ -7109,11 +7113,21 @@ report_text(KB, Eng) :-
     ),
     rhead('Guesses'),
     eng_all(Eng, [Q, A], ( assumed(Q, A), not(answered(Q)) ), Gs),
+    % D30 H3: each premise that nobody checked is a guess about the system.
+    eng_all(Eng, [P7, H7, PT7], ( premise(P7, H7, PT7), premise_unchecked(P7) ), Ps7),
     % D17: say that a human answered only when a question with a default exists.
-    (   Gs \== [] -> true
-    ;   eng_all(Eng, [Q0], assumed(Q0, _), [_|_])
-    ->  rsay(none, "None. A human answered every question with a default.", [])
-    ;   rsay(none, "None. No question has a default.", [])
+    % D30 H3: say that each premise is checked only when a premise of a current hypothesis exists.
+    (   ( Gs \== [] ; Ps7 \== [] ) -> true
+    ;   (   eng_all(Eng, [P8], ( premise(P8, H8, _), not(superseded(H8)) ), [_|_])
+        ->  PremT = "Each premise is checked, and " ; PremT = "" ),
+        (   eng_all(Eng, [Q0], assumed(Q0, _), [_|_])
+        ->  AskT = "a human answered every question with a default.", AskU = "A human answered every question with a default."
+        ;   AskT = "no question has a default.", AskU = "No question has a default."
+        ),
+        (   PremT == "" -> format(string(NoneT), "None. ~w", [AskU])
+        ;   format(string(NoneT), "None. ~w~w", [PremT, AskT])
+        ),
+        rsay(none, "~w", [NoneT])
     ),
     eng_groups(Eng, Q5, QT5, question(Q5, _, QT5), QTextBy),
     forall(member([Q, A], Gs),
@@ -7124,6 +7138,12 @@ report_text(KB, Eng) :-
              format(string(Head), "~w: ~w", [Q, QTT]),
              format(string(Kid), "The default is ~w. No human answered it.", [AT]),
              rtree(item(Q), Plain, Head-[Kid-[]]) )),
+    forall(member([P7, H7, PT7], Ps7),
+           ( txt(PT7, PTT7), as_sentence(PTT7, PTS7),
+             format(string(Kid7), "A premise of hypothesis ~w. Nobody checked it on the system.", [H7]),
+             format(string(Plain7), "~w: ~w ~w", [P7, PTS7, Kid7]),
+             format(string(Head7), "~w: ~w", [P7, PTT7]),
+             rtree(item(P7), Plain7, Head7-[Kid7-[]]) )),
     rhead('Disclosures'),
     eng_all(Eng, [I, S0, P, B], attest(I, disclosure, S0, P, B, _), Ds),
     (   Ds == [] -> rsay(none, "None.", []) ; true ),
@@ -7479,7 +7499,7 @@ page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js) :-
            page_claim(KB, Eng, C, L, TT, SK, St0, BT, KStates)),
     format("</section>~n", []),
     % the other sections, from the text lines
-    page_list(Recs, 'Guesses', guesses, "Guesses", "Defaults that no human answered. Say if one is wrong."),
+    page_list(Recs, 'Guesses', guesses, "Guesses", "Defaults that no human answered, and premises that nobody checked. Say if one is wrong."),
     page_list(Recs, 'Disclosures', disclosures, "Disclosures", ""),
     (   has_build(KB) -> page_list(Recs, 'Waivers', waivers, "Waivers", "") ; true ),
     page_list(Recs, 'Not checked', not_checked, "Not checked", ""),

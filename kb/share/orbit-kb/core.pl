@@ -117,9 +117,11 @@ decl(fact, assumption(id, text),
 decl(fact, not_explored(text),
      'An area that nobody explored.',
      'nobody explored @(1)').
-decl(fact, question(id, ref(claim), text),
-     'A dormant question about a claim.',
-     '@(1) is a question about claim @(2): @(3)').
+% D30 H3: a question can hang on a hypothesis. Its default is a default of the
+% hypothesis that the agent marks, such as the scope "every screen".
+decl(fact, question(id, ref([claim, hypothesis]), text),
+     'A dormant question about a claim, or about a default of the hypothesis.',
+     '@(1) is a question about @(2): @(3)').
 decl(fact, assumed(ref(question), term),
      'The default answer to a question.',
      'the default answer to question @(1) is @(2)').

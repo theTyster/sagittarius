@@ -28,6 +28,8 @@ Facts
   world(Fact), source(Fact, Where)   the current state, and where you saw it.
                                  A fact that you did not record is false.
   question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By)
+                                 A question can hang on a hypothesis: its default marks a default
+                                 of the hypothesis ("every screen"). report lists it under Guesses.
   option(Q, Text, Effect)        an option of question Q, and what choosing it changes. The question
                                  view (orbit-kb help view) shows each option with its effect. It changes no rule.
   due(X, 'TIME')                 claim, check, or question X is due at TIME. While X is open
