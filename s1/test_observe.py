@@ -231,6 +231,12 @@ class ReviewForms(Case):
         got = self.counts()
         self.assertEqual((got["shifted_after_hint"], got["shifts_without_hint"]), (1, 0))
 
+    def test_a_hint_by_time_alone_stays_within_the_window(self):
+        self.write_log(hint("2026-11-12T10:00:00Z", answers(div=0.9)))
+        self.write_session(turn("2026-11-12T11:00:00Z", "later", "Shifting up: x. Next: y.", "m1"))
+        got = observe().observe(self.log, self.tdir)
+        self.assertEqual((got["unmatched_hints"], got["shifts_without_hint"]), (1, 1))
+
     def test_the_limits_say_what_is_missed(self):
         limits = " ".join(observe().observe(self.write_log() or self.log, self.tdir)["limits"])
         self.assertIn("table", limits)  # a Signals field in a table is not read
