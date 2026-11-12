@@ -3309,6 +3309,94 @@ def case_030_handoff_example(r, root):
         r.check(f"030-handoff-example-{n}-runs-and-keeps-the-kb-ref", code == 0 and refs == [("kb",)], (args, code, out, err, refs))
 
 
+SESSION_INDEX_TABLES = ("transcript", "transcript_msg")  # schema 2 to 5; schema 6 drops them (0.3.0 kitrel)
+
+
+def v5_script(r, root):
+    """A copy of the script under test at schema 5: init makes the session index tables of MindHole 0.6.0."""
+    src = open(r.script, encoding="utf-8").read()
+    a = f"SCHEMA_VERSION = {script_version(r.script)}\n"
+    if src.count(a) != 1:
+        raise RuntimeError(f"anchor {a!r} occurs {src.count(a)} times")
+    path = os.path.join(root, "hubflow-v5.py")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(src.replace(a, "SCHEMA_VERSION = 5\n"))
+    return path
+
+
+def case_030_session_index_dropped(r, root):
+    """Sagittarius 0.3.0 (kitrel; Ty, 2026-11-12: "I want to cut this feature. 'drop it'"): the index of
+    Claude Code session logs is gone. No index-transcripts, no `transcripts` with no flag or with --detail,
+    no transcript tables or JSONL, no re-index at rotation. Meeting transcripts stay files: --files and
+    --find stay, and so does the transcript ref."""
+    h = os.path.join(root, "si-hub")
+    for n in range(6):
+        os.makedirs(os.path.join(h, f"W{n}"), exist_ok=True)
+    write_text(os.path.join(h, "W0", "transcripts", "one.jsonl"), json.dumps(
+        {"type": "user", "sessionId": "sess-one", "timestamp": "2026-11-02T09:00:00Z",
+         "message": {"role": "user", "content": "an invented session"}}) + "\n")
+    p = write_text(os.path.join(h, "W0", "transcripts", "standup.md"), STANDUP)
+    dig = sha256_of(p)
+    d = fresh(r, root, "si-fresh")
+    names = {x[0] for x in q(d, "select name from sqlite_master")}
+    r.check("si-fresh-db-has-no-session-index-tables", not (set(SESSION_INDEX_TABLES) & names), sorted(names))
+    r.check("si-fresh-db-has-no-session-index-jsonl",
+            not [x for x in os.listdir(os.path.join(d, "jsonl")) if x.startswith("transcript")], os.listdir(os.path.join(d, "jsonl")))
+    res = hf(r, d, "index-transcripts", "W0", hub=h)
+    r.check("si-index-transcripts-is-gone", refused(res, 1, "command must be one of") and "index-transcripts" not in res[2], res)
+    r.check("si-transcripts-with-no-flag-refused", refused(hf(r, d, "transcripts", hub=h), 1, "usage"), hf(r, d, "transcripts", hub=h))
+    r.check("si-transcripts-detail-refused", refused(hf(r, d, "transcripts", "--detail", "sess-one", hub=h), 1),
+            hf(r, d, "transcripts", "--detail", "sess-one", hub=h))
+    code, out, err = hf(r, d, "transcripts", "--files", "--format", "json", hub=h)
+    v = js(out) or []
+    r.check("si-transcripts-files-stays", code == 0 and [x.get("path") for x in v] == ["W0/transcripts/one.jsonl", "W0/transcripts/standup.md"],
+            (code, out[:400], err))
+    code, out, err = hf(r, d, "transcripts", "--find", f"standup.md@sha256:{dig}", hub=h)
+    r.check("si-transcripts-find-stays", code == 0 and out.strip() == "W0/transcripts/standup.md", (code, out, err))
+    res = hf(r, d, "add", "thread", "--title", "From the standup", "--ref", tref("standup.md", dig))
+    r.check("si-transcript-ref-stays", res[0] == 0, res)
+    helptext = hf(r, None, "--help")[1]
+    r.check("si-help-names-no-session-index", "index-transcripts" not in helptext and "--detail" not in helptext
+            and "transcript_msg" not in helptext and "transcripts --files" in helptext, helptext[-600:])
+    for args in (("rotate", "--week-start", "2026-11-02"), ("rotate", "--week-start", "2026-11-02", "--yes")):
+        res = hf(r, d, *args, hub=h)
+        r.check("si-no-reindex-line " + " ".join(args[3:]), res[0] == 0 and "transcripts_reindexed" not in res[1], res)
+    # an existing hub: a schema-5 db with session index rows and JSONL migrates, and loses both
+    v5 = Run(v5_script(r, root))
+    d5 = os.path.join(root, "si-v5", "flow")
+    res = hf(v5, d5, "init", "--seed", SEED, session=None)
+    r.check("si-setup-v5-init", res[0] == 0 and q(d5, "pragma user_version") == [(5,)], res)
+    ok(v5, d5, "add", "ask", "--title", "An ask from 0.6.0", "--waits-on", "me")
+    c = sqlite3.connect(dbfile(d5))
+    try:
+        c.execute("INSERT INTO transcript(session_id, first_at, last_at, first_user, messages, user_messages, tools, path)"
+                  " VALUES('sess-one', '2026-11-02T09:00:00Z', '2026-11-02T09:00:00Z', 'hi', 1, 1, 0, 'W0/transcripts/one.jsonl')")
+        c.execute("INSERT INTO transcript_msg(session_id, n, at, text) VALUES('sess-one', 1, '2026-11-02T09:00:00Z', 'hi')")
+        c.commit()
+    except sqlite3.Error as e:
+        r.check("si-setup-v5-has-the-session-index", False, repr(e))
+    finally:
+        c.close()
+    for t in SESSION_INDEX_TABLES:
+        write_text(os.path.join(d5, "jsonl", t + ".jsonl"), json.dumps({"session_id": "sess-one"}) + "\n")
+    before = {t: sorted(rows(d5, t)) for t in TABLES if t != "meta"}
+    res = hf(r, d5, "view", "open")
+    r.check("si-v5-db-needs-migrate", res[0] == 2 and "migrate" in res[2], res)
+    res = hf(r, d5, "migrate")
+    n = script_version(r.script)
+    r.check("si-migrate-v5-to-current", res[0] == 0 and n >= 6 and q(d5, "pragma user_version") == [(n,)], res)
+    r.check("si-migrate-keeps-backup", os.path.exists(os.path.join(d5, "flow.db.bak-v5")), os.listdir(d5))
+    names = {x[0] for x in q(d5, "select name from sqlite_master")}
+    r.check("si-migrate-drops-session-index-tables", not (set(SESSION_INDEX_TABLES) & names), sorted(names))
+    r.check("si-migrate-removes-session-index-jsonl",
+            not [x for x in os.listdir(os.path.join(d5, "jsonl")) if x.startswith("transcript")], os.listdir(os.path.join(d5, "jsonl")))
+    r.check("si-migrate-keeps-rows", {t: sorted(rows(d5, t)) for t in before} == before)
+    r.check("si-check-after-migrate", hf(r, d5, "check")[0] == 0, hf(r, d5, "check"))
+    d6 = fresh(r, root, "si-fresh-compare")
+    r.check("si-init-equals-migrated", q(d6, "select name, sql from sqlite_master order by name")
+            == q(d5, "select name, sql from sqlite_master order by name"))
+
+
 def run_case(r, fn, *args):
     """Run one scenario. A scenario that cannot even run is a failure, not a crash, and the
     scenarios after it still run."""
@@ -3411,6 +3499,8 @@ def cases(r):
         run_case(r, case_k3_citations_hub_name, root)
         # Sagittarius 0.3.0 (c_m_f_1): the skill's handoff example carries a kb ref
         run_case(r, case_030_handoff_example, root)
+        # Sagittarius 0.3.0 (kitrel): the session index is dropped (Ty, 2026-11-12)
+        run_case(r, case_030_session_index_dropped, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))
