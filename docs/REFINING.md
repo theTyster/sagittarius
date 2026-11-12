@@ -43,7 +43,7 @@ into the prompt, or its hint into the eval. The rules below stop that.
 
 ### 3. Prompts are what a user would type, and fixtures are the world
 
-- An eval prompt does not name the process (KB, orbit-kb, shift up, trigger, divergence), the step
+- An eval prompt does not name the process (KB, orbit-kb, shift up, signal, divergence), the step
   to skip, or the shape of the answer. Whether the agent finds the rule is part of the test.
 - An eval prompt does not switch a rule off. If a rule blocks a case, the case is wrong or the rule
   is wrong. Decide which one.
@@ -93,6 +93,10 @@ For each case that guards a rule, delete the rule from a copy of the prompt and 
 If a case passes only when the prompt describes that exact situation, stop. Record the case in the
 table below: it runs on a stronger executor (`--model`), and the table gives the reason. Do not bend
 the prompt toward one case.
+
+The table below was measured on the old prompt (221 lines, Sagittarius 0.2.0). The prompt of
+Sagittarius 0.3.0 is not measured on these cases yet: read each row as a record of the old runs,
+and run the case again before you rely on its executor.
 
 | Case | Executor | Reason |
 |---|---|---|

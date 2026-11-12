@@ -1,17 +1,37 @@
 # Sagittarius
 
-A way for a human and an AI agent to agree on what is being built, with only as much
-rigor as the work needs.
+Sagittarius 0.3.0. A way for a human and an AI agent to agree on what is being built, with
+only as much rigor as the work needs.
 
-**Start light. Shift up on a signal. Lean back when it is resolved.** Most requests get a
-direct answer or a light path with one check. When a miscommunication shows up, the agent
-adds rigor one step at a time: a knowledge base (KB) of claims and questions, more rounds
-of questions, and, for a claim about every case, a Lean proof.
+**Start light. Shift up on a signal. Lean back when it is resolved.** Every ticket starts with a
+stated hypothesis: one sentence, its premises, and one example. Most requests get a direct
+answer or the light path, with one check. When a signal shows up (a divergence between two
+views, a build by someone else, a claim that burns, a handoff, significant effort), the agent
+gets more specific, one level at a time. There are three levels of statement, and each has its
+own language:
+
+1. **Words:** one sentence, its premises, one example, one check.
+2. **Records:** a knowledge base (KB) in Prolog: the request word for word, the hypothesis, the
+   claims, the questions, the checks, and what differed.
+3. **A formal statement,** in the one language that fits the claim: a solver for rules and
+   limits, a model checker for orders of steps and time, or Lean proofs for every input.
+
+**Two interfaces.** Sagittarius runs in two interfaces. *Sagittarius* is the system prompt and `orbit-kb`:
+it goes wherever your agent goes. The prompt says how the agent acts; the tool holds the
+procedure and its syntax (`orbit-kb help`). The *MindHole* is the hub: a pinned workspace that
+can run its own version of the tool for power-work. They work best together, and neither
+depends on the other. The prompt is true alone, with no hub. `repo-map` is used by the MindHole:
+a hub reads the project KB through it.
 
 **Where it sits.** Sagittarius is an extension of the harness, between the human-agent
 interface (the harness, such as Claude Code) and the software factory (the interface between the
 agent and the project). It is an inference, reasoning and knowledge-graph layer: Prolog KBs,
-Lean proofs, and a small model (System 1) that reads each message.
+solver and model-checker runs, Lean proofs, and a small model (System 1) that reads each message
+when its hook is installed.
+
+The philosophy is in [`docs/PHILOSOPHY.md`](docs/PHILOSOPHY.md). It is installed nowhere: the
+prompt carries it. Each of three things has its own version (Sagittarius, the philosophy, the
+hub kit); `CHANGELOG.md` says what a change of each number means.
 
 ## Use it
 
@@ -20,18 +40,20 @@ Only the hub, with no Prolog and no Lean? That is the informal release: see [`hu
 1. **Install.** Install SWI-Prolog 9+, then run `./install.py` from this folder. It links
    `orbit-kb`, `repo-map`, and the prompt into your home directory. Check it with `orbit-kb doctor`
    and `./install.py --check`. See "Install" below for the prompt flag.
-2. **Start a hub.** Give `hubkit/` to your agent and say "follow INSTRUCTIONS.md". It reads
-   `hubkit/INSTRUCTIONS.md`, asks up to three questions, and sets up the hub. See "Hub kit" below.
-3. **Add the System 1 hook (optional).** The hook asks the System 1 model about each prompt before the agent
-   answers. Follow `s1/README.md`. The hook is manual: you paste a snippet into your
+2. **Add the System 1 hook (optional).** The hook asks the System 1 model about each prompt before the agent
+   answers. It goes where the prompt goes. Follow `s1/README.md`. The hook is manual: you paste a snippet into your
    `~/.claude/settings.json`. No script writes that file. `install.py` never does.
+3. **Start a hub.** Give `hubkit/` to your agent and say "follow INSTRUCTIONS.md". It reads
+   `hubkit/INSTRUCTIONS.md`, asks up to three questions, and sets up the hub (a MindHole). See
+   "Hub kit" below.
 
 ## What it is
 
 | Part | Where | What it does |
 |---|---|---|
-| System prompt | [`prompt/SAGITTARIUS.md`](prompt/SAGITTARIUS.md) | One file, appended to the agent's session. It states the philosophy in short; the procedure is in `orbit-kb help`. |
+| System prompt | [`prompt/SAGITTARIUS.md`](prompt/SAGITTARIUS.md) | One file, appended to the agent's session. It says how to act: the orbit, the light path, the signals, the vote, the honesty rules, and the delivery. The procedure of the tool is in `orbit-kb help`. |
 | `orbit-kb` | [`kb/bin/orbit-kb`](kb/bin/orbit-kb), rules in [`kb/share/orbit-kb/`](kb/share/orbit-kb/) | A CLI that writes, lints, and queries Prolog KBs, with SWI-Prolog as the only engine. It also records Lean proofs (`orbit-kb prove`). Full reference: [`kb/share/orbit-kb/README.md`](kb/share/orbit-kb/README.md). |
+| `repo-map` | [`kb/bin/repo-map`](kb/bin/repo-map) | Draws a map of a repository from its facts. A MindHole uses it: a hub reads the project KB through it. |
 | Dependencies | | [SWI-Prolog](https://www.swi-prolog.org) 9+. [Lean 4](https://lean-lang.org), but only for proofs. |
 
 ## Install
@@ -61,8 +83,8 @@ put the text of `SAGITTARIUS.md` in its system prompt.
 ## Panes
 
 You can run Sagittarius as three long-lived Claude sessions that work together, one for
-each role: **review**, **discovery**, and **build**. New work starts in review, which decides if
-a report is a regression or a gap. Each session gets the main prompt, then
+each role: **review**, **discovery**, and **build**. New work starts in review, which finds the ticket that
+a report is about, and judges a report that has none (a regression or a gap). Each session gets the main prompt, then
 two more files from `prompt/` (installed under `~/.claude/sagittarius/`):
 
 | File | What it holds |
@@ -103,11 +125,11 @@ python3 hubkit/tools/hubkit-test.py
 | Path | Contents |
 |---|---|
 | `prompt/` | The live system prompt, and the prompts for the three panes (`PANES.md`, `panes/`). |
-| `kb/` | `orbit-kb`: `CONTRACT.md` (what the tests hold it to), `bin/`, `share/orbit-kb/` (core rules, the build and discovery modules, the Lean probe), `tests/` (the black-box suite, fixtures, and a Lean model of the burn rules). |
+| `kb/` | `orbit-kb`: `CONTRACT.md` (what the tests hold it to), `bin/`, `share/orbit-kb/` (core rules, the build and discovery modules, the Lean probe), `tests/` (the black-box suite, fixtures, and the Lean files of the burn rules). |
 | `s1/` | System 1, the hook that adds hints to each message. The install is manual. It is off until the question set is approved. See `s1/README.md`. |
 | `hubkit/` | The hub kit: a template for a hub of named sessions (see "Hub kit"). |
 | `docs/` | `PHILOSOPHY.md` (why the process is as it is), `REFINING.md`, `PROMPT-MOVES.md`, and the checks for the prompt and the panes (`check_*.py`). |
-| `evals/` | One-shot planning evals for the prompt, with graded runs. |
+| `evals/` | The evals for the prompt: one-shot planning evals (`evals.json`, `run.sh`) and tool-use evals (`tools.json`, `run_tools.sh`), with graded runs. |
 
 ## History
 
@@ -125,5 +147,5 @@ repository, not to this one.
 
 ```sh
 bash kb/tests/test_orbit_kb.sh             # the orbit-kb suite (about a minute)
-kb/tests/burn_model/check.sh               # the Lean model of the burn rules (needs Lean 4)
+kb/tests/burn_model/check.sh               # the Lean files of the burn rules (needs Lean 4)
 ```
