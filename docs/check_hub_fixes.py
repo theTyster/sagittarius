@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """T31: an agent in a hub can run what the hub guidance tells it. One check per claim.
 
-usage: python3 docs/check_hub_fixes.py t31c3|...|t31c9|t46c3|t49c1|t50c1|t50c2|t50c4|t51c5|iuxc1|iuxc3k|iuxc6 (t31c7 is superseded by t31c8, t46c2 by t46c3, t31c1 and t31c2 by iuxc3k) [--list]   (--list prints the claim ids)
+usage: python3 docs/check_hub_fixes.py t31c3|...|t31c9|t46c3|t49c1|t50c1|t50c2|t50c4|t51c5|iuxc1|iuxc3k|iuxc6|iuxc6u|m030d1|m030d3 (t31c7 is superseded by t31c8, t46c2 by t46c3, t31c1 and t31c2 by iuxc3k) [--list]   (--list prints the claim ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 t31c1 runs the project KB setup line that hubkit/INSTRUCTIONS.md (and hubkit/README.md, when it has one) gives.
@@ -32,6 +32,16 @@ iuxc3k (install UX c3; supersedes t31c1 and t31c2) the project KB setup line of 
 iuxc6 (install UX c6) a normal install runs no test suite and ends with hubkit status and hubflow check, each with
       a reason for the user; a UAT install (step 1 asks; install --uat records it) also runs the plain suite and
       the mutants, with the reason that they test the kit.
+iuxc6u (Ty, 2026-11-12; beside iuxc6) a normal upgrade (hubkit/UPGRADING.md, "The procedure") runs no test
+      suite and ends its checks with hubkit status and hubflow check, each with a one-line reason; only a UAT
+      upgrade (a hub whose .hub-template.json records "uat": true) also runs the plain suite and the mutants,
+      with the reason that they test the kit.
+m030d1 (0.3.0 M-D c_m_d_1) "The formal edition" of hubkit/INSTRUCTIONS.md gives one launcher line for a pane
+      that sets HUB_SESSION and appends the prompt, PANES.md and the role file; the check runs that line with
+      a stub claude and a scratch HOME, and reads what the stub got. The step checks that the pane can say
+      the last line of its prompt. (The launcher of the root README.md is outside this check.)
+m030d3 (0.3.0 M-D c_m_d_3) hubkit/README.md and hubkit/UPGRADING.md say which Sagittarius version the kit
+      pairs with: the major and minor version of the last line of prompt/SAGITTARIUS.md.
 t50c1 (retire) the repo has no microsite: neither the deck directory nor the Pages workflow is in the tree, and no
       tracked file outside tmp/ names the deck files, their build and check scripts, or the workflow.
 t50c2 (retire) README.md, CLAUDE.md and docs/PHILOSOPHY.md do not point at the decks.
@@ -406,6 +416,87 @@ def iuxc6():
     check("iuxc6 hubkit.py --help names --uat", "--uat" in h.stdout, h.stdout[:200])
 
 
+def iuxc6u():
+    up = read(os.path.join(ROOT, "hubkit", "UPGRADING.md"))
+    m = re.search(r"^## The procedure[^\n]*\n(.*?)(?=^## )", up, re.M | re.S)
+    proc = m.group(1) if m else ""
+    check("iuxc6u UPGRADING.md has The procedure", bool(proc), "missing")
+    steps = {int(n): re.sub(r"\s+", " ", body) for n, body in re.findall(r"^(\d+)\. (.*?)(?=^\d+\. |^\S|\Z)", proc, re.M | re.S)}
+    tests = {n: w for n, w in steps.items() if "-test.py" in w}
+    check("iuxc6u one step of the procedure runs the test suites", len(tests) == 1, sorted(tests))
+    for n, w in tests.items():
+        # the sentence that runs the suites names the UAT condition
+        for sent in re.split(r"(?<=\.) ", w):
+            if "-test.py" in sent:
+                check(f"iuxc6u step {n}: the suites run only for a UAT upgrade (\"uat\": true)",
+                      "UAT" in sent and '"uat": true' in w, sent[:300])
+        check(f"iuxc6u step {n} runs the plain suite and the mutants", "hubflow-test.py" in w and "--mutants" in w, w[:300])
+        check(f"iuxc6u step {n} says they test the kit", "test the kit" in w.lower(), w[:300])
+        check(f"iuxc6u step {n} says a normal upgrade skips them", "normal upgrade" in w.lower() and "skip" in w.lower(), w[:300])
+    w7 = steps.get(7, "")
+    for cmd in ("hubkit.py status", "hubflow.py check"):
+        m = re.search(re.escape(cmd) + r"[^.]*?\.?`?[^.]*?\b(shows|tells) you\b", w7)
+        check(f"iuxc6u step 7 ends a normal upgrade with {cmd} and a one-line reason", m is not None, w7[:500])
+
+
+def m030d1():
+    ins, secs = ins_sections()
+    formal = secs.get("The formal edition", "")
+    lines = [ln.strip() for ln in formal.splitlines() if re.search(r"HUB_SESSION=\S+ (command )?claude[^\n]*--append-system-prompt", ln)]
+    start = [ln for ln in lines if "--name" in ln]
+    check("m030d1 The formal edition gives one launcher line that sets HUB_SESSION and appends the prompt", len(start) == 1, lines)
+    w = re.sub(r"\s+", " ", formal)
+    check("m030d1 the step checks that the pane can say the last line of its prompt", re.search(r"last line", w) is not None, w[-400:])
+    for ln in lines:
+        check("m030d1 the launcher appends the prompt, PANES.md and the role file",
+              all(x in ln for x in ("SAGITTARIUS.md", "PANES.md", "panes/<name>.md")), ln)
+    if len(start) != 1:
+        return
+    with tempfile.TemporaryDirectory(prefix="m030d1-") as t:
+        home, hub, stub = (os.path.join(t, x) for x in ("home", "hub", "bin"))
+        pdir = os.path.join(home, ".claude", "sagittarius")
+        os.makedirs(os.path.join(pdir, "panes"))
+        os.makedirs(hub)
+        os.makedirs(stub)
+        for rel, txt in (("SAGITTARIUS.md", "PROMPT-TEXT\nThis is Sagittarius 9.9.9 (test).\n"), ("PANES.md", "PANES-TEXT\n"),
+                         ("panes/build.md", "ROLE-BUILD-TEXT\n"), ("panes/review.md", "ROLE-REVIEW-TEXT\n")):
+            with open(os.path.join(pdir, rel), "w") as f:
+                f.write(txt)
+        out = os.path.join(t, "got.json")
+        with open(os.path.join(stub, "claude"), "w") as f:
+            f.write("#!%s\nimport json, os, sys\njson.dump({'s': os.environ.get('HUB_SESSION'), 'cwd': os.getcwd(), 'a': sys.argv[1:]}, open(%r, 'w'))\n"
+                    % (sys.executable, out))
+        os.chmod(os.path.join(stub, "claude"), 0o755)
+        cmd = start[0].replace("<name>", "build")
+        env = dict(os.environ, HOME=home, HUB=hub, PATH=stub + os.pathsep + os.environ.get("PATH", ""))
+        p = subprocess.run(["sh", "-c", cmd], env=env, capture_output=True, text=True, timeout=30)
+        got = json.loads(read(out) or "{}")
+        check("m030d1 the launcher line runs", p.returncode == 0 and bool(got), (p.returncode, p.stderr[-200:]))
+        a = got.get("a", [])
+        app = a[a.index("--append-system-prompt") + 1] if "--append-system-prompt" in a[:-1] else ""
+        check("m030d1 the pane gets HUB_SESSION and the hub as cwd", got.get("s") == "build" and os.path.realpath(got.get("cwd", "")) == os.path.realpath(hub), got)
+        i = [app.find(x) for x in ("PROMPT-TEXT", "PANES-TEXT", "ROLE-BUILD-TEXT")]
+        check("m030d1 the appended text is the prompt, then PANES.md, then the role file", -1 not in i and i == sorted(i), app[:200])
+        check("m030d1 the appended text holds the last line of the prompt", "This is Sagittarius 9.9.9" in app, app[-200:])
+        check("m030d1 the appended text holds no other role file", "ROLE-REVIEW-TEXT" not in app, app[-200:])
+
+
+def m030d3():
+    pr = read(os.path.join(ROOT, "prompt", "SAGITTARIUS.md"))
+    last = [ln for ln in pr.splitlines() if ln.strip()][-1:]
+    m = re.search(r"Sagittarius (\d+)\.(\d+)\.\d+", last[0]) if last else None
+    check("m030d3 the last line of the prompt names its version", m is not None, last)
+    if not m:
+        return
+    mm = f"{m.group(1)}.{m.group(2)}"
+    for rel in ("README.md", "UPGRADING.md"):
+        t = re.sub(r"\s+", " ", read(os.path.join(ROOT, "hubkit", rel)))
+        check(f"m030d3 hubkit/{rel} says that the kit pairs with Sagittarius {mm}",
+              re.search(r"pairs with Sagittarius " + re.escape(mm) + r"\b", t) is not None, "missing")
+        other = [x for x in re.findall(r"pairs with Sagittarius (\d+\.\d+)\b", t) if x != mm]
+        check(f"m030d3 hubkit/{rel} names no other Sagittarius version as the pair", not other, other)
+
+
 def git(*args):
     return subprocess.run(["git"] + list(args), cwd=ROOT, capture_output=True, text=True)
 
@@ -456,7 +547,7 @@ def t50c4():
 # .claude/orbit-kb/bin/orbit-kb, which the t31c1 pattern does not match and the t31c2 scan reads as the checkout's
 # kb/bin/. Both functions stay above as the record; iuxc3k reruns the t31c2 scan with the narrower pattern.
 CLAIMS = {k: globals()[k] for k in ("t31c3", "t31c4", "t31c5", "t31c6", "t31c8", "t31c9", "t46c3", "t49c1", "t50c1", "t50c2", "t50c4", "t51c5",
-                                      "iuxc1", "iuxc3k", "iuxc6")}
+                                      "iuxc1", "iuxc3k", "iuxc6", "iuxc6u", "m030d1", "m030d3")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]

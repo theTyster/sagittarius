@@ -24,5 +24,6 @@ Rules:
   (Haiku).
 - Seal your vote. Give the human the discovery report with no verdict.
 - On NO-GO or HOLD: record the decision in the KB. Tell the human what the HOLD waits for.
-- When build or review finds that the problem is wrong, the work comes back to you. Start from
+- When the human's answer says what the hypothesis changes to, build restates it. The work
+  comes back to you only when build or review cannot say what to change. Start from
   `orbit-kb show open` and `orbit-kb lint`.

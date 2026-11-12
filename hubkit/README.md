@@ -15,9 +15,16 @@ It has three ideas:
   are rows in `flow/flow.db`, written only by `hubflow.py`. Each write also exports JSONL, which
   git tracks. An item nobody renews comes due, and each rotation records one decision for every due
   item (keep, lapse, capsule or escalate) instead of a silent lapse.
-- **The principles come with it.** `PRINCIPLES.md` states the Sagittarius philosophy in plain
-  words (clear, accurate, honest, fast; start light and shift up on a signal; no party grades its
-  own work; disclose guesses). The hub's `CLAUDE.md` imports it, so every agent reads it at start.
+- **The principles come with it.** `PRINCIPLES.md` comes from the Sagittarius prompt: a short
+  file, in plain words, that names the prompt's version and, for each part, the section of the
+  prompt it comes from (clear, accurate, honest, fast; state the hypothesis and go on; start light
+  and shift up on a signal; no party grades its own work; disclose guesses). The hub's `CLAUDE.md`
+  imports it, so every agent reads it at start.
+
+**Versions.** The MindHole and Sagittarius keep two version numbers: `MindHole <version>` (in
+`kit.json`) and `Sagittarius <version>` (the last line of the prompt). This kit pairs with
+Sagittarius 0.3: its `PRINCIPLES.md` comes from that prompt, and a formal hub runs the orbit-kb of
+the same Sagittarius checkout. `UPGRADING.md` says it too.
 
 Named sessions (one per role, each with its own `HUB_SESSION`) are set up outside the hub, for
 example in your dotfiles, because they belong to one machine. The hub knows only their names, in

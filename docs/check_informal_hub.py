@@ -16,7 +16,10 @@ t32c3 reads the informal store map (the informal-map block) in both HUB-CORE fil
       and once on a copy with a row removed (it must fail).
 t32c4 reads the seed and the informal HUB-CORE.md, then records one verdict in a new informal hub
       with the command that HUB-CORE.md gives, and reads it back with `hubflow.py show`.
-t32c5 reads hubkit/hub/PRINCIPLES.md for principles 4, 5 and 8 of docs/PHILOSOPHY.md.
+t32c5 reads hubkit/hub/PRINCIPLES.md for the parts that come from the prompt sections "The orbit", "The
+      hypothesis" and "Delivery" (0.3.0 M-C: the file comes from the prompt, not from docs/PHILOSOPHY.md).
+      The hypothesis part says what the human wants, and that the agent states it and goes on (M-C c2);
+      the old sentences ("wait for the answer", "say what you believe the problem is") are gone.
 t32c6 reads the tool list of hubkit/README.md "## Install", runs its sh block with relative KIT and
       HUB and a PATH of exactly those tools, and runs check_informal_release.py c1 (T24), which
       must print the same list as its PATH.
@@ -68,6 +71,7 @@ KREADME = os.path.join(KITDIR, "README.md")
 INSTR = os.path.join(KITDIR, "INSTRUCTIONS.md")
 PRINCIPLES = os.path.join(HUB, "PRINCIPLES.md")
 PHIL = os.path.join(ROOT, "docs", "PHILOSOPHY.md")
+PROMPT = os.path.join(ROOT, "prompt", "SAGITTARIUS.md")
 OKB = os.path.join(ROOT, "kb", "bin", "orbit-kb")
 INFORMAL = ("ledger", "memory", "weeks", "bespoke", "tracker")
 IBEGIN = "<!-- informal-map:begin"
@@ -396,21 +400,30 @@ def t32c4():
 
 
 # ------------------------------------------------------------------ c5
-P_WANT = (("5. Each statement comes from the source", ("orbit", "the request", "each step")),
-          ("2. Each statement of the intent is an attempt. The hypothesis is the first of them", ("hypothesis", "weak", "strong", "show it false")),
-          ("12. Speed comes from skipping work, never from hiding it", ("skip", "never hide", "only the human skips", "due")))
+P_WANT = (("The orbit", ("orbit", "the request", "each step")),
+          ("The hypothesis", ("hypothesis", "what the human wants", "show it false", "go on")),
+          ("Delivery", ("skip", "never hide", "only the human skips", "due")))
+HYP_FROM = 'From the prompt: "The hypothesis"'
+
+
+def from_prompt(secs, src):
+    """The parts of PRINCIPLES.md whose From the prompt: line names the prompt section SRC."""
+    return [s for s in secs if re.search(r'^From the prompt: "' + re.escape(src) + r'"\s*$', s, re.M)]
 
 
 def t32c5():
     pr = read(PRINCIPLES)
-    heads = {re.sub(r"^#+\s*", "", ln).strip() for ln in read(PHIL).splitlines() if ln.startswith("#")}
+    heads = {ln[3:].strip() for ln in read(PROMPT).splitlines() if ln.startswith("## ")}
     secs = re.split(r"^## ", pr, flags=re.M)[1:]
     for src, phrases in P_WANT:
-        check(f"t32c5 docs/PHILOSOPHY.md has '{src}'", src in heads, "missing")
-        mine = [s for s in secs if re.search(r'^Source: docs/PHILOSOPHY\.md, "' + re.escape(src) + r'"\s*$', s, re.M)]
-        check(f"t32c5 PRINCIPLES.md has a principle that cites '{src}'", len(mine) == 1, len(mine))
+        check(f"t32c5 prompt/SAGITTARIUS.md has '{src}'", src in heads, "missing")
+        mine = from_prompt(secs, src)
+        check(f"t32c5 PRINCIPLES.md has a principle that comes from '{src}'", len(mine) == 1, len(mine))
         if mine:
-            has(f"t32c5 the principle of '{src[:2]}'", mine[0], *phrases)
+            has(f"t32c5 the principle from '{src}'", mine[0], *phrases)
+    w = words(pr)
+    for old in ("wait for the answer", "say what you believe the problem is"):
+        check(f"t32c5 PRINCIPLES.md no longer says '{old}'", old not in w, "still there")
     hits = banned_hits(pr)
     check("t32c5 PRINCIPLES.md names no formal word", not hits, hits[:4])
     p = run([sys.executable, os.path.join(ROOT, "docs", "check_informal_release.py"), "c3"])
@@ -684,7 +697,7 @@ def t36c5():
 def t36c6():
     pr = read(PRINCIPLES)
     secs = re.split(r"^## ", pr, flags=re.M)[1:]
-    mine = [s for s in secs if "2. Each statement of the intent is an attempt. The hypothesis is the first of them" in s]
+    mine = [s for s in secs if HYP_FROM in s]
     check("t36c6 PRINCIPLES.md has the hypothesis principle", len(mine) == 1, len(mine))
     if mine:
         body = words(mine[0])
@@ -713,7 +726,7 @@ def hyp_parts(name, text):
 def t41c1():
     pr = read(PRINCIPLES)
     secs = re.split(r"^## ", pr, flags=re.M)[1:]
-    mine = [s for s in secs if "2. Each statement of the intent is an attempt. The hypothesis is the first of them" in s]
+    mine = [s for s in secs if HYP_FROM in s]
     check("t41c1 PRINCIPLES.md has the hypothesis principle", len(mine) == 1, len(mine))
     if mine:
         hyp_parts("t41c1 the hypothesis principle", mine[0])
