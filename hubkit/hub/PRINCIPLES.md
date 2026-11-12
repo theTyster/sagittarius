@@ -7,7 +7,8 @@ from. An upgrade replaces this file (put local rules in `CLAUDE.md`).
 ## Orbit the intent; deliver clear, accurate, honest, fast
 
 Go back to the source on each step (the request and the current system), not only to the step
-before it. Deliver changes that are clear, accurate (no less, no more than the request), honest, fast.
+before it. Deliver changes that are clear, accurate (no less, no more than the request), honest, and
+fast: do only the work that the request needs.
 From the prompt: "The orbit"
 
 ## The human owns the intent; no party grades its own work
@@ -52,9 +53,7 @@ From the prompt: "The idea"
 
 ## Skip, never hide; only the human skips
 
-Do only the work that the request needs. Say every skip aloud; never hide one. Only the human
-skips, with a due time; after it, the work comes back. In the ledger `park ID --until DATE` does
-that; `close --reason human_skip` is final. A known limit: an agent may park an item that is not
-escalated (the event names the agent).
-From the prompt: "The orbit"
+Say every skip aloud; never hide one. Only the human skips, with a due time; after it, the work
+comes back. In the ledger `park ID --until DATE` does that; `close --reason human_skip` is final.
+A known limit: an agent may park an item that is not escalated; the park event names the agent.
 From the prompt: "Delivery"
