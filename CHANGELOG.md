@@ -8,7 +8,7 @@ Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own v
 |---|---|---|---|
 | Sagittarius | 0.3.0 (proposed) | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole | 0.6.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole | 0.7.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 
 What a change of each number means:
 
@@ -38,14 +38,88 @@ Earlier versions, named after the fact so that a report can refer to them:
   response, the vote, honesty, and the delivery.
 - The definition of a properly written hypothesis is stated in Lean:
   `docs/philosophy-orbit/2026-11-11/fable/Hypothesis.lean`.
-- The tools, the MindHole and the checks are not changed yet. Where they differ from the new
-  texts is in `docs/philosophy-orbit/2026-11-11/fable/ALIGNMENT.md`.
-- `install.py` makes a fifth link, `~/.claude/sagittarius-s1` (the System 1 hook). Run `./install.py` again after you update; `./install.py --check` shows the new link as missing until you do.
+- The build aligns the tools, the MindHole and the checks with the new texts (the spec KB
+  `tmp/kb-sagittarius-030`, from the differences that
+  `docs/philosophy-orbit/2026-11-11/fable/ALIGNMENT.md` names). The MindHole has its own entry
+  below (MindHole 0.7.0).
+- VERSION is the one source of the Sagittarius version. `docs/check_version.py` holds it, the last
+  line of the prompt and the CHANGELOG heading to one number. `install.py` prints it, and each
+  System 1 log line holds it (`sagittarius`), also when the hook runs through the installed link.
+- `install.py` makes a fifth link, `~/.claude/sagittarius-s1` (the System 1 hook: it links `s1/`).
+  README "Install" is a sequence that an agent follows. Run `./install.py` again after you update;
+  `./install.py --check` shows the new link as missing until you do.
+- The docs checks hold every rule sentence of the 0.3.0 prompt by a key phrase. There is no limit
+  on the prompt length; `docs/PROMPT-MOVES.md` is a dated record of T08; `check_mutants` proves
+  each check passes before it fails.
+- Panes: intake finds the ticket first; a handoff is a signal, and the pane that receives it
+  records it in the KB (`orbit-kb add "signal(...)"`); a peer message with no hubflow row passes
+  no work; review returns work to build as a handoff.
+- `docs/check_lean.py` runs Lean on `Hypothesis.lean` (the philosophy's theorem count, no axioms,
+  each cited theorem name) and on the Lake projects under `kb/proofs` (only the standard axioms).
+- System 1 hook: prints `System 1: no view (<reason>)` on a failure and `System 1: unsure` when
+  every answer is unsure; only `S1_OFF` is silent; the line only reports; hook and status line
+  decide a proof by one rule (`System 1: no signal` when only a held-back tool is sure).
+- `s1/observe.py` compares the System 1 log with the session transcripts afterwards, and states its
+  limits.
+- orbit-kb: every KB holds the hypothesis of its ticket (`hypothesis/3` in core, new kind
+  `change`); premises beside it (`premise`, `premise_checked`, `no_premises`, lint W10, W11).
+- orbit-kb: the discovery orbit is open until the human approves the ticket after a GO
+  (`discovery_end`), and again after `attest back`, which needs a new round of votes; a stale
+  approval, or one while not ready, does not close it (ED11, ED12).
+- orbit-kb report: KB, Signals (drafted from the records), Hypothesis and Formal fields; an example
+  under each claim; theorem statements; a discovery KB gets System, Findings, Scope, Risk and Not
+  explored; `show hypothesis`.
+- orbit-kb: `show open` and report Open name every blocking item, each thing that blocks
+  readiness, and stale pins (WP8); never "Nothing is open" while something blocks. Lean proof:
+  `kb/proofs/open_items`.
+- orbit-kb: discovery readiness needs an example for each claim (WD10) and blocks on a failing
+  preserve check; a red system run of an introduce or retire claim counts as the system result;
+  calibration needs a failing and a passing case.
+- orbit-kb: GO cannot win while discovery is not ready, and the agent's GO is refused then; the
+  human's vote is never refused. Lean proof: `kb/proofs/gate_ready`.
+- orbit-kb: `orbit-kb version`; the help names the version; `init` writes it into `kb.pl`.
+- orbit-kb: `signal/4` and `lean_back/2`; `orbit-kb shift` and `help shift` for the step from words
+  to records.
+- orbit-kb: the help follows the 0.3.0 prompt; the move SIGNAL is RESTATE; "Lean definitions", not
+  "Lean model"; `orbit-kb withdraw` fixes E19.
+- orbit-kb: an agent's relation in a project KB is proposed until a human adds it too
+  (`relation_by`, WP9).
+- orbit-kb: a build KB records models (`model`, `model_run`, `encodes`); a solver result never
+  closes a burn.
+
+## MindHole 0.7.0 (the kit; its own version line; pairs with Sagittarius 0.3.0; not released)
+
+The MindHole has its own version (`hubkit/kit.json`), apart from Sagittarius. 0.7.0 is the build's
+guess: the db schema moves from 5 to 6, so the kit version moves (`hubkit/UPGRADING.md`, section
+0.7.0, names each engine-file change since 0.6.0).
+
+- The session index is dropped (db schema 6). Ty, 2026-11-12: "I want to cut this feature. 'drop
+  it'": it came from a misunderstanding (meeting transcripts, not Claude Code session logs). Gone:
+  `hubflow.py index-transcripts`, `transcripts` with no flag and `--detail`, the tables
+  `transcript` and `transcript_msg` with their JSONL (`migrate` drops them), and the re-index at
+  `rotate --yes`. Meeting transcripts, the `transcript:` ref, `transcripts --files` and `--find`
+  stay.
+- The kit is named the MindHole (`MindHole <version>`). One pane launcher in README and
+  INSTRUCTIONS. A formal step 6 makes the project KB. The suite prints progress per mutant, and
+  `init` prints a line. `check-citations.py` accepts the hub's directory name as a prefix.
+- The hub's own HUB-CORE.md carries the inbox rule; the vote gets a home in both editions; a
+  handoff example carries its kb ref; a closed ticket proposes its lasting outcomes to the project
+  KB.
+- PRINCIPLES.md comes from the prompt; the hub has a light path; the mutants run only for a UAT
+  install or upgrade.
+- A hub records what it runs (`runs` in `.hub-template.json`: the orbit-kb copy and its version,
+  the prompt and the pane files with their Sagittarius version), and `hubkit.py status` prints
+  them and says whether the files under `~/.claude/sagittarius/` are still the same. The orbit-kb
+  copy carries its `VERSION`.
+- UPGRADING.md: step 7 and the 0.6.0 section agree (only a UAT upgrade runs the suites); "A hub
+  made before the manifest" gains the lessons of a real migration (import of old asks, moving the
+  hub directory, references outside the hub, local rules synthesized into the shipped rules, a
+  note for running sessions).
 
 ## Redesign (informal release)
 
-Ty makes the release. This entry lists what is in the `redesign` branch. The hub kit is version
-0.6.0 (`hubkit/kit.json`; T48 c3: db schema 5 shipped as 0.5.1, the kit version moves with the
+Ty makes the release. This entry lists what is in the `redesign` branch. The hub kit was version
+0.6.0 at that release (`hubkit/kit.json`; T48 c3: db schema 5 shipped as 0.5.1, the kit version moves with the
 schema; 0.5.2 keeps schema 5 and fixes the kit defects of the first formal install, T51; 0.6.0, a
 version the build guessed, keeps schema 5 and changes the install experience).
 
