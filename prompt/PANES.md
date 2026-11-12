@@ -29,6 +29,9 @@ How you work together:
 - A KB has one writer at a time. The giver runs `orbit-kb release` before the handoff. The
   receiver's first write takes the lock. Subagents of one pane share `CLAUDE_CODE_SESSION_ID`
   and count as one writer: give a KB to one subagent at a time.
+- The receiver records the handoff in the KB as a signal, with its first write:
+  `orbit-kb add "signal(s1, handoff, agent, 'from discovery: build c1 to c3')"` (a new id each
+  time; signal/4 in `orbit-kb help core`).
 - Handoffs in a hub. One procedure, written once here: the sender records one `hubflow handoff`
   row (`--to ROLE --ref kb:SLUG --note "where to start"`; `hubflow` is
   `python3 .claude/scripts/hubflow.py`) and tells the receiver with SendMessage, naming the id.
