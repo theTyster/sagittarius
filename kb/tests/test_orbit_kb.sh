@@ -84,8 +84,8 @@
 #   VR  verification records: actor, review_saw, verdicts, independently_verified, WR1 (D28) : VR1-VR12 (VR7-VR11: T38; VR12: T40)
 #   HY  the hypothesis and its premises in every KB; the open discovery orbit (D30, 0.3.0 K-A) : HY1-HY8; review fixes HY9-HY18
 #   KR  the report and show print what the KB holds: hypothesis, examples, KB, Signals, Formal, the discovery report (D31, 0.3.0 K-B) : KR1-KR7
-#   OP  no quiet "Nothing is open": blocking, what blocks readiness, stale pins (D32, 0.3.0 K-C) : OP1-OP4
-#   RD  readiness and the vote: examples, preserve checks, calibration, red system runs, the gate (D33, 0.3.0 K-D) : RD1-RD5
+#   OP  no quiet "Nothing is open": blocking, what blocks readiness, stale pins (D32, 0.3.0 K-C) : OP1-OP5
+#   RD  readiness and the vote: examples, preserve checks, calibration, red system runs, the gate (D33, 0.3.0 K-D) : RD1-RD6
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -1918,6 +1918,103 @@ t_OP4() { kb_done "$T/k"; K=$T/k; is_true 'done' "setup"
           okb --dir "$K" report --html "$T/b.html"; rc_is 0
           [ "$(grep -c 'data-open="under"' "$T/b.html")" = 1 ] || note "the page lists the under claim once in Open"; }
 
+# ---- 0.3.0 K-C and K-D: the examples of the two Lean models, carried to the CLI (c_k_c_1b, c_k_d_1b).
+# OP5_TABLE and RD6_TABLE are copies of what #eval prints in kb/proofs/open_items/OpenItems.lean and
+# kb/proofs/gate_ready/GateReady.lean. With lake on PATH the tests read the #eval output of the model
+# itself (lake env lean; the projects have no packages), so a copy that differs from the model is a
+# failure, and so is a model that does not compile. Without lake, the copy is the table.
+OP5_TABLE='OP5 hypothesis_only: not_ready no_system_result | not_ready no_outcome | not_ready untouched h1
+OP5 contradiction: project_contradiction d1
+OP5 done: Nothing is open
+OP5 under_never_ran: under c1 | check_unrun k1
+OP5 no_example: not_ready no_example c2
+OP5 preserve_fails: not_ready preserve_failing t2
+OP5 ready: Nothing is open
+OP5 closed: Nothing is open
+OP5 stale_pin: stale_pin pf2'
+RD6_TABLE='RD6 not_ready_votes: refused=[1] gate=hold closed=false
+RD6 ready_then_new_hypothesis: refused=[] gate=hold closed=false
+RD6 approved_then_build: refused=[] gate=go closed=true
+RD6 approved_then_back: refused=[] gate=none closed=false
+RD6 stale_approval: refused=[] gate=go closed=false
+RD6 vote_after_closure: refused=[4] gate=go closed=true'
+lean_rows() {  # lean_rows PROJECT FILE TAG COPY: sets LEAN_ROWS, the lines "TAG ..." that #eval prints (or COPY without lake)
+    local d=$here/../proofs/$1 out
+    if ! command -v lake >/dev/null 2>&1; then LEAN_ROWS=$4; return; fi
+    if ! out=$(cd "$d" && timeout 600 lake env lean "$2" 2>&1); then
+        note "lake env lean failed on $1/$2: $(snip "$out")"; LEAN_ROWS=$4; return
+    fi
+    LEAN_ROWS=$(printf '%s\n' "$out" | grep "^$3 " | awk '!seen[$0]++')
+    [ "$LEAN_ROWS" = "$4" ] || note "the copy of the table differs from the #eval output of $1/$2: $(diff <(printf '%s\n' "$4") <(printf '%s\n' "$LEAN_ROWS") | head -n 6 | tr '\n' '~')"
+}
+op5_case() {  # op5_case NAME: make the KB of the example NAME in $T/NAME; K is set
+    local n=$1
+    case $n in
+        hypothesis_only) kb_init "$T/$n" discovery; K=$T/$n; oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" >/dev/null ;;
+        contradiction) op_project "$T/$n" human; K=$T/$n/sp ;;
+        done) kb_done "$T/$n"; K=$T/$n ;;
+        under_never_ran) hy_build "$T/$n" ;;
+        no_example) hy_disc "$T/$n"; oadd "claim(c2, introduce, 'A refund takes the points back.')" "cites(c2, 'Test request')" "check(t2, c2)" >/dev/null ;;
+        preserve_fails) hy_disc "$T/$n"
+            oadd "claim(c2, preserve, 'A purchase by a guest gets no points.')" "cites(c2, 'Test request')" \
+                 "example(c2, 'a guest who buys for 40 gets 0 points')" "check(t2, c2)" "discovery_evidence(t2, system)" >/dev/null
+            okb --dir "$K" run t2 -- false >/dev/null ;;
+        ready) hy_disc "$T/$n" ;;
+        closed) hy_go "$T/$n"; oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" >/dev/null ;;
+        stale_pin) okb init "$T/$n" --request 'show the price' --uses project >/dev/null; K=$T/$n
+            printf 'v1\n' > "$T/$n.txt"; okb --dir "$K" subject s2 "$T/$n.txt" >/dev/null
+            okb --dir "$K" pin-item pf2 s2 --kind file --changed-at 2026-11-01T00:00:00Z >/dev/null; printf 'v2\n' > "$T/$n.txt" ;;
+        *) note "OP5: no CLI case for the example $n of the Lean model"; return 1 ;;
+    esac
+}
+t_OP5() { lean_rows open_items OpenItems.lean OP5 "$OP5_TABLE"
+          local line n want got
+          while IFS= read -r line; do
+              [ -n "$line" ] || continue
+              n=${line#OP5 }; n=${n%%:*}; want=$(printf '%s\n' "${line#*: }" | tr '|' '\n' | sed 's/^ *//; s/ *$//' | LC_ALL=C sort | paste -sd'|')
+              op5_case "$n" || continue
+              okb --dir "$K" show open; rc_is 0 "show open ($n)"
+              got=$(printf '%s\n' "$out" | sed -n 's/^- \([^:]*\).*/\1/p' | sed 's/^Nothing is open\.$/Nothing is open/' | LC_ALL=C sort | paste -sd'|')
+              [ "$got" = "$want" ] || note "example $n: show open names [$got], the Lean model [$want]"
+          done <<< "$LEAN_ROWS"
+          [ "$(printf '%s\n' "$LEAN_ROWS" | grep -c .)" = 9 ] || note "the model has $(printf '%s\n' "$LEAN_ROWS" | grep -c .) examples, want 9"; }
+rd6_ticket() {  # rd6_ticket: the ticket subject of $K
+    printf '# ticket\n' > "$K/ticket.md"; okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null; }
+t_RD6() { lean_rows gate_ready GateReady.lean RD6 "$RD6_TABLE"
+          local line n steps st i refused gate closed
+          while IFS= read -r line; do
+              [ -n "$line" ] || continue
+              n=${line#RD6 }; n=${n%%:*}
+              case $n in
+                  not_ready_votes) kb_init "$T/$n" discovery; K=$T/$n; oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "budget(laps, 3)" >/dev/null
+                      steps="vote:agent:go:1 vote:agent:hold:1 vote:human:go:1" ;;
+                  ready_then_new_hypothesis) hy_disc "$T/$n"; steps="vote:agent:go:1 vote:human:go:1 build:hypothesis" ;;
+                  approved_then_build) hy_disc "$T/$n"; steps="vote:agent:go:1 vote:human:go:1 approve:current build:claim" ;;
+                  approved_then_back) hy_disc "$T/$n"; steps="vote:agent:go:1 vote:human:go:1 approve:current back" ;;
+                  stale_approval) hy_disc "$T/$n"; steps="vote:agent:go:1 vote:human:go:1 approve:stale" ;;
+                  vote_after_closure) hy_disc "$T/$n"; steps="vote:agent:go:1 vote:human:go:1 approve:current vote:agent:no_go:2 vote:human:no_go:2" ;;
+                  *) note "RD6: no CLI case for the example $n of the Lean model"; continue ;;
+              esac
+              rd6_ticket; refused=; i=0
+              for st in $steps; do
+                  i=$((i+1))
+                  case $st in
+                      vote:*) IFS=: read -r _ by ch rd <<< "$st"
+                          if [ "$by" = human ]; then okb --dir "$K" attest vote r1 "vote($rd, $ch)" --by human; else okb --dir "$K" attest vote r1 "vote($rd, $ch)"; fi ;;
+                      build:hypothesis) oadd "hypothesis(h9, defect, 'Refunds take the points back.')" ;;
+                      build:claim) oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" ;;
+                      approve:current) okb --dir "$K" attest approval tk 'digest(current)' --by human ;;
+                      approve:stale) okb --dir "$K" attest approval tk "digest('sha256:$(printf '0%.0s' $(seq 1 64))')" --by human ;;
+                      back) okb --dir "$K" attest back h1 "back('The human cannot say what the hypothesis changes to.')" ;;
+                  esac
+                  [ "$rc" = 1 ] && refused=${refused:+$refused, }$i
+              done
+              q 'gate(V)' -n 0; if [ "$rc" = 0 ]; then gate=$(printf '%s\n' "$out" | sed -n 's/^V = //p' | head -n1); else gate=none; fi
+              q 'discovery_closed'; if [ "$rc" = 0 ]; then closed=true; else closed=false; fi
+              rl_is "example $n: the CLI and the Lean model" "$line" "RD6 $n: refused=[$refused] gate=$gate closed=$closed"
+          done <<< "$LEAN_ROWS"
+          [ "$(printf '%s\n' "$LEAN_ROWS" | grep -c .)" = 6 ] || note "the model has $(printf '%s\n' "$LEAN_ROWS" | grep -c .) examples, want 6"; }
+
 # ---- 0.3.0 K-D: readiness and the vote (CONTRACT D33).
 t_RD1() { hy_disc "$T/d"; is_true 'discovery_ready' "setup"
           oadd "claim(c2, introduce, 'A refund takes the points back.')" "cites(c2, 'Test request')" "check(t2, c2)" >/dev/null
@@ -3609,6 +3706,8 @@ run_test t_RD2 RD2 "0.3.0 c_k_d_4: a failing check of a preserve claim blocks re
 run_test t_RD3 RD3 "0.3.0 c_k_d_5: a model is calibrated by a failing case and a passing case; a derived model needs its own"
 run_test t_RD4 RD4 "0.3.0 c_k_d_3b: a red run of a system check of an introduce or retire claim is the system result; preserve is not"
 run_test t_RD5 RD5 "0.3.0 c_k_d_1b: an agent GO is refused while not ready; GO cannot win then; the approved GO stays"
+run_test t_OP5 OP5 "0.3.0 c_k_c_1b: show open agrees with the examples of the Lean model kb/proofs/open_items"
+run_test t_RD6 RD6 "0.3.0 c_k_d_1b: attest and gate agree with the examples of the Lean model kb/proofs/gate_ready"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"
