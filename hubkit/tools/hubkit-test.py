@@ -24,6 +24,9 @@ MUTANTS = [
     ("orbit-kb-copy-not-installed", "if edition == \"formal\":  # the hub's own orbit-kb (install UX c3)", "if False:"),
     # install UX c3: the human chooses the edition; install never reads the PATH for it
     ("edition-from-path", "return \"informal\"  # install UX c3: the human chooses formal", "return \"formal\" if shutil.which(\"orbit-kb\") else \"informal\""),
+    # 0.3.0 c_m_d_2: the manifest records what the hub runs, and status compares it with the files now
+    ("runs-not-recorded", "m[\"runs\"] = runs_of(o[\"kit\"], k, ed)  # what the hub runs (c_m_d_2)", "pass"),
+    ("runs-not-compared", "same = sha(there) == want  # the launcher file now (c_m_d_2)", "same = True"),
 ]
 
 
@@ -422,6 +425,86 @@ def case_k3_mindhole_version(r, root):
     r.check("k3-upgrade-prints-MindHole-versions", up[0] == 0 and f"upgrade MindHole {v} -> MindHole {v} " in up[1], up[1][:200])
 
 
+def hk_home(r, home, *args):
+    """hk with HOME set to a scratch dir: the launcher files (~/.claude/sagittarius) are the test's own."""
+    env = dict(os.environ, HOME=home)
+    p = subprocess.run([sys.executable, "-I", r.script] + [str(a) for a in args], capture_output=True, text=True, env=env)
+    return p.returncode, p.stdout, p.stderr
+
+
+def case_030_m_d_2_runs(r, root):
+    """Sagittarius 0.3.0, c_m_d_2 (q_m_d_2 default: in .hub-template.json): a hub records which orbit-kb, which
+    prompt and which pane files it runs, and `hubkit.py status` prints them. Ty: "Each mindhole can run its own
+    version with its own orbit-kb". The prompt and the pane files are the ones of the kit's Sagittarius checkout,
+    appended by the launcher from ~/.claude/sagittarius; status says whether the files there are still the same."""
+    with open(os.path.join(REPO, "VERSION"), encoding="utf-8") as f:
+        sag = f.read().strip()
+    okb_v = open(os.path.join(REPO, "kb", "share", "orbit-kb", "VERSION"), encoding="utf-8").read().strip()
+    home = os.path.join(root, "mdr-home")
+    launch = os.path.join(home, ".claude", "sagittarius")
+    shutil.copytree(os.path.join(REPO, "prompt"), launch)
+    hub = os.path.join(root, "mdr-formal")
+    res = hk_home(r, home, "install", "--kit", KIT, "--hub", hub, "--edition", "formal")
+    r.check("mdr-setup-install-formal", res[0] == 0, res)
+    runs = manifest(hub).get("runs") if res[0] == 0 else None
+    runs = runs if isinstance(runs, dict) else {}
+    okb = runs.get("orbit_kb") or {}
+    r.check("mdr-manifest-records-the-orbit-kb", okb.get("command") == ".claude/orbit-kb/bin/orbit-kb" and okb.get("version") == okb_v, runs)
+    pr = runs.get("prompt") or {}
+    r.check("mdr-manifest-records-the-prompt", pr.get("file") == "~/.claude/sagittarius/SAGITTARIUS.md" and pr.get("version") == sag
+            and pr.get("sha256") == sha(os.path.join(REPO, "prompt", "SAGITTARIUS.md")), runs)
+    pn = runs.get("panes") or {}
+    files = pn.get("files") or {}
+    r.check("mdr-manifest-records-the-pane-files", pn.get("dir") == "~/.claude/sagittarius"
+            and sorted(files) == ["PANES.md", "panes/build.md", "panes/discovery.md", "panes/review.md"]
+            and files.get("panes/build.md") == sha(os.path.join(REPO, "prompt", "panes", "build.md")), runs)
+    st = hk_home(r, home, "status", "--kit", KIT, "--hub", hub)
+    out = st[1]
+    r.check("mdr-status-names-the-orbit-kb", st[0] == 0 and f"runs orbit-kb: .claude/orbit-kb/bin/orbit-kb (orbit-kb {okb_v})" in out, out[:600])
+    r.check("mdr-status-names-the-prompt-and-its-version",
+            f"runs prompt: ~/.claude/sagittarius/SAGITTARIUS.md (Sagittarius {sag}); the file there: same" in out, out[:600])
+    r.check("mdr-status-names-the-pane-files", "runs panes: ~/.claude/sagittarius/ PANES.md panes/build.md panes/discovery.md panes/review.md"
+            " (Sagittarius " + sag + "); the files there: same" in out, out[:800])
+    with open(os.path.join(launch, "SAGITTARIUS.md"), "a", encoding="utf-8") as f:
+        f.write("\nThis is Sagittarius 9.9.9 (an invented later prompt).\n")
+    os.remove(os.path.join(launch, "panes", "review.md"))
+    out = hk_home(r, home, "status", "--kit", KIT, "--hub", hub)[1]
+    r.check("mdr-status-says-the-prompt-there-differs", "the file there: differs (Sagittarius 9.9.9)" in out, out[:600])
+    r.check("mdr-status-says-a-pane-file-there-is-missing", "the files there: missing panes/review.md" in out, out[:800])
+    vfile = os.path.join(hub, ".claude", "orbit-kb", "share", "orbit-kb", "VERSION")
+    with open(vfile, "w", encoding="utf-8") as f:
+        f.write("9.9.9\n")
+    out = hk_home(r, home, "status", "--kit", KIT, "--hub", hub)[1]
+    r.check("mdr-status-reads-the-copy-version", f"runs orbit-kb: .claude/orbit-kb/bin/orbit-kb (orbit-kb {okb_v}; the copy now says 9.9.9)" in out, out[:600])
+    shutil.copy(os.path.join(REPO, "kb", "share", "orbit-kb", "VERSION"), vfile)  # the copy as installed again
+    # the informal edition runs no orbit-kb, no prompt and no pane files
+    ihub = os.path.join(root, "mdr-informal")
+    res = hk_home(r, home, "install", "--kit", KIT, "--hub", ihub, "--edition", "informal")
+    iruns = manifest(ihub).get("runs") if res[0] == 0 else None
+    r.check("mdr-informal-records-none", res[0] == 0 and iruns == {"orbit_kb": None, "prompt": None, "panes": None}, (res, iruns))
+    out = hk_home(r, home, "status", "--kit", KIT, "--hub", ihub)[1]
+    r.check("mdr-informal-status-says-none", "runs: no orbit-kb, no Sagittarius prompt, no pane files (informal edition)" in out, out[:400])
+    # a hub made before this release records nothing: status says so, and the upgrade records it
+    mf = manifest(hub)
+    mf.pop("runs", None)
+    with open(os.path.join(hub, ".hub-template.json"), "w", encoding="utf-8") as f:
+        json.dump(mf, f)
+    out = hk_home(r, home, "status", "--kit", KIT, "--hub", hub)[1]
+    r.check("mdr-old-hub-status-says-not-recorded", "runs: not recorded (an upgrade to this kit records it)" in out, out[:400])
+    res = hk_home(r, home, "upgrade", "--kit", KIT, "--hub", hub)
+    r.check("mdr-dry-run-records-nothing", res[0] == 0 and "runs" not in manifest(hub), (res, manifest(hub).get("runs")))
+    res = hk_home(r, home, "upgrade", "--kit", KIT, "--hub", hub, "--yes")
+    r.check("mdr-upgrade-records-what-the-hub-runs", res[0] == 0 and ((manifest(hub).get("runs") or {}).get("prompt") or {}).get("version") == sag
+            and f"runs: orbit-kb {okb_v}, Sagittarius {sag} prompt, 4 pane files" in res[1], (res, manifest(hub).get("runs")))
+    # a kit outside a Sagittarius checkout (no prompt) still installs; the manifest records no prompt
+    v1 = fake_repo(root, "mdr-repo", "1.0.0", "#!/usr/bin/env swipl\\n% orbit-kb\\n")
+    fhub = os.path.join(root, "mdr-fake")
+    res = hk_home(r, home, "install", "--kit", v1, "--hub", fhub, "--edition", "formal")
+    fr = manifest(fhub).get("runs") if res[0] == 0 else None
+    r.check("mdr-kit-without-prompt-installs", res[0] == 0 and isinstance(fr, dict) and fr.get("prompt") is None and fr.get("panes") is None
+            and (fr.get("orbit_kb") or {}).get("command") == ".claude/orbit-kb/bin/orbit-kb", (res, fr))
+
+
 def case_u2_mutants_stream(r):
     """0.3.0 kit3, UAT U2: hubflow-test.py --mutants prints and flushes one line per mutant as it ends, so a log
     that is a pipe or a file shows progress. Two mutants on one small case: the first mutant's line must reach
@@ -463,6 +546,7 @@ def cases(r):
         case_iux_c3_installed_hub_runs_copy(r, root)
         case_iux_c6_uat(r, root)
         case_k3_mindhole_version(r, root)
+        case_030_m_d_2_runs(r, root)
         if r.script == REAL:  # it tests hubflow-test.py, not hubkit.py: the mutants of hubkit.py do not change it
             case_u2_mutants_stream(r)
     except Exception as e:
