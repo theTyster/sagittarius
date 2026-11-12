@@ -86,6 +86,9 @@ SECTIONS = [
         "Open details are questions, not a reason for discovery",
         "you cannot yet say what to change: discovery",
         "Clarity decides between these, not the size of the work",
+        # successors of the old c1 phrases "research, specify" and "build, verify" (the phase tree)
+        "discovery: research, specify",
+        "build: build, verify",
         "Rigor concentrates on specify and verify",
         "When discovery runs, it comes before build",
         "A clear change request goes straight to build",
@@ -153,6 +156,8 @@ SECTIONS = [
         "shift up before you fix it",
         "a check that fails after the build is a claim that is not met",
         "run its checks yourself",
+        # successor of the old c1 phrase "effort or verbosity" (when to shift up)
+        "significant effort or verbosity from the human",
         'The meaning decides, not a word such as "every"',
         "Only a human can skip a proof, with a waiver and a due time",
         "Read what is open from the record, not from the summary",
@@ -170,6 +175,7 @@ SECTIONS = [
         "**Go around again** at the new level",
         "Write in one at a time",
         "does not start a second one",
+        "**System 1.**",
         "treat that signal as fired",
         "you do not settle that alone",
         "No line means no outside view. It does not mean no signal.",

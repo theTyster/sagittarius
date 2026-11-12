@@ -6,7 +6,8 @@ c2: each heading (# to ######, outside code fences) of the old prompt has at lea
     The home is one of: prompt | help TOPIC | hook | PHILOSOPHY.md §N | dropped, because ...
 c4: each row with home "help TOPIC" names a key phrase (third cell, in backticks). The phrase
     must be in HELP_DIR/TOPIC.txt. TOPIC "general" means the general help text in the CLI
-    (--cli). A "hook" row with a phrase must be in s1/questions.json or s1/hook.py. A
+    (--cli). Only a known partial copy of the tree (no kb/bin and no .git, as the docs checks
+    copy it) skips the "help general" rows, and the result line counts them. A "hook" row with a phrase must be in s1/questions.json or s1/hook.py. A
     Phrases match after whitespace is collapsed, without regard to case.
     0.3.0: PROMPT-MOVES.md is a dated record of ticket T08 at commit 7da5320. A "prompt" row and a
     "PHILOSOPHY.md §N" row name the prompt and the numbering of that date, so c4 does not compare
@@ -62,9 +63,15 @@ def main():
     ap.add_argument("--old")
     ap.add_argument("--map", default=os.path.join(ROOT, "docs/PROMPT-MOVES.md"))
     ap.add_argument("--help-dir", default=os.path.join(ROOT, "kb/share/orbit-kb/help"))
-    ap.add_argument("--cli", default=os.path.join(ROOT, "kb/bin/orbit-kb"))
+    ap.add_argument("--cli", default=None)
     ap.add_argument("--only", choices=["c2", "c4"])
     a = ap.parse_args()
+    # A known partial copy: the copy of the docs parts that the docs checks make (no kb/bin and no
+    # .git). Only there may the "help general" rows be skipped, and the result line counts them. In a
+    # checkout, or with --cli named, a missing CLI file is a failure (review of 0.3.0, finding 10).
+    partial = a.cli is None and not os.path.isdir(os.path.join(ROOT, "kb", "bin")) \
+        and not os.path.exists(os.path.join(ROOT, ".git"))
+    a.cli = a.cli or os.path.join(ROOT, "kb/bin/orbit-kb")
 
     if a.old:
         old = open(a.old, encoding="utf-8").read()
@@ -121,8 +128,8 @@ def main():
                 where = f"orbit-kb help {topic}"
                 if not phrase:
                     missing.append(f"{h} -> {where}: no key phrase in the map (line {n})")
-                elif cache[path] is None and topic == "general":
-                    skipped.append(f"{h} -> {where}: no CLI file {path} (a copy of the tree with no kb/bin)")
+                elif cache[path] is None and topic == "general" and partial:
+                    skipped.append(f"{h} -> {where}: no CLI file {path} (a partial copy: no kb/bin, no .git)")
                 elif cache[path] is None:
                     missing.append(f"{h} -> {where}: no file {path}")
                 elif norm(phrase) not in cache[path]:
@@ -136,7 +143,10 @@ def main():
             ok = False
             print(f"c4 FAIL: {len(missing)} missing, {len(present)} present")
         else:
-            print(f"c4 PASS: {len(present)} present")
+            print(f"c4 PASS: {len(present)} present" + (f", {len(skipped)} skipped" if skipped else ""))
+        if skipped:
+            print(f"check_prompt_moves: c4 skipped {len(skipped)} 'help general' row(s): this tree is a "
+                  "partial copy (no kb/bin, no .git), so the CLI file is not here", file=sys.stderr)
         for m in missing:
             print("  missing: " + m)
         for p in present:
