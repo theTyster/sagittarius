@@ -1,5 +1,46 @@
 # Changelog
 
+## Versions
+
+Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own version.
+
+| Thing | Version | Where it is stated | What it covers |
+|---|---|---|---|
+| Sagittarius | 0.3.0 (proposed) | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
+| MindHole (the hub kit) | 0.5.1 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+
+What a change of each number means:
+
+- **Sagittarius.** While the major number is 0, the method is under trial and any release can
+  change behavior. MINOR moves when a rule of the prompt, a command, a fact, or a rule of
+  `orbit-kb` changes what a session does. PATCH moves for words and fixes that change no
+  behavior. 1.0.0 is the first release where a session or a KB of an older version must keep
+  working until the next major number.
+- **Philosophy.** MAJOR moves when a belief is removed or reversed, or the text is reworked.
+  MINOR moves when a belief or a position is added, or a position leaves "Under trial". PATCH
+  moves for words.
+- **MindHole.** As before: the kit version moves with the db schema (`hubkit/UPGRADING.md`).
+
+Earlier versions, named after the fact so that a report can refer to them:
+
+| Name | What it is |
+|---|---|
+| Sagittarius 0.1.0 | the tag `v0.1.0-experiment` (2026-07-01) |
+| Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
+| Philosophy 1.0.0 | the text of 2026-11-05 |
+
+## Sagittarius 0.3.0 and Philosophy 2.0.0 (proposed; not ratified, not released)
+
+- `prompt/SAGITTARIUS.md` and `docs/PHILOSOPHY.md` are a full rework. The philosophy is one
+  hypothesis with five premises and 14 principles that follow from them. The prompt holds the
+  orbit (state, compare, sharpen), the light path, the hypothesis, the six signals with one
+  response, the vote, honesty, and the delivery.
+- The definition of a properly written hypothesis is stated in Lean:
+  `docs/philosophy-orbit/2026-11-11/fable/Hypothesis.lean`.
+- The tools, the hub kit and the checks are not changed yet. Where they differ from the new
+  texts is in `docs/philosophy-orbit/2026-11-11/fable/ALIGNMENT.md`.
+
 ## Redesign (informal release)
 
 Ty makes the release. This entry lists what is in the `redesign` branch. The hub kit is version

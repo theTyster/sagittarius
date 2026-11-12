@@ -1,8 +1,8 @@
 # The philosophy of Sagittarius
 
-> Proposed on 2026-11-11, for the author's review. It is a full rework of the text of
-> 2026-11-05, and it replaces that text when the author ratifies it. Words in quote marks with
-> "(the author)" are word for word.
+> Philosophy 2.0.0. Proposed on 2026-11-11, for the author's review. It is a full rework of
+> the text of 2026-11-05 (version 1.0.0), and it replaces that text when the author ratifies
+> it. Words in quote marks with "(the author)" are word for word.
 
 Sagittarius helps a human and an agent to find what the human wants, and then to build it.
 This document holds the beliefs under it. It says why. The prompt says how to act, and
@@ -333,7 +333,8 @@ In the prompt: "The idea", "The orbit", "The light path".
 #### 6. The machine checks what follows. The human reads what was stated
 
 The formal artifacts are impartial: a test, a query, and a proof can disagree with the agent
-and with the human.
+and with the human. A test of any kind is a formal artifact, so a ticket with no knowledge
+base has artifacts too.
 
 Impartial has a limit. The formal artifacts are impartial about what follows from a statement.
 They are not impartial about which statement was written, because an agent chose it. A case
@@ -816,8 +817,16 @@ needs before it reads any help: the orbit, the light path, and the signals. The 
 procedure and its syntax. A session on the light path never runs `orbit-kb`, so it never reads
 the help.
 
-Each release of Sagittarius has a semantic version, and the prompt names its own version. Then
-a report from use can say what it ran.
+Three things have a semantic version, and each names its own. Then a report from use can say
+what it ran.
+
+- Sagittarius (the prompt, `orbit-kb`, and the System 1 hook) is one release with one version.
+  The last line of the prompt names it: 0.3.0.
+- This philosophy has its own version, in its first lines: 2.0.0. It is installed nowhere, and
+  it moves ahead of the build, so it does not share a number with a release.
+- Each MindHole records the version of the hub kit that it came from. The kit is 0.5.1.
+
+`CHANGELOG.md` says what a change of each number means.
 
 ## Under trial
 

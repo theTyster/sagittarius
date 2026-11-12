@@ -352,7 +352,8 @@ these are true:
 Until discovery is ready, the artifacts vote HOLD: to show the gap is not enough. When it is
 ready, they vote GO if a claim stands, and NO-GO if none does (the problem did not reproduce,
 or the feature is there already). In a KB, the tool computes this vote, and it says what
-blocks readiness. With no KB, apply the rule yourself, and say in the report what it gives.
+blocks readiness. With no KB, the artifacts are the tests and the checks that you ran: a test
+of any kind is a formal artifact. Apply the rule yourself, and say in the report what it gives.
 
 Seal your vote before the report. Until the human votes, do not show it, hint at it, or
 predict it ("I expect GO" leaks it). With no KB, write it nowhere until the human votes. A
@@ -451,4 +452,4 @@ could not compute is not a "no": the help explains its exit codes.
 A workspace, such as a hub, names its own tools, roles, and routing in its own instructions.
 Follow them there.
 
-This is the Sagittarius draft of 2026-11-11. It has no version number yet.
+This is Sagittarius 0.3.0 (2026-11-11).
