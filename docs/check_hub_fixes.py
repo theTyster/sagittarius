@@ -293,7 +293,7 @@ def t51c5():
 
 
 # ---- install UX (discovery GO 2026-11-11) ----
-CO_HUB = re.compile(r"prompt/(PANES|SAGITTARIUS)\.md|(?<![\w.\-/])kb/bin/|(?<![\w.\-/])kb/share/|kb/tests/|hubkit/|docs/[A-Z]+\.md|site/")
+CO_HUB = re.compile(r"prompt/(PANES|SAGITTARIUS)\.md|(?<!orbit-)kb/bin/|(?<!orbit-)kb/share/|kb/tests/|hubkit/|docs/[A-Z]+\.md|site/")
 HUBKIT = os.path.join(ROOT, "hubkit", "tools", "hubkit.py")
 
 
@@ -369,6 +369,9 @@ def iuxc3k():
     t31c2(co=CO_HUB, prefix="iuxc3k (t31c2 scan)")
     check("iuxc3k the scan still flags the checkout path kb/bin/repo-map", CO_HUB.search("run `kb/bin/repo-map` here") is not None, "not flagged")
     check("iuxc3k the scan reads .claude/orbit-kb/bin/ as a hub path", CO_HUB.search("run `.claude/orbit-kb/bin/orbit-kb help`") is None, "flagged")
+    for txt in ("~/sagittarius/kb/bin/orbit-kb", "../kb/bin/repo-map", "sagittarius/kb/share/orbit-kb"):  # review of 4756916
+        check(f"iuxc3k the scan still flags the checkout path {txt}", CO_HUB.search(f"run `{txt}` here") is not None, "not flagged")
+    check("iuxc3k the scan reads .claude/orbit-kb/share/ as a hub path", CO_HUB.search("see `.claude/orbit-kb/share/orbit-kb/help`") is None, "flagged")
 
 
 def iuxc6():
