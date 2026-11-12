@@ -35,9 +35,10 @@ def append(root, rel, text):
         f.write(text)
 
 
-def nlines(root, rel):
+def line_of_append(root, rel, line):
+    """The line number that `line` gets when append() writes "\n" + line + "\n"."""
     with open(os.path.join(root, rel), encoding="utf-8") as f:
-        return len(f.read().splitlines())
+        return len((f.read() + "\n" + line).splitlines())
 
 
 class Terms(unittest.TestCase):
@@ -48,7 +49,7 @@ class Terms(unittest.TestCase):
         copy(self.dir)
 
     def fails_with(self, rel, line, *words):
-        n = nlines(self.dir, rel) + 1
+        n = line_of_append(self.dir, rel, line)
         append(self.dir, rel, "\n" + line + "\n")
         r = run(self.dir)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
