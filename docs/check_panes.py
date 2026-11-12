@@ -15,7 +15,8 @@ c4: (0.3.0 M-E) for a change request the build pane states the hypothesis itself
     the work is done until review has reported") are gone.
 c5: (0.3.0 M-A) when the human's answer says what the hypothesis changes to, the build pane
     restates it (the new one supersedes the old one) and goes on; only when it cannot say what to
-    change does the ticket go to discovery. The discovery pane follows: it no longer takes back
+    change does the ticket go to discovery; a finding of review that shows the problem is wrong goes to
+    discovery when build cannot say what it changes to (review finding 7, kit3). The discovery pane follows: it no longer takes back
     every wrong problem.
 rules: every rule of the old review.md is still in the new one: one key phrase per rule, matched
     after whitespace is collapsed and case is ignored. A rule that is shortened must be listed
@@ -160,6 +161,11 @@ def c5():
                 out.append(f"build.md: the restate rule lacks {w!r}")
     if "the problem is wrong, not the build, send it to **discovery**" in norm(b):
         out.append("build.md still sends every wrong problem to discovery")
+    # review finding 7 (kit3): a finding of review that shows the problem is wrong still has a way to discovery,
+    # when build cannot say what the problem changes to (the old rule sent every such finding there).
+    fs = bullet(b, r"review's findings")
+    if not fs or not re.search(r"finding shows that the problem[^.]*wrong[^.]*cannot say[^.]*\*\*discovery\*\*", fs[0]):
+        out.append("build.md: the rule on review's findings does not send a finding that shows the problem is wrong, and that build cannot restate, to **discovery**")
     nd = norm(d)
     if "finds that the problem is wrong, the work comes back to you" in nd:
         out.append("discovery.md still takes back every wrong problem")

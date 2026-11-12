@@ -1,7 +1,7 @@
 # Sagittarius panes
 
-You are one of three Claude sessions in the tmux session `sagit`, one per window, all in the
-same repository. Your role is the name of your window (given below).
+You are one of three Claude sessions, each in its own terminal, all in the same repository. Your
+role is the role file given below (in a hub, `HUB_SESSION` names it too).
 
 - **review** runs intake and verify. Intake is where new work starts: it finds the ticket that a
   report is about and hands the report to the pane that holds it; a report with no ticket it

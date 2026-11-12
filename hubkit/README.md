@@ -1,9 +1,9 @@
-# The MindHole hub kit
+# The MindHole
 
-The **MindHole** is the hub of Sagittarius, and the hub kit makes one. The hub kit is part of
-Sagittarius (<https://github.com/theTyster/sagittarius>). It is the **informal release**: a template
-for a **hub**, one git repo that a few long-lived Claude Code sessions share as their working
-memory. It uses only plain files, git and SQLite. You do not need Prolog, Lean, or any other part of
+The **MindHole** is the kit that makes a hub for Sagittarius. It is part of Sagittarius
+(<https://github.com/theTyster/sagittarius>), with its own version line (`MindHole <version>`). It is
+the **informal release**: a template for a **hub**, one git repo that a few long-lived Claude Code
+sessions share as their working memory. A hub made from it is a MindHole hub. It uses only plain files, git and SQLite. You do not need Prolog, Lean, or any other part of
 Sagittarius to use it.
 
 It has three ideas:
@@ -22,7 +22,7 @@ It has three ideas:
   imports it, so every agent reads it at start.
 
 **Versions.** The MindHole and Sagittarius keep two version numbers: `MindHole <version>` (in
-`kit.json`) and `Sagittarius <version>` (the last line of the prompt). This kit pairs with
+`kit.json`) and `Sagittarius <version>` (the last line of the prompt). The MindHole pairs with
 Sagittarius 0.3: its `PRINCIPLES.md` comes from that prompt, and a formal hub runs the orbit-kb of
 the same Sagittarius checkout. `UPGRADING.md` says it too.
 
@@ -103,4 +103,6 @@ python3 -I hub/.claude/scripts/hubflow-test.py --mutants
 ```
 
 Each suite also runs a set of mutants (deliberately broken copies of the tool). Every mutant must
-fail at least one test, which shows that the tests can catch the defect.
+fail at least one test, which shows that the tests can catch the defect. The mutants of
+`hubflow-test.py` take an hour or more on a loaded machine; it prints one line per mutant as each
+one ends.

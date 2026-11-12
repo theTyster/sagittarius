@@ -1,6 +1,6 @@
-# Instructions for the agent: set up a MindHole with the hub kit
+# Instructions for the agent: set up a hub with the MindHole
 
-A MindHole is the hub of Sagittarius. This is the hub kit, part of Sagittarius
+This is the MindHole, the kit that makes a hub for Sagittarius. It is part of Sagittarius
 (<https://github.com/theTyster/sagittarius>): its informal release. It needs Python 3 and git
 (`README.md`, "Install"): no bash, and no formal tools.
 
@@ -107,11 +107,21 @@ broken tool. A user cannot act on their result; the kit's maintainers can. So th
 human said yes to question 5 (a UAT install, which tests the kit before a release):
 
 ```
-python3 .claude/scripts/hubflow-test.py            # last line must be "N passed, 0 failed"
-python3 .claude/scripts/hubflow-test.py --mutants  # every mutant must say KILLED; takes 10 minutes or more
+python3 .claude/scripts/hubflow-test.py            # about a minute or two
+python3 .claude/scripts/hubflow-test.py --mutants  # every mutant must say KILLED
 ```
 
-They never touch `flow/`. A failure, or a mutant that says SURVIVED, is a defect of the kit, not of
+The last line of the plain suite says how many checks passed, failed and skipped. In a formal hub it
+must be "N passed, 0 failed, 3 skipped". The 3 SKIP lines say "not run from the kit tree
+(hubkit/hub)": `t40-c12-skill-summary-is-no-decision`, `t40-c12-hub-core-raw-reports-agent-reads`
+and `t42-c6-skill-says-when-to-run-skip-waived` read files of the kit tree that a hub does not have.
+In an informal hub more checks skip: the ones that need the formal tools (their SKIP line names
+the missing tool), and the one that says "the informal edition has no kb refs". Any other SKIP, and
+any FAIL, is a defect of the kit.
+
+`--mutants` runs the whole suite once for each mutant: it takes an hour or more on a loaded machine.
+It prints one line per mutant as each one ends (`PASS mutant NAME: KILLED`), so a log that grows
+shows progress. They never touch `flow/`. A failure, or a mutant that says SURVIVED, is a defect of the kit, not of
 the hub: stop, and report the output to your human for the kit's maintainers. Do not edit a test to
 make it pass.
 
@@ -136,17 +146,15 @@ and rejected rows), show your human the counts, and run `import FILE --yes` only
 
 The kit does not start sessions. Named sessions are set up outside the hub, in your human's
 dotfiles or shell: they belong to one machine. Each session needs its hub cwd and its own
-`HUB_SESSION=<name>` (a name from `flow/seed.json`). One way, in a terminal pane per role:
+`HUB_SESSION=<name>` (a name from `flow/seed.json`). One way, in a terminal pane per role, is this
+launcher line:
 
 ```
 cd "$HUB" && HUB_SESSION=<name> claude --name "hub-<name>"
 ```
 
-To resume a role's session later, resume it by the same name, with the same `HUB_SESSION`:
-
-```
-cd "$HUB" && HUB_SESSION=<name> claude --resume "hub-<name>"
-```
+To resume a role's session later, run the same line with `--resume "hub-<name>"` in place of
+`--name "hub-<name>"`: the same name, the same `HUB_SESSION`.
 
 Never resume with `claude --continue`: every role shares the hub as cwd, so `--continue` can pick
 another role's conversation. A pane without `HUB_SESSION` can read the db, but every write fails.
@@ -155,7 +163,21 @@ A formal hub has more writes that need `HUB_SESSION`: see "The formal edition" b
 **Check:** in each role's pane, `echo "$HUB_SESSION"` prints that role's name, and
 `python3 .claude/scripts/hubflow.py view v_inbox --session "$HUB_SESSION"` exits 0.
 
-## Step 6: commit
+## Step 6: formal edition only: the formal stores
+
+An informal hub skips this step: go to step 7. A formal hub (installed with `--edition formal`)
+makes its project store now, before the commit: do the part "Step 6 (formal)" of "The formal
+edition" below.
+
+**Check:** `project-kb/kb.pl` exists, and `git status` lists `project-kb/`.
+
+## Step 7: commit
+
+First check that git knows who commits. Run `git config user.name` and `git config user.email` in
+the hub. If either is empty (prints nothing), the commit fails ("Author identity unknown"): ask your human for
+their name and email, and set them with `git config user.name "<name>"` and
+`git config user.email "<email>"` (in the hub only; do not change their global git config unless they
+ask).
 
 Informal edition:
 
@@ -164,8 +186,8 @@ git add .gitignore .hub-template.json CLAUDE.md HUB-CORE.md PRINCIPLES.md HEURIS
 git commit -m "hub: initial layout and flow db"
 ```
 
-Formal edition: the same, and the two stores of "The formal edition" below, `project-kb/` and `specs/`
-(skip a store that does not exist yet; `git add` names no missing path):
+Formal edition: the same, and the two stores of "The formal edition" below, `project-kb/` (made in
+step 6) and `specs/` (skip a store that does not exist yet; `git add` names no missing path):
 
 ```
 git add .gitignore .hub-template.json CLAUDE.md HUB-CORE.md PRINCIPLES.md HEURISTICS.md TECHNOLOGIES.md .claude flow/seed.json flow/jsonl W0 project-kb specs
@@ -175,7 +197,7 @@ git commit -m "hub: initial layout and flow db"
 **Check:** `git status` is clean, and `git ls-files flow` lists the JSONL but no `flow.db`. A KB's
 `kb.lock` and `writer.lock` are ignored by the kit `.gitignore`.
 
-## Step 7: check the hub, then report to your human
+## Step 8: check the hub, then report to your human
 
 The install ends with two checks that read this hub. Run them from the hub root, and give your
 human the reason for each with its result:
@@ -228,19 +250,20 @@ domain decisions, pins of the world, and drafts for the tracker.
   version. `hubflow.py` and the skills run the copy too. It needs SWI-Prolog. Limits:
   `ORBIT_KB_LIB` in the environment overrides the copy's `share/`, and `orbit-kb prove` still needs
   `lake` from the PATH.
-- **The project KB request is what the hub is for.** Make the project KB with
+- **Step 6 (formal): make the project KB.** The project KB request is what the hub is for. From
+  the hub root, run
   `.claude/orbit-kb/bin/orbit-kb init project-kb --request '<answer 1 of step 1, word for word>' --uses project`:
   the same words as `CLAUDE.md` "What this hub is for". See `.claude/orbit-kb/bin/orbit-kb help project`.
 - **A pane gets the prompt.** The panes (review, discovery, build) run the Sagittarius prompt, then
   `PANES.md`, then their role file, as the Sagittarius `README.md` installs them under
-  `~/.claude/sagittarius/` (its "Panes"). Start a pane with this one launcher line in place of the
-  line of Step 5 (`<name>` is the role; the line sets `HUB_SESSION` too), and resume it with the
-  second:
+  `~/.claude/sagittarius/` (its "Panes" gives this same line). Start a pane with this one launcher
+  line in place of the line of Step 5 (`<name>` is the role; the line sets `HUB_SESSION` too):
 
   ```
   cd "$HUB" && p=~/.claude/sagittarius && HUB_SESSION=<name> command claude --name "hub-<name>" --append-system-prompt "$(cat "$p/SAGITTARIUS.md" "$p/PANES.md" "$p/panes/<name>.md")"
-  cd "$HUB" && p=~/.claude/sagittarius && HUB_SESSION=<name> command claude --resume "hub-<name>" --append-system-prompt "$(cat "$p/SAGITTARIUS.md" "$p/PANES.md" "$p/panes/<name>.md")"
   ```
+
+  To resume a pane, run the same line with `--resume "hub-<name>"` in place of `--name "hub-<name>"`.
 
   `command claude` skips a shell function `claude` that already appends the prompt (the
   Sagittarius `README.md`, "Install"), so the prompt is appended once. A session whose role has no
@@ -254,7 +277,7 @@ domain decisions, pins of the world, and drafts for the tracker.
   project KB" section by hand (copy it from `hub/CLAUDE.md`).
 - `.claude/orbit-kb/bin/orbit-kb pin-item` and `.claude/orbit-kb/bin/orbit-kb draft` record a dropped edit of the project KB in the ledger by
   themselves, in the session of `HUB_SESSION` (or `--session S`). A pane gets `HUB_SESSION` where it
-  is started (Step 5: `cd "$HUB" && HUB_SESSION=<name> claude --name "hub-<name>"`). In a pane
+  is started (Step 5, or the launcher line above: each sets it). In a pane
   without it, the ledger refuses the record: orbit-kb warns, names `project dropped --session S`, and
   exits 0, so the dropped edit is not in the ledger until someone runs that command.
 - Escalation asks the hub's own orbit-kb (or `HUBFLOW_ORBIT_KB`) whether a spec KB blocks. If the

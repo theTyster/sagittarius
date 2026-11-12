@@ -74,6 +74,8 @@ $HF close A-0007 --reason done|dropped --note "…"
 $HF reopen A-0007 --note "…"
 $HF ref A-0007 add issue:124 ;  $HF link T-0002 T-0005 duplicates
 $HF note T-0002 "verdict: pass: what was checked, and the evidence"   # by the review session
+$HF note T-0002 "divergence: who disagreed, about what, and what the agent disclosed"
+$HF note T-0002 "vote: GO: who voted, and the human's own words"      # GO, NO-GO or HOLD
 ```
 
 The writing session owns what it adds, so it shows in that session's inbox. Pass `--owner <session>`
@@ -93,6 +95,13 @@ A row nobody was told about is a silent handoff.
 **A verdict** is a note on the item of the work, written by the session that verifies (the `review`
 session; `HUB-CORE.md`, "Verify"): `verdict: pass: …` or `verdict: fail: …`, with what was checked
 and the evidence. The maker closes the item only after a pass.
+
+**A divergence and a vote** are notes on the ticket's thread too (`HUB-CORE.md`, "What lives
+where"). A divergence: `divergence: ...`, who disagreed (the human, the agent, or a result), about
+what, and what the agent disclosed about its guesses and errors; say it in your report too, and make
+it an ask when it waits on the human. The vote that ends discovery: `vote: GO: ...`, `vote: NO-GO:
+...` or `vote: HOLD: ...`, who voted, and for the human's vote the human's own words; a HOLD says
+what it waits for.
 
 ## Ageing and triage
 

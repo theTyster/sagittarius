@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""hubkit.py -- install the hub template into a new hub, and upgrade a hub to a newer template.
+"""hubkit.py -- install the MindHole (the hub template) into a new hub, and upgrade a hub to a newer release.
 
 usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
   install --hub DIR [--edition informal|formal] [--uat]
@@ -225,7 +225,7 @@ def cmd_install(o):
     if o["uat"]:
         m["uat"] = True  # a UAT install: it tests the kit itself (INSTRUCTIONS.md step 3)
     save_manifest(hub, m)
-    print(f"installed template {k['version']} ({ed} edition{', UAT install' if o['uat'] else ''}) into {hub}: "
+    print(f"installed MindHole {k['version']} ({ed} edition{', UAT install' if o['uat'] else ''}) into {hub}: "
           f"{len(engine)} engine, {len(k['owned'])} owned files")
 
 
@@ -239,7 +239,7 @@ def state_of(hub, rel, recorded):
 def cmd_status(o):
     k = load_kit(o["kit"])
     m = load_manifest(o["hub"])
-    print(f"hub template {m['template_version']} ({edition_of(m)} edition{', UAT install' if m.get('uat') else ''}); this kit {k['version']}")
+    print(f"hub from MindHole {m['template_version']} ({edition_of(m)} edition{', UAT install' if m.get('uat') else ''}); this kit MindHole {k['version']}")
     kit_files = kit_shas(o["kit"], k, edition_of(m))
     for rel in sorted(set(m["files"]) | set(kit_files)):
         if rel not in m["files"]:
@@ -291,7 +291,7 @@ def cmd_upgrade(o, edition=None):
                 plan.append(("add-owned", rel))
             else:
                 plan.append(("keep-owned", rel))
-    print(f"upgrade {old} -> {new} ({ed} edition)" + ("" if yes else " (dry run; --yes applies it)"))
+    print(f"upgrade MindHole {old} -> MindHole {new} ({ed} edition)" + ("" if yes else " (dry run; --yes applies it)"))
     if not m.get("edition") and not edition:
         print(f"note: this hub records no edition; it gets the {ed} edition, as a hub made before editions gets it here"
               f" ({'orbit-kb is on the PATH' if ed == 'formal' else 'this hub has no orbit-kb'}); to change it: hubkit.py edition --hub HUB "

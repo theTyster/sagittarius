@@ -16,6 +16,12 @@ A root file that is not imported here is invisible. Add the import when you add 
 <Your human's answer to "What is this hub for?" (INSTRUCTIONS.md step 1), word for word, in quotes,
 with who said it and the date. Not a paraphrase: agents read it to know the intent of the hub.>
 
+## Your notes
+
+<Your human's own notes for every session, in their words: for example a project order (which work
+comes first), people to ask, or standing preferences. Agents read them; an agent changes them only
+when the human asks.>
+
 ## The tracker
 
 Tickets live in <YOUR TRACKER: GitHub Issues / Jira / Linear>. Refs in the flow db are

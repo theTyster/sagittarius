@@ -5,7 +5,7 @@ usage: python3 -I tools/hubkit-test.py [--mutants] [--case case_NAME ...]
   --mutants  also run the suite against each rule mutant of hubkit.py; each must make a case fail.
 Prints `PASS name` or `FAIL name: why` per case; the last line is `N passed, M failed`.
 """
-import hashlib, json, os, re, shutil, stat, subprocess, sys, tempfile
+import hashlib, json, os, re, shutil, stat, subprocess, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
@@ -207,7 +207,7 @@ def case_t48_version_moves_with_schema(r, root):
         json.dump(mf, f)
     res = hk(r, "upgrade", "--kit", KIT, "--hub", hub)
     r.check("t48-c3-upgrade-of-a-0.5.0-hub-shows-a-version-change", res[0] == 0
-            and f"upgrade {old} -> {version} " in res[1] and old != version, res)
+            and f"upgrade MindHole {old} -> MindHole {version} " in res[1] and old != version, res)  # kit3: the MindHole version line
 
 
 def clean_env(path):
@@ -258,10 +258,11 @@ def case_t51_c1_installed_hub_orbit_kb(r, root):
 
 
 def case_t51_c2_step6_formal_git_add(r):
-    """T51 c2: INSTRUCTIONS step 6 has a formal git add line that names project-kb and specs; the informal line does not."""
+    """T51 c2: the commit step of INSTRUCTIONS has a formal git add line that names project-kb and specs; the informal
+    line does not. (0.3.0 kit3, UAT U4: a formal step 6 makes the project KB, so the commit step is step 7 now.)"""
     with open(os.path.join(KIT, "INSTRUCTIONS.md"), encoding="utf-8") as f:
         text = f.read()
-    m = re.search(r"^## Step 6: commit\n(.*?)^## Step 7", text, re.M | re.S)
+    m = re.search(r"^## Step 7: commit\n(.*?)^## Step 8", text, re.M | re.S)
     r.check("t51c2-step6-found", m is not None)
     body = m.group(1) if m else ""
     adds = [ln for ln in body.splitlines() if ln.startswith("git add ")]
@@ -406,6 +407,41 @@ def case_iux_c6_uat(r, root):
     r.check("iux-c6-plain-install-is-not-uat", res[0] == 0 and not manifest(plain).get("uat") and "UAT" not in st[1], (res, st[1][:200]))
 
 
+def case_k3_mindhole_version(r, root):
+    """0.3.0 kit3, review finding 8: the kit's version line is "MindHole <version>"; install, status and upgrade
+    print it in that form."""
+    v = json.load(open(os.path.join(KIT, "kit.json"), encoding="utf-8"))["version"]
+    hub = os.path.join(root, "k3-mindhole-hub")
+    res = hk(r, "install", "--kit", KIT, "--hub", hub, "--edition", "informal")
+    r.check("k3-install-prints-MindHole-version", res[0] == 0 and f"installed MindHole {v} " in res[1], res[1][:200])
+    st = hk(r, "status", "--kit", KIT, "--hub", hub)
+    first = (st[1].splitlines() or [""])[0]
+    r.check("k3-status-prints-the-hub-and-the-kit-as-MindHole-versions",
+            st[0] == 0 and f"hub from MindHole {v} " in first and first.endswith(f"this kit MindHole {v}"), first)
+    up = hk(r, "upgrade", "--kit", KIT, "--hub", hub)
+    r.check("k3-upgrade-prints-MindHole-versions", up[0] == 0 and f"upgrade MindHole {v} -> MindHole {v} " in up[1], up[1][:200])
+
+
+def case_u2_mutants_stream(r):
+    """0.3.0 kit3, UAT U2: hubflow-test.py --mutants prints and flushes one line per mutant as it ends, so a log
+    that is a pipe or a file shows progress. Two mutants on one small case: the first mutant's line must reach
+    the pipe well before the last line (the second mutant still runs then)."""
+    flow = os.path.join(KIT, "hub", ".claude", "scripts", "hubflow-test.py")
+    p = subprocess.Popen([sys.executable, "-I", flow, "--mutants", "--mutant", "lapse-threshold-28-to-27",
+                          "--mutant", "prune-boundary-lt-to-le", "--case", "case_triage"],
+                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    got = []
+    t0 = time.monotonic()
+    for ln in p.stdout:
+        got.append((time.monotonic() - t0, ln.rstrip("\n")))
+    p.wait()
+    mut = [(s, ln) for s, ln in got if " mutant " in ln]
+    r.check("u2-one-line-per-mutant", len(mut) == 2, [ln for _, ln in mut])
+    last = got[-1][0] if got else 0
+    r.check("u2-first-mutant-line-arrives-before-the-end", len(mut) == 2 and last - mut[0][0] > 0.5,
+            [(round(s, 2), ln[:60]) for s, ln in mut] + [round(last, 2)])
+
+
 def cases(r):
     root = tempfile.mkdtemp(prefix="hubkit-test-")
     try:
@@ -426,6 +462,9 @@ def cases(r):
         case_iux_c3_default_edition(r, root)
         case_iux_c3_installed_hub_runs_copy(r, root)
         case_iux_c6_uat(r, root)
+        case_k3_mindhole_version(r, root)
+        if r.script == REAL:  # it tests hubflow-test.py, not hubkit.py: the mutants of hubkit.py do not change it
+            case_u2_mutants_stream(r)
     except Exception as e:
         r.check("scenario-ran", False, repr(e))
     finally:

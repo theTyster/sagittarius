@@ -39,13 +39,16 @@ iuxc6u (Ty, 2026-11-12; beside iuxc6) a normal upgrade (hubkit/UPGRADING.md, "Th
 m030d1 (0.3.0 M-D c_m_d_1) "The formal edition" of hubkit/INSTRUCTIONS.md gives one launcher line for a pane
       that sets HUB_SESSION and appends the prompt, PANES.md and the role file; the check runs that line with
       a stub claude and a scratch HOME, and reads what the stub got. The step checks that the pane can say
-      the last line of its prompt. (The launcher of the root README.md is outside this check.)
+      the last line of its prompt. Review findings 4 and 5 (kit3): the file gives that launcher once (a resume is
+      the same line with --resume in place of --name, said in words), and the "Panes" section of the root
+      README.md gives the same line, character for character, and no other launcher.
 m030d3 (0.3.0 M-D c_m_d_3) hubkit/README.md and hubkit/UPGRADING.md say which Sagittarius version the kit
       pairs with: the major and minor version of the last line of prompt/SAGITTARIUS.md.
 t50c1 (retire) the repo has no microsite: neither the deck directory nor the Pages workflow is in the tree, and no
       tracked file outside tmp/ names the deck files, their build and check scripts, or the workflow.
 t50c2 (retire) README.md, CLAUDE.md and docs/PHILOSOPHY.md do not point at the decks.
-t50c4 (preserve) hubkit/docs/index.html stays: the local briefing that step 1 of hubkit/INSTRUCTIONS.md opens.
+t50c4 (preserve) hubkit/docs/index.html stays: the local briefing that step 1 of hubkit/INSTRUCTIONS.md opens. It
+      names the MindHole (Ty, 2026-11-12: the kit is the MindHole; it was "hub kit").
 """
 import json
 import os
@@ -401,11 +404,12 @@ def iuxc6():
     s1 = sec_of(secs, "Step 1")
     check("iuxc6 step 1 asks whether this is a UAT install, default no", re.search(r"UAT install.*Default: no", re.sub(r"\s+", " ", s1)) is not None, s1[-400:])
     check("iuxc6 step 2 records a UAT install with --uat", "--uat" in sec_of(secs, "Step 2"), "missing")
-    last = sec_of(secs, "Step 7")
+    # 0.3.0 kit3 (UAT U4): the formal step 6 moved commit to step 7 and the last step to step 8.
+    last = sec_of(secs, "Step 8")
     w7 = re.sub(r"\s+", " ", last)
     for cmd in ("hubkit.py status", "hubflow.py check"):
         m = re.search(re.escape(cmd) + r"[^.]*?\.?`?[^.]*?\b(shows|tells) you\b", w7)
-        check(f"iuxc6 step 7 ends the install with {cmd} and a one-line reason for the user", m is not None, w7[:500])
+        check(f"iuxc6 step 8 ends the install with {cmd} and a one-line reason for the user", m is not None, w7[:500])
     rd = read(os.path.join(ROOT, "hubkit", "README.md"))
     inst = re.search(r"^## Install\n(.*?)(?=^## )", rd, re.M | re.S)
     block = re.findall(r"```sh\n(.*?)```", inst.group(1) if inst else "", re.S)
@@ -450,6 +454,23 @@ def m030d1():
     for ln in lines:
         check("m030d1 the launcher appends the prompt, PANES.md and the role file",
               all(x in ln for x in ("SAGITTARIUS.md", "PANES.md", "panes/<name>.md")), ln)
+    check("m030d1 the formal edition gives the launcher once (no second, resume line)", len(lines) == 1, lines)
+    every = [ln.strip() for ln in ins.splitlines() if "--append-system-prompt" in ln]
+    check("m030d1 INSTRUCTIONS.md holds one launcher line in all", len(every) == 1, every)
+    check("m030d1 the formal edition says how to resume: the same line with --resume in place of --name",
+          re.search(r'`--resume "hub-<name>"` in place of `--name "hub-<name>"`', w) is not None, w[-600:])
+    rd = read(os.path.join(ROOT, "README.md"))
+    pm = re.search(r"^## Panes\n(.*?)(?=^## )", rd, re.M | re.S)
+    panes = pm.group(1) if pm else ""
+    rl = [ln.strip() for ln in panes.splitlines() if "claude" in ln and ("--append-system-prompt" in ln or "--name" in ln)]
+    check("m030d1 README.md Panes gives the launcher line of INSTRUCTIONS.md, character for character", start and rl == start[:1], (rl, start[:1]))
+    check("m030d1 README.md Panes keeps: command claude, or the full path of the binary",
+          "command claude" in panes and "full path of the binary" in re.sub(r"\s+", " ", panes), panes[-300:])
+    pan = re.sub(r"\s+", " ", read(os.path.join(ROOT, "prompt", "PANES.md")))
+    check("m030d1 PANES.md names no tmux session (the launcher names the session hub-<name>; review finding 12)",
+          re.search(r"tmux session|`sagit`", pan) is None, pan[:300])
+    check("m030d1 PANES.md does not take the role from a window line that the launcher does not give",
+          "name of your window" not in pan, pan[:300])
     if len(start) != 1:
         return
     with tempfile.TemporaryDirectory(prefix="m030d1-") as t:
@@ -532,7 +553,7 @@ def t50c4():
     check("t50c4 hubkit/docs/index.html is on disk", os.path.isfile(p), "missing")
     g = git("ls-files", "--", "hubkit/docs/index.html")
     check("t50c4 hubkit/docs/index.html is tracked", g.stdout.strip() == "hubkit/docs/index.html", g.stdout + g.stderr)
-    check("t50c4 the briefing is the hubkit briefing", "hubflow-starter" not in read(p) and "hub kit" in read(p).lower(),
+    check("t50c4 the briefing is the hubkit briefing", "hubflow-starter" not in read(p) and "mindhole" in read(p).lower(),
           read(p)[:200])
     ins = read(os.path.join(ROOT, "hubkit", "INSTRUCTIONS.md"))
     m = re.search(r"^## Step 1[^\n]*\n(.*?)(?=^## )", ins, re.S | re.M)

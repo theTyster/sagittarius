@@ -1043,6 +1043,7 @@ def cmd_init(g, a):
                 os.remove(db_path(d) + s)
         raise
     c.close()
+    print(f"initialized {db_path(d)}: schema {SCHEMA_VERSION}, {len(seed['sessions'])} sessions, {len(seed['persons'])} people")
 
 
 def common_item_opts(g, o):

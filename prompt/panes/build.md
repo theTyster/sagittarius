@@ -21,7 +21,8 @@ Rules:
   pane. A handoff from discovery is a signal. Review also comes in when the human asks.
 - If you cannot say what to change, the request is a report. Send it to **discovery**.
 - Review's findings are divergences on your claims. Fix the build, or record a new claim that
-  supersedes the old one, and disclose it. Do not edit a check to make it pass.
+  supersedes the old one, and disclose it. Do not edit a check to make it pass. If a finding
+  shows that the problem is wrong and you cannot say what it changes to, send it to **discovery**.
 - When the human's answer says what the hypothesis changes to ("only on this page"), restate
   the hypothesis: the new one supersedes the old one. Record it in the KB when there is one,
   show it, and go on. Only when you cannot say what it changes to, hand the ticket to

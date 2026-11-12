@@ -320,17 +320,17 @@ def c4():
 
 # ------------------------------------------------------------------ c5
 def c5():
+    # Ty, 2026-11-12: the kit itself is called the MindHole (it was "the hub kit"); a hub made from it is "a hub".
     for name, path in (("hubkit/README.md", KREADME), ("INSTRUCTIONS.md", INSTR)):
         t = read(path)
-        has(f"c5 {name}", t, "the hub kit", "part of Sagittarius", REPO_URL)
-        lacks(f"c5 {name}", t, "hubflow-starter")
+        has(f"c5 {name}", t, "the MindHole", "part of Sagittarius", REPO_URL)
+        lacks(f"c5 {name}", t, "hubflow-starter", "the hub kit")
     first = (read(KREADME).splitlines() or [""])[0]
-    # Sagittarius 0.3.0 (c_m_g): the display name is the MindHole; "the hub kit" stays the name of the kit.
-    check("c5 hubkit/README.md is titled the MindHole hub kit", first.lower().startswith("# the mindhole hub kit"), first)
+    check("c5 hubkit/README.md is titled the MindHole", first.lower().startswith("# the mindhole") and "hub kit" not in first.lower(), first)
     lacks("c5 hubkit/docs/index.html (the briefing the README links)", read(os.path.join(KITDIR, "docs", "index.html")), "hubflow-starter")
-    kit_sec = section(read(README), "MindHole")
-    check("c5 README.md has the section 'MindHole (the hub kit)'", "hubkit/" in kit_sec, kit_sec[:120])
-    lacks("c5 README.md section 'MindHole (the hub kit)'", kit_sec, "hubflow-starter")
+    kit_sec = section(read(README), "The MindHole")
+    check("c5 README.md has the section 'The MindHole'", "hubkit/" in kit_sec, kit_sec[:120])
+    lacks("c5 README.md section 'The MindHole'", kit_sec, "hubflow-starter", "the hub kit")
 
 
 # ------------------------------------------------------------------ c6

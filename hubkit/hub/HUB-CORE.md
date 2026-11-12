@@ -1,8 +1,8 @@
 # HUB-CORE.md: the shipped rules of the hub
 
-This file ships with the hub template. **Do not edit it.** An upgrade replaces it. Put this hub's
-own rules and changes in `CLAUDE.md`, which imports this file. Where the two disagree, `CLAUDE.md`
-wins.
+This file ships with the MindHole (the kit that made this hub). **Do not edit it.** An upgrade
+replaces it. Put this hub's own rules and changes in `CLAUDE.md`, which imports this file. Where the
+two disagree, `CLAUDE.md` wins.
 
 ## The hub exists to enable throughput
 
