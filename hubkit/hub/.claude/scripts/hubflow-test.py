@@ -3269,6 +3269,22 @@ def case_iux_c4_rotate(r, root):
     r.check("iux-c4-citations-unknown-argument-exit-1", res[0] == 1 and "unknown argument: --bogus" in res[2], res)
 
 
+def case_k3_citations_hub_name(r, root):
+    """0.3.0 kit3, review 2 finding 13: check-citations.py lists a mention prefixed with the hub directory's own
+    name (a hub named mindhole writes mindhole/W0/...), and still lists the hub/ prefix."""
+    if r.script != REAL:  # tests the citations script, not hubflow.py
+        return
+    h = week_hub(os.path.join(root, "k3-cites"), "mindhole")
+    write_text(os.path.join(h, "NOTES.md"), "see mindhole/W0/reports/a.md and hub/W0/reports/a.md and mindhub/W0/reports/a.md\n")
+    git_in(h, "add", "NOTES.md")
+    git_in(h, "commit", "-q", "-m", "notes")
+    res = run_py(CITES_PY, h)
+    rows = [ln.split("\t") for ln in res[1].splitlines() if ln.startswith("NOTES.md\t")]
+    r.check("k3-citations-three-mentions", res[0] == 0 and len(rows) == 3 and all(x[2] == "mention" for x in rows), res[1][-400:])
+    r.check("k3-citations-hub-name-prefix-kept", ["NOTES.md", "1", "mention", "mindhole/W0/reports/a.md", "W0/reports/a.md", "ok"] in rows, rows)
+    r.check("k3-citations-hub-prefix-kept", ["NOTES.md", "1", "mention", "hub/W0/reports/a.md", "W0/reports/a.md", "ok"] in rows, rows)
+
+
 def case_030_handoff_example(r, root):
     """Sagittarius 0.3.0, c_m_f_1: the handoff example of the formal hub-flow skill carries a kb ref, and the
     example runs as written: the row it makes holds the kb ref. An informal hub has no kb refs: skipped there."""
@@ -3392,6 +3408,7 @@ def cases(r):
         # install UX: the hub's own orbit-kb (c3); rotation and citations in Python (c4, c5)
         run_case(r, case_iux_c3_hub_copy, root)
         run_case(r, case_iux_c4_rotate, root)
+        run_case(r, case_k3_citations_hub_name, root)
         # Sagittarius 0.3.0 (c_m_f_1): the skill's handoff example carries a kb ref
         run_case(r, case_030_handoff_example, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
