@@ -106,9 +106,12 @@ human can close it (`--by human --note`).
 
 ## Verify
 
-A hub has a light path, as the prompt does: when no signal fired, the session delivers a clear
-change with its check, with no review. A signal brings review in; review also comes in when the
-human asks. Verify belongs to a session that did not make the work: the `review` session of `flow/seed.json`.
+A hub has a light path: a clear change, with nothing that calls for a second look, is delivered by
+the session that made it, with its check and with no review. Review comes in when the human and an
+agent disagree about the work, when the work comes in a handoff from another session, when it took
+a lot of effort, or when the human asks.
+
+Verify belongs to a session that did not make the work: the `review` session of `flow/seed.json`.
 A hub with no review session names its verifier in `CLAUDE.md` ("Sessions"); with none named, the
 human verifies, or a fresh subagent that did not make the work. The verdict is a note on the item
 of the work, `pass` or `fail`, with what was checked and the evidence:
