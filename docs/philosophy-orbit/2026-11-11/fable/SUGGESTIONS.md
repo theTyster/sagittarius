@@ -11,6 +11,27 @@ reports in `audit/`.
 
 The first six are the ones that Fable would do first.
 
+## Ty's rulings (2026-11-12, 03:04 UTC)
+
+Ty ruled on the first six. The words are Ty's. "[...]" marks a path that is left out here.
+
+- **1 and 2:** "The UAT mindhole in [...] (needs to be renamed still) will hold the project KB
+  and eventually become the mindhole that manages sagittarius. We had a KB running that got
+  sagittarius to UAT today. Maybe we should start with that one and adapt it."
+- **3:** "Good idea. Some kind of observation harness for the System 1 hook would be a good
+  feature. This would mean that whenever it provided a hint, the model would be required to
+  acknowledge it in some way though... that might slow things down. Maybe we only do that in
+  UAT... idk. maybe we just compare the S1 observation harness with the agent sessions. That
+  way we don't need to slow things down with the hook each time it fires."
+- **4:** "Good catch. Lets get that aligned."
+- **5:** "another good find. Lets clean it up."
+- **6:** "meh thats fine." So nothing changes for 6.
+
+So 1 to 5 are in the spec KB, in the form that Ty gave them: the project KB lives in the UAT
+MindHole and starts from the KB that brought Sagittarius to UAT; the harness for System 1
+compares its log with the sessions afterwards, and the agent is not made to acknowledge each
+hint. Ty did not rule on 7 to 33. They are not in the spec.
+
 ## The six that Fable would do first
 
 **1. A tracked project KB for Sagittarius itself.**

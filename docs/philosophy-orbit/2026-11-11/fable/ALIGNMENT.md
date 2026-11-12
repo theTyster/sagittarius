@@ -8,6 +8,20 @@ before any work starts.
 
 Improvements that the texts do not need are in `SUGGESTIONS.md`, in this folder.
 
+## Ty's rulings on this document (2026-11-12, 03:04 UTC)
+
+> your defaults are good.
+>
+> Alignment is good too.
+
+So the three questions below have their defaults as answers, the defaults that Fable took
+stand, and the work packages are accepted. Ty also ruled on the first six suggestions (see
+`SUGGESTIONS.md`), and said: "alright lets take the work and decisions we made here and work
+them into the rest of Sagittarius."
+
+The spec for the build is one spec KB: `tmp/kb-sagittarius-030` in the main checkout. This
+document is the analysis behind it.
+
 ## How this was made, and what it rests on
 
 - Four read-only audits, one for each area, each by a separate agent that read both new texts
@@ -65,7 +79,8 @@ could not be computed is not a no". The differences that matter are these eight.
 
 ## Three questions for Ty
 
-Each one blocks a work package. The other open points have a default below.
+Each one blocked a work package. Ty's answer to all three: "your defaults are good." So the
+answers are 1 (b), 2 (a) and 3 (b).
 
 **Question 1. `PRINCIPLES.md` in each hub (M6, M7).**
 The case: you start a hub with the informal edition. It has no Sagittarius prompt. Its
@@ -116,7 +131,7 @@ for.
 
 Also open, and yours already: whether the artifacts stay a third voter with no KB.
 
-## Defaults that Fable took (say so if one is wrong)
+## Defaults that Fable took (Ty: "your defaults are good.")
 
 - **The gate (K5).** The tool refuses an agent's GO while discovery is not ready, and it names
   what blocks. The human's vote is never refused. Then GO cannot win while readiness is
