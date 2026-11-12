@@ -39,8 +39,9 @@ def run(root, *ids):
 
 
 def step(statement, collapsed, adds="nothing", faithful=True):
-    return {"statement": statement, "falsifier": "a case", "sonnet": {"collapsed": collapsed, "faithful": faithful},
-            "jev": {"j_adds": {"type": "choice", "choice": adds}}}
+    judge = {"collapsed": collapsed, "faithful": faithful}
+    adds = {"j_adds": {"type": "choice", "choice": adds}}
+    return {"statement": statement, "falsifier": "a case", "sonnet": judge, "jev": adds}
 
 
 class Examples(unittest.TestCase):

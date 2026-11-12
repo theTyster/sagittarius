@@ -14,8 +14,8 @@ get a different number" is kept apart from the hypothesis.
   c2  `orbit-kb help discovery` (kb/share/orbit-kb/help/discovery.txt): the label before the quote.
   c3  the philosophy (docs/PHILOSOPHY.md): the verdict cell after the quote in its table.
   c4  the recording of s1/temper.py (s1/fixtures/loopcal_trio.json): a step whose statement is the
-      sentence. Fit is "collapsed: false", faithful, and no added cause (Jev's j_adds is "nothing");
-      Too strong or Names a fix is "collapsed: false" with an added cause or mechanism; Collapsed is
+      sentence. Fit is "collapsed: false", faithful, and no added cause (the System 1 answer
+      j_adds is "nothing"); Too strong or Names a fix is "collapsed: false" with an added cause or mechanism; Collapsed is
       "collapsed: true". A step whose statement holds the sentence and more (the finding inside it)
       must not be accepted as a hypothesis.
 
