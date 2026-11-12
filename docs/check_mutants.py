@@ -31,6 +31,19 @@ CASES = [
     (["docs/check_prompt_small.py"], P, "Formal:      <the formal statement", "Form:        <the formal statement", "no Formal: field"),
     (["docs/check_prompt_small.py"], P, "A check that cannot fail is not evidence", "A check is evidence", "a rule of Honesty is gone"),
     (["docs/check_prompt_small.py"], P, "\n## Honesty\n", "\n## Manners\n", "no Honesty heading"),
+    # each delivery field and each rule sentence of the prompt has a key phrase (review finding 4)
+    (["docs/check_prompt_small.py"], P, 'KB:          <"No KB"', 'Store:       <"No KB"', "no KB: field"),
+    (["docs/check_prompt_small.py"], P, "Guesses:     <defaults", "Hunches:     <defaults", "no Guesses: field"),
+    (["docs/check_prompt_small.py"], P, "Disclosures: <unverified", "Notes:       <unverified", "no Disclosures: field"),
+    (["docs/check_prompt_small.py"], P, "Claims:      <each claim", "Results:     <each claim", "no Claims: field"),
+    (["docs/check_prompt_small.py"], P, ' Never state a\n   bounded result as "always" or "never".', "", "the bounded-result rule is gone"),
+    (["docs/check_prompt_small.py"], P, '"Tests pass" does not mean "correct". ', "", "the tests-pass rule is gone"),
+    (["docs/check_prompt_small.py"], P, " A lead does not block readiness.", "", "the lead rule is gone"),
+    (["docs/check_prompt_small.py"], P, "In a KB,\nrecord the waiver as the human's. ", "", "the record-the-waiver rule is gone"),
+    (["docs/check_prompt_small.py"], P, "Include a screenshot when the change has a user\nsurface. ", "", "the screenshot rule is gone"),
+    (["docs/check_prompt_small.py"], P, " Ask at most\nthree questions a round.", "", "the three-questions rule is gone"),
+    (["docs/check_prompt_small.py"], P, "Do not edit a KB file by hand. ", "", "the no-hand-edit rule is gone"),
+    (["docs/check_prompt_small.py"], P, "Seal your vote before the report. ", "", "the seal-the-vote rule is gone"),
     (["docs/check_version.py"], "VERSION", "0.3.0", "9.9.9", "VERSION disagrees with the prompt"),
 ]
 
