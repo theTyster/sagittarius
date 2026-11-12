@@ -3403,6 +3403,8 @@ def cases(r):
 
 def main():
     global QUIET
+    # 0.3.0 kit3, UAT U2: each line reaches a pipe or a log file at once, so a long --mutants run shows progress
+    sys.stdout.reconfigure(line_buffering=True)
     args = sys.argv[1:]
     only_mutants = []
     for i, a in enumerate(args):
