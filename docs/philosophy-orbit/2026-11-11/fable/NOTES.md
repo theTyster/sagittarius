@@ -41,6 +41,13 @@ the report and ask "Vote GO, NO-GO, or HOLD."; on GO: `orbit-kb subject tk TICKE
 `add "ticket(tk)"`, `attest approval tk 'digest(current)' --by human`, `uses build`, `lint`,
 `release`, and hand the KB path to the build orbit.
 
+2026-11-12, 03:23 UTC: Ty read `Hypothesis.lean` and ratified it ("Looks very solid. [...] I'll
+ratify this lean spec for the hypothesis."). `fb_properly_written` is ratified in the shared
+KB, and premise `a2` of the spec KB is checked. Ty's idea of a Lean framework for tempering a
+hypothesis on a burn is logged as a draft issue in the main checkout:
+`tmp/issues/7-lean-framework-for-hypotheses.md`. It is not in the spec. Ty compacts next, and
+then says the one more thing.
+
 A guess to confirm with Ty: "that one" in the answer to suggestions 1 and 2 is
 `tmp/hub-design-kb` (`q4`, `a4`).
 

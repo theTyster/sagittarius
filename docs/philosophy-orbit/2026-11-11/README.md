@@ -90,6 +90,8 @@ To check it, in `fable/`:
 It must print one line for each theorem, each line must say "does not depend on any axioms",
 and nothing else must print.
 
-Ty has not yet reviewed the definition. The definitions are the part to judge: the Lean
-kernel checks that each theorem follows from them, and it does not check that they say what
-Ty means.
+Ty read the file on 2026-11-12 and ratified it: "I just checked the lean. Looks very solid.
+[...] I'll ratify this lean spec for the hypothesis." Ty does not expect to keep its two worked
+examples (dark mode, loyalty points) in the long term. The definitions are the part that a
+reader judges: the Lean kernel checks that each theorem follows from them, and it does not
+check that they say what Ty means.
