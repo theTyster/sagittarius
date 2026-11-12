@@ -59,69 +59,73 @@ def c1():
 
 # ---------------------------------------------------------------- c2
 # APPLIED[principle][target] = the regexes (case-insensitive, over flattened text) that the
-# target must match for the "Applied in" line to be true. Target keys:
+# target must match for the "In the prompt:" line of the principle to be true. Target keys:
 #   prompt:SECTION   the text of "## SECTION" in prompt/SAGITTARIUS.md, up to the next "## "
 #   help:TOPIC       kb/share/orbit-kb/help/TOPIC.txt
 #   file:PATH        the file at PATH
+# Sagittarius 0.3.0 / Philosophy 2.0.0: principles are "#### N." headings, and each ends with a
+# line "In the prompt: ..." (or "In the repository: ..." for principle 14). The check also holds
+# that every section the line names exists in the prompt.
 APPLIED = {
-    1: {"prompt:Roles": [r"human owns the intent"],
-        "prompt:The phase tree": [r"against the human's vote"],
-        "help:discovery": [r"\bgate\b"]},
-    2: {"prompt:Purpose": [r"the goal is alignment"]},
-    3: {"prompt:The phase tree": [r"parallax"],
-        "prompt:Roles": [r"no party grades its own work"],
-        "prompt:Delivery": [r"how it was verified"]},
-    4: {"prompt:The phase tree": [r"goes back to the source"],
-        "help:discovery": [r"\bspectrum\b"]},
-    5: {"prompt:The phase tree": [r"few assumptions", r"\bsoft\b", r"general", r"just past the boundary",
-                                  r"formaliz"]},
-    6: {"prompt:The phase tree": [r"quiet failures"],
-        "prompt:Start light": [r"must fail before the change"]},
-    7: {"prompt:Start light": [r"start light"],
-        "prompt:When to shift up": [r"leaning back", r"effort"],
-        "file:s1/hook.py": [r"effort"]},
-    8: {"prompt:Purpose": [r"speed never comes from hiding"],
-        "prompt:Delivery": [r"waiver"]},
-    9: {"prompt:Honesty rules": [r"match your words to your evidence", r"in discovery"]},
-    10: {"prompt:Honesty rules": [r"none stops cheating"],
-         "prompt:Where the procedure is": [r"never type a digest"],
-         "help:core": [r"never type a digest"]},
-    11: {"prompt:When to shift up": [r"a claim that burns"],
-         "help:discovery": [r"\bspectrum\b"]},
-    12: {"prompt:Where the procedure is": [r"do not rely on what you remember"],
-         "prompt:When to shift up": [r"a handoff"],
-         "help:build": [r"supersedes a burning claim needs its own proof"]},
+    1: {"prompt:The orbit": [r"human's judgment"],
+        "prompt:Who judges what": [r"human\*\* owns the intent"],
+        "prompt:The vote": [r"the human 0\.49"]},
+    2: {"prompt:The light path": [r"must fail before the change"],
+        "prompt:The hypothesis": [r"closest statement of the intent"]},
+    3: {"prompt:Signals": [r"a handoff"],
+        "prompt:One response": [r"third step of the orbit"],
+        "prompt:When the human says that it is wrong": [r"kept"],
+        "prompt:Delivery": [r"each \"yes\" and what fired it|what fired it"],
+        "prompt:The tool": [r"do not rely on what you remember"]},
+    4: {"prompt:Who judges what": [r"no party grades its own work"],
+        "prompt:One response": [r"system 1"]},
+    5: {"prompt:The idea": [r"orbit it"],
+        "prompt:The orbit": [r"write it from the source"],
+        "prompt:The light path": [r"\bexample\b"]},
+    6: {"prompt:Who judges what": [r"the human reads it|the human judges meaning"],
+        "prompt:Delivery": [r"formal:"]},
+    7: {"prompt:Honesty": [r"none stops cheating"],
+        "prompt:The tool": [r"never type a digest"]},
+    8: {"prompt:The idea": [r"quiet failure", r"divergence"],
+        "prompt:Signals": [r"a divergence"],
+        "prompt:The light path": [r"must fail before the change"]},
+    9: {"prompt:Honesty": [r"match your words to your evidence", r"in discovery"]},
+    10: {"prompt:The light path": [r"add rigor only on a signal"],
+         "prompt:Signals": [r"effort"],
+         "prompt:One response": [r"every signal gets the same response"]},
+    11: {"prompt:Signals": [r"a claim that burns"],
+         "prompt:One response": [r"one lens at a time"]},
+    12: {"prompt:The orbit": [r"speed never comes from hiding"],
+         "prompt:Delivery": [r"waiver"]},
     13: {"prompt:When the human says that it is wrong": [r"examples of the meaning, not phrases to match"],
-         "help:discovery": [r"\bsignal\b"]},
+         "prompt:The hypothesis": [r"example"]},
     14: {"file:docs/REFINING.md": [r"held-out"]},
 }
 
 
 def applied_lines(phil):
-    """{principle number: the text of its "Applied in:" paragraph}."""
+    """{principle number: the text of its "In the prompt:" / "In the repository:" paragraph}."""
     out = {}
-    for m in re.finditer(r"^### (\d+)\. .*?(?=^### |^## )", phil, re.S | re.M):
+    for m in re.finditer(r"^#### (\d+)\. .*?(?=^#### |^### |^## |\Z)", phil, re.S | re.M):
         n = int(m.group(1))
-        a = re.search(r"^Applied in:(.*?)(?:\n\n|\Z)", m.group(0), re.S | re.M)
+        a = re.search(r"^In the (?:prompt|repository):(.*?)(?:\n\n|\Z)", m.group(0), re.S | re.M)
         if a:
-            out[n] = re.sub(r"\s+", " ", a.group(1)).strip()
+            out[n] = ("prompt:" if "In the prompt:" in a.group(0) else "repository:") + re.sub(r"\s+", " ", a.group(1)).strip()
     return out
 
 
 def targets(line):
-    """The target keys that one "Applied in" paragraph names."""
+    """The target keys that one "In the prompt:" paragraph names."""
     keys = []
-    # cut the trailing remark (". The exact definition is open ...") off the list
-    line = re.split(r"\.\s+[A-Z]", line)[0]
-    for part in line.split(";"):
-        part = part.strip()
-        if part.startswith("prompt"):
-            for name in re.findall(r'"([^"]+)"', part):
-                keys.append("prompt:" + name)
-        for topic in re.findall(r"`orbit-kb help (\w+)`", part):
-            keys.append("help:" + topic)
-        for path in re.findall(r"`([\w./-]+\.(?:py|md|sh|html))`", part):
-            keys.append("file:" + path)
+    kind, _, line = line.partition(":")
+    if kind == "prompt":
+        # a name in quotes is a section; a parenthesis after it is a remark, not a name
+        for name in re.findall(r'"([^"]+)"', line):
+            keys.append("prompt:" + name)
+    for topic in re.findall(r"`orbit-kb help (\w+)`", line):
+        keys.append("help:" + topic)
+    for path in re.findall(r"`([\w./-]+\.(?:py|md|sh|html))`", line):
+        keys.append("file:" + path)
     return keys
 
 
@@ -142,7 +146,7 @@ def target_text(key):
 def c2():
     bad = []
     prompt = read("prompt/SAGITTARIUS.md")
-    hyp = flat(block(prompt, "**The hypothesis.**", "**The vote.**"))
+    hyp = flat(block(prompt, "\n## The hypothesis\n", "\n## Signals\n"))
     if not re.search(r"\berr\b[^.]*general[^.]*soft|\berr\b[^.]*soft[^.]*general", hyp):
         bad.append("the hypothesis paragraph of the prompt does not say to err toward the general and soft")
     if not re.search(r"\berr\b[^.]*\bhypotheses\b[^.]*\bpremises\b[^.]*\bclaims\b", hyp):
@@ -155,7 +159,7 @@ def c2():
         bad.append("the hypothesis paragraph of the prompt does not say 'on purpose'")
     lines = applied_lines(read("docs/PHILOSOPHY.md"))
     if len(lines) < 14:
-        bad.append("PHILOSOPHY has %d Applied in lines, the check reads too few (want 14)" % len(lines))
+        bad.append("PHILOSOPHY has %d In-the-prompt lines, the check reads too few (want 14)" % len(lines))
     for n, line in sorted(lines.items()):
         keys = targets(line)
         if not keys:
@@ -174,7 +178,7 @@ def c2():
                     bad.append("principle %d: the target %s lacks /%s/" % (n, key, rx))
         for key in want:
             if key not in keys:
-                bad.append("principle %d: the table names %s, but the Applied in line does not" % (n, key))
+                bad.append("principle %d: the table names %s, but the In the prompt line does not" % (n, key))
     return "; ".join(bad) or None
 
 

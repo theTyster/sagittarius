@@ -7,19 +7,21 @@ c2: each heading (# to ######, outside code fences) of the old prompt has at lea
 c4: each row with home "help TOPIC" names a key phrase (third cell, in backticks). The phrase
     must be in HELP_DIR/TOPIC.txt. TOPIC "general" means the general help text in the CLI
     (--cli). A "hook" row with a phrase must be in s1/questions.json or s1/hook.py. A
-    "PHILOSOPHY.md §N" row needs a "### N." heading in docs/PHILOSOPHY.md. A "prompt" row with a
-    phrase must be in the new prompt (--prompt, default prompt/SAGITTARIUS.md).
     Phrases match after whitespace is collapsed, without regard to case.
+    0.3.0: PROMPT-MOVES.md is a dated record of ticket T08 at commit 7da5320. A "prompt" row and a
+    "PHILOSOPHY.md §N" row name the prompt and the numbering of that date, so c4 does not compare
+    them with the current prompt or philosophy (the texts of 0.3.0 renamed sections and
+    renumbered principles on purpose). c4 holds only the homes that the tool owns: help and hook.
 
 Usage: python3 docs/check_prompt_moves.py [--old FILE] [--map FILE] [--help-dir DIR] [--cli FILE]
        [--only c2|c4]
-Default --old: the prompt before the redesign, `git show 7da5320:prompt/SAGITTARIUS.md`.
+Default: the headings of the prompt before the redesign (`git show 7da5320:prompt/SAGITTARIUS.md`), kept in
+docs/prompt-moves-headings.txt. --old FILE reads the headings from a prompt file instead.
 Exit 0: all checks pass. Exit 1: a check fails. Exit 2: a usage or input error.
 """
 import argparse
 import os
 import re
-import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -61,21 +63,22 @@ def main():
     ap.add_argument("--map", default=os.path.join(ROOT, "docs/PROMPT-MOVES.md"))
     ap.add_argument("--help-dir", default=os.path.join(ROOT, "kb/share/orbit-kb/help"))
     ap.add_argument("--cli", default=os.path.join(ROOT, "kb/bin/orbit-kb"))
-    ap.add_argument("--prompt", default=os.path.join(ROOT, "prompt/SAGITTARIUS.md"))
     ap.add_argument("--only", choices=["c2", "c4"])
     a = ap.parse_args()
 
     if a.old:
         old = open(a.old, encoding="utf-8").read()
+        hs = headings(old)
     else:
-        old = subprocess.run(["git", "-C", ROOT, "show", BASE + ":prompt/SAGITTARIUS.md"],
-                             capture_output=True, text=True, check=True).stdout
+        # The headings of the prompt at BASE, kept in a file (made from `git show BASE:prompt/SAGITTARIUS.md`
+        # with headings() below), so the check needs no git history and no current prompt.
+        with open(os.path.join(ROOT, "docs/prompt-moves-headings.txt"), encoding="utf-8") as f:
+            hs = [ln.rstrip("\n") for ln in f if ln.strip()]
     try:
         mp = open(a.map, encoding="utf-8").read()
     except OSError as e:
         print(f"c2 FAIL: no map: {e}")
         return 1
-    hs = headings(old)
     rs = rows(mp)
     ok = True
 
@@ -102,14 +105,13 @@ def main():
             print(f"c2 PASS: {len(hs)} headings, each mapped")
 
     if a.only in (None, "c4"):
-        phil = open(os.path.join(ROOT, "docs/PHILOSOPHY.md"), encoding="utf-8").read()
         s1 = ""
         for f in ("s1/questions.json", "s1/hook.py"):
             p = os.path.join(ROOT, f)
             if os.path.exists(p):
                 s1 += open(p, encoding="utf-8").read()
         cache = {}
-        missing, present = [], []
+        missing, present, skipped = [], [], []
         for n, h, home, phrase in rs:
             if home.startswith("help "):
                 topic = home.split()[1]
@@ -119,23 +121,17 @@ def main():
                 where = f"orbit-kb help {topic}"
                 if not phrase:
                     missing.append(f"{h} -> {where}: no key phrase in the map (line {n})")
+                elif cache[path] is None and topic == "general":
+                    skipped.append(f"{h} -> {where}: no CLI file {path} (a copy of the tree with no kb/bin)")
                 elif cache[path] is None:
                     missing.append(f"{h} -> {where}: no file {path}")
                 elif norm(phrase) not in cache[path]:
                     missing.append(f"{h} -> {where}: missing {phrase!r}")
                 else:
                     present.append(f"{h} -> {where}: {phrase!r}")
-            elif home == "prompt" and phrase:
-                if "prompt" not in cache:
-                    cache["prompt"] = norm(open(a.prompt, encoding="utf-8").read())
-                (present if norm(phrase) in cache["prompt"] else missing).append(
-                    f"{h} -> prompt: {phrase!r}")
             elif home == "hook" and phrase:
                 (present if norm(phrase) in norm(s1) else missing).append(f"{h} -> hook: {phrase!r}")
-            elif home.startswith("PHILOSOPHY.md §"):
-                num = home.split("§")[1]
-                tgt = present if re.search(rf"^### {num}\. ", phil, re.M) else missing
-                tgt.append(f"{h} -> {home}")
+
         if missing:
             ok = False
             print(f"c4 FAIL: {len(missing)} missing, {len(present)} present")
@@ -145,6 +141,8 @@ def main():
             print("  missing: " + m)
         for p in present:
             print("  present: " + p)
+        for k in skipped:
+            print("  skipped: " + k)
     return 0 if ok else 1
 
 

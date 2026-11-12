@@ -1,0 +1,44 @@
+# Sagittarius
+## Purpose
+## Scope
+## Roles
+## The light path
+### Shift up to a KB
+### Leaning back
+### Ask first, or build on default assumptions
+## The orbit
+## The knowledge base
+### Rules for the KB
+### Ideas that the moves use
+## Moves
+### SURVEY: close the world (shared with discovery)
+### DECOMPOSE: claims and questions
+### BUILD
+### FULFILL: fulfillment in both directions
+### DISPROVE: attack a claim (shared with discovery)
+### BURN: prove the claim in Lean
+### EXPLAIN
+## When the human says that it is wrong
+## Honesty rules
+## Delivery
+## Speed
+## Discovery orbit
+### Purpose
+### When to run discovery
+### The hypothesis
+### The tiny discovery orbit
+### The lap
+### Moves
+#### SIGNAL: pin the report
+#### SURVEY: touch the current system
+#### SPECTRUM: split into claims and choose tools
+#### FLYBY: explore combinations with SMT
+#### TRAJECTORY: explore sequences with TLA+
+#### DISPROVE: attack the claims
+#### GO / NO-GO: a weighted vote
+### Asking the human
+### The discovery report
+### Handoff to the build orbit
+### Back to discovery
+### Honesty rules for discovery
+### Sizes and speed

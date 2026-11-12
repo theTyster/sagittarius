@@ -395,9 +395,9 @@ def t32c4():
 
 
 # ------------------------------------------------------------------ c5
-P_WANT = (("4. Orbit the intent. Do not translate it", ("orbit", "the request", "each step")),
-          ("5. The hypothesis is the closest formal statement of intent", ("hypothesis", "weak", "strong", "show it false")),
-          ("8. Speed comes from skipping work, never from hiding it", ("skip", "never hide", "only the human skips", "due")))
+P_WANT = (("5. Each statement comes from the source", ("orbit", "the request", "each step")),
+          ("2. Each statement of the intent is an attempt. The hypothesis is the first of them", ("hypothesis", "weak", "strong", "show it false")),
+          ("12. Speed comes from skipping work, never from hiding it", ("skip", "never hide", "only the human skips", "due")))
 
 
 def t32c5():
@@ -683,7 +683,7 @@ def t36c5():
 def t36c6():
     pr = read(PRINCIPLES)
     secs = re.split(r"^## ", pr, flags=re.M)[1:]
-    mine = [s for s in secs if "5. The hypothesis is the closest formal statement of intent" in s]
+    mine = [s for s in secs if "2. Each statement of the intent is an attempt. The hypothesis is the first of them" in s]
     check("t36c6 PRINCIPLES.md has the hypothesis principle", len(mine) == 1, len(mine))
     if mine:
         body = words(mine[0])
@@ -712,7 +712,7 @@ def hyp_parts(name, text):
 def t41c1():
     pr = read(PRINCIPLES)
     secs = re.split(r"^## ", pr, flags=re.M)[1:]
-    mine = [s for s in secs if "5. The hypothesis is the closest formal statement of intent" in s]
+    mine = [s for s in secs if "2. Each statement of the intent is an attempt. The hypothesis is the first of them" in s]
     check("t41c1 PRINCIPLES.md has the hypothesis principle", len(mine) == 1, len(mine))
     if mine:
         hyp_parts("t41c1 the hypothesis principle", mine[0])
