@@ -258,10 +258,11 @@ def case_t51_c1_installed_hub_orbit_kb(r, root):
 
 
 def case_t51_c2_step6_formal_git_add(r):
-    """T51 c2: INSTRUCTIONS step 6 has a formal git add line that names project-kb and specs; the informal line does not."""
+    """T51 c2: the commit step of INSTRUCTIONS has a formal git add line that names project-kb and specs; the informal
+    line does not. (0.3.0 kit3, UAT U4: a formal step 6 makes the project KB, so the commit step is step 7 now.)"""
     with open(os.path.join(KIT, "INSTRUCTIONS.md"), encoding="utf-8") as f:
         text = f.read()
-    m = re.search(r"^## Step 6: commit\n(.*?)^## Step 7", text, re.M | re.S)
+    m = re.search(r"^## Step 7: commit\n(.*?)^## Step 8", text, re.M | re.S)
     r.check("t51c2-step6-found", m is not None)
     body = m.group(1) if m else ""
     adds = [ln for ln in body.splitlines() if ln.startswith("git add ")]

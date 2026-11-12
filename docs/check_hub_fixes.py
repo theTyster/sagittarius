@@ -404,11 +404,12 @@ def iuxc6():
     s1 = sec_of(secs, "Step 1")
     check("iuxc6 step 1 asks whether this is a UAT install, default no", re.search(r"UAT install.*Default: no", re.sub(r"\s+", " ", s1)) is not None, s1[-400:])
     check("iuxc6 step 2 records a UAT install with --uat", "--uat" in sec_of(secs, "Step 2"), "missing")
-    last = sec_of(secs, "Step 7")
+    # 0.3.0 kit3 (UAT U4): the formal step 6 moved commit to step 7 and the last step to step 8.
+    last = sec_of(secs, "Step 8")
     w7 = re.sub(r"\s+", " ", last)
     for cmd in ("hubkit.py status", "hubflow.py check"):
         m = re.search(re.escape(cmd) + r"[^.]*?\.?`?[^.]*?\b(shows|tells) you\b", w7)
-        check(f"iuxc6 step 7 ends the install with {cmd} and a one-line reason for the user", m is not None, w7[:500])
+        check(f"iuxc6 step 8 ends the install with {cmd} and a one-line reason for the user", m is not None, w7[:500])
     rd = read(os.path.join(ROOT, "hubkit", "README.md"))
     inst = re.search(r"^## Install\n(.*?)(?=^## )", rd, re.M | re.S)
     block = re.findall(r"```sh\n(.*?)```", inst.group(1) if inst else "", re.S)

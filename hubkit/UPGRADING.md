@@ -21,7 +21,9 @@ Sagittarius pair changes. Older sections below say "hub kit": the MindHole's nam
    files the hub did not change, adds new files, and lists each changed engine file as `pending`.
 4. **Merge each pending file by intent.** For each one, find the release section that names it.
    Apply that change's *intent* to the hub's version of the file, and keep the hub's own edits.
-   `git -C "$KIT" diff <old tag> <new tag> -- hub/<path>` shows the release's change. When you are
+   The kit has no release tags: `git -C "$KIT" log -p -- hub/<path>` (or `editions/informal/<path>`
+   for a file of the informal edition) shows the commits that changed the file; read the ones after
+   the hub's version, with the release section that names the change. When you are
    done with a file: `python3 "$KIT"/tools/hubkit.py done --hub "$HUB" <path>`.
 5. **Owned files.** The release sections say when an owned file (`CLAUDE.md`, `.gitignore`, …) needs
    a change. Make it by intent; an upgrade never writes these.
@@ -37,7 +39,11 @@ Sagittarius pair changes. Older sections below say "hub kit": the MindHole's nam
    suites: they test the kit itself, not your hub. Only a UAT upgrade (a hub whose
    `.hub-template.json` records `"uat": true`; `hubkit.py status` says `UAT install`) also runs
    `python3 .claude/scripts/hubflow-test.py` and `hubflow-test.py --mutants` (every mutant KILLED),
-   as step 3 of `INSTRUCTIONS.md` does for a UAT install.
+   as step 3 of `INSTRUCTIONS.md` does for a UAT install. In a formal hub the last line of the plain
+   suite is "N passed, 0 failed, 3 skipped": the 3 SKIP lines say "not run from the kit tree
+   (hubkit/hub)" (`t40-c12-skill-summary-is-no-decision`, `t40-c12-hub-core-raw-reports-agent-reads`,
+   `t42-c6-skill-says-when-to-run-skip-waived`). `--mutants` takes an hour or more on a loaded
+   machine; it prints one line per mutant as each one ends.
 8. **Report and commit.** Show your human the diff of each merged and owned file, and the checks.
    Commit after they agree: `git commit -m "template <old> -> <new>" -- <paths>`.
 
@@ -59,7 +65,7 @@ changed those files, and a check.
 
 ### 0.6.0 (the install experience: what the hub is for, its own orbit-kb, no shell; db schema stays 5)
 
-The version 0.6.0 is a guess: the build chose it (above 0.5.2), not Ty. The db schema is 5, as in 0.5.1:
+The human accepted the version 0.6.0 (the build had chosen it, above 0.5.2). The db schema is 5, as in 0.5.1:
 no `hubflow.py migrate` is needed. Engine files changed: `.claude/scripts/hubflow.py`,
 `hubflow-test.py`, both `SKILL.md`, `HUB-CORE.md`; the two rotation scripts are new Python files and
 the shell scripts are dropped. Replace each engine file the hub did not change; merge the others by
@@ -81,7 +87,8 @@ intent. Owned file `CLAUDE.md`: add one section by hand (below); it still import
   `lake` from the PATH. `install` with no `--edition` now picks informal: the human chooses formal; the
   PATH plays no part (a hub with no edition in `.hub-template.json` still gets formal when orbit-kb is on
   the PATH). Check: `.claude/orbit-kb/bin/orbit-kb --dir project-kb lint` ends `0 error(s)`, and
-  `python3 .claude/scripts/hubflow-test.py` shows no `SKIP`.
+  `python3 .claude/scripts/hubflow-test.py` shows no `SKIP` other than the 3 that say "not run from the
+  kit tree" (step 7 of the procedure above names them).
 - **No engine file is a shell script (install UX c4).** Intent: the hub runs on Python 3 and git, with
   no bash. `rotate.sh` and `check-citations.sh` are now `rotate.py` and `check-citations.py`, with the
   same refusals, renames, reports and exit codes. The plan shows `remove` for the two `.sh` files and
