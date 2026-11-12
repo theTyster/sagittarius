@@ -1,14 +1,14 @@
 # The philosophy of Sagittarius
 
-> Philosophy 2.0.0. Proposed on 2026-11-11, for the author's review. It is a full rework of
-> the text of 2026-11-05 (version 1.0.0), and it replaces that text when the author ratifies
-> it. Words in quote marks with "(the author)" are word for word.
+> Philosophy 2.0.0. Proposed on 2026-11-11, for Ty's review. It is a full rework of
+> the text of 2026-11-05 (version 1.0.0), and it replaces that text when Ty ratifies
+> it. Words in quote marks with "(Ty)" are word for word.
 
 Sagittarius helps a human and an agent to find what the human wants, and then to build it.
 This document holds the beliefs under it. It says why. The prompt says how to act, and
 `orbit-kb help` holds the procedure.
 
-Read this document as a hypothesis, because it is one. It is the author's current attempt to
+Read this document as a hypothesis, because it is one. It is Ty's current attempt to
 say what the project is for. It has premises, and use can show it false. When use shows that a
 belief is wrong, the belief changes, and the project follows. So this document is the frontier
 of the project. It is installed nowhere. The prompt,
@@ -31,7 +31,7 @@ The tiers failed. Nobody knows how much rigor a piece of work needs until a misu
 shows. In practice, the middle tiers emptied into the lowest and the highest.
 
 > "I'm making the bet that even with ASI, humans will still need to explain what they want, and
-> that will continue to be a point of friction." (the author)
+> that will continue to be a point of friction." (Ty)
 
 ## The center
 
@@ -119,12 +119,12 @@ meant. Two failures taught this:
 - An earlier version of this method was a pipeline. Only its second stage read the request.
   Each later stage read only the artifact of the stage before it. Its proofs held, but they did
   not show that the code did what the human wanted.
-- On one project, a redesign was proved only for pure functions. It lost an outcome about
-  timing that an earlier state-machine model guarded. The new design was a "transliteration":
-  it added and changed rules that nobody requested. Its main theorem was always true, so it
-  showed nothing.
+- On one project, the wrong tool was chosen for proofs and a redesign was proved in lean that should
+  have been written in TLA+. It lost an outcome about timing that an earlier model guarded. The new
+  design was a "transliteration" of the TLA+ model: it added and changed rules that nobody
+  requested. Its main theorem was always true, so it showed nothing.
 
-> "We do not write to achieve understanding; we orbit to achieve understanding." (the author)
+> "We do not write to achieve understanding; we orbit to achieve understanding." (Ty)
 
 Work has two levels. The orbit is discovery or build. Discovery makes a problem clear: its
 laps end in a hypothesis and a vote. Build delivers a solution: its laps end in a change and a
@@ -177,7 +177,7 @@ request is clear, the agent states the hypothesis itself, and the work starts in
 > readability, or useability across the entire application and its microservices." That way in
 > case the human just meant "only on this page" or "only this service", then it becomes clear
 > where the assumed failure was. Questions can help narrow that down, but now you've got clear
-> defaults to work from. (the author, 2026-11-11)
+> defaults to work from. (Ty, 2026-11-11)
 
 So the hypothesis is wide on purpose. Each default of the agent is in the sentence, where the
 human can see it and correct it. To state a hypothesis is not to ask a question. The agent
@@ -216,7 +216,7 @@ one check, decides each of them.
 
 A hypothesis has two falsifiers, and each has its own witness. The system is the witness of
 one: a result that the system shows. The human is the witness of the other: a concrete case
-that the human judges. The question for the human is the author's: "is this case your intent?"
+that the human judges. The question for the human is Ty's: "is this case your intent?"
 When the system shows a case that the hypothesis rejects, the case alone does not say which is
 wrong, the build or the hypothesis. The human's judgment of that case says it.
 
@@ -234,7 +234,7 @@ hypothesis stays in the build. Sometimes the human's answer says what the hypoth
 to: "only on this page". Then the agent restates the hypothesis where it is. The new
 hypothesis supersedes the old one, and the human sees it. Discovery exists to form the
 hypothesis, and in a workspace discovery is another agent, so a return has a cost. Clarity
-decides. (The author holds the first half of this rule loosely: "I might say".)
+decides. (Ty holds the first half of this rule loosely: "I might say".)
 
 "A properly written hypothesis" (below) gives the definition.
 
@@ -260,7 +260,7 @@ stacks on top of the earlier result, and changes nothing in it, is a new ticket.
 > If I "liked" the result but want to change it, then the agent and sagittarius need to narrow
 > down what was liked and what was disliked. If the change stacks on top of the previous
 > request without modifying the previous work, then it just counts as a new ticket with its
-> own spec KB. (the author, 2026-11-11)
+> own spec KB. (Ty, 2026-11-11)
 
 A new ticket starts as every ticket starts (principle 10): in words, and in a knowledge base
 of its own when a signal comes. It does not close an old ticket. The earlier ticket keeps what
@@ -302,14 +302,14 @@ responds. The human can overrule both.
 When System 1 and the agent disagree, the agent does not settle it alone.
 
 > "Yeah if S1 and the agent disagree, then it needs to either go to some kind of formalism, or
-> it needs to come to the human, or both." (the author, 2026-11-11)
+> it needs to come to the human, or both." (Ty, 2026-11-11)
 
 This is the one response again (principle 10), and not a new rule. A disagreement between
 System 1 and the agent is a difference between two views. So the agent says it where the human
 can contradict it, or it makes the claim specific enough that a check or a query decides, or
 both. A signal that the agent notices by itself, it says aloud too.
 
-A case: the author has never seen an agent shift up by itself. An audit of one long session
+A case: Ty has never seen an agent shift up by itself. An audit of one long session
 (2026-10-22) found no record at all. Each divergence got an answer ("You're right to flag it")
 and a fix.
 
@@ -338,7 +338,7 @@ base has artifacts too.
 
 Impartial has a limit. The formal artifacts are impartial about what follows from a statement.
 They are not impartial about which statement was written, because an agent chose it. A case
-from 2026-11-11: an agent recorded that two sentences of the author exclude each other, and
+from 2026-11-11: an agent recorded that two sentences of Ty exclude each other, and
 the knowledge base then reported a contradiction. The inference was sound. The reading was the
 agent's.
 
@@ -397,7 +397,7 @@ A prediction does not make a bad result good. A check that fails after the build
 that is not met, also when the agent expected it.
 
 > "Silence, negative space, emptiness, and vacuity are often the predators of clarity,
-> accuracy, and honesty." (the author)
+> accuracy, and honesty." (Ty)
 
 In the prompt: "The idea", "Signals", "The light path".
 
@@ -437,7 +437,7 @@ decide. Clarity decides. A one-line fix can need rigor, and a large change can n
 
 Every signal gets the same response.
 
-> "Shifting up simply means getting more specific and paying closer attention." (the author)
+> "Shifting up simply means getting more specific and paying closer attention." (Ty)
 
 The signals are many, and each needs a well-tempered definition. The response is one, and it
 is easy to trigger. A light model can follow one shape of response. The attention that the
@@ -462,17 +462,17 @@ base. When the cause of a signal is resolved, the rigor that it added stops.
 
 Every ticket has a hypothesis, and that costs one sentence. It must not cost more. The first
 level has no knowledge base, and the agent does not wait for the human to approve the
-sentence. The author's concern is on record, and use will judge it (see "Under trial"):
+sentence. Ty's concern is on record, and use will judge it (see "Under trial"):
 
 > "My concern is that this is going to add a slowdown since there will be more of a process for
 > every change request. I'm hoping that the `orbit-kb` tool will help streamline that I
-> guess." (the author, 2026-11-11)
+> guess." (Ty, 2026-11-11)
 
 A ticket starts in words, and records start on a signal. A knowledge base exists to help find
 the intent. When the intent is clear, there is nothing for it to find.
 
 > "your typo example speaks clearly to me as a trivial change that would never need a KB to
-> discover the intent." (the author, 2026-11-11)
+> discover the intent." (Ty, 2026-11-11)
 
 Where a workspace keeps a record for every ticket, the hypothesis goes into that record. The
 step from words to records is rare, so it must be easy when it comes.
@@ -503,11 +503,11 @@ store that can be queried (Prolog, with SWI-Prolog as the engine) keeps the fact
 in one place. Its rules keep attention on what is still open.
 
 > "We use one language because one language gives us one lens. we should use the right lens
-> for the right problem depending on what we're trying to uncover." (the author)
+> for the right problem depending on what we're trying to uncover." (Ty)
 
 The work uses one formal language at a time. The knowledge base is the exception, because it
 tracks the ticket itself. The aim is to stop a recursive shift up: a signal that fires while
-one language is in use must not start a second one. The author saw that failure in an earlier
+one language is in use must not start a second one. Ty saw that failure in an earlier
 version of the method. System 1 and the agent can help to choose the lens, after a divergence
 is detected.
 
@@ -545,7 +545,7 @@ deleted. Decide on repeated runs, not on one run. When a case passes only if the
 describes that exact case, the limit of the model is a result, not a target.
 
 Evals test whether agents can follow the rules of the prompt and of the `orbit-kb` help. Use
-tests whether the philosophy and the hypotheses pay off: the author's reports from real work
+tests whether the philosophy and the hypotheses pay off: Ty's reports from real work
 are the test reports of the method. No one stakeholder is privileged: the method does not
 optimize for one project. It also does not generalize so far that a stakeholder gets only
 trivial results.
@@ -557,7 +557,7 @@ In the repository: `docs/REFINING.md`.
 
 ## A properly written hypothesis
 
-The author's working sentence is: "a properly written hypothesis is the weakest form of a
+Ty's working sentence is: "a properly written hypothesis is the weakest form of a
 statement that doesn't collapse (it is provable) and doesn't generalize so far as to lose its
 intent." This section makes that sentence exact.
 
@@ -727,7 +727,7 @@ cases of the file have one table, so the small version in the file has no premis
 
 ### A feature: "add a dark mode"
 
-The hypothesis is the author's own attempt (quoted in principle 2). The file holds a small
+The hypothesis is Ty's own attempt (quoted in principle 2). The file holds a small
 version of it, and that version is one reading of the sentence. Every page is in scope.
 "Accessibility, readability, or useability" is one flag. The small version says nothing about
 a screen while dark mode is off.
@@ -741,7 +741,7 @@ a screen while dark mode is off.
 | The human rejects a screen that is dark while dark mode is off. | A claim was missing. | `wide_alwaysDark_falsified` |
 | After both answers. | The narrowed attempt is properly written: one premise and three claims, each held by one of the cases above. | `narrow_properly_written` |
 
-So the definitions agree with the author's reason for the wide sentence. At the moment of the
+So the definitions agree with Ty's reason for the wide sentence. At the moment of the
 request, both scopes are guesses. The wide attempt is the properly written one, because the
 narrow one needs a premise that nothing holds. The answer "only on this page" then refutes the
 wide attempt at exactly one point, and it holds the new premise in place.
@@ -751,7 +751,7 @@ Two notes on the sentence itself, by the rule "remove words":
 - Nobody has named a case that "contain and" rejects, or a case that "compatible" rejects. By
   the rule, such a word goes, or its writer names the case.
 - The sentence may not say what happens while dark mode is off. The case to show is: "the app
-  is dark for every user, with no way back to light". If the author rejects that case, either
+  is dark for every user, with no way back to light". If Ty rejects that case, either
   a claim is missing, or the word "mode" carries it already and the small version reads the
   sentence too weakly.
 
@@ -784,7 +784,7 @@ Two notes on the sentence itself, by the rule "remove words":
 - **A case here is one behavior.** A claim about an order of steps, or about time, needs a
   case that is a sequence.
 - **The agent chooses what a case is,** so the human must read it (principle 6). The dark-mode
-  example shows the risk: one flag stands for three words of the author.
+  example shows the risk: one flag stands for three words of Ty.
 - **It has only the human's judgments.** A default of the agent is an answer that the agent
   gave itself. In the definitions, the case of a default is a case that nobody has judged.
 
@@ -834,19 +834,19 @@ Use has not yet judged these positions. Each one names what would show it wrong.
 
 | Position | What would show it wrong |
 |---|---|
-| Premises ride beside every hypothesis. | The author skips them, or reports them as noise. |
+| Premises ride beside every hypothesis. | Ty skips them, or reports them as noise. |
 | A rule of the prompt needs a case that fails when the rule is deleted. | A rule that clearly matters, for which no such case can be written. |
-| Every ticket has a hypothesis: wide, stated, and not asked. | The author reports that plain requests got slower, or that the sentence reads as a ritual. |
+| Every ticket has a hypothesis: wide, stated, and not asked. | Ty reports that plain requests got slower, or that the sentence reads as a ritual. |
 | The oscillation as one step: show the case just past the boundary, and ask. | The questions are too many, or too strange to answer. |
 | System 1 is recommended, not required. | Sessions without it miss signals that sessions with it catch. Then it is required. |
 | When System 1 and the agent disagree, it goes to the human, or to a formalism, or both. | System 1 names so many false signals that these lines become noise. |
-| Liked, then changed: narrow down what stays and what changes. | The narrowing costs more than the change, or a part that the author liked is lost anyway. |
+| Liked, then changed: narrow down what stays and what changes. | The narrowing costs more than the change, or a part that Ty liked is lost anyway. |
 | The build goes back to discovery only when the agent can no longer say what the hypothesis changes to. | A hypothesis that was restated in build is later found to have changed what the ticket was for. |
 | A ticket starts in words. Records start on a signal. | Agents still miss the step from words to a record, as the audit of 2026-10-22 found, also when the step is cheap. |
 | The claim chooses the third level, not a count of signals. | Claims that needed a formal statement stay in words and records, and the same correction comes back. |
 | The agent says what it expects before it looks. The failure of a check before its change is not a new divergence. | Agents write the expectation after the result, or the line becomes a ritual. |
-| The definition of a properly written hypothesis, with "held" and "guess" as two judgments. | A hypothesis that the definition accepts and the author calls badly written, or the reverse. |
-| The formal statement goes to the human with the plain claim. | The author reports it as noise, or still does not see it. |
+| The definition of a properly written hypothesis, with "held" and "guess" as two judgments. | A hypothesis that the definition accepts and Ty calls badly written, or the reverse. |
+| The formal statement goes to the human with the plain claim. | Ty reports it as noise, or still does not see it. |
 | The formal artifacts vote by readiness, with a knowledge base and without one. | A discovery that was not ready gets a GO that proves right, or a ready one proves wrong, often enough to matter. |
 | One response for every signal. | A signal appears for which the right response has another shape. |
 
