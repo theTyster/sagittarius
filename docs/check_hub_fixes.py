@@ -465,6 +465,11 @@ def m030d1():
     check("m030d1 README.md Panes gives the launcher line of INSTRUCTIONS.md, character for character", start and rl == start[:1], (rl, start[:1]))
     check("m030d1 README.md Panes keeps: command claude, or the full path of the binary",
           "command claude" in panes and "full path of the binary" in re.sub(r"\s+", " ", panes), panes[-300:])
+    pan = re.sub(r"\s+", " ", read(os.path.join(ROOT, "prompt", "PANES.md")))
+    check("m030d1 PANES.md names no tmux session (the launcher names the session hub-<name>; review finding 12)",
+          re.search(r"tmux session|`sagit`", pan) is None, pan[:300])
+    check("m030d1 PANES.md does not take the role from a window line that the launcher does not give",
+          "name of your window" not in pan, pan[:300])
     if len(start) != 1:
         return
     with tempfile.TemporaryDirectory(prefix="m030d1-") as t:
