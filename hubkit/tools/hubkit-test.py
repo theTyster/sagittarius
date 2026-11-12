@@ -5,7 +5,7 @@ usage: python3 -I tools/hubkit-test.py [--mutants] [--case case_NAME ...]
   --mutants  also run the suite against each rule mutant of hubkit.py; each must make a case fail.
 Prints `PASS name` or `FAIL name: why` per case; the last line is `N passed, M failed`.
 """
-import hashlib, json, os, re, shutil, stat, subprocess, sys, tempfile
+import hashlib, json, os, re, shutil, stat, subprocess, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
@@ -407,6 +407,26 @@ def case_iux_c6_uat(r, root):
     r.check("iux-c6-plain-install-is-not-uat", res[0] == 0 and not manifest(plain).get("uat") and "UAT" not in st[1], (res, st[1][:200]))
 
 
+def case_u2_mutants_stream(r):
+    """0.3.0 kit3, UAT U2: hubflow-test.py --mutants prints and flushes one line per mutant as it ends, so a log
+    that is a pipe or a file shows progress. Two mutants on one small case: the first mutant's line must reach
+    the pipe well before the last line (the second mutant still runs then)."""
+    flow = os.path.join(KIT, "hub", ".claude", "scripts", "hubflow-test.py")
+    p = subprocess.Popen([sys.executable, "-I", flow, "--mutants", "--mutant", "lapse-threshold-28-to-27",
+                          "--mutant", "prune-boundary-lt-to-le", "--case", "case_triage"],
+                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    got = []
+    t0 = time.monotonic()
+    for ln in p.stdout:
+        got.append((time.monotonic() - t0, ln.rstrip("\n")))
+    p.wait()
+    mut = [(s, ln) for s, ln in got if " mutant " in ln]
+    r.check("u2-one-line-per-mutant", len(mut) == 2, [ln for _, ln in mut])
+    last = got[-1][0] if got else 0
+    r.check("u2-first-mutant-line-arrives-before-the-end", len(mut) == 2 and last - mut[0][0] > 0.5,
+            [(round(s, 2), ln[:60]) for s, ln in mut] + [round(last, 2)])
+
+
 def cases(r):
     root = tempfile.mkdtemp(prefix="hubkit-test-")
     try:
@@ -427,6 +447,8 @@ def cases(r):
         case_iux_c3_default_edition(r, root)
         case_iux_c3_installed_hub_runs_copy(r, root)
         case_iux_c6_uat(r, root)
+        if r.script == REAL:  # it tests hubflow-test.py, not hubkit.py: the mutants of hubkit.py do not change it
+            case_u2_mutants_stream(r)
     except Exception as e:
         r.check("scenario-ran", False, repr(e))
     finally:

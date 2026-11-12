@@ -52,6 +52,7 @@ SEED = None  # the seed file's path, set per run in cases()
 
 # Each mutant: (name, anchor in hubflow.py that must occur exactly once, replacement).
 MUTANTS = [
+    ("init-prints-nothing", "print(f\"initialized {db_path(d)}", "(f\"initialized {db_path(d)}"),
     ("lapse-threshold-28-to-27", "LAPSE_DAYS = 28", "LAPSE_DAYS = 27"),
     ("prune-boundary-lt-to-le", "closed_at < ?", "closed_at <= ?"),
     ("write-without-session", "if not name:  # session check",
@@ -317,6 +318,10 @@ def case_init(r, root):
     d = os.path.join(root, "init", "flow")
     code, out, err = hf(r, d, "init", "--seed", SEED, session=None)
     r.check("init-exit-0-no-session-needed", code == 0, err)
+    # 0.3.0 kit3, UAT U5: a successful init says so, in one line that names the db, its schema and the seed counts
+    lines = out.strip().splitlines()
+    r.check("u5-init-prints-one-line", len(lines) == 1 and "flow.db" in lines[0] and f"schema {script_version(r.script)}" in lines[0]
+            and "4 sessions" in lines[0] and "2 people" in lines[0], out)
     r.check("init-db-exists", os.path.exists(dbfile(d)))
     if not os.path.exists(dbfile(d)):
         return
