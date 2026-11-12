@@ -5,6 +5,7 @@
     ~/.local/bin/repo-map     -> kb/bin/repo-map
     ~/.local/share/orbit-kb   -> kb/share/orbit-kb
     ~/.claude/sagittarius     -> prompt/  (holds SAGITTARIUS.md)
+    ~/.claude/sagittarius-s1  -> s1/      (the System 1 hook goes where the prompt goes)
 
 Usage: ./install.py          create or fix the links
        ./install.py --check  report each link; exit 1 if any is not OK
@@ -14,7 +15,8 @@ Both print the version that they act on ("Sagittarius X.Y.Z", from the file VERS
 The same on Linux, macOS, and Windows (standard library only). A link that
 already points here is left alone. A link that points elsewhere is replaced,
 and the old target is printed. A real file or directory is never replaced:
-remove it yourself, then run this again.
+remove it yourself, then run this again. After an update, run it again: a release can
+add a link, and --check then reports it as missing.
 
 On Windows, making a symlink needs Developer Mode or an elevated shell.
 """
@@ -29,6 +31,7 @@ LINKS = [
     (HOME / ".local" / "bin" / "repo-map", REPO / "kb" / "bin" / "repo-map"),
     (HOME / ".local" / "share" / "orbit-kb", REPO / "kb" / "share" / "orbit-kb"),
     (HOME / ".claude" / "sagittarius", REPO / "prompt"),
+    (HOME / ".claude" / "sagittarius-s1", REPO / "s1"),
 ]
 
 

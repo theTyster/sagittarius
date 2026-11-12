@@ -23,25 +23,47 @@ slower, same price; the log line has `"long_context": true`). Only beyond 262k i
 cut from its start; the log line then has `"trimmed": true`. The hook sends the complete messages
 as written, with no redaction (T43, u123). It adds one line of context for the agent, for example:
 
-    System 1: work=build (0.83); divergence likely (0.85); effort significant (0.91): consider a shift up; formal tool: prolog (0.72)
+    System 1: work=build (0.83); divergence likely (0.85); effort significant (0.91); formal tool: prolog (0.72)
 
+- The line only reports. It gives the agent no instruction: the prompt says what to do with a
+  hint ("System 1" in `prompt/SAGITTARIUS.md`).
 - An answer in the unsure band is left out (yes/no: `jev.band`; a choice: P(choice) < 0.5).
-  When no answer is outside the band, the hook prints nothing.
-- When divergence and change of plan are both likely, the line says
-  `divergence or change of plan: check which (prompt rule)`.
+  When every answer is in the band, the line is `System 1: unsure`.
+- The line names a formal tool only beside a signal (divergence likely, change of plan likely,
+  effort significant), or when a proof is asked for (the tool is `lean`).
 - Output: `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "..."}}`
   (https://code.claude.com/docs/en/hooks, "UserPromptSubmit decision control").
-- It fails open. On any error, a timeout, a missing key, a missing questions file or bad stdin,
-  it prints nothing and exits 0. It never blocks a prompt.
+- It fails open, and says so. On any error, a timeout, a missing key, a missing questions file or
+  bad stdin, the line is `System 1: no view (<reason>)`, for example `System 1: no view (no API
+  key)`, and the hook exits 0. The details go to the log. It never blocks a prompt.
+- It prints nothing only when it is off (`S1_OFF=1`). So no line means that the hook is off or not
+  installed, never that the hook saw no signal.
 
-**Status: Ty has not approved the question set yet (u44).** `questions.json` is the review
-session's calibrated set (22 of 25 known cases), copied unchanged.
+**Status: the hook is recommended, not required.** Sagittarius works without it, and the prompt
+says that no line means no outside view. `questions.json` is the review session's calibrated set
+(22 of 25 known cases), copied unchanged.
 
-### Install (Ty pastes this; no script installs it)
+### What the hook cannot see
 
-1. Set `TYPESAFE_API_KEY` in the environment that starts `claude`.
-2. Paste this into the `hooks` of your `~/.claude/settings.json`. Change the path if the checkout
-   is not at `/path/to/sagittarius`:
+The hook runs on one event: a prompt that the human submits (`UserPromptSubmit`). So it gives an
+outside view of a message of the human, and of no other signal:
+
+- a result inside a turn (a check that passes when it must fail, a test result that differs from
+  what the agent expected);
+- a subagent's build (a build by someone else);
+- a compaction (a handoff inside the session);
+- a peer message (a message from a peer session is a handoff). The hook reads every prompt as a
+  message of the human, so a long message of a peer session reads as effort of the human.
+
+For these signals, the agent is the only witness. Which signal gets a second hook event first is a
+design question that is not decided.
+
+### Install (you paste this; no script writes `settings.json`)
+
+1. Run `./install.py` from the repo root. It links this folder to `~/.claude/sagittarius-s1`, the
+   path that the snippets below use. Run it again after a release that adds a link.
+2. Set `TYPESAFE_API_KEY` in the environment that starts `claude`.
+3. Paste this into the `hooks` of your `~/.claude/settings.json`:
 
 ```json
 {
@@ -51,7 +73,7 @@ session's calibrated set (22 of 25 known cases), copied unchanged.
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /path/to/sagittarius/s1/hook.py",
+            "command": "python3 ~/.claude/sagittarius-s1/hook.py",
             "timeout": 10
           }
         ]
@@ -81,7 +103,7 @@ Set `S1_OFF=1`: for one session, start it with `S1_OFF=1 claude`; for all sessio
 
 Each log line is the `jev.py` record (no key; the state as sent) plus `session_id` and
 `transcript` (the basename of the transcript path).
-When the hook makes no call or prints nothing because of a problem (bad stdin, no
+When the hook makes no call or has no view because of a problem (bad stdin, no
 questions, no key, a timeout, no answers, bad answers), it writes one line with a `skipped`
 reason. `S1_OFF=1` writes nothing. The hook reads the last 2 MiB of the transcript, and goes back at most 8 MiB until it has the messages.
 
@@ -99,7 +121,8 @@ newest log line of that session:
 The parts are the five judgments of the hook (T29 c6): the `h_work` choice, P(`h_divergence`),
 P(`h_change_of_plan`), P(`h_effort`), and the `h_language` choice (the formal tool). Each part shows
 only outside the unsure band, as the hook decides it: a yes/no answer when P <= 0.3 or P >= 0.7, a
-choice when its P is 0.5 or more.
+choice when its P is 0.5 or more. As in the hook, the tool shows only beside a signal (a yes/no
+part at 0.7 or more), or when it is `lean`.
 
 - It prints nothing when the log is missing, when the session has no line, when stdin has no
   `session_id`, or when the newest line of the session is 10 minutes old or older.
@@ -110,15 +133,16 @@ choice when its P is 0.5 or more.
 - It reads only the end of the log (64 KiB blocks, at most 8 MiB back). It never calls the network
   and imports no network module. It uses `S1_LOG` like the other s1 tools.
 
-### Install (Ty pastes this; nothing installs it)
+### Install (you paste this; no script writes `settings.json`)
 
-Alone, in `~/.claude/settings.json`. Change the path if the checkout is elsewhere:
+After `./install.py` (it makes the link `~/.claude/sagittarius-s1`), paste this alone into
+`~/.claude/settings.json`:
 
 ```json
 {
   "statusLine": {
     "type": "command",
-    "command": "python3 /path/to/sagittarius/s1/statusline.py"
+    "command": "python3 ~/.claude/sagittarius-s1/statusline.py"
   }
 }
 ```
@@ -134,7 +158,7 @@ Wrap both in a small script that saves stdin and feeds it to each. Save as
 #!/bin/sh
 input=$(cat)
 base=$(printf '%s' "$input" | EXISTING_COMMAND)
-s1=$(printf '%s' "$input" | python3 /path/to/sagittarius/s1/statusline.py)
+s1=$(printf '%s' "$input" | python3 ~/.claude/sagittarius-s1/statusline.py)
 printf '%s' "$base"
 [ -n "$s1" ] && printf ' | %s' "$s1"
 printf '\n'
@@ -146,3 +170,30 @@ newline instead of the ` | ` join. Trying it without installing:
 
 Tests (no network): `python3 -m unittest s1.test_statusline -v`. One claim alone:
 `python3 -m unittest s1.test_statusline.C2Stale -v`.
+
+## The observation harness (0.3.0, suggestion 3)
+
+`observe.py` compares the log of the hook with the session transcripts, after the fact. The hook
+does not ask the agent to acknowledge a hint, so it stays fast; this tool reads afterwards. It
+reads only, and calls no network.
+
+    python3 s1/observe.py --log ~/.claude/logs/s1.jsonl --transcripts ~/.claude/projects [--json] [--session ID]
+
+For each session that the log names, and for all of them, it counts the hints that named a
+signal, the hints after which the agent shifted up, the hints that the agent disputed, and the
+shifts with no hint. For example: "2 hints named a signal; the agent shifted up after 1; the agent
+disputed 1; the agent shifted up 1 time with no hint." `--json` prints the keys `hints`,
+`shifted_after_hint`, `disputed`, `shifts_without_hint`, `sessions` and `limits`.
+
+Its limits (it prints them too):
+
+- A shift is a line that starts with `Shifting up:`. The prompt allows other words; the tool
+  misses those.
+- A dispute is a delivery in the same turn whose `Signals:` field says "no" for the signal that
+  the hint named. A dispute in one line with no delivery is not counted.
+- A hint names a signal only in the yes band (P >= 0.7) of divergence, change of plan, effort,
+  and, when the question set has them, proof and questions.
+- A hint goes to the turn of its prompt: by the message text in the log line, else by the
+  nearest prompt in time (at most 5 minutes).
+
+Tests (no network; invented transcripts only): `python3 -m unittest s1.test_observe -v`.

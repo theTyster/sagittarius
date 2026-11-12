@@ -20,6 +20,8 @@ when P(choice) >= 0.5 (probabilities[choice], else confidence; hook.py CHOICE_MI
 - Newest line is an error line (error set, or answers null): prints `S1 err`.
 - A choice (work, tool) with P below 0.5 is left out; a yes/no answer inside the band (0.3, 0.7) is
   left out.
+- The tool shows only beside a signal (div, plan or eff at 0.7 or more), or when it is lean (a
+  proof is asked for), as in the hook (0.3.0 S-A).
 - A missing or malformed answer is left out of the segment; with none left, nothing is printed.
 - The log is read from its end in 64 KiB blocks, stopping at the first line that matches (at most
   MAX_SCAN bytes back). It never reads the whole file.
@@ -121,6 +123,7 @@ def render(session_id, log_path, now=None):
         if rec.get("error") or not isinstance(answers, dict):
             return "S1 err"
         parts = []
+        signal = False
         c = _choice(answers.get("h_work"))
         if c:
             parts.append(c)
@@ -128,8 +131,9 @@ def render(session_id, log_path, now=None):
             p = _p(answers, qid)
             if p:
                 parts.append(f"{label} {p}")
+                signal = signal or float(p) >= YES_MIN
         lang = _choice(answers.get("h_language"))
-        if lang:
+        if lang and (signal or lang == "lean"):  # 0.3.0 S-A: the tool only beside a signal, or Lean
             parts.append(f"tool {lang}")
         return ("S1 " + " | ".join(parts)) if parts else ""
     except Exception:
