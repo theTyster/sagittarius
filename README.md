@@ -197,7 +197,7 @@ python3 docs/test_check_lean.py            # the tests of that check
 python3 docs/check_mutants.py              # each docs check passes on the tree, and fails on a copy that lost what it holds
 python3 docs/check_mindhole.py --list      # the MindHole checks of 0.3.0, one id each (mb2 to mb5 read the kit only, not the design KB)
 python3 docs/test_check_mutants.py         # the tests of that check
-python3 docs/check_terms.py                # a text that an agent reads uses no retired term (trigger, Lean model, SIGNAL, ...)
+python3 docs/check_terms.py                # a text that an agent reads uses no retired term (the list is in the script)
 python3 docs/test_check_terms.py           # the tests of that check
 python3 docs/check_examples.py --list      # the worked examples of the prompt have one verdict: c1 Lean, c2 help, c3 philosophy, c4 temper.py's recording
 python3 docs/test_check_examples.py        # the tests of that check
