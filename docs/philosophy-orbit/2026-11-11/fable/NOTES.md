@@ -5,6 +5,45 @@ These notes carry the work across a compaction. Read them first. Then read the K
 and the `ty_*` decisions in its `kb.pl`. The KB holds Ty's words. These notes hold the state
 and the plan.
 
+## 0. Status on 2026-11-12, 03:20 UTC (read this first; it is newer than section 1)
+
+Ty ruled at 03:04 UTC: "your defaults are good." "Alignment is good too." Ty ruled on
+suggestions 1 to 6, said "we will be using this finalized version", and asked for three things:
+keep the versions of the three models in `docs/` with an account; one spec KB for the
+decisions of this session; and "prepare to pass everything off to the build orbit. I'll have
+you do one more thing before we finally pass it off." The whole message is the request `r1`
+of the spec KB.
+
+Done:
+
+- **The version in use** is commit `99bf5c2` on this branch. That commit is Ty's own edits to
+  `docs/PHILOSOPHY.md` ("the author" became "Ty"; the second failure under principle 5 was
+  reworded). Fable found them uncommitted in the worktree and committed them as they were.
+  The first lines of the philosophy still say "Proposed": Ty edited those lines and kept the
+  word, so Fable did not change it.
+- **The archive:** `docs/philosophy-orbit/2026-11-11/README.md` (the account, with no opinion
+  on any model's work), `mythos/` and `astra/` (byte-for-byte copies of the two documents of
+  each), commit `700fd4f`. `fable/Hypothesis.lean` is logged there.
+- **The spec KB:** `/home/ty/Projects/mine/sagittarius/tmp/kb-sagittarius-030` (modules
+  discovery and project). One hypothesis `h1` with four premises (`a1` to `a4`), 31 claims
+  (`c_k_a` ... `c_sg5`), each with an example and a check that is red on `main`
+  (`checks/check.py`, runs 1 to 31), Ty's answers to `q1` to `q3`, one dormant question `q4`,
+  scope, six risks. Each package claim pins its ratified decision in `tmp/alignment-kb`.
+  `discovery_ready` is true and lint is clean. `TICKET.md` there is the draft of the ticket,
+  with a section for the build orbit.
+- `ALIGNMENT.md` and `SUGGESTIONS.md` record Ty's rulings.
+
+Not done, on purpose: no vote is sealed or asked (Ty has one more thing first); `uses build`
+is not run; nothing is landed on `main`; no build work started.
+
+After Ty's "one more thing": seal the vote (`orbit-kb attest vote r1 'vote(1, ...)'`), give
+the report and ask "Vote GO, NO-GO, or HOLD."; on GO: `orbit-kb subject tk TICKET.md`,
+`add "ticket(tk)"`, `attest approval tk 'digest(current)' --by human`, `uses build`, `lint`,
+`release`, and hand the KB path to the build orbit.
+
+A guess to confirm with Ty: "that one" in the answer to suggestions 1 and 2 is
+`tmp/hub-design-kb` (`q4`, `a4`).
+
 ## 1. Status
 
 The final revision of `prompt/SAGITTARIUS.md` and `docs/PHILOSOPHY.md` is done and committed
