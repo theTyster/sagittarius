@@ -3,7 +3,7 @@
 hub's rules, a handoff carries the KB, a closed ticket leaves its outcomes, and the display name.
 One check per claim of the spec KB (tmp/kb-sagittarius-030).
 
-usage: python3 docs/check_mindhole.py mb1|mb2|mb3|mb4|mb5|mb6|mb7|mf1|mf4|mg|mg2|u1|u2|u3|u4|u6 [--list]   (--list prints the ids)
+usage: python3 docs/check_mindhole.py mb1|mb2|mb3|mb4|mb5|mb6|mb7|mf1|mf4|mg|mg2|u1|u2|u3|u4|u6|lp [--list]   (--list prints the ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 mb1 (c_m_b_1) both HUB-CORE.md files tell a session to read its inbox (`view v_inbox`) at session start and
@@ -40,6 +40,8 @@ u3  (UAT U3) the commit step of INSTRUCTIONS.md checks `git config user.name` an
     commit, and asks the human when one is empty.
 u4  (UAT U4) a numbered step before the commit step makes the project store of a formal hub: the step points
     at "The formal edition", whose part with the same step number gives the project KB setup line.
+lp  (review 2, finding 6) the informal HUB-CORE.md states the light path in its own paragraph, in its own words:
+    an informal hub has no Sagittarius prompt, so the paragraph cites no prompt and names what brings review in.
 u6  (UAT U6) both CLAUDE.md templates (formal and informal) have a section for the human's own notes, such
     as a project order.
 """
@@ -340,7 +342,18 @@ def u6():
         check(f"u6 the {label} section says the notes are the human's", "human" in sec, sec[:200])
 
 
-CLAIMS = {k: globals()[k] for k in ("mb1", "mb2", "mb3", "mb4", "mb5", "mb6", "mb7", "mf1", "mf4", "mg", "mg2", "u1", "u2", "u3", "u4", "u6")}
+def lp():
+    sec = section(read(ICORE), "Verify")
+    paras = [flat(p) for p in re.split(r"\n\s*\n", sec) if p.strip()]
+    lpp = [p for p in paras if "light path" in p]
+    check("lp the informal Verify section has one light path paragraph", len(lpp) == 1, lpp)
+    if lpp:
+        check("lp the light path paragraph cites no prompt (an informal hub has none)", "prompt" not in lpp[0], lpp[0][:200])
+        check("lp the light path paragraph is apart from the verifier rule", "Verify belongs" not in lpp[0], lpp[0][:300])
+        check("lp the paragraph names what brings review in", all(w in lpp[0] for w in ("handoff", "disagree", "asks")), lpp[0][:300])
+
+
+CLAIMS = {k: globals()[k] for k in ("mb1", "mb2", "mb3", "mb4", "mb5", "mb6", "mb7", "mf1", "mf4", "mg", "mg2", "u1", "u2", "u3", "u4", "u6", "lp")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
