@@ -115,8 +115,9 @@ The last line of the plain suite says how many checks passed, failed and skipped
 must be "N passed, 0 failed, 3 skipped". The 3 SKIP lines say "not run from the kit tree
 (hubkit/hub)": `t40-c12-skill-summary-is-no-decision`, `t40-c12-hub-core-raw-reports-agent-reads`
 and `t42-c6-skill-says-when-to-run-skip-waived` read files of the kit tree that a hub does not have.
-In an informal hub more checks skip: the ones that say "no orbit-kb at ..." and "the informal
-edition has no kb refs". Any other SKIP, and any FAIL, is a defect of the kit.
+In an informal hub more checks skip: the ones that need the formal tools (their SKIP line names
+the missing tool), and the one that says "the informal edition has no kb refs". Any other SKIP, and
+any FAIL, is a defect of the kit.
 
 `--mutants` runs the whole suite once for each mutant: it takes an hour or more on a loaded machine.
 It prints one line per mutant as each one ends (`PASS mutant NAME: KILLED`), so a log that grows

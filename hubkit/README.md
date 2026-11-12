@@ -103,4 +103,6 @@ python3 -I hub/.claude/scripts/hubflow-test.py --mutants
 ```
 
 Each suite also runs a set of mutants (deliberately broken copies of the tool). Every mutant must
-fail at least one test, which shows that the tests can catch the defect.
+fail at least one test, which shows that the tests can catch the defect. The mutants of
+`hubflow-test.py` take an hour or more on a loaded machine; it prints one line per mutant as each
+one ends.
