@@ -3,6 +3,7 @@
 # c1  README.md has a "Use it" section: install, start a hub, the hook (optional, manual).
 # c2  A fresh install in a scratch HOME works; install.py never writes a settings file.
 # c3  hubkit/kit.json version is higher than the first one; CHANGELOG.md has the redesign entry.
+# c4  (0.3.0) VERSION, the last line of the prompt and a CHANGELOG heading agree; install.py --check prints the version.
 # Exit: 0 all pass, 1 a check failed.  Prints `pass=N fail=N`.
 set -u
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
@@ -78,6 +79,12 @@ for w in "hub kit" philosophy "spec KB" "Jev" "flow ledger" "Lean" "small prompt
     grep -qi -- "$w" "$cl" 2>/dev/null && ok "c3-changelog-$w" || bad "c3-changelog-$w" "CHANGELOG.md lacks: $w"
 done
 grep -q '0\.2\.0' "$cl" 2>/dev/null && ok c3-changelog-version || bad c3-changelog-version "CHANGELOG.md does not name hubkit 0.2.0"
+
+# c4 (0.3.0, V-A): one source for the version
+python3 "$repo/docs/check_version.py" >"$scratch/ver.out" 2>&1 && ok c4-version-agrees || bad c4-version-agrees "$(cat "$scratch/ver.out")"
+v=$(tr -d '[:space:]' <"$repo/VERSION")
+export_home python3 "$repo/install.py" --check 2>&1 </dev/null | grep -q "Sagittarius $v" \
+    && ok c4-install-check-prints-version || bad c4-install-check-prints-version "install.py --check does not print Sagittarius $v"
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

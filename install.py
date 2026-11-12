@@ -9,6 +9,8 @@
 Usage: ./install.py          create or fix the links
        ./install.py --check  report each link; exit 1 if any is not OK
 
+Both print the version that they act on ("Sagittarius X.Y.Z", from the file VERSION) first.
+
 The same on Linux, macOS, and Windows (standard library only). A link that
 already points here is left alone. A link that points elsewhere is replaced,
 and the old target is printed. A real file or directory is never replaced:
@@ -30,6 +32,14 @@ LINKS = [
 ]
 
 
+def version():
+    """The version of Sagittarius: the file VERSION (one source; docs/check_version.py holds the rest to it)."""
+    try:
+        return (REPO / "VERSION").read_text(encoding="utf-8").strip() or "unknown"
+    except OSError:
+        return "unknown"
+
+
 def link_target(dst):
     return Path(os.readlink(dst)) if dst.is_symlink() else None
 
@@ -40,6 +50,7 @@ def main(argv):
         return 2
     check = argv == ["--check"]
     bad = 0
+    print(f"Sagittarius {version()}" + (" (checked)" if check else ""))
     for dst, src in LINKS:
         old = link_target(dst)
         if old == src:

@@ -79,9 +79,20 @@ def band(p):
     return "unsure"
 
 
-def _log(path, key, record):
-    """Append one JSON line. The key is scrubbed from the line. Never raises."""
+def sagittarius_version():
+    """The version of Sagittarius, from the VERSION file at the root of this checkout ("unknown" if none)."""
     try:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION"), encoding="utf-8") as f:
+            return f.read().strip() or "unknown"
+    except OSError:
+        return "unknown"
+
+
+def _log(path, key, record):
+    """Append one JSON line. The key is scrubbed from the line. Never raises.
+    Each line holds the version of Sagittarius ("sagittarius"), so a report from use says what ran."""
+    try:
+        record = {**record, "sagittarius": record.get("sagittarius") or sagittarius_version()}
         line = json.dumps(record, ensure_ascii=False, default=str)
         if key:
             for k in {key, json.dumps(key)[1:-1]}:
