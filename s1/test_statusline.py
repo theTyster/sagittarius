@@ -27,7 +27,8 @@ SCRIPT = os.path.join(HERE, "statusline.py")
 sys.path.insert(0, HERE)
 
 T0 = dt.datetime(2026, 11, 6, 1, 20, 20, 376000, tzinfo=dt.timezone.utc)
-QIDS = ["h_work", "h_divergence", "h_change_of_plan", "h_effort", "h_language"]
+QIDS = ["h_work", "h_divergence", "h_change_of_plan", "h_effort", "h_language",
+        "h_questions", "h_proof"]
 
 
 def sl():
@@ -181,6 +182,16 @@ class C4FiveJudgments(Base):
 
     def noul(self, p):
         return {"type": "noul", "noul": p}
+
+    def test_proof_and_questions_show_outside_the_band(self):  # 0.3.0 S-C
+        got = self.seg(h_proof=self.noul(0.9), h_questions=self.noul(0.85))
+        self.assertIn("proof 0.90", got)
+        self.assertIn("ques 0.85", got)
+
+    def test_proof_and_questions_inside_the_band_are_left_out(self):  # 0.3.0 S-C
+        got = self.seg(h_proof=self.noul(0.5), h_questions=self.noul(0.5))
+        self.assertNotIn("proof", got)
+        self.assertNotIn("ques", got)
 
     def test_all_five_outside_the_band(self):
         got = self.seg(h_divergence=self.noul(0.85), h_change_of_plan=self.noul(0.1),

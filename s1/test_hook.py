@@ -27,7 +27,8 @@ import jev  # noqa: E402
 KEY = "sk-test-HOOK-SECRET-456"
 with open(os.path.join(HERE, "fixtures", "hook_responses.json")) as _f:
     RECORDED = json.load(_f)
-QIDS = ["h_work", "h_divergence", "h_change_of_plan", "h_effort", "h_language"]
+QIDS = ["h_work", "h_divergence", "h_change_of_plan", "h_effort", "h_language",
+        "h_questions", "h_proof"]  # 0.3.0 S-C adds the last two
 TICKET_LINE = ("System 1: work=build (0.83); divergence likely (0.85); effort significant (0.91); "
                "formal tool: prolog (0.72)")  # 0.3.0 S-A: the line only reports (": consider a shift up" went)
 UNSURE_LINE = "System 1: unsure"  # 0.3.0 S-A: every answer in the unsure band
@@ -159,7 +160,7 @@ class C1State(Base):
         self.assertEqual(sorted(q), sorted(QIDS))
         self.assertEqual(q["h_work"]["type"], "choice")
         self.assertEqual(q["h_language"]["type"], "choice")
-        for k in ("h_divergence", "h_change_of_plan", "h_effort"):
+        for k in ("h_divergence", "h_change_of_plan", "h_effort", "h_questions", "h_proof"):
             self.assertEqual(q[k]["type"], "noul")
 
     def test_c1_sends_the_questions_file(self):
@@ -915,7 +916,7 @@ class T43C1Questions(unittest.TestCase):
         q = self.load()
         self.assertEqual(q["h_divergence"], {"type": "noul", "instructions": self.H_DIVERGENCE})
 
-    def test_t43_c1_other_four_questions_unchanged(self):
+    def test_t43_c1_other_four_questions_unchanged(self):  # 0.3.0 S-C: h_questions and h_proof are new
         q = self.load()
         self.assertEqual(sorted(q), sorted(QIDS))
         for k, v in self.SHIPPED.items():
@@ -1071,6 +1072,65 @@ class VA4Link(Base):
         lines = self.log_lines()
         self.assertTrue(lines)
         self.assertEqual({x["sagittarius"] for x in lines}, {self.want})
+
+
+class SC1NewQuestions(Base):
+    """0.3.0 S-C (c_s_c_1): the question set asks about the two signals that it did not ask about:
+    a round of questions that did not settle (h_questions) and a proof that the human asks for
+    (h_proof). The line reports each in the yes band, and only then. No model call."""
+
+    answers = SA3FormalTool.answers
+    line = SA3FormalTool.line
+
+    def test_questions_are_in_the_set_and_say_what_they_ask(self):
+        with open(os.path.join(HERE, "questions.json"), encoding="utf-8") as f:
+            q = json.load(f)
+        self.assertIn("round of questions", q["h_questions"]["instructions"])
+        self.assertIn("proof", q["h_proof"]["instructions"])
+        self.assertIn("`message`", q["h_questions"]["instructions"])
+        self.assertIn("`message`", q["h_proof"]["instructions"])
+
+    def test_line_names_a_proof_that_is_asked(self):
+        out = self.line(lang="tests", extra={"h_proof": {"type": "noul", "noul": 0.92}})
+        self.assertIn("proof asked (0.92)", out)
+
+    def test_line_names_a_round_that_did_not_settle(self):
+        out = self.line(lang="tests", extra={"h_questions": {"type": "noul", "noul": 0.88}})
+        self.assertIn("questions not settled (0.88)", out)
+
+    def test_no_and_unsure_answers_are_left_out(self):
+        for p in (0.05, 0.5):
+            out = self.line(lang="tests", extra={"h_proof": {"type": "noul", "noul": p},
+                                                 "h_questions": {"type": "noul", "noul": p}})
+            self.assertNotIn("proof", out, p)
+            self.assertNotIn("questions", out, p)
+
+    def test_a_response_without_them_is_still_valid(self):
+        self.assertEqual(self.line(), "System 1: work=build (0.90)")
+
+    def test_a_malformed_new_answer_is_no_view(self):
+        out = self.line(extra={"h_proof": {"type": "noul", "noul": 7}})
+        self.assertIn("System 1: no view (", out)
+
+    def test_questions_not_settled_is_a_signal_for_the_tool(self):
+        out = self.line(lang="z3", extra={"h_questions": {"type": "noul", "noul": 0.9}})
+        self.assertIn("formal tool: z3 (0.90)", out)
+
+
+class SC2Readme(unittest.TestCase):
+    """0.3.0 S-C (c_s_c_2): s1/README.md says why a request is not reported as a divergence, and that
+    System 1 does not help with the narrowing."""
+
+    def setUp(self):
+        with open(os.path.join(HERE, "README.md"), encoding="utf-8") as f:
+            self.flat = " ".join(f.read().split())
+
+    def test_a_request_is_the_first_divergence_of_its_ticket(self):
+        self.assertRegex(self.flat, r"(?i)request is the first divergence of its ticket")
+        self.assertRegex(self.flat, r"(?i)light path is the response")
+
+    def test_no_help_with_the_narrowing(self):
+        self.assertRegex(self.flat, r"(?i)does not help with the narrowing")
 
 
 if __name__ == "__main__":
