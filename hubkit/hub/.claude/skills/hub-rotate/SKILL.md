@@ -55,7 +55,7 @@ recorded disposition at the rotation, never a silent lapse.
 
 Before anything stays behind to roll off, ask: **is it durable?** If yes, promote it out of the week
 dirs: a root file (`HEURISTICS.md`, `TECHNOLOGIES.md`, `CLAUDE.md`), a skill, or the project KB
-(a domain decision, a definition, a pin of the world: `orbit-kb help project`).
+(a domain decision, a definition, a pin of the world: `.claude/orbit-kb/bin/orbit-kb help project`).
 Dropping durable knowledge at a week boundary is the one failure this design can produce.
 
 ## Citations
@@ -73,7 +73,7 @@ Dropping durable knowledge at a week boundary is the one failure this design can
    `SendMessage` to reach a stopping point). `git status`: a peer's in-progress file inside a week
    dir is passed with `--leave <path>` and left for its owner. Check `W0/WEEK.md` line 1 is the week
    that just ended. Commit `flow/jsonl/` if dirty.
-1. **Citation baseline.** `$SK/check-citations.sh > $SCR/citations-before.tsv`
+1. **Citation baseline.** `python3 $SK/check-citations.py > $SCR/citations-before.tsv`
 2. **Triage.** `python3 .claude/scripts/hubflow.py rotate --week-start <today's Monday>` lists the
    `untriaged` due items and exits 1 until each has a disposition. For each one, read
    `hubflow.py show ID` (its capsule comes first) and record one:
@@ -82,8 +82,8 @@ Dropping durable knowledge at a week boundary is the one failure this design can
    `hubflow.py capsule ID --summary "…"` and then `triage ID capsule`. hubflow turns an agent's
    keep or lapse of a blocking item into `escalate`. List the escalated items for the human in the
    report: they stay open until the human decides. Rerun the dry run until it exits 0.
-3. **Mechanical rename.** `$SK/rotate.sh --dry-run --leave …`, then `$SK/rotate.sh --leave …`.
-   Exit 3: stop and fix. Then `$SK/rotate.sh --verify && git commit -m "rotation <date>: retire W5,
+3. **Mechanical rename.** `python3 $SK/rotate.py --dry-run --leave …`, then `python3 $SK/rotate.py --leave …`.
+   Exit 3: stop and fix. Then `python3 $SK/rotate.py --verify && git commit -m "rotation <date>: retire W5,
    W4→W5 … W0→W1"`. This one commit has **no** pathspec, on purpose (a pathspec would sweep the
    `--leave` files' unstaged edits in); `--verify` on the line before proves the index holds only
    the rotation.
@@ -101,7 +101,7 @@ Dropping durable knowledge at a week boundary is the one failure this design can
    `--yes` also rebuilds the Claude Code session index from the renamed week dirs
    (`transcripts_reindexed:`), so moved sessions get their new paths and the retired `W5`'s rows
    go. It lapses each `summary` row that is 28 days old by itself (`lapsed:`); none needs a triage.
-6. **Citations after.** `$SK/check-citations.sh > $SCR/citations-after.tsv` and compare with the
+6. **Citations after.** `python3 $SK/check-citations.py > $SCR/citations-after.tsv` and compare with the
    baseline. A citation that broke or now resolves to a different week: tombstone it.
 7. **Commit** the editorial half with a pathspec. Report: what moved, each disposition, what is
    escalated to the human, what was promoted, and anything you could not check.

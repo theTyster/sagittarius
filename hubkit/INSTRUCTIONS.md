@@ -1,13 +1,12 @@
 # Instructions for the agent: set up a hub with the hub kit
 
 This is the hub kit, part of Sagittarius (<https://github.com/theTyster/sagittarius>): its informal
-release. It needs Python 3, git and bash (`README.md`, "Install", lists the tools), and no formal
-tools.
+release. It needs Python 3 and git (`README.md`, "Install"): no bash, and no formal tools.
 
 You are setting up a **hub**: a git repo that a few long-lived Claude Code sessions share as their
 working memory. Read this whole file before you do anything. Do the steps in order. Each step ends
 with a check; do not go on until it passes. Ask your human the questions in step 1 before you write
-files.
+files. Step 3 is for a UAT install only; a normal install skips it.
 
 ## What the pattern is (read this to your human in your own words)
 
@@ -62,41 +61,57 @@ Owned files belong to the hub, and an upgrade never changes them. So put local r
 and in a skill's `LOCAL.md`, not in `HUB-CORE.md` or a shipped `SKILL.md`. `kit.json` lists which is
 which.
 
-## Step 1: brief your human, then ask (one round, at most three questions)
+## Step 1: brief your human, then ask (one round, the cold-start allowance)
 
 First ask your human to open `docs/index.html` in a browser. It explains the pattern, their part,
-and what to say to you. Then ask:
+and what to say to you. Then ask, in one round. Setup is the one place where you may ask more than
+three questions at once: a cold-start allowance, for this step only.
 
-
-1. Where should the hub live (a new directory; it becomes a git repo)? Default: `~/hub`.
-2. Which sessions (one name per role), and which people do items wait on? Default: the five in
+1. What is this hub for? Ask it first, and keep the answer word for word: it goes into `CLAUDE.md`
+   (step 2), which every session loads, so no agent has to guess what the hub is for. Do not
+   paraphrase it, and do not suggest an answer before your human gives one.
+2. Where should the hub live (a new directory; it becomes a git repo)? Default: `~/hub`.
+3. Which sessions (one name per role), and which people do items wait on? Default: the five in
    `hub/flow/seed.json`, and one person `me` for your human.
-3. Which tracker holds tickets (GitHub Issues, Jira, Linear, …)? It only changes wording in
+4. Which tracker holds tickets (GitHub Issues, Jira, Linear, …)? It only changes wording in
    `CLAUDE.md`; refs are `issue:<digits>`, `pr:<digits>`, or `url:<url>`.
+5. Is this a UAT install: one that tests the kit itself, before a release? Default: no.
 
 ## Step 2: lay out the hub
 
+`HUB` is answer 2, and `KIT` is this kit's directory. Each line is one `git` or `python3` command,
+so any shell runs it; add `--uat` to the install line when answer 5 is yes:
+
 ```
-HUB=<answer 1>; KIT=<this kit's directory>
-mkdir -p "$HUB" && cd "$HUB" && git init
-python3 "$KIT"/tools/hubkit.py install --hub "$HUB" --edition informal
+git init "$HUB"
+python3 "$KIT/tools/hubkit.py" install --hub "$HUB" --edition informal
 ```
 
-Edit only owned files: `W0/WEEK.md` line 1 (this week's Monday → Sunday); the tracker and the
-sessions in `CLAUDE.md`; `flow/seed.json`, with the session names (answer 2) and the people.
+The later steps run from the hub root: change into `$HUB` first.
 
-**Check:** `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` names the informal edition and lists
-every engine file as `unchanged`; `CLAUDE.md` and `flow/seed.json` name the same sessions.
+Edit only owned files: in `CLAUDE.md`, put answer 1, word for word, under `## What this hub is for`
+(replace the placeholder; no paraphrase), then the tracker and the sessions; `W0/WEEK.md` line 1
+(this week's Monday → Sunday); `flow/seed.json`, with the session names (answer 3) and the people.
 
-## Step 3: prove the db tool on this machine
+**Check:** `python3 "$KIT/tools/hubkit.py" status --hub "$HUB"` names the informal edition (and
+`UAT install` if you added `--uat`) and lists every engine file as `unchanged`; `CLAUDE.md` holds
+answer 1 word for word; `CLAUDE.md` and `flow/seed.json` name the same sessions.
+
+## Step 3: UAT installs only: test the kit
+
+A normal install skips this step: go to step 4. These tests test the kit itself, not your hub: they
+run the db tool in temp dirs and never read the hub, and the mutants check that the tests can catch a
+broken tool. A user cannot act on their result; the kit's maintainers can. So they run only when your
+human said yes to question 5 (a UAT install, which tests the kit before a release):
 
 ```
 python3 .claude/scripts/hubflow-test.py            # last line must be "N passed, 0 failed"
-python3 .claude/scripts/hubflow-test.py --mutants  # every mutant must say KILLED
+python3 .claude/scripts/hubflow-test.py --mutants  # every mutant must say KILLED; takes 10 minutes or more
 ```
 
-The tests run in temp dirs; they never touch `flow/`. If anything fails, stop and report the output
-to your human. Do not edit a test to make it pass.
+They never touch `flow/`. A failure, or a mutant that says SURVIVED, is a defect of the kit, not of
+the hub: stop, and report the output to your human for the kit's maintainers. Do not edit a test to
+make it pass.
 
 ## Step 4: create the db
 
@@ -158,7 +173,20 @@ git commit -m "hub: initial layout and flow db"
 **Check:** `git status` is clean, and `git ls-files flow` lists the JSONL but no `flow.db`. A KB's
 `kb.lock` and `writer.lock` are ignored by the kit `.gitignore`.
 
-## Step 7: report to your human
+## Step 7: check the hub, then report to your human
+
+The install ends with two checks that read this hub. Run them from the hub root, and give your
+human the reason for each with its result:
+
+```
+python3 "$KIT/tools/hubkit.py" status --hub "$HUB"
+python3 .claude/scripts/hubflow.py check
+```
+
+- `hubkit.py status` shows you that each shipped file of the hub is the kit's own (`unchanged`), so
+  the hub follows the hub spec of this release.
+- `hubflow.py check` shows you that the ledger (`flow/flow.db`) and its git copy (`flow/jsonl/`) agree,
+  so nothing written to the ledger is lost at the next commit.
 
 Say what you set up, each check's result, and what you did not check. Then tell them the routine:
 
@@ -173,7 +201,8 @@ Say what you set up, each check's result, and what you did not check. Then tell 
 
 ## Known limits (tell your human)
 
-- The db is new. It has a test suite with mutation checks, but little time in daily use yet.
+- The db is new. It has a test suite with mutation checks (step 3 runs them in a UAT install), but
+  little time in daily use yet.
 - `rotate` requires `--week-start` to be a Monday, and an item is due at exactly 28 idle days.
 - Do not add `kb` refs in the informal edition: hubflow counts an item with one as blocking, so an
   agent can never lapse it. On an escalated or blocking item, an agent's close, renew, park and
@@ -188,17 +217,28 @@ Say what you set up, each check's result, and what you did not check. Then tell 
 Only when your human asks for it. The formal edition adds two stores, written with Sagittarius's
 `orbit-kb` (it needs SWI-Prolog): a **spec KB** per ticket at `specs/<slug>/`, and a **project
 KB**: an orbit-kb KB with the `project` module, kept at the hub root as `project-kb/`. It records
-domain decisions, pins of the world, and drafts for the tracker. Make it with
-`orbit-kb init project-kb --request 'WHAT THE PROJECT IS' --uses project`. See `orbit-kb help project`.
+domain decisions, pins of the world, and drafts for the tracker.
 
-- Install with `--edition formal` (the default when `orbit-kb` is on the PATH), or switch an
-  informal hub with `python3 "$KIT"/tools/hubkit.py edition --hub "$HUB" formal --yes`. The switch
-  replaces the shipped rules and skills; `CLAUDE.md` is the hub's own, so add its "Repos and the
+- **The hub's own orbit-kb.** A formal install copies the orbit-kb that this kit was tested with
+  (`kb/bin/orbit-kb`, `kb/bin/repo-map` and `kb/share` of the Sagittarius checkout, about 0.7 MB) into
+  the hub at `.claude/orbit-kb/`, as engine files: an upgrade replaces them. Run it from the hub root as
+  `.claude/orbit-kb/bin/orbit-kb`, never as a bare `orbit-kb`: the one on the PATH may be another
+  version. `hubflow.py` and the skills run the copy too. It needs SWI-Prolog. Limits:
+  `ORBIT_KB_LIB` in the environment overrides the copy's `share/`, and `orbit-kb prove` still needs
+  `lake` from the PATH.
+- **The project KB request is what the hub is for.** Make the project KB with
+  `.claude/orbit-kb/bin/orbit-kb init project-kb --request '<answer 1 of step 1, word for word>' --uses project`:
+  the same words as `CLAUDE.md` "What this hub is for". See `.claude/orbit-kb/bin/orbit-kb help project`.
+- Install with `--edition formal` (only when your human asks for it; which `orbit-kb` is on the
+  PATH plays no part: with no `--edition`, install picks informal), or switch an informal hub with
+  `python3 "$KIT/tools/hubkit.py" edition --hub "$HUB" formal --yes`. The switch replaces the shipped
+  rules and skills and adds the orbit-kb copy; `CLAUDE.md` is the hub's own, so add its "Repos and the
   project KB" section by hand (copy it from `hub/CLAUDE.md`).
-- `orbit-kb pin-item` and `orbit-kb draft` record a dropped edit of the project KB in the ledger by
+- `.claude/orbit-kb/bin/orbit-kb pin-item` and `.claude/orbit-kb/bin/orbit-kb draft` record a dropped edit of the project KB in the ledger by
   themselves, in the session of `HUB_SESSION` (or `--session S`). A pane gets `HUB_SESSION` where it
   is started (Step 5: `cd "$HUB" && HUB_SESSION=<name> claude --name "hub-<name>"`). In a pane
   without it, the ledger refuses the record: orbit-kb warns, names `project dropped --session S`, and
   exits 0, so the dropped edit is not in the ledger until someone runs that command.
-- Escalation asks `orbit-kb` (or `HUBFLOW_ORBIT_KB`) whether a spec KB blocks. If the query fails,
-  or `orbit-kb` is missing, an item with a `kb` ref counts as blocking (fail-safe).
+- Escalation asks the hub's own orbit-kb (or `HUBFLOW_ORBIT_KB`) whether a spec KB blocks. If the
+  query fails, or the copy is missing and no `orbit-kb` is on the PATH, an item with a `kb` ref counts
+  as blocking (fail-safe).

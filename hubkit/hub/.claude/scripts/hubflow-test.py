@@ -117,6 +117,8 @@ MUTANTS = [
     ("summary-escalated-lapses", "(lapse_before,)) if not is_escalated(c, r[0])]", "(lapse_before,))]"),
     ("summary-kb-guard-dropped", 'if refs and any(k["state"] != "clear" for k in kb_checks(hub, refs)):  # summary guard', "if False:"),
     ("migrate-keeps-meeting-jsonl", "for t in DROPPED_TABLES:  # git keeps", "for t in ():  # git keeps"),
+    # install UX c3: hubflow asks the hub's own orbit-kb copy before the one on PATH
+    ("hub-orbit-kb-copy-ignored", "if os.access(own, os.X_OK):  # the hub's own copy (install UX c3)", "if False:"),
     ("migrate-with-foreign-keys-on", 'c.execute("PRAGMA foreign_keys=OFF")  # a step may copy', 'c.execute("PRAGMA foreign_keys=ON")  # a step may copy'),
 ]
 
@@ -1702,10 +1704,14 @@ def case_close_blocking(r, root):
 
 
 def real_orbit_kb():
-    """The orbit-kb to test against: $HUBFLOW_TEST_ORBIT_KB, else the kit tree's own (kb/bin/orbit-kb, which
-    exists only beside hubkit/), else `orbit-kb` on PATH (an installed hub). With none, the kit tree's path."""
+    """The orbit-kb to test against: $HUBFLOW_TEST_ORBIT_KB, else the hub's own copy (.claude/orbit-kb/bin/orbit-kb
+    of an installed formal hub, install UX c3), else the kit tree's own (kb/bin/orbit-kb, which exists only beside
+    hubkit/), else `orbit-kb` on PATH. With none, the kit tree's path."""
     if os.environ.get("HUBFLOW_TEST_ORBIT_KB"):
         return os.environ["HUBFLOW_TEST_ORBIT_KB"]
+    own = os.path.normpath(os.path.join(HERE, "..", "orbit-kb", "bin", "orbit-kb"))  # install UX c3: the hub's own copy
+    if os.access(own, os.X_OK):
+        return own
     kit = os.path.normpath(os.path.join(HERE, "..", "..", "..", "..", "kb", "bin", "orbit-kb"))
     return kit if os.access(kit, os.X_OK) else (shutil.which("orbit-kb") or kit)
 
@@ -1977,8 +1983,8 @@ def case_t22_rotate_open_spec(r, root):
     g = ["git", "-C", gh, "-c", "user.name=Test", "-c", "user.email=test@example.invalid"]
     subprocess.run(g + ["add", "-A"], check=True, capture_output=True)
     subprocess.run(g + ["commit", "-q", "-m", "hub"], check=True, capture_output=True)
-    rs = os.path.join(HERE, "..", "skills", "hub-rotate", "scripts", "rotate.sh")
-    p = subprocess.run(["bash", rs, "--hub", gh], capture_output=True, text=True)
+    rs = os.path.join(HERE, "..", "skills", "hub-rotate", "scripts", "rotate.py")  # install UX c4: the Python port of rotate.sh
+    p = subprocess.run([sys.executable, "-I", rs, "--hub", gh], capture_output=True, text=True)
     r.check("t22-c4-rotate-sh-leaves-specs", p.returncode == 0 and os.path.isfile(os.path.join(gh, "specs", "open-one", "kb.pl"))
             and not os.path.exists(os.path.join(gh, "W5", "reports", "old.md")), (p.returncode, p.stdout[-300:], p.stderr[-300:]))
     st = subprocess.run(["git", "-C", gh, "status", "--porcelain", "--", "specs"], capture_output=True, text=True).stdout
@@ -3111,6 +3117,153 @@ def case_mt_schema_v4(r, root):
             and qs(d, "select id from item where kind = 'summary'") == [("S-0001",)], res)
 
 
+# ---- install UX (discovery GO 2026-11-11): c3 the hub's own orbit-kb; c4/c5 rotation and citations in Python ----
+
+def logging_stub(path, log, exit_code=None):
+    """An orbit-kb stand-in like STUB_SRC that logs to `log`; with exit_code, it answers nothing and exits so."""
+    src = STUB_SRC.replace('os.environ.get("STUB_LOG")', repr(log)).replace("@PY@", sys.executable)
+    if exit_code is not None:
+        src = src.replace("# hubflow asks", f"sys.exit({exit_code})\n# hubflow asks")
+    write_text(path, src)
+    os.chmod(path, 0o755)
+    return path
+
+
+def case_iux_c3_hub_copy(r, root):
+    """c3: a formal hub runs the orbit-kb its kit was tested with (.claude/orbit-kb/bin/orbit-kb beside
+    hubflow.py), whatever orbit-kb is on PATH. HUBFLOW_ORBIT_KB still names another command (the tests)."""
+    import types
+    h = spec_hub(root, "iux-c3-hub", {"clear-one": None})
+    own_log, path_log = os.path.join(root, "iux-c3-own.log"), os.path.join(root, "iux-c3-path.log")
+    script = os.path.join(h, ".claude", "scripts", "hubflow.py")
+    os.makedirs(os.path.dirname(script))
+    shutil.copy(r.script, script)
+    own = logging_stub(os.path.join(h, ".claude", "orbit-kb", "bin", "orbit-kb"), own_log)
+    old_bin = os.path.join(root, "iux-c3-old-bin")  # an orbit-kb on PATH that is not the kit's: it fails every query
+    logging_stub(os.path.join(old_bin, "orbit-kb"), path_log, exit_code=2)
+    hub_r = types.SimpleNamespace(script=script, sync_bad=r.sync_bad)
+    env = {"PATH": old_bin + os.pathsep + os.environ.get("PATH", "")}
+    d = os.path.join(h, "flow")
+    code, _, err = hf(hub_r, d, "init", "--seed", SEED, hub=h, extra_env=env)
+    r.check("iux-c3-setup-init", code == 0, err)
+    add(hub_r, d, "ask", "Behind a clear spec", "--ref", "kb:clear-one", now=DUE)  # A-1
+    res = hf(hub_r, d, "triage", "A-0001", "lapse", "--note", "nothing blocks", hub=h, extra_env=env)
+    used_own = os.path.exists(own_log) and "clear-one" in open(own_log, encoding="utf-8").read()
+    used_path = os.path.exists(path_log) and open(path_log, encoding="utf-8").read().strip() != ""
+    r.check("iux-c3-hub-copy-answers-not-path", res[0] == 0 and used_own and not used_path and status(d, "A-0001") == "lapsed",
+            (res, used_own, used_path, status(d, "A-0001")))
+    add(hub_r, d, "ask", "Behind a clear spec, with an override", "--ref", "kb:clear-one", now=DUE)  # A-2
+    res = hf(hub_r, d, "triage", "A-0002", "lapse", "--note", "x", hub=h,
+             extra_env=dict(env, HUBFLOW_ORBIT_KB=os.path.join(old_bin, "orbit-kb")))
+    r.check("iux-c3-hubflow-orbit-kb-still-overrides", res[0] == 0 and disp(d, "A-0002")[-1][0] == "escalate", (res, disp(d, "A-0002")))
+    os.remove(own)  # a hub with no copy (informal, or made before the copy): the one on PATH, as before
+    add(hub_r, d, "ask", "Behind a clear spec, no copy", "--ref", "kb:clear-one", now=DUE)  # A-3
+    res = hf(hub_r, d, "triage", "A-0003", "lapse", "--note", "x", hub=h, extra_env=env)
+    r.check("iux-c3-no-copy-falls-back-to-path", res[0] == 0 and disp(d, "A-0003")[-1][0] == "escalate"
+            and open(path_log, encoding="utf-8").read().strip() != "", (res, disp(d, "A-0003")))
+
+
+ROTATE_PY = os.path.join(HERE, "..", "skills", "hub-rotate", "scripts", "rotate.py")
+CITES_PY = os.path.join(HERE, "..", "skills", "hub-rotate", "scripts", "check-citations.py")
+
+
+def git_in(h, *args):
+    return subprocess.run(["git", "-C", h, "-c", "user.name=Test", "-c", "user.email=test@example.invalid"] + list(args),
+                          capture_output=True, text=True)
+
+
+def run_py(script, h, *args):
+    p = subprocess.run([sys.executable, "-I", script] + list(args), capture_output=True, text=True, cwd=h)
+    return p.returncode, p.stdout, p.stderr
+
+
+def week_hub(root, name):
+    """A committed hub with W0..W5 (a WEEK.md each), a report in W0 and W5, an ignore rule, a frozen link and
+    mention in W1, and a live mention in a root file."""
+    h = os.path.join(root, name)
+    git_hub(h)
+    for n in range(6):
+        write_text(os.path.join(h, f"W{n}", "WEEK.md"), f"# Week {n}\n")
+    write_text(os.path.join(h, "W5", "reports", "old.md"), "old\n")
+    write_text(os.path.join(h, "W0", "reports", "a.md"), "a\n")
+    write_text(os.path.join(h, "W1", "notes.md"), "See [a](../W0/reports/a.md) and W5/reports/old.md.\n")
+    write_text(os.path.join(h, "HEURISTICS.md"), "Read W0/reports/a.md first.\n")
+    write_text(os.path.join(h, ".gitignore"), "*.tmp\n")
+    git_in(h, "add", "-A")
+    git_in(h, "commit", "-q", "-m", "hub")
+    return h
+
+
+def case_iux_c4_rotate(r, root):
+    """c4, c5: rotate.py (the port of rotate.sh) keeps its refusals, its renames and its verification."""
+    if r.script != REAL:  # tests the rotation script, not hubflow.py: a hubflow mutant changes nothing here
+        return
+    h = week_hub(root, "iux-c4-hub")
+    rot = lambda *a: run_py(ROTATE_PY, h, *a)
+    r.check("iux-c4-rotate-py-exists", os.path.isfile(ROTATE_PY), ROTATE_PY)
+    res = rot("--bogus")
+    r.check("iux-c4-unknown-argument-exit-1", res[0] == 1 and "unknown argument: --bogus" in res[2], res)
+    nogit = os.path.join(root, "iux-c4-nogit")
+    os.makedirs(nogit)
+    res = run_py(ROTATE_PY, nogit, "--hub", nogit)
+    r.check("iux-c4-not-a-git-tree-exit-1", res[0] == 1 and "not a git work tree" in res[2], res)
+    write_text(os.path.join(h, "STAGED.md"), "x\n")
+    git_in(h, "add", "STAGED.md")
+    res = rot()
+    r.check("iux-c4-staged-refused-exit-2", res[0] == 2 and "REFUSED" in res[2] and "staged" in res[2], res)
+    git_in(h, "rm", "-q", "--cached", "STAGED.md")
+    os.remove(os.path.join(h, "STAGED.md"))
+    write_text(os.path.join(h, "W0", "draft.md"), "a peer's draft\n")
+    res = rot()
+    r.check("iux-c4-dirty-week-refused-exit-2", res[0] == 2 and "BLOCK   [??] W0/draft.md" in res[1] and "--leave" in res[2], res)
+    res = rot("--leave", "W5/reports/old.md")
+    r.check("iux-c4-leave-in-w5-refused", res[0] == 2 and "must be a path inside W0/..W4/" in res[2], res)
+    res = rot("--leave", "W0/")
+    r.check("iux-c4-leave-whole-week-refused", res[0] == 2 and "a whole week directory cannot be left" in res[2], res)
+    write_text(os.path.join(h, "W5", "scratch.tmp"), "ignored\n")
+    res = rot("--leave", "W0/draft.md")
+    r.check("iux-c4-w5-untracked-refused", res[0] == 2 and "W5 untracked or ignored: W5/scratch.tmp" in res[1]
+            and "W5/ holds files git does not track" in res[2], res)
+    os.remove(os.path.join(h, "W5", "scratch.tmp"))
+    with open(os.path.join(h, "W0", "reports", "a.md"), "a", encoding="utf-8") as f:
+        f.write("a peer's unstaged edit\n")
+    before = git_in(h, "status", "--porcelain").stdout
+    res = rot("--dry-run", "--leave", "W0/draft.md", "--leave", "W0/reports/a.md")
+    r.check("iux-c4-dry-run-writes-nothing", res[0] == 0 and "== dry run: would run" in res[1] and "git mv W4 W5" in res[1]
+            and git_in(h, "status", "--porcelain").stdout == before, res)
+    cites_before = run_py(CITES_PY, h)
+    r.check("iux-c4-citations-scan", cites_before[0] == 0 and cites_before[1].startswith("file\tline\tkind\tcitation\tresolved\tstatus\n")
+            and "W1/notes.md\t1\tlink\t../W0/reports/a.md\tW0/reports/a.md\tok" in cites_before[1]
+            and "W1/notes.md\t1\tmention\tW5/reports/old.md\tW5/reports/old.md\tok" in cites_before[1]
+            and "HEURISTICS.md\t1\tmention\tW0/reports/a.md\tW0/reports/a.md\tok" in cites_before[1], cites_before)
+    head_a = git_in(h, "rev-parse", "HEAD:W0/reports/a.md").stdout.strip()
+    res = rot("--leave", "W0/draft.md", "--leave", "W0/reports/a.md")
+    exists = lambda p: os.path.exists(os.path.join(h, p))
+    r.check("iux-c4-rotate-exit-0-verified", res[0] == 0 and "VERIFIED" in res[1], res)
+    r.check("iux-c4-w5-retired-and-renamed", not exists("W5/reports/old.md") and open(os.path.join(h, "W5", "WEEK.md")).read() == "# Week 4\n"
+            and open(os.path.join(h, "W1", "WEEK.md")).read() == "# Week 0\n" and os.path.isdir(os.path.join(h, "W0")) and not os.listdir(os.path.join(h, "W0")),
+            res[1][-400:])
+    staged = git_in(h, "ls-files", "-s", "--", "W1/reports/a.md").stdout.split()
+    r.check("iux-c4-leave-paths-carried-edits-unstaged", exists("W1/draft.md") and "a peer's unstaged edit" in open(os.path.join(h, "W1", "reports", "a.md")).read()
+            and len(staged) > 1 and staged[1] == head_a and "untracked (moved physically with the directory)" in res[1], (staged, head_a, res[1][-400:]))
+    res = rot("--verify")
+    r.check("iux-c4-verify-exit-0", res[0] == 0 and "VERIFIED" in res[1], res)
+    cites_after = run_py(CITES_PY, h)
+    t0, t1 = os.path.join(root, "iux-c4-before.tsv"), os.path.join(root, "iux-c4-after.tsv")
+    write_text(t0, cites_before[1])
+    write_text(t1, cites_after[1])
+    res = run_py(CITES_PY, h, "--diff", t0, t1)
+    summ = [x for x in res[1].splitlines() if x.startswith("SUMMARY")]
+    r.check("iux-c4-citations-diff", res[0] == 0 and summ and "\tbroke=1\tretired=1\t" in summ[0] and "live-file:broke=1," in summ[0]
+            and "W2/notes.md:1\tlink\t../W0/reports/a.md\tbefore->W0/reports/a.md\tnow->W0/reports/a.md" in res[1], res)
+    write_text(os.path.join(h, "EXTRA.md"), "rides along\n")
+    git_in(h, "add", "EXTRA.md")
+    res = rot("--verify")
+    r.check("iux-c4-verify-catches-a-rider-exit-3", res[0] == 3 and "VERIFICATION FAILED" in res[2] and "appeared in index: EXTRA.md" in res[2], res)
+    res = run_py(CITES_PY, h, "--bogus")
+    r.check("iux-c4-citations-unknown-argument-exit-1", res[0] == 1 and "unknown argument: --bogus" in res[2], res)
+
+
 def run_case(r, fn, *args):
     """Run one scenario. A scenario that cannot even run is a failure, not a crash, and the
     scenarios after it still run."""
@@ -3207,6 +3360,9 @@ def cases(r):
         # T48: the T47 follow-ups
         run_case(r, case_t48_archived_reads, root)
         run_case(r, case_t48_waiver_lapse_message, root)
+        # install UX: the hub's own orbit-kb (c3); rotation and citations in Python (c4, c5)
+        run_case(r, case_iux_c3_hub_copy, root)
+        run_case(r, case_iux_c4_rotate, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))

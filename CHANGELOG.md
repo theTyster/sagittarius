@@ -3,11 +3,20 @@
 ## Redesign (informal release)
 
 Ty makes the release. This entry lists what is in the `redesign` branch. The hub kit is version
-0.5.2 (`hubkit/kit.json`; T48 c3: db schema 5 shipped as 0.5.1, the kit version moves with the
-schema; 0.5.2 keeps schema 5 and fixes the kit defects of the first formal install, T51).
+0.6.0 (`hubkit/kit.json`; T48 c3: db schema 5 shipped as 0.5.1, the kit version moves with the
+schema; 0.5.2 keeps schema 5 and fixes the kit defects of the first formal install, T51; 0.6.0, a
+version the build guessed, keeps schema 5 and changes the install experience).
 
 ### What landed
 
+- Hub kit 0.6.0 (install UX, discovery GO 2026-11-11): setup asks the human what the hub is for,
+  first, and `CLAUDE.md` keeps the answer word for word under "What this hub is for" (in the formal
+  edition it is also the project KB request); a formal hub gets its own orbit-kb and repo-map at
+  `.claude/orbit-kb/` as engine files, and `hubflow.py`, the skills and `HUB-CORE.md` run that copy,
+  not the one on PATH; `install` with no `--edition` picks informal; `rotate.sh` and
+  `check-citations.sh` are ported to Python (`rotate.py`, `check-citations.py`), so the kit needs no
+  bash; a normal install runs no test suite and ends with `hubkit.py status` and `hubflow.py check`,
+  and a UAT install (`install --uat`) also runs `hubflow-test.py` and `--mutants`.
 - Hub kit 0.5.2 (T51): in an installed formal hub `hubflow-test.py` finds `orbit-kb` on PATH, fails
   (not skips) a real-orbit-kb case it cannot run, and counts skips on its last line; the kit
   `.gitignore` ignores `kb.lock` and `writer.lock`; INSTRUCTIONS step 6 commits `project-kb/` and

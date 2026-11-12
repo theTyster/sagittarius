@@ -11,6 +11,11 @@ Where this file and `HUB-CORE.md` disagree, this file wins.
 
 A root file that is not imported here is invisible. Add the import when you add the file.
 
+## What this hub is for
+
+<Your human's answer to "What is this hub for?" (INSTRUCTIONS.md step 1), word for word, in quotes,
+with who said it and the date. Not a paraphrase: agents read it to know the intent of the hub.>
+
 ## The tracker
 
 Tickets live in <YOUR TRACKER: GitHub Issues / Jira / Linear>. Refs in the flow db are
@@ -18,8 +23,9 @@ Tickets live in <YOUR TRACKER: GitHub Issues / Jira / Linear>. Refs in the flow 
 
 ## Repos and the project KB
 
-<Where the project KB lives (a path), and the repos of the project. The repo map is `repo-map`
-(`kb/bin/repo-map` of the Sagittarius checkout, on PATH once it is installed): name here how to run it. `HUB-CORE.md` says which store holds what.>
+<Where the project KB lives (a path), and the repos of the project. The repo map is the hub's own
+copy, `.claude/orbit-kb/bin/repo-map`: name here how to run it on each repo. `HUB-CORE.md` says which
+store holds what. The project KB request is the text of "What this hub is for".>
 
 ## Sessions
 

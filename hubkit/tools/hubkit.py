@@ -2,13 +2,15 @@
 """hubkit.py -- install the hub template into a new hub, and upgrade a hub to a newer template.
 
 usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
-  install --hub DIR [--edition informal|formal]
+  install --hub DIR [--edition informal|formal] [--uat]
                                copy every template file into DIR and write DIR/.hub-template.json,
-                               which records the edition. Default: informal when orbit-kb is not on
-                               the PATH, else formal. Refuses if DIR already has a manifest, or if
-                               any target file exists
+                               which records the edition. Default: informal; the human chooses
+                               formal (the PATH plays no part). --uat records a UAT install: one
+                               that tests the kit itself (INSTRUCTIONS.md step 3). Refuses if DIR
+                               already has a manifest, or if any target file exists
   status --hub DIR             each shipped (engine) file: unchanged, modified, or deleted since it
-                               was installed, and whether this kit's version of it differs
+                               was installed, and whether this kit's version of it differs; the
+                               first line names the edition, and a UAT install
   upgrade --hub DIR [--yes]    plan an upgrade to this kit's version; a dry run without --yes
   done --hub DIR PATH ...      mark pending merges as finished
   edition --hub DIR [informal|formal] [--yes]
@@ -20,8 +22,14 @@ usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
 Editions. The formal edition is the hub/ tree. The informal edition (no Prolog, Lean or orbit-kb in
 its rules) takes the files that kit.json lists under "editions"."informal" from editions/informal/,
 and every other file from hub/. The manifest records the edition; upgrade keeps it. A hub whose
-manifest names no edition (made before editions) gets the edition that install picks on this
-machine: informal when orbit-kb is not on the PATH, else formal. The upgrade says so.
+manifest names no edition (made before editions, all formal then) gets the formal edition when
+orbit-kb is on the PATH of this machine, else informal; the upgrade says so.
+
+The hub's own orbit-kb (formal edition). kit.json "orbit_kb" names the orbit-kb that this kit was
+tested with: "paths" under "from" (relative to the kit dir; ../kb in a Sagittarius checkout) are
+copied to "to" in the hub (.claude/orbit-kb/bin/orbit-kb, bin/repo-map, share/...). They are engine
+files of a formal hub: an upgrade replaces them, and a switch to informal removes them. hubflow.py,
+the skills and HUB-CORE.md run that copy, never an orbit-kb on the PATH.
 
 Two kinds of file, listed in the kit's kit.json:
   engine  shipped files that a hub should not edit (HUB-CORE.md, scripts, shipped skills). The
@@ -75,26 +83,69 @@ def load_kit(kit):
     return k
 
 
+def okb_sources(kit, k):
+    """{hub path: kit source path} of the hub's own orbit-kb: every file under each of kit.json
+    orbit_kb.paths (a file or a directory, relative to orbit_kb.from), at orbit_kb.to in the hub."""
+    o = k.get("orbit_kb")
+    if not o:
+        return {}
+    base = os.path.normpath(os.path.join(kit, o["from"]))
+    out = {}
+    for rel in o["paths"]:
+        p = os.path.join(base, rel)
+        if os.path.isdir(p):
+            for b, dirs, files in os.walk(p):
+                dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+                for f in sorted(files):
+                    full = os.path.join(b, f)
+                    out[o["to"] + "/" + os.path.relpath(full, base).replace(os.sep, "/")] = full
+        else:
+            out[o["to"] + "/" + rel] = p
+    return out
+
+
+def engine_files(kit, k, edition):
+    """The engine files of an `edition` hub: kit.json engine, and in the formal edition the hub's own orbit-kb."""
+    files = list(k["engine"])
+    if edition == "formal":  # the hub's own orbit-kb (install UX c3)
+        okb = okb_sources(kit, k)
+        missing = [p for p in okb.values() if not os.path.isfile(p)]
+        if k.get("orbit_kb") and (missing or not okb):
+            die(1, f"a formal hub needs the kit's orbit-kb, and {missing[0] if missing else k['orbit_kb']['from']} is missing; "
+                   "use the kit inside its Sagittarius checkout (kit.json orbit_kb.from)")
+        files += sorted(okb)
+    return files
+
+
 def src(kit, k, edition, rel):
     """The kit file that an `edition` hub gets at rel."""
+    okb = okb_sources(kit, k)
+    if rel in okb:
+        return okb[rel]
     if rel in k.get("editions", {}).get(edition, []):
         return os.path.join(kit, "editions", edition, rel)
     return os.path.join(kit, "hub", rel)
 
 
 def kit_shas(kit, k, edition):
-    return {r: sha(src(kit, k, edition, r)) for r in k["engine"]}
+    return {r: sha(src(kit, k, edition, r)) for r in engine_files(kit, k, edition)}
 
 
 def default_edition():
-    """The edition install picks when none is named."""
+    """The edition install picks when none is named: informal. The human chooses formal at setup;
+    which orbit-kb the PATH holds plays no part (the formal hub runs its own copy)."""
+    return "informal"  # install UX c3: the human chooses formal
+
+
+def legacy_edition():
+    """The edition of a hub made before editions (all were formal then): formal when orbit-kb is on
+    the PATH here, else informal. Only for a manifest that records no edition."""
     return "formal" if shutil.which("orbit-kb") else "informal"
 
 
 def edition_of(m):
-    """The recorded edition. A hub made before editions records none: it gets the edition that
-    install would pick here (informal with no orbit-kb on the PATH, else formal)."""
-    return m.get("edition") or default_edition()
+    """The recorded edition. A hub made before editions records none: legacy_edition()."""
+    return m.get("edition") or legacy_edition()
 
 
 def load_manifest(hub):
@@ -119,9 +170,19 @@ def copy(kit, k, edition, hub, rel):
     shutil.copy(src(kit, k, edition, rel), dst)  # keeps the mode bits
 
 
+def remove(hub, rel):
+    """Remove an engine file, and the directories that it leaves empty (up to the hub root)."""
+    p = os.path.join(hub, rel)
+    os.remove(p)
+    d = os.path.dirname(p)
+    while os.path.abspath(d) != os.path.abspath(hub) and os.path.isdir(d) and not os.listdir(d):
+        os.rmdir(d)
+        d = os.path.dirname(d)
+
+
 def parse(argv):
     o = {"kit": os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hub": None, "yes": False, "paths": [],
-         "edition": None}
+         "edition": None, "uat": False}
     a = list(argv)
     while a:
         x = a.pop(0)
@@ -131,6 +192,8 @@ def parse(argv):
             o[x[2:]] = a.pop(0)
         elif x == "--yes":
             o["yes"] = True
+        elif x == "--uat":
+            o["uat"] = True
         elif x.startswith("-"):
             die(1, f"unknown option {x}")
         else:
@@ -149,16 +212,21 @@ def cmd_install(o):
     hub = o["hub"]
     if os.path.exists(os.path.join(hub, MANIFEST)):
         die(2, f"{hub} already has {MANIFEST}; use upgrade")
-    clash = [rel for rel in k["engine"] + k["owned"] if os.path.exists(os.path.join(hub, rel))]
+    ed = o["edition"] or default_edition()
+    engine = engine_files(o["kit"], k, ed)
+    clash = [rel for rel in engine + k["owned"] if os.path.exists(os.path.join(hub, rel))]
     if clash:  # install never overwrites
         die(1, "these files already exist; nothing was written: " + ", ".join(clash))
-    ed = o["edition"] or default_edition()
-    for rel in k["engine"] + k["owned"]:
+    for rel in engine + k["owned"]:
         copy(o["kit"], k, ed, hub, rel)
-    save_manifest(hub, {"template_version": k["version"], "edition": ed,
-                        "files": {r: sha(os.path.join(hub, r)) for r in k["engine"]},
-                        "owned": sorted(k["owned"]), "pending": []})
-    print(f"installed template {k['version']} ({ed} edition) into {hub}: {len(k['engine'])} engine, {len(k['owned'])} owned files")
+    m = {"template_version": k["version"], "edition": ed,
+         "files": {r: sha(os.path.join(hub, r)) for r in engine},
+         "owned": sorted(k["owned"]), "pending": []}
+    if o["uat"]:
+        m["uat"] = True  # a UAT install: it tests the kit itself (INSTRUCTIONS.md step 3)
+    save_manifest(hub, m)
+    print(f"installed template {k['version']} ({ed} edition{', UAT install' if o['uat'] else ''}) into {hub}: "
+          f"{len(engine)} engine, {len(k['owned'])} owned files")
 
 
 def state_of(hub, rel, recorded):
@@ -171,7 +239,7 @@ def state_of(hub, rel, recorded):
 def cmd_status(o):
     k = load_kit(o["kit"])
     m = load_manifest(o["hub"])
-    print(f"hub template {m['template_version']} ({edition_of(m)} edition); this kit {k['version']}")
+    print(f"hub template {m['template_version']} ({edition_of(m)} edition{', UAT install' if m.get('uat') else ''}); this kit {k['version']}")
     kit_files = kit_shas(o["kit"], k, edition_of(m))
     for rel in sorted(set(m["files"]) | set(kit_files)):
         if rel not in m["files"]:
@@ -225,7 +293,7 @@ def cmd_upgrade(o, edition=None):
                 plan.append(("keep-owned", rel))
     print(f"upgrade {old} -> {new} ({ed} edition)" + ("" if yes else " (dry run; --yes applies it)"))
     if not m.get("edition") and not edition:
-        print(f"note: this hub records no edition; it gets the {ed} edition, as install picks it here"
+        print(f"note: this hub records no edition; it gets the {ed} edition, as a hub made before editions gets it here"
               f" ({'orbit-kb is on the PATH' if ed == 'formal' else 'this hub has no orbit-kb'}); to change it: hubkit.py edition --hub HUB "
               f"{'informal' if ed == 'formal' else 'formal'}")
     for action, rel in plan:
@@ -237,7 +305,7 @@ def cmd_upgrade(o, edition=None):
         if action in ("replace", "add", "add-owned"):
             copy(o["kit"], k, ed, hub, rel)
         elif action == "remove":
-            os.remove(os.path.join(hub, rel))
+            remove(hub, rel)
     pending = [{"path": rel, "from": old, "to": new} for action, rel in plan if action == "merge"]
     m["template_version"] = new
     m["edition"] = ed  # recorded, so the next upgrade keeps it
