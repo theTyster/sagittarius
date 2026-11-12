@@ -45,7 +45,8 @@ m030d3 (0.3.0 M-D c_m_d_3) hubkit/README.md and hubkit/UPGRADING.md say which Sa
 t50c1 (retire) the repo has no microsite: neither the deck directory nor the Pages workflow is in the tree, and no
       tracked file outside tmp/ names the deck files, their build and check scripts, or the workflow.
 t50c2 (retire) README.md, CLAUDE.md and docs/PHILOSOPHY.md do not point at the decks.
-t50c4 (preserve) hubkit/docs/index.html stays: the local briefing that step 1 of hubkit/INSTRUCTIONS.md opens.
+t50c4 (preserve) hubkit/docs/index.html stays: the local briefing that step 1 of hubkit/INSTRUCTIONS.md opens. It
+      names the MindHole (Ty, 2026-11-12: the kit is the MindHole; it was "hub kit").
 """
 import json
 import os
@@ -532,7 +533,7 @@ def t50c4():
     check("t50c4 hubkit/docs/index.html is on disk", os.path.isfile(p), "missing")
     g = git("ls-files", "--", "hubkit/docs/index.html")
     check("t50c4 hubkit/docs/index.html is tracked", g.stdout.strip() == "hubkit/docs/index.html", g.stdout + g.stderr)
-    check("t50c4 the briefing is the hubkit briefing", "hubflow-starter" not in read(p) and "hub kit" in read(p).lower(),
+    check("t50c4 the briefing is the hubkit briefing", "hubflow-starter" not in read(p) and "mindhole" in read(p).lower(),
           read(p)[:200])
     ins = read(os.path.join(ROOT, "hubkit", "INSTRUCTIONS.md"))
     m = re.search(r"^## Step 1[^\n]*\n(.*?)(?=^## )", ins, re.S | re.M)
