@@ -3,7 +3,7 @@
 hub's rules, a handoff carries the KB, a closed ticket leaves its outcomes, and the display name.
 One check per claim of the spec KB (tmp/kb-sagittarius-030).
 
-usage: python3 docs/check_mindhole.py mb1|mb2|mb3|mb4|mb5|mb6|mb7|mf1|mf4|mg|mg2|u1|u2|u3|u4|u6|lp [--list]   (--list prints the ids)
+usage: python3 docs/check_mindhole.py mb1|mb2|mb3|mb4|mb5|mb6|mb7|mf1|mf4|mg|mg2|u1|u2|u3|u4|u6|lp|pr [--list]   (--list prints the ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 mb1 (c_m_b_1) both HUB-CORE.md files tell a session to read its inbox (`view v_inbox`) at session start and
@@ -42,6 +42,9 @@ u4  (UAT U4) a numbered step before the commit step makes the project store of a
     at "The formal edition", whose part with the same step number gives the project KB setup line.
 lp  (review 2, finding 6) the informal HUB-CORE.md states the light path in its own paragraph, in its own words:
     an informal hub has no Sagittarius prompt, so the paragraph cites no prompt and names what brings review in.
+pr  (review 2, finding 10) PRINCIPLES.md cites the sections that its text comes from: "Start light" cites
+    "The light path" and "Signals" and names the six signals (a claim that burns too); the part with "only the
+    work that the request needs" cites "The orbit"; no part says "not logs", which the prompt does not say.
 u6  (UAT U6) both CLAUDE.md templates (formal and informal) have a section for the human's own notes, such
     as a project order.
 """
@@ -353,7 +356,26 @@ def lp():
         check("lp the paragraph names what brings review in", all(w in lpp[0] for w in ("handoff", "disagree", "asks")), lpp[0][:300])
 
 
-CLAIMS = {k: globals()[k] for k in ("mb1", "mb2", "mb3", "mb4", "mb5", "mb6", "mb7", "mf1", "mf4", "mg", "mg2", "u1", "u2", "u3", "u4", "u6", "lp")}
+def pr():
+    t = read(os.path.join(ROOT, "hubkit", "hub", "PRINCIPLES.md"))
+    parts = {s.splitlines()[0].strip(): s for s in re.split(r"^## ", t, flags=re.M)[1:]}
+    cites = {k: re.findall(r'^From the prompt: "([^"]+)"\s*$', v, re.M) for k, v in parts.items()}
+    sl = [k for k in parts if k.startswith("Start light")]
+    check("pr PRINCIPLES.md has the part Start light", len(sl) == 1, list(parts))
+    if sl:
+        s, c = flat(parts[sl[0]]), cites[sl[0]]
+        check("pr Start light cites The light path and Signals", "The light path" in c and "Signals" in c, c)
+        for w, what in (("question", "questions"), ("disagree", "a divergence"), ("someone else built", "a build by someone else"),
+                        ("burns", "a claim that burns"), ("changes hands", "a handoff"), ("careful message", "effort")):
+            check(f"pr Start light names the signal {what}", w in s, s[:300])
+    for k, v in parts.items():
+        if "only the work that the request needs" in flat(v):
+            check(f"pr the part '{k}' cites The orbit for 'only the work that the request needs'", "The orbit" in cites[k], cites[k])
+    check("pr PRINCIPLES.md does not say 'not logs' (the prompt does not)", "not logs" not in flat(t))
+    check("pr PRINCIPLES.md stays short (60 lines or fewer)", len(t.splitlines()) <= 60, len(t.splitlines()))
+
+
+CLAIMS = {k: globals()[k] for k in ("mb1", "mb2", "mb3", "mb4", "mb5", "mb6", "mb7", "mf1", "mf4", "mg", "mg2", "u1", "u2", "u3", "u4", "u6", "lp", "pr")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
