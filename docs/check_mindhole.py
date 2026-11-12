@@ -237,7 +237,7 @@ def mb7():
 def mg2():
     for rel in ("hubkit/README.md", "hubkit/INSTRUCTIONS.md"):
         t = flat(read(os.path.join(ROOT, rel)))
-        check(f"mg2 {rel} does not call the kit the hub kit", "hub kit" not in t.lower(), re.findall(r"[^.]*hub kit[^.]*", t, re.I)[:2])
+        check(f"mg2 {rel} does not call the kit the hub kit", re.search(r"hub kit(?!\.json)", t, re.I) is None, re.findall(r"[^.]*hub kit[^.]*", t, re.I)[:2])
         check(f"mg2 {rel} does not say the MindHole is the hub", re.search(r"MindHole\W* is the hub\b", t) is None,
               re.findall(r"[^.]*MindHole\W* is the hub[^.]*", t)[:1])
     head = flat("\n".join(read(os.path.join(ROOT, "hubkit", "README.md")).splitlines()[:6]))

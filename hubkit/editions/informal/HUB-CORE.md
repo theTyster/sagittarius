@@ -1,8 +1,8 @@
 # HUB-CORE.md: the shipped rules of the hub
 
-This file ships with the hub template. **Do not edit it.** An upgrade replaces it. Put this hub's
-own rules and changes in `CLAUDE.md`, which imports this file. Where the two disagree, `CLAUDE.md`
-wins.
+This file ships with the MindHole (the kit that made this hub). **Do not edit it.** An upgrade
+replaces it. Put this hub's own rules and changes in `CLAUDE.md`, which imports this file. Where the
+two disagree, `CLAUDE.md` wins.
 
 This hub is the **informal edition**: five stores, kept in plain files, git and SQLite. It needs
 Python 3 (stdlib only) and git on the PATH. It needs no other tool: no bash, no shell tools. `.hub-template.json` records the edition.

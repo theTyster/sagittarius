@@ -8,7 +8,7 @@ Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own v
 |---|---|---|---|
 | Sagittarius | 0.3.0 (proposed) | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole (the hub kit) | 0.5.1 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole | 0.6.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 
 What a change of each number means:
 
@@ -38,7 +38,7 @@ Earlier versions, named after the fact so that a report can refer to them:
   response, the vote, honesty, and the delivery.
 - The definition of a properly written hypothesis is stated in Lean:
   `docs/philosophy-orbit/2026-11-11/fable/Hypothesis.lean`.
-- The tools, the hub kit and the checks are not changed yet. Where they differ from the new
+- The tools, the MindHole and the checks are not changed yet. Where they differ from the new
   texts is in `docs/philosophy-orbit/2026-11-11/fable/ALIGNMENT.md`.
 - `install.py` makes a fifth link, `~/.claude/sagittarius-s1` (the System 1 hook). Run `./install.py` again after you update; `./install.py --check` shows the new link as missing until you do.
 

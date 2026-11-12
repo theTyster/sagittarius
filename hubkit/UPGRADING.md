@@ -1,12 +1,13 @@
-# UPGRADING.md: apply a new template release to an existing hub
+# UPGRADING.md: apply a new release of the MindHole to an existing hub
 
-For the agent. Your human asked you to upgrade their hub to a newer release of this template. Read
-this whole file first. A hub belongs to its people: never replace a file the hub changed, and show
-your human every merge before you commit.
+For the agent. Your human asked you to upgrade their hub to a newer release of the MindHole, the
+kit that made it. Read this whole file first. A hub belongs to its people: never replace a file the
+hub changed, and show your human every merge before you commit.
 
-**Versions.** This release pairs with Sagittarius 0.3: its `PRINCIPLES.md` comes from that prompt,
-and a formal hub copies the orbit-kb of the same Sagittarius checkout. The kit's own version is
-`MindHole <version>` in `kit.json`; a release section says so when the Sagittarius pair changes.
+**Versions.** This release of the MindHole pairs with Sagittarius 0.3: its `PRINCIPLES.md` comes
+from that prompt, and a formal hub copies the orbit-kb of the same Sagittarius checkout. The
+MindHole's own version is `MindHole <version>` (`kit.json`); a release section says so when the
+Sagittarius pair changes. Older sections below say "hub kit": the MindHole's name before 2026-11-12.
 
 ## The procedure (every release)
 
