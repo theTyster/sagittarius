@@ -1565,7 +1565,8 @@ derived_items(Dir, KbItems, Items) :-
     project_derived(Dir, KbItems, Ts6),
     request_derived(KbItems, Ts7),
     verdict_derived(KbItems, Ts8),
-    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8], Ts),
+    reopen_derived(KbItems, Ts9),
+    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
 
 % verdict_derived(+KbItems, -Facts) (T38 c2): later_verdict(V) for each disproof verdict V on a
@@ -1576,6 +1577,18 @@ verdict_derived(KbItems, Facts) :-
     findall(later_verdict(V), ( append(_, [V-C|Rest], VCs), member(_-C2, Rest), C2 == C ), Fs0),
     sort(Fs0, Facts).
 verdict_derived(_, []).
+
+% reopen_derived(+KbItems, -Facts) (D30 H4): discovery_reopened(A) for each discovery_end(A)
+% record that a back attestation follows in kb.pl. In a KB that uses discovery only.
+reopen_derived(KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
+    findall(T, kb_term(KbItems, T), Ts),
+    findall(discovery_reopened(A),
+            ( append(_, [E|Rest], Ts), nonvar(E), E = discovery_end(A), ground(A),
+              once(( member(B, Rest), nonvar(B), B = attest(_, Ty, _, _, _, _), Ty == back )) ),
+            Fs0),
+    sort(Fs0, Facts).
+reopen_derived(_, []).
 
 % request_derived(+KbItems, -Facts) (T27 c10): request_stale(R) for a request whose latest
 % request_pin (the last one in kb.pl) has a digest that is neither the digest of the request
@@ -2524,6 +2537,10 @@ protected_pi(analysis_outside/2).
 protected_pi(spec_pin/3).
 protected_pi(project_contradiction/2).
 protected_pi(project_rests_on/2).
+% D30 H4: the open discovery orbit.
+protected_pi(discovery_reopened/1).
+protected_pi(discovery_closed/0).
+protected_pi(discovery_open/0).
 % D14: the weighted vote of the discovery module.
 protected_pi(vote_cast/3).
 protected_pi(discovery_vote_raised/1).
@@ -3624,6 +3641,8 @@ add_item(ATs, I, A, R) :-
         ->  fmt(M, "Argument ~w is an attestation type. orbit-kb add does not declare attestation types. Use a type that orbit-kb help core or a module topic lists.", [I]), R = err(M)
         ;   nonvar(T), T = uses(_)
         ->  fmt(M, "Argument ~w is uses/1. orbit-kb init writes it. To add a module, run orbit-kb uses MODULE.", [I]), R = err(M)
+        ;   nonvar(T), T = discovery_end(_)
+        ->  fmt(M, "Argument ~w: orbit-kb attest approval writes discovery_end/1 itself (D30), when the human approves the ticket while gate(go) holds. add refuses it.", [I]), R = err(M)
         ;   nonvar(T), functor(T, RN, RA), memberchk(RN/RA, [actor/3, change_at/2, review_saw/3])
         ->  fmt(M, "Argument ~w: orbit-kb writes ~w/~w itself (D28): with each attestation and change, or with orbit-kb review start. add refuses it.", [I, RN, RA]), R = err(M)
         ;   nonvar(T), T = attest(_, Type, _, _, _, _), atom(Type), script_only_type(ATs, Type)
@@ -4674,13 +4693,33 @@ cmd_attest(KB, Args, Code) :-
     ),
     late_vote_check(Items, Type, By, Pred),
     log_check(KB, Items, Type, Subject, Pred),
-    rests_on_lines(Opts, Items, Type, Id, RLines),
+    rests_on_lines(Opts, Items, Type, Id, RLines0),
+    end_lines(KB, Items, Type, Subject, By, Id, ELines),
+    append(RLines0, ELines, RLines),
     clause_line(T, [], Line),
     actor_line(Id, ALine),
     kb_file(KB, KbFile),
     append_lines(KbFile, [Line, ALine|RLines]),
     forall(member(L, [Line, ALine|RLines]), format("~w~n", [L])),
     Code = 0.
+
+% end_lines(+KB, +Items, +Type, +Subject, +By, +Id, -Lines) (D30 H4): a human approval of the
+% ticket (ticket(Subject)) in a KB that uses discovery ends the discovery orbit when the orbit
+% is open and gate(go) holds before the approval: one line discovery_end(Id). With no GO, the
+% approval is written as always (a human act is never refused), and a NOTE says that the orbit
+% stays open.
+end_lines(KB, Items, approval, Subject, human, Id, Lines) :-
+    has_discovery(KB),
+    kb_term(Items, ticket(S)), S == Subject, !,
+    kb_engine(KB, Eng),
+    (   \+ eng_true(Eng, discovery_open)
+    ->  Lines = []
+    ;   eng_true(Eng, gate(go))
+    ->  clause_line(discovery_end(Id), [], L), Lines = [L]
+    ;   format(user_error, "NOTE: the discovery orbit stays open. gate(go) does not hold, so this approval of the ticket does not end it. Run orbit-kb query 'gate(V)' and orbit-kb report (Vote).~n", []),
+        Lines = []
+    ).
+end_lines(_, _, _, _, _, _, []).
 
 % rests_on_lines(+Opts, +Items, +Type, +Id, -Lines) (D28): --rests-on A1,A2
 % names the runs that a disproof verdict rests on. Each must be a
@@ -5774,6 +5813,11 @@ vote_section(Eng) :-
             ;   true
             )
         )
+    ),
+    % D30 H4: after the human approves the ticket on a GO, the discovery orbit is closed.
+    (   eng_all(Eng, [E], ( discovery_end(E), not(discovery_reopened(E)) ), [E1|_])
+    ->  rsplit(vote, "The discovery orbit is closed: the human approved the ticket after a GO (~w). Readiness and the vote are not asked again until a return to discovery: orbit-kb attest back H 'back(TEXT)'.", [E1])
+    ;   true
     ).
 
 kb_engine(KB, Eng) :-

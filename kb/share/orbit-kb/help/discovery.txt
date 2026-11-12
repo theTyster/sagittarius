@@ -231,6 +231,10 @@ ASKING: ask the human
 
 HANDOFF to the build orbit
   orbit-kb uses build ; orbit-kb lint. The build orbit skips SURVEY.
+  The discovery orbit is open until the human approves the ticket after a GO
+  (attest approval TICKET 'digest(current)' --by human writes discovery_end). Then readiness
+  and the vote are not asked again: a hypothesis that the human restates in build
+  supersedes the old one and needs no system result. Only BACK opens the orbit again.
   DECOMPOSE starts from the discovery claims. Each witness, trace, and counterexample
   becomes a test case. The build orbit reuses each red test_result as its baseline.
   A universal claim always burns. A solver or TLC result holds only within its bounds;
@@ -259,6 +263,9 @@ REPORT: the discovery report
 
 BACK: back to discovery
   When a divergence shows that the problem is wrong, not the build, file a disclosure, and
-  run orbit-kb uses discovery. Then go to SIGNAL if the hypothesis is wrong, SPECTRUM if a
+  run orbit-kb uses discovery. Record the return:
+     orbit-kb attest back h1 "back('The human cannot say what the hypothesis changes to.')"
+  It opens the discovery orbit again: a new hypothesis needs its system result (WD7), and
+  readiness and the vote are asked again (next round). Then go to SIGNAL if the hypothesis is wrong, SPECTRUM if a
   claim is wrong or missing, FLYBY or TRAJECTORY if a model missed a behavior, and FLYBY and
   then the human if BURN shows that the requirements conflict.

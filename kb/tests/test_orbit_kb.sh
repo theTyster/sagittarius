@@ -1581,7 +1581,8 @@ t_HY7() { hy_go "$T/d"; okb --dir "$K" uses build >/dev/null
           okb --dir "$K" attest reproduction t1 'result(h3, reproduced)'; rc_is 0
           is_true 'discovery_ready' "its system result makes discovery ready again"; }
 t_HY8() { hy_disc "$T/d"
-          okb --dir "$K" attest vote r1 'vote(1, hold)'; okb --dir "$K" attest vote r1 'vote(1, go)' --by human
+          okb --dir "$K" attest vote r1 'vote(1, hold)'; okb --dir "$K" attest vote r1 'vote(1, no_go)' --by human
+          is_false 'gate(go)' "setup: the vote is split (the artifacts vote go)"
           printf '# ticket\n' > "$K/ticket.md"; okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null
           okb --dir "$K" attest approval tk 'digest(current)' --by human; rc_is 0 "the human's approval is never refused"
           any_hasi 'discovery orbit.*open|open.*discovery orbit' "a NOTE says that the orbit stays open: gate(go) does not hold"
