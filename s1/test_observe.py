@@ -209,6 +209,35 @@ class Rules(Case):
         self.assertIn("none.jsonl", r.stderr)
 
 
+class ReviewForms(Case):
+    """Review of 0.3.0 (finding 6): the forms of a dispute that a delivery uses, a repeated short prompt,
+    and limits that say what the counts are."""
+
+    def test_a_bare_no_disputes_every_signal(self):
+        self.write_log(hint("2026-11-12T10:00:00Z", answers(div=0.9)))
+        self.write_session(turn("2026-11-12T10:00:00Z", "hm", "Delivered:   done\nSignals:     no", "m1"))
+        self.assertEqual(self.counts()["disputed"], 1)
+
+    def test_a_bold_field_name_counts(self):
+        self.write_log(hint("2026-11-12T10:00:00Z", answers(div=0.9)))
+        self.write_session(turn("2026-11-12T10:00:00Z", "hm",
+                                "**Delivered:** done\n**Signals:** divergence: no, effort: no", "m1"))
+        self.assertEqual(self.counts()["disputed"], 1)
+
+    def test_a_repeated_prompt_goes_to_the_turn_nearest_in_time(self):
+        self.write_log(hint("2026-11-12T10:00:00Z", answers(div=0.9), message="ok"))
+        self.write_session(turn("2026-11-12T10:00:00Z", "ok", "Shifting up: x. Next: y.", "m1")
+                           + turn("2026-11-12T10:20:00Z", "ok", "Fine.", "m2"))
+        got = self.counts()
+        self.assertEqual((got["shifted_after_hint"], got["shifts_without_hint"]), (1, 0))
+
+    def test_the_limits_say_what_is_missed(self):
+        limits = " ".join(observe().observe(self.write_log() or self.log, self.tdir)["limits"])
+        self.assertIn("table", limits)  # a Signals field in a table is not read
+        self.assertRegex(limits, r"shifts_without_hint counts turns")
+        self.assertIn("same text", limits)  # prompts with the same text: the nearest in time
+
+
 class NoHookChange(unittest.TestCase):
     """q_sg3 default (a): the agent is not made to acknowledge a hint. The harness reads afterwards."""
 
