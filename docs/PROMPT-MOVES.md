@@ -88,7 +88,7 @@ parts went to different homes.
 | `### Back to discovery` | prompt | | One line in the phase tree. |
 | `### Back to discovery` | help discovery | `SIGNAL if the hypothesis is wrong` | Which move to go back to. |
 | `### Honesty rules for discovery` | prompt | | Rules 1 to 6 stay, word for word (see below). |
-| `### Honesty rules for discovery` | help discovery | `WD1, WD3, WD7, ED3-ED7` | Rule 7 names lint codes. |
+| `### Honesty rules for discovery` | help discovery | `The lint codes WD1, WD3, WD7, WD10, ED3-ED7 name some of the blockers` | Rule 7 names lint codes. 0.3.0: readiness is "no ready_blocker" (D32 O2); WD10 joined (D33 R1), and the help says that the tool, not the list, decides. |
 | `### Sizes and speed` | dropped, because the sizes read as tiers (PHILOSOPHY.md §7, open question E); the tiny orbit stays in the prompt | | |
 | `### Sizes and speed` | help discovery | `Set a timeout on every solver run` | |
 

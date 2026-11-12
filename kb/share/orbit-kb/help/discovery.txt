@@ -44,8 +44,9 @@ QUERIES
                     of a system check of an introduce or retire claim, after the hypothesis);
                     a claim is current, or such a hypothesis did not reproduce; each current
                     claim has an example and a falsifier, and is not refuted; no check of a
-                    preserve claim fails now; no question waits or is to_ask; no WD1, WD3,
-                    WD7, WD10, ED3-ED7. While the discovery orbit is closed, it holds
+                    preserve claim fails now; no question waits or is to_ask; no finding
+                    of lint WD1, WD3, WD7, WD10, ED3-ED7. While the discovery orbit is
+                    closed, it holds
   ready_blocker(X)  each thing that blocks discovery_ready, such as untouched(H), no_example(C),
                     preserve_failing(K). show open and report (Open) name each one
   discovery_decide  discovery_ready, or budget_spent (the last lap of the largest budget is done)
@@ -59,7 +60,10 @@ QUERIES
   gate(V), gate_split   the outcome of the vote (see GATE). GO cannot win while
                     discovery_ready fails (gate_allowed), and the agent's GO is refused then
   question_waits(Q) a raised question that has no answer
-If discovery_ready is false: orbit-kb lint, and orbit-kb whynot 'discovery_ready'.
+If discovery_ready is false: orbit-kb show open names each blocker, and orbit-kb whynot
+'discovery_ready' explains it. The lint codes WD1, WD3, WD7, WD10, ED3-ED7 name some of the
+blockers; the others (no hypothesis, a waiting question, a refuted claim, a failing preserve
+check) have no lint code. Read the tool, not this list.
 Ready with no current claim happens only when a hypothesis did not reproduce (WD6).
 
 LAPS
@@ -70,7 +74,8 @@ LAPS
 
 SIGNAL: pin the report
   1. Classify the report: a defect, a feature, a risk (can something happen?), or unclear.
-  2. Restate it as one hypothesis, in the scope of the report (see The hypothesis, below).
+  2. Restate it as one hypothesis, wide: the widest reading that the report allows (see The
+     hypothesis, below), with its premises beside it.
   3. If you cannot, ask the human. Do not guess.
   4. If the report holds two problems, write two hypotheses. Ask the human if they are one
      ticket or two.
@@ -83,24 +88,39 @@ SIGNAL: pin the report
     orbit-kb add "hypothesis(h2, defect, 'NEW TEXT')" "supersedes(h2, h1)"
   The old one then needs no system result. The new one needs its own.
 
-The hypothesis (the backbone of discovery; the claims, the checks, and the vote depend on it)
-  Make its assumptions few and its conclusion strong. List its premises beside it.
+The hypothesis (the law of its ticket: the claims, the checks, and the vote rest on it)
+  It is your closest statement of the intent: one sentence that says what the human wants,
+  what must be true when the ticket is done. Every ticket has one. Discovery exists to form it.
   - Assume little. Put no cause, mechanism, data shape, or fix in it. Each one adds meaning
     that the report does not have, and chooses a design before the vote. Do not narrow it to
-    the one example that you reproduced. A cause that you find is a finding that explains
-    the hypothesis. It is not part of the hypothesis.
-  - Make the conclusion strong. Say which outcome the report expects, and which facts decide
-    that outcome. Then say that the system can fail to give it.
-  - Give it a falsifier: the result that would show it is false. A hypothesis with no
-    falsifier has collapsed: it holds for any result, so it says nothing.
+    the one example that you reproduced. A cause that you find is a finding. It is not part of
+    the hypothesis.
+  - Conclude strongly. Say which outcome is wanted, and which facts decide it.
+  - Keep it able to fail. A statement that no result can show false has collapsed: it holds
+    for any result, so it says nothing.
+  - Put its premises beside it, every time: premise(P, H, 'TEXT'), or no_premises(H). Keep a
+    premise only when the report gives it, or when the sentence is false without it. Check
+    each premise on the system: premise_checked(P, 'WHERE').
+  - Write it wide. Where the report leaves a choice open, write your default into the
+    sentence, where the human can see it. For the scope, the default is the widest reading.
   - Remove words. Stop when the next removal makes it collapse or changes its meaning.
   An example of the meaning, not a template. The report: "members got the wrong loyalty points".
   - Too strong: "The tier is read from a cache that loads once." It names a cause.
   - Collapsed: "Points depend on something other than the purchase." No result falsifies it.
-  - Weak, with a strong conclusion: "The amount of a purchase and the member's tier on that
-    day decide its points. Some purchases get a different number." Falsifier: every
-    purchase gets the points that its amount and tier give.
-  A weak hypothesis usually takes more work to confirm or falsify, because one example does
+  - Fit: "The amount of a purchase and the member's tier on that day decide its points."
+    Premise: the points table did not change in that time.
+  The report says one thing more: "some purchases get a different number today". That is a
+  finding about the system, and the reproduction tests it. Keep it apart from the hypothesis
+  (finding(F, surprise('CASE'), system)). After the build the finding is false, and the
+  hypothesis still stands.
+  A hypothesis has two falsifiers, and each has its own witness.
+  - The system is the witness of one: a result that the system shows, such as a purchase
+    whose points differ from what its amount and tier give. Before the build, that result is
+    the reproduction. After the build, it is a failing check.
+  - The human is the witness of the other: a concrete case that the human judges. Show a case
+    just inside or just outside the edge of the hypothesis, and ask: "is this case what you
+    want?"
+  A wide hypothesis usually takes more work to confirm or falsify, because one example does
   not settle it. Stay inside the lap budget, and list what you did not cover.
 
 SURVEY: touch the current system (discovery never skips it)
@@ -131,8 +151,10 @@ SPECTRUM: claims and tools
        a property for all/every input   universal, for BURN. FLYBY can first search for a
                                         counterexample.
   3. Use a model only when a few examples cannot cover the combinations or orders of steps.
-  4. If a claim mixes rules and steps, model the steps in TLA+ with the rules as guards, and
-     the rules alone in SMT, with the same claim ids.
+  4. One formal language at a time: one formal language first, a second one only when a
+     question is left. If a claim mixes rules and steps, choose the language for the part that
+     is in doubt (TLA+ for the order of steps, SMT for the rules), finish it, and record its
+     result. Use the other language only when that result leaves a question open.
   5. Build an existing-world model from the SURVEY facts, and a target model from it and the
      claims. If two tools state one claim, build each statement from the report and the
      SURVEY facts, not from the other statement.
@@ -265,8 +287,9 @@ HANDOFF to the build orbit
   becomes a test case. The build orbit reuses each red test_result as its baseline.
   A universal claim always burns. A solver or TLC result holds only within its bounds;
   only a Lean proof or a human waiver closes a burn.
-  For a claim in SMT or TLA+ and again in Lean, run the SMT witnesses as Lean #eval
-  examples. Record a divergence where the two disagree.
+  One formal language first: a second language only when a question is left (a burn needs
+  Lean; the solver result does not close it). For a claim in SMT or TLA+ and again in Lean,
+  run the SMT witnesses as Lean #eval examples. Record a divergence where the two disagree.
 
 REPORT: the discovery report
   orbit-kb report drafts it from the facts: Hypothesis (with its premises), System (what the
@@ -290,8 +313,10 @@ REPORT: the discovery report
   universal claims, for BURN; the models, verdicts, and bounds.
 
 BACK: back to discovery
-  When a divergence shows that the problem is wrong, not the build, file a disclosure, and
-  run orbit-kb uses discovery. Record the return:
+  Only when you can no longer say what the hypothesis changes to. When the human says what
+  it changes to, restate it in build (a new hypothesis supersedes the old one; orbit-kb help
+  build), and stay in build. Else file a disclosure, run orbit-kb uses discovery, and record
+  the return:
      orbit-kb attest back h1 "back('The human cannot say what the hypothesis changes to.')"
   It opens the discovery orbit again: a new hypothesis needs its system result (WD7), and
   readiness and the vote are asked again: the votes before the back do not count, so both

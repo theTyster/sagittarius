@@ -136,16 +136,38 @@ Flares: show the claim to the human (burns get proved, flares get shown)
   A preference change (a new name or color, and no one misread the intent) is a new claim
   that supersedes the old one. It is not a divergence.
 
-When the human says it is wrong (a divergence, not a preference change)
-  1. On the light path, shift up now: start a KB, and record the request, your claims, and
-     the checks so far.
-  2. Record a divergence on the claim: orbit-kb attest divergence C 'claim(C)', and a note.
-  3. Decide which is wrong: the build, or the problem itself. If the problem is wrong, run
-     orbit-kb uses discovery, and go back to discovery (orbit-kb help discovery, BACK).
-  4. Record the human's answer: answer(Q, Answer, human). Defaults that conflict with it are
+When the human says that it is wrong (as the prompt says)
+  First narrow it down, in one line that the human can contradict:
+    Kept: <what the human still wants>. Changed: <what they want now>.
+  Then there are three cases.
+  - Someone misread the intent: a part of the result did not match what the human asked for
+    at the time. Shift up, and record a divergence on its claim:
+      orbit-kb attest divergence C 'claim(C)'      and a note that says what differed.
+    Then decide which is wrong, the build or the hypothesis (step 1 below).
+  - The intent moved: the result matched, and the human now wants a part of it changed.
+    Nobody misread. For that part, record a new claim that supersedes the old one, and record
+    no divergence against the old claim: it was right when it was made. The claims that the
+    human liked stay, and their checks stay.
+      orbit-kb add "claim(c2, introduce, 'NEW TEXT')" "supersedes(c2, c1)" "check(k2, c2)"
+  - The new wish adds to the result and changes nothing in it: it is a new ticket, with its
+    own hypothesis (and its own KB when a signal comes). This KB keeps what is open in it.
+  If you cannot tell whether you misread or the intent moved, do not guess. Say so, and treat
+  it as a divergence.
+  On the light path, shift up now: start a KB with the request, the hypothesis and its
+  premises (or no_premises), then your claims and the checks so far.
+  After a divergence:
+  1. Decide which is wrong. When a check fails and the hypothesis still reads true, the build
+     is wrong: fix the build. When the human wants a case that the hypothesis rejects, or
+     rejects a case that it accepts, the hypothesis must change. If the answer says what it
+     changes to ("only on this page"), restate it: the new hypothesis supersedes the old one.
+     Show it, and go on:
+       orbit-kb add "hypothesis(h2, feature, 'NEW TEXT')" "no_premises(h2)" "supersedes(h2, h1)"
+     Only when you can no longer say what the hypothesis changes to, the ticket is a report
+     again: orbit-kb uses discovery, and go back to discovery (orbit-kb help discovery, BACK).
+  2. Record the human's answer: answer(Q, Answer, human). Defaults that conflict with it are
      now defeated.
-  5. Query to_ask(Q). Ask that small cluster, not every dormant question.
-  6. Rebuild, and run the checks again. If burn(C) now holds, prove the claim in Lean (Burns).
+  3. Query to_ask(Q). Ask that small cluster, not every dormant question.
+  4. Rebuild, and run the checks again. If burn(C) now holds, prove the claim in Lean (Burns).
   The KB already holds the questions, so you continue from where you stopped.
 
 Byte digests (T38): a KB from before T38 after the upgrade
