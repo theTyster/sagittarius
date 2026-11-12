@@ -7,10 +7,11 @@ transcript_path) and shows the first line of stdout. Docs: https://code.claude.c
 This script finds the newest line of the S1 log (written by s1/jev.py and s1/hook.py) that has the
 same session_id and prints one segment:
 
-    S1 build | div 0.85 | plan 0.10 | eff 0.91 | tool lean
-         work choice | P(h_divergence) | P(h_change_of_plan) | P(h_effort) | h_language choice
+    S1 build | div 0.85 | plan 0.10 | eff 0.91 | ques 0.88 | proof 0.92 | tool lean
+         work choice | P(h_divergence) | P(h_change_of_plan) | P(h_effort) | P(h_questions) | P(h_proof)
+         | h_language choice
 
-All five judgments of the hook (T29 c6), each only when it is outside the unsure band, as the hook
+All the judgments of the hook (T29 c6; 0.3.0 S-C adds questions and proof, shown when the line has them), each only when it is outside the unsure band, as the hook
 decides it: a yes/no answer is shown when P <= 0.3 or P >= 0.7 (s1/jev.py band); a choice is shown
 when P(choice) >= 0.5 (probabilities[choice], else confidence; hook.py CHOICE_MIN).
 
@@ -142,6 +143,11 @@ def render(session_id, log_path, now=None):
             if p:
                 parts.append(f"{label} {p}")
                 signal = signal or float(p) >= YES_MIN
+        for label, qid in (("ques", "h_questions"), ("proof", "h_proof")):  # 0.3.0 S-C
+            p = _p(answers, qid)
+            if p:
+                parts.append(f"{label} {p}")
+                signal = signal or (qid == "h_questions" and float(p) >= YES_MIN)
         lang = _choice(answers.get("h_language"))
         if lang and (signal or _proof_asked(answers, lang)):  # 0.3.0 S-A: the tool only beside a signal, or a proof
             parts.append(f"tool {lang}")

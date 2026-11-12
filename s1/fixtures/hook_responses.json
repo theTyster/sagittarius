@@ -1,5 +1,5 @@
 {
- "_comment": "Invented responses in the Jev API shape (choice: choice, confidence, probabilities; noul: noul). No real data.",
+ "_comment": "Invented responses in the Jev API shape (choice: choice, confidence, probabilities; noul: noul). No real data. 0.3.0 S-C: each response also answers h_questions and h_proof, as the live model does for every question of the set.",
  "ticket_example": {
   "model": "jev-1.14.0",
   "answers": {
@@ -40,6 +40,14 @@
      "tests": 0.056,
      "none": 0.056
     }
+   },
+   "h_questions": {
+    "type": "noul",
+    "noul": 0.1
+   },
+   "h_proof": {
+    "type": "noul",
+    "noul": 0.1
    }
   },
   "usage": {
@@ -87,6 +95,14 @@
      "tla": 0.04,
      "none": 0.04
     }
+   },
+   "h_questions": {
+    "type": "noul",
+    "noul": 0.1
+   },
+   "h_proof": {
+    "type": "noul",
+    "noul": 0.1
    }
   },
   "usage": {
@@ -134,6 +150,14 @@
      "tla": 0.14,
      "none": 0.14
     }
+   },
+   "h_questions": {
+    "type": "noul",
+    "noul": 0.1
+   },
+   "h_proof": {
+    "type": "noul",
+    "noul": 0.1
    }
   },
   "usage": {
@@ -181,6 +205,14 @@
      "tla": 0.01,
      "tests": 0.01
     }
+   },
+   "h_questions": {
+    "type": "noul",
+    "noul": 0.1
+   },
+   "h_proof": {
+    "type": "noul",
+    "noul": 0.1
    }
   },
   "usage": {
@@ -228,6 +260,14 @@
      "tests": 0.12,
      "none": 0.12
     }
+   },
+   "h_questions": {
+    "type": "noul",
+    "noul": 0.5
+   },
+   "h_proof": {
+    "type": "noul",
+    "noul": 0.5
    }
   },
   "usage": {
@@ -275,6 +315,14 @@
      "tests": 0.1,
      "none": 0.1
     }
+   },
+   "h_questions": {
+    "type": "noul",
+    "noul": 0.1
+   },
+   "h_proof": {
+    "type": "noul",
+    "noul": 0.1
    }
   },
   "usage": {
@@ -322,6 +370,14 @@
      "tla": 0.16,
      "none": 0.16
     }
+   },
+   "h_questions": {
+    "type": "noul",
+    "noul": 0.5
+   },
+   "h_proof": {
+    "type": "noul",
+    "noul": 0.5
    }
   },
   "usage": {
@@ -360,6 +416,14 @@
      "tla": 0.04,
      "none": 0.04
     }
+   },
+   "h_questions": {
+    "type": "noul",
+    "noul": 0.1
+   },
+   "h_proof": {
+    "type": "noul",
+    "noul": 0.1
    }
   },
   "usage": {

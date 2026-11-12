@@ -31,8 +31,13 @@ as written, with no redaction (T43, u123). It adds one line of context for the a
   When every answer is in the band, the line is `System 1: unsure`. When only the formal tool is
   outside the band and the next rule holds it back, the line is `System 1: no signal`.
 - The line names a formal tool only beside a signal (divergence likely, change of plan likely,
-  effort significant), or when a proof is asked for: `h_proof` in the yes band when the response
-  has it, else the tool is `lean`. The status line uses the same rule.
+  effort significant, questions not settled), or when a proof is asked for: `h_proof` in the yes
+  band when the response has it, else the tool is `lean`. The status line uses the same rule.
+- Two questions cover the signals that the first five did not (0.3.0 S-C): `h_questions` (a round
+  of questions did not settle: the message leaves one open, answers with a new question, or raises
+  a new doubt) and `h_proof` (the human asks for a proof). The line names each only in the yes
+  band: `questions not settled (0.88)`, `proof asked (0.92)`. A response with neither is valid.
+  Calibration: `calibrate.py` and `CALIBRATION.md` (below).
 - Output: `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "..."}}`
   (https://code.claude.com/docs/en/hooks, "UserPromptSubmit decision control").
 - It fails open, and says so. On any error, a timeout, a missing key, a missing questions file or
@@ -43,7 +48,27 @@ as written, with no redaction (T43, u123). It adds one line of context for the a
 
 **Status: the hook is recommended, not required.** Sagittarius works without it, and the prompt
 says that no line means no outside view. `questions.json` is the review session's calibrated set
-(22 of 25 known cases), copied unchanged.
+(22 of 25 known cases), with the two questions of 0.3.0 S-C added.
+
+### What the hook does not report
+
+- **A request is not a divergence.** A request is the first divergence of its ticket: it names a
+  gap between what is and what the human wants. The light path is the response to it, so the hook
+  does not report a request as a divergence, and `h_divergence` excludes a new request (the
+  exclusion stays). The hook reports a later message that says the result or the restatement is
+  wrong, or doubts it.
+- **System 1 does not help with the narrowing.** The narrowing ("changes a part" against "adds on
+  top") is the agent's work on the request. No question of the set asks it, and no calibration
+  run covers it. If that changes, it is one more yes/no question with a calibration run.
+
+### Calibration
+
+The calibration cases are tracked in `fixtures/calibration.json` (keys `cases` and `left_out`): the
+25 known cases and the cases of the two new questions. Every text in it is invented or rewritten, with no client
+content. `test_calibration.py` reads them (no network). A second person who changes a question runs
+`python3 s1/calibrate.py` (a live call to the System 1 model for each case, so it needs `TYPESAFE_API_KEY`;
+`--case ID` runs one case) and reads how many labels agree for each question. The last results are in
+`CALIBRATION.md`.
 
 ### What the hook cannot see
 

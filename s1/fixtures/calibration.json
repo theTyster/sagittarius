@@ -1,0 +1,711 @@
+{
+ "_comment": "Calibration cases of s1/questions.json. Every text is invented or rewritten: no client content (0.3.0 S-C, rk8). origin known: the 25 known cases; origin s_c_1: cases for h_questions and h_proof. expect maps a question id to yes/no (yes/no questions) or to a choice. s1/calibrate.py judges them with the live System 1 model; s1/test_calibration.py reads them.",
+ "cases": [
+  {
+   "id": "k1",
+   "origin": "known",
+   "message": "Add a --json flag to the export command.",
+   "recent": [],
+   "expect": {
+    "h_work": "build",
+    "h_divergence": "no",
+    "h_change_of_plan": "no",
+    "h_effort": "no",
+    "h_language": "tests",
+    "h_proof": "no"
+   }
+  },
+  {
+   "id": "k2",
+   "origin": "known",
+   "message": "Why does login fail for some users since Tuesday? Find out before we change anything.",
+   "recent": [],
+   "expect": {
+    "h_work": "research",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "k3",
+   "origin": "known",
+   "message": "that's not what I meant. I wanted the totals per week, not per day.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "I added daily totals to the report."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes",
+    "h_work": "build"
+   }
+  },
+  {
+   "id": "k4",
+   "origin": "known",
+   "message": "Looks good. Actually, let's call it Insights instead of Reports.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Renamed the tab to Reports as you asked."
+    }
+   ],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "yes"
+   }
+  },
+  {
+   "id": "k5",
+   "origin": "known",
+   "message": "Thanks!",
+   "recent": [],
+   "expect": {
+    "h_work": "other",
+    "h_divergence": "no",
+    "h_effort": "no"
+   }
+  },
+  {
+   "id": "k6",
+   "origin": "known",
+   "message": "Prove that no discount code can take a price below the floor price.",
+   "recent": [],
+   "expect": {
+    "h_language": "lean",
+    "h_work": "verify",
+    "h_proof": "yes"
+   }
+  },
+  {
+   "id": "k7",
+   "origin": "known",
+   "message": "Should we use SQLite or Postgres for the ledger? Just advice.",
+   "recent": [],
+   "expect": {
+    "h_work": "question",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "k8",
+   "origin": "known",
+   "message": "Rerun all the checks on the branch and try to break each claim.",
+   "recent": [],
+   "expect": {
+    "h_work": "verify"
+   }
+  },
+  {
+   "id": "k9",
+   "origin": "known",
+   "message": "is this necessary?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "I also refactored the logging module while fixing the bug."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes"
+   }
+  },
+  {
+   "id": "k10",
+   "origin": "known",
+   "message": "Retries happen when the worker times out, and sometimes two workers pick up the same job; I want to be sure we never charge twice.",
+   "recent": [],
+   "expect": {
+    "h_language": "tla"
+   }
+  },
+  {
+   "id": "k11",
+   "origin": "known",
+   "message": "Here is my design after three hours with the whiteboard: the shop service owns orders, stock counts, prices and coupons; the courier adapter owns labels and tracking; the mailer owns every message to a customer and nothing else sends one. No service reads another's tables; each is asked through its own interface. Orders and stock have one writer each. A refund starts in the shop service, is approved in the mailer's queue and appears in the dashboard as a pinned copy of the order.",
+   "recent": [],
+   "expect": {
+    "h_effort": "yes",
+    "h_work": "specify",
+    "h_language": "prolog"
+   }
+  },
+  {
+   "id": "k12",
+   "origin": "known",
+   "message": "The member's tier and the coupon type decide the discount; gold plus stacked coupons can never exceed 40%. Check every combination.",
+   "recent": [],
+   "expect": {
+    "h_language": "z3"
+   }
+  },
+  {
+   "id": "r1",
+   "origin": "known",
+   "message": "Thanks, that is what I wanted. Merge it.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Add a --json flag to the export command, one object per row."
+    },
+    {
+     "role": "agent",
+     "text": "Starting: I will add the flag and a test first."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: the export command takes --json and writes one object per row.\nKB: No KB\nTriggers: questions no; divergence no; someone else built no; burns no; handoff no.\nClaims: c1 --json writes valid JSON lines (test_export_json passes; it failed before the change). c2 the CSV output is unchanged (the old golden test passes before and after).\nGuesses: dates are written as ISO 8601 in UTC; empty fields are null, not empty strings.\nDisclosures: I did not test files larger than 10 MB. The --pretty flag you mentioned last week is not in this change.\nNot checked: Windows line endings.\nTo land: merge the branch when you are happy with the date format."
+    }
+   ],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "no",
+    "h_effort": "no",
+    "h_proof": "no"
+   }
+  },
+  {
+   "id": "r2",
+   "origin": "known",
+   "message": "No. I said one object per row, and this writes one big array. Also the dates should be local time, I told you that last week.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Add a --json flag to the export command, one object per row."
+    },
+    {
+     "role": "agent",
+     "text": "Starting: I will add the flag and a test first."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: the export command takes --json and writes a JSON array of all rows.\nKB: No KB\nTriggers: questions no; divergence no; someone else built no; burns no; handoff no.\nClaims: c1 --json writes valid JSON lines (test_export_json passes; it failed before the change). c2 the CSV output is unchanged (the old golden test passes before and after).\nGuesses: dates are written as ISO 8601 in UTC; empty fields are null, not empty strings.\nDisclosures: I did not test files larger than 10 MB. The --pretty flag you mentioned last week is not in this change.\nNot checked: Windows line endings.\nTo land: merge the branch when you are happy with the date format."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes",
+    "h_work": "build"
+   }
+  },
+  {
+   "id": "r3",
+   "origin": "known",
+   "message": "This matches what I asked for. But now that I see it, I would rather have it as a separate `export-json` command than a flag.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Add a --json flag to the export command, one object per row."
+    },
+    {
+     "role": "agent",
+     "text": "Starting: I will add the flag and a test first."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: the export command takes --json and writes one object per row.\nKB: No KB\nTriggers: questions no; divergence no; someone else built no; burns no; handoff no.\nClaims: c1 --json writes valid JSON lines (test_export_json passes; it failed before the change). c2 the CSV output is unchanged (the old golden test passes before and after).\nGuesses: dates are written as ISO 8601 in UTC; empty fields are null, not empty strings.\nDisclosures: I did not test files larger than 10 MB. The --pretty flag you mentioned last week is not in this change.\nNot checked: Windows line endings.\nTo land: merge the branch when you are happy with the date format."
+    }
+   ],
+   "expect": {
+    "h_change_of_plan": "yes",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "r4",
+   "origin": "known",
+   "message": "Here is how I want the billing retries to work, after a morning with the incident notes. A charge request goes to the provider with an idempotency key made from the invoice id and the attempt window, not the attempt number, so two workers that pick up the same job send the same key. A worker that times out must not retry on its own; it marks the job as uncertain and the reconciler asks the provider for the state of that key before anything else happens. Refunds follow the same rule. I also want the reconciler to be the only writer of the final state, and the dashboards to read from it, never from the workers. If any of this conflicts with the current schema, tell me where before you change it. I care most that a customer is never charged twice, even when the provider is slow and the queue redelivers.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "We had another double charge on Tuesday. Can you look at the retry path?"
+    },
+    {
+     "role": "agent",
+     "text": "I found two places where a worker retries after a timeout: the charge worker and the refund worker. Both build the idempotency key from the attempt number."
+    },
+    {
+     "role": "you",
+     "text": "Don't change anything yet. I want to write down how it should work first."
+    }
+   ],
+   "expect": {
+    "h_effort": "yes",
+    "h_language": "tla",
+    "h_work": "specify",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "r5",
+   "origin": "known",
+   "message": "Why does the nightly sync skip some accounts? Find out what is happening before we change anything. The logs from last night are in the usual place.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Thanks for the fix to the report header."
+    },
+    {
+     "role": "agent",
+     "text": "You're welcome. The header fix is merged."
+    },
+    {
+     "role": "you",
+     "text": "One more thing came up."
+    }
+   ],
+   "expect": {
+    "h_work": "research",
+    "h_divergence": "no",
+    "h_effort": "no"
+   }
+  },
+  {
+   "id": "r6",
+   "origin": "known",
+   "message": "is all of this necessary?",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Fix the typo in the error message for a missing config file."
+    },
+    {
+     "role": "agent",
+     "text": "Starting."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: the typo is fixed. I also moved the config loader into its own module, added a cache for parsed files, and rewrote the error handling of the CLI so that every error has a code. 14 files changed."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes"
+   }
+  },
+  {
+   "id": "r7",
+   "origin": "known",
+   "message": "Should we keep the ledger in SQLite, or move it to Postgres now that two machines use it? I just want your advice, no change.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "The hub runs on my laptop and the build server now."
+    },
+    {
+     "role": "agent",
+     "text": "Noted. Both machines read the same git repo."
+    },
+    {
+     "role": "you",
+     "text": "Right."
+    }
+   ],
+   "expect": {
+    "h_work": "question",
+    "h_divergence": "no",
+    "h_effort": "no"
+   }
+  },
+  {
+   "id": "r8",
+   "origin": "known",
+   "message": "Rerun every check on the branch yourself, then try to break each claim with inputs the builder did not try. Record a verdict per claim.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Build says the importer change is done."
+    },
+    {
+     "role": "agent",
+     "text": "I see the merge on the branch. The KB is tmp/kb-import."
+    },
+    {
+     "role": "you",
+     "text": "Good."
+    }
+   ],
+   "expect": {
+    "h_work": "verify",
+    "h_divergence": "no",
+    "h_proof": "no"
+   }
+  },
+  {
+   "id": "r9",
+   "origin": "known",
+   "message": "A member's tier and the coupon type decide the discount. Gold members with stacked coupons must never get more than 40 percent off. Check every combination of tier, coupon type and stacking before we ship.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Marketing wants stacked coupons for the holidays."
+    },
+    {
+     "role": "agent",
+     "text": "The discount code reads the tier and one coupon today."
+    },
+    {
+     "role": "you",
+     "text": "That changes now."
+    }
+   ],
+   "expect": {
+    "h_language": "z3",
+    "h_work": "specify"
+   }
+  },
+  {
+   "id": "r10",
+   "origin": "known",
+   "message": "Prove that for every possible cart, the total after discounts is never below the floor price.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "The floor price rule is in the pricing doc."
+    },
+    {
+     "role": "agent",
+     "text": "I read it: no line may be sold below its floor."
+    },
+    {
+     "role": "you",
+     "text": "Yes."
+    }
+   ],
+   "expect": {
+    "h_language": "lean",
+    "h_proof": "yes"
+   }
+  },
+  {
+   "id": "r11",
+   "origin": "known",
+   "message": "ok",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Rename the Reports tab to Insights."
+    },
+    {
+     "role": "agent",
+     "text": "Starting."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: the tab is called Insights. The URL /reports still works and redirects."
+    }
+   ],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "no",
+    "h_effort": "no",
+    "h_work": "other"
+   }
+  },
+  {
+   "id": "r12",
+   "origin": "known",
+   "message": "Hm, that was fast. Did you actually run the tests against the database, or only the unit tests?",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Make the migration idempotent."
+    },
+    {
+     "role": "agent",
+     "text": "Starting."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: the migration checks for the column first. Tests pass."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes",
+    "h_work": "verify"
+   }
+  },
+  {
+   "id": "r13",
+   "origin": "known",
+   "message": "Forget the CSV part for now; just do the JSON one. The CSV can wait until next month.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Add JSON and CSV export to the audit log page."
+    },
+    {
+     "role": "agent",
+     "text": "Starting with a plan: JSON first, then CSV, with one test each."
+    },
+    {
+     "role": "agent",
+     "text": "JSON is done; starting CSV."
+    }
+   ],
+   "expect": {
+    "h_change_of_plan": "yes",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "q1",
+   "origin": "s_c_1",
+   "message": "Main branch only, and Monday to Sunday. For refunds, I am not sure: do they come off the week they were paid or the week they were refunded?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Three questions before I start. 1. Should the report cover all branches or only the main one? 2. Is a week Monday to Sunday or Sunday to Saturday? 3. Should the totals include refunds?"
+    }
+   ],
+   "expect": {
+    "h_questions": "yes"
+   }
+  },
+  {
+   "id": "q2",
+   "origin": "s_c_1",
+   "message": "All three are clear to me: main only, Monday to Sunday, and no refunds. Go ahead.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Three questions before I start. 1. Should the report cover all branches or only the main one? 2. Is a week Monday to Sunday or Sunday to Saturday? 3. Should the totals include refunds?"
+    }
+   ],
+   "expect": {
+    "h_questions": "no"
+   }
+  },
+  {
+   "id": "q3",
+   "origin": "s_c_1",
+   "message": "Both of the first two, fine. But your third question makes me wonder what the report is for. Who reads it?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Three questions before I start. 1. Should the report cover all branches or only the main one? 2. Is a week Monday to Sunday or Sunday to Saturday? 3. Should the totals include refunds?"
+    }
+   ],
+   "expect": {
+    "h_questions": "yes"
+   }
+  },
+  {
+   "id": "q4",
+   "origin": "s_c_1",
+   "message": "Yes to all three. Start now.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Add a weekly report of orders."
+    },
+    {
+     "role": "agent",
+     "text": "Three questions before I start. 1. Should the report cover all branches or only the main one? 2. Is a week Monday to Sunday or Sunday to Saturday? 3. Should the totals include refunds?"
+    }
+   ],
+   "expect": {
+    "h_questions": "no",
+    "h_proof": "no"
+   }
+  },
+  {
+   "id": "q5",
+   "origin": "s_c_1",
+   "message": "That answers it, but it raises another thing: if two users share one email, which one gets the notice?",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Send a notice when an invoice is overdue."
+    },
+    {
+     "role": "agent",
+     "text": "One question: should the notice go to the account owner or to every member?"
+    },
+    {
+     "role": "you",
+     "text": "To the account owner."
+    }
+   ],
+   "expect": {
+    "h_questions": "yes"
+   }
+  },
+  {
+   "id": "q6",
+   "origin": "s_c_1",
+   "message": "The account owner. Thanks, that settles it.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Send a notice when an invoice is overdue."
+    },
+    {
+     "role": "agent",
+     "text": "One question: should the notice go to the account owner or to every member?"
+    }
+   ],
+   "expect": {
+    "h_questions": "no"
+   }
+  },
+  {
+   "id": "q7",
+   "origin": "s_c_1",
+   "message": "Only the first. I do not know about the second and third yet. Can you tell me what each choice would change?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Questions: 1. Keep the old API for one more release? 2. Rename the table now or later? 3. Log the old calls?"
+    }
+   ],
+   "expect": {
+    "h_questions": "yes"
+   }
+  },
+  {
+   "id": "q8",
+   "origin": "s_c_1",
+   "message": "Rename the button to Save and close.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "The settings page needs work."
+    },
+    {
+     "role": "agent",
+     "text": "Which part first?"
+    }
+   ],
+   "expect": {
+    "h_questions": "no"
+   }
+  },
+  {
+   "id": "p1",
+   "origin": "s_c_1",
+   "message": "Can you prove that?",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Make the merge function keep every item from both lists."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: merge now keeps all items. Three tests pass."
+    }
+   ],
+   "expect": {
+    "h_proof": "yes"
+   }
+  },
+  {
+   "id": "p2",
+   "origin": "s_c_1",
+   "message": "I do not want examples. Show me that this holds for every input.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "The sort works on the ten lists that I tried."
+    }
+   ],
+   "expect": {
+    "h_proof": "yes"
+   }
+  },
+  {
+   "id": "p3",
+   "origin": "s_c_1",
+   "message": "Please write a proof that the balance can never go below zero.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Withdrawals must be refused when the balance is too low."
+    },
+    {
+     "role": "agent",
+     "text": "Added the check in the withdraw function."
+    }
+   ],
+   "expect": {
+    "h_proof": "yes"
+   }
+  },
+  {
+   "id": "p4",
+   "origin": "s_c_1",
+   "message": "Add a test for the empty list.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "The merge function is done; tests pass for lists with items."
+    }
+   ],
+   "expect": {
+    "h_proof": "no"
+   }
+  },
+  {
+   "id": "p5",
+   "origin": "s_c_1",
+   "message": "Does the test pass on your machine?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "I added a test for the empty list."
+    }
+   ],
+   "expect": {
+    "h_proof": "no"
+   }
+  },
+  {
+   "id": "p6",
+   "origin": "s_c_1",
+   "message": "How would you prove that the queue never loses a message? Formally, I mean.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "We must never lose a message."
+    },
+    {
+     "role": "agent",
+     "text": "The queue writes each message to disk first."
+    }
+   ],
+   "expect": {
+    "h_proof": "yes"
+   }
+  },
+  {
+   "id": "p7",
+   "origin": "s_c_1",
+   "message": "Good. Make the heading bigger and the text grey.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "The page now shows the order list."
+    }
+   ],
+   "expect": {
+    "h_proof": "no"
+   }
+  },
+  {
+   "id": "p8",
+   "origin": "s_c_1",
+   "message": "Is it provable, or only likely, that two clients never get the same ticket number?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Ticket numbers come from one counter that each client reads."
+    }
+   ],
+   "expect": {
+    "h_proof": "yes"
+   }
+  }
+ ],
+ "left_out": 0,
+ "left_out_reason": "no case was left out: each of the 25 known cases was read and none holds client content",
+ "rewritten": 1,
+ "rewritten_reason": "one known case (k11) was rewritten with an invented design that keeps the signal (a long, detailed message that fits a rules language)"
+}
