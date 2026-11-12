@@ -40,6 +40,7 @@ Earlier versions, named after the fact so that a report can refer to them:
   `docs/philosophy-orbit/2026-11-11/fable/Hypothesis.lean`.
 - The tools, the hub kit and the checks are not changed yet. Where they differ from the new
   texts is in `docs/philosophy-orbit/2026-11-11/fable/ALIGNMENT.md`.
+- `install.py` makes a fifth link, `~/.claude/sagittarius-s1` (the System 1 hook). Run `./install.py` again after you update; `./install.py --check` shows the new link as missing until you do.
 
 ## Redesign (informal release)
 

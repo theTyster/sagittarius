@@ -274,7 +274,8 @@ class C1State(Base):
         p, took = subprocess_hook(self.payload(transcript_path=fifo),
                                   dict(self.env, S1_TIMEOUT="0.3"),
                                   fake_spec={"payload": RECORDED["ticket_example"]}, timeout=8)
-        self.assertEqual((p.returncode, p.stdout), (0, ""))
+        self.assertEqual(p.returncode, 0)
+        self.assertIn(no_view("timeout"), p.stdout)  # 0.3.0 S-A: was stdout "" (silent)
         self.assertLess(took, 3)
 
 

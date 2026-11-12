@@ -24,8 +24,12 @@ read starts with the last 2 MiB and goes back, at most 8 MiB, until it has the m
 The hook sends the complete messages as written, with no redaction (T43, u123): no name list is
 applied to them.
 
-Fails open: on any error, a timeout, a missing key, a missing questions file or bad stdin it
-prints nothing and exits 0. It never blocks a prompt.
+Fails open, and says so (0.3.0 S-A): on any error, a timeout, a missing key, a missing questions
+file or bad stdin it prints one short line, "System 1: no view (<reason>)", and exits 0. When every
+answer is in the unsure band it prints "System 1: unsure". It prints nothing only when it is off
+(S1_OFF). It never blocks a prompt. The line only reports: it gives the agent no instruction (the
+prompt says what to do with a hint). It names a formal tool only beside a signal (a likely
+divergence, a likely change of plan, significant effort), or when a proof is asked for.
 
 Env: TYPESAFE_API_KEY (the key), S1_OFF=1 (do nothing), S1_TIMEOUT (seconds, default 4),
 S1_CONTEXT_MESSAGES (default 3, never below 3),
@@ -51,6 +55,12 @@ CONTEXT_CHARS = CONTEXT_TOKENS * CHARS_PER_TOKEN
 LONG_CONTEXT_TOKENS = 262000  # with the long-context header (TypeSafe docs, models page)
 LONG_CONTEXT_CHARS = LONG_CONTEXT_TOKENS * CHARS_PER_TOKEN
 CHOICE_MIN = 0.5  # a choice is shown when P(choice) >= 0.5, as in the calibration
+UNSURE = "System 1: unsure"  # every answer in the unsure band (0.3.0 S-A)
+
+
+def no_view(reason):
+    """The one short line of a hook that failed (0.3.0 S-A). The details go to the log only."""
+    return f"System 1: no view ({reason})"
 
 
 def _timeout(env):
@@ -213,30 +223,38 @@ def _choice(a, question):
     return (c, p) if p >= CHOICE_MIN else None
 
 
+def _proof_asked(answers, lang):
+    """A proof is asked for: the answer h_proof when the response has it, else the choice lean."""
+    a = answers.get("h_proof")
+    if isinstance(a, dict):
+        return _noul(a)[0] == "yes"
+    return bool(lang) and lang[0] == "lean"
+
+
 def format_answers(answers, questions):
-    """One line, or "" when every answer is unsure. Raises on a malformed answer."""
+    """One line, or UNSURE when every answer is unsure. Raises on a malformed answer.
+    The line only reports (0.3.0 S-A): no instruction. The formal tool is named only beside a
+    signal (divergence likely, change of plan likely, effort significant) or when a proof is asked."""
     parts = []
+    signal = False
     w = _choice(answers["h_work"], questions["h_work"])
     if w:
         parts.append(f"work={w[0]} ({w[1]:.2f})")
-    d, dp = _noul(answers["h_divergence"])
-    c, cp = _noul(answers["h_change_of_plan"])
-    if d == "yes" and c == "yes":
-        parts.append("divergence or change of plan: check which (prompt rule)")
-    else:
-        if d != "unsure":
-            parts.append(f"divergence {'likely' if d == 'yes' else 'unlikely'} ({dp:.2f})")
-        if c != "unsure":
-            parts.append(f"change of plan {'likely' if c == 'yes' else 'unlikely'} ({cp:.2f})")
+    for qid, name in (("h_divergence", "divergence"), ("h_change_of_plan", "change of plan")):
+        b, p = _noul(answers[qid])
+        if b != "unsure":
+            parts.append(f"{name} {'likely' if b == 'yes' else 'unlikely'} ({p:.2f})")
+            signal = signal or b == "yes"
     e, ep = _noul(answers["h_effort"])
     if e == "yes":
-        parts.append(f"effort significant ({ep:.2f}): consider a shift up")
+        parts.append(f"effort significant ({ep:.2f})")
+        signal = True
     elif e == "no":
         parts.append(f"effort not significant ({ep:.2f})")
     lang = _choice(answers["h_language"], questions["h_language"])
-    if lang:
+    if lang and (signal or _proof_asked(answers, lang)):
         parts.append(f"formal tool: {lang[0]} ({lang[1]:.2f})")
-    return ("System 1: " + "; ".join(parts)) if parts else ""
+    return ("System 1: " + "; ".join(parts)) if parts else UNSURE
 
 
 def _skip(log_path, key, reason, extra=None, **fields):
@@ -247,9 +265,15 @@ def _skip(log_path, key, reason, extra=None, **fields):
     jev._log(log_path, key, rec)
 
 
+def _out(line):
+    return json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+                                              "additionalContext": line}})
+
+
 def run(raw, env, transport=None):
-    """The hook's stdout for stdin text raw: a JSON hook result, or "" for nothing.
-    Never raises. Every skip except S1_OFF writes one log line with the reason."""
+    """The hook's stdout for stdin text raw: a JSON hook result, or "" only when off (S1_OFF).
+    Never raises. Every skip except S1_OFF writes one log line with the reason, and prints
+    one short line "System 1: no view (<reason>)" (0.3.0 S-A)."""
     if env.get("S1_OFF", "").strip() not in ("", "0"):
         return ""
     log_path = env.get(jev.LOG_ENV) or jev.DEFAULT_LOG
@@ -260,10 +284,10 @@ def run(raw, env, transport=None):
             payload = json.loads(raw)
         except ValueError as e:
             _skip(log_path, key, f"stdin: not JSON ({e})")
-            return ""
+            return _out(no_view("bad input"))
         if not isinstance(payload, dict) or not isinstance(payload.get("prompt"), str):
             _skip(log_path, key, "stdin: no prompt")
-            return ""
+            return _out(no_view("bad input"))
         tpath = payload.get("transcript_path")
         tpath = tpath if isinstance(tpath, str) else ""
         extra = {"session_id": payload.get("session_id"),
@@ -276,13 +300,13 @@ def run(raw, env, transport=None):
                 raise ValueError("not a non-empty object")
         except (OSError, ValueError) as e:
             _skip(log_path, key, f"questions: {type(e).__name__}: {e}", extra)
-            return ""
+            return _out(no_view("no question set"))
         timeout = _timeout(env)
         if not key:  # judge would fall back to os.environ; the hook reads only env
             _skip(log_path, None, "no API key", extra, model=jev.DEFAULT_MODEL,
                   questions=list(questions), answers=None, latency=0.0, usage=None,
                   error=f"RuntimeError: missing API key (${jev.KEY_ENV})")
-            return ""
+            return _out(no_view("no API key"))
         box = {}
 
         def call():  # the transcript read and the request both run inside the timeout
@@ -305,26 +329,23 @@ def run(raw, env, transport=None):
             _skip(log_path, key, f"timeout: the hook stopped waiting after {timeout + GRACE}s",
                   extra, model=jev.DEFAULT_MODEL, questions=list(questions),
                   latency=timeout + GRACE, error=f"timeout: after {timeout + GRACE}s")
-            return ""
+            return _out(no_view("timeout"))
         if "error" in box:
             _skip(log_path, key, box["error"], extra)
-            return ""
+            return _out(no_view("error"))
         answers = box.get("answers")
         if not answers:
             _skip(log_path, key, "no answers (the call's line has the error)", extra)
-            return ""
+            return _out(no_view("no answer"))
         try:
             line = format_answers(answers, questions)
         except Exception as e:
             _skip(log_path, key, f"bad answers: {type(e).__name__}: {e}", extra)
-            return ""
-        if not line:
-            return ""
-        return json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
-                                                  "additionalContext": line}})
+            return _out(no_view("bad answers"))
+        return _out(line)
     except Exception as e:
         _skip(log_path, key, f"error: {type(e).__name__}: {e}", extra)
-        return ""
+        return _out(no_view("error"))
 
 
 def main(transport=None):

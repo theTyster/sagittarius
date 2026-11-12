@@ -128,13 +128,17 @@ def c7():
         if not m:
             return "README.md Layout table has no row for %s/" % d
         rows[d] = flat(m.group(1))
-    if "manual" not in rows["s1"] or "approved" not in rows["s1"]:
-        return "the s1/ row does not say manual install and off until the question set is approved"
+    # 0.3.0 S-A, S-D: was "manual" and "approved" in the row, and the /path/to/sagittarius placeholder.
+    # The hook is recommended, not required; install.py links s1/ and the snippets use that link.
+    if "recommended, not required" not in rows["s1"] or "manual" not in rows["s1"]:
+        return "the s1/ row does not say that the hook is recommended, not required, with a manual paste"
+    if "approved" in rows["s1"]:
+        return "the s1/ row still ties the hook to an approval of the question set"
     s1 = read("s1/README.md")
     if "/home/" in s1:
         return "s1/README.md has a hard-coded /home/ path"
-    if "/path/to/sagittarius" not in s1:
-        return "s1/README.md has no path placeholder"
+    if "/path/to/sagittarius" in s1 or "~/.claude/sagittarius-s1/hook.py" not in s1:
+        return "the snippets of s1/README.md do not use the installed link ~/.claude/sagittarius-s1"
     return None
 
 

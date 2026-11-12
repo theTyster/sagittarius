@@ -103,7 +103,8 @@ class InstallSequence(unittest.TestCase):
         self.flat = " ".join(self.sec.split())
 
     def test_order_of_the_steps(self):
-        pos = [self.flat.find(w) for w in ("./install.py", "--append-system-prompt", "shell function", "last line")]
+        self.assertIn("shell function", self.flat)
+        pos = [self.flat.find(w) for w in ("./install.py", "--append-system-prompt", "start one session", "last line")]
         self.assertTrue(all(p >= 0 for p in pos), pos)
         self.assertEqual(pos, sorted(pos))
 
