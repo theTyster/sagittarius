@@ -2778,8 +2778,8 @@ t_VR5() { vr_ind "$T/k"; K=$T/k
           okb --dir "$K" report; rc_is 0 "report"
           local sec; sec=$(printf '%s\n' "$out" | awk '/^# Review:/{f=1;next} /^# /{f=0} f')
           [ -n "$sec" ] || note "report has no Review section"
-          printf '%s\n' "$out" | grep -E '^# ' | paste -sd' ' | grep -qF '# Claims: # Review: # Guesses:' \
-              || note "the Review section comes after Claims, before Guesses"
+          printf '%s\n' "$out" | grep -E '^# ' | paste -sd' ' | grep -qF '# Claims: # Review: # Formal: # Guesses:' \
+              || note "the Review section comes after Claims, before Formal and Guesses (D31 B3)"
           printf '%s\n' "$sec" | grep -Eq '^  - c1: reviewer review \(session s2\), verdict upheld: reran k1; tried an empty input\.$' || note "c1: reviewer, verdict, text: [$(snip "$sec")]"
           printf '%s\n' "$sec" | grep -Eq '^    - Reruns: run 1 k1 pass\.$' || note "c1: its reruns: [$(snip "$sec")]"
           printf '%s\n' "$sec" | grep -Eq '^  - c2: no verdict\.$' || note "c2 has no verdict: [$(snip "$sec")]"
