@@ -7390,8 +7390,12 @@ report_text(KB, Eng) :-
     rhead('KB'),
     kb_dir(KB, KDir0),
     rsay(kb_dir, "~w", [KDir0]),
-    rhead('Signals'),
-    rsay(placeholder, "(Compare the work with each signal: questions, divergence, someone else built, burns, handoff, effort. Write no, or yes and what fired it.)", []),
+    % D35 R1 (c_k_g_3): each request, word for word: the first one, and each decision that the
+    % human gave during the ticket (a further request fact, in the human's words).
+    eng_all(Eng, [RI, RT], request(RI, RT), Reqs),
+    forall(member([RI, RT], Reqs),
+           ( one_line(RT, RTT), rsay(item(RI), "Request ~w, word for word: ~w", [RI, RTT]) )),
+    signals_section(KB, Eng),
     hypothesis_section(Eng),
     ( has_discovery(KB) -> system_section(Eng), findings_section(Eng) ; true ),
     rhead('Claims'),
@@ -7671,6 +7675,67 @@ scope_sections(KB, Eng) :-
         forall(member(N, Ns), ( txt(N, NT), rsay(not_explored, "~w", [NT]) ))
     ;   true
     ).
+
+% signals_section(+KB, +Eng) (D35 S3, c_k_g_4b): the Signals field from every record of a
+% signal: the signal/4 facts, the divergence attestations, and the burns (a universal claim, a
+% proof that the human asked for, a claim that was contested twice and is not visual). "no" only
+% for a kind with no record; "yes" with one nested line for each record, with who noticed it.
+% Then each lean back (D35 S2).
+signals_section(KB, Eng) :-
+    rhead('Signals'),
+    eng_all(Eng, [S, Kd, By, Tx], signal(S, Kd, By, Tx), Sigs),
+    eng_all(Eng, [A, Tg, AB], attest(A, divergence, _, Tg, AB, _), Dvs),
+    burn_records(KB, Eng, Burns),
+    forall(member(Kd-Label, [questions-"questions", divergence-"divergence", built_by_other-"someone else built",
+                             burn-"burns", handoff-"handoff", effort-"effort"]),
+           ( findall(L, signal_record(Kd, Sigs, Dvs, Burns, L), Ls),
+             (   Ls == []
+             ->  rsay(signal(Kd), "~w: no.", [Label])
+             ;   format(string(Head), "~w: yes.", [Label]),
+                 findall(L-[], member(L, Ls), Kids),
+                 atomic_list_concat(Ls, ' ', LT),
+                 format(string(Plain), "~w ~w", [Head, LT]),
+                 rtree(signal(Kd), Plain, Head-Kids)
+             ) )),
+    eng_all(Eng, [LB, LT2], lean_back(LB, LT2), LBs),
+    forall(member([LB, LT2], LBs),
+           ( one_line(LT2, LTT), rsay(lean_back(LB), "Leaning back (~w): ~w", [LB, LTT]) )).
+
+signal_record(Kd, Sigs, _, _, L) :-
+    member([S, Kd, By, Tx], Sigs),
+    one_line(Tx, T0), strip_period(T0, T1),
+    noticer(By, BW),
+    format(string(L), "~w: ~w (noticed by ~w).", [S, T1, BW]).
+signal_record(divergence, _, Dvs, _, L) :-
+    member([A, Tg, AB], Dvs),
+    (   Tg =.. [K, X] -> format(string(On), "~w ~w", [K, X]) ; term_text(Tg, On) ),
+    noticer(AB, BW),
+    format(string(L), "~w: a divergence on ~w (attested by ~w).", [A, On, BW]).
+signal_record(burn, _, _, Burns, L) :-
+    member(C-Why, Burns),
+    format(string(L), "~w: ~w", [C, Why]).
+
+noticer(agent, "the agent") :- !.
+noticer(human, "the human") :- !.
+noticer(system1, "System 1") :- !.
+noticer(script, "a script") :- !.
+noticer(X, X).
+
+strip_period(T, S) :-
+    (   sub_string(T, B, 1, 0, ".") -> sub_string(T, 0, B, _, S) ; S = T ).
+
+% burn_records(+KB, +Eng, -Burns): C-Why for each claim with a reason to burn (as burn_reason/1
+% of the build module; without build, a contested claim is not checked for visual/1).
+burn_records(KB, Eng, Burns) :-
+    eng_all(Eng, [C1], universal(C1), Us),
+    (   has_build(KB)
+    ->  eng_all(Eng, [C2], burn_requested(C2), Rs),
+        eng_all(Eng, [C3], ( contested_twice(C3), not(visual(C3)) ), Ts)
+    ;   Rs = [], eng_all(Eng, [C3], contested_twice(C3), Ts)
+    ),
+    findall(C-W, ( member(C, Us), W = "the claim is universal (about every input)."
+                 ; member(C, Rs), W = "the human asked for a proof."
+                 ; member(C, Ts), W = "the claim was contested twice." ), Burns).
 
 % formal_section(+Eng, +Cs) (D31 B3): the formal statement of each current claim that has one,
 % beside its plain sentence; or "None." B4 and B5 add the statements.
@@ -8713,7 +8778,9 @@ help_lines(report, [
 "orbit-kb report [--html FILE [--open]]",
 "",
 "Print a delivery report skeleton with these sections, in the order of the delivery block:",
-"Delivered, KB (the KB directory), Signals, Hypothesis (with its premises), Claims (each with its",
+"Delivered, KB (the KB directory and each request, word for word), Signals (each of the six:",
+"no, or yes and each record: a signal fact, a divergence, a burn; then each lean back),",
+"Hypothesis (with its premises), Claims (each with its",
 "examples), Formal (a theorem and its statement, or a model and its property; or None), Guesses",
 "(defaults and unchecked premises), Disclosures, Waivers (build), Not checked, Open, To land.",
 "With the discovery module it drafts the discovery report too: System (what the system showed) and",
@@ -8721,7 +8788,7 @@ help_lines(report, [
 "Not explored after Formal (also without the module, when the KB has such facts).",
 "With the discovery module, a Vote section comes before To land. It shows the agent's vote",
 "and the formal artifacts' vote only after the human votes in the current round.",
-"Fill in Delivered, Signals and To land yourself.",
+"Fill in Delivered and To land yourself. Check Signals: a signal with no record says no.",
 "",
 "The text is plain Markdown. Each section has a heading (# Claims:) and a blank line after it.",
 "Each item is a bullet, with two more spaces for each level. The label is in **bold**.",

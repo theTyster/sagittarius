@@ -93,6 +93,15 @@ decl(fact, no_premises(ref(hypothesis)),
 decl(fact, supersedes(ref, ref),
      'The first claim replaces the second claim, or the first hypothesis replaces the second hypothesis.',
      '@(1) replaces @(2)').
+% 0.3.0 (K-G, D35): a signal of the prompt that fired has a record. Kind is
+% one of the six signals; NoticedBy says who noticed it. report drafts the
+% Signals field from these facts, the divergence attestations, and the burns.
+decl(fact, signal(id, oneof([questions, divergence, built_by_other, burn, handoff, effort]), oneof([agent, system1, human]), text),
+     'A signal that fired: which of the six signals, who noticed it (the agent, System 1, or the human), and what differed.',
+     'signal @(1) (@(2)) fired, noticed by @(3): @(4)').
+decl(fact, lean_back(id, text),
+     'A lean back: what stopped, and what stays active. report prints it under Signals.',
+     'the agent leaned back (@(1)): @(2)').
 decl(fact, universal(ref(claim)),
      'The claim says that something is true for every input.',
      'claim @(1) is about every input').

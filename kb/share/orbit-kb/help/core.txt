@@ -4,7 +4,10 @@ Write facts with: orbit-kb add "claim(c1, introduce, 'Primary buttons are purple
 Quote text with single marks. Do not edit kb.pl by hand.
 
 Facts
-  request(Id, Text)              the human's words, word for word
+  request(Id, Text)              the human's words, word for word. A decision that the human gives
+                                 during the ticket goes in as a further request, in the human's own
+                                 words: add "request(r2, 'only on the settings page')" --by human.
+                                 report prints each request under KB.
   hypothesis(Id, Kind, Text)     what must be true when the ticket is done. Every ticket has one.
                                  Kind is defect, feature, risk, or change (a direct build of a
                                  document or a configuration).
@@ -23,6 +26,13 @@ Facts
                                  Both are claims, or both are hypotheses.
                                  Nothing can replace itself, also through a chain.
                                  add refuses it, and lint reports E15.
+  signal(Id, Kind, NoticedBy, Text)   a signal that fired, and what differed (Text).
+                                 Kind: questions, divergence, built_by_other, burn, handoff, or effort
+                                 (the six signals of the prompt). NoticedBy: agent, system1, or human.
+                                 report drafts Signals from these facts, the divergence attestations,
+                                 and the burns: "no" for a kind with no record.
+  lean_back(Id, Text)            a lean back: "Leaning back: <what stopped>. Still active: <what
+                                 continues>." report prints it under Signals.
   universal(Claim)               the claim is about every input; it burns (orbit-kb help build)
   check(K, Claim)                K is an executable check of the claim. A check never moves:
                                  for a claim that replaces it, add a new check (lint W5).

@@ -1703,7 +1703,7 @@ t_KR3() { hy_build "$T/b"; okb --dir "$K" report; rc_is 0
           local heads; heads=$(printf '%s\n' "$out" | grep -oE '^# (Delivered|KB|Signals|Claims|Formal|Guesses):' | sed 's/^# //' | paste -sd' ')
           rl_is "the fields of the delivery block, in its order" "Delivered: KB: Signals: Claims: Formal: Guesses:" "$heads"
           rp_sec KB | grep -qF "$K" || note "KB names the KB directory: [$(rp_sec KB)]"
-          rp_sec Signals | grep -q 'questions.*divergence.*effort' || note "Signals names the six signals: [$(rp_sec Signals)]"
+          rp_sec Signals | paste -sd' ' | grep -q 'questions.*divergence.*effort' || note "Signals names the six signals (D35: one line each): [$(rp_sec Signals)]"
           rl_is "Formal with no formal statement" "  - None. No claim has a formal statement." "$(rp_sec Formal)"
           okb --dir "$K" report --html "$T/r.html"; rc_is 0
           local s; for s in kb signals hypothesis formal; do grep -q "data-section=\"$s\"" "$T/r.html" || note "the page has the section $s"; done; }

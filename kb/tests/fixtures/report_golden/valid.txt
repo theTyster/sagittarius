@@ -3,9 +3,16 @@
 
 # KB:
   - KBDIR
+  - Request r1, word for word: Add saving to the widget and keep loading fast
 
 # Signals:
-  - (Compare the work with each signal: questions, divergence, someone else built, burns, handoff, effort. Write no, or yes and what fired it.)
+  - questions: no.
+  - divergence: no.
+  - someone else built: no.
+  - burns: yes.
+    - c2: the claim is universal (about every input).
+  - handoff: no.
+  - effort: no.
 
 # Hypothesis:
   - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).
