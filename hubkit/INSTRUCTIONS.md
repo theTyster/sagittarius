@@ -1,7 +1,8 @@
-# Instructions for the agent: set up a hub with the hub kit
+# Instructions for the agent: set up a MindHole with the hub kit
 
-This is the hub kit, part of Sagittarius (<https://github.com/theTyster/sagittarius>): its informal
-release. It needs Python 3 and git (`README.md`, "Install"): no bash, and no formal tools.
+A MindHole is the hub of Sagittarius. This is the hub kit, part of Sagittarius
+(<https://github.com/theTyster/sagittarius>): its informal release. It needs Python 3 and git
+(`README.md`, "Install"): no bash, and no formal tools.
 
 You are setting up a **hub**: a git repo that a few long-lived Claude Code sessions share as their
 working memory. Read this whole file before you do anything. Do the steps in order. Each step ends

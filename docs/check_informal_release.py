@@ -309,9 +309,12 @@ def c5():
         has(f"c5 {name}", t, "the hub kit", "part of Sagittarius", REPO_URL)
         lacks(f"c5 {name}", t, "hubflow-starter")
     first = (read(KREADME).splitlines() or [""])[0]
-    check("c5 hubkit/README.md is titled the hub kit", first.lower().startswith("# the hub kit"), first)
+    # Sagittarius 0.3.0 (c_m_g): the display name is the MindHole; "the hub kit" stays the name of the kit.
+    check("c5 hubkit/README.md is titled the MindHole hub kit", first.lower().startswith("# the mindhole hub kit"), first)
     lacks("c5 hubkit/docs/index.html (the briefing the README links)", read(os.path.join(KITDIR, "docs", "index.html")), "hubflow-starter")
-    lacks("c5 README.md section 'Hub kit'", section(read(README), "Hub kit"), "hubflow-starter")
+    kit_sec = section(read(README), "MindHole")
+    check("c5 README.md has the section 'MindHole (the hub kit)'", "hubkit/" in kit_sec, kit_sec[:120])
+    lacks("c5 README.md section 'MindHole (the hub kit)'", kit_sec, "hubflow-starter")
 
 
 # ------------------------------------------------------------------ c6

@@ -90,7 +90,10 @@ Dropping durable knowledge at a week boundary is the one failure this design can
 4. **Editorial lanes.** New `W0/WEEK.md` (rewritten, never copied). Move live week dirs with
    tombstones. **Spec KBs and tools.** `hubflow.py rotate` lists `spec_kbs_untriaged:`: each spec KB
    at `specs/<slug>/` whose ticket is closed needs one decision (archive, capsule, keep or
-   escalate): `hubflow.py spec-triage <slug> ... --note "why"`; archive is `git rm -r specs/<slug>`.
+   escalate). Before it, propose each lasting outcome of the ticket to the project KB (a rule or a
+   decision that must outlive the ticket; `.claude/orbit-kb/bin/orbit-kb help project`), and list the
+   proposals in the report for the human, who ratifies them. Then record the decision:
+   `hubflow.py spec-triage <slug> ... --note "why"`; archive is `git rm -r specs/<slug>`.
    Then prune the unused bespoke tools: a tool in `TECHNOLOGIES.md` (or the memory file the hub
    names) that no open spec KB pins and that has no listed use since the last rotation. Record a
    triage decision for each. Never prune a model or proof that an open spec KB pins. Move
@@ -104,4 +107,5 @@ Dropping durable knowledge at a week boundary is the one failure this design can
 6. **Citations after.** `python3 $SK/check-citations.py > $SCR/citations-after.tsv` and compare with the
    baseline. A citation that broke or now resolves to a different week: tombstone it.
 7. **Commit** the editorial half with a pathspec. Report: what moved, each disposition, what is
-   escalated to the human, what was promoted, and anything you could not check.
+   escalated to the human, what was promoted, the lasting outcomes proposed to the project KB for the
+   human to ratify, and anything you could not check.

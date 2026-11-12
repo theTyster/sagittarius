@@ -3264,6 +3264,30 @@ def case_iux_c4_rotate(r, root):
     r.check("iux-c4-citations-unknown-argument-exit-1", res[0] == 1 and "unknown argument: --bogus" in res[2], res)
 
 
+def case_030_handoff_example(r, root):
+    """Sagittarius 0.3.0, c_m_f_1: the handoff example of the formal hub-flow skill carries a kb ref, and the
+    example runs as written: the row it makes holds the kb ref. An informal hub has no kb refs: skipped there."""
+    try:
+        with open(os.path.join(HERE, "..", "..", ".hub-template.json"), encoding="utf-8") as f:
+            informal = json.load(f).get("edition") == "informal"
+    except (OSError, ValueError, AttributeError):
+        informal = False
+    if informal:
+        r.skip("030-handoff-example", "the informal edition has no kb refs", needs_orbit_kb=False)
+        return
+    skill = open(os.path.join(HERE, "..", "skills", "hub-flow", "SKILL.md"), encoding="utf-8").read()
+    lines = [ln.strip() for ln in skill.splitlines() if ln.strip().startswith("$HF handoff --to")]
+    r.check("030-handoff-example-exists", len(lines) >= 1, lines)
+    r.check("030-handoff-example-has-kb-ref", lines and all("--ref kb:" in ln for ln in lines), lines)
+    d = fresh(r, root, "030-handoff-example")
+    for n, ln in enumerate(lines, 1):
+        args = shlex.split(ln.split(" #")[0].replace("\u2026", "Build the thing").replace("<slug>", "demo-slug"))[1:]
+        code, out, err = hf(r, d, *args)
+        hid = out.strip()
+        refs = q(d, f"select kind from item_ref where item_id='{hid}' and kind='kb'") if code == 0 else []
+        r.check(f"030-handoff-example-{n}-runs-and-keeps-the-kb-ref", code == 0 and refs == [("kb",)], (args, code, out, err, refs))
+
+
 def run_case(r, fn, *args):
     """Run one scenario. A scenario that cannot even run is a failure, not a crash, and the
     scenarios after it still run."""
@@ -3363,6 +3387,8 @@ def cases(r):
         # install UX: the hub's own orbit-kb (c3); rotation and citations in Python (c4, c5)
         run_case(r, case_iux_c3_hub_copy, root)
         run_case(r, case_iux_c4_rotate, root)
+        # Sagittarius 0.3.0 (c_m_f_1): the skill's handoff example carries a kb ref
+        run_case(r, case_030_handoff_example, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))

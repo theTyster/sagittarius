@@ -48,7 +48,7 @@ Only the hub, with no Prolog and no Lean? That is the informal release: see [`hu
    `install.py` never does.
 3. **Start a hub.** Give `hubkit/` to your agent and say "follow INSTRUCTIONS.md". It reads
    `hubkit/INSTRUCTIONS.md`, asks up to three questions, and sets up the hub (a MindHole). See
-   "Hub kit" below.
+   "MindHole" below.
 
 ## What it is
 
@@ -145,13 +145,14 @@ $(cat "$p/panes/$ROLE.md")"
 terminal multiplexer or editor can hold the three sessions. The author starts them as
 three tmux windows named after the roles. That launcher is not part of this repository.
 
-## Hub kit
+## MindHole (the hub kit)
 
-`hubkit/` is the hub kit: a template for a hub, one git repo that a few named Claude Code
-sessions share as working memory (a weekly calendar plus flow state in SQLite). To start a hub from
-it, give `hubkit/` to your agent and say "follow INSTRUCTIONS.md" (`hubkit/INSTRUCTIONS.md`). The
-agent asks up to three questions, sets up the hub, and checks each step. To take a new release into
-a hub, see `hubkit/UPGRADING.md`. Its tests run from the repo root:
+The MindHole is the hub of Sagittarius. `hubkit/` is the hub kit that makes one: a template for a
+hub, one git repo that a few named Claude Code sessions share as working memory (a weekly calendar
+plus flow state in SQLite). To start a hub from it, give `hubkit/` to your agent and say "follow
+INSTRUCTIONS.md" (`hubkit/INSTRUCTIONS.md`). The agent asks up to three questions, sets up the hub,
+and checks each step. To take a new release into a hub, see `hubkit/UPGRADING.md`. Its tests run
+from the repo root:
 
 ```
 python3 hubkit/hub/.claude/scripts/hubflow-test.py

@@ -68,7 +68,7 @@ Read at session start and after every compaction: the db is the memory, not the 
 ```
 $HF add ask --title "…" --waits-on me --ref issue:123 [--analysis <slug>] [--note "…"]
 $HF add thread --title "…" --ref pr:45
-$HF handoff --to build --title "…" --ref issue:123 --note "where to start"
+$HF handoff --to build --title "…" --ref kb:<slug> --ref issue:123 --note "where to start"
 $HF accept H-0003                 # only the receiving session can accept
 $HF renew T-0002 --note "still live: next step …"
 $HF park K-0001 --until 2026-12-01 --note "why"
@@ -137,7 +137,12 @@ them. The `hub-rotate` skill runs `rotate`.
 ## The spec KB of a closed ticket
 
 A spec KB at `specs/<slug>/` whose every item is closed is a triage item at the rotation. `rotate`
-lists it as `spec_kbs_untriaged:` and exits 1 until each has one decision, recorded once:
+lists it as `spec_kbs_untriaged:` and exits 1 until each has one decision, recorded once.
+
+Before the decision, and always before an archive: propose each lasting outcome of the ticket to the
+project KB (a rule or a decision that must outlive the ticket, with its source in the spec KB;
+`.claude/orbit-kb/bin/orbit-kb help project`), and list the proposals in the report for the human,
+who ratifies them. A test in the project's suite is the other home of a lasting outcome. Then:
 
 ```
 $HF spec-triage <slug> keep     --note "why the KB stays"

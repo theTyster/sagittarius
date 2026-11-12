@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Your hub: a briefing</title>
+<title>Your MindHole: a briefing</title>
 <style>
   :root {
     --bg: #fbfaf7; --fg: #1d1d1f; --muted: #5d5d66; --line: #e4e1da; --card: #ffffff;
@@ -67,8 +67,8 @@
 
 <header>
   <p class="kicker">A briefing for the human</p>
-  <h1>Your hub: shared memory for a small team of AI sessions</h1>
-  <p class="lede">A few long-running Claude Code sessions share one git repo as their memory. It forgets
+  <h1>Your MindHole: shared memory for a small team of AI sessions</h1>
+  <p class="lede">A MindHole is a hub: a few long-running Claude Code sessions share one git repo as their memory. It forgets
   on a schedule, keeps what matters, and tracks who is waiting on whom in a small database. This page
   explains what you get, what you do, and what to say to your agents.</p>
 </header>
@@ -112,7 +112,6 @@
   <table>
     <tr><th>In each week</th><th>What it holds</th></tr>
     <tr><td><code>WEEK.md</code></td><td>The dates and one paragraph about what the week is about. Always there.</td></tr>
-    <tr><td><code>analyses/</code></td><td>Investigations: what was measured, how, and what was <em>not</em> measured.</td></tr>
     <tr><td><code>reports/</code></td><td>What went out to people, and how it landed.</td></tr>
     <tr><td><code>transcripts/</code></td><td>Meeting notes, word for word. Never deleted.</td></tr>
     <tr><td><code>outbound-staging/</code></td><td>Drafts for email, chat or tickets. <strong>You</strong> send them; agents never do.</td></tr>
@@ -149,7 +148,8 @@
   <table>
     <tr><th>Session</th><th>Its job (example)</th></tr>
     <tr><td><strong>discovery</strong></td><td>Turns reports and vague requests into clear tickets.</td></tr>
-    <tr><td><strong>build</strong></td><td>Builds, tests and reviews changes.</td></tr>
+    <tr><td><strong>build</strong></td><td>Builds and tests changes.</td></tr>
+    <tr><td><strong>review</strong></td><td>Checks what another session made, against the request and what the system does. It never reviews its own work.</td></tr>
     <tr><td><strong>process</strong></td><td>Improves how the work itself is done.</td></tr>
     <tr><td><strong>support</strong></td><td>Everything human-facing: meetings, messages, reports, drafts for you to send.</td></tr>
   </table>
@@ -211,11 +211,11 @@
 </section>
 
 <section>
-  <div class="note"><strong>Getting set up:</strong> give your agent <a href="https://github.com/theTyster/sagittarius/tree/main/hubkit">the hub kit</a> (part of Sagittarius) and say “follow INSTRUCTIONS.md”. It will ask you
+  <div class="note"><strong>Getting set up:</strong> give your agent <a href="https://github.com/theTyster/sagittarius/tree/main/hubkit">the MindHole hub kit</a> (part of Sagittarius) and say “follow INSTRUCTIONS.md”. It will ask you
   first what the hub is for, and keep your answer word for word in the hub's <code>CLAUDE.md</code>, so every session knows it; then where the hub lives, which sessions and people, which tracker, and whether this install tests the kit itself (UAT). It sets up the hub, checks that its files are the kit's and that its ledger is saved, and reports back.</div>
 </section>
 
 </main>
-<footer>The hub kit, part of Sagittarius · <a href="https://github.com/theTyster/sagittarius">github.com/theTyster/sagittarius</a> · works offline</footer>
+<footer>The MindHole hub kit, part of Sagittarius · <a href="https://github.com/theTyster/sagittarius">github.com/theTyster/sagittarius</a> · works offline</footer>
 </body>
 </html>
