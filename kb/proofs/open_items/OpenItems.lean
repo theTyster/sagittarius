@@ -32,6 +32,13 @@ Abstractions (what the model leaves out):
 * The text of each line, its order, and the other lines that block nothing (a stale approval, a
   contested claim, a pending answer) are `info`: they can only make "Nothing is open" rarer.
 * `stale_pin_open/1` (c_k_c_2) is a list of pins: the model does not compute it.
+
+Limits (the review of K-C and K-D, item 10): the theorem is weaker than the claim in two ways.
+* It assumes `Links`. If a covered kind printed by its own query ever missed an answer of
+  `blocking(X)` of that kind, the theorem would not see it; only tests OP1 and OP2 check the
+  rules against it.
+* A stale pin is not modeled: the theorem says nothing about whether `stale_pin_open/1` is right
+  (which pins are stale, and which ones the KB rests on). It only names the pins of the list.
 -/
 namespace OpenItems
 

@@ -2472,7 +2472,7 @@ t_RV2() { kb_init "$T/n" discovery; K=$T/n   # item 2: a hand-written discovery_
           q 'attest(A, approval, tk, _, human, _)'; local a; a=$(printf '%s\n' "$out" | sed -n 's/^A = //p' | head -1)
           printf 'discovery_end(%s).\n' "$a" >> "$K/kb.pl"
           okb --dir "$K" lint; rc_is 1 "a discovery_end that no GO earned is a lint error"
-          out_has "^ED12 $a" "ED12 names the record"
+          out_has "^ED12 kb.pl:[0-9]+: .*approval $a" "ED12 names the record and its approval"
           hy_go "$T/g"; okb --dir "$K" lint; out_hasnt '^ED12' "control: the CLI's own discovery_end after a GO is no ED12"; }
 t_RV3() { kb_init "$T/s" discovery; K=$T/s   # item 7: a red run of a superseded claim's check is no system result
           oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "no_premises(h1)" "budget(laps, 3)" \

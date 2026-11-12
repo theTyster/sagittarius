@@ -5816,11 +5816,43 @@ lint_diags(KB, Diags, IssueLines, IssueErrors) :-
     e11_diags(Items, Ds, D11, Eng),
     % warnings
     w_diags(KB, Items, Ds, Facts, DW),
-    append([D1, D10, DD, DA, DF, D5, D15, DR, D17, D18, D11, DW], Diags0),
+    % ED12 (review of K-C/K-D, item 2): a discovery_end that no GO earned
+    discovery_end_diags(KB, Items, KbFile, D12),
+    append([D1, D10, DD, DA, DF, D5, D15, DR, D17, D18, D11, DW, D12], Diags0),
     % keep errors in a stable order; drop exact repeats
     list_to_set(Diags0, Diags),
     lint_issues(Eng, Ds, IssueLines, IssueErrors).
 
+
+% discovery_end_diags(+KB, +Items, +KbFile, -Diags) (D41, review of K-C/K-D, item 2): lint error
+% ED12 for a discovery_end(A) whose approval A is a human approval, but where, in the KB as it
+% was just before A (the lines of kb.pl above A, with the library and rules.pl), the orbit was
+% not open, gate(go) did not hold, or the artifacts did not vote go: what attest approval
+% checks before it writes discovery_end (D30 H6). So a hand-written discovery_end on an approval
+% that came with no GO is named. A limit: the KB before A is read with the files as they are now
+% (a subject digest, a log), and a stale approval (H7) is not checked here.
+discovery_end_diags(KB, Items, KbFile, Diags) :-
+    kb_uses(KB, Uses), memberchk(discovery, Uses), !,
+    kb_dir(KB, Dir),
+    findall(I, ( member(I, Items), I = it(kb, _, _, _, _, _) ), KbItems),
+    findall(I, ( member(I, Items), I = it(S, _, _, _, _, _), \+ memberchk(S, [kb, derived]) ), LibItems),
+    findall(diag('ED12', KbFile, L, M),
+            ( member(it(kb, _, L, T, _, _), KbItems), nonvar(T), T = discovery_end(A), atom(A),
+              once(( member(it(kb, _, LA, TA, _, _), KbItems), nonvar(TA), TA = attest(A, approval, _, _, human, _) )),
+              findall(P, ( member(P, KbItems), P = it(kb, _, LP, _, _, _), LP < LA ), Pre),
+              \+ go_before(Dir, LibItems, Pre),
+              fmt(M, "This discovery_end names approval ~w, but no GO came before that approval: in the KB before it, the discovery orbit was not open, or gate(go) or the artifacts' go did not hold. orbit-kb attest approval writes discovery_end only after a GO. Remove the line, or vote and approve again.", [A]) ),
+            Diags).
+discovery_end_diags(_, _, _, []).
+
+go_before(Dir, LibItems, Pre) :-
+    catch(( derived_items(Dir, Pre, Der),
+            append([LibItems, Pre, Der], All),
+            items_decls(All, Ds),
+            build_engine(All, Ds, Eng),
+            eng_true(Eng, discovery_open),
+            eng_true(Eng, gate(go)),
+            eng_true(Eng, artifact_vote(go)) ), _, fail).
 
 e10_diags(Items, Lib, KbFile, Diags) :-
     findall(I, ( member(I, Items), item_src(I, kb) ), KbItems),
@@ -7740,6 +7772,11 @@ report_text(KB, Eng) :-
            ( ready_line(Eng, D5, DK5, DS5), ( D5 = unknown -> DRef = discovery ; functor(D5, _, DA), ( DA =:= 1 -> arg(1, D5, DRef) ; functor(D5, DRef, _) ) ),
              ( eng_true(Eng, claim(DRef, _, _)) -> DTgt = DRef ; DTgt = none ),
              ropen(open(discovery_ready, DRef, DTgt), "not ready", "Discovery is not ready, ~w: ~w", [DK5, DS5]) )),
+    % D41 (review of K-C/K-D, item 9): the pointer of D19 to the explanation comes back, once.
+    (   D5s \== []
+    ->  rsay(why_not_ready, "Why: orbit-kb whynot 'discovery_ready' explains what blocks readiness, and orbit-kb lint gives the fix of each finding.", [])
+    ;   true
+    ),
     forall(member(P6, Sp6s), ( stale_pin_text(Eng, P6, PS6), ropen(open(stale_pin, P6, none), "stale pin", "Pin ~w: ~w", [P6, PS6]) )),
     forall(member(A4, A4s), ropen(open(stale, A4, none), "stale", "Approval ~w is stale. The subject changed after the approval.", [A4])),
     forall(member(Y4, Y4s),
