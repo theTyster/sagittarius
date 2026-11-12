@@ -99,8 +99,8 @@ changed those files, and a check.
 
 ### 0.7.0 (Sagittarius 0.3.0 alignment; db schema 6: the session index is dropped)
 
-This release pairs with Sagittarius 0.3 (0.3.0). The version 0.7.0 is a guess of the build: it
-moves with the db schema (5 -> 6), above 0.6.0; the human has not confirmed it. The db schema is 6.
+This release pairs with Sagittarius 0.3 (0.3.0). The build picks the kit version; it only
+moves up (0.6.0 -> 0.7.0, with the db schema 5 -> 6). The db schema is 6.
 **Database:** every hub at schema 5 (0.5.1 to 0.6.0) runs
 `python3 .claude/scripts/hubflow.py migrate` once, then `hubflow.py check`. Engine files changed since 0.6.0: `HUB-CORE.md`,
 `PRINCIPLES.md`, `.claude/scripts/hubflow.py`, `.claude/scripts/hubflow-test.py`, both `SKILL.md`,

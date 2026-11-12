@@ -89,8 +89,8 @@ Earlier versions, named after the fact so that a report can refer to them:
 
 ## MindHole 0.7.0 (the kit; its own version line; pairs with Sagittarius 0.3.0; not released)
 
-The MindHole has its own version (`hubkit/kit.json`), apart from Sagittarius. 0.7.0 is the build's
-guess: the db schema moves from 5 to 6, so the kit version moves (`hubkit/UPGRADING.md`, section
+The MindHole has its own version (`hubkit/kit.json`), apart from Sagittarius. The build picks the
+number, and it only moves up: the db schema moves from 5 to 6, so the kit version moves (`hubkit/UPGRADING.md`, section
 0.7.0, names each engine-file change since 0.6.0).
 
 - The session index is dropped (db schema 6). Ty, 2026-11-12: "I want to cut this feature. 'drop
