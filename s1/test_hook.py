@@ -1026,5 +1026,44 @@ class SA1Silence(Base):
         self.assertEqual((p.returncode, p.stderr), (0, ""))
 
 
+class VA4Link(Base):
+    """0.3.0 V-A (c_v_a_4): the installed hook runs through the link ~/.claude/sagittarius-s1, and
+    each log line still holds the version of this checkout (VERSION at the root), not "unknown"."""
+
+    def setUp(self):
+        super().setUp()
+        self.home = os.path.join(self.dir, "home")
+        os.makedirs(os.path.join(self.home, ".claude"))
+        self.link = os.path.join(self.home, ".claude", "sagittarius-s1")
+        os.symlink(HERE, self.link)
+        with open(os.path.join(ROOT, "VERSION"), encoding="utf-8") as f:
+            self.want = f.read().strip()
+
+    def run_linked(self, code):
+        env = dict(self.env, HOME=self.home, PATH=os.environ.get("PATH", "/usr/bin:/bin"))
+        return subprocess.run([sys.executable, "-c", code], input=self.payload(), capture_output=True,
+                              text=True, env=env, cwd=self.home, timeout=20)
+
+    def test_version_through_the_link(self):
+        p = self.run_linked(f"import sys; sys.path.insert(0, {self.link!r}); import jev; "
+                            "print(jev.__file__); print(jev.sagittarius_version())")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        where, version = p.stdout.split()
+        self.assertTrue(where.startswith(self.link), where)  # the import did go through the link
+        self.assertEqual(version, self.want)
+
+    def test_hook_log_line_through_the_link(self):
+        code = (f"import json, sys; sys.path.insert(0, {self.link!r}); import hook\n"
+                f"payload = {json.dumps(RECORDED['ticket_example'])!r}\n"
+                "def fake(url, headers, body, timeout):\n"
+                "    return 200, payload\n"
+                "sys.exit(hook.main(transport=fake))\n")
+        p = self.run_linked(code)
+        self.assertEqual((p.returncode, p.stderr), (0, ""))
+        lines = self.log_lines()
+        self.assertTrue(lines)
+        self.assertEqual({x["sagittarius"] for x in lines}, {self.want})
+
+
 if __name__ == "__main__":
     unittest.main()
