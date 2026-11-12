@@ -407,6 +407,21 @@ def case_iux_c6_uat(r, root):
     r.check("iux-c6-plain-install-is-not-uat", res[0] == 0 and not manifest(plain).get("uat") and "UAT" not in st[1], (res, st[1][:200]))
 
 
+def case_k3_mindhole_version(r, root):
+    """0.3.0 kit3, review finding 8: the kit's version line is "MindHole <version>"; install, status and upgrade
+    print it in that form."""
+    v = json.load(open(os.path.join(KIT, "kit.json"), encoding="utf-8"))["version"]
+    hub = os.path.join(root, "k3-mindhole-hub")
+    res = hk(r, "install", "--kit", KIT, "--hub", hub, "--edition", "informal")
+    r.check("k3-install-prints-MindHole-version", res[0] == 0 and f"installed MindHole {v} " in res[1], res[1][:200])
+    st = hk(r, "status", "--kit", KIT, "--hub", hub)
+    first = (st[1].splitlines() or [""])[0]
+    r.check("k3-status-prints-the-hub-and-the-kit-as-MindHole-versions",
+            st[0] == 0 and f"hub from MindHole {v} " in first and first.endswith(f"this kit MindHole {v}"), first)
+    up = hk(r, "upgrade", "--kit", KIT, "--hub", hub)
+    r.check("k3-upgrade-prints-MindHole-versions", up[0] == 0 and f"upgrade MindHole {v} -> MindHole {v} " in up[1], up[1][:200])
+
+
 def case_u2_mutants_stream(r):
     """0.3.0 kit3, UAT U2: hubflow-test.py --mutants prints and flushes one line per mutant as it ends, so a log
     that is a pipe or a file shows progress. Two mutants on one small case: the first mutant's line must reach
@@ -447,6 +462,7 @@ def cases(r):
         case_iux_c3_default_edition(r, root)
         case_iux_c3_installed_hub_runs_copy(r, root)
         case_iux_c6_uat(r, root)
+        case_k3_mindhole_version(r, root)
         if r.script == REAL:  # it tests hubflow-test.py, not hubkit.py: the mutants of hubkit.py do not change it
             case_u2_mutants_stream(r)
     except Exception as e:
