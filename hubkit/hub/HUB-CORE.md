@@ -202,6 +202,9 @@ runs as a named session that the human sets up outside the hub (for example in d
 `flow/seed.json` gives the hub the names. Verify is review's: a hub with no review session gets
 its verify from a fresh-eyes subagent that records its verdicts in the spec KB. A handoff between
 panes is one `hubflow.py handoff` row plus the KB, as `PANES.md` says (see above).
+A hub has a light path, as the prompt does: when no signal fired, the build pane delivers a clear
+change with its check, with no spec KB and no review. A signal brings the spec KB and the review
+pane; review also comes in when the human asks.
 
 ## Structure: the hub is a calendar
 
