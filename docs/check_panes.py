@@ -44,6 +44,9 @@ REVIEW_RULES = [
     "one verdict for each claim", "not there yet",
     "evals cost much", "only when the human asks", "cases that the human names",
     "docs/refining.md", "tell the human in one line", "what you did not check",
+    # review of 0.3.0 (finding 11; claim c_m_f_2): the evidence that does not decide is still given,
+    # and the return to build is a handoff that releases the KB
+    "give what you found", "return the work to build as a handoff", "run `orbit-kb release`",
 ]
 
 
