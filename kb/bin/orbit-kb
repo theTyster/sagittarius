@@ -536,6 +536,8 @@ top(Argv0, Code) :-
     ;   Argv = [Cmd|Args],
         (   memberchk(Cmd, [help, '--help', '-h'])
         ->  cmd_help(Args, Code)
+        ;   memberchk(Cmd, [version, '--version'])
+        ->  cmd_version(Args, Code)
         ;   Cmd == init
         ->  cmd_init(Args, Code)
         ;   Cmd == doctor
@@ -1234,6 +1236,49 @@ lib_dir_candidate(Lib, "It is ../share/orbit-kb next to the real path of the orb
     file_directory_name(R, D),
     file_directory_name(D, P),
     directory_file_path(P, 'share/orbit-kb', Lib).
+
+% ---------------------------------------------------------------------
+% The version of the tool (D34, 0.3.0 V-A)
+% ---------------------------------------------------------------------
+% The one source is the file VERSION at the root of the Sagittarius
+% repository. The library holds VERSION too: in the repository it is a
+% link to ../../../VERSION, so an installed link of the CLI reads the
+% root file through it. A copy of kb/bin and kb/share (a hub's
+% .claude/orbit-kb; hubkit.py follows links) holds the number of the
+% kit that it came from. No file, or no X.Y.Z in it: the version is
+% unknown, and orbit-kb version exits 2. The tool never guesses one.
+
+tool_version(V) :-
+    catch(lib_dir_quiet(Lib), _, fail),
+    directory_file_path(Lib, 'VERSION', F),
+    exists_file(F),
+    catch(read_file_to_string(F, S0, [encoding(utf8)]), _, fail),
+    split_string(S0, "", " \t\r\n", [S]),
+    split_string(S, ".", "", Ps),
+    length(Ps, 3),
+    forall(member(P, Ps), ( P \== "", string_codes(P, Cs), forall(member(C, Cs), code_type(C, digit)) )),
+    atom_string(V, S).
+
+% lib_dir/1 without the message: the version must not stop a help screen.
+lib_dir_quiet(Lib) :-
+    lib_dir_candidate(Lib0, _), !,
+    absolute_file_name(Lib0, Lib).
+
+tool_version_text(V) :- ( tool_version(V0) -> V = V0 ; V = '(version unknown)' ).
+
+cmd_version([], Code) :- !,
+    (   tool_version(V)
+    ->  format("orbit-kb ~w~n", [V]), Code = 0
+    ;   ( catch(lib_dir_quiet(Lib), _, fail) -> true ; Lib = '?' ),
+        directory_file_path(Lib, 'VERSION', F),
+        die(2, [ "The version of orbit-kb is unknown.",
+                 "No X.Y.Z in " + F + ".",
+                 "In the Sagittarius repository it is a link to the file VERSION at the root; a copy of kb/share holds the number itself.",
+                 "Fix: run ./install.py in the sagittarius repository, or upgrade the hub's copy (hubkit.py upgrade)."
+               ] >> fix_lines)
+    ).
+cmd_version(_, _) :-
+    usage_error("version takes no arguments: orbit-kb version.", []).
 
 % Turn a list that may hold "a" + B items into strings.
 die_fix_lines(Ls0, Ls) :- maplist(fix_line, Ls0, Ls).
@@ -3377,11 +3422,14 @@ cmd_init(Args, Code) :-
     make_directory_path(Dir),
     clause_line(uses(Uses), [], L1),
     clause_line(Req, [], L2),
+    % The version of the tool that made the KB (D34): a comment, so no rule reads it.
+    tool_version_text(TV),
+    format(atom(LV), "% Made by orbit-kb ~w.", [TV]),
     (   memberchk('--source'-Src, Opts)
     ->  (   Src == '' -> usage_error("--source needs the ref of the tracker item, such as gh:acme/widgets#3.", []) ; true ),
         sha256_text(Text, RD), utc_now(Now),
-        clause_line(request_pin(Id, Src, RD, Now), [], L3), Ls = [L1, L2, L3]
-    ;   Ls = [L1, L2]
+        clause_line(request_pin(Id, Src, RD, Now), [], L3), Ls = [L1, L2, L3, LV]
+    ;   Ls = [L1, L2, LV]
     ),
     setup_call_cleanup(open(KbFile, write, S, [encoding(utf8)]),
                        forall(member(L, Ls), format(S, "~w~n", [L])),
@@ -8260,7 +8308,7 @@ help_topic_file(Topic, File) :-
     atomic_list_concat([Lib, '/help/', Topic, '.txt'], File),
     exists_file(File).
 
-help_lines(general, [
+help_general([
 "orbit-kb: write, check, and query Prolog knowledge bases (KBs) with default negation (not p).",
 "",
 "How to use (read this first; the topics hold the details):",
@@ -8320,6 +8368,7 @@ help_lines(general, [
 "  apply-pending",
 "  project impact X [--root DIR] | project archive --superseded-before DATE [--root DIR] | project dropped [--hub DIR]",
 "  doctor",
+"  version                          the version of the tool (the file VERSION of Sagittarius)",
 "  Every write command takes --as ROLE: actor(A, Role, Session) records who wrote (help core).",
 "  help [COMMAND|TOPIC]",
 "",
@@ -8343,6 +8392,14 @@ help_lines(general, [
 "",
 "Run orbit-kb help COMMAND for details about one command."
 ]).
+
+% The first line of the general help names the version (D34).
+help_lines(general, [First|Ls]) :-
+    help_general([First0|Ls]),
+    tool_version_text(V),
+    sub_atom(First0, 0, _, A, 'orbit-kb:'),
+    sub_atom(First0, _, A, 0, Rest),
+    format(atom(First), "orbit-kb ~w:~w", [V, Rest]).
 
 help_lines(init, [
 "orbit-kb init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
@@ -8687,6 +8744,14 @@ help_lines(doctor, [
 "arithmetic under not gives exactly k2, k3, k4;",
 "E18 flags p :- not q, q :- not p; E17 flags -p(b).",
 "Exit 2 if something is missing or a self-test fails."
+]).
+help_lines(version, [
+"orbit-kb version   (also: orbit-kb --version)",
+"",
+"Print the version of the tool: orbit-kb X.Y.Z. It is the version of Sagittarius, from the file",
+"VERSION of the library (in the repository, a link to the file VERSION at its root; a hub's copy",
+"holds the number of the kit it came from). The first line of orbit-kb help names it too, and",
+"orbit-kb init writes it into kb.pl as a comment. Exit 2 when the file is missing."
 ]).
 help_lines(help, [
 "orbit-kb help [COMMAND|TOPIC]",

@@ -59,6 +59,10 @@ These steps are for Fedora. On another system, use its package manager for SWI-P
    root of the sagittarius repository.
 3. Run `orbit-kb doctor`.
 
+`orbit-kb version` prints the version of the tool, which is the version of
+Sagittarius: the file `VERSION` of the library (in the repository, a link to
+the root `VERSION`; a hub's copy holds the number of its kit).
+
 `orbit-kb` also uses `flock` from util-linux. `doctor` does not examine it.
 Section 13 says what happens when it is missing. No other program is needed:
 there is no `scasp` binary and no s(CASP) pack.
