@@ -5,7 +5,54 @@ These notes carry the work across a compaction. Read them first. Then read the K
 and the `ty_*` decisions in its `kb.pl`. The KB holds Ty's words. These notes hold the state
 and the plan.
 
-## 0. Status on 2026-11-12, 03:20 UTC (read this first; it is newer than section 1)
+## 0. Status on 2026-11-12, 04:25 UTC: the spec KB is handed to the build orbit (read this first)
+
+Ty's last instruction to this session: "next you'll loop on this spec KB. Take atleast 4 passes
+to make sure that we have well-defined and specified changes going into this spec KB for the
+build agent. After that hand it off to the builder and I will close the session." Ty then set
+the goal to three passes. Three passes were made, and the KB is handed off.
+
+**The spec KB:** `/home/ty/Projects/mine/sagittarius/tmp/kb-sagittarius-030` (modules
+discovery, project and build). Read its `TICKET.md` first. Section 0a below describes its first
+form, which is superseded.
+
+- Pass 1, each claim against its source: the 31 claims of the first form held several outcomes
+  each. They became claims with one outcome each. The hypothesis was restated (`h2`): it names
+  the 26 accepted packages, not "every difference".
+- Pass 2, each check: one check for each claim in `checks/check.py`, run through `orbit-kb run`.
+  A check tests behavior where the build has behavior, and it reads the two texts at commit
+  `99bf5c2` from git.
+- Pass 3, an attack with fresh eyes: two reviewers who did not write the claims reported 32
+  findings. 17 claims were written again, 1 is new, and 33 checks changed.
+- Now: 101 current claims. 100 checks fail on `main` for the reason that their claim names,
+  and 1 passes (`c_k_f_3`, a preserve claim). Lint is clean, and `discovery_ready` is true.
+
+**What the passes found about the premises:**
+
+- The UAT MindHole that Ty's message of 03:04 UTC names does not exist now: another session
+  removed it at 21:41 local on 2026-11-11 for a fresh install (`tmp/mindhole-rollout/` in the
+  main checkout). The two claims about the project KB wait for the new MindHole.
+- Kit 0.6.0 is on the branch `rd/install-ux` and is not on `main`. The kit claims were checked
+  against it: each still fails for its own reason.
+- Two claims are universal by their meaning and burn (`c_k_c_1b`, `c_k_d_1b`).
+- `ALIGNMENT.md` moves `Hypothesis.lean` out of this folder. The philosophy cites the present
+  path, and the philosophy is Ty's text: the spec keeps the file here until Ty changes that line.
+
+**The handoff:** request `r2` of the KB is Ty's instruction, word for word. The agent's vote is
+sealed. Ty's vote and the approval of the ticket are NOT recorded: Ty gave the instruction
+before the ticket was final, and an agent does not sign for the human. So the gate says hold.
+The KB has a disclosure that says this. `orbit-kb uses build` and `orbit-kb release` are done,
+and the build session `sagittarius-build` has the path. To record the vote, Ty says GO, NO-GO
+or HOLD to the session that holds the KB: `orbit-kb attest vote r1 'vote(1, CHOICE)' --by
+human`, then `orbit-kb attest approval tk 'digest(current)' --by human`.
+
+**What waits for Ty** is the last section of `TICKET.md`: the vote; when the texts land on
+`main`; the two burns; four questions that Ty did not see (K-F, K-H, the project KB, System 1);
+and four places in Ty's own files.
+
+Not done, on purpose: nothing is built; nothing is landed on `main`; no push.
+
+## 0a. Status on 2026-11-12, 03:20 UTC (older than section 0; newer than section 1)
 
 Ty ruled at 03:04 UTC: "your defaults are good." "Alignment is good too." Ty ruled on
 suggestions 1 to 6, said "we will be using this finalized version", and asked for three things:
