@@ -82,8 +82,10 @@
 #   PH  help names the phases                              (CLI: help; D22)                 : PH1
 #   AC  acceptance criteria: ac/1, show and draft blocking (D29)                             : AC1-AC5
 #   VR  verification records: actor, review_saw, verdicts, independently_verified, WR1 (D28) : VR1-VR12 (VR7-VR11: T38; VR12: T40)
-#   HY  the hypothesis and its premises in every KB; the open discovery orbit (D30, 0.3.0 K-A) : HY1-HY8
+#   HY  the hypothesis and its premises in every KB; the open discovery orbit (D30, 0.3.0 K-A) : HY1-HY8; review fixes HY9-HY18
 #   KR  the report and show print what the KB holds: hypothesis, examples, KB, Signals, Formal, the discovery report (D31, 0.3.0 K-B) : KR1-KR7
+#   OP  no quiet "Nothing is open": blocking, what blocks readiness, stale pins (D32, 0.3.0 K-C) : OP1-OP5
+#   RD  readiness and the vote: examples, preserve checks, calibration, red system runs, the gate (D33, 0.3.0 K-D) : RD1-RD6
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -1055,7 +1057,9 @@ t_VT3() { da_copy; is_set 'artifact_vote(V)' 'V = go' "ready with a current clai
           printf "claim(c0, introduce, 'In a cycle.').\ncites(c0, 'charged twice').\nsupersedes(c0, c0).\n" >> "$K/kb.pl"
           is_false 'current(c0)' "setup: a claim that is not current"; is_set 'artifact_vote(V)' 'V = no_go' "a claim that is not current does not make it go"
           printf "claim(c1, introduce, 'No double charge.').\ncites(c1, 'charged twice').\ncheck(t1, c1).\n" >> "$K/kb.pl"
-          is_set 'artifact_vote(V)' 'V = go' "a current claim with a falsifier makes it go"
+          is_set 'artifact_vote(V)' 'V = hold' "D33 R1: a current claim with no example blocks readiness"
+          printf "example(c1, 'order 7 is charged once').\n" >> "$K/kb.pl"
+          is_set 'artifact_vote(V)' 'V = go' "a current claim with an example and a falsifier makes it go"
           printf "lap_done(3).\nhypothesis(h2, risk, 'Untouched.').\n" >> "$K/kb.pl"
           is_true 'discovery_decide' "setup: budget spent"; is_false 'discovery_ready'; is_set 'artifact_vote(V)' 'V = hold' "budget spent is not ready"
           kb_noshow "$T/n2"; K=$T/n2; printf "hypothesis(h2, risk, 'Untouched.').\n" >> "$K/kb.pl"
@@ -1590,6 +1594,84 @@ t_HY8() { hy_disc "$T/d"
           is_false 'discovery_end(A)' "no GO, so the approval does not end the orbit"; is_true 'discovery_open'
           rejects "only orbit-kb attest writes discovery_end" 'discovery_end' add "discovery_end(a1)"; }
 
+# ---- Review of K-A and K-B on e9f9a4b (claim c_k_a_3b refuted; CONTRACT D30 H5 to H10, D31 B7, B8).
+hy_closed() {  # hy_closed DIR: hy_go, then the build: the discovery orbit is closed
+    hy_go "$1"; okb --dir "$K" uses build >/dev/null; }
+t_HY9() { hy_closed "$T/d"   # finding 1: after a return to discovery, a new round of votes and readiness
+          okb --dir "$K" attest back h1 "back('The human cannot say what the hypothesis changes to.')"; rc_is 0
+          is_false 'gate(V)' "after a return to discovery, the votes of the earlier orbit do not count"
+          oadd "hypothesis(h3, defect, 'Refunds take the points back.')" "supersedes(h3, h1)" "no_premises(h3)" >/dev/null
+          okb --dir "$K" attest approval tk 'digest(current)' --by human; rc_is 0 "the human's approval is never refused"
+          fact_count "$K/kb.pl" 'discovery_end(_)' 1 "an approval with no new vote does not close the orbit again"
+          is_true 'discovery_open'; okb --dir "$K" lint; out_has '^WD7 h3' "h3 still needs its system result"
+          is_false 'discovery_ready'
+          okb --dir "$K" attest reproduction t1 'result(h3, reproduced)' >/dev/null; is_true 'discovery_ready' "setup"
+          okb --dir "$K" attest vote r1 'vote(2, go)'; rc_is 0 "the agent votes in a new round"
+          okb --dir "$K" attest vote r1 'vote(2, go)' --by human; rc_is 0
+          is_set 'gate(V)' 'V = go'
+          okb --dir "$K" attest approval tk 'digest(current)' --by human; rc_is 0
+          fact_count "$K/kb.pl" 'discovery_end(_)' 2 "a new round and readiness close the orbit again"
+          is_true 'discovery_closed'; }
+t_HY10() { kb_init "$T/d" discovery; K=$T/d   # finding 2: no closure while not ready, and the round keeps its record
+          oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "no_premises(h1)" "budget(laps, 3)" \
+               "claim(c1, introduce, 'Every purchase gets the points that its amount and tier give.')" "cites(c1, 'Test request')" \
+               "example(c1, 'gold, 40, gives 80')" "check(t1, c1)" >/dev/null
+          okb --dir "$K" run t1 -- false >/dev/null
+          is_false 'discovery_ready' "setup: h1 was never reproduced"
+          vt_add v1 agent 1 go
+          okb --dir "$K" attest vote r1 'vote(1, go)' --by human; rc_is 0
+          printf '# ticket\n' > "$K/ticket.md"; okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null
+          okb --dir "$K" attest approval tk 'digest(current)' --by human; rc_is 0
+          is_false 'discovery_end(A)' "an approval while discovery is not ready does not close the orbit"
+          okb --dir "$K" lint; out_has '^WD7 h1' "WD7 h1 stays"
+          okb --dir "$K" show open; out_hasnt 'Nothing is open'
+          okb --dir "$K" report; rp_sec Vote | grep -q 'Formal artifacts (0.24): hold' || note "the round keeps the artifacts' hold: [$(rp_sec Vote)]"
+          # a closed orbit keeps the record of its round: the artifacts' go stays, whatever the build adds
+          hy_closed "$T/c"; oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" >/dev/null
+          is_set 'artifact_vote(V)' 'V = go' "after closure the round keeps the artifacts' vote"
+          okb --dir "$K" report; rp_sec Vote | grep -q 'Formal artifacts (0.24): go' || note "the report keeps the round: [$(rp_sec Vote)]"; }
+t_HY11() { hy_disc "$T/d"   # finding 3: a stale approval of the ticket does not close the orbit
+          okb --dir "$K" attest vote r1 'vote(1, go)' >/dev/null; okb --dir "$K" attest vote r1 'vote(1, go)' --by human >/dev/null
+          printf '# ticket\n' > "$K/ticket.md"; okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null
+          okb --dir "$K" attest approval tk "digest('sha256:$(printf '0%.0s' $(seq 1 64))')" --by human; rc_is 0 "the human's approval is never refused"
+          any_hasi 'stale|digest' "a NOTE says why"
+          is_false 'discovery_end(A)' "a stale approval (a digest that is not the ticket's) does not close the orbit"
+          is_true 'discovery_open'; }
+t_HY12() { hy_closed "$T/d"   # finding 6: a vote after the orbit closed
+          rejects "an agent vote after the orbit closed" 'closed' attest vote r1 'vote(2, no_go)'
+          okb --dir "$K" attest vote r1 'vote(2, no_go)' --by human; rc_is 0 "the human's vote is never refused"
+          err_has 'closed' "a NOTE says that the orbit is closed and the vote does not change the outcome"
+          is_set 'gate(V)' 'V = go' "a vote after closure does not change the outcome"
+          okb --dir "$K" report; rp_sec Vote | grep -qi 'after the discovery orbit closed' || note "the report says that the vote came after the orbit closed: [$(rp_sec Vote)]"; }
+t_HY13() { hy_disc "$T/d"   # finding 7: a hand-written discovery_end of something that is no human approval of the ticket
+          printf 'discovery_end(a1).\n' >> "$K/kb.pl"
+          okb --dir "$K" lint; rc_is 1 "lint finds an error"; out_has '^ED11 a1' "ED11 names it"
+          okb help codes; any_has '^ *ED11 ' "help codes lists ED11"; }
+t_HY14() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" "premise(p1, h1, 'The app has one color scheme today.')" "no_premises(h1)" >/dev/null   # finding 9
+          okb --dir "$K" lint; out_has '^W11 h1' "lint names a hypothesis with a premise and the record Premises: none"
+          okb --dir "$K" report; rp_sec Hypothesis | grep -qi 'none.*conflict\|conflict.*none\|W11' || note "the report shows the conflict: [$(rp_sec Hypothesis)]"
+          okb help codes; any_has '^ *W11 ' "help codes lists W11"; }
+t_HY15() { kb_init "$T/d" discovery; kb_init "$T/n" ""   # finding 10: the CONTRACT reserves each fact kind of the discovery module
+          okb --dir "$T/d" show kinds; local dk; dk=$(printf '%s\n' "$out" | sed -n 's/^- \([a-z_]*\/[0-9]*\): .*/\1/p' | LC_ALL=C sort)
+          okb --dir "$T/n" show kinds; local nk; nk=$(printf '%s\n' "$out" | sed -n 's/^- \([a-z_]*\/[0-9]*\): .*/\1/p' | LC_ALL=C sort)
+          local res k; res=$(awk '/^- Facts: `budget\/2`/,/^- Lint codes/' "$here/../CONTRACT.md")
+          [ -n "$res" ] || { note "setup: the reserved facts of the discovery module in CONTRACT"; return; }
+          for k in $(LC_ALL=C comm -23 <(printf '%s\n' "$dk") <(printf '%s\n' "$nk")); do
+              printf '%s\n' "$res" | grep -qF "\`$k\`" || note "CONTRACT does not reserve the discovery fact $k"
+          done; }
+t_HY16() { hy_disc "$T/d"; okb --dir "$K" run t1 -- true >/dev/null   # finding 11
+          okb --dir "$K" report; local s; s=$(rp_sec System)
+          printf '%s\n' "$s" | grep -q 'failed on the current system (run 1)\.$' && note "System says t1 fails now, though run 2 passed: [$s]"
+          printf '%s\n' "$s" | grep -q 'run 2' || note "System names the later run that passed: [$s]"; }
+t_HY17() { hy_disc "$T/d"   # finding 12: back needs a closed orbit and a hypothesis
+          rejects "back while the discovery orbit is open" 'open' attest back h1 "back('No approval yet.')"
+          hy_closed "$T/c"
+          rejects "back on a claim" 'hypothesis' attest back c1 "back('A claim.')"; }
+t_HY18() { hy_build "$T/b"; oadd "hypothesis(h1, feature, 'Line one.\nLine two.')" "premise(p1, h1, 'First.\nSecond.')" >/dev/null   # finding 12
+          okb --dir "$K" report; local h; h=$(rp_sec Hypothesis)
+          printf '%s\n' "$h" | grep -qvE '^  +- ' && note "a newline in the text breaks the bullets: [$h]"
+          printf '%s\n' "$h" | grep -q 'Line one. Line two.' || note "the text keeps its words on one line: [$h]"; true; }
+
 # ---- 0.3.0 K-B: the tool shows what it holds (CONTRACT D31). report: KB, Signals, Hypothesis with its
 # premises, an example under each claim, Formal (a theorem with its statement, or a model with its property),
 # and in a discovery KB the parts of the discovery report (System, Findings, Scope, Risk, Not explored).
@@ -1664,6 +1746,370 @@ t_KR7() { hy_disc "$T/d"; okb --dir "$K" attest vote r1 'vote(1, go)'; rc_is 0 "
           printf '%s\n' "$out" | grep -Eq 'Agent \(0.24\)|artifacts vote' && note "no section leaks the vote"
           okb --dir "$K" attest vote r1 'vote(1, go)' --by human; okb --dir "$K" report
           rp_sec Vote | grep -q 'Agent (0.24): go' || note "after the human votes, the vote shows: [$(rp_sec Vote)]"; }
+
+# ---- 0.3.0 K-C: no quiet "Nothing is open" (CONTRACT D32). show open and the Open part of the report name
+# each answer of blocking(X), each thing that blocks readiness while the discovery orbit is open
+# (ready_blocker(X)), and each stale pin that the KB rests on. "Nothing is open" only when none holds.
+# OP1 and OP2 take the kinds from the rules (the one place where this suite reads the library: the ticket asks
+# for "a test for each kind of blocking(X), made from the rules, so that a new kind cannot be missed").
+op_kinds() {  # op_kinds HEAD: the kinds of the clause heads HEAD(KIND...) of core.pl and the modules, one per line
+    grep -ohE "^$1\([a-z_]+" "$LIB/core.pl" "$LIB"/modules/*.pl | sed -E "s/^$1\(//" | LC_ALL=C sort -u; }
+op_answers() {  # op_answers GOAL: the answers X of GOAL(X) in $K, one term per line ("" when none)
+    q "$1(X)" -n 0; [ "$rc" = 0 ] && printf '%s\n' "$out" | sed -n 's/^X = //p'; true; }
+op_named() {  # op_named PREFIX: each answer of blocking(X) (PREFIX "") or ready_blocker(X) (PREFIX "not_ready ") is named
+    local goal=$1 pre=$2 x kind id re o rep
+    okb --dir "$K" show open; rc_is 0 "show open"; o=$out
+    okb --dir "$K" report; rc_is 0 "report"; rep=$(rp_sec Open)
+    while IFS= read -r x; do
+        [ -n "$x" ] || continue
+        kind=${x%%(*}; id=; [ "$kind" != "$x" ] && { id=${x#*(}; id=${id%)}; }
+        printf '%s\n' "$x" >> "$T/.seen.$goal"
+        if [ "$goal" = ready_blocker ] && [ "$kind" = to_ask ]; then re="^- to_ask $id:"   # blocking names it
+        elif [ -n "$id" ]; then re="^- $pre$kind $id:"; else re="^- $pre$kind:"; fi
+        printf '%s\n' "$o" | grep -Eq -- "$re" || note "show open does not name $goal($x) (want /$re/): [$(snip "$o")]"
+        if [ -n "$id" ]; then printf '%s\n' "$rep" | grep -qF -- "$id" || note "report Open does not name $goal($x): [$(snip "$rep")]"
+        else printf '%s\n' "$rep" | grep -qE -- "$kind|${kind//_/ }" || note "report Open does not name $goal($x): [$(snip "$rep")]"; fi
+    done < <(op_answers "$goal")
+    [ -s "$T/.seen.$goal" ] || note "setup: $goal(X) has no answer in this case"
+    printf '%s\n' "$o" | grep -q 'Nothing is open' && note "show open says Nothing is open while $goal(X) has answers"
+    printf '%s\n' "$rep" | grep -q 'Nothing is open' && note "report Open says Nothing is open while $goal(X) has answers"
+    true; }
+op_cover() {  # op_cover GOAL: every kind of GOAL in the rules had an answer in some case
+    local k
+    while IFS= read -r k; do
+        sed -E 's/\(.*//' "$T/.seen.$1" | grep -qx -- "$k" || note "no case of the test shows $1($k(...)): a kind of the rules with no test"
+    done < <(op_kinds "$1"); }
+t_OP1() { : > "$T/.seen.blocking"
+          kb_new "$T/k" <<'EOF'
+uses([build]).
+request(r1, 'Every kind').
+claim(c1, preserve, 'Text of c1 contested').
+claim(c2, preserve, 'Text of c2 universal').
+claim(c3, preserve, 'Text of c3 visual').
+claim(c4, introduce, 'Text of c4 checks').
+claim(c5, preserve, 'Text of c5 cycle').
+claim(c6, preserve, 'Text of c6 cycle').
+cites(c1, 'Every kind').
+cites(c2, 'Every kind').
+cites(c3, 'Every kind').
+cites(c4, 'Every kind').
+cites(c5, 'Every kind').
+cites(c6, 'Every kind').
+question(q1, c1, 'Text of q1').
+attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
+universal(c2).
+attest(w1, waiver, c2, waive(c2, '2020-01-01T00:00:00Z', 'Text of w1'), human, '2026-10-15T10:00:02Z').
+visual(c3).
+check(k1, c4).
+check(k2, c4).
+due(c4, '2020-01-01T00:00:00Z').
+change(x1, 'Text of x1').
+supersedes(c5, c6).
+supersedes(c6, c5).
+EOF
+          K=$T/k; add_result "$K" k1 1 fail; op_named blocking ""
+          kb_init "$T/n" build; K=$T/n; op_named blocking ""
+          local J=$T/item.json
+          printf '{"title": "Export daily", "body": "Send the export each day."}\n' > "$J"
+          okb init "$T/r" --request-file "$J" --source 'gh:acme/widgets#3' --uses build >/dev/null; K=$T/r
+          oadd "claim(c1, introduce, 'The export runs daily.')" "cites(c1, 'Export daily')" "example(c1, 'one file on Monday')" "check(k1, c1)" >/dev/null
+          okb --dir "$K" run k1 -- false >/dev/null; okb --dir "$K" run k1 -- true >/dev/null
+          printf '{"title": "Export daily", "body": "Send the export each hour."}\n' > "$J"
+          okb --dir "$K" pin-request --request-file "$J" >/dev/null; op_named blocking ""
+          op_project "$T/pc" human; K=$T/pc/sp; op_named blocking ""
+          op_project "$T/pu" human; printf 'this is not (valid.\n' >> "$T/pu/p/kb.pl"; K=$T/pu/sp; op_named blocking ""
+          op_cover blocking; }
+op_project() {  # op_project DIR BY: a project KB with excludes(d1, d2), and a spec KB in DIR/sp whose fulfilled claim pins d1
+    local P=$1/p S=$1/sp
+    okb init "$P" --request project --uses project >/dev/null; K=$P
+    oadd "decision(d1, 'Prices include tax.')" "decided_by(d1, ty, '2026-11-01T00:00:00Z')" \
+         "decision(d2, 'Prices exclude tax.')" "decided_by(d2, ty, '2026-11-02T00:00:00Z')" "excludes(d1, d2)" --by human >/dev/null
+    okb --dir "$P" release >/dev/null
+    okb init "$S" --request 'show the price' --uses build,project >/dev/null; K=$S
+    oadd "project_kb('../p')" >/dev/null
+    q 'project_decision_digest(d1, D)'; local dg; dg=$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}' | head -n1)
+    oadd "claim(c1, introduce, 'The page shows the price.')" "cites(c1, 'show the price')" "example(c1, 'the page shows 12.00')" \
+         "check(k1, c1)" "pins(c1, project, d1, '$dg')" >/dev/null || note "setup: the spec KB: $(snip "$out$err")"
+    okb --dir "$S" run k1 -- false >/dev/null; okb --dir "$S" run k1 -- true >/dev/null; }
+t_OP2() { : > "$T/.seen.ready_blocker"
+          kb_init "$T/e" discovery; K=$T/e; op_named ready_blocker "not_ready "
+          kb_init "$T/h" discovery; K=$T/h; oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" >/dev/null
+          op_named ready_blocker "not_ready "
+          hy_disc "$T/d"
+          oadd "claim(c2, introduce, 'A refund takes the points back.')" "cites(c2, 'Test request')" \
+               "claim(c3, preserve, 'A purchase by a guest gets no points.')" "cites(c3, 'Test request')" \
+               "example(c3, 'a guest buys for 40 and gets 0')" "check(t3, c3)" "discovery_evidence(t3, system)" \
+               "finding(f1, surprise('a guest got 12 points'), system)" "question(q9, h1, 'Do guests get points?')" "raised_by(q9, f1)" \
+               "finding(f2, conflict([c1, c3]), model)" >/dev/null || note "setup: $(snip "$out$err")"
+          okb --dir "$K" run t3 -- false >/dev/null
+          okb --dir "$K" attest disproof c1 "verdict(c1, refuted('a gold member who buys for 40 gets 40'))" >/dev/null
+          op_named ready_blocker "not_ready "
+          da_copy
+          cat >> "$K/kb.pl" <<'EOF'
+attest(a90, model_result, run_target, mutation(m_target, cap, survived), agent, '2026-10-15T11:00:00Z').
+attest(a91, model_result, run_now, calibration(m_now, passes('one code of $5.00 on a list of $40.00'), differs), agent, '2026-10-15T11:00:01Z').
+attest(a92, model_result, run_target, verdict(m_target, applies(c2b), unsat), agent, '2026-10-15T11:00:02Z').
+attest(a93, model_result, run_target, verdict(m_target, preserve(c2b), sat), agent, '2026-10-15T11:00:03Z').
+attest(a94, model_result, run_target, verdict(m_target, preserve(c2b), unsat), agent, '2026-10-15T11:00:04Z').
+attest(a95, divergence, t1, claim(c1), agent, '2026-10-15T11:00:05Z').
+claim(c1x, introduce, 'No order is charged below its floor, and the floor is shown.').
+supersedes(c1x, c1).
+cites(c1x, 'paid less than our minimum price').
+question(q8, c2b, 'Is the floor shown?').
+attest(a96, divergence, t1, claim(c2b), agent, '2026-10-15T11:00:06Z').
+EOF
+          op_named ready_blocker "not_ready "
+          op_cover ready_blocker; }
+t_OP3() { local P=$T/p F=$T/report.txt
+          printf 'week 1\n' > "$F"
+          okb init "$P" --request project --uses project >/dev/null; K=$P
+          oadd "decision(d1, 'Prices include tax.')" "decided_by(d1, ty, '2026-11-01T00:00:00Z')" \
+               "decision(d0, 'Prices are shown.')" "decided_by(d0, ty, '2026-11-01T00:00:00Z')" --by human >/dev/null
+          okb --dir "$K" subject s1 "$F" >/dev/null
+          okb --dir "$K" pin-item pf1 s1 --kind file --changed-at 2026-11-01T00:00:00Z >/dev/null; rc_is 0 "setup: a file pin"
+          oadd "concerns(d1, pf1)" >/dev/null
+          is_false 'stale_pin_open(pf1)' "a pin that did not change is not open"
+          okb --dir "$K" show open; out_hasnt 'pf1' "show open names no fresh pin"
+          printf 'week 1, edited\n' > "$F"
+          is_true 'stale_pin(pf1)' "setup"; is_true 'stale_pin_open(pf1)' "a stale pin that a current decision rests on is open"
+          okb --dir "$K" show open; out_has '^- stale_pin pf1: .*d1' "show open names the stale pin and the decision on it"
+          out_hasnt 'Nothing is open'
+          okb --dir "$K" lint; out_has '^WP8 pf1.*stale' "lint WP8 names the stale pin"
+          okb --dir "$K" report; rp_sec Open | grep -q 'pf1' || note "report Open names the stale pin: [$(rp_sec Open)]"
+          is_false 'blocking(X)' "a stale pin does not block done"
+          # pinned again: the decision rests on the new pin of the same source
+          okb --dir "$K" subject s1 "$F" >/dev/null
+          okb --dir "$K" pin-item pf2 s1 --kind file --changed-at 2026-11-02T00:00:00Z >/dev/null; oadd "concerns(d1, pf2)" >/dev/null
+          is_true 'stale_pin(pf1)' "the old pin stays stale (it is never rewritten)"
+          is_false 'stale_pin_open(pf1)' "a decision that rests on a newer pin of the source is pinned again"
+          okb --dir "$K" show open; out_hasnt 'stale_pin' "show open after the new pin"
+          okb --dir "$K" lint; out_hasnt '^WP8' "lint after the new pin"
+          # a superseded decision does not keep a stale pin open
+          okb --dir "$K" pin-item pf3 s1 --kind file --changed-at 2026-11-02T00:00:00Z >/dev/null; oadd "concerns(d0, pf3)" >/dev/null
+          printf 'week 2\n' > "$F"
+          is_true 'stale_pin_open(pf3)' "setup: d0 rests on the stale pf3"
+          oadd "decision(d9, 'Prices are shown with tax.')" "decided_by(d9, ty, '2026-11-03T00:00:00Z')" "supersedes(d9, d0)" --by human >/dev/null
+          is_false 'stale_pin_open(pf3)' "a pin that only a superseded decision rests on is not open"
+          # a spec KB: a pin that nothing names is open until the source is pinned again
+          local S=$T/sp G=$T/notes.txt; printf 'v1\n' > "$G"
+          okb init "$S" --request 'show the price' --uses build,project >/dev/null; K=$S
+          oadd "claim(c1, introduce, 'The page shows the price.')" "cites(c1, 'show the price')" "example(c1, 'the page shows 12.00')" "check(k1, c1)" >/dev/null
+          okb --dir "$K" subject s2 "$G" >/dev/null; okb --dir "$K" pin-item pf2 s2 --kind file --changed-at 2026-11-01T00:00:00Z >/dev/null
+          printf 'v2\n' > "$G"
+          okb --dir "$K" show open; out_has '^- stale_pin pf2:' "show open names a stale pin of a spec KB"
+          okb --dir "$K" lint; out_has '^WP8 pf2' "lint names it"
+          okb --dir "$K" subject s2 "$G" >/dev/null; okb --dir "$K" pin-item pf4 s2 --kind file --changed-at 2026-11-02T00:00:00Z >/dev/null
+          is_false 'stale_pin_open(X)' "the source is pinned again"
+          # a project KB with a tracker item pinned twice and nothing on it: no noise
+          K=$P; printf 'item text\n' > "$T/item.txt"
+          okb --dir "$K" pin-item pt1 'gh:acme/w#1' --text-file "$T/item.txt" --changed-at 2026-11-01T00:00:00Z >/dev/null
+          okb --dir "$K" pin-item pt2 'gh:acme/w#1' --text-file "$T/item.txt" --changed-at 2026-11-02T00:00:00Z >/dev/null
+          is_true 'stale_pin(pt1)' "setup: a newer record makes pt1 stale"; is_false 'stale_pin_open(pt1)' "an old record that nothing rests on is not open"; }
+t_OP4() { kb_done "$T/k"; K=$T/k; is_true 'done' "setup"
+          okb --dir "$K" show open; out_has '^- Nothing is open\.' "show open says it when nothing blocks"
+          okb --dir "$K" report; rl_is "report Open when nothing blocks" "  - Nothing is open." "$(rp_sec Open)"
+          hy_disc "$T/d"; is_true 'discovery_ready' "setup"
+          okb --dir "$K" show open; out_has '^- Nothing is open\.' "a ready discovery KB with nothing open"
+          okb --dir "$K" report; rl_is "report Open of a ready discovery KB" "  - Nothing is open." "$(rp_sec Open)"
+          # a build KB with an under claim: the report no longer says Nothing is open (the old quiet failure)
+          hy_build "$T/b"; okb --dir "$K" report; rp_sec Open | grep -q 'Nothing is open' && note "report Open says Nothing is open while c1 is under"
+          rp_sec Open | grep -q 'c1' || note "report Open names the under claim c1: [$(rp_sec Open)]"
+          rp_sec Open | grep -q 'k1' || note "report Open names the check k1 that never ran: [$(rp_sec Open)]"
+          okb --dir "$K" report --html "$T/b.html"; rc_is 0
+          [ "$(grep -c 'data-open="under"' "$T/b.html")" = 1 ] || note "the page lists the under claim once in Open"; }
+
+# ---- 0.3.0 K-C and K-D: the examples of the two Lean models, carried to the CLI (c_k_c_1b, c_k_d_1b).
+# OP5_TABLE and RD6_TABLE are copies of what #eval prints in kb/proofs/open_items/OpenItems.lean and
+# kb/proofs/gate_ready/GateReady.lean. With lake on PATH the tests read the #eval output of the model
+# itself (lake env lean; the projects have no packages), so a copy that differs from the model is a
+# failure, and so is a model that does not compile. Without lake, the copy is the table.
+OP5_TABLE='OP5 hypothesis_only: not_ready no_system_result | not_ready no_outcome | not_ready untouched h1
+OP5 contradiction: project_contradiction d1
+OP5 done: Nothing is open
+OP5 under_never_ran: under c1 | check_unrun k1
+OP5 no_example: not_ready no_example c2
+OP5 preserve_fails: not_ready preserve_failing t2
+OP5 ready: Nothing is open
+OP5 closed: Nothing is open
+OP5 stale_pin: stale_pin pf2'
+RD6_TABLE='RD6 not_ready_votes: refused=[1] gate=hold closed=false
+RD6 ready_then_new_hypothesis: refused=[] gate=hold closed=false
+RD6 approved_then_build: refused=[] gate=go closed=true
+RD6 approved_then_back: refused=[] gate=none closed=false
+RD6 stale_approval: refused=[] gate=go closed=false
+RD6 vote_after_closure: refused=[4] gate=go closed=true'
+lean_rows() {  # lean_rows PROJECT FILE TAG COPY: sets LEAN_ROWS, the lines "TAG ..." that #eval prints (or COPY without lake)
+    local d=$here/../proofs/$1 out
+    if ! command -v lake >/dev/null 2>&1; then LEAN_ROWS=$4; return; fi
+    if ! out=$(cd "$d" && timeout 600 lake env lean "$2" 2>&1); then
+        note "lake env lean failed on $1/$2: $(snip "$out")"; LEAN_ROWS=$4; return
+    fi
+    LEAN_ROWS=$(printf '%s\n' "$out" | grep "^$3 " | awk '!seen[$0]++')
+    [ "$LEAN_ROWS" = "$4" ] || note "the copy of the table differs from the #eval output of $1/$2: $(diff <(printf '%s\n' "$4") <(printf '%s\n' "$LEAN_ROWS") | head -n 6 | tr '\n' '~')"
+}
+op5_case() {  # op5_case NAME: make the KB of the example NAME in $T/NAME; K is set
+    local n=$1
+    case $n in
+        hypothesis_only) kb_init "$T/$n" discovery; K=$T/$n; oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" >/dev/null ;;
+        contradiction) op_project "$T/$n" human; K=$T/$n/sp ;;
+        done) kb_done "$T/$n"; K=$T/$n ;;
+        under_never_ran) hy_build "$T/$n" ;;
+        no_example) hy_disc "$T/$n"; oadd "claim(c2, introduce, 'A refund takes the points back.')" "cites(c2, 'Test request')" "check(t2, c2)" >/dev/null ;;
+        preserve_fails) hy_disc "$T/$n"
+            oadd "claim(c2, preserve, 'A purchase by a guest gets no points.')" "cites(c2, 'Test request')" \
+                 "example(c2, 'a guest who buys for 40 gets 0 points')" "check(t2, c2)" "discovery_evidence(t2, system)" >/dev/null
+            okb --dir "$K" run t2 -- false >/dev/null ;;
+        ready) hy_disc "$T/$n" ;;
+        closed) hy_go "$T/$n"; oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" >/dev/null ;;
+        stale_pin) okb init "$T/$n" --request 'show the price' --uses project >/dev/null; K=$T/$n
+            printf 'v1\n' > "$T/$n.txt"; okb --dir "$K" subject s2 "$T/$n.txt" >/dev/null
+            okb --dir "$K" pin-item pf2 s2 --kind file --changed-at 2026-11-01T00:00:00Z >/dev/null; printf 'v2\n' > "$T/$n.txt" ;;
+        *) note "OP5: no CLI case for the example $n of the Lean model"; return 1 ;;
+    esac
+}
+t_OP5() { lean_rows open_items OpenItems.lean OP5 "$OP5_TABLE"
+          local line n want got
+          while IFS= read -r line; do
+              [ -n "$line" ] || continue
+              n=${line#OP5 }; n=${n%%:*}; want=$(printf '%s\n' "${line#*: }" | tr '|' '\n' | sed 's/^ *//; s/ *$//' | LC_ALL=C sort | paste -sd'|')
+              op5_case "$n" || continue
+              okb --dir "$K" show open; rc_is 0 "show open ($n)"
+              got=$(printf '%s\n' "$out" | sed -n 's/^- \([^:]*\).*/\1/p' | sed 's/^Nothing is open\.$/Nothing is open/' | LC_ALL=C sort | paste -sd'|')
+              [ "$got" = "$want" ] || note "example $n: show open names [$got], the Lean model [$want]"
+          done <<< "$LEAN_ROWS"
+          [ "$(printf '%s\n' "$LEAN_ROWS" | grep -c .)" = 9 ] || note "the model has $(printf '%s\n' "$LEAN_ROWS" | grep -c .) examples, want 9"; }
+rd6_ticket() {  # rd6_ticket: the ticket subject of $K
+    printf '# ticket\n' > "$K/ticket.md"; okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null; }
+t_RD6() { lean_rows gate_ready GateReady.lean RD6 "$RD6_TABLE"
+          local line n steps st i refused gate closed
+          while IFS= read -r line; do
+              [ -n "$line" ] || continue
+              n=${line#RD6 }; n=${n%%:*}
+              case $n in
+                  not_ready_votes) kb_init "$T/$n" discovery; K=$T/$n; oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "budget(laps, 3)" >/dev/null
+                      steps="vote:agent:go:1 vote:agent:hold:1 vote:human:go:1" ;;
+                  ready_then_new_hypothesis) hy_disc "$T/$n"; steps="vote:agent:go:1 vote:human:go:1 build:hypothesis" ;;
+                  approved_then_build) hy_disc "$T/$n"; steps="vote:agent:go:1 vote:human:go:1 approve:current build:claim" ;;
+                  approved_then_back) hy_disc "$T/$n"; steps="vote:agent:go:1 vote:human:go:1 approve:current back" ;;
+                  stale_approval) hy_disc "$T/$n"; steps="vote:agent:go:1 vote:human:go:1 approve:stale" ;;
+                  vote_after_closure) hy_disc "$T/$n"; steps="vote:agent:go:1 vote:human:go:1 approve:current vote:agent:no_go:2 vote:human:no_go:2" ;;
+                  *) note "RD6: no CLI case for the example $n of the Lean model"; continue ;;
+              esac
+              rd6_ticket; refused=; i=0
+              for st in $steps; do
+                  i=$((i+1))
+                  case $st in
+                      vote:*) IFS=: read -r _ by ch rd <<< "$st"
+                          if [ "$by" = human ]; then okb --dir "$K" attest vote r1 "vote($rd, $ch)" --by human; else okb --dir "$K" attest vote r1 "vote($rd, $ch)"; fi ;;
+                      build:hypothesis) oadd "hypothesis(h9, defect, 'Refunds take the points back.')" ;;
+                      build:claim) oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" ;;
+                      approve:current) okb --dir "$K" attest approval tk 'digest(current)' --by human ;;
+                      approve:stale) okb --dir "$K" attest approval tk "digest('sha256:$(printf '0%.0s' $(seq 1 64))')" --by human ;;
+                      back) okb --dir "$K" attest back h1 "back('The human cannot say what the hypothesis changes to.')" ;;
+                  esac
+                  [ "$rc" = 1 ] && refused=${refused:+$refused, }$i
+              done
+              q 'gate(V)' -n 0; if [ "$rc" = 0 ]; then gate=$(printf '%s\n' "$out" | sed -n 's/^V = //p' | head -n1); else gate=none; fi
+              q 'discovery_closed'; if [ "$rc" = 0 ]; then closed=true; else closed=false; fi
+              rl_is "example $n: the CLI and the Lean model" "$line" "RD6 $n: refused=[$refused] gate=$gate closed=$closed"
+          done <<< "$LEAN_ROWS"
+          [ "$(printf '%s\n' "$LEAN_ROWS" | grep -c .)" = 6 ] || note "the model has $(printf '%s\n' "$LEAN_ROWS" | grep -c .) examples, want 6"; }
+
+# ---- 0.3.0 K-D: readiness and the vote (CONTRACT D33).
+t_RD1() { hy_disc "$T/d"; is_true 'discovery_ready' "setup"
+          oadd "claim(c2, introduce, 'A refund takes the points back.')" "cites(c2, 'Test request')" "check(t2, c2)" >/dev/null
+          is_false 'discovery_ready' "a current claim with no example blocks readiness"
+          is_true 'ready_blocker(no_example(c2))'
+          okb --dir "$K" lint; out_has '^WD10 c2' "lint WD10 names the claim with no example"; out_hasnt '^WD10 c1'
+          okb --dir "$K" show open; out_has '^- not_ready no_example c2:'
+          oadd "example(c2, 'a refund of 40 takes 80 points back')" >/dev/null
+          okb --dir "$K" lint; out_hasnt '^WD10'
+          oadd "claim(c3, introduce, 'Points expire.')" "cites(c3, 'Test request')" "check(t3, c3)" "supersedes(c3, c2)" "example(c3, 'points expire after a year')" >/dev/null
+          okb --dir "$K" lint; out_hasnt '^WD10' "a superseded claim needs no example"
+          okb help codes; any_has '^ *WD10 ' "help codes lists WD10"; }
+t_RD2() { hy_disc "$T/d"
+          oadd "claim(c2, preserve, 'A purchase by a guest gets no points.')" "cites(c2, 'Test request')" \
+               "example(c2, 'a guest who buys for 40 gets 0 points')" "check(t2, c2)" "discovery_evidence(t2, system)" >/dev/null
+          is_true 'discovery_ready' "a preserve check that never ran does not block (it is the falsifier)"
+          okb --dir "$K" run t2 -- false >/dev/null
+          is_false 'discovery_ready' "a failing check of a preserve claim blocks readiness"
+          is_set 'ready_blocker(X)' 'X = preserve_failing(t2)'
+          okb --dir "$K" show open; out_has '^- not_ready preserve_failing t2:.*c2' "show open names the failing check"
+          is_set 'artifact_vote(V)' 'V = hold'
+          okb --dir "$K" run t2 -- true >/dev/null
+          is_true 'discovery_ready' "the check passes again"; }
+t_RD3() { hy_disc "$T/d"
+          printf '(check-sat)\n' > "$K/m1.smt"; printf 'sat\n' > "$K/log1.log"
+          okb --dir "$K" subject m1 "$K/m1.smt" >/dev/null; okb --dir "$K" subject log1 "$K/log1.log" >/dev/null
+          oadd "model(m1, smt)" >/dev/null
+          local dg; q 'subject(m1, _, D)'; dg=$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}')
+          oadd "model_run(log1, m1, '$dg')" >/dev/null
+          okb --dir "$K" attest model_result log1 'verdict(m1, sanity, sat)' >/dev/null
+          okb --dir "$K" attest model_result log1 "calibration(m1, case('gold, 40, gives 80'), matches)"; rc_is 0 "the older case form is accepted"
+          is_false 'model_trusted(m1)' "one matching case does not calibrate a model"
+          okb --dir "$K" attest model_result log1 "calibration(m1, fails('gold, 40, gave 40'), matches)"; rc_is 0 "a failing case"
+          is_false 'model_trusted(m1)' "a matching failing case alone does not calibrate"
+          is_set 'model_calibration_case(m1, K)' 'K = fails'
+          okb --dir "$K" attest model_result log1 "calibration(m1, passes('silver, 40, gives 40'), matches)"; rc_is 0 "a passing case"
+          is_true 'model_calibrated(m1)'; is_true 'model_trusted(m1)' "a failing case and a passing case calibrate"
+          printf '(check-sat)\n; target\n' > "$K/m2.smt"; okb --dir "$K" subject m2 "$K/m2.smt" >/dev/null
+          printf 'sat\n' > "$K/log2.log"; okb --dir "$K" subject log2 "$K/log2.log" >/dev/null
+          q 'subject(m2, _, D)'; dg=$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}')
+          oadd "model(m2, smt)" "derived_from(m2, m1)" "model_run(log2, m2, '$dg')" >/dev/null
+          okb --dir "$K" attest model_result log2 'verdict(m2, sanity, sat)' >/dev/null
+          is_false 'model_trusted(m2)' "a model derived from a calibrated model needs its own two cases"
+          okb --dir "$K" attest model_result log2 "calibration(m2, fails('gold, 40, gave 40'), matches)" >/dev/null
+          okb --dir "$K" attest model_result log2 "calibration(m2, passes('silver, 40, gives 40'), matches)" >/dev/null
+          is_true 'model_trusted(m2)' "with its own two cases"
+          okb --dir "$K" attest model_result log1 "calibration(m1, passes('bronze, 40, gives 40'), differs)" >/dev/null
+          is_false 'model_trusted(m1)' "a case that differs still breaks the trust"; }
+t_RD4() { kb_init "$T/d" discovery; K=$T/d
+          oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "budget(laps, 3)" \
+               "claim(c1, introduce, 'Every purchase gets the points that its amount and tier give.')" "cites(c1, 'Test request')" \
+               "example(c1, 'gold, 40, gives 80')" "check(t1, c1)" "discovery_evidence(t1, system)" >/dev/null
+          okb --dir "$K" lint; out_has '^WD7 h1' "setup"
+          okb --dir "$K" run t1 -- false >/dev/null
+          okb --dir "$K" lint; out_hasnt '^WD7' "a red run of a system check of an introduce claim is the system result"
+          is_true 'discovery_hypothesis_touched(h1)'; is_true 'discovery_ready' "no reproduction is needed on top"
+          oadd "hypothesis(h2, defect, 'The tier on the day of the purchase decides its points.')" >/dev/null
+          okb --dir "$K" lint; out_has '^WD7 h2' "a run made before a hypothesis existed is not its system result"
+          okb --dir "$K" run t1 -- false >/dev/null
+          okb --dir "$K" lint; out_hasnt '^WD7' "a later red run is the result of each current hypothesis (q_k_d_3b default a)"
+          kb_init "$T/r" discovery; K=$T/r
+          oadd "hypothesis(h1, defect, 'Guests get points.')" "budget(laps, 3)" "claim(c1, retire, 'A guest gets points.')" "cites(c1, 'Test request')" \
+               "example(c1, 'a guest who buys for 40 gets 12 points')" "check(t1, c1)" "discovery_evidence(t1, system)" >/dev/null
+          okb --dir "$K" run t1 -- false >/dev/null; okb --dir "$K" lint; out_hasnt '^WD7' "a retire claim counts too"
+          kb_init "$T/p" discovery; K=$T/p
+          oadd "hypothesis(h1, defect, 'Guests get points.')" "budget(laps, 3)" "claim(c1, preserve, 'A guest gets no points.')" "cites(c1, 'Test request')" \
+               "example(c1, 'a guest who buys for 40 gets 0 points')" "check(t1, c1)" >/dev/null
+          okb --dir "$K" run t1 -- false >/dev/null; okb --dir "$K" lint; out_has '^WD7 h1' "an untagged preserve check that fails is no system result"
+          oadd "discovery_evidence(t1, system)" >/dev/null; okb --dir "$K" lint; out_has '^WD7 h1' "a tagged preserve check that fails is no system result"
+          kb_init "$T/u" discovery; K=$T/u
+          oadd "hypothesis(h1, defect, 'Guests get points.')" "budget(laps, 3)" "claim(c1, introduce, 'A guest gets no points.')" "cites(c1, 'Test request')" \
+               "example(c1, 'a guest who buys for 40 gets 0 points')" "check(t1, c1)" >/dev/null
+          okb --dir "$K" run t1 -- false >/dev/null; okb --dir "$K" lint; out_has '^WD7 h1' "a check not tagged as system evidence is no system result"; }
+t_RD5() { kb_init "$T/n" discovery; K=$T/n; oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "budget(laps, 3)" >/dev/null
+          is_false 'discovery_ready' "setup"
+          rejects "an agent's GO while discovery is not ready" 'not ready' attest vote r1 'vote(1, go)'
+          any_has 'untouched h1' "the refusal names what blocks readiness"
+          okb --dir "$K" attest vote r1 'vote(1, hold)'; rc_is 0 "an agent's hold is accepted"
+          okb --dir "$K" attest vote r1 'vote(1, go)' --by human; rc_is 0 "the human's vote is never refused"
+          is_false 'gate(go)' "GO does not win while discovery is not ready"; is_set 'gate(V)' 'V = hold'
+          # agent and human go, then readiness breaks before the approval: the GO stops counting
+          hy_disc "$T/r"; okb --dir "$K" attest vote r1 'vote(1, go)'; rc_is 0 "an agent's GO while ready"
+          okb --dir "$K" attest vote r1 'vote(1, go)' --by human; is_set 'gate(V)' 'V = go'
+          oadd "hypothesis(h9, defect, 'Refunds take the points back.')" >/dev/null
+          is_false 'discovery_ready' "setup"; is_set 'gate(V)' 'V = hold' "GO stops counting when readiness breaks (q_k_d_1b default a)"
+          is_false 'gate_split' "a GO that cannot win is not a split vote"
+          printf 'attest(v9, vote, r1, vote(1, go), agent, %s).\n' "'2026-11-12T10:00:00Z'" >> "$K/kb.pl"
+          is_set 'gate(V)' 'V = hold' "an agent GO written by hand does not win either"
+          # after the human approved the ticket, a later change of the build does not take the GO back
+          hy_go "$T/a"; okb --dir "$K" uses build >/dev/null
+          oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" >/dev/null
+          is_set 'gate(V)' 'V = go' "the approved GO stays"
+          okb --dir "$K" attest back h1 "back('The human cannot say what the hypothesis changes to.')" >/dev/null
+          is_false 'discovery_ready' "after a return to discovery, readiness is asked again"
+          is_false 'gate(V)' "and the votes of the earlier orbit do not count (D30 H5): a new round is needed"; }
 
 # ---- D10: orbit-kb prove with real Lean. The Lake project is built once (prototype lake).
 # Each test copies it, so lake build has little to do. Skip when lake is missing.
@@ -2057,7 +2503,9 @@ EOF
     local o; o=$(rp_sec Open)
     printf '%s\n' "$o" | grep -q 'Nothing is open' && note "Open says nothing is open while q1 waits: [$o]"
     printf '%s\n' "$o" | grep -q 'q1' || note "Open names the waiting question q1: [$o]"
-    printf '%s\n' "$o" | grep -q 'discovery_ready' || note "Open says discovery is not ready: [$o]"; true; }
+    # D32 O2: one "not ready" item for each thing that blocks readiness
+    printf '%s\n' "$o" | grep -q 'Discovery is not ready, untouched h1' || note "Open says discovery is not ready, and names h1: [$o]"
+    printf '%s\n' "$o" | grep -q 'Discovery is not ready, no_falsifier c1' || note "Open names the claim with no falsifier: [$o]"; true; }
 rp_sec() {  # rp_sec NAME: the lines of one section of $out, without its heading
     printf '%s\n' "$out" | awk -v h="# $1:" '$0==h {f=1; next} /^# / {f=0} f'; }
 rp_item() {  # rp_item ID: the first bullet of $out that starts with ID, and the lines nested under it
@@ -2147,7 +2595,11 @@ t_RL5() { # the other sections: bullets, the label in bold, detail nested
     - The item blocks done again." "$(rp_item w3)"
     rl_is "c6 (not checked)" "  - c6: The save button has a tooltip
     - It has no check." "$(rp_sec 'Not checked')"
+    # D32 O1: the Open part names each answer of blocking(X): the under claims and the failing check too
     rl_is "Open: the kind in bold, the first sentence, then the rest nested" "  - **ask**: Ask question q1 now
+  - **under**: Claim c2 is current but not fulfilled: Loading stays fast
+  - **under**: Claim c6 is current but not fulfilled: The save button has a tooltip
+  - **check failing**: Check k2 did not pass its last run: a check of claim c2: Loading stays fast
   - **over**: Change x2 serves no claim
   - **burn open**: Claim c5 needs a Lean proof
     - Prove it with orbit-kb prove, or ask a human for a waiver.
@@ -3228,6 +3680,16 @@ run_test t_HY5 HY5 "0.3.0 c_k_a_4: Guesses lists unchecked premises and the defa
 run_test t_HY6 HY6 "0.3.0 c_k_a_3b: a restated hypothesis in build needs no system result, also after an approved GO"
 run_test t_HY7 HY7 "0.3.0 q_k_a_3b: after a recorded return to discovery, a new hypothesis needs its system result"
 run_test t_HY8 HY8 "0.3.0 c_k_a_3b: an approval with no GO does not end the orbit; add refuses discovery_end"
+run_test t_HY9 HY9 "review of K-A (1): after a return to discovery, closing needs a new round of votes and readiness"
+run_test t_HY10 HY10 "review of K-A (2): no closure while not ready; a closed orbit keeps the record of its round"
+run_test t_HY11 HY11 "review of K-A (3): a stale approval of the ticket does not close the orbit"
+run_test t_HY12 HY12 "review of K-A (6): a vote after closure: the agent's is refused, the human's is noted and does not count"
+run_test t_HY13 HY13 "review of K-A (7): lint ED11 on a discovery_end that is no human approval of the ticket"
+run_test t_HY14 HY14 "review of K-A (9): lint W11 on a premise and no_premises together; the report shows it"
+run_test t_HY15 HY15 "review of K-A (10): CONTRACT reserves each fact kind of the discovery module"
+run_test t_HY16 HY16 "review of K-A (11): System does not say that a check fails now when a later run passed"
+run_test t_HY17 HY17 "review of K-A (12): attest back needs a closed orbit and a hypothesis"
+run_test t_HY18 HY18 "review of K-A (12): a newline in a hypothesis or premise keeps the bullets of the report"
 run_test t_KR1 KR1 "0.3.0 c_k_b_1: report and show all print the current hypothesis with its premises before the claims"
 run_test t_KR2 KR2 "0.3.0 c_k_b_2: report and show claims print the example of each claim"
 run_test t_KR3 KR3 "0.3.0 c_k_b_3: report has KB, Signals and Formal in the order of the delivery block; the page too"
@@ -3235,6 +3697,17 @@ run_test t_KR4 KR4 "0.3.0 c_k_b_4: Formal gives the theorem and its statement; B
 run_test t_KR5 KR5 "0.3.0 c_k_b_5: property(Model, Claim, Text); Formal gives the model and the property"
 run_test t_KR6 KR6 "0.3.0 c_k_b_6b: the report of a discovery KB drafts the discovery report from the facts"
 run_test t_KR7 KR7 "0.3.0 c_k_b_6b: the report never shows the agent vote before the human votes"
+run_test t_OP1 OP1 "0.3.0 c_k_c_1b: show open and report Open name each answer of blocking(X); a case for each kind of the rules"
+run_test t_OP2 OP2 "0.3.0 c_k_c_1b: show open and report Open name what blocks readiness; a case for each kind of ready_blocker"
+run_test t_OP3 OP3 "0.3.0 c_k_c_2: a stale pin that the KB rests on: show open, report Open, lint WP8; a new pin of the source closes it"
+run_test t_OP4 OP4 "0.3.0 c_k_c_1b: Nothing is open only when nothing blocks; the report names an under claim"
+run_test t_RD1 RD1 "0.3.0 c_k_d_2: discovery is ready only when each current claim has an example; lint WD10"
+run_test t_RD2 RD2 "0.3.0 c_k_d_4: a failing check of a preserve claim blocks readiness; show open names it"
+run_test t_RD3 RD3 "0.3.0 c_k_d_5: a model is calibrated by a failing case and a passing case; a derived model needs its own"
+run_test t_RD4 RD4 "0.3.0 c_k_d_3b: a red run of a system check of an introduce or retire claim is the system result; preserve is not"
+run_test t_RD5 RD5 "0.3.0 c_k_d_1b: an agent GO is refused while not ready; GO cannot win then; the approved GO stays"
+run_test t_OP5 OP5 "0.3.0 c_k_c_1b: show open agrees with the examples of the Lean model kb/proofs/open_items"
+run_test t_RD6 RD6 "0.3.0 c_k_d_1b: attest and gate agree with the examples of the Lean model kb/proofs/gate_ready"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"

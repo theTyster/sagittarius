@@ -344,5 +344,8 @@ premise_was_checked(P) :- premise_checked(P, _).
 premise_unchecked(P) :- premise(P, H, _), not superseded(H), not premise_was_checked(P).
 premises_stated(H) :- premise(_, H, _).
 premises_stated(H) :- no_premises(H).
+% Review of K-A (finding 9): a premise and the record "Premises: none" on one hypothesis.
+lint_issue('W11', H, 'This hypothesis has a premise and also the record no_premises ("Premises: none"). They contradict each other. Restate the hypothesis (a new hypothesis with supersedes) with its premises, or with no_premises only.') :-
+    hypothesis(H, _, _), not superseded(H), premise(_, H, _), no_premises(H).
 lint_issue('W10', H, 'This hypothesis has no premise and no record "Premises: none". Add premise(P, H, Text) for each condition that it takes as given, or no_premises(H).') :-
     hypothesis(H, _, _), not superseded(H), not premises_stated(H).

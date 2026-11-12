@@ -1,0 +1,6 @@
+{"version": "1.3.0",
+ "packagesDir": ".lake/packages",
+ "packages": [],
+ "name": "gate_ready",
+ "lakeDir": ".lake",
+ "fixedToolchain": false}

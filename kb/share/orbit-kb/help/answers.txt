@@ -20,5 +20,6 @@ whynot 'GOAL' starts with one word:
            The survey can have missed it.
 The explanations are 6 levels deep. --long goes 30 levels deep. They never change a verdict.
 
-Resume work in a KB: orbit-kb show open. In a KB that uses discovery, also orbit-kb lint,
-because show open omits the discovery items.
+Resume work in a KB: orbit-kb show open. It names each item that blocks done, each thing
+that blocks discovery_ready while the discovery orbit is open, and each stale pin that the
+KB rests on. It says "Nothing is open" only when none holds.

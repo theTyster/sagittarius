@@ -1,0 +1,6 @@
+name = "open_items"
+version = "0.1.0"
+defaultTargets = ["OpenItems"]
+
+[[lean_lib]]
+name = "OpenItems"

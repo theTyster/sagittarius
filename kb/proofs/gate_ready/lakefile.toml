@@ -1,0 +1,6 @@
+name = "gate_ready"
+version = "0.1.0"
+defaultTargets = ["GateReady"]
+
+[[lean_lib]]
+name = "GateReady"

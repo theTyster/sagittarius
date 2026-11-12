@@ -10,7 +10,8 @@ Facts
                                  document or a configuration).
   premise(P, Hyp, Text)          a condition that the hypothesis takes as given
   premise_checked(P, Where)      you checked premise P on the system, at Where (file:line, a query)
-  no_premises(Hyp)               "Premises: none". lint W10 names a hypothesis with neither.
+  no_premises(Hyp)               "Premises: none". lint W10 names a hypothesis with neither,
+                                 W11 one with both.
                                  A premise that the system shows false: record a divergence on
                                  the hypothesis, and restate it (a new hypothesis supersedes it).
   claim(Id, Label, Text)         Label is preserve (true now, must stay true),

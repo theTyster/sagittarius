@@ -1566,7 +1566,9 @@ derived_items(Dir, KbItems, Items) :-
     request_derived(KbItems, Ts7),
     verdict_derived(KbItems, Ts8),
     reopen_derived(KbItems, Ts9),
-    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9], Ts),
+    run_after_derived(KbItems, Ts10),
+    vote_void_derived(KbItems, Ts11),
+    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10, Ts11], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
 
 % verdict_derived(+KbItems, -Facts) (T38 c2): later_verdict(V) for each disproof verdict V on a
@@ -1589,6 +1591,43 @@ reopen_derived(KbItems, Facts) :-
             Fs0),
     sort(Fs0, Facts).
 reopen_derived(_, []).
+
+% vote_void_derived(+KbItems, -Facts) (D30 H5, H8): vote_void(V) for each vote V that a back
+% attestation follows in kb.pl (it belongs to an earlier orbit: after a return to discovery,
+% a new round of votes is needed), and for each vote V that comes after a discovery_end(E) of a
+% human approval of the ticket when no back follows E (the orbit was closed when V came).
+vote_void_derived(KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
+    findall(T, kb_term(KbItems, T), Ts),
+    findall(S, ( member(T, Ts), nonvar(T), T = ticket(S) ), Tks),
+    findall(vote_void(V),
+            ( append(Before, [X|After], Ts), nonvar(X), X = attest(V, Ty, _, _, _, _), Ty == vote, ground(V),
+              (   member(B, After), is_back(B)
+              ->  true
+              ;   append(_, [E|Mid], Before), nonvar(E), E = discovery_end(A),
+                  valid_end(Ts, Tks, A),
+                  \+ ( member(B2, Mid), is_back(B2) )
+              ) ),
+            Fs0),
+    sort(Fs0, Facts).
+vote_void_derived(_, []).
+
+is_back(B) :- nonvar(B), B = attest(_, Ty, _, _, _, _), Ty == back.
+valid_end(Ts, Tks, A) :-
+    once(( member(T, Ts), nonvar(T), T = attest(A1, Ty, S, _, By, _), A1 == A, Ty == approval, By == human, memberchk(S, Tks) )).
+
+% run_after_derived(+KbItems, -Facts) (D33 R3): discovery_run_after(A, H) for each failed
+% test_result A that follows hypothesis(H, _, _) in kb.pl. In a KB that uses discovery only.
+run_after_derived(KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
+    findall(T, kb_term(KbItems, T), Ts),
+    findall(discovery_run_after(A, H),
+            ( append(_, [E|Rest], Ts), nonvar(E), E = hypothesis(H, _, _), ground(H),
+              member(B, Rest), nonvar(B), B = attest(A, Ty, _, P, _, _), Ty == test_result, ground(A),
+              nonvar(P), P = result(_, _, R), R == fail ),
+            Fs0),
+    sort(Fs0, Facts).
+run_after_derived(_, []).
 
 % request_derived(+KbItems, -Facts) (T27 c10): request_stale(R) for a request whose latest
 % request_pin (the last one in kb.pl) has a digest that is neither the digest of the request
@@ -2539,6 +2578,9 @@ protected_pi(project_contradiction/2).
 protected_pi(project_rests_on/2).
 % D30 H4: the open discovery orbit.
 protected_pi(discovery_reopened/1).
+protected_pi(discovery_run_after/2).
+protected_pi(vote_void/1).
+protected_pi(discovery_end_valid/1).
 protected_pi(discovery_closed/0).
 protected_pi(discovery_open/0).
 % D14: the weighted vote of the discovery module.
@@ -2551,6 +2593,12 @@ protected_pi(artifact_vote/1).
 protected_pi(discovery_gate_agreed/0).
 protected_pi(gate/1).
 protected_pi(gate_split/0).
+% D32 O2, D33 R5: what blocks readiness, readiness itself, and what can win the gate (the two
+% burns c_k_c_1b and c_k_d_1b rest on them).
+protected_pi(ready_blocker/1).
+protected_pi(any_ready_blocker/0).
+protected_pi(discovery_ready/0).
+protected_pi(gate_allowed/1).
 
 % answer_items(+Items, +Decls, -Items2) (D10 follow-up, F8): the items that
 % the engines read. A clause that lint rejects and that could close a
@@ -4692,9 +4740,11 @@ cmd_attest(KB, Args, Code) :-
     ;   true
     ),
     late_vote_check(Items, Type, By, Pred),
+    go_vote_check(KB, Type, By, Pred),
+    back_check(KB, Items, Type, Subject),
     log_check(KB, Items, Type, Subject, Pred),
     rests_on_lines(Opts, Items, Type, Id, RLines0),
-    end_lines(KB, Items, Type, Subject, By, Id, ELines),
+    end_lines(KB, Items, Type, Subject, By, Id, Pred, ELines),
     append(RLines0, ELines, RLines),
     clause_line(T, [], Line),
     actor_line(Id, ALine),
@@ -4703,23 +4753,28 @@ cmd_attest(KB, Args, Code) :-
     forall(member(L, [Line, ALine|RLines]), format("~w~n", [L])),
     Code = 0.
 
-% end_lines(+KB, +Items, +Type, +Subject, +By, +Id, -Lines) (D30 H4): a human approval of the
+% end_lines(+KB, +Items, +Type, +Subject, +By, +Id, +Pred, -Lines) (D30 H4, H6, H7): a human approval of the
 % ticket (ticket(Subject)) in a KB that uses discovery ends the discovery orbit when the orbit
 % is open and gate(go) holds before the approval: one line discovery_end(Id). With no GO, the
 % approval is written as always (a human act is never refused), and a NOTE says that the orbit
 % stays open.
-end_lines(KB, Items, approval, Subject, human, Id, Lines) :-
+end_lines(KB, Items, approval, Subject, human, Id, Pred, Lines) :-
     has_discovery(KB),
     kb_term(Items, ticket(S)), S == Subject, !,
     kb_engine(KB, Eng),
+    findall(D, ( kb_term(Items, subject(S2, _, D)), S2 == Subject ), Ds),
     (   \+ eng_true(Eng, discovery_open)
     ->  Lines = []
-    ;   eng_true(Eng, gate(go))
+    ;   Pred = digest(D0), member(D1, Ds), D1 \== D0
+    ->  % D30 H7 (review of K-A, finding 3): a stale approval does not end the orbit.
+        format(user_error, "NOTE: the discovery orbit stays open. This approval names a digest that is not the current digest of the ticket (stale), so it does not end the orbit. Approve the ticket as it is now: orbit-kb attest approval ~w 'digest(current)' --by human.~n", [Subject]),
+        Lines = []
+    ;   eng_true(Eng, gate(go)), eng_true(Eng, artifact_vote(go))
     ->  clause_line(discovery_end(Id), [], L), Lines = [L]
-    ;   format(user_error, "NOTE: the discovery orbit stays open. gate(go) does not hold, so this approval of the ticket does not end it. Run orbit-kb query 'gate(V)' and orbit-kb report (Vote).~n", []),
+    ;   format(user_error, "NOTE: the discovery orbit stays open. gate(go) and the artifacts' go (discovery_ready with a current claim) do not both hold in the current round, so this approval of the ticket does not end it. Run orbit-kb query 'gate(V)', orbit-kb show open, and orbit-kb report (Vote).~n", []),
         Lines = []
     ).
-end_lines(_, _, _, _, _, _, []).
+end_lines(_, _, _, _, _, _, _, []).
 
 % rests_on_lines(+Opts, +Items, +Type, +Id, -Lines) (D28): --rests-on A1,A2
 % names the runs that a disproof verdict rests on. Each must be a
@@ -4858,12 +4913,57 @@ log_refuse(Subject, Res, Text) :-
 % kb.pl by hand.
 late_vote_check(Items, vote, agent, vote(R, _)) :-
     member(it(kb, _, _, T, _, _), Items), nonvar(T),
-    T = attest(_, vote, _, vote(R1, _), human, _), R1 == R, !,
+    T = attest(V1, vote, _, vote(R1, _), human, _), R1 == R,
+    \+ ( vote_void_derived(Items, Vs), memberchk(vote_void(V1), Vs) ), !,
     reject([ "The human already voted in round " + R + ", so an agent vote in this round cannot be sealed.",
              "Fix: do not vote in this round. Say what you think in the discussion after the reveal.",
              "In the next round, vote before the human: vote(N, CHOICE) with a larger N."
            ] >> fix_lines).
 late_vote_check(_, _, _, _).
+
+% go_vote_check(+KB, +Type, +By, +Pred) (D33 R5, c_k_d_1b): while the discovery orbit is open,
+% an agent's GO vote is refused when discovery is not ready, and the refusal names each thing
+% that blocks readiness (ready_blocker, as show open names it). A vote of no_go or hold, and
+% every vote of the human, are never refused.
+% D30 H8 (review of K-A, finding 6): after the discovery orbit closed, an agent vote is refused,
+% and a vote of the human is written with a NOTE: it does not count (vote_void) until a back.
+go_vote_check(KB, vote, By, _) :-
+    has_discovery(KB),
+    kb_engine(KB, Eng), eng_true(Eng, discovery_closed), !,
+    (   By == agent
+    ->  reject([ "The discovery orbit is closed: the human approved the ticket after a GO. A vote now does not count.",
+                 "Fix: to return to discovery, record it: orbit-kb attest back H 'back(TEXT)'. Then vote in a new round."
+               ] >> fix_lines)
+    ;   format(user_error, "NOTE: the discovery orbit is closed (the human approved the ticket after a GO). This vote is written, but it does not change the outcome. To return to discovery: orbit-kb attest back H 'back(TEXT)'.~n", [])
+    ).
+go_vote_check(KB, vote, agent, vote(_, C)) :-
+    C == go, has_discovery(KB),
+    kb_engine(KB, Eng),
+    eng_true(Eng, discovery_open), \+ eng_true(Eng, discovery_ready), !,
+    eng_all(Eng, [X], ready_blocker(X), Xs0),
+    ( Xs0 == [] -> Xs = [unknown] ; Xs = Xs0 ),
+    findall(L, ( member(X, Xs), ready_line(Eng, X, KI, S), fmt(L, "- ~w: ~w", [KI, S]) ), Ls),
+    append([ ["Discovery is not ready, so an agent's GO vote is refused (GO cannot win the gate while discovery is not ready). What blocks readiness:"],
+             Ls,
+             ["Fix: clear what blocks readiness (orbit-kb show open), then vote. A vote of no_go or hold is accepted now. The human's vote is never refused."] ], Msg),
+    reject(Msg).
+go_vote_check(_, _, _, _).
+
+% back_check(+KB, +Items, +Type, +Subject) (D30 H9, review of K-A finding 12): a back names a
+% hypothesis, and returns from a closed discovery orbit. Else it is refused.
+back_check(KB, Items, back, Subject) :- !,
+    (   kb_term(Items, hypothesis(H, _, _)), H == Subject -> true
+    ;   reject([ "A back names the hypothesis that the build cannot restate. " + Subject + " is no hypothesis.",
+                 "Fix: orbit-kb attest back H 'back(TEXT)' with H a hypothesis (orbit-kb show hypothesis)."
+               ] >> fix_lines)
+    ),
+    kb_engine(KB, Eng),
+    (   has_discovery(KB), eng_true(Eng, discovery_closed) -> true
+    ;   reject([ "The discovery orbit is open: there is nothing to return from. A back follows the human's approval of the ticket after a GO.",
+                 "Fix: stay in discovery. After a HOLD, vote in the next round."
+               ] >> fix_lines)
+    ).
+back_check(_, _, _, _).
 
 % digest(current): the recorded digest of the subject. The file on disk
 % must still have that digest, so an approval never names a file that
@@ -5814,6 +5914,10 @@ vote_section(Eng) :-
             )
         )
     ),
+    % D30 H5, H8: a vote that does not count, and why.
+    eng_all(Eng, [VA, VW, VR, VC], ( attest(VA, vote, _, vote(VR, VC), VW, _), vote_void(VA) ), Voids),
+    forall(member([VA, VW, VR, VC], Voids),
+           rsplit(vote, "Vote ~w of the ~w (round ~w, ~w) does not count. It came after the discovery orbit closed, or before a return to discovery (back).", [VA, VW, VR, VC])),
     % D30 H4: after the human approves the ticket on a GO, the discovery orbit is closed.
     (   eng_all(Eng, [E], ( discovery_end(E), not(discovery_reopened(E)) ), [E1|_])
     ->  rsplit(vote, "The discovery orbit is closed: the human approved the ticket after a GO (~w). Readiness and the vote are not asked again until a return to discovery: orbit-kb attest back H 'back(TEXT)'.", [E1])
@@ -5906,7 +6010,7 @@ show_section(_, Eng, hypothesis) :-
     eng_all(Eng, [H, K, T], hypothesis(H, K, T), Hs),
     (   Hs == [] -> say("- None. Every ticket has one: add hypothesis(H, KIND, TEXT).", []) ; true ),
     forall(member([H, K, T], Hs),
-           ( txt(T, TT), say("- ~w (~w): ~w", [H, K, TT]),
+           ( one_line(T, TT), say("- ~w (~w): ~w", [H, K, TT]),
              (   eng_all(Eng, [N], supersedes(N, H), Ns), Ns \== []
              ->  atomic_list_concat(Ns, ', ', NT), say("  State: superseded by ~w.", [NT])
              ;   say("  State: current.", [])
@@ -6008,7 +6112,17 @@ show_section(KB, Eng, open) :-
     forall(member(pending(PT, _, PFs), Ps),
            ( pending_questions(PFs, PQs),
              forall(member(Q-A, PQs), ( term_text(A, AT), say("- pending ~w: an answer to question ~w waits in answers.pending (queued ~w): ~w. The next write applies it.", [Q, Q, PT, AT]) )) )),
-    (   Qs == [], As == [], Cs == [], Ys == [], Us == [], Os == [], Bs == [], Ns == [], Rs == [], Ps == [] -> say("- Nothing is open.", []) ; true ).
+    % D32 O1, O2, O3: every other answer of blocking(X), what blocks readiness, and stale pins.
+    open_more(KB, Eng, [to_ask, supersede_cycle, under, over, burn_open, flare_open, no_claim, request_stale], [], Bl, Rd, Sp),
+    forall(member(X, Bl), ( blocking_line(KB, Eng, X, BS), say("~w", [BS]) )),
+    forall(member(R, Rd), ( ready_line(Eng, R, RK, RS), say("- not_ready ~w: ~w", [RK, RS]) )),
+    forall(member(P, Sp), ( stale_pin_text(Eng, P, PS), say("- stale_pin ~w: ~w", [P, PS]) )),
+    (   Qs == [], As == [], Cs == [], Ys == [], Us == [], Os == [], Bs == [], Ns == [], Rs == [], Ps == [],
+        Bl == [], Rd == [], Sp == []
+    ->  say("- Nothing is open.", [])
+    ;   true
+    ).
+
 % D22: each answer of blocking(X), with the text of its item.
 show_section(KB, Eng, blocking) :-
     say("Blocking:", []),
@@ -6056,6 +6170,66 @@ show_section(KB, _, extensions) :-
     append([S1, S2, S3], All),
     (   All == [] -> say("- None.", []) ; forall(member(S, All), say("~w", [S])) ).
 
+% open_more(+KB, +Eng, +Covered, +SkipReady, -Bl, -Rd, -Sp) (D32): what show open and report
+% (Open) add to their own lines, so that "Nothing is open" never hides what blocks.
+% Bl: each answer of blocking(X) whose kind is not in Covered (the kinds that the command
+% prints itself). Rd: each answer of ready_blocker(X) when the KB uses discovery, the
+% discovery orbit is open, and discovery_ready fails; to_ask(Q) is left out (blocking names
+% it), and so are the kinds in SkipReady. Sp: each stale_pin_open(P) of a KB that uses project.
+open_more(KB, Eng, Covered, SkipReady, Bl, Rd, Sp) :-
+    eng_all(Eng, [X], blocking(X), Xs0),
+    exclude(open_kind_in(Covered), Xs0, Bl),
+    (   has_discovery(KB), eng_true(Eng, discovery_open), \+ eng_true(Eng, discovery_ready)
+    ->  eng_all(Eng, [R], ready_blocker(R), Rs0),
+        (   Rs0 == []
+        ->  Rd = [unknown]     % cannot happen (D32 O2: ready in an open orbit is "no blocker")
+        ;   exclude(open_kind_in([to_ask|SkipReady]), Rs0, Rd)
+        )
+    ;   Rd = []
+    ),
+    (   kb_uses(KB, Us), memberchk(project, Us)
+    ->  eng_all(Eng, [P], stale_pin_open(P), Sp)
+    ;   Sp = []
+    ).
+
+open_kind_in(Kinds, X) :- functor(X, N, _), memberchk(N, Kinds).
+
+% ready_line(+Eng, +Blocker, -KindId, -Sentence) (D32 O2): the kind and id of a ready_blocker
+% answer, and one sentence that says what blocks discovery_ready.
+ready_line(_, unknown, "unknown", "discovery_ready fails, and no ready_blocker answers. Run orbit-kb whynot 'discovery_ready'.") :- !.
+ready_line(Eng, X, KI, S) :-
+    functor(X, N, A),
+    (   A =:= 1 -> arg(1, X, Id), fmt(KI, "~w ~w", [N, Id]) ; Id = '', fmt(KI, "~w", [N]) ),
+    ready_sentence(Eng, N, Id, S).
+
+ready_sentence(_, no_hypothesis, _, "no current hypothesis. Add hypothesis(H, KIND, TEXT).") :- !.
+ready_sentence(_, no_system_result, _, "no evidence from the current system yet: a reproduction on system evidence, or a run of a check tagged discovery_evidence(K, system).") :- !.
+ready_sentence(_, no_outcome, _, "no claim is current, and no current hypothesis did not reproduce.") :- !.
+ready_sentence(_, untouched, H, S) :- !, fmt(S, "hypothesis ~w has no result from the current system (lint WD7). Reproduce it, or ask the human if it is a separate ticket.", [H]).
+ready_sentence(Eng, no_falsifier, C, S) :- !, item_text(Eng, C, T), fmt(S, "claim ~w has no falsifier: no check, and no trusted model that decided it: ~w", [C, T]).
+ready_sentence(Eng, no_example, C, S) :- !, item_text(Eng, C, T), fmt(S, "claim ~w has no example (lint WD10): ~w", [C, T]).
+ready_sentence(Eng, preserve_failing, K, S) :- !, item_text(Eng, K, T), fmt(S, "check ~w of a preserve claim fails now, so what must stay true is false now: ~w", [K, T]).
+ready_sentence(_, question_waits, Q, S) :- !, fmt(S, "question ~w waits for the human's answer.", [Q]).
+ready_sentence(_, unasked_finding, F, S) :- !, fmt(S, "finding ~w needs a question for the human (lint WD1).", [F]).
+ready_sentence(Eng, refuted, C, S) :- !, item_text(Eng, C, T), fmt(S, "claim ~w is refuted. Record the counterexample as an example, and ask the human: ~w", [C, T]).
+ready_sentence(_, weak_rule, R, S) :- !, fmt(S, "rule ~w of a model survived its mutation check, with no reason (lint WD3).", [R]).
+ready_sentence(_, model_diverges, M, S) :- !, fmt(S, "model ~w disagrees with the current system (lint ED3).", [M]).
+ready_sentence(_, model_vacuous, A, S) :- !, fmt(S, "attestation ~w shows that its claim can never apply (lint ED4).", [A]).
+ready_sentence(_, model_unfiled_break, C, S) :- !, fmt(S, "a model breaks claim ~w, and no disproof is filed (lint ED5).", [C]).
+ready_sentence(_, model_solvers_disagree, M, S) :- !, fmt(S, "two solver results for one check of model ~w disagree (lint ED6).", [M]).
+ready_sentence(_, unratified, C, S) :- !, fmt(S, "claim ~w replaces a disputed claim, and no human answered a question about either (lint ED7).", [C]).
+ready_sentence(_, to_ask, Q, S) :- !, fmt(S, "question ~w must be asked now.", [Q]).
+ready_sentence(_, N, Id, S) :- fmt(S, "~w ~w blocks discovery_ready.", [N, Id]).
+
+% stale_pin_text(+Eng, +P, -S) (D32 O3): what a stale pin that the KB still rests on is.
+stale_pin_text(Eng, P, S) :-
+    (   eng_all(Eng, [K, Src], pin(P, K, Src, _, _), [[K1, Src1]|_]) -> true ; K1 = '?', Src1 = '?' ),
+    eng_all(Eng, [D], ( concerns(D, P), current_fact(D) ), Ds0), sort(Ds0, Ds),
+    (   Ds == []
+    ->  fmt(S, "the ~w pin of ~w is stale (lint WP8): it changed after the pin, and the KB rests on it. Read it, then pin it again.", [K1, Src1])
+    ;   atomic_list_concat(Ds, ', ', DT),
+        fmt(S, "the ~w pin of ~w is stale (lint WP8), and ~w rests on it: it changed after the pin. Read it; if ~w still holds, pin it again and move the concerns facts to the new pin.", [K1, Src1, DT, DT])
+    ).
 % blocking_line(+KB, +Eng, +Item, -Line) (D22): one line of show blocking.
 blocking_line(_, Eng, to_ask(Q), S) :- !,
     item_text(Eng, Q, T), fmt(S, "- to_ask ~w: ask question ~w now: ~w", [Q, Q, T]).
@@ -7312,19 +7486,27 @@ report_text(KB, Eng) :-
     ),
     % D17: in a build KB, done needs a current claim.
     ( call(Build), Cs == [] -> N4s = [no_claim] ; N4s = [] ),
-    % D19: in a discovery KB, what blocks discovery_ready is open too.
+    % D19: in a discovery KB, what blocks discovery_ready is open too. D32 O2: each thing that
+    % blocks it is one item (ready_blocker), while the discovery orbit is open.
     (   has_discovery(KB)
     ->  eng_all(Eng, [W5], question_waits(W5), W5s0),
         subtract(W5s0, Q4s, W5s),
-        eng_all(Eng, [R5], ( refuted(R5), current(R5) ), R5s),
-        (   eng_true(Eng, discovery_ready) -> D5s = [] ; D5s = [not_ready] )
-    ;   W5s = [], R5s = [], D5s = []
+        eng_all(Eng, [R5], ( refuted(R5), current(R5) ), R5s)
+    ;   W5s = [], R5s = []
     ),
+    % D32 O1, O3: every other answer of blocking(X), and each stale pin that the KB rests on.
+    open_more(KB, Eng, [to_ask, supersede_cycle, over, burn_open, flare_open, no_claim, waiver_lapsed],
+              [question_waits, refuted], Bl6s, D5s, Sp6s),
     forall(member(_, N4s), ropen(open(no_claim, claims, none), "no claim", "No claim is current. Add a claim. The work is not done without one.", [])),
     forall(member(Q4, Q4s), ropen(open(to_ask, Q4, none), "ask", "Ask question ~w now.", [Q4])),
     forall(member(W5, W5s), ropen(open(question_waits, W5, none), "waits", "Question ~w waits for the human's answer.", [W5])),
     forall(member(R5, R5s), ropen(open(refuted, R5, none), "refuted", "Claim ~w is refuted. Record the counterexample as an example, and ask the human. Do not weaken the claim.", [R5])),
-    forall(member(_, D5s), ropen(open(discovery_ready, discovery, none), "not ready", "Discovery is not ready. Run orbit-kb whynot 'discovery_ready' and orbit-kb lint for the rest.", [])),
+    forall(member(X6, Bl6s), report_blocking_item(KB, Eng, X6)),
+    forall(member(D5, D5s),
+           ( ready_line(Eng, D5, DK5, DS5), ( D5 = unknown -> DRef = discovery ; functor(D5, _, DA), ( DA =:= 1 -> arg(1, D5, DRef) ; functor(D5, DRef, _) ) ),
+             ( eng_true(Eng, claim(DRef, _, _)) -> DTgt = DRef ; DTgt = none ),
+             ropen(open(discovery_ready, DRef, DTgt), "not ready", "Discovery is not ready, ~w: ~w", [DK5, DS5]) )),
+    forall(member(P6, Sp6s), ( stale_pin_text(Eng, P6, PS6), ropen(open(stale_pin, P6, none), "stale pin", "Pin ~w: ~w", [P6, PS6]) )),
     forall(member(A4, A4s), ropen(open(stale, A4, none), "stale", "Approval ~w is stale. The subject changed after the approval.", [A4])),
     forall(member(Y4, Y4s),
            (   eng_true(Eng, claim(Y4, _, _))
@@ -7350,13 +7532,31 @@ report_text(KB, Eng) :-
              ) )),
     forall(member([P4, C5], P4s), ropen(open(proof_changed, P4, C5), "proof changed", "Proof ~w of claim ~w no longer counts. A file of the proof changed. Run orbit-kb prove again.", [P4, C5])),
     (   Q4s == [], A4s == [], Y4s == [], O4s == [], B4s == [], F4s == [], L4s == [], P4s == [], N4s == [],
-        W5s == [], R5s == [], D5s == []
+        W5s == [], R5s == [], D5s == [], Bl6s == [], Sp6s == []
     ->  rsay(none, "Nothing is open.", [])
     ;   true
     ),
     ( has_discovery(KB) -> vote_section(Eng) ; true ),
     rhead('To land'),
     rsay(placeholder, "(Write the steps to land the work here.)", []).
+
+% report_blocking_item(+KB, +Eng, +X) (D32 O1): an answer of blocking(X) that the Open section
+% has no item of its own for, with the sentence of show blocking. Its label is the kind.
+report_blocking_item(KB, Eng, X) :-
+    functor(X, N, A),
+    (   A =:= 1 -> arg(1, X, Ref) ; Ref = N ),
+    blocking_line(KB, Eng, X, Line),
+    (   sub_string(Line, B, 2, _, ": ") -> B2 is B + 2, sub_string(Line, B2, _, 0, Sen0) ; Sen0 = Line ),
+    (   sub_string(Sen0, 0, 1, _, F0) -> string_upper(F0, F1), sub_string(Sen0, 1, _, 0, R0), string_concat(F1, R0, Sen1) ; Sen1 = Sen0 ),
+    ( ends_sentence(Sen1) -> Sen2 = Sen1 ; string_concat(Sen1, ".", Sen2) ),
+    % the id is always in the text (a request_stale sentence names its tracker item instead)
+    (   A =:= 1, term_string(Ref, RefS), \+ sub_string(Sen2, _, _, _, RefS) -> fmt(Sen, "~w: ~w", [Ref, Sen2]) ; Sen = Sen2 ),
+    (   eng_true(Eng, claim(Ref, _, _)) -> Tgt = Ref
+    ;   eng_all(Eng, [C], check(Ref, C), [C1|_]) -> Tgt = C1
+    ;   Tgt = none
+    ),
+    atomic_list_concat(Ws, '_', N), atomic_list_concat(Ws, ' ', Label),
+    ropen(open(N, Ref, Tgt), Label, "~w", [Sen]).
 
 % system_section(+Eng) (D31 B6): what the current system showed: each reproduction on system
 % evidence, and the last failed run of each check that is tagged as system evidence.
@@ -7377,7 +7577,14 @@ system_section(Eng) :-
            ->  rsay(item(F), "Finding ~w: the system confirms it, on ~w (~w, by ~w).", [F, S, A, B])
            ;   term_text(P, PT), rsay(item(A), "~w: ~w, on ~w.", [A, PT, S])
            )),
-    forall(member(K-N, Fs), rsay(item(K), "Check ~w failed on the current system (run ~w).", [K, N])).
+    % D31 B9 (review of K-A, finding 11): a red run that a later run passed is not "fails now".
+    eng_all(Eng, [K, M], ( attest(_, test_result, _, result(K, M, pass), _, _), discovery_system_evidence(K) ), Ps0),
+    forall(member(K-N, Fs),
+           (   findall(M, ( member([K, M], Ps0), M > N ), Ms), Ms \== []
+           ->  max_list(Ms, M1),
+               rsay(item(K), "Check ~w failed on the current system in run ~w; a later run passed (run ~w).", [K, N, M1])
+           ;   rsay(item(K), "Check ~w failed on the current system (run ~w).", [K, N])
+           )).
 
 % findings_section(+Eng) (D31 B6): each finding, marked as from the system or from a model only.
 findings_section(Eng) :-
@@ -7462,7 +7669,7 @@ hypothesis_section(Eng) :-
     ;   true
     ),
     forall(member([H, K, T], Hs),
-           ( txt(T, TT),
+           ( one_line(T, TT),
              premise_lines(Eng, H, PLs),
              format(string(Head), "~w **~w**: ~w", [H, K, TT]),
              as_sentence(TT, TS),
@@ -7471,16 +7678,25 @@ hypothesis_section(Eng) :-
              findall(L-[], member(L, PLs), Kids),
              rtree(item(H), Plain, Head-Kids) )).
 
+% one_line(+Text, -S) (D31 B8, review of K-A finding 12): the text with each run of white space,
+% a line break too, as one space, so that a text never breaks the bullets of the report.
+one_line(T, S) :- txt(T, T0), normalize_space(string(S), T0).
+
 % premise_lines(+Eng, +H, -Lines) (D30 H2, D31 B1): one sentence per premise of hypothesis H
 % with its state, or "Premises: none.", or a pointer to lint W10.
 premise_lines(Eng, H, Lines) :-
     eng_all(Eng, [P, PT], premise(P, H, PT), Ps),
     (   Ps \== []
-    ->  findall(L, ( member([P, PT], Ps), txt(PT, PTT), as_sentence(PTT, PTS),
+    ->  findall(L, ( member([P, PT], Ps), one_line(PT, PTT), as_sentence(PTT, PTS),
                      (   eng_all(Eng, [W], premise_checked(P, W), [W1|_])
-                     ->  txt(W1, WT), format(string(L), "Premise ~w: ~w Checked on the system at ~w.", [P, PTS, WT])
+                     ->  one_line(W1, WT), format(string(L), "Premise ~w: ~w Checked on the system at ~w.", [P, PTS, WT])
                      ;   format(string(L), "Premise ~w: ~w Not checked.", [P, PTS])
-                     ) ), Lines)
+                     ) ), Lines0),
+        % D31 B7 (review of K-A, finding 9): a premise and the record "Premises: none" conflict.
+        (   eng_true(Eng, no_premises(H))
+        ->  append(Lines0, ["Premises: none is also recorded, and it conflicts with the premises (lint W11)."], Lines)
+        ;   Lines = Lines0
+        )
     ;   eng_true(Eng, no_premises(H))
     ->  Lines = ["Premises: none."]
     ;   Lines = ["Premises: not stated. Add premise(P, H, TEXT) or no_premises(H) (lint W10)."]
@@ -7670,7 +7886,9 @@ page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js) :-
     findall(K-N, ( member(K, [fulfilled, under, waived]),
                    aggregate_all(count, member(_-K, CSKs), N), N > 0 ), Counts),
     findall(C, member(C-under, CSKs), Unders),
-    section_recs(Recs, 'Open', OpenRecs),
+    section_recs(Recs, 'Open', OpenRecs0),
+    % D32 O1: the page lists the under claims from the claims, so it skips their Open items.
+    exclude([T-_]>>(T = open(under, _, _)), OpenRecs0, OpenRecs),
     findall(X, ( member(X-_, OpenRecs), X = open(_, _, _) ), OpenItems),
     length(Unders, NU), length(OpenItems, NO),
     NOpen is NU + NO,
@@ -7765,18 +7983,25 @@ page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js) :-
 
 plural(N, S) :- ( N =:= 1 -> S = "" ; S = "s" ).
 
-open_label(no_claim, "no claim").
-open_label(to_ask, "ask").
-open_label(stale, "stale").
-open_label(supersede_cycle, "cycle").
-open_label(over, "over").
-open_label(burn_open, "burn open").
-open_label(flare_open, "flare open").
-open_label(waiver_lapsed, "waiver lapsed").
-open_label(proof_changed, "proof changed").
-open_label(question_waits, "waits").
-open_label(refuted, "refuted").
-open_label(discovery_ready, "not ready").
+% open_label(+Kind, -Label): the badge of an open item; another kind (D32 O1: any kind of
+% blocking/1) gets its name with spaces.
+open_label(K, L) :-
+    (   open_label0(K, L0) -> L = L0
+    ;   atomic_list_concat(Ws, '_', K), atomic_list_concat(Ws, ' ', L)
+    ).
+open_label0(no_claim, "no claim").
+open_label0(to_ask, "ask").
+open_label0(stale, "stale").
+open_label0(supersede_cycle, "cycle").
+open_label0(over, "over").
+open_label0(burn_open, "burn open").
+open_label0(flare_open, "flare open").
+open_label0(waiver_lapsed, "waiver lapsed").
+open_label0(proof_changed, "proof changed").
+open_label0(question_waits, "waits").
+open_label0(refuted, "refuted").
+open_label0(discovery_ready, "not ready").
+open_label0(stale_pin, "stale pin").
 
 % open_link: a link to the claim that an open item is about, when the
 % claim is on the page.

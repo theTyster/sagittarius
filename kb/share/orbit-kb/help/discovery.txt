@@ -30,25 +30,34 @@ ATTESTATIONS
                 Kind: sanity, bad_case, together, root_cause(R), normal_case(N), preserve(C),
                       applies(C), explore(T)
                 Result: sat, unsat, unknown, reached, violated, holds
-                Case: example(C) or case(Text); its Result is matches or differs
+                Case: fails(Text), a real case where the system fails, or passes(Text),
+                      a real case where it passes; its Result is matches or differs.
+                      example(C) and case(Text) are the older forms: they calibrate nothing
                 mutation Result: killed or survived
   decision      human only: no_go(H, Text) | hold(H, Text). GO is a core approval.
   vote          vote(Round, go|no_go|hold). Each writer votes once in each round.
                 Only the largest round counts.
 
 QUERIES
-  discovery_ready   clean: a hypothesis exists, and each one that is not superseded has a
-                    system result; a claim is current, or such a hypothesis did not
-                    reproduce; no current claim is refuted or has no falsifier; no question
-                    waits or is to_ask; no WD1, WD3, WD7, ED3-ED7
+  discovery_ready   clean: ready_blocker(X) has no answer. A hypothesis exists, and each one
+                    that is not superseded has a system result (a reproduction, or a red run
+                    of a system check of an introduce or retire claim, after the hypothesis);
+                    a claim is current, or such a hypothesis did not reproduce; each current
+                    claim has an example and a falsifier, and is not refuted; no check of a
+                    preserve claim fails now; no question waits or is to_ask; no WD1, WD3,
+                    WD7, WD10, ED3-ED7. While the discovery orbit is closed, it holds
+  ready_blocker(X)  each thing that blocks discovery_ready, such as untouched(H), no_example(C),
+                    preserve_failing(K). show open and report (Open) name each one
   discovery_decide  discovery_ready, or budget_spent (the last lap of the largest budget is done)
   no_falsifier(C)   current claim C has no check, and no trusted model gave a preserve(C)
                     or applies(C) result other than unknown
-  model_trusted(M)  M is sane, calibrated, and does not diverge; or, one level only,
-                    sane, not diverging, and derived_from such a model of the same tool
+  model_trusted(M)  M is sane, calibrated, and does not diverge. Calibrated: a matching
+                    fails(...) case and a matching passes(...) case on a current run.
+                    A model derived from a calibrated model needs its own two cases
   artifact_vote(V)  go when discovery_ready and a claim is current; no_go when discovery_ready
                     and no claim is current; else hold
-  gate(V), gate_split   the outcome of the vote (see GATE)
+  gate(V), gate_split   the outcome of the vote (see GATE). GO cannot win while
+                    discovery_ready fails (gate_allowed), and the agent's GO is refused then
   question_waits(Q) a raised question that has no answer
 If discovery_ready is false: orbit-kb lint, and orbit-kb whynot 'discovery_ready'.
 Ready with no current claim happens only when a hypothesis did not reproduce (WD6).
@@ -104,7 +113,10 @@ SURVEY: touch the current system (discovery never skips it)
   D=$(orbit-kb subject e1 LOG)         then:  orbit-kb add "discovery_evidence(e1, system)"
   orbit-kb attest reproduction e1 'result(h1, reproduced)'     (or not_reproduced)
   If it does not reproduce: orbit-kb attest divergence e1 'hypothesis(h1)'
-  A tagged test can be the subject.
+  A tagged test can be the subject. A red run of a check tagged discovery_evidence(K, system)
+  of an introduce or a retire claim is the system result of each current hypothesis that was
+  recorded before the run: no reproduction attestation is needed on top. A red run of the
+  check of a preserve claim is not: what must stay true is false now, and it blocks readiness.
 
 SPECTRUM: claims and tools
   1. Split the hypothesis into claims, as in DECOMPOSE (orbit-kb help core): labels,
@@ -136,9 +148,13 @@ FLYBY: explore combinations with SMT
   1. Sanity. The existing-world rules with no property must be SAT. UNSAT is an encoding
      error. Fix it first.
   2. Calibrate. Pin the inputs of a real case from SURVEY, and of two or three normal cases.
-     The model must give the results of the current system. If not, record a calibration
-     that differs, or a divergence with model(M), and fix the model. Then the reported bad
-     case must be SAT.
+     The model must give the results of the current system. Record a real case where the
+     system fails and a real case where it passes; both must match:
+       orbit-kb attest model_result log1 "calibration(m1, fails('CASE'), matches)"
+       orbit-kb attest model_result log1 "calibration(m1, passes('CASE'), matches)"
+     One case does not calibrate a model, and a derived (target) model needs its own two.
+     If not, record a calibration that differs, or a divergence with model(M), and fix the
+     model. Then the reported bad case must be SAT.
   3. Root cause (defects only). Change one suspected rule at a time. The root cause removes
      the bad case and keeps every normal case.
   4. Target. Remove the retired rules, add the introduced rules, and keep the preserved
@@ -202,6 +218,10 @@ DISPROVE: attack the claims
 GATE: the GO / NO-GO vote (r1 is the request; round 1 first, +1 after each HOLD)
   1. Your vote, sealed, before you give the report:
        orbit-kb attest vote r1 'vote(1, go)'
+     While discovery is not ready, attest refuses your GO and names what blocks readiness
+     (orbit-kb show open names it too). Vote no_go or hold, or clear the blockers first.
+     GO cannot win the gate while discovery is not ready, whenever the votes came. The
+     human's vote is never refused.
   2. The human's vote:
        orbit-kb attest vote r1 'vote(1, hold)' --by human
      After that, attest refuses your vote in round 1.
@@ -234,9 +254,13 @@ ASKING: ask the human
 HANDOFF to the build orbit
   orbit-kb uses build ; orbit-kb lint. The build orbit skips SURVEY.
   The discovery orbit is open until the human approves the ticket after a GO
-  (attest approval TICKET 'digest(current)' --by human writes discovery_end). Then readiness
-  and the vote are not asked again: a hypothesis that the human restates in build
+  (attest approval TICKET 'digest(current)' --by human writes discovery_end, when gate(go)
+  and the artifacts' go hold in the current round, and the approval is not stale). Then
+  readiness and the vote are not asked again: a hypothesis that the human restates in build
   supersedes the old one and needs no system result. Only BACK opens the orbit again.
+  After that, the agent's vote is refused, and a vote of the human does not count.
+  A KB whose ticket the human approved before 0.3.0 has no discovery_end, so its orbit is
+  still open: a second approval of the ticket, after a GO in the current round, closes it.
   DECOMPOSE starts from the discovery claims. Each witness, trace, and counterexample
   becomes a test case. The build orbit reuses each red test_result as its baseline.
   A universal claim always burns. A solver or TLC result holds only within its bounds;
@@ -270,6 +294,8 @@ BACK: back to discovery
   run orbit-kb uses discovery. Record the return:
      orbit-kb attest back h1 "back('The human cannot say what the hypothesis changes to.')"
   It opens the discovery orbit again: a new hypothesis needs its system result (WD7), and
-  readiness and the vote are asked again (next round). Then go to SIGNAL if the hypothesis is wrong, SPECTRUM if a
+  readiness and the vote are asked again: the votes before the back do not count, so both
+  vote again (next round) before an approval can close the orbit. A back names a hypothesis,
+  and only a closed orbit has a back (attest refuses it otherwise). Then go to SIGNAL if the hypothesis is wrong, SPECTRUM if a
   claim is wrong or missing, FLYBY or TRAJECTORY if a model missed a behavior, and FLYBY and
   then the human if BURN shows that the requirements conflict.
