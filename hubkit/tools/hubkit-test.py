@@ -207,7 +207,7 @@ def case_t48_version_moves_with_schema(r, root):
         json.dump(mf, f)
     res = hk(r, "upgrade", "--kit", KIT, "--hub", hub)
     r.check("t48-c3-upgrade-of-a-0.5.0-hub-shows-a-version-change", res[0] == 0
-            and f"upgrade {old} -> {version} " in res[1] and old != version, res)
+            and f"upgrade MindHole {old} -> MindHole {version} " in res[1] and old != version, res)  # kit3: the MindHole version line
 
 
 def clean_env(path):
