@@ -162,7 +162,7 @@ orbit_state_path(Script, State) :-
 :- use_module(library(apply)).
 :- autoload(library(readutil), [read_file_to_string/3, read_line_to_string/2]).
 :- autoload(library(process), [process_create/3, process_wait/2, process_kill/2]).
-:- autoload(library(filesex), [directory_file_path/3, make_directory_path/1, link_file/3]).
+:- autoload(library(filesex), [directory_file_path/3, make_directory_path/1, link_file/3, delete_directory_and_contents/1]).
 :- autoload(library(http/json), [json_read_dict/2, json_read_dict/3]).
 :- autoload(library(time), [call_with_time_limit/2]).
 :- autoload(library(ugraphs), [vertices_edges_to_ugraph/3, transitive_closure/2]).
@@ -516,6 +516,7 @@ kb_command('pin-answer').
 kb_command('pin-request').
 kb_command('apply-pending').
 kb_command(review).
+kb_command(withdraw).
 
 top(Argv0, Code) :-
     take_dirs(Argv0, Dirs, [view|ViewArgs]), !,
@@ -536,8 +537,15 @@ top(Argv0, Code) :-
     ;   Argv = [Cmd|Args],
         (   memberchk(Cmd, [help, '--help', '-h'])
         ->  cmd_help(Args, Code)
+        ;   memberchk(Cmd, [version, '--version'])
+        ->  cmd_version(Args, Code)
         ;   Cmd == init
         ->  cmd_init(Args, Code)
+        ;   Cmd == shift
+        ->  (   memberchk(Arg, Args), memberchk(Arg, ['--help', '-h'])
+            ->  cmd_help([shift], Code)
+            ;   cmd_shift(Args, Code)
+            )
         ;   Cmd == doctor
         ->  cmd_doctor(Args, Code)
         ;   Cmd == uses
@@ -603,6 +611,7 @@ writer_command('apply-pending').
 writer_command(review).
 writer_command(subject).
 writer_command(attest).
+writer_command(withdraw).
 % run and prove take the lock themselves, only to record the result
 % (see cmd_run/3 and cmd_prove/3).
 
@@ -621,7 +630,7 @@ writer_command(attest).
 % --take replaces the holder at once and records writer_takeover/3 too.
 % The lock is a record, not a guard: nothing stops a hand edit of kb.pl.
 
-lock_command(C) :- memberchk(C, [add, subject, attest, run, prove, uses, 'pin-item',
+lock_command(C) :- memberchk(C, [add, subject, attest, run, prove, uses, withdraw, 'pin-item',
                                  'pin-question', 'pin-answer', 'pin-request', 'apply-pending', review]).
 
 writer_name(W) :-
@@ -1207,6 +1216,7 @@ kb_cmd('pin-answer', KB, Args, Code) :- cmd_pin_answer(KB, Args, Code).
 kb_cmd('pin-request', KB, Args, Code) :- cmd_pin_request(KB, Args, Code).
 kb_cmd('apply-pending', KB, Args, Code) :- cmd_apply_pending(KB, Args, Code).
 kb_cmd(review, KB, Args, Code) :- cmd_review(KB, Args, Code).
+kb_cmd(withdraw, KB, Args, Code) :- cmd_withdraw(KB, Args, Code).
 
 % ---------------------------------------------------------------------
 % Library and KB location
@@ -1234,6 +1244,49 @@ lib_dir_candidate(Lib, "It is ../share/orbit-kb next to the real path of the orb
     file_directory_name(R, D),
     file_directory_name(D, P),
     directory_file_path(P, 'share/orbit-kb', Lib).
+
+% ---------------------------------------------------------------------
+% The version of the tool (D34, 0.3.0 V-A)
+% ---------------------------------------------------------------------
+% The one source is the file VERSION at the root of the Sagittarius
+% repository. The library holds VERSION too: in the repository it is a
+% link to ../../../VERSION, so an installed link of the CLI reads the
+% root file through it. A copy of kb/bin and kb/share (a hub's
+% .claude/orbit-kb; hubkit.py follows links) holds the number of the
+% kit that it came from. No file, or no X.Y.Z in it: the version is
+% unknown, and orbit-kb version exits 2. The tool never guesses one.
+
+tool_version(V) :-
+    catch(lib_dir_quiet(Lib), _, fail),
+    directory_file_path(Lib, 'VERSION', F),
+    exists_file(F),
+    catch(read_file_to_string(F, S0, [encoding(utf8)]), _, fail),
+    split_string(S0, "", " \t\r\n", [S]),
+    split_string(S, ".", "", Ps),
+    length(Ps, 3),
+    forall(member(P, Ps), ( P \== "", string_codes(P, Cs), forall(member(C, Cs), code_type(C, digit)) )),
+    atom_string(V, S).
+
+% lib_dir/1 without the message: the version must not stop a help screen.
+lib_dir_quiet(Lib) :-
+    lib_dir_candidate(Lib0, _), !,
+    absolute_file_name(Lib0, Lib).
+
+tool_version_text(V) :- ( tool_version(V0) -> V = V0 ; V = '(version unknown)' ).
+
+cmd_version([], Code) :- !,
+    (   tool_version(V)
+    ->  format("orbit-kb ~w~n", [V]), Code = 0
+    ;   ( catch(lib_dir_quiet(Lib), _, fail) -> true ; Lib = '?' ),
+        directory_file_path(Lib, 'VERSION', F),
+        die(2, [ "The version of orbit-kb is unknown.",
+                 "No X.Y.Z in " + F + ".",
+                 "In the Sagittarius repository it is a link to the file VERSION at the root; a copy of kb/share holds the number itself.",
+                 "Fix: run ./install.py in the sagittarius repository, or upgrade the hub's copy (hubkit.py upgrade)."
+               ] >> fix_lines)
+    ).
+cmd_version(_, _) :-
+    usage_error("version takes no arguments: orbit-kb version.", []).
 
 % Turn a list that may hold "a" + B items into strings.
 die_fix_lines(Ls0, Ls) :- maplist(fix_line, Ls0, Ls).
@@ -1783,7 +1836,8 @@ project_kb_facts(Dir, P, Facts) :-
     kb_items(PKB, AllItems), items_decls(AllItems, Ds),
     build_engine(AllItems, Ds, Eng),
     % D27: a proposed fact (an agent made it, no human ratified it) blocks nothing.
-    swi_raw(Eng, (contradiction(CA, CB), not(proposed(CA)), not(proposed(CB))), CA-CB, ResC),
+    % D38: an excludes fact that only an agent wrote is proposed too.
+    swi_raw(Eng, (contradiction(CA, CB), not(proposed(CA)), not(proposed(CB)), not(proposed(excludes(CA, CB)))), CA-CB, ResC),
     (   ResC = answers(LC, _)
     ->  findall(project_contradiction(X1, Y1), ( member(X0-Y0, LC), ( X1-Y1 = X0-Y0 ; X1-Y1 = Y0-X0 ) ), FC0),
         sort(FC0, FC)
@@ -3377,11 +3431,14 @@ cmd_init(Args, Code) :-
     make_directory_path(Dir),
     clause_line(uses(Uses), [], L1),
     clause_line(Req, [], L2),
+    % The version of the tool that made the KB (D34): a comment, so no rule reads it.
+    tool_version_text(TV),
+    format(atom(LV), "% Made by orbit-kb ~w.", [TV]),
     (   memberchk('--source'-Src, Opts)
     ->  (   Src == '' -> usage_error("--source needs the ref of the tracker item, such as gh:acme/widgets#3.", []) ; true ),
         sha256_text(Text, RD), utc_now(Now),
-        clause_line(request_pin(Id, Src, RD, Now), [], L3), Ls = [L1, L2, L3]
-    ;   Ls = [L1, L2]
+        clause_line(request_pin(Id, Src, RD, Now), [], L3), Ls = [L1, L2, L3, LV]
+    ;   Ls = [L1, L2, LV]
     ),
     setup_call_cleanup(open(KbFile, write, S, [encoding(utf8)]),
                        forall(member(L, Ls), format(S, "~w~n", [L])),
@@ -3389,6 +3446,169 @@ cmd_init(Args, Code) :-
     format("~w~n", [KbFile]),
     format(user_error, "Next: add the claims and the checks. Vocabulary: orbit-kb help core.~n", []),
     Code = 0.
+
+% ---------------------------------------------------------------------
+% withdraw: remove a kind that a typo declared (D39, 0.3.0 K-J c_k_j_3)
+% ---------------------------------------------------------------------
+% orbit-kb withdraw NAME/ARITY [--by human|agent] removes from kb.pl the decl/4 line of a kind
+% that kb.pl declares (a first use, D22), its first_use/3 fact and every fact of the kind. Each
+% removed line stays in kb.pl as a comment "% withdrawn: LINE", and the record
+% withdrawn(NAME/ARITY, By, Time, N) (N facts) is appended. A kind that the library declares
+% is never withdrawn. The fix for E19 needs no edit of kb.pl by hand.
+
+cmd_withdraw(KB, Args, Code) :-
+    parse_opts(Args, ['--by'-value], Pos, Opts),
+    (   Pos = [PIA], atomic_list_concat([NA, AA], '/', PIA), NA \== '',
+        catch(atom_number(AA, Ar), _, fail), integer(Ar), Ar >= 0
+    ->  N = NA
+    ;   usage_error("Give one kind as NAME/ARITY: orbit-kb withdraw cited/2.", [])
+    ),
+    opt(Opts, '--by', agent, By),
+    ( memberchk(By, [human, agent]) -> true ; usage_error("--by takes human or agent. It is ~w.", [By]) ),
+    KB = kb(_, _, _, Items),
+    kb_file(KB, KbFile),
+    findall(L-T, ( member(it(kb, _, L, T, _, _), Items), nonvar(T), T = decl(_, H, _, _), nonvar(H), functor(H, N, Ar) ), Decls),
+    (   Decls == []
+    ->  (   member(it(Src, _, _, decl(_, H2, _, _), _, _), Items), Src \== kb, nonvar(H2), functor(H2, N, Ar)
+        ->  fmt(M1, "~w/~w is a kind of the library (~w), not of this KB. withdraw takes only a kind that kb.pl declares (a first use).", [N, Ar, Src]),
+            reject([M1])
+        ;   fmt(M1, "kb.pl declares no kind ~w/~w. orbit-kb show kinds lists the kinds; lint E19 names a kind that a typo declared.", [N, Ar]),
+            reject([M1])
+        )
+    ;   true
+    ),
+    findall(L-T, ( member(it(kb, _, L, T, _, _), Items), nonvar(T),
+                   ( T = first_use(N/Ar, _, _) ; pos_fact(T), \+ T = decl(_, _, _, _), functor(T, N, Ar) ) ), Others),
+    findall(x, ( member(_-T, Others), \+ T = first_use(_, _, _) ), Fs), length(Fs, NF),
+    append(Decls, Others, LTs0), sort(LTs0, LTs),
+    kb_lines_commented(KbFile, LTs, Out0),
+    utc_now(Now),
+    clause_line(withdrawn(N/Ar, By, Now, NF), [], Rec),
+    (   sub_string(Out0, _, 1, 0, "\n") -> Sep = "" ; Sep = "\n" ),
+    atomic_list_concat([Out0, Sep, Rec, "\n"], Out),
+    write_kb_text(KbFile, Out),
+    format("~w~n", [Rec]),
+    format(user_error, "Withdrew ~w/~w: its declaration and ~w fact(s). They stay in kb.pl as comments. Run orbit-kb lint next.~n", [N, Ar, NF]),
+    Code = 0.
+
+% kb_lines_commented(+File, +Line-Term pairs, -Out): the text of File with each of these lines
+% turned into the comment "% withdrawn: LINE". Each term must be the whole of its line.
+kb_lines_commented(File, LTs, Out) :-
+    read_file_to_string(File, Str, [encoding(utf8)]),
+    split_string(Str, "\n", "", Lines),
+    forall(member(L-T, LTs),
+           (   nth1(L, Lines, LS),
+               catch(term_string(T2, LS, [module(orbit_ops)]), _, fail), T2 =@= T
+           ->  true
+           ;   die(2, ["withdraw: line " + L + " of kb.pl does not hold exactly one term. Nothing was written.",
+                       "Fix: keep one fact per line in kb.pl (orbit-kb add writes them so)."] >> fix_lines)
+           )),
+    pairs_keys(LTs, Ls),
+    findall(O, ( nth1(I, Lines, LS), ( memberchk(I, Ls) -> string_concat("% withdrawn: ", LS, O) ; O = LS ) ), Outs),
+    atomic_list_concat(Outs, '\n', Out).
+
+% ---------------------------------------------------------------------
+% shift: the step from words to records in one command (D37, 0.3.0 K-H)
+% ---------------------------------------------------------------------
+% orbit-kb shift DIR (--request-file F | --request T) --hypothesis T [--kind K]
+%   (--no-premises | --premise T ...) --claim T [--label L] --example T --check ID
+%   [--cites T] [--uses M,...]
+% It runs orbit-kb init, then one orbit-kb add of every fact (all or nothing), as two
+% child processes of this script, so each write has the checks of init and add. When the
+% add is refused, it removes what it wrote (kb.pl and the other new files of DIR, and DIR
+% itself when it made it), and exits with the code of add. The ids are fixed: h1, p1..pN, c1.
+
+cmd_shift(Args, Code) :-
+    parse_opts(Args, ['--request'-value, '--request-file'-value, '--hypothesis'-value, '--kind'-value,
+                      '--no-premises'-flag, '--premise'-value, '--claim'-value, '--label'-value,
+                      '--example'-value, '--check'-value, '--cites'-value, '--uses'-value], Pos, Opts),
+    (   Pos = [Dir0] -> true
+    ;   usage_error("Give one directory: orbit-kb shift DIR --request-file F --hypothesis T ... (orbit-kb help shift).", [])
+    ),
+    forall(( member(O, ['--request', '--request-file', '--hypothesis', '--kind', '--claim', '--label', '--example', '--check', '--cites', '--uses']),
+             aggregate_all(count, member(O-_, Opts), N), N > 1 ),
+           usage_error("Give ~w once.", [O])),
+    forall(member(O-What, ['--hypothesis'-"the hypothesis", '--claim'-"the claim", '--example'-"its example", '--check'-"the id of its check"]),
+           ( memberchk(O-_, Opts) -> true
+           ; usage_error("shift needs ~w: ~w TEXT (orbit-kb help shift).", [What, O]) )),
+    findall(P, member('--premise'-P, Opts), Prems),
+    (   memberchk('--no-premises'-true, Opts)
+    ->  ( Prems == [] -> true ; usage_error("Give --no-premises or --premise TEXT, not both.", []) )
+    ;   Prems == []
+    ->  usage_error("State the premises: --premise TEXT for each one, or --no-premises (\"Premises: none\").", [])
+    ;   true
+    ),
+    opt(Opts, '--request', none, RT), opt(Opts, '--request-file', none, RF),
+    (   RT \== none, RF == none -> ReqOpt = ['--request', RT], Text = RT
+    ;   RF \== none, RT == none
+    ->  (   exists_file(RF)
+        ->  read_file_to_string(RF, S0, [encoding(utf8)]),
+            ( sub_string(S0, B, 1, 0, "\n") -> sub_string(S0, 0, B, _, Text) ; Text = S0 ),
+            ReqOpt = ['--request-file', RF]
+        ;   die(1, ["The request file " + RF + " does not exist. Check the path."] >> fix_lines)
+        )
+    ;   usage_error("Give the request with --request TEXT or with --request-file F. Give one of them, not both.", [])
+    ),
+    opt(Opts, '--kind', feature, Kind), opt(Opts, '--label', introduce, Label),
+    opt(Opts, '--uses', build, Uses),
+    memberchk('--hypothesis'-HT, Opts), memberchk('--claim'-CT, Opts),
+    memberchk('--example'-ET, Opts), memberchk('--check'-KId, Opts),
+    (   memberchk('--cites'-Cites, Opts) -> true
+    ;   split_string(Text, "\n", " \t\r", [L1|_]), atom_string(Cites, L1)
+    ),
+    findall(F, ( F = hypothesis(h1, Kind, HT)
+               ; memberchk('--no-premises'-true, Opts), F = no_premises(h1)
+               ; nth1(I, Prems, PT), atom_concat(p, I, PId), F = premise(PId, h1, PT)
+               ; F = claim(c1, Label, CT)
+               ; F = cites(c1, Cites)
+               ; F = example(c1, ET)
+               ; F = check(KId, c1) ), Facts),
+    maplist([T, A]>>format(atom(A), "~q", [T]), Facts, FactArgs),
+    absolute_file_name(Dir0, Dir),
+    directory_file_path(Dir, 'kb.pl', KbFile),
+    (   exists_file(KbFile)
+    ->  die(1, [KbFile + " already exists. orbit-kb shift does not overwrite a KB.", "Fix: choose a new directory, or add the facts to the KB that exists (orbit-kb add)."] >> fix_lines)
+    ;   true
+    ),
+    (   exists_directory(Dir) -> directory_files(Dir, Before), Made = false ; Before = [], Made = true ),
+    orbit_script(Script0), real_file(Script0, Script),
+    append([init, Dir|ReqOpt], ['--uses', Uses], InitArgs),
+    shift_child(Script, InitArgs, IExit, IOut),
+    (   IExit \== 0
+    ->  shift_undo(Dir, Made, Before),
+        format(user_error, "~s", [IOut]), Code = IExit
+    ;   shift_child(Script, ['--dir', Dir, add|FactArgs], AExit, AOut),
+        (   AExit \== 0
+        ->  shift_undo(Dir, Made, Before),
+            format(user_error, "~s", [AOut]),
+            format(user_error, "orbit-kb shift wrote nothing: the add above was refused.~n", []),
+            Code = AExit
+        ;   format("~w~n", [KbFile]),
+            forall(member(F, Facts), ( term_text(F, FT), format("~w.~n", [FT]) )),
+            format(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD (it must fail before the change), then orbit-kb lint. orbit-kb help shift.~n", [Dir, KId]),
+            Code = 0
+        )
+    ).
+
+shift_child(Script, Args, Exit, Out) :-
+    process_create(Script, Args, [stdin(null), stdout(pipe(O)), stderr(pipe(E)), process(P)]),
+    read_string(O, _, O1), close(O), read_string(E, _, E1), close(E),
+    process_wait(P, St),
+    ( St = exit(Exit) -> true ; Exit = 2 ),
+    string_concat(O1, E1, Out).
+
+% shift_undo(+Dir, +Made, +Before): remove what shift wrote. A directory that shift made goes;
+% in a directory that existed, only the entries that were not there before go.
+shift_undo(Dir, true, _) :- !,
+    catch(delete_directory_and_contents(Dir), _, true).
+shift_undo(Dir, false, Before) :-
+    (   catch(directory_files(Dir, Now), _, fail)
+    ->  forall(( member(N, Now), \+ memberchk(N, Before) ),
+               ( directory_file_path(Dir, N, P),
+                 ( exists_directory(P) -> catch(delete_directory_and_contents(P), _, true)
+                 ; catch(delete_file(P), _, true) ) ))
+    ;   true
+    ).
 
 % ---------------------------------------------------------------------
 % uses: add modules to an existing KB
@@ -3631,7 +3851,8 @@ add_lines([it(_, _, _, T, _, _)|Is], FUs, Doc, By, Now, Done, Lines) :-
     ;   Pre = [], Done1 = Done
     ),
     clause_line(T, [], L),
-    record_lines(T, Now, Post),
+    record_lines(T, Now, Post0),
+    relation_lines(T, By, Now, Post1), append(Post0, Post1, Post),
     add_lines(Is, FUs, Doc, By, Now, Done1, Rest),
     append(Post, Rest, Rest1),
     append(Pre, [L|Rest1], Lines).
@@ -3646,6 +3867,13 @@ record_lines(T, Now, [A, C]) :-
     actor_line(Id, A),
     clause_line(change_at(Id, Now), [], C).
 record_lines(_, _, []).
+
+% relation_lines(+Fact, +By, +Time, -Lines) (D38): after a relation of the project module, who
+% wrote it and when.
+relation_lines(T, By, Now, [L]) :-
+    nonvar(T), ( T = excludes(_, _) ; T = depends_on(_, _) ), !,
+    clause_line(relation_by(T, By, Now), [], L).
+relation_lines(_, _, _, []).
 
 first_use_decl(N, A, Doc, decl(fact, H, Doc, '')) :-
     length(Ts, A), maplist(=(term), Ts),
@@ -3693,6 +3921,8 @@ add_item(ATs, I, A, R) :-
         ->  fmt(M, "Argument ~w: orbit-kb attest approval writes discovery_end/1 itself (D30), when the human approves the ticket while gate(go) holds. add refuses it.", [I]), R = err(M)
         ;   nonvar(T), functor(T, RN, RA), memberchk(RN/RA, [actor/3, change_at/2, review_saw/3])
         ->  fmt(M, "Argument ~w: orbit-kb writes ~w/~w itself (D28): with each attestation and change, or with orbit-kb review start. add refuses it.", [I, RN, RA]), R = err(M)
+        ;   nonvar(T), T = relation_by(_, _, _)
+        ->  fmt(M, "Argument ~w: orbit-kb writes relation_by/3 itself (D38), after each excludes and depends_on fact, with the --by of the add. To ratify an agent's relation, add the same relation with --by human. add refuses it.", [I]), R = err(M)
         ;   nonvar(T), T = attest(_, Type, _, _, _, _), atom(Type), script_only_type(ATs, Type)
         ->  script_use(Type, Use),
             fmt(M, "Argument ~w: only ~w writes attestations of type ~q.", [I, Use, Type]), R = err(M)
@@ -5586,11 +5816,43 @@ lint_diags(KB, Diags, IssueLines, IssueErrors) :-
     e11_diags(Items, Ds, D11, Eng),
     % warnings
     w_diags(KB, Items, Ds, Facts, DW),
-    append([D1, D10, DD, DA, DF, D5, D15, DR, D17, D18, D11, DW], Diags0),
+    % ED12 (review of K-C/K-D, item 2): a discovery_end that no GO earned
+    discovery_end_diags(KB, Items, KbFile, D12),
+    append([D1, D10, DD, DA, DF, D5, D15, DR, D17, D18, D11, DW, D12], Diags0),
     % keep errors in a stable order; drop exact repeats
     list_to_set(Diags0, Diags),
     lint_issues(Eng, Ds, IssueLines, IssueErrors).
 
+
+% discovery_end_diags(+KB, +Items, +KbFile, -Diags) (D41, review of K-C/K-D, item 2): lint error
+% ED12 for a discovery_end(A) whose approval A is a human approval, but where, in the KB as it
+% was just before A (the lines of kb.pl above A, with the library and rules.pl), the orbit was
+% not open, gate(go) did not hold, or the artifacts did not vote go: what attest approval
+% checks before it writes discovery_end (D30 H6). So a hand-written discovery_end on an approval
+% that came with no GO is named. A limit: the KB before A is read with the files as they are now
+% (a subject digest, a log), and a stale approval (H7) is not checked here.
+discovery_end_diags(KB, Items, KbFile, Diags) :-
+    kb_uses(KB, Uses), memberchk(discovery, Uses), !,
+    kb_dir(KB, Dir),
+    findall(I, ( member(I, Items), I = it(kb, _, _, _, _, _) ), KbItems),
+    findall(I, ( member(I, Items), I = it(S, _, _, _, _, _), \+ memberchk(S, [kb, derived]) ), LibItems),
+    findall(diag('ED12', KbFile, L, M),
+            ( member(it(kb, _, L, T, _, _), KbItems), nonvar(T), T = discovery_end(A), atom(A),
+              once(( member(it(kb, _, LA, TA, _, _), KbItems), nonvar(TA), TA = attest(A, approval, _, _, human, _) )),
+              findall(P, ( member(P, KbItems), P = it(kb, _, LP, _, _, _), LP < LA ), Pre),
+              \+ go_before(Dir, LibItems, Pre),
+              fmt(M, "This discovery_end names approval ~w, but no GO came before that approval: in the KB before it, the discovery orbit was not open, or gate(go) or the artifacts' go did not hold. orbit-kb attest approval writes discovery_end only after a GO. Remove the line, or vote and approve again.", [A]) ),
+            Diags).
+discovery_end_diags(_, _, _, []).
+
+go_before(Dir, LibItems, Pre) :-
+    catch(( derived_items(Dir, Pre, Der),
+            append([LibItems, Pre, Der], All),
+            items_decls(All, Ds),
+            build_engine(All, Ds, Eng),
+            eng_true(Eng, discovery_open),
+            eng_true(Eng, gate(go)),
+            eng_true(Eng, artifact_vote(go)) ), _, fail).
 
 e10_diags(Items, Lib, KbFile, Diags) :-
     findall(I, ( member(I, Items), item_src(I, kb) ), KbItems),
@@ -5798,7 +6060,7 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
             ( member(fu(N, A, _, _, F, L), FUs),
               member(d(N2, A, _, _, _, _, _, _, _), Ds), N2 \== N, atom(N2),
               edit_distance_at_most(N, N2, 2, Dist),
-              fmt(M, "~q/~w was declared by its first use, and its name is ~w edit(s) from the declared ~q/~w. It may be a typo. If it is: correct the facts in kb.pl to ~q/~w, and delete the decl/4 and first_use/3 lines of ~q/~w. If it is a new predicate: choose a name more than 2 edits away.", [N, A, Dist, N2, A, N2, A, N, A]) ),
+              fmt(M, "~q/~w was declared by its first use, and its name is ~w edit(s) from the declared ~q/~w. It may be a typo. If it is: run orbit-kb withdraw ~q/~w (it removes the kind and its facts, with a record), and add the facts again as ~q/~w. If it is a new predicate: choose a name more than 2 edits away.", [N, A, Dist, N2, A, N, A, N2, A]) ),
             E19a),
     sort(E19a, E19b),
     e19_rule_diags(Ds, E19r),
@@ -7342,8 +7604,12 @@ report_text(KB, Eng) :-
     rhead('KB'),
     kb_dir(KB, KDir0),
     rsay(kb_dir, "~w", [KDir0]),
-    rhead('Signals'),
-    rsay(placeholder, "(Compare the work with each signal: questions, divergence, someone else built, burns, handoff, effort. Write no, or yes and what fired it.)", []),
+    % D35 R1 (c_k_g_3): each request, word for word: the first one, and each decision that the
+    % human gave during the ticket (a further request fact, in the human's words).
+    eng_all(Eng, [RI, RT], request(RI, RT), Reqs),
+    forall(member([RI, RT], Reqs),
+           ( one_line(RT, RTT), rsay(item(RI), "Request ~w, word for word: ~w", [RI, RTT]) )),
+    signals_section(KB, Eng),
     hypothesis_section(Eng),
     ( has_discovery(KB) -> system_section(Eng), findings_section(Eng) ; true ),
     rhead('Claims'),
@@ -7506,6 +7772,11 @@ report_text(KB, Eng) :-
            ( ready_line(Eng, D5, DK5, DS5), ( D5 = unknown -> DRef = discovery ; functor(D5, _, DA), ( DA =:= 1 -> arg(1, D5, DRef) ; functor(D5, DRef, _) ) ),
              ( eng_true(Eng, claim(DRef, _, _)) -> DTgt = DRef ; DTgt = none ),
              ropen(open(discovery_ready, DRef, DTgt), "not ready", "Discovery is not ready, ~w: ~w", [DK5, DS5]) )),
+    % D41 (review of K-C/K-D, item 9): the pointer of D19 to the explanation comes back, once.
+    (   D5s \== []
+    ->  rsay(why_not_ready, "Why: orbit-kb whynot 'discovery_ready' explains what blocks readiness, and orbit-kb lint gives the fix of each finding.", [])
+    ;   true
+    ),
     forall(member(P6, Sp6s), ( stale_pin_text(Eng, P6, PS6), ropen(open(stale_pin, P6, none), "stale pin", "Pin ~w: ~w", [P6, PS6]) )),
     forall(member(A4, A4s), ropen(open(stale, A4, none), "stale", "Approval ~w is stale. The subject changed after the approval.", [A4])),
     forall(member(Y4, Y4s),
@@ -7623,6 +7894,67 @@ scope_sections(KB, Eng) :-
         forall(member(N, Ns), ( txt(N, NT), rsay(not_explored, "~w", [NT]) ))
     ;   true
     ).
+
+% signals_section(+KB, +Eng) (D35 S3, c_k_g_4b): the Signals field from every record of a
+% signal: the signal/4 facts, the divergence attestations, and the burns (a universal claim, a
+% proof that the human asked for, a claim that was contested twice and is not visual). "no" only
+% for a kind with no record; "yes" with one nested line for each record, with who noticed it.
+% Then each lean back (D35 S2).
+signals_section(KB, Eng) :-
+    rhead('Signals'),
+    eng_all(Eng, [S, Kd, By, Tx], signal(S, Kd, By, Tx), Sigs),
+    eng_all(Eng, [A, Tg, AB], attest(A, divergence, _, Tg, AB, _), Dvs),
+    burn_records(KB, Eng, Burns),
+    forall(member(Kd-Label, [questions-"questions", divergence-"divergence", built_by_other-"someone else built",
+                             burn-"burns", handoff-"handoff", effort-"effort"]),
+           ( findall(L, signal_record(Kd, Sigs, Dvs, Burns, L), Ls),
+             (   Ls == []
+             ->  rsay(signal(Kd), "~w: no.", [Label])
+             ;   format(string(Head), "~w: yes.", [Label]),
+                 findall(L-[], member(L, Ls), Kids),
+                 atomic_list_concat(Ls, ' ', LT),
+                 format(string(Plain), "~w ~w", [Head, LT]),
+                 rtree(signal(Kd), Plain, Head-Kids)
+             ) )),
+    eng_all(Eng, [LB, LT2], lean_back(LB, LT2), LBs),
+    forall(member([LB, LT2], LBs),
+           ( one_line(LT2, LTT), rsay(lean_back(LB), "Leaning back (~w): ~w", [LB, LTT]) )).
+
+signal_record(Kd, Sigs, _, _, L) :-
+    member([S, Kd, By, Tx], Sigs),
+    one_line(Tx, T0), strip_period(T0, T1),
+    noticer(By, BW),
+    format(string(L), "~w: ~w (noticed by ~w).", [S, T1, BW]).
+signal_record(divergence, _, Dvs, _, L) :-
+    member([A, Tg, AB], Dvs),
+    (   Tg =.. [K, X] -> format(string(On), "~w ~w", [K, X]) ; term_text(Tg, On) ),
+    noticer(AB, BW),
+    format(string(L), "~w: a divergence on ~w (attested by ~w).", [A, On, BW]).
+signal_record(burn, _, _, Burns, L) :-
+    member(C-Why, Burns),
+    format(string(L), "~w: ~w", [C, Why]).
+
+noticer(agent, "the agent") :- !.
+noticer(human, "the human") :- !.
+noticer(system1, "System 1") :- !.
+noticer(script, "a script") :- !.
+noticer(X, X).
+
+strip_period(T, S) :-
+    (   sub_string(T, B, 1, 0, ".") -> sub_string(T, 0, B, _, S) ; S = T ).
+
+% burn_records(+KB, +Eng, -Burns): C-Why for each claim with a reason to burn (as burn_reason/1
+% of the build module; without build, a contested claim is not checked for visual/1).
+burn_records(KB, Eng, Burns) :-
+    eng_all(Eng, [C1], universal(C1), Us),
+    (   has_build(KB)
+    ->  eng_all(Eng, [C2], burn_requested(C2), Rs),
+        eng_all(Eng, [C3], ( contested_twice(C3), not(visual(C3)) ), Ts)
+    ;   Rs = [], eng_all(Eng, [C3], contested_twice(C3), Ts)
+    ),
+    findall(C-W, ( member(C, Us), W = "the claim is universal (about every input)."
+                 ; member(C, Rs), W = "the human asked for a proof."
+                 ; member(C, Ts), W = "the claim was contested twice." ), Burns).
 
 % formal_section(+Eng, +Cs) (D31 B3): the formal statement of each current claim that has one,
 % beside its plain sentence; or "None." B4 and B5 add the statements.
@@ -8250,30 +8582,34 @@ cmd_help([C|_], Code) :-
     ;   help_topic_file(C, File)
     ->  read_file_to_string(File, S, [encoding(utf8)]),
         format("~s", [S]), Code = 0
-    ;   usage_error("There is no help for ~w. It is not a command or a topic. Topics: ~w.", [C, 'core, build, discovery, project, codes, answers'])
+    ;   usage_error("There is no help for ~w. It is not a command or a topic. Topics: ~w.", [C, 'core, build, discovery, project, codes, answers, shift'])
     ).
 
 % A topic is the file help/TOPIC.txt in the library directory.
 help_topic_file(Topic, File) :-
-    memberchk(Topic, [core, build, discovery, project, codes, answers]),
+    memberchk(Topic, [core, build, discovery, project, codes, answers, shift]),
     lib_dir(Lib),
     atomic_list_concat([Lib, '/help/', Topic, '.txt'], File),
     exists_file(File).
 
-help_lines(general, [
+help_general([
 "orbit-kb: write, check, and query Prolog knowledge bases (KBs) with default negation (not p).",
 "",
 "How to use (read this first; the topics hold the details):",
 "  1. orbit-kb init DIR --request 'the human's words' --uses MODULE",
-"     MODULE: discovery when the problem is not yet clear (a report, a \"why?\" question,",
-"     or you no longer agree with the human on the problem); build when only the change is open",
-"  2. orbit-kb add 'claim(...)' 'cites(...)' 'check(k1, c1)'          write facts; never edit kb.pl",
-"  3. orbit-kb run k1 -- CMD       run each check; it must fail first for retire and introduce",
-"  4. build the change, then orbit-kb run again",
-"  5. orbit-kb lint                the fix for each finding is in its message",
-"  6. orbit-kb show open           what is left; run it first when you resume a KB",
-"  7. orbit-kb report              draft the delivery",
+"     MODULE: discovery when the request is not clear enough to state its hypothesis (a",
+"     report); build when you can state it. Every ticket has a hypothesis.",
+"  2. orbit-kb add \"hypothesis(h1, feature, 'TEXT')\" 'no_premises(h1)'   the hypothesis first,",
+"     with its premises beside it (premise(P, h1, 'TEXT'), or no_premises(h1))",
+"  3. orbit-kb add 'claim(...)' 'cites(...)' 'check(k1, c1)'          write facts; never edit kb.pl",
+"  4. orbit-kb run k1 -- CMD       run each check; it must fail first for retire and introduce",
+"  5. build the change, then orbit-kb run again",
+"  6. orbit-kb lint                the fix for each finding is in its message",
+"  7. orbit-kb show open           what is left; run it first when you resume a KB",
+"  8. orbit-kb report              draft the delivery",
+"  On the light path, when a signal fires: orbit-kb shift (orbit-kb help shift) does 1 to 3.",
 "  Topics:",
+"    orbit-kb help shift     the step from words to records: orbit-kb shift, one command, one screen",
 "    orbit-kb help core      facts, claim labels, attestation types, and core queries",
 "    orbit-kb help build     build-module facts and queries, burns, flares, proofs, waivers",
 "    orbit-kb help discovery discovery-module facts, verdicts, queries, and the recipe for each move",
@@ -8285,7 +8621,7 @@ help_lines(general, [
 "Phases (each orbit has two phases; each move belongs to one phase):",
 "  discovery: research, specify",
 "  build: build, verify",
-"  research  SIGNAL, SURVEY, FLYBY, TRAJECTORY, DISPROVE (discovery)",
+"  research  RESTATE, SURVEY, FLYBY, TRAJECTORY, DISPROVE (discovery)",
 "  specify   SPECTRUM, DECOMPOSE, the vote (GATE)",
 "  build     BUILD",
 "  verify    FULFILL, DISPROVE, BURN",
@@ -8296,6 +8632,8 @@ help_lines(general, [
 "Commands:",
 "  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
 "  uses MODULE ...",
+"  withdraw NAME/ARITY [--by human|agent]      remove a kind that a typo declared (lint E19)",
+"  shift DIR --request-file F --hypothesis T (--no-premises|--premise T ...) --claim T --example T --check ID",
 "  add 'FACT' ... [--by human|agent] [--doc TEXT]",
 "  subject ID PATH",
 "  attest TYPE SUBJECT 'PREDICATE' [--by human|agent] [--id ID] [--rests-on RUN,...]",
@@ -8320,6 +8658,7 @@ help_lines(general, [
 "  apply-pending",
 "  project impact X [--root DIR] | project archive --superseded-before DATE [--root DIR] | project dropped [--hub DIR]",
 "  doctor",
+"  version                          the version of the tool (the file VERSION of Sagittarius)",
 "  Every write command takes --as ROLE: actor(A, Role, Session) records who wrote (help core).",
 "  help [COMMAND|TOPIC]",
 "",
@@ -8343,6 +8682,14 @@ help_lines(general, [
 "",
 "Run orbit-kb help COMMAND for details about one command."
 ]).
+
+% The first line of the general help names the version (D34).
+help_lines(general, [First|Ls]) :-
+    help_general([First0|Ls]),
+    tool_version_text(V),
+    sub_atom(First0, 0, _, A, 'orbit-kb:'),
+    sub_atom(First0, _, A, 0, Rest),
+    format(atom(First), "orbit-kb ~w:~w", [V, Rest]).
 
 help_lines(init, [
 "orbit-kb init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
@@ -8656,7 +9003,9 @@ help_lines(report, [
 "orbit-kb report [--html FILE [--open]]",
 "",
 "Print a delivery report skeleton with these sections, in the order of the delivery block:",
-"Delivered, KB (the KB directory), Signals, Hypothesis (with its premises), Claims (each with its",
+"Delivered, KB (the KB directory and each request, word for word), Signals (each of the six:",
+"no, or yes and each record: a signal fact, a divergence, a burn; then each lean back),",
+"Hypothesis (with its premises), Claims (each with its",
 "examples), Formal (a theorem and its statement, or a model and its property; or None), Guesses",
 "(defaults and unchecked premises), Disclosures, Waivers (build), Not checked, Open, To land.",
 "With the discovery module it drafts the discovery report too: System (what the system showed) and",
@@ -8664,7 +9013,7 @@ help_lines(report, [
 "Not explored after Formal (also without the module, when the KB has such facts).",
 "With the discovery module, a Vote section comes before To land. It shows the agent's vote",
 "and the formal artifacts' vote only after the human votes in the current round.",
-"Fill in Delivered, Signals and To land yourself.",
+"Fill in Delivered and To land yourself. Check Signals: a signal with no record says no.",
 "",
 "The text is plain Markdown. Each section has a heading (# Claims:) and a blank line after it.",
 "Each item is a bullet, with two more spaces for each level. The label is in **bold**.",
@@ -8688,9 +9037,26 @@ help_lines(doctor, [
 "E18 flags p :- not q, q :- not p; E17 flags -p(b).",
 "Exit 2 if something is missing or a self-test fails."
 ]).
+help_lines(withdraw, [
+"orbit-kb withdraw NAME/ARITY [--by human|agent]",
+"",
+"Remove a kind that kb.pl declares by its first use (a typo that lint E19 names, such as",
+"cited/2 next to cites/2): its decl/4 line, its first_use/3 fact, and every fact of the kind.",
+"Each removed line stays in kb.pl as the comment \"% withdrawn: LINE\", and the record",
+"withdrawn(NAME/ARITY, By, Time, N) is appended (N facts). Then add the facts again under the",
+"declared name. A kind of the library is never withdrawn (exit 1). Takes the writer lock."
+]).
+help_lines(version, [
+"orbit-kb version   (also: orbit-kb --version)",
+"",
+"Print the version of the tool: orbit-kb X.Y.Z. It is the version of Sagittarius, from the file",
+"VERSION of the library (in the repository, a link to the file VERSION at its root; a hub's copy",
+"holds the number of the kit it came from). The first line of orbit-kb help names it too, and",
+"orbit-kb init writes it into kb.pl as a comment. Exit 2 when the file is missing."
+]).
 help_lines(help, [
 "orbit-kb help [COMMAND|TOPIC]",
 "",
 "Show general help, or help for one command or one topic.",
-"Topics: core, build, discovery, project, codes, answers."
+"Topics: core, build, discovery, project, codes, answers, shift."
 ]).

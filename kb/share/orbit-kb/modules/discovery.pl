@@ -41,18 +41,11 @@ decl(fact, budget(oneof([laps]), int),
 decl(fact, lap_done(int),
      'A lap that ended with an answer from the human.',
      'lap @(1) is done').
-decl(fact, model(ref(subject), oneof([smt, tla])),
-     'A subject that is a model file, and the tool that checks it.',
-     'subject @(1) is a model for @(2)').
-decl(fact, model_run(ref(subject), ref(model), digest),
-     'A solver log, the model that the solver ran, and the digest of the model file at that run.',
-     'log @(1) is a run of model @(2) at digest @(3)').
+% 0.3.0 (K-F, D40): model/2, model_run/3, encodes/2 and the attestation type
+% model_result are core: a KB that uses build records a model too.
 decl(fact, derived_from(ref(model), ref(model)),
      'A target model, then the existing-world model that it changes.',
      'model @(1) is derived from model @(2)').
-decl(fact, encodes(ref(model), ref(claim)),
-     'A model states a claim, so the model can falsify the claim.',
-     'model @(1) states claim @(2)').
 % D31 B5: the property of a model that states a claim, so that the report can show it.
 decl(fact, property(ref(model), ref(claim), text),
      'The property of the model that states the claim: an SMT assertion or a TLA+ invariant, as written in the model.',
@@ -81,16 +74,6 @@ attest_type(reproduction,
          confirms(ref(finding))]),
     [agent, human],
     'Evidence from the current system that cannot run as a check, such as a log or a query.').
-% verdict/3 has three arguments, so the core refuted/1 never reads it.
-attest_type(model_result,
-    alt([verdict(ref(model),
-                 alt([sanity, bad_case, together, root_cause(atom), normal_case(atom),
-                      preserve(ref(claim)), applies(ref(claim)), explore(term)]),
-                 oneof([sat, unsat, unknown, reached, violated, holds])),
-         calibration(ref(model), alt([fails(text), passes(text), example(ref(claim)), case(text)]), oneof([matches, differs])),
-         mutation(ref(model), atom, oneof([killed, survived]))]),
-    [agent, human],
-    'The result of one check on a model, read from the log of the solver run. A calibration names a real case where the system fails (fails), or one where it passes (passes); example and case are the older forms, and they calibrate nothing (D33).').
 % GO is not a decision: it is a core approval of the ticket subject.
 attest_type(decision,
     alt([no_go(ref(hypothesis), text), hold(ref(hypothesis), text)]),
@@ -119,7 +102,7 @@ decl(rule, discovery_disproof_filed(ref(claim)), 'A disproof attestation refutes
 decl(rule, discovery_model_artifact(ref), 'The id is a model file, a solver log, or is tagged as model evidence.', '@(1) is a model artifact').
 decl(rule, discovery_system_evidence(ref), 'The id is tagged as system evidence and is not a model artifact.', '@(1) is evidence from the current system').
 decl(rule, discovery_hypothesis_touched(ref(hypothesis)), 'A reproduction on system evidence gives a result for the hypothesis, or a check tagged as system evidence of an introduce or a retire claim failed in a run after the hypothesis was recorded (D33 R3).', 'the current system was checked for hypothesis @(1)').
-decl(rule, discovery_changing_claim(ref(claim)), 'The claim is an introduce claim or a retire claim: its check fails on the current system before the build.', 'claim @(1) introduces or retires something').
+decl(rule, discovery_changing_claim(ref(claim)), 'The claim is a current introduce claim or retire claim: its check fails on the current system before the build.', 'claim @(1) introduces or retires something').
 decl(rule, discovery_run_after(ref(attest), ref(hypothesis)), 'The test_result comes after the hypothesis in kb.pl: the run was made while the hypothesis existed. orbit-kb computes it when it reads the KB (D33 R3).', 'run @(1) came after hypothesis @(2)').
 decl(rule, discovery_has_example(ref(claim)), 'The claim has an example.', 'claim @(1) has an example').
 decl(rule, discovery_no_example(ref(claim)), 'A current claim with no example (D33 R1, lint WD10).', 'claim @(1) has no example').
@@ -218,8 +201,10 @@ discovery_hypothesis_touched(H) :- attest(_, reproduction, S, result(H, _), _, _
 % read discovery_hypothesis_touched/1 skip a superseded one), if the run came after the
 % hypothesis in kb.pl: a run made before a hypothesis existed did not test it (c_k_d_1b, the
 % second example). discovery_run_after/2 has no clauses here: orbit-kb computes its facts.
-discovery_changing_claim(C) :- claim(C, introduce, _).
-discovery_changing_claim(C) :- claim(C, retire, _).
+% Review of K-C/K-D (item 7): only a current claim; a red run of the check of a superseded
+% claim is no system result.
+discovery_changing_claim(C) :- claim(C, introduce, _), current(C).
+discovery_changing_claim(C) :- claim(C, retire, _), current(C).
 discovery_hypothesis_touched(H) :- discovery_run_after(A, H), attest(A, test_result, _, result(K, _, fail), _, _),
     discovery_system_evidence(K), check(K, C), discovery_changing_claim(C).
 discovery_has_outcome :- current(_).
@@ -449,8 +434,12 @@ lint_issue('WD8', A, 'This model result is on a log of an older digest of the mo
 lint_issue('WD8', A, 'This model result is on a log of an older digest of the model. It does not count. A newer result of the same check replaces it; nothing to do.') :-
     attest(A, model_result, S, P, _, _), discovery_result_model(P, M), model_run_stale(S, M),
     discovery_result_renewed(A).
+% Review of K-C/K-D (item 1): WD10 names a current claim with no example in any state of the
+% orbit; only its readiness part waits for an open orbit (ready_blocker reads discovery_no_example).
 lint_issue('WD10', C, 'This current claim has no example. Discovery is not ready until each current claim has a concrete case: add example(C, Text).') :-
     discovery_open, discovery_no_example(C).
+lint_issue('WD10', C, 'This current claim has no example. Each claim needs a concrete case: add example(C, Text).') :-
+    discovery_closed, discovery_no_example(C).
 lint_issue('WD9', A, 'The human voted in this round, and the agent did not vote first. The agent vote must be sealed before the human votes.') :-
     attest(A, vote, _, vote(R, _), human, _), not vote_void(A), not discovery_agent_voted(R).
 lint_issue('ED1', A, 'This reproduction must point at evidence from the current system. Tag the subject with discovery_evidence(Subject, system); a model or a solver log is not system evidence.') :-

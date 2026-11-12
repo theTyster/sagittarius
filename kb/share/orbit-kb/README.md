@@ -59,6 +59,10 @@ These steps are for Fedora. On another system, use its package manager for SWI-P
    root of the sagittarius repository.
 3. Run `orbit-kb doctor`.
 
+`orbit-kb version` prints the version of the tool, which is the version of
+Sagittarius: the file `VERSION` of the library (in the repository, a link to
+the root `VERSION`; a hub's copy holds the number of its kit).
+
 `orbit-kb` also uses `flock` from util-linux. `doctor` does not examine it.
 Section 13 says what happens when it is missing. No other program is needed:
 there is no `scasp` binary and no s(CASP) pack.
@@ -477,7 +481,7 @@ Load it with `uses([build])`. Its file is `modules/build.pl`.
 | `change(id, text)` | A change to the code, with the file or a short description. |
 | `serves(ref(change), ref(claim))` | The change serves the claim. |
 | `burn_requested(ref(claim))` | A human asked for a Lean proof of the claim. |
-| `conformance(ref(check))` | The check runs the code against the Lean model of its claim. Optional. |
+| `conformance(ref(check))` | The check runs the code against the Lean definitions of its claim. Optional. |
 | `visual(ref(claim))` | A human must see the claim to judge it: a look, a layout, a name, or another preference (D21). |
 | `demo(ref(subject), ref(claim))` | The subject, a screenshot or a recording, shows the claim to a human (D21). |
 | `ac(ref(claim))` | The claim is an acceptance criterion (AC) of the ticket (D29). It changes no rule. `show blocking` and `draft blocking` name an unmet AC: `- under C: acceptance criterion C is not met (claim C is current but not fulfilled): TEXT`. |
@@ -601,9 +605,9 @@ waiver in `Waivers:`, with its target, kind, due time, and state (`in force`,
 `lapsed`, or not by a human). So a waived item is never silent in the delivery.
 `rules.pl` cannot add clauses to `check_waived` or `question_waived` (E16).
 
-A proof is about the Lean model. It is not about the shipped code. The checks
+A proof is about the Lean definitions. It is not about the shipped code. The checks
 of the claim test the code, as for every claim. To test the code against the
-Lean model, add a check, and mark it with `conformance(K)`. This step is
+Lean definitions, add a check, and mark it with `conformance(K)`. This step is
 optional. `conforms(C)` shows the result.
 
 ## 8. Command reference
@@ -1385,7 +1389,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E18 | The rules are not stratified: a predicate depends on itself through `not`. The same commands exit 2 while an E18 exists. |
 | EP1 | An agent ratified a fact: `ratified_by(X, Who, _)` where Who is `agent` or starts with `agent:`, in any case (`Agent:review` too). Only a human ratifies what an agent made. `add` refuses it (T34). Who is self-declared: the check reads the name, it cannot know who wrote the fact (D27). |
 | EP2 | A fact depends on itself or excludes itself: `depends_on(X, X)` or `excludes(X, X)`. `add` refuses it (T34). To end a fact, supersede it. |
-| E19 | Typo guard (D22): a predicate declared by its first use has a name 2 edits or fewer (Levenshtein) from another declared predicate of the same arity. The message names both. `add` does not refuse it. For a typo, correct the facts in `kb.pl` and delete the `decl/4` and `first_use/3` lines of the new name. For a new predicate, choose a name more than 2 edits away. |
+| E19 | Typo guard (D22): a predicate declared by its first use has a name 2 edits or fewer (Levenshtein) from another declared predicate of the same arity. The message names both. `add` does not refuse it. For a typo, run `orbit-kb withdraw NAME/ARITY` (D39): it removes the kind, its `first_use/3` and its facts, keeps them as comments, and appends `withdrawn/4`; then add the facts again under the declared name. For a new predicate, choose a name more than 2 edits away. |
 
 | Code | Warning |
 |---|---|
@@ -1405,6 +1409,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | WP5 | A claim pins a fact of the project KB that rests on a fact in a contradiction, and no claim pins that fact directly. Only a direct pin blocks (`project_contradiction`); this is a warning. Module hook; the id is the claim (D27). |
 | WP6 | An `analysis(X, Path)` whose Path is outside the project KB directory. Analyses are written in the project KB (`analyses/`); a week's raw report is pinned, not an analysis. Module hook (D27). |
 | WP7 | A fact rests on itself: its `depends_on` facts make a cycle (`rests_on(X, X)`). A cycle is allowed, but it is often a mistake. Module hook; the id is each fact of the cycle (T34). |
+| WP9 | Only an agent wrote this relation (`relation_by(R, agent, T)` and none by a human): it is `proposed` and blocks nothing. A human ratifies it by adding the same relation with `--by human` (D38). Module hook; the id is the relation. |
 
 Built-ins that E2 permits: `=`, `\=`, `<`, `>`, `=<`, `>=`, `is`, `true`,
 `false`, `forall/2`. Lint unwraps `not G`.
@@ -1960,7 +1965,7 @@ Changes in contract v2.1:
     reopens the burn.
   - Only a human can waive a proof, with a due time. After the due time, the
     burn is open again. `report` shows a waived claim as `NOT PROVED`.
-  - A check of the code against the Lean model is optional
+  - A check of the code against the Lean definitions is optional
     (`conformance/1`, `conforms/1`).
   - the old `declare` refused `proved`, `chs`, `assume`, and `abduced`. A rule named
     `proved/1` broke the s(CASP) compile. (Superseded by D20: the names are free.)

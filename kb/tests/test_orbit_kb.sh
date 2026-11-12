@@ -86,6 +86,13 @@
 #   KR  the report and show print what the KB holds: hypothesis, examples, KB, Signals, Formal, the discovery report (D31, 0.3.0 K-B) : KR1-KR7
 #   OP  no quiet "Nothing is open": blocking, what blocks readiness, stale pins (D32, 0.3.0 K-C) : OP1-OP5
 #   RD  readiness and the vote: examples, preserve checks, calibration, red system runs, the gate (D33, 0.3.0 K-D) : RD1-RD6
+#   VN  the version of the tool: version, help, init, a link and a copy (D34, 0.3.0 V-A) : VN1-VN3
+#   SG  signals have records: signal/4, lean_back/2, further requests, report Signals (D35, 0.3.0 K-G) : SG1-SG4
+#   HE  the help follows the prompt: the human says it is wrong, back, the hypothesis, one lens (D36, 0.3.0 K-E) : HE1-HE5
+#   SF  orbit-kb shift and help shift: the step from words to records (D37, 0.3.0 K-H) : SF1-SF3
+#   WJ  one meaning for each word: RESTATE, Lean definitions, withdraw (D39, 0.3.0 K-J) : WJ1-WJ3
+#   MF  the facts of a model in a build KB; a solver result closes no universal claim (D40, 0.3.0 K-F) : MF1 MF2
+#   RV  the review of K-C and K-D: WD10 after closure, ED12, superseded claims, whynot, limits (D41) : RV1-RV5
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -1701,7 +1708,7 @@ t_KR3() { hy_build "$T/b"; okb --dir "$K" report; rc_is 0
           local heads; heads=$(printf '%s\n' "$out" | grep -oE '^# (Delivered|KB|Signals|Claims|Formal|Guesses):' | sed 's/^# //' | paste -sd' ')
           rl_is "the fields of the delivery block, in its order" "Delivered: KB: Signals: Claims: Formal: Guesses:" "$heads"
           rp_sec KB | grep -qF "$K" || note "KB names the KB directory: [$(rp_sec KB)]"
-          rp_sec Signals | grep -q 'questions.*divergence.*effort' || note "Signals names the six signals: [$(rp_sec Signals)]"
+          rp_sec Signals | paste -sd' ' | grep -q 'questions.*divergence.*effort' || note "Signals names the six signals (D35: one line each): [$(rp_sec Signals)]"
           rl_is "Formal with no formal statement" "  - None. No claim has a formal statement." "$(rp_sec Formal)"
           okb --dir "$K" report --html "$T/r.html"; rc_is 0
           local s; for s in kb signals hypothesis formal; do grep -q "data-section=\"$s\"" "$T/r.html" || note "the page has the section $s"; done; }
@@ -2218,6 +2225,273 @@ t_GD() { # query done on 20 claims x 2 runs
          add_result "$K" k20 41 fail
          q 'done'; rc_is 1 "k20 failed last: done is false"
          is_set 'under(X)' 'X = c20'; }
+
+# ================================================================ 0.3.0: V-A, K-G, K-E, K-H, K-J, K-F (D34 to D39)
+# VN (D34, c_v_a_2, c_v_a_3): the tool names the version of Sagittarius. The one source is the
+# file VERSION at the root of the repository; the library holds kb/share/orbit-kb/VERSION, a
+# link to it, so a copy of kb/bin and kb/share (a hub's .claude/orbit-kb) carries the number.
+vn_want() { tr -d '[:space:]' < "$here/../../VERSION"; }
+t_VN1() { local v; v=$(vn_want)
+          [ -n "$v" ] || { note "no VERSION file at the root of the repository"; return; }
+          okb version; rc_is 0 "orbit-kb version"; out_has "^orbit-kb ${v//./\\.}\$" "version prints the number of VERSION"
+          okb --version; rc_is 0 "orbit-kb --version"; out_has "^orbit-kb ${v//./\\.}\$"
+          okb help; rc_is 0; [[ $(first_line) == "orbit-kb $v:"* ]] || note "the first help line names the version: [$(first_line)]"
+          okb version extra; rc_is 2 "version takes no arguments"; }
+t_VN2() { local v; v=$(vn_want); K=$T/k; okb init "$K" --request 'a'; rc_is 0
+          grep -qxF "% Made by orbit-kb $v." "$K/kb.pl" || note "init writes the version of the tool into kb.pl: [$(head -c 300 "$K/kb.pl" | tr '\n' '~')]"
+          head -1 "$K/kb.pl" | grep -Eq '^uses\(\[\]\)\.$' || note "uses/1 stays the first line: [$(head -1 "$K/kb.pl")]"
+          okb --dir "$K" lint; rc_is 0 "the line is a comment: lint is clean"; }
+t_VN3() { local v h; v=$(vn_want); h=$T/hub/.claude/orbit-kb
+          # a copy, as hubkit.py copies kit.json orbit_kb.paths: links are followed, no VERSION at a root
+          mkdir -p "$h" && cp -RL "$here/../bin" "$here/../share" "$h/" || { note "setup: the copy"; return; }
+          [ -L "$here/../share/orbit-kb/VERSION" ] || note "kb/share/orbit-kb/VERSION is a link to the one source"
+          [ ! -e "$T/hub/VERSION" ] && [ ! -e "$T/hub/.claude/VERSION" ] || note "setup: a VERSION file above the copy"
+          ( unset ORBIT_KB_LIB; cd "$T" && timeout "$TMO" "$h/bin/orbit-kb" version ) > "$T/.out" 2>&1
+          grep -qx "orbit-kb $v" "$T/.out" || note "the hub's copy prints the version: [$(head -c 200 "$T/.out")]"
+          # a link, as install.py makes ~/.local/bin/orbit-kb
+          mkdir -p "$T/home/.local/bin" && ln -s "$OKB" "$T/home/.local/bin/orbit-kb"
+          ( unset ORBIT_KB_LIB; cd "$T" && timeout "$TMO" "$T/home/.local/bin/orbit-kb" version ) > "$T/.out" 2>&1
+          grep -qx "orbit-kb $v" "$T/.out" || note "the linked CLI prints the version: [$(head -c 200 "$T/.out")]"
+          # a library with no VERSION file: no guess
+          mkdir -p "$T/old" && cp -R "$h/bin" "$h/share" "$T/old/" && rm -f "$T/old/share/orbit-kb/VERSION"
+          ( unset ORBIT_KB_LIB; cd "$T" && timeout "$TMO" "$T/old/bin/orbit-kb" version ) > "$T/.out" 2>&1; rc=$?
+          [ "$rc" = 2 ] || note "no VERSION file: exit $rc, want 2"
+          grep -q 'VERSION' "$T/.out" || note "no VERSION file: the message names the file: [$(head -c 200 "$T/.out")]"
+          ( unset ORBIT_KB_LIB; cd "$T" && timeout "$TMO" "$T/old/bin/orbit-kb" help ) > "$T/.out" 2>&1
+          head -1 "$T/.out" | grep -q '^orbit-kb (version unknown):' || note "no VERSION file: the first help line says so: [$(head -1 "$T/.out")]"; }
+
+# SG (D35, c_k_g_1 to c_k_g_4b): signals have records. signal(Id, Kind, NoticedBy, Text), lean_back(Id, Text),
+# a decision of the human in their words is a further request; report Signals is drafted from the records.
+SG_SIG="signal(s1, divergence, system1, 'the suite showed 8 tests, not 7')"
+t_SG1() { hy_build "$T/b"
+          oadd "$SG_SIG"; rc_is 0 "signal/4 is a declared fact"; any_hasnt 'new predicate|first use' "signal is no first use"
+          has_fact "$K/kb.pl" "signal(s1, divergence, system1, 'the suite showed 8 tests, not 7')"
+          local k; for k in questions built_by_other burn handoff effort; do oadd "signal(x_$k, $k, agent, 'case')"; rc_is 0 "the kind $k"; done
+          oadd "signal(x_h, effort, human, 'case')"; rc_is 0 "noticed by the human"
+          rejects kind 'E3' add "signal(s2, bogus, agent, 'x')"
+          rejects noticer 'E3' add "signal(s3, effort, nobody, 'x')"
+          okb --dir "$K" lint; rc_is 0; out_hasnt '^W[0-9]+ .*signal' "lint has no warning on signal facts"
+          okb --dir "$K" show kinds; out_has 'signal' "show kinds describes signal"
+          okb help core; any_has 'signal\(Id, Kind, NoticedBy, Text\)' "help core lists signal/4"
+          any_hasi 'questions, divergence, built_by_other, burn, handoff,? (or )?effort' "help core names the six kinds"; }
+t_SG2() { hy_build "$T/b"
+          oadd "lean_back(l1, 'the second round of questions stopped; the KB and claim c1 stay')"; rc_is 0 "lean_back/2 is a declared fact"
+          any_hasnt 'new predicate|first use' "lean_back is no first use"
+          okb --dir "$K" report; rc_is 0
+          rp_sec Signals | grep -qF 'Leaning back (l1): the second round of questions stopped; the KB and claim c1 stay' || note "report Signals prints the lean back: [$(rp_sec Signals | tr '\n' '~')]"
+          okb help core; any_has 'lean_back\(Id, Text\)' "help core lists lean_back/2"; }
+t_SG3() { hy_build "$T/b"
+          oadd "request(r2, 'only on the settings page')" --by human; rc_is 0 "a further request in the human's words"
+          okb --dir "$K" report; rc_is 0
+          local kb; kb=$(rp_sec KB)
+          printf '%s\n' "$kb" | grep -qF -- "- Request r1, word for word: Test request" || note "KB prints the request word for word: [$(printf '%s' "$kb" | tr '\n' '~')]"
+          printf '%s\n' "$kb" | grep -qF -- "- Request r2, word for word: only on the settings page" || note "KB prints the decision of the human: [$(printf '%s' "$kb" | tr '\n' '~')]"
+          okb --dir "$K" report --html "$T/r.html"; rc_is 0
+          grep -qF 'only on the settings page' "$T/r.html" || note "the page prints the decision of the human"
+          okb help core; any_hasi 'decision.*(own )?words|words.*decision' "help core says where a decision in the human's words goes"; }
+t_SG4() { hy_build "$T/b"; okb --dir "$K" report; rc_is 0
+          local s; s=$(rp_sec Signals)
+          rl_is "Signals with no record" "  - questions: no.|  - divergence: no.|  - someone else built: no.|  - burns: no.|  - handoff: no.|  - effort: no." "$(printf '%s\n' "$s" | paste -sd'|')"
+          oadd "$SG_SIG" >/dev/null; okb --dir "$K" report; s=$(rp_sec Signals)
+          printf '%s\n' "$s" | grep -qx '  - divergence: yes.' || note "divergence: yes: [$(printf '%s' "$s" | tr '\n' '~')]"
+          printf '%s\n' "$s" | grep -qx '    - s1: the suite showed 8 tests, not 7 (noticed by System 1).' || note "what fired and who noticed it: [$(printf '%s' "$s" | tr '\n' '~')]"
+          printf '%s\n' "$s" | grep -qx '  - effort: no.' || note "effort stays no"
+          hy_build "$T/u"; oadd 'universal(c1)' >/dev/null; okb --dir "$K" report; s=$(rp_sec Signals)
+          printf '%s\n' "$s" | grep -qx '  - burns: yes.' || note "a universal claim: burns yes: [$(printf '%s' "$s" | tr '\n' '~')]"
+          printf '%s\n' "$s" | grep -qx '    - c1: the claim is universal (about every input).' || note "the universal claim is named"
+          hy_build "$T/r"; oadd 'burn_requested(c1)' >/dev/null; okb --dir "$K" report; s=$(rp_sec Signals)
+          printf '%s\n' "$s" | grep -qx '    - c1: the human asked for a proof.' || note "a requested proof is a burn: [$(printf '%s' "$s" | tr '\n' '~')]"
+          hy_build "$T/v"; okb --dir "$K" attest divergence c1 'claim(c1)' >/dev/null; okb --dir "$K" report; s=$(rp_sec Signals)
+          printf '%s\n' "$s" | grep -qx '  - divergence: yes.' || note "a divergence attestation: divergence yes: [$(printf '%s' "$s" | tr '\n' '~')]"
+          printf '%s\n' "$s" | grep -qE '^    - a[0-9]+: a divergence on claim c1 \(attested by the agent\)\.$' || note "the attestation and who attested it"
+          printf '%s\n' "$s" | grep -qx '  - burns: no.' || note "one divergence is no burn"
+          okb --dir "$K" attest divergence c1 'claim(c1)' --by human >/dev/null; okb --dir "$K" report; s=$(rp_sec Signals)
+          printf '%s\n' "$s" | grep -qx '    - c1: the claim was contested twice.' || note "contested twice is a burn: [$(printf '%s' "$s" | tr '\n' '~')]"
+          printf '%s\n' "$s" | grep -qE 'attested by the human' || note "the human's divergence names the human"
+          oadd 'visual(c1)' >/dev/null; okb --dir "$K" report; s=$(rp_sec Signals)
+          printf '%s\n' "$s" | grep -qx '  - burns: no.' || note "a visual claim does not burn when contested (D21 F6): [$(printf '%s' "$s" | tr '\n' '~')]"
+          okb --dir "$K" report --html "$T/r.html"; grep -qF 'divergence: yes.' "$T/r.html" || note "the page prints the signals"; }
+
+# HE (D36, c_k_e_1 to c_k_e_5): the help follows the prompt (0.3.0). The tests read the help as text,
+# with white space joined, because the wording may wrap anywhere.
+he_text() { timeout 20 "$OKB" help "$@" 2>&1 | tr '\n' ' ' | tr -s ' '; }
+t_HE1() { local hb; hb=$(he_text build)
+          grep -qE 'Kept: .*Changed: ' <<< "$hb" || note "help build has the line Kept: ... Changed: ..."
+          grep -qiP 'misread[^.]*\. [^.]*divergence|misread.{0,200}divergence' <<< "$hb" || note "help build: a misread is a divergence on its claim"
+          grep -qiP 'intent moved.{0,300}supersedes.{0,300}no divergence' <<< "$hb" || note "help build: the intent moved: a new claim supersedes, and no divergence"
+          grep -qiP 'adds to the result.{0,200}new ticket' <<< "$hb" || note "help build: a wish that adds to the result is a new ticket"
+          grep -qiP 'cannot tell.{0,200}divergence' <<< "$hb" || note "help build: if you cannot tell, say so, and treat it as a divergence"; }
+t_HE2() { local hb hd h0; hb=$(he_text build); hd=$(he_text discovery); okb help; h0=$out
+          grep -qF 'If the problem is wrong, run orbit-kb uses discovery, and go back to discovery' <<< "$hb" && note "help build sends every wrong problem back to discovery"
+          grep -qE 'supersedes\(h2, ?h1\)' <<< "$hb" || note "help build has the recipe to restate the hypothesis: supersedes(h2, h1)"
+          grep -qiE 'no longer say what (the hypothesis|it) changes to' <<< "$hb" || note "help build: discovery only when you can no longer say what the hypothesis changes to"
+          grep -qF 'When a divergence shows that the problem is wrong, not the build, file a disclosure, and run orbit-kb uses discovery' <<< "$hd" && note "help discovery BACK takes every wrong problem back"
+          grep -qiP 'BACK.{0,400}no longer say what' <<< "$hd" || note "help discovery BACK: only when the agent can no longer say what the hypothesis changes to"
+          grep -qF '"why?" question' <<< "$h0" && note "the first help screen sends a why? question to discovery"
+          grep -qF 'you no longer agree with the human on the problem' <<< "$(tr '\n' ' ' <<< "$h0" | tr -s ' ')" && note "the first help screen sends a disagreement on the problem to discovery"
+          return 0; }
+t_HE3() { local hd; hd=$(he_text discovery)
+          grep -qF 'two falsifiers' <<< "$hd" || note "help discovery: the hypothesis has two falsifiers"
+          grep -qiF 'the system is the witness' <<< "$hd" && grep -qiF 'the human is the witness' <<< "$hd" || note "help discovery: each falsifier has its witness, the system and the human"
+          grep -qF 'Then say that the system can fail to give it' <<< "$hd" && note "help discovery still puts the failure into the hypothesis"
+          grep -qF 'decide its points. Some purchases get a different' <<< "$hd" && note "the example hypothesis still holds the finding"
+          grep -qiP 'finding about the system.{0,200}apart' <<< "$hd" || note "help discovery keeps the finding apart from the hypothesis"
+          grep -qiE 'Premise: the points table did not change' <<< "$hd" || note "the example hypothesis has its premise beside it"
+          grep -qF 'in the scope of the report' <<< "$hd" && note "help discovery says scope"
+          grep -qiE '\bwide\b' <<< "$hd" || note "help discovery: the hypothesis is wide"
+          grep -qF 'backbone of discovery' <<< "$hd" && note "help discovery: the backbone of discovery"
+          grep -qiE 'law of (its|the|every) ticket' <<< "$hd" || note "help discovery: the hypothesis is the law of its ticket"
+          kb_init "$T/k" discovery; okb --dir "$K" show kinds; out_hasnt 'falsifiable and scoped' "show kinds: hypothesis/3 is not scoped"; }
+t_HE4() { local hd; hd=$(he_text discovery)
+          grep -qF 'and the rules alone in SMT, with the same claim ids' <<< "$hd" && note "SPECTRUM writes one claim in two formal languages by default"
+          grep -qiE 'one formal language (at a time|first)' <<< "$hd" || note "help discovery: one formal language first"
+          grep -qiE 'second (one|language) only when a question is left' <<< "$hd" || note "help discovery: a second language only when a question is left"
+          grep -qiP 'HANDOFF.{0,1500}(one formal language|second language only)' <<< "$hd" || note "HANDOFF follows one language first"; }
+t_HE5() { local h0 hc hb; okb help; h0=$(printf '%s' "$out" | sed -n '/How to use/,/Topics:/p')
+          grep -qi 'hypothesis' <<< "$h0" || note "the steps of the first help screen name the hypothesis"
+          local nh nc; nh=$(grep -n -i 'hypothesis' <<< "$h0" | head -1 | cut -d: -f1); nc=$(grep -n "claim(" <<< "$h0" | head -1 | cut -d: -f1)
+          [ -n "$nh" ] && [ -n "$nc" ] && [ "$nh" -le "$nc" ] || note "the hypothesis comes before the claims in the steps (lines $nh, $nc)"
+          okb help core; hc=$out
+          [ "$(grep -n 'hypothesis(Id' <<< "$hc" | head -1 | cut -d: -f1)" -lt "$(grep -n 'claim(Id' <<< "$hc" | head -1 | cut -d: -f1)" ] || note "help core lists the hypothesis before the claim"
+          grep -q 'premise(P' <<< "$hc" || note "help core lists premise"
+          hb=$(he_text build)
+          grep -qF 'record the request, your claims, and the checks so far' <<< "$hb" && note "help build starts a KB on a divergence with no hypothesis"
+          grep -qiP 'shift up.{0,300}hypothesis' <<< "$hb" || note "help build starts the KB with the hypothesis"; }
+
+# SF (D37, c_k_h_1, c_k_h_3): one command for the step from words to records (orbit-kb shift), and
+# one help topic of one screen for it (orbit-kb help shift).
+sf_shift() {  # sf_shift DIR [EXTRA ARGS]: the light path of "add a dark mode" as one command
+    local d=$1; shift; printf 'add a dark mode\nfor every screen\n' > "$T/req.txt"
+    okb shift "$d" --request-file "$T/req.txt" --hypothesis "$DARK" --kind "${SF_KIND:-feature}" "$@" \
+        --claim "$DARK" --example 'the reports page is dark' --check k1; }
+t_SF1() { K=$T/s; sf_shift "$K" --no-premises; rc_is 0 "shift writes a KB"
+          [ -f "$K/kb.pl" ] || { note "no kb.pl"; return; }
+          has_goal "$K/kb.pl" "kb(request(r1, T)), sub_atom(T, _, _, _, 'add a dark mode'), sub_atom(T, _, _, _, 'every screen')" "the request word for word"
+          has_fact "$K/kb.pl" "uses([build])" "a build KB by default"
+          has_goal "$K/kb.pl" "kb(hypothesis(h1, feature, T)), sub_atom(T, 0, _, _, 'With dark mode on')" "the hypothesis"
+          has_fact "$K/kb.pl" "no_premises(h1)" "Premises: none"
+          has_goal "$K/kb.pl" "kb(claim(c1, introduce, T)), sub_atom(T, 0, _, _, 'With dark mode on')" "the claim"
+          has_fact "$K/kb.pl" "example(c1, 'the reports page is dark')" "the example"
+          has_fact "$K/kb.pl" "check(k1, c1)" "the check"
+          has_goal "$K/kb.pl" "kb(cites(c1, _))" "the claim cites the request"
+          okb --dir "$K" lint; rc_is 0 "lint accepts the KB"; out_has '0 errors?' "no error"
+          okb --dir "$K" show open; out_has 'check_unrun k1|k1' "show open names the check that never ran"
+          K=$T/p; sf_shift "$K" --premise 'the app has a theme switch' --premise 'the screens use the theme colors'; rc_is 0 "two premises"
+          has_fact "$K/kb.pl" "premise(p1, h1, 'the app has a theme switch')"; has_fact "$K/kb.pl" "premise(p2, h1, 'the screens use the theme colors')"
+          no_fact "$K/kb.pl" "no_premises(_)"
+          okb --dir "$K" lint; rc_is 0 "lint accepts the KB with premises"
+          okb --dir "$K" report; rp_sec Guesses | grep -q 'p1' || note "an unchecked premise is a guess"; }
+t_SF2() { sf_shift "$T/a"; rc_is 2 "neither --no-premises nor --premise"; [ -e "$T/a" ] && note "a usage error leaves no directory"
+          sf_shift "$T/b" --no-premises --premise 'x'; rc_is 2 "both --no-premises and --premise"
+          okb shift "$T/c" --request-file "$T/req.txt" --no-premises --claim x --example y --check k1; rc_is 2 "no --hypothesis"
+          [ -e "$T/c" ] && note "no KB without a hypothesis"
+          sf_shift "$T/g" --no-premises --kind risk; rc_is 2 "an option given twice"
+          SF_KIND=bogus sf_shift "$T/d" --no-premises; rc_is 1 "a bad kind is refused"; [ -e "$T/d/kb.pl" ] && note "a refused shift leaves no kb.pl"
+          mkdir -p "$T/e"; printf 'keep\n' > "$T/e/notes.txt"; SF_KIND=bogus sf_shift "$T/e" --no-premises; rc_is 1
+          [ -f "$T/e/notes.txt" ] || note "a refused shift keeps the files of a directory that existed"
+          [ -e "$T/e/kb.pl" ] && note "a refused shift leaves no kb.pl in an existing directory"
+          sf_shift "$T/f" --no-premises; rc_is 0; cp "$T/f/kb.pl" "$T/.f"; sf_shift "$T/f" --no-premises; rc_is 1 "an existing KB"
+          same_file "$T/f/kb.pl" "$T/.f" "shift never overwrites a KB"; }
+t_SF3() { okb help shift; rc_is 0 "help shift"
+          local n; n=$(printf '%s\n' "$out" | wc -l); [ "$n" -le 60 ] || note "help shift is $n lines; one screen is 60 or fewer"
+          out_has 'orbit-kb shift' "it names the command"; out_has 'hypothesis' "the hypothesis"; out_has 'premise' "the premises"
+          out_has 'run' "the next step runs the check"
+          okb shift --help; rc_is 0; out_has 'orbit-kb shift'
+          okb help; out_has 'help shift' "the first help screen names the topic"; out_has '^ +shift DIR' "the command list names shift"; }
+
+# WJ (D39, c_k_j_1 to c_k_j_3): one meaning for each word of the tool. "signal" is one of the six
+# signals (the move is RESTATE); "Lean definitions", not "Lean model" (the names burn_model and
+# BurnModel stay); the fix for E19 is orbit-kb withdraw NAME/ARITY, not an edit of kb.pl.
+t_WJ1() { okb help; any_hasnt '\bSIGNAL\b' "the first help screen names no move SIGNAL"; out_has 'research +RESTATE,' "the move is RESTATE"
+          okb help discovery; any_hasnt '\bSIGNAL\b' "help discovery names no move SIGNAL"; any_hasnti '^ *signal *:' "no heading Signal:"
+          out_has '^RESTATE: pin the report' "help discovery has the RESTATE recipe"; out_has 'RESTATE if the hypothesis is wrong' "BACK names RESTATE"; }
+t_WJ2() { local t; for t in build core discovery project codes shift; do okb help "$t"; any_hasnt 'Lean model' "help $t says Lean definitions"; done
+          grep -q 'Lean model' "$LIB/README.md" && note "kb/share/orbit-kb/README.md says Lean model"
+          kb_init "$T/b" build; K=$T/b; okb --dir "$K" show kinds; any_hasnt 'Lean model' "show kinds (build)"; any_has 'Lean definitions' "conformance names the Lean definitions"
+          kb_init "$T/d" discovery,build,project; K=$T/d; okb --dir "$K" show kinds; any_hasnt 'Lean model' "show kinds (all modules)"
+          [ -d "$here/burn_model" ] || note "kb/tests/burn_model keeps its name"; }
+t_WJ3() { K=$T/k; kb_init "$K" build; oadd "claim(c1, introduce, 'x')" "cites(c1, 'Test request')" >/dev/null
+          oadd "cited(c1, 'x')" "cited(c1, 'y')" >/dev/null
+          okb --dir "$K" lint; out_has '^E19 .*cited/2.*cites/2' "setup: E19"
+          okb --dir "$K" withdraw cited/2; rc_is 0 "withdraw removes the kind that a typo declared"
+          okb --dir "$K" lint; rc_is 0 "lint is clean after the withdrawal"; out_hasnt '^E19'
+          no_fact "$K/kb.pl" "cited(_, _)" "the facts of the kind are gone"; no_fact "$K/kb.pl" "decl(_, cited(_, _), _, _)" "its decl"
+          no_fact "$K/kb.pl" "first_use(cited/2, _, _)" "its first_use"
+          has_goal "$K/kb.pl" "kb(withdrawn(cited/2, agent, T, 2)), atom_length(T, 20)" "a record: the kind, who, when, and how many facts"
+          grep -qF "% withdrawn: cited(c1, x)." "$K/kb.pl" || note "the withdrawn facts stay as comments"
+          has_fact "$K/kb.pl" "cites(c1, 'Test request')" "the other facts stay"
+          cp "$K/kb.pl" "$T/.kb"; okb --dir "$K" withdraw cites/2; rc_is 1 "a kind of the library is not withdrawn"; same_file "$K/kb.pl" "$T/.kb"
+          okb --dir "$K" withdraw nosuch/3; rc_is 1 "a kind that kb.pl does not declare"
+          okb --dir "$K" withdraw cited; rc_is 2 "NAME/ARITY"
+          okb help codes; printf '%s' "$out" | tr '\n' ' ' | grep -qF 'correct the facts in kb.pl' && note "help codes tells the agent to edit kb.pl for E19"
+          out_has 'orbit-kb withdraw' "help codes names withdraw for E19"
+          okb help withdraw; rc_is 0; out_has 'withdraw NAME/ARITY'; }
+
+# MF (D40, c_k_f_2, c_k_f_3): the facts and the attestation of a model work in a KB that uses build;
+# a result of a solver or a model checker never closes a universal claim or a requested proof.
+mf_model() {  # mf_model RESULT: model m1 (smt) encodes c1 in $K, a current run log1, a sanity verdict, and a preserve(c1) verdict RESULT
+    printf '(check-sat)\n' > "$K/m1.smt"; printf 'unsat\n' > "$K/log1.log"
+    okb --dir "$K" subject m1 "$K/m1.smt" >/dev/null; okb --dir "$K" subject log1 "$K/log1.log" >/dev/null
+    oadd "model(m1, smt)" "encodes(m1, c1)"; rc_is 0 "model/2 and encodes/2"
+    local dg; q 'subject(m1, _, D)'; dg=$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}')
+    oadd "model_run(log1, m1, '$dg')"; rc_is 0 "model_run/3"
+    okb --dir "$K" attest model_result log1 'verdict(m1, sanity, sat)'; rc_not 2 "a sanity verdict"
+    okb --dir "$K" attest model_result log1 "verdict(m1, preserve(c1), $1)"; rc_is 0 "a model_result attestation"; }
+t_MF1() { hy_build "$T/b"; mf_model unsat
+          has_goal "$K/kb.pl" "kb(attest(_, model_result, log1, verdict(m1, preserve(c1), unsat), agent, _))" "the attestation is written"
+          okb --dir "$K" lint; rc_is 0 "lint of a build KB with a model"
+          okb --dir "$K" show kinds; out_has '^- model/2:' "show kinds lists model/2 in a build KB"
+          okb --dir "$K" report; rp_sec Formal | grep -q 'model m1' && note "a build KB reads no model into Formal (the discovery module drafts it)"
+          kb_init "$T/n" ""; K=$T/n; oadd "claim(c1, introduce, 'x')" "cites(c1, 'Test request')" >/dev/null
+          printf '(check-sat)\n' > "$K/m1.smt"; okb --dir "$K" subject m1 "$K/m1.smt" >/dev/null
+          oadd "model(m1, smt)" "encodes(m1, c1)"; rc_is 0 "a KB with no module takes them too"; }
+t_MF2() { hy_build "$T/u"; oadd 'universal(c1)' >/dev/null; mf_model unsat
+          okb --dir "$K" run k1 -- false >/dev/null; okb --dir "$K" run k1 -- true >/dev/null
+          is_true 'burn_open(c1)' "a solver result does not close a universal claim"
+          okb --dir "$K" show blocking; out_has 'c1.*Lean proof' "show blocking: c1 needs a Lean proof"
+          is_false 'done'
+          hy_build "$T/r"; oadd 'burn_requested(c1)' >/dev/null; mf_model unsat
+          is_true 'burn_open(c1)' "a solver result does not close a proof that the human asked for"
+          okb --dir "$K" show blocking; out_has 'c1.*Lean proof'
+          hy_disc "$T/d"; okb --dir "$K" uses build >/dev/null; oadd 'universal(c1)' >/dev/null; mf_model unsat
+          is_true 'burn_open(c1)' "with the discovery module too, a model result does not close a universal claim"; }
+
+# RV (D41, the review of K-C and K-D on 4079306; items 1, 2, 7, 8, 9, 10).
+t_RV1() { hy_closed "$T/d"   # item 1: WD10 names a current claim with no example in a closed orbit too
+          is_true 'discovery_closed' "setup: the orbit is closed"
+          oadd "claim(c9, introduce, 'A refund takes the points back.')" "cites(c9, 'Test request')" "check(t9, c9)" >/dev/null
+          okb --dir "$K" lint; rc_is 0 "WD10 is a warning"; out_has '^WD10 c9' "WD10 names the claim after closure"
+          out_hasnt '^WD10 c9.*not ready' "after closure, WD10 does not speak of readiness"
+          is_true 'discovery_ready' "readiness does not change: the orbit is closed"; }
+t_RV2() { kb_init "$T/n" discovery; K=$T/n   # item 2: a hand-written discovery_end on an approval that came with no GO
+          oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "no_premises(h1)" "budget(laps, 3)" >/dev/null
+          okb --dir "$K" attest vote r1 'vote(1, hold)' >/dev/null; okb --dir "$K" attest vote r1 'vote(1, go)' --by human >/dev/null
+          printf '# ticket\n' > "$K/ticket.md"; okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null
+          okb --dir "$K" attest approval tk 'digest(current)' --by human; rc_is 0
+          no_fact "$K/kb.pl" "discovery_end(_)" "setup: the CLI writes no discovery_end with no GO"
+          q 'attest(A, approval, tk, _, human, _)'; local a; a=$(printf '%s\n' "$out" | sed -n 's/^A = //p' | head -1)
+          printf 'discovery_end(%s).\n' "$a" >> "$K/kb.pl"
+          okb --dir "$K" lint; rc_is 1 "a discovery_end that no GO earned is a lint error"
+          out_has "^ED12 kb.pl:[0-9]+: .*approval $a" "ED12 names the record and its approval"
+          hy_go "$T/g"; okb --dir "$K" lint; out_hasnt '^ED12' "control: the CLI's own discovery_end after a GO is no ED12"; }
+t_RV3() { kb_init "$T/s" discovery; K=$T/s   # item 7: a red run of a superseded claim's check is no system result
+          oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "no_premises(h1)" "budget(laps, 3)" \
+               "claim(c1, introduce, 'Every purchase gets its points.')" "cites(c1, 'Test request')" "check(t1, c1)" "discovery_evidence(t1, system)" \
+               "claim(c2, introduce, 'Every purchase gets the points of its amount and tier.')" "cites(c2, 'Test request')" "supersedes(c2, c1)" \
+               "example(c2, 'gold, 40, gives 80')" "check(t2, c2)" "discovery_evidence(t2, system)" >/dev/null
+          okb --dir "$K" run t1 -- false >/dev/null
+          is_false 'discovery_hypothesis_touched(h1)' "a red run of the check of a superseded claim touches no hypothesis"
+          okb --dir "$K" run t2 -- false >/dev/null
+          is_true 'discovery_hypothesis_touched(h1)' "a red run of the check of a current claim does"; }
+t_RV4() { rh_kb discovery; okb --dir "$K" report; rc_is 0   # item 9: the report points to whynot again
+          rp_sec Open | grep -qF "orbit-kb whynot 'discovery_ready'" || note "report Open names orbit-kb whynot 'discovery_ready' while discovery is not ready: [$(rp_sec Open | tr '\n' '~')]"
+          hy_disc "$T/r"; okb --dir "$K" report; rp_sec Open | grep -qF 'whynot' && note "no pointer when discovery is ready"; return 0; }
+t_RV5() { head -5 "$FIX/discovery-a/expected.pl" | grep -q 'Generated by scratch' && note "item 8: expected.pl still says it is generated"   # items 8, 10
+          head -8 "$FIX/discovery-a/expected.pl" | grep -qi 'by hand' || note "item 8: expected.pl says that it is kept by hand, and how it was checked"
+          local L=$here/../proofs/open_items/OpenItems.lean
+          grep -q 'Links' "$L" && sed -n '1,60p' "$L" | grep -qi 'stale pin' || note "item 10: the header of OpenItems.lean names the premise Links and the stale pins"
+          awk '/D32 \(no quiet/,/D33 \(readiness/' "$here/../CONTRACT.md" | grep -qi 'weaker than' || note "item 10: CONTRACT D32 says that the proof is weaker than the claim"; }
+
 # ================================================================ WN: whynot, Y: why
 t_WN1() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'current(c1)'; rc_is 0; [ "$(first_line)" = holds ] || note "first line '$(first_line)'"; out_has 'because' "the clauses that prove it"; }
 t_WN2() { # D20: absent names, for each rule, the literal that blocks, and why
@@ -3503,7 +3777,7 @@ t_PN2() { mkclaim; okb --dir "$K" pin --check 'spec-kb@sha256:abc'; rc_is 2 "a m
 # PH: help names the phases and maps each move to its phase (c9).
 t_PH1() { okb help; rc_is 0
           out_has 'discovery: research, specify' "the discovery orbit"; out_has 'build: build, verify' "the build orbit"
-          out_has 'research +SIGNAL, SURVEY, FLYBY, TRAJECTORY, DISPROVE' "research moves"
+          out_has 'research +RESTATE, SURVEY, FLYBY, TRAJECTORY, DISPROVE' "research moves (0.3.0 D39: RESTATE, not SIGNAL)"
           out_has 'specify +SPECTRUM, DECOMPOSE, the vote' "specify moves"
           out_has '^ +build +BUILD$' "build moves"; out_has 'verify +FULFILL, DISPROVE, BURN' "verify moves"; }
 
@@ -3708,6 +3982,31 @@ run_test t_RD4 RD4 "0.3.0 c_k_d_3b: a red run of a system check of an introduce 
 run_test t_RD5 RD5 "0.3.0 c_k_d_1b: an agent GO is refused while not ready; GO cannot win then; the approved GO stays"
 run_test t_OP5 OP5 "0.3.0 c_k_c_1b: show open agrees with the examples of the Lean model kb/proofs/open_items"
 run_test t_RD6 RD6 "0.3.0 c_k_d_1b: attest and gate agree with the examples of the Lean model kb/proofs/gate_ready"
+run_test t_VN1 VN1 "0.3.0 c_v_a_2: orbit-kb version prints the version of VERSION; the first help line names it"
+run_test t_VN2 VN2 "0.3.0 c_v_a_3: orbit-kb init writes the version of the tool into kb.pl"
+run_test t_VN3 VN3 "0.3.0 c_v_a_2: the version reaches a linked CLI and a hub's copy; no VERSION file: exit 2"
+run_test t_SG1 SG1 "0.3.0 c_k_g_1: signal(Id, Kind, NoticedBy, Text): the six kinds, three noticers; lint clean"
+run_test t_SG2 SG2 "0.3.0 c_k_g_2: lean_back(Id, Text); report Signals prints it"
+run_test t_SG3 SG3 "0.3.0 c_k_g_3: a decision of the human is a further request in their words; report KB prints each request"
+run_test t_SG4 SG4 "0.3.0 c_k_g_4b: report Signals comes from the records: signal facts, divergence attestations, burns"
+run_test t_HE1 HE1 "0.3.0 c_k_e_1: help build gives the three cases of the human says it is wrong, after Kept/Changed"
+run_test t_HE2 HE2 "0.3.0 c_k_e_2: back to discovery only when the agent cannot say what the hypothesis changes to"
+run_test t_HE3 HE3 "0.3.0 c_k_e_3: help discovery states the hypothesis as the prompt: two falsifiers, witnesses, wide, the finding apart"
+run_test t_HE4 HE4 "0.3.0 c_k_e_4: SPECTRUM and HANDOFF: one formal language first, a second only when a question is left"
+run_test t_HE5 HE5 "0.3.0 c_k_e_5: the first help screen and help core put the hypothesis before the claims; help build too"
+run_test t_SF1 SF1 "0.3.0 c_k_h_1: orbit-kb shift writes the light path as a KB that lint accepts"
+run_test t_SF2 SF2 "0.3.0 c_k_h_1: orbit-kb shift refuses a usage error or a bad fact and leaves no KB"
+run_test t_SF3 SF3 "0.3.0 c_k_h_3: orbit-kb help shift is one screen; the first help screen names it"
+run_test t_WJ1 WJ1 "0.3.0 c_k_j_1: no move is named SIGNAL; the move is RESTATE"
+run_test t_WJ2 WJ2 "0.3.0 c_k_j_2: the text of the tool says Lean definitions, not Lean model"
+run_test t_WJ3 WJ3 "0.3.0 c_k_j_3: orbit-kb withdraw NAME/ARITY removes a kind that a typo declared, with a record"
+run_test t_MF1 MF1 "0.3.0 c_k_f_2: model, model_run, encodes and model_result work in a KB that uses build"
+run_test t_MF2 MF2 "0.3.0 c_k_f_3: a solver result does not close a universal claim or a requested proof"
+run_test t_RV1 RV1 "review of K-C/K-D (1): WD10 names a current claim with no example also after the orbit closed"
+run_test t_RV2 RV2 "review of K-C/K-D (2): lint ED12 on a discovery_end whose approval came with no GO"
+run_test t_RV3 RV3 "review of K-C/K-D (7): a red run of the check of a superseded claim is no system result"
+run_test t_RV4 RV4 "review of K-C/K-D (9): report Open points to orbit-kb whynot while discovery is not ready"
+run_test t_RV5 RV5 "review of K-C/K-D (8, 10): expected.pl is kept by hand; the limits of the open_items proof are written"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"

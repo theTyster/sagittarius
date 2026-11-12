@@ -38,8 +38,8 @@ decl(fact, change_at(ref(change), time),
      'The time at which the change was recorded. orbit-kb add writes it with the change.',
      'change @(1) was recorded at @(2)').
 decl(fact, conformance(ref(check)),
-     'The check runs the code against the Lean model of its claim.',
-     'check @(1) runs the code against the Lean model').
+     'The check runs the code against the Lean definitions of its claim.',
+     'check @(1) runs the code against the Lean definitions').
 
 % ---------------------------------------------------------------------
 % Build rule predicates
@@ -118,8 +118,8 @@ decl(rule, check_waived(ref(claim)),
      'A human waived a check of the claim, and the due time of the waiver is not past. The claim is covered for done, but it is not fulfilled.',
      'a human waived a check of claim @(1)').
 decl(rule, conforms(ref(claim)),
-     'A conformance check of the claim passed: the code agrees with the Lean model on its cases.',
-     'the code conforms to the Lean model of claim @(1)').
+     'A conformance check of the claim passed: the code agrees with the Lean definitions on its cases.',
+     'the code conforms to the Lean definitions of claim @(1)').
 
 % D28 (T25): independent verification.
 decl(rule, independently_verified(ref(claim)),

@@ -3,9 +3,18 @@
 
 # KB:
   - KBDIR
+  - Request r1, word for word: Make saving safe and keep loading fast
 
 # Signals:
-  - (Compare the work with each signal: questions, divergence, someone else built, burns, handoff, effort. Write no, or yes and what fired it.)
+  - questions: no.
+  - divergence: yes.
+    - d1: a divergence on claim c2 (attested by the human).
+  - someone else built: no.
+  - burns: yes.
+    - c3: the claim is universal (about every input).
+    - c5: the claim is universal (about every input).
+  - handoff: no.
+  - effort: no.
 
 # Hypothesis:
   - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).

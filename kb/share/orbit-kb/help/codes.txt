@@ -26,8 +26,9 @@ Core
        Query, why, whynot, show, and report exit 2 until it is gone.
   E19  typo guard: a predicate declared by its first use (add) has a name 2 edits or
        fewer from a declared predicate of the same arity. The message names both.
-       A typo: correct the facts in kb.pl, and delete the decl/4 and first_use/3 lines
-       of the new name. A new predicate: choose a name more than 2 edits away.
+       A typo: withdraw the new kind, and add its facts again under the declared name:
+         orbit-kb withdraw cited/2     removes its declaration and its facts, with a record
+       Never edit kb.pl by hand. A new predicate: choose a name more than 2 edits away.
        Also a head of rules.pl (declared by its first clause) that is that close to a declared name:
        correct the name in rules.pl. Query, why, whynot, show, and report exit 2 until it is gone.
   W1   subject digest differs from the file. Run orbit-kb subject again.
@@ -64,8 +65,8 @@ Discovery module
        model. Run the solver into a new log. When a newer result of the same check
        exists, the message says so, and nothing is left to do.
   WD9  the human voted and you did not vote in that round. Vote before the human next round.
-  WD10 a current claim has no example. Discovery is not ready until each current claim has
-       one: add example(C, Text). Not asked while the discovery orbit is closed.
+  WD10 a current claim has no example: add example(C, Text). While the discovery orbit is open,
+       discovery is not ready until each current claim has one; after it closed, still a warning.
   ED1  a reproduction is not on system evidence. Use a log, query, or test tagged system.
   ED2  a model result has no model_run for its log. Add it.
   ED3  the model disagrees with the system, or the existing-world model misses the bad case.
@@ -78,6 +79,8 @@ Discovery module
   ED10 a writer voted twice in one round. Keep one vote. After a HOLD, vote in the next round.
   ED11 a discovery_end that names no human approval of the ticket. Only attest approval writes
        it; it does not close the orbit. Remove the line.
+  ED12 a discovery_end on a human approval that came with no GO: in the KB before the approval,
+       the orbit was not open, or gate(go) or the artifacts' go did not hold. Remove the line.
 What blocks discovery_ready blocks GO: orbit-kb show open names each item (ready_blocker),
 and the tool refuses an agent's GO vote while one is left. Also orbit-kb whynot 'discovery_ready'.
 
@@ -99,5 +102,7 @@ Project module (orbit-kb help project)
   WP7  a fact rests on itself: its depends_on facts make a cycle. A warning: check each depends_on of the cycle.
   WP8  a stale pin that the KB still rests on (a current decision or definition, or nothing names it and
        its source has no newer pin). Read it; pin the source again and move the concerns facts. show open names it.
+  WP9  only an agent wrote this relation (relation_by): it is proposed and blocks nothing. A human
+       ratifies it by adding the same relation with --by human.
   EP1  an agent (agent or agent:NAME, in any case) ratified a fact (an error; add refuses it). Only a human ratifies.
   EP2  a fact depends on itself or excludes itself (depends_on(X, X), excludes(X, X); an error; add refuses it).

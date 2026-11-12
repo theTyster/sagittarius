@@ -9,12 +9,12 @@ Facts
   demo(Subject, Claim)  a screenshot or a recording (orbit-kb subject) shows the claim
   ac(Claim)             the claim is an acceptance criterion (AC) of the ticket. It changes no
                         rule: show blocking and draft blocking name an unmet AC as such
-  conformance(Check)    an optional check that runs the code against the Lean model
+  conformance(Check)    an optional check that runs the code against the Lean definitions
   change_at(X, Time)    when change X was recorded; add writes it with change(X, Text),
                         and actor(X, Role, Session) too (orbit-kb help core). add refuses it
 
 Attestation types
-  lean_result   stated | refuted(Counterexample) | tested(N)    progress on a Lean model
+  lean_result   stated | refuted(Counterexample) | tested(N)    progress on the Lean definitions
   lean_proof    written by orbit-kb prove only
   waiver        human only: waive(Target, 'DUE', 'REASON')
 
@@ -107,7 +107,9 @@ claim, try to break it within a small budget. Record one disproof verdict (orbit
 
 Burns: prove the claim in Lean
   A statement with sorry is not a proof. "No counterexample in N trials" is not a proof.
-  1. Write a Lean model of the behavior. State the claim as a theorem.
+  A build KB can record a model of the claim (model, model_run, encodes, attest model_result;
+  orbit-kb help discovery, FLYBY): a solver or TLC result never closes a burn.
+  1. Write Lean definitions of the behavior. State the claim as a theorem.
   2. Add #eval examples. Show them to the human as a table.
   3. Search for a counterexample (for example Plausible) before you prove.
      If you find one, record lean_result with verdict(C, refuted('THE CASE')) and ask the human.
@@ -116,7 +118,7 @@ Burns: prove the claim in Lean
      axiom of its own, and if the kernel accepts it again. Nothing else records a proof.
   5. Read the statement that prove prints. Check that it says what the claim says.
      orbit-kb cannot check that. Show it to the human.
-  6. Carry the result back to the code. The proof is about the Lean model, not the code.
+  6. Carry the result back to the code. The proof is about the Lean definitions, not the code.
      Each Lean example becomes a test case.
   A claim that supersedes a burning claim needs its own proof.
   A change in a Lean file of the project, or in a Lake file, reopens the burn.
@@ -136,16 +138,39 @@ Flares: show the claim to the human (burns get proved, flares get shown)
   A preference change (a new name or color, and no one misread the intent) is a new claim
   that supersedes the old one. It is not a divergence.
 
-When the human says it is wrong (a divergence, not a preference change)
-  1. On the light path, shift up now: start a KB, and record the request, your claims, and
-     the checks so far.
-  2. Record a divergence on the claim: orbit-kb attest divergence C 'claim(C)', and a note.
-  3. Decide which is wrong: the build, or the problem itself. If the problem is wrong, run
-     orbit-kb uses discovery, and go back to discovery (orbit-kb help discovery, BACK).
-  4. Record the human's answer: answer(Q, Answer, human). Defaults that conflict with it are
+When the human says that it is wrong (as the prompt says)
+  First narrow it down, in one line that the human can contradict:
+    Kept: <what the human still wants>. Changed: <what they want now>.
+  Then there are three cases.
+  - Someone misread the intent: a part of the result did not match what the human asked for
+    at the time. Shift up, and record a divergence on its claim:
+      orbit-kb attest divergence C 'claim(C)'      and a note that says what differed.
+    Then decide which is wrong, the build or the hypothesis (step 1 below).
+  - The intent moved: the result matched, and the human now wants a part of it changed.
+    Nobody misread. For that part, record a new claim that supersedes the old one, and record
+    no divergence against the old claim: it was right when it was made. The claims that the
+    human liked stay, and their checks stay.
+      orbit-kb add "claim(c2, introduce, 'NEW TEXT')" "supersedes(c2, c1)" "check(k2, c2)"
+  - The new wish adds to the result and changes nothing in it: it is a new ticket, with its
+    own hypothesis (and its own KB when a signal comes). This KB keeps what is open in it.
+  If you cannot tell whether you misread or the intent moved, do not guess. Say so, and treat
+  it as a divergence.
+  On the light path, shift up now: start a KB with the request, the hypothesis and its
+  premises (or no_premises), then your claims and the checks so far: orbit-kb shift does it
+  in one command (orbit-kb help shift).
+  After a divergence:
+  1. Decide which is wrong. When a check fails and the hypothesis still reads true, the build
+     is wrong: fix the build. When the human wants a case that the hypothesis rejects, or
+     rejects a case that it accepts, the hypothesis must change. If the answer says what it
+     changes to ("only on this page"), restate it: the new hypothesis supersedes the old one.
+     Show it, and go on:
+       orbit-kb add "hypothesis(h2, feature, 'NEW TEXT')" "no_premises(h2)" "supersedes(h2, h1)"
+     Only when you can no longer say what the hypothesis changes to, the ticket is a report
+     again: orbit-kb uses discovery, and go back to discovery (orbit-kb help discovery, BACK).
+  2. Record the human's answer: answer(Q, Answer, human). Defaults that conflict with it are
      now defeated.
-  5. Query to_ask(Q). Ask that small cluster, not every dormant question.
-  6. Rebuild, and run the checks again. If burn(C) now holds, prove the claim in Lean (Burns).
+  3. Query to_ask(Q). Ask that small cluster, not every dormant question.
+  4. Rebuild, and run the checks again. If burn(C) now holds, prove the claim in Lean (Burns).
   The KB already holds the questions, so you continue from where you stopped.
 
 Byte digests (T38): a KB from before T38 after the upgrade

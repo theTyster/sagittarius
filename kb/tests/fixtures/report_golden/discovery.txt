@@ -3,9 +3,15 @@
 
 # KB:
   - KBDIR
+  - Request r1, word for word: Is it slow
 
 # Signals:
-  - (Compare the work with each signal: questions, divergence, someone else built, burns, handoff, effort. Write no, or yes and what fired it.)
+  - questions: no.
+  - divergence: no.
+  - someone else built: no.
+  - burns: no.
+  - handoff: no.
+  - effort: no.
 
 # Hypothesis:
   - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).
@@ -45,6 +51,7 @@
     - Add hypothesis(H, KIND, TEXT).
   - **not ready**: Discovery is not ready, no_system_result: no evidence from the current system yet: a reproduction on system evidence, or a run of a check tagged discovery_evidence(K, system)
   - **not ready**: Discovery is not ready, no_outcome: no claim is current, and no current hypothesis did not reproduce
+  - Why: orbit-kb whynot 'discovery_ready' explains what blocks readiness, and orbit-kb lint gives the fix of each finding.
 
 # Vote:
   - No vote yet

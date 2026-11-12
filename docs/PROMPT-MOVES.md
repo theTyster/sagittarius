@@ -71,8 +71,8 @@ parts went to different homes.
 | `### The hypothesis` | help discovery | `Too strong` | The worked example moves to the SIGNAL recipe. |
 | `### The tiny discovery orbit` | prompt | | Kept, shorter: it is the light path of discovery. |
 | `### The lap` | help discovery | `budget_spent` | |
-| `### Moves` | help general | `research SIGNAL, SURVEY, FLYBY, TRAJECTORY, DISPROVE (discovery)` | |
-| `#### SIGNAL: pin the report` | help discovery | `SIGNAL: pin the report` | |
+| `### Moves` | help general | `research RESTATE, SURVEY, FLYBY, TRAJECTORY, DISPROVE (discovery)` | 0.3.0 (D39): the move SIGNAL is RESTATE; "signal" means the six signals of the prompt. |
+| `#### SIGNAL: pin the report` | help discovery | `RESTATE: pin the report` | 0.3.0 (D39): renamed from SIGNAL. |
 | `#### SURVEY: touch the current system` | help discovery | `SURVEY: touch the current system` | |
 | `#### SPECTRUM: split into claims and choose tools` | help discovery | `Choose the cheapest tool that can falsify each claim` | The tool table. |
 | `#### SPECTRUM: split into claims and choose tools` | PHILOSOPHY.md §11 | | Each claim has a shape. |
@@ -86,9 +86,9 @@ parts went to different homes.
 | `### The discovery report` | help discovery | `Not explored:` | The report template. |
 | `### Handoff to the build orbit` | help discovery | `HANDOFF to the build orbit` | |
 | `### Back to discovery` | prompt | | One line in the phase tree. |
-| `### Back to discovery` | help discovery | `SIGNAL if the hypothesis is wrong` | Which move to go back to. |
+| `### Back to discovery` | help discovery | `RESTATE if the hypothesis is wrong` | 0.3.0 (D39): RESTATE, was SIGNAL. Which move to go back to. |
 | `### Honesty rules for discovery` | prompt | | Rules 1 to 6 stay, word for word (see below). |
-| `### Honesty rules for discovery` | help discovery | `WD1, WD3, WD7, ED3-ED7` | Rule 7 names lint codes. |
+| `### Honesty rules for discovery` | help discovery | `The lint codes WD1, WD3, WD7, WD10, ED3-ED7 name some of the blockers` | Rule 7 names lint codes. 0.3.0: readiness is "no ready_blocker" (D32 O2); WD10 joined (D33 R1), and the help says that the tool, not the list, decides. |
 | `### Sizes and speed` | dropped, because the sizes read as tiers (PHILOSOPHY.md §7, open question E); the tiny orbit stays in the prompt | | |
 | `### Sizes and speed` | help discovery | `Set a timeout on every solver run` | |
 

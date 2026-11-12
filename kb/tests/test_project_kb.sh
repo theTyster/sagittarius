@@ -729,7 +729,8 @@ t_PT3B() { t23_pk "decision(d1, 'Export goes through the queue')" "definition(df
 # that reaches a side through rests_on gets WP5 and no blocking item.
 t_PT3C() { t23_pk "decision(d1, 'Export goes through the queue')" "definition(df1, 'There is no queue')" \
                   "decision(d3, 'Retry an export three times')" "depends_on(d3, d1)" "rule(ru1, 'Every export is logged')" \
-                  "excludes(d1, df1)"
+
+           padd "excludes(d1, df1)" --by human >/dev/null   # 0.3.0 D38: an agent's relation is only proposed
            is_set 'contradiction(X, Y)' "X = d1, Y = df1"
            okb --dir "$K" lint; rc_is 0 "a contradiction is not a lint error of the project KB"
            t23_spec direct d1
@@ -772,9 +773,10 @@ t_PT3D() { t23_pk "decision(d1, 'Export goes through the queue')" "decision(d3, 
 # decisions block; an agent may not ratify.
 t_PT4() { t23_pk "decision(d1, 'Export goes through the queue')" "decided_by(d1, 'agent:build', '$T1')" \
                  "decision(d2, 'Retry an export three times')" "decided_by(d2, 'product owner', '$T1')" \
-                 "definition(df1, 'There is no queue')" "excludes(d1, df1)" \
+                 "definition(df1, 'There is no queue')" \
                  "rule(ru1, 'Every export is logged')" "decided_by(ru1, ann, '$T1')"
           rc_is 0 "decided_by accepts a person, a role, and a rule"
+          padd "excludes(d1, df1)" --by human >/dev/null   # 0.3.0 D38: a human's relation, so only the decision is proposed
           is_set 'proposed(X)' "X = d1"
           t23_spec spec d1
           is_false 'blocking(project_contradiction(_))' "a proposed decision does not block"
@@ -1182,6 +1184,36 @@ t_PF11() { t23_pk; mkdir -p "$T/weeks/w45"; printf 'raw report of week 45\n' > "
            okb help project; out_has 'text-file' "help project names --text-file"; }
 
 # ================================================================ run
+# PP (0.3.0 K-I, D38): who wrote a relation. add writes relation_by(R, By, Time) after each excludes
+# and depends_on; a relation that only an agent wrote is proposed and blocks nothing; the human
+# ratifies it by adding the same relation with --by human. A relation with no record (an older KB)
+# blocks as before.
+pp_pair() {  # pp_pair BY: project KB pk with two human decisions and excludes(d1, d2) by BY; spec KB sp pins d1
+    t23_pk "decision(d1, 'Prices include tax.')" "decided_by(d1, ty, '$T1')" "decision(d2, 'Prices exclude tax.')" "decided_by(d2, ty, '$T2')"
+    padd "excludes(d1, d2)" --by "$1"; rc_is 0 "excludes by $1"
+    t23_spec sp d1; }
+t_PP1() { pp_pair agent; K=$T/pk
+          has_goal "$K/kb.pl" "kb(relation_by(excludes(d1, d2), agent, T)), atom_length(T, 20)" "add records who wrote the relation, and when"
+          K=$T/sp; is_false 'blocking(project_contradiction(_))' "an agent's relation blocks nothing"
+          okb --dir "$K" show blocking; out_hasnt 'project_contradiction'
+          K=$T/pk; padd "excludes(d1, d2)" --by human; rc_is 0 "a human ratifies by adding the same relation"
+          has_goal "$K/kb.pl" "kb(relation_by(excludes(d1, d2), human, _))"
+          K=$T/sp; is_true 'blocking(project_contradiction(d1))' "the relation blocks after a human ratifies it"
+          rm -rf "$T/pk" "$T/sp"; pp_pair human
+          K=$T/sp; is_true 'blocking(project_contradiction(d1))' "a human's relation blocks as before"
+          rm -rf "$T/pk" "$T/sp"; t23_pk "decision(d1, 'Prices include tax.')" "decision(d2, 'Prices exclude tax.')"
+          printf 'excludes(d1, d2).\n' >> "$T/pk/kb.pl"; t23_spec sp d1
+          is_true 'blocking(project_contradiction(d1))' "a relation with no record of its writer blocks as before"
+          K=$T/pk; padd "relation_by(excludes(d1, d2), human, '$T1')"; rc_is 1 "add refuses relation_by: orbit-kb writes it"; }
+t_PP2() { pp_pair agent; K=$T/pk
+          padd "depends_on(d2, d1)"; rc_is 0
+          is_set 'proposed(X)' "X = depends_on(d2, d1)|X = excludes(d1, d2)"
+          okb --dir "$K" lint; rc_is 0 "a proposed relation is a warning"; out_has '^WP9 excludes\(d1, ?d2\):.*agent' "WP9 names the relation and the agent"
+          padd "excludes(d1, d2)" --by human >/dev/null
+          is_set 'proposed(X)' "X = depends_on(d2, d1)"
+          okb help project; any_hasi 'relation_by' "help project names relation_by"; any_hasi 'proposed.*relation|relation.*proposed' "help project: an agent's relation is proposed"
+          okb help codes; out_has '^ *WP9 ' "help codes lists WP9"; }
+
 run_test t_PK1 PK1 "T06 c1: init --uses project; every fact of the module is accepted"
 run_test t_PK2 PK2 "T06 c1: dangling refs and duplicate ids are refused (E4, E5)"
 run_test t_PK3 PK3 "T06 c1: pin kind, digest and time are typed (E3)"
@@ -1263,6 +1295,8 @@ run_test t_PF11 PF11 "T38 c9: pin-item --kind file digests the pinned file"
 run_test t_PF12 PF12 "T40 c2: show pin of a pin taken before byte digests says the digest rule changed"
 run_test t_PF13 PF13 "T40 c3: spec_kbs.txt loses no line: register under the lock, prune after two looks"
 run_test t_PF14 PF14 "T40 c5: archive --root warns about a registered spec KB outside the root"
+run_test t_PP1 PP1 "0.3.0 c_k_i_1: an agent's relation blocks nothing until a human adds it too; a human's blocks as before"
+run_test t_PP2 PP2 "0.3.0 c_k_i_2: relation_by records who wrote each relation; proposed(X) lists an agent's; WP9"
 NT=${#REG_ID[@]}
 for ((i = 0; i < NT; i++)); do exec_test "$i"; done
 echo "----"

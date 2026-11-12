@@ -33,6 +33,14 @@ Abstractions (what the model leaves out):
 * `back` on a subject that is no hypothesis: refused by the CLI like a `back` in an open orbit.
 * One vote per writer per round (ED10) is not assumed: a choice is in the vote of a writer when
   any vote of that writer in the current round has it.
+
+A limit that remains (the review of K-C and K-D, item 2): `Ev.endRec` is a `discovery_end` that
+`attest approval` wrote after a GO. A `discovery_end` written by hand that names a real human
+approval of the ticket, which came with no GO, is a line that the model does not hold: the rules
+of the orbit close on it, so the theorems do not cover that KB. Lint error ED12 (CONTRACT D41)
+names such a line: it reads the KB as it was before the approval and asks for an open orbit,
+`gate(go)` and the artifacts' go. ED12 is a lint error, not a rule: until the line is removed,
+the orbit stays closed, and a hand edit can also forge the votes before the approval.
 -/
 namespace GateReady
 
