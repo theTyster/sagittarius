@@ -39,13 +39,15 @@ Only the hub, with no Prolog and no Lean? That is the informal release: see [`hu
 
 1. **Install.** Install SWI-Prolog 9+, then run `./install.py` from this folder. It links
    `orbit-kb`, `repo-map`, the prompt, and the System 1 hook into your home directory. Check it
-   with `orbit-kb doctor` and `./install.py --check`. "Install" below is a sequence that an agent
-   can follow for you, and it ends with a check that a session got the prompt.
-2. **Add the System 1 hook (recommended, not required; it is optional).** The hook asks the
-   System 1 model about each prompt before the agent answers. It goes where the prompt goes.
-   `install.py` links it to `~/.claude/sagittarius-s1`. Follow `s1/README.md`. The last step is
-   manual: you paste a snippet into your `~/.claude/settings.json`. No script writes that file.
-   `install.py` never does.
+   with `orbit-kb doctor` and `./install.py --check`. Then give the prompt to each session: a
+   shell function adds `--append-system-prompt` to `claude` (step 3 of "Install"). "Install"
+   below is a sequence that an agent can follow for you. Each step ends with a check, and step 5
+   checks that a session got the prompt.
+2. **Add the System 1 hook (optional: recommended, not required).** The hook asks the System 1
+   model about each prompt before the agent answers. `install.py` links it beside the prompt, to
+   `~/.claude/sagittarius-s1`. Follow `s1/README.md`. Its last step is
+   manual: you paste a snippet into your `~/.claude/settings.json`. No script writes that file,
+   `install.py` included.
 3. **Start a hub.** Give `hubkit/` to your agent and say "follow INSTRUCTIONS.md". It reads
    `hubkit/INSTRUCTIONS.md`, asks up to three questions, and sets up the hub (a MindHole). See
    "MindHole" below.
