@@ -13,7 +13,8 @@ FACTS
   budget(laps, N)                 the largest lap budget counts
   lap_done(N)                     lap N ended with a human answer
   discovery_evidence(S, From)     From is system or model. A model file or solver log is never system.
-  model(M, Tool)                  M is a model file. Tool is smt or tla.
+  model(M, Tool)                  M is a model file. Tool is smt or tla. (model, model_run,
+                                  encodes and model_result are core: a build KB takes them too)
   model_run(Log, M, Digest)       Log is a run of model M at that digest. It counts while M keeps it.
   derived_from(Target, Existing)  the target model changes the existing-world model
   encodes(M, C)                   model M states claim C

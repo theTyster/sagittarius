@@ -41,18 +41,11 @@ decl(fact, budget(oneof([laps]), int),
 decl(fact, lap_done(int),
      'A lap that ended with an answer from the human.',
      'lap @(1) is done').
-decl(fact, model(ref(subject), oneof([smt, tla])),
-     'A subject that is a model file, and the tool that checks it.',
-     'subject @(1) is a model for @(2)').
-decl(fact, model_run(ref(subject), ref(model), digest),
-     'A solver log, the model that the solver ran, and the digest of the model file at that run.',
-     'log @(1) is a run of model @(2) at digest @(3)').
+% 0.3.0 (K-F, D40): model/2, model_run/3, encodes/2 and the attestation type
+% model_result are core: a KB that uses build records a model too.
 decl(fact, derived_from(ref(model), ref(model)),
      'A target model, then the existing-world model that it changes.',
      'model @(1) is derived from model @(2)').
-decl(fact, encodes(ref(model), ref(claim)),
-     'A model states a claim, so the model can falsify the claim.',
-     'model @(1) states claim @(2)').
 % D31 B5: the property of a model that states a claim, so that the report can show it.
 decl(fact, property(ref(model), ref(claim), text),
      'The property of the model that states the claim: an SMT assertion or a TLA+ invariant, as written in the model.',
@@ -81,16 +74,6 @@ attest_type(reproduction,
          confirms(ref(finding))]),
     [agent, human],
     'Evidence from the current system that cannot run as a check, such as a log or a query.').
-% verdict/3 has three arguments, so the core refuted/1 never reads it.
-attest_type(model_result,
-    alt([verdict(ref(model),
-                 alt([sanity, bad_case, together, root_cause(atom), normal_case(atom),
-                      preserve(ref(claim)), applies(ref(claim)), explore(term)]),
-                 oneof([sat, unsat, unknown, reached, violated, holds])),
-         calibration(ref(model), alt([fails(text), passes(text), example(ref(claim)), case(text)]), oneof([matches, differs])),
-         mutation(ref(model), atom, oneof([killed, survived]))]),
-    [agent, human],
-    'The result of one check on a model, read from the log of the solver run. A calibration names a real case where the system fails (fails), or one where it passes (passes); example and case are the older forms, and they calibrate nothing (D33).').
 % GO is not a decision: it is a core approval of the ticket subject.
 attest_type(decision,
     alt([no_go(ref(hypothesis), text), hold(ref(hypothesis), text)]),

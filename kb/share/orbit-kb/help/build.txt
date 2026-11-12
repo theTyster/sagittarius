@@ -107,6 +107,8 @@ claim, try to break it within a small budget. Record one disproof verdict (orbit
 
 Burns: prove the claim in Lean
   A statement with sorry is not a proof. "No counterexample in N trials" is not a proof.
+  A build KB can record a model of the claim (model, model_run, encodes, attest model_result;
+  orbit-kb help discovery, FLYBY): a solver or TLC result never closes a burn.
   1. Write Lean definitions of the behavior. State the claim as a theorem.
   2. Add #eval examples. Show them to the human as a table.
   3. Search for a counterexample (for example Plausible) before you prove.

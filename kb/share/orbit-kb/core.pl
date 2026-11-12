@@ -106,6 +106,19 @@ decl(fact, lean_back(id, text),
 decl(fact, withdrawn(term, by, time, int),
      'orbit-kb withdraw removed this kind (NAME/ARITY) from kb.pl: who, when, and how many facts. The removed lines stay in kb.pl as comments.',
      'the kind @(1) was withdrawn by @(2) at @(3) (@(4) facts)').
+% 0.3.0 (K-F, D40): the facts and the attestation of a model are core (they were facts of
+% the discovery module), so a KB that uses build records a model of a claim. The rules that
+% read them (model_trusted, has_falsifier, the readiness of discovery) stay in the discovery
+% module, and no burn rule reads them: a solver result closes no burn.
+decl(fact, model(ref(subject), oneof([smt, tla])),
+     'A subject that is a model file, and the tool that checks it.',
+     'subject @(1) is a model for @(2)').
+decl(fact, model_run(ref(subject), ref(model), digest),
+     'A solver log, the model that the solver ran, and the digest of the model file at that run.',
+     'log @(1) is a run of model @(2) at digest @(3)').
+decl(fact, encodes(ref(model), ref(claim)),
+     'A model states a claim, so the model can falsify the claim.',
+     'model @(1) states claim @(2)').
 decl(fact, universal(ref(claim)),
      'The claim says that something is true for every input.',
      'claim @(1) is about every input').
@@ -284,6 +297,17 @@ decl(rule, lint_issue(atom, ref, text),
 % Core attestation types
 % ---------------------------------------------------------------------
 
+% 0.3.0 (K-F, D40): a core type, as model/2.
+% verdict/3 has three arguments, so the core refuted/1 never reads it.
+attest_type(model_result,
+    alt([verdict(ref(model),
+                 alt([sanity, bad_case, together, root_cause(atom), normal_case(atom),
+                      preserve(ref(claim)), applies(ref(claim)), explore(term)]),
+                 oneof([sat, unsat, unknown, reached, violated, holds])),
+         calibration(ref(model), alt([fails(text), passes(text), example(ref(claim)), case(text)]), oneof([matches, differs])),
+         mutation(ref(model), atom, oneof([killed, survived]))]),
+    [agent, human],
+    'The result of one check on a model, read from the log of the solver run. A calibration names a real case where the system fails (fails), or one where it passes (passes); example and case are the older forms, and they calibrate nothing (D33).').
 attest_type(disclosure,
             alt([guess(ref(question)), unverified(text), disagreement(text),
                  out_of_scope(text), self_error(text), other(text)]),
