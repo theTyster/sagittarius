@@ -91,6 +91,7 @@
 #   HE  the help follows the prompt: the human says it is wrong, back, the hypothesis, one lens (D36, 0.3.0 K-E) : HE1-HE5
 #   SF  orbit-kb shift and help shift: the step from words to records (D37, 0.3.0 K-H) : SF1-SF3
 #   WJ  one meaning for each word: RESTATE, Lean definitions, withdraw (D39, 0.3.0 K-J) : WJ1-WJ3
+#   MF  the facts of a model in a build KB; a solver result closes no universal claim (D40, 0.3.0 K-F) : MF1 MF2
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -2425,6 +2426,35 @@ t_WJ3() { K=$T/k; kb_init "$K" build; oadd "claim(c1, introduce, 'x')" "cites(c1
           out_has 'orbit-kb withdraw' "help codes names withdraw for E19"
           okb help withdraw; rc_is 0; out_has 'withdraw NAME/ARITY'; }
 
+# MF (D40, c_k_f_2, c_k_f_3): the facts and the attestation of a model work in a KB that uses build;
+# a result of a solver or a model checker never closes a universal claim or a requested proof.
+mf_model() {  # mf_model RESULT: model m1 (smt) encodes c1 in $K, a current run log1, a sanity verdict, and a preserve(c1) verdict RESULT
+    printf '(check-sat)\n' > "$K/m1.smt"; printf 'unsat\n' > "$K/log1.log"
+    okb --dir "$K" subject m1 "$K/m1.smt" >/dev/null; okb --dir "$K" subject log1 "$K/log1.log" >/dev/null
+    oadd "model(m1, smt)" "encodes(m1, c1)"; rc_is 0 "model/2 and encodes/2"
+    local dg; q 'subject(m1, _, D)'; dg=$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}')
+    oadd "model_run(log1, m1, '$dg')"; rc_is 0 "model_run/3"
+    okb --dir "$K" attest model_result log1 'verdict(m1, sanity, sat)'; rc_not 2 "a sanity verdict"
+    okb --dir "$K" attest model_result log1 "verdict(m1, preserve(c1), $1)"; rc_is 0 "a model_result attestation"; }
+t_MF1() { hy_build "$T/b"; mf_model unsat
+          has_goal "$K/kb.pl" "kb(attest(_, model_result, log1, verdict(m1, preserve(c1), unsat), agent, _))" "the attestation is written"
+          okb --dir "$K" lint; rc_is 0 "lint of a build KB with a model"
+          okb --dir "$K" show kinds; out_has '^- model/2:' "show kinds lists model/2 in a build KB"
+          okb --dir "$K" report; rp_sec Formal | grep -q 'model m1' && note "a build KB reads no model into Formal (the discovery module drafts it)"
+          kb_init "$T/n" ""; K=$T/n; oadd "claim(c1, introduce, 'x')" "cites(c1, 'Test request')" >/dev/null
+          printf '(check-sat)\n' > "$K/m1.smt"; okb --dir "$K" subject m1 "$K/m1.smt" >/dev/null
+          oadd "model(m1, smt)" "encodes(m1, c1)"; rc_is 0 "a KB with no module takes them too"; }
+t_MF2() { hy_build "$T/u"; oadd 'universal(c1)' >/dev/null; mf_model unsat
+          okb --dir "$K" run k1 -- false >/dev/null; okb --dir "$K" run k1 -- true >/dev/null
+          is_true 'burn_open(c1)' "a solver result does not close a universal claim"
+          okb --dir "$K" show blocking; out_has 'c1.*Lean proof' "show blocking: c1 needs a Lean proof"
+          is_false 'done'
+          hy_build "$T/r"; oadd 'burn_requested(c1)' >/dev/null; mf_model unsat
+          is_true 'burn_open(c1)' "a solver result does not close a proof that the human asked for"
+          okb --dir "$K" show blocking; out_has 'c1.*Lean proof'
+          hy_disc "$T/d"; okb --dir "$K" uses build >/dev/null; oadd 'universal(c1)' >/dev/null; mf_model unsat
+          is_true 'burn_open(c1)' "with the discovery module too, a model result does not close a universal claim"; }
+
 # ================================================================ WN: whynot, Y: why
 t_WN1() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'current(c1)'; rc_is 0; [ "$(first_line)" = holds ] || note "first line '$(first_line)'"; out_has 'because' "the clauses that prove it"; }
 t_WN2() { # D20: absent names, for each rule, the literal that blocks, and why
@@ -3933,6 +3963,8 @@ run_test t_SF3 SF3 "0.3.0 c_k_h_3: orbit-kb help shift is one screen; the first 
 run_test t_WJ1 WJ1 "0.3.0 c_k_j_1: no move is named SIGNAL; the move is RESTATE"
 run_test t_WJ2 WJ2 "0.3.0 c_k_j_2: the text of the tool says Lean definitions, not Lean model"
 run_test t_WJ3 WJ3 "0.3.0 c_k_j_3: orbit-kb withdraw NAME/ARITY removes a kind that a typo declared, with a record"
+run_test t_MF1 MF1 "0.3.0 c_k_f_2: model, model_run, encodes and model_result work in a KB that uses build"
+run_test t_MF2 MF2 "0.3.0 c_k_f_3: a solver result does not close a universal claim or a requested proof"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"
