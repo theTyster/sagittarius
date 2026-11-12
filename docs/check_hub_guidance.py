@@ -259,7 +259,7 @@ def c5(_):
     # Sagittarius 0.3.0 (c_m_f_3): the receiver records the handoff in the KB as a signal; the example runs as written
     ex = re.findall(r"`(orbit-kb add \"signal\([^`]*\)\")`", pan)
     check("c5 PANES.md: the receiver records the handoff in the KB as a signal (an orbit-kb add example)", len(ex) == 1 and "handoff" in ex[0], ex)
-    if len(ex) == 1:
+    if len(ex) == 1 and os.access(OKB, os.X_OK):  # the scratch copy of check_mutants.py holds no kb/bin
         with tempfile.TemporaryDirectory() as d:
             kb = os.path.join(d, "kb")
             init = run([OKB, "init", kb, "--request", "an invented request"])
