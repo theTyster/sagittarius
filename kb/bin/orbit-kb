@@ -162,7 +162,7 @@ orbit_state_path(Script, State) :-
 :- use_module(library(apply)).
 :- autoload(library(readutil), [read_file_to_string/3, read_line_to_string/2]).
 :- autoload(library(process), [process_create/3, process_wait/2, process_kill/2]).
-:- autoload(library(filesex), [directory_file_path/3, make_directory_path/1, link_file/3]).
+:- autoload(library(filesex), [directory_file_path/3, make_directory_path/1, link_file/3, delete_directory_and_contents/1]).
 :- autoload(library(http/json), [json_read_dict/2, json_read_dict/3]).
 :- autoload(library(time), [call_with_time_limit/2]).
 :- autoload(library(ugraphs), [vertices_edges_to_ugraph/3, transitive_closure/2]).
@@ -540,6 +540,11 @@ top(Argv0, Code) :-
         ->  cmd_version(Args, Code)
         ;   Cmd == init
         ->  cmd_init(Args, Code)
+        ;   Cmd == shift
+        ->  (   memberchk(Arg, Args), memberchk(Arg, ['--help', '-h'])
+            ->  cmd_help([shift], Code)
+            ;   cmd_shift(Args, Code)
+            )
         ;   Cmd == doctor
         ->  cmd_doctor(Args, Code)
         ;   Cmd == uses
@@ -3437,6 +3442,109 @@ cmd_init(Args, Code) :-
     format("~w~n", [KbFile]),
     format(user_error, "Next: add the claims and the checks. Vocabulary: orbit-kb help core.~n", []),
     Code = 0.
+
+% ---------------------------------------------------------------------
+% shift: the step from words to records in one command (D37, 0.3.0 K-H)
+% ---------------------------------------------------------------------
+% orbit-kb shift DIR (--request-file F | --request T) --hypothesis T [--kind K]
+%   (--no-premises | --premise T ...) --claim T [--label L] --example T --check ID
+%   [--cites T] [--uses M,...]
+% It runs orbit-kb init, then one orbit-kb add of every fact (all or nothing), as two
+% child processes of this script, so each write has the checks of init and add. When the
+% add is refused, it removes what it wrote (kb.pl and the other new files of DIR, and DIR
+% itself when it made it), and exits with the code of add. The ids are fixed: h1, p1..pN, c1.
+
+cmd_shift(Args, Code) :-
+    parse_opts(Args, ['--request'-value, '--request-file'-value, '--hypothesis'-value, '--kind'-value,
+                      '--no-premises'-flag, '--premise'-value, '--claim'-value, '--label'-value,
+                      '--example'-value, '--check'-value, '--cites'-value, '--uses'-value], Pos, Opts),
+    (   Pos = [Dir0] -> true
+    ;   usage_error("Give one directory: orbit-kb shift DIR --request-file F --hypothesis T ... (orbit-kb help shift).", [])
+    ),
+    forall(( member(O, ['--request', '--request-file', '--hypothesis', '--kind', '--claim', '--label', '--example', '--check', '--cites', '--uses']),
+             aggregate_all(count, member(O-_, Opts), N), N > 1 ),
+           usage_error("Give ~w once.", [O])),
+    forall(member(O-What, ['--hypothesis'-"the hypothesis", '--claim'-"the claim", '--example'-"its example", '--check'-"the id of its check"]),
+           ( memberchk(O-_, Opts) -> true
+           ; usage_error("shift needs ~w: ~w TEXT (orbit-kb help shift).", [What, O]) )),
+    findall(P, member('--premise'-P, Opts), Prems),
+    (   memberchk('--no-premises'-true, Opts)
+    ->  ( Prems == [] -> true ; usage_error("Give --no-premises or --premise TEXT, not both.", []) )
+    ;   Prems == []
+    ->  usage_error("State the premises: --premise TEXT for each one, or --no-premises (\"Premises: none\").", [])
+    ;   true
+    ),
+    opt(Opts, '--request', none, RT), opt(Opts, '--request-file', none, RF),
+    (   RT \== none, RF == none -> ReqOpt = ['--request', RT], Text = RT
+    ;   RF \== none, RT == none
+    ->  (   exists_file(RF)
+        ->  read_file_to_string(RF, S0, [encoding(utf8)]),
+            ( sub_string(S0, B, 1, 0, "\n") -> sub_string(S0, 0, B, _, Text) ; Text = S0 ),
+            ReqOpt = ['--request-file', RF]
+        ;   die(1, ["The request file " + RF + " does not exist. Check the path."] >> fix_lines)
+        )
+    ;   usage_error("Give the request with --request TEXT or with --request-file F. Give one of them, not both.", [])
+    ),
+    opt(Opts, '--kind', feature, Kind), opt(Opts, '--label', introduce, Label),
+    opt(Opts, '--uses', build, Uses),
+    memberchk('--hypothesis'-HT, Opts), memberchk('--claim'-CT, Opts),
+    memberchk('--example'-ET, Opts), memberchk('--check'-KId, Opts),
+    (   memberchk('--cites'-Cites, Opts) -> true
+    ;   split_string(Text, "\n", " \t\r", [L1|_]), atom_string(Cites, L1)
+    ),
+    findall(F, ( F = hypothesis(h1, Kind, HT)
+               ; memberchk('--no-premises'-true, Opts), F = no_premises(h1)
+               ; nth1(I, Prems, PT), atom_concat(p, I, PId), F = premise(PId, h1, PT)
+               ; F = claim(c1, Label, CT)
+               ; F = cites(c1, Cites)
+               ; F = example(c1, ET)
+               ; F = check(KId, c1) ), Facts),
+    maplist([T, A]>>format(atom(A), "~q", [T]), Facts, FactArgs),
+    absolute_file_name(Dir0, Dir),
+    directory_file_path(Dir, 'kb.pl', KbFile),
+    (   exists_file(KbFile)
+    ->  die(1, [KbFile + " already exists. orbit-kb shift does not overwrite a KB.", "Fix: choose a new directory, or add the facts to the KB that exists (orbit-kb add)."] >> fix_lines)
+    ;   true
+    ),
+    (   exists_directory(Dir) -> directory_files(Dir, Before), Made = false ; Before = [], Made = true ),
+    orbit_script(Script0), real_file(Script0, Script),
+    append([init, Dir|ReqOpt], ['--uses', Uses], InitArgs),
+    shift_child(Script, InitArgs, IExit, IOut),
+    (   IExit \== 0
+    ->  shift_undo(Dir, Made, Before),
+        format(user_error, "~s", [IOut]), Code = IExit
+    ;   shift_child(Script, ['--dir', Dir, add|FactArgs], AExit, AOut),
+        (   AExit \== 0
+        ->  shift_undo(Dir, Made, Before),
+            format(user_error, "~s", [AOut]),
+            format(user_error, "orbit-kb shift wrote nothing: the add above was refused.~n", []),
+            Code = AExit
+        ;   format("~w~n", [KbFile]),
+            forall(member(F, Facts), ( term_text(F, FT), format("~w.~n", [FT]) )),
+            format(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD (it must fail before the change), then orbit-kb lint. orbit-kb help shift.~n", [Dir, KId]),
+            Code = 0
+        )
+    ).
+
+shift_child(Script, Args, Exit, Out) :-
+    process_create(Script, Args, [stdin(null), stdout(pipe(O)), stderr(pipe(E)), process(P)]),
+    read_string(O, _, O1), close(O), read_string(E, _, E1), close(E),
+    process_wait(P, St),
+    ( St = exit(Exit) -> true ; Exit = 2 ),
+    string_concat(O1, E1, Out).
+
+% shift_undo(+Dir, +Made, +Before): remove what shift wrote. A directory that shift made goes;
+% in a directory that existed, only the entries that were not there before go.
+shift_undo(Dir, true, _) :- !,
+    catch(delete_directory_and_contents(Dir), _, true).
+shift_undo(Dir, false, Before) :-
+    (   catch(directory_files(Dir, Now), _, fail)
+    ->  forall(( member(N, Now), \+ memberchk(N, Before) ),
+               ( directory_file_path(Dir, N, P),
+                 ( exists_directory(P) -> catch(delete_directory_and_contents(P), _, true)
+                 ; catch(delete_file(P), _, true) ) ))
+    ;   true
+    ).
 
 % ---------------------------------------------------------------------
 % uses: add modules to an existing KB
@@ -8363,12 +8471,12 @@ cmd_help([C|_], Code) :-
     ;   help_topic_file(C, File)
     ->  read_file_to_string(File, S, [encoding(utf8)]),
         format("~s", [S]), Code = 0
-    ;   usage_error("There is no help for ~w. It is not a command or a topic. Topics: ~w.", [C, 'core, build, discovery, project, codes, answers'])
+    ;   usage_error("There is no help for ~w. It is not a command or a topic. Topics: ~w.", [C, 'core, build, discovery, project, codes, answers, shift'])
     ).
 
 % A topic is the file help/TOPIC.txt in the library directory.
 help_topic_file(Topic, File) :-
-    memberchk(Topic, [core, build, discovery, project, codes, answers]),
+    memberchk(Topic, [core, build, discovery, project, codes, answers, shift]),
     lib_dir(Lib),
     atomic_list_concat([Lib, '/help/', Topic, '.txt'], File),
     exists_file(File).
@@ -8388,7 +8496,9 @@ help_general([
 "  6. orbit-kb lint                the fix for each finding is in its message",
 "  7. orbit-kb show open           what is left; run it first when you resume a KB",
 "  8. orbit-kb report              draft the delivery",
+"  On the light path, when a signal fires: orbit-kb shift (orbit-kb help shift) does 1 to 3.",
 "  Topics:",
+"    orbit-kb help shift     the step from words to records: orbit-kb shift, one command, one screen",
 "    orbit-kb help core      facts, claim labels, attestation types, and core queries",
 "    orbit-kb help build     build-module facts and queries, burns, flares, proofs, waivers",
 "    orbit-kb help discovery discovery-module facts, verdicts, queries, and the recipe for each move",
@@ -8411,6 +8521,7 @@ help_general([
 "Commands:",
 "  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
 "  uses MODULE ...",
+"  shift DIR --request-file F --hypothesis T (--no-premises|--premise T ...) --claim T --example T --check ID",
 "  add 'FACT' ... [--by human|agent] [--doc TEXT]",
 "  subject ID PATH",
 "  attest TYPE SUBJECT 'PREDICATE' [--by human|agent] [--id ID] [--rests-on RUN,...]",
@@ -8826,5 +8937,5 @@ help_lines(help, [
 "orbit-kb help [COMMAND|TOPIC]",
 "",
 "Show general help, or help for one command or one topic.",
-"Topics: core, build, discovery, project, codes, answers."
+"Topics: core, build, discovery, project, codes, answers, shift."
 ]).

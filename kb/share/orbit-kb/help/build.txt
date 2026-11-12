@@ -154,7 +154,8 @@ When the human says that it is wrong (as the prompt says)
   If you cannot tell whether you misread or the intent moved, do not guess. Say so, and treat
   it as a divergence.
   On the light path, shift up now: start a KB with the request, the hypothesis and its
-  premises (or no_premises), then your claims and the checks so far.
+  premises (or no_premises), then your claims and the checks so far: orbit-kb shift does it
+  in one command (orbit-kb help shift).
   After a divergence:
   1. Decide which is wrong. When a check fails and the hypothesis still reads true, the build
      is wrong: fix the build. When the human wants a case that the hypothesis rejects, or

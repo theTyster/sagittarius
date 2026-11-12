@@ -2359,7 +2359,7 @@ t_HE5() { local h0 hc hb; okb help; h0=$(printf '%s' "$out" | sed -n '/How to us
 # one help topic of one screen for it (orbit-kb help shift).
 sf_shift() {  # sf_shift DIR [EXTRA ARGS]: the light path of "add a dark mode" as one command
     local d=$1; shift; printf 'add a dark mode\nfor every screen\n' > "$T/req.txt"
-    okb shift "$d" --request-file "$T/req.txt" --hypothesis "$DARK" --kind feature "$@" \
+    okb shift "$d" --request-file "$T/req.txt" --hypothesis "$DARK" --kind "${SF_KIND:-feature}" "$@" \
         --claim "$DARK" --example 'the reports page is dark' --check k1; }
 t_SF1() { K=$T/s; sf_shift "$K" --no-premises; rc_is 0 "shift writes a KB"
           [ -f "$K/kb.pl" ] || { note "no kb.pl"; return; }
@@ -2382,8 +2382,9 @@ t_SF2() { sf_shift "$T/a"; rc_is 2 "neither --no-premises nor --premise"; [ -e "
           sf_shift "$T/b" --no-premises --premise 'x'; rc_is 2 "both --no-premises and --premise"
           okb shift "$T/c" --request-file "$T/req.txt" --no-premises --claim x --example y --check k1; rc_is 2 "no --hypothesis"
           [ -e "$T/c" ] && note "no KB without a hypothesis"
-          sf_shift "$T/d" --no-premises --kind bogus; rc_is 1 "a bad kind is refused"; [ -e "$T/d/kb.pl" ] && note "a refused shift leaves no kb.pl"
-          mkdir -p "$T/e"; printf 'keep\n' > "$T/e/notes.txt"; sf_shift "$T/e" --no-premises --kind bogus; rc_is 1
+          sf_shift "$T/g" --no-premises --kind risk; rc_is 2 "an option given twice"
+          SF_KIND=bogus sf_shift "$T/d" --no-premises; rc_is 1 "a bad kind is refused"; [ -e "$T/d/kb.pl" ] && note "a refused shift leaves no kb.pl"
+          mkdir -p "$T/e"; printf 'keep\n' > "$T/e/notes.txt"; SF_KIND=bogus sf_shift "$T/e" --no-premises; rc_is 1
           [ -f "$T/e/notes.txt" ] || note "a refused shift keeps the files of a directory that existed"
           [ -e "$T/e/kb.pl" ] && note "a refused shift leaves no kb.pl in an existing directory"
           sf_shift "$T/f" --no-premises; rc_is 0; cp "$T/f/kb.pl" "$T/.f"; sf_shift "$T/f" --no-premises; rc_is 1 "an existing KB"

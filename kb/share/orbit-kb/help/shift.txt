@@ -1,0 +1,38 @@
+orbit-kb help shift: from words to records in one step (the light path shifts up)
+
+When a signal fires on the light path ("Shifting up: ..."), the words become a KB. The words
+are the request, the hypothesis with its premises, one claim, one example, and the check.
+Read this topic, then run one command:
+
+  orbit-kb shift DIR --request-file F --hypothesis 'TEXT' [--kind K]
+                     (--no-premises | --premise 'TEXT' ...)
+                     --claim 'TEXT' [--label L] --example 'TEXT' --check ID
+                     [--cites 'TEXT'] [--uses MODULES]
+
+  DIR           a new KB directory (in a hub: specs/<slug>/). shift never overwrites a KB.
+  F             the request, word for word (or --request 'TEXT'): request(r1, TEXT).
+  --hypothesis  what must be true when the ticket is done: hypothesis(h1, K, TEXT).
+                K is defect, feature (the default), risk, or change.
+  --premise     one premise each time: premise(p1, h1, TEXT), p2, ... A premise that you
+                did not check is a guess (report, Guesses). --no-premises records
+                "Premises: none" (no_premises(h1)). Give one of the two.
+  --claim       claim(c1, L, TEXT). L is introduce (the default), retire, or preserve.
+                cites(c1, ...) gets the first line of the request, or --cites TEXT.
+  --example     example(c1, TEXT): one concrete case of the claim.
+  --check       check(ID, c1). The KB stores the id, not a command: orbit-kb run takes it.
+  --uses        the modules, such as build,discovery (default: build).
+
+shift runs orbit-kb init and one orbit-kb add, so the same checks apply. It is all or
+nothing: when add refuses a fact, shift removes what it wrote and exits with the code of add.
+Give each option once (--premise as often as you need).
+
+Then:
+  1. Record the signal that fired, in the human's words where it came from the human:
+       orbit-kb add "signal(s1, divergence, human, 'WHAT DIFFERED')"
+     The six kinds and who noticed it: orbit-kb help core. A decision of the human goes in
+     as a further request: orbit-kb add "request(r2, 'THE WORDS')" --by human.
+  2. Run the check. For an introduce or a retire claim it must fail before the change:
+       orbit-kb run ID -- CMD
+  3. orbit-kb lint, then orbit-kb show open: what is left.
+  4. Go on in the KB: more claims and checks with orbit-kb add (orbit-kb help core), the
+     build and its burns (orbit-kb help build). The KB stays until the ticket closes.
