@@ -2119,9 +2119,11 @@ t_RL3() { # a fulfilled claim with nothing to add stays on one line; a claim tha
     - Checks: none." "$(rp_item c6)"
     rh_kb valid; okb --dir "$K" report; rc_is 0
     rl_is "c4 (fulfilled, fits in 100 columns)" "  - c4 **preserve**: The new save button is shown. Status: fulfilled. Checks: k3 (passed)." "$(rp_item c4)"
-    rl_is "c2 (burn proved) is long, so it nests" "  - c2 **preserve**: Loading stays fast
+    # D31 B4: a proved burn names its theorem, and nests what the proof is about
+    rl_is "c2 (burn proved) nests" "  - c2 **preserve**: Loading stays fast
     - Status: fulfilled.
-    - Burn: proved in Lean.
+    - Burn: proved in Lean: theorem load_fast.
+      - The proof is about the Lean definitions, not the code. No conformance check carries the examples of the definitions to the code.
     - Checks: k2 (passed)." "$(rp_item c2)"
     rl_is "no line of a one-line claim is over 100 columns" 0 "$(printf '%s\n' "$out" | awk '/^  - c[0-9]+ \*\*[a-z]+\*\*: .*Status: fulfilled\. / && length($0) > 100 {n++} END {print n + 0}')"; }
 t_RL4() { # more than one check: they nest under Checks

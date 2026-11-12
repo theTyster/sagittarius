@@ -17,12 +17,14 @@
     - Checks: k1 (passed).
   - c2 **preserve**: Loading stays fast
     - Status: fulfilled.
-    - Burn: proved in Lean.
+    - Burn: proved in Lean: theorem load_fast.
+      - The proof is about the Lean definitions, not the code. No conformance check carries the examples of the definitions to the code.
     - Checks: k2 (passed).
   - c4 **preserve**: The new save button is shown. Status: fulfilled. Checks: k3 (passed).
 
 # Formal:
-  - None. No claim has a formal statement.
+  - c2: theorem load_fast (Lean, proof a9): True
+    - Claim c2: Loading stays fast.
 
 # Guesses:
   - q2: Does saving need a progress bar

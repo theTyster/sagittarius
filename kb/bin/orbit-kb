@@ -6943,10 +6943,38 @@ flare_parts(Eng, bs(_, _, WaivBy, FlareS, ShownS), C, Head, Detail) :-
 
 burn_parts(Eng, bs(BurnS, ProvS, WaivBy, _, _), C, Head, Detail) :-
     (   \+ eng_member(Eng, BurnS, C, burn(C)) -> Head = "", Detail = ""
-    ;   eng_member(Eng, ProvS, C, burn_proved(C)) -> Head = "Burn: proved in Lean.", Detail = ""
+    ;   eng_member(Eng, ProvS, C, burn_proved(C))
+    ->  (   proof_statement(Eng, C, _, Thm, _)
+        ->  format(string(Head), "Burn: proved in Lean: theorem ~w.", [Thm])
+        ;   Head = "Burn: proved in Lean."
+        ),
+        conformance_sentence(Eng, C, CS),
+        format(string(Detail), "The proof is about the Lean definitions, not the code. ~w", [CS])
     ;   eng_lookup(Eng, WaivBy, C, D, ( attest(W, waiver, _, waive(C, D, _), human, _), not(waiver_lapsed(W)) ), [D1|_])
     ->  Head = "Burn: NOT PROVED.", fmt(Detail, "A human waived the proof until ~w.", [D1])
     ;   Head = "Burn: NOT PROVED.", Detail = "A Lean proof is required."
+    ).
+
+% proof_statement(+Eng, +C, -A, -Theorem, -Statement) (D31 B4): the theorem and its statement
+% from the log runs/proof-A.log of the last lean_proof A of claim C that still counts.
+proof_statement(Eng, C, A, Thm, St) :-
+    show_base(Dir),
+    eng_all(Eng, [A0], ( attest(A0, lean_proof, _, proof(C, _), script, _), not(proof_changed(A0)) ), As),
+    last(As, A),
+    catch(proof_log(Dir, A, plog(_, _, _, _, _, Info)), _, fail),
+    memberchk(theorem(Thm), Info), memberchk(statement(St), Info).
+
+% conformance_sentence(+Eng, +C, -S) (D31 B4): whether a check carries the examples of the Lean
+% definitions to the code (conformance/1, conforms/1 of the build module).
+conformance_sentence(Eng, C, S) :-
+    eng_all(Eng, [K], ( check(K, C), conformance(K) ), Ks),
+    (   Ks == []
+    ->  S = "No conformance check carries the examples of the definitions to the code."
+    ;   atomic_list_concat(Ks, ', ', KT),
+        (   eng_true(Eng, conforms(C))
+        ->  format(string(S), "Conformance check ~w carries the examples of the Lean definitions to the code, and it passed.", [KT])
+        ;   format(string(S), "Conformance check ~w carries the examples of the Lean definitions to the code, but it has not passed.", [KT])
+        )
     ).
 
 burn_text(Eng, BSets, C, T) :-
@@ -7095,7 +7123,7 @@ cmd_report(KB, Args, Code) :-
 claim_node(Build, C, L, TT, SK, StHead, StDetail, Exs, Parts, KStates, Node) :-
     format(string(Head), "~w **~w**: ~w", [C, L, TT]),
     (   memberchk(SK, [fulfilled, none]),
-        ( Parts == [] ; Parts = ["Burn: proved in Lean."-_] ),
+        Parts == [],
         KStates \== [],
         forall(member(_-KS, KStates), KS == "passed"),
         ( Exs = [] ; Exs = [_] ),
@@ -7343,8 +7371,14 @@ formal_section(Eng, Cs) :-
                           rtree(item(C), Plain, Head-[Kid-[]]) )) ))
     ).
 
-% formal_items(+Eng, +C, -Heads): one line per formal statement of claim C.
-formal_items(_, _, []).
+% formal_items(+Eng, +C, -Heads): one line per formal statement of claim C: the theorem of its
+% Lean proof with the statement from the proof log (B4).
+formal_items(Eng, C, Heads) :-
+    findall(H, formal_item(Eng, C, H), Heads).
+
+formal_item(Eng, C, H) :-
+    proof_statement(Eng, C, A, Thm, St),
+    format(string(H), "~w: theorem ~w (Lean, proof ~w): ~w", [C, Thm, A, St]).
 
 % hypothesis_section(+Eng) (D31 B1): the current hypothesis of the ticket, with its premises
 % beside it, or "Premises: none" (D30 H2). A superseded hypothesis is not current.
