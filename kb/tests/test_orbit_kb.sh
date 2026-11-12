@@ -87,6 +87,7 @@
 #   OP  no quiet "Nothing is open": blocking, what blocks readiness, stale pins (D32, 0.3.0 K-C) : OP1-OP5
 #   RD  readiness and the vote: examples, preserve checks, calibration, red system runs, the gate (D33, 0.3.0 K-D) : RD1-RD6
 #   VN  the version of the tool: version, help, init, a link and a copy (D34, 0.3.0 V-A) : VN1-VN3
+#   SG  signals have records: signal/4, lean_back/2, further requests, report Signals (D35, 0.3.0 K-G) : SG1-SG4
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -2254,6 +2255,58 @@ t_VN3() { local v h; v=$(vn_want); h=$T/hub/.claude/orbit-kb
           ( unset ORBIT_KB_LIB; cd "$T" && timeout "$TMO" "$T/old/bin/orbit-kb" help ) > "$T/.out" 2>&1
           head -1 "$T/.out" | grep -q '^orbit-kb (version unknown):' || note "no VERSION file: the first help line says so: [$(head -1 "$T/.out")]"; }
 
+# SG (D35, c_k_g_1 to c_k_g_4b): signals have records. signal(Id, Kind, NoticedBy, Text), lean_back(Id, Text),
+# a decision of the human in their words is a further request; report Signals is drafted from the records.
+SG_SIG="signal(s1, divergence, system1, 'the suite showed 8 tests, not 7')"
+t_SG1() { hy_build "$T/b"
+          oadd "$SG_SIG"; rc_is 0 "signal/4 is a declared fact"; any_hasnt 'new predicate|first use' "signal is no first use"
+          has_fact "$K/kb.pl" "signal(s1, divergence, system1, 'the suite showed 8 tests, not 7')"
+          local k; for k in questions built_by_other burn handoff effort; do oadd "signal(x_$k, $k, agent, 'case')"; rc_is 0 "the kind $k"; done
+          oadd "signal(x_h, effort, human, 'case')"; rc_is 0 "noticed by the human"
+          rejects kind 'E3' add "signal(s2, bogus, agent, 'x')"
+          rejects noticer 'E3' add "signal(s3, effort, nobody, 'x')"
+          okb --dir "$K" lint; rc_is 0; out_hasnt '^W[0-9]+ .*signal' "lint has no warning on signal facts"
+          okb --dir "$K" show kinds; out_has 'signal' "show kinds describes signal"
+          okb help core; any_has 'signal\(Id, Kind, NoticedBy, Text\)' "help core lists signal/4"
+          any_hasi 'questions, divergence, built_by_other, burn, handoff,? (or )?effort' "help core names the six kinds"; }
+t_SG2() { hy_build "$T/b"
+          oadd "lean_back(l1, 'the second round of questions stopped; the KB and claim c1 stay')"; rc_is 0 "lean_back/2 is a declared fact"
+          any_hasnt 'new predicate|first use' "lean_back is no first use"
+          okb --dir "$K" report; rc_is 0
+          rp_sec Signals | grep -qF 'Leaning back (l1): the second round of questions stopped; the KB and claim c1 stay' || note "report Signals prints the lean back: [$(rp_sec Signals | tr '\n' '~')]"
+          okb help core; any_has 'lean_back\(Id, Text\)' "help core lists lean_back/2"; }
+t_SG3() { hy_build "$T/b"
+          oadd "request(r2, 'only on the settings page')" --by human; rc_is 0 "a further request in the human's words"
+          okb --dir "$K" report; rc_is 0
+          local kb; kb=$(rp_sec KB)
+          printf '%s\n' "$kb" | grep -qF -- "- Request r1, word for word: Test request" || note "KB prints the request word for word: [$(printf '%s' "$kb" | tr '\n' '~')]"
+          printf '%s\n' "$kb" | grep -qF -- "- Request r2, word for word: only on the settings page" || note "KB prints the decision of the human: [$(printf '%s' "$kb" | tr '\n' '~')]"
+          okb --dir "$K" report --html "$T/r.html"; rc_is 0
+          grep -qF 'only on the settings page' "$T/r.html" || note "the page prints the decision of the human"
+          okb help core; any_hasi 'decision.*(own )?words|words.*decision' "help core says where a decision in the human's words goes"; }
+t_SG4() { hy_build "$T/b"; okb --dir "$K" report; rc_is 0
+          local s; s=$(rp_sec Signals)
+          rl_is "Signals with no record" "  - questions: no.|  - divergence: no.|  - someone else built: no.|  - burns: no.|  - handoff: no.|  - effort: no." "$(printf '%s\n' "$s" | paste -sd'|')"
+          oadd "$SG_SIG" >/dev/null; okb --dir "$K" report; s=$(rp_sec Signals)
+          printf '%s\n' "$s" | grep -qx '  - divergence: yes.' || note "divergence: yes: [$(printf '%s' "$s" | tr '\n' '~')]"
+          printf '%s\n' "$s" | grep -qx '    - s1: the suite showed 8 tests, not 7 (noticed by System 1).' || note "what fired and who noticed it: [$(printf '%s' "$s" | tr '\n' '~')]"
+          printf '%s\n' "$s" | grep -qx '  - effort: no.' || note "effort stays no"
+          hy_build "$T/u"; oadd 'universal(c1)' >/dev/null; okb --dir "$K" report; s=$(rp_sec Signals)
+          printf '%s\n' "$s" | grep -qx '  - burns: yes.' || note "a universal claim: burns yes: [$(printf '%s' "$s" | tr '\n' '~')]"
+          printf '%s\n' "$s" | grep -qx '    - c1: the claim is universal (about every input).' || note "the universal claim is named"
+          hy_build "$T/r"; oadd 'burn_requested(c1)' >/dev/null; okb --dir "$K" report; s=$(rp_sec Signals)
+          printf '%s\n' "$s" | grep -qx '    - c1: the human asked for a proof.' || note "a requested proof is a burn: [$(printf '%s' "$s" | tr '\n' '~')]"
+          hy_build "$T/v"; okb --dir "$K" attest divergence c1 'claim(c1)' >/dev/null; okb --dir "$K" report; s=$(rp_sec Signals)
+          printf '%s\n' "$s" | grep -qx '  - divergence: yes.' || note "a divergence attestation: divergence yes: [$(printf '%s' "$s" | tr '\n' '~')]"
+          printf '%s\n' "$s" | grep -qE '^    - a[0-9]+: a divergence on claim c1 \(attested by the agent\)\.$' || note "the attestation and who attested it"
+          printf '%s\n' "$s" | grep -qx '  - burns: no.' || note "one divergence is no burn"
+          okb --dir "$K" attest divergence c1 'claim(c1)' --by human >/dev/null; okb --dir "$K" report; s=$(rp_sec Signals)
+          printf '%s\n' "$s" | grep -qx '    - c1: the claim was contested twice.' || note "contested twice is a burn: [$(printf '%s' "$s" | tr '\n' '~')]"
+          printf '%s\n' "$s" | grep -qE 'attested by the human' || note "the human's divergence names the human"
+          oadd 'visual(c1)' >/dev/null; okb --dir "$K" report; s=$(rp_sec Signals)
+          printf '%s\n' "$s" | grep -qx '  - burns: no.' || note "a visual claim does not burn when contested (D21 F6): [$(printf '%s' "$s" | tr '\n' '~')]"
+          okb --dir "$K" report --html "$T/r.html"; grep -qF 'divergence: yes.' "$T/r.html" || note "the page prints the signals"; }
+
 # ================================================================ WN: whynot, Y: why
 t_WN1() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'current(c1)'; rc_is 0; [ "$(first_line)" = holds ] || note "first line '$(first_line)'"; out_has 'because' "the clauses that prove it"; }
 t_WN2() { # D20: absent names, for each rule, the literal that blocks, and why
@@ -3747,6 +3800,10 @@ run_test t_RD6 RD6 "0.3.0 c_k_d_1b: attest and gate agree with the examples of t
 run_test t_VN1 VN1 "0.3.0 c_v_a_2: orbit-kb version prints the version of VERSION; the first help line names it"
 run_test t_VN2 VN2 "0.3.0 c_v_a_3: orbit-kb init writes the version of the tool into kb.pl"
 run_test t_VN3 VN3 "0.3.0 c_v_a_2: the version reaches a linked CLI and a hub's copy; no VERSION file: exit 2"
+run_test t_SG1 SG1 "0.3.0 c_k_g_1: signal(Id, Kind, NoticedBy, Text): the six kinds, three noticers; lint clean"
+run_test t_SG2 SG2 "0.3.0 c_k_g_2: lean_back(Id, Text); report Signals prints it"
+run_test t_SG3 SG3 "0.3.0 c_k_g_3: a decision of the human is a further request in their words; report KB prints each request"
+run_test t_SG4 SG4 "0.3.0 c_k_g_4b: report Signals comes from the records: signal facts, divergence attestations, burns"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"
