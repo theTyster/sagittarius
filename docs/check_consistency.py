@@ -83,10 +83,19 @@ def c4():
         return "the report bullet in Scope is missing"
     if "discovery" not in rep.group(0):
         return "the report bullet in Scope does not send a report to discovery"
-    panes = flat(read("prompt/PANES.md"))
-    for word in ["review", "intake", "discovery", "report"]:
-        if word not in panes:
-            return "PANES.md (the route of a report) lacks %r" % word
+    # The route of a report lives in two places of PANES.md: the intake sentence of the review bullet
+    # (a report goes to the pane of its ticket, or, with no ticket, to discovery) and the usual-path
+    # line (review's intake comes first). Each must hold its route, not only its words.
+    panes = read("prompt/PANES.md")
+    rev = re.search(r"^- \*\*review\*\*.*?(?=^- \*\*|^\S)", panes, re.S | re.M)
+    if not rev:
+        return "PANES.md has no review bullet (the route of a report)"
+    rev = flat(rev.group(0))
+    if not re.search(r"intake[^.]*ticket[^.]*report[^.]*;[^.]*no ticket[^.]*discovery", rev):
+        return ("the review bullet of PANES.md does not route a report: intake sends it to the pane of its "
+                "ticket, and a report with no ticket to discovery")
+    if not re.search(r"- the usual path: review \(intake[^)]*\), then research\b[^.]*\bverify\b", flat(panes)):
+        return "PANES.md has no usual-path line that starts with review's intake and goes on to research ... verify"
     return None
 
 
