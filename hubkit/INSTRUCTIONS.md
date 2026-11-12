@@ -136,17 +136,15 @@ and rejected rows), show your human the counts, and run `import FILE --yes` only
 
 The kit does not start sessions. Named sessions are set up outside the hub, in your human's
 dotfiles or shell: they belong to one machine. Each session needs its hub cwd and its own
-`HUB_SESSION=<name>` (a name from `flow/seed.json`). One way, in a terminal pane per role:
+`HUB_SESSION=<name>` (a name from `flow/seed.json`). One way, in a terminal pane per role, is this
+launcher line:
 
 ```
 cd "$HUB" && HUB_SESSION=<name> claude --name "hub-<name>"
 ```
 
-To resume a role's session later, resume it by the same name, with the same `HUB_SESSION`:
-
-```
-cd "$HUB" && HUB_SESSION=<name> claude --resume "hub-<name>"
-```
+To resume a role's session later, run the same line with `--resume "hub-<name>"` in place of
+`--name "hub-<name>"`: the same name, the same `HUB_SESSION`.
 
 Never resume with `claude --continue`: every role shares the hub as cwd, so `--continue` can pick
 another role's conversation. A pane without `HUB_SESSION` can read the db, but every write fails.
@@ -233,14 +231,14 @@ domain decisions, pins of the world, and drafts for the tracker.
   the same words as `CLAUDE.md` "What this hub is for". See `.claude/orbit-kb/bin/orbit-kb help project`.
 - **A pane gets the prompt.** The panes (review, discovery, build) run the Sagittarius prompt, then
   `PANES.md`, then their role file, as the Sagittarius `README.md` installs them under
-  `~/.claude/sagittarius/` (its "Panes"). Start a pane with this one launcher line in place of the
-  line of Step 5 (`<name>` is the role; the line sets `HUB_SESSION` too), and resume it with the
-  second:
+  `~/.claude/sagittarius/` (its "Panes" gives this same line). Start a pane with this one launcher
+  line in place of the line of Step 5 (`<name>` is the role; the line sets `HUB_SESSION` too):
 
   ```
   cd "$HUB" && p=~/.claude/sagittarius && HUB_SESSION=<name> command claude --name "hub-<name>" --append-system-prompt "$(cat "$p/SAGITTARIUS.md" "$p/PANES.md" "$p/panes/<name>.md")"
-  cd "$HUB" && p=~/.claude/sagittarius && HUB_SESSION=<name> command claude --resume "hub-<name>" --append-system-prompt "$(cat "$p/SAGITTARIUS.md" "$p/PANES.md" "$p/panes/<name>.md")"
   ```
+
+  To resume a pane, run the same line with `--resume "hub-<name>"` in place of `--name "hub-<name>"`.
 
   `command claude` skips a shell function `claude` that already appends the prompt (the
   Sagittarius `README.md`, "Install"), so the prompt is appended once. A session whose role has no
@@ -254,7 +252,7 @@ domain decisions, pins of the world, and drafts for the tracker.
   project KB" section by hand (copy it from `hub/CLAUDE.md`).
 - `.claude/orbit-kb/bin/orbit-kb pin-item` and `.claude/orbit-kb/bin/orbit-kb draft` record a dropped edit of the project KB in the ledger by
   themselves, in the session of `HUB_SESSION` (or `--session S`). A pane gets `HUB_SESSION` where it
-  is started (Step 5: `cd "$HUB" && HUB_SESSION=<name> claude --name "hub-<name>"`). In a pane
+  is started (Step 5, or the launcher line above: each sets it). In a pane
   without it, the ledger refuses the record: orbit-kb warns, names `project dropped --session S`, and
   exits 0, so the dropped edit is not in the ledger until someone runs that command.
 - Escalation asks the hub's own orbit-kb (or `HUBFLOW_ORBIT_KB`) whether a spec KB blocks. If the

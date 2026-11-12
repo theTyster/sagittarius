@@ -134,18 +134,15 @@ two more files from `prompt/` (installed under `~/.claude/sagittarius/`):
 | `PANES.md` | What the three roles are, and how they hand work to each other. The same for each session. |
 | `panes/<role>.md` | The role prompt: what this one session does and does not do. |
 
-Start each session in its own terminal, with its role in `ROLE`:
+Start each session in its own terminal, in the hub (`HUB`, see "The MindHole"), with this one launcher
+line. `<name>` is the role (`review`, `discovery` or `build`); the line also sets `HUB_SESSION`, the
+session's name in the hub. It is the line of "The formal edition" in `hubkit/INSTRUCTIONS.md`:
 
 ```sh
-ROLE=review
-p=~/.claude/sagittarius
-command claude --name "sagittarius-$ROLE" --append-system-prompt "$(cat "$p/SAGITTARIUS.md" "$p/PANES.md")
-
-Your window: $ROLE.
-
-$(cat "$p/panes/$ROLE.md")"
+cd "$HUB" && p=~/.claude/sagittarius && HUB_SESSION=<name> command claude --name "hub-<name>" --append-system-prompt "$(cat "$p/SAGITTARIUS.md" "$p/PANES.md" "$p/panes/<name>.md")"
 ```
 
+To resume a session, run the same line with `--resume "hub-<name>"` in place of `--name "hub-<name>"`.
 `command claude` skips the shell function of "Install", so the prompt is appended once. If your
 `claude` is only an alias, write the full path of the binary in place of `command claude` (see
 step 3 of "Install"). Any
