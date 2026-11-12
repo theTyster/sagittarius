@@ -90,6 +90,7 @@
 #   SG  signals have records: signal/4, lean_back/2, further requests, report Signals (D35, 0.3.0 K-G) : SG1-SG4
 #   HE  the help follows the prompt: the human says it is wrong, back, the hypothesis, one lens (D36, 0.3.0 K-E) : HE1-HE5
 #   SF  orbit-kb shift and help shift: the step from words to records (D37, 0.3.0 K-H) : SF1-SF3
+#   WJ  one meaning for each word: RESTATE, Lean definitions, withdraw (D39, 0.3.0 K-J) : WJ1-WJ3
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -2396,6 +2397,34 @@ t_SF3() { okb help shift; rc_is 0 "help shift"
           okb shift --help; rc_is 0; out_has 'orbit-kb shift'
           okb help; out_has 'help shift' "the first help screen names the topic"; out_has '^ +shift DIR' "the command list names shift"; }
 
+# WJ (D39, c_k_j_1 to c_k_j_3): one meaning for each word of the tool. "signal" is one of the six
+# signals (the move is RESTATE); "Lean definitions", not "Lean model" (the names burn_model and
+# BurnModel stay); the fix for E19 is orbit-kb withdraw NAME/ARITY, not an edit of kb.pl.
+t_WJ1() { okb help; any_hasnt '\bSIGNAL\b' "the first help screen names no move SIGNAL"; out_has 'research +RESTATE,' "the move is RESTATE"
+          okb help discovery; any_hasnt '\bSIGNAL\b' "help discovery names no move SIGNAL"; any_hasnti '^ *signal *:' "no heading Signal:"
+          out_has '^RESTATE: pin the report' "help discovery has the RESTATE recipe"; out_has 'RESTATE if the hypothesis is wrong' "BACK names RESTATE"; }
+t_WJ2() { local t; for t in build core discovery project codes shift; do okb help "$t"; any_hasnt 'Lean model' "help $t says Lean definitions"; done
+          grep -q 'Lean model' "$LIB/README.md" && note "kb/share/orbit-kb/README.md says Lean model"
+          kb_init "$T/b" build; K=$T/b; okb --dir "$K" show kinds; any_hasnt 'Lean model' "show kinds (build)"; any_has 'Lean definitions' "conformance names the Lean definitions"
+          kb_init "$T/d" discovery,build,project; K=$T/d; okb --dir "$K" show kinds; any_hasnt 'Lean model' "show kinds (all modules)"
+          [ -d "$here/burn_model" ] || note "kb/tests/burn_model keeps its name"; }
+t_WJ3() { K=$T/k; kb_init "$K" build; oadd "claim(c1, introduce, 'x')" "cites(c1, 'Test request')" >/dev/null
+          oadd "cited(c1, 'x')" "cited(c1, 'y')" >/dev/null
+          okb --dir "$K" lint; out_has '^E19 .*cited/2.*cites/2' "setup: E19"
+          okb --dir "$K" withdraw cited/2; rc_is 0 "withdraw removes the kind that a typo declared"
+          okb --dir "$K" lint; rc_is 0 "lint is clean after the withdrawal"; out_hasnt '^E19'
+          no_fact "$K/kb.pl" "cited(_, _)" "the facts of the kind are gone"; no_fact "$K/kb.pl" "decl(_, cited(_, _), _, _)" "its decl"
+          no_fact "$K/kb.pl" "first_use(cited/2, _, _)" "its first_use"
+          has_goal "$K/kb.pl" "kb(withdrawn(cited/2, agent, T, 2)), atom_length(T, 20)" "a record: the kind, who, when, and how many facts"
+          grep -qF "% withdrawn: cited(c1, x)." "$K/kb.pl" || note "the withdrawn facts stay as comments"
+          has_fact "$K/kb.pl" "cites(c1, 'Test request')" "the other facts stay"
+          cp "$K/kb.pl" "$T/.kb"; okb --dir "$K" withdraw cites/2; rc_is 1 "a kind of the library is not withdrawn"; same_file "$K/kb.pl" "$T/.kb"
+          okb --dir "$K" withdraw nosuch/3; rc_is 1 "a kind that kb.pl does not declare"
+          okb --dir "$K" withdraw cited; rc_is 2 "NAME/ARITY"
+          okb help codes; printf '%s' "$out" | tr '\n' ' ' | grep -qF 'correct the facts in kb.pl' && note "help codes tells the agent to edit kb.pl for E19"
+          out_has 'orbit-kb withdraw' "help codes names withdraw for E19"
+          okb help withdraw; rc_is 0; out_has 'withdraw NAME/ARITY'; }
+
 # ================================================================ WN: whynot, Y: why
 t_WN1() { kb_wn "$T/k"; K=$T/k; okb --dir "$K" whynot 'current(c1)'; rc_is 0; [ "$(first_line)" = holds ] || note "first line '$(first_line)'"; out_has 'because' "the clauses that prove it"; }
 t_WN2() { # D20: absent names, for each rule, the literal that blocks, and why
@@ -3681,7 +3710,7 @@ t_PN2() { mkclaim; okb --dir "$K" pin --check 'spec-kb@sha256:abc'; rc_is 2 "a m
 # PH: help names the phases and maps each move to its phase (c9).
 t_PH1() { okb help; rc_is 0
           out_has 'discovery: research, specify' "the discovery orbit"; out_has 'build: build, verify' "the build orbit"
-          out_has 'research +SIGNAL, SURVEY, FLYBY, TRAJECTORY, DISPROVE' "research moves"
+          out_has 'research +RESTATE, SURVEY, FLYBY, TRAJECTORY, DISPROVE' "research moves (0.3.0 D39: RESTATE, not SIGNAL)"
           out_has 'specify +SPECTRUM, DECOMPOSE, the vote' "specify moves"
           out_has '^ +build +BUILD$' "build moves"; out_has 'verify +FULFILL, DISPROVE, BURN' "verify moves"; }
 
@@ -3901,6 +3930,9 @@ run_test t_HE5 HE5 "0.3.0 c_k_e_5: the first help screen and help core put the h
 run_test t_SF1 SF1 "0.3.0 c_k_h_1: orbit-kb shift writes the light path as a KB that lint accepts"
 run_test t_SF2 SF2 "0.3.0 c_k_h_1: orbit-kb shift refuses a usage error or a bad fact and leaves no KB"
 run_test t_SF3 SF3 "0.3.0 c_k_h_3: orbit-kb help shift is one screen; the first help screen names it"
+run_test t_WJ1 WJ1 "0.3.0 c_k_j_1: no move is named SIGNAL; the move is RESTATE"
+run_test t_WJ2 WJ2 "0.3.0 c_k_j_2: the text of the tool says Lean definitions, not Lean model"
+run_test t_WJ3 WJ3 "0.3.0 c_k_j_3: orbit-kb withdraw NAME/ARITY removes a kind that a typo declared, with a record"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"
