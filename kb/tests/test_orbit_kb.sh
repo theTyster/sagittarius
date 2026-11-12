@@ -82,6 +82,7 @@
 #   PH  help names the phases                              (CLI: help; D22)                 : PH1
 #   AC  acceptance criteria: ac/1, show and draft blocking (D29)                             : AC1-AC5
 #   VR  verification records: actor, review_saw, verdicts, independently_verified, WR1 (D28) : VR1-VR12 (VR7-VR11: T38; VR12: T40)
+#   HY  the hypothesis and its premises in every KB; the open discovery orbit (D30, 0.3.0 K-A) : HY1-HY8
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
 # e4_dangling, e5_duplicate, e6_nonground, e7_wrong_place, e8_writer, e9_no_log,
@@ -1482,6 +1483,110 @@ t_NC4() { K=$T/k; kb_init "$K" build; printf 'any_current_claim.\n' > "$K/rules.
 t_NC5() { K=$T/k; kb_init "$K" discovery
           is_false 'discovery_ready' "no hypothesis and no claim: not ready"; is_false 'discovery_decide'
           is_set 'artifact_vote(V)' 'V = hold' "an empty discovery KB votes hold"; }
+
+# ---- 0.3.0 K-A: the hypothesis and its premises in every KB (CONTRACT D30). hypothesis/3 is a core fact
+# with a fourth kind, change; premise/3, premise_checked/2, no_premises/1 and the query premise_unchecked/1;
+# lint W10; Guesses lists unchecked premises and the defaults of the hypothesis; the discovery orbit is open
+# until the human approves the ticket after a GO (discovery_end/1), and again after a back attestation.
+DARK='With dark mode on, every screen shows a dark scheme.'
+hy_build() {  # hy_build DIR: a build KB with one claim, its example and its check
+    kb_init "$1" build; K=$1
+    oadd "claim(c1, introduce, '$DARK')" "cites(c1, 'Test request')" "example(c1, 'the reports page is dark')" "check(k1, c1)" >/dev/null || note "setup: the claim: $(snip "$out$err")"
+}
+hy_disc() {  # hy_disc DIR: a discovery KB that is ready: a hypothesis, one claim with an example, a red system check, a reproduction
+    kb_init "$1" discovery; K=$1
+    oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "budget(laps, 3)" \
+         "claim(c1, introduce, 'Every purchase gets the points that its amount and tier give.')" "cites(c1, 'Test request')" \
+         "check(t1, c1)" "discovery_evidence(t1, system)" "example(c1, 'gold, 40, gives 80')" >/dev/null || note "setup: the discovery facts: $(snip "$out$err")"
+    okb --dir "$K" run t1 -- false >/dev/null
+    okb --dir "$K" attest reproduction t1 'result(h1, reproduced)' >/dev/null || note "setup: the reproduction: $(snip "$out$err")"
+}
+hy_go() {  # hy_go DIR: hy_disc, both vote go, and the human approves the ticket
+    hy_disc "$1"
+    okb --dir "$K" attest vote r1 'vote(1, go)'; rc_is 0 "setup: the agent votes go"
+    okb --dir "$K" attest vote r1 'vote(1, go)' --by human; rc_is 0 "setup: the human votes go"
+    printf '# ticket\n' > "$K/ticket.md"
+    okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null
+    okb --dir "$K" attest approval tk 'digest(current)' --by human; rc_is 0 "setup: the human approves the ticket"
+}
+t_HY1() { hy_build "$T/b"
+          oadd "hypothesis(h1, feature, '$DARK')"; rc_is 0 "a build KB takes the hypothesis of its ticket"
+          okb --dir "$K" lint; out_hasnt '^WD7' "no discovery finding in a build KB"
+          okb --dir "$K" report; rc_is 0; out_hasnt '^# Vote:' "no Vote section in a build KB"; out_hasnt 'not ready' "no readiness in a build KB"
+          oadd "hypothesis(h2, change, 'The README names the two interfaces.')"; rc_is 0 "the kind change, for a direct build of a document or a configuration"
+          rejects "a kind outside defect, feature, risk, change" 'E3' add "hypothesis(h3, wish, 'Other words.')"
+          kb_new "$T/c" <<'EOF2'
+uses([]).
+request(r1, 'Fix the thing').
+EOF2
+          K=$T/c; oadd "hypothesis(h1, defect, 'The thing is broken.')"; rc_is 0 "a KB with no module takes a hypothesis"
+          okb --dir "$K" lint; out_hasnt '^E' "core only: no lint error"; }
+t_HY2() { hy_disc "$T/d"
+          okb --dir "$K" lint; out_hasnt '^WD7' "setup: h1 has its system result"; is_true 'discovery_ready' "setup: ready"
+          oadd "hypothesis(h2, risk, 'A refund takes the points back.')"; rc_is 0
+          okb --dir "$K" lint; out_has '^WD7 h2' "the discovery rules hold in a KB that uses discovery: WD7"
+          is_false 'discovery_ready' "a hypothesis with no system result blocks readiness"
+          okb --dir "$K" attest reproduction t1 'result(h2, reproduced)'; rc_is 0
+          okb --dir "$K" lint; out_hasnt '^WD7'; is_true 'discovery_ready'; }
+t_HY3() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" >/dev/null
+          okb --dir "$K" lint; out_has '^W10 h1' "lint names a hypothesis with no premise and no no_premises"
+          oadd "premise(p1, h1, 'The app has one color scheme today.')"; rc_is 0; any_hasnt 'new predicate|first use' "premise/3 is declared"
+          okb --dir "$K" lint; out_hasnt '^W10' "a premise answers W10"
+          is_true 'premise_unchecked(p1)' "a new premise is not checked"
+          oadd "premise_checked(p1, 'src/theme.css:1')"; rc_is 0; any_hasnt 'new predicate|first use' "premise_checked/2 is declared"
+          is_false 'premise_unchecked(p1)' "a checked premise"
+          rejects "a premise of an id that is no hypothesis" 'E4' add "premise(p2, c1, 'Other words.')"
+          hy_build "$T/b2"; oadd "hypothesis(h1, feature, '$DARK')" >/dev/null
+          oadd "no_premises(h1)"; rc_is 0; any_hasnt 'new predicate|first use' "no_premises/1 is declared"
+          okb --dir "$K" lint; out_hasnt '^W10' "the record Premises: none answers W10"
+          okb help codes; any_has '^ *W10 ' "help codes lists W10"; }
+t_HY4() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" "premise(p1, h1, 'Only the settings page has a theme.')" >/dev/null
+          is_true 'premise_unchecked(p1)' "setup"
+          oadd "hypothesis(h2, feature, 'With dark mode on, the settings page shows a dark scheme.')" "supersedes(h2, h1)" "no_premises(h2)"; rc_is 0
+          is_false 'premise_unchecked(p1)' "a premise of a superseded hypothesis is not asked for"
+          okb --dir "$K" lint; out_hasnt '^W10' "W10 names no superseded hypothesis"
+          okb --dir "$K" report; rc_is 0
+          printf '%s\n' "$(rp_sec Guesses)" | grep -q 'settings page has a theme' && note "Guesses lists a premise of a superseded hypothesis"; true; }
+t_HY5() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" \
+              "premise(p1, h1, 'The app has one color scheme today.')" "premise(p2, h1, 'The app has twelve screens.')" \
+              "premise_checked(p2, 'src/routes.ts:4')" >/dev/null
+          oadd "question(q1, h1, 'Every screen, or only the settings page?')" "assumed(q1, 'all twelve screens')"; rc_is 0 "a question on the hypothesis marks its default"
+          okb --dir "$K" report; rc_is 0
+          local g; g=$(rp_sec Guesses)
+          printf '%s\n' "$g" | grep -q 'p1.*The app has one color scheme today' || note "Guesses lists the unchecked premise p1: [$g]"
+          printf '%s\n' "$g" | grep -q 'all twelve screens' || note "Guesses lists the default of the hypothesis: [$g]"
+          printf '%s\n' "$g" | grep -q 'The app has twelve screens' && note "Guesses lists a checked premise: [$g]"
+          printf '%s\n' "$g" | grep -q 'None' && note "Guesses says None: [$g]"
+          oadd "premise_checked(p1, 'src/theme.css:1')" "answer(q1, 'all twelve screens', human)" >/dev/null
+          okb --dir "$K" report; rl_is "Guesses when each premise is checked and each default answered" "  - None. Each premise is checked, and a human answered every question with a default." "$(rp_sec Guesses)"; }
+t_HY6() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" >/dev/null
+          oadd "hypothesis(h2, feature, 'With dark mode on, the settings page shows a dark scheme.')" "supersedes(h2, h1)"; rc_is 0 "a build KB restates its hypothesis"
+          okb --dir "$K" lint; out_hasnt '^WD7' "no WD7 in a build KB"
+          hy_go "$T/d"
+          is_true 'discovery_end(A)' "the approval of the ticket after a GO ends the discovery orbit"
+          is_true 'discovery_closed'; is_false 'discovery_open'
+          okb --dir "$K" uses build >/dev/null
+          oadd "hypothesis(h2, defect, 'The amount and the tier decide the points, for members only.')" "supersedes(h2, h1)"; rc_is 0
+          okb --dir "$K" lint; out_hasnt '^WD7' "after the GO, a restated hypothesis needs no system result"
+          is_true 'discovery_ready' "the restatement does not change readiness"; is_true 'gate(go)' "nor the outcome of the vote"
+          okb --dir "$K" show open; out_hasnt 'not ready'
+          okb --dir "$K" report; printf '%s\n' "$(rp_sec Open)" | grep -q 'not ready' && note "the report shows the closed orbit as not ready"; true; }
+t_HY7() { hy_go "$T/d"; okb --dir "$K" uses build >/dev/null
+          okb --dir "$K" attest back h1 "back('The human cannot say what the hypothesis changes to.')"; rc_is 0 "a return to discovery is a record"
+          is_true 'discovery_open' "after the back attestation the discovery orbit is open again"
+          is_false 'discovery_closed'
+          oadd "hypothesis(h3, defect, 'Refunds take the points back.')" "supersedes(h3, h1)"; rc_is 0
+          okb --dir "$K" lint; out_has '^WD7 h3' "after a return to discovery, a new hypothesis needs its system result"
+          is_false 'discovery_ready' "and readiness is asked again"
+          okb --dir "$K" attest reproduction t1 'result(h3, reproduced)'; rc_is 0
+          is_true 'discovery_ready' "its system result makes discovery ready again"; }
+t_HY8() { hy_disc "$T/d"
+          okb --dir "$K" attest vote r1 'vote(1, hold)'; okb --dir "$K" attest vote r1 'vote(1, go)' --by human
+          printf '# ticket\n' > "$K/ticket.md"; okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null
+          okb --dir "$K" attest approval tk 'digest(current)' --by human; rc_is 0 "the human's approval is never refused"
+          any_hasi 'discovery orbit.*open|open.*discovery orbit' "a NOTE says that the orbit stays open: gate(go) does not hold"
+          is_false 'discovery_end(A)' "no GO, so the approval does not end the orbit"; is_true 'discovery_open'
+          rejects "only orbit-kb attest writes discovery_end" 'discovery_end' add "discovery_end(a1)"; }
 
 # ---- D10: orbit-kb prove with real Lean. The Lake project is built once (prototype lake).
 # Each test copies it, so lake build has little to do. Skip when lake is missing.
@@ -3031,6 +3136,14 @@ run_test t_NC2 NC2 "D17: report and show open on a KB with no claim"
 run_test t_NC3 NC3 "D17: Guesses says no question has a default, unless a human answered one"
 run_test t_NC4 NC4 "D17: a rules.pl clause for any_current_claim is E16"
 run_test t_NC5 NC5 "D17: an empty discovery KB is not ready and votes hold"
+run_test t_HY1 HY1 "0.3.0 c_k_a_1: a build KB and a core KB take the hypothesis of the ticket; the kind change"
+run_test t_HY2 HY2 "0.3.0 c_k_a_1: WD7 and readiness still hold in a KB that uses discovery"
+run_test t_HY3 HY3 "0.3.0 c_k_a_2: premise, premise_checked, no_premises, premise_unchecked; lint W10"
+run_test t_HY4 HY4 "0.3.0 c_k_a_2: a premise of a superseded hypothesis is not asked for"
+run_test t_HY5 HY5 "0.3.0 c_k_a_4: Guesses lists unchecked premises and the defaults of the hypothesis"
+run_test t_HY6 HY6 "0.3.0 c_k_a_3b: a restated hypothesis in build needs no system result, also after an approved GO"
+run_test t_HY7 HY7 "0.3.0 q_k_a_3b: after a recorded return to discovery, a new hypothesis needs its system result"
+run_test t_HY8 HY8 "0.3.0 c_k_a_3b: an approval with no GO does not end the orbit; add refuses discovery_end"
 run_test t_PV1 PV1 "D10: prove records a real proof; an edit of an imported file reopens it"
 run_test t_PV2 PV2 "D10: prove rejects sorry"
 run_test t_PV3 PV3 "D10: prove rejects native_decide"
