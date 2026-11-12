@@ -1,6 +1,12 @@
 # Delivered:
   - (Write what you delivered here.)
 
+# KB:
+  - KBDIR
+
+# Signals:
+  - (Compare the work with each signal: questions, divergence, someone else built, burns, handoff, effort. Write no, or yes and what fired it.)
+
 # Hypothesis:
   - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).
 
@@ -14,6 +20,9 @@
     - Burn: proved in Lean.
     - Checks: k2 (passed).
   - c4 **preserve**: The new save button is shown. Status: fulfilled. Checks: k3 (passed).
+
+# Formal:
+  - None. No claim has a formal statement.
 
 # Guesses:
   - q2: Does saving need a progress bar

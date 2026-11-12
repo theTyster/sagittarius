@@ -2069,13 +2069,13 @@ rl_is() {  # rl_is LABEL WANT GOT: exact text
 t_RL1() { # headings: "# Name:" in contract order, one blank line before each but the first, no trailing blank line
     rh_kb report_review; okb --dir "$K" report; rc_is 0
     local heads; heads=$(printf '%s\n' "$out" | grep -E '^# ' | paste -sd'|')
-    rl_is "headings" "# Delivered:|# Hypothesis:|# Claims:|# Guesses:|# Disclosures:|# Waivers:|# Not checked:|# Open:|# To land:" "$heads"
+    rl_is "headings" "# Delivered:|# KB:|# Signals:|# Hypothesis:|# Claims:|# Formal:|# Guesses:|# Disclosures:|# Waivers:|# Not checked:|# Open:|# To land:" "$heads"
     printf '%s\n' "$out" | grep -qE '^[A-Z][A-Za-z ]*:$' && note "a heading without the # mark"
     local n; n=$(printf '%s\n' "$out" | awk '/^# / && NR > 1 && prev != "" {bad++} {prev = $0} END {print bad + 0}')
     rl_is "a blank line before every heading but the first" 0 "$n"
     [ "$(printf '%s\n' "$out" | sed -n 1p)" = "# Delivered:" ] || note "the first line is the Delivered heading"
     [ -n "$(printf '%s\n' "$out" | tail -n 1)" ] || note "the last line is blank"
-    [ "$(printf '%s\n' "$out" | grep -c '^$')" = 8 ] || note "want exactly 8 blank lines (one between sections), got $(printf '%s\n' "$out" | grep -c '^$')"
+    [ "$(printf '%s\n' "$out" | grep -c '^$')" = 11 ] || note "want exactly 11 blank lines (one between sections), got $(printf '%s\n' "$out" | grep -c '^$')"
     rh_kb discovery; okb --dir "$K" report; rc_is 0; out_has '^# Vote:' "the Vote heading"; }
 t_RL2() { # every other line is a bullet at two spaces plus two per level; no tabs, no colour codes, no box drawing
     local k bl
@@ -2207,10 +2207,11 @@ rh_hasnt() {
 t_RH1() { # c2 (D16 C4): plain report text is byte-identical to the golden files (made again from the CLI after C4, read by eye); --html prints the same text
     local k
     for k in valid report_review overunder nobuild discovery; do
-        rh_kb "$k"; okb --dir "$K" report; rc_is 0 "report $k"
-        cmp -s "$T/.out" "$GOLD/$k.txt" || note "report $k: the text differs from $GOLD/$k.txt: $(diff "$GOLD/$k.txt" "$T/.out" | head -n 6 | tr '\n' '~')"
-        okb --dir "$K" report --html "$T/$k.html"; rc_is 0 "report --html $k"
-        cmp -s "$T/.out" "$GOLD/$k.txt" || note "report --html $k: stdout differs from $GOLD/$k.txt"
+        # D31 B3: the KB field names the KB directory; the golden files have KBDIR in its place
+        rh_kb "$k"; okb --dir "$K" report; rc_is 0 "report $k"; printf '%s\n' "$out" | sed "s#$K#KBDIR#g" > "$T/.outn"
+        cmp -s "$T/.outn" "$GOLD/$k.txt" || note "report $k: the text differs from $GOLD/$k.txt: $(diff "$GOLD/$k.txt" "$T/.outn" | head -n 6 | tr '\n' '~')"
+        okb --dir "$K" report --html "$T/$k.html"; rc_is 0 "report --html $k"; printf '%s\n' "$out" | sed "s#$K#KBDIR#g" > "$T/.outn"
+        cmp -s "$T/.outn" "$GOLD/$k.txt" || note "report --html $k: stdout differs from $GOLD/$k.txt"
         [ -s "$T/$k.html" ] || note "report --html $k wrote no file"
     done; }
 t_RH2() { # c1: one self-contained page with each claim, its status as a label, and its checks

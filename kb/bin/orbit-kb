@@ -7136,6 +7136,12 @@ report_text(KB, Eng) :-
     Build = has_build(KB),
     rhead('Delivered'),
     rsay(placeholder, "(Write what you delivered here.)", []),
+    % D31 B3: the fields of the delivery block of the prompt, in its order.
+    rhead('KB'),
+    kb_dir(KB, KDir0),
+    rsay(kb_dir, "~w", [KDir0]),
+    rhead('Signals'),
+    rsay(placeholder, "(Compare the work with each signal: questions, divergence, someone else built, burns, handoff, effort. Write no, or yes and what fired it.)", []),
     hypothesis_section(Eng),
     rhead('Claims'),
     eng_all(Eng, [C, L, T], ( claim(C, L, T), current(C) ), Cs),
@@ -7181,6 +7187,7 @@ report_text(KB, Eng) :-
     ->  review_section(Eng, Cs)
     ;   true
     ),
+    formal_section(Eng, Cs),
     rhead('Guesses'),
     eng_all(Eng, [Q, A], ( assumed(Q, A), not(answered(Q)) ), Gs),
     % D30 H3: each premise that nobody checked is a guess about the system.
@@ -7320,6 +7327,24 @@ report_text(KB, Eng) :-
     ( has_discovery(KB) -> vote_section(Eng) ; true ),
     rhead('To land'),
     rsay(placeholder, "(Write the steps to land the work here.)", []).
+
+% formal_section(+Eng, +Cs) (D31 B3): the formal statement of each current claim that has one,
+% beside its plain sentence; or "None." B4 and B5 add the statements.
+formal_section(Eng, Cs) :-
+    rhead('Formal'),
+    findall(C-Items, ( member([C, _, _], Cs), formal_items(Eng, C, Items), Items \== [] ), CIs),
+    (   CIs == []
+    ->  rsay(none, "None. No claim has a formal statement.", [])
+    ;   forall(member(C-Items, CIs),
+               ( memberchk([C, _, T], Cs), txt(T, TT), as_sentence(TT, TS),
+                 forall(member(Head, Items),
+                        ( format(string(Kid), "Claim ~w: ~w", [C, TS]),
+                          format(string(Plain), "~w ~w", [Head, Kid]),
+                          rtree(item(C), Plain, Head-[Kid-[]]) )) ))
+    ).
+
+% formal_items(+Eng, +C, -Heads): one line per formal statement of claim C.
+formal_items(_, _, []).
 
 % hypothesis_section(+Eng) (D31 B1): the current hypothesis of the ticket, with its premises
 % beside it, or "Premises: none" (D30 H2). A superseded hypothesis is not current.
@@ -7596,7 +7621,9 @@ page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js) :-
         format("</ul>~n", [])
     ),
     format("</section>~n", []),
-    % D31 B1: the hypothesis of the ticket, before the claims
+    % D31 B3: the fields of the delivery block before the claims; B1: the hypothesis
+    page_list(Recs, 'KB', kb, "KB", ""),
+    page_list(Recs, 'Signals', signals, "Signals", ""),
     page_list(Recs, 'Hypothesis', hypothesis, "Hypothesis", "What must be true when the ticket is done, with its premises. Say if it is wrong."),
     % claims
     format("<section data-section=\"claims\" id=\"claims\" aria-labelledby=\"h-claims\">~n<h2 id=\"h-claims\">Claims</h2>~n", []),
@@ -7605,6 +7632,7 @@ page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js) :-
            page_claim(KB, Eng, C, L, TT, SK, St0, BT, KStates)),
     format("</section>~n", []),
     % the other sections, from the text lines
+    page_list(Recs, 'Formal', formal, "Formal", "The formal statement of each claim that has one, beside its plain sentence."),
     page_list(Recs, 'Guesses', guesses, "Guesses", "Defaults that no human answered, and premises that nobody checked. Say if one is wrong."),
     page_list(Recs, 'Disclosures', disclosures, "Disclosures", ""),
     (   has_build(KB) -> page_list(Recs, 'Waivers', waivers, "Waivers", "") ; true ),
@@ -8289,11 +8317,16 @@ help_lines('pin-item', [
 help_lines(report, [
 "orbit-kb report [--html FILE [--open]]",
 "",
-"Print a delivery report skeleton with these sections:",
-"Delivered, Claims, Guesses, Disclosures, Waivers (build), Not checked, Open, To land.",
+"Print a delivery report skeleton with these sections, in the order of the delivery block:",
+"Delivered, KB (the KB directory), Signals, Hypothesis (with its premises), Claims (each with its",
+"examples), Formal (a theorem and its statement, or a model and its property; or None), Guesses",
+"(defaults and unchecked premises), Disclosures, Waivers (build), Not checked, Open, To land.",
+"With the discovery module it drafts the discovery report too: System (what the system showed) and",
+"Findings (each marked as from the system or from a model only) before Claims; Scope, Risk and",
+"Not explored after Formal (also without the module, when the KB has such facts).",
 "With the discovery module, a Vote section comes before To land. It shows the agent's vote",
 "and the formal artifacts' vote only after the human votes in the current round.",
-"Fill in Delivered and To land yourself.",
+"Fill in Delivered, Signals and To land yourself.",
 "",
 "The text is plain Markdown. Each section has a heading (# Claims:) and a blank line after it.",
 "Each item is a bullet, with two more spaces for each level. The label is in **bold**.",

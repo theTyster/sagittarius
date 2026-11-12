@@ -1,6 +1,12 @@
 # Delivered:
   - (Write what you delivered here.)
 
+# KB:
+  - KBDIR
+
+# Signals:
+  - (Compare the work with each signal: questions, divergence, someone else built, burns, handoff, effort. Write no, or yes and what fired it.)
+
 # Hypothesis:
   - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).
 
@@ -10,6 +16,9 @@
       - It is not fulfilled yet.
     - Checks: none.
   - c2 **preserve**: Claim two. Status: fulfilled. Checks: k2 (passed).
+
+# Formal:
+  - None. No claim has a formal statement.
 
 # Guesses:
   - None. No question has a default.
