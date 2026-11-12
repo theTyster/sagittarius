@@ -34,6 +34,7 @@
     - It has no check.
 
 # Open:
+  - **under**: Claim c1 is current but not fulfilled: Claim one
   - **over**: Change x2 serves no claim
 
 # To land:

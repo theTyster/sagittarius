@@ -1057,7 +1057,9 @@ t_VT3() { da_copy; is_set 'artifact_vote(V)' 'V = go' "ready with a current clai
           printf "claim(c0, introduce, 'In a cycle.').\ncites(c0, 'charged twice').\nsupersedes(c0, c0).\n" >> "$K/kb.pl"
           is_false 'current(c0)' "setup: a claim that is not current"; is_set 'artifact_vote(V)' 'V = no_go' "a claim that is not current does not make it go"
           printf "claim(c1, introduce, 'No double charge.').\ncites(c1, 'charged twice').\ncheck(t1, c1).\n" >> "$K/kb.pl"
-          is_set 'artifact_vote(V)' 'V = go' "a current claim with a falsifier makes it go"
+          is_set 'artifact_vote(V)' 'V = hold' "D33 R1: a current claim with no example blocks readiness"
+          printf "example(c1, 'order 7 is charged once').\n" >> "$K/kb.pl"
+          is_set 'artifact_vote(V)' 'V = go' "a current claim with an example and a falsifier makes it go"
           printf "lap_done(3).\nhypothesis(h2, risk, 'Untouched.').\n" >> "$K/kb.pl"
           is_true 'discovery_decide' "setup: budget spent"; is_false 'discovery_ready'; is_set 'artifact_vote(V)' 'V = hold' "budget spent is not ready"
           kb_noshow "$T/n2"; K=$T/n2; printf "hypothesis(h2, risk, 'Untouched.').\n" >> "$K/kb.pl"
@@ -2325,7 +2327,9 @@ EOF
     local o; o=$(rp_sec Open)
     printf '%s\n' "$o" | grep -q 'Nothing is open' && note "Open says nothing is open while q1 waits: [$o]"
     printf '%s\n' "$o" | grep -q 'q1' || note "Open names the waiting question q1: [$o]"
-    printf '%s\n' "$o" | grep -q 'discovery_ready' || note "Open says discovery is not ready: [$o]"; true; }
+    # D32 O2: one "not ready" item for each thing that blocks readiness
+    printf '%s\n' "$o" | grep -q 'Discovery is not ready, untouched h1' || note "Open says discovery is not ready, and names h1: [$o]"
+    printf '%s\n' "$o" | grep -q 'Discovery is not ready, no_falsifier c1' || note "Open names the claim with no falsifier: [$o]"; true; }
 rp_sec() {  # rp_sec NAME: the lines of one section of $out, without its heading
     printf '%s\n' "$out" | awk -v h="# $1:" '$0==h {f=1; next} /^# / {f=0} f'; }
 rp_item() {  # rp_item ID: the first bullet of $out that starts with ID, and the lines nested under it
@@ -2415,7 +2419,11 @@ t_RL5() { # the other sections: bullets, the label in bold, detail nested
     - The item blocks done again." "$(rp_item w3)"
     rl_is "c6 (not checked)" "  - c6: The save button has a tooltip
     - It has no check." "$(rp_sec 'Not checked')"
+    # D32 O1: the Open part names each answer of blocking(X): the under claims and the failing check too
     rl_is "Open: the kind in bold, the first sentence, then the rest nested" "  - **ask**: Ask question q1 now
+  - **under**: Claim c2 is current but not fulfilled: Loading stays fast
+  - **under**: Claim c6 is current but not fulfilled: The save button has a tooltip
+  - **check failing**: Check k2 did not pass its last run: a check of claim c2: Loading stays fast
   - **over**: Change x2 serves no claim
   - **burn open**: Claim c5 needs a Lean proof
     - Prove it with orbit-kb prove, or ask a human for a waiver.

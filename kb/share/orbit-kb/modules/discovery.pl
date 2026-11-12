@@ -10,6 +10,14 @@
 % - A model verdict is a `model_result` attestation. Its subject is the log of a solver
 %   run, and model_run(Log, Model, Digest) records which model file, at which digest, made
 %   that log. A verdict counts only while the model still has that digest.
+% - D33 R3: a red run of a check tagged discovery_evidence(K, system) of an introduce or a
+%   retire claim is the system result of each hypothesis that no hypothesis supersedes and
+%   that was recorded before the run. A
+%   red run of the check of a preserve claim is not: it says that what must stay true is
+%   false now, and that blocks readiness (D33 R2).
+% - D33 R4: a model is calibrated only by two matching cases on a current run: a real case
+%   where the system fails (fails(Text)) and a real case where it passes (passes(Text)). A
+%   model derived from a calibrated model needs its own two cases.
 % - A solver counterexample to a claim is a core `disproof`, with a note and an example.
 % - An unsat core is one conflict finding/3 and one question. After the human answers,
 %   a core divergence goes on each claim that the answer supersedes, and only on those.
@@ -79,10 +87,10 @@ attest_type(model_result,
                  alt([sanity, bad_case, together, root_cause(atom), normal_case(atom),
                       preserve(ref(claim)), applies(ref(claim)), explore(term)]),
                  oneof([sat, unsat, unknown, reached, violated, holds])),
-         calibration(ref(model), alt([example(ref(claim)), case(text)]), oneof([matches, differs])),
+         calibration(ref(model), alt([fails(text), passes(text), example(ref(claim)), case(text)]), oneof([matches, differs])),
          mutation(ref(model), atom, oneof([killed, survived]))]),
     [agent, human],
-    'The result of one check on a model, read from the log of the solver run.').
+    'The result of one check on a model, read from the log of the solver run. A calibration names a real case where the system fails (fails), or one where it passes (passes); example and case are the older forms, and they calibrate nothing (D33).').
 % GO is not a decision: it is a core approval of the ticket subject.
 attest_type(decision,
     alt([no_go(ref(hypothesis), text), hold(ref(hypothesis), text)]),
@@ -108,7 +116,15 @@ decl(rule, discovery_open, 'The discovery orbit is open: from the start of the K
 decl(rule, discovery_disproof_filed(ref(claim)), 'A disproof attestation refutes the claim.', 'a disproof of claim @(1) is filed').
 decl(rule, discovery_model_artifact(ref), 'The id is a model file, a solver log, or is tagged as model evidence.', '@(1) is a model artifact').
 decl(rule, discovery_system_evidence(ref), 'The id is tagged as system evidence and is not a model artifact.', '@(1) is evidence from the current system').
-decl(rule, discovery_hypothesis_touched(ref(hypothesis)), 'A reproduction on system evidence gives a result for the hypothesis.', 'the current system was checked for hypothesis @(1)').
+decl(rule, discovery_hypothesis_touched(ref(hypothesis)), 'A reproduction on system evidence gives a result for the hypothesis, or a check tagged as system evidence of an introduce or a retire claim failed in a run after the hypothesis was recorded (D33 R3).', 'the current system was checked for hypothesis @(1)').
+decl(rule, discovery_changing_claim(ref(claim)), 'The claim is an introduce claim or a retire claim: its check fails on the current system before the build.', 'claim @(1) introduces or retires something').
+decl(rule, discovery_run_after(ref(attest), ref(hypothesis)), 'The test_result comes after the hypothesis in kb.pl: the run was made while the hypothesis existed. orbit-kb computes it when it reads the KB (D33 R3).', 'run @(1) came after hypothesis @(2)').
+decl(rule, discovery_has_example(ref(claim)), 'The claim has an example.', 'claim @(1) has an example').
+decl(rule, discovery_no_example(ref(claim)), 'A current claim with no example (D33 R1, lint WD10).', 'claim @(1) has no example').
+decl(rule, discovery_preserve_failing(ref(check)), 'The check of a current preserve claim ran, and its last run failed: what must stay true is false now (D33 R2).', 'check @(1) of a preserve claim fails now').
+decl(rule, ready_blocker(term), 'One thing that blocks discovery_ready while the discovery orbit is open: the term names its kind and its id, such as untouched(h1) or no_example(c1) (D32 O2). discovery_ready holds in an open orbit exactly when ready_blocker(X) has no answer.', '@(1) blocks discovery_ready').
+decl(rule, any_ready_blocker, 'Something blocks discovery_ready.', 'something blocks discovery_ready').
+decl(rule, gate_allowed(oneof([go, no_go, hold])), 'The choice can win the gate: no_go and hold always; go only while discovery_ready holds (D33 R5).', '@(1) can win the gate').
 decl(rule, discovery_has_outcome, 'Some claim is current, or a hypothesis that no other hypothesis replaces did not reproduce.', 'some claim is current, or some hypothesis did not reproduce').
 decl(rule, discovery_sanity_ok(atom), 'A result that passes a sanity check.', '@(1) passes a sanity check').
 decl(rule, discovery_decided(atom), 'A solver result that is not unknown.', '@(1) is a decided result').
@@ -121,7 +137,7 @@ decl(rule, discovery_ratified(ref(claim)), 'A human answered a question about th
 decl(rule, discovery_disputed(ref(claim)), 'The claim is refuted, or a claim divergence contests it.', 'claim @(1) is disputed').
 decl(rule, discovery_unratified(ref(claim)), 'A claim that supersedes a disputed claim with no human answer behind it.', 'claim @(1) replaces a disputed claim without a human answer').
 decl(rule, discovery_budget_raised(int), 'A larger lap budget replaces this one.', 'a budget larger than @(1) laps exists').
-decl(rule, discovery_ready, 'Discovery is clean and ready for the human to decide GO, NO-GO, or HOLD. Once the discovery orbit is closed, it holds: readiness is asked only while the orbit is open.', 'discovery is ready for the human to decide').
+decl(rule, discovery_ready, 'Discovery is clean and ready for the human to decide GO, NO-GO, or HOLD: nothing blocks it (ready_blocker). Once the discovery orbit is closed, it holds: readiness is asked only while the orbit is open.', 'discovery is ready for the human to decide').
 decl(rule, discovery_decide, 'The human must decide now: discovery is ready, or the budget is spent.', 'the human must decide now').
 decl(rule, model_run_of(ref(subject), ref(model)), 'The log is a run of the model at some digest.', 'log @(1) is a run of model @(2)').
 decl(rule, discovery_old_run(ref(subject), ref(model)), 'The log has a run of the model at a digest that is not the current one.', 'log @(1) has a run of an older digest of model @(2)').
@@ -138,9 +154,10 @@ decl(rule, model_is_derived(ref(model)), 'The model is a target model derived fr
 decl(rule, model_same_tool(ref(model), ref(model)), 'The two models use the same tool.', 'models @(1) and @(2) use the same tool').
 decl(rule, model_sane(ref(model)), 'A sanity check of the model passed, and none failed.', 'model @(1) is sane').
 decl(rule, model_sanity_failed(ref(model)), 'A sanity check of the model failed or was unknown.', 'a sanity check of model @(1) failed').
-decl(rule, model_calibrated(ref(model)), 'The model gives the same result as the current system for a known case.', 'model @(1) matches the current system on a known case').
+decl(rule, model_calibration_case(ref(model), oneof([fails, passes])), 'A matching calibration on a current run of the model: a real case where the system fails, or one where it passes (D33 R4).', 'model @(1) matches the current system on a real case where it @(2)').
+decl(rule, model_calibrated(ref(model)), 'The model matches the current system on a real case where the system fails and on a real case where it passes (D33 R4).', 'model @(1) matches the current system on a failing case and on a passing case').
 decl(rule, model_diverges(ref(model)), 'The model disagrees with the current system.', 'model @(1) disagrees with the current system').
-decl(rule, model_trusted(ref(model)), 'The model is sane, does not diverge, and it or the model that it changes is calibrated.', 'model @(1) is trusted').
+decl(rule, model_trusted(ref(model)), 'The model is sane, calibrated by its own two cases, and does not diverge. A derived model needs its own two cases (D33 R4).', 'model @(1) is trusted').
 decl(rule, model_decided(ref(model), ref(claim)), 'A check of the model that names the claim gave a decided result.', 'model @(1) decided a check of claim @(2)').
 decl(rule, model_vacuous(ref(attest)), 'An applies check shows that the claim can never apply.', 'attestation @(1) shows a vacuous claim').
 decl(rule, model_breaks(ref(model), ref(claim)), 'The model shows a case that breaks the claim.', 'model @(1) breaks claim @(2)').
@@ -177,7 +194,7 @@ decl(rule, agent_vote(atom), 'The vote of the agent in the current round.', 'the
 decl(rule, discovery_some_current, 'Some claim is current.', 'some claim is current').
 decl(rule, artifact_vote(atom), 'The vote of the formal artifacts: go when discovery is ready with a current claim, no_go when it is ready with no current claim, else hold.', 'the formal artifacts vote @(1)').
 decl(rule, discovery_gate_agreed, 'The human and at least one other role vote the same.', 'the human and another role agree').
-decl(rule, gate(atom), 'The outcome of the vote: a choice of the human and at least one other role, else hold. No answer until the human votes.', 'the outcome of the vote is @(1)').
+decl(rule, gate(atom), 'The outcome of the vote: a choice of the human and at least one other role that can win (gate_allowed: GO cannot win while discovery is not ready), else hold. No answer until the human votes.', 'the outcome of the vote is @(1)').
 decl(rule, gate_split, 'The human voted, and no other role agrees with the human. The outcome is hold; record a divergence.', 'the vote is split, so the outcome is hold').
 decl(rule, discovery_agent_voted(int), 'The agent voted in this round.', 'the agent voted in round @(1)').
 decl(rule, discovery_vote_twin(ref(attest)), 'Another vote by the same writer is in the same round.', 'vote @(1) has a second vote by its writer in its round').
@@ -194,6 +211,15 @@ discovery_system_evidence(S) :- discovery_evidence(S, system), not discovery_mod
 touched_system :- attest(_, reproduction, S, _, _, _), discovery_system_evidence(S).
 touched_system :- attest(_, test_result, K, _, _, _), discovery_system_evidence(K).
 discovery_hypothesis_touched(H) :- attest(_, reproduction, S, result(H, _), _, _), discovery_system_evidence(S).
+% D33 R3 (question q_k_d_3b, default a): a red run of a system check of an introduce or a retire
+% claim is the system result of each hypothesis that no hypothesis supersedes (the rules that
+% read discovery_hypothesis_touched/1 skip a superseded one), if the run came after the
+% hypothesis in kb.pl: a run made before a hypothesis existed did not test it (c_k_d_1b, the
+% second example). discovery_run_after/2 has no clauses here: orbit-kb computes its facts.
+discovery_changing_claim(C) :- claim(C, introduce, _).
+discovery_changing_claim(C) :- claim(C, retire, _).
+discovery_hypothesis_touched(H) :- discovery_run_after(A, H), attest(A, test_result, _, result(K, _, fail), _, _),
+    discovery_system_evidence(K), check(K, C), discovery_changing_claim(C).
 discovery_has_outcome :- current(_).
 % D15: the result of a superseded hypothesis is no outcome. Its new wording needs its own.
 discovery_has_outcome :- attest(_, reproduction, S, result(H, not_reproduced), _, _), discovery_system_evidence(S),
@@ -237,7 +263,11 @@ discovery_no_case(holds).
 % --- Trust: sane, calibrated, and no divergence from the current system ---
 model_sanity_failed(M) :- model_verdict(_, M, sanity, R), not discovery_sanity_ok(R).
 model_sane(M) :- model_verdict(_, M, sanity, R), discovery_sanity_ok(R), not model_sanity_failed(M).
-model_calibrated(M) :- model_calibration(_, M, matches).
+% D33 R4: two matching cases on a current run, one where the system fails and one where it
+% passes. The older case forms (example, case) calibrate nothing.
+model_calibration_case(M, fails) :- attest(_, model_result, S, calibration(M, fails(_), matches), _, _), model_run_current(S, M).
+model_calibration_case(M, passes) :- attest(_, model_result, S, calibration(M, passes(_), matches), _, _), model_run_current(S, M).
+model_calibrated(M) :- model_calibration_case(M, fails), model_calibration_case(M, passes).
 % A target is derived from a root. A model in a derived_from cycle is no target, so it
 % gets the existing-world bad-case check (ED9 flags the cycle).
 model_has_parent(M) :- derived_from(M, _).
@@ -249,11 +279,9 @@ model_diverges(M) :- attest(_, divergence, S, model(M), _, _), not model_run_sta
 % The existing-world model must reproduce the reported bad case.
 model_diverges(M) :- model_verdict(_, M, bad_case, R), discovery_no_case(R), not model_is_derived(M).
 model_same_tool(M, M0) :- model(M, T), model(M0, T).
+% D33 R4: a target model no longer inherits the trust of the model that it changes. It
+% needs its own two cases.
 model_trusted(M) :- model_sane(M), model_calibrated(M), not model_diverges(M).
-% A target model inherits trust, one level only, from the calibrated model that it
-% changes, when both use the same tool.
-model_trusted(M) :- model_sane(M), derived_from(M, M0), model_same_tool(M, M0),
-    model_sane(M0), model_calibrated(M0), not model_diverges(M0), not model_diverges(M).
 
 % --- Other verdicts ---
 model_decided(M, C) :- model_verdict(_, M, preserve(C), R), discovery_decided(R).
@@ -337,9 +365,16 @@ artifact_vote(no_go) :- discovery_ready, not discovery_some_current.
 artifact_vote(hold) :- not discovery_ready.
 discovery_gate_agreed :- human_vote(C), agent_vote(C).
 discovery_gate_agreed :- human_vote(C), artifact_vote(C).
-gate(C) :- human_vote(C), agent_vote(C).
-gate(C) :- human_vote(C), artifact_vote(C).
+% D33 R5 (c_k_d_1b, question q_k_d_1b, default a): GO cannot win while discovery is not ready,
+% whenever the votes came. Once the orbit is closed, discovery_ready holds, so a later change
+% of the build does not take the GO back.
+gate_allowed(no_go).
+gate_allowed(hold).
+gate_allowed(go) :- discovery_ready.
+gate(C) :- human_vote(C), agent_vote(C), gate_allowed(C).
+gate(C) :- human_vote(C), artifact_vote(C), gate_allowed(C).
 gate(hold) :- human_vote(_), not discovery_gate_agreed.
+gate(hold) :- human_vote(go), not gate_allowed(go).
 gate_split :- human_vote(_), not discovery_gate_agreed.
 discovery_agent_voted(R) :- vote_cast(agent, R, _).
 discovery_vote_twin(A) :- attest(A, vote, _, vote(R, _), W, _), attest(B, vote, _, vote(R, _), W, _), A \= B.
@@ -352,17 +387,32 @@ discovery_closed :- discovery_end(A), not discovery_reopened(A).
 discovery_open :- not discovery_closed.
 
 % --- The gate: clean only, and asked only while the discovery orbit is open (D30 H4) ---
+% D32 O2: each thing that blocks readiness is one answer of ready_blocker(X), and readiness in
+% an open orbit is "no answer". So show open, report and the refusal of an agent's GO name
+% exactly what blocks it (c_k_c_1b; the Lean model kb/proofs/open_items).
+discovery_has_example(C) :- example(C, _).
+discovery_no_example(C) :- current(C), not discovery_has_example(C).
+discovery_preserve_failing(K) :- check(K, C), claim(C, preserve, _), current(C), check_ran(K), not passed(K).
+ready_blocker(no_hypothesis) :- not some_hypothesis.
+ready_blocker(no_system_result) :- not touched_system.
+ready_blocker(no_outcome) :- not discovery_has_outcome.
+ready_blocker(untouched(H)) :- hypothesis(H, _, _), not superseded(H), not discovery_hypothesis_touched(H).
+ready_blocker(no_falsifier(C)) :- no_falsifier(C).
+ready_blocker(no_example(C)) :- discovery_no_example(C).
+ready_blocker(preserve_failing(K)) :- discovery_preserve_failing(K).
+ready_blocker(question_waits(Q)) :- question_waits(Q).
+ready_blocker(unasked_finding(F)) :- unasked_finding(F).
+ready_blocker(refuted(C)) :- refuted(C), current(C).
+ready_blocker(weak_rule(R)) :- weak_rule(R).
+ready_blocker(model_diverges(M)) :- model_diverges(M).
+ready_blocker(model_vacuous(A)) :- model_vacuous(A).
+ready_blocker(model_unfiled_break(C)) :- model_unfiled_break(C).
+ready_blocker(model_solvers_disagree(M)) :- model_solvers_disagree(M).
+ready_blocker(unratified(C)) :- discovery_unratified(C).
+ready_blocker(to_ask(Q)) :- to_ask(Q).
+any_ready_blocker :- ready_blocker(_).
 discovery_ready :- discovery_closed.
-discovery_ready :- discovery_open, some_hypothesis, touched_system, discovery_has_outcome,
-    not some_untouched_hypothesis,
-    not some_no_falsifier,
-    not some_question_waits,
-    not some_unasked_finding,
-    not some_current_refuted,
-    not some_weak_rule,
-    not some_model_problem,
-    not some_unratified_supersession,
-    not any_to_ask.
+discovery_ready :- discovery_open, not any_ready_blocker.
 % The human decides when discovery is clean, or when the budget is spent.
 discovery_decide :- discovery_ready.
 discovery_decide :- budget_spent.
@@ -390,6 +440,8 @@ lint_issue('WD8', A, 'This model result is on a log of an older digest of the mo
 lint_issue('WD8', A, 'This model result is on a log of an older digest of the model. It does not count. A newer result of the same check replaces it; nothing to do.') :-
     attest(A, model_result, S, P, _, _), discovery_result_model(P, M), model_run_stale(S, M),
     discovery_result_renewed(A).
+lint_issue('WD10', C, 'This current claim has no example. Discovery is not ready until each current claim has a concrete case: add example(C, Text).') :-
+    discovery_open, discovery_no_example(C).
 lint_issue('WD9', A, 'The human voted in this round, and the agent did not vote first. The agent vote must be sealed before the human votes.') :-
     attest(A, vote, _, vote(R, _), human, _), not discovery_agent_voted(R).
 lint_issue('ED1', A, 'This reproduction must point at evidence from the current system. Tag the subject with discovery_evidence(Subject, system); a model or a solver log is not system evidence.') :-

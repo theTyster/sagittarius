@@ -155,6 +155,8 @@ Lint
   WP5   a claim pins a fact that rests on a fact in a contradiction. Only a warning: no claim pins it directly.
   WP6   an analysis path is outside the project KB. Move the file under analyses/ of the project KB.
   WP7   a fact rests on itself: a cycle of depends_on facts. Check each fact of the cycle.
+  WP8   a stale pin that the KB still rests on: a current decision or definition concerns it and no newer
+        pin of its source, or nothing concerns it and its source has no newer pin. show open and the report name it.
   EP1   an agent ratified a fact (error; add refuses it). Only a human ratifies.
   EP2   a fact depends on itself or excludes itself (error; add refuses it).
 

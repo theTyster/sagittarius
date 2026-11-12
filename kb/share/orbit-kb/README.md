@@ -1656,10 +1656,12 @@ Reserved names:
     `rule_has_reason/2`, `weak_rule/1`, `touched_system/0`, `budget_spent/0`,
     and helpers named `discovery_*` and `some_*`.
   - The vote (D14): `vote_cast/3`, `vote_round/1`, `human_vote/1`,
-    `agent_vote/1`, `artifact_vote/1`, `gate/1`, `gate_split/0`.
+    `agent_vote/1`, `artifact_vote/1`, `gate/1`, `gate_split/0`, and
+    `gate_allowed/1` (D33).
+  - Readiness (D32): `ready_blocker/1`, `any_ready_blocker/0`.
   - Attestation types: `reproduction`, `model_result`, `decision`, `vote`.
     (Calibration is a `model_result` shape, not a type.)
-  - Lint codes: `WD1`–`WD9` and `ED1`–`ED10`.
+  - Lint codes: `WD1`–`WD10` and `ED1`–`ED10`.
 
 ### The GO / NO-GO vote (D14)
 
@@ -1680,6 +1682,14 @@ At the end of discovery, three roles vote `go`, `no_go`, or `hold`: the human
   until the human votes in the current round.
 - `gate_split`: the human voted, and no other role agrees. The outcome is
   `hold`. Record the disagreement as a `divergence` with `hypothesis(H)`.
+- D33: GO cannot win while `discovery_ready` fails (`gate_allowed(go)`),
+  whenever the votes came; the outcome is then `hold`, and it is no split.
+  `attest` refuses an agent's GO vote then, and names each `ready_blocker`.
+  The human's vote is never refused. Readiness is "no `ready_blocker`" while
+  the discovery orbit is open: each current claim needs an example, and a
+  failing check of a preserve claim blocks it. A model is calibrated by a
+  matching `fails(Text)` case and a matching `passes(Text)` case; a derived
+  model needs its own two.
 - Sealing. The agent votes first. `report` does not show the agent's choice
   or the formal artifacts' vote until the human votes. `attest` refuses an
   agent vote in a round in which the human already voted. WD9 warns about a

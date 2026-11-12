@@ -41,8 +41,10 @@
   - None. No claim is current.
 
 # Open:
-  - **not ready**: Discovery is not ready
-    - Run orbit-kb whynot 'discovery_ready' and orbit-kb lint for the rest.
+  - **not ready**: Discovery is not ready, no_hypothesis: no current hypothesis
+    - Add hypothesis(H, KIND, TEXT).
+  - **not ready**: Discovery is not ready, no_system_result: no evidence from the current system yet: a reproduction on system evidence, or a run of a check tagged discovery_evidence(K, system)
+  - **not ready**: Discovery is not ready, no_outcome: no claim is current, and no current hypothesis did not reproduce
 
 # Vote:
   - No vote yet

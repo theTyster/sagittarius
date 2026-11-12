@@ -69,6 +69,9 @@
 
 # Open:
   - **ask**: Ask question q1 now
+  - **under**: Claim c2 is current but not fulfilled: Loading stays fast
+  - **under**: Claim c6 is current but not fulfilled: The save button has a tooltip
+  - **check failing**: Check k2 did not pass its last run: a check of claim c2: Loading stays fast
   - **over**: Change x2 serves no claim
   - **burn open**: Claim c5 needs a Lean proof
     - Prove it with orbit-kb prove, or ask a human for a waiver.

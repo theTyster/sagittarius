@@ -112,6 +112,18 @@ decl(rule, tracker_latest(ref(pin), time),
 decl(rule, stale_pin(ref(pin)),
      'The pin is old. A file pin: the file now has another digest, or is missing. A tracker pin: a newer change time is recorded for the same source.',
      'pin @(1) is old').
+decl(rule, pin_concerned(ref(pin)),
+     'A decision or a definition rests on the pin (concerns), current or not.',
+     'something rests on pin @(1)').
+decl(rule, concerns_fresh(ref([decision, definition]), ref(pin)),
+     'The decision or the definition also rests on a pin of the same kind and source as the pin, and that pin is not stale: it was pinned again (D32 O3).',
+     '@(1) rests on a newer pin of the source of pin @(2)').
+decl(rule, pin_renewed(ref(pin)),
+     'A pin of the same kind and source as the pin is not stale.',
+     'the source of pin @(1) has a pin that is not stale').
+decl(rule, stale_pin_open(ref(pin)),
+     'A stale pin that the KB still rests on (D32 O3): a current decision or definition rests on it and on no newer pin of its source, or nothing rests on it (a pin of a spec KB) and its source has no pin that is not stale. show open, report (Open) and lint (WP8) name it. It does not block done.',
+     'pin @(1) is stale, and the KB still rests on it').
 decl(rule, both_changed(ref(draft), time),
      'The tracker changed after the pin of the draft, and the draft was staged after the pin too: both edits are new (T43). The time is the latest change of the tracker.',
      'draft @(1) and the tracker (last changed at @(2)) both changed after the pin').
@@ -155,6 +167,16 @@ tracker_latest(P, C2) :- tracker_changed_after(P, C2), not (tracker_changed_afte
 stale_pin(P) :- pin(P, file, S, D, _), subject_now(S, Now), Now \== D.
 stale_pin(P) :- pin(P, file, S, _, _), not subject_now(S, _).
 stale_pin(P) :- pin(P, tracker, _, _, _), tracker_changed_after(P, _).
+
+% D32 O3 (c_k_c_2): a stale pin that a current decision or definition rests on, or a pin that
+% nothing names (a spec KB pins the world that its claims rest on). A decision that rests on a
+% newer pin of the same source was pinned again (help build: move the facts that rest on the
+% old pin), and a spec KB that pinned the source again rests on the new pin.
+pin_concerned(P) :- concerns(_, P).
+concerns_fresh(D, P) :- pin(P, K, S, _, _), concerns(D, P2), pin(P2, K, S, _, _), not stale_pin(P2).
+pin_renewed(P) :- pin(P, K, S, _, _), pin(P2, K, S, _, _), not stale_pin(P2).
+stale_pin_open(P) :- stale_pin(P), concerns(D, P), current_fact(D), not concerns_fresh(D, P).
+stale_pin_open(P) :- stale_pin(P), not pin_concerned(P), not pin_renewed(P).
 
 % T43 c3 (u123, u66): when both sides changed after the pin, the dates decide; there is no
 % conflict that blocks. On equal times the tracker wins. A human's resolved/3 wins over the dates.
@@ -223,5 +245,7 @@ lint_issue('WP6', X, M) :- analysis_outside(X, M).
 % in the CLI, at add and at lint (T34).
 lint_issue('WP7', X, 'This fact rests on itself: its depends_on facts make a cycle. A cycle of dependencies is allowed, but it is often a mistake. Check each depends_on fact of the cycle (orbit-kb query ''rests_on(X, Y)'').') :-
     rests_on(X, X).
+lint_issue('WP8', P, 'This pin is stale, and the KB still rests on it: the file or the tracker item changed after the pin. Read it. If what rests on the pin still holds, pin the source again and move the facts that rest on the old pin (help build, Re-pin); if not, change them.') :-
+    stale_pin_open(P).
 lint_issue('WP4', Dir, 'This KB has more than one project_kb fact. Only the first is read. Keep one project_kb fact.') :-
     project_kb(First), project_kb(Dir), First @< Dir.
