@@ -45,6 +45,10 @@ decl(fact, derived_from(ref(model), ref(model)),
 decl(fact, encodes(ref(model), ref(claim)),
      'A model states a claim, so the model can falsify the claim.',
      'model @(1) states claim @(2)').
+% D31 B5: the property of a model that states a claim, so that the report can show it.
+decl(fact, property(ref(model), ref(claim), text),
+     'The property of the model that states the claim: an SMT assertion or a TLA+ invariant, as written in the model.',
+     'model @(1) states claim @(2) with the property @(3)').
 decl(fact, finding(id, alt([root_cause(term), conflict(term), surprise(term), trace(term), scope(term)]), oneof([system, model])),
      'Something that the evidence showed, and the source of that evidence.',
      'finding @(1) is @(2), from the @(3)').

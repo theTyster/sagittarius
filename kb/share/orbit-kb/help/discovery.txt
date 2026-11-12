@@ -17,6 +17,8 @@ FACTS
   model_run(Log, M, Digest)       Log is a run of model M at that digest. It counts while M keeps it.
   derived_from(Target, Existing)  the target model changes the existing-world model
   encodes(M, C)                   model M states claim C
+  property(M, C, Text)            the property of M that states C (an assertion, an invariant).
+                                  orbit-kb report shows it under Formal, beside the claim.
   finding(F, Kind, From)          Kind: root_cause(X) | conflict(Core) | surprise(Case) | trace(T) | scope(Item)
   reason(M, Rule, Text)           why the rule of model M survived its mutation
   raised_by(Q, X)                 finding or hypothesis X raised question Q

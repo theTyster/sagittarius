@@ -7215,7 +7215,7 @@ report_text(KB, Eng) :-
     ->  review_section(Eng, Cs)
     ;   true
     ),
-    formal_section(Eng, Cs),
+    formal_section(KB, Eng, Cs),
     rhead('Guesses'),
     eng_all(Eng, [Q, A], ( assumed(Q, A), not(answered(Q)) ), Gs),
     % D30 H3: each premise that nobody checked is a guess about the system.
@@ -7358,9 +7358,9 @@ report_text(KB, Eng) :-
 
 % formal_section(+Eng, +Cs) (D31 B3): the formal statement of each current claim that has one,
 % beside its plain sentence; or "None." B4 and B5 add the statements.
-formal_section(Eng, Cs) :-
+formal_section(KB, Eng, Cs) :-
     rhead('Formal'),
-    findall(C-Items, ( member([C, _, _], Cs), formal_items(Eng, C, Items), Items \== [] ), CIs),
+    findall(C-Items, ( member([C, _, _], Cs), formal_items(KB, Eng, C, Items), Items \== [] ), CIs),
     (   CIs == []
     ->  rsay(none, "None. No claim has a formal statement.", [])
     ;   forall(member(C-Items, CIs),
@@ -7371,14 +7371,25 @@ formal_section(Eng, Cs) :-
                           rtree(item(C), Plain, Head-[Kid-[]]) )) ))
     ).
 
-% formal_items(+Eng, +C, -Heads): one line per formal statement of claim C: the theorem of its
-% Lean proof with the statement from the proof log (B4).
-formal_items(Eng, C, Heads) :-
-    findall(H, formal_item(Eng, C, H), Heads).
+% formal_items(+KB, +Eng, +C, -Heads): one line per formal statement of claim C: the theorem of
+% its Lean proof with the statement from the proof log (B4), and with the discovery module each
+% model that states it, with its property (B5).
+formal_items(KB, Eng, C, Heads) :-
+    findall(H, formal_item(KB, Eng, C, H), Heads).
 
-formal_item(Eng, C, H) :-
+formal_item(_, Eng, C, H) :-
     proof_statement(Eng, C, A, Thm, St),
     format(string(H), "~w: theorem ~w (Lean, proof ~w): ~w", [C, Thm, A, St]).
+formal_item(KB, Eng, C, H) :-
+    has_discovery(KB),
+    eng_all(Eng, [M, Tool], ( encodes(M, C), model(M, Tool) ), MTs),
+    member([M, Tool], MTs),
+    eng_all(Eng, [P], property(M, C, P), Ps),
+    (   Ps == []
+    ->  format(string(H), "~w: model ~w (~w) states it. No property is recorded: add property(~w, ~w, TEXT).", [C, M, Tool, M, C])
+    ;   member(P, Ps), txt(P, PT),
+        format(string(H), "~w: model ~w (~w), property: ~w", [C, M, Tool, PT])
+    ).
 
 % hypothesis_section(+Eng) (D31 B1): the current hypothesis of the ticket, with its premises
 % beside it, or "Premises: none" (D30 H2). A superseded hypothesis is not current.
