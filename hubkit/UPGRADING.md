@@ -43,6 +43,44 @@ human before you start; this is a one-time merge.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.6.0 (the install experience: what the hub is for, its own orbit-kb, no shell; db schema stays 5)
+
+The version 0.6.0 is a guess: the build chose it (above 0.5.2), not Ty. The db schema is 5, as in 0.5.1:
+no `hubflow.py migrate` is needed. Engine files changed: `.claude/scripts/hubflow.py`,
+`hubflow-test.py`, both `SKILL.md`, `HUB-CORE.md`; the two rotation scripts are new Python files and
+the shell scripts are dropped. Replace each engine file the hub did not change; merge the others by
+intent. Owned file `CLAUDE.md`: add one section by hand (below); it still imports the principles
+(`@PRINCIPLES.md` below `@HUB-CORE.md`, see 0.4.0).
+
+- **Setup asks what the hub is for, and keeps the answer (install UX c1).** Intent: every session
+  loads, in the human's own words, what the hub is for; agents do not guess it. Owned file
+  `CLAUDE.md`: add the section `## What this hub is for` right below the `@` imports, and ask your
+  human for its text (one or two sentences, kept word for word). In a formal hub the project KB
+  request says the same; do not rewrite an existing request. Check: `CLAUDE.md` has the section, in
+  the human's words.
+- **A formal hub runs its own orbit-kb (install UX c3).** Intent: a formal hub runs the orbit-kb that
+  its kit was tested with, whatever `orbit-kb` is on the PATH. The upgrade adds
+  `.claude/orbit-kb/bin/orbit-kb`, `bin/repo-map` and `share/` (about 0.7 MB) as engine files of a formal hub
+  (`add` in the plan); a later upgrade replaces them. `hubflow.py` asks that copy (`HUBFLOW_ORBIT_KB` still
+  overrides it), and `HUB-CORE.md` and the skills name it (`.claude/orbit-kb/bin/orbit-kb help project`).
+  Limits: `ORBIT_KB_LIB` in the environment overrides the copy's `share/`; `orbit-kb prove` still needs
+  `lake` from the PATH. `install` with no `--edition` now picks informal: the human chooses formal; the
+  PATH plays no part (a hub with no edition in `.hub-template.json` still gets formal when orbit-kb is on
+  the PATH). Check: `.claude/orbit-kb/bin/orbit-kb --dir project-kb lint` ends `0 error(s)`, and
+  `python3 .claude/scripts/hubflow-test.py` shows no `SKIP`.
+- **No engine file is a shell script (install UX c4).** Intent: the hub runs on Python 3 and git, with
+  no bash. `rotate.sh` and `check-citations.sh` are now `rotate.py` and `check-citations.py`, with the
+  same refusals, renames, reports and exit codes. The plan shows `remove` for the two `.sh` files and
+  `add` for the two `.py` files; a hub that changed a `.sh` file gets a `merge`: port its change to the
+  `.py` file. A `LOCAL.md` of `hub-rotate` that names `rotate.sh` or `check-citations.sh`: rename to
+  the `.py` file. Check: `python3 .claude/skills/hub-rotate/scripts/rotate.py --dry-run` exits 0 on a
+  clean hub.
+- **A normal install runs no test suite (install UX c6).** Intent: the install-time tests test the kit,
+  not the hub, so only a UAT install (one that tests the kit) runs them; a normal install ends with
+  `hubkit.py status` and `hubflow.py check`. `hubkit.py install --uat` records a UAT install in
+  `.hub-template.json`, and `status` shows it. No hub file changes; this is in `INSTRUCTIONS.md` and
+  `README.md` only. The upgrade procedure above still runs the suite: an upgrade changes the engine.
+
 ### 0.5.2 (hub kit fixes from the first formal-edition install; db schema stays 5)
 
 The db schema is 5, as in 0.5.1: no `hubflow.py migrate` is needed. `.claude/scripts/hubflow-test.py`

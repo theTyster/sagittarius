@@ -1,5 +1,5 @@
 {
-  "version": "0.5.2",
+  "version": "0.6.0",
   "engine": [
     "HUB-CORE.md",
     "PRINCIPLES.md",
@@ -7,8 +7,8 @@
     ".claude/scripts/hubflow-test.py",
     ".claude/skills/hub-flow/SKILL.md",
     ".claude/skills/hub-rotate/SKILL.md",
-    ".claude/skills/hub-rotate/scripts/rotate.sh",
-    ".claude/skills/hub-rotate/scripts/check-citations.sh"
+    ".claude/skills/hub-rotate/scripts/rotate.py",
+    ".claude/skills/hub-rotate/scripts/check-citations.py"
   ],
   "owned": [
     "CLAUDE.md",
@@ -26,5 +26,14 @@
       ".claude/skills/hub-rotate/SKILL.md"
     ],
     "formal": []
+  },
+  "orbit_kb": {
+    "from": "../kb",
+    "to": ".claude/orbit-kb",
+    "paths": [
+      "bin/orbit-kb",
+      "bin/repo-map",
+      "share"
+    ]
   }
 }

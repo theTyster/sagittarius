@@ -12,6 +12,11 @@ Where this file and `HUB-CORE.md` disagree, this file wins.
 A root file that is not imported here is invisible. Add the import when you add the file (a
 decisions file such as `DECISIONS.md`, for example).
 
+## What this hub is for
+
+<Your human's answer to "What is this hub for?" (INSTRUCTIONS.md step 1), word for word, in quotes,
+with who said it and the date. Not a paraphrase: agents read it to know the intent of the hub.>
+
 ## The tracker
 
 Tickets live in <YOUR TRACKER: GitHub Issues / Jira / Linear>. Refs in the flow db are

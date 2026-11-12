@@ -5,9 +5,7 @@ own rules and changes in `CLAUDE.md`, which imports this file. Where the two dis
 wins.
 
 This hub is the **informal edition**: five stores, kept in plain files, git and SQLite. It needs
-Python 3 (stdlib only), git and bash 4 or later, and these POSIX tools on the PATH: `awk`, `comm`,
-`date`, `diff`, `find`, `mkdir`, `mktemp`, `mv`, `rm`, `sed`, `sort`, `tail`, `tr`, `wc`. It needs no
-other tool. `.hub-template.json` records the edition.
+Python 3 (stdlib only) and git on the PATH. It needs no other tool: no bash, no shell tools. `.hub-template.json` records the edition.
 
 ## The hub exists to enable throughput
 

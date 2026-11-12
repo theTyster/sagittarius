@@ -23,13 +23,13 @@ below are generated from the design: do not edit them by hand
 
 | Store | Owns | Lives in the hub | Used with |
 |---|---|---|---|
-| `spec` | Everything one ticket must achieve and (when completed) the evidence that the ticket has been satisfied. | `specs/<slug>/` at the hub root, one per ticket | `orbit-kb help core`, `orbit-kb help build`; `hubflow.py where <slug>` |
-| `project` | Two sides: Decisions about future work and definitions about the current system. Where the product is and where it is going. | the project KB, a directory of its own that the hub's `CLAUDE.md` names | `orbit-kb help project`; `orbit-kb pin-item` |
+| `spec` | Everything one ticket must achieve and (when completed) the evidence that the ticket has been satisfied. | `specs/<slug>/` at the hub root, one per ticket | `.claude/orbit-kb/bin/orbit-kb help core`, `.claude/orbit-kb/bin/orbit-kb help build`; `hubflow.py where <slug>` |
+| `project` | Two sides: Decisions about future work and definitions about the current system. Where the product is and where it is going. | the project KB, a directory of its own that the hub's `CLAUDE.md` names | `.claude/orbit-kb/bin/orbit-kb help project`; `.claude/orbit-kb/bin/orbit-kb pin-item` |
 | `ledger` | What needs to be done, who is doing the work, whats blocking what, right now. Nothing about project rules or decisions. | `flow/flow.db`, with its JSONL in `flow/jsonl/` | `hubflow.py`; skill `hub-flow` |
 | `memory` | What every agent must know at start: boot context, heuristics, technologies, and the list of bespoke tools that other tasks can reuse. | the root files `CLAUDE.md`, `HUB-CORE.md`, `HEURISTICS.md`, `TECHNOLOGIES.md` | read at boot; promote into them at rotation (skill `hub-rotate`) |
 | `weeks` | The raw material of each week: meeting and other human transcripts, Claude Code session logs, and the reports written that week. An agent reads a human transcript and records what is needed in the ledger, with a transcript ref; Claude Code session logs are indexed into the ledger; analyses that last go to the project KB. | `W0/` to `W5/`: `reports/`, `transcripts/`, `outbound-staging/` | `hubflow.py index-transcripts`; skill `hub-rotate` |
 | `bespoke` | Helper scripts, skills and small stores an agent makes for this project where nothing else fits: listed where agents look, and pruned like everything else if they stop being used. | a tool or skill, listed in `TECHNOLOGIES.md` (or the memory file the hub names) | the tool's own help; skill `hub-rotate` prunes the unused |
-| `tracker` | The client's system of record. It owns the tickets (request, answers, events), checks and runs, world facts (the code and git), and all designs, bugs and features. A copy that the hub shows there belongs to the store it comes from. | outside the hub: a pointer such as `issue:123` in a ledger ref | `hubflow.py add --ref`; `orbit-kb pin-item`; `orbit-kb draft` |
+| `tracker` | The client's system of record. It owns the tickets (request, answers, events), checks and runs, world facts (the code and git), and all designs, bugs and features. A copy that the hub shows there belongs to the store it comes from. | outside the hub: a pointer such as `issue:123` in a ledger ref | `hubflow.py add --ref`; `.claude/orbit-kb/bin/orbit-kb pin-item`; `.claude/orbit-kb/bin/orbit-kb draft` |
 
 The 29 fact kinds:
 
@@ -74,7 +74,7 @@ for governance. `outside` is a home outside the hub.
 ### The copy rule
 
 The tracker owns a ticket's text and state; the hub holds a **pointer** (`issue:123`) and the flow
-state around it. A **pinned copy** (the item's text with a digest, in the project KB: `orbit-kb
+state around it. A **pinned copy** (the item's text with a digest, in the project KB: `.claude/orbit-kb/bin/orbit-kb
 pin-item`) is allowed. It goes **stale** when the source has a later pin. An **unpinned copy** is
 not allowed: a second copy with no digest diverges, and nothing says that it did. **Re-pin a
 tracker item each time an agent reads it for a ticket**, so the digest names what the agent read.
@@ -84,10 +84,10 @@ The spec KB holds what a ticket needs and pins the rest: do not copy all context
 
 A spec KB has the ticket's clock, not the week's. It lives at `specs/<slug>/` at the hub root,
 outside W0 to W5, and the flow db refers to it as `kb:<slug>` (`hubflow.py where <slug>` prints the
-path; `orbit-kb show open` there says what is left). Only the spec KB decides what blocks. A hub
+path; `.claude/orbit-kb/bin/orbit-kb show open` there says what is left). Only the spec KB decides what blocks. A hub
 made before 0.3.0 keeps spec KBs at `W*/analyses/<slug>/kb`; that form still resolves (UPGRADING.md
 says how to move them). In a hub the spec KB is committed, with the hub: git is the archive, and
-`orbit-kb help core` names this as the exception to "do not commit the KB".
+`.claude/orbit-kb/bin/orbit-kb help core` names this as the exception to "do not commit the KB".
 
 ### What a week holds
 
@@ -104,9 +104,9 @@ item at rotation: the decision is archive, capsule, keep or escalate, recorded o
 
 ### Outbound: one home per thing
 
-A staged edit to a tracker item is a `draft/4` in the project KB (`orbit-kb help draft`). Free
+A staged edit to a tracker item is a `draft/4` in the project KB (`.claude/orbit-kb/bin/orbit-kb help draft`). Free
 outbound text (mail, chat) is drafted in `W0/outbound-staging/`. A tool posts nothing: a human sends.
-To attach the spec KB to a tracker item, `orbit-kb draft attach` prints the file and the line to
+To attach the spec KB to a tracker item, `.claude/orbit-kb/bin/orbit-kb draft attach` prints the file and the line to
 paste, and a human attaches it. After sending, the human (or an agent that the human told) records
 `pushed/2`.
 
@@ -121,9 +121,18 @@ proof that an open spec KB pins is never pruned.
 ### Who owns what, outside the stores
 
 SOP is owned outside the hub, and the build does not need it. Product rules live in the project KB
-(`orbit-kb help project`), and a spec pins the ones its claims rely on. The repos of the project and
-how they connect are in the project KB; the repo map is `repo-map` (on PATH once the Sagittarius checkout is installed; `kb/bin/repo-map` in
-the checkout. See its README for the formats).
+(`.claude/orbit-kb/bin/orbit-kb help project`), and a spec pins the ones its claims rely on. The repos of the project and
+how they connect are in the project KB; the repo map is the hub's own `.claude/orbit-kb/bin/repo-map`
+(its README, `.claude/orbit-kb/share/repo-map/README.md`, gives the formats).
+
+### The hub's own orbit-kb
+
+This hub runs the orbit-kb that its kit was tested with: `.claude/orbit-kb/bin/orbit-kb` (and
+`repo-map` beside it), engine files that an upgrade replaces. Run it from the hub root by that path,
+never as a bare `orbit-kb`: the one on the PATH may be another version, and can read the project KB
+differently. `hubflow.py` asks the same copy (`HUBFLOW_ORBIT_KB` overrides it, for tests). Limits:
+`ORBIT_KB_LIB` in the environment overrides the copy's `share/`; `orbit-kb prove` still needs `lake`
+from the PATH.
 
 ## Without orbit-kb (the informal release)
 
@@ -219,7 +228,7 @@ Asks to a human, in-flight threads, holds and handoffs between sessions are rows
 written only by `hubflow.py`. Load the `hub-flow` skill before any write. Each session has an
 identity (`HUB_SESSION`), set where the session is started. Named sessions are set up outside the
 hub; the hub knows only their names (`flow/seed.json`).
-`orbit-kb pin-item` and `orbit-kb draft` record a dropped edit of the project KB in the ledger by
+`.claude/orbit-kb/bin/orbit-kb pin-item` and `.claude/orbit-kb/bin/orbit-kb draft` record a dropped edit of the project KB in the ledger by
 themselves, in the session of `HUB_SESSION`. With no `HUB_SESSION`, the record is refused with a
 warning; run the `project dropped --session S` command that the warning names.
 

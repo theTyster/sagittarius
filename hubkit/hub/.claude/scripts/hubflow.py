@@ -93,7 +93,7 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                with no disposition (untriaged) and exits 1 until
                                                each has one; `lapsed:` names the summary rows it
                                                lapses. --yes also rebuilds the session index of the
-                                               week dirs W0..W5 on disk (run it after rotate.sh):
+                                               week dirs W0..W5 on disk (run it after rotate.py):
                                                moved weeks get their new paths, and a retired week's
                                                rows go with it
   export                                       rewrite the JSONL from the db
@@ -125,8 +125,9 @@ Environment
   HUB_SESSION          the writer's session name
   HUBFLOW_HUB          the hub root, when --hub is not given
   HUBFLOW_DB_DIR       the flow/ directory (tests). It wins over --hub; default <hub>/flow
-  HUBFLOW_ORBIT_KB     the orbit-kb command for spec KB queries (default `orbit-kb`; split like
-                       shell words). hubflow only runs `--dir KB query GOAL -n 0`: for the state,
+  HUBFLOW_ORBIT_KB     the orbit-kb command for spec KB queries (split like shell words). Default:
+                       the hub's own copy, .claude/orbit-kb/bin/orbit-kb (a formal hub), else
+                       `orbit-kb` on the PATH. hubflow only runs `--dir KB query GOAL -n 0`: for the state,
                        GOAL is blocking(X): exit 0 with lines = blocking, exit 1 = clear. Any other
                        exit, a missing command or a kb ref with no dir in specs/<slug> or
                        W0..W5/analyses counts as blocking (fail-safe), unless the newest
@@ -1669,8 +1670,16 @@ def cmd_import(g, a):
 # ---- the ledger: spec KB queries, triage, capsules, transcripts ----
 
 def orbit_kb_cmd():
-    """The orbit-kb command: HUBFLOW_ORBIT_KB (split like a shell word list), else `orbit-kb`."""
-    return shlex.split(os.environ.get("HUBFLOW_ORBIT_KB") or "orbit-kb")
+    """The orbit-kb command: HUBFLOW_ORBIT_KB (split like a shell word list); else the hub's own copy,
+    .claude/orbit-kb/bin/orbit-kb beside this script's .claude/scripts/ (the orbit-kb that the kit was
+    tested with; install UX c3), whatever orbit-kb is on the PATH; else `orbit-kb` (a hub without the
+    copy: informal, or made before kit 0.6.0)."""
+    if os.environ.get("HUBFLOW_ORBIT_KB"):
+        return shlex.split(os.environ["HUBFLOW_ORBIT_KB"])
+    own = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "orbit-kb", "bin", "orbit-kb"))
+    if os.access(own, os.X_OK):  # the hub's own copy (install UX c3)
+        return [own]
+    return ["orbit-kb"]
 
 
 def kb_dir(hub, ref):

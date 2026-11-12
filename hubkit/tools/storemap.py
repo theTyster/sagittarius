@@ -10,7 +10,8 @@ usage: python3 storemap.py [--hub-core FILE] --write | --check
 HUB-CORE files (or of --hub-core FILE only); --check exits 1 when any would change.
 The facts (stores, fact kinds, owners, cells, descriptions) come from the hub design KB
 (eff_fact/2, eff_cell/3, fact_desc/2) through export-store-facts.pl. The columns that say where a
-store lives in the hub and which command uses it are written below: they are the hub's own.
+store lives in the hub and which command uses it are written below: they are the hub's own. A command
+of orbit-kb names the hub's own copy, .claude/orbit-kb/bin/orbit-kb (install UX c3), never a bare orbit-kb.
 """
 import json
 import os
@@ -28,9 +29,9 @@ IEND = "<!-- informal-map:end -->"
 # store -> (where it lives in the hub, the command or help topic that uses it)
 HOME = {
     "spec": ("`specs/<slug>/` at the hub root, one per ticket",
-             "`orbit-kb help core`, `orbit-kb help build`; `hubflow.py where <slug>`"),
+             "`.claude/orbit-kb/bin/orbit-kb help core`, `.claude/orbit-kb/bin/orbit-kb help build`; `hubflow.py where <slug>`"),
     "project": ("the project KB, a directory of its own that the hub's `CLAUDE.md` names",
-                "`orbit-kb help project`; `orbit-kb pin-item`"),
+                "`.claude/orbit-kb/bin/orbit-kb help project`; `.claude/orbit-kb/bin/orbit-kb pin-item`"),
     "ledger": ("`flow/flow.db`, with its JSONL in `flow/jsonl/`",
                "`hubflow.py`; skill `hub-flow`"),
     "memory": ("the root files `CLAUDE.md`, `HUB-CORE.md`, `HEURISTICS.md`, `TECHNOLOGIES.md`",
@@ -40,7 +41,7 @@ HOME = {
     "bespoke": ("a tool or skill, listed in `TECHNOLOGIES.md` (or the memory file the hub names)",
                 "the tool's own help; skill `hub-rotate` prunes the unused"),
     "tracker": ("outside the hub: a pointer such as `issue:123` in a ledger ref",
-                "`hubflow.py add --ref`; `orbit-kb pin-item`; `orbit-kb draft`"),
+                "`hubflow.py add --ref`; `.claude/orbit-kb/bin/orbit-kb pin-item`; `.claude/orbit-kb/bin/orbit-kb draft`"),
 }
 
 # The informal store map (T24, T32): every fact kind -> (its informal home, how it is kept there). The

@@ -26,29 +26,30 @@ example in your dotfiles, because they belong to one machine. The hub knows only
 
 ## Install
 
-Needs Python 3 (stdlib only), git and bash 4 or later: no Prolog and no Lean.
-
-The hub's scripts and tests also use these POSIX tools, which must be on the PATH: `awk`, `comm`,
-`date`, `diff`, `find`, `mkdir`, `mktemp`, `mv`, `rm`, `sed`, `sort`, `tail`, `tr`, `wc`.
+Needs Python 3 (stdlib only) and git: no bash, no other shell tools, no Prolog and no Lean.
 
 `KIT` is this directory (`hubkit/` in a Sagittarius checkout) and `HUB` is a new directory for the
-hub. Each may be absolute or relative to the current directory: the first line makes them absolute.
+hub. Each may be absolute or relative to the current directory. Each line below is one `git` or
+`python3` command, so any shell runs it (write `$KIT` and `$HUB` the way your shell writes them):
 
 ```sh
-KIT=$(cd "$KIT" && pwd) && mkdir -p "$HUB" && HUB=$(cd "$HUB" && pwd)
-cd "$HUB" && git init -q
-python3 "$KIT/tools/hubkit.py" install --hub "$HUB"
-python3 .claude/scripts/hubflow-test.py | tail -n 1
-python3 .claude/scripts/hubflow.py init
-python3 .claude/scripts/hubflow.py check
+git init -q "$HUB"
+python3 "$KIT/tools/hubkit.py" install --hub "$HUB" --edition informal
+python3 "$HUB/.claude/scripts/hubflow.py" --hub "$HUB" init
+python3 "$KIT/tools/hubkit.py" status --hub "$HUB"
+python3 "$HUB/.claude/scripts/hubflow.py" --hub "$HUB" check
 ```
 
-The test line must say `N passed, 0 failed`. The install picks the **informal edition** when
-`orbit-kb` is not on the PATH, and the formal edition when it is; `--edition informal|formal`
-chooses, `.hub-template.json` records it, and an upgrade keeps it. `hubkit.py edition --hub "$HUB"
-formal` switches a hub later (a dry run without `--yes`). For a guided setup (the hub's place, its
-people, its tracker), give this directory to your agent and say: **"follow INSTRUCTIONS.md"**. It
-asks you up to three questions, sets up the hub, and checks each step.
+The last two lines check the new hub. `hubkit.py status` shows you that each shipped file is the
+kit's own (`unchanged`); `hubflow.py check` shows you that the ledger and its git copy agree (exit
+0). The install runs no test suite: the tests test the kit, not your hub (see "Tests" below; a UAT
+install of the kit runs them). `--edition informal|formal` chooses the edition (informal when
+omitted; which `orbit-kb` is on the PATH plays no part), `.hub-template.json` records it, and an
+upgrade keeps it. `hubkit.py edition --hub "$HUB" formal` switches a hub later (a dry run without
+`--yes`). For a guided setup, give this directory to your agent and say: **"follow
+INSTRUCTIONS.md"**. It asks you first what the hub is for, and keeps your answer word for word in the
+hub's `CLAUDE.md`; then where the hub lives, its sessions and people, its tracker, and whether this is
+a UAT install. It sets up the hub and checks each step.
 
 ## What the informal release keeps
 
