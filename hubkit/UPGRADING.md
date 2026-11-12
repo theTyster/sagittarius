@@ -63,6 +63,27 @@ human before you start; this is a one-time merge.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.7.0 (Sagittarius 0.3.0 alignment; db schema 6: the session index is dropped)
+
+The db schema is 6. **Database:** every hub at schema 5 (0.5.1 to 0.6.0) runs
+`python3 .claude/scripts/hubflow.py migrate` once, then `hubflow.py check`. Owned file `CLAUDE.md`:
+it still imports the principles (`@PRINCIPLES.md` below `@HUB-CORE.md`, see 0.4.0).
+
+- **The session index is dropped (db schema 6).** Intent: the hub keeps no index of Claude Code
+  session logs. The human cut the feature on 2026-11-12 ("I want to cut this feature. 'drop it'"):
+  it came from a misunderstanding, since the transcripts that matter are meeting transcripts. Gone:
+  `hubflow.py index-transcripts`, `transcripts` with no flag and `transcripts --detail`, the tables
+  `transcript` and `transcript_msg` with their JSONL, and the re-index of `rotate --yes` (no
+  `transcripts_reindexed:` line). Kept: meeting transcripts in `W*/transcripts/`, the `transcript:`
+  ref, `transcripts --files` and `--find`, the `summary` item kind, capsules. The schema 5 -> 6 step
+  of `migrate` drops the two tables and removes `flow/jsonl/transcript.jsonl` and
+  `transcript_msg.jsonl` (git history keeps them; commit the removal). Files:
+  `.claude/scripts/hubflow.py`, `.claude/scripts/hubflow-test.py`, `HUB-CORE.md` ("What lives
+  where", the weeks row; "What a week holds"), `.claude/skills/hub-flow/SKILL.md` ("Read",
+  "Transcripts"), `.claude/skills/hub-rotate/SKILL.md` (step 5). A hub script or `LOCAL.md` that runs
+  `index-transcripts` or reads `transcripts_reindexed:`: drop that step. Check: after `migrate`,
+  `hubflow.py check` exits 0, and `ls flow/jsonl/transcript*.jsonl` finds nothing.
+
 ### 0.6.0 (the install experience: what the hub is for, its own orbit-kb, no shell; db schema stays 5)
 
 The human accepted the version 0.6.0 (the build had chosen it, above 0.5.2). The db schema is 5, as in 0.5.1:
@@ -233,7 +254,8 @@ and "Panes" no longer name `sessions/`).
   whichever W slot holds the file. A new item kind `summary` (S-) lapses by itself at the first
   rotation when it is 28 days old and never needs a triage. `transcripts --files` lists the week
   transcript files with their refs. `index-transcripts` indexes only Claude Code sessions, and
-  `rotate --yes` rebuilds that index from the week dirs (run it after the rename). The schema 3 ->
+  `rotate --yes` rebuilds that index from the week dirs (run it after the rename; 0.7.0 drops that
+  session index). The schema 3 ->
   4 step of `migrate` drops the `meeting` and `meeting_turn` tables (a db of the unreleased
   redesign branch had them) and their JSONL. Files: `.claude/scripts/hubflow.py`,
   `.claude/scripts/hubflow-test.py`, `.claude/skills/hub-flow/SKILL.md` ("Kinds", "Ageing and
@@ -282,7 +304,8 @@ The db schema is 2. **Database:** run `python3 .claude/scripts/hubflow.py migrat
   and adds the triage step before the `rotate --yes` step. Check: `rotate --week-start <Monday>`
   lists `untriaged:`.
 - **Capsules, transcript index, human skip.** Intent: new commands `capsule`, `index-transcripts`,
-  `transcripts`, and `close --reason human_skip --by human`. Files: the same. Check:
+  `transcripts`, and `close --reason human_skip --by human` (0.7.0 drops `index-transcripts` and the
+  session index). Files: the same. Check:
   `hubflow-test.py --mutants`.
 - **Asks to other people.** Intent: `check` exits 3 for an open ask that waits on someone other than
   the owner and has no `issue` ref. Owned file `flow/seed.json`: add `"owner": "<your person key>"`

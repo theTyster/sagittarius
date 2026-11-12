@@ -27,7 +27,7 @@ below are generated from the design: do not edit them by hand
 | `project` | Two sides: Decisions about future work and definitions about the current system. Where the product is and where it is going. | the project KB, a directory of its own that the hub's `CLAUDE.md` names | `.claude/orbit-kb/bin/orbit-kb help project`; `.claude/orbit-kb/bin/orbit-kb pin-item` |
 | `ledger` | What needs to be done, who is doing the work, whats blocking what, right now. Nothing about project rules or decisions. | `flow/flow.db`, with its JSONL in `flow/jsonl/` | `hubflow.py`; skill `hub-flow` |
 | `memory` | What every agent must know at start: boot context, heuristics, technologies, and the list of bespoke tools that other tasks can reuse. | the root files `CLAUDE.md`, `HUB-CORE.md`, `HEURISTICS.md`, `TECHNOLOGIES.md` | read at boot; promote into them at rotation (skill `hub-rotate`) |
-| `weeks` | The raw material of each week: meeting and other human transcripts, Claude Code session logs, and the reports written that week. An agent reads a human transcript and records what is needed in the ledger, with a transcript ref; Claude Code session logs are indexed into the ledger; analyses that last go to the project KB. | `W0/` to `W5/`: `reports/`, `transcripts/`, `outbound-staging/` | `hubflow.py index-transcripts`; skill `hub-rotate` |
+| `weeks` | The raw material of each week: meeting and other human transcripts, and the reports written that week. An agent reads a human transcript and records what is needed in the ledger, with a transcript ref; analyses that last go to the project KB. | `W0/` to `W5/`: `reports/`, `transcripts/`, `outbound-staging/` | `hubflow.py transcripts --files`, `transcripts --find`; skill `hub-rotate` |
 | `bespoke` | Helper scripts, skills and small stores an agent makes for this project where nothing else fits: listed where agents look, and pruned like everything else if they stop being used. | a tool or skill, listed in `TECHNOLOGIES.md` (or the memory file the hub names) | the tool's own help; skill `hub-rotate` prunes the unused |
 | `tracker` | The client's system of record. It owns the tickets (request, answers, events), checks and runs, world facts (the code and git), and all designs, bugs and features. A copy that the hub shows there belongs to the store it comes from. | outside the hub: a pointer such as `issue:123` in a ledger ref | `hubflow.py add --ref`; `.claude/orbit-kb/bin/orbit-kb pin-item`; `.claude/orbit-kb/bin/orbit-kb draft` |
 
@@ -98,8 +98,7 @@ are made. The project KB pins the digest of a report or transcript only when a l
 fact relies on it. Code never parses a meeting transcript: an agent that reads one puts what is
 needed into the ledger (open items, a `summary` row that lapses by itself), each with a
 `transcript:` ref, the file name and its sha256 (`hubflow.py transcripts --files`, then `--find`
-after a rotation). `hubflow.py index-transcripts W0` indexes only the Claude Code session
-transcripts, and `rotate --yes` rebuilds that index. Rotation never retires a spec KB. A spec KB whose ticket is closed is a triage
+after a rotation). Rotation never retires a spec KB. A spec KB whose ticket is closed is a triage
 item at rotation: the decision is archive, capsule, keep or escalate, recorded once with
 `hubflow.py spec-triage`. Archive is `git rm -r specs/<slug>`; history keeps it.
 

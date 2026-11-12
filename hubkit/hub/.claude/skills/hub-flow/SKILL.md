@@ -4,8 +4,8 @@ description: >
   Read and write the hub's flow-state db (flow/flow.db) through hubflow.py: asks waiting on a human,
   in-flight threads, holds, and handoffs between sessions. Use for "what is waiting on me", "what is
   open", "log an ask", "hand this to the build session", "accept the handoff", "is this still live",
-  "close it", "what is stale", "what does X own", "triage", "write a capsule", "index the
-  transcripts", "the human skipped it", and before any write to the db. Never edit the db or its
+  "close it", "what is stale", "what does X own", "triage", "write a capsule", "find a
+  transcript", "the human skipped it", and before any write to the db. Never edit the db or its
   JSONL by hand.
 allowed-tools: Bash, Read, SendMessage, ListAgents
 ---
@@ -57,7 +57,6 @@ $HF view v_stale                            # idle ≥14 d (warn), ≥28 d (laps
 $HF view v_dup_refs                         # one ticket on several open items: merge or link them
 $HF show A-0007                              # one item, with its events
 $HF sql "SELECT …"                           # read-only; one SELECT/WITH only
-$HF transcripts [--detail <session id>]     # the Claude Code session index: summary, then user messages
 $HF transcripts --files                     # the week transcript files, each with its transcript: ref
 ```
 
@@ -155,14 +154,7 @@ An agent's decision on a spec KB that blocks is recorded as `escalate`.
 
 ## Transcripts
 
-`$HF index-transcripts W0` reads the Claude Code JSONL transcripts under a week dir into the
-ledger: per session the first and last time, the first user message, message and tool counts,
-and the path; plus each user message cut to 200 characters. It never stores a whole transcript,
-and a rerun gives the same rows. Read `$HF transcripts` first, then `--detail <id>`, then the file
-itself only if you still need it. `rotate --yes` rebuilds this index from W0..W5, so a retired
-week's rows go with it.
-
-Code never parses a meeting transcript. When you read one, put what is needed into the ledger
+Code never parses a transcript. When you read one, put what is needed into the ledger
 yourself: open work as normal items (asks, threads, holds, handoffs), a short `summary` row, or
 what else you judge useful. Point each one at the transcript with a `transcript:` ref: the file
 name and its sha256, which `$HF transcripts --files` prints for each file in `W*/transcripts/`.

@@ -756,7 +756,6 @@ def excludedCommands : List (String × String) := [
   ("rebuild", "only when the db is missing; loads the JSONL copy (editing that copy is outside the model)"),
   ("migrate", "schema upgrade; item rows and the escalated rule stay"),
   ("session", "session rows and owner_session only; status is not touched"),
-  ("index-transcripts", "transcript tables only"),
   ("spec-triage", "changes no item row: it refuses while an item of kb:SLUG is open, and writes one spec_triage event with no item id (an agent's decision on a blocking spec KB becomes escalate in that event, not on an item); check_commands.py checks this in hubflow.py (changes_no_item)")
 ]
 

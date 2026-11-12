@@ -22,7 +22,7 @@ An agent that just booted looks here to know where each thing lives. The hub has
 |---|---|---|---|
 | `ledger` | What needs to be done, who is doing it, what blocks what, right now. | `flow/flow.db`, with its JSONL in `flow/jsonl/` | `hubflow.py`; skill `hub-flow` |
 | `memory` | What every agent must know at start: boot context, heuristics, technologies, decisions. | the root files `CLAUDE.md`, `HUB-CORE.md`, `PRINCIPLES.md`, `HEURISTICS.md`, `TECHNOLOGIES.md` | read at boot; promote into them at rotation (skill `hub-rotate`) |
-| `weeks` | The raw material of each week: reports, meeting transcripts, outbound drafts. | `W0/` to `W5/`: `reports/`, `transcripts/`, `outbound-staging/` | `hubflow.py index-transcripts`; skill `hub-rotate` |
+| `weeks` | The raw material of each week: reports, meeting transcripts, outbound drafts. | `W0/` to `W5/`: `reports/`, `transcripts/`, `outbound-staging/` | `hubflow.py transcripts --files`, `transcripts --find`; skill `hub-rotate` |
 | `bespoke` | Helper scripts, skills and small stores made for this project where nothing else fits. | a tool or skill, listed in `TECHNOLOGIES.md` | the tool's own help; skill `hub-rotate` prunes the unused |
 | `tracker` | The team's system of record: tickets, their criteria, events, designs, bugs. | outside the hub: a pointer such as `issue:123` in a ledger ref | `hubflow.py add --ref` |
 
@@ -79,8 +79,7 @@ A week holds only what people gave it: raw reports in `W*/reports/` and meeting 
 file at rotation. Code never parses a meeting transcript: an agent that reads one puts what is
 needed into the ledger (open items, a `summary` row that lapses by itself), each with a
 `transcript:` ref, the file name and its sha256 (`hubflow.py transcripts --files`, then `--find`
-after a rotation). `hubflow.py index-transcripts W0` indexes only the Claude Code session
-transcripts, and `rotate --yes` rebuilds that index.
+after a rotation).
 
 ### Outbound: staged, a human sends
 
