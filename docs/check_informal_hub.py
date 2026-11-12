@@ -486,7 +486,7 @@ def t32c8(formal_args=()):
                 hub = os.path.join(t, ed)
                 os.makedirs(hub)
                 p = hk(["install", "--hub", hub] + list(formal_args), path=withb)
-                check("t32c8 the default install with orbit-kb on PATH makes a formal hub",
+                check("t32c8 an install with orbit-kb on PATH (the default, or --edition formal when iuxc3e calls) makes a formal hub",
                       p.returncode == 0 and manifest(hub).get("edition", "formal") == "formal", (p.stderr, manifest(hub)))
             else:
                 hub, p = install(t, ed, ed)

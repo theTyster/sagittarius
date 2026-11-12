@@ -104,7 +104,7 @@ check_ids(This) :-
 
 % Markdown escape of a name. The escape characters are plain character codes, not a quoted atom
 % or 0'c: SWI-Prolog before 10.1.6 can misread a 0'c number that falls on the end of its read
-% buffer (swipl-devel #1483), and the old clause failed that way in about 1 run in 400.
+% buffer (probably swipl-devel #1483), and the old clause failed that way in about 1 run in 400.
 md_escape(X, E) :-
     format(atom(T0), "~w", [X]), atom_codes(T0, Cs),
     maplist(md_esc_code, Cs, Ess), append(Ess, Es),
