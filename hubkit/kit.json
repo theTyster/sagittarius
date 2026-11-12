@@ -27,6 +27,15 @@
     ],
     "formal": []
   },
+  "prompt": {
+    "from": "../prompt",
+    "prompt": "SAGITTARIUS.md",
+    "panes": [
+      "PANES.md",
+      "panes"
+    ],
+    "launcher": "~/.claude/sagittarius"
+  },
   "orbit_kb": {
     "from": "../kb",
     "to": ".claude/orbit-kb",
