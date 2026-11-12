@@ -20,8 +20,8 @@ when P(choice) >= 0.5 (probabilities[choice], else confidence; hook.py CHOICE_MI
 - Newest line is an error line (error set, or answers null): prints `S1 err`.
 - A choice (work, tool) with P below 0.5 is left out; a yes/no answer inside the band (0.3, 0.7) is
   left out.
-- The tool shows only beside a signal (div, plan or eff at 0.7 or more), or when it is lean (a
-  proof is asked for), as in the hook (0.3.0 S-A).
+- The tool shows only beside a signal (div, plan or eff at 0.7 or more), or when a proof is asked
+  for, as in the hook (0.3.0 S-A): h_proof in the yes band when the line has it, else the tool lean.
 - A missing or malformed answer is left out of the segment; with none left, nothing is printed.
 - The log is read from its end in 64 KiB blocks, stopping at the first line that matches (at most
   MAX_SCAN bytes back). It never reads the whole file.
@@ -108,6 +108,16 @@ def _choice(a):
     return a["choice"]
 
 
+def _proof_asked(answers, lang):
+    """A proof is asked for: the answer h_proof when the line has it (yes band), else the choice lean.
+    The same rule as hook.py _proof_asked (review of 0.3.0, finding 7)."""
+    a = answers.get("h_proof")
+    if isinstance(a, dict):
+        p = _p(answers, "h_proof")
+        return p is not None and float(p) >= YES_MIN
+    return lang == "lean"
+
+
 def render(session_id, log_path, now=None):
     """The segment text for the session, or "" to show nothing. now: aware datetime (clock)."""
     try:
@@ -133,7 +143,7 @@ def render(session_id, log_path, now=None):
                 parts.append(f"{label} {p}")
                 signal = signal or float(p) >= YES_MIN
         lang = _choice(answers.get("h_language"))
-        if lang and (signal or lang == "lean"):  # 0.3.0 S-A: the tool only beside a signal, or Lean
+        if lang and (signal or _proof_asked(answers, lang)):  # 0.3.0 S-A: the tool only beside a signal, or a proof
             parts.append(f"tool {lang}")
         return ("S1 " + " | ".join(parts)) if parts else ""
     except Exception:
