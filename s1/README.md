@@ -170,3 +170,30 @@ newline instead of the ` | ` join. Trying it without installing:
 
 Tests (no network): `python3 -m unittest s1.test_statusline -v`. One claim alone:
 `python3 -m unittest s1.test_statusline.C2Stale -v`.
+
+## The observation harness (0.3.0, suggestion 3)
+
+`observe.py` compares the log of the hook with the session transcripts, after the fact. The hook
+does not ask the agent to acknowledge a hint, so it stays fast; this tool reads afterwards. It
+reads only, and calls no network.
+
+    python3 s1/observe.py --log ~/.claude/logs/s1.jsonl --transcripts ~/.claude/projects [--json] [--session ID]
+
+For each session that the log names, and for all of them, it counts the hints that named a
+signal, the hints after which the agent shifted up, the hints that the agent disputed, and the
+shifts with no hint. For example: "2 hints named a signal; the agent shifted up after 1; the agent
+disputed 1; the agent shifted up 1 time with no hint." `--json` prints the keys `hints`,
+`shifted_after_hint`, `disputed`, `shifts_without_hint`, `sessions` and `limits`.
+
+Its limits (it prints them too):
+
+- A shift is a line that starts with `Shifting up:`. The prompt allows other words; the tool
+  misses those.
+- A dispute is a delivery in the same turn whose `Signals:` field says "no" for the signal that
+  the hint named. A dispute in one line with no delivery is not counted.
+- A hint names a signal only in the yes band (P >= 0.7) of divergence, change of plan, effort,
+  and, when the question set has them, proof and questions.
+- A hint goes to the turn of its prompt: by the message text in the log line, else by the
+  nearest prompt in time (at most 5 minutes).
+
+Tests (no network; invented transcripts only): `python3 -m unittest s1.test_observe -v`.
