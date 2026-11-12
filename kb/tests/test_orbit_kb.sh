@@ -2611,7 +2611,6 @@ t_VR6() { okb help build; rc_is 0
               printf '%s\n' "$f" | grep -Eq -- "$p" || note "FULFILL lacks /$p/"
           done
           local pr=$here/../../prompt
-          grep -E 'help build' "$pr/SAGITTARIUS.md" | grep -Eqi 'fresh-eyes|FULFILL' || note "SAGITTARIUS.md: the help build line points to the fresh-eyes brief"
           grep -Eq 'help build.*FULFILL|FULFILL.*help build' "$pr/panes/review.md" || note "review.md (Verify) points to the FULFILL brief of help build"; }
 
 # ---------------------------------------------------------------- T38: fixes of D28 found when T25 was verified
@@ -3204,7 +3203,7 @@ run_test t_VR2 VR2 "D28 c2: review start records review_saw for the ticket, the 
 run_test t_VR3 VR3 "D28 c3: verdicts carry what was tried, upheld(Text), and rests_on_run"
 run_test t_VR4 VR4 "D28 c4: independently_verified(C)"
 run_test t_VR5 VR5 "D28 c5: report Review section and lint WR1; done unchanged"
-run_test t_VR6 VR6 "D28 c6: the FULFILL brief for the fresh-eyes subagent"
+run_test t_VR6 VR6 "D28 c6: the FULFILL brief for the fresh-eyes subagent (0.3.0: the prompt no longer points to it; panes/review.md does)"
 run_test t_VR7 VR7 "T38 c1: a digest is the sha256 of the bytes, also for non-ASCII files"
 run_test t_VR8 VR8 "T38 c2: independently_verified reads the latest verdict on the claim"
 run_test t_VR9 VR9 "T38 c3: old data fails closed"

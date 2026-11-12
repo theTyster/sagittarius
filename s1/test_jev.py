@@ -163,6 +163,14 @@ class C4Log(Base):
         self.assertIsNone(r["error"])
         self.assertIsInstance(r["latency"], (int, float))
 
+    def test_c4_each_line_holds_the_version_of_sagittarius(self):
+        """0.3.0 (V-A): a line says which Sagittarius ran, from the VERSION file at the root."""
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        want = open(os.path.join(root, "VERSION"), encoding="utf-8").read().strip()
+        self.call(Fake())
+        self.assertEqual(self.lines()[0]["sagittarius"], want)
+        self.assertEqual(jev.sagittarius_version(), want)
+
     def test_c4_log_has_no_key_and_no_original(self):
         fake = Fake()
         state = {"msg": "Jane works at Acme Corp", "leak": "token " + KEY}

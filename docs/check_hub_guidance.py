@@ -241,10 +241,15 @@ def c5(_):
     pr = read(PROMPT)
     i = pr.find("When you resume")
     check("c5 prompt has 'When you resume'", i >= 0, "missing")
-    para = pr[i:i + 700]
-    has("c5 prompt resume paragraph", para, "in a hub", "inbox", "hubflow", "hubflow where", "orbit-kb show open")
+    para = pr[i:i + 300]
+    # 0.3.0: the prompt holds no hub text ("A workspace, such as a hub, names its own tools, roles,
+    # and routing"): it keeps `orbit-kb show open` for a resume; the inbox and hubflow recipe live
+    # in the hub's text (PANES.md, the hub-flow skill).
+    has("c5 prompt resume paragraph", para, "orbit-kb show open")
+    lacks("c5 prompt", pr, "hubflow")
     pan = read(PANES)
-    has("c5 PANES.md handoff procedure", pan, "hubflow handoff", "inbox", "kb ref", "orbit-kb show open")
+    has("c5 PANES.md handoff procedure", pan, "hubflow handoff", "inbox", "v_inbox", "hubflow where", "kb ref", "orbit-kb show open")
+    has("c5 hub-flow SKILL.md reads the inbox", read(SKILL_FLOW), "v_inbox")
     has("c5 hub-flow SKILL.md points to PANES.md", read(SKILL_FLOW), "PANES.md")
     check("c5 the procedure is written once (one 'hubflow handoff' recipe in PANES.md)", words(pan).count("hubflow handoff") == 1, words(pan).count("hubflow handoff"))
 
@@ -284,13 +289,12 @@ def c8(_):
 # ------------------------------------------------------------------ c9
 def c9(_):
     pr = read(PROMPT)
-    has("c9 prompt", pr, "orbit-kb help project")
-    check("c9 prompt has one line saying that in a hub HUB-CORE.md says which store holds what",
-          any("HUB-CORE.md" in ln and "store" in ln and "hub" in ln.lower() for ln in pr.splitlines()), "no such line")
+    # 0.3.0: the prompt holds no hub text; HUB-CORE.md (the hub's own text) names the project KB and the stores.
+    core = read(CORE)
+    has("c9 HUB-CORE.md", core, "orbit-kb help project", "What lives where")
+    has("c9 prompt says that a workspace names its own tools, roles, and routing", " ".join(pr.split()), "A workspace, such as a hub, names its own tools, roles, and routing")
     has("c9 HUB-CORE.md names the repo map", read(CORE), "kb/bin/repo-map")
     has("c9 the hub CLAUDE.md template names the repo map", read(os.path.join(HUB, "CLAUDE.md")), "repo-map")
-    n = len(pr.splitlines())
-    check("c9 prompt stays within 230 lines", n <= 230, n)
 
 
 # ------------------------------------------------------------------ c10

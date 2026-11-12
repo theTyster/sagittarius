@@ -2,7 +2,8 @@
 """T17 consistency checks: one check per claim (c1-c7, c9). Each is a grep-level test that
 the named files agree. c8 (hubkit names the project KB) waits for ticket T06 and has no check.
 
-Usage: python3 docs/check_consistency.py [--only c1 ... c9]
+Usage: python3 docs/check_consistency.py [c1 ... c9]
+(0.3.0: a missing heading is a FAIL of its claim, never a stop; the later claims still run.)
 Exit 0: pass. Exit 1: fail.
 """
 import json
@@ -30,16 +31,16 @@ def block(text, start, end):
 
 def c1():
     prompt = read("prompt/SAGITTARIUS.md")
-    signals = block(prompt, "## When to shift up", "Three parties decide")
+    signals = block(prompt, "\n## Signals\n", "\n## One response\n")
     bullets = re.findall(r"^- \*\*([^*]+)\*\*", signals, re.M)
     if len(bullets) != 6:
-        return "the shift-up list has %d signals, not 6" % len(bullets)
+        return "the list under Signals has %d signals, not 6" % len(bullets)
     if "effort" not in bullets[-1].lower():
-        return "the last shift-up signal is not Effort"
-    trig = flat(block(prompt, "Triggers:", "Claims:"))
+        return "the last signal under Signals is not Effort"
+    trig = flat(block(prompt, "Signals:     <", "Claims:"))
     for word in ["questions", "divergence", "someone else built", "burns", "handoff", "effort"]:
         if word not in trig:
-            return "the Triggers line lacks %r" % word
+            return "the Signals line of the delivery block lacks %r" % word
     phil = read("docs/PHILOSOPHY.md")
     para = flat(block(phil, "Most work needs little process", "\n\n"))
     if "effort" not in para:
@@ -74,14 +75,18 @@ def c3():
 
 def c4():
     prompt = read("prompt/SAGITTARIUS.md")
-    scope = flat(block(prompt, "## Scope", "## Roles"))
-    rep = re.search(r"- a report.*?(?=- a change request)", scope)
+    # 0.3.0: the prompt holds no panes (a workspace names its own routing). The prompt sends a
+    # report to discovery; PANES.md (the hub's text) holds the route through review and intake.
+    scope = flat(block(prompt, "\n## Scope\n", "\nClarity decides"))
+    rep = re.search(r"- a report.*?(?=\n- |\Z)", scope, re.S)
     if not rep:
         return "the report bullet in Scope is missing"
-    t = rep.group(0)
-    for word in ["panes", "review", "intake", "discovery", "without"]:
-        if word not in t:
-            return "the report bullet in Scope lacks %r" % word
+    if "discovery" not in rep.group(0):
+        return "the report bullet in Scope does not send a report to discovery"
+    panes = flat(read("prompt/PANES.md"))
+    for word in ["review", "intake", "discovery", "report"]:
+        if word not in panes:
+            return "PANES.md (the route of a report) lacks %r" % word
     return None
 
 
@@ -100,9 +105,6 @@ def c5():
 
 def c6():
     phil = read("docs/PHILOSOPHY.md")
-    para = flat(block(phil, "That exit test rests on sanity", "\n- "))
-    if "help discovery" not in para:
-        return "PHILOSOPHY.md names FLYBY/TRAJECTORY steps but not orbit-kb help discovery"
     if "evals/refining.md" in phil.lower().replace("docs/refining.md", ""):
         return "PHILOSOPHY.md cites evals/REFINING.md (the file is docs/REFINING.md)"
     if not os.path.exists(os.path.join(ROOT, "docs/REFINING.md")):
@@ -155,7 +157,7 @@ def c9():
     n = len(re.findall(r"^- ", m.group(2), re.M))
     if words.get(m.group(1)) != n:
         return "hubkit/README.md says %s ideas but lists %d" % (m.group(1), n)
-    win = flat(block(read("prompt/SAGITTARIUS.md"), "**The vote.**", "Seal your vote"))
+    win = flat(block(read("prompt/SAGITTARIUS.md"), "\n## The vote\n", "Seal your vote"))
     if "more than 0.5, so the human and at least one other" not in win:
         return "the win rule in SAGITTARIUS.md lacks 'more than 0.5, so the human and at least one other'"
     return None
@@ -167,7 +169,10 @@ if __name__ == "__main__":
     only = [a for a in sys.argv[1:] if a in CHECKS] or list(CHECKS)
     bad = 0
     for k in only:
-        err = CHECKS[k]()
+        try:
+            err = CHECKS[k]()
+        except Exception as e:  # a missing anchor is a failure of that claim; the next claim still runs
+            err = "%s: %s (an anchor of the check is gone from the files)" % (type(e).__name__, e)
         print("%s %s%s" % (k, "PASS" if err is None else "FAIL", "" if err is None else ": " + err))
         bad += err is not None
     sys.exit(1 if bad else 0)

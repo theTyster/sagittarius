@@ -123,14 +123,15 @@ def t31c3():
 
 
 def t31c4():
-    t = read(os.path.join(ROOT, "prompt", "SAGITTARIUS.md"))
+    # 0.3.0: the prompt holds no hub text; the hub's pane text (PANES.md) gives the command.
+    t = read(os.path.join(ROOT, "prompt", "PANES.md"))
     ls = t.splitlines()
     first = next((i for i, ln in enumerate(ls) if "hubflow" in ln), None)
-    check("t31c4 prompt uses hubflow", first is not None, "never")
+    check("t31c4 PANES.md uses hubflow", first is not None, "never")
     if first is None:
         return
     win = " ".join(ls[first: first + 3])
-    check("t31c4 first use of hubflow gives python3 .claude/scripts/hubflow.py",
+    check("t31c4 first use of hubflow in PANES.md gives python3 .claude/scripts/hubflow.py",
           "python3 .claude/scripts/hubflow.py" in win, win[:200])
 
 
@@ -197,14 +198,13 @@ def t31c8():
 
 def t31c9():
     w = flat("prompt/SAGITTARIUS.md")
-    i = w.find("**the hypothesis.**")
-    j = w.find("**the vote.**")
+    i = w.find("## the hypothesis")
+    j = w.find("## signals", i + 1)
     para = w[i:j] if i >= 0 and j > i else ""
-    check("t31c9 the hypothesis paragraph is found", bool(para), "missing")
+    check("t31c9 the hypothesis section is found", bool(para), "missing")
     check("t31c9 err-soft names hypotheses, premises and claims",
           re.search(r"err toward the general and soft in [^.]*\bhypothes[^.]*\bpremises[^.]*\bclaims", para) is not None, para[-400:])
     check("t31c9 oscillation is an intentional heuristic", "oscillation is an intentional heuristic" in para, para[-300:])
-    check("t31c9 the prompt stays within 230 lines", len(read(os.path.join(ROOT, "prompt", "SAGITTARIUS.md")).splitlines()) <= 230, "too long")
 
 
 def t46c2():

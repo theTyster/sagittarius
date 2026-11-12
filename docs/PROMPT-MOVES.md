@@ -1,5 +1,12 @@
 # Where each section of the old prompt went (T08)
 
+This file is the record of ticket T08 at commit 7da5320 (2026-11). It is a dated record: it
+says where the sections of the prompt of that commit went, and it is not kept in step with the
+prompt. Sagittarius 0.3.0 renamed sections and rewrote rules on purpose, so no check compares
+this file with the current prompt (`docs/check_prompt_small.py` holds the current prompt by
+key phrases; `docs/check_prompt_moves.py` holds only the homes in `orbit-kb help` and the hook).
+Its `PHILOSOPHY.md §N` rows use the numbering of that date.
+
 Ticket T08 makes `prompt/SAGITTARIUS.md` small: the prompt states the philosophy, `orbit-kb help`
 holds the procedure, and the System 1 hook (`s1/hook.py`) gives hints about the work. This map
 names the new home of every heading of the prompt before the redesign
@@ -122,9 +129,10 @@ names lint codes, which are procedure and can change ("read `orbit-kb whynot
 
 ## Rewordings in the checked sections (c3)
 
-`docs/check_prompt_small.py` compares the rules of "Honesty rules", "Delivery", and rules 1 to 6
-of "Honesty rules for discovery", after whitespace is collapsed. A rule can be rewrapped. Each
-rewording is listed here, with the reason. The check reads this list.
+In T08, `docs/check_prompt_small.py` compared the rules of "Honesty rules", "Delivery", and rules
+1 to 6 of "Honesty rules for discovery", after whitespace is collapsed. Each rewording was listed
+here, with the reason. Since 0.3.0 that check does not read this list: it holds each rule of the
+new prompt by one key phrase. The list stays as the record.
 
 <!-- c3-rewordings: begin -->
 
