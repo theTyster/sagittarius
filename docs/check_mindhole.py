@@ -27,10 +27,11 @@ mg  (c_m_g) "MindHole" is the display name: the title and first lines of hubkit/
     hubkit/INSTRUCTIONS.md, the briefing page, README.md and CLAUDE.md say it; the identifiers stay.
 mb7 (review finding 6) the informal hub-flow skill teaches the two notes that the informal map names:
     "divergence: ..." and "vote: GO: ..." on the ticket's thread.
-mg2 (Ty, 2026-11-12: the kit itself is the MindHole, with its own version line) hubkit/README.md,
-    hubkit/INSTRUCTIONS.md and the MindHole section of README.md call the kit the MindHole: no "hub kit", no
-    "the MindHole is the hub"; both HUB-CORE.md files say they ship with the MindHole; the versions table of
-    CHANGELOG.md has the row "MindHole" with the version of hubkit/kit.json (review finding 7).
+mg2 (Ty, 2026-11-12: the hub is the MindHole; the template is the MindHole Kit, with its own version line)
+    hubkit/README.md, hubkit/INSTRUCTIONS.md and the MindHole Kit section of README.md call the template the
+    MindHole Kit: no "hub kit", no "the MindHole Kit is the hub", no "the MindHole is the kit", no "MindHole hub",
+    no "MindHole <N.N.N>"; both HUB-CORE.md files say they ship with the MindHole Kit; the versions table of
+    CHANGELOG.md has the row "MindHole Kit" with the version of hubkit/kit.json (review finding 7).
 u1  (UAT U1) step 3 of INSTRUCTIONS.md and UPGRADING.md say what the last line of hubflow-test.py looks like in
     a hub (", 3 skipped" in a formal hub) and name each check that hubflow-test.py skips as "not run from the
     kit tree"; UPGRADING.md no longer says that the suite shows no SKIP.
@@ -243,23 +244,27 @@ def mg2():
     for rel in ("hubkit/README.md", "hubkit/INSTRUCTIONS.md"):
         t = flat(read(os.path.join(ROOT, rel)))
         check(f"mg2 {rel} does not call the kit the hub kit", re.search(r"hub kit(?!\.json)", t, re.I) is None, re.findall(r"[^.]*hub kit[^.]*", t, re.I)[:2])
-        check(f"mg2 {rel} does not say the MindHole is the hub", re.search(r"MindHole\W* is the hub\b", t) is None,
-              re.findall(r"[^.]*MindHole\W* is the hub[^.]*", t)[:1])
+        check(f"mg2 {rel} does not say the MindHole Kit is the hub", re.search(r"MindHole Kit\W* is the hub\b", t) is None,
+              re.findall(r"[^.]*MindHole Kit\W* is the hub[^.]*", t)[:1])
+        check(f"mg2 {rel} does not call the kit the MindHole", re.search(r"MindHole\W* is the (hub )?kit|MindHole hub|MindHole \d|MindHole <version>", t) is None,
+              re.findall(r"[^.]*(?:MindHole\W* is the (?:hub )?kit|MindHole hub|MindHole <version>)[^.]*", t)[:1])
     head = flat("\n".join(read(os.path.join(ROOT, "hubkit", "README.md")).splitlines()[:6]))
-    check("mg2 hubkit/README.md says in its first lines that the MindHole is a kit", re.search(r"MindHole\W* is (a|the) [^.]*\bkit\b", head), head[:300])
-    check("mg2 hubkit/README.md names the version line MindHole <version>", "MindHole <version>" in read(os.path.join(ROOT, "hubkit", "README.md")))
+    check("mg2 hubkit/README.md says in its first lines that the MindHole Kit is the template", re.search(r"MindHole Kit\W* is (a|the) [^.]*\btemplate\b", head), head[:300])
+    check("mg2 hubkit/README.md names the version line MindHole Kit <version>", "MindHole Kit <version>" in read(os.path.join(ROOT, "hubkit", "README.md")))
     readme = read(os.path.join(ROOT, "README.md"))
-    sec = flat(section(readme, "The MindHole") or section(readme, "MindHole"))
-    check("mg2 README.md has a MindHole section that names hubkit/", "hubkit/" in sec, sec[:200])
+    sec = flat(section(readme, "The MindHole Kit"))
+    check("mg2 README.md has a section 'The MindHole Kit' that names hubkit/", "hubkit/" in sec, sec[:200])
+    check("mg2 README.md names the version line MindHole Kit <version>", "MindHole Kit <version>" in flat(sec), sec[:200])
     check("mg2 README.md does not call the kit the hub kit", "hub kit" not in flat(readme).lower(), re.findall(r"[^.]*hub kit[^.]*", flat(readme), re.I)[:2])
-    check("mg2 README.md does not say the MindHole is the hub", re.search(r"MindHole\W* is the hub\b", flat(readme)) is None)
+    check("mg2 README.md does not say the MindHole Kit is the hub", re.search(r"MindHole Kit\W* is the hub\b", flat(readme)) is None)
+    check("mg2 README.md does not call the kit the MindHole", re.search(r"MindHole\W* is the (hub )?kit|MindHole hub|MindHole <version>", flat(readme)) is None)
     for label, path in (("formal", CORE), ("informal", ICORE)):
         top = flat("\n".join(read(path).splitlines()[:5]))
-        check(f"mg2 the {label} HUB-CORE.md says it ships with the MindHole", "ships with the MindHole" in top, top[:200])
+        check(f"mg2 the {label} HUB-CORE.md says it ships with the MindHole Kit", "ships with the MindHole Kit" in top, top[:200])
     kit = json.loads(read(os.path.join(ROOT, "hubkit", "kit.json")) or "{}").get("version")
-    row = [ln for ln in read(os.path.join(ROOT, "CHANGELOG.md")).splitlines() if ln.startswith("| MindHole")]
-    check("mg2 the versions table of CHANGELOG.md has one row named MindHole", len(row) == 1 and cells(row[0])[0] == "MindHole", row)
-    check("mg2 the MindHole row of CHANGELOG.md names the kit.json version", row and cells(row[0])[1] == kit, (row, kit))
+    row = [ln for ln in read(os.path.join(ROOT, "CHANGELOG.md")).splitlines() if ln.startswith("| MindHole Kit")]
+    check("mg2 the versions table of CHANGELOG.md has one row named MindHole Kit", len(row) == 1 and cells(row[0])[0] == "MindHole Kit", row)
+    check("mg2 the MindHole Kit row of CHANGELOG.md names the kit.json version", row and cells(row[0])[1] == kit, (row, kit))
 
 
 def kit_tree_skips():

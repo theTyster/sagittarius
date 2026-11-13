@@ -76,7 +76,7 @@ if not ver(now) > ver(base):
 PY
 cl=$repo/CHANGELOG.md
 [ -f "$cl" ] && ok c3-changelog-file || bad c3-changelog-file "no CHANGELOG.md"
-for w in "| MindHole |" philosophy "spec KB" "Jev" "flow ledger" "Lean" "small prompt" panes "question view" "repo map" tempering "status line" "System 1 hook" "Not in this release yet"; do
+for w in "| MindHole Kit |" philosophy "spec KB" "Jev" "flow ledger" "Lean" "small prompt" panes "question view" "repo map" tempering "status line" "System 1 hook" "Not in this release yet"; do
     grep -qi -- "$w" "$cl" 2>/dev/null && ok "c3-changelog-$w" || bad "c3-changelog-$w" "CHANGELOG.md lacks: $w"
 done
 grep -q '0\.2\.0' "$cl" 2>/dev/null && ok c3-changelog-version || bad c3-changelog-version "CHANGELOG.md does not name hubkit 0.2.0"

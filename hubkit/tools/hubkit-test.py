@@ -210,7 +210,7 @@ def case_t48_version_moves_with_schema(r, root):
         json.dump(mf, f)
     res = hk(r, "upgrade", "--kit", KIT, "--hub", hub)
     r.check("t48-c3-upgrade-of-a-0.5.0-hub-shows-a-version-change", res[0] == 0
-            and f"upgrade MindHole {old} -> MindHole {version} " in res[1] and old != version, res)  # kit3: the MindHole version line
+            and f"upgrade MindHole Kit {old} -> MindHole Kit {version} " in res[1] and old != version, res)  # kit3: the MindHole Kit version line
 
 
 def clean_env(path):
@@ -411,18 +411,18 @@ def case_iux_c6_uat(r, root):
 
 
 def case_k3_mindhole_version(r, root):
-    """0.3.0 kit3, review finding 8: the kit's version line is "MindHole <version>"; install, status and upgrade
+    """0.3.0 kit3, review finding 8: the kit's version line is "MindHole Kit <version>"; install, status and upgrade
     print it in that form."""
     v = json.load(open(os.path.join(KIT, "kit.json"), encoding="utf-8"))["version"]
     hub = os.path.join(root, "k3-mindhole-hub")
     res = hk(r, "install", "--kit", KIT, "--hub", hub, "--edition", "informal")
-    r.check("k3-install-prints-MindHole-version", res[0] == 0 and f"installed MindHole {v} " in res[1], res[1][:200])
+    r.check("k3-install-prints-MindHole-Kit-version", res[0] == 0 and f"installed MindHole Kit {v} " in res[1], res[1][:200])
     st = hk(r, "status", "--kit", KIT, "--hub", hub)
     first = (st[1].splitlines() or [""])[0]
-    r.check("k3-status-prints-the-hub-and-the-kit-as-MindHole-versions",
-            st[0] == 0 and f"hub from MindHole {v} " in first and first.endswith(f"this kit MindHole {v}"), first)
+    r.check("k3-status-prints-the-hub-and-the-kit-as-MindHole-Kit-versions",
+            st[0] == 0 and f"hub from MindHole Kit {v} " in first and first.endswith(f"this kit MindHole Kit {v}"), first)
     up = hk(r, "upgrade", "--kit", KIT, "--hub", hub)
-    r.check("k3-upgrade-prints-MindHole-versions", up[0] == 0 and f"upgrade MindHole {v} -> MindHole {v} " in up[1], up[1][:200])
+    r.check("k3-upgrade-prints-MindHole-Kit-versions", up[0] == 0 and f"upgrade MindHole Kit {v} -> MindHole Kit {v} " in up[1], up[1][:200])
 
 
 def hk_home(r, home, *args):

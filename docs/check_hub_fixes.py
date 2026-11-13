@@ -50,7 +50,7 @@ t50c1 (retire) the repo has no microsite: neither the deck directory nor the Pag
       tracked file outside tmp/ names the deck files, their build and check scripts, or the workflow.
 t50c2 (retire) README.md, CLAUDE.md and docs/PHILOSOPHY.md do not point at the decks.
 t50c4 (preserve) hubkit/docs/index.html stays: the local briefing that step 1 of hubkit/INSTRUCTIONS.md opens. It
-      names the MindHole (Ty, 2026-11-12: the kit is the MindHole; it was "hub kit").
+      names the MindHole (Ty, 2026-11-12: a hub is a MindHole, the template is the MindHole Kit; it was "hub kit").
 """
 import json
 import os
