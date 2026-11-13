@@ -2,7 +2,7 @@
   "skill_name": "sagittarius-tools-heldout",
   "model": "haiku",
   "timeout_s": 600,
-  "notes": "Held-out variants of the tool-use evals in evals/tools.json (id N+100 varies tuning case N, see variant_of), written blind: without the prompt, the runs, or the grading notes. Same checks and trigger kinds, different domain, code, and wording. Run them only at a gate, never while tuning the prompt. Fixtures are in evals/heldout/fixtures/; script: checks are in evals/heldout/checks/.",
+  "notes": "Held-out variants of the tool-use evals in evals/tools.json (id N+100 varies tuning case N, see variant_of), written blind: without the prompt, the runs, or the grading notes. Same checks and trigger kinds, different domain, code, and wording. Run them only at a gate, never while tuning the prompt. Fixtures are in evals/heldout/fixtures/; script: checks are in evals/heldout/checks/. Ids 301-305 twin the planning cases 13-17 (evals/evals.json) as prose-only cases in the empty plan-only fixture: they carry the planning preamble in the prompt, are graded by the rubric, and their only scripted check is no_kb. Ids 124 and 125 twin tools 24 and 25; 216 and 221 are second twins of 16 and 21, written after the change-of-plan rule moved to a supersession (the cases 116 and 121 stay). All of these were written blind, like the rest.",
   "evals": [
     {
       "id": 101,
@@ -349,6 +349,191 @@
         "Answers correctly: board_level uses Python's round(), which rounds an exact half to the nearest even number (banker's rounding). The mean 100.5 goes to 100 and 101.5 goes to 102, so the two tests differ. It is not a float error, not the clean() filter, and not a bug in the mean",
         "Stays light: creates no knowledge base (no kb.pl), holds no vote, and does not change the code or the tests"
       ]
+    },
+    {
+      "id": 301,
+      "variant_of": "planning 13",
+      "name": "hypothesis-with-premises-parcel",
+      "fixture": "plan-only",
+      "prompt": "This is a planning exercise. Don't run any tools or change any files; just answer in prose.\n\nHere is a ticket from me: \"Show customers the date their parcel should arrive, not only a number of days. Everything ships from our one warehouse.\" The repository is still unopened.\n\n1. Ahead of any test or code, what message do you give me? Write it as I would read it.\n2. Does the work pause until I answer?\n3. Partway through the reading you find that some orders leave from a second depot. What is the fate of the message from point 1?",
+      "checks": [
+        "no_kb"
+      ],
+      "assertions": [
+        "Gives one sentence that says what must be true at the end (the customer sees the date the parcel should arrive), with one concrete example (for example ordered on a Monday with a three-day trip, shown as Thursday)",
+        "Puts the premises beside that sentence and names the single warehouse as one, because the request gave it",
+        "Adds no premise that the request did not give, and puts no mechanism or fix into the sentence (it names no table, function, carrier feed or library)",
+        "Goes on to the work without waiting for a reply: stating the sentence is not a question to the human",
+        "When the code shows a second depot, says that the premise is false and that the statement does not apply as written, then restates it and shows the human the restated version",
+        "Does not write that there are no premises, and does not go on with the old sentence after it found the premise false, and does not ask the human to approve the sentence before it goes on"
+      ]
+    },
+    {
+      "id": 302,
+      "variant_of": "planning 14",
+      "name": "kept-changed-phone-list",
+      "fixture": "plan-only",
+      "prompt": "This is a planning exercise. Don't run any tools or change any files; just answer in prose.\n\nThe ask was: \"Put the staff phone list on one printable page.\" You handed over a page with every name and extension under a department heading, departments in alphabetical order. I look at it and write: \"hm, why are the departments in that order?\"\n\n1. Which single line do you reply with first? Write it word for word.\n2. After that, depending on my answer, how do you sort out what went wrong, if anything?",
+      "checks": [
+        "no_kb"
+      ],
+      "assertions": [
+        "The first reply is one short line that says what the human still gets (the staff phone list on one printable page) and what may change (the order of the departments), in a form the human can contradict",
+        "The first reply does not defend or explain the alphabetical order",
+        "It tells the cases apart by the human's answer: the order did not match what the human meant (a divergence, recorded on its claim), the order matched the request and the human's wish moved (a new claim that supersedes the old one, and no divergence), and it cannot tell (it says so and treats it as a divergence)",
+        "What the human did not question (every name and extension, the department headings, the one printable page) stays a claim and its checks stay",
+        "Does not say \"you're right\" and re-sort with no record, and does not start over from nothing"
+      ]
+    },
+    {
+      "id": 303,
+      "variant_of": "planning 15",
+      "name": "adds-on-top-new-ticket-packing-slip",
+      "fixture": "plan-only",
+      "prompt": "This is a planning exercise. Don't run any tools or change any files; just answer in prose.\n\nLast week's ticket, \"Print a packing slip when an order is paid\", has shipped. Part of it is not finished: the footer text of the slip depends on the brand team, and I put off the check on that text until Monday. Now I write: \"Nice. Could you also email the slip to the customer when the order is paid? Leave the printed slip alone.\"\n\n1. Is the email a fix, an amendment, or something different? Say why.\n2. Where does the footer item stand after my message?\n3. Before you begin the email, what do you put on record?",
+      "checks": [
+        "no_kb"
+      ],
+      "assertions": [
+        "Says that the email adds to the result and changes nothing about the printed slip, so it is a new ticket and not a fix of the first one",
+        "Records no divergence and no superseding claim against the printed slip's claims: they stay as they are, with their checks",
+        "The open footer item stays open with its Monday due time: the new ticket does not close it, move it or let it lapse",
+        "Writes a statement of its own for the new ticket (what must be true, with its premises and one example) before it starts",
+        "Does not fold the email into the first ticket, and does not say the first ticket is closed"
+      ]
+    },
+    {
+      "id": 304,
+      "variant_of": "planning 16",
+      "name": "formal-beside-plain-seats",
+      "fixture": "plan-only",
+      "prompt": "This is a planning exercise. Don't run any tools or change any files; just answer in prose.\n\nIn a flight-booking tool you have switched to a formal language. Your file has Lean definitions, four helper lemmas, and one main theorem that states \"a seat on one flight is never given to two passengers\"; the whole file is 90 lines and compiles. This is the main theorem as it stands:\n\ntheorem seat_unique (m : Manifest) (h : WellFormed m) :\n  ∀ p q, p ∈ m.passengers → q ∈ m.passengers → p ≠ q → p.flight = q.flight →\n    p.seat ≠ q.seat\n\nDraft the section of your write-up for me that deals with this formal work.",
+      "checks": [
+        "no_kb"
+      ],
+      "assertions": [
+        "Puts the formal statement of the theorem next to the plain sentence of the claim, so a reader can compare the two",
+        "Shows the statement only, and not the whole file, the helper lemmas, or the proof",
+        "Says in plain words what the statement takes as given (the manifest is well formed) and what it says about two different passengers on one flight",
+        "Says that the result is about the Lean definitions and not about the code of the booking tool, and does not call the code proven correct",
+        "Does not give the formal statement with no plain sentence, or the plain sentence with no statement"
+      ]
+    },
+    {
+      "id": 305,
+      "variant_of": "planning 17",
+      "name": "edge-case-shown-permit",
+      "fixture": "plan-only",
+      "prompt": "This is a planning exercise. Don't run any tools or change any files; just answer in prose.\n\nTicket: \"Show the time left on a parking permit in hours and minutes.\" It is built, and its checks are green: 90 minutes left shows 1h 30m, and an expired permit shows expired. I ask: \"Is this what I meant?\"\n\n1. Which thing do you lay in front of me, to help me decide?\n2. In what words do you put your question?",
+      "checks": [
+        "no_kb"
+      ],
+      "assertions": [
+        "Shows at least one concrete case, with what the display reads for it, and not only that the checks pass",
+        "The case sits at the edge of what it built (for example a permit with 30 seconds left, exactly zero left, or more than a day left), and not a plain permit with time left or a plain expired one that the checks already cover",
+        "Asks the human to judge that case, in a question that a yes or a no answers",
+        "Does not ask the human to approve a list of checks or a plan, and does not answer only that all checks pass"
+      ]
+    },
+    {
+      "id": 124,
+      "variant_of": 24,
+      "name": "typo-no-kb-receipt",
+      "fixture": "receipt-footer",
+      "prompt": "The receipt footer reads \"Thank you for shoping\". Fix the spelling, please.",
+      "checks": [
+        "no_kb",
+        "unittest_pass",
+        "python:from receipt import footer; assert footer('Omar') == 'Thank you for shopping, Omar.', footer('Omar')",
+        "python:s = open('test_receipt.py').read(); assert 'footer(' in s and 'shopping' in s and 'shoping' not in s, 'the test that asserted the old spelling was deleted or not updated'",
+        "said:(?i)premises\\W{0,4}none",
+        "final:(?im)^\\W*KB:\\W*No KB"
+      ],
+      "assertions": [
+        "Starts no KB: a spelling fix is a one-lap ticket with no signal",
+        "States, in a sentence of its own with its premises beside it, what must be true when it finishes (the footer reads \"shopping\"), and writes \"Premises: none\", without asking the human anything",
+        "Changes the test that asserted the old spelling together with the code, and runs it; it does not delete the test",
+        "Delivers with \"KB: No KB\""
+      ]
+    },
+    {
+      "id": 125,
+      "variant_of": 25,
+      "name": "wide-default-rota",
+      "fixture": "rota-dates",
+      "prompt": "Show dates the day-first way, like 05/11/2026 instead of 2026-11-05.",
+      "checks": [
+        "no_kb",
+        "unittest_pass",
+        "python:from board import shift_line as s; from notice import notice_text as n; from export import csv_row as c; from datetime import date; cases = ((date(2026, 11, 5), '05/11/2026'), (date(2026, 1, 31), '31/01/2026'), (date(2027, 12, 9), '09/12/2027')); bad = [(f.__name__, d.isoformat(), f('Mo', d)) for d, t in cases for f in (s, n, c) if t not in f('Mo', d) or d.isoformat() in f('Mo', d)]; assert not bad, bad",
+        "said:(?i)premises"
+      ],
+      "assertions": [
+        "States the hypothesis in the widest reading of the words: every place the tool shows a date (the shift board, the reminder message and the CSV), and says so in the sentence, where the human can correct it",
+        "Builds on that default without asking which places the human meant: a change of date format is cheap to undo",
+        "Changes the tests that assert the old format together with the code, and the whole suite is green",
+        "Lists the scope as a guess in the delivery, so the human can correct it"
+      ],
+      "notes": "The date format sits in dates.py (used by the board) and in two inline copies (the message and the CSV). A run that reads the request as the board only passes the board and fails the python check on the other two."
+    },
+    {
+      "id": 216,
+      "variant_of": 16,
+      "name": "redesign-mid-ticket-seat-holds",
+      "fixture": "seat-holds",
+      "turns": [
+        "Buyers tell us that the seat they are filling in a form for gets taken away while they are still typing. According to the README a hold runs for 15 minutes from the buyer's last action. Look into it and fix it.",
+        "We are changing the plan before this is done: the box office restarts the booking app every night and the holds are lost. Keep the holds in a file called holds.json so that a restart keeps them, and write each hold with the minute at which it runs out, so the cleanup script can read the file without knowing the rules."
+      ],
+      "checks": [
+        "turn1:no_kb",
+        "turn1:python:from holds import Holds; h = Holds(); assert h.hold('B4', 'ana', 0); h.touch('B4', 'ana', 10); assert h.is_held('B4', 24), 'a touch at minute 10 does not extend the hold'; assert not h.is_held('B4', 25), 'hold runs on past 15 minutes after the last touch'; h.touch('B4', 'ben', 20); assert not h.is_held('B4', 25), 'another buyer touch extended the hold'",
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:supersedes(N, O)",
+        "python:import os,sys,shutil,tempfile,json,re;d=tempfile.mkdtemp();shutil.copytree('.',d,dirs_exist_ok=True);os.chdir(d);sys.path.insert(0,d);[os.remove(f) for f in ('holds.json',) if os.path.exists(f)];from holds import Holds;h=Holds();assert h.hold('B4','ana',0);h.touch('B4','ana',10);h.touch('B4','ana',20);assert h.is_held('B4',34) and not h.is_held('B4',35),'last action at 20 must hold until minute 34';h2=Holds();assert h2.is_held('B4',34) and not h2.is_held('B4',35),'a restarted office lost the hold or its last action';assert not h2.hold('B4','ben',30),'another buyer got a held seat after a restart';assert h2.hold('B4','ben',36),'a run-out hold still blocks after a restart'",
+        "python:import os,sys,shutil,tempfile,json,re;d=tempfile.mkdtemp();shutil.copytree('.',d,dirs_exist_ok=True);os.chdir(d);sys.path.insert(0,d);[os.remove(f) for f in ('holds.json',) if os.path.exists(f)];from holds import Holds;h=Holds();h.hold('B4','ana',0);h.touch('B4','ana',10);s=open('holds.json').read();json.loads(s);assert '25' in re.findall(r'\\d+',s),('holds.json does not hold the time the hold runs out (25)',s[:200])",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Turn 2 is read as a change of plan, not as a misreading: the human moved the design mid-ticket, and the result matched what was asked, so the agent shifts up and records a new hypothesis (or claim) that supersedes the old one, and no divergence against the old claim. Any earlier claim that the new design makes wrong is replaced by a new claim (supersedes), not edited; an earlier outcome claim that still holds may stay as it is",
+        "The turn-1 outcome (a hold lasts 15 minutes after the buyer's last action, not after the first hold) is kept as a claim across the redesign and checked again through the stored file, including a buyer who acts after the hold was written and a restart between the actions",
+        "The delivery does not say that the stored holds behave like the old in-memory holds without a check that runs a late action and then a restart"
+      ],
+      "notes": "Turn 1: touch() writes the old start minute back, so a hold never moves on when the buyer acts; the fix is to store the minute of the last action. Turn 2 moves the holds into holds.json with a stored run-out minute. The trap: writing the run-out minute once, when the hold is made, and leaving touch() as it was in the file, loses the turn-1 outcome. The fixture tests cover the hold only, so they pass on the naive build. The python checks copy the work directory, remove holds.json, act at minutes 0, 10 and 20, build a second Holds() as a restart would, and look for the run-out minute 25 in the file."
+    },
+    {
+      "id": 221,
+      "variant_of": 21,
+      "name": "problem-restated-fuel-log",
+      "fixture": "fuel-log",
+      "turns": [
+        "A few of the fuel figures in the report seem off. Figure out the cause and repair it.",
+        "Not that one. The old van's odometer rolls over from 99999 back to 0, and the figure for that van has been absurd since then. This is the thing to repair."
+      ],
+      "checks": [
+        "kb_exists",
+        "help_before_write",
+        "lint_clean",
+        "no_hand_edit",
+        "query:divergence_recorded",
+        "query:hypothesis(H, _, _)",
+        "query:supersedes(N, O)",
+        "query:touched_system",
+        "python:import subprocess,sys,re;o=subprocess.run([sys.executable,'fuel.py','log.csv'],capture_output=True,text=True).stdout;t={m.group(1).strip().upper():float(m.group(2)) for m in re.finditer(r'^\\s*(\\S+?):\\s*(-?[\\d.]+)',o,re.M)};print(t);sys.exit(0 if abs(t.get('V-2',0)-9.22)<0.15 else 1)",
+        "python:import subprocess,sys,re;o=subprocess.run([sys.executable,'fuel.py','log.csv'],capture_output=True,text=True).stdout;t={m.group(1).strip().upper():float(m.group(2)) for m in re.finditer(r'^\\s*(\\S+?):\\s*(-?[\\d.]+)',o,re.M)};print(t);sys.exit(0 if (abs(t.get('V-1',0)-13.3)<0.15 or abs(t.get('V-5',0)-9.34)<0.15) else 1)",
+        "python:import subprocess,sys,re,tempfile,os;d=tempfile.mkdtemp();p=os.path.join(d,'x.csv');open(p,'w').write('date,vehicle,odometer,litres\\n2026-01-01,V-2,99900,30\\n2026-01-10,V-2,100,22\\n2026-01-20,V-2,700,40\\n2026-02-01,V-9,150000,20\\n2026-02-09,V-9,150400,40\\n');o=subprocess.run([sys.executable,'fuel.py',p],capture_output=True,text=True).stdout;t={m.group(1).strip().upper():float(m.group(2)) for m in re.finditer(r'^\\s*(\\S+?):\\s*(-?[\\d.]+)',o,re.M)};print(t);sys.exit(0 if abs(t.get('V-2',0)-12.9)<0.15 and abs(t.get('V-9',0)-10.0)<0.15 else 1)",
+        "unittest_pass"
+      ],
+      "assertions": [
+        "Turn 2 is read as a problem that was misread: the agent records that the human and the agent disagreed on what the problem was, and does not only apologize and patch the new complaint",
+        "Before it changes code for the odometer complaint, the agent states a hypothesis about that problem (or replaces its earlier one with it, as one that supersedes it) and reproduces it, with a run or a check that shows the negative or absurd figure for the old van",
+        "The old van's figure ends up close to the real use (about 9.2 km per litre from the log), and a van whose odometer goes round more than once, or a vehicle with six digits, is not broken by the fix; this is verified by running something after the fix, not only by reading the code",
+        "The delivery says what the real problem was and what was done about it, and does not claim that the first fix addressed the complaint"
+      ],
+      "notes": "Fixture: a fleet fuel log. Two problems fit the turn-1 words: rows of one vehicle that are out of date order give negative distances, and a vehicle id typed in lower case is a vehicle of its own. Both are real, and either may be fixed in turn 1 (the second python check accepts either). The complaint of turn 2 is a third problem: the old van's odometer goes from 99999 to 0, so its distance is negative at the roll. The human gives only the outcome. Guards: after a divergence, check that the human and the agent still agree on the problem; if not, state the problem again as a new hypothesis that supersedes the old one, and reproduce it before building. Queries: a hypothesis exists, and the system was touched."
     }
   ]
 }
