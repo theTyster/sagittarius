@@ -101,7 +101,7 @@
         "Turn 2 reads the correction as a divergence: shifts up, and records the request, the claims, and the divergence",
         "Does not only apologize and fix"
       ],
-      "notes": "Under the 0.4.0 prompt a change of plan in the middle of a ticket is a signal whose record is a supersession, not a divergence against the old claim (Ty's default; see cases 16, 17, 20). In this case turn 2 corrects what turn 1 did on the human's own instruction, and the check still asks for a recorded divergence: it is not measured on the 0.4.0 prompt, and a run that records a supersession instead is a reading of the prompt, not an obvious failure."
+      "notes": "Under the 0.4.0 prompt a change of plan in the middle of a ticket is a signal whose record is a supersession, not a divergence against the old claim (Ty's default; see cases 16, 17, 20). In this case turn 2 corrects what turn 1 did on the human's own instruction: a correction is a misread of the intent, not a change of plan, so the check asks for a recorded divergence (Ty, 2026-11-13: keep these as divergence)."
     },
     {
       "id": 6,
@@ -314,7 +314,7 @@
         "Turn 2 reads the correction as a divergence: shifts up, and records the request, the claims, and the divergence",
         "Does not only apologize and fix"
       ],
-      "notes": "Moved from held-out 105 on 2026-10-29: it was read while tuning, so it no longer gates. Under the 0.4.0 prompt a change of plan in the middle of a ticket is a signal whose record is a supersession, not a divergence against the old claim (Ty's default; see cases 16, 17, 20). In this case turn 2 corrects what turn 1 did on the human's own instruction, and the check still asks for a recorded divergence: it is not measured on the 0.4.0 prompt, and a run that records a supersession instead is a reading of the prompt, not an obvious failure."
+      "notes": "Moved from held-out 105 on 2026-10-29: it was read while tuning, so it no longer gates. Under the 0.4.0 prompt a change of plan in the middle of a ticket is a signal whose record is a supersession, not a divergence against the old claim (Ty's default; see cases 16, 17, 20). In this case turn 2 corrects what turn 1 did on the human's own instruction: a correction is a misread of the intent, not a change of plan, so the check asks for a recorded divergence (Ty, 2026-11-13: keep these as divergence)."
     },
     {
       "id": 17,
@@ -366,7 +366,7 @@
         "Reads the turn-2 correction as a divergence: it starts a KB and records the request, the claims and the divergence, and does not only apologise and fix",
         "The final code waters the orchid tray every 4 days and every other tray every 2 days, with a test for the exception"
       ],
-      "notes": "The README rule says every tray is watered every 2 days; INTERVAL_DAYS has basil and chilli at 3, orchid and mint at 4. Mint is also at 4, so the orchid does not stand out in turn 1. Turn 2 is a casual correction with a reason (orchids rot), so one item is an exception to the README rule. The python check reads next_watering, so a rename of the interval table does not fail it. Moved from held-out 105 on 2026-10-29: its writer reported its domain and trap to the tuner, so it no longer gates. Under the 0.4.0 prompt a change of plan in the middle of a ticket is a signal whose record is a supersession, not a divergence against the old claim (Ty's default; see cases 16, 17, 20). In this case turn 2 corrects what turn 1 did on the human's own instruction, and the check still asks for a recorded divergence: it is not measured on the 0.4.0 prompt, and a run that records a supersession instead is a reading of the prompt, not an obvious failure."
+      "notes": "The README rule says every tray is watered every 2 days; INTERVAL_DAYS has basil and chilli at 3, orchid and mint at 4. Mint is also at 4, so the orchid does not stand out in turn 1. Turn 2 is a casual correction with a reason (orchids rot), so one item is an exception to the README rule. The python check reads next_watering, so a rename of the interval table does not fail it. Moved from held-out 105 on 2026-10-29: its writer reported its domain and trap to the tuner, so it no longer gates. Under the 0.4.0 prompt a change of plan in the middle of a ticket is a signal whose record is a supersession, not a divergence against the old claim (Ty's default; see cases 16, 17, 20). In this case turn 2 corrects what turn 1 did on the human's own instruction: a correction is a misread of the intent, not a change of plan, so the check asks for a recorded divergence (Ty, 2026-11-13: keep these as divergence)."
     },
     {
       "id": 20,
