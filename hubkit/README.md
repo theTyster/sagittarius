@@ -1,9 +1,9 @@
-# The MindHole
+# The MindHole Kit
 
-The **MindHole** is the kit that makes a hub for Sagittarius. It is part of Sagittarius
-(<https://github.com/theTyster/sagittarius>), with its own version line (`MindHole <version>`). It is
+The **MindHole Kit** is the template that makes a hub for Sagittarius. It is part of Sagittarius
+(<https://github.com/theTyster/sagittarius>), with its own version line (`MindHole Kit <version>`). It is
 the **informal release**: a template for a **hub**, one git repo that a few long-lived Claude Code
-sessions share as their working memory. A hub made from it is a MindHole hub. It uses only plain files, git and SQLite. You do not need Prolog, Lean, or any other part of
+sessions share as their working memory. A hub made from it is a MindHole. It uses only plain files, git and SQLite. You do not need Prolog, Lean, or any other part of
 Sagittarius to use it.
 
 It has three ideas:
@@ -21,8 +21,8 @@ It has three ideas:
   and shift up on a signal; no party grades its own work; disclose guesses). The hub's `CLAUDE.md`
   imports it, so every agent reads it at start.
 
-**Versions.** The MindHole and Sagittarius keep two version numbers: `MindHole <version>` (in
-`kit.json`) and `Sagittarius <version>` (the last line of the prompt). The MindHole pairs with
+**Versions.** The MindHole Kit and Sagittarius keep two version numbers: `MindHole Kit <version>` (in
+`kit.json`) and `Sagittarius <version>` (the last line of the prompt). The MindHole Kit pairs with
 Sagittarius 0.3: its `PRINCIPLES.md` comes from that prompt, and a formal hub runs the orbit-kb of
 the same Sagittarius checkout. `UPGRADING.md` says it too.
 

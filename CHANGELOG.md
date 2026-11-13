@@ -8,7 +8,7 @@ Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own v
 |---|---|---|---|
 | Sagittarius | 0.3.0 (proposed) | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole | 0.7.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.7.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 
 What a change of each number means:
 
@@ -20,7 +20,7 @@ What a change of each number means:
 - **Philosophy.** MAJOR moves when a belief is removed or reversed, or the text is reworked.
   MINOR moves when a belief or a position is added, or a position leaves "Under trial". PATCH
   moves for words.
-- **MindHole.** As before: the kit version moves with the db schema (`hubkit/UPGRADING.md`).
+- **MindHole Kit.** As before: the kit version moves with the db schema (`hubkit/UPGRADING.md`).
 
 Earlier versions, named after the fact so that a report can refer to them:
 
@@ -38,10 +38,10 @@ Earlier versions, named after the fact so that a report can refer to them:
   response, the vote, honesty, and the delivery.
 - The definition of a properly written hypothesis is stated in Lean:
   `docs/philosophy-orbit/2026-11-11/fable/Hypothesis.lean`.
-- The build aligns the tools, the MindHole and the checks with the new texts (the spec KB
+- The build aligns the tools, the MindHole Kit and the checks with the new texts (the spec KB
   `tmp/kb-sagittarius-030`, from the differences that
-  `docs/philosophy-orbit/2026-11-11/fable/ALIGNMENT.md` names). The MindHole has its own entry
-  below (MindHole 0.7.0).
+  `docs/philosophy-orbit/2026-11-11/fable/ALIGNMENT.md` names). The MindHole Kit has its own entry
+  below (MindHole Kit 0.7.0).
 - VERSION is the one source of the Sagittarius version. `docs/check_version.py` holds it, the last
   line of the prompt and the CHANGELOG heading to one number. `install.py` prints it, and each
   System 1 log line holds it (`sagittarius`), also when the hook runs through the installed link.
@@ -87,9 +87,9 @@ Earlier versions, named after the fact so that a report can refer to them:
 - orbit-kb: a build KB records models (`model`, `model_run`, `encodes`); a solver result never
   closes a burn.
 
-## MindHole 0.7.0 (the kit; its own version line; pairs with Sagittarius 0.3.0; not released)
+## MindHole Kit 0.7.0 (the template; its own version line; pairs with Sagittarius 0.3.0; not released)
 
-The MindHole has its own version (`hubkit/kit.json`), apart from Sagittarius. The build picks the
+The MindHole Kit has its own version (`hubkit/kit.json`), apart from Sagittarius. The build picks the
 number, and it only moves up: the db schema moves from 5 to 6, so the kit version moves (`hubkit/UPGRADING.md`, section
 0.7.0, names each engine-file change since 0.6.0).
 
@@ -99,7 +99,7 @@ number, and it only moves up: the db schema moves from 5 to 6, so the kit versio
   `transcript` and `transcript_msg` with their JSONL (`migrate` drops them), and the re-index at
   `rotate --yes`. Meeting transcripts, the `transcript:` ref, `transcripts --files` and `--find`
   stay.
-- The kit is named the MindHole (`MindHole <version>`). One pane launcher in README and
+- The template is named the MindHole Kit (`MindHole Kit <version>`); a hub made from it is a MindHole. One pane launcher in README and
   INSTRUCTIONS. A formal step 6 makes the project KB. The suite prints progress per mutant, and
   `init` prints a line. `check-citations.py` accepts the hub's directory name as a prefix.
 - The hub's own HUB-CORE.md carries the inbox rule; the vote gets a home in both editions; a
