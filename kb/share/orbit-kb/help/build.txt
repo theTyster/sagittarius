@@ -36,8 +36,10 @@ Queries
                 "no claim is current".
   burn(C)       C is contested twice (and not visual), is universal, or the human asked
                 for a proof; or C supersedes such a claim, directly or through other claims
-  burn_open(C)  current claim C burns, and has no proof that still counts and no waiver
-                before its due time
+  burn_needs_lean(C)  C is universal or the human asked for a proof, or C supersedes such
+                a claim: only a Lean proof (or a waiver) closes its burn
+  burn_open(C)  current claim C burns, and has no proof that still counts, no waiver
+                before its due time, and (if it needs no Lean proof) no model that closes it
   flare(C)      C is visual, or C supersedes a visual claim, directly or through others
   flare_open(C) current claim C flares, and no human approved a demo of it at the demo's
                 current digest, and no waiver is before its due time
@@ -106,9 +108,16 @@ DISPROVE (verify, and in discovery): before you deliver a burned claim, or when 
 claim, try to break it within a small budget. Record one disproof verdict (orbit-kb help core).
 
 Burns: prove the claim in Lean
+  A universal claim, or one that the human asked to prove, needs a Lean proof.
   A statement with sorry is not a proof. "No counterexample in N trials" is not a proof.
-  A build KB can record a model of the claim (model, model_run, encodes, attest model_result;
-  orbit-kb help discovery, FLYBY): a solver or TLC result never closes a burn.
+  A claim that was only contested twice owes a formal statement in the language that fits
+  it: a solver for rules and limits, a model checker for orders of steps, Lean for every
+  input. A Lean proof closes it, or a decided result of a trusted model that encodes it:
+  model, model_run, encodes, and attest model_result with a sanity verdict, two calibrations
+  (fails and passes) and verdict(M, preserve(C), unsat) (orbit-kb help discovery, FLYBY).
+  Record the bounds of the run: orbit-kb add "run_bounds(LOG, 'two users, three items')";
+  the report shows them. A case that breaks the claim (sat on preserve) closes nothing.
+  A solver or TLC result never closes a universal claim or a proof that the human asked for.
   1. Write Lean definitions of the behavior. State the claim as a theorem.
   2. Add #eval examples. Show them to the human as a table.
   3. Search for a counterexample (for example Plausible) before you prove.

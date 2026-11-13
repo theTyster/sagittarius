@@ -286,11 +286,13 @@ HANDOFF to the build orbit
   still open: a second approval of the ticket, after a GO in the current round, closes it.
   DECOMPOSE starts from the discovery claims. Each witness, trace, and counterexample
   becomes a test case. The build orbit reuses each red test_result as its baseline.
-  A universal claim always burns. A solver or TLC result holds only within its bounds;
-  only a Lean proof or a human waiver closes a burn.
-  One formal language first: a second language only when a question is left (a burn needs
-  Lean; the solver result does not close it). For a claim in SMT or TLA+ and again in Lean,
-  run the SMT witnesses as Lean #eval examples. Record a divergence where the two disagree.
+  A universal claim always burns: only a Lean proof or a human waiver closes it. A claim
+  that was contested twice owes a formal statement: a Lean proof, or a decided result of a
+  trusted model that encodes it, closes it (record the bounds: run_bounds(LOG, TEXT)).
+  A solver or TLC result holds only within its bounds.
+  One formal language first: a second language only when a question is left (a universal
+  burn needs Lean; the solver result does not close it). For a claim in SMT or TLA+ and again
+  in Lean, run the SMT witnesses as Lean #eval examples. Record a divergence where the two disagree.
 
 REPORT: the discovery report
   orbit-kb report drafts it from the facts: Hypothesis (with its premises), System (what the

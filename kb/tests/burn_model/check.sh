@@ -70,10 +70,12 @@ open(p, "w").write(s.replace(old, new))
 PY
     echo "$m: $(diff "$lib/modules/build.pl" "$d/modules/build.pl" | grep '^>' )"
 }
-open_rule='burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C).'
+# D42: burn_open has a fifth literal, not burn_model_closed(C). The generated KBs hold no model
+# (no encodes/2), so it is true on each of them, and the mutants keep it.
+open_rule='burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C), not burn_model_closed(C).'
 proved_rule='burn_proved(C) :- attest(A, lean_proof, _, proof(C, _), script, _), not proof_changed(A).'
-mutate MA "$open_rule" 'burn_open(C) :- burn(C), not burn_proved(C), not burn_waived(C).'
-mutate MB "$open_rule" 'burn_open(C) :- burn(C), current(C), not burn_proved(C).'
+mutate MA "$open_rule" 'burn_open(C) :- burn(C), not burn_proved(C), not burn_waived(C), not burn_model_closed(C).'
+mutate MB "$open_rule" 'burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_model_closed(C).'
 mutate MC "$proved_rule" 'burn_proved(C) :- attest(A, lean_proof, _, proof(C, _), script, _).'
 # D10 follow-up: MI drops the inherited burn; MY drops the supersede cycle from done.
 mutate MI 'burn(C) :- supersedes_closure(C, O), burn_reason(O).' '% (MI: the inherited clause of burn/1 is dropped)'

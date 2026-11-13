@@ -42,10 +42,9 @@ decl(fact, lap_done(int),
      'A lap that ended with an answer from the human.',
      'lap @(1) is done').
 % 0.3.0 (K-F, D40): model/2, model_run/3, encodes/2 and the attestation type
-% model_result are core: a KB that uses build records a model too.
-decl(fact, derived_from(ref(model), ref(model)),
-     'A target model, then the existing-world model that it changes.',
-     'model @(1) is derived from model @(2)').
+% model_result are core: a KB that uses build records a model too. D42 K3: derived_from/2
+% and the rules of trust (model_trusted/1, model_decided/2, model_breaks/2 and what they read)
+% are core too, so a burn of a build KB can read a model.
 % D31 B5: the property of a model that states a claim, so that the report can show it.
 decl(fact, property(ref(model), ref(claim), text),
      'The property of the model that states the claim: an SMT assertion or a TLA+ invariant, as written in the model.',
@@ -111,10 +110,6 @@ decl(rule, ready_blocker(term), 'One thing that blocks discovery_ready while the
 decl(rule, any_ready_blocker, 'Something blocks discovery_ready.', 'something blocks discovery_ready').
 decl(rule, gate_allowed(oneof([go, no_go, hold])), 'The choice can win the gate: no_go and hold always; go only while discovery_ready holds (D33 R5).', '@(1) can win the gate').
 decl(rule, discovery_has_outcome, 'Some claim is current, or a hypothesis that no other hypothesis replaces did not reproduce.', 'some claim is current, or some hypothesis did not reproduce').
-decl(rule, discovery_sanity_ok(atom), 'A result that passes a sanity check.', '@(1) passes a sanity check').
-decl(rule, discovery_decided(atom), 'A solver result that is not unknown.', '@(1) is a decided result').
-decl(rule, discovery_has_case(atom), 'A solver result that shows a case.', '@(1) shows a case').
-decl(rule, discovery_no_case(atom), 'A solver result that shows no case.', '@(1) shows no case').
 decl(rule, discovery_result_model(term, ref(model)), 'The model that a model_result predicate is about.', 'the result @(1) is about model @(2)').
 decl(rule, discovery_is_finding(ref), 'The id is a finding.', '@(1) is a finding').
 decl(rule, discovery_is_hypothesis(ref), 'The id is a hypothesis.', '@(1) is a hypothesis').
@@ -125,27 +120,11 @@ decl(rule, discovery_budget_raised(int), 'A larger lap budget replaces this one.
 decl(rule, discovery_ready, 'Discovery is clean and ready for the human to decide GO, NO-GO, or HOLD: nothing blocks it (ready_blocker). Once the discovery orbit is closed, it holds: readiness is asked only while the orbit is open.', 'discovery is ready for the human to decide').
 decl(rule, discovery_decide, 'The human must decide now: discovery is ready, or the budget is spent.', 'the human must decide now').
 decl(rule, model_run_of(ref(subject), ref(model)), 'The log is a run of the model at some digest.', 'log @(1) is a run of model @(2)').
-decl(rule, discovery_old_run(ref(subject), ref(model)), 'The log has a run of the model at a digest that is not the current one.', 'log @(1) has a run of an older digest of model @(2)').
-decl(rule, model_run_current(ref(subject), ref(model)), 'The log is a run of the model at its current digest, and at no older digest.', 'log @(1) is a current run of model @(2)').
-decl(rule, model_run_stale(ref(subject), ref(model)), 'The log is a run of the model at an older digest.', 'log @(1) is an old run of model @(2)').
 decl(rule, discovery_result_key(term, term), 'What a model_result checks: the model and the verdict kind, the mutation rule, or the calibration case.', 'result @(1) checks @(2)').
 decl(rule, discovery_result_renewed(ref(attest)), 'A model_result on an old run has a newer result of the same check on a current run.', 'attestation @(1) has a newer result of the same check').
-decl(rule, model_verdict(ref(attest), ref(model), term, atom), 'A verdict that counts: its attestation, model, check, and result.', 'attestation @(1) gives model @(2) the result @(4) on check @(3)').
-decl(rule, model_calibration(ref(attest), ref(model), atom), 'A calibration that counts: its attestation, model, and result.', 'attestation @(1) gives model @(2) the calibration result @(3)').
 decl(rule, model_mutation(ref(attest), ref(model), atom, atom), 'A mutation check that counts: its attestation, model, rule, and result.', 'attestation @(1): rule @(3) of model @(2) was @(4)').
-decl(rule, model_has_parent(ref(model)), 'The model is derived from some model.', 'model @(1) is derived from a model').
-decl(rule, model_root(ref(model)), 'The model is an existing-world model: it is derived from no model.', 'model @(1) is an existing-world model').
-decl(rule, model_is_derived(ref(model)), 'The model is a target model derived from an existing-world model.', 'model @(1) is a target model').
 decl(rule, model_same_tool(ref(model), ref(model)), 'The two models use the same tool.', 'models @(1) and @(2) use the same tool').
-decl(rule, model_sane(ref(model)), 'A sanity check of the model passed, and none failed.', 'model @(1) is sane').
-decl(rule, model_sanity_failed(ref(model)), 'A sanity check of the model failed or was unknown.', 'a sanity check of model @(1) failed').
-decl(rule, model_calibration_case(ref(model), oneof([fails, passes])), 'A matching calibration on a current run of the model: a real case where the system fails, or one where it passes (D33 R4).', 'model @(1) matches the current system on a real case where it @(2)').
-decl(rule, model_calibrated(ref(model)), 'The model matches the current system on a real case where the system fails and on a real case where it passes (D33 R4).', 'model @(1) matches the current system on a failing case and on a passing case').
-decl(rule, model_diverges(ref(model)), 'The model disagrees with the current system.', 'model @(1) disagrees with the current system').
-decl(rule, model_trusted(ref(model)), 'The model is sane, calibrated by its own two cases, and does not diverge. A derived model needs its own two cases (D33 R4).', 'model @(1) is trusted').
-decl(rule, model_decided(ref(model), ref(claim)), 'A check of the model that names the claim gave a decided result.', 'model @(1) decided a check of claim @(2)').
 decl(rule, model_vacuous(ref(attest)), 'An applies check shows that the claim can never apply.', 'attestation @(1) shows a vacuous claim').
-decl(rule, model_breaks(ref(model), ref(claim)), 'The model shows a case that breaks the claim.', 'model @(1) breaks claim @(2)').
 decl(rule, model_unfiled_break(ref(claim)), 'A model breaks the current claim, and no disproof is filed.', 'claim @(1) is broken with no disproof filed').
 decl(rule, model_check_case(ref(model), term), 'A counted verdict on this check of the model shows a case.', 'check @(2) of model @(1) shows a case').
 decl(rule, model_check_no_case(ref(model), term), 'A counted verdict on this check of the model shows no case.', 'check @(2) of model @(1) shows no case').
@@ -216,9 +195,6 @@ discovery_has_outcome :- attest(_, reproduction, S, result(H, not_reproduced), _
 % A log that also has a run at an older digest does not count: reusing a log for a new
 % digest must not bring its old verdicts back.
 model_run_of(S, M) :- model_run(S, M, _).
-discovery_old_run(S, M) :- model_run(S, M, D), subject(M, _, D1), D \= D1.
-model_run_current(S, M) :- model_run(S, M, D), subject(M, _, D), not discovery_old_run(S, M).
-model_run_stale(S, M) :- model_run(S, M, _), not model_run_current(S, M).
 discovery_result_key(verdict(M, K, _), v(M, K)).
 discovery_result_key(mutation(M, R, _), m(M, R)).
 discovery_result_key(calibration(M, C, _), c(M, C)).
@@ -226,62 +202,22 @@ discovery_result_renewed(A) :-
     attest(A, model_result, _, P, _, _), discovery_result_key(P, Key),
     attest(B, model_result, S, Q, _, _), B \= A, discovery_result_key(Q, Key),
     discovery_result_model(Q, M), model_run_current(S, M).
-model_verdict(A, M, K, R) :- attest(A, model_result, S, verdict(M, K, R), _, _), model_run_current(S, M).
-model_calibration(A, M, R) :- attest(A, model_result, S, calibration(M, _, R), _, _), model_run_current(S, M).
 model_mutation(A, M, Rule, R) :- attest(A, model_result, S, mutation(M, Rule, R), _, _), model_run_current(S, M).
 discovery_result_model(verdict(M, _, _), M).
 discovery_result_model(calibration(M, _, _), M).
 discovery_result_model(mutation(M, _, _), M).
 
-discovery_sanity_ok(sat).
-discovery_sanity_ok(reached).
-discovery_sanity_ok(violated).
-discovery_decided(sat).
-discovery_decided(unsat).
-discovery_decided(reached).
-discovery_decided(violated).
-discovery_decided(holds).
-discovery_has_case(sat).
-discovery_has_case(reached).
-discovery_has_case(violated).
-discovery_no_case(unsat).
-discovery_no_case(holds).
 
-% --- Trust: sane, calibrated, and no divergence from the current system ---
-model_sanity_failed(M) :- model_verdict(_, M, sanity, R), not discovery_sanity_ok(R).
-model_sane(M) :- model_verdict(_, M, sanity, R), discovery_sanity_ok(R), not model_sanity_failed(M).
-% D33 R4: two matching cases on a current run, one where the system fails and one where it
-% passes. The older case forms (example, case) calibrate nothing.
-model_calibration_case(M, fails) :- attest(_, model_result, S, calibration(M, fails(_), matches), _, _), model_run_current(S, M).
-model_calibration_case(M, passes) :- attest(_, model_result, S, calibration(M, passes(_), matches), _, _), model_run_current(S, M).
-model_calibrated(M) :- model_calibration_case(M, fails), model_calibration_case(M, passes).
-% A target is derived from a root. A model in a derived_from cycle is no target, so it
-% gets the existing-world bad-case check (ED9 flags the cycle).
-model_has_parent(M) :- derived_from(M, _).
-model_root(M) :- model(M, _), not model_has_parent(M).
-model_is_derived(M) :- derived_from(M, M0), model_root(M0).
-model_diverges(M) :- model_calibration(_, M, differs).
-% A model divergence counts on any subject, except a log of an older digest of the model.
-model_diverges(M) :- attest(_, divergence, S, model(M), _, _), not model_run_stale(S, M).
-% The existing-world model must reproduce the reported bad case.
-model_diverges(M) :- model_verdict(_, M, bad_case, R), discovery_no_case(R), not model_is_derived(M).
+% --- Trust (sane, calibrated, no divergence) and model_decided/2, model_breaks/2: core.pl since D42 K3 ---
 model_same_tool(M, M0) :- model(M, T), model(M0, T).
-% D33 R4: a target model no longer inherits the trust of the model that it changes. It
-% needs its own two cases.
-model_trusted(M) :- model_sane(M), model_calibrated(M), not model_diverges(M).
 
 % --- Other verdicts ---
-model_decided(M, C) :- model_verdict(_, M, preserve(C), R), discovery_decided(R).
-model_decided(M, C) :- model_verdict(_, M, applies(C), R), discovery_decided(R).
-model_vacuous(A) :- model_verdict(A, _, applies(_), R), discovery_no_case(R).
-model_breaks(M, C) :- model_verdict(_, M, preserve(C), R), discovery_has_case(R).
-model_breaks(M, C) :- model_verdict(_, M, bad_case, R), discovery_has_case(R),
-    model_is_derived(M), encodes(M, C), claim(C, introduce, _).
+model_vacuous(A) :- model_verdict(A, _, applies(_), R), model_shows_no_case(R).
 model_unfiled_break(C) :- model_breaks(_, C), current(C), not discovery_disproof_filed(C).
 % No disequality here: R1 \= R2 over a self-join was very slow in s(CASP), the
 % second engine until 2026-11-02 (D20).
-model_check_case(M, K) :- model_verdict(_, M, K, R), discovery_has_case(R).
-model_check_no_case(M, K) :- model_verdict(_, M, K, R), discovery_no_case(R).
+model_check_case(M, K) :- model_verdict(_, M, K, R), model_shows_case(R).
+model_check_no_case(M, K) :- model_verdict(_, M, K, R), model_shows_no_case(R).
 model_solvers_disagree(M) :- model_check_case(M, K), model_check_no_case(M, K).
 
 % --- Each current claim needs a falsifier: a check, or a trusted model that decided it ---

@@ -1229,7 +1229,7 @@ t_BP11() { kb_burndone "$T/k"; K=$T/k; printf "supersedes(c3, c1).\nclaim(c3, pr
 t_BP12() { kb_burndone "$T/k"; K=$T/k; add_proof "$K" p1 c1
            printf "check(k9, c1).\nconformance(k9).\n" >> $K/kb.pl; is_false 'conforms(c1)'; is_true 'done' "conformance is optional"
            add_result $K k9 4 pass; is_true 'conforms(c1)'; is_true 'done'; }
-t_BP13() { kb_burn "$T/k"; K=$T/k; is_set 'burn_open(X)' 'X = c1|X = c3|X = c4' "contested twice, universal, and requested all need a proof"; }
+t_BP13() { kb_burn "$T/k"; K=$T/k; is_set 'burn_open(X)' 'X = c1|X = c3|X = c4' "contested twice, universal, and requested all burn; with no model, each needs a proof (D42: c1 owes a formal statement)"; }
 # ---- D10 follow-up (2026-10-20): restated claims, supersede cycles, rules.pl, times, logs
 sc_restate() {  # sc_restate: kb_burndone, then c3 restates the universal claim c1 (c3 has no trigger of its own)
     kb_burndone "$T/k"; K=$T/k

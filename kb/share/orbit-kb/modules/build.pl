@@ -74,10 +74,25 @@ decl(rule, done,
      'the work is done').
 decl(rule, burn_reason(ref(claim)),
      'The claim was contested twice and is not visual, it is universal, or a human asked for a Lean proof.',
-     'claim @(1) has a reason to need a Lean proof').
+     'claim @(1) has a reason to burn').
 decl(rule, burn(ref(claim)),
-     'The claim needs a Lean proof, because it has a burn reason, or it replaces a claim with a burn reason, directly or through other claims.',
+     'The claim burns, because it has a burn reason, or it replaces a claim with a burn reason, directly or through other claims. A Lean proof closes a burn; a burn that needs no Lean proof (burn_needs_lean) is closed by a model too (D42).',
+     'claim @(1) burns').
+decl(rule, burn_lean_reason(ref(claim)),
+     'The claim is universal, or a human asked for a proof: only a Lean proof (or a waiver) closes its burn (D42).',
+     'claim @(1) has a reason to need a Lean proof').
+decl(rule, burn_needs_lean(ref(claim)),
+     'The claim has a reason to need a Lean proof, or it replaces such a claim, directly or through other claims (D42).',
      'claim @(1) needs a Lean proof').
+decl(rule, burn_model_settled(ref(claim)),
+     'A trusted model that encodes the claim gave a decided result on a check that names the claim (as has_falsifier counts it, D42).',
+     'a trusted model decided claim @(1)').
+decl(rule, burn_model_broken(ref(claim)),
+     'A counted verdict of a model shows a case that breaks the claim (D42).',
+     'a model shows a case that breaks claim @(1)').
+decl(rule, burn_model_closed(ref(claim)),
+     'The claim was contested twice and needs no Lean proof, and a trusted model settled it with no case that breaks it: its formal statement exists (D42).',
+     'a model closes the burn of claim @(1)').
 decl(rule, proof_changed(ref(attest)),
      'A file of the proof changed after the proof, or the proof log is missing or does not match. orbit-kb computes it when it reads the KB.',
      'a file of proof @(1) changed after the proof').
@@ -91,11 +106,11 @@ decl(rule, burn_waived(ref(claim)),
      'A human waived the proof of the claim, and the due time of the waiver is not past.',
      'a human waived the proof of claim @(1)').
 decl(rule, burn_open(ref(claim)),
-     'The claim is current and needs a Lean proof, but it is not proved and no human waived the proof.',
-     'claim @(1) needs a Lean proof that does not exist yet').
+     'The claim is current and burns, but it is not proved, no human waived the proof, and no model closed it (D42: only a claim that needs no Lean proof can be closed by a model).',
+     'claim @(1) needs a proof or a formal statement that does not exist yet').
 decl(rule, any_burn_open,
      'At least one burn is open.',
-     'some claim needs a Lean proof that does not exist yet').
+     'some claim needs a proof or a formal statement that does not exist yet').
 decl(rule, demo_changed(ref(subject)),
      'The file of a demo subject is missing, or its sha256 differs from the digest in subject/3. orbit-kb computes it when it reads the KB.',
      'the file of demo @(1) changed after its digest was recorded').
@@ -224,7 +239,20 @@ burn(C) :- supersedes_closure(C, O), burn_reason(O).
 % these rules (lint E16; the engines ignore such clauses).
 burn_proved(C) :- attest(A, lean_proof, _, proof(C, _), script, _), not proof_changed(A).
 burn_waived(C) :- attest(W, waiver, _, waive(C, _, _), human, _), not waiver_lapsed(W).
-burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C).
+% D42 (c_k_f_1b; Ty, q_k_f_1b: "Decided result, bounds shown. A waiver still closes it."):
+% a burn has two kinds. A universal claim, a claim whose proof the human asked for, and a
+% claim that replaces one of them need a Lean proof. A claim that was only contested twice
+% owes a formal statement in the language that fits it: a Lean proof, or a decided result of
+% a trusted model that encodes it (what has_falsifier counts), closes it. A counted case that
+% breaks the claim closes nothing. The rules of trust are in core.pl.
+burn_lean_reason(C) :- universal(C).
+burn_lean_reason(C) :- burn_requested(C).
+burn_needs_lean(C) :- burn_lean_reason(C).
+burn_needs_lean(C) :- supersedes_closure(C, O), burn_lean_reason(O).
+burn_model_settled(C) :- encodes(M, C), model_trusted(M), model_decided(M, C).
+burn_model_broken(C) :- model_breaks(_, C).
+burn_model_closed(C) :- burn_model_settled(C), not burn_model_broken(C), not burn_needs_lean(C).
+burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C), not burn_model_closed(C).
 any_burn_open :- burn_open(_).
 % D21 (issue #9): burns get proved, flares get shown. A visual claim, or a
 % claim that replaces one, needs a human approval of a demo subject at its

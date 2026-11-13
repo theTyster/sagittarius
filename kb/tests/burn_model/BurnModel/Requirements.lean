@@ -66,6 +66,18 @@ with no claims" and the D17 entry in `kb/CONTRACT.md`. `done` needs at least one
 current claim (`someCurrent`, LR2, LR13). Without it, a KB with no claim was
 `done`. W7 gets a second, current claim, so that it stays `done`. W17 is a KB with
 no claim: it is not `done`.
+
+Amendment v5 (2026-11-12, D42, 0.3.0 K-F, `c_k_f_1b`). Source: Ty's answer to
+question `q_k_f_1b` ("Decided result, bounds shown. A waiver still closes it.") and
+the D42 entry in `kb/CONTRACT.md`. A claim whose only reason to burn is that it was
+contested twice owes a formal statement in the language that fits it: a decided
+result of a trusted solver or model-checker model that encodes it closes it too.
+A universal or requested claim, and a claim that replaces one, still needs a Lean
+proof. This model has no model of a claim: its KBs hold no `encodes` fact, so no
+model closes a burn in them, and LR1 to LR13 and A8 hold as written on those KBs.
+A8 ("a model run cannot close a burn") is narrowed in the CLI: it holds for every
+claim with `burn_needs_lean`. This file does not state the new part; tests MF3 to
+MF6 check it.
 -/
 
 namespace Req

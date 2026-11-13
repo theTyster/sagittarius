@@ -2579,6 +2579,32 @@ protected_pi(burn_proved/1).
 protected_pi(burn_waived/1).
 protected_pi(burn_open/1).
 protected_pi(any_burn_open/0).
+% D42: the burn that a model closes, and the rules of trust that it reads (core.pl).
+protected_pi(burn_lean_reason/1).
+protected_pi(burn_needs_lean/1).
+protected_pi(burn_model_settled/1).
+protected_pi(burn_model_broken/1).
+protected_pi(burn_model_closed/1).
+protected_pi(model_old_run/2).
+protected_pi(model_run_current/2).
+protected_pi(model_run_stale/2).
+protected_pi(model_verdict/4).
+protected_pi(model_calibration/3).
+protected_pi(model_sanity_ok/1).
+protected_pi(model_decided_result/1).
+protected_pi(model_shows_case/1).
+protected_pi(model_shows_no_case/1).
+protected_pi(model_sanity_failed/1).
+protected_pi(model_sane/1).
+protected_pi(model_calibration_case/2).
+protected_pi(model_calibrated/1).
+protected_pi(model_has_parent/1).
+protected_pi(model_root/1).
+protected_pi(model_is_derived/1).
+protected_pi(model_diverges/1).
+protected_pi(model_trusted/1).
+protected_pi(model_decided/2).
+protected_pi(model_breaks/2).
 protected_pi(flare/1).
 protected_pi(flare_shown/1).
 protected_pi(flare_waived/1).
@@ -4208,7 +4234,7 @@ view_kind_label(supersede_cycle, "Claim that replaces itself").
 view_kind_label(past_due, "Past due").
 view_kind_label(under, "Claim not fulfilled").
 view_kind_label(over, "Change that serves no claim").
-view_kind_label(burn_open, "Claim that needs a Lean proof").
+view_kind_label(burn_open, "Claim that needs a proof or a formal statement").
 view_kind_label(flare_open, "Claim that needs an approved demo").
 view_kind_label(no_claim, "No current claim").
 view_kind_label(check_failing, "Check that failed").
@@ -6359,7 +6385,7 @@ show_section(KB, Eng, open) :-
         eng_all(Eng, [F], flare_open(F), Fs),
         forall(member(U, Us), say("- under ~w: claim ~w is current but not fulfilled.", [U, U])),
         forall(member(O, Os), say("- over ~w: change ~w serves no claim.", [O, O])),
-        forall(member(B, Bs0), say("- burn_open ~w: claim ~w needs a Lean proof.", [B, B])),
+        forall(member(B, Bs0), ( burn_need_words(Eng, B, BW), say("- burn_open ~w: claim ~w ~w.", [B, B, BW]) )),
         forall(member(F, Fs), say("- flare_open ~w: claim ~w needs a human to approve a demo.", [F, F])),
         append(Bs0, Fs, Bs),
         % D17: done needs a current claim.
@@ -6510,7 +6536,7 @@ blocking_line(_, Eng, under(C), S) :- !,
 blocking_line(KB, Eng, over(X), S) :- !,
     opt_change_text(KB, Eng, X, '', T), fmt(S, "- over ~w: change ~w serves no claim: ~w", [X, X, T]).
 blocking_line(_, Eng, burn_open(C), S) :- !,
-    item_text(Eng, C, T), fmt(S, "- burn_open ~w: claim ~w needs a Lean proof: ~w", [C, C, T]).
+    item_text(Eng, C, T), burn_need_words(Eng, C, W), fmt(S, "- burn_open ~w: claim ~w ~w: ~w", [C, C, W, T]).
 blocking_line(_, Eng, flare_open(C), S) :- !,
     item_text(Eng, C, T), fmt(S, "- flare_open ~w: claim ~w needs a human to approve a demo: ~w", [C, C, T]).
 blocking_line(_, _, no_claim, "- no_claim: no claim is current. Add a claim. The work is not done without one.") :- !.
@@ -7386,9 +7412,41 @@ burn_parts(Eng, bs(BurnS, ProvS, WaivBy, _, _), C, Head, Detail) :-
         ),
         conformance_sentence(Eng, C, CS),
         format(string(Detail), "The proof is about the Lean definitions, not the code. ~w", [CS])
+    ;   eng_true(Eng, burn_model_closed(C))   % D42 K6: the model, its result, and its bounds
+    ->  model_closure(Eng, C, Head, Detail)
     ;   eng_lookup(Eng, WaivBy, C, D, ( attest(W, waiver, _, waive(C, D, _), human, _), not(waiver_lapsed(W)) ), [D1|_])
     ->  Head = "Burn: NOT PROVED.", fmt(Detail, "A human waived the proof until ~w.", [D1])
-    ;   Head = "Burn: NOT PROVED.", Detail = "A Lean proof is required."
+    ;   eng_true(Eng, burn_needs_lean(C))
+    ->  Head = "Burn: NOT PROVED.", Detail = "A Lean proof is required."
+    ;   Head = "Burn: NOT PROVED.",
+        Detail = "The claim was contested twice: it owes a formal statement in the language that fits it. A Lean proof closes it, or a decided result of a trusted solver or model-checker model that encodes it."
+    ).
+
+% burn_need_words(+Eng, +C, -Words) (D42 K5): what an open burn of claim C needs.
+burn_need_words(Eng, C, W) :-
+    (   eng_true(Eng, burn_needs_lean(C))
+    ->  W = "needs a Lean proof"
+    ;   W = "owes a formal statement in the language that fits it (a Lean proof, or a decided result of a trusted solver or model-checker model that encodes it)"
+    ).
+
+% model_closure(+Eng, +C, -Head, -Detail) (D42 K6): the counted result of a trusted model that
+% closes the burn of claim C, and the bounds of its run (run_bounds/2).
+model_closure(Eng, C, Head, Detail) :-
+    eng_all(Eng, [M, Tool, K, R, L],
+            ( encodes(M, C), model_trusted(M), model(M, Tool), model_verdict(A, M, K, R),
+              model_decided_result(R), attest(A, model_result, L, _, _, _) ), Rs0),
+    findall([M, Tool, K, R, L], ( member([M, Tool, K, R, L], Rs0), ( K = preserve(C) ; K = applies(C) ) ), Rs1),
+    sort(Rs1, Rs),
+    (   Rs = [[M, Tool, K, R, L]|_]
+    ->  term_text(K, KT),
+        format(string(Head), "Burn: closed by a model: model ~w (~w), ~w on ~w (log ~w).", [M, Tool, R, KT, L]),
+        eng_all(Eng, [BT], run_bounds(L, BT), BTs),
+        (   BTs == []
+        ->  format(string(Detail), "No bounds are recorded for log ~w: add run_bounds(~w, 'TEXT').", [L, L])
+        ;   findall(BS, ( member(B0, BTs), one_line(B0, B1), format(string(BS), "The result holds only within its bounds: ~w.", [B1]) ), BSs),
+            atomic_list_concat(BSs, ' ', D0), atom_string(D0, Detail)
+        )
+    ;   Head = "Burn: closed by a model.", Detail = ""
     ).
 
 % proof_statement(+Eng, +C, -A, -Theorem, -Statement) (D31 B4): the theorem and its statement
@@ -7785,7 +7843,11 @@ report_text(KB, Eng) :-
            ;   ropen(open(supersede_cycle, Y4, none), "cycle", "Hypothesis ~w is in a supersede cycle. It replaces itself. Remove a supersedes fact (lint E15).", [Y4])
            )),
     forall(member(O4, O4s), ropen(open(over, O4, none), "over", "Change ~w serves no claim.", [O4])),
-    forall(member(B4, B4s), ropen(open(burn_open, B4, B4), "burn open", "Claim ~w needs a Lean proof. Prove it with orbit-kb prove, or ask a human for a waiver.", [B4])),
+    forall(member(B4, B4s),
+           (   eng_true(Eng, burn_needs_lean(B4))
+           ->  ropen(open(burn_open, B4, B4), "burn open", "Claim ~w needs a Lean proof. Prove it with orbit-kb prove, or ask a human for a waiver.", [B4])
+           ;   ropen(open(burn_open, B4, B4), "burn open", "Claim ~w owes a formal statement in the language that fits it. Prove it with orbit-kb prove, record a trusted solver or model-checker model that encodes it with a decided result (orbit-kb help build, BURN), or ask a human for a waiver.", [B4])
+           )),
     forall(member(F4, F4s), ropen(open(flare_open, F4, F4), "flare open", "Claim ~w needs a human to approve a demo. Record a screenshot or a recording with orbit-kb subject and demo(S, C), show it, and ask the human to approve it or waive it.", [F4])),
     forall(member([W4, C4, D4], L4s),
            ( waiver_kind(Eng, C4, K4),
@@ -8372,6 +8434,7 @@ page_claim(KB, Eng, C, L, TT, SK, St0, BT, KStates) :-
     % The evidence starts open when the claim needs attention.
     (   SK \== fulfilled -> Det = " open"
     ;   sub_string(BT, _, _, _, "A Lean proof is required") -> Det = " open"
+    ;   sub_string(BT, _, _, _, "owes a formal statement") -> Det = " open"
     ;   sub_string(BT, _, _, _, "must approve a demo") -> Det = " open"
     ;   Dvs \== [] -> Det = " open"
     ;   Det = ""
