@@ -295,3 +295,19 @@ Limits:
 - It lists the whole selection; a large log with `--html` makes a large page. Use `--last` or `--since`.
 
 Tests (no network; invented logs and projects dirs): `python3 -m unittest s1.test_s1inspect -v`.
+
+## The workbench (`bench.py`)
+
+To change how System 1 is asked, copy `questions.json`, edit the copy, and ask the model again about prompts
+it has already judged. `bench.py` puts the logged answer beside the new one for each question and marks a
+change of band with `*`. It calls the network once per judgment and needs `$TYPESAFE_API_KEY`.
+
+    python3 s1/bench.py --questions my-questions.json --hub PATH --last 10
+    python3 s1/bench.py --questions my-questions.json --last 10 --baseline   # also ask questions.json again
+    python3 s1/bench.py --questions my-questions.json --dry-run               # count the calls, ask nothing
+    python3 s1/calibrate.py --questions my-questions.json                     # the tracked calibration cases
+
+The selection options are those of `s1inspect.py` (`--hub`, `--session`, `--since`, `--last`; the newest
+5 by default). Two calls with the same questions can differ a little (a few hundredths), so use
+`--baseline` before you read a small change as an effect of your edit. The calls go to
+`$S1_BENCH_LOG` (default `~/.claude/logs/s1-bench.jsonl`), never to the hook's log.
