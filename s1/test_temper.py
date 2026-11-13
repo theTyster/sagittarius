@@ -600,7 +600,8 @@ class DefinitionJudge:
         st = re.findall(r"^Statement: (.*)$", prompt, re.M)[-1]
         if model != "sonnet":
             return "A purchase of 100 by a Gold member that got 100 points."
-        return json.dumps({"can_fail": st != VAGUE, "faithful": st != FINDING_INSIDE})
+        case = None if st == VAGUE else "A Gold member buys for 100 and gets 100 points."
+        return json.dumps({"case": case, "faithful": st != FINDING_INSIDE})
 
 
 class C4Definition(unittest.TestCase):
@@ -641,10 +642,26 @@ class C4Definition(unittest.TestCase):
         self.assertNotRegex(p, r"(?i)collaps\w*[^\n]*correct")
 
     def test_the_judge_reads_a_finding_as_not_faithful(self):
+        # A finding: the statement says that some cases behave differently (it reports today's system),
+        # not a rule that each case must hold. Not the rule of the third run ("a system with none of the
+        # problem would make it false"), which rejected Fit too.
         self.go(FIT)
         line = [l for l in self.judge_prompt().splitlines() if l.startswith("faithful:")][0]
-        self.assertRegex(line, r"(?i)none of the problem")
         self.assertRegex(line, r"(?i)finding")
+        self.assertRegex(line, r"(?i)some cases")
+        self.assertNotRegex(line, r"(?i)none of the problem|correct|works")
+
+    def test_the_judge_names_one_concrete_case(self):
+        self.go(FIT)
+        line = [l for l in self.judge_prompt().splitlines() if l.startswith("case:")][0]
+        self.assertRegex(line, r"(?i)one (single )?concrete")
+        self.assertRegex(line, r"(?i)null")
+
+    def test_a_named_case_is_not_collapsed_and_null_is(self):
+        for reply, col in (('{"case": "A Gold purchase of 100 got 100 points.", "faithful": true}', False),
+                           ('{"case": null, "faithful": true}', True), ('{"case": "", "faithful": true}', True)):
+            run = temper.Run(claude=lambda prompt, model: reply, transport=fit_transport, log_path=os.devnull)
+            self.assertIs(temper.h_judge(run, FIT, SOURCE)[1], col, reply)
 
     def test_the_proposer_is_never_told_to_make_a_correct_system_false(self):
         seen = []
@@ -664,7 +681,8 @@ class C4Definition(unittest.TestCase):
         with open(log) as f:
             recs = [json.loads(x) for x in f]
         judge = [r for r in recs if r.get("event") == "call" and r["by"] == "sonnet"]
-        self.assertEqual(json.loads(judge[0]["reply"]), {"can_fail": True, "faithful": True})
+        self.assertEqual(json.loads(judge[0]["reply"])["faithful"], True)
+        self.assertTrue(json.loads(judge[0]["reply"])["case"])
         v = [r for r in recs if r.get("event") == "verdict"][0]
         self.assertEqual((v["collapsed"], v["faithful"]), (False, True))
 
@@ -684,11 +702,6 @@ class C4Recorded(unittest.TestCase):
             self.assertIs(s["sonnet"]["collapsed"], False, (item, i))
             self.assertEqual(s["jev"]["j_adds"]["choice"], "nothing", (item, i))
 
-    # OPEN (0.3.0 S-B, TEMPER_LIVE_RUN.md "Third live run"): the live judge called the Fit sentence
-    # alone not faithful, so temper.py rejected it. Collapse is judged as the definition says (not
-    # collapsed), but the claim's example ("temper.py accepts it") does not hold in the recording.
-    # Remove this mark when a new recording accepts it: an unexpected success fails the suite.
-    @unittest.expectedFailure
     def test_fit_alone_is_accepted_at_start(self):
         items = [k for k, d in TRIO.items() if d["steps"][0]["statement"].strip() == FIT]
         self.assertTrue(items, "no recorded item starts with the Fit sentence alone")
@@ -699,6 +712,12 @@ class C4Recorded(unittest.TestCase):
             trace, _ = temper.temper(st, src, falsifier=fal, maxn=0, claude=RecordedClaude(), transport=recorded_transport,
                                      log_path=os.path.join(d.name, "t.jsonl"), jev_log=os.path.join(d.name, "j.jsonl"))
             self.assertEqual(trace[0][5], "accept", item)
+
+    def test_the_collapsed_sentence_is_recorded_collapsed(self):
+        steps = self.steps_with(lambda st: st.strip() == VAGUE)
+        self.assertTrue(steps, "the recording does not judge the sentence that the prompt calls Collapsed")
+        for item, i, s in steps:
+            self.assertIs(s["sonnet"]["collapsed"], True, (item, i))
 
     def test_the_finding_inside_is_recorded_and_not_accepted(self):
         inside = self.steps_with(lambda st: st.startswith(FIT) and "Some purchases get a different number" in st)
