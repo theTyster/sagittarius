@@ -253,6 +253,22 @@ class NewCases(unittest.TestCase):
         self.assertTrue(all(v for k, v in wide.items() if k.startswith("python:")), wide)
 
 
+class RuleCopy(unittest.TestCase):
+    def test_deletes_the_span_and_refuses_a_missing_anchor(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        out = os.path.join(tmp, "p.md")
+        run = lambda *a: subprocess.run([sys.executable, os.path.join(HERE, "rule_copy.py"), out, *a], capture_output=True, text=True)
+        p = run("- **Put its premises beside it,**", "restate it.\\n")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        src = open(os.path.join(ROOT, "prompt", "SAGITTARIUS.md"), encoding="utf-8").read()
+        new = open(out, encoding="utf-8").read()
+        self.assertNotIn("Put its premises beside it", new)
+        self.assertIn("**Remove words**", new)
+        self.assertLess(len(new), len(src))
+        self.assertEqual(run("no such text here", "x").returncode, 2)
+
+
 class TranscriptChecks(unittest.TestCase):
     """said: and final: read what the agent wrote, for a format that the prompt defines."""
 
