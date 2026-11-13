@@ -260,8 +260,9 @@ def c3():
         check(f"c3 {os.path.basename(rel)} no longer says that PRINCIPLES.md states the philosophy", "states the sagittarius philosophy" not in t, "still there")
         check(f"c3 {os.path.basename(rel)} says that PRINCIPLES.md comes from the prompt", re.search(r"principles\.md`? comes from the (sagittarius )?prompt", t) is not None, "missing")
     up = read(UPGRADING)
-    v = kit["version"]
-    has(f"c3 UPGRADING.md {v} tells a hub to import it", section(up, v, "###"), "@PRINCIPLES.md", "CLAUDE.md")
+    # The release that brought PRINCIPLES.md from the prompt is 0.7.0; a later patch (0.7.1) has its own
+    # section, and a hub at 0.6.0 reads both (UPGRADING step 2). So the 0.7.0 section must say it.
+    has("c3 UPGRADING.md 0.7.0 tells a hub to import it", section(up, "0.7.0", "###"), "@PRINCIPLES.md", "CLAUDE.md")
 
 
 # ------------------------------------------------------------------ c4
