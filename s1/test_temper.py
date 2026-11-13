@@ -655,6 +655,24 @@ class C4Definition(unittest.TestCase):
         self.assertEqual(trace[0][5], "unsure")
         self.assertIn("j_forbids", trace[0][6])
 
+    def test_a_middle_faithful_answer_does_not_decide(self):
+        # Round 4: faithful rejects only at the no band (<= 0.3); a middle answer alone is not unsure.
+        for p, want, bad in ((0.5, "accept", []), (0.69, "accept", []), (0.2, "reject", ["unfaithful"])):
+            def tr(url, headers, body, timeout, p=p):
+                a = json.loads(fit_transport(url, headers, body, timeout)[1])
+                a["answers"]["j_faithful"] = nl(p)
+                return 200, json.dumps(a)
+            trace, _ = temper.temper(FIT, SOURCE, falsifier="F", maxn=0, claude=ProposerOnly(), transport=tr,
+                                     log_path=os.devnull, jev_log=os.devnull)
+            self.assertEqual((trace[0][5], trace[0][6]), (want, bad), p)
+
+    def test_the_finding_question_covers_a_rule_with_a_finding_inside(self):
+        self.go(FIT)
+        f = self.sent[0]["questions"]["j_finding"]["instructions"]
+        self.assertRegex(f, r"(?i)as well as or instead of")
+        for q in self.sent[0]["questions"].values():     # general rules: no word of the worked example
+            self.assertNotRegex(q["instructions"], r"(?i)point|purchase|tier|member")
+
     def test_requirement_skips_collapse_only(self):
         trace, _ = self.go(VAGUE, kind="requirement")
         self.assertNotIn("collapsed", trace[0][6])
