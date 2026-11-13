@@ -282,8 +282,10 @@ class Html(Base):
         self.assertIn("prefers-color-scheme:dark", text)
 
     def test_html_has_summary_and_no_key(self):
+        old = os.environ.get("TYPESAFE_API_KEY")
         os.environ["TYPESAFE_API_KEY"] = "sk-secret-test-key"
-        self.addCleanup(os.environ.pop, "TYPESAFE_API_KEY")
+        self.addCleanup(lambda: os.environ.pop("TYPESAFE_API_KEY", None) if old is None
+                        else os.environ.__setitem__("TYPESAFE_API_KEY", old))
         log = self.write_log([call("s1")])
         out_file = os.path.join(self.dir, "r.html")
         self.run_main(*self.common(log), "--html", out_file)
