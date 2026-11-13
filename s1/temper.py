@@ -59,7 +59,7 @@ JQ = {"j_adds": {"type": "choice", "instructions": "Beyond the problem in `sourc
       # 0.3.0 S-B: the hypothesis judge (Hypothesis.lean: Collapsed, Fits). The System 1 model asks them.
       "j_forbids": {"type": "noul", "instructions": "Does `statement` forbid one single concrete case: one input, and an outcome for that input that would make `statement` false if a system showed it? A statement that says which facts decide a value forbids every other value for those facts: one input with any other value is such a case. A statement that only says that some dependence, some difference or some cause exists forbids no single case."},
       "j_faithful": {"type": "noul", "instructions": "Is `statement` about the problem in `source` (not another problem), without changing what a good outcome is? Saying which facts decide the outcome is still about the problem."},
-      "j_finding": {"type": "noul", "instructions": "Does `statement` say that some cases behave differently, or are wrong, in the system today (a report about the current system), and not only a rule that every case must hold?"}}
+      "j_finding": {"type": "noul", "instructions": "Does `statement` report that some cases are different or wrong in the system today (a finding about the current system), as well as or instead of stating a rule that every case must hold?"}}
 
 MOVE_TEXT = {"drop_assumption": "Remove one assumption (a cause, a mechanism, a data shape or a design) and keep the rest.",
              "sharpen_conclusion": "Say more exactly which outcome is expected, so that more results would show it false. Never add a cause, a mechanism, a data shape or a design."}
@@ -143,7 +143,8 @@ def p3_judge(run, statement, falsifier, source, kind="hypothesis"):
     ps = {"j_adds": (ad["choice"], ad["probabilities"].get(ad["choice"], 0.0)), "j_contra": a["j_contra"]["noul"],
           "j_observable": a["j_observable"]["noul"], "j_forbids": a["j_forbids"]["noul"],
           "j_faithful": a["j_faithful"]["noul"], "j_finding": a["j_finding"]["noul"], "h_collapsed": col,
-          "h_faithful": tri[band(a["j_faithful"]["noul"])], "h_finding": tri[band(a["j_finding"]["noul"])]}
+          # faithful decides only at the no band: a middle answer alone does not make the verdict unsure
+          "h_faithful": a["j_faithful"]["noul"] > NO, "h_finding": tri[band(a["j_finding"]["noul"])]}
     return ps, [jid]
 
 
@@ -153,7 +154,7 @@ def verdict(ps):
     unsure = ([] if cb != "unsure" else ["j_contra"]) + [j for j in ("j_observable",) if band(ps[j]) == "unsure"]
     if conf < CONF:
         unsure.append("j_adds")
-    for j, h in (("j_forbids", "h_collapsed"), ("j_faithful", "h_faithful"), ("j_finding", "h_finding")):
+    for j, h in (("j_forbids", "h_collapsed"), ("j_finding", "h_finding")):
         if ps[h] is None:
             unsure.append(j)
     bad = []
