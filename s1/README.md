@@ -5,7 +5,7 @@ API: https://docs.typesafe.ai/api.md
 
 - `judge(state, questions, *, model="jev-1.14.0", timeout=20, redactions=None)` returns `{qid: answer}` or `None`. It never raises. The key comes from `$TYPESAFE_API_KEY`.
 - `redact(obj, pairs)`, `band(p)`, `to_prolog(run_id, answers)`: see the docstrings.
-- Log: one JSON line per call in `$S1_LOG`, else `~/.claude/logs/s1.jsonl`. No key. The state only after any redaction that the caller asks for (the hook asks for none).
+- Log: one JSON line per call in `$S1_LOG`, else `~/.claude/logs/s1.jsonl`. No key. The state only after any redaction that the caller asks for (the hook asks for none). `questions_sha` is the first 12 hex digits of the sha256 of the canonical JSON (sorted keys, no spaces) of the questions dict that was sent; `s1inspect.py` uses it.
 
 Tests (no network): `python3 -m unittest s1.test_jev -v` from the repo root.
 
@@ -258,7 +258,7 @@ Judgments are listed newest first. Each one has three parts.
   request body (`model`, `state`, `questions`). No key and no header is shown. The log keeps only the
   question ids, so the text comes from the question file. The tool says so when it may differ from
   what was sent: an id that the file lacks, an id that the call did not send, or a line from another
-  Sagittarius version than this checkout. When the line has `questions_sha` (below), the tool
+  Sagittarius version than this checkout. When the line has `questions_sha`, the tool
   compares it with the hash of the file and says `same` or `differs`; else the match is `unknown`.
 - **What it answered.** Each answer with its probabilities and its band: yes, no or unsure for a
   yes/no answer; a choice is `shown` at P >= 0.5 (the hook's `CHOICE_MIN`), else unsure. Then the
