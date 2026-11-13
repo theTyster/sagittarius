@@ -1,6 +1,6 @@
 # Sagittarius
 
-Sagittarius 0.3.0. A way for a human and an AI agent to agree on what is being built, with
+Sagittarius 0.4.0. A way for a human and an AI agent to agree on what is being built, with
 only as much rigor as the work needs.
 
 **Start light. Shift up on a signal. Lean back when it is resolved.** Every ticket starts with a
@@ -116,7 +116,7 @@ ends with a check. Do the steps in order. Stop at a check that fails, and say wh
    `claude`.
 5. **Ask it which prompt it got.** Ask the session: "What is the last line of your system
    prompt?" It must answer with the last line of `prompt/SAGITTARIUS.md`. For this release that
-   is "This is Sagittarius 0.3.0 (2026-11-11).", so the session names Sagittarius 0.3.0. Any
+   is "This is Sagittarius 0.4.0 (2026-11-12).", so the session names Sagittarius 0.4.0. Any
    other answer means that the session did not get this prompt: check step 3. The link points
    at this checkout, so a session gets the prompt of the branch that the checkout holds.
 6. **The System 1 hook (recommended, not required).** Follow "Install" in `s1/README.md`. The
