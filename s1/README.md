@@ -225,3 +225,71 @@ Its limits (it prints them too):
   nearest prompt in time (at most 5 minutes).
 
 Tests (no network; invented transcripts only): `python3 -m unittest s1.test_observe -v`.
+
+## The inspection tool
+
+`s1inspect.py` shows what the System 1 model was sent, how it was asked, and what it answered. It is
+for the owner who wants to check the hook by eye. It reads the log and the projects dir, calls no
+network, and writes a file only when you pass `--html`.
+
+    python3 s1/s1inspect.py --hub ~/Projects/mine/sagittarius --last 3
+    python3 s1/s1inspect.py --hub PATH --summary
+    python3 s1/s1inspect.py --hub PATH --html /tmp/s1.html
+    python3 s1/s1inspect.py --errors --json
+
+| Option | Meaning |
+|---|---|
+| `--hub PATH` | only sessions of that hub folder: a session counts when `<projects>/<dir>/<session_id>.jsonl` exists, where `<dir>` is the folder path with every `/` and `.` as `-` |
+| `--projects DIR` | the projects dir (default `~/.claude/projects`) |
+| `--log FILE` | the log (default `$S1_LOG`, else `~/.claude/logs/s1.jsonl`) |
+| `--session ID` | one session; a prefix is enough |
+| `--since ISO` | only judgments at or after this time |
+| `--last N` | only the newest N, after the other filters |
+| `--errors` | only failed calls and hook skip lines |
+| `--questions FILE` | the question file (default `questions.json` of this checkout) |
+| `--json` | one JSON object per judgment, one per line |
+| `--html FILE` | one self-contained HTML report (no outside resource; light and dark) |
+| `--summary` | counts instead of judgments; with `--json`, one object |
+
+Judgments are listed newest first. Each one has three parts.
+
+- **What it saw.** The message and every `recent` item: role, length, text.
+- **How it was asked.** Each question by id, with its instructions and criteria, and the shape of the
+  request body (`model`, `state`, `questions`). No key and no header is shown. The log keeps only the
+  question ids, so the text comes from the question file. The tool says so when it may differ from
+  what was sent: an id that the file lacks, an id that the call did not send, or a line from another
+  Sagittarius version than this checkout. When the line has `questions_sha` (below), the tool
+  compares it with the hash of the file and says `same` or `differs`; else the match is `unknown`.
+- **What it answered.** Each answer with its probabilities and its band: yes, no or unsure for a
+  yes/no answer; a choice is `shown` at P >= 0.5 (the hook's `CHOICE_MIN`), else unsure. Then the
+  exact line that the agent received, computed again with `hook.format_answers`. A failed call shows
+  its error and the hook's `no view` line. A hook skip line shows its reason.
+
+Calibration calls in the same log (`calibrate.py`; no session) show as `calibration`. Hub, session
+and a hub filter leave them out.
+
+`--summary` and the top of the HTML report give: judgments, calls, hook skip lines, failed calls,
+error rate, median latency, how often each signal fired in the yes band (divergence, change of plan,
+effort, questions not settled, proof asked), and, for each question, how many answers fell in each
+band or choice.
+
+`--json` keys per judgment: `schema`, `kind` (`call`, `skip`, `calibration`), `line`, `time`,
+`session_id`, `session_short`, `model`, `latency`, `usage`, `sagittarius`, `trimmed`,
+`long_context`, `failed`, `calibration_case`, `signals`, `saw` (`message`, `recent`),
+`asked` (`question_ids`, `questions`, `missing_from_file`, `questions_file`, `questions_sha_logged`,
+`questions_sha_file`, `match`, `notes`, `request_body`), `answered` (`answers`, `hint`, `hint_note`,
+`error`, `skipped`).
+
+Limits:
+
+- It shows the state and the answers as the log has them. It cannot show a request that the hook
+  never logged. It does not see the headers; `long_context` says whether the long-context header was set.
+- The question text is the file's, not the log's. Without `questions_sha` it cannot prove that the
+  file is what was sent. Lines from before the hash are always `unknown`.
+- The line that the agent received is computed again, not read from the session. For a failed
+  call, the reason inside the `no view` line comes from the hook's next skip line and may differ.
+- A hub is found only by the projects dir of that exact folder. Sessions in a sub-folder or a
+  worktree have their own dir and are not in it. A session whose transcript was deleted is not found.
+- It lists the whole selection; a large log with `--html` makes a large page. Use `--last` or `--since`.
+
+Tests (no network; invented logs and projects dirs): `python3 -m unittest s1.test_s1inspect -v`.
