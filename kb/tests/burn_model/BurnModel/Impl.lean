@@ -36,6 +36,12 @@ as failure over the finite KB: `!p` in `Bool`.
 * Ids in kb.pl are atoms (finding F5 of the Lean phases).
 * `supersedes/2` can form a cycle, also `supersedes(C, C)`. `current` follows the
   rule. Since the D10 follow-up, a cycle makes `done` false.
+* The KBs of this model have no model of a claim (D42, 0.3.0 K-F): no `model/2`,
+  `encodes/2`, `model_run/3` or `model_result`, and no `visual/1` (D21). On such a
+  KB `burn_model_closed(C)` has no answer (its first literal is `encodes(M, C)`),
+  so the literal `not burn_model_closed(C)` of `burn_open/1` is true, and
+  `burn_open` below is exact for them. `burn_needs_lean/1` and the rules of trust
+  are outside this model; tests MF3 to MF6 hold them (CONTRACT D42).
 -/
 
 namespace Impl
@@ -289,7 +295,9 @@ def burn_waived (c : Atom) : Bool :=
   db.attest.any fun a => a.type == .waiver && a.pred.waiveOf c && a.by_ == .human &&
     !(db.waiver_lapsed.any fun x => x == a.id)
 
-/-- `burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C).` -/
+/-- `burn_open(C) :- burn(C), current(C), not burn_proved(C), not burn_waived(C), not burn_model_closed(C).`
+The last literal is true on every KB of this model (no `encodes/2` fact, D42), so it is
+left out here. -/
 def burn_open (c : Atom) : Bool :=
   burn db c && current db c && !burn_proved db c && !burn_waived db c
 
