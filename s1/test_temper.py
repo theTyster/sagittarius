@@ -315,7 +315,7 @@ class C3Roles(Base):
 
 
 # ---------------------------------------------------------------------------------------------
-# A recorded live run of temper.py (0.3.0 S-B; TEMPER_LIVE_RUN.md "Fourth live run"; built by
+# A recorded live run of temper.py (0.3.0 S-B; TEMPER_LIVE_RUN.md "Fifth live run"; built by
 # fixtures/build_loopcal_fixture.py from the run's two logs). The System 1 model answers are exact. The
 # Sonnet booleans are the ones temper.py read from the judge's reply (rebuilt into the JSON reply the
 # judge prompt asks for). Haiku's statements and falsifiers are the ones the later steps were judged on.
@@ -359,7 +359,7 @@ def start_of(item):
 
 
 class C1Recorded(unittest.TestCase):
-    """c1 on a recorded live run of temper.py (0.3.0 S-B, TEMPER_LIVE_RUN.md "Fourth live run"): the System 1
+    """c1 on a recorded live run of temper.py (0.3.0 S-B, TEMPER_LIVE_RUN.md "Fifth live run"): the System 1
     model's and the judge's answers as they came. Items: c12 the sentence the prompt calls Collapsed,
     c13 the sentence it calls Fit, c14 Fit with the finding inside it."""
 
@@ -372,20 +372,20 @@ class C1Recorded(unittest.TestCase):
                              log_path=os.path.join(d.name, "t.jsonl"), jev_log=os.path.join(d.name, "j.jsonl"))
 
     def test_start_verdicts_are_the_recorded_ones(self):
-        # The recorded judge called Fit (c13) collapsed at the start; see C4Recorded.
-        want = {"c12": ["adds_cause", "collapsed"], "c13": ["collapsed"], "c14": ["collapsed", "unfaithful"]}
-        for item, bad in want.items():
+        want = {"c12": ("reject", ["adds_cause", "collapsed"]), "c13": ("accept", []),
+                "c14": ("unsure", ["j_forbids", "j_finding"])}
+        for item, vb in want.items():
             trace, _ = self.go(item)
-            self.assertEqual((trace[0][5], trace[0][6]), ("reject", bad), item)
+            self.assertEqual((trace[0][5], trace[0][6]), vb, item)
 
     def test_brackets_match_the_recorded_loop(self):
         _, b12 = self.go("c12")
         self.assertEqual(b12[:2], ("open", TRIO["c12"]["steps"][-1]["statement"]))
         _, b13 = self.go("c13")
-        self.assertEqual(b13[:2], ("open", TRIO["c13"]["steps"][-1]["statement"]))
+        s = TRIO["c13"]["steps"]
+        self.assertEqual(b13, ("to_ty", s[0]["statement"], s[1]["statement"], ["j_finding"]))
         _, b14 = self.go("c14")
-        s = TRIO["c14"]["steps"]
-        self.assertEqual(b14, ("bracket", s[1]["statement"], s[2]["statement"], ("sharpen_conclusion", ["collapsed"])))
+        self.assertEqual(b14, ("to_ty", None, TRIO["c14"]["steps"][0]["statement"], ["j_forbids", "j_finding"]))
 
     def test_the_fixture_has_no_client_names(self):
         text = open(os.path.join(HERE, "fixtures", "loopcal_trio.json")).read()
@@ -430,7 +430,7 @@ class NoRealCalls(unittest.TestCase):
         st, fal, src = start_of("c13")
         trace, _ = temper.temper(st, src, falsifier=fal, maxn=0, claude=RecordedClaude(),
                                  transport=recorded_transport, **self.kw())
-        self.assertEqual(trace[0][5], "reject")     # the recorded verdict (see C1Recorded)
+        self.assertEqual(trace[0][5], "accept")     # the recorded verdict (see C1Recorded)
 
 
 FAKE_PY_CLAUDE = """#!%(py)s
@@ -492,16 +492,16 @@ class CliTest(unittest.TestCase):
         return subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True, text=True, env=self.env, timeout=60)
 
     def test_hypothesis_text_and_facts(self):
-        r = self.cli("c14", kind="hypothesis")
+        r = self.cli("c13", kind="hypothesis")
         self.assertEqual(r.returncode, 0, r.stderr)
-        s = TRIO["c14"]["steps"]
-        self.assertIn("bracket: bracket", r.stdout)
-        self.assertIn("last accepted: " + s[1]["statement"], r.stdout)
-        self.assertIn("first rejected: " + s[2]["statement"], r.stdout)
-        self.assertIn("why: sharpen_conclusion: collapsed", r.stdout)
-        self.assertRegex(r.stdout, r"s1_step\('temper', 't1', 0, start, .*, reject, \['collapsed', 'unfaithful'\]\)\.")
-        self.assertRegex(r.stdout, r"s1_step\('temper', 't1', 1, sharpen_conclusion, .*, accept, \[\]\)\.")
-        self.assertRegex(r.stdout, r"s1_bracket\('temper', 't1', bracket, ")
+        s = TRIO["c13"]["steps"]
+        self.assertIn("bracket: to_ty", r.stdout)
+        self.assertIn("last accepted: " + s[0]["statement"], r.stdout)
+        self.assertIn("first rejected: " + s[1]["statement"], r.stdout)
+        self.assertIn("why: unsure about j_finding", r.stdout)
+        self.assertRegex(r.stdout, r"s1_step\('temper', 't1', 0, start, .*, accept, \[\]\)\.")
+        self.assertRegex(r.stdout, r"s1_step\('temper', 't1', 1, sharpen_conclusion, .*, unsure, \['j_finding'\]\)\.")
+        self.assertRegex(r.stdout, r"s1_bracket\('temper', 't1', to_ty, ")
         self.assertIn(":- discontiguous", r.stdout)
 
     def test_requirement_kind_skips_collapse(self):
@@ -542,7 +542,7 @@ class C3ProposerPrompt(unittest.TestCase):
 
     def test_haiku_prompts_in_a_whole_run(self):
         ps = self.prompts()
-        self.assertGreater(len(ps), 10)
+        self.assertGreaterEqual(len(ps), 10)
         for p in ps:
             # the statement and source are user text; strip them, then look at what the tool wrote
             body = re.sub(r"^(Source[^\n]*|Statement: .*)$", "", p, flags=re.M)

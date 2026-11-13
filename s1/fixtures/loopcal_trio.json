@@ -7,13 +7,55 @@
     "jev": {
      "j_adds": {
       "choice": "cause",
-      "confidence": 0.61,
+      "confidence": 0.65,
       "probabilities": {
-       "cause": 0.69,
+       "cause": 0.72,
        "data": 0.01,
        "design": 0.09,
-       "mechanism": 0.06,
-       "nothing": 0.15
+       "mechanism": 0.07,
+       "nothing": 0.11
+      },
+      "type": "choice"
+     },
+     "j_contra": {
+      "noul": 0.96,
+      "type": "noul"
+     },
+     "j_faithful": {
+      "noul": 0.66,
+      "type": "noul"
+     },
+     "j_finding": {
+      "noul": 0.66,
+      "type": "noul"
+     },
+     "j_forbids": {
+      "noul": 0.23,
+      "type": "noul"
+     },
+     "j_observable": {
+      "noul": 0.77,
+      "type": "noul"
+     }
+    },
+    "sonnet": {
+     "collapsed": true,
+     "faithful": null
+    },
+    "statement": "Points depend on something other than the purchase."
+   },
+   {
+    "falsifier": "A full audit that recalculates every member's points from the published earning and redemption rules and finds zero mismatches against the stored balances would show the statement false.",
+    "jev": {
+     "j_adds": {
+      "choice": "cause",
+      "confidence": 0.54,
+      "probabilities": {
+       "cause": 0.63,
+       "data": 0.01,
+       "design": 0.0,
+       "mechanism": 0.14,
+       "nothing": 0.22
       },
       "type": "choice"
      },
@@ -21,34 +63,58 @@
       "noul": 0.97,
       "type": "noul"
      },
+     "j_faithful": {
+      "noul": 0.9,
+      "type": "noul"
+     },
+     "j_finding": {
+      "noul": 0.93,
+      "type": "noul"
+     },
+     "j_forbids": {
+      "noul": 0.46,
+      "type": "noul"
+     },
      "j_observable": {
-      "noul": 0.76,
+      "noul": 0.92,
       "type": "noul"
      }
     },
     "sonnet": {
-     "collapsed": true,
-     "faithful": true
+     "collapsed": null,
+     "faithful": false
     },
-    "statement": "Points depend on something other than the purchase."
+    "statement": "Member loyalty points are calculated incorrectly."
    },
    {
-    "falsifier": "Under the system's loyalty-point rules, a member whose recorded points differ from the amount their qualifying transactions should have earned (per the published earning rate) would show the statement is true, and one whose points exactly match those amounts for every transaction would falsify it.",
+    "falsifier": "A reconciliation of every member's stored points balance against the sum of their earned and redeemed transaction records shows no mismatches.",
     "jev": {
      "j_adds": {
       "choice": "nothing",
-      "confidence": 0.86,
+      "confidence": 0.84,
       "probabilities": {
-       "cause": 0.01,
-       "data": 0.02,
-       "design": 0.01,
-       "mechanism": 0.07,
-       "nothing": 0.89
+       "cause": 0.0,
+       "data": 0.13,
+       "design": 0.0,
+       "mechanism": 0.0,
+       "nothing": 0.87
       },
       "type": "choice"
      },
      "j_contra": {
-      "noul": 0.75,
+      "noul": 0.96,
+      "type": "noul"
+     },
+     "j_faithful": {
+      "noul": 0.86,
+      "type": "noul"
+     },
+     "j_finding": {
+      "noul": 0.9,
+      "type": "noul"
+     },
+     "j_forbids": {
+      "noul": 0.64,
       "type": "noul"
      },
      "j_observable": {
@@ -57,88 +123,40 @@
      }
     },
     "sonnet": {
-     "collapsed": true,
+     "collapsed": null,
      "faithful": false
     },
-    "statement": "Members' loyalty points are awarded incorrectly."
+    "statement": "Member loyalty points are incorrect."
    },
    {
-    "falsifier": "A member's loyalty points balance differs from the sum of points earned by their qualifying purchases plus rewards, as shown by a reconciliation query where any member's recorded balance is greater or less than that computed total.",
+    "falsifier": "A member's recorded loyalty points balance differs from the balance computed by replaying their earned and redeemed points under the program rules.",
     "jev": {
      "j_adds": {
       "choice": "nothing",
-      "confidence": 0.9,
+      "confidence": 0.82,
       "probabilities": {
        "cause": 0.0,
-       "data": 0.01,
-       "design": 0.06,
-       "mechanism": 0.01,
-       "nothing": 0.92
+       "data": 0.02,
+       "design": 0.09,
+       "mechanism": 0.03,
+       "nothing": 0.86
       },
       "type": "choice"
      },
      "j_contra": {
-      "noul": 0.98,
+      "noul": 0.97,
       "type": "noul"
      },
-     "j_observable": {
-      "noul": 0.94,
-      "type": "noul"
-     }
-    },
-    "sonnet": {
-     "collapsed": false,
-     "faithful": true
-    },
-    "statement": "Each member's loyalty points must match the points their qualifying purchases and rewards entitle them to, with no member over- or under-credited."
-   },
-   {
-    "falsifier": "A member's loyalty points balance differs from the sum of their qualifying purchase points and reward points for the same period, as shown by the purchase and reward records.",
-    "jev": {
-     "j_adds": {
-      "choice": "nothing",
-      "confidence": 0.71,
-      "probabilities": {
-       "cause": 0.0,
-       "data": 0.11,
-       "design": 0.07,
-       "mechanism": 0.05,
-       "nothing": 0.77
-      },
-      "type": "choice"
-     },
-     "j_contra": {
-      "noul": 0.98,
+     "j_faithful": {
+      "noul": 0.81,
       "type": "noul"
      },
-     "j_observable": {
-      "noul": 0.93,
+     "j_finding": {
+      "noul": 0.13,
       "type": "noul"
-     }
-    },
-    "sonnet": {
-     "collapsed": false,
-     "faithful": true
-    },
-    "statement": "Each member's loyalty points balance must equal the total of their qualifying purchase and reward points, as verified against the purchase and reward records for the same period."
-   },
-   {
-    "falsifier": "A single member whose stored loyalty points balance differs from the sum of their qualifying purchase points and reward points for that period, when checked against the purchase and reward records, falsifies the statement.",
-    "jev": {
-     "j_adds": {
-      "choice": "nothing",
-      "confidence": 0.75,
-      "probabilities": {
-       "cause": 0.01,
-       "data": 0.12,
-       "design": 0.03,
-       "mechanism": 0.04,
-       "nothing": 0.8
-      },
-      "type": "choice"
      },
-     "j_contra": {
-      "noul": 0.98,
+     "j_forbids": {
+      "noul": 0.89,
       "type": "noul"
      },
      "j_observable": {
@@ -150,7 +168,49 @@
      "collapsed": false,
      "faithful": true
     },
-    "statement": "Each member's loyalty points balance must exactly equal the sum of their qualifying purchase points and reward points for the same period, as verified against the purchase and reward records; any mismatch, including any member with a differing balance, falsifies it."
+    "statement": "Every member's loyalty points balance must match the points they earned and redeemed under the program rules."
+   },
+   {
+    "falsifier": "A member's transaction history shows a loyalty points balance that differs from points earned minus points redeemed, as computed under the program rules.",
+    "jev": {
+     "j_adds": {
+      "choice": "nothing",
+      "confidence": 0.71,
+      "probabilities": {
+       "cause": 0.01,
+       "data": 0.12,
+       "design": 0.05,
+       "mechanism": 0.05,
+       "nothing": 0.77
+      },
+      "type": "choice"
+     },
+     "j_contra": {
+      "noul": 0.98,
+      "type": "noul"
+     },
+     "j_faithful": {
+      "noul": 0.73,
+      "type": "noul"
+     },
+     "j_finding": {
+      "noul": 0.13,
+      "type": "noul"
+     },
+     "j_forbids": {
+      "noul": 0.94,
+      "type": "noul"
+     },
+     "j_observable": {
+      "noul": 0.93,
+      "type": "noul"
+     }
+    },
+    "sonnet": {
+     "collapsed": false,
+     "faithful": true
+    },
+    "statement": "Every member's loyalty points balance must equal the points earned minus points redeemed under the program rules, for every member, as shown by their transaction history."
    }
   ]
  },
@@ -162,13 +222,13 @@
     "jev": {
      "j_adds": {
       "choice": "nothing",
-      "confidence": 0.85,
+      "confidence": 0.91,
       "probabilities": {
-       "cause": 0.06,
-       "data": 0.01,
-       "design": 0.01,
-       "mechanism": 0.04,
-       "nothing": 0.88
+       "cause": 0.03,
+       "data": 0.0,
+       "design": 0.02,
+       "mechanism": 0.02,
+       "nothing": 0.93
       },
       "type": "choice"
      },
@@ -176,118 +236,40 @@
       "noul": 0.83,
       "type": "noul"
      },
+     "j_faithful": {
+      "noul": 0.72,
+      "type": "noul"
+     },
+     "j_finding": {
+      "noul": 0.1,
+      "type": "noul"
+     },
+     "j_forbids": {
+      "noul": 0.93,
+      "type": "noul"
+     },
      "j_observable": {
       "noul": 0.9,
       "type": "noul"
      }
     },
     "sonnet": {
-     "collapsed": true,
+     "collapsed": false,
      "faithful": true
     },
     "statement": "The amount of a purchase and the member's tier on that day decide its points."
    },
    {
-    "falsifier": "A purchase of a given amount made by a member whose tier was in effect on that purchase date is recorded with a point credit different from the value that the amount and that tier specify under the program's rules.",
-    "jev": {
-     "j_adds": {
-      "choice": "nothing",
-      "confidence": 0.85,
-      "probabilities": {
-       "cause": 0.01,
-       "data": 0.01,
-       "design": 0.08,
-       "mechanism": 0.02,
-       "nothing": 0.88
-      },
-      "type": "choice"
-     },
-     "j_contra": {
-      "noul": 0.98,
-      "type": "noul"
-     },
-     "j_observable": {
-      "noul": 0.91,
-      "type": "noul"
-     }
-    },
-    "sonnet": {
-     "collapsed": false,
-     "faithful": true
-    },
-    "statement": "Each purchase is credited with exactly the points that its amount and the member's tier on that purchase date call for."
-   },
-   {
-    "falsifier": "A purchase is recorded with a credited point total that differs from the amount-and-tier-based expected value for that purchase date, such as a $100 purchase by a Gold-tier member on 2026-03-01 crediting 150 points when the expected value is 200.",
-    "jev": {
-     "j_adds": {
-      "choice": "nothing",
-      "confidence": 0.92,
-      "probabilities": {
-       "cause": 0.01,
-       "data": 0.01,
-       "design": 0.03,
-       "mechanism": 0.01,
-       "nothing": 0.94
-      },
-      "type": "choice"
-     },
-     "j_contra": {
-      "noul": 0.97,
-      "type": "noul"
-     },
-     "j_observable": {
-      "noul": 0.94,
-      "type": "noul"
-     }
-    },
-    "sonnet": {
-     "collapsed": false,
-     "faithful": true
-    },
-    "statement": "Each purchase is credited with exactly the points its amount and the member's tier on that purchase date call for, and any purchase whose credited points differ from that expected value counts as a failure."
-   },
-   {
-    "falsifier": "A purchase whose credited points differ from the expected value (computed from its amount and the member's tier on the purchase date) by even one point is found in the ledger.",
-    "jev": {
-     "j_adds": {
-      "choice": "nothing",
-      "confidence": 0.82,
-      "probabilities": {
-       "cause": 0.0,
-       "data": 0.09,
-       "design": 0.04,
-       "mechanism": 0.01,
-       "nothing": 0.86
-      },
-      "type": "choice"
-     },
-     "j_contra": {
-      "noul": 0.98,
-      "type": "noul"
-     },
-     "j_observable": {
-      "noul": 0.9,
-      "type": "noul"
-     }
-    },
-    "sonnet": {
-     "collapsed": false,
-     "faithful": true
-    },
-    "statement": "Each purchase must be credited with exactly the points its amount and the member's tier on that purchase date call for; any purchase whose credited points differ by even one point from that expected value is a failure."
-   },
-   {
-    "falsifier": "A purchase whose credited points differ by one from the value its amount and the member's tier on that purchase date call for (for example, a $50 purchase by a Gold member on 2026-03-01 credited 51 points where 50 were expected) falsifies the statement.",
+    "falsifier": "A member's points for a purchase are not equal to the tier's points rate on that date multiplied by the purchase amount, such as when a member with a 2x tier rate on 2026-11-12 spending $50 is credited a number of points other than 100.",
     "jev": {
      "j_adds": {
       "choice": "nothing",
       "confidence": 0.9,
       "probabilities": {
-       "cause": 0.0,
-       "data": 0.01,
-       "design": 0.06,
-       "mechanism": 0.01,
+       "cause": 0.02,
+       "data": 0.0,
+       "design": 0.04,
+       "mechanism": 0.02,
        "nothing": 0.92
       },
       "type": "choice"
@@ -296,16 +278,28 @@
       "noul": 0.97,
       "type": "noul"
      },
+     "j_faithful": {
+      "noul": 0.59,
+      "type": "noul"
+     },
+     "j_finding": {
+      "noul": 0.32,
+      "type": "noul"
+     },
+     "j_forbids": {
+      "noul": 0.93,
+      "type": "noul"
+     },
      "j_observable": {
-      "noul": 0.91,
+      "noul": 0.9,
       "type": "noul"
      }
     },
     "sonnet": {
      "collapsed": false,
-     "faithful": true
+     "faithful": null
     },
-    "statement": "Each purchase must be credited with exactly the points its amount and the member's tier on that purchase date call for; a credited value differing by even one point from that expected value, for any purchase, makes the statement false."
+    "statement": "A member's points for a purchase must equal the exact points rate for their tier on that date applied to the purchase amount, so any other result is wrong."
    }
   ]
  },
@@ -317,18 +311,30 @@
     "jev": {
      "j_adds": {
       "choice": "nothing",
-      "confidence": 0.56,
+      "confidence": 0.39,
       "probabilities": {
-       "cause": 0.22,
+       "cause": 0.34,
        "data": 0.01,
-       "design": 0.05,
-       "mechanism": 0.07,
-       "nothing": 0.65
+       "design": 0.06,
+       "mechanism": 0.08,
+       "nothing": 0.51
       },
       "type": "choice"
      },
      "j_contra": {
-      "noul": 0.76,
+      "noul": 0.83,
+      "type": "noul"
+     },
+     "j_faithful": {
+      "noul": 0.62,
+      "type": "noul"
+     },
+     "j_finding": {
+      "noul": 0.66,
+      "type": "noul"
+     },
+     "j_forbids": {
+      "noul": 0.58,
       "type": "noul"
      },
      "j_observable": {
@@ -337,70 +343,10 @@
      }
     },
     "sonnet": {
-     "collapsed": true,
-     "faithful": false
+     "collapsed": null,
+     "faithful": null
     },
     "statement": "The amount of a purchase and the member's tier on that day decide its points. Some purchases get a different number."
-   },
-   {
-    "falsifier": "Two members with the same tier on the same purchase date and the same amount, one buying in the same store, earn different point totals.",
-    "jev": {
-     "j_adds": {
-      "choice": "nothing",
-      "confidence": 0.51,
-      "probabilities": {
-       "cause": 0.04,
-       "data": 0.01,
-       "design": 0.3,
-       "mechanism": 0.04,
-       "nothing": 0.61
-      },
-      "type": "choice"
-     },
-     "j_contra": {
-      "noul": 0.96,
-      "type": "noul"
-     },
-     "j_observable": {
-      "noul": 0.9,
-      "type": "noul"
-     }
-    },
-    "sonnet": {
-     "collapsed": false,
-     "faithful": true
-    },
-    "statement": "Every purchase earns the same points for the same amount and the member's tier on the purchase date, with no exceptions."
-   },
-   {
-    "falsifier": "A purchase pair with the same amount and the same member tier on their purchase dates that is awarded different points.",
-    "jev": {
-     "j_adds": {
-      "choice": "nothing",
-      "confidence": 0.8,
-      "probabilities": {
-       "cause": 0.01,
-       "data": 0.02,
-       "design": 0.1,
-       "mechanism": 0.03,
-       "nothing": 0.84
-      },
-      "type": "choice"
-     },
-     "j_contra": {
-      "noul": 0.97,
-      "type": "noul"
-     },
-     "j_observable": {
-      "noul": 0.91,
-      "type": "noul"
-     }
-    },
-    "sonnet": {
-     "collapsed": true,
-     "faithful": true
-    },
-    "statement": "Every purchase, compared by amount and the member's tier on its purchase date, must earn identical points; any purchase pair where these match but points differ shows the statement false."
    }
   ]
  }
