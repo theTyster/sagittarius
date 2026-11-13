@@ -89,6 +89,33 @@ class Bench(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertIn("2 judgments, 2 calls", buf.getvalue())
 
+    def test_pipeline_routes_in_stages(self):
+        t, calls = fake(0.9)
+        pipe = os.path.join(self.d, "pipe.py")
+        with open(pipe, "w") as f:
+            f.write(
+                "def run(state, ask, questions):\n"
+                "    first = ask({'h_work': questions['h_work']})\n"
+                "    if first is None: return None\n"
+                "    if first['h_work']['choice'] == 'build':\n"
+                "        second = ask({'h_divergence': questions['h_divergence']}) or {}\n"
+                "        return {**first, **second}\n"
+                "    return first\n"
+                "def hint(answers, questions):\n"
+                "    return 'custom ' + answers['h_work']['choice']\n")
+        out = bench.run(bench.parser().parse_args(self.args("--pipeline", pipe, "--last", "1")), t)
+        self.assertEqual([list(c["questions"]) for c in calls], [["h_work"], ["h_divergence"]])
+        r = out["results"][0]
+        self.assertEqual(r["new_hint"], "custom build")
+        self.assertTrue({x["question"]: x for x in r["rows"]}["h_divergence"]["changed"])
+
+    def test_a_pipeline_without_run_is_refused(self):
+        pipe = os.path.join(self.d, "bad.py")
+        with open(pipe, "w") as f:
+            f.write("x = 1\n")
+        with self.assertRaises(ValueError):
+            bench.run(bench.parser().parse_args(self.args("--pipeline", pipe)), fake(0.1)[0])
+
 
 if __name__ == "__main__":
     unittest.main()

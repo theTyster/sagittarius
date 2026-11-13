@@ -11,6 +11,14 @@ s1inspect.py) is asked again with the state the log holds (the message and the m
 the questions of --questions. For each question the output puts the logged answer beside the new one and
 marks a change of band (yes / no / unsure; a choice shown at P >= 0.5) with *.
 
+--pipeline FILE replaces the one call with your own routing: a Python file that defines
+    run(state, ask, questions) -> {question id: answer}
+where ask(questions_dict) makes one call and returns its answers (or None), and questions is the dict of
+--questions. It may ask in stages (ask one question first, then only the questions of that branch), split
+or merge questions, or skip some. It may also define hint(answers, questions) -> str, the line the agent
+would get; without it the hook's format_answers is used. The new answers are compared with the logged
+ones question by question, by id.
+
 --baseline also asks the checkout's own questions.json again, so a change can be told apart from the
 model's own variation between two calls. --dry-run asks nothing: it says how many calls a run would make.
 
@@ -48,6 +56,32 @@ def reading(a):
     return str(x["type"]), None, str(x["type"])
 
 
+def load_pipeline(path):
+    """The module of --pipeline (run, and hint if it has one), or None."""
+    if not path:
+        return None
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("s1_bench_pipeline", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    if not callable(getattr(mod, "run", None)):
+        raise ValueError(f"--pipeline {path}: it defines no run(state, ask, questions)")
+    return mod
+
+
+def hint_of(answers, questions, pipe):
+    """The line the agent would get from these answers, or None."""
+    if not answers:
+        return None
+    try:
+        if pipe is not None and callable(getattr(pipe, "hint", None)):
+            return pipe.hint(answers, questions)
+        import hook
+        return hook.format_answers(answers, questions)
+    except Exception as e:
+        return f"(no line: {type(e).__name__}: {e})"
+
+
 def ask(state, questions, timeout, transport=None, tag=None):
     """The answers of one call, or None on a failure (jev.judge logs it to the bench log)."""
     return jev.judge(state, questions, timeout=timeout, log_path=BENCH_LOG, transport=transport,
@@ -80,19 +114,36 @@ def run(args, transport=None):
         baseq, err = s1inspect.load_questions(os.path.join(HERE, "questions.json"))
         if baseq is None:
             raise ValueError(f"questions.json of the checkout: {err}")
+    pipe = load_pipeline(args.pipeline)
     calls = len(pairs) * (2 if baseq else 1)
+    if pipe is not None:
+        calls = f"{len(pairs)} runs of the pipeline" + (f" + {len(pairs)} baseline calls" if baseq else "")
     if args.dry_run:
         return {"judgments": len(pairs), "calls": calls, "questions": list(newq), "results": []}
 
     def one(pair):
         _i, rec = pair
         st = rec["state"]
-        new = ask(st, newq, args.timeout, transport, "new")
+        if pipe is not None:
+            n = [0]
+
+            def asker(qs):
+                n[0] += 1
+                return ask(st, qs, args.timeout, transport, f"pipeline:{n[0]}")
+            try:
+                new = pipe.run(st, asker, newq)
+            except Exception as e:
+                new = None
+                print(f"bench: the pipeline failed: {type(e).__name__}: {e}", file=sys.stderr)
+        else:
+            new = ask(st, newq, args.timeout, transport, "new")
         base = ask(st, baseq, args.timeout, transport, "baseline") if baseq else None
-        qids = list(dict.fromkeys(list(newq) + list((rec.get("answers") or {}).keys())))
+        qids = list(dict.fromkeys(list(newq) + list((new or {}).keys()) + list((rec.get("answers") or {}).keys())))
         return {"time": rec.get("time"), "session": s1inspect._short(rec.get("session_id")),
                 "message": s1inspect._text((st or {}).get("message")), "failed": new is None,
-                "rows": compare(rec, new, base, qids)}
+                "rows": compare(rec, new, base, qids),
+                "logged_hint": hint_of(rec.get("answers"), newq, None),
+                "new_hint": hint_of(new, newq, pipe)}
 
     with ThreadPoolExecutor(max_workers=4) as ex:
         results = list(ex.map(one, pairs))
@@ -100,7 +151,8 @@ def run(args, transport=None):
 
 
 def render(out):
-    lines = [f"{out['judgments']} judgments, {out['calls']} calls; questions: {', '.join(out['questions'])}"]
+    calls = out["calls"] if isinstance(out["calls"], str) else f"{out['calls']} calls"
+    lines = [f"{out['judgments']} judgments, {calls}; questions: {', '.join(out['questions'])}"]
     changed = {}
     for r in out["results"]:
         msg = " ".join((r["message"] or "").split())
@@ -108,6 +160,9 @@ def render(out):
         lines.append(f"{r['time']}  session {r['session']}  {msg[:90]}{'…' if len(msg) > 90 else ''}")
         if r["failed"]:
             lines.append("  the new call failed (see the bench log)")
+        if r.get("new_hint") is not None:
+            lines.append(f"   line: logged {r.get('logged_hint')}")
+            lines.append(f"         new    {r['new_hint']}")
         has_base = any(x["baseline"] is not None for x in r["rows"])
         for x in r["rows"]:
             mark = "*" if x["changed"] else " "
@@ -130,6 +185,7 @@ def parser():
     p.add_argument("--last", type=int, help=f"the newest N judgments (default {DEFAULT_LAST})")
     p.add_argument("--log", default=os.environ.get(jev.LOG_ENV) or jev.DEFAULT_LOG)
     p.add_argument("--projects", default=s1inspect.DEFAULT_PROJECTS)
+    p.add_argument("--pipeline", help="a Python file with run(state, ask, questions): your own routing")
     p.add_argument("--baseline", action="store_true", help="also ask the checkout's questions.json again")
     p.add_argument("--dry-run", action="store_true", help="ask nothing; count the calls")
     p.add_argument("--timeout", type=float, default=30.0)
@@ -145,7 +201,8 @@ def main(argv=None, transport=None):
         print(f"bench: {e}", file=sys.stderr)
         return 2
     if args.dry_run:
-        print(f"dry run: {out['judgments']} judgments, {out['calls']} calls; nothing was asked")
+        calls = out["calls"] if isinstance(out["calls"], str) else f"{out['calls']} calls"
+        print(f"dry run: {out['judgments']} judgments, {calls}; nothing was asked")
     else:
         print(json.dumps(out, ensure_ascii=False, indent=1) if args.json else render(out))
     return 0

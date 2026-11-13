@@ -306,6 +306,12 @@ change of band with `*`. It calls the network once per judgment and needs `$TYPE
     python3 s1/bench.py --questions my-questions.json --last 10 --baseline   # also ask questions.json again
     python3 s1/bench.py --questions my-questions.json --dry-run               # count the calls, ask nothing
     python3 s1/calibrate.py --questions my-questions.json                     # the tracked calibration cases
+    python3 s1/bench.py --questions q.json --pipeline my-routing.py --baseline # your own routing
+
+`--pipeline FILE` replaces the one call with a Python file that defines `run(state, ask, questions)`:
+`ask(qs)` makes one call with the questions dict `qs`. It can ask in stages, split or merge questions,
+or skip some; `hint(answers, questions)`, if defined, writes the line the agent would get (else the
+hook's `format_answers`). The output then shows the logged line and the new one.
 
 The selection options are those of `s1inspect.py` (`--hub`, `--session`, `--since`, `--last`; the newest
 5 by default). Two calls with the same questions can differ a little (a few hundredths), so use
