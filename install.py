@@ -6,6 +6,7 @@
     ~/.local/share/orbit-kb   -> kb/share/orbit-kb
     ~/.claude/sagittarius     -> prompt/  (holds SAGITTARIUS.md)
     ~/.claude/sagittarius-s1  -> s1/      (the System 1 hook goes where the prompt goes)
+    ~/.claude/skills/s1-glance -> s1/glance/ (the Sagittarius Signals mod; every session loads it)
 
 Usage: ./install.py          create or fix the links
        ./install.py --check  report each link; exit 1 if any is not OK
@@ -32,6 +33,7 @@ LINKS = [
     (HOME / ".local" / "share" / "orbit-kb", REPO / "kb" / "share" / "orbit-kb"),
     (HOME / ".claude" / "sagittarius", REPO / "prompt"),
     (HOME / ".claude" / "sagittarius-s1", REPO / "s1"),
+    (HOME / ".claude" / "skills" / "s1-glance", REPO / "s1" / "glance"),
 ]
 
 

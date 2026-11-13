@@ -199,6 +199,21 @@ newline instead of the ` | ` join. Trying it without installing:
 Tests (no network): `python3 -m unittest s1.test_statusline -v`. One claim alone:
 `python3 -m unittest s1.test_statusline.C2Stale -v`.
 
+## The Sagittarius Signals mod (`glance/`)
+
+`glance/` is a Claude Code plugin (a hooks module, not a command hook). It shows the hook's newest
+judgment of the session at a glance: one bar per signal, colored by strength (red confident, yellow
+moderate, plain weak). The label of a signal that fired is bright; the label of one under its
+threshold is dim. A judgment older than 10 minutes is dim in every view. It reads only the hook's
+log, `~/.claude/logs/s1.jsonl`.
+
+`install.py` links it to `~/.claude/skills/s1-glance`, so every new session loads it. Pick the views
+with `/s1-glance pane | toast | corner | status | off` (any together). The choice is kept for every
+later session. A new setup starts with the pane. The `status` view writes one line with colors to
+`~/.claude/s1-glance/<session id>.status`; a status line command can print that file as its first row.
+
+Tests (no network): `claude plugin test s1/glance`.
+
 ## The observation harness (0.3.0, suggestion 3)
 
 `observe.py` compares the log of the hook with the session transcripts, after the fact. The hook

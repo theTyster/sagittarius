@@ -30,6 +30,16 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
 
+## Sagittarius, next release (not released; the version is not chosen yet)
+
+- `s1/glance/`: the Sagittarius Signals mod, a Claude Code plugin that shows the System 1 hook's
+  newest judgment as a pane, toasts, a corner or a status line (ticket s1-glance). `install.py` makes a
+  new link, `~/.claude/skills/s1-glance`, so every new session loads it. Run `./install.py` again
+  after you update.
+- The mod's colors: the bar of each signal is colored by its strength; the label of a signal under
+  its threshold is dim, and a fired one is bright; a judgment older than 10 minutes is dim in every
+  view (c2b).
+
 ## Sagittarius 0.4.0 (2026-11-12)
 
 MINOR: orbit-kb rules and the tempering judge change what a session does. The prompt changes only
