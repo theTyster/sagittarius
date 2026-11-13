@@ -6,7 +6,7 @@ Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own v
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.3.0 (proposed) | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.4.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
 | MindHole Kit | 0.7.2 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 
@@ -29,6 +29,21 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.1.0 | the tag `v0.1.0-experiment` (2026-07-01) |
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
+
+## Sagittarius 0.4.0 (2026-11-12)
+
+MINOR: orbit-kb rules and the tempering judge change what a session does. The prompt changes only
+in its last line, the version.
+
+- orbit-kb: a claim contested twice, not universal and not asked to be proved, is closed by a Lean
+  proof, a decided result of a trusted solver or model-checker model that encodes it (the report
+  shows the model and the bounds of its run), or a human waiver (D42, c_k_f_1b). The trust rules
+  of a model moved from the discovery module to core (`model_*`); new fact `run_bounds/2`.
+- orbit-kb: `shift --red-log FILE` records a red run that only the agent saw as a `seen_red`
+  disclosure. The claim stays unfulfilled until a human waives its check (D43, c_k_h_2b).
+- `s1/temper.py`: the System 1 model is the only judge of a tempered hypothesis (`j_forbids`,
+  `j_faithful`, `j_finding`); Claude only proposes and writes falsifiers (c_s_b). A held-out gate
+  set, `s1/fixtures/temper_gate_heldout.json`, was committed before any live run.
 
 ## Sagittarius 0.3.0 and Philosophy 2.0.0 (proposed; not ratified, not released)
 
@@ -87,7 +102,7 @@ Earlier versions, named after the fact so that a report can refer to them:
 - orbit-kb: a build KB records models (`model`, `model_run`, `encodes`); a solver result never
   closes a burn.
 
-## MindHole Kit 0.7.2 (the template; pairs with Sagittarius 0.3.0)
+## MindHole Kit 0.7.2 (the template; pairs with Sagittarius 0.4.0)
 
 A patch: no schema change (the db schema stays 6). A formal hub's orbit-kb copy changed (K-F and
 K-H), so the kit version moves up.
