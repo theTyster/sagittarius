@@ -44,6 +44,9 @@ in its last line, the version.
 - `s1/temper.py`: the System 1 model is the only judge of a tempered hypothesis (`j_forbids`,
   `j_faithful`, `j_finding`); Claude only proposes and writes falsifiers (c_s_b). A held-out gate
   set, `s1/fixtures/temper_gate_heldout.json`, was committed before any live run.
+- evals (D-C): `run.sh --prompt FILE|none`; `check_leaks.py` reads `evals.json`; a change of plan asks
+  for a supersession; seven new cases for the new rules (planning 13 to 17, tools 24, 25), each
+  with a held-out twin by a writer who did not see the prompt. Not run yet: no live eval was made.
 
 ## Sagittarius 0.3.0 and Philosophy 2.0.0 (proposed; not ratified, not released)
 
