@@ -566,5 +566,136 @@ class C3ProposerPrompt(unittest.TestCase):
             self.assertIsNone(re.search(r"\b[jh]_[a-z_]+", p.replace("adds_", "")), p)
 
 
+# ---------------------------------------------------------------------------------------------
+# 0.3.0 S-B (c_s_b): temper.py judges collapse as the definition does (Hypothesis.lean, Collapsed:
+# a statement has collapsed when it accepts every case, so no case can show it false). A statement
+# that is true of a correct system is not collapsed for that reason. The prompt's worked example:
+# "Fit" is the sentence alone; the finding ("some purchases get a different number") is kept apart.
+# ---------------------------------------------------------------------------------------------
+FIT = "The amount of a purchase and the member's tier on that day decide its points."
+FINDING_INSIDE = FIT + " Some purchases get a different number."
+VAGUE = "Points depend on something other than the purchase."
+
+
+def fit_transport(url, headers, body, timeout):
+    """The System 1 model's answers for a clean statement: adds nothing, contradicted, observable."""
+    return 200, json.dumps({"answers": {"j_adds": ch("nothing", 0.9), "j_contra": nl(0.9), "j_observable": nl(0.9)}})
+
+
+class DefinitionJudge:
+    """claude(prompt, model) for the judge: answers as the definition does, from what the prompt asks.
+    A case can show FIT and FINDING_INSIDE false; no single case shows VAGUE false. A correct system
+    makes FINDING_INSIDE false: it states today's problem, not the wanted outcome."""
+
+    def __init__(self):
+        self.prompts = []
+
+    def __call__(self, prompt, model):
+        self.prompts.append((model, prompt))
+        st = re.findall(r"^Statement: (.*)$", prompt, re.M)[-1]
+        if model != "sonnet":
+            return "A purchase of 100 by a Gold member that got 100 points."
+        return json.dumps({"can_fail": st != VAGUE, "faithful": st != FINDING_INSIDE})
+
+
+class C4Definition(unittest.TestCase):
+    """c_s_b: collapsed = no case can show it false; true of a correct system is not collapsed."""
+
+    def go(self, statement, maxn=0):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.judge = DefinitionJudge()
+        return temper.temper(statement, SOURCE, falsifier="A Gold purchase of 100 got 100 points.", maxn=maxn,
+                             claude=self.judge, transport=fit_transport,
+                             log_path=os.path.join(d.name, "t.jsonl"), jev_log=os.path.join(d.name, "j.jsonl"))
+
+    def judge_prompt(self):
+        return [p for m, p in self.judge.prompts if m == "sonnet"][0]
+
+    def test_fit_is_accepted_and_not_collapsed(self):
+        trace, _ = self.go(FIT)
+        self.assertIs(trace[0][4]["h_collapsed"], False)
+        self.assertEqual((trace[0][5], trace[0][6]), ("accept", []))
+
+    def test_no_case_can_show_it_false_is_collapsed(self):
+        trace, _ = self.go(VAGUE)
+        self.assertIs(trace[0][4]["h_collapsed"], True)
+        self.assertIn("collapsed", trace[0][6])
+
+    def test_the_finding_inside_is_not_accepted(self):
+        trace, _ = self.go(FINDING_INSIDE)
+        self.assertEqual(trace[0][5], "reject")
+        self.assertIn("unfaithful", trace[0][6])
+
+    def test_the_judge_asks_for_a_case_not_about_a_correct_system(self):
+        self.go(FIT)
+        p = self.judge_prompt()
+        self.assertNotIn("false_if_correct", p)
+        self.assertRegex(p, r"(?i)\bcase\b")
+        # the old collapse test: "imagine a system that works correctly ... would the statement be false?"
+        self.assertNotRegex(p, r"(?i)collaps\w*[^\n]*correct")
+
+    def test_the_judge_reads_a_finding_as_not_faithful(self):
+        self.go(FIT)
+        line = [l for l in self.judge_prompt().splitlines() if l.startswith("faithful:")][0]
+        self.assertRegex(line, r"(?i)none of the problem")
+        self.assertRegex(line, r"(?i)finding")
+
+    def test_the_proposer_is_never_told_to_make_a_correct_system_false(self):
+        seen = []
+        run = temper.Run(claude=lambda prompt, model: seen.append(prompt) or "x",
+                         transport=fit_transport, log_path=os.devnull)
+        for why in (["j_contra"], ["collapsed"], ["unfaithful"], []):
+            temper.propose(run, "A statement.", "A source.", "sharpen_conclusion", why)
+        for p in seen:
+            self.assertNotRegex(p, r"(?i)correct system would make the statement false")
+
+    def test_the_judge_reply_is_logged(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        log = os.path.join(d.name, "t.jsonl")
+        temper.temper(FIT, SOURCE, falsifier="F", maxn=0, claude=DefinitionJudge(), transport=fit_transport,
+                      log_path=log, jev_log=os.path.join(d.name, "j.jsonl"))
+        with open(log) as f:
+            recs = [json.loads(x) for x in f]
+        judge = [r for r in recs if r.get("event") == "call" and r["by"] == "sonnet"]
+        self.assertEqual(json.loads(judge[0]["reply"]), {"can_fail": True, "faithful": True})
+        v = [r for r in recs if r.get("event") == "verdict"][0]
+        self.assertEqual((v["collapsed"], v["faithful"]), (False, True))
+
+
+class C4Recorded(unittest.TestCase):
+    """c_s_b in the recording (fixtures/loopcal_trio.json, a live run of temper.py): the sentence that
+    the prompt calls Fit starts an item alone, judged not collapsed, and is accepted; the sentence with
+    the finding inside it is judged, and is not accepted."""
+
+    def steps_with(self, pred):
+        return [(item, i, s) for item, d in TRIO.items() for i, s in enumerate(d["steps"]) if pred(s["statement"])]
+
+    def test_fit_alone_is_recorded_not_collapsed(self):
+        fit = self.steps_with(lambda st: st.strip() == FIT)
+        self.assertTrue(fit, "the recording has no step whose statement is the Fit sentence alone")
+        for item, i, s in fit:
+            self.assertIs(s["sonnet"]["collapsed"], False, (item, i))
+            self.assertEqual(s["jev"]["j_adds"]["choice"], "nothing", (item, i))
+
+    def test_fit_alone_is_accepted_at_start(self):
+        items = [k for k, d in TRIO.items() if d["steps"][0]["statement"].strip() == FIT]
+        self.assertTrue(items, "no recorded item starts with the Fit sentence alone")
+        for item in items:
+            d = tempfile.TemporaryDirectory()
+            self.addCleanup(d.cleanup)
+            st, fal, src = start_of(item)
+            trace, _ = temper.temper(st, src, falsifier=fal, maxn=0, claude=RecordedClaude(), transport=recorded_transport,
+                                     log_path=os.path.join(d.name, "t.jsonl"), jev_log=os.path.join(d.name, "j.jsonl"))
+            self.assertEqual(trace[0][5], "accept", item)
+
+    def test_the_finding_inside_is_recorded_and_not_accepted(self):
+        inside = self.steps_with(lambda st: st.startswith(FIT) and "Some purchases get a different number" in st)
+        self.assertTrue(inside, "the recording does not judge the sentence with the finding inside it")
+        for item, i, s in inside:
+            self.assertFalse(s["sonnet"]["collapsed"] is False and s["sonnet"]["faithful"], (item, i))
+
+
 if __name__ == "__main__":
     unittest.main()
