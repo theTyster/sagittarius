@@ -5,8 +5,7 @@ kit that made it. Read this whole file first. A hub belongs to its people: never
 hub changed, and show your human every merge before you commit.
 
 **Versions.** This release of the MindHole Kit pairs with Sagittarius 0.3: its `PRINCIPLES.md` comes
-from that prompt, and a formal hub copies the orbit-kb of the same Sagittarius checkout. The
-The kit's own version is `MindHole Kit <version>` (`kit.json`); a release section says so when the
+from that prompt, and a formal hub copies the orbit-kb of the same Sagittarius checkout. The kit's own version is `MindHole Kit <version>` (`kit.json`); a release section says so when the
 Sagittarius pair changes. Older sections below say "hub kit" or "the MindHole" for the template: the MindHole Kit's name before 2026-11-12.
 
 ## The procedure (every release)
@@ -96,6 +95,17 @@ step that writes.
 
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
+
+### 0.7.1 (the MindHole Kit name; db schema 6, unchanged)
+
+The template is now called the MindHole Kit, and a hub made from it is a MindHole. No behavior
+changes. The db schema is 6. **Database:** a hub at 0.7.0 is at schema 6 already and runs no
+migrate; a hub at schema 5 (0.5.1 to 0.6.0) applies the 0.7.0 section first, which runs
+`python3 .claude/scripts/hubflow.py migrate` once. Engine files changed since 0.7.0: `HUB-CORE.md`
+(formal and informal: line 3 says the guidance ships with the MindHole Kit). Replace it if the hub
+did not change it; otherwise change that one line by intent. Owned file `CLAUDE.md`: if it calls
+the template "the MindHole" or "the hub kit", say "the MindHole Kit" (optional; nothing reads it).
+Check: `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` prints `hub from MindHole Kit 0.7.1`.
 
 ### 0.7.0 (Sagittarius 0.3.0 alignment; db schema 6: the session index is dropped)
 

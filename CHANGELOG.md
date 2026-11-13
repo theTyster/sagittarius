@@ -8,7 +8,7 @@ Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own v
 |---|---|---|---|
 | Sagittarius | 0.3.0 (proposed) | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.7.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.7.1 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 
 What a change of each number means:
 
@@ -41,7 +41,7 @@ Earlier versions, named after the fact so that a report can refer to them:
 - The build aligns the tools, the MindHole Kit and the checks with the new texts (the spec KB
   `tmp/kb-sagittarius-030`, from the differences that
   `docs/philosophy-orbit/2026-11-11/fable/ALIGNMENT.md` names). The MindHole Kit has its own entry
-  below (MindHole Kit 0.7.0).
+  below (MindHole Kit 0.7.1 and 0.7.0).
 - VERSION is the one source of the Sagittarius version. `docs/check_version.py` holds it, the last
   line of the prompt and the CHANGELOG heading to one number. `install.py` prints it, and each
   System 1 log line holds it (`sagittarius`), also when the hook runs through the installed link.
@@ -87,7 +87,18 @@ Earlier versions, named after the fact so that a report can refer to them:
 - orbit-kb: a build KB records models (`model`, `model_run`, `encodes`); a solver result never
   closes a burn.
 
-## MindHole Kit 0.7.0 (the template; its own version line; pairs with Sagittarius 0.3.0; not released)
+## MindHole Kit 0.7.1 (the template; pairs with Sagittarius 0.3.0)
+
+A patch: no schema change (the db schema stays 6). The name of the template changed after 0.7.0 was
+installed, so the version moves up: two templates never share a version.
+
+- The template is the MindHole Kit, and a hub is a MindHole. Both `HUB-CORE.md` files say they ship
+  with the MindHole Kit. `hubkit.py` prints `MindHole Kit <version>` in its install, status and
+  upgrade lines.
+- The release check holds the rule: the kit version is never below main's, and it is above main's
+  whenever the template or the kit tools differ from main's (`kb/tests/test_release.sh` c3).
+
+## MindHole Kit 0.7.0 (the template; its own version line; pairs with Sagittarius 0.3.0)
 
 The MindHole Kit has its own version (`hubkit/kit.json`), apart from Sagittarius. The build picks the
 number, and it only moves up: the db schema moves from 5 to 6, so the kit version moves (`hubkit/UPGRADING.md`, section
