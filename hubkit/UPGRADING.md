@@ -1,13 +1,13 @@
-# UPGRADING.md: apply a new release of the MindHole to an existing hub
+# UPGRADING.md: apply a new release of the MindHole Kit to an existing hub
 
-For the agent. Your human asked you to upgrade their hub to a newer release of the MindHole, the
+For the agent. Your human asked you to upgrade their hub to a newer release of the MindHole Kit, the
 kit that made it. Read this whole file first. A hub belongs to its people: never replace a file the
 hub changed, and show your human every merge before you commit.
 
-**Versions.** This release of the MindHole pairs with Sagittarius 0.3: its `PRINCIPLES.md` comes
+**Versions.** This release of the MindHole Kit pairs with Sagittarius 0.3: its `PRINCIPLES.md` comes
 from that prompt, and a formal hub copies the orbit-kb of the same Sagittarius checkout. The
-MindHole's own version is `MindHole <version>` (`kit.json`); a release section says so when the
-Sagittarius pair changes. Older sections below say "hub kit": the MindHole's name before 2026-11-12.
+The kit's own version is `MindHole Kit <version>` (`kit.json`); a release section says so when the
+Sagittarius pair changes. Older sections below say "hub kit" or "the MindHole" for the template: the MindHole Kit's name before 2026-11-12.
 
 ## The procedure (every release)
 
@@ -87,7 +87,7 @@ step that writes.
    with `grep -rn` in each of these places; list each change for your human.
 5. **Tell the running sessions.** A session that started before the migration still holds the old
    rules and paths. Send each one a short text, for example: "This hub moved to <new path> and now
-   runs MindHole <version>. Stop, then resume in the new place with your launcher line
+   runs MindHole Kit <version>. Stop, then resume in the new place with your launcher line
    (`--resume "hub-<name>"`). Read your inbox first (`hubflow.py view v_inbox --session
    <name>`): your open asks and work in flight are ledger items now. Local rules are in each skill's
    `LOCAL.md`."
@@ -198,9 +198,9 @@ below `@HUB-CORE.md`, see 0.4.0). A hub that skipped 0.6.0 reads that section to
   a rotation; `hub/W0/...` still counts. Files:
   `.claude/skills/hub-rotate/scripts/check-citations.py`. Check: `hubflow-test.py --case
   case_k3_citations_hub_name` passes.
-- **The kit is the MindHole.** Intent: line 3 of `HUB-CORE.md` (both editions) says "This file ships
-  with the MindHole (the kit that made this hub)"; `hubkit.py` prints `installed MindHole X`, `hub
-  from MindHole X (...); this kit MindHole Y` and `upgrade MindHole X -> MindHole Y`. A hub script that
+- **The template is the MindHole Kit.** Intent: line 3 of `HUB-CORE.md` (both editions) says "This file ships
+  with the MindHole Kit (the template that made this hub)"; `hubkit.py` prints `installed MindHole Kit X`, `hub
+  from MindHole Kit X (...); this kit MindHole Kit Y` and `upgrade MindHole Kit X -> MindHole Kit Y`. A hub script that
   reads the old lines (`installed template`, `hub template`, `upgrade X -> Y`) must read the new ones.
 - **Owned file `CLAUDE.md`: a section for the human's notes (UAT U6).** Intent: the human has a place
   for their own notes, such as a project order. An upgrade never writes `CLAUDE.md`: add the section

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""hubkit.py -- install the MindHole (the hub template) into a new hub, and upgrade a hub to a newer release.
+"""hubkit.py -- install the MindHole Kit (the hub template) into a new hub, and upgrade a hub to a newer release.
 
 usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
   install --hub DIR [--edition informal|formal] [--uat]
@@ -32,7 +32,7 @@ copied to "to" in the hub (.claude/orbit-kb/bin/orbit-kb, bin/repo-map, share/..
 files of a formal hub: an upgrade replaces them, and a switch to informal removes them. hubflow.py,
 the skills and HUB-CORE.md run that copy, never an orbit-kb on the PATH.
 
-What a hub runs (Sagittarius 0.3.0, c_m_d_2). Each MindHole runs its own pinned version: install and
+What a hub runs (Sagittarius 0.3.0, c_m_d_2). Each MindHole (hub) runs its own pinned version: install and
 upgrade --yes record in .hub-template.json "runs" which orbit-kb (the copy above and the version in its
 share/orbit-kb/VERSION), which prompt (kit.json "prompt": the file that the pane launcher appends,
 ~/.claude/sagittarius/SAGITTARIUS.md, with the Sagittarius version and sha256 of the kit's own copy) and
@@ -332,7 +332,7 @@ def cmd_install(o):
         m["uat"] = True  # a UAT install: it tests the kit itself (INSTRUCTIONS.md step 3)
     m["runs"] = runs_of(o["kit"], k, ed)  # what the hub runs (c_m_d_2)
     save_manifest(hub, m)
-    print(f"installed MindHole {k['version']} ({ed} edition{', UAT install' if o['uat'] else ''}) into {hub}: "
+    print(f"installed MindHole Kit {k['version']} ({ed} edition{', UAT install' if o['uat'] else ''}) into {hub}: "
           f"{len(engine)} engine, {len(k['owned'])} owned files")
 
 
@@ -346,7 +346,7 @@ def state_of(hub, rel, recorded):
 def cmd_status(o):
     k = load_kit(o["kit"])
     m = load_manifest(o["hub"])
-    print(f"hub from MindHole {m['template_version']} ({edition_of(m)} edition{', UAT install' if m.get('uat') else ''}); this kit MindHole {k['version']}")
+    print(f"hub from MindHole Kit {m['template_version']} ({edition_of(m)} edition{', UAT install' if m.get('uat') else ''}); this kit MindHole Kit {k['version']}")
     for line in runs_lines(o["hub"], m):
         print(line)
     kit_files = kit_shas(o["kit"], k, edition_of(m))
@@ -400,7 +400,7 @@ def cmd_upgrade(o, edition=None):
                 plan.append(("add-owned", rel))
             else:
                 plan.append(("keep-owned", rel))
-    print(f"upgrade MindHole {old} -> MindHole {new} ({ed} edition)" + ("" if yes else " (dry run; --yes applies it)"))
+    print(f"upgrade MindHole Kit {old} -> MindHole Kit {new} ({ed} edition)" + ("" if yes else " (dry run; --yes applies it)"))
     if not m.get("edition") and not edition:
         print(f"note: this hub records no edition; it gets the {ed} edition, as a hub made before editions gets it here"
               f" ({'orbit-kb is on the PATH' if ed == 'formal' else 'this hub has no orbit-kb'}); to change it: hubkit.py edition --hub HUB "

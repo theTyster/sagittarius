@@ -1,6 +1,6 @@
-# Instructions for the agent: set up a hub with the MindHole
+# Instructions for the agent: set up a MindHole with the MindHole Kit
 
-This is the MindHole, the kit that makes a hub for Sagittarius. It is part of Sagittarius
+This is the MindHole Kit, the template that makes a hub (a MindHole) for Sagittarius. It is part of Sagittarius
 (<https://github.com/theTyster/sagittarius>): its informal release. It needs Python 3 and git
 (`README.md`, "Install"): no bash, and no formal tools.
 

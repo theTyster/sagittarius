@@ -56,8 +56,8 @@ CASES = [
      "", "the usual-path line is gone"),
     (["docs/check_version.py"], "VERSION", "0.3.0", "9.9.9", "VERSION disagrees with the prompt"),
     # docs/check_mindhole.py (review finding 5, kit3): the MindHole checks can fail too
-    (["docs/check_mindhole.py", "mg2"], "hubkit/README.md", "The **MindHole** is the kit that makes a hub",
-     "The **MindHole** is the hub", "the kit README says the MindHole is the hub"),
+    (["docs/check_mindhole.py", "mg2"], "hubkit/README.md", "The **MindHole Kit** is the template that makes a hub",
+     "The **MindHole Kit** is the hub", "the kit README says the MindHole Kit is the hub"),
     (["docs/check_mindhole.py", "mb7"], "hubkit/editions/informal/.claude/skills/hub-flow/SKILL.md",
      '$HF note T-0002 "vote: GO: ', '$HF note T-0002 "ballot: ', "the informal skill lost the vote note"),
     # 0.3.0 c_sg5b: a retired term in a text that an agent reads

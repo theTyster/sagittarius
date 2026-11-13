@@ -18,10 +18,10 @@ own language:
 
 **Two interfaces.** Sagittarius runs in two interfaces. *Sagittarius* is the system prompt and `orbit-kb`:
 it goes wherever your agent goes. The prompt says how the agent acts; the tool holds the
-procedure and its syntax (`orbit-kb help`). The *MindHole* is the kit that makes a hub: a pinned
+procedure and its syntax (`orbit-kb help`). The *MindHole Kit* is the template that makes a hub, a *MindHole*: a pinned
 workspace that can run its own version of the tool for power-work. They work best together, and
 neither depends on the other. The prompt is true alone, with no hub. `repo-map` is used by a
-MindHole hub: a hub reads the project KB through it.
+MindHole: a hub reads the project KB through it.
 
 **Where it sits.** Sagittarius is an extension of the harness, between the human-agent
 interface (the harness, such as Claude Code) and the software factory (the interface between the
@@ -31,7 +31,7 @@ when its hook is installed.
 
 The philosophy is in [`docs/PHILOSOPHY.md`](docs/PHILOSOPHY.md). It is installed nowhere: the
 prompt carries it. Each of three things has its own version (Sagittarius, the philosophy, the
-MindHole); `CHANGELOG.md` says what a change of each number means.
+MindHole Kit); `CHANGELOG.md` says what a change of each number means.
 
 ## Use it
 
@@ -49,8 +49,8 @@ Only the hub, with no Prolog and no Lean? That is the informal release: see [`hu
    manual: you paste a snippet into your `~/.claude/settings.json`. No script writes that file,
    `install.py` included.
 3. **Start a hub.** Give `hubkit/` to your agent and say "follow INSTRUCTIONS.md". It reads
-   `hubkit/INSTRUCTIONS.md`, asks up to three questions, and sets up a hub with the MindHole. See
-   "The MindHole" below.
+   `hubkit/INSTRUCTIONS.md`, asks up to three questions, and sets up a MindHole with the MindHole Kit. See
+   "The MindHole Kit" below.
 
 ## What it is
 
@@ -58,7 +58,7 @@ Only the hub, with no Prolog and no Lean? That is the informal release: see [`hu
 |---|---|---|
 | System prompt | [`prompt/SAGITTARIUS.md`](prompt/SAGITTARIUS.md) | One file, appended to the agent's session. It says how to act: the orbit, the light path, the signals, the vote, the honesty rules, and the delivery. The procedure of the tool is in `orbit-kb help`. |
 | `orbit-kb` | [`kb/bin/orbit-kb`](kb/bin/orbit-kb), rules in [`kb/share/orbit-kb/`](kb/share/orbit-kb/) | A CLI that writes, lints, and queries Prolog KBs, with SWI-Prolog as the only engine. It also records Lean proofs (`orbit-kb prove`). Full reference: [`kb/share/orbit-kb/README.md`](kb/share/orbit-kb/README.md). |
-| `repo-map` | [`kb/bin/repo-map`](kb/bin/repo-map) | Draws a map of a repository from its facts. A MindHole hub uses it: a hub reads the project KB through it. |
+| `repo-map` | [`kb/bin/repo-map`](kb/bin/repo-map) | Draws a map of a repository from its facts. A MindHole uses it: a hub reads the project KB through it. |
 | Dependencies | | [SWI-Prolog](https://www.swi-prolog.org) 9+. [Lean 4](https://lean-lang.org), but only for proofs. |
 
 ## Install
@@ -134,7 +134,7 @@ two more files from `prompt/` (installed under `~/.claude/sagittarius/`):
 | `PANES.md` | What the three roles are, and how they hand work to each other. The same for each session. |
 | `panes/<role>.md` | The role prompt: what this one session does and does not do. |
 
-Start each session in its own terminal, in the hub (`HUB`, see "The MindHole"), with this one launcher
+Start each session in its own terminal, in the hub (`HUB`, see "The MindHole Kit"), with this one launcher
 line. `<name>` is the role (`review`, `discovery` or `build`); the line also sets `HUB_SESSION`, the
 session's name in the hub. It is the line of "The formal edition" in `hubkit/INSTRUCTIONS.md`:
 
@@ -149,10 +149,10 @@ step 3 of "Install"). Any
 terminal multiplexer or editor can hold the three sessions. The author starts them as
 three tmux windows named after the roles. That launcher is not part of this repository.
 
-## The MindHole
+## The MindHole Kit
 
-The MindHole is the kit that makes a hub for Sagittarius, with its own version line
-(`MindHole <version>`, in `hubkit/kit.json`). It lives in `hubkit/`: a template for a hub, one git
+The MindHole Kit is the template that makes a hub (a MindHole) for Sagittarius, with its own version line
+(`MindHole Kit <version>`, in `hubkit/kit.json`). It lives in `hubkit/`: a template for a hub, one git
 repo that a few named Claude Code sessions share as working memory (a weekly calendar plus flow
 state in SQLite). To start a hub from it, give `hubkit/` to your agent and say "follow
 INSTRUCTIONS.md" (`hubkit/INSTRUCTIONS.md`). The agent asks up to three questions, sets up the hub,
@@ -171,7 +171,7 @@ python3 hubkit/tools/hubkit-test.py
 | `prompt/` | The live system prompt, and the prompts for the three panes (`PANES.md`, `panes/`). |
 | `kb/` | `orbit-kb`: `CONTRACT.md` (what the tests hold it to), `bin/`, `share/orbit-kb/` (core rules, the build and discovery modules, the Lean probe), `tests/` (the black-box suite, fixtures, and the Lean files of the burn rules). |
 | `s1/` | System 1, the hook that adds hints to each message. It is recommended, not required. `install.py` links it to `~/.claude/sagittarius-s1`; the settings snippet is a manual paste. `observe.py` compares its log with the sessions afterwards. See `s1/README.md`. |
-| `hubkit/` | The MindHole: a template for a hub of named sessions (see "The MindHole"). |
+| `hubkit/` | The MindHole Kit: a template for a hub of named sessions (see "The MindHole Kit"). |
 | `docs/` | `PHILOSOPHY.md` (why the process is as it is), `REFINING.md`, `PROMPT-MOVES.md`, and the checks for the prompt and the panes (`check_*.py`). |
 | `evals/` | The evals for the prompt: one-shot planning evals (`evals.json`, `run.sh`) and tool-use evals (`tools.json`, `run_tools.sh`), with graded runs. |
 
@@ -195,7 +195,7 @@ kb/tests/burn_model/check.sh               # the Lean files of the burn rules (n
 python3 docs/check_lean.py                 # Lean on Hypothesis.lean (count, axioms, cited names) and kb/proofs (needs Lean 4)
 python3 docs/test_check_lean.py            # the tests of that check
 python3 docs/check_mutants.py              # each docs check passes on the tree, and fails on a copy that lost what it holds
-python3 docs/check_mindhole.py --list      # the MindHole checks of 0.3.0, one id each (mb2 to mb5 read the kit only, not the design KB)
+python3 docs/check_mindhole.py --list      # the MindHole Kit checks of 0.3.0, one id each (mb2 to mb5 read the kit only, not the design KB)
 python3 docs/test_check_mutants.py         # the tests of that check
 python3 docs/check_terms.py                # a text that an agent reads uses no retired term (the list is in the script)
 python3 docs/test_check_terms.py           # the tests of that check
