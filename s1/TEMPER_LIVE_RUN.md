@@ -558,3 +558,24 @@ s1_judged('temper', 'c14', 2, collapsed, 'True').
 s1_judged('temper', 'c14', 2, faithful, 'True').
 s1_bracket('temper', 'c14', bracket, 'Every purchase earns the same points for the same amount and the member''s tier on the purchase date, with no exceptions.', 'Every purchase, compared by amount and the member''s tier on its purchase date, must earn identical points; any purchase pair where these match but points differ shows the statement false.', '(''sharpen_conclusion'', [''collapsed''])').
 ```
+
+---
+
+# Gate A of the System 1 judge (0.3.0 S-B round 3): failed, no recording run
+
+Date: 2026-11-12. Ty: the System 1 model is the judge; Claude only proposes. temper.py now asks
+the System 1 model j_forbids (collapse), j_faithful and j_finding. Before any Claude call, the
+judge ran on three fixed statements, three times each (9 System 1 calls, 6,579 input and 1,368
+output tokens; no Claude call). Bands: yes at 0.7 or more, no at 0.3 or less.
+
+| statement | wanted | j_forbids | j_faithful | j_finding | verdicts (runs 1, 2, 3) |
+|---|---|---|---|---|---|
+| Fit | accept, not collapsed | 0.91, 0.92, 0.93 | 0.69, 0.70, 0.69 | 0.16, 0.13, 0.14 | unsure, accept, unsure |
+| Collapsed | collapsed | 0.24, 0.25, 0.25 | 0.68, 0.66, 0.65 | 0.35, 0.34, 0.36 | reject (adds_cause, collapsed) x3 |
+| Fit with the finding inside | not accepted | 0.56, 0.61, 0.57 | 0.65, 0.62, 0.65 | 0.68, 0.66, 0.66 | unsure x3 |
+
+Fit is not collapsed in all three runs, but it was accepted in only one: j_faithful sits at the
+edge of the yes band. So the gate failed, and the recording run did not take place. The
+recording in `fixtures/loopcal_trio.json` is still the fourth run, made with the earlier Claude
+judge.
+

@@ -7,8 +7,9 @@ RUN_DIR holds one folder per item (default c12 c13 c14). Each folder holds the t
 `python3 s1/temper.py STATEMENT --source SOURCE --item ITEM --falsifier F` run: temper.jsonl
 ($TEMPER_LOG) and s1.jsonl ($S1_LOG). Per item, each judged statement is one step, in call order:
 the statement and falsifier as they were judged, the System 1 model's exact answers, and the
-judge's booleans (collapsed, faithful) as temper.py read them from the judge's reply (the reply is
-in the log too). The proposer's outputs are the statements and falsifiers of the later steps.
+judge's booleans (collapsed, faithful) from the verdict record. The key of those booleans is
+"sonnet", the name that the spec check and docs/check_examples.py read. Since 0.3.0 S-B round 3 the
+System 1 model is the only judge, so in a new run the key holds its booleans, not a sonnet reply. The proposer's outputs are the statements and falsifiers of the later steps.
 Only the generic loyalty example is in the run; it is checked for client names.
 """
 import json
