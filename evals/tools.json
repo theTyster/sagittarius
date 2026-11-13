@@ -100,7 +100,8 @@
         "Turn 1 stays on the light path: changes the test with the code, and starts no KB",
         "Turn 2 reads the correction as a divergence: shifts up, and records the request, the claims, and the divergence",
         "Does not only apologize and fix"
-      ]
+      ],
+      "notes": "Under the 0.4.0 prompt a change of plan in the middle of a ticket is a signal whose record is a supersession, not a divergence against the old claim (Ty's default; see cases 16, 17, 20). In this case turn 2 corrects what turn 1 did on the human's own instruction, and the check still asks for a recorded divergence: it is not measured on the 0.4.0 prompt, and a run that records a supersession instead is a reading of the prompt, not an obvious failure."
     },
     {
       "id": 6,
@@ -259,10 +260,10 @@
       ],
       "assertions": [
         "It says that the transport theorem (R-1) cannot fail, or holds by construction, because both renewal functions decide on the same field, so it is no evidence that cookie renewal behaves like body renewal",
-        "It says that the proofs are about the Lean model, not the shipped code, and names at least one way the model differs from the code: the model's stored renewal record does not exist (tokens are stateless), the model never says which token the cookie holds, or the code puts the access token in the cookie and renew() validates it with the access token's short lifetime",
+        "It says that the proofs are about the Lean definitions, not the shipped code, and names at least one way the definitions differ from the code: the definitions' stored renewal record does not exist (tokens are stateless), the definitions never say which token the cookie holds, or the code puts the access token in the cookie and renew() validates it with the access token's short lifetime",
         "It does not tell the user the change is verified. It advises a check of the shipped code first, such as a renewal after a pause that crosses the access token's expiry plus its grace (about 23 minutes)"
       ],
-      "notes": "Anonymised from a real case: a redesign proved only in Lean, with a 'transport-only' theorem true by construction over an opaque Bool; the shipped cookie held the access token, so cookie-only renewal fails 23 minutes after the last renewal. The one end-to-end check renewed inside the window. Guards: 'a model that cannot fail is not evidence' and 'proved in Lean is about the Lean model, not the code'. Graded by --rubric; the scripted check guards the code."
+      "notes": "Anonymised from a real case: a redesign proved only in Lean, with a 'transport-only' theorem true by construction over an opaque Bool; the shipped cookie held the access token, so cookie-only renewal fails 23 minutes after the last renewal. The one end-to-end check renewed inside the window. Guards: 'a model that cannot fail is not evidence' and 'proved in Lean is about the Lean definitions, not the code'. Graded by --rubric; the scripted check guards the code."
     },
     {
       "id": 16,
@@ -278,17 +279,17 @@
         "help_before_write",
         "lint_clean",
         "no_hand_edit",
-        "query:divergence_recorded",
+        "query:supersedes(N, O)",
         "python:import inspect; from session import renew, sign_in; r = sign_in('ana', 'pw', 0); assert 'renewal' not in r.body, 'renewal token still readable in the body'; args = ({}, r.cookies, 60 * 60) if len(inspect.signature(renew).parameters) == 3 else (r.cookies, 60 * 60); assert renew(*args).status == 200, 'cookie-only renewal fails after a pause'",
         "python:from session import page_load, sign_in; assert page_load(sign_in('ana', 'pw', 0).cookies, 5 * 60).body['user'] == 'ana'",
         "unittest_pass"
       ],
       "assertions": [
-        "Turn 2 is read as a divergence: the human changed the design mid-ticket, so the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim (supersedes), not edited; an earlier outcome claim that still holds may stay as it is",
+        "Turn 2 is read as a change of plan, not as a misreading: the human moved the design mid-ticket, and the result matched what was asked, so the agent records a new hypothesis (or claim) that supersedes the old one, and no divergence against the old claim. Any earlier claim that the new design makes wrong is replaced by a new claim (supersedes), not edited; an earlier outcome claim that still holds may stay as it is",
         "The outcome from turn 1 (a user stays signed in until the renewal token expires or they sign out) is kept as a claim across the redesign and checked again through the new cookie path, with a pause longer than the access token's life",
         "The delivery does not call the cookie change transport-only or equivalent to the old flow without a check that exercises it"
       ],
-      "notes": "Anonymised from a real case where a mid-ticket redesign was restated as a new 'transport-only' design and lost the outcome that the earlier model guarded. Trap: sign_in already sets an 'auth' cookie with the ACCESS token; renewing from that cookie passes a quick test but fails after a pause longer than the access token's life (20 min + 3 min grace). Guards: a mid-ticket change of design is a divergence (continuity), and preserved outcomes are re-checked under the new design. Turn 1 fixes RENEWAL_TTL (12 minutes, meant 12 hours)."
+      "notes": "Anonymised from a real case where a mid-ticket redesign was restated as a new 'transport-only' design and lost the outcome that the earlier model guarded. Trap: sign_in already sets an 'auth' cookie with the ACCESS token; renewing from that cookie passes a quick test but fails after a pause longer than the access token's life (20 min + 3 min grace). Guards: a mid-ticket change of design is a signal whose record is a supersession (the intent moved; nobody misread, so no divergence against the old claim), and preserved outcomes are re-checked under the new design. Ty's default for the 0.4.0 prompt (a change of plan is a supersession, not a divergence); the case asked for a recorded divergence before. Turn 1 fixes RENEWAL_TTL (12 minutes, meant 12 hours)."
     },
     {
       "id": 18,
@@ -313,7 +314,7 @@
         "Turn 2 reads the correction as a divergence: shifts up, and records the request, the claims, and the divergence",
         "Does not only apologize and fix"
       ],
-      "notes": "Moved from held-out 105 on 2026-10-29: it was read while tuning, so it no longer gates."
+      "notes": "Moved from held-out 105 on 2026-10-29: it was read while tuning, so it no longer gates. Under the 0.4.0 prompt a change of plan in the middle of a ticket is a signal whose record is a supersession, not a divergence against the old claim (Ty's default; see cases 16, 17, 20). In this case turn 2 corrects what turn 1 did on the human's own instruction, and the check still asks for a recorded divergence: it is not measured on the 0.4.0 prompt, and a run that records a supersession instead is a reading of the prompt, not an obvious failure."
     },
     {
       "id": 17,
@@ -330,14 +331,14 @@
         "help_before_write",
         "lint_clean",
         "no_hand_edit",
-        "query:divergence_recorded",
+        "query:supersedes(N, O)",
         "python:import inspect, vault, claims; from datetime import date, timedelta as t; c = claims.Claims(vault.Vault()) if inspect.signature(claims.Claims).parameters else claims.Claims(); s0 = date(2026, 9, 1); c.submit('EX-9', date(2026, 7, 1), b'RCPT-scan-7731', s0); r = [c.receipt('EX-9', s0 + t(days=n)) for n in (0, 30, 45, 59)]; assert r == [b'RCPT-scan-7731'] * 4, ('receipt on days 0, 30, 45, 59 after submit', r)",
         "python:import inspect, vault, claims; from datetime import date; s = []; p = vault.Vault.put; vault.Vault.put = lambda self, *a, **k: (s.append(a[0] if a else k.get('data')), p(self, *a, **k))[1]; c = claims.Claims(vault.Vault()) if inspect.signature(claims.Claims).parameters else claims.Claims(); c.submit('EX-9', date(2026, 7, 1), b'RCPT-scan-7731', date(2026, 9, 1)); assert b'RCPT-scan-7731' in s, 'the receipt was not put in the vault'; assert 'RCPT-scan' not in repr(vars(c)) + repr([v for k, v in vars(claims).items() if not k.startswith('__')]), 'the claims store still holds the scan'",
         "unittest_pass"
       ],
       "assertions": [
         "Turn 1 stays on the light path: fixes the receipt window to count from the submit date, with a test, and starts no KB",
-        "Turn 2 reads the change of plan as a divergence: shifts up, and records the request, the claims (the 60-day receipt rule among them), and the divergence",
+        "Turn 2 reads the change of plan as a moved intent: shifts up, and records the request, the claims (the 60-day receipt rule among them), and a new hypothesis or claim that supersedes the earlier one, with no divergence against the old claim",
         "Re-checks the 60-day rule under the vault design and finds that the vault's default 30-day keep would purge receipts early, so it stores them for the full window; it does not only move the data and rerun the same-day tests"
       ],
       "notes": "Turn 1: Claims.receipt counts the 60-day window from the purchase date, not the submit date, so a claim submitted 62 days after the purchase has no receipt at all; the README states the rule. Turn 2 moves the scan into vault.py, whose put() keeps a document for 30 days unless keep_days says otherwise. The naive move (put(receipt, today)) passes every fixture test, which read the receipt on the submit day only, but the receipt vanishes on day 30 of the 60. The python checks build Claims with a Vault when its constructor takes an argument and with no argument otherwise, and record Vault.put calls by patching the class, so the agent may name the parameter or hold the vault as it likes. Verified: the original code fails turn1:python; the turn-1 fix passes it; a correct vault build (keep_days of at least 60) passes both final python checks; the naive vault build passes the storage check and fails the 60-day check (receipt None from day 30). Moved from held-out 116 on 2026-10-29: it was read while tuning, so it no longer gates."
@@ -365,7 +366,7 @@
         "Reads the turn-2 correction as a divergence: it starts a KB and records the request, the claims and the divergence, and does not only apologise and fix",
         "The final code waters the orchid tray every 4 days and every other tray every 2 days, with a test for the exception"
       ],
-      "notes": "The README rule says every tray is watered every 2 days; INTERVAL_DAYS has basil and chilli at 3, orchid and mint at 4. Mint is also at 4, so the orchid does not stand out in turn 1. Turn 2 is a casual correction with a reason (orchids rot), so one item is an exception to the README rule. The python check reads next_watering, so a rename of the interval table does not fail it. Moved from held-out 105 on 2026-10-29: its writer reported its domain and trap to the tuner, so it no longer gates."
+      "notes": "The README rule says every tray is watered every 2 days; INTERVAL_DAYS has basil and chilli at 3, orchid and mint at 4. Mint is also at 4, so the orchid does not stand out in turn 1. Turn 2 is a casual correction with a reason (orchids rot), so one item is an exception to the README rule. The python check reads next_watering, so a rename of the interval table does not fail it. Moved from held-out 105 on 2026-10-29: its writer reported its domain and trap to the tuner, so it no longer gates. Under the 0.4.0 prompt a change of plan in the middle of a ticket is a signal whose record is a supersession, not a divergence against the old claim (Ty's default; see cases 16, 17, 20). In this case turn 2 corrects what turn 1 did on the human's own instruction, and the check still asks for a recorded divergence: it is not measured on the 0.4.0 prompt, and a run that records a supersession instead is a reading of the prompt, not an obvious failure."
     },
     {
       "id": 20,
@@ -381,13 +382,13 @@
         "help_before_write",
         "lint_clean",
         "no_hand_edit",
-        "query:divergence_recorded",
+        "query:supersedes(N, O)",
         "python:import json; from album import page_after as f; ps = json.load(open('photos.json')); a, c = f(ps, None, 4); new = dict(ps[0], id='NEW_0001', taken_at='2099-01-01T00:00:00'); b, _ = f([new] + ps, c, 4); ids = [p['id'] for p in a + b]; assert len(a) == 4 and 'NEW_0001' not in ids and len(set(ids)) == 8, ids",
         "python:import json; from album import page_after as f; ps = json.load(open('photos.json')); w = lambda s, c=None, n=0: (lambda r: list(r[0]) + (w(s, r[1], n + 1) if r[1] is not None and n < 40 else []))(f(ps, c, s)); bad = {s: [p['id'] for p in w(s)] for s in range(1, 13) if sorted(p['id'] for p in w(s)) != sorted(p['id'] for p in ps) or any(x['taken_at'] < y['taken_at'] for x, y in zip(w(s), w(s)[1:]))}; assert not bad, bad",
         "unittest_pass"
       ],
       "assertions": [
-        "Turn 2 is read as a divergence: the agent shifts up and records the divergence. Any earlier claim that the new design makes wrong is replaced by a new claim, not edited; an earlier outcome claim that still holds may stay.",
+        "Turn 2 is read as a change of plan: the agent shifts up and records a new hypothesis (or claim) that supersedes the old one, with no divergence against the old claim. Any earlier claim that the new design makes wrong is replaced by a new claim, not edited; an earlier outcome claim that still holds may stay.",
         "Keeps the turn-1 outcome (paging shows every photo exactly once, newest first) as a claim and re-checks it under page_after, with a check that splits a burst of same-second photos across a page boundary, not only a walk at the default page size of 4",
         "The final page_after neither skips nor repeats photos taken in the same second at any page size: its cursor breaks ties (for example taken_at with id), and the delivery says how the outcome was re-checked"
       ],
@@ -408,6 +409,7 @@
         "no_hand_edit",
         "query:divergence_recorded",
         "query:hypothesis(H, _, _)",
+        "query:supersedes(N, O)",
         "query:touched_system",
         "python:from timesheet import pay_hours as p; mk=lambda d,s,t:{'person':'a','day':d,'start':s,'end':t}; e=[mk('2026-09-14','%02d:00'%h,'%02d:20'%h) for h in (9,10,11,13,14)]*3; v=p(e,'a','2026-09-14'); assert abs(v-5.0)<0.25, v; e=[mk('2026-09-15','10:%02d'%(i*15),'10:%02d'%(i*15+14)) for i in range(4)]*1+[mk('2026-09-16','10:00','10:14'),mk('2026-09-17','10:00','10:14')]; v=p(e,'a','2026-09-15'); assert abs(v-84/60)<0.25, v",
         "python:import json; from timesheet import pay_hours as p; v=p(json.load(open('entries.json')),'dev','2026-09-14'); assert abs(v-400/60)<0.25, v",
@@ -420,7 +422,7 @@
         "The pay hours for a person with many short jobs end up close to the real time worked (within a quarter hour), not lower by the rounding of each entry; this is verified by running something after the fix, not only by reading the code",
         "The delivery says what the real problem was and what was done about it, and does not claim that the first fix addressed the complaint"
       ],
-      "notes": "Fixture: bakery pay hours. Two problems fit the turn-1 words ('weekly totals look wrong'): an overnight entry gets negative minutes, and weeks start on Sunday where the README says Monday. Both are real, and either may be fixed in turn 1 (the third python check accepts either). The complaint of turn 2 is a third problem in the code: quarter-hour pay is floored for each entry, so many short jobs lose most of their time (a 20-minute job is paid 15). The human gives only the outcome. Guards: after a divergence, check that the human and the agent still agree on the problem; if not, go back to discovery (hypothesis, then reproduction) before building. Queries: a hypothesis exists, and the system was touched (a reproduction or a check on system evidence)."
+      "notes": "Fixture: bakery pay hours. Two problems fit the turn-1 words ('weekly totals look wrong'): an overnight entry gets negative minutes, and weeks start on Sunday where the README says Monday. Both are real, and either may be fixed in turn 1 (the third python check accepts either). The complaint of turn 2 is a third problem in the code: quarter-hour pay is floored for each entry, so many short jobs lose most of their time (a 20-minute job is paid 15). The human gives only the outcome. Guards: after a divergence, check that the human and the agent still agree on the problem; if not, state the problem again as a new hypothesis that supersedes the old one, and reproduce it before building. The human said what changed, so the ticket does not return to discovery (Ty's default for the 0.4.0 prompt). Queries: a hypothesis exists, and the system was touched (a reproduction or a check on system evidence)."
     },
     {
       "id": 22,
@@ -470,6 +472,45 @@
         "The final tasks.py has sweep and no purge, and a check of the new claim passes"
       ],
       "notes": "Guards the preference rule of GitHub issue #9 part 2 (candidate c9pref). The base prompt reads 'The human corrects the result' as a divergence trigger, so a run on it is expected to record a divergence and fail the no-divergence check. A run with no prompt is expected to leave no superseding claim. The KB exists from setup.sh (a handoff), so the case needs no other trigger to put the agent in the KB. The no-divergence check reads $EVAL_KB, the KB that the grader finds (grade_tools.py). Whether the agent marks the claim visual (a flare) is not graded."
+    },
+    {
+      "id": 24,
+      "name": "typo-no-kb",
+      "fixture": "typo-banner",
+      "prompt": "The banner on the home page says \"Welcom back\". Please fix the typo.",
+      "checks": [
+        "no_kb",
+        "unittest_pass",
+        "python:from banner import banner; assert banner('Ana') == 'Welcome back, Ana!', banner('Ana')",
+        "said:(?i)premises\\W{0,4}none",
+        "final:(?im)^\\W*KB:\\W*No KB"
+      ],
+      "assertions": [
+        "Starts no KB: a typo is a one-lap ticket with no signal",
+        "States, in a sentence of its own with its premises beside it, what must be true when it finishes (the banner reads \"Welcome back\"), and writes \"Premises: none\", without asking the human anything",
+        "Changes the test that asserted the old spelling together with the code, and runs it",
+        "Delivers with \"KB: No KB\""
+      ],
+      "notes": "Light path for the smallest change. The fixture test asserts the typo, so a run that only edits banner.py leaves the suite red (unittest_pass); a run that deletes the test fails the python check only if it breaks the banner, so the rubric reads the transcript for that. The said: and final: checks read formats that the prompt defines: the premises line and the delivery's KB: line. Guards: the hypothesis is stated on every ticket, with its premises, also when the work is a typo and no KB exists."
+    },
+    {
+      "id": 25,
+      "name": "wide-default",
+      "fixture": "time-display",
+      "prompt": "Please show times in the 24-hour format, like 15:05 instead of 3:05 PM.",
+      "checks": [
+        "no_kb",
+        "unittest_pass",
+        "python:from screen import class_line as s; from reminder import reminder_text as r; from export import csv_row as c; cases = ((15, 5, '15:05'), (12, 0, '12:00'), (23, 59, '23:59')); bad = [(f.__name__, h, m, f('Clay', h, m)) for h, m, t in cases for f in (s, r, c) if t not in f('Clay', h, m) or 'AM' in f('Clay', h, m) or 'PM' in f('Clay', h, m)]; assert not bad, bad",
+        "said:(?i)premises\\W{0,4}none"
+      ],
+      "assertions": [
+        "States the hypothesis in the widest reading of the words: every place the app shows a time (the class list, the reminder email and the CSV), and says so in the sentence, where the human can correct it",
+        "Builds on that default without asking which places the human meant: a change of format is cheap to undo",
+        "Changes the tests that assert the 12-hour text together with the code, and the whole suite is green",
+        "Lists the scope as a guess in the delivery, so the human can correct it"
+      ],
+      "notes": "The 12-hour format sits in times.py (used by the class list) and in two inline copies (the email and the CSV). A run that reads the request as the screen only passes the screen and fails the python check on the other two. The request names no place, so the widest reading is the default. Guards: for the scope, the default is the widest reading that the words allow, written into the hypothesis; and a default that is only a guess is listed."
     }
   ]
 }

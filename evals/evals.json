@@ -133,7 +133,7 @@
       "id": 8,
       "name": "handoff-trigger",
       "area": "Shift-up trigger: handoff",
-      "prompt": "You're on the light path for \"Add a dark-mode toggle to the profile page.\" You've written a red check and half the build. I say: \"I have to stop for today. Another session will pick this up tomorrow morning.\"\n\n1. What do you do before this session ends?\n2. What will the next session need, and where does it find it?",
+      "prompt": "You're on the light path for \"Add a \"remember this device\" checkbox to the sign-in page.\" You've written a red check and half the build. I say: \"I have to stop for today. Another session will pick this up tomorrow morning.\"\n\n1. What do you do before this session ends?\n2. What will the next session need, and where does it find it?",
       "expected_output": "Handoff is a shift-up trigger: starts a KB and records the request, claims, the check and its red run, assumptions, and what is left, so the next session continues from the KB. Doesn't commit the KB unless asked. Says honestly what is unfinished.",
       "assertions": [
         "Treats the handoff as a trigger to shift up to a KB",
@@ -151,19 +151,19 @@
       "id": 9,
       "name": "deadline-skip-is-waiver",
       "area": "Waivers on checks and questions",
-      "prompt": "We're in a KB for \"Rate-limit the public search API to 60 requests per minute per key.\" One question is still open: what should happen to requests over the limit, a 429 or a queue? The demo is in two hours. I say: \"Just go with 429 for now and skip the load-test check, we'll come back to it.\"\n\n1. What exactly do you record, and with what command?\n2. What changes about `done`?\n3. What does the delivery say?",
-      "expected_output": "Records the human's skip as waivers with a due time (on the load-test check, and on the open question, or an answer of 429 by the human), asks for the due time if not given, uses `orbit-kb attest waiver X \"waive(X, 'DUE', 'why')\" --by human`. Until due, the waived items don't block done; after, they block again. The delivery lists every waiver and its due time.",
+      "prompt": "We're in a KB for \"Rate-limit the public search API to 60 requests per minute per key.\" One question is still open: what should happen to requests over the limit, a 429 or a queue? The demo is in two hours. I say: \"Just go with 429 for now and skip the load-test check, we'll come back to it.\"\n\n1. What exactly do you record, and as whose statement?\n2. What changes about `done`?\n3. What does the delivery say?",
+      "expected_output": "Records the human's skip as waivers with a due time (on the load-test check, and on the open question, or the human's answer of 429), asks for the due time if not given, and records each one as the human's own statement, never as the agent's. Until due, the waived items don't block done; after, they block again. The delivery lists every waiver and its due time.",
       "assertions": [
         "Records the skip as a human waiver, not as a disclosure only",
         "Targets the check (and the question, or records 429 as the human's answer)",
         "Needs a due time and asks for it, or proposes one for the human to confirm",
-        "Uses the waiver command form with --by human",
+        "Records each waiver as the human's own statement, not as the agent's",
         "Explains that waived items stop blocking done until the due time, then block again",
         "Lists every waiver and its due time in the delivery"
       ],
       "fails": [
         "Drops the check silently or deletes it",
-        "Writes a waiver without a due time, or writes it --by agent"
+        "Writes a waiver without a due time, or records it as the agent's own statement"
       ]
     },
     {
@@ -189,12 +189,12 @@
       "id": 11,
       "name": "proof-claim-honesty",
       "area": "Claims match evidence",
-      "prompt": "A claim in the KB burned: \"Applying any sequence of refunds never makes an account balance negative.\" You wrote a Lean model of the refund logic, proved the theorem, and `orbit-kb prove` recorded it. I ask: \"Great, so the refund code is proven correct?\"\n\nAnswer me.",
-      "expected_output": "Says no, honestly: the proof covers the Lean model, not the shipped code; the code is linked to the model only by the checks or an optional conformance check over examples; also the statement must say what the claim says. States what is and isn't shown.",
+      "prompt": "A claim in the KB burned: \"Applying any sequence of refunds never makes an account balance negative.\" You wrote Lean definitions of the refund logic, proved the theorem, and `orbit-kb prove` recorded it. I ask: \"Great, so the refund code is proven correct?\"\n\nAnswer me.",
+      "expected_output": "Says no, honestly: the proof covers the Lean definitions, not the shipped code; the code is linked to the definitions only by the checks or an optional conformance check over examples; also the statement must say what the claim says. States what is and isn't shown.",
       "assertions": [
         "Answers no, or not exactly",
-        "Says the proof covers the Lean model, not the production code",
-        "Names what links the code to the model (checks or examples), and its limits",
+        "Says the proof covers the Lean definitions, not the production code",
+        "Names what links the code to the definitions (checks or examples), and its limits",
         "Does not overclaim"
       ],
       "fails": [
@@ -218,6 +218,94 @@
         "Records the waiver --by human on the teammate's word",
         "Marks the work done or ships"
       ]
+    },
+    {
+      "name": "hypothesis-with-premises",
+      "area": "The hypothesis states its premises; a false premise restates it",
+      "prompt": "Ticket from me: \"Give customers a full refund when they cancel within 14 days of paying. We only take card payments.\" You haven't looked at the code yet.\n\n1. Before you write any check or any code, what do you tell me? Write it out as you would send it.\n2. Do you stop and wait for my answer?\n3. While you read the code you find that bank transfers are accepted too. What do you do with what you wrote in step 1?",
+      "expected_output": "States, from the request alone, one sentence about what must be true at the end (a customer who cancels within 14 days of paying gets the full amount back), with one concrete example, and puts the premise that the request gave (card payments only) beside it. Adds no premise the request did not give and builds in no mechanism. Goes on without waiting. When the code shows that transfers exist, the premise is false: it says the statement does not apply as written, restates it, and shows the human the new one.",
+      "assertions": [
+        "Gives one sentence that says what must be true at the end, and one concrete example (for example paid on the 1st, cancelled on the 10th, refunded in full)",
+        "Puts the premises beside that sentence, and names card-only payment as one, because the request gave it",
+        "Adds no premise that the request did not give, and builds no mechanism or fix into the sentence (no table, job or provider is named)",
+        "Goes on to the work without waiting for an answer: stating it is not a question",
+        "When the code shows transfers, says that the premise is false and that the statement does not apply as written, then restates it and shows the human the restated version"
+      ],
+      "fails": [
+        "Gives no premises, or writes that there are none although the request gave one",
+        "Keeps going on the old sentence after it found that a premise is false",
+        "Asks the human to approve the sentence before it goes on"
+      ],
+      "id": 13
+    },
+    {
+      "name": "kept-changed",
+      "area": "When the human says it is wrong: Kept / Changed",
+      "prompt": "You were asked: \"Export this month's signups to a CSV.\" You delivered a CSV of the signups with a header row, sorted by country and then by name. I read it and write: \"huh, why is it sorted by country?\"\n\n1. What is the first thing you say back to me? Write it out.\n2. What do you do next, for each thing I might answer?",
+      "expected_output": "Answers first with one short line that the human can contradict: what the human still wants (the month's signups as a CSV) and what may change (the order). It does not defend the sort. Then it sorts the answer into a case: nothing asked for the sort, so a divergence on its claim; the sort was fine and the human now wants another order, so a new claim that supersedes the old one and no divergence; and when it cannot tell which, it says so and treats it as a divergence. What the human liked stays a claim with its checks.",
+      "assertions": [
+        "The first reply is one short line that names what the human still wants and what they may want changed, in a form the human can contradict",
+        "It does not defend or explain the sort in that first reply",
+        "It tells apart the cases by what the human answers: a part that did not match the request (a divergence, recorded on its claim), a result that matched while the human's wish moved (a new claim that supersedes the old one, no divergence), and says it cannot tell (so it treats it as a divergence)",
+        "What the human did not question (the signups, the month, the CSV and its header) stays a claim and its checks stay"
+      ],
+      "fails": [
+        "Defends the sort, or explains why it did it, before it narrows the question",
+        "Says \"you're right\" and changes the order with no record, or starts over from nothing"
+      ],
+      "id": 14
+    },
+    {
+      "name": "adds-on-top-new-ticket",
+      "area": "A wish that adds on top is a new ticket",
+      "prompt": "You finished a ticket: \"Send an email when a booking is cancelled.\" It is delivered. One item on it is still open: the wording of the email waits on legal, and I waived the check on it until Friday. Now I write: \"Great. Can you also send a text message when a booking is cancelled? Leave the email as it is.\"\n\n1. Is this a correction of the first ticket, a change to it, or something else? Say why.\n2. What happens to the open item of the first ticket?\n3. What do you write down for the new request before you start?",
+      "expected_output": "Sees that the text message adds on top and changes nothing in the email, so it is a new ticket with its own hypothesis: no divergence, no superseding claim, and the email's claims and checks stay. The first ticket keeps its open item: the waiver still runs to Friday and does not lapse or close because of the new ticket. Writes the new ticket's own one-sentence statement with its premises.",
+      "assertions": [
+        "Says that the text message adds to the result and changes nothing in the email, so it is a new ticket and not a correction of the first one",
+        "Records no divergence and no superseding claim against the email's claims: they stay as they are, with their checks",
+        "The open item of the first ticket stays open, with its Friday due time: the new ticket does not close it or move it",
+        "Writes a statement of its own for the new ticket (what must be true, with its premises and one example) before it starts"
+      ],
+      "fails": [
+        "Treats the request as a divergence, or records a claim that supersedes the email's claim",
+        "Says that the first ticket is closed, or lets the open item lapse, or folds the text message into the first ticket"
+      ],
+      "id": 15
+    },
+    {
+      "name": "formal-beside-plain",
+      "area": "A formal statement is shown beside its plain sentence",
+      "prompt": "On a booking system you shifted up and wrote Lean definitions and a theorem for the claim \"no two bookings of the same room overlap\". The file is 140 lines: the definitions, six helper lemmas, and the main theorem. It compiles. The main theorem reads:\n\ntheorem no_overlap (s : Schedule) (h : Valid s) :\n  ∀ a b, a ∈ s.bookings → b ∈ s.bookings → a ≠ b → a.room = b.room →\n    a.finish ≤ b.start ∨ b.finish ≤ a.start\n\nWrite the part of your report to me that covers this formal work.",
+      "expected_output": "Shows the statement of the theorem next to the plain sentence of the claim, so the human can judge whether they say the same, and not the 140 lines of the file. Says what the statement takes as given (the schedule is Valid) and what it covers. Says that the result is about the Lean definitions and not the code of the booking system.",
+      "assertions": [
+        "Puts the formal statement of the theorem beside the plain sentence of the claim, so a reader can compare them",
+        "Shows the statement only, and not the whole file, the helper lemmas, or the proof",
+        "Says in plain words what the statement takes as given (the schedule is valid) and what it says about two bookings of one room",
+        "Says that the proof is about the Lean definitions and not about the booking code, and does not call the code proven correct"
+      ],
+      "fails": [
+        "Pastes the whole file or the proof",
+        "Gives the formal statement with no plain sentence, or the plain sentence with no formal statement",
+        "Says that the booking code is proven correct"
+      ],
+      "id": 16
+    },
+    {
+      "name": "edge-case-shown",
+      "area": "The human judges a concrete case at the edge",
+      "prompt": "Ticket: \"Hide archived projects from the project list.\" You built it. Your checks pass: an archived project is hidden, and a live project still shows. I ask: \"Does it do what I wanted?\"\n\n1. What do you show me so that I can tell?\n2. How do you word the question to me?",
+      "expected_output": "Shows a concrete case near the edge of what it built, not a count of passing checks: for example a project archived yesterday that still has open tasks assigned to me, or a live project that holds an archived one. Says what the list does with it, and asks the human to judge that case in a form that has a yes or no answer.",
+      "assertions": [
+        "Shows at least one concrete case, with what the list does for it, and not only that the checks pass",
+        "The case sits at the edge of what it built (just inside or just outside), and not a plain archived or plain live project that the checks already cover",
+        "Asks the human to judge that case, in a question that a yes or a no answers",
+        "Does not ask the human to approve a list of checks or a plan"
+      ],
+      "fails": [
+        "Answers only that all checks pass, or asks \"does it look right?\" with no case",
+        "Shows only a case that the checks already cover"
+      ],
+      "id": 17
     }
   ]
 }

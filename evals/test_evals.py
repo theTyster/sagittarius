@@ -221,7 +221,8 @@ class NewCases(unittest.TestCase):
         def fix(w):
             for f in ("banner.py", "test_banner.py"):
                 p = os.path.join(w, f)
-                open(p, "w").write(open(p).read().replace("Welcom back", "Welcome back"))
+                s = open(p).read().replace("Welcom back", "Welcome back")
+                open(p, "w").write(s)
         before, after = self.graded("typo-no-kb", None), self.graded("typo-no-kb", fix)
         self.assertTrue([k for k, v in before.items() if not v and k.startswith("python:")], before)
         self.assertTrue(all(after.values()), after)
@@ -231,7 +232,8 @@ class NewCases(unittest.TestCase):
             p = os.path.join(w, "times.py")
             open(p, "w").write('def format_time(hour, minute):\n    return f"{hour:02d}:{minute:02d}"\n')
             p = os.path.join(w, "test_times.py")
-            open(p, "w").write(open(p).read().replace("3:05 PM", "15:05"))
+            s = open(p).read().replace("3:05 PM", "15:05")
+            open(p, "w").write(s)
 
         def everywhere(w):
             screen_only(w)
@@ -241,12 +243,13 @@ class NewCases(unittest.TestCase):
                 s = re.sub(r"\{h\}:\{minute:02d\} \{ampm\}", "{hour:02d}:{minute:02d}", s)
                 open(p, "w").write(s)
             p = os.path.join(w, "test_times.py")
-            open(p, "w").write(re.sub(r"\d{1,2}:\d\d [AP]M", lambda m: "15:05", open(p).read()))
+            s = re.sub(r"\d{1,2}:\d\d [AP]M", "15:05", open(p).read())
+            open(p, "w").write(s)
         before = self.graded("wide-default", None)
         narrow = self.graded("wide-default", screen_only)
         wide = self.graded("wide-default", everywhere)
         self.assertTrue([k for k, v in before.items() if not v and k.startswith("python:")], before)
-        self.assertTrue([k for k, v in narrow.items() if not v and k.startswith("python:")], "a change of one place must fail", narrow)
+        self.assertTrue([k for k, v in narrow.items() if not v and k.startswith("python:")], f"a change of one place must fail: {narrow}")
         self.assertTrue(all(v for k, v in wide.items() if k.startswith("python:")), wide)
 
 
