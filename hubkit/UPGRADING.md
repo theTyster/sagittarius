@@ -96,6 +96,21 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.7.2 (the orbit-kb copy: K-F and K-H; db schema 6, unchanged)
+
+A formal hub's orbit-kb copy changes; an informal hub has no orbit-kb copy and changes nothing.
+The db schema is 6. **Database:** a hub at 0.7.0 or 0.7.1 is at schema 6 already and runs no
+migrate; a hub at schema 5 (0.5.1 to 0.6.0) applies the 0.7.0 section first, which runs
+`python3 .claude/scripts/hubflow.py migrate` once. Engine files changed since 0.7.1, all under
+`.claude/orbit-kb/`: `bin/orbit-kb`, `share/orbit-kb/README.md`, `share/orbit-kb/core.pl`,
+`share/orbit-kb/modules/build.pl`, `share/orbit-kb/modules/discovery.pl`, and the help topics
+`build.txt`, `discovery.txt`, `shift.txt`. Replace them; a hub does not edit its orbit-kb copy.
+What changes for the hub's sessions: a claim contested twice can be closed by a decided result of
+a trusted model that encodes it (the report shows the bounds), and `orbit-kb shift --red-log FILE`
+records a red run that only the agent saw as a disclosure; the claim then waits for a human waiver.
+Check: `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` prints `hub from MindHole Kit 0.7.2`,
+and `.claude/orbit-kb/bin/orbit-kb help shift` names `--red-log`.
+
 ### 0.7.1 (the MindHole Kit name; db schema 6, unchanged)
 
 The template is now called the MindHole Kit, and a hub made from it is a MindHole. No behavior
