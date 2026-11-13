@@ -10,7 +10,10 @@ questions are copied, not redesigned.
 Judges (they decide):
   System 1 model     j_adds (choice: what the statement adds), j_contra (does the falsifier
                      contradict it; yes at 0.6), j_observable
-  fresh sonnet call  faithful, and collapsed (hypotheses only)
+  fresh sonnet call  faithful, and collapsed (hypotheses only). Collapsed is the definition of
+                     Hypothesis.lean: no case can show the statement false. Being true of a correct
+                     system is not collapse; a statement that a correct system makes false holds a
+                     finding about today's system, and is not faithful (0.3.0 S-B).
 Proposers (they never judge; their output is only text to be judged):
   haiku              one move per step (drop an assumption | sharpen the conclusion, <= 35 words)
   haiku, own call    the falsifier
@@ -107,13 +110,24 @@ class Run:
     def _call(self, role, by, fn, **info):
         cid = next(self._ids)
         t0 = time.monotonic()
+        box = info.pop("reply_of", None)
         out = fn()
-        self.log({"event": "call", "id": cid, "role": role, "by": by, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                  "ms": int(1000 * (time.monotonic() - t0)), "ok": bool(out), **info})
+        rec = {"event": "call", "id": cid, "role": role, "by": by, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+               "ms": int(1000 * (time.monotonic() - t0)), "ok": bool(out), **info}
+        if box is not None:
+            rec["reply"] = box.get("reply")     # a judge's raw reply, so a recording can be built from the log
+        self.log(rec)
         return cid, out
 
     def model(self, role, model, prompt, **info):
-        return self._call(role, model, lambda: self.claude(prompt, model), **info)
+        if role != "judge":
+            return self._call(role, model, lambda: self.claude(prompt, model), **info)
+        box = {}
+
+        def call():
+            box["reply"] = self.claude(prompt, model)
+            return box["reply"]
+        return self._call(role, model, call, reply_of=box, **info)
 
     def jev(self, state):
         if self.transport is None:
@@ -123,16 +137,25 @@ class Run:
 
 
 def h_judge(run, statement, source):
-    """Returns (call id, collapsed, faithful); the last two are None when the reply cannot be read."""
+    """Returns (call id, collapsed, faithful); the last two are None when the reply cannot be read.
+
+    Collapsed is the definition of Hypothesis.lean (Collapsed: the statement accepts every case):
+    no case can show the statement false. A statement that is true of a correct system is not
+    collapsed for that reason. A statement that a correct system makes false states the problem as it
+    is today (a finding): it is not faithful to the outcome that the owner wants."""
     cid, out = run.model("judge", "sonnet",
-                         'Answer with JSON only: {"false_if_correct": true|false, "faithful": true|false}.\n'
-                         'false_if_correct: imagine a system that works correctly and has none of the problem in the report. Would the statement be false of that system?\n'
-                         'faithful: true when the statement is about the problem in the report (not another problem) and does not change what a good outcome is. Adding detail about what decides the outcome is still faithful.\n'
+                         'Answer with JSON only: {"can_fail": true|false, "faithful": true|false}.\n'
+                         'can_fail: a case is one result that a system could show, such as one record, one screen, or one request and its answer. '
+                         'Is there at least one case, in any system, that would make the statement false? A statement that a working system makes true can still fail: '
+                         'answer about all the cases, not about one system.\n'
+                         'faithful: true when the statement is about the problem in the report (not another problem) and does not change what a good outcome is. '
+                         'Adding detail about what decides the outcome is still faithful. False when a system that has none of the problem in the report would make '
+                         'the statement false: such a statement holds a finding about today\'s system, not the outcome that is wanted.\n'
                          f'Report: {source}\nStatement: {statement}')
     m = re.search(r"\{[^{}]*\}", out or "", re.S)
     try:
         d = json.loads(m.group(0))
-        return cid, (not d["false_if_correct"]), d["faithful"]
+        return cid, (not d["can_fail"]), d["faithful"]
     except Exception:
         return cid, None, None
 
@@ -183,14 +206,18 @@ def show(ps):
 
 
 # The proposer is told what failed in plain words, never the judge question names.
-WHY_WORDS = {"j_contra": "the falsifier does not contradict it", "j_observable": "the falsifier cannot be observed"}
+WHY_WORDS = {"j_contra": "the falsifier does not contradict it", "j_observable": "the falsifier cannot be observed",
+             "collapsed": "no result could show it false",
+             "unfaithful": "it is not the outcome that the source wants, or it states the problem as it is today"}
 
 
 def propose(run, statement, source, move, why=()):
     if move == "drop_assumption":
         hint = "The statement names " + ", ".join(w.replace("adds_", "a ") for w in why if w.startswith("adds_")) + " that the source does not. Remove it; keep the expected outcome."
     elif why:
-        hint = "The statement does not tell a faulty system from a correct one (" + ", ".join(WHY_WORDS.get(w, w) for w in why) + "). Name the outcome the source expects more exactly, so that a correct system would make the statement false."
+        hint = ("The statement does not say the wanted outcome well (" + ", ".join(WHY_WORDS.get(w, w) for w in why) + "). "
+                "Name the outcome the source expects more exactly, so that a result of a faulty system would show the statement false "
+                "and a system that works makes it true. Do not state the problem as it is today.")
     else:
         hint = "The statement is acceptable. Make its conclusion stronger by one step: say more exactly which outcome is expected and which facts should decide it. Do not say why it fails, how the system works inside, where data is stored, or how to fix it."
     return run.model("proposer", "haiku",
@@ -215,7 +242,8 @@ def judged(run, n, statement, falsifier, source, kind):
         return None
     ps, ids = r
     v, bad = verdict(ps)
-    run.log({"event": "verdict", "step": n, "statement": statement, "verdict": v, "bad": bad, "calls": ids})
+    run.log({"event": "verdict", "step": n, "statement": statement, "falsifier": falsifier, "verdict": v, "bad": bad,
+             "collapsed": ps["h_collapsed"], "faithful": ps["h_faithful"], "calls": ids})
     return ps, v, bad
 
 
