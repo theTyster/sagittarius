@@ -59,7 +59,8 @@ cat >"$scratch/c3.py" <<'PY'
 import json, os, subprocess, sys
 # The kit version must tell templates apart and only move up (Ty, 2026-11-12: "a reliable way to
 # distinguish versions monotonically"). Against the base (main, or KIT_BASE_REF): never lower, and
-# higher whenever the template (hubkit/hub, hubkit/editions) or the kit tools differ from the base's.
+# higher whenever the template (hubkit/hub, hubkit/editions), the kit tools, or the files a formal hub
+# copies from kb/ (kit.json orbit_kb paths) differ from the base's.
 repo = sys.argv[1]
 ref = os.environ.get("KIT_BASE_REF") or "main"
 def ver(s): return tuple(int(x) for x in s.split("."))
@@ -78,7 +79,11 @@ if base is None:
 if ver(now) < ver(base):
     sys.exit(f"kit.json version {now} is below {base} ({ref})")
 if m.returncode == 0 and ver(now) == ver(base):
-    d = git("diff", "--quiet", ref, "--", "hubkit/hub", "hubkit/editions", "hubkit/tools/hubkit.py")
+    kit = json.load(open(repo + "/hubkit/kit.json"))
+    ok_ = kit.get("orbit_kb") or {}
+    src = os.path.normpath(os.path.join("hubkit", ok_.get("from", "../kb")))
+    copied = [os.path.join(src, p) for p in ok_.get("paths", [])]  # what a formal hub copies from kb/
+    d = git("diff", "--quiet", ref, "--", "hubkit/hub", "hubkit/editions", "hubkit/tools/hubkit.py", *copied)
     if d.returncode != 0:
         sys.exit(f"the template differs from {ref}, but kit.json version {now} is not above {base}")
 elif m.returncode != 0 and not ver(now) > ver(base):
