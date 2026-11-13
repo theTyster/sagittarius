@@ -341,9 +341,10 @@ attest_type(model_result,
     'The result of one check on a model, read from the log of the solver run. A calibration names a real case where the system fails (fails), or one where it passes (passes); example and case are the older forms, and they calibrate nothing (D33).').
 attest_type(disclosure,
             alt([guess(ref(question)), unverified(text), disagreement(text),
-                 out_of_scope(text), self_error(text), other(text)]),
+                 out_of_scope(text), self_error(text), other(text),
+                 seen_red(ref(check), text)]),
             [agent, human],
-            'The writer discloses a guess, an unverified point, a disagreement, an item out of scope, an error of its own, or another point.').
+            'The writer discloses a guess, an unverified point, a disagreement, an item out of scope, an error of its own, or another point. seen_red(K, Output): the agent saw check K fail before the KB existed (orbit-kb shift --red-log, D43); it is not a test result, and the tool did not show K red.').
 attest_type(divergence,
             alt([claim(ref(claim)), hypothesis(term), model(term)]),
             [human, agent],

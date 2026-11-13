@@ -3538,7 +3538,11 @@ kb_lines_commented(File, LTs, Out) :-
 % ---------------------------------------------------------------------
 % orbit-kb shift DIR (--request-file F | --request T) --hypothesis T [--kind K]
 %   (--no-premises | --premise T ...) --claim T [--label L] --example T --check ID
-%   [--cites T] [--uses M,...]
+%   [--cites T] [--uses M,...] [--red-log FILE]
+% D43 (c_k_h_2b): --red-log FILE, the output of a red run of the check that the agent saw
+% before the KB existed, becomes a third child: attest disclosure ID 'seen_red(ID, TEXT)'.
+% It is a disclosure, not a test result: the claim stays unfulfilled until the tool shows
+% the check red or a human waives the check (Ty, q_k_h_2b).
 % It runs orbit-kb init, then one orbit-kb add of every fact (all or nothing), as two
 % child processes of this script, so each write has the checks of init and add. When the
 % add is refused, it removes what it wrote (kb.pl and the other new files of DIR, and DIR
@@ -3547,11 +3551,12 @@ kb_lines_commented(File, LTs, Out) :-
 cmd_shift(Args, Code) :-
     parse_opts(Args, ['--request'-value, '--request-file'-value, '--hypothesis'-value, '--kind'-value,
                       '--no-premises'-flag, '--premise'-value, '--claim'-value, '--label'-value,
-                      '--example'-value, '--check'-value, '--cites'-value, '--uses'-value], Pos, Opts),
+                      '--example'-value, '--check'-value, '--cites'-value, '--uses'-value,
+                      '--red-log'-value], Pos, Opts),
     (   Pos = [Dir0] -> true
     ;   usage_error("Give one directory: orbit-kb shift DIR --request-file F --hypothesis T ... (orbit-kb help shift).", [])
     ),
-    forall(( member(O, ['--request', '--request-file', '--hypothesis', '--kind', '--claim', '--label', '--example', '--check', '--cites', '--uses']),
+    forall(( member(O, ['--request', '--request-file', '--hypothesis', '--kind', '--claim', '--label', '--example', '--check', '--cites', '--uses', '--red-log']),
              aggregate_all(count, member(O-_, Opts), N), N > 1 ),
            usage_error("Give ~w once.", [O])),
     forall(member(O-What, ['--hypothesis'-"the hypothesis", '--claim'-"the claim", '--example'-"its example", '--check'-"the id of its check"]),
@@ -3577,6 +3582,7 @@ cmd_shift(Args, Code) :-
     ),
     opt(Opts, '--kind', feature, Kind), opt(Opts, '--label', introduce, Label),
     opt(Opts, '--uses', build, Uses),
+    shift_red_log(Opts, Label, RedText),
     memberchk('--hypothesis'-HT, Opts), memberchk('--claim'-CT, Opts),
     memberchk('--example'-ET, Opts), memberchk('--check'-KId, Opts),
     (   memberchk('--cites'-Cites, Opts) -> true
@@ -3609,11 +3615,52 @@ cmd_shift(Args, Code) :-
             format(user_error, "~s", [AOut]),
             format(user_error, "orbit-kb shift wrote nothing: the add above was refused.~n", []),
             Code = AExit
-        ;   format("~w~n", [KbFile]),
+        ;   RedText == none
+        ->  format("~w~n", [KbFile]),
             forall(member(F, Facts), ( term_text(F, FT), format("~w.~n", [FT]) )),
             format(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD (it must fail before the change), then orbit-kb lint. orbit-kb help shift.~n", [Dir, KId]),
             Code = 0
+        ;   format(atom(RedPred), "~q", [seen_red(KId, RedText)]),
+            shift_child(Script, ['--dir', Dir, attest, disclosure, KId, RedPred], DExit, DOut),
+            (   DExit \== 0
+            ->  shift_undo(Dir, Made, Before),
+                format(user_error, "~s", [DOut]),
+                format(user_error, "orbit-kb shift wrote nothing: the disclosure of the red run was refused.~n", []),
+                Code = DExit
+            ;   format("~w~n", [KbFile]),
+                forall(member(F, Facts), ( term_text(F, FT), format("~w.~n", [FT]) )),
+                format("disclosure seen_red(~w, ...): the red run that you saw, with its output.~n", [KId]),
+                format(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD, then orbit-kb lint. The red run that you saw is a disclosure, not a test result: claim c1 stays unfulfilled until the tool shows ~w red, or a human waives check ~w (report: not shown red by the tool). orbit-kb help shift.~n", [Dir, KId, KId, KId]),
+                Code = 0
+            )
         )
+    ).
+
+% shift_red_log(+Opts, +Label, -Text) (D43): the text of --red-log FILE, or none. Usage errors
+% and a missing or empty file stop shift before it writes anything.
+shift_red_log(Opts, Label, Text) :-
+    (   memberchk('--red-log'-F, Opts)
+    ->  (   Label == preserve
+        ->  usage_error("--red-log is for an introduce or a retire claim: the check of a preserve claim must pass, not fail first.", [])
+        ;   true
+        ),
+        (   exists_file(F), catch(read_file_to_string(F, S0, [encoding(utf8)]), _, fail)
+        ->  true
+        ;   die(1, ["The red log " + F + " does not exist or cannot be read. Nothing was written.", "Fix: save the output of the red run to a file, and give its path."] >> fix_lines)
+        ),
+        split_string(S0, "", " \t\r\n", [S1]),
+        (   S1 == ""
+        ->  die(1, ["The red log " + F + " is empty. Nothing was written.", "Fix: give the output of the red run that you saw."] >> fix_lines)
+        ;   true
+        ),
+        string_length(S1, N),
+        (   N > 4000
+        ->  Cut is N - 4000, sub_string(S1, Cut, 4000, 0, Tail),
+            format(string(T0), "(cut: the first ~w characters are not kept) ~w", [Cut, Tail])
+        ;   T0 = S1
+        ),
+        atom_string(Text, T0)
+    ;   Text = none
     ).
 
 shift_child(Script, Args, Exit, Out) :-
@@ -7683,13 +7730,21 @@ report_text(KB, Eng) :-
              eng_lookup(Eng, ExBy, C, E, example(C, E), Es),
              findall(EL, ( member(E, Es), txt(E, ET), as_sentence(ET, ES), format(string(EL), "Example: ~w", [ES]) ), Exs),
              (   call(Build)
-             ->  (   eng_member(Eng, FulS, C, fulfilled(C)) -> StHead = "Status: fulfilled.", StDetail = "", SK = fulfilled
+             ->  (   eng_member(Eng, FulS, C, fulfilled(C)) -> StHead = "Status: fulfilled.", StDetail0 = "", SK = fulfilled
                  ;   eng_all(Eng, [WK, WD], ( check(WK, C), attest(WW, waiver, _, waive(WK, WD, _), human, _), not(waiver_lapsed(WW)) ), [[WK1, WD1]|_])
                  ->  StHead = "Status: not fulfilled.",
-                     fmt(StDetail, "A human waived check ~w until ~w, so the claim does not block done until then.", [WK1, WD1]),
+                     fmt(StDetail0, "A human waived check ~w until ~w, so the claim does not block done until then.", [WK1, WD1]),
                      SK = waived
-                 ;   StHead = "Status: under.", StDetail = "It is not fulfilled yet.", SK = under
+                 ;   StHead = "Status: under.", StDetail0 = "It is not fulfilled yet.", SK = under
                  ),
+                 % D43 (c_k_h_2b): a red run that only the agent saw is not shown red by the tool.
+                 eng_all(Eng, [RK, RA], ( check(RK, C), attest(RA, disclosure, _, seen_red(RK, _), _, _), not(was_red(RK)) ), RKAs),
+                 findall(RS, ( member([RK, RA], RKAs),
+                               (   SK == under
+                               ->  format(string(RS), "Check ~w was not shown red by the tool: the agent saw it fail before the KB existed (disclosure ~w). The claim stays unfulfilled until a human waives check ~w.", [RK, RA, RK])
+                               ;   format(string(RS), "Check ~w was not shown red by the tool (disclosure ~w).", [RK, RA])
+                               ) ), RSs),
+                 atomic_list_concat([StDetail0|RSs], ' ', StD2), normalize_space(string(StDetail), StD2),
                  esc_parts(Eng, BSets, C, Parts),
                  join_sentences(StHead, StDetail, S1),
                  string_concat(" ", S1, St0),
@@ -7755,7 +7810,10 @@ report_text(KB, Eng) :-
     forall(member([I, S0, P, B], Ds),
            ( term_text(P, PT),
              format(string(Plain), "~w: ~w, about ~w, by ~w.", [I, PT, S0, B]),
-             (   compound(P), compound_name_arguments(P, Kind, [Arg])
+             (   P = seen_red(RK, ROut)   % D43: a red run that only the agent saw
+             ->  one_line(ROut, ROutT),
+                 format(string(Head), "~w **seen_red**: check ~w failed in a run that only the agent saw, before the KB existed: not shown red by the tool. The output: ~w", [I, RK, ROutT])
+             ;   compound(P), compound_name_arguments(P, Kind, [Arg])
              ->  plain_text(Arg, ArgT), format(string(Head), "~w **~w**: ~w", [I, Kind, ArgT])
              ;   format(string(Head), "~w: ~w", [I, PT])
              ),

@@ -2453,7 +2453,7 @@ t_SF5() { sf_shift "$T/a" --no-premises --red-log "$T/none.txt"; rc_is 1 "a red 
           { head -c 5000 /dev/zero | tr '\0' 'x'; printf 'END\n'; } > "$T/long.txt"
           sf_shift "$T/d" --no-premises --red-log "$T/long.txt"; rc_is 0 "a long red log"
           has_goal "$T/d/kb.pl" "kb(attest(_, disclosure, k1, seen_red(k1, T), agent, _)), sub_atom(T, 0, _, _, '(cut: the first 1003 characters are not kept) '), sub_atom(T, _, 3, 0, 'END')" "a long log keeps its last 4000 characters"
-          okb help shift; out_has -- '--red-log' "help shift documents --red-log"
+          okb help shift; out_has '[-][-]red-log FILE' "help shift documents --red-log"
           local n; n=$(printf '%s\n' "$out" | wc -l); [ "$n" -le 60 ] || note "help shift is $n lines; one screen is 60 or fewer"; }
 
 # MF (D40, c_k_f_2, c_k_f_3): the facts and the attestation of a model work in a KB that uses build;
