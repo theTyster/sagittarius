@@ -314,3 +314,36 @@ class Script(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LiveServer(unittest.TestCase):
+    """--serve: the page carries the live script, and /stamp changes when the log changes."""
+
+    def test_page_and_stamp(self):
+        import socket, threading, time, urllib.request
+        from s1 import s1inspect
+        d = tempfile.mkdtemp()
+        log = os.path.join(d, "s1.jsonl")
+        with open(log, "w") as f:
+            f.write("")
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        args = s1inspect.parser().parse_args(["--log", log, "--serve", str(port), "--projects", d])
+        t = threading.Thread(target=s1inspect.serve, args=(args,), daemon=True)
+        t.start()
+        url = f"http://127.0.0.1:{port}"
+        for _ in range(50):
+            try:
+                page = urllib.request.urlopen(url + "/").read().decode()
+                break
+            except OSError:
+                time.sleep(0.05)
+        self.assertIn("/stamp", page)
+        self.assertIn('id="live"', page)
+        a = urllib.request.urlopen(url + "/stamp").read().decode()
+        time.sleep(0.01)
+        with open(log, "a") as f:
+            f.write('{"time": "2026-11-13T00:00:00+00:00"}\n')
+        b = urllib.request.urlopen(url + "/stamp").read().decode()
+        self.assertNotEqual(a, b)

@@ -598,11 +598,92 @@ def parser():
     v = p.add_mutually_exclusive_group()
     v.add_argument("--html", metavar="FILE", help="write one self-contained HTML report")
     v.add_argument("--summary", action="store_true", help="counts per question over the selection")
+    v.add_argument("--serve", type=int, metavar="PORT", help="serve the HTML report on 127.0.0.1:PORT; the "
+                   "page reloads by itself when the log changes (default selection: the newest 50)")
     return p
+
+
+# ---------------------------------------------------------------- live server
+
+# Polls /stamp; on a change, keeps the scroll position and which judgments are open, then reloads.
+LIVE_JS = """
+(function(){
+  var KEY='s1inspect-live', last=null;
+  function keyOf(d){var s=d.querySelector('summary');return s?s.textContent.slice(0,120):'';}
+  try{var st=JSON.parse(sessionStorage.getItem(KEY)||'null');
+    if(st){document.querySelectorAll('details').forEach(function(d){if(st.open.indexOf(keyOf(d))>=0)d.open=true;});
+      window.scrollTo(0,st.y);}}catch(e){}
+  function save(){var open=[];document.querySelectorAll('details[open]').forEach(function(d){open.push(keyOf(d));});
+    try{sessionStorage.setItem(KEY,JSON.stringify({y:window.scrollY,open:open}));}catch(e){}}
+  function poll(){fetch('/stamp',{cache:'no-store'}).then(function(r){return r.text();}).then(function(t){
+      if(last!==null&&t!==last){save();location.reload();return;} last=t;
+      var b=document.getElementById('live');if(b)b.textContent='live: watching the log';
+    }).catch(function(){var b=document.getElementById('live');if(b)b.textContent='live: server stopped';});}
+  poll();setInterval(poll,2000);
+})();
+"""
+
+
+def _stamp(path):
+    try:
+        st = os.stat(path)
+        return f"{st.st_mtime_ns}:{st.st_size}"
+    except OSError:
+        return "none"
+
+
+def serve(args):
+    """Serve the report on 127.0.0.1 only. Each page load reads the log again; the page polls /stamp."""
+    import http.server
+
+    if args.last is None:
+        args.last = 50
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def _send(self, code, body, ctype):
+            data = body.encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            if self.path == "/stamp":
+                self._send(200, _stamp(args.log), "text/plain; charset=utf-8")
+                return
+            if self.path not in ("/", "/index.html"):
+                self._send(404, "not found", "text/plain; charset=utf-8")
+                return
+            try:
+                js, info = build(args)
+                meta = (f"log {args.log}; newest {args.last}; {len(js)} judgments; question file {args.questions}; "
+                        f"checkout Sagittarius {info['checkout_version']}" + (f"; hub {args.hub}" if args.hub else ""))
+                page = render_html(js, summarize(js), meta)
+            except (OSError, ValueError) as e:
+                self._send(500, f"inspect: {e}", "text/plain; charset=utf-8")
+                return
+            live = (f"<p id=\"live\" class=\"meta\">live: connecting</p><script>{LIVE_JS}</script>")
+            page = page.replace("</body></html>", live + "</body></html>", 1)
+            self._send(200, page, "text/html; charset=utf-8")
+
+        def log_message(self, *a):  # quiet
+            pass
+
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", args.serve), Handler)
+    print(f"serving http://127.0.0.1:{args.serve}/ (newest {args.last}; ctrl+c stops)", flush=True)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.serve is not None:
+        return serve(args)
     try:
         js, info = build(args)
     except (OSError, ValueError) as e:

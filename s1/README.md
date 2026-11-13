@@ -236,6 +236,7 @@ network, and writes a file only when you pass `--html`.
     python3 s1/s1inspect.py --hub PATH --summary
     python3 s1/s1inspect.py --hub PATH --html /tmp/s1.html
     python3 s1/s1inspect.py --errors --json
+    python3 s1/s1inspect.py --hub PATH --serve 8791   # a live page at http://127.0.0.1:8791/
 
 | Option | Meaning |
 |---|---|
@@ -250,6 +251,7 @@ network, and writes a file only when you pass `--html`.
 | `--json` | one JSON object per judgment, one per line |
 | `--html FILE` | one self-contained HTML report (no outside resource; light and dark) |
 | `--summary` | counts instead of judgments; with `--json`, one object |
+| `--serve PORT` | serve the HTML report on 127.0.0.1 only; each load reads the log again, and the page reloads by itself when the log changes (it keeps the scroll position and the open judgments). Default selection: the newest 50 |
 
 Judgments are listed newest first. Each one has three parts.
 
