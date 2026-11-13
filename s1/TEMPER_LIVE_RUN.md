@@ -5,8 +5,9 @@ judge: "imagine a system that works correctly ... Would the statement be false o
 That asked for a finding, not a hypothesis: it accepted the sentence with the finding inside it
 (c13) and called statements collapsed that a case can show false (c12 step 3 of the first run).
 temper.py now judges collapse as `Hypothesis.lean` defines it (`Collapsed`: no case can show the
-statement false). The recording in `fixtures/loopcal_trio.json` is the third run, at the end of
-this file. The first two runs stay as a record of the old judge.
+statement false). The recording in `fixtures/loopcal_trio.json` is the fourth run, at the end of
+this file. The first two runs stay as a record of the old judge, the third as a record of a
+wording that rejected Fit as not faithful.
 
 Date: 2026-11-05. One run per item, in parallel. Real `claude` CLI (haiku proposes and falsifies,
 sonnet judges faithful and collapse) and real Jev (jev-1.14.0). Source: "Members got the wrong
@@ -281,8 +282,8 @@ What it shows:
 - Not as the definition says: the judge answered `can_fail: true` for every statement, also for
   the sentence that the prompt calls Collapsed. No step of this run is collapsed. c12 was
   rejected for the cause it adds and as not faithful.
-- So `docs/check_examples.py c4` fails on this recording (Fit and Collapsed judged "not faithful"),
-  and `s1/test_temper.py` C4Recorded marks "Fit is accepted at the start" as an expected failure.
+- So `docs/check_examples.py c4` failed on this recording (Fit and Collapsed judged "not faithful").
+  The fourth run changed both questions.
 
 Cost, from the temper logs: 36 `claude -p` calls (14 judge by sonnet, 11 proposer and 11
 falsifier by haiku) and 14 System 1 model calls (8,227 input and 1,316 output tokens). All calls
@@ -406,4 +407,154 @@ s1_judged('temper', 'c14', 3, obs, '0.92').
 s1_judged('temper', 'c14', 3, collapsed, 'False').
 s1_judged('temper', 'c14', 3, faithful, 'False').
 s1_bracket('temper', 'c14', bracket, 'Each purchase''s points must equal exactly the amount its tier yields that day, so any purchase pair differing in points by equal-tier members is a failure, judged from purchase amount, tier, date, and points awarded.', 'Any two purchases with the same amount, tier, and date must have identical points awarded; a differing pair shows the statement is false.', '(''sharpen_conclusion'', [''unfaithful''])').
+```
+
+---
+
+# Fourth live run: one concrete case, and a finding by its own rule (0.3.0 S-B)
+
+Date: 2026-11-12 (log times 2026-11-13 03:25 to 03:26 UTC). Same setup, items and starting
+falsifiers as the third run. Ty allowed this second run for package S-B. Nothing was tuned to it.
+
+The judge's questions changed again. Collapse: "name one single concrete case: one input and the
+outcome that a system could show for it, which would make the statement false by itself", or null
+(collapsed = null). Faithful: the clause of the third run is gone; it is now false when the
+statement says that some cases behave differently or are wrong today (a finding, not a rule that
+each case must hold).
+
+| item | statement at start | start verdict | bracket |
+|---|---|---|---|
+| c12 | Collapsed: "Points depend on something other than the purchase." | reject (adds_cause, collapsed) | open |
+| c13 | Fit: "The amount of a purchase and the member's tier on that day decide its points." | reject (collapsed) | open |
+| c14 | Fit with the finding inside it ("... Some purchases get a different number.") | reject (collapsed, unfaithful) | bracket (collapsed) |
+
+What it shows:
+
+- The Collapsed sentence is judged collapsed. The sentence with the finding inside it is not
+  faithful, and is not accepted.
+- Not as the claim says: the judge named no case for the Fit sentence alone (`"case": null`), so
+  temper.py called it collapsed and rejected it. Its first sharpening ("Each purchase is credited
+  with exactly the points that its amount and the member's tier on that day call for.") got a
+  case (a Gold purchase of 100 credited 100 points, not 200) and was accepted. The judge seems to
+  read "decide" as a dependence that no single outcome contradicts. This is a guess.
+- So the gate of S-B fails on this recording: `s1/test_temper.py` C4Recorded fails ("Fit alone is
+  accepted at the start", "Fit alone is recorded not collapsed"), and so do
+  `docs/check_examples.py c4` and the spec check s_b.
+
+Cost, from the temper logs: 33 `claude -p` calls (13 judge by sonnet, 10 proposer and 10
+falsifier by haiku) and 13 System 1 model calls (7,589 input and 1,222 output tokens). All calls
+answered; none failed.
+
+### c12
+```
+bracket: open
+last accepted: Each member's loyalty points balance must exactly equal the sum of their qualifying purchase points and reward points for the same period, as verified against the purchase and reward records; any mismatch, including any member with a differing balance, falsifies it.
+first rejected: None
+why: max steps
+
+% Generated by s1/temper.py. Do not edit.
+:- discontiguous s1_step/8, s1_judged/5, s1_bracket/6.
+s1_step('temper', 'c12', 0, start, 'Points depend on something other than the purchase.', 'Points depend only on the purchase.', reject, ['adds_cause', 'collapsed']).
+s1_judged('temper', 'c12', 0, adds, 'cause:0.69').
+s1_judged('temper', 'c12', 0, contra, '0.97').
+s1_judged('temper', 'c12', 0, obs, '0.76').
+s1_judged('temper', 'c12', 0, collapsed, 'True').
+s1_judged('temper', 'c12', 0, faithful, 'True').
+s1_step('temper', 'c12', 1, drop_assumption, 'Members'' loyalty points are awarded incorrectly.', 'Under the system''s loyalty-point rules, a member whose recorded points differ from the amount their qualifying transactions should have earned (per the published earning rate) would show the statement is true, and one whose points exactly match those amounts for every transaction would falsify it.', reject, ['collapsed', 'unfaithful']).
+s1_judged('temper', 'c12', 1, adds, 'nothing:0.89').
+s1_judged('temper', 'c12', 1, contra, '0.75').
+s1_judged('temper', 'c12', 1, obs, '0.9').
+s1_judged('temper', 'c12', 1, collapsed, 'True').
+s1_judged('temper', 'c12', 1, faithful, 'False').
+s1_step('temper', 'c12', 2, sharpen_conclusion, 'Each member''s loyalty points must match the points their qualifying purchases and rewards entitle them to, with no member over- or under-credited.', 'A member''s loyalty points balance differs from the sum of points earned by their qualifying purchases plus rewards, as shown by a reconciliation query where any member''s recorded balance is greater or less than that computed total.', accept, []).
+s1_judged('temper', 'c12', 2, adds, 'nothing:0.92').
+s1_judged('temper', 'c12', 2, contra, '0.98').
+s1_judged('temper', 'c12', 2, obs, '0.94').
+s1_judged('temper', 'c12', 2, collapsed, 'False').
+s1_judged('temper', 'c12', 2, faithful, 'True').
+s1_step('temper', 'c12', 3, sharpen_conclusion, 'Each member''s loyalty points balance must equal the total of their qualifying purchase and reward points, as verified against the purchase and reward records for the same period.', 'A member''s loyalty points balance differs from the sum of their qualifying purchase points and reward points for the same period, as shown by the purchase and reward records.', accept, []).
+s1_judged('temper', 'c12', 3, adds, 'nothing:0.77').
+s1_judged('temper', 'c12', 3, contra, '0.98').
+s1_judged('temper', 'c12', 3, obs, '0.93').
+s1_judged('temper', 'c12', 3, collapsed, 'False').
+s1_judged('temper', 'c12', 3, faithful, 'True').
+s1_step('temper', 'c12', 4, sharpen_conclusion, 'Each member''s loyalty points balance must exactly equal the sum of their qualifying purchase points and reward points for the same period, as verified against the purchase and reward records; any mismatch, including any member with a differing balance, falsifies it.', 'A single member whose stored loyalty points balance differs from the sum of their qualifying purchase points and reward points for that period, when checked against the purchase and reward records, falsifies the statement.', accept, []).
+s1_judged('temper', 'c12', 4, adds, 'nothing:0.80').
+s1_judged('temper', 'c12', 4, contra, '0.98').
+s1_judged('temper', 'c12', 4, obs, '0.92').
+s1_judged('temper', 'c12', 4, collapsed, 'False').
+s1_judged('temper', 'c12', 4, faithful, 'True').
+s1_bracket('temper', 'c12', open, 'Each member''s loyalty points balance must exactly equal the sum of their qualifying purchase points and reward points for the same period, as verified against the purchase and reward records; any mismatch, including any member with a differing balance, falsifies it.', 'None', 'max steps').
+```
+
+### c13
+```
+bracket: open
+last accepted: Each purchase must be credited with exactly the points its amount and the member's tier on that purchase date call for; a credited value differing by even one point from that expected value, for any purchase, makes the statement false.
+first rejected: None
+why: max steps
+
+% Generated by s1/temper.py. Do not edit.
+:- discontiguous s1_step/8, s1_judged/5, s1_bracket/6.
+s1_step('temper', 'c13', 0, start, 'The amount of a purchase and the member''s tier on that day decide its points.', 'A purchase of 100 by a Gold member got 100 points, though the points table gives 200 for that amount and tier.', reject, ['collapsed']).
+s1_judged('temper', 'c13', 0, adds, 'nothing:0.88').
+s1_judged('temper', 'c13', 0, contra, '0.83').
+s1_judged('temper', 'c13', 0, obs, '0.9').
+s1_judged('temper', 'c13', 0, collapsed, 'True').
+s1_judged('temper', 'c13', 0, faithful, 'True').
+s1_step('temper', 'c13', 1, sharpen_conclusion, 'Each purchase is credited with exactly the points that its amount and the member''s tier on that purchase date call for.', 'A purchase of a given amount made by a member whose tier was in effect on that purchase date is recorded with a point credit different from the value that the amount and that tier specify under the program''s rules.', accept, []).
+s1_judged('temper', 'c13', 1, adds, 'nothing:0.88').
+s1_judged('temper', 'c13', 1, contra, '0.98').
+s1_judged('temper', 'c13', 1, obs, '0.91').
+s1_judged('temper', 'c13', 1, collapsed, 'False').
+s1_judged('temper', 'c13', 1, faithful, 'True').
+s1_step('temper', 'c13', 2, sharpen_conclusion, 'Each purchase is credited with exactly the points its amount and the member''s tier on that purchase date call for, and any purchase whose credited points differ from that expected value counts as a failure.', 'A purchase is recorded with a credited point total that differs from the amount-and-tier-based expected value for that purchase date, such as a $100 purchase by a Gold-tier member on 2026-03-01 crediting 150 points when the expected value is 200.', accept, []).
+s1_judged('temper', 'c13', 2, adds, 'nothing:0.94').
+s1_judged('temper', 'c13', 2, contra, '0.97').
+s1_judged('temper', 'c13', 2, obs, '0.94').
+s1_judged('temper', 'c13', 2, collapsed, 'False').
+s1_judged('temper', 'c13', 2, faithful, 'True').
+s1_step('temper', 'c13', 3, sharpen_conclusion, 'Each purchase must be credited with exactly the points its amount and the member''s tier on that purchase date call for; any purchase whose credited points differ by even one point from that expected value is a failure.', 'A purchase whose credited points differ from the expected value (computed from its amount and the member''s tier on the purchase date) by even one point is found in the ledger.', accept, []).
+s1_judged('temper', 'c13', 3, adds, 'nothing:0.86').
+s1_judged('temper', 'c13', 3, contra, '0.98').
+s1_judged('temper', 'c13', 3, obs, '0.9').
+s1_judged('temper', 'c13', 3, collapsed, 'False').
+s1_judged('temper', 'c13', 3, faithful, 'True').
+s1_step('temper', 'c13', 4, sharpen_conclusion, 'Each purchase must be credited with exactly the points its amount and the member''s tier on that purchase date call for; a credited value differing by even one point from that expected value, for any purchase, makes the statement false.', 'A purchase whose credited points differ by one from the value its amount and the member''s tier on that purchase date call for (for example, a $50 purchase by a Gold member on 2026-03-01 credited 51 points where 50 were expected) falsifies the statement.', accept, []).
+s1_judged('temper', 'c13', 4, adds, 'nothing:0.92').
+s1_judged('temper', 'c13', 4, contra, '0.97').
+s1_judged('temper', 'c13', 4, obs, '0.91').
+s1_judged('temper', 'c13', 4, collapsed, 'False').
+s1_judged('temper', 'c13', 4, faithful, 'True').
+s1_bracket('temper', 'c13', open, 'Each purchase must be credited with exactly the points its amount and the member''s tier on that purchase date call for; a credited value differing by even one point from that expected value, for any purchase, makes the statement false.', 'None', 'max steps').
+```
+
+### c14
+```
+bracket: bracket
+last accepted: Every purchase earns the same points for the same amount and the member's tier on the purchase date, with no exceptions.
+first rejected: Every purchase, compared by amount and the member's tier on its purchase date, must earn identical points; any purchase pair where these match but points differ shows the statement false.
+why: sharpen_conclusion: collapsed
+
+% Generated by s1/temper.py. Do not edit.
+:- discontiguous s1_step/8, s1_judged/5, s1_bracket/6.
+s1_step('temper', 'c14', 0, start, 'The amount of a purchase and the member''s tier on that day decide its points. Some purchases get a different number.', 'Every purchase gets the points that its amount and the member''s tier on that day give.', reject, ['collapsed', 'unfaithful']).
+s1_judged('temper', 'c14', 0, adds, 'nothing:0.65').
+s1_judged('temper', 'c14', 0, contra, '0.76').
+s1_judged('temper', 'c14', 0, obs, '0.83').
+s1_judged('temper', 'c14', 0, collapsed, 'True').
+s1_judged('temper', 'c14', 0, faithful, 'False').
+s1_step('temper', 'c14', 1, sharpen_conclusion, 'Every purchase earns the same points for the same amount and the member''s tier on the purchase date, with no exceptions.', 'Two members with the same tier on the same purchase date and the same amount, one buying in the same store, earn different point totals.', accept, []).
+s1_judged('temper', 'c14', 1, adds, 'nothing:0.61').
+s1_judged('temper', 'c14', 1, contra, '0.96').
+s1_judged('temper', 'c14', 1, obs, '0.9').
+s1_judged('temper', 'c14', 1, collapsed, 'False').
+s1_judged('temper', 'c14', 1, faithful, 'True').
+s1_step('temper', 'c14', 2, sharpen_conclusion, 'Every purchase, compared by amount and the member''s tier on its purchase date, must earn identical points; any purchase pair where these match but points differ shows the statement false.', 'A purchase pair with the same amount and the same member tier on their purchase dates that is awarded different points.', reject, ['collapsed']).
+s1_judged('temper', 'c14', 2, adds, 'nothing:0.84').
+s1_judged('temper', 'c14', 2, contra, '0.97').
+s1_judged('temper', 'c14', 2, obs, '0.91').
+s1_judged('temper', 'c14', 2, collapsed, 'True').
+s1_judged('temper', 'c14', 2, faithful, 'True').
+s1_bracket('temper', 'c14', bracket, 'Every purchase earns the same points for the same amount and the member''s tier on the purchase date, with no exceptions.', 'Every purchase, compared by amount and the member''s tier on its purchase date, must earn identical points; any purchase pair where these match but points differ shows the statement false.', '(''sharpen_conclusion'', [''collapsed''])').
 ```

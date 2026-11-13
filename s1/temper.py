@@ -11,9 +11,9 @@ Judges (they decide):
   System 1 model     j_adds (choice: what the statement adds), j_contra (does the falsifier
                      contradict it; yes at 0.6), j_observable
   fresh sonnet call  faithful, and collapsed (hypotheses only). Collapsed is the definition of
-                     Hypothesis.lean: no case can show the statement false. Being true of a correct
-                     system is not collapse; a statement that a correct system makes false holds a
-                     finding about today's system, and is not faithful (0.3.0 S-B).
+                     Hypothesis.lean: no single concrete case can show the statement false. Being true
+                     of a correct system is not collapse. A statement that says some cases behave
+                     differently reports a finding, and is not faithful (0.3.0 S-B).
 Proposers (they never judge; their output is only text to be judged):
   haiku              one move per step (drop an assumption | sharpen the conclusion, <= 35 words)
   haiku, own call    the falsifier
@@ -140,22 +140,25 @@ def h_judge(run, statement, source):
     """Returns (call id, collapsed, faithful); the last two are None when the reply cannot be read.
 
     Collapsed is the definition of Hypothesis.lean (Collapsed: the statement accepts every case):
-    no case can show the statement false. A statement that is true of a correct system is not
-    collapsed for that reason. A statement that a correct system makes false states the problem as it
-    is today (a finding): it is not faithful to the outcome that the owner wants."""
+    the judge names one concrete case whose outcome would make the statement false, or null when
+    there is none. A statement that is true of a correct system is not collapsed for that reason.
+    A statement that says some cases behave differently reports a finding, not a rule: not faithful."""
     cid, out = run.model("judge", "sonnet",
-                         'Answer with JSON only: {"can_fail": true|false, "faithful": true|false}.\n'
-                         'can_fail: a case is one result that a system could show, such as one record, one screen, or one request and its answer. '
-                         'Is there at least one case, in any system, that would make the statement false? A statement that a working system makes true can still fail: '
-                         'answer about all the cases, not about one system.\n'
+                         'Answer with JSON only: {"case": "..." or null, "faithful": true|false}.\n'
+                         'case: name one single concrete case: one input and the outcome that a system could show for it, which would make the statement false by itself. '
+                         'Use null when no single case can do that, for example when the statement only says that something exists or that a dependence exists, and every '
+                         'one outcome is consistent with it.\n'
                          'faithful: true when the statement is about the problem in the report (not another problem) and does not change what a good outcome is. '
-                         'Adding detail about what decides the outcome is still faithful. False when a system that has none of the problem in the report would make '
-                         'the statement false: such a statement holds a finding about today\'s system, not the outcome that is wanted.\n'
+                         'Adding detail about what decides the outcome is still faithful. False when the statement says that some cases behave differently or are wrong today: '
+                         'that is a finding about the system, not a rule that each case must hold.\n'
                          f'Report: {source}\nStatement: {statement}')
     m = re.search(r"\{[^{}]*\}", out or "", re.S)
     try:
         d = json.loads(m.group(0))
-        return cid, (not d["can_fail"]), d["faithful"]
+        case = d["case"]
+        if not (case is None or isinstance(case, str)) or not isinstance(d["faithful"], bool):
+            raise ValueError("bad reply")
+        return cid, not (case or "").strip(), d["faithful"]
     except Exception:
         return cid, None, None
 
@@ -208,7 +211,7 @@ def show(ps):
 # The proposer is told what failed in plain words, never the judge question names.
 WHY_WORDS = {"j_contra": "the falsifier does not contradict it", "j_observable": "the falsifier cannot be observed",
              "collapsed": "no result could show it false",
-             "unfaithful": "it is not the outcome that the source wants, or it states the problem as it is today"}
+             "unfaithful": "it is not the outcome that the source wants, or it reports that some cases differ today"}
 
 
 def propose(run, statement, source, move, why=()):
