@@ -4,7 +4,7 @@ For the agent. Your human asked you to upgrade their hub to a newer release of t
 kit that made it. Read this whole file first. A hub belongs to its people: never replace a file the
 hub changed, and show your human every merge before you commit.
 
-**Versions.** This release of the MindHole Kit pairs with Sagittarius 0.3: its `PRINCIPLES.md` comes
+**Versions.** This release of the MindHole Kit pairs with Sagittarius 0.4: its `PRINCIPLES.md` comes
 from that prompt, and a formal hub copies the orbit-kb of the same Sagittarius checkout. The kit's own version is `MindHole Kit <version>` (`kit.json`); a release section says so when the
 Sagittarius pair changes. Older sections below say "hub kit" or "the MindHole" for the template: the MindHole Kit's name before 2026-11-12.
 
@@ -96,6 +96,26 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.7.2 (the orbit-kb copy: K-F and K-H; db schema 6, unchanged)
+
+This release pairs with Sagittarius 0.4.0 (it was 0.3.0): orbit-kb gained rules that change what a
+session does. Every hub (formal and informal): `PRINCIPLES.md` line 3 names Sagittarius 0.4.0;
+replace the file if the hub did not change it, otherwise change that one number. A formal hub's
+orbit-kb copy changes too; an informal hub has no orbit-kb copy.
+The db schema is 6. **Database:** a hub at 0.7.0 or 0.7.1 is at schema 6 already and runs no
+migrate; a hub at schema 5 (0.5.1 to 0.6.0) applies the 0.7.0 section first, which runs
+`python3 .claude/scripts/hubflow.py migrate` once. Engine files changed since 0.7.1, all under
+`.claude/orbit-kb/`: `bin/orbit-kb`, `share/orbit-kb/README.md`, `share/orbit-kb/core.pl`,
+`share/orbit-kb/modules/build.pl`, `share/orbit-kb/modules/discovery.pl`, `share/orbit-kb/VERSION`
+(now `0.4.0`), and the help topics
+`build.txt`, `discovery.txt`, `shift.txt`. Replace them; a hub does not edit its orbit-kb copy.
+What changes for the hub's sessions: a claim contested twice can be closed by a decided result of
+a trusted model that encodes it (the report shows the bounds), and `orbit-kb shift --red-log FILE`
+records a red run that only the agent saw as a disclosure; the claim then waits for a human waiver.
+Check: `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` prints `hub from MindHole Kit 0.7.2`,
+`.claude/orbit-kb/bin/orbit-kb help shift` names `--red-log`, and `.claude/orbit-kb/bin/orbit-kb
+version` prints `orbit-kb 0.4.0`.
+
 ### 0.7.1 (the MindHole Kit name; db schema 6, unchanged)
 
 The template is now called the MindHole Kit, and a hub made from it is a MindHole. No behavior
@@ -109,7 +129,7 @@ Check: `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` prints `hub from Min
 
 ### 0.7.0 (Sagittarius 0.3.0 alignment; db schema 6: the session index is dropped)
 
-This release pairs with Sagittarius 0.3 (0.3.0). The build picks the kit version; it only
+This release was made for Sagittarius 0.3.0. The build picks the kit version; it only
 moves up (0.6.0 -> 0.7.0, with the db schema 5 -> 6). The db schema is 6.
 **Database:** every hub at schema 5 (0.5.1 to 0.6.0) runs
 `python3 .claude/scripts/hubflow.py migrate` once, then `hubflow.py check`. Engine files changed since 0.6.0: `HUB-CORE.md`,

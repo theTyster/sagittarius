@@ -1,6 +1,6 @@
 # PRINCIPLES.md: how the agents in this hub work
 
-This file comes from the Sagittarius prompt, Sagittarius 0.3.0, in plain words. Each part names the
+This file comes from the Sagittarius prompt, Sagittarius 0.4.0, in plain words. Each part names the
 sections of the prompt (`SAGITTARIUS.md` of <https://github.com/theTyster/sagittarius>) that it comes
 from. An upgrade replaces this file (put local rules in `CLAUDE.md`).
 

@@ -166,7 +166,7 @@ def case_status_upgrade(r, root, hub):
 
 # T48 c3: the kit version moves with the db schema. 0.5.0 shipped db schema 4 (92cf33b); schema 5 (T47 c2)
 # is a new kit version, so `upgrade` of a 0.5.0 hub shows a version change and its section says `migrate`.
-SHIPPED_SCHEMA = {"0.5.0": 4, "0.6.0": 5, "0.7.0": 6}  # 0.7.0 (kitrel): schema 6 drops the session index
+SHIPPED_SCHEMA = {"0.5.0": 4, "0.6.0": 5, "0.7.0": 6, "0.7.1": 6}  # 0.7.0 (kitrel): schema 6 drops the session index
 
 
 def upgrading_sections(text):

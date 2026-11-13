@@ -10,7 +10,8 @@ Prints one JSON object: {"checks": [{"text", "passed", "evidence"}], "commands":
 
 A multi-turn eval also leaves STEM.tK.jsonl (turn K alone) and WORKDIR.tK (the work
 directory after turn K). The prefix "turnK:" grades a check against turns 1..K and that
-snapshot, for example turn1:no_kb. "script:NAME" runs NAME.py WORKDIR from $EVAL_CHECKS_DIR
+snapshot, for example turn1:no_kb. "said:RE" and "final:RE" look for a regular expression in what the agent wrote, or in its
+final answer only. "script:NAME" runs NAME.py WORKDIR from $EVAL_CHECKS_DIR
 (the spec's checks/ directory), or else from evals/checks/. A "python:" or "script:" check
 gets $EVAL_KB, the KB directory that kb_exists finds, when there is one.
 
@@ -78,6 +79,21 @@ def delivered_kb(paths):
             for m in re.finditer(r"^\W*KB:\W*\s+`?([~/.\w][^\s`]*)", ev.get("result") or "", re.M):
                 found = m.group(1).rstrip(".,;)")
     return found
+
+
+def said(paths, pattern, final_only):
+    """A regular expression found in what the agent wrote: any text it wrote ("said:RE"), or only
+    the final answer ("final:RE"). For a format that the prompt defines, such as "Premises: none"
+    or the delivery's "KB:" line."""
+    written, last = [], ""
+    for ev in events(paths or []):
+        if ev.get("type") == "result":
+            last = ev.get("result") or ""
+        elif ev.get("type") == "assistant":
+            written += [p.get("text", "") for p in ev.get("message", {}).get("content", []) if p.get("type") == "text"]
+    texts = [last] if final_only else written + [last]
+    m = re.search(pattern, "\n".join(texts))
+    return m is not None, (f"found: {m.group(0)[:80]!r}" if m else "no match in " + ("the final answer" if final_only else "what the agent wrote"))
 
 
 def find_kb(workdir, calls=(), named=None):
@@ -167,6 +183,9 @@ def check(name, calls, orbit, workdir, transcript=()):
                if (n in ("Write", "Edit") and str(i.get("file_path", "")).endswith("kb.pl"))
                or (n == "Bash" and re.search(r"(>>?|sed -i|tee)\s*\S*kb\.pl", i.get("command", "")))]
         return not bad, "; ".join(bad) or "no direct writes to kb.pl"
+    if name.startswith(("said:", "final:")):
+        kind, _, pattern = name.partition(":")
+        return said(transcript, pattern, kind == "final")
     kb = find_kb(workdir, calls, delivered_kb(transcript) if transcript else None)
     if name == "kb_exists":
         return kb is not None, kb or "no kb.pl under the work directory"

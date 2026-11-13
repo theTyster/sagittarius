@@ -89,9 +89,9 @@
 #   VN  the version of the tool: version, help, init, a link and a copy (D34, 0.3.0 V-A) : VN1-VN3
 #   SG  signals have records: signal/4, lean_back/2, further requests, report Signals (D35, 0.3.0 K-G) : SG1-SG4
 #   HE  the help follows the prompt: the human says it is wrong, back, the hypothesis, one lens (D36, 0.3.0 K-E) : HE1-HE5
-#   SF  orbit-kb shift and help shift: the step from words to records (D37, 0.3.0 K-H) : SF1-SF3
+#   SF  orbit-kb shift and help shift: the step from words to records (D37, D43, 0.3.0 K-H) : SF1-SF5
 #   WJ  one meaning for each word: RESTATE, Lean definitions, withdraw (D39, 0.3.0 K-J) : WJ1-WJ3
-#   MF  the facts of a model in a build KB; a solver result closes no universal claim (D40, 0.3.0 K-F) : MF1 MF2
+#   MF  the facts of a model in a build KB; a solver result closes no universal claim (D40), and closes a claim contested twice (D42) : MF1-MF6
 #   RV  the review of K-C and K-D: WD10 after closure, ED12, superseded claims, whynot, limits (D41) : RV1-RV5
 #
 # Fixtures (fixtures/<name>/): valid, valid_local, e1_syntax, e2_undeclared, e3_oneof,
@@ -1229,7 +1229,7 @@ t_BP11() { kb_burndone "$T/k"; K=$T/k; printf "supersedes(c3, c1).\nclaim(c3, pr
 t_BP12() { kb_burndone "$T/k"; K=$T/k; add_proof "$K" p1 c1
            printf "check(k9, c1).\nconformance(k9).\n" >> $K/kb.pl; is_false 'conforms(c1)'; is_true 'done' "conformance is optional"
            add_result $K k9 4 pass; is_true 'conforms(c1)'; is_true 'done'; }
-t_BP13() { kb_burn "$T/k"; K=$T/k; is_set 'burn_open(X)' 'X = c1|X = c3|X = c4' "contested twice, universal, and requested all need a proof"; }
+t_BP13() { kb_burn "$T/k"; K=$T/k; is_set 'burn_open(X)' 'X = c1|X = c3|X = c4' "contested twice, universal, and requested all burn; with no model, each needs a proof (D42: c1 owes a formal statement)"; }
 # ---- D10 follow-up (2026-10-20): restated claims, supersede cycles, rules.pl, times, logs
 sc_restate() {  # sc_restate: kb_burndone, then c3 restates the universal claim c1 (c3 has no trigger of its own)
     kb_burndone "$T/k"; K=$T/k
@@ -2427,6 +2427,35 @@ t_WJ3() { K=$T/k; kb_init "$K" build; oadd "claim(c1, introduce, 'x')" "cites(c1
           out_has 'orbit-kb withdraw' "help codes names withdraw for E19"
           okb help withdraw; rc_is 0; out_has 'withdraw NAME/ARITY'; }
 
+# SF4, SF5 (D43, c_k_h_2b): a red run that only the agent saw is a disclosure with its output; the claim
+# stays unfulfilled until the tool shows the check red or a human waives the check.
+t_SF4() { printf 'FAIL test_dark_mode: the reports page is light\n' > "$T/red.txt"
+          K=$T/s; sf_shift "$K" --no-premises --red-log "$T/red.txt"; rc_is 0 "shift takes --red-log"
+          [ -f "$K/kb.pl" ] || { note "no kb.pl"; return; }
+          has_goal "$K/kb.pl" "kb(attest(_, disclosure, k1, seen_red(k1, T), agent, _)), sub_atom(T, _, _, _, 'the reports page is light')" "the red run is a disclosure with its output"
+          no_fact "$K/kb.pl" "attest(_, test_result, _, _, _, _)" "the disclosure is not a test result"
+          okb --dir "$K" lint; rc_is 0 "lint accepts the KB"
+          okb --dir "$K" run k1 -- true >/dev/null
+          is_false 'was_red(k1)' "the tool did not show k1 red"; is_false 'fulfilled(c1)' "a red run that only the agent saw does not fulfill the claim"
+          is_true 'under(c1)'; is_false 'done'
+          okb --dir "$K" report
+          rp_item c1 | grep -q 'Check k1 was not shown red by the tool' || note "report Claims: not shown red by the tool: [$(rp_item c1)]"
+          rp_sec Disclosures | grep -q 'seen_red' || note "report Disclosures: the seen_red disclosure: [$(rp_sec Disclosures)]"
+          rp_sec Disclosures | grep -q 'the reports page is light' || note "report Disclosures: the output of the red run"
+          printf '%s\n' "$out" | grep -qiE 'undo|revert' && note "the report asks the agent to undo the change"
+          okb --dir "$K" attest waiver k1 "waive(k1, '2999-01-01T00:00:00Z', 'The agent saw it red before the KB.')" --by human >/dev/null
+          is_true 'done' "a human waiver of the check covers the claim"
+          okb --dir "$K" report; rp_item c1 | grep -q 'not shown red by the tool' || note "report: still not shown red, with the waiver: [$(rp_item c1)]"; }
+t_SF5() { sf_shift "$T/a" --no-premises --red-log "$T/none.txt"; rc_is 1 "a red log that does not exist"; [ -e "$T/a/kb.pl" ] && note "a missing red log leaves no KB"
+          : > "$T/empty.txt"; sf_shift "$T/b" --no-premises --red-log "$T/empty.txt"; rc_is 1 "an empty red log"; [ -e "$T/b/kb.pl" ] && note "an empty red log leaves no KB"
+          printf 'FAIL x\n' > "$T/red.txt"; sf_shift "$T/c" --no-premises --label preserve --red-log "$T/red.txt"; rc_is 2 "--red-log with a preserve claim"
+          [ -e "$T/c/kb.pl" ] && note "a usage error leaves no KB"
+          { head -c 5000 /dev/zero | tr '\0' 'x'; printf 'END\n'; } > "$T/long.txt"
+          sf_shift "$T/d" --no-premises --red-log "$T/long.txt"; rc_is 0 "a long red log"
+          has_goal "$T/d/kb.pl" "kb(attest(_, disclosure, k1, seen_red(k1, T), agent, _)), sub_atom(T, 0, _, _, '(cut: the first 1003 characters are not kept) '), sub_atom(T, _, 3, 0, 'END')" "a long log keeps its last 4000 characters"
+          okb help shift; out_has '[-][-]red-log FILE' "help shift documents --red-log"
+          local n; n=$(printf '%s\n' "$out" | wc -l); [ "$n" -le 60 ] || note "help shift is $n lines; one screen is 60 or fewer"; }
+
 # MF (D40, c_k_f_2, c_k_f_3): the facts and the attestation of a model work in a KB that uses build;
 # a result of a solver or a model checker never closes a universal claim or a requested proof.
 mf_model() {  # mf_model RESULT: model m1 (smt) encodes c1 in $K, a current run log1, a sanity verdict, and a preserve(c1) verdict RESULT
@@ -2455,6 +2484,86 @@ t_MF2() { hy_build "$T/u"; oadd 'universal(c1)' >/dev/null; mf_model unsat
           okb --dir "$K" show blocking; out_has 'c1.*Lean proof'
           hy_disc "$T/d"; okb --dir "$K" uses build >/dev/null; oadd 'universal(c1)' >/dev/null; mf_model unsat
           is_true 'burn_open(c1)' "with the discovery module too, a model result does not close a universal claim"; }
+
+# MF3-MF6 (D42, c_k_f_1b): a claim that was contested twice, and is neither universal nor asked to be
+# proved, owes a formal statement in the language that fits it: a Lean proof, a counted result of a
+# trusted model that encodes it, or a human waiver closes it.
+mf_contest() {  # mf_contest CLAIM: two divergences on CLAIM in $K
+    okb --dir "$K" attest divergence "$1" "claim($1)" >/dev/null || note "setup: divergence: $(snip "$out$err")"
+    okb --dir "$K" attest divergence "$1" "claim($1)" >/dev/null || note "setup: divergence: $(snip "$out$err")"; }
+mf_green() {  # mf_green CHECK: a red run, then a green run of CHECK in $K
+    okb --dir "$K" run "$1" -- false >/dev/null; okb --dir "$K" run "$1" -- true >/dev/null; }
+mf_trusted() {  # mf_trusted CLAIM RESULT [MODEL]: a trusted SMT model M (default m1) that encodes CLAIM in $K:
+    # run s_M is sane and calibrated by a failing and a passing case; run v_M gives verdict(M, preserve(CLAIM), RESULT)
+    local c=$1 r=$2 m=${3:-m1} dg
+    printf '(assert true)\n(check-sat)\n' > "$K/$m.smt"; printf 'sat\n' > "$K/s_$m.log"; printf '%s\n' "$r" > "$K/v_$m.log"
+    okb --dir "$K" subject "$m" "$K/$m.smt" >/dev/null; okb --dir "$K" subject "s_$m" "$K/s_$m.log" >/dev/null
+    okb --dir "$K" subject "v_$m" "$K/v_$m.log" >/dev/null
+    oadd "model($m, smt)" "encodes($m, $c)" >/dev/null || note "setup: the model: $(snip "$out$err")"
+    q "subject($m, _, D)"; dg=$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}' | head -n 1)
+    oadd "model_run(s_$m, $m, '$dg')" "model_run(v_$m, $m, '$dg')" >/dev/null || note "setup: the runs: $(snip "$out$err")"
+    okb --dir "$K" attest model_result "s_$m" "verdict($m, sanity, sat)" >/dev/null || note "setup: sanity: $(snip "$out$err")"
+    okb --dir "$K" attest model_result "s_$m" "calibration($m, fails('the reports page is light'), matches)" >/dev/null || note "setup: a failing case"
+    okb --dir "$K" attest model_result "s_$m" "calibration($m, passes('the home page is dark'), matches)" >/dev/null || note "setup: a passing case"
+    okb --dir "$K" attest model_result "v_$m" "verdict($m, preserve($c), $r)" >/dev/null || note "setup: the verdict $r: $(snip "$out$err")"; }
+mf_claim2() {  # mf_claim2: claim c2 supersedes c1 in $K, with its example and its check k2 (red, then green)
+    oadd "claim(c2, introduce, 'With dark mode on, each screen is dark.')" "cites(c2, 'Test request')" "example(c2, 'the reports page is dark')" \
+         "check(k2, c2)" "supersedes(c2, c1)" >/dev/null || note "setup: claim c2: $(snip "$out$err")"
+    mf_green k2; }
+t_MF3() { hy_build "$T/b"; mf_contest c1; mf_green k1
+          is_true 'burn_open(c1)' "contested twice and no formal statement: the burn is open"; is_false 'done'
+          mf_trusted c1 unsat
+          is_true 'model_trusted(m1)' "a sane and calibrated model is trusted in a KB that uses build"
+          is_true 'burn_model_closed(c1)' "a counted solver result closes the burn"
+          is_false 'burn_open(c1)' "a counted solver result closes a claim that was contested twice"; is_true 'done'
+          hy_build "$T/u"; mf_contest c1; mf_green k1; mf_model unsat
+          is_false 'model_trusted(m1)' "setup: a model with no calibration is not trusted"
+          is_true 'burn_open(c1)' "an untrusted model closes nothing"
+          hy_build "$T/x"; mf_contest c1; mf_green k1; mf_trusted c1 unknown
+          is_true 'burn_open(c1)' "an unknown result closes nothing"
+          hy_build "$T/s"; mf_contest c1; mf_green k1; mf_trusted c1 unsat
+          printf '; edited\n' >> "$K/m1.smt"; okb --dir "$K" subject m1 "$K/m1.smt" >/dev/null
+          is_true 'burn_open(c1)' "a result on a run of an older digest of the model closes nothing"
+          hy_build "$T/k"; mf_contest c1; mf_green k1; mf_trusted c1 sat
+          is_true 'model_breaks(m1, c1)' "setup: sat on preserve(c1) is a case that breaks c1"
+          is_true 'burn_open(c1)' "a counted case that breaks the claim closes nothing"
+          hy_build "$T/w"; mf_contest c1; mf_green k1
+          okb --dir "$K" attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'Ship before the demo')" --by human >/dev/null
+          is_false 'burn_open(c1)' "a human waiver still closes it"; is_true 'done'; }
+t_MF4() { hy_build "$T/u"; mf_contest c1; oadd 'universal(c1)' >/dev/null; mf_green k1; mf_trusted c1 unsat
+          is_true 'burn_needs_lean(c1)'; is_true 'burn_open(c1)' "a claim that is universal and contested twice still needs a Lean proof"
+          okb --dir "$K" show blocking; out_has '^- burn_open c1: claim c1 needs a Lean proof' "show blocking: c1 needs a Lean proof"
+          hy_build "$T/r"; mf_contest c1; oadd 'burn_requested(c1)' >/dev/null; mf_green k1; mf_trusted c1 unsat
+          is_true 'burn_open(c1)' "a requested proof is still a Lean proof"
+          hy_build "$T/i"; oadd 'universal(c1)' >/dev/null; mf_claim2; mf_trusted c2 unsat
+          is_true 'burn_open(c2)' "a claim that replaces a universal claim still needs a Lean proof"
+          hy_build "$T/c"; mf_contest c1; mf_claim2; mf_trusted c2 unsat
+          is_true 'burn(c2)' "setup: c2 inherits the burn of the contested claim c1"; is_false 'burn_needs_lean(c2)'
+          is_false 'burn_open(c2)' "a model of the new claim closes a burn inherited from a contested claim"
+          hy_disc "$T/d"; okb --dir "$K" uses build >/dev/null; mf_contest c1; mf_trusted c1 unsat
+          is_true 'model_trusted(m1)'; is_false 'burn_open(c1)' "with the discovery module too"; }
+t_MF5() { hy_build "$T/b"; mf_contest c1; mf_green k1
+          okb --dir "$K" show blocking
+          out_has '^- burn_open c1: claim c1 owes a formal statement in the language that fits it' "show blocking: c1 owes a formal statement"
+          out_hasnt 'c1 needs a Lean proof' "show blocking: not \"needs a Lean proof\""
+          okb --dir "$K" show open; out_has 'burn_open c1: claim c1 owes a formal statement' "show open"
+          okb --dir "$K" report
+          rp_sec Open | grep -q 'Claim c1 owes a formal statement in the language that fits it' || note "report Open: c1 owes a formal statement: [$(rp_sec Open)]"
+          rp_item c1 | grep -q 'owes a formal statement in the language that fits it' || note "report Claims: the burn of c1: [$(rp_item c1)]"
+          rp_item c1 | grep -q 'A Lean proof is required' && note "report Claims: c1 does not need Lean"
+          mf_trusted c1 unsat; okb --dir "$K" report
+          rp_item c1 | grep -qF 'Burn: closed by a model: model m1 (smt), unsat on preserve(c1) (log v_m1).' || note "report: the model that closed the burn: [$(rp_item c1)]"
+          rp_item c1 | grep -qF 'No bounds are recorded for log v_m1' || note "report: no bounds recorded: [$(rp_item c1)]"
+          oadd "run_bounds(v_m1, 'none: an SMT result with no bound')"; rc_is 0 "run_bounds/2 is a core fact"
+          okb --dir "$K" report
+          rp_item c1 | grep -qF 'The result holds only within its bounds: none: an SMT result with no bound.' || note "report: the bounds: [$(rp_item c1)]"
+          okb help build; any_has 'formal statement' "help build says what closes a claim that was contested twice"
+          okb help discovery; any_has 'formal statement' "help discovery too"; }
+t_MF6() { hy_build "$T/b"; mf_contest c1; mf_green k1
+          printf 'burn_model_closed(c1).\nmodel_trusted(m9).\nmodel_decided(m9, c1).\n' > "$K/rules.pl"
+          okb --dir "$K" lint; rc_is 1 "rules.pl cannot close a burn through a model"
+          [ "$(printf '%s\n' "$out" | grep -c '^E16 rules.pl')" = 3 ] || note "want E16 on each of the 3 clauses: $(snip "$out")"
+          is_true 'burn_open(c1)' "the engines ignore the protected clauses"; }
 
 # RV (D41, the review of K-C and K-D on 4079306; items 1, 2, 7, 8, 9, 10).
 t_RV1() { hy_closed "$T/d"   # item 1: WD10 names a current claim with no example in a closed orbit too
@@ -3997,11 +4106,17 @@ run_test t_HE5 HE5 "0.3.0 c_k_e_5: the first help screen and help core put the h
 run_test t_SF1 SF1 "0.3.0 c_k_h_1: orbit-kb shift writes the light path as a KB that lint accepts"
 run_test t_SF2 SF2 "0.3.0 c_k_h_1: orbit-kb shift refuses a usage error or a bad fact and leaves no KB"
 run_test t_SF3 SF3 "0.3.0 c_k_h_3: orbit-kb help shift is one screen; the first help screen names it"
+run_test t_SF4 SF4 "0.3.0 c_k_h_2b: shift --red-log: a red run that only the agent saw is a disclosure; the claim waits for a waiver"
+run_test t_SF5 SF5 "0.3.0 c_k_h_2b: shift --red-log refuses a missing or empty log and a preserve claim; a long log is cut"
 run_test t_WJ1 WJ1 "0.3.0 c_k_j_1: no move is named SIGNAL; the move is RESTATE"
 run_test t_WJ2 WJ2 "0.3.0 c_k_j_2: the text of the tool says Lean definitions, not Lean model"
 run_test t_WJ3 WJ3 "0.3.0 c_k_j_3: orbit-kb withdraw NAME/ARITY removes a kind that a typo declared, with a record"
 run_test t_MF1 MF1 "0.3.0 c_k_f_2: model, model_run, encodes and model_result work in a KB that uses build"
 run_test t_MF2 MF2 "0.3.0 c_k_f_3: a solver result does not close a universal claim or a requested proof"
+run_test t_MF3 MF3 "0.3.0 c_k_f_1b: a counted result of a trusted model closes a claim that was contested twice; a waiver too"
+run_test t_MF4 MF4 "0.3.0 c_k_f_1b: a universal or requested claim, or one that replaces it, still needs a Lean proof"
+run_test t_MF5 MF5 "0.3.0 c_k_f_1b: the words: owes a formal statement; the model and its bounds in the report"
+run_test t_MF6 MF6 "0.3.0 c_k_f_1b: E16 protects the rules that close a burn through a model"
 run_test t_RV1 RV1 "review of K-C/K-D (1): WD10 names a current claim with no example also after the orbit closed"
 run_test t_RV2 RV2 "review of K-C/K-D (2): lint ED12 on a discovery_end whose approval came with no GO"
 run_test t_RV3 RV3 "review of K-C/K-D (7): a red run of the check of a superseded claim is no system result"

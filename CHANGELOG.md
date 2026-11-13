@@ -6,9 +6,9 @@ Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own v
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.3.0 (proposed) | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.4.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.7.1 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.7.2 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 
 What a change of each number means:
 
@@ -30,6 +30,24 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
 
+## Sagittarius 0.4.0 (2026-11-12)
+
+MINOR: orbit-kb rules and the tempering judge change what a session does. The prompt changes only
+in its last line, the version.
+
+- orbit-kb: a claim contested twice, not universal and not asked to be proved, is closed by a Lean
+  proof, a decided result of a trusted solver or model-checker model that encodes it (the report
+  shows the model and the bounds of its run), or a human waiver (D42, c_k_f_1b). The trust rules
+  of a model moved from the discovery module to core (`model_*`); new fact `run_bounds/2`.
+- orbit-kb: `shift --red-log FILE` records a red run that only the agent saw as a `seen_red`
+  disclosure. The claim stays unfulfilled until a human waives its check (D43, c_k_h_2b).
+- `s1/temper.py`: the System 1 model is the only judge of a tempered hypothesis (`j_forbids`,
+  `j_faithful`, `j_finding`); Claude only proposes and writes falsifiers (c_s_b). A held-out gate
+  set, `s1/fixtures/temper_gate_heldout.json`, was committed before any live run.
+- evals (D-C): `run.sh --prompt FILE|none`; `check_leaks.py` reads `evals.json`; a change of plan asks
+  for a supersession; seven new cases for the new rules (planning 13 to 17, tools 24, 25), each
+  with a held-out twin by a writer who did not see the prompt. Not run yet: no live eval was made.
+
 ## Sagittarius 0.3.0 and Philosophy 2.0.0 (proposed; not ratified, not released)
 
 - `prompt/SAGITTARIUS.md` and `docs/PHILOSOPHY.md` are a full rework. The philosophy is one
@@ -41,7 +59,7 @@ Earlier versions, named after the fact so that a report can refer to them:
 - The build aligns the tools, the MindHole Kit and the checks with the new texts (the spec KB
   `tmp/kb-sagittarius-030`, from the differences that
   `docs/philosophy-orbit/2026-11-11/fable/ALIGNMENT.md` names). The MindHole Kit has its own entry
-  below (MindHole Kit 0.7.1 and 0.7.0).
+  below (MindHole Kit 0.7.2, 0.7.1 and 0.7.0).
 - VERSION is the one source of the Sagittarius version. `docs/check_version.py` holds it, the last
   line of the prompt and the CHANGELOG heading to one number. `install.py` prints it, and each
   System 1 log line holds it (`sagittarius`), also when the hook runs through the installed link.
@@ -86,6 +104,17 @@ Earlier versions, named after the fact so that a report can refer to them:
   (`relation_by`, WP9).
 - orbit-kb: a build KB records models (`model`, `model_run`, `encodes`); a solver result never
   closes a burn.
+
+## MindHole Kit 0.7.2 (the template; pairs with Sagittarius 0.4.0)
+
+A patch: no schema change (the db schema stays 6). A formal hub's orbit-kb copy changed (K-F and
+K-H), so the kit version moves up.
+
+- orbit-kb: a claim contested twice, not universal and not asked to be proved, is closed by a Lean
+  proof, a decided result of a trusted solver or model-checker model that encodes it (the report
+  shows the model and the bounds of its run), or a human waiver (D42, c_k_f_1b).
+- orbit-kb: `shift --red-log FILE` records a red run that only the agent saw as a `seen_red`
+  disclosure. The claim stays unfulfilled until a human waives its check (D43, c_k_h_2b).
 
 ## MindHole Kit 0.7.1 (the template; pairs with Sagittarius 0.3.0)
 

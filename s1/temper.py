@@ -9,8 +9,12 @@ questions are copied, not redesigned.
 
 Judges (they decide):
   System 1 model     j_adds (choice: what the statement adds), j_contra (does the falsifier
-                     contradict it; yes at 0.6), j_observable
-  fresh sonnet call  faithful, and collapsed (hypotheses only)
+                     contradict it; yes at 0.6), j_observable, and (0.3.0 S-B: the System 1 model is
+                     the only judge) j_forbids, j_faithful, j_finding. Collapsed (hypotheses only) is
+                     the definition of Hypothesis.lean: the statement forbids no single concrete case,
+                     so no case can show it false (j_forbids no). Being true of a correct system is not
+                     collapse. A statement that says some cases behave differently today reports a
+                     finding (j_finding yes), not a rule: it is not accepted.
 Proposers (they never judge; their output is only text to be judged):
   haiku              one move per step (drop an assumption | sharpen the conclusion, <= 35 words)
   haiku, own call    the falsifier
@@ -19,7 +23,7 @@ Output: the bracket (last accepted, first rejected, why) as text and as Prolog f
 
 Every model call is logged to $TEMPER_LOG (default ~/.claude/logs/temper.jsonl) with exactly one
 role: proposer, falsifier or judge. Each judged statement also logs a verdict record that lists the
-ids of the judge calls it came from.
+ids of the judge calls it came from, with its falsifier and the booleans collapsed, faithful, finding.
 
 Injectable for tests: claude(prompt, model) -> str; System 1 model transport (see jev.py).
 Every claude child gets stdin from /dev/null (c2): without it the child reads the parent's stdin.
@@ -51,7 +55,11 @@ ADDS = {"nothing": "Only the expected outcome and which facts should decide it",
         "design": "A fix, a design or a way to build something"}
 JQ = {"j_adds": {"type": "choice", "instructions": "Beyond the problem in `source`, what does `statement` add? Pick the first option that applies in this order: design, cause, mechanism, data, nothing.", "criteria": ADDS},
       "j_contra": {"type": "noul", "instructions": "If the result in `falsifier` were observed, would `statement` be false?"},
-      "j_observable": {"type": "noul", "instructions": "Could a person check the result in `falsifier` by looking at the running system, its data, its logs or a test?"}}
+      "j_observable": {"type": "noul", "instructions": "Could a person check the result in `falsifier` by looking at the running system, its data, its logs or a test?"},
+      # 0.3.0 S-B: the hypothesis judge (Hypothesis.lean: Collapsed, Fits). The System 1 model asks them.
+      "j_forbids": {"type": "noul", "instructions": "Does `statement` forbid one single concrete case: one input, and an outcome for that input that would make `statement` false if a system showed it? A statement that says which facts decide a value forbids every other value for those facts: one input with any other value is such a case. A statement that only says that some dependence, some difference or some cause exists forbids no single case."},
+      "j_faithful": {"type": "noul", "instructions": "Is `statement` about the problem in `source` (not another problem), without changing what a good outcome is? Saying which facts decide the outcome is still about the problem."},
+      "j_finding": {"type": "noul", "instructions": "Does `statement` report that some cases are different or wrong in the system today (a finding about the current system), as well as or instead of stating a rule that every case must hold?"}}
 
 MOVE_TEXT = {"drop_assumption": "Remove one assumption (a cause, a mechanism, a data shape or a design) and keep the rest.",
              "sharpen_conclusion": "Say more exactly which outcome is expected, so that more results would show it false. Never add a cause, a mechanism, a data shape or a design."}
@@ -122,32 +130,22 @@ class Run:
                                                               redactions=self.redactions))
 
 
-def h_judge(run, statement, source):
-    """Returns (call id, collapsed, faithful); the last two are None when the reply cannot be read."""
-    cid, out = run.model("judge", "sonnet",
-                         'Answer with JSON only: {"false_if_correct": true|false, "faithful": true|false}.\n'
-                         'false_if_correct: imagine a system that works correctly and has none of the problem in the report. Would the statement be false of that system?\n'
-                         'faithful: true when the statement is about the problem in the report (not another problem) and does not change what a good outcome is. Adding detail about what decides the outcome is still faithful.\n'
-                         f'Report: {source}\nStatement: {statement}')
-    m = re.search(r"\{[^{}]*\}", out or "", re.S)
-    try:
-        d = json.loads(m.group(0))
-        return cid, (not d["false_if_correct"]), d["faithful"]
-    except Exception:
-        return cid, None, None
-
-
 def p3_judge(run, statement, falsifier, source, kind="hypothesis"):
     jid, a = run.jev({"statement": statement, "falsifier": falsifier, "source": source})
     if a is None:
         return None
-    sid, col, fai = h_judge(run, statement, source)
+    tri = {"yes": True, "no": False, "unsure": None}
+    fb = band(a["j_forbids"]["noul"])
+    col = {"yes": False, "no": True, "unsure": None}[fb]
     if kind == "requirement":
         col = False   # collapse for a requirement = no observable contradicting falsifier: the System 1 model's j_contra and j_observable (dvh8)
     ad = a["j_adds"]
     ps = {"j_adds": (ad["choice"], ad["probabilities"].get(ad["choice"], 0.0)), "j_contra": a["j_contra"]["noul"],
-          "j_observable": a["j_observable"]["noul"], "h_collapsed": col, "h_faithful": fai}
-    return ps, [jid, sid]
+          "j_observable": a["j_observable"]["noul"], "j_forbids": a["j_forbids"]["noul"],
+          "j_faithful": a["j_faithful"]["noul"], "j_finding": a["j_finding"]["noul"], "h_collapsed": col,
+          # faithful decides only at the no band: a middle answer alone does not make the verdict unsure
+          "h_faithful": a["j_faithful"]["noul"] > NO, "h_finding": tri[band(a["j_finding"]["noul"])]}
+    return ps, [jid]
 
 
 def verdict(ps):
@@ -156,8 +154,9 @@ def verdict(ps):
     unsure = ([] if cb != "unsure" else ["j_contra"]) + [j for j in ("j_observable",) if band(ps[j]) == "unsure"]
     if conf < CONF:
         unsure.append("j_adds")
-    if ps["h_collapsed"] is None or ps["h_faithful"] is None:
-        unsure.append("haiku")
+    for j, h in (("j_forbids", "h_collapsed"), ("j_finding", "h_finding")):
+        if ps[h] is None:
+            unsure.append(j)
     bad = []
     if conf >= CONF and choice != "nothing":
         bad.append("adds_" + choice)
@@ -169,6 +168,8 @@ def verdict(ps):
         bad.append("collapsed")
     if ps["h_faithful"] is False:
         bad.append("unfaithful")
+    if ps["h_finding"] is True:
+        bad.append("finding")
     if bad:            # a clear failure decides even if another answer is unsure
         return "reject", bad
     if unsure:
@@ -176,21 +177,35 @@ def verdict(ps):
     return "accept", []
 
 
+def faithful_to_intent(ps):
+    """Faithful, and no finding inside: False if either fails, None if either is unsure."""
+    if ps["h_faithful"] is False or ps["h_finding"] is True:
+        return False
+    if ps["h_faithful"] is None or ps["h_finding"] is None:
+        return None
+    return True
+
+
 def show(ps):
     c, k = ps["j_adds"]
     return {"adds": f"{c}:{k:.2f}", "contra": round(ps["j_contra"], 2), "obs": round(ps["j_observable"], 2),
-            "collapsed": ps["h_collapsed"], "faithful": ps["h_faithful"]}
+            "collapsed": ps["h_collapsed"], "faithful": ps["h_faithful"], "finding": ps["h_finding"]}
 
 
 # The proposer is told what failed in plain words, never the judge question names.
-WHY_WORDS = {"j_contra": "the falsifier does not contradict it", "j_observable": "the falsifier cannot be observed"}
+WHY_WORDS = {"j_contra": "the falsifier does not contradict it", "j_observable": "the falsifier cannot be observed",
+             "collapsed": "no result could show it false",
+             "unfaithful": "it is not the outcome that the source wants",
+             "finding": "it reports that some cases differ today, not a rule that every case must hold"}
 
 
 def propose(run, statement, source, move, why=()):
     if move == "drop_assumption":
         hint = "The statement names " + ", ".join(w.replace("adds_", "a ") for w in why if w.startswith("adds_")) + " that the source does not. Remove it; keep the expected outcome."
     elif why:
-        hint = "The statement does not tell a faulty system from a correct one (" + ", ".join(WHY_WORDS.get(w, w) for w in why) + "). Name the outcome the source expects more exactly, so that a correct system would make the statement false."
+        hint = ("The statement does not say the wanted outcome well (" + ", ".join(WHY_WORDS.get(w, w) for w in why) + "). "
+                "Name the outcome the source expects more exactly, so that a result of a faulty system would show the statement false "
+                "and a system that works makes it true. Do not state the problem as it is today.")
     else:
         hint = "The statement is acceptable. Make its conclusion stronger by one step: say more exactly which outcome is expected and which facts should decide it. Do not say why it fails, how the system works inside, where data is stored, or how to fix it."
     return run.model("proposer", "haiku",
@@ -215,7 +230,8 @@ def judged(run, n, statement, falsifier, source, kind):
         return None
     ps, ids = r
     v, bad = verdict(ps)
-    run.log({"event": "verdict", "step": n, "statement": statement, "verdict": v, "bad": bad, "calls": ids})
+    run.log({"event": "verdict", "step": n, "statement": statement, "falsifier": falsifier, "verdict": v, "bad": bad,
+             "collapsed": ps["h_collapsed"], "faithful": faithful_to_intent(ps), "finding": ps["h_finding"], "calls": ids})
     return ps, v, bad
 
 

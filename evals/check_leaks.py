@@ -3,7 +3,7 @@
 
 Usage: check_leaks.py [GIT-DIFF-ARGS...]   (default: the uncommitted diff of the prompt)
 Example: check_leaks.py HEAD~3 -- prompt/SAGITTARIUS.md
-Reads every eval spec (tools.json, heldout/heldout.json). Exit 1 when an added line shares
+Reads every eval spec (evals.json, tools.json, heldout/heldout.json). Exit 1 when an added line shares
 a 4-word run with an eval prompt or turn. See docs/REFINING.md, rule 2.
 """
 import glob
@@ -20,7 +20,7 @@ added = " ".join(l[1:] for l in diff.splitlines() if l.startswith("+") and not l
 words = lambda t: re.findall(r"[a-z0-9']+", t.lower())
 text = " " + " ".join(words(added)) + " "
 hits = []
-for spec in [os.path.join(here, "tools.json")] + glob.glob(os.path.join(here, "heldout", "*.json")):
+for spec in [os.path.join(here, "evals.json"), os.path.join(here, "tools.json")] + glob.glob(os.path.join(here, "heldout", "*.json")):
     for e in json.load(open(spec))["evals"]:
         for t in e.get("turns") or [e.get("prompt", "")]:
             w = words(t)

@@ -129,12 +129,14 @@ class ReleaseSaysRunAgain(unittest.TestCase):
     """c_s_d_3: a release that adds a link says "run ./install.py again"."""
 
     def test_changelog_entry(self):
+        # The claim binds only a release that adds a link (0.4.0 adds none). Each Sagittarius
+        # entry that says install.py makes a link says "Run ./install.py again"; at least one does.
         c = read("CHANGELOG.md")
-        lines = [ln for ln in read("prompt/SAGITTARIUS.md").splitlines() if ln.strip()]
-        v = re.search(r"Sagittarius (\d+\.\d+\.\d+)", lines[-1]).group(1)
-        m = re.search(r"\n## [^\n]*" + re.escape(v) + r".*?(?=\n## |\Z)", c, re.S)
-        self.assertIsNotNone(m)
-        self.assertRegex(m.group(0), r"Run `\./install\.py` again")
+        entries = re.findall(r"\n## Sagittarius [^\n]*.*?(?=\n## |\Z)", c, re.S)
+        adds = [e for e in entries if re.search(r"`install\.py` makes a [^.]*link", " ".join(e.split()))]
+        self.assertTrue(adds, "no Sagittarius entry says that install.py makes a link")
+        for e in adds:
+            self.assertRegex(e, r"Run `\./install\.py` again", e.splitlines()[1])
 
     def test_readme_says_run_again_after_an_update(self):
         self.assertRegex(" ".join(read("README.md").split()), r"(?i)run `\./install\.py` again")

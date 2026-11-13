@@ -119,6 +119,15 @@ decl(fact, model_run(ref(subject), ref(model), digest),
 decl(fact, encodes(ref(model), ref(claim)),
      'A model states a claim, so the model can falsify the claim.',
      'model @(1) states claim @(2)').
+% 0.3.0 (K-F, D42 K3): a fact of the discovery module before; model_is_derived/1 reads it.
+decl(fact, derived_from(ref(model), ref(model)),
+     'A target model, then the existing-world model that it changes.',
+     'model @(1) is derived from model @(2)').
+% 0.3.0 (K-F, D42 K6): the bounds of a run, so that the report shows them beside a result
+% that closes a burn.
+decl(fact, run_bounds(ref(subject), text),
+     'The bounds of a solver or model-checker run (the log): the sizes, the constants, the depth; none for a result with no bound. The report shows them beside a result that closes a burn.',
+     'the run @(1) has the bounds @(2)').
 decl(fact, universal(ref(claim)),
      'The claim says that something is true for every input.',
      'claim @(1) is about every input').
@@ -293,6 +302,28 @@ decl(rule, lint_issue(atom, ref, text),
      'A lint result that a module adds, with a code, an id, and a message.',
      'lint issue @(1) on @(2): @(3)').
 
+% 0.3.0 (K-F, D42 K3): the rules of trust of a model (moved from the discovery module).
+decl(rule, model_sanity_ok(atom), 'A result that passes a sanity check.', '@(1) passes a sanity check').
+decl(rule, model_decided_result(atom), 'A solver result that is not unknown.', '@(1) is a decided result').
+decl(rule, model_shows_case(atom), 'A solver result that shows a case.', '@(1) shows a case').
+decl(rule, model_shows_no_case(atom), 'A solver result that shows no case.', '@(1) shows no case').
+decl(rule, model_old_run(ref(subject), ref(model)), 'The log has a run of the model at a digest that is not the current one.', 'log @(1) has a run of an older digest of model @(2)').
+decl(rule, model_run_current(ref(subject), ref(model)), 'The log is a run of the model at its current digest, and at no older digest.', 'log @(1) is a current run of model @(2)').
+decl(rule, model_run_stale(ref(subject), ref(model)), 'The log is a run of the model at an older digest.', 'log @(1) is an old run of model @(2)').
+decl(rule, model_verdict(ref(attest), ref(model), term, atom), 'A verdict that counts: its attestation, model, check, and result.', 'attestation @(1) gives model @(2) the result @(4) on check @(3)').
+decl(rule, model_calibration(ref(attest), ref(model), atom), 'A calibration that counts: its attestation, model, and result.', 'attestation @(1) gives model @(2) the calibration result @(3)').
+decl(rule, model_has_parent(ref(model)), 'The model is derived from some model.', 'model @(1) is derived from a model').
+decl(rule, model_root(ref(model)), 'The model is an existing-world model: it is derived from no model.', 'model @(1) is an existing-world model').
+decl(rule, model_is_derived(ref(model)), 'The model is a target model derived from an existing-world model.', 'model @(1) is a target model').
+decl(rule, model_sane(ref(model)), 'A sanity check of the model passed, and none failed.', 'model @(1) is sane').
+decl(rule, model_sanity_failed(ref(model)), 'A sanity check of the model failed or was unknown.', 'a sanity check of model @(1) failed').
+decl(rule, model_calibration_case(ref(model), oneof([fails, passes])), 'A matching calibration on a current run of the model: a real case where the system fails, or one where it passes (D33 R4).', 'model @(1) matches the current system on a real case where it @(2)').
+decl(rule, model_calibrated(ref(model)), 'The model matches the current system on a real case where the system fails and on a real case where it passes (D33 R4).', 'model @(1) matches the current system on a failing case and on a passing case').
+decl(rule, model_diverges(ref(model)), 'The model disagrees with the current system.', 'model @(1) disagrees with the current system').
+decl(rule, model_trusted(ref(model)), 'The model is sane, calibrated by its own two cases, and does not diverge. A derived model needs its own two cases (D33 R4).', 'model @(1) is trusted').
+decl(rule, model_decided(ref(model), ref(claim)), 'A check of the model that names the claim gave a decided result.', 'model @(1) decided a check of claim @(2)').
+decl(rule, model_breaks(ref(model), ref(claim)), 'The model shows a case that breaks the claim.', 'model @(1) breaks claim @(2)').
+
 % ---------------------------------------------------------------------
 % Core attestation types
 % ---------------------------------------------------------------------
@@ -310,9 +341,10 @@ attest_type(model_result,
     'The result of one check on a model, read from the log of the solver run. A calibration names a real case where the system fails (fails), or one where it passes (passes); example and case are the older forms, and they calibrate nothing (D33).').
 attest_type(disclosure,
             alt([guess(ref(question)), unverified(text), disagreement(text),
-                 out_of_scope(text), self_error(text), other(text)]),
+                 out_of_scope(text), self_error(text), other(text),
+                 seen_red(ref(check), text)]),
             [agent, human],
-            'The writer discloses a guess, an unverified point, a disagreement, an item out of scope, an error of its own, or another point.').
+            'The writer discloses a guess, an unverified point, a disagreement, an item out of scope, an error of its own, or another point. seen_red(K, Output): the agent saw check K fail before the KB existed (orbit-kb shift --red-log, D43); it is not a test result, and the tool did not show K red.').
 attest_type(divergence,
             alt([claim(ref(claim)), hypothesis(term), model(term)]),
             [human, agent],
@@ -356,6 +388,55 @@ passed(K) :- attest(_, test_result, _, result(K, R, pass), _, _), not failed_aft
 failed_after(K, R) :- attest(_, test_result, _, result(K, R2, fail), _, _), R2 > R.
 was_red(K) :- attest(_, test_result, _, result(K, R1, fail), _, _),
               attest(_, test_result, _, result(K, R2, pass), _, _), R1 < R2.
+% 0.3.0 (K-F, D42 K3): the rules of trust of a model, moved from the discovery module, so that
+% a burn of a build KB can read a model (burn_model_closed/1 of the build module). Their meaning
+% did not change; the helpers discovery_* were renamed model_*. E16 protects them.
+% A verdict counts only for the current digest of its own model: a log that also has a run at an
+% older digest does not count, so reusing a log for a new digest does not bring old verdicts back.
+model_old_run(S, M) :- model_run(S, M, D), subject(M, _, D1), D \= D1.
+model_run_current(S, M) :- model_run(S, M, D), subject(M, _, D), not model_old_run(S, M).
+model_run_stale(S, M) :- model_run(S, M, _), not model_run_current(S, M).
+model_verdict(A, M, K, R) :- attest(A, model_result, S, verdict(M, K, R), _, _), model_run_current(S, M).
+model_calibration(A, M, R) :- attest(A, model_result, S, calibration(M, _, R), _, _), model_run_current(S, M).
+model_sanity_ok(sat).
+model_sanity_ok(reached).
+model_sanity_ok(violated).
+model_decided_result(sat).
+model_decided_result(unsat).
+model_decided_result(reached).
+model_decided_result(violated).
+model_decided_result(holds).
+model_shows_case(sat).
+model_shows_case(reached).
+model_shows_case(violated).
+model_shows_no_case(unsat).
+model_shows_no_case(holds).
+% --- Trust: sane, calibrated, and no divergence from the current system ---
+model_sanity_failed(M) :- model_verdict(_, M, sanity, R), not model_sanity_ok(R).
+model_sane(M) :- model_verdict(_, M, sanity, R), model_sanity_ok(R), not model_sanity_failed(M).
+% D33 R4: two matching cases on a current run, one where the system fails and one where it
+% passes. The older case forms (example, case) calibrate nothing.
+model_calibration_case(M, fails) :- attest(_, model_result, S, calibration(M, fails(_), matches), _, _), model_run_current(S, M).
+model_calibration_case(M, passes) :- attest(_, model_result, S, calibration(M, passes(_), matches), _, _), model_run_current(S, M).
+model_calibrated(M) :- model_calibration_case(M, fails), model_calibration_case(M, passes).
+% A target is derived from a root. A model in a derived_from cycle is no target, so it
+% gets the existing-world bad-case check (ED9 flags the cycle).
+model_has_parent(M) :- derived_from(M, _).
+model_root(M) :- model(M, _), not model_has_parent(M).
+model_is_derived(M) :- derived_from(M, M0), model_root(M0).
+model_diverges(M) :- model_calibration(_, M, differs).
+% A model divergence counts on any subject, except a log of an older digest of the model.
+model_diverges(M) :- attest(_, divergence, S, model(M), _, _), not model_run_stale(S, M).
+% The existing-world model must reproduce the reported bad case.
+model_diverges(M) :- model_verdict(_, M, bad_case, R), model_shows_no_case(R), not model_is_derived(M).
+% D33 R4: a target model no longer inherits the trust of the model that it changes. It
+% needs its own two cases.
+model_trusted(M) :- model_sane(M), model_calibrated(M), not model_diverges(M).
+model_decided(M, C) :- model_verdict(_, M, preserve(C), R), model_decided_result(R).
+model_decided(M, C) :- model_verdict(_, M, applies(C), R), model_decided_result(R).
+model_breaks(M, C) :- model_verdict(_, M, preserve(C), R), model_shows_case(R).
+model_breaks(M, C) :- model_verdict(_, M, bad_case, R), model_shows_case(R),
+    model_is_derived(M), encodes(M, C), claim(C, introduce, _).
 % supersedes_closure/2 and supersede_cycle/1 have no clauses here. When
 % orbit-kb reads the KB, it adds their facts: the transitive closure of
 % the supersedes/2 facts of kb.pl, and each claim that reaches itself.

@@ -23,7 +23,7 @@ It has three ideas:
 
 **Versions.** The MindHole Kit and Sagittarius keep two version numbers: `MindHole Kit <version>` (in
 `kit.json`) and `Sagittarius <version>` (the last line of the prompt). The MindHole Kit pairs with
-Sagittarius 0.3: its `PRINCIPLES.md` comes from that prompt, and a formal hub runs the orbit-kb of
+Sagittarius 0.4: its `PRINCIPLES.md` comes from that prompt, and a formal hub runs the orbit-kb of
 the same Sagittarius checkout. `UPGRADING.md` says it too.
 
 Named sessions (one per role, each with its own `HUB_SESSION`) are set up outside the hub, for

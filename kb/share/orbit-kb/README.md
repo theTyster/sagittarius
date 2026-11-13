@@ -514,10 +514,15 @@ verdict. A proof is a `lean_proof`.
 | `no_current_claim` | No claim is current. Then `done` is false (D17). |
 | `done` | `any_under`, `any_over`, `any_to_ask`, `any_burn_open`, `any_flare_open`, `any_supersede_cycle`, and `no_current_claim` are all false. A KB with no current claim is not done (D17). |
 | `burn_reason(C)` | `C` is contested twice and not visual (D21), it is universal, or a human asked for a proof. |
-| `burn(C)` | `C` needs a Lean proof: `burn_reason(C)`, or `C` replaces a claim with a burn reason, directly or through other claims (`supersedes_closure`). |
+| `burn(C)` | `C` burns: `burn_reason(C)`, or `C` replaces a claim with a burn reason, directly or through other claims (`supersedes_closure`). |
+| `burn_lean_reason(C)` | `C` is universal, or a human asked for a proof (D42). |
+| `burn_needs_lean(C)` | `burn_lean_reason(C)`, or `C` replaces such a claim: only a Lean proof (or a waiver) closes the burn of `C` (D42). |
+| `burn_model_settled(C)` | A trusted model that encodes `C` gave a decided result on a check that names `C` (`model_trusted`, `model_decided`, in the core; D42). |
+| `burn_model_broken(C)` | A counted verdict of a model shows a case that breaks `C` (`model_breaks`). |
+| `burn_model_closed(C)` | `burn_model_settled(C)`, not `burn_model_broken(C)`, and not `burn_needs_lean(C)`: the formal statement of a claim that was contested twice exists (D42). |
 | `burn_proved(C)` | A `lean_proof` of `C` by `script` exists, and no file of that proof changed (`proof_changed`). |
 | `burn_waived(C)` | A human `waiver` of `C` exists, and its due time is not past (`waiver_lapsed`). |
-| `burn_open(C)` | `burn(C)`, `C` is current, and `C` is not proved and not waived. |
+| `burn_open(C)` | `burn(C)`, `C` is current, and `C` is not proved, not waived, and not closed by a model (`burn_model_closed`). |
 | `any_burn_open` | `burn_open(C)` is true for one or more claims. |
 | `flare(C)` | `C` needs a demo that a human approves: `visual(C)`, or `C` replaces a visual claim, directly or through other claims (D21). |
 | `flare_shown(C)` | A human `approval` of a `demo` subject of `C` names the current digest of the subject, and the file on disk still has that digest (`not demo_changed(S)`, D21 F3b). |
@@ -530,11 +535,20 @@ verdict. A proof is a `lean_proof`.
 
 ### Burns need a proof
 
-A burn is a claim that needs a Lean proof. The proof is the source of clarity:
+A burn is a claim that needs a formal statement. The proof is the source of clarity:
 to write the proof, you must state the claim correctly. A statement with
 `sorry` is not enough. A search with no counterexample is not enough.
 
-A burn closes in one of two ways. A waiver of a check of the claim does not
+A universal claim, a claim whose proof the human asked for, and a claim that
+replaces one of them need a Lean proof (`burn_needs_lean`). A claim that was
+only contested twice owes a formal statement in the language that fits it (D42):
+a Lean proof closes it, and so does a decided result of a trusted model that
+encodes it (`burn_model_closed`; the model is sane, calibrated by a failing and a
+passing case, and does not diverge). A counted case that breaks the claim closes
+nothing. `report` names the model, its result and the log, and the bounds of the
+run from `run_bounds(LOG, TEXT)`: the result holds only within them.
+
+A burn closes in one of these ways. A waiver of a check of the claim does not
 close a burn (see "Waivers" below).
 
 1. `orbit-kb prove` records a proof. Then `burn_proved(C)` is true.
@@ -544,6 +558,8 @@ close a burn (see "Waivers" below).
    `report` still shows the claim as `NOT PROVED`, with the due time. When the
    due time is past, the burn is open again. A due time that is not a valid
    time counts as past.
+3. Only for a burn that needs no Lean proof: a trusted model that encodes the
+   claim decided it (D42). Then `burn_model_closed(C)` is true.
 
 `done` is false while a burn is open. A superseded claim has no open burn. But
 a claim that replaces a burning claim inherits the burn, also through a chain

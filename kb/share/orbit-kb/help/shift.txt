@@ -7,7 +7,7 @@ Read this topic, then run one command:
   orbit-kb shift DIR --request-file F --hypothesis 'TEXT' [--kind K]
                      (--no-premises | --premise 'TEXT' ...)
                      --claim 'TEXT' [--label L] --example 'TEXT' --check ID
-                     [--cites 'TEXT'] [--uses MODULES]
+                     [--cites 'TEXT'] [--uses MODULES] [--red-log FILE]
 
   DIR           a new KB directory (in a hub: specs/<slug>/). shift never overwrites a KB.
   F             the request, word for word (or --request 'TEXT'): request(r1, TEXT).
@@ -21,6 +21,12 @@ Read this topic, then run one command:
   --example     example(c1, TEXT): one concrete case of the claim.
   --check       check(ID, c1). The KB stores the id, not a command: orbit-kb run takes it.
   --uses        the modules, such as build,discovery (default: build).
+  --red-log     FILE holds the output of a red run of the check that you saw before the KB
+                existed (you built on the light path, then a signal fired). It becomes the
+                disclosure seen_red(ID, OUTPUT), not a test result. The claim stays
+                unfulfilled until the tool shows the check red, or the human waives the
+                check; the report says "not shown red by the tool". You need not undo the
+                change: show the human the output, and ask for the waiver.
 
 shift runs orbit-kb init and one orbit-kb add, so the same checks apply. It is all or
 nothing: when add refuses a fact, shift removes what it wrote and exits with the code of add.
