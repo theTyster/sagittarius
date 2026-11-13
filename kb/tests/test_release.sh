@@ -56,13 +56,17 @@ grep -qi 'settings' "$repo/install.py" && bad c2-install-no-settings-code "insta
 
 # c3
 python3 - "$repo" >"$scratch/c3.out" 2>&1 <<'PY' && ok c3-kit-version || bad c3-kit-version "$(cat "$scratch/c3.out")"
-import json, subprocess, sys
+import json, os, subprocess, sys
+# The kit version must tell templates apart and only move up (Ty, 2026-11-12: "a reliable way to
+# distinguish versions monotonically"). Against the base (main, or KIT_BASE_REF): never lower, and
+# higher whenever the template (hubkit/hub, hubkit/editions) or the kit tools differ from the base's.
 repo = sys.argv[1]
+ref = os.environ.get("KIT_BASE_REF") or "main"
 def ver(s): return tuple(int(x) for x in s.split("."))
 now = json.load(open(repo + "/hubkit/kit.json"))["version"]
 def git(*a): return subprocess.run(["git", "-C", repo, *a], capture_output=True, text=True, stdin=subprocess.DEVNULL)
 base = None
-m = git("show", "main:hubkit/kit.json")
+m = git("show", ref + ":hubkit/kit.json")
 if m.returncode == 0:
     base = json.loads(m.stdout)["version"]
 else:  # hubkit is not on main: compare with the version it first had
@@ -71,7 +75,13 @@ else:  # hubkit is not on main: compare with the version it first had
         base = json.loads(git("show", first[0] + ":hubkit/kit.json").stdout)["version"]
 if base is None:
     sys.exit("no earlier version found to compare with: this check needs a git checkout with history (not an archive copy)")
-if not ver(now) > ver(base):
+if ver(now) < ver(base):
+    sys.exit(f"kit.json version {now} is below {base} ({ref})")
+if m.returncode == 0 and ver(now) == ver(base):
+    d = git("diff", "--quiet", ref, "--", "hubkit/hub", "hubkit/editions", "hubkit/tools/hubkit.py")
+    if d.returncode != 0:
+        sys.exit(f"the template differs from {ref}, but kit.json version {now} is not above {base}")
+elif m.returncode != 0 and not ver(now) > ver(base):
     sys.exit(f"kit.json version {now} is not above {base}")
 PY
 cl=$repo/CHANGELOG.md
