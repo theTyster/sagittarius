@@ -13,6 +13,7 @@ and returns None. It never raises to the caller.
 Transport (injectable, for tests): transport(url, headers, body_bytes, timeout)
 returns (status_int, response_text). It may raise TimeoutError or OSError.
 """
+import hashlib
 import json
 import os
 import re
@@ -106,6 +107,13 @@ def _log(path, key, record):
         pass
 
 
+def questions_sha(questions):
+    """First 12 hex digits of the sha256 of the canonical JSON of the questions dict (sorted keys,
+    no spaces, UTF-8). The log keeps it, so a reader can tell whether a question file is what was sent."""
+    canon = json.dumps(questions, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canon.encode("utf-8")).hexdigest()[:12]
+
+
 _CORE = ("time", "model", "questions", "state", "answers", "latency", "usage", "error")
 
 
@@ -133,7 +141,8 @@ def judge(state, questions, *, model=DEFAULT_MODEL, timeout=DEFAULT_TIMEOUT,
                          **{k: v for k, v in extra.items() if k not in _CORE}})
         return None
     rec = {"time": _now(), "model": model, "questions": list(questions), "state": state,
-           "answers": None, "latency": 0.0, "usage": None, "error": None}
+           "answers": None, "latency": 0.0, "usage": None, "error": None,
+           "questions_sha": questions_sha(questions)}
     rec.update({k: v for k, v in extra.items() if k not in rec})
     t0 = time.monotonic()
     try:
