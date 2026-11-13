@@ -55,7 +55,7 @@ found=$(find "$scratch" -name 'settings*.json' | head -1)
 grep -qi 'settings' "$repo/install.py" && bad c2-install-no-settings-code "install.py mentions settings" || ok c2-install-no-settings-code
 
 # c3
-python3 - "$repo" >"$scratch/c3.out" 2>&1 <<'PY' && ok c3-kit-version || bad c3-kit-version "$(cat "$scratch/c3.out")"
+cat >"$scratch/c3.py" <<'PY'
 import json, os, subprocess, sys
 # The kit version must tell templates apart and only move up (Ty, 2026-11-12: "a reliable way to
 # distinguish versions monotonically"). Against the base (main, or KIT_BASE_REF): never lower, and
@@ -84,6 +84,20 @@ if m.returncode == 0 and ver(now) == ver(base):
 elif m.returncode != 0 and not ver(now) > ver(base):
     sys.exit(f"kit.json version {now} is not above {base}")
 PY
+python3 "$scratch/c3.py" "$repo" >"$scratch/c3.out" 2>&1 && ok c3-kit-version || bad c3-kit-version "$(cat "$scratch/c3.out")"
+# The rule must see every file a hub copies from the kit at one version, the orbit-kb copy included
+# (kit.json orbit_kb). A commit that changes only kb/share/orbit-kb/help/core.txt and keeps the kit
+# version must fail the rule.
+c3m=$scratch/c3-mutant
+if git clone -q --no-hardlinks "$repo" "$c3m" 2>/dev/null; then
+    printf '\n' >>"$c3m/kb/share/orbit-kb/help/core.txt"
+    git -C "$c3m" -c user.name=t -c user.email=t@t commit -qam "c3 mutant: orbit-kb help only" 2>/dev/null
+    KIT_BASE_REF=HEAD~1 python3 "$scratch/c3.py" "$c3m" >"$scratch/c3m.out" 2>&1 \
+        && bad c3-kit-version-sees-orbit-kb "a change of kb/share at the same kit version passed: $(cat "$scratch/c3m.out")" \
+        || ok c3-kit-version-sees-orbit-kb
+else
+    bad c3-kit-version-sees-orbit-kb "could not clone $repo"
+fi
 cl=$repo/CHANGELOG.md
 [ -f "$cl" ] && ok c3-changelog-file || bad c3-changelog-file "no CHANGELOG.md"
 for w in "| MindHole Kit |" philosophy "spec KB" "Jev" "flow ledger" "Lean" "small prompt" panes "question view" "repo map" tempering "status line" "System 1 hook" "Not in this release yet"; do
