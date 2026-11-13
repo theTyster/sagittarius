@@ -68,8 +68,10 @@ C12 = ["Points depend on something other than the purchase.",
 rec(C12[0], "cause", 0.72, 0.96, 0.77, True, True)
 for s in C12[1:]:
     rec(s, "nothing", 0.85, 0.97, 0.90, True, True)
-# c13: accepted at the start; one sharpening step is accepted; the next is rejected.
-C13 = ["The amount of a purchase and the member's tier on that day decide its points. Some purchases get a different number.",
+# c13: the sentence that the prompt calls Fit, alone (0.3.0 S-B: the finding "some purchases get a
+# different number" is kept apart). Accepted at the start; one sharpening step is accepted; the next
+# is rejected.
+C13 = ["The amount of a purchase and the member's tier on that day decide its points.",
        "Two purchases with the same amount and the same tier on that day must earn the same points.",
        "Any purchase whose points differ from the value its amount and tier fix is wrong, whenever it was recorded."]
 rec(C13[0], "nothing", 0.52, 0.73, 0.83, False, True)
@@ -84,11 +86,14 @@ def replay_transport(url, headers, body, timeout):
     st = json.loads(body)["state"]
     r = REC[st["statement"]]
     return 200, json.dumps({"model": "jev-1.14.0", "usage": {"input_tokens": 1, "output_tokens": 1},
-                            "answers": {"j_adds": r["adds"], "j_contra": r["contra"], "j_observable": r["obs"]}})
+                            "answers": {"j_adds": r["adds"], "j_contra": r["contra"], "j_observable": r["obs"],
+                                        "j_forbids": nl(0.1 if r["col"] else 0.9), "j_faithful": nl(0.9 if r["fai"] else 0.1),
+                                        "j_finding": nl(0.1)}})
 
 
 class ReplayClaude:
-    """claude(prompt, model) -> str, from the recordings. Keeps every call."""
+    """claude(prompt, model) -> str, from the recordings. Keeps every call. Claude only proposes and
+    writes falsifiers (0.3.0 S-B: the System 1 model is the judge)."""
 
     def __init__(self):
         self.calls = []
@@ -96,9 +101,6 @@ class ReplayClaude:
     def __call__(self, prompt, model):
         self.calls.append((model, prompt))
         st = re.findall(r"^Statement: (.*)$", prompt, re.M)[-1]
-        if model == "sonnet":
-            r = REC[st]
-            return json.dumps({"false_if_correct": not r["col"], "faithful": r["fai"]})
         if "Allowed step:" in prompt:
             return NEXT[st]
         if prompt.startswith("Write the falsifier"):
@@ -179,7 +181,7 @@ FAKE_CLAUDE = textwrap.dedent("""\
     mkdir -p "$out"
     cat > "$out/stdin.$n"
     printf '%s\\n' "$@" > "$out/argv.$n"
-    echo '{"false_if_correct": false, "faithful": true}'
+    echo '{"case": "one case", "faithful": true}'
     """)
 
 
@@ -227,13 +229,15 @@ class C2Stdin(unittest.TestCase):
             import json, temper
             def tr(url, headers, body, timeout):
                 a = {"j_adds": {"type": "choice", "choice": "nothing", "confidence": .9, "probabilities": {"nothing": .9}},
-                     "j_contra": {"type": "noul", "noul": .95}, "j_observable": {"type": "noul", "noul": .9}}
+                     "j_contra": {"type": "noul", "noul": .95}, "j_observable": {"type": "noul", "noul": .9},
+                     "j_forbids": {"type": "noul", "noul": .9}, "j_faithful": {"type": "noul", "noul": .9},
+                     "j_finding": {"type": "noul", "noul": .1}}
                 return 200, json.dumps({"answers": a})
             print(temper.temper("S", "src", transport=tr, maxn=1, falsifier="F", log_path="%s/t.jsonl", jev_log="%s/j.jsonl")[1])
             """ % (self.out, self.out))
         self.drive(code)
         got = self.captured()
-        self.assertGreaterEqual(len(got), 2)    # a judge call and a proposer call at least
+        self.assertGreaterEqual(len(got), 2)    # a proposer call and a falsifier call at least
         for g in got:
             self.assertNotIn(self.MARKER, g)
 
@@ -260,16 +264,13 @@ class C3Roles(Base):
         self.assertEqual(len({c["id"] for c in calls}), len(calls))
 
     def test_no_model_call_serves_two_roles(self):
+        # 0.3.0 S-B: no claude call judges; the System 1 model is the only judge.
         self.run_one(C11[0])
         for c in self.claude.calls:
-            judge = c[1].startswith("Answer with JSON only")
             propose = "Allowed step:" in c[1]
             fals = c[1].startswith("Write the falsifier")
-            self.assertEqual(sum([judge, propose, fals]), 1, c[1][:60])
-            if judge:
-                self.assertEqual(c[0], "sonnet")
-            else:
-                self.assertEqual(c[0], "haiku")
+            self.assertEqual(sum([propose, fals]), 1, c[1][:60])
+            self.assertEqual(c[0], "haiku")
 
     def test_roles_match_the_calls(self):
         self.run_one(C11[0])
@@ -279,7 +280,7 @@ class C3Roles(Base):
             by.setdefault(c["role"], set()).add(c["by"])
         self.assertEqual(by["proposer"], {"haiku"})
         self.assertEqual(by["falsifier"], {"haiku"})
-        self.assertEqual(by["judge"], {"jev", "sonnet"})
+        self.assertEqual(by["judge"], {"jev"})
 
     def test_verdicts_come_from_judge_calls_only(self):
         self.run_one(C13[0])
@@ -295,7 +296,7 @@ class C3Roles(Base):
     def test_a_proposer_that_writes_a_verdict_changes_nothing(self):
         # The proposer answers with a ready-made judge reply. It is only a statement to be
         # judged; the verdict still comes from the judges' recorded answers.
-        cheat_reply = '{"false_if_correct": false, "faithful": true} accept'
+        cheat_reply = '{"j_forbids": 0.9, "j_faithful": 0.9} accept'
 
         class Cheat(ReplayClaude):
             def __call__(self, prompt, model):
@@ -314,11 +315,10 @@ class C3Roles(Base):
 
 
 # ---------------------------------------------------------------------------------------------
-# Review's recorded responses (runs.jsonl, step "loopcal", last run; see
-# fixtures/build_loopcal_fixture.py). The System 1 model answers are exact. The Sonnet booleans are the logged
-# ones (rebuilt into the JSON reply the judge prompt asks for). Haiku's statements and
-# falsifiers are the ones the later steps were judged on. Not logged: raw Sonnet text, raw haiku
-# stdout.
+# A recorded live run of temper.py (0.3.0 S-B; TEMPER_LIVE_RUN.md "Fifth live run"; built by
+# fixtures/build_loopcal_fixture.py from the run's two logs). The System 1 model answers are exact. The
+# Sonnet booleans are the ones temper.py read from the judge's reply (rebuilt into the JSON reply the
+# judge prompt asks for). Haiku's statements and falsifiers are the ones the later steps were judged on.
 # ---------------------------------------------------------------------------------------------
 from unittest import mock  # noqa: E402
 
@@ -346,9 +346,6 @@ class RecordedClaude:
     def __call__(self, prompt, model):
         self.calls.append((model, prompt))
         st = re.findall(r"^Statement: (.*)$", prompt, re.M)[-1]
-        if model == "sonnet":
-            s = RSTEP[st]["sonnet"]
-            return json.dumps({"false_if_correct": not s["collapsed"], "faithful": s["faithful"]})
         if "Allowed step:" in prompt:
             return RNEXT[st]
         if prompt.startswith("Write the falsifier"):
@@ -362,7 +359,9 @@ def start_of(item):
 
 
 class C1Recorded(unittest.TestCase):
-    """c1 on review's own recorded System 1 model and Sonnet answers (loyalty trio, loopcal run)."""
+    """c1 on a recorded live run of temper.py (0.3.0 S-B, TEMPER_LIVE_RUN.md "Fifth live run"): the System 1
+    model's and the judge's answers as they came. Items: c12 the sentence the prompt calls Collapsed,
+    c13 the sentence it calls Fit, c14 Fit with the finding inside it."""
 
     def go(self, item, kind="hypothesis"):
         d = tempfile.TemporaryDirectory()
@@ -372,25 +371,21 @@ class C1Recorded(unittest.TestCase):
         return temper.temper(st, src, kind, falsifier=fal, claude=self.claude, transport=recorded_transport,
                              log_path=os.path.join(d.name, "t.jsonl"), jev_log=os.path.join(d.name, "j.jsonl"))
 
-    def test_c11_c12_rejected_c13_accepted_at_start(self):
-        want = {"c11": "reject", "c12": "reject", "c13": "accept"}
-        for item, v in want.items():
+    def test_start_verdicts_are_the_recorded_ones(self):
+        want = {"c12": ("reject", ["adds_cause", "collapsed"]), "c13": ("accept", []),
+                "c14": ("unsure", ["j_forbids", "j_finding"])}
+        for item, vb in want.items():
             trace, _ = self.go(item)
-            self.assertEqual(trace[0][5], v, item)
-
-    def test_start_reasons_are_the_recorded_ones(self):
-        self.assertEqual(self.go("c11")[0][0][6], ["adds_mechanism"])
-        self.assertEqual(self.go("c12")[0][0][6], ["adds_cause", "collapsed"])
+            self.assertEqual((trace[0][5], trace[0][6]), vb, item)
 
     def test_brackets_match_the_recorded_loop(self):
-        # out_loopcal.pl: c11 open, c12 unrepaired, c13 a bracket with the recorded statements.
-        _, b11 = self.go("c11")
-        self.assertEqual(b11[0], "open")
-        self.assertEqual(b11[1], TRIO["c11"]["steps"][-1]["statement"])
         _, b12 = self.go("c12")
-        self.assertEqual((b12[0], b12[1]), ("unrepaired", None))
+        self.assertEqual(b12[:2], ("open", TRIO["c12"]["steps"][-1]["statement"]))
         _, b13 = self.go("c13")
-        self.assertEqual(b13[:3], ("bracket", TRIO["c13"]["steps"][1]["statement"], TRIO["c13"]["steps"][2]["statement"]))
+        s = TRIO["c13"]["steps"]
+        self.assertEqual(b13, ("to_ty", s[0]["statement"], s[1]["statement"], ["j_finding"]))
+        _, b14 = self.go("c14")
+        self.assertEqual(b14, ("to_ty", None, TRIO["c14"]["steps"][0]["statement"], ["j_forbids", "j_finding"]))
 
     def test_the_fixture_has_no_client_names(self):
         text = open(os.path.join(HERE, "fixtures", "loopcal_trio.json")).read()
@@ -435,7 +430,7 @@ class NoRealCalls(unittest.TestCase):
         st, fal, src = start_of("c13")
         trace, _ = temper.temper(st, src, falsifier=fal, maxn=0, claude=RecordedClaude(),
                                  transport=recorded_transport, **self.kw())
-        self.assertEqual(trace[0][5], "accept")
+        self.assertEqual(trace[0][5], "accept")     # the recorded verdict (see C1Recorded)
 
 
 FAKE_PY_CLAUDE = """#!%(py)s
@@ -447,10 +442,7 @@ argv = sys.argv[1:]
 model = argv[argv.index("--model") + 1]
 prompt = argv[-1]
 st = re.findall(r"^Statement: (.*)$", prompt, re.M)[-1]
-if model == "sonnet":
-    s = steps[st]["sonnet"]
-    print(json.dumps({"false_if_correct": not s["collapsed"], "faithful": s["faithful"]}))
-elif "Allowed step:" in prompt:
+if "Allowed step:" in prompt:
     print(nxt[st])
 else:
     print(steps[st]["falsifier"])
@@ -503,12 +495,13 @@ class CliTest(unittest.TestCase):
         r = self.cli("c13", kind="hypothesis")
         self.assertEqual(r.returncode, 0, r.stderr)
         s = TRIO["c13"]["steps"]
-        self.assertIn("bracket: bracket", r.stdout)
-        self.assertIn("last accepted: " + s[1]["statement"], r.stdout)
-        self.assertIn("first rejected: " + s[2]["statement"], r.stdout)
-        self.assertIn("why: sharpen_conclusion: collapsed", r.stdout)
+        self.assertIn("bracket: to_ty", r.stdout)
+        self.assertIn("last accepted: " + s[0]["statement"], r.stdout)
+        self.assertIn("first rejected: " + s[1]["statement"], r.stdout)
+        self.assertIn("why: unsure about j_finding", r.stdout)
         self.assertRegex(r.stdout, r"s1_step\('temper', 't1', 0, start, .*, accept, \[\]\)\.")
-        self.assertRegex(r.stdout, r"s1_bracket\('temper', 't1', bracket, ")
+        self.assertRegex(r.stdout, r"s1_step\('temper', 't1', 1, sharpen_conclusion, .*, unsure, \['j_finding'\]\)\.")
+        self.assertRegex(r.stdout, r"s1_bracket\('temper', 't1', to_ty, ")
         self.assertIn(":- discontiguous", r.stdout)
 
     def test_requirement_kind_skips_collapse(self):
@@ -549,7 +542,7 @@ class C3ProposerPrompt(unittest.TestCase):
 
     def test_haiku_prompts_in_a_whole_run(self):
         ps = self.prompts()
-        self.assertGreater(len(ps), 10)
+        self.assertGreaterEqual(len(ps), 10)
         for p in ps:
             # the statement and source are user text; strip them, then look at what the tool wrote
             body = re.sub(r"^(Source[^\n]*|Statement: .*)$", "", p, flags=re.M)
@@ -564,6 +557,181 @@ class C3ProposerPrompt(unittest.TestCase):
         temper.propose(run, "A statement.", "A source.", "drop_assumption", ["adds_mechanism", "j_contra"])
         for p in seen:
             self.assertIsNone(re.search(r"\b[jh]_[a-z_]+", p.replace("adds_", "")), p)
+
+
+# ---------------------------------------------------------------------------------------------
+# 0.3.0 S-B (c_s_b): temper.py judges collapse as the definition does (Hypothesis.lean, Collapsed:
+# a statement has collapsed when it accepts every case, so no case can show it false). A statement
+# that is true of a correct system is not collapsed for that reason. The prompt's worked example:
+# "Fit" is the sentence alone; the finding ("some purchases get a different number") is kept apart.
+# ---------------------------------------------------------------------------------------------
+FIT = "The amount of a purchase and the member's tier on that day decide its points."
+FINDING_INSIDE = FIT + " Some purchases get a different number."
+VAGUE = "Points depend on something other than the purchase."
+
+
+def fit_transport(url, headers, body, timeout):
+    """The System 1 model as the judge, answering as the definition does. FIT forbids a case (one
+    purchase with other points); no single case is forbidden by VAGUE; FINDING_INSIDE reports a finding."""
+    st = json.loads(body)["state"]["statement"]
+    return 200, json.dumps({"answers": {"j_adds": ch("nothing", 0.9), "j_contra": nl(0.9), "j_observable": nl(0.9),
+                                        "j_forbids": nl(0.1 if st == VAGUE else 0.9), "j_faithful": nl(0.9),
+                                        "j_finding": nl(0.9 if st == FINDING_INSIDE else 0.1)}})
+
+
+class ProposerOnly:
+    """claude(prompt, model): the proposer and the falsifier. Any other prompt is a judge call: a bug."""
+
+    def __init__(self):
+        self.prompts = []
+
+    def __call__(self, prompt, model):
+        self.prompts.append((model, prompt))
+        if "Allowed step:" in prompt or prompt.startswith("Write the falsifier"):
+            return "A purchase of 100 by a Gold member got 100 points."
+        raise AssertionError("claude was asked to judge: " + prompt[:60])
+
+
+class C4Definition(unittest.TestCase):
+    """c_s_b: collapsed = no case can show it false (Hypothesis.lean, Collapsed); true of a correct
+    system is not collapsed. 0.3.0 S-B round 3 (Ty): the System 1 model is the judge."""
+
+    def go(self, statement, maxn=0, kind="hypothesis"):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.claude = ProposerOnly()
+        self.log = os.path.join(d.name, "t.jsonl")
+        self.sent = []
+
+        def tr(url, headers, body, timeout):
+            self.sent.append(json.loads(body))
+            return fit_transport(url, headers, body, timeout)
+        return temper.temper(statement, SOURCE, kind, falsifier="A Gold purchase of 100 got 100 points.", maxn=maxn,
+                             claude=self.claude, transport=tr,
+                             log_path=self.log, jev_log=os.path.join(d.name, "j.jsonl"))
+
+    def test_fit_is_accepted_and_not_collapsed(self):
+        trace, _ = self.go(FIT)
+        self.assertIs(trace[0][4]["h_collapsed"], False)
+        self.assertEqual((trace[0][5], trace[0][6]), ("accept", []))
+
+    def test_no_case_can_show_it_false_is_collapsed(self):
+        trace, _ = self.go(VAGUE)
+        self.assertIs(trace[0][4]["h_collapsed"], True)
+        self.assertIn("collapsed", trace[0][6])
+
+    def test_the_finding_inside_is_not_accepted(self):
+        trace, _ = self.go(FINDING_INSIDE)
+        self.assertEqual(trace[0][5], "reject")
+        self.assertIn("finding", trace[0][6])
+
+    def test_no_claude_call_judges(self):
+        self.go(FIT, maxn=2)
+        self.assertTrue(self.claude.prompts)        # ProposerOnly raises on any judge prompt
+        with open(self.log) as f:
+            calls = [json.loads(x) for x in f if '"event": "call"' in x]
+        self.assertEqual({c["by"] for c in calls if c["role"] == "judge"}, {"jev"})
+
+    def test_the_system1_questions_follow_the_definition(self):
+        self.go(FIT)
+        q = self.sent[0]["questions"]
+        for qid in ("j_forbids", "j_faithful", "j_finding"):
+            self.assertEqual(q[qid]["type"], "noul", qid)
+        forbids = q["j_forbids"]["instructions"]
+        self.assertRegex(forbids, r"(?i)one (single )?concrete case")
+        self.assertRegex(forbids, r"(?i)decide")              # what decides a value forbids any other value
+        self.assertRegex(forbids, r"(?i)every other value|any other value")
+        self.assertNotRegex(forbids, r"(?i)correct|works")
+        self.assertRegex(q["j_finding"]["instructions"], r"(?i)some cases")
+        self.assertNotRegex(q["j_faithful"]["instructions"], r"(?i)none of the problem|correct system")
+
+    def test_unsure_collapse_goes_to_the_human(self):
+        def tr(url, headers, body, timeout):
+            a = json.loads(fit_transport(url, headers, body, timeout)[1])
+            a["answers"]["j_forbids"] = nl(0.5)
+            return 200, json.dumps(a)
+        trace, br = temper.temper(FIT, SOURCE, falsifier="F", maxn=0, claude=ProposerOnly(), transport=tr,
+                                  log_path=os.devnull, jev_log=os.devnull)
+        self.assertEqual(trace[0][5], "unsure")
+        self.assertIn("j_forbids", trace[0][6])
+
+    def test_a_middle_faithful_answer_does_not_decide(self):
+        # Round 4: faithful rejects only at the no band (<= 0.3); a middle answer alone is not unsure.
+        for p, want, bad in ((0.5, "accept", []), (0.69, "accept", []), (0.2, "reject", ["unfaithful"])):
+            def tr(url, headers, body, timeout, p=p):
+                a = json.loads(fit_transport(url, headers, body, timeout)[1])
+                a["answers"]["j_faithful"] = nl(p)
+                return 200, json.dumps(a)
+            trace, _ = temper.temper(FIT, SOURCE, falsifier="F", maxn=0, claude=ProposerOnly(), transport=tr,
+                                     log_path=os.devnull, jev_log=os.devnull)
+            self.assertEqual((trace[0][5], trace[0][6]), (want, bad), p)
+
+    def test_the_finding_question_covers_a_rule_with_a_finding_inside(self):
+        self.go(FIT)
+        f = self.sent[0]["questions"]["j_finding"]["instructions"]
+        self.assertRegex(f, r"(?i)as well as or instead of")
+        for q in self.sent[0]["questions"].values():     # general rules: no word of the worked example
+            self.assertNotRegex(q["instructions"], r"(?i)point|purchase|tier|member")
+
+    def test_requirement_skips_collapse_only(self):
+        trace, _ = self.go(VAGUE, kind="requirement")
+        self.assertNotIn("collapsed", trace[0][6])
+        trace, _ = self.go(FINDING_INSIDE, kind="requirement")
+        self.assertIn("finding", trace[0][6])
+
+    def test_the_proposer_is_never_told_to_make_a_correct_system_false(self):
+        seen = []
+        run = temper.Run(claude=lambda prompt, model: seen.append(prompt) or "x",
+                         transport=fit_transport, log_path=os.devnull)
+        for why in (["j_contra"], ["collapsed"], ["unfaithful"], ["finding"], []):
+            temper.propose(run, "A statement.", "A source.", "sharpen_conclusion", why)
+        for p in seen:
+            self.assertNotRegex(p, r"(?i)correct system would make the statement false")
+
+    def test_the_verdict_is_logged(self):
+        self.go(FINDING_INSIDE)
+        with open(self.log) as f:
+            v = [json.loads(x) for x in f if '"event": "verdict"' in x][0]
+        self.assertEqual((v["collapsed"], v["faithful"], v["finding"]), (False, False, True))
+
+
+class C4Recorded(unittest.TestCase):
+    """c_s_b in the recording (fixtures/loopcal_trio.json, a live run of temper.py): the sentence that
+    the prompt calls Fit starts an item alone, judged not collapsed, and is accepted; the sentence with
+    the finding inside it is judged, and is not accepted."""
+
+    def steps_with(self, pred):
+        return [(item, i, s) for item, d in TRIO.items() for i, s in enumerate(d["steps"]) if pred(s["statement"])]
+
+    def test_fit_alone_is_recorded_not_collapsed(self):
+        fit = self.steps_with(lambda st: st.strip() == FIT)
+        self.assertTrue(fit, "the recording has no step whose statement is the Fit sentence alone")
+        for item, i, s in fit:
+            self.assertIs(s["sonnet"]["collapsed"], False, (item, i))
+            self.assertEqual(s["jev"]["j_adds"]["choice"], "nothing", (item, i))
+
+    def test_fit_alone_is_accepted_at_start(self):
+        items = [k for k, d in TRIO.items() if d["steps"][0]["statement"].strip() == FIT]
+        self.assertTrue(items, "no recorded item starts with the Fit sentence alone")
+        for item in items:
+            d = tempfile.TemporaryDirectory()
+            self.addCleanup(d.cleanup)
+            st, fal, src = start_of(item)
+            trace, _ = temper.temper(st, src, falsifier=fal, maxn=0, claude=RecordedClaude(), transport=recorded_transport,
+                                     log_path=os.path.join(d.name, "t.jsonl"), jev_log=os.path.join(d.name, "j.jsonl"))
+            self.assertEqual(trace[0][5], "accept", item)
+
+    def test_the_collapsed_sentence_is_recorded_collapsed(self):
+        steps = self.steps_with(lambda st: st.strip() == VAGUE)
+        self.assertTrue(steps, "the recording does not judge the sentence that the prompt calls Collapsed")
+        for item, i, s in steps:
+            self.assertIs(s["sonnet"]["collapsed"], True, (item, i))
+
+    def test_the_finding_inside_is_recorded_and_not_accepted(self):
+        inside = self.steps_with(lambda st: st.startswith(FIT) and "Some purchases get a different number" in st)
+        self.assertTrue(inside, "the recording does not judge the sentence with the finding inside it")
+        for item, i, s in inside:
+            self.assertFalse(s["sonnet"]["collapsed"] is False and s["sonnet"]["faithful"], (item, i))
 
 
 if __name__ == "__main__":

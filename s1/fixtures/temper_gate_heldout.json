@@ -1,0 +1,29 @@
+{
+ "about": "0.3.0 S-B Gate A: invented sentences that the System 1 judge of s1/temper.py must get right in at least 2 of 3 runs. Written before any run against them. Two domains not used anywhere else in s1/; for each, a rule that says which facts decide the outcome (fit), a statement that no single case can show false (collapsed), and the rule with a finding about today's system inside it (finding). Expected: fit = verdict accept and collapsed false; collapsed = collapsed true; finding = verdict not accept.",
+ "cases": [
+  {"id": "lib_fit", "kind": "fit",
+   "source": "Members were charged late fees on books they returned on time.",
+   "statement": "The return date and the due date of a loan decide whether it gets a late fee.",
+   "falsifier": "A loan returned two days before its due date got a late fee."},
+  {"id": "lib_collapsed", "kind": "collapsed",
+   "source": "Members were charged late fees on books they returned on time.",
+   "statement": "Late fees depend on something other than the return date.",
+   "falsifier": "Late fees depend only on the return date."},
+  {"id": "lib_finding", "kind": "finding",
+   "source": "Members were charged late fees on books they returned on time.",
+   "statement": "The return date and the due date of a loan decide whether it gets a late fee. Some loans returned on time get a fee.",
+   "falsifier": "Every loan returned on or before its due date has no late fee."},
+  {"id": "heat_fit", "kind": "fit",
+   "source": "The heating came on at the wrong times.",
+   "statement": "The schedule entry for the current day and hour decides the target temperature.",
+   "falsifier": "At 07:00 on a Monday the schedule entry says 21 degrees and the target is 16 degrees."},
+  {"id": "heat_collapsed", "kind": "collapsed",
+   "source": "The heating came on at the wrong times.",
+   "statement": "When the heating comes on depends on something besides the schedule.",
+   "falsifier": "When the heating comes on depends only on the schedule."},
+  {"id": "heat_finding", "kind": "finding",
+   "source": "The heating came on at the wrong times.",
+   "statement": "The schedule entry for the current day and hour decides the target temperature. Some hours get a different temperature.",
+   "falsifier": "Every hour gets the target temperature that its schedule entry gives."}
+ ]
+}
