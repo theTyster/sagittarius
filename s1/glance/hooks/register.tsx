@@ -138,7 +138,7 @@ const fired = (g: Glance) => rows(g).filter(r => r.fires).sort((x, y) => x.rank 
 const NB = '\u00a0'
 function toastAll($: EngineInterface, g: Glance) {
   if (g.error || !g.answers) {
-    $.ui.toast(`⚠ System 1 failed: ${(g.error ?? 'no answers').slice(0, 60)}`, { timeoutMs: TOAST_MS })
+    $.ui.toast(`⚠ System 1 failed: ${plain(g.error ?? 'no answers').slice(0, 60)}`, { timeoutMs: TOAST_MS })
     return
   }
   const hot = fired(g)
@@ -179,18 +179,25 @@ function ansiLine(g: Glance | null, now: number): string {
 // What System 1 was given (s1/hook.py build_state: the newest message and a few recent ones), cut so
 // the session's state stays small.
 const SAW_MESSAGE = 2000
+// Claude Code refuses a tree whose text holds a control character, and then draws an empty pane.
+// A /compact leaves ESC[2m...ESC[22m in the transcript, which System 1 then sees as a message. So
+// the text is drawn plain: escape sequences go, a tab is a space, other control characters go.
+const ESC_SEQ = /\u001b(?:\[[0-?]*[ -\/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)?|[@-Z\\-_])/g
+export function plain(t: string): string {
+  return t.replace(ESC_SEQ, '').replace(/\t/g, ' ').replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/g, '')
+}
 const SAW_RECENT = 600
 function saw(r: Record<string, unknown>) {
   const st = (r.state ?? {}) as { message?: unknown; recent?: unknown }
   const recent = Array.isArray(st.recent)
     ? st.recent.map(m => {
         const x = (m ?? {}) as { role?: unknown; text?: unknown }
-        return { role: String(x.role ?? '?'), text: String(x.text ?? '').slice(0, SAW_RECENT) }
+        return { role: plain(String(x.role ?? '?')), text: plain(String(x.text ?? '')).slice(0, SAW_RECENT) }
       })
     : []
 
   return {
-    message: typeof st.message === 'string' ? st.message.slice(0, SAW_MESSAGE) : '',
+    message: typeof st.message === 'string' ? plain(st.message).slice(0, SAW_MESSAGE) : '',
     messageLength: typeof st.message === 'string' ? st.message.length : 0,
     recent,
     trimmed: r.trimmed === true,
@@ -227,7 +234,7 @@ function toGlance(r: Record<string, unknown>): Glance {
     time: String(r.time ?? ''),
     model: String(r.model ?? ''),
     latency: typeof r.latency === 'number' ? r.latency : null,
-    error: r.error ? String(r.error) : null,
+    error: r.error ? plain(String(r.error)) : null,
     answers: (r.answers as Record<string, S1Answer> | null) ?? null,
     ...saw(r),
   }
@@ -278,7 +285,7 @@ async function card($: EngineInterface, e: any) {
     body = (
       <Box flexDirection="column">
         <Text color="error">⚠ the call failed</Text>
-        <Text dimColor>{(g.error ?? 'no answers').slice(0, 30)}</Text>
+        <Text dimColor>{plain(g.error ?? 'no answers').slice(0, 30)}</Text>
       </Box>
     )
   } else {
@@ -371,12 +378,12 @@ async function card($: EngineInterface, e: any) {
             (g.trimmed ? ' · trimmed to fit' : '') +
             (g.longContext ? ' · long context' : '')}
         </Text>
-        <Text>{clip(g.message, msgLines)}</Text>
+        <Text>{clip(plain(g.message), msgLines)}</Text>
         {g.recent.length ? <Text bold dimColor>{`Last ${g.recent.length}:`}</Text> : ''}
         {[...g.recent].reverse().map(m => (
           <Text dimColor>
             <Text bold>{m.role + ': '}</Text>
-            {clip(m.text, recentLines).slice(0, Math.max(10, sawCols * recentLines - m.role.length - 3))}
+            {clip(plain(m.text), recentLines).slice(0, Math.max(10, sawCols * recentLines - m.role.length - 3))}
           </Text>
         ))}
       </Box>
