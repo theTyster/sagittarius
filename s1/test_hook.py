@@ -1286,6 +1286,15 @@ class S1IWorkbench(Base):
         self.assertEqual(self.context(out), no_view("timeout"))
         self.assertTrue(any("timeout" in (r.get("skipped") or "") for r in self.log_lines()))
 
+    def test_c9_a_routing_that_hangs_at_load_fails_open_in_its_limit(self):
+        # review H-0011 finding 2: the load (top-level code) runs inside the limit too
+        self.write("pipeline.py", "import time\ntime.sleep(5)\ndef run(s, ask, q):\n    return {}\n")
+        t0 = time.monotonic()
+        out = self.run_hook(Fake(), env=dict(self.env, S1_WORKBENCH_TIMEOUT="0.5"))
+        self.assertLess(time.monotonic() - t0, 3)
+        self.assertEqual(self.context(out), no_view("timeout"))
+        self.assertTrue(any("timeout" in (r.get("skipped") or "") for r in self.log_lines()))
+
     def test_c9_each_call_gets_the_time_that_is_left(self):
         self.write("pipeline.py", "def run(s, ask, q):\n    return ask(q)\n")
         fake = Fake()

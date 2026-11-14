@@ -369,12 +369,8 @@ def run(raw, env, transport=None):
         except (OSError, ValueError) as e:
             _skip(log_path, key, f"questions: {type(e).__name__}: {e}", extra)
             return _out(no_view("no question set"))
-        try:
-            routing = load_routing(wb) if wb else None
-        except BaseException as e:
-            _skip(log_path, key, f"routing: {type(e).__name__}: {e}", extra, routing="workbench")
-            return _out(no_view(f"routing: {type(e).__name__}"))
-        timeout = _workbench_timeout(env) if routing else _timeout(env)
+        routed = bool(wb) and os.path.isfile(os.path.join(wb, "pipeline.py"))
+        timeout = _workbench_timeout(env) if routed else _timeout(env)
         if not key:  # judge would fall back to os.environ; the hook reads only env
             _skip(log_path, None, "no API key", extra, model=jev.DEFAULT_MODEL,
                   questions=list(questions), answers=None, latency=0.0, usage=None,
@@ -391,6 +387,13 @@ def run(raw, env, transport=None):
             lx = dict(extra, trimmed=True) if trimmed else dict(extra)
             if long_context:
                 lx["long_context"] = True
+            routing = None
+            if routed:  # loaded here, so a routing that hangs at load is inside the limit too
+                try:
+                    routing = load_routing(wb)
+                except BaseException as e:
+                    box["routing_error"] = f"{type(e).__name__}: {e}"
+                    return
             if routing is None:
                 box["answers"] = jev.judge(state, questions, timeout=timeout, key=key,
                                            log_path=log_path, transport=transport, log_extra=lx,
