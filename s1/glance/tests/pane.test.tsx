@@ -237,3 +237,11 @@ test('pane: control characters in what System 1 saw never blank the pane (after 
   expect(await ui.find({ type: 'Text', text: /\u001b|\u0007|\r/ })).toBeFalsy()
   await ui.unmount()
 })
+
+test('pane: a failed call whose error holds a control character still draws', async ($, on) => {
+  seed(on, glance({ error: 'HTTP 500: \u001b[31mboom\u001b[0m\u0007', answers: null }))
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: '⚠ the call failed' })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /HTTP 500: boom/ })).toBeTruthy()
+  await ui.unmount()
+})

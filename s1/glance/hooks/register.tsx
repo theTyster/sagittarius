@@ -138,7 +138,7 @@ const fired = (g: Glance) => rows(g).filter(r => r.fires).sort((x, y) => x.rank 
 const NB = '\u00a0'
 function toastAll($: EngineInterface, g: Glance) {
   if (g.error || !g.answers) {
-    $.ui.toast(`⚠ System 1 failed: ${(g.error ?? 'no answers').slice(0, 60)}`, { timeoutMs: TOAST_MS })
+    $.ui.toast(`⚠ System 1 failed: ${plain(g.error ?? 'no answers').slice(0, 60)}`, { timeoutMs: TOAST_MS })
     return
   }
   const hot = fired(g)
@@ -234,7 +234,7 @@ function toGlance(r: Record<string, unknown>): Glance {
     time: String(r.time ?? ''),
     model: String(r.model ?? ''),
     latency: typeof r.latency === 'number' ? r.latency : null,
-    error: r.error ? String(r.error) : null,
+    error: r.error ? plain(String(r.error)) : null,
     answers: (r.answers as Record<string, S1Answer> | null) ?? null,
     ...saw(r),
   }
@@ -285,7 +285,7 @@ async function card($: EngineInterface, e: any) {
     body = (
       <Box flexDirection="column">
         <Text color="error">⚠ the call failed</Text>
-        <Text dimColor>{(g.error ?? 'no answers').slice(0, 30)}</Text>
+        <Text dimColor>{plain(g.error ?? 'no answers').slice(0, 30)}</Text>
       </Box>
     )
   } else {
