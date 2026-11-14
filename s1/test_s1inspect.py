@@ -386,6 +386,8 @@ class HubPicker(unittest.TestCase):
             for i, (hub, sid) in enumerate(self.hubs.items()):
                 cwd = os.path.join(self.d, hub)
                 self.cwd[hub] = cwd
+                os.makedirs(cwd, exist_ok=True)  # c4b: each fixture hub is a MindHole
+                open(os.path.join(cwd, ".hub-template.json"), "w").write("{}")
                 pd = os.path.join(self.projects, cwd.replace("/", "-").replace(".", "-"))
                 os.makedirs(pd)
                 with open(os.path.join(pd, sid + ".jsonl"), "w") as t:
@@ -413,13 +415,13 @@ class HubPicker(unittest.TestCase):
         for h in self.hubs:
             self.assertIn(h, opts)
             self.assertIn(self.cwd[h], sel[0])  # full path as the tooltip
-        self.assertIn("(unknown hub)", opts)
+        self.assertIn("(other folders)", opts)
 
     def test_data_hub_matches_each_judgment(self):
         js, page = self.page()
         tags = self.re.findall(r'<details class="j[^"]*" data-hub="([^"]*)"', page)
         self.assertEqual(len(tags), len(js))
-        self.assertEqual(tags, [j["hub"] or "(unknown hub)" for j in js])
+        self.assertEqual(tags, [j["hub"] or "(other folders)" for j in js])
         by_msg = {}
         for j in js:
             by_msg[j["saw"]["message"]["text"]] = j["hub"]

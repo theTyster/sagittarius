@@ -78,7 +78,8 @@ def hub_sessions(hub, projects):
     return sids, dirs
 
 
-UNKNOWN_HUB = "(unknown hub)"
+UNKNOWN_HUB = "(other folders)"  # a session outside every MindHole, or whose folder is not known
+HUB_MARK = ".hub-template.json"  # a MindHole: the folder that holds it (s1-inspect c4b, Ty: list only MindHoles)
 _HUBMAP_CACHE = {}
 
 
@@ -102,8 +103,25 @@ def _transcript_cwd(path):
     return None
 
 
+def mindhole_of(cwd, _cache={}):
+    """The MindHole that holds folder cwd (cwd itself or a parent with .hub-template.json), or None."""
+    if cwd not in _cache:
+        d, found = os.path.abspath(cwd), None
+        while True:
+            if os.path.isfile(os.path.join(d, HUB_MARK)):
+                found = d
+                break
+            up = os.path.dirname(d)
+            if up == d:
+                break
+            d = up
+        _cache[cwd] = found
+    return _cache[cwd]
+
+
 def hub_map(projects):
-    """{session id: hub folder (the cwd of the session)} for every transcript under the projects dir.
+    """{session id: its MindHole (mindhole_of the session's cwd)} for every transcript under the projects dir;
+    a session outside every MindHole is absent, so it shows as UNKNOWN_HUB.
     Cached while no project folder changes (same names and mtimes); a session whose transcript has no cwd is absent."""
     projects = os.path.abspath(os.path.expanduser(projects))
     try:
@@ -124,8 +142,9 @@ def hub_map(projects):
         for fn in files:
             if fn.endswith(".jsonl"):
                 cwd = _transcript_cwd(os.path.join(d, fn))
-                if cwd:
-                    out[fn[:-len(".jsonl")]] = cwd
+                hub = mindhole_of(cwd) if cwd else None
+                if hub:
+                    out[fn[:-len(".jsonl")]] = hub
     _HUBMAP_CACHE[projects] = (sig, out)
     return out
 
