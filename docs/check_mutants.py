@@ -16,6 +16,8 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# The version in the tree now, so the VERSION mutant case applies at every release (it was "0.3.0").
+VERSION_NOW = open(os.path.join(ROOT, "VERSION"), encoding="utf-8").read().strip()
 COPY = ["docs", "prompt", "hubkit", "kb/share/orbit-kb/help", "kb/share/orbit-kb/core.pl", "README.md",
         "CLAUDE.md", "CHANGELOG.md", "VERSION", "s1"]
 P = "prompt/SAGITTARIUS.md"
@@ -54,7 +56,7 @@ CASES = [
     (["docs/check_consistency.py", "c4"], "prompt/PANES.md",
      "- The usual path: review (intake: the ticket, or regression or gap), then research -> specify -> build -> verify.\n",
      "", "the usual-path line is gone"),
-    (["docs/check_version.py"], "VERSION", "0.3.0", "9.9.9", "VERSION disagrees with the prompt"),
+    (["docs/check_version.py"], "VERSION", VERSION_NOW, "9.9.9", "VERSION disagrees with the prompt"),
     # docs/check_mindhole.py (review finding 5, kit3): the MindHole checks can fail too
     (["docs/check_mindhole.py", "mg2"], "hubkit/README.md", "The **MindHole Kit** is the template that makes a hub",
      "The **MindHole Kit** is the hub", "the kit README says the MindHole Kit is the hub"),
