@@ -24,7 +24,7 @@ off for one session; deleting `pipeline.py` gives the released routing back.
 
 | Do | Command |
 |---|---|
-| Watch live what System 1 sees and says, every hub, with a picker | http://127.0.0.1:8791/ (the s1-bench window starts it: `python3 ../s1inspect.py --serve 8791`) |
+| Watch live what Jev answers, every session on the machine | `../s1watch` (the right pane of the s1-bench window); `../s1watch --once -n 20` prints the last 20 and stops |
 | Replay the newest 5 of a repo's prompts with the bench files | `bench/bench.sh --hub ~/Projects/mine/sagittarius` |
 | The same, but tell model noise from your change | `bench/bench.sh --hub ~/Projects/mine/sagittarius --baseline` |
 | A MindHole's prompts | `bench/bench.sh --hub ~/Projects/mine/mindhole --last 10` |
