@@ -70,8 +70,9 @@ ends with a check. Do the steps in order. Stop at a check that fails, and say wh
    platform).
 2. **Link.** From this folder, run `./install.py`. It uses only the Python standard library and
    works the same on Linux, macOS, and Windows (there, symlinks need Developer Mode). It makes
-   five links: `~/.local/bin/orbit-kb`, `~/.local/bin/repo-map`, `~/.local/share/orbit-kb`,
-   `~/.claude/sagittarius` (the prompt), and `~/.claude/sagittarius-s1` (the System 1 hook).
+   six links: `~/.local/bin/orbit-kb`, `~/.local/bin/repo-map`, `~/.local/share/orbit-kb`,
+   `~/.claude/sagittarius` (the prompt), `~/.claude/sagittarius-s1` (the System 1 hook), and
+   `~/.claude/skills/s1-glance` (the Sagittarius Signals mod, which shows the hook's judgment).
    Check: `./install.py --check` prints `ok` for each link, and `orbit-kb doctor` passes. Run
    `./install.py` again after each update: a release can add a link, and its changelog entry
    says so.
