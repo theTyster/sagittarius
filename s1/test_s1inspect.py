@@ -347,3 +347,73 @@ class LiveServer(unittest.TestCase):
             f.write('{"time": "2026-11-13T00:00:00+00:00"}\n')
         b = urllib.request.urlopen(url + "/stamp").read().decode()
         self.assertNotEqual(a, b)
+
+
+class HubPicker(unittest.TestCase):
+    """c4: a picker of every hub; each judgment carries its hub, so narrowing works; ?hub= narrows on the server."""
+
+    def setUp(self):
+        import re
+        self.re = re
+        self.d = tempfile.mkdtemp()
+        self.projects = os.path.join(self.d, "projects")
+        os.makedirs(self.projects)
+        self.log = os.path.join(self.d, "s1.jsonl")
+        self.hubs = {"alpha-hub": "aaaaaaaa-0001", "beta-hub": "bbbbbbbb-0002"}
+        self.cwd = {}
+        with open(self.log, "w") as f:
+            for i, (hub, sid) in enumerate(self.hubs.items()):
+                cwd = os.path.join(self.d, hub)
+                self.cwd[hub] = cwd
+                pd = os.path.join(self.projects, cwd.replace("/", "-").replace(".", "-"))
+                os.makedirs(pd)
+                with open(os.path.join(pd, sid + ".jsonl"), "w") as t:
+                    t.write(json.dumps({"cwd": cwd, "sessionId": sid}) + "\n")
+                f.write(json.dumps(call(sid, time=f"2026-11-10T10:0{i}:00.000+00:00", message=f"msg {hub}")) + "\n")
+            f.write(json.dumps(call("cccccccc-0003", time="2026-11-10T10:09:00.000+00:00", message="msg orphan")) + "\n")
+
+    def args(self, *extra):
+        from s1 import s1inspect
+        return s1inspect, s1inspect.parser().parse_args(["--log", self.log, "--projects", self.projects, *extra])
+
+    def page(self, pick=None):
+        m, a = self.args()
+        js, info = m.build(a, pick)
+        return js, m.render_html(js, m.summarize(js), "meta", info["hubs"], pick or "")
+
+    def test_picker_names_both_hubs(self):
+        _, page = self.page()
+        sel = self.re.findall(r"<select\b.*?</select>", page, self.re.S)
+        self.assertEqual(len(sel), 1)
+        opts = self.re.findall(r"<option\b[^>]*>(.*?)</option>", sel[0], self.re.S)
+        self.assertEqual(opts[0], "all hubs")
+        self.assertEqual(self.re.findall(r"<option\b[^>]*>", sel[0])[0], '<option value="">')
+        self.assertNotIn(" selected", sel[0])  # all hubs is the default: no hub option is pre-selected
+        for h in self.hubs:
+            self.assertIn(h, opts)
+            self.assertIn(self.cwd[h], sel[0])  # full path as the tooltip
+        self.assertIn("(unknown hub)", opts)
+
+    def test_data_hub_matches_each_judgment(self):
+        js, page = self.page()
+        tags = self.re.findall(r'<details class="j[^"]*" data-hub="([^"]*)"', page)
+        self.assertEqual(len(tags), len(js))
+        self.assertEqual(tags, [j["hub"] or "(unknown hub)" for j in js])
+        by_msg = {}
+        for j in js:
+            by_msg[j["saw"]["message"]["text"]] = j["hub"]
+        self.assertEqual(by_msg["msg alpha-hub"], self.cwd["alpha-hub"])
+        self.assertEqual(by_msg["msg beta-hub"], self.cwd["beta-hub"])
+        self.assertIsNone(by_msg["msg orphan"])
+
+    def test_server_pick_narrows_and_keeps_all_options(self):
+        js, page = self.page(self.cwd["beta-hub"])
+        self.assertEqual([j["hub"] for j in js], [self.cwd["beta-hub"]])
+        self.assertNotIn("msg alpha-hub", page)
+        self.assertIn("alpha-hub", self.re.findall(r"<select\b.*?</select>", page, self.re.S)[0])
+        self.assertIn(f'value="{self.cwd["beta-hub"]}" title="{self.cwd["beta-hub"]}" selected', page)
+
+    def test_hub_option_still_one_hub(self):
+        m, a = self.args("--hub", self.cwd["alpha-hub"])
+        js, _ = m.build(a)
+        self.assertEqual([j["hub"] for j in js], [self.cwd["alpha-hub"]])

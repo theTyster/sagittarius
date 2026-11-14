@@ -78,6 +78,62 @@ def hub_sessions(hub, projects):
     return sids, dirs
 
 
+UNKNOWN_HUB = "(unknown hub)"
+_HUBMAP_CACHE = {}
+
+
+def _transcript_cwd(path):
+    """The first `cwd` that a transcript line carries, or None."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for n, line in enumerate(f):
+                if n > 200:
+                    break
+                if '"cwd"' not in line:
+                    continue
+                try:
+                    d = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(d, dict) and isinstance(d.get("cwd"), str) and d["cwd"]:
+                    return d["cwd"]
+    except OSError:
+        pass
+    return None
+
+
+def hub_map(projects):
+    """{session id: hub folder (the cwd of the session)} for every transcript under the projects dir.
+    Cached while no project folder changes (same names and mtimes); a session whose transcript has no cwd is absent."""
+    projects = os.path.abspath(os.path.expanduser(projects))
+    try:
+        names = sorted(n for n in os.listdir(projects) if os.path.isdir(os.path.join(projects, n)))
+        sig = tuple((n, os.stat(os.path.join(projects, n)).st_mtime_ns) for n in names)
+    except OSError:
+        return {}
+    hit = _HUBMAP_CACHE.get(projects)
+    if hit and hit[0] == sig:
+        return hit[1]
+    out = {}
+    for n in names:
+        d = os.path.join(projects, n)
+        try:
+            files = sorted(os.listdir(d))
+        except OSError:
+            continue
+        for fn in files:
+            if fn.endswith(".jsonl"):
+                cwd = _transcript_cwd(os.path.join(d, fn))
+                if cwd:
+                    out[fn[:-len(".jsonl")]] = cwd
+    _HUBMAP_CACHE[projects] = (sig, out)
+    return out
+
+
+def hub_name(path):
+    return UNKNOWN_HUB if path in (None, UNKNOWN_HUB) else (os.path.basename(path.rstrip("/")) or path)
+
+
 def parse_time(s):
     try:
         d = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
@@ -281,10 +337,18 @@ def judgment(index, rec, questions, qerr, qpath, checkout_version):
 
 # ---------------------------------------------------------------- selection
 
-def select(log, args_hub=None, projects=DEFAULT_PROJECTS, session=None, since=None, last=None, errors=False):
-    """The (index, record) pairs chosen, newest first. Returns (pairs, info)."""
+def select(log, args_hub=None, projects=DEFAULT_PROJECTS, session=None, since=None, last=None, errors=False,
+           pick=None):
+    """The (index, record) pairs chosen, newest first. Returns (pairs, info).
+    `pick` is the hub picker's choice: a hub folder, or UNKNOWN_HUB (None: every hub)."""
     info = {"hub_dirs": []}
     keep = list(log)
+    hm = hub_map(projects)
+    info["hubs"] = sorted({hm.get(r.get("session_id")) or UNKNOWN_HUB for _, r in keep},
+                          key=lambda h: (h == UNKNOWN_HUB, hub_name(h).lower(), h))
+    info["hub_of"] = hm
+    if pick:
+        keep = [(i, r) for i, r in keep if (hm.get(r.get("session_id")) or UNKNOWN_HUB) == pick]
     if args_hub:
         sids, dirs = hub_sessions(args_hub, projects)
         info["hub_dirs"] = dirs
@@ -452,11 +516,20 @@ button{background:var(--card);color:var(--fg);border:1px solid var(--bd);border-
 """
 
 JS = """
-const q=document.getElementById('q'),eo=document.getElementById('eo');
-function f(){const t=q.value.toLowerCase();document.querySelectorAll('.j').forEach(d=>{
- const ok=(!t||d.textContent.toLowerCase().includes(t))&&(!eo.checked||d.classList.contains('fail'));
+const q=document.getElementById('q'),eo=document.getElementById('eo'),hs=document.getElementById('hubsel');
+function f(){const t=q.value.toLowerCase(),h=hs.value;document.querySelectorAll('.j').forEach(d=>{
+ const ok=(!t||d.textContent.toLowerCase().includes(t))&&(!eo.checked||d.classList.contains('fail'))
+  &&(!h||d.dataset.hub===h);
  d.hidden=!ok;});}
 q.addEventListener('input',f);eo.addEventListener('change',f);
+// The picked hub lives in the URL (?hub=), so the live reload and a shared link keep it.
+hs.addEventListener('change',function(){try{const u=new URL(location.href);
+ if(hs.value)u.searchParams.set('hub',hs.value);else u.searchParams.delete('hub');
+ if(document.getElementById('live')){location.href=u.href;return;}  // live page: the server redoes the summary
+ history.replaceState(null,'',u.href);}catch(e){}f();});
+try{const p=new URL(location.href).searchParams.get('hub');
+ if(p&&[...hs.options].some(o=>o.value===p))hs.value=p;}catch(e){}
+f();
 function all(o){document.querySelectorAll('.j').forEach(d=>{if(!d.hidden)d.open=o;
  d.querySelectorAll('details.s').forEach(s=>s.open=o);});}
 document.getElementById('ex').onclick=()=>all(true);document.getElementById('co').onclick=()=>all(false);
@@ -471,7 +544,11 @@ def _pre(x):
     return f"<pre>{_e(x)}</pre>"
 
 
-def render_html(judgments, summary, meta):
+def render_html(judgments, summary, meta, hubs=None, picked=""):
+    """`hubs`: every hub for the picker (default: those of the judgments); `picked`: the hub selected at load."""
+    if hubs is None:
+        hubs = sorted({j.get("hub") or UNKNOWN_HUB for j in judgments},
+                      key=lambda h: (h == UNKNOWN_HUB, hub_name(h).lower(), h))
     h = ["<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">",
          "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">",
          "<meta name=\"color-scheme\" content=\"light dark\"><title>System 1 inspection</title>",
@@ -491,13 +568,17 @@ def render_html(judgments, summary, meta):
         c = ", ".join(f"{k} {v}" for k, v in sorted(d["counts"].items(), key=lambda kv: -kv[1]))
         h.append(f"<tr><td>{_e(qid)}</td><td>{_e(d['type'])}</td><td>{d['n']}</td><td>{_e(c)}</td></tr>")
     h.append("</table><h2>Judgments, newest first</h2><div class=\"bar\">"
+             "<label>hub <select id=\"hubsel\" aria-label=\"hub\"><option value=\"\">all hubs</option>"
+             + "".join(f"<option value=\"{_e(x)}\" title=\"{_e(x)}\"{' selected' if x == picked else ''}>{_e(hub_name(x))}</option>"
+                       for x in hubs)
+             + "</select></label>"
              "<input id=\"q\" placeholder=\"filter text\" aria-label=\"filter\">"
              "<label><input type=\"checkbox\" id=\"eo\"> failed only</label>"
              "<button id=\"ex\">expand all</button><button id=\"co\">collapse all</button></div>")
     for j in judgments:
         fail = " fail" if j["failed"] else ""
         if j["kind"] == "skip":
-            h.append(f"<details class=\"j{fail}\"><summary>{_e(j['time'])} session {_e(j['session_short'])} "
+            h.append(f"<details class=\"j{fail}\" data-hub=\"{_e(j.get('hub') or UNKNOWN_HUB)}\"><summary>{_e(j['time'])} session {_e(j['session_short'])} "
                      f"hook skip<span class=\"meta\"> {_e(j['answered']['skipped'])}</span></summary>"
                      f"<p>The agent got: <span class=\"hint\">{_e(j['answered']['hint'])}</span></p></details>")
             continue
@@ -507,7 +588,7 @@ def render_html(judgments, summary, meta):
                        (("trimmed", j["trimmed"]), ("long_context", j["long_context"]),
                         ("calibration", j["kind"] == "calibration"), ("failed", j["failed"])) if on)
         lat = _fmt_p(j["latency"])
-        h.append(f"<details class=\"j{fail}\"><summary>{_e(j['time'])} session {_e(j['session_short'])} "
+        h.append(f"<details class=\"j{fail}\" data-hub=\"{_e(j.get('hub') or UNKNOWN_HUB)}\"><summary>{_e(j['time'])} session {_e(j['session_short'])} "
                  f"<span class=\"meta\">{_e(j['model'])}, {_e(lat)}s, tokens {_e(tok)}, "
                  f"Sagittarius {_e(j['sagittarius'])}</span>{tags}</summary>")
         s = j["saw"]
@@ -570,14 +651,16 @@ def render_html(judgments, summary, meta):
 
 # ---------------------------------------------------------------- main
 
-def build(args):
-    """(judgments newest first, info) for parsed args."""
+def build(args, pick=None):
+    """(judgments newest first, info) for parsed args. `pick`: one hub folder (the picker), None for every hub."""
     log, bad = read_log(args.log)
-    pairs, info = select(log, args.hub, args.projects, args.session, args.since, args.last, args.errors)
+    pairs, info = select(log, args.hub, args.projects, args.session, args.since, args.last, args.errors, pick)
     qpath = args.questions
     questions, qerr = load_questions(qpath)
     ver = jev.sagittarius_version()
     js = [judgment(i, r, questions, qerr, qpath, ver) for i, r in pairs]
+    for j, (_, r) in zip(js, pairs):
+        j["hub"] = info["hub_of"].get(r.get("session_id"))
     info.update(bad_lines=bad, checkout_version=ver, questions_file=qpath, questions_error=qerr)
     return js, info
 
@@ -635,6 +718,7 @@ def _stamp(path):
 def serve(args):
     """Serve the report on 127.0.0.1 only. Each page load reads the log again; the page polls /stamp."""
     import http.server
+    import urllib.parse
 
     if args.last is None:
         args.last = 50
@@ -650,17 +734,20 @@ def serve(args):
             self.wfile.write(data)
 
         def do_GET(self):
-            if self.path == "/stamp":
+            url = urllib.parse.urlsplit(self.path)
+            pick = (urllib.parse.parse_qs(url.query).get("hub") or [""])[0]
+            if url.path == "/stamp":
                 self._send(200, _stamp(args.log), "text/plain; charset=utf-8")
                 return
-            if self.path not in ("/", "/index.html"):
+            if url.path not in ("/", "/index.html"):
                 self._send(404, "not found", "text/plain; charset=utf-8")
                 return
             try:
-                js, info = build(args)
+                js, info = build(args, pick or None)
                 meta = (f"log {args.log}; newest {args.last}; {len(js)} judgments; question file {args.questions}; "
-                        f"checkout Sagittarius {info['checkout_version']}" + (f"; hub {args.hub}" if args.hub else ""))
-                page = render_html(js, summarize(js), meta)
+                        f"checkout Sagittarius {info['checkout_version']}" + (f"; hub {args.hub}" if args.hub else "")
+                        + (f"; picked hub {pick}" if pick else ""))
+                page = render_html(js, summarize(js), meta, info["hubs"], pick)
             except (OSError, ValueError) as e:
                 self._send(500, f"inspect: {e}", "text/plain; charset=utf-8")
                 return

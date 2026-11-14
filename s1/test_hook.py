@@ -95,7 +95,7 @@ class Base(unittest.TestCase):
                 {"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]}},
         ])
         self.env = {"TYPESAFE_API_KEY": KEY, "S1_LOG": self.log, "S1_REDACT": self.redact,
-                    "S1_QUESTIONS": os.path.join(HERE, "questions.json")}
+                    "S1_QUESTIONS": os.path.join(HERE, "questions.json"), "S1_WORKBENCH": "off"}
 
     def write_transcript(self, entries):
         with open(self.transcript, "w") as f:
@@ -128,7 +128,8 @@ def subprocess_hook(stdin_text, env, fake_spec=None, timeout=20):
     fake_spec: None runs `python3 s1/hook.py` (real transport; tests use it only where no
     request is made). A dict runs hook.main() with a fake transport that returns
     fake_spec['payload'] after sleeping fake_spec.get('sleep', 0) seconds."""
-    full_env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": env.get("HOME", "/nonexistent")}
+    full_env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": env.get("HOME", "/nonexistent"),
+                "S1_WORKBENCH": "off"}  # s1-inspect: tests that want the workbench set it
     full_env.update(env)
     if fake_spec is None:
         argv = [sys.executable, os.path.join(HERE, "hook.py")]
@@ -1140,6 +1141,157 @@ class SC2Readme(unittest.TestCase):
 
     def test_no_help_with_the_narrowing(self):
         self.assertRegex(self.flat, r"(?i)does not help with the narrowing")
+
+
+class S1IWorkbench(Base):
+    """s1-inspect c1, c2, c6, c9: the live hook reads the workbench (s1/workbench/ by default, or
+    $S1_WORKBENCH) on each prompt: its questions.json and its routing pipeline.py."""
+
+    def setUp(self):
+        super().setUp()
+        self.wb = os.path.join(self.dir, "workbench")
+        os.makedirs(self.wb)
+        with open(os.path.join(HERE, "questions.json")) as f:
+            self.qs = json.load(f)
+        self.env = dict(self.env, S1_WORKBENCH=self.wb)
+        del self.env["S1_QUESTIONS"]
+
+    def write(self, name, text):
+        with open(os.path.join(self.wb, name), "w") as f:
+            f.write(text)
+
+    def sent(self, fake):
+        return [sorted(json.loads(c["body"])["questions"]) for c in fake.calls]
+
+    def test_c1_questions_come_from_the_workbench(self):
+        qs = dict(self.qs, wb_probe={"type": "noul", "instructions": "probe"})
+        self.write("questions.json", json.dumps(qs))
+        fake = Fake()
+        self.context(self.run_hook(fake))
+        self.assertIn("wb_probe", self.sent(fake)[0])
+
+    def test_c1_an_edit_acts_on_the_next_prompt(self):
+        self.write("questions.json", json.dumps(dict(self.qs, wb_one={"type": "noul", "instructions": "1"})))
+        self.run_hook(Fake())
+        self.write("questions.json", json.dumps(dict(self.qs, wb_two={"type": "noul", "instructions": "2"})))
+        fake = Fake()
+        self.run_hook(fake)
+        self.assertIn("wb_two", self.sent(fake)[0])
+        self.assertNotIn("wb_one", self.sent(fake)[0])
+
+    def test_c1_s1_questions_still_wins(self):
+        self.write("questions.json", json.dumps(dict(self.qs, wb_probe={"type": "noul", "instructions": "p"})))
+        fake = Fake()
+        self.run_hook(fake, env=dict(self.env, S1_QUESTIONS=os.path.join(HERE, "questions.json")))
+        self.assertNotIn("wb_probe", self.sent(fake)[0])
+
+    def test_c1_off_and_missing_workbench_use_the_released_questions(self):
+        self.write("questions.json", json.dumps(dict(self.qs, wb_probe={"type": "noul", "instructions": "p"})))
+        for env in (dict(self.env, S1_WORKBENCH="off"),
+                    dict(self.env, S1_WORKBENCH=os.path.join(self.dir, "none"))):
+            fake = Fake()
+            self.assertEqual(self.context(self.run_hook(fake, env=env)), TICKET_LINE)
+            self.assertNotIn("wb_probe", self.sent(fake)[0])
+
+    def test_c2_routing_decides_stages_and_hint(self):
+        self.write("pipeline.py", (
+            "def run(state, ask, questions):\n"
+            "    a = ask({'h_work': questions['h_work']}) or {}\n"
+            "    b = ask({k: v for k, v in questions.items() if k != 'h_work'}) or {}\n"
+            "    return {**a, **b}\n"
+            "def hint(answers, questions):\n"
+            "    return 'WB_HINT ' + answers['h_work']['choice']\n"))
+        fake = Fake()
+        self.assertEqual(self.context(self.run_hook(fake)), "WB_HINT build")
+        self.assertEqual(self.sent(fake)[0], ["h_work"])
+        self.assertEqual(self.sent(fake)[1], sorted(q for q in QIDS if q != "h_work"))
+        calls = [r for r in self.log_lines() if "answers" in r and r.get("answers") is not None]
+        self.assertEqual([r.get("stage") for r in calls], [1, 2])
+        self.assertTrue(all(r.get("routing") == "workbench" for r in calls))
+        self.assertEqual({r.get("session_id") for r in calls}, {"sess-fixture-1"})
+
+    def test_c2_routing_without_hint_uses_the_hooks_line(self):
+        self.write("pipeline.py", "def run(state, ask, questions):\n    return ask(questions)\n")
+        self.assertEqual(self.context(self.run_hook(Fake())), TICKET_LINE)
+
+    def test_c2_routing_gets_the_state_and_the_workbench_questions(self):
+        self.write("questions.json", json.dumps(dict(self.qs, wb_probe={"type": "noul", "instructions": "p"})))
+        self.write("pipeline.py", (
+            "def run(state, ask, questions):\n"
+            "    return {'msg': state['message'], 'ids': sorted(questions)}\n"
+            "def hint(answers, questions):\n"
+            "    return answers['msg'] + '|' + ','.join(answers['ids'])\n"))
+        out = self.context(self.run_hook(Fake()))
+        self.assertTrue(out.startswith("Looks good. Ask Zorblax about it.|"))
+        self.assertIn("wb_probe", out)
+
+    def test_c2_an_edited_routing_acts_on_the_next_prompt(self):
+        body = "def run(s, ask, q):\n    return {}\ndef hint(a, q):\n    return %r\n"
+        self.write("pipeline.py", body % "ONE")
+        self.assertEqual(self.context(self.run_hook(Fake())), "ONE")
+        self.write("pipeline.py", body % "TWO")
+        self.assertEqual(self.context(self.run_hook(Fake())), "TWO")
+
+    def test_c2_routing_can_import_the_hook(self):
+        self.write("pipeline.py", "import hook\ndef run(s, ask, q):\n    return ask(q)\n"
+                   "def hint(a, q):\n    return 'X ' + hook.format_answers(a, q)\n")
+        self.assertEqual(self.context(self.run_hook(Fake())), "X " + TICKET_LINE)
+
+    def assertRoutingFailsOpen(self, out):
+        line = self.context(out)
+        self.assertTrue(line.startswith("System 1: no view (routing: "), line)
+        self.assertNotIn("work=", line)
+
+    def test_c6_routing_that_raises_fails_open_with_one_logged_reason(self):
+        self.write("pipeline.py", "def run(state, ask, questions):\n    raise RuntimeError('wb probe')\n")
+        self.assertRoutingFailsOpen(self.run_hook(Fake()))
+        named = [r for r in self.log_lines() if "wb probe" in json.dumps(r)]
+        self.assertEqual(len(named), 1)
+        self.assertIn("routing", named[0]["skipped"])
+
+    def test_c6_routing_with_a_syntax_error_fails_open(self):
+        self.write("pipeline.py", "def run(state, ask, questions)\n    return {}\n")
+        self.assertRoutingFailsOpen(self.run_hook(Fake()))
+        self.assertEqual(sum("SyntaxError" in json.dumps(r) for r in self.log_lines()), 1)
+
+    def test_c6_routing_with_no_run_or_a_bad_hint_fails_open(self):
+        for text in ("x = 1\n", "def run(s, a, q):\n    return {}\ndef hint(a, q):\n    return 3\n",
+                     "def run(s, a, q):\n    return {}\ndef hint(a, q):\n    raise KeyError('k')\n"):
+            self.write("pipeline.py", text)
+            self.assertRoutingFailsOpen(self.run_hook(Fake()))
+
+    def test_c6_routing_that_returns_no_answers_fails_open(self):
+        self.write("pipeline.py", "def run(s, ask, q):\n    return None\n")
+        self.assertEqual(self.context(self.run_hook(Fake())), no_view("no answer"))
+
+    def test_c6_the_script_exits_0_on_a_broken_routing(self):
+        self.write("pipeline.py", "raise SystemExit(3)\n")
+        p, _ = subprocess_hook(self.payload(), dict(self.env, S1_WORKBENCH=self.wb),
+                               fake_spec={"payload": RECORDED["ticket_example"]})
+        self.assertEqual(p.returncode, 0)
+        self.assertIn("no view (routing: ", p.stdout)
+
+    def test_c9_routing_gets_a_longer_limit(self):
+        h = hook()
+        self.assertGreater(h.WORKBENCH_TIMEOUT, h.DEFAULT_TIMEOUT)
+        self.assertLess(h.WORKBENCH_TIMEOUT + h.GRACE, 10)  # the install gives the hook 10 s
+        self.write("pipeline.py", "import time\ndef run(s, ask, q):\n    time.sleep(1.2)\n    return {}\n"
+                   "def hint(a, q):\n    return 'SLOW OK'\n")
+        out = self.run_hook(Fake(), env=dict(self.env, S1_TIMEOUT="0.5"))
+        self.assertEqual(self.context(out), "SLOW OK")
+
+    def test_c9_routing_past_its_limit_fails_open_and_logs_the_timeout(self):
+        self.write("pipeline.py", "import time\ndef run(s, ask, q):\n    time.sleep(3)\n    return {}\n")
+        out = self.run_hook(Fake(), env=dict(self.env, S1_WORKBENCH_TIMEOUT="0.5"))
+        self.assertEqual(self.context(out), no_view("timeout"))
+        self.assertTrue(any("timeout" in (r.get("skipped") or "") for r in self.log_lines()))
+
+    def test_c9_each_call_gets_the_time_that_is_left(self):
+        self.write("pipeline.py", "def run(s, ask, q):\n    return ask(q)\n")
+        fake = Fake()
+        self.run_hook(fake, env=dict(self.env, S1_WORKBENCH_TIMEOUT="6"))
+        self.assertGreater(fake.calls[0]["timeout"], 4.0)
+        self.assertLessEqual(fake.calls[0]["timeout"], 6.0)
 
 
 if __name__ == "__main__":
