@@ -130,6 +130,18 @@ def hub_map(projects):
     return out
 
 
+def hub_labels(hubs):
+    """{hub: label}: the folder name, or as many parent folders as it takes to tell hubs apart."""
+    parts = {h: [x for x in h.rstrip("/").split("/") if x] for h in hubs if h != UNKNOWN_HUB}
+    out = {UNKNOWN_HUB: UNKNOWN_HUB} if UNKNOWN_HUB in hubs else {}
+    for h, ps in parts.items():
+        n = 1
+        while n < len(ps) and any(o != h and qs[-n:] == ps[-n:] for o, qs in parts.items()):
+            n += 1
+        out[h] = "/".join(ps[-n:]) or h
+    return out
+
+
 def hub_name(path):
     return UNKNOWN_HUB if path in (None, UNKNOWN_HUB) else (os.path.basename(path.rstrip("/")) or path)
 
@@ -549,6 +561,7 @@ def render_html(judgments, summary, meta, hubs=None, picked=""):
     if hubs is None:
         hubs = sorted({j.get("hub") or UNKNOWN_HUB for j in judgments},
                       key=lambda h: (h == UNKNOWN_HUB, hub_name(h).lower(), h))
+    labels = hub_labels(hubs)
     h = ["<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">",
          "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">",
          "<meta name=\"color-scheme\" content=\"light dark\"><title>System 1 inspection</title>",
@@ -569,7 +582,7 @@ def render_html(judgments, summary, meta, hubs=None, picked=""):
         h.append(f"<tr><td>{_e(qid)}</td><td>{_e(d['type'])}</td><td>{d['n']}</td><td>{_e(c)}</td></tr>")
     h.append("</table><h2>Judgments, newest first</h2><div class=\"bar\">"
              "<label>hub <select id=\"hubsel\" aria-label=\"hub\"><option value=\"\">all hubs</option>"
-             + "".join(f"<option value=\"{_e(x)}\" title=\"{_e(x)}\"{' selected' if x == picked else ''}>{_e(hub_name(x))}</option>"
+             + "".join(f"<option value=\"{_e(x)}\" title=\"{_e(x)}\"{' selected' if x == picked else ''}>{_e(labels[x])}</option>"
                        for x in hubs)
              + "</select></label>"
              "<input id=\"q\" placeholder=\"filter text\" aria-label=\"filter\">"

@@ -349,6 +349,27 @@ class LiveServer(unittest.TestCase):
         self.assertNotEqual(a, b)
 
 
+class HubLabels(unittest.TestCase):
+    """c4: two hubs with the same folder name get labels that tell them apart."""
+
+    def test_same_folder_name_gets_the_parent(self):
+        from s1 import s1inspect
+        hubs = ["/h/a/mine/mindhole", "/h/a/work/mindhole", "/h/a/sagittarius", s1inspect.UNKNOWN_HUB]
+        got = s1inspect.hub_labels(hubs)
+        self.assertEqual(got["/h/a/mine/mindhole"], "mine/mindhole")
+        self.assertEqual(got["/h/a/work/mindhole"], "work/mindhole")
+        self.assertEqual(got["/h/a/sagittarius"], "sagittarius")
+        self.assertEqual(got[s1inspect.UNKNOWN_HUB], s1inspect.UNKNOWN_HUB)
+        self.assertEqual(len(set(got.values())), len(hubs))
+
+    def test_the_page_labels_are_unique(self):
+        import re
+        from s1 import s1inspect
+        page = s1inspect.render_html([], s1inspect.summarize([]), "m", ["/x/mine/mindhole", "/x/work/mindhole"])
+        labels = re.findall(r"<option value=\"/x[^\"]*\"[^>]*>(.*?)</option>", page)
+        self.assertEqual(sorted(labels), ["mine/mindhole", "work/mindhole"])
+
+
 class HubPicker(unittest.TestCase):
     """c4: a picker of every hub; each judgment carries its hub, so narrowing works; ?hub= narrows on the server."""
 
