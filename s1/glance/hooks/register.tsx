@@ -153,7 +153,8 @@ function toastAll($: EngineInterface, g: Glance) {
 }
 
 // The status line row: every signal with a one-cell gauge and its label, in ANSI colour (a status line
-// command prints it as is). Only the signals that fired have colour; the rest are dim.
+// command prints it as is). Each gauge has its strength's colour; the label of a signal under its threshold
+// is dim, and a fired one is bright. A stale judgment is dim and colourless.
 const ANSI: Record<Strength, string> = { confident: '\u001b[31m', moderate: '\u001b[33m', weak: '\u001b[37m' }
 const DIM = '\u001b[2m'
 const RESET = '\u001b[0m'
