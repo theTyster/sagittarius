@@ -1,5 +1,6 @@
-"""Your System 1 routing. The live hook reads this file again on every prompt, in every session
-on this machine, and so does ./bench.sh --pipeline pipeline.py.
+"""Your live System 1 routing (the hot-mod area). The live hook reads this file again on every
+prompt, in every session on this machine. To try a change on old prompts first, edit the copy in
+bench/ and run bench/bench.sh.
 
 As it stands it does what the released hook does: one call with every question, and the hook's
 own line. Change it freely: ask in stages, split or merge questions, skip some, write your own line.
