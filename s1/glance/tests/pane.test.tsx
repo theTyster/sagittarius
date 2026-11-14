@@ -222,3 +222,18 @@ test('status line, stale: every signal dim and colourless', async ($, on) => {
   expect(line).not.toContain(`${ESC}[31m`)
   expect(line).not.toContain(`${ESC}[33m`)
 })
+
+test('pane: control characters in what System 1 saw never blank the pane (after /compact)', async ($, on) => {
+  const esc = '\u001b'
+  seed(on, glance({
+    message: `go on${esc}[1m now\u0007`,
+    recent: [{ role: 'you', text: `<local-command-stdout>${esc}[2mCompacted (ctrl+o to see full summary)${esc}[22m</local-command-stdout>` },
+             { role: 'agent', text: 'tab\there\r\nnext' }],
+  }))
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: '🌌 Sagittarius Signals' })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /Compacted \(ctrl\+o to see full summary\)/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /go on now/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /\u001b|\u0007|\r/ })).toBeFalsy()
+  await ui.unmount()
+})
