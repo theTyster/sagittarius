@@ -245,13 +245,12 @@ Tests (no network; invented transcripts only): `python3 -m unittest s1.test_obse
 
 `s1inspect.py` shows what the System 1 model was sent, how it was asked, and what it answered. It is
 for the owner who wants to check the hook by eye. It reads the log and the projects dir, calls no
-network, and writes a file only when you pass `--html`.
+network, and writes no file. To watch Jev's answers live, run `s1/s1watch` in a terminal: it follows
+the log and prints each call as Jev returned it.
 
     python3 s1/s1inspect.py --hub ~/Projects/mine/sagittarius --last 3
     python3 s1/s1inspect.py --hub PATH --summary
-    python3 s1/s1inspect.py --hub PATH --html /tmp/s1.html
     python3 s1/s1inspect.py --errors --json
-    python3 s1/s1inspect.py --hub PATH --serve 8791   # a live page at http://127.0.0.1:8791/
 
 | Option | Meaning |
 |---|---|
@@ -264,9 +263,7 @@ network, and writes a file only when you pass `--html`.
 | `--errors` | only failed calls and hook skip lines |
 | `--questions FILE` | the question file (default `questions.json` of this checkout) |
 | `--json` | one JSON object per judgment, one per line |
-| `--html FILE` | one self-contained HTML report (no outside resource; light and dark) |
 | `--summary` | counts instead of judgments; with `--json`, one object |
-| `--serve PORT` | serve the HTML report on 127.0.0.1 only; each load reads the log again, and the page reloads by itself when the log changes (it keeps the scroll position and the open judgments). Default selection: the newest 50 |
 
 Judgments are listed newest first. Each one has three parts.
 
@@ -285,7 +282,7 @@ Judgments are listed newest first. Each one has three parts.
 Calibration calls in the same log (`calibrate.py`; no session) show as `calibration`. Hub, session
 and a hub filter leave them out.
 
-`--summary` and the top of the HTML report give: judgments, calls, hook skip lines, failed calls,
+`--summary` gives: judgments, calls, hook skip lines, failed calls,
 error rate, median latency, how often each signal fired in the yes band (divergence, change of plan,
 effort, questions not settled, proof asked), and, for each question, how many answers fell in each
 band or choice.
@@ -307,7 +304,7 @@ Limits:
   call, the reason inside the `no view` line comes from the hook's next skip line and may differ.
 - A hub is found only by the projects dir of that exact folder. Sessions in a sub-folder or a
   worktree have their own dir and are not in it. A session whose transcript was deleted is not found.
-- It lists the whole selection; a large log with `--html` makes a large page. Use `--last` or `--since`.
+- It lists the whole selection. On a large log use `--last` or `--since`.
 
 Tests (no network; invented logs and projects dirs): `python3 -m unittest s1.test_s1inspect -v`.
 

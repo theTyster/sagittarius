@@ -257,44 +257,6 @@ class Summary(Base):
         self.assertIn("h_divergence", text)
 
 
-class Html(Base):
-    def test_escaping_and_self_contained(self):
-        evil = '<script>alert("x")</script> & </pre><img src=x onerror=1>'
-        rec = call("s1", message=evil)
-        rec["state"]["recent"][0]["text"] = evil
-        rec["error"] = "boom <b>"
-        skip = {"time": "2026-11-10T10:00:05+00:00", "skipped": "<i>why</i>", "session_id": "s1"}
-        log = self.write_log([rec, skip])
-        out_file = os.path.join(self.dir, "r.html")
-        code, _ = self.run_main(*self.common(log), "--html", out_file)
-        self.assertEqual(code, 0)
-        text = self.read(out_file)
-        self.assertNotIn(evil, text)
-        self.assertNotIn("<img src=x", text)
-        self.assertIn("boom &lt;b&gt;", text)
-        self.assertIn("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;", text)
-        self.assertIn("&lt;i&gt;why&lt;/i&gt;", text)
-        self.assertEqual(text.count("<script>"), 1)  # only the tool's own script
-        for ext in ("http://", "https://", "src=\"", "href=\""):
-            self.assertNotIn(ext, text)
-        for word in ("Saw", "Asked", "Answered"):
-            self.assertIn(f"<summary>{word}</summary>", text)
-        self.assertIn("prefers-color-scheme:dark", text)
-
-    def test_html_has_summary_and_no_key(self):
-        old = os.environ.get("TYPESAFE_API_KEY")
-        os.environ["TYPESAFE_API_KEY"] = "sk-secret-test-key"
-        self.addCleanup(lambda: os.environ.pop("TYPESAFE_API_KEY", None) if old is None
-                        else os.environ.__setitem__("TYPESAFE_API_KEY", old))
-        log = self.write_log([call("s1")])
-        out_file = os.path.join(self.dir, "r.html")
-        self.run_main(*self.common(log), "--html", out_file)
-        text = self.read(out_file)
-        self.assertNotIn("sk-secret-test-key", text)
-        self.assertIn("median latency", text)
-        self.assertIn("error rate", text)
-
-
 class Script(Base):
     def test_runs_as_script_and_reads_only(self):
         log = self.write_log([call("s1")])
@@ -316,62 +278,8 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class LiveServer(unittest.TestCase):
-    """--serve: the page carries the live script, and /stamp changes when the log changes."""
-
-    def test_page_and_stamp(self):
-        import socket, threading, time, urllib.request
-        from s1 import s1inspect
-        d = tempfile.mkdtemp()
-        log = os.path.join(d, "s1.jsonl")
-        with open(log, "w") as f:
-            f.write("")
-        with socket.socket() as s:
-            s.bind(("127.0.0.1", 0))
-            port = s.getsockname()[1]
-        args = s1inspect.parser().parse_args(["--log", log, "--serve", str(port), "--projects", d])
-        t = threading.Thread(target=s1inspect.serve, args=(args,), daemon=True)
-        t.start()
-        url = f"http://127.0.0.1:{port}"
-        for _ in range(50):
-            try:
-                page = urllib.request.urlopen(url + "/").read().decode()
-                break
-            except OSError:
-                time.sleep(0.05)
-        self.assertIn("/stamp", page)
-        self.assertIn('id="live"', page)
-        a = urllib.request.urlopen(url + "/stamp").read().decode()
-        time.sleep(0.01)
-        with open(log, "a") as f:
-            f.write('{"time": "2026-11-13T00:00:00+00:00"}\n')
-        b = urllib.request.urlopen(url + "/stamp").read().decode()
-        self.assertNotEqual(a, b)
-
-
-class HubLabels(unittest.TestCase):
-    """c4: two hubs with the same folder name get labels that tell them apart."""
-
-    def test_same_folder_name_gets_the_parent(self):
-        from s1 import s1inspect
-        hubs = ["/h/a/mine/mindhole", "/h/a/work/mindhole", "/h/a/sagittarius", s1inspect.UNKNOWN_HUB]
-        got = s1inspect.hub_labels(hubs)
-        self.assertEqual(got["/h/a/mine/mindhole"], "mine/mindhole")
-        self.assertEqual(got["/h/a/work/mindhole"], "work/mindhole")
-        self.assertEqual(got["/h/a/sagittarius"], "sagittarius")
-        self.assertEqual(got[s1inspect.UNKNOWN_HUB], s1inspect.UNKNOWN_HUB)
-        self.assertEqual(len(set(got.values())), len(hubs))
-
-    def test_the_page_labels_are_unique(self):
-        import re
-        from s1 import s1inspect
-        page = s1inspect.render_html([], s1inspect.summarize([]), "m", ["/x/mine/mindhole", "/x/work/mindhole"])
-        labels = re.findall(r"<option value=\"/x[^\"]*\"[^>]*>(.*?)</option>", page)
-        self.assertEqual(sorted(labels), ["mine/mindhole", "work/mindhole"])
-
-
-class HubPicker(unittest.TestCase):
-    """c4: a picker of every hub; each judgment carries its hub, so narrowing works; ?hub= narrows on the server."""
+class HubOf(unittest.TestCase):
+    """Each judgment carries its MindHole; --hub narrows to one."""
 
     def setUp(self):
         import re
@@ -399,44 +307,15 @@ class HubPicker(unittest.TestCase):
         from s1 import s1inspect
         return s1inspect, s1inspect.parser().parse_args(["--log", self.log, "--projects", self.projects, *extra])
 
-    def page(self, pick=None):
-        m, a = self.args()
-        js, info = m.build(a, pick)
-        return js, m.render_html(js, m.summarize(js), "meta", info["hubs"], pick or "")
-
-    def test_picker_names_both_hubs(self):
-        _, page = self.page()
-        sel = self.re.findall(r"<select\b.*?</select>", page, self.re.S)
-        self.assertEqual(len(sel), 1)
-        opts = self.re.findall(r"<option\b[^>]*>(.*?)</option>", sel[0], self.re.S)
-        self.assertEqual(opts[0], "all hubs")
-        self.assertEqual(self.re.findall(r"<option\b[^>]*>", sel[0])[0], '<option value="">')
-        self.assertNotIn(" selected", sel[0])  # all hubs is the default: no hub option is pre-selected
-        for h in self.hubs:
-            self.assertIn(h, opts)
-            self.assertIn(self.cwd[h], sel[0])  # full path as the tooltip
-        self.assertIn("(other folders)", opts)
-
-    def test_data_hub_matches_each_judgment(self):
-        js, page = self.page()
-        tags = self.re.findall(r'<details class="j[^"]*" data-hub="([^"]*)"', page)
-        self.assertEqual(len(tags), len(js))
-        self.assertEqual(tags, [j["hub"] or "(other folders)" for j in js])
-        by_msg = {}
-        for j in js:
-            by_msg[j["saw"]["message"]["text"]] = j["hub"]
-        self.assertEqual(by_msg["msg alpha-hub"], self.cwd["alpha-hub"])
-        self.assertEqual(by_msg["msg beta-hub"], self.cwd["beta-hub"])
-        self.assertIsNone(by_msg["msg orphan"])
-
-    def test_server_pick_narrows_and_keeps_all_options(self):
-        js, page = self.page(self.cwd["beta-hub"])
-        self.assertEqual([j["hub"] for j in js], [self.cwd["beta-hub"]])
-        self.assertNotIn("msg alpha-hub", page)
-        self.assertIn("alpha-hub", self.re.findall(r"<select\b.*?</select>", page, self.re.S)[0])
-        self.assertIn(f'value="{self.cwd["beta-hub"]}" title="{self.cwd["beta-hub"]}" selected', page)
-
     def test_hub_option_still_one_hub(self):
         m, a = self.args("--hub", self.cwd["alpha-hub"])
         js, _ = m.build(a)
         self.assertEqual([j["hub"] for j in js], [self.cwd["alpha-hub"]])
+
+    def test_each_judgment_carries_its_hub(self):
+        m, a = self.args()
+        js, _ = m.build(a)
+        by_msg = {j["saw"]["message"]["text"]: j["hub"] for j in js}
+        self.assertEqual(by_msg["msg alpha-hub"], self.cwd["alpha-hub"])
+        self.assertEqual(by_msg["msg beta-hub"], self.cwd["beta-hub"])
+        self.assertIsNone(by_msg["msg orphan"])

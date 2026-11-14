@@ -2,11 +2,11 @@
 """System 1 inspection tool. Python 3 standard library only. Reads; never calls the network.
 
 Shows what the System 1 model (Jev) was sent, how it was asked, and what it answered, from the log
-that jev.py writes ($S1_LOG, else ~/.claude/logs/s1.jsonl). It writes a file only when you pass --html.
+that jev.py writes ($S1_LOG, else ~/.claude/logs/s1.jsonl).
 
     python3 s1/s1inspect.py [--hub PATH] [--log FILE] [--session ID] [--since ISO] [--last N]
                           [--errors] [--questions FILE] [--projects DIR]
-                          [--json | --html FILE | --summary]
+                          [--json | --summary]
 
 The log keeps the question ids, not their text. The text comes from the questions.json of this
 checkout (or --questions). The tool says so when that set may differ from what was sent.
@@ -17,7 +17,6 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 import argparse  # noqa: E402
-import html  # noqa: E402
 import json  # noqa: E402
 import re  # noqa: E402
 import statistics  # noqa: E402
@@ -146,18 +145,6 @@ def hub_map(projects):
                 if hub:
                     out[fn[:-len(".jsonl")]] = hub
     _HUBMAP_CACHE[projects] = (sig, out)
-    return out
-
-
-def hub_labels(hubs):
-    """{hub: label}: the folder name, or as many parent folders as it takes to tell hubs apart."""
-    parts = {h: [x for x in h.rstrip("/").split("/") if x] for h in hubs if h != UNKNOWN_HUB}
-    out = {UNKNOWN_HUB: UNKNOWN_HUB} if UNKNOWN_HUB in hubs else {}
-    for h, ps in parts.items():
-        n = 1
-        while n < len(ps) and any(o != h and qs[-n:] == ps[-n:] for o, qs in parts.items()):
-            n += 1
-        out[h] = "/".join(ps[-n:]) or h
     return out
 
 
@@ -368,18 +355,12 @@ def judgment(index, rec, questions, qerr, qpath, checkout_version):
 
 # ---------------------------------------------------------------- selection
 
-def select(log, args_hub=None, projects=DEFAULT_PROJECTS, session=None, since=None, last=None, errors=False,
-           pick=None):
-    """The (index, record) pairs chosen, newest first. Returns (pairs, info).
-    `pick` is the hub picker's choice: a hub folder, or UNKNOWN_HUB (None: every hub)."""
+def select(log, args_hub=None, projects=DEFAULT_PROJECTS, session=None, since=None, last=None, errors=False):
+    """The (index, record) pairs chosen, newest first. Returns (pairs, info)."""
     info = {"hub_dirs": []}
     keep = list(log)
     hm = hub_map(projects)
-    info["hubs"] = sorted({hm.get(r.get("session_id")) or UNKNOWN_HUB for _, r in keep},
-                          key=lambda h: (h == UNKNOWN_HUB, hub_name(h).lower(), h))
     info["hub_of"] = hm
-    if pick:
-        keep = [(i, r) for i, r in keep if (hm.get(r.get("session_id")) or UNKNOWN_HUB) == pick]
     if args_hub:
         sids, dirs = hub_sessions(args_hub, projects)
         info["hub_dirs"] = dirs
@@ -525,168 +506,12 @@ def render_summary_text(s):
     return "\n".join(out)
 
 
-# ---------------------------------------------------------------- html view
-
-CSS = """
-:root{--bg:#fff;--fg:#1c1c1e;--mut:#6b6b73;--card:#f5f5f7;--bd:#d8d8de;--acc:#2456c9;--bad:#b3261e;--warn:#8a5a00;--code:#ececf1}
-@media(prefers-color-scheme:dark){:root{--bg:#16161a;--fg:#e8e8ec;--mut:#9a9aa6;--card:#202026;--bd:#38383f;--acc:#7aa2ff;--bad:#ff8a80;--warn:#f0c060;--code:#2a2a32}}
-body{background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,sans-serif;margin:0 auto;max-width:1000px;padding:1rem}
-h1{font-size:1.3rem} h2{font-size:1.05rem;margin:1.2rem 0 .4rem}
-.sum{display:flex;flex-wrap:wrap;gap:.6rem}.sum div{background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:.4rem .7rem}
-.sum b{display:block;font-size:1.1rem}
-table{border-collapse:collapse;width:100%}td,th{border:1px solid var(--bd);padding:.2rem .5rem;text-align:left;font-size:.9rem}
-.j{background:var(--card);border:1px solid var(--bd);border-radius:6px;margin:.6rem 0;padding:.3rem .7rem}
-.j>summary{cursor:pointer;font-weight:600}.j.fail>summary{color:var(--bad)}
-.meta{color:var(--mut);font-weight:400;font-size:.85rem}
-details.s{margin:.4rem 0 .4rem .8rem}details.s>summary{cursor:pointer;color:var(--acc);font-weight:600}
-pre{background:var(--code);padding:.5rem;border-radius:4px;white-space:pre-wrap;word-break:break-word;max-height:24rem;overflow:auto;margin:.3rem 0}
-.note{color:var(--warn)}.hint{font-family:ui-monospace,monospace;background:var(--code);padding:.1rem .4rem;border-radius:4px}
-.tag{border:1px solid var(--bd);border-radius:10px;padding:0 .4rem;font-size:.75rem;margin-left:.3rem;color:var(--mut)}
-.bar{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}.bar input{padding:.25rem;min-width:16rem}
-button{background:var(--card);color:var(--fg);border:1px solid var(--bd);border-radius:4px;padding:.25rem .6rem;cursor:pointer}
-"""
-
-JS = """
-const q=document.getElementById('q'),eo=document.getElementById('eo'),hs=document.getElementById('hubsel');
-function f(){const t=q.value.toLowerCase(),h=hs.value;document.querySelectorAll('.j').forEach(d=>{
- const ok=(!t||d.textContent.toLowerCase().includes(t))&&(!eo.checked||d.classList.contains('fail'))
-  &&(!h||d.dataset.hub===h);
- d.hidden=!ok;});}
-q.addEventListener('input',f);eo.addEventListener('change',f);
-// The picked hub lives in the URL (?hub=), so the live reload and a shared link keep it.
-hs.addEventListener('change',function(){try{const u=new URL(location.href);
- if(hs.value)u.searchParams.set('hub',hs.value);else u.searchParams.delete('hub');
- if(document.getElementById('live')){location.href=u.href;return;}  // live page: the server redoes the summary
- history.replaceState(null,'',u.href);}catch(e){}f();});
-try{const p=new URL(location.href).searchParams.get('hub');
- if(p&&[...hs.options].some(o=>o.value===p))hs.value=p;}catch(e){}
-f();
-function all(o){document.querySelectorAll('.j').forEach(d=>{if(!d.hidden)d.open=o;
- d.querySelectorAll('details.s').forEach(s=>s.open=o);});}
-document.getElementById('ex').onclick=()=>all(true);document.getElementById('co').onclick=()=>all(false);
-"""
-
-
-def _e(x):
-    return html.escape("" if x is None else str(x), quote=True)
-
-
-def _pre(x):
-    return f"<pre>{_e(x)}</pre>"
-
-
-def render_html(judgments, summary, meta, hubs=None, picked=""):
-    """`hubs`: every hub for the picker (default: those of the judgments); `picked`: the hub selected at load."""
-    if hubs is None:
-        hubs = sorted({j.get("hub") or UNKNOWN_HUB for j in judgments},
-                      key=lambda h: (h == UNKNOWN_HUB, hub_name(h).lower(), h))
-    labels = hub_labels(hubs)
-    h = ["<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">",
-         "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">",
-         "<meta name=\"color-scheme\" content=\"light dark\"><title>System 1 inspection</title>",
-         f"<style>{CSS}</style></head><body><h1>System 1 inspection</h1>"]
-    h.append(f"<p class=\"meta\">{_e(meta)}</p>")
-    er = "-" if summary["error_rate"] is None else f"{summary['error_rate']:.1%}"
-    ml = "-" if summary["latency_median"] is None else f"{summary['latency_median']:.2f}s"
-    cards = [("judgments", summary["judgments"]), ("calls", summary["calls"]),
-             ("hook skip lines", summary["skip_lines"]), ("failed calls", summary["failed_calls"]),
-             ("error rate", er), ("median latency", ml)]
-    h.append("<div class=\"sum\">" + "".join(f"<div>{_e(k)}<b>{_e(v)}</b></div>" for k, v in cards) + "</div>")
-    h.append("<h2>Signals fired (yes band)</h2><table><tr><th>signal</th><th>calls</th></tr>")
-    for _, name in SIGNALS:
-        h.append(f"<tr><td>{_e(name)}</td><td>{summary['signals_fired'].get(name, 0)}</td></tr>")
-    h.append("</table><h2>Per question</h2><table><tr><th>question</th><th>type</th><th>n</th><th>counts</th></tr>")
-    for qid, d in summary["questions"].items():
-        c = ", ".join(f"{k} {v}" for k, v in sorted(d["counts"].items(), key=lambda kv: -kv[1]))
-        h.append(f"<tr><td>{_e(qid)}</td><td>{_e(d['type'])}</td><td>{d['n']}</td><td>{_e(c)}</td></tr>")
-    h.append("</table><h2>Judgments, newest first</h2><div class=\"bar\">"
-             "<label>hub <select id=\"hubsel\" aria-label=\"hub\"><option value=\"\">all hubs</option>"
-             + "".join(f"<option value=\"{_e(x)}\" title=\"{_e(x)}\"{' selected' if x == picked else ''}>{_e(labels[x])}</option>"
-                       for x in hubs)
-             + "</select></label>"
-             "<input id=\"q\" placeholder=\"filter text\" aria-label=\"filter\">"
-             "<label><input type=\"checkbox\" id=\"eo\"> failed only</label>"
-             "<button id=\"ex\">expand all</button><button id=\"co\">collapse all</button></div>")
-    for j in judgments:
-        fail = " fail" if j["failed"] else ""
-        if j["kind"] == "skip":
-            h.append(f"<details class=\"j{fail}\" data-hub=\"{_e(j.get('hub') or UNKNOWN_HUB)}\"><summary>{_e(j['time'])} session {_e(j['session_short'])} "
-                     f"hook skip<span class=\"meta\"> {_e(j['answered']['skipped'])}</span></summary>"
-                     f"<p>The agent got: <span class=\"hint\">{_e(j['answered']['hint'])}</span></p></details>")
-            continue
-        u = j["usage"]
-        tok = "-" if not isinstance(u, dict) else ", ".join(f"{k}={v}" for k, v in u.items())
-        tags = "".join(f"<span class=\"tag\">{_e(t)}</span>" for t, on in
-                       (("trimmed", j["trimmed"]), ("long_context", j["long_context"]),
-                        ("calibration", j["kind"] == "calibration"), ("failed", j["failed"])) if on)
-        lat = _fmt_p(j["latency"])
-        h.append(f"<details class=\"j{fail}\" data-hub=\"{_e(j.get('hub') or UNKNOWN_HUB)}\"><summary>{_e(j['time'])} session {_e(j['session_short'])} "
-                 f"<span class=\"meta\">{_e(j['model'])}, {_e(lat)}s, tokens {_e(tok)}, "
-                 f"Sagittarius {_e(j['sagittarius'])}</span>{tags}</summary>")
-        s = j["saw"]
-        h.append("<details class=\"s\"><summary>Saw</summary>")
-        if s is None:
-            h.append("<p>No state in this line.</p>")
-        else:
-            for r in s["recent"]:
-                h.append(f"<div>recent: {_e(r['role'])} <span class=\"meta\">{r['chars']} chars</span></div>{_pre(r['text'])}")
-            h.append(f"<div>message <span class=\"meta\">{s['message']['chars']} chars</span></div>{_pre(s['message']['text'])}")
-        h.append("</details>")
-        a = j["asked"]
-        h.append("<details class=\"s\"><summary>Asked</summary>")
-        for n in a["notes"]:
-            h.append(f"<p class=\"note\">{_e(n)}</p>")
-        h.append(f"<p>Match with the question file: <b>{_e(a['match'])}</b>"
-                 + (f" <span class=\"meta\">logged hash {_e(a['questions_sha_logged'])}</span>" if a["questions_sha_logged"] else "")
-                 + "</p>")
-        for qid in a["question_ids"]:
-            q = a["questions"][qid]
-            if q is None:
-                h.append(f"<p><b>{_e(qid)}</b> (text not in the question file)</p>")
-                continue
-            crit = "".join(f"<li><b>{_e(c)}</b>: {_e(t)}</li>" for c, t in (q.get("criteria") or {}).items())
-            h.append(f"<p><b>{_e(qid)}</b> <span class=\"meta\">{_e(q.get('type'))}</span><br>"
-                     f"{_e(q.get('instructions'))}</p>" + (f"<ul>{crit}</ul>" if crit else ""))
-        if a["request_body"] is not None:
-            shape = {"model": a["request_body"]["model"], "state": a["request_body"]["state"],
-                     "questions": a["request_body"]["questions"]}
-            h.append("<details class=\"s\"><summary>Request body (no key, no headers)</summary>"
-                     + _pre(json.dumps(shape, indent=1, ensure_ascii=False)) + "</details>")
-        h.append("</details>")
-        r = j["answered"]
-        h.append("<details class=\"s\"><summary>Answered</summary>")
-        if r["error"]:
-            h.append(f"<p class=\"note\">error: {_e(r['error'])}</p>")
-        rows = []
-        for qid, x in (r["answers"] or {}).items():
-            if x.get("malformed"):
-                v = "malformed " + str(x.get("reason", ""))
-            elif x["type"] == "noul":
-                v = f"P(yes) {_fmt_p(x['value'])} -> {x['band']}"
-            elif x["type"] == "choice":
-                pr = x.get("probabilities")
-                v = (f"{x['choice']} P={_fmt_p(x['p'])} -> "
-                     + ("shown" if x["band"] == "shown" else "unsure")
-                     + ("; " + ", ".join(f"{k} {_fmt_p(p)}" for k, p in pr.items()) if pr else ""))
-            else:
-                v = str(x.get("type"))
-            rows.append(f"<tr><td>{_e(qid)}</td><td>{_e(v)}</td></tr>")
-        if rows:
-            h.append("<table>" + "".join(rows) + "</table>")
-        h.append(f"<p>The agent got: <span class=\"hint\">{_e(r['hint'] or '(not known)')}</span></p>")
-        if r["hint_note"]:
-            h.append(f"<p class=\"meta\">{_e(r['hint_note'])}</p>")
-        h.append("</details></details>")
-    h.append(f"<script>{JS}</script></body></html>")
-    return "\n".join(h)
-
-
 # ---------------------------------------------------------------- main
 
-def build(args, pick=None):
-    """(judgments newest first, info) for parsed args. `pick`: one hub folder (the picker), None for every hub."""
+def build(args):
+    """(judgments newest first, info) for parsed args."""
     log, bad = read_log(args.log)
-    pairs, info = select(log, args.hub, args.projects, args.session, args.since, args.last, args.errors, pick)
+    pairs, info = select(log, args.hub, args.projects, args.session, args.since, args.last, args.errors)
     qpath = args.questions
     questions, qerr = load_questions(qpath)
     ver = jev.sagittarius_version()
@@ -710,99 +535,12 @@ def parser():
     p.add_argument("--projects", default=DEFAULT_PROJECTS, help="the Claude Code projects dir")
     p.add_argument("--json", action="store_true", help="one JSON object per judgment, one per line "
                    "(with --summary: one summary object)")
-    v = p.add_mutually_exclusive_group()
-    v.add_argument("--html", metavar="FILE", help="write one self-contained HTML report")
-    v.add_argument("--summary", action="store_true", help="counts per question over the selection")
-    v.add_argument("--serve", type=int, metavar="PORT", help="serve the HTML report on 127.0.0.1:PORT; the "
-                   "page reloads by itself when the log changes (default selection: the newest 50)")
+    p.add_argument("--summary", action="store_true", help="counts per question over the selection")
     return p
-
-
-# ---------------------------------------------------------------- live server
-
-# Polls /stamp; on a change, keeps the scroll position and which judgments are open, then reloads.
-LIVE_JS = """
-(function(){
-  var KEY='s1inspect-live', last=null;
-  function keyOf(d){var s=d.querySelector('summary');return s?s.textContent.slice(0,120):'';}
-  try{var st=JSON.parse(sessionStorage.getItem(KEY)||'null');
-    if(st){document.querySelectorAll('details').forEach(function(d){if(st.open.indexOf(keyOf(d))>=0)d.open=true;});
-      window.scrollTo(0,st.y);}}catch(e){}
-  function save(){var open=[];document.querySelectorAll('details[open]').forEach(function(d){open.push(keyOf(d));});
-    try{sessionStorage.setItem(KEY,JSON.stringify({y:window.scrollY,open:open}));}catch(e){}}
-  function poll(){fetch('/stamp',{cache:'no-store'}).then(function(r){return r.text();}).then(function(t){
-      if(last!==null&&t!==last){save();location.reload();return;} last=t;
-      var b=document.getElementById('live');if(b)b.textContent='live: watching the log';
-    }).catch(function(){var b=document.getElementById('live');if(b)b.textContent='live: server stopped';});}
-  poll();setInterval(poll,2000);
-})();
-"""
-
-
-def _stamp(path):
-    try:
-        st = os.stat(path)
-        return f"{st.st_mtime_ns}:{st.st_size}"
-    except OSError:
-        return "none"
-
-
-def serve(args):
-    """Serve the report on 127.0.0.1 only. Each page load reads the log again; the page polls /stamp."""
-    import http.server
-    import urllib.parse
-
-    if args.last is None:
-        args.last = 50
-
-    class Handler(http.server.BaseHTTPRequestHandler):
-        def _send(self, code, body, ctype):
-            data = body.encode("utf-8")
-            self.send_response(code)
-            self.send_header("Content-Type", ctype)
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
-
-        def do_GET(self):
-            url = urllib.parse.urlsplit(self.path)
-            pick = (urllib.parse.parse_qs(url.query).get("hub") or [""])[0]
-            if url.path == "/stamp":
-                self._send(200, _stamp(args.log), "text/plain; charset=utf-8")
-                return
-            if url.path not in ("/", "/index.html"):
-                self._send(404, "not found", "text/plain; charset=utf-8")
-                return
-            try:
-                js, info = build(args, pick or None)
-                meta = (f"log {args.log}; newest {args.last}; {len(js)} judgments; question file {args.questions}; "
-                        f"checkout Sagittarius {info['checkout_version']}" + (f"; hub {args.hub}" if args.hub else "")
-                        + (f"; picked hub {pick}" if pick else ""))
-                page = render_html(js, summarize(js), meta, info["hubs"], pick)
-            except (OSError, ValueError) as e:
-                self._send(500, f"inspect: {e}", "text/plain; charset=utf-8")
-                return
-            live = (f"<p id=\"live\" class=\"meta\">live: connecting</p><script>{LIVE_JS}</script>")
-            page = page.replace("</body></html>", live + "</body></html>", 1)
-            self._send(200, page, "text/html; charset=utf-8")
-
-        def log_message(self, *a):  # quiet
-            pass
-
-    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", args.serve), Handler)
-    print(f"serving http://127.0.0.1:{args.serve}/ (newest {args.last}; ctrl+c stops)", flush=True)
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    return 0
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
-    if args.serve is not None:
-        return serve(args)
     try:
         js, info = build(args)
     except (OSError, ValueError) as e:
@@ -810,14 +548,7 @@ def main(argv=None):
         return 2
     if args.hub and not info["hub_dirs"]:
         print(f"inspect: no projects dir found for hub {args.hub} under {args.projects}", file=sys.stderr)
-    if args.html:
-        meta = (f"log {args.log}; {len(js)} judgments; question file {args.questions}; "
-                f"checkout Sagittarius {info['checkout_version']}"
-                + (f"; hub {args.hub}" if args.hub else ""))
-        with open(args.html, "w", encoding="utf-8") as f:
-            f.write(render_html(js, summarize(js), meta))
-        print(f"wrote {args.html} ({len(js)} judgments)")
-    elif args.summary:
+    if args.summary:
         s = summarize(js)
         print(json.dumps(s, indent=1) if args.json else render_summary_text(s))
     elif args.json:
