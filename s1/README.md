@@ -312,8 +312,8 @@ Tests (no network; invented transcripts only): `python3 -m unittest s1.test_obse
 
 `s1inspect.py` shows what the System 1 model was sent, how it was asked, and what it answered. It is
 for the owner who wants to check the hook by eye. It reads the log and the projects dir, calls no
-network, and writes no file. To watch Jev's answers live, run `s1/s1watch` in a terminal: it follows
-the log and prints each call as Jev returned it.
+network, and writes no file. To watch the System 1 model's answers live, run `s1/s1watch` in a terminal: it follows
+the log and prints each call as the model returned it.
 
     python3 s1/s1inspect.py --hub ~/Projects/mine/sagittarius --last 3
     python3 s1/s1inspect.py --hub PATH --summary

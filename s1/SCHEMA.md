@@ -1,11 +1,11 @@
 # System 1: the state and the log
 
 This file describes the data that System 1 keeps and sends. It covers three things: the state that
-the hook sends to the model (Jev), the answer that Jev returns for each question, and the log line
+the hook sends to the System 1 model, the answer that the model returns for each question, and the log line
 that `jev.py` writes for each call. `test_schema.py` fails when the code writes a log field that
 this file does not name.
 
-## The state sent to Jev
+## The state sent to the System 1 model
 
 The hook sends one JSON object as `state`:
 
@@ -25,7 +25,7 @@ The request body is `{"model", "state", "questions"}`. `questions` is the questi
 whose keys are question ids and whose values are `{type, instructions, criteria?}`
 (`questions.json`, or the workbench copy).
 
-## The answers that Jev returns
+## The answers that the System 1 model returns
 
 `answers` is an object keyed by question id. Each answer has a `type`, and its other fields
 depend on that type. Source: the TypeSafe API, https://docs.typesafe.ai/api/system-one.md.
@@ -52,9 +52,9 @@ bench replay writes to the bench log. The API key is never written.
 | `questions` | jev.py | The question ids that were sent, as a list. |
 | `questions_sha` | jev.py | The first 12 hex digits of the sha256 of the canonical JSON (sorted keys, no spaces) of the question set that was sent. |
 | `state` | jev.py | The state that was sent (see above), or null when the input was malformed. |
-| `answers` | jev.py | The answers object as Jev returned it, or null when the call failed. |
+| `answers` | jev.py | The answers object as the model returned it, or null when the call failed. |
 | `latency` | jev.py | The seconds that the call took. |
-| `usage` | jev.py | The token counts that Jev returned (`input_tokens`, `output_tokens`), or null. |
+| `usage` | jev.py | The token counts that the model returned (`input_tokens`, `output_tokens`), or null. |
 | `error` | jev.py | null, or the reason why the call failed (`timeout: ...`, `HTTPError: ...`, `no answer for ...`). |
 | `sagittarius` | jev.py | The Sagittarius version that ran. |
 | `session_id` | hook.py | The Claude Code session id. |

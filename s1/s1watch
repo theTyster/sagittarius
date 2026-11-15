@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# s1watch: print each System 1 call of the live log as Jev answered it.
+# s1watch: print each System 1 call of the live log as the System 1 model answered it.
 #
 #   s1watch [-n N] [--once]
 #
 # Shows the last N calls (default 5), then follows the log. --once prints and stops.
 # For each call: a header (local time, session name, routing, latency), the start of the message,
-# then Jev's answers as returned, pretty-printed by jq. It knows no question name or answer type,
+# then the model's answers as returned, pretty-printed by jq. It knows no question name or answer type,
 # so a new question shows with no change here.
 # S1_LOG (default ~/.claude/logs/s1.jsonl). S1_SESSIONS (default ~/.claude/sessions) names sessions.
 set -u

@@ -1,5 +1,5 @@
 """Tests for s1-rewind-context: System 1 is sent the conversation Claude holds (claims c1c, c2,
-c3, c4, c6b, c7, c8, c9; guards G1-G7 of the ticket's TLA+ model). No network: every Jev call goes
+c3, c4, c6b, c7, c8, c9; guards G1-G7 of the ticket's TLA+ model). No network: every System 1 call goes
 through a fake transport. Every transcript here is made by hand (invented text).
 
 Run from the repo root:  python3 -m unittest s1.test_rewind -v

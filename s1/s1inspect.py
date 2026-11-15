@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """System 1 inspection tool. Python 3 standard library only. Reads; never calls the network.
 
-Shows what the System 1 model (Jev) was sent, how it was asked, and what it answered, from the log
+Shows what the System 1 model was sent, how it was asked, and what it answered, from the log
 that jev.py writes ($S1_LOG, else ~/.claude/logs/s1.jsonl).
 
     python3 s1/s1inspect.py [--hub PATH] [--log FILE] [--session ID] [--since ISO] [--last N]
@@ -161,7 +161,7 @@ def parse_time(s):
 
 
 def questions_sha(questions):
-    return jev.questions_sha(questions) if hasattr(jev, "questions_sha") else None
+    return jev.questions_sha(questions)
 
 
 def load_questions(path):

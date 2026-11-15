@@ -24,7 +24,7 @@ off for one session; deleting `pipeline.py` gives the released routing back.
 
 | Do | Command |
 |---|---|
-| Watch live what Jev answers, every session on the machine | `../s1watch` (the right pane of the s1-bench window); `../s1watch --once -n 20` prints the last 20 and stops |
+| Watch live what the System 1 model answers, every session on the machine | `../s1watch` (in nvim's terminal, `,tt`); `../s1watch --once -n 20` prints the last 20 and stops |
 | Replay the newest 5 of a repo's prompts with the bench files | `bench/bench.sh --hub ~/Projects/mine/sagittarius` |
 | The same, but tell model noise from your change | `bench/bench.sh --hub ~/Projects/mine/sagittarius --baseline` |
 | A MindHole's prompts | `bench/bench.sh --hub ~/Projects/mine/mindhole --last 10` |
@@ -41,7 +41,7 @@ Each bench call costs one request to TypeSafe, and goes to `~/.claude/logs/s1-be
 to the hook's log. Live calls go to `~/.claude/logs/s1.jsonl`, one line per `ask()`, with
 `"routing": "workbench"` and the `"stage"`.
 
-TypeSafe's advice for questions (docs.typesafe.ai, "Model jaggedness"): Jev reads the words literally;
+TypeSafe's advice for questions (docs.typesafe.ai, "Model jaggedness"): the System 1 model reads the words literally;
 put the exact condition in `instructions` and the boundary cases in `criteria`; keep them aligned; avoid
 double negatives; a choice leans to its first option (reorder to check).
 
