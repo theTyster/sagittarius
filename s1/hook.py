@@ -449,7 +449,8 @@ def run(raw, env, transport=None):
                 try:
                     got = combine(got, state)
                     # a second line, so that the status line reads the combined answers
-                    jev._log(log_path, key, dict(lx, time=jev._now(), combined=True, answers=got, error=None))
+                    jev._log(log_path, key, dict(lx, time=jev._now(), combined=True, answers=got, error=None,
+                                                 part_text=[x[:160] for x in state["sentences"]]))
                 except Exception as e:  # the fan-out fails open: the line comes from the plain answers
                     _skip(log_path, key, f"fan-out: {type(e).__name__}: {e}", lx)
             box["answers"] = got

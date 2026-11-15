@@ -38,6 +38,8 @@ Earlier versions, named after the fact so that a report can refer to them:
   message`. `S1_FANOUT=0` gives the earlier behavior. This changes what a session is told, so it is
   a MINOR change when it is released; the owner sets the number. The prompt does not yet name the
   new hint. Evidence and limits: `s1/research/2026-11-15-question-eval/README.md`.
+- **System 1: the live view.** `s1/live.py` prints the hook's judgments of a session as a pane, a
+  corner, a toast line or JSON. The status line segment shows a reversal and the number of parts.
 
 ## Sagittarius 0.4.0 (2026-11-12)
 

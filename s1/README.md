@@ -257,3 +257,29 @@ Why, and how well it works: `research/2026-11-15-question-eval/README.md`. Tests
 - An answer or an open question inside a long ramble is found less often than in a short message.
 - A pasted failure report ("it failed on prod:" and a log) is not seen as a divergence.
 - All labels behind these rules are the agent's. No human has confirmed them.
+
+## The live view (`live.py`)
+
+`live.py` reads the S1 log and shows what the System 1 model said about the session's messages. It
+is the data source for a pane, a corner, a toast, or any other display. Standard library only, no
+network, fails quiet (prints nothing on any error).
+
+    python3 s1/live.py --format pane|corner|toast|json [--session ID | --stdin] [--log FILE]
+                       [--turns N] [--no-color] [--width N]
+
+| Format | For | What it prints |
+|---|---|---|
+| `pane` | a pane beside the chat | the newest message: a bar for each signal, the part that fired it, a row for each part of the message (what the part does, and six probabilities), and sparklines of the session with latency and token totals |
+| `corner` | a small corner display | three lines: the signals that fired, the work kind with latency and part count, two sparklines |
+| `toast` | a notification | one line, only when the newest message fired a signal; else nothing |
+| `json` | your own renderer | `{"session", "turns": [...]}`; each turn has `signals`, `fired`, `parts`, `latency`, `tokens`, `work`, `tool` |
+
+The session is `--session`; or `--stdin` reads `{"session_id": ...}` as a status line command gets
+it; else the newest session in the log. Color follows `--no-color` and `NO_COLOR`.
+
+The status line segment (`statusline.py`) also shows `rev 0.90` when a decision is reversed inside
+the message, and `N parts` when the message was read in more than one part.
+
+The pane, corner and toast mods themselves are not in this repository (2026-11-15). Each needs one
+command: `python3 ~/.claude/sagittarius-s1/live.py --format <name> --stdin` (or `--session`).
+Tests: `test_live.py`.
