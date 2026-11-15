@@ -126,6 +126,8 @@ Set `S1_OFF=1`: for one session, start it with `S1_OFF=1 claude`; for all sessio
 | `S1_TIMEOUT` | `4` | seconds for the System 1 model call |
 | `S1_CONTEXT_MESSAGES` | `3` | messages in `recent` (never below 3) |
 | `S1_QUESTIONS` | `s1/questions.json` | the question set |
+| `S1_FANOUT` | unset | `0`: turn the fan-out off (the questions of `questions.json` alone) |
+| `S1_FANOUT_FILE` | `s1/fanout.json` | the questions of the fan-out |
 | `S1_LOG` | `~/.claude/logs/s1.jsonl` | the log (`jev.py` writes it) |
 
 Each log line is the `jev.py` record (no key; the state as sent) plus `session_id` and
@@ -225,3 +227,33 @@ Its limits (it prints them too):
   nearest prompt in time (at most 5 minutes).
 
 Tests (no network; invented transcripts only): `python3 -m unittest s1.test_observe -v`.
+
+## The fan-out
+
+One request still, but the message is read part by part. `hook.split_parts` cuts the message: each
+sentence is a part for a short message; a long or voiced message (no sentence ends) is packed into
+parts of at most 600 characters, and the whole message is always read. Each part gets the seven
+questions of `fanout.json` (`part`), in the same request as the questions of `questions.json`.
+`hook.combine` then writes four answers from the parts and adds one:
+
+| Answer | Rule |
+|---|---|
+| `h_divergence` | the highest "doubts" or "faults" of a part; a fault does not count in a part that changes or adds to the request, or answers the agent; 0 when `recent` has no agent message |
+| `h_change_of_plan` | the highest "changes" of a part; 0 with no agent message |
+| `h_questions` | only when the agent's last reply has a question mark: the highest "asks" or "undecided" of a part, or, for more than six parts, the whole-message answer `f_open` |
+| `h_effort` | the answer of `h_effort`; for a message of 800 characters or more, at least 1 - P(`f_pasted`) |
+| `h_reversal` (new) | the highest "reverses" of a part. In the yes band the line says `decision reversed in message (0.90)`, and it counts as a signal |
+
+`h_work`, `h_language` and `h_proof` are as before. The plain answers of the four rewritten
+questions are still asked and logged, and are not used. The log gets a second line for each call
+(`"combined": true`) with the combined answers, so the status line shows what the hint line said.
+If a fan-out answer is malformed, the line comes from the plain answers (a skip line says why).
+
+Why, and how well it works: `research/2026-11-15-question-eval/README.md`. Tests: `test_fanout.py`
+(no network) and `research/2026-11-15-question-eval/fresh/check.py` (live). Known limits:
+
+- A reversal inside the message also reads as a change of plan; the line can name both.
+- When the human reverses and returns to the first decision, "change of plan" is still named.
+- An answer or an open question inside a long ramble is found less often than in a short message.
+- A pasted failure report ("it failed on prod:" and a log) is not seen as a divergence.
+- All labels behind these rules are the agent's. No human has confirmed them.

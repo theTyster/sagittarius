@@ -1,0 +1,45 @@
+{
+ "_comment": "The fan-out of the System 1 hook: questions asked once for each part of the human's message ({part} becomes the path of the part), and two helpers for the whole message. hook.py combines the answers (combine). Evidence: s1/research/2026-11-15-question-eval/README.md.",
+ "part": {
+  "react": {
+   "type": "choice",
+   "instructions": "What does {part} do, in relation to the agent's last reply?",
+   "criteria": {
+    "accepts": "Accepts or approves what the agent did",
+    "corrects": "Says the agent's work is wrong, incomplete or not what was asked",
+    "doubts": "Questions or doubts what the agent did, without saying it is wrong",
+    "changes_request": "Replaces, drops or reverses something the human asked for earlier",
+    "adds_request": "Asks for something more, on top of what was asked",
+    "answers": "Answers a question that the agent asked",
+    "asks_back": "Leaves the agent's question open, or answers it with a question",
+    "new_topic": "Starts something that has nothing to do with the agent's last reply"
+   }
+  },
+  "doubts": {
+   "type": "noul",
+   "instructions": "Does {part} doubt or question what the agent did?",
+   "criteria": {"true": "Asks whether the agent really did something, why it did it that way, or shows surprise at it", "false": "Asks about the system or the task, not about the agent's own work"}
+  },
+  "faults": {
+   "type": "noul",
+   "instructions": "Does {part} say that something the agent did is wrong, broken or missing?",
+   "criteria": {"true": "Names a fault in the agent's own work, or says the work is not what was asked for", "false": "Reports a problem in another part of the system, changes what the human asked for, asks for more, asks a neutral question, or accepts the work"}
+  },
+  "changes": {
+   "type": "noul",
+   "instructions": "Does {part} change what the human asked for before?",
+   "criteria": {"true": "Replaces, drops or reverses an earlier request or preference", "false": "Continues the earlier request, corrects a mistake of the agent, or asks for something new"}
+  },
+  "asks": {"type": "noul", "instructions": "Does {part} ask the agent a question about the task?"},
+  "undecided": {"type": "noul", "instructions": "Does {part} say that the human does not know or has not decided something yet?"},
+  "reverses": {"type": "noul", "instructions": "Does {part} take back or replace something that the human said earlier in the same message?"}
+ },
+ "whole": {
+  "f_pasted": {"type": "noul", "instructions": "Is most of `message` pasted output, such as a log, an error trace or code?"},
+  "f_open": {
+   "type": "noul",
+   "instructions": "Does `message` leave a question of the agent open, or answer it with a new question?",
+   "criteria": {"true": "Says it does not know yet, or asks something back that must be settled first", "false": "Answers what the agent asked, or the agent asked nothing"}
+  }
+ }
+}

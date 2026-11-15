@@ -1,7 +1,7 @@
 # Question-set research for the System 1 hook (2026-11-15)
 
-A record of one research session. Nothing here changes the hook: `s1/questions.json`, `s1/hook.py`
-and their tests are as they were. This directory holds the cases, the scripts, the raw answers and
+A record of one research session. The first commit of this directory changed nothing in the hook.
+A later commit built result 6 into the hook (see "The build" below); `s1/questions.json` is unchanged. This directory holds the cases, the scripts, the raw answers and
 the results, so that a later change can start from evidence.
 
 Model: `jev-1.14.0`, live. About 43,000 requests. The first 5 USD of credit was used up (see
@@ -164,6 +164,25 @@ punctuation.
   between yes and no.
 - With no agent message in `recent`, the shipped set still answers: a first message got "questions
   not settled" at 0.76. A gate in code removes this class of error.
+
+## The build (after the research)
+
+The owner said to build. `s1/hook.py` now has the fan-out with chunks over the whole message
+(`split_parts`, `fanout_questions`, `combine`), the questions are in `s1/fanout.json`, and the tests
+are in `s1/test_fanout.py`. `S1_FANOUT=0` restores the plain path. Differences from result 6 and 7:
+
+- Parts are sentences for a short message, and chunks of at most 600 characters for a long one.
+- Questions open uses the whole-message question for a message of more than six parts, because the
+  per-chunk rule was wrong with confidence on voiced rambles.
+- Effort is at least 1 - P(pasted) for a message of 800 characters or more. 800 is a guess.
+- A reversal inside the message is a new answer, `h_reversal`.
+
+Fresh check (`fresh/cases.py`, 46 cases written after the rules were fixed; `fresh/check.py`,
+output of the second run in `fresh/check.out`): divergence 35 of 37 (plain 29), change of plan 22
+of 26 (plain 12), questions 15 of 18 (plain 14), effort 12 of 12 (plain 4), reversal 11 of 11. The
+reversal rule was changed after the first run on these cases, so its number is tuned. One live run
+of the real script on a 6,800-character voiced prompt with a reversal named the divergence and the
+effort and did not name the reversal: reversal on voiced text is not reliable.
 
 ## What went wrong
 
