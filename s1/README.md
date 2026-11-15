@@ -281,7 +281,19 @@ with `/s1-glance pane | toast | corner | status | off` (any together). The choic
 later session. A new setup starts with the pane. The `status` view writes one line with colors to
 `~/.claude/s1-glance/<session id>.status`; a status line command can print that file as its first row.
 
-Tests (no network): `claude plugin test s1/glance`.
+The pane has three tabs. They draw from one history and share one cursor, so a move in one is a
+move in all:
+
+| Tab (key) | What it shows | Keys |
+|---|---|---|
+| now (`1`) | The signals of one judgment, and why. Under the bars, the message is a strip of cells, one for each part that the hook read (see "The fan-out"). A cell's height and color are the strongest answer of its part. The picked part (◆) shows its text, what it does (accepts, corrects, doubts, changes the ask, adds to it, answers, asks back, new topic), and a bar for each answer that stands out. The pane opens on the part where the most stands out. | `j` `k`: the part before, the part after |
+| trend (`2`) | Every signal over the session: one row per signal, one cell per judgment, colored by strength. A failed call is a red ×. A row of latency sits under them. The cursor's judgment is the bright column with ▲ under it; the line below names what fired there. | `p` `n`: move the cursor; `l`: back to live |
+| health (`3`) | How the hook performs: latency per call with median and maximum; tokens per call with their sum and cost; failed calls; and for each signal a bar of how often it said yes, said nothing (the unsure band), or said no. Last: how many judgments were read in parts, and how many came through the workbench or the late fix. | |
+
+A toast of a signal that came from a part also quotes that part. The status line and the corner
+show the reversal when the hook names one.
+
+Tests (no network): `claude plugin test s1/glance` (`tests/pane.test.tsx`, `tests/charts.test.tsx`).
 
 ## The observation harness (0.3.0, suggestion 3)
 
@@ -431,7 +443,7 @@ Why, and how well it works: `research/2026-11-15-question-eval/README.md`. Tests
 ## The live view (`live.py`)
 
 `live.py` reads the S1 log and shows what the System 1 model said about the session's messages. It
-is the data source for a pane, a corner, a toast, or any other display. Standard library only, no
+prints them as text for a terminal or as JSON for a script. Standard library only, no
 network, fails quiet (prints nothing on any error).
 
     python3 s1/live.py --format pane|corner|toast|json [--session ID | --stdin] [--log FILE]
@@ -450,6 +462,6 @@ it; else the newest session in the log. Color follows `--no-color` and `NO_COLOR
 The status line segment (`statusline.py`) also shows `rev 0.90` when a decision is reversed inside
 the message, and `N parts` when the message was read in more than one part.
 
-The pane, corner and toast mods themselves are not in this repository (2026-11-15). Each needs one
-command: `python3 ~/.claude/sagittarius-s1/live.py --format <name> --stdin` (or `--session`).
-Tests: `test_live.py`.
+`live.py` is a command-line view for a shell, a script or a review of a log. Inside Claude Code,
+the Sagittarius Signals mod (`glance/`) is the live view; it reads the log itself and does not use
+`live.py`. Tests: `test_live.py`.
