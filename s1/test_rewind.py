@@ -90,7 +90,7 @@ class Base(unittest.TestCase):
         self.log = os.path.join(d.name, "logs", "s1.jsonl")
         self.state = os.path.join(d.name, "latefix")
         self.env = {"TYPESAFE_API_KEY": KEY, "S1_LOG": self.log, "S1_LATEFIX_DIR": self.state,
-                    "S1_QUESTIONS": os.path.join(HERE, "questions.json")}
+                    "S1_QUESTIONS": os.path.join(HERE, "questions.json"), "S1_WORKBENCH": "off"}
         self.spawned = []
 
     def write(self, lines):

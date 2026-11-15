@@ -45,8 +45,18 @@ divergence, a likely change of plan, significant effort), or when a proof is ask
 
 Env: TYPESAFE_API_KEY (the key), S1_OFF=1 (do nothing), S1_TIMEOUT (seconds, default 4),
 S1_CONTEXT_MESSAGES (default 3, never below 3),
-S1_QUESTIONS (default s1/questions.json), S1_LOG (default ~/.claude/logs/s1.jsonl),
+S1_QUESTIONS (default: the workbench's questions.json, else s1/questions.json),
+S1_LOG (default ~/.claude/logs/s1.jsonl), S1_WORKBENCH (default s1/workbench/; "off" ignores it),
+S1_WORKBENCH_TIMEOUT (seconds for a workbench routing, default 9),
 S1_LATEFIX=0 (no late fix), S1_LATEFIX_DIR (default ~/.claude/s1-latefix), S1_LATEFIX_WAIT (20).
+
+The workbench (s1-inspect, branch s1/inspect): a folder read again on every prompt, so a saved edit
+acts on the next call. Its questions.json replaces s1/questions.json (S1_QUESTIONS still wins). Its
+pipeline.py, when present, routes the call: run(state, ask, questions) -> {id: answer}, where each
+ask(qs) is one System 1 call (one log line, with "routing": "workbench" and its "stage"); and
+hint(answers, questions) -> str, the line the agent gets (default: format_answers). A routing gets
+S1_WORKBENCH_TIMEOUT for all its calls. A routing that fails to load, raises, or returns a bad hint
+fails open: "System 1: no view (routing: <error>)" and one log line with the reason.
 """
 import difflib
 import json
@@ -62,6 +72,7 @@ import jev  # noqa: E402
 import posttool  # noqa: E402  (the late-fix files: one home for the paths)
 
 DEFAULT_TIMEOUT = 4.0
+WORKBENCH_TIMEOUT = 9.0  # s1-inspect c9b: longer than 4 s; with GRACE under the 10 s hook timeout of the install
 GRACE = 0.5  # seconds past the timeout before the hook stops waiting for the call
 CONTEXT_MESSAGES = 3  # the least number of messages in recent (T20, Ty)
 TAIL_BYTES = 2 * 1024 * 1024  # the first read: the end of the transcript
@@ -97,6 +108,53 @@ def _timeout(env):
         return t if t > 0 else DEFAULT_TIMEOUT
     except (TypeError, ValueError):
         return DEFAULT_TIMEOUT
+
+
+def _workbench_timeout(env):
+    try:
+        t = float(env.get("S1_WORKBENCH_TIMEOUT", WORKBENCH_TIMEOUT))
+        return t if t > 0 else WORKBENCH_TIMEOUT
+    except (TypeError, ValueError):
+        return WORKBENCH_TIMEOUT
+
+
+def workbench(env):
+    """The workbench folder, or None: $S1_WORKBENCH ("off" for none), else s1/workbench/ if it exists."""
+    wb = env.get("S1_WORKBENCH")
+    if wb is not None and wb.strip().lower() in ("off", "0", "none"):
+        return None
+    wb = os.path.expanduser(wb) if wb else os.path.join(HERE, "workbench")
+    return wb if os.path.isdir(wb) else None
+
+
+def question_path(env, wb):
+    """The question file: $S1_QUESTIONS, else the workbench's questions.json, else s1/questions.json."""
+    q = env.get("S1_QUESTIONS")
+    if q:
+        return q
+    if wb and os.path.isfile(os.path.join(wb, "questions.json")):
+        return os.path.join(wb, "questions.json")
+    return os.path.join(HERE, "questions.json")
+
+
+def load_routing(wb):
+    """The workbench routing (a module dict with run, and maybe hint), or None when the folder has
+    no pipeline.py. Read and compiled fresh on each call (no import cache, no .pyc). Raises on a
+    file that does not load or defines no run()."""
+    path = os.path.join(wb, "pipeline.py")
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        src = f.read()
+    sys.modules.setdefault("hook", sys.modules[__name__])  # `import hook` in the routing is this module
+    ns = {"__name__": "s1_workbench_pipeline", "__file__": path}
+    try:
+        exec(compile(src, path, "exec"), ns)
+    except SystemExit as e:
+        raise RuntimeError(f"SystemExit({e.code})") from None
+    if not callable(ns.get("run")):
+        raise ValueError("pipeline.py defines no run(state, ask, questions)")
+    return ns
 
 
 def _tail_lines(path, size=TAIL_BYTES):
@@ -486,16 +544,18 @@ def run(raw, env, transport=None, spawn=None):
             offset = os.path.getsize(tpath) if tpath else 0
         except OSError:
             offset = 0
+        wb = workbench(env)
+        qpath = question_path(env, wb)
         try:
-            with open(env.get("S1_QUESTIONS") or os.path.join(HERE, "questions.json"),
-                      encoding="utf-8") as f:
+            with open(qpath, encoding="utf-8") as f:
                 questions = json.load(f)
             if not isinstance(questions, dict) or not questions:
                 raise ValueError("not a non-empty object")
         except (OSError, ValueError) as e:
             _skip(log_path, key, f"questions: {type(e).__name__}: {e}", extra)
             return _out(no_view("no question set"))
-        timeout = _timeout(env)
+        routed = bool(wb) and os.path.isfile(os.path.join(wb, "pipeline.py"))
+        timeout = _workbench_timeout(env) if routed else _timeout(env)
         if not key:  # judge would fall back to os.environ; the hook reads only env
             _skip(log_path, None, "no API key", extra, model=jev.DEFAULT_MODEL,
                   questions=list(questions), answers=None, latency=0.0, usage=None,
@@ -514,10 +574,42 @@ def run(raw, env, transport=None, spawn=None):
             lx = dict(extra, trimmed=True) if trimmed else dict(extra)
             if long_context:
                 lx["long_context"] = True
-            box["answers"] = jev.judge(state, questions, timeout=timeout, key=key,
-                                       log_path=log_path, transport=transport, log_extra=lx,
-                                       long_context=long_context)
+            routing = None
+            if routed:  # loaded here, so a routing that hangs at load is inside the limit too
+                try:
+                    routing = load_routing(wb)
+                except BaseException as e:
+                    box["routing_error"] = f"{type(e).__name__}: {e}"
+                    return
+            if routing is None:
+                box["answers"] = jev.judge(state, questions, timeout=timeout, key=key,
+                                           log_path=log_path, transport=transport, log_extra=lx,
+                                           long_context=long_context)
+                return
+            stage = [0]
 
+            def ask(qs):  # one System 1 call of the routing, in the time that is left
+                stage[0] += 1
+                left = max(deadline - time.monotonic(), 0.1)
+                return jev.judge(state, qs, timeout=left, key=key, log_path=log_path,
+                                 transport=transport, long_context=long_context,
+                                 log_extra=dict(lx, routing="workbench", stage=stage[0]))
+            try:
+                got = routing["run"](state, ask, questions)
+                if got is None or isinstance(got, dict) and not got and not callable(routing.get("hint")):
+                    box["answers"] = None
+                    return
+                if not isinstance(got, dict):
+                    raise TypeError(f"run() returned {type(got).__name__}, not a dict")
+                h = routing.get("hint")
+                line = h(got, questions) if callable(h) else format_answers(got, questions)
+                if not isinstance(line, str):
+                    raise TypeError(f"hint() returned {type(line).__name__}, not a str")
+                box["line"] = line
+            except BaseException as e:
+                box["routing_error"] = f"{type(e).__name__}: {e}"
+
+        deadline = time.monotonic() + timeout
         t = threading.Thread(target=call, daemon=True)
         t.start()
         t.join(timeout + GRACE)
@@ -531,6 +623,11 @@ def run(raw, env, transport=None, spawn=None):
         if "error" in box:
             _skip(log_path, key, box["error"], extra)
             return _out(no_view("error"))
+        if "routing_error" in box:
+            _skip(log_path, key, f"routing: {box['routing_error']}", extra, routing="workbench")
+            return _out(no_view(f"routing: {box['routing_error'].split(':')[0]}"))
+        if "line" in box:
+            return _out(box["line"])
         answers = box.get("answers")
         if not answers:
             _skip(log_path, key, "no answers (the call's line has the error)", extra)
@@ -663,7 +760,8 @@ def late_fix(sent_path, env, transport=None, wait=None, sleep=time.sleep):
         key = env.get(jev.KEY_ENV) or ""
         if not key:
             return "no key"
-        with open(env.get("S1_QUESTIONS") or os.path.join(HERE, "questions.json"), encoding="utf-8") as f:
+        wb = workbench(env)  # the same questions and routing as the first call
+        with open(question_path(env, wb), encoding="utf-8") as f:
             questions = json.load(f)
         state, trimmed, long_context = _fitted(st["prompt"], right, questions)
         lx = {"session_id": st["session_id"], "transcript": os.path.basename(st["transcript_path"]),
@@ -672,12 +770,32 @@ def late_fix(sent_path, env, transport=None, wait=None, sleep=time.sleep):
             lx["trimmed"] = True
         if long_context:
             lx["long_context"] = True
-        answers = jev.judge(state, questions, key=key, log_path=log_path, transport=transport,
-                            log_extra=lx, long_context=long_context)
-        if not answers:
-            return "no answer"
-        line = format_answers(answers, questions)
-        line = CORRECTION_PREFIX + line[len("System 1:"):]
+        routing = load_routing(wb) if wb else None
+        if routing is None:
+            answers = jev.judge(state, questions, key=key, log_path=log_path, transport=transport,
+                                log_extra=lx, long_context=long_context)
+            if not answers:
+                return "no answer"
+            line = format_answers(answers, questions)
+        else:
+            stage = [0]
+
+            def ask(qs):  # one System 1 call of the routing, logged as part of the correction
+                stage[0] += 1
+                return jev.judge(state, qs, key=key, log_path=log_path, transport=transport,
+                                 long_context=long_context,
+                                 log_extra=dict(lx, routing="workbench", stage=stage[0]))
+            got = routing["run"](state, ask, questions)
+            if not got:
+                return "no answer"
+            h = routing.get("hint")
+            line = h(got, questions) if callable(h) else format_answers(got, questions)
+            if not isinstance(line, str):
+                return "error"
+        if line.startswith("System 1:"):
+            line = CORRECTION_PREFIX + line[len("System 1:"):]
+        else:
+            line = CORRECTION_PREFIX + " " + line
         tmp = stem + ".correction.json.tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump({"line": line}, f)
