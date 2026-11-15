@@ -24,6 +24,17 @@ read starts with the last 2 MiB and goes back, at most 8 MiB, until it has the m
 The hook sends the complete messages as written, with no redaction (T43, u123): no name list is
 applied to them.
 
+Which messages (s1-rewind-context): the conversation Claude holds, not the file order. The hook
+follows parentUuid back from the last message line (G5), stops at a compaction (the summary is one
+message) and leaves out the lines Ty did not type ([Request interrupted ...], tagged lines such as
+<command-name> or <task-notification>). On the first prompt after a rewind, a prompt that matches
+a prompt of the branch the file ends in (difflib ratio >= 0.9, 15 chars or more) starts at that
+prompt's parent (G6). No uuid, or a parent missing from the whole file: file order (rk1).
+The late fix (c7): with a prompt_id in the input, the hook starts a detached process (G7,
+`hook.py --late-fix FILE`) that waits for the prompt line with that promptId (G1) and, only if the
+context from its parent differs from what was sent (G4), asks again and logs kind "correction".
+posttool.py (a PostToolUse hook) gives the corrected line to the main agent once (c8).
+
 Fails open, and says so (0.3.0 S-A): on any error, a timeout, a missing key, a missing questions
 file or bad stdin it prints one short line, "System 1: no view (<reason>)", and exits 0. When every
 answer is in the unsure band it prints "System 1: unsure"; when only the formal tool is sure and no
@@ -36,7 +47,8 @@ Env: TYPESAFE_API_KEY (the key), S1_OFF=1 (do nothing), S1_TIMEOUT (seconds, def
 S1_CONTEXT_MESSAGES (default 3, never below 3),
 S1_QUESTIONS (default: the workbench's questions.json, else s1/questions.json),
 S1_LOG (default ~/.claude/logs/s1.jsonl), S1_WORKBENCH (default s1/workbench/; "off" ignores it),
-S1_WORKBENCH_TIMEOUT (seconds for a workbench routing, default 9).
+S1_WORKBENCH_TIMEOUT (seconds for a workbench routing, default 9),
+S1_LATEFIX=0 (no late fix), S1_LATEFIX_DIR (default ~/.claude/s1-latefix), S1_LATEFIX_WAIT (20).
 
 The workbench (s1-inspect, branch s1/inspect): a folder read again on every prompt, so a saved edit
 acts on the next call. Its questions.json replaces s1/questions.json (S1_QUESTIONS still wins). Its
@@ -46,8 +58,10 @@ hint(answers, questions) -> str, the line the agent gets (default: format_answer
 S1_WORKBENCH_TIMEOUT for all its calls. A routing that fails to load, raises, or returns a bad hint
 fails open: "System 1: no view (routing: <error>)" and one log line with the reason.
 """
+import difflib
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -55,6 +69,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import jev  # noqa: E402
+import posttool  # noqa: E402  (the late-fix files: one home for the paths)
 
 DEFAULT_TIMEOUT = 4.0
 WORKBENCH_TIMEOUT = 9.0  # s1-inspect c9b: longer than 4 s; with GRACE under the 10 s hook timeout of the install
@@ -70,6 +85,16 @@ LONG_CONTEXT_CHARS = LONG_CONTEXT_TOKENS * CHARS_PER_TOKEN
 CHOICE_MIN = 0.5  # a choice is shown when P(choice) >= 0.5, as in the calibration
 UNSURE = "System 1: unsure"  # every answer in the unsure band (0.3.0 S-A)
 NO_SIGNAL = "System 1: no signal"  # only a formal tool is sure, and no signal shows it (review of 0.3.0)
+# s1-rewind-context c3: a line that Ty did not type ([Request interrupted ...], a line that starts
+# with a tag such as <command-name>, <local-command-stdout>, <task-notification>, <bash-input>)
+TAGGED = re.compile(r"^\s*(<[a-z][a-z0-9_-]*[ >/]|\[Request interrupted)", re.I)
+MATCH_RATIO = 0.9  # c6b (q9, Ty): the text match of the first prompt after a rewind
+MATCH_MIN_CHARS = 15  # c6b: a shorter prompt is never matched
+MATCH_MAX_CHARS = 4000  # a longer text is not compared (difflib is quadratic)
+LATE_FIX_WAIT = 20.0  # c7: seconds the late fix waits for the prompt line (G1)
+LATE_FIX_POLL = 0.05
+CORRECTION_PREFIX = "System 1 (correction):"  # c8: the line that PostToolUse gives the agent
+_LAST = object()  # recent_messages: start at the last message line of the transcript
 
 
 def no_view(reason):
@@ -100,6 +125,16 @@ def workbench(env):
         return None
     wb = os.path.expanduser(wb) if wb else os.path.join(HERE, "workbench")
     return wb if os.path.isdir(wb) else None
+
+
+def question_path(env, wb):
+    """The question file: $S1_QUESTIONS, else the workbench's questions.json, else s1/questions.json."""
+    q = env.get("S1_QUESTIONS")
+    if q:
+        return q
+    if wb and os.path.isfile(os.path.join(wb, "questions.json")):
+        return os.path.join(wb, "questions.json")
+    return os.path.join(HERE, "questions.json")
 
 
 def load_routing(wb):
@@ -173,12 +208,19 @@ def _messages(lines):
     """The messages of transcript lines, oldest first: [{"role", "text"}]. An assistant reply is
     all the agent text between two user prompts (one turn): the lines of every API message in
     it (one line per content block, each response with its own message.id) are joined in order."""
-    out = []  # [key, role, [texts]]
+    ds = []
     for line in lines:
         try:
-            d = json.loads(line)
+            ds.append(json.loads(line))
         except ValueError:
             continue
+    return _messages_of(ds)
+
+
+def _messages_of(ds):
+    """_messages of lines already parsed."""
+    out = []  # [key, role, [texts]]
+    for d in ds:
         got = _message(d)
         if not got:
             continue
@@ -190,11 +232,141 @@ def _messages(lines):
     return [{"role": r, "text": "\n".join(ts)} for _, r, ts in out]
 
 
-def recent_messages(path, n, prompt=None):
-    """The last n messages before the prompt, oldest first. The read starts with the last
-    TAIL_BYTES and doubles, at most MAX_TAIL_BYTES, until it has n + 1 messages (one more, in
-    case the prompt is already in the transcript) or the whole file."""
+def _typed(d):
+    """The line with the pieces that Ty did not type left out (c3), or None when nothing is left.
+    A user line keeps only its text pieces that are not TAGGED; other lines are kept as they are
+    (_message decides whether they are messages). The same rule as expected() of the ticket's
+    check s1ctx.py."""
+    if not isinstance(d, dict) or d.get("type") != "user":
+        return d
+    m = d.get("message")
+    if d.get("isSidechain") or d.get("isMeta") or not isinstance(m, dict):
+        return None
+    c = m.get("content")
+    if isinstance(c, str):
+        ts = [c] if c.strip() else []
+    elif isinstance(c, list):
+        ts = [b["text"] for b in c if isinstance(b, dict) and b.get("type") == "text"
+              and isinstance(b.get("text"), str) and b["text"].strip()]
+    else:
+        return None
+    ts = [t for t in ts if not TAGGED.match(t)]
+    if not ts:
+        return None
+    content = ts[0] if len(ts) == 1 else [{"type": "text", "text": t} for t in ts]
+    return dict(d, message=dict(m, content=content))
+
+
+def _is_prompt(d):
+    """A prompt that Ty typed: a user line whose content is a string, not tagged, not a summary."""
+    m = d.get("message")
+    return (d.get("type") == "user" and not d.get("isSidechain") and not d.get("isMeta")
+            and not d.get("isCompactSummary") and isinstance(m, dict)
+            and isinstance(m.get("content"), str) and bool(m["content"].strip())
+            and not TAGGED.match(m["content"]))
+
+
+def _walk(js, by, uuid):
+    """The chain that ends in the line `uuid` (G5): that line and its parentUuid ancestors, oldest
+    first. It stops at a compaction: the summary line is the first item, nothing before it.
+    Returns (indexes, how): how is "root" (a line with no parent, or uuid None), "compaction",
+    or "broken" (a parent that is not in the lines read)."""
+    out, seen, p = [], set(), uuid
+    while p:
+        j = by.get(p)
+        if j is None or p in seen:
+            return out[::-1], "broken"
+        seen.add(p)
+        d = js[j]
+        if d.get("type") == "system" and d.get("subtype") == "compact_boundary":
+            return out[::-1], "compaction"
+        out.append(j)
+        if d.get("isCompactSummary"):
+            return out[::-1], "compaction"
+        p = d.get("parentUuid")
+    return out[::-1], "root"
+
+
+def _norm(t):
+    return re.sub(r"\s+", " ", t.strip().lower())
+
+
+def _match(js, by, last, prompt):
+    """G6 (c6b): the prompt of the branch the transcript ends in (the chain of the last message
+    line) that the new prompt matches best, at difflib ratio >= MATCH_RATIO, the new prompt
+    MATCH_MIN_CHARS or more; the oldest wins a tie. None when nothing matches. On the first
+    prompt after a rewind it names the rewound prompt, whose parent is the rewind point."""
+    if not isinstance(prompt, str):
+        return None
+    p = _norm(prompt)
+    if len(p) < MATCH_MIN_CHARS or len(p) >= MATCH_MAX_CHARS:
+        return None
+    idx, _ = _walk(js, by, js[last].get("uuid"))
+    best, bj = 0.0, None
+    sm = difflib.SequenceMatcher(None, autojunk=False)
+    sm.set_seq2(p)
+    for j in idx:
+        if not _is_prompt(js[j]):
+            continue
+        q = _norm(js[j]["message"]["content"])
+        if len(q) >= MATCH_MAX_CHARS:
+            continue
+        sm.set_seq1(q)
+        floor = max(MATCH_RATIO, best)  # a tie never replaces the older one
+        if sm.real_quick_ratio() < floor or sm.quick_ratio() < floor:
+            continue
+        r = sm.ratio()
+        if r > best:
+            best, bj = r, j
+    return bj if bj is not None and best >= MATCH_RATIO else None
+
+
+def _chain_read(lines, prompt, parent):
+    """The messages of the conversation Claude holds, from these lines (c1c, c2, c3, c6b).
+    parent is _LAST (start at the last message line; the text match may move the start to the
+    parent of a matched prompt) or a uuid (start there; None: no parent, so no messages).
+    Returns (messages, how) as _walk, or None when the lines have no uuid to follow."""
+    js = []
+    for line in lines:
+        try:
+            d = json.loads(line)
+        except ValueError:
+            d = {}
+        js.append(d if isinstance(d, dict) else {})
+    by = {d["uuid"]: j for j, d in enumerate(js) if isinstance(d.get("uuid"), str)}
+    if parent is _LAST:
+        last = next((j for j in range(len(js) - 1, -1, -1)
+                     if js[j].get("type") in ("user", "assistant") and not js[j].get("isSidechain")
+                     and isinstance(js[j].get("uuid"), str)), None)
+        if last is None:
+            return None
+        start = js[last]["uuid"]
+        m = _match(js, by, last, prompt)
+        if m is not None:
+            start = js[m].get("parentUuid")
+    else:
+        start = parent
+    idx, how = _walk(js, by, start)
+    return _messages_of([t for t in (_typed(js[j]) for j in idx) if t is not None]), how
+
+
+def recent_messages(path, n, prompt=None, parent=_LAST):
+    """The last n messages before the prompt, oldest first, of the conversation Claude holds
+    (s1-rewind-context h2): from the last message line of the transcript (or from `parent`, a
+    uuid, for the late fix) back along parentUuid to the last compaction, whose summary is one
+    message; a line that Ty did not type is not a message. On the first prompt after a rewind,
+    a prompt text that matches a prompt of the branch the transcript ends in (G6) starts the
+    chain at that prompt's parent.
+
+    The read starts with the last TAIL_BYTES and doubles, at most MAX_TAIL_BYTES, until the chain
+    ends (a root or a compaction) or it has n + 1 messages (one more, in case the prompt is
+    already in the transcript), or it has the whole file.
+    Fails open (rk1): a transcript with no uuid gives the last messages in file order, as before
+    s1-rewind-context; a chain whose parent is missing from the whole file does the same. A chain
+    cut only by the MAX_TAIL_BYTES bound gives the part found."""
     if not path:
+        return []
+    if parent is None:
         return []
     size = TAIL_BYTES
     while True:
@@ -202,10 +374,15 @@ def recent_messages(path, n, prompt=None):
             with open(path, "rb") as f:
                 f.seek(0, os.SEEK_END)
                 whole = f.tell() <= size
-            msgs = _messages(_tail_lines(path, size))
+            lines = _tail_lines(path, size)
         except OSError:
             return []
-        if whole or len(msgs) > n or size >= MAX_TAIL_BYTES:
+        got = _chain_read(lines, prompt, parent)
+        if got is None or (got[1] == "broken" and whole):
+            msgs, done = _messages(lines), False  # rk1: file order, as before
+        else:
+            msgs, done = got[0], got[1] != "broken"
+        if whole or done or len(msgs) > n or size >= MAX_TAIL_BYTES:
             break
         size = min(size * 2, MAX_TAIL_BYTES)
     if prompt is not None and msgs and msgs[-1]["role"] == "you" and msgs[-1]["text"].strip() == prompt.strip():
@@ -243,8 +420,12 @@ def _fit(state, questions):
 
 def build_state(prompt, transcript_path, n=CONTEXT_MESSAGES, questions=None):
     """{message, recent} as written (no redaction, T43), then fitted. Returns (state, trimmed, long_context)."""
-    recent = recent_messages(transcript_path, n, prompt)
-    st = {"message": prompt, "recent": recent}
+    return _fitted(prompt, recent_messages(transcript_path, n, prompt), questions)
+
+
+def _fitted(prompt, recent, questions):
+    """{message, recent} fitted (a copy: recent itself is not changed)."""
+    st = {"message": prompt, "recent": [dict(m) for m in recent]}
     trimmed, long_context = _fit(st, questions or {})
     return st, trimmed, long_context
 
@@ -333,10 +514,12 @@ def _out(line):
                                               "additionalContext": line}})
 
 
-def run(raw, env, transport=None):
+def run(raw, env, transport=None, spawn=None):
     """The hook's stdout for stdin text raw: a JSON hook result, or "" only when off (S1_OFF).
     Never raises. Every skip except S1_OFF writes one log line with the reason, and prints
-    one short line "System 1: no view (<reason>)" (0.3.0 S-A)."""
+    one short line "System 1: no view (<reason>)" (0.3.0 S-A).
+    After the first call it starts the late fix (c7) with spawn(argv, env) (default: a detached
+    process, G7); tests give their own spawn."""
     if env.get("S1_OFF", "").strip() not in ("", "0"):
         return ""
     log_path = env.get(jev.LOG_ENV) or jev.DEFAULT_LOG
@@ -355,12 +538,14 @@ def run(raw, env, transport=None):
         tpath = tpath if isinstance(tpath, str) else ""
         extra = {"session_id": payload.get("session_id"),
                  "transcript": os.path.basename(tpath) or None}
+        if isinstance(payload.get("prompt_id"), str):
+            extra["prompt_id"] = payload["prompt_id"]
+        try:  # the late fix looks for the prompt line from here on (it is written after the hook)
+            offset = os.path.getsize(tpath) if tpath else 0
+        except OSError:
+            offset = 0
         wb = workbench(env)
-        qpath = env.get("S1_QUESTIONS")
-        if not qpath:
-            qpath = os.path.join(HERE, "questions.json")
-            if wb and os.path.isfile(os.path.join(wb, "questions.json")):
-                qpath = os.path.join(wb, "questions.json")
+        qpath = question_path(env, wb)
         try:
             with open(qpath, encoding="utf-8") as f:
                 questions = json.load(f)
@@ -380,7 +565,9 @@ def run(raw, env, transport=None):
 
         def call():  # the transcript read and the request both run inside the timeout
             try:
-                state, trimmed, long_context = build_state(payload["prompt"], tpath, _count(env), questions)
+                recent = recent_messages(tpath, _count(env), payload["prompt"])
+                box["recent"] = [dict(m) for m in recent]  # what the late fix compares with (G4)
+                state, trimmed, long_context = _fitted(payload["prompt"], recent, questions)
             except Exception as e:
                 box["error"] = f"state: {type(e).__name__}: {e}"
                 return
@@ -426,6 +613,8 @@ def run(raw, env, transport=None):
         t = threading.Thread(target=call, daemon=True)
         t.start()
         t.join(timeout + GRACE)
+        if "recent" in box:
+            _start_late_fix(payload, env, tpath, offset, box["recent"], spawn or _spawn)
         if t.is_alive():
             _skip(log_path, key, f"timeout: the hook stopped waiting after {timeout + GRACE}s",
                   extra, model=jev.DEFAULT_MODEL, questions=list(questions),
@@ -454,10 +643,181 @@ def run(raw, env, transport=None):
         return _out(no_view("error"))
 
 
-def main(transport=None):
-    """Script entry: stdin to stdout. Always returns 0."""
+def _spawn(argv, env):
+    """G7 (c9): start the late fix as a detached process: a new session, stdin, stdout and
+    stderr closed. The hook never waits on it, so Claude Code never waits on it."""
+    import subprocess
+    subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True)
+
+
+def _start_late_fix(payload, env, tpath, offset, recent, spawn):
+    """Write what the first call was sent and start the late fix of this prompt. Nothing when
+    the input has no prompt_id or session_id (no late fix), or S1_LATEFIX=0. Never raises."""
+    try:
+        if env.get("S1_LATEFIX", "").strip() == "0" or not tpath:
+            return
+        sid, pid = posttool.safe_id(payload.get("session_id")), posttool.safe_id(payload.get("prompt_id"))
+        if not sid or not pid:
+            return
+        stem = posttool.base(env, sid, pid)
+        os.makedirs(os.path.dirname(stem), mode=0o700, exist_ok=True)
+        sent = stem + ".sent.json"
+        tmp = f"{sent}.{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"session_id": sid, "prompt_id": pid, "transcript_path": tpath,
+                       "offset": offset, "prompt": payload["prompt"], "n": _count(env),
+                       "recent": recent}, f)
+        os.replace(tmp, sent)
+        spawn([sys.executable, os.path.abspath(__file__), "--late-fix", sent], env)
+    except Exception:
+        pass
+
+
+def _find_prompt_line(path, prompt_id, offset, wait, poll=LATE_FIX_POLL, sleep=time.sleep):
+    """G1: wait (at most `wait` seconds) for the prompt line whose promptId is the hook's
+    prompt_id. Returns (True, its parentUuid) or (False, None). The read starts TAIL_BYTES
+    before `offset` (the transcript size when the hook ran) and then reads only what is added."""
+    pos = max(0, offset - TAIL_BYTES)
+    cut = pos > 0  # the first line read may be cut
+    buf = b""
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            with open(path, "rb") as f:
+                f.seek(pos)
+                data = f.read()
+        except OSError:
+            data = b""
+        pos += len(data)
+        buf += data
+        lines = buf.split(b"\n")
+        buf = lines.pop()
+        if cut and lines:
+            lines, cut = lines[1:], False
+        for line in lines:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(d, dict) or d.get("type") != "user" or d.get("promptId") != prompt_id:
+                continue
+            c = (d.get("message") or {}).get("content") if isinstance(d.get("message"), dict) else None
+            if d.get("isMeta") or d.get("isSidechain") or d.get("isCompactSummary") or (
+                    isinstance(c, list) and any(isinstance(b, dict) and b.get("type") == "tool_result" for b in c)):
+                continue
+            return True, d.get("parentUuid")
+        if time.monotonic() >= deadline:
+            return False, None
+        sleep(poll)
+
+
+def _prune(env, days=2):
+    """Remove late-fix files older than `days` days. Never raises."""
+    try:
+        top = posttool.state_dir(env)
+        old = time.time() - days * 86400
+        for sd in os.listdir(top):
+            p = os.path.join(top, sd)
+            for fn in os.listdir(p):
+                q = os.path.join(p, fn)
+                if os.path.getmtime(q) < old:
+                    os.unlink(q)
+            if not os.listdir(p):
+                os.rmdir(p)
+    except Exception:
+        pass
+
+
+def late_fix(sent_path, env, transport=None, wait=None, sleep=time.sleep):
+    """c7: the late fix of one prompt (run in the detached process). Once the prompt line is in
+    the transcript (G1), read the context from its parent; only if that differs from what the
+    first call was sent (G4), ask Jev once more, log the call with kind "correction" and the
+    prompt_id, and write the corrected line for PostToolUse (c8). At most once per prompt (a
+    lock file made with O_EXCL). Returns what it did, for tests. Never raises."""
+    try:
+        with open(sent_path, encoding="utf-8") as f:
+            st = json.load(f)
+        stem = sent_path[:-len(".sent.json")]
+        try:
+            os.close(os.open(stem + ".lock", os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+        except FileExistsError:
+            return "already"
+        _prune(env)
+        if wait is None:
+            try:
+                wait = float(env.get("S1_LATEFIX_WAIT", LATE_FIX_WAIT))
+            except (TypeError, ValueError):
+                wait = LATE_FIX_WAIT
+        found, parent = _find_prompt_line(st["transcript_path"], st["prompt_id"], st["offset"], wait,
+                                          sleep=sleep)
+        if not found:
+            return "no prompt line"
+        right = recent_messages(st["transcript_path"], st["n"], None, parent=parent)
+        if right == st["recent"]:  # G4: the first call was right
+            return "right"
+        log_path = env.get(jev.LOG_ENV) or jev.DEFAULT_LOG
+        key = env.get(jev.KEY_ENV) or ""
+        if not key:
+            return "no key"
+        wb = workbench(env)  # the same questions and routing as the first call
+        with open(question_path(env, wb), encoding="utf-8") as f:
+            questions = json.load(f)
+        state, trimmed, long_context = _fitted(st["prompt"], right, questions)
+        lx = {"session_id": st["session_id"], "transcript": os.path.basename(st["transcript_path"]),
+              "prompt_id": st["prompt_id"], "kind": "correction"}
+        if trimmed:
+            lx["trimmed"] = True
+        if long_context:
+            lx["long_context"] = True
+        routing = load_routing(wb) if wb else None
+        if routing is None:
+            answers = jev.judge(state, questions, key=key, log_path=log_path, transport=transport,
+                                log_extra=lx, long_context=long_context)
+            if not answers:
+                return "no answer"
+            line = format_answers(answers, questions)
+        else:
+            stage = [0]
+
+            def ask(qs):  # one System 1 call of the routing, logged as part of the correction
+                stage[0] += 1
+                return jev.judge(state, qs, key=key, log_path=log_path, transport=transport,
+                                 long_context=long_context,
+                                 log_extra=dict(lx, routing="workbench", stage=stage[0]))
+            got = routing["run"](state, ask, questions)
+            if not got:
+                return "no answer"
+            h = routing.get("hint")
+            line = h(got, questions) if callable(h) else format_answers(got, questions)
+            if not isinstance(line, str):
+                return "error"
+        if line.startswith("System 1:"):
+            line = CORRECTION_PREFIX + line[len("System 1:"):]
+        else:
+            line = CORRECTION_PREFIX + " " + line
+        tmp = stem + ".correction.json.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"line": line}, f)
+        os.replace(tmp, stem + ".correction.json")
+        return "corrected"
+    except Exception:
+        return "error"
+    finally:
+        try:
+            os.unlink(sent_path)
+        except OSError:
+            pass
+
+
+def main(transport=None, argv=None):
+    """Script entry: stdin to stdout. Always returns 0. `--late-fix FILE` runs the late fix."""
+    argv = sys.argv[1:] if argv is None else argv
     try:
         if os.environ.get("S1_OFF", "").strip() not in ("", "0"):
+            return 0
+        if argv[:1] == ["--late-fix"] and len(argv) == 2:
+            late_fix(argv[1], dict(os.environ), transport=transport)
             return 0
         out = run(sys.stdin.read(), dict(os.environ), transport=transport)
         if out:

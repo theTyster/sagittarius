@@ -45,6 +45,33 @@ class Schema(th.Base):
         self.assertIn("routing", written)  # the workbench run did route
         self.assertEqual(sorted(written - doc), [], "fields written but not in SCHEMA.md")
 
+    def test_late_fix_fields_are_documented(self):
+        """A prompt with a prompt_id whose first call was wrong: the first line and the correction
+        line (plain, and through a workbench routing) write only documented fields."""
+        import test_rewind as tr
+        doc = documented()
+        for routed in (False, True):
+            case = tr.Base("setUp")
+            case.setUp()
+            self.addCleanup(case.doCleanups)
+            if routed:
+                wb = tempfile.mkdtemp()
+                open(os.path.join(wb, "pipeline.py"), "w").write(
+                    "def run(state, ask, questions):\n    return ask(questions)\n")
+                case.env["S1_WORKBENCH"] = wb
+            case.write([tr.u("u1", None, "Fix the parser so it reads dates.", pid="P1"),
+                        tr.a("a1", "u1", "The parser reads dates now.")])
+            case.first_call("Something else entirely: rename the module.", "P2")
+            case.append(tr.u("u2", None, "Something else entirely: rename the module.", pid="P2"))
+            self.assertEqual(case.late(tr.Fake()), "corrected")
+            lines = case.log_lines()
+            fix = [l for l in lines if l.get("kind") == "correction"]
+            self.assertEqual(len(fix), 1, lines)
+            self.assertEqual(fix[0].get("routing"), "workbench" if routed else None)
+            written = set().union(*map(set, lines))
+            self.assertLessEqual({"kind", "prompt_id"}, written)
+            self.assertEqual(sorted(written - doc), [], "fields written but not in SCHEMA.md")
+
     def test_answer_types_that_the_hook_reads_are_documented(self):
         text = open(os.path.join(HERE, "SCHEMA.md"), encoding="utf-8").read()
         for t in ("noul", "choice", "score"):

@@ -59,6 +59,8 @@ bench replay writes to the bench log. The API key is never written.
 | `sagittarius` | jev.py | The Sagittarius version that ran. |
 | `session_id` | hook.py | The Claude Code session id. |
 | `transcript` | hook.py | The file name of the session transcript. |
+| `prompt_id` | hook.py | The id that Claude Code gives the prompt (the `promptId` of its transcript line), when the hook input has one. |
+| `kind` | hook.py | `"correction"` on a call of the late fix: the prompt's first call was sent another context than the conversation Claude holds, so System 1 was asked again with the right one. |
 | `skipped` | hook.py | Only on a line for no call: the reason why the hook made no call or has no view. |
 | `trimmed` | hook.py | true when the hook cut the state to fit the context. |
 | `long_context` | hook.py | true when the hook asked for the long context. |

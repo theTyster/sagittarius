@@ -49,6 +49,43 @@ as written, with no redaction (T43, u123). It adds one line of context for the a
 - It prints nothing only when it is off (`S1_OFF=1`). So no line means that the hook is off or not
   installed, never that the hook saw no signal.
 
+### Which messages: the conversation Claude holds (s1-rewind-context)
+
+`recent` is the end of the conversation that Claude holds at the prompt, not the end of the file:
+
+- The hook starts at the last message line of the transcript and follows `parentUuid` back. A
+  message that a rewind removed is not on that chain, so it is not sent.
+- It stops at a compaction. The compaction summary is one message (cut to fit like any long
+  message); nothing before it is sent.
+- A line that Ty did not type is not a message: `[Request interrupted ...]`, and a line that
+  starts with a tag (`<command-name>`, `<local-command-stdout>`, `<task-notification>`,
+  `<bash-input>`, `<bash-stdout>`, ...). Meta and subagent lines stay out, as before.
+- On the first prompt after a rewind the file still ends on the abandoned branch. When the new
+  prompt (15 characters or more) matches a prompt of that branch at difflib ratio 0.9 or more
+  (the best match; the oldest wins a tie), the hook starts at the parent of that prompt: the
+  rewind point. A prompt that matches nothing gets the end of the file's branch.
+- It fails open: a transcript with no `uuid` lines, or a chain whose parent is missing from the
+  whole file, gives the last messages in file order, as before. A chain cut only by the 8 MiB
+  read bound gives the part found.
+
+**The late fix.** The first call can still be sent the wrong branch (a rewind with new text, or a
+text match that misfires). So, when the hook input has `prompt_id`, the hook writes what the first
+call was sent to `~/.claude/s1-latefix/<session id>/<prompt id>.sent.json` and starts a detached
+process (`hook.py --late-fix`: a new session, stdin, stdout and stderr closed; the hook never
+waits on it). That process waits, at most 20 s, for the prompt line whose `promptId` is the hook's
+`prompt_id`, and reads the context from that line's `parentUuid`. Only when it differs from what the
+first call was sent does it ask the System 1 model once more. The log line of that call has
+`"kind": "correction"` and the `prompt_id` (the first call's line has the `prompt_id` too). The
+corrected line, `System 1 (correction): ...`, goes to `<prompt id>.correction.json`. One late fix
+runs for each prompt (a lock file). Files older than 2 days are removed.
+
+**Delivery (`posttool.py`, a `PostToolUse` hook).** At a tool call of the main agent in the turn of
+that prompt, it gives the corrected line once, as `additionalContext` next to the tool result. It
+looks only for the correction of the `session_id` and `prompt_id` of its own input, claims it with
+an exclusive create, and skips calls whose input has `agent_id` (a subagent). With nothing to give,
+it only checks for one small file and exits. If Ty sends the next prompt before the agent calls a
+tool, the correction is never shown; the next prompt gets its own call.
+
 **Status: the hook is recommended, not required.** Sagittarius works without it, and the prompt
 says that no line means no outside view. `questions.json` is the review session's calibrated set
 (22 of 25 known cases), with the two questions of 0.3.0 S-C added.
@@ -113,6 +150,29 @@ design question that is not decided.
 }
 ```
 
+4. For the late fix to reach the agent (above), also paste this `PostToolUse` entry next to
+   `UserPromptSubmit` in the same `hooks` object. Without it the late fix still corrects the log
+   (and the status line), but the agent never sees the corrected line:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/sagittarius-s1/posttool.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 The `timeout` of 10 s is the Claude Code limit. The hook stops waiting for the System 1 model before that: after
 `S1_TIMEOUT` seconds (default 4) plus 0.5 s.
 
@@ -130,6 +190,9 @@ Set `S1_OFF=1`: for one session, start it with `S1_OFF=1 claude`; for all sessio
 | `S1_CONTEXT_MESSAGES` | `3` | messages in `recent` (never below 3) |
 | `S1_QUESTIONS` | `s1/questions.json` | the question set |
 | `S1_LOG` | `~/.claude/logs/s1.jsonl` | the log (`jev.py` writes it) |
+| `S1_LATEFIX` | unset | `0`: no late fix |
+| `S1_LATEFIX_DIR` | `~/.claude/s1-latefix` | the late-fix files (the hook and `posttool.py`) |
+| `S1_LATEFIX_WAIT` | `20` | seconds the late fix waits for the prompt line |
 
 Each log line is the `jev.py` record (no key; the state as sent) plus `session_id` and
 `transcript` (the basename of the transcript path).
@@ -138,7 +201,8 @@ questions, no key, a timeout, no answers, bad answers), it writes one line with 
 reason. `S1_OFF=1` writes nothing. The hook reads the last 2 MiB of the transcript, and goes back at most 8 MiB until it has the messages.
 
 Tests (no network): `python3 -m unittest s1.test_hook -v` from the repo root. One claim alone:
-`python3 -m unittest s1.test_hook.C3FailOpen -v`.
+`python3 -m unittest s1.test_hook.C3FailOpen -v`. The rewind, compaction and late-fix tests:
+`python3 -m unittest s1.test_rewind -v`.
 
 ## The status line segment (T14)
 
