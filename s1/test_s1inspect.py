@@ -17,7 +17,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location("s1_inspect_tool", os.path.join(HERE, "s1inspect.py"))
 ins = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ins)
-hook, jev = ins.hook, ins.jev
+hook = ins.hook
+sys.path.insert(0, HERE)
+import jev  # noqa: E402
 
 QUESTIONS = {
     "h_work": {"type": "choice", "instructions": "What work?",
@@ -189,9 +191,7 @@ class Mismatch(Base):
         self.assertTrue(any("did not send" in n for n in a["notes"]))
 
     def test_sha_decides_when_logged(self):
-        if not hasattr(jev, "questions_sha"):
-            self.skipTest("jev has no questions_sha")
-        same = call("s1", questions_sha=jev.questions_sha(QUESTIONS))
+        same = call("s1", questions_sha=ins.questions_sha(QUESTIONS))
         diff = call("s2", questions_sha="0" * 12)
         log = self.write_log([same, diff])
         rows = {json.loads(x)["session_id"]: json.loads(x) for x in self.run_main(*self.common(log), "--json")[1].splitlines()}

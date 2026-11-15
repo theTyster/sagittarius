@@ -1,4 +1,4 @@
-"""s1watch prints each call of the System 1 log with Jev's answers unchanged, whatever the questions."""
+"""s1watch prints each call of the System 1 log with the model's answers unchanged, whatever the questions."""
 import json, os, re, shutil, subprocess, tempfile, unittest
 
 TOOL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "s1watch")

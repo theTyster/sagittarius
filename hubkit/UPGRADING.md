@@ -96,6 +96,18 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.7.3 (the version line; db schema 6, unchanged)
+
+This release pairs with Sagittarius 0.4.1 (it was 0.4.0). No rule changed. Every hub (formal and
+informal): `PRINCIPLES.md` line 3 names Sagittarius 0.4.1; replace the file if the hub did not
+change it, otherwise change that one number. A formal hub: replace
+`.claude/orbit-kb/share/orbit-kb/VERSION` (now `0.4.1`). An informal hub has no orbit-kb copy.
+The db schema is 6. **Database:** a hub at 0.7.0, 0.7.1 or 0.7.2 is at schema 6 already and runs no
+migrate; a hub at schema 5 (0.5.1 to 0.6.0) applies the 0.7.0 section first, which runs
+`python3 .claude/scripts/hubflow.py migrate` once.
+Check: `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` prints `hub from MindHole Kit 0.7.3`,
+and `.claude/orbit-kb/bin/orbit-kb version` prints `orbit-kb 0.4.1`.
+
 ### 0.7.2 (the orbit-kb copy: K-F and K-H; db schema 6, unchanged)
 
 This release pairs with Sagittarius 0.4.0 (it was 0.3.0): orbit-kb gained rules that change what a

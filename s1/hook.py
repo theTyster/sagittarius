@@ -732,7 +732,7 @@ def _prune(env, days=2):
 def late_fix(sent_path, env, transport=None, wait=None, sleep=time.sleep):
     """c7: the late fix of one prompt (run in the detached process). Once the prompt line is in
     the transcript (G1), read the context from its parent; only if that differs from what the
-    first call was sent (G4), ask Jev once more, log the call with kind "correction" and the
+    first call was sent (G4), ask the System 1 model once more, log the call with kind "correction" and the
     prompt_id, and write the corrected line for PostToolUse (c8). At most once per prompt (a
     lock file made with O_EXCL). Returns what it did, for tests. Never raises."""
     try:
