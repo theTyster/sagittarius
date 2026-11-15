@@ -88,6 +88,18 @@ class InstallLink(unittest.TestCase):
         r = subprocess.run([sys.executable, hook], input="{}", env=env, capture_output=True, text=True, timeout=60)
         self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
 
+    def test_the_signals_plugin_link(self):
+        """specs/s1-glance c1 (Ty): the Sagittarius Signals mod loads in every session, from s1/glance."""
+        r = self.install()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        link = os.path.join(self.home, ".claude", "skills", "s1-glance")
+        self.assertTrue(os.path.islink(link))
+        self.assertEqual(os.path.realpath(link), os.path.realpath(os.path.join(HERE, "glance")))
+        self.assertTrue(os.path.isfile(os.path.join(link, ".claude-plugin", "plugin.json")))
+        self.assertTrue(os.path.isfile(os.path.join(link, "hooks", "hooks.json")))
+        r = self.install("--check")
+        self.assertRegex(r.stdout, r"ok +\S*skills.s1-glance")
+
     def test_readme_names_the_links(self):
         flat = " ".join(read("README.md").split())
         self.assertNotIn("four links", flat)

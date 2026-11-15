@@ -152,7 +152,7 @@ class Run(unittest.TestCase):
             f.write(json.dumps({"type": "user", "message": {"role": "user", "content": "Rename the tab."}}) + "\n")
             f.write(json.dumps({"type": "assistant", "message": {"role": "assistant", "id": "m1", "content": [
                 {"type": "text", "text": "Delivered: the tab is renamed."}]}}) + "\n")
-        self.env = {"TYPESAFE_API_KEY": "k-test", "S1_LOG": self.log}
+        self.env = {"TYPESAFE_API_KEY": "k-test", "S1_LOG": self.log, "S1_WORKBENCH": "off", "S1_LATEFIX": "0"}
         self.sent = []
 
     def transport(self, over=None, bad=None):
@@ -221,6 +221,27 @@ class Run(unittest.TestCase):
     def test_a_missing_fan_out_file_falls_back_to_the_plain_request(self):
         line = self.line("Also add a footer.", env={"S1_FANOUT_FILE": "/nonexistent/fanout.json"}, over={"h_change_of_plan": 0.9})
         self.assertEqual(sorted(self.sent[0]["questions"]), sorted(QUESTIONS))
+        self.assertIn("change of plan likely (0.90)", line)
+
+
+class RunThroughTheWorkbench(Run):
+    """The same checks with the workbench on (the default of a checkout): its pipeline.py asks
+    through hook.fanout_run, so a live session gets the fan-out there too."""
+
+    def setUp(self):
+        super().setUp()
+        del self.env["S1_WORKBENCH"]
+
+    def test_the_combined_answers_are_logged_after_the_call(self):
+        self.line("Looks good. Did you test this?", over={"doubts@1": 0.93})
+        lines = self.log_lines()
+        self.assertEqual([x.get("routing") for x in lines], ["workbench", "workbench"])
+        self.assertTrue(lines[1]["combined"])
+        self.assertEqual((lines[1]["parts"], lines[1]["answers"]["h_divergence"]["noul"]), (2, 0.93))
+        self.assertEqual(lines[1]["part_text"], ["Looks good.", "Did you test this?"])
+
+    def test_a_bad_fan_out_answer_fails_open_to_the_plain_answers(self):
+        line = self.line("Also add a footer.", over={"h_change_of_plan": 0.9}, bad={"doubts@0": {"type": "noul", "noul": "high"}})
         self.assertIn("change of plan likely (0.90)", line)
 
 

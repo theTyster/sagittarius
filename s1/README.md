@@ -5,7 +5,10 @@ API: https://docs.typesafe.ai/api.md
 
 - `judge(state, questions, *, model="jev-1.14.0", timeout=20, redactions=None)` returns `{qid: answer}` or `None`. It never raises. The key comes from `$TYPESAFE_API_KEY`.
 - `redact(obj, pairs)`, `band(p)`, `to_prolog(run_id, answers)`: see the docstrings.
-- Log: one JSON line per call in `$S1_LOG`, else `~/.claude/logs/s1.jsonl`. No key. The state only after any redaction that the caller asks for (the hook asks for none).
+- Log: one JSON line per call in `$S1_LOG`, else `~/.claude/logs/s1.jsonl`. No key. The state only after any redaction that the caller asks for (the hook asks for none). `questions_sha` is the first 12 hex digits of the sha256 of the canonical JSON (sorted keys, no spaces) of the questions dict that was sent; `s1inspect.py` uses it.
+
+The state, the answers and every log field are described in `SCHEMA.md`; `test_schema.py` fails when a
+log field is not there.
 
 Tests (no network): `python3 -m unittest s1.test_jev -v` from the repo root.
 
@@ -45,6 +48,43 @@ as written, with no redaction (T43, u123). It adds one line of context for the a
   key)`, and the hook exits 0. The details go to the log. It never blocks a prompt.
 - It prints nothing only when it is off (`S1_OFF=1`). So no line means that the hook is off or not
   installed, never that the hook saw no signal.
+
+### Which messages: the conversation Claude holds (s1-rewind-context)
+
+`recent` is the end of the conversation that Claude holds at the prompt, not the end of the file:
+
+- The hook starts at the last message line of the transcript and follows `parentUuid` back. A
+  message that a rewind removed is not on that chain, so it is not sent.
+- It stops at a compaction. The compaction summary is one message (cut to fit like any long
+  message); nothing before it is sent.
+- A line that Ty did not type is not a message: `[Request interrupted ...]`, and a line that
+  starts with a tag (`<command-name>`, `<local-command-stdout>`, `<task-notification>`,
+  `<bash-input>`, `<bash-stdout>`, ...). Meta and subagent lines stay out, as before.
+- On the first prompt after a rewind the file still ends on the abandoned branch. When the new
+  prompt (15 characters or more) matches a prompt of that branch at difflib ratio 0.9 or more
+  (the best match; the oldest wins a tie), the hook starts at the parent of that prompt: the
+  rewind point. A prompt that matches nothing gets the end of the file's branch.
+- It fails open: a transcript with no `uuid` lines, or a chain whose parent is missing from the
+  whole file, gives the last messages in file order, as before. A chain cut only by the 8 MiB
+  read bound gives the part found.
+
+**The late fix.** The first call can still be sent the wrong branch (a rewind with new text, or a
+text match that misfires). So, when the hook input has `prompt_id`, the hook writes what the first
+call was sent to `~/.claude/s1-latefix/<session id>/<prompt id>.sent.json` and starts a detached
+process (`hook.py --late-fix`: a new session, stdin, stdout and stderr closed; the hook never
+waits on it). That process waits, at most 20 s, for the prompt line whose `promptId` is the hook's
+`prompt_id`, and reads the context from that line's `parentUuid`. Only when it differs from what the
+first call was sent does it ask the System 1 model once more. The log line of that call has
+`"kind": "correction"` and the `prompt_id` (the first call's line has the `prompt_id` too). The
+corrected line, `System 1 (correction): ...`, goes to `<prompt id>.correction.json`. One late fix
+runs for each prompt (a lock file). Files older than 2 days are removed.
+
+**Delivery (`posttool.py`, a `PostToolUse` hook).** At a tool call of the main agent in the turn of
+that prompt, it gives the corrected line once, as `additionalContext` next to the tool result. It
+looks only for the correction of the `session_id` and `prompt_id` of its own input, claims it with
+an exclusive create, and skips calls whose input has `agent_id` (a subagent). With nothing to give,
+it only checks for one small file and exits. If Ty sends the next prompt before the agent calls a
+tool, the correction is never shown; the next prompt gets its own call.
 
 **Status: the hook is recommended, not required.** Sagittarius works without it, and the prompt
 says that no line means no outside view. `questions.json` is the review session's calibrated set
@@ -110,6 +150,29 @@ design question that is not decided.
 }
 ```
 
+4. For the late fix to reach the agent (above), also paste this `PostToolUse` entry next to
+   `UserPromptSubmit` in the same `hooks` object. Without it the late fix still corrects the log
+   (and the status line), but the agent never sees the corrected line:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/sagittarius-s1/posttool.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 The `timeout` of 10 s is the Claude Code limit. The hook stops waiting for the System 1 model before that: after
 `S1_TIMEOUT` seconds (default 4) plus 0.5 s.
 
@@ -129,6 +192,9 @@ Set `S1_OFF=1`: for one session, start it with `S1_OFF=1 claude`; for all sessio
 | `S1_FANOUT` | unset | `0`: turn the fan-out off (the questions of `questions.json` alone) |
 | `S1_FANOUT_FILE` | `s1/fanout.json` | the questions of the fan-out |
 | `S1_LOG` | `~/.claude/logs/s1.jsonl` | the log (`jev.py` writes it) |
+| `S1_LATEFIX` | unset | `0`: no late fix |
+| `S1_LATEFIX_DIR` | `~/.claude/s1-latefix` | the late-fix files (the hook and `posttool.py`) |
+| `S1_LATEFIX_WAIT` | `20` | seconds the late fix waits for the prompt line |
 
 Each log line is the `jev.py` record (no key; the state as sent) plus `session_id` and
 `transcript` (the basename of the transcript path).
@@ -137,7 +203,8 @@ questions, no key, a timeout, no answers, bad answers), it writes one line with 
 reason. `S1_OFF=1` writes nothing. The hook reads the last 2 MiB of the transcript, and goes back at most 8 MiB until it has the messages.
 
 Tests (no network): `python3 -m unittest s1.test_hook -v` from the repo root. One claim alone:
-`python3 -m unittest s1.test_hook.C3FailOpen -v`.
+`python3 -m unittest s1.test_hook.C3FailOpen -v`. The rewind, compaction and late-fix tests:
+`python3 -m unittest s1.test_rewind -v`.
 
 ## The status line segment (T14)
 
@@ -201,6 +268,21 @@ newline instead of the ` | ` join. Trying it without installing:
 Tests (no network): `python3 -m unittest s1.test_statusline -v`. One claim alone:
 `python3 -m unittest s1.test_statusline.C2Stale -v`.
 
+## The Sagittarius Signals mod (`glance/`)
+
+`glance/` is a Claude Code plugin (a hooks module, not a command hook). It shows the hook's newest
+judgment of the session at a glance: one bar per signal, colored by strength (red confident, yellow
+moderate, plain weak). The label of a signal that fired is bright; the label of one under its
+threshold is dim. A judgment older than 10 minutes is dim in every view. It reads only the hook's
+log, `~/.claude/logs/s1.jsonl`.
+
+`install.py` links it to `~/.claude/skills/s1-glance`, so every new session loads it. Pick the views
+with `/s1-glance pane | toast | corner | status | off` (any together). The choice is kept for every
+later session. A new setup starts with the pane. The `status` view writes one line with colors to
+`~/.claude/s1-glance/<session id>.status`; a status line command can print that file as its first row.
+
+Tests (no network): `claude plugin test s1/glance`.
+
 ## The observation harness (0.3.0, suggestion 3)
 
 `observe.py` compares the log of the hook with the session transcripts, after the fact. The hook
@@ -228,6 +310,94 @@ Its limits (it prints them too):
 
 Tests (no network; invented transcripts only): `python3 -m unittest s1.test_observe -v`.
 
+## The inspection tool
+
+`s1inspect.py` shows what the System 1 model was sent, how it was asked, and what it answered. It is
+for the owner who wants to check the hook by eye. It reads the log and the projects dir, calls no
+network, and writes no file. To watch the System 1 model's answers live, run `s1/s1watch` in a terminal: it follows
+the log and prints each call as the model returned it.
+
+    python3 s1/s1inspect.py --hub ~/Projects/mine/sagittarius --last 3
+    python3 s1/s1inspect.py --hub PATH --summary
+    python3 s1/s1inspect.py --errors --json
+
+| Option | Meaning |
+|---|---|
+| `--hub PATH` | only sessions of that hub folder: a session counts when `<projects>/<dir>/<session_id>.jsonl` exists, where `<dir>` is the folder path with every `/` and `.` as `-` |
+| `--projects DIR` | the projects dir (default `~/.claude/projects`) |
+| `--log FILE` | the log (default `$S1_LOG`, else `~/.claude/logs/s1.jsonl`) |
+| `--session ID` | one session; a prefix is enough |
+| `--since ISO` | only judgments at or after this time |
+| `--last N` | only the newest N, after the other filters |
+| `--errors` | only failed calls and hook skip lines |
+| `--questions FILE` | the question file (default `questions.json` of this checkout) |
+| `--json` | one JSON object per judgment, one per line |
+| `--summary` | counts instead of judgments; with `--json`, one object |
+
+Judgments are listed newest first. Each one has three parts.
+
+- **What it saw.** The message and every `recent` item: role, length, text.
+- **How it was asked.** Each question by id, with its instructions and criteria, and the shape of the
+  request body (`model`, `state`, `questions`). No key and no header is shown. The log keeps only the
+  question ids, so the text comes from the question file. The tool says so when it may differ from
+  what was sent: an id that the file lacks, an id that the call did not send, or a line from another
+  Sagittarius version than this checkout. When the line has `questions_sha`, the tool
+  compares it with the hash of the file and says `same` or `differs`; else the match is `unknown`.
+- **What it answered.** Each answer with its probabilities and its band: yes, no or unsure for a
+  yes/no answer; a choice is `shown` at P >= 0.5 (the hook's `CHOICE_MIN`), else unsure. Then the
+  exact line that the agent received, computed again with `hook.format_answers`. A failed call shows
+  its error and the hook's `no view` line. A hook skip line shows its reason.
+
+Calibration calls in the same log (`calibrate.py`; no session) show as `calibration`. Hub, session
+and a hub filter leave them out.
+
+`--summary` gives: judgments, calls, hook skip lines, failed calls,
+error rate, median latency, how often each signal fired in the yes band (divergence, change of plan,
+effort, questions not settled, proof asked), and, for each question, how many answers fell in each
+band or choice.
+
+`--json` keys per judgment: `schema`, `kind` (`call`, `skip`, `calibration`), `line`, `time`,
+`session_id`, `session_short`, `model`, `latency`, `usage`, `sagittarius`, `trimmed`,
+`long_context`, `failed`, `calibration_case`, `signals`, `saw` (`message`, `recent`),
+`asked` (`question_ids`, `questions`, `missing_from_file`, `questions_file`, `questions_sha_logged`,
+`questions_sha_file`, `match`, `notes`, `request_body`), `answered` (`answers`, `hint`, `hint_note`,
+`error`, `skipped`).
+
+Limits:
+
+- It shows the state and the answers as the log has them. It cannot show a request that the hook
+  never logged. It does not see the headers; `long_context` says whether the long-context header was set.
+- The question text is the file's, not the log's. Without `questions_sha` it cannot prove that the
+  file is what was sent. Lines from before the hash are always `unknown`.
+- The line that the agent received is computed again, not read from the session. For a failed
+  call, the reason inside the `no view` line comes from the hook's next skip line and may differ.
+- A hub is found only by the projects dir of that exact folder. Sessions in a sub-folder or a
+  worktree have their own dir and are not in it. A session whose transcript was deleted is not found.
+- It lists the whole selection. On a large log use `--last` or `--since`.
+
+Tests (no network; invented logs and projects dirs): `python3 -m unittest s1.test_s1inspect -v`.
+
+## The workbench (`bench.py`)
+
+To change how System 1 is asked, copy `questions.json`, edit the copy, and ask the model again about prompts
+it has already judged. `bench.py` puts the logged answer beside the new one for each question and marks a
+change of band with `*`. It calls the network once per judgment and needs `$TYPESAFE_API_KEY`.
+
+    python3 s1/bench.py --questions my-questions.json --hub PATH --last 10
+    python3 s1/bench.py --questions my-questions.json --last 10 --baseline   # also ask questions.json again
+    python3 s1/bench.py --questions my-questions.json --dry-run               # count the calls, ask nothing
+    python3 s1/calibrate.py --questions my-questions.json                     # the tracked calibration cases
+    python3 s1/bench.py --questions q.json --pipeline my-routing.py --baseline # your own routing
+
+`--pipeline FILE` replaces the one call with a Python file that defines `run(state, ask, questions)`:
+`ask(qs)` makes one call with the questions dict `qs`. It can ask in stages, split or merge questions,
+or skip some; `hint(answers, questions)`, if defined, writes the line the agent would get (else the
+hook's `format_answers`). The output then shows the logged line and the new one.
+
+The selection options are those of `s1inspect.py` (`--hub`, `--session`, `--since`, `--last`; the newest
+5 by default). Two calls with the same questions can differ a little (a few hundredths), so use
+`--baseline` before you read a small change as an effect of your edit. The calls go to
+`$S1_BENCH_LOG` (default `~/.claude/logs/s1-bench.jsonl`), never to the hook's log.
 ## The fan-out
 
 One request still, but the message is read part by part. `hook.split_parts` cuts the message: each

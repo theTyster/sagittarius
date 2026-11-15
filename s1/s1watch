@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# s1watch: print each System 1 call of the live log as the System 1 model answered it.
+#
+#   s1watch [-n N] [--once]
+#
+# Shows the last N calls (default 5), then follows the log. --once prints and stops.
+# For each call: a header (local time, session name, routing, latency), the start of the message,
+# then the model's answers as returned, pretty-printed by jq. It knows no question name or answer type,
+# so a new question shows with no change here.
+# S1_LOG (default ~/.claude/logs/s1.jsonl). S1_SESSIONS (default ~/.claude/sessions) names sessions.
+set -u
+LOG=${S1_LOG:-$HOME/.claude/logs/s1.jsonl}
+SESS=${S1_SESSIONS:-$HOME/.claude/sessions}
+N=5; FOLLOW=1
+while [ $# -gt 0 ]; do
+  case $1 in
+    -n) N=$2; shift 2 ;;
+    --once) FOLLOW=0; shift ;;
+    -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "s1watch: unknown argument $1" >&2; exit 2 ;;
+  esac
+done
+command -v jq >/dev/null || { echo "s1watch: needs jq" >&2; exit 1; }
+[ -t 1 ] && COLOR=-C || COLOR=-M
+
+names() { cat "$SESS"/*.json 2>/dev/null | jq -s 'map(select(.sessionId) | {(.sessionId): (.name // "")}) | add // {}' 2>/dev/null || echo '{}'; }
+
+FILTER='
+def clean: tostring | gsub("\u001b\\[[0-9;?]*[ -/]*[@-~]"; "") | gsub("[[:cntrl:]]+"; " ");
+def when: (try (.time[0:19] + "Z" | fromdateiso8601 | strflocaltime("%H:%M:%S")) catch (.time // "?"));
+def who: ($names[.session_id // ""] // "" | select(. != "")) // ((.session_id // "?") | tostring | .[0:8]);
+fromjson? | select(type == "object") |
+"── \(when)  \(who)  \(.routing // "-")" + (if .latency then (.latency * 10 | round) as $t | "  \($t / 10 | floor).\($t % 10)s" else "" end)
+  + (if .stage then "  stage \(.stage)" else "" end),
+(if .state then "> " + ((.state.message // "") | clean | .[0:160]) else empty end),
+(if .answers then .answers
+ elif .skipped then "skipped: \(.skipped | clean)"
+ elif .error then "error: \(.error | clean)"
+ else empty end),
+(if .answers and .error then "error: \(.error | clean)" else empty end)'
+
+show() { while IFS= read -r line; do
+  jq -R -r $COLOR --argjson names "$(names)" "$FILTER" <<<"$line"
+done; }
+
+if [ "$FOLLOW" = 1 ]; then tail -n "$N" -F "$LOG" 2>/dev/null | show
+else tail -n "$N" "$LOG" | show; fi

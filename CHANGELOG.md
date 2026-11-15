@@ -6,9 +6,9 @@ Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own v
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.4.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.4.1 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.7.2 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.7.3 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 
 What a change of each number means:
 
@@ -40,6 +40,42 @@ Earlier versions, named after the fact so that a report can refer to them:
   new hint. Evidence and limits: `s1/research/2026-11-15-question-eval/README.md`.
 - **System 1: the live view.** `s1/live.py` prints the hook's judgments of a session as a pane, a
   corner, a toast line or JSON. The status line segment shows a reversal and the number of parts.
+## Sagittarius 0.4.1 (2026-11-15)
+
+PATCH (Ty, 2026-11-15).
+
+- `s1/glance/`: the Sagittarius Signals mod, a Claude Code plugin that shows the System 1 hook's
+  newest judgment as a pane, toasts, a corner or a status line (ticket s1-glance). `install.py` makes a
+  new link, `~/.claude/skills/s1-glance`, so every new session loads it. Run `./install.py` again
+  after you update.
+- The mod's colors: the bar of each signal is colored by its strength; the label of a signal under
+  its threshold is dim, and a fired one is bright; a judgment older than 10 minutes is dim in every
+  view (c2b).
+- The mod draws what System 1 saw, and the error text of a failed call, as plain text: a control
+  character (the escape codes of the `/compact` output) no longer blanks the pane (c8b).
+- The System 1 hook sends the System 1 model the conversation that Claude holds (ticket s1-rewind-context). It
+  follows each message's parent from the last line of the transcript. After a rewind, the
+  messages that the rewind removed are not sent. After a compaction, the summary stands in for
+  everything before it. Lines that the human did not type (interrupts, slash-command output,
+  task notifications, `!` shell lines) are not sent. On the first prompt after a rewind, a prompt
+  that matches an earlier prompt of the live branch (difflib ratio 0.9 or more, 15 characters or
+  more) starts from that prompt's parent.
+- The late fix: when the first call of a prompt was sent another context, a detached process
+  asks System 1 once more after the prompt line is written, and logs that call with
+  `"kind": "correction"`. Claude Code never waits on it. A new PostToolUse hook, `s1/posttool.py`,
+  gives the corrected line to the main agent once, at its next tool call in that turn. Add the
+  PostToolUse entry of `s1/README.md` to your settings to get it. `S1_LATEFIX=0` turns the late
+  fix off.
+- The System 1 workbench, `s1/workbench/` (ticket s1-inspect). The hook reads its
+  `questions.json` and its routing, `pipeline.py`, again on every prompt, so a saved edit acts in
+  every session at once. A routing gets 9 s (`S1_WORKBENCH_TIMEOUT`) and fails open.
+  `s1/workbench/bench/` holds copies that only bench replays read, with `make-live.sh` and
+  `take-live.sh` to copy between the two areas (each keeps the files it replaces in
+  `bench/backups/`). `S1_WORKBENCH=off` turns the workbench off.
+- `s1/s1watch`: prints each System 1 call of the log in a terminal, with the model's answers as they
+  came (needs `jq`). `s1inspect.py` no longer has a web page (`--serve`, `--html`).
+- `s1/SCHEMA.md`: the state sent to the System 1 model, each answer type, and every field of a log line.
+  `test_schema.py` fails when the code writes a field that the file does not name.
 
 ## Sagittarius 0.4.0 (2026-11-12)
 
@@ -115,6 +151,15 @@ in its last line, the version.
   (`relation_by`, WP9).
 - orbit-kb: a build KB records models (`model`, `model_run`, `encodes`); a solver result never
   closes a burn.
+
+## MindHole Kit 0.7.3 (the template; pairs with Sagittarius 0.4.1)
+
+A patch: no schema change (the db schema stays 6). `PRINCIPLES.md` names the prompt's version,
+and the orbit-kb copy holds the version of Sagittarius, so the kit version moves up with
+Sagittarius 0.4.1. No rule of the template or of orbit-kb changed.
+
+- `PRINCIPLES.md` line 3 names Sagittarius 0.4.1.
+- The orbit-kb copy's `share/orbit-kb/VERSION` is `0.4.1`.
 
 ## MindHole Kit 0.7.2 (the template; pairs with Sagittarius 0.4.0)
 

@@ -1,6 +1,6 @@
 # Sagittarius
 
-Sagittarius 0.4.0. A way for a human and an AI agent to agree on what is being built, with
+Sagittarius 0.4.1. A way for a human and an AI agent to agree on what is being built, with
 only as much rigor as the work needs.
 
 **Start light. Shift up on a signal. Lean back when it is resolved.** Every ticket starts with a
@@ -70,8 +70,9 @@ ends with a check. Do the steps in order. Stop at a check that fails, and say wh
    platform).
 2. **Link.** From this folder, run `./install.py`. It uses only the Python standard library and
    works the same on Linux, macOS, and Windows (there, symlinks need Developer Mode). It makes
-   five links: `~/.local/bin/orbit-kb`, `~/.local/bin/repo-map`, `~/.local/share/orbit-kb`,
-   `~/.claude/sagittarius` (the prompt), and `~/.claude/sagittarius-s1` (the System 1 hook).
+   six links: `~/.local/bin/orbit-kb`, `~/.local/bin/repo-map`, `~/.local/share/orbit-kb`,
+   `~/.claude/sagittarius` (the prompt), `~/.claude/sagittarius-s1` (the System 1 hook), and
+   `~/.claude/skills/s1-glance` (the Sagittarius Signals mod, which shows the hook's judgment).
    Check: `./install.py --check` prints `ok` for each link, and `orbit-kb doctor` passes. Run
    `./install.py` again after each update: a release can add a link, and its changelog entry
    says so.
@@ -116,7 +117,7 @@ ends with a check. Do the steps in order. Stop at a check that fails, and say wh
    `claude`.
 5. **Ask it which prompt it got.** Ask the session: "What is the last line of your system
    prompt?" It must answer with the last line of `prompt/SAGITTARIUS.md`. For this release that
-   is "This is Sagittarius 0.4.0 (2026-11-12).", so the session names Sagittarius 0.4.0. Any
+   is "This is Sagittarius 0.4.1 (2026-11-15).", so the session names Sagittarius 0.4.1. Any
    other answer means that the session did not get this prompt: check step 3. The link points
    at this checkout, so a session gets the prompt of the branch that the checkout holds.
 6. **The System 1 hook (recommended, not required).** Follow "Install" in `s1/README.md`. The
