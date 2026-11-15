@@ -7,6 +7,9 @@ API: https://docs.typesafe.ai/api.md
 - `redact(obj, pairs)`, `band(p)`, `to_prolog(run_id, answers)`: see the docstrings.
 - Log: one JSON line per call in `$S1_LOG`, else `~/.claude/logs/s1.jsonl`. No key. The state only after any redaction that the caller asks for (the hook asks for none). `questions_sha` is the first 12 hex digits of the sha256 of the canonical JSON (sorted keys, no spaces) of the questions dict that was sent; `s1inspect.py` uses it.
 
+The state, the answers and every log field are described in `SCHEMA.md`; `test_schema.py` fails when a
+log field is not there.
+
 Tests (no network): `python3 -m unittest s1.test_jev -v` from the repo root.
 
 ## The hook (T07)
