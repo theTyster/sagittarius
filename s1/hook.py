@@ -24,6 +24,17 @@ read starts with the last 2 MiB and goes back, at most 8 MiB, until it has the m
 The hook sends the complete messages as written, with no redaction (T43, u123): no name list is
 applied to them.
 
+Which messages (s1-rewind-context): the conversation Claude holds, not the file order. The hook
+follows parentUuid back from the last message line (G5), stops at a compaction (the summary is one
+message) and leaves out the lines Ty did not type ([Request interrupted ...], tagged lines such as
+<command-name> or <task-notification>). On the first prompt after a rewind, a prompt that matches
+a prompt of the branch the file ends in (difflib ratio >= 0.9, 15 chars or more) starts at that
+prompt's parent (G6). No uuid, or a parent missing from the whole file: file order (rk1).
+The late fix (c7): with a prompt_id in the input, the hook starts a detached process (G7,
+`hook.py --late-fix FILE`) that waits for the prompt line with that promptId (G1) and, only if the
+context from its parent differs from what was sent (G4), asks again and logs kind "correction".
+posttool.py (a PostToolUse hook) gives the corrected line to the main agent once (c8).
+
 Fails open, and says so (0.3.0 S-A): on any error, a timeout, a missing key, a missing questions
 file or bad stdin it prints one short line, "System 1: no view (<reason>)", and exits 0. When every
 answer is in the unsure band it prints "System 1: unsure"; when only the formal tool is sure and no
@@ -34,7 +45,8 @@ divergence, a likely change of plan, significant effort), or when a proof is ask
 
 Env: TYPESAFE_API_KEY (the key), S1_OFF=1 (do nothing), S1_TIMEOUT (seconds, default 4),
 S1_CONTEXT_MESSAGES (default 3, never below 3),
-S1_QUESTIONS (default s1/questions.json), S1_LOG (default ~/.claude/logs/s1.jsonl).
+S1_QUESTIONS (default s1/questions.json), S1_LOG (default ~/.claude/logs/s1.jsonl),
+S1_LATEFIX=0 (no late fix), S1_LATEFIX_DIR (default ~/.claude/s1-latefix), S1_LATEFIX_WAIT (20).
 """
 import difflib
 import json
@@ -350,8 +362,12 @@ def _fit(state, questions):
 
 def build_state(prompt, transcript_path, n=CONTEXT_MESSAGES, questions=None):
     """{message, recent} as written (no redaction, T43), then fitted. Returns (state, trimmed, long_context)."""
-    recent = recent_messages(transcript_path, n, prompt)
-    st = {"message": prompt, "recent": recent}
+    return _fitted(prompt, recent_messages(transcript_path, n, prompt), questions)
+
+
+def _fitted(prompt, recent, questions):
+    """{message, recent} fitted (a copy: recent itself is not changed)."""
+    st = {"message": prompt, "recent": [dict(m) for m in recent]}
     trimmed, long_context = _fit(st, questions or {})
     return st, trimmed, long_context
 
@@ -440,10 +456,12 @@ def _out(line):
                                               "additionalContext": line}})
 
 
-def run(raw, env, transport=None):
+def run(raw, env, transport=None, spawn=None):
     """The hook's stdout for stdin text raw: a JSON hook result, or "" only when off (S1_OFF).
     Never raises. Every skip except S1_OFF writes one log line with the reason, and prints
-    one short line "System 1: no view (<reason>)" (0.3.0 S-A)."""
+    one short line "System 1: no view (<reason>)" (0.3.0 S-A).
+    After the first call it starts the late fix (c7) with spawn(argv, env) (default: a detached
+    process, G7); tests give their own spawn."""
     if env.get("S1_OFF", "").strip() not in ("", "0"):
         return ""
     log_path = env.get(jev.LOG_ENV) or jev.DEFAULT_LOG
@@ -462,6 +480,12 @@ def run(raw, env, transport=None):
         tpath = tpath if isinstance(tpath, str) else ""
         extra = {"session_id": payload.get("session_id"),
                  "transcript": os.path.basename(tpath) or None}
+        if isinstance(payload.get("prompt_id"), str):
+            extra["prompt_id"] = payload["prompt_id"]
+        try:  # the late fix looks for the prompt line from here on (it is written after the hook)
+            offset = os.path.getsize(tpath) if tpath else 0
+        except OSError:
+            offset = 0
         try:
             with open(env.get("S1_QUESTIONS") or os.path.join(HERE, "questions.json"),
                       encoding="utf-8") as f:
@@ -481,7 +505,9 @@ def run(raw, env, transport=None):
 
         def call():  # the transcript read and the request both run inside the timeout
             try:
-                state, trimmed, long_context = build_state(payload["prompt"], tpath, _count(env), questions)
+                recent = recent_messages(tpath, _count(env), payload["prompt"])
+                box["recent"] = [dict(m) for m in recent]  # what the late fix compares with (G4)
+                state, trimmed, long_context = _fitted(payload["prompt"], recent, questions)
             except Exception as e:
                 box["error"] = f"state: {type(e).__name__}: {e}"
                 return
@@ -495,6 +521,8 @@ def run(raw, env, transport=None):
         t = threading.Thread(target=call, daemon=True)
         t.start()
         t.join(timeout + GRACE)
+        if "recent" in box:
+            _start_late_fix(payload, env, tpath, offset, box["recent"], spawn or _spawn)
         if t.is_alive():
             _skip(log_path, key, f"timeout: the hook stopped waiting after {timeout + GRACE}s",
                   extra, model=jev.DEFAULT_MODEL, questions=list(questions),
@@ -518,10 +546,160 @@ def run(raw, env, transport=None):
         return _out(no_view("error"))
 
 
-def main(transport=None):
-    """Script entry: stdin to stdout. Always returns 0."""
+def _spawn(argv, env):
+    """G7 (c9): start the late fix as a detached process: a new session, stdin, stdout and
+    stderr closed. The hook never waits on it, so Claude Code never waits on it."""
+    import subprocess
+    subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True)
+
+
+def _start_late_fix(payload, env, tpath, offset, recent, spawn):
+    """Write what the first call was sent and start the late fix of this prompt. Nothing when
+    the input has no prompt_id or session_id (no late fix), or S1_LATEFIX=0. Never raises."""
+    try:
+        if env.get("S1_LATEFIX", "").strip() == "0" or not tpath:
+            return
+        sid, pid = posttool.safe_id(payload.get("session_id")), posttool.safe_id(payload.get("prompt_id"))
+        if not sid or not pid:
+            return
+        stem = posttool.base(env, sid, pid)
+        os.makedirs(os.path.dirname(stem), mode=0o700, exist_ok=True)
+        sent = stem + ".sent.json"
+        tmp = f"{sent}.{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"session_id": sid, "prompt_id": pid, "transcript_path": tpath,
+                       "offset": offset, "prompt": payload["prompt"], "n": _count(env),
+                       "recent": recent}, f)
+        os.replace(tmp, sent)
+        spawn([sys.executable, os.path.abspath(__file__), "--late-fix", sent], env)
+    except Exception:
+        pass
+
+
+def _find_prompt_line(path, prompt_id, offset, wait, poll=LATE_FIX_POLL, sleep=time.sleep):
+    """G1: wait (at most `wait` seconds) for the prompt line whose promptId is the hook's
+    prompt_id. Returns (True, its parentUuid) or (False, None). The read starts TAIL_BYTES
+    before `offset` (the transcript size when the hook ran) and then reads only what is added."""
+    pos = max(0, offset - TAIL_BYTES)
+    cut = pos > 0  # the first line read may be cut
+    buf = b""
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            with open(path, "rb") as f:
+                f.seek(pos)
+                data = f.read()
+        except OSError:
+            data = b""
+        pos += len(data)
+        buf += data
+        lines = buf.split(b"\n")
+        buf = lines.pop()
+        if cut and lines:
+            lines, cut = lines[1:], False
+        for line in lines:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(d, dict) or d.get("type") != "user" or d.get("promptId") != prompt_id:
+                continue
+            c = (d.get("message") or {}).get("content") if isinstance(d.get("message"), dict) else None
+            if d.get("isMeta") or d.get("isSidechain") or d.get("isCompactSummary") or (
+                    isinstance(c, list) and any(isinstance(b, dict) and b.get("type") == "tool_result" for b in c)):
+                continue
+            return True, d.get("parentUuid")
+        if time.monotonic() >= deadline:
+            return False, None
+        sleep(poll)
+
+
+def _prune(env, days=2):
+    """Remove late-fix files older than `days` days. Never raises."""
+    try:
+        top = posttool.state_dir(env)
+        old = time.time() - days * 86400
+        for sd in os.listdir(top):
+            p = os.path.join(top, sd)
+            for fn in os.listdir(p):
+                q = os.path.join(p, fn)
+                if os.path.getmtime(q) < old:
+                    os.unlink(q)
+            if not os.listdir(p):
+                os.rmdir(p)
+    except Exception:
+        pass
+
+
+def late_fix(sent_path, env, transport=None, wait=None, sleep=time.sleep):
+    """c7: the late fix of one prompt (run in the detached process). Once the prompt line is in
+    the transcript (G1), read the context from its parent; only if that differs from what the
+    first call was sent (G4), ask Jev once more, log the call with kind "correction" and the
+    prompt_id, and write the corrected line for PostToolUse (c8). At most once per prompt (a
+    lock file made with O_EXCL). Returns what it did, for tests. Never raises."""
+    try:
+        with open(sent_path, encoding="utf-8") as f:
+            st = json.load(f)
+        stem = sent_path[:-len(".sent.json")]
+        try:
+            os.close(os.open(stem + ".lock", os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+        except FileExistsError:
+            return "already"
+        _prune(env)
+        if wait is None:
+            try:
+                wait = float(env.get("S1_LATEFIX_WAIT", LATE_FIX_WAIT))
+            except (TypeError, ValueError):
+                wait = LATE_FIX_WAIT
+        found, parent = _find_prompt_line(st["transcript_path"], st["prompt_id"], st["offset"], wait,
+                                          sleep=sleep)
+        if not found:
+            return "no prompt line"
+        right = recent_messages(st["transcript_path"], st["n"], None, parent=parent)
+        if right == st["recent"]:  # G4: the first call was right
+            return "right"
+        log_path = env.get(jev.LOG_ENV) or jev.DEFAULT_LOG
+        key = env.get(jev.KEY_ENV) or ""
+        if not key:
+            return "no key"
+        with open(env.get("S1_QUESTIONS") or os.path.join(HERE, "questions.json"), encoding="utf-8") as f:
+            questions = json.load(f)
+        state, trimmed, long_context = _fitted(st["prompt"], right, questions)
+        lx = {"session_id": st["session_id"], "transcript": os.path.basename(st["transcript_path"]),
+              "prompt_id": st["prompt_id"], "kind": "correction"}
+        if trimmed:
+            lx["trimmed"] = True
+        if long_context:
+            lx["long_context"] = True
+        answers = jev.judge(state, questions, key=key, log_path=log_path, transport=transport,
+                            log_extra=lx, long_context=long_context)
+        if not answers:
+            return "no answer"
+        line = format_answers(answers, questions)
+        line = CORRECTION_PREFIX + line[len("System 1:"):]
+        tmp = stem + ".correction.json.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"line": line}, f)
+        os.replace(tmp, stem + ".correction.json")
+        return "corrected"
+    except Exception:
+        return "error"
+    finally:
+        try:
+            os.unlink(sent_path)
+        except OSError:
+            pass
+
+
+def main(transport=None, argv=None):
+    """Script entry: stdin to stdout. Always returns 0. `--late-fix FILE` runs the late fix."""
+    argv = sys.argv[1:] if argv is None else argv
     try:
         if os.environ.get("S1_OFF", "").strip() not in ("", "0"):
+            return 0
+        if argv[:1] == ["--late-fix"] and len(argv) == 2:
+            late_fix(argv[1], dict(os.environ), transport=transport)
             return 0
         out = run(sys.stdin.read(), dict(os.environ), transport=transport)
         if out:
