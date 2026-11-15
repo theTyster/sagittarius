@@ -6,7 +6,7 @@ Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own v
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.4.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.4.1 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
 | MindHole Kit | 0.7.2 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 
@@ -30,7 +30,9 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
 
-## Sagittarius, next release (not released; the version is not chosen yet)
+## Sagittarius 0.4.1 (2026-11-15)
+
+PATCH (Ty, 2026-11-15).
 
 - `s1/glance/`: the Sagittarius Signals mod, a Claude Code plugin that shows the System 1 hook's
   newest judgment as a pane, toasts, a corner or a status line (ticket s1-glance). `install.py` makes a
