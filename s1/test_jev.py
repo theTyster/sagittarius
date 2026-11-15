@@ -336,5 +336,34 @@ class C9MissingAnswer(Base):
         self.assertIsNone(self.call(Fake(), questions=qs))
         self.assertIn("q2", self.lines()[-1]["error"])
 
+class C10QuestionsSha(Base):
+    """The log keeps a short hash of the exact questions dict that was sent (additive)."""
+
+    def test_c10_logged_hash_is_of_the_questions_sent(self):
+        fake = Fake()
+        self.call(fake)
+        sent = json.loads(fake.calls[0]["body"])["questions"]
+        sha = self.lines()[-1]["questions_sha"]
+        self.assertRegex(sha, r"^[0-9a-f]{12}$")
+        self.assertEqual(sha, jev.questions_sha(sent))
+
+    def test_c10_hash_ignores_key_order_and_sees_a_change(self):
+        a = {"q1": {"type": "noul", "instructions": "x"}, "q2": {"type": "noul", "instructions": "y"}}
+        b = {"q2": {"instructions": "y", "type": "noul"}, "q1": {"instructions": "x", "type": "noul"}}
+        self.assertEqual(jev.questions_sha(a), jev.questions_sha(b))
+        b["q1"]["instructions"] = "z"
+        self.assertNotEqual(jev.questions_sha(a), jev.questions_sha(b))
+
+    def test_c10_hash_is_of_the_redacted_questions(self):
+        fake = Fake()
+        self.call(fake, redactions=[("Is it so", "Is it not")])
+        sent = json.loads(fake.calls[0]["body"])["questions"]
+        self.assertEqual(self.lines()[-1]["questions_sha"], jev.questions_sha(sent))
+
+    def test_c10_a_failed_call_has_the_hash_too(self):
+        self.call(Fake(status=500, payload="boom"))
+        self.assertIn("questions_sha", self.lines()[-1])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

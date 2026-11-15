@@ -5,7 +5,10 @@ API: https://docs.typesafe.ai/api.md
 
 - `judge(state, questions, *, model="jev-1.14.0", timeout=20, redactions=None)` returns `{qid: answer}` or `None`. It never raises. The key comes from `$TYPESAFE_API_KEY`.
 - `redact(obj, pairs)`, `band(p)`, `to_prolog(run_id, answers)`: see the docstrings.
-- Log: one JSON line per call in `$S1_LOG`, else `~/.claude/logs/s1.jsonl`. No key. The state only after any redaction that the caller asks for (the hook asks for none).
+- Log: one JSON line per call in `$S1_LOG`, else `~/.claude/logs/s1.jsonl`. No key. The state only after any redaction that the caller asks for (the hook asks for none). `questions_sha` is the first 12 hex digits of the sha256 of the canonical JSON (sorted keys, no spaces) of the questions dict that was sent; `s1inspect.py` uses it.
+
+The state, the answers and every log field are described in `SCHEMA.md`; `test_schema.py` fails when a
+log field is not there.
 
 Tests (no network): `python3 -m unittest s1.test_jev -v` from the repo root.
 
@@ -240,3 +243,92 @@ Its limits (it prints them too):
   nearest prompt in time (at most 5 minutes).
 
 Tests (no network; invented transcripts only): `python3 -m unittest s1.test_observe -v`.
+
+## The inspection tool
+
+`s1inspect.py` shows what the System 1 model was sent, how it was asked, and what it answered. It is
+for the owner who wants to check the hook by eye. It reads the log and the projects dir, calls no
+network, and writes no file. To watch Jev's answers live, run `s1/s1watch` in a terminal: it follows
+the log and prints each call as Jev returned it.
+
+    python3 s1/s1inspect.py --hub ~/Projects/mine/sagittarius --last 3
+    python3 s1/s1inspect.py --hub PATH --summary
+    python3 s1/s1inspect.py --errors --json
+
+| Option | Meaning |
+|---|---|
+| `--hub PATH` | only sessions of that hub folder: a session counts when `<projects>/<dir>/<session_id>.jsonl` exists, where `<dir>` is the folder path with every `/` and `.` as `-` |
+| `--projects DIR` | the projects dir (default `~/.claude/projects`) |
+| `--log FILE` | the log (default `$S1_LOG`, else `~/.claude/logs/s1.jsonl`) |
+| `--session ID` | one session; a prefix is enough |
+| `--since ISO` | only judgments at or after this time |
+| `--last N` | only the newest N, after the other filters |
+| `--errors` | only failed calls and hook skip lines |
+| `--questions FILE` | the question file (default `questions.json` of this checkout) |
+| `--json` | one JSON object per judgment, one per line |
+| `--summary` | counts instead of judgments; with `--json`, one object |
+
+Judgments are listed newest first. Each one has three parts.
+
+- **What it saw.** The message and every `recent` item: role, length, text.
+- **How it was asked.** Each question by id, with its instructions and criteria, and the shape of the
+  request body (`model`, `state`, `questions`). No key and no header is shown. The log keeps only the
+  question ids, so the text comes from the question file. The tool says so when it may differ from
+  what was sent: an id that the file lacks, an id that the call did not send, or a line from another
+  Sagittarius version than this checkout. When the line has `questions_sha`, the tool
+  compares it with the hash of the file and says `same` or `differs`; else the match is `unknown`.
+- **What it answered.** Each answer with its probabilities and its band: yes, no or unsure for a
+  yes/no answer; a choice is `shown` at P >= 0.5 (the hook's `CHOICE_MIN`), else unsure. Then the
+  exact line that the agent received, computed again with `hook.format_answers`. A failed call shows
+  its error and the hook's `no view` line. A hook skip line shows its reason.
+
+Calibration calls in the same log (`calibrate.py`; no session) show as `calibration`. Hub, session
+and a hub filter leave them out.
+
+`--summary` gives: judgments, calls, hook skip lines, failed calls,
+error rate, median latency, how often each signal fired in the yes band (divergence, change of plan,
+effort, questions not settled, proof asked), and, for each question, how many answers fell in each
+band or choice.
+
+`--json` keys per judgment: `schema`, `kind` (`call`, `skip`, `calibration`), `line`, `time`,
+`session_id`, `session_short`, `model`, `latency`, `usage`, `sagittarius`, `trimmed`,
+`long_context`, `failed`, `calibration_case`, `signals`, `saw` (`message`, `recent`),
+`asked` (`question_ids`, `questions`, `missing_from_file`, `questions_file`, `questions_sha_logged`,
+`questions_sha_file`, `match`, `notes`, `request_body`), `answered` (`answers`, `hint`, `hint_note`,
+`error`, `skipped`).
+
+Limits:
+
+- It shows the state and the answers as the log has them. It cannot show a request that the hook
+  never logged. It does not see the headers; `long_context` says whether the long-context header was set.
+- The question text is the file's, not the log's. Without `questions_sha` it cannot prove that the
+  file is what was sent. Lines from before the hash are always `unknown`.
+- The line that the agent received is computed again, not read from the session. For a failed
+  call, the reason inside the `no view` line comes from the hook's next skip line and may differ.
+- A hub is found only by the projects dir of that exact folder. Sessions in a sub-folder or a
+  worktree have their own dir and are not in it. A session whose transcript was deleted is not found.
+- It lists the whole selection. On a large log use `--last` or `--since`.
+
+Tests (no network; invented logs and projects dirs): `python3 -m unittest s1.test_s1inspect -v`.
+
+## The workbench (`bench.py`)
+
+To change how System 1 is asked, copy `questions.json`, edit the copy, and ask the model again about prompts
+it has already judged. `bench.py` puts the logged answer beside the new one for each question and marks a
+change of band with `*`. It calls the network once per judgment and needs `$TYPESAFE_API_KEY`.
+
+    python3 s1/bench.py --questions my-questions.json --hub PATH --last 10
+    python3 s1/bench.py --questions my-questions.json --last 10 --baseline   # also ask questions.json again
+    python3 s1/bench.py --questions my-questions.json --dry-run               # count the calls, ask nothing
+    python3 s1/calibrate.py --questions my-questions.json                     # the tracked calibration cases
+    python3 s1/bench.py --questions q.json --pipeline my-routing.py --baseline # your own routing
+
+`--pipeline FILE` replaces the one call with a Python file that defines `run(state, ask, questions)`:
+`ask(qs)` makes one call with the questions dict `qs`. It can ask in stages, split or merge questions,
+or skip some; `hint(answers, questions)`, if defined, writes the line the agent would get (else the
+hook's `format_answers`). The output then shows the logged line and the new one.
+
+The selection options are those of `s1inspect.py` (`--hub`, `--session`, `--since`, `--last`; the newest
+5 by default). Two calls with the same questions can differ a little (a few hundredths), so use
+`--baseline` before you read a small change as an effect of your edit. The calls go to
+`$S1_BENCH_LOG` (default `~/.claude/logs/s1-bench.jsonl`), never to the hook's log.
