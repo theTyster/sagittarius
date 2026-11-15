@@ -39,6 +39,31 @@ Earlier versions, named after the fact so that a report can refer to them:
 - The mod's colors: the bar of each signal is colored by its strength; the label of a signal under
   its threshold is dim, and a fired one is bright; a judgment older than 10 minutes is dim in every
   view (c2b).
+- The mod draws what System 1 saw, and the error text of a failed call, as plain text: a control
+  character (the escape codes of the `/compact` output) no longer blanks the pane (c8b).
+- The System 1 hook sends Jev the conversation that Claude holds (ticket s1-rewind-context). It
+  follows each message's parent from the last line of the transcript. After a rewind, the
+  messages that the rewind removed are not sent. After a compaction, the summary stands in for
+  everything before it. Lines that the human did not type (interrupts, slash-command output,
+  task notifications, `!` shell lines) are not sent. On the first prompt after a rewind, a prompt
+  that matches an earlier prompt of the live branch (difflib ratio 0.9 or more, 15 characters or
+  more) starts from that prompt's parent.
+- The late fix: when the first call of a prompt was sent another context, a detached process
+  asks System 1 once more after the prompt line is written, and logs that call with
+  `"kind": "correction"`. Claude Code never waits on it. A new PostToolUse hook, `s1/posttool.py`,
+  gives the corrected line to the main agent once, at its next tool call in that turn. Add the
+  PostToolUse entry of `s1/README.md` to your settings to get it. `S1_LATEFIX=0` turns the late
+  fix off.
+- The System 1 workbench, `s1/workbench/` (ticket s1-inspect). The hook reads its
+  `questions.json` and its routing, `pipeline.py`, again on every prompt, so a saved edit acts in
+  every session at once. A routing gets 9 s (`S1_WORKBENCH_TIMEOUT`) and fails open.
+  `s1/workbench/bench/` holds copies that only bench replays read, with `make-live.sh` and
+  `take-live.sh` to copy between the two areas (each keeps the files it replaces in
+  `bench/backups/`). `S1_WORKBENCH=off` turns the workbench off.
+- `s1/s1watch`: prints each System 1 call of the log in a terminal, with Jev's answers as they
+  came (needs `jq`). `s1inspect.py` no longer has a web page (`--serve`, `--html`).
+- `s1/SCHEMA.md`: the state sent to Jev, each answer type, and every field of a log line.
+  `test_schema.py` fails when the code writes a field that the file does not name.
 
 ## Sagittarius 0.4.0 (2026-11-12)
 
