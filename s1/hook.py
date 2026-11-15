@@ -36,14 +36,18 @@ Env: TYPESAFE_API_KEY (the key), S1_OFF=1 (do nothing), S1_TIMEOUT (seconds, def
 S1_CONTEXT_MESSAGES (default 3, never below 3),
 S1_QUESTIONS (default s1/questions.json), S1_LOG (default ~/.claude/logs/s1.jsonl).
 """
+import difflib
 import json
 import os
+import re
 import sys
 import threading
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import jev  # noqa: E402
+import posttool  # noqa: E402  (the late-fix files: one home for the paths)
 
 DEFAULT_TIMEOUT = 4.0
 GRACE = 0.5  # seconds past the timeout before the hook stops waiting for the call
@@ -58,6 +62,16 @@ LONG_CONTEXT_CHARS = LONG_CONTEXT_TOKENS * CHARS_PER_TOKEN
 CHOICE_MIN = 0.5  # a choice is shown when P(choice) >= 0.5, as in the calibration
 UNSURE = "System 1: unsure"  # every answer in the unsure band (0.3.0 S-A)
 NO_SIGNAL = "System 1: no signal"  # only a formal tool is sure, and no signal shows it (review of 0.3.0)
+# s1-rewind-context c3: a line that Ty did not type ([Request interrupted ...], a line that starts
+# with a tag such as <command-name>, <local-command-stdout>, <task-notification>, <bash-input>)
+TAGGED = re.compile(r"^\s*(<[a-z][a-z0-9_-]*[ >/]|\[Request interrupted)", re.I)
+MATCH_RATIO = 0.9  # c6b (q9, Ty): the text match of the first prompt after a rewind
+MATCH_MIN_CHARS = 15  # c6b: a shorter prompt is never matched
+MATCH_MAX_CHARS = 4000  # a longer text is not compared (difflib is quadratic)
+LATE_FIX_WAIT = 20.0  # c7: seconds the late fix waits for the prompt line (G1)
+LATE_FIX_POLL = 0.05
+CORRECTION_PREFIX = "System 1 (correction):"  # c8: the line that PostToolUse gives the agent
+_LAST = object()  # recent_messages: start at the last message line of the transcript
 
 
 def no_view(reason):
@@ -124,12 +138,19 @@ def _messages(lines):
     """The messages of transcript lines, oldest first: [{"role", "text"}]. An assistant reply is
     all the agent text between two user prompts (one turn): the lines of every API message in
     it (one line per content block, each response with its own message.id) are joined in order."""
-    out = []  # [key, role, [texts]]
+    ds = []
     for line in lines:
         try:
-            d = json.loads(line)
+            ds.append(json.loads(line))
         except ValueError:
             continue
+    return _messages_of(ds)
+
+
+def _messages_of(ds):
+    """_messages of lines already parsed."""
+    out = []  # [key, role, [texts]]
+    for d in ds:
         got = _message(d)
         if not got:
             continue
@@ -141,11 +162,141 @@ def _messages(lines):
     return [{"role": r, "text": "\n".join(ts)} for _, r, ts in out]
 
 
-def recent_messages(path, n, prompt=None):
-    """The last n messages before the prompt, oldest first. The read starts with the last
-    TAIL_BYTES and doubles, at most MAX_TAIL_BYTES, until it has n + 1 messages (one more, in
-    case the prompt is already in the transcript) or the whole file."""
+def _typed(d):
+    """The line with the pieces that Ty did not type left out (c3), or None when nothing is left.
+    A user line keeps only its text pieces that are not TAGGED; other lines are kept as they are
+    (_message decides whether they are messages). The same rule as expected() of the ticket's
+    check s1ctx.py."""
+    if not isinstance(d, dict) or d.get("type") != "user":
+        return d
+    m = d.get("message")
+    if d.get("isSidechain") or d.get("isMeta") or not isinstance(m, dict):
+        return None
+    c = m.get("content")
+    if isinstance(c, str):
+        ts = [c] if c.strip() else []
+    elif isinstance(c, list):
+        ts = [b["text"] for b in c if isinstance(b, dict) and b.get("type") == "text"
+              and isinstance(b.get("text"), str) and b["text"].strip()]
+    else:
+        return None
+    ts = [t for t in ts if not TAGGED.match(t)]
+    if not ts:
+        return None
+    content = ts[0] if len(ts) == 1 else [{"type": "text", "text": t} for t in ts]
+    return dict(d, message=dict(m, content=content))
+
+
+def _is_prompt(d):
+    """A prompt that Ty typed: a user line whose content is a string, not tagged, not a summary."""
+    m = d.get("message")
+    return (d.get("type") == "user" and not d.get("isSidechain") and not d.get("isMeta")
+            and not d.get("isCompactSummary") and isinstance(m, dict)
+            and isinstance(m.get("content"), str) and bool(m["content"].strip())
+            and not TAGGED.match(m["content"]))
+
+
+def _walk(js, by, uuid):
+    """The chain that ends in the line `uuid` (G5): that line and its parentUuid ancestors, oldest
+    first. It stops at a compaction: the summary line is the first item, nothing before it.
+    Returns (indexes, how): how is "root" (a line with no parent, or uuid None), "compaction",
+    or "broken" (a parent that is not in the lines read)."""
+    out, seen, p = [], set(), uuid
+    while p:
+        j = by.get(p)
+        if j is None or p in seen:
+            return out[::-1], "broken"
+        seen.add(p)
+        d = js[j]
+        if d.get("type") == "system" and d.get("subtype") == "compact_boundary":
+            return out[::-1], "compaction"
+        out.append(j)
+        if d.get("isCompactSummary"):
+            return out[::-1], "compaction"
+        p = d.get("parentUuid")
+    return out[::-1], "root"
+
+
+def _norm(t):
+    return re.sub(r"\s+", " ", t.strip().lower())
+
+
+def _match(js, by, last, prompt):
+    """G6 (c6b): the prompt of the branch the transcript ends in (the chain of the last message
+    line) that the new prompt matches best, at difflib ratio >= MATCH_RATIO, the new prompt
+    MATCH_MIN_CHARS or more; the oldest wins a tie. None when nothing matches. On the first
+    prompt after a rewind it names the rewound prompt, whose parent is the rewind point."""
+    if not isinstance(prompt, str):
+        return None
+    p = _norm(prompt)
+    if len(p) < MATCH_MIN_CHARS or len(p) >= MATCH_MAX_CHARS:
+        return None
+    idx, _ = _walk(js, by, js[last].get("uuid"))
+    best, bj = 0.0, None
+    sm = difflib.SequenceMatcher(None, autojunk=False)
+    sm.set_seq2(p)
+    for j in idx:
+        if not _is_prompt(js[j]):
+            continue
+        q = _norm(js[j]["message"]["content"])
+        if len(q) >= MATCH_MAX_CHARS:
+            continue
+        sm.set_seq1(q)
+        floor = max(MATCH_RATIO, best)  # a tie never replaces the older one
+        if sm.real_quick_ratio() < floor or sm.quick_ratio() < floor:
+            continue
+        r = sm.ratio()
+        if r > best:
+            best, bj = r, j
+    return bj if bj is not None and best >= MATCH_RATIO else None
+
+
+def _chain_read(lines, prompt, parent):
+    """The messages of the conversation Claude holds, from these lines (c1c, c2, c3, c6b).
+    parent is _LAST (start at the last message line; the text match may move the start to the
+    parent of a matched prompt) or a uuid (start there; None: no parent, so no messages).
+    Returns (messages, how) as _walk, or None when the lines have no uuid to follow."""
+    js = []
+    for line in lines:
+        try:
+            d = json.loads(line)
+        except ValueError:
+            d = {}
+        js.append(d if isinstance(d, dict) else {})
+    by = {d["uuid"]: j for j, d in enumerate(js) if isinstance(d.get("uuid"), str)}
+    if parent is _LAST:
+        last = next((j for j in range(len(js) - 1, -1, -1)
+                     if js[j].get("type") in ("user", "assistant") and not js[j].get("isSidechain")
+                     and isinstance(js[j].get("uuid"), str)), None)
+        if last is None:
+            return None
+        start = js[last]["uuid"]
+        m = _match(js, by, last, prompt)
+        if m is not None:
+            start = js[m].get("parentUuid")
+    else:
+        start = parent
+    idx, how = _walk(js, by, start)
+    return _messages_of([t for t in (_typed(js[j]) for j in idx) if t is not None]), how
+
+
+def recent_messages(path, n, prompt=None, parent=_LAST):
+    """The last n messages before the prompt, oldest first, of the conversation Claude holds
+    (s1-rewind-context h2): from the last message line of the transcript (or from `parent`, a
+    uuid, for the late fix) back along parentUuid to the last compaction, whose summary is one
+    message; a line that Ty did not type is not a message. On the first prompt after a rewind,
+    a prompt text that matches a prompt of the branch the transcript ends in (G6) starts the
+    chain at that prompt's parent.
+
+    The read starts with the last TAIL_BYTES and doubles, at most MAX_TAIL_BYTES, until the chain
+    ends (a root or a compaction) or it has n + 1 messages (one more, in case the prompt is
+    already in the transcript), or it has the whole file.
+    Fails open (rk1): a transcript with no uuid gives the last messages in file order, as before
+    s1-rewind-context; a chain whose parent is missing from the whole file does the same. A chain
+    cut only by the MAX_TAIL_BYTES bound gives the part found."""
     if not path:
+        return []
+    if parent is None:
         return []
     size = TAIL_BYTES
     while True:
@@ -153,10 +304,15 @@ def recent_messages(path, n, prompt=None):
             with open(path, "rb") as f:
                 f.seek(0, os.SEEK_END)
                 whole = f.tell() <= size
-            msgs = _messages(_tail_lines(path, size))
+            lines = _tail_lines(path, size)
         except OSError:
             return []
-        if whole or len(msgs) > n or size >= MAX_TAIL_BYTES:
+        got = _chain_read(lines, prompt, parent)
+        if got is None or (got[1] == "broken" and whole):
+            msgs, done = _messages(lines), False  # rk1: file order, as before
+        else:
+            msgs, done = got[0], got[1] != "broken"
+        if whole or done or len(msgs) > n or size >= MAX_TAIL_BYTES:
             break
         size = min(size * 2, MAX_TAIL_BYTES)
     if prompt is not None and msgs and msgs[-1]["role"] == "you" and msgs[-1]["text"].strip() == prompt.strip():
