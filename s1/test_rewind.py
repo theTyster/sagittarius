@@ -90,7 +90,8 @@ class Base(unittest.TestCase):
         self.log = os.path.join(d.name, "logs", "s1.jsonl")
         self.state = os.path.join(d.name, "latefix")
         self.env = {"TYPESAFE_API_KEY": KEY, "S1_LOG": self.log, "S1_LATEFIX_DIR": self.state,
-                    "S1_QUESTIONS": os.path.join(HERE, "questions.json"), "S1_WORKBENCH": "off"}
+                    "S1_QUESTIONS": os.path.join(HERE, "questions.json"), "S1_WORKBENCH": "off",
+                    "S1_FANOUT": "0"}  # the plain path, with recorded responses; the fan-out: test_fanout.py
         self.spawned = []
 
     def write(self, lines):

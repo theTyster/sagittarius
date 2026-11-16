@@ -2,8 +2,16 @@
 prompt, in every session on this machine. To try a change on old prompts first, edit the copy in
 bench/ and run bench/bench.sh.
 
-As it stands it does what the released hook does: one call with every question, and the hook's
-own line. Change it freely: ask in stages, split or merge questions, skip some, write your own line.
+As it stands it does what the released hook does: one call with every question and the fan-out
+(hook.fanout_run: the message is read part by part; S1_FANOUT=0 turns that off), and the hook's
+own line.
+
+Mind this when you edit questions.json: while the fan-out is on, the line does not come from the
+answers of h_divergence, h_change_of_plan and h_questions, and h_effort is used only when the
+fan-out's rule does not raise it. The fan-out writes them from the parts of the message. The log's
+combined line says which ("replaced") and keeps the plain answers ("h_divergence_plain", ...);
+s1watch shows them. To let a question of yours reach the line again, take its id out of "replaces"
+in s1/fanout.json, or return ask(questions) below, or set S1_FANOUT=0. Change it freely: ask in stages, split or merge questions, skip some, write your own line.
 
   run(state, ask, questions) -> {question id: answer}
       state      {"message": the prompt, "recent": [{"role", "text"}, ...]}
@@ -21,7 +29,8 @@ import hook  # the hook itself (format_answers, CHOICE_MIN); s1/ is on the path,
 
 
 def run(state, ask, questions):
-    return ask(questions)
+    return hook.fanout_run(state, ask, questions)  # the released asking: the message part by part
+    # return ask(questions)  # the plain asking: one call, the questions of questions.json alone
 
     # An example of routing in stages (delete the line above to try it):
     # first = ask({"h_work": questions["h_work"]})

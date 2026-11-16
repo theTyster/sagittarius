@@ -14,6 +14,9 @@ The hook sends one JSON object as `state`:
 | `message` | string | The prompt that Ty typed, as Claude Code gave it to the hook. |
 | `recent` | list | The messages before the prompt, oldest first. The default count is 3 (`S1_CONTEXT_MESSAGES`, never below 3). |
 
+With the fan-out on, the state has a third field, `sentences`: the parts of `message`, a list of
+strings in order (`hook.split_parts`). The part questions name a part by its path, `sentences[k]`.
+
 Each item of `recent`:
 
 | Field | Type | Meaning |
@@ -64,6 +67,11 @@ bench replay writes to the bench log. The API key is never written.
 | `skipped` | hook.py | Only on a line for no call: the reason why the hook made no call or has no view. |
 | `trimmed` | hook.py | true when the hook cut the state to fit the context. |
 | `long_context` | hook.py | true when the hook asked for the long context. |
+| `parts` | hook.py | The number of parts that the fan-out cut the prompt into (see `README.md`, "The fan-out"). |
+| `combined` | hook.py | true on the second line of a fan-out call: its `answers` are the model's answers with `h_divergence`, `h_change_of_plan`, `h_questions` and `h_effort` rewritten from the parts and `h_reversal` added. It has no `state`, `latency` or `usage`: those are on the line before it. |
+| `replaced` | hook.py | Only on a combined line: the ids whose answer the fan-out wrote from the parts. For each one, `answers` also holds `<id>_plain`: the answer of that id's own question, which did not reach the line. |
+| `part_text` | hook.py | Only on a combined line: the text of each part, each cut to 160 characters. |
+| `fanout_off` | hook.py | The reason why the fan-out file did not load, so that the call was a plain one. |
 | `routing` | hook.py | `"workbench"` when the call came from the workbench routing (`workbench/pipeline.py`). |
 | `stage` | hook.py | The number of the call within one workbench routing run, from 1. |
 | `bench` | bench.py | The tag of a bench replay (`new` by default). |

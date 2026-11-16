@@ -30,6 +30,27 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
 
+## Unreleased (branch `claude/laughing-keller-im6q18`; the version has not moved)
+
+- **System 1 hook: the fan-out.** The hook reads the human's message part by part and combines the
+  answers in code (`s1/fanout.json`, `hook.split_parts`, `hook.combine`). Divergence, change of
+  plan, open questions and effort come from the parts; the line can also say `decision reversed in
+  message`. `S1_FANOUT=0` gives the earlier behavior. This changes what a session is told, so it is
+  a MINOR change when it is released; the owner sets the number. The prompt does not yet name the
+  new hint. Evidence and limits: `s1/research/2026-11-15-question-eval/README.md`.
+- **After the review of PR 11.** The size check counts the parts: a state with `sentences` and its
+  part questions is measured against the per-question and the per-request context (`hook.fan_fit`),
+  and the long context is asked for when it is needed. The fan-out's overrides are visible and can
+  be switched: the combined log line has `replaced` and the plain answers (`<id>_plain`), and
+  `replaces` in `fanout.json` lists what the fan-out may write. `s1watch` shows a fan-out call as
+  one short block; `--raw` prints every answer.
+- **Sagittarius Signals mod 0.13.0 (`s1/glance/`).** The pane has three tabs on one cursor: now
+  (the signals, and why: the message as a strip of parts, with the picked part's text and answers),
+  trend (every signal over the session, one cell per judgment) and health (latency, tokens and cost,
+  failed calls, and how often each signal says yes, nothing, or no). The mod reads the fan-out's two
+  log lines as one judgment. The reversal has a row, a toast quotes the part that fired it.
+- **System 1: the live view.** `s1/live.py` prints the hook's judgments of a session as a pane, a
+  corner, a toast line or JSON. The status line segment shows a reversal and the number of parts.
 ## Sagittarius 0.4.1 (2026-11-15)
 
 PATCH (Ty, 2026-11-15).

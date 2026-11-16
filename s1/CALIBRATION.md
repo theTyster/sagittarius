@@ -25,3 +25,23 @@ Wording tried for `h_proof` (on the 14 cases with a proof label): the first word
 (r8 yes); a wording that asked for "every input, not a run of checks" agreed on 13 (lost "Can you
 prove that?" at 0.65); the final wording agreed on 14. One run each: this is a small set, so read
 14 of 14 as "no miss seen", not as a rate.
+
+## The fan-out (2026-11-15; not a release)
+
+The table above is about the plain questions, which did not change. With the fan-out on (the
+default), `h_divergence`, `h_change_of_plan`, `h_questions` and `h_effort` come from `hook.combine`.
+Live check on 46 fresh cases (`research/2026-11-15-question-eval/fresh/`, labels by the agent, written
+after the rules were fixed and before the first run; second run shown):
+
+| Signal | Plain | Fan-out |
+|---|---|---|
+| divergence | 29 of 37, 1 wrong | 35 of 37, 1 wrong |
+| change of plan | 12 of 26, 3 wrong | 22 of 26, 1 wrong |
+| questions | 14 of 18, 2 wrong | 15 of 18, 1 wrong |
+| effort | 4 of 12, 1 wrong | 12 of 12 |
+| reversal | no question | 11 of 11 |
+
+The reversal rule was changed after the first run on these cases (a rule that hid a reversal in a
+part that also changes the request was removed), so 11 of 11 is a tuned number. The first run gave
+divergence 36 of 37 and questions 15 of 18 with none wrong: one or two labels move between runs.
+The larger sets are in `research/2026-11-15-question-eval/README.md`.

@@ -1,0 +1,911 @@
+{
+ "_comment": "Held-out cases, invented on 2026-11-15. Labels were written by the agent before any run; no human has confirmed them. h*: first set, g*: second set.",
+ "cases": [
+  {
+   "id": "h1",
+   "origin": "heldout_2026-11-15",
+   "message": "It shows 20 but the previous link is dead on page 2.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Add pagination to the users list."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: the users list shows 20 per page with next and previous links."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes",
+    "h_change_of_plan": "no",
+    "h_proof": "no",
+    "h_effort": "no"
+   }
+  },
+  {
+   "id": "h2",
+   "origin": "heldout_2026-11-15",
+   "message": "Nice. Can you also cache the stock lookups?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: I cached the price lookups; the page loads in 200 ms now."
+    }
+   ],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "no"
+   }
+  },
+  {
+   "id": "h3",
+   "origin": "heldout_2026-11-15",
+   "message": "Works as I asked. Seeing it now, I think an accordion would be better than tabs. Switch it.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Use tabs for the settings sections."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: settings has three tabs."
+    }
+   ],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "yes"
+   }
+  },
+  {
+   "id": "h4",
+   "origin": "heldout_2026-11-15",
+   "message": "All 212? The suite took 40 minutes last time I ran it.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: all 212 tests pass and the migration is applied."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes",
+    "h_change_of_plan": "no"
+   }
+  },
+  {
+   "id": "h5",
+   "origin": "heldout_2026-11-15",
+   "message": "Why UTC and not the store's local time?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "I fixed the timezone bug by storing all times in UTC."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes"
+   }
+  },
+  {
+   "id": "h6",
+   "origin": "heldout_2026-11-15",
+   "message": "The checkout page throws a 500 when the cart is empty.",
+   "recent": [],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "no",
+    "h_effort": "no",
+    "h_proof": "no",
+    "h_questions": "no"
+   }
+  },
+  {
+   "id": "h7",
+   "origin": "heldout_2026-11-15",
+   "message": "Wait, I asked you to reject the whole file when an email is missing, not skip rows.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: the importer skips rows with a missing email."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes",
+    "h_change_of_plan": "no"
+   }
+  },
+  {
+   "id": "h8",
+   "origin": "heldout_2026-11-15",
+   "message": "Change of mind: one row per order line, not per order.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Export orders to CSV with one row per order."
+    },
+    {
+     "role": "agent",
+     "text": "Starting: one row per order."
+    }
+   ],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "yes"
+   }
+  },
+  {
+   "id": "h9",
+   "origin": "heldout_2026-11-15",
+   "message": "ok but what about the other pages?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: dark mode on the settings page."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes"
+   }
+  },
+  {
+   "id": "h10",
+   "origin": "heldout_2026-11-15",
+   "message": "Separate.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Which database should the audit log use: the main one or a separate one?"
+    }
+   ],
+   "expect": {
+    "h_questions": "no",
+    "h_divergence": "no",
+    "h_effort": "no"
+   }
+  },
+  {
+   "id": "h11",
+   "origin": "heldout_2026-11-15",
+   "message": "Keep the comments. For logs it depends on legal; what are the options?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Two questions. 1. Should deleted users keep their comments? 2. How long do we keep the logs?"
+    }
+   ],
+   "expect": {
+    "h_questions": "yes"
+   }
+  },
+  {
+   "id": "h12",
+   "origin": "heldout_2026-11-15",
+   "message": "Hmm. What happens to failed sends in each case?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Should the email go out at once or in a nightly batch?"
+    }
+   ],
+   "expect": {
+    "h_questions": "yes"
+   }
+  },
+  {
+   "id": "h13",
+   "origin": "heldout_2026-11-15",
+   "message": "Yes, remove it. And use the v2 name everywhere.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Do you want the old endpoint removed?"
+    }
+   ],
+   "expect": {
+    "h_questions": "no",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "h14",
+   "origin": "heldout_2026-11-15",
+   "message": "I spent the evening on the permissions model and here is where I landed. There are three roles: owner, editor and viewer. An owner can invite and remove people and can delete the workspace; nobody else can. An editor can change documents but cannot share them outside the workspace, because the last leak came from an editor's share link. A viewer can read and comment, and a comment never changes a document. A person has exactly one role per workspace. When an owner leaves, the oldest editor becomes owner, so that a workspace is never without one. I do not want role inheritance between workspaces: we tried it in the old product and nobody could tell who could see what.",
+   "recent": [],
+   "expect": {
+    "h_effort": "yes",
+    "h_divergence": "no",
+    "h_proof": "no"
+   }
+  },
+  {
+   "id": "h15",
+   "origin": "heldout_2026-11-15",
+   "message": "it crashes, see below\n\nTraceback (most recent call last):\n  File \"/srv/app/worker.py\", line 212, in run\n    self.handle(job)\n  File \"/srv/app/worker.py\", line 240, in handle\n    result = self.client.post(job.url, json=job.body, timeout=5)\n  File \"/usr/lib/python3/site-packages/requests/api.py\", line 115, in post\n    return request('post', url, data=data, json=json, **kwargs)\n  File \"/usr/lib/python3/site-packages/requests/adapters.py\", line 519, in send\n    raise ConnectionError(e, request=request)\nrequests.exceptions.ConnectionError: HTTPSConnectionPool(host='billing.internal', port=443): Max retries exceeded with url: /v2/charge\n2026-11-14 03:12:09 worker-3 ERROR job 88213 failed\n2026-11-14 03:12:09 worker-3 INFO retry in 30s\n2026-11-14 03:12:39 worker-3 ERROR job 88213 failed",
+   "recent": [],
+   "expect": {
+    "h_effort": "no",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "h16",
+   "origin": "heldout_2026-11-15",
+   "message": "Guarantee me that no two records with the same email can survive, whatever the input.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "The dedupe keeps the first record of each email."
+    }
+   ],
+   "expect": {
+    "h_proof": "yes"
+   }
+  },
+  {
+   "id": "h17",
+   "origin": "heldout_2026-11-15",
+   "message": "Run it under load and tell me what breaks.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: rate limiter added."
+    }
+   ],
+   "expect": {
+    "h_proof": "no",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "h18",
+   "origin": "heldout_2026-11-15",
+   "message": "Show formally that the scheduler never starts two jobs with the same lock.",
+   "recent": [],
+   "expect": {
+    "h_proof": "yes",
+    "h_effort": "no"
+   }
+  },
+  {
+   "id": "h19",
+   "origin": "heldout_2026-11-15",
+   "message": "Add property tests with random inputs too.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Tests pass."
+    }
+   ],
+   "expect": {
+    "h_proof": "no"
+   }
+  },
+  {
+   "id": "h20",
+   "origin": "heldout_2026-11-15",
+   "message": "Perfect, thanks.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: renamed the field to customer_id in the API and the docs."
+    }
+   ],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "no",
+    "h_proof": "no",
+    "h_effort": "no",
+    "h_questions": "no"
+   }
+  },
+  {
+   "id": "h21",
+   "origin": "heldout_2026-11-15",
+   "message": "I never asked you to remove that.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: I removed the legacy export as part of the cleanup."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes"
+   }
+  },
+  {
+   "id": "h22",
+   "origin": "heldout_2026-11-15",
+   "message": "Good. Make the footer blue as well.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Make the banner blue."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: the banner is blue (#1a73e8)."
+    }
+   ],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "no"
+   }
+  },
+  {
+   "id": "h23",
+   "origin": "heldout_2026-11-15",
+   "message": "Drop Microsoft, we lost that customer. Google only.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Add SSO with Google and Microsoft."
+    },
+    {
+     "role": "agent",
+     "text": "Plan: Google first, then Microsoft."
+    }
+   ],
+   "expect": {
+    "h_change_of_plan": "yes",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "h24",
+   "origin": "heldout_2026-11-15",
+   "message": "this isn't right, the totals don't add up to the grand total",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: the report groups sales by region."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes"
+   }
+  },
+  {
+   "id": "h25",
+   "origin": "heldout_2026-11-15",
+   "message": "that was quick... did you consider the duplicate case at all?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "I chose a queue with at-least-once delivery."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes"
+   }
+  },
+  {
+   "id": "h26",
+   "origin": "heldout_2026-11-15",
+   "message": "I thought about the pricing page over the weekend. Three decisions. First, we show yearly prices by default, because most trials convert to yearly anyway. Second, the free tier stays, but it moves below the fold so that it does not anchor people low. Third, no 'contact us' tier: every price is on the page, since hidden prices cost us the last two deals.",
+   "recent": [],
+   "expect": {
+    "h_effort": "yes",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "h27",
+   "origin": "heldout_2026-11-15",
+   "message": "fix the typo in README",
+   "recent": [],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "no",
+    "h_effort": "no",
+    "h_proof": "no",
+    "h_questions": "no"
+   }
+  },
+  {
+   "id": "h28",
+   "origin": "heldout_2026-11-15",
+   "message": "Is it certain, for any sequence of failures, that we stop after 5 attempts? I need more than a test here.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: retry with backoff, max 5 attempts."
+    }
+   ],
+   "expect": {
+    "h_proof": "yes"
+   }
+  },
+  {
+   "id": "h29",
+   "origin": "heldout_2026-11-15",
+   "message": "Weekly. Also, unrelated: the logo is blurry on the login page.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "One question: weekly or monthly digest?"
+    }
+   ],
+   "expect": {
+    "h_questions": "no",
+    "h_divergence": "no",
+    "h_change_of_plan": "no"
+   }
+  },
+  {
+   "id": "h31",
+   "origin": "heldout_2026-11-15",
+   "message": "Search still doesn't find 'M\u00fcller' when I type 'muller'. Is that expected?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: the search now ignores case."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes"
+   }
+  },
+  {
+   "id": "h32",
+   "origin": "heldout_2026-11-15",
+   "message": "Great work. We decided this morning to do French first instead; German can wait.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Translate the UI to German."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: all strings translated to German."
+    }
+   ],
+   "expect": {
+    "h_change_of_plan": "yes",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "h33",
+   "origin": "heldout_2026-11-15",
+   "message": "Not sure yet. Let me ask the data team.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Should I keep the old column?"
+    }
+   ],
+   "expect": {
+    "h_questions": "yes"
+   }
+  },
+  {
+   "id": "h34",
+   "origin": "heldout_2026-11-15",
+   "message": "How did you measure that?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: added the index; the query takes 12 ms."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes"
+   }
+  },
+  {
+   "id": "h35",
+   "origin": "heldout_2026-11-15",
+   "message": "What's the difference between a mutex and a semaphore?",
+   "recent": [],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "no",
+    "h_effort": "no",
+    "h_proof": "no"
+   }
+  },
+  {
+   "id": "h36",
+   "origin": "heldout_2026-11-15",
+   "message": "So for the onboarding emails, what I want is this. A new user gets a welcome mail at once. If they have not created a project after two days, they get one reminder, and only one; my worry is that we look like spam, the way the old drip did. If they create a project, the reminder is cancelled, even if it is already queued. People invited by a teammate get a different welcome that names the teammate, and they never get the reminder, because their teammate will nudge them.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "What should the onboarding emails do?"
+    }
+   ],
+   "expect": {
+    "h_effort": "yes",
+    "h_questions": "no"
+   }
+  },
+  {
+   "id": "h37",
+   "origin": "heldout_2026-11-15",
+   "message": "Do it the way we discussed, thanks.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Plan: migrate the table in two steps."
+    }
+   ],
+   "expect": {
+    "h_effort": "no",
+    "h_divergence": "no",
+    "h_change_of_plan": "no"
+   }
+  },
+  {
+   "id": "g1",
+   "origin": "heldout_2026-11-15",
+   "message": "Great. Next, add the same export to the invoices page.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Add a CSV export."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: CSV export added to the orders page."
+    }
+   ],
+   "expect": {
+    "h_change_of_plan": "no",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "g2",
+   "origin": "heldout_2026-11-15",
+   "message": "Make it Fridays instead.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Send the digest on Mondays."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: digest goes out Mondays at 9."
+    }
+   ],
+   "expect": {
+    "h_change_of_plan": "yes",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "g3",
+   "origin": "heldout_2026-11-15",
+   "message": "One more thing: the password reset mail has a broken link.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: login page redesigned with the new logo."
+    }
+   ],
+   "expect": {
+    "h_change_of_plan": "no",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "g4",
+   "origin": "heldout_2026-11-15",
+   "message": "Scrap PDF. We'll do it as a web page.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Build the report in PDF."
+    },
+    {
+     "role": "agent",
+     "text": "Starting on the PDF report."
+    }
+   ],
+   "expect": {
+    "h_change_of_plan": "yes",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "g5",
+   "origin": "heldout_2026-11-15",
+   "message": "I told you dollars with two decimals. Cents breaks the mobile app.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: the API returns prices in cents."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes",
+    "h_change_of_plan": "no"
+   }
+  },
+  {
+   "id": "g6",
+   "origin": "heldout_2026-11-15",
+   "message": "Thanks. While you're there, add the same validation to the profile form.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: added input validation to the signup form."
+    }
+   ],
+   "expect": {
+    "h_change_of_plan": "no",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "g7",
+   "origin": "heldout_2026-11-15",
+   "message": "On reflection, remove the old dashboard for everyone. One dashboard is easier to support.",
+   "recent": [
+    {
+     "role": "you",
+     "text": "Keep the old dashboard for admins."
+    },
+    {
+     "role": "agent",
+     "text": "Delivered: admins keep the old dashboard."
+    }
+   ],
+   "expect": {
+    "h_change_of_plan": "yes",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "g8",
+   "origin": "heldout_2026-11-15",
+   "message": "Now let's talk about the backup strategy.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: the cron job runs nightly at 2am."
+    }
+   ],
+   "expect": {
+    "h_change_of_plan": "no",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "g9",
+   "origin": "heldout_2026-11-15",
+   "message": "40%? On which workload?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: memory use dropped by 40%."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes"
+   }
+  },
+  {
+   "id": "g10",
+   "origin": "heldout_2026-11-15",
+   "message": "Did that include the scripts folder?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: I updated 31 files to the new logger."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes"
+   }
+  },
+  {
+   "id": "g11",
+   "origin": "heldout_2026-11-15",
+   "message": "OK, how do we upgrade the runner?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "The build fails on CI because the runner has an old Node version."
+    }
+   ],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "no"
+   }
+  },
+  {
+   "id": "g12",
+   "origin": "heldout_2026-11-15",
+   "message": "It doesn't. I typed for two minutes and lost everything on reload.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: the form saves drafts every 30 seconds."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes",
+    "h_change_of_plan": "no"
+   }
+  },
+  {
+   "id": "g13",
+   "origin": "heldout_2026-11-15",
+   "message": "The export is fine. The customer says the import on their side fails, though; can you look at their format spec?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: export finished."
+    }
+   ],
+   "expect": {
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "g14",
+   "origin": "heldout_2026-11-15",
+   "message": "Sounds reasonable. Go ahead.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "I suggest Redis for the session store."
+    }
+   ],
+   "expect": {
+    "h_divergence": "no",
+    "h_change_of_plan": "no",
+    "h_questions": "no"
+   }
+  },
+  {
+   "id": "g15",
+   "origin": "heldout_2026-11-15",
+   "message": "Hmm. I expected a much smaller change.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Delivered: refactored the payment module into three files."
+    }
+   ],
+   "expect": {
+    "h_divergence": "yes"
+   }
+  },
+  {
+   "id": "g16",
+   "origin": "heldout_2026-11-15",
+   "message": "No user may ever see another tenant's invoices. Make sure of it.",
+   "recent": [],
+   "expect": {
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "g17",
+   "origin": "heldout_2026-11-15",
+   "message": "Check that the discount works for a gold member with a 10% coupon.",
+   "recent": [],
+   "expect": {
+    "h_proof": "no"
+   }
+  },
+  {
+   "id": "g18",
+   "origin": "heldout_2026-11-15",
+   "message": "Can you demonstrate it is correct for any well-formed file, not just the samples?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "The parser handles the 12 sample files."
+    }
+   ],
+   "expect": {
+    "h_proof": "yes"
+   }
+  },
+  {
+   "id": "g19",
+   "origin": "heldout_2026-11-15",
+   "message": "Write a few unit tests for the date helper.",
+   "recent": [],
+   "expect": {
+    "h_proof": "no",
+    "h_effort": "no"
+   }
+  },
+  {
+   "id": "g20",
+   "origin": "heldout_2026-11-15",
+   "message": "The balance must never be negative after any sequence of transfers.",
+   "recent": [],
+   "expect": {}
+  },
+  {
+   "id": "g21",
+   "origin": "heldout_2026-11-15",
+   "message": "Zip.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Should the archive be zip or tar?"
+    }
+   ],
+   "expect": {
+    "h_questions": "no"
+   }
+  },
+  {
+   "id": "g22",
+   "origin": "heldout_2026-11-15",
+   "message": "What's the risk if we migrate now?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Two options: migrate now or after the release. Which?"
+    }
+   ],
+   "expect": {
+    "h_questions": "yes"
+   }
+  },
+  {
+   "id": "g23",
+   "origin": "heldout_2026-11-15",
+   "message": "Email. SMS costs too much.",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Do you want email or SMS alerts?"
+    }
+   ],
+   "expect": {
+    "h_questions": "no",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "g24",
+   "origin": "heldout_2026-11-15",
+   "message": "I need to check with sales. Start with whatever is easiest for now?",
+   "recent": [
+    {
+     "role": "agent",
+     "text": "Which regions should the rollout cover first?"
+    }
+   ],
+   "expect": {
+    "h_questions": "yes"
+   }
+  },
+  {
+   "id": "g25",
+   "origin": "heldout_2026-11-15",
+   "message": "Here is how refunds should work; I went through last quarter's tickets to get this right. A refund can be full or partial. A full refund cancels the order and returns the stock. A partial refund keeps the order open and returns nothing to stock, because in every ticket I read the customer kept the goods. Support can refund up to 50 euros alone; above that a lead approves, and the lead cannot be the person who took the order. We never refund to a different card than the one that paid: that rule comes from the fraud team and it has no exceptions.",
+   "recent": [],
+   "expect": {
+    "h_effort": "yes",
+    "h_divergence": "no"
+   }
+  },
+  {
+   "id": "g26",
+   "origin": "heldout_2026-11-15",
+   "message": "can you make the tests faster, they're slow",
+   "recent": [],
+   "expect": {
+    "h_effort": "no",
+    "h_proof": "no"
+   }
+  },
+  {
+   "id": "g27",
+   "origin": "heldout_2026-11-15",
+   "message": "why is this invalid?\n\n{\n  \"service\": \"mailer\",\n  \"replicas\": 3,\n  \"env\": {\n    \"SMTP_HOST\": \"smtp.internal\",\n    \"SMTP_PORT\": \"587\",\n    \"RETRY\": \"5\",\n    \"FROM\": \"no-reply@example.com\",\n  },\n  \"resources\": {\"cpu\": \"200m\", \"memory\": \"256Mi\"},\n  \"probes\": {\"live\": \"/healthz\", \"ready\": \"/ready\"},\n  \"volumes\": [{\"name\": \"templates\", \"path\": \"/srv/templates\"}, {\"name\": \"spool\", \"path\": \"/var/spool/mail\"}]\n}",
+   "recent": [],
+   "expect": {
+    "h_effort": "no"
+   }
+  }
+ ]
+}

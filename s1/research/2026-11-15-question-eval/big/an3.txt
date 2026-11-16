@@ -1,0 +1,34 @@
+
+== divergence: agree%/wrong% plain | long ; MISS% per kind (plain): subtle lookalike mix_approve_doubt mix_dispute_add mix_dispute_change mix_change_doubt doubt dispute change open paste add
+S per-sentence nouls, union                 90.4/ 0.8 |  91.5/ 0.5    21!   0    1    6    8   12!   2    0   59!   1   32!   1 
+S per-sentence Choice, union                90.9/ 1.0 |  90.4/ 1.0    32!   1   25!   6!   4   21!  10    1    5!   0    0    0 
+B+S max(whole, sentence nouls)              89.5/ 0.7 |  89.3/ 0.6    20    3    0    6    8    8    1    0   67!   1   32!   1 
+B'' max(doubts,faults2)                     86.7/ 0.1 |  86.1/ 0.2    29    2    7   23   33   21    3    3   83    1   32    4 
+B max(doubts,faults)                        86.5/ 0.4 |  86.5/ 0.3    29    2    7   17   33!  17    3    2   62!   0   32    0 
+T trimmed: max(doubts,faults)               86.2/ 0.4 |  85.3/ 0.7    21   12   10   19   25    8    2    1   68!   0   32!   5 
+B' max(doubts,disputes)                     85.3/ 0.4 |  86.0/ 0.5    28    2    7   10   21   15    3    0   71!   0   51    4 
+J cascade: Choice if sure, else B           87.7/ 1.6 |  88.5/ 1.6    29    2    9!  19!  38!  40!   3    2   11!   0   32    0 
+A shipped question                          80.9/ 0.8 |  72.5/ 1.0    23   32   34!  31   54!  15   10    2   60!  29    0   18!
+B''' max(doubts,notwork)                    84.3/ 5.2 |  88.6/ 0.4    29    2    7   23!  33!  21    3    2   43    0  100!   0 
+B3 max(doubts,faults,notwork)               83.4/ 5.4 |  86.5/ 0.5    29    2    7   15   33!  17    3    1   65!   0  100!   0 
+T trimmed state: shipped                    70.2/ 1.5 |  65.2/ 1.0    24   54!  28!  17   71!   0   12    2   84!  34    0   68!
+whole Choice                                80.2/ 6.3 |  79.4/ 6.6    45!   8   62!  65!  88!  96!  17    2    5!   0    6    0 
+
+== change: agree%/wrong% plain | long ; MISS% per kind (plain): mix_dispute_change mix_change_doubt mix_answer_change change add answer dispute subtle
+S per-sentence Choice, union                99.1/ 0.3 |  99.1/ 0.3     4   10!  12    6!   0    0    1    0 
+S per-sentence c_cand, union                98.2/ 0.5 |  98.2/ 0.5     8    8!   0    6!   4    1    2!   0 
+mean(whole, sentence)                       97.7/ 0.4 |  97.1/ 0.4    12    8!   0    5!   4    2    2!   0 
+max(whole, sentence)                        96.9/ 0.6 |  95.4/ 0.5     8    8!   0    5!   4    5    3!   0 
+c_cand whole                                96.9/ 0.6 |  95.4/ 0.5    17    8!   0    6!   4    5    3!   0 
+c_cand trimmed state                        94.8/ 0.4 |  93.8/ 0.3    21   19!   4   10!   4   13    3!   0 
+A shipped question                           0.0/ 0.0 |   0.0/ 0.0   100  100  100  100  100  100  100  100 
+
+== questions: agree%/wrong% plain | long ; MISS% per kind (plain): mix_answer_open mix_answer_add open answer add lookalike approve
+gate * sentence max(asks, undecided)        98.7/ 0.0 |  98.6/ 0.0     0    0   12    0    0    0    0 
+gate * max(q_terse, human_asks, undecided)  98.3/ 0.0 |  96.2/ 0.0     0    8    0    4    0    0    0 
+gate * max(human_asks, undecided)           98.0/ 0.0 |  95.5/ 0.0     0    0   14    1    0    0    0 
+noul gate(agent asked) * q_terse            94.8/ 0.0 |  95.5/ 0.0    62    8    0    4    0    0    0 
+code gate('?' in agent reply) * q_terse     94.8/ 0.0 |  95.5/ 0.0    62    8    0    4    0    0    0 
+trimmed state: gate * q_terse               94.4/ 0.1 |  95.3/ 0.0    15   33    0   12!   0    0    0 
+gate * sentence Choice asks_back            92.5/ 0.1 |  92.3/ 0.1    94!   0   18    0    0    0    0 
+q_terse                                     71.0/ 0.1 |  69.6/ 0.0    62    8    0    4    0   81!   0 

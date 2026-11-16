@@ -148,6 +148,12 @@ def render(session_id, log_path, now=None):
             if p:
                 parts.append(f"{label} {p}")
                 signal = signal or (qid == "h_questions" and float(p) >= YES_MIN)
+        p = _p(answers, "h_reversal")  # the fan-out: shown in the yes band only
+        if p and float(p) >= YES_MIN:
+            parts.append(f"rev {p}")
+            signal = True
+        if isinstance(rec.get("parts"), int) and rec["parts"] > 1:
+            parts.append(f"{rec['parts']} parts")
         lang = _choice(answers.get("h_language"))
         if lang and (signal or _proof_asked(answers, lang)):  # 0.3.0 S-A: the tool only beside a signal, or a proof
             parts.append(f"tool {lang}")

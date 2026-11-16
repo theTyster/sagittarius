@@ -94,7 +94,9 @@ class Base(unittest.TestCase):
             {"type": "user", "message": {"role": "user", "content": [
                 {"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]}},
         ])
-        self.env = {"TYPESAFE_API_KEY": KEY, "S1_LOG": self.log, "S1_REDACT": self.redact,
+        # S1_FANOUT=0: these tests are the checks of the plain path (the questions of questions.json
+        # alone, with recorded responses). The fan-out has its own tests in test_fanout.py.
+        self.env = {"TYPESAFE_API_KEY": KEY, "S1_LOG": self.log, "S1_REDACT": self.redact, "S1_FANOUT": "0",
                     "S1_QUESTIONS": os.path.join(HERE, "questions.json"), "S1_WORKBENCH": "off"}
 
     def write_transcript(self, entries):

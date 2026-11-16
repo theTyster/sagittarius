@@ -189,6 +189,8 @@ Set `S1_OFF=1`: for one session, start it with `S1_OFF=1 claude`; for all sessio
 | `S1_TIMEOUT` | `4` | seconds for the System 1 model call |
 | `S1_CONTEXT_MESSAGES` | `3` | messages in `recent` (never below 3) |
 | `S1_QUESTIONS` | `s1/questions.json` | the question set |
+| `S1_FANOUT` | unset | `0`: turn the fan-out off (the questions of `questions.json` alone) |
+| `S1_FANOUT_FILE` | `s1/fanout.json` | the questions of the fan-out |
 | `S1_LOG` | `~/.claude/logs/s1.jsonl` | the log (`jev.py` writes it) |
 | `S1_LATEFIX` | unset | `0`: no late fix |
 | `S1_LATEFIX_DIR` | `~/.claude/s1-latefix` | the late-fix files (the hook and `posttool.py`) |
@@ -279,7 +281,19 @@ with `/s1-glance pane | toast | corner | status | off` (any together). The choic
 later session. A new setup starts with the pane. The `status` view writes one line with colors to
 `~/.claude/s1-glance/<session id>.status`; a status line command can print that file as its first row.
 
-Tests (no network): `claude plugin test s1/glance`.
+The pane has three tabs. They draw from one history and share one cursor, so a move in one is a
+move in all:
+
+| Tab (key) | What it shows | Keys |
+|---|---|---|
+| now (`1`) | The signals of one judgment, and why. Under the bars, the message is a strip of cells, one for each part that the hook read (see "The fan-out"). A cell's height and color are the strongest answer of its part. The picked part (◆) shows its text, what it does (accepts, corrects, doubts, changes the ask, adds to it, answers, asks back, new topic), and a bar for each answer that stands out. The pane opens on the part where the most stands out. | `j` `k`: the part before, the part after |
+| trend (`2`) | Every signal over the session: one row per signal, one cell per judgment, colored by strength. A failed call is a red ×. A row of latency sits under them. The cursor's judgment is the bright column with ▲ under it; the line below names what fired there. | `p` `n`: move the cursor; `l`: back to live |
+| health (`3`) | How the hook performs: latency per call with median and maximum; tokens per call with their sum and cost; failed calls; and for each signal a bar of how often it said yes, said nothing (the unsure band), or said no. Last: how many judgments were read in parts, and how many came through the workbench or the late fix. | |
+
+A toast of a signal that came from a part also quotes that part. The status line and the corner
+show the reversal when the hook names one.
+
+Tests (no network): `claude plugin test s1/glance` (`tests/pane.test.tsx`, `tests/charts.test.tsx`).
 
 ## The observation harness (0.3.0, suggestion 3)
 
@@ -396,3 +410,77 @@ The selection options are those of `s1inspect.py` (`--hub`, `--session`, `--sinc
 5 by default). Two calls with the same questions can differ a little (a few hundredths), so use
 `--baseline` before you read a small change as an effect of your edit. The calls go to
 `$S1_BENCH_LOG` (default `~/.claude/logs/s1-bench.jsonl`), never to the hook's log.
+## The fan-out
+
+One request still, but the message is read part by part. `hook.split_parts` cuts the message: each
+sentence is a part for a short message; a long or voiced message (no sentence ends) is packed into
+parts of at most 600 characters, and the whole message is always read. Each part gets the seven
+questions of `fanout.json` (`part`), in the same request as the questions of `questions.json`.
+`hook.combine` then writes four answers from the parts and adds one:
+
+| Answer | Rule |
+|---|---|
+| `h_divergence` | the highest "doubts" or "faults" of a part; a fault does not count in a part that changes or adds to the request, or answers the agent; 0 when `recent` has no agent message |
+| `h_change_of_plan` | the highest "changes" of a part; 0 with no agent message |
+| `h_questions` | only when the agent's last reply has a question mark: the highest "asks" or "undecided" of a part, or, for more than six parts, the whole-message answer `f_open` |
+| `h_effort` | the answer of `h_effort`; for a message of 800 characters or more, at least 1 - P(`f_pasted`) |
+| `h_reversal` (new) | the highest "reverses" of a part. In the yes band the line says `decision reversed in message (0.90)`, and it counts as a signal |
+
+**If you edit one of these four questions, read this.** While the fan-out is on, the line does not
+come from the answer of `h_divergence`, `h_change_of_plan` or `h_questions` in `questions.json` (or
+the workbench copy), and takes `h_effort` from its own question only when the rule does not raise
+it. So an edit of their wording changes the model's answer and not the line. Three things make that
+visible and yours to control:
+
+- The combined log line lists what was written from the parts (`"replaced": [...]`) and keeps each
+  plain answer beside it (`h_divergence_plain`, ...). `s1watch` shows both.
+- `fanout.json` has a list, `replaces`. Take an id out and the answer of its own question reaches
+  the line again. The hook reads the file on every prompt, so the edit is live at once.
+  `S1_FANOUT_FILE` names another file.
+- `S1_FANOUT=0` turns the whole fan-out off, to compare.
+
+The size of the state: with the fan-out the state holds the message twice (`message` and
+`sentences`) and the request holds seven questions for each part. `hook.fan_fit` checks that state
+and those questions against the per-question and the per-request context, and asks for the long
+context when they need it. A state too large even for that gets a plain call (`fanout_off` in the
+log).
+
+`h_work`, `h_language` and `h_proof` are as before. The plain answers of the four rewritten
+questions are still asked and logged, and are not used. The log gets a second line for each call
+(`"combined": true`) with the combined answers, so the status line shows what the hint line said.
+If a fan-out answer is malformed, the line comes from the plain answers (a skip line says why).
+
+Why, and how well it works: `research/2026-11-15-question-eval/README.md`. Tests: `test_fanout.py`
+(no network) and `research/2026-11-15-question-eval/fresh/check.py` (live). Known limits:
+
+- A reversal inside the message also reads as a change of plan; the line can name both.
+- When the human reverses and returns to the first decision, "change of plan" is still named.
+- An answer or an open question inside a long ramble is found less often than in a short message.
+- A pasted failure report ("it failed on prod:" and a log) is not seen as a divergence.
+- All labels behind these rules are the agent's. No human has confirmed them.
+
+## The live view (`live.py`)
+
+`live.py` reads the S1 log and shows what the System 1 model said about the session's messages. It
+prints them as text for a terminal or as JSON for a script. Standard library only, no
+network, fails quiet (prints nothing on any error).
+
+    python3 s1/live.py --format pane|corner|toast|json [--session ID | --stdin] [--log FILE]
+                       [--turns N] [--no-color] [--width N]
+
+| Format | For | What it prints |
+|---|---|---|
+| `pane` | a pane beside the chat | the newest message: a bar for each signal, the part that fired it, a row for each part of the message (what the part does, and six probabilities), and sparklines of the session with latency and token totals |
+| `corner` | a small corner display | three lines: the signals that fired, the work kind with latency and part count, two sparklines |
+| `toast` | a notification | one line, only when the newest message fired a signal; else nothing |
+| `json` | your own renderer | `{"session", "turns": [...]}`; each turn has `signals`, `fired`, `parts`, `latency`, `tokens`, `work`, `tool` |
+
+The session is `--session`; or `--stdin` reads `{"session_id": ...}` as a status line command gets
+it; else the newest session in the log. Color follows `--no-color` and `NO_COLOR`.
+
+The status line segment (`statusline.py`) also shows `rev 0.90` when a decision is reversed inside
+the message, and `N parts` when the message was read in more than one part.
+
+`live.py` is a command-line view for a shell, a script or a review of a log. Inside Claude Code,
+the Sagittarius Signals mod (`glance/`) is the live view; it reads the log itself and does not use
+`live.py`. Tests: `test_live.py`.

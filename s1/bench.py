@@ -82,10 +82,10 @@ def hint_of(answers, questions, pipe):
         return f"(no line: {type(e).__name__}: {e})"
 
 
-def ask(state, questions, timeout, transport=None, tag=None):
+def ask(state, questions, timeout, transport=None, tag=None, long_context=False):
     """The answers of one call, or None on a failure (jev.judge logs it to the bench log)."""
     return jev.judge(state, questions, timeout=timeout, log_path=BENCH_LOG, transport=transport,
-                     log_extra={"bench": tag or "new"})
+                     log_extra={"bench": tag or "new"}, long_context=long_context)
 
 
 def compare(rec, new, base, qids):
@@ -129,7 +129,9 @@ def run(args, transport=None):
 
             def asker(qs):
                 n[0] += 1
-                return ask(st, qs, args.timeout, transport, f"pipeline:{n[0]}")
+                # hook.fanout_run sets asker.long_context when the state with its parts needs it
+                return ask(st, qs, args.timeout, transport, f"pipeline:{n[0]}",
+                           long_context=bool(getattr(asker, "long_context", False)))
             try:
                 new = pipe.run(st, asker, newq)
             except Exception as e:

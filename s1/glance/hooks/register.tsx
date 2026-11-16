@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
-import type { Glance, S1Answer, View } from '../types'
+import type { Glance, Part, S1Answer, View } from '../types'
 
 // 🌌 Sagittarius Signals (s1-glance), a proof of concept. The System 1 hook (Sagittarius s1/hook.py) logs
 // each judgment to ~/.claude/logs/s1.jsonl; this mod draws the newest one of this session to be seen at a
@@ -12,6 +12,13 @@ import type { Glance, S1Answer, View } from '../types'
 //   toast   up to three toasts in the top-right corner, only for the signals that fired
 //   corner  one row above the prompt, only the signals that fired
 //   status  one line under the prompt: every signal with a one-cell gauge
+//
+// The pane has three tabs (keys 1 2 3), all drawn from the same history and linked by one cursor (p / n):
+//   now     the signals of one judgment, and why: the message as a strip of parts (the fan-out of
+//           s1/hook.py), one cell per part; j and k pick a part and show its text and what stands out in it
+//   trend   every signal over the session, one cell per judgment; the cursor is a column of the chart
+//   health  how the hook performs: latency, tokens, failed calls, and for each signal how often it
+//           says yes, no, or nothing (the unsure band)
 
 const PANE = 's1-glance'
 const PANE_TITLE = 'Sagittarius Signals'
@@ -33,6 +40,9 @@ const last = atom({ plugin: 's1-glance', key: 'last' } as const, null, { shape: 
 const HISTORY = 100
 const history = atom({ plugin: 's1-glance', key: 'history' } as const, [] as Glance[], { shape: 'hist-1' })
 const cursor = atom({ plugin: 's1-glance', key: 'cursor' } as const, null as number | null)
+// The tab of the pane (0 now, 1 trend, 2 health) and the part picked on the now tab (null: the strongest).
+const tab = atom({ plugin: 's1-glance', key: 'tab' } as const, 0)
+const part = atom({ plugin: 's1-glance', key: 'part' } as const, null as number | null)
 // Bumped every TICK_MS so the age ("12s ago") moves between judgments.
 const tick = atom({ plugin: 's1-glance', key: 'tick' } as const, 0)
 // The views on now. The person's choice is also kept in $.store, which every new session reads.
@@ -52,6 +62,7 @@ const NOULS: { id: string; glyph: string; label: string; alarm: boolean }[] = [
   { id: 'h_change_of_plan', glyph: '🔄', label: 're-plan', alarm: true },
   { id: 'h_questions', glyph: '❓', label: 'open Qs', alarm: true },
   { id: 'h_proof', glyph: '📜', label: 'proof', alarm: true },
+  { id: 'h_reversal', glyph: '🔙', label: 'reversal', alarm: true }, // the fan-out: a decision reversed inside the message
   { id: 'h_effort', glyph: '💪', label: 'effort', alarm: false },
 ]
 const WORK: Record<string, string> = { research: '🔍', specify: '📐', build: '🔨', verify: '🔬', question: '💬', other: '👋' }
@@ -100,7 +111,7 @@ function ago(s: number): string {
 // One row: one signal of the newest judgment. `fires`: over its threshold, as the hook's line reports it
 // (a choice at P >= 0.5, s1/hook.py CHOICE_MIN; a yes/no question in the yes band, P >= 0.7). `rank`
 // orders the toasts: alarms, then the work, the tool, the effort.
-type Row = { glyph: string; label: string; p: number; fires: boolean; rank: number; bold?: boolean }
+type Row = { glyph: string; label: string; p: number; fires: boolean; rank: number; bold?: boolean; id?: string }
 
 const prob = (a: { choice: string; confidence: number; probabilities?: Record<string, number> }, c: string) =>
   a.probabilities?.[c] ?? (c === a.choice ? a.confidence : 0)
@@ -118,7 +129,7 @@ function rows(g: Glance): Row[] {
   for (const q of NOULS) {
     const ans = a[q.id]
     if (!ans || ans.type !== 'noul') continue
-    out.push({ glyph: q.glyph, label: q.label, p: ans.noul, fires: ans.noul >= 0.7, rank: q.alarm ? 0 : 3 })
+    out.push({ glyph: q.glyph, label: q.label, p: ans.noul, fires: ans.noul >= 0.7, rank: q.alarm ? 0 : 3, id: q.id })
   }
   const lang = a.h_language
   if (lang && lang.type === 'choice') {
@@ -133,6 +144,71 @@ function rows(g: Glance): Row[] {
 
 const fired = (g: Glance) => rows(g).filter(r => r.fires).sort((x, y) => x.rank - y.rank)
 
+// What a part does (the choice "react" of s1/fanout.json), and the six answers of a part.
+const DOES: Record<string, { glyph: string; label: string }> = {
+  accepts: { glyph: '✅', label: 'accepts' },
+  corrects: { glyph: '❌', label: 'corrects' },
+  doubts: { glyph: '🤨', label: 'doubts' },
+  changes_request: { glyph: '🔄', label: 'changes the ask' },
+  adds_request: { glyph: '➕', label: 'adds to the ask' },
+  answers: { glyph: '💬', label: 'answers' },
+  asks_back: { glyph: '❓', label: 'asks back' },
+  new_topic: { glyph: '🆕', label: 'new topic' },
+}
+const PART_SIGNALS: { key: keyof Part; glyph: string; label: string }[] = [
+  { key: 'doubts', glyph: '🤨', label: 'doubt' },
+  { key: 'faults', glyph: '❌', label: 'fault' },
+  { key: 'changes', glyph: '🔄', label: 'change' },
+  { key: 'asks', glyph: '❓', label: 'asks' },
+  { key: 'undecided', glyph: '🤷', label: 'undecided' },
+  { key: 'reverses', glyph: '🔙', label: 'reverses' },
+]
+// The answers of a part that feed each signal of the judgment (s1/hook.py combine).
+const FEEDS: Record<string, (keyof Part)[]> = {
+  h_divergence: ['doubts', 'faults'],
+  h_change_of_plan: ['changes'],
+  h_questions: ['asks', 'undecided'],
+  h_reversal: ['reverses'],
+}
+const num = (x: unknown) => (typeof x === 'number' && x >= 0 && x <= 1 ? x : 0)
+const heat = (x: Part) => Math.max(...PART_SIGNALS.map(s => num(x[s.key])))
+// The part that carries a signal: the one with the highest answer that feeds it, or -1.
+function carrier(g: Glance, id: string): number {
+  const keys = FEEDS[id]
+  if (!keys || !g.parts?.length) return -1
+  let best = -1
+  let top = 0.3
+  g.parts.forEach((x, i) => {
+    const v = Math.max(...keys.map(k => num(x[k])))
+    if (v > top) [best, top] = [i, v]
+  })
+
+  return best
+}
+// The part the now tab opens on: the one where the most stands out.
+const strongest = (ps: Part[]) => ps.reduce((b, x, i) => (heat(x) > heat(ps[b] as Part) ? i : b), 0)
+
+function partsOf(r: Record<string, unknown>, call: Record<string, unknown> | null): Part[] | undefined {
+  const a = (r.answers ?? {}) as Record<string, any>
+  const st = ((call ?? r).state ?? {}) as { sentences?: unknown }
+  const texts = Array.isArray(r.part_text) ? r.part_text : Array.isArray(st.sentences) ? st.sentences : null
+  if (!texts) return undefined
+  const out: Part[] = []
+  for (let k = 0; k < texts.length && k < 60; k++) {
+    const c = a[`react@${k}`]
+    if (!c || c.type !== 'choice') break
+    const n = (name: string) => num(a[`${name}@${k}`]?.noul)
+    out.push({
+      text: plain(String(texts[k] ?? '')).slice(0, 160),
+      does: String(c.choice ?? ''),
+      p: num(prob(c, c.choice)),
+      doubts: n('doubts'), faults: n('faults'), changes: n('changes'), asks: n('asks'), undecided: n('undecided'), reverses: n('reverses'),
+    })
+  }
+
+  return out.length ? out : undefined
+}
+
 // Toasts: one per signal that fired, at most TOASTS; past that, the last toast holds the rest compactly.
 // Each entry is held together by no-break spaces, so a wrap falls only between entries.
 const NB = '\u00a0'
@@ -144,7 +220,9 @@ function toastAll($: EngineInterface, g: Glance) {
   const hot = fired(g)
   const full = hot.length <= TOASTS ? hot : hot.slice(0, TOASTS - 1)
   for (const r of full) {
-    $.ui.toast([r.glyph, r.label.padEnd(LABEL, NB), squares(r.p), pct(r.p).trim()].join(NB), { timeoutMs: TOAST_MS })
+    const at = r.id ? carrier(g, r.id) : -1
+    const why = at >= 0 ? ` “${oneLine(g.parts?.[at]?.text ?? '').slice(0, 40)}”` : '' // the part that fired it
+    $.ui.toast([r.glyph, r.label.padEnd(LABEL, NB), squares(r.p), pct(r.p).trim()].join(NB) + why, { timeoutMs: TOAST_MS })
   }
   const rest = hot.slice(full.length)
   if (rest.length) {
@@ -207,58 +285,261 @@ function saw(r: Record<string, unknown>) {
 
 const oneLine = (t: string) => t.replace(/\s+/g, ' ').trim()
 
-// The newest line of this session that holds answers or an error (a skip line after an error has
-// neither: the call's line before it carries the error).
-function newest(text: string, sessionId: string): Glance | null {
-  const lines = text.split('\n')
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const raw = (lines[i] ?? '').trim()
-    if (!raw) continue
-    let r: Record<string, unknown>
-    try {
-      r = JSON.parse(raw)
-    } catch {
-      continue // a line cut by the tail, or one being written
-    }
-    if (r.session_id !== sessionId) continue
-    if (!r.answers && !r.error) continue
-
-    return toGlance(r)
+type Line = Record<string, unknown>
+function lineOf(raw: string, sessionId: string): Line | null {
+  if (!raw.trim()) return null
+  let r: Line
+  try {
+    r = JSON.parse(raw)
+  } catch {
+    return null // a line cut by the tail, or one being written
   }
 
-  return null
+  return r.session_id === sessionId && (r.answers || r.error) ? r : null
 }
 
-function toGlance(r: Record<string, unknown>): Glance {
-  return {
-    time: String(r.time ?? ''),
-    model: String(r.model ?? ''),
-    latency: typeof r.latency === 'number' ? r.latency : null,
-    error: r.error ? plain(String(r.error)) : null,
-    answers: (r.answers as Record<string, S1Answer> | null) ?? null,
-    ...saw(r),
-  }
-}
-
-// Every judgment of this session in the log text, oldest first, the newest HISTORY of them.
-function allOf(text: string, sessionId: string): Glance[] {
+// Every judgment of this session in the log text, oldest first. With the fan-out the hook writes two
+// lines for one call: the call (what was sent, the latency) and then a combined line (the answers the
+// agent's line came from, and the parts). The two are one judgment.
+function judgments(text: string, sessionId: string): Glance[] {
   const out: Glance[] = []
+  let call: Line | null = null
   for (const raw of text.split('\n')) {
-    if (!raw.trim()) continue
-    let r: Record<string, unknown>
-    try {
-      r = JSON.parse(raw)
-    } catch {
+    const r = lineOf(raw, sessionId)
+    if (!r) continue
+    if (r.combined === true) {
+      const g = toGlance(r, call)
+      if (call && out.at(-1)?.time === String(call.time ?? '')) out[out.length - 1] = g
+      else out.push(g)
       continue
     }
-    if (r.session_id !== sessionId || (!r.answers && !r.error)) continue
-    out.push(toGlance(r))
+    call = r
+    out.push(toGlance(r, null))
   }
 
-  return out.slice(-HISTORY)
+  return out
 }
 
-// The pane: the title, a rule, one row per signal, a rule, the age, and the colour key.
+const newest = (text: string, sessionId: string): Glance | null => judgments(text, sessionId).at(-1) ?? null
+
+function toGlance(r: Line, call: Line | null): Glance {
+  const src = r.combined === true && call ? call : r // what was sent, and how long it took
+  const usage = (src.usage ?? {}) as { input_tokens?: unknown }
+
+  return {
+    time: String(r.time ?? ''),
+    model: String(src.model ?? ''),
+    latency: typeof src.latency === 'number' ? src.latency : null,
+    error: r.error ? plain(String(r.error)) : null,
+    answers: (r.answers as Record<string, S1Answer> | null) ?? null,
+    ...saw(src),
+    parts: partsOf(r, call),
+    tokens: typeof usage.input_tokens === 'number' ? usage.input_tokens : null,
+    callTime: r.combined === true && call ? String(call.time ?? '') : undefined,
+    routing: typeof r.routing === 'string' ? r.routing : null,
+    kind: typeof r.kind === 'string' ? r.kind : null,
+  }
+}
+
+const allOf = (text: string, sessionId: string): Glance[] => judgments(text, sessionId).slice(-HISTORY)
+
+// --- charts: every one is a row of one-cell gauges, coloured by strength, so a shape is seen, not read ---
+const PRICE_PER_MTOK = 0.042 // USD for a million input tokens of the System 1 model (docs.typesafe.ai/models.md, 2026-11)
+const TREND_ROWS = [...NOULS].sort((x, y) => Number(y.alarm) - Number(x.alarm))
+const noul = (g: Glance, id: string): number | null => {
+  const a = g.answers?.[id]
+  return a && a.type === 'noul' ? a.noul : null
+}
+const median = (xs: number[]) => {
+  const v = [...xs].sort((x, y) => x - y)
+  return v.length ? (v[Math.floor((v.length - 1) / 2)] as number) : 0
+}
+// Runs of cells of one colour, so a row of 27 cells is a few Text nodes.
+type Cell = { ch: string; color?: string; dim?: boolean; bold?: boolean }
+function runs(Text: any, cells: Cell[]) {
+  const out: RenderChildren[] = []
+  let i = 0
+  while (i < cells.length) {
+    const c = cells[i] as Cell
+    let j = i
+    let str = ''
+    while (j < cells.length && cells[j]?.color === c.color && cells[j]?.dim === c.dim && cells[j]?.bold === c.bold) str += (cells[j++] as Cell).ch
+    out.push(
+      <Text color={c.color} dimColor={c.dim === true} bold={c.bold === true}>
+        {str}
+      </Text>,
+    )
+    i = j
+  }
+
+  return out
+}
+// One cell for a probability: its height is the value and its colour the strength; no answer is a dot.
+const pCell = (v: number | null, on: boolean): Cell =>
+  v === null ? { ch: '·', dim: true } : { ch: gauge(v), color: COLOR[strength(v)], dim: !on && v < 0.7, bold: on }
+// One cell for a magnitude against the largest of its row.
+const mCell = (v: number | null, max: number, on: boolean): Cell =>
+  v === null ? { ch: '·', dim: true } : { ch: gauge(max > 0 ? v / max : 0), dim: !on, bold: on }
+
+// A row of a chart: an icon, then the cells.
+function chartRow(ui: any, glyph: string, cells: Cell[]) {
+  const { Box, Text } = ui
+  return (
+    <Box flexDirection="row">
+      <Box width={3} flexShrink={0}>
+        <Text>{glyph}</Text>
+      </Box>
+      <Text>{runs(Text, cells)}</Text>
+    </Box>
+  )
+}
+
+// The trend tab: one row per signal, one cell per judgment; the cursor's judgment is a bright column.
+function trend(ui: any, hist: Glance[], idx: number, width: number) {
+  const { Box, Text } = ui
+  const n = Math.max(8, Math.min(width - 4, 60))
+  const end = Math.min(hist.length, Math.max(idx + 1 + Math.floor(n / 4), n))
+  const from = Math.max(0, end - n)
+  const win = hist.slice(from, end)
+  const at = idx - from
+  const seen = TREND_ROWS.filter(q => hist.some(g => noul(g, q.id) !== null))
+  const lat = Math.max(0, ...win.map(g => g.latency ?? 0))
+  const sel = hist[idx]
+  const hot = sel && !sel.error && sel.answers ? fired(sel) : []
+
+  return (
+    <Box flexDirection="column">
+      {seen.map(q => chartRow(ui, q.glyph, win.map((g, i) => (g.error || !g.answers ? { ch: '×', color: 'error' } : pCell(noul(g, q.id), i === at)))))}
+      {chartRow(ui, '⏱', win.map((g, i) => mCell(g.latency, lat, i === at)))}
+      <Text dimColor>{'   ' + ' '.repeat(Math.max(0, at)) + '▲'}</Text>
+      <Text dimColor>{`#${idx + 1}${sel ? ' · ' + ago(age(sel.time, Date.now())) : ''}${sel?.latency != null ? ` · ${sel.latency.toFixed(2)}s` : ''}`}</Text>
+      <Text>{sel?.error ? '⚠ the call failed' : hot.length ? hot.map(r => `${r.glyph} ${r.label}`).join('  ') : 'no signal'}</Text>
+      <Text dimColor>{`${from + 1}–${end} of ${hist.length} · p n move the cursor`}</Text>
+    </Box>
+  )
+}
+
+// The health tab: how the hook performs over the session.
+function health(ui: any, hist: Glance[], width: number) {
+  const { Box, Text } = ui
+  const n = Math.max(8, Math.min(width - 4, 60))
+  const win = hist.slice(-n)
+  const ok = hist.filter(g => !g.error && g.answers)
+  const failed = hist.length - ok.length
+  const lats = ok.map(g => g.latency).filter((x): x is number => typeof x === 'number')
+  const toks = ok.map(g => g.tokens).filter((x): x is number => typeof x === 'number')
+  const sum = toks.reduce((x, y) => x + y, 0)
+  const parted = ok.filter(g => g.parts?.length)
+  const sizes = parted.map(g => g.parts?.length ?? 0)
+  const MIX = Math.max(8, Math.min(width - 13, 20))
+  const mix = TREND_ROWS.map(q => {
+    const v = ok.map(g => noul(g, q.id)).filter((x): x is number => x !== null)
+    const yes = v.filter(x => x >= 0.7).length
+    const no = v.filter(x => x <= 0.3).length
+    return { q, total: v.length, yes, no, unsure: v.length - yes - no }
+  }).filter(m => m.total > 0)
+  const latMax = Math.max(0, ...win.map(g => g.latency ?? 0))
+  const tokMax = Math.max(0, ...win.map(g => g.tokens ?? 0))
+
+  return (
+    <Box flexDirection="column">
+      {chartRow(ui, '⏱', win.map(g => (g.error ? { ch: '×', color: 'error' } : mCell(g.latency, latMax, true))))}
+      <Text dimColor>{lats.length ? `   median ${median(lats).toFixed(2)}s · max ${Math.max(...lats).toFixed(2)}s` : '   no latency yet'}</Text>
+      {chartRow(ui, '🪙', win.map(g => mCell(g.tokens ?? null, tokMax, true)))}
+      <Text dimColor>{toks.length ? `   ${sum.toLocaleString('en-US')} tokens · $${((sum * PRICE_PER_MTOK) / 1e6).toFixed(4)}` : '   no token counts yet'}</Text>
+      <Text color={failed ? 'error' : undefined} dimColor={!failed}>{`⚠  ${failed} of ${hist.length} calls failed`}</Text>
+      <Text dimColor>{RULE}</Text>
+      <Text bold dimColor>How often each signal speaks</Text>
+      {mix.map(m => {
+        const y = Math.round((m.yes / m.total) * MIX)
+        const u = Math.min(MIX - y, Math.round((m.unsure / m.total) * MIX))
+        return (
+          <Box flexDirection="row">
+            <Box width={3} flexShrink={0}>
+              <Text>{m.q.glyph}</Text>
+            </Box>
+            <Text>
+              <Text color={COLOR.confident}>{'█'.repeat(y)}</Text>
+              <Text color={COLOR.moderate}>{'▒'.repeat(u)}</Text>
+              <Text dimColor>{'░'.repeat(Math.max(0, MIX - y - u))}</Text>
+              <Text dimColor>{` ${m.yes}/${m.unsure}/${m.no}`}</Text>
+            </Text>
+          </Box>
+        )
+      })}
+      <Text>
+        <Text color={COLOR.confident}>█</Text>
+        <Text dimColor> yes  </Text>
+        <Text color={COLOR.moderate}>▒</Text>
+        <Text dimColor> unsure: says nothing  ░ no</Text>
+      </Text>
+      <Text dimColor>{RULE}</Text>
+      <Text dimColor>{`🧩 read in parts: ${parted.length} of ${ok.length}` + (sizes.length ? ` · median ${median(sizes)}, most ${Math.max(...sizes)}` : '')}</Text>
+      <Text dimColor>{`🛠  workbench ${ok.filter(g => g.routing === 'workbench').length} · late fixes ${ok.filter(g => g.kind === 'correction').length}`}</Text>
+    </Box>
+  )
+}
+
+// The why of one judgment: the message as a strip of parts, and the part that is picked.
+function partsBox(ui: any, g: Glance, picked: number | null, stale: boolean, width: number, prev: () => unknown, nextPart: () => unknown) {
+  const { Box, Text, Button } = ui
+  const ps = g.parts ?? []
+  if (!ps.length) return ''
+  const at = Math.min(ps.length - 1, Math.max(0, picked ?? strongest(ps)))
+  const x = ps[at] as Part
+  const does = DOES[x.does] ?? { glyph: '🔹', label: x.does || '?' }
+  const out = PART_SIGNALS.filter(sg => num(x[sg.key]) > 0.3)
+  const per = Math.max(8, width - 1)
+  const strip: Cell[] = ps.map((y, i) => (i === at ? { ch: '◆', color: COLOR[strength(heat(y))], bold: true } : { ch: gauge(heat(y)), color: COLOR[strength(heat(y))], dim: stale || heat(y) < 0.7 }))
+  const lines: Cell[][] = []
+  for (let i = 0; i < strip.length; i += per) lines.push(strip.slice(i, i + per))
+  const text = oneLine(x.text)
+
+  return (
+    <Box flexDirection="column">
+      <Text dimColor>{RULE}</Text>
+      <Box flexDirection="row" gap={1}>
+        <Text bold dimColor>{`Why · part ${at + 1} of ${ps.length}`}</Text>
+        {ps.length > 1 ? <Button key="part-prev" plain hotkey="j" label="◂" onPress={prev} /> : ''}
+        {ps.length > 1 ? <Button key="part-next" plain hotkey="k" label="▸" onPress={nextPart} /> : ''}
+      </Box>
+      {lines.map(l => (
+        <Text>{runs(Text, l)}</Text>
+      ))}
+      <Text dimColor={stale}>{`${does.glyph} ${does.label}${pct(x.p)}`}</Text>
+      <Text dimColor={stale}>{`“${text.length > width * 3 - 3 ? text.slice(0, width * 3 - 4) + '…' : text}”`}</Text>
+      {out.length === 0 ? (
+        <Text dimColor>nothing stands out in this part</Text>
+      ) : (
+        out.map(sg => {
+          const v = num(x[sg.key])
+          const { fill, track } = bar(v)
+          return (
+            <Box flexDirection="row">
+              <Box width={3} flexShrink={0}>
+                <Text>{sg.glyph}</Text>
+              </Box>
+              <Box width={LABEL + 1} flexShrink={0}>
+                <Text dimColor={stale || v < 0.7}>{sg.label}</Text>
+              </Box>
+              <Box width={BAR + 1} flexShrink={0}>
+                <Text>
+                  <Text color={COLOR[strength(v)]} dimColor={stale || v < 0.7}>
+                    {fill}
+                  </Text>
+                  <Text dimColor>{track}</Text>
+                </Text>
+              </Box>
+              <Text dimColor={stale || v < 0.7}>{pct(v)}</Text>
+            </Box>
+          )
+        })
+      )}
+    </Box>
+  )
+}
+
+// The pane: the title, the cursor, the tabs, and the tab's drawing.
 async function card($: EngineInterface, e: any) {
   const { Box, Text, Button } = $.ui.resolve(e)
   const hist = await read($, history)
@@ -269,12 +550,17 @@ async function card($: EngineInterface, e: any) {
   const older = async () => {
     const n = (await read($, history)).length
     await update($, cursor, c => Math.max(0, (c === null ? n - 1 : c) - 1))
+    await update($, part, () => null)
   }
   const newer = async () => {
     const n = (await read($, history)).length
     await update($, cursor, c => (c === null || c + 1 >= n - 1 ? null : c + 1))
+    await update($, part, () => null)
   }
   const latest = () => update($, cursor, () => null)
+  const which = await read($, tab)
+  const picked = await read($, part)
+  const go = (t: number) => () => update($, tab, () => t)
   await read($, tick) // redraw on each tick
   const now = Date.now()
   const stale = g ? age(g.time, now) > STALE_S : true
@@ -340,6 +626,22 @@ async function card($: EngineInterface, e: any) {
   const msgLines = inline ? 4 : 1000
   const recentLines = inline ? 1 : 1000
 
+  const count = g?.parts?.length ?? 0
+  const prevPart = () => update($, part, c => ((c ?? (g?.parts ? strongest(g.parts) : 0)) - 1 + Math.max(1, count)) % Math.max(1, count))
+  const nextPart = () => update($, part, c => ((c ?? (g?.parts ? strongest(g.parts) : 0)) + 1) % Math.max(1, count))
+  const chartCols = wide ? 33 : Math.max(20, Math.min(cols, 64))
+  const ui = { Box, Text, Button }
+  const tabs = (
+    <Box flexDirection="row" gap={1}>
+      {['now', 'trend', 'health'].map((name, t) => (
+        <Button key={`tab-${name}`} plain hotkey={String(t + 1)} label={which === t ? `[${name}]` : name} onPress={go(t)} />
+      ))}
+    </Box>
+  )
+  if (which === 1 && hist.length) body = trend(ui, hist, idx, chartCols)
+  if (which === 2 && hist.length) body = health(ui, hist, chartCols)
+  const why = which === 0 && g && !g.error && g.answers ? partsBox(ui, g, picked, stale, chartCols - 2, prevPart, nextPart) : ''
+
   const signals = (
     <Box flexDirection="column" width={wide ? 33 : undefined} flexShrink={0}>
       <Text bold>{`${BRAND} ${PANE_TITLE}`}</Text>
@@ -353,8 +655,10 @@ async function card($: EngineInterface, e: any) {
       ) : (
         ''
       )}
+      {tabs}
       <Text dimColor>{RULE}</Text>
       {body}
+      {why}
       <Text dimColor>{RULE}</Text>
       <Text dimColor>{foot}</Text>
       <Text>
@@ -369,7 +673,7 @@ async function card($: EngineInterface, e: any) {
   )
 
   const sawBox =
-    g && g.message ? (
+    which === 0 && g && g.message ? (
       <Box flexDirection="column" marginTop={wide ? 0 : 1} marginLeft={wide ? 3 : 0} flexGrow={1} flexShrink={1}>
         {wide ? '' : <Text dimColor>{RULE}</Text>}
         <Text dimColor>
@@ -447,7 +751,10 @@ export const register: Register = on => {
         const was = await read($, last)
         if (was && was.time === g.time && was.error === g.error) return
         await update($, last, () => g)
-        await update($, history, h => (h.at(-1)?.time === g.time ? h : [...h, g].slice(-HISTORY)))
+        await update($, history, h =>
+          h.at(-1)?.time === g.time ? h : g.callTime && h.at(-1)?.time === g.callTime ? [...h.slice(0, -1), g] : [...h, g].slice(-HISTORY),
+        )
+        await update($, part, () => null) // a new judgment: the now tab opens on its strongest part
         if ((await read($, views)).includes('toast')) toastAll($, g)
         await showStatus()
       } catch {
