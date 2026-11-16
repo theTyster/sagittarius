@@ -69,6 +69,7 @@ bench replay writes to the bench log. The API key is never written.
 | `long_context` | hook.py | true when the hook asked for the long context. |
 | `parts` | hook.py | The number of parts that the fan-out cut the prompt into (see `README.md`, "The fan-out"). |
 | `combined` | hook.py | true on the second line of a fan-out call: its `answers` are the model's answers with `h_divergence`, `h_change_of_plan`, `h_questions` and `h_effort` rewritten from the parts and `h_reversal` added. It has no `state`, `latency` or `usage`: those are on the line before it. |
+| `replaced` | hook.py | Only on a combined line: the ids whose answer the fan-out wrote from the parts. For each one, `answers` also holds `<id>_plain`: the answer of that id's own question, which did not reach the line. |
 | `part_text` | hook.py | Only on a combined line: the text of each part, each cut to 160 characters. |
 | `fanout_off` | hook.py | The reason why the fan-out file did not load, so that the call was a plain one. |
 | `routing` | hook.py | `"workbench"` when the call came from the workbench routing (`workbench/pipeline.py`). |

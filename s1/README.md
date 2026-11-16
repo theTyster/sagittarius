@@ -426,6 +426,25 @@ questions of `fanout.json` (`part`), in the same request as the questions of `qu
 | `h_effort` | the answer of `h_effort`; for a message of 800 characters or more, at least 1 - P(`f_pasted`) |
 | `h_reversal` (new) | the highest "reverses" of a part. In the yes band the line says `decision reversed in message (0.90)`, and it counts as a signal |
 
+**If you edit one of these four questions, read this.** While the fan-out is on, the line does not
+come from the answer of `h_divergence`, `h_change_of_plan` or `h_questions` in `questions.json` (or
+the workbench copy), and takes `h_effort` from its own question only when the rule does not raise
+it. So an edit of their wording changes the model's answer and not the line. Three things make that
+visible and yours to control:
+
+- The combined log line lists what was written from the parts (`"replaced": [...]`) and keeps each
+  plain answer beside it (`h_divergence_plain`, ...). `s1watch` shows both.
+- `fanout.json` has a list, `replaces`. Take an id out and the answer of its own question reaches
+  the line again. The hook reads the file on every prompt, so the edit is live at once.
+  `S1_FANOUT_FILE` names another file.
+- `S1_FANOUT=0` turns the whole fan-out off, to compare.
+
+The size of the state: with the fan-out the state holds the message twice (`message` and
+`sentences`) and the request holds seven questions for each part. `hook.fan_fit` checks that state
+and those questions against the per-question and the per-request context, and asks for the long
+context when they need it. A state too large even for that gets a plain call (`fanout_off` in the
+log).
+
 `h_work`, `h_language` and `h_proof` are as before. The plain answers of the four rewritten
 questions are still asked and logged, and are not used. The log gets a second line for each call
 (`"combined": true`) with the combined answers, so the status line shows what the hint line said.

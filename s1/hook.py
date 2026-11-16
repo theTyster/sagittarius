@@ -82,6 +82,8 @@ CHARS_PER_TOKEN = 3  # a cautious count: fewer characters per token than English
 CONTEXT_CHARS = CONTEXT_TOKENS * CHARS_PER_TOKEN
 LONG_CONTEXT_TOKENS = 262000  # with the long-context header (TypeSafe docs, models page)
 LONG_CONTEXT_CHARS = LONG_CONTEXT_TOKENS * CHARS_PER_TOKEN
+REQUEST_TOKENS = 64000  # the model's default per-request context: the state and all the questions (models page)
+REQUEST_CHARS = REQUEST_TOKENS * CHARS_PER_TOKEN
 CHOICE_MIN = 0.5  # a choice is shown when P(choice) >= 0.5, as in the calibration
 UNSURE = "System 1: unsure"  # every answer in the unsure band (0.3.0 S-A)
 NO_SIGNAL = "System 1: no signal"  # only a formal tool is sure, and no signal shows it (review of 0.3.0)
@@ -541,6 +543,25 @@ def split_parts(msg):
         size += size // 10 + 1
 
 
+def fan_fit(state, asked):
+    """(fits, long_context) for the state of a fan-out call and all its questions. The state holds
+    the message twice (message and sentences) and the request holds seven questions for each part,
+    so the fit of {message, recent} alone (_fit) says too little. The state and its longest question
+    must fit the per-question context, and the state and every question the per-request context;
+    past both defaults the long context is asked for; past that the fan-out does not fit."""
+    st = len(json.dumps(state))
+    longest = max((len(json.dumps(v)) for v in asked.values()), default=0)
+    total = st + len(json.dumps(asked))
+    if st + longest <= CONTEXT_CHARS and total <= REQUEST_CHARS:
+        return True, False
+    if st + longest <= LONG_CONTEXT_CHARS and total <= LONG_CONTEXT_CHARS:
+        return True, True
+    return False, False
+
+
+REPLACES = ("h_divergence", "h_change_of_plan", "h_questions", "h_effort")  # what combine may write
+
+
 def fanout_questions(fan, n):
     """The questions of the fan-out for n parts: {"name@k": question} and the whole-message helpers."""
     out = {}
@@ -553,7 +574,7 @@ def fanout_questions(fan, n):
     return out
 
 
-def combine(answers, state):
+def combine(answers, state, replaces=None):
     """The answers with h_divergence, h_change_of_plan, h_questions and h_effort written from the
     parts, and h_reversal added. The rules:
     divergence: the highest doubt or fault of a part; a fault does not count in a part that changes
@@ -563,7 +584,12 @@ def combine(answers, state):
         part, or, for a message of more than SENTENCE_PARTS parts, the whole-message answer f_open.
     effort: the answer h_effort, or 1 - P(pasted) for a message of EFFORT_CHARS or more.
     reversal: the highest "reverses" of a part. A part that reverses also reads as a change, so a
-        reversal inside the message can come with "change of plan": the line then names both."""
+        reversal inside the message can come with "change of plan": the line then names both.
+    replaces: the ids that may be rewritten (default REPLACES; the list "replaces" of fanout.json).
+    An id that is not in it keeps the answer of its own question, so an edit of that question
+    reaches the line. Each answer that is rewritten keeps its plain value as "<id>_plain"
+    (replaced() lists them); h_effort is rewritten only when the rule raises it."""
+    replaces = REPLACES if replaces is None else replaces
     n = len(state["sentences"])
     agents = [m for m in state.get("recent", []) if m.get("role") == "agent"]
     has_agent = bool(agents)
@@ -589,9 +615,22 @@ def combine(answers, state):
         effort = max(effort, 1.0 - p("f_pasted"))
     out = dict(answers)
     for qid, v in (("h_divergence", div if has_agent else 0.0), ("h_change_of_plan", chg if has_agent else 0.0),
-                   ("h_questions", ask if agent_asks else 0.0), ("h_effort", effort), ("h_reversal", rev)):
-        out[qid] = {"type": "noul", "noul": round(v, 4)}
+                   ("h_questions", ask if agent_asks else 0.0), ("h_effort", effort)):
+        if qid not in replaces:
+            continue
+        new = {"type": "noul", "noul": round(v, 4)}
+        if qid == "h_effort" and qid in answers and new["noul"] <= p("h_effort"):
+            continue  # the rule did not raise it: the plain answer stands
+        if qid in answers:
+            out[qid + "_plain"] = answers[qid]
+        out[qid] = new
+    out["h_reversal"] = {"type": "noul", "noul": round(rev, 4)}
     return out
+
+
+def replaced(combined):
+    """The ids that combine rewrote: those with a plain answer kept beside them."""
+    return sorted(k[:-len("_plain")] for k in combined if k.endswith("_plain"))
 
 
 def load_fanout(env, extra=None):
@@ -617,15 +656,24 @@ def judge_parts(state, questions, fan, log_path, key, lx, **kw):
     is malformed fails open: the plain answers come back and a skip line says why."""
     if not fan:
         return jev.judge(state, questions, key=key, log_path=log_path, log_extra=lx, **kw)
+    plain_state = state
     state = dict(state, sentences=split_parts(state["message"]))
     asked = dict(questions)
     asked.update(fanout_questions(fan, len(state["sentences"])))
+    fits, long_context = fan_fit(state, asked)
+    if not fits:  # too large even for the long context: a plain call, and the log says why
+        return jev.judge(plain_state, questions, key=key, log_path=log_path,
+                         log_extra=dict(lx, fanout_off="too large for the context"), **kw)
     lx = dict(lx, parts=len(state["sentences"]))
+    if long_context and not kw.get("long_context"):
+        kw["long_context"] = True
+        lx["long_context"] = True
     got = jev.judge(state, asked, key=key, log_path=log_path, log_extra=lx, **kw)
     if got:
         try:
-            got = combine(got, state)
+            got = combine(got, state, fan.get("replaces"))
             jev._log(log_path, key, dict(lx, time=jev._now(), combined=True, answers=got, error=None,
+                                         replaced=replaced(got),
                                          part_text=[x[:160] for x in state["sentences"]]))
         except Exception as e:
             _skip(log_path, key, f"fan-out: {type(e).__name__}: {e}", lx)
@@ -642,17 +690,23 @@ def fanout_run(state, ask, questions, env=None):
     state["sentences"] = split_parts(state["message"])
     asked = dict(questions)
     asked.update(fanout_questions(fan, len(state["sentences"])))
+    fits, long_context = fan_fit(state, asked)
+    if not fits:  # too large even for the long context: the plain asking
+        del state["sentences"]
+        return ask(questions)
+    if long_context:
+        ask.long_context = True  # the hook's ask() reads it: the state with its parts needs the long context
     got = ask(asked)
     if not got:
         return got
     try:
-        out = combine(got, state)
+        out = combine(got, state, fan.get("replaces"))
     except Exception:
         return got  # fails open: the plain answers
     log = getattr(ask, "log", None)
     if callable(log):
         log({"combined": True, "parts": len(state["sentences"]), "answers": out, "error": None,
-             "part_text": [x[:160] for x in state["sentences"]]})
+             "replaced": replaced(out), "part_text": [x[:160] for x in state["sentences"]]})
     return out
 
 
@@ -746,9 +800,11 @@ def run(raw, env, transport=None, spawn=None):
             def ask(qs):  # one System 1 call of the routing, in the time that is left
                 stage[0] += 1
                 left = max(deadline - time.monotonic(), 0.1)
+                more = bool(getattr(ask, "long_context", False)) and not long_context  # asked for by fanout_run
                 return jev.judge(state, qs, timeout=left, key=key, log_path=log_path,
-                                 transport=transport, long_context=long_context,
-                                 log_extra=dict(lx, routing="workbench", stage=stage[0]))
+                                 transport=transport, long_context=long_context or more,
+                                 log_extra=dict(lx, routing="workbench", stage=stage[0],
+                                                **({"long_context": True} if more else {})))
             ask.env = env  # for hook.fanout_run: the hook reads only this env
             ask.log = lambda rec: jev._log(log_path, key, dict(lx, routing="workbench", time=jev._now(), **rec))
             try:
@@ -939,9 +995,11 @@ def late_fix(sent_path, env, transport=None, wait=None, sleep=time.sleep):
 
             def ask(qs):  # one System 1 call of the routing, logged as part of the correction
                 stage[0] += 1
+                more = bool(getattr(ask, "long_context", False)) and not long_context
                 return jev.judge(state, qs, key=key, log_path=log_path, transport=transport,
-                                 long_context=long_context,
-                                 log_extra=dict(lx, routing="workbench", stage=stage[0]))
+                                 long_context=long_context or more,
+                                 log_extra=dict(lx, routing="workbench", stage=stage[0],
+                                                **({"long_context": True} if more else {})))
             ask.env = env
             ask.log = lambda rec: jev._log(log_path, key, dict(lx, routing="workbench", time=jev._now(), **rec))
             got = routing["run"](state, ask, questions)

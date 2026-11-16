@@ -38,6 +38,12 @@ Earlier versions, named after the fact so that a report can refer to them:
   message`. `S1_FANOUT=0` gives the earlier behavior. This changes what a session is told, so it is
   a MINOR change when it is released; the owner sets the number. The prompt does not yet name the
   new hint. Evidence and limits: `s1/research/2026-11-15-question-eval/README.md`.
+- **After the review of PR 11.** The size check counts the parts: a state with `sentences` and its
+  part questions is measured against the per-question and the per-request context (`hook.fan_fit`),
+  and the long context is asked for when it is needed. The fan-out's overrides are visible and can
+  be switched: the combined log line has `replaced` and the plain answers (`<id>_plain`), and
+  `replaces` in `fanout.json` lists what the fan-out may write. `s1watch` shows a fan-out call as
+  one short block; `--raw` prints every answer.
 - **Sagittarius Signals mod 0.13.0 (`s1/glance/`).** The pane has three tabs on one cursor: now
   (the signals, and why: the message as a strip of parts, with the picked part's text and answers),
   trend (every signal over the session, one cell per judgment) and health (latency, tokens and cost,

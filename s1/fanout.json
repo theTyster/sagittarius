@@ -1,5 +1,7 @@
 {
  "_comment": "The fan-out of the System 1 hook: questions asked once for each part of the human's message ({part} becomes the path of the part), and two helpers for the whole message. hook.py combines the answers (combine). Evidence: s1/research/2026-11-15-question-eval/README.md.",
+ "replaces": ["h_divergence", "h_change_of_plan", "h_questions", "h_effort"],
+ "_replaces": "The answers that hook.combine may write from the parts. Take an id out and the answer of its own question in questions.json reaches the line again. The hook reads this file on every prompt.",
  "part": {
   "react": {
    "type": "choice",

@@ -142,6 +142,21 @@ class Combine(unittest.TestCase):
             self.assertEqual(a[k], raw[k])
 
 
+class FanFit(unittest.TestCase):
+    def test_default_long_and_too_large(self):
+        q = hook.fanout_questions(FAN, 2)
+        self.assertEqual(hook.fan_fit(state("Looks good. Did you test this?"), q), (True, False))
+        big = state("word " * 12000)  # the message twice: over the per-question context
+        self.assertEqual(hook.fan_fit(big, hook.fanout_questions(FAN, len(big["sentences"]))), (True, True))
+        huge = state("word " * 90000)
+        self.assertEqual(hook.fan_fit(huge, hook.fanout_questions(FAN, len(huge["sentences"]))), (False, False))
+
+    def test_many_questions_count_against_the_request(self):
+        st = state("x")
+        many = {f"q{i}": {"type": "noul", "instructions": "y" * 1000} for i in range(200)}  # 200,000 characters of questions
+        self.assertEqual(hook.fan_fit(st, many), (True, True))
+
+
 class Run(unittest.TestCase):
     def setUp(self):
         d = tempfile.TemporaryDirectory()
@@ -154,11 +169,13 @@ class Run(unittest.TestCase):
                 {"type": "text", "text": "Delivered: the tab is renamed."}]}}) + "\n")
         self.env = {"TYPESAFE_API_KEY": "k-test", "S1_LOG": self.log, "S1_WORKBENCH": "off", "S1_LATEFIX": "0"}
         self.sent = []
+        self.headers = []
 
     def transport(self, over=None, bad=None):
         def t(url, headers, body, timeout):
             req = json.loads(body)
             self.sent.append(req)
+            self.headers.append(dict(headers))
             ans = {k: answer(q) for k, q in req["questions"].items()}
             for k, p in (over or {}).items():
                 if k in ans:
@@ -217,6 +234,43 @@ class Run(unittest.TestCase):
         line = self.line("Also add a footer.", over={"h_change_of_plan": 0.9}, bad={"doubts@0": {"type": "noul", "noul": "high"}})
         self.assertIn("change of plan likely (0.90)", line)
         self.assertTrue(any("fan-out" in str(x.get("skipped", "")) for x in self.log_lines()))
+
+    def test_the_parts_count_in_the_size_check(self):
+        """PR 11 review: {message, recent} of a 50,000-character prompt fits the default context, but
+        the state that is sent holds the message twice (message and sentences). The call must ask
+        for the long context, and the log must say so."""
+        prompt = "word " * 10000
+        plain, _, long_plain = hook._fitted(prompt, [], QUESTIONS)
+        self.assertFalse(long_plain)  # the premise: without the parts it fits
+        self.assertGreater(len(json.dumps(dict(plain, sentences=hook.split_parts(prompt)))), hook.CONTEXT_CHARS)
+        self.line(prompt)
+        self.assertEqual(self.headers[0].get(hook.jev.LONG_CONTEXT_HEADER), "true")
+        self.assertTrue(self.log_lines()[0]["long_context"])
+
+    def test_a_short_prompt_does_not_ask_for_the_long_context(self):
+        self.line("Looks good. Did you test this?")
+        self.assertNotIn(hook.jev.LONG_CONTEXT_HEADER, self.headers[0])
+        self.assertNotIn("long_context", self.log_lines()[0])
+
+    def test_the_log_names_what_the_fan_out_replaced_and_keeps_the_plain_answers(self):
+        """PR 11 review: an edit of one of the four plain questions must not vanish without a trace."""
+        self.line("Also add a footer.", over={"h_change_of_plan": 0.9, "h_divergence": 0.6, "h_effort": 0.2})
+        comb = [x for x in self.log_lines() if x.get("combined")][0]
+        self.assertEqual(comb["replaced"], ["h_change_of_plan", "h_divergence", "h_questions"])  # effort: not raised
+        self.assertEqual(comb["answers"]["h_change_of_plan_plain"]["noul"], 0.9)
+        self.assertEqual(comb["answers"]["h_divergence_plain"]["noul"], 0.6)
+        self.assertNotIn("h_effort_plain", comb["answers"])
+        self.assertEqual(comb["answers"]["h_effort"]["noul"], 0.2)
+
+    def test_an_id_taken_out_of_replaces_keeps_its_own_question(self):
+        fan = dict(FAN, replaces=["h_divergence", "h_questions", "h_effort"])
+        path = os.path.join(os.path.dirname(self.log), "fanout.json")
+        with open(path, "w") as f:
+            json.dump(fan, f)
+        line = self.line("Also add a footer.", env={"S1_FANOUT_FILE": path}, over={"h_change_of_plan": 0.9})
+        self.assertIn("change of plan likely (0.90)", line)
+        comb = [x for x in self.log_lines() if x.get("combined")][0]
+        self.assertNotIn("h_change_of_plan", comb["replaced"])
 
     def test_a_missing_fan_out_file_falls_back_to_the_plain_request(self):
         line = self.line("Also add a footer.", env={"S1_FANOUT_FILE": "/nonexistent/fanout.json"}, over={"h_change_of_plan": 0.9})
