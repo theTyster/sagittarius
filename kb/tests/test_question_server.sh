@@ -32,6 +32,10 @@
 #   c12 the ask path (and pin-answer) keeps a numeric answer as a number                        : QS29
 # T40 (fixes found when T38 was verified; D26 S13):
 #   c4 a {count, value:[item]} wrapper is unwrapped only when the top level has no title        : QS30
+# The Desk, lap 1 (hub spec KB questions-server, 2026-11-17):
+#   c1 dark at every load, the page and report --html; no light theme, no toggle               : QS32
+#   c2 sections collapse; open on load only with an item for Ty                                 : QS33
+#   c3 Human action needed: only reserved actions (hubflow add ask --reserved)                  : QS34
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -193,6 +197,42 @@ def main():
     elif mode=="refused":    # refused FILE LABEL QID: the KB section LABEL lists a refused queued answer for QID
         secs=kbsec(p, a[0]); ls=[x for s in secs for x in s.walk() if "refused" in x.classes() and x.attrs.get("data-id")==a[1]]
         if len(ls)<1: bad.append("no element with class refused and data-id %s in %r" % (a[1], a[0]))
+    elif mode=="dark":       # dark FILE: the page is dark at every load (Desk c1): color-scheme dark, no light theme, every background literal dark
+        import re as _re
+        css="".join("".join(n.txt) for n in p.all if n.tag=="style")
+        flat=_re.sub(r"\s+","",css)
+        if "prefers-color-scheme" in css: bad.append("the CSS follows prefers-color-scheme (a light theme exists)")
+        if "data-theme" in css or "theme-toggle" in raw: bad.append("the page has a theme toggle")
+        if "color-scheme:dark" not in flat: bad.append("no color-scheme:dark")
+        def lum(h):
+            h=h.lstrip("#"); h="".join(c*2 for c in h) if len(h) in (3,4) else h
+            r,g,b=(int(h[i:i+2],16)/255 for i in (0,2,4)); return 0.2126*r+0.7152*g+0.0722*b
+        for m in _re.finditer(r"background(?:-color)?:\s*(#[0-9a-fA-F]{3,8})", css):
+            if lum(m.group(1))>0.35: bad.append("a light background %s" % m.group(1))
+        for m in _re.finditer(r"--[\w-]*bg[\w-]*:\s*(#[0-9a-fA-F]{3,8})", css):
+            if lum(m.group(1))>0.35: bad.append("a light background token %s" % m.group(0))
+        if not _re.search(r"(?:html|body|:root)[^{]*\{[^}]*background", css): bad.append("no explicit page background")
+    elif mode=="fold":       # fold FILE LABEL open|closed: the KB section LABEL is a details element, open or closed on load (Desk c2)
+        secs=kbsec(p, a[0])
+        if len(secs)!=1: bad.append("want one KB section labeled %r, found %d" % (a[0], len(secs)))
+        else:
+            ds=[n for n in secs[0].walk() if n.tag=="details" and any(s.tag=="summary" and cls(s,"kblabel") for s in n.kids)]
+            if len(ds)!=1: bad.append("KB section %r: no details whose summary holds its label" % a[0])
+            elif ("open" in ds[0].attrs)!=(a[1]=="open"): bad.append("KB section %r is not %s on load" % (a[0], a[1]))
+    elif mode=="gfold":      # gfold FILE LABEL open|closed: the project group LABEL is a details element, open or closed on load (Desk c2)
+        gs=[s for s in p.all if s.tag=="section" and "project" in s.classes() and any(l.text()==a[0] for l in cls(s,"projectlabel"))]
+        if len(gs)!=1: bad.append("want one project group %r, found %d" % (a[0], len(gs)))
+        else:
+            ds=[n for n in gs[0].kids if n.tag=="details"]
+            if len(ds)!=1 or not any(s.tag=="summary" and cls(s,"projectlabel") for s in ds[0].kids): bad.append("group %r: no details whose summary holds its label" % a[0])
+            elif ("open" in ds[0].attrs)!=(a[1]=="open"): bad.append("group %r is not %s on load" % (a[0], a[1]))
+    elif mode=="lane":       # lane FILE HEADING ID...: the ledger section with heading HEADING lists exactly the asks ID (in order); none: no such section
+        ss=[s for s in p.all if s.tag=="section" and "ledger" in s.classes() and any(h.tag=="h2" and h.text()==a[0] for h in s.walk())]
+        got=[x.attrs.get("data-id") for s in ss for x in s.walk() if x.tag=="li" and "ask" in x.classes()]
+        if a[1:]==["none"]:
+            if ss: bad.append("a ledger section %r exists" % a[0])
+        elif len(ss)!=1: bad.append("want one ledger section %r, found %d" % (a[0], len(ss)))
+        elif got!=a[1:]: bad.append("section %r lists %r, want %r" % (a[0], got, a[1:]))
     elif mode=="message":    # message FILE T: an element with class message holds T
         ms=[x.text() for x in p.all if "message" in x.classes()]
         if not any(a[0] in m for m in ms): bad.append("no .message with %r (messages %r)" % (a[0], ms))
@@ -915,6 +955,51 @@ t_QS30() {  # T40 c4: a top level with a title of its own is the item, even with
     req_has "$T/wrap" 'Only inner' '!"count"'   # a wrapper with no title of its own is still unwrapped
 }
 
+# ---- the Desk, lap 1 (hub spec KB questions-server; claims c1 c2 c3)
+kb_quiet() { kb_new "$1" <<'EOF'
+uses([build]).
+request(r1, 'Quiet work for agents').
+claim(c1, introduce, 'The export has a header row').
+cites(c1, 'Quiet work for agents').
+example(c1, 'The first line of the export names its columns.').
+EOF
+}
+t_QS32() {  # Desk c1: the page, and the report card of report --html (q4), are dark at every load, with no light theme and no toggle
+    kb_a "$T/a"; srv --dir "$T/a" || return; page_ok || return
+    chk dark "$T/page.html"
+    srv_stop
+    okb --dir "$T/a" report --html "$T/card.html"; rc_is 0 "report --html"
+    chk dark "$T/card.html"
+}
+t_QS33() {  # Desk c2: each section collapses; on load a section is open only when it holds an item for Ty
+    kb_a "$T/r/a"; kb_quiet "$T/r/quiet"
+    srv --root "$T/r" || return; page_ok || return
+    chk fold "$T/page.html" 'Billing must be less confusing for customers' open
+    chk fold "$T/page.html" 'Quiet work for agents' closed
+    chk gfold "$T/page.html" 'no project' open
+    srv_stop
+    rm -rf "$T/r/a"; srv --root "$T/r" || return; page_ok || return
+    chk gfold "$T/page.html" 'no project' closed
+}
+t_QS34() {  # Desk c3: "Human action needed" lists only actions Ty reserved (add ask --reserved); a plain question is listed apart
+    mkhub "$T/h"; local A B C
+    A=$(hf "$T/h" --session build add ask --title 'Push the hub to the remote' --waits-on me --reserved 'Ty: push only when I say so')
+    B=$(hf "$T/h" --session build add ask --title 'Which port should the Desk use' --waits-on me)
+    C=$(hf "$T/h" --session build add ask --title 'Vendor must send the tax form' --waits-on alex --reserved 'alex signs it')
+    kb_a "$T/a"; srv --dir "$T/a" --hub "$T/h" || return; page_ok || return
+    chk lane "$T/page.html" 'Human action needed' "$A"
+    chk lane "$T/page.html" 'Questions for you' "$B"
+    chk lane "$T/page.html" 'Asks that wait on you' none
+    chk text "$T/page.html" 'Ty: push only when I say so' '!Vendor must send the tax form'
+    chk askform "$T/page.html" "$A"
+    hf "$T/h" --session build set "$B" --reserved 'Ty: I pick ports myself' >/dev/null
+    hf "$T/h" --session build set "$A" --reserved none >/dev/null
+    page_ok || return
+    chk lane "$T/page.html" 'Human action needed' "$B"
+    chk lane "$T/page.html" 'Questions for you' "$A"
+    srv_stop
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -925,6 +1010,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 31); do run_one QS$n; done
+for n in $(seq 1 34); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

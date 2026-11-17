@@ -781,6 +781,13 @@ def run_write(g, o, fn, session=True, bootstrap=None):
 
 # ---- validation ----
 
+def reserved_of(c, iid):
+    """The text of the last reserved event of the item (None: not reserved)."""
+    r = c.execute("SELECT new FROM event WHERE item_id = ? AND verb = 'reserved' ORDER BY seq DESC LIMIT 1",
+                  (iid,)).fetchone()
+    return r[0] if r else None
+
+
 def check_title(t):
     if not isinstance(t, str) or not 3 <= len(t) <= 200:
         raise Bad("the title must be 3 to 200 characters")
@@ -1057,11 +1064,11 @@ def common_item_opts(g, o):
 
 def cmd_add(g, a):
     pos, o = parse(a, {**WOPT, "--title": "one", "--owner": "one", "--waits-on": "one", "--analysis": "one",
-                       "--ref": "many", "--status": "one"})
+                       "--ref": "many", "--status": "one", "--reserved": "one"})
     if o.get("analysis") is not None:
         formal_only(g, "--analysis")
     if len(pos) != 1:
-        usage("add ask|thread|hold --title T [--owner S] [--waits-on P] [--analysis SLUG] [--ref KIND:REF ...]")
+        usage("add ask|thread|hold --title T [--owner S] [--waits-on P] [--reserved WHY] [--analysis SLUG] [--ref KIND:REF ...]")
     kind = pos[0]
     if kind == "handoff":
         raise Bad("a handoff is made with the handoff command")
@@ -1072,6 +1079,8 @@ def cmd_add(g, a):
     status = o.get("status", "open")
     if status not in OPEN:
         raise Bad("--status is open or waiting (close with the close command)")
+    if o.get("reserved") is not None:
+        check_reserved(kind, o["reserved"])
     refs = common_item_opts(g, o)
 
     def fn(c, w):
@@ -1083,9 +1092,21 @@ def cmd_add(g, a):
         iid = new_item(c, kind, o["title"], status, owner, waits, o.get("analysis"), w.now)
         add_refs(c, iid, refs)
         w.event(iid, "opened", None, status)
+        if o.get("reserved") is not None:
+            w.event(iid, "reserved", None, o["reserved"])
         return iid
 
     print(run_write(g, o, fn))
+
+
+def check_reserved(kind, why):
+    # --reserved WHY: the ask is an action that the person reserved for themselves, by a standing
+    # rule or in their own words; WHY quotes the rule or the words. The questions page lists such
+    # asks under "Human action needed", and other asks apart (hub spec KB questions-server, c3).
+    if kind != "ask":
+        raise Bad("--reserved marks an ask: an action that the person reserved for themselves")
+    if not isinstance(why, str) or not 3 <= len(why.strip()) <= 500:
+        raise Bad("--reserved needs the rule or the words that reserve the action (3 to 500 characters)")
 
 
 def cmd_handoff(g, a):
@@ -1169,11 +1190,11 @@ def cmd_park(g, a):
 
 def cmd_set(g, a):
     pos, o = parse(a, {**WOPT, "--title": "one", "--owner": "one", "--waits-on": "one", "--status": "one",
-                       "--analysis": "one"})
+                       "--analysis": "one", "--reserved": "one"})
     if len(pos) != 1:
-        usage("set ID [--title T] [--owner S] [--waits-on P|none] [--status open|waiting] [--analysis SLUG|none]")
-    if not any(k in o for k in ("title", "owner", "waits_on", "status", "analysis")):
-        raise Bad("set needs at least one of --title --owner --waits-on --status --analysis")
+        usage("set ID [--title T] [--owner S] [--waits-on P|none] [--status open|waiting] [--analysis SLUG|none] [--reserved WHY|none]")
+    if not any(k in o for k in ("title", "owner", "waits_on", "status", "analysis", "reserved")):
+        raise Bad("set needs at least one of --title --owner --waits-on --status --analysis --reserved")
     if "title" in o:
         check_title(o["title"])
     if "status" in o and o["status"] not in OPEN:
@@ -1187,6 +1208,13 @@ def cmd_set(g, a):
     def fn(c, w):
         it = get_item(c, pos[0])
         iid = it["id"]
+        if "reserved" in o:
+            old_r = reserved_of(c, iid)
+            new_r = None if o["reserved"] == "none" else o["reserved"]
+            if new_r is not None:
+                check_reserved(it["kind"], new_r)
+            if new_r != old_r:
+                w.event(iid, "reserved", old_r, new_r)
         if "title" in o and o["title"] != it["title"]:
             c.execute("UPDATE item SET title = ? WHERE id = ?", (o["title"], iid))
             w.event(iid, "title", it["title"], o["title"])

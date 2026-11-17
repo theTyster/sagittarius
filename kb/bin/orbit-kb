@@ -1054,7 +1054,10 @@ def age(r):
     except Exception:
         return 0
 if mode == "asks":
-    rows = [dict(id=r["id"], kind=r["kind"], title=r["title"], status=r["status"], waits_on=r["waits_on"], age_days=age(r))
+    def reserved(i):
+        x = c.execute("SELECT new FROM event WHERE item_id = ? AND verb = \'reserved\' ORDER BY seq DESC LIMIT 1", (i,)).fetchone()
+        return x[0] if x else None
+    rows = [dict(id=r["id"], kind=r["kind"], title=r["title"], status=r["status"], waits_on=r["waits_on"], age_days=age(r), reserved=reserved(r["id"]))
             for r in c.execute("SELECT * FROM item WHERE kind = \'ask\' AND status IN (\'open\', \'waiting\') ORDER BY id")]
     print(json.dumps({"owner": owner(), "asks": rows}))
 elif mode == "titles":
@@ -4130,7 +4133,11 @@ cmd_view(Dirs0, Args, Code) :-
     ),
     Code = 0.
 
-view_css("body{font-family:sans-serif;max-width:60em;margin:2em auto;padding:0 1em;line-height:1.4}section{border:1px solid #888;border-radius:6px;padding:.5em 1em;margin:1em 0}li.item,li.ask{margin:.8em 0;padding:.4em;border-left:4px solid #888;list-style:none}.ref .kbid{font-family:monospace;color:#555}.default,.age{font-weight:bold}.stamp{font-family:monospace;font-size:.8em;word-break:break-all}").
+% view_css(-Css) (hub spec questions-server, c1 and q4): the page reuses the dark palette of
+% report --html (report/page.css, dark at every load), then its own rules on those tokens.
+view_css(Css) :-
+    lib_dir(Lib), page_asset(Lib, 'report/page.css', Base),
+    string_concat(Base, "body{max-width:60em;margin:2em auto;padding:0 1em;line-height:1.4}section{border:1px solid var(--line);border-radius:6px;padding:.5em 1em;margin:1em 0;background:var(--card)}section section{background:var(--bg)}li.item,li.ask{margin:.8em 0;padding:.4em;border-left:4px solid var(--line);list-style:none}.ref .kbid{font-family:var(--mono);color:var(--muted)}.default,.age{font-weight:bold}.stamp{font-family:var(--mono);font-size:.8em;word-break:break-all;color:var(--muted)}details>summary{cursor:pointer}details>summary>h2{display:inline}details:not([open])>summary{color:var(--muted)}.reserved{color:var(--warn)}input,textarea,select,button{background:var(--bg);color:var(--fg);border:1px solid var(--line)}", Css).
 
 view_ledger(File, Asks) :-
     (   exists_file(File) -> true
@@ -4172,11 +4179,21 @@ view_ledger_row(File, I, X) :-
 view_ledger_section(Led, Text) :- view_ledger_section(static, Led, Text).
 view_ledger_section(_, none, "").
 view_ledger_section(Mode, some(Asks), Text) :-
+    partition(view_ask_reserved, Asks, Res, Plain),
+    view_ledger_lane(Mode, "Human action needed", "reserved", Res, "No action that you reserved waits on you.", T1),
+    view_ledger_lane(Mode, "Questions for you", "plain", Plain, "No question waits on you.", T2),
+    format(string(Text), "~w\n~w", [T1, T2]).
+
+% view_ask_reserved(+Ask) (hub spec questions-server, c3): the owner reserved the action
+% (hubflow add ask --reserved WHY, or a reserved key in a --ledger file).
+view_ask_reserved(X) :- get_dict(reserved, X, R), string(R), R \== "".
+
+view_ledger_lane(Mode, Head, Kind, Asks, Empty, Text) :-
     findall(L, ( member(X, Asks), view_ask_html(Mode, X, L) ), Ls),
-    (   Ls == [] -> Body = "<p>No ask waits on the owner.</p>"
-    ;   atomic_list_concat(Ls, '\n', B0), format(string(Body), "<ul>\n~w\n</ul>", [B0])
+    (   Ls == [] -> format(string(Body), "<p>~w</p>", [Empty]), Op = ""
+    ;   atomic_list_concat(Ls, '\n', B0), format(string(Body), "<ul>\n~w\n</ul>", [B0]), Op = " open"
     ),
-    format(string(Text), "<section class=\"ledger\">\n<h2>Asks that wait on you</h2>\n~w\n</section>", [Body]).
+    format(string(Text), "<section class=\"ledger ~w\">\n<details~w><summary><h2>~w</h2></summary>\n~w\n</details>\n</section>", [Kind, Op, Head, Body]).
 
 view_ask_html(Mode, X, L) :-
     esc(X.id, Id), esc(X.title, T), esc(X.age_days, Age),
@@ -4195,7 +4212,8 @@ view_ask_html(Mode, X, L) :-
         )
     ;   Hf = ""
     ),
-    format(string(L), "<li class=\"ask\" data-id=\"~w\"><span class=\"title\">~w</span> <span class=\"age\">~w days</span>~w</li>", [Id, T, Age, Hf]).
+    (   view_ask_reserved(X) -> esc(X.reserved, RH), format(string(RsH), " <p class=\"reserved\">Reserved: ~w</p>", [RH]) ; RsH = "" ),
+    format(string(L), "<li class=\"ask\" data-id=\"~w\"><span class=\"title\">~w</span> <span class=\"age\">~w days</span>~w~w</li>", [Id, T, Age, RsH, Hf]).
 
 % sh_quote(+Text, -Quoted) (T27 c7): Text as one shell word: bare when it is made of plain
 % characters, else in single quotes.
@@ -4230,7 +4248,15 @@ view_kb_section(Mode, Lib, Dir, Html) :-
     ;   file_base_name(Dir, Label)
     ),
     esc(Label, LabelH),
-    format(string(Html), "<section class=\"kb\" data-stamp=\"~w\">\n<h2><span class=\"kblabel\">~w</span> <span class=\"stamp\">~w</span></h2>\n~w\n</section>", [StampH, LabelH, StampH, Body]).
+    ( view_kb_for_human(Eng, Dir) -> Op = " open" ; Op = "" ),
+    format(string(Html), "<section class=\"kb\" data-stamp=\"~w\">\n<details class=\"kbfold\"~w><summary><h2><span class=\"kblabel\">~w</span> <span class=\"stamp\">~w</span></h2></summary>\n~w\n</details>\n</section>", [StampH, Op, LabelH, StampH, Body]).
+
+% view_kb_for_human(+Eng, +Dir) (hub spec questions-server, c2): the KB holds an item that waits
+% on the human: a question to ask, or a queued answer that was refused (to answer again).
+view_kb_for_human(Eng, _) :- eng_true(Eng, to_ask(_)), !.
+view_kb_for_human(_, Dir) :-
+    pending_entries(Dir, Es), applied_results(Dir, Rs),
+    member(pending(_, D, _), Es), memberchk(D-refused, Rs), !.
 
 % view_pending_html(+Dir, -Html) (T27 c4): the answers that wait in answers.pending.
 view_pending_html(Dir, Html) :-
@@ -4685,7 +4711,7 @@ serve_page(Msg, Page) :-
     ->  catch(( view_ledger(LF, Rows), view_owner(OwnOpt, Rows, Owner), view_owned(Rows, Owner, Asks),
                 view_ledger_section(serve(Token), some(Asks), LedText) ),
               E, ( serve_err_text(E, EM), esc(EM, EMH),
-                   format(string(LedText), "<section class=\"ledger\"><h2>Asks that wait on you</h2><p class=\"message error\">~w</p></section>", [EMH]) ))
+                   format(string(LedText), "<section class=\"ledger\"><h2>Questions for you</h2><p class=\"message error\">~w</p></section>", [EMH]) ))
     ;   LedText = ""
     ),
     serve_conf(hub, HubOpt),
@@ -4694,7 +4720,7 @@ serve_page(Msg, Page) :-
                 view_ledger_section(serve_hub(Token, Hub), some(HAsks), HubText0),
                 format(string(HubText), "~w", [HubText0]) ),
               E2, ( serve_err_text(E2, EM2), esc(EM2, EMH2),
-                    format(string(HubText), "<section class=\"ledger\"><h2>Asks that wait on you</h2><p class=\"message error\">~w</p></section>", [EMH2]) ))
+                    format(string(HubText), "<section class=\"ledger\"><h2>Questions for you</h2><p class=\"message error\">~w</p></section>", [EMH2]) ))
     ;   HubText = ""
     ),
     view_css(Css),
@@ -4705,7 +4731,7 @@ serve_page(Msg, Page) :-
 <head>
 <meta charset=\"utf-8\">
 <title>Open questions</title>
-<style>~w section.project{border-width:2px}form.answer{margin:.5em 0;padding:.4em;background:#f4f4f4}form.answer label{display:block}</style>
+<style>~w section.project{border-width:2px}form.answer{margin:.5em 0;padding:.4em;background:var(--bg)}form.answer label{display:block}</style>
 </head>
 <body>
 <h1>Open questions</h1>
@@ -4723,7 +4749,8 @@ serve_group_html(Token, Lib, Label, Dirs, Html) :-
     findall(S, ( member(D, Dirs), serve_kb_html(Token, Lib, D, S) ), Ss),
     atomic_list_concat(Ss, '\n', SsT),
     esc(Label, LH),
-    format(string(Html), "<section class=\"project\">\n<h2 class=\"projectlabel\">~w</h2>\n~w\n</section>", [LH, SsT]).
+    ( sub_string(SsT, _, _, _, "<details class=\"kbfold\" open>") -> Op = " open" ; Op = "" ),
+    format(string(Html), "<section class=\"project\">\n<details class=\"groupfold\"~w><summary><h2 class=\"projectlabel\">~w</h2></summary>\n~w\n</details>\n</section>", [Op, LH, SsT]).
 
 serve_kb_html(Token, Lib, Dir, Html) :-
     catch(view_kb_section(serve(Token), Lib, Dir, Html), E,
@@ -9020,6 +9047,11 @@ help_lines(serve, [
 "answers it (shell-quoted). --hub DIR reads the ledger of the hub live (DIR/flow/flow.db, read",
 "only): each ask that waits on the owner has a form, and the server runs that command (hubflow",
 "close --by human --session human, from the hub root).",
+"The page is dark at every load. Each project and each KB is a section that collapses; it is open",
+"on load only when it holds something for the human (a question to ask, a refused queued answer).",
+"Asks are in two sections: Human action needed lists only the asks that the owner reserved",
+"(hubflow add ask --reserved WHY, or set ID --reserved WHY; a reserved key in a --ledger file),",
+"with the rule or words that reserve them; Questions for you lists the other asks.",
 "Each question to ask shows its notes, its claim's notes and examples, and its due date, and has",
 "a form: its options, other, and a free text. Typed text next to a picked option is kept as a",
 "note. A default picked as it is keeps its term. The answer never waits on an agent: it goes at",

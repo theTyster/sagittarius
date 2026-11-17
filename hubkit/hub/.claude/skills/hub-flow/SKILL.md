@@ -66,6 +66,10 @@ Read at session start and after every compaction: the db is the memory, not the 
 
 ```
 $HF add ask --title "…" --waits-on me --ref issue:123 [--analysis <slug>] [--note "…"]
+# an action the person reserved for themselves (a standing rule or their own words: push,
+# waiver, vote, send): --reserved quotes the rule or the words. The questions page lists it under
+# "Human action needed"; other asks go under "Questions for you". set ID --reserved WHY|none
+$HF add ask --title "Push the hub" --waits-on me --reserved "Ty: push only when I say so"
 $HF add thread --title "…" --ref pr:45
 $HF handoff --to build --title "…" --ref kb:<slug> --ref issue:123 --note "where to start"
 $HF accept H-0003                 # only the receiving session can accept
