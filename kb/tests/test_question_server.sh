@@ -1456,7 +1456,7 @@ t_QS46() {  # Desk c14 (q7): who holds what; each question's KB; spec KB -> proj
     local tok; tok=$(pg dtoken "$T/page.html")
     review "token=$tok" "hub=$T/h" "item=fix:stale:$T/h"; code_is 200 "the review of the old handoffs"
     rj "any('$H1' in r for r in d['records']) and d['letters'] and d['letters'][0]['to']=='build'"
-    post /send "token=$tok" "hub=$T/h" "item=fix:stale:$T/h" "letter_0=Closed $H1: H2 holds the KB. A line from Ty."; code_is 303 "send the close"
+    post /send "token=$tok" "hub=$T/h" "item=fix:stale:$T/h" "letter_0=Closed $H1: H2 holds the KB. A line from Ty." to_0=build; code_is 303 "send the close"
     askjson "$T/h" "$H1" "d['item']['status']=='dropped' and any(e['by']=='human' for e in d['events'] if e['verb']=='closed')"
     grep -q 'A line from Ty' "$T/h/flow/desk/letters.jsonl" || note "the notice to build is not stored"
     wr discovery --dir "$T/h/specs/exp" add "note(c1, 'discovery writes now')"; rc_is 0 "discovery writes exp"
@@ -1473,7 +1473,7 @@ t_QS47() {  # Desk c15: what waits on Ty in a project KB: a fact an agent propos
     local tok; tok=$(pg dtoken "$T/page.html")
     review "token=$tok" "hub=$T/h" "item=proj:proposed:$T/h/project-kb#d1"; code_is 200 "the review of Ratify"
     rj "any('ratified_by(d1' in r for r in d['records'])"
-    post /send "token=$tok" "hub=$T/h" "item=proj:proposed:$T/h/project-kb#d1" "letter_0=Ty ratified d1."; code_is 303 "ratify"
+    post /send "token=$tok" "hub=$T/h" "item=proj:proposed:$T/h/project-kb#d1" "letter_0=Ty ratified d1." to_0=process; code_is 303 "ratify"
     has_goal "$T/h/project-kb" 'ratified_by(d1, _, _)'
     page_ok || return; chk text "$T/page.html" '!A fact that an agent proposed'
 }
@@ -1488,7 +1488,7 @@ t_QS48() {  # Desk c16: one Desk at one address serves every mindhole that joine
     page_ok || return                       # the same server, no restart: the second mindhole joined in one step
     chk text "$T/page.html" 'First mindhole asks' 'Second mindhole asks' 'one' 'two'
     local tok; tok=$(pg dtoken "$T/page.html")
-    post /send "token=$tok" "hub=$T/h2" "item=ask:$B" 'text=Yes' 'letter_0=Ty answers: yes'; code_is 303 "answer in the second mindhole"
+    post /send "token=$tok" "hub=$T/h2" "item=ask:$B" 'text=Yes' 'letter_0=Ty answers: yes' to_0=build; code_is 303 "answer in the second mindhole"
     askjson "$T/h2" "$B" "d['item']['status']=='done'"
     askjson "$T/h1" "$A" "d['item']['status']=='open'"
     mv "$T/h1/flow" "$T/h1/flow.gone"; page_ok || return
@@ -1528,7 +1528,9 @@ t_QS51() {  # Desk c20: nothing reaches a session that Ty did not see: every sen
     [ ! -s "$T/h/flow/desk/letters.jsonl" ] || note "the review sent a letter"
     askjson "$T/h" "$A" "d['item']['status']=='open'"
     local head; head=$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["letters"][0]["head"])' "$T/review.json")
-    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer 'text=Use port 8800' 'letter_0=Use port 8800, and say why if not. Edited by Ty.'; code_is 303 "send"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer 'text=Use port 8800' 'letter_0=x' to_0=discovery; code_is 409 "a send to a session the review did not show"
+    [ ! -s "$T/h/flow/desk/letters.jsonl" ] || note "a letter went to a session the review did not show"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer 'text=Use port 8800' 'letter_0=Use port 8800, and say why if not. Edited by Ty.' to_0=build; code_is 303 "send"
     printf '%s' 'Use port 8800, and say why if not. Edited by Ty.' > "$T/edited.txt"
     local want; want=$(dpy "$T/h" render --to build --about "$(python3 -I -c 'import json,sys; t=json.load(open(sys.argv[1]))["letters"][0]["head"]; print(t[len("Letter from Ty (the Desk), about "):-1])' "$T/review.json")" --text-file "$T/edited.txt")
     case "$want" in "$head"*) ;; *) note "the review head is not what the session gets: $(snip "$head") vs $(snip "$want")";; esac
@@ -1558,13 +1560,13 @@ t_QS53() {  # Desk c5 c8 on serve desk: a divergence is kept in Ty's words and l
     post /send "token=$tok" "hub=$T/h" "item=q:$kb#qb" intent=diverge 'text=That is not what I meant: by id' 'letter_0=Ty diverges: by id'; code_is 303 "diverge on a KB question"
     grep -q "signal(.*divergence, human, .*by id" "$kb/kb.pl" "$kb/answers.pending" 2>/dev/null || note "the divergence is not kept in his words"
     hasnt_goal "$kb" "answered(qb)" "the question stays open"
-    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=requirement 'text=The Desk must run as a service' 'letter_0=Ty adds: a service'; code_is 303 "a new requirement"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=requirement 'text=The Desk must run as a service' 'letter_0=Ty adds: a service' to_0=review; code_is 303 "a new requirement"
     hf "$T/h" view open --format json | grep -q "new requirement: The Desk must run as a service" || note "no intake thread"
     askjson "$T/h" "$A" "d['item']['status']=='open'"
-    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=diverge 'text=Not a port at all' 'letter_0=Ty diverges: not a port'; code_is 303 "diverge on an ask"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=diverge 'text=Not a port at all' 'letter_0=Ty diverges: not a port' to_0=build; code_is 303 "diverge on an ask"
     askjson "$T/h" "$A" "d['item']['status']=='open' and any(e['verb']=='note' and 'Not a port at all' in (e['note'] or '') for e in d['events'])"
     mv "$T/h/.claude/scripts/hubflow.py" "$T/h/.claude/scripts/hubflow.gone"
-    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer 'text=8800' 'letter_0=Ty answers: 8800'; code_is 409 "an answer the ledger cannot take"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer 'text=8800' 'letter_0=Ty answers: 8800' to_0=build; code_is 409 "an answer the ledger cannot take"
     grep -q 'Ty answers: 8800' "$T/h/flow/desk/letters.jsonl" || note "the letter was not stored first (c8)"
 }
 t_QS54() {  # Desk c7 (q9): the card shows Draft and Sent; a sent letter not seen after a day warns; loud when no live session holds the item; applied moves it to Answered
@@ -1580,7 +1582,7 @@ t_QS54() {  # Desk c7 (q9): the card shows Draft and Sent; a sent letter not see
     grep -q 'half an answer' "$DESK_STATE/drafts.json" || note "the draft is not in the Desk store"
     page_ok || return; chk dcard "$T/page.html" "ask-$A" 'Draft saved'
     hf "$T/h" --session build set "$A" --status waiting >/dev/null
-    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=diverge 'text=Not 8737' 'letter_0=Not 8737'; code_is 303 "diverge"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=diverge 'text=Not 8737' 'letter_0=Not 8737' to_0=build; code_is 303 "diverge"
     page_ok || return; chk dcard "$T/page.html" "ask-$A" 'sent to build' '!has not seen it after a day'
     python3 -I -c '
 import json,sys,datetime; f=sys.argv[1]; ls=[json.loads(x) for x in open(f) if x.strip()]

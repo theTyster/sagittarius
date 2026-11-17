@@ -7119,7 +7119,7 @@ desk_review_letter(_HD, I, L, Html) :-
     ;   (   L.choices \== []
         ->  findall(O, ( member(S, L.choices), ( S == L.to -> Sel = " selected" ; Sel = "" ), dk_f("<option value=\"~w\"~w>~w</option>", [S, Sel, S], O) ), Os), dk_cat(Os, OsH),
             dk_f("To <select name=\"to_~w\" aria-label=\"The receiving session\">~w</select>", [I, OsH], ToH)
-        ;   desk_badge(L.to, BH), dk_f("To ~w", [BH], ToH)
+        ;   desk_badge(L.to, BH), dk_f("To ~w<input type=\"hidden\" name=\"to_~w\" value=\"~w\">", [BH, I, L.to], ToH)
         ),
         desk_letter_head(L.about, Head), esc(Head, HeadH), esc(L.text, TxH),
         desk_wake_line(L.about, Wake), esc(Wake, WakeH),
@@ -7147,6 +7147,9 @@ desk_execute(Form, Plan, R) :-
                         format(atom(F), "letter_~w", [I]), ( serve_field(Form, F, T0) -> true ; T0 = "" ),
                         split_string(T0, "", " \t\r\n", [T1]), T1 \== "",
                         ( Every == "" -> Text = T1 ; dk_f("~w\n\n~w", [T1, Every], Text) ) ), ToSend0),
+    forall(( nth0(I, Plan.letters, L), L.to == none, format(atom(F), "to_~w", [I]), serve_field(Form, F, Was), Was \== "" ),
+           ( dk_f("The session that gets this letter changed since your review (it was ~w, now no live session holds the item). Nothing was sent. Review it again.", [Was], M),
+             throw(desk_refused(409, M)) )),
     findall(I-L1-Text, ( member(I-L-Text, ToSend0), desk_pick_to(Form, I, L, To), L1 = L.put(to, To) ), ToSend),
     % c8: the letters are stored first
     findall(Lr, ( member(_-L-Text, ToSend), desk_store_letter(HD, L, Text, Lr) ), Stored),
@@ -7161,8 +7164,16 @@ desk_execute(Form, Plan, R) :-
         )
     ).
 
+% c20 (review finding, H-0039): /send builds the plan again; a letter goes only to the session that
+% the review showed. When the holder changed since the review, nothing is sent: review it again.
 desk_pick_to(Form, I, L, To) :-
-    (   L.choices == [] -> To = L.to
+    format(atom(F0), "to_~w", [I]),
+    (   L.choices == []
+    ->  (   serve_field(Form, F0, TS0), atom_string(L.to, TS0) -> To = L.to
+        ;   ( serve_field(Form, F0, Was) -> true ; Was = "no session" ),
+            dk_f("The session that gets this letter changed since your review (it was ~w, now ~w). Nothing was sent. Review it again.", [Was, L.to], M),
+            throw(desk_refused(409, M))
+        )
     ;   format(atom(F), "to_~w", [I]), serve_field(Form, F, TS), atom_string(TA, TS), memberchk(TA, L.choices) -> To = TA
     ;   throw(desk_refused(400, "The review names a session that may not get this letter. Reload the page."))
     ).
