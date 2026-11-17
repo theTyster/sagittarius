@@ -102,8 +102,10 @@ test('corner: only the signals that fired', async ($, on) => {
   seed(on, glance(), ['corner'])
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   const strip = (await ui.find({ type: 'Text', text: /^🌌 / }))?.text ?? ''
-  expect(strip).toContain('❲ 🔀 ▇')
-  expect(strip).toContain('🔨 build █')
+  expect(strip).toContain('❲ 🔀')
+  expect(strip).toContain('🔨 build')
+  expect(strip).toContain(' ┊ ')
+  expect(strip).not.toMatch(/[▁-█]/)
   expect(strip).toContain(' ❳')
   expect(strip).not.toContain('●')
   expect(await ui.find({ type: 'Button' })).toBeFalsy()
