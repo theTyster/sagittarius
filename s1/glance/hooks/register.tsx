@@ -806,7 +806,7 @@ export const register: Register = on => {
     return { text: `${BRAND} Sagittarius Signals: ${now.length ? now.join(' + ') : 'off'} (kept for new sessions). ${HELP}` }
   })
 
-  // corner: one row above the prompt, right-aligned, only the signals that fired.
+  // corner: one row above the prompt, right-aligned, only the signals that fired: glyphs, no bars, a dim ┊ between.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     // Drawn while collapsed too: the engine hides it but keeps the band and its expand control (0.9.x passed
     // here, the band went empty, and nothing could expand it again).
@@ -828,9 +828,9 @@ export const register: Register = on => {
         ) : (
           hot.map((r, i) => (
             <Text>
-              {(i ? '  ' : '') + r.glyph}
+              {i ? <Text dimColor>{' ┊ '}</Text> : ''}
+              {r.glyph}
               {r.bold ? <Text bold>{' ' + r.label}</Text> : ''}
-              <Text color={COLOR[strength(r.p)]}>{' ' + gauge(r.p)}</Text>
             </Text>
           ))
         )
