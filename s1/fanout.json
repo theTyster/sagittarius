@@ -1,5 +1,5 @@
 {
- "_comment": "The fan-out of the System 1 hook: questions asked once for each part of the human's message ({part} becomes the path of the part), and two helpers for the whole message. hook.py combines the answers (combine). Evidence: s1/research/2026-11-15-question-eval/README.md.",
+ "_comment": "You are viewing a snippet of a transcript between a human and an agent",
  "replaces": ["h_divergence", "h_change_of_plan", "h_questions", "h_effort"],
  "_replaces": "The answers that hook.combine may write from the parts. Take an id out and the answer of its own question in questions.json reaches the line again. The hook reads this file on every prompt.",
  "part": {
@@ -7,10 +7,11 @@
    "type": "choice",
    "instructions": "What does {part} do, in relation to the agent's last reply?",
    "criteria": {
+    "specifies": "Explicitly states the core of what is wanted.",
     "accepts": "Accepts or approves what the agent did",
     "corrects": "Says the agent's work is wrong, incomplete or not what was asked",
     "doubts": "Questions or doubts what the agent did, without saying it is wrong",
-    "changes_request": "Replaces, drops or reverses something the human asked for earlier",
+    "contradicts_request": "Replaces, drops or reverses something the human asked for earlier",
     "adds_request": "Asks for something more, on top of what was asked",
     "answers": "Answers a question that the agent asked",
     "asks_back": "Leaves the agent's question open, or answers it with a question",
@@ -30,11 +31,11 @@
   "changes": {
    "type": "noul",
    "instructions": "Does {part} change what the human asked for before?",
-   "criteria": {"true": "Replaces, drops or reverses an earlier request or preference", "false": "Continues the earlier request, corrects a mistake of the agent, or asks for something new"}
+   "criteria": {"true": "Replaces, drops or modifies an earlier request or preference without completely reversing it.", "false": "Continues the earlier request, corrects a mistake of the agent, or asks for something new"}
   },
   "asks": {"type": "noul", "instructions": "Does {part} ask the agent a question about the task?"},
-  "undecided": {"type": "noul", "instructions": "Does {part} say that the human does not know or has not decided something yet?"},
-  "reverses": {"type": "noul", "instructions": "Does {part} take back or replace something that the human said earlier in the same message?"}
+  "undecided": {"type": "noul", "instructions": "Does {part} seem to imply that the human does not know or has not decided something yet?"},
+  "contradiction": {"type": "noul", "instructions": "Does {part} take back or replace something that the human said earlier in the same message?"}
  },
  "whole": {
   "f_pasted": {"type": "noul", "instructions": "Is most of `message` pasted output, such as a log, an error trace or code?"},

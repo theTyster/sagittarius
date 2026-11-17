@@ -16,7 +16,7 @@ export type Part = {
   changes: number
   asks: number
   undecided: number
-  reverses: number
+  contradiction: number
 }
 
 /** The newest System 1 log line of this session, cut to what the pane draws. */
