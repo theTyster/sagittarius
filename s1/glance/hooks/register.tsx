@@ -58,15 +58,39 @@ const SQUARE: Record<Strength, string> = { confident: '🟥', moderate: '🟨', 
 // own (a fixed-width Box), so the width never moves the bars.
 // `alarm`: a yes asks the agent to stop and look; alarms come first among the toasts.
 const NOULS: { id: string; glyph: string; label: string; alarm: boolean }[] = [
+  { id: 'non_human', glyph: '🤖', label: 'non-human', alarm: true },
   { id: 'h_divergence', glyph: '🔀', label: 'diverge', alarm: true },
   { id: 'h_change_of_plan', glyph: '🔄', label: 're-plan', alarm: true },
   { id: 'h_questions', glyph: '❓', label: 'open Qs', alarm: true },
   { id: 'h_proof', glyph: '📜', label: 'proof', alarm: true },
-  { id: 'h_reversal', glyph: '🔙', label: 'reversal', alarm: true }, // the fan-out: a decision reversed inside the message
+  { id: 'h_contradiction', glyph: '↩️', label: 'contradiction', alarm: true }, // the fan-out: a decision reversed inside the message
   { id: 'h_effort', glyph: '💪', label: 'effort', alarm: false },
 ]
-const WORK: Record<string, string> = { research: '🔍', specify: '📐', build: '🔨', verify: '🔬', question: '💬', other: '👋' }
-const TOOL: Record<string, string> = { prolog: '🦉', lean: '🧮', z3: '🧩', tla: '🕰', tests: '🧪', none: '🚫' }
+
+const WORK: Record<string, string> = { research: '🔍', specify: '📐', build: '🔨', verify: '🔬', task: '🗒️', question: '💬', other: '👋' }
+const TOOL: Record<string, string> = { prolog: '🦉', lean: '🧮', z3: '🧩', tla: '⏱️', tests: '🧪', none: '🚫' }
+
+// What a part does (the choice "react" of s1/fanout.json), and the six answers of a part.
+const DOES: Record<string, { glyph: string; label: string }> = {
+  specifies: { glyph: '🎯', label: 'specifies' },
+  accepts: { glyph: '✅', label: 'accepts' },
+  corrects: { glyph: '❌', label: 'corrects' },
+  doubts: { glyph: '🤨', label: 'doubts' },
+  contradicts_request: { glyph: '↩️', label: 'contradiction' },
+  adds_request: { glyph: '➕', label: 'adds to the ask' },
+  answers: { glyph: '💬', label: 'answers' },
+  asks_back: { glyph: '❓', label: 'asks back' },
+  new_topic: { glyph: '🆕', label: 'new topic' },
+}
+// The signals upon which an agent should be shifting up.
+const PART_SIGNALS: { key: keyof Part; glyph: string; label: string }[] = [
+  { key: 'doubts', glyph: '🤨', label: 'doubt' },
+  { key: 'faults', glyph: '❌', label: 'fault' },
+  { key: 'changes', glyph: '🔄', label: 'change' },
+  { key: 'asks', glyph: '❓', label: 'asks' },
+  { key: 'undecided', glyph: '🤷', label: 'undecided' },
+  { key: 'contradiction', glyph: '↩️', label: 'reversal' },
+]
 
 const EIGHTHS = ['', '▏', '▎', '▍', '▌', '▋', '▊', '▉']
 
@@ -144,31 +168,12 @@ function rows(g: Glance): Row[] {
 
 const fired = (g: Glance) => rows(g).filter(r => r.fires).sort((x, y) => x.rank - y.rank)
 
-// What a part does (the choice "react" of s1/fanout.json), and the six answers of a part.
-const DOES: Record<string, { glyph: string; label: string }> = {
-  accepts: { glyph: '✅', label: 'accepts' },
-  corrects: { glyph: '❌', label: 'corrects' },
-  doubts: { glyph: '🤨', label: 'doubts' },
-  changes_request: { glyph: '🔄', label: 'changes the ask' },
-  adds_request: { glyph: '➕', label: 'adds to the ask' },
-  answers: { glyph: '💬', label: 'answers' },
-  asks_back: { glyph: '❓', label: 'asks back' },
-  new_topic: { glyph: '🆕', label: 'new topic' },
-}
-const PART_SIGNALS: { key: keyof Part; glyph: string; label: string }[] = [
-  { key: 'doubts', glyph: '🤨', label: 'doubt' },
-  { key: 'faults', glyph: '❌', label: 'fault' },
-  { key: 'changes', glyph: '🔄', label: 'change' },
-  { key: 'asks', glyph: '❓', label: 'asks' },
-  { key: 'undecided', glyph: '🤷', label: 'undecided' },
-  { key: 'reverses', glyph: '🔙', label: 'reverses' },
-]
 // The answers of a part that feed each signal of the judgment (s1/hook.py combine).
 const FEEDS: Record<string, (keyof Part)[]> = {
   h_divergence: ['doubts', 'faults'],
   h_change_of_plan: ['changes'],
   h_questions: ['asks', 'undecided'],
-  h_reversal: ['reverses'],
+  h_contradiction: ['contradiction'],
 }
 const num = (x: unknown) => (typeof x === 'number' && x >= 0 && x <= 1 ? x : 0)
 const heat = (x: Part) => Math.max(...PART_SIGNALS.map(s => num(x[s.key])))
@@ -202,7 +207,7 @@ function partsOf(r: Record<string, unknown>, call: Record<string, unknown> | nul
       text: plain(String(texts[k] ?? '')).slice(0, 160),
       does: String(c.choice ?? ''),
       p: num(prob(c, c.choice)),
-      doubts: n('doubts'), faults: n('faults'), changes: n('changes'), asks: n('asks'), undecided: n('undecided'), reverses: n('reverses'),
+      doubts: n('doubts'), faults: n('faults'), changes: n('changes'), asks: n('asks'), undecided: n('undecided'), contradiction: n('contradiction'),
     })
   }
 
