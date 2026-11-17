@@ -11,7 +11,7 @@ const PANE = {
 } as const
 
 const part = (text: string, does: string, over: Record<string, number> = {}) => ({
-  text, does, p: 0.9, doubts: 0.04, faults: 0.02, changes: 0.03, asks: 0.05, undecided: 0.02, reverses: 0.03, ...over,
+  text, does, p: 0.9, doubts: 0.04, faults: 0.02, changes: 0.03, asks: 0.05, undecided: 0.02, contradiction: 0.03, ...over,
 })
 const PARTS = [part('Looks good.', 'accepts'), part('Did you test this?', 'doubts', { doubts: 0.93, asks: 0.6 })]
 
@@ -35,7 +35,7 @@ const glance = (over: Record<string, unknown> = {}, answers: Record<string, unkn
     h_language: { type: 'choice', choice: 'tests', confidence: 0.7, probabilities: { tests: 0.7, none: 0.3 } },
     h_questions: { type: 'noul', noul: 0.0 },
     h_proof: { type: 'noul', noul: 0.02 },
-    h_reversal: { type: 'noul', noul: 0.04 },
+    h_contradiction: { type: 'noul', noul: 0.04 },
     ...answers,
   },
   ...over,
@@ -56,7 +56,7 @@ const seed = (on: any, hist: unknown[], opts: { tab?: number; part?: number | nu
 test('now: the reversal has a row, and the why opens on the part where the most stands out', async ($, on) => {
   seed(on, [glance()])
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  for (const t of ['🔙', 'reversal', 'Why · part 2 of 2', '“Did you test this?”', '🤨 doubts 90%', 'doubt', ' 93%', 'asks'])
+  for (const t of ['↩️', 'contradiction', 'Why · part 2 of 2', '“Did you test this?”', '🤨 doubts 90%', 'doubt', ' 93%', 'asks'])
     expect(await ui.find({ type: 'Text', text: t })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: /◆/ })).toBeTruthy() // the picked part on the strip
   expect(await ui.find({ type: 'Button', key: 'tab-now', text: '[now]' })).toBeTruthy()
@@ -142,7 +142,7 @@ test('the log: the call line and the combined line of the fan-out are one judgme
   const call = { time: '2026-11-15T10:00:00.000+00:00', session_id: 'sid', model: 'jev-1.14.0', latency: 0.25, usage: { input_tokens: 2193 }, parts: 2, error: null,
     state: { message: 'Looks good. Did you test this?', recent: [], sentences: ['Looks good.', 'Did you test this?'] }, answers: raw }
   const combined = { time: '2026-11-15T10:00:00.300+00:00', session_id: 'sid', combined: true, parts: 2, error: null, part_text: ['Looks good.', 'Did you test this?'],
-    answers: { ...raw, h_divergence: { type: 'noul', noul: 0.93 }, h_reversal: { type: 'noul', noul: 0.03 } } }
+    answers: { ...raw, h_divergence: { type: 'noul', noul: 0.93 }, h_contradiction: { type: 'noul', noul: 0.03 } } }
   const other = { time: '2026-11-15T10:00:01.000+00:00', session_id: 'another', answers: raw, error: null }
   on('process.run', () => ({ value: { exitCode: 0, stdout: [call, combined, other].map(x => JSON.stringify(x)).join('\n') + '\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
   on('session.start', (_: unknown, e: any) => ({ cwd: e.cwd }))

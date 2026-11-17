@@ -30,7 +30,7 @@
    "prolog": "Decisions, rules, ownership, who knows what: facts and rules to query",
    "lean": "A property for every input, or a proof is asked for",
    "z3": "Combinations of rules, limits, prices or permissions",
-   "tla": "Orders of steps, retries, timeouts, concurrency",
+   "tlaplus": "Orders of steps, retries, timeouts, concurrency",
    "tests": "Behavior on concrete cases is enough",
    "none": "No formal tool is needed"
   }

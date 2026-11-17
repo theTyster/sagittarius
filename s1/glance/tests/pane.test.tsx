@@ -98,6 +98,18 @@ test('nothing yet', async ($, on) => {
   await ui.unmount()
 })
 
+// kb-s1-glance-consolidate c7 (Ty: "TLAplus ... more readable"): the key tlaplus, and tla of an older
+// line, read TLA+ wherever the tool is named, with its own glyph.
+for (const key of ['tlaplus', 'tla'])
+  test(`pane: the tool ${key} reads TLA+`, async ($, on) => {
+    seed(on, glance({}, { h_language: { type: 'choice', choice: key, confidence: 0.8, probabilities: { [key]: 0.8 } } }))
+    const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+    expect(await ui.find({ type: 'Text', text: 'TLA+' })).toBeTruthy()
+    expect(await ui.find({ type: 'Text', text: '⏱️' })).toBeTruthy()
+    expect(await ui.find({ type: 'Text', text: key })).toBeFalsy()
+    await ui.unmount()
+  })
+
 test('corner: only the signals that fired', async ($, on) => {
   seed(on, glance(), ['corner'])
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })

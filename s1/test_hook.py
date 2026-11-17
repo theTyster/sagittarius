@@ -177,7 +177,9 @@ class C1State(Base):
         fake = Fake()
         self.run_hook(fake)
         st = fake.state()
-        self.assertEqual(sorted(st), ["message", "recent"])
+        self.assertEqual(sorted(st), ["context", "message", "recent"])
+        # kb-s1-glance-consolidate c5 (Ty): the model is told what it is looking at.
+        self.assertEqual(st["context"], "You are viewing a snippet of a transcript between a human and an agent")
         self.assertEqual(st["message"], "Looks good. Ask Zorblax about it.")
         self.assertIn("I renamed the tab to Reports for Acme Widgets.", texts(st))
         self.assertIn("Acme Widgets", fake.calls[0]["body"].decode())
@@ -322,7 +324,7 @@ class T20Context(Base):
         fake = Fake()
         self.run_hook(fake)
         st = fake.state()
-        self.assertEqual(sorted(st), ["message", "recent"])
+        self.assertEqual(sorted(st), ["context", "message", "recent"])
         self.assertEqual(st["recent"], [
             {"role": "agent", "text": "I will rename it.\nDone: the tab is Reports."},
             {"role": "you", "text": "And the menu entry too?"},
@@ -904,7 +906,7 @@ class T43C1Questions(unittest.TestCase):
                 "prolog": "Decisions, rules, ownership, who knows what: facts and rules to query",
                 "lean": "A property for every input, or a proof is asked for",
                 "z3": "Combinations of rules, limits, prices or permissions",
-                "tla": "Orders of steps, retries, timeouts, concurrency",
+                "tlaplus": "Orders of steps, retries, timeouts, concurrency",
                 "tests": "Behavior on concrete cases is enough",
                 "none": "No formal tool is needed",
             },
@@ -971,7 +973,7 @@ class SA3FormalTool(Base):
     (c_s_a_2): the line only reports; it gives no instruction."""
 
     def answers(self, div=0.5, plan=0.5, effort=0.5, lang="z3", lang_p=0.9, extra=None):
-        probs = {k: 0.02 for k in ("prolog", "lean", "z3", "tla", "tests", "none")}
+        probs = {k: 0.02 for k in ("prolog", "lean", "z3", "tlaplus", "tests", "none")}
         probs[lang] = lang_p
         a = {"h_work": {"type": "choice", "choice": "build", "confidence": 0.9,
                         "probabilities": {"build": 0.9, "research": 0.02, "specify": 0.02,
