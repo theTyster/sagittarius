@@ -96,6 +96,33 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.8.0 (the Desk; db schema 7)
+
+One Desk at one address for every MindHole on the machine (Sagittarius spec KB questions-server,
+round 2). Ty answers, diverges or adds a requirement there, and every letter goes through a review
+that shows each receiving session and the exact text it gets. The db schema is 7. **Database:** run
+`python3 .claude/scripts/hubflow.py migrate` once (schema 6 to 7: the columns `due` and `no_kb` of
+`item`), then `hubflow.py check`. A hub at schema 5 applies the 0.7.0 section first.
+Engine files: `.claude/scripts/hubflow.py`, `.claude/scripts/hubflow-test.py`, `.claude/scripts/desk.py`,
+`.claude/scripts/desk-test.py`, `.claude/skills/hub-flow/SKILL.md`, and in a formal hub
+`.claude/orbit-kb/bin/orbit-kb`, `share/orbit-kb/core.pl`, `share/orbit-kb/help/core.txt`, and the new
+`share/orbit-kb/desk/desk.css` and `desk.js`. Replace them.
+What changes for the hub's sessions:
+- `add ask` in a formal hub needs `--ref kb:<slug>` (or `kb:/abs/path`, `kb:~/path` for a KB outside
+  the hub) or `--no-kb`. Old asks stay as they are; the Desk shows them as "No KB behind it".
+- `add ask --due YYYY-MM-DD` and `set ID --due` record the date by which the asker needs the answer.
+- `--reserved` names its source: `NAME Policy: RULE` or `WHO, YYYY-MM-DD: WORDS`.
+- A check says in words what it checks: `checks_that(K, Text)` in a spec KB (lint W12 warns).
+- Letters from the Desk reach a session through the desk hooks. Owned file: add the block that
+  `python3 .claude/scripts/desk.py hooks` prints to `.claude/settings.json` (ask your human first).
+Once per MindHole: `python3 .claude/scripts/desk.py join --name <mindhole name>`. Once per machine
+(the human decides): `python3 .claude/scripts/desk.py service --write`, then the `systemctl --user`
+command it prints, so the Desk runs again after a reboot. Drafts live in the Desk's own store
+(`~/.local/state/desk/`), outside every MindHole; an old `flow/desk/drafts.json` is not read and can
+be deleted.
+Check: `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` prints `hub from MindHole Kit 0.8.0`,
+`hubflow.py show <an ask>` prints `due:` and `no_kb:`, and `desk.py mindholes` lists the hub.
+
 ### 0.7.3 (the version line; db schema 6, unchanged)
 
 This release pairs with Sagittarius 0.4.1 (it was 0.4.0). No rule changed. Every hub (formal and

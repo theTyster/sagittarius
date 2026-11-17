@@ -8,7 +8,7 @@ Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own v
 |---|---|---|---|
 | Sagittarius | 0.4.1 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.7.3 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.8.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 
 What a change of each number means:
 
@@ -51,6 +51,19 @@ Earlier versions, named after the fact so that a report can refer to them:
   log lines as one judgment. The reversal has a row, a toast quotes the part that fired it.
 - **System 1: the live view.** `s1/live.py` prints the hook's judgments of a session as a pane, a
   corner, a toast line or JSON. The status line segment shows a reversal and the number of parts.
+- **The Desk, round 2 (hub spec KB `questions-server`, hypothesis h3, Ty's GO of 2026-11-17 after
+  three flare laps).** `orbit-kb serve desk` is one Desk at one address for every MindHole on the
+  machine: `desk.py join` adds a MindHole in one step, and `desk.py service` writes a systemd user
+  unit so it runs again after a reboot. Lanes: Your action (each card names the source of the
+  reservation: a policy by name and rule, or the human's dated words), Questions, Running on a
+  guess, Project KB (proposed facts to ratify, drafts to push, stale pins), Orphaned (each row with a
+  fix the human sends), Answered, KBs. Each item says where it comes from, shows its owner session as
+  a badge and its due date, and leads to its KB, hypothesis, premises, claims and checks (in words,
+  how each runs, its last run). Every letter goes through a review that shows each receiving session
+  and the exact text; the session gets exactly that text. Drafts live in the Desk's own store.
+  hubflow (schema 7): `add ask` needs a `kb:` ref (also `kb:/abs/path`, `kb:~/path`) or `--no-kb`;
+  `--due`; `--reserved` names its source. orbit-kb: `checks_that(K, Text)` and lint W12. MindHole
+  Kit 0.8.0.
 - **The Desk (hub spec KB `questions-server`, Ty's GO of 2026-11-17).** `orbit-kb serve
   questions` becomes one page for every hub on the machine (`--hub` repeats). It is dark at every
   load, and `report --html` is too. Each section collapses and opens only when it holds something

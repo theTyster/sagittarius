@@ -689,7 +689,7 @@ def t36c5():
             env["HUB_SESSION"] = session
             return run([sys.executable, "-I", os.path.join(hub, ".claude", "scripts", "hubflow.py")] + args, cwd=hub, env=env)
 
-        p = hf(["add", "ask", "--title", "Skipped for now", "--waits-on", "me", "--ref", "issue:5"], "2026-09-01T00:00:00Z")
+        p = hf(["add", "ask", "--no-kb", "--title", "Skipped for now", "--waits-on", "me", "--ref", "issue:5"], "2026-09-01T00:00:00Z")
         check("t36c5 an ask is added", p.returncode == 0, p.stderr)
         p = hf(["park", "A-0001", "--until", "2026-10-15", "--note", "human: later"], "2026-09-02T00:00:00Z")
         check("t36c5 park --until records the hold", p.returncode == 0, p.stderr)
@@ -761,12 +761,12 @@ def t41c2():
             hub, p = install(t, ed, ed)
             check(f"t41c2 a {ed} hub installs", p.returncode == 0, p.stderr)
             hubflow(hub, ["init"])
-            p = hubflow(hub, ["add", "ask", "--title", "Plain ask", "--waits-on", "me", "--ref", "issue:1"], session="build")
+            p = hubflow(hub, ["add", "ask", "--no-kb", "--title", "Plain ask", "--waits-on", "me", "--ref", "issue:1"], session="build")
             check(f"t41c2 a plain ask is added in the {ed} hub", p.returncode == 0, p.stderr)
             r = {"help": hubflow(hub, ["--help"]).stdout}
             r["ref kb"] = hubflow(hub, ["ref", "A-0001", "add", "kb:some-slug"], session="build")
             r["show"] = hubflow(hub, ["show", "A-0001"], session="build").stdout
-            r["add analysis"] = hubflow(hub, ["add", "ask", "--title", "With analysis", "--waits-on", "me", "--ref", "issue:2",
+            r["add analysis"] = hubflow(hub, ["add", "ask", "--no-kb", "--title", "With analysis", "--waits-on", "me", "--ref", "issue:2",
                                               "--analysis", "some-slug"], session="build")
             r["handoff analysis"] = hubflow(hub, ["handoff", "--to", "review", "--title", "Hand over", "--analysis", "some-slug"], session="build")
             r["set analysis"] = hubflow(hub, ["set", "A-0001", "--analysis", "some-slug"], session="build")
@@ -850,7 +850,7 @@ def t41c4():
     with tempfile.TemporaryDirectory(prefix="t41-c4-") as t:
         hub, p = install(t, "hub", "informal")
         hubflow(hub, ["init"])
-        p = hubflow(hub, ["add", "ask", "--title", "Park me", "--waits-on", "me", "--ref", "issue:5"], session="build")
+        p = hubflow(hub, ["add", "ask", "--no-kb", "--title", "Park me", "--waits-on", "me", "--ref", "issue:5"], session="build")
         check("t41c4 an ask is added", p.returncode == 0, p.stderr)
         p = hubflow(hub, ["park", "A-0001", "--until", "2026-12-01"], session="build")
         check("t41c4 an agent parks a non-escalated item (exit 0)", p.returncode == 0, p.stderr)
@@ -880,7 +880,7 @@ def t44c1():
             r = {"add kb": hubflow(hub, ["add", "ask", "--title", "Kb ask", "--ref", "kb:some-slug"], session="build"),
                  "handoff kb": hubflow(hub, ["handoff", "--to", "review", "--title", "Hand over", "--ref", "kb:some-slug"], session="build"),
                  "ref kb": None}
-            r["after refused"] = hubflow(hub, ["add", "ask", "--title", "Plain ask", "--ref", "issue:1"], session="build")
+            r["after refused"] = hubflow(hub, ["add", "ask", "--no-kb", "--title", "Plain ask", "--ref", "issue:1"], session="build")
             r["ref kb"] = hubflow(hub, ["ref", "A-0001", "add", "kb:some-slug"], session="build")
             r["list"] = hubflow(hub, ["sql", "SELECT id, kind FROM item ORDER BY id"], session="build")
             r["show"] = hubflow(hub, ["show", "A-0001"], session="build")

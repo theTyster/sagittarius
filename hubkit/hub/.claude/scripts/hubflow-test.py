@@ -23,6 +23,9 @@ waiver never counts). T47 checks start with t47-c1- (an agent cannot end an item
 holds), t47-c2- (the park lasts until the waiver's due time) and t47-c3- (an archived spec KB's summary
 lapses). T48 checks start with t48-c1- (an archived spec KB reads as archived in agent_guard and
 triage too) and t48-c4- (the message of a lapse that a waiver escalates names the waiver).
+The Desk checks (hub spec KB questions-server) start with dk-q6- (the asker's due date), dk-q5- (an ask
+says whether it rests on a KB: a kb ref or --no-kb; a kb ref may name a KB outside the hub), dk-c12- (a
+reservation names its source) and dk-schema- (the v6 -> v7 migration and the JSONL of both schemas).
 Every scenario seeds its db from a seed file written into the temp dir (SEED_DATA below).
 Prints `PASS name` or `FAIL name: why` per case (`SKIP name: why` for a check that cannot run
 here, counted in the last line); the last line is `N passed, M failed`, with `, K skipped` when K checks skipped.
@@ -50,6 +53,9 @@ SEED_DATA = {
     "persons": [{"key": "me", "display": "Me"}, {"key": "alex", "display": "Alex Example"}],
 }
 SEED = None  # the seed file's path, set per run in cases()
+
+# q5: the rule that a new ask says whether it rests on a KB (a mutant, and the copies at an older schema)
+ASK_KB_RULE = 'if kind == "ask" and not no_kb and not has_kb and not informal(g):  # an ask says whether it rests on a KB'
 
 # Each mutant: (name, anchor in hubflow.py that must occur exactly once, replacement).
 MUTANTS = [
@@ -121,6 +127,28 @@ MUTANTS = [
     # install UX c3: hubflow asks the hub's own orbit-kb copy before the one on PATH
     ("hub-orbit-kb-copy-ignored", "if os.access(own, os.X_OK):  # the hub's own copy (install UX c3)", "if False:"),
     ("migrate-with-foreign-keys-on", 'c.execute("PRAGMA foreign_keys=OFF")  # a step may copy', 'c.execute("PRAGMA foreign_keys=ON")  # a step may copy'),
+    # the Desk (hub spec KB questions-server): q6 the asker's due date
+    ("due-on-any-kind", 'if kind != "ask":  # due on an ask only', "if False:"),
+    ("due-date-unchecked", 'return parse_date(v, "--due")', "return v"),
+    ("due-and-no-kb-not-stored", "if due is not None or no_kb:  # schema 7; an item without them needs neither column",
+     "if False:"),
+    ("due-event-dropped", 'w.event(iid, "due", it["due"], new)', "pass"),
+    # q5: an ask says whether it rests on a KB
+    ("ask-kb-rule-dropped", ASK_KB_RULE, "if False:"),
+    ("no-kb-with-kb-ref-allowed", "if no_kb and has_kb:", "if False:"),
+    ("set-no-kb-yes-with-kb-ref", "if new and item_kb_refs(c, iid):  # no_kb with a kb ref", "if False:"),
+    ("ref-add-kb-keeps-no-kb", 'if kind == "kb" and it["no_kb"]:  # q5: a kb ref says the ask rests on a KB', "if False:"),
+    # q5: a KB outside the hub
+    ("kb-outside-refused", "pass  # q5: a KB outside the hub, /abs/path or ~/path", 'raise Bad("no KB outside the hub")'),
+    ("kb-outside-home-unchecked", 'if not os.path.isfile(os.path.join(p, "kb.pl")):', "if False:"),
+    ("kb-outside-not-resolved", "return p if os.path.isdir(p) else None", "return None"),
+    ("kb-outside-tilde-not-expanded", "p = os.path.expanduser(ref)\n        return p if", "p = ref\n        return p if"),
+    ("kb-outside-read-as-spec-slug", "if not kb_outside(ref):  # a KB outside the hub is not a spec KB of specs/", "if True:"),
+    # c12: a reservation names its source
+    ("reserved-any-text", "if RESERVED_POLICY.match(why.strip()):  # reserved source form", "if True:"),
+    ("reserved-date-unchecked", 'datetime.date.fromisoformat(m.group("date"))', "pass"),
+    # schema 7: a JSONL of schema 6 rebuilds
+    ("rebuild-needs-every-column", "have = [k for k in cols if k in row]", "have = cols"),
 ]
 
 
@@ -299,6 +327,10 @@ def fresh(r, root, name, session="discovery"):
 
 
 def add(r, d, kind, title, *extra, now=NOW, session="discovery"):
+    # q5 (hub spec KB questions-server): a new ask says whether it rests on a KB. A test ask with no
+    # kb ref rests on none: it passes --no-kb (case_dk_no_kb tests the rule itself)
+    if kind == "ask" and "--no-kb" not in extra and not any(str(x).startswith("kb:") for x in extra):
+        extra = ("--no-kb",) + extra
     code, out, err = hf(r, d, "add", kind, "--title", title, *extra, now=now, session=session)
     if code != 0:
         raise RuntimeError(f"add {title!r} failed: {err}")
@@ -368,7 +400,7 @@ def case_basic(r, root):
     res = hf(r, d, "add", "ask", "--title", "First ask", "--owner", "discovery", "--waits-on", "alex",
              "--analysis", "alpha", "--ref", "issue:1234", "--ref", "kb:alpha/kb", "--note", "from ledger")
     r.check("add-prints-first-id", res[0] == 0 and res[1].strip() == "A-0001", res)
-    r.check("add-ask-second", hf(r, d, "add", "ask", "--title", "Second ask")[1].strip() == "A-0002")
+    r.check("add-ask-second", hf(r, d, "add", "ask", "--no-kb", "--title", "Second ask")[1].strip() == "A-0002")
     r.check("add-thread-id", hf(r, d, "add", "thread", "--title", "A thread")[1].strip() == "T-0001")
     r.check("add-hold-id", hf(r, d, "add", "hold", "--title", "A hold")[1].strip() == "K-0001")
     r.check("add-owner-defaults-to-writer",
@@ -384,49 +416,49 @@ def case_basic(r, root):
     r.check("add-fields", it == [("open", "discovery", "alex", "alpha", NOW, NOW, None)], it)
     r.check("add-refs", q(d, "select kind, ref from item_ref where item_id='A-0001' order by kind") == [("issue", "1234"), ("kb", "alpha/kb")])
     # alias resolution
-    res = hf(r, d, "add", "ask", "--title", "Aliased", "--owner", "helpdesk", "--session", "helpdesk")
+    res = hf(r, d, "add", "ask", "--no-kb", "--title", "Aliased", "--owner", "helpdesk", "--session", "helpdesk")
     r.check("alias-owner-resolved", res[0] == 0 and q(d, "select owner_session from item where id=?", res[1].strip()) == [("support",)], res)
     r.check("alias-session-resolved-in-event", ev(d, "A-0003")[0][3] == "support", ev(d, "A-0003"))
-    code, out, err = hf(r, d, "add", "ask", "--title", "Via env alias", session="helpdesk")
+    code, out, err = hf(r, d, "add", "ask", "--no-kb", "--title", "Via env alias", session="helpdesk")
     r.check("alias-env-session-resolved", code == 0 and ev(d, out.strip())[0][3] == "support", err)
     n_items = q(d, "select count(*) from item")[0][0]
     # refusals: nothing may be created
     bad = [
         ("handoff-kind-via-add", ["add", "handoff", "--title", "Nope"], None),
         ("bad-kind", ["add", "wish", "--title", "Nope"], None),
-        ("title-too-short", ["add", "ask", "--title", "ab"], None),
-        ("title-too-long", ["add", "ask", "--title", "x" * 201], None),
-        ("title-missing", ["add", "ask"], None),
-        ("unknown-waits-on", ["add", "ask", "--title", "Nope", "--waits-on", "nobody"], None),
-        ("unknown-owner", ["add", "ask", "--title", "Nope", "--owner", "nobody"], None),
-        ("bad-status", ["add", "ask", "--title", "Nope", "--status", "done"], None),
-        ("analysis-w-slot-path", ["add", "ask", "--title", "Nope", "--analysis", "W0/analyses/alpha"], "W-slot"),
-        ("analysis-w5-path", ["add", "ask", "--title", "Nope", "--analysis", "W5/alpha"], "W-slot"),
-        ("issue-ref-letters", ["add", "ask", "--title", "Nope", "--ref", "issue:abc"], "digits"),
-        ("issue-ref-hash", ["add", "ask", "--title", "Nope", "--ref", "issue:#1234"], "digits"),
-        ("pr-ref-letters", ["add", "ask", "--title", "Nope", "--ref", "pr:12a"], "digits"),
+        ("title-too-short", ["add", "ask", "--no-kb", "--title", "ab"], None),
+        ("title-too-long", ["add", "ask", "--no-kb", "--title", "x" * 201], None),
+        ("title-missing", ["add", "ask", "--no-kb"], None),
+        ("unknown-waits-on", ["add", "ask", "--no-kb", "--title", "Nope", "--waits-on", "nobody"], None),
+        ("unknown-owner", ["add", "ask", "--no-kb", "--title", "Nope", "--owner", "nobody"], None),
+        ("bad-status", ["add", "ask", "--no-kb", "--title", "Nope", "--status", "done"], None),
+        ("analysis-w-slot-path", ["add", "ask", "--no-kb", "--title", "Nope", "--analysis", "W0/analyses/alpha"], "W-slot"),
+        ("analysis-w5-path", ["add", "ask", "--no-kb", "--title", "Nope", "--analysis", "W5/alpha"], "W-slot"),
+        ("issue-ref-letters", ["add", "ask", "--no-kb", "--title", "Nope", "--ref", "issue:abc"], "digits"),
+        ("issue-ref-hash", ["add", "ask", "--no-kb", "--title", "Nope", "--ref", "issue:#1234"], "digits"),
+        ("pr-ref-letters", ["add", "ask", "--no-kb", "--title", "Nope", "--ref", "pr:12a"], "digits"),
         ("kb-ref-w-slot", ["add", "ask", "--title", "Nope", "--ref", "kb:W0/analyses/alpha/kb"], "W-slot"),
-        ("file-ref-w-slot", ["add", "ask", "--title", "Nope", "--ref", "file:W2/analyses/alpha/f.md"], "W-slot"),
-        ("unknown-ref-kind", ["add", "ask", "--title", "Nope", "--ref", "bogus:1"], None),
-        ("ref-without-colon", ["add", "ask", "--title", "Nope", "--ref", "1234"], None),
-        ("unknown-option", ["add", "ask", "--title", "Nope", "--frobnicate", "1"], None),
+        ("file-ref-w-slot", ["add", "ask", "--no-kb", "--title", "Nope", "--ref", "file:W2/analyses/alpha/f.md"], "W-slot"),
+        ("unknown-ref-kind", ["add", "ask", "--no-kb", "--title", "Nope", "--ref", "bogus:1"], None),
+        ("ref-without-colon", ["add", "ask", "--no-kb", "--title", "Nope", "--ref", "1234"], None),
+        ("unknown-option", ["add", "ask", "--no-kb", "--title", "Nope", "--frobnicate", "1"], None),
     ]
     for name, args, text in bad:
         r.check("refused-" + name, refused(hf(r, d, *args), 1, text), hf(r, d, *args)[2])
     r.check("refusals-create-nothing", q(d, "select count(*) from item")[0][0] == n_items)
     r.check("refusals-keep-counters", q(d, "select value from meta where key='next_A'") == [("5",)], q(d, "select * from meta"))
-    r.check("analysis-slug-accepted", hf(r, d, "add", "ask", "--title", "Slug ok", "--analysis", "2026-11-02-thing")[0] == 0)
+    r.check("analysis-slug-accepted", hf(r, d, "add", "ask", "--no-kb", "--title", "Slug ok", "--analysis", "2026-11-02-thing")[0] == 0)
     # writer identity
     n = q(d, "select count(*) from item")[0][0]
-    res = hf(r, d, "add", "ask", "--title", "No session", session=None)
+    res = hf(r, d, "add", "ask", "--no-kb", "--title", "No session", session=None)
     r.check("write-without-session-refused", refused(res, 1, "HUB_SESSION"), res)
     r.check("write-without-session-writes-nothing", q(d, "select count(*) from item")[0][0] == n)
-    r.check("unknown-session-refused", refused(hf(r, d, "add", "ask", "--title", "Nope", session="ghost"), 1))
-    res = hf(r, d, "--session", "build", "add", "ask", "--title", "Flag session", session=None)
+    r.check("unknown-session-refused", refused(hf(r, d, "add", "ask", "--no-kb", "--title", "Nope", session="ghost"), 1))
+    res = hf(r, d, "--session", "build", "add", "ask", "--no-kb", "--title", "Flag session", session=None)
     r.check("session-flag-accepted", res[0] == 0 and ev(d, res[1].strip())[0][3] == "build", res)
-    r.check("by-robot-refused", refused(hf(r, d, "add", "ask", "--title", "Nope", "--by", "robot"), 1))
-    r.check("by-human-needs-note", refused(hf(r, d, "add", "ask", "--title", "Nope", "--by", "human"), 1, "note"))
-    res = hf(r, d, "add", "ask", "--title", "Owner said so", "--by", "human", "--note", "\"do it\" (Me)")
+    r.check("by-robot-refused", refused(hf(r, d, "add", "ask", "--no-kb", "--title", "Nope", "--by", "robot"), 1))
+    r.check("by-human-needs-note", refused(hf(r, d, "add", "ask", "--no-kb", "--title", "Nope", "--by", "human"), 1, "note"))
+    res = hf(r, d, "add", "ask", "--no-kb", "--title", "Owner said so", "--by", "human", "--note", "\"do it\" (Me)")
     e = ev(d, res[1].strip())
     r.check("by-human-with-note", res[0] == 0 and e[0][4] == "human" and e[0][5] == "\"do it\" (Me)", res)
     # renew, park
@@ -851,7 +883,7 @@ def case_realclock(r, root):
     d = os.path.join(root, "real", "flow")
     r.check("real-clock-init", hf(r, d, "init", "--seed", SEED, now=None)[0] == 0)
     r.check("real-clock-no-meta-now", q(d, "select count(*) from meta where key='now'") == [(0,)])
-    code, out, err = hf(r, d, "add", "ask", "--title", "Real clock", now=None)
+    code, out, err = hf(r, d, "add", "ask", "--no-kb", "--title", "Real clock", now=None)
     r.check("real-clock-add", code == 0 and out.strip() == "A-0001", err)
     r.check("real-clock-no-meta-now-after-write", q(d, "select count(*) from meta where key='now'") == [(0,)])
     opened = q(d, "select opened_at from item")[0][0]
@@ -864,8 +896,8 @@ def case_realclock(r, root):
     for s in ("INSERT INTO meta(key,value) VALUES('a','b')", "PRAGMA user_version = 9", "DELETE FROM item", "SELECT 1; SELECT 2"):
         r.check("real-clock-sql-refuses " + s[:20], refused(hf(r, d, "sql", s, now=None), 1))
     r.check("real-clock-sql-no-change", snapshot(d) == snap and q(d, "pragma user_version") == [(script_version(r.script),)])
-    r.check("real-clock-bad-now-refused", refused(hf(r, d, "add", "ask", "--title", "Bad clock", now="2026-13-01"), 1))
-    r.check("real-clock-bad-now-format", refused(hf(r, d, "add", "ask", "--title", "Bad clock", now="2026-11-01"), 1))
+    r.check("real-clock-bad-now-refused", refused(hf(r, d, "add", "ask", "--no-kb", "--title", "Bad clock", now="2026-13-01"), 1))
+    r.check("real-clock-bad-now-format", refused(hf(r, d, "add", "ask", "--no-kb", "--title", "Bad clock", now="2026-11-01"), 1))
 
 
 def case_state(r, root, base):
@@ -914,7 +946,7 @@ def case_state(r, root, base):
     c.execute("pragma user_version = 99")
     c.close()
     files, n = jl_bytes(d), q(d, "select count(*) from item")[0][0]
-    for args in (("add", "ask", "--title", "Refused write"), ("view", "open"), ("check",), ("export",),
+    for args in (("add", "ask", "--no-kb", "--title", "Refused write"), ("view", "open"), ("check",), ("export",),
                  ("rotate", "--week-start", "2026-11-02", "--yes"), ("sql", "SELECT 1"), ("show", "A-0001"),
                  ("note", "A-0001", "x"), ("session", "add", "zz-desk", "--role", "x")):
         res = hf(r, d, *args)
@@ -923,7 +955,7 @@ def case_state(r, root, base):
 
     # missing db
     m = os.path.join(root, "missing", "flow")
-    for args in (("view", "open"), ("show", "A-0001"), ("sql", "SELECT 1"), ("check",), ("add", "ask", "--title", "Nope"),
+    for args in (("view", "open"), ("show", "A-0001"), ("sql", "SELECT 1"), ("check",), ("add", "ask", "--no-kb", "--title", "Nope"),
                  ("export",), ("rotate", "--week-start", "2026-11-02"), ("rebuild",)):
         res = hf(r, m, *args)
         r.check("missing-db-exit-2 " + args[0], refused(res, 2), res)
@@ -951,7 +983,7 @@ def case_session(r, root):
             and q(d, "select count(*) from session where name='new-desk'") == [(0,)])
     code, out, _ = hf(r, d, "view", "inbox", "--session", "new-desk", "--format", "json")
     r.check("session-old-name-resolves-in-filter", sorted(ids(out) or []) == ["A-0001", "H-0002"], out)
-    res = hf(r, d, "add", "ask", "--title", "By old name", session="new-desk")
+    res = hf(r, d, "add", "ask", "--no-kb", "--title", "By old name", session="new-desk")
     r.check("session-old-name-resolves-as-writer", res[0] == 0 and ev(d, res[1].strip())[0][3] == "newer-desk", res)
     r.check("session-rename-to-existing-refused", refused(hf(r, d, "session", "rename", "newer-desk", "build"), 1))
     r.check("session-rename-unknown-refused", refused(hf(r, d, "session", "rename", "ghost", "spirit"), 1))
@@ -959,7 +991,7 @@ def case_session(r, root):
             and q(d, "select name from session_alias where alias='new-desk'") == [("newest-desk",)])
     r.check("session-retire", hf(r, d, "session", "retire", "newest-desk", now="2026-11-03T00:00:00Z")[0] == 0
             and q(d, "select status, retired_on from session where name='newest-desk'") == [("retired", "2026-11-03")])
-    r.check("session-retired-owner-refused", refused(hf(r, d, "add", "ask", "--title", "Nope", "--owner", "newest-desk"), 1))
+    r.check("session-retired-owner-refused", refused(hf(r, d, "add", "ask", "--no-kb", "--title", "Nope", "--owner", "newest-desk"), 1))
     r.check("session-retired-handoff-to-refused", refused(hf(r, d, "handoff", "--to", "newest-desk", "--title", "Nope"), 1))
     r.check("session-retire-twice-refused", refused(hf(r, d, "session", "retire", "newest-desk"), 1))
     r.check("session-retire-unknown-refused", refused(hf(r, d, "session", "retire", "ghost"), 1))
@@ -983,7 +1015,7 @@ def case_misc(r, root):
     r.check("where-creates-nothing", not os.path.exists(d))
     # HUBFLOW_DB_DIR wins over --hub: the hub's own flow/ is never touched
     e = fresh(r, root, "envwins")
-    res = hf(r, e, "add", "ask", "--title", "Env wins", hub=h)
+    res = hf(r, e, "add", "ask", "--no-kb", "--title", "Env wins", hub=h)
     r.check("env-db-dir-wins", res[0] == 0 and q(e, "select count(*) from item") == [(1,)] and not os.path.exists(os.path.join(h, "flow")), res)
     p = subprocess.run([sys.executable, "-I", REAL, "--help"], capture_output=True, text=True)
     r.check("help-exit-0", p.returncode == 0 and "usage" in p.stdout.lower(), p.stderr)
@@ -1008,7 +1040,7 @@ def case_seed(r, root):
     code, _, err = hf(r, d, "init", session=None)
     r.check("init-default-seed-file", code == 0 and q(d, "select name, role from session") == [("solo", "all")]
             and q(d, "select key, display from person") == [("pat", "Pat")] and q(d, "select count(*) from session_alias") == [(0,)], err)
-    r.check("default-seed-session-can-write", hf(r, d, "add", "ask", "--title", "Solo ask", session="solo")[0] == 0)
+    r.check("default-seed-session-can-write", hf(r, d, "add", "ask", "--no-kb", "--title", "Solo ask", session="solo")[0] == 0)
     # --seed wins over flow/seed.json
     d = os.path.join(root, "seedflag", "flow")
     write_json(os.path.join(d, "seed.json"), {"sessions": [{"name": "solo", "role": "all"}]})
@@ -1024,14 +1056,14 @@ def case_seed(r, root):
     meta = dict(q(d, "select key, value from meta"))
     r.check("init-no-seed-meta", all(meta.get(k) == "1" for k in ("next_A", "next_T", "next_K", "next_H")), meta)
     r.check("init-no-seed-check-clean", hf(r, d, "check")[0] == 0)
-    r.check("no-seed-write-refused-unknown-session", refused(hf(r, d, "add", "ask", "--title", "Nope", session="discovery"), 1, "unknown session")
+    r.check("no-seed-write-refused-unknown-session", refused(hf(r, d, "add", "ask", "--no-kb", "--title", "Nope", session="discovery"), 1, "unknown session")
             and q(d, "select count(*) from item") == [(0,)])
     r.check("no-seed-session-add-other-name-refused", refused(hf(r, d, "session", "add", "first", "--role", "r", session="someone"), 1, "unknown session"))
     r.check("no-seed-first-session-bootstrap", hf(r, d, "session", "add", "first", "--role", "r", session="first")[0] == 0
             and q(d, "select name, status from session") == [("first", "active")]
             and q(d, "select by_session, verb, new from event") == [("first", "session_add", "first")])
     r.check("no-seed-bootstrap-only-once", refused(hf(r, d, "session", "add", "second", "--role", "r", session="second"), 1, "unknown session"))
-    r.check("no-seed-first-session-writes", hf(r, d, "add", "ask", "--title", "First ask", session="first")[0] == 0)
+    r.check("no-seed-first-session-writes", hf(r, d, "add", "ask", "--no-kb", "--title", "First ask", session="first")[0] == 0)
     # bad seed shapes: exit 1, nothing created
     bad = [
         ("not-json", "{not json"),
@@ -1065,9 +1097,9 @@ def case_seed(r, root):
 def case_issue_ref(r, root):
     d = fresh(r, root, "issueref")
     for name, ref in (("letters", "issue:12a"), ("hash", "issue:#12"), ("space-inside", "issue:1 2"), ("negative", "issue:-5")):
-        r.check("issue-ref-refused " + name, refused(hf(r, d, "add", "ask", "--title", "Nope", "--ref", ref), 1, "digits"))
-    r.check("other-tracker-kind-refused", refused(hf(r, d, "add", "ask", "--title", "Nope", "--ref", "ticket:42"), 1, "KIND"))
-    code, out, err = hf(r, d, "add", "ask", "--title", "Has an issue", "--ref", "issue:42", "--ref", "issue: 7 ")
+        r.check("issue-ref-refused " + name, refused(hf(r, d, "add", "ask", "--no-kb", "--title", "Nope", "--ref", ref), 1, "digits"))
+    r.check("other-tracker-kind-refused", refused(hf(r, d, "add", "ask", "--no-kb", "--title", "Nope", "--ref", "ticket:42"), 1, "KIND"))
+    code, out, err = hf(r, d, "add", "ask", "--no-kb", "--title", "Has an issue", "--ref", "issue:42", "--ref", "issue: 7 ")
     r.check("issue-ref-digits-accepted", code == 0 and q(d, "select kind, ref from item_ref order by ref") == [("issue", "42"), ("issue", "7")], err)
     r.check("issue-ref-add-and-rm", hf(r, d, "ref", "A-0001", "add", "issue:99")[0] == 0 and hf(r, d, "ref", "A-0001", "rm", "issue:99")[0] == 0)
     r.check("issue-ref-add-refused", refused(hf(r, d, "ref", "A-0001", "add", "issue:x9"), 1, "digits"))
@@ -1130,7 +1162,7 @@ def case_migrate(r, root):
     r.check("migrate-at-current-is-noop", res[0] == 0 and "already" in res[1] and jl_bytes(d) == before, res)
     n = script_version(r.script)
     v2 = Run(v2_script(r, root))
-    res = hf(v2, d, "add", "ask", "--title", "Refused before migrate")
+    res = hf(v2, d, "add", "ask", "--no-kb", "--title", "Refused before migrate")
     r.check("old-db-refused-until-migrate", res[0] == 2 and "migrate" in res[2], res)
     res = hf(v2, d, "migrate")
     r.check("migrate-runs", res[0] == 0, res)
@@ -1141,7 +1173,7 @@ def case_migrate(r, root):
     r.check("migrate-keeps-rows", len(items) == 1 and "Before the migration" in items[0], items)
     res = hf(v2, d, "check")
     r.check("check-after-migrate", res[0] == 0, res)
-    res = hf(v2, d, "add", "ask", "--title", "After the migration")
+    res = hf(v2, d, "add", "ask", "--no-kb", "--title", "After the migration")
     r.check("write-after-migrate", res[0] == 0, res)
     res = hf(r, d, "view", "open")
     r.check("newer-db-refused-by-old-script", res[0] == 2 and "newer" in res[2], res)
@@ -1570,14 +1602,41 @@ def case_asks(r, root):
     d2 = os.path.join(root, "asks-owner", "flow")
     res = hf(r, d2, "init", "--seed", sp, session=None)
     r.check("c6-seed-owner-accepted", res[0] == 0, res)
-    hf(r, d2, "add", "ask", "--title", "Waits on the owner alex", "--waits-on", "alex")
+    hf(r, d2, "add", "ask", "--no-kb", "--title", "Waits on the owner alex", "--waits-on", "alex")
     r.check("c6-seed-owner-is-the-owner", hf(r, d2, "check")[0] == 0, hf(r, d2, "check"))
-    hf(r, d2, "add", "ask", "--title", "Waits on me, now another person", "--waits-on", "me")
+    hf(r, d2, "add", "ask", "--no-kb", "--title", "Waits on me, now another person", "--waits-on", "me")
     res = hf(r, d2, "check")
     r.check("c6-seed-owner-flags-others", res[0] == 3 and "A-0002" in res[2], res)
     sp = write_json(os.path.join(root, "seed-bad-owner.json"), {**SEED_DATA, "owner": "nobody"})
     res = hf(r, os.path.join(root, "asks-bad-owner", "flow"), "init", "--seed", sp, session=None)
     r.check("c6-seed-owner-must-be-a-person", refused(res, 1, "owner"), res)
+
+
+# The q5 rule (a new ask says whether it rests on a KB) belongs to schema 7, which adds item.no_kb. A copy
+# of the script at an older schema stands for a script of that time, which had no such rule: the copy
+# drops it (ASK_KB_RULE, above MUTANTS), so its `add ask` works as it did then. (Under a mutant that already
+# drops it, nothing changes.)
+SCHEMA7_COLS = ("due", "no_kb")  # the item columns of schema 7
+
+
+def before_schema7(src):
+    return src.replace(ASK_KB_RULE, "if False:  # no q5 rule before schema 7")
+
+
+def old_rows(d, t):
+    """rows(d, t) without the item columns of schema 7: a row of an older db keeps every value it had."""
+    out = []
+    for x in rows(d, t):
+        o = json.loads(x)
+        for k in SCHEMA7_COLS if t == "item" else ():
+            o.pop(k, None)
+        out.append(json.dumps(o, sort_keys=True, ensure_ascii=False))
+    return out
+
+
+def schema7_defaults(d):
+    """After a migration to schema 7: every older row has due NULL and no_kb 0."""
+    return qs(d, "select count(*) from item where due is not null or no_kb <> 0") == [(0,)]
 
 
 def v1_script(r, root):
@@ -1591,7 +1650,7 @@ def v1_script(r, root):
         raise RuntimeError(f"anchor {a!r} occurs {src.count(a)} times")
     path = os.path.join(root, "hubflow-v1.py")
     with open(path, "w", encoding="utf-8") as f:
-        f.write(src.replace(a, "SCHEMA_VERSION = 1\n"))
+        f.write(before_schema7(src.replace(a, "SCHEMA_VERSION = 1\n")))
     return path
 
 
@@ -1608,13 +1667,14 @@ def case_schema_v2(r, root):
         if res[0] != 0:
             raise RuntimeError(res)
     hf(v1, d, "link", "T-0001", "A-0001", "blocks")
-    before = {t: sorted(rows(d, t)) for t in TABLES if t != "meta"}
+    before = {t: sorted(old_rows(d, t)) for t in TABLES if t != "meta"}
     res = hf(r, d, "view", "open")
     r.check("schema-v1-db-needs-migrate", res[0] == 2 and "migrate" in res[2], res)
     res = hf(r, d, "migrate")
     r.check("schema-migrate-v1-to-v2", res[0] == 0 and q(d, "pragma user_version") == [(script_version(r.script),)], res)
     r.check("schema-migrate-backup", os.path.exists(os.path.join(d, "flow.db.bak-v1")), os.listdir(d))
-    r.check("schema-migrate-keeps-rows", {t: sorted(rows(d, t)) for t in TABLES if t != "meta"} == before)
+    r.check("schema-migrate-keeps-rows", {t: sorted(old_rows(d, t)) for t in TABLES if t != "meta"} == before)
+    r.check("schema-migrate-schema7-defaults", schema7_defaults(d))
     names = {x[0] for x in q(d, "select name from sqlite_master")}
     r.check("schema-migrate-adds-tables", set(NEW_TABLES) <= names, names)
     r.check("schema-migrate-exports-new-tables", all(os.path.exists(os.path.join(d, "jsonl", t + ".jsonl")) for t in NEW_TABLES))
@@ -2948,7 +3008,7 @@ def v3_script(r, root):
         raise RuntimeError(f"anchor {a!r} occurs {src.count(a)} times")
     path = os.path.join(root, "hubflow-v3.py")
     with open(path, "w", encoding="utf-8") as f:
-        f.write(src.replace(a, "SCHEMA_VERSION = 3\n"))
+        f.write(before_schema7(src.replace(a, "SCHEMA_VERSION = 3\n")))
     return path
 
 
@@ -2975,7 +3035,7 @@ def case_mt_schema_v4(r, root):
     c.close()
     for t, row in (("meeting", {"id": "standup-ceb598"}), ("meeting_turn", {"meeting_id": "standup-ceb598", "n": 1})):
         write_text(os.path.join(d, "jsonl", t + ".jsonl"), json.dumps(row) + "\n")
-    before = {t: sorted(rows(d, t)) for t in TABLES + ("disposition", "capsule") if t != "meta"}
+    before = {t: sorted(old_rows(d, t)) for t in TABLES + ("disposition", "capsule") if t != "meta"}
     res = hf(r, d, "view", "open")
     r.check("mt-schema-v3-db-needs-migrate", res[0] == 2 and "migrate" in res[2], res)
     res = hf(r, d, "migrate")
@@ -2987,7 +3047,8 @@ def case_mt_schema_v4(r, root):
     r.check("mt-schema-meeting-tables-dropped", not ({"meeting", "meeting_turn"} & names), sorted(names))
     r.check("mt-schema-meeting-jsonl-removed", not [x for x in os.listdir(os.path.join(d, "jsonl")) if x.startswith("meeting")],
             os.listdir(os.path.join(d, "jsonl")))
-    r.check("mt-schema-keeps-rows", {t: sorted(rows(d, t)) for t in before} == before)
+    r.check("mt-schema-keeps-rows", {t: sorted(old_rows(d, t)) for t in before} == before)
+    r.check("mt-schema-schema7-defaults", schema7_defaults(d))
     r.check("mt-schema-check-after-migrate", hf(r, d, "check")[0] == 0, hf(r, d, "check"))
     res = hf(r, d, "add", "summary", "--title", "A summary after the migration")
     r.check("mt-schema-summary-after-migrate", res[0] == 0 and res[1].strip() == "S-0001", res)
@@ -3208,7 +3269,7 @@ def v5_script(r, root):
         raise RuntimeError(f"anchor {a!r} occurs {src.count(a)} times")
     path = os.path.join(root, "hubflow-v5.py")
     with open(path, "w", encoding="utf-8") as f:
-        f.write(src.replace(a, "SCHEMA_VERSION = 5\n"))
+        f.write(before_schema7(src.replace(a, "SCHEMA_VERSION = 5\n")))
     return path
 
 
@@ -3267,7 +3328,7 @@ def case_030_session_index_dropped(r, root):
         c.close()
     for t in SESSION_INDEX_TABLES:
         write_text(os.path.join(d5, "jsonl", t + ".jsonl"), json.dumps({"session_id": "sess-one"}) + "\n")
-    before = {t: sorted(rows(d5, t)) for t in TABLES if t != "meta"}
+    before = {t: sorted(old_rows(d5, t)) for t in TABLES if t != "meta"}
     res = hf(r, d5, "view", "open")
     r.check("si-v5-db-needs-migrate", res[0] == 2 and "migrate" in res[2], res)
     res = hf(r, d5, "migrate")
@@ -3278,11 +3339,334 @@ def case_030_session_index_dropped(r, root):
     r.check("si-migrate-drops-session-index-tables", not (set(SESSION_INDEX_TABLES) & names), sorted(names))
     r.check("si-migrate-removes-session-index-jsonl",
             not [x for x in os.listdir(os.path.join(d5, "jsonl")) if x.startswith("transcript")], os.listdir(os.path.join(d5, "jsonl")))
-    r.check("si-migrate-keeps-rows", {t: sorted(rows(d5, t)) for t in before} == before)
+    r.check("si-migrate-keeps-rows", {t: sorted(old_rows(d5, t)) for t in before} == before)
+    r.check("si-migrate-schema7-defaults", schema7_defaults(d5))
     r.check("si-check-after-migrate", hf(r, d5, "check")[0] == 0, hf(r, d5, "check"))
     d6 = fresh(r, root, "si-fresh-compare")
     r.check("si-init-equals-migrated", q(d6, "select name, sql from sqlite_master order by name")
             == q(d5, "select name, sql from sqlite_master order by name"))
+
+
+# ---- the Desk (hub spec KB questions-server; Ty's answers q5, q6 and claim c12) ----------------------
+
+def case_dk_due(r, root):
+    """q6: an ask carries the asker's due date (`due`, YYYY-MM-DD); add --due, set --due D|none; each
+    change is a `due` event; show prints it; a date that is not real, or --due on another kind, exits 1."""
+    d = fresh(r, root, "dk-due")
+    res = hf(r, d, "add", "ask", "--no-kb", "--title", "Which database?", "--waits-on", "me", "--due", "2026-12-01")
+    r.check("dk-q6-add-due", res[0] == 0 and res[1].strip() == "A-0001", res)
+    r.check("dk-q6-due-stored", q(d, "select due from item where id = 'A-0001'") == [("2026-12-01",)],
+            qs(d, "select due from item"))
+    r.check("dk-q6-add-due-event", ("due", None, "2026-12-01") in [x[:3] for x in ev(d, "A-0001")], ev(d, "A-0001"))
+    add(r, d, "ask", "No due date")  # A-2
+    r.check("dk-q6-no-due-is-null", q(d, "select due from item where id = 'A-0002'") == [(None,)])
+    r.check("dk-q6-no-due-no-event", "due" not in [x[0] for x in ev(d, "A-0002")], ev(d, "A-0002"))
+    add(r, d, "thread", "A thread")  # T-1
+    code, out, err = hf(r, d, "show", "A-0001")
+    r.check("dk-q6-show-md-prints-due", code == 0 and "\ndue: 2026-12-01\n" in out, out[:600])
+    code, out, err = hf(r, d, "show", "A-0001", "--format", "json")
+    r.check("dk-q6-show-json-has-due", code == 0 and (js(out) or {}).get("item", {}).get("due") == "2026-12-01", out[:600])
+    items = [json.loads(x) for x in jl_lines(d, "item") or []]
+    r.check("dk-q6-jsonl-has-due", [x.get("due") for x in items if x["id"] == "A-0001"] == ["2026-12-01"], items[:1])
+    snap = snapshot(d)
+    for name, args, text in (
+            ("not-a-real-date", ["add", "ask", "--no-kb", "--title", "Nope", "--due", "2026-02-30"], "real date"),
+            ("not-iso", ["add", "ask", "--no-kb", "--title", "Nope", "--due", "2026-12-1"], "YYYY-MM-DD"),
+            ("a-time", ["add", "ask", "--no-kb", "--title", "Nope", "--due", "2026-12-01T00:00:00Z"], "YYYY-MM-DD"),
+            ("on-a-thread", ["add", "thread", "--title", "Nope", "--due", "2026-12-01"], "ask"),
+            ("on-a-hold", ["add", "hold", "--title", "Nope", "--due", "2026-12-01"], "ask"),
+            ("on-a-summary", ["add", "summary", "--title", "Nope", "--due", "2026-12-01"], "ask"),
+            ("set-not-a-real-date", ["set", "A-0001", "--due", "2026-11-31"], "real date"),
+            ("set-on-a-thread", ["set", "T-0001", "--due", "2026-12-01"], "ask"),
+            ("handoff-has-no-due", ["handoff", "--to", "build", "--title", "Nope", "--due", "2026-12-01"], "unknown option")):
+        r.check("dk-q6-refused " + name, refused(hf(r, d, *args), 1, text), hf(r, d, *args))
+    r.check("dk-q6-refusals-write-nothing", snapshot(d) == snap)
+    res = hf(r, d, "set", "A-0001", "--due", "2027-01-15")
+    r.check("dk-q6-set-due", res[0] == 0 and q(d, "select due from item where id = 'A-0001'") == [("2027-01-15",)]
+            and ev(d, "A-0001")[-1][:3] == ("due", "2026-12-01", "2027-01-15"), (res, ev(d, "A-0001")[-1]))
+    n = len(ev(d, "A-0001"))
+    res = hf(r, d, "set", "A-0001", "--due", "2027-01-15")
+    r.check("dk-q6-set-same-due-no-event", res[0] == 0 and len(ev(d, "A-0001")) == n, (res, ev(d, "A-0001")[n - 1:]))
+    res = hf(r, d, "set", "A-0001", "--due", "none")
+    r.check("dk-q6-set-due-none-clears", res[0] == 0 and q(d, "select due from item where id = 'A-0001'") == [(None,)]
+            and ev(d, "A-0001")[-1][:3] == ("due", "2027-01-15", None), (res, ev(d, "A-0001")[-1]))
+    res = hf(r, d, "set", "A-0002", "--due", "2026-11-20")
+    r.check("dk-q6-set-due-on-an-ask-without-one", res[0] == 0 and ev(d, "A-0002")[-1][:3] == ("due", None, "2026-11-20"), res)
+    r.check("dk-q6-schema-refuses-a-bad-due", _sql_refused(d, "update item set due = 'soon' where id = 'A-0002'"))
+    code, out, err = hf(r, None, "--help")
+    r.check("dk-q6-help-names-due", "--due YYYY-MM-DD" in out and "asker's due date" in out, out[:800])
+
+
+def _sql_refused(d, sql):
+    """True when the schema refuses a direct write (a CHECK); the db is not changed."""
+    c = sqlite3.connect(dbfile(d))
+    try:
+        c.execute(sql)
+        c.rollback()
+        return False
+    except sqlite3.IntegrityError:
+        return True
+    finally:
+        c.close()
+
+
+def case_dk_no_kb(r, root):
+    """q5: a new ask says whether it rests on a KB: a kb ref, or --no-kb (no_kb 1). With neither, add ask
+    exits 1 and names both ways; --no-kb with a kb ref, or on another kind, exits 1. set --no-kb yes|no
+    changes it (yes is refused while the ask has a kb ref); ref add kb:... sets it to 0. Each change is a
+    `no_kb` event; show prints it. An informal hub has no KB: it needs neither, and takes --no-kb (one
+    command, such as the smoke test of INSTRUCTIONS.md, works in both editions); its help and show do
+    not name it."""
+    d = fresh(r, root, "dk-nokb")
+    snap = snapshot(d)
+    res = hf(r, d, "add", "ask", "--title", "Rests on what?", "--waits-on", "me")
+    r.check("dk-q5-ask-needs-kb-or-no-kb", refused(res, 1, "--no-kb") and "--ref kb:" in res[2], res)
+    r.check("dk-q5-refusal-writes-nothing", snapshot(d) == snap)
+    res = hf(r, d, "add", "ask", "--title", "Rests on nothing", "--waits-on", "me", "--no-kb")
+    r.check("dk-q5-add-no-kb", res[0] == 0 and res[1].strip() == "A-0001"
+            and q(d, "select no_kb from item where id = 'A-0001'") == [(1,)], res)
+    r.check("dk-q5-add-no-kb-event", [x[:3] for x in ev(d, "A-0001")] == [("opened", None, "open"), ("no_kb", None, "yes")], ev(d, "A-0001"))
+    res = hf(r, d, "add", "ask", "--title", "Rests on a KB", "--ref", "kb:some-spec")
+    r.check("dk-q5-add-kb-ref-no-kb-0", res[0] == 0 and q(d, "select no_kb from item where id = 'A-0002'") == [(0,)]
+            and "no_kb" not in [x[0] for x in ev(d, "A-0002")], (res, ev(d, "A-0002")))
+    res = hf(r, d, "add", "thread", "--title", "A thread needs neither")
+    r.check("dk-q5-thread-needs-neither", res[0] == 0 and q(d, "select no_kb from item where id = 'T-0001'") == [(0,)], res)
+    code, out, err = hf(r, d, "show", "A-0001")
+    r.check("dk-q5-show-md-prints-no-kb", code == 0 and "\nno_kb: 1\n" in out, out[:600])
+    code, out, err = hf(r, d, "show", "A-0001", "--format", "json")
+    r.check("dk-q5-show-json-has-no-kb", code == 0 and (js(out) or {}).get("item", {}).get("no_kb") == 1, out[:600])
+    items = {x["id"]: x for x in (json.loads(y) for y in jl_lines(d, "item") or [])}
+    r.check("dk-q5-jsonl-has-no-kb", items.get("A-0001", {}).get("no_kb") == 1 and items.get("A-0002", {}).get("no_kb") == 0, items)
+    snap = snapshot(d)
+    for name, args, text in (
+            ("no-kb-and-kb-ref", ["add", "ask", "--title", "Both", "--no-kb", "--ref", "kb:some-spec"], "one or the other"),
+            ("no-kb-on-a-thread", ["add", "thread", "--title", "Nope", "--no-kb"], "ask"),
+            ("no-kb-on-a-summary", ["add", "summary", "--title", "Nope", "--no-kb"], "ask"),
+            ("set-no-kb-bad-value", ["set", "A-0001", "--no-kb", "maybe"], "yes"),
+            ("set-no-kb-on-a-thread", ["set", "T-0001", "--no-kb", "yes"], "ask"),
+            ("set-no-kb-yes-with-kb-ref", ["set", "A-0002", "--no-kb", "yes"], "kb ref")):
+        r.check("dk-q5-refused " + name, refused(hf(r, d, *args), 1, text), hf(r, d, *args))
+    r.check("dk-q5-refusals-write-nothing-2", snapshot(d) == snap)
+    res = hf(r, d, "set", "A-0001", "--no-kb", "no")
+    r.check("dk-q5-set-no-kb-no", res[0] == 0 and q(d, "select no_kb from item where id = 'A-0001'") == [(0,)]
+            and ev(d, "A-0001")[-1][:3] == ("no_kb", "yes", "no"), (res, ev(d, "A-0001")[-1]))
+    n = len(ev(d, "A-0001"))
+    r.check("dk-q5-set-same-no-kb-no-event", hf(r, d, "set", "A-0001", "--no-kb", "no")[0] == 0 and len(ev(d, "A-0001")) == n)
+    res = hf(r, d, "set", "A-0001", "--no-kb", "yes")
+    r.check("dk-q5-set-no-kb-yes", res[0] == 0 and q(d, "select no_kb from item where id = 'A-0001'") == [(1,)]
+            and ev(d, "A-0001")[-1][:3] == ("no_kb", "no", "yes"), (res, ev(d, "A-0001")[-1]))
+    res = hf(r, d, "ref", "A-0001", "add", "kb:found-one")
+    r.check("dk-q5-ref-add-kb-sets-no-kb-0", res[0] == 0 and q(d, "select no_kb from item where id = 'A-0001'") == [(0,)]
+            and [x[:3] for x in ev(d, "A-0001")[-2:]] == [("ref_add", None, "kb:found-one"), ("no_kb", "yes", "no")],
+            (res, ev(d, "A-0001")[-2:]))
+    res = hf(r, d, "ref", "A-0001", "add", "issue:5")
+    r.check("dk-q5-ref-add-other-kind-keeps-no-kb", res[0] == 0 and ev(d, "A-0001")[-1][0] == "ref_add", ev(d, "A-0001")[-1])
+    code, out, err = hf(r, None, "--help")
+    r.check("dk-q5-help-names-the-rule", "--no-kb" in out and "An ask says whether it rests on a KB" in out, out[:900])
+    # an informal hub has no KB: an ask needs neither, and --no-kb is taken
+    h = os.path.join(root, "dk-informal")
+    write_json(os.path.join(h, ".hub-template.json"), {"edition": "informal"})
+    di = fresh(r, root, "dk-informal-flow")
+    res = hf(r, di, "add", "ask", "--title", "Informal ask", "--waits-on", "me", hub=h)
+    r.check("dk-q5-informal-ask-needs-neither", res[0] == 0 and q(di, "select no_kb from item") == [(0,)], res)
+    res = hf(r, di, "add", "ask", "--title", "Informal smoke test", "--waits-on", "me", "--no-kb", hub=h)
+    r.check("dk-q5-informal-takes-no-kb", res[0] == 0 and q(di, "select no_kb from item where id = 'A-0002'") == [(1,)], res)
+    r.check("dk-q5-informal-still-refuses-kb-ref", refused(hf(r, di, "add", "ask", "--title", "Nope", "--ref", "kb:x", hub=h), 1, "formal edition"))
+    code, out, err = hf(r, di, "show", "A-0001", hub=h)
+    r.check("dk-q5-informal-show-has-no-no-kb", code == 0 and "no_kb" not in out, out[:600])
+    code, out, err = hf(r, None, "--help", hub=h)
+    r.check("dk-q5-informal-help-has-no-no-kb", code == 0 and "--no-kb" not in out and "rests on a KB" not in out
+            and "kb:~/path" not in out and "--due YYYY-MM-DD" in out, out[:900])
+
+
+def case_dk_kb_outside(r, root):
+    """q5: a kb ref may name a KB outside the hub, kb:/abs/path or kb:~/path, stored as given (~ expanded at
+    use). Its dir must hold kb.pl when the ref is added. One resolver serves where, triage, the agent guard
+    and rotate, for the slug, the old (W*/analyses) and both outside forms."""
+    stub = write_stub(root)
+    log = os.path.join(root, "dk-outside-stub.log")
+    h = spec_hub(root, "dk-outhub", {"new-one": ["q1"]}, old={"old-one": None})
+    home = os.path.join(root, "dk-home")
+    tilde = os.path.join(home, "kbs", "tilde-kb")  # clear
+    gone = os.path.join(home, "kbs", "gone-kb")
+    absk = os.path.join(root, "dk-elsewhere", "abs-kb")  # blocks on q7
+    for k in (tilde, gone, absk):
+        write_json(os.path.join(k, "kb.pl"), "% an invented KB outside the hub\n")
+    write_json(os.path.join(absk, "BLOCKING"), "q7\n")
+    os.makedirs(os.path.join(home, "kbs", "no-kb-file"))
+    d = fresh(r, root, "dk-outside")
+    env = {"HUBFLOW_ORBIT_KB": stub, "STUB_LOG": log, "HOME": home}
+
+    def t(*args, **kw):
+        return hf(r, d, *args, hub=h, extra_env=env, **kw)
+
+    for name, arg, want in (("slug", "new-one", "specs/new-one"), ("old-form", "old-one", "W0/analyses/old-one"),
+                            ("absolute", absk, absk), ("tilde", "~/kbs/tilde-kb", tilde)):
+        code, out, err = t("where", arg)
+        r.check(f"dk-q5-where-{name}", code == 0 and out.strip() == want, (code, out, err))
+    r.check("dk-q5-where-tilde-missing-refused", refused(t("where", "~/kbs/nope"), 1, os.path.join(home, "kbs", "nope")))
+    r.check("dk-q5-where-absolute-missing-refused", refused(t("where", os.path.join(root, "nope")), 1))
+    for title, ref in (("Slug form", "kb:new-one"), ("Old form", "kb:old-one/kb"), ("Absolute form", "kb:" + absk),
+                       ("Tilde form", "kb:~/kbs/tilde-kb"), ("Gone later", "kb:~/kbs/gone-kb")):  # A-1 .. A-5
+        res = t("add", "ask", "--title", title, "--ref", ref, now=DUE)
+        r.check(f"dk-q5-add-{title.split()[0].lower()}-ref", res[0] == 0, res)
+    r.check("dk-q5-refs-stored-as-given", qs(d, "select item_id, ref from item_ref where kind = 'kb' order by item_id")
+            == [("A-0001", "new-one"), ("A-0002", "old-one/kb"), ("A-0003", absk), ("A-0004", "~/kbs/tilde-kb"),
+                ("A-0005", "~/kbs/gone-kb")], qs(d, "select item_id, ref from item_ref"))
+    snap = snapshot(d)
+    for name, ref, text in (("tilde-no-dir", "kb:~/kbs/missing", "kb.pl"), ("no-kb-pl", "kb:~/kbs/no-kb-file", "kb.pl"),
+                            ("absolute-no-dir", "kb:" + os.path.join(root, "nope"), "kb.pl"),
+                            ("dotdot", "kb:" + absk + "/../abs-kb", ".."), ("file-absolute", "file:" + absk, "relative")):
+        r.check("dk-q5-add-refused " + name, refused(t("add", "ask", "--title", "Nope", "--ref", ref), 1, text),
+                t("add", "ask", "--title", "Nope", "--ref", ref))
+        if ref.startswith("kb:"):
+            r.check("dk-q5-ref-add-refused " + name, refused(t("ref", "A-0001", "add", ref), 1, text))
+    r.check("dk-q5-refused-refs-write-nothing", snapshot(d) == snap)
+    shutil.rmtree(gone)
+    open(log, "w").close()
+    res = t("triage", "A-0001", "lapse", "--note", "idle")
+    r.check("dk-q5-slug-ref-blocks", res[0] == 0 and disp(d, "A-0001")[-1][:2] == ("escalate", "lapse"), res)
+    res = t("triage", "A-0002", "lapse", "--note", "idle")
+    r.check("dk-q5-old-form-ref-clear", res[0] == 0 and status(d, "A-0002") == "lapsed", res)
+    res = t("triage", "A-0003", "lapse", "--note", "idle")
+    r.check("dk-q5-absolute-ref-blocks", res[0] == 0 and disp(d, "A-0003")[-1][:2] == ("escalate", "lapse")
+            and "q7" in res[1], res)
+    res = t("triage", "A-0004", "lapse", "--note", "idle")
+    r.check("dk-q5-tilde-ref-clear", res[0] == 0 and status(d, "A-0004") == "lapsed", res)
+    calls = open(log, encoding="utf-8").read()
+    r.check("dk-q5-orbit-kb-asked-at-the-expanded-paths", f"--dir {absk} " in calls and f"--dir {tilde} " in calls
+            and "~" not in calls, calls)
+    res = t("triage", "A-0005", "lapse", "--note", "idle")
+    r.check("dk-q5-outside-dir-gone-is-blocking", res[0] == 0 and disp(d, "A-0005")[-1][:2] == ("escalate", "lapse")
+            and "no dir " + gone in res[1] and "treated as blocking" in res[1], res)
+    # the agent guard reads the same resolver
+    t("add", "ask", "--title", "Tilde, clear", "--ref", "kb:~/kbs/tilde-kb")  # A-6
+    t("add", "ask", "--title", "Absolute, blocks", "--ref", "kb:" + absk)  # A-7
+    res = t("close", "A-0006", "--reason", "done")
+    r.check("dk-q5-agent-closes-clear-outside-kb", res[0] == 0 and status(d, "A-0006") == "done", res)
+    res = t("close", "A-0007", "--reason", "done")
+    r.check("dk-q5-agent-guard-outside-kb-blocks", refused(res, 1, "q7") and status(d, "A-0007") == "open", res)
+    # a closed ticket's outside KB is not a spec KB of specs/: rotate never asks for its spec-triage
+    d2 = fresh(r, root, "dk-outside-rotate")
+    r.check("dk-q5-rotate-setup", hf(r, d2, "add", "ask", "--title", "Outside, clear", "--ref", "kb:" + tilde, hub=h, extra_env=env)[0] == 0
+            and hf(r, d2, "close", "A-0001", "--reason", "done", hub=h, extra_env=env)[0] == 0)
+    res = hf(r, d2, "rotate", "--week-start", WK, hub=h, extra_env=env, session=None)
+    r.check("dk-q5-rotate-ignores-outside-kb", res[0] == 0 and listed(res[1], "spec_kbs_untriaged:") == []
+            and "lack a decision" not in res[2], res)
+
+
+RESERVED_OK = ("Sagittarius Policy: Only the human may waive a proof.", "Ty, 2026-11-12: push only when I say so",
+               "Hub Release Policy: a release needs the human's vote", "Alex Example, 2024-02-29: send it on Monday")
+RESERVED_BAD = (("free-text", "Ty: push only when I say so", None), ("lower-case-policy", "sagittarius policy: wait", None),
+                ("policy-no-name", "Policy: Only the human may waive a proof.", None),
+                ("policy-no-rule", "Sagittarius Policy:   ", None), ("words-no-words", "Ty, 2026-11-12:  ", None),
+                ("words-not-a-real-date", "Ty, 2026-02-30: push it", "real date"),
+                ("words-short-date", "Ty, 26-11-12: push it", None), ("words-no-who", ", 2026-11-12: push it", None),
+                ("words-no-date", "Ty, yesterday: push it", None))
+
+
+def case_dk_reserved(r, root):
+    """c12: a reservation names its source: "NAME Policy: RULE" or "WHO, YYYY-MM-DD: WORDS" (a real date).
+    Other text exits 1 with both forms and the example; set --reserved none still clears; a row of free
+    text written before the rule stays as it is."""
+    d = fresh(r, root, "dk-reserved")
+    for n, why in enumerate(RESERVED_OK, 1):
+        res = hf(r, d, "add", "ask", "--no-kb", "--title", f"Reserved {n}", "--waits-on", "me", "--reserved", why)
+        iid = res[1].strip()
+        r.check(f"dk-c12-accepted {n}", res[0] == 0 and ("reserved", None, why) in [x[:3] for x in ev(d, iid)], (res, why))
+    snap = snapshot(d)
+    for name, why, text in RESERVED_BAD:
+        res = hf(r, d, "add", "ask", "--no-kb", "--title", "Nope", "--waits-on", "me", "--reserved", why)
+        r.check("dk-c12-add-refused " + name, refused(res, 1, text) and "NAME Policy: RULE" in res[2]
+                and "WHO, YYYY-MM-DD: WORDS" in res[2] and "Sagittarius Policy: Only the human may waive a proof." in res[2], res)
+        r.check("dk-c12-set-refused " + name, refused(hf(r, d, "set", "A-0001", "--reserved", why), 1, "NAME Policy: RULE"))
+    r.check("dk-c12-refusals-write-nothing", snapshot(d) == snap)
+    res = hf(r, d, "set", "A-0001", "--reserved", "Ty, 2026-11-13: only I send it")
+    r.check("dk-c12-set-words", res[0] == 0 and ev(d, "A-0001")[-1][:3] == ("reserved", RESERVED_OK[0], "Ty, 2026-11-13: only I send it"), res)
+    res = hf(r, d, "set", "A-0001", "--reserved", "none")
+    r.check("dk-c12-set-none-clears", res[0] == 0 and ev(d, "A-0001")[-1][:3] == ("reserved", "Ty, 2026-11-13: only I send it", None), res)
+    # a reservation of free text written before the rule stays as it is, and still clears
+    c = sqlite3.connect(dbfile(d))
+    c.execute("INSERT INTO event(at, item_id, verb, old, new, by_session, by, note)"
+              " VALUES(?, 'A-0002', 'reserved', NULL, 'Ty: push only when I say so', 'discovery', 'agent', NULL)", (NOW,))
+    c.commit()
+    c.close()
+    ok(r, d, "export")
+    code, out, err = hf(r, d, "show", "A-0002")
+    r.check("dk-c12-old-free-text-stays", code == 0 and "Ty: push only when I say so" in out, out[-600:])
+    res = hf(r, d, "set", "A-0002", "--reserved", "none")
+    r.check("dk-c12-old-free-text-clears", res[0] == 0 and ev(d, "A-0002")[-1][:3] == ("reserved", "Ty: push only when I say so", None), res)
+    code, out, err = hf(r, None, "--help")
+    r.check("dk-c12-help-names-both-forms", '"NAME Policy: RULE"' in out and '"WHO, YYYY-MM-DD: WORDS"' in out, out[:1500])
+
+
+def v6_script(r, root):
+    """A copy of the script under test at schema 6 (MindHole 0.7.x): no item.due, no item.no_kb, no q5 rule."""
+    src = open(r.script, encoding="utf-8").read()
+    a = f"SCHEMA_VERSION = {script_version(r.script)}\n"
+    if src.count(a) != 1:
+        raise RuntimeError(f"anchor {a!r} occurs {src.count(a)} times")
+    path = os.path.join(root, "hubflow-v6.py")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(before_schema7(src.replace(a, "SCHEMA_VERSION = 6\n")))
+    return path
+
+
+def case_dk_schema_v7(r, root):
+    """Schema 7 adds item.due and item.no_kb. A v6 db migrates and keeps every row (due NULL, no_kb 0: an
+    old ask with no KB recorded); the JSONL round-trips both columns; a JSONL of schema 6 rebuilds (the
+    columns take NULL and 0)."""
+    n = script_version(r.script)
+    v6 = Run(v6_script(r, root))
+    d = os.path.join(root, "dk-v6", "flow")
+    res = hf(v6, d, "init", "--seed", SEED, session=None)
+    r.check("dk-schema-v6-init", res[0] == 0 and q(d, "pragma user_version") == [(6,)]
+            and "due" not in [x[1] for x in q(d, "pragma table_info(item)")], res)
+    ok(v6, d, "add", "ask", "--title", "An ask from 0.7", "--waits-on", "me")
+    ok(v6, d, "add", "thread", "--title", "A thread from 0.7")
+    before = {t: sorted(old_rows(d, t)) for t in TABLES + NEW_TABLES if t != "meta"}
+    res = hf(r, d, "view", "open")
+    r.check("dk-schema-v6-db-needs-migrate", res[0] == 2 and "migrate" in res[2], res)
+    res = hf(r, d, "migrate")
+    r.check("dk-schema-migrate-v6-to-v7", res[0] == 0 and n >= 7 and q(d, "pragma user_version") == [(n,)], res)
+    r.check("dk-schema-migrate-backup", os.path.exists(os.path.join(d, "flow.db.bak-v6")), os.listdir(d))
+    r.check("dk-schema-migrate-adds-columns", {"due", "no_kb"} <= {x[1] for x in q(d, "pragma table_info(item)")})
+    r.check("dk-schema-migrate-keeps-rows", {t: sorted(old_rows(d, t)) for t in before} == before)
+    r.check("dk-schema-old-rows-due-null-no-kb-0", schema7_defaults(d), qs(d, "select id, due, no_kb from item"))
+    items = [json.loads(x) for x in jl_lines(d, "item") or []]
+    r.check("dk-schema-migrate-exports-columns", items and all(x.get("due", "x") is None and x.get("no_kb") == 0 for x in items), items)
+    r.check("dk-schema-check-after-migrate", hf(r, d, "check")[0] == 0, hf(r, d, "check"))
+    d2 = fresh(r, root, "dk-v7-fresh")
+    r.check("dk-schema-init-equals-migrated", q(d2, "select name, sql from sqlite_master order by name")
+            == q(d, "select name, sql from sqlite_master order by name"))
+    ok(r, d, "add", "ask", "--title", "A new ask", "--no-kb", "--due", "2026-12-01")  # A-2
+    snap = snapshot(d)
+    for x in ("", "-wal", "-shm"):
+        if os.path.exists(dbfile(d) + x):
+            os.remove(dbfile(d) + x)
+    res = hf(r, d, "rebuild")
+    r.check("dk-schema-jsonl-round-trip", res[0] == 0 and snapshot(d) == snap and hf(r, d, "check")[0] == 0
+            and q(d, "select due, no_kb from item where id = 'A-0002'") == [("2026-12-01", 1)], res)
+    # a JSONL written at schema 6 has neither key: it rebuilds, with due NULL and no_kb 0
+    p = os.path.join(d, "jsonl", "item.jsonl")
+    old = []
+    for x in jl_lines(d, "item"):
+        o = json.loads(x)
+        for k in SCHEMA7_COLS:
+            o.pop(k)
+        old.append(json.dumps(o, sort_keys=True) + "\n")
+    with open(p, "w", encoding="utf-8") as f:
+        f.writelines(old)
+    for x in ("", "-wal", "-shm"):
+        if os.path.exists(dbfile(d) + x):
+            os.remove(dbfile(d) + x)
+    # until `export`, the db has the two columns and this JSONL does not: a Run of its own keeps that out of
+    # the suite's JSONL-equals-db check, and `check` below runs after the export
+    res = hf(Run(r.script), d, "rebuild")
+    r.check("dk-schema-old-jsonl-rebuilds", res[0] == 0 and schema7_defaults(d) and len(q(d, "select id from item")) == 3,
+            (res, qs(d, "select id, due, no_kb from item")))
+    ok(r, d, "export")
+    r.check("dk-schema-check-after-old-jsonl-export", hf(r, d, "check")[0] == 0, hf(r, d, "check"))
 
 
 def run_case(r, fn, *args):
@@ -3384,6 +3768,12 @@ def cases(r):
         run_case(r, case_030_handoff_example, root)
         # Sagittarius 0.3.0 (kitrel): the session index is dropped (Ty, 2026-11-12)
         run_case(r, case_030_session_index_dropped, root)
+        # the Desk: q6 due date, q5 kb refs (no_kb, KBs outside the hub), c12 the source of a reservation
+        run_case(r, case_dk_due, root)
+        run_case(r, case_dk_no_kb, root)
+        run_case(r, case_dk_kb_outside, root)
+        run_case(r, case_dk_reserved, root)
+        run_case(r, case_dk_schema_v7, root)
         r.check("jsonl-equals-db-after-every-write", not r.sync_bad, r.sync_bad[:3])
     except Exception as e:  # a scenario that cannot even run is a failure, not a crash
         r.check("scenario-ran", False, repr(e))

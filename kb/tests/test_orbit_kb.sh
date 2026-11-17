@@ -803,10 +803,10 @@ t_S5() { mkclaim; printf 'one\n' > "$K/a.txt"; printf 'two\n' > "$K/b.txt"; okb 
          has_goal "$K/kb.pl" "kb_line(L1, subject(s1,_,_)), kb_line(L2, subject(s2,_,_)), L1 < L2" "refreshed in place (still before s2)"; }
 t_S6() { # D3: a KB directory moved to a new place keeps W1 and digest(current) working with no refresh
          mkclaim; printf 'one\n' > "$K/plan.txt"; okb --dir "$K" subject s1 plan.txt >/dev/null; mv "$K" "$T/moved"; K=$T/moved
-         okb --dir "$K" lint; rc_is 0 "lint after the move"; any_hasnt '^W1' "no W1 after the move"
+         okb --dir "$K" lint; rc_is 0 "lint after the move"; any_hasnt '^W1 ' "no W1 after the move"
          okb --dir "$K" attest approval s1 'digest(current)' --by human; rc_is 0 "digest(current) after the move"; }
 t_S7() { # D3 on the fixture: copying the valid fixture elsewhere keeps it clean
-         valid_copy; mv "$K" "$T/elsewhere"; okb --dir "$T/elsewhere" lint --strict; rc_is 0 "valid fixture, copied, strict"; any_hasnt '^W1'; }
+         valid_copy; mv "$K" "$T/elsewhere"; okb --dir "$T/elsewhere" lint --strict; rc_is 0 "valid fixture, copied, strict"; any_hasnt '^W1 '; }
 t_S8() { mkclaim; printf 'one\n' > "$K/plan.txt"; okb --dir "$K" subject s1 plan.txt >/dev/null; okb --dir "$K" subject s1 plan.txt >/dev/null; rc_is 0 "refresh without a change"
          fact_count "$K/kb.pl" "subject(s1,_,_)" 1; }
 
@@ -3820,7 +3820,7 @@ t_VR12() { local r=$T/repo f ls n line cmd a
 # VR11 (T38 c5): WR1 waits until a review is due: no current claim is under.
 t_VR11() { local W=(env ORBIT_KB_ROLE=build ORBIT_KB_WRITER=w1)
            okb init "$T/k" --request 'Make one thing true' --uses build; K=$T/k
-           "${W[@]}" "$OKB" --dir "$K" add "claim(c1, introduce, 'One thing is true')" "cites(c1, 'Make one thing true')" "check(k1, c1)" >/dev/null 2>&1
+           "${W[@]}" "$OKB" --dir "$K" add "claim(c1, introduce, 'One thing is true')" "cites(c1, 'Make one thing true')" "check(k1, c1)" "checks_that(k1, 'one thing is true')" >/dev/null 2>&1
            "${W[@]}" "$OKB" --dir "$K" run k1 -- false >/dev/null 2>&1
            has_goal "$K/kb.pl" "kb(actor(_, build, w1))" "setup: the red run recorded an actor"
            okb --dir "$K" lint; rc_is 0; out_hasnt '^WR1' "no WR1 during the red run"

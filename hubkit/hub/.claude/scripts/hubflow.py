@@ -13,10 +13,20 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                Seed: --seed FILE, else flow/seed.json if present,
                                                else no sessions, aliases or persons
   add KIND --title T [--owner S|none] [--waits-on P] [--analysis SLUG] [--ref KIND:REF ...]
-          [--status open|waiting] [--reserved WHY] [--note N]
+          [--status open|waiting] [--reserved WHY] [--due YYYY-MM-DD] [--no-kb] [--note N]
                                                KIND: ask thread hold summary. Prints the new id.
+                                               An ask says whether it rests on a KB: give
+                                               --ref kb:<slug> (or kb:/abs/path, kb:~/path) for
+                                               its KB, or --no-kb when it rests on no KB; with
+                                               neither, add ask exits 1
                                                --reserved (an ask only): an action the person
-                                               reserved, by a rule or their words; WHY quotes it
+                                               reserved; WHY names the source in one of two
+                                               forms: "NAME Policy: RULE" (a policy by its name
+                                               and its rule, for example "Sagittarius Policy:
+                                               Only the human may waive a proof.") or
+                                               "WHO, YYYY-MM-DD: WORDS" (a person's own words
+                                               with their date); other text exits 1
+                                               --due (an ask only): the asker's due date
                                                A summary (S-) is what an agent noted from a meeting
                                                it read; it lapses by itself (see Retention)
   handoff --to S --title T [--gate G] [--analysis SLUG] [--ref ...] [--note N]
@@ -25,7 +35,9 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   renew ID [--note N]                          renewed_at = now (an open item only)
   park ID --until YYYY-MM-DD [--note N]        not lapsed before that date
   set ID [--title T] [--owner S] [--waits-on P|none] [--status open|waiting] [--analysis SLUG|none]
-         [--reserved WHY|none]
+         [--reserved WHY|none] [--due YYYY-MM-DD|none] [--no-kb yes|no]
+                                               --no-kb yes is refused while the ask has a kb ref;
+                                               `ref ID add kb:...` sets it to no
   close ID --reason done|dropped [--note N]   an agent cannot close, renew, park, set --status
                                                or ref rm the kb ref of an item that is escalated
                                                or whose spec KB blocks (--by human may); nor close,
@@ -79,8 +91,9 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   session add NAME --role R | rename OLD NEW | retire NAME
                                                with no sessions at all, `session add NAME` by the
                                                writer NAME makes the first session
-  where SLUG                                   the hub-relative path of a spec KB slug: specs/<slug>, else
-                                               (an old hub) W<n>/analyses/<slug>, newest week first
+  where SLUG|/abs/path|~/path                  the hub-relative path of a spec KB slug: specs/<slug>, else
+                                               (an old hub) W<n>/analyses/<slug>, newest week first;
+                                               for a KB outside the hub, its path with ~ expanded
   spec-triage SLUG archive|capsule|keep|escalate --note T
                                                the one recorded decision for the spec KB of a closed
                                                ticket (specs/<slug>), made at a rotation. archive:
@@ -127,7 +140,8 @@ Environment
                        `orbit-kb` on the PATH. hubflow only runs `--dir KB query GOAL -n 0`: for the state,
                        GOAL is blocking(X): exit 0 with lines = blocking, exit 1 = clear. Any other
                        exit, a missing command or a kb ref with no dir in specs/<slug> or
-                       W0..W5/analyses counts as blocking (fail-safe), unless the newest
+                       W0..W5/analyses (or, for a KB outside the hub, at its path) counts
+                       as blocking (fail-safe), unless the newest
                        spec-triage decision of its slug is archive: then triage, the agent guard
                        and rotate read it as archived (clear). The waiver commands of a skip
                        and skip-waived also query the checks and the waivers of the KB
@@ -141,6 +155,8 @@ The hub is a weekly calendar: W0 is the current week, W5 five weeks back; a week
 people gave it (reports/, transcripts/). A spec KB has the ticket's clock, not the week's: it lives
 at specs/<slug>/ at the hub root, and the item's ref is kb:<slug>. A hub made before 0.3.0 keeps
 spec KBs at W<n>/analyses/<slug>/kb (ref kb:<slug>/kb); that form still resolves, and specs/ wins.
+A kb ref can also name a KB outside the hub: kb:/abs/path or kb:~/path. Its dir must hold kb.pl when
+the ref is added; the ledger reads it as it reads a spec KB.
 `where` and the retention windows below follow this.
 
 Copies. The ledger holds a pointer (issue:123) and the flow state around it. A pinned copy of a
@@ -165,24 +181,31 @@ Retention (rotate --week-start D, D the Monday of the new W0; W5 starts at D - 3
          sessions retired before then and referenced by no item go with their aliases
   The caller commits flow/jsonl/ with the ids in the message; git history is the archive.
 
-Schema v6 (PRAGMA user_version = 6; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
+Schema v7 (PRAGMA user_version = 7; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
 db to v2 (it adds disposition, capsule, the two tables of a session index and remakes v_open and
 v_retention_due), a v2 db to v3 (it adds meeting and meeting_turn), a v3 db to v4 (it drops
 meeting and meeting_turn and their JSONL, adds the item kind summary and the ref kind transcript,
 and remakes v_stale and v_retention_due), a v4 db to v5 (it remakes v_stale and v_retention_due:
-a park that holds a time ends at that time), and a v5 db to v6 (it drops the session index, the two
-tables that v2 added, and their JSONL).
+a park that holds a time ends at that time), a v5 db to v6 (it drops the session index, the two
+tables that v2 added, and their JSONL), and a v6 db to v7 (it adds item.due and item.no_kb; every
+row keeps its values, and no_kb is 0).
   meta(key, value)                  next_A next_T next_K next_H next_S, owner_person, and now (tests only)
   session(name, role, status active|retired, started_on, retired_on)
   session_alias(alias, name, since)
   person(key, display)
   item(id, kind ask|thread|hold|handoff|summary, title 3..200, status open|waiting|done|dropped|lapsed,
        owner_session, waits_on, analysis (a slug, never a W-slot path), opened_at, renewed_at,
-       parked_until, closed_at, close_reason)       closed_at is set exactly when status is closed;
+       parked_until, closed_at, close_reason, due, no_kb)
+                                    closed_at is set exactly when status is closed;
                                     parked_until is a date (park --until: through that day) or a
-                                    time (skip-waived: until the waiver's due time)
+                                    time (skip-waived: until the waiver's due time); due: the
+                                    asker's due date of an ask (YYYY-MM-DD); no_kb: 1 when an
+                                    ask rests on no KB (0: it has a kb ref, or it is older than
+                                    schema 7)
   item_ref(item_id, kind, ref)      issue and pr refs are digits; a kb ref is <slug> (the spec KB at
-                                    specs/<slug>) or, in an old hub, <slug>/kb; never W0/...;
+                                    specs/<slug>) or, in an old hub, <slug>/kb, or a KB outside
+                                    the hub, /abs/path or ~/path (as given; ~ is expanded at use;
+                                    its dir must hold kb.pl when the ref is added); never W0/...;
                                     a transcript ref is NAME@sha256:HEX (no W slot)
   item_link(from_id, to_id, kind)
   handoff(item_id, from_session, to_session, gate, accepted_at)
@@ -197,7 +220,7 @@ Views: clock v_open (with escalated) v_escalated v_waiting_on v_inbox v_stale (n
 import datetime, hashlib, json, os, re, shlex, sqlite3, subprocess, sys
 from urllib.parse import quote
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 # Schema steps: MIGRATIONS[v] is the SQL that takes a db from schema v to v + 1. DDL is the shape of
 # schema 1; init and rebuild run DDL and then every step, so a new db and a migrated db are the
 # same. A release that changes the schema raises SCHEMA_VERSION and adds its step to MIGRATIONS.
@@ -492,12 +515,22 @@ V5_STEPS = [_v5(x) for x in V4_STEPS[V4_STEPS.index("DROP VIEW v_stale"):]]
 # files that an agent reads. Schema 2 made the two tables; init still runs that step, then this one.
 V6_STEPS = ["DROP TABLE transcript_msg", "DROP TABLE transcript"]
 
+# Schema 7 (the Desk; hub spec KB questions-server, Ty's answers q5 and q6): an ask carries the asker's
+# due date (`due`, YYYY-MM-DD or NULL; the Desk shows it, else the triage date) and says when it rests
+# on no KB (`no_kb` 1). A new ask needs a kb ref or --no-kb; an older ask keeps no_kb 0 and no kb ref,
+# which the Desk shows as "No KB behind it". ADD COLUMN keeps every row as it is.
+V7_STEPS = [
+    "ALTER TABLE item ADD COLUMN due TEXT CHECK(due IS NULL OR due GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')",
+    "ALTER TABLE item ADD COLUMN no_kb INTEGER NOT NULL DEFAULT 0 CHECK(no_kb IN (0, 1))",
+]
+
 MIGRATIONS = {
     1: V2_STEPS,
     2: V3_STEPS,
     3: V4_STEPS,
     4: V5_STEPS,
     5: V6_STEPS,
+    6: V7_STEPS,
 }
 
 # view name -> (sql view, filter option -> column, ORDER BY)
@@ -809,6 +842,20 @@ def check_analysis(v):
     return v
 
 
+def kb_outside(ref):
+    """A kb ref that names a KB outside the hub (q5): an absolute path or ~/path, stored as given."""
+    return ref.startswith("/") or ref.startswith("~/")
+
+
+def check_kb_home(kind, ref):
+    """q5: when a kb ref to a KB outside the hub is added, its dir (~ expanded) must exist and hold kb.pl."""
+    if kind == "kb" and kb_outside(ref):
+        p = os.path.expanduser(ref)
+        if not os.path.isfile(os.path.join(p, "kb.pl")):
+            raise Bad(f"kb ref {ref!r}: {p} is not a KB dir (no kb.pl in it); a KB outside the hub must exist"
+                      " when its ref is added")
+
+
 def parse_ref(s):
     kind, sep, ref = str(s).partition(":")
     if not sep or kind not in REF_KINDS or not ref.strip():
@@ -820,8 +867,13 @@ def parse_ref(s):
     elif kind in ("kb", "file"):
         if W_SLOT.match(ref):
             raise Bad(f"{kind} ref {ref!r} is a W-slot path; give a path relative to the analysis (<slug>/...)")
-        if ref.startswith("/") or ".." in ref.split("/"):
-            raise Bad(f"{kind} ref {ref!r} must be a relative path inside an analysis")
+        if ".." in ref.split("/"):
+            raise Bad(f"{kind} ref {ref!r} must not contain '..'")
+        if kind == "kb" and kb_outside(ref):
+            pass  # q5: a KB outside the hub, /abs/path or ~/path
+        elif ref.startswith("/"):
+            raise Bad(f"{kind} ref {ref!r} must be a relative path inside an analysis"
+                      + (" (a KB outside the hub: kb:/abs/path or kb:~/path)" if kind == "kb" else ""))
     elif kind == "commit":
         if not re.fullmatch(r"[0-9a-f]{7,40}", ref):
             raise Bad(f"commit ref {ref!r} must be 7 to 40 hex digits")
@@ -938,7 +990,7 @@ def select_rows(c, sql, params=()):
 # ---- item creation shared by add, handoff and import ----
 
 def new_item(c, kind, title, status, owner, waits_on, analysis, opened_at, renewed_at=None,
-             parked_until=None, closed_at=None, close_reason=None):
+             parked_until=None, closed_at=None, close_reason=None, due=None, no_kb=0):
     key = "next_" + PREFIX[kind]
     r = c.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
     n = int(r[0]) if r else 1  # a migrated db has no next_S until its first summary
@@ -948,6 +1000,8 @@ def new_item(c, kind, title, status, owner, waits_on, analysis, opened_at, renew
               " parked_until, closed_at, close_reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
               (iid, kind, title, status, owner, waits_on, analysis, opened_at, renewed_at or opened_at,
                parked_until, closed_at, close_reason))
+    if due is not None or no_kb:  # schema 7; an item without them needs neither column
+        c.execute("UPDATE item SET due = ?, no_kb = ? WHERE id = ?", (due, 1 if no_kb else 0, iid))
     return iid
 
 
@@ -1060,6 +1114,8 @@ def common_item_opts(g, o):
     refs = [parse_ref(x) for x in o.get("ref", [])]
     if any(k == "kb" for k, _ in refs):
         formal_only(g, "a kb ref")  # T44 c1: no kb ref on any path of an informal hub
+    for kind, ref in refs:
+        check_kb_home(kind, ref)
     if o.get("title") is not None:
         check_title(o["title"])
     if o.get("analysis") is not None:
@@ -1069,11 +1125,12 @@ def common_item_opts(g, o):
 
 def cmd_add(g, a):
     pos, o = parse(a, {**WOPT, "--title": "one", "--owner": "one", "--waits-on": "one", "--analysis": "one",
-                       "--ref": "many", "--status": "one", "--reserved": "one"})
+                       "--ref": "many", "--status": "one", "--reserved": "one", "--due": "one", "--no-kb": "flag"})
     if o.get("analysis") is not None:
         formal_only(g, "--analysis")
     if len(pos) != 1:
-        usage("add ask|thread|hold --title T [--owner S] [--waits-on P] [--reserved WHY] [--analysis SLUG] [--ref KIND:REF ...]")
+        usage("add ask|thread|hold --title T [--owner S] [--waits-on P] [--reserved WHY] [--due YYYY-MM-DD]"
+              " [--analysis SLUG] [--ref KIND:REF ... | --no-kb]")
     kind = pos[0]
     if kind == "handoff":
         raise Bad("a handoff is made with the handoff command")
@@ -1086,7 +1143,9 @@ def cmd_add(g, a):
         raise Bad("--status is open or waiting (close with the close command)")
     if o.get("reserved") is not None:
         check_reserved(kind, o["reserved"])
+    due = check_due(kind, o["due"]) if o.get("due") is not None else None
     refs = common_item_opts(g, o)
+    no_kb = check_no_kb(g, kind, o.get("no_kb", False), any(k == "kb" for k, _ in refs))
 
     def fn(c, w):
         if o.get("owner") == "none":
@@ -1094,14 +1153,28 @@ def cmd_add(g, a):
         else:  # owner defaults to the writer
             owner = resolve_active(c, o.get("owner") or w.session)
         waits = check_person(c, o["waits_on"]) if o.get("waits_on") else None
-        iid = new_item(c, kind, o["title"], status, owner, waits, o.get("analysis"), w.now)
+        iid = new_item(c, kind, o["title"], status, owner, waits, o.get("analysis"), w.now, due=due, no_kb=no_kb)
         add_refs(c, iid, refs)
         w.event(iid, "opened", None, status)
         if o.get("reserved") is not None:
             w.event(iid, "reserved", None, o["reserved"])
+        if due is not None:
+            w.event(iid, "due", None, due)
+        if no_kb:
+            w.event(iid, "no_kb", None, "yes")
         return iid
 
     print(run_write(g, o, fn))
+
+
+# c12 (hub spec KB questions-server): a reservation names its source. A policy by its name and its
+# rule, or a person's own words with their date. Rows written before this rule keep their free text.
+RESERVED_POLICY = re.compile(r"[A-Z][A-Za-z0-9'&.-]*(?: [A-Z][A-Za-z0-9'&.-]*)* Policy: \S.*\Z", re.S)
+RESERVED_WORDS = re.compile(r"[^\s,:][^,:\n]*, (?P<date>\d{4}-\d\d-\d\d): \S.*\Z", re.S)
+RESERVED_FORMS = ('--reserved names the source of the reservation, in one of two forms: "NAME Policy: RULE"'
+                  ' (a policy by its name and its rule, for example "Sagittarius Policy: Only the human may waive'
+                  ' a proof.") or "WHO, YYYY-MM-DD: WORDS" (a person\'s own words with their date, for example'
+                  ' "Ty, 2026-11-12: push only when I say so")')
 
 
 def check_reserved(kind, why):
@@ -1112,6 +1185,38 @@ def check_reserved(kind, why):
         raise Bad("--reserved marks an ask: an action that the person reserved for themselves")
     if not isinstance(why, str) or not 3 <= len(why.strip()) <= 500:
         raise Bad("--reserved needs the rule or the words that reserve the action (3 to 500 characters)")
+    if RESERVED_POLICY.match(why.strip()):  # reserved source form
+        return
+    m = RESERVED_WORDS.match(why.strip())
+    if m is None:
+        raise Bad(RESERVED_FORMS)
+    try:
+        datetime.date.fromisoformat(m.group("date"))
+    except ValueError:  # reserved real date
+        raise Bad(f"--reserved date {m.group('date')} is not a real date; " + RESERVED_FORMS)
+
+
+def check_due(kind, v):
+    """q6: --due is the asker's due date of an ask (the Desk shows it, else the triage date)."""
+    if kind != "ask":  # due on an ask only
+        raise Bad("--due belongs to an ask: the date by which the asker needs the answer")
+    return parse_date(v, "--due")
+
+
+ASK_KB = ("an ask says whether it rests on a KB: give --ref kb:<slug> (or kb:/abs/path, kb:~/path) for the KB"
+          " it rests on, or --no-kb when it rests on no KB")
+
+
+def check_no_kb(g, kind, no_kb, has_kb):
+    """q5: a new ask in a formal hub carries a kb ref or --no-kb (not both). Returns no_kb. An informal
+    hub has no KB: it does not need --no-kb, and takes it, so that one command works in both editions."""
+    if no_kb and kind != "ask":
+        raise Bad("--no-kb belongs to an ask: it says that the ask rests on no KB")
+    if no_kb and has_kb:
+        raise Bad("--no-kb says that the ask rests on no KB, but it has a kb ref; give one or the other")
+    if kind == "ask" and not no_kb and not has_kb and not informal(g):  # an ask says whether it rests on a KB
+        raise Bad(ASK_KB)
+    return no_kb
 
 
 def cmd_handoff(g, a):
@@ -1195,11 +1300,17 @@ def cmd_park(g, a):
 
 def cmd_set(g, a):
     pos, o = parse(a, {**WOPT, "--title": "one", "--owner": "one", "--waits-on": "one", "--status": "one",
-                       "--analysis": "one", "--reserved": "one"})
+                       "--analysis": "one", "--reserved": "one", "--due": "one", "--no-kb": "one"})
     if len(pos) != 1:
-        usage("set ID [--title T] [--owner S] [--waits-on P|none] [--status open|waiting] [--analysis SLUG|none] [--reserved WHY|none]")
-    if not any(k in o for k in ("title", "owner", "waits_on", "status", "analysis", "reserved")):
-        raise Bad("set needs at least one of --title --owner --waits-on --status --analysis --reserved")
+        usage("set ID [--title T] [--owner S] [--waits-on P|none] [--status open|waiting] [--analysis SLUG|none]"
+              " [--reserved WHY|none] [--due YYYY-MM-DD|none] [--no-kb yes|no]")
+    if not any(k in o for k in ("title", "owner", "waits_on", "status", "analysis", "reserved", "due", "no_kb")):
+        raise Bad("set needs at least one of --title --owner --waits-on --status --analysis --reserved --due --no-kb")
+    if o.get("due") not in (None, "none"):
+        parse_date(o["due"], "--due")
+    if "no_kb" in o:
+        if o["no_kb"] not in ("yes", "no"):
+            raise Bad("--no-kb is yes (the ask rests on no KB) or no")
     if "title" in o:
         check_title(o["title"])
     if "status" in o and o["status"] not in OPEN:
@@ -1220,6 +1331,20 @@ def cmd_set(g, a):
                 check_reserved(it["kind"], new_r)
             if new_r != old_r:
                 w.event(iid, "reserved", old_r, new_r)
+        if "due" in o:
+            new = None if o["due"] == "none" else check_due(it["kind"], o["due"])
+            if new != it["due"]:
+                c.execute("UPDATE item SET due = ? WHERE id = ?", (new, iid))
+                w.event(iid, "due", it["due"], new)
+        if "no_kb" in o:
+            if it["kind"] != "ask":
+                raise Bad("--no-kb belongs to an ask: it says that the ask rests on no KB")
+            new = 1 if o["no_kb"] == "yes" else 0
+            if new and item_kb_refs(c, iid):  # no_kb with a kb ref
+                raise Bad(f"{iid} has a kb ref, so it rests on a KB; remove the ref first (ref {iid} rm kb:...)")
+            if new != it["no_kb"]:
+                c.execute("UPDATE item SET no_kb = ? WHERE id = ?", (new, iid))
+                w.event(iid, "no_kb", "yes" if it["no_kb"] else "no", o["no_kb"])
         if "title" in o and o["title"] != it["title"]:
             c.execute("UPDATE item SET title = ? WHERE id = ?", (o["title"], iid))
             w.event(iid, "title", it["title"], o["title"])
@@ -1317,6 +1442,7 @@ def cmd_ref(g, a):
     kind, ref = parse_ref(pos[2])
     if pos[1] == "add" and kind == "kb":
         formal_only(g, "a kb ref")
+        check_kb_home(kind, ref)
     if pos[1] == "rm" and kind == "kb":
         agent_guard(g, o, pos[0], "remove the kb ref of", waiver=True)
 
@@ -1326,6 +1452,9 @@ def cmd_ref(g, a):
             n = c.execute("INSERT OR IGNORE INTO item_ref(item_id, kind, ref) VALUES(?,?,?)", (it["id"], kind, ref)).rowcount
             if n:
                 w.event(it["id"], "ref_add", None, f"{kind}:{ref}")
+            if kind == "kb" and it["no_kb"]:  # q5: a kb ref says the ask rests on a KB
+                c.execute("UPDATE item SET no_kb = 0 WHERE id = ?", (it["id"],))
+                w.event(it["id"], "no_kb", "yes", "no")
         else:
             n = c.execute("DELETE FROM item_ref WHERE item_id = ? AND kind = ? AND ref = ?", (it["id"], kind, ref)).rowcount
             if not n:
@@ -1393,8 +1522,9 @@ def cmd_show(g, a):
     for x in caps:
         x["paths"] = json.loads(x["paths"])
     c.close()
-    if informal(g):  # T44 c1: no analysis key in an informal hub
+    if informal(g):  # T44 c1: no analysis key in an informal hub (nor no_kb: no KB there)
         d["item"].pop("analysis", None)
+        d["item"].pop("no_kb", None)
     d = {"capsule": caps[0] if caps else None, "capsules": caps, **d}  # the capsule comes first
     if fmt == "json":
         print(json.dumps(d, indent=1, ensure_ascii=False))
@@ -1551,17 +1681,19 @@ def cmd_session(g, a):
 def cmd_where(g, a):
     pos, o = parse(a, {})
     if len(pos) != 1:
-        usage("where SLUG")
-    slug = check_analysis(pos[0])
+        usage("where SLUG|/abs/path|~/path")
     hub = hub_dir(g)
-    if os.path.isdir(os.path.join(hub, "specs", slug)):
-        print(f"specs/{slug}")
+    if kb_outside(pos[0]):  # q5: a KB outside the hub; the expanded path
+        p = kb_dir(hub, pos[0])
+        if p is None:
+            raise Bad(f"no KB dir {os.path.expanduser(pos[0])}")
+        print(os.path.normpath(p))
         return
-    for n in range(6):
-        if os.path.isdir(os.path.join(hub, f"W{n}", "analyses", slug)):
-            print(f"W{n}/analyses/{slug}")
-            return
-    raise Bad(f"no spec KB {slug!r} in specs/ (or, in an old hub, W0 to W5 analyses)")
+    slug = check_analysis(pos[0])
+    p = kb_dir(hub, slug)
+    if p is None:
+        raise Bad(f"no spec KB {slug!r} in specs/ (or, in an old hub, W0 to W5 analyses)")
+    print(os.path.relpath(os.path.normpath(p), hub))
 
 
 # ---- import ----
@@ -1595,6 +1727,8 @@ def validate_row(c, obj, formal=True):
     row["refs"] = [parse_ref(x) for x in refs]
     if not formal and any(k == "kb" for k, _ in row["refs"]):
         raise Bad("a kb ref belongs to the formal edition; this hub is informal (`hubkit.py edition formal` switches it)")
+    for k, ref in row["refs"]:
+        check_kb_home(k, ref)
     row["opened_at"] = parse_ts(obj["opened_at"], "opened_at") if obj.get("opened_at") else None
     row["renewed_at"] = parse_ts(obj["renewed_at"], "renewed_at") if obj.get("renewed_at") else None
     row["parked_until"] = parse_park(obj["parked_until"]) if obj.get("parked_until") else None
@@ -1717,8 +1851,12 @@ def orbit_kb_cmd():
 
 
 def kb_dir(hub, ref):
-    """The dir of a kb ref (<slug> or <slug>/<path>): specs/<slug>/<path> first, then (an old hub)
-    W<n>/analyses/<slug>/<path>, newest week first, or None."""
+    """The one resolver of a kb ref to its dir, or None. <slug> or <slug>/<path>: specs/<slug>/<path>
+    first, then (an old hub) W<n>/analyses/<slug>/<path>, newest week first. /abs/path or ~/path (q5: a
+    KB outside the hub): that dir, with ~ expanded now."""
+    if kb_outside(ref):
+        p = os.path.expanduser(ref)
+        return p if os.path.isdir(p) else None
     slug, _, rest = ref.partition("/")
     p = os.path.join(hub, "specs", slug, rest)
     if os.path.isdir(p):
@@ -1763,7 +1901,8 @@ def kb_checks(hub, refs):
         path = kb_dir(hub, ref)
         if path is None:
             out.append({"ref": ref, "path": None, "state": "unknown", "items": [],
-                        "why": f"no dir specs/{ref} or W0..W5/analyses/{ref}"})
+                        "why": f"no dir {os.path.expanduser(ref)}" if kb_outside(ref)
+                        else f"no dir specs/{ref} or W0..W5/analyses/{ref}"})
             continue
         state, items, why = query_blocking(path)
         out.append({"ref": ref, "path": path, "state": state, "items": items, "why": why})
@@ -1824,7 +1963,7 @@ def print_waivers(hub, iid, kbs):
     cmd = shlex.join(orbit_kb_cmd())
     reason = f"human skip of {iid} in the hub ledger"
     for k in kb_checks(hub, kbs):
-        rel = os.path.relpath(k["path"], hub) if k["path"] else None
+        rel = hub_rel(k["path"], hub) if k["path"] else None  # a KB outside the hub: its own path
         if k["state"] == "clear":
             print(f"# kb:{k['ref']}: nothing blocks; no waiver needed")
         elif k["state"] == "blocking":
@@ -2216,7 +2355,7 @@ def rotate_plan(c, now, wk):
 def spec_archived(c, hub, ref):
     """T47 c3: the kb ref's spec KB was archived: it has no dir, and the newest spec-triage decision of
     its slug is archive (a human's `git rm -r specs/<slug>` first; history keeps it)."""
-    if kb_dir(hub, ref) is not None:
+    if kb_outside(ref) or kb_dir(hub, ref) is not None:  # spec-triage archives only specs/<slug>
         return False
     r = c.execute("SELECT new FROM event WHERE verb = 'spec_triage' AND old = ? ORDER BY seq DESC LIMIT 1",
                   (ref.partition("/")[0],)).fetchone()
@@ -2276,7 +2415,8 @@ def untriaged_spec_kbs(c, hub):
         return []
     slugs = set()
     for (ref,) in c.execute("SELECT DISTINCT ref FROM item_ref WHERE kind = 'kb'"):
-        slugs.add(ref.partition("/")[0])
+        if not kb_outside(ref):  # a KB outside the hub is not a spec KB of specs/
+            slugs.add(ref.partition("/")[0])
     out = []
     for slug in sorted(slugs):
         if not os.path.isdir(os.path.join(hub, "specs", slug)):
@@ -2430,8 +2570,9 @@ def cmd_rebuild(g, a):
                 if extra:  # unknown JSONL columns
                     die(2, f"{t}.jsonl has columns this schema does not know: {', '.join(extra)}; "
                            "rebuild with the script version that wrote it, then migrate")
-                c.execute(f"INSERT INTO {t}({', '.join(cols)}) VALUES({', '.join('?' * len(cols))})",
-                          tuple(row.get(k) for k in cols))
+                have = [k for k in cols if k in row]  # a column the row lacks takes its default (schema 7: no_kb 0)
+                c.execute(f"INSERT INTO {t}({', '.join(have)}) VALUES({', '.join('?' * len(have))})",
+                          tuple(row[k] for k in have))
         c.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         c.execute("COMMIT")
     except BaseException:
@@ -2552,12 +2693,18 @@ INFORMAL_ONLY_COMMANDS = ("where", "spec-triage", "skip-waived")  # they read a 
 INFORMAL_HELP = (
     (r"(set --status\n\s+)or ref rm the kb ref of an item that is escalated\n\s+or whose spec KB blocks", "\\1of an item that is escalated"),
     (r" \[--analysis SLUG(\|none)?\]", ""),
+    (r" \[--no-kb( yes\|no)?\]", ""),
+    (r"\n\s+An ask says whether it rests on a KB:.*?add ask exits 1", ""),
+    (r"\n\s+--no-kb yes is refused while.*?sets it to no", ""),
+    (r"close_reason, due, no_kb\)", "close_reason, due)"),
+    (r"; no_kb: 1 when an\n.*?schema 7\)", ""),
+    (r"adds item\.due and item\.no_kb; every\nrow keeps its values, and no_kb is 0", "adds item.due and item.no_kb"),
     (r"\n\s+or whose spec KB blocks", ""),
     (r"\n\s+linked spec KB; it never runs one", ""),
     (r"close ID --reason human_skip --by human --note QUOTE\n(\s+)a person's skip: also closes the open items linked\n\s+to ID by `blocks` \(either way\), and prints the\n\s+waiver command for each blocking item of each",
      "close ID --reason human_skip --by human --note QUOTE\n\\1a person's skip: also closes the open items linked\n\\1to ID by `blocks` (either way)"),
     (r"\.? An agent's keep, lapse or capsule of\n\s+an item whose spec KB blocks becomes escalate", ""),
-    (r"  where SLUG .*?\n  spec-triage .*?\n  import ", "  import "),
+    (r"  where SLUG.*?\n  spec-triage .*?\n  import ", "  import "),
     (r"  skip-waived .*?Run it after the human runs a waiver command\n", ""),
     (r"; it\n\s+also names the items that skip-waived would park\n\s+\(skip_waived: IDs; the exit code does not change\)", ""),
     (r" \(the\nquestion server, `orbit-kb serve questions --hub DIR`, closes an ask this way\)", ""),
@@ -2568,7 +2715,7 @@ INFORMAL_HELP = (
     (r", or one\n\s+whose spec KB is not clear or is clear only by a live waiver, stays open", " stays open"),
     (r" A kb ref whose specs/<slug> is gone.*?not as unknown", ""),
     (r"; nor close,\n.*?an agent's triage lapse of it is escalate\)", ""),
-    (r"a kb ref is <slug> \(the spec KB at\n\s+specs/<slug>\) or, in an old hub, <slug>/kb; never W0/...;", "never W0/...;"),
+    (r"a kb ref is <slug> \(the spec KB at\n.*?when the ref is added\); never W0/...;", "never W0/...;"),
     (r"(KIND: issue pr build release) kb (file commit url)", "\\1 \\2"),
     (r"the item's kb and file\n(\s+)refs", "the item's file\n\\1refs"),
     (r" analysis \(a slug, never a W-slot path\),", ""),
