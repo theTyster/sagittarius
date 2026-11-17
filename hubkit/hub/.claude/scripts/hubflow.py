@@ -19,6 +19,10 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                --ref kb:<slug> (or kb:/abs/path, kb:~/path) for
                                                its KB, or --no-kb when it rests on no KB; with
                                                neither, add ask exits 1
+                                               An ask also needs --note N, its context for the Desk:
+                                               the case, the options and what each one changes, and
+                                               your default; with no note (or a blank one), add ask
+                                               exits 1
                                                --reserved (an ask only): an action the person
                                                reserved; WHY names the source in one of two
                                                forms: "NAME Policy: RULE" (a policy by its name
@@ -1146,6 +1150,7 @@ def cmd_add(g, a):
     due = check_due(kind, o["due"]) if o.get("due") is not None else None
     refs = common_item_opts(g, o)
     no_kb = check_no_kb(g, kind, o.get("no_kb", False), any(k == "kb" for k, _ in refs))
+    check_ask_note(g, kind, o.get("note"))
 
     def fn(c, w):
         if o.get("owner") == "none":
@@ -1217,6 +1222,17 @@ def check_no_kb(g, kind, no_kb, has_kb):
     if kind == "ask" and not no_kb and not has_kb and not informal(g):  # an ask says whether it rests on a KB
         raise Bad(ASK_KB)
     return no_kb
+
+
+ASK_NOTE = ("an ask needs --note TEXT, the context that the Desk shows with it: give the case, the options"
+            " and what each one changes, and your default")
+
+
+def check_ask_note(g, kind, note):
+    """c13: a new ask in a formal hub carries a context note (not blank). The Desk shows the notes of an ask
+    as its context. An informal hub has no Desk: it does not need the note (and takes it)."""
+    if kind == "ask" and not (note or "").strip() and not informal(g):  # an ask carries a context note
+        raise Bad(ASK_NOTE)
 
 
 def cmd_handoff(g, a):
@@ -2695,6 +2711,7 @@ INFORMAL_HELP = (
     (r" \[--analysis SLUG(\|none)?\]", ""),
     (r" \[--no-kb( yes\|no)?\]", ""),
     (r"\n\s+An ask says whether it rests on a KB:.*?add ask exits 1", ""),
+    (r"\n\s+An ask also needs --note N.*?add ask\n\s+exits 1", ""),
     (r"\n\s+--no-kb yes is refused while.*?sets it to no", ""),
     (r"close_reason, due, no_kb\)", "close_reason, due)"),
     (r"; no_kb: 1 when an\n.*?schema 7\)", ""),

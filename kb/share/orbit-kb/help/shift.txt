@@ -7,6 +7,7 @@ Read this topic, then run one command:
   orbit-kb shift DIR --request-file F --hypothesis 'TEXT' [--kind K]
                      (--no-premises | --premise 'TEXT' ...)
                      --claim 'TEXT' [--label L] --example 'TEXT' --check ID
+                     --checks-that 'TEXT'
                      [--cites 'TEXT'] [--uses MODULES] [--red-log FILE]
 
   DIR           a new KB directory (in a hub: specs/<slug>/). shift never overwrites a KB.
@@ -20,6 +21,7 @@ Read this topic, then run one command:
                 cites(c1, ...) gets the first line of the request, or --cites TEXT.
   --example     example(c1, TEXT): one concrete case of the claim.
   --check       check(ID, c1). The KB stores the id, not a command: orbit-kb run takes it.
+  --checks-that checks_that(ID, TEXT): what the check checks, in plain words. Required (E20).
   --uses        the modules, such as build,discovery (default: build).
   --red-log     FILE holds the output of a red run of the check that you saw before the KB
                 existed (you built on the light path, then a signal fired). It becomes the

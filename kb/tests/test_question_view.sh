@@ -507,9 +507,9 @@ t_QV28() {  # the real hubflow export: a hub seeded with another owner, asks to 
     printf '{"sessions":[{"name":"build","role":"build"}],"persons":[{"key":"boss","display":"Boss"},{"key":"pat","display":"Pat"}],"owner":"boss"}\n' > "$H/seed.json"
     export HUB_SESSION=build
     python3 "$hf" --hub "$H" init --seed "$H/seed.json" </dev/null >/dev/null 2>&1 || { note "hubflow init failed"; return; }
-    python3 "$hf" --hub "$H" add ask --no-kb --title "Pick the payment provider" --waits-on boss </dev/null >/dev/null 2>&1
-    python3 "$hf" --hub "$H" add ask --no-kb --title "Vendor sends the tax form" --waits-on pat --ref issue:5 </dev/null >/dev/null 2>&1
-    python3 "$hf" --hub "$H" add ask --no-kb --title "Unassigned ask" </dev/null >/dev/null 2>&1
+    python3 "$hf" --hub "$H" add ask --no-kb --title "Pick the payment provider" --note 'The case, the options and the default, for the test.' --waits-on boss </dev/null >/dev/null 2>&1
+    python3 "$hf" --hub "$H" add ask --no-kb --title "Vendor sends the tax form" --note 'The case, the options and the default, for the test.' --waits-on pat --ref issue:5 </dev/null >/dev/null 2>&1
+    python3 "$hf" --hub "$H" add ask --no-kb --title "Unassigned ask" --note 'The case, the options and the default, for the test.' </dev/null >/dev/null 2>&1
     python3 "$hf" --hub "$H" add thread --title "A thread that waits on the boss" --waits-on boss </dev/null >/dev/null 2>&1
     python3 "$hf" --hub "$H" sql "SELECT id, kind, title, status, waits_on, age_days, COALESCE((SELECT value FROM meta WHERE key='owner_person'), (SELECT key FROM person WHERE key='me')) AS owner FROM v_open" --format json </dev/null > "$T/real.json" 2>"$T/hf.err"
     [ -s "$T/real.json" ] || { note "hubflow sql wrote nothing: $(snip "$(cat "$T/hf.err")")"; return; }

@@ -161,7 +161,7 @@ SPECTRUM: claims and tools
      SURVEY facts, not from the other statement.
   Record:
   Record the claims (orbit-kb help core) and universal(C) where it applies.
-  For a test or script: orbit-kb add "check(t1, c1)" "discovery_evidence(t1, system)"
+  For a test or script: orbit-kb add "check(t1, c1)" "checks_that(t1, 'what it checks, in plain words')" "discovery_evidence(t1, system)"
   then orbit-kb run t1 -- CMD
 
 FLYBY: explore combinations with SMT

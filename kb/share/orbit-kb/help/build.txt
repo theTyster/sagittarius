@@ -66,7 +66,7 @@ PIN: when the request or a question has an owner (the tracker or the ledger)
 BUILD: checks first
   1. Write the checks first, from the claims and the examples. Add a screenshot check when
      the change has a user surface.
-       orbit-kb add "check(k1, c1)"
+       orbit-kb add "check(k1, c1)" "checks_that(k1, 'what it checks, in plain words')"
        orbit-kb run k1 -- npm test -- button     run it; the output goes to runs/N-k1.log
   2. Run each retire and introduce check against the current code first. It must fail.
      The red run proves that the check can fail. Run every check with orbit-kb run.
@@ -159,7 +159,7 @@ When the human says that it is wrong (as the prompt says)
     Nobody misread. For that part, record a new claim that supersedes the old one, and record
     no divergence against the old claim: it was right when it was made. The claims that the
     human liked stay, and their checks stay.
-      orbit-kb add "claim(c2, introduce, 'NEW TEXT')" "supersedes(c2, c1)" "check(k2, c2)"
+      orbit-kb add "claim(c2, introduce, 'NEW TEXT')" "supersedes(c2, c1)" "check(k2, c2)" "checks_that(k2, 'what it checks, in plain words')"
   - The new wish adds to the result and changes nothing in it: it is a new ticket, with its
     own hypothesis (and its own KB when a signal comes). This KB keeps what is open in it.
   If you cannot tell whether you misread or the intent moved, do not guess. Say so, and treat
@@ -210,7 +210,7 @@ A result from CI or the tracker (pin it in the spec; the spec does not own it)
      The source is the job (one source for all its runs), so a newer run makes the older pin stale.
      orbit-kb pin-item ci42 'ci:acme/widgets/main' --text-file ci42.txt --changed-at 2026-11-09T10:00:00Z
   2. Make the check read the pin, not the file: orbit-kb show pin exits 1 when the kept text changed.
-     orbit-kb add "check(k1, c1)"
+     orbit-kb add "check(k1, c1)" "checks_that(k1, 'the pinned CI result says success')"
      orbit-kb run k1 -- sh -c "orbit-kb show pin ci42 | grep -q 'conclusion: success'"
   3. A run that failed first is red, a later green run passes, so the claim counts it like a local run.
      A newer run is a new pin of the same source; then the older pin is stale (stale_pin):

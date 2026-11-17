@@ -400,7 +400,7 @@ t_PC7() { pk_basic; tracker_changed p2 "$T2"; stage dr1 "$T3"
           local pk=$K spec=$T/spec dd; dd=$(tdigest 'Export goes through the queue')
           okb init "$spec" --request 'Build the export' --uses build,project >/dev/null 2>&1 || note "setup: spec init failed: $(snip "$err")"
           K=$spec
-          padd "project_kb('../pk')" "claim(c1, introduce, 'Export uses the queue')" "cites(c1, 'Build the export')" "check(k1, c1)" \
+          padd "project_kb('../pk')" "claim(c1, introduce, 'Export uses the queue')" "cites(c1, 'Build the export')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" \
                "pins(c1, project, d1, '$dd')" >/dev/null; rc_is 0 "the spec KB pins decision d1"
           is_false 'blocking(project_conflict(D))' "both changed: the draft blocks no spec KB that pins d1"
           okb --dir "$K" show blocking; out_hasnt 'project_conflict' "show blocking names no conflict"
@@ -413,7 +413,7 @@ spec_with_pin() {  # spec_with_pin: $T/pk (decision d1) and $T/spec with pins(c1
     local dd; dd=$(tdigest 'Export goes through the queue')
     okb init "$T/spec" --request 'Build the export' --uses build,project >/dev/null 2>&1 || note "setup: spec init failed: $(snip "$err")"
     K=$T/spec
-    padd "project_kb('../pk')" "claim(c1, introduce, 'Export uses the queue')" "cites(c1, 'Build the export')" "check(k1, c1)" \
+    padd "project_kb('../pk')" "claim(c1, introduce, 'Export uses the queue')" "cites(c1, 'Build the export')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" \
          "pins(c1, project, d1, '$dd')" >/dev/null || true
     [ "$rc" = 0 ] || note "setup: pins failed: $(snip "$out$err")"
 }
@@ -477,7 +477,7 @@ spec_with_conflict_pin() {  # spec_with_conflict_pin PKDIR: a spec KB that pins 
     local dd; dd=$(tdigest 'Export goes through the queue')
     okb init "$T/spec" --request 'Build the export' --uses build,project >/dev/null 2>&1 || note "setup: spec init failed"
     K=$T/spec
-    padd "project_kb('../pk')" "claim(c1, introduce, 'Export uses the queue')" "cites(c1, 'Build the export')" "check(k1, c1)" \
+    padd "project_kb('../pk')" "claim(c1, introduce, 'Export uses the queue')" "cites(c1, 'Build the export')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" \
          "pins(c1, project, d1, '$dd')" >/dev/null; [ "$rc" = 0 ] || note "setup: spec add failed: $(snip "$out$err")"
 }
 
@@ -620,7 +620,7 @@ t_PR1() { local J=$T/item.json S=$T/spec
 
 # ================================================================ T37 c2: a takeover during a long run stops the old holder
 t_PW10() { K=$T/spec; okb init "$K" --request 'plain' --uses build >/dev/null 2>&1
-          ORBIT_KB_WRITER=ann okb --dir "$K" add "claim(c1, introduce, 'x')" "cites(c1, 'x')" "check(k1, c1)"; rc_is 0 "ann sets up the KB"
+          ORBIT_KB_WRITER=ann okb --dir "$K" add "claim(c1, introduce, 'x')" "cites(c1, 'x')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')"; rc_is 0 "ann sets up the KB"
           ( cd "$T" && ORBIT_KB_WRITER=ann timeout "$TMO" "$OKB" --dir "$K" run k1 -- sleep 4 ) >"$T/.run.out" 2>"$T/.run.err" </dev/null &
           local rp=$!
           sleep 1.5
@@ -668,7 +668,7 @@ t23_spec() {
     local name=$1 item=$2 d
     okb init "$T/$name" --request "Build $name" --uses build,project >/dev/null 2>&1 || note "setup: init $name failed: $(snip "$err")"
     K=$T/$name
-    padd "project_kb('../pk')" "claim(c1, preserve, 'The $name work holds')" "cites(c1, 'Build $name')" "check(k1, c1)" >/dev/null
+    padd "project_kb('../pk')" "claim(c1, preserve, 'The $name work holds')" "cites(c1, 'Build $name')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" >/dev/null
     [ "$rc" = 0 ] || note "setup: $name facts failed: $(snip "$out$err")"
     okb --dir "$K" query "project_decision_digest($item, D)"
     d=$(printf '%s\n' "$out" | sed -n "s/^D = '\{0,1\}\(sha256:[0-9a-f]*\)'\{0,1\}\$/\1/p" | head -n1)
@@ -845,7 +845,7 @@ t_PT7() { local c=$here/../CONTRACT.md d
 # PE1 (T39 c2, u89): a run result of CI or the tracker is pinned in the spec KB with the commands that exist
 # (pin-item, run, a check that reads the pin); the claim counts it like a local run; help build says how.
 t_PE1() { okb init "$T/ek" --request 'CI must pass' --uses build,project >/dev/null 2>&1 || note "setup: init failed"; K=$T/ek
-          padd "claim(c1, introduce, 'The CI run of the widget job passes')" "cites(c1, 'CI must pass')" "check(k1, c1)" >/dev/null; rc_is 0 "setup"
+          padd "claim(c1, introduce, 'The CI run of the widget job passes')" "cites(c1, 'CI must pass')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" >/dev/null; rc_is 0 "setup"
           printf 'run 42 of widgets\nconclusion: failure\n' > "$T/ci42.txt"
           okb --dir "$K" pin-item ci42 'ci:acme/widgets/runs/42' --text-file "$T/ci42.txt" --changed-at "$T1"; rc_is 0 "pin the failed run"
           out_has 'sha256:' "pin-item prints the digest"
@@ -958,7 +958,7 @@ t_PF2() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "deci
           K=$o/spec
           d=$(tdigest 'Old export')
           padd "project_kb('$T/pk')" "claim(c1, preserve, 'The far work holds')" "cites(c1, 'Build far away')" \
-                          "check(k1, c1)" "pins(c1, project, d1, '$d')" >/dev/null; rc_is 0 "setup: the far spec KB pins d1"
+                          "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" "pins(c1, project, d1, '$d')" >/dev/null; rc_is 0 "setup: the far spec KB pins d1"
           okb --dir "$K" lint; out_hasnt '^WP[12]' "setup: the pin matches"
           K=$T/pk
           okb --dir "$K" project impact d1; rc_is 0 "project impact"; out_has "$o/spec" "impact finds the spec KB outside the parent directory"
@@ -1049,7 +1049,7 @@ t_PF8() { t23_pk "decision(d1, 'Old export')" "decision(d2, 'New export')" "deci
           okb init "$o/spec" --request 'Build far away' --uses build,project >/dev/null 2>&1 || note "setup: init far spec failed"
           K=$o/spec; d=$(tdigest 'Old export')
           padd "project_kb('$T/pk')" "claim(c1, preserve, 'The far work holds')" "cites(c1, 'Build far away')" \
-               "check(k1, c1)" "pins(c1, project, d1, '$d')" >/dev/null; rc_is 0 "setup: the far spec KB pins d1"
+               "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" "pins(c1, project, d1, '$d')" >/dev/null; rc_is 0 "setup: the far spec KB pins d1"
           rm -f "$T/pk/spec_kbs.txt"                       # the spec KB recorded its pin before T34: no line
           K=$T/pk; cp "$K/kb.pl" "$T/kb.before"
           okb --dir "$K" project archive --superseded-before "$T3"

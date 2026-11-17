@@ -3561,7 +3561,7 @@ kb_lines_commented(File, LTs, Out) :-
 % shift: the step from words to records in one command (D37, 0.3.0 K-H)
 % ---------------------------------------------------------------------
 % orbit-kb shift DIR (--request-file F | --request T) --hypothesis T [--kind K]
-%   (--no-premises | --premise T ...) --claim T [--label L] --example T --check ID
+%   (--no-premises | --premise T ...) --claim T [--label L] --example T --check ID --checks-that T
 %   [--cites T] [--uses M,...] [--red-log FILE]
 % D43 (c_k_h_2b): --red-log FILE, the output of a red run of the check that the agent saw
 % before the KB existed, becomes a third child: attest disclosure ID 'seen_red(ID, TEXT)'.
@@ -3575,15 +3575,15 @@ kb_lines_commented(File, LTs, Out) :-
 cmd_shift(Args, Code) :-
     parse_opts(Args, ['--request'-value, '--request-file'-value, '--hypothesis'-value, '--kind'-value,
                       '--no-premises'-flag, '--premise'-value, '--claim'-value, '--label'-value,
-                      '--example'-value, '--check'-value, '--cites'-value, '--uses'-value,
+                      '--example'-value, '--check'-value, '--checks-that'-value, '--cites'-value, '--uses'-value,
                       '--red-log'-value], Pos, Opts),
     (   Pos = [Dir0] -> true
     ;   usage_error("Give one directory: orbit-kb shift DIR --request-file F --hypothesis T ... (orbit-kb help shift).", [])
     ),
-    forall(( member(O, ['--request', '--request-file', '--hypothesis', '--kind', '--claim', '--label', '--example', '--check', '--cites', '--uses', '--red-log']),
+    forall(( member(O, ['--request', '--request-file', '--hypothesis', '--kind', '--claim', '--label', '--example', '--check', '--checks-that', '--cites', '--uses', '--red-log']),
              aggregate_all(count, member(O-_, Opts), N), N > 1 ),
            usage_error("Give ~w once.", [O])),
-    forall(member(O-What, ['--hypothesis'-"the hypothesis", '--claim'-"the claim", '--example'-"its example", '--check'-"the id of its check"]),
+    forall(member(O-What, ['--hypothesis'-"the hypothesis", '--claim'-"the claim", '--example'-"its example", '--check'-"the id of its check", '--checks-that'-"the words of its check (E20)"]),
            ( memberchk(O-_, Opts) -> true
            ; usage_error("shift needs ~w: ~w TEXT (orbit-kb help shift).", [What, O]) )),
     findall(P, member('--premise'-P, Opts), Prems),
@@ -3608,7 +3608,7 @@ cmd_shift(Args, Code) :-
     opt(Opts, '--uses', build, Uses),
     shift_red_log(Opts, Label, RedText),
     memberchk('--hypothesis'-HT, Opts), memberchk('--claim'-CT, Opts),
-    memberchk('--example'-ET, Opts), memberchk('--check'-KId, Opts),
+    memberchk('--example'-ET, Opts), memberchk('--check'-KId, Opts), memberchk('--checks-that'-KW, Opts),
     (   memberchk('--cites'-Cites, Opts) -> true
     ;   split_string(Text, "\n", " \t\r", [L1|_]), atom_string(Cites, L1)
     ),
@@ -3618,7 +3618,8 @@ cmd_shift(Args, Code) :-
                ; F = claim(c1, Label, CT)
                ; F = cites(c1, Cites)
                ; F = example(c1, ET)
-               ; F = check(KId, c1) ), Facts),
+               ; F = check(KId, c1)
+               ; F = checks_that(KId, KW) ), Facts),
     maplist([T, A]>>format(atom(A), "~q", [T]), Facts, FactArgs),
     absolute_file_name(Dir0, Dir),
     directory_file_path(Dir, 'kb.pl', KbFile),
@@ -3832,6 +3833,7 @@ cmd_add(KB, Args, Code) :-
     findall(M, member(err(M), Rs), Errs),
     (   Errs \== [] -> reject(Errs) ; true ),
     findall(It, member(ok(It), Rs), NewItems),
+    check_words_gate(KI, NewItems),
     % D22: a fact whose name is declared nowhere declares its predicate by
     % its first use. The decl/4 lines take part in the checks of the batch.
     first_use_pis(KB, NewItems, FUs),
@@ -3860,6 +3862,28 @@ cmd_add(KB, Args, Code) :-
     ;   true
     ),
     Code = 0.
+
+% check_words_gate(+KBItems, +NewItems) (E20): a new check(K, C) needs the words of the check:
+% checks_that(K, Text) with non-empty Text, in the same add or already in the KB. Else reject.
+check_words_gate(KI, NewItems) :-
+    findall(K, ( member(it(_, _, _, T, _, _), NewItems), nonvar(T), T = check(K, _), nonvar(K),
+                 \+ check_has_words(K, KI, NewItems) ), Ks0),
+    sort(Ks0, Ks),
+    (   Ks == [] -> true
+    ;   Ks = [K1|_],
+        findall(S, ( member(K, Ks),
+                     fmt(S, "E20: the check ~w has no words. A new check needs checks_that(~w, Text): one line, in plain words, that says what it checks (the Desk shows it to a human).", [K, K]) ), Ms),
+        fmt(Fix, "Fix: orbit-kb add 'check(~w, c1)' \"checks_that(~w, 'what it checks, in plain words')\"  Existing checks without words still load; lint W12 warns.", [K1, K1]),
+        append(Ms, [Fix], All),
+        reject(All)
+    ).
+
+check_has_words(K, KI, NewItems) :-
+    (   member(it(_, _, _, T, _, _), NewItems)
+    ;   member(it(_, _, _, T, _, _), KI)
+    ),
+    nonvar(T), T = checks_that(K2, W), K2 == K, nonvar(W), atomic(W),
+    atom_string(W, WS), split_string(WS, "", " \t\r\n", [Tr]), Tr \== "", !.
 
 % add_doc(+KB, +NewItems, +Opts, +FirstUsePIs, -Doc, -Redoc) (T26): the one-line --doc TEXT is
 % the description of the one new kind of this add. Without --doc, Doc is ''. T40 c8: when no fact
@@ -7647,7 +7671,7 @@ cmd_run(KB, Args, Code) :-
     (   member(it(kb, _, _, T, _, _), Items), nonvar(T), T = check(Check, _)
     ->  true
     ;   die(2, [ "There is no check " + Check + " in kb.pl.",
-                 "Fix: add it with orbit-kb add 'check(" + Check + ", CLAIM)', or fix the id.",
+                 "Fix: add it with orbit-kb add 'check(" + Check + ", CLAIM)' \"checks_that(" + Check + ", 'what it checks, in plain words')\", or fix the id.",
                  "This is a usage error, not a failed run." ] >> fix_lines)
     ),
     Cmd = [Exe0|CmdArgs],
@@ -8451,7 +8475,7 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
               member(New-C1, SPairs), C1 == C,
               ord_memberchk(New, Claims), \+ ord_memberchk(New, Olds),
               \+ ord_memberchk(New, Checked),
-              fmt(M, "Check ~q tests claim ~q, but claim ~q replaces it, and ~q has no check. Add a new check of ~q with a new id: orbit-kb add \"check(NEW_ID, ~q)\". Then run it: orbit-kb run NEW_ID -- CMD.", [K, C, New, New, New, New]) ),
+              fmt(M, "Check ~q tests claim ~q, but claim ~q replaces it, and ~q has no check. Add a new check of ~q with a new id: orbit-kb add \"check(NEW_ID, ~q)\" \"checks_that(NEW_ID, 'what it checks, in plain words')\". Then run it: orbit-kb run NEW_ID -- CMD.", [K, C, New, New, New, New]) ),
             W5),
     % W7 (D22): each predicate declared by its first use
     findall(diag('W7', F, L, M),
@@ -11054,7 +11078,7 @@ help_general([
 "     report); build when you can state it. Every ticket has a hypothesis.",
 "  2. orbit-kb add \"hypothesis(h1, feature, 'TEXT')\" 'no_premises(h1)'   the hypothesis first,",
 "     with its premises beside it (premise(P, h1, 'TEXT'), or no_premises(h1))",
-"  3. orbit-kb add 'claim(...)' 'cites(...)' 'check(k1, c1)'          write facts; never edit kb.pl",
+"  3. orbit-kb add 'claim(...)' 'cites(...)' 'check(k1, c1)' 'checks_that(k1, ...)'   write facts; never edit kb.pl",
 "  4. orbit-kb run k1 -- CMD       run each check; it must fail first for retire and introduce",
 "  5. build the change, then orbit-kb run again",
 "  6. orbit-kb lint                the fix for each finding is in its message",
@@ -11086,7 +11110,7 @@ help_general([
 "  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
 "  uses MODULE ...",
 "  withdraw NAME/ARITY [--by human|agent]      remove a kind that a typo declared (lint E19)",
-"  shift DIR --request-file F --hypothesis T (--no-premises|--premise T ...) --claim T --example T --check ID",
+"  shift DIR --request-file F --hypothesis T (--no-premises|--premise T ...) --claim T --example T --check ID --checks-that T",
 "  add 'FACT' ... [--by human|agent] [--doc TEXT]",
 "  subject ID PATH",
 "  attest TYPE SUBJECT 'PREDICATE' [--by human|agent] [--id ID] [--rests-on RUN,...]",

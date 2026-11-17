@@ -38,7 +38,8 @@ Facts
                                  for a claim that replaces it, add a new check (lint W5).
   checks_that(K, Text)           what check K checks, in words that a human reads. The Desk shows
                                  them (else the docstring of the check script, else the command).
-                                 Lint W12 names a check of a current claim with none.
+                                 A new check(K, C) needs it in the same add (E20: add refuses it otherwise).
+                                 Lint W12 names an old check of a current claim with none.
   world(Fact), source(Fact, Where)   the current state, and where you saw it.
                                  A fact that you did not record is false.
   question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By)

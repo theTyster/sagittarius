@@ -62,8 +62,8 @@ Earlier versions, named after the fact so that a report can refer to them:
   how each runs, its last run). Every letter goes through a review that shows each receiving session
   and the exact text; the session gets exactly that text. Drafts live in the Desk's own store.
   hubflow (schema 7): `add ask` needs a `kb:` ref (also `kb:/abs/path`, `kb:~/path`) or `--no-kb`;
-  `--due`; `--reserved` names its source. orbit-kb: `checks_that(K, Text)` and lint W12. MindHole
-  Kit 0.8.0.
+  `--due`; `--reserved` names its source; an ask needs a context `--note`. orbit-kb: `checks_that(K, Text)`,
+  lint W12, and `add` refuses a new check with no words (E20; `shift --checks-that`). MindHole Kit 0.8.0.
 - **The Desk (hub spec KB `questions-server`, Ty's GO of 2026-11-17).** `orbit-kb serve
   questions` becomes one page for every hub on the machine (`--hub` repeats). It is dark at every
   load, and `report --html` is too. Each section collapses and opens only when it holds something

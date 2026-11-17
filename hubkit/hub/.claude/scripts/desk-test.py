@@ -213,7 +213,7 @@ def q_item(slug, q="q3"):
 
 def case_send(r, root):
     h = make_hub(r, root)
-    a = hfo(h, "add", "ask", "--no-kb", "--title", "Which database?", "--waits-on", "me", "--status", "waiting")
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which database?", "--waits-on", "me", "--status", "waiting")
     lid = send(h, root, ask_item(a), "Use SQLite.")
     r.check("send-prints-id", LID.match(lid), lid)
     got = [json.loads(x) for x in lines(h) if x.strip()]
@@ -320,7 +320,7 @@ def case_send_order(r, root):
 
 def case_events(r, root):
     h = make_hub(r, root)
-    a = hfo(h, "add", "ask", "--no-kb", "--title", "Which database?", "--status", "waiting")
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which database?", "--status", "waiting")
     lid = send(h, root, ask_item(a), "SQLite")
     st = letter_of(status(h), lid)
     r.check("state-sent", st["state"] == "sent" and st["seen"] == [] and st["applied"] is None, st)
@@ -346,7 +346,7 @@ def case_events(r, root):
 
 def case_ownership(r, root):
     h = make_hub(r, root)
-    a = hfo(h, "add", "ask", "--no-kb", "--title", "Which database?", "--status", "waiting")
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which database?", "--status", "waiting")
     hfo(h, "add", "thread", "--title", "KB z work", "--ref", "kb:z", session="build")
     hfo(h, "add", "thread", "--title", "KB z review", "--ref", "kb:specs/z", session="process")
     t = hfo(h, "add", "thread", "--title", "KB z closed", "--ref", "kb:z", session="support")
@@ -385,9 +385,9 @@ def case_ownership(r, root):
 def case_status(r, root):
     h = make_hub(r, root)
     old = "2026-10-20T12:00:00Z"
-    a1 = hfo(h, "add", "ask", "--no-kb", "--title", "Old closed ask", now=old)
-    a2 = hfo(h, "add", "ask", "--no-kb", "--title", "Recent closed ask", now=old)
-    a3 = hfo(h, "add", "ask", "--no-kb", "--title", "Open ask", "--status", "waiting", now=old)
+    a1 = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Old closed ask", now=old)
+    a2 = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Recent closed ask", now=old)
+    a3 = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Open ask", "--status", "waiting", now=old)
     hfo(h, "close", a1, "--reason", "done", now="2026-10-23T12:00:00Z")
     hfo(h, "close", a2, "--reason", "done", "--session", "human", "--by", "human", "--note", "done, thanks",
         session=None, now="2026-11-01T12:00:00Z")
@@ -477,7 +477,7 @@ def case_drafts(r, root):
 
 def case_hook(r, root):
     h = make_hub(r, root)
-    a = hfo(h, "add", "ask", "--no-kb", "--title", "Which database?", "--status", "waiting")
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which database?", "--status", "waiting")
     hfo(h, "add", "thread", "--title", "KB y build", "--ref", "kb:y", session="build")
     lid = send(h, root, ask_item(a), "Use SQLite, not Postgres.\n", about="question 2 of the ask " + a)
     code, out, err = hook(h, "build", "UserPromptSubmit")
@@ -561,7 +561,7 @@ def case_hook(r, root):
 
 def case_notice(r, root):
     h = make_hub(r, root)
-    a = hfo(h, "add", "ask", "--no-kb", "--title", "Which database?")
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which database?")
     long_text = "word " * 600 + "\nthe end\n"
     long_id = send(h, root, ask_item(a), long_text, about="the long one")
     short = []
@@ -591,7 +591,7 @@ def case_notice(r, root):
 
 def case_render(r, root):
     h = make_hub(r, root)
-    a = hfo(h, "add", "ask", "--no-kb", "--title", "Which database?")
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which database?")
     text = "Use SQLite.\n\n" + "Because " * 500 + "\n"
     tf = text_file(root, text)
     code, out, err = desk(h, "render", "--to", "helpdesk", "--about", "the database of " + a, "--text-file", tf)
@@ -620,7 +620,7 @@ def case_render(r, root):
 
 def case_late(r, root):
     h = make_hub(r, root)
-    a = hfo(h, "add", "ask", "--no-kb", "--title", "Which database?")  # the ledger clock is NOW: 2026-11-02T12:00:00Z
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which database?")  # the ledger clock is NOW: 2026-11-02T12:00:00Z
     l23 = put_letter(h, item=ask_item(a), to="discovery", about="23 h", at="2026-11-01T13:00:00Z")
     l24 = put_letter(h, item=ask_item(a), to="discovery", about="24 h", at="2026-11-01T12:00:00Z")
     l25 = put_letter(h, item=ask_item(a), to="discovery", about="25 h", at="2026-11-01T11:00:00Z")
@@ -642,7 +642,7 @@ def case_kb_refs_outside(r, root):
         os.makedirs(d)
         open(os.path.join(d, "kb.pl"), "w").close()
     tilde, absk = "~/Projects/mine/sag/tmp/kb-ux", os.path.join(root, "kbs", "kb-abs")
-    a = hfo(h, "add", "ask", "--title", "Install UX question", "--ref", "kb:" + tilde)
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--title", "Install UX question", "--ref", "kb:" + tilde)
     t = hfo(h, "add", "thread", "--title", "Abs KB work", "--ref", "kb:" + absk, session="build")
     hd = hfo(h, "handoff", "--to", "build", "--title", "Hand KB ux over", "--ref", "kb:" + tilde)
     st = status(h)
@@ -657,7 +657,7 @@ def case_kb_refs_outside(r, root):
 
 def case_corrupt(r, root):
     h = make_hub(r, root)
-    a = hfo(h, "add", "ask", "--no-kb", "--title", "Which database?")
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which database?")
     l1 = send(h, root, ask_item(a), "first")
     p = os.path.join(h, "flow", "desk", "letters.jsonl")
     with open(p, "a") as f:
@@ -713,8 +713,8 @@ def case_wake(r, root):
     def woken(lid):
         return [e for e in events(h) if e["letter"] == lid and e["event"] == "woken"]
 
-    a = hfo(h, "add", "ask", "--no-kb", "--title", "Which database?", "--status", "waiting")
-    a_open = hfo(h, "add", "ask", "--no-kb", "--title", "Not waiting ask")
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which database?", "--status", "waiting")
+    a_open = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Not waiting ask")
     hfo(h, "add", "thread", "--title", "KB w held", "--ref", "kb:w", "--status", "waiting", session="build")
     hook(h, "discovery", "Stop", env={"TMUX_PANE": "%3"})
     hook(h, "build", "Stop", env={"TMUX_PANE": "%4"})
@@ -865,7 +865,7 @@ def case_hooks_cmd(r, root):
 
 def case_db_read_only(r, root):
     h = make_hub(r, root)
-    a = hfo(h, "add", "ask", "--no-kb", "--title", "Which database?", "--status", "waiting")
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which database?", "--status", "waiting")
     db = os.path.join(h, "flow", "flow.db")
     before = open(db, "rb").read()
     jl = sorted(os.listdir(os.path.join(h, "flow", "jsonl")))

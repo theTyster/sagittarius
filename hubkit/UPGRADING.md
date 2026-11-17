@@ -110,6 +110,8 @@ Engine files: `.claude/scripts/hubflow.py`, `.claude/scripts/hubflow-test.py`, `
 What changes for the hub's sessions:
 - `add ask` in a formal hub needs `--ref kb:<slug>` (or `kb:/abs/path`, `kb:~/path` for a KB outside
   the hub) or `--no-kb`. Old asks stay as they are; the Desk shows them as "No KB behind it".
+- `add ask` in a formal hub also needs `--note TEXT`: the case, the options and what each changes, and
+  your default (the Desk shows it as the ask's context). A blank note is refused. An informal hub does not need it.
 - `add ask --due YYYY-MM-DD` and `set ID --due` record the date by which the asker needs the answer.
 - `--reserved` names its source: `NAME Policy: RULE` or `WHO, YYYY-MM-DD: WORDS`.
 - A check says in words what it checks: `checks_that(K, Text)` in a spec KB (lint W12 warns).

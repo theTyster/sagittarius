@@ -114,10 +114,11 @@ The digest in step 7 depends on the text of your `ticket.md`.
 3. Add a claim, the request text that it cites, and a check of the claim:
 
    ```text
-   $ orbit-kb add "claim(c1, introduce, 'The Buy button is purple.')" "cites(c1, 'Make the button purple.')" "check(k1, c1)"
+   $ orbit-kb add "claim(c1, introduce, 'The Buy button is purple.')" "cites(c1, 'Make the button purple.')" "check(k1, c1)" "checks_that(k1, 'The Buy button is purple on the page.')"
    claim(c1, introduce, 'The Buy button is purple.').
    cites(c1, 'Make the button purple.').
    check(k1, c1).
+   checks_that(k1, 'The Buy button is purple on the page.').
    ```
 
    The label `introduce` means "false now, and it must become true".

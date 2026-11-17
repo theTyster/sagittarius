@@ -821,7 +821,7 @@ t_QS18() {  # c4: an answer given while an agent holds the lease waits in answer
 
 t_QS19() {  # c5: the ledger owns a question that depends only on the owner, the tracker owns the others; the spec KB pins both
     mkhub "$T/h"; local A A2
-    A=$(hf "$T/h" --session build add ask --title 'Should the list show the newest invoice first' --waits-on me --ref kb:billing/kb)
+    A=$(hf "$T/h" --session build add ask --title 'Should the list show the newest invoice first' --note 'The case, the options and the default, for the test.' --waits-on me --ref kb:billing/kb)
     kb_a "$T/a"
     okb --dir "$T/a" add "option(q2, yes, 'Paid invoices move to the archive tab')"
     okb --dir "$T/a" pin-question q1 ledger "$A"; rc_is 0 "pin-question to the ledger"
@@ -844,7 +844,7 @@ t_QS19() {  # c5: the ledger owns a question that depends only on the owner, the
     has_goal "$T/a" "answer(q2, 'Only for admins', human:alex)" "the tracker's answer names alex"
     okb --dir "$T/a" pin-answer q3 'gh:acme/billing#7' --text-file "$T/ans.txt" --by alex; rc_is 1 "pin-answer of a question with no pin"
     # the server: the answer goes to the ask first, then into the spec KB through the queue
-    kb_a "$T/b"; A2=$(hf "$T/h" --session build add ask --no-kb --title 'Should paid invoices be hidden by default' --waits-on me)
+    kb_a "$T/b"; A2=$(hf "$T/h" --session build add ask --no-kb --title 'Should paid invoices be hidden by default' --note 'The case, the options and the default, for the test.' --waits-on me)
     okb --dir "$T/b" pin-question q2 ledger "$A2"; rc_is 0
     srv --dir "$T/b" --hub "$T/h" || return
     page_ok || return; local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" "$L_A")
@@ -871,14 +871,14 @@ t_QS20() {  # c6: each question shows its note, its claim's note, the claim's ex
 
 t_QS21() {  # c7: with --hub the asks are read live from flow.db; an ask of the owner has an answer form that runs hubflow
     mkhub "$T/h"; local A B C
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which payment provider do we pick' --waits-on me)
-    B=$(hf "$T/h" --session build add ask --no-kb --title 'Vendor must send the tax form' --waits-on alex --ref issue:12)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which payment provider do we pick' --note 'The case, the options and the default, for the test.' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Vendor must send the tax form' --note 'The case, the options and the default, for the test.' --waits-on alex --ref issue:12)
     kb_a "$T/a"; srv --dir "$T/a" --hub "$T/h" || return
     page_ok || return
     chk text "$T/page.html" 'Which payment provider do we pick' '!Vendor must send the tax form'
     chk askform "$T/page.html" "$A"
     chk askcmd "$T/page.html" "$A" "hubflow.py --by human close $A --reason done --note 'YOUR ANSWER' --session human"
-    C=$(hf "$T/h" --session build add ask --no-kb --title 'Pick the launch date' --waits-on me)
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Pick the launch date' --note 'The case, the options and the default, for the test.' --waits-on me)
     page_ok || return; chk text "$T/page.html" 'Pick the launch date'
     local tok; tok=$(token)
     post /answer "token=$tok" "ask=$A" 'text=Stripe, for the fees'; code_is 303 "POST an answer to an ask"
@@ -947,7 +947,7 @@ EOF
 
 t_QS24() {  # T37 c1: an answer to a pinned ledger ask from the page reaches the spec KB; the number stays a number (c5)
     mkhub "$T/h"; local A
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'How many retries' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'How many retries' --note 'The case, the options and the default, for the test.' --waits-on me)
     kb_new "$T/a" <<'EOF2'
 uses([build]).
 request(r1, 'Numbers must stay sane').
@@ -1026,7 +1026,7 @@ t_QS26() {  # T37 c4, c6: the workflow text says when to pin; subagents of one p
 # ================================================================ T38 (fixes found when T37 was verified; D26 S13, D23 P9)
 t_QS27() {  # T38 c10: a question pinned to a ledger ask has no answer form; the page names its ask
     mkhub "$T/h"; local A
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Should the list show the newest invoice first' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Should the list show the newest invoice first' --note 'The case, the options and the default, for the test.' --waits-on me)
     kb_a "$T/a"
     okb --dir "$T/a" pin-question q1 ledger "$A"; rc_is 0 "pin-question to the ledger"
     srv --dir "$T/a" --hub "$T/h" || return; page_ok || return
@@ -1091,8 +1091,8 @@ J
 
 t_QS29() {  # T38 c12: the ask path keeps a numeric answer as a number; any other text stays an atom
     mkhub "$T/h"; local A B
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'How many retries' --waits-on me)
-    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which build number' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'How many retries' --note 'The case, the options and the default, for the test.' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which build number' --note 'The case, the options and the default, for the test.' --waits-on me)
     kb_new "$T/a" <<'EOF2'
 uses([build]).
 request(r1, 'Numbers must stay sane').
@@ -1174,9 +1174,9 @@ t_QS33() {  # Desk c2: each section collapses; on load a section is open only wh
 }
 t_QS34() {  # Desk c3: "Human action needed" lists only actions Ty reserved (add ask --no-kb --reserved); a plain question is listed apart
     mkhub "$T/h"; local A B C
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Push the hub to the remote' --waits-on me --reserved 'Ty, 2026-11-17: push only when I say so')
-    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
-    C=$(hf "$T/h" --session build add ask --no-kb --title 'Vendor must send the tax form' --waits-on alex --reserved 'Alex, 2026-11-17: alex signs it')
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Push the hub to the remote' --note 'The case, the options and the default, for the test.' --waits-on me --reserved 'Ty, 2026-11-17: push only when I say so')
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Vendor must send the tax form' --note 'The case, the options and the default, for the test.' --waits-on alex --reserved 'Alex, 2026-11-17: alex signs it')
     kb_a "$T/a"; srv --dir "$T/a" --hub "$T/h" || return; page_ok || return
     chk lane "$T/page.html" 'Human action needed' "$A"
     chk lane "$T/page.html" 'Questions for you' "$B"
@@ -1232,7 +1232,7 @@ t_QS36() {  # Desk c4: each item carries its context: case, options and effects,
     mkdesk "$T/h"; local TH A
     kb_ctx "$T/h/specs/ctx"
     TH=$(hf "$T/h" --session discovery add thread --title 'Header row research' --ref kb:ctx)
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     hf "$T/h" --session build note "$A" 'Case: 8737 is taken by the old proxy. Options: 8738 (free) or 8800. Default 8738.' >/dev/null
     srv --hub "$T/h" || return; page_ok || return
     chk card "$T/page.html" qa 'Should the header use the column labels of the screen' 'The orders export of 2026-11-01 starts with id,date,total' \
@@ -1246,7 +1246,7 @@ t_QS37() {  # Desk c5: free space to diverge or add a requirement; a divergence 
     mkdesk "$T/h"; local A
     kb_ctx "$T/h/specs/div"
     hf "$T/h" --session discovery add thread --title 'Header row research' --ref kb:div >/dev/null
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     srv --hub "$T/h" || return; page_ok || return
     chk respond "$T/page.html" qa; chk respond "$T/page.html" "$A"
     local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" 'Exports must keep their header row')
@@ -1271,8 +1271,8 @@ sys.exit(0 if a and b else 1)' "$T/view.json" || note "intake: no review thread 
 t_QS38() {  # Desk c7 and c8 (c6 seen): each response is on disk at once and shows where it is; loud when no live session holds the item
     mkdesk "$T/h"; local A B
     kb_ctx "$T/h/specs/lone"
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
-    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which name for the service' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which name for the service' --note 'The case, the options and the default, for the test.' --waits-on me)
     srv --hub "$T/h" || return; page_ok || return
     chk card "$T/page.html" qa 'No live session holds this item'
     chk card "$T/page.html" "$A" '!No live session holds this item'
@@ -1290,7 +1290,7 @@ t_QS38() {  # Desk c7 and c8 (c6 seen): each response is on disk at once and sho
 }
 t_QS39() {  # Desk c8 and q2: a draft is kept on the server until Send, survives a reload, and never reaches a session
     mkdesk "$T/h"; local A key
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     srv --hub "$T/h" || return; page_ok || return
     local tok hub; tok=$(token); key=$(pg draftkey "$T/page.html" "$A"); hub=$(pg hubval "$T/page.html" "$A")
     [ -n "$key" ] || { note "the form of $A has no draft key"; return; }
@@ -1307,7 +1307,7 @@ t_QS39() {  # Desk c8 and q2: a draft is kept on the server until Send, survives
 t_QS40() {  # Desk c9: an answer given in the session itself shows as answered on the page
     mkdesk "$T/h"; local A
     kb_ctx "$T/h/specs/s9"
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     wr discovery --dir "$T/h/specs/s9" add 'answer(qa, yes, human)'; rc_is 0 "the session records Ty's answer"
     hf "$T/h" --session build close "$A" --reason done --note 'Ty said 8800 in the pane' >/dev/null
     srv --hub "$T/h" || return; page_ok || return
@@ -1335,9 +1335,9 @@ EOF
 }
 t_QS42() {  # Desk h2: one page for every hub on the machine; an ask is answered in its own hub
     mkdesk "$T/h1"; mkdesk "$T/h2"; local A B
-    A=$(hf "$T/h1" --session build add ask --no-kb --title 'First hub question' --waits-on me)
-    hf "$T/h2" --session build add ask --no-kb --title 'A first ask of the second hub' --waits-on me >/dev/null
-    B=$(hf "$T/h2" --session build add ask --no-kb --title 'Second hub question' --waits-on me)
+    A=$(hf "$T/h1" --session build add ask --no-kb --title 'First hub question' --note 'The case, the options and the default, for the test.' --waits-on me)
+    hf "$T/h2" --session build add ask --no-kb --title 'A first ask of the second hub' --note 'The case, the options and the default, for the test.' --waits-on me >/dev/null
+    B=$(hf "$T/h2" --session build add ask --no-kb --title 'Second hub question' --note 'The case, the options and the default, for the test.' --waits-on me)
     [ "$A" != "$B" ] || note "setup: the two asks have one id"
     srv --hub "$T/h1" --hub "$T/h2" || return; page_ok || return
     chk hubs "$T/page.html" h1 h2
@@ -1398,7 +1398,7 @@ desk_hub() { mkdesk "$1"; kb_rests "$1/specs/exp"; kb_project "$1/project-kb" 'E
 
 t_QS43() {  # Desk c1 c2 on serve desk: dark at every load; each lane and each KB collapses and is open on load only with an item for Ty
     desk_hub "$T/h"; local A
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     srvd --hub "$T/h" || return; page_ok || return
     chk dark "$T/page.html"
     chk dopen "$T/page.html" lane-questions open
@@ -1411,21 +1411,21 @@ t_QS43() {  # Desk c1 c2 on serve desk: dark at every load; each lane and each K
 }
 t_QS44() {  # Desk c12: Your action lists only reserved actions, each with the source of the reservation: a policy by name and rule, or Ty's words with their date
     desk_hub "$T/h"; local A B C
-    A=$(hf "$T/h" --session process add ask --no-kb --title 'Waive the c3 proof, or order a Lean proof' --waits-on me --reserved 'Sagittarius Policy: Only the human may waive a proof.')
-    B=$(hf "$T/h" --session build add ask --no-kb --title 'Push the hub to the remote' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so')
-    C=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
+    A=$(hf "$T/h" --session process add ask --no-kb --title 'Waive the c3 proof, or order a Lean proof' --note 'The case, the options and the default, for the test.' --waits-on me --reserved 'Sagittarius Policy: Only the human may waive a proof.')
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Push the hub to the remote' --note 'The case, the options and the default, for the test.' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so')
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     srvd --hub "$T/h" || return; page_ok || return
     chk dlane "$T/page.html" action "ask-$A" "ask-$B" "!ask-$C"
     chk dlane "$T/page.html" questions "ask-$C" "!ask-$A"
     chk dcard "$T/page.html" "ask-$A" 'Sagittarius Policy: Only the human may waive a proof.' '!Ty: only I' '!Source not named'
     chk dcard "$T/page.html" "ask-$B" 'Ty, 12 Nov: “push only when I say so”'
-    hf "$T/h" --session build add ask --no-kb --title 'Bad source' --waits-on me --reserved 'Ty: only I waive a proof' >/dev/null && note "hubflow took a reservation with no named source"
+    hf "$T/h" --session build add ask --no-kb --title 'Bad source' --note 'The case, the options and the default, for the test.' --waits-on me --reserved 'Ty: only I waive a proof' >/dev/null && note "hubflow took a reservation with no named source"
 }
 t_QS45() {  # Desk c13: each item leads to its KB, hypothesis, premises, claims and checks; a due date, not an age; no shell command; each blocker once
     desk_hub "$T/h"; local A B
     mkdir -p "$T/out"; kb_rests "$T/out/kb-install-ux"
-    A=$(hf "$T/h" --session process add ask --title 'Waive the c1 proof, or order a Lean proof' --waits-on me --ref "kb:$T/out/kb-install-ux" --due 2026-12-11)
-    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
+    A=$(hf "$T/h" --session process add ask --title 'Waive the c1 proof, or order a Lean proof' --note 'The case, the options and the default, for the test.' --waits-on me --ref "kb:$T/out/kb-install-ux" --due 2026-12-11)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     srvd --hub "$T/h" || return; page_ok || return
     chk dcard "$T/page.html" "ask-$A" 'The KB install-ux' 'Every export starts with a header row' 'The exports are written by one writer.' \
         'The export has a header row' 'k1' 'k2' 'k3' '!The rows keep their order'
@@ -1445,8 +1445,8 @@ t_QS46() {  # Desk c14 (q7): who holds what; each question's KB; spec KB -> proj
     H2=$(hf "$T/h" --session build handoff --to review --title 'Verify the export' --ref kb:exp)
     hf "$T/h" --session review accept "$H2" >/dev/null
     H3=$(hf "$T/h" --session discovery handoff --to build --title 'Nobody took this' --ref kb:bound)
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
-    hf "$T/h" --session build add ask --title 'An old ask' --waits-on me --no-kb >/dev/null
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    hf "$T/h" --session build add ask --title 'An old ask' --note 'The case, the options and the default, for the test.' --waits-on me --no-kb >/dev/null
     srvd --hub "$T/h" || return; page_ok || return
     chk raw "$T/page.html" 'Writes <b>exp</b>' 'Spec KBs, not linked' 'Spec KBs, linked to the project KB'
     chk dsrc "$T/page.html" qa 'Question qa in the KB exp'
@@ -1479,8 +1479,8 @@ t_QS47() {  # Desk c15: what waits on Ty in a project KB: a fact an agent propos
 }
 t_QS48() {  # Desk c16: one Desk at one address serves every mindhole that joined it in one step; a mindhole with no ledger is named
     desk_hub "$T/h1"; desk_hub "$T/h2"; local A B
-    A=$(hf "$T/h1" --session build add ask --no-kb --title 'First mindhole asks' --waits-on me)
-    B=$(hf "$T/h2" --session build add ask --no-kb --title 'Second mindhole asks' --waits-on me)
+    A=$(hf "$T/h1" --session build add ask --no-kb --title 'First mindhole asks' --note 'The case, the options and the default, for the test.' --waits-on me)
+    B=$(hf "$T/h2" --session build add ask --no-kb --title 'Second mindhole asks' --note 'The case, the options and the default, for the test.' --waits-on me)
     dpy "$T/h1" join --name one >/dev/null || note "join one failed"
     srvd || return; page_ok || return
     chk text "$T/page.html" 'First mindhole asks' '!Second mindhole asks'
@@ -1506,8 +1506,8 @@ t_QS49() {  # Desk c18 (q8): each check says in words what it checks (a KB fact,
 }
 t_QS50() {  # Desk c19: each item shows its owner session in the heading, as one badge with no "to"
     desk_hub "$T/h"; local A B H
-    A=$(hf "$T/h" --session process add ask --no-kb --title 'Asked by process' --waits-on me)
-    B=$(hf "$T/h" --session review add ask --no-kb --title 'Asked by review' --waits-on me --owner review)
+    A=$(hf "$T/h" --session process add ask --no-kb --title 'Asked by process' --note 'The case, the options and the default, for the test.' --waits-on me)
+    B=$(hf "$T/h" --session review add ask --no-kb --title 'Asked by review' --note 'The case, the options and the default, for the test.' --waits-on me --owner review)
     H=$(hf "$T/h" --session build handoff --to discovery --title 'Discovery holds exp' --ref kb:exp); hf "$T/h" --session discovery accept "$H" >/dev/null
     srvd --hub "$T/h" || return; page_ok || return
     chk dbadge "$T/page.html" "ask-$A" process
@@ -1517,7 +1517,7 @@ t_QS50() {  # Desk c19: each item shows its owner session in the heading, as one
 }
 t_QS51() {  # Desk c20: nothing reaches a session that Ty did not see: every send opens a review with each session and the exact text; Ty edits it; Cancel sends nothing
     desk_hub "$T/h"; local A
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     srvd --hub "$T/h" || return; page_ok || return
     chk dforms "$T/page.html"; chk dform "$T/page.html" "ask-$A"
     local tok; tok=$(pg dtoken "$T/page.html")
@@ -1546,7 +1546,7 @@ t_QS51() {  # Desk c20: nothing reaches a session that Ty did not see: every sen
 }
 t_QS52() {  # Desk c21: each item says where it comes from: a ledger ask and the session that asked it, or a question and its KB
     desk_hub "$T/h"; local A
-    A=$(hf "$T/h" --session process add ask --no-kb --title 'Terminology and version lines' --waits-on me)
+    A=$(hf "$T/h" --session process add ask --no-kb --title 'Terminology and version lines' --note 'The case, the options and the default, for the test.' --waits-on me)
     srvd --hub "$T/h" || return; page_ok || return
     chk dsrc "$T/page.html" "ask-$A" "Ledger ask $A from process, no KB behind it"
     chk dsrc "$T/page.html" qb 'Question qb in the KB exp'
@@ -1554,7 +1554,7 @@ t_QS52() {  # Desk c21: each item says where it comes from: a ledger ask and the
 }
 t_QS53() {  # Desk c5 c8 on serve desk: a divergence is kept in Ty's words and leaves the item open; a requirement goes to intake; the letter is stored first
     desk_hub "$T/h"; local A
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     srvd --hub "$T/h" || return; page_ok || return
     local tok kb; tok=$(pg dtoken "$T/page.html"); kb="$T/h/specs/exp"
     post /send "token=$tok" "hub=$T/h" "item=q:$kb#qb" intent=diverge 'text=That is not what I meant: by id' 'letter_0=Ty diverges: by id'; code_is 303 "diverge on a KB question"
@@ -1571,8 +1571,8 @@ t_QS53() {  # Desk c5 c8 on serve desk: a divergence is kept in Ty's words and l
 }
 t_QS54() {  # Desk c7 (q9): the card shows Draft and Sent; a sent letter not seen after a day warns; loud when no live session holds the item; applied moves it to Answered
     desk_hub "$T/h"; local A B key
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
-    B=$(hf "$T/h" --session build add ask --no-kb --title 'Nobody holds this one' --waits-on me --owner none)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Nobody holds this one' --note 'The case, the options and the default, for the test.' --waits-on me --owner none)
     srvd --hub "$T/h" || return; page_ok || return
     chk dcard "$T/page.html" "ask-$B" 'No live session holds this item'
     chk dcard "$T/page.html" "ask-$A" '!No live session holds this item' 'Draft' 'Sent' '!Seen' '!Applied' '!Keep as draft'
@@ -1592,7 +1592,7 @@ open(f,"w").write("".join(json.dumps(x)+"\n" for x in ls))' "$T/h/flow/desk/lett
 }
 t_QS55() {  # Desk c9 on serve desk: an answer given in the session shows as answered, and the question leaves the cards
     desk_hub "$T/h"; local A
-    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     srvd --hub "$T/h" || return; page_ok || return
     chk dlane "$T/page.html" guesses qa
     wr discovery --dir "$T/h/specs/exp" add 'answer(qa, yes, human)'; rc_is 0 "the session records Ty's answer"

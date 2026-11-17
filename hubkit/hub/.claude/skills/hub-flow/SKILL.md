@@ -67,8 +67,10 @@ Read at session start and after every compaction: the db is the memory, not the 
 ```
 # an ask says whether it rests on a KB: --ref kb:<slug> (or kb:/abs/path, kb:~/path for a KB
 # outside the hub; its dir must hold kb.pl), or --no-kb when it rests on none. With neither: exit 1
-$HF add ask --title "…" --waits-on me --ref kb:<slug> --ref issue:123 [--due 2026-12-01] [--analysis <slug>] [--note "…"]
-$HF add ask --title "…" --waits-on me --no-kb --ref issue:123
+# an ask also needs --note "…": the context the Desk shows (the case, the options and what each one
+# changes, and your default). With no note, or a blank one: exit 1
+$HF add ask --title "…" --waits-on me --ref kb:<slug> --ref issue:123 --note "the case; A: …, B: …; default A" [--due 2026-12-01] [--analysis <slug>]
+$HF add ask --title "…" --waits-on me --no-kb --ref issue:123 --note "…"
 # --due: the asker's due date (YYYY-MM-DD); the Desk shows it, else the triage date.
 # set ID --due YYYY-MM-DD|none ; set ID --no-kb yes|no (`ref ID add kb:…` sets it to no)
 # an action the person reserved for themselves (a standing rule or their own words: push,
@@ -77,8 +79,8 @@ $HF add ask --title "…" --waits-on me --no-kb --ref issue:123
 #   "WHO, YYYY-MM-DD: WORDS"   a person's own words with their date
 # The Desk lists it under "Human action needed"; other asks go under "Questions for you".
 # set ID --reserved WHY|none
-$HF add ask --title "Waive the proof of c3" --waits-on me --ref kb:<slug> --reserved "Sagittarius Policy: Only the human may waive a proof."
-$HF add ask --title "Push the hub" --waits-on me --no-kb --reserved "Ty, 2026-11-12: push only when I say so"
+$HF add ask --title "Waive the proof of c3" --waits-on me --ref kb:<slug> --note "…" --reserved "Sagittarius Policy: Only the human may waive a proof."
+$HF add ask --title "Push the hub" --waits-on me --no-kb --note "…" --reserved "Ty, 2026-11-12: push only when I say so"
 $HF add thread --title "…" --ref pr:45
 $HF handoff --to build --title "…" --ref kb:<slug> --ref issue:123 --note "where to start"
 $HF accept H-0003                 # only the receiving session can accept
@@ -198,7 +200,7 @@ opens a thread for `review` with a new requirement). `desk.py hook` gives you, a
 or stop, exactly the reviewed text of each letter to you: act on it then, or say why not. A
 divergence leaves the item open: it is the person's words, not an answer.
 What the Desk shows comes from your records, so keep them whole: an ask names its KB (`--ref kb:`)
-or `--no-kb`, gives the case, options and default in a note, and a `--due` date when it has one; a
+or `--no-kb`, gives the case, the options with what each changes, and the default in its `--note` (`add ask` refuses an ask with no note), and a `--due` date when it has one; a
 reservation names its source; a check says what it checks (`checks_that`). When you stop only to
 wait for the person's answer, mark the item `$HF set ID --status waiting`: then the Desk may type
 one line into your tmux pane when the answer comes (only while you are idle; the review shows it).
