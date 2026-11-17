@@ -5,3 +5,10 @@ flow/flow.db.bak-*
 # orbit-kb lock files (a KB's kb.lock and writer.lock); the KB itself is committed
 kb.lock
 writer.lock
+# the Desk (desk.py): drafts, session states, its lock and log change all the time; letters.jsonl
+# and events.jsonl are append-only and may be committed with the hub
+flow/desk/drafts.json
+flow/desk/drafts.lock
+flow/desk/sessions/
+flow/desk/desk.log
+flow/desk/*.tmp.*

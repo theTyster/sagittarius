@@ -36,6 +36,15 @@
 #   c1 dark at every load, the page and report --html; no light theme, no toggle               : QS32
 #   c2 sections collapse; open on load only with an item for Ty                                 : QS33
 #   c3 Human action needed: only reserved actions (hubflow add ask --reserved)                  : QS34
+# The Desk, laps 2-4:
+#   c11 sessions with their inboxes; the Orphaned list                                        : QS35
+#   c4 the context of each item                                                               : QS36
+#   c5 diverge and new requirement                                                            : QS37
+#   c7 c8 letters on disk at once, where each one is, loud with no live owner; c6 seen by hook : QS38
+#   c8 q2 drafts on the server until Send                                                     : QS39
+#   c9 answered in the session shows as answered                                              : QS40
+#   c3 q3 the standing-rule actions of a spec KB (vote, demo)                                 : QS41
+#   h2 one page for every hub                                                                 : QS42
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -233,6 +242,65 @@ def main():
             if ss: bad.append("a ledger section %r exists" % a[0])
         elif len(ss)!=1: bad.append("want one ledger section %r, found %d" % (a[0], len(ss)))
         elif got!=a[1:]: bad.append("section %r lists %r, want %r" % (a[0], got, a[1:]))
+    elif mode=="sec":        # sec FILE HEADING T...: the section whose h2 heading is HEADING has each text T (!T: lacks it)
+        ss=[]
+        for h in p.all:
+            if h.tag=="h2" and h.text()==a[0]:
+                n=h.parent
+                while n is not None and n.tag!="section": n=n.parent
+                if n is not None: ss.append(n)
+        if len(ss)!=1: bad.append("want one section with heading %r, found %d" % (a[0], len(ss)))
+        else:
+            t=ss[0].text()
+            for x in a[1:]:
+                if x.startswith("!"):
+                    if x[1:] in t: bad.append("section %r has %r" % (a[0], x[1:]))
+                elif x not in t: bad.append("section %r lacks %r" % (a[0], x))
+    elif mode=="card":       # card FILE ID T...: the li card with data-id ID (an ask or a KB item) has each text T (!T: lacks it)
+        cs=[n for n in p.all if n.tag=="li" and n.attrs.get("data-id")==a[0] and ({"ask","item","kbaction"} & set(n.classes()))]
+        if len(cs)!=1: bad.append("want one card %s, found %d" % (a[0], len(cs)))
+        else:
+            t=cs[0].text()
+            for x in a[1:]:
+                if x.startswith("!"):
+                    if x[1:] in t: bad.append("card %s has %r" % (a[0], x[1:]))
+                elif x not in t: bad.append("card %s lacks %r" % (a[0], x))
+    elif mode=="respond":    # respond FILE ID: the card ID has a form with intents answer, diverge, requirement and a textarea text
+        cs=[n for n in p.all if n.tag=="li" and n.attrs.get("data-id")==a[0] and ({"ask","item","kbaction"} & set(n.classes()))]
+        if len(cs)!=1: bad.append("want one card %s, found %d" % (a[0], len(cs)))
+        else:
+            fs=[n for n in cs[0].walk() if n.tag=="form"]
+            ins=[n for f in fs for n in f.walk() if n.tag in ("input","textarea")]
+            got=[n.attrs.get("value") for n in ins if n.attrs.get("name")=="intent"]
+            if got!=["answer","diverge","requirement"]: bad.append("card %s intents %r" % (a[0], got))
+            if not any(n.tag=="textarea" and n.attrs.get("name")=="text" for n in ins): bad.append("card %s has no textarea text" % a[0])
+    elif mode=="draftkey":   # draftkey FILE ID: print the draft key of the form of card ID
+        for n in p.all:
+            if n.tag=="li" and n.attrs.get("data-id")==a[0]:
+                for f in n.walk():
+                    if f.tag=="form" and f.attrs.get("data-draft-key"): print(f.attrs["data-draft-key"]); sys.exit(0)
+        sys.exit(1)
+    elif mode=="textarea":   # textarea FILE ID TEXT: the textarea of card ID holds exactly TEXT ('' for empty)
+        vals=[ "".join(t.txt).strip() for n in p.all if n.tag=="li" and n.attrs.get("data-id")==a[0] for t in n.walk() if t.tag=="textarea"]
+        if vals!=[a[1]]: bad.append("card %s textarea %r, want %r" % (a[0], vals, a[1]))
+    elif mode=="kbtext":     # kbtext FILE LABEL T...: the KB section LABEL has each text T (!T: lacks it)
+        secs=kbsec(p, a[0])
+        if len(secs)!=1: bad.append("want one KB section labeled %r, found %d" % (a[0], len(secs)))
+        else:
+            t=secs[0].text()
+            for x in a[1:]:
+                if x.startswith("!"):
+                    if x[1:] in t: bad.append("KB section %r has %r" % (a[0], x[1:]))
+                elif x not in t: bad.append("KB section %r lacks %r" % (a[0], x))
+    elif mode=="hubs":       # hubs FILE LABEL...: the hub sections, in order, by label
+        got=[l.text() for n in p.all if n.tag=="section" and "hub" in n.classes() for l in cls(n,"hublabel")]
+        if got!=a: bad.append("hubs %r, want %r" % (got, a))
+    elif mode=="hubval":     # hubval FILE ID: print the hub of the form of card ID
+        for n in p.all:
+            if n.tag=="li" and n.attrs.get("data-id")==a[0]:
+                for f in n.walk():
+                    if f.tag=="input" and f.attrs.get("name")=="hub": print(f.attrs.get("value","")); sys.exit(0)
+        sys.exit(1)
     elif mode=="message":    # message FILE T: an element with class message holds T
         ms=[x.text() for x in p.all if "message" in x.classes()]
         if not any(a[0] in m for m in ms): bad.append("no .message with %r (messages %r)" % (a[0], ms))
@@ -1000,6 +1068,162 @@ t_QS34() {  # Desk c3: "Human action needed" lists only actions Ty reserved (add
     srv_stop
 }
 
+# ---- the Desk, laps 2-4 (hub spec KB questions-server; claims c4 c5 c6 c7 c8 c9 c11, q3)
+mkdesk() { mkhub "$1"; cp "$REPO/hubkit/hub/.claude/scripts/desk.py" "$1/.claude/scripts/" 2>/dev/null || note "setup: no desk.py"; }
+kb_ctx() { kb_new "$1" <<'EOF'
+uses([discovery, build]).
+request(r1, 'Exports must keep their header row').
+hypothesis(h1, defect, 'Every export starts with a header row that names its columns.').
+claim(c1, introduce, 'The export has a header row').
+cites(c1, 'Exports must keep their header row').
+example(c1, 'The orders export of 2026-11-01 starts with id,date,total.').
+question(qa, c1, 'Should the header use the column labels of the screen').
+assumed(qa, no).
+option(qa, yes, 'The header shows Order date, as on the screen').
+option(qa, no, 'The header shows the field names, as the API does').
+finding(f1, surprise('The export of 2026-11-01 has no header row'), system).
+raised_by(qa, f1).
+question(qb, c1, 'Is a byte order mark allowed').
+attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
+EOF
+}
+# hookrun HUB SESSION: run the desk hook as a UserPromptSubmit of SESSION; the output in $T/hook.out
+hookrun() { printf '{"hook_event_name":"UserPromptSubmit","session_id":"s-test","cwd":"%s","prompt":"go on"}' "$1" \
+      | ( cd "$1" && HUB_SESSION=$2 python3 .claude/scripts/desk.py hook ) > "$T/hook.out" 2>"$T/hook.err"; }
+t_QS35() {  # Desk c11: each session with its inbox; the Orphaned list names each kind of orphan
+    mkdesk "$T/h"; local H TH U
+    H=$(hf "$T/h" --session discovery handoff --to build --title 'Build the export')
+    TH=$(hf "$T/h" --session discovery add thread --title 'Export research')
+    U=$(hf "$T/h" --session discovery add thread --title 'Nobody holds this one' --owner none)
+    kb_project "$T/h/pk" 'Export project'
+    kb_spec "$T/h/specs/loose" 'Loose rules' ''
+    kb_spec "$T/h/specs/bound" 'Bound rules' '../../pk'
+    kb_spec "$T/h/specs/held" 'Held rules' '../../pk'
+    hf "$T/h" --session discovery add thread --title 'Hold the held rules' --ref kb:held >/dev/null
+    srv --hub "$T/h" || return; page_ok || return
+    chk sec "$T/page.html" 'Sessions' 'discovery' "$TH" 'Export research' 'build' "$H" 'not accepted' 'review'
+    chk sec "$T/page.html" 'Orphaned' 'specs/loose' 'names no project KB' 'specs/bound' 'no open ledger item points to it' \
+        "$U" 'Nobody holds this one' 'no live session owns it' "$H" 'nobody accepted it' '!specs/held'
+}
+t_QS36() {  # Desk c4: each item carries its context: case, options and effects, default, why now, what waits on it, where the work stands
+    mkdesk "$T/h"; local TH A
+    kb_ctx "$T/h/specs/ctx"
+    TH=$(hf "$T/h" --session discovery add thread --title 'Header row research' --ref kb:ctx)
+    A=$(hf "$T/h" --session build add ask --title 'Which port should the Desk use' --waits-on me)
+    hf "$T/h" --session build note "$A" 'Case: 8737 is taken by the old proxy. Options: 8738 (free) or 8800. Default 8738.' >/dev/null
+    srv --hub "$T/h" || return; page_ok || return
+    chk card "$T/page.html" qa 'Should the header use the column labels of the screen' 'The orders export of 2026-11-01 starts with id,date,total' \
+        'The header shows Order date, as on the screen' 'Default' 'Why now' 'The export of 2026-11-01 has no header row' \
+        'What waits on it' "$TH" 'discovery' '!Missing context'
+    chk card "$T/page.html" qb 'Missing context' 'no default' 'why it is asked now'
+    chk kbtext "$T/page.html" 'Exports must keep their header row' 'Where the work stands' 'Every export starts with a header row' 'discovery'
+    chk card "$T/page.html" "$A" '8737 is taken by the old proxy' 'build' '!Missing context'
+}
+t_QS37() {  # Desk c5: free space to diverge or add a requirement; a divergence is kept in his words and leaves the item open; a requirement goes to intake
+    mkdesk "$T/h"; local A
+    kb_ctx "$T/h/specs/div"
+    hf "$T/h" --session discovery add thread --title 'Header row research' --ref kb:div >/dev/null
+    A=$(hf "$T/h" --session build add ask --title 'Which port should the Desk use' --waits-on me)
+    srv --hub "$T/h" || return; page_ok || return
+    chk respond "$T/page.html" qa; chk respond "$T/page.html" "$A"
+    local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" 'Exports must keep their header row')
+    post /answer "token=$tok" "kb=$kb" q=qa intent=diverge 'text=That is not what I meant: the scope is one page'; code_is 303 "diverge on a KB question"
+    grep -Eq "^signal\([a-z0-9]+, divergence, human, '.*the scope is one page" "$T/h/specs/div/kb.pl" || note "the divergence is not a human signal in his words"
+    grep -Eq "^note\(c1, '.*the scope is one page" "$T/h/specs/div/kb.pl" || note "the divergence is not a note on the claim c1"
+    okb --dir "$T/h/specs/div" lint; rc_is 0 "the KB is clean after the divergence"
+    has_goal "$T/h/specs/div" "to_ask(qa)" "the question stays open"
+    post /answer "token=$tok" "ask=$A" intent=diverge 'text=Not a port question: run it as a service'; code_is 303 "diverge on an ask"
+    askjson "$T/h" "$A" "d['item']['status']=='open' and any(e['verb']=='note' and e['by']=='human' and 'run it as a service' in (e['note'] or '') for e in d['events'])"
+    post /answer "token=$tok" "ask=$A" intent=requirement 'text=Also show the port in the page footer'; code_is 303 "a new requirement from an ask"
+    post /answer "token=$tok" "kb=$kb" q=qa intent=requirement 'text=Exports must also carry a footer row'; code_is 303 "a new requirement from a KB question"
+    hf "$T/h" view --format json > "$T/view.json"
+    python3 -I -c 'import json, sys
+rows = json.load(open(sys.argv[1]))
+rows = rows if isinstance(rows, list) else rows.get("rows", [])
+a = [r for r in rows if "page footer" in r["title"] and r.get("owner_session") == "review"]
+b = [r for r in rows if "footer row" in r["title"] and r.get("owner_session") == "review" and "kb:div" in (r.get("refs") or "")]
+sys.exit(0 if a and b else 1)' "$T/view.json" || note "intake: no review thread for each requirement: $(snip "$(cat "$T/view.json")")"
+    askjson "$T/h" "$A" "d['item']['status']=='open'"
+}
+t_QS38() {  # Desk c7 and c8 (c6 seen): each response is on disk at once and shows where it is; loud when no live session holds the item
+    mkdesk "$T/h"; local A B
+    kb_ctx "$T/h/specs/lone"
+    A=$(hf "$T/h" --session build add ask --title 'Which port should the Desk use' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --title 'Which name for the service' --waits-on me)
+    srv --hub "$T/h" || return; page_ok || return
+    chk card "$T/page.html" qa 'No live session holds this item'
+    chk card "$T/page.html" "$A" '!No live session holds this item'
+    local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" 'Exports must keep their header row')
+    post /answer "token=$tok" "ask=$A" 'text=Use port 8800'; code_is 303 "answer an ask"
+    grep -q 'Use port 8800' "$T/h/flow/desk/letters.jsonl" 2>/dev/null || note "the answer is not in flow/desk/letters.jsonl"
+    post /answer "token=$tok" "ask=$B" intent=diverge 'text=Not what I meant: no service at all'; code_is 303 "diverge on an ask"
+    post /answer "token=$tok" "kb=$kb" q=qa choice=yes 'text=as on the screen'; code_is 303 "answer a KB question that no session holds"
+    page_ok || return
+    chk sec "$T/page.html" 'Responses' 'Use port 8800' 'Applied' 'Not what I meant: no service at all' 'Sent' '!Seen by build' 'No live session holds this item'
+    hookrun "$T/h" build
+    grep -q 'no service at all' "$T/hook.out" || note "the owner was not told: $(snip "$(cat "$T/hook.out" "$T/hook.err")")"
+    page_ok || return
+    chk sec "$T/page.html" 'Responses' 'Seen by build'
+}
+t_QS39() {  # Desk c8 and q2: a draft is kept on the server until Send, survives a reload, and never reaches a session
+    mkdesk "$T/h"; local A key
+    A=$(hf "$T/h" --session build add ask --title 'Which port should the Desk use' --waits-on me)
+    srv --hub "$T/h" || return; page_ok || return
+    local tok hub; tok=$(token); key=$(pg draftkey "$T/page.html" "$A"); hub=$(pg hubval "$T/page.html" "$A")
+    [ -n "$key" ] || { note "the form of $A has no draft key"; return; }
+    post /draft "token=$tok" "hub=$hub" "key=$key" 'text=half an answer' intent=answer
+    [ "$CODE" = 204 ] || [ "$CODE" = 200 ] || note "POST /draft: HTTP $CODE"
+    page_ok || return; chk textarea "$T/page.html" "$A" 'half an answer'
+    hookrun "$T/h" build
+    ! grep -q 'half an answer' "$T/hook.out" || note "a draft reached the session"
+    post /draft "hub=$hub" "key=$key" 'text=no token'; code_is 403 "a draft with no token"
+    post /answer "token=$tok" "hub=$hub" "ask=$A" "draft=$key" 'text=Use port 8800'; code_is 303 "send"
+    python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(1 if sys.argv[2] in d else 0)' "$T/h/flow/desk/drafts.json" "$key" \
+      || note "the draft is still kept after Send"
+}
+t_QS40() {  # Desk c9: an answer given in the session itself shows as answered on the page
+    mkdesk "$T/h"; local A
+    kb_ctx "$T/h/specs/s9"
+    A=$(hf "$T/h" --session build add ask --title 'Which port should the Desk use' --waits-on me)
+    wr discovery --dir "$T/h/specs/s9" add 'answer(qa, yes, human)'; rc_is 0 "the session records Ty's answer"
+    hf "$T/h" --session build close "$A" --reason done --note 'Ty said 8800 in the pane' >/dev/null
+    srv --hub "$T/h" || return; page_ok || return
+    chk answered "$T/page.html" 'Exports must keep their header row' qa yes
+    chk sec "$T/page.html" 'Questions for you' 'Answered in the last 7 days' "$A" 'Ty said 8800 in the pane' 'build'
+}
+t_QS41() {  # Desk c3 (q3): standing-rule actions of a spec KB are human actions: a vote that waits on Ty, a demo to approve
+    mkdesk "$T/h"
+    mkdir -p "$T/h/specs/disc"; cp "$here/fixtures/discovery-a/kb.pl" "$T/h/specs/disc/kb.pl"
+    mkdir -p "$T/h/specs/look"; printf 'png' > "$T/h/specs/look/shot.png"
+    local d; d=$(sha256sum "$T/h/specs/look/shot.png" | cut -d' ' -f1)
+    kb_new "$T/h/specs/look" <<EOF
+uses([build]).
+request(r1, 'The pane must look calm').
+claim(c1, introduce, 'The pane uses three colors at most').
+cites(c1, 'The pane must look calm').
+example(c1, 'The idle pane shows grey, green and amber only.').
+visual(c1).
+subject(shot, 'shot.png', 'sha256:$d').
+demo(shot, c1).
+EOF
+    srv --hub "$T/h" || return; page_ok || return
+    chk sec "$T/page.html" 'Human action needed' 'Vote' 'A customer used two discount codes' 'Approve the demo' 'shot.png'
+    chk fold "$T/page.html" 'The pane must look calm' open
+}
+t_QS42() {  # Desk h2: one page for every hub on the machine; an ask is answered in its own hub
+    mkdesk "$T/h1"; mkdesk "$T/h2"; local A B
+    A=$(hf "$T/h1" --session build add ask --title 'First hub question' --waits-on me)
+    hf "$T/h2" --session build add ask --title 'A first ask of the second hub' --waits-on me >/dev/null
+    B=$(hf "$T/h2" --session build add ask --title 'Second hub question' --waits-on me)
+    [ "$A" != "$B" ] || note "setup: the two asks have one id"
+    srv --hub "$T/h1" --hub "$T/h2" || return; page_ok || return
+    chk hubs "$T/page.html" h1 h2
+    local tok hub; tok=$(token); hub=$(pg hubval "$T/page.html" "$B")
+    post /answer "token=$tok" "hub=$hub" "ask=$B" 'text=Second answer'; code_is 303 "answer in the second hub"
+    askjson "$T/h2" "$B" "d['item']['status']=='done'"
+    askjson "$T/h1" "$A" "d['item']['status']=='open'"
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -1010,6 +1234,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 34); do run_one QS$n; done
+for n in $(seq 1 42); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

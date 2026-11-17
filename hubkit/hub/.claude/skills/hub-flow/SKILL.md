@@ -173,6 +173,20 @@ A `summary` row is not work. It is never due and never blocks `rotate`: the firs
 is 28 days old (counted from when it was added) lapses it, and lists it as `lapsed:`. It is then
 pruned like any closed item.
 
+## The Desk: answers that come from the page
+
+The person answers on the Desk (`orbit-kb serve questions --hub HUB`). Each response is a letter
+in `flow/desk/letters.jsonl`, about an ask or a spec KB's question or action. The page writes it
+(it closes the ask, queues the KB answer, records a divergence in the person's words, or opens a
+thread for `review` with a new requirement). `desk.py hook` tells the sessions that own the item
+(the ask's owner; the owners of open items with a `kb:` ref to the KB) at their next prompt or
+stop: act on it then, or say why not. A divergence leaves the item open: it is the person's words,
+not an answer. When you stop only to wait for the person's answer, mark the item:
+`$HF set ID --status waiting`. Then the Desk may type a one-line notice into your tmux pane when
+the answer comes (only while you are idle). Install: `python3 .claude/scripts/desk.py hooks`
+prints the hooks block for the hub's `.claude/settings.json` (the person adds it).
+`python3 .claude/scripts/desk.py letters` lists the letters; `status` shows where each one is.
+
 ## Exit codes
 
 0 ok · 1 bad input or a refused rule (read stderr) · 2 db state (missing, exists, older or newer

@@ -13,7 +13,10 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                Seed: --seed FILE, else flow/seed.json if present,
                                                else no sessions, aliases or persons
   add KIND --title T [--owner S|none] [--waits-on P] [--analysis SLUG] [--ref KIND:REF ...]
-          [--status open|waiting] [--note N]   KIND: ask thread hold summary. Prints the new id.
+          [--status open|waiting] [--reserved WHY] [--note N]
+                                               KIND: ask thread hold summary. Prints the new id.
+                                               --reserved (an ask only): an action the person
+                                               reserved, by a rule or their words; WHY quotes it
                                                A summary (S-) is what an agent noted from a meeting
                                                it read; it lapses by itself (see Retention)
   handoff --to S --title T [--gate G] [--analysis SLUG] [--ref ...] [--note N]
@@ -22,6 +25,7 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   renew ID [--note N]                          renewed_at = now (an open item only)
   park ID --until YYYY-MM-DD [--note N]        not lapsed before that date
   set ID [--title T] [--owner S] [--waits-on P|none] [--status open|waiting] [--analysis SLUG|none]
+         [--reserved WHY|none]
   close ID --reason done|dropped [--note N]   an agent cannot close, renew, park, set --status
                                                or ref rm the kb ref of an item that is escalated
                                                or whose spec KB blocks (--by human may); nor close,
@@ -64,7 +68,8 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   ref ID add|rm KIND:REF                       KIND: issue pr build release kb file commit url
                                                transcript
   link FROM TO KIND                            KIND: blocks duplicates relates supersedes follows
-  note ID TEXT                                 an event with verb note
+  note ID TEXT                                 an event with verb note (--by human: TEXT is the
+                                               person's own words)
   show ID [--format md|json]                   the item, refs, links, handoff and events
   view [NAME] [--session S] [--person P] [--kind K] [--week-start D] [--format md|json|tsv]
                                                NAME: open (the default; escalated items first)
@@ -1355,6 +1360,8 @@ def cmd_note(g, a):
     if len(pos) < 2:
         usage("note ID TEXT")
     text = " ".join(pos[1:])
+    if (o.get("by") or g.get("by")) == "human":
+        o["note"] = text  # --by human: TEXT is the person's own words (the questions page)
 
     def fn(c, w):
         it = get_item(c, pos[0])

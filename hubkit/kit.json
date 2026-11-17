@@ -5,6 +5,8 @@
     "PRINCIPLES.md",
     ".claude/scripts/hubflow.py",
     ".claude/scripts/hubflow-test.py",
+    ".claude/scripts/desk.py",
+    ".claude/scripts/desk-test.py",
     ".claude/skills/hub-flow/SKILL.md",
     ".claude/skills/hub-rotate/SKILL.md",
     ".claude/skills/hub-rotate/scripts/rotate.py",
