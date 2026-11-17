@@ -225,6 +225,44 @@ test('status line, stale: every signal dim and colourless', async ($, on) => {
   expect(line).not.toContain(`${ESC}[33m`)
 })
 
+// specs kb-s1-glance-consolidate c1: /clear gives the session a new id and does not run session.start
+// again. The mod must follow the new id: read its judgments and write its status file.
+test('after /clear: the mod reads the judgments of the new session id', async ($, on) => {
+  seed(on, null, ['status'])
+  const wrote: { path: string; text: string }[] = []
+  on('fs.write', (_: unknown, e: any) => {
+    wrote.push({ path: String(e.path), text: String(e.text) })
+    return { value: undefined }
+  })
+  on('clock.every', () => ({ value: undefined }))
+  const sets: string[] = [] // the harness keeps no state, so what the mod stores is read here
+  on('state.set', (_: unknown, e: any) => {
+    sets.push(JSON.stringify(e))
+    return { value: { isSet: true, version: (e.ifVersion ?? 1) + 1 } }
+  })
+  on('command.register', () => ({ value: { command: 's1-glance' } }))
+  on('ui.panes', () => ({ value: [] }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.close', () => ({ value: undefined }))
+  on('ui.status', () => ({ value: undefined }))
+  on('store.get', () => ({ value: undefined }))
+  on('store.set', () => ({ value: undefined }))
+  on('env.get', () => ({ value: '/home/t' }))
+  let ids = 0 // the first read is at session start; /clear comes before the first poll
+  on('session.id', () => ({ value: ids++ === 0 ? 'old' : 'new' }))
+  const g = glance()
+  const line = JSON.stringify({ session_id: 'new', time: g.time, model: g.model, latency: g.latency, answers: g.answers })
+  on('process.run', (_: unknown, e: any) =>
+    ({ value: { exitCode: 0, stdout: e.argv[0] === 'tail' ? line + '\n' : '', stderr: '' } }))
+  on('session.start', (_: unknown, e: any) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const lastSet = () => sets.some(s => s.includes('"last"') && s.includes(g.time))
+  for (let i = 0; i < 2000 && !(lastSet() && wrote.length > 1); i++) await Promise.resolve()
+  for (let i = 0; i < 20000; i++) await Promise.resolve() // let the poll finish inside the test
+  expect(lastSet()).toBe(true) // the judgment of the new id is the one shown
+  expect(wrote.at(-1)?.path).toBe('/home/t/.claude/s1-glance/new.status')
+})
+
 test('pane: control characters in what System 1 saw never blank the pane (after /compact)', async ($, on) => {
   const esc = '\u001b'
   seed(on, glance({

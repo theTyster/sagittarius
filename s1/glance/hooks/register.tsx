@@ -735,20 +735,45 @@ export const register: Register = on => {
 
     const home = (await $.env.get('HOME')) ?? ''
     const log = `${home}/.claude/logs/s1.jsonl`
-    const sessionId = await $.session.id()
+    // /clear gives the session a new id and does not run session.start again, so every poll reads the
+    // id again (follow); the id of session start is only the first.
+    let sessionId = await $.session.id()
 
     // The status view draws on the hint line under the prompt (ui.render PromptHint), so it has colours
     // and no plugin prefix; clear the pinned status line of 0.5-0.7.
     // status: the user's status line command prints this file as its first row (status.sh in this mod).
-    const statusFile = `${home}/.claude/s1-glance/${sessionId}.status`
+    const statusFile = () => `${home}/.claude/s1-glance/${sessionId}.status`
     const showStatus = async () => {
       $.ui.status(undefined)
       const isOn = (await read($, views)).includes('status')
-      await $.fs.write(statusFile, isOn ? ansiLine(await read($, last), Date.now()) : '').catch(() => undefined)
+      await $.fs.write(statusFile(), isOn ? ansiLine(await read($, last), Date.now()) : '').catch(() => undefined)
+    }
+
+    // Every judgment of this session id in the log. At start an empty result keeps what $.state holds
+    // (a reload); after a new id it empties the history.
+    const loadHistory = async (replace: boolean) => {
+      try {
+        const { stdout } = await $.process.run(['grep', '-F', sessionId, log], { timeoutMs: 5000 })
+        const all = allOf(stdout, sessionId)
+        if (all.length || replace) await update($, history, () => all)
+      } catch {
+        // no log yet: the history fills as judgments come
+      }
+    }
+    // A new id (after /clear): forget the old session's judgments and read the new one's.
+    const follow = async () => {
+      const id = await $.session.id()
+      if (id === sessionId) return
+      sessionId = id
+      await update($, last, () => null)
+      await update($, cursor, () => null)
+      await update($, part, () => null)
+      await loadHistory(true)
     }
 
     const poll = async () => {
       try {
+        await follow()
         const { exitCode, stdout } = await $.process.run(['tail', '-n', TAIL_LINES, log], { timeoutMs: 3000 })
         if (exitCode !== 0) return
         const g = newest(stdout, sessionId)
@@ -766,13 +791,7 @@ export const register: Register = on => {
         // no log yet, or tail missing: the views say so
       }
     }
-    try {
-      const { stdout } = await $.process.run(['grep', '-F', sessionId, log], { timeoutMs: 5000 })
-      const all = allOf(stdout, sessionId)
-      if (all.length) await update($, history, () => all)
-    } catch {
-      // no log yet: the history fills as judgments come
-    }
+    await loadHistory(false)
     void poll().then(showStatus)
     $.clock.every(POLL_MS, () => void poll())
     $.clock.every(TICK_MS, () => {
