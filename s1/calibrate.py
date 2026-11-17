@@ -4,7 +4,9 @@
 Run by a person, never by a test (0.3.0 S-C): a call per case, one call for all the questions of a
 case. Needs $TYPESAFE_API_KEY. It calls the System 1 model only.
 
-    python3 s1/calibrate.py [--questions s1/questions.json] [--case ID ...] [--out FILE]
+    python3 s1/calibrate.py [--questions s1/questions.json] [--case ID ...] [--out FILE] [--context]
+
+--context adds the state key "context" that the hook sends (hook.STATE_CONTEXT).
 
 Prints each miss and, for each question, how many labels agree. --out writes the rows as JSON.
 """
@@ -16,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import hook  # noqa: E402
 import jev  # noqa: E402
 
 CHOICE_MIN = 0.5  # the floor of hook.py
@@ -35,8 +38,10 @@ def score(answer, want):
     return got, p, got == want
 
 
-def judge_case(case, questions, timeout=30):
+def judge_case(case, questions, timeout=30, context=False):
     state = {"message": case["message"], "recent": case["recent"]}
+    if context:
+        state = {"context": hook.STATE_CONTEXT, **state}
     ans = jev.judge(state, questions, timeout=timeout, log_extra={"cal": "s1", "case": case["id"]})
     rows = []
     for qid, want in case["expect"].items():
@@ -54,13 +59,14 @@ def main(argv=None):
     ap.add_argument("--cases", default=os.path.join(HERE, "fixtures", "calibration.json"))
     ap.add_argument("--case", action="append", default=[])
     ap.add_argument("--out")
+    ap.add_argument("--context", action="store_true", help="send the state key context, as the hook does")
     a = ap.parse_args(argv)
     with open(a.questions, encoding="utf-8") as f:
         questions = json.load(f)
     with open(a.cases, encoding="utf-8") as f:
         cases = [c for c in json.load(f)["cases"] if not a.case or c["id"] in a.case]
     with ThreadPoolExecutor(4) as ex:
-        rows = [r for part in ex.map(lambda c: judge_case(c, questions), cases) for r in part]
+        rows = [r for part in ex.map(lambda c: judge_case(c, questions, context=a.context), cases) for r in part]
     per = {}
     for r in rows:
         n = per.setdefault(r["q"], [0, 0])

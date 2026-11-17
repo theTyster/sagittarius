@@ -11,6 +11,7 @@ The hook sends one JSON object as `state`:
 
 | Field | Type | Meaning |
 |---|---|---|
+| `context` | string | What the model is looking at, the same on every call (`hook.STATE_CONTEXT`): "You are viewing a snippet of a transcript between a human and an agent". Since 2026-11-17. |
 | `message` | string | The prompt that Ty typed, as Claude Code gave it to the hook. |
 | `recent` | list | The messages before the prompt, oldest first. The default count is 3 (`S1_CONTEXT_MESSAGES`, never below 3). |
 
@@ -68,7 +69,7 @@ bench replay writes to the bench log. The API key is never written.
 | `trimmed` | hook.py | true when the hook cut the state to fit the context. |
 | `long_context` | hook.py | true when the hook asked for the long context. |
 | `parts` | hook.py | The number of parts that the fan-out cut the prompt into (see `README.md`, "The fan-out"). |
-| `combined` | hook.py | true on the second line of a fan-out call: its `answers` are the model's answers with `h_divergence`, `h_change_of_plan`, `h_questions` and `h_effort` rewritten from the parts and `h_reversal` added. It has no `state`, `latency` or `usage`: those are on the line before it. |
+| `combined` | hook.py | true on the second line of a fan-out call: its `answers` are the model's answers with `h_divergence`, `h_change_of_plan`, `h_questions` and `h_effort` rewritten from the parts and `h_contradiction` added (`h_reversal` in lines before 2026-11-17; the readers accept both, and `tla` for `tlaplus` in `h_language`). It has no `state`, `latency` or `usage`: those are on the line before it. |
 | `replaced` | hook.py | Only on a combined line: the ids whose answer the fan-out wrote from the parts. For each one, `answers` also holds `<id>_plain`: the answer of that id's own question, which did not reach the line. |
 | `part_text` | hook.py | Only on a combined line: the text of each part, each cut to 160 characters. |
 | `fanout_off` | hook.py | The reason why the fan-out file did not load, so that the call was a plain one. |

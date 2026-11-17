@@ -68,7 +68,10 @@ const NOULS: { id: string; glyph: string; label: string; alarm: boolean }[] = [
 ]
 
 const WORK: Record<string, string> = { research: '🔍', specify: '📐', build: '🔨', verify: '🔬', task: '🗒️', question: '💬', other: '👋' }
-const TOOL: Record<string, string> = { prolog: '🦉', lean: '🧮', z3: '🧩', tla: '⏱️', tests: '🧪', none: '🚫' }
+// tla: the key of TLA+ in log lines written before 2026-11-17 (now tlaplus).
+const TOOL: Record<string, string> = { prolog: '🦉', lean: '🧮', z3: '🧩', tlaplus: '⏱️', tla: '⏱️', tests: '🧪', none: '🚫' }
+// How a tool is named to a person, where the key is not the name (Ty: "TLAplus ... more readable").
+const TOOL_NAME: Record<string, string> = { tlaplus: 'TLA+', tla: 'TLA+' }
 
 // What a part does (the choice "react" of s1/fanout.json), and the six answers of a part.
 const DOES: Record<string, { glyph: string; label: string }> = {
@@ -159,7 +162,7 @@ function rows(g: Glance): Row[] {
   if (lang && lang.type === 'choice') {
     const p = prob(lang, lang.choice)
     // A tool below the threshold is no tool at all: show "no tool" with P(none), never the guess.
-    if (p >= 0.5 && lang.choice !== 'none') out.push({ glyph: TOOL[lang.choice] ?? '🔹', label: lang.choice, p, fires: true, rank: 2 })
+    if (p >= 0.5 && lang.choice !== 'none') out.push({ glyph: TOOL[lang.choice] ?? '🔹', label: TOOL_NAME[lang.choice] ?? lang.choice, p, fires: true, rank: 2 })
     else out.push({ glyph: TOOL.none ?? '🚫', label: 'no tool', p: prob(lang, 'none'), fires: false, rank: 2 })
   }
 

@@ -14,7 +14,7 @@ a status line command); else the newest session in the log. Stdin is never read 
     toast   one line, only when the newest message fired a signal; else nothing
     json    the turns as data: {"session", "turns": [{time, model, latency, tokens, work, tool,
             signals: {...}, fired: [...], parts: [{text, react, p, doubts, faults, changes, asks,
-            undecided, reverses}]}]}
+            undecided, contradiction}]}]}
 
 A signal fires at 0.7 or more (jev.band). Fails quiet: on any error it prints nothing and exits 0."""
 import argparse
@@ -26,10 +26,14 @@ DEFAULT_LOG = os.path.expanduser("~/.claude/logs/s1.jsonl")
 TAIL = 4 * 1024 * 1024
 YES, NO = 0.7, 0.3
 SIGNALS = (("divergence", "h_divergence"), ("change of plan", "h_change_of_plan"), ("questions open", "h_questions"),
-           ("effort", "h_effort"), ("reversal", "h_reversal"), ("proof asked", "h_proof"))
+           ("effort", "h_effort"), ("reversal", "h_contradiction"), ("proof asked", "h_proof"))
 SHORT = {"divergence": "div", "change of plan": "plan", "questions open": "ques", "effort": "eff", "reversal": "rev", "proof asked": "proof"}
-PART_KEYS = ("doubts", "faults", "changes", "asks", "undecided", "reverses")
+PART_KEYS = ("doubts", "faults", "changes", "asks", "undecided", "contradiction")
+# Keys of log lines written before the rename (2026-11-17), read under their new names.
+OLD_KEYS = {"h_reversal": "h_contradiction", "reverses": "contradiction"}
 BLOCKS = " ▁▂▃▄▅▆▇█"
+# How a tool is named to a person (Ty, 2026-11-17); tla is the key of TLA+ in older log lines.
+TOOL_NAME = {"tlaplus": "TLA+", "tla": "TLA+"}
 
 
 def _lines(path):
@@ -93,8 +97,17 @@ def turns(path, session=None):
     return session, out
 
 
+def _renamed(a):
+    """The answers with the keys of an older log line under their new names."""
+    out = {}
+    for k, v in a.items():
+        name, at, n = k.partition("@")
+        out.setdefault(OLD_KEYS.get(name, name) + at + n, v)
+    return out
+
+
 def _turn(r, call):
-    a = r["answers"]
+    a = _renamed(r["answers"])
     work, wp = _choice(a, "h_work")
     tool, tp = _choice(a, "h_language")
     sig = {name: _noul(a, qid) for name, qid in SIGNALS if _noul(a, qid) is not None}
@@ -141,7 +154,7 @@ def _clip(s, n):
 
 def _why(t, name):
     """The part that carries a signal: (number, text), or None."""
-    key = {"divergence": ("doubts", "faults"), "change of plan": ("changes",), "questions open": ("asks", "undecided"), "reversal": ("reverses",)}.get(name)
+    key = {"divergence": ("doubts", "faults"), "change of plan": ("changes",), "questions open": ("asks", "undecided"), "reversal": ("contradiction",)}.get(name)
     best = None
     for i, p in enumerate(t["parts"]):
         v = max([p.get(k) or 0 for k in key]) if key else 0
@@ -169,7 +182,7 @@ def pane(session, ts, color=True, width=100, history=30):
     if t["work"]:
         line.append(f"work {c(t['work'], '1')} {t['work_p']:.2f}")
     if t["tool"]:
-        line.append(f"tool {c(t['tool'], '1')} {t['tool_p']:.2f}")
+        line.append(f"tool {c(TOOL_NAME.get(t['tool'], t['tool']), '1')} {t['tool_p']:.2f}")
     if line:
         out.append("  ".join(line))
     out.append("")

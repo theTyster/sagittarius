@@ -19,14 +19,16 @@ def N(p):
     return {"type": "noul", "noul": p}
 
 
-def turn(session, div=0.05, rev=0.05, texts=("Looks good.", "Did you test this?"), doubt=0.05):
+def turn(session, div=0.05, rev=0.05, texts=("Looks good.", "Did you test this?"), doubt=0.05, old=False, tool="tests"):
+    """One fan-out call. old: the keys of a line written before the contradiction rename (2026-11-17)."""
     now = dt.datetime.now(dt.timezone.utc).isoformat(timespec="milliseconds")
     a = {"h_work": {"type": "choice", "choice": "build", "confidence": 0.9, "probabilities": {"build": 0.9}},
-         "h_language": {"type": "choice", "choice": "tests", "confidence": 0.8, "probabilities": {"tests": 0.8}},
-         "h_divergence": N(div), "h_change_of_plan": N(0.05), "h_questions": N(0.0), "h_effort": N(0.1), "h_proof": N(0.02), "h_reversal": N(rev)}
+         "h_language": {"type": "choice", "choice": tool, "confidence": 0.8, "probabilities": {tool: 0.8}},
+         "h_divergence": N(div), "h_change_of_plan": N(0.05), "h_questions": N(0.0), "h_effort": N(0.1), "h_proof": N(0.02), ("h_reversal" if old else "h_contradiction"): N(rev)}
     for k in range(len(texts)):
         a[f"react@{k}"] = {"type": "choice", "choice": "doubts" if k else "accepts", "probabilities": {"doubts": 0.8, "accepts": 0.9}}
         for name in live.PART_KEYS:
+            name = "reverses" if old and name == "contradiction" else name
             a[f"{name}@{k}"] = N(doubt if (name == "doubts" and k == 1) else 0.03)
     call = {"time": now, "session_id": session, "model": "jev-test", "latency": 0.25, "usage": {"input_tokens": 2000}, "parts": len(texts),
             "answers": dict(a, h_divergence=N(0.5)), "error": None}
@@ -107,6 +109,19 @@ class Live(unittest.TestCase):
         seg = statusline.render("s1", self.log)
         self.assertNotIn("rev", seg)
         self.assertNotIn("parts", seg)
+
+    def test_an_older_line_with_the_old_keys_still_shows_the_reversal(self):
+        self.write(turn("s1", rev=0.9, texts=("a.", "b. no wait", "c."), old=True))
+        self.assertIn("rev 0.90", statusline.render("s1", self.log))
+        d = json.loads(self.out("--format", "json", "--session", "s1"))
+        self.assertEqual(d["turns"][0]["fired"], ["reversal"])
+        self.assertEqual(d["turns"][0]["parts"][0]["contradiction"], 0.03)
+
+    def test_tla_plus_reads_TLA_plus(self):  # kb-s1-glance-consolidate c7 (Ty: "TLAplus ... more readable")
+        for key in ("tlaplus", "tla"):  # tla: a line written before the rename
+            self.write(turn("s1", div=0.9, tool=key))
+            self.assertIn("tool TLA+ 0.80", self.out("--format", "pane", "--session", "s1"))
+            self.assertTrue(statusline.render("s1", self.log).endswith("| tool TLA+"), key)
 
 
 if __name__ == "__main__":
