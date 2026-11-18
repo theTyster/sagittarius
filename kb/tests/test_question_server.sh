@@ -1972,6 +1972,32 @@ JS
     brj "d['li']" "an answered item"; brj "d['bad']==[]" "inline boxes"; brj "d['lh']==0 or d['lh']>=1.3*d['fs']" "the line height of the answered list"
 }
 
+t_QS69() {  # Desk c35 (Ty, 2026-11-18: "Both: Your action too"): Your action links to the Ledger card of each reserved ask; one card per ask
+    desk_hub "$T/h"; local A B C
+    A=$(hf "$T/h" --session process add ask --no-kb --title 'Waive the c3 proof' --note 'Case: the c3 proof. Options: waive or prove. Default: none.' --waits-on me --reserved 'Sagittarius Policy: Only the human may waive a proof.')
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Push the hub' --note 'Case: push. Options: now or later. Default: later.' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so')
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    cat > "$T/act.py" <<'PY'
+import re,sys
+p=open(sys.argv[1],encoding='utf-8').read(); a,b,c=sys.argv[2:5]; bad=[]
+m=re.search(r'<details class="lane" id="lane-action"[^>]*>(.*?)</details>\s*<details class="lane" id="lane-',p,re.S)
+lane=m.group(1) if m else ''
+if not m: bad.append('no Your action lane')
+for x in (a,b):
+    if not re.search(r'<a\b[^>]*href="#item-h-ask-'+re.escape(x)+r'"',lane): bad.append('Your action has no link to the card of '+x)
+if 'ask-'+c in lane: bad.append('Your action names the plain ask '+c)
+for x in (a,b,c):
+    n=len(re.findall(r'<details[^>]*\bid="item-h-ask-'+re.escape(x)+r'"',p))
+    if n!=1: bad.append('%d cards for %s'%(n,x))
+print(bad); sys.exit(1 if bad else 0)
+PY
+    local r; r=$(python3 -I "$T/act.py" "$T/page.html" "$A" "$B" "$C") || note "Your action: $r"
+    chk dlane "$T/page.html" ledger "ask-$A" "ask-$B" "ask-$C"
+    grep -q 'Your action<b>2</b>' "$T/page.html" || note "the lane link of Your action does not count its 2 reserved asks"
+    grep -q '<strong>4 things wait on you,' "$T/page.html" || note "the header counts a reserved ask twice, or misses one (want 4: three asks and the KB question qb)"
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -1984,6 +2010,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 68); do run_one QS$n; done
+for n in $(seq 1 69); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

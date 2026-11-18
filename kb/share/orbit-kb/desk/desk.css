@@ -197,3 +197,6 @@ header.top .folds{display:flex;gap:6px}
 /* c32: the park date */
 label.until{display:inline-flex;align-items:center;gap:6px;margin:6px 0}
 label.until input{background:var(--ink);color:inherit;border:1px solid var(--rule);border-radius:6px;padding:3px 6px;color-scheme:dark}
+/* c35: a reserved ledger ask in Your action, as a link to its Ledger card */
+a.actlink{display:flex;flex-direction:column;gap:2px;padding:12px 20px;margin:0 0 8px;border:1px solid var(--rule);border-left:3px solid var(--lamp);border-radius:10px;background:var(--desk);color:var(--paper);text-decoration:none}
+a.actlink:hover{background:var(--drawer)}a.actlink .t{font:500 17px/1.3 var(--letter)}
