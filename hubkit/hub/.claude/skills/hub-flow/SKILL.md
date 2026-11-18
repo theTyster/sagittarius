@@ -65,7 +65,22 @@ Read at session start and after every compaction: the db is the memory, not the 
 ## Write
 
 ```
-$HF add ask --title "…" --waits-on me --ref issue:123 [--analysis <slug>] [--note "…"]
+# an ask says whether it rests on a KB: --ref kb:<slug> (or kb:/abs/path, kb:~/path for a KB
+# outside the hub; its dir must hold kb.pl), or --no-kb when it rests on none. With neither: exit 1
+# an ask also needs --note "…": the context the Desk shows (the case, the options and what each one
+# changes, and your default). With no note, or a blank one: exit 1
+$HF add ask --title "…" --waits-on me --ref kb:<slug> --ref issue:123 --note "the case; A: …, B: …; default A" [--due 2026-12-01] [--analysis <slug>]
+$HF add ask --title "…" --waits-on me --no-kb --ref issue:123 --note "…"
+# --due: the asker's due date (YYYY-MM-DD); the Desk shows it, else the triage date.
+# set ID --due YYYY-MM-DD|none ; set ID --no-kb yes|no (`ref ID add kb:…` sets it to no)
+# an action the person reserved for themselves (a standing rule or their own words: push,
+# waiver, vote, send): --reserved names the source in one of two forms, else exit 1:
+#   "NAME Policy: RULE"        a policy by its name and its rule
+#   "WHO, YYYY-MM-DD: WORDS"   a person's own words with their date
+# The Desk lists it under "Human action needed"; other asks go under "Questions for you".
+# set ID --reserved WHY|none
+$HF add ask --title "Waive the proof of c3" --waits-on me --ref kb:<slug> --note "…" --reserved "Sagittarius Policy: Only the human may waive a proof."
+$HF add ask --title "Push the hub" --waits-on me --no-kb --note "…" --reserved "Ty, 2026-11-12: push only when I say so"
 $HF add thread --title "…" --ref pr:45
 $HF handoff --to build --title "…" --ref kb:<slug> --ref issue:123 --note "where to start"
 $HF accept H-0003                 # only the receiving session can accept
@@ -85,7 +100,10 @@ ref of the tracker item. `$HF check` flags an ask to another person with no issu
 
 Rules the script enforces: `issue` and `pr` refs are digits only; `--analysis` takes the slug of a
 spec KB, never a `W0/…` path. A spec KB lives at `specs/<slug>/` and its ref is `kb:<slug>`;
-`$HF where <slug>` prints the path (an old hub's `W*/analyses/<slug>/kb` still resolves).
+`$HF where <slug>` prints the path (an old hub's `W*/analyses/<slug>/kb` still resolves). A KB outside
+the hub is `kb:/abs/path` or `kb:~/path`: the ledger reads it as it reads a spec KB, and `$HF where
+~/path` prints the path with `~` expanded. An ask added before these rules has no kb ref and `no_kb`
+0: the Desk shows it as "No KB behind it".
 
 **A handoff** is a `handoff` row plus the KB. The one procedure is written in `PANES.md` (installed as
 `~/.claude/sagittarius/PANES.md`; `prompt/PANES.md` in the Sagittarius checkout)
@@ -168,6 +186,27 @@ $HF add summary --title "Standup 11-02: the conveyor date, the test rig, two ope
 A `summary` row is not work. It is never due and never blocks `rotate`: the first rotation when it
 is 28 days old (counted from when it was added) lapses it, and lists it as `lapsed:`. It is then
 pruned like any closed item.
+
+## The Desk: answers that come from the page
+
+The person answers on the Desk: one page at one address for every MindHole on the machine
+(`.claude/orbit-kb/bin/orbit-kb serve desk`; a MindHole joins once with `python3 .claude/scripts/desk.py join --name NAME`).
+Every letter goes through a review first: the person sees each receiving session and the exact text
+it gets, can change every word, then sends or cancels. A letter goes to one session (`to`) and lands
+in `flow/desk/letters.jsonl` of its MindHole only when the person sends it; drafts stay in the Desk's
+own store outside every MindHole, and no agent reads them. The Desk then writes what the review
+named (it closes the ask, queues the KB answer, records a divergence in the person's words, or
+opens a thread for `review` with a new requirement). `desk.py hook` gives you, at your next prompt
+or stop, exactly the reviewed text of each letter to you: act on it then, or say why not. A
+divergence leaves the item open: it is the person's words, not an answer.
+What the Desk shows comes from your records, so keep them whole: an ask names its KB (`--ref kb:`)
+or `--no-kb`, gives the case, the options with what each changes, and the default in its `--note` (`add ask` refuses an ask with no note), and a `--due` date when it has one; a
+reservation names its source; a check says what it checks (`checks_that`). When you stop only to
+wait for the person's answer, mark the item `$HF set ID --status waiting`: then the Desk may type
+one line into your tmux pane when the answer comes (only while you are idle; the review shows it).
+Install: `python3 .claude/scripts/desk.py hooks` prints the hooks block for the hub's
+`.claude/settings.json` (the person adds it). `desk.py letters` lists the letters; `status` shows
+where each one is.
 
 ## Exit codes
 

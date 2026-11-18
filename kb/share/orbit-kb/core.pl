@@ -134,6 +134,12 @@ decl(fact, universal(ref(claim)),
 decl(fact, check(id, ref(claim)),
      'An executable check of the claim.',
      '@(1) is a check of claim @(2)').
+% questions-server q8 (Ty, 2026-11-17: both): a check says in words what it checks. The Desk
+% shows these words; without them it shows the first line of the check script's docstring, else
+% the command of its last run. Lint W12 names a check of a current claim with no words.
+decl(fact, checks_that(ref(check), text),
+     'What the check checks, in words that a human reads: the Desk shows them.',
+     'check @(1) checks that @(2)').
 decl(fact, world(term),
      'A fact about the current state; a state that is not recorded is false.',
      'in the current state, @(1) is true').
@@ -465,5 +471,7 @@ premises_stated(H) :- no_premises(H).
 % Review of K-A (finding 9): a premise and the record "Premises: none" on one hypothesis.
 lint_issue('W11', H, 'This hypothesis has a premise and also the record no_premises ("Premises: none"). They contradict each other. Restate the hypothesis (a new hypothesis with supersedes) with its premises, or with no_premises only.') :-
     hypothesis(H, _, _), not superseded(H), premise(_, H, _), no_premises(H).
+lint_issue('W12', K, 'This check of a current claim does not say in words what it checks. Add checks_that(K, Text): one line that a human reads (the Desk shows it).') :-
+    check(K, C), not superseded(C), not checks_that(K, _).
 lint_issue('W10', H, 'This hypothesis has no premise and no record "Premises: none". Add premise(P, H, Text) for each condition that it takes as given, or no_premises(H).') :-
     hypothesis(H, _, _), not superseded(H), not premises_stated(H).

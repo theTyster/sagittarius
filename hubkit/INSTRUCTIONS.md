@@ -130,7 +130,7 @@ make it pass.
 ```
 python3 .claude/scripts/hubflow.py init            # reads flow/seed.json
 python3 .claude/scripts/hubflow.py check           # exit 0: db and JSONL agree
-HUB_SESSION=<a role> python3 .claude/scripts/hubflow.py add ask --title "Setup smoke test" --waits-on me
+HUB_SESSION=<a role> python3 .claude/scripts/hubflow.py add ask --title "Setup smoke test" --waits-on me --no-kb --note "smoke test: the case, the options, the default"
 python3 .claude/scripts/hubflow.py view v_inbox --session <that role>
 python3 .claude/scripts/hubflow.py close A-0001 --reason dropped --session <that role> --note "smoke test"
 ```
@@ -215,7 +215,9 @@ python3 .claude/scripts/hubflow.py check
 Say what you set up, each check's result, and what you did not check. Then tell them the routine:
 
 - **Every session start, and after every compaction:** read `v_inbox` for that session.
-- **When an agent waits on the human:** `add ask --waits-on me`. Ask the human what is waiting on
+- **When an agent waits on the human:** `add ask --waits-on me` (a formal hub also needs
+  `--ref kb:<slug>` for the KB the ask rests on, or `--no-kb`, and `--note` with the case, the
+  options and what each changes, and your default). Ask the human what is waiting on
   them with `view v_waiting_on --person me`.
 - **Passing work:** `handoff --to <role>`, then message that session with the id.
 - **Each Monday:** "rotate the hub" (skill `hub-rotate`). The agent records a decision for each due

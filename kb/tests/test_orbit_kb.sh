@@ -633,7 +633,7 @@ oadd() { okb --dir "$K" add "$@"; }
 mkclaim() { use_proto "mkclaim.${1:-build}"; }   # standard small KB in $K made through the CLI
 mkclaim_fresh() {  # the setup behind mkclaim. It runs once per suite, in a prototype (use_proto).
     K=$T/kb; kb_init "$K" "${1:-build}"
-    oadd "claim(c1, introduce, 'The widget can be saved')" "cites(c1, 'Add saving')" "check(k1, c1)" >/dev/null 2>&1 || note "setup: add failed: $(snip "$err")"
+    oadd "claim(c1, introduce, 'The widget can be saved')" "cites(c1, 'Add saving')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" >/dev/null 2>&1 || note "setup: add failed: $(snip "$err")"
 }
 orun() { okb --dir "$K" run "$@"; }
 valid_copy() { copy_fixture valid "$T/kb"; K=$T/kb; }
@@ -740,6 +740,18 @@ t_A17() { mkclaim; rejects badwriter 'writer|allow|agent|human' add "attest(a1, 
 t_A20() { mkclaim; rejects conjunction 'own argument' add "risk(rk1, 'a'), risk(rk2, 'b')"; no_fact "$K/kb.pl" "risk(rk1,_)" "nothing written"; }
 t_A21() { mkclaim; rejects noteid 'does not create' add "note(n1, 'a note')"; any_hasi 'note\(c1|r1|existing' "the message shows how to attach a note"; }
 t_A22() { mkclaim; rejects barelabel 'verdict\(CLAIM, tested\(100\)\)' attest lean_result c1 'tested(100)'; }
+t_A23() { mkclaim; rejects nowords 'E20|checks_that' add "claim(c2, preserve, 'Two stays true')" "cites(c2, 'two')" "check(k2, c2)"
+          any_has "checks_that\(k2" "E20: the message names the fact to add"; any_has "orbit-kb add 'check\(k2, c1\)'|orbit-kb add 'check\(k2" "E20: the message shows the fix"
+          no_fact "$K/kb.pl" "claim(c2,_,_)" "the claim of the refused add is not written"; }
+t_A24() { mkclaim; rejects emptywords 'E20|checks_that' add "claim(c2, preserve, 'Two stays true')" "cites(c2, 'two')" "check(k2, c2)" "checks_that(k2, '  ')"
+          oadd "claim(c2, preserve, 'Two stays true')" "cites(c2, 'two')" "check(k2, c2)" "checks_that(k2, 'two stays true on the page')"; rc_is 0 "a check with words in the same add"
+          has_fact "$K/kb.pl" "check(k2, c2)"; has_fact "$K/kb.pl" "checks_that(k2, 'two stays true on the page')"; }
+t_A25() { mkclaim; printf "checks_that(k2, 'two stays true on the page').\n" >> "$K/kb.pl"   # words already in the KB (ids are unique, so a fixture)
+          oadd "claim(c2, preserve, 'Two stays true')" "cites(c2, 'two')" "check(k2, c2)"; rc_is 0 "a new check(k2, c2) when the KB has checks_that(k2, _)"; has_fact "$K/kb.pl" "check(k2, c2)"
+          rejects othercheck 'E20|checks_that' add "claim(c3, preserve, 'Three stays true')" "cites(c3, 'three')" "check(k3, c3)"; }
+t_A26() { mkclaim; printf "claim(c2, preserve, 'Two stays true').\ncites(c2, 'two').\ncheck(k2, c2).\n" >> "$K/kb.pl"
+          okb --dir "$K" lint; rc_is 0 "an old check with no words still lints (W12 is a warning)"; any_has 'W12' "lint W12 names it"
+          rejects newcheck 'E20' add "claim(c3, preserve, 'Three')" "cites(c3, 'three')" "check(k3, c3)"; }
 
 # ================================================================ D: rule heads (T26: the declare command is gone; add takes no decl term)
 # A head of rules.pl is declared by its first clause. Lint checks it as it checked a declared head.
@@ -803,10 +815,10 @@ t_S5() { mkclaim; printf 'one\n' > "$K/a.txt"; printf 'two\n' > "$K/b.txt"; okb 
          has_goal "$K/kb.pl" "kb_line(L1, subject(s1,_,_)), kb_line(L2, subject(s2,_,_)), L1 < L2" "refreshed in place (still before s2)"; }
 t_S6() { # D3: a KB directory moved to a new place keeps W1 and digest(current) working with no refresh
          mkclaim; printf 'one\n' > "$K/plan.txt"; okb --dir "$K" subject s1 plan.txt >/dev/null; mv "$K" "$T/moved"; K=$T/moved
-         okb --dir "$K" lint; rc_is 0 "lint after the move"; any_hasnt '^W1' "no W1 after the move"
+         okb --dir "$K" lint; rc_is 0 "lint after the move"; any_hasnt '^W1 ' "no W1 after the move"
          okb --dir "$K" attest approval s1 'digest(current)' --by human; rc_is 0 "digest(current) after the move"; }
 t_S7() { # D3 on the fixture: copying the valid fixture elsewhere keeps it clean
-         valid_copy; mv "$K" "$T/elsewhere"; okb --dir "$T/elsewhere" lint --strict; rc_is 0 "valid fixture, copied, strict"; any_hasnt '^W1'; }
+         valid_copy; mv "$K" "$T/elsewhere"; okb --dir "$T/elsewhere" lint --strict; rc_is 0 "valid fixture, copied, strict"; any_hasnt '^W1 '; }
 t_S8() { mkclaim; printf 'one\n' > "$K/plan.txt"; okb --dir "$K" subject s1 plan.txt >/dev/null; okb --dir "$K" subject s1 plan.txt >/dev/null; rc_is 0 "refresh without a change"
          fact_count "$K/kb.pl" "subject(s1,_,_)" 1; }
 
@@ -820,10 +832,10 @@ t_R2() { mkclaim; orun k1 -- sh -c 'echo hello-output; exit 3'; rc_is 1 "a nonze
 t_R3() { mkclaim; orun k1 -- true; rc_is 0; head -n1 "$K/runs/1-k1.log" | grep -Eq '^% orbit-kb run 1 check=k1 result=pass exit=0 time=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z cmd=true' || note "header is wrong: $(head -n1 "$K/runs/1-k1.log")"
          okb --dir "$K" lint; rc_is 0 "a run made by the CLI passes lint (E9)"; any_hasnt '^E9'; }
 t_R4() { mkclaim; cp "$K/kb.pl" "$T/.b"; orun nosuch -- true; rc_not 0; [ "$rc" = 2 ] || [ "$rc" = 1 ] || note "exit $rc"; any_hasi 'nosuch|check|exist'; same_file "$K/kb.pl" "$T/.b"; [ -e "$K/runs" ] && [ -n "$(ls -A "$K/runs")" ] && note "a log was written for an unknown check"; }
-t_R5() { mkclaim; oadd "claim(c2, preserve, x)" "check(k2, c2)" >/dev/null; orun k1 -- true >/dev/null; orun k2 -- true; any_has 'run 2 k2 pass'; ls "$K/runs" | grep -q '^2-k2.log$' || note "run numbers are global per KB: want runs/2-k2.log, got $(ls "$K/runs" | paste -sd' ')"; }
+t_R5() { mkclaim; oadd "claim(c2, preserve, x)" "check(k2, c2)" "checks_that(k2, 'the check k2 tests the claim')" >/dev/null; orun k1 -- true >/dev/null; orun k2 -- true; any_has 'run 2 k2 pass'; ls "$K/runs" | grep -q '^2-k2.log$' || note "run numbers are global per KB: want runs/2-k2.log, got $(ls "$K/runs" | paste -sd' ')"; }
 t_R6() { mkclaim; orun k1 -- sh -c 'seq 1 100; exit 1'; rc_is 1; any_hasf 100 "last line"; any_hasf 61 "line 61 is in the last 40"; any_hasnt '^(1|20)$' "early lines are not in the tail"; }
 t_R7() { # D1: core check/2 and test_result work with uses([])
-         K=$T/kb; kb_init "$K" ""; oadd "claim(c1, introduce, 'x')" "cites(c1, 'y')" "check(k1, c1)" >/dev/null; orun k1 -- false >/dev/null; orun k1 -- true >/dev/null
+         K=$T/kb; kb_init "$K" ""; oadd "claim(c1, introduce, 'x')" "cites(c1, 'y')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" >/dev/null; orun k1 -- false >/dev/null; orun k1 -- true >/dev/null
          okb --dir "$K" query 'was_red(k1)'; rc_is 0 "was_red without the build module"; out_has '^true'; okb --dir "$K" query 'passed(k1)'; rc_is 0; }
 t_R8() { mkclaim; orun k1 --; rc_is 2 "run without a command is a usage error"; }
 t_R9() { mkclaim; orun k1 -- sh -c 'echo out; echo err >&2'; rc_is 0; grep -q out "$K/runs/1-k1.log" && grep -q err "$K/runs/1-k1.log" || note "the log must hold stdout and stderr"; }
@@ -873,7 +885,7 @@ EOF2
 # H3: arithmetic under negation (passed/1); the name is from s(CASP) days (D20)
 h3_kb() { use_proto h3; }
 h3_kb_fresh() {  # the setup behind h3_kb. It runs once per suite, in a prototype (use_proto).
-    K=$T/kb; kb_init "$K" ""; oadd "claim(c1, preserve, 'The runs behave')" "cites(c1, 'x')" "check(k1, c1)" "check(k2, c1)" "check(k3, c1)" "check(k4, c1)" >/dev/null || note "setup failed: $(snip "$err")"
+    K=$T/kb; kb_init "$K" ""; oadd "claim(c1, preserve, 'The runs behave')" "cites(c1, 'x')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" "check(k2, c1)" "checks_that(k2, 'the check k2 tests the claim')" "check(k3, c1)" "checks_that(k3, 'the check k3 tests the claim')" "check(k4, c1)" "checks_that(k4, 'the check k4 tests the claim')" >/dev/null || note "setup failed: $(snip "$err")"
     local s
     for s in k1:true k1:false k2:false k2:true k3:true k4:true k4:false k4:true; do orun "${s%%:*}" -- "${s##*:}" >/dev/null 2>&1; done
 }
@@ -1467,7 +1479,7 @@ t_NC1() { K=$T/k; kb_init "$K" build
           is_false 'done' "a build KB with no claim is not done"; is_false 'any_current_claim'
           okb --dir "$K" whynot 'done'; rc_is 0; [ "$(first_line)" = absent ] || note "whynot done: first line '$(first_line)'"
           out_has 'no claim is current' "whynot done names the missing claim"; out_has 'some claim is current'
-          oadd "claim(c1, preserve, 'One stays true')" "cites(c1, 'Test request')" "check(k1, c1)" >/dev/null
+          oadd "claim(c1, preserve, 'One stays true')" "cites(c1, 'Test request')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" >/dev/null
           add_result "$K" k1 1 pass
           is_true 'any_current_claim'; is_true 'done' "one fulfilled claim: done holds"
           okb --dir "$K" whynot 'done'; rc_is 0; [ "$(first_line)" = holds ] || note "whynot done after a claim: '$(first_line)'"; }
@@ -1503,13 +1515,13 @@ t_NC5() { K=$T/k; kb_init "$K" discovery
 DARK='With dark mode on, every screen shows a dark scheme.'
 hy_build() {  # hy_build DIR: a build KB with one claim, its example and its check
     kb_init "$1" build; K=$1
-    oadd "claim(c1, introduce, '$DARK')" "cites(c1, 'Test request')" "example(c1, 'the reports page is dark')" "check(k1, c1)" >/dev/null || note "setup: the claim: $(snip "$out$err")"
+    oadd "claim(c1, introduce, '$DARK')" "cites(c1, 'Test request')" "example(c1, 'the reports page is dark')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" >/dev/null || note "setup: the claim: $(snip "$out$err")"
 }
 hy_disc() {  # hy_disc DIR: a discovery KB that is ready: a hypothesis, one claim with an example, a red system check, a reproduction
     kb_init "$1" discovery; K=$1
     oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "budget(laps, 3)" \
          "claim(c1, introduce, 'Every purchase gets the points that its amount and tier give.')" "cites(c1, 'Test request')" \
-         "check(t1, c1)" "discovery_evidence(t1, system)" "example(c1, 'gold, 40, gives 80')" >/dev/null || note "setup: the discovery facts: $(snip "$out$err")"
+         "check(t1, c1)" "checks_that(t1, 'the check t1 tests the claim')" "discovery_evidence(t1, system)" "example(c1, 'gold, 40, gives 80')" >/dev/null || note "setup: the discovery facts: $(snip "$out$err")"
     okb --dir "$K" run t1 -- false >/dev/null
     okb --dir "$K" attest reproduction t1 'result(h1, reproduced)' >/dev/null || note "setup: the reproduction: $(snip "$out$err")"
 }
@@ -1622,7 +1634,7 @@ t_HY9() { hy_closed "$T/d"   # finding 1: after a return to discovery, a new rou
 t_HY10() { kb_init "$T/d" discovery; K=$T/d   # finding 2: no closure while not ready, and the round keeps its record
           oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "no_premises(h1)" "budget(laps, 3)" \
                "claim(c1, introduce, 'Every purchase gets the points that its amount and tier give.')" "cites(c1, 'Test request')" \
-               "example(c1, 'gold, 40, gives 80')" "check(t1, c1)" >/dev/null
+               "example(c1, 'gold, 40, gives 80')" "check(t1, c1)" "checks_that(t1, 'the check t1 tests the claim')" >/dev/null
           okb --dir "$K" run t1 -- false >/dev/null
           is_false 'discovery_ready' "setup: h1 was never reproduced"
           vt_add v1 agent 1 go
@@ -1819,7 +1831,7 @@ EOF
           local J=$T/item.json
           printf '{"title": "Export daily", "body": "Send the export each day."}\n' > "$J"
           okb init "$T/r" --request-file "$J" --source 'gh:acme/widgets#3' --uses build >/dev/null; K=$T/r
-          oadd "claim(c1, introduce, 'The export runs daily.')" "cites(c1, 'Export daily')" "example(c1, 'one file on Monday')" "check(k1, c1)" >/dev/null
+          oadd "claim(c1, introduce, 'The export runs daily.')" "cites(c1, 'Export daily')" "example(c1, 'one file on Monday')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" >/dev/null
           okb --dir "$K" run k1 -- false >/dev/null; okb --dir "$K" run k1 -- true >/dev/null
           printf '{"title": "Export daily", "body": "Send the export each hour."}\n' > "$J"
           okb --dir "$K" pin-request --request-file "$J" >/dev/null; op_named blocking ""
@@ -1836,7 +1848,7 @@ op_project() {  # op_project DIR BY: a project KB with excludes(d1, d2), and a s
     oadd "project_kb('../p')" >/dev/null
     q 'project_decision_digest(d1, D)'; local dg; dg=$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}' | head -n1)
     oadd "claim(c1, introduce, 'The page shows the price.')" "cites(c1, 'show the price')" "example(c1, 'the page shows 12.00')" \
-         "check(k1, c1)" "pins(c1, project, d1, '$dg')" >/dev/null || note "setup: the spec KB: $(snip "$out$err")"
+         "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" "pins(c1, project, d1, '$dg')" >/dev/null || note "setup: the spec KB: $(snip "$out$err")"
     okb --dir "$S" run k1 -- false >/dev/null; okb --dir "$S" run k1 -- true >/dev/null; }
 t_OP2() { : > "$T/.seen.ready_blocker"
           kb_init "$T/e" discovery; K=$T/e; op_named ready_blocker "not_ready "
@@ -1845,7 +1857,7 @@ t_OP2() { : > "$T/.seen.ready_blocker"
           hy_disc "$T/d"
           oadd "claim(c2, introduce, 'A refund takes the points back.')" "cites(c2, 'Test request')" \
                "claim(c3, preserve, 'A purchase by a guest gets no points.')" "cites(c3, 'Test request')" \
-               "example(c3, 'a guest buys for 40 and gets 0')" "check(t3, c3)" "discovery_evidence(t3, system)" \
+               "example(c3, 'a guest buys for 40 and gets 0')" "check(t3, c3)" "checks_that(t3, 'the check t3 tests the claim')" "discovery_evidence(t3, system)" \
                "finding(f1, surprise('a guest got 12 points'), system)" "question(q9, h1, 'Do guests get points?')" "raised_by(q9, f1)" \
                "finding(f2, conflict([c1, c3]), model)" >/dev/null || note "setup: $(snip "$out$err")"
           okb --dir "$K" run t3 -- false >/dev/null
@@ -1900,7 +1912,7 @@ t_OP3() { local P=$T/p F=$T/report.txt
           # a spec KB: a pin that nothing names is open until the source is pinned again
           local S=$T/sp G=$T/notes.txt; printf 'v1\n' > "$G"
           okb init "$S" --request 'show the price' --uses build,project >/dev/null; K=$S
-          oadd "claim(c1, introduce, 'The page shows the price.')" "cites(c1, 'show the price')" "example(c1, 'the page shows 12.00')" "check(k1, c1)" >/dev/null
+          oadd "claim(c1, introduce, 'The page shows the price.')" "cites(c1, 'show the price')" "example(c1, 'the page shows 12.00')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" >/dev/null
           okb --dir "$K" subject s2 "$G" >/dev/null; okb --dir "$K" pin-item pf2 s2 --kind file --changed-at 2026-11-01T00:00:00Z >/dev/null
           printf 'v2\n' > "$G"
           okb --dir "$K" show open; out_has '^- stale_pin pf2:' "show open names a stale pin of a spec KB"
@@ -1961,13 +1973,13 @@ op5_case() {  # op5_case NAME: make the KB of the example NAME in $T/NAME; K is 
         contradiction) op_project "$T/$n" human; K=$T/$n/sp ;;
         done) kb_done "$T/$n"; K=$T/$n ;;
         under_never_ran) hy_build "$T/$n" ;;
-        no_example) hy_disc "$T/$n"; oadd "claim(c2, introduce, 'A refund takes the points back.')" "cites(c2, 'Test request')" "check(t2, c2)" >/dev/null ;;
+        no_example) hy_disc "$T/$n"; oadd "claim(c2, introduce, 'A refund takes the points back.')" "cites(c2, 'Test request')" "check(t2, c2)" "checks_that(t2, 'the check t2 tests the claim')" >/dev/null ;;
         preserve_fails) hy_disc "$T/$n"
             oadd "claim(c2, preserve, 'A purchase by a guest gets no points.')" "cites(c2, 'Test request')" \
-                 "example(c2, 'a guest who buys for 40 gets 0 points')" "check(t2, c2)" "discovery_evidence(t2, system)" >/dev/null
+                 "example(c2, 'a guest who buys for 40 gets 0 points')" "check(t2, c2)" "checks_that(t2, 'the check t2 tests the claim')" "discovery_evidence(t2, system)" >/dev/null
             okb --dir "$K" run t2 -- false >/dev/null ;;
         ready) hy_disc "$T/$n" ;;
-        closed) hy_go "$T/$n"; oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" >/dev/null ;;
+        closed) hy_go "$T/$n"; oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" "checks_that(t7, 'the check t7 tests the claim')" >/dev/null ;;
         stale_pin) okb init "$T/$n" --request 'show the price' --uses project >/dev/null; K=$T/$n
             printf 'v1\n' > "$T/$n.txt"; okb --dir "$K" subject s2 "$T/$n.txt" >/dev/null
             okb --dir "$K" pin-item pf2 s2 --kind file --changed-at 2026-11-01T00:00:00Z >/dev/null; printf 'v2\n' > "$T/$n.txt" ;;
@@ -2009,7 +2021,7 @@ t_RD6() { lean_rows gate_ready GateReady.lean RD6 "$RD6_TABLE"
                       vote:*) IFS=: read -r _ by ch rd <<< "$st"
                           if [ "$by" = human ]; then okb --dir "$K" attest vote r1 "vote($rd, $ch)" --by human; else okb --dir "$K" attest vote r1 "vote($rd, $ch)"; fi ;;
                       build:hypothesis) oadd "hypothesis(h9, defect, 'Refunds take the points back.')" ;;
-                      build:claim) oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" ;;
+                      build:claim) oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" "checks_that(t7, 'the check t7 tests the claim')" ;;
                       approve:current) okb --dir "$K" attest approval tk 'digest(current)' --by human ;;
                       approve:stale) okb --dir "$K" attest approval tk "digest('sha256:$(printf '0%.0s' $(seq 1 64))')" --by human ;;
                       back) okb --dir "$K" attest back h1 "back('The human cannot say what the hypothesis changes to.')" ;;
@@ -2024,19 +2036,19 @@ t_RD6() { lean_rows gate_ready GateReady.lean RD6 "$RD6_TABLE"
 
 # ---- 0.3.0 K-D: readiness and the vote (CONTRACT D33).
 t_RD1() { hy_disc "$T/d"; is_true 'discovery_ready' "setup"
-          oadd "claim(c2, introduce, 'A refund takes the points back.')" "cites(c2, 'Test request')" "check(t2, c2)" >/dev/null
+          oadd "claim(c2, introduce, 'A refund takes the points back.')" "cites(c2, 'Test request')" "check(t2, c2)" "checks_that(t2, 'the check t2 tests the claim')" >/dev/null
           is_false 'discovery_ready' "a current claim with no example blocks readiness"
           is_true 'ready_blocker(no_example(c2))'
           okb --dir "$K" lint; out_has '^WD10 c2' "lint WD10 names the claim with no example"; out_hasnt '^WD10 c1'
           okb --dir "$K" show open; out_has '^- not_ready no_example c2:'
           oadd "example(c2, 'a refund of 40 takes 80 points back')" >/dev/null
           okb --dir "$K" lint; out_hasnt '^WD10'
-          oadd "claim(c3, introduce, 'Points expire.')" "cites(c3, 'Test request')" "check(t3, c3)" "supersedes(c3, c2)" "example(c3, 'points expire after a year')" >/dev/null
+          oadd "claim(c3, introduce, 'Points expire.')" "cites(c3, 'Test request')" "check(t3, c3)" "checks_that(t3, 'the check t3 tests the claim')" "supersedes(c3, c2)" "example(c3, 'points expire after a year')" >/dev/null
           okb --dir "$K" lint; out_hasnt '^WD10' "a superseded claim needs no example"
           okb help codes; any_has '^ *WD10 ' "help codes lists WD10"; }
 t_RD2() { hy_disc "$T/d"
           oadd "claim(c2, preserve, 'A purchase by a guest gets no points.')" "cites(c2, 'Test request')" \
-               "example(c2, 'a guest who buys for 40 gets 0 points')" "check(t2, c2)" "discovery_evidence(t2, system)" >/dev/null
+               "example(c2, 'a guest who buys for 40 gets 0 points')" "check(t2, c2)" "checks_that(t2, 'the check t2 tests the claim')" "discovery_evidence(t2, system)" >/dev/null
           is_true 'discovery_ready' "a preserve check that never ran does not block (it is the falsifier)"
           okb --dir "$K" run t2 -- false >/dev/null
           is_false 'discovery_ready' "a failing check of a preserve claim blocks readiness"
@@ -2073,7 +2085,7 @@ t_RD3() { hy_disc "$T/d"
 t_RD4() { kb_init "$T/d" discovery; K=$T/d
           oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "budget(laps, 3)" \
                "claim(c1, introduce, 'Every purchase gets the points that its amount and tier give.')" "cites(c1, 'Test request')" \
-               "example(c1, 'gold, 40, gives 80')" "check(t1, c1)" "discovery_evidence(t1, system)" >/dev/null
+               "example(c1, 'gold, 40, gives 80')" "check(t1, c1)" "checks_that(t1, 'the check t1 tests the claim')" "discovery_evidence(t1, system)" >/dev/null
           okb --dir "$K" lint; out_has '^WD7 h1' "setup"
           okb --dir "$K" run t1 -- false >/dev/null
           okb --dir "$K" lint; out_hasnt '^WD7' "a red run of a system check of an introduce claim is the system result"
@@ -2084,16 +2096,16 @@ t_RD4() { kb_init "$T/d" discovery; K=$T/d
           okb --dir "$K" lint; out_hasnt '^WD7' "a later red run is the result of each current hypothesis (q_k_d_3b default a)"
           kb_init "$T/r" discovery; K=$T/r
           oadd "hypothesis(h1, defect, 'Guests get points.')" "budget(laps, 3)" "claim(c1, retire, 'A guest gets points.')" "cites(c1, 'Test request')" \
-               "example(c1, 'a guest who buys for 40 gets 12 points')" "check(t1, c1)" "discovery_evidence(t1, system)" >/dev/null
+               "example(c1, 'a guest who buys for 40 gets 12 points')" "check(t1, c1)" "checks_that(t1, 'the check t1 tests the claim')" "discovery_evidence(t1, system)" >/dev/null
           okb --dir "$K" run t1 -- false >/dev/null; okb --dir "$K" lint; out_hasnt '^WD7' "a retire claim counts too"
           kb_init "$T/p" discovery; K=$T/p
           oadd "hypothesis(h1, defect, 'Guests get points.')" "budget(laps, 3)" "claim(c1, preserve, 'A guest gets no points.')" "cites(c1, 'Test request')" \
-               "example(c1, 'a guest who buys for 40 gets 0 points')" "check(t1, c1)" >/dev/null
+               "example(c1, 'a guest who buys for 40 gets 0 points')" "check(t1, c1)" "checks_that(t1, 'the check t1 tests the claim')" >/dev/null
           okb --dir "$K" run t1 -- false >/dev/null; okb --dir "$K" lint; out_has '^WD7 h1' "an untagged preserve check that fails is no system result"
           oadd "discovery_evidence(t1, system)" >/dev/null; okb --dir "$K" lint; out_has '^WD7 h1' "a tagged preserve check that fails is no system result"
           kb_init "$T/u" discovery; K=$T/u
           oadd "hypothesis(h1, defect, 'Guests get points.')" "budget(laps, 3)" "claim(c1, introduce, 'A guest gets no points.')" "cites(c1, 'Test request')" \
-               "example(c1, 'a guest who buys for 40 gets 0 points')" "check(t1, c1)" >/dev/null
+               "example(c1, 'a guest who buys for 40 gets 0 points')" "check(t1, c1)" "checks_that(t1, 'the check t1 tests the claim')" >/dev/null
           okb --dir "$K" run t1 -- false >/dev/null; okb --dir "$K" lint; out_has '^WD7 h1' "a check not tagged as system evidence is no system result"; }
 t_RD5() { kb_init "$T/n" discovery; K=$T/n; oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "budget(laps, 3)" >/dev/null
           is_false 'discovery_ready' "setup"
@@ -2112,7 +2124,7 @@ t_RD5() { kb_init "$T/n" discovery; K=$T/n; oadd "hypothesis(h1, defect, 'The am
           is_set 'gate(V)' 'V = hold' "an agent GO written by hand does not win either"
           # after the human approved the ticket, a later change of the build does not take the GO back
           hy_go "$T/a"; okb --dir "$K" uses build >/dev/null
-          oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" >/dev/null
+          oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" "checks_that(t7, 'the check t7 tests the claim')" >/dev/null
           is_set 'gate(V)' 'V = go' "the approved GO stays"
           okb --dir "$K" attest back h1 "back('The human cannot say what the hypothesis changes to.')" >/dev/null
           is_false 'discovery_ready' "after a return to discovery, readiness is asked again"
@@ -2363,7 +2375,9 @@ t_HE5() { local h0 hc hb; okb help; h0=$(printf '%s' "$out" | sed -n '/How to us
 sf_shift() {  # sf_shift DIR [EXTRA ARGS]: the light path of "add a dark mode" as one command
     local d=$1; shift; printf 'add a dark mode\nfor every screen\n' > "$T/req.txt"
     okb shift "$d" --request-file "$T/req.txt" --hypothesis "$DARK" --kind "${SF_KIND:-feature}" "$@" \
-        --claim "$DARK" --example 'the reports page is dark' --check k1; }
+        --claim "$DARK" --example 'the reports page is dark' --check k1 --checks-that 'the reports page is dark'; }
+t_SF9() { printf 'add a dark mode\n' > "$T/req.txt"; okb shift "$T/n" --request-file "$T/req.txt" --hypothesis h --no-premises --claim x --example y --check k1; rc_is 2 "E20: shift needs --checks-that"
+          any_has 'checks-that' "the usage error names --checks-that"; [ ! -e "$T/n/kb.pl" ] || note "shift wrote a KB"; }
 t_SF1() { K=$T/s; sf_shift "$K" --no-premises; rc_is 0 "shift writes a KB"
           [ -f "$K/kb.pl" ] || { note "no kb.pl"; return; }
           has_goal "$K/kb.pl" "kb(request(r1, T)), sub_atom(T, _, _, _, 'add a dark mode'), sub_atom(T, _, _, _, 'every screen')" "the request word for word"
@@ -2372,7 +2386,7 @@ t_SF1() { K=$T/s; sf_shift "$K" --no-premises; rc_is 0 "shift writes a KB"
           has_fact "$K/kb.pl" "no_premises(h1)" "Premises: none"
           has_goal "$K/kb.pl" "kb(claim(c1, introduce, T)), sub_atom(T, 0, _, _, 'With dark mode on')" "the claim"
           has_fact "$K/kb.pl" "example(c1, 'the reports page is dark')" "the example"
-          has_fact "$K/kb.pl" "check(k1, c1)" "the check"
+          has_fact "$K/kb.pl" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" "the check"
           has_goal "$K/kb.pl" "kb(cites(c1, _))" "the claim cites the request"
           okb --dir "$K" lint; rc_is 0 "lint accepts the KB"; out_has '0 errors?' "no error"
           okb --dir "$K" show open; out_has 'check_unrun k1|k1' "show open names the check that never ran"
@@ -2508,7 +2522,7 @@ mf_trusted() {  # mf_trusted CLAIM RESULT [MODEL]: a trusted SMT model M (defaul
     okb --dir "$K" attest model_result "v_$m" "verdict($m, preserve($c), $r)" >/dev/null || note "setup: the verdict $r: $(snip "$out$err")"; }
 mf_claim2() {  # mf_claim2: claim c2 supersedes c1 in $K, with its example and its check k2 (red, then green)
     oadd "claim(c2, introduce, 'With dark mode on, each screen is dark.')" "cites(c2, 'Test request')" "example(c2, 'the reports page is dark')" \
-         "check(k2, c2)" "supersedes(c2, c1)" >/dev/null || note "setup: claim c2: $(snip "$out$err")"
+         "check(k2, c2)" "checks_that(k2, 'the check k2 tests the claim')" "supersedes(c2, c1)" >/dev/null || note "setup: claim c2: $(snip "$out$err")"
     mf_green k2; }
 t_MF3() { hy_build "$T/b"; mf_contest c1; mf_green k1
           is_true 'burn_open(c1)' "contested twice and no formal statement: the burn is open"; is_false 'done'
@@ -2568,7 +2582,7 @@ t_MF6() { hy_build "$T/b"; mf_contest c1; mf_green k1
 # RV (D41, the review of K-C and K-D on 4079306; items 1, 2, 7, 8, 9, 10).
 t_RV1() { hy_closed "$T/d"   # item 1: WD10 names a current claim with no example in a closed orbit too
           is_true 'discovery_closed' "setup: the orbit is closed"
-          oadd "claim(c9, introduce, 'A refund takes the points back.')" "cites(c9, 'Test request')" "check(t9, c9)" >/dev/null
+          oadd "claim(c9, introduce, 'A refund takes the points back.')" "cites(c9, 'Test request')" "check(t9, c9)" "checks_that(t9, 'the check t9 tests the claim')" >/dev/null
           okb --dir "$K" lint; rc_is 0 "WD10 is a warning"; out_has '^WD10 c9' "WD10 names the claim after closure"
           out_hasnt '^WD10 c9.*not ready' "after closure, WD10 does not speak of readiness"
           is_true 'discovery_ready' "readiness does not change: the orbit is closed"; }
@@ -2585,9 +2599,9 @@ t_RV2() { kb_init "$T/n" discovery; K=$T/n   # item 2: a hand-written discovery_
           hy_go "$T/g"; okb --dir "$K" lint; out_hasnt '^ED12' "control: the CLI's own discovery_end after a GO is no ED12"; }
 t_RV3() { kb_init "$T/s" discovery; K=$T/s   # item 7: a red run of a superseded claim's check is no system result
           oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" "no_premises(h1)" "budget(laps, 3)" \
-               "claim(c1, introduce, 'Every purchase gets its points.')" "cites(c1, 'Test request')" "check(t1, c1)" "discovery_evidence(t1, system)" \
+               "claim(c1, introduce, 'Every purchase gets its points.')" "cites(c1, 'Test request')" "check(t1, c1)" "checks_that(t1, 'the check t1 tests the claim')" "discovery_evidence(t1, system)" \
                "claim(c2, introduce, 'Every purchase gets the points of its amount and tier.')" "cites(c2, 'Test request')" "supersedes(c2, c1)" \
-               "example(c2, 'gold, 40, gives 80')" "check(t2, c2)" "discovery_evidence(t2, system)" >/dev/null
+               "example(c2, 'gold, 40, gives 80')" "check(t2, c2)" "checks_that(t2, 'the check t2 tests the claim')" "discovery_evidence(t2, system)" >/dev/null
           okb --dir "$K" run t1 -- false >/dev/null
           is_false 'discovery_hypothesis_touched(h1)' "a red run of the check of a superseded claim touches no hypothesis"
           okb --dir "$K" run t2 -- false >/dev/null
@@ -3752,7 +3766,7 @@ t_VR10() { local r=$T/repo f wl
            # the builder (one pane: CLAUDE_CODE_SESSION_ID=pane1, the build role)
            local B=(env CLAUDE_CODE_SESSION_ID=pane1 ORBIT_KB_ROLE=build)
            okb init "$T/k" --request 'One becomes true' --uses build; K=$T/k
-           "${B[@]}" "$OKB" --dir "$K" add "claim(c1, introduce, 'One becomes true')" "cites(c1, 'One becomes true')" "check(k1, c1)" >/dev/null 2>&1
+           "${B[@]}" "$OKB" --dir "$K" add "claim(c1, introduce, 'One becomes true')" "cites(c1, 'One becomes true')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" >/dev/null 2>&1
            "${B[@]}" "$OKB" --dir "$K" run k1 -- false >/dev/null 2>&1
            sleep 1
            printf 'two\n' >> "$r/a.txt"; git -C "$r" -c user.name=t -c user.email=t@example.invalid commit -q -am two
@@ -3793,7 +3807,7 @@ t_VR12() { local r=$T/repo f ls n line cmd a
            printf 'Ticket T1: one becomes true\n' > "$r/TICKET.md"
            local B=(env CLAUDE_CODE_SESSION_ID=pane1 ORBIT_KB_ROLE=build)
            okb init "$T/k" --request 'One becomes true' --uses build; K=$T/k
-           "${B[@]}" "$OKB" --dir "$K" add "claim(c1, introduce, 'One becomes true')" "cites(c1, 'One becomes true')" "check(k1, c1)" >/dev/null 2>&1
+           "${B[@]}" "$OKB" --dir "$K" add "claim(c1, introduce, 'One becomes true')" "cites(c1, 'One becomes true')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" >/dev/null 2>&1
            "${B[@]}" "$OKB" --dir "$K" run k1 -- false >/dev/null 2>&1
            sleep 1
            printf 'two\n' >> "$r/a.txt"; git -C "$r" -c user.name=t -c user.email=t@example.invalid commit -q -am two
@@ -3820,12 +3834,12 @@ t_VR12() { local r=$T/repo f ls n line cmd a
 # VR11 (T38 c5): WR1 waits until a review is due: no current claim is under.
 t_VR11() { local W=(env ORBIT_KB_ROLE=build ORBIT_KB_WRITER=w1)
            okb init "$T/k" --request 'Make one thing true' --uses build; K=$T/k
-           "${W[@]}" "$OKB" --dir "$K" add "claim(c1, introduce, 'One thing is true')" "cites(c1, 'Make one thing true')" "check(k1, c1)" >/dev/null 2>&1
+           "${W[@]}" "$OKB" --dir "$K" add "claim(c1, introduce, 'One thing is true')" "cites(c1, 'Make one thing true')" "check(k1, c1)" "checks_that(k1, 'one thing is true')" >/dev/null 2>&1
            "${W[@]}" "$OKB" --dir "$K" run k1 -- false >/dev/null 2>&1
            has_goal "$K/kb.pl" "kb(actor(_, build, w1))" "setup: the red run recorded an actor"
            okb --dir "$K" lint; rc_is 0; out_hasnt '^WR1' "no WR1 during the red run"
            okb --dir "$K" lint --strict; rc_is 0 "lint --strict passes a fresh build KB"
-           "${W[@]}" "$OKB" --dir "$K" add "claim(c2, preserve, 'Two stays true')" "cites(c2, 'Make one thing true')" "check(k2, c2)" "change(x1, 'Edit one')" "serves(x1, c1)" >/dev/null 2>&1
+           "${W[@]}" "$OKB" --dir "$K" add "claim(c2, preserve, 'Two stays true')" "cites(c2, 'Make one thing true')" "check(k2, c2)" "checks_that(k2, 'the check k2 tests the claim')" "change(x1, 'Edit one')" "serves(x1, c1)" >/dev/null 2>&1
            "${W[@]}" "$OKB" --dir "$K" run k2 -- true >/dev/null 2>&1
            okb --dir "$K" lint; out_hasnt '^WR1' "no WR1 while c1 is under, also for the fulfilled c2"
            "${W[@]}" "$OKB" --dir "$K" run k1 -- true >/dev/null 2>&1
@@ -3937,6 +3951,10 @@ run_test t_A17 A17 "add rejects a writer that is not allowed"
 run_test t_A20 A20 "add says to give each fact as its own argument"
 run_test t_A21 A21 "add explains that a ref argument names an existing id, as in note(Id, Text)"
 run_test t_A22 A22 "attest with only an inner label shows the whole predicate"
+run_test t_A23 A23 "E20: add refuses a new check with no checks_that (exit 1, nothing written, the message shows the fix)"
+run_test t_A24 A24 "E20: add refuses empty words, and accepts a check with words in the same add"
+run_test t_A25 A25 "E20: add accepts a check when the KB already has checks_that for it, and refuses another without"
+run_test t_A26 A26 "E20: an old check without words still lints (W12), and a new one is refused"
 run_test t_D1 D1 "T26: the first clause of a rules.pl head declares it (no E2, W9 without a doc comment)"
 run_test t_D2 D2 "T26: the %% doc: comment above the first clause is the doc of the head"
 run_test t_D3 D3 "T26: a reserved name is not a rules.pl head (E2)"
@@ -4103,6 +4121,7 @@ run_test t_HE2 HE2 "0.3.0 c_k_e_2: back to discovery only when the agent cannot 
 run_test t_HE3 HE3 "0.3.0 c_k_e_3: help discovery states the hypothesis as the prompt: two falsifiers, witnesses, wide, the finding apart"
 run_test t_HE4 HE4 "0.3.0 c_k_e_4: SPECTRUM and HANDOFF: one formal language first, a second only when a question is left"
 run_test t_HE5 HE5 "0.3.0 c_k_e_5: the first help screen and help core put the hypothesis before the claims; help build too"
+run_test t_SF9 SF9 "E20: shift without --checks-that is a usage error and writes nothing"
 run_test t_SF1 SF1 "0.3.0 c_k_h_1: orbit-kb shift writes the light path as a KB that lint accepts"
 run_test t_SF2 SF2 "0.3.0 c_k_h_1: orbit-kb shift refuses a usage error or a bad fact and leaves no KB"
 run_test t_SF3 SF3 "0.3.0 c_k_h_3: orbit-kb help shift is one screen; the first help screen names it"

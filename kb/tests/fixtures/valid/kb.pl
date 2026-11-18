@@ -18,6 +18,9 @@ universal(c2).
 check(k1, c1).
 check(k2, c2).
 check(k3, c4).
+checks_that(k1, 'a saved widget is there after the app restarts').
+checks_that(k2, 'saving keeps every field of the widget').
+checks_that(k3, 'the save button is on the widget screen').
 change(x1, 'Add a save function').
 change(x2, 'Show the new save button').
 serves(x1, c1).

@@ -1,23 +1,14 @@
 /* orbit-kb report --html (D16). Inlined into the page. No external resource. */
 :root {
-  color-scheme: light dark;
-  --bg: #f7f7f4; --fg: #1d1d1f; --muted: #5b5b62; --line: #deded8; --card: #ffffff;
-  --accent: #2858a8;
-  --ok: #1d6e37; --ok-bg: #e5f3e9;
-  --bad: #a8261d; --bad-bg: #fbe8e5;
-  --warn: #7d5200; --warn-bg: #fdf1d2;
-  --none: #55555c; --none-bg: #ececea;
+  /* Dark at every load (hub spec questions-server, q4): no light theme, no toggle. */
+  color-scheme: dark;
+  --bg: #131315; --fg: #ececef; --muted: #a4a4ad; --line: #303036; --card: #1b1b1f;
+  --accent: #93b5ff;
+  --ok: #82d69c; --ok-bg: #15301e;
+  --bad: #ff9d92; --bad-bg: #3b1916;
+  --warn: #f2c66b; --warn-bg: #362a0e;
+  --none: #b3b3bb; --none-bg: #29292e;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #131315; --fg: #ececef; --muted: #a4a4ad; --line: #303036; --card: #1b1b1f;
-    --accent: #93b5ff;
-    --ok: #82d69c; --ok-bg: #15301e;
-    --bad: #ff9d92; --bad-bg: #3b1916;
-    --warn: #f2c66b; --warn-bg: #362a0e;
-    --none: #b3b3bb; --none-bg: #29292e;
-  }
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }

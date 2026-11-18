@@ -32,6 +32,37 @@
 #   c12 the ask path (and pin-answer) keeps a numeric answer as a number                        : QS29
 # T40 (fixes found when T38 was verified; D26 S13):
 #   c4 a {count, value:[item]} wrapper is unwrapped only when the top level has no title        : QS30
+# The Desk, lap 1 (hub spec KB questions-server, 2026-11-17):
+#   c1 dark at every load, the page and report --html; no light theme, no toggle               : QS32
+#   c2 sections collapse; open on load only with an item for Ty                                 : QS33
+#   c3 Human action needed: only reserved actions (hubflow add ask --reserved)                  : QS34
+# The Desk, laps 2-4:
+#   c11 sessions with their inboxes; the Orphaned list                                        : QS35
+#   c4 the context of each item                                                               : QS36
+#   c5 diverge and new requirement                                                            : QS37
+#   c7 c8 letters on disk at once, where each one is, loud with no live owner; c6 seen by hook : QS38
+#   c8 q2 drafts on the server until Send                                                     : QS39
+#   c9 answered in the session shows as answered                                              : QS40
+#   c3 q3 the standing-rule actions of a spec KB (vote, demo)                                 : QS41
+#   h2 one page for every hub                                                                 : QS42
+# The Desk, round 2 (serve desk; hypothesis h3; claims c12-c21, and c1 c2 c5 c7 c8 c9 on the Desk):
+#   c1 c2 dark; lanes and KBs collapse, open on load only with an item for Ty                 : QS43
+#   c12 Your action: only reserved actions, each with the source (policy, or Ty's dated words) : QS44
+#   c13 each item leads to its KB, hypothesis, premises, claims, checks; due date; no command  : QS45
+#   c14 q7 who holds what; question -> KB -> project KB; Orphaned with fixes Ty sends          : QS46
+#   c15 project KB items for Ty (a proposed fact, Ratify)                                     : QS47
+#   c16 one Desk for every mindhole that joined, in one step; the service unit                : QS48
+#   c18 q8 each check in words (fact, else script docstring), how it runs, its last run       : QS49
+#   c19 the owner session as one badge in the heading                                         : QS50
+#   c20 every send through the review; exact text; edits reach only that session             : QS51
+#   c21 each item says where it comes from                                                    : QS52
+#   c5 c8 diverge, requirement, the letter stored first                                       : QS53
+#   c7 q9 q10 Draft and Sent, late and loud warnings; drafts in the Desk store                : QS54
+#   c9 answered in the session shows as answered                                              : QS55
+# Ty on the demo Desk, 2026-11-17 (signal s6):
+#   c22 on load the rail is collapsed and one card is open; Your action cards collapse       : QS56
+#   c23 sessions roll up by mindhole, one short line each                                    : QS57
+#   c24 loud when no desk hook can deliver a letter (card and review)                        : QS58
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -60,7 +91,8 @@ cat > "$base/page.py" <<'PY'
 import sys, html.parser, re
 VOID = {"meta","link","br","hr","img","input","area","base","col","embed","source","track","wbr"}
 class N:
-    def __init__(s, tag, attrs, parent): s.tag=tag; s.attrs=dict(attrs); s.parent=parent; s.kids=[]; s.txt=[]
+    def __init__(s, tag, attrs, parent): s.tag=tag; s.attrs=dict(attrs); s.parent=parent; s.kids=[]; s.txt=[]; s.seq=[]
+    def otext(s): return norm("".join(x if isinstance(x, str) else " " + x.otext() + " " for x in s.seq))  # in document order
     def classes(s): return (s.attrs.get("class") or "").split()
     def text(s): return norm("".join(s.txt) + " ".join(k.text() for k in s.kids))
     def walk(s):
@@ -70,15 +102,15 @@ def norm(t): return re.sub(r"\s+", " ", t).strip()
 class P(html.parser.HTMLParser):
     def __init__(s): super().__init__(convert_charrefs=True); s.root=N("#root",[],None); s.cur=s.root; s.all=[]
     def handle_starttag(s, tag, attrs):
-        n=N(tag,attrs,s.cur); s.cur.kids.append(n); s.all.append(n)
+        n=N(tag,attrs,s.cur); s.cur.kids.append(n); s.cur.seq.append(n); s.all.append(n)
         if tag not in VOID: s.cur=n
     def handle_startendtag(s, tag, attrs):
-        n=N(tag,attrs,s.cur); s.cur.kids.append(n); s.all.append(n)
+        n=N(tag,attrs,s.cur); s.cur.kids.append(n); s.cur.seq.append(n); s.all.append(n)
     def handle_endtag(s, tag):
         c=s.cur
         while c is not s.root and c.tag!=tag: c=c.parent
         if c is not s.root: s.cur=c.parent
-    def handle_data(s, d): s.cur.txt.append(d)
+    def handle_data(s, d): s.cur.txt.append(d); s.cur.seq.append(d)
 def load(f):
     raw=open(f, encoding="utf-8").read(); p=P(); p.feed(raw); return p, raw
 def cls(n, c): return [x for x in n.walk() if c in x.classes()]
@@ -193,6 +225,224 @@ def main():
     elif mode=="refused":    # refused FILE LABEL QID: the KB section LABEL lists a refused queued answer for QID
         secs=kbsec(p, a[0]); ls=[x for s in secs for x in s.walk() if "refused" in x.classes() and x.attrs.get("data-id")==a[1]]
         if len(ls)<1: bad.append("no element with class refused and data-id %s in %r" % (a[1], a[0]))
+    elif mode=="dark":       # dark FILE: the page is dark at every load (Desk c1): color-scheme dark, no light theme, every background literal dark
+        import re as _re
+        css="".join("".join(n.txt) for n in p.all if n.tag=="style")
+        flat=_re.sub(r"\s+","",css)
+        if "prefers-color-scheme" in css: bad.append("the CSS follows prefers-color-scheme (a light theme exists)")
+        if "data-theme" in css or "theme-toggle" in raw: bad.append("the page has a theme toggle")
+        if "color-scheme:dark" not in flat: bad.append("no color-scheme:dark")
+        def lum(h):
+            h=h.lstrip("#"); h="".join(c*2 for c in h) if len(h) in (3,4) else h
+            r,g,b=(int(h[i:i+2],16)/255 for i in (0,2,4)); return 0.2126*r+0.7152*g+0.0722*b
+        for m in _re.finditer(r"background(?:-color)?:\s*(#[0-9a-fA-F]{3,8})", css):
+            if lum(m.group(1))>0.35: bad.append("a light background %s" % m.group(1))
+        for m in _re.finditer(r"--[\w-]*bg[\w-]*:\s*(#[0-9a-fA-F]{3,8})", css):
+            if lum(m.group(1))>0.35: bad.append("a light background token %s" % m.group(0))
+        if not _re.search(r"(?:html|body|:root)[^{]*\{[^}]*background", css): bad.append("no explicit page background")
+    elif mode=="fold":       # fold FILE LABEL open|closed: the KB section LABEL is a details element, open or closed on load (Desk c2)
+        secs=kbsec(p, a[0])
+        if len(secs)!=1: bad.append("want one KB section labeled %r, found %d" % (a[0], len(secs)))
+        else:
+            ds=[n for n in secs[0].walk() if n.tag=="details" and any(s.tag=="summary" and cls(s,"kblabel") for s in n.kids)]
+            if len(ds)!=1: bad.append("KB section %r: no details whose summary holds its label" % a[0])
+            elif ("open" in ds[0].attrs)!=(a[1]=="open"): bad.append("KB section %r is not %s on load" % (a[0], a[1]))
+    elif mode=="gfold":      # gfold FILE LABEL open|closed: the project group LABEL is a details element, open or closed on load (Desk c2)
+        gs=[s for s in p.all if s.tag=="section" and "project" in s.classes() and any(l.text()==a[0] for l in cls(s,"projectlabel"))]
+        if len(gs)!=1: bad.append("want one project group %r, found %d" % (a[0], len(gs)))
+        else:
+            ds=[n for n in gs[0].kids if n.tag=="details"]
+            if len(ds)!=1 or not any(s.tag=="summary" and cls(s,"projectlabel") for s in ds[0].kids): bad.append("group %r: no details whose summary holds its label" % a[0])
+            elif ("open" in ds[0].attrs)!=(a[1]=="open"): bad.append("group %r is not %s on load" % (a[0], a[1]))
+    elif mode=="lane":       # lane FILE HEADING ID...: the ledger section with heading HEADING lists exactly the asks ID (in order); none: no such section
+        ss=[s for s in p.all if s.tag=="section" and "ledger" in s.classes() and any(h.tag=="h2" and h.text()==a[0] for h in s.walk())]
+        got=[x.attrs.get("data-id") for s in ss for x in s.walk() if x.tag=="li" and "ask" in x.classes()]
+        if a[1:]==["none"]:
+            if ss: bad.append("a ledger section %r exists" % a[0])
+        elif len(ss)!=1: bad.append("want one ledger section %r, found %d" % (a[0], len(ss)))
+        elif got!=a[1:]: bad.append("section %r lists %r, want %r" % (a[0], got, a[1:]))
+    elif mode=="sec":        # sec FILE HEADING T...: the section whose h2 heading is HEADING has each text T (!T: lacks it)
+        ss=[]
+        for h in p.all:
+            if h.tag=="h2" and h.text()==a[0]:
+                n=h.parent
+                while n is not None and n.tag!="section": n=n.parent
+                if n is not None: ss.append(n)
+        if len(ss)!=1: bad.append("want one section with heading %r, found %d" % (a[0], len(ss)))
+        else:
+            t=ss[0].text()
+            for x in a[1:]:
+                if x.startswith("!"):
+                    if x[1:] in t: bad.append("section %r has %r" % (a[0], x[1:]))
+                elif x not in t: bad.append("section %r lacks %r" % (a[0], x))
+    elif mode=="card":       # card FILE ID T...: the li card with data-id ID (an ask or a KB item) has each text T (!T: lacks it)
+        cs=[n for n in p.all if n.tag=="li" and n.attrs.get("data-id")==a[0] and ({"ask","item","kbaction"} & set(n.classes()))]
+        if len(cs)!=1: bad.append("want one card %s, found %d" % (a[0], len(cs)))
+        else:
+            t=cs[0].text()
+            for x in a[1:]:
+                if x.startswith("!"):
+                    if x[1:] in t: bad.append("card %s has %r" % (a[0], x[1:]))
+                elif x not in t: bad.append("card %s lacks %r" % (a[0], x))
+    elif mode=="respond":    # respond FILE ID: the card ID has a form with intents answer, diverge, requirement and a textarea text
+        cs=[n for n in p.all if n.tag=="li" and n.attrs.get("data-id")==a[0] and ({"ask","item","kbaction"} & set(n.classes()))]
+        if len(cs)!=1: bad.append("want one card %s, found %d" % (a[0], len(cs)))
+        else:
+            fs=[n for n in cs[0].walk() if n.tag=="form"]
+            ins=[n for f in fs for n in f.walk() if n.tag in ("input","textarea")]
+            got=[n.attrs.get("value") for n in ins if n.attrs.get("name")=="intent"]
+            if got!=["answer","diverge","requirement"]: bad.append("card %s intents %r" % (a[0], got))
+            if not any(n.tag=="textarea" and n.attrs.get("name")=="text" for n in ins): bad.append("card %s has no textarea text" % a[0])
+    elif mode=="draftkey":   # draftkey FILE ID: print the draft key of the form of card ID
+        for n in p.all:
+            if n.tag=="li" and n.attrs.get("data-id")==a[0]:
+                for f in n.walk():
+                    if f.tag=="form" and f.attrs.get("data-draft-key"): print(f.attrs["data-draft-key"]); sys.exit(0)
+        sys.exit(1)
+    elif mode=="textarea":   # textarea FILE ID TEXT: the textarea of card ID holds exactly TEXT ('' for empty)
+        vals=[ "".join(t.txt).strip() for n in p.all if n.tag=="li" and n.attrs.get("data-id")==a[0] for t in n.walk() if t.tag=="textarea"]
+        if vals!=[a[1]]: bad.append("card %s textarea %r, want %r" % (a[0], vals, a[1]))
+    elif mode=="kbtext":     # kbtext FILE LABEL T...: the KB section LABEL has each text T (!T: lacks it)
+        secs=kbsec(p, a[0])
+        if len(secs)!=1: bad.append("want one KB section labeled %r, found %d" % (a[0], len(secs)))
+        else:
+            t=secs[0].text()
+            for x in a[1:]:
+                if x.startswith("!"):
+                    if x[1:] in t: bad.append("KB section %r has %r" % (a[0], x[1:]))
+                elif x not in t: bad.append("KB section %r lacks %r" % (a[0], x))
+    elif mode=="hubs":       # hubs FILE LABEL...: the hub sections, in order, by label
+        got=[l.text() for n in p.all if n.tag=="section" and "hub" in n.classes() for l in cls(n,"hublabel")]
+        if got!=a: bad.append("hubs %r, want %r" % (got, a))
+    elif mode=="hubval":     # hubval FILE ID: print the hub of the form of card ID
+        for n in p.all:
+            if n.tag=="li" and n.attrs.get("data-id")==a[0]:
+                for f in n.walk():
+                    if f.tag=="input" and f.attrs.get("name")=="hub": print(f.attrs.get("value","")); sys.exit(0)
+        sys.exit(1)
+    # ---- the Desk, round 2 (serve desk): cards are elements whose id is item-<mindhole>-<item>
+    elif mode in ("dlane","dcard","dhead","dbadge","dform","dkey","dkb","dorph","dopen","dtoken","dforms","dsrc","ddue","dload"):
+        def card(suf):
+            cs=[x for x in p.all if x.attrs.get("id","").startswith("item-") and x.attrs.get("id","").endswith("-"+suf)]
+            if len(cs)!=1: bad.append("want one card ending -%s, found %d (%s)" % (suf, len(cs), [x.attrs.get("id") for x in p.all if x.attrs.get("id","").startswith("item-")][:20]))
+            return cs[0] if len(cs)==1 else None
+        def has(n, ts, what):
+            t=n.otext()
+            for x in ts:
+                if x.startswith("!"):
+                    if x[1:] in t: bad.append("%s has %r" % (what, x[1:]))
+                elif x not in t: bad.append("%s lacks %r (text: %s)" % (what, x, t[:600]))
+        def head(c):
+            hs=[x for x in c.walk() if "head" in x.classes()]
+            return hs[0] if hs else None
+        if mode=="dtoken":       # dtoken FILE: print the token of the page
+            for n in p.all:
+                if n.tag=="body": print(n.attrs.get("data-token","")); sys.exit(0)
+            sys.exit(1)
+        elif mode=="dlane":      # dlane FILE LANE ITEM...: lane-LANE holds a card ending -ITEM; !ITEM: none; none: no card at all
+            ls=[x for x in p.all if x.attrs.get("id")=="lane-"+a[0]]
+            if len(ls)!=1: bad.append("want one lane %s, found %d" % (a[0], len(ls)))
+            else:
+                ids=[x.attrs.get("id","") for x in ls[0].walk() if x.attrs.get("id","").startswith("item-")]
+                for t in a[1:]:
+                    if t=="none":
+                        if ids: bad.append("lane %s holds %s" % (a[0], ids))
+                    elif t.startswith("!"):
+                        if any(i.endswith("-"+t[1:]) for i in ids): bad.append("lane %s holds %s" % (a[0], t[1:]))
+                    elif not any(i.endswith("-"+t) for i in ids): bad.append("lane %s lacks %s (it holds %s)" % (a[0], t, ids))
+        elif mode=="dload":      # dload FILE LANE ITEM: on load no rail part is open, exactly one card is open (ITEM, in lane-LANE), and only that lane is open
+            rail=[x for x in p.all if x.tag=="details" and "open" in x.attrs and any(a2.tag=="aside" for a2 in [x.parent, x.parent and x.parent.parent, x.parent and x.parent.parent and x.parent.parent.parent] if a2 is not None) ]
+            def inaside(n):
+                while n is not None:
+                    if n.tag=="aside": return True
+                    n=n.parent
+                return False
+            ro=[x for x in p.all if x.tag=="details" and "open" in x.attrs and inaside(x)]
+            if ro: bad.append("%d rail parts are open on load: %s" % (len(ro), [x.otext()[:40] for x in ro]))
+            oc=[x for x in p.all if x.tag=="details" and "open" in x.attrs and x.attrs.get("id","").startswith("item-")]
+            if len(oc)!=1 or not oc[0].attrs["id"].endswith("-"+a[1]): bad.append("open cards on load: %s, want one ending -%s" % ([x.attrs.get("id") for x in oc], a[1]))
+            ol=[x.attrs.get("id") for x in p.all if x.tag=="details" and "open" in x.attrs and "lane" in x.classes()]
+            if ol!=["lane-"+a[0]]: bad.append("open lanes on load: %s, want [lane-%s]" % (ol, a[0]))
+            ok=[x for x in p.all if x.tag=="details" and "open" in x.attrs and "kbsec" in x.classes()]
+            if ok: bad.append("a KB section is open on load")
+        elif mode=="dopen":      # dopen FILE ID open|closed: the details element with id ID
+            ds=[x for x in p.all if x.attrs.get("id")==a[0]]
+            if len(ds)!=1 or ds[0].tag!="details": bad.append("want one details #%s, found %s" % (a[0], [x.tag for x in ds]))
+            elif ("open" in ds[0].attrs) != (a[1]=="open"): bad.append("#%s is not %s on load" % (a[0], a[1]))
+        elif mode=="dcard":      # dcard FILE ITEM T...: the card has each text T (!T: lacks it)
+            c=card(a[0])
+            if c is not None: has(c, a[1:], "card "+a[0])
+        elif mode=="dhead":      # dhead FILE ITEM T...: the heading of the card (its summary row) has each text T
+            c=card(a[0])
+            if c is not None:
+                h=head(c)
+                if h is None: bad.append("card %s has no heading" % a[0])
+                else: has(h, a[1:], "the heading of "+a[0])
+        elif mode=="dbadge":     # dbadge FILE ITEM SESSION: the heading has exactly one session badge, with the text SESSION
+            c=card(a[0])
+            if c is not None:
+                h=head(c); bs=[x for x in (h.walk() if h else []) if "badge" in x.classes() and "status" not in x.classes()]
+                if [b.text() for b in bs]!=[a[1]]: bad.append("the heading of %s has session badges %s, want [%r]" % (a[0], [b.text() for b in bs], a[1]))
+        elif mode=="dsrc":       # dsrc FILE ITEM T: the source line (.src) of the card has the text T
+            c=card(a[0])
+            if c is not None:
+                ss=[x.otext() for x in c.walk() if "src" in x.classes()]
+                if not ss or a[1] not in ss[0]: bad.append("the source line of %s is %r, want %r" % (a[0], ss[:1], a[1]))
+        elif mode=="ddue":       # ddue FILE ITEM T: the .due block of the heading has the text T
+            c=card(a[0])
+            if c is not None:
+                ds=[x.otext() for x in c.walk() if "due" in x.classes()]
+                if not ds or a[1] not in ds[0]: bad.append("the due date of %s is %r, want %r" % (a[0], ds[:1], a[1]))
+        elif mode=="dform":      # dform FILE ITEM: one form, POST /review, data-review, hidden token item key hub; intents; a textarea text; one submit button
+            c=card(a[0])
+            if c is not None:
+                fs=[x for x in c.walk() if x.tag=="form" and "respond" in x.classes()]
+                if len(fs)!=1: bad.append("card %s has %d response forms" % (a[0], len(fs)))
+                else:
+                    f=fs[0]; ins=[x for x in f.walk() if x.tag in ("input","textarea","button")]
+                    if f.attrs.get("action")!="/review" or (f.attrs.get("method") or "").lower()!="post" or "data-review" not in f.attrs: bad.append("the form does not POST to /review with data-review: %s" % f.attrs)
+                    hid={x.attrs.get("name") for x in ins if x.attrs.get("type")=="hidden"}
+                    for k in ("token","item","key","hub"):
+                        if k not in hid: bad.append("no hidden %s" % k)
+                    its=[x.attrs.get("value") for x in ins if x.attrs.get("name")=="intent"]
+                    if its!=["answer","diverge","requirement"]: bad.append("intents %s" % its)
+                    if not any(x.tag=="textarea" and x.attrs.get("name")=="text" for x in ins): bad.append("no textarea text")
+                    bts=[x for x in ins if x.tag=="button"]
+                    if [b.text() for b in bts]!=["Review and send"]: bad.append("buttons %s, want only Review and send" % [b.text() for b in bts])
+        elif mode=="dkey":       # dkey FILE ITEM: print the draft key of the card
+            c=card(a[0])
+            for x in (c.walk() if c else []):
+                if x.tag=="input" and x.attrs.get("name")=="key": print(x.attrs.get("value","")); sys.exit(0)
+            sys.exit(1)
+        elif mode=="dforms":     # dforms FILE: every form posts to /review (c20): none to /answer, /send or /draft
+            fs=[x.attrs.get("action") for x in p.all if x.tag=="form"]
+            if not fs: bad.append("no form")
+            for x in fs:
+                if x!="/review": bad.append("a form posts to %s" % x)
+        elif mode=="dkb":        # dkb FILE LABEL T...: the KB section (details.kbsec) titled LABEL has each text T
+            ks=[x for x in p.all if "kbsec" in x.classes() and any(t.tag=="h3" and t.text()==a[0] for t in x.walk())]
+            if len(ks)!=1: bad.append("want one KB section %r, found %d" % (a[0], len(ks)))
+            else: has(ks[0], a[1:], "KB section "+a[0])
+        elif mode=="dorph":      # dorph FILE WHAT T...: the Orphaned row whose first cell starts with WHAT has each text T
+            ls=[x for x in p.all if x.attrs.get("id")=="lane-orphans"]
+            rows=[r for r in (ls[0].walk() if ls else []) if r.tag=="tr" and [k for k in r.kids if k.tag=="td"] and a[0] in [k for k in r.kids if k.tag=="td"][0].otext()]
+            if len(rows)!=1: bad.append("want one Orphaned row %r, found %d" % (a[0], len(rows)))
+            else:
+                has(rows[0], a[1:], "Orphaned row "+a[0])
+                if not any(x.tag=="form" and x.attrs.get("action")=="/review" for x in rows[0].walk()): bad.append("the row %r has no fix that opens the review" % a[0])
+    elif mode=="review":     # review FILE: print the letters of a review as JSON: [{to, head, text}], and the records
+        out=[]
+        for l in [x for x in p.all if "letter" in x.classes()]:
+            ta=[x for x in l.walk() if x.tag=="textarea" and (x.attrs.get("name") or "").startswith("letter_")]
+            if not ta: continue
+            bs=[x.text() for x in l.walk() if "badge" in x.classes()]
+            sel=[x for x in l.walk() if x.tag=="select"]
+            to=bs[0] if bs else ([o.attrs.get("value") for o in sel[0].walk() if o.tag=="option" and "selected" in o.attrs] or [None])[0] if sel else None
+            fx=[x for x in l.walk() if "fixed" in x.classes()]
+            out.append({"to": to, "name": ta[0].attrs.get("name"), "head": "".join(fx[0].txt) if fx else None, "text": "".join(ta[0].txt)})
+        rec=[x.text() for x in p.all if x.tag=="li" and x.parent is not None and "records" in x.parent.classes()]
+        import json; print(json.dumps({"letters": out, "records": rec, "sends_to": [x.attrs.get("action") for x in p.all if x.tag=="form"]}))
+        sys.exit(0)
     elif mode=="message":    # message FILE T: an element with class message holds T
         ms=[x.text() for x in p.all if "message" in x.classes()]
         if not any(a[0] in m for m in ms): bad.append("no .message with %r (messages %r)" % (a[0], ms))
@@ -590,7 +840,7 @@ t_QS18() {  # c4: an answer given while an agent holds the lease waits in answer
 
 t_QS19() {  # c5: the ledger owns a question that depends only on the owner, the tracker owns the others; the spec KB pins both
     mkhub "$T/h"; local A A2
-    A=$(hf "$T/h" --session build add ask --title 'Should the list show the newest invoice first' --waits-on me --ref kb:billing/kb)
+    A=$(hf "$T/h" --session build add ask --title 'Should the list show the newest invoice first' --note 'The case, the options and the default, for the test.' --waits-on me --ref kb:billing/kb)
     kb_a "$T/a"
     okb --dir "$T/a" add "option(q2, yes, 'Paid invoices move to the archive tab')"
     okb --dir "$T/a" pin-question q1 ledger "$A"; rc_is 0 "pin-question to the ledger"
@@ -613,7 +863,7 @@ t_QS19() {  # c5: the ledger owns a question that depends only on the owner, the
     has_goal "$T/a" "answer(q2, 'Only for admins', human:alex)" "the tracker's answer names alex"
     okb --dir "$T/a" pin-answer q3 'gh:acme/billing#7' --text-file "$T/ans.txt" --by alex; rc_is 1 "pin-answer of a question with no pin"
     # the server: the answer goes to the ask first, then into the spec KB through the queue
-    kb_a "$T/b"; A2=$(hf "$T/h" --session build add ask --title 'Should paid invoices be hidden by default' --waits-on me)
+    kb_a "$T/b"; A2=$(hf "$T/h" --session build add ask --no-kb --title 'Should paid invoices be hidden by default' --note 'The case, the options and the default, for the test.' --waits-on me)
     okb --dir "$T/b" pin-question q2 ledger "$A2"; rc_is 0
     srv --dir "$T/b" --hub "$T/h" || return
     page_ok || return; local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" "$L_A")
@@ -640,14 +890,14 @@ t_QS20() {  # c6: each question shows its note, its claim's note, the claim's ex
 
 t_QS21() {  # c7: with --hub the asks are read live from flow.db; an ask of the owner has an answer form that runs hubflow
     mkhub "$T/h"; local A B C
-    A=$(hf "$T/h" --session build add ask --title 'Which payment provider do we pick' --waits-on me)
-    B=$(hf "$T/h" --session build add ask --title 'Vendor must send the tax form' --waits-on alex --ref issue:12)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which payment provider do we pick' --note 'The case, the options and the default, for the test.' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Vendor must send the tax form' --note 'The case, the options and the default, for the test.' --waits-on alex --ref issue:12)
     kb_a "$T/a"; srv --dir "$T/a" --hub "$T/h" || return
     page_ok || return
     chk text "$T/page.html" 'Which payment provider do we pick' '!Vendor must send the tax form'
     chk askform "$T/page.html" "$A"
     chk askcmd "$T/page.html" "$A" "hubflow.py --by human close $A --reason done --note 'YOUR ANSWER' --session human"
-    C=$(hf "$T/h" --session build add ask --title 'Pick the launch date' --waits-on me)
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Pick the launch date' --note 'The case, the options and the default, for the test.' --waits-on me)
     page_ok || return; chk text "$T/page.html" 'Pick the launch date'
     local tok; tok=$(token)
     post /answer "token=$tok" "ask=$A" 'text=Stripe, for the fees'; code_is 303 "POST an answer to an ask"
@@ -716,7 +966,7 @@ EOF
 
 t_QS24() {  # T37 c1: an answer to a pinned ledger ask from the page reaches the spec KB; the number stays a number (c5)
     mkhub "$T/h"; local A
-    A=$(hf "$T/h" --session build add ask --title 'How many retries' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'How many retries' --note 'The case, the options and the default, for the test.' --waits-on me)
     kb_new "$T/a" <<'EOF2'
 uses([build]).
 request(r1, 'Numbers must stay sane').
@@ -795,7 +1045,7 @@ t_QS26() {  # T37 c4, c6: the workflow text says when to pin; subagents of one p
 # ================================================================ T38 (fixes found when T37 was verified; D26 S13, D23 P9)
 t_QS27() {  # T38 c10: a question pinned to a ledger ask has no answer form; the page names its ask
     mkhub "$T/h"; local A
-    A=$(hf "$T/h" --session build add ask --title 'Should the list show the newest invoice first' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Should the list show the newest invoice first' --note 'The case, the options and the default, for the test.' --waits-on me)
     kb_a "$T/a"
     okb --dir "$T/a" pin-question q1 ledger "$A"; rc_is 0 "pin-question to the ledger"
     srv --dir "$T/a" --hub "$T/h" || return; page_ok || return
@@ -860,8 +1110,8 @@ J
 
 t_QS29() {  # T38 c12: the ask path keeps a numeric answer as a number; any other text stays an atom
     mkhub "$T/h"; local A B
-    A=$(hf "$T/h" --session build add ask --title 'How many retries' --waits-on me)
-    B=$(hf "$T/h" --session build add ask --title 'Which build number' --waits-on me)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'How many retries' --note 'The case, the options and the default, for the test.' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which build number' --note 'The case, the options and the default, for the test.' --waits-on me)
     kb_new "$T/a" <<'EOF2'
 uses([build]).
 request(r1, 'Numbers must stay sane').
@@ -915,16 +1165,513 @@ t_QS30() {  # T40 c4: a top level with a title of its own is the item, even with
     req_has "$T/wrap" 'Only inner' '!"count"'   # a wrapper with no title of its own is still unwrapped
 }
 
+# ---- the Desk, lap 1 (hub spec KB questions-server; claims c1 c2 c3)
+kb_quiet() { kb_new "$1" <<'EOF'
+uses([build]).
+request(r1, 'Quiet work for agents').
+claim(c1, introduce, 'The export has a header row').
+cites(c1, 'Quiet work for agents').
+example(c1, 'The first line of the export names its columns.').
+EOF
+}
+t_QS32() {  # Desk c1: the page, and the report card of report --html (q4), are dark at every load, with no light theme and no toggle
+    kb_a "$T/a"; srv --dir "$T/a" || return; page_ok || return
+    chk dark "$T/page.html"
+    srv_stop
+    okb --dir "$T/a" report --html "$T/card.html"; rc_is 0 "report --html"
+    chk dark "$T/card.html"
+}
+t_QS33() {  # Desk c2: each section collapses; on load a section is open only when it holds an item for Ty
+    kb_a "$T/r/a"; kb_quiet "$T/r/quiet"
+    srv --root "$T/r" || return; page_ok || return
+    chk fold "$T/page.html" 'Billing must be less confusing for customers' open
+    chk fold "$T/page.html" 'Quiet work for agents' closed
+    chk gfold "$T/page.html" 'no project' open
+    srv_stop
+    rm -rf "$T/r/a"; srv --root "$T/r" || return; page_ok || return
+    chk gfold "$T/page.html" 'no project' closed
+}
+t_QS34() {  # Desk c3: "Human action needed" lists only actions Ty reserved (add ask --no-kb --reserved); a plain question is listed apart
+    mkhub "$T/h"; local A B C
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Push the hub to the remote' --note 'The case, the options and the default, for the test.' --waits-on me --reserved 'Ty, 2026-11-17: push only when I say so')
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Vendor must send the tax form' --note 'The case, the options and the default, for the test.' --waits-on alex --reserved 'Alex, 2026-11-17: alex signs it')
+    kb_a "$T/a"; srv --dir "$T/a" --hub "$T/h" || return; page_ok || return
+    chk lane "$T/page.html" 'Human action needed' "$A"
+    chk lane "$T/page.html" 'Questions for you' "$B"
+    chk lane "$T/page.html" 'Asks that wait on you' none
+    chk text "$T/page.html" 'push only when I say so' '!Vendor must send the tax form'
+    chk askform "$T/page.html" "$A"
+    hf "$T/h" --session build set "$B" --reserved 'Ty, 2026-11-17: I pick ports myself' >/dev/null
+    hf "$T/h" --session build set "$A" --reserved none >/dev/null
+    page_ok || return
+    chk lane "$T/page.html" 'Human action needed' "$B"
+    chk lane "$T/page.html" 'Questions for you' "$A"
+    srv_stop
+}
+
+# ---- the Desk, laps 2-4 (hub spec KB questions-server; claims c4 c5 c6 c7 c8 c9 c11, q3)
+mkdesk() { mkhub "$1"; cp "$REPO/hubkit/hub/.claude/scripts/desk.py" "$1/.claude/scripts/" 2>/dev/null || note "setup: no desk.py"; }
+kb_ctx() { kb_new "$1" <<'EOF'
+uses([discovery, build]).
+request(r1, 'Exports must keep their header row').
+hypothesis(h1, defect, 'Every export starts with a header row that names its columns.').
+claim(c1, introduce, 'The export has a header row').
+cites(c1, 'Exports must keep their header row').
+example(c1, 'The orders export of 2026-11-01 starts with id,date,total.').
+question(qa, c1, 'Should the header use the column labels of the screen').
+assumed(qa, no).
+option(qa, yes, 'The header shows Order date, as on the screen').
+option(qa, no, 'The header shows the field names, as the API does').
+finding(f1, surprise('The export of 2026-11-01 has no header row'), system).
+raised_by(qa, f1).
+question(qb, c1, 'Is a byte order mark allowed').
+attest(d1, divergence, c1, claim(c1), agent, '2026-10-15T10:00:01Z').
+EOF
+}
+# hookrun HUB SESSION: run the desk hook as a UserPromptSubmit of SESSION; the output in $T/hook.out
+hookrun() { printf '{"hook_event_name":"UserPromptSubmit","session_id":"s-test","cwd":"%s","prompt":"go on"}' "$1" \
+      | ( cd "$1" && HUB_SESSION=$2 python3 .claude/scripts/desk.py hook ) > "$T/hook.out" 2>"$T/hook.err"; }
+t_QS35() {  # Desk c11: each session with its inbox; the Orphaned list names each kind of orphan
+    mkdesk "$T/h"; local H TH U
+    H=$(hf "$T/h" --session discovery handoff --to build --title 'Build the export')
+    TH=$(hf "$T/h" --session discovery add thread --title 'Export research')
+    U=$(hf "$T/h" --session discovery add thread --title 'Nobody holds this one' --owner none)
+    kb_project "$T/h/pk" 'Export project'
+    kb_spec "$T/h/specs/loose" 'Loose rules' ''
+    kb_spec "$T/h/specs/bound" 'Bound rules' '../../pk'
+    kb_spec "$T/h/specs/held" 'Held rules' '../../pk'
+    hf "$T/h" --session discovery add thread --title 'Hold the held rules' --ref kb:held >/dev/null
+    srv --hub "$T/h" || return; page_ok || return
+    chk sec "$T/page.html" 'Sessions' 'discovery' "$TH" 'Export research' 'build' "$H" 'not accepted' 'review'
+    chk sec "$T/page.html" 'Orphaned' 'specs/loose' 'names no project KB' 'specs/bound' 'no open ledger item points to it' \
+        "$U" 'Nobody holds this one' 'no live session owns it' "$H" 'nobody accepted it' '!specs/held'
+}
+t_QS36() {  # Desk c4: each item carries its context: case, options and effects, default, why now, what waits on it, where the work stands
+    mkdesk "$T/h"; local TH A
+    kb_ctx "$T/h/specs/ctx"
+    TH=$(hf "$T/h" --session discovery add thread --title 'Header row research' --ref kb:ctx)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    hf "$T/h" --session build note "$A" 'Case: 8737 is taken by the old proxy. Options: 8738 (free) or 8800. Default 8738.' >/dev/null
+    srv --hub "$T/h" || return; page_ok || return
+    chk card "$T/page.html" qa 'Should the header use the column labels of the screen' 'The orders export of 2026-11-01 starts with id,date,total' \
+        'The header shows Order date, as on the screen' 'Default' 'Why now' 'The export of 2026-11-01 has no header row' \
+        'What waits on it' "$TH" 'discovery' '!Missing context'
+    chk card "$T/page.html" qb 'Missing context' 'no default' 'why it is asked now'
+    chk kbtext "$T/page.html" 'Exports must keep their header row' 'Where the work stands' 'Every export starts with a header row' 'discovery'
+    chk card "$T/page.html" "$A" '8737 is taken by the old proxy' 'build' '!Missing context'
+}
+t_QS37() {  # Desk c5: free space to diverge or add a requirement; a divergence is kept in his words and leaves the item open; a requirement goes to intake
+    mkdesk "$T/h"; local A
+    kb_ctx "$T/h/specs/div"
+    hf "$T/h" --session discovery add thread --title 'Header row research' --ref kb:div >/dev/null
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    srv --hub "$T/h" || return; page_ok || return
+    chk respond "$T/page.html" qa; chk respond "$T/page.html" "$A"
+    local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" 'Exports must keep their header row')
+    post /answer "token=$tok" "kb=$kb" q=qa intent=diverge 'text=That is not what I meant: the scope is one page'; code_is 303 "diverge on a KB question"
+    grep -Eq "^signal\([a-z0-9]+, divergence, human, '.*the scope is one page" "$T/h/specs/div/kb.pl" || note "the divergence is not a human signal in his words"
+    grep -Eq "^note\(c1, '.*the scope is one page" "$T/h/specs/div/kb.pl" || note "the divergence is not a note on the claim c1"
+    okb --dir "$T/h/specs/div" lint; rc_is 0 "the KB is clean after the divergence"
+    has_goal "$T/h/specs/div" "to_ask(qa)" "the question stays open"
+    post /answer "token=$tok" "ask=$A" intent=diverge 'text=Not a port question: run it as a service'; code_is 303 "diverge on an ask"
+    askjson "$T/h" "$A" "d['item']['status']=='open' and any(e['verb']=='note' and e['by']=='human' and 'run it as a service' in (e['note'] or '') for e in d['events'])"
+    post /answer "token=$tok" "ask=$A" intent=requirement 'text=Also show the port in the page footer'; code_is 303 "a new requirement from an ask"
+    post /answer "token=$tok" "kb=$kb" q=qa intent=requirement 'text=Exports must also carry a footer row'; code_is 303 "a new requirement from a KB question"
+    hf "$T/h" view --format json > "$T/view.json"
+    python3 -I -c 'import json, sys
+rows = json.load(open(sys.argv[1]))
+rows = rows if isinstance(rows, list) else rows.get("rows", [])
+a = [r for r in rows if "page footer" in r["title"] and r.get("owner_session") == "review"]
+b = [r for r in rows if "footer row" in r["title"] and r.get("owner_session") == "review" and "kb:div" in (r.get("refs") or "")]
+sys.exit(0 if a and b else 1)' "$T/view.json" || note "intake: no review thread for each requirement: $(snip "$(cat "$T/view.json")")"
+    askjson "$T/h" "$A" "d['item']['status']=='open'"
+}
+t_QS38() {  # Desk c7 and c8 (c6 seen): each response is on disk at once and shows where it is; loud when no live session holds the item
+    mkdesk "$T/h"; local A B
+    kb_ctx "$T/h/specs/lone"
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which name for the service' --note 'The case, the options and the default, for the test.' --waits-on me)
+    srv --hub "$T/h" || return; page_ok || return
+    chk card "$T/page.html" qa 'No live session holds this item'
+    chk card "$T/page.html" "$A" '!No live session holds this item'
+    local tok kb; tok=$(token); kb=$(pg kbval "$T/page.html" 'Exports must keep their header row')
+    post /answer "token=$tok" "ask=$A" 'text=Use port 8800'; code_is 303 "answer an ask"
+    grep -q 'Use port 8800' "$T/h/flow/desk/letters.jsonl" 2>/dev/null || note "the answer is not in flow/desk/letters.jsonl"
+    post /answer "token=$tok" "ask=$B" intent=diverge 'text=Not what I meant: no service at all'; code_is 303 "diverge on an ask"
+    post /answer "token=$tok" "kb=$kb" q=qa choice=yes 'text=as on the screen'; code_is 303 "answer a KB question that no session holds"
+    page_ok || return
+    chk sec "$T/page.html" 'Responses' 'Use port 8800' 'Applied' 'Not what I meant: no service at all' 'Sent' '!Seen by build' 'No live session holds this item'
+    hookrun "$T/h" build
+    grep -q 'no service at all' "$T/hook.out" || note "the owner was not told: $(snip "$(cat "$T/hook.out" "$T/hook.err")")"
+    page_ok || return
+    chk sec "$T/page.html" 'Responses' 'Seen by build'
+}
+t_QS39() {  # Desk c8 and q2: a draft is kept on the server until Send, survives a reload, and never reaches a session
+    mkdesk "$T/h"; local A key
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    srv --hub "$T/h" || return; page_ok || return
+    local tok hub; tok=$(token); key=$(pg draftkey "$T/page.html" "$A"); hub=$(pg hubval "$T/page.html" "$A")
+    [ -n "$key" ] || { note "the form of $A has no draft key"; return; }
+    post /draft "token=$tok" "hub=$hub" "key=$key" 'text=half an answer' intent=answer
+    [ "$CODE" = 204 ] || [ "$CODE" = 200 ] || note "POST /draft: HTTP $CODE"
+    page_ok || return; chk textarea "$T/page.html" "$A" 'half an answer'
+    hookrun "$T/h" build
+    ! grep -q 'half an answer' "$T/hook.out" || note "a draft reached the session"
+    post /draft "hub=$hub" "key=$key" 'text=no token'; code_is 403 "a draft with no token"
+    post /answer "token=$tok" "hub=$hub" "ask=$A" "draft=$key" 'text=Use port 8800'; code_is 303 "send"
+    python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); d=d.get("drafts", d); sys.exit(1 if sys.argv[2] in d else 0)' "$DESK_STATE/drafts.json" "$key" \
+      || note "the draft is still kept after Send"
+}
+t_QS40() {  # Desk c9: an answer given in the session itself shows as answered on the page
+    mkdesk "$T/h"; local A
+    kb_ctx "$T/h/specs/s9"
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    wr discovery --dir "$T/h/specs/s9" add 'answer(qa, yes, human)'; rc_is 0 "the session records Ty's answer"
+    hf "$T/h" --session build close "$A" --reason done --note 'Ty said 8800 in the pane' >/dev/null
+    srv --hub "$T/h" || return; page_ok || return
+    chk answered "$T/page.html" 'Exports must keep their header row' qa yes
+    chk sec "$T/page.html" 'Questions for you' 'Answered in the last 7 days' "$A" 'Ty said 8800 in the pane' 'build'
+}
+t_QS41() {  # Desk c3 (q3): standing-rule actions of a spec KB are human actions: a vote that waits on Ty, a demo to approve
+    mkdesk "$T/h"
+    mkdir -p "$T/h/specs/disc"; cp "$here/fixtures/discovery-a/kb.pl" "$T/h/specs/disc/kb.pl"
+    mkdir -p "$T/h/specs/look"; printf 'png' > "$T/h/specs/look/shot.png"
+    local d; d=$(sha256sum "$T/h/specs/look/shot.png" | cut -d' ' -f1)
+    kb_new "$T/h/specs/look" <<EOF
+uses([build]).
+request(r1, 'The pane must look calm').
+claim(c1, introduce, 'The pane uses three colors at most').
+cites(c1, 'The pane must look calm').
+example(c1, 'The idle pane shows grey, green and amber only.').
+visual(c1).
+subject(shot, 'shot.png', 'sha256:$d').
+demo(shot, c1).
+EOF
+    srv --hub "$T/h" || return; page_ok || return
+    chk sec "$T/page.html" 'Human action needed' 'Vote' 'A customer used two discount codes' 'Approve the demo' 'shot.png'
+    chk fold "$T/page.html" 'The pane must look calm' open
+}
+t_QS42() {  # Desk h2: one page for every hub on the machine; an ask is answered in its own hub
+    mkdesk "$T/h1"; mkdesk "$T/h2"; local A B
+    A=$(hf "$T/h1" --session build add ask --no-kb --title 'First hub question' --note 'The case, the options and the default, for the test.' --waits-on me)
+    hf "$T/h2" --session build add ask --no-kb --title 'A first ask of the second hub' --note 'The case, the options and the default, for the test.' --waits-on me >/dev/null
+    B=$(hf "$T/h2" --session build add ask --no-kb --title 'Second hub question' --note 'The case, the options and the default, for the test.' --waits-on me)
+    [ "$A" != "$B" ] || note "setup: the two asks have one id"
+    srv --hub "$T/h1" --hub "$T/h2" || return; page_ok || return
+    chk hubs "$T/page.html" h1 h2
+    local tok hub; tok=$(token); hub=$(pg hubval "$T/page.html" "$B")
+    post /answer "token=$tok" "hub=$hub" "ask=$B" 'text=Second answer'; code_is 303 "answer in the second hub"
+    askjson "$T/h2" "$B" "d['item']['status']=='done'"
+    askjson "$T/h1" "$A" "d['item']['status']=='open'"
+}
+
+# ================================================================ the Desk, round 2 (serve desk)
+# hub spec KB questions-server, hypothesis h3, claims c12 to c21 (and c1 c2 c5 c7 c8 c9 on the Desk)
+srvd() {  # srvd ARGS...: start `serve desk --port 0 ARGS` in $T, with the Desk store in $DESK_STATE; sets URL, SPID
+    ( cd "$T" && XDG_CACHE_HOME="$T/.cache" exec timeout "$TMO" "$OKB" serve desk --port 0 "$@" ) >"$T/.srv.out" 2>"$T/.srv.err" </dev/null &
+    SPID=$!; URL=""
+    local i; for i in $(seq 1 200); do
+        URL=$(grep -oE 'http://127\.0\.0\.1:[0-9]+' "$T/.srv.out" 2>/dev/null | head -n1)
+        [ -n "$URL" ] && return 0
+        kill -0 "$SPID" 2>/dev/null || break
+        sleep 0.05
+    done
+    note "the Desk did not start (stdout: $(snip "$(cat "$T/.srv.out" 2>/dev/null)") | stderr: $(snip "$(cat "$T/.srv.err" 2>/dev/null)"))"; return 1
+}
+dpy() { local H=$1; shift; ( cd "$H" && python3 -I .claude/scripts/desk.py --hub "$H" "$@" ) 2>&1; }
+# review FIELD=VALUE...: POST /review as the page script does; the review in $T/review.html, its letters as JSON in $T/review.json
+review() { local a=() f; for f in "$@"; do a+=(--data-urlencode "$f"); done
+    CODE=$(curl -s -o "$T/review.html" -w '%{http_code}' --max-time 30 -H 'X-Desk-Fragment: 1' "${a[@]}" "$URL/review" 2>/dev/null)
+    pg review "$T/review.html" > "$T/review.json" 2>/dev/null; }
+rj() { python3 -I -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if ($1) else 1)" "$T/review.json" || note "review: not ($1): $(snip "$(cat "$T/review.json")")"; }
+# a KB with what a card rests on: a hypothesis with a premise, claims, checks in words, from a script, by a command only
+kb_rests() { mkdir -p "$1/checks"; cat > "$1/checks/k_header.py" <<'EOF'
+"""The orders export starts with a header row that names its columns."""
+import sys; sys.exit(0)
+EOF
+    kb_new "$1" <<'EOF'
+uses([build]).
+request(r1, 'Exports must keep their header row').
+hypothesis(h1, defect, 'Every export starts with a header row that names its columns.').
+premise(p1, h1, 'The exports are written by one writer.').
+claim(c1, introduce, 'The export has a header row').
+example(c1, 'The orders export of 2026-11-01 starts with id,date,total.').
+claim(c2, preserve, 'The rows keep their order').
+check(k1, c1).
+check(k2, c1).
+check(k3, c1).
+check(k4, c2).
+checks_that(k1, 'the orders export of 2026-11-01 starts with id,date,total').
+question(qa, c1, 'Should the header use the column labels of the screen').
+assumed(qa, no).
+option(qa, yes, 'The header shows Order date, as on the screen').
+option(qa, no, 'The header shows the field names, as the API does').
+question(qb, c2, 'May the rows be sorted by date').
+EOF
+    wr build --dir "$1" run k1 -- true; wr build --dir "$1" run k2 -- python3 checks/k_header.py; wr build --dir "$1" run k3 -- sh -c 'exit 1'
+    wr build --dir "$1" release
+}
+# desk_hub H: a mindhole with sessions, a spec KB, a project KB, and asks
+desk_hub() { mkdesk "$1"; kb_rests "$1/specs/exp"; kb_project "$1/project-kb" 'Export project'; }
+
+t_QS43() {  # Desk c1 on serve desk: dark at every load, no error banner; lanes and KBs collapse (c2 is superseded by c22: QS56)
+    desk_hub "$T/h"; local A
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dark "$T/page.html"
+    chk dopen "$T/page.html" lane-orphans closed
+    chk dopen "$T/page.html" lane-kbs closed
+    chk raw "$T/page.html" '!prefers-color-scheme: light' '!data-theme'
+    chk raw "$T/page.html" '!class="banner error"'      # the first page of a run reads each mindhole too
+}
+t_QS44() {  # Desk c12: Your action lists only reserved actions, each with the source of the reservation: a policy by name and rule, or Ty's words with their date
+    desk_hub "$T/h"; local A B C
+    A=$(hf "$T/h" --session process add ask --no-kb --title 'Waive the c3 proof, or order a Lean proof' --note 'The case, the options and the default, for the test.' --waits-on me --reserved 'Sagittarius Policy: Only the human may waive a proof.')
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Push the hub to the remote' --note 'The case, the options and the default, for the test.' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so')
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dlane "$T/page.html" action "ask-$A" "ask-$B" "!ask-$C"
+    chk dlane "$T/page.html" questions "ask-$C" "!ask-$A"
+    chk dcard "$T/page.html" "ask-$A" 'Sagittarius Policy: Only the human may waive a proof.' '!Ty: only I' '!Source not named'
+    chk dcard "$T/page.html" "ask-$B" 'Ty, 12 Nov: “push only when I say so”'
+    hf "$T/h" --session build add ask --no-kb --title 'Bad source' --note 'The case, the options and the default, for the test.' --waits-on me --reserved 'Ty: only I waive a proof' >/dev/null && note "hubflow took a reservation with no named source"
+}
+t_QS45() {  # Desk c13: each item leads to its KB, hypothesis, premises, claims and checks; a due date, not an age; no shell command; each blocker once
+    desk_hub "$T/h"; local A B
+    mkdir -p "$T/out"; kb_rests "$T/out/kb-install-ux"
+    A=$(hf "$T/h" --session process add ask --title 'Waive the c1 proof, or order a Lean proof' --note 'The case, the options and the default, for the test.' --waits-on me --ref "kb:$T/out/kb-install-ux" --due 2026-12-11)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dcard "$T/page.html" "ask-$A" 'The KB install-ux' 'Every export starts with a header row' 'The exports are written by one writer.' \
+        'The export has a header row' 'k1' 'k2' 'k3' '!The rows keep their order'
+    chk raw "$T/page.html" "href=\"#kb-"
+    chk ddue "$T/page.html" "ask-$A" 'Due 11 Dec'
+    chk ddue "$T/page.html" "ask-$B" 'Due '
+    chk dhead "$T/page.html" "ask-$B" '!days'
+    chk text "$T/page.html" '!hubflow.py' '!--by human close' '!python3 .claude'
+    chk dkb "$T/page.html" 'exp' 'Every export starts with a header row' 'The rows keep their order'
+    local n; n=$(grep -o 'Claim not fulfilled\|Blocks:' "$T/page.html" | wc -l); [ "$n" = 0 ] || note "a blocker is listed twice ($n old-style lines)"
+}
+t_QS46() {  # Desk c14 (q7): who holds what; each question's KB; spec KB -> project KB -> repos; Orphaned with a fix Ty can send
+    desk_hub "$T/h"; local H1 H2 H3 A
+    kb_spec "$T/h/specs/bound" 'Bound rules' '../../project-kb'
+    H1=$(hf "$T/h" --session discovery handoff --to build --title 'Build the export' --ref kb:exp)
+    hf "$T/h" --session build accept "$H1" >/dev/null
+    H2=$(hf "$T/h" --session build handoff --to review --title 'Verify the export' --ref kb:exp)
+    hf "$T/h" --session review accept "$H2" >/dev/null
+    H3=$(hf "$T/h" --session discovery handoff --to build --title 'Nobody took this' --ref kb:bound)
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    hf "$T/h" --session build add ask --title 'An old ask' --note 'The case, the options and the default, for the test.' --waits-on me --no-kb >/dev/null
+    srvd --hub "$T/h" || return; page_ok || return
+    chk raw "$T/page.html" 'Writes <b>exp</b>' 'Spec KBs, not linked' 'Spec KBs, linked to the project KB'
+    chk dsrc "$T/page.html" qa 'Question qa in the KB exp'
+    chk dorph "$T/page.html" 'spec KBs' 'exp' 'Linked to no project KB'
+    chk dorph "$T/page.html" 'old handoffs' "$H1" 'only you can close them'
+    chk dorph "$T/page.html" '1 handoffs' "$H3" 'nobody accepted'
+    local tok; tok=$(pg dtoken "$T/page.html")
+    review "token=$tok" "hub=$T/h" "item=fix:stale:$T/h"; code_is 200 "the review of the old handoffs"
+    rj "any('$H1' in r for r in d['records']) and d['letters'] and d['letters'][0]['to']=='build'"
+    post /send "token=$tok" "hub=$T/h" "item=fix:stale:$T/h" "letter_0=Closed $H1: H2 holds the KB. A line from Ty." to_0=build; code_is 303 "send the close"
+    askjson "$T/h" "$H1" "d['item']['status']=='dropped' and any(e['by']=='human' for e in d['events'] if e['verb']=='closed')"
+    grep -q 'A line from Ty' "$T/h/flow/desk/letters.jsonl" || note "the notice to build is not stored"
+    wr discovery --dir "$T/h/specs/exp" add "note(c1, 'discovery writes now')"; rc_is 0 "discovery writes exp"
+    page_ok || return
+    chk dkb "$T/page.html" 'exp' 'holds the writer lock' 'discovery' '!took the newest handoff'   # q7: the writer holds the KB
+}
+t_QS47() {  # Desk c15: what waits on Ty in a project KB: a fact an agent proposed, with Ratify, until he ratifies it
+    desk_hub "$T/h"
+    wr process --dir "$T/h/project-kb" add "decision(d1, 'Every export has a header row')" "decided_by(d1, agent, '2026-11-01T00:00:00Z')"; rc_is 0 "propose d1" || return
+    wr process --dir "$T/h/project-kb" release
+    srvd --hub "$T/h" || return; page_ok || return
+    chk text "$T/page.html" 'A fact that an agent proposed' 'Every export has a header row' 'Ratify'
+    chk dopen "$T/page.html" lane-project closed     # c22 (supersedes c2): one card is open on load, not a lane of rows
+    local tok; tok=$(pg dtoken "$T/page.html")
+    review "token=$tok" "hub=$T/h" "item=proj:proposed:$T/h/project-kb#d1"; code_is 200 "the review of Ratify"
+    rj "any('ratified_by(d1' in r for r in d['records'])"
+    post /send "token=$tok" "hub=$T/h" "item=proj:proposed:$T/h/project-kb#d1" "letter_0=Ty ratified d1." to_0=process; code_is 303 "ratify"
+    has_goal "$T/h/project-kb" 'ratified_by(d1, _, _)'
+    page_ok || return; chk text "$T/page.html" '!A fact that an agent proposed'
+}
+t_QS48() {  # Desk c16: one Desk at one address serves every mindhole that joined it in one step; a mindhole with no ledger is named
+    desk_hub "$T/h1"; desk_hub "$T/h2"; local A B
+    A=$(hf "$T/h1" --session build add ask --no-kb --title 'First mindhole asks' --note 'The case, the options and the default, for the test.' --waits-on me)
+    B=$(hf "$T/h2" --session build add ask --no-kb --title 'Second mindhole asks' --note 'The case, the options and the default, for the test.' --waits-on me)
+    dpy "$T/h1" join --name one >/dev/null || note "join one failed"
+    srvd || return; page_ok || return
+    chk text "$T/page.html" 'First mindhole asks' '!Second mindhole asks'
+    dpy "$T/h2" join --name two >/dev/null || note "join two failed"
+    page_ok || return                       # the same server, no restart: the second mindhole joined in one step
+    chk text "$T/page.html" 'First mindhole asks' 'Second mindhole asks' 'one' 'two'
+    local tok; tok=$(pg dtoken "$T/page.html")
+    post /send "token=$tok" "hub=$T/h2" "item=ask:$B" 'text=Yes' 'letter_0=Ty answers: yes' to_0=build; code_is 303 "answer in the second mindhole"
+    askjson "$T/h2" "$B" "d['item']['status']=='done'"
+    askjson "$T/h1" "$A" "d['item']['status']=='open'"
+    mv "$T/h1/flow" "$T/h1/flow.gone"; page_ok || return
+    chk text "$T/page.html" 'one joined the Desk' 'has no ledger now'
+    dpy "$T/h2" service --orbit-kb "$OKB" | grep -q "ExecStart=.*serve desk --port 8737" || note "the service unit does not run serve desk"
+}
+t_QS49() {  # Desk c18 (q8): each check says in words what it checks (a KB fact, else its script's docstring), how it runs, and its last run
+    desk_hub "$T/h"
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dkb "$T/page.html" 'exp' 'the orders export of 2026-11-01 starts with id,date,total' \
+        'The orders export starts with a header row that names its columns. (from its script)' 'Runs python3 k_header.py' \
+        'Nobody recorded what this check does.' 'Last run' 'It never ran.'
+    chk dorph "$T/page.html" 'checks' 'exp k3' 'exp k4' '!exp k1'
+    wr build --dir "$T/h/specs/exp" lint; case "$out$err" in *W12*k3*) ;; *) note "lint does not warn W12 for k3: $(snip "$out$err")";; esac
+}
+t_QS50() {  # Desk c19: each item shows its owner session in the heading, as one badge with no "to"
+    desk_hub "$T/h"; local A B H
+    A=$(hf "$T/h" --session process add ask --no-kb --title 'Asked by process' --note 'The case, the options and the default, for the test.' --waits-on me)
+    B=$(hf "$T/h" --session review add ask --no-kb --title 'Asked by review' --note 'The case, the options and the default, for the test.' --waits-on me --owner review)
+    H=$(hf "$T/h" --session build handoff --to discovery --title 'Discovery holds exp' --ref kb:exp); hf "$T/h" --session discovery accept "$H" >/dev/null
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dbadge "$T/page.html" "ask-$A" process
+    chk dbadge "$T/page.html" "ask-$B" review
+    chk dbadge "$T/page.html" qb discovery
+    chk text "$T/page.html" '!To process' '!to discovery'
+}
+t_QS51() {  # Desk c20: nothing reaches a session that Ty did not see: every send opens a review with each session and the exact text; Ty edits it; Cancel sends nothing
+    desk_hub "$T/h"; local A
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dforms "$T/page.html"; chk dform "$T/page.html" "ask-$A"
+    local tok; tok=$(pg dtoken "$T/page.html")
+    post /answer "token=$tok" "hub=$T/h" "ask=$A" 'text=Use port 8800'; code_is 409 "a send that skips the review"
+    [ ! -s "$T/h/flow/desk/letters.jsonl" ] || note "a letter left with no review"
+    review "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer 'text=Use port 8800'; code_is 200 "the review"
+    rj "len(d['letters'])==1 and d['letters'][0]['to']=='build' and 'Use port 8800' in d['letters'][0]['text'] and d['sends_to']==['/send']"
+    [ ! -s "$T/h/flow/desk/letters.jsonl" ] || note "the review sent a letter"
+    askjson "$T/h" "$A" "d['item']['status']=='open'"
+    local head; head=$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["letters"][0]["head"])' "$T/review.json")
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer 'text=Use port 8800' 'letter_0=x' to_0=discovery; code_is 409 "a send to a session the review did not show"
+    [ ! -s "$T/h/flow/desk/letters.jsonl" ] || note "a letter went to a session the review did not show"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer 'text=Use port 8800' 'letter_0=Use port 8800, and say why if not. Edited by Ty.' to_0=build; code_is 303 "send"
+    printf '%s' 'Use port 8800, and say why if not. Edited by Ty.' > "$T/edited.txt"
+    local want; want=$(dpy "$T/h" render --to build --about "$(python3 -I -c 'import json,sys; t=json.load(open(sys.argv[1]))["letters"][0]["head"]; print(t[len("Letter from Ty (the Desk), about "):-1])' "$T/review.json")" --text-file "$T/edited.txt")
+    case "$want" in "$head"*) ;; *) note "the review head is not what the session gets: $(snip "$head") vs $(snip "$want")";; esac
+    local about wake; about=$(python3 -I -c 'import json,sys; t=json.load(open(sys.argv[1]))["letters"][0]["head"]; print(t[len("Letter from Ty (the Desk), about "):-1])' "$T/review.json")
+    wake=$(dpy "$T/h" wake-text --about "$about")
+    python3 -I -c 'import html,sys; sys.exit(0 if html.escape(sys.argv[2], quote=False) in open(sys.argv[1]).read() else 1)' "$T/review.html" "$wake" \
+      || note "the review does not show the exact wake line: $(snip "$wake")"
+    hookrun "$T/h" build
+    python3 -I -c 'import json,sys; o=json.load(open(sys.argv[1])); t=o["hookSpecificOutput"]["additionalContext"]; sys.exit(0 if t==sys.argv[2] else 1)' "$T/hook.out" "$want" \
+      || note "the session did not get exactly the reviewed text: $(snip "$(cat "$T/hook.out")")"
+    hookrun "$T/h" discovery
+    ! grep -q 'Edited by Ty' "$T/hook.out" || note "another session got the letter"
+}
+t_QS52() {  # Desk c21: each item says where it comes from: a ledger ask and the session that asked it, or a question and its KB
+    desk_hub "$T/h"; local A
+    A=$(hf "$T/h" --session process add ask --no-kb --title 'Terminology and version lines' --note 'The case, the options and the default, for the test.' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dsrc "$T/page.html" "ask-$A" "Ledger ask $A from process, no KB behind it"
+    chk dsrc "$T/page.html" qb 'Question qb in the KB exp'
+    chk dsrc "$T/page.html" qa 'Question qa in the KB exp'
+}
+t_QS53() {  # Desk c5 c8 on serve desk: a divergence is kept in Ty's words and leaves the item open; a requirement goes to intake; the letter is stored first
+    desk_hub "$T/h"; local A
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    local tok kb; tok=$(pg dtoken "$T/page.html"); kb="$T/h/specs/exp"
+    post /send "token=$tok" "hub=$T/h" "item=q:$kb#qb" intent=diverge 'text=That is not what I meant: by id' 'letter_0=Ty diverges: by id'; code_is 303 "diverge on a KB question"
+    grep -q "signal(.*divergence, human, .*by id" "$kb/kb.pl" "$kb/answers.pending" 2>/dev/null || note "the divergence is not kept in his words"
+    hasnt_goal "$kb" "answered(qb)" "the question stays open"
+    # what the Desk records reads as words, never as a Prolog term (review H-0042)
+    review "token=$tok" "hub=$T/h" "item=q:$kb#qa" intent=answer choice=yes 'text=as on the screen'; code_is 200 "the review of an answer with words"
+    rj "any(r.endswith(', and your words as a note on the question.') for r in d['records']) and not any('->' in r for r in d['records'])"
+    mkdir -p "$T/h/specs/disc"; cp "$here/fixtures/discovery-a/kb.pl" "$T/h/specs/disc/kb.pl"
+    review "token=$tok" "hub=$T/h" "item=act:$T/h/specs/disc#vote" intent=answer choice=GO; code_is 200 "the review of a vote"
+    rj "any(r.startswith('Nothing is written by the Desk: the next session that takes the KB records it') for r in d['records']) and not any('->' in r for r in d['records'])"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=requirement 'text=The Desk must run as a service' 'letter_0=Ty adds: a service' to_0=review; code_is 303 "a new requirement"
+    hf "$T/h" view open --format json | grep -q "new requirement: The Desk must run as a service" || note "no intake thread"
+    askjson "$T/h" "$A" "d['item']['status']=='open'"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=diverge 'text=Not a port at all' 'letter_0=Ty diverges: not a port' to_0=build; code_is 303 "diverge on an ask"
+    askjson "$T/h" "$A" "d['item']['status']=='open' and any(e['verb']=='note' and 'Not a port at all' in (e['note'] or '') for e in d['events'])"
+    mv "$T/h/.claude/scripts/hubflow.py" "$T/h/.claude/scripts/hubflow.gone"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer 'text=8800' 'letter_0=Ty answers: 8800' to_0=build; code_is 409 "an answer the ledger cannot take"
+    grep -q 'Ty answers: 8800' "$T/h/flow/desk/letters.jsonl" || note "the letter was not stored first (c8)"
+}
+t_QS54() {  # Desk c7 (q9): the card shows Draft and Sent; a sent letter not seen after a day warns; loud when no live session holds the item; applied moves it to Answered
+    desk_hub "$T/h"; local A B key
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Nobody holds this one' --note 'The case, the options and the default, for the test.' --waits-on me --owner none)
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dcard "$T/page.html" "ask-$B" 'No live session holds this item'
+    chk dcard "$T/page.html" "ask-$A" '!No live session holds this item' 'Draft' 'Sent' '!Seen' '!Applied' '!Keep as draft'
+    local tok; tok=$(pg dtoken "$T/page.html"); key=$(pg dkey "$T/page.html" "ask-$A")
+    post /draft "token=$tok" "key=$key" 'text=half an answer' intent=answer; [ "$CODE" = 204 ] || note "POST /draft: HTTP $CODE"
+    [ ! -e "$T/h/flow/desk/drafts.json" ] || note "the draft is in the mindhole (q10)"
+    grep -q 'half an answer' "$DESK_STATE/drafts.json" || note "the draft is not in the Desk store"
+    page_ok || return; chk dcard "$T/page.html" "ask-$A" 'Draft saved'
+    hf "$T/h" --session build set "$A" --status waiting >/dev/null
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=diverge 'text=Not 8737' 'letter_0=Not 8737' to_0=build; code_is 303 "diverge"
+    page_ok || return; chk dcard "$T/page.html" "ask-$A" 'sent to build' '!has not seen it after a day'
+    python3 -I -c '
+import json,sys,datetime; f=sys.argv[1]; ls=[json.loads(x) for x in open(f) if x.strip()]
+for x in ls: x["at"]=(datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+open(f,"w").write("".join(json.dumps(x)+"\n" for x in ls))' "$T/h/flow/desk/letters.jsonl"   # a letter sent two days ago, never seen
+    page_ok || return; chk dcard "$T/page.html" "ask-$A" 'has not seen it after a day'
+}
+t_QS55() {  # Desk c9 on serve desk: an answer given in the session shows as answered, and the question leaves the cards
+    desk_hub "$T/h"; local A
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dlane "$T/page.html" guesses qa
+    wr discovery --dir "$T/h/specs/exp" add 'answer(qa, yes, human)'; rc_is 0 "the session records Ty's answer"
+    hf "$T/h" --session build close "$A" --reason done --note 'Ty said 8800 in the pane' >/dev/null
+    page_ok || return
+    chk dlane "$T/page.html" guesses '!qa'
+    chk text "$T/page.html" 'Ty said 8800 in the pane' "$A"
+    chk dkb "$T/page.html" 'exp' 'Answered by a human' 'yes'
+}
+
+t_QS56() {  # Desk c22: on load the rail is collapsed and one thing is open: the first card of the first lane that holds one; Your action cards collapse too
+    desk_hub "$T/h"; local A B C
+    A=$(hf "$T/h" --session process add ask --no-kb --note 'Case: the c3 proof. Options: waive or prove. Default: none.' --title 'Waive the c3 proof' --waits-on me --reserved 'Sagittarius Policy: Only the human may waive a proof.')
+    B=$(hf "$T/h" --session build add ask --no-kb --note 'Case: push. Options: now or later. Default: later.' --title 'Push the hub' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so')
+    C=$(hf "$T/h" --session build add ask --no-kb --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --title 'Which port' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dload "$T/page.html" action "ask-$A"
+    chk raw "$T/page.html" "<details class=\"sheet reserved\" id=\"item-h-ask-$B\">" '!<article'
+    hf "$T/h" --session build close "$A" --reason done --by human --note 'done' >/dev/null; hf "$T/h" --session build close "$B" --reason done --by human --note 'done' >/dev/null
+    page_ok || return
+    chk dload "$T/page.html" questions "ask-$C"
+    chk dcard "$T/page.html" "ask-$C" 'Case: the port. Options: 8737 or 8800. Default: 8800.' '!recorded only the title'   # c13: the note of add ask is its context
+}
+t_QS57() {  # Desk c23: the sessions roll up by mindhole; each session has one short line, and its KBs are inside
+    desk_hub "$T/h1"; desk_hub "$T/h2"; local H
+    kb_spec "$T/h1/specs/two" 'Second rules' ''
+    for k in exp two; do H=$(hf "$T/h1" --session discovery handoff --to build --title "Build $k" --ref "kb:$k"); hf "$T/h1" --session build accept "$H" >/dev/null; done
+    srvd --hub "$T/h1" --hub "$T/h2" || return; page_ok || return
+    local n; n=$(grep -o '<details class="sessgroup">' "$T/page.html" | wc -l); [ "$n" = 2 ] || note "want 2 closed session groups (one per mindhole), found $n"
+    chk raw "$T/page.html" 'Writes <b>2 KBs</b>.' 'Writes the KB exp' 'Writes the KB two' '!Writes <b>exp, two</b>'
+    chk raw "$T/page.html" 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis'
+}
+t_QS58() {  # Desk c24: when no desk hook can deliver a letter, the card and the review say so loudly; with the hooks in the settings they do not
+    desk_hub "$T/h"; local A tok; mkdir -p "$T/home"
+    A=$(hf "$T/h" --session build add ask --no-kb --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --title 'Which port' --waits-on me)
+    HOME="$T/home" srvd --hub "$T/h" || return; page_ok || return
+    chk dcard "$T/page.html" "ask-$A" 'build will not be told: the desk hooks are not installed' 'no hook for SessionStart, UserPromptSubmit, Stop'
+    tok=$(pg dtoken "$T/page.html")
+    review "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer 'text=8800'; code_is 200 "the review"
+    grep -q 'build will not be told: the desk hooks are not installed' "$T/review.html" || note "the review does not warn that build will not be told"
+    mkdir -p "$T/h/.claude"; dpy "$T/h" hooks > "$T/h/.claude/settings.json"
+    page_ok || return
+    chk dcard "$T/page.html" "ask-$A" '!will not be told'
+    srv_stop
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
     T=$(mktemp -d "$base/t.XXXXXX"); FAILS=(); SKIPPED=0
+    export DESK_STATE="$T/desk-state"   # the Desk's own store (q10): never the real ~/.local/state
     "$fn" </dev/null >/dev/null 2>&1 || true
     srv_stop
     if [ ${#FAILS[@]} -eq 0 ] && [ "$SKIPPED" = 1 ]; then skip=$((skip+1)); echo "SKIP $id"
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 31); do run_one QS$n; done
+for n in $(seq 1 58); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

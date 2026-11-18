@@ -1054,7 +1054,31 @@ def age(r):
     except Exception:
         return 0
 if mode == "asks":
-    rows = [dict(id=r["id"], kind=r["kind"], title=r["title"], status=r["status"], waits_on=r["waits_on"], age_days=age(r))
+    def reserved(i):
+        x = c.execute("SELECT new FROM event WHERE item_id = ? AND verb = \'reserved\' ORDER BY seq DESC LIMIT 1", (i,)).fetchone()
+        return x[0] if x else None
+    def notes(i):
+        return [dict(at=x[0], by=x[1], by_session=x[2], note=x[3]) for x in c.execute("SELECT at, by, by_session, note FROM event WHERE item_id = ? AND verb IN (\'opened\', \'note\') AND note IS NOT NULL ORDER BY seq", (i,))]  # c13: add ask --note is on the opened event
+    def refs(i):
+        return [x[0] + ":" + x[1] for x in c.execute("SELECT kind, ref FROM item_ref WHERE item_id = ? ORDER BY kind, ref", (i,))]
+    def links(i):
+        return [dict(src=x[0], dst=x[1], kind=x[2]) for x in c.execute("SELECT from_id, to_id, kind FROM item_link WHERE from_id = ? OR to_id = ? ORDER BY from_id, to_id", (i, i))]
+    def asked_by(i):
+        x = c.execute("SELECT by_session, by FROM event WHERE item_id = ? AND verb = \'opened\' ORDER BY seq LIMIT 1", (i,)).fetchone()
+        return (x[0] or x[1]) if x else None
+    def triage(i):
+        # hubflow: an open item comes due for triage after 28 idle days (LAPSE_DAYS)
+        try:
+            x = c.execute("SELECT idle_days FROM v_open WHERE id = ?", (i,)).fetchone()
+            d = datetime.date.fromisoformat(c.execute("SELECT date(now) FROM clock").fetchone()[0])
+            return (d + datetime.timedelta(days=28 - int(x[0]))).isoformat() if x else None
+        except Exception:
+            return None
+    def col(r, k, d=None):
+        return r[k] if k in r.keys() else d
+    rows = [dict(id=r["id"], kind=r["kind"], title=r["title"], status=r["status"], waits_on=r["waits_on"], age_days=age(r), reserved=reserved(r["id"]),
+                 owner_session=r["owner_session"], opened_at=r["opened_at"], notes=notes(r["id"]), refs=refs(r["id"]), links=links(r["id"]),
+                 due=col(r, "due"), no_kb=bool(col(r, "no_kb", 0)), asked_by=asked_by(r["id"]), triage_due=triage(r["id"]))
             for r in c.execute("SELECT * FROM item WHERE kind = \'ask\' AND status IN (\'open\', \'waiting\') ORDER BY id")]
     print(json.dumps({"owner": owner(), "asks": rows}))
 elif mode == "titles":
@@ -3537,7 +3561,7 @@ kb_lines_commented(File, LTs, Out) :-
 % shift: the step from words to records in one command (D37, 0.3.0 K-H)
 % ---------------------------------------------------------------------
 % orbit-kb shift DIR (--request-file F | --request T) --hypothesis T [--kind K]
-%   (--no-premises | --premise T ...) --claim T [--label L] --example T --check ID
+%   (--no-premises | --premise T ...) --claim T [--label L] --example T --check ID --checks-that T
 %   [--cites T] [--uses M,...] [--red-log FILE]
 % D43 (c_k_h_2b): --red-log FILE, the output of a red run of the check that the agent saw
 % before the KB existed, becomes a third child: attest disclosure ID 'seen_red(ID, TEXT)'.
@@ -3551,15 +3575,15 @@ kb_lines_commented(File, LTs, Out) :-
 cmd_shift(Args, Code) :-
     parse_opts(Args, ['--request'-value, '--request-file'-value, '--hypothesis'-value, '--kind'-value,
                       '--no-premises'-flag, '--premise'-value, '--claim'-value, '--label'-value,
-                      '--example'-value, '--check'-value, '--cites'-value, '--uses'-value,
+                      '--example'-value, '--check'-value, '--checks-that'-value, '--cites'-value, '--uses'-value,
                       '--red-log'-value], Pos, Opts),
     (   Pos = [Dir0] -> true
     ;   usage_error("Give one directory: orbit-kb shift DIR --request-file F --hypothesis T ... (orbit-kb help shift).", [])
     ),
-    forall(( member(O, ['--request', '--request-file', '--hypothesis', '--kind', '--claim', '--label', '--example', '--check', '--cites', '--uses', '--red-log']),
+    forall(( member(O, ['--request', '--request-file', '--hypothesis', '--kind', '--claim', '--label', '--example', '--check', '--checks-that', '--cites', '--uses', '--red-log']),
              aggregate_all(count, member(O-_, Opts), N), N > 1 ),
            usage_error("Give ~w once.", [O])),
-    forall(member(O-What, ['--hypothesis'-"the hypothesis", '--claim'-"the claim", '--example'-"its example", '--check'-"the id of its check"]),
+    forall(member(O-What, ['--hypothesis'-"the hypothesis", '--claim'-"the claim", '--example'-"its example", '--check'-"the id of its check", '--checks-that'-"the words of its check (E20)"]),
            ( memberchk(O-_, Opts) -> true
            ; usage_error("shift needs ~w: ~w TEXT (orbit-kb help shift).", [What, O]) )),
     findall(P, member('--premise'-P, Opts), Prems),
@@ -3584,7 +3608,7 @@ cmd_shift(Args, Code) :-
     opt(Opts, '--uses', build, Uses),
     shift_red_log(Opts, Label, RedText),
     memberchk('--hypothesis'-HT, Opts), memberchk('--claim'-CT, Opts),
-    memberchk('--example'-ET, Opts), memberchk('--check'-KId, Opts),
+    memberchk('--example'-ET, Opts), memberchk('--check'-KId, Opts), memberchk('--checks-that'-KW, Opts),
     (   memberchk('--cites'-Cites, Opts) -> true
     ;   split_string(Text, "\n", " \t\r", [L1|_]), atom_string(Cites, L1)
     ),
@@ -3594,7 +3618,8 @@ cmd_shift(Args, Code) :-
                ; F = claim(c1, Label, CT)
                ; F = cites(c1, Cites)
                ; F = example(c1, ET)
-               ; F = check(KId, c1) ), Facts),
+               ; F = check(KId, c1)
+               ; F = checks_that(KId, KW) ), Facts),
     maplist([T, A]>>format(atom(A), "~q", [T]), Facts, FactArgs),
     absolute_file_name(Dir0, Dir),
     directory_file_path(Dir, 'kb.pl', KbFile),
@@ -3808,6 +3833,7 @@ cmd_add(KB, Args, Code) :-
     findall(M, member(err(M), Rs), Errs),
     (   Errs \== [] -> reject(Errs) ; true ),
     findall(It, member(ok(It), Rs), NewItems),
+    check_words_gate(KI, NewItems),
     % D22: a fact whose name is declared nowhere declares its predicate by
     % its first use. The decl/4 lines take part in the checks of the batch.
     first_use_pis(KB, NewItems, FUs),
@@ -3836,6 +3862,28 @@ cmd_add(KB, Args, Code) :-
     ;   true
     ),
     Code = 0.
+
+% check_words_gate(+KBItems, +NewItems) (E20): a new check(K, C) needs the words of the check:
+% checks_that(K, Text) with non-empty Text, in the same add or already in the KB. Else reject.
+check_words_gate(KI, NewItems) :-
+    findall(K, ( member(it(_, _, _, T, _, _), NewItems), nonvar(T), T = check(K, _), nonvar(K),
+                 \+ check_has_words(K, KI, NewItems) ), Ks0),
+    sort(Ks0, Ks),
+    (   Ks == [] -> true
+    ;   Ks = [K1|_],
+        findall(S, ( member(K, Ks),
+                     fmt(S, "E20: the check ~w has no words. A new check needs checks_that(~w, Text): one line, in plain words, that says what it checks (the Desk shows it to a human).", [K, K]) ), Ms),
+        fmt(Fix, "Fix: orbit-kb add 'check(~w, c1)' \"checks_that(~w, 'what it checks, in plain words')\"  Existing checks without words still load; lint W12 warns.", [K1, K1]),
+        append(Ms, [Fix], All),
+        reject(All)
+    ).
+
+check_has_words(K, KI, NewItems) :-
+    (   member(it(_, _, _, T, _, _), NewItems)
+    ;   member(it(_, _, _, T, _, _), KI)
+    ),
+    nonvar(T), T = checks_that(K2, W), K2 == K, nonvar(W), atomic(W),
+    atom_string(W, WS), split_string(WS, "", " \t\r\n", [Tr]), Tr \== "", !.
 
 % add_doc(+KB, +NewItems, +Opts, +FirstUsePIs, -Doc, -Redoc) (T26): the one-line --doc TEXT is
 % the description of the one new kind of this add. Without --doc, Doc is ''. T40 c8: when no fact
@@ -4130,7 +4178,11 @@ cmd_view(Dirs0, Args, Code) :-
     ),
     Code = 0.
 
-view_css("body{font-family:sans-serif;max-width:60em;margin:2em auto;padding:0 1em;line-height:1.4}section{border:1px solid #888;border-radius:6px;padding:.5em 1em;margin:1em 0}li.item,li.ask{margin:.8em 0;padding:.4em;border-left:4px solid #888;list-style:none}.ref .kbid{font-family:monospace;color:#555}.default,.age{font-weight:bold}.stamp{font-family:monospace;font-size:.8em;word-break:break-all}").
+% view_css(-Css) (hub spec questions-server, c1 and q4): the page reuses the dark palette of
+% report --html (report/page.css, dark at every load), then its own rules on those tokens.
+view_css(Css) :-
+    lib_dir(Lib), page_asset(Lib, 'report/page.css', Base),
+    string_concat(Base, "body{max-width:60em;margin:2em auto;padding:0 1em;line-height:1.4}section{border:1px solid var(--line);border-radius:6px;padding:.5em 1em;margin:1em 0;background:var(--card)}section section{background:var(--bg)}li.item,li.ask{margin:.8em 0;padding:.4em;border-left:4px solid var(--line);list-style:none}.ref .kbid{font-family:var(--mono);color:var(--muted)}.default,.age{font-weight:bold}.stamp{font-family:var(--mono);font-size:.8em;word-break:break-all;color:var(--muted)}details>summary{cursor:pointer}details>summary>h2{display:inline}details:not([open])>summary{color:var(--muted)}p.reserved{color:var(--warn)}input,textarea,select,button{background:var(--bg);color:var(--fg);border:1px solid var(--line)}textarea{display:block;width:100%;min-height:4.5em;font:inherit;margin-top:.3em}fieldset.intent{border:1px solid var(--line);border-radius:4px;margin:.4em 0}button[type=submit]{padding:.2em 1.2em;cursor:pointer}.missing{color:var(--warn)}.loud{color:var(--bad);background:var(--bad-bg);padding:.1em .4em;border-radius:4px;font-weight:600}.muted,.hubpath,.counts,.draftstate,.by{color:var(--muted);font-size:.9em}.chip{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:0 .5em;margin:0 .15em;font-size:.85em}.chip.applied{color:var(--ok)}.chip.sent,.chip.queued{color:var(--warn)}.chip.failed{color:var(--bad)}li.letter,li.session,li.orphan,li.closedask,li.kbref,li.inbox{list-style:none;margin:.35em 0}li.kbaction{list-style:none;margin:.8em 0;padding:.4em;border-left:4px solid var(--warn)}.where{border-bottom:1px solid var(--line);margin-bottom:.5em}", Css).
 
 view_ledger(File, Asks) :-
     (   exists_file(File) -> true
@@ -4171,12 +4223,30 @@ view_ledger_row(File, I, X) :-
 
 view_ledger_section(Led, Text) :- view_ledger_section(static, Led, Text).
 view_ledger_section(_, none, "").
-view_ledger_section(Mode, some(Asks), Text) :-
-    findall(L, ( member(X, Asks), view_ask_html(Mode, X, L) ), Ls),
-    (   Ls == [] -> Body = "<p>No ask waits on the owner.</p>"
-    ;   atomic_list_concat(Ls, '\n', B0), format(string(Body), "<ul>\n~w\n</ul>", [B0])
+view_ledger_section(Mode, some(Asks), Text) :- view_ledger_section(Mode, some(Asks), [], none, Text).
+
+% view_ledger_section(+Mode, +Asks, +KBActs, +DeskStatus, -Text) (the Desk): Human action needed
+% lists the reserved asks and the standing-rule actions of the hub's spec KBs (q3); Questions for
+% you lists the other asks, and the asks answered in the last 7 days (c9).
+view_ledger_section(Mode, some(Asks), Acts, St, Text) :-
+    partition(view_ask_reserved, Asks, Res, Plain),
+    view_ledger_lane(Mode, "Human action needed", "reserved", Res, Acts, "", "No action that you reserved waits on you.", T1),
+    desk_closed_html(St, ClosedH),
+    view_ledger_lane(Mode, "Questions for you", "plain", Plain, [], ClosedH, "No question waits on you.", T2),
+    format(string(Text), "~w\n~w", [T1, T2]).
+
+% view_ask_reserved(+Ask) (hub spec questions-server, c3): the owner reserved the action
+% (hubflow add ask --reserved SOURCE, or a reserved key in a --ledger file).
+view_ask_reserved(X) :- get_dict(reserved, X, R), string(R), R \== "".
+
+view_ledger_lane(Mode, Head, Kind, Asks, Extra, Tail, Empty, Text) :-
+    findall(L, ( member(X, Asks), view_ask_html(Mode, X, L) ), Ls0),
+    append(Ls0, Extra, Ls),
+    (   Ls == [] -> format(string(Body0), "<p>~w</p>", [Empty]), Op = ""
+    ;   atomic_list_concat(Ls, '\n', B0), format(string(Body0), "<ul>\n~w\n</ul>", [B0]), Op = " open"
     ),
-    format(string(Text), "<section class=\"ledger\">\n<h2>Asks that wait on you</h2>\n~w\n</section>", [Body]).
+    string_concat(Body0, Tail, Body),
+    format(string(Text), "<section class=\"ledger ~w\">\n<details~w><summary><h2>~w</h2></summary>\n~w\n</details>\n</section>", [Kind, Op, Head, Body]).
 
 view_ask_html(Mode, X, L) :-
     esc(X.id, Id), esc(X.title, T), esc(X.age_days, Age),
@@ -4187,15 +4257,18 @@ view_ask_html(Mode, X, L) :-
         (   Mode = serve_hub(_, Hub) -> sh_quote(Hub, HubQ), format(string(Cd), "cd ~w && ", [HubQ]) ; Cd = "" ),
         format(string(Cmd), "~wpython3 .claude/scripts/hubflow.py --by human close ~w --reason done --note 'YOUR ANSWER' --session human", [Cd, IdQ]),
         esc(Cmd, CmdH),
-        (   Mode = serve_hub(Token, _)
-        ->  esc(Token, TokH),
-            format(string(Fm), "<form class=\"answer ask\" method=\"post\" action=\"/answer\"><input type=\"hidden\" name=\"token\" value=\"~w\"><input type=\"hidden\" name=\"ask\" value=\"~w\"><label>Your answer: <input type=\"text\" name=\"text\" size=\"60\"></label> <button type=\"submit\">Answer the ask</button></form>", [TokH, Id]),
-            format(string(Hf), " <p>The server runs, in the hub: <code class=\"hubflow\">~w</code></p>~w", [CmdH, Fm])
+        (   Mode = serve_hub(Token, Hub2)
+        ->  desk_ask_context(Hub2, X, CtxH),
+            format(string(Key), "ask:~w", [X.id]),
+            desk_form_html(Token, Hub2, Key, [ask-X.id], "", true, FormH),
+            desk_item_letters(Hub2, ask(X.id), LetH),
+            format(string(Hf), "~w~w <p>The server runs, in the hub: <code class=\"hubflow\">~w</code></p>~w", [CtxH, LetH, CmdH, FormH])
         ;   format(string(Hf), " <p>Answer it in the hub: <code class=\"hubflow\">~w</code></p>", [CmdH])
         )
     ;   Hf = ""
     ),
-    format(string(L), "<li class=\"ask\" data-id=\"~w\"><span class=\"title\">~w</span> <span class=\"age\">~w days</span>~w</li>", [Id, T, Age, Hf]).
+    (   view_ask_reserved(X) -> esc(X.reserved, RH), format(string(RsH), " <p class=\"reserved\">Reserved: ~w</p>", [RH]) ; RsH = "" ),
+    format(string(L), "<li class=\"ask\" data-id=\"~w\"><span class=\"title\">~w</span> <span class=\"age\">~w days</span>~w~w</li>", [Id, T, Age, RsH, Hf]).
 
 % sh_quote(+Text, -Quoted) (T27 c7): Text as one shell word: bare when it is made of plain
 % characters, else in single quotes.
@@ -4230,7 +4303,22 @@ view_kb_section(Mode, Lib, Dir, Html) :-
     ;   file_base_name(Dir, Label)
     ),
     esc(Label, LabelH),
-    format(string(Html), "<section class=\"kb\" data-stamp=\"~w\">\n<h2><span class=\"kblabel\">~w</span> <span class=\"stamp\">~w</span></h2>\n~w\n</section>", [StampH, LabelH, StampH, Body]).
+    (   Mode = serve(_)
+    ->  desk_kb_where(Dir, Eng, Xs, WhereH),
+        desk_kb_actions(Mode, Dir, Eng, Label, ActsH, HasActs)
+    ;   WhereH = "", ActsH = "", HasActs = false
+    ),
+    desk_note_kb(Dir, Label, Xs),
+    ( ( view_kb_for_human(Eng, Dir) ; HasActs == true ) -> Op = " open" ; Op = "" ),
+    desk_anchor(Dir, Anchor),
+    format(string(Html), "<section class=\"kb\" id=\"~w\" data-stamp=\"~w\">\n<details class=\"kbfold\"~w><summary><h2><span class=\"kblabel\">~w</span> <span class=\"stamp\">~w</span></h2></summary>\n~w~w~w\n</details>\n</section>", [Anchor, StampH, Op, LabelH, StampH, WhereH, ActsH, Body]).
+
+% view_kb_for_human(+Eng, +Dir) (hub spec questions-server, c2): the KB holds an item that waits
+% on the human: a question to ask, or a queued answer that was refused (to answer again).
+view_kb_for_human(Eng, _) :- eng_true(Eng, to_ask(_)), !.
+view_kb_for_human(_, Dir) :-
+    pending_entries(Dir, Es), applied_results(Dir, Rs),
+    member(pending(_, D, _), Es), memberchk(D-refused, Rs), !.
 
 % view_pending_html(+Dir, -Html) (T27 c4): the answers that wait in answers.pending.
 view_pending_html(Dir, Html) :-
@@ -4369,7 +4457,8 @@ view_question_html(Mode, Dir, Eng, Q, Html) :-
     ;   Form = ""
     ),
     view_context_html(Eng, Q, Ctx),
-    format(string(Html), "~w~w\n<ul class=\"options\">\n~w\n</ul>\n~w~w", [Ctx, DefLine, OsT, Note, Form]).
+    (   Mode = serve(_) -> desk_question_extras(Dir, Eng, Q, Def, OFs, ExH) ; ExH = "" ),
+    format(string(Html), "~w~w\n<ul class=\"options\">\n~w\n</ul>\n~w~w~w", [Ctx, DefLine, OsT, Note, ExH, Form]).
 
 % view_context_html(+Eng, +Q, -Html) (T27 c6): the context a human needs to decide: the notes
 % of the question, the notes of its claim (the divergence), the examples of the claim, and the
@@ -4415,17 +4504,15 @@ pending_for_question(Dir, Q) :-
 % and a free text. The hidden fields carry the token of this run, the KB, and the question.
 view_answer_form(Token, Dir, Q, Texts, Html) :-
     append(Texts, ["other"], All),
-    findall(R, ( member(T, All), esc(T, TH),
-                 format(string(R), "<label><input type=\"radio\" name=\"choice\" value=\"~w\"> ~w</label>", [TH, TH]) ), Rs),
+    (   desk_hub_dir(Dir, Hub) -> desk_slug(Hub, Dir, _), desk_rel(Hub, Dir, Rel),
+        format(string(Key), "q:~w#~w", [Rel, Q]), desk_draft(Hub, Key, Dr)
+    ;   Hub = none, format(string(Key), "q:~w#~w", [Dir, Q]), Dr = _{}
+    ),
+    ( get_dict(choice, Dr, DC), string(DC) -> true ; DC = "" ),
+    findall(R, ( member(T, All), esc(T, TH), ( T == DC -> Ck = " checked" ; Ck = "" ),
+                 format(string(R), "<label><input type=\"radio\" name=\"choice\" value=\"~w\"~w> ~w</label>", [TH, Ck, TH]) ), Rs),
     atomic_list_concat(Rs, '\n', RsT),
-    esc(Token, TokH), esc(Dir, DirH), esc(Q, QH),
-    format(string(Html),
-"<form class=\"answer\" method=\"post\" action=\"/answer\">
-<input type=\"hidden\" name=\"token\" value=\"~w\"><input type=\"hidden\" name=\"kb\" value=\"~w\"><input type=\"hidden\" name=\"q\" value=\"~w\">
-~w
-<label>Or write the answer (with other): <input type=\"text\" name=\"text\" size=\"60\"></label>
-<button type=\"submit\">Record my answer</button>
-</form>", [TokH, DirH, QH, RsT]).
+    desk_form_html(Token, Hub, Key, [kb-Dir, q-Q], RsT, true, Html).
 
 % view_answered_html(+Eng, -Html) (D26 S3): the questions that a human answered, each with the
 % answer, and its default marked when the answer defeats it.
@@ -4475,9 +4562,10 @@ serve_default_port(8737).
 
 cmd_serve(Dirs0, Args, Code) :-
     parse_opts(Args, ['--ledger'-value, '--owner'-value, '--root'-value, '--port'-value, '--hub'-value], Pos, Opts),
-    (   Pos == [] -> usage_error("serve needs a view name: orbit-kb serve questions [--dir KB]... [--root DIR] [--ledger FILE] [--hub DIR] [--port N].", [])
-    ;   Pos == [questions] -> true
-    ;   usage_error("serve takes the one view name questions.", [])
+    (   Pos == [] -> usage_error("serve needs a view name: orbit-kb serve questions [--dir KB]... [--root DIR] [--ledger FILE] [--hub DIR]... [--port N], or orbit-kb serve desk [--hub DIR]... [--port N].", [])
+    ;   Pos == [questions] -> DeskMode = false
+    ;   Pos == [desk] -> DeskMode = true
+    ;   usage_error("serve takes the view name questions or desk.", [])
     ),
     (   memberchk('--port'-PA, Opts)
     ->  (   atom_number(PA, Port), integer(Port), between(0, 65535, Port) -> true
@@ -4495,17 +4583,21 @@ cmd_serve(Dirs0, Args, Code) :-
     ->  absolute_file_name(LF0, LF), view_ledger(LF, _), LedOpt = some(LF)    % fail early on a bad file
     ;   LedOpt = none
     ),
-    (   Dirs0 == [], RootOpt == none -> resolve_kb(none, D0), Dirs = [D0]
+    % The Desk (hub spec KB questions-server): --hub repeats; each hub is a section of the page.
+    findall(H, ( member('--hub'-H0, Opts), hub_root(H0, H1), hub_asks(H1, _, _), serve_norm(H1, H) ), Hubs0),
+    list_to_set(Hubs0, Hubs),
+    (   Dirs0 == [], RootOpt == none, ( Hubs \== [] ; DeskMode == true ) -> Dirs = []
+    ;   Dirs0 == [], RootOpt == none -> resolve_kb(none, D0), Dirs = [D0]
     ;   maplist([D, Rd]>>resolve_kb(some(D), Rd), Dirs0, Dirs)
     ),
     (   memberchk('--owner'-Ow, Opts) -> OwnOpt = ['--owner'-Ow] ; OwnOpt = [] ),
-    (   memberchk('--hub'-H0, Opts) -> hub_root(H0, Hub), hub_asks(Hub, _, _), HubOpt = some(Hub) ; HubOpt = none ),
+    (   Hubs = [Hub|_] -> HubOpt = some(Hub) ; HubOpt = none ),
     serve_token(Token),
     (   getenv('ORBIT_KB_WRITER', W0), W0 \== '' -> Writer = W0 ; Writer = human ),
     orbit_script(Script),
     retractall(serve_conf(_, _)),
     forall(member(K-V, [dirs-Dirs, root-RootOpt, ledger-LedOpt, owner-OwnOpt, token-Token,
-                        writer-Writer, script-Script, hub-HubOpt]),
+                        writer-Writer, script-Script, hub-HubOpt, hubs-Hubs, desk-DeskMode]),
            assertz(serve_conf(K, V))),
     use_module(library(http/thread_httpd)),
     ( Port == 0 -> true ; BindPort = Port ),     % an unbound port: the system picks a free one
@@ -4514,7 +4606,10 @@ cmd_serve(Dirs0, Args, Code) :-
           ( err_text(E, M),
             die(2, ["Cannot listen on 127.0.0.1:" + Port + ": " + M,
                     "Fix: give another port with --port N."] >> fix_lines) )),
-    format("Serving the questions at http://127.0.0.1:~w/ . Answers are written as ~w. Ctrl-C stops.~n", [BindPort, Writer]),
+    (   desk_mode
+    ->  format("Serving the Desk at http://127.0.0.1:~w/ . Answers are written as ~w. Ctrl-C stops.~n", [BindPort, Writer])
+    ;   format("Serving the questions at http://127.0.0.1:~w/ . Answers are written as ~w. Ctrl-C stops.~n", [BindPort, Writer])
+    ),
     flush_output(user_output),
     on_signal(int, _, serve_halt),
     on_signal(term, _, serve_halt),
@@ -4542,7 +4637,13 @@ serve_route(_, _, false, _, forbidden) :- !.
 serve_route(get, '/', true, _, page) :- !.
 serve_route(post, '/answer', true, true, answer) :- !.
 serve_route(post, '/answer', true, false, forbidden) :- !.
-serve_route(_, P, true, _, bad_method) :- memberchk(P, ['/', '/answer']), !.
+serve_route(post, '/draft', true, true, draft) :- !.
+serve_route(post, '/draft', true, false, forbidden) :- !.
+serve_route(post, '/review', true, true, review) :- !.
+serve_route(post, '/review', true, false, forbidden) :- !.
+serve_route(post, '/send', true, true, send) :- !.
+serve_route(post, '/send', true, false, forbidden) :- !.
+serve_route(_, P, true, _, bad_method) :- memberchk(P, ['/', '/answer', '/draft', '/review', '/send']), !.
 serve_route(_, _, true, _, not_found).
 
 serve_host_ok(Req, true) :-
@@ -4555,8 +4656,9 @@ serve_request(Req) :-
 serve_request_(Req) :-
     memberchk(method(M), Req), memberchk(path(P), Req),
     serve_host_ok(Req, HostOk),
-    (   M == post, P == '/answer', HostOk == true
-    ->  serve_form(Req, Form),
+    (   M == post, memberchk(P, ['/answer', '/draft', '/review', '/send']), HostOk == true
+    ->  serve_form(Req, Form0),
+        ( memberchk(x_desk_fragment(_), Req) -> Form = [desk_fragment='1'|Form0] ; Form = Form0 ),
         serve_conf(token, Tok),
         ( serve_field(Form, token, T), atom_string(Tok, T) -> TokOk = true ; TokOk = false )
     ;   Form = [], TokOk = false
@@ -4564,9 +4666,29 @@ serve_request_(Req) :-
     serve_route(M, P, HostOk, TokOk, Action),
     serve_act(Action, Form).
 
-serve_act(page, _) :- serve_page("", Page), serve_reply(200, Page).
+serve_act(page, _) :- ( desk_mode -> desk_page("", Page) ; serve_page("", Page) ), serve_reply(200, Page).
+% c20: on the Desk every response goes through the review; /answer takes none.
+serve_act(answer, _) :- desk_mode, !,
+    serve_message_page(409, "On the Desk every response goes through the review: press Review and send on the page. Nothing was written.").
+serve_act(review, Form) :-
+    (   \+ desk_mode -> serve_message_page(404, "There is no such page. GET / shows the questions.")
+    ;   catch(( desk_plan(Form, Plan), ( serve_field(Form, desk_fragment, _) -> Frag = true ; Frag = false ),
+                desk_review_html(Plan, Frag, Html), serve_reply(200, Html) ),
+              desk_refused(St, Msg), serve_message_page(St, Msg))
+    ).
+serve_act(send, Form) :-
+    (   \+ desk_mode -> serve_message_page(404, "There is no such page. GET / shows the questions.")
+    ;   desk_send_form(Form, R),
+        (   R = ok(Anchor) -> serve_frame_headers(FH), format("Status: 303~nLocation: /#~w~n~wContent-type: text/html; charset=UTF-8~n~n<p>Sent. <a href=\"/\">Back to the Desk</a></p>~n", [Anchor, FH])
+        ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
+        )
+    ).
 serve_act(answer, Form) :- serve_answer(Form, R),
     (   R = ok -> serve_frame_headers(FH), format("Status: 303~nLocation: /~n~wContent-type: text/html; charset=UTF-8~n~n<p>Recorded. <a href=\"/\">Back to the questions</a></p>~n", [FH])
+    ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
+    ).
+serve_act(draft, Form) :- ( desk_mode -> desk_save_draft2(Form, R) ; desk_save_draft(Form, R) ),
+    (   R == ok -> serve_frame_headers(FH), format("Status: 204~n~wCache-Control: no-store~n~n", [FH])
     ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
     ).
 serve_act(forbidden, _) :- serve_message_page(403, "Forbidden. The server answers only requests to 127.0.0.1 or localhost, and a POST needs the token of the page of this run. Reload the page.").
@@ -4602,19 +4724,27 @@ serve_reply(Status, Page) :-
 
 serve_message_page(Status, Msg) :-
     esc(Msg, MH),
-    format(string(Page), "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Open questions</title>\n</head>\n<body>\n<p class=\"message error\">~w</p>\n<p><a href=\"/\">Back to the questions</a></p>\n</body>\n</html>\n", [MH]),
+    % c1: dark at every load, a message page too
+    format(string(Page), "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Open questions</title>\n<style>:root{color-scheme:dark}body{background:#121722;color:#ece8df;font:15px/1.55 system-ui,sans-serif;margin:2em auto;max-width:60em;padding:0 16px}a{color:#9cbcf0}</style>\n</head>\n<body>\n<p class=\"message error\">~w</p>\n<p><a href=\"/\">Back to the questions</a></p>\n</body>\n</html>\n", [MH]),
     serve_reply(Status, Page).
 
 % serve_kbs(-Groups): the KBs to serve now, as group(Label, ProjectDir|none, Dirs). The --dir
 % KBs in the order given, then the KBs under --root, sorted by path. A KB that a spec KB names
 % with project_kb/1, or that uses the project module and has no project_kb and no claim, is a
 % project KB: it names a group and has no section of its own.
-serve_kbs(Groups) :-
+serve_kbs(Groups) :- serve_all_dirs(All), serve_groups(All, Groups).
+
+% serve_all_dirs(-All): the --dir KBs, the KBs under --root, and the KBs under each --hub.
+serve_all_dirs(All) :-
     serve_conf(dirs, Dirs0), serve_conf(root, RootOpt),
-    (   RootOpt = some(Root) -> serve_find_kbs(Root, Found) ; Found = [] ),
-    append(Dirs0, Found, All0),
+    (   RootOpt = some(Root) -> serve_find_kbs(Root, Found0) ; Found0 = [] ),
+    ( serve_conf(hubs, Hubs) -> true ; Hubs = [] ),
+    findall(D, ( member(H, Hubs), serve_find_kbs(H, HDs), member(D, HDs) ), HubFound),
+    append([Dirs0, Found0, HubFound], All0),
     maplist(serve_norm, All0, All1),
-    list_to_set(All1, All),
+    list_to_set(All1, All).
+
+serve_groups(All, Groups) :-
     findall(D-P, ( member(D, All), serve_kb_project(D, P) ), DPs),
     findall(P, member(_-some(P), DPs), Ps0), list_to_set(Ps0, Ps),
     findall(D, ( member(D, All), ( memberchk(D, Ps) ; serve_is_project_kb(D) ) ), PKs),
@@ -4677,53 +4807,52 @@ serve_project_label(P, Label) :-
 
 serve_page(Msg, Page) :-
     serve_conf(token, Token), lib_dir(Lib),
-    serve_kbs(Groups),
+    ( serve_conf(hubs, Hubs) -> true ; Hubs = [] ),
+    desk_ctx_set(Hubs),
+    serve_all_dirs(All),
+    findall(HH, ( member(H, Hubs), include([D]>>desk_under(D, H), All, HDs), desk_hub_html(Token, Lib, H, HDs, HH) ), HHs),
+    exclude([D]>>( member(H, Hubs), desk_under(D, H) ), All, ODs),
+    serve_groups(ODs, Groups),
     findall(G, ( member(group(L, _, Ds), Groups), serve_group_html(Token, Lib, L, Ds, G) ), Gs),
-    (   Gs == [] -> GsText = "<p class=\"message\">No KB was found.</p>" ; atomic_list_concat(Gs, '\n', GsText) ),
+    (   Gs == [], HHs == [] -> GsText = "<p class=\"message\">No KB was found.</p>" ; atomic_list_concat(Gs, '\n', GsText) ),
+    atomic_list_concat(HHs, '\n', HubsText),
     serve_conf(ledger, LedOpt), serve_conf(owner, OwnOpt),
     (   LedOpt = some(LF)
     ->  catch(( view_ledger(LF, Rows), view_owner(OwnOpt, Rows, Owner), view_owned(Rows, Owner, Asks),
                 view_ledger_section(serve(Token), some(Asks), LedText) ),
               E, ( serve_err_text(E, EM), esc(EM, EMH),
-                   format(string(LedText), "<section class=\"ledger\"><h2>Asks that wait on you</h2><p class=\"message error\">~w</p></section>", [EMH]) ))
+                   format(string(LedText), "<section class=\"ledger\"><h2>Questions for you</h2><p class=\"message error\">~w</p></section>", [EMH]) ))
     ;   LedText = ""
     ),
-    serve_conf(hub, HubOpt),
-    (   HubOpt = some(Hub)
-    ->  catch(( hub_asks(Hub, HOwner, HRows), view_owned(HRows, HOwner, HAsks),
-                view_ledger_section(serve_hub(Token, Hub), some(HAsks), HubText0),
-                format(string(HubText), "~w", [HubText0]) ),
-              E2, ( serve_err_text(E2, EM2), esc(EM2, EMH2),
-                    format(string(HubText), "<section class=\"ledger\"><h2>Asks that wait on you</h2><p class=\"message error\">~w</p></section>", [EMH2]) ))
-    ;   HubText = ""
-    ),
-    view_css(Css),
+    view_css(Css), desk_js(Js), esc(Token, TokH),
     (   Msg == "" -> MsgH = "" ; esc(Msg, M0), format(string(MsgH), "<p class=\"message\">~w</p>", [M0]) ),
     format(string(Page),
 "<!DOCTYPE html>
 <html lang=\"en\">
 <head>
 <meta charset=\"utf-8\">
-<title>Open questions</title>
-<style>~w section.project{border-width:2px}form.answer{margin:.5em 0;padding:.4em;background:#f4f4f4}form.answer label{display:block}</style>
+<title>The Desk</title>
+<style>~w section.project{border-width:2px}form.answer{margin:.5em 0;padding:.4em;background:var(--bg)}form.answer label{display:block}</style>
 </head>
-<body>
-<h1>Open questions</h1>
-<p class=\"serve-note\">Live: each reload reads the KBs again. An answer is recorded as a human answer (orbit-kb add --by human), under the writer lock of its KB.</p>
+<body data-token=\"~w\">
+<h1>The Desk</h1>
+<p class=\"serve-note\">Live: each reload reads the KBs and the ledgers again. What you send is stored at once and goes to the session that owns the item, at that session's next stop or prompt. Write freely: a draft stays here until you press Send.</p>
 <p class=\"options-note\">The options of a question come from the KB's defaults (its default answer and an answer that an agent recorded) and from its option facts (each with what it changes). Other means an answer that is not listed. The page adds no option of its own.</p>
 ~w
 ~w
 ~w
 ~w
+<script>~w</script>
 </body>
 </html>
-", [Css, MsgH, GsText, LedText, HubText]).
+", [Css, TokH, MsgH, HubsText, GsText, LedText, Js]).
 
 serve_group_html(Token, Lib, Label, Dirs, Html) :-
     findall(S, ( member(D, Dirs), serve_kb_html(Token, Lib, D, S) ), Ss),
     atomic_list_concat(Ss, '\n', SsT),
     esc(Label, LH),
-    format(string(Html), "<section class=\"project\">\n<h2 class=\"projectlabel\">~w</h2>\n~w\n</section>", [LH, SsT]).
+    ( sub_string(SsT, _, _, _, "<details class=\"kbfold\" open>") -> Op = " open" ; Op = "" ),
+    format(string(Html), "<section class=\"project\">\n<details class=\"groupfold\"~w><summary><h2 class=\"projectlabel\">~w</h2></summary>\n~w\n</details>\n</section>", [Op, LH, SsT]).
 
 serve_kb_html(Token, Lib, Dir, Html) :-
     catch(view_kb_section(serve(Token), Lib, Dir, Html), E,
@@ -4736,9 +4865,20 @@ serve_err_text(E, M) :- err_text(E, M).
 % serve_answer(+Form, -Result) (D26 S3, S4): ok, or refused(Status, Message). Nothing is
 % written unless every check passes; the write is one `orbit-kb add` child process.
 serve_answer(Form, R) :-
+    (   serve_field(Form, intent, I0), memberchk(I0, ["answer", "diverge", "requirement"]) -> atom_string(Intent, I0)
+    ;   Intent = answer
+    ),
     (   serve_field(Form, ask, AskS), AskS \== ""
-    ->  serve_answer_ask(AskS, Form, R)
-    ;   serve_answer_kb(Form, R)
+    ->  ( Intent == answer -> serve_answer_ask(AskS, Form, R) ; desk_ask_other(Intent, AskS, Form, R) )
+    ;   serve_field(Form, action, ActS), ActS \== ""
+    ->  desk_action_respond(Intent, ActS, Form, R)
+    ;   Intent == answer -> serve_answer_kb(Form, R)
+    ;   desk_kb_other(Intent, Form, R)
+    ),
+    (   R == ok, serve_field(Form, draft, Key), Key \== "", serve_field(Form, hub, HS), HS \== "",
+        serve_form_hub(Form, Hub)
+    ->  desk_cmd(Hub, [draft, Key, '--clear'], _, _)
+    ;   true
     ).
 
 serve_answer_kb(Form, R) :-
@@ -4766,7 +4906,11 @@ serve_answer_kb(Form, R) :-
                 ->  R = refused(400, "The text is longer than 2000 characters.")
                 ;   serve_answer_term(Eng, Q, Text, A),
                     ( Note == "" -> NFs = [] ; atom_string(NA, Note), NFs = [note(Q, NA)] ),
-                    serve_owned(Eng, Q, Dir, A, Text, NFs, R)
+                    ( serve_field(Form, choice, C1), C1 \== "", C1 \== "other" -> LC = Text, LT = Note ; LC = "", LT = Text ),
+                    desk_kb_letter(Dir, answer, question, Q, LT, LC, Hub, L),
+                    serve_owned(Eng, Q, Dir, A, Text, NFs, R0),
+                    ( R0 == ok, pending_for_question(Dir, Q) -> R1 = queued ; R1 = R0 ),
+                    desk_finish(Hub, L, R1, R)
                 )
             )
         )
@@ -4827,7 +4971,7 @@ serve_owned(Eng, Q, Dir, A, Text, NFs, R) :-
 % hubflow closes the ask (as a human); each served spec KB whose question is pinned to the ask
 % gets the pinned answer through its queue (c5).
 serve_answer_ask(IdS, Form, R) :-
-    (   serve_conf(hub, some(Hub))
+    (   serve_form_hub(Form, Hub)
     ->  hub_asks(Hub, Owner, Rows),
         (   \+ ( member(X, Rows), X.id == IdS, X.waits_on == Owner )
         ->  format(string(M), "The ask ~w does not wait on you now. Reload the page.", [IdS]),
@@ -4837,6 +4981,7 @@ serve_answer_ask(IdS, Form, R) :-
             (   Text == "" -> R = refused(400, "Write the answer.")
             ;   string_length(Text, Len), Len > 2000 -> R = refused(400, "The answer is longer than 2000 characters.")
             ;   atom_string(Id, IdS),
+                desk_send(Hub, answer, _{type:"ask", id:IdS}, Text, "", L),
                 hub_close(Hub, Id, Text, R0),
                 (   R0 == ok
                 ->  atom_string(OA, Owner), sha256_text(Text, D), utc_now(Now),
@@ -4845,9 +4990,10 @@ serve_answer_ask(IdS, Form, R) :-
                              serve_kb_pins_ask(Dir, Id, Qs), member(Q, Qs) ),
                            ( serve_text_term(Dir, Q, Text, A),
                              serve_write(Dir, [answer(Q, A, human:OA), answer_pin(Q, Id, D, Now)], _) )),
-                    R = ok
-                ;   R = R0
-                )
+                    R1 = ok
+                ;   R1 = R0
+                ),
+                desk_finish(Hub, L, R1, R)
             )
         )
     ;   R = refused(400, "This server reads no hub. Start it with --hub DIR to answer asks.")
@@ -4894,6 +5040,2248 @@ serve_child(Script, W, Args, Exit, Err) :-
     read_string(E, _, Err), close(E),
     process_wait(P, St),
     ( St = exit(Exit) -> true ; Exit = 2 ).
+
+% ---------------------------------------------------------------------
+% The Desk (hub spec KB questions-server, 2026-11-17)
+% ---------------------------------------------------------------------
+% With --hub (it repeats), each hub is a section of the page: what waits on the human (Human
+% action needed, Questions for you), its spec KBs, the responses sent from the page (letters)
+% with where each one is, its sessions with their inboxes, and its orphaned items. The hub's
+% .claude/scripts/desk.py keeps the letters, their receipts and the drafts (flow/desk/), and a
+% hook of each session delivers a letter to the session that owns its item, at its next stop
+% or prompt (c6). A response is stored as a letter before it is written anywhere else (c8).
+% Without desk.py the page works as before, and says that no response is recorded.
+
+% desk_ctx_set(+Hubs): the status of each hub's desk.py, read once per page.
+desk_ctx_set(Hubs) :-
+    findall(H-St, ( member(H, Hubs), desk_status(H, St) ), Ctx),
+    nb_setval(desk_ctx, Ctx),
+    nb_setval(desk_acts, []), nb_setval(desk_kbs, []).
+
+desk_ctx(Ctx) :- ( nb_current(desk_ctx, C) -> Ctx = C ; Ctx = [] ).
+
+% desk_hub_dir(+Dir, -Hub): the served hub that holds the KB directory Dir.
+desk_hub_dir(Dir, Hub) :-
+    serve_conf(hubs, Hs), member(Hub, Hs), desk_under(Dir, Hub), !.
+
+% desk_hub_st(+Hub, -St): the desk status of a hub on this page (a dict), or error(Message).
+desk_hub_st(Hub, St) :-
+    (   desk_ctx(Ctx), memberchk(Hub-St0, Ctx) -> St = St0 ; desk_status(Hub, St) ).
+
+desk_under(Dir, Hub) :- atom_concat(Hub, '/', HP), sub_atom(Dir, 0, _, _, HP).
+
+desk_rel(Hub, Dir, Rel) :- atom_concat(Hub, '/', HP), atom_concat(HP, Rel, Dir).
+
+% desk_slug(+Hub, +Dir, -Slug): the slug that kb: refs of the ledger use for the spec KB Dir.
+desk_slug(Hub, Dir, Slug) :-
+    desk_rel(Hub, Dir, Rel), atomic_list_concat(Ps, '/', Rel),
+    (   Ps = [specs, S] -> Slug = S
+    ;   append(_, [S, kb], Ps) -> Slug = S
+    ;   last(Ps, Slug)
+    ).
+
+desk_anchor(Dir, A) :-
+    (   desk_hub_dir(Dir, Hub), desk_slug(Hub, Dir, S) -> true ; file_base_name(Dir, S) ),
+    atom_codes(S, Cs), maplist([C, D]>>( code_type(C, alnum) -> D = C ; D = 0'- ), Cs, Ds),
+    atom_codes(S2, Ds), atom_concat('kb-', S2, A).
+
+desk_hub_label(Hub, Label) :-
+    directory_file_path(Hub, 'CLAUDE.md', F),
+    (   exists_file(F),
+        catch(setup_call_cleanup(open(F, read, S, [encoding(utf8)]), read_line_to_string(S, L1), close(S)), _, fail),
+        string(L1), sub_string(L1, B, _, A, "CLAUDE.md: "), B >= 0, A > 0,
+        sub_string(L1, _, A, 0, Label0), split_string(Label0, "", " ", [Label]), Label \== ""
+    ->  true
+    ;   file_base_name(Hub, B0), atom_string(B0, Label)
+    ).
+
+% desk_py(+Hub, -Exe, -Py): python3 and the hub's desk.py, when both exist.
+desk_py(Hub, Exe, Py) :-
+    directory_file_path(Hub, '.claude/scripts/desk.py', Py), exists_file(Py),
+    absolute_file_name(path(python3), Exe, [access(execute), file_errors(fail)]).
+
+% desk_cmd(+Hub, +Args, -Out, -R): run desk.py in the hub; R is ok or error(Message).
+desk_cmd(Hub, Args, Out, R) :-
+    (   desk_py(Hub, Exe, Py)
+    ->  catch(( process_create(Exe, ['-I', Py, '--hub', Hub|Args],
+                               [cwd(Hub), stdin(null), stdout(pipe(O)), stderr(pipe(E)), process(P)]),
+                set_stream(O, encoding(utf8)), set_stream(E, encoding(utf8)),
+                read_string(O, _, Out), read_string(E, _, Err), close(O), close(E),
+                process_wait(P, St) ), X, ( err_text(X, Err), St = exit(2), Out = "" )),
+        (   St == exit(0) -> R = ok
+        ;   split_string(Err, "\n", " \t\r", Ls), exclude(==(""), Ls, Ls1),
+            ( Ls1 = [E1|_] -> true ; E1 = "desk.py failed" ), R = error(E1)
+        )
+    ;   Out = "", R = error("The hub has no .claude/scripts/desk.py (or python3 is missing)")
+    ).
+
+% desk_status(+Hub, -St): sessions, inboxes, orphans, kb refs, answered asks, letters and drafts.
+desk_status(Hub, St) :-
+    use_module(library(http/json)),          % atom_json_dict/3: the first page of a run may come before hub_read
+    desk_cmd(Hub, [status, '--json'], Out, R),
+    (   R == ok, catch(atom_json_dict(Out, St0, []), _, fail) -> St = St0
+    ;   R = error(M) -> St = error(M)
+    ;   St = error("desk.py status printed no JSON")
+    ).
+
+% q10: drafts live in the Desk's own store ($DESK_STATE), outside every mindhole (desk.py drafts).
+desk_draft(Hub, Key, Dr) :-
+    (   desk_cmd(Hub, [drafts, '--json'], Out, ok), catch(atom_json_dict(Out, J, [value_string_as(string)]), _, fail),
+        is_dict(J), ( get_dict(drafts, J, Ds) -> true ; Ds = J ), is_dict(Ds),
+        atom_string(KA, Key), get_dict(KA, Ds, Dr0), is_dict(Dr0) -> Dr = Dr0
+    ;   Dr = _{}
+    ).
+
+% desk_send(+Hub, +Kind, +Item, +Text, +Choice, -L): store a letter first (c8). L: ok(Lid),
+% none (the hub has no desk.py), or error(Message).
+desk_send(Hub, Kind, Item, Text, Choice, L) :-
+    (   \+ desk_py(Hub, _, _) -> L = none
+    ;   atom_json_dict(IJ, Item, [width(0)]),
+        tmp_file_stream(utf8, TF, TS), write(TS, Text), close(TS),
+        ( Choice == "" -> CA = [] ; CA = ['--choice', Choice] ),
+        append([send, '--kind', Kind, '--item-json', IJ, '--text-file', TF], CA, Args),
+        desk_cmd(Hub, Args, Out, R0),
+        catch(delete_file(TF), _, true),
+        (   R0 == ok, catch(atom_json_dict(Out, D, []), _, fail), get_dict(id, D, Lid) -> L = ok(Lid)
+        ;   R0 = error(M) -> L = error(M)
+        ;   L = error("desk.py send printed no letter id")
+        )
+    ).
+
+% desk_kb_letter(+Dir, +Kind, +Type, +Ref, +Text, +Choice, -Hub, -L): the letter of a response
+% about a KB question (Type question, Ref the question) or a KB action (Type kb, Ref its id).
+desk_kb_letter(Dir, Kind, Type, Ref, Text, Choice, Hub, L) :-
+    (   desk_hub_dir(Dir, Hub)
+    ->  desk_slug(Hub, Dir, Slug), desk_rel(Hub, Dir, Rel),
+        atom_string(Slug, SS), atom_string(Rel, RS), atom_string(Ref, RefS),
+        (   Type == question -> Item = _{type:"question", slug:SS, kb:RS, q:RefS}
+        ;   Item = _{type:"kb", slug:SS, kb:RS, ref:RefS}
+        ),
+        desk_send(Hub, Kind, Item, Text, Choice, L)
+    ;   Hub = none, L = none
+    ).
+
+% desk_finish(+Hub, +L, +R0, -R): record where the letter is after its write. R0: ok, ok(Detail)
+% (applied), queued (stored; the holder's next write applies it), or refused(Status, Message):
+% the letter is kept (c8), and the page says that it is not applied.
+desk_finish(_, none, R0, R) :- !, desk_plain(R0, R).
+desk_finish(_, error(_), R0, R) :- !, desk_plain(R0, R).
+desk_finish(Hub, ok(Lid), R0, R) :-
+    (   R0 = ok(D) -> desk_cmd(Hub, [event, Lid, applied, '--detail', D], _, _), R = ok
+    ;   R0 == ok -> desk_cmd(Hub, [event, Lid, applied], _, _), R = ok
+    ;   R0 == queued -> R = ok
+    ;   R0 = refused(S, M)
+    ->  desk_cmd(Hub, [event, Lid, apply_failed, '--detail', M], _, _),
+        format(string(M2), "Your response is stored as ~w, so it is not lost, but it is not applied: ~w", [Lid, M]),
+        R = refused(S, M2)
+    ;   R = R0
+    ).
+desk_plain(ok(_), ok) :- !.
+desk_plain(queued, ok) :- !.
+desk_plain(R, R).
+
+% serve_form_hub(+Form, -Hub): the hub that a form names, else the first hub of the server.
+serve_form_hub(Form, Hub) :-
+    ( serve_conf(hubs, Hubs) -> true ; Hubs = [] ),
+    (   serve_field(Form, hub, HS), HS \== ""
+    ->  atom_string(H0, HS), serve_norm(H0, Hub), memberchk(Hub, Hubs)
+    ;   Hubs = [Hub|_]
+    ).
+
+desk_form_text(Form, Text, R) :-
+    ( serve_field(Form, text, T0) -> true ; T0 = "" ),
+    split_string(T0, "", " \t\r\n", [Text]),
+    (   Text == "" -> R = refused(400, "Write what you want to say.")
+    ;   string_length(Text, Len), Len > 4000 -> R = refused(400, "The text is longer than 4000 characters.")
+    ;   R = ok
+    ).
+
+% hub_run(+Hub, +Args, -Out, -R): run hubflow as the human (--session human --by human).
+hub_run(Hub, Args, Out, R) :-
+    directory_file_path(Hub, '.claude/scripts/hubflow.py', Hf),
+    (   absolute_file_name(path(python3), Exe, [access(execute), file_errors(fail)]), exists_file(Hf)
+    ->  catch(( process_create(Exe, [Hf, '--hub', Hub, '--session', human, '--by', human|Args],
+                               [cwd(Hub), stdin(null), stdout(pipe(O)), stderr(pipe(E)), process(P)]),
+                set_stream(O, encoding(utf8)), set_stream(E, encoding(utf8)),
+                read_string(O, _, Out0), read_string(E, _, Err), close(O), close(E), process_wait(P, St) ),
+              X, ( err_text(X, Err), St = exit(2), Out0 = "" )),
+        split_string(Out0, "", " \t\r\n", [Out]),
+        (   St == exit(0) -> R = ok(Out)
+        ;   split_string(Err, "", " \t\r\n", [E1]),
+            format(string(M), "The ledger did not take it, and nothing was written there. hubflow said: ~w", [E1]),
+            R = refused(409, M)
+        )
+    ;   Out = "", R = refused(409, "The hub has no .claude/scripts/hubflow.py (or python3 is missing).")
+    ).
+
+% desk_intake(+Hub, +Text, +From, -R): a new requirement goes to intake: a thread of the review
+% session (c5), with the KB or the ask it came from. With no review session the thread has no
+% owner, so the Orphaned list shows it.
+desk_intake(Hub, Text, From, R) :-
+    desk_status(Hub, St),
+    (   is_dict(St), member(S, St.sessions), S.name == "review", S.status == "active" -> Owner = review ; Owner = none ),
+    (   sub_string(Text, 0, 100, _, T1) -> string_concat(T1, "...", T2) ; T2 = Text ),
+    split_string(T2, "\n", " \t\r", Ws), atomic_list_concat(Ws, ' ', T3),
+    format(string(Title), "Ty's new requirement: ~w", [T3]),
+    ( From = kb(Slug) -> format(atom(RefA), "kb:~w", [Slug]), Refs = ['--ref', RefA] ; Refs = [] ),
+    append([add, thread, '--title', Title, '--owner', Owner, '--note', Text], Refs, Args),
+    hub_run(Hub, Args, Out, R0),
+    (   R0 = ok(_)
+    ->  ( From = ask(AskId) -> hub_run(Hub, [link, Out, AskId, relates, '--note', "From the Desk: a new requirement from this ask"], _, _) ; true ),
+        (   Owner == none
+        ->  format(string(D), "intake: ~w (no review session: it is orphaned until a session takes it)", [Out])
+        ;   format(string(D), "intake: ~w, owned by ~w", [Out, Owner])
+        ),
+        R = ok(D)
+    ;   R = R0
+    ).
+
+% desk_ask_other(+Intent, +Id, +Form, -R) (c5): a divergence on an ask is a note in Ty's words
+% (the ask stays open); a new requirement goes to intake.
+desk_ask_other(Intent, IdS, Form, R) :-
+    (   \+ serve_form_hub(Form, _)
+    ->  R = refused(400, "This server reads no hub. Start it with --hub DIR to answer asks.")
+    ;   serve_form_hub(Form, Hub), hub_asks(Hub, _, Rows),
+        desk_form_text(Form, Text, RT),
+        (   \+ ( member(X, Rows), X.id == IdS )
+        ->  format(string(M), "The ask ~w is not open now. Reload the page.", [IdS]), R = refused(409, M)
+        ;   RT \== ok -> R = RT
+        ;   desk_send(Hub, Intent, _{type:"ask", id:IdS}, Text, "", L),
+            (   Intent == diverge
+            ->  format(string(N), "Ty diverges (from the Desk): ~w", [Text]),
+                hub_run(Hub, [note, IdS, N], _, R0)
+            ;   desk_intake(Hub, Text, ask(IdS), R0)
+            ),
+            desk_finish(Hub, L, R0, R)
+        )
+    ).
+
+% desk_kb_other(+Intent, +Form, -R) (c5): a divergence on a KB question is a human signal and a
+% note on its claim, in Ty's words; the question stays open. A new requirement goes to intake.
+desk_kb_other(Intent, Form, R) :-
+    serve_kbs(Groups), findall(D, ( member(group(_, _, Ds), Groups), member(D, Ds) ), Served),
+    (   \+ ( serve_field(Form, kb, KS), atom_string(KA0, KS), serve_norm(KA0, KA), memberchk(KA, Served) )
+    ->  R = refused(400, "The form names a KB that this server does not serve. Reload the page.")
+    ;   serve_field(Form, kb, KS), atom_string(Dir0, KS), serve_norm(Dir0, Dir),
+        ( serve_field(Form, q, QS) -> true ; QS = "" ), atom_string(Q, QS),
+        lib_dir(Lib), load_kb(Dir, Lib, KB), kb_engine(KB, Eng),
+        desk_form_text(Form, Text, RT),
+        (   \+ eng_all(Eng, [C0], question(Q, C0, _), [_|_])
+        ->  R = refused(400, "The form names no question of this KB. Reload the page.")
+        ;   RT \== ok -> R = RT
+        ;   eng_all(Eng, [C0], question(Q, C0, _), [C|_]),
+            desk_respond_kb(Intent, Dir, question, Q, C, Text, R)
+        )
+    ).
+
+% desk_respond_kb(+Intent, +Dir, +Type, +Ref, +Claim, +Text, -R): a response about a KB item.
+desk_respond_kb(Intent, Dir, Type, Ref, C, Text, R) :-
+    (   Intent == requirement, \+ desk_hub_dir(Dir, _)
+    ->  R = refused(400, "A new requirement goes to intake in a hub; this KB is in no hub that this server reads.")
+    ;   desk_kb_letter(Dir, Intent, Type, Ref, Text, "", Hub, L),
+        (   Intent == diverge
+        ->  desk_diverge_facts(Ref, C, Text, Facts, Sig),
+            serve_write(Dir, Facts, R0),
+            ( R0 == ok, desk_still_pending(Dir, Sig) -> R1 = queued ; R1 = R0 ),
+            desk_finish(Hub, L, R1, R)
+        ;   Intent == requirement
+        ->  desk_slug(Hub, Dir, Slug), desk_intake(Hub, Text, kb(Slug), R0), desk_finish(Hub, L, R0, R)
+        ;   % an answer to a KB action (a vote, a demo): the letter goes to the owning session, which acts on it
+            desk_finish(Hub, L, queued, R)
+        )
+    ).
+
+desk_diverge_facts(Ref, C, Text, Facts, Sig) :-
+    utc_now(Now), get_time(F), I is floor(F), N is random(65536),
+    format(atom(Sig), "sd~w~16r", [I, N]),
+    format(atom(T), "Ty, from the Desk, ~w, on ~w: ~w", [Now, Ref, Text]),
+    (   C == none -> Facts = [signal(Sig, divergence, human, T)]
+    ;   Facts = [signal(Sig, divergence, human, T), note(C, T)]
+    ).
+
+desk_still_pending(Dir, Sig) :-
+    pending_open(Dir, Ps), member(pending(_, _, Fs), Ps), member(signal(S, _, _, _), Fs), S == Sig, !.
+
+% desk_action_respond(+Intent, +Ref, +Form, -R): a response on a KB action card (vote, demo, waiver).
+desk_action_respond(Intent, RefS, Form, R) :-
+    serve_kbs(Groups), findall(D, ( member(group(_, _, Ds), Groups), member(D, Ds) ), Served),
+    desk_form_text(Form, Text, RT),
+    (   \+ ( serve_field(Form, kb, KS), atom_string(KA0, KS), serve_norm(KA0, KA), memberchk(KA, Served) )
+    ->  R = refused(400, "The form names a KB that this server does not serve. Reload the page.")
+    ;   RT \== ok -> R = RT
+    ;   serve_field(Form, kb, KS), atom_string(Dir0, KS), serve_norm(Dir0, Dir),
+        lib_dir(Lib), load_kb(Dir, Lib, KB), kb_engine(KB, Eng),
+        desk_action_claim(Eng, RefS, C),
+        atom_string(Ref, RefS),
+        desk_respond_kb(Intent, Dir, kb, Ref, C, Text, R)
+    ).
+
+desk_action_claim(Eng, RefS, C) :-
+    (   split_string(RefS, ":", "", ["flare", CS]) -> atom_string(C, CS)
+    ;   catch(eng_all(Eng, [H], ( hypothesis(H, _, _), \+ supersedes(_, H) ), [C|_]), _, fail) -> true
+    ;   C = none
+    ).
+
+% desk_save_draft(+Form, -R) (q2): a draft stays on the server until Send; it reaches no session.
+desk_save_draft(Form, R) :-
+    (   \+ ( serve_field(Form, hub, HS), HS \== "", serve_form_hub(Form, _) )
+    ->  R = refused(400, "The draft names no hub that this server reads. Reload the page.")
+    ;   \+ ( serve_field(Form, key, K), K \== "" )
+    ->  R = refused(400, "The draft has no key. Reload the page.")
+    ;   serve_form_hub(Form, Hub), serve_field(Form, key, Key),
+        ( serve_field(Form, text, T) -> true ; T = "" ),
+        ( serve_field(Form, choice, C) -> true ; C = "" ),
+        ( serve_field(Form, intent, I) -> true ; I = "answer" ),
+        tmp_file_stream(utf8, TF, TS), write(TS, T), close(TS),
+        desk_cmd(Hub, [draft, Key, '--text-file', TF, '--choice', C, '--intent', I], _, R0),
+        catch(delete_file(TF), _, true),
+        (   R0 == ok -> R = ok
+        ;   R0 = error(M), format(string(M2), "The draft was not saved: ~w", [M]), R = refused(409, M2)
+        )
+    ).
+
+% ---- rendering
+
+% desk_form_html(+Token, +Hub, +Key, +Target, +Choices, +Intents, -Html): the response form of a
+% card (c5): its options, the intent (answer, diverge, new requirement), a free text, and Send.
+% The text is a draft (saved on the server as Ty types, q2) until Send.
+desk_form_html(Token, Hub, Key, Target, Choices, _, Html) :-
+    esc(Token, TokH), esc(Key, KeyH),
+    findall(F, ( member(N-V, Target), esc(V, VH), format(string(F), "<input type=\"hidden\" name=\"~w\" value=\"~w\">", [N, VH]) ), Fs),
+    atomic_list_concat(Fs, '', TargetH),
+    (   Hub \== none, desk_py(Hub, _, _)
+    ->  esc(Hub, HubH), Desk = "1", desk_draft(Hub, Key, Dr),
+        format(string(HubF), "<input type=\"hidden\" name=\"hub\" value=\"~w\"><input type=\"hidden\" name=\"draft\" value=\"~w\">", [HubH, KeyH]),
+        Ints = [answer-"Answer", diverge-"That is not what I meant (diverge: the item stays open)", requirement-"New requirement (goes to intake)"]
+    ;   HubH = "", Desk = "0", Dr = _{}, HubF = "",
+        Ints = [answer-"Answer", diverge-"That is not what I meant (diverge: the item stays open)"]
+    ),
+    ( get_dict(intent, Dr, DI), string(DI) -> true ; DI = "answer" ),
+    ( get_dict(text, Dr, DT), string(DT) -> true ; DT = "" ),
+    findall(I, ( member(V-Lb, Ints), atom_string(V, VS), ( VS == DI -> Ck = " checked" ; Ck = "" ),
+                 format(string(I), "<label><input type=\"radio\" name=\"intent\" value=\"~w\"~w> ~w</label>", [V, Ck, Lb]) ), Is),
+    atomic_list_concat(Is, '\n', IsH),
+    esc(DT, DTH),
+    (   get_dict(at, Dr, DA), string(DA) -> esc(DA, DAH), format(string(DS), "Draft saved ~w", [DAH]) ; DS = "" ),
+    format(string(Html),
+"<form class=\"answer respond\" method=\"post\" action=\"/answer\" data-draft-key=\"~w\" data-desk=\"~w\" data-hub=\"~w\">
+<input type=\"hidden\" name=\"token\" value=\"~w\">~w~w
+~w
+<fieldset class=\"intent\"><legend>Send as</legend>
+~w
+</fieldset>
+<label>Your words (with other, a divergence or a requirement): <textarea name=\"text\" rows=\"3\">~w</textarea></label>
+<button type=\"submit\">Send</button> <span class=\"draftstate\">~w</span>
+</form>", [KeyH, Desk, HubH, TokH, TargetH, HubF, Choices, IsH, DTH, DS]).
+
+% desk_owners(+Hub, +Item, -Owners, -Live): the sessions that hold an item, and the live ones.
+% Item: ask(Id) (its owner session) or kb(Slug) (the owners of open ledger items with kb:Slug).
+desk_owners(Hub, Item, Owners, Live) :-
+    desk_hub_st(Hub, St),
+    (   is_dict(St)
+    ->  findall(N, ( member(S, St.sessions), S.status == "active", atom_string(N, S.name) ), Act),
+        (   Item = ask(Id) -> ( desk_ask_owner(Hub, Id, O) -> Owners = [O] ; Owners = [] )
+        ;   Item = kb(Slug), get_dict(Slug, St.kb_refs, Rs)
+        ->  findall(O, ( member(X, Rs), get_dict(owner_session, X, O0), string(O0), atom_string(O, O0) ), Os0), sort(Os0, Owners)
+        ;   Owners = []
+        ),
+        include([O]>>memberchk(O, Act), Owners, Live)
+    ;   Owners = unknown, Live = unknown
+    ).
+
+desk_ask_owner(Hub, Id, O) :-
+    catch(hub_asks(Hub, _, Rows), _, fail),
+    atom_string(Id, IdS), member(X, Rows), X.id == IdS, string(X.owner_session), atom_string(O, X.owner_session), !.
+
+% desk_holders_html(+Owners, +Live, -Html) (c7): who holds the item; loud when no live session does.
+desk_holders_html(unknown, _, "<p class=\"holders muted\">The Desk cannot tell which session holds this item (the hub has no desk.py).</p>") :- !.
+desk_holders_html(_, [], "<p class=\"holders loud\">No live session holds this item: a response is stored, but no session will be told until one takes the item.</p>") :- !.
+desk_holders_html(Owners, Live, Html) :-
+    findall(T, ( member(O, Owners), ( memberchk(O, Live) -> format(string(T), "~w", [O]) ; format(string(T), "~w (retired)", [O]) ) ), Ts),
+    atomic_list_concat(Ts, ', ', TT), esc(TT, TH),
+    format(string(Html), "<p class=\"holders\">Held by: ~w. A response goes to it at its next stop or prompt.</p>", [TH]).
+
+% desk_ask_context(+Hub, +Ask, -Html) (c4): who holds the ask, its notes (the case, the options
+% and the default, as the asker wrote them), its refs and links; and what is missing.
+desk_ask_context(Hub, X, Html) :-
+    atom_string(Id, X.id), desk_owners(Hub, ask(Id), Os, Lv), desk_holders_html(Os, Lv, HoH),
+    ( get_dict(notes, X, Ns), is_list(Ns) -> true ; Ns = [] ),
+    findall(P, ( member(N, Ns), esc(N.note, NH), esc(N.by_session, BH), esc(N.at, AH),
+                 format(string(P), "<li class=\"asknote\">~w <span class=\"by\">(~w, ~w)</span></li>", [NH, BH, AH]) ), Ps),
+    (   Ps == []
+    ->  NotesH = "<p class=\"missing\">Missing context: only the title of this ask is recorded. No case, options or default; ask the session that holds it to add a note.</p>"
+    ;   atomic_list_concat(Ps, '\n', PsT), format(string(NotesH), "<ul class=\"asknotes\">\n~w\n</ul>", [PsT])
+    ),
+    ( get_dict(refs, X, Rs), is_list(Rs), Rs \== [] -> atomic_list_concat(Rs, ' ', RsT), esc(RsT, RsH), format(string(RefH), "<p class=\"refs\">Refs: ~w</p>", [RsH]) ; RefH = "" ),
+    (   get_dict(links, X, Lk), is_list(Lk), Lk \== []
+    ->  findall(T, ( member(K, Lk), format(string(T), "~w ~w ~w", [K.src, K.kind, K.dst]) ), Ts),
+        atomic_list_concat(Ts, '; ', TsT), esc(TsT, TsH), format(string(LinkH), "<p class=\"links\">What waits on it: ~w</p>", [TsH])
+    ;   LinkH = ""
+    ),
+    ( get_dict(status, X, Sx) -> esc(Sx, SxH) ; SxH = "open" ),
+    format(string(Html), "<div class=\"context\">~w<p class=\"stands\">Where it stands: ~w, ~w days old.</p>~w~w~w</div>", [HoH, SxH, X.age_days, NotesH, RefH, LinkH]).
+
+% desk_question_extras(+Dir, +Eng, +Q, +Def, +Options, -Html) (c4): why the question is asked
+% now, what waits on it, who holds it (c7), what context is missing, and its letters.
+desk_question_extras(Dir, Eng, Q, Def, OFs, Html) :-
+    ( catch(eng_all(Eng, [F], raised_by(Q, F), Fs0), _, fail) -> true ; Fs0 = [] ), sort(Fs0, Fs),
+    findall(P, ( member(F, Fs), desk_finding_text(Eng, F, FT), esc(FT, FH), esc(F, FIH),
+                 format(string(P), "<p class=\"why\">Why now: ~w (finding ~w).</p>", [FH, FIH]) ), Ws),
+    atomic_list_concat(Ws, '', WhyH),
+    (   eng_all(Eng, [C0], question(Q, C0, _), [C|_]) -> true ; C = none ),
+    (   desk_hub_dir(Dir, Hub)
+    ->  desk_slug(Hub, Dir, Slug), desk_owners(Hub, kb(Slug), Os, Lv), desk_holders_html(Os, Lv, HoH),
+        desk_hub_st(Hub, St),
+        (   is_dict(St), get_dict(Slug, St.kb_refs, Rs)
+        ->  findall(T, ( member(X, Rs), format(string(T), "~w ~w (~w)", [X.id, X.title, X.owner_session]) ), Ts)
+        ;   Ts = []
+        ),
+        desk_item_letters(Hub, question(Slug, Q), LetH)
+    ;   HoH = "", Ts = [], LetH = ""
+    ),
+    format(string(T0), "the answer unblocks done of this KB, and claim ~w", [C]),
+    atomic_list_concat([T0|Ts], '; ', WT), esc(WT, WTH),
+    format(string(WaitH), "<p class=\"waits\">What waits on it: ~w.</p>", [WTH]),
+    findall(M, desk_missing(Eng, Q, C, Def, OFs, Fs, M), Ms),
+    (   Ms == [] -> MissH = ""
+    ;   atomic_list_concat(Ms, '; ', MT), esc(MT, MTH),
+        format(string(MissH), "<p class=\"missing\">Missing context: ~w. Ask the session that holds this KB to record it.</p>", [MTH])
+    ),
+    format(string(Html), "<div class=\"context desk\">~w~w~w~w~w</div>", [WhyH, WaitH, HoH, MissH, LetH]).
+
+desk_missing(Eng, _, C, _, _, _, "no concrete case (no example on its claim)") :- \+ eng_all(Eng, [E], example(C, E), [_|_]).
+desk_missing(_, _, _, none, _, _, "no default").
+desk_missing(_, _, _, _, OFs, _, "fewer than two options with what each changes") :- length(OFs, N), N < 2.
+desk_missing(_, _, _, _, _, [], "no finding says why it is asked now (raised_by)").
+
+desk_finding_text(Eng, F, T) :-
+    (   catch(eng_all(Eng, [X], finding(F, X, _), [X1|_]), _, fail)
+    ->  ( compound(X1), X1 =.. [_, A] -> plain_text(A, T) ; plain_text(X1, T) )
+    ;   T = "(the finding has no text)"
+    ).
+
+% desk_item_letters(+Hub, +Item, -Html) (c7): the letters about one item, each with where it is.
+desk_item_letters(Hub, Item, Html) :-
+    desk_hub_st(Hub, St),
+    (   is_dict(St)
+    ->  findall(L, ( member(L, St.letters), desk_letter_is(L, Item) ), Ls),
+        findall(H, ( member(L, Ls), desk_letter_html(Hub, L, false, H) ), Hs)
+    ;   Hs = []
+    ),
+    (   Hs == [] -> Html = ""
+    ;   atomic_list_concat(Hs, '\n', HT), format(string(Html), "<ul class=\"letters\">\n~w\n</ul>", [HT])
+    ).
+
+desk_letter_is(L, ask(Id)) :- L.item.type == "ask", atom_string(Id, L.item.id).
+desk_letter_is(L, question(Slug, Q)) :- L.item.type == "question", atom_string(Slug, L.item.slug), atom_string(Q, L.item.q).
+desk_letter_is(L, kb(Slug, Ref)) :- L.item.type == "kb", atom_string(Slug, L.item.slug), atom_string(Ref, L.item.ref).
+
+desk_letter_name(L, N) :-
+    I = L.item,
+    (   I.type == "ask" -> format(string(N), "~w", [I.id])
+    ;   I.type == "question" -> format(string(N), "~w ~w", [I.kb, I.q])
+    ;   format(string(N), "~w ~w", [I.kb, I.ref])
+    ).
+
+desk_kind_label("answer", "Answer").
+desk_kind_label("diverge", "Divergence").
+desk_kind_label("requirement", "New requirement").
+
+% desk_letter_html(+Hub, +L, +Named, -Html) (c7): sent, seen by each session, woken, applied or
+% not; loud when no live session holds the item.
+desk_letter_html(Hub, L, Named, Html) :-
+    ( desk_kind_label(L.kind, KL) -> true ; KL = L.kind ),
+    ( Named == true -> desk_letter_name(L, N0), esc(N0, NH), format(string(NameH), "<span class=\"lname\">~w</span> ", [NH]) ; NameH = "" ),
+    ( string(L.choice), L.choice \== "" -> format(string(T0), "~w: ~w", [L.choice, L.text]) ; T0 = L.text ),
+    ( sub_string(T0, 0, 300, _, T1) -> string_concat(T1, "...", T2) ; T2 = T0 ),
+    esc(T2, TH), esc(L.id, IdH), esc(L.at, AtH),
+    format(string(Sent), "<span class=\"chip sent\">Sent ~w</span>", [AtH]),
+    findall(C, ( member(S, L.seen), esc(S.session, SH), esc(S.at, SA), format(string(C), "<span class=\"chip seen\">Seen by ~w ~w</span>", [SH, SA]) ), Seen),
+    findall(C, ( member(S, L.woken), esc(S.session, SH), format(string(C), "<span class=\"chip woken\">Woke ~w</span>", [SH]) ), Woken),
+    desk_letter_outcome(Hub, L, OutH),
+    (   L.no_live_owner == true
+    ->  Loud = "<span class=\"loud\">No live session holds this item: no session will be told until one takes it.</span>"
+    ;   Loud = ""
+    ),
+    append([[Sent], Seen, Woken, [OutH, Loud]], Parts), atomic_list_concat(Parts, ' ', PartsH),
+    format(string(Html), "<li class=\"letter\" data-letter=\"~w\">~w<span class=\"lkind\">~w</span> &#8220;~w&#8221; ~w</li>", [IdH, NameH, KL, TH, PartsH]).
+
+desk_letter_outcome(Hub, L, H) :-
+    (   is_dict(L.applied) -> desk_detail(L.applied, D), format(string(H), "<span class=\"chip applied\">Applied~w</span>", [D])
+    ;   L.item.type == "ask", L.item_closed == true -> H = "<span class=\"chip applied\">Answered: the ask is closed</span>"
+    ;   L.item.type == "question", desk_letter_kb(Hub, L, Dir, Q), desk_kb_answered(Dir, Q) -> H = "<span class=\"chip applied\">Applied: the KB holds the answer</span>"
+    ;   L.item.type == "question", desk_letter_kb(Hub, L, Dir, Q), pending_for_question(Dir, Q) -> H = "<span class=\"chip queued\">Queued: the next write of the KB's holder applies it</span>"
+    ;   is_dict(L.apply_failed) -> desk_detail(L.apply_failed, D), format(string(H), "<span class=\"chip failed loud\">Not applied~w</span>", [D])
+    ;   H = ""
+    ).
+
+desk_detail(E, D) :- ( get_dict(detail, E, X), string(X), X \== "" -> esc(X, XH), format(string(D), ": ~w", [XH]) ; D = "" ).
+
+desk_letter_kb(Hub, L, Dir, Q) :-
+    atom_string(Rel, L.item.kb), directory_file_path(Hub, Rel, Dir0), serve_norm(Dir0, Dir),
+    atom_string(Q, L.item.q).
+
+desk_kb_answered(Dir, Q) :-
+    catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_engine(KB, Eng), eng_true(Eng, answered(Q)) ), _, fail).
+
+% desk_kb_where(+Dir, +Eng, +Blocking, -Html) (c4): where the work of a KB stands.
+desk_kb_where(Dir, Eng, Xs, Html) :-
+    (   catch(eng_all(Eng, [T], ( hypothesis(H, _, T), \+ supersedes(_, H) ), [T1|_]), _, fail) -> txt(T1, HT) ; HT = "(no hypothesis is recorded)" ),
+    (   catch(eng_true(Eng, done), _, fail) -> Ph = "done"
+    ;   catch(eng_true(Eng, discovery_closed), _, fail) -> Ph = "build (discovery closed)"
+    ;   catch(eng_true(Eng, discovery_open), _, fail) -> Ph = "discovery"
+    ;   Ph = "build"
+    ),
+    length(Xs, NX),
+    (   eng_all(Eng, [K, N, Rz, Tm], attest(_, test_result, _, result(K, N, Rz), _, Tm), Runs), Runs \== []
+    ->  msort(Runs, Rs1), last(Rs1, [K1, N1, R1, T1r]), format(string(RunH), "run ~w of ~w: ~w (~w)", [N1, K1, R1, T1r])
+    ;   RunH = "no check has run"
+    ),
+    directory_file_path(Dir, 'kb.pl', KF),
+    (   catch(time_file(KF, MT), _, fail) -> stamp_date_time(MT, DT, local), format_time(string(MTS), '%Y-%m-%d %H:%M', DT) ; MTS = "?" ),
+    (   desk_hub_dir(Dir, Hub)
+    ->  desk_slug(Hub, Dir, Slug), desk_owners(Hub, kb(Slug), Os, Lv),
+        (   Os == unknown -> HoldT = "unknown (no desk.py)"
+        ;   Os == [] -> HoldT = "no session (no open ledger item points to this KB)"
+        ;   findall(S, ( member(O, Os), ( memberchk(O, Lv) -> S = O ; format(atom(S), "~w (retired)", [O]) ) ), Ss), atomic_list_concat(Ss, ', ', HoldT)
+        )
+    ;   HoldT = "not known (the KB is in no hub that this server reads)"
+    ),
+    maplist(esc, [HT, Ph, HoldT, RunH, MTS], [HTH, PhH, HoH, RunHH, MTH]),
+    format(string(Html), "<div class=\"where\"><p><strong>Where the work stands:</strong> ~w</p><p class=\"stands\">Phase: ~w. Held by: ~w. Open items: ~w. Last check: ~w. Last change: ~w.</p></div>\n",
+           [HTH, PhH, HoH, NX, RunHH, MTH]).
+
+% desk_kb_actions(+Mode, +Dir, +Eng, +Label, -Html, -Has) (c3, q3): the actions that only the
+% human may take in this KB by a standing rule: the vote at the end of discovery, the approval of
+% a demo, and a lapsed waiver. Each is a card with its context and a response form.
+desk_kb_actions(Mode, Dir, Eng, Label, Html, Has) :-
+    findall(A, desk_kb_action(Eng, A), As),
+    (   As == [] -> Html = "", Has = false
+    ;   Has = true,
+        findall(C, ( member(A, As), desk_action_card(Mode, Dir, Eng, A, C) ), Cs),
+        atomic_list_concat(Cs, '\n', CsT),
+        format(string(Html), "<h3>Human action needed</h3>\n<ul class=\"kbactions\">\n~w\n</ul>\n", [CsT]),
+        desk_anchor(Dir, Anchor), esc(Label, LH),
+        forall(member(A, As),
+               ( desk_action_summary(A, S), esc(S, SH),
+                 format(string(Li), "<li class=\"kbref\"><a href=\"#~w\">~w</a>: ~w</li>", [Anchor, LH, SH]),
+                 ( nb_current(desk_acts, A0) -> nb_setval(desk_acts, [Li|A0]) ; true ) ))
+    ).
+
+desk_kb_action(Eng, vote) :-
+    catch(eng_true(Eng, ( discovery_open, discovery_ready, \+ human_vote(_) )), _, fail).
+desk_kb_action(Eng, demo(C, S, P)) :-
+    catch(eng_all(Eng, [C, S, P], ( flare_open(C), demo(S, C), subject(S, P, _) ), L), _, fail),
+    member([C, S, P], L).
+desk_kb_action(Eng, waiver(W)) :-
+    catch(eng_all(Eng, [W], blocking(waiver_lapsed(W)), L), _, fail), sort(L, L1), member(W, L1).
+
+desk_action_ref(vote, "vote").
+desk_action_ref(demo(C, _, _), R) :- format(string(R), "flare:~w", [C]).
+desk_action_ref(waiver(W), R) :- format(string(R), "waiver:~w", [W]).
+
+desk_action_summary(vote, "Vote GO, NO-GO or HOLD: discovery is ready").
+desk_action_summary(demo(C, _, P), S) :- format(string(S), "Approve the demo ~w of claim ~w", [P, C]).
+desk_action_summary(waiver(W), S) :- format(string(S), "The waiver ~w lapsed: renew it with a due date, or let the work come back", [W]).
+
+desk_action_card(Mode, Dir, Eng, A, Html) :-
+    desk_action_ref(A, Ref), desk_action_summary(A, Sum), esc(Sum, SumH), esc(Ref, RefH),
+    (   A == vote
+    ->  ( catch(eng_all(Eng, [T], ( hypothesis(H, _, T), \+ supersedes(_, H) ), [T1|_]), _, fail) -> txt(T1, HT) ; HT = "(no hypothesis)" ),
+        esc(HT, HTH),
+        format(string(Ctx), "<p class=\"case\">The hypothesis: ~w</p><p class=\"why\">Why now: discovery is ready, and only you vote (a standing rule of the prompt). The agent's vote stays sealed until you vote.</p><p class=\"options\">Options: GO (build the claims), NO-GO (drop the ticket), HOLD (say what it waits for).</p>", [HTH])
+    ;   A = demo(C, S, P)
+    ->  ( eng_all(Eng, [CT], claim(C, _, CT), [CT1|_]) -> txt(CT1, CTT) ; CTT = "" ),
+        maplist(esc, [CTT, P, S], [CTH, PH, SH]),
+        format(string(Ctx), "<p class=\"case\">Claim ~w: ~w</p><p class=\"why\">Why now: the claim is visual, so only your approval of a demo fulfills it (a standing rule of the prompt). The demo is <code>~w</code> in the KB folder.</p><p class=\"options\">Options: approve it (<code>orbit-kb attest approval ~w 'digest(current)' --by human</code>), or diverge and say what is wrong.</p>", [C, CTH, PH, SH])
+    ;   A = waiver(W),
+        ( eng_all(Eng, [X, Rz], attest(W, waiver, _, waive(X, _, Rz), _, _), [[X1, R1]|_]) -> plain_text(X1, XT), plain_text(R1, RT) ; XT = "?", RT = "" ),
+        maplist(esc, [XT, RT], [XH, RH]),
+        format(string(Ctx), "<p class=\"case\">The waiver ~w of ~w lapsed (~w).</p><p class=\"why\">Why now: only you waive (a standing rule of the prompt), and its due time has passed, so the work blocks again.</p><p class=\"options\">Options: renew the waiver with a new due date, or let the work come back.</p>", [W, XH, RH])
+    ),
+    (   desk_hub_dir(Dir, Hub)
+    ->  desk_slug(Hub, Dir, Slug), desk_owners(Hub, kb(Slug), Os, Lv), desk_holders_html(Os, Lv, HoH),
+        atom_string(RefA, Ref), desk_item_letters(Hub, kb(Slug, RefA), LetH),
+        (   Mode = serve(Token), desk_py(Hub, _, _)
+        ->  desk_rel(Hub, Dir, Rel), format(string(Key), "kb:~w#~w", [Rel, Ref]),
+            desk_form_html(Token, Hub, Key, [kb-Dir, action-Ref], "", true, FormH)
+        ;   FormH = ""
+        )
+    ;   HoH = "", LetH = "", FormH = ""
+    ),
+    format(string(Html), "<li class=\"kbaction\" data-id=\"~w\"><p class=\"title\">~w</p>\n<div class=\"context\">~w~w</div>~w~w</li>", [RefH, SumH, Ctx, HoH, LetH, FormH]).
+
+% desk_note_kb(+Dir, +Label, +Blocking): remember each KB of the hub for the Orphaned list.
+desk_note_kb(Dir, Label, Xs) :-
+    (   nb_current(desk_kbs, K0)
+    ->  ( Xs == [] -> B = false ; B = true ), nb_setval(desk_kbs, [kb(Dir, Label, B)|K0])
+    ;   true
+    ).
+
+% desk_hub_html(+Token, +Lib, +Hub, +Dirs, -Html): the section of one hub.
+desk_hub_html(Token, Lib, Hub, Dirs, Html) :-
+    desk_hub_st(Hub, St),
+    nb_setval(desk_acts, []), nb_setval(desk_kbs, []),
+    serve_groups(Dirs, Groups),
+    findall(G, ( member(group(L, _, Ds), Groups), serve_group_html(Token, Lib, L, Ds, G) ), Gs),
+    atomic_list_concat(Gs, '\n', GsT),
+    nb_getval(desk_acts, Acts0), reverse(Acts0, Acts),
+    nb_getval(desk_kbs, KBs0), reverse(KBs0, KBs),
+    catch(( hub_asks(Hub, HOwner, HRows), view_owned(HRows, HOwner, HAsks),
+            view_ledger_section(serve_hub(Token, Hub), some(HAsks), Acts, St, LedT) ),
+          E, ( serve_err_text(E, EM), esc(EM, EMH),
+               format(string(LedT), "<section class=\"ledger\"><h2>Questions for you</h2><p class=\"message error\">~w</p></section>", [EMH]) )),
+    desk_letters_html(Hub, St, LetT, LetOpen),
+    desk_sessions_html(St, SesT),
+    desk_orphans_html(Hub, St, Groups, KBs, OrphT, NOrph),
+    desk_hub_label(Hub, Label), esc(Label, LH), esc(Hub, HH),
+    (   St = error(DM)
+    ->  esc(DM, DMH),
+        format(string(Warn), "<p class=\"message error loud\">This hub has no working desk.py, so the page records no response as a letter, delivers nothing to a session, and shows no sessions and no orphans: ~w</p>", [DMH])
+    ;   Warn = ""
+    ),
+    (   ( sub_string(LedT, _, _, _, "<details open>") ; sub_string(GsT, _, _, _, " open>") ; LetOpen == true ) -> Op = " open" ; Op = "" ),
+    format(string(Html), "<section class=\"hub\" data-hub=\"~w\">\n<details class=\"hubfold\"~w><summary><h2 class=\"hublabel\">~w</h2> <span class=\"hubpath\">~w</span> <span class=\"counts\">~w orphaned</span></summary>\n~w\n~w\n~w\n~w\n~w\n~w\n</details>\n</section>",
+           [HH, Op, LH, HH, NOrph, Warn, LedT, GsT, LetT, SesT, OrphT]).
+
+% desk_closed_html(+St, -Html) (c9): the asks answered in the last 7 days, and where.
+desk_closed_html(St, Html) :-
+    (   is_dict(St), get_dict(closed_recent, St, Cs), Cs \== []
+    ->  findall(L, ( member(C, Cs),
+                     (   C.by_session == "human" -> W = "on the Desk" ; format(string(W), "in the session ~w", [C.by_session]) ),
+                     ( string(C.note) -> N = C.note ; N = "" ),
+                     maplist(esc, [C.id, C.title, W, C.closed_at, N], [IH, TH, WH, AH, NH]),
+                     format(string(L), "<li class=\"closedask\" data-closed=\"~w\">~w ~w: answered ~w, ~w: &#8220;~w&#8221;</li>", [IH, IH, TH, WH, AH, NH]) ), Ls),
+        atomic_list_concat(Ls, '\n', LT),
+        format(string(Html), "\n<h3>Answered in the last 7 days</h3>\n<ul class=\"closedasks\">\n~w\n</ul>", [LT])
+    ;   Html = ""
+    ).
+
+% desk_letters_html(+Hub, +St, -Html, -Open) (c7): every response sent from the page, newest
+% first, with where it is. Open on load when one is not applied or no live session holds it.
+desk_letters_html(_, St, "", false) :- \+ is_dict(St), !.
+desk_letters_html(Hub, St, Html, Open) :-
+    Ls = St.letters,
+    (   Ls == [] -> Body = "<p>No response has been sent from this page.</p>", Open = false
+    ;   length(Ls, N), ( N > 50 -> length(L50, 50), append(L50, _, Ls) ; L50 = Ls ),
+        findall(H, ( member(L, L50), desk_letter_html(Hub, L, true, H) ), Hs),
+        atomic_list_concat(Hs, '\n', HT), format(string(Body), "<ul class=\"letters\">\n~w\n</ul>", [HT]),
+        (   member(L, Ls), ( L.no_live_owner == true ; ( is_dict(L.apply_failed), \+ is_dict(L.applied) ) ) -> Open = true ; Open = false )
+    ),
+    ( Open == true -> Op = " open" ; Op = "" ),
+    format(string(Html), "<section class=\"responses\">\n<details~w><summary><h2>Responses</h2></summary>\n~w\n</details>\n</section>", [Op, Body]).
+
+% desk_sessions_html(+St, -Html) (c11): each session of the hub with what is in its inbox.
+desk_sessions_html(St, "") :- \+ is_dict(St), !.
+desk_sessions_html(St, Html) :-
+    findall(L, ( member(S, St.sessions), desk_session_li(S, L) ), Ls),
+    atomic_list_concat(Ls, '\n', LT),
+    length(St.sessions, N),
+    format(string(Html), "<section class=\"sessions\">\n<details><summary><h2>Sessions</h2> <span class=\"counts\">~w</span></summary>\n<ul class=\"sessionlist\">\n~w\n</ul>\n</details>\n</section>", [N, LT]).
+
+desk_session_li(S, L) :-
+    (   string(S.state) -> format(string(StT), "~w since ~w", [S.state, S.state_at]) ; StT = "no hook state yet" ),
+    findall(I, ( member(X, S.inbox),
+                 ( X.unaccepted == true -> U = " <span class=\"loud\">not accepted</span>" ; U = "" ),
+                 maplist(esc, [X.id, X.kind, X.title], [IH, KH, TH]),
+                 format(string(I), "<li class=\"inbox\" data-id=\"~w\">~w (~w) ~w, idle ~w days~w</li>", [IH, IH, KH, TH, X.idle_days, U]) ), Is),
+    (   Is == [] -> InH = "<p class=\"muted\">Its inbox is empty.</p>"
+    ;   atomic_list_concat(Is, '\n', IT), format(string(InH), "<ul class=\"inboxlist\">\n~w\n</ul>", [IT])
+    ),
+    maplist(esc, [S.name, S.role, S.status, StT], [NH, RH, SH, StH]),
+    format(string(L), "<li class=\"session\" data-session=\"~w\"><strong>~w</strong> (~w, ~w; ~w)\n~w</li>", [NH, NH, RH, SH, StH, InH]).
+
+% desk_orphans_html(+Hub, +St, +Groups, +KBs, -Html, -N) (c11): every orphaned item of the hub: a
+% spec KB that names no project KB, an open item that no live named session owns, a handoff that
+% nobody accepted, a spec KB that blocks while no open ledger item points to it.
+desk_orphans_html(Hub, St, Groups, KBs, Html, N) :-
+    findall(Ds, member(group(_, none, Ds), Groups), Ds0), append(Ds0, NoProj),
+    ( is_dict(St) -> dict_keys_list(St.kb_refs, RefSlugs) ; RefSlugs = unknown ),
+    findall(D-Why, ( member(kb(D, _, B), KBs),
+                     findall(W, ( ( memberchk(D, NoProj), W = "names no project KB" )
+                                ; ( B == true, RefSlugs \== unknown, desk_slug(Hub, D, Sl), \+ memberchk(Sl, RefSlugs),
+                                    W = "blocks, and no open ledger item points to it" ) ), Ws),
+                     Ws \== [], atomic_list_concat(Ws, '; ', Why) ), KOs),
+    findall(L, ( member(D-Why, KOs), desk_rel(Hub, D, Rel), maplist(esc, [Rel, Why], [RH, WH]),
+                 format(string(L), "<li class=\"orphan kb\">~w: ~w</li>", [RH, WH]) ), L1),
+    (   is_dict(St)
+    ->  findall(L, ( member(X, St.orphans.unowned),
+                     ( string(X.owner_session) -> format(string(OW), "its owner ~w is not a live session", [X.owner_session]) ; OW = "it has no owner" ),
+                     maplist(esc, [X.id, X.kind, X.title, OW], [IH, KH, TH, OH]),
+                     format(string(L), "<li class=\"orphan item\" data-id=\"~w\">~w (~w) ~w: no live session owns it (~w)</li>", [IH, IH, KH, TH, OH]) ), L2),
+        findall(L, ( member(X, St.orphans.unaccepted),
+                     maplist(esc, [X.id, X.title, X.from, X.to], [IH, TH, FH, ToH]),
+                     format(string(L), "<li class=\"orphan handoff\" data-id=\"~w\">~w ~w: nobody accepted it (from ~w to ~w, ~w days)</li>", [IH, IH, TH, FH, ToH, X.age_days]) ), L3)
+    ;   L2 = [], L3 = []
+    ),
+    append([L1, L2, L3], Ls), length(Ls, N),
+    (   Ls == [] -> Body = "<p>Nothing is orphaned.</p>"
+    ;   atomic_list_concat(Ls, '\n', LT), format(string(Body), "<ul class=\"orphans\">\n~w\n</ul>", [LT])
+    ),
+    format(string(Html), "<section class=\"orphaned\">\n<details><summary><h2>Orphaned</h2> <span class=\"counts\">~w</span></summary>\n~w\n</details>\n</section>", [N, Body]).
+
+dict_keys_list(D, Ks) :- ( is_dict(D) -> dict_pairs(D, _, Ps), pairs_keys(Ps, Ks) ; Ks = [] ).
+
+% desk_js(-Js) (q2): drafts are saved as Ty types: on the server (desk.py) when the hub has one,
+% else in this browser. Nothing reaches a session before Send.
+desk_js("(function(){var tok=document.body.getAttribute('data-token');function val(f,n){var e=f.querySelector('[name='+n+']:checked')||f.querySelector('textarea[name='+n+']');return e?e.value:'';}function save(f){var key=f.getAttribute('data-draft-key');if(!key)return;var st=f.querySelector('.draftstate');var d={text:val(f,'text'),choice:val(f,'choice'),intent:val(f,'intent')||'answer'};if(f.getAttribute('data-desk')==='1'){var b=new URLSearchParams();b.set('token',tok);b.set('hub',f.getAttribute('data-hub'));b.set('key',key);b.set('text',d.text);b.set('choice',d.choice);b.set('intent',d.intent);fetch('/draft',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b.toString()}).then(function(r){if(st)st.textContent=r.ok?'Draft saved':'Draft NOT saved (HTTP '+r.status+')';}).catch(function(){if(st)st.textContent='Draft NOT saved: the Desk server does not answer';});}else{try{localStorage.setItem('desk-draft:'+key,JSON.stringify(d));if(st)st.textContent='Draft kept in this browser';}catch(e){}}}document.querySelectorAll('form[data-draft-key]').forEach(function(f){var t;f.addEventListener('input',function(){clearTimeout(t);t=setTimeout(function(){save(f);},500);});f.addEventListener('change',function(){clearTimeout(t);t=setTimeout(function(){save(f);},200);});if(f.getAttribute('data-desk')!=='1'){try{var d=JSON.parse(localStorage.getItem('desk-draft:'+f.getAttribute('data-draft-key'))||'null');var ta=f.querySelector('textarea[name=text]');if(d&&ta&&!ta.value){ta.value=d.text;}}catch(e){}f.addEventListener('submit',function(){try{localStorage.removeItem('desk-draft:'+f.getAttribute('data-draft-key'));}catch(e){}});}});})();").
+
+% =====================================================================
+% The Desk, round 2 (hub spec KB questions-server: hypothesis h3, claims c12 to c21)
+% =====================================================================
+% One Desk for every mindhole (c16): `orbit-kb serve desk` reads, at each page, the mindholes
+% that joined it (desk.py join writes $DESK_STATE/mindholes.json), and each --hub. The page lists
+% what waits on Ty in every mindhole, in lanes (Your action, Questions, Running on a guess,
+% Project KB, Orphaned, Answered, KBs). Each item says where it comes from (c21), shows its owner
+% session as a badge (c19) and its due date (c13, q6), names the source of a reservation (c12),
+% and leads to what it rests on: the KB, its hypothesis and premises, the claims it touches and
+% their checks in words with the last run (c13, c18). Every send opens a review that shows each
+% receiving session and the exact text it gets, editable (c20). Only POST /send writes, and it
+% builds the plan again from the item before it writes.
+
+dk_f(Fmt, Args, S) :- format(string(S), Fmt, Args).
+dk_cat(Xs, S) :- atomic_list_concat(Xs, A), atom_string(A, S).
+dk_join(Xs, Sep, S) :- atomic_list_concat(Xs, Sep, A), atom_string(A, S).
+dk_str(X, S) :- ( string(X) -> S = X ; X == null -> S = "" ; plain_text(X, S) ).
+dk_e(X, H) :- dk_str(X, S), esc(S, H).
+
+% desk_mode: the server shows the Desk (serve desk). serve questions --hub keeps the page of T27 and of
+% round 1 of the Desk, so the claims of those tickets keep their checks.
+desk_mode :- serve_conf(desk, true).
+
+% desk_state_dir(-Dir) (c16, q10): the Desk's own store, outside every mindhole.
+desk_state_dir(D) :-
+    (   getenv('DESK_STATE', D0), D0 \== '' -> D = D0
+    ;   getenv('XDG_STATE_HOME', X), X \== '' -> directory_file_path(X, desk, D)
+    ;   getenv('HOME', H), H \== '' -> directory_file_path(H, '.local/state/desk', D)
+    ;   D = '/tmp/desk-state'
+    ).
+
+% desk_registry(-Pairs): Name-Path of each mindhole that joined the Desk (desk.py join).
+desk_registry(Ps) :-
+    use_module(library(http/json)),
+    desk_state_dir(D), directory_file_path(D, 'mindholes.json', F),
+    (   exists_file(F),
+        catch(setup_call_cleanup(open(F, read, S, [encoding(utf8)]),
+                                 json_read_dict(S, J, [value_string_as(string)]), close(S)), _, fail),
+        is_dict(J), get_dict(mindholes, J, Ms), is_list(Ms)
+    ->  findall(N-P, ( member(M, Ms), is_dict(M), get_dict(name, M, N0), get_dict(path, M, P0),
+                       string(N0), string(P0), atom_string(P1, P0), serve_norm(P1, P), atom_string(N, N0) ), Ps)
+    ;   Ps = []
+    ).
+
+% desk_hubs(-Hubs, -Missing): hub(Name, Path) for each mindhole of the Desk (the joined ones,
+% then each --hub), and Name-Path of each joined one that has no ledger now.
+desk_hubs(Hs, Missing) :-
+    desk_registry(R),
+    findall(hub(N, P), ( member(N-P, R), hub_db(P, Db), exists_file(Db) ), Hs1),
+    findall(N-P, ( member(N-P, R), \+ ( hub_db(P, Db), exists_file(Db) ) ), Missing),
+    ( serve_conf(hubs, H0) -> true ; H0 = [] ),
+    findall(hub(N, P), ( member(P, H0), \+ memberchk(hub(_, P), Hs1),
+                         desk_hub_label(P, N0), atom_string(N, N0) ), Hs2),
+    append(Hs1, Hs2, Hs).
+
+% ---- the engines of the KBs: one per KB, built again when the KB or its queue changes, or
+% after a minute (a digest of a subject file can change too). An old engine's clauses are
+% dropped, so a Desk that runs for days does not grow.
+:- dynamic desk_eng_cache/4.
+
+desk_kb_stamp(Dir, B-Fs) :-
+    findall(N-T-S, ( member(N, ['kb.pl', 'answers.pending', 'answers.applied']),
+                     directory_file_path(Dir, N, F), exists_file(F), time_file(F, T), size_file(F, S) ), Fs),
+    get_time(Now), B is floor(Now / 60).
+
+desk_engine(Dir, KB, Eng) :-
+    desk_kb_stamp(Dir, St),
+    (   desk_eng_cache(Dir, St, KB, Eng) -> true
+    ;   forall(retract(desk_eng_cache(Dir, _, _, eng(M, _))), desk_wipe(M)),
+        lib_dir(Lib), load_kb(Dir, Lib, KB), answer_gate(KB), kb_engine(KB, Eng),
+        assertz(desk_eng_cache(Dir, St, KB, Eng))
+    ).
+
+desk_wipe(M) :-
+    forall(( current_predicate(M:N/A), functor(H, N, A), \+ predicate_property(M:H, imported_from(_)) ),
+           catch(abolish(M:N/A), _, true)).
+
+desk_eng(Dir, Eng) :- catch(desk_engine(Dir, _, Eng), _, fail).
+
+dk_all(Eng, T, G, L) :- catch(eng_all(Eng, T, G, L), _, L = []).
+dk_true(Eng, G) :- catch(eng_true(Eng, G), _, fail).
+
+% ---- the mindholes and their KBs
+
+% desk_load(-HDs): the data of each mindhole on the page, read once per request.
+desk_load(HDs, Missing) :-
+    desk_hubs(Hs, Missing),
+    findall(HD, ( member(hub(N, P), Hs), desk_hub_load(N, P, HD) ), HDs).
+
+desk_hub_load(Name, Path, HD) :-
+    desk_status(Path, St),
+    catch(( hub_asks(Path, Owner, Asks), Err = none ), E,
+          ( serve_err_text(E, M), Owner = "me", Asks = [], Err = some(M) )),
+    desk_hub_kbs(Path, Asks, St, KBs),
+    HD = hd{name:Name, path:Path, st:St, owner:Owner, asks:Asks, kbs:KBs, err:Err}.
+
+% desk_hub_kbs(+Hub, +Asks, +St, -KBs): the KBs of a hub: its spec KBs, its project KB, and each KB
+% outside the hub that a kb ref of the ledger names (q5: kb:/path or kb:~/path).
+desk_hub_kbs(Hub, Asks, St, KBs) :-
+    serve_find_kbs(Hub, Ds0), maplist(serve_norm, Ds0, Ds),
+    findall(P, ( member(D, Ds), serve_kb_project(D, some(P)) ), Ps0),
+    findall(D, ( member(D, Ds), ( memberchk(D, Ps0) ; serve_is_project_kb(D) ) ), PKs0), sort(PKs0, PKs),
+    findall(K, ( member(D, Ds), \+ memberchk(D, PKs), desk_slug(Hub, D, Sl), atom_string(Sl, Ref),
+                 desk_kb_rec(Hub, D, Ref, spec, K) ), Specs),
+    findall(K, ( member(D, PKs), desk_slug(Hub, D, Sl), atom_string(Sl, Ref), desk_kb_rec(Hub, D, Ref, project, K) ), Projs),
+    findall(R, ( member(X, Asks), member(RS, X.refs), string_concat("kb:", R, RS), desk_outside_ref(R) ), R1),
+    (   is_dict(St), get_dict(kb_refs, St, KR), is_dict(KR)
+    ->  dict_keys(KR, Ks), findall(R, ( member(KA, Ks), atom_string(KA, R), desk_outside_ref(R) ), R2)
+    ;   R2 = []
+    ),
+    append(R1, R2, R3), sort(R3, Rs),
+    findall(K, ( member(R, Rs), desk_ref_dir(R, D), \+ memberchk(D, Ds), desk_kb_rec(Hub, D, R, outside, K) ), Outs0),
+    desk_dedup_dirs(Outs0, Outs),
+    append([Specs, Projs, Outs], KBs).
+
+dict_keys(D, Ks) :- dict_pairs(D, _, Ps), pairs_keys(Ps, Ks).
+
+desk_dedup_dirs([], []).
+desk_dedup_dirs([K|Ks], [K|Rs]) :- get_dict(dir, K, KD), exclude([X]>>get_dict(dir, X, KD), Ks, Ks1), desk_dedup_dirs(Ks1, Rs).
+
+desk_outside_ref(R) :- ( sub_string(R, 0, 1, _, "/") ; sub_string(R, 0, 2, _, "~/") ), !.
+
+% desk_ref_dir(+Ref, -Dir): the directory of a kb ref to a KB outside the hub, when it holds kb.pl.
+desk_ref_dir(R, D) :-
+    (   sub_string(R, 0, 2, _, "~/") -> getenv('HOME', H), sub_string(R, 2, _, 0, Rest), directory_file_path(H, Rest, D0)
+    ;   atom_string(D0, R)
+    ),
+    exists_directory(D0), serve_norm(D0, D),
+    directory_file_path(D, 'kb.pl', F), exists_file(F).
+
+desk_kb_rec(Hub, Dir, Ref, Kind, K) :-
+    (   Kind == outside -> file_base_name(Dir, B0), atom_string(B0, B1),
+        ( string_concat("kb-", B2, B1) -> Label = B2 ; Label = B1 )
+    ;   Kind == project -> ( file_base_name(Dir, B0), atom_string(B0, Label) )
+    ;   atom_string(Ref, Label)
+    ),
+    atom_codes(Label, Cs), maplist([C, D]>>( code_type(C, alnum) -> D = C ; D = 0'- ), Cs, Ds),
+    atom_codes(A0, Ds), file_base_name(Hub, HB), atom_codes(HB, HCs),
+    maplist([C, D]>>( code_type(C, alnum) -> D = C ; D = 0'- ), HCs, HDs), atom_codes(HA, HDs),
+    format(atom(Anchor), "kb-~w-~w", [HA, A0]),
+    K = kb{dir:Dir, hub:Hub, ref:Ref, label:Label, kind:Kind, anchor:Anchor}.
+
+% desk_kb_by_ref(+HD, +Ref, -K): the KB that a kb ref of the ledger names.
+desk_kb_by_ref(HD, Ref, K) :-
+    member(K, HD.kbs), ( K.ref == Ref -> true ; desk_outside_ref(Ref), desk_ref_dir(Ref, D), K.dir == D ), !.
+
+% desk_hd_of(+HDs, +Path, -HD)
+desk_hd_of(HDs, Path, HD) :- member(HD, HDs), HD.path == Path, !.
+
+% desk_kb_of_dir(+HDs, +Dir, -HD, -K)
+desk_kb_of_dir(HDs, Dir, HD, K) :- member(HD, HDs), member(K, HD.kbs), K.dir == Dir, !.
+
+% ---- sessions, holders, owners
+
+% desk_sessions(+HD, -Ss): name-Status of each session of the hub.
+desk_sessions(HD, Ss) :-
+    (   is_dict(HD.st) -> findall(N-S, ( member(X, HD.st.sessions), atom_string(N, X.name), atom_string(S, X.status) ), Ss)
+    ;   Ss = []
+    ).
+
+desk_live(HD, S) :- S \== none, desk_sessions(HD, Ss), memberchk(S-active, Ss).
+
+desk_session_of(St, W, S) :-
+    is_dict(St), atom_string(W, WS), member(X, St.sessions),
+    ( get_dict(session_id, X, WS) ; X.name == WS ), !, atom_string(S, X.name).
+
+% desk_holder(+HD, +K, -Holder, -How) (q7: the writer holds a KB): the session that holds the KB's
+% writer lock now; else the receiver of the newest accepted handoff on the KB; else none.
+desk_holder(HD, K, Holder, How) :-
+    St = HD.st,
+    (   catch(lock_state(K.dir, held(W, _)), _, fail), desk_session_of(St, W, S) -> Holder = S, How = lock
+    ;   desk_kb_handoffs(HD, K, Hs), include([X]>>( get_dict(accepted_at, X, AA), AA \== null ), Hs, Acc), Acc \== [],
+        last(Acc, L), atom_string(S, L.to) -> Holder = S, How = handoff
+    ;   Holder = none, How = none
+    ).
+
+% desk_kb_handoffs(+HD, +K, -Hs): the open handoffs with a kb ref to the KB, oldest first.
+desk_kb_handoffs(HD, K, Hs) :-
+    St = HD.st,
+    (   is_dict(St), get_dict(kb_handoffs, St, KH), is_dict(KH)
+    ->  dict_pairs(KH, _, Ps),
+        findall(X, ( member(RA-L, Ps), atom_string(RA, R), desk_ref_is(HD, K, R), member(X, L) ), Xs0),
+        list_to_set(Xs0, Xs1),
+        predsort(desk_cmp_opened, Xs1, Hs)
+    ;   Hs = []
+    ).
+
+desk_cmp_opened(O, A, B) :-
+    compare(O0, A.opened_at-A.id, B.opened_at-B.id), ( O0 == (=) -> O = (<) ; O = O0 ).
+
+desk_ref_is(_, K, R) :- K.ref == R, !.
+desk_ref_is(_, K, R) :- desk_outside_ref(R), desk_ref_dir(R, D), D == K.dir, !.
+desk_ref_is(HD, K, R) :- K.kind == spec, atom_string(RA, R), desk_slug(HD.path, K.dir, RA), !.
+
+% desk_stale_handoffs(+HD, +K, -Old, -Newest) (q7): the open handoffs on a KB that a newer one replaces.
+desk_stale_handoffs(HD, K, Old, Newest) :-
+    desk_kb_handoffs(HD, K, Hs), Hs = [_, _|_], last(Hs, Newest), exclude(==(Newest), Hs, Old).
+
+% desk_keeper(+HD, -S): the live session that takes a letter about the hub itself: process when it
+% is live, else the first live session, else none.
+desk_keeper(HD, S) :-
+    desk_sessions(HD, Ss),
+    (   memberchk(process-active, Ss) -> S = process
+    ;   member(S-active, Ss) -> true
+    ;   S = none
+    ).
+
+desk_live_sessions(HD, Ls) :- desk_sessions(HD, Ss), findall(S, member(S-active, Ss), Ls).
+
+% ---- asks
+
+desk_ask(HD, Id, X) :- member(X, HD.asks), X.id == Id, !.
+
+desk_ask_for_me(HD, X) :- member(X, HD.asks), X.waits_on == HD.owner.
+
+desk_ask_kbrefs(X, Rs) :- findall(R, ( member(RS, X.refs), string_concat("kb:", R, RS) ), Rs).
+
+% desk_ask_kb_state(+X, -S): kb (it names a KB), none (its asker said that it rests on no KB, q5),
+% or unknown (an old ask: nobody recorded either).
+desk_ask_kb_state(X, S) :-
+    (   desk_ask_kbrefs(X, [_|_]) -> S = kb
+    ;   get_dict(no_kb, X, true) -> S = none
+    ;   S = unknown
+    ).
+
+desk_ask_reserved(X) :- get_dict(reserved, X, R), string(R), R \== "".
+
+% desk_reserve_source(+Text, -Source) (c12): policy(Name, Rule), words(Who, Date, Words), or unnamed.
+desk_reserve_source(T, Src) :-
+    (   re_matchsub("^(?<name>[A-Z][A-Za-z0-9]*(?: [A-Z][A-Za-z0-9]*)* Policy): (?<rule>.+)$"/s, T, D, [])
+    ->  Src = policy(D.name, D.rule)
+    ;   re_matchsub("^(?<who>[^,\n]+), (?<date>[0-9]{4}-[0-9]{2}-[0-9]{2}): (?<words>.+)$"/s, T, D, [])
+    ->  Src = words(D.who, D.date, D.words)
+    ;   Src = unnamed(T)
+    ).
+
+% desk_policy(+Action, -Name, -Rule, -From) (c12): the standing rules that keep a KB action for Ty.
+desk_policy(vote, "Sagittarius Policy", "Discovery ends with the human's vote. No vote wins without it.", "the prompt, \"The vote\"").
+desk_policy(demo, "Sagittarius Policy", "Only the human judges a demo of a visual claim. The claim stays open until the human approves it.", "the prompt, \"Who judges what\"").
+desk_policy(waiver, "Sagittarius Policy", "Only the human may skip work. A skip is a waiver with a due time; after it, the work comes back.", "the prompt, \"Delivery\"").
+
+% ---- dates (q6)
+
+dk_month(1, "Jan"). dk_month(2, "Feb"). dk_month(3, "Mar"). dk_month(4, "Apr"). dk_month(5, "May"). dk_month(6, "Jun").
+dk_month(7, "Jul"). dk_month(8, "Aug"). dk_month(9, "Sep"). dk_month(10, "Oct"). dk_month(11, "Nov"). dk_month(12, "Dec").
+
+% dk_day(+Iso, -Text): "11 Dec" (with the year when it is not this year).
+dk_day(Iso0, Text) :-
+    dk_str(Iso0, Iso),
+    (   sub_string(Iso, 0, 10, _, D10), split_string(D10, "-", "", [YS, MS, DS]),
+        number_string(Y, YS), number_string(M, MS), number_string(D, DS), dk_month(M, MN)
+    ->  get_time(Now), stamp_date_time(Now, date(Y0, _, _, _, _, _, _, _, _), 'UTC'),
+        ( Y == Y0 -> dk_f("~w ~w", [D, MN], Text) ; dk_f("~w ~w ~w", [D, MN, Y], Text) )
+    ;   Text = Iso
+    ).
+
+dk_day_time(Iso0, Text) :-
+    dk_str(Iso0, Iso), dk_day(Iso, D),
+    ( sub_string(Iso, 11, 5, _, HM) -> dk_f("~w, ~w", [D, HM], Text) ; Text = D ).
+
+% desk_ask_due(+X, -Due, -How): the asker's due date, else the triage date (q6).
+desk_ask_due(X, Due, How) :-
+    (   get_dict(due, X, D), string(D), D \== "" -> Due = D, How = asker
+    ;   get_dict(triage_due, X, D), string(D), D \== "" -> Due = D, How = triage
+    ;   Due = "", How = none
+    ).
+
+% ---- checks (c18, q8): the words of a check (a checks_that fact, else the docstring of its own
+% script, else none), how it runs (the command of its last run), and its last run.
+
+desk_check(Dir, Eng, K, Ck) :-
+    dk_all(Eng, [N, R, T], attest(_, test_result, _, result(K, N, R), _, T), Runs),
+    (   Runs \== [] -> msort(Runs, Rs1), last(Rs1, [N1, R1, T1]), Last = run(N1, R1, T1),
+        desk_run_cmd(Dir, N1, K, Cmd)
+    ;   Last = none, Cmd = ""
+    ),
+    (   dk_all(Eng, [W], checks_that(K, W), [W1|_]) -> dk_str(W1, Words), Src = fact
+    ;   Cmd \== "", desk_cmd_doc(Dir, Cmd, Doc) -> Words = Doc, Src = script
+    ;   Words = "", Src = none
+    ),
+    Ck = ck{id:K, words:Words, src:Src, cmd:Cmd, last:Last}.
+
+% desk_run_cmd(+Dir, +N, +K, -Cmd): the cmd= of the first line of runs/N-K.log.
+desk_run_cmd(Dir, N, K, Cmd) :-
+    format(atom(Rel), "runs/~w-~w.log", [N, K]), directory_file_path(Dir, Rel, F),
+    (   exists_file(F),
+        catch(setup_call_cleanup(open(F, read, S, [encoding(utf8)]), read_line_to_string(S, L1), close(S)), _, fail),
+        string(L1), sub_string(L1, B, _, _, " cmd="), B2 is B + 5, sub_string(L1, B2, _, 0, C)
+    ->  Cmd = C
+    ;   Cmd = ""
+    ).
+
+% desk_cmd_doc(+Dir, +Cmd, -Doc): the first line of the docstring of the check's own script: only
+% when the command is the script alone (an interpreter and one script, no other argument), so the
+% words of a whole suite never stand for one check.
+desk_cmd_doc(Dir, Cmd, Doc) :-
+    split_string(Cmd, " ", " ", Ws0), exclude(==(""), Ws0, Ws),
+    (   Ws = [P] -> true
+    ;   Ws = [I, P], memberchk(I, ["python3", "python", "bash", "sh", "swipl", "env"])
+    ),
+    member(Ext, [".py", ".sh"]), string_concat(_, Ext, P), !,
+    atom_string(PA, P),
+    (   is_absolute_file_name(PA) -> F = PA ; directory_file_path(Dir, PA, F) ),
+    exists_file(F),
+    catch(read_file_to_string(F, Src, [encoding(utf8)]), _, fail),
+    desk_doc_line(Ext, Src, Doc).
+
+desk_doc_line(".py", Src, Doc) :-
+    re_matchsub("^(?:#[^\n]*\n|\\s)*(?:[rRuU])?(\"\"\"|''')\\s*(?<l>[^\n]+)"/s, Src, D, []),
+    split_string(D.l, "", " \t\"'", [Doc0]), Doc0 \== "", !, Doc = Doc0.
+desk_doc_line(".sh", Src, Doc) :-
+    split_string(Src, "\n", "", Ls), member(L, Ls), \+ sub_string(L, 0, 2, _, "#!"),
+    string_concat("#", R, L), split_string(R, "", " \t", [Doc]), Doc \== "", !.
+
+% ---- claims and what blocks (c13: each blocker once)
+
+desk_hypothesis(Eng, H) :-
+    (   dk_all(Eng, [I, T], ( hypothesis(I, _, T), \+ supersedes(_, I) ), [[I1, T1]|_])
+    ->  txt(T1, TT), dk_all(Eng, [P, PT], premise(P, I1, PT), Ps0),
+        findall(p(P, PS, Chk), ( member([P, PT0], Ps0), txt(PT0, PS),
+                                 ( dk_true(Eng, premise_checked(P, _)) -> Chk = checked ; Chk = unchecked ) ), Ps),
+        ( dk_true(Eng, no_premises(I1)) -> None = true ; None = false ),
+        H = hyp{id:I1, text:TT, premises:Ps, none:None}
+    ;   H = none
+    ).
+
+desk_current_claims(Eng, Cs) :-
+    dk_all(Eng, [C], ( claim(C, _, _), \+ supersedes(_, C) ), Cs0), sort(Cs0, Cs).
+
+desk_claim_text(Eng, C, T) :- ( dk_all(Eng, [T0], claim(C, _, T0), [T1|_]) -> txt(T1, T) ; T = "" ).
+
+% desk_claim_state(+Eng, +C, -Tags): what holds the claim open, each once.
+desk_claim_state(Eng, C, Tags) :-
+    findall(T, ( member(G-T, [under(C)-under, contested(C)-contested, burn_open(C)-proof,
+                               flare_open(C)-demo]), dk_true(Eng, G) ), Tags0),
+    ( Tags0 == [] -> Tags = [fulfilled] ; Tags = Tags0 ).
+
+desk_tag_badge(fulfilled, "fulfilled", "b-pass").
+desk_tag_badge(under, "not fulfilled", "b-warn").
+desk_tag_badge(contested, "contested", "b-burn").
+desk_tag_badge(proof, "proof owed", "b-burn").
+desk_tag_badge(demo, "demo owed", "b-warn").
+
+% desk_kb_blockers(+KB, +Eng, -Lines): what blocks the KB that no claim and no card of the page
+% shows already (c13: each blocker once).
+desk_kb_blockers(KB, Eng, Lines) :-
+    dk_all(Eng, [X], blocking(X), Xs),
+    exclude([X]>>( X =.. [F|_], memberchk(F, [to_ask, under, burn_open, flare_open, check_failing, check_unrun]) ), Xs, Ys),
+    findall(S, ( member(Y, Ys), catch(blocking_line(KB, Eng, Y, S0), _, fail), dk_str(S0, S1),
+                 ( string_concat("- ", S, S1) -> true ; S = S1 ) ), Lines).
+
+% ---- rendering: small parts
+
+% desk_badge(+Session, -Html) (c19): one label per session, one size, the text centered.
+desk_badge(none, Html) :- !, Html = "<span class=\"badge b-none\" title=\"No session holds it\">nobody</span>".
+desk_badge(S, Html) :-
+    atom_string(S, SS), esc(SS, SH),
+    (   memberchk(SS, ["discovery", "build", "review", "process"]) -> dk_f("b-~w", [SS], Cl)
+    ;   SS == "you" -> Cl = "b-you"
+    ;   string_codes(SS, Cs), sum_list(Cs, Sum), I is Sum mod 4 + 1, dk_f("b-s~w", [I], Cl)
+    ),
+    dk_f("<span class=\"badge ~w\" title=\"Your response goes to this session\">~w</span>", [Cl, SH], Html).
+
+desk_status_badge(Text, Class, Html) :- esc(Text, TH), dk_f("<span class=\"badge status ~w\">~w</span>", [Class, TH], Html).
+
+desk_due_html(Due, How, Opened, Html) :-
+    (   Opened \== "" -> dk_day(Opened, OD), dk_f("<span>Opened ~w</span>", [OD], OH) ; OH = "" ),
+    (   Due == "" -> dk_f("<div class=\"due none\"><strong>No due date</strong>~w</div>", [OH], Html)
+    ;   dk_day(Due, DD),
+        ( How == triage -> Tt = " title=\"The day it comes due for triage: 28 days with no change\"" ; How == asker -> Tt = " title=\"The due date that the asker set\"" ; Tt = "" ),
+        dk_f("<div class=\"due\"~w><strong>Due ~w</strong>~w</div>", [Tt, DD, OH], Html)
+    ).
+
+% desk_hidden(+Pairs, -Html)
+desk_hidden(Ps, Html) :-
+    findall(F, ( member(N-V, Ps), dk_e(V, VH), dk_f("<input type=\"hidden\" name=\"~w\" value=\"~w\">", [N, VH], F) ), Fs),
+    dk_cat(Fs, Html).
+
+% desk_fix_button(+Hub, +Item, +Label, -Html): a small form that opens the review of a fix (c14, c20).
+desk_fix_button(Hub, Item, Label, Html) :-
+    serve_conf(token, Tok), desk_hidden([token-Tok, hub-Hub, item-Item], HH), esc(Label, LH),
+    dk_f("<form class=\"inline\" method=\"post\" action=\"/review\" data-review>~w<button class=\"btn fix\" type=\"submit\">~w</button></form>", [HH, LH], Html).
+
+desk_fix_link(Hub, Item, Label, Html) :-
+    serve_conf(token, Tok), desk_hidden([token-Tok, hub-Hub, item-Item], HH), esc(Label, LH),
+    dk_f("<form class=\"inline\" method=\"post\" action=\"/review\" data-review>~w<button class=\"linkb\" type=\"submit\">~w</button></form>", [HH, LH], Html).
+
+% ---- what an item rests on (c13, c18)
+
+% desk_rests_html(+HD, +K, +Claims, -Html): the KB, its hypothesis and premises, the claims, their checks.
+desk_rests_html(HD, K, Claims, Html) :-
+    (   desk_eng(K.dir, Eng)
+    ->  desk_holder(HD, K, Hold, _),
+        esc(K.label, LH),
+        (   Hold == none -> HoldH = " <span class=\"gapnote\">No session holds it.</span>"
+        ;   dk_f(" <span class=\"quiet\">Held by ~w.</span>", [Hold], HoldH)
+        ),
+        dk_f("<p><a class=\"kblink\" href=\"#~w\">The KB ~w</a>~w</p>", [K.anchor, LH, HoldH], KbH),
+        desk_hyp_html(Eng, HypH),
+        findall(C, ( member(C, Claims), dk_true(Eng, claim(C, _, _)) ), Cs),
+        findall(CH, ( member(C, Cs), desk_claim_html(HD, K, Eng, C, CH) ), CHs), dk_cat(CHs, CsH),
+        dk_cat([KbH, HypH, CsH], Html)
+    ;   esc(K.label, LH),
+        dk_f("<p class=\"loud\">The Desk cannot read the KB ~w (~w).</p>", [LH, K.dir], Html)
+    ).
+
+desk_hyp_html(Eng, Html) :-
+    desk_hypothesis(Eng, H),
+    (   H == none -> Html = "<p class=\"gapnote\">No hypothesis is recorded.</p>"
+    ;   esc(H.text, TH),
+        (   H.premises \== []
+        ->  findall(P, ( member(p(Id, PT, Chk), H.premises), esc(PT, PTH),
+                         ( Chk == checked -> CkT = "checked on the system" ; CkT = "a guess: nobody checked it" ),
+                         dk_f("<li><span class=\"ref\">~w</span>~w <span class=\"quiet\">(~w)</span></li>", [Id, PTH, CkT], P) ), Ps),
+            dk_cat(Ps, PsH), dk_f("<h4>Premises</h4><ul>~w</ul>", [PsH], PrH)
+        ;   H.none == true -> PrH = "<p class=\"quiet\">Premises: none.</p>"
+        ;   PrH = "<p class=\"gapnote\">No premises are recorded.</p>"
+        ),
+        dk_f("<p><span class=\"ref\">~w</span>~w</p>~w", [H.id, TH, PrH], Html)
+    ).
+
+desk_claim_html(HD, K, Eng, C, Html) :-
+    desk_claim_text(Eng, C, T), esc(T, TH),
+    desk_claim_state(Eng, C, Tags),
+    findall(B, ( member(Tg, Tags), desk_tag_badge(Tg, BT, BC), desk_status_badge(BT, BC, B) ), Bs), dk_cat(Bs, BsH),
+    desk_checks_html(HD, K, Eng, C, Tags, ChH),
+    dk_f("<div class=\"claimrow\"><p><span class=\"ref\">~w</span>~w</p>~w</div>~w", [C, TH, BsH, ChH], Html).
+
+desk_checks_html(HD, K, Eng, C, Tags, Html) :-
+    dk_all(Eng, [Kc], check(Kc, C), Ks0), sort(Ks0, Ks),
+    (   Ks == [] -> Html = "<p class=\"gapnote small\">This claim has no check.</p>"
+    ;   findall(Ck, ( member(Kc, Ks), desk_check(K.dir, Eng, Kc, Ck) ), Cks),
+        length(Ks, N),
+        findall(x, ( member(X, Cks), get_dict(last, X, run(_, pass, _)) ), L1), length(L1, NP),
+        findall(x, ( member(X, Cks), get_dict(last, X, run(_, Rz, _)), Rz \== pass ), L2), length(L2, NF),
+        findall(x, ( member(X, Cks), get_dict(last, X, none) ), L3), length(L3, NU),
+        findall(B, ( member(Cnt-Txt-Cl, [NP-"pass"-"b-pass", NF-"fail"-"b-burn", NU-"never ran"-"b-warn"]), Cnt > 0,
+                     dk_f("~w ~w", [Cnt, Txt], BT), desk_status_badge(BT, Cl, B) ), Bs), dk_cat(Bs, BsH),
+        findall(R, ( member(Ck, Cks), desk_check_row(Ck, R) ), Rs), dk_cat(Rs, RsH),
+        (   member(X, Cks), X.src == none
+        ->  desk_holder(HD, K, Hold, _),
+            ( Hold == none -> Who = "a session" ; atom_string(Hold, Who) ),
+            dk_f("fix:words:~w", [K.dir], It), dk_f("Ask ~w to say what these checks do", [Who], FL),
+            desk_fix_link(HD.path, It, FL, FB), dk_f("<div class=\"chk\"><span></span><span class=\"small\">~w</span></div>", [FB], FixH)
+        ;   FixH = ""
+        ),
+        ( Tags == [fulfilled] -> Op = "" ; Op = " open" ),
+        ( N == 1 -> Ct = "check" ; Ct = "checks" ),
+        dk_f("<details class=\"checks\"~w><summary><span class=\"lbl\">~w ~w of ~w</span>~w</summary>~w~w</details>", [Op, N, Ct, C, BsH, RsH, FixH], Html)
+    ).
+
+desk_check_row(Ck, Html) :-
+    (   Ck.words == "" -> WH = "<span class=\"gapnote\">Nobody recorded what this check does.</span>"
+    ;   esc(Ck.words, W0), ( Ck.src == script -> dk_f("~w <span class=\"quiet small\">(from its script)</span>", [W0], W1) ; W1 = W0 ),
+        dk_f("<span>~w</span>", [W1], WH)
+    ),
+    (   Ck.last = run(N, R, T) -> dk_day_time(T, DT), ( R == pass -> Cl = "b-pass" ; Cl = "b-burn" ), desk_status_badge(R, Cl, B),
+        dk_f("Last run ~w (run ~w).", [DT, N], LastT)
+    ;   desk_status_badge("never ran", "b-warn", B), LastT = "It never ran."
+    ),
+    (   Ck.cmd \== "" -> desk_cmd_short(Ck.cmd, Short), esc(Short, SH), esc(Ck.cmd, CH),
+        dk_f("Runs <code title=\"~w\">~w</code>. ", [CH, SH], HowT)
+    ;   HowT = "No run records its command. "
+    ),
+    esc(LastT, LH),
+    dk_f("<div class=\"chk\"><span class=\"ref\">~w</span>~w~w<span class=\"how\">~w~w</span></div>", [Ck.id, WH, B, HowT, LH], Html).
+
+% desk_cmd_short(+Cmd, -Short): the command with each path cut to its file name.
+desk_cmd_short(Cmd, Short) :-
+    split_string(Cmd, " ", "", Ws),
+    maplist([W, S]>>( sub_string(W, _, _, _, "/"), \+ sub_string(W, 0, _, _, "^")
+                      -> split_string(W, "/", "", Ps), last(Ps, S) ; S = W ), Ws, Ss),
+    dk_join(Ss, " ", Short).
+
+% desk_ask_claims(+Eng, +X, -Cs): the claims an ask touches: the claim ids that its title and
+% notes name; else each claim that something holds open.
+desk_ask_claims(Eng, X, Cs) :-
+    findall(N, ( member(Nd, X.notes), N = Nd.note ), Ns), dk_join([X.title|Ns], " ", T),
+    split_string(T, " ,.;:()[]\"'\n\t", "", Ws),
+    findall(C, ( member(W, Ws), re_match("^c[0-9]+$", W), atom_string(C, W), dk_true(Eng, claim(C, _, _)) ), Cs0),
+    sort(Cs0, Cs1),
+    (   Cs1 \== [] -> Cs = Cs1
+    ;   desk_current_claims(Eng, All), include([C]>>( desk_claim_state(Eng, C, Tg), Tg \== [fulfilled] ), All, Cs)
+    ).
+
+% ---- the cards: each item that waits on Ty
+
+% desk_item_json(+HD, +K, +Type, +Ref, -J): the item of a letter about a KB question or action.
+desk_item_json(HD, K, Type, Ref, J) :-
+    (   desk_rel(HD.path, K.dir, Rel) -> atom_string(Rel, KS) ; atom_string(K.dir, KS) ),
+    file_base_name(K.dir, B), ( K.kind == spec -> atom_string(K.ref, Sl) ; atom_string(B, Sl) ),
+    atom_string(Ref, RS),
+    (   Type == question -> J = _{type:"question", slug:Sl, kb:KS, q:RS}
+    ;   J = _{type:"kb", slug:Sl, kb:KS, ref:RS}
+    ).
+
+% desk_item_letters2(+HD, +Match, -Ls): the letters of the hub about an item.
+desk_item_letters2(HD, Match, Ls) :-
+    (   is_dict(HD.st), get_dict(letters, HD.st, All) -> include(desk_letter_match(Match), All, Ls) ; Ls = [] ).
+
+desk_letter_match(ask(Id), L) :- get_dict(item, L, I), is_dict(I), get_dict(type, I, "ask"), get_dict(id, I, Id).
+desk_letter_match(kbitem(J), L) :- get_dict(item, L, I), is_dict(I),
+    get_dict(type, I, T), get_dict(type, J, T), get_dict(kb, I, Kb), get_dict(kb, J, Kb),
+    ( T == "question" -> get_dict(q, I, Q), get_dict(q, J, Q) ; get_dict(ref, I, R), get_dict(ref, J, R) ).
+
+% desk_draft_of(+Key, -Dr): Ty's draft for a card, from the Desk's own store (q10).
+desk_draft_of(Key, Dr) :-
+    (   nb_current(desk_drafts, Ds), is_dict(Ds), atom_string(KA, Key), get_dict(KA, Ds, D0), is_dict(D0) -> Dr = D0 ; Dr = _{} ).
+
+desk_drafts_load(HDs) :-
+    (   HDs = [HD|_], desk_cmd(HD.path, [drafts, '--json'], Out, ok),
+        catch(atom_json_dict(Out, J, [value_string_as(string)]), _, fail), is_dict(J)
+    ->  ( get_dict(drafts, J, Ds) -> true ; Ds = J )
+    ;   Ds = _{}
+    ),
+    nb_setval(desk_drafts, Ds).
+
+% desk_track_html(+HD, +Owner, +Ls, +Dr, -Track, -Warn) (c7, q9): Draft and Sent; a warning when
+% no live session holds the item, when a sent letter is not seen after a day, or when the Desk
+% could not apply a response.
+desk_track_html(HD, Owner, Ls, Dr, Track, Warn) :-
+    ( get_dict(text, Dr, DT), DT \== "" -> DOn = " on", DS = "Draft saved" ; DOn = "", DS = "" ),
+    ( Ls \== [] -> SOn = " on" ; SOn = "" ),
+    dk_f("<span class=\"track\"><i class=\"draftdot~w\"></i><span>Draft</span><i class=\"sentdot~w\"></i><span>Sent</span><span class=\"draftstate\">~w</span></span>", [DOn, SOn, DS], Track),
+    findall(W, ( member(L, Ls), get_dict(late_unseen, L, true), dk_str(L.get(to, "the owner"), To), dk_day_time(L.at, At),
+                 dk_f("<p class=\"warn lamp\">You sent this on ~w, and ~w has not seen it after a day.</p>", [At, To], W) ), W1),
+    findall(W, ( member(L, Ls), get_dict(state, L, "apply_failed"), dk_str(L.apply_failed.detail, D), esc(D, DH),
+                 dk_f("<p class=\"warn\">Your response ~w is stored, so it is not lost, but the Desk could not apply it: ~w</p>", [L.id, DH], W) ), W2),
+    (   desk_live(HD, Owner), desk_hooks_missing(HD, Ms), Ms \== []
+    ->  desk_hooks_warning(HD, Owner, Ms, HW), W3 = [HW]
+    ;   \+ desk_live(HD, Owner)
+    ->  W3 = ["<p class=\"warn loud\">No live session holds this item. What you send is stored, but no session is told until one takes it.</p>"]
+    ;   W3 = []
+    ),
+    findall(S, ( member(L, Ls), dk_day_time(L.at, At), dk_str(L.get(to, ""), To0), ( To0 == "" -> To = "the owner" ; To = To0 ),
+                 dk_str(L.kind, Kd), dk_f("<li>~w: sent to ~w on ~w</li>", [Kd, To, At], S) ), Ss),
+    ( Ss == [] -> SL = "" ; dk_cat(Ss, SsT), dk_f("<ul class=\"sentlist\">~w</ul>", [SsT], SL) ),
+    append([W1, W2, W3, [SL]], Ws), dk_cat(Ws, Warn).
+
+% desk_form_html(+HD, +Item, +Key, +Owner, +Ls, +OptsH, +Intents, -Html) (c5, c20): the response
+% of a card. Each send goes through the review.
+desk_form_html(HD, Item, Key, Owner, Ls, OptsH, Intents, Html) :-
+    serve_conf(token, Tok), desk_draft_of(Key, Dr),
+    desk_hidden([token-Tok, hub-HD.path, item-Item, key-Key], HH),
+    ( get_dict(intent, Dr, DI), string(DI) -> true ; DI = "answer" ),
+    ( get_dict(text, Dr, DT0), string(DT0) -> DT = DT0 ; DT = "" ),
+    findall(I, ( member(V-Lb, Intents), ( V == DI -> Ck = " checked" ; Ck = "" ),
+                 dk_f("<label><input type=\"radio\" name=\"intent\" value=\"~w\"~w>~w</label>", [V, Ck, Lb], I) ), Is),
+    dk_cat(Is, IsH), esc(DT, DTH),
+    desk_track_html(HD, Owner, Ls, Dr, Track, Warn),
+    dk_f("<form class=\"respond\" method=\"post\" action=\"/review\" data-review data-draft-key=\"~w\">~w~w<fieldset class=\"intent\"><legend class=\"small quiet\">What this is</legend>~w</fieldset><textarea name=\"text\" aria-label=\"Your words\" placeholder=\"Your words. Saved as you type; nothing is sent before you review it.\">~w</textarea><div class=\"foot\"><button class=\"btn go\" type=\"submit\">Review and send</button>~w</div>~w</form>",
+         [Key, HH, OptsH, IsH, DTH, Track, Warn], Html).
+
+desk_intents([answer-"Answer", diverge-"That is not what I meant", requirement-"New requirement"]).
+
+% desk_opts_html(+Choices, +Dr, -Html): the options of a card as radio cards. Choices: Text-Effect-Tag.
+desk_opts_html([], _, "") :- !.
+desk_opts_html(Cs, Key, Html) :-
+    desk_draft_of(Key, Dr), ( get_dict(choice, Dr, DC) -> true ; DC = "" ),
+    findall(O, ( member(T-E-Tag, Cs), esc(T, TH), ( T == DC -> Ck = " checked" ; Ck = "" ),
+                 ( E == "" -> EH = "" ; esc(E, E0), dk_f("<small>~w</small>", [E0], EH) ),
+                 ( Tag == "" -> TgH = "" ; esc(Tag, Tg0), dk_f("<span class=\"tag\">~w</span>", [Tg0], TgH) ),
+                 dk_f("<label class=\"opt\"><input type=\"radio\" name=\"choice\" value=\"~w\"~w> <b>~w</b>~w~w</label>", [TH, Ck, TH, TgH, EH], O) ), Os),
+    dk_cat(Os, OsH), dk_f("<fieldset class=\"opts\"><legend class=\"small quiet\">Options</legend>~w</fieldset>", [OsH], Html).
+
+% desk_sheet(+Mode, +Anchor, +Reserved, +Head, +Policy, +Ctx, +Form, -Html): a card as an open
+% sheet (Your action) or a row that opens (the other lanes, c2).
+desk_sheet(Mode, Anchor, Res, Head, Pol, Ctx, Form, Html) :-
+    ( Res == true -> Cl = "sheet reserved" ; Cl = "sheet" ),
+    % c22: every card collapses (Your action too) and loads closed; desk_page opens the first one
+    Mode = Mode,
+    dk_f("<details class=\"~w\" id=\"~w\"><summary>~w</summary>~w~w<div class=\"answer\">~w</div></details>", [Cl, Anchor, Head, Pol, Ctx, Form], Html).
+
+desk_head(TitleH, SrcH, Owner, DueH, Html) :-
+    desk_badge(Owner, BH),
+    dk_f("<div class=\"head\"><div class=\"t\"><h3 class=\"title\">~w</h3><div class=\"src\">~w</div></div>~w~w</div>", [TitleH, SrcH, BH, DueH], Html).
+
+desk_ctx_html(Rests, Why, Html) :-
+    dk_f("<div class=\"ctx\"><section><h3>What it rests on</h3>~w</section><section><h3>Why you, why now</h3>~w</section></div>", [Rests, Why], Html).
+
+desk_hub_suffix(HDs, HD, S) :- ( HDs = [_, _|_] -> esc(HD.name, NH), dk_f(" <span class=\"quiet\">(~w)</span>", [NH], S) ; S = "" ).
+
+% desk_ask_card(+HDs, +HD, +X, -Card) (c12, c13, c19, c21)
+desk_ask_card(HDs, HD, X, card{lane:Lane, due:Due, html:Html, kbs:KDs, hub:HD.path}) :-
+    ( desk_ask_reserved(X) -> Lane = action, Res = true, Mode = open ; Lane = questions, Res = false, Mode = row ),
+    esc(X.title, TH), dk_str(X.asked_by, AB0), ( AB0 == "" -> AB = "an unknown session" ; AB = AB0 ),
+    desk_ask_kb_state(X, KS), desk_ask_kbrefs(X, Refs),
+    findall(K, ( member(R, Refs), desk_kb_by_ref(HD, R, K) ), Ks), findall(KD, ( member(K, Ks), get_dict(dir, K, KD) ), KDs),
+    findall(R, ( member(R, Refs), \+ desk_kb_by_ref(HD, R, _) ), Lost),
+    desk_hub_suffix(HDs, HD, HS),
+    (   KS == kb, Ks \== [] -> findall(L, ( member(K, Ks), esc(K.label, L) ), Ls), dk_join(Ls, ", ", LsT),
+        dk_f("<span>Ledger ask ~w from ~w, about the KB ~w~w</span>", [X.id, AB, LsT, HS], Src0)
+    ;   KS == kb -> dk_f("<span>Ledger ask ~w from ~w~w</span>", [X.id, AB, HS], Src0)
+    ;   KS == none -> dk_f("<span>Ledger ask ~w from ~w, no KB behind it~w</span>", [X.id, AB, HS], Src0)
+    ;   dk_f("<span>Ledger ask ~w from ~w~w</span><span class=\"gapnote\">No KB behind it (not recorded)</span>", [X.id, AB, HS], Src0)
+    ),
+    findall(G, ( member(R, Lost), esc(R, RH), dk_f("<span class=\"gapnote\">The KB ~w cannot be read</span>", [RH], G) ), Gs),
+    dk_cat([Src0|Gs], SrcH),
+    ( string(X.owner_session) -> atom_string(Owner, X.owner_session) ; Owner = none ),
+    desk_ask_due(X, Due, How), desk_due_html(Due, How, X.opened_at, DueH),
+    desk_head(TH, SrcH, Owner, DueH, Head),
+    (   Res == true -> desk_reserve_source(X.reserved, Src), desk_policy_html(HD, X, Src, PolH) ; PolH = "" ),
+    (   Ks == [] -> Rests = "<p class=\"quiet\">No KB: this ask rests on what its notes say.</p>"
+    ;   findall(RH, ( member(K, Ks), ( desk_eng(K.dir, Eng) -> desk_ask_claims(Eng, X, Cs) ; Cs = [] ),
+                      desk_rests_html(HD, K, Cs, RH) ), RHs), dk_cat(RHs, Rests)
+    ),
+    desk_ask_why(HD, X, Owner, Why),
+    desk_ctx_html(Rests, Why, Ctx),
+    format(string(Item), "ask:~w", [X.id]), dk_f("~w|~w", [HD.name, Item], Key),
+    desk_item_letters2(HD, ask(X.id), LLs),
+    desk_intents(Ints),
+    desk_form_html(HD, Item, Key, Owner, LLs, "", Ints, Form),
+    desk_anchor_of(HD, Item, Anchor),
+    desk_sheet(Mode, Anchor, Res, Head, PolH, Ctx, Form, Html).
+
+desk_anchor_of(HD, Item, A) :-
+    dk_f("~w ~w", [HD.name, Item], S), string_codes(S, Cs),
+    maplist([C, D]>>( code_type(C, alnum) -> D = C ; D = 0'- ), Cs, Ds), atom_codes(A0, Ds), atom_concat('item-', A0, A).
+
+desk_policy_html(_, _, policy(N, R), Html) :- !, esc(N, NH), esc(R, RH),
+    dk_f("<div class=\"policy\"><strong>~w:</strong> ~w</div>", [NH, RH], Html).
+desk_policy_html(_, _, words(W, D, T), Html) :- !, esc(W, WH), dk_day(D, DD), esc(T, TH),
+    dk_f("<div class=\"policy\"><strong>~w, ~w:</strong> “~w”</div>", [WH, DD, TH], Html).
+desk_policy_html(HD, X, unnamed(T), Html) :-
+    esc(T, TH), dk_f("fix:source:~w", [X.id], It),
+    desk_fix_link(HD.path, It, "Ask its owner to name the source", FB),
+    dk_f("<div class=\"policy unnamed\"><strong>Source not named:</strong> ~w ~w</div>", [TH, FB], Html).
+
+% desk_ask_why(+HD, +X, +Owner, -Html): the notes of the ask (the case, the options, the default, as
+% the asker wrote them), and its other refs. With no note: say so, with a fix.
+desk_ask_why(HD, X, Owner, Html) :-
+    findall(P, ( member(N, X.notes), esc(N.note, NH), dk_str(N.by_session, BS0), ( BS0 == "" -> dk_str(N.by, BS) ; BS = BS0 ),
+                 dk_day(N.at, AD), esc(BS, BH),
+                 dk_f("<p class=\"note\">~w<span class=\"by\">~w, ~w</span></p>", [NH, BH, AD], P) ), Ps),
+    findall(R, ( member(RS, X.refs), \+ string_concat("kb:", _, RS), esc(RS, RH),
+                 ( string_concat("url:", U, RS) -> esc(U, UH), dk_f("<li><a href=\"~w\" rel=\"noreferrer\">~w</a></li>", [UH, UH], R)
+                 ; dk_f("<li>~w</li>", [RH], R) ) ), Rs),
+    ( Rs == [] -> RsH = "" ; dk_cat(Rs, R0), dk_f("<h4>It points to</h4><ul>~w</ul>", [R0], RsH) ),
+    (   Ps == []
+    ->  dk_f("fix:context:~w", [X.id], It),
+        ( Owner == none -> Who = "its owner" ; atom_string(Owner, Who) ),
+        dk_f("Ask ~w for the context", [Who], FL), desk_fix_link(HD.path, It, FL, FB),
+        dk_f("<p class=\"gapnote\">The asker recorded only the title: no case, no options, no default. ~w</p>", [FB], NoteH)
+    ;   dk_cat(Ps, NoteH)
+    ),
+    dk_cat([NoteH, RsH], Html).
+
+% desk_open_questions(+Eng, -Qs): each question that waits on Ty: no human answered it, nobody waived
+% it, and its claim or hypothesis is current. One with a default runs on a guess; one with none
+% blocks the work that needs it (to_ask of the core is the narrower set of a contested claim).
+desk_open_questions(Eng, Qs) :-
+    dk_all(Eng, [Q, C], question(Q, C, _), QCs),
+    findall(Q, ( member([Q, C], QCs), \+ dk_true(Eng, answered(Q)), \+ dk_true(Eng, question_waived(Q)),
+                 \+ dk_true(Eng, supersedes(_, C)) ), Qs0), sort(Qs0, Qs).
+
+% desk_question_cards(+HDs, +HD, +K, -Cards) (c13, c21): each question of the KB to ask now. A
+% question that a ledger ask owns is the ask's card; one that a tracker item owns says so.
+desk_question_cards(HDs, HD, K, Cards) :-
+    (   desk_eng(K.dir, Eng)
+    ->  desk_open_questions(Eng, Qs),
+        findall(C, ( member(Q, Qs), \+ dk_true(Eng, question_pin(Q, ledger, _, _, _)),
+                     desk_question_card(HDs, HD, K, Eng, Q, C) ), Cards)
+    ;   Cards = []
+    ).
+
+desk_question_card(HDs, HD, K, Eng, Q, card{lane:Lane, due:Due, html:Html, kbs:[K.dir], hub:HD.path}) :-
+    dk_all(Eng, [C0, T0], question(Q, C0, T0), [[C, T]|_]), txt(T, TT), esc(TT, TH),
+    ( dk_all(Eng, [A], assumed(Q, A), [A1|_]) -> plain_text(A1, Def), Lane = guess ; Def = none, Lane = questions ),
+    esc(K.label, LH), desk_hub_suffix(HDs, HD, HS),
+    (   Def == none -> DefH = "" ; esc(Def, DfH), dk_f("<span class=\"default\">Default: <b>~w</b></span>", [DfH], DefH) ),
+    dk_f("<span>Question ~w in the KB ~w~w</span>~w", [Q, LH, HS, DefH], SrcH),
+    desk_holder(HD, K, Owner, _),
+    ( dk_all(Eng, [D], due(Q, D), [D1|_]) -> dk_str(D1, Due), How = asker ; Due = "", How = none ),
+    desk_due_html(Due, How, "", DueH),
+    desk_head(TH, SrcH, Owner, DueH, Head),
+    ( dk_true(Eng, claim(C, _, _)) -> Cs = [C] ; Cs = [] ),
+    desk_rests_html(HD, K, Cs, Rests),
+    desk_question_why(Eng, Q, C, Def, Why),
+    desk_ctx_html(Rests, Why, Ctx),
+    dk_f("q:~w#~w", [K.dir, Q], Item), dk_f("~w|~w", [HD.name, Item], Key),
+    desk_item_json(HD, K, question, Q, J), desk_item_letters2(HD, kbitem(J), LLs),
+    (   pending_for_question(K.dir, Q)
+    ->  Form = "<p class=\"quiet\">Your answer waits in the KB's answers.pending: the holder's next write applies it.</p>"
+    ;   dk_all(Eng, [Kd, Rf], question_pin(Q, Kd, Rf, _, _), Pins), last(Pins, [tracker, Rf1])
+    ->  plain_text(Rf1, RfT), esc(RfT, RfH),
+        dk_f("<p class=\"quiet\">The tracker item ~w owns this question: answer it there.</p>", [RfH], Form)
+    ;   desk_question_choices(Eng, Q, Def, Chs), desk_opts_html(Chs, Key, OptsH),
+        desk_intents(Ints), desk_form_html(HD, Item, Key, Owner, LLs, OptsH, Ints, Form)
+    ),
+    desk_anchor_of(HD, Item, Anchor),
+    desk_sheet(row, Anchor, false, Head, "", Ctx, Form, Html).
+
+% desk_question_choices(+Eng, +Q, +Def, -Cs): the default, an agent's answer, each option with its
+% effect, then other (D24 C7: the page adds no option of its own).
+desk_question_choices(Eng, Q, Def, Cs) :-
+    dk_all(Eng, [OT, OE], option(Q, OT, OE), OFs0),
+    findall(T-E, ( member([T0, E0], OFs0), plain_text(T0, T), plain_text(E0, E) ), OFs),
+    findall(AT, ( dk_all(Eng, [A2, By], answer(Q, A2, By), Ans), member([A3, By3], Ans), By3 \== human, By3 \= human:_,
+                  plain_text(A3, AT), AT \== Def ), Ats0), list_to_set(Ats0, Ats),
+    findall(Def-E-"the default", ( Def \== none, ( memberchk(Def-E, OFs) -> true ; E = "" ) ), DL),
+    findall(T-E-"an agent's answer", ( member(T, Ats), ( memberchk(T-E, OFs) -> true ; E = "" ) ), AL),
+    findall(T-E-"", ( member(T-E, OFs), T \== Def, \+ memberchk(T, Ats) ), OL),
+    append([DL, AL, OL, ["other"-"Write your own answer below."-""]], Cs).
+
+desk_question_why(Eng, Q, C, Def, Html) :-
+    findall(P, ( dk_all(Eng, [N], note(Q, N), Ns), member(N1, Ns), txt(N1, NT), esc(NT, NH), dk_f("<p class=\"note\">~w</p>", [NH], P) ), P1),
+    findall(P, ( dk_all(Eng, [X], cites(C, X), Xs), member(X1, Xs), txt(X1, XT), esc(XT, XH), dk_f("<p class=\"note\">The request: “~w”</p>", [XH], P) ), P2),
+    findall(P, ( dk_all(Eng, [E], example(C, E), Es), member(E1, Es), txt(E1, ET), esc(ET, EH), dk_f("<p class=\"note\"><span class=\"by\">Example of ~w</span>~w</p>", [C, EH], P) ), P3),
+    (   Def == none -> P4 = ["<p class=\"gapnote\">No default: the work that needs this answer waits for you.</p>"]
+    ;   esc(Def, DH), dk_f("<p>The work goes on with the default, <b>~w</b>, until you answer.</p>", [DH], P4a), P4 = [P4a]
+    ),
+    append([P1, P2, P3, P4], Ps), dk_cat(Ps, Html).
+
+% desk_action_cards(+HDs, +HD, +K, -Cards) (c12): the KB actions that a policy keeps for Ty.
+desk_action_cards(HDs, HD, K, Cards) :-
+    (   desk_eng(K.dir, Eng)
+    ->  findall(A, desk_kb_action(Eng, A), As),
+        findall(C, ( member(A, As), desk_action_card(HDs, HD, K, Eng, A, C) ), Cards)
+    ;   Cards = []
+    ).
+
+desk_action_card(HDs, HD, K, Eng, A, card{lane:action, due:"", html:Html, kbs:[K.dir], hub:HD.path}) :-
+    desk_action_ref(A, RefS), esc(K.label, LH), desk_hub_suffix(HDs, HD, HS),
+    (   A == vote -> PolK = vote, dk_f("Vote on the hypothesis of the KB ~w", [K.label], T0),
+        dk_f("<span>The vote that ends discovery, in the KB ~w~w</span>", [LH, HS], SrcH),
+        desk_current_claims(Eng, Cs),
+        Chs = ["GO"-"Build goes on from this hypothesis and its claims."-"", "NO-GO"-"Nothing is built; the ticket ends."-"", "HOLD"-"Discovery goes on; say what it waits for."-""]
+    ;   A = demo(C, S, P) -> PolK = demo, dk_f("Approve the demo of claim ~w, or say what is not right", [C], T0),
+        esc(P, PH), dk_f("<span>Demo ~w of claim ~w in the KB ~w~w</span><span>~w</span>", [S, C, LH, HS, PH], SrcH),
+        Cs = [C], Chs = ["Approve the demo"-"The claim closes for its demo."-""]
+    ;   A = waiver(W) -> PolK = waiver, dk_f("The waiver ~w lapsed: renew it, or let the work come back", [W], T0),
+        dk_f("<span>Waiver ~w in the KB ~w~w</span>", [W, LH, HS], SrcH),
+        ( dk_all(Eng, [X], attest(W, waiver, _, waive(X, _, _), _, _), [X1|_]), dk_true(Eng, claim(X1, _, _)) -> Cs = [X1] ; Cs = [] ),
+        Chs = ["Renew the waiver"-"Say until when in your words: the skip needs a due time."-"", "Let the work come back"-"The waived item blocks again."-""]
+    ),
+    esc(T0, TH),
+    desk_holder(HD, K, Owner, _),
+    desk_due_html("", none, "", DueH),
+    desk_head(TH, SrcH, Owner, DueH, Head),
+    desk_policy(PolK, PN, PR, PF), esc(PN, PNH), esc(PR, PRH), esc(PF, PFH),
+    dk_f("<div class=\"policy\"><strong>~w:</strong> ~w <span class=\"quiet\">From ~w.</span></div>", [PNH, PRH, PFH], PolH),
+    desk_rests_html(HD, K, Cs, Rests0),
+    (   A = demo(_, _, P2) -> esc(P2, P2H), dk_f("~w<p>The demo: <code>~w</code> in the KB folder.</p>", [Rests0, P2H], Rests) ; Rests = Rests0 ),
+    desk_policy_why(PolK, Why),
+    desk_ctx_html(Rests, Why, Ctx),
+    dk_f("act:~w#~w", [K.dir, RefS], Item), dk_f("~w|~w", [HD.name, Item], Key),
+    desk_item_json(HD, K, kb, RefS, J), desk_item_letters2(HD, kbitem(J), LLs),
+    desk_opts_html(Chs, Key, OptsH), desk_intents(Ints),
+    desk_form_html(HD, Item, Key, Owner, LLs, OptsH, Ints, Form),
+    desk_anchor_of(HD, Item, Anchor),
+    desk_sheet(open, Anchor, true, Head, PolH, Ctx, Form, Html).
+
+desk_policy_why(vote, "<p>Discovery is ready: the system was checked for the hypothesis, each claim has its example and the result that would show it false, and nothing else waits for you.</p>").
+desk_policy_why(demo, "<p>The claim is visual: no test can say that it looks and works as you want. Open the demo, then approve it, or say what is not right.</p>").
+desk_policy_why(waiver, "<p>You skipped this work with a waiver, and its due time passed. Until you renew it, the work is back.</p>").
+
+% ---- the page
+
+desk_page(Msg, Page) :-
+    serve_conf(token, Token), lib_dir(Lib),
+    page_asset(Lib, 'desk/desk.css', Css), page_asset(Lib, 'desk/desk.js', Js),
+    desk_load(HDs, Missing),
+    desk_drafts_load(HDs),
+    findall(C, ( member(HD, HDs), desk_hub_cards(HDs, HD, Cs), member(C, Cs) ), Cards),
+    include([C]>>get_dict(lane, C, action), Cards, Act),
+    include([C]>>get_dict(lane, C, questions), Cards, Qs0), predsort(desk_by_due, Qs0, Qs),
+    include([C]>>get_dict(lane, C, guess), Cards, Gs),
+    length(Act, NA), length(Qs, NQ), length(Gs, NG),
+    ( HDs = [_, _|_] -> nb_setval(desk_multi, true) ; nb_setval(desk_multi, false) ),
+    findall(HD-R, ( member(HD, HDs), desk_orphan_rows(HD, Rs), member(R, Rs) ), ORows), length(ORows, NO),
+    findall(P, ( member(HD, HDs), desk_project_items(HD, Ps), member(P, Ps) ), PItems), length(PItems, NP),
+    findall(A, ( member(HD, HDs), desk_answered(HD, As), member(A, As) ), Answered), length(Answered, NAns),
+    findall(K-HD, ( member(HD, HDs), member(K, HD.kbs) ), AllKBs), length(AllKBs, NK),
+    % the header (c13: the first due date, not an age)
+    NW is NA + NQ,
+    findall(Du, ( member(C, Cards), Du = C.due, Du \== "" ), Ds), ( Ds == [] -> FirstH = "" ; min_member(D1, Ds), dk_day(D1, DD), dk_f(" The first is due on ~w.", [DD], FirstH) ),
+    ( NW == 1 -> WT = "thing waits" ; WT = "things wait" ),
+    dk_f("<p><strong>~w ~w on you,</strong> and ~w run on a guess.~w</p>", [NW, WT, NG, FirstH], SumH),
+    findall(L, ( member(Id-Lb-N, [lane-action-"Your action"-NA, lane-questions-"Questions"-NQ, lane-guesses-"Running on a guess"-NG,
+                                  lane-project-"Project KB"-NP, lane-orphans-"Orphaned"-NO, lane-answered-"Answered"-NAns, lane-kbs-"KBs"-NK]),
+                 Id = lane-Nm, dk_f("<a href=\"#lane-~w\">~w<b>~w</b></a>", [Nm, Lb, N], L) ), Ls),
+    dk_cat(Ls, LanesH),
+    % the lanes (c2: open on load only with an item for Ty)
+    % c22: one thing open on load: the first card of the first lane that holds one, and that lane
+    (   Act = [_|_] -> Act1 = Act, Qs1 = Qs, Gs1 = Gs, OA = true, OQ = false, OG = false
+    ;   Qs = [_|_] -> Act1 = Act, desk_open_first(Qs, Qs1), Gs1 = Gs, OA = false, OQ = true, OG = false
+    ;   Act1 = Act, Qs1 = Qs, desk_open_first(Gs, Gs1), OA = false, OQ = false, OG = true
+    ),
+    ( OA == true -> desk_open_first(Act, Act2) ; Act2 = Act1 ),
+    desk_lane("action", "Your action", "Only what a policy or your own words keep for you", Act2, "Nothing waits for an action that only you may take.", OA, ActH),
+    desk_lane("questions", "Questions", "Ledger asks and KB questions with no default, soonest due first", Qs1, "No question waits on you.", OQ, QsH),
+    desk_lane("guesses", "Running on a guess", "KB questions with a default: the work goes on with it until you answer", Gs1, "No work runs on a guess.", OG, GsH),
+    desk_project_lane(HDs, PItems, PrH),
+    desk_orphan_lane(ORows, OrH),
+    desk_answered_lane(Answered, AnH),
+    desk_kbs_lane(HDs, AllKBs, KbH),
+    desk_rail(HDs, Cards, Missing, RailH),
+    (   Msg == "" -> MsgH = "" ; esc(Msg, M0), dk_f("<p class=\"banner\">~w</p>", [M0], MsgH) ),
+    findall(E, ( member(HD, HDs), ( HD.err = some(M) ; \+ is_dict(HD.st), HD.st = error(M) ), esc(HD.name, NH), esc(M, MH),
+                 dk_f("<p class=\"banner error\">~w: ~w</p>", [NH, MH], E) ), Es),
+    dk_cat(Es, ErrH),
+    ( HDs == [] -> NoneH = "<p class=\"banner\">No mindhole has joined the Desk. In a mindhole, run: python3 .claude/scripts/desk.py join</p>" ; NoneH = "" ),
+    esc(Token, TokH),
+    format(string(Page),
+"<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+<meta charset=\"utf-8\">
+<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">
+<title>The Desk</title>
+<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\"><link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>
+<link href=\"https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap\" rel=\"stylesheet\">
+<style>~w</style>
+</head>
+<body data-token=\"~w\">
+<header class=\"top\"><h1>The Desk</h1>~w<nav class=\"lanes\" aria-label=\"Lanes\">~w</nav></header>
+~w~w~w
+<div class=\"layout\">
+<aside class=\"rails\" aria-label=\"Where things live\">~w</aside>
+<main>
+~w
+~w
+~w
+~w
+~w
+~w
+~w
+<p class=\"foottext\">Live: each reload reads the ledgers and the KBs again. What you type is a draft in the Desk's own store, outside every mindhole; no agent reads it. Each send opens a review first, and a session gets only its own letter, at its next stop or prompt.</p>
+</main>
+</div>
+<dialog id=\"review\" aria-label=\"Review before sending\"><div class=\"dlgbody\"></div></dialog>
+<script>~w</script>
+</body>
+</html>
+", [Css, TokH, SumH, LanesH, MsgH, ErrH, NoneH, RailH, ActH, QsH, GsH, PrH, OrH, AnH, KbH, Js]).
+
+desk_by_due(O, A, B) :-
+    ( A.due == "" -> KA = "9999" ; KA = A.due ), ( B.due == "" -> KB = "9999" ; KB = B.due ),
+    compare(O0, KA, KB), ( O0 == (=) -> compare(O1, A.html, B.html), ( O1 == (=) -> O = (<) ; O = O1 ) ; O = O0 ).
+
+desk_hub_cards(HDs, HD, Cards) :-
+    findall(C, ( desk_ask_for_me(HD, X), catch(desk_ask_card(HDs, HD, X, C), E, desk_card_error(HD, X.id, E, C)) ), C1),
+    findall(C, ( member(K, HD.kbs), K.kind \== project,
+                 catch(desk_action_cards(HDs, HD, K, Cs), E, ( desk_card_error(HD, K.label, E, CE), Cs = [CE] )), member(C, Cs) ), C2),
+    findall(C, ( member(K, HD.kbs),
+                 catch(desk_question_cards(HDs, HD, K, Cs), E, ( desk_card_error(HD, K.label, E, CE), Cs = [CE] )), member(C, Cs) ), C3),
+    append([C1, C2, C3], Cards).
+
+desk_card_error(HD, What, E, card{lane:questions, due:"", html:Html, kbs:[], hub:HD.path}) :-
+    serve_err_text(E, M), esc(M, MH), esc(What, WH),
+    dk_f("<div class=\"sheet\"><div class=\"head\"><p class=\"loud\">The Desk could not show ~w: ~w</p></div></div>", [WH, MH], Html).
+
+% desk_hooks_missing(+HD, -Events) (c24): the hook events that no settings file of the mindhole gives
+% to desk.py hook. While one is missing, no letter reaches a session of that mindhole.
+desk_hooks_missing(HD, Ms) :-
+    (   is_dict(HD.st), get_dict(hooks_missing, HD.st, Ms0), is_list(Ms0) -> Ms = Ms0 ; Ms = [] ).
+
+desk_hooks_warning(HD, To, Ms, Html) :-
+    dk_join(Ms, ", ", MJ), esc(HD.name, NH),
+    dk_f("<p class=\"warn loud\">~w will not be told: the desk hooks are not installed in ~w (no hook for ~w). What you send is stored, and it reaches ~w once the hooks are in its settings (desk.py hooks prints them).</p>", [To, NH, MJ, To], Html).
+
+desk_open_first([], []).
+desk_open_first([C|Cs], [C1|Cs]) :-
+    (   sub_string(C.html, B, _, A, "<details class=\"sheet") -> sub_string(C.html, 0, B, _, Pre), sub_string(C.html, _, A, 0, Post),
+        dk_cat([Pre, "<details open class=\"sheet", Post], H1), C1 = C.put(html, H1)
+    ;   C1 = C
+    ).
+
+desk_lane(Id, Head, Sub, Cards, Empty, OpenIfAny, Html) :-
+    (   Cards == [] -> dk_f("<p class=\"empty\">~w</p>", [Empty], Body), Op = ""
+    ;   findall(H, ( member(C, Cards), H = C.html ), Hs),
+        dk_cat(Hs, Body), ( OpenIfAny == true -> Op = " open" ; Op = "" )
+    ),
+    dk_f("<details class=\"lane\" id=\"lane-~w\"~w><summary><h2>~w</h2><span class=\"quiet\">~w</span></summary><div class=\"lanebody\">~w</div></details>", [Id, Op, Head, Sub, Body], Html).
+
+% ---- the rail (c14): where things live, and the sessions
+
+desk_rail(HDs, Cards, Missing, Html) :-
+    findall(H, ( member(HD, HDs), desk_rail_hub(HD, Cards, H) ), Hs), dk_cat(Hs, HsH),
+    findall(M, ( member(N-P, Missing), esc(N, NH), esc(P, PH),
+                 dk_f("<div class=\"hint\">~w joined the Desk, but ~w has no ledger now.</div>", [NH, PH], M) ), Ms), dk_cat(Ms, MsH),
+    findall(S, ( member(HD, HDs), desk_rail_sessions(HDs, HD, S) ), Ss), dk_cat(Ss, SsH),
+    dk_f("<nav class=\"rail\" aria-label=\"Mindholes\">~w~w</nav><nav class=\"rail\" aria-label=\"Sessions\"><details><summary><span class=\"name\">Sessions</span></summary>~w</details></nav>", [HsH, MsH, SsH], Html).
+
+desk_count_kb(Cards, Dir, N) :- findall(x, ( member(C, Cards), get_dict(kbs, C, Ks), memberchk(Dir, Ks) ), L), length(L, N).
+desk_num(N, Html) :- ( N > 0 -> dk_f("<span class=\"num hot\">~w</span>", [N], Html) ; dk_f("<span class=\"num\">~w</span>", [N], Html) ).
+
+desk_rail_hub(HD, Cards, Html) :-
+    HP = HD.path, HK = HD.kbs,
+    include([C]>>get_dict(hub, C, HP), Cards, HCs), length(HCs, NH), desk_num(NH, NumH),
+    include([K]>>get_dict(kind, K, project), HK, PKs),
+    include([K]>>get_dict(kind, K, spec), HK, SKs),
+    include([K]>>get_dict(kind, K, outside), HK, OKs),
+    partition([K]>>( get_dict(dir, K, KD), serve_kb_project(KD, some(_)) ), SKs, Linked, Unlinked),
+    findall(H, ( member(K, PKs), desk_rail_project(HD, K, Linked, H) ), PHs), dk_cat(PHs, PH),
+    ( PKs == [] -> PH1 = "<div class=\"hint\">This mindhole has no project KB.</div>" ; PH1 = PH ),
+    desk_rail_group("Spec KBs, linked to the project KB", Linked, Cards, false, G1),
+    desk_rail_group("Spec KBs, not linked", Unlinked, Cards, true, G2),
+    desk_rail_group("KBs outside the mindhole", OKs, Cards, false, G3),
+    include([X]>>desk_ask_for_me(HD, X), HD.asks, Mine), length(Mine, NMine),
+    include([X]>>desk_ask_kb_state(X, unknown), HD.asks, NoKb), length(NoKb, NNo),
+    desk_num(NMine, AskNum),
+    dk_f("<details~w><summary><span class=\"name\">Ledger asks</span>~w</summary><a class=\"leaf\" href=\"#lane-questions\"><span class=\"name\">Asks for you</span>~w</a><a class=\"leaf\" href=\"#lane-orphans\"><span class=\"name quiet\">Asks with no KB recorded</span><span class=\"num\">~w</span></a></details>",
+         ["", AskNum, AskNum, NNo], AsksH),
+    esc(HD.name, NameH), esc(HD.path, PathH),
+    Op = "",                                          % c22: the rail loads collapsed
+    dk_f("<details~w><summary title=\"~w\"><span class=\"name\">~w</span>~w</summary><div class=\"kids\">~w~w~w~w~w</div></details>",
+         [Op, PathH, NameH, NumH, PH1, G1, G2, G3, AsksH], Html).
+
+desk_rail_project(HD, K, Linked, Html) :-
+    ( desk_eng(K.dir, Eng) -> dk_all(Eng, [N0], repo(N0, _), Rs0), sort(Rs0, Rs) ; Rs = [] ),
+    length(Rs, NR),
+    desk_project_items(HD, PIs), KD = K.dir, include([P]>>get_dict(dir, P, KD), PIs, Mine), length(Mine, NP), desk_num(NP, NumH),
+    findall(L, ( member(R, Rs), esc(R, RH), dk_f("<div class=\"leaf\"><span class=\"name quiet\">~w</span></div>", [RH], L) ), RLs), dk_cat(RLs, RLH),
+    length(Linked, NL),
+    ( NL == 0 -> Hint = "<div class=\"hint\">No spec KB is linked to it yet.</div>" ; dk_f("<div class=\"leaf\"><span class=\"name quiet\">~w spec KBs link to it</span></div>", [NL], Hint) ),
+    esc(K.label, LH),
+    dk_f("<details><summary><span class=\"name\">Project KB ~w</span>~w</summary><a class=\"leaf\" href=\"#~w\"><span class=\"name\">What it holds</span></a><details><summary><span class=\"name quiet\">~w repos</span></summary>~w</details>~w</details>",
+         [LH, NumH, K.anchor, NR, RLH, Hint], Html).
+
+desk_rail_group(_, [], _, _, "") :- !.
+desk_rail_group(Title, Ks, Cards, _, Html) :-
+    length(Ks, N),
+    findall(L, ( member(K, Ks), desk_count_kb(Cards, K.dir, C), desk_num(C, NumH), esc(K.label, LH), esc(K.dir, DH),
+                 dk_f("<a class=\"leaf\" href=\"#~w\" title=\"~w\"><span class=\"name\">~w</span>~w</a>", [K.anchor, DH, LH, NumH], L) ), Ls),
+    dk_cat(Ls, LsH), findall(C, ( member(K, Ks), get_dict(dir, K, KD), desk_count_kb(Cards, KD, C) ), CsN), sum_list(CsN, Tot),
+    Tot = Tot, Op = "", esc(Title, TH),
+    dk_f("<details~w><summary><span class=\"name\">~w</span><span class=\"num\">~w</span></summary>~w</details>", [Op, TH, N, LsH], Html).
+
+% desk_rail_sessions(+HDs, +HD, -Html) (c14): for each session, the KBs it holds and its items.
+desk_rail_sessions(HDs, HD, Html) :-
+    (   is_dict(HD.st)
+    ->  findall(S, ( member(X, HD.st.sessions), desk_rail_session(HD, X, S) ), Ss), dk_cat(Ss, SsH),
+        length(Ss, NS), esc(HD.name, NH), HDs = HDs,
+        % c23: the sessions roll up by mindhole
+        dk_f("<details class=\"sessgroup\"><summary><span class=\"name\">~w</span><span class=\"num\">~w</span></summary>~w</details>", [NH, NS, SsH], Html)
+    ;   Html = ""
+    ).
+
+desk_rail_session(HD, X, Html) :-
+    atom_string(S, X.name),
+    findall(Lb, ( member(K, HD.kbs), desk_holder(HD, K, S, _), get_dict(label, K, Lb) ), Held),
+    ( get_dict(inbox, X, Inbox) -> true ; Inbox = [] ), length(Inbox, NI),
+    % c23: one short line; the KB names are inside when the session opens
+    length(Held, NHeld),
+    (   NHeld == 0 -> HeldT = "Holds no KB.", KbsH = ""
+    ;   maplist([L, E]>>esc(L, E), Held, HeldE),
+        ( NHeld == 1 -> HeldE = [H1], dk_f("Writes <b>~w</b>.", [H1], HeldT) ; dk_f("Writes <b>~w KBs</b>.", [NHeld], HeldT) ),
+        findall(KL, ( member(E, HeldE), dk_f("<div class=\"leaf\"><span class=\"name\">Writes the KB ~w</span></div>", [E], KL) ), KLs), dk_cat(KLs, KbsH)
+    ),
+    (   X.status == "active" -> St = "" ; dk_f(" <span class=\"gapnote\">(~w)</span>", [X.status], St) ),
+    (   get_dict(state, X, Sta), string(Sta) -> dk_f(" Now ~w.", [Sta], StaT) ; StaT = "" ),
+    findall(L, ( member(I, Inbox), esc(I.title, TH), esc(I.id, IH),
+                 dk_f("<div class=\"leaf\"><span class=\"name\" title=\"~w\"><span class=\"ref\">~w</span>~w</span></div>", [TH, IH, TH], L) ), Ls),
+    dk_cat(Ls, LsH), desk_badge(S, BH),
+    dk_f("<details><summary class=\"sess\">~w<span class=\"what\">~w ~w open items.~w~w</span></summary>~w~w</details>", [BH, HeldT, NI, StaT, St, KbsH, LsH], Html).
+
+% ---- Orphaned (c14, q5, q7): each row with the step that fixes it, which Ty sends after a review
+
+% desk_orphan_rows(+HD, -Rows): row(What, Why, To, FixItem, Ids)
+desk_orphan_rows(HD, Rows) :-
+    findall(R, desk_orphan_row(HD, R), Rows).
+
+desk_orphan_row(HD, row(What, "Linked to no project KB. Its claims cannot pin the rules and decisions they rest on.", Tos, Item, Labels)) :-
+    findall(K, ( member(K, HD.kbs), memberchk(K.kind, [spec, outside]), \+ serve_kb_project(K.dir, some(_)) ), Ks), Ks \== [],
+    length(Ks, N), dk_f("~w spec KBs", [N], What),
+    findall(L, ( member(K, Ks), L = K.label ), Labels),
+    findall(T, ( member(K, Ks), desk_kb_recipient(HD, K, T) ), Tos0), sort(Tos0, Tos),
+    dk_f("fix:link:~w", [HD.path], Item).
+desk_orphan_row(HD, row(What, "No KB behind them is recorded: the page cannot lead to what they rest on.", Tos, Item, Ids)) :-
+    findall(X, ( member(X, HD.asks), desk_ask_kb_state(X, unknown) ), Xs), Xs \== [],
+    length(Xs, N), dk_f("~w ledger asks", [N], What), findall(I, ( member(X, Xs), I = X.id ), Ids),
+    findall(T, ( member(X, Xs), desk_ask_recipient(HD, X, T) ), Tos0), sort(Tos0, Tos),
+    dk_f("fix:nokb:~w", [HD.path], Item).
+desk_orphan_row(HD, row(What, "Reserved for you, but the source of the reservation is not named.", Tos, Item, Ids)) :-
+    findall(X, ( member(X, HD.asks), desk_ask_reserved(X), desk_reserve_source(X.reserved, unnamed(_)) ), Xs), Xs \== [],
+    length(Xs, N), dk_f("~w reserved asks", [N], What), findall(I, ( member(X, Xs), I = X.id ), Ids),
+    findall(T, ( member(X, Xs), desk_ask_recipient(HD, X, T) ), Tos0), sort(Tos0, Tos),
+    dk_f("fix:source:~w", [HD.path], Item).
+desk_orphan_row(HD, row(What, "A newer handoff holds the same KB. Their KBs block, so only you can close them.", [you], Item, Ids)) :-
+    findall(I, ( member(K, HD.kbs), desk_stale_handoffs(HD, K, Old, _), member(H, Old), I = H.id ), Ids0), sort(Ids0, Ids), Ids \== [],
+    length(Ids, N), dk_f("~w old handoffs", [N], What),
+    dk_f("fix:stale:~w", [HD.path], Item).
+desk_orphan_row(HD, row(What, "Handed off, and nobody accepted them.", Tos, Item, Ids)) :-
+    is_dict(HD.st), Us = HD.st.orphans.unaccepted, Us \== [],
+    length(Us, N), dk_f("~w handoffs", [N], What), findall(I, ( member(U, Us), I = U.id ), Ids),
+    findall(T, ( member(U, Us), atom_string(T0, U.to), ( desk_live(HD, T0) -> T = T0 ; desk_keeper(HD, T) ) ), Tos0), sort(Tos0, Tos),
+    dk_f("fix:unaccepted:~w", [HD.path], Item).
+desk_orphan_row(HD, row(What, "No live session holds them.", [T], Item, Ids)) :-
+    is_dict(HD.st), Us = HD.st.orphans.unowned, Us \== [],
+    length(Us, N), dk_f("~w open items", [N], What), findall(I, ( member(U, Us), I = U.id ), Ids),
+    desk_keeper(HD, T),
+    dk_f("fix:unowned:~w", [HD.path], Item).
+desk_orphan_row(HD, row(What, "These checks do not say in words what they check.", Tos, Item, Ids)) :-
+    findall(K-Kc, ( member(K, HD.kbs), K.kind \== project, desk_eng(K.dir, Eng), desk_current_claims(Eng, Cs),
+                    member(C, Cs), dk_all(Eng, [Kc0], check(Kc0, C), Kcs), member(Kc, Kcs),
+                    \+ dk_true(Eng, checks_that(Kc, _)) ), KKs0), sort(KKs0, KKs), KKs \== [],
+    length(KKs, N), dk_f("~w checks", [N], What),
+    findall(I, ( member(K-Kc, KKs), dk_f("~w ~w", [K.label, Kc], I) ), Ids),
+    findall(T, ( member(K-_, KKs), desk_kb_recipient(HD, K, T) ), Tos0), sort(Tos0, Tos),
+    dk_f("fix:words:~w", [HD.path], Item).
+
+% desk_kb_recipient(+HD, +K, -S): who gets a letter about a KB: its holder, else the keeper.
+desk_kb_recipient(HD, K, S) :-
+    desk_holder(HD, K, H, _), ( H \== none, desk_live(HD, H) -> S = H ; desk_keeper(HD, S) ).
+
+desk_ask_recipient(HD, X, S) :-
+    ( string(X.owner_session), atom_string(O, X.owner_session), desk_live(HD, O) -> S = O ; desk_keeper(HD, S) ).
+
+desk_orphan_lane(Rows, Html) :-
+    (   Rows == [] -> Body = "<p class=\"empty\">Nothing is orphaned.</p>"
+    ;   findall(T, ( member(HD-row(What, Why, Tos, Item, Ids), Rows), desk_orphan_tr(HD, What, Why, Tos, Item, Ids, T) ), Ts),
+        dk_cat(Ts, TsH),
+        dk_f("<div class=\"sheet tablewrap\"><table><tr><th>What</th><th>Why</th><th>Goes to</th><th></th></tr>~w</table></div>", [TsH], Body)
+    ),
+    dk_f("<details class=\"lane\" id=\"lane-orphans\"><summary><h2>Orphaned</h2><span class=\"quiet\">Each fix opens the letter for you to read and change first</span></summary><div class=\"lanebody\">~w</div></details>", [Body], Html).
+
+desk_orphan_tr(HD, What, Why, Tos, Item, Ids, Html) :-
+    esc(What, WH), esc(Why, YH),
+    findall(I, ( member(I0, Ids), dk_str(I0, I) ), IdS), dk_join(IdS, ", ", IdT), esc(IdT, IdH),
+    findall(B, ( member(T, Tos), desk_badge(T, B) ), Bs), dk_cat(Bs, BsH),
+    desk_fix_button(HD.path, Item, "Fix", FB),
+    ( nb_current(desk_multi, true) -> esc(HD.name, NH), dk_f(" <span class=\"quiet\">(~w)</span>", [NH], HS) ; HS = "" ),
+    dk_f("<tr><td>~w~w<div class=\"what\">~w</div></td><td>~w</td><td><div class=\"badges\">~w</div></td><td>~w</td></tr>", [WH, HS, IdH, YH, BsH, FB], Html).
+
+% ---- Project KB (c15): what waits on Ty in each project KB
+
+desk_project_items(HD, Items) :-
+    findall(P, ( member(K, HD.kbs), K.kind == project, desk_eng(K.dir, Eng), desk_project_item(K, Eng, P) ), Items).
+
+desk_project_item(K, Eng, pi{dir:K.dir, label:K.label, kind:proposed, id:X, text:T, hub:K.hub}) :-
+    dk_all(Eng, [X], proposed(X), Xs), member(X, Xs), desk_pfact_text(Eng, X, T).
+desk_project_item(K, Eng, pi{dir:K.dir, label:K.label, kind:draft, id:D, text:T, hub:K.hub}) :-
+    dk_all(Eng, [D], outbound(D), Ds), member(D, Ds),
+    ( dk_all(Eng, [T0], draft(D, _, T0, _), [T1|_]) -> txt(T1, T) ; T = "" ).
+desk_project_item(K, Eng, pi{dir:K.dir, label:K.label, kind:pin, id:P, text:T, hub:K.hub}) :-
+    dk_all(Eng, [P], stale_pin(P), Ps), member(P, Ps),
+    ( catch(stale_pin_text(Eng, P, T0), _, fail) -> dk_str(T0, T) ; T = "" ).
+
+desk_pfact_text(Eng, X, T) :-
+    (   member(G-T0, [decision(X, T0)-T0, definition(X, T0)-T0, rule(X, T0)-T0]), dk_all(Eng, [T0], G, [T1|_]) -> txt(T1, T)
+    ;   term_text(X, T)
+    ).
+
+desk_project_lane(_, Items, Html) :-
+    (   Items == [] -> Body = "<p class=\"empty\">Nothing waits on you in a project KB.</p>", Op = ""
+    ;   findall(R, ( member(P, Items), desk_project_row(P, R) ), Rs), dk_cat(Rs, RsH),
+        dk_f("<div class=\"sheet tablewrap\"><table><tr><th>Waits on you</th><th>What</th><th></th></tr>~w</table></div>", [RsH], Body), Op = ""
+    ),
+    dk_f("<details class=\"lane\" id=\"lane-project\"~w><summary><h2>Project KB</h2><span class=\"quiet\">Proposed facts to ratify, drafts to push, stale pins</span></summary><div class=\"lanebody\">~w</div></details>", [Op, Body], Html).
+
+desk_project_row(P, Html) :-
+    ( P.kind == proposed -> Kd = "A fact that an agent proposed", BL = "Ratify"
+    ; P.kind == draft -> Kd = "A draft to push to the tracker", BL = "I pushed it"
+    ; Kd = "A stale pin", BL = "Ask for a new pin" ),
+    esc(P.text, TH), esc(P.label, LH),
+    dk_f("proj:~w:~w#~w", [P.kind, P.dir, P.id], Item), desk_fix_button(P.hub, Item, BL, FB),
+    dk_f("<tr><td>~w<div class=\"what\">~w in ~w</div></td><td>~w</td><td>~w</td></tr>", [Kd, P.id, LH, TH, FB], Html).
+
+% ---- Answered (c9): asks answered in the last 7 days
+
+desk_answered(HD, As) :-
+    (   is_dict(HD.st), get_dict(closed_recent, HD.st, Cs) -> findall(HD-C, member(C, Cs), As) ; As = [] ).
+
+desk_answered_lane(As, Html) :-
+    (   As == [] -> Body = "<p class=\"empty\">Nothing was answered in the last 7 days.</p>"
+    ;   findall(L, ( member(HD-C, As), esc(C.id, IH), esc(C.title, TH), dk_str(C.get(note, ""), N0), esc(N0, NH),
+                     dk_str(C.get(by_session, ""), BS), esc(BS, BH), dk_day(C.closed_at, CD), atom_string(HD.name, _),
+                     dk_f("<li><span class=\"ref\">~w</span>~w <span class=\"quiet\">closed ~w by ~w</span><br><span class=\"small\">~w</span></li>", [IH, TH, CD, BH, NH], L) ), Ls),
+        dk_cat(Ls, LsH), dk_f("<div class=\"sheet\"><div class=\"head\"><ul class=\"answered\">~w</ul></div></div>", [LsH], Body)
+    ),
+    dk_f("<details class=\"lane\" id=\"lane-answered\"><summary><h2>Answered</h2><span class=\"quiet\">In the last 7 days, here or in a session</span></summary><div class=\"lanebody\">~w</div></details>", [Body], Html).
+
+% ---- KBs (c13, c14): every KB, folded, with what it holds
+
+desk_kbs_lane(HDs, KHs, Html) :-
+    findall(S, ( member(K-HD, KHs), catch(desk_kb_section(HDs, HD, K, S), E, ( serve_err_text(E, M), esc(M, MH), esc(K.label, LH),
+                 dk_f("<div class=\"sheet\"><div class=\"head\"><p class=\"loud\">The KB ~w cannot be read: ~w</p></div></div>", [LH, MH], S) )) ), Ss),
+    ( Ss == [] -> Body = "<p class=\"empty\">No KB.</p>" ; dk_cat(Ss, Body) ),
+    dk_f("<details class=\"lane\" id=\"lane-kbs\"><summary><h2>KBs</h2><span class=\"quiet\">Each KB with its hypothesis, claims and checks</span></summary><div class=\"lanebody\">~w</div></details>", [Body], Html).
+
+desk_kb_section(HDs, HD, K, Html) :-
+    desk_engine(K.dir, KB, Eng),
+    desk_holder(HD, K, Hold, How), desk_badge(Hold, BH),
+    (   How == lock -> HowT = "holds the writer lock" ; How == handoff -> HowT = "took the newest handoff" ; HowT = "No session holds it" ),
+    esc(K.label, LH), esc(K.dir, DH), desk_hub_suffix(HDs, HD, HS),
+    (   K.kind == project -> KindT = "Project KB"
+    ;   K.kind == outside -> KindT = "Spec KB outside the mindhole"
+    ;   KindT = "Spec KB"
+    ),
+    (   K.kind == project -> LinkH = ""
+    ;   serve_kb_project(K.dir, some(P)) -> file_base_name(P, PB), dk_f("<p>Linked to the project KB ~w.</p>", [PB], LinkH)
+    ;   LinkH = "<p class=\"gapnote\">Linked to no project KB.</p>"
+    ),
+    (   K.kind == project
+    ->  dk_all(Eng, [R], repo(R, _), Rs0), sort(Rs0, Rs), length(Rs, NR),
+        maplist([R, E]>>esc(R, E), Rs, RsE), dk_join(RsE, ", ", RsJ),
+        dk_all(Eng, [X], current_fact(X), Fs), length(Fs, NF),
+        dk_f("<p>~w current decisions, definitions and rules. ~w repos: ~w.</p>", [NF, NR, RsJ], BodyMain)
+    ;   desk_hyp_html(Eng, HypH), desk_current_claims(Eng, Cs),
+        findall(CH, ( member(C, Cs), desk_claim_html(HD, K, Eng, C, CH) ), CHs), dk_cat(CHs, CsH),
+        ( Cs == [] -> CsH2 = "<p class=\"gapnote\">No claim is current.</p>" ; CsH2 = CsH ),
+        desk_kb_blockers(KB, Eng, Bl),
+        ( Bl == [] -> BlH = "" ; findall(L, ( member(B, Bl), esc(B, BH0), dk_f("<li>~w</li>", [BH0], L) ), BLs), dk_cat(BLs, BLT),
+                                  dk_f("<h3>Also open</h3><ul>~w</ul>", [BLT], BlH) ),
+        desk_open_questions(Eng, Qs),
+        ( Qs == [] -> QsH = "" ; length(Qs, NQ), dk_f("<p>~w questions wait on you: their cards are in Questions and Running on a guess.</p>", [NQ], QsH) ),
+        catch(view_pending_html(K.dir, PendH), _, PendH = ""),
+        catch(view_answered_html(Eng, AnsH), _, AnsH = ""),
+        dk_cat(["<h3>Hypothesis</h3>", HypH, "<h3>Claims</h3>", CsH2, BlH, QsH, PendH, AnsH], BodyMain)
+    ),
+    findall(I, ( desk_stale_handoffs(HD, K, Old, New), member(H, Old), I = H.id ), OldIds),
+    (   OldIds == [] -> OldH = ""
+    ;   desk_stale_handoffs(HD, K, _, New), dk_join(OldIds, ", ", OJ),
+        dk_f("<p class=\"gapnote\">Older open handoffs on this KB: ~w (the newest is ~w). See Orphaned.</p>", [OJ, New.id], OldH)
+    ),
+    Op = "",                                          % c22: one thing open on load, and it is a card
+    dk_f("<details class=\"sheet kbsec\" id=\"~w\"~w><summary><div class=\"t\"><h3 class=\"title\">~w</h3><div class=\"src\"><span>~w~w</span><span title=\"~w\">~w</span><span>~w</span></div></div>~w</summary><div class=\"body\">~w~w~w</div></details>",
+         [K.anchor, Op, LH, KindT, HS, DH, DH, HowT, BH, LinkH, OldH, BodyMain], Html).
+
+% desk_save_draft2(+Form, -R) (q2, q9, q10): a draft is saved in the Desk's own store as Ty types.
+desk_save_draft2(Form, R) :-
+    desk_hubs(Hs, _),
+    (   \+ ( serve_field(Form, key, K), K \== "" ) -> R = refused(400, "The draft has no key. Reload the page.")
+    ;   Hs == [] -> R = refused(409, "No mindhole has joined the Desk, so the Desk has no desk.py to keep the draft.")
+    ;   Hs = [hub(_, Hub)|_], serve_field(Form, key, Key),
+        ( serve_field(Form, text, T) -> true ; T = "" ),
+        ( serve_field(Form, choice, C) -> true ; C = "" ),
+        ( serve_field(Form, intent, I) -> true ; I = "answer" ),
+        tmp_file_stream(utf8, TF, TS), write(TS, T), close(TS),
+        desk_cmd(Hub, [draft, Key, '--text-file', TF, '--choice', C, '--intent', I], _, R0),
+        catch(delete_file(TF), _, true),
+        (   R0 == ok -> R = ok
+        ;   R0 = error(M), format(string(M2), "The draft was not saved: ~w", [M]), R = refused(409, M2)
+        )
+    ).
+
+% ---- the review and the send (c20): a plan, built from the item the same way twice
+
+% desk_plan(+Form, -Plan) or throws desk_refused(Status, Message).
+desk_plan(Form, P) :-
+    desk_load(HDs, _),
+    nb_setval(desk_multi, false),
+    (   serve_field(Form, hub, HS), HS \== "", atom_string(H0, HS), serve_norm(H0, Hub), desk_hd_of(HDs, Hub, HD) -> true
+    ;   throw(desk_refused(400, "The form names no mindhole of this Desk. Reload the page."))
+    ),
+    ( serve_field(Form, item, It) -> true ; It = "" ),
+    ( serve_field(Form, intent, I0), memberchk(I0, ["answer", "diverge", "requirement"]) -> atom_string(Intent, I0) ; Intent = answer ),
+    ( serve_field(Form, text, T0) -> split_string(T0, "", " \t\r\n", [Text]) ; Text = "" ),
+    ( serve_field(Form, choice, Ch0) -> split_string(Ch0, "", " \t\r\n", [Choice]) ; Choice = "" ),
+    string_length(Text, TL), ( TL > 4000 -> throw(desk_refused(400, "The text is longer than 4000 characters.")) ; true ),
+    (   string_concat("ask:", Id, It) -> desk_plan_ask(HD, Id, Intent, Text, P0)
+    ;   string_concat("q:", R, It), split_string(R, "#", "", [DS, QS]) -> desk_plan_dir(HDs, DS, K, HD), atom_string(Q, QS), desk_plan_q(HD, K, Q, Intent, Choice, Text, P0)
+    ;   string_concat("act:", R, It), sub_string(R, B, 1, _, "#"), sub_string(R, 0, B, _, DS), B1 is B + 1, sub_string(R, B1, _, 0, Ref)
+        -> desk_plan_dir(HDs, DS, K, HD), desk_plan_act(HD, K, Ref, Intent, Choice, Text, P0)
+    ;   string_concat("fix:", R, It) -> desk_plan_fix(HDs, HD, R, Text, P0)
+    ;   string_concat("proj:", R, It) -> desk_plan_proj(HDs, HD, R, Text, P0)
+    ;   throw(desk_refused(400, "The form names no item. Reload the page."))
+    ),
+    ( serve_field(Form, key, Key) -> true ; Key = "" ),
+    desk_anchor_of(HD, It, Anchor),
+    P = P0.put(_{hub:HD.path, hd:HD, item:It, key:Key, back:Anchor, intent:Intent, choice:Choice, text:Text}).
+
+desk_plan_dir(HDs, DS, K, HD) :-
+    atom_string(D0, DS), serve_norm(D0, D),
+    (   desk_kb_of_dir(HDs, D, HD1, K) -> ( HD1.path == HD.path -> true ; true )
+    ;   throw(desk_refused(400, "The form names a KB that this Desk does not read. Reload the page."))
+    ).
+
+desk_need_text(Text, What) :-
+    ( Text == "" -> dk_f("Write ~w.", [What], M), throw(desk_refused(400, M)) ; true ).
+
+desk_lt(To, Kind, About, Item, Text, L) :- L = lt{to:To, choices:[], kind:Kind, about:About, item:Item, text:Text}.
+
+% ---- a ledger ask
+desk_plan_ask(HD, Id, Intent, Text, P) :-
+    (   desk_ask(HD, Id, X), X.waits_on == HD.owner -> true
+    ;   dk_f("The ask ~w does not wait on you now. Reload the page.", [Id], M), throw(desk_refused(409, M))
+    ),
+    ( string(X.owner_session), atom_string(O0, X.owner_session) -> Owner = O0 ; Owner = none ),
+    dk_f("the ledger ask ~w (~w)", [Id, X.title], About),
+    Item = _{type:"ask", id:Id},
+    (   Intent == answer
+    ->  desk_need_text(Text, "the answer"),
+        findall(L, ( member(K, HD.kbs), serve_kb_pins_ask(K.dir, Id, Qs), member(Q, Qs),
+                     dk_f("~w in the KB ~w", [Q, K.label], L) ), Pins),
+        ( Pins == [] -> PinT = "" ; dk_join(Pins, ", ", PJ), dk_f("\nThe answer also went to the question pinned to this ask: ~w.", [PJ], PinT) ),
+        desk_ask_kbrefs(X, KRs), findall(Kl, ( member(KR, KRs), desk_kb_by_ref(HD, KR, KK), dk_f("~w (~w)", [KK.label, KK.dir], Kl) ), Kls),
+        ( Kls == [] -> KbT = "" ; dk_join(Kls, ", ", KlJ), dk_f("\nIt rests on the KB ~w: record there, as his words, what this answer decides.", [KlJ], KbT) ),
+        dk_f("Ty answers ~w: ~w\n\n~w\n\nThe Desk closed ~w as done, with this answer as its note.~w~w", [Id, X.title, Text, Id, PinT, KbT], LT),
+        dk_f("The ledger: ~w is closed as done, by you, with your answer as its note.", [Id], R1),
+        findall(R, ( member(Pn, Pins), dk_f("The KB: your answer is recorded for ~w (pinned to ~w).", [Pn, Id], R) ), Rs),
+        desk_lt(Owner, answer, About, Item, LT, L1),
+        P = plan{title:"Your answer", sub:About, letters:[L1], records:[R1|Rs], effects:[close_ask(HD.path, Id, Text)]}
+    ;   Intent == diverge
+    ->  desk_need_text(Text, "what you mean"),
+        dk_f("Ty diverges on ~w (~w): that is not what he meant.\n\n~w\n\nThe ask stays open. The Desk added his words to it as a note.", [Id, X.title, Text], LT),
+        dk_f("The ledger: a note on ~w in your words. The ask stays open.", [Id], R1),
+        dk_f("Ty diverges (from the Desk): ~w", [Text], Note),
+        desk_lt(Owner, diverge, About, Item, LT, L1),
+        P = plan{title:"That is not what you meant", sub:About, letters:[L1], records:[R1], effects:[ask_note(HD.path, Id, Note)]}
+    ;   desk_plan_requirement(HD, ask(Id), About, Item, Text, P)
+    ).
+
+desk_plan_requirement(HD, From, About, Item, Text, P) :-
+    desk_need_text(Text, "the new requirement"),
+    ( desk_live(HD, review) -> To = review ; To = none ),
+    dk_f("Ty adds a new requirement, from ~w:\n\n~w\n\nThe Desk opened an intake thread for it, owned by review. Judge it: a regression or a gap, and route it.", [About, Text], LT),
+    ( To == none -> R1 = "The ledger: a new intake thread with your words. No review session is live, so it has no owner and shows under Orphaned." ; R1 = "The ledger: a new intake thread with your words, owned by review." ),
+    desk_lt(To, requirement, About, Item, LT, L1),
+    P = plan{title:"A new requirement", sub:About, letters:[L1], records:[R1], effects:[intake(HD.path, Text, From)]}.
+
+% ---- a question of a KB
+desk_plan_q(HD, K, Q, Intent, Choice, Text, P) :-
+    desk_engine(K.dir, _, Eng),
+    (   desk_open_questions(Eng, Qs), memberchk(Q, Qs) -> true ; dk_f("The question ~w is not open any more. Reload the page.", [Q], M), throw(desk_refused(409, M)) ),
+    (   pending_for_question(K.dir, Q) -> dk_f("An answer to question ~w waits to be applied. Reload the page.", [Q], M2), throw(desk_refused(409, M2)) ; true ),
+    dk_all(Eng, [C0, T0], question(Q, C0, T0), [[C, QT0]|_]), txt(QT0, QT),
+    desk_holder(HD, K, H0, _), ( H0 \== none, desk_live(HD, H0) -> To = H0 ; To = none ),
+    dk_f("question ~w in the KB ~w", [Q, K.label], About),
+    desk_item_json(HD, K, question, Q, Item),
+    (   Intent == answer
+    ->  ( Choice \== "", Choice \== "other" -> Ans = Choice, Note = Text ; Ans = Text, Note = "" ),
+        desk_need_text(Ans, "the answer, or choose an option"),
+        serve_answer_term(Eng, Q, Ans, A), term_text(A, AT),
+        ( Note == "" -> NoteT = "", NFs = [] ; dk_f("\n\nHis words: ~w", [Note], NoteT), atom_string(NA, Note), NFs = [note(Q, NA)] ),
+        dk_f("Ty answers question ~w in the KB ~w (~w): ~w~w\n\nThe question: ~w\nThe Desk recorded answer(~w, ~w, human) in the KB, or in its answers.pending, which your next write applies.",
+             [Q, K.label, K.dir, Ans, NoteT, QT, Q, AT], LT),
+        ( Note == "" -> NoteR = "" ; NoteR = ", and your words as a note on the question" ),
+        dk_f("The KB ~w: answer(~w, ~w, human)~w.", [K.label, Q, AT, NoteR], R1),
+        desk_lt(To, answer, About, Item, LT, L1),
+        P = plan{title:"Your answer", sub:About, letters:[L1], records:[R1], effects:[kb_answer(K.dir, Q, Ans, A, NFs)]}
+    ;   Intent == diverge
+    ->  desk_need_text(Text, "what you mean"),
+        desk_diverge_facts(Q, C, Text, Facts, _),
+        dk_f("Ty diverges on question ~w (claim ~w) in the KB ~w: that is not what he meant.\n\n~w\n\nThe KB records his words: a human divergence signal, and a note on ~w. The question stays open.", [Q, C, K.label, Text, C], LT),
+        dk_f("The KB ~w: a divergence signal by you, and your words as a note on ~w. The question stays open.", [K.label, C], R1),
+        desk_lt(To, diverge, About, Item, LT, L1),
+        P = plan{title:"That is not what you meant", sub:About, letters:[L1], records:[R1], effects:[kb_write(K.dir, Facts)]}
+    ;   desk_plan_requirement(HD, kb(K.ref), About, Item, Text, P)
+    ).
+
+% ---- a KB action that a policy keeps for Ty (vote, demo, waiver)
+desk_plan_act(HD, K, Ref, Intent, Choice, Text, P) :-
+    desk_engine(K.dir, _, Eng),
+    (   desk_kb_action(Eng, A), desk_action_ref(A, Ref) -> true
+    ;   dk_f("This action is not open any more in the KB ~w. Reload the page.", [K.label], M), throw(desk_refused(409, M))
+    ),
+    desk_holder(HD, K, H0, _), ( H0 \== none, desk_live(HD, H0) -> To = H0 ; To = none ),
+    desk_action_summary(A, Sum), dk_f("~w, in the KB ~w", [Sum, K.label], About),
+    desk_item_json(HD, K, kb, Ref, Item),
+    (   Intent == answer
+    ->  ( Choice \== "" -> true ; Text \== "" -> true ; throw(desk_refused(400, "Choose an option, or write what you decide.")) ),
+        ( Text == "" -> WT = "" ; dk_f("\n\nHis words: ~w", [Text], WT) ),
+        ( Choice == "" -> CT = "(see his words)" ; CT = Choice ),
+        desk_act_instr(A, Instr),
+        dk_f("Ty decides on ~w in the KB ~w (~w): ~w.~w\n\n~w", [Sum, K.label, K.dir, CT, WT, Instr], LT),
+        ( To == none -> Rec = "the next session that takes the KB" ; Rec = To ),
+        dk_f("Nothing is written by the Desk: ~w records it in the KB as your own word.", [Rec], R1),
+        desk_lt(To, answer, About, Item, LT, L1),
+        P = plan{title:"Your decision", sub:About, letters:[L1], records:[R1], effects:[none]}
+    ;   Intent == diverge
+    ->  desk_need_text(Text, "what you mean"),
+        desk_action_claim(Eng, Ref, C), desk_diverge_facts(Ref, C, Text, Facts, _),
+        ( C == none -> ClaimT = "" ; ClaimT = ", and a note on the claim" ),
+        dk_f("Ty diverges on ~w in the KB ~w: that is not what he meant.\n\n~w\n\nThe KB records his words as a human divergence signal~w.", [Sum, K.label, Text, ClaimT], LT),
+        dk_f("The KB ~w: a divergence signal by you, with your words.", [K.label], R1),
+        desk_lt(To, diverge, About, Item, LT, L1),
+        P = plan{title:"That is not what you meant", sub:About, letters:[L1], records:[R1], effects:[kb_write(K.dir, Facts)]}
+    ;   desk_plan_requirement(HD, kb(K.ref), About, Item, Text, P)
+    ).
+
+desk_act_instr(vote, "Record his vote in the KB as his own word (a human vote), then go on as the vote says.").
+desk_act_instr(demo(C, S, _), I) :- dk_f("If he approves: record his approval of ~w for claim ~w in the KB as his own word. If he says what is not right: record it as a divergence on ~w, and fix the build.", [S, C, C], I).
+desk_act_instr(waiver(W), I) :- dk_f("If he renews the waiver ~w: record the new waiver as his own word, with the due time he gave. If not: the waived work is back; plan it.", [W], I).
+
+% ---- a fix (c14, q5, q7): letters to the sessions that own the gap; for old handoffs, Ty's close
+desk_plan_fix(HDs, HD, R, _Text, P) :-
+    (   sub_string(R, B, 1, _, ":") -> sub_string(R, 0, B, _, W), B1 is B + 1, sub_string(R, B1, _, 0, Arg) ; W = R, Arg = "" ),
+    (   W == "link" -> desk_fix_link_plan(HD, P)
+    ;   W == "nokb" -> desk_fix_asks_plan(HD, nokb, P)
+    ;   W == "source" -> desk_fix_asks_plan(HD, source(Arg), P)
+    ;   W == "context" -> desk_fix_context_plan(HD, Arg, P)
+    ;   W == "stale" -> desk_fix_stale_plan(HD, P)
+    ;   W == "unaccepted" -> desk_fix_unaccepted_plan(HD, P)
+    ;   W == "unowned" -> desk_fix_unowned_plan(HD, P)
+    ;   W == "words" -> desk_fix_words_plan(HDs, HD, Arg, P)
+    ;   throw(desk_refused(400, "The form names no fix that the Desk knows. Reload the page."))
+    ).
+
+desk_fix_item(What, Ids, J) :- findall(S, ( member(I, Ids), dk_str(I, S) ), Ss), J = _{type:"fix", what:What, ids:Ss}.
+
+desk_group(Pairs, Groups) :- msort(Pairs, S), group_pairs_by_key(S, Groups).
+
+desk_project_dir(HD, Dir) :- member(K, HD.kbs), K.kind == project, !, Dir = K.dir.
+
+desk_fix_link_plan(HD, P) :-
+    findall(T-K, ( member(K, HD.kbs), memberchk(K.kind, [spec, outside]), \+ serve_kb_project(K.dir, some(_)), desk_kb_recipient(HD, K, T) ), Ps),
+    ( Ps == [] -> throw(desk_refused(409, "Every spec KB is linked now. Reload the page.")) ; true ),
+    desk_group(Ps, Gs),
+    (   desk_project_dir(HD, PD) -> esc(PD, _), PT = PD ; PT = none ),
+    findall(L, ( member(T-Ks, Gs), findall(Lb, ( member(K, Ks), Lb = K.label ), Lbs), dk_join(Lbs, ", ", LJ),
+                 (   PT == none
+                 ->  dk_f("Ty asks you to link these spec KBs to a project KB: ~w.\nThis mindhole has no project KB yet. Say what it would take to make one, or which project KB they belong to.", [LJ], Tx)
+                 ;   findall(Ln, ( member(K, Ks), desk_relpath(K.dir, PT, RP), dk_f("- ~w: add project_kb('~w') and use the project module.", [K.label, RP], Ln) ), Lns),
+                     dk_join(Lns, "\n", LnJ),
+                     file_base_name(PT, PTB), dk_f("Ty asks you to link these spec KBs to the project KB ~w:\n~w\nThen pin each decision or rule of the project KB that a claim rests on. Report what you pinned, or why a KB needs no link.", [PTB, LnJ], Tx)
+                 ),
+                 desk_fix_item("link", Lbs, J), desk_lt(T, fix, "spec KBs that are linked to no project KB", J, Tx, L) ), Ls),
+    P = plan{title:"Link the spec KBs to the project KB", sub:"Each session gets the KBs it holds.", letters:Ls, records:["Nothing is written by the Desk: each session links its own KBs."], effects:[none]}.
+
+% desk_relpath(+From, +To, -Rel): To relative to the directory From.
+desk_relpath(From, To, Rel) :-
+    atomic_list_concat(F0, '/', From), atomic_list_concat(T0, '/', To),
+    exclude(==(''), F0, F), exclude(==(''), T0, T),
+    desk_common(F, T, F1, T1), length(F1, N), length(Ups, N), maplist(=('..'), Ups),
+    append(Ups, T1, Ps), atomic_list_concat(Ps, '/', Rel).
+desk_common([X|F], [X|T], F1, T1) :- !, desk_common(F, T, F1, T1).
+desk_common(F, T, F, T).
+
+desk_fix_asks_plan(HD, What, P) :-
+    (   What == nokb
+    ->  findall(T-X, ( member(X, HD.asks), desk_ask_kb_state(X, unknown), desk_ask_recipient(HD, X, T) ), Ps), Wd = "nokb"
+    ;   What = source(Id),
+        findall(T-X, ( member(X, HD.asks), desk_ask_reserved(X), desk_reserve_source(X.reserved, unnamed(_)),
+                       ( Id == "" -> true ; X.id == Id ), desk_ask_recipient(HD, X, T) ), Ps), Wd = "source"
+    ),
+    ( Ps == [] -> throw(desk_refused(409, "Nothing is left to fix here. Reload the page.")) ; true ),
+    desk_group(Ps, Gs),
+    findall(L, ( member(T-Xs, Gs), findall(I, ( member(X, Xs), I = X.id ), Ids), findall(Ln, ( member(X, Xs), dk_f("- ~w: ~w", [X.id, X.title], Ln) ), Lns),
+                 dk_join(Lns, "\n", LnJ),
+                 (   Wd == "nokb"
+                 ->  dk_f("These asks of yours name no KB, and nobody recorded that they rest on none:\n~w\nFor each: add a kb ref to the KB it rests on (a KB outside the mindhole too, by its path), or record that it rests on no KB. Then the Desk leads Ty to what it rests on.", [LnJ], Tx),
+                     About = "asks with no KB recorded"
+                 ;   dk_f("These asks keep an action for Ty, but do not name the source of the reservation:\n~w\nName it: a policy by its name and its rule (for example: Sagittarius Policy: Only the human may waive a proof.), or Ty's own words with their date.", [LnJ], Tx),
+                     About = "reservations with no named source"
+                 ),
+                 desk_fix_item(Wd, Ids, J), desk_lt(T, fix, About, J, Tx, L) ), Ls),
+    P = plan{title:"Fix the asks", sub:"Each session gets its own asks.", letters:Ls, records:["Nothing is written by the Desk: each session fixes its own asks."], effects:[none]}.
+
+desk_fix_context_plan(HD, Id, P) :-
+    ( desk_ask(HD, Id, X) -> true ; throw(desk_refused(409, "The ask is not open now. Reload the page.")) ),
+    desk_ask_recipient(HD, X, T),
+    dk_f("Ty cannot answer ~w (~w) from the Desk: it holds only a title.\nAdd notes to it: the concrete case, the options with what each changes, your default, and the date you need the answer.", [Id, X.title], Tx),
+    desk_fix_item("context", [Id], J), dk_f("the context of ~w", [Id], About), desk_lt(T, fix, About, J, Tx, L),
+    P = plan{title:"Ask for the context", sub:About, letters:[L], records:["Nothing is written by the Desk."], effects:[none]}.
+
+desk_fix_unaccepted_plan(HD, P) :-
+    ( is_dict(HD.st) -> Us = HD.st.orphans.unaccepted ; Us = [] ),
+    ( Us == [] -> throw(desk_refused(409, "Every handoff is accepted now. Reload the page.")) ; true ),
+    findall(T-U, ( member(U, Us), atom_string(T0, U.to), ( desk_live(HD, T0) -> T = T0 ; desk_keeper(HD, T) ) ), Ps), desk_group(Ps, Gs),
+    findall(L, ( member(T-Xs, Gs), findall(I, ( member(X, Xs), I = X.id ), Ids),
+                 findall(Ln, ( member(X, Xs), dk_f("- ~w from ~w: ~w", [X.id, X.from, X.title], Ln) ), Lns), dk_join(Lns, "\n", LnJ),
+                 dk_f("These handoffs wait for a session to accept them:\n~w\nAccept each one that is yours and start it, or say why not.", [LnJ], Tx),
+                 desk_fix_item("unaccepted", Ids, J), desk_lt(T, fix, "handoffs that nobody accepted", J, Tx, L) ), Ls),
+    P = plan{title:"Handoffs that nobody accepted", sub:"Each session gets the handoffs to it.", letters:Ls, records:["Nothing is written by the Desk."], effects:[none]}.
+
+desk_fix_unowned_plan(HD, P) :-
+    ( is_dict(HD.st) -> Us = HD.st.orphans.unowned ; Us = [] ),
+    ( Us == [] -> throw(desk_refused(409, "Every item has a live owner now. Reload the page.")) ; true ),
+    desk_keeper(HD, T), desk_live_sessions(HD, Live),
+    findall(I, ( member(U, Us), I = U.id ), Ids),
+    findall(Ln, ( member(X, Us), dk_str(X.get(owner_session, ""), O), ( O == "" -> OT = "no owner" ; dk_f("owner ~w, not live", [O], OT) ), dk_f("- ~w (~w): ~w", [X.id, OT, X.title], Ln) ), Lns), dk_join(Lns, "\n", LnJ),
+    dk_f("No live session holds these items:\n~w\nTake each one that you can, give it to the session that should own it, or close it with the reason. Report what you did.", [LnJ], Tx),
+    desk_fix_item("unowned", Ids, J),
+    L0 = lt{to:T, choices:Live, kind:fix, about:"items that no live session holds", item:J, text:Tx},
+    P = plan{title:"Items that no live session holds", sub:"Choose the session that sorts them out.", letters:[L0], records:["Nothing is written by the Desk."], effects:[none]}.
+
+desk_fix_stale_plan(HD, P) :-
+    findall(H-New, ( member(K, HD.kbs), desk_stale_handoffs(HD, K, Old, New), member(H, Old) ), Ps0),
+    ( Ps0 == [] -> throw(desk_refused(409, "No old handoff is open now. Reload the page.")) ; true ),
+    findall(I, ( member(H-_, Ps0), I = H.id ), Ids0), sort(Ids0, Ids),
+    findall(T-(H-New), ( member(H-New, Ps0), atom_string(T, H.to) ), TPs), desk_group(TPs, Gs),
+    findall(L, ( member(T-HNs, Gs), findall(Ln, ( member(H-New, HNs), dk_f("- ~w, from ~w (the newer handoff on its KB is ~w)", [H.id, H.from, New.id], Ln) ), Lns),
+                 dk_join(Lns, "\n", LnJ), findall(I, ( member(H-_, HNs), I = H.id ), TIds),
+                 dk_f("Ty closed these old handoffs of yours: a newer handoff holds the same KB.\n~w\nThe KB stays with the newer handoff. Nothing for you to do unless one of them still holds work: then say so.", [LnJ], Tx),
+                 desk_fix_item("stale", TIds, J), desk_lt(T, notice, "old handoffs that Ty closed", J, Tx, L) ), Ls),
+    dk_join(Ids, ", ", IJ),
+    dk_f("The ledger: you close ~w as dropped, with the note: Superseded by a newer handoff on the same KB (closed by Ty from the Desk).", [IJ], R1),
+    P = plan{title:"Close the old handoffs", sub:"Their KBs block, so only you can close them. The owners get a notice.", letters:Ls, records:[R1], effects:[close_items(HD.path, Ids, "Superseded by a newer handoff on the same KB (closed by Ty from the Desk).")]}.
+
+desk_fix_words_plan(_HDs, HD, Arg, P) :-
+    findall(T-(K-Kc), ( member(K, HD.kbs), K.kind \== project, ( Arg == "" ; atom_string(K.dir, Arg) ; atom_string(HD.path, Arg) ),
+                        desk_eng(K.dir, Eng), desk_current_claims(Eng, Cs), member(C, Cs), dk_all(Eng, [Kc0], check(Kc0, C), Kcs), member(Kc, Kcs),
+                        \+ dk_true(Eng, checks_that(Kc, _)), desk_kb_recipient(HD, K, T) ), Ps0), sort(Ps0, Ps),
+    ( Ps == [] -> throw(desk_refused(409, "Every check says what it checks now. Reload the page.")) ; true ),
+    desk_group(Ps, Gs),
+    findall(L, ( member(T-KKs, Gs), findall(Lb-Kc, ( member(K-Kc, KKs), get_dict(label, K, Lb) ), LKs), desk_group(LKs, KGs),
+                 findall(Ln, ( member(Lb-Kcs, KGs), dk_join(Kcs, ", ", KJ), dk_f("- the KB ~w: ~w", [Lb, KJ], Ln) ), Lns), dk_join(Lns, "\n", LnJ),
+                 findall(I, ( member(Lb-Kcs, KGs), member(Kc, Kcs), dk_f("~w ~w", [Lb, Kc], I) ), Ids),
+                 dk_f("Ty cannot tell what these checks do:\n~w\nFor each, record one line that a human reads: checks_that(K, 'what it checks'). Use plain words, not the test name.", [LnJ], Tx),
+                 desk_fix_item("words", Ids, J), desk_lt(T, fix, "checks that say nothing in words", J, Tx, L) ), Ls),
+    P = plan{title:"Say what the checks do", sub:"Each session gets the checks of the KBs it holds.", letters:Ls, records:["Nothing is written by the Desk."], effects:[none]}.
+
+% ---- a project KB item (c15)
+desk_plan_proj(_HDs, HD, R, Text, P) :-
+    (   split_string(R, ":", "", [KS|_]), string_concat(KS, Rest, R), string_concat(":", R1, Rest),
+        sub_string(R1, B, 1, _, "#"), sub_string(R1, 0, B, _, DS), B1 is B + 1, sub_string(R1, B1, _, 0, IdS) -> true
+    ;   throw(desk_refused(400, "The form names no project KB item. Reload the page."))
+    ),
+    atom_string(D0, DS), serve_norm(D0, Dir), atom_string(Id, IdS),
+    ( member(K, HD.kbs), K.dir == Dir, K.kind == project -> true ; throw(desk_refused(400, "The form names a project KB that this Desk does not read.")) ),
+    desk_project_items(HD, PIs), atom_string(KA, KS),
+    ( member(PI, PIs), PI.dir == Dir, PI.kind == KA, PI.id == Id -> true ; throw(desk_refused(409, "This item of the project KB is not open any more. Reload the page.")) ),
+    desk_kb_recipient(HD, K, T),
+    desk_fix_item("project", [IdS], J),
+    ( Text == "" -> WT = "" ; dk_f("\n\nHis words: ~w", [Text], WT) ),
+    (   KA == proposed
+    ->  atom_string(Who, HD.owner), utc_now(Now),
+        dk_f("Ty ratified ~w in the project KB ~w: ~w~w\n\nThe Desk recorded ratified_by(~w, ~w, ~w).", [Id, K.label, PI.text, WT, Id, Who, Now], Tx),
+        dk_f("The project KB ~w: ratified_by(~w, ~w, ~w).", [K.label, Id, Who, Now], R0),
+        Effs = [kb_write(Dir, [ratified_by(Id, Who, Now)])], Kd = notice
+    ;   KA == draft
+    ->  utc_now(Now), dk_f("Ty pushed the draft ~w of the project KB ~w to the tracker (he says so on the Desk at ~w).~w\n\nRecord pushed(~w, TIME) with the time he gave, or this time.", [Id, K.label, Now, WT, Id], Tx),
+        R0 = "Nothing is written by the Desk: the session records the push.", Effs = [none], Kd = fix
+    ;   dk_f("The pin ~w of the project KB ~w is stale: ~w~w\n\nPin the source again, and check what rests on it.", [Id, K.label, PI.text, WT], Tx),
+        R0 = "Nothing is written by the Desk.", Effs = [none], Kd = fix
+    ),
+    dk_f("~w in the project KB ~w", [Id, K.label], About), desk_lt(T, Kd, About, J, Tx, L),
+    P = plan{title:"The project KB", sub:About, letters:[L], records:[R0], effects:Effs}.
+
+% ---- the review page (c20): each receiving session and the exact text it will get
+
+desk_review_html(Plan, Frag, Html) :-
+    serve_conf(token, Tok),
+    findall(N-V, ( member(N-V0, [hub-Plan.hub, item-Plan.item, key-Plan.key, intent-Plan.intent, choice-Plan.choice, text-Plan.text]), dk_str(V0, V) ), Hs0),
+    desk_hidden([token-Tok|Hs0], HH),
+    findall(LH, ( nth0(I, Plan.letters, L), desk_review_letter(Plan.hd, I, L, LH) ), LHs), dk_cat(LHs, LsH),
+    include([L]>>( get_dict(to, L, To), To \== none ), Plan.letters, Sendable), length(Sendable, NS),
+    ( NS > 1 -> EveryH = "<div class=\"letter\"><div class=\"lh\">Add a line to every letter (optional)</div><textarea name=\"every\" aria-label=\"A line for every letter\" style=\"min-height:48px\"></textarea></div>" ; EveryH = "" ),
+    findall(R, ( member(R0, Plan.records), esc(R0, RH), dk_f("<li>~w</li>", [RH], R) ), Rs), dk_cat(Rs, RsH),
+    ( Rs == [] -> RecH = "" ; dk_f("<h3 class=\"small quiet\">What the Desk records</h3><ul class=\"records\">~w</ul>", [RsH], RecH) ),
+    ( NS == 0 -> SendT = "Record it" ; NS == 1 -> SendT = "Send" ; dk_f("Send ~w letters", [NS], SendT) ),
+    esc(Plan.title, TH), esc(Plan.sub, SH),
+    dk_f("<div class=\"review\"><div class=\"dh\"><h2>Review before sending: ~w</h2><p>~w</p></div><form method=\"post\" action=\"/send\">~w<div class=\"db\">~w~w~w</div><div class=\"df\"><small>Each session gets only its own letter, at its next stop or prompt, never in the middle of a turn. You can change every word; a letter you empty is not sent.</small><a class=\"btn\" href=\"/#~w\" data-cancel>Cancel</a><button class=\"btn go\" type=\"submit\">~w</button></div></form></div>",
+         [TH, SH, HH, LsH, EveryH, RecH, Plan.back, SendT], Inner),
+    (   Frag == true -> Html = Inner
+    ;   lib_dir(Lib), page_asset(Lib, 'desk/desk.css', Css),
+        dk_f("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Review before sending</title>\n<style>~w</style>\n</head>\n<body>\n<div class=\"reviewpage\">~w</div>\n</body>\n</html>\n", [Css, Inner], Html)
+    ).
+
+desk_review_letter(HD, I, L, Html) :-
+    (   L.to == none
+    ->  esc(L.about, AH),
+        dk_f("<div class=\"letter\"><div class=\"lh\"><span class=\"loud\">No live session holds this item: no letter goes out.</span></div><p class=\"small quiet\">About ~w. What the Desk records below still happens, and the next session that takes the item finds it.</p></div>", [AH], Html)
+    ;   (   L.choices \== []
+        ->  findall(O, ( member(S, L.choices), ( S == L.to -> Sel = " selected" ; Sel = "" ), dk_f("<option value=\"~w\"~w>~w</option>", [S, Sel, S], O) ), Os), dk_cat(Os, OsH),
+            dk_f("To <select name=\"to_~w\" aria-label=\"The receiving session\">~w</select>", [I, OsH], ToH)
+        ;   desk_badge(L.to, BH), dk_f("To ~w<input type=\"hidden\" name=\"to_~w\" value=\"~w\">", [BH, I, L.to], ToH)
+        ),
+        desk_letter_head(L.about, Head), esc(Head, HeadH), esc(L.text, TxH),
+        desk_wake_line(L.about, Wake), esc(Wake, WakeH),
+        ( desk_hooks_missing(HD, Ms), Ms \== [] -> desk_hooks_warning(HD, L.to, Ms, HookW) ; HookW = "" ),
+        dk_f("<div class=\"letter\"><div class=\"lh\">~w</div><p class=\"fixed\">~w</p><textarea name=\"letter_~w\" aria-label=\"The letter to ~w\">~w</textarea><p class=\"small quiet\">If ~w is idle and waits on this item, the Desk also types this one line into its pane: <span class=\"wake\">~w</span></p>~w</div>", [ToH, HeadH, I, L.to, TxH, L.to, WakeH, HookW], Html)
+    ).
+
+% desk_wake_line(+About, -Line): the one line that desk.py wake types into an idle pane (desk.py wake-text).
+desk_wake_line(About, Line) :- dk_f("Desk: Ty sent a letter about ~w. It is stored; read the Desk notice of this prompt.", [About], Line).
+
+% desk_letter_head(+About, -Head): the line that desk.py puts before the text of a letter. The
+% session gets this line and then the text, and nothing else (desk.py delivered_text).
+desk_letter_head(About, Head) :- dk_f("Letter from Ty (the Desk), about ~w:", [About], Head).
+
+% ---- the send
+
+desk_send_form(Form, R) :-
+    catch(( desk_plan(Form, Plan), desk_execute(Form, Plan, R) ),
+          desk_refused(S, M), R = refused(S, M)).
+
+desk_execute(Form, Plan, R) :-
+    HD = Plan.hd,
+    ( serve_field(Form, every, Ev0) -> split_string(Ev0, "", " \t\r\n", [Every]) ; Every = "" ),
+    % each letter: Ty's text from the review, the receiving session (one of its choices)
+    findall(I-L-Text, ( nth0(I, Plan.letters, L), L.to \== none,
+                        format(atom(F), "letter_~w", [I]), ( serve_field(Form, F, T0) -> true ; T0 = "" ),
+                        split_string(T0, "", " \t\r\n", [T1]), T1 \== "",
+                        ( Every == "" -> Text = T1 ; dk_f("~w\n\n~w", [T1, Every], Text) ) ), ToSend0),
+    forall(( nth0(I, Plan.letters, L), L.to == none, format(atom(F), "to_~w", [I]), serve_field(Form, F, Was), Was \== "" ),
+           ( dk_f("The session that gets this letter changed since your review (it was ~w, now no live session holds the item). Nothing was sent. Review it again.", [Was], M),
+             throw(desk_refused(409, M)) )),
+    findall(I-L1-Text, ( member(I-L-Text, ToSend0), desk_pick_to(Form, I, L, To), L1 = L.put(to, To) ), ToSend),
+    % c8: the letters are stored first
+    findall(Lr, ( member(_-L-Text, ToSend), desk_store_letter(HD, L, Text, Lr) ), Stored),
+    ( member(error(EM), Stored) -> dk_f("A letter was not stored, so nothing else was done: ~w", [EM], M0), R = refused(409, M0)
+    ;   desk_effects(Plan.effects, R0),
+        forall(member(Lr, Stored), desk_finish(HD.path, Lr, R0, _)),
+        desk_plain(R0, R1),
+        (   R1 == ok
+        ->  ( Plan.key \== "" -> desk_cmd(HD.path, [draft, Plan.key, '--clear'], _, _) ; true ), R = ok(Plan.back)
+        ;   R1 = refused(S, M), Stored \== [] -> dk_f("Your letters are stored, but the Desk could not do the rest: ~w", [M], M2), R = refused(S, M2)
+        ;   R = R1
+        )
+    ).
+
+% c20 (review finding, H-0039): /send builds the plan again; a letter goes only to the session that
+% the review showed. When the holder changed since the review, nothing is sent: review it again.
+desk_pick_to(Form, I, L, To) :-
+    format(atom(F0), "to_~w", [I]),
+    (   L.choices == []
+    ->  (   serve_field(Form, F0, TS0), atom_string(L.to, TS0) -> To = L.to
+        ;   ( serve_field(Form, F0, Was) -> true ; Was = "no session" ),
+            dk_f("The session that gets this letter changed since your review (it was ~w, now ~w). Nothing was sent. Review it again.", [Was, L.to], M),
+            throw(desk_refused(409, M))
+        )
+    ;   format(atom(F), "to_~w", [I]), serve_field(Form, F, TS), atom_string(TA, TS), memberchk(TA, L.choices) -> To = TA
+    ;   throw(desk_refused(400, "The review names a session that may not get this letter. Reload the page."))
+    ).
+
+% desk_store_letter(+HD, +L, +Text, -Lr): ok(Lid), none (the hub has no desk.py), or error(M).
+desk_store_letter(HD, L, Text, Lr) :-
+    (   \+ desk_py(HD.path, _, _) -> Lr = none
+    ;   atom_json_dict(IJ, L.item, [width(0)]),
+        tmp_file_stream(utf8, TF, TS), write(TS, Text), close(TS),
+        dk_str(L.to, To), dk_str(L.about, About), dk_str(L.kind, Kind),
+        desk_cmd(HD.path, [send, '--kind', Kind, '--to', To, '--about', About, '--item-json', IJ, '--text-file', TF], Out, R0),
+        catch(delete_file(TF), _, true),
+        (   R0 == ok, catch(atom_json_dict(Out, D, []), _, fail), get_dict(id, D, Lid) -> Lr = ok(Lid)
+        ;   R0 = error(M) -> Lr = error(M)
+        ;   Lr = error("desk.py send printed no letter id")
+        )
+    ).
+
+% desk_effects(+Effects, -R): what the Desk records, in order; the first refusal stops the rest.
+desk_effects([], ok).
+desk_effects([E|Es], R) :-
+    desk_effect(E, R0),
+    (   R0 = refused(_, _) -> R = R0
+    ;   desk_effects(Es, R1),
+        ( R1 == ok -> R = R0 ; R = R1 )
+    ).
+
+desk_effect(none, ok).
+desk_effect(close_ask(Hub, Id, Text), R) :-
+    hub_asks(Hub, Owner, _), atom_string(IdA, Id),
+    hub_close(Hub, IdA, Text, R0),
+    (   R0 == ok
+    ->  atom_string(OA, Owner), sha256_text(Text, D), utc_now(Now),
+        forall(( desk_load(HDs, _), member(HD, HDs), member(K, HD.kbs), serve_kb_pins_ask(K.dir, IdA, Qs), member(Q, Qs) ),
+               ( serve_text_term(K.dir, Q, Text, A), serve_write(K.dir, [answer(Q, A, human:OA), answer_pin(Q, IdA, D, Now)], _) )),
+        R = ok
+    ;   R = R0
+    ).
+desk_effect(kb_answer(Dir, Q, Text, A, NFs), R) :-
+    desk_engine(Dir, _, Eng),
+    serve_owned(Eng, Q, Dir, A, Text, NFs, R0),
+    ( R0 == ok, pending_for_question(Dir, Q) -> R = queued ; R = R0 ).
+desk_effect(kb_write(Dir, Facts), R) :-
+    serve_write(Dir, Facts, R0),
+    (   R0 == ok, member(signal(S, _, _, _), Facts), desk_still_pending(Dir, S) -> R = queued
+    ;   R0 == ok, pending_open(Dir, Ps), Ps \== [], member(pending(_, _, Fs), Ps), member(F, Facts), memberchk(F, Fs) -> R = queued
+    ;   R = R0
+    ).
+desk_effect(ask_note(Hub, Id, Note), R) :- hub_run(Hub, [note, Id, Note], _, R0), ( R0 = ok(_) -> R = ok ; R = R0 ).
+desk_effect(intake(Hub, Text, From), R) :- desk_intake(Hub, Text, From, R).
+desk_effect(close_items(Hub, Ids, Note), R) :-
+    foldl([Id, R0, R1]>>( R0 == ok -> ( hub_run(Hub, [close, Id, '--reason', dropped, '--note', Note], _, X), ( X = ok(_) -> R1 = ok ; R1 = X ) ) ; R1 = R0 ), Ids, ok, R).
 
 % ---------------------------------------------------------------------
 % subject
@@ -5315,7 +7703,7 @@ cmd_run(KB, Args, Code) :-
     (   member(it(kb, _, _, T, _, _), Items), nonvar(T), T = check(Check, _)
     ->  true
     ;   die(2, [ "There is no check " + Check + " in kb.pl.",
-                 "Fix: add it with orbit-kb add 'check(" + Check + ", CLAIM)', or fix the id.",
+                 "Fix: add it with orbit-kb add 'check(" + Check + ", CLAIM)' \"checks_that(" + Check + ", 'what it checks, in plain words')\", or fix the id.",
                  "This is a usage error, not a failed run." ] >> fix_lines)
     ),
     Cmd = [Exe0|CmdArgs],
@@ -6119,7 +8507,7 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
               member(New-C1, SPairs), C1 == C,
               ord_memberchk(New, Claims), \+ ord_memberchk(New, Olds),
               \+ ord_memberchk(New, Checked),
-              fmt(M, "Check ~q tests claim ~q, but claim ~q replaces it, and ~q has no check. Add a new check of ~q with a new id: orbit-kb add \"check(NEW_ID, ~q)\". Then run it: orbit-kb run NEW_ID -- CMD.", [K, C, New, New, New, New]) ),
+              fmt(M, "Check ~q tests claim ~q, but claim ~q replaces it, and ~q has no check. Add a new check of ~q with a new id: orbit-kb add \"check(NEW_ID, ~q)\" \"checks_that(NEW_ID, 'what it checks, in plain words')\". Then run it: orbit-kb run NEW_ID -- CMD.", [K, C, New, New, New, New]) ),
             W5),
     % W7 (D22): each predicate declared by its first use
     findall(diag('W7', F, L, M),
@@ -8722,7 +11110,7 @@ help_general([
 "     report); build when you can state it. Every ticket has a hypothesis.",
 "  2. orbit-kb add \"hypothesis(h1, feature, 'TEXT')\" 'no_premises(h1)'   the hypothesis first,",
 "     with its premises beside it (premise(P, h1, 'TEXT'), or no_premises(h1))",
-"  3. orbit-kb add 'claim(...)' 'cites(...)' 'check(k1, c1)'          write facts; never edit kb.pl",
+"  3. orbit-kb add 'claim(...)' 'cites(...)' 'check(k1, c1)' 'checks_that(k1, ...)'   write facts; never edit kb.pl",
 "  4. orbit-kb run k1 -- CMD       run each check; it must fail first for retire and introduce",
 "  5. build the change, then orbit-kb run again",
 "  6. orbit-kb lint                the fix for each finding is in its message",
@@ -8754,7 +11142,7 @@ help_general([
 "  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
 "  uses MODULE ...",
 "  withdraw NAME/ARITY [--by human|agent]      remove a kind that a typo declared (lint E19)",
-"  shift DIR --request-file F --hypothesis T (--no-premises|--premise T ...) --claim T --example T --check ID",
+"  shift DIR --request-file F --hypothesis T (--no-premises|--premise T ...) --claim T --example T --check ID --checks-that T",
 "  add 'FACT' ... [--by human|agent] [--doc TEXT]",
 "  subject ID PATH",
 "  attest TYPE SUBJECT 'PREDICATE' [--by human|agent] [--id ID] [--rests-on RUN,...]",
@@ -8770,7 +11158,8 @@ help_general([
 "  pin [--check STAMP]",
 "  release",
 "  view questions [--dir KB]... [--ledger FILE [--owner KEY]] [--out F]",
-"  serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--hub DIR] [--port N]",
+"  serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--hub DIR]... [--port N]",
+"  serve desk [--hub DIR]... [--port N]",
 "  draft blocking | draft attach | draft outbound | draft questions  [--hub DIR] [--session S]",
 "  pin-item ID SOURCE --text-file F --changed-at T [--kind tracker|file] [--hub DIR] [--session S]",
 "  pin-question Q ledger|tracker REF",
@@ -9009,7 +11398,26 @@ help_lines(view, [
 "Exit 2 for a usage error, a KB that cannot be read, or a bad ledger file."
 ]).
 help_lines(serve, [
-"orbit-kb serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--hub DIR] [--port N]",
+"orbit-kb serve desk [--hub DIR]... [--port N]",
+"orbit-kb serve questions [--dir KB]... [--root DIR] [--ledger FILE [--owner KEY]] [--hub DIR]... [--port N]",
+"",
+"serve desk: the Desk, one page for every MindHole on this machine (spec KB questions-server, h3).",
+"It reads, at each page, the MindHoles that joined it (desk.py join writes $DESK_STATE/mindholes.json;",
+"$DESK_STATE defaults to ~/.local/state/desk), and each --hub. Lanes: Your action (only what a",
+"policy or the human's own dated words keep for the human, with that source), Questions (ledger asks,",
+"and KB questions with no default, soonest due first), Running on a guess (KB questions with a",
+"default), Project KB (proposed facts to ratify, drafts to push, stale pins), Orphaned (spec KBs with",
+"no project KB, asks with no KB recorded, reservations with no named source, old handoffs on a KB",
+"that a newer one holds, handoffs nobody accepted, items no live session holds, checks with no",
+"words), Answered, and KBs. Each item says where it comes from, shows its owner session as a",
+"badge and its due date (the asker's, else the triage date), and leads to what it rests on: the",
+"KB, its hypothesis and premises, the claims it touches and their checks (checks_that, else the",
+"docstring of the check's own script; how it runs; the last run). The writer of a KB holds it",
+"(its lock, else the newest accepted handoff). Every send opens a review (POST /review) that shows",
+"each receiving session and the exact text it gets (desk.py render); the human can change every",
+"word, then Send (POST /send) or Cancel. /send builds the plan again, stores each letter first",
+"(desk.py send --to --about), then writes the ledger or the KB. POST /answer is refused. Drafts",
+"live in the Desk's own store, never in a MindHole. desk.py service writes a systemd user unit.",
 "",
 "Serve the page of view questions on http://127.0.0.1:PORT/ (default port 8737; --port 0 picks",
 "a free port). Each reload reads the KBs and the ledger again, so the page is live.",
@@ -9020,6 +11428,27 @@ help_lines(serve, [
 "answers it (shell-quoted). --hub DIR reads the ledger of the hub live (DIR/flow/flow.db, read",
 "only): each ask that waits on the owner has a form, and the server runs that command (hubflow",
 "close --by human --session human, from the hub root).",
+"The page (the Desk) is dark at every load. Each section collapses; it is open on load only when",
+"it holds something for the human (a question to ask, a refused queued answer, a human action).",
+"Asks are in two sections: Human action needed lists only the asks that the owner reserved",
+"(hubflow add ask --reserved SOURCE, or set ID --reserved SOURCE; a reserved key in a --ledger file),",
+"with the rule or words that reserve them, and the actions that a spec KB keeps for the human by",
+"a standing rule (the vote that ends discovery, the approval of a demo, a lapsed waiver);",
+"Questions for you lists the other asks, and the asks answered in the last 7 days.",
+"--hub repeats: each hub (a mindhole) is a section, with its spec KBs (every kb.pl under the hub),",
+"the responses sent from the page, its sessions with their inboxes, and its Orphaned list (a spec",
+"KB with no project_kb; one that blocks while no open ledger item has a kb ref to it; an open item",
+"that no active session owns; a handoff that nobody accepted). Each item shows its context: the",
+"case, the options and what each changes, the default, why it is asked now (raised_by), what",
+"waits on it, who holds it (loud when no live session does), and what context is missing.",
+"Each card has a form: an answer, a divergence (That is not what I meant: in the KB a human",
+"signal and a note on the claim, for an ask a note --by human; the item stays open), or a new",
+"requirement (a thread of the review session, with a kb ref or a link to the ask). The text is a",
+"draft, saved on the server as you type, until Send. With the hub's .claude/scripts/desk.py, a",
+"response is first stored as a letter (flow/desk/letters.jsonl), then written; the page shows",
+"where each one is (sent, seen by a session, applied or not). desk.py hook, in the hub's",
+"sessions (desk.py hooks prints the settings), tells the session that owns the item at its next",
+"stop or prompt, and wakes it through tmux only when it is idle and its item is waiting.",
 "Each question to ask shows its notes, its claim's notes and examples, and its due date, and has",
 "a form: its options, other, and a free text. Typed text next to a picked option is kept as a",
 "note. A default picked as it is keeps its term. The answer never waits on an agent: it goes at",
