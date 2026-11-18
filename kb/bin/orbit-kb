@@ -6716,7 +6716,7 @@ desk_rail(HDs, Cards, Missing, Unwrap, Html) :-
     findall(H, ( member(HD, HDs), desk_rail_hub(HD, Cards, Unwrap, H) ), Hs), dk_cat(Hs, HsH),
     findall(M, ( member(N-P, Missing), esc(N, NH), esc(P, PH),
                  dk_f("<div class=\"hint\">~w joined the Desk, but ~w has no ledger now.</div>", [NH, PH], M) ), Ms), dk_cat(Ms, MsH),
-    findall(S, ( member(HD, HDs), desk_rail_sessions(HDs, HD, S) ), Ss), dk_cat(Ss, SsH),
+    findall(S, ( member(HD, HDs), desk_rail_sessions(HDs, HD, Unwrap, S) ), Ss), dk_cat(Ss, SsH),
     dk_f("<nav class=\"rail\" aria-label=\"Mindholes\">~w~w</nav><nav class=\"rail\" aria-label=\"Sessions\"><details><summary><span class=\"name\">Sessions</span></summary>~w</details></nav>", [HsH, MsH, SsH], Html).
 
 desk_count_kb(Cards, Dir, N) :- findall(x, ( member(C, Cards), get_dict(kbs, C, Ks), memberchk(Dir, Ks) ), L), length(L, N).
@@ -6725,7 +6725,8 @@ desk_num(N, Html) :- ( N > 0 -> dk_f("<span class=\"num hot\">~w</span>", [N], H
 desk_rail_hub(HD, Cards, Html) :- desk_rail_hub(HD, Cards, false, Html).
 desk_rail_hub(HD, Cards, Unwrap, Html) :-
     HP = HD.path, HK = HD.kbs,
-    include([C]>>get_dict(hub, C, HP), Cards, HCs), length(HCs, NH), desk_num(NH, NumH),
+    include([C]>>( get_dict(hub, C, HP), get_dict(lane, C, L), memberchk(L, [action, questions]) ), Cards, HCs),   % c28: what waits, as the tab
+    length(HCs, NH), desk_num(NH, NumH),
     include([K]>>get_dict(kind, K, project), HK, PKs),
     include([K]>>get_dict(kind, K, spec), HK, SKs),
     include([K]>>get_dict(kind, K, outside), HK, OKs),
@@ -6769,12 +6770,15 @@ desk_rail_group(Title, Ks, Cards, _, Html) :-
     dk_f("<details~w><summary><span class=\"name\">~w</span><span class=\"num\">~w</span></summary>~w</details>", [Op, TH, N, LsH], Html).
 
 % desk_rail_sessions(+HDs, +HD, -Html) (c14): for each session, the KBs it holds and its items.
-desk_rail_sessions(HDs, HD, Html) :-
+desk_rail_sessions(HDs, HD, Html) :- desk_rail_sessions(HDs, HD, false, Html).
+desk_rail_sessions(HDs, HD, Unwrap, Html) :-
     (   is_dict(HD.st)
     ->  findall(S, ( member(X, HD.st.sessions), desk_rail_session(HD, X, S) ), Ss), dk_cat(Ss, SsH),
         length(Ss, NS), esc(HD.name, NH), HDs = HDs,
-        % c23: the sessions roll up by mindhole
-        dk_f("<details class=\"sessgroup\"><summary><span class=\"name\">~w</span><span class=\"num\">~w</span></summary>~w</details>", [NH, NS, SsH], Html)
+        % c23: the sessions roll up by mindhole; c28 (review H-0051): on a mindhole tab there is no group
+        (   Unwrap == true -> Html = SsH
+        ;   dk_f("<details class=\"sessgroup\"><summary><span class=\"name\">~w</span><span class=\"num\">~w</span></summary>~w</details>", [NH, NS, SsH], Html)
+        )
     ;   Html = ""
     ).
 

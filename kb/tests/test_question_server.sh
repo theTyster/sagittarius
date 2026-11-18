@@ -1774,22 +1774,28 @@ for a in re.finditer(r'<a([^>]*)>(.*?)</a>', m.group(1), re.S):
     t=re.sub(r'<[^>]+>', ' ', a.group(2)).split(); cur='aria-current' in a.group(1)
     print(('*' if cur else '')+' '.join(t[:-1])+'='+t[-1])" "$1"; }
 t_QS62() {  # Desk c28 (Ty, 2026-11-18: "use tabs for each mindhole instead of a dropdown"): one tab per mindhole, and All; a tab shows only its mindhole
-    mkdesk "$T/h1"; mkdesk "$T/h2"; local A B C tok t
+    mkdesk "$T/h1"; mkdesk "$T/h2"; local A B C tok t n
     A=$(hf "$T/h1" --session build add ask --no-kb --title 'First hub question' --note 'Case, options and default, for the test.' --waits-on me)
     B=$(hf "$T/h2" --session build add ask --no-kb --title 'Second hub question' --note 'Case, options and default, for the test.' --waits-on me)
     C=$(hf "$T/h2" --session build add ask --no-kb --title 'Another second hub question' --note 'Case, options and default, for the test.' --waits-on me)
+    kb_rests "$T/h2/specs/exp"   # h2 also has a KB question (qb) and a guess (qa): a guess does not count as waiting
     srvd --hub "$T/h1" --hub "$T/h2" || return; page_ok || return
-    t=$(tabs "$T/page.html" | tr '\n' ' '); [ "$t" = "*h1=1 h2=2 All=3 " ] || note "tabs at load: '$t', want '*h1=1 h2=2 All=3 '"
+    t=$(tabs "$T/page.html" | tr '\n' ' '); [ "$t" = "*h1=1 h2=3 All=4 " ] || note "tabs at load: '$t', want '*h1=1 h2=3 All=4 '"
+    grep -q '<details class="sessgroup">' "$T/page.html" && note "the h1 tab still groups its sessions by mindhole (review H-0051)"
     grep -q 'First hub question' "$T/page.html" || note "the h1 tab does not show the h1 ask"
     grep -q 'Second hub question' "$T/page.html" && note "the h1 tab shows an ask of h2"
     grep -q '<summary title="[^"]*/h1"' "$T/page.html" && note "the h1 tab still wraps h1 in a collapsible group of the rail"
     get '/?mh=h2'; code_is 200 "GET the h2 tab" || return
-    t=$(tabs "$T/page.html" | tr '\n' ' '); [ "$t" = "h1=1 *h2=2 All=3 " ] || note "tabs on h2: '$t'"
+    t=$(tabs "$T/page.html" | tr '\n' ' '); [ "$t" = "h1=1 *h2=3 All=4 " ] || note "tabs on h2: '$t'"
     grep -q 'Second hub question' "$T/page.html" || note "the h2 tab does not show the h2 ask"
     grep -q 'First hub question' "$T/page.html" && note "the h2 tab shows an ask of h1"
     tok=$(pg dtoken "$T/page.html")
     get '/?mh=all'; code_is 200 "GET the All tab" || return
     grep -q 'First hub question' "$T/page.html" && grep -q 'Second hub question' "$T/page.html" || note "the All tab does not show both mindholes"
+    # one count: the rail group of a mindhole on All says what its tab says (review H-0051)
+    n=$(python3 -I -c "import re,sys; p=open(sys.argv[1],encoding='utf-8').read(); m=re.search(r'<summary title=\"[^\"]*/h2\"><span class=\"name\">[^<]*</span><span class=\"num[^\"]*\">(\d+)</span>', p); print(m.group(1) if m else 'none')" "$T/page.html")
+    [ "$n" = 3 ] || note "the rail group of h2 on All says $n, its tab says 3"
+    local g; g=$(grep -o '<details class="sessgroup">' "$T/page.html" | wc -l); [ "$g" = 2 ] || note "All has $g session groups, want 2 (c23)"
     get '/?mh=nowhere'; code_is 200 "GET an unknown tab" || return
     grep -q 'No mindhole is named nowhere' "$T/page.html" || note "an unknown tab does not say so"
     # a send from a tab comes back to that tab: the review passes the tab to its send form
