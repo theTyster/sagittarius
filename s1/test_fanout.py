@@ -15,6 +15,8 @@ with open(os.path.join(HERE, "fanout.json"), encoding="utf-8") as _f:
     FAN = json.load(_f)
 with open(os.path.join(HERE, "questions.json"), encoding="utf-8") as _f:
     QUESTIONS = json.load(_f)
+with open(os.path.join(HERE, "workbench", "questions.json"), encoding="utf-8") as _f:
+    WORKBENCH_QUESTIONS = json.load(_f)  # the hot-mod area of a checkout replaces questions.json
 
 
 def answer(q, p=0.05, choice=None):
@@ -94,7 +96,7 @@ class Combine(unittest.TestCase):
 
     def test_a_fault_does_not_count_in_a_part_that_changes_the_request(self):
         st = state("Make it green instead.", [AGENT])
-        raw = answers_for(st, {"faults@0": 0.9, "changes@0": 0.92}, {"react@0": "changes_request"})
+        raw = answers_for(st, {"faults@0": 0.9, "changes@0": 0.92}, {"react@0": "contradicts_request"})
         a = hook.combine(raw, st)
         self.assertLessEqual(noul(a, "h_divergence"), 0.3)
         self.assertEqual(noul(a, "h_change_of_plan"), 0.92)
@@ -103,7 +105,7 @@ class Combine(unittest.TestCase):
 
     def test_a_doubt_is_never_blocked(self):
         st = state("Make it green instead?", [AGENT])
-        a = hook.combine(answers_for(st, {"doubts@0": 0.8}, {"react@0": "changes_request"}), st)
+        a = hook.combine(answers_for(st, {"doubts@0": 0.8}, {"react@0": "contradicts_request"}), st)
         self.assertEqual(noul(a, "h_divergence"), 0.8)
 
     def test_questions_need_a_question_of_the_agent(self):
@@ -131,8 +133,8 @@ class Combine(unittest.TestCase):
 
     def test_reversal_is_the_highest_part(self):
         st = state("Make it blue. No wait, green.")
-        a = hook.combine(answers_for(st, {"reverses@1": 0.88}), st)
-        self.assertEqual(noul(a, "h_reversal"), 0.88)
+        a = hook.combine(answers_for(st, {"contradiction@1": 0.88}), st)
+        self.assertEqual(noul(a, "h_contradiction"), 0.88)
 
     def test_the_other_answers_are_kept(self):
         st = state("ok", [AGENT])
@@ -158,6 +160,8 @@ class FanFit(unittest.TestCase):
 
 
 class Run(unittest.TestCase):
+    questions = QUESTIONS  # the plain questions that this routing sends
+
     def setUp(self):
         d = tempfile.TemporaryDirectory()
         self.addCleanup(d.cleanup)
@@ -210,7 +214,7 @@ class Run(unittest.TestCase):
         self.assertIn("change of plan unlikely", line)
 
     def test_a_reversal_reaches_the_line(self):
-        line = self.line("Make it blue. No wait, green.", over={"reverses@1": 0.9})
+        line = self.line("Make it blue. No wait, green.", over={"contradiction@1": 0.9})
         self.assertIn("decision reversed in message (0.90)", line)
 
     def test_the_combined_answers_are_logged_after_the_call(self):
@@ -225,7 +229,7 @@ class Run(unittest.TestCase):
 
     def test_off_switch_sends_the_plain_request(self):
         line = self.line("Also add a footer.", env={"S1_FANOUT": "0"}, over={"h_change_of_plan": 0.9})
-        self.assertEqual(sorted(self.sent[0]["questions"]), sorted(QUESTIONS))
+        self.assertEqual(sorted(self.sent[0]["questions"]), sorted(self.questions))
         self.assertNotIn("sentences", self.sent[0]["state"])
         self.assertIn("change of plan likely (0.90)", line)
         self.assertEqual(len(self.log_lines()), 1)
@@ -274,13 +278,14 @@ class Run(unittest.TestCase):
 
     def test_a_missing_fan_out_file_falls_back_to_the_plain_request(self):
         line = self.line("Also add a footer.", env={"S1_FANOUT_FILE": "/nonexistent/fanout.json"}, over={"h_change_of_plan": 0.9})
-        self.assertEqual(sorted(self.sent[0]["questions"]), sorted(QUESTIONS))
+        self.assertEqual(sorted(self.sent[0]["questions"]), sorted(self.questions))
         self.assertIn("change of plan likely (0.90)", line)
 
 
 class RunThroughTheWorkbench(Run):
     """The same checks with the workbench on (the default of a checkout): its pipeline.py asks
     through hook.fanout_run, so a live session gets the fan-out there too."""
+    questions = WORKBENCH_QUESTIONS
 
     def setUp(self):
         super().setUp()

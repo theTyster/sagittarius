@@ -58,15 +58,42 @@ const SQUARE: Record<Strength, string> = { confident: '🟥', moderate: '🟨', 
 // own (a fixed-width Box), so the width never moves the bars.
 // `alarm`: a yes asks the agent to stop and look; alarms come first among the toasts.
 const NOULS: { id: string; glyph: string; label: string; alarm: boolean }[] = [
+  { id: 'non_human', glyph: '🤖', label: 'non-human', alarm: true },
   { id: 'h_divergence', glyph: '🔀', label: 'diverge', alarm: true },
   { id: 'h_change_of_plan', glyph: '🔄', label: 're-plan', alarm: true },
   { id: 'h_questions', glyph: '❓', label: 'open Qs', alarm: true },
   { id: 'h_proof', glyph: '📜', label: 'proof', alarm: true },
-  { id: 'h_reversal', glyph: '🔙', label: 'reversal', alarm: true }, // the fan-out: a decision reversed inside the message
+  { id: 'h_contradiction', glyph: '↩️', label: 'contradiction', alarm: true }, // the fan-out: a decision reversed inside the message
   { id: 'h_effort', glyph: '💪', label: 'effort', alarm: false },
 ]
-const WORK: Record<string, string> = { research: '🔍', specify: '📐', build: '🔨', verify: '🔬', question: '💬', other: '👋' }
-const TOOL: Record<string, string> = { prolog: '🦉', lean: '🧮', z3: '🧩', tla: '🕰', tests: '🧪', none: '🚫' }
+
+const WORK: Record<string, string> = { research: '🔍', specify: '📐', build: '🔨', verify: '🔬', task: '🗒️', question: '💬', other: '👋' }
+// tla: the key of TLA+ in log lines written before 2026-11-17 (now tlaplus).
+const TOOL: Record<string, string> = { prolog: '🦉', lean: '🧮', z3: '🧩', tlaplus: '⏱️', tla: '⏱️', tests: '🧪', none: '🚫' }
+// How a tool is named to a person, where the key is not the name (Ty: "TLAplus ... more readable").
+const TOOL_NAME: Record<string, string> = { tlaplus: 'TLA+', tla: 'TLA+' }
+
+// What a part does (the choice "react" of s1/fanout.json), and the six answers of a part.
+const DOES: Record<string, { glyph: string; label: string }> = {
+  specifies: { glyph: '🎯', label: 'specifies' },
+  accepts: { glyph: '✅', label: 'accepts' },
+  corrects: { glyph: '❌', label: 'corrects' },
+  doubts: { glyph: '🤨', label: 'doubts' },
+  contradicts_request: { glyph: '↩️', label: 'contradiction' },
+  adds_request: { glyph: '➕', label: 'adds to the ask' },
+  answers: { glyph: '💬', label: 'answers' },
+  asks_back: { glyph: '❓', label: 'asks back' },
+  new_topic: { glyph: '🆕', label: 'new topic' },
+}
+// The signals upon which an agent should be shifting up.
+const PART_SIGNALS: { key: keyof Part; glyph: string; label: string }[] = [
+  { key: 'doubts', glyph: '🤨', label: 'doubt' },
+  { key: 'faults', glyph: '❌', label: 'fault' },
+  { key: 'changes', glyph: '🔄', label: 'change' },
+  { key: 'asks', glyph: '❓', label: 'asks' },
+  { key: 'undecided', glyph: '🤷', label: 'undecided' },
+  { key: 'contradiction', glyph: '↩️', label: 'reversal' },
+]
 
 const EIGHTHS = ['', '▏', '▎', '▍', '▌', '▋', '▊', '▉']
 
@@ -135,7 +162,7 @@ function rows(g: Glance): Row[] {
   if (lang && lang.type === 'choice') {
     const p = prob(lang, lang.choice)
     // A tool below the threshold is no tool at all: show "no tool" with P(none), never the guess.
-    if (p >= 0.5 && lang.choice !== 'none') out.push({ glyph: TOOL[lang.choice] ?? '🔹', label: lang.choice, p, fires: true, rank: 2 })
+    if (p >= 0.5 && lang.choice !== 'none') out.push({ glyph: TOOL[lang.choice] ?? '🔹', label: TOOL_NAME[lang.choice] ?? lang.choice, p, fires: true, rank: 2 })
     else out.push({ glyph: TOOL.none ?? '🚫', label: 'no tool', p: prob(lang, 'none'), fires: false, rank: 2 })
   }
 
@@ -144,31 +171,12 @@ function rows(g: Glance): Row[] {
 
 const fired = (g: Glance) => rows(g).filter(r => r.fires).sort((x, y) => x.rank - y.rank)
 
-// What a part does (the choice "react" of s1/fanout.json), and the six answers of a part.
-const DOES: Record<string, { glyph: string; label: string }> = {
-  accepts: { glyph: '✅', label: 'accepts' },
-  corrects: { glyph: '❌', label: 'corrects' },
-  doubts: { glyph: '🤨', label: 'doubts' },
-  changes_request: { glyph: '🔄', label: 'changes the ask' },
-  adds_request: { glyph: '➕', label: 'adds to the ask' },
-  answers: { glyph: '💬', label: 'answers' },
-  asks_back: { glyph: '❓', label: 'asks back' },
-  new_topic: { glyph: '🆕', label: 'new topic' },
-}
-const PART_SIGNALS: { key: keyof Part; glyph: string; label: string }[] = [
-  { key: 'doubts', glyph: '🤨', label: 'doubt' },
-  { key: 'faults', glyph: '❌', label: 'fault' },
-  { key: 'changes', glyph: '🔄', label: 'change' },
-  { key: 'asks', glyph: '❓', label: 'asks' },
-  { key: 'undecided', glyph: '🤷', label: 'undecided' },
-  { key: 'reverses', glyph: '🔙', label: 'reverses' },
-]
 // The answers of a part that feed each signal of the judgment (s1/hook.py combine).
 const FEEDS: Record<string, (keyof Part)[]> = {
   h_divergence: ['doubts', 'faults'],
   h_change_of_plan: ['changes'],
   h_questions: ['asks', 'undecided'],
-  h_reversal: ['reverses'],
+  h_contradiction: ['contradiction'],
 }
 const num = (x: unknown) => (typeof x === 'number' && x >= 0 && x <= 1 ? x : 0)
 const heat = (x: Part) => Math.max(...PART_SIGNALS.map(s => num(x[s.key])))
@@ -202,7 +210,7 @@ function partsOf(r: Record<string, unknown>, call: Record<string, unknown> | nul
       text: plain(String(texts[k] ?? '')).slice(0, 160),
       does: String(c.choice ?? ''),
       p: num(prob(c, c.choice)),
-      doubts: n('doubts'), faults: n('faults'), changes: n('changes'), asks: n('asks'), undecided: n('undecided'), reverses: n('reverses'),
+      doubts: n('doubts'), faults: n('faults'), changes: n('changes'), asks: n('asks'), undecided: n('undecided'), contradiction: n('contradiction'),
     })
   }
 
@@ -730,20 +738,45 @@ export const register: Register = on => {
 
     const home = (await $.env.get('HOME')) ?? ''
     const log = `${home}/.claude/logs/s1.jsonl`
-    const sessionId = await $.session.id()
+    // /clear gives the session a new id and does not run session.start again, so every poll reads the
+    // id again (follow); the id of session start is only the first.
+    let sessionId = await $.session.id()
 
     // The status view draws on the hint line under the prompt (ui.render PromptHint), so it has colours
     // and no plugin prefix; clear the pinned status line of 0.5-0.7.
     // status: the user's status line command prints this file as its first row (status.sh in this mod).
-    const statusFile = `${home}/.claude/s1-glance/${sessionId}.status`
+    const statusFile = () => `${home}/.claude/s1-glance/${sessionId}.status`
     const showStatus = async () => {
       $.ui.status(undefined)
       const isOn = (await read($, views)).includes('status')
-      await $.fs.write(statusFile, isOn ? ansiLine(await read($, last), Date.now()) : '').catch(() => undefined)
+      await $.fs.write(statusFile(), isOn ? ansiLine(await read($, last), Date.now()) : '').catch(() => undefined)
+    }
+
+    // Every judgment of this session id in the log. At start an empty result keeps what $.state holds
+    // (a reload); after a new id it empties the history.
+    const loadHistory = async (replace: boolean) => {
+      try {
+        const { stdout } = await $.process.run(['grep', '-F', sessionId, log], { timeoutMs: 5000 })
+        const all = allOf(stdout, sessionId)
+        if (all.length || replace) await update($, history, () => all)
+      } catch {
+        // no log yet: the history fills as judgments come
+      }
+    }
+    // A new id (after /clear): forget the old session's judgments and read the new one's.
+    const follow = async () => {
+      const id = await $.session.id()
+      if (id === sessionId) return
+      sessionId = id
+      await update($, last, () => null)
+      await update($, cursor, () => null)
+      await update($, part, () => null)
+      await loadHistory(true)
     }
 
     const poll = async () => {
       try {
+        await follow()
         const { exitCode, stdout } = await $.process.run(['tail', '-n', TAIL_LINES, log], { timeoutMs: 3000 })
         if (exitCode !== 0) return
         const g = newest(stdout, sessionId)
@@ -761,13 +794,7 @@ export const register: Register = on => {
         // no log yet, or tail missing: the views say so
       }
     }
-    try {
-      const { stdout } = await $.process.run(['grep', '-F', sessionId, log], { timeoutMs: 5000 })
-      const all = allOf(stdout, sessionId)
-      if (all.length) await update($, history, () => all)
-    } catch {
-      // no log yet: the history fills as judgments come
-    }
+    await loadHistory(false)
     void poll().then(showStatus)
     $.clock.every(POLL_MS, () => void poll())
     $.clock.every(TICK_MS, () => {

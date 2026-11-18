@@ -38,6 +38,8 @@ import sys
 STALE_SECONDS = 600
 CHOICE_MIN = 0.5  # the hook's floor: a choice is shown when P(choice) >= 0.5
 NO_MAX, YES_MIN = 0.3, 0.7  # jev.band: P <= 0.3 is no, P >= 0.7 is yes, between is unsure
+# How a tool is named to a person (Ty, 2026-11-17); tla is the key of TLA+ in older log lines.
+TOOL_NAME = {"tlaplus": "TLA+", "tla": "TLA+"}
 BLOCK = 64 * 1024
 MAX_SCAN = 8 * 1024 * 1024
 DEFAULT_LOG = os.path.join("~", ".claude", "logs", "s1.jsonl")
@@ -148,7 +150,7 @@ def render(session_id, log_path, now=None):
             if p:
                 parts.append(f"{label} {p}")
                 signal = signal or (qid == "h_questions" and float(p) >= YES_MIN)
-        p = _p(answers, "h_reversal")  # the fan-out: shown in the yes band only
+        p = _p(answers, "h_contradiction") or _p(answers, "h_reversal")  # the fan-out (h_reversal: an older line)
         if p and float(p) >= YES_MIN:
             parts.append(f"rev {p}")
             signal = True
@@ -156,7 +158,7 @@ def render(session_id, log_path, now=None):
             parts.append(f"{rec['parts']} parts")
         lang = _choice(answers.get("h_language"))
         if lang and (signal or _proof_asked(answers, lang)):  # 0.3.0 S-A: the tool only beside a signal, or a proof
-            parts.append(f"tool {lang}")
+            parts.append(f"tool {TOOL_NAME.get(lang, lang)}")
         return ("S1 " + " | ".join(parts)) if parts else ""
     except Exception:
         return ""
