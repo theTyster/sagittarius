@@ -265,7 +265,7 @@ test('after /clear: the mod reads the judgments of the new session id', async ($
   const g = glance()
   const line = JSON.stringify({ session_id: 'new', time: g.time, model: g.model, latency: g.latency, answers: g.answers })
   on('process.run', (_: unknown, e: any) =>
-    ({ value: { exitCode: 0, stdout: e.argv[0] === 'tail' ? line + '\n' : '', stderr: '' } }))
+    ({ value: { exitCode: 0, stdout: e.argv[0] === 'tail' ? line + '\n' : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
   on('session.start', (_: unknown, e: any) => ({ cwd: e.cwd }))
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   const lastSet = () => sets.some(s => s.includes('"last"') && s.includes(g.time))

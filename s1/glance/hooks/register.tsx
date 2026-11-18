@@ -29,8 +29,9 @@ const TAIL_LINES = '80' // the log grows ~6 KB a line; read only its end
 const TOAST_MS = 20000
 const TOASTS = 3 // the surface shows three toasts; more wait under "+n more" and expire unseen
 const TICK_MS = 15000
-const BAR = 10 // bar cells
-const LABEL = 9 // label cells
+const BAR = 10 // bar cells: the least, and the bars of the inline pane
+const LABEL = 13 // label cells: the longest label, contradiction (Ty, kb-s1-glance-width r3)
+const TOAST_LABEL = 9 // label cells of a toast
 const RULE = '─'.repeat(31)
 const DEFAULT_VIEWS: View[] = ['pane']
 
@@ -92,20 +93,20 @@ const PART_SIGNALS: { key: keyof Part; glyph: string; label: string }[] = [
   { key: 'changes', glyph: '🔄', label: 'change' },
   { key: 'asks', glyph: '❓', label: 'asks' },
   { key: 'undecided', glyph: '🤷', label: 'undecided' },
-  { key: 'contradiction', glyph: '↩️', label: 'reversal' },
+  { key: 'contradiction', glyph: '↩️', label: 'contradiction' },
 ]
 
 const EIGHTHS = ['', '▏', '▎', '▍', '▌', '▋', '▊', '▉']
 
-// The filled part of a bar of BAR cells for p in [0, 1], in eighths of a cell, and the track after it.
-function bar(p: number): { fill: string; track: string } {
+// The filled part of a bar of `cells` cells for p in [0, 1], in eighths of a cell, and the track after it.
+function bar(p: number, cells = BAR): { fill: string; track: string } {
   const q = Math.max(0, Math.min(1, p))
-  const eighths = Math.round(q * BAR * 8)
+  const eighths = Math.round(q * cells * 8)
   const full = Math.floor(eighths / 8)
   const part = EIGHTHS[eighths % 8] ?? ''
   const used = full + (part ? 1 : 0)
 
-  return { fill: '█'.repeat(full) + part, track: '·'.repeat(Math.max(0, BAR - used)) }
+  return { fill: '█'.repeat(full) + part, track: '·'.repeat(Math.max(0, cells - used)) }
 }
 
 const GAUGE = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
@@ -199,7 +200,8 @@ const strongest = (ps: Part[]) => ps.reduce((b, x, i) => (heat(x) > heat(ps[b] a
 function partsOf(r: Record<string, unknown>, call: Record<string, unknown> | null): Part[] | undefined {
   const a = (r.answers ?? {}) as Record<string, any>
   const st = ((call ?? r).state ?? {}) as { sentences?: unknown }
-  const texts = Array.isArray(r.part_text) ? r.part_text : Array.isArray(st.sentences) ? st.sentences : null
+  // The call line holds the whole parts (state.sentences); hook.py logs part_text cut at 160 characters.
+  const texts = Array.isArray(st.sentences) ? st.sentences : Array.isArray(r.part_text) ? r.part_text : null
   if (!texts) return undefined
   const out: Part[] = []
   for (let k = 0; k < texts.length && k < 60; k++) {
@@ -207,7 +209,7 @@ function partsOf(r: Record<string, unknown>, call: Record<string, unknown> | nul
     if (!c || c.type !== 'choice') break
     const n = (name: string) => num(a[`${name}@${k}`]?.noul)
     out.push({
-      text: plain(String(texts[k] ?? '')).slice(0, 160),
+      text: plain(String(texts[k] ?? '')).slice(0, SAW_MESSAGE),
       does: String(c.choice ?? ''),
       p: num(prob(c, c.choice)),
       doubts: n('doubts'), faults: n('faults'), changes: n('changes'), asks: n('asks'), undecided: n('undecided'), contradiction: n('contradiction'),
@@ -230,7 +232,7 @@ function toastAll($: EngineInterface, g: Glance) {
   for (const r of full) {
     const at = r.id ? carrier(g, r.id) : -1
     const why = at >= 0 ? ` “${oneLine(g.parts?.[at]?.text ?? '').slice(0, 40)}”` : '' // the part that fired it
-    $.ui.toast([r.glyph, r.label.padEnd(LABEL, NB), squares(r.p), pct(r.p).trim()].join(NB) + why, { timeoutMs: TOAST_MS })
+    $.ui.toast([r.glyph, r.label.padEnd(TOAST_LABEL, NB), squares(r.p), pct(r.p).trim()].join(NB) + why, { timeoutMs: TOAST_MS })
   }
   const rest = hot.slice(full.length)
   if (rest.length) {
@@ -489,7 +491,9 @@ function health(ui: any, hist: Glance[], width: number) {
 }
 
 // The why of one judgment: the message as a strip of parts, and the part that is picked.
-function partsBox(ui: any, g: Glance, picked: number | null, stale: boolean, width: number, prev: () => unknown, nextPart: () => unknown) {
+// Docked, the bars have `cells` cells, the divider is `rule`, and the quote is whole (it wraps at the pane edge).
+function partsBox(ui: any, g: Glance, picked: number | null, stale: boolean, width: number, prev: () => unknown, nextPart: () => unknown,
+  cells: number, rule: string, docked: boolean) {
   const { Box, Text, Button } = ui
   const ps = g.parts ?? []
   if (!ps.length) return ''
@@ -505,7 +509,7 @@ function partsBox(ui: any, g: Glance, picked: number | null, stale: boolean, wid
 
   return (
     <Box flexDirection="column">
-      <Text dimColor>{RULE}</Text>
+      <Text dimColor>{rule}</Text>
       <Box flexDirection="row" gap={1}>
         <Text bold dimColor>{`Why · part ${at + 1} of ${ps.length}`}</Text>
         {ps.length > 1 ? <Button key="part-prev" plain hotkey="j" label="◂" onPress={prev} /> : ''}
@@ -515,13 +519,13 @@ function partsBox(ui: any, g: Glance, picked: number | null, stale: boolean, wid
         <Text>{runs(Text, l)}</Text>
       ))}
       <Text dimColor={stale}>{`${does.glyph} ${does.label}${pct(x.p)}`}</Text>
-      <Text dimColor={stale}>{`“${text.length > width * 3 - 3 ? text.slice(0, width * 3 - 4) + '…' : text}”`}</Text>
+      <Text dimColor={stale}>{`“${!docked && text.length > width * 3 - 3 ? text.slice(0, width * 3 - 4) + '…' : text}”`}</Text>
       {out.length === 0 ? (
         <Text dimColor>nothing stands out in this part</Text>
       ) : (
         out.map(sg => {
           const v = num(x[sg.key])
-          const { fill, track } = bar(v)
+          const { fill, track } = bar(v, cells)
           return (
             <Box flexDirection="row">
               <Box width={3} flexShrink={0}>
@@ -530,7 +534,7 @@ function partsBox(ui: any, g: Glance, picked: number | null, stale: boolean, wid
               <Box width={LABEL + 1} flexShrink={0}>
                 <Text dimColor={stale || v < 0.7}>{sg.label}</Text>
               </Box>
-              <Box width={BAR + 1} flexShrink={0}>
+              <Box width={cells + 1} flexShrink={0}>
                 <Text>
                   <Text color={COLOR[strength(v)]} dimColor={stale || v < 0.7}>
                     {fill}
@@ -572,6 +576,13 @@ async function card($: EngineInterface, e: any) {
   await read($, tick) // redraw on each tick
   const now = Date.now()
   const stale = g ? age(g.time, now) > STALE_S : true
+  // Docked beside the transcript the pane is one column of bodyColumns cells; inline it sits above the prompt.
+  const cols: number = e.props?.bodyColumns ?? 34
+  const inline = e.props?.placement === 'inline'
+  // Docked, the bars take the width the glyph, label and percent leave, and the dividers span the pane
+  // (Ty, kb-s1-glance-width r2, r4). Inline, both keep their fixed size.
+  const cells = inline ? BAR : Math.max(BAR, cols - 3 - (LABEL + 1) - 1 - 5)
+  const rule = inline ? RULE : '─'.repeat(Math.max(RULE.length, cols - 1))
   let body: RenderChildren
   if (!g) {
     body = <Text dimColor>nothing yet: send a prompt</Text>
@@ -586,7 +597,7 @@ async function card($: EngineInterface, e: any) {
     body = (
       <Box flexDirection="column">
         {rows(g).map(r => {
-          const { fill, track } = bar(r.p)
+          const { fill, track } = bar(r.p, cells)
           // Ty (specs/s1-glance c2b): the bar's colour is its strength; a signal under its threshold is dim.
           const dim = stale || !r.fires
 
@@ -600,7 +611,7 @@ async function card($: EngineInterface, e: any) {
                   {r.label}
                 </Text>
               </Box>
-              <Box width={BAR + 1} flexShrink={0}>
+              <Box width={cells + 1} flexShrink={0}>
                 <Text>
                   <Text color={COLOR[strength(r.p)]} dimColor={dim}>
                     {fill}
@@ -622,8 +633,6 @@ async function card($: EngineInterface, e: any) {
   // Docked beside the transcript the pane is one narrow column. Above the prompt (placement "inline",
   // a narrow terminal) it spans the screen: the signals and what System 1 saw then sit side by side,
   // and the text is cut to a few lines so the pane stays short.
-  const cols: number = e.props?.bodyColumns ?? 34
-  const inline = e.props?.placement === 'inline'
   const wide = inline && cols >= 72
   const sawCols = wide ? Math.max(20, cols - 37) : cols
   const clip = (t: string, lines: number) => {
@@ -648,7 +657,7 @@ async function card($: EngineInterface, e: any) {
   )
   if (which === 1 && hist.length) body = trend(ui, hist, idx, chartCols)
   if (which === 2 && hist.length) body = health(ui, hist, chartCols)
-  const why = which === 0 && g && !g.error && g.answers ? partsBox(ui, g, picked, stale, chartCols - 2, prevPart, nextPart) : ''
+  const why = which === 0 && g && !g.error && g.answers ? partsBox(ui, g, picked, stale, chartCols - 2, prevPart, nextPart, cells, rule, !inline) : ''
 
   const signals = (
     <Box flexDirection="column" width={wide ? 33 : undefined} flexShrink={0}>
@@ -664,10 +673,10 @@ async function card($: EngineInterface, e: any) {
         ''
       )}
       {tabs}
-      <Text dimColor>{RULE}</Text>
+      <Text dimColor>{rule}</Text>
       {body}
       {why}
-      <Text dimColor>{RULE}</Text>
+      <Text dimColor>{rule}</Text>
       <Text dimColor>{foot}</Text>
       <Text>
         <Text color={COLOR.confident}>█</Text>
@@ -683,7 +692,7 @@ async function card($: EngineInterface, e: any) {
   const sawBox =
     which === 0 && g && g.message ? (
       <Box flexDirection="column" marginTop={wide ? 0 : 1} marginLeft={wide ? 3 : 0} flexGrow={1} flexShrink={1}>
-        {wide ? '' : <Text dimColor>{RULE}</Text>}
+        {wide ? '' : <Text dimColor>{rule}</Text>}
         <Text dimColor>
           <Text bold>Message: </Text>
           {`(${g.messageLength} chars${g.messageLength > SAW_MESSAGE ? `, first ${SAW_MESSAGE} here` : ''})` +
