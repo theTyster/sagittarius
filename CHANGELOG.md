@@ -52,7 +52,7 @@ Earlier versions, named after the fact so that a report can refer to them:
 - **System 1: the live view.** `s1/live.py` prints the hook's judgments of a session as a pane, a
   corner, a toast line or JSON. The status line segment shows a reversal and the number of parts.
 - **The Desk shows a demo image (handoff H-0043, Ty, 2026-11-18).** The card that asks the human to
-  approve a demo shows the image itself, not only its file name, and says so when the file changed
+  approve a demo shows the image itself in its right column, not only its file name, and says so when the file changed
   since the KB recorded its digest. The Desk serves only the demo images that its page showed, with
   the token of the page, in a sandbox.
 - **The Desk, round 2 (hub spec KB `questions-server`, hypothesis h3, Ty's GO of 2026-11-17 after

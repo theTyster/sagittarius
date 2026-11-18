@@ -1718,6 +1718,33 @@ EOF
     sed -i "s|^subject(shot, 'shot.png'|subject(shot, 'mock.html'|" "$T/h/specs/look/kb.pl"
     fetch "$src" "$T/x5"; code_is 404 "a shown subject that now names an HTML file" || true
 }
+# demoside FILE NEEDLE: where the demo NEEDLE sits on its card: "right" (in Why you, why now), "left" (in What it rests on), or "none"
+demoside() { python3 -I -c "import sys; p=open(sys.argv[1],encoding='utf-8').read(); i=p.find(sys.argv[2])
+if i < 0: print('none'); sys.exit(0)
+h=p.rfind('<h3>', 0, i); t=p[h:h+40]
+print('right' if 'Why you, why now' in t else 'left' if 'What it rests on' in t else 'other:'+t)" "$1" "$2"; }
+t_QS60() {  # Desk c26 (Ty, 2026-11-18: "Lets put the images in the right side of the card to save on vertical space."): the demo sits under Why you, why now
+    mkdesk "$T/h"; mkdir -p "$T/h/specs/look"
+    printf '\x89PNG\r\n\x1a\n-img-' > "$T/h/specs/look/shot.png"; printf '<p>a mock</p>' > "$T/h/specs/look/mock.html"
+    local d m; d=$(sha256sum "$T/h/specs/look/shot.png" | cut -d' ' -f1); m=$(sha256sum "$T/h/specs/look/mock.html" | cut -d' ' -f1)
+    kb_new "$T/h/specs/look" <<EOF
+uses([build]).
+request(r1, 'The pane must look calm').
+claim(c1, introduce, 'The pane uses three colors at most').
+example(c1, 'The idle pane shows grey, green and amber only.').
+visual(c1).
+claim(c2, introduce, 'The menu reads as one line').
+example(c2, 'The menu of the idle pane is one line.').
+visual(c2).
+subject(shot, 'shot.png', 'sha256:$d').
+demo(shot, c1).
+subject(mock, 'mock.html', 'sha256:$m').
+demo(mock, c2).
+EOF
+    srvd --hub "$T/h" || return; page_ok || return
+    local s; s=$(demoside "$T/page.html" 'alt="The demo shot of claim c1'); [ "$s" = right ] || note "the image of shot.png is $s, want right (in Why you, why now)"
+    s=$(demoside "$T/page.html" '<code>mock.html</code>'); [ "$s" = right ] || note "the name of mock.html is $s, want right (in Why you, why now)"
+}
 
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
@@ -1731,6 +1758,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 59); do run_one QS$n; done
+for n in $(seq 1 60); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

@@ -6521,9 +6521,11 @@ desk_action_card(HDs, HD, K, Eng, A, card{lane:action, due:"", html:Html, kbs:[K
     desk_policy(PolK, PN, PR, PF), esc(PN, PNH), esc(PR, PRH), esc(PF, PFH),
     dk_f("<div class=\"policy\"><strong>~w:</strong> ~w <span class=\"quiet\">From ~w.</span></div>", [PNH, PRH, PFH], PolH),
     desk_rests_html(HD, K, Cs, Rests0),
-    (   A = demo(C2, S2, P2) -> desk_demo_html(K.dir, Eng, C2, S2, P2, DemoH), dk_f("~w~w", [Rests0, DemoH], Rests) ; Rests = Rests0 ),
-    desk_policy_why(PolK, Why),
-    desk_ctx_html(Rests, Why, Ctx),
+    desk_policy_why(PolK, Why0),
+    % c26 (Ty, 2026-11-18: "Lets put the images in the right side of the card to save on vertical
+    % space."): the demo sits in the right column, under Why you, why now.
+    (   A = demo(C2, S2, P2) -> desk_demo_html(K.dir, Eng, C2, S2, P2, DemoH), dk_f("~w~w", [Why0, DemoH], Why) ; Why = Why0 ),
+    desk_ctx_html(Rests0, Why, Ctx),
     dk_f("act:~w#~w", [K.dir, RefS], Item), dk_f("~w|~w", [HD.name, Item], Key),
     desk_item_json(HD, K, kb, RefS, J), desk_item_letters2(HD, kbitem(J), LLs),
     desk_opts_html(Chs, Key, OptsH), desk_intents(Ints),
