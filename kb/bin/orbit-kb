@@ -1086,7 +1086,10 @@ if mode == "asks":
                  due=col(r, "due"), no_kb=bool(col(r, "no_kb", 0)), asked_by=asked_by(r["id"]), triage_due=triage(r["id"]),
                  parked_until=col(r, "parked_until"), parked=parked(r))
             for r in c.execute("SELECT * FROM item WHERE kind = \'ask\' AND status IN (\'open\', \'waiting\') ORDER BY id")]
-    print(json.dumps({"owner": owner(), "asks": rows}))
+    # c36, c37 (review H-0063): the park of every open item, read here from the ledger, so that a
+    # mindhole whose desk.py is older (no parked field in its inbox rows) still shows its parks
+    parks = {r["id"]: r["parked_until"] for r in c.execute("SELECT id, parked_until FROM item WHERE status IN (\'open\', \'waiting\') AND parked_until IS NOT NULL") if parked(r)}
+    print(json.dumps({"owner": owner(), "asks": rows, "parks": parks}))
 elif mode == "titles":
     print(json.dumps([dict(id=r["id"], title=r["title"], status=r["status"], kb=[x[0] for x in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = \'kb\'", (r["id"],))],
                            notes=[x[0] for x in c.execute("SELECT note FROM event WHERE item_id = ? AND verb = \'note\' AND note IS NOT NULL ORDER BY seq", (r["id"],))])
@@ -5844,15 +5847,33 @@ dk_true(Eng, G) :- catch(eng_true(Eng, G), _, fail).
 
 % ---- the mindholes and their KBs
 
+% desk_st_parks(+St0, +Parks, -St) (c36, c37, review H-0063): the ledger, not the mindhole's desk.py,
+% says which inbox item is parked: an older desk.py gives no parked field, and its parked
+% handoffs looked open. Each inbox row gets parked and parked_until from Parks (id: until).
+desk_st_parks(St0, Parks, St) :-
+    (   is_dict(St0), get_dict(sessions, St0, Ss0), is_list(Ss0)
+    ->  maplist(desk_sess_parks(Parks), Ss0, Ss), St = St0.put(sessions, Ss)
+    ;   St = St0
+    ).
+desk_sess_parks(Parks, S0, S) :-
+    (   get_dict(inbox, S0, Ib0), is_list(Ib0) -> maplist(desk_item_park(Parks), Ib0, Ib), S = S0.put(inbox, Ib) ; S = S0 ).
+desk_item_park(Parks, I0, I) :-
+    (   get_dict(id, I0, Id0), dk_str(Id0, Id), atom_string(K, Id), get_dict(K, Parks, U)
+    ->  I = I0.put(_{parked:true, parked_until:U})
+    ;   I = I0.put(_{parked:false, parked_until:null})
+    ).
+
 % desk_load(-HDs): the data of each mindhole on the page, read once per request.
 desk_load(HDs, Missing) :-
     desk_hubs(Hs, Missing),
     findall(HD, ( member(hub(N, P), Hs), desk_hub_load(N, P, HD) ), HDs).
 
 desk_hub_load(Name, Path, HD) :-
-    desk_status(Path, St),
-    catch(( hub_asks(Path, Owner, Asks), Err = none ), E,
-          ( serve_err_text(E, M), Owner = "me", Asks = [], Err = some(M) )),
+    desk_status(Path, St0),
+    catch(( hub_read(Path, [asks], J), ( J.owner == null -> Owner = "me" ; Owner = J.owner ), Asks = J.asks,
+            ( get_dict(parks, J, Parks) -> true ; Parks = _{} ), Err = none ), E,
+          ( serve_err_text(E, M), Owner = "me", Asks = [], Parks = _{}, Err = some(M) )),
+    desk_st_parks(St0, Parks, St),
     desk_hub_kbs(Path, Asks, St, KBs),
     HD = hd{name:Name, path:Path, st:St, owner:Owner, asks:Asks, kbs:KBs, err:Err}.
 

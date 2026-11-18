@@ -2054,6 +2054,19 @@ t_QS71() {  # Desk c37: a parked item counts nowhere and is not in Your action; 
     grep -q '<details class="parked"' "$T/page.html" && note "after the park: a Parked group is still on the page"
 }
 
+t_QS72() {  # Desk c36, c37 (review H-0063): the park comes from the ledger, also when the mindhole's desk.py is older and gives no parked field
+    desk_hub "$T/h"; local H C
+    sed -i '/r\["parked/d; /pu = o\[1\]/d' "$T/h/.claude/scripts/desk.py"
+    grep -q 'r\["parked' "$T/h/.claude/scripts/desk.py" && note "setup: the old desk.py still has a parked field"
+    H=$(hf "$T/h" --session discovery handoff --to build --title 'Build the export' --ref kb:exp); hf "$T/h" --session build accept "$H" >/dev/null
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    HUBFLOW_NOW=2026-11-20T00:00:00Z hf "$T/h" --session human --by human park "$H" --until 2026-12-01 --note 'Ty parks it on the Desk' >/dev/null || note "setup: park failed"
+    srvd --hub "$T/h" || return; page_ok || return
+    python3 -I -c "import sys;p=open(sys.argv[1]).read();g=p.find('<details class=\"parked\"');h=p.find('id=\"item-h-led-'+sys.argv[2]+'\"');sys.exit(0 if 0<=g<h else 1)" "$T/page.html" "$H" || note "the parked handoff is not in the Parked group"
+    grep -q 'Ledger<b>1</b>' "$T/page.html" || note "the Ledger lane link counts the parked handoff (want 1)"
+    grep -q '1 open items. 1 parked.' "$T/page.html" || note "the rail row of build counts the parked handoff as open: $(grep -o '[0-9]* open items\.[^<]*' "$T/page.html" | head -1)"
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -2066,6 +2079,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 71); do run_one QS$n; done
+for n in $(seq 1 72); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
