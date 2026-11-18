@@ -112,8 +112,8 @@ details.sheet>summary:hover{background:color-mix(in srgb,var(--drawer) 60%,trans
 .linkb{background:none;border:0;padding:0;color:var(--link);font-size:inherit;text-decoration:underline;text-underline-offset:3px}
 form.inline{display:inline}
 
-.answer{border-top:1px solid var(--rule);padding:16px 20px;background:var(--drawer)}
-.answer.closed{color:var(--graphite)}
+div.answer{border-top:1px solid var(--rule);padding:16px 20px;background:var(--drawer)}
+div.answer.closed{color:var(--graphite)}
 .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:0 0 12px;padding:0;border:0}
 .opt{border:1px solid var(--rule);border-radius:10px;padding:11px 14px;cursor:pointer;background:var(--desk);display:block}
 .opt:has(input:checked){border-color:var(--lamp)}
@@ -186,3 +186,14 @@ figure.demo figcaption{margin-top:.35em}
 .mhtabs .num{font-size:12px;color:var(--graphite)}
 .mhtabs .num.hot{color:var(--lamp)}
 .rail .kids.top{padding:4px 0;margin:0;border:0}
+/* c34: the answered list reads as text: the question in the body face, the answer plain */
+.answered-list li{line-height:1.55;margin:6px 0}.answered-list .ref{font-family:inherit;font-size:inherit;font-weight:400;color:var(--paper)}
+.answered-list .kbid{font-family:var(--mono);font-size:12.5px;color:var(--graphite);margin-right:4px}.answered-list .answer{font-weight:600}
+/* c29, c30: a jump lands below the sticky band (desk.js sets --band), and the target shows for a moment */
+[id]{scroll-margin-top:var(--band,110px)}
+.hit{outline:2px solid var(--lamp);outline-offset:3px;transition:outline-color 1.4s}
+/* c31: Expand all and Collapse all */
+header.top .folds{display:flex;gap:6px}
+/* c32: the park date */
+label.until{display:inline-flex;align-items:center;gap:6px;margin:6px 0}
+label.until input{background:var(--ink);color:inherit;border:1px solid var(--rule);border-radius:6px;padding:3px 6px;color-scheme:dark}

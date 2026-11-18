@@ -13,7 +13,7 @@ agent reads them, and a letter enters the receiving mindhole only when Ty sends 
 usage: desk.py [--hub DIR] COMMAND [ARGS]
   send --kind KIND --item-json JSON --to SESSION --about TEXT --text-file F [--choice C]
                                   store a letter for one session; prints {"id": LID}. Then wakes
-                                  the recipient (see wake). KIND: answer, diverge, requirement, fix
+                                  the recipient (see wake). KIND: answer, diverge, requirement, note (a note on a ledger item, c32), fix
                                   (a fix of an orphan or a gap), notice (a short notice)
   render --to SESSION --about TEXT --text-file F [--json]
                                   print the exact text the session gets for such a letter (the
@@ -95,7 +95,7 @@ Exit codes: 0 ok, 1 bad input, 2 no hub, an unknown letter or mindhole, or a bro
 import argparse, datetime, errno, fcntl, json, os, re, secrets, sqlite3, subprocess, sys
 from urllib.parse import quote
 
-KINDS = ("answer", "diverge", "requirement", "fix", "notice")
+KINDS = ("answer", "diverge", "requirement", "fix", "notice", "note")
 EVENTS_PAGE = ("applied", "apply_failed")
 SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 ITEM_ID = re.compile(r"^[A-Z]-\d{4,}$")
@@ -624,6 +624,15 @@ def status_obj(hub):
                             " WHERE session = ? ORDER BY id", (s["name"],))
             for r in inbox:
                 r["unaccepted"] = bool(r["unaccepted"])
+                # c32: what a Ledger card shows: who handed it over, its KB refs, its newest note, when it opened
+                h = c.execute("SELECT from_session FROM handoff WHERE item_id = ?", (r["id"],)).fetchone()
+                r["from"] = h[0] if h else None
+                r["kbs"] = [x[0] for x in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = 'kb' ORDER BY ref", (r["id"],))]
+                n = c.execute("SELECT note FROM event WHERE item_id = ? AND note IS NOT NULL AND note != '' ORDER BY seq DESC LIMIT 1",
+                              (r["id"],)).fetchone()
+                r["note"] = n[0] if n else None
+                o = c.execute("SELECT opened_at FROM item WHERE id = ?", (r["id"],)).fetchone()
+                r["opened_at"] = o[0] if o else None
             sessions.append(dict(s, state=st.get("state"), state_at=st.get("at"), tmux_pane=st.get("tmux_pane"),
                                  session_id=st.get("session_id"), inbox=inbox))
         unowned = rows(c, "SELECT o.id, o.kind, o.title, o.owner_session, o.age_days FROM v_open o"

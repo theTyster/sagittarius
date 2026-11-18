@@ -58,6 +58,13 @@ Earlier versions, named after the fact so that a report can refer to them:
   already sent about the item, instead of asking the human to choose or write. With two or more
   MindHoles, the Desk has one tab per MindHole (with what waits there) and a tab All, instead of a
   collapsible group per MindHole in the rail.
+- **The Desk: navigation and the Ledger lane (handoff H-0056, Ty, 2026-11-18).** Every row of the
+  rail is a link: a click opens every fold around its item and shows it below the sticky band, and
+  so does an anchor in the address. Expand all and Collapse all set every fold. Ledger items have
+  their own lane, Ledger: the asks for the human and each session's open items, each named by its
+  kind and id, with Answer (an ask), Close, Park until a date, and Note to the session. A ledger row
+  of the rail shows its title; its id is in the hover text and on the card. The answered list no
+  longer draws the card's form fill behind its answers.
 - **The Desk, round 2 (hub spec KB `questions-server`, hypothesis h3, Ty's GO of 2026-11-17 after
   three flare laps).** `orbit-kb serve desk` is one Desk at one address for every MindHole on the
   machine: `desk.py join` adds a MindHole in one step, and `desk.py service` writes a systemd user
