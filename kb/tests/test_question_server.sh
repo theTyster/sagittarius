@@ -1921,7 +1921,7 @@ PY
     [ "$CODE" = 400 ] || note "a park to 2026-13-45: HTTP $CODE, want 400"
     askjson "$T/h" "$NH" "d['item']['parked_until'] is None"
     review "token=$tok" "hub=$T/h" "item=led:$NH" intent=park until=2026-12-01 'text=after the release'; code_is 200 "the review of a park"
-    grep -q '2026-12-01' "$T/review.html" || note "the review of the park does not name the date"
+    grep -q 'Park this ledger item until 2026-12-01' "$T/review.html" || note "the review of the park does not say what it does (review H-0059: it read Park it the ledger handoff)"
     post /send "token=$tok" "hub=$T/h" "item=led:$NH" intent=park until=2026-12-01 'text=after the release'
     [ "$CODE" = 303 ] || note "the park: HTTP $CODE, want 303 ($(snip "$(cat "$T/post.html")"))"
     askjson "$T/h" "$NH" "(d['item']['parked_until'] or '').startswith('2026-12-01') and any(e['by']=='human' and 'after the release' in (e['note'] or '') for e in d['events'])"

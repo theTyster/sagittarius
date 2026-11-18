@@ -7186,18 +7186,18 @@ desk_plan_ledger(HD, Id, Kind, Title, Owner, Intent, Text, Until, P) :-
     (   Intent == close
     ->  desk_need_text(Text, "why you close it (the ledger keeps your words)"),
         dk_f("The ledger: ~w is closed as dropped, by you, with your words as its note. No letter goes out.", [Id], R1),
-        P = plan{title:"Close it", sub:About, letters:[], records:[R1], effects:[led_close(HD.path, Id, Text)]}
+        dk_f("About ~w", [About], Sub), P = plan{title:"Close this ledger item", sub:Sub, letters:[], records:[R1], effects:[led_close(HD.path, Id, Text)]}
     ;   Intent == park
     ->  desk_need_date(Until),
         desk_need_text(Text, "why you park it (the ledger keeps your words)"),
         dk_f("The ledger: ~w is parked until ~w, by you, with your words as its note. No letter goes out.", [Id, Until], R1),
-        P = plan{title:"Park it", sub:About, letters:[], records:[R1], effects:[led_park(HD.path, Id, Until, Text)]}
+        dk_f("About ~w", [About], Sub), dk_f("Park this ledger item until ~w", [Until], PT), P = plan{title:PT, sub:Sub, letters:[], records:[R1], effects:[led_park(HD.path, Id, Until, Text)]}
     ;   desk_need_text(Text, "your note"),
         dk_f("Ty sends a note about ~w (~w):\n\n~w\n\nThe Desk also added his words to the item as a note.", [Id, Title, Text], LT),
         dk_f("The ledger: a note on ~w in your words.", [Id], R1),
         dk_f("Ty (from the Desk): ~w", [Text], Note),
         desk_lt(Owner, note, About, Item, LT, L1),
-        P = plan{title:"A note to the session", sub:About, letters:[L1], records:[R1], effects:[ask_note(HD.path, Id, Note)]}
+        dk_f("About ~w", [About], Sub), P = plan{title:"A note to the session that holds it", sub:Sub, letters:[L1], records:[R1], effects:[ask_note(HD.path, Id, Note)]}
     ).
 
 % desk_need_date(+D): D is a real date YYYY-MM-DD (hubflow park --until takes it).
