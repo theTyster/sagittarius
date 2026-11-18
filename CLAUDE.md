@@ -28,8 +28,7 @@ For what the project is, its install and layout, see @README.md.
 - The name is **Sagittarius** (one g, two t's). It was called Orbital Shifting until
   2026-10-22; commit messages and archived records keep that name.
 - `install.py` makes links into this checkout. After moving the checkout, run it again.
-- Run CPU-heavy commands (the test suite, `lake build`, solvers) through your job queue if you have
-  one. Keep each check narrow.
+- Keep each check narrow: the test suite, `lake build`, and solvers are CPU-heavy.
 - `kb/tests/burn_model` is a Lean project with no packages, so `lake build` needs no network.
   Do not run `lake update` or `lake cache get` in a Lean project that shares libraries.
 - Commit style is conventional commits. Push only when the owner of the checkout says so.
