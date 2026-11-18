@@ -4680,7 +4680,12 @@ serve_act(review, Form) :-
     (   \+ desk_mode -> serve_message_page(404, "There is no such page. GET / shows the questions.")
     ;   catch(( desk_plan(Form, Plan), ( serve_field(Form, desk_fragment, _) -> Frag = true ; Frag = false ),
                 desk_review_html(Plan, Frag, Html), serve_reply(200, Html) ),
-              desk_refused(St, Msg), serve_message_page(St, Msg))
+              E,
+              (   E = desk_refused(St, Msg) -> serve_message_page(St, Msg)
+              ;   E = desk_sent(HD, Sent, _, Back) -> ( serve_field(Form, desk_fragment, _) -> Frag = true ; Frag = false ),
+                  desk_sent_html(HD, Sent, Back, Frag, Html), serve_reply(200, Html)
+              ;   throw(E)
+              ))
     ).
 serve_act(send, Form) :-
     (   \+ desk_mode -> serve_message_page(404, "There is no such page. GET / shows the questions.")
@@ -6932,6 +6937,12 @@ desk_plan(Form, P) :-
     ( serve_field(Form, text, T0) -> split_string(T0, "", " \t\r\n", [Text]) ; Text = "" ),
     ( serve_field(Form, choice, Ch0) -> split_string(Ch0, "", " \t\r\n", [Choice]) ; Choice = "" ),
     string_length(Text, TL), ( TL > 4000 -> throw(desk_refused(400, "The text is longer than 4000 characters.")) ; true ),
+    % c27 (Ty, 2026-11-18): Review and send with nothing new on an item he already wrote to shows what he sent.
+    (   Text == "", Choice == "", desk_form_letters(HDs, HD, It, Sent), Sent \== []
+    ->  ( serve_field(Form, key, K0) -> true ; K0 = "" ), desk_anchor_of(HD, It, A0),
+        throw(desk_sent(HD, Sent, K0, A0))
+    ;   true
+    ),
     (   string_concat("ask:", Id, It) -> desk_plan_ask(HD, Id, Intent, Text, P0)
     ;   string_concat("q:", R, It), split_string(R, "#", "", [DS, QS]) -> desk_plan_dir(HDs, DS, K, HD), atom_string(Q, QS), desk_plan_q(HD, K, Q, Intent, Choice, Text, P0)
     ;   string_concat("act:", R, It), sub_string(R, B, 1, _, "#"), sub_string(R, 0, B, _, DS), B1 is B + 1, sub_string(R, B1, _, 0, Ref)
@@ -6943,6 +6954,32 @@ desk_plan(Form, P) :-
     ( serve_field(Form, key, Key) -> true ; Key = "" ),
     desk_anchor_of(HD, It, Anchor),
     P = P0.put(_{hub:HD.path, hd:HD, item:It, key:Key, back:Anchor, intent:Intent, choice:Choice, text:Text}).
+
+% desk_form_letters(+HDs, +HD, +Item, -Ls): the letters already sent about the item of a form, newest first.
+desk_form_letters(HDs, HD, It, Ls) :-
+    (   string_concat("ask:", Id, It) -> desk_item_letters2(HD, ask(Id), Ls)
+    ;   string_concat("q:", R, It), split_string(R, "#", "", [DS, QS]), catch(desk_plan_dir(HDs, DS, K, HD), _, fail)
+        -> desk_item_json(HD, K, question, QS, J), desk_item_letters2(HD, kbitem(J), Ls)
+    ;   string_concat("act:", R, It), sub_string(R, B, 1, _, "#"), sub_string(R, 0, B, _, DS), B1 is B + 1, sub_string(R, B1, _, 0, Ref),
+        catch(desk_plan_dir(HDs, DS, K, HD), _, fail)
+        -> desk_item_json(HD, K, kb, Ref, J), desk_item_letters2(HD, kbitem(J), Ls)
+    ;   Ls = []
+    ).
+
+% desk_sent_html(+HD, +Ls, +Back, +Frag, -Html) (c27): the review of an item with nothing new written:
+% each letter that Ty already sent, with its words, its session, its time and its state. Nothing to send.
+desk_sent_html(_HD, Ls, Back, Frag, Html) :-
+    findall(LH, ( member(L, Ls),
+                  dk_str(L.get(to, ""), To0), ( To0 == "" -> To = "the owner" ; To = To0 ),
+                  dk_day_time(L.at, At), dk_str(L.get(state, "sent"), St), dk_str(L.get(text, ""), Tx),
+                  desk_badge(To, BH), esc(Tx, TxH), esc(St, StH),
+                  dk_f("<div class=\"letter\"><div class=\"lh\">To ~w <span class=\"small quiet\">on ~w: ~w</span></div><pre class=\"sent\">~w</pre></div>", [BH, At, StH, TxH], LH) ), LHs),
+    dk_cat(LHs, LsH), length(Ls, N), ( N == 1 -> NT = "one letter" ; dk_f("~w letters", [N], NT) ),
+    dk_f("<div class=\"review\"><div class=\"dh\"><h2>You already sent ~w about this</h2><p>Nothing new is written, so nothing is sent. To add to it, write your words on the card, then Review and send.</p></div><div class=\"db\">~w</div><div class=\"df\"><a class=\"btn\" href=\"/#~w\" data-cancel>Close</a></div></div>", [NT, LsH, Back], Inner),
+    (   Frag == true -> Html = Inner
+    ;   lib_dir(Lib), page_asset(Lib, 'desk/desk.css', Css),
+        dk_f("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>What you already sent</title>\n<style>~w</style>\n</head>\n<body>\n<div class=\"reviewpage\">~w</div>\n</body>\n</html>\n", [Css, Inner], Html)
+    ).
 
 desk_plan_dir(HDs, DS, K, HD) :-
     atom_string(D0, DS), serve_norm(D0, D),

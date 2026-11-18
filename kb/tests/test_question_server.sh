@@ -1746,6 +1746,25 @@ EOF
     s=$(demoside "$T/page.html" '<code>mock.html</code>'); [ "$s" = right ] || note "the name of mock.html is $s, want right (in Why you, why now)"
 }
 
+t_QS61() {  # Desk c27 (Ty, 2026-11-18: "Would be more useful to see the message I had previously already sent."): Review and send with nothing new shows what was sent
+    desk_hub "$T/h"; local A B tok
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which name' --note 'Case: the name. Options: Desk or Board. Default: Desk.' --waits-on me)
+    mkdir -p "$T/h/specs/disc"; cp "$here/fixtures/discovery-a/kb.pl" "$T/h/specs/disc/kb.pl"
+    local H; H=$(hf "$T/h" --session discovery handoff --to build --title 'Build disc' --ref kb:disc); hf "$T/h" --session build accept "$H" >/dev/null   # build holds the KB
+    srvd --hub "$T/h" || return; page_ok || return; tok=$(pg dtoken "$T/page.html")
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=diverge 'text=Not a port at all' 'letter_0=Ty diverges: not a port at all' to_0=build; code_is 303 "diverge on an ask"
+    review "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer; code_is 200 "Review and send with nothing new, after a letter"
+    grep -q 'Ty diverges: not a port at all' "$T/review.html" || note "the review does not show the letter he sent: $(snip "$(cat "$T/review.html")")"
+    grep -q 'You already sent' "$T/review.html" || note "the review does not say that he already sent it"
+    grep -q '<button class="btn go"' "$T/review.html" && note "the review of what was sent offers to send"
+    review "token=$tok" "hub=$T/h" "item=ask:$B" intent=answer; code_is 400 "Review and send with nothing written and nothing sent"
+    post /send "token=$tok" "hub=$T/h" "item=act:$T/h/specs/disc#vote" intent=answer choice=GO 'text=Build it' 'letter_0=Ty votes GO: build it' to_0=build; code_is 303 "a vote"
+    grep -q 'Ty votes GO: build it' "$T/h/flow/desk/letters.jsonl" || note "setup: the vote letter was not stored"
+    review "token=$tok" "hub=$T/h" "item=act:$T/h/specs/disc#vote" intent=answer; code_is 200 "Review and send on the vote with nothing new"
+    grep -q 'Ty votes GO: build it' "$T/review.html" || note "the review of the vote does not show the letter he sent"
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -1758,6 +1777,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 60); do run_one QS$n; done
+for n in $(seq 1 61); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

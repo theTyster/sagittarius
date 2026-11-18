@@ -174,3 +174,6 @@ figure.demo{margin:.25em 0 .5em}
 figure.demo a{display:inline-block}
 figure.demo img{display:block;max-width:100%;max-height:70vh;height:auto;border:1px solid var(--rule);border-radius:4px;background:var(--desk)}
 figure.demo figcaption{margin-top:.35em}
+
+/* c27: a letter already sent, in the review */
+.review pre.sent{white-space:pre-wrap;font:14px/1.5 var(--letter);margin:.4em 0 0;padding:.6em .8em;background:var(--ink);border:1px solid var(--rule);border-radius:4px;max-height:40vh;overflow:auto}
