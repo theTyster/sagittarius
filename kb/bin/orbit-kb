@@ -4663,6 +4663,8 @@ serve_request_(Req) :-
         ( memberchk(x_desk_fragment(_), Req) -> Form = [desk_fragment='1'|Form0] ; Form = Form0 ),
         serve_conf(token, Tok),
         ( serve_field(Form, token, T), atom_string(Tok, T) -> TokOk = true ; TokOk = false )
+    ;   M == get, P == '/', HostOk == true, desk_mode
+    ->  ( memberchk(search(Form), Req), is_list(Form) -> true ; Form = [] ), TokOk = false
     ;   M == get, P == '/demo', HostOk == true
     ->  ( memberchk(search(Form0), Req), is_list(Form0) -> Form = Form0 ; Form = [] ),
         serve_conf(token, Tok),
@@ -4672,7 +4674,11 @@ serve_request_(Req) :-
     serve_route(M, P, HostOk, TokOk, Action),
     serve_act(Action, Form).
 
-serve_act(page, _) :- ( desk_mode -> desk_page("", Page) ; serve_page("", Page) ), serve_reply(200, Page).
+serve_act(page, Form) :-
+    (   desk_mode -> ( serve_field(Form, mh, Tab) -> true ; Tab = "" ), desk_page("", Tab, Page)
+    ;   serve_page("", Page)
+    ),
+    serve_reply(200, Page).
 % c20: on the Desk every response goes through the review; /answer takes none.
 serve_act(answer, _) :- desk_mode, !,
     serve_message_page(409, "On the Desk every response goes through the review: press Review and send on the page. Nothing was written.").
@@ -4690,7 +4696,9 @@ serve_act(review, Form) :-
 serve_act(send, Form) :-
     (   \+ desk_mode -> serve_message_page(404, "There is no such page. GET / shows the questions.")
     ;   desk_send_form(Form, R),
-        (   R = ok(Anchor) -> serve_frame_headers(FH), format("Status: 303~nLocation: /#~w~n~wContent-type: text/html; charset=UTF-8~n~n<p>Sent. <a href=\"/\">Back to the Desk</a></p>~n", [Anchor, FH])
+        (   R = ok(Anchor) -> serve_frame_headers(FH),
+            ( serve_field(Form, tab, Tb), Tb \== "" -> uri_encoded(query_value, Tb, TbE), format(string(Back), "/?mh=~w", [TbE]) ; Back = "/" ),
+            format("Status: 303~nLocation: ~w#~w~n~wContent-type: text/html; charset=UTF-8~n~n<p>Sent. <a href=\"/\">Back to the Desk</a></p>~n", [Back, Anchor, FH])
         ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
         )
     ).
@@ -6544,11 +6552,18 @@ desk_policy_why(waiver, "<p>You skipped this work with a waiver, and its due tim
 
 % ---- the page
 
-desk_page(Msg, Page) :-
+desk_page(Msg, Page) :- desk_page(Msg, "", Page).
+
+% desk_page(+Msg, +Tab, -Page) (c28, Ty, 2026-11-18: "use tabs for each mindhole instead of a
+% dropdown"): with two or more mindholes, one tab per mindhole and a last tab All. A tab shows
+% only its mindhole: counts, lanes and rail. The first mindhole's tab opens when none is named.
+desk_page(Msg0, Tab0, Page) :-
     serve_conf(token, Token), lib_dir(Lib),
     page_asset(Lib, 'desk/desk.css', Css), page_asset(Lib, 'desk/desk.js', Js),
-    desk_load(HDs, Missing),
-    desk_drafts_load(HDs),
+    desk_load(HDs0, Missing),
+    desk_drafts_load(HDs0),
+    desk_tab_pick(HDs0, Tab0, HDs, Tab, Msg0, Msg),
+    desk_tabs_html(HDs0, Tab, TabsH),
     findall(C, ( member(HD, HDs), desk_hub_cards(HDs, HD, Cs), member(C, Cs) ), Cards),
     include([C]>>get_dict(lane, C, action), Cards, Act),
     include([C]>>get_dict(lane, C, questions), Cards, Qs0), predsort(desk_by_due, Qs0, Qs),
@@ -6582,13 +6597,14 @@ desk_page(Msg, Page) :-
     desk_orphan_lane(ORows, OrH),
     desk_answered_lane(Answered, AnH),
     desk_kbs_lane(HDs, AllKBs, KbH),
-    desk_rail(HDs, Cards, Missing, RailH),
+    ( HDs = [_] -> Unwrap = true ; Unwrap = false ),
+    desk_rail(HDs, Cards, Missing, Unwrap, RailH),
     (   Msg == "" -> MsgH = "" ; esc(Msg, M0), dk_f("<p class=\"banner\">~w</p>", [M0], MsgH) ),
     findall(E, ( member(HD, HDs), ( HD.err = some(M) ; \+ is_dict(HD.st), HD.st = error(M) ), esc(HD.name, NH), esc(M, MH),
                  dk_f("<p class=\"banner error\">~w: ~w</p>", [NH, MH], E) ), Es),
     dk_cat(Es, ErrH),
     ( HDs == [] -> NoneH = "<p class=\"banner\">No mindhole has joined the Desk. In a mindhole, run: python3 .claude/scripts/desk.py join</p>" ; NoneH = "" ),
-    esc(Token, TokH),
+    esc(Token, TokH), esc(Tab, TabAH),
     format(string(Page),
 "<!DOCTYPE html>
 <html lang=\"en\">
@@ -6600,8 +6616,9 @@ desk_page(Msg, Page) :-
 <link href=\"https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap\" rel=\"stylesheet\">
 <style>~w</style>
 </head>
-<body data-token=\"~w\">
+<body data-token=\"~w\" data-tab=\"~w\">
 <header class=\"top\"><h1>The Desk</h1>~w<nav class=\"lanes\" aria-label=\"Lanes\">~w</nav></header>
+~w
 ~w~w~w
 <div class=\"layout\">
 <aside class=\"rails\" aria-label=\"Where things live\">~w</aside>
@@ -6620,7 +6637,7 @@ desk_page(Msg, Page) :-
 <script>~w</script>
 </body>
 </html>
-", [Css, TokH, SumH, LanesH, MsgH, ErrH, NoneH, RailH, ActH, QsH, GsH, PrH, OrH, AnH, KbH, Js]).
+", [Css, TokH, TabAH, SumH, LanesH, TabsH, MsgH, ErrH, NoneH, RailH, ActH, QsH, GsH, PrH, OrH, AnH, KbH, Js]).
 
 desk_by_due(O, A, B) :-
     ( A.due == "" -> KA = "9999" ; KA = A.due ), ( B.due == "" -> KB = "9999" ; KB = B.due ),
@@ -6663,8 +6680,40 @@ desk_lane(Id, Head, Sub, Cards, Empty, OpenIfAny, Html) :-
 
 % ---- the rail (c14): where things live, and the sessions
 
-desk_rail(HDs, Cards, Missing, Html) :-
-    findall(H, ( member(HD, HDs), desk_rail_hub(HD, Cards, H) ), Hs), dk_cat(Hs, HsH),
+% desk_tab_pick(+HDs0, +Tab0, -HDs, -Tab, +Msg0, -Msg) (c28): the mindholes of the tab. Tab is the
+% name of a mindhole, "all", or "" (one mindhole, or no mindhole).
+desk_tab_pick(HDs0, Tab0, HDs, Tab, Msg0, Msg) :-
+    (   HDs0 = [_, _|_]
+    ->  (   Tab0 == "all" -> HDs = HDs0, Tab = "all", Msg = Msg0
+        ;   member(HD, HDs0), dk_str(HD.name, N), N == Tab0 -> HDs = [HD], Tab = N, Msg = Msg0
+        ;   HDs0 = [HD|_], HDs = [HD], dk_str(HD.name, Tab),
+            ( Tab0 == "" -> Msg = Msg0 ; dk_f("No mindhole is named ~w on this Desk. It shows ~w.", [Tab0, Tab], Msg) )
+        )
+    ;   HDs = HDs0, Tab = "", Msg = Msg0
+    ).
+
+% desk_tabs_html(+HDs0, +Tab, -Html) (c28): one tab per mindhole with what waits on Ty there, then All.
+desk_tabs_html(HDs0, Tab, Html) :-
+    (   HDs0 = [_, _|_]
+    ->  findall(N-W, ( member(HD, HDs0), dk_str(HD.name, N), desk_hub_cards([HD], HD, Cs),
+                       include([C]>>( get_dict(lane, C, L), memberchk(L, [action, questions]) ), Cs, Ws), length(Ws, W) ), NWs),
+        foldl([_-W, A0, A1]>>( A1 is A0 + W ), NWs, 0, Total),
+        append(NWs, ["All"-Total], Ts),
+        findall(A, ( member(N-W, Ts), ( N == "All" -> Key = "all" ; Key = N ),
+                     ( Key == Tab -> Cur = " aria-current=\"page\" class=\"on\"" ; Cur = "" ),
+                     uri_encoded(query_value, Key, KE), esc(N, NH), ( W > 0 -> Hot = " hot" ; Hot = "" ),
+                     dk_f("<a href=\"/?mh=~w\"~w><span>~w</span><b class=\"num~w\">~w</b></a>", [KE, Cur, NH, Hot, W], A) ), As),
+        dk_cat(As, AsH),
+        dk_f("<nav class=\"mhtabs\" aria-label=\"Mindholes\">~w</nav>", [AsH], Html)
+    ;   Html = ""
+    ).
+
+desk_rail(HDs, Cards, Missing, Html) :- desk_rail(HDs, Cards, Missing, false, Html).
+
+% desk_rail(+HDs, +Cards, +Missing, +Unwrap, -Html): with Unwrap (one mindhole on the page, c28), the
+% mindhole's KBs and asks sit at the top of the rail, with no collapsible group around them.
+desk_rail(HDs, Cards, Missing, Unwrap, Html) :-
+    findall(H, ( member(HD, HDs), desk_rail_hub(HD, Cards, Unwrap, H) ), Hs), dk_cat(Hs, HsH),
     findall(M, ( member(N-P, Missing), esc(N, NH), esc(P, PH),
                  dk_f("<div class=\"hint\">~w joined the Desk, but ~w has no ledger now.</div>", [NH, PH], M) ), Ms), dk_cat(Ms, MsH),
     findall(S, ( member(HD, HDs), desk_rail_sessions(HDs, HD, S) ), Ss), dk_cat(Ss, SsH),
@@ -6673,7 +6722,8 @@ desk_rail(HDs, Cards, Missing, Html) :-
 desk_count_kb(Cards, Dir, N) :- findall(x, ( member(C, Cards), get_dict(kbs, C, Ks), memberchk(Dir, Ks) ), L), length(L, N).
 desk_num(N, Html) :- ( N > 0 -> dk_f("<span class=\"num hot\">~w</span>", [N], Html) ; dk_f("<span class=\"num\">~w</span>", [N], Html) ).
 
-desk_rail_hub(HD, Cards, Html) :-
+desk_rail_hub(HD, Cards, Html) :- desk_rail_hub(HD, Cards, false, Html).
+desk_rail_hub(HD, Cards, Unwrap, Html) :-
     HP = HD.path, HK = HD.kbs,
     include([C]>>get_dict(hub, C, HP), Cards, HCs), length(HCs, NH), desk_num(NH, NumH),
     include([K]>>get_dict(kind, K, project), HK, PKs),
@@ -6692,8 +6742,11 @@ desk_rail_hub(HD, Cards, Html) :-
          ["", AskNum, AskNum, NNo], AsksH),
     esc(HD.name, NameH), esc(HD.path, PathH),
     Op = "",                                          % c22: the rail loads collapsed
-    dk_f("<details~w><summary title=\"~w\"><span class=\"name\">~w</span>~w</summary><div class=\"kids\">~w~w~w~w~w</div></details>",
-         [Op, PathH, NameH, NumH, PH1, G1, G2, G3, AsksH], Html).
+    (   Unwrap == true
+    ->  dk_f("<div class=\"kids top\" title=\"~w\">~w~w~w~w~w</div>", [PathH, PH1, G1, G2, G3, AsksH], Html)
+    ;   dk_f("<details~w><summary title=\"~w\"><span class=\"name\">~w</span>~w</summary><div class=\"kids\">~w~w~w~w~w</div></details>",
+             [Op, PathH, NameH, NumH, PH1, G1, G2, G3, AsksH], Html)
+    ).
 
 desk_rail_project(HD, K, Linked, Html) :-
     ( desk_eng(K.dir, Eng) -> dk_all(Eng, [N0], repo(N0, _), Rs0), sort(Rs0, Rs) ; Rs = [] ),
@@ -6953,7 +7006,8 @@ desk_plan(Form, P) :-
     ),
     ( serve_field(Form, key, Key) -> true ; Key = "" ),
     desk_anchor_of(HD, It, Anchor),
-    P = P0.put(_{hub:HD.path, hd:HD, item:It, key:Key, back:Anchor, intent:Intent, choice:Choice, text:Text}).
+    ( serve_field(Form, tab, Tb) -> true ; Tb = "" ),
+    P = P0.put(_{hub:HD.path, hd:HD, item:It, key:Key, back:Anchor, intent:Intent, choice:Choice, text:Text, tab:Tb}).
 
 % desk_form_letters(+HDs, +HD, +Item, -Ls): the letters already sent about the item of a form, newest first.
 desk_form_letters(HDs, HD, It, Ls) :-
@@ -7243,7 +7297,7 @@ desk_plan_proj(_HDs, HD, R, Text, P) :-
 
 desk_review_html(Plan, Frag, Html) :-
     serve_conf(token, Tok),
-    findall(N-V, ( member(N-V0, [hub-Plan.hub, item-Plan.item, key-Plan.key, intent-Plan.intent, choice-Plan.choice, text-Plan.text]), dk_str(V0, V) ), Hs0),
+    findall(N-V, ( member(N-V0, [hub-Plan.hub, item-Plan.item, key-Plan.key, intent-Plan.intent, choice-Plan.choice, text-Plan.text, tab-Plan.get(tab, "")]), dk_str(V0, V) ), Hs0),
     desk_hidden([token-Tok|Hs0], HH),
     findall(LH, ( nth0(I, Plan.letters, L), desk_review_letter(Plan.hd, I, L, LH) ), LHs), dk_cat(LHs, LsH),
     include([L]>>( get_dict(to, L, To), To \== none ), Plan.letters, Sendable), length(Sendable, NS),
@@ -11512,6 +11566,7 @@ help_lines(serve, [
 "live in the Desk's own store, never in a MindHole. desk.py service writes a systemd user unit.",
 "The card of a demo shows its image (png, jpg, gif, webp, avif, svg): GET /demo (token) serves only",
 "the demo images that the page showed in this run, in a sandbox. Another demo shows its file name.",
+"With two or more MindHoles, the page has one tab per MindHole (GET /?mh=NAME) and All (?mh=all).",
 "",
 "Serve the page of view questions on http://127.0.0.1:PORT/ (default port 8737; --port 0 picks",
 "a free port). Each reload reads the KBs and the ledger again, so the page is live.",

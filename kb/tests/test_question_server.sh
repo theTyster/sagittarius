@@ -1494,7 +1494,7 @@ t_QS47() {  # Desk c15: what waits on Ty in a project KB: a fact an agent propos
     page_ok || return; chk text "$T/page.html" '!A fact that an agent proposed'
 }
 t_QS48() {  # Desk c16: one Desk at one address serves every mindhole that joined it in one step; a mindhole with no ledger is named
-    desk_hub "$T/h1"; desk_hub "$T/h2"; local A B
+    desk_hub "$T/h1"; desk_hub "$T/h2"; local A B t
     A=$(hf "$T/h1" --session build add ask --no-kb --title 'First mindhole asks' --note 'The case, the options and the default, for the test.' --waits-on me)
     B=$(hf "$T/h2" --session build add ask --no-kb --title 'Second mindhole asks' --note 'The case, the options and the default, for the test.' --waits-on me)
     dpy "$T/h1" join --name one >/dev/null || note "join one failed"
@@ -1502,6 +1502,8 @@ t_QS48() {  # Desk c16: one Desk at one address serves every mindhole that joine
     chk text "$T/page.html" 'First mindhole asks' '!Second mindhole asks'
     dpy "$T/h2" join --name two >/dev/null || note "join two failed"
     page_ok || return                       # the same server, no restart: the second mindhole joined in one step
+    t=$(tabs "$T/page.html" | tr '\n' ' '); [ "$t" = "*one=2 two=2 All=4 " ] || note "c28: the second mindhole has no tab: '$t'"
+    get '/?mh=all'; code_is 200 "the All tab (c28)" || return
     chk text "$T/page.html" 'First mindhole asks' 'Second mindhole asks' 'one' 'two'
     local tok; tok=$(pg dtoken "$T/page.html")
     post /send "token=$tok" "hub=$T/h2" "item=ask:$B" 'text=Yes' 'letter_0=Ty answers: yes' to_0=build; code_is 303 "answer in the second mindhole"
@@ -1642,7 +1644,7 @@ t_QS57() {  # Desk c23: the sessions roll up by mindhole; each session has one s
     desk_hub "$T/h1"; desk_hub "$T/h2"; local H
     kb_spec "$T/h1/specs/two" 'Second rules' ''
     for k in exp two; do H=$(hf "$T/h1" --session discovery handoff --to build --title "Build $k" --ref "kb:$k"); hf "$T/h1" --session build accept "$H" >/dev/null; done
-    srvd --hub "$T/h1" --hub "$T/h2" || return; page_ok || return
+    srvd --hub "$T/h1" --hub "$T/h2" || return; get '/?mh=all'; code_is 200 "the All tab (c28)" || return
     local n; n=$(grep -o '<details class="sessgroup">' "$T/page.html" | wc -l); [ "$n" = 2 ] || note "want 2 closed session groups (one per mindhole), found $n"
     chk raw "$T/page.html" 'Writes <b>2 KBs</b>.' 'Writes the KB exp' 'Writes the KB two' '!Writes <b>exp, two</b>'
     chk raw "$T/page.html" 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis'
@@ -1765,6 +1767,39 @@ t_QS61() {  # Desk c27 (Ty, 2026-11-18: "Would be more useful to see the message
     grep -q 'Ty votes GO: build it' "$T/review.html" || note "the review of the vote does not show the letter he sent"
 }
 
+# tabs FILE: the mindhole tabs of the page as NAME=COUNT, the current one marked with *
+tabs() { python3 -I -c "import re,sys,html; p=open(sys.argv[1],encoding='utf-8').read(); m=re.search(r'<nav class=\"mhtabs\"[^>]*>(.*?)</nav>', p, re.S)
+if not m: print('none'); sys.exit(0)
+for a in re.finditer(r'<a([^>]*)>(.*?)</a>', m.group(1), re.S):
+    t=re.sub(r'<[^>]+>', ' ', a.group(2)).split(); cur='aria-current' in a.group(1)
+    print(('*' if cur else '')+' '.join(t[:-1])+'='+t[-1])" "$1"; }
+t_QS62() {  # Desk c28 (Ty, 2026-11-18: "use tabs for each mindhole instead of a dropdown"): one tab per mindhole, and All; a tab shows only its mindhole
+    mkdesk "$T/h1"; mkdesk "$T/h2"; local A B C tok t
+    A=$(hf "$T/h1" --session build add ask --no-kb --title 'First hub question' --note 'Case, options and default, for the test.' --waits-on me)
+    B=$(hf "$T/h2" --session build add ask --no-kb --title 'Second hub question' --note 'Case, options and default, for the test.' --waits-on me)
+    C=$(hf "$T/h2" --session build add ask --no-kb --title 'Another second hub question' --note 'Case, options and default, for the test.' --waits-on me)
+    srvd --hub "$T/h1" --hub "$T/h2" || return; page_ok || return
+    t=$(tabs "$T/page.html" | tr '\n' ' '); [ "$t" = "*h1=1 h2=2 All=3 " ] || note "tabs at load: '$t', want '*h1=1 h2=2 All=3 '"
+    grep -q 'First hub question' "$T/page.html" || note "the h1 tab does not show the h1 ask"
+    grep -q 'Second hub question' "$T/page.html" && note "the h1 tab shows an ask of h2"
+    grep -q '<summary title="[^"]*/h1"' "$T/page.html" && note "the h1 tab still wraps h1 in a collapsible group of the rail"
+    get '/?mh=h2'; code_is 200 "GET the h2 tab" || return
+    t=$(tabs "$T/page.html" | tr '\n' ' '); [ "$t" = "h1=1 *h2=2 All=3 " ] || note "tabs on h2: '$t'"
+    grep -q 'Second hub question' "$T/page.html" || note "the h2 tab does not show the h2 ask"
+    grep -q 'First hub question' "$T/page.html" && note "the h2 tab shows an ask of h1"
+    tok=$(pg dtoken "$T/page.html")
+    get '/?mh=all'; code_is 200 "GET the All tab" || return
+    grep -q 'First hub question' "$T/page.html" && grep -q 'Second hub question' "$T/page.html" || note "the All tab does not show both mindholes"
+    get '/?mh=nowhere'; code_is 200 "GET an unknown tab" || return
+    grep -q 'No mindhole is named nowhere' "$T/page.html" || note "an unknown tab does not say so"
+    # a send from a tab comes back to that tab: the review passes the tab to its send form
+    tok=$(pg dtoken "$T/page.html")
+    review "token=$tok" "hub=$T/h2" "item=ask:$C" intent=diverge 'text=Not this' tab=h2; code_is 200 "the review from the h2 tab"
+    grep -q 'name="tab" value="h2"' "$T/review.html" || note "the review does not pass the tab on to Send"
+    curl -s -o /dev/null -D "$T/send.h" --max-time 30 --data-urlencode "token=$tok" --data-urlencode "hub=$T/h2" --data-urlencode "item=ask:$B" --data-urlencode intent=diverge --data-urlencode 'text=Not that' --data-urlencode 'letter_0=Ty diverges: not that' --data-urlencode to_0=build --data-urlencode tab=h2 "$URL/send"
+    grep -qi '^location: /?mh=h2#' "$T/send.h" || note "a send from the h2 tab does not come back to it: $(grep -i '^location' "$T/send.h")"
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -1777,6 +1812,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 61); do run_one QS$n; done
+for n in $(seq 1 62); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
