@@ -4643,7 +4643,9 @@ serve_route(post, '/review', true, true, review) :- !.
 serve_route(post, '/review', true, false, forbidden) :- !.
 serve_route(post, '/send', true, true, send) :- !.
 serve_route(post, '/send', true, false, forbidden) :- !.
-serve_route(_, P, true, _, bad_method) :- memberchk(P, ['/', '/answer', '/draft', '/review', '/send']), !.
+serve_route(get, '/demo', true, true, demo) :- !.      % H-0043: a demo image that the Desk shows
+serve_route(get, '/demo', true, false, forbidden) :- !.
+serve_route(_, P, true, _, bad_method) :- memberchk(P, ['/', '/answer', '/draft', '/review', '/send', '/demo']), !.
 serve_route(_, _, true, _, not_found).
 
 serve_host_ok(Req, true) :-
@@ -4659,6 +4661,10 @@ serve_request_(Req) :-
     (   M == post, memberchk(P, ['/answer', '/draft', '/review', '/send']), HostOk == true
     ->  serve_form(Req, Form0),
         ( memberchk(x_desk_fragment(_), Req) -> Form = [desk_fragment='1'|Form0] ; Form = Form0 ),
+        serve_conf(token, Tok),
+        ( serve_field(Form, token, T), atom_string(Tok, T) -> TokOk = true ; TokOk = false )
+    ;   M == get, P == '/demo', HostOk == true
+    ->  ( memberchk(search(Form0), Req), is_list(Form0) -> Form = Form0 ; Form = [] ),
         serve_conf(token, Tok),
         ( serve_field(Form, token, T), atom_string(Tok, T) -> TokOk = true ; TokOk = false )
     ;   Form = [], TokOk = false
@@ -4690,6 +4696,15 @@ serve_act(answer, Form) :- serve_answer(Form, R),
 serve_act(draft, Form) :- ( desk_mode -> desk_save_draft2(Form, R) ; desk_save_draft(Form, R) ),
     (   R == ok -> serve_frame_headers(FH), format("Status: 204~n~wCache-Control: no-store~n~n", [FH])
     ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
+    ).
+serve_act(demo, Form) :-
+    (   desk_mode, desk_demo_file(Form, Abs, Type)
+    ->  serve_frame_headers(FH),
+        % a demo file is what an agent wrote: it runs nothing, loads nothing, and cannot read the page
+        format("Status: 200~n~wContent-type: ~w~nCache-Control: no-store~nX-Content-Type-Options: nosniff~nContent-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox~n~n", [FH, Type]),
+        set_stream(current_output, encoding(octet)),
+        setup_call_cleanup(open(Abs, read, In, [type(binary)]), copy_stream_data(In, current_output), close(In))
+    ;   serve_message_page(404, "There is no such demo on the Desk. Reload the Desk: it serves only the demo images that its page shows.")
     ).
 serve_act(forbidden, _) :- serve_message_page(403, "Forbidden. The server answers only requests to 127.0.0.1 or localhost, and a POST needs the token of the page of this run. Reload the page.").
 serve_act(bad_method, _) :- serve_message_page(405, "This method is not allowed here. GET / shows the page; the forms POST to /answer.").
@@ -6439,6 +6454,44 @@ desk_question_why(Eng, Q, C, Def, Html) :-
     ),
     append([P1, P2, P3, P4], Ps), dk_cat(Ps, Html).
 
+% ---- H-0043 (Ty, 2026-11-18: "For flares when there is an image included, we need to render it on
+% this website."): the card of a demo shows the image. The Desk serves a demo file only when its
+% page showed it in this run (desk_demo_shown/2), only an image, and only with the token of the page.
+:- dynamic desk_demo_shown/2.
+
+desk_demo_type(P, Type) :-
+    file_name_extension(_, E0, P), downcase_atom(E0, E),
+    memberchk(E-Type, [png-'image/png', jpg-'image/jpeg', jpeg-'image/jpeg', gif-'image/gif',
+                       webp-'image/webp', avif-'image/avif', svg-'image/svg+xml']).
+
+desk_demo_abs(Dir, P, Abs) :- ( is_absolute_file_name(P) -> Abs = P ; directory_file_path(Dir, P, Abs) ).
+
+% desk_demo_html(+Dir, +Eng, +C, +S, +P, -Html): the demo on its card: the image when it is one, else its name.
+desk_demo_html(Dir, Eng, C, S, P, Html) :-
+    esc(P, PH),
+    (   dk_true(Eng, demo_changed(S))
+    ->  dk_f(" <span class=\"loud\">~w changed since the KB recorded its digest: this is not the file that the demo names. Ask for a new demo before you approve.</span>", [PH], ChH)
+    ;   ChH = ""
+    ),
+    (   desk_demo_type(P, _), desk_demo_abs(Dir, P, Abs), exists_file(Abs), serve_conf(token, Tok)
+    ->  ( desk_demo_shown(Dir, S) -> true ; assertz(desk_demo_shown(Dir, S)) ),
+        maplist([X, Y]>>uri_encoded(query_value, X, Y), [Tok, Dir, S], [TE, DE, SE]),
+        dk_f("/demo?token=~w&kb=~w&s=~w", [TE, DE, SE], Url), esc(Url, UH),
+        dk_f("The demo ~w of claim ~w: ~w", [S, C, P], Alt), esc(Alt, AltH),
+        dk_f("<figure class=\"demo\"><a href=\"~w\" target=\"_blank\" rel=\"noopener\" title=\"Open the image at full size\"><img src=\"~w\" alt=\"~w\" loading=\"lazy\"></a><figcaption class=\"small quiet\">The demo: <code>~w</code> in the KB folder. Click the image for full size.~w</figcaption></figure>", [UH, UH, AltH, PH, ChH], Html)
+    ;   dk_f("<p>The demo: <code>~w</code> in the KB folder.~w</p>", [PH, ChH], Html)
+    ).
+
+% desk_demo_file(+Form, -Abs, -Type): the file of GET /demo, when the page showed it and it is an image.
+desk_demo_file(Form, Abs, Type) :-
+    serve_field(Form, kb, DirS), serve_field(Form, s, SS),
+    atom_string(Dir, DirS), atom_string(S, SS),
+    desk_demo_shown(Dir, S),
+    desk_eng(Dir, Eng),
+    dk_all(Eng, [P], ( demo(S, _), subject(S, P, _) ), [P|_]), atom(P),
+    desk_demo_type(P, Type),
+    desk_demo_abs(Dir, P, Abs), exists_file(Abs).
+
 % desk_action_cards(+HDs, +HD, +K, -Cards) (c12): the KB actions that a policy keeps for Ty.
 desk_action_cards(HDs, HD, K, Cards) :-
     (   desk_eng(K.dir, Eng)
@@ -6468,7 +6521,7 @@ desk_action_card(HDs, HD, K, Eng, A, card{lane:action, due:"", html:Html, kbs:[K
     desk_policy(PolK, PN, PR, PF), esc(PN, PNH), esc(PR, PRH), esc(PF, PFH),
     dk_f("<div class=\"policy\"><strong>~w:</strong> ~w <span class=\"quiet\">From ~w.</span></div>", [PNH, PRH, PFH], PolH),
     desk_rests_html(HD, K, Cs, Rests0),
-    (   A = demo(_, _, P2) -> esc(P2, P2H), dk_f("~w<p>The demo: <code>~w</code> in the KB folder.</p>", [Rests0, P2H], Rests) ; Rests = Rests0 ),
+    (   A = demo(C2, S2, P2) -> desk_demo_html(K.dir, Eng, C2, S2, P2, DemoH), dk_f("~w~w", [Rests0, DemoH], Rests) ; Rests = Rests0 ),
     desk_policy_why(PolK, Why),
     desk_ctx_html(Rests, Why, Ctx),
     dk_f("act:~w#~w", [K.dir, RefS], Item), dk_f("~w|~w", [HD.name, Item], Key),
@@ -11418,6 +11471,8 @@ help_lines(serve, [
 "word, then Send (POST /send) or Cancel. /send builds the plan again, stores each letter first",
 "(desk.py send --to --about), then writes the ledger or the KB. POST /answer is refused. Drafts",
 "live in the Desk's own store, never in a MindHole. desk.py service writes a systemd user unit.",
+"The card of a demo shows its image (png, jpg, gif, webp, avif, svg): GET /demo (token) serves only",
+"the demo images that the page showed in this run, in a sandbox. Another demo shows its file name.",
 "",
 "Serve the page of view questions on http://127.0.0.1:PORT/ (default port 8737; --port 0 picks",
 "a free port). Each reload reads the KBs and the ledger again, so the page is live.",

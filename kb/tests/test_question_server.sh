@@ -1660,18 +1660,77 @@ t_QS58() {  # Desk c24: when no desk hook can deliver a letter, the card and the
     chk dcard "$T/page.html" "ask-$A" '!will not be told'
     srv_stop
 }
+# imgsrc FILE NEEDLE: the src (unescaped) of each <img> on the page whose alt holds NEEDLE, one a line
+imgsrc() { python3 -I -c "import html,re,sys; p=open(sys.argv[1],encoding='utf-8').read()
+for m in re.finditer(r'<img\b[^>]*>', p):
+    t=m.group(0); a=re.search(r'alt=\"([^\"]*)\"', t); s=re.search(r'src=\"([^\"]*)\"', t)
+    if a and s and sys.argv[2] in html.unescape(a.group(1)): print(html.unescape(s.group(1)))" "$1" "$2"; }
+# fetch PATH OUT: a GET with its headers; sets CODE, the body in OUT, the headers in OUT.h
+fetch() { CODE=$(curl -s -D "$2.h" -o "$2" -w '%{http_code}' --max-time 30 "$URL$1" 2>/dev/null); }
+t_QS59() {  # Desk H-0043 (Ty, 2026-11-18): a flare's demo image renders on its card; the Desk serves only the demo files that it shows
+    mkdesk "$T/h"; mkdir -p "$T/h/specs/look"
+    printf '\x89PNG\r\n\x1a\n-the-demo-image-' > "$T/h/specs/look/shot.png"
+    printf '<p>a mock</p>' > "$T/h/specs/look/mock.html"
+    printf 'old' > "$T/h/specs/look/old.png"
+    printf 'secret' > "$T/h/specs/look/notes.png"
+    local d m; d=$(sha256sum "$T/h/specs/look/shot.png" | cut -d' ' -f1); m=$(sha256sum "$T/h/specs/look/mock.html" | cut -d' ' -f1)
+    kb_new "$T/h/specs/look" <<EOF
+uses([build]).
+request(r1, 'The pane must look calm').
+claim(c1, introduce, 'The pane uses three colors at most').
+example(c1, 'The idle pane shows grey, green and amber only.').
+visual(c1).
+claim(c2, introduce, 'The menu reads as one line').
+example(c2, 'The menu of the idle pane is one line.').
+visual(c2).
+claim(c3, introduce, 'The footer is quiet').
+example(c3, 'The footer shows one grey line.').
+visual(c3).
+subject(shot, 'shot.png', 'sha256:$d').
+demo(shot, c1).
+subject(mock, 'mock.html', 'sha256:$m').
+demo(mock, c2).
+subject(old, 'old.png', 'sha256:0000000000000000000000000000000000000000000000000000000000000000').
+demo(old, c3).
+subject(notes, 'notes.png', 'sha256:$d').
+EOF
+    srvd --hub "$T/h" || return; page_ok || return
+    local src tok; src=$(imgsrc "$T/page.html" 'shot.png' | head -n1)
+    [ -n "$src" ] || { note "the card of claim c1 shows no image of shot.png"; return; }
+    case "$src" in /demo\?*) ;; *) note "the image of shot.png is not served by the Desk: src=$src"; return ;; esac
+    fetch "$src" "$T/img"; code_is 200 "GET the demo image" || return
+    cmp -s "$T/img" "$T/h/specs/look/shot.png" || note "the Desk served other bytes than shot.png"
+    grep -qi '^content-type: image/png' "$T/img.h" || note "the demo image is not served as image/png: $(snip "$(cat "$T/img.h")")"
+    grep -qi "^content-security-policy:.*sandbox" "$T/img.h" || note "the demo file is served with no sandbox policy"
+    [ -n "$(imgsrc "$T/page.html" 'mock.html')" ] && note "an HTML demo is shown as an image"
+    chk raw "$T/page.html" 'mock.html'
+    [ -n "$(imgsrc "$T/page.html" 'old.png')" ] || note "the card of claim c3 shows no image of old.png"
+    chk raw "$T/page.html" 'old.png changed since the KB recorded its digest'
+    chk raw "$T/page.html" '!shot.png changed since'
+    # the Desk serves only what it shows, to this run, with the token of the page
+    tok=$(pg dtoken "$T/page.html")
+    fetch "${src/s=shot/s=notes}" "$T/x1"; code_is 404 "a subject that is not a demo" || true
+    fetch "${src/s=shot/s=mock}" "$T/x2"; code_is 404 "an HTML demo as an image" || true
+    fetch "${src/token=$tok/token=0}" "$T/x3"; code_is 403 "a demo image with the wrong token" || true
+    fetch "/demo?token=$tok&kb=$T/h/specs/look/../look&s=shot" "$T/x4"; code_is 404 "a KB dir that the page did not show" || true
+    grep -q 'secret' "$T/x1" "$T/x2" "$T/x4" 2>/dev/null && note "a file the page did not show was served"
+    # the KB changes after the page: the subject that was shown now names an HTML file; it is not served
+    sed -i "s|^subject(shot, 'shot.png'|subject(shot, 'mock.html'|" "$T/h/specs/look/kb.pl"
+    fetch "$src" "$T/x5"; code_is 404 "a shown subject that now names an HTML file" || true
+}
 
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
     T=$(mktemp -d "$base/t.XXXXXX"); FAILS=(); SKIPPED=0
     export DESK_STATE="$T/desk-state"   # the Desk's own store (q10): never the real ~/.local/state
+    declare -F "$fn" >/dev/null || note "no test function $fn"   # a test that does not exist fails, never passes
     "$fn" </dev/null >/dev/null 2>&1 || true
     srv_stop
     if [ ${#FAILS[@]} -eq 0 ] && [ "$SKIPPED" = 1 ]; then skip=$((skip+1)); echo "SKIP $id"
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 58); do run_one QS$n; done
+for n in $(seq 1 59); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
