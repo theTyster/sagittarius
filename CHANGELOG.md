@@ -64,7 +64,10 @@ Earlier versions, named after the fact so that a report can refer to them:
   their own lane, Ledger: the asks for the human and each session's open items, each named by its
   kind and id, with Answer (an ask), Close, Park until a date, and Note to the session. A ledger row
   of the rail shows its title; its id is in the hover text and on the card. The answered list no
-  longer draws the card's form fill behind its answers.
+  longer draws the card's form fill behind its answers. Your action also links each reserved ledger ask to its
+  Ledger card. A parked ledger item moves to a closed Parked group at the end of the Ledger lane,
+  soonest end first, marked "Parked until DATE"; it counts nowhere and leaves Your action until its
+  park ends, and then it is back by itself.
 - **The Desk, round 2 (hub spec KB `questions-server`, hypothesis h3, Ty's GO of 2026-11-17 after
   three flare laps).** `orbit-kb serve desk` is one Desk at one address for every MindHole on the
   machine: `desk.py join` adds a MindHole in one step, and `desk.py service` writes a systemd user

@@ -1998,6 +1998,62 @@ PY
     grep -q '<strong>4 things wait on you,' "$T/page.html" || note "the header counts a reserved ask twice, or misses one (want 4: three asks and the KB question qb)"
 }
 
+t_QS70() {  # Desk c36 (Ty, 2026-11-18: "Parked groups ... Order the parked items at the bottom by nearest due date ascending"): parked ledger items sit in a closed Parked group at the end of the Ledger lane, soonest end first
+    desk_hub "$T/h"; local A H C
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Waive the c3 proof' --note 'Case: c3. Options: waive or prove. Default: none.' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so')
+    H=$(hf "$T/h" --session discovery handoff --to build --title 'Build the export' --ref kb:exp); hf "$T/h" --session build accept "$H" >/dev/null
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    HUBFLOW_NOW=2026-11-20T00:00:00Z hf "$T/h" --session human --by human park "$A" --until 2026-12-20 --note 'Ty parks it on the Desk' >/dev/null || note "setup: park failed"
+    HUBFLOW_NOW=2026-11-20T00:00:00Z hf "$T/h" --session human --by human park "$H" --until 2026-12-01 --note 'Ty parks it on the Desk' >/dev/null || note "setup: park failed"
+    srvd --hub "$T/h" || return; page_ok || return
+    cat > "$T/park.py" <<'PY'
+import re,sys
+p=open(sys.argv[1],encoding='utf-8').read(); a,h,c=sys.argv[2:5]; bad=[]
+l0=p.find('<details class="lane" id="lane-ledger"'); l1=p.find('<details class="lane" id="lane-questions"')
+g=re.search(r'<details class="parked"[^>]*>',p)
+if l0<0 or l1<0: bad.append('no Ledger lane')
+if not g: bad.append('no Parked group')
+else:
+    if not (l0<g.start()<l1): bad.append('the Parked group is not in the Ledger lane')
+    if ' open' in g.group(0): bad.append('the Parked group is open on load')
+    pos={x:p.find('id="item-h-'+x+'"') for x in ('ask-'+a,'led-'+h,'ask-'+c)}
+    for x in ('ask-'+a,'led-'+h):
+        if pos[x]<g.start(): bad.append(x+' is not in the Parked group')
+    if pos['ask-'+c]>g.start(): bad.append('the plain ask is in the Parked group')
+    if not (0<pos['led-'+h]<pos['ask-'+a]): bad.append('not soonest end first (H 2026-12-01 before A 2026-12-20)')
+    cards=re.findall(r'<details[^>]*\bid="item-h-[^"]+"',p[g.start():l1])
+    if len(cards)!=2: bad.append('%d cards after the group starts, want 2'%len(cards))
+    seg=p[g.start():l1]
+    for d in ('2026-12-01','2026-12-20'):
+        if not re.search(r'Parked until[^<]*(<[^>]*>)?[^<]*'+d,seg) and ('Parked until' not in seg or 'data-until="'+d+'"' not in seg): bad.append('no Parked until '+d)
+print(bad); sys.exit(1 if bad else 0)
+PY
+    local r; r=$(python3 -I "$T/park.py" "$T/page.html" "$A" "$H" "$C") || note "Parked: $r"
+    grep -q '1 open items. 2 parked.' "$T/page.html" || note "the rail row of build (the asks A, C and the handoff H; A and H parked) counts a parked item as open: $(grep -o '[0-9]* open items\.[^<]*' "$T/page.html" | tr '\n' '|')"
+}
+t_QS71() {  # Desk c37: a parked item counts nowhere and is not in Your action; when its park ends it is back, with no action
+    desk_hub "$T/h"; local A B C
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Push the hub' --note 'Case: push. Options: now or later. Default: later.' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so' --due 2026-11-21)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Which name' --note 'Case: the name. Options: Desk or Board. Default: Desk.' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    grep -q '<strong>4 things wait on you,' "$T/page.html" || note "before: the header does not say 4"
+    grep -q 'The first is due on 21 Nov' "$T/page.html" || note "before: the header does not give the due date of A (21 Nov)"
+    HUBFLOW_NOW=2026-11-20T00:00:00Z hf "$T/h" --session build park "$A" --until 2026-11-21 >/dev/null
+    page_ok || return
+    grep -q '<strong>3 things wait on you,' "$T/page.html" || note "parked: the header still counts the parked ask (want 3)"
+    grep -q 'The first is due on 21 Nov' "$T/page.html" && note "parked: the header still gives the due date of the parked ask"
+    grep -q 'Your action<b>0</b>' "$T/page.html" || note "parked: the Your action lane link still counts it"
+    grep -q 'Ledger<b>2</b>' "$T/page.html" || note "parked: the Ledger lane link still counts it (want 2)"
+    grep -q "class=\"actlink\" href=\"#item-h-ask-$A\"" "$T/page.html" && note "parked: Your action still lists it"
+    python3 -I -c "import re,sys;p=open(sys.argv[1]).read();m=re.search(r'Asks for you</span><span class=\"num[^\"]*\">(\d+)',p);sys.exit(0 if (m and m.group(1)=='2') else 1)" "$T/page.html" || note "parked: the rail still counts it"
+    HUBFLOW_NOW=2026-11-22T00:00:01Z hf "$T/h" --session build note "$B" 'a later write moves the clock' >/dev/null
+    page_ok || return
+    grep -q '<strong>4 things wait on you,' "$T/page.html" || note "after the park: the header does not count it again (want 4)"
+    grep -q "class=\"actlink\" href=\"#item-h-ask-$A\"" "$T/page.html" || note "after the park: Your action does not list it again"
+    grep -q '<details class="parked"' "$T/page.html" && note "after the park: a Parked group is still on the page"
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -2010,6 +2066,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 69); do run_one QS$n; done
+for n in $(seq 1 71); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

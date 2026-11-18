@@ -631,8 +631,12 @@ def status_obj(hub):
                 n = c.execute("SELECT note FROM event WHERE item_id = ? AND note IS NOT NULL AND note != '' ORDER BY seq DESC LIMIT 1",
                               (r["id"],)).fetchone()
                 r["note"] = n[0] if n else None
-                o = c.execute("SELECT opened_at FROM item WHERE id = ?", (r["id"],)).fetchone()
+                o = c.execute("SELECT opened_at, parked_until FROM item WHERE id = ?", (r["id"],)).fetchone()
                 r["opened_at"] = o[0] if o else None
+                # c36, c37: parked until the park ends (hubflow: a date D through that day; a time is its own end)
+                pu = o[1] if o else None
+                r["parked_until"] = pu
+                r["parked"] = bool(pu) and (pu + "T24:00:00Z" if len(pu) == 10 else pu) > now
             sessions.append(dict(s, state=st.get("state"), state_at=st.get("at"), tmux_pane=st.get("tmux_pane"),
                                  session_id=st.get("session_id"), inbox=inbox))
         unowned = rows(c, "SELECT o.id, o.kind, o.title, o.owner_session, o.age_days FROM v_open o"
