@@ -32,12 +32,12 @@
   "type": "choice",
   "instructions": "Formal languages help agents and humans find clarity. If the agent in this conversation were to use a formal tool to clarify what the human wanted, which tool would fit the claim best?",
   "criteria": {
-   "prolog": "Logic programming; use facts and rules to model relationships, query knowledge bases, or solve symbolic search problems.",
-   "lean": "Interactive theorem prover; use it to write machine-checked mathematical proofs or verify algorithms when rigorous guarantees justify the proof effort.",
-   "z3": "Satisfiability modulo theories solver; encode constraints to check feasibility, find counterexamples, or verify properties involving arithmetic, arrays, and bit vectors.",
-   "tlaplus": "Temporal Logic of Actions; model concurrent or distributed systems and check safety and liveness properties before implementing them.",
-   "tests": "Informal code tests; use unit, integration, and property-based tests for fast feedback on concrete behavior when formal guarantees are unnecessary.",
-   "none": "No formal tool is needed; use straightforward reasoning and code review for simple, low-risk tasks where additional verification tooling adds little value."
+   "prolog": "Logic programming; On a divergence signal, use facts and rules to model relationships, query knowledge bases, or solve symbolic search problems.",
+   "lean": "Interactive theorem prover; On a divergence signal, use it to write machine-checked mathematical proofs or verify algorithms when rigorous guarantees justify the proof effort.",
+   "z3": "Satisfiability modulo theories solver; On a divergence signal, encode constraints to check feasibility, find counterexamples, or verify properties involving arithmetic, arrays, and bit vectors.",
+   "tlaplus": "Temporal Logic of Actions; On a divergence signal, model concurrent or distributed systems and check safety and liveness properties before implementing them.",
+   "tests": "Informal code tests; On a divergence signal, use unit, integration, and property-based tests for fast feedback on concrete behavior when formal guarantees are unnecessary.",
+   "none": "No formal tool is needed; On a divergence signal, use straightforward reasoning and code review for simple, low-risk tasks where additional verification tooling adds little value."
   }
  },
  "h_questions": {
