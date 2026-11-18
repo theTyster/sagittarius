@@ -59,6 +59,10 @@
 #   c5 c8 diverge, requirement, the letter stored first                                       : QS53
 #   c7 q9 q10 Draft and Sent, late and loud warnings; drafts in the Desk store                : QS54
 #   c9 answered in the session shows as answered                                              : QS55
+# Ty on the demo Desk, 2026-11-17 (signal s6):
+#   c22 on load the rail is collapsed and one card is open; Your action cards collapse       : QS56
+#   c23 sessions roll up by mindhole, one short line each                                    : QS57
+#   c24 loud when no desk hook can deliver a letter (card and review)                        : QS58
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -317,7 +321,7 @@ def main():
                     if f.tag=="input" and f.attrs.get("name")=="hub": print(f.attrs.get("value","")); sys.exit(0)
         sys.exit(1)
     # ---- the Desk, round 2 (serve desk): cards are elements whose id is item-<mindhole>-<item>
-    elif mode in ("dlane","dcard","dhead","dbadge","dform","dkey","dkb","dorph","dopen","dtoken","dforms","dsrc","ddue"):
+    elif mode in ("dlane","dcard","dhead","dbadge","dform","dkey","dkb","dorph","dopen","dtoken","dforms","dsrc","ddue","dload"):
         def card(suf):
             cs=[x for x in p.all if x.attrs.get("id","").startswith("item-") and x.attrs.get("id","").endswith("-"+suf)]
             if len(cs)!=1: bad.append("want one card ending -%s, found %d (%s)" % (suf, len(cs), [x.attrs.get("id") for x in p.all if x.attrs.get("id","").startswith("item-")][:20]))
@@ -346,6 +350,21 @@ def main():
                     elif t.startswith("!"):
                         if any(i.endswith("-"+t[1:]) for i in ids): bad.append("lane %s holds %s" % (a[0], t[1:]))
                     elif not any(i.endswith("-"+t) for i in ids): bad.append("lane %s lacks %s (it holds %s)" % (a[0], t, ids))
+        elif mode=="dload":      # dload FILE LANE ITEM: on load no rail part is open, exactly one card is open (ITEM, in lane-LANE), and only that lane is open
+            rail=[x for x in p.all if x.tag=="details" and "open" in x.attrs and any(a2.tag=="aside" for a2 in [x.parent, x.parent and x.parent.parent, x.parent and x.parent.parent and x.parent.parent.parent] if a2 is not None) ]
+            def inaside(n):
+                while n is not None:
+                    if n.tag=="aside": return True
+                    n=n.parent
+                return False
+            ro=[x for x in p.all if x.tag=="details" and "open" in x.attrs and inaside(x)]
+            if ro: bad.append("%d rail parts are open on load: %s" % (len(ro), [x.otext()[:40] for x in ro]))
+            oc=[x for x in p.all if x.tag=="details" and "open" in x.attrs and x.attrs.get("id","").startswith("item-")]
+            if len(oc)!=1 or not oc[0].attrs["id"].endswith("-"+a[1]): bad.append("open cards on load: %s, want one ending -%s" % ([x.attrs.get("id") for x in oc], a[1]))
+            ol=[x.attrs.get("id") for x in p.all if x.tag=="details" and "open" in x.attrs and "lane" in x.classes()]
+            if ol!=["lane-"+a[0]]: bad.append("open lanes on load: %s, want [lane-%s]" % (ol, a[0]))
+            ok=[x for x in p.all if x.tag=="details" and "open" in x.attrs and "kbsec" in x.classes()]
+            if ok: bad.append("a KB section is open on load")
         elif mode=="dopen":      # dopen FILE ID open|closed: the details element with id ID
             ds=[x for x in p.all if x.attrs.get("id")==a[0]]
             if len(ds)!=1 or ds[0].tag!="details": bad.append("want one details #%s, found %s" % (a[0], [x.tag for x in ds]))
@@ -1396,14 +1415,11 @@ EOF
 # desk_hub H: a mindhole with sessions, a spec KB, a project KB, and asks
 desk_hub() { mkdesk "$1"; kb_rests "$1/specs/exp"; kb_project "$1/project-kb" 'Export project'; }
 
-t_QS43() {  # Desk c1 c2 on serve desk: dark at every load; each lane and each KB collapses and is open on load only with an item for Ty
+t_QS43() {  # Desk c1 on serve desk: dark at every load, no error banner; lanes and KBs collapse (c2 is superseded by c22: QS56)
     desk_hub "$T/h"; local A
     A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     srvd --hub "$T/h" || return; page_ok || return
     chk dark "$T/page.html"
-    chk dopen "$T/page.html" lane-questions open
-    chk dopen "$T/page.html" lane-guesses open
-    chk dopen "$T/page.html" lane-action closed
     chk dopen "$T/page.html" lane-orphans closed
     chk dopen "$T/page.html" lane-kbs closed
     chk raw "$T/page.html" '!prefers-color-scheme: light' '!data-theme'
@@ -1469,7 +1485,7 @@ t_QS47() {  # Desk c15: what waits on Ty in a project KB: a fact an agent propos
     wr process --dir "$T/h/project-kb" release
     srvd --hub "$T/h" || return; page_ok || return
     chk text "$T/page.html" 'A fact that an agent proposed' 'Every export has a header row' 'Ratify'
-    chk dopen "$T/page.html" lane-project open
+    chk dopen "$T/page.html" lane-project closed     # c22 (supersedes c2): one card is open on load, not a lane of rows
     local tok; tok=$(pg dtoken "$T/page.html")
     review "token=$tok" "hub=$T/h" "item=proj:proposed:$T/h/project-kb#d1"; code_is 200 "the review of Ratify"
     rj "any('ratified_by(d1' in r for r in d['records'])"
@@ -1603,6 +1619,42 @@ t_QS55() {  # Desk c9 on serve desk: an answer given in the session shows as ans
     chk dkb "$T/page.html" 'exp' 'Answered by a human' 'yes'
 }
 
+t_QS56() {  # Desk c22: on load the rail is collapsed and one thing is open: the first card of the first lane that holds one; Your action cards collapse too
+    desk_hub "$T/h"; local A B C
+    A=$(hf "$T/h" --session process add ask --no-kb --note 'Case: the c3 proof. Options: waive or prove. Default: none.' --title 'Waive the c3 proof' --waits-on me --reserved 'Sagittarius Policy: Only the human may waive a proof.')
+    B=$(hf "$T/h" --session build add ask --no-kb --note 'Case: push. Options: now or later. Default: later.' --title 'Push the hub' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so')
+    C=$(hf "$T/h" --session build add ask --no-kb --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --title 'Which port' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dload "$T/page.html" action "ask-$A"
+    chk raw "$T/page.html" "<details class=\"sheet reserved\" id=\"item-h-ask-$B\">" '!<article'
+    hf "$T/h" --session build close "$A" --reason done --by human --note 'done' >/dev/null; hf "$T/h" --session build close "$B" --reason done --by human --note 'done' >/dev/null
+    page_ok || return
+    chk dload "$T/page.html" questions "ask-$C"
+    chk dcard "$T/page.html" "ask-$C" 'Case: the port. Options: 8737 or 8800. Default: 8800.' '!recorded only the title'   # c13: the note of add ask is its context
+}
+t_QS57() {  # Desk c23: the sessions roll up by mindhole; each session has one short line, and its KBs are inside
+    desk_hub "$T/h1"; desk_hub "$T/h2"; local H
+    kb_spec "$T/h1/specs/two" 'Second rules' ''
+    for k in exp two; do H=$(hf "$T/h1" --session discovery handoff --to build --title "Build $k" --ref "kb:$k"); hf "$T/h1" --session build accept "$H" >/dev/null; done
+    srvd --hub "$T/h1" --hub "$T/h2" || return; page_ok || return
+    local n; n=$(grep -o '<details class="sessgroup">' "$T/page.html" | wc -l); [ "$n" = 2 ] || note "want 2 closed session groups (one per mindhole), found $n"
+    chk raw "$T/page.html" 'Writes <b>2 KBs</b>.' 'Writes the KB exp' 'Writes the KB two' '!Writes <b>exp, two</b>'
+    chk raw "$T/page.html" 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis'
+}
+t_QS58() {  # Desk c24: when no desk hook can deliver a letter, the card and the review say so loudly; with the hooks in the settings they do not
+    desk_hub "$T/h"; local A tok; mkdir -p "$T/home"
+    A=$(hf "$T/h" --session build add ask --no-kb --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --title 'Which port' --waits-on me)
+    HOME="$T/home" srvd --hub "$T/h" || return; page_ok || return
+    chk dcard "$T/page.html" "ask-$A" 'build will not be told: the desk hooks are not installed' 'no hook for SessionStart, UserPromptSubmit, Stop'
+    tok=$(pg dtoken "$T/page.html")
+    review "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer 'text=8800'; code_is 200 "the review"
+    grep -q 'build will not be told: the desk hooks are not installed' "$T/review.html" || note "the review does not warn that build will not be told"
+    mkdir -p "$T/h/.claude"; dpy "$T/h" hooks > "$T/h/.claude/settings.json"
+    page_ok || return
+    chk dcard "$T/page.html" "ask-$A" '!will not be told'
+    srv_stop
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -1614,6 +1666,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 55); do run_one QS$n; done
+for n in $(seq 1 58); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

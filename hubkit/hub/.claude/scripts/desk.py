@@ -656,7 +656,9 @@ def status_obj(hub):
         c.close()
     return {"now": now, "sessions": sessions, "orphans": {"unowned": unowned, "unaccepted": unaccepted},
             "kb_refs": kb_refs, "kb_handoffs": kb_handoffs, "closed_recent": closed, "letters": lv,
-            "bad_lines": {"count": len(store.bad), "lines": store.bad}}
+            "bad_lines": {"count": len(store.bad), "lines": store.bad},
+            # c24: no letter reaches a session of this hub while an event has no desk hook
+            "hooks_missing": (lambda m: list(HOOK_EVENTS) if m is None else m)(hooks_missing(hub, settings_files(hub)))}
 
 
 def cmd_status(hub, a):
@@ -894,23 +896,36 @@ HOOK_EVENTS = ("SessionStart", "UserPromptSubmit", "Stop")
 DESK_HOOK = re.compile(r"desk\.py\b.*\bhook\b")
 
 
-def hooks_missing(hub):
-    """The hook events that the hub's .claude/settings.json does not give to desk.py hook, or None
-    when the file is missing or cannot be read. Read only: settings are never written here."""
-    try:
-        with open(os.path.join(hub, ".claude", "settings.json"), encoding="utf-8") as f:
-            st = json.load(f)
-    except (OSError, ValueError):
+def settings_files(hub):
+    """The Claude Code settings that a session in the hub reads: the hub's settings.json and
+    settings.local.json, and the user's ~/.claude/settings.json. Read only: never written here."""
+    home = os.environ.get("HOME") or os.path.expanduser("~")
+    return [os.path.join(hub, ".claude", "settings.json"), os.path.join(hub, ".claude", "settings.local.json"),
+            os.path.join(home, ".claude", "settings.json")]
+
+
+def hooks_missing(hub, files=None):
+    """The hook events that no readable settings file gives to desk.py hook, or None when no file can
+    be read. files: the files to read (default: the hub's settings.json only, as join reports it)."""
+    files = [os.path.join(hub, ".claude", "settings.json")] if files is None else files
+    found, readable = set(), False
+    for fn in files:
+        try:
+            with open(fn, encoding="utf-8") as f:
+                st = json.load(f)
+        except (OSError, ValueError):
+            continue
+        readable = True
+        hooks = st.get("hooks") if isinstance(st, dict) else None
+        hooks = hooks if isinstance(hooks, dict) else {}
+        for ev in HOOK_EVENTS:
+            cmds = [h.get("command") for g in (hooks.get(ev) or []) if isinstance(g, dict)
+                    for h in (g.get("hooks") or []) if isinstance(h, dict)]
+            if any(isinstance(x, str) and DESK_HOOK.search(x) for x in cmds):
+                found.add(ev)
+    if not readable:
         return None
-    hooks = st.get("hooks") if isinstance(st, dict) else None
-    hooks = hooks if isinstance(hooks, dict) else {}
-    missing = []
-    for ev in HOOK_EVENTS:
-        cmds = [h.get("command") for g in (hooks.get(ev) or []) if isinstance(g, dict)
-                for h in (g.get("hooks") or []) if isinstance(h, dict)]
-        if not any(isinstance(x, str) and DESK_HOOK.search(x) for x in cmds):
-            missing.append(ev)
-    return missing
+    return [ev for ev in HOOK_EVENTS if ev not in found]
 
 
 def hooks_line(hub):

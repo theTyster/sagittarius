@@ -1058,7 +1058,7 @@ if mode == "asks":
         x = c.execute("SELECT new FROM event WHERE item_id = ? AND verb = \'reserved\' ORDER BY seq DESC LIMIT 1", (i,)).fetchone()
         return x[0] if x else None
     def notes(i):
-        return [dict(at=x[0], by=x[1], by_session=x[2], note=x[3]) for x in c.execute("SELECT at, by, by_session, note FROM event WHERE item_id = ? AND verb = \'note\' AND note IS NOT NULL ORDER BY seq", (i,))]
+        return [dict(at=x[0], by=x[1], by_session=x[2], note=x[3]) for x in c.execute("SELECT at, by, by_session, note FROM event WHERE item_id = ? AND verb IN (\'opened\', \'note\') AND note IS NOT NULL ORDER BY seq", (i,))]  # c13: add ask --note is on the opened event
     def refs(i):
         return [x[0] + ":" + x[1] for x in c.execute("SELECT kind, ref FROM item_ref WHERE item_id = ? ORDER BY kind, ref", (i,))]
     def links(i):
@@ -6254,7 +6254,9 @@ desk_track_html(HD, Owner, Ls, Dr, Track, Warn) :-
                  dk_f("<p class=\"warn lamp\">You sent this on ~w, and ~w has not seen it after a day.</p>", [At, To], W) ), W1),
     findall(W, ( member(L, Ls), get_dict(state, L, "apply_failed"), dk_str(L.apply_failed.detail, D), esc(D, DH),
                  dk_f("<p class=\"warn\">Your response ~w is stored, so it is not lost, but the Desk could not apply it: ~w</p>", [L.id, DH], W) ), W2),
-    (   \+ desk_live(HD, Owner)
+    (   desk_live(HD, Owner), desk_hooks_missing(HD, Ms), Ms \== []
+    ->  desk_hooks_warning(HD, Owner, Ms, HW), W3 = [HW]
+    ;   \+ desk_live(HD, Owner)
     ->  W3 = ["<p class=\"warn loud\">No live session holds this item. What you send is stored, but no session is told until one takes it.</p>"]
     ;   W3 = []
     ),
@@ -6293,10 +6295,9 @@ desk_opts_html(Cs, Key, Html) :-
 % sheet (Your action) or a row that opens (the other lanes, c2).
 desk_sheet(Mode, Anchor, Res, Head, Pol, Ctx, Form, Html) :-
     ( Res == true -> Cl = "sheet reserved" ; Cl = "sheet" ),
-    (   Mode == open
-    ->  dk_f("<article class=\"~w\" id=\"~w\">~w~w~w<div class=\"answer\">~w</div></article>", [Cl, Anchor, Head, Pol, Ctx, Form], Html)
-    ;   dk_f("<details class=\"~w\" id=\"~w\"><summary>~w</summary>~w~w<div class=\"answer\">~w</div></details>", [Cl, Anchor, Head, Pol, Ctx, Form], Html)
-    ).
+    % c22: every card collapses (Your action too) and loads closed; desk_page opens the first one
+    Mode = Mode,
+    dk_f("<details class=\"~w\" id=\"~w\"><summary>~w</summary>~w~w<div class=\"answer\">~w</div></details>", [Cl, Anchor, Head, Pol, Ctx, Form], Html).
 
 desk_head(TitleH, SrcH, Owner, DueH, Html) :-
     desk_badge(Owner, BH),
@@ -6508,9 +6509,15 @@ desk_page(Msg, Page) :-
                  Id = lane-Nm, dk_f("<a href=\"#lane-~w\">~w<b>~w</b></a>", [Nm, Lb, N], L) ), Ls),
     dk_cat(Ls, LanesH),
     % the lanes (c2: open on load only with an item for Ty)
-    desk_lane("action", "Your action", "Only what a policy or your own words keep for you", Act, "Nothing waits for an action that only you may take.", true, ActH),
-    desk_lane("questions", "Questions", "Ledger asks and KB questions with no default, soonest due first", Qs, "No question waits on you.", true, QsH),
-    desk_lane("guesses", "Running on a guess", "KB questions with a default: the work goes on with it until you answer", Gs, "No work runs on a guess.", true, GsH),
+    % c22: one thing open on load: the first card of the first lane that holds one, and that lane
+    (   Act = [_|_] -> Act1 = Act, Qs1 = Qs, Gs1 = Gs, OA = true, OQ = false, OG = false
+    ;   Qs = [_|_] -> Act1 = Act, desk_open_first(Qs, Qs1), Gs1 = Gs, OA = false, OQ = true, OG = false
+    ;   Act1 = Act, Qs1 = Qs, desk_open_first(Gs, Gs1), OA = false, OQ = false, OG = true
+    ),
+    ( OA == true -> desk_open_first(Act, Act2) ; Act2 = Act1 ),
+    desk_lane("action", "Your action", "Only what a policy or your own words keep for you", Act2, "Nothing waits for an action that only you may take.", OA, ActH),
+    desk_lane("questions", "Questions", "Ledger asks and KB questions with no default, soonest due first", Qs1, "No question waits on you.", OQ, QsH),
+    desk_lane("guesses", "Running on a guess", "KB questions with a default: the work goes on with it until you answer", Gs1, "No work runs on a guess.", OG, GsH),
     desk_project_lane(HDs, PItems, PrH),
     desk_orphan_lane(ORows, OrH),
     desk_answered_lane(Answered, AnH),
@@ -6571,6 +6578,22 @@ desk_card_error(HD, What, E, card{lane:questions, due:"", html:Html, kbs:[], hub
     serve_err_text(E, M), esc(M, MH), esc(What, WH),
     dk_f("<div class=\"sheet\"><div class=\"head\"><p class=\"loud\">The Desk could not show ~w: ~w</p></div></div>", [WH, MH], Html).
 
+% desk_hooks_missing(+HD, -Events) (c24): the hook events that no settings file of the mindhole gives
+% to desk.py hook. While one is missing, no letter reaches a session of that mindhole.
+desk_hooks_missing(HD, Ms) :-
+    (   is_dict(HD.st), get_dict(hooks_missing, HD.st, Ms0), is_list(Ms0) -> Ms = Ms0 ; Ms = [] ).
+
+desk_hooks_warning(HD, To, Ms, Html) :-
+    dk_join(Ms, ", ", MJ), esc(HD.name, NH),
+    dk_f("<p class=\"warn loud\">~w will not be told: the desk hooks are not installed in ~w (no hook for ~w). What you send is stored, and it reaches ~w once the hooks are in its settings (desk.py hooks prints them).</p>", [To, NH, MJ, To], Html).
+
+desk_open_first([], []).
+desk_open_first([C|Cs], [C1|Cs]) :-
+    (   sub_string(C.html, B, _, A, "<details class=\"sheet") -> sub_string(C.html, 0, B, _, Pre), sub_string(C.html, _, A, 0, Post),
+        dk_cat([Pre, "<details open class=\"sheet", Post], H1), C1 = C.put(html, H1)
+    ;   C1 = C
+    ).
+
 desk_lane(Id, Head, Sub, Cards, Empty, OpenIfAny, Html) :-
     (   Cards == [] -> dk_f("<p class=\"empty\">~w</p>", [Empty], Body), Op = ""
     ;   findall(H, ( member(C, Cards), H = C.html ), Hs),
@@ -6585,7 +6608,7 @@ desk_rail(HDs, Cards, Missing, Html) :-
     findall(M, ( member(N-P, Missing), esc(N, NH), esc(P, PH),
                  dk_f("<div class=\"hint\">~w joined the Desk, but ~w has no ledger now.</div>", [NH, PH], M) ), Ms), dk_cat(Ms, MsH),
     findall(S, ( member(HD, HDs), desk_rail_sessions(HDs, HD, S) ), Ss), dk_cat(Ss, SsH),
-    dk_f("<nav class=\"rail\" aria-label=\"Mindholes\">~w~w</nav><nav class=\"rail\" aria-label=\"Sessions\"><details open><summary><span class=\"name\">Sessions</span></summary>~w</details></nav>", [HsH, MsH, SsH], Html).
+    dk_f("<nav class=\"rail\" aria-label=\"Mindholes\">~w~w</nav><nav class=\"rail\" aria-label=\"Sessions\"><details><summary><span class=\"name\">Sessions</span></summary>~w</details></nav>", [HsH, MsH, SsH], Html).
 
 desk_count_kb(Cards, Dir, N) :- findall(x, ( member(C, Cards), get_dict(kbs, C, Ks), memberchk(Dir, Ks) ), L), length(L, N).
 desk_num(N, Html) :- ( N > 0 -> dk_f("<span class=\"num hot\">~w</span>", [N], Html) ; dk_f("<span class=\"num\">~w</span>", [N], Html) ).
@@ -6606,9 +6629,9 @@ desk_rail_hub(HD, Cards, Html) :-
     include([X]>>desk_ask_kb_state(X, unknown), HD.asks, NoKb), length(NoKb, NNo),
     desk_num(NMine, AskNum),
     dk_f("<details~w><summary><span class=\"name\">Ledger asks</span>~w</summary><a class=\"leaf\" href=\"#lane-questions\"><span class=\"name\">Asks for you</span>~w</a><a class=\"leaf\" href=\"#lane-orphans\"><span class=\"name quiet\">Asks with no KB recorded</span><span class=\"num\">~w</span></a></details>",
-         [" open", AskNum, AskNum, NNo], AsksH),
+         ["", AskNum, AskNum, NNo], AsksH),
     esc(HD.name, NameH), esc(HD.path, PathH),
-    ( NH > 0 -> Op = " open" ; Op = "" ),
+    Op = "",                                          % c22: the rail loads collapsed
     dk_f("<details~w><summary title=\"~w\"><span class=\"name\">~w</span>~w</summary><div class=\"kids\">~w~w~w~w~w</div></details>",
          [Op, PathH, NameH, NumH, PH1, G1, G2, G3, AsksH], Html).
 
@@ -6620,7 +6643,7 @@ desk_rail_project(HD, K, Linked, Html) :-
     length(Linked, NL),
     ( NL == 0 -> Hint = "<div class=\"hint\">No spec KB is linked to it yet.</div>" ; dk_f("<div class=\"leaf\"><span class=\"name quiet\">~w spec KBs link to it</span></div>", [NL], Hint) ),
     esc(K.label, LH),
-    dk_f("<details open><summary><span class=\"name\">Project KB ~w</span>~w</summary><a class=\"leaf\" href=\"#~w\"><span class=\"name\">What it holds</span></a><details><summary><span class=\"name quiet\">~w repos</span></summary>~w</details>~w</details>",
+    dk_f("<details><summary><span class=\"name\">Project KB ~w</span>~w</summary><a class=\"leaf\" href=\"#~w\"><span class=\"name\">What it holds</span></a><details><summary><span class=\"name quiet\">~w repos</span></summary>~w</details>~w</details>",
          [LH, NumH, K.anchor, NR, RLH, Hint], Html).
 
 desk_rail_group(_, [], _, _, "") :- !.
@@ -6629,15 +6652,16 @@ desk_rail_group(Title, Ks, Cards, _, Html) :-
     findall(L, ( member(K, Ks), desk_count_kb(Cards, K.dir, C), desk_num(C, NumH), esc(K.label, LH), esc(K.dir, DH),
                  dk_f("<a class=\"leaf\" href=\"#~w\" title=\"~w\"><span class=\"name\">~w</span>~w</a>", [K.anchor, DH, LH, NumH], L) ), Ls),
     dk_cat(Ls, LsH), findall(C, ( member(K, Ks), get_dict(dir, K, KD), desk_count_kb(Cards, KD, C) ), CsN), sum_list(CsN, Tot),
-    ( Tot > 0 -> Op = " open" ; Op = "" ), esc(Title, TH),
+    Tot = Tot, Op = "", esc(Title, TH),
     dk_f("<details~w><summary><span class=\"name\">~w</span><span class=\"num\">~w</span></summary>~w</details>", [Op, TH, N, LsH], Html).
 
 % desk_rail_sessions(+HDs, +HD, -Html) (c14): for each session, the KBs it holds and its items.
 desk_rail_sessions(HDs, HD, Html) :-
     (   is_dict(HD.st)
     ->  findall(S, ( member(X, HD.st.sessions), desk_rail_session(HD, X, S) ), Ss), dk_cat(Ss, SsH),
-        ( HDs = [_, _|_] -> esc(HD.name, NH), dk_f("<div class=\"hint quiet\">~w</div>", [NH], Hd) ; Hd = "" ),
-        dk_cat([Hd, SsH], Html)
+        length(Ss, NS), esc(HD.name, NH), HDs = HDs,
+        % c23: the sessions roll up by mindhole
+        dk_f("<details class=\"sessgroup\"><summary><span class=\"name\">~w</span><span class=\"num\">~w</span></summary>~w</details>", [NH, NS, SsH], Html)
     ;   Html = ""
     ).
 
@@ -6645,15 +6669,19 @@ desk_rail_session(HD, X, Html) :-
     atom_string(S, X.name),
     findall(Lb, ( member(K, HD.kbs), desk_holder(HD, K, S, _), get_dict(label, K, Lb) ), Held),
     ( get_dict(inbox, X, Inbox) -> true ; Inbox = [] ), length(Inbox, NI),
-    (   Held == [] -> HeldT = "Holds no KB."
-    ;   maplist([L, E]>>esc(L, E), Held, HeldE), dk_join(HeldE, ", ", HJ), dk_f("Writes <b>~w</b>.", [HJ], HeldT)
+    % c23: one short line; the KB names are inside when the session opens
+    length(Held, NHeld),
+    (   NHeld == 0 -> HeldT = "Holds no KB.", KbsH = ""
+    ;   maplist([L, E]>>esc(L, E), Held, HeldE),
+        ( NHeld == 1 -> HeldE = [H1], dk_f("Writes <b>~w</b>.", [H1], HeldT) ; dk_f("Writes <b>~w KBs</b>.", [NHeld], HeldT) ),
+        findall(KL, ( member(E, HeldE), dk_f("<div class=\"leaf\"><span class=\"name\">Writes the KB ~w</span></div>", [E], KL) ), KLs), dk_cat(KLs, KbsH)
     ),
     (   X.status == "active" -> St = "" ; dk_f(" <span class=\"gapnote\">(~w)</span>", [X.status], St) ),
     (   get_dict(state, X, Sta), string(Sta) -> dk_f(" Now ~w.", [Sta], StaT) ; StaT = "" ),
     findall(L, ( member(I, Inbox), esc(I.title, TH), esc(I.id, IH),
                  dk_f("<div class=\"leaf\"><span class=\"name\" title=\"~w\"><span class=\"ref\">~w</span>~w</span></div>", [TH, IH, TH], L) ), Ls),
     dk_cat(Ls, LsH), desk_badge(S, BH),
-    dk_f("<details><summary class=\"sess\">~w<span class=\"what\">~w ~w open items.~w~w</span></summary>~w</details>", [BH, HeldT, NI, StaT, St, LsH], Html).
+    dk_f("<details><summary class=\"sess\">~w<span class=\"what\">~w ~w open items.~w~w</span></summary>~w~w</details>", [BH, HeldT, NI, StaT, St, KbsH, LsH], Html).
 
 % ---- Orphaned (c14, q5, q7): each row with the step that fixes it, which Ty sends after a review
 
@@ -6745,7 +6773,7 @@ desk_pfact_text(Eng, X, T) :-
 desk_project_lane(_, Items, Html) :-
     (   Items == [] -> Body = "<p class=\"empty\">Nothing waits on you in a project KB.</p>", Op = ""
     ;   findall(R, ( member(P, Items), desk_project_row(P, R) ), Rs), dk_cat(Rs, RsH),
-        dk_f("<div class=\"sheet tablewrap\"><table><tr><th>Waits on you</th><th>What</th><th></th></tr>~w</table></div>", [RsH], Body), Op = " open"
+        dk_f("<div class=\"sheet tablewrap\"><table><tr><th>Waits on you</th><th>What</th><th></th></tr>~w</table></div>", [RsH], Body), Op = ""
     ),
     dk_f("<details class=\"lane\" id=\"lane-project\"~w><summary><h2>Project KB</h2><span class=\"quiet\">Proposed facts to ratify, drafts to push, stale pins</span></summary><div class=\"lanebody\">~w</div></details>", [Op, Body], Html).
 
@@ -6814,7 +6842,7 @@ desk_kb_section(HDs, HD, K, Html) :-
     ;   desk_stale_handoffs(HD, K, _, New), dk_join(OldIds, ", ", OJ),
         dk_f("<p class=\"gapnote\">Older open handoffs on this KB: ~w (the newest is ~w). See Orphaned.</p>", [OJ, New.id], OldH)
     ),
-    ( ( desk_open_questions(Eng, [_|_]) ; desk_kb_action(Eng, _) ) -> Op = " open" ; Op = "" ),
+    Op = "",                                          % c22: one thing open on load, and it is a card
     dk_f("<details class=\"sheet kbsec\" id=\"~w\"~w><summary><div class=\"t\"><h3 class=\"title\">~w</h3><div class=\"src\"><span>~w~w</span><span title=\"~w\">~w</span><span>~w</span></div></div>~w</summary><div class=\"body\">~w~w~w</div></details>",
          [K.anchor, Op, LH, KindT, HS, DH, DH, HowT, BH, LinkH, OldH, BodyMain], Html).
 
@@ -7136,7 +7164,7 @@ desk_review_html(Plan, Frag, Html) :-
         dk_f("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Review before sending</title>\n<style>~w</style>\n</head>\n<body>\n<div class=\"reviewpage\">~w</div>\n</body>\n</html>\n", [Css, Inner], Html)
     ).
 
-desk_review_letter(_HD, I, L, Html) :-
+desk_review_letter(HD, I, L, Html) :-
     (   L.to == none
     ->  esc(L.about, AH),
         dk_f("<div class=\"letter\"><div class=\"lh\"><span class=\"loud\">No live session holds this item: no letter goes out.</span></div><p class=\"small quiet\">About ~w. What the Desk records below still happens, and the next session that takes the item finds it.</p></div>", [AH], Html)
@@ -7147,7 +7175,8 @@ desk_review_letter(_HD, I, L, Html) :-
         ),
         desk_letter_head(L.about, Head), esc(Head, HeadH), esc(L.text, TxH),
         desk_wake_line(L.about, Wake), esc(Wake, WakeH),
-        dk_f("<div class=\"letter\"><div class=\"lh\">~w</div><p class=\"fixed\">~w</p><textarea name=\"letter_~w\" aria-label=\"The letter to ~w\">~w</textarea><p class=\"small quiet\">If ~w is idle and waits on this item, the Desk also types this one line into its pane: <span class=\"wake\">~w</span></p></div>", [ToH, HeadH, I, L.to, TxH, L.to, WakeH], Html)
+        ( desk_hooks_missing(HD, Ms), Ms \== [] -> desk_hooks_warning(HD, L.to, Ms, HookW) ; HookW = "" ),
+        dk_f("<div class=\"letter\"><div class=\"lh\">~w</div><p class=\"fixed\">~w</p><textarea name=\"letter_~w\" aria-label=\"The letter to ~w\">~w</textarea><p class=\"small quiet\">If ~w is idle and waits on this item, the Desk also types this one line into its pane: <span class=\"wake\">~w</span></p>~w</div>", [ToH, HeadH, I, L.to, TxH, L.to, WakeH, HookW], Html)
     ).
 
 % desk_wake_line(+About, -Line): the one line that desk.py wake types into an idle pane (desk.py wake-text).

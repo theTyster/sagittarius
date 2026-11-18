@@ -36,6 +36,7 @@ MUTANTS = [
     ("wake-types-other-line", "line = wake_text(about_of(letter))", "line = wake_text(item_name(letter))"),
     ("send-to-unchecked", "    if s is None:\n        raise Bad(f\"--to", "    if False:\n        raise Bad(f\"--to"),
     ("late-unseen-threshold", "LATE_SECONDS = 24 * 3600", "LATE_SECONDS = 26 * 3600"),
+    ("hooks-ignore-other-settings", "hooks_missing(hub, settings_files(hub))", "hooks_missing(hub)"),
     ("late-unseen-ignores-seen", "late = bool(not seen and at_s", "late = bool(at_s"),
     ("drafts-in-the-hub", "def drafts_dir():\n    return state_dir()",
      "def drafts_dir():\n    return os.path.join(os.getcwd(), \"flow\", \"desk\")"),
@@ -878,9 +879,28 @@ def case_db_read_only(r, root):
     r.check("hubflow-check-clean", code == 0, err)
 
 
+def case_hooks_status(r, root):
+    """c24: status names the hook events that no settings file gives to desk.py hook (the hub's
+    settings.json and settings.local.json, the user's ~/.claude/settings.json)."""
+    h = make_hub(r, root)
+    r.check("hooks-none-all-missing", status(h)["hooks_missing"] == ["SessionStart", "UserPromptSubmit", "Stop"], status(h).get("hooks_missing"))
+    code, block, err = desk(h, "hooks")
+    full = json.loads(block)
+    part = {"hooks": {k: v for k, v in full["hooks"].items() if k != "Stop"}}
+    os.makedirs(os.path.join(h, ".claude"), exist_ok=True)
+    with open(os.path.join(h, ".claude", "settings.local.json"), "w") as f:
+        json.dump(part, f)
+    r.check("hooks-local-counts", status(h)["hooks_missing"] == ["Stop"], status(h).get("hooks_missing"))
+    home = os.path.join(root, "home", ".claude")
+    os.makedirs(home, exist_ok=True)
+    with open(os.path.join(home, "settings.json"), "w") as f:
+        json.dump({"hooks": {"Stop": full["hooks"]["Stop"]}}, f)
+    r.check("hooks-user-settings-count", status(h)["hooks_missing"] == [], status(h).get("hooks_missing"))
+
+
 CASES = [case_send, case_send_order, case_events, case_ownership, case_status, case_drafts, case_hook,
          case_notice, case_render, case_late, case_kb_refs_outside, case_corrupt, case_wake, case_join,
-         case_service, case_hooks_cmd, case_db_read_only]
+         case_service, case_hooks_cmd, case_db_read_only, case_hooks_status]
 
 
 def run_all(r, only):

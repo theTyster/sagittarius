@@ -62,7 +62,7 @@ a.leaf:hover{background:var(--drawer)}
 .num.hot{background:color-mix(in srgb,var(--lamp) 20%,transparent);color:var(--lamp)}
 .hint{font-size:13px;color:var(--lamp);padding:2px 10px 6px 26px}
 .sess{display:flex;align-items:flex-start;gap:10px;padding:6px 10px}
-.sess .what{flex:1;font-size:13px;color:var(--graphite);line-height:1.35}
+.sess .what{flex:1;min-width:0;font-size:13px;color:var(--graphite);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sess .what b{color:var(--paper);font-weight:600}
 
 main{display:flex;flex-direction:column;gap:26px;min-width:0}
