@@ -88,7 +88,7 @@ test('trend: one cell per judgment, a failed call is a cross, the cursor is mark
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Button', key: 'tab-trend', text: '[trend]' })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: '×' })).toBeTruthy()
-  expect(await ui.find({ type: 'Text', text: '     ▲' })).toBeTruthy() // under the third cell: the newest
+  expect(await ui.find({ type: 'Text', text: /^ {29}▲$/ })).toBeTruthy() // under the middle of the newest column (17 + 2 × 5 + 2)
   expect(await ui.find({ type: 'Text', text: /^#3 · .* · 0\.25s$/ })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: /🔀 diverge/ })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: '1–3 of 3 · p n move the cursor' })).toBeTruthy()
@@ -100,7 +100,7 @@ test('trend: the cursor on an older judgment names that one', async ($, on) => {
   const quiet = glance({}, { h_divergence: { type: 'noul', noul: 0.05 } })
   seed(on, [quiet, glance(), glance()], { tab: 1, cursor: 0 })
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: '   ▲' })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /^ {19}▲$/ })).toBeTruthy() // under the middle of the first column (17 + 2)
   expect(await ui.find({ type: 'Text', text: /^#1 · / })).toBeTruthy()
   await ui.unmount()
 })
@@ -112,7 +112,39 @@ test('health: latency, tokens and cost, failed calls, how often each signal spea
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   for (const t of ['   median 0.25s · max 0.25s', '   4,000 tokens · $0.0002', '⚠  1 of 3 calls failed', 'How often each signal speaks', '🧩 read in parts: 2 of 2 · median 2, most 2'])
     expect(await ui.find({ type: 'Text', text: t })).toBeTruthy()
-  expect(await ui.find({ type: 'Text', text: ' 1/1/0' })).toBeTruthy() // divergence: one yes, one unsure, no no
+  expect(await ui.find({ type: 'Text', text: ' 1 yes · 1 unsure · 0 no' })).toBeTruthy() // divergence (Ty: spelled out)
+  await ui.unmount()
+})
+
+// Ty (2026-11-18): in the docked pane the trend and health tabs use the width, each row has its name, the
+// counts are spelled out, and the legend says "unsure" alone.
+const docked = (cols: number) => ({ ...PANE, props: { ...PANE.props, bodyColumns: cols, scroll: { offset: 0, bodyRows: 40 } }, surface: 'terminal' as const })
+const CHART = /^[▁▂▃▄▅▆▇█·×]+$/
+const longestRun = async (ui: any) => Math.max(0, ...(await ui.findAll({ type: 'Text', text: CHART })).map((t: any) => t.text.length))
+
+test('trend, docked: each row is named, and the chart fills the width', async ($, on) => {
+  const quiet = glance({}, { h_divergence: { type: 'noul', noul: 0.05 } })
+  seed(on, [quiet, glance(), glance()], { tab: 1 })
+  const ui = await $.ui.mount(docked(60))
+  for (const name of ['diverge', 're-plan', 'latency']) expect(await ui.find({ type: 'Text', text: name })).toBeTruthy()
+  // 3 judgments over 60 columns less the glyph and the label (18) and a margin: each one is 14 cells wide
+  expect(await longestRun(ui)).toBeGreaterThanOrEqual(14)
+  await ui.unmount()
+})
+
+test('health, docked: rows named, counts spelled out, bars and dividers fill the width, unsure alone', async ($, on) => {
+  const unsure = glance({}, { h_divergence: { type: 'noul', noul: 0.5 } })
+  const failed = glance({ error: 'timeout', answers: null, parts: undefined })
+  seed(on, [unsure, failed, glance()], { tab: 2 })
+  const ui = await $.ui.mount(docked(90))
+  for (const name of ['diverge', 'latency', 'tokens']) expect(await ui.find({ type: 'Text', text: name })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /1 yes · 1 unsure · 0 no/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /says nothing/ })).toBeFalsy()
+  expect(await ui.find({ type: 'Text', text: / unsure/ })).toBeTruthy()
+  expect(await longestRun(ui)).toBeGreaterThanOrEqual(14) // the latency and token charts
+  const bars = (await ui.findAll({ type: 'Text', text: /^[█▒░]+$/ })).map((t: any) => t.text.length)
+  expect(Math.max(...bars)).toBeGreaterThan(40) // 90 less the glyph, the label and the counts; the old cap was 20
+  for (const n of (await ui.findAll({ type: 'Text', text: /^─+$/ })).map((t: any) => t.text.length)) expect(n).toBeGreaterThanOrEqual(88)
   await ui.unmount()
 })
 

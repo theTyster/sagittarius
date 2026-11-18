@@ -391,23 +391,30 @@ const pCell = (v: number | null, on: boolean): Cell =>
 const mCell = (v: number | null, max: number, on: boolean): Cell =>
   v === null ? { ch: '·', dim: true } : { ch: gauge(max > 0 ? v / max : 0), dim: !on, bold: on }
 
-// A row of a chart: an icon, then the cells.
-function chartRow(ui: any, glyph: string, cells: Cell[]) {
+// A row of a chart: an icon, its name (docked), then the cells, each `w` cells wide.
+function chartRow(ui: any, glyph: string, cells: Cell[], name?: string, w = 1) {
   const { Box, Text } = ui
   return (
     <Box flexDirection="row">
       <Box width={3} flexShrink={0}>
         <Text>{glyph}</Text>
       </Box>
-      <Text>{runs(Text, cells)}</Text>
+      {name === undefined ? '' : (
+        <Box width={LABEL + 1} flexShrink={0}>
+          <Text dimColor>{name}</Text>
+        </Box>
+      )}
+      <Text>{runs(Text, w > 1 ? cells.flatMap(c => Array(w).fill(c)) : cells)}</Text>
     </Box>
   )
 }
+// Docked (Ty, 2026-11-18): the charts take the width that the icon and the name leave.
+const chartSpace = (width: number) => Math.max(8, width - 3 - (LABEL + 1) - 1)
 
 // The trend tab: one row per signal, one cell per judgment; the cursor's judgment is a bright column.
-function trend(ui: any, hist: Glance[], idx: number, width: number) {
+function trend(ui: any, hist: Glance[], idx: number, width: number, docked: boolean) {
   const { Box, Text } = ui
-  const n = Math.max(8, Math.min(width - 4, 60))
+  const n = docked ? chartSpace(width) : Math.max(8, Math.min(width - 4, 60))
   const end = Math.min(hist.length, Math.max(idx + 1 + Math.floor(n / 4), n))
   const from = Math.max(0, end - n)
   const win = hist.slice(from, end)
@@ -416,12 +423,14 @@ function trend(ui: any, hist: Glance[], idx: number, width: number) {
   const lat = Math.max(0, ...win.map(g => g.latency ?? 0))
   const sel = hist[idx]
   const hot = sel && !sel.error && sel.answers ? fired(sel) : []
+  const w = docked ? Math.max(1, Math.floor(n / Math.max(1, win.length))) : 1 // few judgments: wider columns
+  const lead = docked ? 3 + LABEL + 1 : 3
 
   return (
     <Box flexDirection="column">
-      {seen.map(q => chartRow(ui, q.glyph, win.map((g, i) => (g.error || !g.answers ? { ch: '×', color: 'error' } : pCell(noul(g, q.id), i === at)))))}
-      {chartRow(ui, '⏱', win.map((g, i) => mCell(g.latency, lat, i === at)))}
-      <Text dimColor>{'   ' + ' '.repeat(Math.max(0, at)) + '▲'}</Text>
+      {seen.map(q => chartRow(ui, q.glyph, win.map((g, i) => (g.error || !g.answers ? { ch: '×', color: 'error' } : pCell(noul(g, q.id), i === at))), docked ? q.label : undefined, w))}
+      {chartRow(ui, '⏱', win.map((g, i) => mCell(g.latency, lat, i === at)), docked ? 'latency' : undefined, w)}
+      <Text dimColor>{' '.repeat(lead + Math.max(0, at) * w + Math.floor((w - 1) / 2)) + '▲'}</Text>
       <Text dimColor>{`#${idx + 1}${sel ? ' · ' + ago(age(sel.time, Date.now())) : ''}${sel?.latency != null ? ` · ${sel.latency.toFixed(2)}s` : ''}`}</Text>
       <Text>{sel?.error ? '⚠ the call failed' : hot.length ? hot.map(r => `${r.glyph} ${r.label}`).join('  ') : 'no signal'}</Text>
       <Text dimColor>{`${from + 1}–${end} of ${hist.length} · p n move the cursor`}</Text>
@@ -430,9 +439,9 @@ function trend(ui: any, hist: Glance[], idx: number, width: number) {
 }
 
 // The health tab: how the hook performs over the session.
-function health(ui: any, hist: Glance[], width: number) {
+function health(ui: any, hist: Glance[], width: number, docked: boolean, rule: string) {
   const { Box, Text } = ui
-  const n = Math.max(8, Math.min(width - 4, 60))
+  const n = docked ? chartSpace(width) : Math.max(8, Math.min(width - 4, 60))
   const win = hist.slice(-n)
   const ok = hist.filter(g => !g.error && g.answers)
   const failed = hist.length - ok.length
@@ -441,24 +450,28 @@ function health(ui: any, hist: Glance[], width: number) {
   const sum = toks.reduce((x, y) => x + y, 0)
   const parted = ok.filter(g => g.parts?.length)
   const sizes = parted.map(g => g.parts?.length ?? 0)
-  const MIX = Math.max(8, Math.min(width - 13, 20))
   const mix = TREND_ROWS.map(q => {
     const v = ok.map(g => noul(g, q.id)).filter((x): x is number => x !== null)
     const yes = v.filter(x => x >= 0.7).length
     const no = v.filter(x => x <= 0.3).length
     return { q, total: v.length, yes, no, unsure: v.length - yes - no }
   }).filter(m => m.total > 0)
+  // Docked the counts are spelled out (Ty: "I have no idea what these numbers represent"), and the bars take
+  // the width that the icon, the name and the longest count leave.
+  const count = (m: { yes: number; unsure: number; no: number }) => (docked ? ` ${m.yes} yes · ${m.unsure} unsure · ${m.no} no` : ` ${m.yes}/${m.unsure}/${m.no}`)
+  const MIX = docked ? Math.max(8, chartSpace(width) - Math.max(0, ...mix.map(m => count(m).length))) : Math.max(8, Math.min(width - 13, 20))
+  const w = docked ? Math.max(1, Math.floor(n / Math.max(1, win.length))) : 1
   const latMax = Math.max(0, ...win.map(g => g.latency ?? 0))
   const tokMax = Math.max(0, ...win.map(g => g.tokens ?? 0))
 
   return (
     <Box flexDirection="column">
-      {chartRow(ui, '⏱', win.map(g => (g.error ? { ch: '×', color: 'error' } : mCell(g.latency, latMax, true))))}
+      {chartRow(ui, '⏱', win.map(g => (g.error ? { ch: '×', color: 'error' } : mCell(g.latency, latMax, true))), docked ? 'latency' : undefined, w)}
       <Text dimColor>{lats.length ? `   median ${median(lats).toFixed(2)}s · max ${Math.max(...lats).toFixed(2)}s` : '   no latency yet'}</Text>
-      {chartRow(ui, '🪙', win.map(g => mCell(g.tokens ?? null, tokMax, true)))}
+      {chartRow(ui, '🪙', win.map(g => mCell(g.tokens ?? null, tokMax, true)), docked ? 'tokens' : undefined, w)}
       <Text dimColor>{toks.length ? `   ${sum.toLocaleString('en-US')} tokens · $${((sum * PRICE_PER_MTOK) / 1e6).toFixed(4)}` : '   no token counts yet'}</Text>
       <Text color={failed ? 'error' : undefined} dimColor={!failed}>{`⚠  ${failed} of ${hist.length} calls failed`}</Text>
-      <Text dimColor>{RULE}</Text>
+      <Text dimColor>{rule}</Text>
       <Text bold dimColor>How often each signal speaks</Text>
       {mix.map(m => {
         const y = Math.round((m.yes / m.total) * MIX)
@@ -468,11 +481,16 @@ function health(ui: any, hist: Glance[], width: number) {
             <Box width={3} flexShrink={0}>
               <Text>{m.q.glyph}</Text>
             </Box>
+            {docked ? (
+              <Box width={LABEL + 1} flexShrink={0}>
+                <Text dimColor>{m.q.label}</Text>
+              </Box>
+            ) : ''}
             <Text>
               <Text color={COLOR.confident}>{'█'.repeat(y)}</Text>
               <Text color={COLOR.moderate}>{'▒'.repeat(u)}</Text>
               <Text dimColor>{'░'.repeat(Math.max(0, MIX - y - u))}</Text>
-              <Text dimColor>{` ${m.yes}/${m.unsure}/${m.no}`}</Text>
+              <Text dimColor>{count(m)}</Text>
             </Text>
           </Box>
         )
@@ -481,9 +499,9 @@ function health(ui: any, hist: Glance[], width: number) {
         <Text color={COLOR.confident}>█</Text>
         <Text dimColor> yes  </Text>
         <Text color={COLOR.moderate}>▒</Text>
-        <Text dimColor> unsure: says nothing  ░ no</Text>
+        <Text dimColor> unsure  ░ no</Text>
       </Text>
-      <Text dimColor>{RULE}</Text>
+      <Text dimColor>{rule}</Text>
       <Text dimColor>{`🧩 read in parts: ${parted.length} of ${ok.length}` + (sizes.length ? ` · median ${median(sizes)}, most ${Math.max(...sizes)}` : '')}</Text>
       <Text dimColor>{`🛠  workbench ${ok.filter(g => g.routing === 'workbench').length} · late fixes ${ok.filter(g => g.kind === 'correction').length}`}</Text>
     </Box>
@@ -655,8 +673,8 @@ async function card($: EngineInterface, e: any) {
       ))}
     </Box>
   )
-  if (which === 1 && hist.length) body = trend(ui, hist, idx, chartCols)
-  if (which === 2 && hist.length) body = health(ui, hist, chartCols)
+  if (which === 1 && hist.length) body = trend(ui, hist, idx, inline ? chartCols : cols, !inline)
+  if (which === 2 && hist.length) body = health(ui, hist, inline ? chartCols : cols, !inline, rule)
   const why = which === 0 && g && !g.error && g.answers ? partsBox(ui, g, picked, stale, chartCols - 2, prevPart, nextPart, cells, rule, !inline) : ''
 
   const signals = (
