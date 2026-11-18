@@ -1576,6 +1576,12 @@ t_QS53() {  # Desk c5 c8 on serve desk: a divergence is kept in Ty's words and l
     post /send "token=$tok" "hub=$T/h" "item=q:$kb#qb" intent=diverge 'text=That is not what I meant: by id' 'letter_0=Ty diverges: by id'; code_is 303 "diverge on a KB question"
     grep -q "signal(.*divergence, human, .*by id" "$kb/kb.pl" "$kb/answers.pending" 2>/dev/null || note "the divergence is not kept in his words"
     hasnt_goal "$kb" "answered(qb)" "the question stays open"
+    # what the Desk records reads as words, never as a Prolog term (review H-0042)
+    review "token=$tok" "hub=$T/h" "item=q:$kb#qa" intent=answer choice=yes 'text=as on the screen'; code_is 200 "the review of an answer with words"
+    rj "any(r.endswith(', and your words as a note on the question.') for r in d['records']) and not any('->' in r for r in d['records'])"
+    mkdir -p "$T/h/specs/disc"; cp "$here/fixtures/discovery-a/kb.pl" "$T/h/specs/disc/kb.pl"
+    review "token=$tok" "hub=$T/h" "item=act:$T/h/specs/disc#vote" intent=answer choice=GO; code_is 200 "the review of a vote"
+    rj "any(r.startswith('Nothing is written by the Desk: the next session that takes the KB records it') for r in d['records']) and not any('->' in r for r in d['records'])"
     post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=requirement 'text=The Desk must run as a service' 'letter_0=Ty adds: a service' to_0=review; code_is 303 "a new requirement"
     hf "$T/h" view open --format json | grep -q "new requirement: The Desk must run as a service" || note "no intake thread"
     askjson "$T/h" "$A" "d['item']['status']=='open'"

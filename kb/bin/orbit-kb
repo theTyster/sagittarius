@@ -6954,7 +6954,8 @@ desk_plan_q(HD, K, Q, Intent, Choice, Text, P) :-
         ( Note == "" -> NoteT = "", NFs = [] ; dk_f("\n\nHis words: ~w", [Note], NoteT), atom_string(NA, Note), NFs = [note(Q, NA)] ),
         dk_f("Ty answers question ~w in the KB ~w (~w): ~w~w\n\nThe question: ~w\nThe Desk recorded answer(~w, ~w, human) in the KB, or in its answers.pending, which your next write applies.",
              [Q, K.label, K.dir, Ans, NoteT, QT, Q, AT], LT),
-        dk_f("The KB ~w: answer(~w, ~w, human)~w.", [K.label, Q, AT, ( Note == "" -> "" ; ", and your words as a note on the question" )], R1),
+        ( Note == "" -> NoteR = "" ; NoteR = ", and your words as a note on the question" ),
+        dk_f("The KB ~w: answer(~w, ~w, human)~w.", [K.label, Q, AT, NoteR], R1),
         desk_lt(To, answer, About, Item, LT, L1),
         P = plan{title:"Your answer", sub:About, letters:[L1], records:[R1], effects:[kb_answer(K.dir, Q, Ans, A, NFs)]}
     ;   Intent == diverge
@@ -6982,13 +6983,15 @@ desk_plan_act(HD, K, Ref, Intent, Choice, Text, P) :-
         ( Choice == "" -> CT = "(see his words)" ; CT = Choice ),
         desk_act_instr(A, Instr),
         dk_f("Ty decides on ~w in the KB ~w (~w): ~w.~w\n\n~w", [Sum, K.label, K.dir, CT, WT, Instr], LT),
-        dk_f("Nothing is written by the Desk: ~w records it in the KB as your own word.", [( To == none -> "the next session that takes the KB" ; To )], R1),
+        ( To == none -> Rec = "the next session that takes the KB" ; Rec = To ),
+        dk_f("Nothing is written by the Desk: ~w records it in the KB as your own word.", [Rec], R1),
         desk_lt(To, answer, About, Item, LT, L1),
         P = plan{title:"Your decision", sub:About, letters:[L1], records:[R1], effects:[none]}
     ;   Intent == diverge
     ->  desk_need_text(Text, "what you mean"),
         desk_action_claim(Eng, Ref, C), desk_diverge_facts(Ref, C, Text, Facts, _),
-        dk_f("Ty diverges on ~w in the KB ~w: that is not what he meant.\n\n~w\n\nThe KB records his words as a human divergence signal~w.", [Sum, K.label, Text, ( C == none -> "" ; ", and a note on the claim" )], LT),
+        ( C == none -> ClaimT = "" ; ClaimT = ", and a note on the claim" ),
+        dk_f("Ty diverges on ~w in the KB ~w: that is not what he meant.\n\n~w\n\nThe KB records his words as a human divergence signal~w.", [Sum, K.label, Text, ClaimT], LT),
         dk_f("The KB ~w: a divergence signal by you, with your words.", [K.label], R1),
         desk_lt(To, diverge, About, Item, LT, L1),
         P = plan{title:"That is not what you meant", sub:About, letters:[L1], records:[R1], effects:[kb_write(K.dir, Facts)]}
