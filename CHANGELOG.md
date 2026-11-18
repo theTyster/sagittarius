@@ -51,6 +51,13 @@ Earlier versions, named after the fact so that a report can refer to them:
   log lines as one judgment. The reversal has a row, a toast quotes the part that fired it.
 - **System 1: the live view.** `s1/live.py` prints the hook's judgments of a session as a pane, a
   corner, a toast line or JSON. The status line segment shows a reversal and the number of parts.
+- **The Desk shows a demo image (handoff H-0043, Ty, 2026-11-18).** The card that asks the human to
+  approve a demo shows the image itself in its right column, not only its file name, and says so when the file changed
+  since the KB recorded its digest. The Desk serves only the demo images that its page showed, with
+  the token of the page, in a sandbox. Review and send with nothing new written shows the letters
+  already sent about the item, instead of asking the human to choose or write. With two or more
+  MindHoles, the Desk has one tab per MindHole (with what waits there) and a tab All, instead of a
+  collapsible group per MindHole in the rail.
 - **The Desk, round 2 (hub spec KB `questions-server`, hypothesis h3, Ty's GO of 2026-11-17 after
   three flare laps).** `orbit-kb serve desk` is one Desk at one address for every MindHole on the
   machine: `desk.py join` adds a MindHole in one step, and `desk.py service` writes a systemd user

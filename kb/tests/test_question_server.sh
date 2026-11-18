@@ -1494,7 +1494,7 @@ t_QS47() {  # Desk c15: what waits on Ty in a project KB: a fact an agent propos
     page_ok || return; chk text "$T/page.html" '!A fact that an agent proposed'
 }
 t_QS48() {  # Desk c16: one Desk at one address serves every mindhole that joined it in one step; a mindhole with no ledger is named
-    desk_hub "$T/h1"; desk_hub "$T/h2"; local A B
+    desk_hub "$T/h1"; desk_hub "$T/h2"; local A B t
     A=$(hf "$T/h1" --session build add ask --no-kb --title 'First mindhole asks' --note 'The case, the options and the default, for the test.' --waits-on me)
     B=$(hf "$T/h2" --session build add ask --no-kb --title 'Second mindhole asks' --note 'The case, the options and the default, for the test.' --waits-on me)
     dpy "$T/h1" join --name one >/dev/null || note "join one failed"
@@ -1502,6 +1502,8 @@ t_QS48() {  # Desk c16: one Desk at one address serves every mindhole that joine
     chk text "$T/page.html" 'First mindhole asks' '!Second mindhole asks'
     dpy "$T/h2" join --name two >/dev/null || note "join two failed"
     page_ok || return                       # the same server, no restart: the second mindhole joined in one step
+    t=$(tabs "$T/page.html" | tr '\n' ' '); [ "$t" = "*one=2 two=2 All=4 " ] || note "c28: the second mindhole has no tab: '$t'"
+    get '/?mh=all'; code_is 200 "the All tab (c28)" || return
     chk text "$T/page.html" 'First mindhole asks' 'Second mindhole asks' 'one' 'two'
     local tok; tok=$(pg dtoken "$T/page.html")
     post /send "token=$tok" "hub=$T/h2" "item=ask:$B" 'text=Yes' 'letter_0=Ty answers: yes' to_0=build; code_is 303 "answer in the second mindhole"
@@ -1642,7 +1644,7 @@ t_QS57() {  # Desk c23: the sessions roll up by mindhole; each session has one s
     desk_hub "$T/h1"; desk_hub "$T/h2"; local H
     kb_spec "$T/h1/specs/two" 'Second rules' ''
     for k in exp two; do H=$(hf "$T/h1" --session discovery handoff --to build --title "Build $k" --ref "kb:$k"); hf "$T/h1" --session build accept "$H" >/dev/null; done
-    srvd --hub "$T/h1" --hub "$T/h2" || return; page_ok || return
+    srvd --hub "$T/h1" --hub "$T/h2" || return; get '/?mh=all'; code_is 200 "the All tab (c28)" || return
     local n; n=$(grep -o '<details class="sessgroup">' "$T/page.html" | wc -l); [ "$n" = 2 ] || note "want 2 closed session groups (one per mindhole), found $n"
     chk raw "$T/page.html" 'Writes <b>2 KBs</b>.' 'Writes the KB exp' 'Writes the KB two' '!Writes <b>exp, two</b>'
     chk raw "$T/page.html" 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis'
@@ -1660,18 +1662,162 @@ t_QS58() {  # Desk c24: when no desk hook can deliver a letter, the card and the
     chk dcard "$T/page.html" "ask-$A" '!will not be told'
     srv_stop
 }
+# imgsrc FILE NEEDLE: the src (unescaped) of each <img> on the page whose alt holds NEEDLE, one a line
+imgsrc() { python3 -I -c "import html,re,sys; p=open(sys.argv[1],encoding='utf-8').read()
+for m in re.finditer(r'<img\b[^>]*>', p):
+    t=m.group(0); a=re.search(r'alt=\"([^\"]*)\"', t); s=re.search(r'src=\"([^\"]*)\"', t)
+    if a and s and sys.argv[2] in html.unescape(a.group(1)): print(html.unescape(s.group(1)))" "$1" "$2"; }
+# fetch PATH OUT: a GET with its headers; sets CODE, the body in OUT, the headers in OUT.h
+fetch() { CODE=$(curl -s -D "$2.h" -o "$2" -w '%{http_code}' --max-time 30 "$URL$1" 2>/dev/null); }
+t_QS59() {  # Desk H-0043 (Ty, 2026-11-18): a flare's demo image renders on its card; the Desk serves only the demo files that it shows
+    mkdesk "$T/h"; mkdir -p "$T/h/specs/look"
+    printf '\x89PNG\r\n\x1a\n-the-demo-image-' > "$T/h/specs/look/shot.png"
+    printf '<p>a mock</p>' > "$T/h/specs/look/mock.html"
+    printf 'old' > "$T/h/specs/look/old.png"
+    printf 'secret' > "$T/h/specs/look/notes.png"
+    local d m; d=$(sha256sum "$T/h/specs/look/shot.png" | cut -d' ' -f1); m=$(sha256sum "$T/h/specs/look/mock.html" | cut -d' ' -f1)
+    kb_new "$T/h/specs/look" <<EOF
+uses([build]).
+request(r1, 'The pane must look calm').
+claim(c1, introduce, 'The pane uses three colors at most').
+example(c1, 'The idle pane shows grey, green and amber only.').
+visual(c1).
+claim(c2, introduce, 'The menu reads as one line').
+example(c2, 'The menu of the idle pane is one line.').
+visual(c2).
+claim(c3, introduce, 'The footer is quiet').
+example(c3, 'The footer shows one grey line.').
+visual(c3).
+subject(shot, 'shot.png', 'sha256:$d').
+demo(shot, c1).
+subject(mock, 'mock.html', 'sha256:$m').
+demo(mock, c2).
+subject(old, 'old.png', 'sha256:0000000000000000000000000000000000000000000000000000000000000000').
+demo(old, c3).
+subject(notes, 'notes.png', 'sha256:$d').
+EOF
+    srvd --hub "$T/h" || return; page_ok || return
+    local src tok; src=$(imgsrc "$T/page.html" 'shot.png' | head -n1)
+    [ -n "$src" ] || { note "the card of claim c1 shows no image of shot.png"; return; }
+    case "$src" in /demo\?*) ;; *) note "the image of shot.png is not served by the Desk: src=$src"; return ;; esac
+    fetch "$src" "$T/img"; code_is 200 "GET the demo image" || return
+    cmp -s "$T/img" "$T/h/specs/look/shot.png" || note "the Desk served other bytes than shot.png"
+    grep -qi '^content-type: image/png' "$T/img.h" || note "the demo image is not served as image/png: $(snip "$(cat "$T/img.h")")"
+    grep -qi "^content-security-policy:.*sandbox" "$T/img.h" || note "the demo file is served with no sandbox policy"
+    [ -n "$(imgsrc "$T/page.html" 'mock.html')" ] && note "an HTML demo is shown as an image"
+    chk raw "$T/page.html" 'mock.html'
+    [ -n "$(imgsrc "$T/page.html" 'old.png')" ] || note "the card of claim c3 shows no image of old.png"
+    chk raw "$T/page.html" 'old.png changed since the KB recorded its digest'
+    chk raw "$T/page.html" '!shot.png changed since'
+    # the Desk serves only what it shows, to this run, with the token of the page
+    tok=$(pg dtoken "$T/page.html")
+    fetch "${src/s=shot/s=notes}" "$T/x1"; code_is 404 "a subject that is not a demo" || true
+    fetch "${src/s=shot/s=mock}" "$T/x2"; code_is 404 "an HTML demo as an image" || true
+    fetch "${src/token=$tok/token=0}" "$T/x3"; code_is 403 "a demo image with the wrong token" || true
+    fetch "/demo?token=$tok&kb=$T/h/specs/look/../look&s=shot" "$T/x4"; code_is 404 "a KB dir that the page did not show" || true
+    grep -q 'secret' "$T/x1" "$T/x2" "$T/x4" 2>/dev/null && note "a file the page did not show was served"
+    # the KB changes after the page: the subject that was shown now names an HTML file; it is not served
+    sed -i "s|^subject(shot, 'shot.png'|subject(shot, 'mock.html'|" "$T/h/specs/look/kb.pl"
+    fetch "$src" "$T/x5"; code_is 404 "a shown subject that now names an HTML file" || true
+}
+# demoside FILE NEEDLE: where the demo NEEDLE sits on its card: "right" (in Why you, why now), "left" (in What it rests on), or "none"
+demoside() { python3 -I -c "import sys; p=open(sys.argv[1],encoding='utf-8').read(); i=p.find(sys.argv[2])
+if i < 0: print('none'); sys.exit(0)
+h=p.rfind('<h3>', 0, i); t=p[h:h+40]
+print('right' if 'Why you, why now' in t else 'left' if 'What it rests on' in t else 'other:'+t)" "$1" "$2"; }
+t_QS60() {  # Desk c26 (Ty, 2026-11-18: "Lets put the images in the right side of the card to save on vertical space."): the demo sits under Why you, why now
+    mkdesk "$T/h"; mkdir -p "$T/h/specs/look"
+    printf '\x89PNG\r\n\x1a\n-img-' > "$T/h/specs/look/shot.png"; printf '<p>a mock</p>' > "$T/h/specs/look/mock.html"
+    local d m; d=$(sha256sum "$T/h/specs/look/shot.png" | cut -d' ' -f1); m=$(sha256sum "$T/h/specs/look/mock.html" | cut -d' ' -f1)
+    kb_new "$T/h/specs/look" <<EOF
+uses([build]).
+request(r1, 'The pane must look calm').
+claim(c1, introduce, 'The pane uses three colors at most').
+example(c1, 'The idle pane shows grey, green and amber only.').
+visual(c1).
+claim(c2, introduce, 'The menu reads as one line').
+example(c2, 'The menu of the idle pane is one line.').
+visual(c2).
+subject(shot, 'shot.png', 'sha256:$d').
+demo(shot, c1).
+subject(mock, 'mock.html', 'sha256:$m').
+demo(mock, c2).
+EOF
+    srvd --hub "$T/h" || return; page_ok || return
+    local s; s=$(demoside "$T/page.html" 'alt="The demo shot of claim c1'); [ "$s" = right ] || note "the image of shot.png is $s, want right (in Why you, why now)"
+    s=$(demoside "$T/page.html" '<code>mock.html</code>'); [ "$s" = right ] || note "the name of mock.html is $s, want right (in Why you, why now)"
+}
+
+t_QS61() {  # Desk c27 (Ty, 2026-11-18: "Would be more useful to see the message I had previously already sent."): Review and send with nothing new shows what was sent
+    desk_hub "$T/h"; local A B tok
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which name' --note 'Case: the name. Options: Desk or Board. Default: Desk.' --waits-on me)
+    mkdir -p "$T/h/specs/disc"; cp "$here/fixtures/discovery-a/kb.pl" "$T/h/specs/disc/kb.pl"
+    local H; H=$(hf "$T/h" --session discovery handoff --to build --title 'Build disc' --ref kb:disc); hf "$T/h" --session build accept "$H" >/dev/null   # build holds the KB
+    srvd --hub "$T/h" || return; page_ok || return; tok=$(pg dtoken "$T/page.html")
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=diverge 'text=Not a port at all' 'letter_0=Ty diverges: not a port at all' to_0=build; code_is 303 "diverge on an ask"
+    review "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer; code_is 200 "Review and send with nothing new, after a letter"
+    grep -q 'Ty diverges: not a port at all' "$T/review.html" || note "the review does not show the letter he sent: $(snip "$(cat "$T/review.html")")"
+    grep -q 'You already sent' "$T/review.html" || note "the review does not say that he already sent it"
+    grep -q '<button class="btn go"' "$T/review.html" && note "the review of what was sent offers to send"
+    review "token=$tok" "hub=$T/h" "item=ask:$B" intent=answer; code_is 400 "Review and send with nothing written and nothing sent"
+    post /send "token=$tok" "hub=$T/h" "item=act:$T/h/specs/disc#vote" intent=answer choice=GO 'text=Build it' 'letter_0=Ty votes GO: build it' to_0=build; code_is 303 "a vote"
+    grep -q 'Ty votes GO: build it' "$T/h/flow/desk/letters.jsonl" || note "setup: the vote letter was not stored"
+    review "token=$tok" "hub=$T/h" "item=act:$T/h/specs/disc#vote" intent=answer; code_is 200 "Review and send on the vote with nothing new"
+    grep -q 'Ty votes GO: build it' "$T/review.html" || note "the review of the vote does not show the letter he sent"
+}
+
+# tabs FILE: the mindhole tabs of the page as NAME=COUNT, the current one marked with *
+tabs() { python3 -I -c "import re,sys,html; p=open(sys.argv[1],encoding='utf-8').read(); m=re.search(r'<nav class=\"mhtabs\"[^>]*>(.*?)</nav>', p, re.S)
+if not m: print('none'); sys.exit(0)
+for a in re.finditer(r'<a([^>]*)>(.*?)</a>', m.group(1), re.S):
+    t=re.sub(r'<[^>]+>', ' ', a.group(2)).split(); cur='aria-current' in a.group(1)
+    print(('*' if cur else '')+' '.join(t[:-1])+'='+t[-1])" "$1"; }
+t_QS62() {  # Desk c28 (Ty, 2026-11-18: "use tabs for each mindhole instead of a dropdown"): one tab per mindhole, and All; a tab shows only its mindhole
+    mkdesk "$T/h1"; mkdesk "$T/h2"; local A B C tok t n
+    A=$(hf "$T/h1" --session build add ask --no-kb --title 'First hub question' --note 'Case, options and default, for the test.' --waits-on me)
+    B=$(hf "$T/h2" --session build add ask --no-kb --title 'Second hub question' --note 'Case, options and default, for the test.' --waits-on me)
+    C=$(hf "$T/h2" --session build add ask --no-kb --title 'Another second hub question' --note 'Case, options and default, for the test.' --waits-on me)
+    kb_rests "$T/h2/specs/exp"   # h2 also has a KB question (qb) and a guess (qa): a guess does not count as waiting
+    srvd --hub "$T/h1" --hub "$T/h2" || return; page_ok || return
+    t=$(tabs "$T/page.html" | tr '\n' ' '); [ "$t" = "*h1=1 h2=3 All=4 " ] || note "tabs at load: '$t', want '*h1=1 h2=3 All=4 '"
+    grep -q '<details class="sessgroup">' "$T/page.html" && note "the h1 tab still groups its sessions by mindhole (review H-0051)"
+    grep -q 'First hub question' "$T/page.html" || note "the h1 tab does not show the h1 ask"
+    grep -q 'Second hub question' "$T/page.html" && note "the h1 tab shows an ask of h2"
+    grep -q '<summary title="[^"]*/h1"' "$T/page.html" && note "the h1 tab still wraps h1 in a collapsible group of the rail"
+    get '/?mh=h2'; code_is 200 "GET the h2 tab" || return
+    t=$(tabs "$T/page.html" | tr '\n' ' '); [ "$t" = "h1=1 *h2=3 All=4 " ] || note "tabs on h2: '$t'"
+    grep -q 'Second hub question' "$T/page.html" || note "the h2 tab does not show the h2 ask"
+    grep -q 'First hub question' "$T/page.html" && note "the h2 tab shows an ask of h1"
+    tok=$(pg dtoken "$T/page.html")
+    get '/?mh=all'; code_is 200 "GET the All tab" || return
+    grep -q 'First hub question' "$T/page.html" && grep -q 'Second hub question' "$T/page.html" || note "the All tab does not show both mindholes"
+    # one count: the rail group of a mindhole on All says what its tab says (review H-0051)
+    n=$(python3 -I -c "import re,sys; p=open(sys.argv[1],encoding='utf-8').read(); m=re.search(r'<summary title=\"[^\"]*/h2\"><span class=\"name\">[^<]*</span><span class=\"num[^\"]*\">(\d+)</span>', p); print(m.group(1) if m else 'none')" "$T/page.html")
+    [ "$n" = 3 ] || note "the rail group of h2 on All says $n, its tab says 3"
+    local g; g=$(grep -o '<details class="sessgroup">' "$T/page.html" | wc -l); [ "$g" = 2 ] || note "All has $g session groups, want 2 (c23)"
+    get '/?mh=nowhere'; code_is 200 "GET an unknown tab" || return
+    grep -q 'No mindhole is named nowhere' "$T/page.html" || note "an unknown tab does not say so"
+    # a send from a tab comes back to that tab: the review passes the tab to its send form
+    tok=$(pg dtoken "$T/page.html")
+    review "token=$tok" "hub=$T/h2" "item=ask:$C" intent=diverge 'text=Not this' tab=h2; code_is 200 "the review from the h2 tab"
+    grep -q 'name="tab" value="h2"' "$T/review.html" || note "the review does not pass the tab on to Send"
+    curl -s -o /dev/null -D "$T/send.h" --max-time 30 --data-urlencode "token=$tok" --data-urlencode "hub=$T/h2" --data-urlencode "item=ask:$B" --data-urlencode intent=diverge --data-urlencode 'text=Not that' --data-urlencode 'letter_0=Ty diverges: not that' --data-urlencode to_0=build --data-urlencode tab=h2 "$URL/send"
+    grep -qi '^location: /?mh=h2#' "$T/send.h" || note "a send from the h2 tab does not come back to it: $(grep -i '^location' "$T/send.h")"
+}
 
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
     T=$(mktemp -d "$base/t.XXXXXX"); FAILS=(); SKIPPED=0
     export DESK_STATE="$T/desk-state"   # the Desk's own store (q10): never the real ~/.local/state
+    declare -F "$fn" >/dev/null || note "no test function $fn"   # a test that does not exist fails, never passes
     "$fn" </dev/null >/dev/null 2>&1 || true
     srv_stop
     if [ ${#FAILS[@]} -eq 0 ] && [ "$SKIPPED" = 1 ]; then skip=$((skip+1)); echo "SKIP $id"
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 58); do run_one QS$n; done
+for n in $(seq 1 62); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

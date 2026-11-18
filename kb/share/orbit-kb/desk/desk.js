@@ -10,6 +10,7 @@
   function post(url, body, extra) {
     var b = new URLSearchParams(body);
     b.set('token', tok);
+    b.set('tab', document.body.getAttribute('data-tab') || '');   // c28: a send comes back to its tab
     var h = {'Content-Type': 'application/x-www-form-urlencoded'};
     if (extra) for (var k in extra) h[k] = extra[k];
     return fetch(url, {method: 'POST', headers: h, body: b.toString()});
