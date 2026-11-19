@@ -58,6 +58,11 @@ Earlier versions, named after the fact so that a report can refer to them:
   already sent about the item, instead of asking the human to choose or write. With two or more
   MindHoles, the Desk has one tab per MindHole (with what waits there) and a tab All, instead of a
   collapsible group per MindHole in the rail.
+- **The ledger: a park ends on or before the due date (MindHole Kit 0.9.0, db schema 8; Ty,
+  2026-11-18).** `flow.db` refuses any write that leaves an item parked past its `--due` date, from
+  `park`, `set --due`, the Desk or any other tool; `migrate` names each item that already breaks the
+  rule and writes nothing. The Desk refuses such a Park at the review, and sorts its Parked group by
+  park end, then by due date (no due date last).
 - **The Desk: navigation and the Ledger lane (handoff H-0056, Ty, 2026-11-18).** Every row of the
   rail is a link: a click opens every fold around its item and shows it below the sticky band, and
   so does an anchor in the address. Expand all and Collapse all set every fold. Ledger items have

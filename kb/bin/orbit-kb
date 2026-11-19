@@ -1088,7 +1088,8 @@ if mode == "asks":
             for r in c.execute("SELECT * FROM item WHERE kind = \'ask\' AND status IN (\'open\', \'waiting\') ORDER BY id")]
     # c36, c37 (review H-0063): the park of every open item, read here from the ledger, so that a
     # mindhole whose desk.py is older (no parked field in its inbox rows) still shows its parks
-    parks = {r["id"]: r["parked_until"] for r in c.execute("SELECT id, parked_until FROM item WHERE status IN (\'open\', \'waiting\') AND parked_until IS NOT NULL") if parked(r)}
+    # c41: with the asker\'s --due date (only that one, not the triage date), for the order of the Parked group
+    parks = {r["id"]: {"until": r["parked_until"], "due": col(r, "due")} for r in c.execute("SELECT * FROM item WHERE status IN (\'open\', \'waiting\') AND parked_until IS NOT NULL") if parked(r)}
     print(json.dumps({"owner": owner(), "asks": rows, "parks": parks}))
 elif mode == "titles":
     print(json.dumps([dict(id=r["id"], title=r["title"], status=r["status"], kb=[x[0] for x in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = \'kb\'", (r["id"],))],
@@ -5858,8 +5859,8 @@ desk_st_parks(St0, Parks, St) :-
 desk_sess_parks(Parks, S0, S) :-
     (   get_dict(inbox, S0, Ib0), is_list(Ib0) -> maplist(desk_item_park(Parks), Ib0, Ib), S = S0.put(inbox, Ib) ; S = S0 ).
 desk_item_park(Parks, I0, I) :-
-    (   get_dict(id, I0, Id0), dk_str(Id0, Id), atom_string(K, Id), get_dict(K, Parks, U)
-    ->  I = I0.put(_{parked:true, parked_until:U})
+    (   get_dict(id, I0, Id0), dk_str(Id0, Id), atom_string(K, Id), get_dict(K, Parks, V), get_dict(until, V, U)
+    ->  ( get_dict(due, V, D), string(D) -> true ; D = "" ), I = I0.put(_{parked:true, parked_until:U, pdue:D})
     ;   I = I0.put(_{parked:false, parked_until:null})
     ).
 
@@ -6364,7 +6365,8 @@ desk_ctx_html(Rests, Why, Html) :-
 desk_hub_suffix(HDs, HD, S) :- ( HDs = [_, _|_] -> esc(HD.name, NH), dk_f(" <span class=\"quiet\">(~w)</span>", [NH], S) ; S = "" ).
 
 % desk_ask_card(+HDs, +HD, +X, -Card) (c12, c13, c19, c21; c32: in the Ledger lane, with the ledger's actions)
-desk_ask_card(HDs, HD, X, card{lane:Lane, due:Due, html:Html, kbs:KDs, hub:HD.path, anchor:Anchor, title:X.title, id:X.id, reserved:Res, until:PU}) :-
+desk_ask_card(HDs, HD, X, card{lane:Lane, due:Due, html:Html, kbs:KDs, hub:HD.path, anchor:Anchor, title:X.title, id:X.id, reserved:Res, until:PU, pdue:PDue}) :-
+    ( get_dict(due, X, PDue0), string(PDue0) -> PDue = PDue0 ; PDue = "" ),
     ( desk_ask_reserved(X) -> Res = true, Mode = open ; Res = false, Mode = row ),
     desk_parked(X, Lane, ledger, PU),
     esc(X.title, TH), dk_str(X.asked_by, AB0), ( AB0 == "" -> AB = "an unknown session" ; AB = AB0 ),
@@ -6435,7 +6437,8 @@ desk_led_anchor(HD, Id, A) :-
     (   desk_ask_for_me(HD, X), X.id == Id -> dk_f("ask:~w", [Id], It) ; dk_f("led:~w", [Id], It) ),
     desk_anchor_of(HD, It, A).
 
-desk_inbox_card(HDs, HD, S, I, card{lane:Lane, due:"", html:Html, kbs:KDs, hub:HD.path, until:PU}) :-
+desk_inbox_card(HDs, HD, S, I, card{lane:Lane, due:"", html:Html, kbs:KDs, hub:HD.path, until:PU, pdue:PDue}) :-
+    ( get_dict(pdue, I, PDue0), string(PDue0) -> PDue = PDue0 ; PDue = "" ),
     desk_parked(I, Lane, inbox, PU),
     esc(I.title, TH), desk_led_kind(I.kind, KL), esc(KL, KLH), esc(I.id, IH), esc(S, SH),
     ( dk_str(I.get(from, ""), Fr), Fr \== "" -> esc(Fr, FrH), dk_f(", from ~w", [FrH], FromH) ; FromH = "" ),
@@ -6476,9 +6479,15 @@ desk_park_html(PU, Opened, _, Html) :-
     (   Op \== "" -> dk_day(Op, OD), dk_f("<span>Opened ~w</span>", [OD], OH) ; OH = "" ),
     dk_f("<div class=\"due parked\" data-until=\"~w\" title=\"Parked in the ledger: out of the counts until this day ends\"><strong>Parked until ~w</strong>~w</div>", [PUH, PD, OH], Html).
 
-% desk_by_until(-O, +A, +B): the soonest end of park first (Ty: "by nearest due date ascending"), then by due.
+% desk_by_until(-O, +A, +B) (c36, c41; Ty, 2026-11-18: "Park end, then due"): the soonest end of park first;
+% among parks that end the same day, the soonest --due date (the asker's, never the computed triage
+% date), and an item with no --due date last; then the page order.
+desk_park_day(C, D) :- get_dict(until, C, U), ( sub_string(U, 0, 10, _, D0) -> D = D0 ; D = U ).
 desk_by_until(O, A, B) :-
-    compare(O0, A.until, B.until), ( O0 == (=) -> desk_by_due(O, A, B) ; O = O0 ).
+    desk_park_day(A, UA), desk_park_day(B, UB),
+    ( A.pdue == "" -> DA = "9999" ; DA = A.pdue ), ( B.pdue == "" -> DB = "9999" ; DB = B.pdue ),
+    compare(O0, UA-DA, UB-DB),
+    ( O0 == (=) -> compare(O1, A.html, B.html), ( O1 == (=) -> O = (<) ; O = O1 ) ; O = O0 ).
 
 desk_anchor_of(HD, Item, A) :-
     dk_f("~w ~w", [HD.name, Item], S), string_codes(S, Cs),
@@ -7233,6 +7242,17 @@ desk_plan_ask_led(HD, Id, Intent, Text, Until, P) :-
     ;   dk_f("The ask ~w does not wait on you now. Reload the page.", [Id], M), throw(desk_refused(409, M))
     ),
     ( string(X.owner_session), atom_string(O0, X.owner_session) -> Owner = O0 ; Owner = none ),
+    % c40 (Ty, 2026-11-18: "Refuse both ways"): a park may not end after the ask's --due date; the review
+    % says so before Ty confirms (hubflow and the ledger refuse it too)
+    (   Intent == park, get_dict(due, X, Due), string(Due), Due \== ""
+    ->  desk_need_date(Until),
+        (   Until @> Due
+        ->  dk_f("Park until ~w is after the due date ~w of ~w: a park must end on or before the due date. Park until ~w or earlier.", [Until, Due, Id, Due], M),
+            throw(desk_refused(400, M))
+        ;   true
+        )
+    ;   true
+    ),
     desk_plan_ledger(HD, Id, "ask", X.title, Owner, Intent, Text, Until, P).
 
 desk_plan_led(HD, Id, Intent, Text, Until, P) :-
@@ -11773,7 +11793,8 @@ help_lines(serve, [
 "and Park until a date (hubflow as the human), Note (a letter to the holder). Each row of the rail",
 "links to its item; a link opens the folds around it. Expand all and Collapse all set every fold.",
 "A parked ledger item (hubflow park --until) sits in a closed Parked group at the end of the Ledger",
-"lane, soonest end first, marked Parked until DATE. It counts nowhere and is not in Your action",
+"lane, by park end, then by --due date (none last), marked Parked until DATE. A Park past the",
+"ask's --due date is refused at the review (the ledger refuses it too, schema 8). It counts nowhere and is not in Your action",
 "until its park ends; then it is back by itself.",
 "",
 "Serve the page of view questions on http://127.0.0.1:PORT/ (default port 8737; --port 0 picks",

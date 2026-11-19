@@ -96,6 +96,31 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.9.0 (a park ends on or before the due date; db schema 8)
+
+Ty, 2026-11-18 (Sagittarius spec KB questions-server, c38 to c41): "there needs to be a database level
+requirement that parked dates must be <= Due Dates and nullable". The db schema is 8: two triggers on
+`item` refuse any write that leaves an item parked past its `--due` date (from `park --until`,
+`set --due`, the Desk, or any other tool that writes `flow.db`). With no park or no `--due` date there
+is no rule. **Database:** run `python3 .claude/scripts/hubflow.py migrate` once (schema 7 to 8), then
+`hubflow.py check`. If an item already breaks the rule, migrate names it and writes nothing: fix each
+one with this hub's hubflow (park it to an earlier date, or `set ID --due` later or `none`), then run
+migrate again. A hub at schema 6 applies the 0.8.0 section first.
+Engine files: `.claude/scripts/hubflow.py`, `.claude/scripts/hubflow-test.py`, `.claude/scripts/desk.py`,
+`.claude/skills/hub-flow/SKILL.md`, and in a formal hub `.claude/orbit-kb/bin/orbit-kb` and
+`share/orbit-kb/desk/desk.css`. Replace them.
+What changes for the hub's sessions:
+- `park ID --until D` is refused when D is after the item's due date, and `set ID --due D` is refused
+  when D is before the end of its park. Change the other date first.
+- `skip-waived` leaves an item unparked when the waiver's due time is after the item's due date, and
+  prints `not parked: ID`.
+- The Desk puts parked items in a closed Parked group at the end of the Ledger lane, by park end, then
+  by due date (no due date last). They count nowhere until the park ends. It reads each park from the
+  ledger, so a hub whose `desk.py` is older shows them too.
+Check: `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` prints `hub from MindHole Kit 0.9.0`, and
+`sqlite3 flow/flow.db "select name from sqlite_master where type = 'trigger'"` lists
+`item_park_due_insert` and `item_park_due_update`.
+
 ### 0.8.0 (the Desk; db schema 7)
 
 One Desk at one address for every MindHole on the machine (Sagittarius spec KB questions-server,

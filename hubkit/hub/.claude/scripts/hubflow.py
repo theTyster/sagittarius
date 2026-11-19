@@ -37,7 +37,8 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                H- item: from = the writer, owner = S, status open
   accept ID                                    only the to-session may accept; sets accepted_at
   renew ID [--note N]                          renewed_at = now (an open item only)
-  park ID --until YYYY-MM-DD [--note N]        not lapsed before that date
+  park ID --until YYYY-MM-DD [--note N]        not lapsed before that date; on or before the item's
+                                               due date when it has one (schema 8)
   set ID [--title T] [--owner S] [--waits-on P|none] [--status open|waiting] [--analysis SLUG|none]
          [--reserved WHY|none] [--due YYYY-MM-DD|none] [--no-kb yes|no]
                                                --no-kb yes is refused while the ask has a kb ref;
@@ -185,14 +186,15 @@ Retention (rotate --week-start D, D the Monday of the new W0; W5 starts at D - 3
          sessions retired before then and referenced by no item go with their aliases
   The caller commits flow/jsonl/ with the ids in the message; git history is the archive.
 
-Schema v7 (PRAGMA user_version = 7; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
+Schema v8 (PRAGMA user_version = 8; times are UTC TEXT YYYY-MM-DDTHH:MM:SSZ). `migrate` takes a v1
 db to v2 (it adds disposition, capsule, the two tables of a session index and remakes v_open and
 v_retention_due), a v2 db to v3 (it adds meeting and meeting_turn), a v3 db to v4 (it drops
 meeting and meeting_turn and their JSONL, adds the item kind summary and the ref kind transcript,
 and remakes v_stale and v_retention_due), a v4 db to v5 (it remakes v_stale and v_retention_due:
 a park that holds a time ends at that time), a v5 db to v6 (it drops the session index, the two
 tables that v2 added, and their JSONL), and a v6 db to v7 (it adds item.due and item.no_kb; every
-row keeps its values, and no_kb is 0).
+row keeps its values, and no_kb is 0), and a v7 db to v8 (two triggers on item: a park may not end after
+the item's due date; migrate refuses, naming each item, while a row breaks that rule).
   meta(key, value)                  next_A next_T next_K next_H next_S, owner_person, and now (tests only)
   session(name, role, status active|retired, started_on, retired_on)
   session_alias(alias, name, since)
@@ -203,7 +205,8 @@ row keeps its values, and no_kb is 0).
                                     closed_at is set exactly when status is closed;
                                     parked_until is a date (park --until: through that day) or a
                                     time (skip-waived: until the waiver's due time); due: the
-                                    asker's due date of an ask (YYYY-MM-DD); no_kb: 1 when an
+                                    asker's due date of an ask (YYYY-MM-DD; schema 8: a
+                                    park ends on or before it, when both are set); no_kb: 1 when an
                                     ask rests on no KB (0: it has a kb ref, or it is older than
                                     schema 7)
   item_ref(item_id, kind, ref)      issue and pr refs are digits; a kb ref is <slug> (the spec KB at
@@ -224,7 +227,7 @@ Views: clock v_open (with escalated) v_escalated v_waiting_on v_inbox v_stale (n
 import datetime, hashlib, json, os, re, shlex, sqlite3, subprocess, sys
 from urllib.parse import quote
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 # Schema steps: MIGRATIONS[v] is the SQL that takes a db from schema v to v + 1. DDL is the shape of
 # schema 1; init and rebuild run DDL and then every step, so a new db and a migrated db are the
 # same. A release that changes the schema raises SCHEMA_VERSION and adds its step to MIGRATIONS.
@@ -528,6 +531,23 @@ V7_STEPS = [
     "ALTER TABLE item ADD COLUMN no_kb INTEGER NOT NULL DEFAULT 0 CHECK(no_kb IN (0, 1))",
 ]
 
+# Schema 8 (hub spec KB questions-server c38, c39; Ty, 2026-11-18: "there needs to be a database level
+# requirement that parked dates must be <= Due Dates and nullable"; "Refuse both ways"): flow.db itself
+# refuses a row whose park ends after its due date. A park until D ends with day D, and a timed park
+# (skip-waived) is read by its day, so the rule compares the first 10 characters with due. With either
+# column NULL there is no rule. The triggers do not look at the rows already there: migrate checks them
+# first (PARK_DUE_CONFLICTS) and refuses, naming each item, before it writes anything.
+PARK_DUE_MSG = "park_after_due: a park must end on or before the item's due date"
+PARK_DUE_WHEN = "NEW.parked_until IS NOT NULL AND NEW.due IS NOT NULL AND substr(NEW.parked_until, 1, 10) > NEW.due"
+PARK_DUE_CONFLICTS = ("SELECT id, parked_until, due FROM item WHERE parked_until IS NOT NULL AND due IS NOT NULL"
+                      " AND substr(parked_until, 1, 10) > due ORDER BY id")
+V8_STEPS = [
+    f"CREATE TRIGGER item_park_due_insert BEFORE INSERT ON item WHEN {PARK_DUE_WHEN}"
+    f" BEGIN SELECT RAISE(ABORT, '{PARK_DUE_MSG.replace(chr(39), chr(39) * 2)}'); END",
+    f"CREATE TRIGGER item_park_due_update BEFORE UPDATE OF parked_until, due ON item WHEN {PARK_DUE_WHEN}"
+    f" BEGIN SELECT RAISE(ABORT, '{PARK_DUE_MSG.replace(chr(39), chr(39) * 2)}'); END",
+]
+
 MIGRATIONS = {
     1: V2_STEPS,
     2: V3_STEPS,
@@ -535,6 +555,7 @@ MIGRATIONS = {
     4: V5_STEPS,
     5: V6_STEPS,
     6: V7_STEPS,
+    7: V8_STEPS,
 }
 
 # view name -> (sql view, filter option -> column, ORDER BY)
@@ -1308,6 +1329,9 @@ def cmd_park(g, a):
         need_open(it)
         if until < w.now[:10]:
             raise Bad(f"--until {until} is before today ({w.now[:10]})")
+        if it["due"] and until > it["due"]:  # schema 8: park end <= due
+            raise Bad(f"--until {until} is after the due date {it['due']} of {it['id']}: a park must end on or before"
+                      f" the due date. Park until {it['due']} or earlier, or change the due date first (set {it['id']} --due)")
         c.execute("UPDATE item SET parked_until = ? WHERE id = ?", (until, it["id"]))
         w.event(it["id"], "parked", it["parked_until"], until)
 
@@ -1349,6 +1373,10 @@ def cmd_set(g, a):
                 w.event(iid, "reserved", old_r, new_r)
         if "due" in o:
             new = None if o["due"] == "none" else check_due(it["kind"], o["due"])
+            pu = it["parked_until"]
+            if new and pu and pu[:10] > new:  # schema 8: park end <= due
+                raise Bad(f"--due {new} is before the end of the park of {iid} ({pu}): a park must end on or before"
+                          f" the due date. Give a due date of {pu[:10]} or later, or park it to an earlier date first")
             if new != it["due"]:
                 c.execute("UPDATE item SET due = ? WHERE id = ?", (new, iid))
                 w.event(iid, "due", it["due"], new)
@@ -2092,9 +2120,11 @@ def cmd_skip_waived(g, a):
         usage("skip-waived")
     hub = hub_dir(g)
     ending = [iid for iid, _, _ in skip_candidates(g)]
+    past_due = []
 
     def fn(c, w):
         done, kept = [], []
+        past_due.clear()
         for iid in ending:
             it = get_item(c, iid)
             if it["status"] not in OPEN:
@@ -2114,6 +2144,9 @@ def cmd_skip_waived(g, a):
             until, note = plan
             if it["parked_until"] and park_end(it["parked_until"]) >= park_end(until):
                 continue  # parked through the due time already
+            if it["due"] and until[:10] > it["due"]:  # schema 8: a park must end on or before the due date
+                past_due.append(iid)
+                continue
             # T42 c4: the waiver ends the item only for its time: park it until the due date, never drop it
             c.execute("UPDATE item SET parked_until = ? WHERE id = ?", (until, iid))
             w.event(iid, "parked", it["parked_until"], until, note=note, by="script")
@@ -2124,6 +2157,8 @@ def cmd_skip_waived(g, a):
     print("parked: " + (" ".join(done) or "none"))
     for iid in kept:
         print(f"escalated: {iid} (the human ends it with triage)")
+    for iid in past_due:
+        print(f"not parked: {iid} (the waiver's due time is after the item's due date; schema 8 refuses that park)")
 
 
 def is_escalated(c, iid):
@@ -2622,6 +2657,14 @@ def cmd_migrate(g, a):
         c.close()
         die(2, f"the db has schema {v}, and this script has no upgrade step for it; nothing was written")
     start = v
+    if start < 8 <= SCHEMA_VERSION and start >= 7:  # schema 8 (c39): a row that breaks the park/due rule stops the migration
+        bad = c.execute(PARK_DUE_CONFLICTS).fetchall()
+        if bad:
+            c.close()
+            raise Bad("schema 8 requires a park to end on or before the item's due date, and these items break that rule: "
+                      + "; ".join(f"{r[0]} (parked until {r[1]}, due {r[2]})" for r in bad)
+                      + ". Nothing was written. Fix each one with the hubflow of this hub (park it to an earlier date, or"
+                      " set --due later or none), then run migrate again")
     c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     bak = f"{p}.bak-v{start}"
     b = sqlite3.connect(bak)

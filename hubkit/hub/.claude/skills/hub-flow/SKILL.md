@@ -85,7 +85,7 @@ $HF add thread --title "…" --ref pr:45
 $HF handoff --to build --title "…" --ref kb:<slug> --ref issue:123 --note "where to start"
 $HF accept H-0003                 # only the receiving session can accept
 $HF renew T-0002 --note "still live: next step …"
-$HF park K-0001 --until 2026-12-01 --note "why"
+$HF park K-0001 --until 2026-12-01 --note "why"   # on or before the item's --due date, if it has one
 $HF close A-0007 --reason done|dropped --note "…"
 $HF reopen A-0007 --note "…"
 $HF ref A-0007 add issue:124 ;  $HF link T-0002 T-0005 duplicates

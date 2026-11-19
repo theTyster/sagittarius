@@ -60,6 +60,11 @@ ASK_KB_RULE = 'if kind == "ask" and not no_kb and not has_kb and not informal(g)
 
 # Each mutant: (name, anchor in hubflow.py that must occur exactly once, replacement).
 MUTANTS = [
+    # schema 8 (hub spec KB questions-server c38, c39): a park ends on or before the due date
+    ("park-due-trigger-dropped", 'PARK_DUE_WHEN = "NEW.parked_until IS NOT NULL', 'PARK_DUE_WHEN = "0 AND NEW.parked_until IS NOT NULL'),
+    ("park-due-park-check-dropped", 'if it["due"] and until > it["due"]:  # schema 8', "if False:"),
+    ("park-due-set-check-dropped", "if new and pu and pu[:10] > new:  # schema 8", "if False:"),
+    ("park-due-migrate-check-dropped", "if start < 8 <= SCHEMA_VERSION and start >= 7:", "if False:"),
     ("init-prints-nothing", "print(f\"initialized {db_path(d)}", "(f\"initialized {db_path(d)}"),
     ("lapse-threshold-28-to-27", "LAPSE_DAYS = 28", "LAPSE_DAYS = 27"),
     ("prune-boundary-lt-to-le", "closed_at < ?", "closed_at <= ?"),
@@ -3458,6 +3463,101 @@ def case_dk_ask_note(r, root):
             and "--note N]" in out, out[:900])
 
 
+# ---- park date <= due date (hub spec KB questions-server c38, c39; Ty, 2026-11-18: "there needs to be a
+# database level requirement that parked dates must be <= Due Dates and nullable"; "Refuse both ways") ----
+
+def sql_write(d, sql, *params):
+    """A direct write to flow.db, as any tool could make it: None, or the error text."""
+    c = sqlite3.connect(dbfile(d))
+    try:
+        c.execute(sql, params)
+        c.commit()
+        return None
+    except sqlite3.DatabaseError as e:
+        return str(e)
+    finally:
+        c.close()
+
+
+def case_park_due(r, root):
+    """c38: the ledger refuses a park that ends after the --due date, both ways and at the db level."""
+    d = fresh(r, root, "park-due")
+    hf(r, d, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Due on the tenth", "--waits-on", "me", "--due", "2026-12-10")  # A-1
+    add(r, d, "ask", "No due date")  # A-2
+    snap = snapshot(d)
+    res = hf(r, d, "park", "A-0001", "--until", "2026-12-11")
+    r.check("pd-park-after-due-refused", refused(res, 1, "due") and "2026-12-10" in res[2], res)
+    r.check("pd-park-refusal-writes-nothing", snapshot(d) == snap)
+    res = hf(r, d, "park", "A-0001", "--until", "2026-12-10")
+    r.check("pd-park-on-due-day-passes", res[0] == 0 and q(d, "select parked_until from item where id = 'A-0001'") == [("2026-12-10",)], res)
+    snap = snapshot(d)
+    res = hf(r, d, "set", "A-0001", "--due", "2026-12-09")
+    r.check("pd-set-due-before-park-refused", refused(res, 1, "park") and "2026-12-10" in res[2], res)
+    r.check("pd-set-due-refusal-writes-nothing", snapshot(d) == snap)
+    res = hf(r, d, "set", "A-0001", "--due", "2026-12-12")
+    r.check("pd-set-due-after-park-passes", res[0] == 0 and q(d, "select due from item where id = 'A-0001'") == [("2026-12-12",)], res)
+    res = hf(r, d, "set", "A-0001", "--due", "none")
+    r.check("pd-set-due-none-passes", res[0] == 0, res)
+    res = hf(r, d, "park", "A-0002", "--until", "2027-06-01")
+    r.check("pd-no-due-no-rule", res[0] == 0, res)
+    res = hf(r, d, "set", "A-0001", "--due", "2026-12-10")
+    r.check("pd-due-equal-to-park-passes", res[0] == 0, res)
+    # the db itself (c38: "database level"): a direct UPDATE or INSERT past the due date fails
+    e = sql_write(d, "UPDATE item SET parked_until = '2026-12-31' WHERE id = 'A-0001'")
+    r.check("pd-db-update-park-refused", e is not None and "park" in e
+            and q(d, "select parked_until from item where id = 'A-0001'") == [("2026-12-10",)], e)
+    e = sql_write(d, "UPDATE item SET due = '2026-12-01' WHERE id = 'A-0001'")
+    r.check("pd-db-update-due-refused", e is not None and q(d, "select due from item where id = 'A-0001'") == [("2026-12-10",)], e)
+    e = sql_write(d, "UPDATE item SET parked_until = '2026-12-10T08:00:00Z' WHERE id = 'A-0001'")
+    r.check("pd-db-time-park-on-due-day-passes", e is None, e)
+    e = sql_write(d, "UPDATE item SET parked_until = '2026-12-11T00:00:00Z' WHERE id = 'A-0001'")
+    r.check("pd-db-time-park-after-due-refused", e is not None, e)
+    e = sql_write(d, "INSERT INTO item(id, kind, title, status, opened_at, renewed_at, parked_until, due)"
+                     " VALUES('A-0099', 'ask', 'Inserted past its due', 'open', ?, ?, '2026-12-20', '2026-12-10')", NOW, NOW)
+    r.check("pd-db-insert-refused", e is not None and q(d, "select count(*) from item where id = 'A-0099'") == [(0,)], e)
+    e = sql_write(d, "INSERT INTO item(id, kind, title, status, opened_at, renewed_at, parked_until, due)"
+                     " VALUES('A-0098', 'ask', 'Inserted inside its due', 'open', ?, ?, '2026-12-05', '2026-12-10')", NOW, NOW)
+    r.check("pd-db-insert-inside-passes", e is None, e)
+
+
+def prior_script(r, root):
+    """A copy of the script under test one schema back (N -> N - 1): init makes a db without the last step."""
+    src = open(r.script, encoding="utf-8").read()
+    n = script_version(r.script)
+    a = f"SCHEMA_VERSION = {n}\n"
+    if src.count(a) != 1:
+        raise RuntimeError(f"anchor {a!r} occurs {src.count(a)} times")
+    path = os.path.join(root, "hubflow-prior.py")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(src.replace(a, f"SCHEMA_VERSION = {n - 1}\n"))
+    return path
+
+
+def case_migrate_park_due(r, root):
+    """c39: migrate to the schema of the rule refuses a ledger that breaks it, names the items, writes nothing."""
+    prior = Run(prior_script(r, root))
+    d = os.path.join(root, "migrate-park-due", "flow")
+    res = hf(prior, d, "init", "--seed", SEED, session=None)
+    n = script_version(r.script)
+    r.check("mpd-prior-init", res[0] == 0 and q(d, "pragma user_version") == [(n - 1,)], res)
+    for t in ("Parked past its due", "Parked inside its due"):
+        hf(prior, d, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", t, "--waits-on", "me", "--due", "2026-12-10")
+    # before the rule, any tool could write this
+    r.check("mpd-prior-conflict-written", sql_write(d, "UPDATE item SET parked_until = '2026-12-20' WHERE id = 'A-0001'") is None)
+    r.check("mpd-prior-ok-written", sql_write(d, "UPDATE item SET parked_until = '2026-12-01' WHERE id = 'A-0002'") is None)
+    snap = snapshot(d)
+    res = hf(r, d, "migrate")
+    r.check("mpd-migrate-refused-names-item", refused(res, 1, "A-0001") and "A-0002" not in res[2], res)
+    r.check("mpd-migrate-refused-keeps-schema", q(d, "pragma user_version") == [(n - 1,)])
+    r.check("mpd-migrate-refused-writes-nothing", snapshot(d) == snap and not os.path.exists(dbfile(d) + f".bak-v{n - 1}"), os.listdir(d))
+    sql_write(d, "UPDATE item SET due = NULL WHERE id = 'A-0001'")
+    before = sorted(rows(d, "item"))
+    res = hf(r, d, "migrate")
+    r.check("mpd-migrate-after-fix", res[0] == 0 and q(d, "pragma user_version") == [(n,)], res)
+    r.check("mpd-migrate-keeps-rows", sorted(rows(d, "item")) == before)
+    r.check("mpd-migrated-db-has-rule", sql_write(d, "UPDATE item SET parked_until = '2026-12-31' WHERE id = 'A-0002'") is not None)
+
+
 def case_dk_no_kb(r, root):
     """q5: a new ask says whether it rests on a KB: a kb ref, or --no-kb (no_kb 1). With neither, add ask
     exits 1 and names both ways; --no-kb with a kb ref, or on another kind, exits 1. set --no-kb yes|no
@@ -3820,6 +3920,8 @@ def cases(r):
         run_case(r, case_dk_due, root)
         run_case(r, case_dk_ask_note, root)
         run_case(r, case_dk_no_kb, root)
+        run_case(r, case_park_due, root)
+        run_case(r, case_migrate_park_due, root)
         run_case(r, case_dk_kb_outside, root)
         run_case(r, case_dk_reserved, root)
         run_case(r, case_dk_schema_v7, root)

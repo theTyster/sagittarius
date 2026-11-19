@@ -2067,6 +2067,36 @@ t_QS72() {  # Desk c36, c37 (review H-0063): the park comes from the ledger, als
     grep -q '1 open items. 1 parked.' "$T/page.html" || note "the rail row of build counts the parked handoff as open: $(grep -o '[0-9]* open items\.[^<]*' "$T/page.html" | head -1)"
 }
 
+t_QS73() {  # Desk c41 (Ty, 2026-11-18: "Park end, then due"): parks that end the same day sort by the --due date, no due date last
+    desk_hub "$T/h"; local A B C x
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Due in 2099, the fifth' --note 'Case: a. Options: x or y. Default: x.' --waits-on me --due 2099-01-05)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'No due date' --note 'Case: b. Options: x or y. Default: x.' --waits-on me)
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Due in 2099, the second' --note 'Case: c. Options: x or y. Default: x.' --waits-on me --due 2099-01-02)
+    for x in "$A" "$B" "$C"; do HUBFLOW_NOW=2026-11-20T00:00:00Z hf "$T/h" --session build park "$x" --until 2026-12-01 >/dev/null || note "setup: park $x failed"; done
+    srvd --hub "$T/h" || return; page_ok || return
+    python3 -I -c "
+import sys;p=open(sys.argv[1]).read();g=p.find('<details class=\"parked\"')
+pos=[p.find('id=\"item-h-ask-'+x+'\"') for x in sys.argv[2:5]]
+sys.exit(0 if g>=0 and all(x>g for x in pos) and pos[2]<pos[0]<pos[1] else 1)" "$T/page.html" "$A" "$B" "$C" || note "the Parked order is not: due 2099-01-02, due 2099-01-05, no due date (its computed triage date must not count)"
+}
+t_QS74() {  # Desk c40 (Ty: "Refuse both ways"): a Park past the --due date is refused with the ledger's reason; nothing changes
+    desk_hub "$T/h"; local A tok
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Due on the tenth' --note 'Case: a. Options: x or y. Default: x.' --waits-on me --due 2026-12-10)
+    srvd --hub "$T/h" || return; page_ok || return
+    tok=$(pg dtoken "$T/page.html")
+    # the review refuses it first, so Ty sees the reason before he confirms
+    review "token=$tok" "hub=$T/h" "item=ask:$A" intent=park until=2026-12-20 'text=after the release'
+    [ "$CODE" = 400 ] && grep -q 'after the due date 2026-12-10' "$T/review.html" || note "the review of a park past the due date: HTTP $CODE, want 400 with the reason: $(snip "$(cat "$T/review.html")")"
+    # and a send that skips the review is refused by the ledger
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=park until=2026-12-20 'text=after the release'
+    askjson "$T/h" "$A" "d['item']['parked_until'] is None"
+    page_ok || return
+    cat "$T/post.html" "$T/page.html" | grep -q 'after the due date' || note "neither the answer to the send (HTTP $CODE) nor the page says the park ends after the due date: $(snip "$(cat "$T/post.html")")"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=park until=2026-12-10 'text=until the due day'
+    [ "$CODE" = 303 ] || note "a park to the due day: HTTP $CODE, want 303"
+    askjson "$T/h" "$A" "(d['item']['parked_until'] or '')=='2026-12-10'"
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -2079,6 +2109,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 72); do run_one QS$n; done
+for n in $(seq 1 74); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
