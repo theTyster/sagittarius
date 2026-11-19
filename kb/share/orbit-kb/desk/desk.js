@@ -1,4 +1,4 @@
-// The Desk (orbit-kb serve desk). Two jobs, and nothing is sent by this script:
+// The Desk (orbit-kb serve desk). Three jobs, and nothing is sent by this script:
 // 1. Drafts (q2, q9, q10): what Ty types is saved on the Desk server as he types (the Desk's own
 //    store, outside every mindhole). A draft reaches no session.
 // 2. The review (c20): every form that would send something opens the review first, in a dialog.
@@ -39,6 +39,39 @@
     var t;
     f.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { save(f); }, 500); });
     f.addEventListener('change', function () { clearTimeout(t); t = setTimeout(function () { save(f); }, 200); });
+  });
+  // 3. Navigation (c29, c30, c31): a link to an item opens every fold around it and shows it below the
+  //    sticky band; so does an anchor in the address. Expand all and Collapse all set every fold.
+  function setBand() {
+    var h = document.querySelector('header.top');
+    document.documentElement.style.setProperty('--band', ((h ? h.getBoundingClientRect().height : 0) + 12) + 'px');
+  }
+  function reveal(id) {
+    var t = id ? document.getElementById(id) : null;
+    if (!t || t.closest('dialog')) return false;
+    for (var e = t; e; e = e.parentElement) if (e.tagName === 'DETAILS') e.open = true;
+    setBand();
+    t.scrollIntoView({block: 'start'});
+    t.classList.add('hit');
+    setTimeout(function () { t.classList.remove('hit'); }, 1600);
+    return true;
+  }
+  function hashId() { try { return decodeURIComponent(location.hash.slice(1)); } catch (e) { return ''; } }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('a[href^="#"]') : null;
+    if (!a || a.closest('dialog')) return;
+    var id; try { id = decodeURIComponent(a.getAttribute('href').slice(1)); } catch (x) { return; }
+    if (reveal(id)) { e.preventDefault(); if (location.hash !== '#' + id) history.pushState(null, '', '#' + id); }
+  });
+  window.addEventListener('hashchange', function () { reveal(hashId()); });
+  window.addEventListener('resize', setBand);
+  setBand();
+  if (location.hash) { reveal(hashId()); window.addEventListener('load', function () { reveal(hashId()); }); }
+  document.querySelectorAll('[data-folds]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var open = b.getAttribute('data-folds') === 'open';
+      document.querySelectorAll('details').forEach(function (d) { if (!d.closest('dialog')) d.open = open; });
+    });
   });
   var dlg = document.getElementById('review');
   var body = dlg ? dlg.querySelector('.dlgbody') : null;

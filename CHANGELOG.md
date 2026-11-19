@@ -6,9 +6,9 @@ Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own v
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.4.1 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.5.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.8.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.9.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 
 What a change of each number means:
 
@@ -22,6 +22,11 @@ What a change of each number means:
   moves for words.
 - **MindHole Kit.** As before: the kit version moves with the db schema (`hubkit/UPGRADING.md`).
 
+Who sets the numbers: the agent that cuts a release picks each number by the rules above and
+writes it here. The human does not need to choose (Ty, 2026-11-19: "idgaf what version number you
+pick as long as its sensible and uses semantic versioning"). What Ty wants is that every release
+is tracked: a section below, the version lines moved, and a tag.
+
 Earlier versions, named after the fact so that a report can refer to them:
 
 | Name | What it is |
@@ -30,13 +35,24 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
 
-## Unreleased (branch `claude/laughing-keller-im6q18`; the version has not moved)
+## Unreleased
+
+Nothing yet.
+
+## Sagittarius 0.5.0 and MindHole Kit 0.9.0 (2026-11-19)
+
+MINOR for Sagittarius: orbit-kb (the Desk, `checks_that/2`, lint W12, E20) and the System 1 hook
+(the fan-out) change what a session does. MindHole Kit 0.9.0: the db schema moves to 8 (0.8.0 moved
+it to 7 and was never tagged). Both numbers set by the releasing agent (see "Who sets the numbers").
+Ty's word to release, 2026-11-19: "we can land it and get a release for it out with a mindhole
+update for the UAT instances". The questions-server spec KB still has open demos and its vote; this
+release ratifies none of them.
 
 - **System 1 hook: the fan-out.** The hook reads the human's message part by part and combines the
   answers in code (`s1/fanout.json`, `hook.split_parts`, `hook.combine`). Divergence, change of
   plan, open questions and effort come from the parts; the line can also say `decision reversed in
   message`. `S1_FANOUT=0` gives the earlier behavior. This changes what a session is told, so it is
-  a MINOR change when it is released; the owner sets the number. The prompt does not yet name the
+  a MINOR change. The prompt does not yet name the
   new hint. Evidence and limits: `s1/research/2026-11-15-question-eval/README.md`.
 - **After the review of PR 11.** The size check counts the parts: a state with `sentences` and its
   part questions is measured against the per-question and the per-request context (`hook.fan_fit`),
@@ -58,6 +74,21 @@ Earlier versions, named after the fact so that a report can refer to them:
   already sent about the item, instead of asking the human to choose or write. With two or more
   MindHoles, the Desk has one tab per MindHole (with what waits there) and a tab All, instead of a
   collapsible group per MindHole in the rail.
+- **The ledger: a park ends on or before the due date (MindHole Kit 0.9.0, db schema 8; Ty,
+  2026-11-18).** `flow.db` refuses any write that leaves an item parked past its `--due` date, from
+  `park`, `set --due`, the Desk or any other tool; `migrate` names each item that already breaks the
+  rule and writes nothing. The Desk refuses such a Park at the review, and sorts its Parked group by
+  park end, then by due date (no due date last).
+- **The Desk: navigation and the Ledger lane (handoff H-0056, Ty, 2026-11-18).** Every row of the
+  rail is a link: a click opens every fold around its item and shows it below the sticky band, and
+  so does an anchor in the address. Expand all and Collapse all set every fold. Ledger items have
+  their own lane, Ledger: the asks for the human and each session's open items, each named by its
+  kind and id, with Answer (an ask), Close, Park until a date, and Note to the session. A ledger row
+  of the rail shows its title; its id is in the hover text and on the card. The answered list no
+  longer draws the card's form fill behind its answers. Your action also links each reserved ledger ask to its
+  Ledger card. A parked ledger item moves to a closed Parked group at the end of the Ledger lane,
+  soonest end first, marked "Parked until DATE"; it counts nowhere and leaves Your action until its
+  park ends, and then it is back by itself.
 - **The Desk, round 2 (hub spec KB `questions-server`, hypothesis h3, Ty's GO of 2026-11-17 after
   three flare laps).** `orbit-kb serve desk` is one Desk at one address for every MindHole on the
   machine: `desk.py join` adds a MindHole in one step, and `desk.py service` writes a systemd user
@@ -86,8 +117,6 @@ Earlier versions, named after the fact so that a report can refer to them:
   types into a tmux pane only when the owner is idle and its item is `waiting`. `hubflow note ID
   TEXT --by human` now records a person's words. To use the delivery, a hub adds the hooks that
   `desk.py hooks` prints to its `.claude/settings.json`. Contract D26 S14; tests QS32 to QS42.
-  The owner sets the version numbers (kit and Sagittarius) at release.
-
 ## Sagittarius 0.4.1 (2026-11-15)
 
 PATCH (Ty, 2026-11-15).

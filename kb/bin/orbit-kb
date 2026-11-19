@@ -1076,11 +1076,21 @@ if mode == "asks":
             return None
     def col(r, k, d=None):
         return r[k] if k in r.keys() else d
+    clock = c.execute("SELECT now FROM clock").fetchone()[0]
+    def parked(r):
+        # c37: hubflow parks a date D through that day (DT24:00:00Z); a time (skip-waived) is its own end
+        pu = col(r, "parked_until")
+        return bool(pu) and (pu + "T24:00:00Z" if len(pu) == 10 else pu) > clock
     rows = [dict(id=r["id"], kind=r["kind"], title=r["title"], status=r["status"], waits_on=r["waits_on"], age_days=age(r), reserved=reserved(r["id"]),
                  owner_session=r["owner_session"], opened_at=r["opened_at"], notes=notes(r["id"]), refs=refs(r["id"]), links=links(r["id"]),
-                 due=col(r, "due"), no_kb=bool(col(r, "no_kb", 0)), asked_by=asked_by(r["id"]), triage_due=triage(r["id"]))
+                 due=col(r, "due"), no_kb=bool(col(r, "no_kb", 0)), asked_by=asked_by(r["id"]), triage_due=triage(r["id"]),
+                 parked_until=col(r, "parked_until"), parked=parked(r))
             for r in c.execute("SELECT * FROM item WHERE kind = \'ask\' AND status IN (\'open\', \'waiting\') ORDER BY id")]
-    print(json.dumps({"owner": owner(), "asks": rows}))
+    # c36, c37 (review H-0063): the park of every open item, read here from the ledger, so that a
+    # mindhole whose desk.py is older (no parked field in its inbox rows) still shows its parks
+    # c41: with the asker\'s --due date (only that one, not the triage date), for the order of the Parked group
+    parks = {r["id"]: {"until": r["parked_until"], "due": col(r, "due")} for r in c.execute("SELECT * FROM item WHERE status IN (\'open\', \'waiting\') AND parked_until IS NOT NULL") if parked(r)}
+    print(json.dumps({"owner": owner(), "asks": rows, "parks": parks}))
 elif mode == "titles":
     print(json.dumps([dict(id=r["id"], title=r["title"], status=r["status"], kb=[x[0] for x in c.execute("SELECT ref FROM item_ref WHERE item_id = ? AND kind = \'kb\'", (r["id"],))],
                            notes=[x[0] for x in c.execute("SELECT note FROM event WHERE item_id = ? AND verb = \'note\' AND note IS NOT NULL ORDER BY seq", (r["id"],))])
@@ -5838,15 +5848,33 @@ dk_true(Eng, G) :- catch(eng_true(Eng, G), _, fail).
 
 % ---- the mindholes and their KBs
 
+% desk_st_parks(+St0, +Parks, -St) (c36, c37, review H-0063): the ledger, not the mindhole's desk.py,
+% says which inbox item is parked: an older desk.py gives no parked field, and its parked
+% handoffs looked open. Each inbox row gets parked and parked_until from Parks (id: until).
+desk_st_parks(St0, Parks, St) :-
+    (   is_dict(St0), get_dict(sessions, St0, Ss0), is_list(Ss0)
+    ->  maplist(desk_sess_parks(Parks), Ss0, Ss), St = St0.put(sessions, Ss)
+    ;   St = St0
+    ).
+desk_sess_parks(Parks, S0, S) :-
+    (   get_dict(inbox, S0, Ib0), is_list(Ib0) -> maplist(desk_item_park(Parks), Ib0, Ib), S = S0.put(inbox, Ib) ; S = S0 ).
+desk_item_park(Parks, I0, I) :-
+    (   get_dict(id, I0, Id0), dk_str(Id0, Id), atom_string(K, Id), get_dict(K, Parks, V), get_dict(until, V, U)
+    ->  ( get_dict(due, V, D), string(D) -> true ; D = "" ), I = I0.put(_{parked:true, parked_until:U, pdue:D})
+    ;   I = I0.put(_{parked:false, parked_until:null})
+    ).
+
 % desk_load(-HDs): the data of each mindhole on the page, read once per request.
 desk_load(HDs, Missing) :-
     desk_hubs(Hs, Missing),
     findall(HD, ( member(hub(N, P), Hs), desk_hub_load(N, P, HD) ), HDs).
 
 desk_hub_load(Name, Path, HD) :-
-    desk_status(Path, St),
-    catch(( hub_asks(Path, Owner, Asks), Err = none ), E,
-          ( serve_err_text(E, M), Owner = "me", Asks = [], Err = some(M) )),
+    desk_status(Path, St0),
+    catch(( hub_read(Path, [asks], J), ( J.owner == null -> Owner = "me" ; Owner = J.owner ), Asks = J.asks,
+            ( get_dict(parks, J, Parks) -> true ; Parks = _{} ), Err = none ), E,
+          ( serve_err_text(E, M), Owner = "me", Asks = [], Parks = _{}, Err = some(M) )),
+    desk_st_parks(St0, Parks, St),
     desk_hub_kbs(Path, Asks, St, KBs),
     HD = hd{name:Name, path:Path, st:St, owner:Owner, asks:Asks, kbs:KBs, err:Err}.
 
@@ -6336,9 +6364,11 @@ desk_ctx_html(Rests, Why, Html) :-
 
 desk_hub_suffix(HDs, HD, S) :- ( HDs = [_, _|_] -> esc(HD.name, NH), dk_f(" <span class=\"quiet\">(~w)</span>", [NH], S) ; S = "" ).
 
-% desk_ask_card(+HDs, +HD, +X, -Card) (c12, c13, c19, c21)
-desk_ask_card(HDs, HD, X, card{lane:Lane, due:Due, html:Html, kbs:KDs, hub:HD.path}) :-
-    ( desk_ask_reserved(X) -> Lane = action, Res = true, Mode = open ; Lane = questions, Res = false, Mode = row ),
+% desk_ask_card(+HDs, +HD, +X, -Card) (c12, c13, c19, c21; c32: in the Ledger lane, with the ledger's actions)
+desk_ask_card(HDs, HD, X, card{lane:Lane, due:Due, html:Html, kbs:KDs, hub:HD.path, anchor:Anchor, title:X.title, id:X.id, reserved:Res, until:PU, pdue:PDue}) :-
+    ( get_dict(due, X, PDue0), string(PDue0) -> PDue = PDue0 ; PDue = "" ),
+    ( desk_ask_reserved(X) -> Res = true, Mode = open ; Res = false, Mode = row ),
+    desk_parked(X, Lane, ledger, PU),
     esc(X.title, TH), dk_str(X.asked_by, AB0), ( AB0 == "" -> AB = "an unknown session" ; AB = AB0 ),
     desk_ask_kb_state(X, KS), desk_ask_kbrefs(X, Refs),
     findall(K, ( member(R, Refs), desk_kb_by_ref(HD, R, K) ), Ks), findall(KD, ( member(K, Ks), get_dict(dir, K, KD) ), KDs),
@@ -6353,7 +6383,7 @@ desk_ask_card(HDs, HD, X, card{lane:Lane, due:Due, html:Html, kbs:KDs, hub:HD.pa
     findall(G, ( member(R, Lost), esc(R, RH), dk_f("<span class=\"gapnote\">The KB ~w cannot be read</span>", [RH], G) ), Gs),
     dk_cat([Src0|Gs], SrcH),
     ( string(X.owner_session) -> atom_string(Owner, X.owner_session) ; Owner = none ),
-    desk_ask_due(X, Due, How), desk_due_html(Due, How, X.opened_at, DueH),
+    desk_ask_due(X, Due, How), desk_due_html(Due, How, X.opened_at, DueH0), desk_park_html(PU, X.opened_at, DueH0, DueH),
     desk_head(TH, SrcH, Owner, DueH, Head),
     (   Res == true -> desk_reserve_source(X.reserved, Src), desk_policy_html(HD, X, Src, PolH) ; PolH = "" ),
     (   Ks == [] -> Rests = "<p class=\"quiet\">No KB: this ask rests on what its notes say.</p>"
@@ -6364,10 +6394,100 @@ desk_ask_card(HDs, HD, X, card{lane:Lane, due:Due, html:Html, kbs:KDs, hub:HD.pa
     desk_ctx_html(Rests, Why, Ctx),
     format(string(Item), "ask:~w", [X.id]), dk_f("~w|~w", [HD.name, Item], Key),
     desk_item_letters2(HD, ask(X.id), LLs),
-    desk_intents(Ints),
-    desk_form_html(HD, Item, Key, Owner, LLs, "", Ints, Form),
+    desk_led_intents(ask, Ints), desk_until_html(UntilH),
+    desk_form_html(HD, Item, Key, Owner, LLs, UntilH, Ints, Form),
     desk_anchor_of(HD, Item, Anchor),
     desk_sheet(Mode, Anchor, Res, Head, PolH, Ctx, Form, Html).
+
+% ---- the Ledger lane (c32, Ty, 2026-11-18: ledger items get their own lane, with buttons that match
+% the ledger): the asks for Ty (above), and each open item in a session's inbox.
+
+% desk_led_intents(+What, -Intents): an ask for Ty is answered; every ledger item can be closed,
+% parked until a date, or get a note to the session that holds it.
+desk_led_intents(ask, [answer-"Answer", close-"Close it", park-"Park it until the date", note-"Note to the session"]).
+desk_led_intents(item, [close-"Close it", park-"Park it until the date", note-"Note to the session"]).
+
+desk_until_html(Html) :-
+    dk_f("<label class=\"until\"><span class=\"small quiet\">Park until</span> <input type=\"date\" name=\"until\" aria-label=\"Park until this date\"></label>", [], Html).
+
+% desk_led_kind(+Kind, -Label): Ledger handoff, Ledger thread, ...
+desk_led_kind(K0, L) :- dk_str(K0, K), dk_f("Ledger ~w", [K], L).
+
+% desk_inbox_items(+HD, -Items): S-I for each open item I in the inbox of session S that is not an ask
+% for Ty (those have their own card), each item once.
+desk_inbox_items(HD, Items) :-
+    (   is_dict(HD.st)
+    ->  findall(I, ( member(X, HD.st.sessions), get_dict(inbox, X, Ib), member(I0, Ib), I = X.name-I0 ), Is0),
+        findall(Id, ( desk_ask_for_me(HD, A), Id = A.id ), Mine),
+        desk_inbox_dedup(Is0, Mine, [], Items)
+    ;   Items = []
+    ).
+
+desk_inbox_dedup([], _, _, []).
+desk_inbox_dedup([S-I|T], Mine, Seen, Out) :-
+    get_dict(id, I, Id),
+    (   ( memberchk(Id, Seen) ; memberchk(Id, Mine) ) -> Out = Out1 ; Out = [S-I|Out1] ),
+    desk_inbox_dedup(T, Mine, [Id|Seen], Out1).
+
+desk_inbox_cards(HDs, HD, Cards) :-
+    desk_inbox_items(HD, Items),
+    findall(C, ( member(S-I, Items), catch(desk_inbox_card(HDs, HD, S, I, C), E, desk_card_error(HD, I.id, E, C)) ), Cards).
+
+desk_led_anchor(HD, Id, A) :-
+    (   desk_ask_for_me(HD, X), X.id == Id -> dk_f("ask:~w", [Id], It) ; dk_f("led:~w", [Id], It) ),
+    desk_anchor_of(HD, It, A).
+
+desk_inbox_card(HDs, HD, S, I, card{lane:Lane, due:"", html:Html, kbs:KDs, hub:HD.path, until:PU, pdue:PDue}) :-
+    ( get_dict(pdue, I, PDue0), string(PDue0) -> PDue = PDue0 ; PDue = "" ),
+    desk_parked(I, Lane, inbox, PU),
+    esc(I.title, TH), desk_led_kind(I.kind, KL), esc(KL, KLH), esc(I.id, IH), esc(S, SH),
+    ( dk_str(I.get(from, ""), Fr), Fr \== "" -> esc(Fr, FrH), dk_f(", from ~w", [FrH], FromH) ; FromH = "" ),
+    ( get_dict(kbs, I, Refs0), is_list(Refs0) -> Refs = Refs0 ; Refs = [] ),
+    findall(K, ( member(R, Refs), dk_str(R, RS), desk_kb_by_ref(HD, RS, K) ), Ks), findall(KD, ( member(K, Ks), get_dict(dir, K, KD) ), KDs),
+    desk_hub_suffix(HDs, HD, HS),
+    ( get_dict(unaccepted, I, true) -> AccH = "<span class=\"gapnote\">Not accepted yet</span>" ; AccH = "" ),
+    dk_f("<span>~w ~w, held by ~w~w~w</span>~w", [KLH, IH, SH, FromH, HS, AccH], SrcH),
+    atom_string(Owner, S),
+    dk_str(I.get(opened_at, ""), Op), desk_due_html("", none, Op, DueH0), desk_park_html(PU, Op, DueH0, DueH),
+    desk_head(TH, SrcH, Owner, DueH, Head),
+    (   Ks == [] -> Rests = "<p class=\"quiet\">No KB: this item rests on what its notes say.</p>"
+    ;   findall(L, ( member(K, Ks), esc(K.label, LH), dk_f("<p><a class=\"kblink\" href=\"#~w\">The KB ~w</a></p>", [K.anchor, LH], L) ), Ls), dk_cat(Ls, Rests)
+    ),
+    (   dk_str(I.get(note, ""), N), N \== "" -> esc(N, NH), dk_f("<p class=\"note\">~w</p>", [NH], NoteH) ; NoteH = "<p class=\"quiet\">No note.</p>" ),
+    dk_str(I.get(age_days, ""), Age), dk_str(I.get(idle_days, ""), Idle),
+    dk_f("~w<p class=\"small quiet\">Open ~w days, idle ~w days. Close and Park change the ledger at once, as you; Note sends ~w a letter.</p>", [NoteH, Age, Idle, SH], Why),
+    desk_ctx_html(Rests, Why, Ctx),
+    dk_f("led:~w", [I.id], Item), dk_f("~w|~w", [HD.name, Item], Key),
+    desk_item_letters2(HD, ask(I.id), LLs),
+    desk_led_intents(item, Ints), desk_until_html(UntilH),
+    desk_form_html(HD, Item, Key, Owner, LLs, UntilH, Ints, Form),
+    desk_anchor_of(HD, Item, Anchor),
+    desk_sheet(row, Anchor, false, Head, "", Ctx, Form, Html).
+
+% desk_parked(+X, -Lane, +Lane0, -Until) (c36, c37, Ty, 2026-11-18: "Parked groups, not counted"): an
+% item whose park has not ended goes to the lane parked (no count, no Your action), with the end of
+% its park; once the park ends, the reader says parked false and the item is back in Lane0 by itself.
+desk_parked(X, Lane, Lane0, PU) :-
+    (   get_dict(parked, X, true), get_dict(parked_until, X, PU0), dk_str(PU0, PU), PU \== "" -> Lane = parked
+    ;   Lane = Lane0, PU = ""
+    ).
+
+% desk_park_html(+Until, +Opened, +DueH0, -DueH): a parked card says Parked until DATE in place of its due date.
+desk_park_html("", _, DueH, DueH) :- !.
+desk_park_html(PU, Opened, _, Html) :-
+    dk_day(PU, PD), esc(PU, PUH), dk_str(Opened, Op),
+    (   Op \== "" -> dk_day(Op, OD), dk_f("<span>Opened ~w</span>", [OD], OH) ; OH = "" ),
+    dk_f("<div class=\"due parked\" data-until=\"~w\" title=\"Parked in the ledger: out of the counts until this day ends\"><strong>Parked until ~w</strong>~w</div>", [PUH, PD, OH], Html).
+
+% desk_by_until(-O, +A, +B) (c36, c41; Ty, 2026-11-18: "Park end, then due"): the soonest end of park first;
+% among parks that end the same day, the soonest --due date (the asker's, never the computed triage
+% date), and an item with no --due date last; then the page order.
+desk_park_day(C, D) :- get_dict(until, C, U), ( sub_string(U, 0, 10, _, D0) -> D = D0 ; D = U ).
+desk_by_until(O, A, B) :-
+    desk_park_day(A, UA), desk_park_day(B, UB),
+    ( A.pdue == "" -> DA = "9999" ; DA = A.pdue ), ( B.pdue == "" -> DB = "9999" ; DB = B.pdue ),
+    compare(O0, UA-DA, UB-DB),
+    ( O0 == (=) -> compare(O1, A.html, B.html), ( O1 == (=) -> O = (<) ; O = O1 ) ; O = O0 ).
 
 desk_anchor_of(HD, Item, A) :-
     dk_f("~w ~w", [HD.name, Item], S), string_codes(S, Cs),
@@ -6568,6 +6688,17 @@ desk_page(Msg0, Tab0, Page) :-
     include([C]>>get_dict(lane, C, action), Cards, Act),
     include([C]>>get_dict(lane, C, questions), Cards, Qs0), predsort(desk_by_due, Qs0, Qs),
     include([C]>>get_dict(lane, C, guess), Cards, Gs),
+    % c32: the Ledger lane: the asks for Ty (reserved first, then soonest due), then each session's open items
+    include([C]>>get_dict(lane, C, ledger), Cards, LA0), partition([C]>>( get_dict(html, C, CH), sub_string(CH, _, _, _, "sheet reserved") ), LA0, LAr, LAo0),
+    predsort(desk_by_due, LAo0, LAo), append(LAr, LAo, LAs), include([C]>>get_dict(lane, C, inbox), Cards, LIs),
+    length(LAs, NL), length(LIs, NLI), NLed is NL + NLI,
+    % c36 (Ty, 2026-11-18: "Parked groups, not counted ... at the bottom by nearest due date ascending")
+    include([C]>>get_dict(lane, C, parked), Cards, LP0), predsort(desk_by_until, LP0, LPs),
+    desk_parked_group(LPs, LPG),
+    % c35 (Ty, 2026-11-18: "Both: Your action too"): Your action also lists each reserved ledger ask, as a link to its card
+    findall(card{html:LH}, ( member(C, LAr), esc(C.title, LT), esc(C.id, LI),
+                             dk_f("<a class=\"actlink\" href=\"#~w\"><span class=\"t\">~w</span><span class=\"small quiet\">Ledger ask ~w, reserved for you. Its card is in the Ledger lane.</span></a>", [C.anchor, LT, LI], LH) ), ActLinks),
+    length(ActLinks, NAL),
     length(Act, NA), length(Qs, NQ), length(Gs, NG),
     ( HDs = [_, _|_] -> nb_setval(desk_multi, true) ; nb_setval(desk_multi, false) ),
     findall(HD-R, ( member(HD, HDs), desk_orphan_rows(HD, Rs), member(R, Rs) ), ORows), length(ORows, NO),
@@ -6575,23 +6706,27 @@ desk_page(Msg0, Tab0, Page) :-
     findall(A, ( member(HD, HDs), desk_answered(HD, As), member(A, As) ), Answered), length(Answered, NAns),
     findall(K-HD, ( member(HD, HDs), member(K, HD.kbs) ), AllKBs), length(AllKBs, NK),
     % the header (c13: the first due date, not an age)
-    NW is NA + NQ,
-    findall(Du, ( member(C, Cards), Du = C.due, Du \== "" ), Ds), ( Ds == [] -> FirstH = "" ; min_member(D1, Ds), dk_day(D1, DD), dk_f(" The first is due on ~w.", [DD], FirstH) ),
+    NW is NA + NQ + NL, NAct is NA + NAL,
+    findall(Du, ( member(C, Cards), \+ get_dict(lane, C, parked), Du = C.due, Du \== "" ), Ds), ( Ds == [] -> FirstH = "" ; min_member(D1, Ds), dk_day(D1, DD), dk_f(" The first is due on ~w.", [DD], FirstH) ),
     ( NW == 1 -> WT = "thing waits" ; WT = "things wait" ),
     dk_f("<p><strong>~w ~w on you,</strong> and ~w run on a guess.~w</p>", [NW, WT, NG, FirstH], SumH),
-    findall(L, ( member(Id-Lb-N, [lane-action-"Your action"-NA, lane-questions-"Questions"-NQ, lane-guesses-"Running on a guess"-NG,
+    findall(L, ( member(Id-Lb-N, [lane-action-"Your action"-NAct, lane-ledger-"Ledger"-NLed, lane-questions-"Questions"-NQ, lane-guesses-"Running on a guess"-NG,
                                   lane-project-"Project KB"-NP, lane-orphans-"Orphaned"-NO, lane-answered-"Answered"-NAns, lane-kbs-"KBs"-NK]),
                  Id = lane-Nm, dk_f("<a href=\"#lane-~w\">~w<b>~w</b></a>", [Nm, Lb, N], L) ), Ls),
     dk_cat(Ls, LanesH),
     % the lanes (c2: open on load only with an item for Ty)
     % c22: one thing open on load: the first card of the first lane that holds one, and that lane
-    (   Act = [_|_] -> Act1 = Act, Qs1 = Qs, Gs1 = Gs, OA = true, OQ = false, OG = false
-    ;   Qs = [_|_] -> Act1 = Act, desk_open_first(Qs, Qs1), Gs1 = Gs, OA = false, OQ = true, OG = false
-    ;   Act1 = Act, Qs1 = Qs, desk_open_first(Gs, Gs1), OA = false, OQ = false, OG = true
+    (   Act = [_|_] -> Act1 = Act, Qs1 = Qs, Gs1 = Gs, LAs1 = LAs, OA = true, OL = false, OQ = false, OG = false
+    ;   LAs = [_|_] -> Act1 = Act, Qs1 = Qs, Gs1 = Gs, desk_open_first(LAs, LAs1), OA = false, OL = true, OQ = false, OG = false
+    ;   Qs = [_|_] -> Act1 = Act, desk_open_first(Qs, Qs1), Gs1 = Gs, LAs1 = LAs, OA = false, OL = false, OQ = true, OG = false
+    ;   Act1 = Act, Qs1 = Qs, LAs1 = LAs, desk_open_first(Gs, Gs1), OA = false, OL = false, OQ = false, OG = true
     ),
+    append([LAs1, LIs, LPG], Led),
     ( OA == true -> desk_open_first(Act, Act2) ; Act2 = Act1 ),
-    desk_lane("action", "Your action", "Only what a policy or your own words keep for you", Act2, "Nothing waits for an action that only you may take.", OA, ActH),
-    desk_lane("questions", "Questions", "Ledger asks and KB questions with no default, soonest due first", Qs1, "No question waits on you.", OQ, QsH),
+    append(Act2, ActLinks, ActAll),
+    desk_lane("action", "Your action", "Only what a policy or your own words keep for you", ActAll, "Nothing waits for an action that only you may take.", OA, ActH),
+    desk_lane("ledger", "Ledger", "The asks that wait on you, then the open items each session holds; these buttons act on the ledger", Led, "Nothing in the ledger waits on you, and no session holds an open item.", OL, LedH),
+    desk_lane("questions", "Questions", "KB questions with no default, soonest due first", Qs1, "No KB question waits on you.", OQ, QsH),
     desk_lane("guesses", "Running on a guess", "KB questions with a default: the work goes on with it until you answer", Gs1, "No work runs on a guess.", OG, GsH),
     desk_project_lane(HDs, PItems, PrH),
     desk_orphan_lane(ORows, OrH),
@@ -6617,12 +6752,13 @@ desk_page(Msg0, Tab0, Page) :-
 <style>~w</style>
 </head>
 <body data-token=\"~w\" data-tab=\"~w\">
-<header class=\"top\"><h1>The Desk</h1>~w<nav class=\"lanes\" aria-label=\"Lanes\">~w</nav></header>
+<header class=\"top\"><h1>The Desk</h1>~w<nav class=\"lanes\" aria-label=\"Lanes\">~w</nav><div class=\"folds\"><button type=\"button\" class=\"btn small\" data-folds=\"open\">Expand all</button><button type=\"button\" class=\"btn small\" data-folds=\"close\">Collapse all</button></div></header>
 ~w
 ~w~w~w
 <div class=\"layout\">
 <aside class=\"rails\" aria-label=\"Where things live\">~w</aside>
 <main>
+~w
 ~w
 ~w
 ~w
@@ -6637,7 +6773,7 @@ desk_page(Msg0, Tab0, Page) :-
 <script>~w</script>
 </body>
 </html>
-", [Css, TokH, TabAH, SumH, LanesH, TabsH, MsgH, ErrH, NoneH, RailH, ActH, QsH, GsH, PrH, OrH, AnH, KbH, Js]).
+", [Css, TokH, TabAH, SumH, LanesH, TabsH, MsgH, ErrH, NoneH, RailH, ActH, LedH, QsH, GsH, PrH, OrH, AnH, KbH, Js]).
 
 desk_by_due(O, A, B) :-
     ( A.due == "" -> KA = "9999" ; KA = A.due ), ( B.due == "" -> KB = "9999" ; KB = B.due ),
@@ -6649,7 +6785,11 @@ desk_hub_cards(HDs, HD, Cards) :-
                  catch(desk_action_cards(HDs, HD, K, Cs), E, ( desk_card_error(HD, K.label, E, CE), Cs = [CE] )), member(C, Cs) ), C2),
     findall(C, ( member(K, HD.kbs),
                  catch(desk_question_cards(HDs, HD, K, Cs), E, ( desk_card_error(HD, K.label, E, CE), Cs = [CE] )), member(C, Cs) ), C3),
-    append([C1, C2, C3], Cards).
+    desk_inbox_cards(HDs, HD, C4),
+    append([C1, C2, C3, C4], Cards).
+
+% desk_waits(+Card): the card waits on Ty (the count of the header, the tabs and the rail, c28).
+desk_waits(C) :- get_dict(lane, C, L), memberchk(L, [action, questions, ledger]).
 
 desk_card_error(HD, What, E, card{lane:questions, due:"", html:Html, kbs:[], hub:HD.path}) :-
     serve_err_text(E, M), esc(M, MH), esc(What, WH),
@@ -6680,6 +6820,13 @@ desk_lane(Id, Head, Sub, Cards, Empty, OpenIfAny, Html) :-
 
 % ---- the rail (c14): where things live, and the sessions
 
+% desk_parked_group(+Cards, -Group): [] with no parked item, else one pseudo card: a closed group
+% Parked N that holds the parked cards (c36).
+desk_parked_group([], []) :- !.
+desk_parked_group(LPs, [card{html:H}]) :-
+    length(LPs, N), findall(CH, ( member(C, LPs), get_dict(html, C, CH) ), CHs), dk_cat(CHs, Body),
+    dk_f("<details class=\"parked\" id=\"lane-ledger-parked\"><summary><span class=\"pname\">Parked</span> <b>~w</b> <span class=\"small quiet\">Not counted. Each comes back by itself when its park ends, soonest first.</span></summary>~w</details>", [N, Body], H).
+
 % desk_tab_pick(+HDs0, +Tab0, -HDs, -Tab, +Msg0, -Msg) (c28): the mindholes of the tab. Tab is the
 % name of a mindhole, "all", or "" (one mindhole, or no mindhole).
 desk_tab_pick(HDs0, Tab0, HDs, Tab, Msg0, Msg) :-
@@ -6696,7 +6843,7 @@ desk_tab_pick(HDs0, Tab0, HDs, Tab, Msg0, Msg) :-
 desk_tabs_html(HDs0, Tab, Html) :-
     (   HDs0 = [_, _|_]
     ->  findall(N-W, ( member(HD, HDs0), dk_str(HD.name, N), desk_hub_cards([HD], HD, Cs),
-                       include([C]>>( get_dict(lane, C, L), memberchk(L, [action, questions]) ), Cs, Ws), length(Ws, W) ), NWs),
+                       include(desk_waits, Cs, Ws), length(Ws, W) ), NWs),
         foldl([_-W, A0, A1]>>( A1 is A0 + W ), NWs, 0, Total),
         append(NWs, ["All"-Total], Ts),
         findall(A, ( member(N-W, Ts), ( N == "All" -> Key = "all" ; Key = N ),
@@ -6725,7 +6872,7 @@ desk_num(N, Html) :- ( N > 0 -> dk_f("<span class=\"num hot\">~w</span>", [N], H
 desk_rail_hub(HD, Cards, Html) :- desk_rail_hub(HD, Cards, false, Html).
 desk_rail_hub(HD, Cards, Unwrap, Html) :-
     HP = HD.path, HK = HD.kbs,
-    include([C]>>( get_dict(hub, C, HP), get_dict(lane, C, L), memberchk(L, [action, questions]) ), Cards, HCs),   % c28: what waits, as the tab
+    include([C]>>( get_dict(hub, C, HP), desk_waits(C) ), Cards, HCs),   % c28: what waits, as the tab
     length(HCs, NH), desk_num(NH, NumH),
     include([K]>>get_dict(kind, K, project), HK, PKs),
     include([K]>>get_dict(kind, K, spec), HK, SKs),
@@ -6736,10 +6883,10 @@ desk_rail_hub(HD, Cards, Unwrap, Html) :-
     desk_rail_group("Spec KBs, linked to the project KB", Linked, Cards, false, G1),
     desk_rail_group("Spec KBs, not linked", Unlinked, Cards, true, G2),
     desk_rail_group("KBs outside the mindhole", OKs, Cards, false, G3),
-    include([X]>>desk_ask_for_me(HD, X), HD.asks, Mine), length(Mine, NMine),
+    include([X]>>( desk_ask_for_me(HD, X), \+ get_dict(parked, X, true) ), HD.asks, Mine), length(Mine, NMine),
     include([X]>>desk_ask_kb_state(X, unknown), HD.asks, NoKb), length(NoKb, NNo),
     desk_num(NMine, AskNum),
-    dk_f("<details~w><summary><span class=\"name\">Ledger asks</span>~w</summary><a class=\"leaf\" href=\"#lane-questions\"><span class=\"name\">Asks for you</span>~w</a><a class=\"leaf\" href=\"#lane-orphans\"><span class=\"name quiet\">Asks with no KB recorded</span><span class=\"num\">~w</span></a></details>",
+    dk_f("<details~w><summary><span class=\"name\">Ledger asks</span>~w</summary><a class=\"leaf\" href=\"#lane-ledger\"><span class=\"name\">Asks for you</span>~w</a><a class=\"leaf\" href=\"#lane-orphans\"><span class=\"name quiet\">Asks with no KB recorded</span><span class=\"num\">~w</span></a></details>",
          ["", AskNum, AskNum, NNo], AsksH),
     esc(HD.name, NameH), esc(HD.path, PathH),
     Op = "",                                          % c22: the rail loads collapsed
@@ -6753,9 +6900,9 @@ desk_rail_project(HD, K, Linked, Html) :-
     ( desk_eng(K.dir, Eng) -> dk_all(Eng, [N0], repo(N0, _), Rs0), sort(Rs0, Rs) ; Rs = [] ),
     length(Rs, NR),
     desk_project_items(HD, PIs), KD = K.dir, include([P]>>get_dict(dir, P, KD), PIs, Mine), length(Mine, NP), desk_num(NP, NumH),
-    findall(L, ( member(R, Rs), esc(R, RH), dk_f("<div class=\"leaf\"><span class=\"name quiet\">~w</span></div>", [RH], L) ), RLs), dk_cat(RLs, RLH),
+    findall(L, ( member(R, Rs), esc(R, RH), dk_f("<a class=\"leaf\" href=\"#~w\"><span class=\"name quiet\">~w</span></a>", [K.anchor, RH], L) ), RLs), dk_cat(RLs, RLH),
     length(Linked, NL),
-    ( NL == 0 -> Hint = "<div class=\"hint\">No spec KB is linked to it yet.</div>" ; dk_f("<div class=\"leaf\"><span class=\"name quiet\">~w spec KBs link to it</span></div>", [NL], Hint) ),
+    ( NL == 0 -> Hint = "<div class=\"hint\">No spec KB is linked to it yet.</div>" ; dk_f("<a class=\"leaf\" href=\"#~w\"><span class=\"name quiet\">~w spec KBs link to it</span></a>", [K.anchor, NL], Hint) ),
     esc(K.label, LH),
     dk_f("<details><summary><span class=\"name\">Project KB ~w</span>~w</summary><a class=\"leaf\" href=\"#~w\"><span class=\"name\">What it holds</span></a><details><summary><span class=\"name quiet\">~w repos</span></summary>~w</details>~w</details>",
          [LH, NumH, K.anchor, NR, RLH, Hint], Html).
@@ -6784,21 +6931,25 @@ desk_rail_sessions(HDs, HD, Unwrap, Html) :-
 
 desk_rail_session(HD, X, Html) :-
     atom_string(S, X.name),
-    findall(Lb, ( member(K, HD.kbs), desk_holder(HD, K, S, _), get_dict(label, K, Lb) ), Held),
-    ( get_dict(inbox, X, Inbox) -> true ; Inbox = [] ), length(Inbox, NI),
+    findall(Lb-An, ( member(K, HD.kbs), desk_holder(HD, K, S, _), get_dict(label, K, Lb), get_dict(anchor, K, An) ), Held),
+    ( get_dict(inbox, X, Inbox) -> true ; Inbox = [] ),
+    % c37: a parked item is not counted as open; the line names it apart
+    include([I]>>get_dict(parked, I, true), Inbox, PkI), length(PkI, NPk), length(Inbox, NI0), NI is NI0 - NPk,
+    ( NPk == 0 -> PkT = "" ; dk_f(" ~w parked.", [NPk], PkT) ),
     % c23: one short line; the KB names are inside when the session opens
     length(Held, NHeld),
     (   NHeld == 0 -> HeldT = "Holds no KB.", KbsH = ""
-    ;   maplist([L, E]>>esc(L, E), Held, HeldE),
-        ( NHeld == 1 -> HeldE = [H1], dk_f("Writes <b>~w</b>.", [H1], HeldT) ; dk_f("Writes <b>~w KBs</b>.", [NHeld], HeldT) ),
-        findall(KL, ( member(E, HeldE), dk_f("<div class=\"leaf\"><span class=\"name\">Writes the KB ~w</span></div>", [E], KL) ), KLs), dk_cat(KLs, KbsH)
+    ;   maplist([L-An, E-An]>>esc(L, E), Held, HeldE),
+        ( NHeld == 1 -> HeldE = [H1-_], dk_f("Writes <b>~w</b>.", [H1], HeldT) ; dk_f("Writes <b>~w KBs</b>.", [NHeld], HeldT) ),
+        findall(KL, ( member(E-An, HeldE), dk_f("<a class=\"leaf\" href=\"#~w\"><span class=\"name\">Writes the KB ~w</span></a>", [An, E], KL) ), KLs), dk_cat(KLs, KbsH)
     ),
     (   X.status == "active" -> St = "" ; dk_f(" <span class=\"gapnote\">(~w)</span>", [X.status], St) ),
     (   get_dict(state, X, Sta), string(Sta) -> dk_f(" Now ~w.", [Sta], StaT) ; StaT = "" ),
-    findall(L, ( member(I, Inbox), esc(I.title, TH), esc(I.id, IH),
-                 dk_f("<div class=\"leaf\"><span class=\"name\" title=\"~w\"><span class=\"ref\">~w</span>~w</span></div>", [TH, IH, TH], L) ), Ls),
+    findall(L, ( member(I, Inbox), esc(I.title, TH), desk_led_kind(I.kind, KL), dk_f("~w ~w: ~w", [KL, I.id, I.title], Tip0), esc(Tip0, TipH),
+                 desk_led_anchor(HD, I.id, An),
+                 dk_f("<a class=\"leaf\" href=\"#~w\" title=\"~w\"><span class=\"name\">~w</span></a>", [An, TipH, TH], L) ), Ls),
     dk_cat(Ls, LsH), desk_badge(S, BH),
-    dk_f("<details><summary class=\"sess\">~w<span class=\"what\">~w ~w open items.~w~w</span></summary>~w~w</details>", [BH, HeldT, NI, StaT, St, KbsH, LsH], Html).
+    dk_f("<details><summary class=\"sess\">~w<span class=\"what\">~w ~w open items.~w~w~w</span></summary>~w~w</details>", [BH, HeldT, NI, PkT, StaT, St, KbsH, LsH], Html).
 
 % ---- Orphaned (c14, q5, q7): each row with the step that fixes it, which Ty sends after a review
 
@@ -6990,8 +7141,9 @@ desk_plan(Form, P) :-
     ;   throw(desk_refused(400, "The form names no mindhole of this Desk. Reload the page."))
     ),
     ( serve_field(Form, item, It) -> true ; It = "" ),
-    ( serve_field(Form, intent, I0), memberchk(I0, ["answer", "diverge", "requirement"]) -> atom_string(Intent, I0) ; Intent = answer ),
+    ( serve_field(Form, intent, I0), memberchk(I0, ["answer", "diverge", "requirement", "close", "park", "note"]) -> atom_string(Intent, I0) ; Intent = answer ),
     ( serve_field(Form, text, T0) -> split_string(T0, "", " \t\r\n", [Text]) ; Text = "" ),
+    ( serve_field(Form, until, U0) -> split_string(U0, "", " \t\r\n", [Until]) ; Until = "" ),
     ( serve_field(Form, choice, Ch0) -> split_string(Ch0, "", " \t\r\n", [Choice]) ; Choice = "" ),
     string_length(Text, TL), ( TL > 4000 -> throw(desk_refused(400, "The text is longer than 4000 characters.")) ; true ),
     % c27 (Ty, 2026-11-18): Review and send with nothing new on an item he already wrote to shows what he sent.
@@ -7000,7 +7152,9 @@ desk_plan(Form, P) :-
         throw(desk_sent(HD, Sent, K0, A0))
     ;   true
     ),
-    (   string_concat("ask:", Id, It) -> desk_plan_ask(HD, Id, Intent, Text, P0)
+    (   string_concat("ask:", Id, It), memberchk(Intent, [close, park, note]) -> desk_plan_ask_led(HD, Id, Intent, Text, Until, P0)
+    ;   string_concat("ask:", Id, It) -> desk_plan_ask(HD, Id, Intent, Text, P0)
+    ;   string_concat("led:", Id, It) -> desk_plan_led(HD, Id, Intent, Text, Until, P0)
     ;   string_concat("q:", R, It), split_string(R, "#", "", [DS, QS]) -> desk_plan_dir(HDs, DS, K, HD), atom_string(Q, QS), desk_plan_q(HD, K, Q, Intent, Choice, Text, P0)
     ;   string_concat("act:", R, It), sub_string(R, B, 1, _, "#"), sub_string(R, 0, B, _, DS), B1 is B + 1, sub_string(R, B1, _, 0, Ref)
         -> desk_plan_dir(HDs, DS, K, HD), desk_plan_act(HD, K, Ref, Intent, Choice, Text, P0)
@@ -7011,11 +7165,12 @@ desk_plan(Form, P) :-
     ( serve_field(Form, key, Key) -> true ; Key = "" ),
     desk_anchor_of(HD, It, Anchor),
     ( serve_field(Form, tab, Tb) -> true ; Tb = "" ),
-    P = P0.put(_{hub:HD.path, hd:HD, item:It, key:Key, back:Anchor, intent:Intent, choice:Choice, text:Text, tab:Tb}).
+    P = P0.put(_{hub:HD.path, hd:HD, item:It, key:Key, back:Anchor, intent:Intent, choice:Choice, text:Text, tab:Tb, until:Until}).
 
 % desk_form_letters(+HDs, +HD, +Item, -Ls): the letters already sent about the item of a form, newest first.
 desk_form_letters(HDs, HD, It, Ls) :-
     (   string_concat("ask:", Id, It) -> desk_item_letters2(HD, ask(Id), Ls)
+    ;   string_concat("led:", Id, It) -> desk_item_letters2(HD, ask(Id), Ls)
     ;   string_concat("q:", R, It), split_string(R, "#", "", [DS, QS]), catch(desk_plan_dir(HDs, DS, K, HD), _, fail)
         -> desk_item_json(HD, K, question, QS, J), desk_item_letters2(HD, kbitem(J), Ls)
     ;   string_concat("act:", R, It), sub_string(R, B, 1, _, "#"), sub_string(R, 0, B, _, DS), B1 is B + 1, sub_string(R, B1, _, 0, Ref),
@@ -7078,6 +7233,67 @@ desk_plan_ask(HD, Id, Intent, Text, P) :-
         desk_lt(Owner, diverge, About, Item, LT, L1),
         P = plan{title:"That is not what you meant", sub:About, letters:[L1], records:[R1], effects:[ask_note(HD.path, Id, Note)]}
     ;   desk_plan_requirement(HD, ask(Id), About, Item, Text, P)
+    ).
+
+% ---- a ledger item (c32): Close and Park write the ledger as Ty, with his words; Note is a letter
+% to the session that holds the item, and a note in the ledger.
+desk_plan_ask_led(HD, Id, Intent, Text, Until, P) :-
+    (   desk_ask(HD, Id, X), X.waits_on == HD.owner -> true
+    ;   dk_f("The ask ~w does not wait on you now. Reload the page.", [Id], M), throw(desk_refused(409, M))
+    ),
+    ( string(X.owner_session), atom_string(O0, X.owner_session) -> Owner = O0 ; Owner = none ),
+    % c40 (Ty, 2026-11-18: "Refuse both ways"): a park may not end after the ask's --due date; the review
+    % says so before Ty confirms (hubflow and the ledger refuse it too)
+    (   Intent == park, get_dict(due, X, Due), string(Due), Due \== ""
+    ->  desk_need_date(Until),
+        (   Until @> Due
+        ->  dk_f("Park until ~w is after the due date ~w of ~w: a park must end on or before the due date. Park until ~w or earlier.", [Until, Due, Id, Due], M),
+            throw(desk_refused(400, M))
+        ;   true
+        )
+    ;   true
+    ),
+    desk_plan_ledger(HD, Id, "ask", X.title, Owner, Intent, Text, Until, P).
+
+desk_plan_led(HD, Id, Intent, Text, Until, P) :-
+    (   desk_inbox_items(HD, Items), member(S-I, Items), I.id == Id -> true
+    ;   dk_f("The ledger item ~w is not open in a session's inbox now. Reload the page.", [Id], M), throw(desk_refused(409, M))
+    ),
+    (   Intent == answer -> throw(desk_refused(400, "Only an ask that waits on you has an answer. Choose Close, Park or Note."))
+    ;   memberchk(Intent, [close, park, note]) -> true
+    ;   throw(desk_refused(400, "A ledger item takes Close, Park or Note."))
+    ),
+    atom_string(Owner, S), dk_str(I.kind, Kind),
+    desk_plan_ledger(HD, Id, Kind, I.title, Owner, Intent, Text, Until, P).
+
+desk_plan_ledger(HD, Id, Kind, Title, Owner, Intent, Text, Until, P) :-
+    dk_f("the ledger ~w ~w (~w)", [Kind, Id, Title], About),
+    Item = _{type:"ask", id:Id},
+    (   Intent == close
+    ->  desk_need_text(Text, "why you close it (the ledger keeps your words)"),
+        dk_f("The ledger: ~w is closed as dropped, by you, with your words as its note. No letter goes out.", [Id], R1),
+        dk_f("About ~w", [About], Sub), P = plan{title:"Close this ledger item", sub:Sub, letters:[], records:[R1], effects:[led_close(HD.path, Id, Text)]}
+    ;   Intent == park
+    ->  desk_need_date(Until),
+        desk_need_text(Text, "why you park it (the ledger keeps your words)"),
+        dk_f("The ledger: ~w is parked until ~w, by you, with your words as its note. No letter goes out.", [Id, Until], R1),
+        dk_f("About ~w", [About], Sub), dk_f("Park this ledger item until ~w", [Until], PT), P = plan{title:PT, sub:Sub, letters:[], records:[R1], effects:[led_park(HD.path, Id, Until, Text)]}
+    ;   desk_need_text(Text, "your note"),
+        dk_f("Ty sends a note about ~w (~w):\n\n~w\n\nThe Desk also added his words to the item as a note.", [Id, Title, Text], LT),
+        dk_f("The ledger: a note on ~w in your words.", [Id], R1),
+        dk_f("Ty (from the Desk): ~w", [Text], Note),
+        desk_lt(Owner, note, About, Item, LT, L1),
+        dk_f("About ~w", [About], Sub), P = plan{title:"A note to the session that holds it", sub:Sub, letters:[L1], records:[R1], effects:[ask_note(HD.path, Id, Note)]}
+    ).
+
+% desk_need_date(+D): D is a real date YYYY-MM-DD (hubflow park --until takes it).
+desk_need_date(D) :-
+    (   split_string(D, "-", "", [Y, M, Dd]), string_length(Y, 4), string_length(M, 2), string_length(Dd, 2),
+        maplist([S, N]>>( number_string(N, S), integer(N) ), [Y, M, Dd], [YN, MN, DN]),
+        MN >= 1, MN =< 12, DN >= 1,
+        date_time_stamp(date(YN, MN, DN, 0, 0, 0, 0, -, -), St), stamp_date_time(St, date(YN, MN, DN, _, _, _, _, _, _), 0)
+    ->  true
+    ;   dk_f("Park needs a date as YYYY-MM-DD, such as 2026-12-01; ~w is not one. Nothing changed.", [D], Msg), throw(desk_refused(400, Msg))
     ).
 
 desk_plan_requirement(HD, From, About, Item, Text, P) :-
@@ -7301,7 +7517,7 @@ desk_plan_proj(_HDs, HD, R, Text, P) :-
 
 desk_review_html(Plan, Frag, Html) :-
     serve_conf(token, Tok),
-    findall(N-V, ( member(N-V0, [hub-Plan.hub, item-Plan.item, key-Plan.key, intent-Plan.intent, choice-Plan.choice, text-Plan.text, tab-Plan.get(tab, "")]), dk_str(V0, V) ), Hs0),
+    findall(N-V, ( member(N-V0, [hub-Plan.hub, item-Plan.item, key-Plan.key, intent-Plan.intent, choice-Plan.choice, text-Plan.text, tab-Plan.get(tab, ""), until-Plan.get(until, "")]), dk_str(V0, V) ), Hs0),
     desk_hidden([token-Tok|Hs0], HH),
     findall(LH, ( nth0(I, Plan.letters, L), desk_review_letter(Plan.hd, I, L, LH) ), LHs), dk_cat(LHs, LsH),
     include([L]>>( get_dict(to, L, To), To \== none ), Plan.letters, Sendable), length(Sendable, NS),
@@ -7428,6 +7644,8 @@ desk_effect(kb_write(Dir, Facts), R) :-
     ;   R0 == ok, pending_open(Dir, Ps), Ps \== [], member(pending(_, _, Fs), Ps), member(F, Facts), memberchk(F, Fs) -> R = queued
     ;   R = R0
     ).
+desk_effect(led_close(Hub, Id, Text), R) :- hub_run(Hub, [close, Id, '--reason', dropped, '--note', Text], _, R0), ( R0 = ok(_) -> R = ok ; R = R0 ).
+desk_effect(led_park(Hub, Id, Until, Text), R) :- hub_run(Hub, [park, Id, '--until', Until, '--note', Text], _, R0), ( R0 = ok(_) -> R = ok ; R = R0 ).
 desk_effect(ask_note(Hub, Id, Note), R) :- hub_run(Hub, [note, Id, Note], _, R0), ( R0 = ok(_) -> R = ok ; R = R0 ).
 desk_effect(intake(Hub, Text, From), R) :- desk_intake(Hub, Text, From, R).
 desk_effect(close_items(Hub, Ids, Note), R) :-
@@ -11571,6 +11789,13 @@ help_lines(serve, [
 "The card of a demo shows its image (png, jpg, gif, webp, avif, svg): GET /demo (token) serves only",
 "the demo images that the page showed in this run, in a sandbox. Another demo shows its file name.",
 "With two or more MindHoles, the page has one tab per MindHole (GET /?mh=NAME) and All (?mh=all).",
+"The Ledger lane holds the asks for the human and each session's open items: Answer (an ask), Close",
+"and Park until a date (hubflow as the human), Note (a letter to the holder). Each row of the rail",
+"links to its item; a link opens the folds around it. Expand all and Collapse all set every fold.",
+"A parked ledger item (hubflow park --until) sits in a closed Parked group at the end of the Ledger",
+"lane, by park end, then by --due date (none last), marked Parked until DATE. A Park past the",
+"ask's --due date is refused at the review (the ledger refuses it too, schema 8). It counts nowhere and is not in Your action",
+"until its park ends; then it is back by itself.",
 "",
 "Serve the page of view questions on http://127.0.0.1:PORT/ (default port 8737; --port 0 picks",
 "a free port). Each reload reads the KBs and the ledger again, so the page is live.",

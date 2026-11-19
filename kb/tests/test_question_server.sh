@@ -405,7 +405,9 @@ def main():
                     for k in ("token","item","key","hub"):
                         if k not in hid: bad.append("no hidden %s" % k)
                     its=[x.attrs.get("value") for x in ins if x.attrs.get("name")=="intent"]
-                    if its!=["answer","diverge","requirement"]: bad.append("intents %s" % its)
+                    # c32: a ledger card has the ledger's actions; a KB card keeps answer, diverge, requirement
+                    want=(["answer","close","park","note"] if a[0].startswith("ask-") else ["close","park","note"]) if a[0].startswith(("ask-","led-")) else ["answer","diverge","requirement"]
+                    if its!=want: bad.append("intents %s, want %s" % (its, want))
                     if not any(x.tag=="textarea" and x.attrs.get("name")=="text" for x in ins): bad.append("no textarea text")
                     bts=[x for x in ins if x.tag=="button"]
                     if [b.text() for b in bts]!=["Review and send"]: bad.append("buttons %s, want only Review and send" % [b.text() for b in bts])
@@ -1425,14 +1427,15 @@ t_QS43() {  # Desk c1 on serve desk: dark at every load, no error banner; lanes 
     chk raw "$T/page.html" '!prefers-color-scheme: light' '!data-theme'
     chk raw "$T/page.html" '!class="banner error"'      # the first page of a run reads each mindhole too
 }
-t_QS44() {  # Desk c12: Your action lists only reserved actions, each with the source of the reservation: a policy by name and rule, or Ty's words with their date
+t_QS44() {  # Desk c12, c32: reserved ledger asks (in the Ledger lane since c32) show each with the source of the reservation: a policy by name and rule, or Ty's words with their date
     desk_hub "$T/h"; local A B C
     A=$(hf "$T/h" --session process add ask --no-kb --title 'Waive the c3 proof, or order a Lean proof' --note 'The case, the options and the default, for the test.' --waits-on me --reserved 'Sagittarius Policy: Only the human may waive a proof.')
     B=$(hf "$T/h" --session build add ask --no-kb --title 'Push the hub to the remote' --note 'The case, the options and the default, for the test.' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so')
     C=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     srvd --hub "$T/h" || return; page_ok || return
-    chk dlane "$T/page.html" action "ask-$A" "ask-$B" "!ask-$C"
-    chk dlane "$T/page.html" questions "ask-$C" "!ask-$A"
+    # c32 (Ty, 2026-11-18: ledger items get their own lane): every ledger ask is in Ledger, the reserved ones too
+    chk dlane "$T/page.html" ledger "ask-$A" "ask-$B" "ask-$C"
+    chk dlane "$T/page.html" action "!ask-$A" "!ask-$B" "!ask-$C"
     chk dcard "$T/page.html" "ask-$A" 'Sagittarius Policy: Only the human may waive a proof.' '!Ty: only I' '!Source not named'
     chk dcard "$T/page.html" "ask-$B" 'Ty, 12 Nov: “push only when I say so”'
     hf "$T/h" --session build add ask --no-kb --title 'Bad source' --note 'The case, the options and the default, for the test.' --waits-on me --reserved 'Ty: only I waive a proof' >/dev/null && note "hubflow took a reservation with no named source"
@@ -1633,11 +1636,11 @@ t_QS56() {  # Desk c22: on load the rail is collapsed and one thing is open: the
     B=$(hf "$T/h" --session build add ask --no-kb --note 'Case: push. Options: now or later. Default: later.' --title 'Push the hub' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so')
     C=$(hf "$T/h" --session build add ask --no-kb --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --title 'Which port' --waits-on me)
     srvd --hub "$T/h" || return; page_ok || return
-    chk dload "$T/page.html" action "ask-$A"
+    chk dload "$T/page.html" ledger "ask-$A"   # c32: the asks are in the Ledger lane, the reserved ones first
     chk raw "$T/page.html" "<details class=\"sheet reserved\" id=\"item-h-ask-$B\">" '!<article'
     hf "$T/h" --session build close "$A" --reason done --by human --note 'done' >/dev/null; hf "$T/h" --session build close "$B" --reason done --by human --note 'done' >/dev/null
     page_ok || return
-    chk dload "$T/page.html" questions "ask-$C"
+    chk dload "$T/page.html" ledger "ask-$C"
     chk dcard "$T/page.html" "ask-$C" 'Case: the port. Options: 8737 or 8800. Default: 8800.' '!recorded only the title'   # c13: the note of add ask is its context
 }
 t_QS57() {  # Desk c23: the sessions roll up by mindhole; each session has one short line, and its KBs are inside
@@ -1806,6 +1809,294 @@ t_QS62() {  # Desk c28 (Ty, 2026-11-18: "use tabs for each mindhole instead of a
     grep -qi '^location: /?mh=h2#' "$T/send.h" || note "a send from the h2 tab does not come back to it: $(grep -i '^location' "$T/send.h")"
 }
 
+# ---- navigation (H-0056, Ty, 2026-11-18): c29-c34
+# browse URL JSFILE: open URL in a headless Chromium, run the async body of JSFILE in the page; its
+# JSON result in $BR. With no Chromium or no Node 22, the test is a SKIP (said aloud), never a pass.
+browse() { local cb nd prof="$T/chrome" cpid
+    cb=$(command -v chromium-browser || command -v chromium || command -v google-chrome) || { SKIPPED=1; return 1; }
+    nd=$(command -v node) && "$nd" -e 'process.exit(typeof WebSocket==="function"?0:1)' || { SKIPPED=1; return 1; }
+    rm -rf "$prof"; mkdir -p "$prof"
+    "$cb" --headless --disable-gpu --no-first-run --no-default-browser-check --user-data-dir="$prof" --remote-debugging-port=0 about:blank >/dev/null 2>&1 &
+    cpid=$!
+    BR=$(timeout 90 "$nd" "$REPO/kb/tests/desk_browser.js" "$prof" "$1" "$2" 2>"$T/.br.err"); local r=$?
+    kill "$cpid" 2>/dev/null; wait "$cpid" 2>/dev/null
+    [ $r = 0 ] || { note "the browser run failed: $(snip "$(cat "$T/.br.err")")"; return 1; }
+}
+brj() { python3 -I -c "import json,sys; d=json.loads(sys.argv[1]); sys.exit(0 if ($1) else 1)" "$BR" || note "${2:-browser}: not ($1): $(snip "$BR")"; }
+# nav_hub H: a mindhole with an ask for Ty, a handoff in build's inbox, and a KB with an answered question
+nav_hub() { desk_hub "$1"; printf "%s\n" "answer(qb, 'Yes: the rows may be sorted by date when the export is a report for people, not a feed for code', human)." >> "$1/specs/exp/kb.pl"
+    NA=$(hf "$1" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    NH=$(hf "$1" --session discovery handoff --to build --title 'Build the export with its header row, as the orders export of 2026-11-01 shows it' --ref kb:exp)
+    hf "$1" --session build accept "$NH" >/dev/null; }
+t_QS63() {  # Desk c29: every row of the gutter is a link to an id on the page
+    nav_hub "$T/h"; srvd --hub "$T/h" || return; page_ok || return
+    python3 -I - "$T/page.html" > "$T/rail.txt" <<'PY' || note "rail: $(snip "$(cat "$T/rail.txt")")"
+import re,sys,html
+p=open(sys.argv[1],encoding='utf-8').read()
+ids=set(re.findall(r'\bid="([^"]+)"',p))
+m=re.search(r'<aside class="rails"[^>]*>(.*?)</aside>',p,re.S); r=m.group(1) if m else ''
+bad=[]
+for t in re.finditer(r'<(div|span|a)\b([^>]*)class="leaf[^"]*"([^>]*)>',r):
+    if t.group(1)!='a': bad.append('a row that is not a link: '+t.group(0)[:80])
+    else:
+        h=re.search(r'href="#([^"]+)"',t.group(0))
+        if not h: bad.append('a row with no anchor: '+t.group(0)[:80])
+        elif html.unescape(h.group(1)) not in ids: bad.append('a row to no id: '+h.group(1))
+n=len(re.findall(r'class="leaf',r))
+if n<5: bad.append('only %d rows'%n)
+print('\n'.join(bad)); sys.exit(1 if bad else 0)
+PY
+    grep -q "href=\"#[^\"]*led-$NH\"" "$T/page.html" || note "no gutter row links to the card of $NH"
+}
+t_QS64() {  # Desk c29, c30: a click on any gutter or lane link opens the folds around its target and shows it below the band; so does an anchor at load
+    nav_hub "$T/h"; srvd --hub "$T/h" || return; page_ok || return
+    cat > "$T/click.js" <<'JS'
+const sleep=ms=>new Promise(r=>setTimeout(r,ms)); const out={n:0,bad:[]};
+const links=[...document.querySelectorAll('aside.rails a[href^="#"], header.top nav.lanes a[href^="#"]')];
+for (const a of links){ const id=decodeURIComponent(a.getAttribute('href').slice(1)); const t=document.getElementById(id);
+  if(!t){out.bad.push('no target '+id);continue;} out.n++;
+  document.querySelectorAll('main details').forEach(d=>{d.open=false;}); window.scrollTo(0,0);
+  a.click(); await sleep(150);
+  const closed=[]; for(let e=t;e;e=e.parentElement){ if(e.tagName==='DETAILS'&&!e.open) closed.push(e.id||e.className); }
+  if(closed.length) out.bad.push(id+': closed '+closed.join(','));
+  const band=document.querySelector('header.top').getBoundingClientRect().bottom, top=t.getBoundingClientRect().top;
+  if(top<band-1||top>window.innerHeight-20) out.bad.push(id+': top '+Math.round(top)+', band '+Math.round(band));
+}
+return out;
+JS
+    browse "$URL/" "$T/click.js" || return
+    brj "d['n']>=8" "the links that were clicked"; brj "d['bad']==[]" "after a click"
+    local A; A=$(grep -o "id=\"[^\"]*led-$NH\"" "$T/page.html" | head -1 | sed 's/id="//;s/"$//')
+    [ -n "$A" ] || { note "no card for $NH"; return; }
+    cat > "$T/hash.js" <<'JS'
+const t=document.getElementById(decodeURIComponent(location.hash.slice(1))); if(!t) return {bad:['no target']};
+await new Promise(r=>setTimeout(r,200)); const bad=[];
+for(let e=t;e;e=e.parentElement){ if(e.tagName==='DETAILS'&&!e.open) bad.push('closed '+(e.id||e.className)); }
+const band=document.querySelector('header.top').getBoundingClientRect().bottom, top=t.getBoundingClientRect().top;
+if(top<band-1||top>window.innerHeight-20) bad.push('top '+Math.round(top)+', band '+Math.round(band));
+return {bad};
+JS
+    browse "$URL/#$A" "$T/hash.js" || return
+    brj "d['bad']==[]" "an anchor at load"
+}
+t_QS65() {  # Desk c31: Expand all opens every fold of the page; Collapse all closes every fold
+    nav_hub "$T/h"; srvd --hub "$T/h" || return; page_ok || return
+    cat > "$T/folds.js" <<'JS'
+const sleep=ms=>new Promise(r=>setTimeout(r,ms)); const b=t=>[...document.querySelectorAll('button')].find(x=>x.textContent.trim()===t);
+const ex=b('Expand all'), co=b('Collapse all'); if(!ex||!co) return {buttons:false};
+const all=()=>[...document.querySelectorAll('details')];
+ex.click(); await sleep(100); const shut=all().filter(d=>!d.open).length;
+co.click(); await sleep(100); const open=all().filter(d=>d.open).length;
+return {buttons:true, n:all().length, shut, open};
+JS
+    browse "$URL/" "$T/folds.js" || return
+    brj "d['buttons']" "the two buttons"; brj "d.get('n',0)>=10 and d.get('shut')==0" "Expand all"; brj "d.get('open')==0" "Collapse all"
+}
+t_QS66() {  # Desk c32: ledger items have their own lane with the ledger's actions; Close and Park write the ledger as Ty
+    nav_hub "$T/h"; local B tok
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Keep the old export too' --note 'Case: two exports. Options: keep or drop. Default: drop.' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dlane "$T/page.html" ledger "ask-$NA" "ask-$B" "led-$NH"
+    chk dlane "$T/page.html" questions "!ask-$NA" "!ask-$B"
+    chk dlane "$T/page.html" action "!ask-$NA"
+    grep -q "Ledger handoff $NH" "$T/page.html" || note "the card of $NH is not named Ledger handoff $NH"
+    grep -q "Ledger ask $NA" "$T/page.html" || note "the card of $NA is not named Ledger ask $NA"
+    cat > "$T/forms.py" <<'PY'
+import re,sys
+p,a,h=open(sys.argv[1],encoding='utf-8').read(),sys.argv[2],sys.argv[3]
+def card(x):
+    m=re.search(r'<details[^>]*id="[^"]*-'+re.escape(x)+r'"[^>]*>(.*?)</form>',p,re.S); return m.group(1) if m else ''
+def intents(c): return sorted(set(re.findall(r'name="intent" value="([a-z]+)"',c)))
+ia,ih=intents(card('ask-'+a)),intents(card('led-'+h))
+bad=[]
+if ia!=['answer','close','note','park']: bad.append('ask intents %r'%ia)
+if ih!=['close','note','park']: bad.append('handoff intents %r'%ih)
+if 'name="until"' not in card('led-'+h): bad.append('no date field on the handoff card')
+print(bad); sys.exit(1 if bad else 0)
+PY
+    local r; r=$(python3 -I "$T/forms.py" "$T/page.html" "$NA" "$NH") || note "ledger forms: $r"
+    tok=$(pg dtoken "$T/page.html")
+    # Park: a bad date is refused, and nothing changes
+    review "token=$tok" "hub=$T/h" "item=led:$NH" intent=park until=2026-13-45 'text=after the release'
+    [ "$CODE" = 400 ] || note "a park to 2026-13-45: HTTP $CODE, want 400"
+    askjson "$T/h" "$NH" "d['item']['parked_until'] is None"
+    review "token=$tok" "hub=$T/h" "item=led:$NH" intent=park until=2026-12-01 'text=after the release'; code_is 200 "the review of a park"
+    grep -q 'Park this ledger item until 2026-12-01' "$T/review.html" || note "the review of the park does not say what it does (review H-0059: it read Park it the ledger handoff)"
+    post /send "token=$tok" "hub=$T/h" "item=led:$NH" intent=park until=2026-12-01 'text=after the release'
+    [ "$CODE" = 303 ] || note "the park: HTTP $CODE, want 303 ($(snip "$(cat "$T/post.html")"))"
+    askjson "$T/h" "$NH" "(d['item']['parked_until'] or '').startswith('2026-12-01') and any(e['by']=='human' and 'after the release' in (e['note'] or '') for e in d['events'])"
+    # Close: as Ty, with his words
+    post /send "token=$tok" "hub=$T/h" "item=ask:$B" intent=close 'text=One export is enough'
+    [ "$CODE" = 303 ] || note "the close: HTTP $CODE, want 303 ($(snip "$(cat "$T/post.html")"))"
+    askjson "$T/h" "$B" "d['item']['status']=='dropped' and any(e['by']=='human' and 'One export is enough' in (e['note'] or '') for e in d['events'])"
+    dpy "$T/h" letters --json | grep -q 'One export is enough' && note "a close sent a letter (c32: Close and Park write the ledger only)"
+    # Note: a letter to the session that holds it, and a note in the ledger
+    review "token=$tok" "hub=$T/h" "item=led:$NH" intent=note 'text=Start with the header'; code_is 200 "the review of a note"
+    rj "len(d['letters'])==1 and d['letters'][0]['to']=='build'"
+    post /send "token=$tok" "hub=$T/h" "item=led:$NH" intent=note 'text=Start with the header' 'letter_0=Ty: start with the header' to_0=build
+    [ "$CODE" = 303 ] || note "the note: HTTP $CODE, want 303"
+    dpy "$T/h" letters --json | grep -q 'start with the header' || note "no letter to build holds the note"
+    askjson "$T/h" "$NH" "any('Start with the header' in (e['note'] or '') for e in d['events'])"
+}
+t_QS67() {  # Desk c33: a ledger row of the gutter shows its title, not its id; the id is in its hover text and on the card it opens
+    nav_hub "$T/h"; srvd --hub "$T/h" || return; page_ok || return
+    cat > "$T/row.py" <<'PY'
+import re,sys,html
+p,h=open(sys.argv[1],encoding='utf-8').read(),sys.argv[2]
+m=re.search(r'<aside class="rails"[^>]*>(.*?)</aside>',p,re.S); r=m.group(1) if m else ''
+rows=[x for x in re.finditer(r'<a\b([^>]*)>(.*?)</a>',r,re.S) if 'led-'+h in x.group(1)]
+bad=[]
+if len(rows)!=1: bad.append('%d rows'%len(rows))
+for x in rows:
+    txt=re.sub(r'<[^>]+>','',x.group(2))
+    if h in txt: bad.append('the id is in the row text: '+txt[:60])
+    t=re.search(r'title="([^"]*)"',x.group(1))
+    if not t or 'Ledger handoff '+h not in html.unescape(t.group(1)): bad.append('the hover text lacks Ledger handoff '+h)
+print(bad); sys.exit(1 if bad else 0)
+PY
+    local r; r=$(python3 -I "$T/row.py" "$T/page.html" "$NH") || note "the gutter row of $NH: $r"
+}
+t_QS68() {  # Desk c34: no inline box with a fill and vertical padding covers text on another line (Answered by a human)
+    nav_hub "$T/h"; srvd --hub "$T/h" || return; page_ok || return
+    grep -q 'Answered by a human' "$T/page.html" || { note "the page shows no Answered by a human list"; return; }
+    cat > "$T/css.js" <<'JS'
+document.querySelectorAll('details').forEach(d=>{d.open=true;}); const bad=[];
+for (const e of document.querySelectorAll('main *')) { const s=getComputedStyle(e); if(s.display!=='inline') continue;
+  const fill=s.backgroundColor!=='rgba(0, 0, 0, 0)'&&s.backgroundColor!=='transparent';
+  const pv=parseFloat(s.paddingTop)+parseFloat(s.paddingBottom);
+  if(fill&&pv>4) bad.push(e.tagName+'.'+e.className+' pad '+pv); }
+const li=document.querySelector('li.answered'); const lh=li?parseFloat(getComputedStyle(li).lineHeight):0, fs=li?parseFloat(getComputedStyle(li).fontSize):0;
+return {bad:bad.slice(0,5), li:!!li, lh, fs};
+JS
+    browse "$URL/" "$T/css.js" || return
+    brj "d['li']" "an answered item"; brj "d['bad']==[]" "inline boxes"; brj "d['lh']==0 or d['lh']>=1.3*d['fs']" "the line height of the answered list"
+}
+
+t_QS69() {  # Desk c35 (Ty, 2026-11-18: "Both: Your action too"): Your action links to the Ledger card of each reserved ask; one card per ask
+    desk_hub "$T/h"; local A B C
+    A=$(hf "$T/h" --session process add ask --no-kb --title 'Waive the c3 proof' --note 'Case: the c3 proof. Options: waive or prove. Default: none.' --waits-on me --reserved 'Sagittarius Policy: Only the human may waive a proof.')
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Push the hub' --note 'Case: push. Options: now or later. Default: later.' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so')
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    cat > "$T/act.py" <<'PY'
+import re,sys
+p=open(sys.argv[1],encoding='utf-8').read(); a,b,c=sys.argv[2:5]; bad=[]
+m=re.search(r'<details class="lane" id="lane-action"[^>]*>(.*?)</details>\s*<details class="lane" id="lane-',p,re.S)
+lane=m.group(1) if m else ''
+if not m: bad.append('no Your action lane')
+for x in (a,b):
+    if not re.search(r'<a\b[^>]*href="#item-h-ask-'+re.escape(x)+r'"',lane): bad.append('Your action has no link to the card of '+x)
+if 'ask-'+c in lane: bad.append('Your action names the plain ask '+c)
+for x in (a,b,c):
+    n=len(re.findall(r'<details[^>]*\bid="item-h-ask-'+re.escape(x)+r'"',p))
+    if n!=1: bad.append('%d cards for %s'%(n,x))
+print(bad); sys.exit(1 if bad else 0)
+PY
+    local r; r=$(python3 -I "$T/act.py" "$T/page.html" "$A" "$B" "$C") || note "Your action: $r"
+    chk dlane "$T/page.html" ledger "ask-$A" "ask-$B" "ask-$C"
+    grep -q 'Your action<b>2</b>' "$T/page.html" || note "the lane link of Your action does not count its 2 reserved asks"
+    grep -q '<strong>4 things wait on you,' "$T/page.html" || note "the header counts a reserved ask twice, or misses one (want 4: three asks and the KB question qb)"
+}
+
+t_QS70() {  # Desk c36 (Ty, 2026-11-18: "Parked groups ... Order the parked items at the bottom by nearest due date ascending"): parked ledger items sit in a closed Parked group at the end of the Ledger lane, soonest end first
+    desk_hub "$T/h"; local A H C
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Waive the c3 proof' --note 'Case: c3. Options: waive or prove. Default: none.' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so')
+    H=$(hf "$T/h" --session discovery handoff --to build --title 'Build the export' --ref kb:exp); hf "$T/h" --session build accept "$H" >/dev/null
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    HUBFLOW_NOW=2026-11-20T00:00:00Z hf "$T/h" --session human --by human park "$A" --until 2026-12-20 --note 'Ty parks it on the Desk' >/dev/null || note "setup: park failed"
+    HUBFLOW_NOW=2026-11-20T00:00:00Z hf "$T/h" --session human --by human park "$H" --until 2026-12-01 --note 'Ty parks it on the Desk' >/dev/null || note "setup: park failed"
+    srvd --hub "$T/h" || return; page_ok || return
+    cat > "$T/park.py" <<'PY'
+import re,sys
+p=open(sys.argv[1],encoding='utf-8').read(); a,h,c=sys.argv[2:5]; bad=[]
+l0=p.find('<details class="lane" id="lane-ledger"'); l1=p.find('<details class="lane" id="lane-questions"')
+g=re.search(r'<details class="parked"[^>]*>',p)
+if l0<0 or l1<0: bad.append('no Ledger lane')
+if not g: bad.append('no Parked group')
+else:
+    if not (l0<g.start()<l1): bad.append('the Parked group is not in the Ledger lane')
+    if ' open' in g.group(0): bad.append('the Parked group is open on load')
+    pos={x:p.find('id="item-h-'+x+'"') for x in ('ask-'+a,'led-'+h,'ask-'+c)}
+    for x in ('ask-'+a,'led-'+h):
+        if pos[x]<g.start(): bad.append(x+' is not in the Parked group')
+    if pos['ask-'+c]>g.start(): bad.append('the plain ask is in the Parked group')
+    if not (0<pos['led-'+h]<pos['ask-'+a]): bad.append('not soonest end first (H 2026-12-01 before A 2026-12-20)')
+    cards=re.findall(r'<details[^>]*\bid="item-h-[^"]+"',p[g.start():l1])
+    if len(cards)!=2: bad.append('%d cards after the group starts, want 2'%len(cards))
+    seg=p[g.start():l1]
+    for d in ('2026-12-01','2026-12-20'):
+        if not re.search(r'Parked until[^<]*(<[^>]*>)?[^<]*'+d,seg) and ('Parked until' not in seg or 'data-until="'+d+'"' not in seg): bad.append('no Parked until '+d)
+print(bad); sys.exit(1 if bad else 0)
+PY
+    local r; r=$(python3 -I "$T/park.py" "$T/page.html" "$A" "$H" "$C") || note "Parked: $r"
+    grep -q '1 open items. 2 parked.' "$T/page.html" || note "the rail row of build (the asks A, C and the handoff H; A and H parked) counts a parked item as open: $(grep -o '[0-9]* open items\.[^<]*' "$T/page.html" | tr '\n' '|')"
+}
+t_QS71() {  # Desk c37: a parked item counts nowhere and is not in Your action; when its park ends it is back, with no action
+    desk_hub "$T/h"; local A B C
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Push the hub' --note 'Case: push. Options: now or later. Default: later.' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so' --due 2026-11-21)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Which name' --note 'Case: the name. Options: Desk or Board. Default: Desk.' --waits-on me)
+    srvd --hub "$T/h" || return; page_ok || return
+    grep -q '<strong>4 things wait on you,' "$T/page.html" || note "before: the header does not say 4"
+    grep -q 'The first is due on 21 Nov' "$T/page.html" || note "before: the header does not give the due date of A (21 Nov)"
+    HUBFLOW_NOW=2026-11-20T00:00:00Z hf "$T/h" --session build park "$A" --until 2026-11-21 >/dev/null
+    page_ok || return
+    grep -q '<strong>3 things wait on you,' "$T/page.html" || note "parked: the header still counts the parked ask (want 3)"
+    grep -q 'The first is due on 21 Nov' "$T/page.html" && note "parked: the header still gives the due date of the parked ask"
+    grep -q 'Your action<b>0</b>' "$T/page.html" || note "parked: the Your action lane link still counts it"
+    grep -q 'Ledger<b>2</b>' "$T/page.html" || note "parked: the Ledger lane link still counts it (want 2)"
+    grep -q "class=\"actlink\" href=\"#item-h-ask-$A\"" "$T/page.html" && note "parked: Your action still lists it"
+    python3 -I -c "import re,sys;p=open(sys.argv[1]).read();m=re.search(r'Asks for you</span><span class=\"num[^\"]*\">(\d+)',p);sys.exit(0 if (m and m.group(1)=='2') else 1)" "$T/page.html" || note "parked: the rail still counts it"
+    HUBFLOW_NOW=2026-11-22T00:00:01Z hf "$T/h" --session build note "$B" 'a later write moves the clock' >/dev/null
+    page_ok || return
+    grep -q '<strong>4 things wait on you,' "$T/page.html" || note "after the park: the header does not count it again (want 4)"
+    grep -q "class=\"actlink\" href=\"#item-h-ask-$A\"" "$T/page.html" || note "after the park: Your action does not list it again"
+    grep -q '<details class="parked"' "$T/page.html" && note "after the park: a Parked group is still on the page"
+}
+
+t_QS72() {  # Desk c36, c37 (review H-0063): the park comes from the ledger, also when the mindhole's desk.py is older and gives no parked field
+    desk_hub "$T/h"; local H C
+    sed -i '/r\["parked/d; /pu = o\[1\]/d' "$T/h/.claude/scripts/desk.py"
+    grep -q 'r\["parked' "$T/h/.claude/scripts/desk.py" && note "setup: the old desk.py still has a parked field"
+    H=$(hf "$T/h" --session discovery handoff --to build --title 'Build the export' --ref kb:exp); hf "$T/h" --session build accept "$H" >/dev/null
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    HUBFLOW_NOW=2026-11-20T00:00:00Z hf "$T/h" --session human --by human park "$H" --until 2026-12-01 --note 'Ty parks it on the Desk' >/dev/null || note "setup: park failed"
+    srvd --hub "$T/h" || return; page_ok || return
+    python3 -I -c "import sys;p=open(sys.argv[1]).read();g=p.find('<details class=\"parked\"');h=p.find('id=\"item-h-led-'+sys.argv[2]+'\"');sys.exit(0 if 0<=g<h else 1)" "$T/page.html" "$H" || note "the parked handoff is not in the Parked group"
+    grep -q 'Ledger<b>1</b>' "$T/page.html" || note "the Ledger lane link counts the parked handoff (want 1)"
+    grep -q '1 open items. 1 parked.' "$T/page.html" || note "the rail row of build counts the parked handoff as open: $(grep -o '[0-9]* open items\.[^<]*' "$T/page.html" | head -1)"
+}
+
+t_QS73() {  # Desk c41 (Ty, 2026-11-18: "Park end, then due"): parks that end the same day sort by the --due date, no due date last
+    desk_hub "$T/h"; local A B C x
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Due in 2099, the fifth' --note 'Case: a. Options: x or y. Default: x.' --waits-on me --due 2099-01-05)
+    B=$(hf "$T/h" --session build add ask --no-kb --title 'No due date' --note 'Case: b. Options: x or y. Default: x.' --waits-on me)
+    C=$(hf "$T/h" --session build add ask --no-kb --title 'Due in 2099, the second' --note 'Case: c. Options: x or y. Default: x.' --waits-on me --due 2099-01-02)
+    for x in "$A" "$B" "$C"; do HUBFLOW_NOW=2026-11-20T00:00:00Z hf "$T/h" --session build park "$x" --until 2026-12-01 >/dev/null || note "setup: park $x failed"; done
+    srvd --hub "$T/h" || return; page_ok || return
+    python3 -I -c "
+import sys;p=open(sys.argv[1]).read();g=p.find('<details class=\"parked\"')
+pos=[p.find('id=\"item-h-ask-'+x+'\"') for x in sys.argv[2:5]]
+sys.exit(0 if g>=0 and all(x>g for x in pos) and pos[2]<pos[0]<pos[1] else 1)" "$T/page.html" "$A" "$B" "$C" || note "the Parked order is not: due 2099-01-02, due 2099-01-05, no due date (its computed triage date must not count)"
+}
+t_QS74() {  # Desk c40 (Ty: "Refuse both ways"): a Park past the --due date is refused with the ledger's reason; nothing changes
+    desk_hub "$T/h"; local A tok
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Due on the tenth' --note 'Case: a. Options: x or y. Default: x.' --waits-on me --due 2026-12-10)
+    srvd --hub "$T/h" || return; page_ok || return
+    tok=$(pg dtoken "$T/page.html")
+    # the review refuses it first, so Ty sees the reason before he confirms
+    review "token=$tok" "hub=$T/h" "item=ask:$A" intent=park until=2026-12-20 'text=after the release'
+    [ "$CODE" = 400 ] && grep -q 'after the due date 2026-12-10' "$T/review.html" || note "the review of a park past the due date: HTTP $CODE, want 400 with the reason: $(snip "$(cat "$T/review.html")")"
+    # and a send that skips the review is refused by the ledger
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=park until=2026-12-20 'text=after the release'
+    askjson "$T/h" "$A" "d['item']['parked_until'] is None"
+    page_ok || return
+    cat "$T/post.html" "$T/page.html" | grep -q 'after the due date' || note "neither the answer to the send (HTTP $CODE) nor the page says the park ends after the due date: $(snip "$(cat "$T/post.html")")"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=park until=2026-12-10 'text=until the due day'
+    [ "$CODE" = 303 ] || note "a park to the due day: HTTP $CODE, want 303"
+    askjson "$T/h" "$A" "(d['item']['parked_until'] or '')=='2026-12-10'"
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -1818,6 +2109,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 62); do run_one QS$n; done
+for n in $(seq 1 74); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
