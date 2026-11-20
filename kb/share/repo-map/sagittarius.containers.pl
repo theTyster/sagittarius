@@ -2,7 +2,7 @@
 % Truth as of 2026-11-11: prompt/, kb/ (orbit-kb), hubkit/, s1/, evals/ and docs/ are in the tree (T50 removed site/).
 repo(sagittarius).
 about(sagittarius, 'A way for a human and an AI agent to agree on what is being built.').
-about(hubflow_starter, 'The source of hubkit, imported into hubkit/ with its history.').
+about('hubflow-starter', 'The source of hubkit, imported into hubkit/ with its history.').
 
 person(user, 'User', 'Works with an agent; adds the prompt to Claude Code sessions.').
 external(claude_code, 'Claude Code', 'The agent tool that takes the prompt and runs orbit-kb.').
@@ -33,7 +33,7 @@ link(evals, orbit_kb, 'drives').
 link(docs, prompt, 'explains').
 link(hubkit, orbit_kb, 'pins spec KBs of').
 link(s1, prompt, 'adds context to the sessions of').
-link(hubkit, hubflow_starter, 'comes from').
+link(hubkit, 'hubflow-starter', 'comes from').
 link(okb_cli, okb_core, 'loads').
 link(okb_cli, okb_modules, 'loads the modules a KB uses').
 link(okb_cli, okb_help, 'prints').
