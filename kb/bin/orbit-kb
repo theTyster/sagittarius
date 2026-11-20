@@ -1877,8 +1877,36 @@ register_spec_line(PA, Dir) :-
 kb_term(KbItems, T) :-
     member(it(kb, _, _, T0, _, _), KbItems), nonvar(T0), T0 = T.
 
+% project_kb_dir(+Dir, +P, -PDir) (kb-migrations c20, Ty's q21 answer B): the directory that
+% project_kb(P) of the KB at Dir names. An absolute P is itself. A relative P of a KB that lies in a
+% hub (an ancestor directory that hub_root/1 accepts) is read from the hub root, with its leading
+% ../ and ./ steps dropped: ../../project-kb from specs/x and ../../../../project-kb from
+% W0/analyses/x/kb both name HUB/project-kb, so moving a KB inside the hub needs no write. Outside a
+% hub, P is read from Dir, as before.
+project_kb_dir(_, P, P) :- is_absolute_file_name(P), !.
+project_kb_dir(Dir, P, PDir) :-
+    (   kb_hub_root(Dir, Hub)
+    ->  atomic_list_concat(Segs0, '/', P),
+        drop_up_segs(Segs0, Segs),
+        atomic_list_concat(Segs, '/', Rest),
+        ( Rest == '' -> PDir = Hub ; directory_file_path(Hub, Rest, PDir) )
+    ;   directory_file_path(Dir, P, PDir)
+    ).
+
+drop_up_segs([S|Ss], R) :- memberchk(S, ['..', '.', '']), !, drop_up_segs(Ss, R).
+drop_up_segs(Ss, Ss).
+
+% kb_hub_root(+Dir, -Hub): the nearest ancestor of Dir (not Dir itself) that is a hub root.
+kb_hub_root(Dir, Hub) :-
+    absolute_file_name(Dir, A), file_directory_name(A, P),
+    kb_hub_up(P, Hub).
+kb_hub_up(D, Hub) :-
+    (   hub_root(D) -> Hub = D
+    ;   file_directory_name(D, P), P \== D, kb_hub_up(P, Hub)
+    ).
+
 project_kb_facts(Dir, P, Facts) :-
-    ( is_absolute_file_name(P) -> PDir = P ; directory_file_path(Dir, P, PDir) ),
+    project_kb_dir(Dir, P, PDir),
     directory_file_path(PDir, 'kb.pl', PFile),
     exists_file(PFile),
     absolute_file_name(PDir, A1), absolute_file_name(Dir, A2),
@@ -4862,7 +4890,7 @@ serve_kb_items(Dir, Items) :-
 serve_kb_project(Dir, P) :-
     serve_kb_items(Dir, Items),
     (   kb_term(Items, project_kb(P0)), atom(P0)
-    ->  ( is_absolute_file_name(P0) -> P1 = P0 ; directory_file_path(Dir, P0, P1) ),
+    ->  project_kb_dir(Dir, P0, P1),
         serve_norm(P1, PA), P = some(PA)
     ;   P = none
     ).
@@ -9111,6 +9139,9 @@ mig_plan(KB, Old, rep(Ms, Rows, Plan, Text, Reach, Diffs, Outside, Problems)) :-
     ).
 
 mig_touched(Id, Rows) :- member(row(Id, _, _, _, _, [_|_]), Rows), !.
+% kb-migrations c20: a migration with no steps declares a change that the engine itself brings
+% (it writes nothing); its S is always in the reach.
+mig_touched(Id, Rows) :- \+ member(row(Id, _, _, _, _, _), Rows), \+ member(rowerr(Id, _, _), Rows).
 
 mig_digest(KB, Report, Digest) :-
     Report = rep(_, Rows, plan(Ins, Adds, Errs), _, Reach, Diffs, Outside, Problems),

@@ -17,6 +17,8 @@
 #   c12 the hub check fails only on a tool or agent step; warns on retired; no marker   : MG12
 #   c6, c14 every changed verdict lies in the reach of S; S alone is not enough        : MG14
 #   c15 the human sees each verdict of the reach that differs, old engine vs new        : MG15 MGU
+#   c19 the kit upgrade previews closed KBs too                                     : MGC
+#   c20 project_kb is read from the hub root in a hub                               : MGR
 #   c16 the cut-fail clause: first clause only, facts kept, hidden, warned, never blocks : MG16
 #   c17 the signature of the version only; lint flags retired, missing, other arity     : MG17
 set -u
@@ -378,7 +380,7 @@ EOF
 # ================================================================ c7: an additive migration
 t_MG7() {
     fxlib || return
-    rm -f "$T/lib/migrations/9.9.9-fixture.pl"
+    rm -f "$T/lib/migrations/9.9.9-fixture.pl" "$T/lib/migrations/0.5.1-project-root.pl"   # the additive migration alone
     # the new version adds a fact kind and a rule that only reads it; no old rule reads either
     cat >> "$T/lib/core.pl" <<'EOF'
 decl(fact, fx_bounds(atom, text), 'The bounds of the runs of a check (a fixture).', 'check @(1) runs with bounds @(2)').
@@ -464,7 +466,7 @@ EOF
     okb --dir "$K" add "pins(c1, project, d1, $pd)"; rc_is 0 "setup: the pin" || return
     okb --dir "$K" lint; out_hasnt '^WP2' "setup: the pin resolves in the KB itself"
     plan_seen --old "$OKB"; rc_is 0 "plan on a KB with a relative project_kb"
-    out_hasnt 'WP2' "the project KB resolves on the new side too"; out_hasnt 'OUTSIDE'
+    out_hasnt 'lint WP2 \(count\)' "the project KB resolves on the new side too"; out_hasnt 'OUTSIDE'
     [ -z "$(ls -a "$T/hub/specs" | grep orbit-mig)" ] || note "plan left a shadow directory in specs/"
 }
 
@@ -518,6 +520,90 @@ EOF
     rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --yes --seen-migrations "$dg" 2>&1) || rc=$?
     rc_is 0 "--yes with the digest of the preview upgrades"
     cmp -s "$T/h/.claude/orbit-kb/bin/orbit-kb" "$T/B/kb/bin/orbit-kb" || note "the hub did not get the new engine"
+}
+
+# ================================================================ c19: closed KBs are previewed too
+# Ty, q20: "Include closed KBs". A new engine changes how a closed KB reads too, so the kit upgrade
+# previews it; a migration still writes nothing to it (c9).
+t_MGC() {
+    mkkit "$T/A"; mkkit "$T/B"
+    rm -rf "$T/A/kb/share/orbit-kb/migrations"; echo "% kit A" >> "$T/A/kb/bin/orbit-kb"
+    python3 -I - "$T/A/kb/share/orbit-kb/core.pl" <<'PY'
+import re, sys
+p = sys.argv[1]; s = open(p).read()
+s2 = re.sub(r"lint_issue\('W12'.*?not checks_that\(K, _\)\.\n", "", s, flags=re.S)
+assert s2 != s; open(p, "w").write(s2)
+PY
+    python3 -I "$T/A/hubkit/tools/hubkit.py" install --hub "$T/h" --edition formal >/dev/null 2>&1 || { note "setup: install from kit A failed"; return; }
+    ( cd "$T/h" && python3 .claude/scripts/hubflow.py --hub "$T/h" init --seed flow/seed.json ) >/dev/null 2>&1
+    kb_new "$T/h/specs/shut" <<'EOF'
+uses([build]).
+request(r1, 'Exports keep their header row').
+% Made by orbit-kb 0.5.0.
+claim(c1, introduce, 'The export has a header row').
+example(c1, 'orders.csv starts with id,total').
+cites(c1, 'Exports keep their header row').
+check(k1, c1).
+EOF
+    hf "$T/h" add thread --title "build shut" --ref kb:shut; rc_is 0 "setup: a thread on kb:shut" || return
+    local id; id=$(printf '%s' "$out" | grep -oE 'T-[0-9]+' | head -n1)
+    hf "$T/h" close "$id" --reason done --by human --session human --note "shipped"; rc_is 0 "setup: close the ticket" || return
+    cp "$T/h/specs/shut/kb.pl" "$T/shut.before"
+    rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" 2>&1) || rc=$?
+    rc_is 0 "the dry run" || return
+    out_has '^kb:shut \(closed: previewed; no migration writes to it\)$' "the closed KB is previewed and labeled"
+    out_has 'lint W12 \(count\): none -> 1 \(in the reach\)' "the verdict that the new engine changes on the closed KB"
+    local dg; dg=$(printf '%s\n' "$out" | sed -n 's/^preview digest: //p')
+    rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --yes --seen-migrations "$dg" 2>&1) || rc=$?
+    rc_is 0 "--yes with the digest upgrades"
+    same_file "$T/h/specs/shut/kb.pl" "$T/shut.before" "the closed KB after the upgrade"
+}
+
+# ================================================================ c20: project_kb from the hub root
+# Ty, q21: "B: resolve from hub root". In a hub, a relative project_kb is read from the hub root, so
+# a KB moved inside the hub (W0/analyses/x/kb to specs/x) keeps its link with no write.
+t_MGR() {
+    mkdir -p "$T/h/flow" "$T/h/specs" "$T/h/W0/analyses/x"; echo '{}' > "$T/h/flow/seed.json"
+    okb init "$T/h/project-kb" --request 'Where the product goes' --uses project >/dev/null; rc_is 0 "setup: the project KB" || return
+    okb --dir "$T/h/project-kb" add "decision(d1, 'Exports keep their header')" --by human; rc_is 0 "setup: a decision" || return
+    kb_new "$T/h/W0/analyses/x/kb" <<'EOF'
+uses([build, project]).
+request(r1, 'Exports keep their header row').
+% Made by orbit-kb 0.5.0.
+project_kb('../../../../project-kb').
+claim(c1, introduce, 'The export has a header row').
+example(c1, 'orders.csv starts with id,total').
+cites(c1, 'Exports keep their header row').
+check(k1, c1).
+checks_that(k1, 'the first line names the columns').
+EOF
+    okb --dir "$K" query 'project_decision_digest(d1, D)'; local pd; pd=$(printf '%s\n' "$out" | sed -n 's/^D = //p')
+    [ -n "$pd" ] || { note "the old-layout KB does not reach its project KB"; return; }
+    okb --dir "$K" add "pins(c1, project, d1, $pd)"; rc_is 0 "setup: the pin" || return
+    okb --dir "$K" lint; out_hasnt '^WP2' "the old-layout KB resolves its project KB"
+    # the old engine: this orbit-kb with the hub-root reading taken out (reads from the KB folder)
+    mkdir -p "$T/old/bin" "$T/old/share"; cp "$OKB" "$T/old/bin/orbit-kb"; cp -rL "$LIB" "$T/old/share/orbit-kb"
+    sed -i 's/^    (   kb_hub_root(Dir, Hub)$/    (   fail, kb_hub_root(Dir, Hub)/' "$T/old/bin/orbit-kb"
+    grep -q '(   fail, kb_hub_root(Dir, Hub)' "$T/old/bin/orbit-kb" || { note "setup: the old engine did not apply"; return; }
+    # move the KB into specs/, as UPGRADING does (git mv); kb.pl is not touched
+    mv "$T/h/W0/analyses/x/kb" "$T/h/specs/x"; K=$T/h/specs/x; cp "$K/kb.pl" "$T/x.before"
+    okb --dir "$K" lint; out_hasnt '^WP2' "the moved KB still reaches its project KB, with no write"
+    same_file "$K/kb.pl" "$T/x.before" "the move"
+    local ol; ol=$(cd "$T" && ORBIT_KB_LIB="$T/old/share/orbit-kb" timeout "$TMO" "$T/old/bin/orbit-kb" --dir "$K" lint 2>&1)
+    printf '%s\n' "$ol" | grep -q '^WP2' || note "setup: the old engine should lose the link of the moved KB (the check could not fail)"
+    # the preview of the new engine against the old one declares the change: WP2 1 -> none, in the reach
+    plan_seen --old "$T/old/bin/orbit-kb"; rc_is 0 "the preview of the hub-root reading"
+    out_has 'lint WP2 \(count\): 1 -> none \(in the reach\)' "the changed verdict is declared"; out_hasnt 'OUTSIDE'
+    # outside a hub, a relative project_kb is read from the KB folder, as before
+    mkdir -p "$T/solo"; cp -r "$T/h/project-kb" "$T/solo/project-kb"
+    kb_new "$T/solo/k" <<'EOF'
+uses([build, project]).
+request(r1, 'Exports keep their header row').
+% Made by orbit-kb 0.5.0.
+project_kb('../project-kb').
+claim(c1, introduce, 'The export has a header row').
+EOF
+    okb --dir "$T/solo/k" query 'project_decision_digest(d1, D)'; rc_is 0 "a KB outside a hub reads its link from its own folder"
 }
 
 # ================================================================ c16: the cut-fail clause
@@ -593,6 +679,8 @@ run_test t_MG7 MG7 "c7: an additive migration (new kinds and rules only) changes
 run_test t_MG14 MG14 "c14: a changed verdict outside the reach of S is refused; W12 is in the reach of checks_that"
 run_test t_MG15 MG15 "c15: the preview shows each verdict that the old engine and the new one differ on"
 run_test t_MGU MGU "c15: a kit upgrade shows each verdict that the new engine changes and needs the preview digest"
+run_test t_MGC MGC "c19: the kit upgrade previews closed KBs too, and writes nothing to them"
+run_test t_MGR MGR "c20: in a hub, project_kb is read from the hub root, so a moved KB keeps its link with no write"
 run_test t_MG16 MG16 "c16: the cut-fail clause hides old and later facts, lint accepts it first only, WM1 never blocks done"
 run_test t_MG17 MG17 "c17: the signature lists the version's own predicates; lint flags retired, missing and other arity"
 NT=${#REG_ID[@]}

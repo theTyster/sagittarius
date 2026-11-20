@@ -15,8 +15,8 @@ usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
   upgrade --hub DIR [--yes] [--seen-migrations DIGEST]
                                plan an upgrade to this kit's version; a dry run without --yes.
                                In a formal hub whose orbit-kb changes, the dry run also prints the
-                               migration preview (kb-migrations c15): for each spec KB of an open
-                               ticket, this kit's `orbit-kb migrate plan --old` the hub's orbit-kb,
+                               migration preview (kb-migrations c15, c19): for each spec KB, closed
+                               ones too, this kit's `orbit-kb migrate plan --old` the hub's orbit-kb,
                                so each verdict that the new engine changes is seen before it lands,
                                and a preview digest. --yes then needs --seen-migrations DIGEST of the
                                preview as it is now, and refuses an upgrade whose preview names a
@@ -378,7 +378,7 @@ OKB_REL = ".claude/orbit-kb/bin/orbit-kb"
 def migration_preview(o, k, ed, hub, plan):
     """kb-migrations c15: the verdicts that the new engine changes are seen before it lands. In a formal
     hub whose orbit-kb is replaced, run this kit's orbit-kb `migrate plan --old` the hub's orbit-kb on each
-    spec KB whose ticket is open (hubflow kb-state; a KB it cannot place counts as open). Returns
+    spec KB, closed ones too (c19; hubflow kb-state labels a closed one). Returns
     (lines, digest, bad): the preview, the sha256 of it, and the slugs whose plan refuses (an undeclared
     change, or a plan that does not run). None when there is nothing to preview."""
     import subprocess
@@ -401,8 +401,8 @@ def migration_preview(o, k, ed, hub, plan):
                 state = "closed"
         except (OSError, subprocess.SubprocessError):
             pass
-        if state == "closed":
-            continue  # frozen at the version that closed it (c9)
+        # c19 (Ty, q20: "Include closed KBs"): a closed KB is previewed too, since a new engine changes
+        # how it reads; a migration still writes nothing to it (c9)
         try:
             r = subprocess.run([new, "--dir", os.path.join(specs, slug), "migrate", "plan", "--old", old],
                                capture_output=True, text=True, timeout=600, env=env, cwd=hub)
@@ -411,7 +411,8 @@ def migration_preview(o, k, ed, hub, plan):
             rc, out = 2, f"the plan did not run: {e}"
         keep = [x for x in out.splitlines()
                 if x.startswith(("Reach of S", "  ", "Verdicts", "REFUSED", "Nothing to write", "apply refuses"))]
-        lines.append(f"kb:{slug}" + ("" if rc == 0 else f" (plan exit {rc})"))
+        lines.append(f"kb:{slug}" + (" (closed: previewed; no migration writes to it)" if state == "closed" else "")
+                     + ("" if rc == 0 else f" (plan exit {rc})"))
         lines += ["  " + x for x in keep] or ["  (no output)"]
         if rc != 0:
             bad.append(slug)
@@ -468,7 +469,7 @@ def cmd_upgrade(o, edition=None):
     pv = migration_preview(o, k, ed, hub, plan)
     if pv:
         lines, digest, bad = pv
-        print("migration preview (kb-migrations c15): the new orbit-kb against the hub's, on each open spec KB")
+        print("migration preview (kb-migrations c15, c19): the new orbit-kb against the hub's, on each spec KB, closed ones too")
         for x in lines:
             print(x)
         print(f"preview digest: {digest}")

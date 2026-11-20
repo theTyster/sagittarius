@@ -1057,7 +1057,9 @@ directories and `runs/` are skipped). The page groups the spec KBs by the projec
 name with `project_kb/1`, each group labeled with that project KB's first request; a spec KB
 with no `project_kb` is in the group `no project`. A project KB has no section of its own,
 unless it has its own questions to ask (T27 c8). `project_kb` paths are normalized, so a
-trailing slash makes no second group.
+trailing slash makes no second group. In a hub (a folder with `flow/seed.json` above the KB),
+a relative `project_kb` is read from the hub root with its leading `../` steps dropped, so a KB
+moved inside the hub keeps its link with no write (kb-migrations c20).
 Each question to ask shows its notes, its claim's notes and examples, and its due date (T27 c6),
 and has a form: its options as in `view questions`, `other`, and a free text. A picked default
 keeps its term (`3`, not `'3'`); typed text next to a picked option is kept as `note(Q, Text)`.
