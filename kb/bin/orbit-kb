@@ -8880,7 +8880,7 @@ human_only_fact(ATs, F) :- nonvar(F), F = attest(_, Ty, _, _, _, _), atom(Ty),
     member(at(Ty, _, Ws, _), ATs), Ws == [human], !.
 human_only_fact(_, F) :- nonvar(F), F = answer(_, _, By), ( By == human ; nonvar(By), By = human:_ ), !.
 human_only_fact(_, F) :- nonvar(F), functor(F, N, A),
-    memberchk(N/A, [discovery_end/1, request_accepted/3, ratified_by/3, decided_by/3, waiver/4]), !.
+    memberchk(N/A, [discovery_end/1, request_accepted/3, ratified_by/3, decided_by/3, waiver/4, decision/2]), !.
 
 % mig_plan_writes(+KB, +Rows, +Ms, -Plan): plan(Inserts, Adds, Errs) for the tool and human
 % steps that are to do. Inserts: ins(Line, N/A, What, MigId). Adds: F-MigId.
@@ -9243,9 +9243,13 @@ mig_frozen_gate(Dir) :-
         absolute_file_name(path(python3), Exe, [access(execute), file_errors(fail)])
     ->  mig_child(Exe, [Hf, '--hub', Hub, 'kb-state', Slug], [cwd(Hub)], X, Out),
         split_string(Out, "", " \n", [St]),
-        (   X == 0, St == "closed"
+        (   X == 0, St == "open"
+        ->  true
+        ;   X == 0, St == "closed"
         ->  die(1, ["Refused: the ticket of kb:" + Slug + " is closed, so its KB is frozen at the version that closed it (c9). Nothing was written."] >> fix_lines)
-        ;   true
+        ;   % review a93: fail closed. A KB of a hub whose state the ledger cannot give may be frozen.
+            die(1, ["Refused: hubflow kb-state " + Slug + " did not answer open or closed, so this KB may be frozen (c9). Nothing was written.",
+                    "Fix: make python3 .claude/scripts/hubflow.py kb-state " + Slug + " work in the hub (an older hubflow lacks it: upgrade the kit)."] >> fix_lines)
         )
     ;   true
     ).

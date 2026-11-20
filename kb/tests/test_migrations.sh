@@ -16,7 +16,7 @@
 #   c7  an additive migration changes no old verdict                                  : MG7
 #   c12 the hub check fails only on a tool or agent step; warns on retired; no marker   : MG12
 #   c6, c14 every changed verdict lies in the reach of S; S alone is not enough        : MG14
-#   c15 the human sees each verdict of the reach that differs, old engine vs new        : MG15
+#   c15 the human sees each verdict of the reach that differs, old engine vs new        : MG15 MGU
 #   c16 the cut-fail clause: first clause only, facts kept, hidden, warned, never blocks : MG16
 #   c17 the signature of the version only; lint flags retired, missing, other arity     : MG17
 set -u
@@ -294,12 +294,15 @@ t_MG10() {
     K=$T/h/specs/open; plan_seen; okb --dir "$K" migrate apply --seen "$SEEN"; rc_is 0 || return
     # the agent step of W12 is required: do it, so only the human step is left
     okb --dir "$K" add "checks_that(k1, 'the first line names the columns')"; rc_is 0
+    # review a94: make done hold but for the question, so is_false done can fail
+    okb --dir "$K" run k1 -- false >/dev/null; okb --dir "$K" run k1 -- true >/dev/null; rc_is 0 "setup: k1 red, then green"
     hf "$T/h" migrations; rc_is 0 "a human step alone does not fail the hub check"
     out_has '^migrating: kb:open m_again again human 1' "the KB shows as migrating"
     is_true 'to_ask(Q)'; is_false 'done'
     local qid; qid=$(grep -oE "^question\((q[0-9]+), c1, 'Do you approve" "$K/kb.pl" | grep -oE 'q[0-9]+' | head -n1)
     okb --dir "$K" add "answer($qid, yes, human)" --by human; rc_is 0 "the human answers"
     is_false 'to_ask(Q)'
+    is_true 'done' "once the human answers, nothing else keeps done false"
 }
 t_MG12() {
     fxlib || return; hub_two || return
@@ -423,6 +426,58 @@ EOF
     out_has 'lint W12 \(count\): none -> 1 \(OUTSIDE the reach'
 }
 
+# ================================================================ c15: the kit upgrade shows the preview
+# review a99: a change of verdicts lands when the hub gets the new engine, not at migrate apply. A hub
+# installed from an older kit A (no lint W12) is upgraded with this kit B: the dry run shows, for the
+# open spec KB, the verdict that B's engine changes; --yes needs the digest of that preview.
+mkkit() {  # mkkit DIR: a kit checkout layout with this hubkit, this prompt, this orbit-kb and library
+    mkdir -p "$1/kb/bin" "$1/kb/share"; cp -r "$REPO/hubkit" "$REPO/prompt" "$1/"
+    cp "$OKB" "$1/kb/bin/orbit-kb"; cp "$REPO/kb/bin/repo-map" "$1/kb/bin/"; cp -rL "$LIB" "$1/kb/share/orbit-kb"
+}
+t_MGU() {
+    mkkit "$T/A"; mkkit "$T/B"
+    rm -rf "$T/A/kb/share/orbit-kb/migrations"; echo "% kit A" >> "$T/A/kb/bin/orbit-kb"
+    python3 -I - "$T/A/kb/share/orbit-kb/core.pl" <<'PY'
+import re, sys
+p = sys.argv[1]; s = open(p).read()
+s2 = re.sub(r"lint_issue\('W12'.*?not checks_that\(K, _\)\.\n", "", s, flags=re.S)
+assert s2 != s; open(p, "w").write(s2)
+PY
+    python3 -I "$T/A/hubkit/tools/hubkit.py" install --hub "$T/h" --edition formal >/dev/null 2>&1 || { note "setup: install from kit A failed"; return; }
+    ( cd "$T/h" && python3 .claude/scripts/hubflow.py --hub "$T/h" init --seed flow/seed.json ) >/dev/null 2>&1
+    kb_new "$T/h/specs/open" <<'EOF'
+uses([build]).
+request(r1, 'Exports keep their header row').
+% Made by orbit-kb 0.5.0.
+claim(c1, introduce, 'The export has a header row').
+example(c1, 'orders.csv starts with id,total').
+cites(c1, 'Exports keep their header row').
+check(k1, c1).
+EOF
+    hf "$T/h" add thread --title "build open" --ref kb:open; rc_is 0 "setup: a thread on kb:open" || return
+    cp "$T/h/.claude/orbit-kb/bin/orbit-kb" "$T/engine.before"
+    K=$T/h
+    rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" 2>&1) || rc=$?
+    rc_is 0 "the dry run" || return
+    out_has '^migration preview' "the dry run shows the migration preview"
+    out_has '^kb:open$'; out_has 'lint W12 \(count\): none -> 1 \(in the reach\)' "the verdict that the new engine changes"
+    local dg; dg=$(printf '%s\n' "$out" | sed -n 's/^preview digest: //p')
+    [ -n "$dg" ] || { note "no preview digest"; return; }
+    rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --yes 2>&1) || rc=$?
+    rc_is 1 "--yes with no --seen-migrations is refused"; any_has 'seen-migrations'
+    same_file "$T/h/.claude/orbit-kb/bin/orbit-kb" "$T/engine.before" "a refused upgrade copies nothing"
+    # the mutant: kit B's migration forgets W12: the change is undeclared, and --yes is refused even with the digest
+    cp -r "$T/B" "$T/Bm"
+    sed -i "s/changes(m_0_5_0_checks_that, \[checks_that\/2, lint('W12')\])/changes(m_0_5_0_checks_that, [])/" "$T/Bm/kb/share/orbit-kb/migrations/0.5.0-checks_that.pl"
+    local dm; dm=$(cd "$T" && python3 -I "$T/Bm/hubkit/tools/hubkit.py" upgrade --hub "$T/h" 2>&1 | sed -n 's/^preview digest: //p')
+    rc=0; out=$(cd "$T" && python3 -I "$T/Bm/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --yes --seen-migrations "$dm" 2>&1) || rc=$?
+    rc_is 1 "an undeclared change of the engine refuses the upgrade"; any_has 'outside the declared reach'
+    same_file "$T/h/.claude/orbit-kb/bin/orbit-kb" "$T/engine.before" "the refused upgrade"
+    rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --yes --seen-migrations "$dg" 2>&1) || rc=$?
+    rc_is 0 "--yes with the digest of the preview upgrades"
+    cmp -s "$T/h/.claude/orbit-kb/bin/orbit-kb" "$T/B/kb/bin/orbit-kb" || note "the hub did not get the new engine"
+}
+
 # ================================================================ c16: the cut-fail clause
 t_MG16() {
     fxlib || return; kb_old "$T/k"
@@ -495,6 +550,7 @@ run_test t_MG12 MG12 "c12: the hub check fails only on a tool or agent step, war
 run_test t_MG7 MG7 "c7: an additive migration (new kinds and rules only) changes no old verdict"
 run_test t_MG14 MG14 "c14: a changed verdict outside the reach of S is refused; W12 is in the reach of checks_that"
 run_test t_MG15 MG15 "c15: the preview shows each verdict that the old engine and the new one differ on"
+run_test t_MGU MGU "c15: a kit upgrade shows each verdict that the new engine changes and needs the preview digest"
 run_test t_MG16 MG16 "c16: the cut-fail clause hides old and later facts, lint accepts it first only, WM1 never blocks done"
 run_test t_MG17 MG17 "c17: the signature lists the version's own predicates; lint flags retired, missing and other arity"
 NT=${#REG_ID[@]}
