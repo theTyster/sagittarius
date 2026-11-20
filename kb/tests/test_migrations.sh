@@ -584,7 +584,7 @@ EOF
     # the old engine: this orbit-kb with the hub-root reading taken out (reads from the KB folder)
     mkdir -p "$T/old/bin" "$T/old/share"; cp "$OKB" "$T/old/bin/orbit-kb"; cp -rL "$LIB" "$T/old/share/orbit-kb"
     sed -i 's/^    (   kb_hub_root(Dir, Hub)$/    (   fail, kb_hub_root(Dir, Hub)/' "$T/old/bin/orbit-kb"
-    grep -q '(   fail, kb_hub_root(Dir, Hub)' "$T/old/bin/orbit-kb" || { note "setup: the old engine did not apply"; return; }
+    # an engine with no hub-root reading is old as it is; the guard below checks that the old side loses the link
     # move the KB into specs/, as UPGRADING does (git mv); kb.pl is not touched
     mv "$T/h/W0/analyses/x/kb" "$T/h/specs/x"; K=$T/h/specs/x; cp "$K/kb.pl" "$T/x.before"
     okb --dir "$K" lint; out_hasnt '^WP2' "the moved KB still reaches its project KB, with no write"
