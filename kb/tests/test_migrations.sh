@@ -13,8 +13,9 @@
 #   c5  steps with owners and pending queries; a marker marks nothing done              : MG5
 #   c9  a closed KB is frozen: no write, not in the hub check, not on the Desk           : MG9
 #   c10 a human step blocks no hub check; the KB is not done until the human answers    : MG10
+#   c7  an additive migration changes no old verdict                                  : MG7
 #   c12 the hub check fails only on a tool or agent step; warns on retired; no marker   : MG12
-#   c14 every changed verdict lies in the reach of S; S alone is not enough            : MG14
+#   c6, c14 every changed verdict lies in the reach of S; S alone is not enough        : MG14
 #   c15 the human sees each verdict of the reach that differs, old engine vs new        : MG15
 #   c16 the cut-fail clause: first clause only, facts kept, hidden, warned, never blocks : MG16
 #   c17 the signature of the version only; lint flags retired, missing, other arity     : MG17
@@ -353,6 +354,42 @@ EOF
     same_file "$K/kb.pl" "$T/before.pl" "a refused apply"
 }
 
+# ================================================================ c7: an additive migration
+t_MG7() {
+    fxlib || return
+    rm -f "$T/lib/migrations/9.9.9-fixture.pl"
+    # the new version adds a fact kind and a rule that only reads it; no old rule reads either
+    cat >> "$T/lib/core.pl" <<'EOF'
+decl(fact, fx_bounds(atom, text), 'The bounds of the runs of a check (a fixture).', 'check @(1) runs with bounds @(2)').
+decl(rule, fx_bounded(atom), 'The check has bounds (a fixture).', 'check @(1) has bounds').
+fx_bounded(K) :- fx_bounds(K, _).
+EOF
+    cat > "$T/lib/migrations/9.9.9-add.pl" <<'EOF'
+migration(m_add, '9.9.9', 'Each check gets its bounds (new kind fx_bounds/2).').
+changes(m_add, [fx_bounds/2, fx_bounded/1]).
+step(m_add, bounds, tool, 'the bounds of each check').
+pending(m_add, bounds, K, (check(K, _), not fx_bounds(K, _))).
+writes(m_add, bounds, K, [fx_bounds(K, 'n = 3')]).
+EOF
+    kb_new "$T/k" <<'EOF'
+uses([build]).
+request(r1, 'Exports keep their header row').
+% Made by orbit-kb 0.5.0.
+claim(c1, introduce, 'The export has a header row').
+example(c1, 'orders.csv starts with id,total').
+cites(c1, 'Exports keep their header row').
+check(k1, c1).
+checks_that(k1, 'the first line names the columns').
+check(k2, c1).
+checks_that(k2, 'the export has no empty line').
+EOF
+    plan_seen; rc_is 0 "an additive migration is accepted" || return
+    out_has '^Reach of S \(c14\): fx_bounded/1, fx_bounds/2$' "the reach of an additive change holds only the new predicates"
+    out_has '^Verdicts: none differs\.$' "no old verdict changes"
+    okb --dir "$K" migrate apply --seen "$SEEN"; rc_is 0 "apply"
+    is_true 'fx_bounded(k2)'
+}
+
 # ================================================================ c15: old engine vs new
 t_MG15() {
     # the old engine: a copy of this orbit-kb whose library has no lint W12 (as before 0.5.0)
@@ -455,6 +492,7 @@ run_test t_MG5 MG5 "c5: steps with owners and pending queries; a stored marker m
 run_test t_MG9 MG9 "c9: a closed KB is frozen: no write, not in the hub check, nothing on the Desk"
 run_test t_MG10 MG10 "c10: a human step fails no hub check; the KB is not done until the human answers"
 run_test t_MG12 MG12 "c12: the hub check fails only on a tool or agent step, warns on a retired predicate, trusts no marker"
+run_test t_MG7 MG7 "c7: an additive migration (new kinds and rules only) changes no old verdict"
 run_test t_MG14 MG14 "c14: a changed verdict outside the reach of S is refused; W12 is in the reach of checks_that"
 run_test t_MG15 MG15 "c15: the preview shows each verdict that the old engine and the new one differ on"
 run_test t_MG16 MG16 "c16: the cut-fail clause hides old and later facts, lint accepts it first only, WM1 never blocks done"
