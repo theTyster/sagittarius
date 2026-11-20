@@ -74,6 +74,16 @@ Who made a record (D28)
   rests_on_run(V, Run)           verdict V rests on run Run (attest disproof --rests-on).
   add refuses these three facts: orbit-kb writes them. A limit: the role is self-reported.
   orbit-kb cannot check it, as it cannot check --by human.
+
+Migrations (kb-migrations; orbit-kb help migrate). Only orbit-kb migrate apply writes these:
+  retired(N/A, Version, What)    predicate N/A was retired in that orbit-kb version; What replaces it.
+                                 Beside it, above the first fact of N/A, the cut-fail clause
+                                 N(_, ..., _) :- !, fail. takes the facts out of the model: they stay
+                                 in kb.pl, and no rule and no query finds them (lint WM1). It also
+                                 declares N/A, so a query of it has no answer, not an error.
+  migration_added(Mig, Version, Fact)   migration Mig, run by that orbit-kb version, added Fact.
+  migration_question(Q)          (rule) a migration raised question Q for a human step. to_ask(Q)
+                                 holds until a human answers it, so done and discovery_ready wait.
   The tools catch mistakes, not cheating.
 
 Attestation types

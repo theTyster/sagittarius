@@ -650,6 +650,14 @@ def status_obj(hub):
             row = {k: r[k] for k in ("id", "kind", "title", "status", "owner_session")}
             if row not in lst:
                 lst.append(row)
+        # kb-migrations c9: a spec KB whose items (summaries aside) are all closed is frozen; the Desk
+        # shows no migration step of it (the words of its checks)
+        kb_closed = sorted({ref_slug(r[0]) for r in c.execute(
+            "SELECT DISTINCT r.ref FROM item_ref r JOIN item i ON i.id = r.item_id WHERE r.kind = 'kb'"
+            " AND i.kind <> 'summary'")}
+            - {ref_slug(r[0]) for r in c.execute(
+                "SELECT DISTINCT r.ref FROM item_ref r JOIN item i ON i.id = r.item_id WHERE r.kind = 'kb'"
+                " AND i.kind <> 'summary' AND i.status IN ('open','waiting')")})
         kb_handoffs = {}
         for r in rows(c, "SELECT r.ref, i.id, h.from_session AS \"from\", h.to_session AS \"to\", h.accepted_at,"
                          " i.opened_at FROM item i JOIN handoff h ON h.item_id = i.id"
@@ -668,7 +676,7 @@ def status_obj(hub):
     finally:
         c.close()
     return {"now": now, "sessions": sessions, "orphans": {"unowned": unowned, "unaccepted": unaccepted},
-            "kb_refs": kb_refs, "kb_handoffs": kb_handoffs, "closed_recent": closed, "letters": lv,
+            "kb_refs": kb_refs, "kb_closed": kb_closed, "kb_handoffs": kb_handoffs, "closed_recent": closed, "letters": lv,
             "bad_lines": {"count": len(store.bad), "lines": store.bad},
             # c24: no letter reaches a session of this hub while an event has no desk hook
             "hooks_missing": (lambda m: list(HOOK_EVENTS) if m is None else m)(hooks_missing(hub, settings_files(hub)))}

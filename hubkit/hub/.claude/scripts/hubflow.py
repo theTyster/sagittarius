@@ -117,6 +117,17 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                no ask to another person without an issue ref; it
                                                also names the items that skip-waived would park
                                                (skip_waived: IDs; the exit code does not change)
+  migrations                                   the hub check of KB migrations (kb-migrations c9,
+                                               c10, c12): runs `orbit-kb migrate check` on each spec
+                                               KB of specs/ whose ticket is open; exit 1 while one
+                                               has a tool or agent step to do (todo:), or when a
+                                               check cannot run (unknown:); a human step (migrating:)
+                                               and a retired predicate (retired:, a warning) never
+                                               fail it. A KB whose items are all closed is frozen:
+                                               not checked, not listed
+  kb-state SLUG                                open or closed: closed when items refer to kb:SLUG
+                                               and each is closed (orbit-kb migrate apply refuses
+                                               to write a closed one)
   migrate                                      bring an older db up to this script's schema: copies
                                                the db to flow/flow.db.bak-v<N> first, then runs each
                                                step and rewrites the JSONL, all in one transaction
@@ -142,7 +153,8 @@ Environment
   HUBFLOW_DB_DIR       the flow/ directory (tests). It wins over --hub; default <hub>/flow
   HUBFLOW_ORBIT_KB     the orbit-kb command for spec KB queries (split like shell words). Default:
                        the hub's own copy, .claude/orbit-kb/bin/orbit-kb (a formal hub), else
-                       `orbit-kb` on the PATH. hubflow only runs `--dir KB query GOAL -n 0`: for the state,
+                       `orbit-kb` on the PATH. hubflow only runs `--dir KB query GOAL -n 0` (and the
+                       read-only `--dir KB migrate check` for `migrations`): for the state,
                        GOAL is blocking(X): exit 0 with lines = blocking, exit 1 = clear. Any other
                        exit, a missing command or a kb ref with no dir in specs/<slug> or
                        W0..W5/analyses (or, for a KB outside the hub, at its path) counts
@@ -2694,6 +2706,66 @@ def cmd_migrate(g, a):
     print(f"migrated schema {start} -> {SCHEMA_VERSION}; backup at {bak}")
 
 
+def spec_kb_closed(c, slug):
+    """kb-migrations c9 (guess a9): a spec KB is closed, so frozen, when items refer to it and each
+    one is closed. A KB that no item names is open: it is checked, never skipped by a guess."""
+    items = kb_slug_items(c, slug, summaries=False)
+    return bool(items) and not any(st in OPEN for _, st, _ in items)
+
+
+def cmd_kb_state(g, a):
+    pos, _ = parse(a, {})
+    if len(pos) != 1:
+        usage("kb-state SLUG")
+    slug = check_analysis(pos[0])
+    c = connect_ro(flow_dir(g))
+    closed = spec_kb_closed(c, slug)
+    c.close()
+    print("closed" if closed else "open")
+
+
+MIG_KINDS = ("todo", "migrating", "retired", "error")
+
+
+def cmd_migrations(g, a):
+    parse(a, {})
+    hub = hub_dir(g)
+    if informal_at(hub):
+        print("this hub is informal: it has no spec KB, so no migration")
+        return
+    specs = os.path.join(hub, "specs")
+    slugs = sorted(d for d in os.listdir(specs) if os.path.isfile(os.path.join(specs, d, "kb.pl"))) \
+        if os.path.isdir(specs) else []
+    c = connect_ro(flow_dir(g))
+    frozen = [s for s in slugs if spec_kb_closed(c, s)]
+    c.close()
+    fail = False
+    for slug in slugs:
+        if slug in frozen:
+            continue
+        path = os.path.join(specs, slug)
+        try:
+            p = subprocess.run(orbit_kb_cmd() + ["--dir", path, "migrate", "check"],
+                               capture_output=True, text=True, timeout=ORBIT_KB_TIMEOUT)
+            rc, out, err = p.returncode, p.stdout, p.stderr
+        except (OSError, ValueError, subprocess.SubprocessError) as e:
+            rc, out, err = 2, "", f"{e.__class__.__name__}: {e}"
+        for line in out.splitlines():
+            kind, _, rest = line.partition(" ")
+            if kind in MIG_KINDS:
+                print(f"{kind}: kb:{slug} {rest}")
+        if rc == 1:
+            fail = True
+        elif rc != 0:
+            fail = True
+            print(f"unknown: kb:{slug} orbit-kb migrate check exited {rc}" + (f": {err.strip()[:200]}" if err.strip() else ""))
+    if frozen:
+        print(f"# frozen (closed tickets, not checked): {len(frozen)}")
+    if fail:
+        die(1, "a spec KB of an open ticket has a migration step to do (todo:) or could not be checked (unknown:);"
+               " `orbit-kb --dir specs/SLUG migrate plan` shows it")
+
+
 def cmd_check(g, a):
     parse(a, {})
     d = flow_dir(g)
@@ -2720,7 +2792,7 @@ COMMANDS = {"init": cmd_init, "add": cmd_add, "handoff": cmd_handoff, "accept": 
             "link": cmd_link, "note": cmd_note, "show": cmd_show, "view": cmd_view, "sql": cmd_sql,
             "session": cmd_session, "where": cmd_where, "spec-triage": cmd_spec_triage, "import": cmd_import, "rotate": cmd_rotate,
             "export": cmd_export, "rebuild": cmd_rebuild, "check": cmd_check, "migrate": cmd_migrate,
-            "skip-waived": cmd_skip_waived,
+            "skip-waived": cmd_skip_waived, "migrations": cmd_migrations, "kb-state": cmd_kb_state,
             "triage": cmd_triage, "capsule": cmd_capsule, "transcripts": cmd_transcripts}
 
 
@@ -2746,7 +2818,7 @@ def formal_only(g, what):
         raise Bad(f"{what} belongs to the formal edition; this hub is informal (`hubkit.py edition formal` switches it)")
 
 
-INFORMAL_ONLY_COMMANDS = ("where", "spec-triage", "skip-waived")  # they read a spec KB: not in an informal hub
+INFORMAL_ONLY_COMMANDS = ("where", "spec-triage", "skip-waived", "migrations", "kb-state")  # they read a spec KB: not in an informal hub
 # The informal --help: the formal text, with these edits (old regex, new text). A pattern that no
 # longer matches leaves a formal word in the help, and docs/check_informal_hub.py t36c1 fails.
 INFORMAL_HELP = (
@@ -2779,6 +2851,7 @@ INFORMAL_HELP = (
     (r"(KIND: issue pr build release) kb (file commit url)", "\\1 \\2"),
     (r"the item's kb and file\n(\s+)refs", "the item's file\n\\1refs"),
     (r" analysis \(a slug, never a W-slot path\),", ""),
+    (r"  migrations .*?\n  kb-state SLUG .*?refuses\n\s+to write a closed one\)\n", ""),
 )
 
 
