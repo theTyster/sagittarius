@@ -9056,15 +9056,33 @@ answers_text(L, T) :- atomic_list_concat(L, '; ', A), atom_string(A, T).
 
 % mig_shadow(+Dir, +Text, -Tmp): a temporary KB directory with kb.pl = Text and a link to each
 % other entry of Dir, so the paths of subjects and logs resolve as in Dir.
+% Review a128: the shadow is a sibling of Dir (.NAME.orbit-mig-PID-R in the same parent), so a relative
+% path in kb.pl, such as project_kb('../../project-kb'), resolves as it does in Dir. mig_rm_shadow/1
+% removes it: links are unlinked, never followed.
 mig_shadow(Dir, Text, Tmp) :-
-    tmp_file(orbit_mig, Tmp0), make_directory(Tmp0), Tmp = Tmp0,
-    assertz(orbit_tmp(Tmp)),
+    absolute_file_name(Dir, ADir), file_directory_name(ADir, Parent), file_base_name(ADir, Base),
+    current_prolog_flag(pid, Pid), random_between(0, 1000000000, R),
+    format(atom(Name), ".~w.orbit-mig-~w-~w", [Base, Pid, R]),
+    directory_file_path(Parent, Name, Tmp),
+    make_directory(Tmp),
     directory_files(Dir, Es),
     forall(( member(E, Es), \+ memberchk(E, ['.', '..', 'kb.pl', 'kb.lock', 'writer.lock']) ),
            ( directory_file_path(Dir, E, Src), directory_file_path(Tmp, E, Dst),
              catch(link_file(Src, Dst, symbolic), _, true) )),
     directory_file_path(Tmp, 'kb.pl', F),
     setup_call_cleanup(open(F, write, S, [encoding(utf8)]), write(S, Text), close(S)).
+
+mig_rm_shadow(D) :-
+    (   catch(directory_files(D, Es), _, fail)
+    ->  forall(( member(E, Es), \+ memberchk(E, ['.', '..']) ),
+               ( directory_file_path(D, E, P),
+                 (   catch(read_link(P, _, _), _, fail) -> catch(delete_file(P), _, true)
+                 ;   exists_directory(P) -> mig_rm_shadow(P)
+                 ;   catch(delete_file(P), _, true)
+                 ) )),
+        catch(delete_directory(D), _, true)
+    ;   true
+    ).
 
 % mig_plan(+KB, +OldExe, -Report): the whole plan of the KB: rows, writes, reach, differences.
 mig_plan(KB, Old, rep(Ms, Rows, Plan, Text, Reach, Diffs, Outside, Problems)) :-
@@ -9085,8 +9103,9 @@ mig_plan(KB, Old, rep(Ms, Rows, Plan, Text, Reach, Diffs, Outside, Problems)) :-
     (   Plan = plan([], [], _), Old == none
     ->  Diffs = [], Outside = []
     ;   mig_verdicts(OldExe, OldEnv, Dir, VOld),
-        mig_shadow(Dir, Text, Tmp),
-        mig_verdicts(Self, [], Tmp, VNew),
+        setup_call_cleanup(mig_shadow(Dir, Text, Tmp),
+                           mig_verdicts(Self, [], Tmp, VNew),
+                           mig_rm_shadow(Tmp)),
         mig_diffs(VOld, VNew, Diffs),
         include([d(Vd, A, _)]>>( A \== [undefined], \+ verdict_in_reach(Vd, Reach) ), Diffs, Outside)
     ).

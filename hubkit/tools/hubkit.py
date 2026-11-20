@@ -392,7 +392,7 @@ def migration_preview(o, k, ed, hub, plan):
     env = {x: v for x, v in os.environ.items() if not x.startswith("ORBIT_KB")}
     hf = os.path.join(hub, ".claude", "scripts", "hubflow.py")
     lines, bad = [], []
-    for slug in sorted(d for d in os.listdir(specs) if os.path.isfile(os.path.join(specs, d, "kb.pl"))):
+    for slug in sorted(d for d in os.listdir(specs) if not d.startswith(".") and os.path.isfile(os.path.join(specs, d, "kb.pl"))):
         state = "open"
         try:
             r = subprocess.run([sys.executable, hf, "--hub", hub, "kb-state", slug], capture_output=True, text=True,

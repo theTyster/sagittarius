@@ -168,6 +168,18 @@ EOF
     plan_seen; any_has "only a human may make" "the plan names the human-only record"
     okb --dir "$K" migrate apply --seen "${SEEN:-sha256:none}"; rc_is 1 "apply of a human-only write is refused"
     same_file "$K/kb.pl" "$T/mid.pl" "a refused apply"
+    # review a88: a decision of the project module is the human's too
+    rm -f "$T/lib/migrations/9.9.9-human.pl"
+    cat > "$T/lib/migrations/9.9.9-decide.pl" <<'EOF'
+migration(m_decide, '9.9.9', 'Writes a decision itself.').
+changes(m_decide, [decision/2]).
+step(m_decide, decide, tool, 'a decision for each claim').
+pending(m_decide, decide, C, (claim(C, _, _), not note(C, 'decided'))).
+writes(m_decide, decide, C, [decision(d1, 'Ship it')]).
+EOF
+    plan_seen; any_has "decision\(d1, ?'Ship it'\), a record that only a human may make" "a decision is human-only"
+    okb --dir "$K" migrate apply --seen "${SEEN:-sha256:none}"; rc_is 1 "apply of a decision is refused"
+    same_file "$K/kb.pl" "$T/mid.pl" "a refused apply of a decision"
 }
 
 # ================================================================ c3
@@ -269,6 +281,12 @@ t_MG9() {
     K=$T/h/specs/closed; plan_seen
     okb --dir "$K" migrate apply --seen "${SEEN:-sha256:none}"; rc_is 1 "apply on a closed KB"; any_has "frozen"
     same_file "$K/kb.pl" "$T/closed.before" "the closed KB"
+    # review a93: when the ledger cannot say open or closed, apply fails closed
+    K=$T/h/specs/open; plan_seen; cp "$K/kb.pl" "$T/open.before"
+    mv "$T/h/flow/flow.db" "$T/flow.db.away"
+    okb --dir "$K" migrate apply --seen "$SEEN"; rc_is 1 "apply when kb-state cannot answer"; any_has "may be frozen"
+    same_file "$K/kb.pl" "$T/open.before" "a KB whose state the ledger cannot give"
+    mv "$T/flow.db.away" "$T/h/flow/flow.db"
     K=$T/h/specs/open; plan_seen; okb --dir "$K" migrate apply --seen "$SEEN"; rc_is 0 "apply on the open KB" || return
     grep -q "Do you approve claim c1 again" "$T/h/specs/open/kb.pl" || note "the open KB has no question"
     # the Desk: the question of the open KB is there, nothing of the closed one
@@ -424,6 +442,30 @@ EOF
     grep -q "changes(m_0_5_0_checks_that, \[\])" "$T/lib/migrations/0.5.0-checks_that.pl" || { note "setup: the mutant did not apply"; return; }
     plan_seen --old "$T/old/bin/orbit-kb"; rc_is 1 "an undeclared change of the engine is refused"
     out_has 'lint W12 \(count\): none -> 1 \(OUTSIDE the reach'
+    # review a128: a KB that names its project KB by a relative path (as each spec KB of a hub does)
+    # gives the same verdicts on both sides, and the plan leaves no shadow directory behind
+    export ORBIT_KB_LIB="$LIB"
+    mkdir -p "$T/hub/specs"
+    okb init "$T/hub/project-kb" --request 'Where the product goes' --uses project >/dev/null; rc_is 0 "setup: the project KB" || return
+    kb_new "$T/hub/specs/p" <<'EOF'
+uses([build, project]).
+request(r1, 'Exports keep their header row').
+% Made by orbit-kb 0.5.0.
+project_kb('../../project-kb').
+claim(c1, introduce, 'The export has a header row').
+example(c1, 'orders.csv starts with id,total').
+cites(c1, 'Exports keep their header row').
+check(k1, c1).
+EOF
+    # WP2 checks a pin only: pin a decision of the project KB, with the digest that the tool gives
+    okb --dir "$T/hub/project-kb" add "decision(d1, 'Exports keep their header')" --by human; rc_is 0 "setup: a decision" || return
+    okb --dir "$K" query 'project_decision_digest(d1, D)'; local pd; pd=$(printf '%s\n' "$out" | sed -n 's/^D = //p')
+    [ -n "$pd" ] || { note "setup: no digest of d1"; return; }
+    okb --dir "$K" add "pins(c1, project, d1, $pd)"; rc_is 0 "setup: the pin" || return
+    okb --dir "$K" lint; out_hasnt '^WP2' "setup: the pin resolves in the KB itself"
+    plan_seen --old "$OKB"; rc_is 0 "plan on a KB with a relative project_kb"
+    out_hasnt 'WP2' "the project KB resolves on the new side too"; out_hasnt 'OUTSIDE'
+    [ -z "$(ls -a "$T/hub/specs" | grep orbit-mig)" ] || note "plan left a shadow directory in specs/"
 }
 
 # ================================================================ c15: the kit upgrade shows the preview

@@ -2734,7 +2734,7 @@ def cmd_migrations(g, a):
         print("this hub is informal: it has no spec KB, so no migration")
         return
     specs = os.path.join(hub, "specs")
-    slugs = sorted(d for d in os.listdir(specs) if os.path.isfile(os.path.join(specs, d, "kb.pl"))) \
+    slugs = sorted(d for d in os.listdir(specs) if not d.startswith(".") and os.path.isfile(os.path.join(specs, d, "kb.pl"))) \
         if os.path.isdir(specs) else []
     c = connect_ro(flow_dir(g))
     frozen = [s for s in slugs if spec_kb_closed(c, s)]
