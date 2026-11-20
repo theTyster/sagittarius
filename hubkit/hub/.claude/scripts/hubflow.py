@@ -119,7 +119,8 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
                                                (skip_waived: IDs; the exit code does not change)
   migrations                                   the hub check of KB migrations (kb-migrations c9,
                                                c10, c12): runs `orbit-kb migrate check` on each spec
-                                               KB of specs/ whose ticket is open; exit 1 while one
+                                               KB (specs/ and the old W*/analyses form) whose ticket
+                                               is open; exit 1 while one
                                                has a tool or agent step to do (todo:), or when a
                                                check cannot run (unknown:); a human step (migrating:)
                                                and a retired predicate (retired:, a warning) never
@@ -2727,23 +2728,42 @@ def cmd_kb_state(g, a):
 MIG_KINDS = ("todo", "migrating", "retired", "error")
 
 
+def hub_kb_dirs(hub):
+    """The KBs of the hub (review a166): (label, slug, dir) for each spec KB at specs/<slug> (label
+    kb:<slug>) and each KB of the form before 0.3.0 under W0..W5/analyses/<slug>/ at any depth (label
+    kb:W<n>/analyses/..., slug <slug>). A dot directory (a shadow of migrate plan) is skipped."""
+    out = []
+    specs = os.path.join(hub, "specs")
+    if os.path.isdir(specs):
+        for d in sorted(os.listdir(specs)):
+            if not d.startswith(".") and os.path.isfile(os.path.join(specs, d, "kb.pl")):
+                out.append((f"kb:{d}", d, os.path.join(specs, d)))
+    for n in range(6):
+        an = os.path.join(hub, f"W{n}", "analyses")
+        if not os.path.isdir(an):
+            continue
+        for b, dirs, files in os.walk(an):
+            dirs[:] = sorted(x for x in dirs if not x.startswith("."))
+            if "kb.pl" in files and b != an:
+                out.append(("kb:" + os.path.relpath(b, hub).replace(os.sep, "/"),
+                            os.path.relpath(b, an).replace(os.sep, "/").split("/")[0], b))
+    return out
+
+
 def cmd_migrations(g, a):
     parse(a, {})
     hub = hub_dir(g)
     if informal_at(hub):
         print("this hub is informal: it has no spec KB, so no migration")
         return
-    specs = os.path.join(hub, "specs")
-    slugs = sorted(d for d in os.listdir(specs) if not d.startswith(".") and os.path.isfile(os.path.join(specs, d, "kb.pl"))) \
-        if os.path.isdir(specs) else []
+    kbs = hub_kb_dirs(hub)
     c = connect_ro(flow_dir(g))
-    frozen = [s for s in slugs if spec_kb_closed(c, s)]
+    frozen = [lab for lab, slug, _ in kbs if spec_kb_closed(c, slug)]
     c.close()
     fail = False
-    for slug in slugs:
-        if slug in frozen:
+    for label, slug, path in kbs:
+        if label in frozen:
             continue
-        path = os.path.join(specs, slug)
         try:
             p = subprocess.run(orbit_kb_cmd() + ["--dir", path, "migrate", "check"],
                                capture_output=True, text=True, timeout=ORBIT_KB_TIMEOUT)
@@ -2753,12 +2773,12 @@ def cmd_migrations(g, a):
         for line in out.splitlines():
             kind, _, rest = line.partition(" ")
             if kind in MIG_KINDS:
-                print(f"{kind}: kb:{slug} {rest}")
+                print(f"{kind}: {label} {rest}")
         if rc == 1:
             fail = True
         elif rc != 0:
             fail = True
-            print(f"unknown: kb:{slug} orbit-kb migrate check exited {rc}" + (f": {err.strip()[:200]}" if err.strip() else ""))
+            print(f"unknown: {label} orbit-kb migrate check exited {rc}" + (f": {err.strip()[:200]}" if err.strip() else ""))
     if frozen:
         print(f"# frozen (closed tickets, not checked): {len(frozen)}")
     if fail:

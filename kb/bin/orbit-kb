@@ -9306,7 +9306,13 @@ mig_frozen_gate(Dir) :-
 
 mig_hub_slug(Dir, Hub, Slug) :-
     absolute_file_name(Dir, A), file_base_name(A, Slug), file_directory_name(A, P),
-    file_base_name(P, specs), file_directory_name(P, Hub).
+    file_base_name(P, specs), file_directory_name(P, Hub), !.
+% review a166: a KB of the form before 0.3.0, HUB/W<n>/analyses/<slug>/..., has the slug <slug>.
+mig_hub_slug(Dir, Hub, Slug) :-
+    absolute_file_name(Dir, A), kb_hub_root(A, Hub),
+    atom_concat(Hub, '/', HP), atom_concat(HP, Rel, A),
+    atomic_list_concat([W, analyses, Slug|_], '/', Rel),
+    atom_concat('W', N, W), atom_number(N, _), Slug \== ''.
 
 cmd_lint(KB, Args, Code) :-
     parse_opts(Args, ['--strict'-flag], Pos, Opts),

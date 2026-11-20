@@ -549,14 +549,34 @@ EOF
     local id; id=$(printf '%s' "$out" | grep -oE 'T-[0-9]+' | head -n1)
     hf "$T/h" close "$id" --reason done --by human --session human --note "shipped"; rc_is 0 "setup: close the ticket" || return
     cp "$T/h/specs/shut/kb.pl" "$T/shut.before"
+    # review a166: KBs of the form before 0.3.0 (W<n>/analyses/<slug>/...) are KBs of the hub too: one
+    # open, one closed, at different depths
+    local s; for s in "W1/analyses/old/kb" "W2/analyses/gone/impl/kb-build"; do
+        mkdir -p "$T/h/$s"; cp "$T/h/specs/shut/kb.pl" "$T/h/$s/kb.pl"; done
+    hf "$T/h" add thread --title "build old" --ref kb:old; rc_is 0 "setup: a thread on kb:old" || return
+    hf "$T/h" add thread --title "build gone" --ref kb:gone; rc_is 0 "setup: a thread on kb:gone" || return
+    id=$(printf '%s' "$out" | grep -oE 'T-[0-9]+' | head -n1)
+    hf "$T/h" close "$id" --reason done --by human --session human --note "shipped"; rc_is 0 "setup: close gone" || return
+    cp "$T/h/W2/analyses/gone/impl/kb-build/kb.pl" "$T/gone.before"
+    # review a166: a hub on kit 0.9.0 has a hubflow with no kb-state; the preview must not need it
+    sed -i '/"kb-state": cmd_kb_state/s/, "kb-state": cmd_kb_state//' "$T/h/.claude/scripts/hubflow.py"
+    ! grep -q '"kb-state": cmd_kb_state' "$T/h/.claude/scripts/hubflow.py" || { note "setup: kb-state is still in the hub's hubflow"; return; }
     rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" 2>&1) || rc=$?
     rc_is 0 "the dry run" || return
     out_has '^kb:shut \(closed: previewed; no migration writes to it\)$' "the closed KB is previewed and labeled"
     out_has 'lint W12 \(count\): none -> 1 \(in the reach\)' "the verdict that the new engine changes on the closed KB"
+    out_has '^kb:W1/analyses/old/kb$' "an open KB of the old form is previewed"
+    out_has '^kb:W2/analyses/gone/impl/kb-build \(closed: previewed; no migration writes to it\)$' "a closed KB of the old form, deeper, is previewed and labeled"
     local dg; dg=$(printf '%s\n' "$out" | sed -n 's/^preview digest: //p')
     rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --yes --seen-migrations "$dg" 2>&1) || rc=$?
     rc_is 0 "--yes with the digest upgrades"
     same_file "$T/h/specs/shut/kb.pl" "$T/shut.before" "the closed KB after the upgrade"
+    # after the upgrade: the hub check names the open old-form KB; apply refuses the closed old-form KB
+    hf "$T/h" migrations; rc_is 1 "the open old-form KB has a required step"
+    out_has '^todo: kb:W1/analyses/old/kb m_0_5_0_checks_that' "the hub check names the open old-form KB"
+    out_hasnt 'kb:W2/analyses/gone' "the hub check skips the closed old-form KB"
+    okb --dir "$T/h/W2/analyses/gone/impl/kb-build" migrate apply --seen sha256:none; rc_is 1 "apply on a closed old-form KB"; any_has "frozen"
+    same_file "$T/h/W2/analyses/gone/impl/kb-build/kb.pl" "$T/gone.before" "the closed old-form KB"
 }
 
 # ================================================================ c20: project_kb from the hub root
