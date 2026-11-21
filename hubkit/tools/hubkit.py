@@ -26,6 +26,12 @@ and every other file from hub/. The manifest records the edition; upgrade keeps 
 manifest names no edition (made before editions, all formal then) gets the formal edition when
 orbit-kb is on the PATH of this machine, else informal; the upgrade says so.
 
+Mods (both editions). kit.json "mods" names the Claude Code mods that ship with the hub: each folder
+under "from" (relative to the kit dir) is copied to "to" in the hub. The Desk toast (desk-toast) has
+its source beside desk.py (hub/.claude/scripts/desk-toast) and is installed at
+.claude/skills/desk-toast, where Claude Code loads a plugin of the project in every session started in
+the hub. Its files are engine files.
+
 The hub's own orbit-kb (formal edition). kit.json "orbit_kb" names the orbit-kb that this kit was
 tested with: "paths" under "from" (relative to the kit dir; ../kb in a Sagittarius checkout) are
 copied to "to" in the hub (.claude/orbit-kb/bin/orbit-kb, bin/repo-map, share/...). They are engine
@@ -85,6 +91,10 @@ def load_kit(kit):
     for rel in k["engine"] + k["owned"]:
         if not os.path.isfile(os.path.join(kit, "hub", rel)):
             die(1, f"kit.json lists {rel}, which is not in {kit}/hub")
+    m = k.get("mods")
+    for rel in (m or {}).get("paths", []):
+        if not os.path.isfile(os.path.join(kit, m["from"], rel, ".claude-plugin", "plugin.json")):
+            die(1, f"kit.json mods lists {rel}, which is not a mod (no .claude-plugin/plugin.json) in {kit}/{m['from']}")
     for ed, rels in k.get("editions", {}).items():
         for rel in rels:
             if rel not in k["engine"] + k["owned"] or not os.path.isfile(os.path.join(kit, "editions", ed, rel)):
@@ -92,10 +102,9 @@ def load_kit(kit):
     return k
 
 
-def okb_sources(kit, k):
-    """{hub path: kit source path} of the hub's own orbit-kb: every file under each of kit.json
-    orbit_kb.paths (a file or a directory, relative to orbit_kb.from), at orbit_kb.to in the hub."""
-    o = k.get("orbit_kb")
+def tree_sources(kit, o, skip_dirs=("__pycache__",)):
+    """{hub path: kit source path}: every file under each of o["paths"] (a file or a directory,
+    relative to o["from"], which is relative to the kit dir), at o["to"] in the hub."""
     if not o:
         return {}
     base = os.path.normpath(os.path.join(kit, o["from"]))
@@ -104,7 +113,8 @@ def okb_sources(kit, k):
         p = os.path.join(base, rel)
         if os.path.isdir(p):
             for b, dirs, files in os.walk(p):
-                dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+                dirs[:] = sorted(d for d in dirs if d not in skip_dirs
+                                 and not (d == "types" and os.path.basename(b) == ".claude-plugin"))
                 for f in sorted(files):
                     full = os.path.join(b, f)
                     out[o["to"] + "/" + os.path.relpath(full, base).replace(os.sep, "/")] = full
@@ -113,9 +123,25 @@ def okb_sources(kit, k):
     return out
 
 
+def okb_sources(kit, k):
+    """{hub path: kit source path} of the hub's own orbit-kb: every file under each of kit.json
+    orbit_kb.paths (a file or a directory, relative to orbit_kb.from), at orbit_kb.to in the hub."""
+    return tree_sources(kit, k.get("orbit_kb"))
+
+
+def mod_sources(kit, k):
+    """{hub path: kit source path} of the Claude Code mods that ship with the hub (both editions):
+    kit.json "mods" names each mod folder under "from" (relative to the kit dir; the Desk toast sits
+    beside desk.py), installed under "to" (.claude/skills/<mod>, where Claude Code loads a plugin of
+    the project). The types folder that Claude Code writes into a loaded mod (.claude-plugin/types)
+    and node_modules are not kit files."""
+    return tree_sources(kit, k.get("mods"), ("__pycache__", "node_modules"))
+
+
 def engine_files(kit, k, edition):
-    """The engine files of an `edition` hub: kit.json engine, and in the formal edition the hub's own orbit-kb."""
-    files = list(k["engine"])
+    """The engine files of an `edition` hub: kit.json engine and mods, and in the formal edition the
+    hub's own orbit-kb."""
+    files = list(k["engine"]) + sorted(mod_sources(kit, k))
     if edition == "formal":  # the hub's own orbit-kb (install UX c3)
         okb = okb_sources(kit, k)
         missing = [p for p in okb.values() if not os.path.isfile(p)]
@@ -131,6 +157,9 @@ def src(kit, k, edition, rel):
     okb = okb_sources(kit, k)
     if rel in okb:
         return okb[rel]
+    mods = mod_sources(kit, k)
+    if rel in mods:
+        return mods[rel]
     if rel in k.get("editions", {}).get(edition, []):
         return os.path.join(kit, "editions", edition, rel)
     return os.path.join(kit, "hub", rel)

@@ -1,0 +1,1 @@
+{ "name": "desk-toast", "version": "0.1.0", "description": "📨 The Desk's toast: when a session's agent is given a Desk letter (its seen event), every Claude Code session shows who saw it and the start of the letter. Reads the Desk's files only. /desk-toast for help" }
