@@ -85,7 +85,11 @@ def case_real_kit(r):
     with open(os.path.join(KIT, "kit.json"), encoding="utf-8") as f:
         k = json.load(f)
     listed = k["engine"] + k["owned"]
-    on_disk = sorted(tree(os.path.join(KIT, "hub")))
+    m = k.get("mods") or {}  # a mod folder under hub/ is listed once, as a whole, in kit.json mods
+    base = os.path.relpath(os.path.join(KIT, m.get("from", "hub")), os.path.join(KIT, "hub")).replace(os.sep, "/")
+    for rel in m.get("paths", []):
+        listed += [f"{base}/{rel}/{f}" for f in mod_files(os.path.join(KIT, m["from"], rel))]
+    on_disk = sorted(x for x in tree(os.path.join(KIT, "hub")) if "/.claude-plugin/types/" not in x)
     r.check("real-kit-lists-every-file-once", sorted(listed) == on_disk and len(set(listed)) == len(listed),
             sorted(set(on_disk) ^ set(listed)))
     r.check("real-kit-claude-md-owned", "CLAUDE.md" in k["owned"] and "HUB-CORE.md" in k["engine"], k)
