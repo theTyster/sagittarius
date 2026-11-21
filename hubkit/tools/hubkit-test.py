@@ -26,8 +26,8 @@ MUTANTS = [
     ("edition-from-path", "return \"informal\"  # install UX c3: the human chooses formal", "return \"formal\" if shutil.which(\"orbit-kb\") else \"informal\""),
     # 0.3.0 c_m_d_2: the manifest records what the hub runs, and status compares it with the files now
     ("runs-not-recorded", "m[\"runs\"] = runs_of(o[\"kit\"], k, ed)  # what the hub runs (c_m_d_2)", "pass"),
-    # module-versions c3: the manifest records the module versions, and upgrade prints old -> new
-    ("modules-not-recorded", "m[\"modules\"] = modules_of(o[\"kit\"])  # module-versions c3: upgrade records them", "pass"),
+    # module-versions c7: the manifest records the module versions, and upgrade prints old -> new
+    ("modules-not-recorded", "m[\"modules\"] = modules_of(o[\"kit\"])  # module-versions c7: upgrade records them", "pass"),
     ("runs-not-compared", "same = sha(there) == want  # the launcher file now (c_m_d_2)", "same = True"),
 ]
 
