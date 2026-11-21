@@ -13,7 +13,9 @@
 Usage: ./install.py          create or fix the links
        ./install.py --check  report each link; exit 1 if any is not OK
 
-Both print the version that they act on ("Sagittarius X.Y.Z", from the file VERSION) first.
+Both print the version that they act on ("Sagittarius X.Y.Z", from the file VERSION) first, and
+beside each link the module that it installs and its version (MODULES.json names them; modules.py).
+A link that points elsewhere is reported with the version found there.
 
 The same on Linux, macOS, and Windows (standard library only). A link that
 already points here is left alone. A link that points elsewhere is replaced,
@@ -29,15 +31,11 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
 HOME = Path.home()
-LINKS = [
-    (HOME / ".local" / "bin" / "orbit-kb", REPO / "kb" / "bin" / "orbit-kb"),
-    (HOME / ".local" / "bin" / "repo-map", REPO / "kb" / "bin" / "repo-map"),
-    (HOME / ".local" / "share" / "orbit-kb", REPO / "kb" / "share" / "orbit-kb"),
-    (HOME / ".claude" / "sagittarius", REPO / "prompt"),
-    (HOME / ".claude" / "sagittarius-s1", REPO / "s1"),
-    (HOME / ".claude" / "skills" / "s1-glance", REPO / "s1" / "glance"),
-    (HOME / ".claude" / "skills" / "desk-toast", REPO / "hubkit" / "hub" / ".claude" / "scripts" / "desk-toast"),
-]
+sys.path.insert(0, str(REPO))
+import modules  # noqa: E402  (module-versions c2: MODULES.json names each link and its module)
+
+MODS = modules.load(str(REPO))
+LINKS = [(Path(os.path.expanduser(link)), REPO / rel, mod) for mod in MODS for link, rel in modules.installs(mod)]
 
 
 def version():
@@ -59,16 +57,23 @@ def main(argv):
     check = argv == ["--check"]
     bad = 0
     print(f"Sagittarius {version()}" + (" (checked)" if check else ""))
-    for dst, src in LINKS:
+    for dst, src, mod in LINKS:
+        tag = f" ({mod['name']} {modules.version(str(REPO), mod['version']) or 'no version'})"
         old = link_target(dst)
         if old == src:
-            print(f"ok       {dst}")
+            print(f"ok       {dst}{tag}")
         elif old is None and dst.exists():
             print(f"blocked  {dst} is a real file or directory; remove it, then run again",
                   file=sys.stderr)
             bad = 1
         elif check:
-            print(f"wrong    {dst} -> {old}" if old else f"missing  {dst}")
+            if old:
+                st = modules.state(mod, str(dst), os.path.relpath(src, REPO), str(REPO))
+                there = f"{mod['name']} {st['version'] or 'version unknown'} there, " + (
+                    "the same files as this checkout" if st["release"] else "not the files of this checkout")
+                print(f"wrong    {dst} -> {old} ({there}){tag}")
+            else:
+                print(f"missing  {dst}{tag}")
             bad = 1
         else:
             if old is not None:
@@ -87,7 +92,7 @@ def main(argv):
                           file=sys.stderr)
                 bad = 1
                 continue
-            print(f"linked   {dst} -> {src}")
+            print(f"linked   {dst} -> {src}{tag}")
     return bad
 
 

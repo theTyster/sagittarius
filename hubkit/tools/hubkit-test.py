@@ -26,6 +26,8 @@ MUTANTS = [
     ("edition-from-path", "return \"informal\"  # install UX c3: the human chooses formal", "return \"formal\" if shutil.which(\"orbit-kb\") else \"informal\""),
     # 0.3.0 c_m_d_2: the manifest records what the hub runs, and status compares it with the files now
     ("runs-not-recorded", "m[\"runs\"] = runs_of(o[\"kit\"], k, ed)  # what the hub runs (c_m_d_2)", "pass"),
+    # module-versions c3: the manifest records the module versions, and upgrade prints old -> new
+    ("modules-not-recorded", "m[\"modules\"] = modules_of(o[\"kit\"])  # module-versions c3: upgrade records them", "pass"),
     ("runs-not-compared", "same = sha(there) == want  # the launcher file now (c_m_d_2)", "same = True"),
 ]
 
@@ -546,6 +548,80 @@ def case_u2_mutants_stream(r):
             [(round(s, 2), ln[:60]) for s, ln in mut] + [round(last, 2)])
 
 
+def case_module_versions(r, root):
+    """module-versions c7: a hub records, for each module of the release that installed or last upgraded it
+    (MODULES.json of the kit's Sagittarius checkout), the release version and what this machine runs: for a
+    module that install.py links into the home dir, the link's real source, the version there, its digest,
+    and whether that is the release code. upgrade prints old -> new per module, in its dry run and with --yes,
+    and the installed source when it is not the release code; status prints the record and the state now.
+    A hub made before says not recorded."""
+    home = os.path.join(root, "mv-home")
+    def repo(name, kitv, modv):
+        kit = fake_repo(root, name, kitv, "#!/usr/bin/env swipl\\n% orbit-kb\\n")
+        rp = os.path.dirname(kit)
+        shutil.copy(os.path.join(REPO, "modules.py"), rp)
+        write(os.path.join(rp, "VERSION"), kitv + "\n")
+        write(os.path.join(rp, "mod", "plugin.json"), json.dumps({"name": "mod", "version": modv}))
+        write(os.path.join(rp, "mod", "code.ts"), "// " + modv + "\n")
+        write(os.path.join(rp, "MODULES.json"), json.dumps({"modules": [
+            {"name": "sagittarius", "version": "VERSION", "covers": ["prompt"]},
+            {"name": "mindhole-kit", "version": "hubkit/kit.json#version", "covers": ["hubkit"]},
+            {"name": "mod", "version": "mod/plugin.json#version", "covers": ["mod"],
+             "installs": {"~/.claude/skills/mod": "mod"}}]}))
+        return kit
+    v1, v2 = repo("mv-repo1", "1.0.0", "0.1.0"), repo("mv-repo2", "1.1.0", "0.2.0")
+    link = os.path.join(home, ".claude", "skills", "mod")
+    os.makedirs(os.path.dirname(link), exist_ok=True)
+    os.symlink(os.path.join(os.path.dirname(v1), "mod"), link)  # this machine runs the mod of release 1
+    hub = os.path.join(root, "mv-hub")
+    res = hk_home(r, home, "install", "--kit", v1, "--hub", hub, "--edition", "informal")
+    rec = manifest(hub).get("modules") if res[0] == 0 else None
+    rec = rec if isinstance(rec, dict) else {}
+    vers = {n: (e or {}).get("version") for n, e in rec.items()}
+    r.check("mv-install-records-versions", vers == {"sagittarius": "1.0.0", "mindhole-kit": "1.0.0", "mod": "0.1.0"}, (res, rec))
+    ins = ((rec.get("mod") or {}).get("installed") or [{}])[0]
+    r.check("mv-install-records-the-installed-source", ins.get("link") == "~/.claude/skills/mod"
+            and ins.get("source") == os.path.realpath(os.path.join(os.path.dirname(v1), "mod"))
+            and ins.get("version") == "0.1.0" and ins.get("release") is True
+            and str(ins.get("digest", "")).startswith("sha256:"), rec)
+    st = hk_home(r, home, "status", "--kit", v2, "--hub", hub)
+    r.check("mv-status-prints-recorded", st[0] == 0 and "module mod 0.1.0 (recorded); this kit 0.2.0" in st[1]
+            and "module sagittarius 1.0.0 (recorded); this kit 1.1.0" in st[1], st)
+    r.check("mv-status-prints-installed-now", "installed ~/.claude/skills/mod -> " + os.path.realpath(os.path.join(os.path.dirname(v1), "mod"))
+            + " (mod 0.1.0 there; not the files of this kit's release)" in st[1], st)
+    dry = hk_home(r, home, "upgrade", "--kit", v2, "--hub", hub)
+    r.check("mv-dry-run-prints-old-new", dry[0] == 0 and "module mod 0.1.0 -> 0.2.0" in dry[1]
+            and "module mindhole-kit 1.0.0 -> 1.1.0" in dry[1] and manifest(hub).get("modules") == rec, dry)
+    r.check("mv-dry-run-says-installed-is-not-the-release", "installed ~/.claude/skills/mod -> "
+            + os.path.realpath(os.path.join(os.path.dirname(v1), "mod")) + " (mod 0.1.0 there; not the files of this kit's release)" in dry[1], dry)
+    yes = hk_home(r, home, "upgrade", "--kit", v2, "--hub", hub, "--yes")
+    rec2 = manifest(hub).get("modules") or {}
+    ins2 = ((rec2.get("mod") or {}).get("installed") or [{}])[0]
+    r.check("mv-upgrade-prints-and-records", yes[0] == 0 and "module mod 0.1.0 -> 0.2.0" in yes[1]
+            and {n: (e or {}).get("version") for n, e in rec2.items()} == {"sagittarius": "1.1.0", "mindhole-kit": "1.1.0", "mod": "0.2.0"}
+            and ins2.get("version") == "0.1.0" and ins2.get("release") is False, (yes, rec2))
+    os.remove(link)
+    os.symlink(os.path.join(os.path.dirname(v2), "mod"), link)
+    same = hk_home(r, home, "upgrade", "--kit", v2, "--hub", hub)
+    r.check("mv-same-version-says-same", same[0] == 0 and "module mod 0.2.0 (same)" in same[1]
+            and "installed ~/.claude/skills/mod" not in same[1], same)
+    os.remove(link)
+    st = hk_home(r, home, "status", "--kit", v2, "--hub", hub)
+    r.check("mv-status-says-missing-link", "installed ~/.claude/skills/mod: missing" in st[1], st)
+    mf = manifest(hub)
+    mf.pop("modules", None)
+    with open(os.path.join(hub, ".hub-template.json"), "w", encoding="utf-8") as f:
+        json.dump(mf, f)
+    st = hk_home(r, home, "status", "--kit", v2, "--hub", hub)
+    r.check("mv-old-hub-status-not-recorded", "modules: not recorded (an upgrade to this kit records them)" in st[1], st)
+    dry = hk_home(r, home, "upgrade", "--kit", v2, "--hub", hub)
+    r.check("mv-old-hub-dry-run-not-recorded", "module mod not recorded -> 0.2.0" in dry[1], dry)
+    real = hk_home(r, home, "install", "--kit", KIT, "--hub", os.path.join(root, "mv-real"), "--edition", "informal")
+    rm = manifest(os.path.join(root, "mv-real")).get("modules") if real[0] == 0 else {}
+    r.check("mv-real-kit-records-every-module", sorted(rm or {}) == sorted(["sagittarius", "orbit-kb", "system-1",
+            "mindhole-kit", "s1-glance", "desk-toast"]) and all((e or {}).get("version") for e in (rm or {}).values()), (real, rm))
+
+
 def cases(r):
     root = tempfile.mkdtemp(prefix="hubkit-test-")
     try:
@@ -569,6 +645,7 @@ def cases(r):
         case_k3_mindhole_version(r, root)
         case_030_m_d_2_runs(r, root)
         case_desk_toast_c9(r, root)
+        case_module_versions(r, root)
         if r.script == REAL:  # it tests hubflow-test.py, not hubkit.py: the mutants of hubkit.py do not change it
             case_u2_mutants_stream(r)
     except Exception as e:

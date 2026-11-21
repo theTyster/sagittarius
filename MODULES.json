@@ -1,0 +1,18 @@
+{
+  "modules": [
+    {"name": "sagittarius", "version": "VERSION", "covers": ["prompt"],
+     "installs": {"~/.claude/sagittarius": "prompt"}},
+    {"name": "orbit-kb", "version": "kb/share/orbit-kb/VERSION", "covers": ["kb/bin", "kb/share"],
+     "installs": {"~/.local/bin/orbit-kb": "kb/bin/orbit-kb", "~/.local/bin/repo-map": "kb/bin/repo-map",
+                  "~/.local/share/orbit-kb": "kb/share/orbit-kb"}},
+    {"name": "system-1", "version": "VERSION", "covers": ["s1"], "except": ["s1/glance"],
+     "installs": {"~/.claude/sagittarius-s1": "s1"}},
+    {"name": "mindhole-kit", "version": "hubkit/kit.json#version", "covers": ["hubkit"],
+     "except": ["hubkit/hub/.claude/scripts/desk-toast"]},
+    {"name": "s1-glance", "version": "s1/glance/.claude-plugin/plugin.json#version", "covers": ["s1/glance"],
+     "installs": {"~/.claude/skills/s1-glance": "s1/glance"}},
+    {"name": "desk-toast", "version": "hubkit/hub/.claude/scripts/desk-toast/.claude-plugin/plugin.json#version",
+     "covers": ["hubkit/hub/.claude/scripts/desk-toast"],
+     "installs": {"~/.claude/skills/desk-toast": "hubkit/hub/.claude/scripts/desk-toast"}}
+  ]
+}

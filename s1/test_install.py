@@ -115,6 +115,50 @@ class InstallLink(unittest.TestCase):
         r = self.install("--check")
         self.assertRegex(r.stdout, r"ok +\S*skills.desk-toast")
 
+    def test_each_link_names_its_module_and_version(self):
+        """spec KB module-versions c2: install.py and --check print, beside each link, the module that it
+        installs and that module's version (from MODULES.json), e.g. `ok ~/.claude/skills/s1-glance (s1-glance 0.14.0)`."""
+        import json
+        def ver(rel, key=None):
+            text = read(rel)
+            return json.loads(text)[key] if key else text.strip()
+        sag = ver("VERSION")
+        want = {
+            os.path.join(".local", "bin", "orbit-kb"): ("orbit-kb", sag),
+            os.path.join(".local", "share", "orbit-kb"): ("orbit-kb", sag),
+            os.path.join(".claude", "sagittarius"): ("sagittarius", sag),
+            os.path.join(".claude", "sagittarius-s1"): ("system-1", sag),
+            os.path.join(".claude", "skills", "s1-glance"): ("s1-glance", ver("s1/glance/.claude-plugin/plugin.json", "version")),
+            os.path.join(".claude", "skills", "desk-toast"):
+                ("desk-toast", ver("hubkit/hub/.claude/scripts/desk-toast/.claude-plugin/plugin.json", "version")),
+        }
+        for args in ((), ("--check",)):
+            r = self.install(*args)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            for rel, (name, v) in want.items():
+                line = [ln for ln in r.stdout.splitlines() if ln.split()[1:2] == [os.path.join(self.home, rel)]]
+                self.assertEqual(len(line), 1, (rel, r.stdout))
+                self.assertTrue(line[0].endswith(f"({name} {v})"), (line, name, v))
+
+    def test_a_wrong_link_names_the_version_there(self):
+        """spec KB module-versions c2, c7 (Ty, q1: s1-glance stays on the workbench): --check names the
+        version and whether the files are this checkout's, for a link that points to another tree."""
+        import json, shutil
+        self.install()
+        other = os.path.join(self.home, "wb", "s1", "glance")
+        shutil.copytree(os.path.join(HERE, "glance"), other, ignore=shutil.ignore_patterns("node_modules"))
+        pj = os.path.join(other, ".claude-plugin", "plugin.json")
+        meta = json.loads(open(pj, encoding="utf-8").read())
+        meta["version"] = "0.0.1"
+        with open(pj, "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+        link = os.path.join(self.home, ".claude", "skills", "s1-glance")
+        os.remove(link)
+        os.symlink(other, link)
+        r = self.install("--check")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn(f"wrong    {link} -> {other} (s1-glance 0.0.1 there, not the files of this checkout)", r.stdout)
+
     def test_readme_names_the_links(self):
         flat = " ".join(read("README.md").split())
         self.assertNotIn("four links", flat)

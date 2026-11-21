@@ -112,6 +112,7 @@ grep -q '0\.2\.0' "$cl" 2>/dev/null && ok c3-changelog-version || bad c3-changel
 
 # c4 (0.3.0, V-A): one source for the version
 python3 "$repo/docs/check_version.py" >"$scratch/ver.out" 2>&1 && ok c4-version-agrees || bad c4-version-agrees "$(cat "$scratch/ver.out")"
+python3 "$repo/docs/check_modules.py" >"$scratch/mod.out" 2>&1 && ok c4-module-versions || bad c4-module-versions "$(cat "$scratch/mod.out")"
 v=$(tr -d '[:space:]' <"$repo/VERSION")
 export_home python3 "$repo/install.py" --check 2>&1 </dev/null | grep -q "Sagittarius $v" \
     && ok c4-install-check-prints-version || bad c4-install-check-prints-version "install.py --check does not print Sagittarius $v"

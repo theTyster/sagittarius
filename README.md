@@ -75,7 +75,8 @@ ends with a check. Do the steps in order. Stop at a check that fails, and say wh
    `~/.claude/skills/s1-glance` (the Sagittarius Signals mod, which shows the hook's judgment), and
    `~/.claude/skills/desk-toast` (the Desk toast mod, which shows when a session's agent got a Desk
    letter).
-   Check: `./install.py --check` prints `ok` for each link, and `orbit-kb doctor` passes. Run
+   Check: `./install.py --check` prints `ok` for each link, with the module and its version beside it
+   (`MODULES.json` lists the modules), and `orbit-kb doctor` passes. Run
    `./install.py` again after each update: a release can add a link, and its changelog entry
    says so.
 3. **The shell function.** Claude Code appends text to its system prompt with

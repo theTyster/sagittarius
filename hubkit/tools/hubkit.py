@@ -262,6 +262,65 @@ def runs_summary(runs):
             + f"{len(pn['files']) if pn else 0} pane files (recorded in {MANIFEST})")
 
 
+def kit_modules(kit):
+    """modules.py of the kit's Sagittarius checkout (module-versions c7), or None when the kit has none."""
+    path = os.path.join(os.path.dirname(os.path.abspath(kit)), "modules.py")
+    if not os.path.isfile(path):
+        return None
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("sagittarius_modules", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def modules_of(kit):
+    """{name: {version, digest, installed}} of the kit's release and of what this machine runs (c7)."""
+    mm = kit_modules(kit)
+    return mm.record(os.path.dirname(os.path.abspath(kit))) if mm else {}
+
+
+def installed_lines(entry, skip_release):
+    """One line per link of a module: where it points, the version there, and whether it is the release code."""
+    out = []
+    for i in (entry or {}).get("installed", []):
+        if i.get("source") is None:
+            out.append(f"  installed {i['link']}: missing")
+        elif not (skip_release and i.get("release")):
+            out.append(f"  installed {i['link']} -> {i['source']} ({entry.get('name', '')}{' ' if entry.get('name') else ''}"
+                       f"{i.get('version') or 'version unknown'} there; "
+                       + ("the files of this kit's release)" if i.get("release") else "not the files of this kit's release)"))
+    return out
+
+
+def module_lines(old, new):
+    """The upgrade's lines per module (c7): recorded version -> the kit's, and each link that is not the release code."""
+    out = []
+    for name, e in new.items():
+        was = ((old or {}).get(name) or {}).get("version")
+        v = e.get("version") or "no version"
+        if old is None or name not in old:
+            out.append(f"module {name} not recorded -> {v}")
+        elif was == e.get("version"):
+            out.append(f"module {name} {v} (same)")
+        else:
+            out.append(f"module {name} {was or 'no version'} -> {v}")
+        out += installed_lines(dict(e, name=name), skip_release=True)
+    return out
+
+
+def status_module_lines(kit, m):
+    if "modules" not in m:
+        return ["modules: not recorded (an upgrade to this kit records them)"]
+    now = modules_of(kit)
+    out = []
+    for name, e in m["modules"].items():
+        k = (now.get(name) or {}).get("version")
+        out.append(f"module {name} {e.get('version') or 'no version'} (recorded); this kit {k or 'has no such module'}")
+        out += installed_lines(dict(now.get(name) or e, name=name), skip_release=False)
+    return out
+
+
 def load_manifest(hub):
     p = os.path.join(hub, MANIFEST)
     if not os.path.exists(p):
@@ -339,6 +398,7 @@ def cmd_install(o):
     if o["uat"]:
         m["uat"] = True  # a UAT install: it tests the kit itself (INSTRUCTIONS.md step 3)
     m["runs"] = runs_of(o["kit"], k, ed)  # what the hub runs (c_m_d_2)
+    m["modules"] = modules_of(o["kit"])  # module-versions c7: the module versions and what the machine runs
     save_manifest(hub, m)
     print(f"installed MindHole Kit {k['version']} ({ed} edition{', UAT install' if o['uat'] else ''}) into {hub}: "
           f"{len(engine)} engine, {len(k['owned'])} owned files")
@@ -356,6 +416,8 @@ def cmd_status(o):
     m = load_manifest(o["hub"])
     print(f"hub from MindHole Kit {m['template_version']} ({edition_of(m)} edition{', UAT install' if m.get('uat') else ''}); this kit MindHole Kit {k['version']}")
     for line in runs_lines(o["hub"], m):
+        print(line)
+    for line in status_module_lines(o["kit"], m):
         print(line)
     kit_files = kit_shas(o["kit"], k, edition_of(m))
     for rel in sorted(set(m["files"]) | set(kit_files)):
@@ -511,6 +573,9 @@ def cmd_upgrade(o, edition=None):
     for action, rel in plan:
         if action != "keep":
             print(f"{action}\t{rel}")
+    mods = modules_of(o["kit"])
+    for line in module_lines(m.get("modules"), mods):
+        print(line)
     pv = migration_preview(o, k, ed, hub, plan)
     if pv:
         lines, digest, bad = pv
@@ -543,6 +608,7 @@ def cmd_upgrade(o, edition=None):
     m["owned"] = sorted(known_owned | set(k["owned"]))
     m["pending"] = pending  # merges left for the agent
     m["runs"] = runs_of(o["kit"], k, ed)
+    m["modules"] = modules_of(o["kit"])  # module-versions c7: upgrade records them
     save_manifest(hub, m)
     print(runs_summary(m["runs"]))
     print(f"done: {len(pending)} merge(s) pending; follow UPGRADING.md for each, then `hubkit.py done PATH`")
