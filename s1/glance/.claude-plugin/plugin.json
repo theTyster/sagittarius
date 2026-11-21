@@ -1,1 +1,1 @@
-{ "name": "s1-glance", "version": "0.13.0", "description": "🌌 Sagittarius Signals: the System 1 judgments of this session as a pane with three linked charts (now and why, trend, health), toasts, a corner, or a status line", "types": "./types/index.d.ts" }
+{ "name": "s1-glance", "version": "0.14.0", "description": "🌌 Sagittarius Signals: the System 1 judgments of this session as a pane with three linked charts (now and why, trend, health), toasts, a corner, or a status line", "types": "./types/index.d.ts" }
