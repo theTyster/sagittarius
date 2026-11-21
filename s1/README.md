@@ -424,7 +424,7 @@ questions of `fanout.json` (`part`), in the same request as the questions of `qu
 | `h_change_of_plan` | the highest "changes" of a part; 0 with no agent message |
 | `h_questions` | only when the agent's last reply has a question mark: the highest "asks" or "undecided" of a part, or, for more than six parts, the whole-message answer `f_open` |
 | `h_effort` | the answer of `h_effort`; for a message of 800 characters or more, at least 1 - P(`f_pasted`) |
-| `h_reversal` (new) | the highest "reverses" of a part. In the yes band the line says `decision reversed in message (0.90)`, and it counts as a signal |
+| `h_contradiction` (new; `h_reversal` before 2026-11-17) | the highest "contradiction" of a part. In the yes band the line says `decision reversed in message (0.90)`, and it counts as a signal |
 
 **If you edit one of these four questions, read this.** While the fan-out is on, the line does not
 come from the answer of `h_divergence`, `h_change_of_plan` or `h_questions` in `questions.json` (or

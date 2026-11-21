@@ -226,12 +226,16 @@ class C4FiveJudgments(Base):
         self.assertIn("plan 0.75", got)
 
     def test_language_uses_probabilities_then_confidence(self):
-        got = self.seg(h_language={"type": "choice", "choice": "tla", "confidence": 0.2,
-                                   "probabilities": {"tla": 0.66}})
-        self.assertTrue(got.endswith("| tool tla"), got)
-        got = self.seg(h_language={"type": "choice", "choice": "tla", "confidence": 0.9,
-                                   "probabilities": {"tla": 0.49}})
+        got = self.seg(h_language={"type": "choice", "choice": "tlaplus", "confidence": 0.2,
+                                   "probabilities": {"tlaplus": 0.66}})
+        self.assertTrue(got.endswith("| tool TLA+"), got)
+        got = self.seg(h_language={"type": "choice", "choice": "tlaplus", "confidence": 0.9,
+                                   "probabilities": {"tlaplus": 0.49}})
         self.assertNotIn("tool", got)
+
+    def test_tla_plus_reads_TLA_plus_in_an_older_line_too(self):  # kb-s1-glance-consolidate c7
+        got = self.seg(h_language={"type": "choice", "choice": "tla", "confidence": 0.9})
+        self.assertTrue(got.endswith("| tool TLA+"), got)
 
     def test_band_edges(self):
         # 0.3 and 0.7 are outside the band (jev.band: <= 0.3 no, >= 0.7 yes); 0.31 and 0.69 inside

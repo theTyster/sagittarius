@@ -425,9 +425,13 @@ def build_state(prompt, transcript_path, n=CONTEXT_MESSAGES, questions=None):
     return _fitted(prompt, recent_messages(transcript_path, n, prompt), questions)
 
 
+# What the System 1 model is looking at, sent with every call as the state key "context" (Ty, 2026-11-17).
+STATE_CONTEXT = "You are viewing a snippet of a transcript between a human and an agent"
+
+
 def _fitted(prompt, recent, questions):
-    """{message, recent} fitted (a copy: recent itself is not changed)."""
-    st = {"message": prompt, "recent": [dict(m) for m in recent]}
+    """{context, message, recent} fitted (a copy: recent itself is not changed)."""
+    st = {"context": STATE_CONTEXT, "message": prompt, "recent": [dict(m) for m in recent]}
     trimmed, long_context = _fit(st, questions or {})
     return st, trimmed, long_context
 
@@ -487,8 +491,8 @@ def format_answers(answers, questions):
         signal = True
     elif e == "no":
         parts.append(f"effort not significant ({ep:.2f})")
-    if isinstance(answers.get("h_reversal"), dict):  # the fan-out: a decision that the message itself reverses
-        b, p = _noul(answers["h_reversal"])
+    if isinstance(answers.get("h_contradiction"), dict):  # the fan-out: a decision that the message itself reverses
+        b, p = _noul(answers["h_contradiction"])
         if b == "yes":
             parts.append(f"decision reversed in message ({p:.2f})")
             signal = True
@@ -511,13 +515,13 @@ def format_answers(answers, questions):
 # --- the fan-out (research of 2026-11-15, s1/research/2026-11-15-question-eval/README.md) ---
 # The message is cut into parts. Each part gets the questions of fanout.json, in the same request as
 # the questions of questions.json. combine() then writes the answers of h_divergence, h_change_of_plan,
-# h_questions and h_effort from the parts, and adds h_reversal. S1_FANOUT=0 turns it off.
+# h_questions and h_effort from the parts, and adds h_contradiction. S1_FANOUT=0 turns it off.
 PART_CHARS = 600  # a part of a long message holds at most this many characters
 PART_WORDS = 25  # text with no sentence ends (a voiced prompt) is cut every 25 words first
 SENTENCE_PARTS = 6  # up to this many sentences, each sentence is its own part
 MAX_PARTS = 40  # past this, the parts grow so that the whole message is still read
 EFFORT_CHARS = 800  # a message this long, and not pasted, shows effort (a guess: see the research notes)
-BLOCKS_FAULT = ("changes_request", "adds_request", "answers")  # a fault does not count in such a part
+BLOCKS_FAULT = ("contradicts_request", "adds_request", "answers")  # a fault does not count in such a part
 _SENT_END = re.compile(r"(?<=[.!?])\s+")
 
 
@@ -576,15 +580,15 @@ def fanout_questions(fan, n):
 
 def combine(answers, state, replaces=None):
     """The answers with h_divergence, h_change_of_plan, h_questions and h_effort written from the
-    parts, and h_reversal added. The rules:
+    parts, and h_contradiction added. The rules:
     divergence: the highest doubt or fault of a part; a fault does not count in a part that changes
         or adds to the request, or answers the agent; 0 with no agent message in recent.
     change of plan: the highest "changes" of a part; 0 with no agent message.
     questions: when the agent's last reply asks something: the highest "asks" or "undecided" of a
         part, or, for a message of more than SENTENCE_PARTS parts, the whole-message answer f_open.
     effort: the answer h_effort, or 1 - P(pasted) for a message of EFFORT_CHARS or more.
-    reversal: the highest "reverses" of a part. A part that reverses also reads as a change, so a
-        reversal inside the message can come with "change of plan": the line then names both.
+    contradiction: the highest "contradiction" of a part. A part that reverses also reads as a change,
+        so a reversal inside the message can come with "change of plan": the line then names both.
     replaces: the ids that may be rewritten (default REPLACES; the list "replaces" of fanout.json).
     An id that is not in it keeps the answer of its own question, so an edit of that question
     reaches the line. Each answer that is rewritten keeps its plain value as "<id>_plain"
@@ -607,7 +611,7 @@ def combine(answers, state, replaces=None):
         div = max(div, p("doubts", k), fault)
         chg = max(chg, p("changes", k))
         ask = max(ask, p("asks", k), p("undecided", k))
-        rev = max(rev, p("reverses", k))
+        rev = max(rev, p("contradiction", k))
     if n > SENTENCE_PARTS:
         ask = p("f_open")
     effort = p("h_effort")
@@ -624,7 +628,7 @@ def combine(answers, state, replaces=None):
         if qid in answers:
             out[qid + "_plain"] = answers[qid]
         out[qid] = new
-    out["h_reversal"] = {"type": "noul", "noul": round(rev, 4)}
+    out["h_contradiction"] = {"type": "noul", "noul": round(rev, 4)}
     return out
 
 
