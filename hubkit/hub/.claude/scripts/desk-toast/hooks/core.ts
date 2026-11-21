@@ -103,9 +103,9 @@ export function claudeName(files: readonly string[], sessionId: string): string 
   return null
 }
 
-// The hubs whose Desk files the mod reads: each mindhole of the Desk (DESK_STATE/mindholes.json), and the
-// hub that this copy of the mod is installed in (HUB/.claude/skills/desk-toast), once each.
-export function hubsOf(mindholesJson: string | null, pluginRoot: string): string[] {
+// The hubs whose Desk files the mod reads: each mindhole of the Desk (DESK_STATE/mindholes.json, which
+// `desk.py join` writes), once each. The mod is linked into ~/.claude/skills (install.py), not into a hub.
+export function hubsOf(mindholesJson: string | null): string[] {
   const out: string[] = []
   const o = mindholesJson === null ? null : parse(mindholesJson)
   const list = o && Array.isArray(o.mindholes) ? o.mindholes : []
@@ -113,8 +113,6 @@ export function hubsOf(mindholesJson: string | null, pluginRoot: string): string
     const path = m && typeof m === 'object' ? (m as { path?: unknown }).path : undefined
     if (typeof path === 'string' && path.startsWith('/')) out.push(path.replace(/\/+$/, ''))
   }
-  const own = pluginRoot.replace(/\/+$/, '').match(/^(.*)\/\.claude\/skills\/[^/]+$/)
-  if (own?.[1]) out.push(own[1])
 
   return [...new Set(out)]
 }
@@ -123,5 +121,5 @@ export function hubsOf(mindholesJson: string | null, pluginRoot: string): string
 export const HELP = [
   'The Desk toast. When the desk hook gives a Desk letter to the agent of a session, the Desk writes a `seen` event for it (HUB/flow/desk/events.jsonl). Within a few seconds every Claude Code session that runs this mod shows a toast: `📨 <session name> saw:`, then the first 60 characters of the letter. <session name> is the Claude Code name of the addressed session (claude --name); a session with no such name shows the Desk addressee (for example discovery). A letter with no `seen` event gives no toast.',
   '"saw" means that the hook gave the letter to the agent. It does not mean that the agent acted on it: a Ctrl+C, a crash or a compaction right after the hook still gives the toast. To know what the agent did, read its reply or the Desk page.',
-  'The mod only reads the Desk files (letters.jsonl, events.jsonl, sessions/*.json) of each mindhole of the Desk (desk.py mindholes) and of the hub it is installed in, and the session files of Claude Code. It writes nothing, marks no letter seen and gives no letter to any agent: only desk.py hook does that. It shows only events that come after the session started.',
+  'The mod only reads the Desk files (letters.jsonl, events.jsonl, sessions/*.json) of each mindhole of the Desk (desk.py mindholes), and the session files of Claude Code. It writes nothing, marks no letter seen and gives no letter to any agent: only desk.py hook does that. It shows only events that come after the session started.',
 ].join('\n\n')

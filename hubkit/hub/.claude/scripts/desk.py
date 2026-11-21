@@ -90,8 +90,8 @@ Environment
   DESK_TMUX           the tmux program (default tmux)
   DESK_WAKE_COMMANDS  pane commands that count as Claude, comma list (default claude)
 
-The toast: the mod desk-toast (beside this script; the kit installs it at .claude/skills/desk-toast)
-shows in each session that runs it `📨 <session name> saw:` and the first 60 characters of a letter,
+The toast: the mod desk-toast (beside this script; Sagittarius install.py links it to
+~/.claude/skills/desk-toast, so every session loads it) shows in each session that runs it `📨 <session name> saw:` and the first 60 characters of a letter,
 a few seconds after the letter's seen event. "saw" means that the hook gave the letter to the agent.
 It does not mean that the agent acted on it: a Ctrl+C, a crash or a compaction right after the hook
 still gives the toast. The mod only reads the files above; it writes nothing.

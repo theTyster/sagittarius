@@ -26,8 +26,6 @@ MUTANTS = [
     ("edition-from-path", "return \"informal\"  # install UX c3: the human chooses formal", "return \"formal\" if shutil.which(\"orbit-kb\") else \"informal\""),
     # 0.3.0 c_m_d_2: the manifest records what the hub runs, and status compares it with the files now
     ("runs-not-recorded", "m[\"runs\"] = runs_of(o[\"kit\"], k, ed)  # what the hub runs (c_m_d_2)", "pass"),
-    # desk-letter-toast c3: the kit installs the Desk toast mod
-    ("toast-mod-not-installed", "files = list(k[\"engine\"]) + sorted(mod_sources(kit, k))", "files = list(k[\"engine\"])"),
     ("runs-not-compared", "same = sha(there) == want  # the launcher file now (c_m_d_2)", "same = True"),
 ]
 
@@ -85,11 +83,10 @@ def case_real_kit(r):
     with open(os.path.join(KIT, "kit.json"), encoding="utf-8") as f:
         k = json.load(f)
     listed = k["engine"] + k["owned"]
-    m = k.get("mods") or {}  # a mod folder under hub/ is listed once, as a whole, in kit.json mods
-    base = os.path.relpath(os.path.join(KIT, m.get("from", "hub")), os.path.join(KIT, "hub")).replace(os.sep, "/")
-    for rel in m.get("paths", []):
-        listed += [f"{base}/{rel}/{f}" for f in mod_files(os.path.join(KIT, m["from"], rel))]
-    on_disk = sorted(x for x in tree(os.path.join(KIT, "hub")) if "/.claude-plugin/types/" not in x)
+    # kit.json not_shipped: folders under hub/ that no install copies (the Desk toast mod: install.py
+    # of the Sagittarius checkout links it into ~/.claude/skills, spec KB desk-letter-toast c9).
+    skip = tuple(d.rstrip("/") + "/" for d in k.get("not_shipped", []))
+    on_disk = sorted(x for x in tree(os.path.join(KIT, "hub")) if not x.startswith(skip))
     r.check("real-kit-lists-every-file-once", sorted(listed) == on_disk and len(set(listed)) == len(listed),
             sorted(set(on_disk) ^ set(listed)))
     r.check("real-kit-claude-md-owned", "CLAUDE.md" in k["owned"] and "HUB-CORE.md" in k["engine"], k)
@@ -322,59 +319,22 @@ def case_iux_c3_copy_real_kit(r, root):
             and not any(k.startswith(".claude/orbit-kb/") for k in manifest(ihub).get("files", {})), res)
 
 
-# ---- the Desk toast mod (Sagittarius spec KB desk-letter-toast, c3) ----
+# ---- the Desk toast mod (Sagittarius spec KB desk-letter-toast, c9) ----
 TOAST_SRC = os.path.join(KIT, "hub", ".claude", "scripts", "desk-toast")
 
 
-def mod_files(d):
-    """The files of a mod folder, less what Claude Code writes into a loaded mod (.claude-plugin/types)."""
-    out = []
-    for b, dirs, fs in os.walk(d):
-        dirs[:] = [x for x in dirs if not (x == "types" and os.path.basename(b) == ".claude-plugin") and x != "node_modules"]
-        out += [os.path.relpath(os.path.join(b, f), d).replace(os.sep, "/") for f in fs]
-    return sorted(out)
-
-
-def case_desk_toast_c3(r, root):
-    """c3: the mod's source sits beside desk.py, and the kit installs it with the Desk (both editions, and
-    an upgrade of a hub that lacks it) at .claude/skills/desk-toast, where Claude Code loads a plugin of
-    the project; Claude Code finds it there."""
-    src_files = mod_files(TOAST_SRC) if os.path.isdir(TOAST_SRC) else []
-    r.check("toast-c3-source-beside-desk", os.path.isfile(os.path.join(KIT, "hub", ".claude", "scripts", "desk.py"))
-            and ".claude-plugin/plugin.json" in src_files and "hooks/register.ts" in src_files, TOAST_SRC)
+def case_desk_toast_c9(r, root):
+    """c9: the mod's source sits beside desk.py, and the kit copies it into no hub (install.py of the
+    Sagittarius checkout links it into ~/.claude/skills; s1/test_install.py tests that link)."""
+    r.check("toast-c9-source-beside-desk", os.path.isfile(os.path.join(KIT, "hub", ".claude", "scripts", "desk.py"))
+            and os.path.isfile(os.path.join(TOAST_SRC, ".claude-plugin", "plugin.json")), TOAST_SRC)
     for ed in ("informal", "formal"):
         hub = os.path.join(root, "toast-" + ed)
         res = hk(r, "install", "--kit", KIT, "--hub", hub, "--edition", ed)
-        dst = os.path.join(hub, ".claude", "skills", "desk-toast")
-        same = res[0] == 0 and src_files and mod_files(dst) == src_files and all(
-            sha(os.path.join(dst, f)) == sha(os.path.join(TOAST_SRC, f)) for f in src_files)
-        r.check(f"toast-c3-installed-{ed}", same, (res, src_files[:4]))
+        found = [os.path.join(b, d) for b, ds, _ in os.walk(hub) for d in ds if d == "desk-toast"]
         files = manifest(hub).get("files", {}) if res[0] == 0 else {}
-        r.check(f"toast-c3-engine-files-{ed}", src_files and all(".claude/skills/desk-toast/" + f in files for f in src_files),
-                sorted(k for k in files if "desk" in k))
-    # An upgrade of a hub made before the mod adds it.
-    hub = os.path.join(root, "toast-formal")
-    m = manifest(hub)
-    m["files"] = {k: v for k, v in m["files"].items() if not k.startswith(".claude/skills/desk-toast/")}
-    with open(os.path.join(hub, ".hub-template.json"), "w", encoding="utf-8") as f:
-        json.dump(m, f)
-    shutil.rmtree(os.path.join(hub, ".claude", "skills", "desk-toast"), ignore_errors=True)
-    up = hk(r, "upgrade", "--kit", KIT, "--hub", hub, "--yes")
-    r.check("toast-c3-upgrade-adds-it", up[0] == 0 and "add\t.claude/skills/desk-toast/hooks/register.ts" in up[1]
-            and mod_files(os.path.join(hub, ".claude", "skills", "desk-toast")) == src_files, up[1][-600:])
-    cli = os.environ.get("HUBKIT_TEST_CLAUDE") or shutil.which("claude")
-    if not cli:
-        print("SKIP toast-c3-claude-finds-it: no claude CLI on the PATH (HUBKIT_TEST_CLAUDE names one)")
-        return
-    # Claude Code reads a plugin of the project from .claude/skills/<name>; in a workspace not yet trusted
-    # it names the folder that it will load after the trust dialog.
-    ls = subprocess.run([cli, "plugin", "list"], capture_output=True, text=True, timeout=120, cwd=hub)
-    sec = ls.stdout.split("Skills-directory plugins", 1)[1] if "Skills-directory plugins" in ls.stdout else ""
-    found = "desk-toast@skills-dir" in sec or "1 project-scope directory under ./.claude/skills/ that may load as a plugin" in sec
-    r.check("toast-c3-claude-finds-it", ls.returncode == 0 and found, ls.stdout[-700:])
-    va = subprocess.run([cli, "plugin", "validate", os.path.join(hub, ".claude", "skills", "desk-toast")],
-                        capture_output=True, text=True, timeout=120)
-    r.check("toast-c3-installed-copy-validates", va.returncode == 0 and "Validation passed" in va.stdout, va.stdout[-700:])
+        r.check(f"toast-c9-no-copy-in-hub-{ed}", res[0] == 0 and not found and not any("desk-toast" in f for f in files),
+                (res, found))
 
 
 def fake_repo(root, name, version, okb_text):
@@ -608,7 +568,7 @@ def cases(r):
         case_iux_c6_uat(r, root)
         case_k3_mindhole_version(r, root)
         case_030_m_d_2_runs(r, root)
-        case_desk_toast_c3(r, root)
+        case_desk_toast_c9(r, root)
         if r.script == REAL:  # it tests hubflow-test.py, not hubkit.py: the mutants of hubkit.py do not change it
             case_u2_mutants_stream(r)
     except Exception as e:

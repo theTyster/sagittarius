@@ -1,6 +1,6 @@
 // 📨 desk-toast: the Desk toast (Sagittarius spec KB desk-letter-toast, claims c3, c4, c8).
 //
-// Every POLL_MS this session reads the end of HUB/flow/desk/events.jsonl of each Desk hub. For each new
+// Every POLL_MS this session reads the end of HUB/flow/desk/events.jsonl of each Desk mindhole. For each new
 // `seen` event it shows one toast: `📨 <session name> saw:`, then the first 60 characters of the letter.
 // It reads files only ($.fs.read, $.fs.stat, $.fs.list): it writes nothing and runs no process, so the
 // Desk's delivery (desk.py hook) stays the only writer of a `seen` event. /desk-toast prints the help.
@@ -53,7 +53,7 @@ export const register: Register = on => {
     const offsets = new Map<string, number>() // events.jsonl path -> bytes already read
     let letters = new Map<string, Letter>()
 
-    const hubs = async () => hubsOf(await readAll($, `${state}/mindholes.json`), $.plugin.root)
+    const hubs = async () => hubsOf(await readAll($, `${state}/mindholes.json`))
 
     // A hub seen for the first time: start at the end of its events, so only later events toast.
     const size = async (path: string) => {

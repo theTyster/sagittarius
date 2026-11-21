@@ -12,13 +12,9 @@
     ".claude/skills/hub-rotate/scripts/rotate.py",
     ".claude/skills/hub-rotate/scripts/check-citations.py"
   ],
-  "mods": {
-    "from": "hub/.claude/scripts",
-    "to": ".claude/skills",
-    "paths": [
-      "desk-toast"
-    ]
-  },
+  "not_shipped": [
+    ".claude/scripts/desk-toast"
+  ],
   "owned": [
     "CLAUDE.md",
     "HEURISTICS.md",

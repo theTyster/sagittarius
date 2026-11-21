@@ -24,7 +24,7 @@ did, read its reply or the Desk page.
 It reads only:
 
 - `DESK_STATE/mindholes.json` (default `~/.local/state/desk/`): the mindholes of the Desk
-  (`desk.py mindholes`), and also the hub that this copy is installed in;
+  (`desk.py mindholes`);
 - of each of them, `flow/desk/events.jsonl`, `flow/desk/letters.jsonl` and `flow/desk/sessions/*.json`;
 - `~/.claude/sessions/*.json` (or `CLAUDE_CONFIG_DIR/sessions/`): the name of each running session.
 
@@ -33,9 +33,11 @@ It writes no file and runs no process. It marks no letter seen and gives no lett
 
 ## Where it is installed
 
-The kit installs this folder into each hub at `.claude/skills/desk-toast/` (kit.json `mods`), where
-Claude Code loads a plugin of the project: every session started in the hub runs it (after the
-workspace trust dialog). A session started outside every hub does not run it.
+The source stays here, beside `desk.py`. The Sagittarius installer links it into the user skills
+folder, as it links the Signals mod (`./install.py` in the Sagittarius checkout):
+`~/.claude/skills/desk-toast -> hubkit/hub/.claude/scripts/desk-toast`. Claude Code loads a plugin
+from that folder in every session on the machine, so every session shows the toast. The kit copies
+it into no hub.
 
 Tests: `claude plugin test .` in this folder; `desk-test.py` runs them (`case_toast_mod`,
 `case_toast_read_only`).

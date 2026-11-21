@@ -901,12 +901,15 @@ def case_hooks_status(r, root):
 # ---- the toast mod (Sagittarius spec KB desk-letter-toast: c8, c4) ----
 
 def toast_mod():
-    """The desk-toast mod: beside desk.py in the kit (hub/.claude/scripts/desk-toast), or where the kit
-    installs it in a hub (.claude/skills/desk-toast)."""
-    for p in (os.path.join(HERE, "desk-toast"), os.path.join(os.path.dirname(HERE), "skills", "desk-toast")):
-        if os.path.isfile(os.path.join(p, ".claude-plugin", "plugin.json")):
-            return p
-    return None
+    """The desk-toast mod beside desk.py: in the kit (hub/.claude/scripts/desk-toast). The kit copies it into
+    no hub, so a hub's copy of this file finds none and says so (SKIP)."""
+    p = os.path.join(HERE, "desk-toast")
+    return p if os.path.isfile(os.path.join(p, ".claude-plugin", "plugin.json")) else None
+
+
+def in_kit():
+    """This file is the kit's own (hubkit/hub/.claude/scripts), not a hub's copy."""
+    return os.path.isfile(os.path.join(HERE, "..", "..", "..", "kit.json"))
 
 
 def claude_cli():
@@ -926,6 +929,9 @@ def case_toast_mod(r, root):
     """c8: a letter with no seen event gives no toast; its seen event gives one toast within 10 s in each of
     two sessions, `📨 <session name> saw:` then the first 60 characters; the help says what saw means."""
     mod, cli = toast_mod(), claude_cli()
+    if mod is None and not in_kit():
+        print("SKIP toast-mod-beside-desk: a hub's copy of desk-test.py; the mod lives in the Sagittarius checkout")
+        return
     r.check("toast-mod-beside-desk", mod is not None, f"no desk-toast mod beside {HERE}")
     if mod is None:
         return
@@ -958,6 +964,9 @@ def case_toast_read_only(r, root):
     """c4: the mod only reads the Desk files: no write, no process, nothing given to an agent; its test of
     that passes, and the delivery cases of this file pass with it (case_hook, case_notice)."""
     mod, cli = toast_mod(), claude_cli()
+    if mod is None and not in_kit():
+        print("SKIP toast-mod-present: a hub's copy of desk-test.py; the mod lives in the Sagittarius checkout")
+        return
     r.check("toast-mod-present", mod is not None, f"no desk-toast mod beside {HERE}")
     if mod is None:
         return

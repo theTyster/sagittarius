@@ -37,13 +37,17 @@ Earlier versions, named after the fact so that a report can refer to them:
 
 ## Unreleased
 
-- **The Desk toast (MindHole Kit; spec KB desk-letter-toast, c3, c4, c8).** A Claude Code mod,
-  desk-toast, ships with the Desk: source beside `desk.py`, installed by the kit at
-  `.claude/skills/desk-toast/` (kit.json `mods`, `hubkit.py`). When a letter gets its `seen` event,
-  each session in the hub shows `📨 <session name> saw:` and the first 60 characters of the letter.
-  It reads the Desk files only. "saw" means given to the agent, not acted on (the mod's help, and
-  `desk.py`'s). Tests: `claude plugin test` of the mod, `desk-test.py` (`case_toast_mod`,
-  `case_toast_read_only`), `hubkit-test.py` (`case_desk_toast_c3`, mutant `toast-mod-not-installed`).
+- **The Desk toast (spec KB desk-letter-toast, c9, c4, c10).** A Claude Code mod, desk-toast, ships
+  with the Desk: its source sits beside `desk.py` (`hubkit/hub/.claude/scripts/desk-toast/`), and
+  `install.py` links it to `~/.claude/skills/desk-toast`, as it links s1-glance (Ty: "link it like
+  s1-glance"), so every session loads it. Run `./install.py` again after this update: it adds that
+  link. The kit copies the mod into no hub (kit.json `not_shipped`); a hub that got
+  `.claude/skills/desk-toast/` from an earlier build of this branch can delete it. When a letter gets
+  its `seen` event, each session shows `📨 <session name> saw:` and the first 60 characters of the
+  letter. It reads the Desk files only. "saw" means given to the agent, not acted on (the mod's help,
+  and `desk.py`'s). Tests: `claude plugin test` of the mod, `desk-test.py` (`case_toast_mod`,
+  `case_toast_read_only`), `hubkit-test.py` (`case_desk_toast_c9`), `s1/test_install.py`
+  (`test_the_desk_toast_link`), `kb/tests/test_release.sh` (c2 links).
 
 ## Sagittarius 0.5.0 and MindHole Kit 0.9.0 (2026-11-19)
 

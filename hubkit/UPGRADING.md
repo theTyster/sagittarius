@@ -98,21 +98,25 @@ changed those files, and a check.
 
 ### Unreleased (the Desk toast; db schema 8, unchanged)
 
-Ty, 2026-11-19 (Sagittarius spec KB desk-letter-toast, c3, c4, c8): "I need some kind of claude mod.
+Ty, 2026-11-19 (Sagittarius spec KB desk-letter-toast, c9, c4, c10): "I need some kind of claude mod.
 Preferably a toast or something temporary that shows a letter arrived and a little bit of what it
-says". The kit ships the Claude Code mod desk-toast with the Desk. Its source sits beside `desk.py`
-(`hub/.claude/scripts/desk-toast/`); kit.json `mods` installs it at `.claude/skills/desk-toast/`, where
-Claude Code loads a plugin of the project. Within a few seconds after a letter's `seen` event, every
-session started in the hub shows `📨 <session name> saw:` and the first 60 characters of the letter.
-"saw" means that the hook gave the letter to the agent, not that the agent acted on it. The mod only
-reads the Desk files; delivery does not change.
-Engine files (new, both editions): every file under `.claude/skills/desk-toast/`. The upgrade adds them.
-`.claude/scripts/desk.py` (its help text names the toast) and `.claude/scripts/desk-test.py`: replace them.
-What changes for the hub's sessions: a session started after the upgrade runs the mod (a running
-session: `/reload-plugins`). `/desk-toast` prints its help. A session outside every hub does not run it.
-Check: `claude plugin list` in the hub lists `desk-toast@skills-dir` (before the workspace trust
-dialog: one project-scope directory under `./.claude/skills/`), and
-`python3 .claude/scripts/desk-test.py --case case_toast_mod` passes (it needs the `claude` CLI).
+says"; and on how it installs: "link it like s1-glance". The Claude Code mod desk-toast ships with the
+Desk: its source sits beside `desk.py` (`hub/.claude/scripts/desk-toast/` in the kit). The kit copies it
+into no hub (kit.json `not_shipped`). The Sagittarius installer links it once per machine:
+`./install.py` in the Sagittarius checkout makes `~/.claude/skills/desk-toast`, where every Claude Code
+session loads it. Within a few seconds after a letter's `seen` event, every session shows
+`📨 <session name> saw:` and the first 60 characters of the letter. "saw" means that the hook gave the
+letter to the agent, not that the agent acted on it. The mod only reads the Desk files of each mindhole
+that joined the Desk (`desk.py join`); delivery does not change.
+Engine files: `.claude/scripts/desk.py` (its help text names the toast) and `.claude/scripts/desk-test.py`:
+replace them. Nothing is added to the hub.
+A hub that got `.claude/skills/desk-toast/` from an earlier build of this change (branch
+desk/letter-toast before the link): delete that folder, and drop its lines from `.hub-template.json`
+`files` if the upgrade still lists them. No released hub has it.
+Once per machine (ask your human first; it writes `~/.claude`): `./install.py` in the Sagittarius
+checkout, then start a new session (a running one: `/reload-plugins`). `/desk-toast` prints the help.
+Check: `./install.py --check` prints `ok` for `~/.claude/skills/desk-toast`, and a new session lists
+`desk-toast` among its plugins (`claude plugin list`, under Skills-directory plugins).
 
 ### 0.9.0 (a park ends on or before the due date; db schema 8)
 
