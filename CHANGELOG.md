@@ -6,9 +6,9 @@ Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own v
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.5.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.6.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.9.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.10.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 
 What a change of each number means:
 
@@ -38,6 +38,34 @@ Earlier versions, named after the fact so that a report can refer to them:
 ## Unreleased
 
 Nothing yet.
+
+## Sagittarius 0.6.0 and MindHole Kit 0.10.0 (2026-11-20)
+
+MINOR for Sagittarius: orbit-kb gains the command `migrate`, and in a hub a relative `project_kb`
+reads from the hub root; both change what a session does. MindHole Kit 0.10.0: the upgrade shows a
+migration preview and needs its digest (a new step for the hub's agent); the db schema stays 8. Both
+numbers set by the releasing agent (see "Who sets the numbers"). Ty's word to land and release,
+2026-11-20: "just mergw" (kb/migrations), "I cut it now" (the release, cut by sidequest-process),
+and to sidequest-review "Yes, release + upgrade".
+
+- **KB migrations (ticket kb-migrations, c2 to c21).** `orbit-kb migrate check | plan | apply`: a
+  migration is a file in `kb/share/orbit-kb/migrations/` that declares what it changes and its steps
+  (tool, agent or human), each found by a query on the KB. `plan` shows each verdict that differs
+  between the old engine and this one, and refuses a change outside the declared reach. `apply`
+  writes in one atomic step and refuses a closed (frozen) KB. A retired predicate gets a cut-fail
+  clause and `retired/3`; lint WM1 warns about it. `orbit-kb signature` lists the predicates of a
+  version (`kb/share/orbit-kb/signature.pl`). Two migrations ship: `0.5.0-checks_that` (an agent step:
+  the words of each check) and `0.6.0-project-root` (no step; renamed from the branch's `0.5.1` label
+  at release, because 0.5.1 was never released).
+- **In a hub, `project_kb` reads from the hub root (c20; Ty, 2026-11-20, q21 B).** A relative
+  `project_kb(P)` drops its leading `../` steps and is read from the hub root, so a KB keeps its
+  project-KB link when it moves inside the hub (the old `W*/analyses` form to `specs/<slug>`).
+- **MindHole Kit: the upgrade preview (c15, c19, c21).** `hubkit.py upgrade` (dry run) previews the
+  new orbit-kb on every KB of the hub, `specs/` and the old `W*/analyses` form, closed ones too, and
+  prints a digest; `--yes` needs `--seen-migrations DIGEST`. `hubflow.py migrations` and `kb-state`
+  are new; the Desk shows no migration step of a frozen KB. `hubkit/UPGRADING.md` 0.10.0.
+- **repo-map.** The example containers file names `hubflow-starter` by its directory name, so a
+  project KB that names the repo the same way maps with no id clash (test C1e).
 
 ## Sagittarius 0.5.0 and MindHole Kit 0.9.0 (2026-11-19)
 
