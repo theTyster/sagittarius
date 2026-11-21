@@ -116,7 +116,7 @@
    "message": "Retries happen when the worker times out, and sometimes two workers pick up the same job; I want to be sure we never charge twice.",
    "recent": [],
    "expect": {
-    "h_language": "tla"
+    "h_language": "tlaplus"
    }
   },
   {
@@ -230,7 +230,7 @@
    ],
    "expect": {
     "h_effort": "yes",
-    "h_language": "tla",
+    "h_language": "tlaplus",
     "h_work": "specify",
     "h_divergence": "no"
    }

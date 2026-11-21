@@ -898,9 +898,102 @@ def case_hooks_status(r, root):
     r.check("hooks-user-settings-count", status(h)["hooks_missing"] == [], status(h).get("hooks_missing"))
 
 
+# ---- the toast mod (Sagittarius spec KB desk-letter-toast: c8, c4) ----
+
+def toast_mod():
+    """The desk-toast mod beside desk.py: in the kit (hub/.claude/scripts/desk-toast). The kit copies it into
+    no hub, so a hub's copy of this file finds none and says so (SKIP)."""
+    p = os.path.join(HERE, "desk-toast")
+    return p if os.path.isfile(os.path.join(p, ".claude-plugin", "plugin.json")) else None
+
+
+def in_kit():
+    """This file is the kit's own (hubkit/hub/.claude/scripts), not a hub's copy."""
+    return os.path.isfile(os.path.join(HERE, "..", "..", "..", "kit.json"))
+
+
+def claude_cli():
+    return os.environ.get("DESK_TEST_CLAUDE") or shutil.which("claude")
+
+
+def plugin_test(mod, cli):
+    """`claude plugin test MOD`: (exit code, output, passed, failed). Runs the mod's tests/*.test.ts."""
+    p = subprocess.run([cli, "plugin", "test", mod], capture_output=True,
+                       text=True, timeout=600, cwd=mod)
+    out = p.stdout + p.stderr
+    num = lambda w: int(m.group(1)) if (m := re.search(r"^\s*(\d+) " + w + r"$", out, re.M)) else -1
+    return p.returncode, out, num("pass"), num("fail")
+
+
+def case_toast_mod(r, root):
+    """c8: a letter with no seen event gives no toast; its seen event gives one toast within 10 s in each of
+    two sessions, `📨 <session name> saw:` then the first 60 characters; the help says what saw means."""
+    mod, cli = toast_mod(), claude_cli()
+    if mod is None and not in_kit():
+        print("SKIP toast-mod-beside-desk: a hub's copy of desk-test.py; the mod lives in the Sagittarius checkout")
+        return
+    r.check("toast-mod-beside-desk", mod is not None, f"no desk-toast mod beside {HERE}")
+    if mod is None:
+        return
+    if not cli:
+        print("SKIP toast-mod-tests: no claude CLI on the PATH (DESK_TEST_CLAUDE names one); the mod's tests did not run")
+        return
+    code, out, passed, failed = plugin_test(mod, cli)
+    want = ("in the discovery session > a stored letter with no seen event gives no toast",
+            "in the build session > a stored letter with no seen event gives no toast",
+            "the toast line is 📨, the Claude Code session name and saw:",
+            "a session with no Claude Code name shows the Desk addressee",
+            "a seen event from before the session started gives no toast",
+            "the help says saw means given to the agent, not acted on")
+    r.check("toast-mod-tests-pass", code == 0 and passed > 0 and failed == 0, out[-1500:])
+    r.check("toast-mod-tests-named", all(f"(pass) {w}" in out for w in want),
+            [w for w in want if f"(pass) {w}" not in out])
+    readme = os.path.join(mod, "README.md")
+    text = open(readme, encoding="utf-8").read() if os.path.isfile(readme) else ""
+    r.check("toast-readme-says-saw-is-given-not-acted-on",
+            "does not mean that the agent acted on it" in " ".join(text.split()), readme)
+    r.check("desk-docs-say-saw-is-given-not-acted-on",
+            "does not mean that the agent acted on it" in " ".join(open(DESK, encoding="utf-8").read().split()), DESK)
+
+
+TOAST_WRITES = ("$.fs.write", "$.process", "$.env.set", "$.session.append", "$.tool.call", "$.agent.",
+                "$.prompt", "$.store.set", "$.http")
+
+
+def case_toast_read_only(r, root):
+    """c4: the mod only reads the Desk files: no write, no process, nothing given to an agent; its test of
+    that passes, and the delivery cases of this file pass with it (case_hook, case_notice)."""
+    mod, cli = toast_mod(), claude_cli()
+    if mod is None and not in_kit():
+        print("SKIP toast-mod-present: a hub's copy of desk-test.py; the mod lives in the Sagittarius checkout")
+        return
+    r.check("toast-mod-present", mod is not None, f"no desk-toast mod beside {HERE}")
+    if mod is None:
+        return
+    src = ""
+    for b, _, fs in os.walk(os.path.join(mod, "hooks")):
+        for f in fs:
+            src += open(os.path.join(b, f), encoding="utf-8").read()
+    r.check("toast-source-calls-no-writer", not any(w in src for w in TOAST_WRITES),
+            [w for w in TOAST_WRITES if w in src])
+    if not cli:
+        print("SKIP toast-read-only-engine: no claude CLI on the PATH (DESK_TEST_CLAUDE names one)")
+        return
+    p = subprocess.run([cli, "plugin", "validate", mod], capture_output=True, text=True, timeout=300)
+    calls = re.search(r"calls: (.*)", p.stdout)
+    got = set(re.findall(r"\$\.[a-z]+\.[a-zA-Z]+", calls.group(1))) if calls else set()
+    allowed = {"$.clock.every", "$.command.register", "$.env.get", "$.fs.list", "$.fs.read", "$.fs.stat", "$.ui.toast"}
+    r.check("toast-engine-sees-only-reads", p.returncode == 0 and calls is not None and got <= allowed
+            and "env writes: nothing" in p.stdout, (sorted(got - allowed), p.stdout[-800:]))
+    code, out, passed, failed = plugin_test(mod, cli)
+    r.check("toast-desk-files-byte-identical",
+            code == 0 and "(pass) the mod writes nothing and runs nothing: the Desk files stay byte-identical" in out,
+            out[-1200:])
+
+
 CASES = [case_send, case_send_order, case_events, case_ownership, case_status, case_drafts, case_hook,
          case_notice, case_render, case_late, case_kb_refs_outside, case_corrupt, case_wake, case_join,
-         case_service, case_hooks_cmd, case_db_read_only, case_hooks_status]
+         case_service, case_hooks_cmd, case_db_read_only, case_hooks_status, case_toast_mod, case_toast_read_only]
 
 
 def run_all(r, only):

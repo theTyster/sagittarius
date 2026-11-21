@@ -1,5 +1,5 @@
 {
-  "version": "0.10.0",
+  "version": "0.11.0",
   "engine": [
     "HUB-CORE.md",
     "PRINCIPLES.md",
@@ -11,6 +11,9 @@
     ".claude/skills/hub-rotate/SKILL.md",
     ".claude/skills/hub-rotate/scripts/rotate.py",
     ".claude/skills/hub-rotate/scripts/check-citations.py"
+  ],
+  "not_shipped": [
+    ".claude/scripts/desk-toast"
   ],
   "owned": [
     "CLAUDE.md",

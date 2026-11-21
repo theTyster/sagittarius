@@ -2,13 +2,18 @@
 
 ## Versions
 
-Three things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own version.
+Five things have a semantic version (`MAJOR.MINOR.PATCH`). Each names its own version. `MODULES.json`
+lists the modules that ship (the System 1 hook and orbit-kb carry the Sagittarius version), and
+`docs/check_modules.py` fails when the files of a module changed since the last release tag and its
+version did not go up.
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.6.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.7.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.10.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.11.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| s1-glance | 0.14.0 | `s1/glance/.claude-plugin/plugin.json` | the Sagittarius Signals mod |
+| desk-toast | 0.1.0 | `hubkit/hub/.claude/scripts/desk-toast/.claude-plugin/plugin.json` | the Desk toast mod |
 
 What a change of each number means:
 
@@ -21,6 +26,8 @@ What a change of each number means:
   MINOR moves when a belief or a position is added, or a position leaves "Under trial". PATCH
   moves for words.
 - **MindHole Kit.** As before: the kit version moves with the db schema (`hubkit/UPGRADING.md`).
+- **s1-glance, desk-toast (the mods).** MINOR when what a session shows or does changes, PATCH for
+  fixes and words. Each release moves the number of a mod whose files changed.
 
 Who sets the numbers: the agent that cuts a release picks each number by the rules above and
 writes it here. The human does not need to choose (Ty, 2026-11-19: "idgaf what version number you
@@ -35,9 +42,38 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
 
-## Unreleased
+## Sagittarius 0.7.0 and MindHole Kit 0.11.0 (2026-11-20)
 
-Nothing yet.
+MINOR for Sagittarius: the prompt says how to treat System 1 hints (Ty's commit a0affb2, shipped on
+his answer "Ship it"), and the System 1 hook changes its questions; both change what a session does.
+MindHole Kit 0.11.0: a hub records the module versions, and the upgrade prints them (a new key in
+`.hub-template.json`); the db schema stays 8. s1-glance 0.14.0 (its code changed since 0.13.0 of
+v0.6.0, which another code also called 0.13.0). desk-toast 0.1.0 (new). Ty's word, 2026-11-20: "Get
+the release up and lets upgrade this mindhole."
+
+- **Module versions (spec KB module-versions, c6, c2, c7).** `MODULES.json` lists each module that
+  ships, the file of its version, its files, and its links. `docs/check_modules.py` fails a module
+  whose files changed since the last release tag with no higher version. `install.py` prints the
+  module and version beside each link, and for a link to another tree the version there.
+  `hubkit.py` records in `.hub-template.json` the version of each module and what this machine runs
+  (the link's source, the version there, a digest, and whether it is the release code); the upgrade
+  prints `module NAME OLD -> NEW`. Tests: `docs/test_check_modules.py`, `s1/test_install.py`,
+  `hubkit-test.py` (`case_module_versions`, mutant `modules-not-recorded`).
+- **The System 1 hook and s1-glance (branch s1/inspect, 7 commits of Ty).** The questions of the
+  hook: the contradiction rename, specifies, non_human, task, tlaplus; h_language says when a tool
+  applies. s1-glance follows the session after `/clear`, and its docked pane and tabs follow the
+  width. The prompt: System 1 hints are highly accurate; treat them seriously.
+- **The Desk toast (spec KB desk-letter-toast, c9, c4, c10).** A Claude Code mod, desk-toast, ships
+  with the Desk: its source sits beside `desk.py` (`hubkit/hub/.claude/scripts/desk-toast/`), and
+  `install.py` links it to `~/.claude/skills/desk-toast`, as it links s1-glance (Ty: "link it like
+  s1-glance"), so every session loads it. Run `./install.py` again after this update: it adds that
+  link. The kit copies the mod into no hub (kit.json `not_shipped`); a hub that got
+  `.claude/skills/desk-toast/` from an earlier build of this branch can delete it. When a letter gets
+  its `seen` event, each session shows `📨 <session name> saw:` and the first 60 characters of the
+  letter. It reads the Desk files only. "saw" means given to the agent, not acted on (the mod's help,
+  and `desk.py`'s). Tests: `claude plugin test` of the mod, `desk-test.py` (`case_toast_mod`,
+  `case_toast_read_only`), `hubkit-test.py` (`case_desk_toast_c9`), `s1/test_install.py`
+  (`test_the_desk_toast_link`), `kb/tests/test_release.sh` (c2 links).
 
 ## Sagittarius 0.6.0 and MindHole Kit 0.10.0 (2026-11-20)
 

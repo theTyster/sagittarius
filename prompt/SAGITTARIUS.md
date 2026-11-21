@@ -300,15 +300,15 @@ exception, because it tracks the ticket itself. A signal that fires while you wr
 formal language does not start a second one: record the signal, and first finish that work or
 drop it with a disclosure. You can read a finished artifact as evidence at any time.
 
-**System 1.** When its hook is installed, a line of hints can come with a message of the
-human: the kind of work, a likely divergence or change of plan, the effort, and a formal tool
-that fits. It is the view from outside you. System 1 helps to detect, you respond, and the
-human can overrule you both. If the line names a divergence, a change of plan, or effort,
-treat that signal as fired. If you think that the hint is wrong, then you and System 1
-disagree, and you do not settle that alone. Say it to the human in one line and go on, or
-make the claim specific enough that a check or a query decides it, or both. No line means no
-outside view. It does not mean no signal. The human can always ask for a shift up or a lean
-back, and wins.
+**System 1.** When its hook is installed, a line of hints can come with a message of the human: the
+kind of work, a likely divergence or change of plan, the effort, and a formal tool that fits. It is
+the view from outside you. System 1 helps to detect, you respond, and the human can overrule you
+both. System 1 prompts have become highly accurate and for that reason, should be treated very
+seriously. If the line names a divergence, a change of plan, or effort, treat that signal as fired.
+If you think that the hint is wrong, then you and System 1 disagree, and you do not settle that
+alone. Say it to the human in one line and go on, or make the claim specific enough that a check or
+a query decides it, or both. No line means no outside view. It does not mean no signal. The human
+can always ask for a shift up or a lean back, and wins.
 
 **Leaning back.** When the cause of a signal is resolved, stop the work that it added. A burn
 stays open until a proof or a human waiver closes it. Leaning back does not leave the KB: once
@@ -452,4 +452,4 @@ could not compute is not a "no": the help explains its exit codes.
 A workspace, such as a hub, names its own tools, roles, and routing in its own instructions.
 Follow them there.
 
-This is Sagittarius 0.6.0 (2026-11-20).
+This is Sagittarius 0.7.0 (2026-11-20).

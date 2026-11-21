@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Release checks (ticket T15, claims c1-c3). Run from anywhere: kb/tests/test_release.sh
 # c1  README.md has a "Use it" section: install, start a hub, the hook (optional, manual).
-# c2  A fresh install in a scratch HOME works (six links, the System 1 hook and the Signals mod too); install.py never writes a settings file.
+# c2  A fresh install in a scratch HOME works (seven links, the System 1 hook, the Signals mod and the Desk toast mod too); install.py never writes a settings file.
 # c3  hubkit/kit.json version is higher than the first one; CHANGELOG.md has the redesign entry.
 # c4  (0.3.0) VERSION, the last line of the prompt and a CHANGELOG heading agree; install.py --check prints the version;
 #     the installed orbit-kb and a formal hub's copy of it print it (orbit-kb version).
@@ -38,7 +38,7 @@ export_home python3 "$repo/install.py" >"$scratch/install.out" 2>&1 </dev/null \
     && ok c2-install-runs || bad c2-install-runs "$(head -c 300 "$scratch/install.out")"
 export_home python3 "$repo/install.py" --check >/dev/null 2>&1 </dev/null \
     && ok c2-install-check || bad c2-install-check "install.py --check fails after install"
-for l in .local/bin/orbit-kb .local/bin/repo-map .local/share/orbit-kb .claude/sagittarius .claude/sagittarius-s1 .claude/skills/s1-glance; do
+for l in .local/bin/orbit-kb .local/bin/repo-map .local/share/orbit-kb .claude/sagittarius .claude/sagittarius-s1 .claude/skills/s1-glance .claude/skills/desk-toast; do
     [ -L "$scratch/$l" ] && ok "c2-link-$(basename "$l")" || bad "c2-link-$(basename "$l")" "no link at \$HOME/$l"
 done
 HOME=$scratch PATH="$scratch/.local/bin:$PATH" orbit-kb help </dev/null >"$scratch/help.out" 2>&1 \
@@ -112,6 +112,7 @@ grep -q '0\.2\.0' "$cl" 2>/dev/null && ok c3-changelog-version || bad c3-changel
 
 # c4 (0.3.0, V-A): one source for the version
 python3 "$repo/docs/check_version.py" >"$scratch/ver.out" 2>&1 && ok c4-version-agrees || bad c4-version-agrees "$(cat "$scratch/ver.out")"
+python3 "$repo/docs/check_modules.py" >"$scratch/mod.out" 2>&1 && ok c4-module-versions || bad c4-module-versions "$(cat "$scratch/mod.out")"
 v=$(tr -d '[:space:]' <"$repo/VERSION")
 export_home python3 "$repo/install.py" --check 2>&1 </dev/null | grep -q "Sagittarius $v" \
     && ok c4-install-check-prints-version || bad c4-install-check-prints-version "install.py --check does not print Sagittarius $v"
