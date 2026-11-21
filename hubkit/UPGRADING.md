@@ -4,7 +4,7 @@ For the agent. Your human asked you to upgrade their hub to a newer release of t
 kit that made it. Read this whole file first. A hub belongs to its people: never replace a file the
 hub changed, and show your human every merge before you commit.
 
-**Versions.** This release of the MindHole Kit pairs with Sagittarius 0.4: its `PRINCIPLES.md` comes
+**Versions.** This release of the MindHole Kit pairs with Sagittarius 0.6: its `PRINCIPLES.md` comes
 from that prompt, and a formal hub copies the orbit-kb of the same Sagittarius checkout. The kit's own version is `MindHole Kit <version>` (`kit.json`); a release section says so when the
 Sagittarius pair changes. Older sections below say "hub kit" or "the MindHole" for the template: the MindHole Kit's name before 2026-11-12.
 
@@ -95,6 +95,52 @@ step that writes.
 
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
+
+### 0.10.0 (KB migrations and the upgrade preview; db schema 8, unchanged)
+
+Ty, 2026-11-19 (spec KB kb-migrations, T-0021): migrations for spec and project KBs when orbit-kb
+changes, so that no verdict of a KB changes quietly. This release pairs with Sagittarius 0.6.0 (it was
+0.5.0). The db schema is 8, as in 0.9.0: no `hubflow.py migrate` is needed.
+
+- **The upgrade shows the preview first (c15, c19, c21).** Intent: before a new orbit-kb lands, the
+  human sees, for every KB of the hub, each verdict that the new engine changes. Step 2 of the
+  procedure, the dry run of *this* kit's `hubkit.py upgrade`, runs the new `orbit-kb migrate plan
+  --old` the hub's current orbit-kb on every KB it finds: `specs/<slug>/` and the old form
+  `W0`..`W5/analyses/<slug>/` at any depth, closed tickets too (marked closed; closed is read from
+  `flow/flow.db`, read-only). It prints `Verdicts: none differs` or each change, and a preview
+  digest. Step 3 then needs that digest: `hubkit.py upgrade --hub "$HUB" --yes --seen-migrations
+  DIGEST`. Show the preview to your human before you run step 3. A change outside the declared reach
+  of a migration refuses the upgrade (`OUTSIDE`): stop and ask.
+- **A KB in a hub reads its project KB from the hub root (c20; Ty, 2026-11-20, q21 B).** Intent: a
+  spec KB keeps its link to the project KB when it moves inside the hub, with no write. In a hub,
+  `project_kb(P)` with a relative P is read from the hub root, its leading `../` steps dropped. So a
+  KB of the old form (`W<n>/analyses/<slug>/kb` with `project_kb('../../../../project-kb')`) and the
+  same KB after `git mv` to `specs/<slug>` (where the old fact still says four `../`) both reach
+  `<hub>/project-kb`. The migration `m_0_6_0_project_root` declares this change and has no step; the
+  preview shows each verdict that the new reading changes. A hub with old-form KBs can move them to
+  `specs/<slug>` (the 0.3.0 note below) after this upgrade, with no edit of `kb.pl`.
+- **`orbit-kb migrate check | plan | apply` (c2 to c14).** Intent: an older KB is brought to the new
+  engine by steps that the tool, the agent or the human does, each found by a query on the KB, never
+  by a marker. `apply --seen DIGEST` writes the tool's steps in one atomic write and refuses a KB
+  whose ticket is closed (frozen). A retired predicate gets a cut-fail clause in `kb.pl` and
+  `retired/3`, and lint WM1 warns about it. `orbit-kb help migrate`.
+- **`hubflow.py migrations` and `kb-state SLUG` (c9, c10, c12).** `migrations` runs `orbit-kb migrate
+  check` on each spec KB whose ticket is open (old form too) and exits 1 while a tool or agent step is
+  to do; `kb-state` prints open or closed. The Desk shows no migration step of a frozen KB.
+- **One migration with work: `m_0_5_0_checks_that`.** A check made before orbit-kb 0.5.0 has no
+  words. An agent adds `checks_that(K, Text)` for each check that lint W12 names; `hubflow.py
+  migrations` lists them as `todo` until it is done.
+
+Every hub (formal and informal): `PRINCIPLES.md` line 3 names Sagittarius 0.6.0; replace the file if
+the hub did not change it, otherwise change that one number. Engine files: `.claude/scripts/hubflow.py`,
+`.claude/scripts/desk.py`, and in a formal hub the orbit-kb copy: `.claude/orbit-kb/bin/orbit-kb`,
+`share/orbit-kb/VERSION` (now `0.6.0`), `README.md`, `core.pl`, `signature.pl` (new),
+`migrations/` (new: `0.5.0-checks_that.pl`, `0.6.0-project-root.pl`), `help/codes.txt`, `help/core.txt`,
+`help/project.txt`, and `share/repo-map/` (its example names `hubflow-starter` by its directory name).
+Replace them. Owned files: no change.
+Check: `.claude/orbit-kb/bin/orbit-kb version` prints `orbit-kb 0.6.0`; `python3 "$KIT"/tools/hubkit.py
+status --hub "$HUB"` prints `hub from MindHole Kit 0.10.0`; `python3 .claude/scripts/hubflow.py
+migrations` runs (exit 0, or 1 with each `todo` named: do those steps).
 
 ### 0.9.0 (a park ends on or before the due date; db schema 8)
 

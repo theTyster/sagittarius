@@ -1,4 +1,4 @@
-% The signature of orbit-kb 0.5.0: each predicate that core.pl and the modules declare.
+% The signature of orbit-kb 0.6.0: each predicate that core.pl and the modules declare.
 % Made by orbit-kb signature --write. Do not edit it by hand; lint reads no list of retired predicates.
 signature(about_system/1).
 signature(ac/1).
