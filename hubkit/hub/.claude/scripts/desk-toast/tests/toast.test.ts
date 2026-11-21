@@ -80,7 +80,22 @@ const store = (w: ReturnType<typeof world>) => {
 const seen = (w: ReturnType<typeof world>, session = 'discovery') =>
   w.append(EVENTS, { at: '2026-11-19T11:50:53Z', letter: LID, event: 'seen', session, detail: null })
 
-const WANT = '📨 sidequest-discovery saw:\nTy closed these old handoffs of yours: a newer handoff holds…'
+// The toast box is 40 columns wide and draws a line break as a box: the first line is the header padded
+// to 40 columns (27 columns: 📨 takes 2), so the letter starts on the second line.
+const HEAD = '📨 sidequest-discovery saw:'
+const WANT = HEAD + ' '.repeat(40 - 27) + 'Ty closed these old handoffs of yours: a newer handoff holds…'
+const lines40 = (t: string) => {
+  // The toast's own wrap, for the header: 40 columns per line; 📨 is 2 columns.
+  const cols = Array.from(t).map(c => ((c.codePointAt(0) ?? 0) >= 0x1f000 ? 2 : 1))
+  let n = 0
+  let i = 0
+  for (const ch of Array.from(t)) {
+    if (n + (cols[i] ?? 1) > 40) break
+    n += cols[i] ?? 1
+    i++
+  }
+  return [Array.from(t).slice(0, i).join('').trimEnd(), Array.from(t).slice(i).join('')]
+}
 
 // Two running sessions: the addressee's own (discovery, in the hub) and another one (build, elsewhere).
 for (const [who, cwd] of [['discovery', HUB], ['build', '/home/ty/Projects/mine/sagittarius']] as const) {
@@ -106,9 +121,11 @@ test('the toast line is 📨, the Claude Code session name and saw:, then the fi
   store(w)
   seen(w)
   await w.clock.advance(10_000)
-  const [first, second] = (w.toasts[0] ?? '').split('\n')
-  expect(first).toBe('📨 sidequest-discovery saw:')
-  expect(second).toBe(Array.from(TEXT).slice(0, 60).join('') + '…')
+  const t = w.toasts[0] ?? ''
+  expect(t.includes('\n')).toBe(false) // a toast draws a line break as a box
+  const [first, rest] = lines40(t)
+  expect(first).toBe(HEAD)
+  expect(rest).toBe(Array.from(TEXT).slice(0, 60).join('') + '…')
 })
 
 test('a session with no Claude Code name shows the Desk addressee', async ($, on) => {
@@ -120,7 +137,7 @@ test('a session with no Claude Code name shows the Desk addressee', async ($, on
   seen(w)
   w.append(EVENTS, { at: '2026-11-19T11:50:54Z', letter: LID, event: 'seen', session: 'review', detail: null })
   await w.clock.advance(10_000)
-  expect(w.toasts.map(t => t.split('\n')[0])).toEqual(['📨 discovery saw:', '📨 review saw:'])
+  expect(w.toasts.map(t => lines40(t)[0])).toEqual(['📨 discovery saw:', '📨 review saw:'])
 })
 
 test('a seen event from before the session started gives no toast', async ($, on) => {

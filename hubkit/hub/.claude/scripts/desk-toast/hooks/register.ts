@@ -123,5 +123,5 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'desk-toast' }, async () => ({ text: HELP }))
+  on('command.run', { command: 'desk-toast' }, async () => ({ text: HELP, isTextDisplayOnly: true }))
 }

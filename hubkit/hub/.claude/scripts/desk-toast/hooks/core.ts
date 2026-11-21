@@ -63,9 +63,32 @@ export function preview(text: string): string {
   return chars.length > PREVIEW ? `${head}…` : head
 }
 
-// The toast: `📨 <session name> saw:`, then the start of the letter on the next line.
+// A toast draws its text as one wrapped paragraph: a line break shows as a box (U+FFFD), not a new line.
+// Its text is TOAST_COLUMNS columns wide (Claude Code 2.1.330, measured at terminal widths 90, 130 and
+// 220). So the first line is the header padded with spaces to that width, and the letter wraps below it.
+export const TOAST_COLUMNS = 40
+
+// Terminal columns of a string: 2 for a wide character (emoji, CJK), else 1.
+export function columns(s: string): number {
+  let n = 0
+  for (const ch of s) {
+    const c = ch.codePointAt(0) ?? 0
+    n += c >= 0x1f000 || (c >= 0x1100 && c <= 0x115f) || (c >= 0x2e80 && c <= 0xa4cf) || (c >= 0xac00 && c <= 0xd7a3) || (c >= 0xf900 && c <= 0xfaff) || (c >= 0xff00 && c <= 0xff60) ? 2 : 1
+  }
+
+  return n
+}
+
+export function header(name: string): string {
+  return `📨 ${name} saw:`
+}
+
+// The toast: `📨 <session name> saw:` on the first line, then the start of the letter below it.
 export function toastText(name: string, letterText: string): string {
-  return `📨 ${name} saw:\n${preview(letterText)}`
+  const h = header(name)
+  const pad = TOAST_COLUMNS - columns(h)
+
+  return h + ' '.repeat(Math.max(1, pad)) + preview(letterText)
 }
 
 // The Claude Code name of a session: the `name` that `claude --name` (or /rename) gave it, from the
@@ -96,21 +119,9 @@ export function hubsOf(mindholesJson: string | null, pluginRoot: string): string
   return [...new Set(out)]
 }
 
+// The help that /desk-toast prints: one line per paragraph (the transcript wraps them).
 export const HELP = [
-  '📨 desk-toast: the Desk toast.',
-  '',
-  'When the desk hook gives a Desk letter to the agent of a session, the Desk writes a `seen` event for it',
-  '(HUB/flow/desk/events.jsonl). Within a few seconds every Claude Code session that runs this mod shows a',
-  'toast: `📨 <session name> saw:`, then the first 60 characters of the letter. <session name> is the',
-  'Claude Code name of the addressed session (claude --name); a session with no such name shows the',
-  'Desk addressee (for example discovery). A letter with no `seen` event gives no toast.',
-  '',
-  '"saw" means that the hook gave the letter to the agent. It does not mean that the agent acted on it:',
-  'a Ctrl+C, a crash or a compaction right after the hook still gives the toast. To know what the agent',
-  'did, read its reply or the Desk page.',
-  '',
-  'The mod only reads the Desk files (letters.jsonl, events.jsonl, sessions/*.json) of each mindhole of',
-  'the Desk (desk.py mindholes) and of the hub it is installed in, and the session files of Claude Code.',
-  'It writes nothing, marks no letter seen and gives no letter to any agent: only desk.py hook does that.',
-  'It shows only events that come after the session started.',
-].join('\n')
+  'The Desk toast. When the desk hook gives a Desk letter to the agent of a session, the Desk writes a `seen` event for it (HUB/flow/desk/events.jsonl). Within a few seconds every Claude Code session that runs this mod shows a toast: `📨 <session name> saw:`, then the first 60 characters of the letter. <session name> is the Claude Code name of the addressed session (claude --name); a session with no such name shows the Desk addressee (for example discovery). A letter with no `seen` event gives no toast.',
+  '"saw" means that the hook gave the letter to the agent. It does not mean that the agent acted on it: a Ctrl+C, a crash or a compaction right after the hook still gives the toast. To know what the agent did, read its reply or the Desk page.',
+  'The mod only reads the Desk files (letters.jsonl, events.jsonl, sessions/*.json) of each mindhole of the Desk (desk.py mindholes) and of the hub it is installed in, and the session files of Claude Code. It writes nothing, marks no letter seen and gives no letter to any agent: only desk.py hook does that. It shows only events that come after the session started.',
+].join('\n\n')
