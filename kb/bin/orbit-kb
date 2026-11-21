@@ -4653,9 +4653,13 @@ serve_route(post, '/review', true, true, review) :- !.
 serve_route(post, '/review', true, false, forbidden) :- !.
 serve_route(post, '/send', true, true, send) :- !.
 serve_route(post, '/send', true, false, forbidden) :- !.
+serve_route(post, '/wake', true, true, wake) :- !.     % desk-delivery c5: Ty's yes to a wake question
+serve_route(post, '/wake', true, false, forbidden) :- !.
+serve_route(post, '/dismiss', true, true, dismiss) :- !. % desk-delivery c6: Ty acted on a letter not acted on
+serve_route(post, '/dismiss', true, false, forbidden) :- !.
 serve_route(get, '/demo', true, true, demo) :- !.      % H-0043: a demo image that the Desk shows
 serve_route(get, '/demo', true, false, forbidden) :- !.
-serve_route(_, P, true, _, bad_method) :- memberchk(P, ['/', '/answer', '/draft', '/review', '/send', '/demo']), !.
+serve_route(_, P, true, _, bad_method) :- memberchk(P, ['/', '/answer', '/draft', '/review', '/send', '/wake', '/dismiss', '/demo']), !.
 serve_route(_, _, true, _, not_found).
 
 serve_host_ok(Req, true) :-
@@ -4668,7 +4672,7 @@ serve_request(Req) :-
 serve_request_(Req) :-
     memberchk(method(M), Req), memberchk(path(P), Req),
     serve_host_ok(Req, HostOk),
-    (   M == post, memberchk(P, ['/answer', '/draft', '/review', '/send']), HostOk == true
+    (   M == post, memberchk(P, ['/answer', '/draft', '/review', '/send', '/wake', '/dismiss']), HostOk == true
     ->  serve_form(Req, Form0),
         ( memberchk(x_desk_fragment(_), Req) -> Form = [desk_fragment='1'|Form0] ; Form = Form0 ),
         serve_conf(token, Tok),
@@ -4712,6 +4716,8 @@ serve_act(send, Form) :-
         ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
         )
     ).
+serve_act(wake, Form) :- desk_letter_act(wake, Form).
+serve_act(dismiss, Form) :- desk_letter_act(dismiss, Form).
 serve_act(answer, Form) :- serve_answer(Form, R),
     (   R = ok -> serve_frame_headers(FH), format("Status: 303~nLocation: /~n~wContent-type: text/html; charset=UTF-8~n~n<p>Recorded. <a href=\"/\">Back to the questions</a></p>~n", [FH])
     ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
@@ -6317,7 +6323,8 @@ desk_track_html(HD, Owner, Ls, Dr, Track, Warn) :-
     ;   W3 = []
     ),
     findall(S, ( member(L, Ls), dk_day_time(L.at, At), dk_str(L.get(to, ""), To0), ( To0 == "" -> To = "the owner" ; To = To0 ),
-                 dk_str(L.kind, Kd), dk_f("<li>~w: sent to ~w on ~w</li>", [Kd, To, At], S) ), Ss),
+                 dk_str(L.kind, Kd), desk_delivery_words(L, DW), esc(L.id, IdH),
+                 dk_f("<li data-letter=\"~w\">~w: sent to ~w on ~w~w</li>", [IdH, Kd, To, At, DW], S) ), Ss),
     ( Ss == [] -> SL = "" ; dk_cat(Ss, SsT), dk_f("<ul class=\"sentlist\">~w</ul>", [SsT], SL) ),
     append([W1, W2, W3, [SL]], Ws), dk_cat(Ws, Warn).
 
@@ -6734,6 +6741,7 @@ desk_page(Msg0, Tab0, Page) :-
     desk_kbs_lane(HDs, AllKBs, KbH),
     ( HDs = [_] -> Unwrap = true ; Unwrap = false ),
     desk_rail(HDs, Cards, Missing, Unwrap, RailH),
+    desk_letters_block(HDs, Tab, LettersH),
     (   Msg == "" -> MsgH = "" ; esc(Msg, M0), dk_f("<p class=\"banner\">~w</p>", [M0], MsgH) ),
     findall(E, ( member(HD, HDs), ( HD.err = some(M) ; \+ is_dict(HD.st), HD.st = error(M) ), esc(HD.name, NH), esc(M, MH),
                  dk_f("<p class=\"banner error\">~w: ~w</p>", [NH, MH], E) ), Es),
@@ -6755,6 +6763,7 @@ desk_page(Msg0, Tab0, Page) :-
 <header class=\"top\"><h1>The Desk</h1>~w<nav class=\"lanes\" aria-label=\"Lanes\">~w</nav><div class=\"folds\"><button type=\"button\" class=\"btn small\" data-folds=\"open\">Expand all</button><button type=\"button\" class=\"btn small\" data-folds=\"close\">Collapse all</button></div></header>
 ~w
 ~w~w~w
+~w
 <div class=\"layout\">
 <aside class=\"rails\" aria-label=\"Where things live\">~w</aside>
 <main>
@@ -6766,14 +6775,106 @@ desk_page(Msg0, Tab0, Page) :-
 ~w
 ~w
 ~w
-<p class=\"foottext\">Live: each reload reads the ledgers and the KBs again. What you type is a draft in the Desk's own store, outside every mindhole; no agent reads it. Each send opens a review first, and a session gets only its own letter, at its next stop or prompt.</p>
+<p class=\"foottext\">Live: each reload reads the ledgers and the KBs again. What you type is a draft in the Desk's own store, outside every mindhole; no agent reads it. Each send opens a review first, and a session gets only its own letter, at its next stop or prompt, or when you say yes to wake it.</p>
 </main>
 </div>
 <dialog id=\"review\" aria-label=\"Review before sending\"><div class=\"dlgbody\"></div></dialog>
 <script>~w</script>
 </body>
 </html>
-", [Css, TokH, TabAH, SumH, LanesH, TabsH, MsgH, ErrH, NoneH, RailH, ActH, LedH, QsH, GsH, PrH, OrH, AnH, KbH, Js]).
+", [Css, TokH, TabAH, SumH, LanesH, TabsH, MsgH, ErrH, NoneH, LettersH, RailH, ActH, LedH, QsH, GsH, PrH, OrH, AnH, KbH, Js]).
+
+% ---- desk-delivery (2026-11-20): the wake question (c5) and given, not acted on (c6)
+
+% desk_letters_block(+HDs, +Tab, -Html): above the lanes, each letter that waits for an idle session,
+% with the question whether to wake it (c5), and each letter that a session was given and did not act
+% on, until Ty acts on it (c6). A mindhole whose desk.py is older gives neither field: nothing shows.
+desk_letters_block(HDs, Tab, Html) :-
+    serve_conf(token, Tok),
+    findall(H, ( member(HD, HDs), desk_hd_letter(HD, L), get_dict(wake_ask, L, WAs), member(W, WAs),
+                 desk_wake_li(Tok, Tab, HD, L, W, H) ), Ws),
+    findall(H, ( member(HD, HDs), desk_hd_letter(HD, L), get_dict(delivery, L, "not_acted"),
+                 desk_notacted_li(Tok, Tab, HD, L, H) ), Ns),
+    append(Ws, Ns, All),
+    (   All == [] -> Html = ""
+    ;   dk_cat(All, AH), length(Ws, NW), length(Ns, NN),
+        dk_f("<section class=\"deskletters\" id=\"desk-letters\" aria-label=\"Letters\"><h2>Letters</h2><p class=\"small quiet\">~w waiting for an idle session; ~w given and not acted on.</p><ul>~w</ul></section>", [NW, NN, AH], Html)
+    ).
+
+desk_hd_letter(HD, L) :- is_dict(HD.st), get_dict(letters, HD.st, Ls), member(L, Ls), is_dict(L).
+
+desk_letter_about(L, A) :- ( get_dict(about, L, A0), string(A0), A0 \== "" -> A = A0 ; desk_letter_name(L, A) ).
+
+desk_wake_li(Tok, Tab, HD, L, W, Html) :-
+    dk_str(W.session, S), esc(S, SH), esc(L.id, IdH), desk_letter_about(L, A), esc(A, AH), dk_day_time(L.at, At),
+    desk_hub_suffix_all(HD, HS),
+    (   get_dict(pane, W, true)
+    ->  desk_hidden([token-Tok, hub-HD.path, letter-L.id, tab-Tab], HH),
+        dk_f("<li class=\"wakeq\" data-letter=\"~w\" data-session=\"~w\">Your letter about ~w (sent ~w) waits for ~w~w, and ~w is idle. Wake ~w now, so that its agent gets the letter? <form class=\"wakeform\" method=\"post\" action=\"/wake\">~w<button class=\"btn go\" type=\"submit\">Yes, wake ~w</button></form> <span class=\"small quiet\">If you do not, ~w gets it at its next prompt.</span></li>",
+             [IdH, SH, AH, At, SH, HS, SH, SH, HH, SH, SH], Html)
+    ;   dk_f("<li class=\"wakeq nopane\" data-letter=\"~w\" data-session=\"~w\">Your letter about ~w (sent ~w) waits for ~w~w, and ~w is idle, but the Desk knows no tmux pane of it, so it cannot wake it. ~w gets the letter at its next prompt.</li>",
+             [IdH, SH, AH, At, SH, HS, SH, SH], Html)
+    ).
+
+desk_notacted_li(Tok, Tab, HD, L, Html) :-
+    esc(L.id, IdH), desk_letter_about(L, A), esc(A, AH),
+    (   get_dict(not_acted, L, [N|_]) -> dk_str(N.session, S), dk_day_time(N.at, At), dk_str(N.get(detail, ""), D)
+    ;   S = "its session", At = "", D = ""
+    ),
+    esc(S, SH), esc(D, DH), desk_hub_suffix_all(HD, HS),
+    desk_hidden([token-Tok, hub-HD.path, letter-L.id, tab-Tab], HH),
+    dk_f("<li class=\"notacted\" data-letter=\"~w\" data-session=\"~w\"><b>Given, not acted on:</b> your letter about ~w. ~w~w was given it, but that turn ended before its end (Ctrl+C, a crash or a compaction; seen on ~w: ~w). The Desk does not give it again. <form class=\"wakeform\" method=\"post\" action=\"/dismiss\">~w<button class=\"btn\" type=\"submit\">I have dealt with it</button></form> <span class=\"small quiet\">To give it again, send it again from its card.</span></li>",
+         [IdH, SH, AH, SH, HS, At, DH, HH], Html).
+
+desk_hub_suffix_all(HD, S) :- ( nb_current(desk_multi, true) -> esc(HD.name, NH), dk_f(" (~w)", [NH], S) ; S = "" ).
+
+% desk_delivery_words(+L, -Words): where a letter is, after "sent to S on DATE" (c6, h1). Nothing for a
+% letter from an older desk.py, which gives no delivery field.
+desk_delivery_words(L, W) :-
+    (   get_dict(delivery, L, D) -> true ; D = "" ),
+    (   D == "sent" -> W = "; not given yet"
+    ;   D == "given" -> W = "; given, its turn has not ended yet"
+    ;   D == "acted" -> W = "; given, acted on"
+    ;   D == "not_acted" -> W = "; given, not acted on"
+    ;   D == "dismissed" -> W = "; given, not acted on; you dealt with it"
+    ;   W = ""
+    ).
+
+% desk_letter_act(+Act, +Form): POST /wake (Ty's yes: desk.py wake) or POST /dismiss (desk.py event
+% LID dismissed). The form names a mindhole of the Desk and one of its letters.
+desk_letter_act(Act, Form) :-
+    (   \+ desk_mode -> serve_message_page(404, "There is no such page. GET / shows the questions.")
+    ;   catch(( desk_letter_form(Form, HD, Lid), desk_letter_do(Act, HD, Lid, R) ), desk_refused(S, M), R = refused(S, M)),
+        (   R == ok
+        ->  serve_frame_headers(FH),
+            ( serve_field(Form, tab, Tb), Tb \== "" -> uri_encoded(query_value, Tb, TbE), format(string(Back), "/?mh=~w", [TbE]) ; Back = "/" ),
+            format("Status: 303~nLocation: ~w#desk-letters~n~wContent-type: text/html; charset=UTF-8~n~n<p>Done. <a href=\"/\">Back to the Desk</a></p>~n", [Back, FH])
+        ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
+        )
+    ).
+
+desk_letter_form(Form, HD, Lid) :-
+    desk_load(HDs, _),
+    (   serve_field(Form, hub, HS), HS \== "", atom_string(H0, HS), serve_norm(H0, Hub), desk_hd_of(HDs, Hub, HD) -> true
+    ;   throw(desk_refused(400, "The form names no mindhole of this Desk. Reload the page."))
+    ),
+    (   serve_field(Form, letter, Lid), desk_hd_letter(HD, L), get_dict(id, L, Lid) -> true
+    ;   throw(desk_refused(400, "The form names no letter of this mindhole. Reload the page."))
+    ).
+
+desk_letter_do(wake, HD, Lid, R) :-
+    desk_cmd(HD.path, [wake, Lid], Out, R0),
+    (   R0 = error(M) -> R = refused(409, M)
+    ;   catch(atom_json_dict(Out, J, [value_string_as(string)]), _, fail), get_dict(woken, J, [_|_]) -> R = ok
+    ;   ( catch(atom_json_dict(Out, J2, [value_string_as(string)]), _, fail), get_dict(not, J2, N), is_dict(N)
+        -> dict_pairs(N, _, Ps), findall(T, ( member(K-V, Ps), dk_f("~w: ~w", [K, V], T) ), Ts), dk_join(Ts, "; ", Why)
+        ;  Why = "desk.py wake gave no answer"
+        ),
+        dk_f("Nothing was typed into any pane: ~w. Reload the Desk to see where the letter is.", [Why], M2), R = refused(409, M2)
+    ).
+desk_letter_do(dismiss, HD, Lid, R) :-
+    desk_cmd(HD.path, [event, Lid, dismissed], _, R0),
+    ( R0 == ok -> R = ok ; R0 = error(M) -> R = refused(409, M) ).
 
 desk_by_due(O, A, B) :-
     ( A.due == "" -> KA = "9999" ; KA = A.due ), ( B.due == "" -> KB = "9999" ; KB = B.due ),
@@ -7184,7 +7285,7 @@ desk_form_letters(HDs, HD, It, Ls) :-
 desk_sent_html(_HD, Ls, Back, Frag, Html) :-
     findall(LH, ( member(L, Ls),
                   dk_str(L.get(to, ""), To0), ( To0 == "" -> To = "the owner" ; To = To0 ),
-                  dk_day_time(L.at, At), dk_str(L.get(state, "sent"), St), dk_str(L.get(text, ""), Tx),
+                  dk_day_time(L.at, At), dk_str(L.get(state, "sent"), St0), desk_delivery_words(L, DW), string_concat(St0, DW, St), dk_str(L.get(text, ""), Tx),
                   desk_badge(To, BH), esc(Tx, TxH), esc(St, StH),
                   dk_f("<div class=\"letter\"><div class=\"lh\">To ~w <span class=\"small quiet\">on ~w: ~w</span></div><pre class=\"sent\">~w</pre></div>", [BH, At, StH, TxH], LH) ), LHs),
     dk_cat(LHs, LsH), length(Ls, N), ( N == 1 -> NT = "one letter" ; dk_f("~w letters", [N], NT) ),
@@ -7545,7 +7646,7 @@ desk_review_letter(HD, I, L, Html) :-
         desk_letter_head(L.about, Head), esc(Head, HeadH), esc(L.text, TxH),
         desk_wake_line(L.about, Wake), esc(Wake, WakeH),
         ( desk_hooks_missing(HD, Ms), Ms \== [] -> desk_hooks_warning(HD, L.to, Ms, HookW) ; HookW = "" ),
-        dk_f("<div class=\"letter\"><div class=\"lh\">~w</div><p class=\"fixed\">~w</p><textarea name=\"letter_~w\" aria-label=\"The letter to ~w\">~w</textarea><p class=\"small quiet\">If ~w is idle and waits on this item, the Desk also types this one line into its pane: <span class=\"wake\">~w</span></p>~w</div>", [ToH, HeadH, I, L.to, TxH, L.to, WakeH, HookW], Html)
+        dk_f("<div class=\"letter\"><div class=\"lh\">~w</div><p class=\"fixed\">~w</p><textarea name=\"letter_~w\" aria-label=\"The letter to ~w\">~w</textarea><p class=\"small quiet\">If ~w is idle, the Desk asks you whether to wake it; only on your yes it types this one line into its pane: <span class=\"wake\">~w</span></p>~w</div>", [ToH, HeadH, I, L.to, TxH, L.to, WakeH, HookW], Html)
     ).
 
 % desk_wake_line(+About, -Line): the one line that desk.py wake types into an idle pane (desk.py wake-text).
@@ -11826,7 +11927,10 @@ help_lines(serve, [
 "response is first stored as a letter (flow/desk/letters.jsonl), then written; the page shows",
 "where each one is (sent, seen by a session, applied or not). desk.py hook, in the hub's",
 "sessions (desk.py hooks prints the settings), tells the session that owns the item at its next",
-"stop or prompt, and wakes it through tmux only when it is idle and its item is waiting.",
+"stop or prompt; each Stop gives the next letter that waits. For a letter to an idle session the",
+"Desk asks whether to wake it (POST /wake); only on a yes does desk.py wake type one line into its",
+"tmux pane. A letter given in a turn that ended with no Stop (Ctrl+C, a crash, a compaction) shows",
+"as given, not acted on, until the human acts on it (POST /dismiss); it is not given again.",
 "Each question to ask shows its notes, its claim's notes and examples, and its due date, and has",
 "a form: its options, other, and a free text. Typed text next to a picked option is kept as a",
 "note. A default picked as it is keeps its term. The answer never waits on an agent: it goes at",

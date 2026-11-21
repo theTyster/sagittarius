@@ -63,6 +63,9 @@
 #   c22 on load the rail is collapsed and one card is open; Your action cards collapse       : QS56
 #   c23 sessions roll up by mindhole, one short line each                                    : QS57
 #   c24 loud when no desk hook can deliver a letter (card and review)                        : QS58
+# hub spec KB desk-delivery (2026-11-20):
+#   c5 the Desk asks Ty whether to wake an idle session; on yes the letter is given in 60 s  : QS75
+#   c6 h1 given, not acted on (Ctrl+C, crash, compaction): not given again, shown until Ty acts : QS76
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -2097,6 +2100,136 @@ t_QS74() {  # Desk c40 (Ty: "Refuse both ways"): a Park past the --due date is r
     askjson "$T/h" "$A" "(d['item']['parked_until'] or '')=='2026-12-10'"
 }
 
+# ---- hub spec KB desk-delivery (2026-11-20): c5 (wake on Ty's yes), c6 (given, not acted on)
+# hookev HUB SESSION EVENT [JSON-FIELDS]: one hook run as Claude Code makes it; the output in $T/hook.out
+hookev() { printf '{"hook_event_name":"%s","session_id":"s-test","cwd":"%s"%s}' "$3" "$1" "${4:+,$4}" \
+      | ( cd "$1" && HUB_SESSION=$2 python3 -I .claude/scripts/desk.py hook ) > "$T/hook.out" 2>"$T/hook.err"; }
+# evq HUB PY-EXPR: the events of the hub as ev (a list of dicts); the expression must hold
+evq() { python3 -I -c "import json,os,sys; f=sys.argv[1]; ev=[json.loads(x) for x in open(f) if x.strip()] if os.path.exists(f) else []; sys.exit(0 if ($2) else 1)" "$1/flow/desk/events.jsonl"; }
+# lid_of OUT: the letter id that desk.py send printed
+lid_of() { python3 -I -c 'import json,sys; print(json.loads(sys.argv[1].splitlines()[0])["id"])' "$1" 2>/dev/null; }
+# fake_agent FILE: a fake Claude Code for a pane of a private tmux server. It runs the desk hooks as
+# Claude Code does (SessionStart; for each line typed, UserPromptSubmit, then the Stop hooks of that
+# turn), and logs each line typed into its pane and each text that the hooks gave it.
+fake_agent() { cat > "$1" <<'PY'
+import json, os, subprocess, sys
+hub, log, typed = sys.argv[1], sys.argv[2], sys.argv[3]
+def hook(ev, **kw):
+    d = dict({"hook_event_name": ev, "session_id": "s-fake", "cwd": hub}, **kw)
+    p = subprocess.run([sys.executable, "-I", os.path.join(hub, ".claude/scripts/desk.py"), "hook"],
+                       input=json.dumps(d), capture_output=True, text=True, cwd=hub)
+    if p.stdout.strip():
+        o = json.loads(p.stdout)
+        with open(log, "a") as f:
+            f.write(json.dumps({"event": ev, "text": o.get("reason") or o["hookSpecificOutput"]["additionalContext"]}) + "\n")
+        return o.get("decision") == "block"
+    return False
+hook("SessionStart", source="startup")
+for line in sys.stdin:
+    with open(typed, "a") as f:
+        f.write(line)
+    hook("UserPromptSubmit", prompt=line.rstrip("\n"))
+    active = False
+    while hook("Stop", stop_hook_active=active):
+        active = True
+PY
+}
+t_QS75() { t_QS75_body; [ -x "$T/bin/tmux" ] && "$T/bin/tmux" kill-server 2>/dev/null; unset DESK_TMUX; true; }
+t_QS75_body() {  # desk-delivery c5: for each letter to an idle session the Desk asks Ty whether to wake it; on his yes the agent gets it within a minute, Ty types nothing in that session, blocked or not
+    command -v tmux >/dev/null || { note "tmux is not installed: c5 cannot be checked"; return; }
+    desk_hub "$T/h"; mkdir -p "$T/bin"
+    # a private tmux server (never the real one): desk.py reaches it through DESK_TMUX
+    printf '#!/bin/sh\nunset TMUX\nexec tmux -L %s "$@"\n' "qs75-$$-$RANDOM" > "$T/bin/tmux"; chmod +x "$T/bin/tmux"
+    export DESK_TMUX="$T/bin/tmux"
+    ln -s "$(readlink -f "$(command -v python3)")" "$T/bin/claude"   # the pane runs a program named claude
+    fake_agent "$T/agent.py"; : > "$T/typed.log"; : > "$T/agent.log"
+    "$T/bin/tmux" new-session -d -s qs75 -x 200 -y 50 -e HUB_SESSION=discovery \
+        "cd '$T/h' && exec '$T/bin/claude' '$T/agent.py' '$T/h' '$T/agent.log' '$T/typed.log'" || { note "setup: tmux new-session failed"; return; }
+    local i lid lid2 tok A out t0 t1 wake
+    idle() { python3 -I -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d['state']=='idle' and d['tmux_pane'] else 1)" "$T/h/flow/desk/sessions/discovery.json" 2>/dev/null; }
+    for i in $(seq 1 100); do idle && break; sleep 0.1; done
+    idle || { note "setup: the fake agent did not reach idle"; return; }
+    # e1: a fix letter to idle discovery, which is not blocked on it
+    printf 'Ty closed these old handoffs of yours: a newer handoff holds the same KB.' > "$T/fix.txt"
+    out=$(dpy "$T/h" send --kind fix --item-json '{"type":"fix","what":"unaccepted","ids":["H-0001"]}' --to discovery --about 'the old handoffs' --text-file "$T/fix.txt")
+    lid=$(lid_of "$out"); [ -n "$lid" ] || { note "setup: send printed no id: $(snip "$out")"; return; }
+    sleep 2
+    [ -s "$T/typed.log" ] && note "a line was typed into the idle pane with no yes from Ty: $(snip "$(cat "$T/typed.log")")"
+    evq "$T/h" "not [e for e in ev if e['letter']=='$lid' and e['event'] in ('woken','seen')]" || note "the letter was woken or seen with no yes from Ty"
+    srvd --hub "$T/h" || return; page_ok || return
+    tok=$(pg dtoken "$T/page.html")
+    python3 -I -c "
+import sys,re; p=open(sys.argv[1]).read(); lid=sys.argv[2]
+m=re.search(r'<li class=\"wakeq\"[^>]*data-letter=\"'+lid+r'\"[^>]*>(.*?)</li>', p, re.S)
+sys.exit(0 if m and 'discovery' in m.group(1) and 'action=\"/wake\"' in m.group(1) and 'name=\"letter\" value=\"'+lid+'\"' in m.group(1) else 1)" "$T/page.html" "$lid" \
+        || note "the Desk does not ask whether to wake discovery for $lid (no li.wakeq with a /wake form)"
+    t0=$(date +%s); post /wake "token=$tok" "hub=$T/h" "letter=$lid"
+    [ "$CODE" = 303 ] || { note "POST /wake (Ty's yes): HTTP $CODE, want 303: $(snip "$(cat "$T/post.html" 2>/dev/null)")"; return; }
+    for i in $(seq 1 600); do evq "$T/h" "[e for e in ev if e['letter']=='$lid' and e['event']=='seen' and e['session']=='discovery']" && break; sleep 0.1; done
+    t1=$(date +%s)
+    evq "$T/h" "[e for e in ev if e['letter']=='$lid' and e['event']=='seen' and e['session']=='discovery']" || note "no seen event for $lid 60 s after Ty's yes"
+    [ $((t1 - t0)) -le 60 ] || note "the seen event came $((t1 - t0)) s after the yes"
+    grep -qF 'Ty closed these old handoffs of yours: a newer handoff holds the same KB.' "$T/agent.log" || note "the agent was not given the letter's text: $(snip "$(cat "$T/agent.log")")"
+    wake=$(dpy "$T/h" wake-text --about 'the old handoffs')
+    [ "$(cat "$T/typed.log")" = "$wake" ] || note "the pane got other input than the one wake line (Ty types nothing): $(snip "$(cat "$T/typed.log")")"
+    # blocked on the item: an ask of discovery that waits on Ty, answered on the Desk
+    for i in $(seq 1 100); do idle && break; sleep 0.1; done
+    A=$(hf "$T/h" --session discovery add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me --status waiting)
+    printf '8800.' > "$T/ans.txt"
+    out=$(dpy "$T/h" send --kind answer --item-json "{\"type\":\"ask\",\"id\":\"$A\"}" --to discovery --about "the ask $A" --text-file "$T/ans.txt")
+    lid2=$(lid_of "$out"); sleep 1
+    evq "$T/h" "not [e for e in ev if e['letter']=='$lid2' and e['event'] in ('woken','seen')]" || note "blocked: the letter was woken or seen with no yes from Ty"
+    page_ok || return
+    grep -q "class=\"wakeq\"[^>]*data-letter=\"$lid2\"" "$T/page.html" || note "blocked: the Desk does not ask whether to wake discovery for $lid2"
+    t0=$(date +%s); post /wake "token=$tok" "hub=$T/h" "letter=$lid2"; [ "$CODE" = 303 ] || note "blocked: POST /wake: HTTP $CODE, want 303"
+    for i in $(seq 1 600); do evq "$T/h" "[e for e in ev if e['letter']=='$lid2' and e['event']=='seen']" && break; sleep 0.1; done
+    t1=$(date +%s)
+    { evq "$T/h" "[e for e in ev if e['letter']=='$lid2' and e['event']=='seen' and e['session']=='discovery']" && [ $((t1 - t0)) -le 60 ]; } || note "blocked: no seen event for $lid2 within 60 s of the yes"
+    [ "$(wc -l < "$T/typed.log")" = 2 ] || note "blocked: the pane got other input than two wake lines: $(snip "$(cat "$T/typed.log")")"
+    for i in $(seq 1 100); do idle && break; sleep 0.1; done
+    page_ok || return
+    grep -q 'class="wakeq"' "$T/page.html" && note "the Desk still asks to wake for a letter that was given"
+    post /wake "token=bad" "hub=$T/h" "letter=$lid2"; [ "$CODE" = 403 ] || note "POST /wake with a bad token: HTTP $CODE, want 403"
+}
+t_QS76() {  # desk-delivery c6 (and h1): a letter given but not acted on (Ctrl+C, a crash, a compaction) is not given again; the Desk shows it as given, not acted on, until Ty acts on it
+    desk_hub "$T/h"; local A L1 L2 L3 L4 tok x
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    sendl() { printf '%s' "$1" > "$T/l.txt"; lid_of "$(dpy "$T/h" send --kind note --item-json "{\"type\":\"ask\",\"id\":\"$A\"}" --to build --about "the ask $A" --text-file "$T/l.txt")"; }
+    hookev "$T/h" build SessionStart '"source":"startup"'
+    L1=$(sendl 'one: Ty presses Ctrl+C'); hookev "$T/h" build UserPromptSubmit '"prompt":"go on"'
+    grep -q 'one: Ty presses Ctrl+C' "$T/hook.out" || note "setup: L1 was not given at the prompt"
+    hookev "$T/h" build UserPromptSubmit '"prompt":"again"'           # Ctrl+C ended that turn: no Stop
+    grep -q 'one: Ty presses Ctrl+C' "$T/hook.out" && note "Ctrl+C: L1 was given again"
+    hookev "$T/h" build Stop '"stop_hook_active":false'
+    L2=$(sendl 'two: a crash'); hookev "$T/h" build UserPromptSubmit '"prompt":"go on"'
+    hookev "$T/h" build SessionStart '"source":"resume"'               # the session crashed; Ty resumes it
+    grep -q 'two: a crash' "$T/hook.out" && note "crash: L2 was given again"
+    L3=$(sendl 'three: a compaction'); hookev "$T/h" build UserPromptSubmit '"prompt":"go on"'
+    hookev "$T/h" build SessionStart '"source":"compact"'
+    grep -q 'three: a compaction' "$T/hook.out" && note "compaction: L3 was given again"
+    L4=$(sendl 'four: a whole turn'); hookev "$T/h" build UserPromptSubmit '"prompt":"go on"'
+    hookev "$T/h" build Stop '"stop_hook_active":false'
+    hookev "$T/h" build UserPromptSubmit '"prompt":"next"'
+    [ -s "$T/hook.out" ] && note "a letter was given again at the next turn: $(snip "$(cat "$T/hook.out")")"
+    srvd --hub "$T/h" || return; page_ok || return
+    for x in "$L1" "$L2" "$L3"; do
+        python3 -I -c "
+import sys,re; p=open(sys.argv[1]).read(); lid=sys.argv[2]
+m=re.search(r'<li class=\"notacted\"[^>]*data-letter=\"'+lid+r'\"[^>]*>(.*?)</li>', p, re.S)
+sys.exit(0 if m and 'given, not acted on' in m.group(1).lower() and 'build' in m.group(1) else 1)" "$T/page.html" "$x" \
+            || note "the Desk does not show $x as given, not acted on"
+    done
+    grep -q "class=\"notacted\"[^>]*data-letter=\"$L4\"" "$T/page.html" && note "the Desk shows L4 (a whole turn) as not acted on"
+    # h1: on the card, Ty sees for each letter whether it was given and whether it was acted on
+    chk dcard "$T/page.html" "ask-$A" 'given, acted on' 'given, not acted on'
+    tok=$(pg dtoken "$T/page.html")
+    post /dismiss "token=$tok" "hub=$T/h" "letter=$L1"; [ "$CODE" = 303 ] || note "POST /dismiss: HTTP $CODE, want 303: $(snip "$(cat "$T/post.html" 2>/dev/null)")"
+    page_ok || return
+    grep -q "class=\"notacted\"[^>]*data-letter=\"$L1\"" "$T/page.html" && note "after Ty acted on L1, the Desk still lists it as not acted on"
+    grep -q "class=\"notacted\"[^>]*data-letter=\"$L2\"" "$T/page.html" || note "after Ty acted on L1, L2 left the list too"
+    post /dismiss "token=$tok" "hub=$T/h" "letter=$L4"; [ "$CODE" = 409 ] || note "POST /dismiss of a letter that was acted on: HTTP $CODE, want 409"
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -2109,6 +2242,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 74); do run_one QS$n; done
+for n in $(seq 1 76); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

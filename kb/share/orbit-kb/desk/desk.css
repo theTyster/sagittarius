@@ -207,3 +207,11 @@ details.parked>summary .pname{font-weight:600}
 details.parked>summary b{font-variant-numeric:tabular-nums}
 details.parked[open]>summary{margin-bottom:8px}
 .due.parked strong{color:var(--graphite);font-weight:500}
+/* desk-delivery (2026-11-20): the Letters block above the lanes: Ty's wake question (c5) and the
+   letters given and not acted on (c6). */
+.deskletters{margin:16px auto 0;max-width:1320px;padding:10px 16px;border-radius:10px;border:1px solid color-mix(in srgb,var(--lamp) 55%,transparent);background:var(--desk)}
+.deskletters h2{margin:0 0 4px;font-size:1.05em}
+.deskletters ul{margin:6px 0 0;padding:0}
+.deskletters li{list-style:none;margin:.5em 0;line-height:1.5}
+.deskletters li.notacted b{color:var(--burn)}
+.deskletters form.wakeform{display:inline;margin:0 .3em}

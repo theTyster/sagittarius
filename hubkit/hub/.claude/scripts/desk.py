@@ -6,29 +6,38 @@ One Desk page (`orbit-kb serve desk`) serves every mindhole on this machine (c16
 it with `join`; the Desk keeps the list in its own state dir. The page calls this script. It stores
 each letter the moment Ty sends it (c8), shows where each letter is (c7), and the hook below gives
 each letter to its one recipient session at its next prompt or stop, never to another session and
-never inside a turn (c6). It types one line into a tmux pane only when that session is idle and
-blocked on the answer (q1). Drafts stay in the Desk's own state dir, outside every mindhole: no
-agent reads them, and a letter enters the receiving mindhole only when Ty sends it (q10).
+never inside a turn (c6). A Stop gives every letter that waits, one notice after the other, also
+when the turn already continues from a stop hook (desk-delivery c2). For a letter to an idle session
+the Desk asks Ty whether to wake it; only his yes (`wake`) types one line into its tmux pane
+(desk-delivery c5). Each hook also says whether the turn before it acted on what it was given: a
+Stop means yes; a prompt or a session start with no Stop between means no (Ctrl+C, a crash or a
+compaction), and the Desk shows that letter as given, not acted on (desk-delivery c6). Drafts stay
+in the Desk's own state dir, outside every mindhole: no agent reads them, and a letter enters the
+receiving mindhole only when Ty sends it (q10).
 
 usage: desk.py [--hub DIR] COMMAND [ARGS]
   send --kind KIND --item-json JSON --to SESSION --about TEXT --text-file F [--choice C]
-                                  store a letter for one session; prints {"id": LID}. Then wakes
-                                  the recipient (see wake). KIND: answer, diverge, requirement, note (a note on a ledger item, c32), fix
+                                  store a letter for one session; prints {"id": LID}. It types
+                                  nothing into any pane (only Ty's yes wakes, see wake). KIND: answer, diverge, requirement, note (a note on a ledger item, c32), fix
                                   (a fix of an orphan or a gap), notice (a short notice)
   render --to SESSION --about TEXT --text-file F [--json]
                                   print the exact text the session gets for such a letter (the
                                   page shows it in the review). --json: {"to", "about", "delivered",
                                   "wake"}. The text is printed exactly, with no newline added
   wake-text --about TEXT          print the exact line that a wake types (no newline added)
-  event LID applied|apply_failed [--detail TEXT]
-                                  record a receipt from the page server (exit 2: unknown LID)
+  event LID applied|apply_failed|dismissed [--detail TEXT]
+                                  record a receipt from the page server (exit 2: unknown LID).
+                                  dismissed: Ty acted on a letter that is given, not acted on
+                                  (exit 1 for any other letter)
   status [--json]                 sessions, orphans, kb refs and handoffs, recent closed asks,
                                   letters with their state, and bad lines (JSON for the page)
   letters [--id LID] [--json]     print the letters, or one letter in full
   hook                            the Claude Code hook (SessionStart, UserPromptSubmit, Stop):
                                   reads the hook JSON on stdin; never fails a session
-  wake LID                        type the wake line into the recipient's tmux pane, only when the
-                                  recipient is idle, blocked on that answer, and runs Claude
+  wake LID                        Ty's yes on the Desk: type the wake line into the recipient's
+                                  tmux pane, only when the recipient is live and idle, has not been
+                                  given the letter, and its pane runs Claude. Prints {"woken":
+                                  [SESSION...], "not": {SESSION: why}}; exit 0 either way
   hooks                           print the hooks block for a hub's .claude/settings.json
   The commands below need no hub, or find it themselves:
   draft KEY [--text-file F] [--choice C] [--intent I] [--clear]
@@ -70,10 +79,17 @@ The wake line is exactly
   Desk: Ty sent a letter about ABOUT. It is stored; read the Desk notice of this prompt.
 
 Receipts in status: state is sent, seen, applied or apply_failed. late_unseen is true when the
-letter was sent 24 hours or more before the ledger clock and no session has seen it.
+letter was sent 24 hours or more before the ledger clock and no session has seen it. delivery is
+sent (no session was given it), given (given; its turn has not ended yet), acted (the turn that was
+given it reached its Stop), not_acted (that turn ended with no Stop: Ctrl+C, a crash or a
+compaction) or dismissed (not_acted, and Ty acted on it). wake_ask lists each recipient that is live,
+idle and not given the letter: {"session", "pane"} (pane: the Desk knows its tmux pane, so a yes can
+wake it). Events: seen, woken, acted, not_acted (by the hook or wake), applied, apply_failed,
+dismissed (by the page).
 
 Files in the hub (HUB/flow/desk/, made on demand): letters.jsonl and events.jsonl (append-only, one
-JSON object per line, flock + one write + fsync), sessions/NAME.json (replaced atomically), desk.log
+JSON object per line, flock + one write + fsync), sessions/NAME.json (replaced atomically; "given":
+the letters given in the current turn, not yet settled by a hook), desk.log
 (errors of the hook and the wake). flow/flow.db is read only, never written. An old
 HUB/flow/desk/drafts.json is not read any more.
 Files in the Desk's state dir (DESK_STATE): drafts.json and mindholes.json ({"mindholes": [{"name",
@@ -96,7 +112,7 @@ import argparse, datetime, errno, fcntl, json, os, re, secrets, sqlite3, subproc
 from urllib.parse import quote
 
 KINDS = ("answer", "diverge", "requirement", "fix", "notice", "note")
-EVENTS_PAGE = ("applied", "apply_failed")
+EVENTS_PAGE = ("applied", "apply_failed", "dismissed")
 SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 ITEM_ID = re.compile(r"^[A-Z]-\d{4,}$")
 SESSION_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -361,17 +377,6 @@ def owners(c, letter, kbi=None):
     return sorted({r["owner_session"] for s, r in kbi if s == slug and r["owner_session"]})
 
 
-def blocked_on(c, letter, s, kbi=None):
-    """The session s waits on this answer: the ask is waiting and s owns it, or s owns a waiting
-    item with a kb ref to the slug."""
-    it = letter.get("item") or {}
-    if it.get("type") == "ask":
-        r = c.execute("SELECT status, owner_session FROM item WHERE id = ?", (it.get("id"),)).fetchone()
-        return bool(r and r["status"] == "waiting" and r["owner_session"] == s)
-    kbi = kb_items(c) if kbi is None else kbi
-    return any(sl == it.get("slug") and r["status"] == "waiting" and r["owner_session"] == s for sl, r in kbi)
-
-
 def known_session(c, name):
     """The session name of a session or alias of the hub, else None."""
     r = c.execute("SELECT name FROM session WHERE name = ?", (name,)).fetchone()
@@ -533,11 +538,7 @@ def cmd_send(hub, a):
     append_line(os.path.join(desk_dir(hub), "letters.jsonl"), letter)  # stored before we return (c8)
     print(json.dumps({"id": lid}))
     sys.stdout.flush()
-    try:
-        wake(hub, letter)
-    except Exception as e:  # best effort: the letter is stored
-        print(f"desk: wake {lid} failed: {e}", file=sys.stderr)
-        log(hub, f"wake {lid} failed: {e!r}")
+    # desk-delivery c5: no wake here. The Desk asks Ty for each letter to an idle session (wake_ask).
 
 
 def cmd_render(hub, a):
@@ -562,6 +563,8 @@ def cmd_wake_text(hub, a):
 def cmd_event(hub, a):
     store = Store(hub)
     find_letter(store, a.lid)
+    if a.event == "dismissed" and delivery_of([e for e in store.events() if e["letter"] == a.lid]) != "not_acted":
+        raise Bad(f"{a.lid} is not given, not acted on: only such a letter can be dismissed")
     store.add_event(a.lid, a.event, None, a.detail)
     print(json.dumps({"letter": a.lid, "event": a.event}))
 
@@ -573,9 +576,26 @@ def ts_secs(ts):
         return None
 
 
+def delivery_of(ev):
+    """desk-delivery c6: where a letter is, from its events (in file order): sent, given, acted,
+    not_acted or dismissed. A letter that a turn did not act on stays not_acted until Ty dismisses it."""
+    kinds = [e["event"] for e in ev]
+    if "not_acted" in kinds:
+        return "dismissed" if "dismissed" in kinds else "not_acted"
+    if "acted" in kinds:
+        return "acted"
+    return "given" if "seen" in kinds else "sent"
+
+
+def idle_pane(st):
+    """The session's state says idle; the tmux pane it was in, or None."""
+    return bool(st) and st.get("state") == "idle", (st or {}).get("tmux_pane") or None
+
+
 def letter_views(c, store, letters, events, now):
     kbi = kb_items(c)
     live = active_sessions(c)
+    states = {}
     now_s = ts_secs(now)
     by = {}
     for i, e in enumerate(events):
@@ -591,6 +611,19 @@ def letter_views(c, store, letters, events, now):
         last_bad = failed[-1] if failed and (not applied or failed[-1][0] > applied[-1][0]) else None
         seen = [{"session": e.get("session"), "at": e.get("at")} for _, e in ev if e["event"] == "seen"]
         woken = [{"session": e.get("session"), "at": e.get("at")} for _, e in ev if e["event"] == "woken"]
+        acted = [{"session": e.get("session"), "at": e.get("at")} for _, e in ev if e["event"] == "acted"]
+        not_acted = [{"session": e.get("session"), "at": e.get("at"), "detail": e.get("detail")}
+                     for _, e in ev if e["event"] == "not_acted"]
+        given_to = {e.get("session") for _, e in ev if e["event"] == "seen"}
+        wake_ask = []
+        for s in lv:  # desk-delivery c5: the Desk asks Ty whether to wake each idle recipient
+            if s in given_to or not SESSION_NAME.match(s):
+                continue
+            if s not in states:
+                states[s] = store.session_state(s)
+            idle, pane = idle_pane(states[s])
+            if idle:
+                wake_ask.append({"session": s, "pane": bool(pane)})
         closed = None
         it = x.get("item") or {}
         if it.get("type") == "ask":
@@ -600,7 +633,8 @@ def letter_views(c, store, letters, events, now):
         at_s = ts_secs(x.get("at"))
         late = bool(not seen and at_s is not None and now_s is not None and now_s - at_s >= LATE_SECONDS)
         out.append(dict({"to": None, "about": None}, **x, owners=own, live_owners=lv, no_live_owner=not lv,
-                        late_unseen=late, seen=seen, woken=woken,
+                        late_unseen=late, seen=seen, woken=woken, acted=acted, not_acted=not_acted,
+                        delivery=delivery_of([e for _, e in ev]), wake_ask=wake_ask,
                         applied={"at": last_ok[1].get("at"), "detail": last_ok[1].get("detail")} if last_ok else None,
                         apply_failed={"at": last_bad[1].get("at"), "detail": last_bad[1].get("detail")} if last_bad else None,
                         item_closed=closed, state=state))
@@ -762,10 +796,34 @@ def notice(letters):
     return "\n\n".join(parts), held
 
 
-def write_state(store, name, state, ev, data):
+def write_state(store, name, state, ev, data, given=()):
     write_atomic(store.session_path(name), {"name": name, "session_id": data.get("session_id"), "state": state,
                                             "at": now_ts(), "tmux_pane": os.environ.get("TMUX_PANE") or None,
-                                            "cwd": data.get("cwd"), "event": ev})
+                                            "cwd": data.get("cwd"), "event": ev, "given": list(given)})
+
+
+def settle(store, name, prev, ev, data):
+    """desk-delivery c6: what the turn before this hook did with the letters it was given. A Stop
+    ends a turn: it acted on them. A prompt or a session start with no Stop between: the turn ended
+    by Ctrl+C, a crash or a compaction, so it did not act on them. The context of a session start
+    lives into the first prompt's turn, so that prompt carries the letters on. Returns those carried."""
+    given = [x for x in ((prev or {}).get("given") or []) if isinstance(x, str)]
+    if not given:
+        return []
+    if ev == "Stop":
+        verdict, detail = "acted", None
+    elif ev == "UserPromptSubmit" and (prev or {}).get("event") == "SessionStart":
+        return given
+    else:
+        verdict = "not_acted"
+        detail = (f"SessionStart ({data.get('source')})" if ev == "SessionStart" and isinstance(data.get("source"), str)
+                  else f"{ev} with no Stop of the turn before it")
+    for lid in given:
+        try:
+            store.add_event(lid, verdict, name, detail)
+        except OSError as e:
+            log(store.hub, f"hook: {verdict} {lid} for {name} not recorded: {e!r}")
+    return []
 
 
 def hook_hub(arg, data):
@@ -805,13 +863,14 @@ def run_hook(hub_arg):
         finally:
             c.close()
         stop = ev == "Stop"
-        if stop and data.get("stop_hook_active") is True:
-            todo = []  # already continuing from a stop hook: the letters wait
+        # desk-delivery c2: a Stop gives the next notice also when stop_hook_active is true. Each
+        # letter is given once (its seen event), so the turn cannot go on for ever.
+        carried = settle(store, name, store.session_state(name), ev, data)
+        text, held = notice(todo) if todo else ("", [])
         state = "busy" if ev == "UserPromptSubmit" or (stop and todo) else "idle"
-        write_state(store, name, state, ev, data)
+        write_state(store, name, state, ev, data, carried + [x["id"] for x in held])
         if not todo:
             return
-        text, held = notice(todo)
         for x in held:
             try:
                 store.add_event(x["id"], "seen", name)
@@ -835,8 +894,10 @@ def tmux(*args):
 
 
 def wake(hub, letter):
-    """Type the wake line into each live recipient's pane when it is idle, blocked on the answer, runs
-    Claude, has not seen the letter and was not woken for it. Returns the sessions woken."""
+    """Ty's yes on the Desk (desk-delivery c5): type the wake line into each live recipient's pane when
+    it is idle, runs Claude and has not been given the letter, blocked on the item or not. The line is
+    a prompt: its UserPromptSubmit hook gives the letter, and the Stop of that turn the rest (c2).
+    Never into a busy pane (c4). Returns (woken sessions, {session: why not})."""
     store = Store(hub)
     lid = letter["id"]
     events = store.events()
@@ -844,13 +905,11 @@ def wake(hub, letter):
     cmds = {x.strip() for x in (os.environ.get("DESK_WAKE_COMMANDS") or "claude").split(",") if x.strip()}
     c = connect(hub)
     try:
-        kbi = kb_items(c)
-        own = recipients(c, letter, kbi)
+        own = recipients(c, letter)
         live = active_sessions(c)
-        blocked = {s: blocked_on(c, letter, s, kbi) for s in own}
     finally:
         c.close()
-    woken = []
+    woken, nots = [], {}
     if not own:
         print(f"desk: wake {lid}: no recipient", file=sys.stderr)
     for s in own:
@@ -858,14 +917,10 @@ def wake(hub, letter):
         st = store.session_state(s) if SESSION_NAME.match(s) else None
         if s not in live:
             why = "not live"
-        elif ("woken", s) in done:
-            why = "already woken"
         elif ("seen", s) in done:
-            why = "already seen"
+            why = "already given the letter"
         elif not st or st.get("state") != "idle" or not st.get("tmux_pane"):
             why = "not idle in a known pane" if st else "no session state"
-        elif not blocked[s]:
-            why = "not blocked on this answer"
         if why is None:
             pane = st["tmux_pane"]
             try:
@@ -889,12 +944,15 @@ def wake(hub, letter):
                 else:
                     store.add_event(lid, "woken", s, pane)
                     woken.append(s)
+        if why is not None:
+            nots[s] = why
         print(f"desk: wake {lid} {s}: " + ("woken" if why is None else why), file=sys.stderr)
-    return woken
+    return woken, nots
 
 
 def cmd_wake(hub, a):
-    wake(hub, find_letter(Store(hub), a.lid))
+    woken, nots = wake(hub, find_letter(Store(hub), a.lid))
+    print(json.dumps({"woken": woken, "not": nots}))
 
 
 def cmd_hooks(hub, a):
