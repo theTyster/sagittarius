@@ -100,10 +100,26 @@ class InstallLink(unittest.TestCase):
         r = self.install("--check")
         self.assertRegex(r.stdout, r"ok +\S*skills.s1-glance")
 
+    def test_the_desk_toast_link(self):
+        """spec KB desk-letter-toast c9 (Ty: "link it like s1-glance"): the Desk toast mod loads in every
+        session, from its source beside desk.py."""
+        r = self.install()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        link = os.path.join(self.home, ".claude", "skills", "desk-toast")
+        self.assertTrue(os.path.islink(link))
+        src = os.path.join(ROOT, "hubkit", "hub", ".claude", "scripts", "desk-toast")
+        self.assertEqual(os.path.realpath(link), os.path.realpath(src))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.dirname(src), "desk.py")))
+        self.assertTrue(os.path.isfile(os.path.join(link, ".claude-plugin", "plugin.json")))
+        self.assertTrue(os.path.isfile(os.path.join(link, "hooks", "hooks.json")))
+        r = self.install("--check")
+        self.assertRegex(r.stdout, r"ok +\S*skills.desk-toast")
+
     def test_readme_names_the_links(self):
         flat = " ".join(read("README.md").split())
         self.assertNotIn("four links", flat)
         self.assertIn("~/.claude/sagittarius-s1", flat)
+        self.assertIn("~/.claude/skills/desk-toast", flat)
 
 
 class InstallSequence(unittest.TestCase):

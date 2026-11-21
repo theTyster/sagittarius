@@ -83,7 +83,10 @@ def case_real_kit(r):
     with open(os.path.join(KIT, "kit.json"), encoding="utf-8") as f:
         k = json.load(f)
     listed = k["engine"] + k["owned"]
-    on_disk = sorted(tree(os.path.join(KIT, "hub")))
+    # kit.json not_shipped: folders under hub/ that no install copies (the Desk toast mod: install.py
+    # of the Sagittarius checkout links it into ~/.claude/skills, spec KB desk-letter-toast c9).
+    skip = tuple(d.rstrip("/") + "/" for d in k.get("not_shipped", []))
+    on_disk = sorted(x for x in tree(os.path.join(KIT, "hub")) if not x.startswith(skip))
     r.check("real-kit-lists-every-file-once", sorted(listed) == on_disk and len(set(listed)) == len(listed),
             sorted(set(on_disk) ^ set(listed)))
     r.check("real-kit-claude-md-owned", "CLAUDE.md" in k["owned"] and "HUB-CORE.md" in k["engine"], k)
@@ -314,6 +317,24 @@ def case_iux_c3_copy_real_kit(r, root):
     res = hk(r, "install", "--kit", KIT, "--hub", ihub, "--edition", "informal")
     r.check("iux-c3-informal-has-no-copy", res[0] == 0 and not os.path.exists(os.path.join(ihub, ".claude", "orbit-kb"))
             and not any(k.startswith(".claude/orbit-kb/") for k in manifest(ihub).get("files", {})), res)
+
+
+# ---- the Desk toast mod (Sagittarius spec KB desk-letter-toast, c9) ----
+TOAST_SRC = os.path.join(KIT, "hub", ".claude", "scripts", "desk-toast")
+
+
+def case_desk_toast_c9(r, root):
+    """c9: the mod's source sits beside desk.py, and the kit copies it into no hub (install.py of the
+    Sagittarius checkout links it into ~/.claude/skills; s1/test_install.py tests that link)."""
+    r.check("toast-c9-source-beside-desk", os.path.isfile(os.path.join(KIT, "hub", ".claude", "scripts", "desk.py"))
+            and os.path.isfile(os.path.join(TOAST_SRC, ".claude-plugin", "plugin.json")), TOAST_SRC)
+    for ed in ("informal", "formal"):
+        hub = os.path.join(root, "toast-" + ed)
+        res = hk(r, "install", "--kit", KIT, "--hub", hub, "--edition", ed)
+        found = [os.path.join(b, d) for b, ds, _ in os.walk(hub) for d in ds if d == "desk-toast"]
+        files = manifest(hub).get("files", {}) if res[0] == 0 else {}
+        r.check(f"toast-c9-no-copy-in-hub-{ed}", res[0] == 0 and not found and not any("desk-toast" in f for f in files),
+                (res, found))
 
 
 def fake_repo(root, name, version, okb_text):
@@ -547,6 +568,7 @@ def cases(r):
         case_iux_c6_uat(r, root)
         case_k3_mindhole_version(r, root)
         case_030_m_d_2_runs(r, root)
+        case_desk_toast_c9(r, root)
         if r.script == REAL:  # it tests hubflow-test.py, not hubkit.py: the mutants of hubkit.py do not change it
             case_u2_mutants_stream(r)
     except Exception as e:
