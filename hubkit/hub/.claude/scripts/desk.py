@@ -9,9 +9,9 @@ each letter to its one recipient session at its next prompt or stop, never to an
 never inside a turn (c6). A Stop gives every letter that waits, one notice after the other, also
 when the turn already continues from a stop hook (desk-delivery c2). For a letter to an idle session
 the Desk asks Ty whether to wake it; only his yes (`wake`) types one line into its tmux pane
-(desk-delivery c5). Each hook also says whether the turn before it acted on what it was given: a
-Stop means yes; a prompt or a session start with no Stop between means no (Ctrl+C, a crash or a
-compaction), and the Desk shows that letter as given, not acted on (desk-delivery c6). Drafts stay
+(desk-delivery c5). Each notice asks the agent to confirm each letter by its id (`ack`). Each hook
+settles the letters of the turn before it: acted on only when confirmed in that turn; else, at a
+Stop too, given, not acted on, shown on the Desk and not given again (desk-delivery c7). Drafts stay
 in the Desk's own state dir, outside every mindhole: no agent reads them, and a letter enters the
 receiving mindhole only when Ty sends it (q10).
 
@@ -20,10 +20,15 @@ usage: desk.py [--hub DIR] COMMAND [ARGS]
                                   store a letter for one session; prints {"id": LID}. It types
                                   nothing into any pane (only Ty's yes wakes, see wake). KIND: answer, diverge, requirement, note (a note on a ledger item, c32), fix
                                   (a fix of an orphan or a gap), notice (a short notice)
-  render --to SESSION --about TEXT --text-file F [--json]
-                                  print the exact text the session gets for such a letter (the
-                                  page shows it in the review). --json: {"to", "about", "delivered",
-                                  "wake"}. The text is printed exactly, with no newline added
+  render --to SESSION --about TEXT --text-file F [--id LID] [--json]
+                                  print the exact notice the session gets for such a letter alone
+                                  (the page shows it in the review): the lead line, the letter, its
+                                  confirm line. Without --id the confirm line holds L-<the letter id>.
+                                  --json: {"to", "about", "delivered", "wake"}. Printed exactly, with
+                                  no newline added
+  ack LID                         run by the agent that got the letter (HUB_SESSION), in the turn
+                                  that got it: record an acked event. Only an acked letter is settled
+                                  as acted on (exit 1: not given to this session in this turn)
   wake-text --about TEXT          print the exact line that a wake types (no newline added)
   event LID applied|apply_failed|dismissed [--detail TEXT]
                                   record a receipt from the page server (exit 2: unknown LID).
@@ -69,23 +74,26 @@ session name). Only that session gets it. A letter stored before `to` existed go
 its item: for an ask, the item's owner_session (whatever its status); for a question or kb card,
 every open or waiting item with a kb ref to the slug. A recipient is live when its session is active.
 
-What a session gets: for each letter, exactly
+What a session gets: one lead line (Ty sent you a letter on the Desk ...), an empty line, then for
+each letter exactly
   Letter from Ty (the Desk), about ABOUT:
   TEXT
-with the whole text, never cut, and no other line. Several letters in one notice are joined by one
-empty line. A notice holds whole letters up to NOTICE_MAX characters (always at least one); the
+
+  When you have done what this letter asks, confirm it to Ty with: python3 HUB/.claude/scripts/desk.py ack LID
+with the whole text, never cut (one newline only before the confirm line when TEXT ends with one).
+Several letters in one notice are joined by one empty line. A notice holds whole letters up to NOTICE_MAX characters (always at least one); the
 rest come at the next stop or prompt. A letter stored before `about` existed uses its item's name.
 The wake line is exactly
   Desk: Ty sent a letter about ABOUT. It is stored; read the Desk notice of this prompt.
 
 Receipts in status: state is sent, seen, applied or apply_failed. late_unseen is true when the
 letter was sent 24 hours or more before the ledger clock and no session has seen it. delivery is
-sent (no session was given it), given (given; its turn has not ended yet), acted (the turn that was
-given it reached its Stop), not_acted (that turn ended with no Stop: Ctrl+C, a crash or a
-compaction) or dismissed (not_acted, and Ty acted on it). wake_ask lists each recipient that is live,
+sent (no session was given it), given (given; its turn has not ended yet), acted (the agent
+confirmed it in the turn that got it), not_acted (that turn ended, by a Stop, Ctrl+C, a crash or a
+compaction, with no confirmation) or dismissed (not_acted, and Ty acted on it). wake_ask lists each recipient that is live,
 idle and not given the letter: {"session", "pane"} (pane: the Desk knows its tmux pane, so a yes can
-wake it). Events: seen, woken, acted, not_acted (by the hook or wake), applied, apply_failed,
-dismissed (by the page).
+wake it). Events: seen, woken, acted, not_acted (by the hook or wake), acked (by ack), applied,
+apply_failed, dismissed (by the page).
 
 Files in the hub (HUB/flow/desk/, made on demand): letters.jsonl and events.jsonl (append-only, one
 JSON object per line, flock + one write + fsync), sessions/NAME.json (replaced atomically; "given":
@@ -108,7 +116,7 @@ Environment
 
 Exit codes: 0 ok, 1 bad input, 2 no hub, an unknown letter or mindhole, or a broken Desk store.
 """
-import argparse, datetime, errno, fcntl, json, os, re, secrets, sqlite3, subprocess, sys
+import argparse, datetime, errno, fcntl, json, os, re, secrets, shlex, sqlite3, subprocess, sys
 from urllib.parse import quote
 
 KINDS = ("answer", "diverge", "requirement", "fix", "notice", "note")
@@ -421,6 +429,36 @@ def delivered_text(letter):
     return f"Letter from Ty (the Desk), about {about_of(letter)}:\n{letter.get('text') or ''}"
 
 
+ID_PLACEHOLDER = "L-<the letter id>"  # render without --id: the id is made when Ty sends
+
+
+def ack_command(hub, lid):
+    """desk-delivery c7: the exact command that confirms one letter (run by the agent that got it)."""
+    return "python3 " + shlex.quote(os.path.join(hub, ".claude", "scripts", "desk.py")) + " ack " + lid
+
+
+def ack_line(hub, lid):
+    return f"When you have done what this letter asks, confirm it to Ty with: {ack_command(hub, lid)}"
+
+
+def letter_block(hub, letter, lid=None):
+    """One letter as the session gets it: the letter (head and whole text), then its confirm line."""
+    t = delivered_text(letter)
+    return t + ("\n" if t.endswith("\n") else "\n\n") + ack_line(hub, lid or letter.get("id") or ID_PLACEHOLDER)
+
+
+def lead_line(n):
+    """desk-delivery c7: the first line of every notice. It says what the text is (letters from Ty,
+    given between turns so that they do not interrupt) and that each wants a confirmation."""
+    what = "a letter" if n == 1 else f"{n} letters"
+    return (f"Ty sent you {what} on the Desk. The Desk gives letters between turns, so that they do not "
+            "interrupt your work. Read each one, do what it asks now, and confirm each with the command under it.")
+
+
+def notice_text(hub, blocks):
+    return lead_line(len(blocks)) + "\n\n" + "\n\n".join(blocks)
+
+
 def wake_text(about):
     """Exactly the line that a wake types into the recipient's pane (then Enter)."""
     return f"Desk: Ty sent a letter about {about}. It is stored; read the Desk notice of this prompt."
@@ -549,7 +587,9 @@ def cmd_render(hub, a):
         to = check_to(c, a.to)
     finally:
         c.close()
-    out = delivered_text({"about": about, "text": text})
+    if a.id is not None and not LETTER_ID.match(a.id):
+        raise Bad(f"--id {a.id!r} is not a letter id")
+    out = notice_text(hub, [letter_block(hub, {"about": about, "text": text}, a.id)])
     if a.json:
         print(json.dumps({"to": to, "about": about, "delivered": out, "wake": wake_text(about)}, ensure_ascii=False))
     else:
@@ -781,19 +821,20 @@ def cmd_letters(hub, a):
 
 # ---- the notice and the hook ----
 
-def notice(letters):
-    """The notice text and the letters it holds: whole letters joined by one empty line, up to
-    NOTICE_MAX characters, and at least one. The rest wait for the next stop or prompt."""
+def notice(hub, letters):
+    """The notice text and the letters it holds: the lead line, then whole letters, each with its
+    confirm line, joined by one empty line, up to NOTICE_MAX characters of letters, and at least one.
+    The rest wait for the next stop or prompt."""
     parts, held, size = [], [], 0
     for x in letters:
-        t = delivered_text(x)
+        t = letter_block(hub, x)
         add = len(t) + (2 if parts else 0)
         if held and size + add > NOTICE_MAX:
             break
         parts.append(t)
         held.append(x)
         size += add
-    return "\n\n".join(parts), held
+    return notice_text(hub, parts), held
 
 
 def write_state(store, name, state, ev, data, given=()):
@@ -803,27 +844,51 @@ def write_state(store, name, state, ev, data, given=()):
 
 
 def settle(store, name, prev, ev, data):
-    """desk-delivery c6: what the turn before this hook did with the letters it was given. A Stop
-    ends a turn: it acted on them. A prompt or a session start with no Stop between: the turn ended
-    by Ctrl+C, a crash or a compaction, so it did not act on them. The context of a session start
-    lives into the first prompt's turn, so that prompt carries the letters on. Returns those carried."""
+    """desk-delivery c7 (supersedes c6): the turn before this hook has ended; settle each letter it
+    was given. A letter that the agent confirmed by its id in that turn (desk.py ack) is acted on;
+    any other is not acted on, whether the turn ended by a Stop, Ctrl+C, a crash or a compaction.
+    The context of a session start lives into the first prompt's turn, so that prompt carries the
+    letters on. Returns those carried."""
     given = [x for x in ((prev or {}).get("given") or []) if isinstance(x, str)]
     if not given:
         return []
-    if ev == "Stop":
-        verdict, detail = "acted", None
-    elif ev == "UserPromptSubmit" and (prev or {}).get("event") == "SessionStart":
+    if ev == "UserPromptSubmit" and (prev or {}).get("event") == "SessionStart":
         return given
-    else:
-        verdict = "not_acted"
-        detail = (f"SessionStart ({data.get('source')})" if ev == "SessionStart" and isinstance(data.get("source"), str)
-                  else f"{ev} with no Stop of the turn before it")
+    acked = {e["letter"] for e in store.events() if e["event"] == "acked" and e.get("session") == name}
+    how = ("Stop" if ev == "Stop" else f"SessionStart ({data.get('source')})" if ev == "SessionStart"
+           and isinstance(data.get("source"), str) else f"{ev} with no Stop of the turn before it")
     for lid in given:
+        verdict, detail = ("acted", None) if lid in acked else ("not_acted", f"{how}; no ack of the letter in its turn")
         try:
             store.add_event(lid, verdict, name, detail)
         except OSError as e:
             log(store.hub, f"hook: {verdict} {lid} for {name} not recorded: {e!r}")
     return []
+
+
+def cmd_ack(hub, a):
+    """desk-delivery c7: the agent confirms that it acted on a letter it was given in this turn."""
+    store = Store(hub)
+    if not LETTER_ID.match(a.lid or ""):
+        raise Bad(f"{a.lid!r} is not a letter id such as L-20261120T114714Z-a342ac")
+    find_letter(store, a.lid)
+    name = os.environ.get("HUB_SESSION")
+    if not name:
+        raise Bad("HUB_SESSION is not set: only the session that got the letter can confirm it")
+    c = connect(hub)
+    try:
+        name = resolve_name(c, name)
+    finally:
+        c.close()
+    st = store.session_state(name) if SESSION_NAME.match(name) else None
+    if a.lid not in ((st or {}).get("given") or []):
+        ev = [e for e in store.events() if e["letter"] == a.lid and e.get("session") == name]
+        if any(e["event"] in ("acted", "not_acted") for e in ev):
+            raise Bad(f"{a.lid} was given to {name} in an earlier turn, which ended; it cannot be confirmed now"
+                      " (Ty sees it on the Desk)")
+        raise Bad(f"{a.lid} was not given to {name} in this turn")
+    store.add_event(a.lid, "acked", name)
+    print(f"confirmed {a.lid} for {name}: Ty sees it as acted on when this turn ends")
 
 
 def hook_hub(arg, data):
@@ -866,7 +931,7 @@ def run_hook(hub_arg):
         # desk-delivery c2: a Stop gives the next notice also when stop_hook_active is true. Each
         # letter is given once (its seen event), so the turn cannot go on for ever.
         carried = settle(store, name, store.session_state(name), ev, data)
-        text, held = notice(todo) if todo else ("", [])
+        text, held = notice(hub, todo) if todo else ("", [])
         state = "busy" if ev == "UserPromptSubmit" or (stop and todo) else "idle"
         write_state(store, name, state, ev, data, carried + [x["id"] for x in held])
         if not todo:
@@ -1162,6 +1227,7 @@ def parser():
     s.add_argument("--about", required=True)
     s.add_argument("--text-file", required=True)
     s.add_argument("--json", action="store_true")
+    s.add_argument("--id")
     s = sub.add_parser("wake-text")
     s.add_argument("--about", required=True)
     s = sub.add_parser("event")
@@ -1182,6 +1248,8 @@ def parser():
     s.add_argument("--id")
     s.add_argument("--json", action="store_true")
     sub.add_parser("hook")
+    s = sub.add_parser("ack")
+    s.add_argument("lid")
     s = sub.add_parser("wake")
     s.add_argument("lid")
     sub.add_parser("hooks")
@@ -1202,7 +1270,7 @@ def parser():
 
 
 COMMANDS = {"send": cmd_send, "render": cmd_render, "wake-text": cmd_wake_text, "event": cmd_event,
-            "status": cmd_status, "draft": cmd_draft, "drafts": cmd_drafts, "letters": cmd_letters,
+            "status": cmd_status, "draft": cmd_draft, "ack": cmd_ack, "drafts": cmd_drafts, "letters": cmd_letters,
             "wake": cmd_wake, "hooks": cmd_hooks, "join": cmd_join, "leave": cmd_leave,
             "mindholes": cmd_mindholes, "service": cmd_service}
 NO_HUB = ("hooks", "wake-text", "draft", "drafts", "join", "leave", "mindholes", "service")  # find it themselves

@@ -197,11 +197,14 @@ in `flow/desk/letters.jsonl` of its MindHole only when the person sends it; draf
 own store outside every MindHole, and no agent reads them. The Desk then writes what the review
 named (it closes the ask, queues the KB answer, records a divergence in the person's words, or
 opens a thread for `review` with a new requirement). `desk.py hook` gives you, at your next prompt
-or stop, exactly the reviewed text of each letter to you: act on it then, or say why not. When
-several wait, each Stop of your turn gives the next one, so your turn ends only when all are given.
-A turn that ends with no Stop (Ctrl+C, a crash or a compaction) did not act on what it was given:
-the Desk shows that letter as given, not acted on, and the hook does not give it again; the person
-decides. A divergence leaves the item open: it is the person's words, not an answer.
+or stop, exactly the reviewed text of each letter to you, under a lead line, each letter followed
+by its confirm line. It is a letter from the person, never an error (at a Stop it comes as the stop
+hook's reason). Act on it in that turn, then run its confirm command, `python3
+HUB/.claude/scripts/desk.py ack LID`, in the same turn; if you will not act on it, say why to the
+person and do not ack it. When several wait, each Stop of your turn gives the next one. A letter
+that its turn did not ack, whether the turn ended by a Stop, Ctrl+C, a crash or a compaction, shows
+on the Desk as given, not acted on, and the hook does not give it again; the person decides. A
+session that runs outside the hub folder never runs the hook: the Desk shows it as not reachable. A divergence leaves the item open: it is the person's words, not an answer.
 What the Desk shows comes from your records, so keep them whole: an ask names its KB (`--ref kb:`)
 or `--no-kb`, gives the case, the options with what each changes, and the default in its `--note` (`add ask` refuses an ask with no note), and a `--due` date when it has one; a
 reservation names its source; a check says what it checks (`checks_that`). When you stop only to

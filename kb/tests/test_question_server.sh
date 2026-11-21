@@ -66,6 +66,7 @@
 # hub spec KB desk-delivery (2026-11-20):
 #   c5 the Desk asks Ty whether to wake an idle session; on yes the letter is given in 60 s  : QS75
 #   c6 h1 given, not acted on (Ctrl+C, crash, compaction): not given again, shown until Ty acts : QS76
+#   c8 a session that never ran the Desk hook: not reachable on the card and in the review   : QS77
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -1556,8 +1557,12 @@ t_QS51() {  # Desk c20: nothing reaches a session that Ty did not see: every sen
     [ ! -s "$T/h/flow/desk/letters.jsonl" ] || note "a letter went to a session the review did not show"
     post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=answer 'text=Use port 8800' 'letter_0=Use port 8800, and say why if not. Edited by Ty.' to_0=build; code_is 303 "send"
     printf '%s' 'Use port 8800, and say why if not. Edited by Ty.' > "$T/edited.txt"
-    local want; want=$(dpy "$T/h" render --to build --about "$(python3 -I -c 'import json,sys; t=json.load(open(sys.argv[1]))["letters"][0]["head"]; print(t[len("Letter from Ty (the Desk), about "):-1])' "$T/review.json")" --text-file "$T/edited.txt")
-    case "$want" in "$head"*) ;; *) note "the review head is not what the session gets: $(snip "$head") vs $(snip "$want")";; esac
+    local lid; lid=$(python3 -I -c 'import json,sys; print([json.loads(x) for x in open(sys.argv[1]) if x.strip()][-1]["id"])' "$T/h/flow/desk/letters.jsonl")
+    # desk-delivery c7: the notice is the lead line, the letter, and its confirm line with the letter's id
+    local want; want=$(dpy "$T/h" render --to build --about "$(python3 -I -c 'import json,sys; t=json.load(open(sys.argv[1]))["letters"][0]["head"]; print(t[len("Letter from Ty (the Desk), about "):-1])' "$T/review.json")" --text-file "$T/edited.txt" --id "$lid")
+    case "$want" in *"$head"*) ;; *) note "the review head is not what the session gets: $(snip "$head") vs $(snip "$want")";; esac
+    python3 -I -c 'import html,sys; p=open(sys.argv[1]).read(); w=sys.argv[2]; sys.exit(0 if html.escape(w.split(chr(10))[0], quote=False) in p and "confirm it to Ty with" in p else 1)' "$T/review.html" "$want" \
+      || note "the review does not show the lead line and the confirm line that the session gets"
     local about wake; about=$(python3 -I -c 'import json,sys; t=json.load(open(sys.argv[1]))["letters"][0]["head"]; print(t[len("Letter from Ty (the Desk), about "):-1])' "$T/review.json")
     wake=$(dpy "$T/h" wake-text --about "$about")
     python3 -I -c 'import html,sys; sys.exit(0 if html.escape(sys.argv[2], quote=False) in open(sys.argv[1]).read() else 1)' "$T/review.html" "$wake" \
@@ -2208,6 +2213,7 @@ t_QS76() {  # desk-delivery c6 (and h1): a letter given but not acted on (Ctrl+C
     hookev "$T/h" build SessionStart '"source":"compact"'
     grep -q 'three: a compaction' "$T/hook.out" && note "compaction: L3 was given again"
     L4=$(sendl 'four: a whole turn'); hookev "$T/h" build UserPromptSubmit '"prompt":"go on"'
+    ( cd "$T/h" && HUB_SESSION=build python3 -I .claude/scripts/desk.py ack "$L4" ) >/dev/null 2>&1   # c7: acted on needs the agent's ack
     hookev "$T/h" build Stop '"stop_hook_active":false'
     hookev "$T/h" build UserPromptSubmit '"prompt":"next"'
     [ -s "$T/hook.out" ] && note "a letter was given again at the next turn: $(snip "$(cat "$T/hook.out")")"
@@ -2230,6 +2236,31 @@ sys.exit(0 if m and 'given, not acted on' in m.group(1).lower() and 'build' in m
     post /dismiss "token=$tok" "hub=$T/h" "letter=$L4"; [ "$CODE" = 409 ] || note "POST /dismiss of a letter that was acted on: HTTP $CODE, want 409"
 }
 
+t_QS77() {  # desk-delivery c8: a letter to a session that never ran the Desk hook shows not reachable on its card and in the review, not sent; once it runs the hook it gets the letter
+    desk_hub "$T/h"; local A B tok L
+    dpy "$T/h" hooks > "$T/h/.claude/settings.json"   # the hooks are installed; build just never runs them
+    A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
+    B=$(hf "$T/h" --session discovery add ask --no-kb --title 'Which colour for the band' --note 'Case: the colour. Options: amber or teal. Default: teal.' --waits-on me)
+    hookev "$T/h" discovery SessionStart '"source":"startup"'   # discovery runs the hook; build never does
+    srvd --hub "$T/h" || return; page_ok || return
+    tok=$(pg dtoken "$T/page.html")
+    review "token=$tok" "hub=$T/h" "item=ask:$A" intent=note 'text=Use port 8800'; code_is 200 "the review"
+    grep -q 'not reachable: no Desk hook runs in build' "$T/review.html" || note "the review does not say that build is not reachable"
+    review "token=$tok" "hub=$T/h" "item=ask:$B" intent=note 'text=Teal'; code_is 200 "the review of B"
+    grep -q 'not reachable' "$T/review.html" && note "the review marks discovery (which runs the hook) not reachable"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=note 'text=Use port 8800' 'letter_0=Use port 8800' to_0=build; code_is 303 "send to build"
+    post /send "token=$tok" "hub=$T/h" "item=ask:$B" intent=note 'text=Teal' 'letter_0=Teal' to_0=discovery; code_is 303 "send to discovery"
+    page_ok || return
+    chk dcard "$T/page.html" "ask-$A" 'not reachable: no Desk hook runs in build' '!sent to build'
+    chk dcard "$T/page.html" "ask-$B" 'sent to discovery' '!not reachable'
+    L=$(python3 -I -c 'import json,sys; print([json.loads(x) for x in open(sys.argv[1]) if x.strip() and "build" in x][-1]["id"])' "$T/h/flow/desk/letters.jsonl")
+    hookev "$T/h" build SessionStart '"source":"startup"'          # build starts at the hub root: the hook runs
+    hookev "$T/h" build UserPromptSubmit '"prompt":"go on"'
+    grep -q 'Use port 8800' "$T/hook.out" || evq "$T/h" "[e for e in ev if e['letter']=='$L' and e['event']=='seen' and e['session']=='build']" || note "build did not get its waiting letter once it ran the hook"
+    page_ok || return
+    chk dcard "$T/page.html" "ask-$A" '!not reachable'
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -2242,6 +2273,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 76); do run_one QS$n; done
+for n in $(seq 1 77); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

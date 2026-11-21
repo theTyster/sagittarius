@@ -29,10 +29,11 @@ MUTANTS = [
     ("deliver-to-non-recipient", "if x[\"id\"] not in seen and name in recipients(c, x, kbi)]", "if x[\"id\"] not in seen]"),
     ("hook-ignores-to", "return [to] if to else owners(c, letter, kbi)", "return owners(c, letter, kbi)"),
     ("delivery-cuts-text", "{letter.get('text') or ''}", "{(letter.get('text') or '')[:1000]}"),
-    ("render-differs-from-delivery", "out = delivered_text({\"about\": about, \"text\": text})",
-     "out = delivered_text({\"about\": about, \"text\": text.strip()})"),
+    ("render-differs-from-delivery", "out = notice_text(hub, [letter_block(hub, {\"about\": about, \"text\": text}, a.id)])",
+     "out = notice_text(hub, [letter_block(hub, {\"about\": about, \"text\": text.strip()}, a.id)])"),
     ("notice-drops-a-long-letter", "if held and size + add > NOTICE_MAX:", "if size + add > NOTICE_MAX:"),
-    ("notice-joins-with-one-newline", "return \"\\n\\n\".join(parts), held", "return \"\\n\".join(parts), held"),
+    ("notice-joins-with-one-newline", "    return lead_line(len(blocks)) + \"\\n\\n\" + \"\\n\\n\".join(blocks)",
+     "    return lead_line(len(blocks)) + \"\\n\\n\" + \"\\n\".join(blocks)"),
     ("wake-types-other-line", "line = wake_text(about_of(letter))", "line = wake_text(item_name(letter))"),
     ("send-to-unchecked", "    if s is None:\n        raise Bad(f\"--to", "    if False:\n        raise Bad(f\"--to"),
     ("late-unseen-threshold", "LATE_SECONDS = 24 * 3600", "LATE_SECONDS = 26 * 3600"),
@@ -57,8 +58,13 @@ MUTANTS = [
     ("send-wakes-again", "    # desk-delivery c5: no wake here.", "    wake(hub, letter)  # desk-delivery c5: no wake here."),
     ("wake-after-given", "        elif (\"seen\", s) in done:\n", "        elif False:\n"),
     ("stop-hook-active-guard-back", "        carried = settle(", "        todo = [] if stop and data.get(\"stop_hook_active\") is True else todo\n        carried = settle("),
-    ("interrupt-counts-as-acted", "        verdict = \"not_acted\"\n", "        verdict = \"acted\"\n"),
-    ("start-context-not-carried", "    elif ev == \"UserPromptSubmit\" and (prev or {}).get(\"event\") == \"SessionStart\":", "    elif False:"),
+    ("unacked-counts-as-acted", "verdict, detail = (\"acted\", None) if lid in acked else", "verdict, detail = (\"acted\", None) if True else"),
+    ("ack-in-any-turn", "    if a.lid not in ((st or {}).get(\"given\") or []):", "    if False:"),
+    ("notice-no-ack-command", "    return f\"When you have done what this letter asks, confirm it to Ty with: {ack_command(hub, lid)}\"",
+     "    return \"When you have done what this letter asks, tell Ty.\""),
+    ("notice-no-lead", "    return lead_line(len(blocks)) + \"\\n\\n\" + \"\\n\\n\".join(blocks)", "    return \"\\n\\n\".join(blocks)"),
+    ("ack-not-recorded", "    store.add_event(a.lid, \"acked\", name)", "    pass"),
+    ("start-context-not-carried", "    if ev == \"UserPromptSubmit\" and (prev or {}).get(\"event\") == \"SessionStart\":", "    if False:"),
     ("not-acted-given-again", "            seen = {e[\"letter\"] for e in store.events() if e[\"event\"] == \"seen\" and e.get(\"session\") == name}",
      "            seen = {e[\"letter\"] for e in store.events() if e[\"event\"] == \"acted\" and e.get(\"session\") == name}"),
     ("wake-ask-for-busy", "            if idle:\n                wake_ask.append", "            if True:\n                wake_ask.append"),
@@ -176,6 +182,25 @@ def put_letter(h, **fields):
 def delivered(about, text):
     """The rule of delivered_text, written out here so that the test does not use desk.py's own."""
     return f"Letter from Ty (the Desk), about {about}:\n{text}"
+
+
+def lead(n):
+    """desk-delivery c7: the first line of each notice, written out here."""
+    what = "a letter" if n == 1 else f"{n} letters"
+    return (f"Ty sent you {what} on the Desk. The Desk gives letters between turns, so that they do not "
+            "interrupt your work. Read each one, do what it asks now, and confirm each with the command under it.")
+
+
+def block(h, about, text, lid):
+    """One letter in a notice: the letter, then its confirm line with the exact ack command (c7)."""
+    t = delivered(about, text)
+    return (t + ("\n" if t.endswith("\n") else "\n\n") + "When you have done what this letter asks, confirm it to Ty with: python3 "
+            + os.path.join(h, ".claude", "scripts", "desk.py") + " ack " + lid)
+
+
+def noticed(h, *blocks):
+    """A whole notice: the lead line, then the letters joined by one empty line."""
+    return lead(len(blocks)) + "\n\n" + "\n\n".join(blocks)
 
 
 def ctx_of(out):
@@ -495,7 +520,7 @@ def case_hook(r, root):
         o = json.loads(out)
         ctx = o["hookSpecificOutput"]["additionalContext"]
         ok = o["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit" \
-            and ctx == delivered("question 2 of the ask " + a, "Use SQLite, not Postgres.\n")
+            and ctx == noticed(h, block(h, "question 2 of the ask " + a, "Use SQLite, not Postgres.\n", lid))
     except (ValueError, KeyError) as e:
         ok, ctx = False, repr(e)
     r.check("hook-prompt-recipient-gets-exact-text", code == 0 and ok, (out, err))
@@ -513,7 +538,7 @@ def case_hook(r, root):
     code, out, err = hook(h, "discovery", "Stop", extra={"stop_hook_active": False})
     try:
         o = json.loads(out)
-        ok = o["decision"] == "block" and o["reason"] == delivered("the ask " + a, "One more thing.")
+        ok = o["decision"] == "block" and o["reason"] == noticed(h, block(h, "the ask " + a, "One more thing.", l2))
     except (ValueError, KeyError):
         ok = False
     r.check("hook-stop-blocks", code == 0 and ok and events(h, "seen")[-1]["letter"] == l2, out)
@@ -523,7 +548,7 @@ def case_hook(r, root):
     l2b = send(h, root, ask_item(a), "And a third thing.", kind="note")
     code, out, err = hook(h, "discovery", "Stop", extra={"stop_hook_active": True})
     r.check("hook-stop-active-gives-the-rest", code == 0 and out.strip() != "" and json.loads(out).get("decision") == "block"
-            and json.loads(out)["reason"] == delivered("the ask " + a, "And a third thing.")
+            and json.loads(out)["reason"] == noticed(h, block(h, "the ask " + a, "And a third thing.", l2b))
             and events(h, "seen")[-1]["letter"] == l2b, out)
     code, out, err = hook(h, "discovery", "Stop", extra={"stop_hook_active": True})
     sj = json.load(open(os.path.join(h, "flow", "desk", "sessions", "discovery.json")))
@@ -536,7 +561,7 @@ def case_hook(r, root):
     code, out, err = hook(h, "build", "SessionStart")
     try:
         ctx = json.loads(out)["hookSpecificOutput"]["additionalContext"]
-        ok = ctx == delivered("q3 in the KB y", "b: y answer") \
+        ok = ctx == noticed(h, block(h, "q3 in the KB y", "b: y answer", l3)) \
             and json.loads(out)["hookSpecificOutput"]["hookEventName"] == "SessionStart"
     except (ValueError, KeyError):
         ok = False
@@ -551,10 +576,10 @@ def case_hook(r, root):
     code, out, err = hook(h, "discovery", "UserPromptSubmit")
     r.check("hook-fix-not-to-the-owner", out == "", out)
     code, out, err = hook(h, "process", "UserPromptSubmit")
-    r.check("hook-fix-to-non-owner", out != "" and ctx_of(out) == delivered("the ask " + a, "Fix: take A-0001 over."), out)
+    r.check("hook-fix-to-non-owner", out != "" and ctx_of(out) == noticed(h, block(h, "the ask " + a, "Fix: take A-0001 over.", lf)), out)
     lo = put_letter(h, item=q_item("y"), text="an old letter")
     code, out, err = hook(h, "build", "UserPromptSubmit")
-    r.check("hook-old-letter-owner-rule", out != "" and ctx_of(out) == delivered("specs/y q3", "an old letter"), out)
+    r.check("hook-old-letter-owner-rule", out != "" and ctx_of(out) == noticed(h, block(h, "specs/y q3", "an old letter", lo)), out)
     n = len(events(h))
     code, out, err = hook(h, None, "UserPromptSubmit")
     r.check("hook-no-hub-session-silent", code == 0 and out == "" and err == "" and len(events(h)) == n, (code, out, err))
@@ -586,13 +611,13 @@ def case_notice(r, root):
         short.append((send(h, root, ask_item(a), t, about=f"letter {i}"), t))
     code, out, err = hook(h, "discovery", "UserPromptSubmit")
     ctx = ctx_of(out)
-    r.check("notice-long-letter-whole-alone", ctx == delivered("the long one", long_text), ctx[-200:])
+    r.check("notice-long-letter-whole-alone", ctx == noticed(h, block(h, "the long one", long_text, long_id)), ctx[-200:])
     r.check("notice-one-letter-seen", [e["letter"] for e in events(h, "seen")] == [long_id], events(h))
     code, out, err = hook(h, "discovery", "UserPromptSubmit")
     ctx = ctx_of(out)
     n = len(events(h, "seen")) - 1
-    want = "\n\n".join(delivered(f"letter {i}", t) for i, (_, t) in enumerate(short[:n]))
-    r.check("notice-whole-letters-joined", 1 < n < 12 and ctx == want and len(ctx) <= 1500
+    want = noticed(h, *[block(h, f"letter {i}", t, x) for i, (x, t) in enumerate(short[:n])])
+    r.check("notice-whole-letters-joined", 1 < n < 12 and ctx == want and len(ctx) - len(lead(n)) - 2 <= 1500
             and [e["letter"] for e in events(h, "seen")][1:] == [x for x, _ in short[:n]], (n, ctx[:300]))
     for _ in range(13):
         code, out, err = hook(h, "discovery", "UserPromptSubmit")
@@ -611,10 +636,11 @@ def case_render(r, root):
     text = "Use SQLite.\n\n" + "Because " * 500 + "\n"
     tf = text_file(root, text)
     code, out, err = desk(h, "render", "--to", "helpdesk", "--about", "the database of " + a, "--text-file", tf)
-    r.check("render-is-exact", code == 0 and out == delivered("the database of " + a, text), (code, out[:200], err))
+    r.check("render-is-exact", code == 0 and out == noticed(h, block(h, "the database of " + a, text, "L-<the letter id>")), (code, out[:200], err))
     lid = send(h, root, ask_item(a), text, to="helpdesk", about="the database of " + a)
     code, hout, err = hook(h, "support", "UserPromptSubmit")
-    r.check("render-equals-delivery", hout != "" and ctx_of(hout) == out, hout[:200])
+    code, rid, err = desk(h, "render", "--to", "helpdesk", "--about", "the database of " + a, "--text-file", tf, "--id", lid)
+    r.check("render-equals-delivery", hout != "" and ctx_of(hout) == rid and rid == out.replace("L-<the letter id>", lid), hout[:200])
     code, jout, err = desk(h, "render", "--to", "helpdesk", "--about", "the database of " + a, "--text-file", tf, "--json")
     j = {}
     try:
@@ -953,7 +979,7 @@ def case_c2_batch(r, root):
     hook(h, "build", "UserPromptSubmit")  # build is in a turn
     texts = [(f"letter {i}: " + "abcdefghij" * 80)[:800] for i in range(3)]
     ids = [send(h, root, ask_item(a), t, to="build", about=f"part {i} of the port") for i, t in enumerate(texts)]
-    want = [delivered(f"part {i} of the port", t) for i, t in enumerate(texts)]
+    want = [noticed(h, block(h, f"part {i} of the port", t, x)) for i, (t, x) in enumerate(zip(texts, ids))]
     got = stops(h, "build")
     r.check("c2-batch-every-letter-before-idle", len(got) == 3 and got == want, [g[:60] for g in got])
     seen = [e["letter"] for e in events(h) if e["event"] == "seen"]
@@ -965,7 +991,8 @@ def case_c2_batch(r, root):
     ids2 = [send(h, root, ask_item(a), t, to="discovery", about=f"part {i} of the port") for i, t in enumerate(texts)]
     code, out, err = hook(h, "discovery", "UserPromptSubmit")
     got = ([ctx_of(out)] if out.strip() else []) + stops(h, "discovery")
-    r.check("c2-idle-one-prompt-gives-all", "\n\n".join(got) == "\n\n".join(want), [g[:60] for g in got])
+    want2 = [noticed(h, block(h, f"part {i} of the port", t, x)) for i, (t, x) in enumerate(zip(texts, ids2))]
+    r.check("c2-idle-one-prompt-gives-all", got == want2, [g[:60] for g in got])
     seen = [e["letter"] for e in events(h) if e["event"] == "seen" and e["session"] == "discovery"]
     r.check("c2-idle-oldest-first", seen == ids2, seen)
 
@@ -999,7 +1026,7 @@ def case_c4_busy(r, root):
         r.check("c4-nothing-mid-turn-" + ev, out == "" and not [e for e in events(h) if e["event"] == "seen"], out)
     code, out, err = hook(h, "build", "Stop", env={"TMUX_PANE": "%4"})
     r.check("c4-given-at-stop", out.strip() != "" and json.loads(out).get("decision") == "block"
-            and json.loads(out)["reason"] == delivered("the ask " + a, "A note while you run the check."), out)
+            and json.loads(out)["reason"] == noticed(h, block(h, "the ask " + a, "A note while you run the check.", lid)), out)
 
 
 def case_c6_settle(r, root):
@@ -1030,12 +1057,14 @@ def case_c6_settle(r, root):
     r.check("c6-compact-not-given-again", "three: compaction" not in out and deliv(l3) == "not_acted", (out, deliv(l3)))
     l4 = send(h, root, ask_item(a), "four: a whole turn", to="build")
     hook(h, "build", "UserPromptSubmit")
+    desk(h, "ack", l4, env={"HUB_SESSION": "build"})  # c7: the agent confirms it
     stops(h, "build")
     r.check("c6-whole-turn-acted", deliv(l4) == "acted", deliv(l4))
     l5 = send(h, root, ask_item(a), "five: at session start", to="build")
     hook(h, "build", "SessionStart", extra={"source": "startup"})
     hook(h, "build", "UserPromptSubmit")  # the first prompt of the session: the start context lives on
     r.check("c6-start-context-lives-into-first-turn", deliv(l5) == "given", deliv(l5))
+    desk(h, "ack", l5, env={"HUB_SESSION": "build"})
     stops(h, "build")
     r.check("c6-start-letter-acted-at-stop", deliv(l5) == "acted", deliv(l5))
     code, out, err = hook(h, "build", "UserPromptSubmit")
@@ -1047,10 +1076,87 @@ def case_c6_settle(r, root):
     r.check("c6-ty-dismisses", code == 0 and deliv(l1) == "dismissed" and deliv(l2) == "not_acted", (code, err))
 
 
+def case_c7_ack(r, root):
+    """desk-delivery c7: a letter counts as acted on only when its agent confirms it by its id
+    (desk.py ack LID) in the turn that was given it; a turn that ends, by a Stop, Ctrl+C, a crash or a
+    compaction, with no confirmation shows it as given, not acted on, and it is not given again; the
+    notice reads as a letter from Ty that asks for the confirmation, not as an error. Example: an
+    agent given a letter that asks it to reply PINEAPPLE answers only Hello. and ends its turn with a
+    Stop: not acted on. An agent that runs desk.py ack with the letter id: acted on."""
+    h = make_hub(r, root)
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which fruit?",
+            "--waits-on", "me", session="build")
+
+    def deliv(lid):
+        return letter_of(status(h), lid).get("delivery")
+
+    def ack(lid, session="build"):
+        return desk(h, "ack", lid, env={"HUB_SESSION": session} if session else {})
+
+    cmd = "python3 " + os.path.join(h, ".claude", "scripts", "desk.py") + " ack "
+    bad_words = re.compile(r"\b(error|errors|fail|failed|failure|blocked|blocking|warning|denied|refused)\b", re.I)
+
+    def frame_ok(text, lids, letter_texts):
+        rest = text
+        for t in letter_texts:
+            rest = rest.replace(t, "")
+        lines = [x for x in text.rstrip("\n").split("\n") if x.strip()]
+        return (text.startswith("Ty sent you") and "Letter from Ty (the Desk)" in text
+                and lines[-1].endswith(cmd + lids[-1]) and all((cmd + l) in text for l in lids)
+                and not bad_words.search(rest))
+
+    hook(h, "build", "SessionStart", extra={"source": "startup"})
+    l1 = send(h, root, ask_item(a), "Ty here: please reply to this letter with the word PINEAPPLE.", to="build")
+    code, out, err = hook(h, "build", "UserPromptSubmit")
+    ctx = ctx_of(out) if out.strip() else ""
+    r.check("c7-notice-asks-ack-by-id-not-error", frame_ok(ctx, [l1], ["Ty here: please reply to this letter with the word PINEAPPLE."]), ctx)
+    stops(h, "build")  # the agent answered only Hello. and ended its turn
+    r.check("c7-stop-without-ack-not-acted", deliv(l1) == "not_acted", deliv(l1))
+    code, out, err = ack(l1)
+    r.check("c7-ack-after-its-turn-refused", code == 1 and deliv(l1) == "not_acted", (code, err))
+    l2 = send(h, root, ask_item(a), "Ty here: please reply with the word MANGO.", to="build")
+    code, out, err = hook(h, "build", "UserPromptSubmit")
+    r.check("c7-not-acted-not-given-again", "PINEAPPLE" not in out and "MANGO" in out, out)
+    code, aout, err = ack(l2)
+    r.check("c7-ack-in-its-turn", code == 0 and [e for e in events(h, "acked") if e["letter"] == l2 and e["session"] == "build"], (code, err))
+    stops(h, "build")
+    r.check("c7-acked-is-acted", deliv(l2) == "acted", deliv(l2))
+    l3 = send(h, root, ask_item(a), "three", to="build")
+    hook(h, "build", "UserPromptSubmit")
+    code, out, err = ack(l3, "discovery")
+    r.check("c7-ack-by-another-session-refused", code == 1, (code, err))
+    hook(h, "build", "UserPromptSubmit")  # Ctrl+C with no ack
+    r.check("c7-ctrl-c-without-ack-not-acted", deliv(l3) == "not_acted", deliv(l3))
+    for src in ("resume", "compact"):
+        lx = send(h, root, ask_item(a), "lost to " + src, to="build")
+        stops(h, "build")
+        hook(h, "build", "UserPromptSubmit")
+        hook(h, "build", "SessionStart", extra={"source": src})
+        r.check("c7-" + src + "-without-ack-not-acted", deliv(lx) == "not_acted", deliv(lx))
+    l4 = send(h, root, ask_item(a), "acked, then Ctrl+C", to="build")
+    hook(h, "build", "UserPromptSubmit")
+    ack(l4)
+    hook(h, "build", "UserPromptSubmit")
+    r.check("c7-acked-then-ctrl-c-acted", deliv(l4) == "acted", deliv(l4))
+    stops(h, "build")
+    # the Stop that gives letters: its block reason reads the same way
+    hook(h, "build", "UserPromptSubmit")
+    l5 = send(h, root, ask_item(a), "five", to="build")
+    l6 = send(h, root, ask_item(a), "six", to="build")
+    code, out, err = hook(h, "build", "Stop", extra={"stop_hook_active": False})
+    reason = json.loads(out)["reason"] if out.strip() else ""
+    r.check("c7-stop-reason-reads-as-letter", frame_ok(reason, [l5, l6], ["five", "six"]), reason)
+    ack(l5)
+    stops(h, "build")
+    r.check("c7-stop-batch-only-acked-acted", deliv(l5) == "acted" and deliv(l6) == "not_acted", (deliv(l5), deliv(l6)))
+    seen = [e["letter"] for e in events(h, "seen")]
+    r.check("c7-each-letter-given-once", len(seen) == len(set(seen)), seen)
+
+
 CASES = [case_send, case_send_order, case_events, case_ownership, case_status, case_drafts, case_hook,
          case_notice, case_render, case_late, case_kb_refs_outside, case_corrupt, case_wake, case_join,
          case_service, case_hooks_cmd, case_db_read_only, case_hooks_status, case_c2_batch, case_c4_busy,
-         case_c6_settle]
+         case_c6_settle, case_c7_ack]
 
 
 def run_all(r, only):
