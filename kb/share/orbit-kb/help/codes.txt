@@ -11,7 +11,10 @@ Core
        The other project relations (decided_by, analysis, concerns) refuse a missing id too.
   E5   duplicate id
   E6   non-ground fact in kb.pl
-  E7   a clause in the wrong place (a rule as a fact in kb.pl, or a fact outside kb.pl)
+  E7   a clause in the wrong place (a rule as a fact in kb.pl, or a fact outside kb.pl). One rule form is
+       accepted in kb.pl: the cut-fail clause N(_, ..., _) :- !, fail. of a retired predicate, as the
+       first clause of N in kb.pl, when no rule of the engine or rules.pl has the head N (orbit-kb
+       migrate apply writes it). After a clause of N, or for a rule head, it is E7.
   E8   this writer may not write this attestation type
   E9   a test_result or lean_proof with no matching run log. Use orbit-kb run / prove.
   E10  uses/1 is missing, not first, or names an unknown module
@@ -54,6 +57,12 @@ Core
        premise(P, H, Text) for each condition that it takes as given, or no_premises(H).
   W11  a current hypothesis has a premise and also no_premises(H). They contradict. Restate the
        hypothesis (supersedes) with its premises, or with no_premises only.
+  WM1  a retired predicate (kb-migrations): its cut-fail clause in kb.pl takes its facts out of the
+       model, also a fact added later. The message names the version that retired it and what
+       replaces it (retired/3), the lines of its facts, and their reach: each predicate that reads
+       them through a rule, positively or under not. Their meaning may have changed: analyze the
+       reach, and rework the facts as the replacement. It has no due time, it warns as long as the
+       clause is there, and it never blocks done. orbit-kb help migrate.
 
 Discovery module
   WD1  a conflict, surprise, or scope finding raised no question. Ask one.

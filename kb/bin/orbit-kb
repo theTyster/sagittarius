@@ -570,6 +570,16 @@ top(Argv0, Code) :-
             ->  cmd_help([project], Code)
             ;   cmd_project(DirOpt, Args, Code)
             )
+        ;   Cmd == migrate
+        ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
+            ->  cmd_help([migrate], Code)
+            ;   cmd_migrate(DirOpt, Args, Code)
+            )
+        ;   Cmd == signature
+        ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
+            ->  cmd_help([signature], Code)
+            ;   cmd_signature(Args, Code)
+            )
         ;   Cmd == pin
         ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
             ->  cmd_help([pin], Code)
@@ -1541,7 +1551,23 @@ load_kb(Dir, Lib, kb(Dir, Lib, Uses, Items)) :-
     rules_doc_kb(RulesFile, RuleItems, KbItems, KbItemsD),
     append([CoreItems, ModItems, KbItemsD], Prior),
     rules_decl_items(RulesFile, Prior, RuleItems, RuleDecls),
-    append([CoreItems, ModItems, KbItemsD, RuleDecls, RuleItems, DerivedItems], Items).
+    append(Prior, RuleDecls, Prior2),
+    retired_decl_items(Prior2, KbItemsD, RetiredDecls),
+    append([CoreItems, ModItems, KbItemsD, RuleDecls, RetiredDecls, RuleItems, DerivedItems], Items).
+
+% retired_decl_items(+PriorItems, +KbItems, -DeclItems) (kb-migrations c16): a retired(N/A, V, R)
+% fact of kb.pl declares N/A when nothing else declares it, so a query of a retired predicate
+% has no answer (the cut-fail clause hides its facts) instead of a usage error, and lint names
+% its facts with WM1, not E2.
+retired_decl_items(Prior, KbItems, DeclItems) :-
+    items_decls(Prior, Ds),
+    findall(N/A, ( member(it(kb, _, _, T, _, _), KbItems), nonvar(T), T = retired(PI, _, _),
+                   nonvar(PI), PI = N/A, atom(N), integer(A), A >= 0, \+ decl_of(Ds, N, A, _) ), PIs0),
+    sort(PIs0, PIs),
+    findall(it(derived, '<derived>', 0, decl(fact, H, Doc, ''), [], 0-0),
+            ( member(N/A, PIs), length(Ts, A), maplist(=(term), Ts), H =.. [N|Ts],
+              format(atom(Doc), "A retired predicate: ~q/~w (see retired/3 in kb.pl). Its facts are out of the model.", [N, A]) ),
+            DeclItems).
 
 % rules_doc_kb(+RulesFile, +RuleItems, +KbItems0, -KbItems) (T40 c8): a decl(rule, H, Doc, T) line
 % of kb.pl (from declare in an older KB) whose Doc is empty or the W7 placeholder takes the text of
@@ -1851,8 +1877,36 @@ register_spec_line(PA, Dir) :-
 kb_term(KbItems, T) :-
     member(it(kb, _, _, T0, _, _), KbItems), nonvar(T0), T0 = T.
 
+% project_kb_dir(+Dir, +P, -PDir) (kb-migrations c20, Ty's q21 answer B): the directory that
+% project_kb(P) of the KB at Dir names. An absolute P is itself. A relative P of a KB that lies in a
+% hub (an ancestor directory that hub_root/1 accepts) is read from the hub root, with its leading
+% ../ and ./ steps dropped: ../../project-kb from specs/x and ../../../../project-kb from
+% W0/analyses/x/kb both name HUB/project-kb, so moving a KB inside the hub needs no write. Outside a
+% hub, P is read from Dir, as before.
+project_kb_dir(_, P, P) :- is_absolute_file_name(P), !.
+project_kb_dir(Dir, P, PDir) :-
+    (   kb_hub_root(Dir, Hub)
+    ->  atomic_list_concat(Segs0, '/', P),
+        drop_up_segs(Segs0, Segs),
+        atomic_list_concat(Segs, '/', Rest),
+        ( Rest == '' -> PDir = Hub ; directory_file_path(Hub, Rest, PDir) )
+    ;   directory_file_path(Dir, P, PDir)
+    ).
+
+drop_up_segs([S|Ss], R) :- memberchk(S, ['..', '.', '']), !, drop_up_segs(Ss, R).
+drop_up_segs(Ss, Ss).
+
+% kb_hub_root(+Dir, -Hub): the nearest ancestor of Dir (not Dir itself) that is a hub root.
+kb_hub_root(Dir, Hub) :-
+    absolute_file_name(Dir, A), file_directory_name(A, P),
+    kb_hub_up(P, Hub).
+kb_hub_up(D, Hub) :-
+    (   hub_root(D) -> Hub = D
+    ;   file_directory_name(D, P), P \== D, kb_hub_up(P, Hub)
+    ).
+
 project_kb_facts(Dir, P, Facts) :-
-    ( is_absolute_file_name(P) -> PDir = P ; directory_file_path(Dir, P, PDir) ),
+    project_kb_dir(Dir, P, PDir),
     directory_file_path(PDir, 'kb.pl', PFile),
     exists_file(PFile),
     absolute_file_name(PDir, A1), absolute_file_name(Dir, A2),
@@ -1974,7 +2028,10 @@ all_known_items(KB, Items) :-
                   ) ),
             ModItems),
     include(src_is(kb), KI, Local),
-    append([CoreItems, ModItems, Local], Items).
+    % kb-migrations c16: a predicate that retired/3 declares is known, so an add of its fact is no
+    % first use (the cut-fail clause hides the fact; lint WM1 names it).
+    findall(I, ( member(I, KI), I = it(derived, _, _, T, _, _), nonvar(T), T = decl(_, _, _, _) ), RetDecls),
+    append([CoreItems, ModItems, Local, RetDecls], Items).
 
 src_is(S, it(S, _, _, _, _, _)).
 
@@ -2317,6 +2374,10 @@ id_value(T, Ds, V) :-
 % fctx(KB, Decls, AttestTypes, Env)
 fact_diags(_, it(_, F, L, T, _, _), [diag('E2', F, L, "This term is a variable, not a fact.")]) :-
     var(T), !.
+fact_diags(fctx(KB, _, _, _), it(_, F, L, (H :- B), _, _), Diags) :-
+    cutfail_clause(H, B), !,
+    kb_items(KB, Items),
+    (   cutfail_problem(Items, L, H, M) -> Diags = [diag('E7', F, L, M)] ; Diags = [] ).
 fact_diags(_, it(_, F, L, (_ :- _), _, _),
            [diag('E7', F, L, "This is a rule. Rules belong in rules.pl, not in kb.pl.")]) :- !.
 fact_diags(_, it(_, _, _, (:- _), _, _), []) :- !.    % E17
@@ -3864,6 +3925,10 @@ cmd_add(KB, Args, Code) :-
     append_lines(KbFile, Lines),
     forall(member(L, Lines), format("~w~n", [L])),
     ignore(catch(register_spec_kb(Dir, NewItems), _, true)),   % T34 c2
+    % kb-migrations c16: a fact of a retired predicate is written, and its cut-fail clause hides it.
+    cutfail_pis(KI, CPIs),
+    forall(( member(N/A-_, CPIs), once(( member(it(_, _, _, NT, _, _), NewItems), nonvar(NT), callable(NT), functor(NT, N, A) )) ),
+           format(user_error, "NOTE: ~q/~w is retired in this KB (its cut-fail clause in kb.pl): the new fact stays in kb.pl, but no rule and no query finds it. lint WM1 names it.~n", [N, A])),
     forall(member(N/A, FUs),
            format(user_error, "NOTE: ~q/~w is a new predicate. Its first use declares it, with the type term for each argument (lint W7 lists it).~n", [N, A])),
     (   Doc == ''
@@ -4825,7 +4890,7 @@ serve_kb_items(Dir, Items) :-
 serve_kb_project(Dir, P) :-
     serve_kb_items(Dir, Items),
     (   kb_term(Items, project_kb(P0)), atom(P0)
-    ->  ( is_absolute_file_name(P0) -> P1 = P0 ; directory_file_path(Dir, P0, P1) ),
+    ->  project_kb_dir(Dir, P0, P1),
         serve_norm(P1, PA), P = some(PA)
     ;   P = none
     ).
@@ -6221,7 +6286,7 @@ desk_checks_html(HD, K, Eng, C, Tags, Html) :-
         findall(B, ( member(Cnt-Txt-Cl, [NP-"pass"-"b-pass", NF-"fail"-"b-burn", NU-"never ran"-"b-warn"]), Cnt > 0,
                      dk_f("~w ~w", [Cnt, Txt], BT), desk_status_badge(BT, Cl, B) ), Bs), dk_cat(Bs, BsH),
         findall(R, ( member(Ck, Cks), desk_check_row(Ck, R) ), Rs), dk_cat(Rs, RsH),
-        (   member(X, Cks), X.src == none
+        (   member(X, Cks), X.src == none, \+ desk_kb_frozen(HD, K)
         ->  desk_holder(HD, K, Hold, _),
             ( Hold == none -> Who = "a session" ; atom_string(Hold, Who) ),
             dk_f("fix:words:~w", [K.dir], It), dk_f("Ask ~w to say what these checks do", [Who], FL),
@@ -6988,13 +7053,21 @@ desk_orphan_row(HD, row(What, "No live session holds them.", [T], Item, Ids)) :-
     desk_keeper(HD, T),
     dk_f("fix:unowned:~w", [HD.path], Item).
 desk_orphan_row(HD, row(What, "These checks do not say in words what they check.", Tos, Item, Ids)) :-
-    findall(K-Kc, ( member(K, HD.kbs), K.kind \== project, desk_eng(K.dir, Eng), desk_current_claims(Eng, Cs),
+    findall(K-Kc, ( member(K, HD.kbs), K.kind \== project, \+ desk_kb_frozen(HD, K),
+                    desk_eng(K.dir, Eng), desk_current_claims(Eng, Cs),
                     member(C, Cs), dk_all(Eng, [Kc0], check(Kc0, C), Kcs), member(Kc, Kcs),
                     \+ dk_true(Eng, checks_that(Kc, _)) ), KKs0), sort(KKs0, KKs), KKs \== [],
     length(KKs, N), dk_f("~w checks", [N], What),
     findall(I, ( member(K-Kc, KKs), dk_f("~w ~w", [K.label, Kc], I) ), Ids),
     findall(T, ( member(K-_, KKs), desk_kb_recipient(HD, K, T) ), Tos0), sort(Tos0, Tos),
     dk_f("fix:words:~w", [HD.path], Item).
+
+% desk_kb_frozen(+HD, +K) (kb-migrations c9): a spec KB whose ticket is closed (each ledger item that
+% names it is closed: kb_closed of desk.py) is frozen at the version that closed it. The Desk shows no
+% migration step for it (the words of its checks), so nobody must migrate a closed KB.
+desk_kb_frozen(HD, K) :-
+    K.kind == spec, is_dict(HD.st), get_dict(kb_closed, HD.st, L), is_list(L),
+    atom_string(K.ref, R), memberchk(R, L).
 
 % desk_kb_recipient(+HD, +K, -S): who gets a letter about a KB: its holder, else the keeper.
 desk_kb_recipient(HD, K, S) :-
@@ -7474,7 +7547,7 @@ desk_fix_stale_plan(HD, P) :-
     P = plan{title:"Close the old handoffs", sub:"Their KBs block, so only you can close them. The owners get a notice.", letters:Ls, records:[R1], effects:[close_items(HD.path, Ids, "Superseded by a newer handoff on the same KB (closed by Ty from the Desk).")]}.
 
 desk_fix_words_plan(_HDs, HD, Arg, P) :-
-    findall(T-(K-Kc), ( member(K, HD.kbs), K.kind \== project, ( Arg == "" ; atom_string(K.dir, Arg) ; atom_string(HD.path, Arg) ),
+    findall(T-(K-Kc), ( member(K, HD.kbs), K.kind \== project, \+ desk_kb_frozen(HD, K), ( Arg == "" ; atom_string(K.dir, Arg) ; atom_string(HD.path, Arg) ),
                         desk_eng(K.dir, Eng), desk_current_claims(Eng, Cs), member(C, Cs), dk_all(Eng, [Kc0], check(Kc0, C), Kcs), member(Kc, Kcs),
                         \+ dk_true(Eng, checks_that(Kc, _)), desk_kb_recipient(HD, K, T) ), Ps0), sort(Ps0, Ps),
     ( Ps == [] -> throw(desk_refused(409, "Every check says what it checks now. Reload the page.")) ; true ),
@@ -8584,6 +8657,663 @@ proof_log_matches(Dir, Id, proof(C, D)) :-
 % lint
 % ---------------------------------------------------------------------
 
+% ---------------------------------------------------------------------
+% Retired predicates (kb-migrations c14, c16, c17)
+% ---------------------------------------------------------------------
+% A version that retires a predicate N/A writes into kb.pl, before the first clause of N/A, the
+% clause N(_, ..., _) :- !, fail. and beside it retired(N/A, Version, What). The facts of N/A stay
+% in kb.pl as written; the clause takes them out of the model, also a fact added later. lint
+% accepts this one rule form in kb.pl, and only as the first clause of its predicate (else E7),
+% and only for a predicate that no rule of the engine has as its head (premise p5). WM1 names the
+% predicate, its facts and their reach. It is a warning with no due time: it never blocks done.
+
+% cutfail_clause(+Head, +Body): Head :- !, fail. with distinct variables as the arguments.
+cutfail_clause(H, B) :-
+    nonvar(B), B = (C, F), C == !, F == fail,
+    callable(H), H \= -(_), H \= (_ :- _),
+    H =.. [_|As], maplist(var, As),
+    term_variables(As, Vs), length(As, N), length(Vs, N).
+
+% cutfail_problem(+Items, +Line, +Head, -Msg): why a cut-fail clause on line Line of kb.pl is
+% not accepted; fails when it is.
+cutfail_problem(Items, L, H, M) :-
+    functor(H, N, A),
+    (   member(it(kb, _, L2, T, _, _), Items), L2 < L, nonvar(T), \+ meta_term(T),
+        clause_parts(T, H2, _), callable(H2), H2 \= -(_), functor(H2, N, A)
+    ->  fmt(M, "This cut-fail clause of ~q/~w comes after a clause of ~q/~w (kb.pl line ~w). It must be the first clause of its predicate in kb.pl, or it hides nothing before it. Move it above line ~w; rules belong in rules.pl.", [N, A, N, A, L2, L2])
+    ;   member(it(Src, _, _, T, _, _), Items), Src \== kb, Src \== derived, nonvar(T), \+ meta_term(T),
+        T = (H3 :- _), callable(H3), functor(H3, N, A)
+    ->  fmt(M, "~q/~w has a rule in the engine or rules.pl. lint accepts a cut-fail clause in kb.pl only for a retired fact predicate (kb-migrations p5). Rules belong in rules.pl, not in kb.pl.", [N, A])
+    ;   fail
+    ).
+
+% cutfail_pis(+Items, -PIs): N/A-Line for each accepted cut-fail clause of kb.pl.
+cutfail_pis(Items, PIs) :-
+    findall(N/A-L, ( member(it(kb, _, L, T, _, _), Items), nonvar(T), T = (H :- B),
+                     cutfail_clause(H, B), \+ cutfail_problem(Items, L, H, _), functor(H, N, A) ), PIs0),
+    sort(PIs0, PIs).
+
+% retired_fact_lines(+Items, +N/A, +CutLine, -Lines): the lines of kb.pl with a fact of N/A after
+% its cut-fail clause.
+retired_fact_lines(Items, N/A, CL, Lines) :-
+    findall(L, ( member(it(kb, _, L, T, _, _), Items), L > CL, nonvar(T), T \= (_ :- _),
+                 callable(T), T \= -(_), functor(T, N, A) ), Lines).
+
+% reach_of(+Items, +Ds, +Seeds, -Reach) (c14): the least set that holds Seeds and each head of a
+% rule (core, modules, rules.pl) with a body literal in the set, positive or under not. A head
+% lint_issue(Code, _, _) with an atomic Code is the node lint(Code); each lint node reaches
+% lint_issue/3 too. Reach is sorted; it holds the Seeds.
+reach_of(Items0, Ds, Seeds, Reach) :-
+    answer_items(Items0, Ds, Items),
+    findall(BN-HN, ( member(it(Src, _, _, T, _, _), Items), Src \== kb, nonvar(T),
+                     \+ meta_term(T), \+ e17_form(T, _),
+                     T = (Hd :- Body), callable(Hd), reach_node(Hd, HN),
+                     dep_lits(Body, pos, Deps), member(_-Lit, Deps),
+                     callable(Lit), \+ builtin_goal(Lit), reach_node(Lit, BN) ), Es0),
+    findall(lint(C)-(lint_issue/3), member(_-lint(C), Es0), Es1),
+    append(Es0, Es1, Es2), sort(Es2, Es),
+    sort(Seeds, S0),
+    reach_fix(Es, S0, Reach).
+
+reach_node(H, lint(C)) :- functor(H, lint_issue, 3), arg(1, H, C), atomic(C), !.
+reach_node(H, N/A) :- functor(H, N, A).
+
+reach_fix(Es, R0, R) :-
+    findall(H, ( member(B-H, Es), ord_memberchk(B, R0), \+ ord_memberchk(H, R0) ), New0),
+    sort(New0, New),
+    (   New == [] -> R = R0 ; ord_union(R0, New, R1), reach_fix(Es, R1, R) ).
+
+reach_text(Reach, Seeds, T) :-
+    subtract(Reach, Seeds, Rest),
+    (   Rest == [] -> T = "none"
+    ;   findall(S, ( member(X, Rest), ( X = lint(C) -> fmt(S, "lint ~w", [C]) ; fmt(S, "~q", [X]) ) ), Ss),
+        atomic_list_concat(Ss, ', ', A), atom_string(A, T)
+    ).
+
+% wm_diags(+Items, +Ds, -Diags): WM1 for each predicate with an accepted cut-fail clause.
+wm_diags(Items, Ds, Diags) :-
+    cutfail_pis(Items, PIs),
+    findall(diag('WM1', F, CL, M),
+            ( member(N/A-CL, PIs),
+              once(( member(it(kb, F, CL, _, _, _), Items) )),
+              retired_fact_lines(Items, N/A, CL, Ls), length(Ls, NF),
+              (   member(it(kb, _, _, T, _, _), Items), nonvar(T), T = retired(PI, V, R), PI == N/A
+              ->  fmt(RT, "~q/~w was retired in orbit-kb ~w, replaced by ~q.", [N, A, V, R])
+              ;   fmt(RT, "~q/~w has a cut-fail clause, and no retired(~q/~w, Version, What) fact names the version that retired it and what replaces it.", [N, A, N, A])
+              ),
+              reach_of(Items, Ds, [N/A], Reach), reach_text(Reach, [N/A], RchT),
+              (   NF =:= 0
+              ->  fmt(M, "~w No fact of it is left in kb.pl; the clause hides any fact added later. Reach: ~w.", [RT, RchT])
+              ;   atomic_list_concat(Ls, ', ', LT),
+                  fmt(M, "~w Its ~w fact(s) stay in kb.pl (line ~w) but are out of the model: no rule and no query finds them. The meaning of what reads them may have changed; analyze the reach: ~w. This warning has no due time and never blocks done.", [RT, NF, LT, RchT])
+              ) ),
+            Diags).
+
+% ---------------------------------------------------------------------
+% The signature of this version (kb-migrations c17)
+% ---------------------------------------------------------------------
+% The signature is the name/arity of each predicate that core.pl and the modules of this version
+% declare, and nothing else: the tool carries no list of retired predicates (what a KB retired is
+% written in that KB, with retired/3). share/orbit-kb/signature.pl holds it, one signature(N/A)
+% per line; orbit-kb signature --write makes it, and --check compares it with the declarations.
+
+lib_signature(Lib, PIs) :-
+    directory_file_path(Lib, 'core.pl', CoreFile),
+    read_source_file(core, CoreFile, CI),
+    lib_modules(Lib, Ms),
+    findall(I, ( member(M, Ms), module_file(Lib, M, MF), read_source_file(module(M), MF, MIs), member(I, MIs) ), MI),
+    append(CI, MI, Items),
+    findall(N/A, ( member(it(_, _, _, T, _, _), Items), nonvar(T), T = decl(_, H, _, _),
+                   callable(H), functor(H, N, A) ), PIs0),
+    sort(PIs0, PIs).
+
+signature_file(Lib, F) :- directory_file_path(Lib, 'signature.pl', F).
+
+signature_text(Lib, Text) :-
+    lib_signature(Lib, PIs), tool_version_text(V),
+    findall(L, ( member(PI, PIs), format(string(L), "~q.", [signature(PI)]) ), Ls),
+    format(string(H), "% The signature of orbit-kb ~w: each predicate that core.pl and the modules declare.~n% Made by orbit-kb signature --write. Do not edit it by hand; lint reads no list of retired predicates.", [V]),
+    atomic_list_concat([H|Ls], '\n', T0), string_concat(T0, "\n", Text).
+
+file_signature(Lib, PIs) :-
+    signature_file(Lib, F), exists_file(F),
+    setup_call_cleanup(open(F, read, S, [encoding(utf8)]), mig_read_all(S, Ts), close(S)),
+    findall(PI, member(signature(PI), Ts), PIs0), sort(PIs0, PIs).
+
+cmd_signature(Args, Code) :-
+    lib_dir(Lib),
+    (   Args == []
+    ->  signature_text(Lib, T), format("~s", [T]), Code = 0
+    ;   Args == ['--write']
+    ->  signature_text(Lib, T), signature_file(Lib, F), write_atomic(F, T),
+        format("~w~n", [F]), Code = 0
+    ;   Args == ['--check']
+    ->  lib_signature(Lib, Want),
+        (   file_signature(Lib, Have) -> true ; Have = missing ),
+        (   Have == Want
+        ->  format("The signature file matches the declarations of core.pl and the modules.~n", []), Code = 0
+        ;   Have == missing
+        ->  format("The signature file is missing. Run orbit-kb signature --write.~n", []), Code = 1
+        ;   subtract(Want, Have, Miss), subtract(Have, Want, Extra),
+            format("The signature file differs from the declarations. Not in the file: ~q. Not declared: ~q. Run orbit-kb signature --write.~n", [Miss, Extra]),
+            Code = 1
+        )
+    ;   usage_error("signature takes no argument, --write or --check.", [])
+    ).
+
+% ---------------------------------------------------------------------
+% Migrations (kb-migrations c2, c3, c5, c9, c10, c12, c14, c15)
+% ---------------------------------------------------------------------
+% A migration is a file in share/orbit-kb/migrations/ with these terms:
+%   migration(Id, Version, Doc).        the version of orbit-kb that brings it
+%   changes(Id, [N/A, lint(Code), ...]). S: the predicates whose rules or facts it changes
+%   step(Id, Step, Owner, Doc).         Owner: tool, agent or human
+%   pending(Id, Step, Item, Goal).      each answer Item of Goal (on the KB) is one thing to do
+%   writes(Id, Step, Item, Facts).      a tool step: the facts to add for one Item
+%   asks(Id, Step, Item, Text).         a human step: the question for one Item
+%   retires(Id, N/A, What).             a tool step: the cut-fail clause and retired/3 (c16)
+% A step is to do exactly when its pending query has an answer: no marker counts (c5, c12). The
+% tool does its own steps in one atomic write (c3), gives an agent the work list of an agent
+% step, and raises a question for a human step (c10). It never edits or deletes a line, and it
+% writes no fact that only a human may make (c2). A KB whose ticket is closed is frozen (c9).
+
+mig_dir(Lib, D) :- directory_file_path(Lib, migrations, D).
+
+mig_read_all(S, Ts) :-
+    read_term(S, T, [module(orbit_ops)]),
+    ( T == end_of_file -> Ts = [] ; Ts = [T|R], mig_read_all(S, R) ).
+
+load_migrations(Lib, Ms) :-
+    mig_dir(Lib, MD),
+    (   exists_directory(MD)
+    ->  directory_files(MD, Fs0),
+        include([F]>>file_name_extension(_, pl, F), Fs0, Fs1), msort(Fs1, Fs)
+    ;   Fs = []
+    ),
+    findall(T, ( member(F, Fs), directory_file_path(MD, F, P),
+                 catch(setup_call_cleanup(open(P, read, S, [encoding(utf8)]), mig_read_all(S, Ts), close(S)), E,
+                       ( err_text(E, ET), die(2, ["The migration file " + P + " does not read: " + ET] >> fix_lines) )),
+                 member(T, Ts) ), Terms),
+    findall(Id, member(migration(Id, _, _), Terms), Ids),
+    maplist(mig_build(Terms), Ids, Ms).
+
+mig_build(Terms, Id, mig(Id, V, Doc, S, Steps)) :-
+    memberchk(migration(Id, V, Doc), Terms),
+    findall(PI, ( member(changes(I, L), Terms), I == Id, is_list(L), member(PI, L) ), S0),
+    findall(N/A, ( member(retires(I, N/A, _), Terms), I == Id ), SR),
+    ( SR \== [] -> RL = [lint('E2'), lint('E7'), lint('WM1')] ; RL = [] ),
+    append([S0, SR, RL], S1), sort(S1, S),
+    findall(st(retire(N/A), tool, D, retire(N/A, W)),
+            ( member(retires(I, N/A, W), Terms), I == Id,
+              fmt(D, "retire ~q/~w: write its cut-fail clause and retired/3 into kb.pl", [N, A]) ), St1),
+    findall(st(St, Ow, D, query(Item, Goal, Act)),
+            ( member(step(I, St, Ow, D), Terms), I == Id,
+              (   member(pending(I2, St2, Item, Goal), Terms), I2 == Id, St2 == St -> true
+              ;   die(2, ["The migration " + Id + " has no pending query for its step " + St + "."] >> fix_lines)
+              ),
+              (   Ow == tool
+              ->  ( member(writes(I3, St3, WI, WF), Terms), I3 == Id, St3 == St -> Act = writes(WI, WF)
+                  ; die(2, ["The tool step " + St + " of migration " + Id + " has no writes/4."] >> fix_lines) )
+              ;   Ow == human
+              ->  ( member(asks(I3, St3, AI, AT), Terms), I3 == Id, St3 == St -> Act = asks(AI, AT)
+                  ; die(2, ["The human step " + St + " of migration " + Id + " has no asks/4."] >> fix_lines) )
+              ;   Ow == agent -> Act = work
+              ;   die(2, ["The step " + St + " of migration " + Id + " has the owner " + Ow + ": use tool, agent or human."] >> fix_lines)
+              ) ),
+            St2s),
+    append(St1, St2s, Steps).
+
+% mig_made_by(+KbFile, -V): the newest version that a "% Made by orbit-kb V." line names, or none.
+mig_made_by(KbFile, V) :-
+    read_file_to_string(KbFile, S, [encoding(utf8)]),
+    split_string(S, "\n", "", Ls),
+    findall(P-V0, ( member(L, Ls), split_string(L, "", " \t\r", [L1]),
+                    string_concat("% Made by orbit-kb ", R0, L1), string_concat(R1, ".", R0),
+                    atom_string(V0, R1), version_parts(V0, P) ), Ps),
+    (   Ps == [] -> V = none ; msort(Ps, Sorted), last(Sorted, _-V) ).
+
+version_parts(V, [A, B, C]) :-
+    atom(V), atomic_list_concat([SA, SB, SC], '.', V),
+    atom_number(SA, A), atom_number(SB, B), atom_number(SC, C), integer(A), integer(B), integer(C).
+
+% mig_step_items(+Eng, +Items, +Step, -Res): ok(ThingsToDo) or err(Msg).
+mig_step_items(_, Items, st(_, _, _, retire(N/A, _)), ok(Things)) :- !,
+    (   member(it(kb, _, _, T, _, _), Items), nonvar(T), T \= (_ :- _), callable(T), T \= -(_), functor(T, N, A),
+        \+ ( member(it(kb, _, _, T2, _, _), Items), nonvar(T2), T2 = (H2 :- B2), cutfail_clause(H2, B2), functor(H2, N, A) )
+    ->  Things = [N/A]
+    ;   Things = []
+    ).
+mig_step_items(Eng, _, st(_, _, _, query(Item, Goal, _)), Res) :-
+    copy_term(Item-Goal, I-G),
+    swi_raw(Eng, G, [I], R),
+    (   R = answers(L0, _) -> findall(X, member([X], L0), Xs0), sort(Xs0, Xs), Res = ok(Xs)
+    ;   R = error(M) -> Res = err(M)
+    ).
+
+% mig_status(+KB, +Ms, -Rows): one row per step of each migration:
+% row(MigId, Version, Step, Owner, Doc, Things) or rowerr(MigId, Step, Msg).
+mig_status(KB, Ms, Rows) :-
+    kb_items(KB, Items), kb_engine(KB, Eng),
+    findall(Row, ( member(mig(Id, V, _, _, Steps), Ms), member(St, Steps), St = st(SId, Ow, D, _),
+                   mig_step_items(Eng, Items, St, Res),
+                   ( Res = ok(Th) -> Row = row(Id, V, SId, Ow, D, Th) ; Res = err(Msg), Row = rowerr(Id, SId, Msg) ) ),
+            Rows).
+
+required_owner(tool).
+required_owner(agent).
+
+% human_only_fact(+ATs, +F): a fact that only the human may make (c2).
+human_only_fact(_, F) :- nonvar(F), F = attest(_, _, _, _, By, _), By == human, !.
+human_only_fact(ATs, F) :- nonvar(F), F = attest(_, Ty, _, _, _, _), atom(Ty),
+    member(at(Ty, _, Ws, _), ATs), Ws == [human], !.
+human_only_fact(_, F) :- nonvar(F), F = answer(_, _, By), ( By == human ; nonvar(By), By = human:_ ), !.
+human_only_fact(_, F) :- nonvar(F), functor(F, N, A),
+    memberchk(N/A, [discovery_end/1, request_accepted/3, ratified_by/3, decided_by/3, waiver/4, decision/2]), !.
+
+% mig_plan_writes(+KB, +Rows, +Ms, -Plan): plan(Inserts, Adds, Errs) for the tool and human
+% steps that are to do. Inserts: ins(Line, N/A, What, MigId). Adds: F-MigId.
+mig_plan_writes(KB, Rows, Plan) :-
+    kb_items(KB, Items), kb_engine(KB, Eng), items_atypes(Items, ATs),
+    load_migrations_kb(KB, Ms),
+    findall(ins(L, N/A, W, Id, MV),
+            ( member(row(Id, MV, retire(N/A), tool, _, [_|_]), Rows),
+              member(mig(Id, _, _, _, Steps), Ms), memberchk(st(retire(N/A), tool, _, retire(N/A, W)), Steps),
+              once(( member(it(kb, _, L, T, _, _), Items), nonvar(T), T \= (_ :- _), callable(T), T \= -(_), functor(T, N, A) )) ),
+            Ins),
+    findall(F-Id,
+            ( member(row(Id, _, SId, tool, _, Things), Rows), SId \= retire(_),
+              member(mig(Id, _, _, _, Steps), Ms), member(st(SId0, tool, _, query(_, _, writes(WI, WF))), Steps), SId0 == SId,
+              member(X, Things), copy_term(WI-WF, X-Fs), ( is_list(Fs) -> member(F, Fs) ; F = Fs ) ),
+            Adds0),
+    mig_questions(Items, Eng, Rows, Ms, Adds0, QAdds, QErrs),
+    append(Adds0, QAdds, Adds),
+    findall(M, ( member(F-Id, Adds), human_only_fact(ATs, F),
+                 fmt(M, "migration ~w would write ~q, a record that only a human may make. Nothing was written: a migration raises a question for such a step instead (c2).", [Id, F]) ),
+            HErrs),
+    findall(M, ( member(rowerr(Id, SId, Msg), Rows), fmt(M, "the pending query of step ~w of migration ~w failed: ~w", [SId, Id, Msg]) ), RErrs),
+    append([HErrs, QErrs, RErrs], Errs),
+    Plan = plan(Ins, Adds, Errs).
+
+load_migrations_kb(KB, Ms) :- kb_lib(KB, Lib), load_migrations(Lib, Ms).
+
+% mig_questions: one question for each thing to do of a human step that no question of the same
+% migration and text already asks. The question hangs on the newest current hypothesis, else on
+% the first current claim.
+mig_questions(Items, Eng, Rows, Ms, _, QAdds, QErrs) :-
+    findall(Id-Text,
+            ( member(row(Id, _, SId, human, _, Things), Rows),
+              member(mig(Id, _, _, _, Steps), Ms), member(st(SId0, human, _, query(_, _, asks(AI, AT))), Steps), SId0 == SId,
+              member(X, Things), copy_term(AI-AT, X-T0), mig_text(T0, X, Text),
+              \+ ( member(it(kb, _, _, MA, _, _), Items), nonvar(MA), MA = migration_added(Id2, _, question(_, _, T2)),
+                   Id2 == Id, T2 == Text ) ),
+            Qs0),
+    list_to_set(Qs0, Qs),
+    (   Qs == [] -> QAdds = [], QErrs = []
+    ;   (   eng_all(Eng, [H], ( hypothesis(H, _, _), \+ superseded(H) ), Hs), last(Hs, Tgt) -> true
+        ;   eng_all(Eng, [C], current(C), [Tgt|_]) -> true
+        ;   Tgt = none
+        ),
+        (   Tgt == none
+        ->  QAdds = [],
+            findall(M, ( member(Id-_, Qs), fmt(M, "migration ~w must ask the human, but the KB has no current hypothesis or claim to hang the question on. Add one, then apply again.", [Id]) ), QErrs)
+        ;   findall(N, ( member(it(kb, _, _, T, _, _), Items), nonvar(T), T = question(Q, _, _), atom(Q),
+                         atom_concat(q, NA, Q), atom_number(NA, N), integer(N) ), Ns),
+            max_list([0|Ns], Max),
+            findall(question(Q, Tgt, Text)-Id, ( nth1(K, Qs, Id-Text), N is Max + K, atom_concat(q, N, Q) ), QAdds),
+            QErrs = []
+        )
+    ).
+
+mig_text(T0, X, Text) :-
+    (   atom(T0), sub_atom(T0, _, _, _, '~') -> format(atom(Text), T0, [X])
+    ;   atom(T0) -> Text = T0
+    ;   format(atom(Text), "~w", [T0])
+    ).
+
+% mig_new_text(+KbFile, +Plan, +Version, +Now, -Text): kb.pl with the writes of the plan. Each old
+% line stays as it is; a retire inserts its clause and facts above the first clause of its
+% predicate; the other facts are appended, each with migration_added/3 after it.
+mig_new_text(KbFile, plan(Ins, Adds, _), V, Now, Text) :-
+    read_file_to_string(KbFile, S, [encoding(utf8)]),
+    split_string(S, "\n", "", Ls0),
+    ( append(Ls1, [""], Ls0) -> true ; Ls1 = Ls0 ),
+    findall(L-Block,
+            ( member(ins(L, N/A, W, Id, MV), Ins),
+              cutfail_text(N, A, C1),
+              R = retired(N/A, MV, W),
+              clause_line(R, [], C2), clause_line(migration_added(Id, V, R), [], C3),
+              Block = [C1, C2, C3] ),
+            Blocks),
+    mig_insert(Ls1, 1, Blocks, Ls2),
+    (   Adds == [] -> Tail = []
+    ;   findall(Id, member(_-Id, Adds), Ids0), sort(Ids0, Ids), atomic_list_concat(Ids, ', ', IdT),
+        format(string(Hd), "% orbit-kb migrate apply: ~w, by orbit-kb ~w at ~w.", [IdT, V, Now]),
+        findall(X, ( member(F-Id, Adds), ( clause_line(F, [], X) ; clause_line(migration_added(Id, V, F), [], X) ) ), Xs),
+        Tail = [Hd|Xs]
+    ),
+    append(Ls2, Tail, Ls3),
+    atomic_list_concat(Ls3, '\n', T0), string_concat(T0, "\n", Text).
+
+% cutfail_text(+N, +A, -Text): N(_, ..., _) :- !, fail.
+cutfail_text(N, A, T) :-
+    length(Us, A), maplist(=("_"), Us), atomic_list_concat(Us, ', ', UT),
+    format(atom(NQ), "~q", [N]),
+    (   A =:= 0 -> format(string(T), "~w :- !, fail.", [NQ]) ; format(string(T), "~w(~w) :- !, fail.", [NQ, UT]) ).
+
+mig_insert([], _, _, []).
+mig_insert([L|Ls], N, Blocks, Out) :-
+    findall(X, ( member(N-B, Blocks), member(X, B) ), Pre),
+    N1 is N + 1,
+    mig_insert(Ls, N1, Blocks, Rest),
+    append(Pre, [L|Rest], Out).
+
+% mig_validate(+KB, +Plan, -Problems): the facts of the plan pass the checks of add.
+mig_validate(KB, plan(Ins, Adds, _), Problems) :-
+    kb_file(KB, KbFile),
+    tool_version_text(V),
+    findall(it(kb, KbFile, 0, F, [], 0-0), member(F-_, Adds), I1),
+    findall(it(kb, KbFile, 0, migration_added(Id, V, F), [], 0-0), member(F-Id, Adds), I2),
+    findall(it(kb, KbFile, 0, retired(N/A, MV, W), [], 0-0), member(ins(_, N/A, W, _, MV), Ins), I3),
+    append([I1, I2, I3], New),
+    validate_new(KB, New, Ps),
+    findall(M, ( member(diag(C, _, _, M0), Ps), fmt(M, "~w ~w", [C, M0]) ), Problems).
+
+% ---- the verdicts of a KB, read by running an engine (c15) ----
+mig_child(Exe, Args, Env, Exit, Out) :-
+    catch(( process_create(Exe, Args, [stdin(null), stdout(pipe(O)), stderr(null), process(P)|Env]),
+            read_string(O, _, Out), close(O), process_wait(P, St) ), _, ( Out = "", St = exit(2) )),
+    ( St = exit(Exit) -> true ; Exit = 2 ).
+
+mig_verdict_goals(['done', 'discovery_ready', 'gate(X)', 'blocking(X)', 'burn_open(X)', 'flare_open(X)', 'stale(X)']).
+
+% mig_verdicts(+Exe, +Env, +Dir, -Vs): V-Answers for each verdict, show open and each lint code.
+mig_verdicts(Exe, Env, Dir, Vs) :-
+    mig_verdict_goals(Gs),
+    findall(G-A, ( member(G, Gs),
+                   mig_child(Exe, ['--dir', Dir, query, G, '-n', '0'], Env, X, Out),
+                   ( X == 0 -> split_string(Out, "\n", " ", L0), exclude(==(""), L0, L1), msort(L1, A)
+                   ; X == 1 -> A = []
+                   ; A = [undefined] ) ),
+            V1),
+    mig_child(Exe, ['--dir', Dir, show, open], Env, SX, SO),
+    (   SX == 2 -> SL = [undefined]
+    ;   split_string(SO, "\n", " ", SL0), exclude(==(""), SL0, SL1), msort(SL1, SL)
+    ),
+    mig_child(Exe, ['--dir', Dir, lint], Env, _, LO),
+    split_string(LO, "\n", "", LL),
+    findall(C, ( member(L, LL), split_string(L, " ", "", [CS|_]), atom_string(C, CS),
+                 atom_codes(C, [U|Ds]), code_type(U, upper), Ds \== [], last(Ds, LD), code_type(LD, digit) ), Cs0),
+    msort(Cs0, Cs), clumped_pairs(Cs, CPs),
+    findall(lint(C)-[N], member(C-N, CPs), V3),
+    append([V1, ['show open'-SL], V3], Vs).
+
+clumped_pairs(Cs, Ps) :- findall(C-1, member(C, Cs), Ones), clumped_sum(Ones, Ps).
+clumped_sum([], []).
+clumped_sum([C-N|Rest], Out) :-
+    (   Rest = [C-M|R2] -> N2 is N + M, clumped_sum([C-N2|R2], Out)
+    ;   Out = [C-N|O2], clumped_sum(Rest, O2)
+    ).
+
+verdict_node('done', done/0).
+verdict_node('discovery_ready', discovery_ready/0).
+verdict_node('gate(X)', gate/1).
+verdict_node('blocking(X)', blocking/1).
+verdict_node('burn_open(X)', burn_open/1).
+verdict_node('flare_open(X)', flare_open/1).
+verdict_node('stale(X)', stale/1).
+verdict_node(lint(C), lint(C)).
+
+% verdict_in_reach(+V, +Reach): show open is in the reach when blocking/1 or done/0 is.
+verdict_in_reach('show open', R) :- !, ( ord_memberchk(blocking/1, R) ; ord_memberchk(done/0, R) ), !.
+verdict_in_reach(V, R) :- verdict_node(V, N), ord_memberchk(N, R).
+
+% mig_diffs(+Old, +New, -Diffs): d(V, OldAnswers, NewAnswers) for each verdict that differs.
+mig_diffs(Old, New, Diffs) :-
+    findall(V, ( member(V-_, Old) ; member(V-_, New) ), Vs0), sort(Vs0, Vs),
+    findall(d(V, A, B), ( member(V, Vs),
+                          ( memberchk(V-A, Old) -> true ; A = [] ),
+                          ( memberchk(V-B, New) -> true ; B = [] ),
+                          A \== B ),
+            Diffs).
+
+verdict_text(lint(C), T) :- !, fmt(T, "lint ~w (count)", [C]).
+verdict_text(V, T) :- fmt(T, "~w", [V]).
+
+answers_text([], "none") :- !.
+answers_text(L, T) :- atomic_list_concat(L, '; ', A), atom_string(A, T).
+
+% mig_shadow(+Dir, +Text, -Tmp): a temporary KB directory with kb.pl = Text and a link to each
+% other entry of Dir, so the paths of subjects and logs resolve as in Dir.
+% Review a128: the shadow is a sibling of Dir (.NAME.orbit-mig-PID-R in the same parent), so a relative
+% path in kb.pl, such as project_kb('../../project-kb'), resolves as it does in Dir. mig_rm_shadow/1
+% removes it: links are unlinked, never followed.
+mig_shadow(Dir, Text, Tmp) :-
+    absolute_file_name(Dir, ADir), file_directory_name(ADir, Parent), file_base_name(ADir, Base),
+    current_prolog_flag(pid, Pid), random_between(0, 1000000000, R),
+    format(atom(Name), ".~w.orbit-mig-~w-~w", [Base, Pid, R]),
+    directory_file_path(Parent, Name, Tmp),
+    make_directory(Tmp),
+    directory_files(Dir, Es),
+    forall(( member(E, Es), \+ memberchk(E, ['.', '..', 'kb.pl', 'kb.lock', 'writer.lock']) ),
+           ( directory_file_path(Dir, E, Src), directory_file_path(Tmp, E, Dst),
+             catch(link_file(Src, Dst, symbolic), _, true) )),
+    directory_file_path(Tmp, 'kb.pl', F),
+    setup_call_cleanup(open(F, write, S, [encoding(utf8)]), write(S, Text), close(S)).
+
+mig_rm_shadow(D) :-
+    (   catch(directory_files(D, Es), _, fail)
+    ->  forall(( member(E, Es), \+ memberchk(E, ['.', '..']) ),
+               ( directory_file_path(D, E, P),
+                 (   catch(read_link(P, _, _), _, fail) -> catch(delete_file(P), _, true)
+                 ;   exists_directory(P) -> mig_rm_shadow(P)
+                 ;   catch(delete_file(P), _, true)
+                 ) )),
+        catch(delete_directory(D), _, true)
+    ;   true
+    ).
+
+% mig_plan(+KB, +OldExe, -Report): the whole plan of the KB: rows, writes, reach, differences.
+mig_plan(KB, Old, rep(Ms, Rows, Plan, Text, Reach, Diffs, Outside, Problems)) :-
+    load_migrations_kb(KB, Ms),
+    mig_status(KB, Ms, Rows),
+    mig_plan_writes(KB, Rows, Plan),
+    kb_dir(KB, Dir), kb_file(KB, KbFile),
+    tool_version_text(V), utc_now(Now),
+    mig_new_text(KbFile, Plan, V, Now, Text),
+    ( Plan = plan([], [], _) -> Problems = [] ; mig_validate(KB, Plan, Problems) ),
+    findall(S, ( member(mig(Id, _, _, S0, _), Ms), mig_touched(Id, Rows), member(S, S0) ), Ss0), sort(Ss0, Ss),
+    kb_items(KB, Items), items_decls(Items, Ds),
+    reach_of(Items, Ds, Ss, Reach),
+    orbit_script(Script0), real_file(Script0, Self),
+    (   Old = some(OldExe) -> OldEnv = [env(Env0)], findall(K=Val, ( member(K, ['PATH', 'HOME', 'XDG_CACHE_HOME', 'TMPDIR', 'LANG']), getenv(K, Val) ), Env0)
+    ;   OldExe = Self, OldEnv = []
+    ),
+    (   Plan = plan([], [], _), Old == none
+    ->  Diffs = [], Outside = []
+    ;   mig_verdicts(OldExe, OldEnv, Dir, VOld),
+        setup_call_cleanup(mig_shadow(Dir, Text, Tmp),
+                           mig_verdicts(Self, [], Tmp, VNew),
+                           mig_rm_shadow(Tmp)),
+        mig_diffs(VOld, VNew, Diffs),
+        include([d(Vd, A, _)]>>( A \== [undefined], \+ verdict_in_reach(Vd, Reach) ), Diffs, Outside)
+    ).
+
+mig_touched(Id, Rows) :- member(row(Id, _, _, _, _, [_|_]), Rows), !.
+% kb-migrations c20: a migration with no steps declares a change that the engine itself brings
+% (it writes nothing); its S is always in the reach.
+mig_touched(Id, Rows) :- \+ member(row(Id, _, _, _, _, _), Rows), \+ member(rowerr(Id, _, _), Rows).
+
+mig_digest(KB, Report, Digest) :-
+    Report = rep(_, Rows, plan(Ins, Adds, Errs), _, Reach, Diffs, Outside, Problems),
+    kb_file(KB, KbFile), read_file_to_string(KbFile, S, [encoding(utf8)]),
+    tool_version_text(V),
+    format(string(X), "~q", [v(V, S, Rows, Ins, Adds, Errs, Reach, Diffs, Outside, Problems)]),
+    sha256_text(X, Digest).
+
+% cmd_migrate(+DirOpt, +Args, -Code)
+cmd_migrate(DirOpt, Args, Code) :-
+    (   Args = [Sub|Rest] -> true ; Sub = check, Rest = [] ),
+    resolve_kb(DirOpt, Dir),
+    (   Sub == check -> mig_cmd_check(Dir, Rest, Code)
+    ;   Sub == plan  -> mig_cmd_plan(Dir, Rest, Code)
+    ;   Sub == apply -> mig_cmd_apply(Dir, Rest, Code)
+    ;   usage_error("migrate takes check, plan or apply: orbit-kb migrate check|plan [--old ENGINE]|apply --seen DIGEST.", [])
+    ).
+
+mig_load(Dir, KB) :- lib_dir(Lib), load_kb(Dir, Lib, KB).
+
+% check (c5, c12): one line per step with something to do. Exit 1 when a tool or agent step is to
+% do (a required step), else 0. A human step and a retired predicate never make it 1.
+mig_cmd_check(Dir, Args, Code) :-
+    ( Args == [] -> true ; usage_error("migrate check takes no arguments.", []) ),
+    mig_load(Dir, KB), load_migrations_kb(KB, Ms), mig_status(KB, Ms, Rows),
+    forall(member(rowerr(Id, SId, Msg), Rows), format("error ~w ~w: the pending query failed: ~w~n", [Id, SId, Msg])),
+    forall(( member(row(Id, _, SId, Ow, D, Th), Rows), Th = [_|_] ),
+           ( length(Th, NT), ( required_owner(Ow) -> K = todo ; K = migrating ),
+             findall(T, ( member(X, Th), fmt(T, "~q", [X]) ), Ts), atomic_list_concat(Ts, ' ', TT),
+             format("~w ~w ~q ~w ~w: ~w. ~w~n", [K, Id, SId, Ow, NT, D, TT]) )),
+    kb_items(KB, Items), cutfail_pis(Items, PIs),
+    forall(member(N/A-CL, PIs),
+           ( retired_fact_lines(Items, N/A, CL, Ls), length(Ls, NF),
+             format("retired ~q/~w ~w fact(s): lint WM1 warns; it never fails this check.~n", [N, A, NF]) )),
+    (   member(rowerr(_, _, _), Rows) -> Code = 2
+    ;   member(row(_, _, _, Ow, _, [_|_]), Rows), required_owner(Ow) -> Code = 1
+    ;   Code = 0
+    ).
+
+mig_cmd_plan(Dir, Args, Code) :-
+    parse_opts(Args, ['--old'-value], Pos, Opts),
+    ( Pos == [] -> true ; usage_error("migrate plan takes only --old ENGINE.", []) ),
+    ( memberchk('--old'-OE, Opts) -> mig_old_exe(OE, OX), Old = some(OX) ; Old = none ),
+    mig_load(Dir, KB),
+    mig_plan(KB, Old, Rep),
+    mig_print_plan(KB, Old, Rep),
+    mig_digest(KB, Rep, D),
+    Rep = rep(_, _, plan(Ins, Adds, Errs), _, _, _, Outside, Problems),
+    (   ( Errs \== [] ; Outside \== [] ; Problems \== [] )
+    ->  format("apply refuses this plan (see above).~n", []), Code = 1
+    ;   Ins == [], Adds == []
+    ->  format("Nothing to write.~n", []), Code = 0
+    ;   format("Seen: ~w~nShow this plan to the human. To land it: orbit-kb migrate apply --seen ~w~n", [D, D]), Code = 0
+    ).
+
+mig_old_exe(OE, OX) :-
+    (   exists_file(OE), access_file(OE, execute) -> absolute_file_name(OE, OX)
+    ;   die(2, ["--old must name an orbit-kb that runs: " + OE] >> fix_lines)
+    ).
+
+mig_print_plan(KB, Old, rep(Ms, Rows, plan(Ins, Adds, Errs), _, Reach, Diffs, Outside, Problems)) :-
+    kb_dir(KB, Dir), kb_file(KB, KbFile), mig_made_by(KbFile, MB), tool_version_text(V),
+    format("Migration plan for ~w (made by orbit-kb ~w; this is orbit-kb ~w).~n", [Dir, MB, V]),
+    (   Old = some(OX) -> format("Old side: ~w on kb.pl as it is. New side: this orbit-kb on the migrated kb.pl.~n", [OX])
+    ;   format("Old side: this orbit-kb on kb.pl as it is (no --old ENGINE: a change that the engine itself brings is not shown). New side: this orbit-kb on the migrated kb.pl.~n", [])
+    ),
+    forall(( member(mig(Id, MV, MD, S, _), Ms), mig_touched(Id, Rows) ),
+           ( findall(T, ( member(X, S), ( X = lint(C) -> fmt(T, "lint ~w", [C]) ; fmt(T, "~q", [X]) ) ), STs),
+             atomic_list_concat(STs, ', ', ST),
+             format("~nMigration ~w (orbit-kb ~w): ~w~n  Declared change S: ~w~n", [Id, MV, MD, ST]),
+             forall(( member(row(Id, _, SId, Ow, D, Th), Rows), Th = [_|_] ),
+                    ( length(Th, NT), findall(T2, ( member(Y, Th), fmt(T2, "~q", [Y]) ), T2s), atomic_list_concat(T2s, ' ', TT),
+                      format("  step ~q (~w): ~w to do: ~w. ~w~n", [SId, Ow, NT, TT, D]) )) )),
+    reach_text(Reach, [], RT),
+    format("~nReach of S (c14): ~w~n", [RT]),
+    length(Ins, NI), length(Adds, NA),
+    format("~nWrites: ~w insertion(s) above a first clause, ~w fact(s) appended, each with migration_added/3. No line of kb.pl changes or goes.~n", [NI, NA]),
+    forall(member(ins(L, N/A, W, Id, MV), Ins),
+           ( cutfail_text(N, A, CT), format("  + above line ~w: ~w  and retired(~q/~w, ~q, ~q)   (~w)~n", [L, CT, N, A, MV, W, Id]) )),
+    forall(member(F-Id, Adds), ( clause_line(F, [], FL), format("  + ~w   (~w)~n", [FL, Id]) )),
+    forall(member(E, Errs), format("REFUSED: ~w~n", [E])),
+    forall(member(P, Problems), format("REFUSED: a fact of the plan fails a check of add: ~w~n", [P])),
+    (   Diffs == [] -> format("~nVerdicts: none differs.~n", [])
+    ;   format("~nVerdicts that differ (old -> new):~n", []),
+        forall(member(d(Vd, A, B), Diffs),
+               ( verdict_text(Vd, VT), answers_text(A, AT), answers_text(B, BT),
+                 (   verdict_in_reach(Vd, Reach) -> Where = "in the reach"
+                 ;   A == [undefined] -> Where = "not compared: the old side gives no answer on kb.pl as it is; --old ENGINE of the version that wrote it compares it"
+                 ;   Where = "OUTSIDE the reach: an undeclared change; apply refuses"
+                 ),
+                 format("  ~w: ~w -> ~w (~w)~n", [VT, AT, BT, Where]) ))
+    ),
+    ( Outside == [] -> true ; format("~nThe declared change S of a migration misses a verdict that it changes. Fix the migration, not the KB.~n", []) ).
+
+% apply (c2, c3, c9): the writes of the plan in one atomic rename, under the KB lock, only when
+% the digest of the plan is the one that was shown (--seen). A KB that a newer orbit-kb made, a
+% KB whose ticket is closed (frozen), and a plan with an error are refused with no write.
+mig_cmd_apply(Dir, Args, Code) :-
+    parse_opts(Args, ['--seen'-value, '--old'-value, '--take'-flag, '--as'-value], Pos, Opts),
+    ( Pos == [] -> true ; usage_error("migrate apply takes --seen DIGEST (and --old ENGINE when the plan had it).", []) ),
+    ( memberchk('--old'-OE, Opts) -> mig_old_exe(OE, OX), Old = some(OX) ; Old = none ),
+    mig_frozen_gate(Dir),
+    directory_file_path(Dir, 'kb.pl', KbFile),
+    mig_made_by(KbFile, MB), tool_version_text(V),
+    (   MB \== none, version_parts(MB, PB), version_parts(V, PV), PB @> PV
+    ->  die(1, ["Refused: orbit-kb " + MB + " made this KB, and it is newer than this orbit-kb (" + V + "). Nothing was written.",
+                "Fix: run the newer orbit-kb."] >> fix_lines)
+    ;   true
+    ),
+    take_role(Args, ArgsR), writer_gate(Dir, ArgsR, _),
+    with_kb_lock(Dir, mig_apply_locked(Dir, Old, Opts, Code)).
+
+mig_apply_locked(Dir, Old, Opts, Code) :-
+    mig_load(Dir, KB),
+    kb_items(KB, Items),
+    (   member(synerr(_, F, L, M), Items)
+    ->  die(1, ["Refused: kb.pl does not read (" + F + ":" + L + ": " + M + "). Nothing was written.", "Fix: lint E1 first."] >> fix_lines)
+    ;   true
+    ),
+    mig_plan(KB, Old, Rep),
+    Rep = rep(_, _, Plan, Text, _, _, Outside, Problems),
+    Plan = plan(Ins, Adds, Errs),
+    (   Ins == [], Adds == []
+    ->  forall(member(E, Errs), format(user_error, "~w~n", [E])),
+        format("Nothing to write: no tool step and no new question is to do. orbit-kb migrate check lists the work of an agent.~n", []),
+        ( Errs == [] -> Code = 0 ; Code = 1 )
+    ;   ( Errs \== [] ; Problems \== [] ; Outside \== [] )
+    ->  mig_print_plan(KB, Old, Rep),
+        format(user_error, "Refused: the plan has an error (above). Nothing was written.~n", []), Code = 1
+    ;   mig_digest(KB, Rep, D),
+        (   memberchk('--seen'-D, Opts) -> true
+        ;   memberchk('--seen'-D0, Opts)
+        ->  die(1, ["Refused: the plan changed since it was shown (--seen " + D0 + "; it is now " + D + "). Nothing was written.",
+                    "Fix: run orbit-kb migrate plan again and show it to the human."] >> fix_lines)
+        ;   die(1, ["Refused: no --seen DIGEST. Nothing was written. The human sees each change before it lands (c15).",
+                    "Fix: run orbit-kb migrate plan, show it to the human, then orbit-kb migrate apply --seen DIGEST."] >> fix_lines)
+        ),
+        kb_file(KB, KbFile),
+        write_atomic(KbFile, Text),
+        length(Ins, NI), length(Adds, NA),
+        format("Migrated ~w: ~w insertion(s), ~w fact(s) added. No line changed or went.~n", [KbFile, NI, NA]),
+        Code = 0
+    ).
+
+% mig_frozen_gate(+Dir) (c9): in a hub, a spec KB whose ticket is closed is frozen.
+mig_frozen_gate(Dir) :-
+    (   mig_hub_slug(Dir, Hub, Slug),
+        directory_file_path(Hub, '.claude/scripts/hubflow.py', Hf), exists_file(Hf),
+        absolute_file_name(path(python3), Exe, [access(execute), file_errors(fail)])
+    ->  mig_child(Exe, [Hf, '--hub', Hub, 'kb-state', Slug], [cwd(Hub)], X, Out),
+        split_string(Out, "", " \n", [St]),
+        (   X == 0, St == "open"
+        ->  true
+        ;   X == 0, St == "closed"
+        ->  die(1, ["Refused: the ticket of kb:" + Slug + " is closed, so its KB is frozen at the version that closed it (c9). Nothing was written."] >> fix_lines)
+        ;   % review a93: fail closed. A KB of a hub whose state the ledger cannot give may be frozen.
+            die(1, ["Refused: hubflow kb-state " + Slug + " did not answer open or closed, so this KB may be frozen (c9). Nothing was written.",
+                    "Fix: make python3 .claude/scripts/hubflow.py kb-state " + Slug + " work in the hub (an older hubflow lacks it: upgrade the kit)."] >> fix_lines)
+        )
+    ;   true
+    ).
+
+mig_hub_slug(Dir, Hub, Slug) :-
+    absolute_file_name(Dir, A), file_base_name(A, Slug), file_directory_name(A, P),
+    file_base_name(P, specs), file_directory_name(P, Hub), !.
+% review a166: a KB of the form before 0.3.0, HUB/W<n>/analyses/<slug>/..., has the slug <slug>.
+mig_hub_slug(Dir, Hub, Slug) :-
+    absolute_file_name(Dir, A), kb_hub_root(A, Hub),
+    atom_concat(Hub, '/', HP), atom_concat(HP, Rel, A),
+    atomic_list_concat([W, analyses, Slug|_], '/', Rel),
+    atom_concat('W', N, W), atom_number(N, _), Slug \== ''.
+
 cmd_lint(KB, Args, Code) :-
     parse_opts(Args, ['--strict'-flag], Pos, Opts),
     ( Pos == [] -> true ; usage_error("lint takes no arguments other than --strict.", []) ),
@@ -8647,7 +9377,9 @@ lint_diags(KB, Diags, IssueLines, IssueErrors) :-
     w_diags(KB, Items, Ds, Facts, DW),
     % ED12 (review of K-C/K-D, item 2): a discovery_end that no GO earned
     discovery_end_diags(KB, Items, KbFile, D12),
-    append([D1, D10, DD, DA, DF, D5, D15, DR, D17, D18, D11, DW, D12], Diags0),
+    % WM1 (kb-migrations c16, c17): retired predicates, their facts and their reach
+    wm_diags(Items, Ds, DM),
+    append([D1, D10, DD, DA, DF, D5, D15, DR, D17, D18, D11, DW, D12, DM], Diags0),
     % keep errors in a stable order; drop exact repeats
     list_to_set(Diags0, Diags),
     lint_issues(Eng, Ds, IssueLines, IssueErrors).
@@ -11535,6 +12267,8 @@ help_general([
 "  pin-request --request-file F [--accept --by human]",
 "  apply-pending",
 "  project impact X [--root DIR] | project archive --superseded-before DATE [--root DIR] | project dropped [--hub DIR]",
+"  migrate check | migrate plan [--old ENGINE] | migrate apply --seen DIGEST   bring an older KB to this version",
+"  signature [--write|--check]      the name/arity of each predicate that this version declares",
 "  doctor",
 "  version                          the version of the tool (the file VERSION of Sagittarius)",
 "  Every write command takes --as ROLE: actor(A, Role, Session) records who wrote (help core).",
@@ -11973,6 +12707,52 @@ help_lines(withdraw, [
 "Each removed line stays in kb.pl as the comment \"% withdrawn: LINE\", and the record",
 "withdrawn(NAME/ARITY, By, Time, N) is appended (N facts). Then add the facts again under the",
 "declared name. A kind of the library is never withdrawn (exit 1). Takes the writer lock."
+]).
+help_lines(migrate, [
+"orbit-kb migrate check | migrate plan [--old ENGINE] | migrate apply --seen DIGEST [--old ENGINE]",
+"",
+"Bring a KB that an older orbit-kb wrote to this version (kb-migrations). A migration is a file in",
+"share/orbit-kb/migrations/. It declares S, the predicates (name/arity, or lint(Code)) whose rules",
+"or facts it changes, and a list of steps. Each step has an owner (tool, agent or human) and a",
+"pending query: the step is to do exactly when its query has an answer on the KB. No marker counts.",
+"",
+"check   One line per step with work: todo MIG STEP OWNER N: WHAT. ITEMS for a tool or agent step,",
+"        migrating ... for a human step, retired N/A ... for each retired predicate (lint WM1).",
+"        Exit 1 while a tool or agent step is to do; a human step and a retired predicate never",
+"        make it fail. Exit 2 when a pending query fails. An agent does the work list of an agent",
+"        step with orbit-kb add; the step is done when its query no longer holds.",
+"plan    The migration as it would land: each step, the writes, the reach of S (S and each",
+"        predicate that reads one in the reach, positively or under not), and each verdict (done,",
+"        discovery_ready, gate, blocking, burn_open, flare_open, stale, show open, the lint codes)",
+"        that differs between the old side and this orbit-kb on the migrated kb.pl. A verdict that",
+"        differs outside the reach is an undeclared change: plan exits 1, and apply refuses it.",
+"        --old ENGINE: the old side is that orbit-kb (the version that wrote the KB) on kb.pl as it",
+"        is; without it, the old side is this orbit-kb on kb.pl as it is. plan ends with Seen: DIGEST.",
+"        Show the plan to the human: the human sees each change before it lands.",
+"apply   Writes the tool steps and the questions of the human steps in one atomic rename of kb.pl,",
+"        under the KB lock, only with --seen DIGEST of the plan as it is now. It never changes or",
+"        removes a line: a retire writes N(_, ..., _) :- !, fail. and retired(N/A, Version, What)",
+"        above the first clause of N/A; other facts are appended, each with migration_added(Mig,",
+"        Version, Fact) after it. It refuses, with no write: a KB that a newer orbit-kb made, a",
+"        spec KB of a hub whose ticket is closed (frozen; hubflow.py kb-state SLUG), a kb.pl that",
+"        does not read, a fact that only a human may make (an approval, a vote, a waiver, a human",
+"        answer, discovery_end, a decision), and a plan with an error. Run it again: it writes nothing.",
+"",
+"A human step raises question(Q, H, Text) on the newest current hypothesis (else the first current",
+"claim): to_ask(Q) holds until a human answers it, so the KB is not done or discovery_ready.",
+"The hub check of all spec KBs: python3 .claude/scripts/hubflow.py migrations.",
+"Limits: the reach is computed over this version's rules and rules.pl; the old engine's rules are",
+"not read. show open counts as in the reach when blocking/1 or done/0 is."
+]).
+help_lines(signature, [
+"orbit-kb signature [--write|--check]",
+"",
+"Print the signature of this version: signature(N/A) for each predicate that core.pl and the",
+"modules declare (kb-migrations c17). --write writes it to share/orbit-kb/signature.pl; --check",
+"exits 1 when that file differs from the declarations. The tool carries no list of retired",
+"predicates: what a KB retired is written in that KB (retired/3 beside its cut-fail clause).",
+"lint flags a fact or rule head that the signature lacks and the KB does not declare (E2), one",
+"whose name the signature has with another arity (E2), and each retired predicate (WM1)."
 ]).
 help_lines(version, [
 "orbit-kb version   (also: orbit-kb --version)",

@@ -980,6 +980,41 @@ does. Each line starts with `ok`, `info`, `FAIL`, or `skip`. A full run prints
 
 Exit: 0 if all checks pass. 2 if an item is missing or a self-test fails.
 
+### `migrate check | migrate plan [--old ENGINE] | migrate apply --seen DIGEST`
+
+Brings a KB that an older orbit-kb wrote to this version (hub spec KB kb-migrations).
+A migration is a file in `share/orbit-kb/migrations/` (`migration/3`, `changes/2`,
+`step/4`, `pending/4`, `writes/4`, `asks/4`, `retires/3`). It declares S, the
+predicates whose rules or facts it changes. Each step has an owner (`tool`, `agent`
+or `human`) and a pending query; the step is to do exactly when the query has an
+answer on the KB. No stored marker counts.
+
+- `check` lists the work: `todo` for a tool or agent step (exit 1), `migrating` for
+  a human step, `retired` for each retired predicate (neither fails it; exit 0).
+- `plan` shows the steps, the writes, the reach of S, and each verdict (`done`,
+  `discovery_ready`, `gate`, `blocking`, `burn_open`, `flare_open`, `stale`,
+  `show open`, the lint codes) that differs between the old side and this orbit-kb on
+  the migrated `kb.pl`. A difference outside the reach is an undeclared change: exit 1.
+  `--old ENGINE` makes the old side that orbit-kb on `kb.pl` as it is. It ends with
+  `Seen: DIGEST`; the human sees the plan before it lands.
+- `apply --seen DIGEST` writes the tool steps and the questions of the human steps in
+  one atomic rename, under the KB lock. It never changes or removes a line. A retire
+  writes `N(_, ..., _) :- !, fail.` and `retired(N/A, Version, What)` above the first
+  clause of N/A; other facts are appended, each followed by `migration_added/3`. It
+  refuses with no write: a stale or missing `--seen`, a KB made by a newer orbit-kb, a
+  frozen spec KB (its ticket is closed), a `kb.pl` that does not read, a fact that only
+  a human may make, and a plan with an error. A second run writes nothing.
+
+The hub check of all spec KBs is `python3 .claude/scripts/hubflow.py migrations`: it
+skips spec KBs whose ticket is closed and fails only on a tool or agent step.
+
+### `signature [--write|--check]`
+
+Prints `signature(N/A)` for each predicate that `core.pl` and the modules declare.
+`--write` writes `share/orbit-kb/signature.pl`; `--check` exits 1 when that file
+differs from the declarations. The tool carries no list of retired predicates: a KB
+records what it retired (`retired/3`).
+
 ### `help [COMMAND|TOPIC]`
 
 Shows the general help, the help for one command, or one topic. The general
@@ -1022,7 +1057,9 @@ directories and `runs/` are skipped). The page groups the spec KBs by the projec
 name with `project_kb/1`, each group labeled with that project KB's first request; a spec KB
 with no `project_kb` is in the group `no project`. A project KB has no section of its own,
 unless it has its own questions to ask (T27 c8). `project_kb` paths are normalized, so a
-trailing slash makes no second group.
+trailing slash makes no second group. In a hub (a folder with `flow/seed.json` above the KB),
+a relative `project_kb` is read from the hub root with its leading `../` steps dropped, so a KB
+moved inside the hub keeps its link with no write (kb-migrations c20).
 Each question to ask shows its notes, its claim's notes and examples, and its due date (T27 c6),
 and has a form: its options as in `view questions`, `other`, and a free text. A picked default
 keeps its term (`3`, not `'3'`); typed text next to a picked option is kept as `note(Q, Text)`.
@@ -1394,7 +1431,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | E4 | Dangling `ref`, or a `ref` to the wrong kind of id. A `supersedes` fact must name two claims or two hypotheses (D15), or two decisions, two definitions or two rules of the project module (D27). The project relations `depends_on`, `excludes`, `ratified_by`, `decided_by`, `analysis` and `concerns` refuse a missing id the same way (D27). |
 | E5 | Duplicate ID. |
 | E6 | Non-ground fact in `kb.pl`. |
-| E7 | A clause in the wrong place: a `rule` predicate as a fact in `kb.pl`, or a `fact` predicate with clauses outside `kb.pl`. |
+| E7 | A clause in the wrong place: a `rule` predicate as a fact in `kb.pl`, or a `fact` predicate with clauses outside `kb.pl`. The one rule form accepted in `kb.pl` is the cut-fail clause of a retired predicate, as the first clause of its predicate, for a head that no engine or `rules.pl` rule has (kb-migrations c16). |
 | E8 | The writer is not permitted for the attestation type. This includes a `[script]` type whose writer is not `script`. |
 | E9 | A `test_result` with no matching run log. The log header must match N, the check, and the result. Also a `lean_proof` with no matching `runs/proof-ID.log`. Its header must match the claim and the digest, and the claim, theorem, module, statement, file, and absent lines of the log must give the digest. |
 | E10 | `uses/1` is missing, is not first, or names an unknown module. |
@@ -1417,6 +1454,7 @@ Each diagnostic has the form `E<n> file:line: message` or `W<n> file:line: messa
 | W5 | A `check` of a superseded claim, while the current claim that replaces it (directly or through a chain) has no check. Check ids are unique (E5) and facts are append-only, so the message says to add a new check of the current claim and run it (D15). |
 | W6 | A local rule that adds clauses to a core or module predicate (an extension). For a protected predicate, it is E16 instead. |
 | W7 | A predicate declared by its first use in `add` (D22), with who and when. Review it. |
+| WM1 | A retired predicate (kb-migrations c16, c17): its first-clause `N(_, ..., _) :- !, fail.` in `kb.pl` takes its facts out of the model. Names the version and the replacement (`retired/3`), the fact lines, and their reach. No due time; never blocks `done`. `orbit-kb help migrate`. |
 | W8 | The request text changed at its source (T27): the latest `request_pin` has another digest and no human accepted it. It also blocks done. |
 | WR1 | A current claim that is not independently verified (D28): no upheld verdict by an actor of another role and session than the last change, resting on a rerun of a check of the claim after that change. Only in a KB with an `actor/3` or `review_saw/3` fact, and only once no current claim is under (a review is due, T38). Only the latest verdict on a claim counts; a change with no `change_at`, or no change at all, verifies nothing (T38). Module hook of build; it does not block `done`. |
 | WP1 | A `pins(Claim, project, Decision, Digest)` fact whose digest differs from the digest of the decision (or definition or rule, D27) in the project KB now: the decision changed since the claim was written. Read it, then add a `pins` fact with the new digest. Module hook; the id is the claim (D23 P6). |

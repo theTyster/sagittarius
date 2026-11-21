@@ -46,6 +46,9 @@ Facts (write them with orbit-kb add; never edit kb.pl)
   writer_takeover(From, To, Time)     written by --take only
 In a spec KB:
   project_kb(Dir)                     the directory of the project KB, relative to this KB or absolute
+                                      In a hub (a folder with flow/seed.json above the KB), a relative
+                                      Dir is read from the hub root, its leading ../ steps dropped, so a
+                                      KB moved inside the hub keeps its link (kb-migrations c20).
   pins(Claim, project, Id, Digest)    the claim rests on a decision, a definition or a rule (a product
                                       rule: the spec pins the rules its claims rely on). Digest is
                                       the sha256 of its text. Read it in the spec KB with:

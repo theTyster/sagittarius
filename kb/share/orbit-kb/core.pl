@@ -220,6 +220,19 @@ decl(fact, review_saw(atom, oneof([ticket, kb, diff]), digest),
 decl(fact, rests_on_run(ref(attest), ref(attest)),
      'The verdict rests on the run: a test_result attestation that the reviewer read or ran.',
      'verdict @(1) rests on run @(2)').
+% kb-migrations (c2, c16, c17): what a migration wrote into the KB. Only orbit-kb migrate apply
+% writes these facts. A version that retires a predicate N/A writes retired(N/A, Version, What)
+% beside a first clause N(_, ..., _) :- !, fail. in kb.pl: the facts of N/A stay in kb.pl, and
+% the clause takes them out of the model. The KB carries what it retired; the tool does not.
+decl(fact, retired(term, atom, term),
+     'The predicate Name/Arity was retired by the version, and the term says what replaces it. A cut-fail clause before its facts in kb.pl takes them out of the model (lint WM1).',
+     'predicate @(1) was retired in orbit-kb @(2), replaced by @(3)').
+decl(fact, migration_added(atom, atom, term),
+     'The migration, run by the orbit-kb version, added the fact (the third argument). orbit-kb migrate apply writes one after each fact that it adds.',
+     'migration @(1) of orbit-kb @(2) added @(3)').
+decl(rule, migration_question(ref(question)),
+     'A migration raised the question for a step that only the human can do (kb-migrations c5, c10).',
+     'a migration raised question @(1)').
 
 % ---------------------------------------------------------------------
 % Core rule predicates
@@ -386,6 +399,10 @@ contested_twice(C) :- attest(D1, divergence, _, claim(C), _, _),
 % D22: a question whose prerequisite is defeated has no clause here any more.
 to_ask(Q) :- question(Q, C, _), current(C), contested(C), not answered(Q),
              not question_waived(Q).
+% kb-migrations c10: the question of a human step of a migration is asked until a human answers
+% it, so the KB is not done (and not discovery_ready) while it waits.
+migration_question(Q) :- migration_added(_, _, question(Q, _, _)), question(Q, _, _).
+to_ask(Q) :- migration_question(Q), not answered(Q), not question_waived(Q).
 % question_waived/1 has no clause here. The build module adds it (D13):
 % a waiver attestation is a type of that module.
 any_to_ask :- to_ask(_).

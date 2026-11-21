@@ -12,7 +12,15 @@ usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
                                was installed, and whether this kit's version of it differs; the
                                first line names the edition, and a UAT install; the `runs` lines
                                name what the hub runs (below)
-  upgrade --hub DIR [--yes]    plan an upgrade to this kit's version; a dry run without --yes
+  upgrade --hub DIR [--yes] [--seen-migrations DIGEST]
+                               plan an upgrade to this kit's version; a dry run without --yes.
+                               In a formal hub whose orbit-kb changes, the dry run also prints the
+                               migration preview (kb-migrations c15, c19): for each spec KB, closed
+                               ones too, this kit's `orbit-kb migrate plan --old` the hub's orbit-kb,
+                               so each verdict that the new engine changes is seen before it lands,
+                               and a preview digest. --yes then needs --seen-migrations DIGEST of the
+                               preview as it is now, and refuses an upgrade whose preview names a
+                               change outside the declared reach of a migration
   done --hub DIR PATH ...      mark pending merges as finished
   edition --hub DIR [informal|formal] [--yes]
                                print the hub's edition; with a name, switch to it: an upgrade plan
@@ -288,11 +296,11 @@ def remove(hub, rel):
 
 def parse(argv):
     o = {"kit": os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hub": None, "yes": False, "paths": [],
-         "edition": None, "uat": False}
+         "edition": None, "uat": False, "seen-migrations": None}
     a = list(argv)
     while a:
         x = a.pop(0)
-        if x in ("--hub", "--kit", "--edition"):
+        if x in ("--hub", "--kit", "--edition", "--seen-migrations"):
             if not a:
                 die(1, f"{x} needs a value")
             o[x[2:]] = a.pop(0)
@@ -364,6 +372,101 @@ def cmd_status(o):
         print(f"pending\tmerge {p['from']} -> {p['to']}\t{p['path']}")
 
 
+OKB_REL = ".claude/orbit-kb/bin/orbit-kb"
+
+
+def hub_kbs(hub):
+    """c19 (review a166): every KB of the hub: [(label, ref slug, dir)]. A spec KB at specs/<slug>
+    (label kb:<slug>), and a KB of the form before 0.3.0 under W0..W5/analyses/<slug>/ at any depth
+    (label kb:W<n>/analyses/..., ref slug <slug>), as HUB-CORE says the old form still resolves. A dot
+    directory (a shadow of migrate plan) is skipped."""
+    out = []
+    specs = os.path.join(hub, "specs")
+    if os.path.isdir(specs):
+        for d in sorted(os.listdir(specs)):
+            if not d.startswith(".") and os.path.isfile(os.path.join(specs, d, "kb.pl")):
+                out.append((f"kb:{d}", d, os.path.join(specs, d)))
+    for n in range(6):
+        an = os.path.join(hub, f"W{n}", "analyses")
+        if not os.path.isdir(an):
+            continue
+        for b, dirs, files in os.walk(an):
+            dirs[:] = sorted(x for x in dirs if not x.startswith("."))
+            if "kb.pl" in files and b != an:
+                rel = os.path.relpath(b, hub).replace(os.sep, "/")
+                slug = os.path.relpath(b, an).replace(os.sep, "/").split("/")[0]
+                out.append((f"kb:{rel}", slug, b))
+    return out
+
+
+def closed_slugs(hub):
+    """c9, c19 (review a166): the kb ref slugs whose every ledger item (a summary aside) is closed, read
+    from flow/flow.db read-only, so a hub whose hubflow has no kb-state (kit 0.9.0) is read too. A ref
+    <slug>/<path> counts for <slug>. None when the ledger cannot be read: then nothing is called closed."""
+    import sqlite3
+    db = os.path.join(hub, "flow", "flow.db")
+    if not os.path.isfile(db):
+        return None
+    try:
+        c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        try:
+            rows = c.execute("SELECT r.ref, i.status FROM item_ref r JOIN item i ON i.id = r.item_id"
+                             " WHERE r.kind = 'kb' AND i.kind <> 'summary'").fetchall()
+        finally:
+            c.close()
+    except sqlite3.Error:
+        return None
+    seen, opened = set(), set()
+    for ref, st in rows:
+        if ref.startswith(("/", "~")):
+            continue
+        slug = ref.split("/")[0]
+        seen.add(slug)
+        if st in ("open", "waiting"):
+            opened.add(slug)
+    return seen - opened
+
+
+def migration_preview(o, k, ed, hub, plan):
+    """kb-migrations c15, c19: the verdicts that the new engine changes are seen before it lands. In a
+    formal hub whose orbit-kb is replaced, run this kit's orbit-kb `migrate plan --old` the hub's orbit-kb
+    on each KB of the hub (hub_kbs: specs/ and the old W*/analyses form), closed ones too, a closed one
+    labeled (closed_slugs). Returns (lines, digest, bad): the preview, the sha256 of it, and the labels
+    whose plan refuses (an undeclared change, or a plan that does not run). None when there is nothing
+    to preview."""
+    import subprocess
+    if ed != "formal" or not any(act in ("replace", "add") and rel.startswith(".claude/orbit-kb/") for act, rel in plan):
+        return None  # the hub's orbit-kb does not change: no verdict changes with this upgrade
+    new = okb_sources(o["kit"], k).get(OKB_REL)
+    old = os.path.join(hub, OKB_REL)
+    kbs = hub_kbs(hub)
+    if not new or not os.path.isfile(new) or not os.access(old, os.X_OK) or not kbs:
+        return None
+    env = {x: v for x, v in os.environ.items() if not x.startswith("ORBIT_KB")}
+    closed = closed_slugs(hub)
+    lines, bad = [], []
+    if closed is None:
+        lines.append("(the ledger flow/flow.db cannot be read: no KB is marked closed)")
+    for label, slug, d in kbs:
+        # c19 (Ty, q20: "Include closed KBs"): a closed KB is previewed too, since a new engine changes
+        # how it reads; a migration still writes nothing to it (c9)
+        try:
+            r = subprocess.run([new, "--dir", d, "migrate", "plan", "--old", old],
+                               capture_output=True, text=True, timeout=600, env=env, cwd=hub)
+            rc, out = r.returncode, r.stdout
+        except (OSError, subprocess.SubprocessError) as e:
+            rc, out = 2, f"the plan did not run: {e}"
+        keep = [x for x in out.splitlines()
+                if x.startswith(("Reach of S", "  ", "Verdicts", "REFUSED", "Nothing to write", "apply refuses"))]
+        lines.append(label + (" (closed: previewed; no migration writes to it)" if closed and slug in closed else "")
+                     + ("" if rc == 0 else f" (plan exit {rc})"))
+        lines += ["  " + x for x in keep] or ["  (no output)"]
+        if rc != 0:
+            bad.append(label)
+    digest = "sha256:" + hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
+    return lines, digest, bad
+
+
 def cmd_upgrade(o, edition=None):
     k = load_kit(o["kit"])
     hub, yes = o["hub"], o["yes"]
@@ -408,8 +511,26 @@ def cmd_upgrade(o, edition=None):
     for action, rel in plan:
         if action != "keep":
             print(f"{action}\t{rel}")
+    pv = migration_preview(o, k, ed, hub, plan)
+    if pv:
+        lines, digest, bad = pv
+        print("migration preview (kb-migrations c15, c19): the new orbit-kb against the hub's, on each spec KB, closed ones too")
+        for x in lines:
+            print(x)
+        print(f"preview digest: {digest}")
     if not yes:  # dry run
+        if pv:
+            print(f"show the preview to the human; then: hubkit.py upgrade --hub HUB --yes --seen-migrations {pv[1]}")
         return
+    if pv:
+        lines, digest, bad = pv
+        if bad:
+            die(1, "refused: the migration plan of " + ", ".join(bad) + " names a change outside the declared reach, or does"
+                   " not run; nothing was copied. Fix the migration of the kit (or the KB), then upgrade again")
+        if o.get("seen-migrations") != digest:
+            die(1, "refused: --seen-migrations must give the preview digest of the dry run as it is now"
+                   f" ({digest}); nothing was copied. Run the dry run, show the preview to the human, then --yes"
+                   " --seen-migrations DIGEST")
     for action, rel in plan:
         if action in ("replace", "add", "add-owned"):
             copy(o["kit"], k, ed, hub, rel)
