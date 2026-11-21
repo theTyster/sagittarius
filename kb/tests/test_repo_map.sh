@@ -117,6 +117,13 @@ t_C1d() {  # the example is truthful: the paths of the parts that exist today ex
     [ -f "$EX_CT" ] || { note "no committed containers example $EX_CT"; return; }
     grep -qi 'planned' "$EX_CT" && note "hubkit and s1 are in the tree now; the example must not say planned"
 }
+t_C1e() {  # the example works with a project KB that names each repo by its directory name
+    mkdir -p "$base/c1e"
+    printf "uses(project).\nrepo(sagittarius, '.').\nrepo('hubflow-starter', '../hubflow-starter').\n" > "$base/c1e/kb.pl"
+    rm_run --facts "$base/c1e/kb.pl" --containers "$EX_CT"; rc_is 0 "real repo names"
+    out_has 'System_Ext\(hubflow_starter, "hubflow-starter"' "hubflow-starter is a system in C1"
+    out_has 'Rel\(hubkit, hubflow_starter,' "hubkit links to hubflow-starter in C2"
+}
 
 # ---------------------------------------------------------------- c2
 t_C2a() {  # map@ + 12 hex of sha256(facts NUL containers), once
@@ -316,7 +323,7 @@ t_L3e() {  # the map of a C3 level: same hash rule; no path, no location
     rm_run --facts "$base/l3e/kb.pl" --containers "$base/l3e/containers.pl" --level c3 --container web; rc_is 2 "colliding component ids are refused"
 }
 
-for t in C1a C1b C1c C1d C2a C2b C2c C2d C3a C3b U1 U2 H1 D2a D2b D2c D1 D3 L3a L3b L3c L3d L3e; do
+for t in C1a C1b C1c C1d C1e C2a C2b C2c C2d C3a C3b U1 U2 H1 D2a D2b D2c D1 D3 L3a L3b L3c L3d L3e; do
     if [ -n "${ONLY:-}" ] && ! [[ $t =~ $ONLY ]]; then continue; fi
     FAILS=(); "t_$t"
     if [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $t"
