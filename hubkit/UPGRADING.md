@@ -96,6 +96,14 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.11.2 (a fix of the Desk; db schema 8, unchanged)
+
+This release pairs with Sagittarius 0.7.2. The db schema is 8: no `hubflow.py migrate` is needed. The
+engine (orbit-kb) changes: the Desk refused a Fix letter about more than 50 items at Send, and the
+letter was not stored. Now the item of a Fix letter names at most 50 ids, and its text names every
+one (spec KB questions-server c20, c8). A hub on 0.11.1 needs nothing but the upgrade. A Fix letter
+that the Desk refused before is not stored: send it again after the upgrade.
+
 ### 0.11.1 (a fix of this file; db schema 8, unchanged)
 
 This release pairs with Sagittarius 0.7.1. The db schema is 8, as in 0.11.0: no `hubflow.py migrate`
