@@ -2097,6 +2097,23 @@ t_QS74() {  # Desk c40 (Ty: "Refuse both ways"): a Park past the --due date is r
     askjson "$T/h" "$A" "(d['item']['parked_until'] or '')=='2026-12-10'"
 }
 
+t_QS75() {  # Desk c20, c8 (H-0118, Ty, 2026-11-23: the "106 checks" Fix was refused with "item ids must be a list of up to 50 ids"): a Fix letter about more than 50 checks is stored when Ty sends it, and its text still names every check
+    desk_hub "$T/h"; local tok to n
+    for n in $(seq 10 69); do echo "check(k$n, c1)." >> "$T/h/specs/exp/kb.pl"; done   # with k2 k3 k4 of kb_rests: 63 checks with no words
+    srvd --hub "$T/h" || return; page_ok || return
+    chk dorph "$T/page.html" '63 checks' 'do not say in words'
+    tok=$(pg dtoken "$T/page.html")
+    review "token=$tok" "hub=$T/h" "item=fix:words:$T/h"; code_is 200 "the review of the Fix of 63 checks" || return
+    rj "len(d['letters'])==1 and all(k in d['letters'][0]['text'] for k in ['k2', 'k4', 'k10', 'k69'])"
+    to=$(python3 -I -c "import json,sys; print(json.load(open(sys.argv[1]))['letters'][0]['to'])" "$T/review.json")
+    post /send "token=$tok" "hub=$T/h" "item=fix:words:$T/h" "letter_0=Say what each check does. A line from Ty." "to_0=$to"
+    code_is 303 "send the Fix of 63 checks: $(grep -o "desk: [^<]*" "$T/post.html")"
+    grep -q 'A line from Ty' "$T/h/flow/desk/letters.jsonl" 2>/dev/null || note "the Fix letter of 63 checks is not stored"
+    # the two limits are one: desk.py FIX_IDS_MAX and orbit-kb desk_fix_ids_max
+    local a b; a=$(sed -n 's/^FIX_IDS_MAX = \([0-9]*\).*/\1/p' "$T/h/.claude/scripts/desk.py"); b=$(sed -n 's/^desk_fix_ids_max(\([0-9]*\)).*/\1/p' "$OKB")
+    [ -n "$a" ] && [ "$a" = "$b" ] || note "desk.py FIX_IDS_MAX ($a) and orbit-kb desk_fix_ids_max ($b) differ"
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -2109,6 +2126,6 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
-for n in $(seq 1 74); do run_one QS$n; done
+for n in $(seq 1 75); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
