@@ -5,6 +5,8 @@
 # c3  hubkit/kit.json version is higher than the first one; CHANGELOG.md has the redesign entry.
 # c4  (0.3.0) VERSION, the last line of the prompt and a CHANGELOG heading agree; install.py --check prints the version;
 #     the installed orbit-kb and a formal hub's copy of it print it (orbit-kb version).
+# c5  (0.7.1, H-0114) no tracked file has a merge-conflict marker line (<<<<<<<, ||||||| or >>>>>>>),
+#     as merge 3c782b2 left one in hubkit/UPGRADING.md.
 # Exit: 0 all pass, 1 a check failed.  Prints `pass=N fail=N`.
 set -u
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
@@ -29,6 +31,12 @@ printf '%s' "$use" | grep -qi 's1/README\.md' && printf '%s' "$use" | grep -qi '
 printf '%s' "$use" | grep -qi 'settings\.json' && printf '%s' "$use" | grep -qi 'paste' \
     && printf '%s' "$use" | grep -qi 'no script\|nothing writes\|never writes\|does not write' \
     && ok c1-hook-manual || bad c1-hook-manual "Use it does not say the hook is a manual paste into settings.json that no script writes"
+
+
+# c5 (0.7.1, H-0114): no merge-conflict marker in a tracked file. A line that starts with 7 of <, | or >
+# and then a space or the line end is a marker. A ======= line alone is not checked: Markdown can use it.
+marks=$(git -C "$repo" grep -nE '^(<{7}|[|]{7}|>{7})( |$)' -- . 2>/dev/null)
+[ -z "$marks" ] && ok c5-no-merge-markers || bad c5-no-merge-markers "$(printf '%s' "$marks" | head -5)"
 
 # c2
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/release-test.XXXXXX") || exit 1
