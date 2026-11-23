@@ -96,6 +96,14 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.11.1 (a fix of this file; db schema 8, unchanged)
+
+This release pairs with Sagittarius 0.7.1. The db schema is 8, as in 0.11.0: no `hubflow.py migrate`
+is needed. No engine file changes. 0.11.0 shipped this file with a stray merge-marker line
+(`||||||| d9207b8`) above the 0.9.0 section; 0.11.1 removes it, and `kb/tests/test_release.sh` now
+fails on such a line in any tracked file (spec KB module-versions c9). A hub on 0.11.0 needs nothing
+but the upgrade, which records the new module versions.
+
 ### 0.11.0 (module versions and the Desk toast; db schema 8, unchanged)
 
 This release pairs with Sagittarius 0.7.0 (it was 0.6.0). The db schema is 8, as in 0.10.0: no
@@ -179,7 +187,6 @@ Check: `.claude/orbit-kb/bin/orbit-kb version` prints `orbit-kb 0.6.0`; `python3
 status --hub "$HUB"` prints `hub from MindHole Kit 0.10.0`; `python3 .claude/scripts/hubflow.py
 migrations` runs (exit 0, or 1 with each `todo` named: do those steps).
 
-||||||| d9207b8
 ### 0.9.0 (a park ends on or before the due date; db schema 8)
 
 Ty, 2026-11-18 (Sagittarius spec KB questions-server, c38 to c41): "there needs to be a database level
