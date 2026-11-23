@@ -7455,7 +7455,14 @@ desk_plan_fix(HDs, HD, R, _Text, P) :-
     ;   throw(desk_refused(400, "The form names no fix that the Desk knows. Reload the page."))
     ).
 
-desk_fix_item(What, Ids, J) :- findall(S, ( member(I, Ids), dk_str(I, S) ), Ss), J = _{type:"fix", what:What, ids:Ss}.
+% desk_fix_item(+What, +Ids, -J): the item of a fix letter. It names at most desk_fix_ids_max ids, the
+% limit of desk.py (FIX_IDS_MAX), which refuses a longer list at /send (H-0118: a Fix of 106 checks was
+% refused, and Ty's letter was lost). The text of the letter still names every id.
+desk_fix_ids_max(50).
+desk_fix_item(What, Ids, J) :-
+    desk_fix_ids_max(M), findall(S, ( member(I, Ids), dk_str(I, S) ), Ss0),
+    length(Ss0, N), ( N > M -> length(Ss, M), append(Ss, _, Ss0) ; Ss = Ss0 ),
+    J = _{type:"fix", what:What, ids:Ss}.
 
 desk_group(Pairs, Groups) :- msort(Pairs, S), group_pairs_by_key(S, Groups).
 
