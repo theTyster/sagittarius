@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Tests of docs/check_lean.py (Sagittarius 0.3.0, package L-A: claims c_l_a_1, c_l_a_2, c_l_a_3).
+"""Tests of docs/check_lean.py (Sagittarius 0.3.0, package L-A: claims c_l_a_1, c_l_a_2, c_l_a_3;
+the class ScientificMethod: scientific-method-overhaul, claim c25).
 
 Each test copies the script and the files it reads into a scratch tree, changes one thing, and runs
 the script there. A change that breaks a promise must make the script fail. The tree itself must pass.
@@ -18,6 +19,7 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPT = "docs/check_lean.py"
 PHIL = "docs/PHILOSOPHY.md"
+SM = "kb/proofs/scientific_method/ScientificMethod.lean"
 
 
 def lean_path():
@@ -35,9 +37,9 @@ def run(root, *args, timeout=900):
 class Tree:
     """A scratch copy of the files the script reads (sources only, never .lake)."""
 
-    def __init__(self, d, projects=()):
+    def __init__(self, d, projects=(), files=()):
         self.root = os.path.join(d, "tree")
-        files = [SCRIPT, PHIL, lean_path()]
+        files = [SCRIPT, PHIL, lean_path(), *files]
         for rel in files:
             self.copy(rel)
         for name in projects:
@@ -214,6 +216,120 @@ class Proofs(unittest.TestCase):
     def test_build_error_fails(self):
         rc, out = self._mutant("\ntheorem broken : 1 = 2 := rfl\n")
         self.assertNotEqual(rc, 0, out)
+
+
+class ScientificMethod(unittest.TestCase):
+    """c25: the Lean file of the handoff has no sorry and no axiom of its own, and holds the nine theorems."""
+
+    NAMED = ("unique_verdict", "conflict_rejects_joint", "agreement_establishes_run", "Timer.reading_600",
+             "Timer.reading_611", "Timer.reading_615", "Timer.late_run_refutes_universal",
+             "Statistical.equal_likelihood_no_preference", "revision_preserves_record")
+    # The last line of the file closes the namespace: a mutant adds its text before that line.
+    END = "\nend ScientificMethod\n"
+
+    def _mutant(self, old, new):
+        with tempfile.TemporaryDirectory() as d:
+            t = Tree(d, files=(SM,))
+            t.replace(SM, old, new)
+            return run(t.root, "scientific")
+
+    def _added(self, text):
+        return self._mutant(self.END, "\n" + text + self.END)
+
+    def test_tree_passes_and_counts_the_nine_theorems(self):
+        rc, out = run(ROOT, "scientific")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("9 of the 9 named theorems", out)
+        self.assertNotIn("FAIL", out)
+
+    def test_a_copy_passes(self):
+        # The mutants below fail by their change, not because the copy is a copy.
+        with tempfile.TemporaryDirectory() as d:
+            rc, out = run(Tree(d, files=(SM,)).root, "scientific")
+            self.assertEqual(rc, 0, out)
+
+    def test_the_check_names_each_of_the_nine(self):
+        with open(os.path.join(ROOT, SCRIPT), encoding="utf-8") as f:
+            script = f.read()
+        for n in self.NAMED:
+            self.assertIn(f'"ScientificMethod.{n}"', script)
+
+    def test_sorry_in_a_named_theorem_fails(self):
+        rc, out = self._mutant("  exact ⟨⟨610, by decide, by decide⟩, ⟨612, by decide, by decide⟩⟩\n", "  sorry\n")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("ScientificMethod.Timer.reading_611 uses the axiom(s) sorryAx", out)
+
+    def test_sorry_in_a_new_theorem_fails(self):
+        rc, out = self._added("theorem not_done : 1 = 2 := sorry")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("ScientificMethod.not_done uses the axiom(s) sorryAx", out)
+
+    def test_sorry_in_a_theorem_that_a_named_theorem_uses_fails(self):
+        # late_run_refutes_universal rests on reading_615: the sorry shows on both.
+        rc, out = self._mutant("  intro t ht ok\n  unfold withinError at ht\n  unfold timely at ok\n  omega\n",
+                               "  sorry\n")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("ScientificMethod.Timer.late_run_refutes_universal uses the axiom(s) sorryAx", out)
+
+    def test_sorry_in_an_example_fails(self):
+        # An example leaves no declaration: the check reads Lean's own warning.
+        rc, out = self._added("example : 1 = 2 := sorry")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("Lean reports a sorry", out)
+
+    def test_axiom_that_a_theorem_uses_fails(self):
+        rc, out = self._added("axiom cheat : False\ntheorem bad_one : 1 = 2 := cheat.elim")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("declares the axiom ScientificMethod.cheat", out)
+        self.assertIn("ScientificMethod.bad_one uses the axiom(s) ScientificMethod.cheat", out)
+
+    def test_axiom_that_nothing_uses_fails(self):
+        rc, out = self._added("axiom every_run_meets : ∀ v : Verdict, v = .meets")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("declares the axiom ScientificMethod.every_run_meets", out)
+
+    def test_native_decide_fails(self):
+        rc, out = self._added("theorem by_compiler : 2 + 2 = 4 := by native_decide")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("by_compiler", out)
+
+    def test_standard_axioms_pass(self):
+        # unique_verdict is classical: the three axioms of Lean's own logic are not axioms of the file.
+        rc, out = self._added("theorem uses_propext (a b : Prop) (h : a ↔ b) : a = b := propext h")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("10 theorems", out)
+
+    def test_a_named_theorem_that_is_gone_fails(self):
+        rc, out = self._mutant("theorem unique_verdict ", "theorem unique_verdict_x ")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("declares no theorem ScientificMethod.unique_verdict", out)
+
+    def test_a_def_is_not_a_theorem(self):
+        rc, out = self._mutant("theorem revision_preserves_record ", "def revision_preserves_record ")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("declares no theorem ScientificMethod.revision_preserves_record", out)
+
+    def test_lean_error_fails(self):
+        rc, out = self._added("theorem broken : 1 = 2 := rfl")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("Lean rejects", out)
+
+    def test_file_not_in_the_repository_fails(self):
+        with tempfile.TemporaryDirectory() as d:
+            t = Tree(d, files=(SM,))
+            os.remove(os.path.join(t.root, SM))
+            rc, out = run(t.root, "scientific")
+            self.assertNotEqual(rc, 0, out)
+            self.assertIn("ScientificMethod.lean is not in the repository", out)
+
+    def test_the_file_is_not_changed_and_no_build_folder_is_left(self):
+        p = os.path.join(ROOT, SM)
+        with open(p, "rb") as f:
+            before = f.read()
+        run(ROOT, "scientific")
+        with open(p, "rb") as f:
+            self.assertEqual(before, f.read())
+        self.assertEqual(sorted(os.listdir(os.path.dirname(p))), ["README.md", "ScientificMethod.lean"])
 
 
 if __name__ == "__main__":
