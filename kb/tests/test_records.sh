@@ -151,7 +151,7 @@ C = c3"
         "adoption_cited(hy1, 'Ty: go with A')"
     okb query 'hypothesis_state(hy1, S)'; is Rc37-cited-alone-proposed "S = proposed"
     okb show hypotheses; has Rc37-cited-header "  Hypothesis hy1 (the agent, proposed): A."
-    has Rc37-cited-printed "    Cited as adopted (the agent's reading of the human's words): 'Ty: go with A'. The human adopts it with Adopt on the Desk, or with: orbit adopt hy1 --by human"
+    has Rc37-cited-printed "    Cited as adopted (the agent's reading of the human's words): 'Ty: go with A'. The human adopts it with Adopt on the Desk, or with: orbit-kb adopt hy1 --by human"
     okb report; has Rc37-cited-printed-report "      - Cited as adopted (the agent's reading of the human's words): 'Ty: go with A'."
     okb retire hy1 --reason no; rcis Rc37-agent-cannot-retire-cited 1
     printf "attest(v1, vote, r1, vote(1, go), agent, '2026-11-24T00:00:00Z').\nattest(v2, vote, r1, vote(1, go), human, '2026-11-24T00:01:00Z').\nadoption_cited(hy3, 'after the vote').\n" >> "$K/kb.pl"
@@ -226,12 +226,12 @@ if want p3; then   # the findings of review on the views: B3 to B7
     okb show hypotheses; has Rp3-B4-goal "Goal g1 (Ty): A replayed import is safe."
     has Rp3-B4-human-name "  Hypothesis hy1 (Ty, proposed): Skip seen IDs."
     has Rp3-B4-agent-name "  Hypothesis hy5 (Astra (agent), proposed): Hash each record."
-    has Rp3-B4-citation "    Cited as adopted (the agent's reading of Ty's words): 'sounds right'. Ty adopts it with Adopt on the Desk, or with: orbit adopt hy5 --by human"
+    has Rp3-B4-citation "    Cited as adopted (the agent's reading of Ty's words): 'sounds right'. Ty adopts it with Adopt on the Desk, or with: orbit-kb adopt hy5 --by human"
     okb query 'hypothesis(hy5, G, A, T)'; has Rp3-B4-query-keeps-value "A = agent:astra"
     okb report; has Rp3-guess "  - Hypothesis hy5 (Astra, agent-written, not adopted): Hash each record."
     okb show blocking; line=$(printf '%s\n' "$out" | grep '^- goal_unjudged g1')
-    case "$line" in *"Ty records it on the Desk (Goal satisfied), or with: orbit judge g1 satisfied --by human: A replayed import is safe.") ok Rp3-B6-ends-with-goal-text;; *) bad Rp3-B6-ends-with-goal-text "$line";; esac
-    okb show open; has Rp3-B6-show-open "orbit judge g1 satisfied --by human: A replayed import is safe."
+    case "$line" in *"Ty records it on the Desk (Goal satisfied), or with: orbit-kb judge g1 satisfied --by human: A replayed import is safe.") ok Rp3-B6-ends-with-goal-text;; *) bad Rp3-B6-ends-with-goal-text "$line";; esac
+    okb show open; has Rp3-B6-show-open "orbit-kb judge g1 satisfied --by human: A replayed import is safe."
     printf "hypothesis(hy9, g9, agent, 'No goal.').\n" >> "$K/kb.pl"; n=$(grep -n '^hypothesis(hy9' "$K/kb.pl" | cut -d: -f1)
     okb lint; has Rp3-B7-id-in-line "E4 kb.pl:$n hy9: hypothesis/4 argument 2: g9 is not the id of any goal fact."
     oldkb p3b discovery; printf "hypothesis(h2, feature, '%s').\nno_premises(h2).\n" "$(printf 'x%.0s' $(seq 1 130))" >> "$K/kb.pl"
@@ -247,6 +247,26 @@ if want p3; then   # the findings of review on the views: B3 to B7
     okb add 'carried(a7, g1)'; rcis Rp3-B3-carry 0
     okb query 'discovery_hypothesis_touched(g1)'; rcis Rp3-B3-carried-reproduction-counts 0
     okb lint; hasnt Rp3-B3-no-WD7 "WD7"
+fi
+
+if want u1; then   # review U1: the tool names itself as it was called (argv0) in every next-step line
+    ORBIT=$(dirname "$CLI")/orbit
+    newkb u1 build; okb add "goal(g1, feature, human, 'Dark.')" 'no_premises(g1)' "hypothesis(hy1, g1, agent, 'A switch.')" \
+        "adoption_cited(hy1, 'yes')" "claim(c1, introduce, 'Dark.')" 'predicts(hy1, c1)' 'check(k1, c1)' "checks_that(k1, 'dark')"
+    okb run k1 -- false; okb add "change(x1, 'made it')" 'serves(x1, c1)'; okb run k1 -- false
+    a=$(sed -n 's/^attest(\(a[0-9]*\), test_result.*/\1/p' "$K/kb.pl" | tail -1)
+    okb show open; has Ru1-kb-locate "orbit-kb locate $a "; has Ru1-kb-judge "or with: orbit-kb judge g1 satisfied"
+    hasnt Ru1-kb-no-bare-orbit "with: orbit judge"
+    okb show hypotheses; has Ru1-kb-adopt "or with: orbit-kb adopt hy1 --by human"
+    oo() { out=$("$ORBIT" --dir "$K" "$@" 2>"$T/err" </dev/null); rc=$?; err=$(cat "$T/err"); }
+    oo show open; has Ru1-orbit-locate "orbit locate $a "; has Ru1-orbit-judge "or with: orbit judge g1 satisfied"
+    hasnt Ru1-orbit-no-orbit-kb "orbit-kb"
+    oo show hypotheses; has Ru1-orbit-adopt "or with: orbit adopt hy1 --by human"; hasnt Ru1-orbit-hyp-no-orbit-kb "orbit-kb"
+    oo locate "$a" hypothesis:hy1 --evidence 'the switch does nothing'
+    case "$err" in *"orbit confirm LOCATION"*) ok Ru1-orbit-locate-note;; *) bad Ru1-orbit-locate-note "$err";; esac
+    oo show open; has Ru1-orbit-confirm "orbit confirm "; hasnt Ru1-orbit-open-no-orbit-kb "orbit-kb"
+    oo report; hasnt Ru1-orbit-report-no-orbit-kb "orbit-kb "
+    okb show open; has Ru1-kb-confirm "orbit-kb confirm "
 fi
 
 echo "pass=$pass fail=$fail"

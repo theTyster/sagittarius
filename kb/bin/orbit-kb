@@ -381,7 +381,11 @@ usage_error(Fmt, Args) :-
 print_lines(S, Lines) :-
     forall(member(L, Lines), format(S, "~w~n", [L])).
 
-fmt(S, Fmt, Args) :- format(string(S), Fmt, Args).
+% U1 (0.8.0 review): a line of the tool names the tool as it was called. The format text (never
+% the data in Args) goes through name_text/2: under the name orbit-kb nothing changes.
+fmt(S, Fmt0, Args) :- name_text(Fmt0, Fmt), format(string(S), Fmt, Args).
+nformat(Fmt0, Args) :- name_text(Fmt0, Fmt), format(Fmt, Args).
+nformat(Out, Fmt0, Args) :- name_text(Fmt0, Fmt), format(Out, Fmt, Args).
 
 err_text(E, S) :-
     (   catch(phrase('$messages':translate_message(E), L), _, fail)
@@ -1315,7 +1319,7 @@ cmd_propose(KB, Args, Code) :-
     ),
     kb_items(KB, KI),
     (   proposal_item(KI, P0, FactA, _), \+ proposal_done(KI, P0, _, _)
-    ->  format("~w already holds this proposal. It waits. Confirm: orbit-kb confirm-proposal ~w~n", [P0, P0]),
+    ->  nformat("~w already holds this proposal. It waits. Confirm: orbit-kb confirm-proposal ~w~n", [P0, P0]),
         Code = 0
     ;   findall(P1, proposal_item(KI, P1, _, _), Ps), length(Ps, N),
         next_proposal_id(Ps, N, P),
@@ -1326,7 +1330,7 @@ cmd_propose(KB, Args, Code) :-
         ;   Facts = [F1]
         ),
         cmd_add(KB, Facts, Code),
-        format("Proposal ~w is stored. It is not a record and it blocks nothing. Confirm: orbit-kb confirm-proposal ~w~n", [P, P])
+        nformat("Proposal ~w is stored. It is not a record and it blocks nothing. Confirm: orbit-kb confirm-proposal ~w~n", [P, P])
     ).
 
 next_proposal_id(Ps, N, P) :-
@@ -1376,7 +1380,7 @@ show_proposals(KB) :-
                           format("    ~w~n", [NT])),
                    (   proposal_done(KI, P, By, T2)
                    ->  format("    confirmed by the ~w at ~w: it is a record~n", [By, T2])
-                   ;   format("    waits; it blocks nothing. Confirm: orbit-kb confirm-proposal ~w~n", [P])
+                   ;   nformat("    waits; it blocks nothing. Confirm: orbit-kb confirm-proposal ~w~n", [P])
                    )
                ))
     ).
@@ -1481,7 +1485,7 @@ resolve_kb(none, Dir) :-
     (   find_up(W1, Dir)
     ->  true
     ;   findall(L, ( find_down(W1, 2, Rel),
-                     format(string(L), "A KB is below this directory, in ~w. To use it: orbit-kb --dir ~w COMMAND.", [Rel, Rel]) ),
+                     nformat(string(L), "A KB is below this directory, in ~w. To use it: orbit-kb --dir ~w COMMAND.", [Rel, Rel]) ),
                 Below),
         append([ "No knowledge base found.",
                  "orbit-kb looks for a KB in this order:",
@@ -4038,7 +4042,7 @@ cmd_init(Args, Code) :-
                        forall(member(L, Ls), format(S, "~w~n", [L])),
                        close(S)),
     format("~w~n", [KbFile]),
-    format(user_error, "Next: add the claims and the checks. Vocabulary: orbit-kb help core.~n", []),
+    nformat(user_error, "Next: add the claims and the checks. Vocabulary: orbit-kb help core.~n", []),
     Code = 0.
 
 % ---------------------------------------------------------------------
@@ -4082,7 +4086,7 @@ cmd_withdraw(KB, Args, Code) :-
     atomic_list_concat([Out0, Sep, Rec, "\n"], Out),
     write_kb_text(KbFile, Out),
     format("~w~n", [Rec]),
-    format(user_error, "Withdrew ~w/~w: its declaration and ~w fact(s). They stay in kb.pl as comments. Run orbit-kb lint next.~n", [N, Ar, NF]),
+    nformat(user_error, "Withdrew ~w/~w: its declaration and ~w fact(s). They stay in kb.pl as comments. Run orbit-kb lint next.~n", [N, Ar, NF]),
     Code = 0.
 
 % kb_lines_commented(+File, +Line-Term pairs, -Out): the text of File with each of these lines
@@ -4196,26 +4200,26 @@ cmd_shift(Args, Code) :-
         (   AExit \== 0
         ->  shift_undo(Dir, Made, Before),
             format(user_error, "~s", [AOut]),
-            format(user_error, "orbit-kb shift wrote nothing: the add above was refused.~n", []),
+            nformat(user_error, "orbit-kb shift wrote nothing: the add above was refused.~n", []),
             Code = AExit
         ;   RedText == none
         ->  shift_note(GoalT, Kind, HT),
             format("~w~n", [KbFile]),
             forall(member(F, Facts), ( term_text(F, FT), format("~w.~n", [FT]) )),
-            format(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD (it must fail before the change), then orbit-kb lint. orbit-kb help shift.~n", [Dir, KId]),
+            nformat(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD (it must fail before the change), then orbit-kb lint. orbit-kb help shift.~n", [Dir, KId]),
             Code = 0
         ;   format(atom(RedPred), "~q", [seen_red(KId, RedText)]),
             shift_child(Script, ['--dir', Dir, attest, disclosure, KId, RedPred], DExit, DOut),
             (   DExit \== 0
             ->  shift_undo(Dir, Made, Before),
                 format(user_error, "~s", [DOut]),
-                format(user_error, "orbit-kb shift wrote nothing: the disclosure of the red run was refused.~n", []),
+                nformat(user_error, "orbit-kb shift wrote nothing: the disclosure of the red run was refused.~n", []),
                 Code = DExit
             ;   shift_note(GoalT, Kind, HT),
                 format("~w~n", [KbFile]),
                 forall(member(F, Facts), ( term_text(F, FT), format("~w.~n", [FT]) )),
                 format("disclosure seen_red(~w, ...): the red run that you saw, with its output.~n", [KId]),
-                format(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD, then orbit-kb lint. The red run that you saw is a disclosure, not a test result: claim c1 stays unfulfilled until the tool shows ~w red, or a human waives check ~w (report: not shown red by the tool). orbit-kb help shift.~n", [Dir, KId, KId, KId]),
+                nformat(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD, then orbit-kb lint. The red run that you saw is a disclosure, not a test result: claim c1 stays unfulfilled until the tool shows ~w red, or a human waives check ~w (report: not shown red by the tool). orbit-kb help shift.~n", [Dir, KId, KId, KId]),
                 Code = 0
             )
         )
@@ -4342,11 +4346,11 @@ cmd_uses(Dir, Args, Code) :-
               ( err_text(E, ET),
                 die(2, ["Could not write " + KbFile + ": " + ET, "Nothing was changed.", "Fix: check that the KB directory is writable."] >> fix_lines) )),
         format("~w.~n", [UT]),
-        format(user_error, "Run orbit-kb lint next. The new module can add lint findings to the KB.~n", []),
+        nformat(user_error, "Run orbit-kb lint next. The new module can add lint findings to the KB.~n", []),
         (   memberchk(discovery, New)
-        ->  format(user_error, "Next: orbit-kb lint. Recipes for each move: orbit-kb help discovery.~n", [])
+        ->  nformat(user_error, "Next: orbit-kb lint. Recipes for each move: orbit-kb help discovery.~n", [])
         ;   memberchk(build, New)
-        ->  format(user_error, "Next: orbit-kb lint. Facts, queries, and burns: orbit-kb help build.~n", [])
+        ->  nformat(user_error, "Next: orbit-kb lint. Facts, queries, and burns: orbit-kb help build.~n", [])
         ;   true
         )
     ),
@@ -4446,7 +4450,7 @@ cmd_add(KB, Args, Code) :-
            format(user_error, "NOTE: ~q/~w is a new predicate. Its first use declares it, with the type term for each argument (lint W7 lists it).~n", [N, A])),
     (   Doc == ''
     ->  forall(member(N/A, FUs),
-               format(user_error, "NOTE: ~q/~w has no description (lint W9). Describe a new kind in its first add: orbit-kb add 'FACT' --doc TEXT.~n", [N, A]))
+               nformat(user_error, "NOTE: ~q/~w has no description (lint W9). Describe a new kind in its first add: orbit-kb add 'FACT' --doc TEXT.~n", [N, A]))
     ;   true
     ),
     Code = 0.
@@ -8772,11 +8776,11 @@ end_lines(KB, Items, approval, Subject, human, Id, Pred, Lines) :-
     ->  Lines = []
     ;   Pred = digest(D0), member(D1, Ds), D1 \== D0
     ->  % D30 H7 (review of K-A, finding 3): a stale approval does not end the orbit.
-        format(user_error, "NOTE: the discovery orbit stays open. This approval names a digest that is not the current digest of the ticket (stale), so it does not end the orbit. Approve the ticket as it is now: orbit-kb attest approval ~w 'digest(current)' --by human.~n", [Subject]),
+        nformat(user_error, "NOTE: the discovery orbit stays open. This approval names a digest that is not the current digest of the ticket (stale), so it does not end the orbit. Approve the ticket as it is now: orbit-kb attest approval ~w 'digest(current)' --by human.~n", [Subject]),
         Lines = []
     ;   eng_true(Eng, gate(go)), eng_true(Eng, artifact_vote(go))
     ->  clause_line(discovery_end(Id), [], L), Lines = [L]
-    ;   format(user_error, "NOTE: the discovery orbit stays open. gate(go) and the artifacts' go (discovery_ready with a current claim) do not both hold in the current round, so this approval of the ticket does not end it. Run orbit-kb query 'gate(V)', orbit-kb show open, and orbit-kb report (Vote).~n", []),
+    ;   nformat(user_error, "NOTE: the discovery orbit stays open. gate(go) and the artifacts' go (discovery_ready with a current claim) do not both hold in the current round, so this approval of the ticket does not end it. Run orbit-kb query 'gate(V)', orbit-kb show open, and orbit-kb report (Vote).~n", []),
         Lines = []
     ).
 end_lines(_, _, _, _, _, _, _, []).
@@ -8849,7 +8853,7 @@ cmd_locate(KB, Args, Code) :-
     format(atom(PT), "~q", [located(Where, Ev)]),
     cmd_attest(KB, [location, Run, PT, '--by', By], Code),
     (   Where == build -> true
-    ;   format(user_error, "NOTE: a location outside the build counts only when a pane that did not build, or the human, confirms it: orbit-kb confirm LOCATION --note TEXT --as ROLE.~n", [])
+    ;   nformat(user_error, "NOTE: a location outside the build counts only when a pane that did not build, or the human, confirms it: orbit-kb confirm LOCATION --note TEXT --as ROLE.~n", [])
     ).
 
 % confirm LOCATION --note TEXT [--by human|agent]
@@ -9001,7 +9005,7 @@ go_vote_check(KB, vote, By, _) :-
     ->  reject([ "The discovery orbit is closed: the human approved the ticket after a GO. A vote now does not count.",
                  "Fix: to return to discovery, record it: orbit-kb attest back H 'back(TEXT)'. Then vote in a new round."
                ] >> fix_lines)
-    ;   format(user_error, "NOTE: the discovery orbit is closed (the human approved the ticket after a GO). This vote is written, but it does not change the outcome. To return to discovery: orbit-kb attest back H 'back(TEXT)'.~n", [])
+    ;   nformat(user_error, "NOTE: the discovery orbit is closed (the human approved the ticket after a GO). This vote is written, but it does not change the outcome. To return to discovery: orbit-kb attest back H 'back(TEXT)'.~n", [])
     ).
 go_vote_check(KB, vote, agent, vote(_, C)) :-
     C == go, has_discovery(KB),
@@ -9409,7 +9413,7 @@ cmd_prove(KB, Args, Code) :-
     format("proof ~w of claim ~w: theorem ~w (~w)~n", [Id, Claim, Thm, Mod]),
     format("Statement: ~w~n", [St]),
     format("Log: ~w~n", [Log]),
-    format("Check that the statement says what claim ~w says. orbit-kb cannot check that.~n", [Claim]),
+    nformat("Check that the statement says what claim ~w says. orbit-kb cannot check that.~n", [Claim]),
     Code = 0.
 
 % prove_exec(+Exe, +Args, +Cwd, +RunsDir, -ExitCode, -Output): run a
@@ -9808,9 +9812,9 @@ cmd_signature(Args, Code) :-
         (   Have == Want
         ->  format("The signature file matches the declarations of core.pl and the modules.~n", []), Code = 0
         ;   Have == missing
-        ->  format("The signature file is missing. Run orbit-kb signature --write.~n", []), Code = 1
+        ->  nformat("The signature file is missing. Run orbit-kb signature --write.~n", []), Code = 1
         ;   subtract(Want, Have, Miss), subtract(Have, Want, Extra),
-            format("The signature file differs from the declarations. Not in the file: ~q. Not declared: ~q. Run orbit-kb signature --write.~n", [Miss, Extra]),
+            nformat("The signature file differs from the declarations. Not in the file: ~q. Not declared: ~q. Run orbit-kb signature --write.~n", [Miss, Extra]),
             Code = 1
         )
     ;   usage_error("signature takes no argument, --write or --check.", [])
@@ -10209,7 +10213,7 @@ mig_cmd_plan(Dir, Args, Code) :-
     ->  format("apply refuses this plan (see above).~n", []), Code = 1
     ;   Ins == [], Adds == []
     ->  format("Nothing to write.~n", []), Code = 0
-    ;   format("Seen: ~w~nShow this plan to the human. To land it: orbit-kb migrate apply --seen ~w~n", [D, D]), Code = 0
+    ;   nformat("Seen: ~w~nShow this plan to the human. To land it: orbit-kb migrate apply --seen ~w~n", [D, D]), Code = 0
     ).
 
 mig_old_exe(OE, OX) :-
@@ -10281,7 +10285,7 @@ mig_apply_locked(Dir, Old, Opts, Code) :-
     Plan = plan(Ins, Adds, Errs),
     (   Ins == [], Adds == []
     ->  forall(member(E, Errs), format(user_error, "~w~n", [E])),
-        format("Nothing to write: no tool step and no new question is to do. orbit-kb migrate check lists the work of an agent.~n", []),
+        nformat("Nothing to write: no tool step and no new question is to do. orbit-kb migrate check lists the work of an agent.~n", []),
         ( Errs == [] -> Code = 0 ; Code = 1 )
     ;   ( Errs \== [] ; Problems \== [] ; Outside \== [] )
     ->  mig_print_plan(KB, Old, Rep),
@@ -10782,7 +10786,7 @@ kb_engine(KB, Eng) :-
 
 eng_true(Eng, G) :- eng_all(Eng, [], G, L), L \== [].
 
-say(Fmt, Args) :- format(Fmt, Args), nl.
+say(Fmt0, Args) :- name_text(Fmt0, Fmt), format(Fmt, Args), nl.
 
 txt(T, S) :- ( atom(T) -> S = T ; term_text(T, S) ).
 plain_text(T, S) :- ( atomic(T) -> format(string(S), "~w", [T]) ; term_text(T, S) ).
@@ -11295,7 +11299,7 @@ blocking_line(_, Eng, goal_unjudged(G), S) :- !,
     (   eng_true(Eng, goal_judgment(_, G, not_satisfied))
     ->  fmt(S, "- goal_unjudged ~w: the last judgment of the human says that goal ~w is not satisfied. The ticket is done only on the judgment that it is: orbit-kb judge ~w satisfied --by human (only the human judges): ~w", [G, G, G, T])
     ;   human_name(Eng, HN), cap_first(HN, HNC),
-        fmt(S, "- goal_unjudged ~w: the human has not judged that goal ~w is satisfied. Show the result to the human. ~w records it on the Desk (Goal satisfied), or with: orbit judge ~w satisfied --by human: ~w", [G, G, HNC, G, T])
+        fmt(S, "- goal_unjudged ~w: the human has not judged that goal ~w is satisfied. Show the result to the human. ~w records it on the Desk (Goal satisfied), or with: orbit-kb judge ~w satisfied --by human: ~w", [G, G, HNC, G, T])
     ).
 blocking_line(_, Eng, behavior_open(B), S) :- !,
     ( eng_all(Eng, [T], behavior_conflict(B, T), [T1|_]) -> txt(T1, TT) ; TT = '?' ),
@@ -11540,7 +11544,7 @@ cmd_pin_request(KB, Args, Code) :-
     ;   kb_file(KB, KbFile), append_lines(KbFile, Lines),
         forall(member(L, Lines), format("~w~n", [L])),
         (   L1 \== [], L2 == []
-        ->  format(user_error, "The request text changed at ~w. The request is stale (lint W8) until a human accepts the new text: orbit-kb pin-request --request-file F --accept --by human.~n", [Ref])
+        ->  nformat(user_error, "The request text changed at ~w. The request is stale (lint W8) until a human accepts the new text: orbit-kb pin-request --request-file F --accept --by human.~n", [Ref])
         ;   true
         )
     ),
@@ -11848,7 +11852,7 @@ door_kb_load(Dir, R) :-
           ;   err_text(E, M), R = bad(M)
           )),
     (   R = bad(Msg)
-    ->  format(user_error, "note: the KB ~w gives no answer here: ~w Run orbit-kb --dir ~w lint.~n", [Dir, Msg, Dir])
+    ->  nformat(user_error, "note: the KB ~w gives no answer here: ~w Run orbit-kb --dir ~w lint.~n", [Dir, Msg, Dir])
     ;   true
     ).
 
@@ -12717,7 +12721,7 @@ auto_record_drops_(KB, Opts) :-
                                format(user_error, "- ~w: the ~w edit lost by date; recorded in the hub ledger as ~w (only a human closes it)~n", [D, Side, Id]) ),
                              orbit_error(_, Ls),
                              ( atomic_list_concat(Ls, ' ', M),
-                               format(user_error, "- ~w: the ~w edit lost by date; the hub ledger did not take it (~w). Run: orbit-kb --dir ~w project dropped --hub ~w --session S~n", [D, Side, M, ADir, Hub]) ))
+                               nformat(user_error, "- ~w: the ~w edit lost by date; the hub ledger did not take it (~w). Run: orbit-kb --dir ~w project dropped --hub ~w --session S~n", [D, Side, M, ADir, Hub]) ))
                    )),
             forall(member([D, P], Ov),
                    catch(( overwrite_handle(Eng, Hub, SessArgs, Rel, J, D, P, R),
@@ -12726,11 +12730,11 @@ auto_record_drops_(KB, Opts) :-
                            ) ),
                          orbit_error(_, Ls),
                          ( atomic_list_concat(Ls, ' ', M),
-                           format(user_error, "- ~w: the push overwrote the tracker edit of pin ~w; the hub ledger did not take it (~w). Run: orbit-kb --dir ~w project dropped --hub ~w --session S~n", [D, P, M, ADir, Hub]) )))
+                           nformat(user_error, "- ~w: the push overwrote the tracker edit of pin ~w; the hub ledger did not take it (~w). Run: orbit-kb --dir ~w project dropped --hub ~w --session S~n", [D, P, M, ADir, Hub]) )))
         ;   forall(member([D, Side], L),
-                   format(user_error, "- ~w: the ~w edit lost by date; no hub ledger was found to record it. Run: orbit-kb --dir ~w project dropped --hub DIR~n", [D, Side, ADir])),
+                   nformat(user_error, "- ~w: the ~w edit lost by date; no hub ledger was found to record it. Run: orbit-kb --dir ~w project dropped --hub DIR~n", [D, Side, ADir])),
             forall(member([D, P], Ov),
-                   format(user_error, "- ~w: the push overwrote the tracker edit of pin ~w; no hub ledger was found to record it. Run: orbit-kb --dir ~w project dropped --hub DIR~n", [D, P, ADir]))
+                   nformat(user_error, "- ~w: the push overwrote the tracker edit of pin ~w; no hub ledger was found to record it. Run: orbit-kb --dir ~w project dropped --hub DIR~n", [D, P, ADir]))
         )
     ).
 
@@ -13211,7 +13215,8 @@ rnode(Depth, Text-Kids) :-
     forall(member(K, Kids), rnode(D1, K)).
 
 % rsay(+Tag, +Fmt, +Args): a bullet with no nesting.
-rsay(Tag, Fmt, Args) :-
+rsay(Tag, Fmt0, Args) :-
+    name_text(Fmt0, Fmt),
     format(string(S), Fmt, Args),
     rtree(Tag, S, S-[]).
 
@@ -13816,7 +13821,7 @@ hyp_lines(Eng, H, Head, Lines) :-
     % review B4: the citation is a line of its own under the header.
     (   St == proposed, eng_all(Eng, [W], adoption_cited(H, W), [W1|_])
     ->  one_line(W1, WT), human_name(Eng, HN), cap_first(HN, HNC),
-        format(string(L0a), "Cited as adopted (the agent's reading of ~w's words): '~w'. ~w adopts it with Adopt on the Desk, or with: orbit adopt ~w --by human", [HN, WT, HNC, H]),
+        fmt(L0a, "Cited as adopted (the agent's reading of ~w's words): '~w'. ~w adopts it with Adopt on the Desk, or with: orbit-kb adopt ~w --by human", [HN, WT, HNC, H]),
         L0 = [L0a]
     ;   L0 = []
     ),

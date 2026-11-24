@@ -1211,7 +1211,7 @@ Tests: `kb/tests/test_proposals.sh`.
 - show: `Goal g1 (AUTHOR): TEXT`, `  Kind: K.`, `  State: current.`, premises, supports, then
   `  Hypothesis hy1 (AUTHOR, STATE): TEXT`. report: `Goal g1 (AUTHOR): TEXT` with the kid `Kind: K.`.
 - A proposed hypothesis with `adoption_cited` has the line `Cited as adopted (the agent's reading of
-  NAME's words): 'WORDS'. NAME adopts it with Adopt on the Desk, or with: orbit adopt H --by human`.
+  NAME's words): 'WORDS'. NAME adopts it with Adopt on the Desk, or with: orbit adopt H --by human` (the tool says its own name, as it was called: orbit-kb adopt under the name orbit-kb; review U1).
 - Superseded goals: `Earlier statements of the goal:`, one line each: `- h2 (AUTHOR, superseded by g1): `
   and the first 100 characters. `No hypothesis: the claims hang on the goal.` prints only for a current goal.
 - report Guesses: `Hypothesis hy5 (Astra, agent-written, not adopted): TEXT` (no name for the plain `agent`).
