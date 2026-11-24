@@ -1681,8 +1681,87 @@ derived_items(Dir, KbItems, Items) :-
     reopen_derived(KbItems, Ts9),
     run_after_derived(KbItems, Ts10),
     vote_void_derived(KbItems, Ts11),
-    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10, Ts11], Ts),
+    stage2_derived(Dir, KbItems, Ts12),
+    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10, Ts11, Ts12], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
+
+% stage2_derived(+Dir, +KbItems, -Facts) (0.8.0, D56, D57, D61): the facts of stage 2 that orbit-kb
+% computes when it reads the KB.
+%   record_line(Id, L)   the line of kb.pl of each attestation, change and goal: a record on a
+%                        higher line was written later (the file only grows).
+%   kb_before_upgrade    the newest "% Made by orbit-kb V." line is below 0.8.0 (or there is none),
+%                        and kb.pl holds no upgraded/2 fact: the grandfather rule reads it.
+%   kb_new_form          orbit-kb 0.8.0 or later made the KB (and it holds no upgraded/2 fact).
+%   before_goal(X, G)    G is a goal/4 fact that replaces another goal (supersedes/2), and X is a
+%                        hypothesis/4, a claim or a run that stands before the fact of G in kb.pl.
+stage2_derived(Dir, KbItems, Facts) :-
+    findall(record_line(Id, L),
+            ( member(it(kb, _, L, T, _, _), KbItems), nonvar(T), integer(L),
+              ( T = attest(Id, _, _, _, _, _) ; T = change(Id, _) ; T = goal(Id, _, _, _) ),
+              atom(Id) ),
+            F1),
+    directory_file_path(Dir, 'kb.pl', KbFile),
+    (   kb_upgrade_state(KbFile, KbItems, St) -> true ; St = new ),
+    (   St == before -> F2 = [kb_before_upgrade]
+    ;   St == new -> F2 = [kb_new_form]
+    ;   F2 = []
+    ),
+    findall(before_goal(X, G),
+            ( member(it(kb, _, LG, TG, _, _), KbItems), nonvar(TG), TG = goal(G, _, _, _), atom(G), integer(LG),
+              once(( kb_term(KbItems, supersedes(G1, G0)), G1 == G, atom(G0),
+                     once(( kb_term(KbItems, goal(G0, _, _, _)) ; kb_term(KbItems, hypothesis(G0, _, _)) )) )),
+              member(it(kb, _, LX, TX, _, _), KbItems), nonvar(TX), integer(LX), LX < LG,
+              (   TX = hypothesis(X, _, _, _) -> true
+              ;   TX = claim(X, _, _) -> true
+              ;   TX = attest(X, Ty, _, _, _, _), Ty == test_result
+              ),
+              atom(X) ),
+            F30),
+    sort(F30, F3),
+    append([F1, F2, F3], Facts).
+
+% kb_upgrade_state(+KbFile, +KbItems, -State) (D57): before (a KB of a version below 0.8.0 that
+% orbit-kb 0.8.0 or later never wrote to), upgraded (it holds upgraded/2), or new.
+kb_upgrade_state(KbFile, KbItems, State) :-
+    (   kb_term(KbItems, upgraded(_, _)) -> State = upgraded
+    ;   exists_file(KbFile), catch(mig_made_by(KbFile, V), _, fail),
+        (   V == none -> true ; version_parts(V, P), P @< [0, 8, 0] )
+    ->  State = before
+    ;   State = new
+    ).
+
+% upgrade_version(-V) (D57): the version that upgraded/2 names: this orbit-kb, and at least 0.8.0.
+upgrade_version(V) :-
+    (   tool_version(V0), version_parts(V0, P), P @>= [0, 8, 0] -> V = V0 ; V = '0.8.0' ).
+
+% upgrade_lines(+KbFile, -Lines) (D57; c20, c39, q27): the lines that the first write of orbit-kb
+% 0.8.0 or later puts into a KB from before the upgrade: upgraded(V, Time); done_before_upgrade(V,
+% Time) when the ticket was done by the rules of 0.7.2 (done_072); and a new "% Made by" line when
+% this orbit-kb is 0.8.0 or later. [] for every other KB. A KB that does not load is not done.
+upgrade_lines(KbFile, Lines) :-
+    file_base_name(KbFile, 'kb.pl'), exists_file(KbFile),
+    file_directory_name(KbFile, Dir),
+    catch(read_source_file(kb, KbFile, KbItems), _, fail),
+    kb_upgrade_state(KbFile, KbItems, before), !,
+    upgrade_version(V), utc_now(Now),
+    clause_line(upgraded(V, Now), [], L1),
+    (   catch(upgrade_was_done(Dir, KbItems), _, fail)
+    ->  clause_line(done_before_upgrade(V, Now), [], L2), Ls0 = [L1, L2]
+    ;   Ls0 = [L1]
+    ),
+    (   tool_version(TV), version_parts(TV, P), P @>= [0, 8, 0]
+    ->  format(atom(LV), "% Made by orbit-kb ~w.", [TV]), append(Ls0, [LV], Lines)
+    ;   Lines = Ls0
+    ).
+upgrade_lines(_, []).
+
+upgrade_was_done(Dir, KbItems) :-
+    items_uses(KbItems, Uses), memberchk(build, Uses),
+    once(kb_term(KbItems, claim(_, _, _))),
+    lib_dir(Lib), load_kb(Dir, Lib, KB),
+    kb_items(KB, Items), \+ memberchk(synerr(_, _, _, _), Items),
+    kb_engine(KB, Eng),
+    swi_raw(Eng, done_072, [], answers([_|_], _)).
 
 % verdict_derived(+KbItems, -Facts) (T38 c2): later_verdict(V) for each disproof verdict V on a
 % claim C that another disproof verdict on C follows in kb.pl. In a KB that uses build only.
@@ -2668,6 +2747,74 @@ head_diags(Ds, Src, F, L, H0, Diags) :-
 % decide done and the burns, and the facts that orbit-kb computes. A
 % clause for one of them in rules.pl is E16, and the engines ignore it.
 protected_pi(done/0).
+% 0.8.0, stage 2 (D55 to D62).
+protected_pi(unresolved_after/2).
+protected_pi(record_line/2).
+protected_pi(later_run/2).
+protected_pi(latest_run/2).
+protected_pi(run_voided/1).
+protected_pi(experiment/3).
+protected_pi(verdict/2).
+protected_pi(model_tests_intro/1).
+protected_pi(check_unresolved/1).
+protected_pi(kb_before_upgrade/0).
+protected_pi(kb_new_form/0).
+protected_pi(change_after_run/2).
+protected_pi(change_before_run/2).
+protected_pi(verdict_stale/2).
+protected_pi(stale_counts/2).
+protected_pi(stale_grandfathered/2).
+protected_pi(counts/2).
+protected_pi(control/1).
+protected_pi(served_before_run/2).
+protected_pi(located/1).
+protected_pi(conflict_open/1).
+protected_pi(check_is_waived/1).
+protected_pi(before_upgrade_record/1).
+protected_pi(conflict_unlocated/1).
+protected_pi(location_outside/1).
+protected_pi(confirmer_dependent/1).
+protected_pi(location_confirmed/1).
+protected_pi(location_unconfirmed/1).
+protected_pi(to_discovery/1).
+protected_pi(goal_judgment/3).
+protected_pi(later_goal_judgment/2).
+protected_pi(goal_satisfied/1).
+protected_pi(goal_unjudged/1).
+protected_pi(case_not_wanted/2).
+protected_pi(case_placed/1).
+protected_pi(goal_has_current_hypothesis/1).
+protected_pi(case_unplaced/1).
+protected_pi(formal/2).
+protected_pi(formal_accepted/2).
+protected_pi(formal_unaccepted/2).
+protected_pi(behavior_named/1).
+protected_pi(behavior_waived/1).
+protected_pi(behavior_open/1).
+protected_pi(before_goal/2).
+protected_pi(carried_over/2).
+protected_pi(not_carried/1).
+protected_pi(not_carried_run/1).
+protected_pi(any_stage2_open/0).
+protected_pi(done_before_upgrade/0).
+protected_pi(after_upgrade_change/1).
+protected_pi(hypothesis_of/2).
+protected_pi(current_072/1).
+protected_pi(passed_072/1).
+protected_pi(failed_after_072/2).
+protected_pi(was_red_072/1).
+protected_pi(fulfilled_072/1).
+protected_pi(under_072/1).
+protected_pi(any_under_072/0).
+protected_pi(to_ask_072/1).
+protected_pi(any_to_ask_072/0).
+protected_pi(burn_open_072/1).
+protected_pi(any_burn_open_072/0).
+protected_pi(flare_open_072/1).
+protected_pi(any_flare_open_072/0).
+protected_pi(any_current_claim_072/0).
+protected_pi(no_current_claim_072/0).
+protected_pi(done_072/0).
 protected_pi(burn/1).
 protected_pi(burn_reason/1).
 protected_pi(burn_proved/1).
@@ -3852,7 +3999,11 @@ cmd_uses(Dir, _, _) :-
 % Writing to kb.pl
 % ---------------------------------------------------------------------
 
-append_lines(File, Lines) :-
+% 0.8.0 (D57): the first write to a KB from before the upgrade records the upgrade first
+% (upgrade_lines/2).
+append_lines(File, Lines0) :-
+    (   Lines0 \== [], catch(upgrade_lines(File, ULs), _, ULs = []) -> true ; ULs = [] ),
+    append(ULs, Lines0, Lines),
     (   exists_file(File)
     ->  read_file_to_string(File, S, [encoding(utf8)]),
         ( ( S == "" ; sub_string(S, _, 1, 0, "\n") ) -> Pre = "" ; Pre = "\n" )
@@ -8144,8 +8295,22 @@ cmd_run(KB, Args, Code) :-
     ->  true
     ;   usage_error("Give a check and a command: orbit-kb run CHECK -- CMD [ARGS].", [])
     ),
-    (   Pre = [Check] -> true
-    ;   usage_error("Give one check id before --: orbit-kb run CHECK -- CMD [ARGS].", [])
+    % 0.8.0 (D55): --timeout SECS and --expect sat|unsat stand before --.
+    parse_opts(Pre, ['--timeout'-value, '--expect'-value], PrePos, RunOpts),
+    (   PrePos = [Check] -> true
+    ;   usage_error("Give one check id before --: orbit-kb run CHECK [--timeout SECS] [--expect sat|unsat] -- CMD [ARGS].", [])
+    ),
+    (   memberchk('--timeout'-TO0, RunOpts)
+    ->  (   atom_number(TO0, TimeOut), TimeOut > 0 -> true
+        ;   usage_error("--timeout takes a number of seconds above 0. It is ~w.", [TO0])
+        )
+    ;   TimeOut = none
+    ),
+    (   memberchk('--expect'-Expect, RunOpts)
+    ->  (   memberchk(Expect, [sat, unsat]) -> true
+        ;   usage_error("--expect takes sat or unsat. It is ~w.", [Expect])
+        )
+    ;   Expect = none
     ),
     kb_items(KB, Items),
     (   member(it(kb, _, _, T, _, _), Items), nonvar(T), T = check(Check, _)
@@ -8175,20 +8340,24 @@ cmd_run(KB, Args, Code) :-
         die(2, ["Could not start the command: " + ET, "Nothing was recorded."] >> fix_lines)
     ;   true
     ),
-    run_wait(P, St),
+    run_wait(P, TimeOut, St),
     utc_now(Now),
     (   St = exit(EC) -> true
     ;   St = killed(Sig) -> EC is 128 + Sig
+    ;   St = timeout -> EC = 137
     ;   EC = 255
     ),
-    ( EC =:= 0 -> Result = pass ; Result = fail ),
     atomic_list_concat(Cmd, ' ', CmdText0),
     split_string(CmdText0, "\n\r", "", CmdParts),
     atomic_list_concat(CmdParts, ' ', CmdText),
     read_file_to_string(TmpOut, Output, [encoding(utf8)]),
-    with_kb_lock(Dir, record_run(KB, Check, Result, EC, Now, CmdText, Output, RunN, Log)),
+    run_result(St, EC, TimeOut, Expect, Output, Result, Why),
+    with_kb_lock(Dir, record_run(KB, Check, Result, Why, EC, Now, CmdText, Output, RunN, Log)),
     format("run ~w ~w ~w (exit ~w) log=~w~n", [RunN, Check, Result, EC, Log]),
-    (   Result == fail
+    (   Result == unresolved
+    ->  format("Unresolved: ~w. The verdict fulfils nothing and defeats nothing; the claim stays open.~n", [Why]),
+        Code = 1
+    ;   Result == fail
     ->  split_string(Output, "\n", "", OL0),
         ( append(OL1, [""], OL0) -> true ; OL1 = OL0 ),
         length(OL1, Len),
@@ -8200,15 +8369,67 @@ cmd_run(KB, Args, Code) :-
     ;   Code = 0
     ).
 
-% run_wait(+P, -Status): wait for the command. SIGINT or SIGTERM to
+% run_result(+Status, +EC, +TimeOut, +Expect, +Output, -Result, -Why) (0.8.0, D55; claim c7):
+% run decides the result itself. pass is the verdict meets, fail is conflicts, and unresolved
+% says that the run could not decide; Why is then the reason (else '').
+%   the command ran into --timeout                -> unresolved
+%   a signal killed it (also exit 137 and 143)    -> unresolved
+%   exit 77 (the check could not decide)          -> unresolved
+%   --expect sat|unsat: the first output line that is sat, unsat, unknown or timeout decides:
+%       the expected answer -> pass; the other decided answer -> fail; unknown or timeout ->
+%       unresolved; no such line and exit 0 -> unresolved
+%   exit 0 -> pass; any other exit -> fail
+run_result(timeout, _, TimeOut, _, _, unresolved, Why) :- !,
+    format(atom(Why), "timed out after ~w s", [TimeOut]).
+run_result(killed(Sig), _, _, _, _, unresolved, Why) :- !,
+    format(atom(Why), "killed by signal ~w", [Sig]).
+run_result(_, EC, _, _, _, unresolved, Why) :- memberchk(EC, [137, 143]), !,
+    Sig is EC - 128, format(atom(Why), "killed by signal ~w", [Sig]).
+run_result(_, 77, _, _, _, unresolved, 'the check could not decide (exit 77)') :- !.
+run_result(_, EC, _, Expect, Output, Result, Why) :- Expect \== none, !,
+    split_string(Output, "\n", " \t\r", OLs),
+    (   member(OL, OLs), memberchk(OL, ["sat", "unsat", "unknown", "timeout"])
+    ->  atom_string(Ans, OL),
+        (   Ans == Expect -> Result = pass, Why = ''
+        ;   memberchk(Ans, [sat, unsat]) -> Result = fail, Why = ''
+        ;   Ans == unknown -> Result = unresolved, Why = 'the solver answered unknown'
+        ;   Result = unresolved, Why = 'the solver timed out'
+        )
+    ;   EC =:= 0
+    ->  Result = unresolved,
+        format(atom(Why), "the output has no line sat, unsat, unknown or timeout (--expect ~w)", [Expect])
+    ;   Result = fail, Why = ''
+    ).
+run_result(_, 0, _, _, _, pass, '') :- !.
+run_result(_, _, _, _, _, fail, '').
+
+% run_wait(+P, +TimeOut, -Status): wait for the command. SIGINT or SIGTERM to
 % orbit-kb stops the command, records nothing, removes the temp file
-% (cleanup_tmp/0), and exits 130 or 143.
-run_wait(P, St) :-
+% (cleanup_tmp/0), and exits 130 or 143. With --timeout SECS (0.8.0, D55), a command that
+% still runs after SECS is killed, and Status is timeout.
+run_wait(P, TimeOut, St) :-
     catch(setup_call_cleanup(run_signals_on(Old),
-                             process_wait(P, St),
+                             run_wait_(P, TimeOut, St),
                              run_signals_off(Old)),
           orbit_signal(Sig),
           run_interrupted(P, Sig)).
+
+run_wait_(P, none, St) :- !, process_wait(P, St).
+run_wait_(P, TimeOut, St) :-
+    get_time(T0), Deadline is T0 + TimeOut,
+    run_poll(P, Deadline, St).
+
+% On Unix, process_wait/3 has only the timeouts 0 and infinite: poll.
+run_poll(P, Deadline, St) :-
+    process_wait(P, St0, [timeout(0)]),
+    (   St0 \== timeout -> St = St0
+    ;   get_time(Now), Now >= Deadline
+    ->  catch(process_kill(P, 9), _, true),
+        catch(process_wait(P, _), _, true),
+        St = timeout
+    ;   sleep(0.02),
+        run_poll(P, Deadline, St)
+    ).
 
 run_signals_on(old(I, T)) :-
     on_signal(int, I, run_signal),
@@ -8233,7 +8454,7 @@ run_interrupted(P, Sig) :-
 % N is 1 more than the highest run number in a test_result and in a log
 % name in runs/ (an orphan log from a killed run is never overwritten).
 % Files that start with a dot (the runs/.tmp-* files) do not count.
-record_run(KB, Check, Result, EC, Now, CmdText, Output, RunN, Log) :-
+record_run(KB, Check, Result, Why, EC, Now, CmdText, Output, RunN, Log) :-
     kb_dir(KB, Dir),
     recheck_writer(Dir),
     kb_lib(KB, Lib),
@@ -8262,7 +8483,12 @@ record_run(KB, Check, Result, EC, Now, CmdText, Output, RunN, Log) :-
     clause_line(Att, [], Line),
     actor_line(Id, ALine),
     kb_file(KB2, KbFile),
-    append_lines(KbFile, [Line, ALine]).
+    % 0.8.0 (D55): an unresolved run says what could not be decided.
+    (   Result == unresolved
+    ->  clause_line(unresolved_because(Id, Why), [], WLine), Lines = [Line, ALine, WLine]
+    ;   Lines = [Line, ALine]
+    ),
+    append_lines(KbFile, Lines).
 
 % runs_tmp(+RunsDir, -Path, -Stream): a new private file
 % runs/.tmp-<pid>-<random>. The process id makes the name unique among
@@ -10076,7 +10302,7 @@ blocking_line(_, Eng, under(C), S) :- !,
     ;   fmt(S, "- under ~w: claim ~w is current but not fulfilled: ~w", [C, C, T])
     ).
 blocking_line(KB, Eng, over(X), S) :- !,
-    opt_change_text(KB, Eng, X, '', T), fmt(S, "- over ~w: change ~w serves no claim: ~w", [X, X, T]).
+    opt_change_text(KB, Eng, X, '', T), fmt(S, "- over ~w: Conflict (Sound Basis): change ~w serves no claim. Its behavior is open for review: ~w", [X, X, T]).
 blocking_line(_, Eng, burn_open(C), S) :- !,
     item_text(Eng, C, T), burn_need_words(Eng, C, W), fmt(S, "- burn_open ~w: claim ~w ~w: ~w", [C, C, W, T]).
 blocking_line(_, Eng, flare_open(C), S) :- !,
@@ -10099,6 +10325,41 @@ blocking_line(_, Eng, project_contradiction(X), S) :- !,
     eng_all(Eng, [Y], project_contradiction(X, Y), Ys0), sort(Ys0, Ys),
     atomic_list_concat(Ys, ', ', YT),
     fmt(S, "- project_contradiction ~w: a claim pins ~w of the project KB, and ~w cannot hold together with ~w there (excludes). Ask a human to supersede one side in the project KB, or change the claim.", [X, X, X, YT]).
+% 0.8.0, stage 2 (D57 to D61): one clear line for each new term.
+blocking_line(_, Eng, check_unresolved(K), S) :- !,
+    item_text(Eng, K, T),
+    (   eng_all(Eng, [A, W], ( latest_run(K, A), unresolved_because(A, W) ), [[A1, W1]|_])
+    ->  fmt(S, "- check_unresolved ~w: the last run of check ~w (~w) is unresolved: ~w. It fulfils nothing and defeats nothing. Run the check again when it can decide: ~w", [K, K, A1, W1, T])
+    ;   eng_all(Eng, [A], latest_run(K, A), [A2|_])
+    ->  fmt(S, "- check_unresolved ~w: the verdict of the last run of check ~w (~w) is unresolved: its measurement does not stand (a measurement premise was found false, or a confirmed location places the conflict in the measurement). Repair the experiment and run the check again: ~w", [K, K, A2, T])
+    ;   fmt(S, "- check_unresolved ~w: the last run of check ~w is unresolved: ~w", [K, K, T])
+    ).
+blocking_line(_, Eng, verdict_stale(K), S) :- !,
+    item_text(Eng, K, T),
+    eng_all(Eng, [X], ( check(K, C), latest_run(K, A), serves(X, C), change_after_run(X, A) ), Xs0), sort(Xs0, Xs),
+    atomic_list_concat(Xs, ', ', XT),
+    fmt(S, "- verdict_stale ~w: the last run of check ~w is older than a change that serves its claim (~w): the verdict is of an older state. Run the check again: ~w", [K, K, XT, T]).
+blocking_line(_, Eng, conflict_unlocated(A), S) :- !,
+    ( eng_all(Eng, [K, C], ( attest(A, test_result, _, result(K, _, _), _, _), check(K, C) ), [[K1, C1]|_]) -> true ; K1 = '?', C1 = '?' ),
+    fmt(S, "- conflict_unlocated ~w: run ~w of check ~w conflicts with claim ~w, and the conflict has no location. Locate it before anything is reopened: orbit-kb locate ~w build|measurement|premise:P|hypothesis:H|claim:C --evidence TEXT", [A, A, K1, C1, A]).
+blocking_line(_, Eng, location_unconfirmed(L), S) :- !,
+    ( eng_all(Eng, [A, W], attest(L, location, A, located(W, _), _, _), [[A1, W1]|_]) -> term_text(W1, WT) ; A1 = '?', WT = '?' ),
+    fmt(S, "- location_unconfirmed ~w: location ~w places the conflict of run ~w outside the build (~w). It counts only when a pane that did not build, or the human, confirms it: orbit-kb confirm ~w --note TEXT --as ROLE", [L, L, A1, WT, L]).
+blocking_line(_, Eng, case_unplaced(J), S) :- !,
+    ( eng_all(Eng, [T], attest(J, judgment, _, case(T, _), _, _), [T1|_]) -> txt(T1, TT) ; TT = '?' ),
+    fmt(S, "- case_unplaced ~w: the human judged this case not wanted, and it is recorded against no hypothesis: ~w. Record it against the hypothesis that allowed it (orbit-kb add 'case_against(~w, H)'); when no pane can name that hypothesis, the case goes to discovery.", [J, TT, J]).
+blocking_line(_, Eng, goal_unjudged(G), S) :- !,
+    item_text(Eng, G, T),
+    (   eng_true(Eng, goal_judgment(_, G, not_satisfied))
+    ->  fmt(S, "- goal_unjudged ~w: the last judgment of the human says that goal ~w is not satisfied. The ticket is done only on the judgment that it is: orbit-kb judge ~w satisfied --by human (only the human judges): ~w", [G, G, G, T])
+    ;   fmt(S, "- goal_unjudged ~w: the human has not judged that goal ~w is satisfied. Show the result to the human; the human records the judgment with orbit-kb judge ~w satisfied --by human: ~w", [G, G, G, T])
+    ).
+blocking_line(_, Eng, behavior_open(B), S) :- !,
+    ( eng_all(Eng, [T], behavior_conflict(B, T), [T1|_]) -> txt(T1, TT) ; TT = '?' ),
+    fmt(S, "- behavior_open ~w: Conflict (Sound Basis): a behavior that no claim names changed or broke. Its behavior is open for review: ~w. A claim names it (names(C, ~w)), or a human waives it.", [B, TT, B]).
+blocking_line(_, Eng, not_carried(A), S) :- !,
+    ( eng_all(Eng, [K, G], ( attest(A, test_result, _, result(K, _, _), _, _), before_goal(A, G), goal_current(G) ), [[K1, G1]|_]) -> true ; K1 = '?', G1 = '?' ),
+    fmt(S, "- not_carried ~w: Not carried over: run ~w of check ~w is of the goal before ~w, and its claim needs it. Run the check again, or carry the run over (orbit-kb add 'carried(~w, ~w)').", [A, A, K1, G1, A, G1]).
 blocking_line(_, _, project_kb_unclean, "- project_kb_unclean: the project KB does not load clean, so a conflict could hide in it. Run orbit-kb lint on the project KB and fix the errors.") :- !.
 blocking_line(_, _, X, S) :-
     term_text(X, XT), fmt(S, "- ~w", [XT]).

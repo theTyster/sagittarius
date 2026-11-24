@@ -230,6 +230,45 @@ decl(fact, retired(term, atom, term),
 decl(fact, migration_added(atom, atom, term),
      'The migration, run by the orbit-kb version, added the fact (the third argument). orbit-kb migrate apply writes one after each fact that it adds.',
      'migration @(1) of orbit-kb @(2) added @(3)').
+% >>> K2 schema block (0.8.0, contract section 2: experiments and verdicts). Builder K1 declares
+% the same facts in its schema commit: keep one copy at the merge.
+decl(fact, unresolved_because(ref(attest), text),
+     'Why the run could not decide: the check was killed, it timed out, it could not decide (exit 77), or the solver gave no decided answer. orbit-kb run writes it with each unresolved run.',
+     'run @(1) is unresolved because @(2)').
+decl(fact, procedure(ref(check), text),
+     'How the experiment of the check is carried out. Without it, the procedure is the command of the last run.',
+     'the procedure of check @(1) is @(2)').
+decl(fact, measurement_premise(id, ref(check), text),
+     'A premise of the measurement of the check, such as: the clock is right within 0.2 s.',
+     '@(1) is a measurement premise of check @(2): @(3)').
+decl(fact, known_when(ref(check), text),
+     'What was known when the claim and the assessment rule of the check were chosen.',
+     'when the claim and the rule of check @(1) were chosen, this was known: @(2)').
+decl(fact, case_against(ref(attest), ref),
+     'The case that the human judged not wanted is recorded against the hypothesis that allowed it: the hypothesis is defeated.',
+     'the not-wanted case @(1) stands against hypothesis @(2)').
+decl(fact, formal_statement(ref(subject), ref(claim)),
+     'The subject (a model, a Lean file) states the claim in a formal language.',
+     'subject @(1) is a formal statement of claim @(2)').
+decl(fact, could_change(ref(subject), text),
+     'The decision that the precision of the formal statement could change.',
+     'the precision of the formal statement @(1) could change: @(2)').
+decl(fact, behavior_conflict(id, text),
+     'A behavior that no claim names changed or broke (Sound Basis). It is open for review until a current claim names it or a human waives it.',
+     '@(1) is a conflict with existing behavior: @(2)').
+decl(fact, names(ref(claim), ref(behavior_conflict)),
+     'The claim names the behavior of the conflict as a target of change.',
+     'claim @(1) names the behavior of conflict @(2)').
+decl(fact, carried(ref, ref),
+     'The record (a hypothesis, a claim, or a run) of an older goal is carried over to the goal.',
+     '@(1) is carried over to goal @(2)').
+decl(fact, upgraded(atom, time),
+     'orbit-kb of this version wrote to the KB for the first time, at the time. The KB was made by a version before 0.8.0. Only the tool writes it.',
+     'orbit-kb @(1) wrote to this KB for the first time at @(2)').
+decl(fact, done_before_upgrade(atom, time),
+     'The ticket was done by the rules of 0.7.2 when orbit-kb of this version wrote to the KB for the first time. Only the tool writes it.',
+     'the ticket was done before the upgrade to orbit-kb @(1) at @(2)').
+% <<< K2 schema block
 decl(rule, migration_question(ref(question)),
      'A migration raised the question for a step that only the human can do (kb-migrations c5, c10).',
      'a migration raised question @(1)').
@@ -377,10 +416,31 @@ attest_type(approval,
             digest(digest),
             [human],
             'A human approves the subject at this digest.').
+% 0.8.0 (D55, claim c7): a run has three results. pass is the verdict meets, fail is conflicts,
+% and unresolved says that the run could not decide (unresolved_because/2 holds the reason).
 attest_type(test_result,
-            result(ref(check), int, oneof([pass, fail])),
+            result(ref(check), int, oneof([pass, fail, unresolved])),
             [script],
-            'The result of one numbered run of a check; only orbit-kb run writes it.').
+            'The result of one numbered run of a check: pass (the verdict meets), fail (conflicts), or unresolved (the run could not decide); only orbit-kb run writes it.').
+% >>> K2 schema block (0.8.0, contract section 2). Builder K1 declares the same types in its
+% schema commit: keep one copy at the merge.
+attest_type(measurement,
+            false(text),
+            [human, agent],
+            'A measurement premise was found false, and why. The subject is the measurement premise. Each run of its check up to then gets the verdict unresolved (D56, claim c39).').
+attest_type(location,
+            located(alt([build, measurement, premise(ref), hypothesis(ref), claim(ref(claim))]), text),
+            [human, agent],
+            'Where the conflict of a run lies, with the evidence. The subject is the run (a test_result attestation). A location outside the build counts only when a pane that did not build confirms it (D58, claims c9, c40).').
+attest_type(confirmation,
+            confirms(text),
+            [human, agent],
+            'A pane that did not build, or the human, confirms a location. The subject is the location attestation (D58, claim c40).').
+attest_type(judgment,
+            alt([case(text, oneof([wanted, not_wanted])), satisfied, not_satisfied, accepts(ref(claim))]),
+            [human],
+            'A judgment of the human: of a concrete case on the goal (wanted or not wanted), of the goal as a whole (satisfied or not satisfied), or of a formal statement (it says what the claim means). The subject is the goal, or the formal statement (D59, claims c10, c41).').
+% <<< K2 schema block
 
 % ---------------------------------------------------------------------
 % Core rules
@@ -407,8 +467,12 @@ to_ask(Q) :- migration_question(Q), not answered(Q), not question_waived(Q).
 % a waiver attestation is a type of that module.
 any_to_ask :- to_ask(_).
 stale(A) :- attest(A, approval, S, digest(D0), human, _), subject(S, _, D1), D0 \= D1.
-passed(K) :- attest(_, test_result, _, result(K, R, pass), _, _), not failed_after(K, R).
+% 0.8.0 (D55, c7): a later unresolved run takes the pass away too, as a later fail does. In a KB
+% with only pass and fail runs the answer is the one of 0.7.2.
+passed(K) :- attest(_, test_result, _, result(K, R, pass), _, _), not failed_after(K, R),
+             not unresolved_after(K, R).
 failed_after(K, R) :- attest(_, test_result, _, result(K, R2, fail), _, _), R2 > R.
+unresolved_after(K, R) :- attest(_, test_result, _, result(K, R2, unresolved), _, _), R2 > R.
 was_red(K) :- attest(_, test_result, _, result(K, R1, fail), _, _),
               attest(_, test_result, _, result(K, R2, pass), _, _), R1 < R2.
 % 0.3.0 (K-F, D42 K3): the rules of trust of a model, moved from the discovery module, so that
@@ -492,3 +556,102 @@ lint_issue('W12', K, 'This check of a current claim does not say in words what i
     check(K, C), not superseded(C), not checks_that(K, _).
 lint_issue('W10', H, 'This hypothesis has no premise and no record "Premises: none". Add premise(P, H, Text) for each condition that it takes as given, or no_premises(H).') :-
     hypothesis(H, _, _), not superseded(H), not premises_stated(H).
+
+
+% =====================================================================
+% 0.8.0, stage 2: experiments and verdicts (D55 to D62; claims c6, c7, c39)
+% =====================================================================
+% One view for every kind of evidence. An experiment is one test of one claim, and it has
+% exactly one verdict: meets, conflicts, or unresolved (the definition Warrants of
+% ScientificMethod.lean). The build module adds the kinds proof and demo, the rules that read a
+% change (verdict_stale/2, control/1), and the location of a conflict.
+% rules.pl cannot add clauses to these rules (lint E16).
+
+decl(rule, unresolved_after(ref(check), int),
+     'The check was unresolved in a run with a higher number than the given run.',
+     'check @(1) was unresolved in a run after run @(2)').
+decl(rule, record_line(ref, int),
+     'The line of kb.pl that holds the record (an attestation, a change, a goal). orbit-kb computes it when it reads the KB. A record on a higher line was written later.',
+     'record @(1) is on line @(2) of kb.pl').
+decl(rule, later_run(ref(check), int),
+     'The check has a run with a higher number than the given run.',
+     'check @(1) has a run after run @(2)').
+decl(rule, latest_run(ref(check), ref(attest)),
+     'The attestation is the run of the check with the highest number.',
+     'run @(2) is the latest run of check @(1)').
+decl(rule, run_voided(ref(attest)),
+     'The run does not count as observed: a measurement premise of its check was found false after it, or a confirmed location places its conflict in the measurement.',
+     'the measurement of run @(1) does not stand').
+decl(rule, experiment(ref(attest), oneof([test, model, proof, demo, judgment]), ref),
+     'The attestation is an experiment of the claim (for a judgment of the goal: of the goal). Kind: a test run, a counted model result, a Lean proof, the approval of a demo, or a judgment of the human.',
+     '@(1) is an experiment (@(2)) of @(3)').
+decl(rule, verdict(ref(attest), oneof([meets, conflicts, unresolved])),
+     'The verdict of the experiment. Exactly one holds for each experiment.',
+     'the verdict of experiment @(1) is @(2)').
+decl(rule, model_tests_intro(ref(model)),
+     'The model is a target model that encodes an introduce claim: its bad_case check tests that claim.',
+     'the bad case of model @(1) tests an introduce claim').
+decl(rule, check_unresolved(ref(check)),
+     'The verdict of the latest run of the check is unresolved.',
+     'the latest run of check @(1) is unresolved').
+decl(rule, kb_before_upgrade,
+     'A version of orbit-kb before 0.8.0 made the KB, and no later version wrote to it. orbit-kb computes it when it reads the KB.',
+     'the KB is from before the upgrade to 0.8.0').
+decl(rule, kb_new_form,
+     'orbit-kb 0.8.0 or later made the KB (a KB from before the upgrade, also one that a later version wrote to, is not of the new form). orbit-kb computes it when it reads the KB.',
+     'orbit-kb 0.8.0 or later made the KB').
+
+later_run(K, N) :- attest(_, test_result, _, result(K, N2, _), _, _), N2 > N.
+latest_run(K, A) :- attest(A, test_result, _, result(K, N, _), _, _), not later_run(K, N).
+% A measurement premise that is found false voids each run of its check that was recorded
+% before the finding (D56, c39). The order is the order of kb.pl: the file only grows.
+run_voided(A) :- attest(A, test_result, _, result(K, _, _), _, _), measurement_premise(MP, K, _),
+                 attest(F, measurement, MP, false(_), _, _),
+                 record_line(A, LA), record_line(F, LF), LA < LF.
+experiment(A, test, C) :- attest(A, test_result, _, result(K, _, _), _, _), check(K, C).
+experiment(A, model, C) :- model_verdict(A, _, preserve(C), _).
+experiment(A, model, C) :- model_verdict(A, _, applies(C), _).
+experiment(A, model, C) :- model_verdict(A, M, bad_case, _), model_is_derived(M), encodes(M, C),
+                           claim(C, introduce, _).
+experiment(A, judgment, C) :- attest(A, judgment, _, accepts(C), human, _).
+experiment(A, judgment, G) :- attest(A, judgment, G, case(_, _), human, _).
+experiment(A, judgment, G) :- attest(A, judgment, G, satisfied, human, _).
+experiment(A, judgment, G) :- attest(A, judgment, G, not_satisfied, human, _).
+% A test run: pass is meets, fail is conflicts, and unresolved stays unresolved. A run whose
+% measurement does not stand is unresolved, whatever it showed.
+verdict(A, unresolved) :- attest(A, test_result, _, result(_, _, _), _, _), run_voided(A).
+verdict(A, meets) :- attest(A, test_result, _, result(_, _, pass), _, _), not run_voided(A).
+verdict(A, conflicts) :- attest(A, test_result, _, result(_, _, fail), _, _), not run_voided(A).
+verdict(A, unresolved) :- attest(A, test_result, _, result(_, _, unresolved), _, _), not run_voided(A).
+% A counted model result that names a claim: a case against the claim conflicts, no case meets,
+% and an unknown result is unresolved. An applies check shows no case against the claim.
+model_tests_intro(M) :- model_is_derived(M), encodes(M, C), claim(C, introduce, _).
+verdict(A, conflicts) :- model_verdict(A, _, preserve(_), R), model_shows_case(R).
+verdict(A, meets) :- model_verdict(A, _, preserve(_), R), model_shows_no_case(R).
+verdict(A, unresolved) :- model_verdict(A, _, preserve(_), R), not model_decided_result(R).
+verdict(A, meets) :- model_verdict(A, _, applies(_), R), model_decided_result(R).
+verdict(A, unresolved) :- model_verdict(A, _, applies(_), R), not model_decided_result(R).
+verdict(A, conflicts) :- model_verdict(A, M, bad_case, R), model_tests_intro(M), model_shows_case(R).
+verdict(A, meets) :- model_verdict(A, M, bad_case, R), model_tests_intro(M), model_shows_no_case(R).
+verdict(A, unresolved) :- model_verdict(A, M, bad_case, R), model_tests_intro(M), not model_decided_result(R).
+% A judgment of the human (D59): wanted, accepts and satisfied meet; not wanted and not
+% satisfied conflict. A judgment changes the verdict of no other experiment (c41).
+verdict(A, meets) :- attest(A, judgment, _, accepts(_), human, _).
+verdict(A, meets) :- attest(A, judgment, _, case(_, wanted), human, _).
+verdict(A, conflicts) :- attest(A, judgment, _, case(_, not_wanted), human, _).
+verdict(A, meets) :- attest(A, judgment, _, satisfied, human, _).
+verdict(A, conflicts) :- attest(A, judgment, _, not_satisfied, human, _).
+check_unresolved(K) :- latest_run(K, A), verdict(A, unresolved).
+
+% >>> K2 stand-in for the records of section 1 (builder K1 owns goal/4, hypothesis/4, predicts/2,
+% goal_current/1, hypothesis_current/1, hypothesis_defeated/1). Drop this block at the merge;
+% hypothesis_of/2 then reads hypothesis/4.
+decl(rule, goal_current(ref), 'The goal is not superseded.', 'goal @(1) is current').
+decl(rule, hypothesis_current(ref), 'The hypothesis is proposed or adopted, under the current goal.', 'hypothesis @(1) is current').
+decl(rule, hypothesis_defeated(ref), 'A case defeated the hypothesis.', 'hypothesis @(1) is defeated').
+decl(fact, predicts(ref, ref(claim)), 'The claim is a prediction of the hypothesis.', 'hypothesis @(1) predicts claim @(2)').
+goal_current(G) :- hypothesis(G, _, _), not superseded(G).
+% <<< K2 stand-in
+decl(rule, hypothesis_of(ref, ref),
+     'The hypothesis (of the new sense) is a hypothesis of the goal.',
+     'hypothesis @(1) is a hypothesis of goal @(2)').
