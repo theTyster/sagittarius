@@ -83,8 +83,23 @@
     var ta = body.querySelector('textarea');
     if (ta) ta.focus();
   }
+  // review D1: a judgment form with no choice, or a case with no text, says so beside its button and
+  // sends nothing (without this script the server answers 400 with the same reason).
+  function judgeMissing(f) {
+    if (!f.hasAttribute('data-judge')) return '';
+    if (!f.querySelector('input[name="choice"]:checked')) return 'Choose one first.';
+    var ta = f.querySelector('textarea[name="text"]');
+    if (f.getAttribute('data-judge') === 'case' && ta && !ta.value.trim()) return 'Write the case first.';
+    return '';
+  }
+  document.querySelectorAll('form[data-judge]').forEach(function (f) {
+    f.addEventListener('input', function () { var m = f.querySelector('.formmsg'); if (m) m.textContent = ''; });
+  });
   document.querySelectorAll('form[data-review]').forEach(function (f) {
     f.addEventListener('submit', function (e) {
+      var miss = judgeMissing(f), m = f.querySelector('.formmsg');
+      if (m) m.textContent = miss;
+      if (miss) { e.preventDefault(); return; }
       if (!dlg || !window.fetch) return;            // no dialog: the form posts to /review as a page
       e.preventDefault();
       post('/review', fields(f), {'X-Desk-Fragment': '1'}).then(function (r) {

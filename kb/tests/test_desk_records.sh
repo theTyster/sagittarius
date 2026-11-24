@@ -9,6 +9,8 @@
 #   DR5 the set of items equals that of the Desk of 0.7.2 on the same hub
 #   DR6 the labels carry the canonical sentences of vocabulary.json
 #   DR8 a stale verdict; a hypothesis that a confirmed location defeated; its claim shown apart
+#   DR10 a judgment with no choice or no case text says so and sends nothing (review D1)
+#   DR9 authors as names (human:ty is Ty, agent:astra is Astra); ids in the order of their numbers
 #   DR7 the same in a headless Chromium (k24); SKIP with no Chromium or no Node 22
 # The Desk of 0.7.2 for DR5: $ORBIT_KB_BASE (a checkout of 0.7.2), else git archive v0.7.2 of this repo.
 QS_LIB_ONLY=1
@@ -80,7 +82,8 @@ t_DR1() {  # the goal first with its author, then each hypothesis with its autho
         'Hypothesis hy1 (agent-written, defeated)' 'Defeated by the case: A correction arrives under a seen ID and is discarded.' \
         'Hypothesis hy2 (agent-written, not adopted)' 'It is false if: A replay that changes a member record.' \
         'Hypothesis hy3 (Ty-written, adopted)' 'not tempered' 'Hypothesis hy4 (agent-written, retired)' \
-        'Hypothesis hy5 (agent-written, not adopted)' "proposed: the agent reads your words as adoption: 'lock the file, that is the way' (Adopt to confirm)" \
+        'Hypothesis hy5 (agent-written, proposed (cited))' "The agent reads your words as adoption: 'lock the file, that is the way' (Adopt to confirm)" \
+        '!Hypothesis hy5 (agent-written, not adopted)' '!proposed: the agent reads' \
         '!No hypothesis: the claims hang on the goal.'
     sec "$T/page.html" replay || { note "no card of the ticket replay"; return; }
     python3 -I - "$T/sec.html" <<'PY' || note "the card: the order (goal, hypotheses, claims), a state, or an Adopt action is wrong"
@@ -233,6 +236,73 @@ PY
     local tok; tok=$(pg dtoken "$T/page.html")
     review "token=$tok" "hub=$T/h" "item=adopt:$kb#hy2"; code_is 409 "Adopt of a hypothesis that a confirmed location defeated"
 }
-for n in 1 2 3 4 5 6 7 8; do run_one DR$n; done
+t_DR9() {  # review U2, U4: the authors print as the CLI prints them; c1, c2, c10 (not c1, c10, c2)
+    mkdesk "$T/h"; kb_project "$T/h/project-kb" 'Import project'
+    kb_new "$T/h/specs/names" <<'EOF2'
+uses([build]).
+request(r1, 'Name the authors').
+goal(g1, feature, human:ty, 'The card names each author.').
+no_premises(g1).
+hypothesis(hy1, g1, agent:astra, 'Printing the name of each author is enough.').
+defeating_case(hy1, human:ty, 'A card that prints a lower-case name.').
+hypothesis(hy2, g1, human:ty, 'A name starts with a capital letter.').
+hypothesis(hy10, g1, agent, 'The order of the ids is the order of their numbers.').
+claim(c10, introduce, 'The tenth claim').
+claim(c2, introduce, 'The second claim').
+claim(c1, introduce, 'The first claim').
+predicts(hy1, c10).
+predicts(hy1, c2).
+predicts(hy1, c1).
+check(k10, c1).
+checks_that(k10, 'the tenth check').
+check(k2, c1).
+checks_that(k2, 'the second check').
+check(k1, c1).
+checks_that(k1, 'the first check').
+EOF2
+    srvd --hub "$T/h" || return; page_ok || return
+    chk raw "$T/page.html" '!class="banner error"' '!cannot be read'
+    chk dkb "$T/page.html" names 'Goal (Ty)' 'Hypothesis hy1 (Astra, agent-written, not adopted)' '(named by Ty)' \
+        'Hypothesis hy2 (Ty-written, not adopted)' 'Hypothesis hy10 (agent-written, not adopted)' 'It predicts the claims c1, c2, c10.' \
+        '!Goal (ty)' '!ty-written' '!named by ty' '!c1, c10, c2'
+    sec "$T/page.html" names || { note "no card of the ticket names"; return; }
+    python3 -I - "$T/sec.html" > "$T/dr9.txt" <<'PY' || note "the order of the ids: $(snip "$(cat "$T/dr9.txt")")"
+import re,sys
+b=open(sys.argv[1],encoding='utf-8').read(); bad=[]
+cl=re.findall(r'<div class="claimrow"><p><span class="ref">(c\d+)</span>', b)
+if cl!=['c1','c2','c10']: bad.append('claims %s' % cl)
+ks=re.findall(r'<div class="chk"><span class="ref">(k\d+)</span>', b)
+if ks!=['k1','k2','k10']: bad.append('checks %s' % ks)
+hs=re.findall(r'data-hyp="(hy\d+)"', b)
+if [h for i,h in enumerate(hs) if h not in hs[:i]]!=['hy1','hy2','hy10']: bad.append('hypotheses %s' % hs)
+print('; '.join(bad)); sys.exit(1 if bad else 0)
+PY
+}
+t_DR10() {  # review D1: a judgment with no choice, or a case with no text, says so beside its button and opens no review
+    rec_hub "$T/h"; local kb="$T/h/specs/replay"
+    srvd --hub "$T/h" || return
+    cat > "$T/d1.js" <<'JS'
+const sec=[...document.querySelectorAll('details.kbsec')].find(d=>d.querySelector('h3.title').textContent==='replay');
+document.getElementById('lane-kbs').open=true; sec.open=true;
+const dlg=document.getElementById('review'); const out={};
+async function tryit(form){
+  form.requestSubmit(form.querySelector('button[type=submit]'));
+  await new Promise(r=>setTimeout(r,500));
+  const m=form.querySelector('.formmsg'); const r={msg:m?m.textContent:null, dialog:dlg.open}; if(dlg.open) dlg.close(); return r;
+}
+const gf=sec.querySelector('form[data-judge="goal"]'); out.goal=await tryit(gf);
+const cf=sec.querySelector('form[data-judge="case"]'); out.case_nochoice=await tryit(cf);
+cf.querySelector('input[value="wanted"]').checked=true; out.case_notext=await tryit(cf);
+cf.querySelector('textarea').value='A replay of the November file changes nothing'; out.case_ok=await tryit(cf);
+return out;
+JS
+    browse "$URL/" "$T/d1.js" || return
+    brj "d['goal']=={'msg':'Choose one first.','dialog':False}" "the goal judged with no choice: $BR"
+    brj "d['case_nochoice']=={'msg':'Choose one first.','dialog':False}" "a case with no choice"
+    brj "d['case_notext']=={'msg':'Write the case first.','dialog':False}" "a case with no text"
+    brj "d['case_ok']['dialog'] and d['case_ok']['msg']==''" "a full case opens the review"
+    hasnt_goal "$kb" "attest(_, judgment, _, _, _, _)" "a judgment was written"
+}
+for n in 1 2 3 4 5 6 7 8 9 10; do run_one DR$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

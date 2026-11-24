@@ -21,6 +21,7 @@ code,.mono{font-family:var(--mono);font-size:13px}
 .small{font-size:13px}
 .gapnote{color:var(--lamp)}
 .loud{color:var(--burn);font-weight:600}
+.formmsg{color:var(--burn);font-weight:600;margin-left:.4em}
 
 /* one badge component: same height, same width, text centered (c19) */
 .badge{display:inline-flex;align-items:center;justify-content:center;height:24px;min-width:92px;padding:0 10px;border-radius:6px;

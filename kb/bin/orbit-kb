@@ -6413,29 +6413,50 @@ desk_hubs(Hs, Missing) :-
 % ---- the engines of the KBs: one per KB, built again when the KB or its queue changes, or
 % after a minute (a digest of a subject file can change too). An old engine's clauses are
 % dropped, so a Desk that runs for days does not grow.
-:- dynamic desk_eng_cache/4.
+:- dynamic desk_eng_cache/3, desk_eng_kb/2.
 
 desk_kb_stamp(Dir, B-Fs) :-
     findall(N-T-S, ( member(N, ['kb.pl', 'answers.pending', 'answers.applied']),
                      directory_file_path(Dir, N, F), exists_file(F), time_file(F, T), size_file(F, S) ), Fs),
     get_time(Now), B is floor(Now / 60).
 
-desk_engine(Dir, KB, Eng) :-
+% The KB term is kept apart from the engine (review U5): a lookup of the engine alone (desk_eng/2,
+% most calls of a page) does not copy the whole KB out of the database.
+desk_engine(Dir, KB, Eng) :- desk_engine_(Dir, Eng), desk_eng_kb(Dir, KB), !.
+
+desk_engine_(Dir, Eng) :-
     desk_kb_stamp(Dir, St),
-    (   desk_eng_cache(Dir, St, KB, Eng) -> true
-    ;   forall(retract(desk_eng_cache(Dir, _, _, eng(M, _))), desk_wipe(M)),
+    (   desk_eng_cache(Dir, St, Eng0) -> Eng = Eng0
+    ;   forall(retract(desk_eng_cache(Dir, _, eng(M, _))), desk_wipe(M)), retractall(desk_eng_kb(Dir, _)),
         lib_dir(Lib), load_kb(Dir, Lib, KB), answer_gate(KB), kb_engine(KB, Eng),
-        assertz(desk_eng_cache(Dir, St, KB, Eng))
+        Eng = eng(M1, _), assertz(desk_eng_mod(M1)),
+        assertz(desk_eng_kb(Dir, KB)), assertz(desk_eng_cache(Dir, St, Eng))
     ).
 
 desk_wipe(M) :-
+    retractall(desk_eng_mod(M)), retractall(desk_ans(_, M, _, _)),
     forall(( current_predicate(M:N/A), functor(H, N, A), \+ predicate_property(M:H, imported_from(_)) ),
            catch(abolish(M:N/A), _, true)).
 
-desk_eng(Dir, Eng) :- catch(desk_engine(Dir, _, Eng), _, fail).
+desk_eng(Dir, Eng) :- catch(desk_engine_(Dir, Eng), _, fail).
 
-dk_all(Eng, T, G, L) :- catch(eng_all(Eng, T, G, L), _, L = []).
-dk_true(Eng, G) :- catch(eng_true(Eng, G), _, fail).
+% The answers of a cached engine (review U5, 2026-11-24): an engine is built from the files of one
+% stamp and never changes, so each query is answered once per engine and kept with it; desk_wipe
+% drops the answers with the engine. The rules of 0.8.0 (under/1, blocking/1) cost about twice
+% those of 0.7.2, and the page asks the same queries at each GET (blocking/1 twice per KB).
+% An engine that is not in desk_eng_cache (a one-off of a POST) is asked each time. The answers are
+% indexed by the hash of the query.
+:- dynamic desk_eng_mod/1, desk_ans/4.
+
+dk_all(Eng, T, G, L) :-
+    (   Eng = eng(M, _), desk_eng_mod(M)
+    ->  copy_term(T-G, Key), numbervars(Key, 0, _), term_hash(Key, H),
+        (   desk_ans(H, M, Key, L0) -> L = L0
+        ;   catch(eng_all(Eng, T, G, L0), _, L0 = []), assertz(desk_ans(H, M, Key, L0)), L = L0
+        )
+    ;   catch(eng_all(Eng, T, G, L), _, L = [])
+    ).
+dk_true(Eng, G) :- dk_all(Eng, [], G, L), L \== [].
 
 % ---- the mindholes and their KBs
 
@@ -6469,12 +6490,29 @@ desk_hub_load(Name, Path, HD) :-
     desk_hub_kbs(Path, Asks, St, KBs),
     HD = hd{name:Name, path:Path, st:St, owner:Owner, asks:Asks, kbs:KBs, err:Err}.
 
+% desk_kb_project(+Dir, -P), desk_is_project_kb(+Dir) (review U5): serve_kb_project/2 and
+% serve_is_project_kb/1, read once per state of kb.pl: each parses the whole kb.pl, and a page asked
+% them about 70 times per GET.
+:- dynamic desk_kbinfo_cache/4.
+desk_kbinfo(Dir, P, IsP) :-
+    directory_file_path(Dir, 'kb.pl', F),
+    get_time(Now), B is floor(Now / 60),      % as the engines: at most a minute old (the project KB it names can move)
+    ( exists_file(F) -> time_file(F, T), size_file(F, Sz), St = B-T-Sz ; St = B-none ),
+    (   desk_kbinfo_cache(Dir, St, P0, IsP0) -> P = P0, IsP = IsP0
+    ;   ( serve_kb_project(Dir, P0) -> true ; P0 = none ),
+        ( serve_is_project_kb(Dir) -> IsP0 = true ; IsP0 = false ),
+        retractall(desk_kbinfo_cache(Dir, _, _, _)), assertz(desk_kbinfo_cache(Dir, St, P0, IsP0)),
+        P = P0, IsP = IsP0
+    ).
+desk_kb_project(Dir, P) :- desk_kbinfo(Dir, P0, _), P = P0.
+desk_is_project_kb(Dir) :- desk_kbinfo(Dir, _, true).
+
 % desk_hub_kbs(+Hub, +Asks, +St, -KBs): the KBs of a hub: its spec KBs, its project KB, and each KB
 % outside the hub that a kb ref of the ledger names (q5: kb:/path or kb:~/path).
 desk_hub_kbs(Hub, Asks, St, KBs) :-
     serve_find_kbs(Hub, Ds0), maplist(serve_norm, Ds0, Ds),
-    findall(P, ( member(D, Ds), serve_kb_project(D, some(P)) ), Ps0),
-    findall(D, ( member(D, Ds), ( memberchk(D, Ps0) ; serve_is_project_kb(D) ) ), PKs0), sort(PKs0, PKs),
+    findall(P, ( member(D, Ds), desk_kb_project(D, some(P)) ), Ps0),
+    findall(D, ( member(D, Ds), ( memberchk(D, Ps0) ; desk_is_project_kb(D) ) ), PKs0), sort(PKs0, PKs),
     findall(K, ( member(D, Ds), \+ memberchk(D, PKs), desk_slug(Hub, D, Sl), atom_string(Sl, Ref),
                  desk_kb_rec(Hub, D, Ref, spec, K) ), Specs),
     findall(K, ( member(D, PKs), desk_slug(Hub, D, Sl), atom_string(Sl, Ref), desk_kb_rec(Hub, D, Ref, project, K) ), Projs),
@@ -6734,7 +6772,8 @@ desk_hypothesis(Eng, H) :- desk_goal(Eng, H).
 
 % desk_hyps(+Eng, -Hs): each hypothesis/4 of the KB, in the order of its ids.
 desk_hyps(Eng, Hs) :-
-    dk_all(Eng, [H, G, A, T], hypothesis(H, G, A, T), L0), sort(L0, L),
+    dk_all(Eng, [H, G, A, T], hypothesis(H, G, A, T), L0), sort(L0, L1),
+    map_list_to_pairs([[H0|_], K]>>desk_id_key(H0, K), L1, PL), keysort(PL, PL1), pairs_values(PL1, L),
     findall(X, ( member([H, G, A, T], L), desk_hyp(Eng, H, G, A, T, X) ), Hs).
 
 desk_hyp(Eng, H, G, A, T, hy{id:H, goal:G, author:A, text:TT, state:S, case:Case, defeats:Ds, nt:NT, cited:Cited, premises:Ps, predicts:Cs}) :-
@@ -6752,7 +6791,7 @@ desk_hyp(Eng, H, G, A, T, hy{id:H, goal:G, author:A, text:TT, state:S, case:Case
     (   memberchk(S, [proposed, adopted]), desk_not_tempered(Eng, H) -> NT = true ; NT = false ),
     ( S == proposed, dk_all(Eng, [W], adoption_cited(H, W), [W1|_]) -> txt(W1, W2), Cited = some(W2) ; Cited = none ),
     desk_premises(Eng, H, Ps, _),
-    dk_all(Eng, [C], predicts(H, C), Cs0), sort(Cs0, Cs).
+    dk_all(Eng, [C], predicts(H, C), Cs0), desk_id_sort(Cs0, Cs).
 
 % desk_hyp_state(+Eng, +H, -S): hypothesis_state/2 of the build contract, section 1.2 (builder K1):
 % superseded, retired, defeated, adopted or proposed, the first that applies. Where the tool has
@@ -6774,15 +6813,30 @@ desk_not_tempered(Eng, H) :-
     ;   \+ dk_true(Eng, defeating_case(H, _, _))
     ).
 
-% desk_author(+Author, -Name): the name for human:Name; else human or agent.
+% desk_author(+Author, -Name) (review U2): the name of an author, as the CLI prints it
+% (author_words/2): human:ty is "Ty", agent:astra is "Astra (agent)". The labels Goal (AUTHOR)
+% and AUTHOR-written keep "human" and "agent" for an author with no name (D72 section 6, k24).
 desk_author(A, N) :-
-    (   A = human:N0 -> dk_str(N0, N)
-    ;   A = agent:_ -> N = "agent"
+    (   A = human:N0, atom(N0) -> author_words(A, N)
+    ;   A = agent:N0, atom(N0) -> author_words(A, N)
     ;   dk_str(A, N)
     ).
 
-desk_state_words(proposed, "not adopted") :- !.
-desk_state_words(S, W) :- dk_str(S, W).
+% desk_written(+Author, -Words): AUTHOR-written; agent:astra is "Astra, agent-written", as in the report.
+desk_written(A, W) :-
+    (   A = agent:N0, atom(N0) -> cap_name(N0, C), dk_f("~w, agent-written", [C], W)
+    ;   desk_author(A, N), dk_f("~w-written", [N], W)
+    ).
+
+% desk_named_by(+Author, -Words): the author in a sentence, with the mapping of the CLI: the agent, the human, Ty.
+desk_named_by(A, W) :- ( catch(author_words(A, W0), _, fail) -> dk_str(W0, W) ; dk_str(A, W) ).
+
+% desk_state_words(+State, +Cited, -Words) (review U3): one state per hypothesis. A proposed
+% hypothesis with adoption_cited/2 is "proposed (cited)": the agent read words of the human as an
+% adoption, and nothing is adopted until the human confirms it.
+desk_state_words(proposed, some(_), "proposed (cited)") :- !.
+desk_state_words(proposed, _, "not adopted") :- !.
+desk_state_words(S, _, W) :- dk_str(S, W).
 
 % desk_vocab(+Key, -Sentence) (c12): the canonical sentence of a word, from share/orbit-kb/vocabulary.json.
 :- dynamic desk_vocab_cache/2.
@@ -6802,7 +6856,19 @@ desk_term(Key, Label, Html) :-
     ).
 
 desk_current_claims(Eng, Cs) :-
-    dk_all(Eng, [C], ( claim(C, _, _), \+ supersedes(_, C) ), Cs0), sort(Cs0, Cs).
+    dk_all(Eng, [C], ( claim(C, _, _), \+ supersedes(_, C) ), Cs0), desk_id_sort(Cs0, Cs).
+
+% desk_id_sort(+Ids, -Sorted) (review U4): ids in the order of their numbers, each once: c1, c2,
+% ..., c10, not c1, c10, c2. An id is its letters, then its number; ids of other shapes keep the
+% standard order of terms, after them.
+desk_id_sort(Ids0, Ids) :-
+    sort(Ids0, Ids1), map_list_to_pairs(desk_id_key, Ids1, Ps), keysort(Ps, Ps1), pairs_values(Ps1, Ids).
+desk_id_key(Id, K) :-
+    (   atom(Id), atom_codes(Id, Cs), append(Ls, Ds, Cs), Ls \== [], Ds \== [],
+        forall(member(D, Ds), code_type(D, digit)), \+ ( last(Ls, L), code_type(L, digit) )
+    ->  atom_codes(P, Ls), number_codes(N, Ds), K = k(0, P, N, Id)
+    ;   K = k(1, Id)
+    ).
 
 % desk_claim_out(+Eng, +C, -H, -State): a hypothesis predicts claim C, and each hypothesis that
 % predicts it is defeated, retired or superseded. H is the first of them, with its state.
@@ -6922,17 +6988,17 @@ desk_premises_html(Ps, None, Mode, Html) :-
     ).
 
 desk_hyp_html1(H, Acts, Html) :-
-    esc(H.text, TH), desk_author(H.author, AN), esc(AN, ANH), desk_state_words(H.state, SW),
+    esc(H.text, TH), desk_written(H.author, AN), esc(AN, ANH), desk_state_words(H.state, H.cited, SW),
     desk_term(hypothesis, "Hypothesis", HL),
     (   H.state == proposed, Acts = acts(HD, K), \+ desk_kb_frozen(HD, K)
     ->  dk_f("adopt:~w#~w", [K.dir, H.id], It), desk_fix_button(HD.path, It, "Adopt", AdoptH)
     ;   AdoptH = ""
     ),
     (   H.cited = some(W) -> esc(W, WH),
-        dk_f("<p class=\"small cited\">proposed: the agent reads your words as adoption: '~w' (Adopt to confirm) ~w</p>", [WH, AdoptH], CitedH), Adopt1 = ""
+        dk_f("<p class=\"small cited\">The agent reads your words as adoption: '~w' (Adopt to confirm) ~w</p>", [WH, AdoptH], CitedH), Adopt1 = ""
     ;   CitedH = "", Adopt1 = AdoptH
     ),
-    (   H.case = case(By, CT) -> esc(CT, CTH), desk_author(By, ByN), esc(ByN, ByH),
+    (   H.case = case(By, CT) -> esc(CT, CTH), desk_named_by(By, ByN), esc(ByN, ByH),
         dk_f("<p class=\"small\">It is false if: ~w <span class=\"quiet\">(named by ~w)</span></p>", [CTH, ByH], CaseH)
     ;   CaseH = ""
     ),
@@ -6944,7 +7010,7 @@ desk_hyp_html1(H, Acts, Html) :-
     desk_premises_html(H.premises, false, brief, PrH),
     (   H.predicts == [] -> PdH = ""
     ;   dk_join(H.predicts, ", ", PJ), desk_term(claim, "claims", CL), dk_f("<p class=\"small quiet\">It predicts the ~w ~w.</p>", [CL, PJ], PdH) ),
-    dk_f("<div class=\"hyp s-~w\" data-hyp=\"~w\"><p><b class=\"lbl\">~w ~w (~w-written, ~w)</b> ~w ~w</p>~w~w~w~w~w~w</div>",
+    dk_f("<div class=\"hyp s-~w\" data-hyp=\"~w\"><p><b class=\"lbl\">~w ~w (~w, ~w)</b> ~w ~w</p>~w~w~w~w~w~w</div>",
          [H.state, H.id, HL, H.id, ANH, SW, TH, Adopt1, CitedH, CaseH, NtH, DefH, PrH, PdH], Html).
 
 % desk_judgments_html(+Eng, +G, -Html): the judgments of the human on the goal, oldest first.
@@ -6962,7 +7028,7 @@ desk_judgments_html(Eng, G, Html) :-
 % goal (satisfied or not satisfied). Both post item judge:DIR to /review.
 desk_judge_forms(HD, K, G, Html) :-
     serve_conf(token, Tok), dk_f("judge:~w", [K.dir], It), desk_hidden([token-Tok, hub-HD.path, item-It], HH),
-    dk_f("<form class=\"judge\" method=\"post\" action=\"/review\" data-review data-judge=\"case\">~w<h4>Judge a case of goal ~w</h4><textarea name=\"text\" aria-label=\"The case\" placeholder=\"One concrete case, in your words.\"></textarea><label><input type=\"radio\" name=\"choice\" value=\"wanted\"> wanted</label> <label><input type=\"radio\" name=\"choice\" value=\"not_wanted\"> not wanted</label> <button class=\"btn\" type=\"submit\">Review and record</button></form><form class=\"judge\" method=\"post\" action=\"/review\" data-review data-judge=\"goal\">~w<h4>Judge the goal ~w</h4><label><input type=\"radio\" name=\"choice\" value=\"satisfied\"> the goal is satisfied</label> <label><input type=\"radio\" name=\"choice\" value=\"not_satisfied\"> not satisfied</label> <button class=\"btn\" type=\"submit\">Review and record</button></form>",
+    dk_f("<form class=\"judge\" method=\"post\" action=\"/review\" data-review data-judge=\"case\">~w<h4>Judge a case of goal ~w</h4><textarea name=\"text\" aria-label=\"The case\" placeholder=\"One concrete case, in your words.\"></textarea><label><input type=\"radio\" name=\"choice\" value=\"wanted\"> wanted</label> <label><input type=\"radio\" name=\"choice\" value=\"not_wanted\"> not wanted</label> <button class=\"btn\" type=\"submit\">Review and record</button> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form><form class=\"judge\" method=\"post\" action=\"/review\" data-review data-judge=\"goal\">~w<h4>Judge the goal ~w</h4><label><input type=\"radio\" name=\"choice\" value=\"satisfied\"> the goal is satisfied</label> <label><input type=\"radio\" name=\"choice\" value=\"not_satisfied\"> not satisfied</label> <button class=\"btn\" type=\"submit\">Review and record</button> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form>",
          [HH, G, HH, G], Html).
 
 desk_claim_html(HD, K, Eng, C, Html) :-
@@ -6973,7 +7039,7 @@ desk_claim_html(HD, K, Eng, C, Html) :-
     dk_f("<div class=\"claimrow\"><p><span class=\"ref\">~w</span>~w</p>~w</div>~w", [C, TH, BsH, ChH], Html).
 
 desk_checks_html(HD, K, Eng, C, Tags, Html) :-
-    dk_all(Eng, [Kc], check(Kc, C), Ks0), sort(Ks0, Ks),
+    dk_all(Eng, [Kc], check(Kc, C), Ks0), desk_id_sort(Ks0, Ks),
     (   Ks == [] -> Html = "<p class=\"gapnote small\">This claim has no check.</p>"
     ;   findall(Ck, ( member(Kc, Ks), desk_check(K.dir, Eng, Kc, Ck) ), Cks),
         length(Ks, N),
@@ -7651,7 +7717,7 @@ desk_rail_hub(HD, Cards, Unwrap, Html) :-
     include([K]>>get_dict(kind, K, project), HK, PKs),
     include([K]>>get_dict(kind, K, spec), HK, SKs),
     include([K]>>get_dict(kind, K, outside), HK, OKs),
-    partition([K]>>( get_dict(dir, K, KD), serve_kb_project(KD, some(_)) ), SKs, Linked, Unlinked),
+    partition([K]>>( get_dict(dir, K, KD), desk_kb_project(KD, some(_)) ), SKs, Linked, Unlinked),
     findall(H, ( member(K, PKs), desk_rail_project(HD, K, Linked, H) ), PHs), dk_cat(PHs, PH),
     ( PKs == [] -> PH1 = "<div class=\"hint\">This mindhole has no project KB.</div>" ; PH1 = PH ),
     desk_rail_group("Spec KBs, linked to the project KB", Linked, Cards, false, G1),
@@ -7732,7 +7798,7 @@ desk_orphan_rows(HD, Rows) :-
     findall(R, desk_orphan_row(HD, R), Rows).
 
 desk_orphan_row(HD, row(What, "Linked to no project KB. Its claims cannot pin the rules and decisions they rest on.", Tos, Item, Labels)) :-
-    findall(K, ( member(K, HD.kbs), memberchk(K.kind, [spec, outside]), \+ serve_kb_project(K.dir, some(_)) ), Ks), Ks \== [],
+    findall(K, ( member(K, HD.kbs), memberchk(K.kind, [spec, outside]), \+ desk_kb_project(K.dir, some(_)) ), Ks), Ks \== [],
     length(Ks, N), dk_f("~w spec KBs", [N], What),
     findall(L, ( member(K, Ks), L = K.label ), Labels),
     findall(T, ( member(K, Ks), desk_kb_recipient(HD, K, T) ), Tos0), sort(Tos0, Tos),
@@ -7867,7 +7933,7 @@ desk_kb_section(HDs, HD, K, Html) :-
     ;   KindT = "Spec KB"
     ),
     (   K.kind == project -> LinkH = ""
-    ;   serve_kb_project(K.dir, some(P)) -> file_base_name(P, PB), dk_f("<p>Linked to the project KB ~w.</p>", [PB], LinkH)
+    ;   desk_kb_project(K.dir, some(P)) -> file_base_name(P, PB), dk_f("<p>Linked to the project KB ~w.</p>", [PB], LinkH)
     ;   LinkH = "<p class=\"gapnote\">Linked to no project KB.</p>"
     ),
     (   K.kind == project
@@ -8241,7 +8307,7 @@ desk_group(Pairs, Groups) :- msort(Pairs, S), group_pairs_by_key(S, Groups).
 desk_project_dir(HD, Dir) :- member(K, HD.kbs), K.kind == project, !, Dir = K.dir.
 
 desk_fix_link_plan(HD, P) :-
-    findall(T-K, ( member(K, HD.kbs), memberchk(K.kind, [spec, outside]), \+ serve_kb_project(K.dir, some(_)), desk_kb_recipient(HD, K, T) ), Ps),
+    findall(T-K, ( member(K, HD.kbs), memberchk(K.kind, [spec, outside]), \+ desk_kb_project(K.dir, some(_)), desk_kb_recipient(HD, K, T) ), Ps),
     ( Ps == [] -> throw(desk_refused(409, "Every spec KB is linked now. Reload the page.")) ; true ),
     desk_group(Ps, Gs),
     (   desk_project_dir(HD, PD) -> esc(PD, _), PT = PD ; PT = none ),
