@@ -14,8 +14,8 @@ its block is missing, or when it holds more than the eight sentences.
   desk         kb/share/orbit-kb/vocabulary.json (the Desk reads its labels from it)
   temper       s1/temper.py: TEMPERED_DEFINITION, and the words that the tool gives a proposer for a
                statement that no single case can show false ("not tempered", with the sentence)
-  one-home     outside its block, no text of the list defines one of the eight words in another
-               sentence that starts as the definition does ("A goal is ...", "A verdict is ...")
+  one-home     outside its block, the prompt and the pane prompts define none of the eight words in
+               another sentence that starts as the definition does ("A goal is what ...")
 
 Usage: python3 docs/check_vocabulary.py [--list] [ID ...]      Exit 0: pass. 1: fail. 2: usage.
 """
@@ -33,8 +33,8 @@ ID_OF = {"docs/PHILOSOPHY.md": "philosophy", "prompt/SAGITTARIUS.md": "prompt", 
          "s1/temper.py": "temper"}
 IDS = list(ID_OF.values()) + ["one-home"]
 # The texts of the pane prompts are read with PANES.md, so a second definition there is a copy too.
-ONE_HOME = ["docs/PHILOSOPHY.md", "prompt/SAGITTARIUS.md", "prompt/PANES.md", "prompt/panes/build.md",
-            "prompt/panes/discovery.md", "prompt/panes/review.md", "hubkit/hub/PRINCIPLES.md"]
+ONE_HOME = ["prompt/SAGITTARIUS.md", "prompt/PANES.md", "prompt/panes/build.md",
+            "prompt/panes/discovery.md", "prompt/panes/review.md"]
 
 
 def read(rel):

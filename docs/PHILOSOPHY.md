@@ -164,13 +164,39 @@ In the prompt: "The orbit", "Who judges what", "The vote".
 
 #### 2. Each statement of the intent is an attempt. The hypothesis is the first of them
 
-A hypothesis is the closest statement of the intent that the work has. It is called a
-hypothesis because it is an attempt at the intent that the human is chasing. Because it is an
-attempt, a result can show it false. While it stands, it is the law of its ticket: the claims,
-the checks, and the decision to build all rest on it.
+Since Sagittarius 0.8.0 a ticket is run as an experiment (Ty, 2026-11-23): "Under the
+scientific method, each ticket is a stated goal with a collection of hypotheses and experiments
+aimed at satisfying the goal." "A goal is what we hope to accomplish (the intent). The
+hypothesis is how we think we'll get there." The eight words have one sentence each, the same
+in every text:
 
-Every ticket has one. Discovery exists to form it when the request is not clear. When the
-request is clear, the agent states the hypothesis itself, and the work starts in build.
+<!-- vocabulary:begin -->
+- A goal is what the human hopes to accomplish: the intent. It names no avenue.
+- A hypothesis is a claim about an avenue to the goal: how we think we will get there.
+- A premise is a condition that a goal or a hypothesis takes as given. Where it does not hold,
+  the statement says nothing.
+- A claim is a prediction: what must be observable if its hypothesis and the premises hold.
+- The specification is the procedure of the experiment: the claims, and the check of each claim.
+- An experiment is one test of one claim: a procedure, its measurement premises, an observation,
+  and one verdict.
+- A verdict is the result of one experiment: meets, conflicts, or unresolved.
+- A hypothesis is tempered when one admissible case can demonstrate that its claim is false.
+<!-- vocabulary:end -->
+
+The statement of the intent is the goal. Every ticket has one goal, and discovery exists to
+form it when the request is not clear. A hypothesis is an attempt at an avenue to the goal: one
+admissible case can defeat it, and that case stays on it. Several hypotheses can be current. A
+goal is never defeated: its owner changes it or drops it. Each run of a check is an experiment
+with one verdict (meets, conflicts, or unresolved), and a conflict is located (the build, the
+measurement, a premise, or the hypothesis) before anything is reopened. Experiments give
+verdicts on claims; the human judges the goal on concrete cases. The human gives the first
+goal and hypothesis when they have them, and the agent sharpens or challenges them at once;
+for a plain request the agent drafts both and says that they are its own.
+
+The rest of this principle was written before 0.8.0. Where it says "the hypothesis", it means
+the statement of the intent, which is now the goal. The text below keeps the words of that
+date; the rules that 0.8.0 changed (who restates, the two falsifiers, the "law") are the ones
+of the paragraph above and of the prompt.
 
 > In the case of "add a dark mode" the hypothesis might be: "The app must contain and use a
 > compatible dark-colored scheme that supports dark mode without violating accessibility,

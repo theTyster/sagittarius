@@ -4,6 +4,24 @@ This file comes from the Sagittarius prompt, Sagittarius 0.7.2, in plain words. 
 sections of the prompt (`SAGITTARIUS.md` of <https://github.com/theTyster/sagittarius>) that it comes
 from. An upgrade replaces this file (put local rules in `CLAUDE.md`).
 
+## The words
+
+Eight words have one meaning each, here and in every text of Sagittarius.
+
+<!-- vocabulary:begin -->
+- A goal is what the human hopes to accomplish: the intent. It names no avenue.
+- A hypothesis is a claim about an avenue to the goal: how we think we will get there.
+- A premise is a condition that a goal or a hypothesis takes as given. Where it does not hold,
+  the statement says nothing.
+- A claim is a prediction: what must be observable if its hypothesis and the premises hold.
+- The specification is the procedure of the experiment: the claims, and the check of each claim.
+- An experiment is one test of one claim: a procedure, its measurement premises, an observation,
+  and one verdict.
+- A verdict is the result of one experiment: meets, conflicts, or unresolved.
+- A hypothesis is tempered when one admissible case can demonstrate that its claim is false.
+<!-- vocabulary:end -->
+From the prompt: "The ticket"
+
 ## Orbit the intent; deliver clear, accurate, honest, fast
 
 Go back to the source on each step (the request and the current system), not only to the step
