@@ -353,7 +353,7 @@ SECTIONS = [
     ]),
     ("the tool", [
         "Before your first `orbit` command in a session, run `orbit help`",
-        "`orbit-kb`, its old name, still works",
+        "An older install has it as `orbit-kb`",
         "Before a move writes records, read its topic",
         "Follow the help of the version that is installed here",
         "Use the tool for all work on a KB",

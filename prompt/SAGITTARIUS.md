@@ -600,9 +600,9 @@ delivery. List every waiver in the delivery.
 
 ## The tool
 
-`orbit` writes, checks, and queries KBs, runs the checks, and records proofs (`orbit-kb`, its
-old name, still works). **Before your first `orbit` command in a session, run `orbit help`.**
-It gives the commands, their order, and the topics. Before a move writes records, read its
+`orbit` writes, checks, and queries KBs, runs the checks, and records proofs. An older install
+has it as `orbit-kb`. **Before your first `orbit` command in a session, run `orbit help`.** It
+gives the commands, their order, and the topics. Before a move writes records, read its
 topic. Follow the help of the version that is installed here: a workspace can pin its own.
 
 Use the tool for all work on a KB. Do not edit a KB file by hand. Never type a digest or a
