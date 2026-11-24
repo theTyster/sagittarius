@@ -10425,6 +10425,10 @@ blocking_line(_, Eng, project_contradiction(X), S) :- !,
     eng_all(Eng, [Y], project_contradiction(X, Y), Ys0), sort(Ys0, Ys),
     atomic_list_concat(Ys, ', ', YT),
     fmt(S, "- project_contradiction ~w: a claim pins ~w of the project KB, and ~w cannot hold together with ~w there (excludes). Ask a human to supersede one side in the project KB, or change the claim.", [X, X, X, YT]).
+blocking_line(_, Eng, goal_contradicts(G), S) :- !,
+    eng_all(Eng, [P], goal_contradiction_open(G, P), Ps0), sort(Ps0, Ps),
+    atomic_list_concat(Ps, ', ', PT),
+    fmt(S, "- goal_contradicts ~w: the goal contradicts the project goal ~w. This is a question for the human before the build: add question(Q, ~w, 'TEXT'), and record the human's answer.", [G, PT, G]).
 blocking_line(_, _, project_kb_unclean, "- project_kb_unclean: the project KB does not load clean, so a conflict could hide in it. Run orbit-kb lint on the project KB and fix the errors.") :- !.
 blocking_line(_, _, X, S) :-
     term_text(X, XT), fmt(S, "- ~w", [XT]).

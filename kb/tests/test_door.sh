@@ -316,7 +316,7 @@ t_DG2() {   # a supports to a project goal that does not exist is a lint finding
 t_DG3() {   # a ticket goal that contradicts a project goal is a question for the human
     mkhub || return
     orb --dir "$H/specs/alpha" add "contradicts(g1, project(pg2))"; rc_is 0 "add contradicts" || return
-    okb --dir "$H/specs/alpha" query "blocking(X)" -n 0; out_has '^X = goal_contradicts\(g1, pg2\)$' "it blocks until a human answers"
+    okb --dir "$H/specs/alpha" query "blocking(X)" -n 0; out_has '^X = goal_contradicts\(g1\)$' "it blocks until a human answers"
     orb --dir "$H/specs/alpha" add "question(q9, g1, 'The goal contradicts project goal pg2. Which one stands?')"; rc_is 0
     okb --dir "$H/specs/alpha" query "blocking(X)" -n 0; out_has 'goal_contradicts'
     orb --dir "$H/specs/alpha" add "answer(q9, 'The ticket goal stands for this ticket.', human)" --by human; rc_is 0 "the human answers"

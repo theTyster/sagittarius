@@ -67,7 +67,7 @@ Project goals (c17, c42)
       goal_rests_on_dropped(G, PG)      the project goal was dropped (lint WP11; it blocks nothing)
       lint WP10                         the project KB does not hold that goal
       contradicts(g1, project(pg1))     the ticket goal contradicts a project goal. It blocks
-                                        (goal_contradicts(G, PG)) until a human answers a question
+                                        (goal_contradicts(G)) until a human answers a question
                                         about the goal: question(Q, g1, TEXT), then the answer.
 
 System 1 (c46)

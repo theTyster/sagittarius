@@ -1020,7 +1020,7 @@ The tests are `kb/tests/test_door.sh`. The agent-facing text is `orbit-kb help h
 - A spec KB that uses `project` gets `project_goal(PG)` and `project_goal_dropped(PG)` from the KB
   at `project_kb/1`. `goal_rests_on_dropped(G, PG)`: `supports(G, project(PG))` and PG is dropped
   (lint WP11). It blocks nothing. Lint WP10: the project KB does not hold PG.
-- `contradicts(G, project(PG))` gives `blocking(goal_contradicts(G, PG))` until a human answers a
+- `contradicts(G, project(PG))` gives `blocking(goal_contradicts(G))` until a human answers a
   question about G (`question(Q, G, Text)` and a human `answer`).
 - Hub-wide: `ticket_goal_unsupported(Slug, G)`, `ticket_goal_rests_on_dropped(Slug, G, PG)`.
 

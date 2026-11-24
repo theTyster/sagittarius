@@ -266,7 +266,7 @@ goal_names_missing(G, PG) :- supports(G, project(PG)), not project_goal(PG).
 goal_question_answered(G) :- question(Q, G, _), answered(Q).
 goal_contradiction_open(G, PG) :- contradicts(G, project(PG)), not goal_question_answered(G).
 % c17: a ticket goal that contradicts a project goal is a question for the human before the build.
-blocking(goal_contradicts(G, PG)) :- goal_contradiction_open(G, PG).
+blocking(goal_contradicts(G)) :- goal_contradiction_open(G, _).
 
 % In a spec KB: a contradiction blocks only a spec KB that pins a side directly.
 project_pinned(X) :- pins(_, project, X, _).

@@ -1837,6 +1837,9 @@ EOF
           okb --dir "$K" pin-request --request-file "$J" >/dev/null; op_named blocking ""
           op_project "$T/pc" human; K=$T/pc/sp; op_named blocking ""
           op_project "$T/pu" human; printf 'this is not (valid.\n' >> "$T/pu/p/kb.pl"; K=$T/pu/sp; op_named blocking ""
+          # 0.8.0 D67 (scientific-method-overhaul c17): a ticket goal that contradicts a project goal
+          op_project "$T/pg" human; K=$T/pg/sp
+          oadd "goal(g9, feature, human, 'A goal that contradicts.')" "no_premises(g9)" "contradicts(g9, project(pg1))" >/dev/null; op_named blocking ""
           op_cover blocking; }
 op_project() {  # op_project DIR BY: a project KB with excludes(d1, d2), and a spec KB in DIR/sp whose fulfilled claim pins d1
     local P=$1/p S=$1/sp
