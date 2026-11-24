@@ -94,12 +94,17 @@ for i,st,adopt in [('hy1','defeated',0),('hy2','proposed',1),('hy3','adopted',0)
 PY
 }
 t_DR2() {  # unresolved apart from a conflict: its own badge and class, with the reason; an old KB shows its hypothesis as the goal
-    rec_hub "$T/h"; kb_rests "$T/h/specs/exp"; srvd --hub "$T/h" || return; page_ok || return
+    rec_hub "$T/h"; kb_rests "$T/h/specs/exp"
+    # a run that the tool itself calls unresolved (a killed check): orbit-kb run writes the record
+    wr build --dir "$T/h/specs/replay" add 'check(k4, c2)' "checks_that(k4, 'the notification count after a killed replay')"
+    wr build --dir "$T/h/specs/replay" run k4 -- sh -c 'kill -9 $$'; wr build --dir "$T/h/specs/replay" release
+    srvd --hub "$T/h" || return; page_ok || return
     sec "$T/page.html" replay || { note "no card of the ticket replay"; return; }
     [ "$(badge_of k1)" = "b-pass pass" ] || note "k1: $(badge_of k1), want b-pass pass"
     [ "$(badge_of k2)" = "b-burn fail" ] || note "k2: $(badge_of k2), want b-burn fail"
     [ "$(badge_of k3)" = "b-unres unresolved" ] || note "k3: $(badge_of k3), want b-unres unresolved (not the failing badge)"
-    chk dkb "$T/page.html" replay 'unresolved: killed by signal 9' '1 unresolved' 'Verdict: meets' 'Verdict: conflicts' '!1 fail 1 fail'
+    [ "$(badge_of k4)" = "b-unres unresolved" ] || note "k4 (killed, run by the tool): $(badge_of k4), want b-unres unresolved; run said: $(snip "$out$err")"
+    chk dkb "$T/page.html" replay 'unresolved: killed by signal 9' '2 unresolved' 'Verdict: meets' 'Verdict: conflicts' '!1 fail 1 fail'
     chk dkb "$T/page.html" exp 'Goal (agent)' 'Every export starts with a header row' 'The exports are written by one writer.' 'No hypothesis: the claims hang on the goal.' '!Adopt'
 }
 t_DR3() {  # Adopt: nothing is written before the send; the review shows the record; the send writes the adoption of the human
@@ -112,6 +117,7 @@ t_DR3() {  # Adopt: nothing is written before the send; the review shows the rec
     has_goal "$kb" "attest(_, adoption, hy2, adopted, human, _)" "the adoption of the human"
     page_ok; chk dkb "$T/page.html" replay 'Hypothesis hy2 (agent-written, adopted)'
     review "token=$tok" "hub=$T/h" "item=adopt:$kb#hy2"; code_is 409 "Adopt of an adopted hypothesis"
+    review "token=$tok" "hub=$T/h" "item=judge:$kb" choice=wanted 'text=A replay of the November file changes nothing'; code_is 200 "the review of a case after an adoption: $(snip "$(cat "$T/review.html" "$T/.srv.err")")"
     review "token=$tok" "hub=$T/h" "item=adopt:$kb#hy1"; code_is 409 "Adopt of a defeated hypothesis"
     post /send "token=bad" "hub=$T/h" "item=adopt:$kb#hy5"; code_is 403 "Adopt with no token"
     hasnt_goal "$kb" "attest(_, adoption, hy5, _, _, _)" "hy5 is not adopted: the cited words adopt nothing"
@@ -177,11 +183,17 @@ document.getElementById('lane-kbs').open=true; sec.open=true; sec.scrollIntoView
 const out={text:sec.innerText, k3:sec.querySelector('.chk .badge.b-unres') ? sec.querySelector('.chk .badge.b-unres').textContent : null};
 const dlg=document.getElementById('review');
 async function through(form){
-  form.requestSubmit(form.querySelector('button[type=submit]'));
-  for(let i=0;i<200 && !dlg.open;i++) await new Promise(r=>setTimeout(r,25));
-  const f=dlg.querySelector('form[action="/send"]'); if(!f) return {dialog:dlg.open, html:dlg.innerHTML.slice(0,300)};
+  let f=null, tries=0;
+  for(; tries<4 && !f; tries++){   // a POST on a connection that the server just closed fails in Chromium: the page says so, and Ty sends again
+    if(dlg.open) dlg.close();
+    await new Promise(r=>setTimeout(r,300*tries));
+    form.requestSubmit(form.querySelector('button[type=submit]'));
+    for(let i=0;i<400 && !dlg.open;i++) await new Promise(r=>setTimeout(r,25));
+    f=dlg.querySelector('form[action="/send"]');
+  }
+  if(!f) return {dialog:dlg.open, tries, html:dlg.innerHTML.slice(0,300)};
   const rec=dlg.innerText; const r=await fetch('/send',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(new FormData(f)).toString(),redirect:'manual'});
-  dlg.close(); return {dialog:true, rec, status:r.status, type:r.type};
+  dlg.close(); return {dialog:true, tries, rec, status:r.status, type:r.type};
 }
 out.adopt=await through(sec.querySelector('[data-hyp="hy2"] form'));
 const jf=sec.querySelector('form[data-judge="case"]'); jf.querySelector('textarea').value='The corrected address of member 12 was dropped';
@@ -193,7 +205,7 @@ JS
     brj "'Goal (Ty)' in d['text'] and 'Hypothesis hy2 (agent-written, not adopted)' in d['text'] and 'Hypothesis hy3 (Ty-written, adopted)' in d['text']" "the card in the browser"
     brj "d['k3']=='unresolved'" "the unresolved badge"
     brj "d['adopt'].get('dialog') and 'your adoption of hypothesis hy2' in d['adopt'].get('rec','')" "the review dialog of Adopt"
-    brj "d['judge'].get('dialog') and 'member 12' in d['judge'].get('rec','')" "the review dialog of the case"
+    brj "d['judge'].get('dialog') and 'member 12' in d['judge'].get('rec','')" "the review dialog of the case: $(python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])["judge"])' "$BR")"
     has_goal "$kb" "attest(_, adoption, hy2, adopted, human, _)" "the adoption of the human, from the browser"
     has_goal "$kb" "attest(_, judgment, g1, case(_, not_wanted), human, _)" "the judgment of the human, from the browser"
 }
