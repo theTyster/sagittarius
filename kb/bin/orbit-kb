@@ -6371,29 +6371,50 @@ desk_hubs(Hs, Missing) :-
 % ---- the engines of the KBs: one per KB, built again when the KB or its queue changes, or
 % after a minute (a digest of a subject file can change too). An old engine's clauses are
 % dropped, so a Desk that runs for days does not grow.
-:- dynamic desk_eng_cache/4.
+:- dynamic desk_eng_cache/3, desk_eng_kb/2.
 
 desk_kb_stamp(Dir, B-Fs) :-
     findall(N-T-S, ( member(N, ['kb.pl', 'answers.pending', 'answers.applied']),
                      directory_file_path(Dir, N, F), exists_file(F), time_file(F, T), size_file(F, S) ), Fs),
     get_time(Now), B is floor(Now / 60).
 
-desk_engine(Dir, KB, Eng) :-
+% The KB term is kept apart from the engine (review U5): a lookup of the engine alone (desk_eng/2,
+% most calls of a page) does not copy the whole KB out of the database.
+desk_engine(Dir, KB, Eng) :- desk_engine_(Dir, Eng), desk_eng_kb(Dir, KB), !.
+
+desk_engine_(Dir, Eng) :-
     desk_kb_stamp(Dir, St),
-    (   desk_eng_cache(Dir, St, KB, Eng) -> true
-    ;   forall(retract(desk_eng_cache(Dir, _, _, eng(M, _))), desk_wipe(M)),
+    (   desk_eng_cache(Dir, St, Eng0) -> Eng = Eng0
+    ;   forall(retract(desk_eng_cache(Dir, _, eng(M, _))), desk_wipe(M)), retractall(desk_eng_kb(Dir, _)),
         lib_dir(Lib), load_kb(Dir, Lib, KB), answer_gate(KB), kb_engine(KB, Eng),
-        assertz(desk_eng_cache(Dir, St, KB, Eng))
+        Eng = eng(M1, _), assertz(desk_eng_mod(M1)),
+        assertz(desk_eng_kb(Dir, KB)), assertz(desk_eng_cache(Dir, St, Eng))
     ).
 
 desk_wipe(M) :-
+    retractall(desk_eng_mod(M)), retractall(desk_ans(_, M, _, _)),
     forall(( current_predicate(M:N/A), functor(H, N, A), \+ predicate_property(M:H, imported_from(_)) ),
            catch(abolish(M:N/A), _, true)).
 
-desk_eng(Dir, Eng) :- catch(desk_engine(Dir, _, Eng), _, fail).
+desk_eng(Dir, Eng) :- catch(desk_engine_(Dir, Eng), _, fail).
 
-dk_all(Eng, T, G, L) :- catch(eng_all(Eng, T, G, L), _, L = []).
-dk_true(Eng, G) :- catch(eng_true(Eng, G), _, fail).
+% The answers of a cached engine (review U5, 2026-11-24): an engine is built from the files of one
+% stamp and never changes, so each query is answered once per engine and kept with it; desk_wipe
+% drops the answers with the engine. The rules of 0.8.0 (under/1, blocking/1) cost about twice
+% those of 0.7.2, and the page asks the same queries at each GET (blocking/1 twice per KB).
+% An engine that is not in desk_eng_cache (a one-off of a POST) is asked each time. The answers are
+% indexed by the hash of the query.
+:- dynamic desk_eng_mod/1, desk_ans/4.
+
+dk_all(Eng, T, G, L) :-
+    (   Eng = eng(M, _), desk_eng_mod(M)
+    ->  copy_term(T-G, Key), numbervars(Key, 0, _), term_hash(Key, H),
+        (   desk_ans(H, M, Key, L0) -> L = L0
+        ;   catch(eng_all(Eng, T, G, L0), _, L0 = []), assertz(desk_ans(H, M, Key, L0)), L = L0
+        )
+    ;   catch(eng_all(Eng, T, G, L), _, L = [])
+    ).
+dk_true(Eng, G) :- dk_all(Eng, [], G, L), L \== [].
 
 % ---- the mindholes and their KBs
 
