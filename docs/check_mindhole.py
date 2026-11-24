@@ -123,13 +123,16 @@ def mb1():
 
 def mb2():
     f = facts().get("hypothesis", {})
-    check("mb2 store-facts.json: the hypothesis says what the human wants", "what the human wants" in f.get("desc", ""), f.get("desc"))
+    # scientific-method-overhaul c1, c2: what the human wants is the goal now; the hypothesis is a claim about an avenue to it
+    g = facts().get("goal", {})
+    check("mb2 store-facts.json: the goal says what the human hopes to accomplish (c1)", "what the human hopes to accomplish" in g.get("desc", "") and g.get("owner") == "spec", g)
+    check("mb2 store-facts.json: the hypothesis is a claim about an avenue to the goal (c2)", "avenue to the goal" in f.get("desc", ""), f.get("desc"))
     for label, path in (("formal", CORE),):
         t = read(path)
         rs = rows(t, "hypothesis")
         check(f"mb2 {label}: has hypothesis rows", rs, path)
         for r in rs:
-            check(f"mb2 {label}: the hypothesis row says what the human wants", "what the human wants" in r, r[:160])
+            check(f"mb2 {label}: the hypothesis row is a claim about an avenue to the goal (c2)", "avenue to the goal" in r, r[:160])
             check(f"mb2 {label}: the hypothesis row names premises and the result that would show it false",
                   "premises" in r and "show it false" in r, r[:200])
             check(f"mb2 {label}: the hypothesis row does not make discovery its only author",

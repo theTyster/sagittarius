@@ -40,15 +40,15 @@ below are generated from the design: do not edit them by hand
 
 | Store | Owns | Lives in the hub | Used with |
 |---|---|---|---|
-| `spec` | Everything one ticket must achieve and (when completed) the evidence that the ticket has been satisfied. | `specs/<slug>/` at the hub root, one per ticket | `.claude/orbit-kb/bin/orbit-kb help core`, `.claude/orbit-kb/bin/orbit-kb help build`; `hubflow.py where <slug>` |
+| `spec` | Everything one ticket must achieve and (when completed) the evidence that the ticket has been satisfied. | `specs/<slug>/` at the hub root, one per ticket | `.claude/orbit-kb/bin/orbit-kb help core`, `.claude/orbit-kb/bin/orbit-kb help build`; `hubflow.py where <slug>`; `.claude/orbit-kb/bin/orbit hub query` reads every store |
 | `project` | Two sides: Decisions about future work and definitions about the current system. Where the product is and where it is going. | the project KB, a directory of its own that the hub's `CLAUDE.md` names | `.claude/orbit-kb/bin/orbit-kb help project`; `.claude/orbit-kb/bin/orbit-kb pin-item` |
-| `ledger` | What needs to be done, who is doing the work, whats blocking what, right now. Nothing about project rules or decisions. | `flow/flow.db`, with its JSONL in `flow/jsonl/` | `hubflow.py`; skill `hub-flow` |
+| `ledger` | What needs to be done, who is doing the work, whats blocking what, right now. Nothing about project rules or decisions. | `flow/flow.db`, with its JSONL in `flow/jsonl/` | `.claude/orbit-kb/bin/orbit hub ledger` (the door) or `hubflow.py`, the same commands; skill `hub-flow` |
 | `memory` | What every agent must know at start: boot context, heuristics, technologies, and the list of bespoke tools that other tasks can reuse. | the root files `CLAUDE.md`, `HUB-CORE.md`, `HEURISTICS.md`, `TECHNOLOGIES.md` | read at boot; promote into them at rotation (skill `hub-rotate`) |
 | `weeks` | The raw material of each week: meeting and other human transcripts, and the reports written that week. An agent reads a human transcript and records what is needed in the ledger, with a transcript ref; analyses that last go to the project KB. | `W0/` to `W5/`: `reports/`, `transcripts/`, `outbound-staging/` | `hubflow.py transcripts --files`, `transcripts --find`; skill `hub-rotate` |
 | `bespoke` | Helper scripts, skills and small stores an agent makes for this project where nothing else fits: listed where agents look, and pruned like everything else if they stop being used. | a tool or skill, listed in `TECHNOLOGIES.md` (or the memory file the hub names) | the tool's own help; skill `hub-rotate` prunes the unused |
 | `tracker` | The client's system of record. It owns the tickets (request, answers, events), checks and runs, world facts (the code and git), and all designs, bugs and features. A copy that the hub shows there belongs to the store it comes from. | outside the hub: a pointer such as `issue:123` in a ledger ref | `hubflow.py add --ref`; `.claude/orbit-kb/bin/orbit-kb pin-item`; `.claude/orbit-kb/bin/orbit-kb draft` |
 
-The 30 fact kinds:
+The 33 fact kinds:
 
 | Fact kind | What it is | Owner | Pinned in | Read from | Copied in |
 |---|---|---|---|---|---|
@@ -58,17 +58,20 @@ The 30 fact kinds:
 | `blocking` | What stops this ticket from being done: open questions, failing or missing checks, open proofs or demos, conflicts. | `spec` | - | `ledger` | `tracker` |
 | `boot` | What every session loads at start: the hub's rules and pointers. | `memory` | - | - | - |
 | `capsules` | Context written down so that a later session can pick up an item without the original conversation. | `ledger` | - | - | - |
-| `checks` | The tests of each claim, and the record of each run with its result. | `tracker` | `spec` | - | - |
+| `checks` | The experiments: each tests one claim, with its procedure, its measurement premises, and the record of each run with one verdict (meets, conflicts or unresolved). | `tracker` | `spec` | - | - |
 | `claims` | What must become true, stay true, or stop being true for this ticket, each with a concrete example. | `spec` | - | - | - |
 | `decisions` | Decisions about the product or domain that outlive one ticket, with who decided and when. | `project` | `spec`, `tracker` | - | - |
 | `designs` | Design documents that matter to current work, pinned from where they live. | `tracker` | `project` | `ledger` | - |
 | `divergences` | Where the human, the agent, or a result disagreed, and what the agent disclosed about its guesses and errors. | `spec` | - | - | - |
+| `goal` | The goal of the ticket: what the human hopes to accomplish, the intent. It names no avenue, and it names the project goal that it supports. | `spec` | - | - | `tracker` |
 | `handoffs` | Work passed from one session to another, and whether it was accepted. | `ledger` | - | - | - |
 | `heuristics` | Rules of thumb learned in this hub, for agents to apply. | `memory` | - | - | - |
-| `hypothesis` | The hypothesis: what the human wants for this ticket, as the agent states it, with its premises beside it, the result it expects, and the result that would show it false. | `spec` | - | - | - |
+| `hypothesis` | A hypothesis of the ticket: a claim about an avenue to the goal, with its author, its state (proposed, adopted, retired or defeated), its premises beside it, and the case that would show it false. | `spec` | - | - | - |
+| `judgments` | The judgments of the human: of the goal on a concrete case (wanted or not wanted), of the goal as a whole (satisfied or not), the adoption of a hypothesis, and the acceptance of a formal statement. | `spec` | - | - | - |
 | `models` | The solver and model-checker models, and Lean definitions and theorems, that a claim rests on. | `bespoke` | `spec` | - | - |
 | `outbound` | Drafts of text meant for the tracker or for people, staged before anyone sends them. | `weeks` | - | - | - |
 | `product_rules` | The product's business rules: how the current system must behave (limits, permissions, prices, workflows). | `project` | `spec` | - | - |
+| `project_goals` | The project goals, premises and hypotheses: what the product is for. Each ticket goal and each item of work leads to one; a goal is dropped by its owner, never defeated. | `project` | - | `ledger`, `spec` | - |
 | `raw_reports` | Raw reports and meeting transcripts: the human touchpoints of the week. The project KB keeps a pinned digest; an agent reads a transcript and records what is needed in the ledger, with a transcript ref. | `weeks` | `project` | `ledger` | - |
 | `repos` | Which repositories exist, what each holds, and how they connect. | `project` | `tracker` | `memory` | - |
 | `request` | The ticket's request, word for word, and the human's answers to its questions. | `tracker` | `spec` | - | - |

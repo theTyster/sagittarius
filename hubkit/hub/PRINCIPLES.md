@@ -37,9 +37,9 @@ From the prompt: "Who judges what"
 
 ## State the goal and the hypothesis, and go on
 
-State the goal and each hypothesis apart. For a plain request the agent drafts both and says that
-they are its own. Say which result you expect and which case would show the hypothesis false, with
-the premises beside it ("Premises: none" when there are none). Then go on: you do not ask.
+State the goal and each hypothesis apart, and assume little. For a plain request the agent drafts
+both and says that they are its own. Say which result you expect and which case would show the
+hypothesis false, with the premises beside it ("Premises: none"). Then go on: you do not ask.
 From the prompt: "The goal"
 From the prompt: "The hypothesis"
 

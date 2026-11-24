@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The MindHole Kit as a release: one kind of hub, with the tool. One check per claim.
 
-usage: python3 docs/check_kit_release.py c1|c2|c3|c4|c5|c6   (--list prints the ids)
+usage: python3 docs/check_kit_release.py c1|c2|c3|c4|c5|c6|t32c5|t32c7|t36c2|t36c4|t36c5|t36c6|t41c1|t41c4|t41c5|iuxc4   (--list prints the ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 This file was check_informal_release.py (T24). scientific-method-overhaul c22 (retire; Ty, 2026-11-23)
@@ -402,8 +402,285 @@ def c6():
     stale = [x for x in re.findall(r"hub kit is version (\d+\.\d+\.\d+)", words(cl)) if x != v]
     check("c6 CHANGELOG.md names no older hub kit version as current", not stale, stale)
 
+# ------------------------------------------------------------------ ported from check_informal_hub.py
+# The ids below were in docs/check_informal_hub.py (T32, T36, T41, install UX). They are not about the
+# edition with no tool, so they stay, on the one kind of hub (scientific-method-overhaul c22 removed only
+# their second-edition halves). Where a claim of that ticket changed the text, the id names the claim.
+PHIL = os.path.join(ROOT, "docs", "PHILOSOPHY.md")
+BANNED = (("spec KB", re.compile(r"spec kb", re.I)), ("project KB", re.compile(r"project kb", re.I)),
+          ("orbit-kb", re.compile(r"orbit-kb", re.I)), ("draft/4", re.compile(r"draft/4")),
+          ("pin-item", re.compile(r"pin-item", re.I)), ("Prolog", re.compile(r"prolog", re.I)),
+          ("Lean", re.compile(r"\bLean\b")), ("SMT", re.compile(r"\bSMT\b")), ("TLA+", re.compile(r"TLA\+")))
+# c1, c2 of scientific-method-overhaul: the part that cites "The hypothesis" states the goal and each hypothesis
+# apart (it was: "what the human wants"), and names the case that would show the hypothesis false
+P_WANT = (("The orbit", ("orbit", "the request", "each step")),
+          ("The hypothesis", ("hypothesis", "the goal", "show the hypothesis false", "go on")),
+          ("Delivery", ("skip", "never hide", "only the human skips", "due")))
+HYP_FROM = 'From the prompt: "The hypothesis"'
+HYP_PARTS = (("the expected result", re.compile(r"\bexpect", re.I)), ("the falsifier", re.compile(r"show (it|the hypothesis) false", re.I)),
+             ("the premises", re.compile(r"\bpremises\b", re.I)))
 
-CLAIMS = {"c1": c1, "c2": c2, "c3": c3, "c4": c4, "c5": c5, "c6": c6}
+
+def principle_parts():
+    return re.split(r"^## ", read(PRINCIPLES), flags=re.M)[1:]
+
+
+def bin_with(where, tools):
+    b = os.path.join(where, "bin")
+    os.makedirs(b, exist_ok=True)
+    for t in tools:
+        p = shutil.which(t)
+        if p:
+            os.symlink(p, os.path.join(b, t))
+    return b
+
+
+def new_hub(t, name="hub"):
+    hub = os.path.join(t, name)
+    os.makedirs(hub)
+    run(["git", "init", "-q", hub])
+    return hub, hk(HUBKIT, "install", "--hub", hub)
+
+
+def hubflow(hub, args, session=None, now=None):
+    env = {k: v for k, v in os.environ.items() if k not in ("HUB_SESSION", "HUBFLOW_DB_DIR", "HUBFLOW_HUB")}
+    if session:
+        env["HUB_SESSION"] = session
+    if now:
+        env["HUBFLOW_NOW"] = now
+    return run([sys.executable, "-I", os.path.join(hub, ".claude", "scripts", "hubflow.py")] + args, cwd=hub, env=env)
+
+
+def t32c5():
+    pr = read(PRINCIPLES)
+    heads = {ln[3:].strip() for ln in read(PROMPT).splitlines() if ln.startswith("## ")}
+    secs = principle_parts()
+    for src, phrases in P_WANT:
+        check(f"t32c5 prompt/SAGITTARIUS.md has '{src}'", src in heads, "missing")
+        mine = [s for s in secs if re.search(r'^From the prompt: "' + re.escape(src) + r'"\s*$', s, re.M)]
+        check(f"t32c5 PRINCIPLES.md has a principle that comes from '{src}'", len(mine) == 1, len(mine))
+        if mine:
+            has(f"t32c5 the principle from '{src}'", mine[0], *phrases)
+    w = words(pr)
+    for old in ("wait for the answer", "say what you believe the problem is"):
+        check(f"t32c5 PRINCIPLES.md no longer says '{old}'", old not in w, "still there")
+    hits = [(i, n, ln.strip()[:100]) for i, ln in enumerate(pr.splitlines(), 1) for n, rx in BANNED if rx.search(ln)]
+    check("t32c5 PRINCIPLES.md names no formal word", not hits, hits[:4])
+    c3()
+
+
+def t32c7():
+    sec = section(read(INSTR), "Step 5")
+    check("t32c7 INSTRUCTIONS.md has a step 5", bool(sec), "missing")
+    start = re.findall(r'claude --name "([^"]+)"', sec)
+    check("t32c7 step 5 starts a session with a name", len(start) == 1, start)
+    check("t32c7 the launcher line sets HUB_SESSION and the hub cwd",
+          re.search(r'cd "\$HUB" && HUB_SESSION=<name> claude --name', sec) is not None, sec[:300])
+    check("t32c7 step 5 says how to resume it by that name: the same line with --resume in place of --name",
+          start and re.search(r'`--resume "%s"` in place of `--name "%s"`' % (re.escape(start[0]), re.escape(start[0])), re.sub(r"\s+", " ", sec)) is not None,
+          sec[:500])
+    check("t32c7 step 5 gives no second (resume) command line", not re.findall(r'^\s*cd [^\n]*claude --resume', sec, re.M), sec[:300])
+    check("t32c7 step 5 names no launch.sh", "launch.sh" not in sec, "still there")
+
+
+def t36c2():
+    """A hub of kit 0.4.0 (made at 41377fc; it records no edition) upgrades. c22: it is read as formal, whatever
+    the PATH holds (it was: the edition with no tool when no orbit-kb is on the PATH)."""
+    with tempfile.TemporaryDirectory(prefix="t36-c2-") as t:
+        wt = os.path.join(t, "old-kit")
+        p = run(["git", "-C", ROOT, "worktree", "add", "--detach", wt, "41377fc"])
+        check("t36c2 a worktree of the 0.4.0 kit (41377fc) is made", p.returncode == 0, p.stderr[-300:])
+        if p.returncode != 0:
+            return
+        try:
+            hub = os.path.join(t, "old-hub")
+            os.makedirs(hub)
+            run(["git", "init", "-q", hub])
+            q = hk(os.path.join(wt, "hubkit", "tools", "hubkit.py"), "install", "--hub", hub)
+        finally:
+            run(["git", "-C", ROOT, "worktree", "remove", "--force", wt])
+            run(["git", "-C", ROOT, "worktree", "prune"])
+        m = manifest(hub)
+        check("t36c2 that hub is 0.4.0 and records no edition", q.returncode == 0 and m.get("template_version") == "0.4.0" and "edition" not in m, (q.stderr, m))
+        bare = bin_with(os.path.join(t, "bare"), ["python3", "git"])
+        env = dict(os.environ, PATH=bare)
+        plan = run([sys.executable, "-I", HUBKIT, "upgrade", "--hub", hub], env=env)
+        check("t36c2 the dry run with no orbit-kb on the PATH exits 0 and names the formal edition", plan.returncode == 0 and "(formal edition)" in plan.stdout
+              and "records no edition" in plan.stdout, (plan.stdout[:300], plan.stderr))
+        p = run([sys.executable, "-I", HUBKIT, "upgrade", "--hub", hub, "--yes"], env=env)
+        m = manifest(hub)
+        check("t36c2 the upgrade exits 0, records formal, and the hub has its own orbit-kb", p.returncode == 0 and m.get("edition") == "formal"
+              and os.access(os.path.join(hub, ".claude", "orbit-kb", "bin", "orbit-kb"), os.X_OK), (p.stdout[-200:], p.stderr))
+        s = run([sys.executable, "-I", HUBKIT, "status", "--hub", hub], env=env)
+        check("t36c2 status of the upgraded hub names its edition", "(formal edition" in s.stdout, s.stdout[:200])
+
+
+def t36c4():
+    k = json.loads(read(KIT) or "{}")
+    ver = tuple(int(x) for x in k.get("version", "0.0.0").split("."))
+    check("t36c4 kit.json version is 0.5.0 or later", ver >= (0, 5, 0), k.get("version"))
+    up = read(UPGRADING)
+    heads = re.findall(r"^### (\d+\.\d+\.\d+)", up, re.M)
+    at = heads.index("0.5.0") if "0.5.0" in heads else -1
+    check("t36c4 UPGRADING.md has a 0.5.0 section, newest first", at >= 0 and heads[at:at + 2] == ["0.5.0", "0.4.0"]
+          and heads == sorted(heads, key=lambda v: tuple(int(x) for x in v.split(".")), reverse=True), heads[:3])
+    sec = section(up, "0.5.0", level="###")
+    check("t36c4 the 0.5.0 section is not empty", len(sec) > 200, len(sec))
+    # c22: the section no longer tells how to switch to the edition with no tool, or its bash 4 requirement
+    has("t36c4 the 0.5.0 section", sec, "T32", "T36", "edition", "premises")
+    sec4 = section(up, "0.4.0", level="###")
+    check("t36c4 the 0.4.0 section no longer holds the T32 edition bullet", "A hub knows its edition" not in sec4, "still there")
+    check("t36c4 the 0.4.0 section keeps the transcripts bullet", "An agent, not code, puts meeting transcripts" in sec4, "missing")
+    has("t36c4 the 0.5.0 section tells a 0.4.0 hub with an older db to migrate", sec, "migrate")
+
+
+def skip_part(name):
+    mine = [s for s in principle_parts() if s.startswith("Skip, never hide")]
+    check(f"{name} PRINCIPLES.md has the skip principle", len(mine) == 1, len(mine))
+    return mine[0] if mine else ""
+
+
+def t36c5():
+    part = skip_part("t36c5")
+    if part:
+        has("t36c5 the skip principle states what the ledger does", part, "human_skip", "park", "--until", "due", "comes back")
+    with tempfile.TemporaryDirectory(prefix="t36-c5-") as t:
+        hub, p = new_hub(t)
+        hubflow(hub, ["init"])
+        hf = lambda args, now: hubflow(hub, args, session="build", now=now)
+        p = hf(["add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Skipped for now", "--waits-on", "me", "--ref", "issue:5"], "2026-09-01T00:00:00Z")
+        check("t36c5 an ask is added", p.returncode == 0, p.stderr)
+        p = hf(["park", "A-0001", "--until", "2026-10-15", "--note", "human: later"], "2026-09-02T00:00:00Z")
+        check("t36c5 park --until records the hold", p.returncode == 0, p.stderr)
+        p = hf(["rotate", "--week-start", "2026-10-05"], "2026-10-06T00:00:00Z")
+        check("t36c5 before the date the item is not due", p.returncode == 0 and "untriaged: none" in p.stdout, (p.stdout, p.stderr))
+        p = hf(["rotate", "--week-start", "2026-10-19"], "2026-10-20T00:00:00Z")
+        check("t36c5 after the date the item is due again for triage", p.returncode == 1 and "untriaged: A-0001" in p.stdout, (p.returncode, p.stdout, p.stderr))
+
+
+def t41c4():
+    part = skip_part("t41c4")
+    if part:
+        w = words(part)
+        check("t41c4 the skip principle says an agent may park", re.search(r"an agent (can|may)( still)? park", w) is not None, w[:400])
+        check("t41c4 the skip principle says only an item that is not escalated", "not escalated" in w or "non-escalated" in w, w[:400])
+        check("t41c4 the skip principle says the park event names the agent", re.search(r"park event names the agent", w) is not None, w[:400])
+        check("t41c4 the skip principle calls it a known limit", "known limit" in w, w[:400])
+    with tempfile.TemporaryDirectory(prefix="t41-c4-") as t:
+        hub, p = new_hub(t)
+        hubflow(hub, ["init"])
+        p = hubflow(hub, ["add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Park me", "--waits-on", "me", "--ref", "issue:5"], session="build")
+        check("t41c4 an ask is added", p.returncode == 0, p.stderr)
+        p = hubflow(hub, ["park", "A-0001", "--until", "2026-12-01"], session="build")
+        check("t41c4 an agent parks a non-escalated item (exit 0)", p.returncode == 0, p.stderr)
+        s = hubflow(hub, ["show", "A-0001"], session="build").stdout
+        ev = [ln for ln in s.splitlines() if "| parked |" in ln]
+        check("t41c4 the park event names the agent session and says agent", len(ev) == 1 and "| build | agent |" in ev[0], ev or s[-300:])
+
+
+def hyp_part(name):
+    mine = [s for s in principle_parts() if HYP_FROM in s]
+    check(f"{name} PRINCIPLES.md has the hypothesis principle", len(mine) == 1, len(mine))
+    return mine[0] if mine else ""
+
+
+def hyp_parts(name, text):
+    for part, rx in HYP_PARTS:
+        check(f"{name} names {part}", rx.search(words(text)) is not None, text[:300])
+
+
+def core_row(kind):
+    return [ln for ln in read(CORE).splitlines() if ln.startswith(f"| `{kind}` | ") and "| `spec` |" in ln]
+
+
+def t36c6():
+    part = hyp_part("t36c6")
+    if part:
+        body = words(part)
+        check("t36c6 the hypothesis principle asks for the premises beside the hypothesis", "premises" in body and "beside" in body, body[:300])
+    # c2: the hypothesis row is the row of What lives where (the second store map is gone, c22); it keeps the premises beside it
+    rows = core_row("hypothesis")
+    check("t36c6 HUB-CORE.md has the hypothesis row", len(rows) == 1, len(rows))
+    if rows:
+        check("t36c6 the hypothesis row asks for the premises beside it", "premises" in rows[0].lower() and "beside" in rows[0].lower(), rows[0][:200])
+    p = run([sys.executable, os.path.join(KITDIR, "tools", "storemap.py"), "--check"])
+    check("t36c6 storemap.py --check: HUB-CORE.md is current", p.returncode == 0, p.stderr)
+    has("t36c6 PHILOSOPHY.md keeps the premises sentence", read(PHIL), "lists its premises beside it")
+
+
+def t41c1():
+    part = hyp_part("t41c1")
+    if part:
+        hyp_parts("t41c1 the hypothesis principle", part)
+        has("t41c1 the hypothesis principle", part, "assume little", "which result you expect", "beside")
+        # c1, c2: the goal apart from the hypothesis; the agent says that its drafts are its own
+        has("t41c1 the hypothesis principle (c1, c2)", part, "the goal and each hypothesis apart", "its own")
+
+
+def t41c5():
+    # c1, c2: the What lives where row of the hypothesis is a claim about an avenue, with author, state, premises
+    # and the case that would show it false; the goal has its own row (it was: "what the human wants ... the result it expects")
+    rows = core_row("hypothesis")
+    check("t41c5 HUB-CORE.md has the What lives where hypothesis row", len(rows) == 1, len(rows))
+    if rows:
+        has("t41c5 the hypothesis row (c2)", rows[0], "avenue to the goal", "author", "proposed, adopted, retired or defeated", "premises", "show it false")
+    g = core_row("goal")
+    check("t41c5 HUB-CORE.md has the What lives where goal row, owned by spec (c1)", len(g) == 1, len(g))
+    if g:
+        has("t41c5 the goal row (c1)", g[0], "the intent", "names no avenue")
+    p = run([sys.executable, os.path.join(KITDIR, "tools", "storemap.py"), "--check"])
+    check("t41c5 storemap.py --check: HUB-CORE.md is current", p.returncode == 0, p.stderr)
+
+
+def iuxc4():
+    import shlex
+    kit = json.loads(read(KIT) or "{}")
+    sh = [f for f in kit.get("engine", []) if f.endswith(".sh") or read(os.path.join(HUB, f)).startswith("#!/usr/bin/env bash")
+          or read(os.path.join(HUB, f)).startswith("#!/bin/")]
+    check("iuxc4 kit.json lists no shell engine file", not sh, sh)
+    sh_files = [os.path.relpath(os.path.join(b, f), KITDIR) for b, _, fs in os.walk(KITDIR) for f in fs if f.endswith(".sh")]
+    check("iuxc4 the kit holds no .sh file", not sh_files, sh_files)
+    inst = section(read(KREADME), "Install")
+    w = words(inst)
+    check("iuxc4 README Install says Python 3 and git", "python 3" in w and "git" in w, inst[:200])
+    check("iuxc4 README Install says it needs no bash", "no bash" in w, inst[:300])
+    check("iuxc4 README Install has no POSIX tool list", "posix" not in w and "`awk`" not in inst, inst[:300])
+    blocks = re.findall(r"```sh\n(.*?)```", inst, re.S)
+    check("iuxc4 the Install section has one sh block", len(blocks) == 1, len(blocks))
+    if len(blocks) != 1:
+        return
+    lines = [ln for ln in blocks[0].splitlines() if ln.strip()]
+    shellish = [ln for ln in lines if not re.match(r"^(python3|git) ", ln) or re.search(r"\$\(|&&|\|\||[|;<>`]|\bcd\b", ln)]
+    check("iuxc4 each line of the block is one python3 or git command, with no shell syntax", not shellish, shellish)
+    if shellish:
+        return
+    with tempfile.TemporaryDirectory(prefix="iux-c4-") as t:
+        b = bin_with(t, ["python3", "git", "swipl"])  # c22: a hub needs the tool, so swipl is a requirement of the README
+        work, home = os.path.join(t, "work"), os.path.join(t, "home")
+        os.makedirs(work)
+        os.makedirs(home)
+        env = {"PATH": b, "HOME": home, "TMPDIR": t, "LANG": "C.UTF-8",
+               "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@example.invalid",
+               "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@example.invalid"}
+        sub = {"KIT": os.path.relpath(KITDIR, work), "HUB": "myhub"}
+        outs = []
+        for ln in lines:
+            argv = [re.sub(r"\$\{?(KIT|HUB)\}?", lambda m: sub[m.group(1)], a) for a in shlex.split(ln)]
+            argv[0] = os.path.join(b, argv[0])
+            p = run(argv, cwd=work, env=env, timeout=600)
+            outs.append((ln, p.returncode, p.stdout[-200:], p.stderr[-200:]))
+            if p.returncode != 0:
+                break
+        check("iuxc4 every line of the block runs with no shell, relative KIT and HUB, and only python3, git and swipl on PATH",
+              outs and all(o[1] == 0 for o in outs) and len(outs) == len(lines), outs[-1:] if outs else "no lines")
+        hub = os.path.join(work, "myhub")
+        check("iuxc4 the hub is at the relative HUB, with its manifest and flow db",
+              os.path.isfile(os.path.join(hub, ".hub-template.json")) and os.path.isfile(os.path.join(hub, "flow", "flow.db")), hub)
+
+
+
+CLAIMS = {"c1": c1, "c2": c2, "c3": c3, "c4": c4, "c5": c5, "c6": c6, "t32c5": t32c5, "t32c7": t32c7, "t36c2": t36c2, "t36c4": t36c4,
+          "t36c5": t36c5, "t36c6": t36c6, "t41c1": t41c1, "t41c4": t41c4, "t41c5": t41c5, "iuxc4": iuxc4}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
