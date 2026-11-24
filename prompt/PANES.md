@@ -49,11 +49,12 @@ How you work together:
   `orbit-kb add "signal(s1, handoff, agent, 'from discovery: build c1 to c3')"` (a new id each
   time; signal/4 in `orbit-kb help core`).
 - Handoffs in a hub. One procedure, written once here: the sender records one `hubflow handoff`
-  row (`--to ROLE --ref kb:SLUG --note "where to start"`; `hubflow` is
-  `python3 .claude/scripts/hubflow.py`) and tells the receiver with SendMessage, naming the id.
-  The receiver reads its inbox (`hubflow view v_inbox`), accepts the row, follows the item's kb ref
-  (`hubflow where SLUG` prints `specs/SLUG`), and runs `orbit-kb show open` there. The KB holds the
-  state; the row holds who has it.
+  row (`--to ROLE --ref kb:SLUG --note "where to start"`; `hubflow` is the door to the ledger: in
+  a hub of 0.12.0, `.claude/orbit-kb/bin/orbit hub ledger`; hubflow.py is its engine, and an older
+  hub runs it as `python3 .claude/scripts/hubflow.py`) and tells the receiver with SendMessage,
+  naming the id. The receiver reads its inbox (`hubflow view v_inbox`), accepts the row, follows
+  the item's kb ref (`hubflow where SLUG` prints `specs/SLUG`), and runs `orbit-kb show open`
+  there. The KB holds the state; the row holds who has it.
 - No pane grades its own work. When review's run contradicts build's report, that is a
   divergence. Record it on the claim.
 - Locate first. The pane that ran an experiment proposes where its conflict lies, with the
