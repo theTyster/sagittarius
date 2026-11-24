@@ -1333,8 +1333,15 @@ next_proposal_id(Ps, N, P) :-
     N1 is N + 1, format(atom(P0), "pr~d", [N1]),
     (   memberchk(P0, Ps) -> next_proposal_id(Ps, N1, P) ; P = P0 ).
 
+% The third argument of proposed/4 is the text of a fact (what propose stores) or the fact as a
+% term (a hand-written or tool-written line). proposal_item gives its text in both cases.
 proposal_item(KI, P, Fact, Time) :-
-    member(it(_, _, _, T, _, _), KI), nonvar(T), T = proposed(P, _, Fact, Time).
+    member(it(_, _, _, T, _, _), KI), nonvar(T), T = proposed(P, _, Fact0, Time),
+    proposal_fact_text(Fact0, Fact).
+
+proposal_fact_text(F, A) :- atom(F), !, A = F.
+proposal_fact_text(F, A) :- string(F), !, atom_string(A, F).
+proposal_fact_text(F, A) :- format(atom(A), "~q", [F]).
 proposal_done(KI, P, By, Time) :-
     member(it(_, _, _, T, _, _), KI), nonvar(T), T = proposal_confirmed(P1, By, Time), P1 == P.
 

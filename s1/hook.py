@@ -781,6 +781,9 @@ def run(raw, env, transport=None, spawn=None):
         src = record.source_of(payload["prompt"])  # c34: a tag at the start, no model asked
         if src:
             extra["source"] = src
+
+        def _nv(reason):  # no view, with the source of a message that the human did not write
+            return _out(record.compose(no_view(reason), [record.source_part(src)]))
         try:  # the late fix looks for the prompt line from here on (it is written after the hook)
             offset = os.path.getsize(tpath) if tpath else 0
         except OSError:
@@ -796,7 +799,7 @@ def run(raw, env, transport=None, spawn=None):
             questions = _prompt_questions(questions)
         except (OSError, ValueError) as e:
             _skip(log_path, key, f"questions: {type(e).__name__}: {e}", extra)
-            return _out(no_view("no question set"))
+            return _nv(("no question set"))
         routed = bool(wb) and os.path.isfile(os.path.join(wb, "pipeline.py"))
         fan = None if routed else load_fanout(env, extra)  # a workbench routing does its own asking
         timeout = _workbench_timeout(env) if routed else _timeout(env)
@@ -804,7 +807,7 @@ def run(raw, env, transport=None, spawn=None):
             _skip(log_path, None, "no API key", extra, model=jev.DEFAULT_MODEL,
                   questions=list(questions), answers=None, latency=0.0, usage=None,
                   error=f"RuntimeError: missing API key (${jev.KEY_ENV})")
-            return _out(no_view("no API key"))
+            return _nv(("no API key"))
         box = {}
 
         def call():  # the transcript read and the request both run inside the timeout
@@ -892,13 +895,13 @@ def run(raw, env, transport=None, spawn=None):
             _skip(log_path, key, f"timeout: the hook stopped waiting after {timeout + GRACE}s",
                   extra, model=jev.DEFAULT_MODEL, questions=list(questions),
                   latency=timeout + GRACE, error=f"timeout: after {timeout + GRACE}s")
-            return _out(no_view("timeout"))
+            return _nv(("timeout"))
         if "error" in box:
             _skip(log_path, key, box["error"], extra)
-            return _out(no_view("error"))
+            return _nv(("error"))
         if "routing_error" in box:
             _skip(log_path, key, f"routing: {box['routing_error']}", extra, routing="workbench")
-            return _out(no_view(f"routing: {box['routing_error'].split(':')[0]}"))
+            return _nv((f"routing: {box['routing_error'].split(':')[0]}"))
         def said(line):  # c34: the source of a message that the human did not write; k29: no record
             return _out(record.compose(line, [record.source_part(src)],
                                        list(box.get("back") or []) + [record.marker(box.get("rec"))]))
@@ -908,16 +911,16 @@ def run(raw, env, transport=None, spawn=None):
         answers = box.get("answers")
         if not answers:
             _skip(log_path, key, "no answers (the call's line has the error)", extra)
-            return _out(no_view("no answer"))
+            return _nv(("no answer"))
         try:
             line = format_answers(answers, questions)
         except Exception as e:
             _skip(log_path, key, f"bad answers: {type(e).__name__}: {e}", extra)
-            return _out(no_view("bad answers"))
+            return _nv(("bad answers"))
         return said(line)
     except Exception as e:
         _skip(log_path, key, f"error: {type(e).__name__}: {e}", extra)
-        return _out(no_view("error"))
+        return _nv(("error"))
 
 
 def _spawn(argv, env):

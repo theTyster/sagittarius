@@ -114,6 +114,18 @@ t_c4() {
   is_true "hypothesis(s1_h1a2b3c4d, s1_g1a2b3c4d, human, 'Sorting in the query is enough.')"
   is_true "proposal_confirmed(pr2, human, T)"
 }
+# D70: the third argument as a term (not text): lint, show proposals and confirm-proposal accept it
+t_c5() {
+  okb add "goal(g1, feature, human, 'One door to every store.')"; rc_is 0 "setup goal"
+  printf "proposed(p1, system1, hypothesis(hy2, g1, human, 'orbit is the front door to every store'), '2026-11-24T08:00:00Z').\n" >> "$K/kb.pl"
+  is_true "proposed(p1, system1, F, T)"; is_false "hypothesis(hy2, _, _, _)"
+  okb lint; printf '%s\n%s\n' "$out" "$err" | grep -Eq '(^|[^A-Z])E[0-9]+' && note "lint reports an error: $(snip "$out$err")"
+  okb show proposals; rc_is 0; out_has "^p1 \(system1, .*\): hypothesis\(hy2, ?g1, ?human, ?'orbit is the front door to every store'\)"
+  okb confirm-proposal p1; rc_is 0 "confirm a term proposal"
+  is_true "hypothesis(hy2, g1, human, 'orbit is the front door to every store')"
+  is_true "proposal_confirmed(p1, agent, T)"
+  okb propose --from system1 "note(g1, 'next')"; rc_is 0; any_has 'pr2'
+}
 # D71: the usage line of show names proposals
 t_s2() { okb show nothing; rc_is 2; any_has 'proposals'; }
 run_test t_p1 P1 "propose stores the proposal with its source and its note; it is no record"
@@ -125,6 +137,7 @@ run_test t_c2 C2 "confirm-proposal: the agent by default; unknown id and bad --b
 run_test t_c3 C3 "confirm-proposal keeps the checks of add"
 run_test t_s1 S1 "show proposals"
 run_test t_c4 C4 "confirm-proposal accepts a goal/4 and a hypothesis/4 proposal"
+run_test t_c5 C5 "a proposal whose fact is a term in kb.pl is listed and confirmed"
 run_test t_s2 S2 "the usage of show lists proposals"
 echo "$pass passed, $fail failed${failed[*]:+: ${failed[*]}}"
 [ "$fail" -eq 0 ]
