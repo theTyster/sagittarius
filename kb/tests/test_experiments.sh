@@ -406,7 +406,7 @@ t_UV2() {  # an unresolved verdict fulfils nothing, defeats nothing, and keeps i
     run_k k1 -- "$T/timer.sh" 611
     is_false 'fulfilled(c1)'
     is_false done
-    is_set 'blocking(X)' 'X = check_failing(k1)|X = check_unresolved(k1)|X = under(c1)'
+    is_set 'blocking(X)' 'X = check_unresolved(k1)|X = under(c1)'
     is_false 'conflict_open(A)'
     is_false 'passed(k1)'
     okb --dir "$K" show open
@@ -555,6 +555,7 @@ t_GF2() {  # the first write records the upgrade; done still holds; a change aft
     has_fact "$K/kb.pl" "upgraded(_, _)"; has_fact "$K/kb.pl" "done_before_upgrade(_, _)"
     has_goal "$K/kb.pl" "findall(L, kb_line(L, upgraded(_, _)), [LU]), kb_line(LN, note(c1, _)), LU < LN" "upgraded/2 stands before the write"
     is_true done "done after the first write"; is_false 'blocking(X)'
+    is_true 'before_upgrade_record(t1)'; is_false 'after_upgrade_change(x2)' "the order of kb.pl decides, not the second"
     okb --dir "$K" add "note(c1, 'a second note')"
     fact_count "$K/kb.pl" "upgraded(_, _)" 1 "one upgraded fact"
     okb --dir "$K" add "change(x3, 'new work')" 'serves(x3, c1)'
@@ -588,8 +589,8 @@ t_JD1() {  # k41: no judgment, done is no; judgment and one unresolved claim, do
     okb --dir "$K" add "claim(c2, preserve, 'It is as loud as before.')" "cites(c2, 'rings')" 'check(k2, c2)' "checks_that(k2, 'loudness')"
     run_k k2 -- sh -c 'exit 77'
     is_false done "the judgment turns no unresolved verdict into meets"
-    is_set 'blocking(X)' 'X = check_failing(k2)|X = check_unresolved(k2)|X = under(c2)'
-    is_true 'blocking(check_failing(k2))' "c43: check_failing keeps its 0.7.2 meaning (did not pass its last run)"
+    is_set 'blocking(X)' 'X = check_unresolved(k2)|X = under(c2)'
+    is_false 'blocking(check_failing(k2))' "c7 (k7): an unresolved check is not listed as failing"
     okb --dir "$K" show open; [ "$(printf '%s\n' "$out" | grep -c ' k2: ')" = 1 ] || note "show open prints one line for the unresolved check: $(snip "$out")"
     cp -r "$K" "$T/kb2"
     okb --dir "$K" attest waiver c2 "waive(c2, '2999-12-15T00:00:00Z', 'the tool that measures it does not exist')" --by human; rc_is 0
@@ -694,7 +695,7 @@ t_LC2() {  # the measurement: open until a pane that did not build confirms; the
     ORBIT_KB_WRITER=sr okb --dir "$K" confirm $l --take --note 'the second clock is the right one' --as review; rc_is 0
     is_true "location_confirmed($l)"
     is_set "verdict($A, V)" 'V = unresolved'
-    is_set 'blocking(X)' "X = check_failing(k1)|X = check_unresolved(k1)|X = under(c1)"
+    is_set 'blocking(X)' "X = check_unresolved(k1)|X = under(c1)"
     ORBIT_KB_WRITER=sb okb --dir "$K" run k1 --take --as build -- "$T/timer.sh" 600
     is_true done "the repaired experiment ran again"
 }

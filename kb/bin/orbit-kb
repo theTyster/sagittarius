@@ -1785,7 +1785,9 @@ stage2_derived(Dir, KbItems, Facts) :-
               atom(X) ),
             F30),
     sort(F30, F3),
-    append([F1, F2, F3], Facts).
+    (   member(it(kb, _, LU, TU, _, _), KbItems), nonvar(TU), TU = upgraded(_, _), integer(LU)
+    ->  F4 = [upgrade_line(LU)] ; F4 = [] ),
+    append([F1, F2, F3, F4], Facts).
 
 % kb_upgrade_state(+KbFile, +KbItems, -State) (D57): before (a KB of a version below 0.8.0 that
 % orbit-kb 0.8.0 or later never wrote to), upgraded (it holds upgraded/2), or new.
@@ -2968,6 +2970,7 @@ protected_pi(any_flare_open_072/0).
 protected_pi(any_current_claim_072/0).
 protected_pi(no_current_claim_072/0).
 protected_pi(done_072/0).
+protected_pi(upgrade_line/1).
 protected_pi(claim_not_carried/1).
 protected_pi(claim_waived_unresolved/1).
 protected_pi(claim_conflicts_or_stale/1).

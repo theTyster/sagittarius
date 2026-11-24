@@ -998,9 +998,9 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 
 - `fulfilled(C)`: preserve: some `counts(A, C)`. introduce, retire: a `counts(A, C)` on a check
   with `was_red(K)`. Not `refuted(C)`.
-- New terms of `blocking/1`: `check_unresolved(K)` (the latest verdict is unresolved; when that run
-  itself did not pass, `check_failing(K)` holds too, with its 0.7.2 meaning, and the listings print
-  one line, the unresolved one), `verdict_stale(K)`, `conflict_unlocated(A)`, `location_unconfirmed(L)`,
+- New terms of `blocking/1`: `check_unresolved(K)` (in place of `check_failing(K)` when the latest
+  verdict is unresolved: the spec check k7; a caller that reads each answer of `blocking(X)` still
+  gets a blocker), `verdict_stale(K)`, `conflict_unlocated(A)`, `location_unconfirmed(L)`,
   `case_unplaced(J)`, `goal_unjudged(G)`, `behavior_open(B)`, `not_carried(A)`. Each term of 0.7.2
   keeps its name. `show open`, `show blocking` and `report` print one line for each.
 - `done`: the conditions of 0.7.2 with the new `fulfilled/1`, and none of the new terms.
@@ -1012,7 +1012,7 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   `done_before_upgrade(V, Time)` when `done_072` held (and a `% Made by` line when the tool itself
   is 0.8.0 or later). A rejected write records nothing.
 - While `done_before_upgrade` holds: `goal_unjudged` never blocks; a run is stale only by a change
-  recorded at or after the upgrade time; a conflict recorded before the upgrade needs no location;
+  that stands after `upgraded/2` in kb.pl; a conflict recorded before it needs no location;
   `show open` and `show stale` list `stale (done before the upgrade): ...`.
 - An open KB from before the upgrade gets the new rules at once and keeps each blocking term.
 - `kb/tests/compare_hub_kbs.sh OLD_TOOL NEW_TOOL SPECS_DIR` checks the rule on copies of real KBs.

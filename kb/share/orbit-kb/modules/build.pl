@@ -309,9 +309,10 @@ blocking(over(X)) :- over(X).
 blocking(burn_open(C)) :- burn_open(C).
 blocking(flare_open(C)) :- flare_open(C).
 blocking(no_claim) :- no_current_claim.
-% check_failing(K) keeps its 0.7.2 meaning (c43): the check did not pass its last run. For an
-% unresolved last run both terms hold; show open prints one line, worded unresolved.
-blocking(check_failing(K)) :- check(K, C), under(C), check_ran(K), not passed(K).
+% 0.8.0 (D57, c7; the spec check k7): a check whose latest verdict is unresolved is not a failing
+% check. blocking(check_unresolved(K)) names it, so a caller that reads every answer of
+% blocking(X) still sees a blocker (c43, k43).
+blocking(check_failing(K)) :- check(K, C), under(C), check_ran(K), not passed(K), not check_unresolved(K).
 blocking(check_unresolved(K)) :- check(K, C), under(C), check_unresolved(K).
 blocking(verdict_stale(K)) :- check(K, C), under(C), latest_run(K, A), verdict(A, meets), stale_counts(A, C).
 blocking(not_carried(A)) :- not_carried_run(A).
@@ -493,8 +494,11 @@ decl(rule, claim_conflicts_or_stale(ref(claim)),
 decl(rule, done_before_upgrade,
      'The ticket was done by the rules of 0.7.2 before orbit-kb 0.8.0 or later wrote to the KB: the fact done_before_upgrade/2, or a KB from before the upgrade in which done_072 holds.',
      'the ticket was done before the upgrade').
+decl(rule, upgrade_line(int),
+     'The line of kb.pl that holds the first upgraded/2 fact. orbit-kb computes it when it reads the KB.',
+     'the upgrade is recorded on line @(1) of kb.pl').
 decl(rule, after_upgrade_change(ref(change)),
-     'The change was recorded at or after the first write of orbit-kb 0.8.0 or later.',
+     'The change has a change time and stands after the upgraded/2 fact in kb.pl.',
      'change @(1) was recorded after the upgrade').
 % The rules of 0.7.2, verbatim (D57; the names have the suffix _072).
 decl(rule, current_072(ref(claim)), 'current/1 as orbit-kb 0.7.2 had it.', 'claim @(1) is current (0.7.2)').
@@ -547,9 +551,12 @@ done_072 :- not any_under_072, not any_over, not any_to_ask_072, not any_burn_op
 % done_before_upgrade/2 when done_072 held.
 done_before_upgrade :- done_before_upgrade(_, _).
 done_before_upgrade :- kb_before_upgrade, done_072.
-after_upgrade_change(X) :- upgraded(_, TU), change_at(X, TX), TX @>= TU.
+% Before and after the upgrade is the order of kb.pl (upgrade_line/1: the line of upgraded/2,
+% computed): a time has a resolution of one second, and the first write can come in the second
+% of the last record of the old tool.
+after_upgrade_change(X) :- upgrade_line(LU), change_at(X, _), record_line(X, LX), LX > LU.
 before_upgrade_record(_) :- done_before_upgrade, kb_before_upgrade.
-before_upgrade_record(A) :- done_before_upgrade, upgraded(_, TU), attest(A, _, _, _, _, TA), TA @< TU.
+before_upgrade_record(A) :- done_before_upgrade, upgrade_line(LU), record_line(A, LA), LA < LU.
 
 % --- Stale verdicts and what counts (D56; c39) ------------------------
 change_after_run(X, A) :- change_at(X, TX), attest(A, test_result, _, _, _, TA), TX @> TA.

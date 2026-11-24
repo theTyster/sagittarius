@@ -381,6 +381,7 @@ signature(universal/1).
 signature(unresolved_after/2).
 signature(unresolved_because/2).
 signature(untempered/3).
+signature(upgrade_line/1).
 signature(upgraded/2).
 signature(verdict/2).
 signature(verdict_fresh_run/2).

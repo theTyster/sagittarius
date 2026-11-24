@@ -1783,9 +1783,6 @@ op_named() {  # op_named PREFIX: each answer of blocking(X) (PREFIX "") or ready
         [ -n "$x" ] || continue
         kind=${x%%(*}; id=; [ "$kind" != "$x" ] && { id=${x#*(}; id=${id%)}; }
         printf '%s\n' "$x" >> "$T/.seen.$goal"
-        # 0.8.0 (scientific-method-overhaul c43, c7): for an unresolved last run both check_failing(K) and
-        # check_unresolved(K) answer, and the listings print one line, the unresolved one.
-        if [ "$kind" = check_failing ] && op_answers "$goal" | grep -qxF "check_unresolved($id)"; then continue; fi
         if [ "$goal" = ready_blocker ] && [ "$kind" = to_ask ]; then re="^- to_ask $id:"   # blocking names it
         elif [ -n "$id" ]; then re="^- $pre$kind $id:"; else re="^- $pre$kind:"; fi
         printf '%s\n' "$o" | grep -Eq -- "$re" || note "show open does not name $goal($x) (want /$re/): [$(snip "$o")]"
