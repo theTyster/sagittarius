@@ -89,8 +89,8 @@ RESTATE: pin the report
     orbit-kb add "hypothesis(h2, defect, 'NEW TEXT')" "supersedes(h2, h1)"
   The old one then needs no system result. The new one needs its own.
 
-The hypothesis (the law of its ticket: the claims, the checks, and the vote rest on it)
-  It is your closest statement of the intent: one sentence that says what the human wants,
+The hypothesis (the claims, the checks, and the vote rest on it)
+  It is the statement of the intent: one sentence that says what the human wants,
   what must be true when the ticket is done. Every ticket has one. Discovery exists to form it.
   - Assume little. Put no cause, mechanism, data shape, or fix in it. Each one adds meaning
     that the report does not have, and chooses a design before the vote. Do not narrow it to

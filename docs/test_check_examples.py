@@ -95,7 +95,7 @@ class Examples(unittest.TestCase):
     def test_no_example_in_the_prompt_is_a_failure(self):
         self.edit(P, f'- Fit: "{FIT}"', "- Fit: (removed)")
         self.edit(P, f'- Too strong: "{CAUSE}"', "- Too strong: (removed)")
-        self.edit(P, f'- Collapsed: "{VAGUE}"', "- Collapsed: (removed)")
+        self.edit(P, f'- Not tempered: "{VAGUE}"', "- Not tempered: (removed)")  # 0.8.0 c12: the prompt's label
         self.fails(["c1"])
 
     # -- c1: the Lean file

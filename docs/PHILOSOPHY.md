@@ -3,6 +3,11 @@
 > Philosophy 2.0.0. Proposed on 2026-11-11, for Ty's review. It is a full rework of
 > the text of 2026-11-05 (version 1.0.0), and it replaces that text when Ty ratifies
 > it. Words in quote marks with "(Ty)" are word for word.
+>
+> Philosophy 2.1.0, 2026-11-24 (Sagittarius 0.8.0): the scientific method. Principle 2 states
+> the goal apart from its hypotheses, with the one vocabulary; "Under trial" gains Human-first
+> and four more positions. The other text is that of 2.0.0: where it says "the hypothesis",
+> read the statement of the intent, which is now the goal.
 
 Sagittarius helps a human and an agent to find what the human wants, and then to build it.
 This document holds the beliefs under it. It says why. The prompt says how to act, and
@@ -164,13 +169,39 @@ In the prompt: "The orbit", "Who judges what", "The vote".
 
 #### 2. Each statement of the intent is an attempt. The hypothesis is the first of them
 
-A hypothesis is the closest statement of the intent that the work has. It is called a
-hypothesis because it is an attempt at the intent that the human is chasing. Because it is an
-attempt, a result can show it false. While it stands, it is the law of its ticket: the claims,
-the checks, and the decision to build all rest on it.
+Since Sagittarius 0.8.0 a ticket is run as an experiment (Ty, 2026-11-23): "Under the
+scientific method, each ticket is a stated goal with a collection of hypotheses and experiments
+aimed at satisfying the goal." "A goal is what we hope to accomplish (the intent). The
+hypothesis is how we think we'll get there." The eight words have one sentence each, the same
+in every text:
 
-Every ticket has one. Discovery exists to form it when the request is not clear. When the
-request is clear, the agent states the hypothesis itself, and the work starts in build.
+<!-- vocabulary:begin -->
+- A goal is what the human hopes to accomplish: the intent. It names no avenue.
+- A hypothesis is a claim about an avenue to the goal: how we think we will get there.
+- A premise is a condition that a goal or a hypothesis takes as given. Where it does not hold,
+  the statement says nothing.
+- A claim is a prediction: what must be observable if its hypothesis and the premises hold.
+- The specification is the procedure of the experiment: the claims, and the check of each claim.
+- An experiment is one test of one claim: a procedure, its measurement premises, an observation,
+  and one verdict.
+- A verdict is the result of one experiment: meets, conflicts, or unresolved.
+- A hypothesis is tempered when one admissible case can demonstrate that its claim is false.
+<!-- vocabulary:end -->
+
+The statement of the intent is the goal. Every ticket has one goal, and discovery exists to
+form it when the request is not clear. A hypothesis is an attempt at an avenue to the goal: one
+admissible case can defeat it, and that case stays on it. Several hypotheses can be current. A
+goal is never defeated: its owner changes it or drops it. Each run of a check is an experiment
+with one verdict (meets, conflicts, or unresolved), and a conflict is located (the build, the
+measurement, a premise, or the hypothesis) before anything is reopened. Experiments give
+verdicts on claims; the human judges the goal on concrete cases. The human gives the first
+goal and hypothesis when they have them, and the agent sharpens or challenges them at once;
+for a plain request the agent drafts both and says that they are its own.
+
+The rest of this principle was written before 0.8.0. Where it says "the hypothesis", it means
+the statement of the intent, which is now the goal. The text below keeps the words of that
+date; the rules that 0.8.0 changed (who restates, the two falsifiers, the "law") are the ones
+of the paragraph above and of the prompt.
 
 > In the case of "add a dark mode" the hypothesis might be: "The app must contain and use a
 > compatible dark-colored scheme that supports dark mode without violating accessibility,
@@ -238,7 +269,7 @@ decides. (Ty holds the first half of this rule loosely: "I might say".)
 
 "A properly written hypothesis" (below) gives the definition.
 
-In the prompt: "The light path", "The hypothesis".
+In the prompt: "The light path", "The goal", "The hypothesis".
 
 #### 3. What a lap learns, the next lap keeps
 
@@ -849,6 +880,11 @@ Use has not yet judged these positions. Each one names what would show it wrong.
 | The formal statement goes to the human with the plain claim. | Ty reports it as noise, or still does not see it. |
 | The formal artifacts vote by readiness, with a knowledge base and without one. | A discovery that was not ready gets a GO that proves right, or a ready one proves wrong, often enough to matter. |
 | One response for every signal. | A signal appears for which the right response has another shape. |
+| Human-first (Ty): "For a task with a consequential misunderstanding present at the outset, an agent starting from the human's goal and self-written tempered hypothesis will expose that misunderstanding earlier and deliver a result the human judges closer to their goal" than an agent that gets an ordinary request. | A paired comparison in which the ordinary request exposes the misunderstanding no later, or gives a result that the human judges no less close. No comparison has run yet. |
+| A ticket is a goal with hypotheses, claims and experiments (Ty: the project hypothesis Sagittarius). | A conflict that cannot be placed on the build, the measurement, a premise or a hypothesis; or a ticket that closes while the human judges that its goal is not satisfied. |
+| Formalize the smallest claim whose precision could change what the human or the agent does next. No signal is needed (Parallax, Shifting). | A dispute in which the formal statement finds the case that tells two readings apart later than plain language does. |
+| Sound Basis (Ty): "Existing behavior is presumed to be preserved. A claim in the specification can identify behavior to change. A demonstrated conflict opens the affected behavior for review." | Reported conflicts that are noise, or a silent change that no conflict reported. |
+| The light path gains no step: no adoption and no recorded judgment. | Ty reports that plain requests got slower, or that "Goal (mine): ... Hypothesis (mine): ..." reads as a ritual. |
 
 This text is the frontier, and the build is behind it in places. Three examples: the report of
 the tool does not yet put a formal statement beside its plain claim, the step from words to

@@ -243,9 +243,9 @@ def c5(_):
     check("c5 prompt has 'When you resume'", i >= 0, "missing")
     para = pr[i:i + 300]
     # 0.3.0: the prompt holds no hub text ("A workspace, such as a hub, names its own tools, roles,
-    # and routing"): it keeps `orbit-kb show open` for a resume; the inbox and hubflow recipe live
+    # and routing"): it keeps `orbit show open` for a resume (`orbit-kb show open` before 0.8.0); the inbox and hubflow recipe live
     # in the hub's text (PANES.md, the hub-flow skill).
-    has("c5 prompt resume paragraph", para, "orbit-kb show open")
+    has("c5 prompt resume paragraph", para, "orbit show open")
     lacks("c5 prompt", pr, "hubflow")
     # Sagittarius 0.3.0 (c_m_b_1): the prompt has no hub lines; the hub's own HUB-CORE.md, always loaded in a
     # hub, holds the resume rule (read the inbox at session start and after a compaction, then each kb ref).

@@ -2352,7 +2352,8 @@ t_HE3() { local hd; hd=$(he_text discovery)
           grep -qF 'in the scope of the report' <<< "$hd" && note "help discovery says scope"
           grep -qiE '\bwide\b' <<< "$hd" || note "help discovery: the hypothesis is wide"
           grep -qF 'backbone of discovery' <<< "$hd" && note "help discovery: the backbone of discovery"
-          grep -qiE 'law of (its|the|every) ticket' <<< "$hd" || note "help discovery: the hypothesis is the law of its ticket"
+          grep -qiE 'law of (its|the|every) ticket|closest statement of the intent' <<< "$hd" && note "help discovery still holds the old definition (scientific-method-overhaul c11)"
+          grep -qiF 'the claims, the checks, and the vote rest on it' <<< "$hd" || note "help discovery: the claims, the checks, and the vote rest on the statement"
           kb_init "$T/k" discovery; okb --dir "$K" show kinds; out_hasnt 'falsifiable and scoped' "show kinds: hypothesis/3 is not scoped"; }
 t_HE4() { local hd; hd=$(he_text discovery)
           grep -qF 'and the rules alone in SMT, with the same claim ids' <<< "$hd" && note "SPECTRUM writes one claim in two formal languages by default"

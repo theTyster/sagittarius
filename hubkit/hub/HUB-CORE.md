@@ -11,6 +11,23 @@ two disagree, `CLAUDE.md` wins.
 The hub is read mostly by **agents**. Write for an agent that just booted with no memory: state
 facts, name paths, give dates.
 
+## The words
+
+Eight words have one meaning each, in every text of Sagittarius (generated: do not edit them here).
+
+<!-- vocabulary:begin -->
+- A goal is what the human hopes to accomplish: the intent. It names no avenue.
+- A hypothesis is a claim about an avenue to the goal: how we think we will get there.
+- A premise is a condition that a goal or a hypothesis takes as given. Where it does not hold,
+  the statement says nothing.
+- A claim is a prediction: what must be observable if its hypothesis and the premises hold.
+- The specification is the procedure of the experiment: the claims, and the check of each claim.
+- An experiment is one test of one claim: a procedure, its measurement premises, an observation,
+  and one verdict.
+- A verdict is the result of one experiment: meets, conflicts, or unresolved.
+- A hypothesis is tempered when one admissible case can demonstrate that its claim is false.
+<!-- vocabulary:end -->
+
 ## What lives where
 
 An agent that just booted looks here to know where each thing lives. The hub has seven stores. Each
