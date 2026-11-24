@@ -2247,7 +2247,7 @@ val_errs(ref, V, env(_, _, IdA, _), Es) :- !,
 val_errs(ref(Ns), V, env(_, _, _, FAA), Es) :- is_list(Ns), !,
     (   \+ atom(V)
     ->  bad_value("an id (an atom)", V, Es)
-    ;   member(N, Ns), get_assoc(N-V, FAA, _)
+    ;   member(N, Ns), ref_name_has(N, V, FAA)
     ->  Es = []
     ;   kinds_text(Ns, KT),
         fmt(M, "~q is not the id of any ~w fact. It must be the id of a ~w. Add that fact first, or fix the id.", [V, KT, KT]),
@@ -2256,7 +2256,7 @@ val_errs(ref(Ns), V, env(_, _, _, FAA), Es) :- is_list(Ns), !,
 val_errs(ref(N), V, env(_, _, _, FAA), Es) :- !,
     (   \+ atom(V)
     ->  bad_value("an id (an atom)", V, Es)
-    ;   get_assoc(N-V, FAA, _)
+    ;   ref_name_has(N, V, FAA)
     ->  Es = []
     ;   fmt(M, "~q is not the id of any ~q fact. Add the ~q fact first, or fix the id.", [V, N, N]),
         Es = ['E4'-M]
@@ -2289,6 +2289,13 @@ val_errs(alt(Entries), V, Env, Es) :- !,
 val_errs(T, _, _, ['E3'-M]) :-
     term_text(T, TT),
     fmt(M, "Its declared type ~w is unknown.", [TT]).
+
+% ref_name_has(+Name, +Id, +FirstArgAssoc) (D50): Id is the id of a fact of Name. The 0.7.2
+% hypothesis/3 is the goal of 0.8.0, so a ref(hypothesis) argument also takes the id of a
+% goal/4 fact, and a ref(goal) argument also takes the id of a hypothesis/3 fact (build_env/3
+% files each hypothesis/3 id under goal too).
+ref_name_has(N, V, FAA) :- get_assoc(N-V, FAA, _), !.
+ref_name_has(hypothesis, V, FAA) :- get_assoc(goal-V, FAA, _), !.
 
 % bare_label_example(+Entries, +V, -Example): V is an atom that names a compound
 % entry of an alt, such as refuted for refuted(text). Example is that entry with
@@ -2432,11 +2439,21 @@ build_env(FactItems, Ds, env(Ids, FA, IdA, FAA)) :-
             Ids0),
     sort(Ids0, Ids),
     findall(N-V, ( member(it(_, _, _, T, _, _), FactItems), pos_fact(T),
-                   compound(T), T =.. [N, V|_], atom(V) ),
+                   compound(T), T =.. [N0, V|_], atom(V),
+                   ( N = N0 ; record_marker(T, N) ) ),
             FA0),
     sort(FA0, FA),
     set_assoc(Ids, IdA),
     set_assoc(FA, FAA).
+
+% record_marker(+Fact, -Name) (D50): more names under which the first argument of a fact is
+% filed in the env. A hypothesis/3 fact is a goal (the 0.7.2 form); '$hyp4' marks a hypothesis
+% under a goal (hypothesis/4), '$goal4' a goal/4 fact, '$preserve' a preserve claim.
+record_marker(hypothesis(_, _, _), goal).
+record_marker(hypothesis(_, _, _), '$hyp3').
+record_marker(hypothesis(_, _, _, _), '$hyp4').
+record_marker(goal(_, _, _, _), '$goal4').
+record_marker(claim(_, L, _), '$preserve') :- L == preserve.
 
 set_assoc(Sorted, A) :-
     findall(K-t, member(K, Sorted), Ps),
@@ -2521,7 +2538,12 @@ supersedes_kind_diags(env(_, _, IdA, FAA), supersedes(N, O), F, L, Diags) :-
               fmt(M, "supersedes/2 argument ~w: ~q is not the id of a claim or a hypothesis. supersedes takes two claims, two hypotheses, or two decisions, two definitions, or two rules (project module). Fix the id.", [I, X]) ),
             D1),
     (   sup_kind(FAA, N, KN), sup_kind(FAA, O, KO), KN \== KO
-    ->  fmt(M2, "supersedes/2: ~q is a ~w and ~q is a ~w. Both sides must be the same kind: a claim cannot replace a hypothesis, and a decision cannot replace a definition. To reword a hypothesis, add a new hypothesis, then supersedes(NewHypothesis, ~q).", [N, KN, O, KO, O]),
+    ->  (   msort([KN, KO], [hypothesis, hypothesis4])
+        ->  sup_kind_word(FAA, N, KN, WN, KO), sup_kind_word(FAA, O, KO, WO, KN),
+            fmt(M2, "supersedes/2: ~q is a ~w and ~q is a ~w. Both sides must be the same kind: a goal replaces a goal, and a hypothesis under a goal replaces a hypothesis under a goal.", [N, WN, O, WO])
+        ;   sup_kind_word(FAA, N, KN, WN, KO), sup_kind_word(FAA, O, KO, WO, KN),
+            fmt(M2, "supersedes/2: ~q is a ~w and ~q is a ~w. Both sides must be the same kind: a claim cannot replace a hypothesis, and a decision cannot replace a definition. To reword a hypothesis, add a new hypothesis, then supersedes(NewHypothesis, ~q).", [N, WN, O, WO, O])
+        ),
         D2 = [diag('E4', F, L, M2)]
     ;   D2 = []
     ),
@@ -2538,9 +2560,21 @@ project_fact_diags(ratified_by(X, W, _), F, L, [diag('EP1', F, L, M)]) :- atom(W
     fmt(M, "ratified_by(~q, ~q, _): an agent ratified this fact. Only a human may ratify a fact that an agent made. Ask a human, and record their name.", [X, W]).
 project_fact_diags(_, _, _, []).
 
+% D50: the kind hypothesis is the goal of the ticket: a hypothesis/3 fact (the 0.7.2 form) or a
+% goal/4 fact. The kind hypothesis4 is a hypothesis under a goal (hypothesis/4).
 sup_kind(FAA, X, claim) :- atom(X), get_assoc(claim-X, FAA, _), !.
-sup_kind(FAA, X, hypothesis) :- atom(X), get_assoc(hypothesis-X, FAA, _), !.
+sup_kind(FAA, X, hypothesis4) :- atom(X), get_assoc('$hyp4'-X, FAA, _), !.
+sup_kind(FAA, X, hypothesis) :- atom(X), get_assoc(goal-X, FAA, _), !.
 sup_kind(FAA, X, K) :- atom(X), member(K, [decision, definition, rule]), get_assoc(K-X, FAA, _), !.  % D27
+
+% sup_kind_word(+FAA, +Id, +Kind, -Word, +OtherKind): the word of a kind in a message.
+sup_kind_word(FAA, X, hypothesis, W, Other) :- !,
+    (   get_assoc('$goal4'-X, FAA, _) -> W = goal
+    ;   Other == hypothesis4 -> W = 'goal in the 0.7.2 form (hypothesis/3)'
+    ;   W = hypothesis
+    ).
+sup_kind_word(_, _, hypothesis4, 'hypothesis under a goal', _) :- !.
+sup_kind_word(_, _, K, K, _).
 
 attest_diags(KB, ATs, Env, Fact0, F, L, Diags) :-
     Fact0 = attest(_, Type, _, Pred, By, _),
@@ -2622,7 +2656,10 @@ e15_diags(FactItems, Diags) :-
 % sup_kind_words(+FactItems, +Id, -One, -Many): "hypothesis" and "hypotheses"
 % when Id is a hypothesis (D15), else "claim" and "claims".
 sup_kind_words(FactItems, X, "hypothesis", "hypotheses") :-
-    member(it(_, _, _, T, _, _), FactItems), nonvar(T), T = hypothesis(Y, _, _), Y == X, !.
+    member(it(_, _, _, T, _, _), FactItems), nonvar(T),
+    ( T = hypothesis(Y, _, _) ; T = hypothesis(Y, _, _, _) ), Y == X, !.
+sup_kind_words(FactItems, X, "goal", "goals") :-
+    member(it(_, _, _, T, _, _), FactItems), nonvar(T), T = goal(Y, _, _, _), Y == X, !.
 sup_kind_words(FactItems, X, One, Many) :-
     member(K-One-Many, [decision-"decision"-"decisions", definition-"definition"-"definitions", rule-"rule"-"rules"]),
     member(it(_, _, _, T, _, _), FactItems), nonvar(T), functor(T, K, 2), arg(1, T, Y), Y == X, !.
