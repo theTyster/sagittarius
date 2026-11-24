@@ -849,7 +849,7 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 | `why 'GOAL' [-n N] [--long]` | Same as `query --why`. Each answer is followed by "X, because" and the indented reasons: why each literal of the rule that proves it holds. A `not` literal reads "there is no evidence that X". |
 | `whynot 'GOAL' [--long]` | The first line is `holds` or `absent`, decided by the SWI engine (the verdict `contradicts` is gone, D20). `holds` means GOAL has an answer; the clauses that prove the first answer follow. `absent` means GOAL has no answer; then, for each rule of GOAL, the first body literal that no answer gets past ("the rule for done/0 stops at not any_under:") and why, recursively. "nothing records X: no fact or rule matches it" is printed when nothing matches. The depth is 6 levels; `--long` gives 30. The explanation never changes the verdict. Exit 0. |
 | `show [hypothesis\|claims\|questions\|open\|blocking\|disclosures\|extensions\|kinds\|all]` | Plain-text listing. `hypothesis`: each hypothesis, its state, and its premises or `Premises: none.` (D31 B1); `all` starts with it. `claims`: each claim with its state, its examples (D31 B2), its citations, and its checks. `kinds`: each fact kind with its description (D22 C10). The default is `all` (without `blocking`). `open` lists `to_ask`, `stale`, and `contested`, plus `under` and `over` when build is loaded, then every other answer of `blocking(X)`, each `ready_blocker(X)` while the discovery orbit is open and not ready, and each `stale_pin_open(P)` (D32); "Nothing is open" only when none holds. `blocking` lists each answer of `blocking(X)` with its text (D22 C7). |
-| `report` | A delivery skeleton in plain Markdown (D16 C4: `# Name:` headings, a blank line between sections, two-space bullets, bold labels, nested detail) with these sections in this order (D31 amends the list: `KB:`, `Signals:`, `Hypothesis:`, `Formal:`, and the discovery parts); D35 drafts `Signals:` from the records and lists each request under `KB:`: `Delivered:` (placeholder); `Claims:` (each current claim with `fulfilled` or `under` when build is loaded, and its checks); `Guesses:` (questions whose default no human answered, and premises that nobody checked; D17 C5 and D30 H3 for the empty case); `Disclosures:`; `Not checked:` (current claims with no check); `Open:` (`to_ask`, stale approvals, `over`, and `no claim` when no claim is current, D17 C4); `To land:` (placeholder). Use short, plain sentences. `--html FILE` also writes the report as a page for review, and `--open` opens it (D16). |
+| `report` | A delivery skeleton in plain Markdown (D16 C4: `# Name:` headings, a blank line between sections, two-space bullets, bold labels, nested detail) with these sections in this order (D31 amends the list: `KB:`, `Signals:`, `Hypothesis:`, `Formal:`, and the discovery parts); D35 drafts `Signals:` from the records and lists each request under `KB:`: `Delivered:` (placeholder); `Claims:` (each current claim with `fulfilled` or `under` when build is loaded, and its checks); `Residual:` (D73: three lists, `Wanted:`, `Happens:`, `Follows:`; it takes the place of `Guesses:` and `Not checked:`); `Disclosures:`; `Open:` (`to_ask`, stale approvals, `over`, and `no claim` when no claim is current, D17 C4); `To land:` (placeholder). Use short, plain sentences. `--html FILE` also writes the report as a page for review, and `--open` opens it (D16). |
 | `version` (also `--version`) | Print `orbit-kb X.Y.Z` from the file `VERSION` of the library directory (a link to the root `VERSION` in the repository; a copy in a hub). Exit 2 when the file or the number is missing, or on an argument (D34 V1). |
 | `doctor` | Check `swipl` and the library directory, and print a fix step for anything missing. Then run known-answer self-tests on the SWI engine: the helper form must be false; `not under(_)` must be false when `under(a)` holds; arithmetic under `not` must give exactly k2, k3, and k4 with `-n 0`; E18 must flag `p :- not q, q :- not p`; E17 must flag `-p(b)`. Report each result. Exit 2 if anything is missing or a self-test fails. It does not look for `scasp`. |
 | `help [COMMAND\|TOPIC]` | Usage. The general help starts with a "How to use" block (the order of the commands, and one line for each topic), then a "Phases" block (D22 C9), then lists the commands and explains the engine (negation as failure, stratified rules) in a few plain sentences. A TOPIC is `core`, `build`, `discovery`, `codes`, `answers`, or `shift` (D37). Its text is the file `help/TOPIC.txt` in the library directory. An unknown name exits 2. `init` prints a `Next:` line that names `help core`. `uses discovery` prints a `Next:` line that names `lint` and `help discovery`. |
@@ -947,8 +947,8 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   nothing, and a GO vote adopts no hypothesis without it. A proposed hypothesis with the mark prints a line under its header (D50 views, below).
 - An agent retirement of a hypothesis that a human wrote or adopted, or that has `adoption_cited`, is
   refused (exit 1, by `retire`, `attest` and `add`). Such a fact written by hand does not retire it.
-- `hypothesis_guess(H)`: agent-written, current, not adopted. `report` lists it under Guesses as
-  `Hypothesis (agent-written, not adopted): TEXT`.
+- `hypothesis_guess(H)`: agent-written, current, not adopted. `report` lists it under `Residual:`,
+  `Wanted:` (D73; under Guesses before it) as `Hypothesis (agent-written, not adopted): TEXT`.
 
 ## D53: tempered; what a record rests on (claims c3, c38)
 
@@ -1237,9 +1237,52 @@ Tests: `kb/tests/test_proposals.sh`.
   NAME's words): 'WORDS'. NAME adopts it with Adopt on the Desk, or with: orbit adopt H --by human` (the tool says its own name, as it was called: orbit-kb adopt under the name orbit-kb; review U1).
 - Superseded goals: `Earlier statements of the goal:`, one line each: `- h2 (AUTHOR, superseded by g1): `
   and the first 100 characters. `No hypothesis: the claims hang on the goal.` prints only for a current goal.
-- report Guesses: `Hypothesis hy5 (Astra, agent-written, not adopted): TEXT` (no name for the plain `agent`).
+- report, `Residual:`, `Wanted:` (D73; Guesses before it): `Hypothesis hy5 (Astra, agent-written, not adopted): TEXT` (no name for the plain `agent`).
 - The goal_unjudged line of show open and show blocking ends with the goal text.
 - A lint E4 line of a hypothesis/4 fact names its id after the position: `E4 kb.pl:7 hy9: hypothesis/4 argument 2: ...`.
 - Discovery: `carried(A, G)` on a reproduction attestation A of a statement that goal G replaces counts as the
   system result of G. Lint WD7 and the untouched line say "goal" for a goal/4 fact.
 
+## D73. The report follows the delivery block of Philosophy 3.0.0 (hub spec KB philosophy-3, claims c1, c2, c3, c11; 2026-11-24)
+
+Ty, 2026-11-24, on Philosophy 3.0.0 and the prompt rebuilt on it: "Lets make this live
+immediately." The delivery block of that prompt has the field `Residual:` and no field `Guesses:`
+or `Not checked:`. Review's default (H-0129, steps 8 to 11): the tool follows the texts. D73 amends
+D16 C4 L1 (the list of headings), D17 C5, D30 H3, D31 B3 and D62.
+
+- **The section.** `report` prints `# Residual:` where it printed `# Guesses:`, and no section
+  `# Not checked:`. The order is: ..., `Formal:`, (`Scope:`, `Risk:`, `Not explored:`),
+  `Residual:`, `Disclosures:`, `Waivers:` (build), `Open:`, .... The section has three lists. Each
+  starts with a bullet at two spaces, `  - **Wanted:**`, `  - **Happens:**`, `  - **Follows:**`,
+  and its items are bullets at four spaces, with their detail at six.
+  - `Wanted:` (only the human reads what is wanted): each question whose default no human
+    answered (`Q: TEXT`, then `The default is D. No human answered it.`), and each
+    `hypothesis_guess(H)`. Empty: `None. No question has a default.`, or `None. A human answered
+    every question with a default.` when an `assumed/2` fact exists (D17 C5).
+  - `Happens:` (the system answers): each `premise_unchecked(P)` (`P: TEXT`, then `A premise of
+    hypothesis H. Nobody checked it on the system.`), and each current claim with no check (`C:
+    TEXT`, then `It has no check.`). Empty: `None. Every current claim has a check.`, or `None. No
+    claim is current.`; with a premise of a current hypothesis, `None. Each premise is checked,
+    and every current claim has a check.` (or `... and no claim is current.`).
+  - `Follows:` (a formal tool answers): each formal statement S of a current claim C that is
+    stated and not proved, `S states claim C. It is stated and not proved.` With the build
+    module S is `formal(S, C)` (a `formal_statement/2` fact or a model that encodes C); with
+    only the discovery module it is `encodes(S, C)`. It is proved when a Lean proof of C counts
+    (`burn_proved(C)`), or when S is a trusted model with a decided result on C. Empty: `None. No
+    claim has a formal statement.`, or `None. Each formal statement is proved, or decided by a
+    trusted model.`
+- **The control.** With the build module, a current claim that is not a `preserve` claim has, for
+  each of its checks K, one bullet after its examples and its burn and flare: `Control of check
+  K: run A failed before the change.` (A is the first `control(A)` run of K), or `Control of
+  check K: not seen.` A check with a `known_when/2` fact adds `Known when the rule of check K
+  was chosen: TEXT`. A claim with such a bullet is not printed on one line.
+- **The page.** `report --html` has the section `data-section="residual"` and no section
+  `guesses` or `not_checked`. The three labels are `<li class="plain"><strong>NAME:</strong>`.
+  An item whose id is a claim on the page (a claim with no check, the claim of a formal
+  statement) has the link `See claim C.` The status sentence of a claim card includes the
+  control sentences.
+- **A fix.** The page failed (`main: false`) for a claim with a sentence after its status (a
+  burn or a flare before D73) and a disclosure about the claim or one of its questions: a
+  variable of the claim card was shared with the lambda of the disclosures. It is written now.
+- **The texts.** `help report`, `help core`, `help shift`, the README and the declaration of
+  `hypothesis_guess` name `Residual` and its lists.
