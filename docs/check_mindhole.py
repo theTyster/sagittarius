@@ -3,7 +3,7 @@
 hub's rules, a handoff carries the KB, a closed ticket leaves its outcomes, and the display name.
 One check per claim of the spec KB (tmp/kb-sagittarius-030).
 
-usage: python3 docs/check_mindhole.py mb1|mb2|mb3|mb4|mb5|mb6|mf1|mf4|mg|mg2|u1|u2|u3|u4|u6|pr [--list]   (--list prints the ids)
+usage: python3 docs/check_mindhole.py mb1|mb2|mb3|mb4|mb5|mb6|mf1|mf4|mg|mg2|u1|u2|u3|u4|u6|pr|r1 [--list]   (--list prints the ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 mb1 (c_m_b_1) both HUB-CORE.md files tell a session to read its inbox (`view v_inbox`) at session start and
@@ -48,6 +48,12 @@ pr  (review 2, finding 10) PRINCIPLES.md cites the sections that its text comes 
     work that the request needs" cites "The orbit"; no part says "not logs", which the prompt does not say.
 u6  (UAT U6) both CLAUDE.md templates (formal and informal) have a section for the human's own notes, such
     as a project order.
+r1  (scientific-method-overhaul review finding R1, claim c26: a session reads and writes a store only through
+    the door) the hub texts teach the door, not the engine: (a) the hub-flow skill defines `$HF` as
+    `.claude/orbit-kb/bin/orbit hub ledger`; (b) no line of HUB-CORE.md, hub-flow/SKILL.md or hub-rotate/SKILL.md
+    tells a session to run `python3 .claude/scripts/hubflow.py` or a bare `hubflow.py SUBCOMMAND` (a command of
+    the COMMANDS table of hubflow.py), except the lines of ENGINE_LINES, which name the engine. The generated
+    blocks of HUB-CORE.md (between the store-map and vocabulary markers) are not read: storemap.py writes them.
 """
 import json
 import os
@@ -352,7 +358,36 @@ def pr():
     check("pr PRINCIPLES.md stays short (71 lines or fewer outside the vocabulary block)", n <= 71, n)
 
 
-CLAIMS = {k: globals()[k] for k in ("mb1", "mb2", "mb3", "mb4", "mb5", "mb6", "mf1", "mf4", "mg", "mg2", "u1", "u2", "u3", "u4", "u6", "pr")}
+# r1: the lines that may name a hubflow.py command because they describe the engine, by their text (none now:
+# each line that names the engine names no command). Add a line here only when it describes the engine.
+ENGINE_LINES = ()
+
+
+def generated_out(t):
+    return re.sub(r"<!-- (store-map|vocabulary):begin.*?<!-- \1:end -->", "", t, flags=re.S)
+
+
+def r1():
+    skill = read(os.path.join(SKILLS, "hub-flow", "SKILL.md"))
+    fs = flat(skill)
+    check("r1 (a) the hub-flow skill defines $HF as the door `.claude/orbit-kb/bin/orbit hub ledger`",
+          re.search(r"`\$HF` below is `\.claude/orbit-kb/bin/orbit hub ledger`", fs) is not None,
+          [ln for ln in skill.splitlines() if "$HF" in ln and "below" in ln])
+    check("r1 (a) the hub-flow skill does not define $HF as hubflow.py",
+          re.search(r"hubflow\.py`? \(`\$HF`", fs) is None, re.findall(r".{60}\(`\$HF`.{20}", fs))
+    m = re.search(r"^COMMANDS = \{(.*?)\}", read(os.path.join(ROOT, "hubkit", "hub", ".claude", "scripts", "hubflow.py")), re.S | re.M)
+    cmds = set(re.findall(r'"([a-z][a-z-]*)":', m.group(1))) if m else set()
+    check("r1 the COMMANDS table of hubflow.py is read (it has view, where, rotate)", {"view", "where", "rotate"} <= cmds, sorted(cmds))
+    run = re.compile(r"python3 \.claude/scripts/hubflow\.py|(?<![\w/.])hubflow\.py`? +(" + "|".join(sorted(map(re.escape, cmds), key=len, reverse=True) or ["x^"]) + r"|ARGS)\b")
+    for label, path in (("HUB-CORE.md", CORE), ("hub-flow/SKILL.md", os.path.join(SKILLS, "hub-flow", "SKILL.md")),
+                        ("hub-rotate/SKILL.md", os.path.join(SKILLS, "hub-rotate", "SKILL.md"))):
+        t = read(path)
+        check(f"r1 {label} is read", bool(t))
+        bad = [ln.strip() for ln in generated_out(t).splitlines() if run.search(ln) and not any(e in ln for e in ENGINE_LINES)]
+        check(f"r1 (b) no line of {label} tells a session to run hubflow.py (it teaches `orbit hub ledger`)", not bad, bad)
+
+
+CLAIMS = {k: globals()[k] for k in ("mb1", "mb2", "mb3", "mb4", "mb5", "mb6", "mf1", "mf4", "mg", "mg2", "u1", "u2", "u3", "u4", "u6", "pr", "r1")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]
