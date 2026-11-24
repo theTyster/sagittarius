@@ -10786,6 +10786,33 @@ kb_engine(KB, Eng) :-
 
 eng_true(Eng, G) :- eng_all(Eng, [], G, L), L \== [].
 
+% id_sort(+List, -Sorted) (review U4): sort/2 (duplicates go), with the digits of an id compared as a
+% number: c1, c2, c10, not c1, c10, c2. A term or a list of ids sorts on the same key, part by part.
+id_sort(L0, L) :-
+    maplist([X, K-X]>>id_key(X, K), L0, P0), sort(P0, P), pairs_values(P, L).
+
+id_key(X, K) :-
+    (   var(X) -> K = X
+    ;   number(X) -> K = n(X)
+    ;   ( atom(X) ; string(X) )
+    ->  atom_codes(X, Cs), id_runs(Cs, K)
+    ;   compound(X) -> X =.. [F|As], maplist(id_key, As, Ks), K =.. [F|Ks]
+    ;   K = X
+    ).
+
+id_runs([], []).
+id_runs([C|Cs], [R|Rs]) :-
+    (   code_type(C, digit)
+    ->  id_span(digit, [C|Cs], Ds, Rest), number_codes(N, Ds), R = n(N)
+    ;   id_span(nondigit, [C|Cs], Ts, Rest), atom_codes(A, Ts), R = t(A)
+    ),
+    id_runs(Rest, Rs).
+
+id_span(Kind, [C|Cs], [C|Xs], Rest) :-
+    ( Kind == digit -> code_type(C, digit) ; \+ code_type(C, digit) ), !,
+    id_span(Kind, Cs, Xs, Rest).
+id_span(_, Rest, [], Rest).
+
 say(Fmt0, Args) :- name_text(Fmt0, Fmt), format(Fmt, Args), nl.
 
 txt(T, S) :- ( atom(T) -> S = T ; term_text(T, S) ).
@@ -10873,7 +10900,7 @@ show_section(_, Eng, hypothesis) :-
     forall(member([H, K, T], Hs),
            ( one_line(T, TT), say("- ~w (~w): ~w", [H, K, TT]),
              (   eng_all(Eng, [N], supersedes(N, H), Ns), Ns \== []
-             ->  atomic_list_concat(Ns, ', ', NT), say("  State: superseded by ~w.", [NT])
+             ->  id_sort(Ns, NsS), atomic_list_concat(NsS, ', ', NT), say("  State: superseded by ~w.", [NT])
              ;   say("  State: current.", [])
              ),
              premise_lines(Eng, H, PLs),
@@ -10904,7 +10931,7 @@ show_section(_, Eng, hypotheses) :-
         forall(member([G, _, A, T], Old),
                ( one_line(T, TT), author_words(A, AT),
                  ( string_length(TT, Len), Len > 100 -> sub_string(TT, 0, 100, _, Short) ; Short = TT ),
-                 eng_all(Eng, [N], supersedes(N, G), Ns), atomic_list_concat(Ns, ', ', NT),
+                 eng_all(Eng, [N], supersedes(N, G), Ns), id_sort(Ns, NsS), atomic_list_concat(NsS, ', ', NT),
                  say("- ~w (~w, superseded by ~w): ~w", [G, AT, NT, Short]) ))
     ).
 show_section(KB, Eng, claims) :-
@@ -10927,7 +10954,7 @@ show_section(KB, Eng, claims) :-
     forall(member([C, L, T], Cs),
            ( txt(T, TT), say("- ~w (~w): ~w", [C, L, TT]),
              ( eng_member(Eng, CurS, C, current(C)) -> St0 = "current"
-             ; eng_lookup(Eng, SupBy, C, N, supersedes(N, C), Ns), Ns \== [] -> atomic_list_concat(Ns, ', ', NT),
+             ; eng_lookup(Eng, SupBy, C, N, supersedes(N, C), Ns), Ns \== [] -> id_sort(Ns, NsS), atomic_list_concat(NsS, ', ', NT),
                fmt(St0, "superseded by ~w", [NT])
              ; eng_all(Eng, [PH, PS], ( predicts(PH, C), hypothesis_state(PH, PS) ), [[PH1, PS1]|_])
              ->  fmt(St0, "not current (its hypothesis ~w is ~w)", [PH1, PS1])
@@ -11032,7 +11059,7 @@ show_section(KB, Eng, experiments) :- !, show_experiments(KB, Eng, _).
 show_section(KB, Eng, experiments(Id)) :- !, show_experiments(KB, Eng, Id).
 show_section(_, Eng, stale) :- !,
     say("Stale verdicts:", []),
-    eng_all(Eng, [A, C], ( check(K, C), latest_run(K, A), verdict_stale(A, C) ), SL0), sort(SL0, SL),
+    eng_all(Eng, [A, C], ( check(K, C), latest_run(K, A), verdict_stale(A, C) ), SL0), id_sort(SL0, SL),
     (   SL == [] -> say("- None.", []) ; true ),
     forall(member([A, C], SL),
            (   eng_true(Eng, stale_grandfathered(A, C))
@@ -11134,7 +11161,7 @@ ready_sentence(_, N, Id, S) :- fmt(S, "~w ~w blocks discovery_ready.", [N, Id]).
 % stale_pin_text(+Eng, +P, -S) (D32 O3): what a stale pin that the KB still rests on is.
 stale_pin_text(Eng, P, S) :-
     (   eng_all(Eng, [K, Src], pin(P, K, Src, _, _), [[K1, Src1]|_]) -> true ; K1 = '?', Src1 = '?' ),
-    eng_all(Eng, [D], ( concerns(D, P), current_fact(D) ), Ds0), sort(Ds0, Ds),
+    eng_all(Eng, [D], ( concerns(D, P), current_fact(D) ), Ds0), id_sort(Ds0, Ds),
     (   Ds == []
     ->  fmt(S, "the ~w pin of ~w is stale (lint WP8): it changed after the pin, and the KB rests on it. Read it, then pin it again.", [K1, Src1])
     ;   atomic_list_concat(Ds, ', ', DT),
@@ -11145,11 +11172,11 @@ stale_pin_text(Eng, P, S) :-
 % what was not carried over to the current goal.
 stage2_notes(KB, Eng, Lines) :-
     (   has_build(KB)
-    ->  eng_all(Eng, [A, C], stale_grandfathered(A, C), SG0), sort(SG0, SG),
+    ->  eng_all(Eng, [A, C], stale_grandfathered(A, C), SG0), id_sort(SG0, SG),
         findall(L, ( member([A, C], SG), fmt(L, "- stale (done before the upgrade): the verdict of run ~w for claim ~w is older than a change that serves the claim. It blocks nothing.", [A, C]) ), L1),
-        eng_all(Eng, [X], to_discovery(X), TD0), sort(TD0, TD),
+        eng_all(Eng, [X], to_discovery(X), TD0), id_sort(TD0, TD),
         findall(L, ( member(X, TD), fmt(L, "- For discovery: ~w goes back to discovery, through review.", [X]) ), L2),
-        eng_all(Eng, [X], ( not_carried(X), not(not_carried_run(X)) ), NC0), sort(NC0, NC),
+        eng_all(Eng, [X], ( not_carried(X), not(not_carried_run(X)) ), NC0), id_sort(NC0, NC),
         findall(L, ( member(X, NC), fmt(L, "- Not carried over: ~w is of an older goal, and no record carries it over (carried/2). It does not count for the current goal.", [X]) ), L3),
         append([L1, L2, L3], Lines0)
     ;   Lines0 = []
@@ -11161,7 +11188,7 @@ stage2_notes(KB, Eng, Lines) :-
 % supports a project goal that its owner dropped. It blocks nothing and closes nothing.
 dropped_goal_notes(KB, Eng, Lines) :-
     (   kb_uses(KB, Us), memberchk(project, Us)
-    ->  eng_all(Eng, [G, PG], goal_rests_on_dropped(G, PG), GP0), sort(GP0, GP),
+    ->  eng_all(Eng, [G, PG], goal_rests_on_dropped(G, PG), GP0), id_sort(GP0, GP),
         findall(L, ( member([G, PG], GP),
                      (   eng_all(Eng, [By, At, Tx], project_goal_dropped_by(PG, By, At, Tx), [[By1, At1, Tx1]|_])
                      ->  txt(Tx1, TT),
@@ -11174,7 +11201,7 @@ dropped_goal_notes(KB, Eng, Lines) :-
 
 show_experiments(KB, Eng, Only) :-
     say("Experiments:", []),
-    eng_all(Eng, [E, Kind, C], experiment(E, Kind, C), Es0), sort(Es0, Es1),
+    eng_all(Eng, [E, Kind, C], experiment(E, Kind, C), Es0), id_sort(Es0, Es1),
     (   var(Only) -> Es = Es1
     ;   include([[E1, _, C1]]>>( E1 == Only ; C1 == Only ; eng_true(Eng, ( attest(E1, test_result, _, result(Only, _, _), _, _) )) ), Es1, Es)
     ),
@@ -11264,11 +11291,11 @@ blocking_line(_, Eng, request_stale(R), S) :- !,
     eng_all(Eng, [Ref], request_pin(R, Ref, _, _), Refs), ( last(Refs, Ref1) -> true ; Ref1 = '?' ),
     fmt(S, "- request_stale ~w: the request text of ~w changed since the KB pinned it. Read the item; a human accepts the new text with orbit-kb pin-request --request-file F --accept --by human.", [R, Ref1]).
 blocking_line(_, Eng, project_contradiction(X), S) :- !,
-    eng_all(Eng, [Y], project_contradiction(X, Y), Ys0), sort(Ys0, Ys),
+    eng_all(Eng, [Y], project_contradiction(X, Y), Ys0), id_sort(Ys0, Ys),
     atomic_list_concat(Ys, ', ', YT),
     fmt(S, "- project_contradiction ~w: a claim pins ~w of the project KB, and ~w cannot hold together with ~w there (excludes). Ask a human to supersede one side in the project KB, or change the claim.", [X, X, X, YT]).
 blocking_line(_, Eng, goal_contradicts(G), S) :- !,
-    eng_all(Eng, [P], goal_contradiction_open(G, P), Ps0), sort(Ps0, Ps),
+    eng_all(Eng, [P], goal_contradiction_open(G, P), Ps0), id_sort(Ps0, Ps),
     atomic_list_concat(Ps, ', ', PT),
     fmt(S, "- goal_contradicts ~w: the goal contradicts the project goal ~w. This is a question for the human before the build: add question(Q, ~w, 'TEXT'), and record the human's answer.", [G, PT, G]).
 % 0.8.0, stage 2 (D57 to D61): one clear line for each new term.
@@ -11282,7 +11309,7 @@ blocking_line(_, Eng, check_unresolved(K), S) :- !,
     ).
 blocking_line(_, Eng, verdict_stale(K), S) :- !,
     item_text(Eng, K, T),
-    eng_all(Eng, [X], ( check(K, C), latest_run(K, A), serves(X, C), change_after_run(X, A) ), Xs0), sort(Xs0, Xs),
+    eng_all(Eng, [X], ( check(K, C), latest_run(K, A), serves(X, C), change_after_run(X, A) ), Xs0), id_sort(Xs0, Xs),
     atomic_list_concat(Xs, ', ', XT),
     fmt(S, "- verdict_stale ~w: the last run of check ~w is older than a change that serves its claim (~w): the verdict is of an older state. Run the check again: ~w", [K, K, XT, T]).
 blocking_line(_, Eng, conflict_unlocated(A), S) :- !,
@@ -13038,7 +13065,7 @@ flare_parts(Eng, bs(_, _, WaivBy, FlareS, ShownS), C, Head, Detail) :-
     ->  Head = "Flare: shown.",
         eng_all(Eng, [S, P], ( demo(S, C), attest(_, approval, S, digest(D), human, _), subject(S, P, D) ), SPs),
         findall(T, ( member([S, P], SPs), fmt(T, "~w (~w)", [S, P]) ), Ts0),
-        sort(Ts0, Ts), atomic_list_concat(Ts, ', ', TsT),
+        id_sort(Ts0, Ts), atomic_list_concat(Ts, ', ', TsT),
         fmt(Detail, "A human approved demo ~w.", [TsT])
     ;   eng_lookup(Eng, WaivBy, C, D, ( attest(W, waiver, _, waive(C, D, _), human, _), not(waiver_lapsed(W)) ), [D1|_])
     ->  Head = "Flare: NOT SHOWN.", fmt(Detail, "A human waived the demo until ~w.", [D1])
@@ -13558,13 +13585,13 @@ report_text(KB, Eng) :-
     ),
     ( has_discovery(KB) -> vote_section(Eng) ; true ),
     % 0.8.0 (D59, c10): each formal statement that the human has not accepted.
-    (   call(Build), eng_all(Eng, [FS, FC], formal_unaccepted(FS, FC), FUs0), sort(FUs0, FUs), FUs \== []
+    (   call(Build), eng_all(Eng, [FS, FC], formal_unaccepted(FS, FC), FUs0), id_sort(FUs0, FUs), FUs \== []
     ->  rhead('Formal: not yet accepted by the human'),
         forall(member([FS, FC], FUs),
                rsay(item(FS), "~w states claim ~w. The human has not said that it says what the claim means (orbit-kb judge ~w accepts ~w --by human).", [FS, FC, FS, FC]))
     ;   true
     ),
-    (   call(Build), eng_all(Eng, [TDX], to_discovery(TDX), TDs0), sort(TDs0, TDs), TDs \== []
+    (   call(Build), eng_all(Eng, [TDX], to_discovery(TDX), TDs0), id_sort(TDs0, TDs), TDs \== []
     ->  rhead('For discovery'),
         forall(member(TDX, TDs), rsay(item(TDX), "~w goes back to discovery, through review.", [TDX]))
     ;   true
@@ -13841,7 +13868,7 @@ hyp_lines(Eng, H, Head, Lines) :-
     ->  L2 = ["Premises: not stated. Add premise(P, H, TEXT) or no_premises(H) for this hypothesis (lint W10)."]
     ;   L2 = []
     ),
-    eng_all(Eng, [C], predicts(H, C), Cs),
+    eng_all(Eng, [C], predicts(H, C), Cs0), id_sort(Cs0, Cs),
     (   Cs == [] -> L3 = ["Predictions: none."]
     ;   atomic_list_concat(Cs, ', ', CsT), format(string(L3a), "Predictions: ~w.", [CsT]), L3 = [L3a]
     ),
@@ -13905,7 +13932,7 @@ review_section(Eng, Cs) :-
     findall(C2, ( member([C2, _, _], Cs), memberchk(C2, NV0) ), NVs),
     (   NVs == []
     ->  ( Cs == [] -> true ; rsay(none, "Every current claim is independently verified.", []) )
-    ;   atomic_list_concat(NVs, ', ', NVT),
+    ;   id_sort(NVs, NVsS), atomic_list_concat(NVsS, ', ', NVT),
         rsay(review_open, "Not independently verified: ~w.", [NVT])
     ).
 

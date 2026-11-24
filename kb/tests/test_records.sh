@@ -269,5 +269,19 @@ if want u1; then   # review U1: the tool names itself as it was called (argv0) i
     okb show open; has Ru1-kb-confirm "orbit-kb confirm "
 fi
 
+if want u4; then   # review U4: lists of ids sort by number (c1, c2, c10), not as text (c1, c10, c2)
+    newkb u4 build; set -- "goal(g1, feature, human, 'G.')" 'no_premises(g1)' "hypothesis(hy1, g1, agent, 'H.')"
+    for i in 10 2 11 1; do set -- "$@" "claim(c$i, introduce, 'C$i.')" "predicts(hy1, c$i)" "check(k$i, c$i)" "checks_that(k$i, 'x')"; done
+    okb add "$@"; rcis Ru4-add 0
+    okb show hypotheses; has Ru4-show-hypotheses "    Predictions: c1, c2, c10, c11."
+    okb show; has Ru4-show "    Predictions: c1, c2, c10, c11."
+    for i in 10 2 11 1; do okb run "k$i" -- true; done
+    okb report; has Ru4-report "      - Predictions: c1, c2, c10, c11."
+    has Ru4-report-review "Not independently verified: c1, c2, c10, c11."
+    okb add "claim(c3, introduce, 'C3.')" 'supersedes(c3, c1)' "claim(c20, introduce, 'C20.')" 'supersedes(c20, c1)'
+    okb show; has Ru4-superseded-by "superseded by c3, c20."
+    set --
+fi
+
 echo "pass=$pass fail=$fail"
 [ "$fail" = 0 ]
