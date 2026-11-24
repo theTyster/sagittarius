@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-"""T24: the informal release uses only the informal stores. One check per claim.
+"""The MindHole Kit as a release: one kind of hub, with the tool. One check per claim.
 
-usage: python3 docs/check_informal_release.py c1|c2|c3|c4|c5|c6
+usage: python3 docs/check_kit_release.py c1|c2|c3|c4|c5|c6   (--list prints the ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
+This file was check_informal_release.py (T24). scientific-method-overhaul c22 (retire; Ty, 2026-11-23)
+dropped the release for a hub with no tool: c1 and c2 are rewritten for it, c3 to c6 are as they were.
+
 c1 runs the install of hubkit/README.md (its "## Install" sh block) in a scratch dir, with a PATH
-   of exactly the tools that README lists (T32 c6: python3, git, bash and the backticked tools of
-   its POSIX paragraph; a dir of links), then runs the hub's own tests in the new hub with that PATH.
-c2 runs hubflow-test.py --case case_t24_no_orbit_kb (HUBFLOW_ORBIT_KB unset, no orbit-kb on PATH),
-   reads HUB-CORE.md "Without orbit-kb", and compares its informal store map with the fact kinds of
-   hubkit/tools/store-facts.json (all of them since T32 c3). store-facts.json is the
-   design KB's export; check_hub_guidance.py c1 keeps it equal to the design KB, and c2 runs it.
-c3 (0.3.0 M-C) reads hubkit/hub/PRINCIPLES.md: a short file (60 lines or fewer) that comes from the
+   of python3, git, bash and swipl (a dir of links), then runs the hub's own tests in the new hub
+   with that PATH.
+c2 (c22) the kit names no release and no edition for a hub with no tool: no file under hubkit/ holds
+   the two phrases that the spec check greps for, hubkit/editions is gone, kit.json has no editions,
+   HUB-CORE.md has no "Without orbit-kb" section and no second store map, README.md has no line on
+   it; hubkit.py refuses to install that edition and to upgrade a hub that kit v0.7.2 (0.11.2) made
+   with it, and `edition formal` moves such a hub; a hub that kit 0.11.2 made with the tool
+   upgrades; UPGRADING.md has the 0.12.0 section. The fail-safe stays: hubflow-test.py --case
+   case_t24_no_orbit_kb passes.
+c3 (0.3.0 M-C) reads hubkit/hub/PRINCIPLES.md: a short file (70 lines or fewer outside the vocabulary block; 60 before 0.8.0) that comes from the
    prompt. It names the version on the last line of prompt/SAGITTARIUS.md ("Sagittarius X.Y.Z"), each
    part (## heading) has a line From the prompt: "Section" that names a section of the prompt, and it
    cites no section of docs/PHILOSOPHY.md. hubkit/README.md and INSTRUCTIONS.md say that it comes from
@@ -44,8 +50,9 @@ PROMPT = os.path.join(ROOT, "prompt", "SAGITTARIUS.md")
 CHANGELOG = os.path.join(ROOT, "CHANGELOG.md")
 REPO_URL = "https://github.com/theTyster/sagittarius"
 OLD_KIT_COMMIT = "4d0c5bc"  # the redesign branch with hub kit 0.3.0 (T22), before T24
-INFORMAL = ("ledger", "memory", "weeks", "bespoke", "tracker")
-FORMAL_TOOLS = ("swipl", "lean", "lake", "elan", "leanc", "orbit-kb")
+PHRASES = ("informal " + "release", "informal " + "edition")  # what checks/informal_release.sh of the spec greps for
+OLD_TAG = "v0.7.2"  # Sagittarius 0.7.2 holds MindHole Kit 0.11.2, the last kit with two editions
+HUBKIT = os.path.join(KITDIR, "tools", "hubkit.py")
 
 failures = []
 count = 0
@@ -114,9 +121,8 @@ def run(cmd, **kw):
 
 
 def readme_bin(where, inst):
-    """T32 c6: a dir of links to exactly the tools that the README's Install section lists."""
-    paras = [p for p in re.split(r"\n\s*\n", inst) if "POSIX" in p]
-    tools = ["python3", "git", "bash"] + (re.findall(r"`([a-z0-9]+)`", paras[0]) if paras else [])
+    """A dir of links to the tools that the README's Install section names: python3, git, swipl; and bash, to run the block."""
+    tools = ["python3", "git", "bash", "swipl"]
     b = os.path.join(where, "bin")
     os.makedirs(b)
     for t in tools:
@@ -146,33 +152,31 @@ def last_counts(out):
 # ------------------------------------------------------------------ c1
 def c1():
     rd = read(README)
-    lines = [ln for ln in rd.splitlines() if "informal release" in ln.lower()]
-    check("c1 README.md has one line on the informal release", len(lines) == 1, lines)
-    check("c1 that line links hubkit/README.md", bool(lines) and "hubkit/README.md" in lines[0], lines)
+    lines = [ln for ln in rd.splitlines() if "informal" in ln.lower()]
+    check("c1 README.md has no line on a release with no tool (c22)", not lines, lines)
     intro = rd[:rd.find("## Use it")] if "## Use it" in rd else ""
     has("c1 README.md intro stays for the formal-methods audience", intro, "knowledge base", "lean proof")
     has("c1 README.md 'Use it' keeps the formal install", section(rd, "Use it"), "SWI-Prolog", "./install.py")
     kr = read(KREADME)
     inst = section(kr, "Install")
     check("c1 hubkit/README.md has an Install section", bool(inst), "missing")
-    has("c1 hubkit/README.md Install", inst, "Python 3", "git", "no Prolog", "no Lean")
-    lacks("c1 hubkit/README.md Install", inst, "swipl", "swi-prolog 9", "orbit-kb init", "lake build", "elan")
+    has("c1 hubkit/README.md Install", inst, "Python 3", "git", "SWI-Prolog 9", "no bash")
+    lacks("c1 hubkit/README.md Install", inst, "--edition", "no prolog")
     blocks = re.findall(r"```sh\n(.*?)```", inst, re.S)
     check("c1 the Install section has one sh block", len(blocks) == 1, len(blocks))
     if len(blocks) != 1:
         return
     with tempfile.TemporaryDirectory(prefix="t24-c1-") as t:
         b = readme_bin(t, inst)
-        for tool in FORMAL_TOOLS:
-            check(f"c1 {tool} is not on the scratch PATH", shutil.which(tool, path=b) is None, shutil.which(tool, path=b))
-        check("c1 python3 and git are on the scratch PATH", shutil.which("python3", path=b) and shutil.which("git", path=b), b)
+        check("c1 python3, git and swipl are on the scratch PATH", all(shutil.which(x, path=b) for x in ("python3", "git", "swipl")), b)
         env = bare_env(t, b)
         hub = os.path.join(t, "hub")
         env.update({"KIT": KITDIR, "HUB": hub})
         p = run(["bash", "-euo", "pipefail", "-c", blocks[0]], cwd=t, env=env, timeout=600)
-        check("c1 the install block runs with no Prolog and no Lean", p.returncode == 0, (p.returncode, p.stdout[-300:], p.stderr[-300:]))
+        check("c1 the install block runs", p.returncode == 0, (p.returncode, p.stdout[-300:], p.stderr[-300:]))
         check("c1 the hub has its manifest", os.path.isfile(os.path.join(hub, ".hub-template.json")), hub)
         check("c1 the hub has its flow db", os.path.isfile(os.path.join(hub, "flow", "flow.db")), hub)
+        check("c1 the hub has its own orbit-kb and orbit", all(os.access(os.path.join(hub, ".claude", "orbit-kb", "bin", x), os.X_OK) for x in ("orbit-kb", "orbit")), hub)
         p = run([shutil.which("python3", path=b), os.path.join(".claude", "scripts", "hubflow-test.py")], cwd=hub, env=env, timeout=900)
         n = last_counts(p.stdout)
         check("c1 the hub's own tests pass there (N passed, 0 failed)", p.returncode == 0 and n and n[1] == 0 and n[0] >= 100,
@@ -184,40 +188,85 @@ def c1():
 
 
 # ------------------------------------------------------------------ c2
+def manifest(hub):
+    try:
+        return json.loads(read(os.path.join(hub, ".hub-template.json")))
+    except ValueError:
+        return {}
+
+
+def hk(script, *args):
+    return run([sys.executable, "-I", script] + list(args))
+
+
 def c2():
+    hits = []
+    for b, dirs, files in os.walk(KITDIR):
+        dirs[:] = [d for d in dirs if d not in ("__pycache__", "node_modules")]
+        for f in files:
+            t = read(os.path.join(b, f)).lower()
+            hits += [(os.path.relpath(os.path.join(b, f), ROOT), ph) for ph in PHRASES if ph in t]
+    check("c2 no file under hubkit/ names a release or an edition with no tool", not hits, hits[:8])
+    check("c2 hubkit/editions is gone", not os.path.exists(os.path.join(KITDIR, "editions")), "still there")
+    kit = json.loads(read(KIT) or "{}")
+    check("c2 kit.json has no editions", "editions" not in kit, sorted(kit))
+    core = read(CORE)
+    check("c2 HUB-CORE.md has no 'Without orbit-kb' section", not section(core, "Without orbit-kb"), "still there")
+    check("c2 HUB-CORE.md has no second store map", "informal-map" not in core and "Informal home" not in core, "still there")
+    check("c2 HUB-CORE.md keeps What lives where", bool(section(core, "What lives where")), "missing")
+    sm = read(os.path.join(KITDIR, "tools", "storemap.py"))
+    check("c2 storemap.py makes no second map", "informal" not in sm.lower(), "still there")
+    s = run([sys.executable, "-I", os.path.join(KITDIR, "tools", "storemap.py"), "--check"])
+    check("c2 the generated map of HUB-CORE.md is current (storemap.py --check)", s.returncode == 0, s.stderr)
+    check("c2 README.md has no line on it", "informal" not in read(README).lower(), "still there")
+    up = section(read(UPGRADING), "0.12.0", level="###")
+    has("c2 UPGRADING.md 0.12.0", up, "Ty, 2026-11-23", "a hub needs the tool", "SWI-Prolog 9", "edition --hub", "formal", "refuses", "fail-safe")
+    # the fail-safe for a tool that cannot be asked stays
     p = run([sys.executable, "-I", FLOWTEST, "--case", "case_t24_no_orbit_kb"])
     n = last_counts(p.stdout)
-    check("c2 hubflow-test --case case_t24_no_orbit_kb passes (>= 11 checks)", p.returncode == 0 and n and n[1] == 0 and n[0] >= 11,
+    check("c2 the fail-safe stays: hubflow-test --case case_t24_no_orbit_kb passes (>= 11 checks)", p.returncode == 0 and n and n[1] == 0 and n[0] >= 11,
           (n, [x for x in p.stdout.splitlines() if x.startswith("FAIL")][:5]))
-    sec = section(read(CORE), "Without orbit-kb")
-    check("c2 HUB-CORE.md has a 'Without orbit-kb' section", bool(sec), "missing")
-    has("c2 'Without orbit-kb'", sec, "informal release", "nothing blocks from a spec kb", "triage", "escalate", "rotate",
-        "check", "HUBFLOW_ORBIT_KB", "fail-safe", "treated as blocking", "not kept")
-    for s in INFORMAL:
-        check(f"c2 'Without orbit-kb' names the store {s}", f"`{s}`" in sec, "missing")
-    facts = json.loads(read(FACTS) or "{}")
-    # T32 c3 widened the map: every fact kind of the design (not only those that spec or project
-    # owns) has an informal home or is not kept, and the Owner column left the table (an informal
-    # hub loads it, and must not name the formal stores).
-    want = {f["name"]: f["owner"] for f in facts.get("facts", [])}
-    check("c2 store-facts.json has fact kinds owned by spec or project", any(o in ("spec", "project") for o in want.values()), want)
-    rows = table(sec, "Fact kind")
-    check("c2 the informal map exists (Fact kind | Informal home | How)", rows is not None and rows and len(rows[0]) == 3, rows)
-    if rows:
-        got = {r[0].strip("`"): r for r in rows}
-        check("c2 the map has exactly the fact kinds of the design", set(got) == set(want),
-              (sorted(set(want) - set(got)), sorted(set(got) - set(want))))
-        for k, owner in want.items():
-            r = got.get(k)
-            if not r or len(r) != 3:
-                continue
-            home = r[1].strip("`")
-            check(f"c2 {k}: a home in the five informal stores, or not kept", home in INFORMAL + ("not kept",), home)
-            check(f"c2 {k}: says how", len(r[2]) > 10, r[2])
-    g = run([sys.executable, os.path.join(ROOT, "docs", "check_hub_guidance.py"), "c1"])
-    check("c2 store-facts.json agrees with the design KB and HUB-CORE.md (check_hub_guidance.py c1)", g.returncode == 0, g.stdout[-300:])
-    s = run([sys.executable, "-I", os.path.join(KITDIR, "tools", "storemap.py"), "--check"])
-    check("c2 the generated maps of HUB-CORE.md are current (storemap.py --check)", s.returncode == 0, s.stderr)
+    # hubs that the last kit with two editions made (git archive of OLD_TAG), against this kit
+    if run(["git", "-C", ROOT, "rev-parse", "-q", "--verify", OLD_TAG + "^{commit}"]).returncode != 0:
+        print(f"c2: note: this tree is no git checkout with the tag {OLD_TAG}; the hubs of the old kit are not tried (hubkit-test.py case_c22_one_kind_of_hub tries the rule on a made-up hub)")
+        return
+    with tempfile.TemporaryDirectory(prefix="c22-") as t:
+        old = os.path.join(t, "old")
+        os.makedirs(old)
+        a = subprocess.run(f"git -C '{ROOT}' archive {OLD_TAG} hubkit kb prompt modules.py MODULES.json VERSION | tar -x -C '{old}'",
+                           shell=True, capture_output=True, text=True)
+        check(f"c2 the kit of {OLD_TAG} is archived", a.returncode == 0 and os.path.isfile(os.path.join(old, "hubkit", "kit.json")), a.stderr[-300:])
+        if a.returncode != 0:
+            return
+        oldkit = os.path.join(old, "hubkit", "tools", "hubkit.py")
+        check("c2 that kit is 0.11.2", json.loads(read(os.path.join(old, "hubkit", "kit.json"))).get("version") == "0.11.2", "other version")
+        fh, ih = os.path.join(t, "formal"), os.path.join(t, "notool")
+        p1, p2 = hk(oldkit, "install", "--hub", fh, "--edition", "formal"), hk(oldkit, "install", "--hub", ih, "--edition", "informal")
+        check("c2 setup: the old kit installs both hubs", p1.returncode == 0 and p2.returncode == 0, (p1.stderr, p2.stderr))
+        # the hub with the tool upgrades
+        p = hk(HUBKIT, "upgrade", "--hub", fh)
+        check("c2 a 0.11.2 hub with the tool: the dry run exits 0 and adds bin/orbit", p.returncode == 0 and "add\t.claude/orbit-kb/bin/orbit\n" in p.stdout, (p.stdout[-400:], p.stderr))
+        p = hk(HUBKIT, "upgrade", "--hub", fh, "--yes")
+        m = manifest(fh)
+        check("c2 a 0.11.2 hub with the tool upgrades with no pending merge", p.returncode == 0 and m.get("pending") == [] and m.get("edition") == "formal"
+              and os.access(os.path.join(fh, ".claude", "orbit-kb", "bin", "orbit"), os.X_OK) and read(os.path.join(fh, "HUB-CORE.md")) == core, (p.stdout[-300:], p.stderr))
+        # the hub with no tool is refused with one line, and nothing is copied
+        before = read(os.path.join(ih, ".hub-template.json")), read(os.path.join(ih, "HUB-CORE.md"))
+        for args in (("upgrade",), ("upgrade", "--yes")):
+            p = hk(HUBKIT, *args, "--hub", ih)
+            e = p.stderr
+            check(f"c2 {' '.join(args)} of a hub with no tool fails with one line: ended in 0.12.0, what to install, what to run",
+                  p.returncode == 2 and len(e.strip().splitlines()) == 1 and "Traceback" not in e and "ended in MindHole Kit 0.12.0" in e
+                  and "SWI-Prolog" in e and "edition --hub" in e, (p.returncode, e[-400:]))
+        check("c2 nothing was copied", before == (read(os.path.join(ih, ".hub-template.json")), read(os.path.join(ih, "HUB-CORE.md")))
+              and not os.path.exists(os.path.join(ih, ".claude", "orbit-kb")), "changed")
+        p = hk(HUBKIT, "edition", "--hub", ih, "formal", "--yes")
+        m = manifest(ih)
+        check("c2 `edition formal --yes` moves that hub: the kit's HUB-CORE.md, its own orbit-kb, no pending merge",
+              p.returncode == 0 and m.get("edition") == "formal" and m.get("pending") == [] and read(os.path.join(ih, "HUB-CORE.md")) == core
+              and os.access(os.path.join(ih, ".claude", "orbit-kb", "bin", "orbit-kb"), os.X_OK), (p.stdout[-400:], p.stderr))
+        p = hk(HUBKIT, "install", "--hub", os.path.join(t, "new"), "--edition", "informal")
+        check("c2 install refuses that edition and writes nothing", p.returncode == 1 and "0.12.0" in p.stderr and not os.path.exists(os.path.join(t, "new")), p.stderr)
 
 
 # ------------------------------------------------------------------ c3
@@ -230,7 +279,10 @@ def c3():
     pr = read(PRINCIPLES)
     check("c3 hubkit/hub/PRINCIPLES.md exists", bool(pr), PRINCIPLES)
     n = len(pr.splitlines())
-    check("c3 PRINCIPLES.md is short (at most 60 lines)", 0 < n <= 60, n)
+    # scientific-method-overhaul c10, c12, c16: one more part (verdicts, the two judgments, Sound Basis) and the
+    # generated vocabulary block; the limit is 70 lines outside that block (it was 60 lines in all)
+    n -= len(re.findall(r"\n", "".join(re.findall(r"<!-- vocabulary:begin -->.*?<!-- vocabulary:end -->\n?", pr, re.S))))
+    check("c3 PRINCIPLES.md is short (at most 70 lines outside the vocabulary block)", 0 < n <= 70, n)
     check("c3 the hub CLAUDE.md imports it (@PRINCIPLES.md)",
           any(ln.strip() == "@PRINCIPLES.md" for ln in read(os.path.join(HUB, "CLAUDE.md")).splitlines()), "no import line")
     kit = json.loads(read(KIT))

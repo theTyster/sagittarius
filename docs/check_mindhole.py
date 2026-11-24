@@ -3,7 +3,7 @@
 hub's rules, a handoff carries the KB, a closed ticket leaves its outcomes, and the display name.
 One check per claim of the spec KB (tmp/kb-sagittarius-030).
 
-usage: python3 docs/check_mindhole.py mb1|mb2|mb3|mb4|mb5|mb6|mb7|mf1|mf4|mg|mg2|u1|u2|u3|u4|u6|lp|pr [--list]   (--list prints the ids)
+usage: python3 docs/check_mindhole.py mb1|mb2|mb3|mb4|mb5|mb6|mf1|mf4|mg|mg2|u1|u2|u3|u4|u6|pr [--list]   (--list prints the ids)
 Exit 0: the claim's check passes. Exit 1: it fails (each failure is printed). Prints `N checks`.
 
 mb1 (c_m_b_1) both HUB-CORE.md files tell a session to read its inbox (`view v_inbox`) at session start and
@@ -57,7 +57,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CORE = os.path.join(ROOT, "hubkit", "hub", "HUB-CORE.md")
-ICORE = os.path.join(ROOT, "hubkit", "editions", "informal", "HUB-CORE.md")
+# scientific-method-overhaul c22 (retire): the kit has one kind of hub. The checks of the second HUB-CORE.md,
+# of its store map and of its skill are gone (mb7 and lp whole; the second half of mb1, mb2, mb3, mb5, mg2, u6).
 FACTS = os.path.join(ROOT, "hubkit", "tools", "store-facts.json")
 SKILLS = os.path.join(ROOT, "hubkit", "hub", ".claude", "skills")
 FLOWTEST = os.path.join(ROOT, "hubkit", "hub", ".claude", "scripts", "hubflow-test.py")
@@ -111,20 +112,19 @@ def facts():
 
 
 def mb1():
-    for label, path in (("formal", CORE), ("informal", ICORE)):
+    for label, path in (("formal", CORE),):
         sec = flat(section(read(path), "Flow state lives in the db"))
         check(f"mb1 {label} HUB-CORE.md 'Flow state lives in the db' names the inbox view", "view v_inbox" in sec, sec[:200])
         check(f"mb1 {label}: read it at session start and after a compaction",
               re.search(r"session start|start of (a|each|every) session", sec) is not None and "compaction" in sec, sec[:300])
     sec = flat(section(read(CORE), "Flow state lives in the db"))
     check("mb1 formal: then follow each item's kb ref and read what is open there", "hubflow.py where" in sec and "show open" in sec, sec[:300])
-    check("mb1 informal: names no formal tool", "orbit-kb" not in flat(section(read(ICORE), "Flow state lives in the db")))
 
 
 def mb2():
     f = facts().get("hypothesis", {})
     check("mb2 store-facts.json: the hypothesis says what the human wants", "what the human wants" in f.get("desc", ""), f.get("desc"))
-    for label, path in (("formal", CORE), ("informal", ICORE)):
+    for label, path in (("formal", CORE),):
         t = read(path)
         rs = rows(t, "hypothesis")
         check(f"mb2 {label}: has hypothesis rows", rs, path)
@@ -146,14 +146,6 @@ def mb3():
     check("mb3 formal table has a vote row", len(rows(section(core, "What lives where"), "vote")) == 1)
     m = re.search(r"^The (\d+) fact kinds:", core, re.M)
     check("mb3 the count line of the formal table equals store-facts.json", m and int(m.group(1)) == len(fs), (m and m.group(0), len(fs)))
-    for label, path in (("formal", CORE), ("informal", ICORE)):
-        t = read(path)
-        b, e = t.find("<!-- informal-map:begin"), t.find("<!-- informal-map:end")
-        rs = rows(t[b:e], "vote")
-        check(f"mb3 {label}: the informal map has a vote row", len(rs) == 1, rs)
-        if rs:
-            c = cells(rs[0])
-            check(f"mb3 {label}: in the informal edition the vote is a note on the ticket's thread", c[1] == "`ledger`" and "note" in c[2], c)
     storemap_clean("mb3")
 
 
@@ -170,15 +162,9 @@ def mb4():
 
 
 def mb5():
-    for label, path in (("formal", CORE), ("informal", ICORE)):
-        t = read(path)
-        b, e = t.find("<!-- informal-map:begin"), t.find("<!-- informal-map:end")
-        rs = rows(t[b:e], "divergences")
-        check(f"mb5 {label}: the informal map has a divergences row", len(rs) == 1, rs)
-        if rs:
-            c = cells(rs[0])
-            check(f"mb5 {label}: the informal edition keeps a divergence (not `not kept`)", c[1] == "`ledger`", c[1])
-            check(f"mb5 {label}: as a note on the ticket's thread", "hubflow.py note" in c[2] and "divergence" in c[2], c[2][:200])
+    d = facts().get("divergences", {})
+    check("mb5 store-facts.json keeps the fact kind divergences, owned by spec", d.get("owner") == "spec", d)
+    check("mb5 the formal table has a divergences row", len(rows(section(read(CORE), "What lives where"), "divergences")) == 1)
     storemap_clean("mb5")
 
 
@@ -231,14 +217,6 @@ def mg():
           and "HUB_SESSION" in read(os.path.join(ROOT, "hubkit", "INSTRUCTIONS.md")))
 
 
-def mb7():
-    t = flat(read(os.path.join(ROOT, "hubkit", "editions", "informal", ".claude", "skills", "hub-flow", "SKILL.md")))
-    ic = read(ICORE)
-    for note in ('"divergence: ', '"vote: GO: '):
-        check(f"mb7 the informal map names the note {note}", note in ic, "the informal HUB-CORE.md map changed")
-        check(f"mb7 the informal hub-flow skill gives a $HF note example of {note}", f"$HF note T-0002 {note}" in t, t[:200])
-    check("mb7 the informal skill says a vote is GO, NO-GO or HOLD", all(w in t for w in ("NO-GO", "HOLD")), t[:200])
-
 
 def mg2():
     for rel in ("hubkit/README.md", "hubkit/INSTRUCTIONS.md"):
@@ -258,7 +236,7 @@ def mg2():
     check("mg2 README.md does not call the kit the hub kit", "hub kit" not in flat(readme).lower(), re.findall(r"[^.]*hub kit[^.]*", flat(readme), re.I)[:2])
     check("mg2 README.md does not say the MindHole Kit is the hub", re.search(r"MindHole Kit\W* is the hub\b", flat(readme)) is None)
     check("mg2 README.md does not call the kit the MindHole", re.search(r"MindHole\W* is the (hub )?kit|MindHole hub|MindHole <version>", flat(readme)) is None)
-    for label, path in (("formal", CORE), ("informal", ICORE)):
+    for label, path in (("formal", CORE),):
         top = flat("\n".join(read(path).splitlines()[:5]))
         check(f"mg2 the {label} HUB-CORE.md says it ships with the MindHole Kit", "ships with the MindHole Kit" in top, top[:200])
     kit = json.loads(read(os.path.join(ROOT, "hubkit", "kit.json")) or "{}").get("version")
@@ -322,14 +300,14 @@ def u4():
     st = steps(ins)
     check("u4 the steps are numbered 1 to N with no gap", [n for n, _, _ in st] == list(range(1, len(st) + 1)), [n for n, _, _ in st])
     com = [n for n, h, _ in st if h.startswith("commit")]
-    fs = [(n, h, b) for n, h, b in st if "formal edition only" in h]
-    check("u4 one numbered step is for the formal edition only", len(fs) == 1, [h for _, h, _ in st])
+    fs = [(n, h, b) for n, h, b in st if h.strip() == "the formal stores"]  # c22: every hub does this step
+    check("u4 one numbered step makes the formal stores", len(fs) == 1, [h for _, h, _ in st])
     if not (com and fs):
         return
     n, h, b = fs[0]
     check("u4 the formal step comes right before the commit step", n == com[0] - 1, (n, com))
     fb = flat(b)
-    check("u4 the formal step says an informal hub skips it", re.search(r"informal hub skips", fb), fb[:300])
+    check("u4 no hub skips the formal step (c22)", "skips this step" not in fb and "informal" not in fb, fb[:300])
     check("u4 the formal step points at The formal edition", '"The formal edition"' in fb, fb[:300])
     check("u4 the formal step's check names project-kb/", "project-kb/" in fb, fb[:300])
     formal = section(ins, "The formal edition")
@@ -342,23 +320,12 @@ def u4():
 
 
 def u6():
-    for label, rel in (("formal", ("hubkit", "hub", "CLAUDE.md")), ("informal", ("hubkit", "editions", "informal", "CLAUDE.md"))):
+    for label, rel in (("formal", ("hubkit", "hub", "CLAUDE.md")),):
         t = read(os.path.join(ROOT, *rel))
         sec = flat(section(t, "Your notes"))
         check(f"u6 the {label} CLAUDE.md template has a section Your notes", bool(sec), [ln for ln in t.splitlines() if ln.startswith("## ")])
         check(f"u6 the {label} section names a project order as an example", "project order" in sec, sec[:200])
         check(f"u6 the {label} section says the notes are the human's", "human" in sec, sec[:200])
-
-
-def lp():
-    sec = section(read(ICORE), "Verify")
-    paras = [flat(p) for p in re.split(r"\n\s*\n", sec) if p.strip()]
-    lpp = [p for p in paras if "light path" in p]
-    check("lp the informal Verify section has one light path paragraph", len(lpp) == 1, lpp)
-    if lpp:
-        check("lp the light path paragraph cites no prompt (an informal hub has none)", "prompt" not in lpp[0], lpp[0][:200])
-        check("lp the light path paragraph is apart from the verifier rule", "Verify belongs" not in lpp[0], lpp[0][:300])
-        check("lp the paragraph names what brings review in", all(w in lpp[0] for w in ("handoff", "disagree", "asks")), lpp[0][:300])
 
 
 def pr():
@@ -371,16 +338,18 @@ def pr():
         s, c = flat(parts[sl[0]]), cites[sl[0]]
         check("pr Start light cites The light path and Signals", "The light path" in c and "Signals" in c, c)
         for w, what in (("question", "questions"), ("disagree", "a divergence"), ("someone else built", "a build by someone else"),
-                        ("needs a proof", "a claim that burns (in words without the KB term burn, which check_informal_release c3 bans)"), ("changes hands", "a handoff"), ("careful message", "effort")):
+                        ("needs a proof", "a claim that burns (in words without the KB term burn, which check_kit_release c3 bans)"), ("changes hands", "a handoff"), ("careful message", "effort")):
             check(f"pr Start light names the signal {what}", w in s, s[:300])
     for k, v in parts.items():
         if "only the work that the request needs" in flat(v):
             check(f"pr the part '{k}' cites The orbit for 'only the work that the request needs'", "The orbit" in cites[k], cites[k])
     check("pr PRINCIPLES.md does not say 'not logs' (the prompt does not)", "not logs" not in flat(t))
-    check("pr PRINCIPLES.md stays short (60 lines or fewer)", len(t.splitlines()) <= 60, len(t.splitlines()))
+    # scientific-method-overhaul c10, c12, c16: 70 lines outside the generated vocabulary block (it was 60 in all)
+    n = len(t.splitlines()) - sum(b.count("\n") for b in re.findall(r"<!-- vocabulary:begin -->.*?<!-- vocabulary:end -->\n?", t, re.S))
+    check("pr PRINCIPLES.md stays short (70 lines or fewer outside the vocabulary block)", n <= 70, n)
 
 
-CLAIMS = {k: globals()[k] for k in ("mb1", "mb2", "mb3", "mb4", "mb5", "mb6", "mb7", "mf1", "mf4", "mg", "mg2", "u1", "u2", "u3", "u4", "u6", "lp", "pr")}
+CLAIMS = {k: globals()[k] for k in ("mb1", "mb2", "mb3", "mb4", "mb5", "mb6", "mf1", "mf4", "mg", "mg2", "u1", "u2", "u3", "u4", "u6", "pr")}
 
 if __name__ == "__main__":
     a = sys.argv[1:]

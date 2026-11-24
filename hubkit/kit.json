@@ -23,15 +23,6 @@
     "W0/WEEK.md",
     "flow/seed.json"
   ],
-  "editions": {
-    "informal": [
-      "HUB-CORE.md",
-      "CLAUDE.md",
-      ".claude/skills/hub-flow/SKILL.md",
-      ".claude/skills/hub-rotate/SKILL.md"
-    ],
-    "formal": []
-  },
   "prompt": {
     "from": "../prompt",
     "prompt": "SAGITTARIUS.md",
@@ -46,8 +37,12 @@
     "to": ".claude/orbit-kb",
     "paths": [
       "bin/orbit-kb",
+      "bin/orbit",
       "bin/repo-map",
       "share"
-    ]
+    ],
+    "fallback": {
+      "bin/orbit": "bin/orbit-kb"
+    }
   }
 }

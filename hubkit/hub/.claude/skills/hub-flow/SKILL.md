@@ -26,7 +26,8 @@ tracker item each time an agent reads it for a ticket.
 **Outbound has one home per thing.** A staged edit to a tracker item is a `draft/4` in the project
 KB; free outbound text (mail, chat) is drafted in `W0/outbound-staging/`. A human sends; afterwards
 the human (or an agent that the human told) records `pushed/2` in the project KB. Nothing is posted
-by a tool. `.claude/scripts/hubflow.py` (`$HF` below) is the only writer. Every write also rewrites
+by a tool. `.claude/scripts/hubflow.py` (`$HF` below) is the only writer; `orbit hub ledger ARGS` is the door to it
+(the same command, run through `.claude/orbit-kb/bin/orbit`). Every write also rewrites
 `flow/jsonl/*.jsonl` in the same transaction; git tracks the JSONL, the db file is ignored.
 
 ## Who you are
