@@ -81,10 +81,12 @@ mutate MC "$proved_rule" 'burn_proved(C) :- attest(A, lean_proof, _, proof(C, _)
 mutate MI 'burn(C) :- supersedes_closure(C, O), burn_reason(O).' '% (MI: the inherited clause of burn/1 is dropped)'
 # D21: done also has not any_flare_open. The model has no flares, and its KBs have no visual facts.
 # T27: done also has not any_request_stale (a stale request; no request pins in the model's KBs).
-done_rule=$'done :- not any_under, not any_over, not any_to_ask, not any_burn_open,\n        not any_flare_open, not any_project_conflict, not any_request_stale, not any_supersede_cycle, not no_current_claim.'
-mutate MY "$done_rule" 'done :- not any_under, not any_over, not any_to_ask, not any_burn_open, not any_flare_open, not no_current_claim.'
+# 0.8.0 (scientific-method-overhaul c41): done also has not any_stage2_open (a conflict with no location, a goal
+# that the human did not judge, ...). The model's KBs have no goal and no such record, so it is true on each of them.
+done_rule=$'done :- not any_under, not any_over, not any_to_ask, not any_burn_open,\n        not any_flare_open, not any_project_conflict, not any_request_stale, not any_supersede_cycle, not no_current_claim,\n        not any_stage2_open.'
+mutate MY "$done_rule" 'done :- not any_under, not any_over, not any_to_ask, not any_burn_open, not any_flare_open, not no_current_claim, not any_stage2_open.'
 # D17: MZ drops the current claim from done.
-mutate MZ "$done_rule" 'done :- not any_under, not any_over, not any_to_ask, not any_burn_open, not any_flare_open, not any_supersede_cycle.'
+mutate MZ "$done_rule" 'done :- not any_under, not any_over, not any_to_ask, not any_burn_open, not any_flare_open, not any_supersede_cycle, not any_stage2_open.'
 for m in MA MB MC MI MY MZ; do
     echo "-- mutant $m"
     ORBIT_KB_LIB=$work/lib-$m heavy python3 -I conform_run.py "$work/gen" --mutant "$m" --jobs "$jobs"
