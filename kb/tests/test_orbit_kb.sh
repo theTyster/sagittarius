@@ -2980,9 +2980,10 @@ t_RL3() { # a fulfilled claim with nothing to add stays on one line; a claim tha
     - Status: fulfilled.
     - Example: Save a widget, close the app, open it again, and see the widget.
     - Checks: k1 (passed)." "$(rp_item c1)"
+    # 0.8.0 (scientific-method-overhaul c7, c9): the latest run of k2 conflicts, and report says so.
     rl_is "c2 (under)" "  - c2 **preserve**: Loading stays fast
-    - Status: under.
-      - It is not fulfilled yet.
+    - Status: conflicts.
+      - The last run of check k2 (t3) conflicts with the claim. The conflict has no location yet.
     - Checks: k2 (not passed)." "$(rp_item c2)"
     rl_is "c3 (burn waived)" "  - c3 **preserve**: Every saved widget loads back the same
     - Status: fulfilled.
@@ -3037,6 +3038,8 @@ t_RL5() { # the other sections: bullets, the label in bold, detail nested
   - **under**: Claim c2 is current but not fulfilled: Loading stays fast
   - **under**: Claim c6 is current but not fulfilled: The save button has a tooltip
   - **check failing**: Check k2 did not pass its last run: a check of claim c2: Loading stays fast
+  - **conflict unlocated**: Run t3 of check k2 conflicts with claim c2, and the conflict has no location
+    - Locate it before anything is reopened: orbit-kb locate t3 build|measurement|premise:P|hypothesis:H|claim:C --evidence TEXT.
   - **over**: Change x2 serves no claim
   - **burn open**: Claim c5 needs a Lean proof
     - Prove it with orbit-kb prove, or ask a human for a waiver.
@@ -3117,7 +3120,7 @@ t_RH2() { # c1: one self-contained page with each claim, its status as a label, 
         rh_claim "$T/r.html" "$c" | grep -q ">$s<" || note "claim $c: the status $s is not shown as a text label"
     done
     for c in c1:k1 c2:k2 c3:k3 c4:k4 c5:k5 c7:k7; do rh_has "$(rh_claim "$T/r.html" "${c%%:*}")" "data-check=\"${c#*:}\"" "claim ${c%%:*} lists check ${c#*:}"; done
-    rh_has "$(rh_claim "$T/r.html" c2)" 'Status: under\. It is not fulfilled yet\.' "the status sentence of the text report"
+    rh_has "$(rh_claim "$T/r.html" c2)" 'Status: conflicts\. The last run of check k2 \(t3\) conflicts with the claim\.' "the status sentence of the text report (0.8.0: c7, c9)"
     rh_has "$(rh_claim "$T/r.html" c5)" 'Burn: NOT PROVED\. A Lean proof is required\.' "the burn sentence of the text report"
     rh_kb nobuild; okb --dir "$K" report --html "$T/n.html"; rc_is 0 "a KB without build"
     rh_has "$(<"$T/n.html")" 'data-claim="c1"[^>]*data-status="none"' "without build a claim has no status"

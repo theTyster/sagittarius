@@ -1253,66 +1253,6 @@ kb_cmd(add, KB, Args, Code) :- cmd_add(KB, Args, Code).
 kb_cmd(judge, KB, Args, Code) :- cmd_judge(KB, Args, Code).
 kb_cmd(locate, KB, Args, Code) :- cmd_locate(KB, Args, Code).
 kb_cmd(confirm, KB, Args, Code) :- cmd_confirm(KB, Args, Code).
-
-% judge G satisfied|not-satisfied --by human [--note W]
-% judge G case 'TEXT' wanted|not-wanted --by human
-% judge S accepts C --by human
-% Only the human judges: without --by human, the attestation is rejected (its type has the writer human).
-cmd_judge(KB, Args, Code) :-
-    parse_opts(Args, ['--by'-value, '--note'-value], Pos, Opts),
-    opt(Opts, '--by', agent, By),
-    (   Pos = [G, V], memberchk(V-P, [satisfied-satisfied, 'not-satisfied'-not_satisfied, not_satisfied-not_satisfied])
-    ->  Subj = G, format(atom(PT), "~q", [P])
-    ;   Pos = [G, 'case', Text, V], memberchk(V-W, [wanted-wanted, 'not-wanted'-not_wanted, not_wanted-not_wanted])
-    ->  Subj = G, format(atom(PT), "~q", ['case'(Text, W)])
-    ;   Pos = [S, accepts, C]
-    ->  Subj = S, format(atom(PT), "~q", [accepts(C)])
-    ;   usage_error("Usage: orbit-kb judge GOAL satisfied|not-satisfied --by human [--note WORDS], orbit-kb judge GOAL case 'TEXT' wanted|not-wanted --by human, or orbit-kb judge SUBJECT accepts CLAIM --by human.", [])
-    ),
-    (   By == human -> true
-    ;   reject(["Only the human judges. An agent records a judgment only when the human said it: add --by human, and --note with the words of the human."] >> fix_lines)
-    ),
-    cmd_attest(KB, [judgment, Subj, PT, '--by', By], Code),
-    (   memberchk('--note'-Note, Opts), Note \== ''
-    ->  clause_line(note(Subj, Note), [], NL), kb_file(KB, KbFile), append_lines(KbFile, [NL]), format("~w~n", [NL])
-    ;   true
-    ).
-
-% locate RUN build|measurement|premise:P|hypothesis:H|claim:C --evidence TEXT [--by human|agent]
-cmd_locate(KB, Args, Code) :-
-    parse_opts(Args, ['--by'-value, '--evidence'-value], Pos, Opts),
-    opt(Opts, '--by', agent, By),
-    (   Pos = [Run, Where0], memberchk('--evidence'-Ev, Opts), Ev \== '' -> true
-    ;   usage_error("Usage: orbit-kb locate RUN build|measurement|premise:P|hypothesis:H|claim:C --evidence TEXT. RUN is the attestation of the run that conflicts.", [])
-    ),
-    (   memberchk(Where0, [build, measurement]) -> Where = Where0
-    ;   atomic_list_concat([Kind, Id], ':', Where0), memberchk(Kind, [premise, hypothesis, claim]), Id \== ''
-    ->  Where =.. [Kind, Id]
-    ;   usage_error("The location is one of: build, measurement, premise:P, hypothesis:H, claim:C. It is ~w.", [Where0])
-    ),
-    kb_items(KB, Items),
-    (   kb_term(Items, attest(A0, test_result, _, _, _, _)), A0 == Run -> true
-    ;   reject(["There is no run " + Run + " in kb.pl. A location names the attestation of a run (orbit-kb show experiments lists them)."] >> fix_lines)
-    ),
-    format(atom(PT), "~q", [located(Where, Ev)]),
-    cmd_attest(KB, [location, Run, PT, '--by', By], Code),
-    (   Where == build -> true
-    ;   format(user_error, "NOTE: a location outside the build counts only when a pane that did not build, or the human, confirms it: orbit-kb confirm LOCATION --note TEXT --as ROLE.~n", [])
-    ).
-
-% confirm LOCATION --note TEXT [--by human|agent]
-cmd_confirm(KB, Args, Code) :-
-    parse_opts(Args, ['--by'-value, '--note'-value], Pos, Opts),
-    opt(Opts, '--by', agent, By),
-    (   Pos = [Loc], memberchk('--note'-Note, Opts), Note \== '' -> true
-    ;   usage_error("Usage: orbit-kb confirm LOCATION --note TEXT [--as ROLE] [--by human]. LOCATION is the id of a location attestation.", [])
-    ),
-    kb_items(KB, Items),
-    (   kb_term(Items, attest(L0, location, _, _, _, _)), L0 == Loc -> true
-    ;   reject(["There is no location " + Loc + " in kb.pl."] >> fix_lines)
-    ),
-    format(atom(PT), "~q", [confirms(Note)]),
-    cmd_attest(KB, [confirmation, Loc, PT, '--by', By], Code).
 kb_cmd(subject, KB, Args, Code) :- cmd_subject(KB, Args, Code).
 kb_cmd(attest, KB, Args, Code) :- cmd_attest(KB, Args, Code).
 kb_cmd(run, KB, Args, Code) :- cmd_run(KB, Args, Code).
@@ -1331,6 +1271,7 @@ kb_cmd('pin-request', KB, Args, Code) :- cmd_pin_request(KB, Args, Code).
 kb_cmd('apply-pending', KB, Args, Code) :- cmd_apply_pending(KB, Args, Code).
 kb_cmd(review, KB, Args, Code) :- cmd_review(KB, Args, Code).
 kb_cmd(withdraw, KB, Args, Code) :- cmd_withdraw(KB, Args, Code).
+
 
 % ---------------------------------------------------------------------
 % Library and KB location
@@ -8196,6 +8137,68 @@ rests_on_lines(Opts, Items, Type, Id, Lines) :-
     ;   Lines = []
     ).
 
+% ---------------------------------------------------------------------
+% judge, locate, confirm (0.8.0, D58, D59)
+% ---------------------------------------------------------------------
+% judge G satisfied|not-satisfied --by human [--note W]
+% judge G case 'TEXT' wanted|not-wanted --by human
+% judge S accepts C --by human
+% Only the human judges: without --by human, the attestation is rejected (its type has the writer human).
+cmd_judge(KB, Args, Code) :-
+    parse_opts(Args, ['--by'-value, '--note'-value], Pos, Opts),
+    opt(Opts, '--by', agent, By),
+    (   Pos = [G, V], memberchk(V-P, [satisfied-satisfied, 'not-satisfied'-not_satisfied, not_satisfied-not_satisfied])
+    ->  Subj = G, format(atom(PT), "~q", [P])
+    ;   Pos = [G, 'case', Text, V], memberchk(V-W, [wanted-wanted, 'not-wanted'-not_wanted, not_wanted-not_wanted])
+    ->  Subj = G, format(atom(PT), "~q", ['case'(Text, W)])
+    ;   Pos = [S, accepts, C]
+    ->  Subj = S, format(atom(PT), "~q", [accepts(C)])
+    ;   usage_error("Usage: orbit-kb judge GOAL satisfied|not-satisfied --by human [--note WORDS], orbit-kb judge GOAL case 'TEXT' wanted|not-wanted --by human, or orbit-kb judge SUBJECT accepts CLAIM --by human.", [])
+    ),
+    (   By == human -> true
+    ;   reject(["Only the human judges. An agent records a judgment only when the human said it: add --by human, and --note with the words of the human."] >> fix_lines)
+    ),
+    cmd_attest(KB, [judgment, Subj, PT, '--by', By], Code),
+    (   memberchk('--note'-Note, Opts), Note \== ''
+    ->  clause_line(note(Subj, Note), [], NL), kb_file(KB, KbFile), append_lines(KbFile, [NL]), format("~w~n", [NL])
+    ;   true
+    ).
+
+% locate RUN build|measurement|premise:P|hypothesis:H|claim:C --evidence TEXT [--by human|agent]
+cmd_locate(KB, Args, Code) :-
+    parse_opts(Args, ['--by'-value, '--evidence'-value], Pos, Opts),
+    opt(Opts, '--by', agent, By),
+    (   Pos = [Run, Where0], memberchk('--evidence'-Ev, Opts), Ev \== '' -> true
+    ;   usage_error("Usage: orbit-kb locate RUN build|measurement|premise:P|hypothesis:H|claim:C --evidence TEXT. RUN is the attestation of the run that conflicts.", [])
+    ),
+    (   memberchk(Where0, [build, measurement]) -> Where = Where0
+    ;   atomic_list_concat([Kind, Id], ':', Where0), memberchk(Kind, [premise, hypothesis, claim]), Id \== ''
+    ->  Where =.. [Kind, Id]
+    ;   usage_error("The location is one of: build, measurement, premise:P, hypothesis:H, claim:C. It is ~w.", [Where0])
+    ),
+    kb_items(KB, Items),
+    (   kb_term(Items, attest(A0, test_result, _, _, _, _)), A0 == Run -> true
+    ;   reject(["There is no run " + Run + " in kb.pl. A location names the attestation of a run (orbit-kb show experiments lists them)."] >> fix_lines)
+    ),
+    format(atom(PT), "~q", [located(Where, Ev)]),
+    cmd_attest(KB, [location, Run, PT, '--by', By], Code),
+    (   Where == build -> true
+    ;   format(user_error, "NOTE: a location outside the build counts only when a pane that did not build, or the human, confirms it: orbit-kb confirm LOCATION --note TEXT --as ROLE.~n", [])
+    ).
+
+% confirm LOCATION --note TEXT [--by human|agent]
+cmd_confirm(KB, Args, Code) :-
+    parse_opts(Args, ['--by'-value, '--note'-value], Pos, Opts),
+    opt(Opts, '--by', agent, By),
+    (   Pos = [Loc], memberchk('--note'-Note, Opts), Note \== '' -> true
+    ;   usage_error("Usage: orbit-kb confirm LOCATION --note TEXT [--as ROLE] [--by human]. LOCATION is the id of a location attestation.", [])
+    ),
+    kb_items(KB, Items),
+    (   kb_term(Items, attest(L0, location, _, _, _, _)), L0 == Loc -> true
+    ;   reject(["There is no location " + Loc + " in kb.pl."] >> fix_lines)
+    ),
+    format(atom(PT), "~q", [confirms(Note)]),
+    cmd_attest(KB, [confirmation, Loc, PT, '--by', By], Code).
 % ---------------------------------------------------------------------
 % review start (D28, T25)
 % ---------------------------------------------------------------------
