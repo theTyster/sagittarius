@@ -704,7 +704,9 @@ t_QS14() {  # every request but a valid POST /answer leaves every KB as it was
     post /answer "token=$tok" "kb=$kb" q=q1 choice=no answer='q1, no, human). claim(c7, x, y'; true
     same_file "$T/other/kb.pl" "$T/o.before" "a KB that the server does not serve"
     # the one valid POST above added exactly one fact: the answer
-    diff <(grep -v '^%' "$T/a.before") <(grep -v '^%' "$T/a/kb.pl") | grep '^>' > "$T/added" || true
+    # 0.8.0 (scientific-method-overhaul c20, c39; build contract 2.2): the first write to a KB that an older
+    # version made also records the upgrade (upgraded/2, done_before_upgrade/2). Those lines are the tool's.
+    diff <(grep -v '^%' "$T/a.before") <(grep -v '^%' "$T/a/kb.pl") | grep '^>' | grep -v "^> \(upgraded\|done_before_upgrade\)('[0-9.]*', '[0-9TZ:-]*')\.$" > "$T/added" || true
     [ "$(wc -l < "$T/added")" = 1 ] && grep -q '^> answer(q1, *no, *human)\.' "$T/added" \
         || note "the valid POST did not add exactly one answer fact: $(snip "$(cat "$T/added")")"
     srv_stop
