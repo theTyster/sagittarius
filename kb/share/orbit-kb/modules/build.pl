@@ -527,7 +527,7 @@ any_flare_open_072 :- flare_open_072(_).
 any_current_claim_072 :- current_072(_).
 no_current_claim_072 :- not any_current_claim_072.
 done_072 :- not any_under_072, not any_over, not any_to_ask_072, not any_burn_open_072,
-            not any_flare_open_072, not any_project_conflict, not any_request_stale, not any_supersede_cycle, not no_current_claim_072.
+            not any_flare_open_072, not any_project_conflict_072, not any_request_stale, not any_supersede_cycle, not no_current_claim_072.
 
 % --- The grandfather rule (D57; c20, c39, q27) ------------------------
 % kb_before_upgrade is a fact that orbit-kb computes when it reads a KB whose newest

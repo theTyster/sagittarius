@@ -2852,6 +2852,7 @@ protected_pi(any_flare_open_072/0).
 protected_pi(any_current_claim_072/0).
 protected_pi(no_current_claim_072/0).
 protected_pi(done_072/0).
+protected_pi(any_project_conflict_072/0).
 protected_pi(burn/1).
 protected_pi(burn_reason/1).
 protected_pi(burn_proved/1).

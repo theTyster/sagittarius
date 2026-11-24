@@ -459,6 +459,9 @@ decl(rule, blocking(term),
 decl(rule, any_project_conflict,
      'An item of the project KB blocks this KB: the project KB does not load clean (project_kb_unclean), or a claim pins a fact that is in a contradiction there (project_contradiction). No draft blocks (T43). The project module adds the clauses (D23, D27).',
      'the project KB blocks this KB (project_kb_unclean or project_contradiction)').
+decl(rule, any_project_conflict_072,
+     'any_project_conflict, with no step through blocking/1: done_072 reads it (D57). The project module adds the clauses.',
+     'the project KB blocks this KB').
 % D30 H2: the state of a premise, and lint W10.
 decl(rule, premise_was_checked(ref(premise)),
      'A premise_checked fact names the premise.',
