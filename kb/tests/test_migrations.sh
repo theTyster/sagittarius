@@ -304,7 +304,8 @@ t_MG9() {
         # the agent step of the closed KB (its checks have no words) has no fix on the Desk; the open one has
         grep -Fq "fix:words:$T/h/specs/closed" "$T/page.html" && note "the Desk shows the words step of the closed KB"
         grep -Fq "fix:words:$T/h/specs/open" "$T/page.html" || note "the Desk does not show the words step of the open KB"
-        grep -Eiq 'retired|WM1' "$T/page.html" && note "the Desk shows a retired-predicate warning"
+        # 0.8.0 (c24, c37): the Desk has the hypothesis state retired (the CSS class s-retired); it is no warning
+        sed 's/s-retired//g' "$T/page.html" | grep -Eiq 'retired|WM1' && note "the Desk shows a retired-predicate warning"
     fi
     kill "$spid" 2>/dev/null; wait "$spid" 2>/dev/null
     same_file "$T/h/specs/closed/kb.pl" "$T/closed.before" "the closed KB after the run"
