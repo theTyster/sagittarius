@@ -70,7 +70,7 @@ parts went to different homes.
 | `### When to run discovery` | hook | `Learn how something behaves now, or whether a problem is real` | h_work = research. |
 | `### The hypothesis` | prompt | | The principle, in short. |
 | `### The hypothesis` | PHILOSOPHY.md §5 | | The full statement. |
-| `### The hypothesis` | help discovery | `Too strong` | The worked example moves to the SIGNAL recipe. |
+| `### The hypothesis` | help discovery | `Brittle:` | The worked example moves to the SIGNAL recipe. (The label was "Too strong" until Philosophy 3.0.0.) |
 | `### The tiny discovery orbit` | prompt | | Kept, shorter: it is the light path of discovery. |
 | `### The lap` | help discovery | `budget_spent` | |
 | `### Moves` | help general | `research RESTATE, SURVEY, FLYBY, TRAJECTORY, DISPROVE (discovery)` | 0.3.0 (D39): the move SIGNAL is RESTATE; "signal" means the six signals of the prompt. |
@@ -111,7 +111,7 @@ For home `prompt`, c4 checks the phrase in `prompt/SAGITTARIUS.md`.
 | `## The light path` | prompt | `say where you looked` | R5: no tests found. |
 | `## The light path` | prompt | `say so under "Not checked"` | R5: no executable check. |
 | `## The light path` | prompt | `passes before and after` | R5: a check that behavior stays the same. |
-| `### The hypothesis` | help discovery | `Not tempered:` | R6: the worked example (too strong, collapsed, weak). |
+| `### The hypothesis` | help discovery | `Soft:` | R6: the worked example (too strong, collapsed, weak). (The label was "Not tempered:" until Philosophy 3.0.0.) |
 | `### Leaning back` | prompt | `it stays until the ticket closes` | R7: the KB stays. |
 | `### Leaning back` | prompt | `Do not drop an open question, a failing check, or a burn` | R7. |
 | `### Leaning back` | prompt | `The next ticket starts light` | R7. |
