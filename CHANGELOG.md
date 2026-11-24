@@ -63,7 +63,8 @@ Ty, 2026-11-23). Philosophy 2.1.0.
   --by human` keep the human's words (`--note`); an agent session must give them.
 - **The command.** `orbit` and `orbit-kb` are one program, and each screen names the tool as it was
   called. `shift --goal` writes the goal and the hypothesis under it. `orbit hub orphans` lists the
-  open items with no chain to a project goal, grouped by where the chain ends.
+  open items with no chain to a project goal, grouped by where the chain ends. The hub texts teach
+  `orbit hub ledger`; hubflow.py is its engine and still works.
 - **The texts.** The prompt, the pane prompts, the philosophy, the kit texts and the help share one
   vocabulary (`docs/vocabulary.json`). Sound Basis is stated in Ty's words. Formal language can
   enter while forming the hypothesis, while exploring, and while verifying.

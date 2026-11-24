@@ -160,7 +160,8 @@ another role's conversation. A pane without `HUB_SESSION` can read the db, but e
 More writes need `HUB_SESSION`: see "The formal edition" below.
 
 **Check:** in each role's pane, `echo "$HUB_SESSION"` prints that role's name, and
-`python3 .claude/scripts/hubflow.py view v_inbox --session "$HUB_SESSION"` exits 0.
+`.claude/orbit-kb/bin/orbit hub ledger view v_inbox --session "$HUB_SESSION"` exits 0 (the door to the
+ledger; hubflow.py is its engine).
 
 ## Step 6: the formal stores
 

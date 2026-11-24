@@ -1,8 +1,8 @@
 ---
 name: hub-flow
 description: >
-  Read and write the hub's flow-state db (flow/flow.db) through hubflow.py: asks waiting on a human,
-  in-flight threads, holds, and handoffs between sessions. Use for "what is waiting on me", "what is
+  Read and write the hub's flow-state db (flow/flow.db) through `orbit hub ledger` (hubflow.py is
+  the engine): asks waiting on a human, in-flight threads, holds, and handoffs between sessions. Use for "what is waiting on me", "what is
   open", "log an ask", "hand this to the build session", "accept the handoff", "is this still live",
   "close it", "what is stale", "what does X own", "triage", "write a capsule", "find a
   transcript", "the human skipped it", and before any write to the db. Never edit the db or its
@@ -26,9 +26,10 @@ tracker item each time an agent reads it for a ticket.
 **Outbound has one home per thing.** A staged edit to a tracker item is a `draft/4` in the project
 KB; free outbound text (mail, chat) is drafted in `W0/outbound-staging/`. A human sends; afterwards
 the human (or an agent that the human told) records `pushed/2` in the project KB. Nothing is posted
-by a tool. `.claude/scripts/hubflow.py` (`$HF` below) is the only writer; `orbit hub ledger ARGS` is the door to it
-(the same command, run through `.claude/orbit-kb/bin/orbit`). Every write also rewrites
-`flow/jsonl/*.jsonl` in the same transaction; git tracks the JSONL, the db file is ignored.
+by a tool. `.claude/scripts/hubflow.py` is the storage engine and the only writer of the db. Run each command
+through the door: `$HF` below is `.claude/orbit-kb/bin/orbit hub ledger` (the same commands, output and exit
+codes). Every write also rewrites `flow/jsonl/*.jsonl` in the same transaction; git tracks the
+JSONL, the db file is ignored.
 
 ## Who you are
 

@@ -86,8 +86,8 @@ step that writes.
 5. **Tell the running sessions.** A session that started before the migration still holds the old
    rules and paths. Send each one a short text, for example: "This hub moved to <new path> and now
    runs MindHole Kit <version>. Stop, then resume in the new place with your launcher line
-   (`--resume "hub-<name>"`). Read your inbox first (`hubflow.py view v_inbox --session
-   <name>`): your open asks and work in flight are ledger items now. Local rules are in each skill's
+   (`--resume "hub-<name>"`). Read your inbox first (`.claude/orbit-kb/bin/orbit hub
+   ledger view v_inbox --session <name>`): your open asks and work in flight are ledger items now. Local rules are in each skill's
    `LOCAL.md`."
 
 ## Release sections

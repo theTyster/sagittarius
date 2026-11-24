@@ -145,9 +145,12 @@ def t31c4():
     check("t31c4 PANES.md uses hubflow", first is not None, "never")
     if first is None:
         return
-    win = " ".join(ls[first: first + 3])
-    check("t31c4 first use of hubflow in PANES.md gives python3 .claude/scripts/hubflow.py",
-          "python3 .claude/scripts/hubflow.py" in win, win[:200])
+    # review R1 (0.8.0): the first use names the door first, `.claude/orbit-kb/bin/orbit hub ledger`; the engine
+    # `python3 .claude/scripts/hubflow.py` stays in second place, for a hub of an older kit (it was the only command)
+    win = " ".join(ls[first: first + 4])
+    door, eng = win.find(".claude/orbit-kb/bin/orbit hub ledger"), win.find("python3 .claude/scripts/hubflow.py")
+    check("t31c4 first use of hubflow in PANES.md gives the door .claude/orbit-kb/bin/orbit hub ledger, then python3 .claude/scripts/hubflow.py",
+          0 <= door < eng, win[:300])
 
 
 def t31c5():

@@ -104,7 +104,7 @@ The spec KB holds what a ticket needs and pins the rest: do not copy all context
 ### Where a spec KB lives
 
 A spec KB has the ticket's clock, not the week's. It lives at `specs/<slug>/` at the hub root,
-outside W0 to W5, and the flow db refers to it as `kb:<slug>` (`hubflow.py where <slug>` prints the
+outside W0 to W5, and the flow db refers to it as `kb:<slug>` (`orbit hub ledger where <slug>` prints the
 path; `.claude/orbit-kb/bin/orbit-kb show open` there says what is left). Only the spec KB decides what blocks. A hub
 made before 0.3.0 keeps spec KBs at `W*/analyses/<slug>/kb`; that form still resolves (UPGRADING.md
 says how to move them). In a hub the spec KB is committed, with the hub: git is the archive, and
@@ -117,10 +117,10 @@ A week holds only what people gave it: raw reports in `W*/reports/` and meeting 
 are made. The project KB pins the digest of a report or transcript only when a lasting project
 fact relies on it. Code never parses a meeting transcript: an agent that reads one puts what is
 needed into the ledger (open items, a `summary` row that lapses by itself), each with a
-`transcript:` ref, the file name and its sha256 (`hubflow.py transcripts --files`, then `--find`
+`transcript:` ref, the file name and its sha256 (`orbit hub ledger transcripts --files`, then `--find`
 after a rotation). Rotation never retires a spec KB. A spec KB whose ticket is closed is a triage
 item at rotation: the decision is archive, capsule, keep or escalate, recorded once with
-`hubflow.py spec-triage`. Archive is `git rm -r specs/<slug>`; history keeps it.
+`orbit hub ledger spec-triage`. Archive is `git rm -r specs/<slug>`; history keeps it.
 
 ### Outbound: one home per thing
 
@@ -164,7 +164,7 @@ The panes (review, discovery, build) of `PANES.md` (installed as `~/.claude/sagi
 runs as a named session that the human sets up outside the hub (for example in dotfiles);
 `flow/seed.json` gives the hub the names. Verify is review's: a hub with no review session gets
 its verify from a fresh-eyes subagent that records its verdicts in the spec KB. A handoff between
-panes is one `hubflow.py handoff` row plus the KB, as `PANES.md` says (see above).
+panes is one `orbit hub ledger handoff` row plus the KB, as `PANES.md` says (see above).
 A hub has a light path, as the prompt does: when no signal fired, the build pane delivers a clear
 change with its check, with no spec KB and no review. A signal brings the spec KB and the review
 pane; review also comes in when the human asks.
@@ -204,9 +204,9 @@ written only by `hubflow.py`. Load the `hub-flow` skill before any write. Each s
 identity (`HUB_SESSION`), set where the session is started. Named sessions are set up outside the
 hub; the hub knows only their names (`flow/seed.json`).
 **At session start and after every compaction, read your inbox first**:
-`python3 .claude/scripts/hubflow.py view v_inbox --session "$HUB_SESSION"` (unaccepted handoffs come
+`.claude/orbit-kb/bin/orbit hub ledger view v_inbox --session "$HUB_SESSION"` (unaccepted handoffs come
 first). The db is the memory, not the conversation. For each item, follow its kb ref
-(`hubflow.py where <slug>`) and run `.claude/orbit-kb/bin/orbit-kb show open` there.
+(`orbit hub ledger where <slug>`) and run `.claude/orbit-kb/bin/orbit-kb show open` there.
 `.claude/orbit-kb/bin/orbit-kb pin-item` and `.claude/orbit-kb/bin/orbit-kb draft` record a dropped edit of the project KB in the ledger by
 themselves, in the session of `HUB_SESSION`. With no `HUB_SESSION`, the record is refused with a
 warning; run the `project dropped --session S` command that the warning names.
