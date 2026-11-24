@@ -6771,8 +6771,12 @@ desk_written(A, W) :-
 % desk_named_by(+Author, -Words): the author in a sentence, with the mapping of the CLI: the agent, the human, Ty.
 desk_named_by(A, W) :- ( catch(author_words(A, W0), _, fail) -> dk_str(W0, W) ; dk_str(A, W) ).
 
-desk_state_words(proposed, "not adopted") :- !.
-desk_state_words(S, W) :- dk_str(S, W).
+% desk_state_words(+State, +Cited, -Words) (review U3): one state per hypothesis. A proposed
+% hypothesis with adoption_cited/2 is "proposed (cited)": the agent read words of the human as an
+% adoption, and nothing is adopted until the human confirms it.
+desk_state_words(proposed, some(_), "proposed (cited)") :- !.
+desk_state_words(proposed, _, "not adopted") :- !.
+desk_state_words(S, _, W) :- dk_str(S, W).
 
 % desk_vocab(+Key, -Sentence) (c12): the canonical sentence of a word, from share/orbit-kb/vocabulary.json.
 :- dynamic desk_vocab_cache/2.
@@ -6912,14 +6916,14 @@ desk_premises_html(Ps, None, Mode, Html) :-
     ).
 
 desk_hyp_html1(H, Acts, Html) :-
-    esc(H.text, TH), desk_written(H.author, AN), esc(AN, ANH), desk_state_words(H.state, SW),
+    esc(H.text, TH), desk_written(H.author, AN), esc(AN, ANH), desk_state_words(H.state, H.cited, SW),
     desk_term(hypothesis, "Hypothesis", HL),
     (   H.state == proposed, Acts = acts(HD, K), \+ desk_kb_frozen(HD, K)
     ->  dk_f("adopt:~w#~w", [K.dir, H.id], It), desk_fix_button(HD.path, It, "Adopt", AdoptH)
     ;   AdoptH = ""
     ),
     (   H.cited = some(W) -> esc(W, WH),
-        dk_f("<p class=\"small cited\">proposed: the agent reads your words as adoption: '~w' (Adopt to confirm) ~w</p>", [WH, AdoptH], CitedH), Adopt1 = ""
+        dk_f("<p class=\"small cited\">The agent reads your words as adoption: '~w' (Adopt to confirm) ~w</p>", [WH, AdoptH], CitedH), Adopt1 = ""
     ;   CitedH = "", Adopt1 = AdoptH
     ),
     (   H.case = case(By, CT) -> esc(CT, CTH), desk_named_by(By, ByN), esc(ByN, ByH),

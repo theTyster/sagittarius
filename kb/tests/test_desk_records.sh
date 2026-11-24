@@ -80,7 +80,8 @@ t_DR1() {  # the goal first with its author, then each hypothesis with its autho
         'Hypothesis hy1 (agent-written, defeated)' 'Defeated by the case: A correction arrives under a seen ID and is discarded.' \
         'Hypothesis hy2 (agent-written, not adopted)' 'It is false if: A replay that changes a member record.' \
         'Hypothesis hy3 (Ty-written, adopted)' 'not tempered' 'Hypothesis hy4 (agent-written, retired)' \
-        'Hypothesis hy5 (agent-written, not adopted)' "proposed: the agent reads your words as adoption: 'lock the file, that is the way' (Adopt to confirm)" \
+        'Hypothesis hy5 (agent-written, proposed (cited))' "The agent reads your words as adoption: 'lock the file, that is the way' (Adopt to confirm)" \
+        '!Hypothesis hy5 (agent-written, not adopted)' '!proposed: the agent reads' \
         '!No hypothesis: the claims hang on the goal.'
     sec "$T/page.html" replay || { note "no card of the ticket replay"; return; }
     python3 -I - "$T/sec.html" <<'PY' || note "the card: the order (goal, hypotheses, claims), a state, or an Adopt action is wrong"
