@@ -897,7 +897,9 @@ rp_claims() { printf '%s\n' "$out" | sed -n '/^# Claims/,/^# Review/p'; }
 t_RPX1() {  # the Claims field: fulfilled, conflicts, unresolved (with the reason), stale; never failed for unresolved
     mk; run_k k1 -- false; run_k k1 -- sh -c 'exit 77'
     okb --dir "$K" report; rc_is 0
-    out_has 'Status: unresolved' "unresolved"; out_has 'could not decide: .*exit 77' "with the reason"; out_has 'Checks: k1 \(unresolved\)'; rp_claims | grep -Eq 'failed|not passed' && note "unresolved is printed as failed: $(rp_claims | tr '\n' '~')"
+    out_has 'Status: unresolved' "unresolved"; out_has 'could not decide: .*exit 77' "with the reason"; out_has 'Checks: k1 \(unresolved\)'; rp_claims | grep -v '^    - Control of check k1: run [a-z0-9]* failed before the change\.$' | grep -Eq 'failed|not passed' && note "unresolved is printed as failed: $(rp_claims | tr '\n' '~')"
+    # philosophy-3 c2: the control sentence names the run that failed before the change (the first run here); it is not the verdict of the unresolved run
+    rp_claims | grep -q '^    - Control of check k1: run [a-z0-9]* failed before the change\.$' || note "the control of k1 is named: $(rp_claims | tr '\n' '~')"
     run_k k1 -- false; okb --dir "$K" add "change(x1, 'a')" 'serves(x1, c1)'; run_k k1 -- false
     okb --dir "$K" report; out_has 'Status: conflicts'
     run_k k1 -- true; okb --dir "$K" report; out_has 'Status: fulfilled'
