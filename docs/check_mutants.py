@@ -18,7 +18,7 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # The version in the tree now, so the VERSION mutant case applies at every release (it was "0.3.0").
 VERSION_NOW = open(os.path.join(ROOT, "VERSION"), encoding="utf-8").read().strip()
-COPY = ["docs", "prompt", "hubkit", "kb/share/orbit-kb/help", "kb/share/orbit-kb/core.pl", "kb/share/orbit-kb/vocabulary.json",
+COPY = ["docs", "prompt", "hubkit", "kb/share/orbit-kb/help", "kb/bin/orbit-kb", "kb/share/orbit-kb/core.pl", "kb/share/orbit-kb/vocabulary.json",
         "kb/CONTRACT.md", "README.md",
         "CLAUDE.md", "CHANGELOG.md", "VERSION", "s1"]
 P = "prompt/SAGITTARIUS.md"
@@ -102,6 +102,15 @@ CASES = [
      "restate the hypothesis", "build.md tells build to restate the hypothesis"),
     (["docs/check_method_texts.py", "c16"], P, "Existing behavior is presumed to be\npreserved.", "Existing behavior is preserved.",
      "Sound Basis is not in the words of Ty"),
+    (["docs/check_method_texts.py", "h1"], "kb/share/orbit-kb/help/build.txt", "Locate the conflict first, with the evidence.",
+     "If the answer says what it changes to, restate it: the new hypothesis supersedes the old one.",
+     "help build tells build to restate a hypothesis"),
+    (["docs/check_method_texts.py", "h1"], "kb/bin/orbit-kb", "report); build when you can state it. Every ticket has a goal.",
+     "report); build when you can state it. Every ticket has a\",\n\"     hypothesis.",
+     "the first help screen says that every ticket has a hypothesis"),
+    (["docs/check_method_texts.py", "h1"], "kb/share/orbit-kb/help/shift.txt", "the intent; it names no avenue: goal(g1, K, AUTHOR, TEXT).",
+     "what must be true when the ticket is done: hypothesis(h1, K, TEXT).",
+     "help shift keeps the old definition of --hypothesis"),
     (["docs/check_method_texts.py", "c45"], P, "7. The ticket does not end at the delivery.", "7. Ask the human to adopt the hypothesis.\n8. The ticket does not end at the delivery.",
      "the light path has an eighth Build step"),
     (["docs/check_panes.py", "--only", "c5"], "prompt/panes/discovery.md", "Re-evaluate the goal, the premises and the\n  measurement, and temper a new hypothesis",
