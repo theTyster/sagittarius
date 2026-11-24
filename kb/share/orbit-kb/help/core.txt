@@ -80,7 +80,7 @@ Facts
                                  A fact that you did not record is false.
   question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By)
                                  A question can hang on a hypothesis: its default marks a default
-                                 of the hypothesis ("every screen"). report lists it under Guesses.
+                                 of the hypothesis ("every screen"). report lists it under Residual, Wanted.
   option(Q, Text, Effect)        an option of question Q, and what choosing it changes. The question
                                  view (orbit-kb help view) shows each option with its effect. It changes no rule.
   due(X, 'TIME')                 claim, check, or question X is due at TIME. While X is open
@@ -148,7 +148,7 @@ Queries (orbit-kb query 'current(C)' -n 0)
   passed(K)          the latest run of K passed
   was_red(K)         K failed before it passed
   stale(A)           approval A is for a digest that is no longer current
-  premise_unchecked(P)  nobody checked premise P on the system: a guess (report, Guesses)
+  premise_unchecked(P)  nobody checked premise P on the system (report: Residual, Happens)
   blocking(X)        X blocks done: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X),
                      check_failing(K), check_unrun(K), waiver_lapsed(W), past_due(X),
                      supersede_cycle(C), no_claim. orbit-kb show blocking prints each with its text.

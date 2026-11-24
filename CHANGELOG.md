@@ -10,7 +10,7 @@ version did not go up.
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
 | Sagittarius | 0.8.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
-| Philosophy | 2.1.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
+| Philosophy | 3.0.0 | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
 | MindHole Kit | 0.12.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 | s1-glance | 0.14.0 | `s1/glance/.claude-plugin/plugin.json` | the Sagittarius Signals mod |
 | desk-toast | 0.1.0 | `hubkit/hub/.claude/scripts/desk-toast/.claude-plugin/plugin.json` | the Desk toast mod |
@@ -45,7 +45,19 @@ Earlier versions, named after the fact so that a report can refer to them:
 ## Sagittarius 0.8.0 and MindHole Kit 0.12.0 (2026-11-24)
 
 MINOR for both: the method follows the scientific method (hub spec KB scientific-method-overhaul;
-Ty, 2026-11-23). Philosophy 2.1.0.
+Ty, 2026-11-23). Philosophy 3.0.0 (Ty, 2026-11-24: "Lets make this live immediately."): the text
+is reworked, and the prompt is rebuilt on it (hub spec KB philosophy-3).
+
+- **What an agent sees from Philosophy 3.0.0.** A lap has five steps: state, seal, run, read,
+  keep. Seal: before a run, write down what you expect and which result counts against you. The
+  control: a check of a change fails before the change. Three instruments answer three questions:
+  the human (what is wanted), the system (what happens), a formal tool (what follows); the agent
+  is none of them. The delivery has `Residual:` in place of `Guesses:` and `Not checked:`: what
+  could still show the work wrong, by question (Wanted, Happens, Follows). `orbit report` prints
+  it, and each claim says if the control of its check was seen. A statement that says too
+  little is Soft, and one that says too much is Brittle (the prompt and `orbit help discovery`).
+  In discovery the human goes first: the agent seals its hypothesis, asks the human for theirs,
+  then shows both.
 
 - **A ticket is a goal with hypotheses, claims and experiments.** The goal is the intent and names
   no avenue (`goal/4`). A hypothesis is a claim about an avenue to the goal (`hypothesis/4`), with

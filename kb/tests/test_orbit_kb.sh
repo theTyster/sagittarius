@@ -1495,8 +1495,9 @@ t_NC1() { K=$T/k; kb_init "$K" build; give_goal
           okb --dir "$K" whynot 'done'; rc_is 0; [ "$(first_line)" = holds ] || note "whynot done after a claim: '$(first_line)'"; }
 t_NC2() { K=$T/k; kb_init "$K" build; give_goal; okb --dir "$K" report; rc_is 0
           out_hasnt 'answered every question' "no question exists, so no human answered one"
-          rl_is "Guesses with no question" "  - None. No question has a default." "$(rp_sec Guesses)"
-          rl_is "Not checked with no claim" "  - None. No claim is current." "$(rp_sec 'Not checked')"
+          rl_is "Wanted with no question" "  - None. No question has a default." "$(rp_sub Wanted)"
+          rl_is "Happens with no claim" "  - None. No claim is current." "$(rp_sub Happens)"
+          rl_is "Follows with no claim" "  - None. No claim has a formal statement." "$(rp_sub Follows)"
           rl_is "Open with no claim" "  - **no claim**: No claim is current
     - Add a claim. The work is not done without one." "$(rp_sec Open)"
           okb --dir "$K" show open; rc_is 0; out_has '^- no_claim: no claim is current' "show open names the missing claim"
@@ -1505,11 +1506,11 @@ t_NC2() { K=$T/k; kb_init "$K" build; give_goal; okb --dir "$K" report; rc_is 0
           grep -q 'data-open="no_claim"' "$T/r.html" || note "the page lists the missing claim as an open item"; }
 t_NC3() { K=$T/k; kb_init "$K" build; oadd "claim(c1, preserve, 'One stays true')" "cites(c1, 'Test request')" >/dev/null
           okb --dir "$K" report; rc_is 0
-          rl_is "Guesses with a claim and no question" "  - None. No question has a default." "$(rp_sec Guesses)"
+          rl_is "Wanted with a claim and no question" "  - None. No question has a default." "$(rp_sub Wanted)"
           out_hasnt 'no claim' "a current claim exists"
           oadd "question(q1, c1, 'Is it one')" "assumed(q1, yes)" "answer(q1, yes, human)" >/dev/null
           okb --dir "$K" report; rc_is 0
-          rl_is "Guesses when a human answered" "  - None. A human answered every question with a default." "$(rp_sec Guesses)"
+          rl_is "Wanted when a human answered" "  - None. A human answered every question with a default." "$(rp_sub Wanted)"
           okb --dir "$K" show open; out_hasnt 'no_claim' "show open: a current claim exists"; }
 t_NC4() { K=$T/k; kb_init "$K" build; printf 'any_current_claim.\n' > "$K/rules.pl"
           okb --dir "$K" lint; rc_is 1 "rules.pl cannot make a claim appear for done"; out_has '^E16 rules.pl'
@@ -1520,7 +1521,7 @@ t_NC5() { K=$T/k; kb_init "$K" discovery
 
 # ---- 0.3.0 K-A: the hypothesis and its premises in every KB (CONTRACT D30). hypothesis/3 is a core fact
 # with a fourth kind, change; premise/3, premise_checked/2, no_premises/1 and the query premise_unchecked/1;
-# lint W10; Guesses lists unchecked premises and the defaults of the hypothesis; the discovery orbit is open
+# lint W10; Residual lists unchecked premises and the defaults of the hypothesis; the discovery orbit is open
 # until the human approves the ticket after a GO (discovery_end/1), and again after a back attestation.
 DARK='With dark mode on, every screen shows a dark scheme.'
 hy_build() {  # hy_build DIR: a build KB with one claim, its example and its check
@@ -1580,19 +1581,22 @@ t_HY4() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" "premise(p1, 
           is_false 'premise_unchecked(p1)' "a premise of a superseded hypothesis is not asked for"
           okb --dir "$K" lint; out_hasnt '^W10' "W10 names no superseded hypothesis"
           okb --dir "$K" report; rc_is 0
-          printf '%s\n' "$(rp_sec Guesses)" | grep -q 'settings page has a theme' && note "Guesses lists a premise of a superseded hypothesis"; true; }
+          printf '%s\n' "$(rp_sec Residual)" | grep -q 'settings page has a theme' && note "Residual lists a premise of a superseded hypothesis"; true; }
 t_HY5() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" \
               "premise(p1, h1, 'The app has one color scheme today.')" "premise(p2, h1, 'The app has twelve screens.')" \
               "premise_checked(p2, 'src/routes.ts:4')" >/dev/null
           oadd "question(q1, h1, 'Every screen, or only the settings page?')" "assumed(q1, 'all twelve screens')"; rc_is 0 "a question on the hypothesis marks its default"
           okb --dir "$K" report; rc_is 0
-          local g; g=$(rp_sec Guesses)
-          printf '%s\n' "$g" | grep -q 'p1.*The app has one color scheme today' || note "Guesses lists the unchecked premise p1: [$g]"
-          printf '%s\n' "$g" | grep -q 'all twelve screens' || note "Guesses lists the default of the hypothesis: [$g]"
-          printf '%s\n' "$g" | grep -q 'The app has twelve screens' && note "Guesses lists a checked premise: [$g]"
-          printf '%s\n' "$g" | grep -q 'None' && note "Guesses says None: [$g]"
+          local g w; g=$(rp_sub Happens); w=$(rp_sub Wanted)
+          printf '%s\n' "$g" | grep -q 'p1.*The app has one color scheme today' || note "Happens lists the unchecked premise p1: [$g]"
+          printf '%s\n' "$w" | grep -q 'all twelve screens' || note "Wanted lists the default of the hypothesis: [$w]"
+          printf '%s\n' "$w" | grep -q 'p1' && note "Wanted lists a premise: [$w]"
+          printf '%s\n' "$g" | grep -q 'The app has twelve screens' && note "Happens lists a checked premise: [$g]"
+          printf '%s\n' "$g" | grep -q 'None' && note "Happens says None: [$g]"
+          printf '%s\n' "$w" | grep -q 'None' && note "Wanted says None: [$w]"
           oadd "premise_checked(p1, 'src/theme.css:1')" "answer(q1, 'all twelve screens', human)" >/dev/null
-          okb --dir "$K" report; rl_is "Guesses when each premise is checked and each default answered" "  - None. Each premise is checked, and a human answered every question with a default." "$(rp_sec Guesses)"; }
+          okb --dir "$K" report; rl_is "Wanted when each default is answered" "  - None. A human answered every question with a default." "$(rp_sub Wanted)"
+          rp_sub Happens | grep -q '^  - None\. Each premise is checked, and ' || note "Happens when each premise is checked: [$(rp_sub Happens)]"; }
 t_HY6() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" >/dev/null
           oadd "hypothesis(h2, feature, 'With dark mode on, the settings page shows a dark scheme.')" "supersedes(h2, h1)"; rc_is 0 "a build KB restates its hypothesis"
           okb --dir "$K" lint; out_hasnt '^WD7' "no WD7 in a build KB"
@@ -1727,8 +1731,8 @@ t_KR2() { hy_build "$T/b"; okb --dir "$K" report; rc_is 0
           rp_item c1 | grep -q 'Example: the reports page is dark' || note "report: the example under the claim: [$(snip "$(rp_item c1)")]"
           okb --dir "$K" show claims; rc_is 0; out_has '^  Example: the reports page is dark' "show claims: the example under the claim"; }
 t_KR3() { hy_build "$T/b"; okb --dir "$K" report; rc_is 0
-          local heads; heads=$(printf '%s\n' "$out" | grep -oE '^# (Delivered|KB|Signals|Claims|Formal|Guesses):' | sed 's/^# //' | paste -sd' ')
-          rl_is "the fields of the delivery block, in its order" "Delivered: KB: Signals: Claims: Formal: Guesses:" "$heads"
+          local heads; heads=$(printf '%s\n' "$out" | grep -oE '^# (Delivered|KB|Signals|Claims|Formal|Residual|Disclosures):' | sed 's/^# //' | paste -sd' ')
+          rl_is "the fields of the delivery block, in its order" "Delivered: KB: Signals: Claims: Formal: Residual: Disclosures:" "$heads"
           rp_sec KB | grep -qF "$K" || note "KB names the KB directory: [$(rp_sec KB)]"
           rp_sec Signals | paste -sd' ' | grep -q 'questions.*divergence.*effort' || note "Signals names the six signals (D35: one line each): [$(rp_sec Signals)]"
           rl_is "Formal with no formal statement" "  - None. No claim has a formal statement." "$(rp_sec Formal)"
@@ -1757,7 +1761,7 @@ t_KR6() { hy_disc "$T/d"
                "finding(f1, surprise('a guest got 12 points in the model'), model)" "finding(f2, trace('the tier is read once a day'), system)" >/dev/null
           okb --dir "$K" report; rc_is 0
           local heads; heads=$(printf '%s\n' "$out" | grep -oE '^# [A-Za-z ]+:' | sed 's/^# //' | paste -sd'|')
-          rl_is "the sections of a discovery report" "Delivered:|KB:|Signals:|Hypothesis:|System:|Findings:|Claims:|Formal:|Scope:|Risk:|Not explored:|Guesses:|Disclosures:|Not checked:|Open:|Vote:|To land:" "$heads"
+          rl_is "the sections of a discovery report" "Delivered:|KB:|Signals:|Hypothesis:|System:|Findings:|Claims:|Formal:|Scope:|Risk:|Not explored:|Residual:|Disclosures:|Open:|Vote:|To land:" "$heads"
           rp_sec Hypothesis | grep -q 'The amount and the tier decide the points' || note "the hypothesis"
           rp_sec System | grep -q 'h1.*reproduced' || note "what the system showed: [$(rp_sec System)]"
           rp_item f1 | grep -q 'From a model only' || note "the finding f1 is marked as from a model only: [$(rp_sec Findings)]"
@@ -2450,7 +2454,7 @@ t_SF1() { K=$T/s; sf_shift "$K" --no-premises; rc_is 0 "shift writes a KB"
           has_fact "$K/kb.pl" "premise(p1, h1, 'the app has a theme switch')"; has_fact "$K/kb.pl" "premise(p2, h1, 'the screens use the theme colors')"
           no_fact "$K/kb.pl" "no_premises(_)"
           okb --dir "$K" lint; rc_is 0 "lint accepts the KB with premises"
-          okb --dir "$K" report; rp_sec Guesses | grep -q 'p1' || note "an unchecked premise is a guess"; }
+          okb --dir "$K" report; rp_sub Happens | grep -q 'p1' || note "an unchecked premise is in Residual, Happens"; }
 t_SF2() { sf_shift "$T/a"; rc_is 2 "neither --no-premises nor --premise"; [ -e "$T/a" ] && note "a usage error leaves no directory"
           sf_shift "$T/b" --no-premises --premise 'x'; rc_is 2 "both --no-premises and --premise"
           okb shift "$T/c" --request-file "$T/req.txt" --no-premises --claim x --example y --check k1; rc_is 2 "no --hypothesis"
@@ -2965,11 +2969,11 @@ t_SH5() { copy_fixture w6_extension "$T/k"; K=$T/k; okb --dir "$K" show extensio
 t_SH6() { valid_copy; okb --dir "$K" show; rc_is 0; out_has 'c1'; okb --dir "$K" show all; rc_is 0; out_has 'q1'; }
 t_SH7() { valid_copy; okb --dir "$K" show bogus; rc_is 2; }
 t_RP1() { valid_copy; okb --dir "$K" report; rc_is 0
-          local order; order=$(printf '%s\n' "$out" | grep -oE '^# (Delivered|Claims|Guesses|Disclosures|Not checked|Open|To land):' | sed 's/^# //' | paste -sd' ')
-          [ "$order" = "Delivered: Claims: Guesses: Disclosures: Not checked: Open: To land:" ] || note "sections: [$order]"; }
+          local order; order=$(printf '%s\n' "$out" | grep -oE '^# (Delivered|Claims|Guesses|Residual|Disclosures|Not checked|Open|To land):' | sed 's/^# //' | paste -sd' ')
+          [ "$order" = "Delivered: Claims: Residual: Disclosures: Open: To land:" ] || note "sections: [$order]"; }
 t_RP2() { kb_overunder "$T/k"; K=$T/k; okb --dir "$K" report; rc_is 0; rp_item c1 | grep -q 'Status: under' || note "c1 is under: $(snip "$out")"; rp_item c2 | grep -q 'fulfilled' || note "c2 is fulfilled: $(snip "$out")"; out_has 'x2' "over change in Open"; }
-t_RP3() { valid_copy; okb --dir "$K" report; local g; g=$(printf '%s\n' "$out" | awk '/^# Guesses:/{f=1;next} /^# /{f=0} f'); printf '%s\n' "$g" | grep -q q2 || note "q2 (default never answered by a human) is a guess: [$g]"; printf '%s\n' "$g" | grep -q 'q1' && note "q1 was answered by a human, not a guess"; true; }
-t_RP4() { kb_overunder "$T/k"; K=$T/k; printf "claim(c3, preserve, 'No check').\ncites(c3, 'Change things').\n" >> $K/kb.pl; okb --dir "$K" report; local g; g=$(printf '%s\n' "$out" | awk '/^# Not checked:/{f=1;next} /^# /{f=0} f'); printf '%s\n' "$g" | grep -q c3 || note "c3 has no check: [$g]"; printf '%s\n' "$g" | grep -q 'c2' && note "c2 has a check"; true; }
+t_RP3() { valid_copy; okb --dir "$K" report; local g; g=$(rp_sub Wanted); printf '%s\n' "$g" | grep -q q2 || note "q2 (default never answered by a human) is in Residual, Wanted: [$g]"; printf '%s\n' "$g" | grep -q 'q1' && note "q1 was answered by a human: it is not residual"; true; }
+t_RP4() { kb_overunder "$T/k"; K=$T/k; printf "claim(c3, preserve, 'No check').\ncites(c3, 'Change things').\n" >> $K/kb.pl; okb --dir "$K" report; local g; g=$(rp_sub Happens); printf '%s\n' "$g" | grep -q c3 || note "c3 has no check: [$g]"; printf '%s\n' "$g" | grep -q 'c2' && note "c2 has a check"; true; }
 t_RP5() { valid_copy; okb --dir "$K" report; local g; g=$(printf '%s\n' "$out" | awk '/^# Disclosures:/{f=1;next} /^# /{f=0} f'); printf '%s\n' "$g" | grep -Eq 'a5|a6|Not measured|slow disk' || note "disclosures missing: [$g]"; }
 t_RP6() { kb_new "$T/k" <<'EOF'
 uses([]).
@@ -3001,6 +3005,8 @@ EOF
     printf '%s\n' "$o" | grep -q 'Discovery is not ready, no_falsifier c1' || note "Open names the claim with no falsifier: [$o]"; true; }
 rp_sec() {  # rp_sec NAME: the lines of one section of $out, without its heading
     printf '%s\n' "$out" | awk -v h="# $1:" '$0==h {f=1; next} /^# / {f=0} f'; }
+rp_sub() {  # rp_sub NAME: the lines of one list of the Residual section of $out (Wanted, Happens, Follows), two spaces less deep
+    printf '%s\n' "$out" | awk -v h="  - **$1:**" '/^# Residual:/ {s=1; next} /^# / {s=0} s && $0==h {f=1; next} s && /^  - \*\*/ {f=0} s && f {print substr($0, 3)}'; }
 rp_item() {  # rp_item ID: the first bullet of $out that starts with ID, and the lines nested under it
     printf '%s\n' "$out" | awk -v id="$1" 'BEGIN {p = "  - " id}
         !f && substr($0, 1, length(p)) == p && substr($0, length(p) + 1, 1) ~ /[ :]/ {f=1; print; next}
@@ -3010,13 +3016,13 @@ rl_is() {  # rl_is LABEL WANT GOT: exact text
 t_RL1() { # headings: "# Name:" in contract order, one blank line before each but the first, no trailing blank line
     rh_kb report_review; okb --dir "$K" report; rc_is 0
     local heads; heads=$(printf '%s\n' "$out" | grep -E '^# ' | paste -sd'|')
-    rl_is "headings" "# Delivered:|# KB:|# Signals:|# Hypothesis:|# Claims:|# Formal:|# Guesses:|# Disclosures:|# Waivers:|# Not checked:|# Open:|# To land:" "$heads"
+    rl_is "headings" "# Delivered:|# KB:|# Signals:|# Hypothesis:|# Claims:|# Formal:|# Residual:|# Disclosures:|# Waivers:|# Open:|# To land:" "$heads"
     printf '%s\n' "$out" | grep -qE '^[A-Z][A-Za-z ]*:$' && note "a heading without the # mark"
     local n; n=$(printf '%s\n' "$out" | awk '/^# / && NR > 1 && prev != "" {bad++} {prev = $0} END {print bad + 0}')
     rl_is "a blank line before every heading but the first" 0 "$n"
     [ "$(printf '%s\n' "$out" | sed -n 1p)" = "# Delivered:" ] || note "the first line is the Delivered heading"
     [ -n "$(printf '%s\n' "$out" | tail -n 1)" ] || note "the last line is blank"
-    [ "$(printf '%s\n' "$out" | grep -c '^$')" = 11 ] || note "want exactly 11 blank lines (one between sections), got $(printf '%s\n' "$out" | grep -c '^$')"
+    [ "$(printf '%s\n' "$out" | grep -c '^$')" = 10 ] || note "want exactly 10 blank lines (one between sections), got $(printf '%s\n' "$out" | grep -c '^$')"
     rh_kb discovery; okb --dir "$K" report; rc_is 0; out_has '^# Vote:' "the Vote heading"; }
 t_RL2() { # every other line is a bullet at two spaces plus two per level; no tabs, no colour codes, no box drawing
     local k bl
@@ -3035,6 +3041,7 @@ t_RL3() { # a fulfilled claim with nothing to add stays on one line; a claim tha
     rl_is "c1 (fulfilled, with its example)" "  - c1 **introduce**: The widget can be saved
     - Status: fulfilled.
     - Example: Save a widget, close the app, open it again, and see the widget.
+    - Control of check k1: not seen.
     - Checks: k1 (passed)." "$(rp_item c1)"
     # 0.8.0 (scientific-method-overhaul c7, c9): the latest run of k2 conflicts, and report says so.
     rl_is "c2 (under)" "  - c2 **preserve**: Loading stays fast
@@ -3068,18 +3075,64 @@ t_RL3() { # a fulfilled claim with nothing to add stays on one line; a claim tha
       - The proof is about the Lean definitions, not the code. No conformance check carries the examples of the definitions to the code.
     - Checks: k2 (passed)." "$(rp_item c2)"
     rl_is "no line of a one-line claim is over 100 columns" 0 "$(printf '%s\n' "$out" | awk '/^  - c[0-9]+ \*\*[a-z]+\*\*: .*Status: fulfilled\. / && length($0) > 100 {n++} END {print n + 0}')"; }
+t_RS1() { # philosophy-3 c2: the control of each check of a claim that is not a preserve claim, and known_when
+    K=$T/k; kb_init "$K" build; give_goal
+    oadd "claim(c1, introduce, 'One')" "cites(c1, 'Test request')" "check(k1, c1)" "checks_that(k1, 'one')" \
+         "claim(c2, introduce, 'Two')" "cites(c2, 'Test request')" "check(k2, c2)" "checks_that(k2, 'two')" \
+         "claim(c3, preserve, 'Three')" "cites(c3, 'Test request')" "check(k3, c3)" "checks_that(k3, 'three')" >/dev/null
+    orun k1 -- false; orun k2 -- true; orun k3 -- true
+    oadd "known_when(k1, 'Only the request was known')" >/dev/null
+    okb --dir "$K" query 'control(A)' -n 0; local a; a=$(printf '%s\n' "$out" | sed -n 's/^A = //p' | head -n 1)
+    [ -n "$a" ] || note "the failed run of k1 is a control: [$out]"
+    okb --dir "$K" report; rc_is 0
+    rp_item c1 | grep -qxF "    - Control of check k1: run $a failed before the change." || note "c1 names its control run $a: [$(rp_item c1 | tr '\n' '~')]"
+    rp_item c1 | grep -qxF "    - Known when the rule of check k1 was chosen: Only the request was known." || note "c1 gives known_when: [$(rp_item c1 | tr '\n' '~')]"
+    rp_item c2 | grep -qxF "    - Control of check k2: not seen." || note "c2: the control was not seen: [$(rp_item c2 | tr '\n' '~')]"
+    rp_item c2 | grep -q 'Known when' && note "c2 has no known_when"
+    rp_item c3 | grep -q 'Control of check' && note "a preserve claim has no control: [$(rp_item c3 | tr '\n' '~')]"
+    oadd "change(x1, 'a change')" "serves(x1, c2)" >/dev/null; orun k2 -- false
+    okb --dir "$K" report; rp_item c2 | grep -qxF "    - Control of check k2: not seen." || note "a failure after a change that serves the claim is no control: [$(rp_item c2 | tr '\n' '~')]"; }
+t_RS2() { # philosophy-3 c1: Residual, Follows lists a formal statement that nothing proved; the page labels the three lists
+    K=$T/k; kb_init "$K" build; give_goal
+    oadd "claim(c1, introduce, 'One')" "cites(c1, 'Test request')" "check(k1, c1)" "checks_that(k1, 'one')" \
+         "claim(c2, introduce, 'Two')" "cites(c2, 'Test request')" >/dev/null
+    echo 'theorem t : True := trivial' > "$T/f.lean"; okb --dir "$K" subject s1 "$T/f.lean"; rc_is 0 "subject"
+    oadd "formal_statement(s1, c1)"; rc_is 0 "formal_statement"
+    okb --dir "$K" report; rc_is 0
+    rl_is "Follows" "  - s1 states claim c1. It is stated and not proved." "$(rp_sub Follows)"
+    rl_is "Happens" "  - c2: Two
+    - It has no check." "$(rp_sub Happens)"
+    out_hasnt '^# (Guesses|Not checked):' "the old sections are gone"
+    okb --dir "$K" report --html "$T/r.html"; rc_is 0 "the page"
+    local sec; sec=$(rh_section "$T/r.html" residual)
+    local w; for w in Wanted Happens Follows; do rh_has "$sec" "<strong>$w:</strong>" "the page labels the list $w"; done
+    rh_has "$sec" 'c2: Two.*See claim c2\.' "a claim with no check links to its claim"
+    rh_has "$sec" 's1 states claim c1\..*See claim c1\.' "a formal statement that is not proved links to its claim"
+    [ "$(printf '%s\n' "$sec" | grep -c 'See claim')" = 2 ] || note "two links See claim in Residual (c2 in Happens, c1 in Follows): [$(printf '%s\n' "$sec" | grep -c 'See claim')]"
+    rh_hasnt "$(<"$T/r.html")" 'data-section="(guesses|not_checked)"' "the page has no section guesses or not_checked"; }
+t_RH9() { # the page of a claim that has a burn or a control line and a disclosure about it (the lambda of the disclosures shared a variable with the status sentence: the page failed)
+    rh_kb report_review; printf "attest(a9, disclosure, c5, other('checked by hand'), agent, '2026-10-15T10:02:01Z').\n" >> "$K/kb.pl"
+    okb --dir "$K" report --html "$T/r.html"; rc_is 0 "a disclosure about a claim that burns"
+    rh_has "$(rh_claim "$T/r.html" c5)" 'a9' "the claim card of c5 lists disclosure a9"
+    rh_has "$(rh_claim "$T/r.html" c1)" 'a2' "the claim card of c1 lists disclosure a2 of its question"
+    rh_has "$(rh_claim "$T/r.html" c1)" 'Control of check k1: not seen\.' "the claim card of c1 has the control sentence"; }
 t_RL4() { # more than one check: they nest under Checks
     rh_kb report_review; printf "check(k8, c1).\n" >> "$K/kb.pl"; okb --dir "$K" report; rc_is 0
     rl_is "c1 with two checks" "  - c1 **introduce**: The widget can be saved
     - Status: fulfilled.
     - Example: Save a widget, close the app, open it again, and see the widget.
+    - Control of check k1: not seen.
+    - Control of check k8: not seen.
     - Checks:
       - k1 (passed)
       - k8 (never run)" "$(rp_item c1)"; }
 t_RL5() { # the other sections: bullets, the label in bold, detail nested
     rh_kb report_review; okb --dir "$K" report; rc_is 0
-    rl_is "q1 (guess)" "  - q1: Is a cold start in scope
-    - The default is no. No human answered it." "$(rp_item q1)"
+    rl_is "q1 and q2 (Residual, Wanted)" "  - q1: Is a cold start in scope
+    - The default is no. No human answered it.
+  - q2: Does saving need a progress bar
+    - The default is no. No human answered it." "$(rp_sub Wanted)"
+    rl_is "Follows" "  - None. No claim has a formal statement." "$(rp_sub Follows)"
     rl_is "a1 (disclosure)" "  - a1 **unverified**: Not measured on a slow disk
     - About c2, by agent." "$(rp_item a1)"
     rl_is "a2 (disclosure)" "  - a2 **guess**: q2
@@ -3087,8 +3140,8 @@ t_RL5() { # the other sections: bullets, the label in bold, detail nested
     rl_is "w1 (waiver in force)" "  - w1 **in force**: claim c3, due 2999-01-01T00:00:00Z" "$(rp_item w1)"
     rl_is "w3 (waiver lapsed)" "  - w3 **lapsed**: claim c5, due 2001-01-01T00:00:00Z
     - The item blocks done again." "$(rp_item w3)"
-    rl_is "c6 (not checked)" "  - c6: The save button has a tooltip
-    - It has no check." "$(rp_sec 'Not checked')"
+    rl_is "c6 (no check: Residual, Happens)" "  - c6: The save button has a tooltip
+    - It has no check." "$(rp_sub Happens)"
     # D32 O1: the Open part names each answer of blocking(X): the under claims and the failing check too
     rl_is "Open: the kind in bold, the first sentence, then the rest nested" "  - **ask**: Ask question q1 now
   - **under**: Claim c2 is current but not fulfilled: Loading stays fast
@@ -3726,8 +3779,8 @@ t_VR5() { vr_ind "$T/k"; K=$T/k
           okb --dir "$K" report; rc_is 0 "report"
           local sec; sec=$(printf '%s\n' "$out" | awk '/^# Review:/{f=1;next} /^# /{f=0} f')
           [ -n "$sec" ] || note "report has no Review section"
-          printf '%s\n' "$out" | grep -E '^# ' | paste -sd' ' | grep -qF '# Claims: # Review: # Formal: # Guesses:' \
-              || note "the Review section comes after Claims, before Formal and Guesses (D31 B3)"
+          printf '%s\n' "$out" | grep -E '^# ' | paste -sd' ' | grep -qF '# Claims: # Review: # Formal: # Residual:' \
+              || note "the Review section comes after Claims, before Formal and Residual (D31 B3)"
           printf '%s\n' "$sec" | grep -Eq '^  - c1: reviewer review \(session s2\), verdict upheld: reran k1; tried an empty input\.$' || note "c1: reviewer, verdict, text: [$(snip "$sec")]"
           printf '%s\n' "$sec" | grep -Eq '^    - Reruns: run 1 k1 pass\.$' || note "c1: its reruns: [$(snip "$sec")]"
           printf '%s\n' "$sec" | grep -Eq '^  - c2: no verdict\.$' || note "c2 has no verdict: [$(snip "$sec")]"
@@ -4170,14 +4223,14 @@ run_test t_RW4 RW4 "D15: closure and E15 work on hypotheses; current, under, bur
 run_test t_RW5 RW5 "D15: help discovery, core, and codes describe rewording and the new W5"
 run_test t_NC1 NC1 "D17: done needs a current claim; whynot done names it"
 run_test t_NC2 NC2 "D17: report and show open on a KB with no claim"
-run_test t_NC3 NC3 "D17: Guesses says no question has a default, unless a human answered one"
+run_test t_NC3 NC3 "D17: Residual, Wanted says no question has a default, unless a human answered one"
 run_test t_NC4 NC4 "D17: a rules.pl clause for any_current_claim is E16"
 run_test t_NC5 NC5 "D17: an empty discovery KB is not ready and votes hold"
 run_test t_HY1 HY1 "0.3.0 c_k_a_1: a build KB and a core KB take the hypothesis of the ticket; the kind change"
 run_test t_HY2 HY2 "0.3.0 c_k_a_1: WD7 and readiness still hold in a KB that uses discovery"
 run_test t_HY3 HY3 "0.3.0 c_k_a_2: premise, premise_checked, no_premises, premise_unchecked; lint W10"
 run_test t_HY4 HY4 "0.3.0 c_k_a_2: a premise of a superseded hypothesis is not asked for"
-run_test t_HY5 HY5 "0.3.0 c_k_a_4: Guesses lists unchecked premises and the defaults of the hypothesis"
+run_test t_HY5 HY5 "0.3.0 c_k_a_4: Residual lists unchecked premises (Happens) and the defaults of the hypothesis (Wanted)"
 run_test t_HY6 HY6 "0.3.0 c_k_a_3b: a restated hypothesis in build needs no system result, also after an approved GO"
 run_test t_HY7 HY7 "0.3.0 q_k_a_3b: after a recorded return to discovery, a new hypothesis needs its system result"
 run_test t_HY8 HY8 "0.3.0 c_k_a_3b: an approval with no GO does not end the orbit; add refuses discovery_end"
@@ -4340,8 +4393,11 @@ run_test t_SH6 SH6 "show and show all"
 run_test t_SH7 SH7 "show with a bad topic exits 2"
 run_test t_RP1 RP1 "report sections in contract order"
 run_test t_RP2 RP2 "report: fulfilled, under, over"
-run_test t_RP3 RP3 "report: guesses"
-run_test t_RP4 RP4 "report: not checked"
+run_test t_RP3 RP3 "report: Residual, Wanted (a default that no human answered)"
+run_test t_RS1 RS1 "philosophy-3 c2: report says if the control of each check was seen, and gives known_when"
+run_test t_RS2 RS2 "philosophy-3 c1: Residual, Follows lists a formal statement that is not proved; the page has the three lists"
+run_test t_RH9 RH9 "report --html: a claim with a burn or a control sentence and a disclosure (the page failed before)"
+run_test t_RP4 RP4 "report: Residual, Happens (a claim with no check)"
 run_test t_RP5 RP5 "report: disclosures"
 run_test t_RP6 RP6 "report without build"
 run_test t_RP7 RP7 "report Open lists what blocks discovery_ready"

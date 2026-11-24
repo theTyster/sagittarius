@@ -20,6 +20,9 @@ Rules:
 
 - Open the ticket with the goal and the first hypothesis of the human when the human gives
   them: record them word for word as the human's, and sharpen or challenge them at once.
+- The human goes first: draft your hypothesis and seal it, ask the human for theirs, then show
+  both. In a hub the question is an ask to the human (`orbit hub ledger add ask`, with
+  `--no-kb` or the ticket's `kb:` ref). Reproduction and exploration go on while it waits.
 - Review's classification informs the goal. It does not go into it. A regression's evidence
   (when the behavior last worked, and what changed after) leads SURVEY.
 - Do not send your claims or models to **review**. To attack a claim before the vote, run

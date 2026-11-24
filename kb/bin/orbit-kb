@@ -13331,6 +13331,27 @@ esc_parts(Eng, BSets, C, Parts) :-
     flare_parts(Eng, BSets, C, FH, FD),
     exclude([H-_]>>(H == ""), [BH-BD, FH-FD], Parts).
 
+% control_parts(+Eng, +CtlBy, +KwBy, +Label, +Ks, -Parts) (philosophy-3 c2): for each check of a
+% claim, a Head-Detail pair that says if the control was seen: the first run of the check that
+% failed before any change that serves the claim. A preserve claim has no control: its check
+% passes before and after. Then, for each check that has one, what was known when the claim and
+% the rule of the check were chosen (known_when/2).
+control_parts(Eng, CtlBy, KwBy, L, Ks, Parts) :-
+    findall(H-"",
+            ( L \== preserve, member(K, Ks),
+              (   eng_lookup(Eng, CtlBy, K, A, ( control(A), attest(A, test_result, _, result(K, _, _), _, _) ), [A1|_])
+              ->  format(string(H), "Control of check ~w: run ~w failed before the change.", [K, A1])
+              ;   format(string(H), "Control of check ~w: not seen.", [K])
+              ) ),
+            Cs),
+    findall(H-"",
+            ( member(K, Ks),
+              eng_lookup(Eng, KwBy, K, T, known_when(K, T), [T1|_]),
+              one_line(T1, TT), as_sentence(TT, TS),
+              format(string(H), "Known when the rule of check ~w was chosen: ~w", [K, TS]) ),
+            Ws),
+    append(Cs, Ws, Parts).
+
 flare_parts(Eng, bs(_, _, WaivBy, FlareS, ShownS), C, Head, Detail) :-
     (   \+ eng_member(Eng, FlareS, C, flare(C)) -> Head = "", Detail = ""
     ;   eng_member(Eng, ShownS, C, flare_shown(C))
@@ -13513,6 +13534,41 @@ rnode(Depth, Text-Kids) :-
     D1 is Depth + 1,
     forall(member(K, Kids), rnode(D1, K)).
 
+% rsub(+Name): the label of one list inside a section (Residual: Wanted, Happens, Follows).
+% Its items are one level deeper: rtree2/3 and rsay2/3.
+rsub(Name) :-
+    format(string(P), "~w:", [Name]),
+    assertz(report_rec(sub(Name), P)),
+    format(string(L), "  - **~w:**", [Name]),
+    rline(L).
+
+rtree2(Tag, Plain, Node) :-
+    assertz(report_rec(Tag, Plain)),
+    rnode(2, Node).
+
+rsay2(Tag, Fmt0, Args) :-
+    name_text(Fmt0, Fmt),
+    format(string(S), Fmt, Args),
+    rtree2(Tag, S, S-[]).
+
+% residual_follows(+KB, +Eng, +Cs, -Pairs, -Any): Pairs is each [Statement, Claim] of a current
+% claim whose formal statement is stated and not proved: no Lean proof of the claim counts, and
+% the statement is not a trusted model with a decided result on the claim. Any is true when a
+% current claim has a formal statement.
+residual_follows(KB, Eng, Cs, Pairs, Any) :-
+    (   has_build(KB) -> eng_all(Eng, [S, C], formal(S, C), All0),
+                         eng_all(Eng, [C1], burn_proved(C1), Pr0)
+    ;   has_discovery(KB) -> eng_all(Eng, [S, C], encodes(S, C), All0), Pr0 = []
+    ;   All0 = [], Pr0 = []
+    ),
+    (   All0 == [] -> Dec = []
+    ;   eng_all(Eng, [M, C2], ( encodes(M, C2), model_trusted(M), model_decided(M, C2) ), Dec)
+    ),
+    findall([S1, C3], ( member([S1, C3], All0), memberchk([C3, _, _], Cs) ), All1),
+    id_sort(All1, All),
+    (   All == [] -> Any = false ; Any = true ),
+    findall([S2, C4], ( member([S2, C4], All), \+ memberchk([C4], Pr0), \+ memberchk([S2, C4], Dec) ), Pairs).
+
 % rsay(+Tag, +Fmt, +Args): a bullet with no nesting.
 rsay(Tag, Fmt0, Args) :-
     name_text(Fmt0, Fmt),
@@ -13635,7 +13691,13 @@ report_text(KB, Eng) :-
     eng_all(Eng, [C, L, T], ( claim(C, L, T), current(C) ), Cs),
     (   Cs == [] -> rsay(none, "No current claims.", []) ; true ),
     % One query per relation, then lookups (see eng_set/4).
-    ( call(Build) -> eng_set(Eng, X1, fulfilled(X1), FulS), burn_sets(Eng, BSets) ; true ),
+    (   call(Build)
+    ->  eng_set(Eng, X1, fulfilled(X1), FulS), burn_sets(Eng, BSets),
+        % philosophy-3 c2: the control of each check, and what was known when its rule was chosen.
+        eng_groups(Eng, CK, CA, ( control(CA), attest(CA, test_result, _, result(CK, _, _), _, _) ), CtlBy),
+        eng_groups(Eng, WK0, WT0, known_when(WK0, WT0), KwBy)
+    ;   true
+    ),
     eng_groups(Eng, C2, K2, check(K2, C2), ChecksBy),
     eng_groups(Eng, C7, E7, example(C7, E7), ExBy),
     check_sets(Eng, KSets),
@@ -13664,7 +13726,10 @@ report_text(KB, Eng) :-
                                ;   format(string(RS), "Check ~w was not shown red by the tool (disclosure ~w).", [RK, RA])
                                ) ), RSs),
                  atomic_list_concat([StDetail0|RSs], ' ', StD2), normalize_space(string(StDetail), StD2),
-                 esc_parts(Eng, BSets, C, Parts),
+                 esc_parts(Eng, BSets, C, Parts0),
+                 eng_lookup(Eng, ChecksBy, C, K0, check(K0, C), Ks0),
+                 control_parts(Eng, CtlBy, KwBy, L, Ks0, CParts),
+                 append(Parts0, CParts, Parts),
                  join_sentences(StHead, StDetail, S1),
                  string_concat(" ", S1, St0),
                  findall(B1, ( member(BHead-BDetail, Parts), join_sentences(BHead, BDetail, B0),
@@ -13690,31 +13755,25 @@ report_text(KB, Eng) :-
     ),
     formal_section(KB, Eng, Cs),
     scope_sections(KB, Eng),
-    rhead('Guesses'),
+    % Philosophy 3.0.0 (philosophy-3 c1): Residual, what could still show the work wrong and that
+    % nobody tested, by question. It takes the place of the sections Guesses and Not checked.
+    rhead('Residual'),
+    % Wanted: only the human reads what is wanted.
     eng_all(Eng, [Q, A], ( assumed(Q, A), not(answered(Q)) ), Gs),
-    % D30 H3: each premise that nobody checked is a guess about the system.
-    eng_all(Eng, [P7, H7, PT7], ( premise(P7, H7, PT7), premise_unchecked(P7) ), Ps7),
-    % 0.8.0 (D52, c4): each current hypothesis that an agent wrote and no human adopted is a guess.
+    % 0.8.0 (D52, c4): each current hypothesis that an agent wrote and no human adopted.
     eng_all(Eng, [HG, HGT], ( hypothesis_guess(HG), hypothesis(HG, _, _, HGT) ), HGs),
+    rsub('Wanted'),
     % D17: say that a human answered only when a question with a default exists.
-    % D30 H3: say that each premise is checked only when a premise of a current hypothesis exists.
-    (   ( Gs \== [] ; Ps7 \== [] ; HGs \== [] ) -> true
-    ;   (   eng_all(Eng, [P8], ( premise(P8, H8, _), not(superseded(H8)) ), [_|_])
-        ->  PremT = "Each premise is checked, and " ; PremT = "" ),
-        (   eng_all(Eng, [Q0], assumed(Q0, _), [_|_])
-        ->  AskT = "a human answered every question with a default.", AskU = "A human answered every question with a default."
-        ;   AskT = "no question has a default.", AskU = "No question has a default."
-        ),
-        (   PremT == "" -> format(string(NoneT), "None. ~w", [AskU])
-        ;   format(string(NoneT), "None. ~w~w", [PremT, AskT])
-        ),
-        rsay(none, "~w", [NoneT])
+    (   ( Gs \== [] ; HGs \== [] ) -> true
+    ;   eng_all(Eng, [Q0], assumed(Q0, _), [_|_])
+    ->  rsay2(none, "None. A human answered every question with a default.", [])
+    ;   rsay2(none, "None. No question has a default.", [])
     ),
     forall(member([HG, HGT], HGs),
            ( one_line(HGT, HGTT),
              (   eng_all(Eng, [HGA], hypothesis(HG, _, agent:HGA, _), [HGA1|_]), atom(HGA1)
-             ->  cap_name(HGA1, HGN), rsay(item(HG), "Hypothesis ~w (~w, agent-written, not adopted): ~w", [HG, HGN, HGTT])
-             ;   rsay(item(HG), "Hypothesis ~w (agent-written, not adopted): ~w", [HG, HGTT])
+             ->  cap_name(HGA1, HGN), rsay2(item(HG), "Hypothesis ~w (~w, agent-written, not adopted): ~w", [HG, HGN, HGTT])
+             ;   rsay2(item(HG), "Hypothesis ~w (agent-written, not adopted): ~w", [HG, HGTT])
              ) )),
     eng_groups(Eng, Q5, QT5, question(Q5, _, QT5), QTextBy),
     forall(member([Q, A], Gs),
@@ -13724,13 +13783,45 @@ report_text(KB, Eng) :-
              format(string(Plain), "~w: ~w The default is ~w. No human answered it.", [Q, QTS, AT]),
              format(string(Head), "~w: ~w", [Q, QTT]),
              format(string(Kid), "The default is ~w. No human answered it.", [AT]),
-             rtree(item(Q), Plain, Head-[Kid-[]]) )),
+             rtree2(item(Q), Plain, Head-[Kid-[]]) )),
+    % Happens: the system answers. D30 H3: each premise that nobody checked; each claim with no check.
+    eng_all(Eng, [P7, H7, PT7], ( premise(P7, H7, PT7), premise_unchecked(P7) ), Ps7),
+    findall([C3, T3], ( member([C3, _, T3], Cs),
+                        \+ ( eng_lookup(Eng, ChecksBy, C3, K3, check(K3, C3), [_|_]) ) ),
+            NCs),
+    rsub('Happens'),
+    (   ( Ps7 \== [] ; NCs \== [] ) -> true
+    ;   % D30 H3: say that each premise is checked only when a premise of a current hypothesis exists.
+        (   eng_all(Eng, [P8], ( premise(P8, H8, _), not(superseded(H8)) ), [_|_])
+        ->  (   Cs == [] -> rsay2(none, "None. Each premise is checked, and no claim is current.", [])
+            ;   rsay2(none, "None. Each premise is checked, and every current claim has a check.", [])
+            )
+        ;   Cs == [] -> rsay2(none, "None. No claim is current.", [])
+        ;   rsay2(none, "None. Every current claim has a check.", [])
+        )
+    ),
     forall(member([P7, H7, PT7], Ps7),
            ( txt(PT7, PTT7), as_sentence(PTT7, PTS7),
              format(string(Kid7), "A premise of hypothesis ~w. Nobody checked it on the system.", [H7]),
              format(string(Plain7), "~w: ~w ~w", [P7, PTS7, Kid7]),
              format(string(Head7), "~w: ~w", [P7, PTT7]),
-             rtree(item(P7), Plain7, Head7-[Kid7-[]]) )),
+             rtree2(item(P7), Plain7, Head7-[Kid7-[]]) )),
+    forall(member([C3, T3], NCs),
+           ( txt(T3, TT3),
+             as_sentence(TT3, TTS3),
+             format(string(Plain3), "~w: ~w It has no check.", [C3, TTS3]),
+             format(string(Head3), "~w: ~w", [C3, TT3]),
+             rtree2(item(C3), Plain3, Head3-["It has no check."-[]]) )),
+    % Follows: a formal tool answers. Each formal statement of a current claim that is stated
+    % and not proved: no Lean proof of the claim counts, and no trusted model decided it.
+    residual_follows(KB, Eng, Cs, FSs, AnyFormal),
+    rsub('Follows'),
+    (   FSs \== [] -> true
+    ;   AnyFormal == true -> rsay2(none, "None. Each formal statement is proved, or decided by a trusted model.", [])
+    ;   rsay2(none, "None. No claim has a formal statement.", [])
+    ),
+    forall(member([FS9, FC9], FSs),
+           rsay2(item(FC9), "~w states claim ~w. It is stated and not proved.", [FS9, FC9])),
     rhead('Disclosures'),
     eng_all(Eng, [I, S0, P, B], attest(I, disclosure, S0, P, B, _), Ds),
     (   Ds == [] -> rsay(none, "None.", []) ; true ),
@@ -13767,20 +13858,6 @@ report_text(KB, Eng) :-
                  rtree(item(W6), Plain, Head-Kids6) ))
     ;   true
     ),
-    rhead('Not checked'),
-    findall([C3, T3], ( member([C3, _, T3], Cs),
-                        \+ ( eng_lookup(Eng, ChecksBy, C3, K3, check(K3, C3), [_|_]) ) ),
-            NCs),
-    (   NCs \== [] -> true
-    ;   Cs == [] -> rsay(none, "None. No claim is current.", [])
-    ;   rsay(none, "None. Every current claim has a check.", [])
-    ),
-    forall(member([C3, T3], NCs),
-           ( txt(T3, TT3),
-             as_sentence(TT3, TTS3),
-             format(string(Plain), "~w: ~w It has no check.", [C3, TTS3]),
-             format(string(Head), "~w: ~w", [C3, TT3]),
-             rtree(item(C3), Plain, Head-["It has no check."-[]]) )),
     rhead('Open'),
     eng_all(Eng, [Q4], to_ask(Q4), Q4s),
     eng_all(Eng, [A4], stale(A4), A4s),
@@ -14438,10 +14515,9 @@ page_write(KB, Eng, Recs, Text, Digest, Done, Css, Js) :-
     page_list(Recs, 'Formal', formal, "Formal", "The formal statement of each claim that has one, beside its plain sentence."),
     forall(member(SN-SI, ['Scope'-scope, 'Risk'-risk, 'Not explored'-not_explored]),
            ( memberchk(head(SN)-_, Recs) -> page_list(Recs, SN, SI, SN, "") ; true )),
-    page_list(Recs, 'Guesses', guesses, "Guesses", "Defaults that no human answered, and premises that nobody checked. Say if one is wrong."),
+    page_list(Recs, 'Residual', residual, "Residual", "What could still show this wrong, and that nobody tested. Wanted: defaults and hypotheses that no human confirmed. Happens: premises and claims that no check covered. Follows: what is stated and not proved. Say if one is wrong."),
     page_list(Recs, 'Disclosures', disclosures, "Disclosures", ""),
     (   has_build(KB) -> page_list(Recs, 'Waivers', waivers, "Waivers", "") ; true ),
-    page_list(Recs, 'Not checked', not_checked, "Not checked", ""),
     (   has_discovery(KB) -> page_list(Recs, 'Vote', vote, "Vote", "") ; true ),
     format("<section data-section=\"text\" id=\"text\">~n<h2>Plain text</h2>~n<details><summary>The text of orbit-kb report</summary>~n<pre class=\"text\">", []),
     he(Text),
@@ -14500,8 +14576,10 @@ page_list(Recs, Head, Id, Title, Lead) :-
            ( strip_dash(S, S1),
              (   Tag = item(X)
              ->  format("<li>", []), he(S1),
-                 (   Head == 'Not checked' -> esc(X, XE), format(" <a href=\"#claim-~w\">See claim ~w.</a>", [XE, XE]) ; true ),
+                 (   Head == 'Residual', memberchk(claim(X, _, _, _, _, _, _)-_, Recs) -> esc(X, XE), format(" <a href=\"#claim-~w\">See claim ~w.</a>", [XE, XE]) ; true ),
                  format("~n", []), mark_box(X), format("</li>~n", [])
+             ;   Tag = sub(_)
+             ->  format("<li class=\"plain\"><strong>", []), he(S1), format("</strong></li>~n", [])
              ;   format("<li class=\"plain\">", []), he(S1), format("</li>~n", [])
              ) )),
     format("</ul>~n</section>~n", []).
@@ -14536,7 +14614,9 @@ page_claim(KB, Eng, C, L, TT, SK, St0, BT, KStates) :-
     format("</div>~n<p class=\"ctext\">", []), he(TT), format("</p>~n", []),
     (   St0 == "" -> true
     ;   trim_lead(St0, S1), format("<p class=\"sentence\">", []), he(S1),
-        ( BT == "" -> true ; format(" ", []), trim_lead(BT, B1), he(B1) ),
+        % BTrim, not B1: B1 is a parameter of the lambda of the disclosures below, and a
+        % variable that this clause binds would not unify with a disclosure's author.
+        ( BT == "" -> true ; format(" ", []), trim_lead(BT, BTrim), he(BTrim) ),
         format("</p>~n", [])
     ),
     % checks, with the latest run of each
@@ -15219,8 +15299,13 @@ help_lines(report, [
 "Delivered, KB (the KB directory and each request, word for word), Signals (each of the six:",
 "no, or yes and each record: a signal fact, a divergence, a burn; then each lean back),",
 "Hypothesis (with its premises), Claims (each with its",
-"examples), Formal (a theorem and its statement, or a model and its property; or None), Guesses",
-"(defaults and unchecked premises), Disclosures, Waivers (build), Not checked, Open, To land.",
+"examples; with the build module, each check with its control: the run that failed before the",
+"change, or \"not seen\"; and what was known when its rule was chosen, when the KB records it),",
+"Formal (a theorem and its statement, or a model and its property; or None), Residual (what could",
+"still show the work wrong, and that nobody tested, in three lists. Wanted: each default that no",
+"human answered, and each current hypothesis that an agent wrote and no human adopted. Happens:",
+"each premise that nobody checked, and each current claim with no check. Follows: each formal",
+"statement that is stated and not proved), Disclosures, Waivers (build), Open, To land.",
 "With the discovery module it drafts the discovery report too: System (what the system showed) and",
 "Findings (each marked as from the system or from a model only) before Claims; Scope, Risk and",
 "Not explored after Formal (also without the module, when the KB has such facts).",

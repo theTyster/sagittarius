@@ -88,7 +88,11 @@ RESTATE: pin the report
   4. If the report holds two problems, write two goals. Ask the human if they are one
      ticket or two.
   5. Under the goal, write each avenue that you will test as a hypothesis, with the case that
-     would defeat it.
+     would defeat it. The human goes first: draft your hypothesis and seal it (write it down,
+     and do not show it), ask the human for theirs (how they think to get there, and what
+     would change their mind), then show both. In a hub the question is an ask to the human
+     (orbit hub ledger add ask, with --no-kb or the kb: ref of the ticket). The reproduction
+     and the exploration go on while it waits.
   6. Set a lap budget: three laps by default.
   7. If nothing needs learning, propose the build orbit.
   Record:
@@ -126,9 +130,13 @@ The goal (the claims, the checks, and the vote rest on it)
   - Write it wide. Where the report leaves a choice open, write your default into the
     sentence, where the human can see it. For the scope, the default is the widest reading.
   - Remove words. Stop when the next removal empties it or changes its meaning.
+  A statement can be wrong in two directions. It is soft when no case can break it: it says
+  too little. It is brittle when it breaks on a case that should not matter: it says more than
+  anyone gave it.
   An example of the meaning, not a template. The report: "members got the wrong loyalty points".
-  - Too strong: "The tier is read from a cache that loads once." It names a cause.
-  - Not tempered: "Points depend on something other than the purchase." No case shows it false.
+  - Brittle: "The tier is read from a cache that loads once." It names a cause.
+  - Soft: "Points depend on something other than the purchase." No case shows it false: it is
+    not tempered.
   - Fit: "The amount of a purchase and the member's tier on that day decide its points."
     Premise: the points table did not change in that time.
   The report says one thing more: "some purchases get a different number today". That is a

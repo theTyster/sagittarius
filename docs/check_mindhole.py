@@ -351,8 +351,8 @@ def pr():
                         ("needs a proof", "a claim that burns (in words without the KB term burn, which check_kit_release c3 bans)"), ("changes hands", "a handoff"), ("careful message", "effort")):
             check(f"pr Start light names the signal {what}", w in s, s[:300])
     for k, v in parts.items():
-        if "only the work that the request needs" in flat(v):
-            check(f"pr the part '{k}' cites The orbit for 'only the work that the request needs'", "The orbit" in cites[k], cites[k])
+        if "only the work that could change what happens next" in flat(v):
+            check(f"pr the part '{k}' cites The orbit for 'only the work that could change what happens next'", "The orbit" in cites[k], cites[k])
     check("pr PRINCIPLES.md does not say 'not logs' (the prompt does not)", "not logs" not in flat(t))
     # scientific-method-overhaul c10, c12, c16: 71 lines outside the generated vocabulary block (it was 60 in all)
     n = len(t.splitlines()) - sum(b.count("\n") for b in re.findall(r"<!-- vocabulary:begin -->.*?<!-- vocabulary:end -->\n?", t, re.S))

@@ -244,17 +244,22 @@ The digest in step 7 depends on the text of your `ticket.md`.
       - (Write what you delivered here.)
 
     # Claims:
-      - c1 **introduce**: The Buy button is purple. Status: fulfilled. Checks: k1 (passed).
+      - c1 **introduce**: The Buy button is purple.
+        - Status: fulfilled.
+        - Control of check k1: not seen.
+        - Checks: k1 (passed).
 
-    # Guesses:
-      - q2: Does the hover color change too?
-        - The default is yes. No human answered it.
+    # Residual:
+      - **Wanted:**
+        - q2: Does the hover color change too?
+          - The default is yes. No human answered it.
+      - **Happens:**
+        - None. Every current claim has a check.
+      - **Follows:**
+        - None. No claim has a formal statement.
 
     # Disclosures:
       - None.
-
-    # Not checked:
-      - None. Every current claim has a check.
 
     # Open:
       - **ask**: Ask question q2 now
@@ -262,6 +267,10 @@ The digest in step 7 depends on the text of your `ticket.md`.
     # To land:
       - (Write the steps to land the work here.)
     ```
+
+    The control of `k1` is "not seen": step 4 recorded the change that serves `c1` before the
+    first run of the check, so the failed run of step 9 does not count as a run before the
+    change. Run the check before you record the change, and the report names that run.
 
 The `kb.pl` file after step 16:
 
@@ -899,8 +908,17 @@ Exit: 0. 2 on an unknown topic, or on E1 or E2 in a source file.
 ### `report`
 
 Prints a skeleton of a delivery report with these sections: `Delivered:`,
-`Claims:`, `Guesses:`, `Disclosures:`, `Waivers:` (with the `build` module),
-`Not checked:`, `Open:`, `To land:`.
+`Claims:`, `Residual:`, `Disclosures:`, `Waivers:` (with the `build` module),
+`Open:`, `To land:`. `Residual:` is what could still show the work wrong, and that
+nobody tested. It has three lists, one for each question of the prompt. `Wanted:` has
+each default that no human answered, and each current hypothesis that an agent wrote
+and no human adopted. `Happens:` has each premise that nobody checked, and each current
+claim with no check. `Follows:` has each formal statement of a current claim that is
+stated and not proved: no Lean proof of the claim counts, and no trusted model decided it.
+With the `build` module, each claim of `Claims:` that is not a `preserve` claim says for
+each of its checks if the control was seen: `Control of check k1: run a3 failed before
+the change.` or `Control of check k1: not seen.` A check with a `known_when` fact adds
+`Known when the rule of check k1 was chosen: TEXT`.
 You write `Delivered` and `To land` yourself. Step 16 of section 3 shows an
 example. The text is plain Markdown that also reads as raw text (D16 c4). Each
 section has a heading, `# Claims:`, and a blank line before the next heading.
@@ -922,9 +940,9 @@ and id of its target, its due time, and whether it is in force or lapsed.
 check, or a question), and each proof that no longer counts. With the `build`
 module, when no claim is current, `Open:` says `**no claim**: No claim is
 current`, because `done` is false without a current claim (D17). When no question
-has a default, `Guesses:` says `None. No question has a default.` It says that a
+has a default, `Wanted:` says `None. No question has a default.` It says that a
 human answered every question only when a question with a default exists. When
-no claim is current, `Not checked:` says `None. No claim is current.`
+no claim is current, `Happens:` says `None. No claim is current.`
 With the `discovery` module, a `Vote:` section comes before `To land:` (D14).
 Until the human votes in the current round, it says only whether the agent
 voted, and it does not show the agent's choice or the formal artifacts' vote.
@@ -945,7 +963,9 @@ works from `file://`. It shows:
   link to `runs/N-CHECK.log`). Its evidence expands below it: citations,
   examples, divergences with their notes, disclosures, waivers with the due
   time, questions, and notes. It starts open when the claim needs attention;
-- the guesses, disclosures, waivers, `Not checked:`, and `Vote:` lines, and
+- the `Residual:` lists (a claim with no check in `Happens:` and a formal statement in
+  `Follows:` have the link "See claim" to their claim),
+  the disclosures, waivers, and `Vote:` lines, and
   the plain text at the end.
 
 The page is built from the lines that `report` prints, so the two always say

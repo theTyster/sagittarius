@@ -22,7 +22,7 @@ Read this topic, then run one command:
                 Without --goal, --hypothesis TEXT is the 0.7.2 form, hypothesis(h1, K, TEXT),
                 read as the goal (a note on stderr says so).
   --premise     one premise each time, on the goal: premise(p1, g1, TEXT), p2, ... A premise
-                that you did not check is a guess (report, Guesses). --no-premises records
+                that you did not check is residual (report: Residual, Happens). --no-premises records
                 "Premises: none" (no_premises(g1), and no_premises(hy1) with --goal). Give one.
   --claim       claim(c1, L, TEXT). L is introduce (the default), retire, or preserve.
                 cites(c1, ...) gets the first line of the request, or --cites TEXT. With

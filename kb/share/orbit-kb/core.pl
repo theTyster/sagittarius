@@ -381,7 +381,7 @@ decl(rule, claim_under_current(ref(claim)),
      'A current hypothesis predicts the claim.',
      'a current hypothesis predicts claim @(1)').
 decl(rule, hypothesis_guess(ref(hypothesis)),
-     'An agent wrote the hypothesis, no human adopted it, and it is current. The report lists it under Guesses.',
+     'An agent wrote the hypothesis, no human adopted it, and it is current. The report lists it under Residual, Wanted.',
      'hypothesis @(1) is a guess: agent-written, not adopted').
 decl(rule, record_step(ref, ref),
      'One step up inside the records of the KB: a run to its check, a check to its claim, a claim to its hypothesis or to the current goal, a hypothesis to its goal.',

@@ -25,7 +25,7 @@ From the prompt: "The ticket"
 ## Orbit the intent; deliver clear, accurate, honest, fast
 
 Go back to the source on each step: the request and the current system. Deliver clear, accurate (no
-less, no more than the request), honest and fast: do only the work that the request needs.
+less, no more than the request), honest and fast: only the work that could change what happens next.
 From the prompt: "The orbit"
 
 ## The human owns the intent; no party grades its own work
@@ -37,9 +37,9 @@ From the prompt: "Who judges what"
 
 ## State the goal and the hypothesis, and go on
 
-State the goal and each hypothesis apart, and assume little. For a plain request the agent drafts
-both and says that they are its own. Say which result you expect and which case would show the
-hypothesis false, with the premises beside it ("Premises: none"). Then go on: you do not ask.
+State the goal and each hypothesis apart, and assume little. Say which result you expect and which
+case would show the hypothesis false, with the premises beside it ("Premises: none"). For a plain
+request the agent drafts both as its own and goes on. In discovery the human goes first.
 From the prompt: "The goal"
 From the prompt: "The hypothesis"
 
