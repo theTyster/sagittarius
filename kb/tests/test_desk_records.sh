@@ -8,6 +8,7 @@
 #   DR4 judge a case, judge the goal: the review first, then the judgment of the human in the KB
 #   DR5 the set of items equals that of the Desk of 0.7.2 on the same hub
 #   DR6 the labels carry the canonical sentences of vocabulary.json
+#   DR8 a stale verdict; a hypothesis that a confirmed location defeated; its claim shown apart
 #   DR7 the same in a headless Chromium (k24); SKIP with no Chromium or no Node 22
 # The Desk of 0.7.2 for DR5: $ORBIT_KB_BASE (a checkout of 0.7.2), else git archive v0.7.2 of this repo.
 QS_LIB_ONLY=1
@@ -204,6 +205,34 @@ JS
     has_goal "$kb" "attest(_, adoption, hy2, adopted, human, _)" "the adoption of the human, from the browser"
     has_goal "$kb" "attest(_, judgment, g1, case(_, not_wanted), human, _)" "the judgment of the human, from the browser"
 }
-for n in 1 2 3 4 5 6 7; do run_one DR$n; done
+t_DR8() {  # a stale verdict has the badge stale; a confirmed location defeats its hypothesis, with the evidence as the case; the claim of that hypothesis is apart, not among the open claims
+    rec_hub "$T/h"; local kb="$T/h/specs/replay"
+    cat >> "$kb/kb.pl" <<'EOF2'
+change(x1, 'The replay compares the stored record').
+serves(x1, c2).
+change_at(x1, '2026-11-23T12:00:00Z').
+attest(a6, location, a4, located(hypothesis(hy2), 'The build skips only equal records, and the count still differs'), agent, '2026-11-23T12:10:00Z').
+attest(a7, confirmation, a6, confirms('Seen on the November file'), human, '2026-11-23T12:20:00Z').
+EOF2
+    srvd --hub "$T/h" || return; page_ok || return
+    chk raw "$T/page.html" '!class="banner error"' '!cannot be read'
+    sec "$T/page.html" replay || { note "no card of the ticket replay"; return; }
+    python3 -I - "$T/sec.html" > "$T/dr8.txt" <<'PY' || note "the card: $(snip "$(cat "$T/dr8.txt")")"
+import re,sys
+b=open(sys.argv[1],encoding='utf-8').read(); bad=[]
+def row(k): m=re.search(r'<div class="chk"><span class="ref">%s</span>(.*?)</div>' % k, b, re.S); return m.group(1) if m else ''
+if 'b-stale' not in row('k3'): bad.append('k3 (a change that serves c2 came after its run) has no stale badge')
+if 's-defeated" data-hyp="hy2"' not in b: bad.append('hy2 is not shown as defeated')
+if 'Defeated by a located conflict: The build skips only equal records, and the count still differs' not in b: bad.append('no evidence of the location as the case')
+m=re.search(r'<p class="quiet notcurrent" data-claim="c1">(.*?)</p>', b, re.S)
+if not m or 'not current (its hypothesis hy2 is defeated)' not in m.group(1): bad.append('c1 is not shown apart as not current')
+if '<div class="claimrow"><p><span class="ref">c1</span>' in b: bad.append('c1 is still among the open claims')
+if '<div class="claimrow"><p><span class="ref">c2</span>' not in b: bad.append('c2, a claim of the goal, left the claims')
+print('; '.join(bad)); sys.exit(1 if bad else 0)
+PY
+    local tok; tok=$(pg dtoken "$T/page.html")
+    review "token=$tok" "hub=$T/h" "item=adopt:$kb#hy2"; code_is 409 "Adopt of a hypothesis that a confirmed location defeated"
+}
+for n in 1 2 3 4 5 6 7 8; do run_one DR$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
