@@ -2376,8 +2376,12 @@ t_HE1() { local hb; hb=$(he_text build)
           grep -qiP 'cannot tell.{0,200}divergence' <<< "$hb" || note "help build: if you cannot tell, say so, and treat it as a divergence"; }
 t_HE2() { local hb hd h0; hb=$(he_text build); hd=$(he_text discovery); okb help; h0=$out
           grep -qF 'If the problem is wrong, run orbit-kb uses discovery, and go back to discovery' <<< "$hb" && note "help build sends every wrong problem back to discovery"
-          grep -qE 'supersedes\(h2, ?h1\)' <<< "$hb" || note "help build has the recipe to restate the hypothesis: supersedes(h2, h1)"
-          grep -qiE 'no longer say what (the hypothesis|it) changes to' <<< "$hb" || note "help build: discovery only when you can no longer say what the hypothesis changes to"
+          grep -qE 'supersedes\(g2, ?g1\)' <<< "$hb" || note "help build has the recipe for a goal that the human corrects: supersedes(g2, g1) (0.8.0 review H1)"
+          grep -qE 'carried\(' <<< "$hb" || note "help build carries over what still counts to the new goal (0.8.0 review H1)"
+          grep -qiE 'restate it: the new hypothesis|"hypothesis\(h2,' <<< "$hb" && note "help build tells build to restate a hypothesis (0.8.0 review H1)"
+          grep -qiP 'locate the conflict first.{0,300}in the build.{0,200}hypothesis stays current' <<< "$hb" || note "help build: locate first; in the build the hypothesis stays current (0.8.0 review H1)"
+          grep -qiP 'in a premise or in the hypothesis.{0,400}defeated.{0,200}discovery' <<< "$hb" || note "help build: located in a premise or the hypothesis, it is defeated and goes to discovery (0.8.0 review H1)"
+          grep -qiE 'no longer say what (the hypothesis|the goal|it) changes to' <<< "$hb" || note "help build: discovery only when you can no longer say what the goal changes to"
           grep -qF 'When a divergence shows that the problem is wrong, not the build, file a disclosure, and run orbit-kb uses discovery' <<< "$hd" && note "help discovery BACK takes every wrong problem back"
           grep -qiP 'BACK.{0,400}no longer say what' <<< "$hd" || note "help discovery BACK: only when the agent can no longer say what the hypothesis changes to"
           grep -qF '"why?" question' <<< "$h0" && note "the first help screen sends a why? question to discovery"
