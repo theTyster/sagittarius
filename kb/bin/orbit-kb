@@ -4121,7 +4121,9 @@ kb_lines_commented(File, LTs, Out) :-
 % itself when it made it), and exits with the code of add. The ids are fixed: h1, p1..pN, c1.
 % 0.8.0 (review H1): --goal T [--goal-by human|agent] makes --hypothesis the avenue under the goal:
 % goal(g1, ...), hypothesis(hy1, g1, ...), defeating_case(hy1, ...) with --defeating-case; the
-% premises go on g1. Without --goal the facts, stdout and exit code are those of 0.7.2, and the
+% premises go on g1 (--no-premises also records no_premises(hy1)), and an introduce or retire claim
+% is a prediction of hy1: predicts(hy1, c1) (review S1).
+% Without --goal the facts, stdout and exit code are those of 0.7.2, and the
 % note of D50 on hypothesis/3 goes to stderr.
 
 cmd_shift(Args, Code) :-
@@ -4177,7 +4179,9 @@ cmd_shift(Args, Code) :-
                ; memberchk('--no-premises'-true, Opts), F = no_premises(Top)
                ; nth1(I, Prems, PT), atom_concat(p, I, PId), F = premise(PId, Top, PT)
                ; member(F, HypFacts)
+               ; GoalT \== none, memberchk('--no-premises'-true, Opts), F = no_premises(hy1)
                ; F = claim(c1, Label, CT)
+               ; GoalT \== none, Label \== preserve, F = predicts(hy1, c1)   % review S1: a preserve claim stays on the goal
                ; F = cites(c1, Cites)
                ; F = example(c1, ET)
                ; F = check(KId, c1)
@@ -11685,6 +11689,7 @@ tool_name(N) :-
 
 % name_text(+Text0, -Text): under the name orbit, a help or error line says orbit where it
 % says orbit-kb. A path keeps its name (share/orbit-kb, .claude/orbit-kb/bin/orbit-kb, orbit-kb-NAME).
+% The pair of names ("orbit and orbit-kb") keeps both.
 % Under the name orbit-kb nothing changes.
 name_text(T0, T) :-
     (   tool_name(orbit), ( string(T0) ; atom(T0) )
@@ -11703,6 +11708,7 @@ name_swap(S0, S) :-
 
 name_in_path(Pre, Post) :-
     (   sub_string(Pre, _, 1, 0, C), memberchk(C, ["/", "_", "-"]) -> true
+    ;   sub_string(Pre, _, _, 0, "orbit and ") -> true     % review S2: "the two names: orbit and orbit-kb"
     ;   sub_string(Post, 0, 1, _, D), memberchk(D, ["/", "_", "-"])
     ).
 

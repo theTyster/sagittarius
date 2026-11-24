@@ -2471,6 +2471,7 @@ t_SF10() { K=$T/g; sf_shift "$K" --goal 'Every screen can be dark' --hypothesis2
           has_fact "$K/kb.pl" "hypothesis(hy1, g1, human, 'A theme switch makes every screen dark')" "hypothesis/4 under the goal"
           has_fact "$K/kb.pl" "defeating_case(hy1, human, 'a screen stays light after the switch')" "the defeating case"
           has_fact "$K/kb.pl" "premise(p1, g1, 'the app has a theme switch')" "the premise is on the goal"
+          has_fact "$K/kb.pl" "predicts(hy1, c1)" "review S1: predicts"; no_fact "$K/kb.pl" "no_premises(_)" "a --premise adds no no_premises"
           no_fact "$K/kb.pl" "hypothesis(_, _, _)" "no hypothesis/3"
           out_has "^goal\(g1, feature, human, 'Every screen can be dark'\)\.$" "stdout lists the goal"
           any_hasnt 'hypothesis/3 is the 0.7.2 form' "no note: no hypothesis/3 was written"
@@ -2478,6 +2479,11 @@ t_SF10() { K=$T/g; sf_shift "$K" --goal 'Every screen can be dark' --hypothesis2
           K=$T/a; okb shift "$K" --request-file "$T/req.txt" --goal 'G' --hypothesis 'H' --no-premises --claim x --example y --check k1 --checks-that z
           rc_is 0; has_fact "$K/kb.pl" "goal(g1, feature, agent, 'G')" "--goal-by is agent by default"; has_fact "$K/kb.pl" "no_premises(g1)"
           has_fact "$K/kb.pl" "hypothesis(hy1, g1, agent, 'H')"; no_fact "$K/kb.pl" "defeating_case(_, _, _)" "no defeating case without --defeating-case"
+          has_fact "$K/kb.pl" "no_premises(hy1)" "review S1: --no-premises also on the hypothesis"; has_fact "$K/kb.pl" "predicts(hy1, c1)" "review S1: the claim is a prediction of hy1"
+          okb --dir "$K" lint; rc_is 0; out_hasnt '^W10 ' "review S1: no W10 after shift --goal --no-premises"; out_hasnt '^W16 ' "review S1: no W16 after shift --goal"
+          K=$T/pr; okb shift "$K" --request-file "$T/req.txt" --goal 'G' --hypothesis 'H' --no-premises --claim x --label preserve --example y --check k1 --checks-that z
+          rc_is 0 "a preserve claim"; no_fact "$K/kb.pl" "predicts(_, _)" "review S1: a preserve claim stays on the goal"
+          okb --dir "$K" lint; rc_is 0; out_hasnt '^W16 ' "no W16 for a preserve claim"
           okb shift "$T/b" --request-file "$T/req.txt" --goal 'G' --goal-by robot --hypothesis 'H' --no-premises --claim x --example y --check k1 --checks-that z
           rc_is 2 "--goal-by takes human or agent"; [ -e "$T/b" ] && note "a usage error leaves no directory"
           okb shift "$T/c" --request-file "$T/req.txt" --defeating-case 'D' --hypothesis 'H' --no-premises --claim x --example y --check k1 --checks-that z

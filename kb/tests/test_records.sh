@@ -268,6 +268,9 @@ if want u1; then   # review U1: the tool names itself as it was called (argv0) i
     oo show open; has Ru1-orbit-confirm "orbit confirm "; hasnt Ru1-orbit-open-no-orbit-kb "orbit-kb"
     oo report; hasnt Ru1-orbit-report-no-orbit-kb "orbit-kb "
     okb show open; has Ru1-kb-confirm "orbit-kb confirm "
+    for n in "$CLI" "$ORBIT"; do   # review S2: the sentence that names both names keeps both
+        "$n" help hub 2>/dev/null | grep -qF 'The command has two names: orbit and orbit-kb.' && ok "Rs2-both-names-${n##*/}" || bad "Rs2-both-names-${n##*/}" "$("$n" help hub | sed -n 3p)"
+    done
 fi
 
 if want u4; then   # review U4: lists of ids sort by number (c1, c2, c10), not as text (c1, c10, c2)
