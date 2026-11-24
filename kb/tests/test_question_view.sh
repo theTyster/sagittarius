@@ -536,7 +536,10 @@ t_QV31() {  # a question with option facts for only some options: the others say
     chk effects "$T/page.html" q2 'other='
 }
 t_QV32() {  # option/3 is a core fact: add accepts it, lint is clean, help core lists it, it changes no rule
-    kb_a "$T/a"; okb --dir "$T/a" lint; local before=$out
+    kb_a "$T/a"
+    # review G1 (0.8.0): after the first write a ticket states its goal (lint EB1); this test is about option/3
+    printf "goal(g0, feature, human, 'The goal of this test.').\nno_premises(g0).\n" >> "$T/a/kb.pl"
+    okb --dir "$T/a" lint; local before=$out
     okb --dir "$T/a" add "option(q1, yes, 'Shows newest first')"; rc_is 0 "add option/3" || return
     okb --dir "$T/a" lint; rc_is 0 "lint after option/3"
     okb --dir "$T/a" add "option(zz, yes, 'x')"; rc_is 1 "option of a missing question"
