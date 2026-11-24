@@ -438,9 +438,9 @@ the light path is this same response at the first level.
    party that did not make it.
 
 **Formal language.** A formal statement needs no signal. A formal language can enter at
-three moments: while you form the hypothesis (a definition forces a choice that the words
-left open), while you explore interpretations (a query or a solver finds the case on which
-two readings differ), and while you verify the chosen claim (a proof or a model check shows
+three moments: while forming the hypothesis (a definition forces a choice that the words
+left open), while exploring interpretations (a query or a solver finds the case on which
+two readings differ), and while verifying the chosen claim (a proof or a model check shows
 what follows from the agreed premises). One rule decides at each moment: formalize the
 smallest claim whose precision could change what the human or the agent does next. When one
 example settles the question, the example is enough: write no formal statement. With each

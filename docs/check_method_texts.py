@@ -111,8 +111,8 @@ def c11():
 
 def c13():
     return need(PROMPT, ["A formal statement needs no signal", "A formal language can enter at three moments",
-                         "while you form the hypothesis", "while you explore interpretations",
-                         "while you verify the chosen claim", RULE,
+                         "while forming the hypothesis", "while exploring interpretations",
+                         "while verifying the chosen claim", RULE,
                          "the example is enough: write no formal statement",
                          "record the claim that it states and the decision that its precision could change"]) \
         + lack(PROMPT, ["and not before", "add rigor only on a signal"])
