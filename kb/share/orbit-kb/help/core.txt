@@ -120,6 +120,8 @@ Attestation types
                | self_error(Text) | other(Text)                      agent or human
   divergence   claim(C) | hypothesis(H) | model(M)                   human or agent
                Put the description in a note.
+               The fact below is named verdict/2 for 0.7.2 compatibility; it is a disproof
+               result, not a verdict of an experiment.
   disproof     verdict(C, upheld(Text) | refuted(Text) | inconclusive(Text) | abstained(Text))
                agent. The text says what was tried. upheld(Text): the attempt did not break
                the claim. Put the counterexample in the text of refuted. The bare inconclusive

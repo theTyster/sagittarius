@@ -87,7 +87,7 @@ FULFILL: fulfillment in both directions (verify)
     This records what it saw: the ticket, the KB stamp, and the diff (review_saw).
   - It reruns every check of each claim itself:
       ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review orbit-kb run --as review k1 -- CMD
-  - It records one verdict for every current claim, with what it tried, and the runs that
+  - It records one disproof result for every current claim, with what it tried, and the runs that
     the verdict rests on:
       ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review orbit-kb attest disproof c1 "verdict(c1, upheld('what I tried'))" --as review --rests-on a12
     upheld(Text), refuted(Text), inconclusive(Text), or abstained(Text).
@@ -105,7 +105,7 @@ FULFILL: fulfillment in both directions (verify)
   there. Do not polish beyond the claims.
 
 DISPROVE (verify, and in discovery): before you deliver a burned claim, or when you doubt any
-claim, try to break it within a small budget. Record one disproof verdict (orbit-kb help core).
+claim, try to break it within a small budget. Record one disproof result (orbit-kb help core).
 
 Burns: prove the claim in Lean
   A universal claim, or one that the human asked to prove, needs a Lean proof.
@@ -121,7 +121,7 @@ Burns: prove the claim in Lean
   1. Write Lean definitions of the behavior. State the claim as a theorem.
   2. Add #eval examples. Show them to the human as a table.
   3. Search for a counterexample (for example Plausible) before you prove.
-     If you find one, record lean_result with verdict(C, refuted('THE CASE')) and ask the human.
+     If you find one, record lean_result with the result verdict(C, refuted('THE CASE')) and ask the human.
   4. Prove the theorem. Then: orbit-kb prove C FILE THEOREM
      It records the proof only if the theorem has no sorry, no native_decide, and no
      axiom of its own, and if the kernel accepts it again. Nothing else records a proof.

@@ -294,7 +294,8 @@ SECTIONS = [
         "A result with no winner is HOLD: say what it waits for",
         "Nothing is built or dropped against the human's vote",
         "Only the human changes the scope or raises the budget",
-        "the GO of the human adopts the hypotheses of the report",
+        "adopts each hypothesis that the report marks as adopted by the human",
+        "Every other hypothesis stays proposed until the human adopts it",
     ]),
     ("honesty", [
         "A check that cannot fail is not evidence",

@@ -117,7 +117,7 @@ and the tool refuses an agent's GO vote while one is left. Also orbit-kb whynot 
 Build module (orbit-kb help build)
   WR1  a current claim is not independently verified, and a review is due: no claim is under
        (D28, T38). A reviewer of another role and session reruns a check of it after its
-       last change (orbit-kb run --as ROLE), then records an upheld verdict that rests on
+       last change (orbit-kb run --as ROLE), then records an upheld disproof result that rests on
        that run (attest disproof --rests-on). Only in a KB that records actors or a review.
        A warning: it does not block done.
 
