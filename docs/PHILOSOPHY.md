@@ -3,6 +3,11 @@
 > Philosophy 2.0.0. Proposed on 2026-11-11, for Ty's review. It is a full rework of
 > the text of 2026-11-05 (version 1.0.0), and it replaces that text when Ty ratifies
 > it. Words in quote marks with "(Ty)" are word for word.
+>
+> Philosophy 2.1.0, 2026-11-24 (Sagittarius 0.8.0): the scientific method. Principle 2 states
+> the goal apart from its hypotheses, with the one vocabulary; "Under trial" gains Human-first
+> and four more positions. The other text is that of 2.0.0: where it says "the hypothesis",
+> read the statement of the intent, which is now the goal.
 
 Sagittarius helps a human and an agent to find what the human wants, and then to build it.
 This document holds the beliefs under it. It says why. The prompt says how to act, and
@@ -875,6 +880,11 @@ Use has not yet judged these positions. Each one names what would show it wrong.
 | The formal statement goes to the human with the plain claim. | Ty reports it as noise, or still does not see it. |
 | The formal artifacts vote by readiness, with a knowledge base and without one. | A discovery that was not ready gets a GO that proves right, or a ready one proves wrong, often enough to matter. |
 | One response for every signal. | A signal appears for which the right response has another shape. |
+| Human-first (Ty): "For a task with a consequential misunderstanding present at the outset, an agent starting from the human's goal and self-written tempered hypothesis will expose that misunderstanding earlier and deliver a result the human judges closer to their goal" than an agent that gets an ordinary request. | A paired comparison in which the ordinary request exposes the misunderstanding no later, or gives a result that the human judges no less close. No comparison has run yet. |
+| A ticket is a goal with hypotheses, claims and experiments (Ty: the project hypothesis Sagittarius). | A conflict that cannot be placed on the build, the measurement, a premise or a hypothesis; or a ticket that closes while the human judges that its goal is not satisfied. |
+| Formalize the smallest claim whose precision could change what the human or the agent does next. No signal is needed (Parallax, Shifting). | A dispute in which the formal statement finds the case that tells two readings apart later than plain language does. |
+| Sound Basis (Ty): "Existing behavior is presumed to be preserved. A claim in the specification can identify behavior to change. A demonstrated conflict opens the affected behavior for review." | Reported conflicts that are noise, or a silent change that no conflict reported. |
+| The light path gains no step: no adoption and no recorded judgment. | Ty reports that plain requests got slower, or that "Goal (mine): ... Hypothesis (mine): ..." reads as a ritual. |
 
 This text is the frontier, and the build is behind it in places. Three examples: the report of
 the tool does not yet put a formal statement beside its plain claim, the step from words to
