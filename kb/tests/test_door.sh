@@ -360,8 +360,9 @@ t_DS3() {
 t_DS5() {
     mkhub || return
     local c
-    orb s1-record --dir "$H/specs/alpha" --json; rc_is 0 || return
-    c=$(grep -l "Alpha greets the user" "$XDG_CACHE_HOME"/orbit-kb/s1-record-*.pl 2>/dev/null | head -1)
+    sleep 1; orb s1-record --dir "$H/specs/alpha" --json; rc_is 0 || return
+    # the kept record of this hub (other tests keep records of their own hubs in the same cache)
+    c=$(grep -l "Alpha greets the user" "$XDG_CACHE_HOME"/orbit-kb/s1-record-*.pl 2>/dev/null | xargs -r ls -t | head -1)
     [ -n "$c" ] || { note "no kept record under the cache directory"; return; }
     sed -i 's/Alpha greets the user/KEPT RECORD/' "$c"
     orb s1-record --dir "$H/specs/alpha" --json; [ "$(jsonq 'd["goal"]["text"]')" = "KEPT RECORD." ] || note "the second call does not read the kept record: $(jsonq 'd["goal"]')"
