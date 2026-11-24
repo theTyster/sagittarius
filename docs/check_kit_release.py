@@ -177,6 +177,12 @@ def c1():
         check("c1 the hub has its manifest", os.path.isfile(os.path.join(hub, ".hub-template.json")), hub)
         check("c1 the hub has its flow db", os.path.isfile(os.path.join(hub, "flow", "flow.db")), hub)
         check("c1 the hub has its own orbit-kb and orbit", all(os.access(os.path.join(hub, ".claude", "orbit-kb", "bin", x), os.X_OK) for x in ("orbit-kb", "orbit")), hub)
+        # The hub's own tests run the tool on check commands (true, sh -c, env): those come from the
+        # system, not from the kit. The install block above ran with the README's tools only.
+        for t2 in ("true", "false", "sh", "env"):
+            p2 = shutil.which(t2)
+            if p2 and not os.path.lexists(os.path.join(b, t2)):
+                os.symlink(p2, os.path.join(b, t2))
         p = run([shutil.which("python3", path=b), os.path.join(".claude", "scripts", "hubflow-test.py")], cwd=hub, env=env, timeout=900)
         n = last_counts(p.stdout)
         check("c1 the hub's own tests pass there (N passed, 0 failed)", p.returncode == 0 and n and n[1] == 0 and n[0] >= 100,
