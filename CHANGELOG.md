@@ -59,6 +59,11 @@ Ty, 2026-11-23). Philosophy 2.1.0.
   A conflict is located (build, measurement, premise, hypothesis) before anything is reopened.
 - **Judgments of the human.** A ticket with a KB is done when nothing holds it up and the human
   judged that its goal is satisfied. A ticket that was done before the upgrade stays done.
+  A ticket of 0.8.0 that states no goal is not done (`goal_missing`, lint EB1). `judge` and `adopt
+  --by human` keep the human's words (`--note`); an agent session must give them.
+- **The command.** `orbit` and `orbit-kb` are one program, and each screen names the tool as it was
+  called. `shift --goal` writes the goal and the hypothesis under it. `orbit hub orphans` lists the
+  open items with no chain to a project goal, grouped by where the chain ends.
 - **The texts.** The prompt, the pane prompts, the philosophy, the kit texts and the help share one
   vocabulary (`docs/vocabulary.json`). Sound Basis is stated in Ty's words. Formal language can
   enter while forming the hypothesis, while exploring, and while verifying.
