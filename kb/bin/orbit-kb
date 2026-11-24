@@ -6448,12 +6448,29 @@ desk_hub_load(Name, Path, HD) :-
     desk_hub_kbs(Path, Asks, St, KBs),
     HD = hd{name:Name, path:Path, st:St, owner:Owner, asks:Asks, kbs:KBs, err:Err}.
 
+% desk_kb_project(+Dir, -P), desk_is_project_kb(+Dir) (review U5): serve_kb_project/2 and
+% serve_is_project_kb/1, read once per state of kb.pl: each parses the whole kb.pl, and a page asked
+% them about 70 times per GET.
+:- dynamic desk_kbinfo_cache/4.
+desk_kbinfo(Dir, P, IsP) :-
+    directory_file_path(Dir, 'kb.pl', F),
+    get_time(Now), B is floor(Now / 60),      % as the engines: at most a minute old (the project KB it names can move)
+    ( exists_file(F) -> time_file(F, T), size_file(F, Sz), St = B-T-Sz ; St = B-none ),
+    (   desk_kbinfo_cache(Dir, St, P0, IsP0) -> P = P0, IsP = IsP0
+    ;   ( serve_kb_project(Dir, P0) -> true ; P0 = none ),
+        ( serve_is_project_kb(Dir) -> IsP0 = true ; IsP0 = false ),
+        retractall(desk_kbinfo_cache(Dir, _, _, _)), assertz(desk_kbinfo_cache(Dir, St, P0, IsP0)),
+        P = P0, IsP = IsP0
+    ).
+desk_kb_project(Dir, P) :- desk_kbinfo(Dir, P0, _), P = P0.
+desk_is_project_kb(Dir) :- desk_kbinfo(Dir, _, true).
+
 % desk_hub_kbs(+Hub, +Asks, +St, -KBs): the KBs of a hub: its spec KBs, its project KB, and each KB
 % outside the hub that a kb ref of the ledger names (q5: kb:/path or kb:~/path).
 desk_hub_kbs(Hub, Asks, St, KBs) :-
     serve_find_kbs(Hub, Ds0), maplist(serve_norm, Ds0, Ds),
-    findall(P, ( member(D, Ds), serve_kb_project(D, some(P)) ), Ps0),
-    findall(D, ( member(D, Ds), ( memberchk(D, Ps0) ; serve_is_project_kb(D) ) ), PKs0), sort(PKs0, PKs),
+    findall(P, ( member(D, Ds), desk_kb_project(D, some(P)) ), Ps0),
+    findall(D, ( member(D, Ds), ( memberchk(D, Ps0) ; desk_is_project_kb(D) ) ), PKs0), sort(PKs0, PKs),
     findall(K, ( member(D, Ds), \+ memberchk(D, PKs), desk_slug(Hub, D, Sl), atom_string(Sl, Ref),
                  desk_kb_rec(Hub, D, Ref, spec, K) ), Specs),
     findall(K, ( member(D, PKs), desk_slug(Hub, D, Sl), atom_string(Sl, Ref), desk_kb_rec(Hub, D, Ref, project, K) ), Projs),
@@ -7658,7 +7675,7 @@ desk_rail_hub(HD, Cards, Unwrap, Html) :-
     include([K]>>get_dict(kind, K, project), HK, PKs),
     include([K]>>get_dict(kind, K, spec), HK, SKs),
     include([K]>>get_dict(kind, K, outside), HK, OKs),
-    partition([K]>>( get_dict(dir, K, KD), serve_kb_project(KD, some(_)) ), SKs, Linked, Unlinked),
+    partition([K]>>( get_dict(dir, K, KD), desk_kb_project(KD, some(_)) ), SKs, Linked, Unlinked),
     findall(H, ( member(K, PKs), desk_rail_project(HD, K, Linked, H) ), PHs), dk_cat(PHs, PH),
     ( PKs == [] -> PH1 = "<div class=\"hint\">This mindhole has no project KB.</div>" ; PH1 = PH ),
     desk_rail_group("Spec KBs, linked to the project KB", Linked, Cards, false, G1),
@@ -7739,7 +7756,7 @@ desk_orphan_rows(HD, Rows) :-
     findall(R, desk_orphan_row(HD, R), Rows).
 
 desk_orphan_row(HD, row(What, "Linked to no project KB. Its claims cannot pin the rules and decisions they rest on.", Tos, Item, Labels)) :-
-    findall(K, ( member(K, HD.kbs), memberchk(K.kind, [spec, outside]), \+ serve_kb_project(K.dir, some(_)) ), Ks), Ks \== [],
+    findall(K, ( member(K, HD.kbs), memberchk(K.kind, [spec, outside]), \+ desk_kb_project(K.dir, some(_)) ), Ks), Ks \== [],
     length(Ks, N), dk_f("~w spec KBs", [N], What),
     findall(L, ( member(K, Ks), L = K.label ), Labels),
     findall(T, ( member(K, Ks), desk_kb_recipient(HD, K, T) ), Tos0), sort(Tos0, Tos),
@@ -7874,7 +7891,7 @@ desk_kb_section(HDs, HD, K, Html) :-
     ;   KindT = "Spec KB"
     ),
     (   K.kind == project -> LinkH = ""
-    ;   serve_kb_project(K.dir, some(P)) -> file_base_name(P, PB), dk_f("<p>Linked to the project KB ~w.</p>", [PB], LinkH)
+    ;   desk_kb_project(K.dir, some(P)) -> file_base_name(P, PB), dk_f("<p>Linked to the project KB ~w.</p>", [PB], LinkH)
     ;   LinkH = "<p class=\"gapnote\">Linked to no project KB.</p>"
     ),
     (   K.kind == project
@@ -8248,7 +8265,7 @@ desk_group(Pairs, Groups) :- msort(Pairs, S), group_pairs_by_key(S, Groups).
 desk_project_dir(HD, Dir) :- member(K, HD.kbs), K.kind == project, !, Dir = K.dir.
 
 desk_fix_link_plan(HD, P) :-
-    findall(T-K, ( member(K, HD.kbs), memberchk(K.kind, [spec, outside]), \+ serve_kb_project(K.dir, some(_)), desk_kb_recipient(HD, K, T) ), Ps),
+    findall(T-K, ( member(K, HD.kbs), memberchk(K.kind, [spec, outside]), \+ desk_kb_project(K.dir, some(_)), desk_kb_recipient(HD, K, T) ), Ps),
     ( Ps == [] -> throw(desk_refused(409, "Every spec KB is linked now. Reload the page.")) ; true ),
     desk_group(Ps, Gs),
     (   desk_project_dir(HD, PD) -> esc(PD, _), PT = PD ; PT = none ),
