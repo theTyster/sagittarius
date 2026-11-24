@@ -6753,12 +6753,23 @@ desk_not_tempered(Eng, H) :-
     ;   \+ dk_true(Eng, defeating_case(H, _, _))
     ).
 
-% desk_author(+Author, -Name): the name for human:Name; else human or agent.
+% desk_author(+Author, -Name) (review U2): the name of an author, as the CLI prints it
+% (author_words/2): human:ty is "Ty", agent:astra is "Astra (agent)". The labels Goal (AUTHOR)
+% and AUTHOR-written keep "human" and "agent" for an author with no name (D72 section 6, k24).
 desk_author(A, N) :-
-    (   A = human:N0 -> dk_str(N0, N)
-    ;   A = agent:_ -> N = "agent"
+    (   A = human:N0, atom(N0) -> author_words(A, N)
+    ;   A = agent:N0, atom(N0) -> author_words(A, N)
     ;   dk_str(A, N)
     ).
+
+% desk_written(+Author, -Words): AUTHOR-written; agent:astra is "Astra, agent-written", as in the report.
+desk_written(A, W) :-
+    (   A = agent:N0, atom(N0) -> cap_name(N0, C), dk_f("~w, agent-written", [C], W)
+    ;   desk_author(A, N), dk_f("~w-written", [N], W)
+    ).
+
+% desk_named_by(+Author, -Words): the author in a sentence, with the mapping of the CLI: the agent, the human, Ty.
+desk_named_by(A, W) :- ( catch(author_words(A, W0), _, fail) -> dk_str(W0, W) ; dk_str(A, W) ).
 
 desk_state_words(proposed, "not adopted") :- !.
 desk_state_words(S, W) :- dk_str(S, W).
@@ -6901,7 +6912,7 @@ desk_premises_html(Ps, None, Mode, Html) :-
     ).
 
 desk_hyp_html1(H, Acts, Html) :-
-    esc(H.text, TH), desk_author(H.author, AN), esc(AN, ANH), desk_state_words(H.state, SW),
+    esc(H.text, TH), desk_written(H.author, AN), esc(AN, ANH), desk_state_words(H.state, SW),
     desk_term(hypothesis, "Hypothesis", HL),
     (   H.state == proposed, Acts = acts(HD, K), \+ desk_kb_frozen(HD, K)
     ->  dk_f("adopt:~w#~w", [K.dir, H.id], It), desk_fix_button(HD.path, It, "Adopt", AdoptH)
@@ -6911,7 +6922,7 @@ desk_hyp_html1(H, Acts, Html) :-
         dk_f("<p class=\"small cited\">proposed: the agent reads your words as adoption: '~w' (Adopt to confirm) ~w</p>", [WH, AdoptH], CitedH), Adopt1 = ""
     ;   CitedH = "", Adopt1 = AdoptH
     ),
-    (   H.case = case(By, CT) -> esc(CT, CTH), desk_author(By, ByN), esc(ByN, ByH),
+    (   H.case = case(By, CT) -> esc(CT, CTH), desk_named_by(By, ByN), esc(ByN, ByH),
         dk_f("<p class=\"small\">It is false if: ~w <span class=\"quiet\">(named by ~w)</span></p>", [CTH, ByH], CaseH)
     ;   CaseH = ""
     ),
@@ -6923,7 +6934,7 @@ desk_hyp_html1(H, Acts, Html) :-
     desk_premises_html(H.premises, false, brief, PrH),
     (   H.predicts == [] -> PdH = ""
     ;   dk_join(H.predicts, ", ", PJ), desk_term(claim, "claims", CL), dk_f("<p class=\"small quiet\">It predicts the ~w ~w.</p>", [CL, PJ], PdH) ),
-    dk_f("<div class=\"hyp s-~w\" data-hyp=\"~w\"><p><b class=\"lbl\">~w ~w (~w-written, ~w)</b> ~w ~w</p>~w~w~w~w~w~w</div>",
+    dk_f("<div class=\"hyp s-~w\" data-hyp=\"~w\"><p><b class=\"lbl\">~w ~w (~w, ~w)</b> ~w ~w</p>~w~w~w~w~w~w</div>",
          [H.state, H.id, HL, H.id, ANH, SW, TH, Adopt1, CitedH, CaseH, NtH, DefH, PrH, PdH], Html).
 
 % desk_judgments_html(+Eng, +G, -Html): the judgments of the human on the goal, oldest first.
