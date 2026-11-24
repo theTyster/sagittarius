@@ -63,6 +63,7 @@
 #   c22 on load the rail is collapsed and one card is open; Your action cards collapse       : QS56
 #   c23 sessions roll up by mindhole, one short line each                                    : QS57
 #   c24 loud when no desk hook can deliver a letter (card and review)                        : QS58
+# The load cost (0.8.0): one load hashes a subject file once; the Desk sees an edit at the next page : QS76
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OKB=${1:-${ORBIT_KB_BIN:-$here/../bin/orbit-kb}}
@@ -2116,6 +2117,35 @@ t_QS75() {  # Desk c20, c8 (H-0118, Ty, 2026-11-23: the "106 checks" Fix was ref
     [ -n "$a" ] && [ "$a" = "$b" ] || note "desk.py FIX_IDS_MAX ($a) and orbit-kb desk_fix_ids_max ($b) differ"
 }
 
+t_QS76() {  # the load cost (0.8.0): a load hashes each subject file once; in the Desk, which loads each KB again and again, an edit of the file and of kb.pl after a page is seen at the next page, both ways
+    mkdesk "$T/h"; mkdir -p "$T/h/specs/look"
+    printf '\x89PNG\r\n\x1a\n-one-' > "$T/h/specs/look/shot.png"
+    local d; d=$(sha256sum "$T/h/specs/look/shot.png" | cut -d' ' -f1)
+    kb_new "$T/h/specs/look" <<EOF
+uses([build, project]).
+request(r1, 'The pane must look calm').
+claim(c1, introduce, 'The pane uses three colors at most').
+example(c1, 'The idle pane shows grey, green and amber only.').
+visual(c1).
+subject(shot, 'shot.png', 'sha256:$d').
+demo(shot, c1).
+subject(same, 'shot.png', 'sha256:$d').
+EOF
+    srvd --hub "$T/h" || return; page_ok || return
+    chk raw "$T/page.html" '!shot.png changed since'
+    q "$T/h/specs/look" "subject_now(same, 'sha256:$d')"; rc_is 0 "subject_now of a second subject of the file" || true
+    printf '\x89PNG\r\n\x1a\n-two-' > "$T/h/specs/look/shot.png"
+    echo "question(q1, c1, 'May the busy pane use a fourth color')." >> "$T/h/specs/look/kb.pl"
+    page_ok || return
+    chk raw "$T/page.html" 'shot.png changed since the KB recorded its digest'
+    chk raw "$T/page.html" 'May the busy pane use a fourth color'
+    printf '\x89PNG\r\n\x1a\n-one-' > "$T/h/specs/look/shot.png"
+    echo "question(q2, c1, 'May the night pane show grey only')." >> "$T/h/specs/look/kb.pl"
+    page_ok || return
+    chk raw "$T/page.html" '!shot.png changed since'
+    chk raw "$T/page.html" 'May the night pane show grey only'
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -2129,6 +2159,6 @@ run_one() {  # run_one ID
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
 [ -n "${QS_LIB_ONLY:-}" ] && return 0   # test_desk_records.sh reads the harness above, and runs its own tests
-for n in $(seq 1 75); do run_one QS$n; done
+for n in $(seq 1 76); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

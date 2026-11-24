@@ -1774,6 +1774,31 @@ doc_above(_, _, '').
 % modules/build.pl read them, so no rule recurses through supersedes/2.
 % An id that is not an atom still gets its fact (lint E3 reports it).
 derived_items(Dir, KbItems, Items) :-
+    ( nb_current(orbit_load_memo, Old) -> true ; Old = off ),
+    setup_call_cleanup(( load_memo_clear, nb_setval(orbit_load_memo, on) ),
+                       derived_items_(Dir, KbItems, Items),
+                       ( load_memo_clear, nb_setval(orbit_load_memo, Old) )).
+
+% The memo of one load (the load cost, 0.8.0). While derived_items/3 runs, a file is hashed once
+% (load_sha256_file/2) and the "Made by" lines of kb.pl are read once (made_by_lines/2). A
+% subject file is hashed for demo_changed/1 and again for subject_now/2, and several subjects
+% can name one file: 55 hashes of 16 files in one spec KB, and most of the time of its load.
+% The memo is emptied when derived_items/3 starts and when it ends (a nested load of a project
+% KB empties it too, which only costs a new read), so a file edited between two loads is
+% always read again. Outside derived_items/3 nothing is kept.
+:- dynamic load_sha_memo/2, load_lines_memo/2.
+load_memo_clear :- retractall(load_sha_memo(_, _)), retractall(load_lines_memo(_, _)).
+load_memo_on :- nb_current(orbit_load_memo, on).
+
+load_sha256_file(File, Digest) :-
+    (   load_memo_on, load_sha_memo(File, D0)
+    ->  Digest = D0
+    ;   sha256_file(File, D0),
+        (   load_memo_on -> assertz(load_sha_memo(File, D0)) ; true ),
+        Digest = D0
+    ).
+
+derived_items_(Dir, KbItems, Items) :-
     findall(proof_changed(A),
             ( member(it(kb, _, _, T, _, _), KbItems), nonvar(T),
               T = attest(A, lean_proof, _, P, _, _), ground(A),
@@ -1791,7 +1816,7 @@ derived_items(Dir, KbItems, Items) :-
               once(( member(it(kb, _, _, T2, _, _), KbItems), nonvar(T2), T2 = subject(S, Path, D0) )),
               atom(Path),
               ( is_absolute_file_name(Path) -> Abs = Path ; directory_file_path(Dir, Path, Abs) ),
-              \+ ( exists_file(Abs), sha256_file(Abs, D1), D1 == D0 ) ),
+              \+ ( exists_file(Abs), load_sha256_file(Abs, D1), D1 == D0 ) ),
             Ts40),
     sort(Ts40, Ts4),
     findall(due_passed(X),
@@ -1851,12 +1876,28 @@ records_derived(Dir, KbItems, Facts) :-
 % "% Made by orbit-kb V." line of kb.pl names 0.8.0 or a later version. A KB with no such
 % line, or one that an older version made (also after a later version wrote to it), is not new.
 kb_made_by_new(KbFile) :-
-    read_file_to_string(KbFile, S, [encoding(utf8)]),
-    split_string(S, "\n", "", Ls),
-    member(L, Ls), split_string(L, "", " \t\r", [L1]),
+    made_by_lines(KbFile, Ls),
+    member(L1, Ls),
     string_concat("% Made by orbit-kb ", R0, L1), string_concat(R1, ".", R0),
     atom_string(V0, R1), version_parts(V0, P), !,
     P @>= [0, 8, 0].
+
+% made_by_lines(+KbFile, -Lines) (the load cost, 0.8.0): the lines of kb.pl that start with
+% "% Made by orbit-kb " once the blanks around them are stripped, in file order. Only a line
+% that holds that text is stripped. Inside derived_items/3 (where kb_made_by_new/1 and
+% mig_made_by/2 both read it) the result is kept until derived_items/3 ends.
+made_by_lines(KbFile, Lines) :-
+    (   load_memo_on, load_lines_memo(KbFile, L0)
+    ->  Lines = L0
+    ;   read_file_to_string(KbFile, S, [encoding(utf8)]),
+        split_string(S, "\n", "", Ls),
+        findall(L1, ( member(L, Ls), \+ \+ sub_string(L, _, _, _, "% Made by orbit-kb "),
+                      split_string(L, "", " \t\r", [L1]),
+                      string_concat("% Made by orbit-kb ", _, L1) ),
+                L0),
+        (   load_memo_on -> assertz(load_lines_memo(KbFile, L0)) ; true ),
+        Lines = L0
+    ).
 
 % stage2_derived(+Dir, +KbItems, -Facts) (0.8.0, D56, D57, D61): the facts of stage 2 that orbit-kb
 % computes when it reads the KB.
@@ -2020,7 +2061,7 @@ project_derived(Dir, KbItems, Facts) :-
     findall(subject_now(S, D),
             ( kb_term(KbItems, subject(S, Path, _)), atom(S), atom(Path),
               ( is_absolute_file_name(Path) -> Abs = Path ; directory_file_path(Dir, Path, Abs) ),
-              exists_file(Abs), sha256_file(Abs, D) ),
+              exists_file(Abs), load_sha256_file(Abs, D) ),
             F1),
     findall(decision_digest(X, D),
             ( kb_term(KbItems, decision(X, Text)), atom(X), atomic(Text), sha256_text(Text, D) ),
@@ -10021,9 +10062,8 @@ mig_build(Terms, Id, mig(Id, V, Doc, S, Steps)) :-
 
 % mig_made_by(+KbFile, -V): the newest version that a "% Made by orbit-kb V." line names, or none.
 mig_made_by(KbFile, V) :-
-    read_file_to_string(KbFile, S, [encoding(utf8)]),
-    split_string(S, "\n", "", Ls),
-    findall(P-V0, ( member(L, Ls), split_string(L, "", " \t\r", [L1]),
+    made_by_lines(KbFile, Ls),
+    findall(P-V0, ( member(L1, Ls),
                     string_concat("% Made by orbit-kb ", R0, L1), string_concat(R1, ".", R0),
                     atom_string(V0, R1), version_parts(V0, P) ), Ps),
     (   Ps == [] -> V = none ; msort(Ps, Sorted), last(Sorted, _-V) ).
