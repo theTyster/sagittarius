@@ -980,7 +980,8 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 - `procedure/2`, `measurement_premise/3`, `known_when/2` describe an experiment.
   `orbit-kb show experiments [ID]` prints the claim, the procedure, the measurement premises,
   known-when, the observation and the verdict. ID is an experiment, a claim, or a check.
-- Lint W17: a check of a current claim with no `procedure` fact and no run.
+- Lint W17: a check of a current claim with no `procedure` fact and no run (a KB made by 0.8.0 or
+  later). `run --timeout` kills the process group of the command.
 
 ## D56: a verdict counts for the state that it observed (claim c39)
 
@@ -997,8 +998,9 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 
 - `fulfilled(C)`: preserve: some `counts(A, C)`. introduce, retire: a `counts(A, C)` on a check
   with `was_red(K)`. Not `refuted(C)`.
-- New terms of `blocking/1`: `check_unresolved(K)` (in place of `check_failing(K)` when the latest
-  verdict is unresolved), `verdict_stale(K)`, `conflict_unlocated(A)`, `location_unconfirmed(L)`,
+- New terms of `blocking/1`: `check_unresolved(K)` (the latest verdict is unresolved; when that run
+  itself did not pass, `check_failing(K)` holds too, with its 0.7.2 meaning, and the listings print
+  one line, the unresolved one), `verdict_stale(K)`, `conflict_unlocated(A)`, `location_unconfirmed(L)`,
   `case_unplaced(J)`, `goal_unjudged(G)`, `behavior_open(B)`, `not_carried(A)`. Each term of 0.7.2
   keeps its name. `show open`, `show blocking` and `report` print one line for each.
 - `done`: the conditions of 0.7.2 with the new `fulfilled/1`, and none of the new terms.
@@ -1038,7 +1040,9 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   on G is satisfied. `blocking(goal_unjudged(G))`: G is current and not `goal_satisfied(G)`.
 - `case_against(J, H)`: `hypothesis_defeated(H)`. A not-wanted case with no `case_against`, on a
   goal with a current hypothesis: `blocking(case_unplaced(J))`; `to_discovery(J)` lists it.
-- A judgment changes no verdict. A waiver works as at 0.7.2.
+- A judgment changes no verdict. A waiver works as at 0.7.2. In addition, a live human waiver on a
+  claim covers the claim for done when a check of it is unresolved and no check of it conflicts or
+  is stale (`claim_waived_unresolved/1`); the claim is not fulfilled, and report says "Not shown".
 - `formal_statement(S, C)`, `could_change(S, Text)`; `encodes(M, C)` counts as a formal statement.
   Lint W18 (a KB made by 0.8.0 or later): no `could_change`, or no claim. `report` lists each
   statement with no `accepts` judgment under "Formal: not yet accepted by the human".
@@ -1056,7 +1060,8 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   is a `hypothesis/4`, a claim or a run that stands before the fact of G1. A restated
   `hypothesis/3` (the 0.7.2 form) gives none.
 - `not_carried(X)`: `before_goal(X, G)` for the current goal with no `carried(X, G)` (a carried
-  hypothesis brings its claims). A run that is not carried does not count;
+  hypothesis brings its claims). A claim of the goal that is not carried is not `current/1`
+  (`claim_not_carried/1`). A run that is not carried does not count;
   `blocking(not_carried(A))` when its claim is current and not fulfilled.
 
 ## D62: the report (claims c7, c39, c10)
@@ -1070,3 +1075,5 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   hypothesis/4 with no premise and no `no_premises`, only in a KB made by 0.8.0 or later.
 - Lint W19: an agent retirement that the rule does not count (D52). Lint W20: `supports(G, project(PG))`
   where the project KB of `project_kb/1` can be read and holds no goal PG (`supports_missing/2`, computed).
+- The migration `migrations/0.8.0-scientific-method.pl` declares what 0.8.0 changes, with no step:
+  `migrate plan --old OLD` exits 0 on a KB of 0.7.2 (`kb/tests/compare_hub_plans.sh`).

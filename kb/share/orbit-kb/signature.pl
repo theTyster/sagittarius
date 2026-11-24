@@ -77,11 +77,14 @@ signature(cited_before_go/2).
 signature(cites/2).
 signature(claim/3).
 signature(claim_change/2).
+signature(claim_conflicts_or_stale/1).
+signature(claim_not_carried/1).
 signature(claim_of_goal/1).
 signature(claim_predicted/1).
 signature(claim_served/1).
 signature(claim_under_current/1).
 signature(claim_unplaced/1).
+signature(claim_waived_unresolved/1).
 signature(concerns/2).
 signature(concerns_fresh/2).
 signature(confirmer_dependent/1).
