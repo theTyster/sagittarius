@@ -52,9 +52,14 @@ Purpose (c44)
   ticket_goal_rests_on_dropped(S, G, PG).
   orbit-kb hub orphans prints three lists, apart: Orphans (each open item with no purpose, once,
   with where its chain ends), Over (an open row whose ticket is done, opened before that), and
-  Reports on a done ticket (an open row opened after its ticket was done). Then the ticket goals
-  with no live project goal, and each dropped project goal with what rested on it. It is a
-  list: nothing is stopped or closed. The time of done is the time of the newest record that
+  Reports on a done ticket (an open row opened after its ticket was done). Orphans is grouped by
+  where the chain ends, the largest group first, with one count line per group; in the group of
+  the ticket goals that name no project goal, each such ticket goal is named once with its items
+  under it. Then the ticket goals with no live project goal, each dropped project goal with what
+  rested on it, and the two commands that give an item a purpose:
+      orbit-kb --dir specs/SLUG add "supports(G, project(PG))"   the ticket goal names a project goal
+      orbit-kb hub ledger ref ID add goal:PG                     an item with no ticket names one
+  It is a list: nothing is stopped or closed. The time of done is the time of the newest record that
   can make done true: a passed run, an approval, a proof, a judgment, a waiver, a pinned answer.
 
 Project goals (c17, c42)
