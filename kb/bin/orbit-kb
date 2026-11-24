@@ -11019,6 +11019,11 @@ run_log_cmd(Log, Cmd) :-
     catch(setup_call_cleanup(open(Log, read, S, [encoding(utf8)]), read_line_to_string(S, L), close(S)), _, fail),
     string(L), sub_string(L, B, _, _, " cmd="), B4 is B + 5, sub_string(L, B4, _, 0, Cmd).
 
+% 0.8.0 (c43, c7): blocking(check_failing(K)) and blocking(check_unresolved(K)) both hold for an
+% unresolved last run. The listings print one line for it, the unresolved one.
+drop_failing_unresolved(Xs0, Xs) :-
+    exclude([X]>>( X = check_failing(K), memberchk(check_unresolved(K), Xs0) ), Xs0, Xs).
+
 % blocking_line(+KB, +Eng, +Item, -Line) (D22): one line of show blocking.
 blocking_line(_, Eng, to_ask(Q), S) :- !,
     item_text(Eng, Q, T), fmt(S, "- to_ask ~w: ask question ~w now: ~w", [Q, Q, T]).
@@ -11041,11 +11046,6 @@ blocking_line(_, Eng, burn_open(C), S) :- !,
 blocking_line(_, Eng, flare_open(C), S) :- !,
     item_text(Eng, C, T), fmt(S, "- flare_open ~w: claim ~w needs a human to approve a demo: ~w", [C, C, T]).
 blocking_line(_, _, no_claim, "- no_claim: no claim is current. Add a claim. The work is not done without one.") :- !.
-% 0.8.0 (c43, c7): blocking(check_failing(K)) and blocking(check_unresolved(K)) both hold for an
-% unresolved last run. The listings print one line for it, the unresolved one.
-drop_failing_unresolved(Xs0, Xs) :-
-    exclude([X]>>( X = check_failing(K), memberchk(check_unresolved(K), Xs0) ), Xs0, Xs).
-
 blocking_line(_, Eng, check_failing(K), S) :- !,
     item_text(Eng, K, T), fmt(S, "- check_failing ~w: check ~w did not pass its last run: ~w", [K, K, T]).
 blocking_line(_, Eng, check_unrun(K), S) :- !,
