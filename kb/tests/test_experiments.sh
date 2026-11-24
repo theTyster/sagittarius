@@ -426,7 +426,15 @@ t_UV3() {  # a check that is killed
     out_has '^run 2 k1 unresolved \(exit 143\)' "exit 143 is a kill"
     has_goal "$K/kb.pl" "kb(unresolved_because(a2, W)), sub_atom(W, _, _, _, 'killed by signal 15')" "the reason of 143"
     is_set 'verdict(a1, V)' 'V = unresolved'
-    is_false 'was_red(k1)'
+    # a crash is not a kill: SIGSEGV and SIGABRT are a fail, with the 0.7.2 line; exit 124 is a fail too
+    run_k k1 -- sh -c 'kill -SEGV $$'; rc_is 1
+    out_has '^run 3 k1 fail \(exit 139\) log=' "SIGSEGV: the fail line"; out_has '^Last [0-9]+ line\(s\) of output:'
+    is_set 'verdict(a3, V)' 'V = conflicts'; no_fact "$K/kb.pl" "unresolved_because(a3, _)"
+    run_k k1 -- sh -c 'kill -ABRT $$'; out_has '^run 4 k1 fail \(exit 134\)' "SIGABRT"
+    run_k k1 -- sh -c 'kill -TERM $$'; out_has '^run 5 k1 unresolved \(exit 143\)' "SIGTERM stays unresolved"
+    run_k k1 -- sh -c 'exit 124'; out_has '^run 6 k1 fail \(exit 124\)' "exit 124 (coreutils timeout) is a fail"
+    okb --dir "$K" help build; out_has 'orbit(-kb)? run --timeout|run K --timeout' "help build: a time limit belongs in run --timeout"
+    sed -i '/result(k1, [3-6],/d' "$K/kb.pl"
     is_false 'control(A)'
 }
 t_UV4() {  # a run that times out

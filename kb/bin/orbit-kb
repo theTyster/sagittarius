@@ -9119,7 +9119,8 @@ cmd_run(KB, Args, Code) :-
 % run decides the result itself. pass is the verdict meets, fail is conflicts, and unresolved
 % says that the run could not decide; Why is then the reason (else '').
 %   the command ran into --timeout                -> unresolved
-%   a signal killed it (also exit 137 and 143)    -> unresolved
+%   a signal killed it (also exit 137 and 143)    -> unresolved; a crash (SIGSEGV, SIGABRT,
+%                                                    SIGBUS, SIGFPE, SIGILL) -> fail
 %   exit 77 (the check could not decide)          -> unresolved
 %   --expect sat|unsat: the first output line that is sat, unsat, unknown or timeout decides:
 %       the expected answer -> pass; the other decided answer -> fail; unknown or timeout ->
@@ -9127,6 +9128,9 @@ cmd_run(KB, Args, Code) :-
 %   exit 0 -> pass; any other exit -> fail
 run_result(timeout, _, TimeOut, _, _, unresolved, Why) :- !,
     format(atom(Why), "timed out after ~w s", [TimeOut]).
+% A crash is not a kill: a command that dies by SIGILL (4), SIGABRT (6), SIGBUS (7), SIGFPE (8)
+% or SIGSEGV (11) failed by itself, so the run is a fail (conflicts).
+run_result(killed(Sig), _, _, _, _, fail, '') :- memberchk(Sig, [4, 6, 7, 8, 11]), !.
 run_result(killed(Sig), _, _, _, _, unresolved, Why) :- !,
     format(atom(Why), "killed by signal ~w", [Sig]).
 run_result(_, EC, _, _, _, unresolved, Why) :- memberchk(EC, [137, 143]), !,
