@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """0.3.0 c_sg4b (suggestion 4): the worked examples of the prompt have one verdict wherever they appear.
 
-The prompt (section "The hypothesis") gives each sentence of its worked examples a verdict: "members
-got the wrong loyalty points" (Too strong, Collapsed, Fit) and "add a dark mode" (Too narrow, Names a
-fix, Fit). The prompt of this checkout is the source. Wherever a sentence of an example appears, it
+The prompt (section "The goal"; "The hypothesis" before 0.8.0, when the statement of the intent was
+called the hypothesis) gives each sentence of its worked examples a verdict: "members got the wrong
+loyalty points" (Too strong, Not tempered, Fit) and "add a dark mode" (Too narrow, Names a fix, Fit). The prompt of this checkout is the source. Wherever a sentence of an example appears, it
 must have the same verdict, and its quote must hold the sentence alone: the finding "some purchases
 get a different number" is kept apart from the hypothesis.
 
@@ -21,7 +21,9 @@ get a different number" is kept apart from the hypothesis.
 
 Each place must hold at least one sentence of the examples: a place where none is found fails, so a
 change of format cannot make the check pass quietly. The verdict words: Fit = Properly written;
-Too strong = Names a fix (it adds a cause or a mechanism); Collapsed; Too narrow.
+Too strong = Names a fix (it adds a cause or a mechanism); Collapsed = Not tempered (0.8.0,
+scientific-method-overhaul c12: the prompt calls a statement that no single case can show false
+"not tempered"; the Lean file and the help keep the word Collapsed); Too narrow.
 
 Usage: python3 docs/check_examples.py [--list] [c1 c2 c3 c4]      Exit 0: pass. 1: fail. 2: usage.
 """
@@ -41,7 +43,7 @@ IDS = ["c1", "c2", "c3", "c4"]
 # a verdict word -> its class
 VERDICT = {"fit": "fit", "properly written": "fit",
            "too strong": "adds", "names a fix": "adds", "names a cause": "adds",
-           "collapsed": "collapsed", "too narrow": "narrow"}
+           "collapsed": "collapsed", "not tempered": "collapsed", "too narrow": "narrow"}
 SAY = {"fit": "Fit", "adds": "Too strong (it adds a cause or a fix)", "collapsed": "Collapsed",
        "narrow": "Too narrow", "unfaithful": "not faithful to the request"}
 

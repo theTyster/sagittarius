@@ -238,7 +238,7 @@ decides. (Ty holds the first half of this rule loosely: "I might say".)
 
 "A properly written hypothesis" (below) gives the definition.
 
-In the prompt: "The light path", "The hypothesis".
+In the prompt: "The light path", "The goal", "The hypothesis".
 
 #### 3. What a lap learns, the next lap keeps
 
