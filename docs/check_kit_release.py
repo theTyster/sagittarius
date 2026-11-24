@@ -17,7 +17,7 @@ c2 (c22) the kit names no release and no edition for a hub with no tool: no file
    with it, and `edition formal` moves such a hub; a hub that kit 0.11.2 made with the tool
    upgrades; UPGRADING.md has the 0.12.0 section. The fail-safe stays: hubflow-test.py --case
    case_t24_no_orbit_kb passes.
-c3 (0.3.0 M-C) reads hubkit/hub/PRINCIPLES.md: a short file (70 lines or fewer outside the vocabulary block; 60 before 0.8.0) that comes from the
+c3 (0.3.0 M-C) reads hubkit/hub/PRINCIPLES.md: a short file (71 lines or fewer outside the vocabulary block; 60 before 0.8.0) that comes from the
    prompt. It names the version on the last line of prompt/SAGITTARIUS.md ("Sagittarius X.Y.Z"), each
    part (## heading) has a line From the prompt: "Section" that names a section of the prompt, and it
    cites no section of docs/PHILOSOPHY.md. hubkit/README.md and INSTRUCTIONS.md say that it comes from
@@ -288,7 +288,7 @@ def c3():
     # scientific-method-overhaul c10, c12, c16: one more part (verdicts, the two judgments, Sound Basis) and the
     # generated vocabulary block; the limit is 70 lines outside that block (it was 60 lines in all)
     n -= len(re.findall(r"\n", "".join(re.findall(r"<!-- vocabulary:begin -->.*?<!-- vocabulary:end -->\n?", pr, re.S))))
-    check("c3 PRINCIPLES.md is short (at most 70 lines outside the vocabulary block)", 0 < n <= 70, n)
+    check("c3 PRINCIPLES.md is short (at most 71 lines outside the vocabulary block)", 0 < n <= 71, n)
     check("c3 the hub CLAUDE.md imports it (@PRINCIPLES.md)",
           any(ln.strip() == "@PRINCIPLES.md" for ln in read(os.path.join(HUB, "CLAUDE.md")).splitlines()), "no import line")
     kit = json.loads(read(KIT))

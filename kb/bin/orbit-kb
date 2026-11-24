@@ -4126,7 +4126,10 @@ cmd_init(Args, Code) :-
                        forall(member(L, Ls), format(S, "~w~n", [L])),
                        close(S)),
     format("~w~n", [KbFile]),
-    nformat(user_error, "Next: add the claims and the checks. Vocabulary: orbit-kb help core.~n", []),
+    (   memberchk(build, Uses)   % review, G1: a ticket of the build module states its goal first
+    ->  nformat(user_error, "Next: add the goal, the claims and the checks. Vocabulary: orbit-kb help core.~n", [])
+    ;   nformat(user_error, "Next: add the claims and the checks. Vocabulary: orbit-kb help core.~n", [])
+    ),
     Code = 0.
 
 % ---------------------------------------------------------------------

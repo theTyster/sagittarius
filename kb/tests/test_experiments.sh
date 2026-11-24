@@ -691,6 +691,7 @@ t_GM1() {  # a KB of 0.8.0 with no goal is not done: goal_missing, in show open 
     any_has "^EB1 ticket: .*premises: orbit add " "lint names the tool as it was called"
     okb --dir "$K" show hypothesis; out_has "^- None\. Every ticket has a goal: add goal\(g1, KIND, AUTHOR, 'TEXT'\)\.$" "show hypothesis teaches the goal"
     okb --dir "$K" report; out_has "None\. No goal is recorded\. Every ticket has a goal: add goal\(g1, KIND, AUTHOR, 'TEXT'\)\." "report teaches the goal"; out_hasnt "add hypothesis\(H, KIND, TEXT\)" "report does not teach hypothesis/3"
+    okb init "$T/gm1init" --request r --uses build; any_has "^Next: add the goal, the claims and the checks\. Vocabulary: orbit-kb help core\.$" "init of a build KB names the goal first"
     out_hasnt 'add hypothesis\(H, KIND, TEXT\)'
 }
 t_GM2() {  # with a goal and the human's judgment that it is satisfied, done is yes

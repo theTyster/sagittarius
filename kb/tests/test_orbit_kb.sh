@@ -1722,7 +1722,7 @@ t_KR1() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" "premise(p1, 
           oadd "hypothesis(h2, feature, 'With dark mode on, the settings page is dark.')" "supersedes(h2, h1)" "no_premises(h2)" >/dev/null
           okb --dir "$K" report; rp_sec Hypothesis | grep -qF "$DARK" && note "report: a superseded hypothesis is not the current one"
           rp_sec Hypothesis | grep -q 'settings page is dark' || note "report: the current hypothesis"
-          hy_build "$T/b3"; okb --dir "$K" report; rl_is "no hypothesis" "  - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT)." "$(rp_sec Hypothesis)"; }
+          hy_build "$T/b3"; okb --dir "$K" report; rl_is "no goal" "  - None. No goal is recorded. Every ticket has a goal: add goal(g1, KIND, AUTHOR, 'TEXT')." "$(rp_sec Hypothesis)"; }
 t_KR2() { hy_build "$T/b"; okb --dir "$K" report; rc_is 0
           rp_item c1 | grep -q 'Example: the reports page is dark' || note "report: the example under the claim: [$(snip "$(rp_item c1)")]"
           okb --dir "$K" show claims; rc_is 0; out_has '^  Example: the reports page is dark' "show claims: the example under the claim"; }
