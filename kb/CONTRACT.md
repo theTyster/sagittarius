@@ -914,7 +914,8 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   `hypothesis(G, Kind, Text)` for each goal/4 fact. A query of either form answers on every KB.
 - A query (`query`, `why`, `whynot`), `show hypothesis`, or an `add` that names hypothesis/3 prints on stderr:
   `note: hypothesis/3 is the 0.7.2 form of the goal. Ask goal(G, Kind, Author, Text); a hypothesis of a goal is hypothesis(H, Goal, Author, Text).`
-  Stdout and the exit code are those of 0.7.2. `init` and `shift` are unchanged.
+  Stdout and the exit code are those of 0.7.2. `init` is unchanged. `shift` with no `--goal` is unchanged;
+  with `--goal` it writes goal/4 and the hypothesis under it (see `help shift`).
 - A `ref(hypothesis)` argument also takes a goal id; `ref(goal)` also takes a hypothesis/3 id. `supersedes/2`
   takes two goals (in either form) or two hypotheses under a goal; a mix is E4.
 - `show hypotheses`, `show`, `show all`: `Goal (AUTHOR): G (KIND): TEXT`, its state and premises, then each
