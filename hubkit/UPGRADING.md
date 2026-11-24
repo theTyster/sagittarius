@@ -98,7 +98,8 @@ changed those files, and a check.
 ### 0.12.0 (one kind of hub: a hub needs the tool; db schema 8, unchanged)
 
 Ty, 2026-11-23: the release for a hub with no tool is dropped. A hub needs the tool: the kit makes
-one kind of hub, with its own `orbit-kb`. The db schema is 8: no `hubflow.py migrate` is needed.
+one kind of hub, with its own `orbit-kb`. This release pairs with Sagittarius 0.8.0 (it was 0.7.2).
+The db schema is 8: no `hubflow.py migrate` is needed.
 
 - **A hub that has the tool** (`hubkit.py edition --hub "$HUB"` prints `formal`, or the manifest
   records no edition): upgrade as in "The procedure". The plan adds `.claude/orbit-kb/bin/orbit`:

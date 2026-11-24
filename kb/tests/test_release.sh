@@ -67,7 +67,7 @@ cat >"$scratch/c3.py" <<'PY'
 import json, os, subprocess, sys
 # The kit version must tell templates apart and only move up (Ty, 2026-11-12: "a reliable way to
 # distinguish versions monotonically"). Against the base (main, or KIT_BASE_REF): never lower, and
-# higher whenever the template (hubkit/hub, hubkit/editions), the kit tools, or the files a formal hub
+# higher whenever the template (hubkit/hub; hubkit/editions of a base before kit 0.12.0), the kit tools, or the files a formal hub
 # copies from kb/ (kit.json orbit_kb paths) differ from the base's.
 repo = sys.argv[1]
 ref = os.environ.get("KIT_BASE_REF") or "main"

@@ -833,7 +833,7 @@ inference, reasoning and knowledge-graph layer. It is opinionated: it puts every
 shape.
 
 The audience is people who work with formal methods and AI. Users are expected to read Prolog,
-Lean, and the other formal languages. A general template is a byproduct: an informal release.
+Lean, and the other formal languages.
 
 Sagittarius runs in two interfaces.
 
