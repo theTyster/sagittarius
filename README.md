@@ -196,8 +196,9 @@ repository, not to this one.
 ```sh
 bash kb/tests/test_orbit_kb.sh             # the orbit-kb suite (about a minute)
 kb/tests/burn_model/check.sh               # the Lean files of the burn rules (needs Lean 4)
-python3 docs/check_lean.py                 # Lean on Hypothesis.lean (count, axioms, cited names) and kb/proofs (needs Lean 4)
+python3 docs/check_lean.py                 # Lean on Hypothesis.lean (count, axioms, cited names), kb/proofs, and ScientificMethod.lean (no sorry, no axiom of its own, its nine theorems) (needs Lean 4)
 python3 docs/test_check_lean.py            # the tests of that check
+bash kb/tests/warrants_conformance.sh      # the tool gives the timer readings 600, 611 and 615 the verdicts that ScientificMethod.lean proves (meets, unresolved, conflicts)
 python3 docs/check_mutants.py              # each docs check passes on the tree, and fails on a copy that lost what it holds
 python3 docs/check_mindhole.py --list      # the MindHole Kit checks of 0.3.0, one id each (mb2 to mb5 read the kit only, not the design KB)
 python3 docs/test_check_mutants.py         # the tests of that check
