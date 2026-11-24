@@ -903,3 +903,33 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 - No commits. Do not edit files outside your own path.
 - Put temporary files in the session scratchpad:
   `/tmp/claude-1000/-home-ty--dotfiles/63a00f00-8d72-4aeb-a216-cde6b882f1f4/scratchpad`.
+
+## D70. A proposal of System 1 (scientific-method-overhaul c34)
+
+System 1 writes only proposals. A proposal is not a record.
+
+- `orbit-kb propose --from system1 'FACT' [--note TEXT]` writes `proposed(P, system1, FactText,
+  Time)`. `P` is the next free id `pr1`, `pr2`, ... `FactText` is the fact as text, as it was given.
+  With `--note` it also writes `note(P, TEXT)`. It prints a line that names `P`. Exit 0.
+- `--from` must be `system1`. Without it, with another value, with no fact, or with a fact that
+  does not parse as a term: exit 2, and nothing is written.
+- The fact is not checked at `propose` and is not added. A query of its kind does not find it.
+- A proposal changes no answer of `done`, `blocking(X)` or `discovery_ready`, and `lint` reports no
+  error for it. No rule reads `proposed/4` or `proposal_confirmed/3`.
+- The same `FactText` as a proposal that is not confirmed is stored once: the second `propose`
+  prints `P already holds this proposal` and exits 0.
+- `propose` and `confirm-proposal` are writer commands: they take the KB lock and the writer lock.
+
+## D71. Confirming a proposal, and the list (scientific-method-overhaul c34)
+
+- `orbit-kb confirm-proposal P [--by human|agent]` (default `agent`) adds the fact of `P` and
+  `proposal_confirmed(P, By, Time)` in one `add`: the usual checks hold, all or nothing. Exit 0.
+- When `add` refuses the fact, the exit code and the message are those of `add` (exit 1,
+  `Rejected. Nothing was written.`), and the proposal still waits.
+- An unknown `P`, or a `P` that is confirmed already: exit 1, a line that says so, nothing written.
+  Another `--by` value: exit 2.
+- `orbit-kb show proposals` prints, for each proposal in file order: `P (system1, Time): FactText`,
+  then each note on `P`, then `waits; it blocks nothing. Confirm: orbit-kb confirm-proposal P` or
+  `confirmed by the By at Time: it is a record`. With none: `No proposals.` Exit 0.
+
+Tests: `kb/tests/test_proposals.sh`.

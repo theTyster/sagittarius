@@ -102,6 +102,14 @@ decl(fact, signal(id, oneof([questions, divergence, built_by_other, burn, handof
 decl(fact, lean_back(id, text),
      'A lean back: what stopped, and what stays active. report prints it under Signals.',
      'the agent leaned back (@(1)): @(2)').
+% D70, D71 (scientific-method-overhaul c34): a proposal of System 1. The fact is kept as text: it is
+% no record, and no rule reads these two kinds, so they change no answer of done or blocking(X).
+decl(fact, proposed(id, oneof([system1]), text, time),
+     'A proposal of System 1: a fact as text, and when it was proposed. It is not a record and it blocks nothing. orbit-kb propose writes it.',
+     'System 1 (@(2)) proposed @(3) as @(1) at @(4)').
+decl(fact, proposal_confirmed(ref(proposed), by, time),
+     'The agent or the human confirmed a proposal: orbit-kb confirm-proposal added its fact as a record.',
+     'proposal @(1) was confirmed by the @(2) at @(3)').
 % 0.3.0 (K-J, D39): orbit-kb withdraw writes the record of a kind that it removed.
 decl(fact, withdrawn(term, by, time, int),
      'orbit-kb withdraw removed this kind (NAME/ARITY) from kb.pl: who, when, and how many facts. The removed lines stay in kb.pl as comments.',

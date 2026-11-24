@@ -517,6 +517,8 @@ kb_command('pin-request').
 kb_command('apply-pending').
 kb_command(review).
 kb_command(withdraw).
+kb_command(propose).
+kb_command('confirm-proposal').
 
 top(Argv0, Code) :-
     take_dirs(Argv0, Dirs, [view|ViewArgs]), !,
@@ -622,6 +624,8 @@ writer_command(review).
 writer_command(subject).
 writer_command(attest).
 writer_command(withdraw).
+writer_command(propose).
+writer_command('confirm-proposal').
 % run and prove take the lock themselves, only to record the result
 % (see cmd_run/3 and cmd_prove/3).
 
@@ -641,7 +645,8 @@ writer_command(withdraw).
 % The lock is a record, not a guard: nothing stops a hand edit of kb.pl.
 
 lock_command(C) :- memberchk(C, [add, subject, attest, run, prove, uses, withdraw, 'pin-item',
-                                 'pin-question', 'pin-answer', 'pin-request', 'apply-pending', review]).
+                                 'pin-question', 'pin-answer', 'pin-request', 'apply-pending', review,
+                                 propose, 'confirm-proposal']).
 
 writer_name(W) :-
     member(V, ['ORBIT_KB_WRITER', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'HUB_SESSION']),
@@ -1261,6 +1266,90 @@ kb_cmd('pin-request', KB, Args, Code) :- cmd_pin_request(KB, Args, Code).
 kb_cmd('apply-pending', KB, Args, Code) :- cmd_apply_pending(KB, Args, Code).
 kb_cmd(review, KB, Args, Code) :- cmd_review(KB, Args, Code).
 kb_cmd(withdraw, KB, Args, Code) :- cmd_withdraw(KB, Args, Code).
+kb_cmd(propose, KB, Args, Code) :- cmd_propose(KB, Args, Code).
+kb_cmd('confirm-proposal', KB, Args, Code) :- cmd_confirm_proposal(KB, Args, Code).
+
+% ---------------------------------------------------------------------
+% Proposals of System 1 (D70, D71; scientific-method-overhaul c34)
+% ---------------------------------------------------------------------
+% System 1 writes only proposals. propose stores proposed(P, system1, FactText, Time): the
+% fact is kept as text, so it is no record and no rule reads it: it changes no answer of
+% done, blocking(X) or discovery_ready. confirm-proposal adds the fact through cmd_add, with
+% the usual checks, and proposal_confirmed(P, By, Time) in the same batch (all or nothing).
+
+cmd_propose(KB, Args, Code) :-
+    parse_opts(Args, ['--from'-value, '--note'-value], Pos, Opts),
+    (   Pos = [Fact0] -> true
+    ;   usage_error("propose takes one fact in quotes: orbit-kb propose --from system1 'FACT' [--note TEXT].", [])
+    ),
+    opt(Opts, '--from', none, From),
+    (   From == system1 -> true
+    ;   usage_error("propose needs --from system1. A proposal is a record of System 1. The agent and the human write with add.", [])
+    ),
+    atom_string(FactA, Fact0),
+    (   catch(term_to_atom(T, FactA), _, fail), nonvar(T), callable(T) -> true
+    ;   usage_error("The proposed fact does not parse: ~w", [FactA])
+    ),
+    kb_items(KB, KI),
+    (   proposal_item(KI, P0, FactA, _), \+ proposal_done(KI, P0, _, _)
+    ->  format("~w already holds this proposal. It waits. Confirm: orbit-kb confirm-proposal ~w~n", [P0, P0]),
+        Code = 0
+    ;   findall(P1, proposal_item(KI, P1, _, _), Ps), length(Ps, N),
+        next_proposal_id(Ps, N, P),
+        utc_now(Now),
+        format(atom(F1), "proposed(~q, system1, ~q, ~q)", [P, FactA, Now]),
+        (   memberchk('--note'-Note, Opts)
+        ->  format(atom(F2), "note(~q, ~q)", [P, Note]), Facts = [F1, F2]
+        ;   Facts = [F1]
+        ),
+        cmd_add(KB, Facts, Code),
+        format("Proposal ~w is stored. It is not a record and it blocks nothing. Confirm: orbit-kb confirm-proposal ~w~n", [P, P])
+    ).
+
+next_proposal_id(Ps, N, P) :-
+    N1 is N + 1, format(atom(P0), "pr~d", [N1]),
+    (   memberchk(P0, Ps) -> next_proposal_id(Ps, N1, P) ; P = P0 ).
+
+proposal_item(KI, P, Fact, Time) :-
+    member(it(_, _, _, T, _, _), KI), nonvar(T), T = proposed(P, _, Fact, Time).
+proposal_done(KI, P, By, Time) :-
+    member(it(_, _, _, T, _, _), KI), nonvar(T), T = proposal_confirmed(P1, By, Time), P1 == P.
+
+cmd_confirm_proposal(KB, Args, Code) :-
+    parse_opts(Args, ['--by'-value], Pos, Opts),
+    (   Pos = [P0] -> atom_string(P, P0)
+    ;   usage_error("confirm-proposal takes one proposal id: orbit-kb confirm-proposal P [--by human].", [])
+    ),
+    opt(Opts, '--by', agent, By),
+    (   memberchk(By, [human, agent]) -> true
+    ;   usage_error("--by takes human or agent. It is ~w.", [By])
+    ),
+    kb_items(KB, KI),
+    (   proposal_item(KI, P1, Fact, _), P1 == P -> true
+    ;   fmt(M0, "No proposal ~w. orbit-kb show proposals lists them.", [P]), reject([M0])
+    ),
+    (   proposal_done(KI, P, By0, T0)
+    ->  fmt(M1, "Proposal ~w is confirmed already (by the ~w at ~w).", [P, By0, T0]), reject([M1])
+    ;   true
+    ),
+    utc_now(Now),
+    format(atom(CF), "proposal_confirmed(~q, ~q, ~q)", [P, By, Now]),
+    cmd_add(KB, [Fact, CF, '--by', By], Code).
+
+show_proposals(KB) :-
+    kb_items(KB, KI),
+    findall(P-F-T, proposal_item(KI, P, F, T), Ps),
+    (   Ps == [] -> format("No proposals.~n")
+    ;   forall(member(P-F-T, Ps),
+               (   format("~w (system1, ~w): ~w~n", [P, T, F]),
+                   forall(( member(it(_, _, _, N, _, _), KI), nonvar(N), N = note(P2, NT), P2 == P ),
+                          format("    ~w~n", [NT])),
+                   (   proposal_done(KI, P, By, T2)
+                   ->  format("    confirmed by the ~w at ~w: it is a record~n", [By, T2])
+                   ;   format("    waits; it blocks nothing. Confirm: orbit-kb confirm-proposal ~w~n", [P])
+                   )
+               ))
+    ).
 
 % ---------------------------------------------------------------------
 % Library and KB location
@@ -9766,6 +9855,9 @@ say(Fmt, Args) :- format(Fmt, Args), nl.
 txt(T, S) :- ( atom(T) -> S = T ; term_text(T, S) ).
 plain_text(T, S) :- ( atomic(T) -> format(string(S), "~w", [T]) ; term_text(T, S) ).
 
+cmd_show(KB, Args, Code) :-
+    parse_opts(Args, [], [proposals], _), !,   % D71: the proposals of System 1
+    show_proposals(KB), Code = 0.
 cmd_show(KB, Args, Code) :-
     parse_opts(Args, [], [pin|PinArgs], _), !,
     (   PinArgs = [Id0] -> atom_string(Id, Id0) ; usage_error("show pin takes one pin id: orbit-kb show pin ID.", []) ),
