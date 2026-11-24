@@ -107,7 +107,9 @@ migrate keeps a backup at `flow/flow.db.bak-v8`. A hub at schema 7 applies the 0
   records no edition): upgrade as in "The procedure". The plan adds `.claude/orbit-kb/bin/orbit`:
   the same program as `bin/orbit-kb`, under the name `orbit`. `hubflow.py` and every command of
   0.11.2 work as before. `HUB-CORE.md` loses its section "Without orbit-kb" and the second store
-  map. A manifest with no edition is read as formal, whatever the PATH holds.
+  map. A manifest with no edition is read as formal, whatever the PATH holds. `HUB-CORE.md` and the
+  skills `hub-flow` and `hub-rotate` now give each ledger command through the door
+  (`.claude/orbit-kb/bin/orbit hub ledger ...`): keep that when you merge a changed copy by intent.
 - **A hub that an older kit made with no tool** (`hubkit.py edition --hub "$HUB"` prints
   `informal`): `hubkit.py upgrade` refuses it with one line and copies nothing. Do this:
   1. Install SWI-Prolog 9 or later (`swipl` on the PATH).
