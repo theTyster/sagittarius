@@ -904,3 +904,61 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 - No commits. Do not edit files outside your own path.
 - Put temporary files in the session scratchpad:
   `/tmp/claude-1000/-home-ty--dotfiles/63a00f00-8d72-4aeb-a216-cde6b882f1f4/scratchpad`.
+
+## D50: the goal and the hypotheses under it (0.8.0; claims c1, c4, c21, c43)
+
+- `goal(G, Kind, Author, Text)` is the goal of the ticket. `hypothesis(H, Goal, Author, Text)` (arity 4) is a
+  hypothesis under a goal. An author is `human`, `agent`, `human:NAME` or `agent:NAME`.
+- `hypothesis(Id, Kind, Text)` (arity 3) is the 0.7.2 form of the goal. No kb.pl is rewritten. When the tool
+  reads a KB it computes `goal(Id, Kind, agent, Text)` for each hypothesis/3 fact of kb.pl, and
+  `hypothesis(G, Kind, Text)` for each goal/4 fact. A query of either form answers on every KB.
+- A query (`query`, `why`, `whynot`), `show hypothesis`, or an `add` that names hypothesis/3 prints on stderr:
+  `note: hypothesis/3 is the 0.7.2 form of the goal. Ask goal(G, Kind, Author, Text); a hypothesis of a goal is hypothesis(H, Goal, Author, Text).`
+  Stdout and the exit code are those of 0.7.2. `init` and `shift` are unchanged.
+- A `ref(hypothesis)` argument also takes a goal id; `ref(goal)` also takes a hypothesis/3 id. `supersedes/2`
+  takes two goals (in either form) or two hypotheses under a goal; a mix is E4.
+- `show hypotheses`, `show`, `show all`: `Goal (AUTHOR): G (KIND): TEXT`, its state and premises, then each
+  hypothesis as `  Hypothesis H (AUTHOR, STATE): TEXT` with its defeating case, premises, predictions and
+  defeats. A goal with no hypothesis prints `No hypothesis: the claims hang on the goal.` `report` prints the
+  same under `# Hypothesis:` (`Goal (AUTHOR): G **KIND**: TEXT`). A KB with no goal keeps the 0.7.2 line.
+- The tool writes no hypothesis/4 fact by itself.
+
+## D51: states, current claims (claims c2, c37, c38)
+
+- `hypothesis_state(H, S)`: exactly one of superseded, retired, defeated, adopted, proposed, the first that
+  applies. `hypothesis_current(H)`: proposed or adopted, and its goal is current or `carried(H, G)` names a
+  current goal. `defeat(D, H, Text)` defeats H; the case stays on H.
+- `current(C)`: no claim replaces C, and C is a claim of the goal (`claim_of_goal`: no predicts fact) or a
+  current hypothesis predicts it. With no predicts fact this is the rule of 0.7.2.
+- `predicts(H, C)` on a preserve claim is E21 (add refuses it). Lint W15: two current hypotheses predict one
+  claim. Lint W16: an unplaced claim, only in a KB made by 0.8.0 or later with a current hypothesis.
+
+## D52: adoption, retirement, guesses (claims c2, c4, c37)
+
+- Attestation types `adoption` (`adopted`, human only) and `retirement` (`retired(Text)`, human or agent);
+  the subject is a hypothesis/4 id. `orbit-kb adopt H --by human [--note W]` and
+  `orbit-kb retire H --reason TEXT [--by human|agent]` write them.
+- `hypothesis_adopted(H)`: a human adoption attestation; or (discovery module) `adoption_cited(H, Words)`
+  that stands in kb.pl before a GO vote of the human that is not void. `adoption_cited` alone adopts
+  nothing, and a GO vote adopts no hypothesis without it. A proposed hypothesis with the mark prints
+  `proposed; the ticket cites the human's adoption: WORDS`.
+- An agent retirement of a hypothesis that a human wrote or adopted, or that has `adoption_cited`, is
+  refused (exit 1, by `retire`, `attest` and `add`). Such a fact written by hand does not retire it.
+- `hypothesis_guess(H)`: agent-written, current, not adopted. `report` lists it under Guesses as
+  `Hypothesis (agent-written, not adopted): TEXT`.
+
+## D53: tempered; what a record rests on (claims c3, c38)
+
+- `tempered(H)`: a `defeating_case(H, By, Text)` and no `untempered(H, By, Text)`. `not_tempered(H)`: current
+  and not tempered; lint W13.
+- `rests_on(X, Y)`: one step up (run to check, check to claim, claim to its hypothesis or the current goal,
+  hypothesis to goal, goal to `supports` ref). `rests_up(X, Y)`: one step or more. `rests_on/2` is declared
+  in the core now; in a project KB it also holds the closure of depends_on (D27).
+  `orbit-kb rests ID` prints `up:` and `down:`.
+
+## D54: a KB made by 0.8.0 or later (claims c21, c17)
+
+- `made_by_new` holds when the first `% Made by orbit-kb V.` line of kb.pl names 0.8.0 or later. Lint W14
+  (`goal_unsupported`: a current goal with no `supports` fact) and W16 report only then. A KB of an older
+  version, or with no such line, gets neither.
+

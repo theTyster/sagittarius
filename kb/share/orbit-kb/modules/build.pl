@@ -648,6 +648,6 @@ any_stage2_open :- behavior_open(_).
 lint_issue('W17', K, 'This check of a current claim has no procedure and no run: the experiment does not say how it is carried out. Add procedure(K, Text), or run the check (the command of the last run is then the procedure).') :-
     check(K, C), current(C), not procedure(K, _), not check_ran(K).
 lint_issue('W18', S, 'This formal statement does not say which decision its precision could change. Add could_change(S, Text) (formalize the smallest claim whose precision could change what the human or the agent does next).') :-
-    kb_new_form, formal(S, _), not could_change(S, _).
+    made_by_new, formal(S, _), not could_change(S, _).
 lint_issue('W18', S, 'This formal statement (could_change) names no claim. Add formal_statement(S, C), or encodes(M, C) for a model.') :-
-    kb_new_form, could_change(S, _), not formal(S, _).
+    made_by_new, could_change(S, _), not formal(S, _).
