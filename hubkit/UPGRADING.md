@@ -20,8 +20,7 @@ Sagittarius pair changes. Older sections below say "hub kit" or "the MindHole" f
    files the hub did not change, adds new files, and lists each changed engine file as `pending`.
 4. **Merge each pending file by intent.** For each one, find the release section that names it.
    Apply that change's *intent* to the hub's version of the file, and keep the hub's own edits.
-   The kit has no release tags: `git -C "$KIT" log -p -- hub/<path>` (or `editions/informal/<path>`
-   for a file of the informal edition) shows the commits that changed the file; read the ones after
+   The kit has no release tags: `git -C "$KIT" log -p -- hub/<path>` shows the commits that changed the file; read the ones after
    the hub's version, with the release section that names the change. When you are
    done with a file: `python3 "$KIT"/tools/hubkit.py done --hub "$HUB" <path>`.
 5. **Owned files.** The release sections say when an owned file (`CLAUDE.md`, `.gitignore`, …) needs
@@ -95,6 +94,39 @@ step that writes.
 
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
+
+### 0.12.0 (one kind of hub: a hub needs the tool; db schema 8, unchanged)
+
+Ty, 2026-11-23: the release for a hub with no tool is dropped. A hub needs the tool: the kit makes
+one kind of hub, with its own `orbit-kb`. This release pairs with Sagittarius 0.8.0 (it was 0.7.2).
+The db schema is 8: no `hubflow.py migrate` is needed.
+
+- **A hub that has the tool** (`hubkit.py edition --hub "$HUB"` prints `formal`, or the manifest
+  records no edition): upgrade as in "The procedure". The plan adds `.claude/orbit-kb/bin/orbit`:
+  the same program as `bin/orbit-kb`, under the name `orbit`. `hubflow.py` and every command of
+  0.11.2 work as before. `HUB-CORE.md` loses its section "Without orbit-kb" and the second store
+  map. A manifest with no edition is read as formal, whatever the PATH holds.
+- **A hub that an older kit made with no tool** (`hubkit.py edition --hub "$HUB"` prints
+  `informal`): `hubkit.py upgrade` refuses it with one line and copies nothing. Do this:
+  1. Install SWI-Prolog 9 or later (`swipl` on the PATH).
+  2. `python3 "$KIT"/tools/hubkit.py edition --hub "$HUB" formal` (a dry run), then again with
+     `--yes`. It replaces `HUB-CORE.md` and the two `SKILL.md` if the hub did not change them (a
+     changed one is `pending`: merge it by intent), adds the hub's own orbit-kb under
+     `.claude/orbit-kb/`, and records `"edition": "formal"`.
+  3. Owned file `CLAUDE.md`: add the section "Repos and the project KB" by hand (copy it from
+     `hub/CLAUDE.md` of the kit).
+  4. Make the project KB: `INSTRUCTIONS.md`, "Step 6 (formal)". The ledger keeps every item.
+  From now on `hubflow.py` has one help text and one rule set in every hub: a new ask needs
+  `--ref kb:<slug>` or `--no-kb`, and `--note`.
+- **`hubkit.py`**: `install` takes no `--edition informal` (it says why), and `edition` switches no
+  hub to it. `--edition formal` is still taken.
+- **The fail-safe stays.** When the hub's orbit-kb cannot be asked (the copy is gone, or it does
+  not run), an item with a `kb` ref counts as blocking: an agent's keep or lapse of it becomes
+  escalate, and only a human closes it.
+
+Check: `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` prints `(formal edition` on its first
+line and lists `.claude/orbit-kb/bin/orbit` as `unchanged`; `.claude/orbit-kb/bin/orbit version`
+prints the version; `python3 .claude/scripts/hubflow.py check` exits 0.
 
 ### 0.11.2 (a fix of the Desk; db schema 8, unchanged)
 
@@ -184,7 +216,7 @@ changes, so that no verdict of a KB changes quietly. This release pairs with Sag
   words. An agent adds `checks_that(K, Text)` for each check that lint W12 names; `hubflow.py
   migrations` lists them as `todo` until it is done.
 
-Every hub (formal and informal): `PRINCIPLES.md` line 3 names Sagittarius 0.6.0; replace the file if
+Every hub: `PRINCIPLES.md` line 3 names Sagittarius 0.6.0; replace the file if
 the hub did not change it, otherwise change that one number. Engine files: `.claude/scripts/hubflow.py`,
 `.claude/scripts/desk.py`, and in a formal hub the orbit-kb copy: `.claude/orbit-kb/bin/orbit-kb`,
 `share/orbit-kb/VERSION` (now `0.6.0`), `README.md`, `core.pl`, `signature.pl` (new),
@@ -205,7 +237,7 @@ is no rule. **Database:** run `python3 .claude/scripts/hubflow.py migrate` once 
 `hubflow.py check`. If an item already breaks the rule, migrate names it and writes nothing: fix each
 one with this hub's hubflow (park it to an earlier date, or `set ID --due` later or `none`), then run
 migrate again. A hub at schema 6 applies the 0.8.0 section first.
-This release pairs with Sagittarius 0.5.0 (it was 0.4.1). Every hub (formal and informal):
+This release pairs with Sagittarius 0.5.0 (it was 0.4.1). Every hub:
 `PRINCIPLES.md` line 3 names Sagittarius 0.5.0; replace the file if the hub did not change it,
 otherwise change that one number. A formal hub: replace `.claude/orbit-kb/share/orbit-kb/VERSION`
 (now `0.5.0`).
@@ -239,7 +271,7 @@ What changes for the hub's sessions:
 - `add ask` in a formal hub needs `--ref kb:<slug>` (or `kb:/abs/path`, `kb:~/path` for a KB outside
   the hub) or `--no-kb`. Old asks stay as they are; the Desk shows them as "No KB behind it".
 - `add ask` in a formal hub also needs `--note TEXT`: the case, the options and what each changes, and
-  your default (the Desk shows it as the ask's context). A blank note is refused. An informal hub does not need it.
+  your default (the Desk shows it as the ask's context). A blank note is refused.
 - `add ask --due YYYY-MM-DD` and `set ID --due` record the date by which the asker needs the answer.
 - `--reserved` names its source: `NAME Policy: RULE` or `WHO, YYYY-MM-DD: WORDS`.
 - A check says in words what it checks: `checks_that(K, Text)` in a spec KB (lint W12 warns).
@@ -255,10 +287,9 @@ Check: `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` prints `hub from Min
 
 ### 0.7.3 (the version line; db schema 6, unchanged)
 
-This release pairs with Sagittarius 0.4.1 (it was 0.4.0). No rule changed. Every hub (formal and
-informal): `PRINCIPLES.md` line 3 names Sagittarius 0.4.1; replace the file if the hub did not
+This release pairs with Sagittarius 0.4.1 (it was 0.4.0). No rule changed. Every hub: `PRINCIPLES.md` line 3 names Sagittarius 0.4.1; replace the file if the hub did not
 change it, otherwise change that one number. A formal hub: replace
-`.claude/orbit-kb/share/orbit-kb/VERSION` (now `0.4.1`). An informal hub has no orbit-kb copy.
+`.claude/orbit-kb/share/orbit-kb/VERSION` (now `0.4.1`).
 The db schema is 6. **Database:** a hub at 0.7.0, 0.7.1 or 0.7.2 is at schema 6 already and runs no
 migrate; a hub at schema 5 (0.5.1 to 0.6.0) applies the 0.7.0 section first, which runs
 `python3 .claude/scripts/hubflow.py migrate` once.
@@ -268,9 +299,9 @@ and `.claude/orbit-kb/bin/orbit-kb version` prints `orbit-kb 0.4.1`.
 ### 0.7.2 (the orbit-kb copy: K-F and K-H; db schema 6, unchanged)
 
 This release pairs with Sagittarius 0.4.0 (it was 0.3.0): orbit-kb gained rules that change what a
-session does. Every hub (formal and informal): `PRINCIPLES.md` line 3 names Sagittarius 0.4.0;
+session does. Every hub: `PRINCIPLES.md` line 3 names Sagittarius 0.4.0;
 replace the file if the hub did not change it, otherwise change that one number. A formal hub's
-orbit-kb copy changes too; an informal hub has no orbit-kb copy.
+orbit-kb copy changes too.
 The db schema is 6. **Database:** a hub at 0.7.0 or 0.7.1 is at schema 6 already and runs no
 migrate; a hub at schema 5 (0.5.1 to 0.6.0) applies the 0.7.0 section first, which runs
 `python3 .claude/scripts/hubflow.py migrate` once. Engine files changed since 0.7.1, all under
@@ -291,7 +322,7 @@ The template is now called the MindHole Kit, and a hub made from it is a MindHol
 changes. The db schema is 6. **Database:** a hub at 0.7.0 is at schema 6 already and runs no
 migrate; a hub at schema 5 (0.5.1 to 0.6.0) applies the 0.7.0 section first, which runs
 `python3 .claude/scripts/hubflow.py migrate` once. Engine files changed since 0.7.0: `HUB-CORE.md`
-(formal and informal: line 3 says the guidance ships with the MindHole Kit). Replace it if the hub
+(line 3 says the guidance ships with the MindHole Kit). Replace it if the hub
 did not change it; otherwise change that one line by intent. Owned file `CLAUDE.md`: if it calls
 the template "the MindHole" or "the hub kit", say "the MindHole Kit" (optional; nothing reads it).
 Check: `python3 "$KIT"/tools/hubkit.py status --hub "$HUB"` prints `hub from MindHole Kit 0.7.1`.
@@ -330,12 +361,9 @@ below `@HUB-CORE.md`, see 0.4.0). A hub that skipped 0.6.0 reads that section to
   there). Files: `HUB-CORE.md` ("Flow state lives in the db", both editions). Check: that section
   names `v_inbox`, the session start and the compaction.
 - **The store map gets the vote, and new descriptions (M-B).** Intent: the vote that ends discovery
-  (GO, NO-GO or HOLD) has a home: the spec KB in a formal hub, a note `vote: GO: ...` on the ticket's
-  thread in an informal hub; the hypothesis is "what the human wants for this ticket", and models
-  are solver and model-checker models and Lean definitions and theorems. The informal map keeps a
-  divergence as a note `divergence: ...` on the ticket's thread (it was "not kept"). Files:
-  `HUB-CORE.md` ("What lives where": 30 fact kinds; the informal map), the informal
-  `.claude/skills/hub-flow/SKILL.md` (two example notes and a paragraph after "A verdict"). Check:
+  (GO, NO-GO or HOLD) has a home: the spec KB; the hypothesis is "what the human wants for this ticket", and models
+  are solver and model-checker models and Lean definitions and theorems. Files:
+  `HUB-CORE.md` ("What lives where": 30 fact kinds). Check:
   `python3 "$KIT"/tools/storemap.py --hub-core HUB-CORE.md --check` exits 0 in a formal hub that did
   not change the maps.
 - **The new `PRINCIPLES.md` comes from the prompt (M-C).** Intent: the hub's principles are the
@@ -346,9 +374,7 @@ below `@HUB-CORE.md`, see 0.4.0). A hub that skipped 0.6.0 reads that section to
   line `From the prompt:`.
 - **A hub has a light path (M-E).** Intent: a clear change with no signal is delivered by the
   session that made it, with its check, and with no spec KB and no review; a signal (or the human)
-  brings the spec KB and the review pane. In the informal edition the paragraph says it in its own
-  words, and the maker closes after a pass only when review came in. Files: `HUB-CORE.md` ("Panes"
-  in the formal edition, "Verify" in the informal one). Check: `grep -c "light path" HUB-CORE.md`
+  brings the spec KB and the review pane. Files: `HUB-CORE.md` ("Panes"). Check: `grep -c "light path" HUB-CORE.md`
   prints 1 or more.
 - **A handoff carries its kb ref (M-F).** Intent: the receiver of a handoff finds the KB from the
   row: the handoff example of the formal skill is `$HF handoff --to build --title "…" --ref kb:<slug>
@@ -426,9 +452,7 @@ intent. Owned file `CLAUDE.md`: add one section by hand (below); it still import
   (`add` in the plan); a later upgrade replaces them. `hubflow.py` asks that copy (`HUBFLOW_ORBIT_KB` still
   overrides it), and `HUB-CORE.md` and the skills name it (`.claude/orbit-kb/bin/orbit-kb help project`).
   Limits: `ORBIT_KB_LIB` in the environment overrides the copy's `share/`; `orbit-kb prove` still needs
-  `lake` from the PATH. `install` with no `--edition` now picks informal: the human chooses formal; the
-  PATH plays no part (a hub with no edition in `.hub-template.json` still gets formal when orbit-kb is on
-  the PATH). Check: `.claude/orbit-kb/bin/orbit-kb --dir project-kb lint` ends `0 error(s)`, and
+  `lake` from the PATH. The PATH plays no part in the install. Check: `.claude/orbit-kb/bin/orbit-kb --dir project-kb lint` ends `0 error(s)`, and
   `python3 .claude/scripts/hubflow-test.py` shows no `SKIP` other than the 3 that say "not run from the
   kit tree" (step 7 of the procedure above names them).
 - **No engine file is a shell script (install UX c4).** Intent: the hub runs on Python 3 and git, with
@@ -456,9 +480,8 @@ imports the principles (`@PRINCIPLES.md` below `@HUB-CORE.md`, see 0.4.0).
 - **The hub's tests find `orbit-kb` on PATH (T51 c1).** Intent: `hubflow-test.py` ran its real-orbit-kb
   cases only beside the kit tree, so in an installed formal hub they skipped, the suite said
   `N passed, 0 failed`, and waiver mutants survived. Now it looks at `$HUBFLOW_TEST_ORBIT_KB`, the kit
-  tree, then `orbit-kb` on PATH. In a formal hub (a `.hub-template.json` that does not record the informal
-  edition) a skipped real-orbit-kb case is a failure, and the last line counts skips (`N passed, M failed,
-  K skipped`). An informal hub still skips them. Files: `.claude/scripts/hubflow-test.py`. Check: in the
+  tree, then `orbit-kb` on PATH. In an installed hub a skipped real-orbit-kb case is a failure, and the last line counts skips (`N passed, M failed,
+  K skipped`). Files: `.claude/scripts/hubflow-test.py`. Check: in the
   hub, `python3 .claude/scripts/hubflow-test.py` shows no `SKIP` of a real-orbit-kb case and exits 0.
 - **Lock files are not committed (T51 c3).** Intent: ignore the lock files of orbit-kb KBs. Owned file
   `.gitignore`: add the lines `kb.lock` and `writer.lock`. Check: `git check-ignore project-kb/writer.lock`
@@ -493,7 +516,7 @@ Owned file `CLAUDE.md`: no change in 0.5.1; it still imports the principles (`@P
   archived still counts as blocking. Files: `.claude/scripts/hubflow.py`. Check: `hubflow-test.py`
   passes (the t47-c3 and t48-c1 checks).
 
-### 0.5.0 (the informal edition: one rule set, one engine voice)
+### 0.5.0 (editions; the principles say what the ledger does)
 
 The db schema is 4, as in 0.4.0. **Database:** a hub made at 0.4.0 before the transcripts change has
 schema 2 or 3 (`hubflow.py check` exits 2): run `python3 .claude/scripts/hubflow.py migrate`, then
@@ -501,64 +524,37 @@ schema 2 or 3 (`hubflow.py check` exits 2): run `python3 .claude/scripts/hubflow
 A hub already at schema 4 has nothing to migrate for 0.5.0 (0.5.1 moves it to schema 5).
 `HUB-CORE.md`, `PRINCIPLES.md` and both `SKILL.md` are engine files: merge each by intent.
 
-- **A hub knows its edition (T32).** Intent: an informal hub loads only informal rules (the five
-  stores and their commands; no spec KB, project KB or formal tool). `hubkit.py install --edition
-  informal|formal` (default: informal when `orbit-kb` is not on the PATH, else formal) records the
-  edition in `.hub-template.json`, and an upgrade keeps it. A hub made before has no edition
-  recorded: see "A hub with no edition" below. Files: `tools/hubkit.py`,
-  `kit.json` (`editions`), `editions/informal/` (the informal `HUB-CORE.md`, `CLAUDE.md` and the two
-  `SKILL.md`), `HUB-CORE.md` (the informal store map now has every fact kind, in the columns Fact
-  kind, Informal home, How), `PRINCIPLES.md` (three principles added), `flow/seed.json` (a `review`
+- **A hub records its edition (T32).** Intent: `.hub-template.json` records `"edition"`, and an
+  upgrade keeps it. Kits 0.5.0 to 0.11.2 had two editions; kit 0.12.0 has one, `formal` (see the
+  0.12.0 section), and reads a manifest with no edition as formal. Files: `tools/hubkit.py`,
+  `PRINCIPLES.md` (three principles added), `flow/seed.json` (a `review`
   session; owned, so an existing hub adds it with `hubflow.py session add review --role review` if
-  it wants one). To switch an existing hub to the informal edition:
-  `python3 "$KIT"/tools/hubkit.py edition --hub "$HUB" informal`, then again with `--yes`; merge
-  each pending file by intent, and rewrite `CLAUDE.md` by hand from `editions/informal/CLAUDE.md`
-  (an owned file: the switch never writes it). Check: `hubkit.py edition --hub "$HUB"` prints the
-  edition, and `hubkit.py status` names it.
-- **A hub with no edition (T36).** Intent: an upgrade picks the edition as install does. A hub made
-  before editions (0.4.0 and earlier) records none: it gets the informal edition when `orbit-kb` is
-  not on the PATH, else the formal one, and the dry run prints a `note:` line that says which and
-  how to change it (`python3 "$KIT"/tools/hubkit.py edition --hub "$HUB" informal|formal`). Read the
-  plan before `--yes`: a hub that used `orbit-kb` on another machine, or a PATH without it, needs
-  `edition formal`. Files: `tools/hubkit.py`. Check: the dry run names the edition; `hubkit.py
-  status` names it after the upgrade.
-- **An informal hub's engine shows only the five stores (T36).** Intent: `hubflow.py` reads the
-  edition from `.hub-template.json`; in an informal hub `--help` and its output name no spec KB,
-  `orbit-kb`, `specs/<slug>`, project KB or question server, `rotate` does not print
-  `spec_kbs_untriaged`, `where` and `spec-triage` are not commands, and a `kb` ref is never
-  queried (it stays blocking for an agent, as before). A formal hub is unchanged. Files:
-  `.claude/scripts/hubflow.py`. Check: `hubflow.py --help | grep -ci 'spec kb'` prints 0.
-- **The requirements are the same in the README and the informal `HUB-CORE.md` (T36).** Intent: an
-  informal hub needs Python 3, git, bash 4 or later and the POSIX tools that the README lists.
-  Files: `HUB-CORE.md` (informal edition). Check: the file names `bash 4 or later` and `awk`.
+  it wants one). Check: `hubkit.py edition --hub "$HUB"` prints the edition, and `hubkit.py status`
+  names it.
 - **Skip, never hide, in the ledger (T36).** Intent: the principle says what the ledger does with a
   skip: `park ID --until DATE` brings the item back for triage after the date, and `close ID
   --reason human_skip` is final and keeps the human's words. Files: `PRINCIPLES.md`. A hub that
   edited it keeps its own text and adds that sentence.
 - **Premises beside the hypothesis (T36).** Intent: every stated hypothesis lists its premises beside
-  it. Files: `PRINCIPLES.md` (the hypothesis principle), `HUB-CORE.md` (the `hypothesis` row of the
-  informal store map). Check: `grep -c premises PRINCIPLES.md` prints 1 or more.
+  it. Files: `PRINCIPLES.md` (the hypothesis principle). Check: `grep -c premises PRINCIPLES.md` prints 1 or more.
   Owned file `CLAUDE.md`: it must import the principles (`@PRINCIPLES.md` below `@HUB-CORE.md`, see
   0.4.0); an upgrade never writes `CLAUDE.md`. Check: `grep -x @PRINCIPLES.md CLAUDE.md` prints it.
 
-### 0.4.0 (the informal release: the hub kit without Prolog or Lean)
+### 0.4.0 (the hub kit: the principles ship with the hub; `sessions/` leaves the kit)
 
 The db schema is 4. **Database:** run `python3 .claude/scripts/hubflow.py migrate`, then
 `check`. The kit is now named the hub kit, part of Sagittarius
 (<https://github.com/theTyster/sagittarius>). `HUB-CORE.md` is an engine file: merge it by intent
-(the new section is "Without orbit-kb", with its generated informal store map; the structure tree
-and "Panes" no longer name `sessions/`).
+(the structure tree and "Panes" no longer name `sessions/`).
 
 - **The principles ship with the hub.** Intent: every agent in the hub reads the Sagittarius
   principles in plain words at start. Files: `PRINCIPLES.md` (new, engine: the upgrade adds it).
   Owned file `CLAUDE.md`: add the line `@PRINCIPLES.md` below `@HUB-CORE.md`; an upgrade never
   writes `CLAUDE.md`, and a root file that is not imported is invisible.
   Check: `grep -x @PRINCIPLES.md CLAUDE.md` prints the line.
-- **The hub works without orbit-kb.** Intent: with only the five informal stores (ledger, memory
-  files, weeks, bespoke tools, tracker), nothing blocks from a spec KB; an item with a `kb` ref is
-  still treated as blocking when `orbit-kb` is missing. Files: `HUB-CORE.md`. No code change: a hub
-  that uses `orbit-kb` keeps its spec KBs at `specs/<slug>` and its `spec-triage` step. Check:
-  `hubflow.py check` exits 0.
+- **The fail-safe for a missing tool.** Intent: an item with a `kb` ref is treated as blocking
+  when `orbit-kb` cannot be asked. No code change: a hub keeps its spec KBs at `specs/<slug>` and
+  its `spec-triage` step. Check: `hubflow.py check` exits 0.
 - **`sessions/` leaves the kit.** Intent: named sessions belong to one machine, so they are set up
   outside the hub (dotfiles, a shell alias), and the hub knows only their names in `flow/seed.json`.
   Files: `sessions/launch.sh` (no longer shipped), `HUB-CORE.md`, `hub-flow/SKILL.md`,

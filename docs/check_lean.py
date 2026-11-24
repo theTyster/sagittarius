@@ -15,11 +15,18 @@ proofs      For each Lake project under kb/proofs (a folder with a lakefile): `l
             the axioms of each theorem of the project. It fails on a build error and on an axiom
             other than propext, Classical.choice and Quot.sound (so sorry, native_decide and a
             declared axiom fail). `proofs --list` prints the projects and builds nothing.
+scientific  Lean compiles kb/proofs/scientific_method/ScientificMethod.lean, the Lean file of the
+            handoff of 2026-11-18 (scientific-method-overhaul, claim c25). It fails when Lean
+            reports an error or a sorry, when the file declares an axiom, when a declaration of
+            the file uses an axiom other than propext, Classical.choice and Quot.sound (so sorry
+            fails), or when one of the nine theorems that the texts name is not a theorem of the
+            file.
 
-Usage: python3 docs/check_lean.py [hypothesis] [names] [proofs [--list]]     (none: all three)
+Usage: python3 docs/check_lean.py [hypothesis] [names] [proofs [--list]] [scientific]   (none: all four)
 Exit 0: pass. 1: a failure, one line "FAIL ..." each. 2: usage, or Lean is not installed.
 
-The script never changes a Lean file. Hypothesis.lean is compiled from a copy in a temporary folder.
+The script never changes a Lean file. Hypothesis.lean and ScientificMethod.lean are compiled from a
+copy in a temporary folder.
 `lake build` writes kb/proofs/*/.lake, which git ignores. No project here has packages: the build
 needs no network. Never run `lake update` or `lake exe cache get` here.
 Tests: python3 docs/test_check_lean.py
@@ -38,6 +45,20 @@ PROOFS = "kb/proofs"
 TOOLCHAIN = "leanprover/lean4:v4.35.0"
 # The axioms a project under kb/proofs may use: the three of Lean's own logic.
 STANDARD = {"propext", "Classical.choice", "Quot.sound"}
+# The Lean file of the handoff (c25). It has no Lake project: it imports only Std, which ships with Lean.
+SCIENTIFIC = "kb/proofs/scientific_method/ScientificMethod.lean"
+# The theorems of that file that the texts name. Each must be a theorem of the file.
+SCIENTIFIC_THEOREMS = [
+    "ScientificMethod.unique_verdict",
+    "ScientificMethod.conflict_rejects_joint",
+    "ScientificMethod.agreement_establishes_run",
+    "ScientificMethod.Timer.reading_600",
+    "ScientificMethod.Timer.reading_611",
+    "ScientificMethod.Timer.reading_615",
+    "ScientificMethod.Timer.late_run_refutes_universal",
+    "ScientificMethod.Statistical.equal_likelihood_no_preference",
+    "ScientificMethod.revision_preserves_record",
+]
 
 # Imports MODULE (built) and prints one line per declaration of every module MODULE or MODULE.*:
 #   DECL kind name axiom,axiom,...
@@ -255,18 +276,58 @@ def check_proofs(list_only):
               f"{'axioms: only ' + ', '.join(sorted(STANDARD)) + ' or none' if not bad else 'see FAIL lines'}")
 
 
+def check_scientific():
+    need_tool("lean")
+    path = SCIENTIFIC
+    if not os.path.isfile(os.path.join(ROOT, path)):
+        return fail(f"ScientificMethod.lean is not in the repository ({path})")
+    lean = ["lean", "+" + TOOLCHAIN]
+    with tempfile.TemporaryDirectory() as d:
+        shutil.copy2(os.path.join(ROOT, path), os.path.join(d, "ScientificMethod.lean"))
+        r = subprocess.run(lean + ["-o", "ScientificMethod.olean", "ScientificMethod.lean"], cwd=d,
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            return fail(f"Lean rejects {path}:\n" + tail(r.stdout + r.stderr))
+        # A sorry in an `example` leaves no declaration for the probe: Lean's own warning names it.
+        for ln in (r.stdout + r.stderr).splitlines():
+            if re.search(r"\bsorry\b", ln):
+                fail(f"{path}: Lean reports a sorry: {ln.strip()}")
+        env = dict(os.environ, LEAN_PATH=d)
+        decls, out = probe(lambda p: lean + ["--run", p, "ScientificMethod"], d, env)
+    if decls is None:
+        return fail(f"{path}: the probe of the axioms did not run:\n" + tail(out))
+    thms = [x for x, (k, _) in decls.items() if k == "theorem"]
+    bad = 0
+    for x, (k, axs) in sorted(decls.items()):
+        if k == "axiom":
+            fail(f"{path}: declares the axiom {x}")
+            bad += 1
+        other = [a for a in axs if a not in STANDARD]
+        if other:
+            fail(f"{path}: {x} uses the axiom(s) {', '.join(other)}")
+            bad += 1
+    missing = [x for x in SCIENTIFIC_THEOREMS if decls.get(x, ("", []))[0] != "theorem"]
+    for x in missing:
+        fail(f"{path}: declares no theorem {x}")
+    print(f"scientific: {path}: lean ok, {len(thms)} theorems, "
+          f"{len(SCIENTIFIC_THEOREMS) - len(missing)} of the {len(SCIENTIFIC_THEOREMS)} named theorems, "
+          f"{'axioms: only ' + ', '.join(sorted(STANDARD)) + ' or none' if not bad else 'see FAIL lines'}")
+
+
 def main(argv):
     modes = [a for a in argv if not a.startswith("-")]
     flags = [a for a in argv if a.startswith("-")]
-    if any(f not in ("--list",) for f in flags) or any(m not in ("hypothesis", "names", "proofs") for m in modes) \
+    if any(f not in ("--list",) for f in flags) or any(m not in ("hypothesis", "names", "proofs", "scientific") for m in modes) \
             or ("--list" in flags and modes != ["proofs"]):
-        print("usage: python3 docs/check_lean.py [hypothesis] [names] [proofs [--list]]", file=sys.stderr)
+        print("usage: python3 docs/check_lean.py [hypothesis] [names] [proofs [--list]] [scientific]", file=sys.stderr)
         return 2
-    for m in modes or ["hypothesis", "names", "proofs"]:
+    for m in modes or ["hypothesis", "names", "proofs", "scientific"]:
         if m == "hypothesis":
             check_hypothesis()
         elif m == "names":
             check_names()
+        elif m == "scientific":
+            check_scientific()
         else:
             check_proofs("--list" in flags)
     if fails:

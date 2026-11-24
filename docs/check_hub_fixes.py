@@ -163,7 +163,8 @@ def t31c5():
 
 
 LAND = os.environ.get("LAND_CHECK", "/home/ty/Projects/mine/sagittarius/tmp/hub-design-kb/land_check.sh")
-LISTED = ("check_hub_guidance.py", "check_informal_release.py", "check_words.py", "check_hub_fixes.py")
+# scientific-method-overhaul c22: check_informal_release.py is retired (it is docs/check_kit_release.py now, which land_check.sh does not name)
+LISTED = ("check_hub_guidance.py", "check_words.py", "check_hub_fixes.py")
 
 
 def t31c6():
@@ -176,7 +177,7 @@ def t31c6():
         p = subprocess.run([sys.executable, os.path.join(ROOT, "docs", n), "--list"], capture_output=True, text=True)
         ids = p.stdout.split()
         check(f"t31c6 {n} --list prints its claim ids", p.returncode == 0 and len(ids) >= 3, f"exit {p.returncode}: {p.stdout[:100]}{p.stderr[:100]}")
-        want = {"check_hub_guidance.py": 12, "check_informal_release.py": 6, "check_words.py": 3}.get(n)
+        want = {"check_hub_guidance.py": 12, "check_words.py": 3}.get(n)
         if want:
             check(f"t31c6 {n} --list prints {want} ids", len(ids) == want, ids)
     p = subprocess.run(["bash", "-n", LAND], capture_output=True, text=True)
@@ -295,7 +296,7 @@ def t49c1():
     check("t49c1 the weeks row names no Claude Code session logs (0.3.0: the index is dropped)",
           "session log" not in row and "indexed into the ledger" not in row and "index-transcripts" not in row, row[:400])
     kit_texts = []
-    for base in (os.path.join(ROOT, "hubkit", "hub"), os.path.join(ROOT, "hubkit", "editions")):
+    for base in (os.path.join(ROOT, "hubkit", "hub"),):
         for dp, dn, fn in os.walk(base):
             kit_texts += [os.path.join(dp, f) for f in fn if f.endswith((".md", ".py")) and not f.endswith("-test.py")]
     named = [os.path.relpath(f, ROOT) for f in kit_texts
@@ -342,7 +343,7 @@ def iuxc1():
     s2 = re.sub(r"\s+", " ", sec_of(secs, "Step 2"))
     check("iuxc1 step 2 writes answer 1 word for word under What this hub is for in CLAUDE.md",
           "What this hub is for" in s2 and "word for word" in s2 and "CLAUDE.md" in s2, s2[:300])
-    for rel in ("hubkit/hub/CLAUDE.md", "hubkit/editions/informal/CLAUDE.md"):
+    for rel in ("hubkit/hub/CLAUDE.md",):
         cl = read(os.path.join(ROOT, rel))
         imports = cl.find("\n@")
         at = cl.find("\n## What this hub is for\n")

@@ -150,7 +150,8 @@ C = c3"
     newkb c37d discovery; okb add "$GOAL" "hypothesis(hy1, g1, agent, 'A.')" "hypothesis(hy2, g1, agent, 'B.')" "hypothesis(hy3, g1, agent, 'C.')" \
         "adoption_cited(hy1, 'Ty: go with A')"
     okb query 'hypothesis_state(hy1, S)'; is Rc37-cited-alone-proposed "S = proposed"
-    okb show hypotheses; has Rc37-cited-printed "Hypothesis hy1 (agent, proposed; the ticket cites the human's adoption: Ty: go with A): A."
+    okb show hypotheses; has Rc37-cited-printed "Hypothesis hy1 (agent, proposed: the agent reads the human's words as adoption: 'Ty: go with A' (adopt to confirm)): A."
+    okb report; has Rc37-cited-printed-report "(agent, proposed: the agent reads the human's words as adoption: 'Ty: go with A' (adopt to confirm))"
     okb retire hy1 --reason no; rcis Rc37-agent-cannot-retire-cited 1
     printf "attest(v1, vote, r1, vote(1, go), agent, '2026-11-24T00:00:00Z').\nattest(v2, vote, r1, vote(1, go), human, '2026-11-24T00:01:00Z').\nadoption_cited(hy3, 'after the vote').\n" >> "$K/kb.pl"
     okb query 'hypothesis_state(H, S)' -n 0; is Rc37-go-adopts-only-cited-before "H = hy1, S = adopted
@@ -198,6 +199,23 @@ if want c43; then
     okb query 'goal(G, K, A, T)' >/dev/null; [ -z "$err" ] && ok Rc43-goal-query-no-note || bad Rc43-goal-query-no-note "$err"
     K2=$T/c43s; "$CLI" shift "$K2" --request 'r' --hypothesis 'The page is dark.' --no-premises --claim 'It is dark.' --example 'Open it.' --check k1 --checks-that 'dark' >"$T/o" 2>"$T/e"; rc=$?
     rcis Rc43-shift-works 0; grep -q "^hypothesis(h1, feature, 'The page is dark.').$" "$T/o" && ok Rc43-shift-stdout || bad Rc43-shift-stdout "$(cat "$T/o")"
+fi
+
+if want p2; then   # second pass: W10/W11 wording, W19, W20, the not-tempered line
+    newkb p2; okb add "$GOAL" "$HA" "$HB" "defeat(d1, hyb, 'Bad.')"
+    okb lint; has Rp2-W10-goal "W10 g1: This goal has no premise"; has Rp2-W10-hypothesis "W10 hya: This hypothesis has no premise"
+    hasnt Rp2-W10-not-defeated "W10 hyb"
+    okb show hypotheses; has Rp2-hint-goal "no_premises(G) for this goal"; has Rp2-hint-hypothesis "no_premises(H) for this hypothesis"
+    [ "$(printf '%s\n' "$out" | grep -c 'Not tempered')" = 1 ] && ok Rp2-not-tempered-only-current || bad Rp2-not-tempered-only-current "$out"
+    okb add "premise(p1, g1, 'P.')" 'no_premises(g1)'; okb lint; has Rp2-W11-goal "W11 g1: This goal has a premise"
+    printf "attest(a90, retirement, hya, retired(no), agent, '2026-11-24T00:00:00Z').\n" >> "$K/kb.pl"
+    okb lint; has Rp2-W19 "W19 a90"; okb query 'hypothesis_state(hya, S)'; is Rp2-ignored-retirement "S = proposed"
+    oldkb p2o; printf "hypothesis(h1, feature, 'Old.').\n" >> "$K/kb.pl"; okb lint; has Rp2-W10-old-wording "W10 h1: This hypothesis has no premise"
+    mkdir -p "$T/pk"; printf "uses([project]).\n%% Made by orbit-kb 0.8.0.\ngoal(pg1, feature, human, 'Agents deliver what the human wants.').\n" > "$T/pk/kb.pl"
+    newkb p2s build,project; okb add "project_kb('$T/pk')" "$GOAL" 'no_premises(g1)' 'supports(g1, project(pg1))'; rcis Rp2-supports-add 0
+    okb lint; hasnt Rp2-W20-none "W20"
+    okb rests g1; has Rp2-rests-project-text "project goal pg1: Agents deliver what the human wants."
+    okb add "goal(g2, feature, human, 'Two.')" 'supports(g2, project(pg9))'; okb lint; has Rp2-W20 "W20 g2"
 fi
 
 echo "pass=$pass fail=$fail"

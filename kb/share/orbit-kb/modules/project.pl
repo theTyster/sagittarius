@@ -276,6 +276,10 @@ any_project_conflict :- blocking(project_contradiction(_)).
 % T43 c3: a draft blocks no spec KB (the dates decide). A project KB that does not load clean does.
 blocking(project_kb_unclean) :- project_kb_unclean.
 any_project_conflict :- blocking(project_kb_unclean).
+% 0.8.0 (D57): the same two conditions with no step through blocking/1. done_072 of the build
+% module reads it, so that blocking/1 can read the grandfather rule and the rules stay stratified.
+any_project_conflict_072 :- project_contradiction(X, _), project_pinned(X).
+any_project_conflict_072 :- project_kb_unclean.
 
 % ---------------------------------------------------------------------
 % Lint hooks

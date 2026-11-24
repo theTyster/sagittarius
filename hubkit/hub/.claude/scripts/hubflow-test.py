@@ -55,8 +55,8 @@ SEED_DATA = {
 SEED = None  # the seed file's path, set per run in cases()
 
 # q5: the rule that a new ask says whether it rests on a KB (a mutant, and the copies at an older schema)
-ASK_NOTE_RULE = 'if kind == "ask" and not (note or "").strip() and not informal(g):  # an ask carries a context note'
-ASK_KB_RULE = 'if kind == "ask" and not no_kb and not has_kb and not informal(g):  # an ask says whether it rests on a KB'
+ASK_NOTE_RULE = 'if kind == "ask" and not (note or "").strip():  # an ask carries a context note'
+ASK_KB_RULE = 'if kind == "ask" and not no_kb and not has_kb:  # an ask says whether it rests on a KB'
 
 # Each mutant: (name, anchor in hubflow.py that must occur exactly once, replacement).
 MUTANTS = [
@@ -143,8 +143,8 @@ MUTANTS = [
     ("ask-kb-rule-dropped", ASK_KB_RULE, "if False:"),
     # c13: a new ask carries a context note
     ("ask-note-rule-dropped", ASK_NOTE_RULE, "if False:"),
-    ("ask-note-blank-allowed", 'not (note or "").strip() and not informal(g):  # an ask carries a context note',
-     'not note and not informal(g):  # an ask carries a context note'),
+    ("ask-note-blank-allowed", 'not (note or "").strip():  # an ask carries a context note',
+     'not note:  # an ask carries a context note'),
     ("no-kb-with-kb-ref-allowed", "if no_kb and has_kb:", "if False:"),
     ("set-no-kb-yes-with-kb-ref", "if new and item_kb_refs(c, iid):  # no_kb with a kb ref", "if False:"),
     ("ref-add-kb-keeps-no-kb", 'if kind == "kb" and it["no_kb"]:  # q5: a kb ref says the ask rests on a KB', "if False:"),
@@ -163,12 +163,13 @@ MUTANTS = [
 
 
 def formal_hub():
-    """True when this script runs from an installed formal hub: the hub root (three levels up) has a
-    .hub-template.json that does not record the informal edition. The kit tree has no manifest."""
+    """True when this script runs from an installed hub: the hub root (three levels up) has a
+    .hub-template.json. The kit tree has no manifest. (A hub needs the tool: scientific-method-overhaul
+    c22. The name is from the time when a hub with no tool was a second kind.)"""
     try:
         with open(os.path.join(HERE, "..", "..", ".hub-template.json"), encoding="utf-8") as f:
-            return json.load(f).get("edition") != "informal"
-    except (OSError, ValueError, AttributeError):
+            return isinstance(json.load(f), dict)
+    except (OSError, ValueError):
         return False
 
 
@@ -184,7 +185,7 @@ class Run:
 
     def skip(self, name, why, needs_orbit_kb=True):
         """A check that cannot run here: printed and counted as a skip (the last line says how many).
-        A real-orbit-kb check that cannot run in an installed formal hub is a failure instead (T51 c1):
+        A real-orbit-kb check that cannot run in an installed hub is a failure instead (T51 c1):
         the hub's own rules need orbit-kb, so a suite that skips them proves less than it says."""
         if needs_orbit_kb and formal_hub():
             self.skips += 1
@@ -214,7 +215,7 @@ def script_version(path):
 
 def hf(r, d, *args, now=NOW, session="discovery", hub=None, extra_env=None, cwd=None):
     # A case that names no cwd runs in the test root (no .hub-template.json, no git): the engine then
-    # reads the formal edition wherever the suite is launched, also from an installed informal hub (T41).
+    # reads no hub of the machine, wherever the suite is launched (T41).
     cwd = cwd or NEUTRAL_CWD
     env = {k: v for k, v in os.environ.items() if not k.startswith("HUBFLOW_") and k != "HUB_SESSION"}
     if d is not None:
@@ -2081,20 +2082,22 @@ def case_t33_spec_triage_guard(r, root):
 
 
 def no_orbit_kb_path():
-    """PATH without any directory that holds an orbit-kb (T24: the informal release has no orbit-kb)."""
+    """PATH without any directory that holds an orbit-kb (T24: the fail-safe for a tool that cannot be asked)."""
     keep = [x for x in os.environ.get("PATH", "").split(os.pathsep) if x and not os.path.exists(os.path.join(x, "orbit-kb"))]
     return os.pathsep.join(keep)
 
 
 def case_t24_no_orbit_kb(r, root):
-    """T24 c2: without orbit-kb (HUBFLOW_ORBIT_KB unset, no orbit-kb on PATH) triage, escalation, rotate
-    and check do what HUB-CORE.md "Without orbit-kb" says. Nothing blocks from a spec KB; a kb ref is
-    still fail-safe blocking."""
+    """T24 c2, the fail-safe for a missing tool: when orbit-kb cannot be asked (HUBFLOW_ORBIT_KB unset, no
+    copy in the hub, no orbit-kb on PATH) triage, escalation, rotate and check still work on an item with
+    no kb ref, and an item with a kb ref counts as blocking: an agent's lapse of it becomes escalate, and
+    only a human closes it. (scientific-method-overhaul c22: a hub with no tool is no release of the kit;
+    the fail-safe stays.)"""
     path = no_orbit_kb_path()
     r.check("t24-c2-no-orbit-kb-on-path", shutil.which("orbit-kb", path=path) is None, path)
-    h = os.path.join(root, "informalhub")
+    h = os.path.join(root, "notoolhub")
     os.makedirs(os.path.join(h, "W0"))
-    d = fresh(r, root, "t24-informal")
+    d = fresh(r, root, "t24-no-tool")
     env = {"PATH": path}  # hf() drops every HUBFLOW_* variable, so HUBFLOW_ORBIT_KB is unset
 
     def t(*args, **kw):
@@ -2701,7 +2704,7 @@ def case_t42_precaution(r, root):
 
 def case_t42_check_names(r, root):
     """T42 c6: `check` names the items that skip-waived would park (and exits 0 for it); after skip-waived it
-    names none. The formal hub-flow SKILL.md says when to run skip-waived; the informal one does not name it."""
+    names none. The hub-flow SKILL.md says when to run skip-waived."""
     okb = real_orbit_kb()
     name = "t42-c6-real-orbit-kb"
     if not os.access(okb, os.X_OK):
@@ -2735,8 +2738,6 @@ def case_t42_check_names(r, root):
     para = next((p for p in skill.split("\n\n") if "$HF skip-waived" in p), "")
     r.check("t42-c6-skill-says-when-to-run-skip-waived", para and re.search(r"\b(after|when)\b", para)
             and "waiver" in para and "check" in para, para)
-    inf = os.path.join(kit, "editions", "informal", ".claude", "skills", "hub-flow", "SKILL.md")
-    r.check("t42-c6-informal-skill-without-skip-waived", os.path.isfile(inf) and "skip-waived" not in open(inf, encoding="utf-8").read())
 
 
 def case_t42_lapsed_waiver(r, root):
@@ -2984,15 +2985,12 @@ def case_t40_words_and_refs(r, root):
     hub_dir_ = os.path.dirname(os.path.dirname(HERE))
     kit = os.path.dirname(hub_dir_)
     if not os.path.isfile(os.path.join(kit, "tools", "storemap.py")):
-        # the words are those of the kit's full edition; an installed hub (or the informal edition) has its own
+        # the words are those of the kit; an installed hub has its own
         r.skip("t40-c12-skill-summary-is-no-decision", "not run from the kit tree (hubkit/hub)", needs_orbit_kb=False)
         r.skip("t40-c12-hub-core-raw-reports-agent-reads", "not run from the kit tree (hubkit/hub)", needs_orbit_kb=False)
     else:
         skill = open(os.path.join(HERE, "..", "skills", "hub-flow", "SKILL.md"), encoding="utf-8").read()
         ex = re.findall(r'add summary --title "([^"]*)"', skill)
-        inf = os.path.join(kit, "editions", "informal", ".claude", "skills", "hub-flow", "SKILL.md")
-        if os.path.isfile(inf):
-            ex += re.findall(r'add summary --title "([^"]*)"', open(inf, encoding="utf-8").read())
         r.check("t40-c12-skill-summary-is-no-decision", ex and not any(re.search(r"\b(moved|decided|agreed|will|is now|to Friday)\b", x, re.I) for x in ex), ex)
         core = open(os.path.join(hub_dir_, "HUB-CORE.md"), encoding="utf-8").read()
         row = next((l for l in core.splitlines() if l.startswith("| `raw_reports`")), "")
@@ -3124,7 +3122,7 @@ def case_iux_c3_hub_copy(r, root):
     res = hf(hub_r, d, "triage", "A-0002", "lapse", "--note", "x", hub=h,
              extra_env=dict(env, HUBFLOW_ORBIT_KB=os.path.join(old_bin, "orbit-kb")))
     r.check("iux-c3-hubflow-orbit-kb-still-overrides", res[0] == 0 and disp(d, "A-0002")[-1][0] == "escalate", (res, disp(d, "A-0002")))
-    os.remove(own)  # a hub with no copy (informal, or made before the copy): the one on PATH, as before
+    os.remove(own)  # a hub with no copy (made before the copy, or the copy is gone): the one on PATH, as before
     add(hub_r, d, "ask", "Behind a clear spec, no copy", "--ref", "kb:clear-one", now=DUE)  # A-3
     res = hf(hub_r, d, "triage", "A-0003", "lapse", "--note", "x", hub=h, extra_env=env)
     r.check("iux-c3-no-copy-falls-back-to-path", res[0] == 0 and disp(d, "A-0003")[-1][0] == "escalate"
@@ -3249,16 +3247,8 @@ def case_k3_citations_hub_name(r, root):
 
 
 def case_030_handoff_example(r, root):
-    """Sagittarius 0.3.0, c_m_f_1: the handoff example of the formal hub-flow skill carries a kb ref, and the
-    example runs as written: the row it makes holds the kb ref. An informal hub has no kb refs: skipped there."""
-    try:
-        with open(os.path.join(HERE, "..", "..", ".hub-template.json"), encoding="utf-8") as f:
-            informal = json.load(f).get("edition") == "informal"
-    except (OSError, ValueError, AttributeError):
-        informal = False
-    if informal:
-        r.skip("030-handoff-example", "the informal edition has no kb refs", needs_orbit_kb=False)
-        return
+    """Sagittarius 0.3.0, c_m_f_1: the handoff example of the hub-flow skill carries a kb ref, and the
+    example runs as written: the row it makes holds the kb ref."""
     skill = open(os.path.join(HERE, "..", "skills", "hub-flow", "SKILL.md"), encoding="utf-8").read()
     lines = [ln.strip() for ln in skill.splitlines() if ln.strip().startswith("$HF handoff --to")]
     r.check("030-handoff-example-exists", len(lines) >= 1, lines)
@@ -3425,10 +3415,11 @@ def _sql_refused(d, sql):
 
 
 def case_dk_ask_note(r, root):
-    """c13: a new ask in a formal hub carries a context note: `add ask` with no --note, or a blank one
+    """c13: a new ask carries a context note: `add ask` with no --note, or a blank one
     (spaces, a newline), exits 1 and writes nothing; the message names the fix. With a note it is accepted
-    and the note is on the opened event, as it is for any write. Another kind needs no note. An informal
-    hub has no Desk: it needs no note and takes one. import is unchanged (old data)."""
+    and the note is on the opened event, as it is for any write. Another kind needs no note. import is
+    unchanged (old data). (scientific-method-overhaul c22: a hub whose manifest records the edition
+    "informal" gets the same rule and the same help: hubflow.py reads no edition.)"""
     d = fresh(r, root, "dk-asknote")
     snap = snapshot(d)
     res = hf(r, d, "add", "ask", "--no-kb", "--title", "No context", "--waits-on", "me")
@@ -3448,19 +3439,16 @@ def case_dk_ask_note(r, root):
     for kind in ("thread", "hold", "summary"):
         res = hf(r, d, "add", kind, "--title", "No note needed " + kind)
         r.check("dk-c13-%s-needs-no-note" % kind, res[0] == 0, res)
-    # an informal hub has no Desk: no note needed, and one is taken
-    h = os.path.join(root, "dk-asknote-informal")
-    write_json(os.path.join(h, ".hub-template.json"), {"edition": "informal"})
-    di = fresh(r, root, "dk-asknote-informal-flow")
-    res = hf(r, di, "add", "ask", "--title", "Informal, no note", hub=h)
-    r.check("dk-c13-informal-needs-no-note", res[0] == 0, res)
-    res = hf(r, di, "add", "ask", "--title", "Informal, a note", "--note", "context", hub=h)
-    r.check("dk-c13-informal-takes-a-note", res[0] == 0, res)
     code, out, err = hf(r, None, "--help")
     r.check("dk-c13-help-names-the-rule", "An ask also needs --note N" in out, out[:1200])
-    code, out, err = hf(r, None, "--help", hub=h)
-    r.check("dk-c13-informal-help-hides-the-rule", code == 0 and "also needs --note" not in out and "context for the Desk" not in out
-            and "--note N]" in out, out[:900])
+    # c22: hubflow.py reads no edition. In a hub whose manifest records "informal" the rule and the help are the same
+    h = os.path.join(root, "dk-asknote-ended")
+    write_json(os.path.join(h, ".hub-template.json"), {"edition": "informal"})
+    di = fresh(r, root, "dk-asknote-ended-flow")
+    res = hf(r, di, "add", "ask", "--no-kb", "--title", "No note", hub=h)
+    r.check("c22-ask-note-rule-reads-no-edition", refused(res, 1, "an ask needs --note") and q(di, "select count(*) from item") == [(0,)], res)
+    code, out2, err = hf(r, None, "--help", hub=h)
+    r.check("c22-help-reads-no-edition", code == 0 and out2 == out, out2[:300])
 
 
 # ---- park date <= due date (hub spec KB questions-server c38, c39; Ty, 2026-11-18: "there needs to be a
@@ -3603,9 +3591,8 @@ def case_dk_no_kb(r, root):
     """q5: a new ask says whether it rests on a KB: a kb ref, or --no-kb (no_kb 1). With neither, add ask
     exits 1 and names both ways; --no-kb with a kb ref, or on another kind, exits 1. set --no-kb yes|no
     changes it (yes is refused while the ask has a kb ref); ref add kb:... sets it to 0. Each change is a
-    `no_kb` event; show prints it. An informal hub has no KB: it needs neither, and takes --no-kb (one
-    command, such as the smoke test of INSTRUCTIONS.md, works in both editions); its help and show do
-    not name it."""
+    `no_kb` event; show prints it. (scientific-method-overhaul c22: a hub whose manifest records the
+    edition "informal" gets the same rule: hubflow.py reads no edition, and takes a kb ref there.)"""
     d = fresh(r, root, "dk-nokb")
     snap = snapshot(d)
     res = hf(r, d, "add", "ask", "--note", "Test ask: case, options, default.", "--title", "Rests on what?", "--waits-on", "me")
@@ -3652,20 +3639,19 @@ def case_dk_no_kb(r, root):
     r.check("dk-q5-ref-add-other-kind-keeps-no-kb", res[0] == 0 and ev(d, "A-0001")[-1][0] == "ref_add", ev(d, "A-0001")[-1])
     code, out, err = hf(r, None, "--help")
     r.check("dk-q5-help-names-the-rule", "--no-kb" in out and "An ask says whether it rests on a KB" in out, out[:900])
-    # an informal hub has no KB: an ask needs neither, and --no-kb is taken
-    h = os.path.join(root, "dk-informal")
+    # c22: hubflow.py reads no edition. In a hub whose manifest records "informal" an ask still says whether it
+    # rests on a KB, a kb ref is taken, and show prints no_kb
+    h = os.path.join(root, "dk-ended")
     write_json(os.path.join(h, ".hub-template.json"), {"edition": "informal"})
-    di = fresh(r, root, "dk-informal-flow")
-    res = hf(r, di, "add", "ask", "--note", "Test ask: case, options, default.", "--title", "Informal ask", "--waits-on", "me", hub=h)
-    r.check("dk-q5-informal-ask-needs-neither", res[0] == 0 and q(di, "select no_kb from item") == [(0,)], res)
-    res = hf(r, di, "add", "ask", "--note", "Test ask: case, options, default.", "--title", "Informal smoke test", "--waits-on", "me", "--no-kb", hub=h)
-    r.check("dk-q5-informal-takes-no-kb", res[0] == 0 and q(di, "select no_kb from item where id = 'A-0002'") == [(1,)], res)
-    r.check("dk-q5-informal-still-refuses-kb-ref", refused(hf(r, di, "add", "ask", "--note", "Test ask: case, options, default.", "--title", "Nope", "--ref", "kb:x", hub=h), 1, "formal edition"))
+    di = fresh(r, root, "dk-ended-flow")
+    res = hf(r, di, "add", "ask", "--note", "Test ask: case, options, default.", "--title", "Neither", "--waits-on", "me", hub=h)
+    r.check("c22-ask-kb-rule-reads-no-edition", refused(res, 1, "--no-kb") and q(di, "select count(*) from item") == [(0,)], res)
+    res = hf(r, di, "add", "ask", "--note", "Test ask: case, options, default.", "--title", "Smoke test", "--waits-on", "me", "--no-kb", hub=h)
+    r.check("c22-no-kb-is-taken", res[0] == 0 and q(di, "select no_kb from item where id = 'A-0001'") == [(1,)], res)
+    res = hf(r, di, "add", "ask", "--note", "Test ask: case, options, default.", "--title", "On a KB", "--ref", "kb:x", hub=h)
+    r.check("c22-kb-ref-is-taken", res[0] == 0 and q(di, "select kind, ref from item_ref where item_id = 'A-0002'") == [("kb", "x")], res)
     code, out, err = hf(r, di, "show", "A-0001", hub=h)
-    r.check("dk-q5-informal-show-has-no-no-kb", code == 0 and "no_kb" not in out, out[:600])
-    code, out, err = hf(r, None, "--help", hub=h)
-    r.check("dk-q5-informal-help-has-no-no-kb", code == 0 and "--no-kb" not in out and "rests on a KB" not in out
-            and "kb:~/path" not in out and "--due YYYY-MM-DD" in out, out[:900])
+    r.check("c22-show-prints-no-kb", code == 0 and "no_kb: 1" in out, out[:600])
 
 
 def case_dk_kb_outside(r, root):
@@ -3919,7 +3905,7 @@ def cases(r):
         run_case(r, case_t22_closed_spec, root)
         # T33: spec-triage cannot take a guarded item out of view
         run_case(r, case_t33_spec_triage_guard, root)
-        # T24: the informal release (no orbit-kb)
+        # T24: the fail-safe for a tool that cannot be asked (no orbit-kb)
         run_case(r, case_t24_no_orbit_kb, root)
         # T39: a waiver in a spec KB ends the hub item
         run_case(r, case_t39_waiver, root)

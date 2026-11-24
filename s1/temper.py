@@ -46,6 +46,8 @@ LOG_ENV = "TEMPER_LOG"
 YES, NO = 0.7, 0.3
 CONF = 0.5
 CONTRA_YES = 0.6   # calibrated on 8 clear cases (yes 0.79-0.97, no 0.05-0.34) and 4 runs of one accepted case (0.68-0.79)
+# The sentence of "tempered" (docs/vocabulary.json; docs/vocabulary.py --write keeps this line equal to it).
+TEMPERED_DEFINITION = "A hypothesis is tempered when one admissible case can demonstrate that its claim is false."
 SYSTEM = "You are a text editor and judge. You have no tools. Answer only what is asked."
 
 ADDS = {"nothing": "Only the expected outcome and which facts should decide it",
@@ -194,7 +196,7 @@ def show(ps):
 
 # The proposer is told what failed in plain words, never the judge question names.
 WHY_WORDS = {"j_contra": "the falsifier does not contradict it", "j_observable": "the falsifier cannot be observed",
-             "collapsed": "no result could show it false",
+             "collapsed": "it is not tempered: no single case can show it false (" + TEMPERED_DEFINITION + ")",
              "unfaithful": "it is not the outcome that the source wants",
              "finding": "it reports that some cases differ today, not a rule that every case must hold"}
 

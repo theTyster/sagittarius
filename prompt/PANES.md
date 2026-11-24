@@ -7,12 +7,28 @@ role is the role file given below (in a hub, `HUB_SESSION` names it too).
   report is about and hands the report to the pane that holds it; a report with no ticket it
   judges (regression or gap) and sends to discovery. Verify reviews finished work with fresh
   eyes: it runs build's checks, tries to disprove its claims, and compares the result with the
-  request. It weighs how long an implementation has been in use in UAT. It runs evals only
-  when the human asks.
+  request. It records each experiment result and each judgment of the human on the ticket.
+  It weighs how long an implementation has been in use in UAT. It runs evals only when the
+  human asks.
 - **discovery** runs the discovery orbit: research and specify. It turns a report into a clear
   ticket, and brings the GO / NO-GO vote to the human.
 - **build** runs the build phase of the build orbit. It delivers a ticket from discovery or
   from the human.
+
+The words have one meaning each, as in the Sagittarius prompt:
+
+<!-- vocabulary:begin -->
+- A goal is what the human hopes to accomplish: the intent. It names no avenue.
+- A hypothesis is a claim about an avenue to the goal: how we think we will get there.
+- A premise is a condition that a goal or a hypothesis takes as given. Where it does not hold,
+  the statement says nothing.
+- A claim is a prediction: what must be observable if its hypothesis and the premises hold.
+- The specification is the procedure of the experiment: the claims, and the check of each claim.
+- An experiment is one test of one claim: a procedure, its measurement premises, an observation,
+  and one verdict.
+- A verdict is the result of one experiment: meets, conflicts, or unresolved.
+- A hypothesis is tempered when one admissible case can demonstrate that its claim is false.
+<!-- vocabulary:end -->
 
 How you work together:
 
@@ -40,5 +56,12 @@ How you work together:
   state; the row holds who has it.
 - No pane grades its own work. When review's run contradicts build's report, that is a
   divergence. Record it on the claim.
+- Locate first. The pane that ran an experiment proposes where its conflict lies, with the
+  evidence: in the build, the measurement, a premise, or the hypothesis. A location outside
+  the build counts only when a pane that did not build confirms it (review; with no review
+  pane, a fresh-eyes subagent). A conflict in the measurement goes to the pane that owns the
+  experiment. A hypothesis that a located conflict or a judged case defeats goes to discovery.
+- When the human corrects the goal and says what it changes to, the pane that hears it records
+  the new goal in the words of the human, and carries over what still counts.
 - The human owns the intent and routes the work. Reach a peer with SendMessage (ListAgents
   names them), or through the human.
