@@ -1,13 +1,10 @@
 # The philosophy of Sagittarius
 
-> Philosophy 3.0.0, third draft: the refinement. Proposed on 2026-11-24, for Ty's review.
-> The second draft went past Ty's words on purpose: Ty asked for a draft pushed "to the outer
-> bounds" so that he can "oscillate it back". This draft keeps those positions. It corrects
-> them against the sources that Astra's handoff cites, which were read again, and against
-> Sagittarius 0.8.0 as it landed. Its last section but one lists each place where the text
-> goes past Ty's words, with the way back, and what changed from the second draft. Words in
-> quote marks with "(Ty)" are word for word. The earlier drafts are in
-> `docs/philosophy-orbit/2026-11-24/`.
+> Philosophy 3.0.0 (2026-11-24). Ty took this text live on 2026-11-24: "Lets make this live
+> immediately." It was written to go past Ty's words on purpose: Ty asked for a draft pushed
+> "to the outer bounds" so that he can "oscillate it back". He has not ruled on those places
+> one by one. Its last section but one lists each of them, with the way back. Words in quote
+> marks with "(Ty)" are word for word. The drafts are in `docs/philosophy-orbit/2026-11-24/`.
 
 Sagittarius is the scientific method, pointed at a thing that science does not usually study:
 what one person wants.
@@ -351,7 +348,7 @@ test of it. Three forms of the same error:
 - to state the hypothesis after the result is known;
 - to choose among reasonable ways to read a result after seeing which one gives the wanted
   answer;
-- to run a check again until it passes, and count the last run.
+- to repeat a run with no change between the runs until it passes, and count the last run.
 
 **Exploring is free.** An agent may poke at the system, try an idea, or read a trace, with no
 ceremony at all. What it finds is a finding: it can start a hypothesis. **Confirming is
@@ -453,7 +450,7 @@ Two more words are words of the tool since 0.8.0. They are used here with these 
 - A **control** is a run whose result is known in advance. It shows that an experiment can
   tell.
 
-This draft proposes five more words for the vocabulary. They are not in the block.
+This text proposes five more words for the vocabulary. They are not in the block.
 
 - An **instrument** is a party that can answer one kind of question by looking: the human, the
   system, or the machine.
@@ -636,7 +633,7 @@ and it can be too brittle.
 |---|---|---|
 | "Points depend on something other than the purchase." | Soft: not tempered. | It gives way everywhere. No case can break it. It says too little. |
 | "The tier is read from a cache that loads once." | Brittle: too strong. | It names a cause. It breaks on a case that should not matter, and it says more than anyone gave it. |
-| "The amount of a purchase and the member's tier on that day decide its points." | Tempered: fit. | It breaks only where the intent breaks. |
+| "The amount of a purchase and the member's tier on that day decide its points." | Fit: tempered. | It breaks only where the intent breaks. |
 
 The same three, for a hypothesis. Soft: "Better handling of duplicates makes a replay safe."
 Brittle: "Skipping record IDs that are held in an in-memory set makes a replay safe."
@@ -802,7 +799,7 @@ produced it. The two `knownWhen` fields are the seal.
 | For an observation that is possible, exactly one verdict is warranted. | `unique_verdict` |
 | A conflict rejects the conjecture, its premises and the measurement premises together. | `conflict_rejects_joint` |
 | A verdict that meets shows the prediction for this run, and no more. | `agreement_establishes_run` |
-| The timer: 60.0 meets, 61.1 is unresolved, 61.5 conflicts. | `Timer.reading_600`, `reading_611`, `reading_615` |
+| The timer: 60.0 meets, 61.1 is unresolved, 61.5 conflicts. | `Timer.reading_600`, `Timer.reading_611`, `Timer.reading_615` |
 | When two models give the selected event the same likelihood, the comparison favors neither. | `Statistical.equal_likelihood_no_preference` |
 | A revision adds an entry, and the earlier record stays. | `revision_preserves_record` |
 
@@ -1145,7 +1142,7 @@ reflected into the prompt.
 | 13 | Seal your vote. Do not lead a judgment. | Blind judges. | "The vote", "Verdicts" |
 | 14 | Locate a conflict before you reopen anything. | A conflict rejects a conjunction. | "Verdicts" |
 | 15 | Do not edit a defeated hypothesis. Keep its case. | No rescue after the fact. The failures stay in the sample. | "The hypothesis", "Honesty" |
-| 16 | Do not run a check again until it passes. | A stopping rule. | "The light path" |
+| 16 | Do not repeat a run with no change between the runs to get a pass. | A stopping rule. | "The light path" |
 | 17 | A pass gets the question that a fail gets. | Guard against confirmation. | "The light path" |
 | 18 | Report the residual, by question. | State the limits. | "Delivery" |
 | 19 | Change only the behavior that a claim names. | Conservatism (`Sound Basis`). | "Verdicts" |
@@ -1201,8 +1198,8 @@ Nothing in the notebook is edited. Entries are added.
 | No front door: each store is queried with its own tool. | "`orbit` is the front door to every store." (Ty, 2026-11-23) | One door. |
 | The MindHole and Sagittarius do not depend on each other. | The same ruling. | A MindHole needs the tool. The prompt needs no hub. |
 | An informal release for users who do not read formal languages. | "We're going to drop the informal release entirely." (Ty, 2026-11-23) | One audience (`User Ability`). |
-| Fourteen numbered principles, grouped under five premises. | This draft. Proposed. | The instruments, the logic, and the protocol. |
-| A lap is State, Compare, Sharpen. | This draft. Proposed. | State, Seal, Run, Read, Keep. |
+| Fourteen numbered principles, grouped under five premises. | Philosophy 3.0.0. Ty, 2026-11-24: "Lets make this live immediately." | The instruments, the logic, and the protocol. |
+| A lap is State, Compare, Sharpen. | Philosophy 3.0.0. Ty, 2026-11-24: "Lets make this live immediately." | State, Seal, Run, Read, Keep. |
 
 ## The lab
 
@@ -1278,10 +1275,10 @@ Ask these questions about a proposed change to the prompt, the tool, or the hub.
 12. Is it still true with no hub, with another version of `orbit`, and when System 1 is
     silent?
 
-## The outer bounds of this draft
+## Where this text goes past Ty's words
 
-This section is for the review, and it leaves the text when Ty has ruled. Each row is a place
-where the draft goes past Ty's words, and the way back.
+Ty has not ruled on these rows one by one. Each row is a place where the text goes past Ty's
+words, and the way back. A row leaves when Ty has ruled on it.
 
 | Where the draft goes | The way back |
 |---|---|
@@ -1304,34 +1301,11 @@ where the draft goes past Ty's words, and the way back.
 | The dated cases moved out of the text into "The notebook", with a table of defeated positions. | Put each case back beside the rule that it taught. |
 | A MindHole is described as a lab, and its sessions and stores as the roles and books of one. | The plain description of 2.1.0. |
 
-### What changed from the second draft
-
-- System 1 is a monitor, and no longer "a fourth instrument": its hint settles nothing alone.
-- All three instruments give verdicts on claims, as the tool records them. A judgment is the
-  human's reading of the goal. Its definition now follows the tool: a case, the goal as a
-  whole, or a formal statement.
-- "The four factors of inquiry, and a fifth" is new: the section that the handoff cites by
-  name had no place in the text. It also says which two things are choices of Sagittarius,
-  and not science.
-- The line between exploring and confirming is drawn by what a look is used for, not by its
-  kind.
-- The human goes first in discovery and on a costly avenue. The second draft said: on every
-  signal.
-- A GO "fixes the specification". The second draft said that it "registers the experiment",
-  which gave the word "experiment" a second meaning.
-- "What exists is presumed to be preserved" (it said "wanted").
-- The paper's four errors are all named, and each has its habit. The questions of System 1
-  that are not shipped are called candidates.
-- The protocol table says where the prompt holds each habit. The notebook has two entries
-  from the delivery of 0.8.0.
-- Sources are named where the text leans on them, and each quotation was checked against its
-  source again.
-
 ## Sources
 
 The spine is Ty's `hypothesis.md` and Astra's handoff of 2026-11-18
 (`project-kb/analyses/sagittarius-handoff/` in the sidequest-mindhole). Each source that the
-handoff cites was read on 2026-11-24, and again for this draft.
+handoff cites was read twice on 2026-11-24.
 
 - K-Dense, the guides under "Scientific Thinking & Analysis", and the skill text of
   *Scientific Brainstorming*: independent generation before exposure, a facilitator who does
