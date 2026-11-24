@@ -494,9 +494,6 @@ decl(rule, claim_conflicts_or_stale(ref(claim)),
 decl(rule, done_before_upgrade,
      'The ticket was done by the rules of 0.7.2 before orbit-kb 0.8.0 or later wrote to the KB: the fact done_before_upgrade/2, or a KB from before the upgrade in which done_072 holds.',
      'the ticket was done before the upgrade').
-decl(rule, upgrade_line(int),
-     'The line of kb.pl that holds the first upgraded/2 fact. orbit-kb computes it when it reads the KB.',
-     'the upgrade is recorded on line @(1) of kb.pl').
 decl(rule, after_upgrade_change(ref(change)),
      'The change has a change time and stands after the upgraded/2 fact in kb.pl.',
      'change @(1) was recorded after the upgrade').

@@ -35,6 +35,14 @@ The late fix (c7): with a prompt_id in the input, the hook starts a detached pro
 context from its parent differs from what was sent (G4), asks again and logs kind "correction".
 posttool.py (a PostToolUse hook) gives the corrected line to the main agent once (c8).
 
+The record (0.8.0, c29, c46; record.py): beside message and recent, the state has `record`, the
+record of the active ticket as `orbit s1-record --json` prints it (the goal, the current
+hypotheses with their predictions, the open questions, goal sentences), and no other field of a
+store. S1_RECORD=0, or "s1_record": false in the hub's .hub-template.json, gives the state of 0.7.2.
+A prompt that starts with <cross-session-message, <task-notification or <agent-message is marked
+as not from the human with no question to the model: it gets no effort and no change-of-plan
+signal (c34). `hook.py --event stop` is the stop event (stop.py, c30), off until its questions ship.
+
 Fails open, and says so (0.3.0 S-A): on any error, a timeout, a missing key, a missing questions
 file or bad stdin it prints one short line, "System 1: no view (<reason>)", and exits 0. When every
 answer is in the unsure band it prints "System 1: unsure"; when only the formal tool is sure and no
@@ -48,6 +56,7 @@ S1_CONTEXT_MESSAGES (default 3, never below 3),
 S1_QUESTIONS (default: the workbench's questions.json, else s1/questions.json),
 S1_LOG (default ~/.claude/logs/s1.jsonl), S1_WORKBENCH (default s1/workbench/; "off" ignores it),
 S1_WORKBENCH_TIMEOUT (seconds for a workbench routing, default 9),
+S1_RECORD=0 (no record), S1_ORBIT (the orbit command), S1_ORBIT_TIMEOUT (0.5),
 S1_LATEFIX=0 (no late fix), S1_LATEFIX_DIR (default ~/.claude/s1-latefix), S1_LATEFIX_WAIT (20).
 
 The workbench (s1-inspect, branch s1/inspect): a folder read again on every prompt, so a saved edit
@@ -70,6 +79,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import jev  # noqa: E402
 import posttool  # noqa: E402  (the late-fix files: one home for the paths)
+import record  # noqa: E402  (the active record, the tags, the switch: c29, c34, c46)
 
 DEFAULT_TIMEOUT = 4.0
 WORKBENCH_TIMEOUT = 9.0  # s1-inspect c9b: longer than 4 s; with GRACE under the 10 s hook timeout of the install
@@ -714,6 +724,21 @@ def fanout_run(state, ask, questions, env=None):
     return out
 
 
+# The ids of the decision trees of s1/trees.py (c30 to c33). A tree that ships is in the question
+# file, but a prompt does not get its entries as plain questions: the drift tree belongs to the
+# stop event (stop.py), and an entry with a placeholder ({part}, {prediction}, {a}) is written
+# out by trees.py. With none of these ids in the file (the file of 0.7.2) nothing changes.
+TREE_IDS = ("r_count", "r_kind", "r_goal", "x_dispute", "x_kind", "y_differs",
+            "d_success", "d_kept", "d_revised", "d_drift")
+
+
+def _prompt_questions(questions):
+    """The questions that a prompt is asked: the file without the entries of the trees."""
+    if not any(k in questions for k in TREE_IDS):
+        return questions
+    return {k: v for k, v in questions.items() if k not in TREE_IDS}
+
+
 def _skip(log_path, key, reason, extra=None, **fields):
     """One log line that says why the hook made no call or printed nothing. No key."""
     rec = {"time": jev._now(), "skipped": reason}
@@ -753,6 +778,9 @@ def run(raw, env, transport=None, spawn=None):
                  "transcript": os.path.basename(tpath) or None}
         if isinstance(payload.get("prompt_id"), str):
             extra["prompt_id"] = payload["prompt_id"]
+        src = record.source_of(payload["prompt"])  # c34: a tag at the start, no model asked
+        if src:
+            extra["source"] = src
         try:  # the late fix looks for the prompt line from here on (it is written after the hook)
             offset = os.path.getsize(tpath) if tpath else 0
         except OSError:
@@ -764,6 +792,8 @@ def run(raw, env, transport=None, spawn=None):
                 questions = json.load(f)
             if not isinstance(questions, dict) or not questions:
                 raise ValueError("not a non-empty object")
+            tree = {k: v for k, v in questions.items() if k in TREE_IDS}  # the trees that shipped
+            questions = _prompt_questions(questions)
         except (OSError, ValueError) as e:
             _skip(log_path, key, f"questions: {type(e).__name__}: {e}", extra)
             return _out(no_view("no question set"))
@@ -778,16 +808,35 @@ def run(raw, env, transport=None, spawn=None):
         box = {}
 
         def call():  # the transcript read and the request both run inside the timeout
+            rec = box["rec"] = record.fetch(env, payload)  # c29; never raises; at most its budget (c36)
             try:
                 recent = recent_messages(tpath, _count(env), payload["prompt"])
                 box["recent"] = [dict(m) for m in recent]  # what the late fix compares with (G4)
                 state, trimmed, long_context = _fitted(payload["prompt"], recent, questions)
+                rlx = record.attach(state, rec, questions, long_context, (CONTEXT_CHARS, LONG_CONTEXT_CHARS))
             except Exception as e:
                 box["error"] = f"state: {type(e).__name__}: {e}"
                 return
             lx = dict(extra, trimmed=True) if trimmed else dict(extra)
             if long_context:
                 lx["long_context"] = True
+            lx.update(rlx)
+            asked, after = questions, None
+            if tree:  # c31 to c33: the trees that shipped are asked in the same request
+                import trees
+                sess = record.load_session(env, payload.get("session_id"))
+                more = trees.ask_prompt(tree, state, not src, list((sess.get("pairs") or {})))
+                if more:
+                    asked = dict(questions, **more)
+
+                    def after(got):
+                        parts, tlog = trees.after_prompt(tree, got, state, rec, env, payload.get("session_id"),
+                                                         not src, deadline, more)
+                        box["back"] = parts
+                        if tlog:
+                            jev._log(log_path, key, dict(lx, time=jev._now(), trees=tlog))
+            # the time that orbit took comes off the limit of the model call, so the whole stays inside it
+            timeout = max(limit - rec["took"], 0.1) if rec["took"] else limit
             routing = None
             if routed:  # loaded here, so a routing that hangs at load is inside the limit too
                 try:
@@ -796,8 +845,11 @@ def run(raw, env, transport=None, spawn=None):
                     box["routing_error"] = f"{type(e).__name__}: {e}"
                     return
             if routing is None:
-                box["answers"] = judge_parts(state, questions, fan, log_path, key, lx, timeout=timeout,
-                                             transport=transport, long_context=long_context)
+                box["answers"] = record.mask(
+                    judge_parts(state, asked, fan, log_path, key, lx, timeout=timeout,
+                                transport=transport, long_context=long_context), src)
+                if after and box["answers"]:
+                    after(box["answers"])
                 return
             stage = [0]
 
@@ -812,13 +864,16 @@ def run(raw, env, transport=None, spawn=None):
             ask.env = env  # for hook.fanout_run: the hook reads only this env
             ask.log = lambda rec: jev._log(log_path, key, dict(lx, routing="workbench", time=jev._now(), **rec))
             try:
-                got = routing["run"](state, ask, questions)
+                got = routing["run"](state, ask, asked)
                 if got is None or isinstance(got, dict) and not got and not callable(routing.get("hint")):
                     box["answers"] = None
                     return
                 if not isinstance(got, dict):
                     raise TypeError(f"run() returned {type(got).__name__}, not a dict")
                 h = routing.get("hint")
+                got = record.mask(got, src)
+                if after and isinstance(got, dict):
+                    after(got)
                 line = h(got, questions) if callable(h) else format_answers(got, questions)
                 if not isinstance(line, str):
                     raise TypeError(f"hint() returned {type(line).__name__}, not a str")
@@ -826,6 +881,7 @@ def run(raw, env, transport=None, spawn=None):
             except BaseException as e:
                 box["routing_error"] = f"{type(e).__name__}: {e}"
 
+        limit = timeout
         deadline = time.monotonic() + timeout
         t = threading.Thread(target=call, daemon=True)
         t.start()
@@ -843,8 +899,12 @@ def run(raw, env, transport=None, spawn=None):
         if "routing_error" in box:
             _skip(log_path, key, f"routing: {box['routing_error']}", extra, routing="workbench")
             return _out(no_view(f"routing: {box['routing_error'].split(':')[0]}"))
+        def said(line):  # c34: the source of a message that the human did not write; k29: no record
+            return _out(record.compose(line, [record.source_part(src)],
+                                       list(box.get("back") or []) + [record.marker(box.get("rec"))]))
+
         if "line" in box:
-            return _out(box["line"])
+            return said(box["line"])
         answers = box.get("answers")
         if not answers:
             _skip(log_path, key, "no answers (the call's line has the error)", extra)
@@ -854,7 +914,7 @@ def run(raw, env, transport=None, spawn=None):
         except Exception as e:
             _skip(log_path, key, f"bad answers: {type(e).__name__}: {e}", extra)
             return _out(no_view("bad answers"))
-        return _out(line)
+        return said(line)
     except Exception as e:
         _skip(log_path, key, f"error: {type(e).__name__}: {e}", extra)
         return _out(no_view("error"))
@@ -979,7 +1039,7 @@ def late_fix(sent_path, env, transport=None, wait=None, sleep=time.sleep):
             return "no key"
         wb = workbench(env)  # the same questions and routing as the first call
         with open(question_path(env, wb), encoding="utf-8") as f:
-            questions = json.load(f)
+            questions = _prompt_questions(json.load(f))
         state, trimmed, long_context = _fitted(st["prompt"], right, questions)
         lx = {"session_id": st["session_id"], "transcript": os.path.basename(st["transcript_path"]),
               "prompt_id": st["prompt_id"], "kind": "correction"}
@@ -993,7 +1053,7 @@ def late_fix(sent_path, env, transport=None, wait=None, sleep=time.sleep):
                                   transport=transport, long_context=long_context)
             if not answers:
                 return "no answer"
-            line = format_answers(answers, questions)
+            line = format_answers(record.mask(answers, record.source_of(st["prompt"])), questions)
         else:
             stage = [0]
 
@@ -1013,6 +1073,7 @@ def late_fix(sent_path, env, transport=None, wait=None, sleep=time.sleep):
             line = h(got, questions) if callable(h) else format_answers(got, questions)
             if not isinstance(line, str):
                 return "error"
+        line = record.compose(line, [record.source_part(record.source_of(st["prompt"]))])
         if line.startswith("System 1:"):
             line = CORRECTION_PREFIX + line[len("System 1:"):]
         else:
@@ -1037,6 +1098,9 @@ def main(transport=None, argv=None):
     try:
         if os.environ.get("S1_OFF", "").strip() not in ("", "0"):
             return 0
+        if argv[:2] == ["--event", "stop"]:  # c30: the stop event; inert until its questions ship
+            import stop
+            return stop.main(transport=transport)
         if argv[:1] == ["--late-fix"] and len(argv) == 2:
             late_fix(argv[1], dict(os.environ), transport=transport)
             return 0

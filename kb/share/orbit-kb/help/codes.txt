@@ -118,7 +118,7 @@ and the tool refuses an agent's GO vote while one is left. Also orbit-kb whynot 
 Build module (orbit-kb help build)
   WR1  a current claim is not independently verified, and a review is due: no claim is under
        (D28, T38). A reviewer of another role and session reruns a check of it after its
-       last change (orbit-kb run --as ROLE), then records an upheld verdict that rests on
+       last change (orbit-kb run --as ROLE), then records an upheld disproof result that rests on
        that run (attest disproof --rests-on). Only in a KB that records actors or a review.
        A warning: it does not block done.
 
@@ -135,5 +135,9 @@ Project module (orbit-kb help project)
        its source has no newer pin). Read it; pin the source again and move the concerns facts. show open names it.
   WP9  only an agent wrote this relation (relation_by): it is proposed and blocks nothing. A human
        ratifies it by adding the same relation with --by human.
+  WP10 the goal supports a project goal that the project KB does not hold: supports(G, project(PG)).
+       Check the id against the goals of the project KB.
+  WP11 the goal supports a project goal that its owner dropped. Nothing is blocked or closed.
+       Ask the human which project goal the ticket serves now (orbit-kb help hub).
   EP1  an agent (agent or agent:NAME, in any case) ratified a fact (an error; add refuses it). Only a human ratifies.
   EP2  a fact depends on itself or excludes itself (depends_on(X, X), excludes(X, X); an error; add refuses it).

@@ -62,6 +62,12 @@ Facts
                                  and the burns: "no" for a kind with no record.
   lean_back(Id, Text)            a lean back: "Leaning back: <what stopped>. Still active: <what
                                  continues>." report prints it under Signals.
+  proposed(P, system1, FactText, Time)   a proposal of System 1: a fact as text. It is not a record and
+                                 it blocks nothing. orbit-kb propose --from system1 'FACT' [--note TEXT]
+                                 writes it; orbit-kb show proposals lists each one.
+  proposal_confirmed(P, By, Time)   the agent or the human confirmed proposal P: orbit-kb
+                                 confirm-proposal P [--by human] adds its fact as add does, with the
+                                 usual checks, and writes this fact.
   universal(Claim)               the claim is about every input; it burns (orbit-kb help build)
   check(K, Claim)                K is an executable check of the claim. A check never moves:
                                  for a claim that replaces it, add a new check (lint W5).
@@ -120,6 +126,8 @@ Attestation types
                | self_error(Text) | other(Text)                      agent or human
   divergence   claim(C) | hypothesis(H) | model(M)                   human or agent
                Put the description in a note.
+               The fact below is named verdict/2 for 0.7.2 compatibility; it is a disproof
+               result, not a verdict of an experiment.
   disproof     verdict(C, upheld(Text) | refuted(Text) | inconclusive(Text) | abstained(Text))
                agent. The text says what was tried. upheld(Text): the attempt did not break
                the claim. Put the counterexample in the text of refuted. The bare inconclusive

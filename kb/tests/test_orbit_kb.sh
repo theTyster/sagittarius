@@ -1837,6 +1837,9 @@ EOF
           okb --dir "$K" pin-request --request-file "$J" >/dev/null; op_named blocking ""
           op_project "$T/pc" human; K=$T/pc/sp; op_named blocking ""
           op_project "$T/pu" human; printf 'this is not (valid.\n' >> "$T/pu/p/kb.pl"; K=$T/pu/sp; op_named blocking ""
+          # 0.8.0 D67 (scientific-method-overhaul c17): a ticket goal that contradicts a project goal
+          op_project "$T/pg" human; K=$T/pg/sp
+          oadd "goal(g9, feature, human, 'A goal that contradicts.')" "no_premises(g9)" "contradicts(g9, project(pg1))" >/dev/null; op_named blocking ""
           # 0.8.0 (D57 to D61; scientific-method-overhaul c7, c9, c10, c16, c39, c42): the kinds of stage 2
           kb_new "$T/s2" <<'EOF'
 uses([build]).

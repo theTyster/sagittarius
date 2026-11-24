@@ -940,8 +940,7 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   `orbit-kb retire H --reason TEXT [--by human|agent]` write them.
 - `hypothesis_adopted(H)`: a human adoption attestation; or (discovery module) `adoption_cited(H, Words)`
   that stands in kb.pl before a GO vote of the human that is not void. `adoption_cited` alone adopts
-  nothing, and a GO vote adopts no hypothesis without it. A proposed hypothesis with the mark prints
-  `proposed: the agent reads the human's words as adoption: 'WORDS' (adopt to confirm)`.
+  nothing, and a GO vote adopts no hypothesis without it. A proposed hypothesis with the mark prints a line under its header (D50 views, below).
 - An agent retirement of a hypothesis that a human wrote or adopted, or that has `adoption_cited`, is
   refused (exit 1, by `retire`, `attest` and `add`). Such a fact written by hand does not retire it.
 - `hypothesis_guess(H)`: agent-written, current, not adopted. `report` lists it under Guesses as
@@ -1077,3 +1076,144 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   where the project KB of `project_kb/1` can be read and holds no goal PG (`supports_missing/2`, computed).
 - The migration `migrations/0.8.0-scientific-method.pl` declares what 0.8.0 changes, with no step:
   `migrate plan --old OLD` exits 0 on a KB of 0.7.2 (`kb/tests/compare_hub_plans.sh`).
+
+
+## D63 to D69: the door (0.8.0, scientific-method-overhaul)
+
+The tests are `kb/tests/test_door.sh`. The agent-facing text is `orbit-kb help hub`.
+
+### D63: the name `orbit` (claim c19, q8)
+
+- `kb/bin/orbit` is a link to `kb/bin/orbit-kb`: one program, two names. `install.py` links both.
+- Under the name `orbit-kb`, each command of 0.7.2 keeps its stdout form and its exit code.
+- The name in `version`, in help and in a usage error is the name of the call (`orbit 0.8.0`,
+  `orbit-kb 0.8.0`). A path in a text (`share/orbit-kb`) keeps its name.
+- Each name has its own saved state (the state is keyed by the script path).
+
+### D64: `orbit hub query 'GOAL' [-n N] [--hub DIR]` (claim c26)
+
+- The hub root is `--hub DIR`, else the nearest directory from the current one upward that holds
+  `.hub-template.json` or `flow/jsonl`. No hub: exit 2.
+- One engine holds the facts of every store. From `flow/jsonl`: `item/5`, `item_ref/3`,
+  `item_link/3`, `item_closed/2`, `item_opened/2`, `item_waits/2`, `item_parked/2`, `item_due/2`,
+  `handoff/3`, `handoff_accepted/2`, `tracker_ref/2`. From `specs/`: `ticket/2`. Answered when asked:
+  `ticket_fact(Slug, Fact)` and `project_fact(Fact)` (a fact or a rule answer of that KB, by the normal
+  loader, each KB once in a process; a predicate that the KB does not declare has no answer; a KB
+  that does not load clean gives no answer and one note on stderr), `store_file(Store, Path, Digest)`.
+- The project KB of a hub is `HUB/project-kb` when it holds a `kb.pl`; else the KB that the first
+  `project_kb/1` of a spec KB names; else the first directory of the hub root whose `kb.pl` uses `project`.
+- Output and exit codes are those of `query`: one line per answer, `false` and exit 1 for none,
+  exit 2 for an unknown predicate. The default of `-n` is 1, as for `query`.
+- The rules and the declarations are in `share/orbit-kb/hub.pl`.
+
+### D65: `orbit hub ledger ARGS...` (claims c26, c27, q21)
+
+- It runs `HUB/.claude/scripts/hubflow.py ARGS...`. hubflow.py stays the only writer of `flow.db`.
+- stdin, stdout, stderr, the environment and the exit code are those of hubflow.py.
+- The hub is `--hub DIR` at the start of ARGS, else `$HUBFLOW_HUB`, else the hub root from here
+  upward; then hubflow.py gets `--hub ROOT` before ARGS.
+- hubflow.py keeps every command and output form of kit 0.11.2. One form is new: the ref kind `goal`
+  (`--ref goal:pg1`, D68), which needs ledger schema 9 (`hubflow.py migrate`).
+
+### D66: `orbit hub stores`, `orbit hub files memory|weeks|bespoke` (claim c26)
+
+- `hub stores` prints seven lines: spec, project, ledger, memory, weeks, bespoke, tracker, each with counts.
+- `hub files STORE` prints `sha256:HEX  PATH` for each file, sorted by path.
+  - memory: `CLAUDE.md`, `HUB-CORE.md`, `PRINCIPLES.md`, `HEURISTICS.md`, `TECHNOLOGIES.md`, and each
+    file that a line of `CLAUDE.md` imports (`@FILE` at the start of the line).
+  - weeks: each file under `W0` to `W5`.
+  - bespoke: each file inside the hub that `TECHNOLOGIES.md` names in backquotes (for a directory:
+    its files; a memory file and a shipped file are left out), and the files of each skill under
+    `.claude/skills` that `.hub-template.json` "files" does not list.
+
+### D67: project goals (claims c17, c42, q9)
+
+- A project KB holds `goal/4`, `hypothesis/4` and `premise/3` (core kinds). The kit ships no fact.
+- `orbit drop-goal G --by human --note TEXT`, in a project KB, writes `dropped(G, human, Time, Text)`.
+  Exit 1 and nothing written: `--by` is not human, no such goal, dropped already, not a project KB.
+  `add` refuses `dropped/4`. No divergence is recorded. No rule calls a goal defeated.
+- A spec KB that uses `project` gets `project_goal(PG)` and `project_goal_dropped(PG)` from the KB
+  at `project_kb/1`. `goal_rests_on_dropped(G, PG)`: `supports(G, project(PG))` and PG is dropped
+  (lint WP11). It blocks nothing. Lint WP10: the project KB does not hold PG.
+- `contradicts(G, project(PG))` gives `blocking(goal_contradicts(G))` until a human answers a
+  question about G (`question(Q, G, Text)` and a human `answer`).
+- Hub-wide: `ticket_goal_unsupported(Slug, G)`, `ticket_goal_rests_on_dropped(Slug, G, PG)`.
+
+### D68: purpose and `orbit hub orphans` (claims c44, c42; q14, q18, q19, q20, q31)
+
+- The rule is the second rule of `models/purpose.pl` of the spec, in `hub.pl`. `has_purpose(I)`: a live
+  chain leads from item I to a project goal that is not dropped. Steps: a kb ref to a ticket of the
+  hub; a goal ref (`goal:PG`); a link `blocks`, `follows`, `duplicates` or `supersedes` to an item
+  that is not dropped or lapsed (`relates` passes nothing; a done item passes its purpose on); the
+  current goal of the ticket; `supports(G, project(PG))`. A ticket with `gate(no_go)` gives no purpose.
+- `orphan(I)`: an open ask, thread, hold or handoff with no purpose. `ends_at(I, E)` has one answer.
+- `over(I)`: open, each ticket that it names is done, and it was not opened after that.
+  `report_on_done_ticket(I)`: opened after its ticket was done. The time of done is the time of the
+  newest record that can make done true (a passed run, an approval, a proof, a model result, a
+  judgment, a waiver, a pinned answer); a later disproof verdict or note does not move it. With no
+  such record it is the time of the newest attestation.
+- `orbit hub orphans` prints, apart: "Orphans (N)", "Over (N)", "Reports on a done ticket (N)",
+  "Ticket goals with no live project goal (N)", "Dropped project goals (N)" with each ticket goal
+  and each open item that rested on the goal. Exit 0. It stops nothing and closes nothing.
+- The 14 cases of `models/purpose_cases.pl` give the answers that they name (test DP1).
+
+### D69: `orbit s1-record [--hub DIR] [--session S] [--dir KB] --json` (claim c46)
+
+- One line of JSON and nothing else:
+  `{"ticket", "goal": {"id","author","text"}|null, "hypotheses": [{"id","author","state","text","defeating_case","predictions":[{"id","text"}]}], "questions": [{"id","text"}], "goal_sentences": [{"id","text"}], "sent": [...]}`.
+- The active ticket: the spec KB of the newest open item that the session (`--session`, else
+  `$HUB_SESSION`) owns with a kb ref. `--dir KB` names it. None: `"ticket": null` and empty lists.
+- `goal_sentences`: each project goal that is not dropped (id `PG`) and each current goal of each
+  spec KB (id `SLUG:G`). `sent`: `goal:G`, `hypothesis:H`, `claim:C`, `question:Q`, `goal_sentence:ID`.
+- No ledger text, no request, no project decision and no memory file is in the output.
+- The record of a KB is kept in `${XDG_CACHE_HOME:-~/.cache}/orbit-kb/s1-record-HASH.pl` with the size
+  and time of `kb.pl`, `rules.pl`, the script and `core.pl`, and the version. A call with the same
+  values prints the kept record and loads no rule. Any change computes it again (test DS5).
+  `ORBIT_KB_NO_CACHE=1` turns this off.
+
+## D70. A proposal of System 1 (scientific-method-overhaul c34)
+
+System 1 writes only proposals. A proposal is not a record.
+
+- `orbit-kb propose --from system1 'FACT' [--note TEXT]` writes `proposed(P, system1, FactText,
+  Time)`. `P` is the next free id `pr1`, `pr2`, ... `FactText` is the fact as text, as it was given.
+  With `--note` it also writes `note(P, TEXT)`. It prints a line that names `P`. Exit 0.
+- `--from` must be `system1`. Without it, with another value, with no fact, or with a fact that
+  does not parse as a term: exit 2, and nothing is written.
+- The fact is not checked at `propose` and is not added. A query of its kind does not find it.
+- A proposal changes no answer of `done`, `blocking(X)` or `discovery_ready`, and `lint` reports no
+  error for it. No rule reads `proposed/4` or `proposal_confirmed/3`.
+- The same `FactText` as a proposal that is not confirmed is stored once: the second `propose`
+  prints `P already holds this proposal` and exits 0.
+- `propose` and `confirm-proposal` are writer commands: they take the KB lock and the writer lock.
+
+## D71. Confirming a proposal, and the list (scientific-method-overhaul c34)
+
+- `orbit-kb confirm-proposal P [--by human|agent]` (default `agent`) adds the fact of `P` and
+  `proposal_confirmed(P, By, Time)` in one `add`: the usual checks hold, all or nothing. Exit 0.
+- When `add` refuses the fact, the exit code and the message are those of `add` (exit 1,
+  `Rejected. Nothing was written.`), and the proposal still waits.
+- An unknown `P`, or a `P` that is confirmed already: exit 1, a line that says so, nothing written.
+  Another `--by` value: exit 2.
+- `orbit-kb show proposals` prints, for each proposal in file order: `P (system1, Time): FactText`,
+  then each note on `P`, then `waits; it blocks nothing. Confirm: orbit-kb confirm-proposal P` or
+  `confirmed by the By at Time: it is a record`. With none: `No proposals.` Exit 0.
+
+Tests: `kb/tests/test_proposals.sh`.
+
+## D50 views, after review (findings B3 to B7; they replace the line forms of D50 and D52 above)
+
+- Authors print as names: `human:ty` is `Ty`, `agent:astra` is `Astra (agent)`, `agent` is `the agent`,
+  `human` is `the human`. Queries keep the record values.
+- show: `Goal g1 (AUTHOR): TEXT`, `  Kind: K.`, `  State: current.`, premises, supports, then
+  `  Hypothesis hy1 (AUTHOR, STATE): TEXT`. report: `Goal g1 (AUTHOR): TEXT` with the kid `Kind: K.`.
+- A proposed hypothesis with `adoption_cited` has the line `Cited as adopted (the agent's reading of
+  NAME's words): 'WORDS'. NAME adopts it with Adopt on the Desk, or with: orbit adopt H --by human`.
+- Superseded goals: `Earlier statements of the goal:`, one line each: `- h2 (AUTHOR, superseded by g1): `
+  and the first 100 characters. `No hypothesis: the claims hang on the goal.` prints only for a current goal.
+- report Guesses: `Hypothesis hy5 (Astra, agent-written, not adopted): TEXT` (no name for the plain `agent`).
+- The goal_unjudged line of show open and show blocking ends with the goal text.
+- A lint E4 line of a hypothesis/4 fact names its id after the position: `E4 kb.pl:7 hy9: hypothesis/4 argument 2: ...`.
+- Discovery: `carried(A, G)` on a reproduction attestation A of a statement that goal G replaces counts as the
+  system result of G. Lint WD7 and the untouched line say "goal" for a goal/4 fact.
+

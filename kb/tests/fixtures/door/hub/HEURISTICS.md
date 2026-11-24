@@ -1,0 +1,1 @@
+# HEURISTICS.md (fixture)

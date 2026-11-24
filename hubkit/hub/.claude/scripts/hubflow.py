@@ -82,7 +82,7 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   transcripts --find NAME@sha256:HEX           the path of that file in whichever W slot holds it
                                                now; exit 1 if it is gone or its sha256 changed
   reopen ID [--note N]
-  ref ID add|rm KIND:REF                       KIND: issue pr build release kb file commit url
+  ref ID add|rm KIND:REF                       KIND: issue pr build release kb file commit url goal
                                                transcript
   link FROM TO KIND                            KIND: blocks duplicates relates supersedes follows
   note ID TEXT                                 an event with verb note (--by human: TEXT is the
@@ -240,7 +240,7 @@ Views: clock v_open (with escalated) v_escalated v_waiting_on v_inbox v_stale (n
 import datetime, hashlib, json, os, re, shlex, sqlite3, subprocess, sys
 from urllib.parse import quote
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 # Schema steps: MIGRATIONS[v] is the SQL that takes a db from schema v to v + 1. DDL is the shape of
 # schema 1; init and rebuild run DDL and then every step, so a new db and a migrated db are the
 # same. A release that changes the schema raises SCHEMA_VERSION and adds its step to MIGRATIONS.
@@ -257,7 +257,10 @@ ADDABLE = ("ask", "thread", "hold", "summary")
 STATUSES = ("open", "waiting", "done", "dropped", "lapsed")
 OPEN = ("open", "waiting")
 PREFIX = {"ask": "A", "thread": "T", "hold": "K", "handoff": "H", "summary": "S"}
-REF_KINDS = ("issue", "pr", "build", "release", "kb", "file", "commit", "url", "transcript")
+REF_KINDS = ("issue", "pr", "build", "release", "kb", "file", "commit", "url", "transcript", "goal")
+# A goal ref (schema 9): the id of the project goal that the item serves directly, with no ticket
+# (`--ref goal:pg1`; scientific-method-overhaul c44). orbit reads it for the purpose of the item.
+GOAL_REF = re.compile(r"^[a-z][A-Za-z0-9_]*\Z")
 # A transcript ref: the file name and its sha256, so it still resolves after the file moves to
 # another W slot at rotation (`transcripts --find REF`).
 # T40 c12: a name has no '/', '\\', '@', control character (a newline) or '..'; \Z, not $, so no trailing newline
@@ -561,6 +564,18 @@ V8_STEPS = [
     f" BEGIN SELECT RAISE(ABORT, '{PARK_DUE_MSG.replace(chr(39), chr(39) * 2)}'); END",
 ]
 
+# Schema 9 (scientific-method-overhaul c44): the ref kind `goal` (the project goal that an item names
+# directly). item_ref is copied into a table with the new CHECK, as schema 4 did for `transcript`.
+V9_STEPS = [
+    "PRAGMA legacy_alter_table=ON",
+    _swap(_swap(_swap(ITEM_REF_DDL, "CREATE TABLE item_ref(", "CREATE TABLE item_ref_v9("), "'url')", "'url','transcript','goal')"),
+          "REFERENCES item(id)", "REFERENCES item(id)"),
+    "INSERT INTO item_ref_v9 SELECT * FROM item_ref",
+    "DROP TABLE item_ref",
+    "ALTER TABLE item_ref_v9 RENAME TO item_ref",
+    "PRAGMA legacy_alter_table=OFF",
+]
+
 MIGRATIONS = {
     1: V2_STEPS,
     2: V3_STEPS,
@@ -569,6 +584,7 @@ MIGRATIONS = {
     5: V6_STEPS,
     6: V7_STEPS,
     7: V8_STEPS,
+    8: V9_STEPS,
 }
 
 # view name -> (sql view, filter option -> column, ORDER BY)
@@ -918,6 +934,10 @@ def parse_ref(s):
     elif kind == "url":
         if not re.match(r"^https?://\S+$", ref):
             raise Bad(f"url ref {ref!r} must start with http:// or https://")
+    elif kind == "goal":
+        if not GOAL_REF.match(ref):  # goal ref form
+            raise Bad(f"goal ref {ref!r} must be the id of a project goal: a lowercase letter, then letters, digits or _"
+                      " (goal:pg1)")
     elif kind == "transcript":
         if not TRANSCRIPT_REF.match(ref):  # transcript ref form
             raise Bad(f"transcript ref {ref!r} must be NAME@sha256:HEX: the file name (no directory, no W slot) and its"

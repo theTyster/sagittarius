@@ -1,0 +1,88 @@
+{
+ "_comment": "Candidate questions of System 1 (scientific-method-overhaul c30 to c33). The hook asks none of them. A question ships only after a replay experiment gives the verdict meets (c35, s1/REPLAY.md): then its entries (not the keys that start with _) are copied into s1/questions.json. Each tree is short: its first question is the gate, and the rule in s1/trees.py reads the answers. {part} becomes the path of one part of the message, {prediction} the path of one prediction of the record, {a} and {b} the paths of two hypotheses. The criteria of r_goal are written by the hook: one for each sentence of record.goal_sentences, and none.",
+ "_trees": {
+  "requests": {"claim": "c33", "event": "prompt", "questions": ["r_count", "r_kind", "r_goal"], "order": "r_count first (how many requests), then r_kind for each part (the kind of each), then r_goal (the goal that each serves)"},
+  "dispute": {"claim": "c31", "event": "prompt", "questions": ["x_dispute", "x_kind"], "order": "x_dispute first (is a case in dispute), then x_kind (which kind)"},
+  "difference": {"claim": "c32", "event": "prompt", "questions": ["y_differs"], "order": "one question for each pair of current hypotheses, asked once for each pair"},
+  "drift": {"claim": "c30", "event": "stop", "questions": ["d_success", "d_kept", "d_revised"], "order": "d_success first (does the delivery report success), then d_kept for each prediction, then d_revised for it"},
+  "drift_today": {"claim": "c30", "event": "stop", "questions": ["d_drift"], "order": "the one question of the arm without the record, for the replay experiment only"}
+ },
+ "r_count": {
+  "type": "choice",
+  "instructions": "How many separate requests does the newest message in `message` hold? A request is one thing that its writer wants: a goal, a hypothesis, a judgment of a case, an answer to a question, a decision, or a task. Count each request once.",
+  "criteria": {
+   "none": "No request: a greeting, thanks, or pasted output only",
+   "one": "One request",
+   "two": "Two requests",
+   "three": "Three requests",
+   "four": "Four requests",
+   "five_or_more": "Five requests or more"
+  }
+ },
+ "r_kind": {
+  "type": "choice",
+  "instructions": "What kind of request does {part} hold?",
+  "criteria": {
+   "goal": "A goal: what the human hopes to accomplish, the intent. It names no avenue",
+   "hypothesis": "A hypothesis: a claim about an avenue to a goal, how the human thinks to get there",
+   "judgment": "A judgment of a case: a concrete result or case is wanted, or is not wanted",
+   "answer": "An answer to a question that the agent asked, or that is open in `record.questions`",
+   "decision": "A decision about the work: a skip, a hold, an order of work, or an approval to go on",
+   "task": "A plain task: do, change, check or find something",
+   "more": "It continues the request of the part before it and holds no request of its own",
+   "none": "No request: context, a greeting, thanks or pasted output"
+  }
+ },
+ "r_goal": {
+  "type": "choice",
+  "instructions": "Which goal does the request in {part} serve? The goals are the sentences of `record.goal_sentences`.",
+  "criteria": {
+   "none": "It serves none of these goals"
+  }
+ },
+ "x_dispute": {
+  "type": "noul",
+  "instructions": "Does the newest message in `message` show that the human and the agent disagree about a concrete case: what a rule, a claim or the work gives for that case, or if its result is the one that is wanted?"
+ },
+ "x_kind": {
+  "type": "choice",
+  "instructions": "For the case that `message` and `recent` are about: where do the human and the agent differ?",
+  "criteria": {
+   "outputs": "They agree on the inputs and on the rule, and they predict different outputs for the case",
+   "wanted": "They agree on what the output is, and the human has not decided if that output is wanted",
+   "inputs": "They do not agree on the inputs, or on the rule itself",
+   "none": "No case is in dispute"
+  }
+ },
+ "y_differs": {
+  "type": "choice",
+  "instructions": "Compare the two hypotheses {a} and {b}, each with its predictions. Both are avenues to the goal in `record.goal`. Would a user of the result experience a difference between them?",
+  "criteria": {
+   "user": "Yes: a user sees or gets something different, such as other results, other messages, or an input that is kept by one and lost by the other",
+   "inside": "No: they differ only inside, such as the structure of the code, an index or a library, and a user gets the same",
+   "same": "They are one hypothesis in other words"
+  }
+ },
+ "d_success": {
+  "type": "noul",
+  "instructions": "Does the last message of the agent in `delivery` report its work as a success, as done, or as a result that confirms what was expected?"
+ },
+ "d_kept": {
+  "type": "choice",
+  "instructions": "What does `delivery` do with the prediction {prediction}?",
+  "criteria": {
+   "accounted": "It reports a result for this prediction: that it held, or plainly that it did not hold",
+   "dropped": "It claims success and does not account for this prediction",
+   "changed": "It treats a weaker or a different statement as if it were this prediction",
+   "apart": "The delivery is not about the hypothesis of this prediction"
+  }
+ },
+ "d_revised": {
+  "type": "noul",
+  "instructions": "Did the human (role `you` in `recent`) drop or change the prediction {prediction} in a message, for example by saying that this part no longer matters?"
+ },
+ "d_drift": {
+  "type": "noul",
+  "instructions": "Does `delivery` report success by a criterion that differs from what was asked or predicted earlier in `recent`: a part that is dropped or changed, with no message of the human (role `you`) that dropped or changed it?"
+ }
+}

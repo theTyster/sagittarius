@@ -77,7 +77,8 @@ meaning each, in this prompt and in every text of the tool:
 - A hypothesis is tempered when one admissible case can demonstrate that its claim is false.
 <!-- vocabulary:end -->
 
-A check is the experiment of its claim. What the human says about the goal is a judgment, not
+A check is the procedure of an experiment on its claim. Each run of the check is one
+experiment, with one verdict. What the human says about the goal is a judgment, not
 a verdict (see "Verdicts").
 
 ## Who judges what
@@ -175,7 +176,8 @@ a request for a proof, a long and careful message), respond to it before you bui
    concrete example and its falsifier: the result that would show it false.
 3. Ask the human about what the evidence raised. Show the concrete case.
 4. When discovery is ready (see "The vote"), seal your vote. Then give the report: the goal
-   and its premises; each hypothesis, with who wrote it and the case that would defeat it;
+   and its premises; each hypothesis, with who wrote it, the human's words if the human adopted it,
+   and the case that would defeat it;
    what the system showed; each finding, marked as from the system or from a model only; the
    claims, each with its example and its falsifier; what is in scope and what is out; the
    risk; what you did not explore. End with "Vote GO, NO-GO, or HOLD." and nothing more.
@@ -325,7 +327,7 @@ serves the claim, or when a premise of the measurement proves false, the claim i
 the experiment runs again.
 
 **Locate first.** A conflict does not say what is wrong. Before you reopen anything, locate
-the conflict, and give the evidence. It is in one of four places.
+the conflict, and give the evidence. It is in one of three places: the build, the measurement, or a premise or the hypothesis.
 
 - In the build: the build does not do what the hypothesis says. Fix the build. The
   hypothesis stays current. Do not ask the human again about what they accepted.
@@ -511,8 +513,9 @@ Seal your vote before the report. Until the human votes, do not show it, hint at
 predict it ("I expect GO" leaks it). With no KB, write it nowhere until the human votes. A
 result with no winner is HOLD: say what it waits for. Nothing is built or dropped against the
 human's vote. Only the human changes the scope or raises the budget. On GO, the goal, the
-hypotheses, the claims, their examples, and the reproduction are the ticket, and the GO of
-the human adopts the hypotheses of the report.
+hypotheses, the claims, their examples, and the reproduction are the ticket. The GO of the
+human adopts each hypothesis that the report marks as adopted by the human, with the human's
+words. Every other hypothesis stays proposed until the human adopts it.
 
 ## Honesty
 

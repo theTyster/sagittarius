@@ -358,7 +358,8 @@ quiet_streams :-
 
 top_error(E, 141) :- broken_pipe(E), !,
     quiet_streams.
-top_error(orbit_error(Code, Lines), Code) :- !,
+top_error(orbit_error(Code, Lines0), Code) :- !,
+    maplist(name_text, Lines0, Lines),
     print_lines(user_error, Lines).
 top_error(E, 2) :-
     err_text(E, T),
@@ -523,7 +524,11 @@ kb_command(withdraw).
 kb_command(adopt).
 kb_command(retire).
 kb_command(rests).
+kb_command(propose).
+kb_command('confirm-proposal').
 
+top([hub, ledger|Args], Code) :- !,           % D65: the arguments go to hubflow.py unchanged
+    cmd_hub_ledger(Args, Code).
 top(Argv0, Code) :-
     take_dirs(Argv0, Dirs, [view|ViewArgs]), !,
     (   member(Arg, ViewArgs), memberchk(Arg, ['--help', '-h'])
@@ -539,7 +544,7 @@ top(Argv0, Code) :-
 top(Argv0, Code) :-
     take_dir(Argv0, DirOpt, Argv),
     (   Argv == []
-    ->  help_lines(general, Ls), print_lines(user_error, Ls), Code = 2
+    ->  help_lines(general, Ls0), maplist(name_text, Ls0, Ls), print_lines(user_error, Ls), Code = 2
     ;   Argv = [Cmd|Args],
         (   memberchk(Cmd, [help, '--help', '-h'])
         ->  cmd_help(Args, Code)
@@ -571,6 +576,8 @@ top(Argv0, Code) :-
                 with_kb_lock(Dir, cmd_release(Dir, Code))
             ;   usage_error("release takes no arguments.", [])
             )
+        ;   door_command(Cmd)                   % D63 to D69: the door (orbit hub, s1-record, drop-goal)
+        ->  cmd_door(Cmd, DirOpt, Args, Code)
         ;   Cmd == project
         ->  (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
             ->  cmd_help([project], Code)
@@ -633,6 +640,8 @@ writer_command(attest).
 writer_command(withdraw).
 writer_command(adopt).
 writer_command(retire).
+writer_command(propose).
+writer_command('confirm-proposal').
 % run and prove take the lock themselves, only to record the result
 % (see cmd_run/3 and cmd_prove/3).
 
@@ -652,7 +661,8 @@ writer_command(retire).
 % The lock is a record, not a guard: nothing stops a hand edit of kb.pl.
 
 lock_command(C) :- memberchk(C, [adopt, retire, judge, locate, confirm, add, subject, attest, run, prove, uses, withdraw, 'pin-item',
-                                 'pin-question', 'pin-answer', 'pin-request', 'apply-pending', review]).
+                                 'pin-question', 'pin-answer', 'pin-request', 'apply-pending', review,
+                                 propose, 'confirm-proposal']).
 
 writer_name(W) :-
     member(V, ['ORBIT_KB_WRITER', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'HUB_SESSION']),
@@ -1279,6 +1289,90 @@ kb_cmd('pin-request', KB, Args, Code) :- cmd_pin_request(KB, Args, Code).
 kb_cmd('apply-pending', KB, Args, Code) :- cmd_apply_pending(KB, Args, Code).
 kb_cmd(review, KB, Args, Code) :- cmd_review(KB, Args, Code).
 kb_cmd(withdraw, KB, Args, Code) :- cmd_withdraw(KB, Args, Code).
+kb_cmd(propose, KB, Args, Code) :- cmd_propose(KB, Args, Code).
+kb_cmd('confirm-proposal', KB, Args, Code) :- cmd_confirm_proposal(KB, Args, Code).
+
+% ---------------------------------------------------------------------
+% Proposals of System 1 (D70, D71; scientific-method-overhaul c34)
+% ---------------------------------------------------------------------
+% System 1 writes only proposals. propose stores proposed(P, system1, FactText, Time): the
+% fact is kept as text, so it is no record and no rule reads it: it changes no answer of
+% done, blocking(X) or discovery_ready. confirm-proposal adds the fact through cmd_add, with
+% the usual checks, and proposal_confirmed(P, By, Time) in the same batch (all or nothing).
+
+cmd_propose(KB, Args, Code) :-
+    parse_opts(Args, ['--from'-value, '--note'-value], Pos, Opts),
+    (   Pos = [Fact0] -> true
+    ;   usage_error("propose takes one fact in quotes: orbit-kb propose --from system1 'FACT' [--note TEXT].", [])
+    ),
+    opt(Opts, '--from', none, From),
+    (   From == system1 -> true
+    ;   usage_error("propose needs --from system1. A proposal is a record of System 1. The agent and the human write with add.", [])
+    ),
+    atom_string(FactA, Fact0),
+    (   catch(term_to_atom(T, FactA), _, fail), nonvar(T), callable(T) -> true
+    ;   usage_error("The proposed fact does not parse: ~w", [FactA])
+    ),
+    kb_items(KB, KI),
+    (   proposal_item(KI, P0, FactA, _), \+ proposal_done(KI, P0, _, _)
+    ->  format("~w already holds this proposal. It waits. Confirm: orbit-kb confirm-proposal ~w~n", [P0, P0]),
+        Code = 0
+    ;   findall(P1, proposal_item(KI, P1, _, _), Ps), length(Ps, N),
+        next_proposal_id(Ps, N, P),
+        utc_now(Now),
+        format(atom(F1), "proposed(~q, system1, ~q, ~q)", [P, FactA, Now]),
+        (   memberchk('--note'-Note, Opts)
+        ->  format(atom(F2), "note(~q, ~q)", [P, Note]), Facts = [F1, F2]
+        ;   Facts = [F1]
+        ),
+        cmd_add(KB, Facts, Code),
+        format("Proposal ~w is stored. It is not a record and it blocks nothing. Confirm: orbit-kb confirm-proposal ~w~n", [P, P])
+    ).
+
+next_proposal_id(Ps, N, P) :-
+    N1 is N + 1, format(atom(P0), "pr~d", [N1]),
+    (   memberchk(P0, Ps) -> next_proposal_id(Ps, N1, P) ; P = P0 ).
+
+proposal_item(KI, P, Fact, Time) :-
+    member(it(_, _, _, T, _, _), KI), nonvar(T), T = proposed(P, _, Fact, Time).
+proposal_done(KI, P, By, Time) :-
+    member(it(_, _, _, T, _, _), KI), nonvar(T), T = proposal_confirmed(P1, By, Time), P1 == P.
+
+cmd_confirm_proposal(KB, Args, Code) :-
+    parse_opts(Args, ['--by'-value], Pos, Opts),
+    (   Pos = [P0] -> atom_string(P, P0)
+    ;   usage_error("confirm-proposal takes one proposal id: orbit-kb confirm-proposal P [--by human].", [])
+    ),
+    opt(Opts, '--by', agent, By),
+    (   memberchk(By, [human, agent]) -> true
+    ;   usage_error("--by takes human or agent. It is ~w.", [By])
+    ),
+    kb_items(KB, KI),
+    (   proposal_item(KI, P1, Fact, _), P1 == P -> true
+    ;   fmt(M0, "No proposal ~w. orbit-kb show proposals lists them.", [P]), reject([M0])
+    ),
+    (   proposal_done(KI, P, By0, T0)
+    ->  fmt(M1, "Proposal ~w is confirmed already (by the ~w at ~w).", [P, By0, T0]), reject([M1])
+    ;   true
+    ),
+    utc_now(Now),
+    format(atom(CF), "proposal_confirmed(~q, ~q, ~q)", [P, By, Now]),
+    cmd_add(KB, [Fact, CF, '--by', By], Code).
+
+show_proposals(KB) :-
+    kb_items(KB, KI),
+    findall(P-F-T, proposal_item(KI, P, F, T), Ps),
+    (   Ps == [] -> format("No proposals.~n")
+    ;   forall(member(P-F-T, Ps),
+               (   format("~w (system1, ~w): ~w~n", [P, T, F]),
+                   forall(( member(it(_, _, _, N, _, _), KI), nonvar(N), N = note(P2, NT), P2 == P ),
+                          format("    ~w~n", [NT])),
+                   (   proposal_done(KI, P, By, T2)
+                   ->  format("    confirmed by the ~w at ~w: it is a record~n", [By, T2])
+                   ;   format("    waits; it blocks nothing. Confirm: orbit-kb confirm-proposal ~w~n", [P])
+                   )
+               ))
+    ).
 
 
 % ---------------------------------------------------------------------
@@ -1339,7 +1433,7 @@ tool_version_text(V) :- ( tool_version(V0) -> V = V0 ; V = '(version unknown)' )
 
 cmd_version([], Code) :- !,
     (   tool_version(V)
-    ->  format("orbit-kb ~w~n", [V]), Code = 0
+    ->  tool_name(Name), format("~w ~w~n", [Name, V]), Code = 0
     ;   ( catch(lib_dir_quiet(Lib), _, fail) -> true ; Lib = '?' ),
         directory_file_path(Lib, 'VERSION', F),
         die(2, [ "The version of orbit-kb is unknown.",
@@ -2054,6 +2148,17 @@ kb_hub_up(D, Hub) :-
     ).
 
 project_kb_facts(Dir, P, Facts) :-
+    door_memo_on, !,                              % D64: once for each project KB in a hub query
+    project_kb_dir(Dir, P, PDir0), absolute_file_name(PDir0, PA), absolute_file_name(Dir, DA),
+    PA \== DA,
+    (   door_pfacts_memo(PA, R) -> true
+    ;   ( catch(project_kb_facts_(Dir, P, F0), _, fail) -> R = ok(F0) ; R = none ),
+        assertz(door_pfacts_memo(PA, R))
+    ),
+    R = ok(Facts).
+project_kb_facts(Dir, P, Facts) :- project_kb_facts_(Dir, P, Facts).
+
+project_kb_facts_(Dir, P, Facts) :-
     project_kb_dir(Dir, P, PDir),
     directory_file_path(PDir, 'kb.pl', PFile),
     exists_file(PFile),
@@ -2082,7 +2187,10 @@ project_kb_facts(Dir, P, Facts) :-
     swi_raw(Eng, rests_on(RZ, RY), RZ-RY, ResR),
     (   ResR = answers(LR, _) -> findall(project_rests_on(Z1, Y2), member(Z1-Y2, LR), FR) ; FR = [] ),
     (   project_unclean(PKB) -> F3 = [project_kb_unclean] ; F3 = [] ),
-    append([F1, F3, FC, FR], Facts).
+    % D67 (c17, c42): the goals of the project KB, and the ones that their owner dropped.
+    findall(project_goal(PG), ( kb_term(PItems, goal(PG, _, _, _)), atom(PG) ), FG0), sort(FG0, FG),
+    findall(project_goal_dropped(PG), ( kb_term(PItems, dropped(PG, _, _, _)), atom(PG) ), FD0), sort(FD0, FD),
+    append([F1, F3, FC, FR, FG, FD], Facts).
 
 % The project KB does not load clean: lint finds an error in it (D23).
 project_unclean(PKB) :-
@@ -2569,7 +2677,10 @@ fact_diags(Ctx, it(_, F, L, T, _, _), Diags) :-
                 findall(diag(C, F, L, M),
                         ( nth1(I, Ts, Ty), arg(I, P, V),
                           val_errs(Ty, V, Env, Es), member(C-M0, Es),
-                          fmt(M, "~q/~w argument ~w: ~w", [N, A, I, M0]) ),
+                          (   N/A == hypothesis/4, C == 'E4', arg(1, P, HId), atom(HId)
+                          ->  fmt(M, "~w: ~q/~w argument ~w: ~w", [HId, N, A, I, M0])       % review B7
+                          ;   fmt(M, "~q/~w argument ~w: ~w", [N, A, I, M0])
+                          ) ),
                         GA),
                 (   N/A == attest/6, Neg == false
                 ->  attest_diags(KB, ATs, Env, P, F, L, GT)
@@ -4477,6 +4588,8 @@ add_item(ATs, I, A, R) :-
         ->  fmt(M, "Argument ~w: orbit-kb attest approval writes discovery_end/1 itself (D30), when the human approves the ticket while gate(go) holds. add refuses it.", [I]), R = err(M)
         ;   nonvar(T), functor(T, RN, RA), memberchk(RN/RA, [actor/3, change_at/2, review_saw/3])
         ->  fmt(M, "Argument ~w: orbit-kb writes ~w/~w itself (D28): with each attestation and change, or with orbit-kb review start. add refuses it.", [I, RN, RA]), R = err(M)
+        ;   nonvar(T), T = dropped(_, _, _, _), \+ nb_current(orbit_drop_goal, true)
+        ->  fmt(M, "Argument ~w: only orbit-kb drop-goal writes dropped/4 (D67): orbit-kb drop-goal G --by human --note 'the words of the owner', in the project KB. add refuses it.", [I]), R = err(M)
         ;   nonvar(T), T = relation_by(_, _, _)
         ->  fmt(M, "Argument ~w: orbit-kb writes relation_by/3 itself (D38), after each excludes and depends_on fact, with the --by of the add. To ratify an agent's relation, add the same relation with --by human. add refuses it.", [I]), R = err(M)
         ;   nonvar(T), T = attest(_, Type, _, _, _, _), atom(Type), script_only_type(ATs, Type)
@@ -10195,7 +10308,20 @@ cmd_lint(KB, Args, Code) :-
     ;   Code = 0
     ).
 
-print_diag(diag(C, F, L, M)) :-
+print_diag(diag(C, F, L, M0)) :-
+    (   string(M0), diag_id_msg(M0, Id, M1), F \== ''
+    ->  show_loc(F, L, LT0), format("~w ~w ~w: ~w~n", [C, LT0, Id, M1])
+    ;   M = M0, print_diag_(C, F, L, M)
+    ).
+
+% diag_id_msg(+Msg, -Id, -Rest) (review B7): an E4 message of a hypothesis/4 fact starts with
+% "ID: hypothesis/4 argument"; lint prints the id after the position: E4 kb.pl:7 hy9: hypothesis/4 ...
+diag_id_msg(M, Id, Rest) :-
+    sub_string(M, B, _, _, ": hypothesis/4 argument "), !, B > 0,
+    sub_string(M, 0, B, _, Id), \+ sub_string(Id, _, _, _, " "),
+    B2 is B + 2, sub_string(M, B2, _, 0, Rest).
+
+print_diag_(C, F, L, M) :-
     (   F == ''
     ->  format("~w ~w~n", [C, M])
     ;   show_loc(F, L, LT),
@@ -10620,6 +10746,9 @@ txt(T, S) :- ( atom(T) -> S = T ; term_text(T, S) ).
 plain_text(T, S) :- ( atomic(T) -> format(string(S), "~w", [T]) ; term_text(T, S) ).
 
 cmd_show(KB, Args, Code) :-
+    parse_opts(Args, [], [proposals], _), !,   % D71: the proposals of System 1
+    show_proposals(KB), Code = 0.
+cmd_show(KB, Args, Code) :-
     parse_opts(Args, [], [pin|PinArgs], _), !,
     (   PinArgs = [Id0] -> atom_string(Id, Id0) ; usage_error("show pin takes one pin id: orbit-kb show pin ID.", []) ),
     show_pin(KB, Id, Code).
@@ -10628,7 +10757,7 @@ cmd_show(KB, Args, Code) :-
     (   Pos == [] -> What = all
     ;   Pos = [What], memberchk(What, [hypothesis, hypotheses, claims, questions, open, blocking, disclosures, extensions, kinds, all, experiments, stale]) -> true
     ;   Pos = [experiments, ExpId] -> What = experiments(ExpId)
-    ;   usage_error("show takes one of: hypotheses, hypothesis, claims, questions, open, blocking, disclosures, extensions, kinds, experiments [ID], stale, all, or pin ID.", [])
+    ;   usage_error("show takes one of: hypotheses, hypothesis, claims, questions, open, blocking, disclosures, extensions, kinds, experiments [ID], stale, proposals, all, or pin ID.", [])
     ),
     % D50 (c43): show hypothesis is the 0.7.2 call. It answers as at 0.7.2, with the note.
     ( What == hypothesis -> hypothesis3_note(hypothesis(_, _, _)) ; true ),
@@ -10707,13 +10836,12 @@ show_section(_, Eng, hypothesis) :-
 show_section(_, Eng, hypotheses) :-
     eng_all(Eng, [G, K, A, T], goal(G, K, A, T), Gs),
     (   Gs == [] -> say("Goal:", []), say("- None. Every ticket has one: add goal(G, KIND, AUTHOR, TEXT).", []) ; true ),
-    forall(member([G, K, A, T], Gs),
-           ( one_line(T, TT), term_text(A, AT),
-             say("Goal (~w): ~w (~w): ~w", [AT, G, K, TT]),
-             (   eng_all(Eng, [N], supersedes(N, G), Ns), Ns \== []
-             ->  atomic_list_concat(Ns, ', ', NT), say("  State: superseded by ~w.", [NT])
-             ;   say("  State: current.", [])
-             ),
+    partition([[G0|_]]>>eng_true(Eng, goal_current(G0)), Gs, Cur, Old),
+    forall(member([G, K, A, T], Cur),
+           ( one_line(T, TT), author_words(A, AT),
+             say("Goal ~w (~w): ~w", [G, AT, TT]),
+             say("  Kind: ~w.", [K]),
+             say("  State: current.", []),
              premise_lines(Eng, G, PLs),
              forall(member(L, PLs), say("  ~w", [L])),
              eng_all(Eng, [R], supports(G, R), Rs),
@@ -10723,7 +10851,16 @@ show_section(_, Eng, hypotheses) :-
              ;   forall(member(HI, HIs),
                         ( hyp_lines(Eng, HI, HH, HLs), say("  ~w", [HH]),
                           forall(member(HL, HLs), say("    ~w", [HL])) ))
-             ) )).
+             ) )),
+    % review B5: a superseded goal is one line; it has no "No hypothesis" line.
+    (   Old == [] -> true
+    ;   say("Earlier statements of the goal:", []),
+        forall(member([G, _, A, T], Old),
+               ( one_line(T, TT), author_words(A, AT),
+                 ( string_length(TT, Len), Len > 100 -> sub_string(TT, 0, 100, _, Short) ; Short = TT ),
+                 eng_all(Eng, [N], supersedes(N, G), Ns), atomic_list_concat(Ns, ', ', NT),
+                 say("- ~w (~w, superseded by ~w): ~w", [G, AT, NT, Short]) ))
+    ).
 show_section(KB, Eng, claims) :-
     say("Claims:", []),
     eng_all(Eng, [C, L, T], claim(C, L, T), Cs),
@@ -10931,6 +11068,7 @@ ready_line(Eng, X, KI, S) :-
 ready_sentence(_, no_hypothesis, _, "no current hypothesis. Add hypothesis(H, KIND, TEXT).") :- !.
 ready_sentence(_, no_system_result, _, "no evidence from the current system yet: a reproduction on system evidence, or a run of a check tagged discovery_evidence(K, system).") :- !.
 ready_sentence(_, no_outcome, _, "no claim is current, and no current hypothesis did not reproduce.") :- !.
+ready_sentence(Eng, untouched, H, S) :- eng_true(Eng, goal_written(H)), !, fmt(S, "goal ~w has no result from the current system (lint WD7). Reproduce it, or ask the human if it is a separate ticket. A result on the goal that it replaces counts when carried(A, ~w) names its attestation.", [H, H]).
 ready_sentence(_, untouched, H, S) :- !, fmt(S, "hypothesis ~w has no result from the current system (lint WD7). Reproduce it, or ask the human if it is a separate ticket.", [H]).
 ready_sentence(Eng, no_falsifier, C, S) :- !, item_text(Eng, C, T), fmt(S, "claim ~w has no falsifier: no check, and no trusted model that decided it: ~w", [C, T]).
 ready_sentence(Eng, no_example, C, S) :- !, item_text(Eng, C, T), fmt(S, "claim ~w has no example (lint WD10): ~w", [C, T]).
@@ -10984,7 +11122,7 @@ show_experiment(KB, Eng, E, Kind, C) :-
     ( eng_all(Eng, [V], verdict(E, V), [V1|_]) -> true ; V1 = none ),
     item_text(Eng, C, CT0), ( CT0 == '' -> ( eng_all(Eng, [GT], goal(C, _, _, GT), [GT1|_]) -> txt(GT1, CT) ; CT = '' ) ; CT = CT0 ),
     say("- ~w (~w): verdict ~w", [E, Kind, V1]),
-    ( Kind == judgment, CT0 == '' -> say("  Goal ~w: ~w", [C, CT]) ; say("  Claim ~w: ~w", [C, CT]) ),
+    ( Kind == judgment, eng_true(Eng, goal(C, _, _, _)) -> say("  Goal ~w: ~w", [C, CT]) ; say("  Claim ~w: ~w", [C, CT]) ),
     (   Kind == test, eng_all(Eng, [K, N, R], attest(E, test_result, _, result(K, N, R), _, _), [[K1, N1, R1]|_])
     ->  run_log_path(KB, K1, N1, Log),
         (   eng_all(Eng, [P], procedure(K1, P), [P1|_]) -> txt(P1, PT), say("  Procedure: ~w", [PT])
@@ -11066,6 +11204,10 @@ blocking_line(_, Eng, project_contradiction(X), S) :- !,
     eng_all(Eng, [Y], project_contradiction(X, Y), Ys0), sort(Ys0, Ys),
     atomic_list_concat(Ys, ', ', YT),
     fmt(S, "- project_contradiction ~w: a claim pins ~w of the project KB, and ~w cannot hold together with ~w there (excludes). Ask a human to supersede one side in the project KB, or change the claim.", [X, X, X, YT]).
+blocking_line(_, Eng, goal_contradicts(G), S) :- !,
+    eng_all(Eng, [P], goal_contradiction_open(G, P), Ps0), sort(Ps0, Ps),
+    atomic_list_concat(Ps, ', ', PT),
+    fmt(S, "- goal_contradicts ~w: the goal contradicts the project goal ~w. This is a question for the human before the build: add question(Q, ~w, 'TEXT'), and record the human's answer.", [G, PT, G]).
 % 0.8.0, stage 2 (D57 to D61): one clear line for each new term.
 blocking_line(_, Eng, check_unresolved(K), S) :- !,
     item_text(Eng, K, T),
@@ -11093,7 +11235,8 @@ blocking_line(_, Eng, goal_unjudged(G), S) :- !,
     item_text(Eng, G, T),
     (   eng_true(Eng, goal_judgment(_, G, not_satisfied))
     ->  fmt(S, "- goal_unjudged ~w: the last judgment of the human says that goal ~w is not satisfied. The ticket is done only on the judgment that it is: orbit-kb judge ~w satisfied --by human (only the human judges): ~w", [G, G, G, T])
-    ;   fmt(S, "- goal_unjudged ~w: the human has not judged that goal ~w is satisfied. Show the result to the human; the human records the judgment with orbit-kb judge ~w satisfied --by human: ~w", [G, G, G, T])
+    ;   human_name(Eng, HN), cap_first(HN, HNC),
+        fmt(S, "- goal_unjudged ~w: the human has not judged that goal ~w is satisfied. Show the result to the human. ~w records it on the Desk (Goal satisfied), or with: orbit judge ~w satisfied --by human: ~w", [G, G, HNC, G, T])
     ).
 blocking_line(_, Eng, behavior_open(B), S) :- !,
     ( eng_all(Eng, [T], behavior_conflict(B, T), [T1|_]) -> txt(T1, TT) ; TT = '?' ),
@@ -11405,6 +11548,894 @@ pin_text_file(Dir, Digest, Target) :-
     atom(Digest), atom_concat('sha256:', Hex, Digest),
     format(atom(Rel), "pins/~w.txt", [Hex]),
     directory_file_path(Dir, Rel, Target).
+
+% ---------------------------------------------------------------------
+% The door (D63 to D69): the name orbit, orbit hub, orbit s1-record, orbit drop-goal
+% ---------------------------------------------------------------------
+% One command reaches every store of a hub (scientific-method-overhaul c26). The hub root is
+% --hub DIR, else the nearest directory from here upward that holds .hub-template.json or
+% flow/jsonl. The stores become facts of one engine (the names are in share/orbit-kb/hub.pl,
+% with the purpose rules, c44):
+%   - the ledger is read from flow/jsonl/*.jsonl, which hubflow.py rewrites in the transaction
+%     of every write to flow.db. hubflow.py stays the only writer (orbit hub ledger runs it);
+%   - a spec KB (specs/SLUG) and the project KB are read by the normal loader, each once in a
+%     process and only when a query asks for one of its facts (ticket_fact/2, project_fact/1);
+%   - the memory files, the week files and the bespoke tools are files with a sha256 each.
+
+% D63 (c19, q8): the tool has two names. The name is the base name of the script path that
+% started it (kb/bin/orbit is a link to kb/bin/orbit-kb; each path has its own saved state).
+tool_name(N) :-
+    (   orbit_script(F), file_base_name(F, orbit) -> N = orbit ; N = 'orbit-kb' ).
+
+% name_text(+Text0, -Text): under the name orbit, a help or error line says orbit where it
+% says orbit-kb. A path keeps its name (share/orbit-kb, .claude/orbit-kb/bin/orbit-kb, orbit-kb-NAME).
+% Under the name orbit-kb nothing changes.
+name_text(T0, T) :-
+    (   tool_name(orbit), ( string(T0) ; atom(T0) )
+    ->  atom_string(T0, S0), name_swap(S0, T)
+    ;   T = T0
+    ).
+
+name_swap(S0, S) :-
+    (   sub_string(S0, B, 8, A, "orbit-kb")
+    ->  sub_string(S0, 0, B, _, Pre), sub_string(S0, _, A, 0, Post),
+        (   name_in_path(Pre, Post) -> Mid = "orbit-kb" ; Mid = "orbit" ),
+        name_swap(Post, Post1),
+        string_concat(Pre, Mid, S1), string_concat(S1, Post1, S)
+    ;   S = S0
+    ).
+
+name_in_path(Pre, Post) :-
+    (   sub_string(Pre, _, 1, 0, C), memberchk(C, ["/", "_", "-"]) -> true
+    ;   sub_string(Post, 0, 1, _, D), memberchk(D, ["/", "_", "-"])
+    ).
+
+door_command(hub).
+door_command('s1-record').
+door_command('drop-goal').
+
+cmd_door(Cmd, DirOpt, Args, Code) :-
+    (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
+    ->  cmd_help([hub], Code)
+    ;   Cmd == hub -> cmd_hub(Args, Code)
+    ;   Cmd == 's1-record' -> cmd_s1_record(DirOpt, Args, Code)
+    ;   cmd_drop_goal(DirOpt, Args, Code)
+    ).
+
+cmd_hub([query|Args], Code) :- !, cmd_hub_query(Args, Code).
+cmd_hub([ledger|Args], Code) :- !, cmd_hub_ledger(Args, Code).
+cmd_hub([stores|Args], Code) :- !, cmd_hub_stores(Args, Code).
+cmd_hub([files|Args], Code) :- !, cmd_hub_files(Args, Code).
+cmd_hub([orphans|Args], Code) :- !, cmd_hub_orphans(Args, Code).
+cmd_hub(_, _) :-
+    usage_error("hub takes query 'GOAL', ledger ARGS, stores, files memory|weeks|bespoke, or orphans. Run orbit-kb help hub.", []).
+
+% ---- the hub root -------------------------------------------------------------------------
+
+door_root(Opts, Hub) :-
+    (   memberchk('--hub'-H0, Opts)
+    ->  (   exists_directory(H0) -> absolute_file_name(H0, Hub)
+        ;   usage_error("The hub ~w is not a directory.", [H0])
+        )
+    ;   working_directory(D0, D0), door_root_from(D0, Hub0)
+    ->  Hub = Hub0
+    ;   die(2, ["No hub found: no directory from here upward holds .hub-template.json or flow/jsonl.",
+                "Fix: run the command inside a hub, or give --hub DIR."])
+    ).
+
+door_root_from(D0, Hub) :-
+    absolute_file_name(D0, D1),
+    (   D1 \== '/', sub_atom(D1, B, 1, 0, '/') -> sub_atom(D1, 0, B, _, D) ; D = D1 ),
+    door_root_up(D, Hub).
+
+door_root_up(D, Hub) :-
+    (   door_is_root(D) -> Hub = D
+    ;   file_directory_name(D, P), P \== D, door_root_up(P, Hub)
+    ).
+
+door_is_root(D) :-
+    (   directory_file_path(D, '.hub-template.json', F), exists_file(F) -> true
+    ;   directory_file_path(D, 'flow/jsonl', J), exists_directory(J)
+    ).
+
+% ---- the ledger: flow/jsonl ---------------------------------------------------------------
+
+door_jsonl(Hub, Table, Rows) :-
+    format(atom(Rel), "flow/jsonl/~w.jsonl", [Table]),
+    directory_file_path(Hub, Rel, F),
+    (   exists_file(F)
+    ->  use_module(library(http/json)),
+        catch(setup_call_cleanup(open(F, read, S, [encoding(utf8)]),
+                                 door_json_rows(S, Rows),
+                                 close(S)),
+              E, ( err_text(E, M), die(2, ["Cannot read the ledger file " + F + ": " + M,
+                                           "Fix: run hubflow.py check in the hub (orbit hub ledger check)."] >> fix_lines) ))
+    ;   Rows = []
+    ).
+
+door_json_rows(S, Rows) :-
+    json:json_read_dict(S, D, [end_of_file(eof), value_string_as(atom), null(null)]),
+    (   D == eof -> Rows = []
+    ;   Rows = [D|Rest], door_json_rows(S, Rest)
+    ).
+
+door_col(R, K, V) :-
+    (   is_dict(R), get_dict(K, R, V0), V0 \== null -> V = V0 ; V = none ).
+
+% door_ledger_facts(+Hub, -Facts): the facts of the ledger (D64).
+door_ledger_facts(Hub, Facts) :-
+    door_jsonl(Hub, item, Items),
+    door_jsonl(Hub, item_ref, Refs),
+    door_jsonl(Hub, item_link, Links),
+    door_jsonl(Hub, handoff, Hs),
+    findall(F, ( member(R, Items), door_item_fact(R, F) ), F1),
+    findall(F, ( member(R, Refs), door_ref_fact(R, F) ), F2),
+    findall(item_link(A, K, B),
+            ( member(R, Links), door_col(R, from_id, A), door_col(R, kind, K), door_col(R, to_id, B) ), F3),
+    findall(F, ( member(R, Hs), door_handoff_fact(R, F) ), F4),
+    append([F1, F2, F3, F4], Facts).
+
+door_item_fact(R, F) :-
+    door_col(R, id, Id), Id \== none,
+    door_col(R, kind, Kind), door_col(R, status, St),
+    (   door_col(R, title, Title), door_col(R, owner_session, Owner),
+        F = item(Id, Kind, St, Title, Owner)
+    ;   door_col(R, opened_at, T), T \== none, F = item_opened(Id, T)
+    ;   memberchk(St, [done, dropped, lapsed]), F = item_closed(Id, St)
+    ;   door_col(R, waits_on, P), P \== none, F = item_waits(Id, P)
+    ;   door_col(R, parked_until, U), U \== none, F = item_parked(Id, U)
+    ;   door_col(R, due, Due), Due \== none, F = item_due(Id, Due)
+    ).
+
+door_ref_fact(R, F) :-
+    door_col(R, item_id, Id), door_col(R, kind, K), door_col(R, ref, Ref0),
+    ( atom(Ref0) -> Ref = Ref0 ; format(atom(Ref), "~w", [Ref0]) ),
+    (   F = item_ref(Id, K, Ref)
+    ;   memberchk(K, [issue, pr, url, build, release]),
+        format(atom(TR), "~w:~w", [K, Ref]), F = tracker_ref(Id, TR)
+    ).
+
+door_handoff_fact(R, F) :-
+    door_col(R, item_id, Id),
+    (   door_col(R, from_session, From), door_col(R, to_session, To), F = handoff(Id, From, To)
+    ;   door_col(R, accepted_at, T), T \== none, F = handoff_accepted(Id, T)
+    ).
+
+% door_reach_facts(+Facts, -Reach): item_reaches(I, J) for each item J that I reaches through one
+% or more links that pass a purpose (q19: blocks, follows, duplicates, supersedes; not relates),
+% where no item on the way after I is dropped or lapsed (c44: a chain is not live through a
+% dropped item). A done item passes its purpose on (q31). The search ends on a cycle.
+door_reach_facts(Facts, Reach) :-
+    findall(I, ( member(item(I, _, S, _, _), Facts), memberchk(S, [dropped, lapsed]) ), Dead),
+    findall(A-B, ( member(item_link(A, K, B), Facts),
+                   memberchk(K, [blocks, follows, duplicates, supersedes]),
+                   \+ memberchk(B, Dead) ),
+            E0),
+    sort(E0, Edges),
+    supersede_closure(Edges, Pairs),
+    findall(item_reaches(A, B), member(A-B, Pairs), Reach).
+
+% ---- the spec KBs and the project KB ------------------------------------------------------
+
+:- dynamic door_hub/1, door_ticket_dir/2, door_project_dir/1, door_eng_memo/2,
+           door_pfacts_memo/2, door_files_memo/2, door_src_memo/3.
+
+% door_tickets(+Hub, -Pairs): Slug-RelDir of each spec KB (specs/SLUG with a kb.pl).
+door_tickets(Hub, Pairs) :-
+    directory_file_path(Hub, specs, SD),
+    (   exists_directory(SD)
+    ->  directory_files(SD, Es0), msort(Es0, Es),
+        findall(Slug-Rel,
+                ( member(Slug, Es), \+ sub_atom(Slug, 0, 1, _, '.'),
+                  directory_file_path(specs, Slug, Rel),
+                  directory_file_path(Hub, Rel, D), directory_file_path(D, 'kb.pl', F), exists_file(F) ),
+                Pairs)
+    ;   Pairs = []
+    ).
+
+% door_project(+Hub, -Dir): the project KB of the hub: HUB/project-kb when it holds a kb.pl; else
+% the KB that the first project_kb/1 fact of a spec KB names; else the first directory of the hub
+% root whose kb.pl uses the project module. (The hub's CLAUDE.md names it for the reader.)
+door_project(Hub, Dir) :-
+    directory_file_path(Hub, 'project-kb', D0),
+    directory_file_path(D0, 'kb.pl', F0), exists_file(F0), !,
+    Dir = D0.
+door_project(Hub, Dir) :-
+    door_tickets(Hub, Pairs),
+    member(_-Rel, Pairs),
+    directory_file_path(Hub, Rel, SD),
+    directory_file_path(SD, 'kb.pl', KF),
+    read_source_file(kb, KF, Items),
+    kb_term(Items, project_kb(P)), atom(P),
+    project_kb_dir(SD, P, PD),
+    directory_file_path(PD, 'kb.pl', PF), exists_file(PF), !,
+    absolute_file_name(PD, Dir).
+door_project(Hub, Dir) :-
+    directory_files(Hub, Es0), msort(Es0, Es),
+    member(E, Es), \+ sub_atom(E, 0, 1, _, '.'), E \== specs,
+    directory_file_path(Hub, E, D), exists_directory(D),
+    directory_file_path(D, 'kb.pl', F), exists_file(F),
+    read_source_file(kb, F, Items), items_uses(Items, Us), memberchk(project, Us), !,
+    Dir = D.
+
+door_open(Hub) :-
+    retractall(door_hub(_)), retractall(door_ticket_dir(_, _)), retractall(door_project_dir(_)),
+    assertz(door_hub(Hub)),
+    door_tickets(Hub, Pairs),
+    forall(member(Slug-Rel, Pairs),
+           ( directory_file_path(Hub, Rel, D), assertz(door_ticket_dir(Slug, D)) )),
+    (   door_project(Hub, PD) -> assertz(door_project_dir(PD)) ; true ).
+
+% door_kb_engine(+Dir, -Eng, -Ds): the engine of the KB at Dir, built once in this process. A KB
+% that does not load clean gives no answer here; one note on stderr names it.
+door_kb_engine(Dir, Eng, Ds) :-
+    (   door_eng_memo(Dir, R) -> true
+    ;   door_kb_load(Dir, R), assertz(door_eng_memo(Dir, R))
+    ),
+    R = ok(Eng, Ds).
+
+door_kb_load(Dir, R) :-
+    catch(( lib_dir(Lib),
+            load_kb(Dir, Lib, KB),
+            answer_gate(KB),
+            kb_items(KB, Items), items_decls(Items, Ds),
+            build_engine(Items, Ds, Eng),
+            Eng = eng(_, LE),
+            (   LE == [] -> R = ok(Eng, Ds)
+            ;   R = bad("a clause of it does not load in the engine")
+            ) ),
+          E,
+          (   E = orbit_error(_, [L1|_]) -> R = bad(L1)
+          ;   err_text(E, M), R = bad(M)
+          )),
+    (   R = bad(Msg)
+    ->  format(user_error, "note: the KB ~w gives no answer here: ~w Run orbit-kb --dir ~w lint.~n", [Dir, Msg, Dir])
+    ;   true
+    ).
+
+% door_kb_call(+Module, +Decls, ?Fact): a fact or a rule answer of a KB. Only a declared
+% predicate is asked; an unbound Fact lists every declared predicate in turn. An error in one
+% rule (an unbound argument in arithmetic) gives no answer for that call.
+door_kb_call(M, Ds, Fact) :-
+    (   var(Fact)
+    ->  member(d(N, A, _, _, _, _, _, _, _), Ds), functor(Fact, N, A)
+    ;   callable(Fact), functor(Fact, N, A), decl_of(Ds, N, A, _)
+    ),
+    catch(M:Fact, _, fail).
+
+door_ticket_fact(Slug, Fact) :-
+    door_ticket_dir(Slug, Dir),
+    door_kb_engine(Dir, eng(M, _), Ds),
+    door_kb_call(M, Ds, Fact).
+
+door_project_fact(Fact) :-
+    door_project_dir(Dir),
+    door_kb_engine(Dir, eng(M, _), Ds),
+    door_kb_call(M, Ds, Fact).
+
+% door_ticket_done_at(?Slug, -Time): the ticket is done, and Time is the time of the newest record
+% that can make done true: a passed run, an approval, a proof, a model result, a judgment, a
+% waiver, or a pinned answer. A later disproof verdict, disclosure or note of a reviewer does not
+% move it. With no such record: the time of the newest attestation. (kb.pl holds no time of done.)
+door_ticket_done_at(Slug, Time) :-
+    door_ticket_dir(Slug, Dir),
+    door_kb_engine(Dir, eng(M, _), Ds),
+    decl_of(Ds, done, 0, _),
+    catch(M:done, _, fail), !,
+    findall(T, ( catch(M:attest(_, Ty, _, P, _, T), _, fail), atom(T), door_makes_done(Ty, P) ), Ts1),
+    findall(T, ( catch(M:answer_pin(_, _, _, T), _, fail), atom(T) ), Ts2),
+    append(Ts1, Ts2, Ts12),
+    (   Ts12 \== [] -> Ts = Ts12
+    ;   findall(T, ( catch(M:attest(_, _, _, _, _, T), _, fail), atom(T) ), Ts)
+    ),
+    Ts \== [],
+    max_member(Time, Ts).
+
+door_makes_done(test_result, result(_, _, pass)) :- !.
+door_makes_done(Ty, _) :- memberchk(Ty, [approval, lean_proof, model_result, judgment, waiver]).
+
+% The project KB facts of a spec KB are computed once for each project KB in a process (the door
+% loads many spec KBs that name the same project KB).
+door_memo_on :- door_hub(_).
+
+% ---- the files: memory, weeks, bespoke ----------------------------------------------------
+
+% door_store_paths(+Hub, +Store, -Rels): the files of a file store, as sorted paths from the hub root.
+%   memory   CLAUDE.md, HUB-CORE.md, PRINCIPLES.md, HEURISTICS.md, TECHNOLOGIES.md, and each
+%            root file that a line of CLAUDE.md imports (@FILE at the start of the line).
+%   weeks    each file under W0 to W5.
+%   bespoke  each file inside the hub that TECHNOLOGIES.md names in backquotes (a directory: its
+%            files), and the files of each skill under .claude/skills that the kit did not ship
+%            (.hub-template.json "files" lists the shipped ones).
+door_store_paths(Hub, memory, Rels) :-
+    directory_file_path(Hub, 'CLAUDE.md', CM),
+    (   exists_file(CM)
+    ->  read_file_to_string(CM, Text, [encoding(utf8)]),
+        split_string(Text, "\n", " \t\r", Lines),
+        findall(Rel, ( member(L, Lines), sub_string(L, 0, 1, _, "@"), sub_string(L, 1, _, 0, R0),
+                       split_string(R0, " \t", "", [R1|_]), R1 \== "", atom_string(Rel, R1) ),
+                Imports)
+    ;   Imports = []
+    ),
+    append(['CLAUDE.md', 'HUB-CORE.md', 'PRINCIPLES.md', 'HEURISTICS.md', 'TECHNOLOGIES.md'], Imports, Cs),
+    findall(Rel, ( member(Rel, Cs), door_inside_file(Hub, Rel) ), Rs0),
+    sort(Rs0, Rels).
+door_store_paths(Hub, weeks, Rels) :-
+    findall(Rel, ( member(W, ['W0', 'W1', 'W2', 'W3', 'W4', 'W5']),
+                   directory_file_path(Hub, W, WD), exists_directory(WD),
+                   door_files_under(Hub, W, Rel) ),
+            Rs0),
+    sort(Rs0, Rels).
+door_store_paths(Hub, bespoke, Rels) :-
+    directory_file_path(Hub, 'TECHNOLOGIES.md', TM),
+    (   exists_file(TM)
+    ->  read_file_to_string(TM, Text, [encoding(utf8)]),
+        split_string(Text, "`", "", Parts),
+        findall(Rel, ( nth0(I, Parts, P), I mod 2 =:= 1, split_string(P, "", " \t", [P1]),
+                       P1 \== "", \+ sub_string(P1, _, _, _, "\n"), \+ sub_string(P1, _, _, _, " "),
+                       atom_string(P2, P1), door_rel_path(P2, P3),
+                       \+ memberchk(P3, ['CLAUDE.md', 'HUB-CORE.md', 'PRINCIPLES.md', 'HEURISTICS.md', 'TECHNOLOGIES.md']),
+                       \+ door_shipped(Hub, P3),
+                       door_named_file(Hub, P3, Rel) ),
+                R1)
+    ;   R1 = []
+    ),
+    directory_file_path(Hub, '.claude/skills', SK),
+    (   exists_directory(SK)
+    ->  directory_files(SK, Es),
+        findall(Rel, ( member(E, Es), \+ sub_atom(E, 0, 1, _, '.'),
+                       directory_file_path('.claude/skills', E, SRel),
+                       directory_file_path(Hub, SRel, SD), exists_directory(SD),
+                       \+ door_shipped_under(Hub, SRel),
+                       door_files_under(Hub, SRel, Rel) ),
+                R2)
+    ;   R2 = []
+    ),
+    append(R1, R2, Rs0), sort(Rs0, Rels).
+
+door_rel_path(P0, P) :- ( atom_concat('./', P1, P0) -> P = P1 ; P = P0 ).
+
+door_inside_file(Hub, Rel) :-
+    \+ is_absolute_file_name(Rel), \+ sub_atom(Rel, _, _, _, '..'),
+    directory_file_path(Hub, Rel, F), exists_file(F).
+
+door_named_file(Hub, Rel0, Rel) :-
+    \+ is_absolute_file_name(Rel0), \+ sub_atom(Rel0, _, _, _, '..'),
+    directory_file_path(Hub, Rel0, F),
+    (   exists_file(F) -> Rel = Rel0
+    ;   exists_directory(F), door_files_under(Hub, Rel0, Rel)
+    ).
+
+door_files_under(Hub, RelDir, Rel) :-
+    directory_file_path(Hub, RelDir, D),
+    catch(directory_files(D, Es0), _, fail), msort(Es0, Es),
+    member(E, Es), E \== '.', E \== '..',
+    directory_file_path(RelDir, E, R1),
+    directory_file_path(Hub, R1, P),
+    (   exists_directory(P), \+ read_link(P, _, _) -> door_files_under(Hub, R1, Rel)
+    ;   exists_file(P) -> Rel = R1
+    ).
+
+:- dynamic door_manifest_memo/2.
+door_manifest_files(Hub, Files) :-
+    (   door_manifest_memo(Hub, Files0) -> Files = Files0
+    ;   directory_file_path(Hub, '.hub-template.json', MF),
+        (   exists_file(MF),
+            use_module(library(http/json)),
+            catch(setup_call_cleanup(open(MF, read, S, [encoding(utf8)]),
+                                     json:json_read_dict(S, D, [value_string_as(atom)]),
+                                     close(S)), _, fail),
+            is_dict(D), get_dict(files, D, FD), is_dict(FD)
+        ->  dict_keys(FD, Files1)
+        ;   Files1 = []
+        ),
+        assertz(door_manifest_memo(Hub, Files1)), Files = Files1
+    ).
+
+door_shipped(Hub, Rel) :- door_manifest_files(Hub, Fs), memberchk(Rel, Fs).
+door_shipped_under(Hub, RelDir) :-
+    door_manifest_files(Hub, Fs), atom_concat(RelDir, '/', Pre),
+    member(F, Fs), sub_atom(F, 0, _, _, Pre), !.
+
+% door_store_files(+Hub, +Store, -Pairs): Rel-Digest of each file of the store (computed once).
+door_store_files(Hub, Store, Pairs) :-
+    (   door_files_memo(Store, Pairs0) -> Pairs = Pairs0
+    ;   door_store_paths(Hub, Store, Rels),
+        findall(Rel-D, ( member(Rel, Rels), directory_file_path(Hub, Rel, F), sha256_file(F, D) ), Pairs1),
+        assertz(door_files_memo(Store, Pairs1)), Pairs = Pairs1
+    ).
+
+door_store_file(Store, Path, Digest) :-
+    door_hub(Hub),
+    member(Store, [memory, weeks, bespoke]),
+    door_store_files(Hub, Store, Pairs),
+    member(Path-Digest, Pairs).
+
+% ---- the engine of the hub ----------------------------------------------------------------
+
+% door_engine(+Source, -Eng, -Ds). Source is hub(Dir), or facts(File): the facts of a hub written
+% in a file (the tests of the purpose rules use it: the same rules, a small world).
+door_engine(Source, Eng, Ds) :-
+    lib_dir(Lib),
+    directory_file_path(Lib, 'hub.pl', HF),
+    (   exists_file(HF) -> true
+    ;   die(2, ["The rules of the hub are missing: " + HF + ".", "Fix: run ./install.py in the sagittarius repository, or upgrade the hub's copy."] >> fix_lines)
+    ),
+    read_source_file(module(hub), HF, RuleItems),
+    (   member(synerr(_, _, L, M), RuleItems)
+    ->  die(2, ["The rules of the hub do not parse: " + HF + " line " + L + ": " + M] >> fix_lines)
+    ;   true
+    ),
+    door_source_facts(Source, Facts0),
+    door_reach_facts(Facts0, Reach),
+    append(Facts0, Reach, Facts),
+    findall(it(derived, '<hub>', 0, F, [], 0-0), member(F, Facts), FactItems),
+    append(RuleItems, FactItems, Items),
+    items_decls(Items, Ds),
+    build_engine(Items, Ds, Eng),
+    Eng = eng(Mod, LE),
+    (   LE = [le(_, _, Msg)|_] -> die(2, ["The facts of the hub do not load: " + Msg] >> fix_lines) ; true ),
+    (   Source = hub(_) -> door_bridges(Mod) ; true ).
+
+door_source_facts(hub(Hub), Facts) :-
+    door_open(Hub),
+    door_ledger_facts(Hub, LF),
+    door_tickets(Hub, Pairs),
+    findall(ticket(Slug, Rel), member(Slug-Rel, Pairs), TF),
+    append(LF, TF, Facts).
+door_source_facts(facts(File), Facts) :-
+    (   exists_file(File) -> true ; usage_error("The facts file ~w does not exist.", [File]) ),
+    read_source_file(kb, File, Items),
+    (   member(synerr(_, _, L, M), Items)
+    ->  die(2, ["The facts file does not parse: " + File + " line " + L + ": " + M] >> fix_lines)
+    ;   true
+    ),
+    findall(T, ( member(it(_, _, _, T, _, _), Items), nonvar(T) ), Facts).
+
+% The stores that are not read at the start: each is a rule that calls back into this program.
+door_bridges(M) :-
+    assertz(M:(ticket_fact(S, F) :- user:door_ticket_fact(S, F))),
+    assertz(M:(project_fact(F) :- user:door_project_fact(F))),
+    assertz(M:(store_file(St, P, D) :- user:door_store_file(St, P, D))),
+    assertz(M:(ticket_done_at(S, T) :- user:door_ticket_done_at(S, T))).
+
+door_source(Opts, Source) :-
+    (   memberchk('--facts'-File, Opts) -> Source = facts(File)
+    ;   door_root(Opts, Hub), Source = hub(Hub)
+    ).
+
+% ---- orbit hub query (D64) ----------------------------------------------------------------
+
+cmd_hub_query(Args, Code) :-
+    parse_opts(Args, ['-n'-value, '--hub'-value, '--facts'-value], Pos, Opts),
+    (   Pos = [GoalText] -> true
+    ;   usage_error("Give exactly one goal in quotes, such as orbit-kb hub query 'item(I, handoff, open, Title, Owner)'.", [])
+    ),
+    opt(Opts, '-n', '1', NA),
+    (   atom_number(NA, N), integer(N), N >= 0 -> true
+    ;   usage_error("The option -n needs a whole number of 0 or more. 0 means all answers.", [])
+    ),
+    door_source(Opts, Source),
+    parse_goal(GoalText, G, VN),
+    door_engine(Source, Eng, Ds),
+    check_goal(G, Ds),
+    query_names(VN, Names, Vars),
+    swi_query(Eng, G, Vars, Res),
+    swi_fail_if_error(Res),
+    Res = answers(L, _),
+    take_n(N, L, Shown),
+    (   Shown == []
+    ->  format("false~n", []), Code = 1
+    ;   Code = 0,
+        forall(member(Tp, Shown), ( answer_line(Names, Tp, AL), format("~w~n", [AL]) ))
+    ).
+
+door_all(Eng, Tpl, G, L) :- eng_all(Eng, Tpl, G, L0), sort(L0, L).
+
+% ---- orbit hub ledger (D65) ---------------------------------------------------------------
+% Every write to the ledger goes through here. The arguments go to the hub's own
+% .claude/scripts/hubflow.py unchanged; stdin, stdout, stderr, the environment (HUB_SESSION and
+% the rest) and the exit code are those of hubflow.py: this process becomes it (exec). The hub is
+% --hub DIR among the arguments (hubflow's own option), else $HUBFLOW_HUB, else the hub root from
+% here upward; hubflow.py gets --hub ROOT when the arguments name none.
+cmd_hub_ledger(Args, Code) :-
+    (   door_ledger_hub_arg(Args, H0)
+    ->  (   exists_directory(H0) -> absolute_file_name(H0, Hub) ; usage_error("The hub ~w is not a directory.", [H0]) ),
+        Pre = []
+    ;   getenv('HUBFLOW_HUB', H1), H1 \== ''
+    ->  absolute_file_name(H1, Hub), Pre = []
+    ;   door_root([], Hub), Pre = ['--hub', Hub]
+    ),
+    directory_file_path(Hub, '.claude/scripts/hubflow.py', Hf),
+    (   exists_file(Hf) -> true
+    ;   die(2, ["The hub " + Hub + " has no .claude/scripts/hubflow.py, the storage engine of the ledger.",
+                "Nothing was written.", "Fix: install the MindHole Kit in the hub (hubkit.py install)."] >> fix_lines)
+    ),
+    (   absolute_file_name(path(python3), Exe, [access(execute), file_errors(fail)]) -> true
+    ;   die(2, ["The ledger needs python3 on PATH. Nothing was written."])
+    ),
+    append([[Hf], Pre, Args], All),
+    flush_output(user_output), flush_output(user_error),
+    cleanup_tmp,
+    (   catch(use_module(library(unix), [exec/1]), _, fail)
+    ->  Cmd =.. [Exe|All],
+        catch(exec(Cmd), _, true)
+    ;   true
+    ),
+    % no exec here: run it as a child with the same streams
+    process_create(Exe, All, [stdin(std), stdout(std), stderr(std), process(P)]),
+    process_wait(P, St),
+    (   St = exit(C) -> Code = C ; St = killed(Sig) -> Code is 128 + Sig ; Code = 2 ).
+
+door_ledger_hub_arg(['--hub', H|_], H) :- !.
+door_ledger_hub_arg([A|_], H) :- atom(A), atom_concat('--hub=', H, A), H \== '', !.
+door_ledger_hub_arg([A, _|As], H) :-
+    memberchk(A, ['--session', '--by']), !,
+    door_ledger_hub_arg(As, H).
+
+% ---- orbit hub stores, orbit hub files (D66) ----------------------------------------------
+
+cmd_hub_stores(Args, Code) :-
+    parse_opts(Args, ['--hub'-value], Pos, Opts),
+    (   Pos == [] -> true ; usage_error("hub stores takes no argument: orbit-kb hub stores [--hub DIR].", []) ),
+    door_root(Opts, Hub),
+    door_open(Hub),
+    door_tickets(Hub, Ts), length(Ts, NT),
+    say("spec     ~d spec KBs (specs/SLUG)", [NT]),
+    (   door_project_dir(PD)
+    ->  directory_file_path(PD, 'kb.pl', PF), read_source_file(kb, PF, PIs),
+        findall(x, ( member(it(_, _, _, T, _, _), PIs), nonvar(T), \+ meta_term(T) ), Xs), length(Xs, NP),
+        door_rel(Hub, PD, PRel),
+        say("project  ~d facts (~w)", [NP, PRel])
+    ;   say("project  0 facts (no project KB)", [])
+    ),
+    door_ledger_facts(Hub, LF),
+    findall(I, member(item(I, _, _, _, _), LF), Is), length(Is, NI),
+    findall(I, ( member(item(I, K, S, _, _), LF), K \== summary, memberchk(S, [open, waiting]) ), Os), length(Os, NO),
+    findall(x, member(item_ref(_, _, _), LF), Rs), length(Rs, NR),
+    findall(x, member(item_link(_, _, _), LF), Ls), length(Ls, NL),
+    say("ledger   ~d items, ~d open, ~d refs, ~d links (flow/jsonl)", [NI, NO, NR, NL]),
+    forall(member(Store-What, [memory-"the files that every session loads", weeks-"W0 to W5",
+                               bespoke-"the tools that TECHNOLOGIES.md names, and the skills that the kit did not ship"]),
+           ( door_store_paths(Hub, Store, Rels), length(Rels, N),
+             format("~w~t~9|~d files (~w)~n", [Store, N, What]) )),
+    findall(x, member(tracker_ref(_, _), LF), TRs), length(TRs, NTR),
+    say("tracker  ~d pointers (the issue, pr, url, build and release refs of the ledger items)", [NTR]),
+    Code = 0.
+
+door_rel(Hub, Abs, Rel) :-
+    atom_concat(Hub, '/', Pre),
+    (   atom_concat(Pre, Rel0, Abs) -> Rel = Rel0 ; Rel = Abs ).
+
+cmd_hub_files(Args, Code) :-
+    parse_opts(Args, ['--hub'-value], Pos, Opts),
+    (   Pos = [Store], memberchk(Store, [memory, weeks, bespoke]) -> true
+    ;   usage_error("hub files takes one store: orbit-kb hub files memory|weeks|bespoke [--hub DIR].", [])
+    ),
+    door_root(Opts, Hub),
+    door_open(Hub),
+    door_store_files(Hub, Store, Pairs),
+    forall(member(Rel-D, Pairs), format("~w  ~w~n", [D, Rel])),
+    Code = 0.
+
+% ---- orbit hub orphans (D68) --------------------------------------------------------------
+
+cmd_hub_orphans(Args, Code) :-
+    parse_opts(Args, ['--hub'-value, '--facts'-value], Pos, Opts),
+    (   Pos == [] -> true ; usage_error("hub orphans takes no argument: orbit-kb hub orphans [--hub DIR].", []) ),
+    door_source(Opts, Source),
+    door_engine(Source, Eng, _),
+    door_all(Eng, [I], orphan(I), Or),
+    door_all(Eng, [I], over(I), Ov),
+    door_all(Eng, [I], report_on_done_ticket(I), Rp),
+    door_all(Eng, [I], open_item(I), Op),
+    length(Op, NOp), length(Or, NOr), length(Ov, NOv), length(Rp, NRp),
+    say("Open items of the ledger: ~d.", [NOp]),
+    nl,
+    say("Orphans (~d): an open item with no live chain of records to a project goal.", [NOr]),
+    forall(member(I, Or), ( door_orphan_line(Eng, I, L), say("- ~w", [L]) )),
+    nl,
+    say("Over (~d): an open row whose work is over. Its ticket is done, and the row was opened before that.", [NOv]),
+    forall(member(I, Ov), ( door_ticket_line(Eng, I, L), say("- ~w", [L]) )),
+    nl,
+    say("Reports on a done ticket (~d): an open row that was opened after its ticket was done.", [NRp]),
+    forall(member(I, Rp), ( door_ticket_line(Eng, I, L), say("- ~w", [L]) )),
+    nl,
+    door_all(Eng, [T, G, W], ticket_goal_ends(T, G, W), TG),
+    length(TG, NTG),
+    say("Ticket goals with no live project goal (~d).", [NTG]),
+    forall(member([T, G, W], TG), ( door_goal_end_text(W, WT), say("- ~w ~w: ~w", [T, G, WT]) )),
+    nl,
+    door_all(Eng, [PG, By, At, Tx], project_fact(dropped(PG, By, At, Tx)), DG),
+    length(DG, NDG),
+    say("Dropped project goals (~d).", [NDG]),
+    forall(member([PG, By, At, Tx], DG),
+           ( say("- ~w: dropped by ~w at ~w: ~w", [PG, By, At, Tx]),
+             door_all(Eng, [T, G], ticket_goal_rests_on_dropped(T, G, PG), RG),
+             forall(member([T, G], RG), say("  - the goal ~w of ticket ~w rested on it", [G, T])),
+             door_all(Eng, [I], rests_on_dropped(I, PG), RI),
+             forall(member(I, RI), say("  - the open item ~w rested on it", [I])) )),
+    nl,
+    say("This is a list. Nothing was stopped, and nothing was closed.", []),
+    Code = 0.
+
+door_item_head(Eng, I, Head) :-
+    (   eng_all(Eng, [K, O, Ti], item(I, K, _, Ti, O), [[K, O, Ti]|_])
+    ->  format(string(Head), "~w (~w, owner ~w)", [I, K, O]), nb_setval(door_title, Ti)
+    ;   format(string(Head), "~w", [I]), nb_setval(door_title, '')
+    ).
+
+door_orphan_line(Eng, I, Line) :-
+    door_item_head(Eng, I, Head), nb_getval(door_title, Ti),
+    (   eng_all(Eng, [E], ends_at(I, E), [E|_]) -> true ; E = nothing ),
+    (   eng_all(Eng, [R], end_record(I, E, R), [R|_]) -> true ; R = none ),
+    door_end_text(E, R, ET),
+    format(string(Line), "~w: its chain ends at ~w. Title: ~w", [Head, ET, Ti]).
+
+door_end_text(a_dropped_project_goal, R, S) :- !, format(string(S), "the dropped project goal ~w", [R]).
+door_end_text(ticket_goal, T:G, S) :- !, format(string(S), "the goal ~w of ticket ~w, which names no live project goal", [G, T]).
+door_end_text(ticket_with_no_goal, R, S) :- !, format(string(S), "ticket ~w, which has no goal", [R]).
+door_end_text(a_dropped_ticket, R, S) :- !, format(string(S), "the dropped ticket ~w", [R]).
+door_end_text(a_dropped_item, R, S) :- !, format(string(S), "the dropped item ~w", [R]).
+door_end_text(kb_outside_the_hub, R, S) :- !, format(string(S), "a KB outside the hub (~w)", [R]).
+door_end_text(tracker_or_url, R, S) :- !, format(string(S), "a pointer to the tracker (~w)", [R]).
+door_end_text(a_file_commit_or_transcript, K:R, S) :- !, format(string(S), "a ~w (~w)", [K, R]).
+door_end_text(_, _, "nothing (no ref and no link that passes a purpose)").
+
+door_ticket_line(Eng, I, Line) :-
+    door_item_head(Eng, I, Head), nb_getval(door_title, Ti),
+    door_all(Eng, [T], item_ticket(I, T), Ts),
+    atomic_list_concat(Ts, ', ', TA),
+    format(string(Line), "~w: ticket ~w is done. Title: ~w", [Head, TA, Ti]).
+
+door_goal_end_text(none, "it names no project goal") :- !.
+door_goal_end_text(dropped(PG), S) :- !, format(string(S), "it rests on the dropped project goal ~w", [PG]).
+door_goal_end_text(missing(PG), S) :- !, format(string(S), "it names the project goal ~w, which the project KB does not hold", [PG]).
+door_goal_end_text(W, S) :- format(string(S), "~w", [W]).
+
+% ---- orbit drop-goal (D67) ----------------------------------------------------------------
+% orbit drop-goal G --by human --note WORDS, in the project KB. The owner drops a project goal.
+% It writes dropped(G, human, Time, Text) and nothing else: no divergence, no defeat. Nothing is
+% closed; orbit hub orphans names the dropped goal on what rested on it.
+cmd_drop_goal(DirOpt, Args0, Code) :-
+    resolve_kb(DirOpt, Dir),
+    take_role(Args0, ArgsR),
+    writer_gate(Dir, ArgsR, Args),
+    parse_opts(Args, ['--by'-value, '--note'-value], Pos, Opts),
+    (   Pos = [G0] -> true
+    ;   usage_error("drop-goal takes one goal id: orbit-kb drop-goal G --by human --note 'the words of the owner'.", [])
+    ),
+    opt(Opts, '--by', agent, By),
+    (   By == human -> true
+    ;   die(1, ["Only the owner drops a goal: drop-goal needs --by human.", "Nothing was written.",
+                "An agent does not drop a goal, and a goal is never recorded as defeated."])
+    ),
+    (   memberchk('--note'-Note0, Opts), Note0 \== '' -> atom_string(Note, Note0)
+    ;   usage_error("drop-goal needs --note 'the words of the owner': why the goal is dropped.", [])
+    ),
+    apply_pending(Dir),
+    lib_dir(Lib),
+    with_kb_lock(Dir,
+        ( load_kb(Dir, Lib, KB),
+          kb_items(KB, Items),
+          atom_string(G, G0),
+          (   kb_uses(KB, Us), memberchk(project, Us) -> true
+          ;   die(1, ["drop-goal works in a project KB (a KB that uses the project module). This KB does not.",
+                      "Nothing was written.",
+                      "A ticket goal is changed with a new goal and supersedes(NEW, OLD)."])
+          ),
+          (   kb_term(Items, goal(G, _, _, _)) -> true
+          ;   die(1, ["This project KB has no goal " + G + ".", "Nothing was written.",
+                      "Fix: list the goals with orbit-kb query 'goal(G, K, A, T)' -n 0."] >> fix_lines)
+          ),
+          (   kb_term(Items, dropped(G, _, When, _))
+          ->  die(1, ["The goal " + G + " was dropped already, at " + When + ".", "Nothing was written."] >> fix_lines)
+          ;   true
+          ),
+          utc_now(Now),
+          atom_string(NoteA, Note),
+          term_text(dropped(G, human, Now, NoteA), FactText),
+          atom_string(FactA, FactText),
+          setup_call_cleanup(nb_setval(orbit_drop_goal, true),
+                             cmd_add(KB, [FactA, '--by', human], Code),
+                             nb_setval(orbit_drop_goal, false)) )).
+
+% ---- orbit s1-record (D69) ----------------------------------------------------------------
+% orbit s1-record [--hub DIR] [--session S] [--dir KB] --json: the record of the active ticket
+% for System 1, as one JSON object, and nothing else (c46): the goal, the current hypotheses with
+% their predictions, the open questions, and the goal sentences of the hub. The active ticket of
+% a session is the spec KB of the newest open ledger item that the session owns with a kb ref;
+% --dir KB names it directly. The session is --session S, else $HUB_SESSION.
+cmd_s1_record(DirOpt, Args, Code) :-
+    parse_opts(Args, ['--hub'-value, '--session'-value, '--json'-flag], Pos, Opts),
+    (   Pos == [] -> true ; usage_error("s1-record takes no positional argument: orbit-kb s1-record [--hub DIR] [--session S] [--dir KB] --json.", []) ),
+    (   DirOpt = some(D0)
+    ->  kb_dir_given(D0, "--dir", KDir),
+        file_base_name(KDir, Slug),
+        (   memberchk('--hub'-_, Opts) -> door_root(Opts, Hub), HubO = some(Hub)
+        ;   door_root_from(KDir, Hub) -> HubO = some(Hub)
+        ;   HubO = none
+        ),
+        Ticket = some(Slug, KDir)
+    ;   door_root(Opts, Hub), HubO = some(Hub),
+        (   memberchk('--session'-S0, Opts) -> Sess = S0
+        ;   getenv('HUB_SESSION', S1), S1 \== '' -> Sess = S1
+        ;   Sess = none
+        ),
+        (   Sess \== none, door_active_ticket(Hub, Sess, Slug, KDir) -> Ticket = some(Slug, KDir) ; Ticket = none )
+    ),
+    (   Ticket = some(TSlug, TDir), door_s1_ticket(TDir, GoalJ, HypJ, QJ, Sent1)
+    ->  TicketJ = TSlug
+    ;   TicketJ = @(null), GoalJ = @(null), HypJ = [], QJ = [], Sent1 = []
+    ),
+    (   HubO = some(H) -> door_goal_sentences(H, GS) ; Ticket = some(_, TD2) -> door_kb_goal_sentences(TD2, '', GS) ; GS = [] ),
+    findall(json([id=Id, text=Tx]), member(Id-Tx, GS), GSJ),
+    findall(SId, ( member(Id-_, GS), format(atom(SId), "goal_sentence:~w", [Id]) ), Sent2),
+    append(Sent1, Sent2, Sent),
+    use_module(library(http/json)),
+    json:json_write(user_output,
+                    json([ticket=TicketJ, goal=GoalJ, hypotheses=HypJ, questions=QJ, goal_sentences=GSJ, sent=Sent]),
+                    [width(0)]),
+    nl,
+    Code = 0.
+
+% door_active_ticket(+Hub, +Session, -Slug, -Dir): the newest open item that the session owns with
+% a kb ref that names a spec KB of the hub (a slug under specs/) or a KB directory outside it.
+door_active_ticket(Hub, Sess, Slug, Dir) :-
+    door_jsonl(Hub, item, Items),
+    door_jsonl(Hub, item_ref, Refs),
+    findall(At-Id, ( member(R, Items),
+                     door_col(R, owner_session, Sess), door_col(R, status, St), memberchk(St, [open, waiting]),
+                     door_col(R, kind, K), K \== summary,
+                     door_col(R, id, Id), door_col(R, opened_at, At) ),
+            Own0),
+    msort(Own0, Own1), reverse(Own1, Own),
+    member(_-Id, Own),
+    member(RR, Refs), door_col(RR, item_id, Id), door_col(RR, kind, kb), door_col(RR, ref, Ref),
+    door_kb_ref_dir(Hub, Ref, Slug, Dir), !.
+
+door_kb_ref_dir(Hub, Ref, Slug, Dir) :-
+    (   is_absolute_file_name(Ref) -> Dir = Ref, file_base_name(Ref, Slug)
+    ;   atomic_list_concat([Hub, '/specs/', Ref], Dir), Slug = Ref
+    ),
+    directory_file_path(Dir, 'kb.pl', F), exists_file(F).
+
+% door_s1_ticket(+Dir, -Goal, -Hyps, -Questions, -Sent): the record of one spec KB. The project
+% KB is not read for it (the record holds no project fact).
+% The record of a KB is kept under the cache directory (s1-record-HASH.pl, HASH of the KB path),
+% with a stamp: the size and the time of kb.pl and rules.pl, of this script and of core.pl, and the
+% version. A call with the same stamp prints the kept record and loads no rule (the hook has a
+% hard time limit). Any other stamp: the record is computed again and replaces the kept one.
+% ORBIT_KB_NO_CACHE=1 turns it off.
+door_s1_ticket(Dir, GoalJ, HypJ, QJ, Sent) :-
+    (   catch(door_s1_cache_file(Dir, File, Stamp), _, fail)
+    ->  (   catch(door_s1_cache_read(File, Stamp, R), _, fail)
+        ->  R = r(GoalJ, HypJ, QJ, Sent)
+        ;   door_s1_ticket_(Dir, GoalJ, HypJ, QJ, Sent),
+            catch(door_s1_cache_write(File, Stamp, r(GoalJ, HypJ, QJ, Sent)), _, true)
+        )
+    ;   door_s1_ticket_(Dir, GoalJ, HypJ, QJ, Sent)
+    ).
+
+door_stat(F, S) :- ( exists_file(F) -> size_file(F, Sz), time_file(F, T), S = f(Sz, T) ; S = none ).
+
+door_s1_cache_file(Dir, File, stamp(K, R, Sc, Co, V)) :-
+    \+ ( getenv('ORBIT_KB_NO_CACHE', NC), NC \== '', NC \== '0' ),
+    absolute_file_name(Dir, A),
+    directory_file_path(A, 'kb.pl', KF), door_stat(KF, K), K \== none,
+    directory_file_path(A, 'rules.pl', RF), door_stat(RF, R),
+    orbit_script(Script), door_stat(Script, Sc),
+    lib_dir_quiet(Lib), directory_file_path(Lib, 'core.pl', CF), door_stat(CF, Co),
+    tool_version_text(V),
+    orbit_cache_root(Root),
+    variant_sha1(s1(A), H),
+    atomic_list_concat([Root, '/s1-record-', H, '.pl'], File).
+
+door_s1_cache_read(File, Stamp, R) :-
+    exists_file(File),
+    setup_call_cleanup(open(File, read, S, [encoding(utf8)]),
+                       read_term(S, T, [double_quotes(string)]),
+                       close(S)),
+    T = s1_record(Stamp0, R), Stamp0 == Stamp.
+
+door_s1_cache_write(File, Stamp, R) :-
+    file_directory_name(File, D), make_directory_path(D),
+    format(string(Text), "~q.~n", [s1_record(Stamp, R)]),
+    write_atomic(File, Text).
+
+door_s1_ticket_(Dir, GoalJ, HypJ, QJ, Sent) :-
+    lib_dir(Lib),
+    ( nb_current(orbit_project_depth, PD0) -> true ; PD0 = 0 ),
+    setup_call_cleanup(nb_setval(orbit_project_depth, 1),
+                       catch(( load_kb(Dir, Lib, KB), kb_engine(KB, Eng) ), _, fail),
+                       nb_setval(orbit_project_depth, PD0)),
+    Eng = eng(M, _),
+    kb_items(KB, Items), items_decls(Items, Ds),
+    (   door_has_rule(M, goal_current(_)) -> GG = ( goal_current(G), goal(G, _, A, T) ) ; GG = ( goal(G, _, A, T), \+ supersedes(_, G) ) ),
+    (   door_kb_all(M, Ds, g(G, A, T), GG, [g(G1, A1, T1)|_])
+    ->  door_text(A1, A1T), door_text(T1, T1T),
+        GoalJ = json([id=G1, author=A1T, text=T1T]),
+        format(atom(GS), "goal:~w", [G1]), SG = [GS]
+    ;   GoalJ = @(null), SG = []
+    ),
+    (   door_has_rule(M, hypothesis_current(_)) -> HG = ( hypothesis_current(H), hypothesis(H, _, HA, HT) ) ; HG = ( hypothesis(H, _, HA, HT), \+ supersedes(_, H) ) ),
+    door_kb_all(M, Ds, h(H, HA, HT), HG, Hs),
+    findall(json([id=H, author=HAT, state=St, text=HTT, defeating_case=DC, predictions=Ps])-[HS|PSs],
+            ( member(h(H, HA, HT), Hs),
+              door_text(HA, HAT), door_text(HT, HTT),
+              (   door_kb_all(M, Ds, S0, hypothesis_state(H, S0), [St0|_]) -> St = St0 ; St = proposed ),
+              (   door_kb_all(M, Ds, D0, defeating_case(H, _, D0), [D1|_]) -> door_text(D1, DC) ; DC = @(null) ),
+              door_kb_all(M, Ds, p(C, CT), ( predicts(H, C), current(C), claim(C, _, CT) ), PCs),
+              findall(json([id=C, text=CTT]), ( member(p(C, CT), PCs), door_text(CT, CTT) ), Ps),
+              format(atom(HS), "hypothesis:~w", [H]),
+              findall(PS, ( member(p(C, _), PCs), format(atom(PS), "claim:~w", [C]) ), PSs) ),
+            HPairs),
+    findall(J, member(J-_, HPairs), HypJ),
+    findall(S, ( member(_-Ss, HPairs), member(S, Ss) ), SH),
+    door_kb_all(M, Ds, q(Q, QT), ( question(Q, _, QT), \+ answered(Q) ), Qs),
+    findall(json([id=Q, text=QTT]), ( member(q(Q, QT), Qs), door_text(QT, QTT) ), QJ),
+    findall(S, ( member(q(Q, _), Qs), format(atom(S), "question:~w", [Q]) ), SQ),
+    append([SG, SH, SQ], Sent).
+
+% The rule has clauses in this engine. (A KB engine of a version that declares a rule and holds no
+% clause for it yet answers from the facts: a goal or a hypothesis that no supersedes fact replaces.)
+door_has_rule(M, H) :- catch(predicate_property(M:H, number_of_clauses(N)), _, fail), N > 0.
+
+door_text(T, S) :- ( atomic(T) -> format(string(S), "~w", [T]) ; term_text(T, S) ).
+
+% door_kb_all(+Module, +Decls, +Template, +Goal, -List): the answers of a goal in a KB engine, in
+% order, with no doubles. A predicate that this KB does not declare gives no answer.
+door_kb_all(M, Ds, Tpl, G, L) :-
+    (   door_goal_declared(G, Ds)
+    ->  catch(findall(Tpl, M:G, L0), _, L0 = []), list_to_set(L0, L)
+    ;   L = []
+    ).
+
+door_goal_declared((A, B), Ds) :- !, door_goal_declared(A, Ds), door_goal_declared(B, Ds).
+door_goal_declared(\+ A, Ds) :- !, door_goal_declared(A, Ds).
+door_goal_declared(G, Ds) :- functor(G, N, A), decl_of(Ds, N, A, _).
+
+% door_goal_sentences(+Hub, -Pairs): Id-Text of each project goal that is not dropped (id PG) and
+% of each current goal of each spec KB of the hub (id SLUG:G). Read from the lines of each kb.pl,
+% with no engine, so that the call is fast; a kb.pl with a goal line that does not parse alone is
+% read in full.
+door_goal_sentences(Hub, Pairs) :-
+    door_tickets(Hub, Ts),
+    (   door_project(Hub, PD) -> door_kb_goal_sentences(PD, '', P1) ; P1 = [] ),
+    findall(P, ( member(Slug-Rel, Ts), directory_file_path(Hub, Rel, D),
+                 atom_concat(Slug, ':', Pre),
+                 door_kb_goal_sentences(D, Pre, Ps), member(P, Ps) ),
+            P2),
+    append(P1, P2, Pairs).
+
+door_kb_goal_sentences(Dir, Pre, Pairs) :-
+    directory_file_path(Dir, 'kb.pl', F),
+    (   exists_file(F), door_goal_terms(F, Ts) -> true ; Ts = [] ),
+    findall(G-Tx, ( member(goal(G, _, _, Tx), Ts) ; member(hypothesis(G, _, Tx), Ts) ), GT0),
+    findall(Id-Text,
+            ( member(G-Tx, GT0), atom(G),
+              \+ ( member(supersedes(N, O), Ts), O == G, N \== G, memberchk(N-_, GT0) ),
+              \+ member(dropped(G, _, _, _), Ts),
+              format(atom(Id), "~w~w", [Pre, G]), door_text(Tx, Text) ),
+            Pairs0),
+    list_to_set(Pairs0, Pairs).
+
+door_goal_terms(F, Ts) :-
+    read_file_to_string(F, Text, [encoding(utf8)]),
+    split_string(Text, "\n", "\r", Lines),
+    findall(L, ( member(L, Lines), door_goal_line(L) ), Ls),
+    (   catch(maplist(door_line_term, Ls, Ts0), _, fail)
+    ->  Ts = Ts0
+    ;   read_source_file(kb, F, Items),
+        findall(T, ( member(it(_, _, _, T, _, _), Items), nonvar(T) ), Ts)
+    ).
+
+door_goal_line(L) :-
+    member(P, ["goal(", "hypothesis(", "supersedes(", "dropped("]),
+    string_concat(P, _, L), !.
+
+door_line_term(L, T) :-
+    term_string(T, L, [module(orbit_ops)]).
 
 % ---------------------------------------------------------------------
 % project impact X, project archive --superseded-before DATE (D27)
@@ -11896,6 +12927,8 @@ item_text(Eng, X, T) :-
     ;   eng_all(Eng, [C], check(X, C), [C1|_])
     ->  ( eng_all(Eng, [T0], claim(C1, _, T0), [T1|_]) -> txt(T1, CT) ; CT = '' ),
         fmt(T, "a check of claim ~w: ~w", [C1, CT])
+    ;   eng_all(Eng, [T0], goal(X, _, _, T0), [T1|_]) -> one_line(T1, T)             % review B6
+    ;   eng_all(Eng, [T0], hypothesis(X, _, _, T0), [T1|_]) -> one_line(T1, T)
     ;   T = ''
     ).
 
@@ -12315,7 +13348,10 @@ report_text(KB, Eng) :-
     ),
     forall(member([HG, HGT], HGs),
            ( one_line(HGT, HGTT),
-             rsay(item(HG), "Hypothesis (agent-written, not adopted): ~w", [HGTT]) )),
+             (   eng_all(Eng, [HGA], hypothesis(HG, _, agent:HGA, _), [HGA1|_]), atom(HGA1)
+             ->  cap_name(HGA1, HGN), rsay(item(HG), "Hypothesis ~w (~w, agent-written, not adopted): ~w", [HG, HGN, HGTT])
+             ;   rsay(item(HG), "Hypothesis ~w (agent-written, not adopted): ~w", [HG, HGTT])
+             ) )),
     eng_groups(Eng, Q5, QT5, question(Q5, _, QT5), QTextBy),
     forall(member([Q, A], Gs),
            ( term_text(A, AT),
@@ -12664,18 +13700,39 @@ hypothesis_section(Eng) :-
     forall(member([H, K, T], Hs),
            ( one_line(T, TT),
              premise_lines(Eng, H, PLs),
-             ( eng_all(Eng, [Au], goal(H, _, Au, _), [Au1|_]) -> term_text(Au1, AuT) ; AuT = "agent" ),
-             format(string(Head), "Goal (~w): ~w **~w**: ~w", [AuT, H, K, TT]),
+             ( eng_all(Eng, [Au], goal(H, _, Au, _), [Au1|_]) -> author_words(Au1, AuT) ; AuT = "the agent" ),
+             format(string(Head), "Goal ~w (~w): ~w", [H, AuT, TT]),
              as_sentence(TT, TS),
              atomic_list_concat(PLs, ' ', PT),
-             format(string(Plain), "Goal (~w): ~w (~w): ~w ~w", [AuT, H, K, TS, PT]),
-             findall(L-[], member(L, PLs), Kids0),
+             format(string(Plain), "Goal ~w (~w), ~w: ~w ~w", [H, AuT, K, TS, PT]),
+             format(string(KindL), "Kind: ~w.", [K]),
+             findall(L-[], member(L, [KindL|PLs]), Kids0),
              goal_hypotheses(Eng, H, HIs),
              (   HIs == [] -> HKids = ["No hypothesis: the claims hang on the goal."-[]]
              ;   findall(HH-HK, ( member(HI, HIs), hyp_lines(Eng, HI, HH, HLs), findall(X-[], member(X, HLs), HK) ), HKids)
              ),
              append(Kids0, HKids, Kids),
              rtree(item(H), Plain, Head-Kids) )).
+
+% author_words(+Author, -Words) (review B4): the author of a record as a name. human:ty is "Ty",
+% agent:astra is "Astra (agent)", agent is "the agent", human is "the human". Queries keep the
+% values of the record.
+author_words(human, "the human") :- !.
+author_words(agent, "the agent") :- !.
+author_words(human:N, W) :- atom(N), !, cap_name(N, W).
+author_words(agent:N, W) :- atom(N), !, cap_name(N, C), format(string(W), "~w (agent)", [C]).
+author_words(A, W) :- term_text(A, W).
+cap_name(N, W) :- atom_chars(N, [C|Cs]), upcase_atom(C, U), atom_chars(A, Cs), format(string(W), "~w~w", [U, A]).
+cap_first(S0, S) :- string_chars(S0, [C|Cs]), !, upcase_atom(C, U), atom_chars(A, Cs), format(string(S), "~w~w", [U, A]).
+cap_first(S, S).
+
+% human_name(+Eng, -Name): the name of the human of the ticket: the author of a goal that a
+% human with a name wrote, else "the human".
+human_name(Eng, W) :-
+    (   eng_all(Eng, [N], goal(_, _, human:N, _), [N1|_]), atom(N1) -> cap_name(N1, W)
+    ;   eng_all(Eng, [N], hypothesis(_, _, human:N, _), [N1|_]), atom(N1) -> cap_name(N1, W)
+    ;   W = "the human"
+    ).
 
 % goal_hypotheses(+Eng, +G, -Hs) (D50): the hypotheses under goal G, and those carried over to it.
 goal_hypotheses(Eng, G, Hs) :-
@@ -12688,17 +13745,20 @@ goal_hypotheses(Eng, G, Hs) :-
 % defeating case, its premises, its predictions, and each case that defeated it.
 hyp_lines(Eng, H, Head, Lines) :-
     eng_all(Eng, [Au, T], hypothesis(H, _, Au, T), [[Au, T]|_]),
-    term_text(Au, AuT), one_line(T, TT),
+    author_words(Au, AuT), one_line(T, TT),
     ( eng_all(Eng, [S], hypothesis_state(H, S), [St|_]) -> true ; St = proposed ),
+    % review B4: the citation is a line of its own under the header.
     (   St == proposed, eng_all(Eng, [W], adoption_cited(H, W), [W1|_])
-    ->  one_line(W1, WT), format(string(StT), "proposed: the agent reads the human's words as adoption: '~w' (adopt to confirm)", [WT])
-    ;   format(string(StT), "~w", [St])
+    ->  one_line(W1, WT), human_name(Eng, HN), cap_first(HN, HNC),
+        format(string(L0a), "Cited as adopted (the agent's reading of ~w's words): '~w'. ~w adopts it with Adopt on the Desk, or with: orbit adopt ~w --by human", [HN, WT, HNC, H]),
+        L0 = [L0a]
+    ;   L0 = []
     ),
-    format(string(Head), "Hypothesis ~w (~w, ~w): ~w", [H, AuT, StT, TT]),
+    format(string(Head), "Hypothesis ~w (~w, ~w): ~w", [H, AuT, St, TT]),
     eng_all(Eng, [By, CT], defeating_case(H, By, CT), DCs),
     (   DCs == []
     ->  ( eng_true(Eng, hypothesis_current(H)) -> L1 = ["Not tempered: no case is named that would show it false (lint W13)."] ; L1 = [] )
-    ;   findall(L, ( member([By, CT], DCs), term_text(By, ByT), one_line(CT, CTT), as_sentence(CTT, CTS),
+    ;   findall(L, ( member([By, CT], DCs), author_words(By, ByT), one_line(CT, CTT), as_sentence(CTT, CTS),
                      format(string(L), "It is false if (named by ~w): ~w", [ByT, CTS]) ), L1a),
         findall(L, ( eng_all(Eng, [UB, UT], untempered(H, UB, UT), Us), member([UB, UT], Us), term_text(UB, UBT), one_line(UT, UTT), as_sentence(UTT, UTS),
                      format(string(L), "Marked as not tempered by ~w: ~w", [UBT, UTS]) ), L1b),
@@ -12716,7 +13776,7 @@ hyp_lines(Eng, H, Head, Lines) :-
     ),
     findall(L, ( eng_all(Eng, [D, DT], defeat(D, H, DT), Ds), member([D, DT], Ds), one_line(DT, DTT), as_sentence(DTT, DTS),
                  format(string(L), "Defeated by case ~w: ~w", [D, DTS]) ), L4),
-    append([L1, L2, L3, L4], Lines).
+    append([L0, L1, L2, L3, L4], Lines).
 
 % one_line(+Text, -S) (D31 B8, review of K-A finding 12): the text with each run of white space,
 % a line break too, as one space, so that a text never breaks the bullets of the report.
@@ -13286,19 +14346,20 @@ doctor_tests(Fails) :-
 % ---------------------------------------------------------------------
 
 cmd_help([], 0) :- !,
-    help_lines(general, Ls), print_lines(user_output, Ls).
+    help_lines(general, Ls0), maplist(name_text, Ls0, Ls), print_lines(user_output, Ls).
 cmd_help([C|_], Code) :-
-    (   help_lines(C, Ls)
-    ->  print_lines(user_output, Ls), Code = 0
+    (   help_lines(C, Ls0)
+    ->  maplist(name_text, Ls0, Ls), print_lines(user_output, Ls), Code = 0
     ;   help_topic_file(C, File)
-    ->  read_file_to_string(File, S, [encoding(utf8)]),
+    ->  read_file_to_string(File, S0, [encoding(utf8)]),
+        name_text(S0, S),
         format("~s", [S]), Code = 0
-    ;   usage_error("There is no help for ~w. It is not a command or a topic. Topics: ~w.", [C, 'core, build, discovery, project, codes, answers, shift'])
+    ;   usage_error("There is no help for ~w. It is not a command or a topic. Topics: ~w.", [C, 'core, build, discovery, project, hub, codes, answers, shift'])
     ).
 
 % A topic is the file help/TOPIC.txt in the library directory.
 help_topic_file(Topic, File) :-
-    memberchk(Topic, [core, build, discovery, project, codes, answers, shift]),
+    memberchk(Topic, [core, build, discovery, project, hub, codes, answers, shift]),
     lib_dir(Lib),
     atomic_list_concat([Lib, '/help/', Topic, '.txt'], File),
     exists_file(File).
@@ -13325,6 +14386,7 @@ help_general([
 "    orbit-kb help build     build-module facts and queries, burns, flares, proofs, waivers",
 "    orbit-kb help discovery discovery-module facts, verdicts, queries, and the recipe for each move",
 "    orbit-kb help project   project-module facts: decisions, definitions, rules, relations, pins, drafts, the date rule, and the writer lock",
+"    orbit-kb help hub       the door to every store of a hub: hub query, hub ledger, orphans, project goals, s1-record",
 "    orbit-kb help codes     each lint code and what to do",
 "    orbit-kb help answers   exit codes, SWI ERROR, why and whynot",
 "  Never type a digest or a test result: orbit-kb subject and orbit-kb run write them.",
@@ -13369,6 +14431,9 @@ help_general([
 "  pin-request --request-file F [--accept --by human]",
 "  apply-pending",
 "  project impact X [--root DIR] | project archive --superseded-before DATE [--root DIR] | project dropped [--hub DIR]",
+"  hub query 'GOAL' [-n N] | hub ledger ARGS | hub stores | hub files STORE | hub orphans   [--hub DIR] (help hub)",
+"  drop-goal G --by human --note TEXT      the owner drops a goal of the project KB (help hub)",
+"  s1-record [--hub DIR] [--session S] --json      the record of the active ticket for System 1 (help hub)",
 "  migrate check | migrate plan [--old ENGINE] | migrate apply --seen DIGEST   bring an older KB to this version",
 "  signature [--write|--check]      the name/arity of each predicate that this version declares",
 "  doctor",
