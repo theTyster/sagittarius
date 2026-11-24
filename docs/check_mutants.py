@@ -32,7 +32,7 @@ CASES = [
     (["docs/check_words.py", "c2"], "docs/PHILOSOPHY.md", '| "Delivery" |\n| 19 |', '| "The delivery" |\n| 19 |',
      "a protocol row names a section that the prompt does not have"),
     (["docs/check_words.py", "c2"], P, "\n## Scope\n", "\n## Range\n",
-     "a section that no protocol row names is new, and UNNAMED names one that is gone"),
+     "a section that no protocol row names is new, and rows 6 and 20 name one that is gone"),
     (["docs/check_hub_guidance.py", "c5"], P, "`orbit show\nopen`", "`orbit lint`", "the prompt does not name orbit show open"),
     (["docs/check_hub_fixes.py", "t31c9"], P, "Err toward the general and soft", "Err toward the exact", "no err-soft sentence"),
     (["docs/check_prompt_small.py"], P, "Signals:     <questions", "Triggers:    <questions", "no Signals: field in the delivery block"),

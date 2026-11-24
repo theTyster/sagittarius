@@ -63,14 +63,8 @@ def c1():
 # "## The protocol": one row per habit, and the last column ("In the prompt") names the sections
 # of the prompt that hold the habit. c2 reads that table: it must have PROTOCOL_ROWS rows, numbered
 # 1 to PROTOCOL_ROWS; each row names one section or more; each name is a "## " heading of the
-# prompt; and each "## " heading of the prompt is named by one row or more, except the headings in
-# UNNAMED. UNNAMED is exact: a heading in it that a row names, or that the prompt no longer has,
-# fails too, so that the list cannot outlive the gap that it records.
-PROTOCOL_ROWS = 26
-# The three "## " headings of the prompt that no row of the protocol table names (Philosophy 3.0.0,
-# 2026-11-24). They hold the framing of the method, the triage of a request, and the human's
-# correction; no habit row points at them. Recorded here, not hidden: see the docstring of c2.
-UNNAMED = {"The idea", "Scope", "When the human says that it is wrong"}
+# prompt; and each "## " heading of the prompt is named by one row or more.
+PROTOCOL_ROWS = 27
 
 
 def protocol_rows(phil):
@@ -119,13 +113,8 @@ def c2():
             if name not in headings:
                 bad.append("protocol row %d names \"%s\", which is not a '## ' heading of the prompt" % (n, name))
     for h in headings:
-        if h not in named and h not in UNNAMED:
+        if h not in named:
             bad.append("the prompt section \"%s\" is named by no row of the protocol table" % h)
-    for h in sorted(UNNAMED):
-        if h in named:
-            bad.append("\"%s\" is in UNNAMED, but a protocol row names it: remove it from UNNAMED" % h)
-        if h not in headings:
-            bad.append("\"%s\" is in UNNAMED, but the prompt has no such heading: remove it from UNNAMED" % h)
     return "; ".join(bad) or None
 
 
