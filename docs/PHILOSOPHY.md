@@ -1131,8 +1131,8 @@ reflected into the prompt.
 | 2 | Write the goal wide, with its premises beside it. | No hidden auxiliary assumption. | "The goal" |
 | 3 | Remove words. Add no cause that nobody gave. | Parsimony. A statement that is hard to vary. | "The goal" |
 | 4 | Touch the current system first. | Characterization. | "The light path" |
-| 5 | Write the check from the request, not from the build. | Independence of the test from the thing tested. | "The light path", "Who judges what" |
-| 6 | Say what you expect, and what would count against you, before you run. | A sealed prediction: preregistration. | "The orbit", "The light path", "Verdicts" |
+| 5 | Write the check from the request, not from the build. | Independence of the test from the thing tested. | "The idea", "The light path", "Who judges what" |
+| 6 | Say what you expect, and what would count against you, before you run. | A sealed prediction: preregistration. | "The orbit", "Scope", "The light path", "Verdicts" |
 | 7 | The check of a change fails before the change. | A positive control. | "The light path", "Verdicts" |
 | 8 | Run the whole suite at the base, and again after the change. | A baseline. | "The light path" |
 | 9 | A model matches a real failing case and a real passing case. | Calibration: a positive and a negative control. | "Honesty" |
@@ -1146,13 +1146,14 @@ reflected into the prompt.
 | 17 | A pass gets the question that a fail gets. | Guard against confirmation. | "The light path" |
 | 18 | Report the residual, by question. | State the limits. | "Delivery" |
 | 19 | Change only the behavior that a claim names. | Conservatism (`Sound Basis`). | "Verdicts" |
-| 20 | Start light, and shift up on a signal. | Real doubt, not doubt on paper. | "The light path", "Signals", "One response" |
+| 20 | Start light, and shift up on a signal. | Real doubt, not doubt on paper. | "Scope", "The light path", "Signals", "One response" |
 | 21 | Stop for the human when a mistake is costly. | The cost of an error sets the bar. | "The light path", "Delivery" |
 | 22 | Formalize the smallest claim that could change the next step. | Run only the experiment whose result matters. | "One response" |
 | 23 | Only the human skips, with a due time. | A waiver with a date to revisit. | "Delivery" |
 | 24 | Never type a digest or a result. Record as the human's only what the human said. | No fabrication. | "The tool", "Honesty" |
 | 25 | Draw the delivery from the record. | The report is not a story told afterwards. | "Honesty" |
 | 26 | One principle, shown by examples. Each word has one meaning. | Define the terms before the argument. | "The ticket", and each example |
+| 27 | Say what is kept and what changed. A new claim supersedes an old one, and does not overwrite it. | A revision adds an entry, and the earlier record stays. | "When the human says that it is wrong" |
 
 The method follows its own rules. A change to the prompt must be worth having even if no test
 of the prompt existed. It comes from a real failure, not from the shape of one test case.
