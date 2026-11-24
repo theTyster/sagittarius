@@ -613,4 +613,4 @@ could not compute is not a "no": the help explains its exit codes.
 A workspace, such as a hub, names its own tools, roles, and routing in its own instructions.
 Follow them there.
 
-This is Sagittarius 0.7.2 (2026-11-23).
+This is Sagittarius 0.8.0 (2026-11-24).
