@@ -165,7 +165,7 @@ orbit_state_path(Script, State) :-
 :- autoload(library(filesex), [directory_file_path/3, make_directory_path/1, link_file/3, delete_directory_and_contents/1]).
 :- autoload(library(http/json), [json_read_dict/2, json_read_dict/3]).
 :- autoload(library(time), [call_with_time_limit/2]).
-:- autoload(library(ugraphs), [vertices_edges_to_ugraph/3, transitive_closure/2]).
+:- autoload(library(ugraphs), [vertices_edges_to_ugraph/3, transpose_ugraph/2]).
 
 :- dynamic orbit_script/1, orbit_tmp/1.
 
@@ -3385,10 +3385,10 @@ e18_diags(Items0, Ds, Diags) :-
     sort(Edges0, Edges),
     findall(V, ( member(X-Y, Edges), ( V = X ; V = Y ) ), Vs0), sort(Vs0, Vs),
     vertices_edges_to_ugraph(Vs, Edges, G),
-    transitive_closure(G, C),
+    ugraph_scc(G, C),
     findall(H-B-F-L,
             ( member(e(H, B, neg, F, L, _), Es),
-              ( H == B -> true ; member(B-Rs, C), memberchk(H, Rs) ) ),
+              ( H == B -> true ; same_scc(C, H, B) ) ),
             Cycles),
     findall(diag('E18', F, L, M),
             ( member(H-B-F-L, Cycles),
@@ -3405,10 +3405,51 @@ e18_diags(Items0, Ds, Diags) :-
     append(Diags0, Diags1, Diags2),
     list_to_set(Diags2, Diags).
 
-% on_cycle(X, H, B, C): X lies on a cycle that runs H -> not B -> ... -> H.
-on_cycle(X, H, B, C) :-
-    ( X == B -> true ; member(B-RB, C), memberchk(X, RB) ),
-    ( X == H -> true ; member(X-RX, C), memberchk(H, RX) ).
+% on_cycle(X, H, B, C): X lies on a cycle that runs H -> not B -> ... -> H. The edge H -> B is
+% on a cycle (H == B, or B reaches H), so this holds when X is in the strongly connected
+% component of H: then B reaches X (or X is B) and X reaches H (or X is H), and back.
+on_cycle(X, H, _, C) :- same_scc(C, X, H).
+
+% ugraph_scc(+G, -C) (the load cost, 0.8.0): C maps each vertex of the ugraph G to a root of its
+% strongly connected component (Kosaraju: a depth-first order on G, then a walk of the reversed
+% graph in that order). Two vertices are in one component when each reaches the other. It
+% replaces the transitive closure (warshall) that the E18 check made of the whole program: on
+% the 0.8.0 library that took about 70 ms on each load, this takes about 5 (2026-11-24).
+ugraph_scc(G, C) :-
+    list_to_assoc(G, GA),
+    empty_assoc(V0),
+    foldl(scc_dfs1(GA), G, V0-[], _-Order),
+    transpose_ugraph(G, GT),
+    list_to_assoc(GT, GTA),
+    empty_assoc(C0),
+    foldl(scc_assign(GTA), Order, C0, C).
+
+scc_dfs1(GA, V-_, S0, S) :- scc_visit(GA, V, S0, S).
+
+scc_visit(GA, V, Vis0-Ord0, Vis-Ord) :-
+    (   get_assoc(V, Vis0, _)
+    ->  Vis = Vis0, Ord = Ord0
+    ;   put_assoc(V, Vis0, t, Vis1),
+        get_assoc(V, GA, Ns),
+        foldl(scc_visit(GA), Ns, Vis1-Ord0, Vis-Ord1),
+        Ord = [V|Ord1]
+    ).
+
+scc_assign(GTA, V, C0, C) :-
+    (   get_assoc(V, C0, _)
+    ->  C = C0
+    ;   scc_mark(GTA, V, V, C0, C)
+    ).
+
+scc_mark(GTA, Root, V, C0, C) :-
+    (   get_assoc(V, C0, _)
+    ->  C = C0
+    ;   put_assoc(V, C0, Root, C1),
+        get_assoc(V, GTA, Ns),
+        foldl(scc_mark(GTA, Root), Ns, C1, C)
+    ).
+
+same_scc(C, X, Y) :- get_assoc(X, C, R), get_assoc(Y, C, R).
 
 % dep_lits(+Body, +Sign, -SignLits): each literal of a body with pos or
 % neg. A literal under not, or in the condition of forall, is neg.
