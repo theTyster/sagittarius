@@ -1837,7 +1837,45 @@ EOF
           okb --dir "$K" pin-request --request-file "$J" >/dev/null; op_named blocking ""
           op_project "$T/pc" human; K=$T/pc/sp; op_named blocking ""
           op_project "$T/pu" human; printf 'this is not (valid.\n' >> "$T/pu/p/kb.pl"; K=$T/pu/sp; op_named blocking ""
+          # 0.8.0 (D57 to D61; scientific-method-overhaul c7, c9, c10, c16, c39, c42): the kinds of stage 2
+          kb_new "$T/s2" <<'EOF'
+uses([build]).
+% Made by orbit-kb 0.8.0.
+request(r1, 'Stage 2').
+goal(g0, feature, human, 'Text of g0').
+claim(c5, preserve, 'Text of c5 not carried').
+check(k5, c5).
+EOF
+          K=$T/s2; add_result "$K" k5 1 pass
+          cat >> "$K/kb.pl" <<'EOF'
+goal(g1, feature, human, 'Text of g1').
+supersedes(g1, g0).
+carried(c5, g1).
+hypothesis(hy1, g1, agent, 'Text of hy1').
+claim(c1, preserve, 'Text of c1 unresolved').
+claim(c2, preserve, 'Text of c2 stale').
+claim(c3, preserve, 'Text of c3 conflict').
+claim(c4, preserve, 'Text of c4 located').
+check(k1, c1).
+check(k2, c2).
+check(k3, c3).
+check(k4, c4).
+behavior_conflict(b1, 'Text of b1').
+EOF
+          add_result "$K" k1 2 unresolved; add_result "$K" k2 3 pass; add_result "$K" k3 4 fail; add_result "$K" k4 5 fail
+          cat >> "$K/kb.pl" <<'EOF'
+unresolved_because(t2, 'the check could not decide (exit 77)').
+change(x1, 'Text of x1').
+serves(x1, c2).
+change_at(x1, '2026-10-15T10:00:30Z').
+attest(l1, location, t5, located(measurement, 'a second clock'), agent, '2026-10-15T10:00:31Z').
+attest(j1, judgment, g1, case('Text of j1', not_wanted), human, '2026-10-15T10:00:32Z').
+EOF
+          op_named blocking ""
           op_cover blocking; }
+# judge_goal [GOAL]: the human judges that the goal is satisfied (0.8.0, D59; scientific-method-overhaul
+# c41). A test that means "everything is done" on a KB with a goal records this judgment.
+judge_goal() { okb --dir "$K" attest judgment "${1:-h1}" satisfied --by human >/dev/null; rc_is 0 "the human judges the goal ${1:-h1} satisfied"; }
 op_project() {  # op_project DIR BY: a project KB with excludes(d1, d2), and a spec KB in DIR/sp whose fulfilled claim pins d1
     local P=$1/p S=$1/sp
     okb init "$P" --request project --uses project >/dev/null; K=$P
@@ -2458,6 +2496,8 @@ t_SF4() { printf 'FAIL test_dark_mode: the reports page is light\n' > "$T/red.tx
           rp_sec Disclosures | grep -q 'the reports page is light' || note "report Disclosures: the output of the red run"
           printf '%s\n' "$out" | grep -qiE 'undo|revert' && note "the report asks the agent to undo the change"
           okb --dir "$K" attest waiver k1 "waive(k1, '2999-01-01T00:00:00Z', 'The agent saw it red before the KB.')" --by human >/dev/null
+          is_false 'done' "0.8.0 (c41): with the waiver and no judgment of the goal, the ticket is not done"
+          judge_goal h1
           is_true 'done' "a human waiver of the check covers the claim"
           okb --dir "$K" report; rp_item c1 | grep -q 'not shown red by the tool' || note "report: still not shown red, with the waiver: [$(rp_item c1)]"; }
 t_SF5() { sf_shift "$T/a" --no-premises --red-log "$T/none.txt"; rc_is 1 "a red log that does not exist"; [ -e "$T/a/kb.pl" ] && note "a missing red log leaves no KB"
