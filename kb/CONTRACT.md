@@ -903,3 +903,90 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 - No commits. Do not edit files outside your own path.
 - Put temporary files in the session scratchpad:
   `/tmp/claude-1000/-home-ty--dotfiles/63a00f00-8d72-4aeb-a216-cde6b882f1f4/scratchpad`.
+
+## D63 to D69: the door (0.8.0, scientific-method-overhaul)
+
+The tests are `kb/tests/test_door.sh`. The agent-facing text is `orbit-kb help hub`.
+
+### D63: the name `orbit` (claim c19, q8)
+
+- `kb/bin/orbit` is a link to `kb/bin/orbit-kb`: one program, two names. `install.py` links both.
+- Under the name `orbit-kb`, each command of 0.7.2 keeps its stdout form and its exit code.
+- The name in `version`, in help and in a usage error is the name of the call (`orbit 0.8.0`,
+  `orbit-kb 0.8.0`). A path in a text (`share/orbit-kb`) keeps its name.
+- Each name has its own saved state (the state is keyed by the script path).
+
+### D64: `orbit hub query 'GOAL' [-n N] [--hub DIR]` (claim c26)
+
+- The hub root is `--hub DIR`, else the nearest directory from the current one upward that holds
+  `.hub-template.json` or `flow/jsonl`. No hub: exit 2.
+- One engine holds the facts of every store. From `flow/jsonl`: `item/5`, `item_ref/3`,
+  `item_link/3`, `item_closed/2`, `item_opened/2`, `item_waits/2`, `item_parked/2`, `item_due/2`,
+  `handoff/3`, `handoff_accepted/2`, `tracker_ref/2`. From `specs/`: `ticket/2`. Answered when asked:
+  `ticket_fact(Slug, Fact)` and `project_fact(Fact)` (a fact or a rule answer of that KB, by the normal
+  loader, each KB once in a process; a predicate that the KB does not declare has no answer; a KB
+  that does not load clean gives no answer and one note on stderr), `store_file(Store, Path, Digest)`.
+- The project KB of a hub is `HUB/project-kb` when it holds a `kb.pl`; else the KB that the first
+  `project_kb/1` of a spec KB names; else the first directory of the hub root whose `kb.pl` uses `project`.
+- Output and exit codes are those of `query`: one line per answer, `false` and exit 1 for none,
+  exit 2 for an unknown predicate. The default of `-n` is 1, as for `query`.
+- The rules and the declarations are in `share/orbit-kb/hub.pl`.
+
+### D65: `orbit hub ledger ARGS...` (claims c26, c27, q21)
+
+- It runs `HUB/.claude/scripts/hubflow.py ARGS...`. hubflow.py stays the only writer of `flow.db`.
+- stdin, stdout, stderr, the environment and the exit code are those of hubflow.py.
+- The hub is `--hub DIR` at the start of ARGS, else `$HUBFLOW_HUB`, else the hub root from here
+  upward; then hubflow.py gets `--hub ROOT` before ARGS.
+- hubflow.py keeps every command and output form of kit 0.11.2. One form is new: the ref kind `goal`
+  (`--ref goal:pg1`, D68), which needs ledger schema 9 (`hubflow.py migrate`).
+
+### D66: `orbit hub stores`, `orbit hub files memory|weeks|bespoke` (claim c26)
+
+- `hub stores` prints seven lines: spec, project, ledger, memory, weeks, bespoke, tracker, each with counts.
+- `hub files STORE` prints `sha256:HEX  PATH` for each file, sorted by path.
+  - memory: `CLAUDE.md`, `HUB-CORE.md`, `PRINCIPLES.md`, `HEURISTICS.md`, `TECHNOLOGIES.md`, and each
+    file that a line of `CLAUDE.md` imports (`@FILE` at the start of the line).
+  - weeks: each file under `W0` to `W5`.
+  - bespoke: each file inside the hub that `TECHNOLOGIES.md` names in backquotes (for a directory:
+    its files; a memory file and a shipped file are left out), and the files of each skill under
+    `.claude/skills` that `.hub-template.json` "files" does not list.
+
+### D67: project goals (claims c17, c42, q9)
+
+- A project KB holds `goal/4`, `hypothesis/4` and `premise/3` (core kinds). The kit ships no fact.
+- `orbit drop-goal G --by human --note TEXT`, in a project KB, writes `dropped(G, human, Time, Text)`.
+  Exit 1 and nothing written: `--by` is not human, no such goal, dropped already, not a project KB.
+  `add` refuses `dropped/4`. No divergence is recorded. No rule calls a goal defeated.
+- A spec KB that uses `project` gets `project_goal(PG)` and `project_goal_dropped(PG)` from the KB
+  at `project_kb/1`. `goal_rests_on_dropped(G, PG)`: `supports(G, project(PG))` and PG is dropped
+  (lint WP11). It blocks nothing. Lint WP10: the project KB does not hold PG.
+- `contradicts(G, project(PG))` gives `blocking(goal_contradicts(G, PG))` until a human answers a
+  question about G (`question(Q, G, Text)` and a human `answer`).
+- Hub-wide: `ticket_goal_unsupported(Slug, G)`, `ticket_goal_rests_on_dropped(Slug, G, PG)`.
+
+### D68: purpose and `orbit hub orphans` (claims c44, c42; q14, q18, q19, q20, q31)
+
+- The rule is the second rule of `models/purpose.pl` of the spec, in `hub.pl`. `has_purpose(I)`: a live
+  chain leads from item I to a project goal that is not dropped. Steps: a kb ref to a ticket of the
+  hub; a goal ref (`goal:PG`); a link `blocks`, `follows`, `duplicates` or `supersedes` to an item
+  that is not dropped or lapsed (`relates` passes nothing; a done item passes its purpose on); the
+  current goal of the ticket; `supports(G, project(PG))`. A ticket with `gate(no_go)` gives no purpose.
+- `orphan(I)`: an open ask, thread, hold or handoff with no purpose. `ends_at(I, E)` has one answer.
+- `over(I)`: open, each ticket that it names is done, and it was not opened after that.
+  `report_on_done_ticket(I)`: opened after its ticket was done. The time of done is the time of the
+  newest attestation of the ticket.
+- `orbit hub orphans` prints, apart: "Orphans (N)", "Over (N)", "Reports on a done ticket (N)",
+  "Ticket goals with no live project goal (N)", "Dropped project goals (N)" with each ticket goal
+  and each open item that rested on the goal. Exit 0. It stops nothing and closes nothing.
+- The 14 cases of `models/purpose_cases.pl` give the answers that they name (test DP1).
+
+### D69: `orbit s1-record [--hub DIR] [--session S] [--dir KB] --json` (claim c46)
+
+- One line of JSON and nothing else:
+  `{"ticket", "goal": {"id","author","text"}|null, "hypotheses": [{"id","author","state","text","defeating_case","predictions":[{"id","text"}]}], "questions": [{"id","text"}], "goal_sentences": [{"id","text"}], "sent": [...]}`.
+- The active ticket: the spec KB of the newest open item that the session (`--session`, else
+  `$HUB_SESSION`) owns with a kb ref. `--dir KB` names it. None: `"ticket": null` and empty lists.
+- `goal_sentences`: each project goal that is not dropped (id `PG`) and each current goal of each
+  spec KB (id `SLUG:G`). `sent`: `goal:G`, `hypothesis:H`, `claim:C`, `question:Q`, `goal_sentence:ID`.
+- No ledger text, no request, no project decision and no memory file is in the output.

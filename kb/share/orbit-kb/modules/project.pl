@@ -70,6 +70,17 @@ decl(fact, pins(ref(claim), oneof([project]), atom, digest),
      'In a spec KB: the claim rests on a decision, a definition or a rule of the project KB. The digest is its project_decision_digest when the claim was written.',
      'claim @(1) rests on @(3) of the project KB').
 
+% 0.8.0 (D67; scientific-method-overhaul c17, c42): project goals. A project KB holds goal/4,
+% hypothesis/4 (under a project goal; a supporting hypothesis has supports(H, Parent)) and
+% premise/3 on them: the core declares these kinds. A goal is dropped or changed by its owner.
+% It is never recorded as defeated, and a drop records no divergence.
+decl(fact, dropped(ref(goal), by, time, text),
+     'The owner dropped the project goal, when, and in which words. Only orbit-kb drop-goal G --by human --note TEXT writes it. Nothing is closed for it.',
+     'goal @(1) was dropped by the @(2) at @(3): @(4)').
+decl(fact, contradicts(ref(goal), term),
+     'An agent or a human records that the ticket goal contradicts a goal of the project KB: contradicts(G, project(PG)). It blocks until a human answers a question about the goal.',
+     'goal @(1) contradicts @(2)').
+
 % ---------------------------------------------------------------------
 % Computed facts (orbit-kb computes them when it reads the KB)
 % ---------------------------------------------------------------------
@@ -103,6 +114,13 @@ decl(rule, project_contradiction(atom, atom),
 decl(rule, project_rests_on(atom, atom),
      'In a spec KB: rests_on of the project KB (D27). orbit-kb computes it when it reads the KB.',
      '@(1) of the project KB rests on @(2)').
+
+decl(rule, project_goal(atom),
+     'A goal of the project KB at project_kb/1. orbit-kb computes it when it reads the KB.',
+     '@(1) is a goal of the project KB').
+decl(rule, project_goal_dropped(atom),
+     'The owner dropped the goal of the project KB at project_kb/1. orbit-kb computes it when it reads the KB.',
+     'the project goal @(1) is dropped').
 
 % ---------------------------------------------------------------------
 % Rules
@@ -229,6 +247,27 @@ proposed(R) :- relation_by(R, agent, _), not relation_ratified(R).
 impact(X, S) :- spec_pin(S, _, X).
 impact(X, S) :- spec_pin(S, _, Z), rests_on(Z, X).
 
+% D67 (c17, c42): the goal of a spec KB names its project goal with supports(G, project(PG)).
+% A dropped project goal is named on the goal. It blocks nothing and closes nothing.
+decl(rule, goal_rests_on_dropped(ref(goal), atom),
+     'The goal supports a goal of the project KB that its owner dropped. It is listed (lint WP11, orbit hub orphans). It blocks nothing.',
+     'goal @(1) rests on the dropped project goal @(2)').
+decl(rule, goal_names_missing(ref(goal), atom),
+     'The goal supports a project goal that the project KB does not hold, or the project KB cannot be read (lint WP10).',
+     'goal @(1) names the project goal @(2), which the project KB does not hold').
+decl(rule, goal_question_answered(ref(goal)),
+     'A human answered a question about the goal.',
+     'a human answered a question about goal @(1)').
+decl(rule, goal_contradiction_open(ref(goal), atom),
+     'The goal contradicts a project goal, and no human answered a question about the goal yet.',
+     'goal @(1) contradicts the project goal @(2), and no human answered a question about it').
+goal_rests_on_dropped(G, PG) :- supports(G, project(PG)), project_goal_dropped(PG).
+goal_names_missing(G, PG) :- supports(G, project(PG)), not project_goal(PG).
+goal_question_answered(G) :- question(Q, G, _), answered(Q).
+goal_contradiction_open(G, PG) :- contradicts(G, project(PG)), not goal_question_answered(G).
+% c17: a ticket goal that contradicts a project goal is a question for the human before the build.
+blocking(goal_contradicts(G, PG)) :- goal_contradiction_open(G, PG).
+
 % In a spec KB: a contradiction blocks only a spec KB that pins a side directly.
 project_pinned(X) :- pins(_, project, X, _).
 blocking(project_contradiction(X)) :- project_contradiction(X, _), project_pinned(X).
@@ -259,5 +298,7 @@ lint_issue('WP8', P, 'This pin is stale, and the KB still rests on it: the file 
     stale_pin_open(P).
 lint_issue('WP9', R, 'Only an agent wrote this relation, so it is proposed: it blocks nothing. A human ratifies it by adding the same relation: orbit-kb add ''RELATION'' --by human (D38).') :-
     proposed(R), relation_by(R, agent, _).
+lint_issue('WP10', G, 'This goal supports a project goal that the project KB does not hold, or the project KB cannot be read (no project_kb fact, or no kb.pl there). Check the id in supports(G, project(PG)) against orbit-kb query ''goal(G, K, A, T)'' in the project KB.') :- goal_names_missing(G, _).
+lint_issue('WP11', G, 'This goal supports a project goal that its owner dropped (orbit-kb hub orphans names it). Nothing is blocked or closed. Ask the human which project goal the ticket serves now, or whether the ticket is dropped too.') :- goal_rests_on_dropped(G, _).
 lint_issue('WP4', Dir, 'This KB has more than one project_kb fact. Only the first is read. Keep one project_kb fact.') :-
     project_kb(First), project_kb(Dir), First @< Dir.

@@ -3520,8 +3520,12 @@ def case_park_due(r, root):
     r.check("pd-db-insert-inside-passes", e is None, e)
 
 
+PARK_DUE_SCHEMA = 8  # the schema of the park/due rule (c39). Schema 9 (the goal ref) came after it.
+
+
 def prior_script(r, root):
-    """A copy of the script under test one schema back (N -> N - 1): init makes a db without the last step."""
+    """A copy of the script under test at the schema before the park/due rule (PARK_DUE_SCHEMA - 1): init
+    makes a db without that step and the later ones."""
     src = open(r.script, encoding="utf-8").read()
     n = script_version(r.script)
     a = f"SCHEMA_VERSION = {n}\n"
@@ -3529,7 +3533,7 @@ def prior_script(r, root):
         raise RuntimeError(f"anchor {a!r} occurs {src.count(a)} times")
     path = os.path.join(root, "hubflow-prior.py")
     with open(path, "w", encoding="utf-8") as f:
-        f.write(src.replace(a, f"SCHEMA_VERSION = {n - 1}\n"))
+        f.write(src.replace(a, f"SCHEMA_VERSION = {PARK_DUE_SCHEMA - 1}\n"))
     return path
 
 
@@ -3539,7 +3543,7 @@ def case_migrate_park_due(r, root):
     d = os.path.join(root, "migrate-park-due", "flow")
     res = hf(prior, d, "init", "--seed", SEED, session=None)
     n = script_version(r.script)
-    r.check("mpd-prior-init", res[0] == 0 and q(d, "pragma user_version") == [(n - 1,)], res)
+    r.check("mpd-prior-init", res[0] == 0 and q(d, "pragma user_version") == [(PARK_DUE_SCHEMA - 1,)], res)
     for t in ("Parked past its due", "Parked inside its due"):
         hf(prior, d, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", t, "--waits-on", "me", "--due", "2026-12-10")
     # before the rule, any tool could write this
@@ -3548,14 +3552,51 @@ def case_migrate_park_due(r, root):
     snap = snapshot(d)
     res = hf(r, d, "migrate")
     r.check("mpd-migrate-refused-names-item", refused(res, 1, "A-0001") and "A-0002" not in res[2], res)
-    r.check("mpd-migrate-refused-keeps-schema", q(d, "pragma user_version") == [(n - 1,)])
-    r.check("mpd-migrate-refused-writes-nothing", snapshot(d) == snap and not os.path.exists(dbfile(d) + f".bak-v{n - 1}"), os.listdir(d))
+    r.check("mpd-migrate-refused-keeps-schema", q(d, "pragma user_version") == [(PARK_DUE_SCHEMA - 1,)])
+    r.check("mpd-migrate-refused-writes-nothing", snapshot(d) == snap and not os.path.exists(dbfile(d) + f".bak-v{PARK_DUE_SCHEMA - 1}"), os.listdir(d))
     sql_write(d, "UPDATE item SET due = NULL WHERE id = 'A-0001'")
     before = sorted(rows(d, "item"))
     res = hf(r, d, "migrate")
     r.check("mpd-migrate-after-fix", res[0] == 0 and q(d, "pragma user_version") == [(n,)], res)
     r.check("mpd-migrate-keeps-rows", sorted(rows(d, "item")) == before)
     r.check("mpd-migrated-db-has-rule", sql_write(d, "UPDATE item SET parked_until = '2026-12-31' WHERE id = 'A-0002'") is not None)
+
+
+def case_goal_ref(r, root):
+    """scientific-method-overhaul c44 (schema 9): the ref kind `goal` names the project goal that an item serves
+    directly. It is an id; show and view print it like other refs; a schema 8 db takes it after migrate."""
+    src = open(r.script, encoding="utf-8").read()
+    n = script_version(r.script)
+    path = os.path.join(root, "hubflow-schema8.py")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(src.replace(f"SCHEMA_VERSION = {n}\n", "SCHEMA_VERSION = 8\n"))
+    old = Run(path)
+    d = os.path.join(root, "goal-ref", "flow")
+    res = hf(old, d, "init", "--seed", SEED, session=None)
+    r.check("goal-ref-old-init", res[0] == 0 and q(d, "pragma user_version") == [(8,)], res)
+    hf(old, d, "add", "hold", "--title", "A hold from schema 8", "--ref", "url:https://example.org/1")
+    res = hf(old, d, "ref", "K-0001", "add", "goal:pg1")
+    r.check("goal-ref-schema-8-holds-none", q(d, "select item_id, kind, ref from item_ref order by 1, 2, 3") == [("K-0001", "url", "https://example.org/1")], res)
+    res = hf(r, d, "ref", "K-0001", "add", "goal:pg1")
+    r.check("goal-ref-needs-migrate", res[0] == 2 and "migrate" in res[2], res)
+    res = hf(r, d, "migrate")
+    r.check("goal-ref-migrate", res[0] == 0 and q(d, "pragma user_version") == [(n,)], res)
+    r.check("goal-ref-migrate-keeps-refs", q(d, "select item_id, kind, ref from item_ref order by 1, 2, 3") == [("K-0001", "url", "https://example.org/1")])
+    res = hf(r, d, "ref", "K-0001", "add", "goal:pg1")
+    r.check("goal-ref-add", res[0] == 0 and ("K-0001", "goal", "pg1") in q(d, "select item_id, kind, ref from item_ref order by 1, 2, 3"), res)
+    res = hf(r, d, "add", "thread", "--title", "A thread that names its goal", "--ref", "goal:pg_2")
+    r.check("goal-ref-on-add", res[0] == 0 and ("T-0001", "goal", "pg_2") in q(d, "select item_id, kind, ref from item_ref order by 1, 2, 3"), res)
+    for bad in ("goal:", "goal:Pg1", "goal:pg 1", "goal:1pg", "goal:pg-1"):
+        res = hf(r, d, "ref", "K-0001", "add", bad)
+        r.check(f"goal-ref-refuses-{bad!r}", res[0] == 1, res)
+    res = hf(r, d, "show", "K-0001")
+    r.check("goal-ref-show", res[0] == 0 and "goal:pg1" in res[1], res)
+    res = hf(r, d, "view", "open")
+    r.check("goal-ref-view-open", res[0] == 0 and "goal:pg1" in res[1], res)
+    res = hf(r, d, "ref", "K-0001", "rm", "goal:pg1")
+    r.check("goal-ref-rm", res[0] == 0 and ("K-0001", "goal", "pg1") not in q(d, "select item_id, kind, ref from item_ref order by 1, 2, 3"), res)
+    res = hf(r, d, "check")
+    r.check("goal-ref-check", res[0] == 0, res)
 
 
 def case_dk_no_kb(r, root):
@@ -3922,6 +3963,7 @@ def cases(r):
         run_case(r, case_dk_no_kb, root)
         run_case(r, case_park_due, root)
         run_case(r, case_migrate_park_due, root)
+        run_case(r, case_goal_ref, root)
         run_case(r, case_dk_kb_outside, root)
         run_case(r, case_dk_reserved, root)
         run_case(r, case_dk_schema_v7, root)

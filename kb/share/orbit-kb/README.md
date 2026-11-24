@@ -1264,6 +1264,21 @@ Exit: 0 (one line per drop, or `- Nothing was dropped by date.`). 2 with no
 hub, a project KB outside the hub, or an item that the ledger refuses (no
 session).
 
+### `hub query`, `hub ledger`, `hub stores`, `hub files`, `hub orphans`, `drop-goal`, `s1-record`
+
+The door to every store of a hub (CONTRACT D63 to D69; `orbit-kb help hub`). The command has two
+names, `orbit` and `orbit-kb`: one program.
+
+- `orbit hub query 'GOAL' [-n N] [--hub DIR]`: one query over the ledger (`item/5`, `item_ref/3`,
+  `item_link/3`), the spec KBs (`ticket/2`, `ticket_fact/2`), the project KB (`project_fact/1`),
+  the files (`store_file/3`) and the tracker pointers (`tracker_ref/2`). The rules are in `hub.pl`.
+- `orbit hub ledger ARGS...`: runs the hub's `hubflow.py` with ARGS; its output and exit code.
+- `orbit hub stores`; `orbit hub files memory|weeks|bespoke`: counts, and files with a sha256.
+- `orbit hub orphans`: the open items with no live chain to a project goal, the rows whose work
+  is over, the reports on a done ticket, and what rested on a dropped project goal.
+- `orbit drop-goal G --by human --note TEXT`: the owner drops a goal of the project KB.
+- `orbit s1-record [--session S] [--dir KB] --json`: the record of the active ticket for System 1.
+
 ### `project archive --superseded-before DATE [--root DIR]`
 
 Run in a project KB (D27). Keeps the project KB bounded. It removes from

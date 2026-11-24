@@ -166,6 +166,8 @@ Lint
   WP8   a stale pin that the KB still rests on: a current decision or definition concerns it and no newer
         pin of its source, or nothing concerns it and its source has no newer pin. show open and the report name it.
   WP9   only an agent wrote this relation: it is proposed and blocks nothing. A human adds it too (--by human).
+  WP10  the goal supports a project goal that the project KB does not hold (supports(G, project(PG))). Check the id.
+  WP11  the goal supports a project goal that its owner dropped. Nothing is blocked. Ask the human (orbit-kb help hub).
   EP1   an agent ratified a fact (error; add refuses it). Only a human ratifies.
   EP2   a fact depends on itself or excludes itself (error; add refuses it).
 

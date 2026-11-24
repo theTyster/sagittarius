@@ -1,0 +1,2 @@
+{"sessions": [{"name": "discovery", "role": "discovery"}, {"name": "build", "role": "build"}, {"name": "review", "role": "review"}],
+ "aliases": [], "persons": [{"key": "me", "display": "Me"}], "owner": "me"}
