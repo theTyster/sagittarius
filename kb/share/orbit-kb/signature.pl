@@ -51,6 +51,7 @@ signature(check/2).
 signature(check_ran/1).
 signature(check_waived/1).
 signature(checks_that/2).
+signature(cited_before_go/2).
 signature(cites/2).
 signature(claim/3).
 signature(claim_change/2).
@@ -149,11 +150,13 @@ signature(hypothesis/3).
 signature(hypothesis/4).
 signature(hypothesis_adopted/1).
 signature(hypothesis_agent_written/1).
+signature(hypothesis_cited/1).
 signature(hypothesis_current/1).
 signature(hypothesis_defeated/1).
 signature(hypothesis_goal_current/1).
 signature(hypothesis_guess/1).
 signature(hypothesis_human_written/1).
+signature(hypothesis_marked_untempered/1).
 signature(hypothesis_out/1).
 signature(hypothesis_retired/1).
 signature(hypothesis_state/2).
