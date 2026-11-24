@@ -113,6 +113,9 @@ CASES = [
      "help shift keeps the old definition of --hypothesis"),
     (["docs/check_method_texts.py", "c45"], P, "7. The ticket does not end at the delivery.", "7. Ask the human to adopt the hypothesis.\n8. The ticket does not end at the delivery.",
      "the light path has an eighth Build step"),
+    # 0.8.0 scientific-method-overhaul review R1: the hub texts teach the door, not the engine
+    (["docs/check_mindhole.py", "r1"], "hubkit/hub/HUB-CORE.md", "`.claude/orbit-kb/bin/orbit hub ledger view v_inbox",
+     "`python3 .claude/scripts/hubflow.py view v_inbox", "HUB-CORE.md tells a session to read its inbox with hubflow.py"),
     (["docs/check_panes.py", "--only", "c5"], "prompt/panes/discovery.md", "Re-evaluate the goal, the premises and the\n  measurement, and temper a new hypothesis",
      "Ask build", "discovery does not temper a new hypothesis"),
 ]
