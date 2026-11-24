@@ -2376,8 +2376,12 @@ t_HE1() { local hb; hb=$(he_text build)
           grep -qiP 'cannot tell.{0,200}divergence' <<< "$hb" || note "help build: if you cannot tell, say so, and treat it as a divergence"; }
 t_HE2() { local hb hd h0; hb=$(he_text build); hd=$(he_text discovery); okb help; h0=$out
           grep -qF 'If the problem is wrong, run orbit-kb uses discovery, and go back to discovery' <<< "$hb" && note "help build sends every wrong problem back to discovery"
-          grep -qE 'supersedes\(h2, ?h1\)' <<< "$hb" || note "help build has the recipe to restate the hypothesis: supersedes(h2, h1)"
-          grep -qiE 'no longer say what (the hypothesis|it) changes to' <<< "$hb" || note "help build: discovery only when you can no longer say what the hypothesis changes to"
+          grep -qE 'supersedes\(g2, ?g1\)' <<< "$hb" || note "help build has the recipe for a goal that the human corrects: supersedes(g2, g1) (0.8.0 review H1)"
+          grep -qE 'carried\(' <<< "$hb" || note "help build carries over what still counts to the new goal (0.8.0 review H1)"
+          grep -qiE 'restate it: the new hypothesis|"hypothesis\(h2,' <<< "$hb" && note "help build tells build to restate a hypothesis (0.8.0 review H1)"
+          grep -qiP 'locate the conflict first.{0,300}in the build.{0,200}hypothesis stays current' <<< "$hb" || note "help build: locate first; in the build the hypothesis stays current (0.8.0 review H1)"
+          grep -qiP 'in a premise or in the hypothesis.{0,400}defeated.{0,200}discovery' <<< "$hb" || note "help build: located in a premise or the hypothesis, it is defeated and goes to discovery (0.8.0 review H1)"
+          grep -qiE 'no longer say what (the hypothesis|the goal|it) changes to' <<< "$hb" || note "help build: discovery only when you can no longer say what the goal changes to"
           grep -qF 'When a divergence shows that the problem is wrong, not the build, file a disclosure, and run orbit-kb uses discovery' <<< "$hd" && note "help discovery BACK takes every wrong problem back"
           grep -qiP 'BACK.{0,400}no longer say what' <<< "$hd" || note "help discovery BACK: only when the agent can no longer say what the hypothesis changes to"
           grep -qF '"why?" question' <<< "$h0" && note "the first help screen sends a why? question to discovery"
@@ -2454,6 +2458,38 @@ t_SF3() { okb help shift; rc_is 0 "help shift"
           out_has 'run' "the next step runs the check"
           okb shift --help; rc_is 0; out_has 'orbit-kb shift'
           okb help; out_has 'help shift' "the first help screen names the topic"; out_has '^ +shift DIR' "the command list names shift"; }
+
+# SF10, SF11 (0.8.0, review H1): shift --goal writes the goal and the hypothesis under it; a call
+# with --hypothesis and no --goal keeps the result of 0.7.2 and prints the note on hypothesis/3.
+t_SF10() { K=$T/g; sf_shift "$K" --goal 'Every screen can be dark' --hypothesis2 x 2>/dev/null; rc_is 2 "an unknown option is a usage error"
+          printf 'add a dark mode\n' > "$T/req.txt"
+          okb shift "$K" --request-file "$T/req.txt" --goal 'Every screen can be dark' --goal-by human \
+              --hypothesis 'A theme switch makes every screen dark' --defeating-case 'a screen stays light after the switch' \
+              --premise 'the app has a theme switch' --claim 'the reports page is dark' --example 'the reports page is dark' \
+              --check k1 --checks-that 'the reports page is dark'; rc_is 0 "shift --goal writes a KB"
+          has_fact "$K/kb.pl" "goal(g1, feature, human, 'Every screen can be dark')" "goal/4 in the human's words"
+          has_fact "$K/kb.pl" "hypothesis(hy1, g1, human, 'A theme switch makes every screen dark')" "hypothesis/4 under the goal"
+          has_fact "$K/kb.pl" "defeating_case(hy1, human, 'a screen stays light after the switch')" "the defeating case"
+          has_fact "$K/kb.pl" "premise(p1, g1, 'the app has a theme switch')" "the premise is on the goal"
+          no_fact "$K/kb.pl" "hypothesis(_, _, _)" "no hypothesis/3"
+          out_has "^goal\(g1, feature, human, 'Every screen can be dark'\)\.$" "stdout lists the goal"
+          any_hasnt 'hypothesis/3 is the 0.7.2 form' "no note: no hypothesis/3 was written"
+          okb --dir "$K" lint; rc_is 0 "lint accepts the KB"
+          K=$T/a; okb shift "$K" --request-file "$T/req.txt" --goal 'G' --hypothesis 'H' --no-premises --claim x --example y --check k1 --checks-that z
+          rc_is 0; has_fact "$K/kb.pl" "goal(g1, feature, agent, 'G')" "--goal-by is agent by default"; has_fact "$K/kb.pl" "no_premises(g1)"
+          has_fact "$K/kb.pl" "hypothesis(hy1, g1, agent, 'H')"; no_fact "$K/kb.pl" "defeating_case(_, _, _)" "no defeating case without --defeating-case"
+          okb shift "$T/b" --request-file "$T/req.txt" --goal 'G' --goal-by robot --hypothesis 'H' --no-premises --claim x --example y --check k1 --checks-that z
+          rc_is 2 "--goal-by takes human or agent"; [ -e "$T/b" ] && note "a usage error leaves no directory"
+          okb shift "$T/c" --request-file "$T/req.txt" --defeating-case 'D' --hypothesis 'H' --no-premises --claim x --example y --check k1 --checks-that z
+          rc_is 2 "--defeating-case needs --goal"; [ -e "$T/c" ] && note "a usage error leaves no directory"; }
+t_SF11() { K=$T/s; sf_shift "$K" --no-premises; rc_is 0 "the 0.7.2 call"
+          local want; want=$(printf '%s\n' "$K/kb.pl" "hypothesis(h1, feature, '$DARK')." "no_premises(h1)." "claim(c1, introduce, '$DARK')." \
+              "cites(c1, 'add a dark mode')." "example(c1, 'the reports page is dark')." "check(k1, c1)." "checks_that(k1, 'the reports page is dark').")
+          [ "$out" = "${want%$'\n'}" ] || note "stdout is that of 0.7.2: [$(snip "$out")]"
+          has_fact "$K/kb.pl" "hypothesis(h1, feature, _)" "hypothesis/3 as at 0.7.2"
+          no_fact "$K/kb.pl" "goal(_, _, _, _)" "no goal/4 fact"; no_fact "$K/kb.pl" "hypothesis(_, _, _, _)" "no hypothesis/4 fact"
+          err_has '^note: hypothesis/3 is the 0.7.2 form of the goal\.' "the note on hypothesis/3"
+          err_has '^Next: orbit-kb --dir .* run k1' "the Next line of 0.7.2"; }
 
 # WJ (D39, c_k_j_1 to c_k_j_3): one meaning for each word of the tool. "signal" is one of the six
 # signals (the move is RESTATE); "Lean definitions", not "Lean model" (the names burn_model and
@@ -4174,6 +4210,8 @@ run_test t_SF2 SF2 "0.3.0 c_k_h_1: orbit-kb shift refuses a usage error or a bad
 run_test t_SF3 SF3 "0.3.0 c_k_h_3: orbit-kb help shift is one screen; the first help screen names it"
 run_test t_SF4 SF4 "0.3.0 c_k_h_2b: shift --red-log: a red run that only the agent saw is a disclosure; the claim waits for a waiver"
 run_test t_SF5 SF5 "0.3.0 c_k_h_2b: shift --red-log refuses a missing or empty log and a preserve claim; a long log is cut"
+run_test t_SF10 SF10 "0.8.0 review H1: shift --goal writes goal/4 and hypothesis/4 under it, with the defeating case and the premises on the goal"
+run_test t_SF11 SF11 "0.8.0 review H1: shift with --hypothesis and no --goal keeps the 0.7.2 result and prints the note on hypothesis/3"
 run_test t_WJ1 WJ1 "0.3.0 c_k_j_1: no move is named SIGNAL; the move is RESTATE"
 run_test t_WJ2 WJ2 "0.3.0 c_k_j_2: the text of the tool says Lean definitions, not Lean model"
 run_test t_WJ3 WJ3 "0.3.0 c_k_j_3: orbit-kb withdraw NAME/ARITY removes a kind that a typo declared, with a record"

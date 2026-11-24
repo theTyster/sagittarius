@@ -938,6 +938,9 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 - Attestation types `adoption` (`adopted`, human only) and `retirement` (`retired(Text)`, human or agent);
   the subject is a hypothesis/4 id. `orbit-kb adopt H --by human [--note W]` and
   `orbit-kb retire H --reason TEXT [--by human|agent]` write them.
+- Review U9: `adopt` and `judge` with `--by human` keep `--note W` as `note(A, W)` on the attestation A. When
+  CLAUDECODE, AI_AGENT or CLAUDE_CODE_SESSION_ID is set (an agent session), a `--by human` call with no `--note`
+  is refused (exit 1, nothing written) with a line that says to add --note with the words of the human.
 - `hypothesis_adopted(H)`: a human adoption attestation; or (discovery module) `adoption_cited(H, Words)`
   that stands in kb.pl before a GO vote of the human that is not void. `adoption_cited` alone adopts
   nothing, and a GO vote adopts no hypothesis without it. A proposed hypothesis with the mark prints a line under its header (D50 views, below).
@@ -1221,7 +1224,7 @@ Tests: `kb/tests/test_proposals.sh`.
 - show: `Goal g1 (AUTHOR): TEXT`, `  Kind: K.`, `  State: current.`, premises, supports, then
   `  Hypothesis hy1 (AUTHOR, STATE): TEXT`. report: `Goal g1 (AUTHOR): TEXT` with the kid `Kind: K.`.
 - A proposed hypothesis with `adoption_cited` has the line `Cited as adopted (the agent's reading of
-  NAME's words): 'WORDS'. NAME adopts it with Adopt on the Desk, or with: orbit adopt H --by human`.
+  NAME's words): 'WORDS'. NAME adopts it with Adopt on the Desk, or with: orbit adopt H --by human` (the tool says its own name, as it was called: orbit-kb adopt under the name orbit-kb; review U1).
 - Superseded goals: `Earlier statements of the goal:`, one line each: `- h2 (AUTHOR, superseded by g1): `
   and the first 100 characters. `No hypothesis: the claims hang on the goal.` prints only for a current goal.
 - report Guesses: `Hypothesis hy5 (Astra, agent-written, not adopted): TEXT` (no name for the plain `agent`).

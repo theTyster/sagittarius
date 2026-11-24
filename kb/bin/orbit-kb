@@ -381,7 +381,11 @@ usage_error(Fmt, Args) :-
 print_lines(S, Lines) :-
     forall(member(L, Lines), format(S, "~w~n", [L])).
 
-fmt(S, Fmt, Args) :- format(string(S), Fmt, Args).
+% U1 (0.8.0 review): a line of the tool names the tool as it was called. The format text (never
+% the data in Args) goes through name_text/2: under the name orbit-kb nothing changes.
+fmt(S, Fmt0, Args) :- name_text(Fmt0, Fmt), format(string(S), Fmt, Args).
+nformat(Fmt0, Args) :- name_text(Fmt0, Fmt), format(Fmt, Args).
+nformat(Out, Fmt0, Args) :- name_text(Fmt0, Fmt), format(Out, Fmt, Args).
 
 err_text(E, S) :-
     (   catch(phrase('$messages':translate_message(E), L), _, fail)
@@ -1315,7 +1319,7 @@ cmd_propose(KB, Args, Code) :-
     ),
     kb_items(KB, KI),
     (   proposal_item(KI, P0, FactA, _), \+ proposal_done(KI, P0, _, _)
-    ->  format("~w already holds this proposal. It waits. Confirm: orbit-kb confirm-proposal ~w~n", [P0, P0]),
+    ->  nformat("~w already holds this proposal. It waits. Confirm: orbit-kb confirm-proposal ~w~n", [P0, P0]),
         Code = 0
     ;   findall(P1, proposal_item(KI, P1, _, _), Ps), length(Ps, N),
         next_proposal_id(Ps, N, P),
@@ -1326,7 +1330,7 @@ cmd_propose(KB, Args, Code) :-
         ;   Facts = [F1]
         ),
         cmd_add(KB, Facts, Code),
-        format("Proposal ~w is stored. It is not a record and it blocks nothing. Confirm: orbit-kb confirm-proposal ~w~n", [P, P])
+        nformat("Proposal ~w is stored. It is not a record and it blocks nothing. Confirm: orbit-kb confirm-proposal ~w~n", [P, P])
     ).
 
 next_proposal_id(Ps, N, P) :-
@@ -1376,7 +1380,7 @@ show_proposals(KB) :-
                           format("    ~w~n", [NT])),
                    (   proposal_done(KI, P, By, T2)
                    ->  format("    confirmed by the ~w at ~w: it is a record~n", [By, T2])
-                   ;   format("    waits; it blocks nothing. Confirm: orbit-kb confirm-proposal ~w~n", [P])
+                   ;   nformat("    waits; it blocks nothing. Confirm: orbit-kb confirm-proposal ~w~n", [P])
                    )
                ))
     ).
@@ -1481,7 +1485,7 @@ resolve_kb(none, Dir) :-
     (   find_up(W1, Dir)
     ->  true
     ;   findall(L, ( find_down(W1, 2, Rel),
-                     format(string(L), "A KB is below this directory, in ~w. To use it: orbit-kb --dir ~w COMMAND.", [Rel, Rel]) ),
+                     nformat(string(L), "A KB is below this directory, in ~w. To use it: orbit-kb --dir ~w COMMAND.", [Rel, Rel]) ),
                 Below),
         append([ "No knowledge base found.",
                  "orbit-kb looks for a KB in this order:",
@@ -4038,7 +4042,7 @@ cmd_init(Args, Code) :-
                        forall(member(L, Ls), format(S, "~w~n", [L])),
                        close(S)),
     format("~w~n", [KbFile]),
-    format(user_error, "Next: add the claims and the checks. Vocabulary: orbit-kb help core.~n", []),
+    nformat(user_error, "Next: add the claims and the checks. Vocabulary: orbit-kb help core.~n", []),
     Code = 0.
 
 % ---------------------------------------------------------------------
@@ -4082,7 +4086,7 @@ cmd_withdraw(KB, Args, Code) :-
     atomic_list_concat([Out0, Sep, Rec, "\n"], Out),
     write_kb_text(KbFile, Out),
     format("~w~n", [Rec]),
-    format(user_error, "Withdrew ~w/~w: its declaration and ~w fact(s). They stay in kb.pl as comments. Run orbit-kb lint next.~n", [N, Ar, NF]),
+    nformat(user_error, "Withdrew ~w/~w: its declaration and ~w fact(s). They stay in kb.pl as comments. Run orbit-kb lint next.~n", [N, Ar, NF]),
     Code = 0.
 
 % kb_lines_commented(+File, +Line-Term pairs, -Out): the text of File with each of these lines
@@ -4115,21 +4119,26 @@ kb_lines_commented(File, LTs, Out) :-
 % child processes of this script, so each write has the checks of init and add. When the
 % add is refused, it removes what it wrote (kb.pl and the other new files of DIR, and DIR
 % itself when it made it), and exits with the code of add. The ids are fixed: h1, p1..pN, c1.
+% 0.8.0 (review H1): --goal T [--goal-by human|agent] makes --hypothesis the avenue under the goal:
+% goal(g1, ...), hypothesis(hy1, g1, ...), defeating_case(hy1, ...) with --defeating-case; the
+% premises go on g1. Without --goal the facts, stdout and exit code are those of 0.7.2, and the
+% note of D50 on hypothesis/3 goes to stderr.
 
 cmd_shift(Args, Code) :-
     parse_opts(Args, ['--request'-value, '--request-file'-value, '--hypothesis'-value, '--kind'-value,
                       '--no-premises'-flag, '--premise'-value, '--claim'-value, '--label'-value,
                       '--example'-value, '--check'-value, '--checks-that'-value, '--cites'-value, '--uses'-value,
-                      '--red-log'-value], Pos, Opts),
+                      '--red-log'-value, '--goal'-value, '--goal-by'-value, '--defeating-case'-value], Pos, Opts),
     (   Pos = [Dir0] -> true
     ;   usage_error("Give one directory: orbit-kb shift DIR --request-file F --hypothesis T ... (orbit-kb help shift).", [])
     ),
-    forall(( member(O, ['--request', '--request-file', '--hypothesis', '--kind', '--claim', '--label', '--example', '--check', '--checks-that', '--cites', '--uses', '--red-log']),
+    forall(( member(O, ['--request', '--request-file', '--hypothesis', '--kind', '--claim', '--label', '--example', '--check', '--checks-that', '--cites', '--uses', '--red-log', '--goal', '--goal-by', '--defeating-case']),
              aggregate_all(count, member(O-_, Opts), N), N > 1 ),
            usage_error("Give ~w once.", [O])),
     forall(member(O-What, ['--hypothesis'-"the hypothesis", '--claim'-"the claim", '--example'-"its example", '--check'-"the id of its check", '--checks-that'-"the words of its check (E20)"]),
            ( memberchk(O-_, Opts) -> true
            ; usage_error("shift needs ~w: ~w TEXT (orbit-kb help shift).", [What, O]) )),
+    shift_goal_opts(Opts, GoalT, GoalBy, DefT),
     findall(P, member('--premise'-P, Opts), Prems),
     (   memberchk('--no-premises'-true, Opts)
     ->  ( Prems == [] -> true ; usage_error("Give --no-premises or --premise TEXT, not both.", []) )
@@ -4156,9 +4165,18 @@ cmd_shift(Args, Code) :-
     (   memberchk('--cites'-Cites, Opts) -> true
     ;   split_string(Text, "\n", " \t\r", [L1|_]), atom_string(Cites, L1)
     ),
-    findall(F, ( F = hypothesis(h1, Kind, HT)
-               ; memberchk('--no-premises'-true, Opts), F = no_premises(h1)
-               ; nth1(I, Prems, PT), atom_concat(p, I, PId), F = premise(PId, h1, PT)
+    (   GoalT == none
+    ->  Top = h1, HeadFacts = [hypothesis(h1, Kind, HT)], HypFacts = []
+    ;   Top = g1, HeadFacts = [goal(g1, Kind, GoalBy, GoalT)],
+        (   DefT == none
+        ->  HypFacts = [hypothesis(hy1, g1, GoalBy, HT)]
+        ;   HypFacts = [hypothesis(hy1, g1, GoalBy, HT), defeating_case(hy1, GoalBy, DefT)]
+        )
+    ),
+    findall(F, ( member(F, HeadFacts)
+               ; memberchk('--no-premises'-true, Opts), F = no_premises(Top)
+               ; nth1(I, Prems, PT), atom_concat(p, I, PId), F = premise(PId, Top, PT)
+               ; member(F, HypFacts)
                ; F = claim(c1, Label, CT)
                ; F = cites(c1, Cites)
                ; F = example(c1, ET)
@@ -4182,28 +4200,48 @@ cmd_shift(Args, Code) :-
         (   AExit \== 0
         ->  shift_undo(Dir, Made, Before),
             format(user_error, "~s", [AOut]),
-            format(user_error, "orbit-kb shift wrote nothing: the add above was refused.~n", []),
+            nformat(user_error, "orbit-kb shift wrote nothing: the add above was refused.~n", []),
             Code = AExit
         ;   RedText == none
-        ->  format("~w~n", [KbFile]),
+        ->  shift_note(GoalT, Kind, HT),
+            format("~w~n", [KbFile]),
             forall(member(F, Facts), ( term_text(F, FT), format("~w.~n", [FT]) )),
-            format(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD (it must fail before the change), then orbit-kb lint. orbit-kb help shift.~n", [Dir, KId]),
+            nformat(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD (it must fail before the change), then orbit-kb lint. orbit-kb help shift.~n", [Dir, KId]),
             Code = 0
         ;   format(atom(RedPred), "~q", [seen_red(KId, RedText)]),
             shift_child(Script, ['--dir', Dir, attest, disclosure, KId, RedPred], DExit, DOut),
             (   DExit \== 0
             ->  shift_undo(Dir, Made, Before),
                 format(user_error, "~s", [DOut]),
-                format(user_error, "orbit-kb shift wrote nothing: the disclosure of the red run was refused.~n", []),
+                nformat(user_error, "orbit-kb shift wrote nothing: the disclosure of the red run was refused.~n", []),
                 Code = DExit
-            ;   format("~w~n", [KbFile]),
+            ;   shift_note(GoalT, Kind, HT),
+                format("~w~n", [KbFile]),
                 forall(member(F, Facts), ( term_text(F, FT), format("~w.~n", [FT]) )),
                 format("disclosure seen_red(~w, ...): the red run that you saw, with its output.~n", [KId]),
-                format(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD, then orbit-kb lint. The red run that you saw is a disclosure, not a test result: claim c1 stays unfulfilled until the tool shows ~w red, or a human waives check ~w (report: not shown red by the tool). orbit-kb help shift.~n", [Dir, KId, KId, KId]),
+                nformat(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD, then orbit-kb lint. The red run that you saw is a disclosure, not a test result: claim c1 stays unfulfilled until the tool shows ~w red, or a human waives check ~w (report: not shown red by the tool). orbit-kb help shift.~n", [Dir, KId, KId, KId]),
                 Code = 0
             )
         )
     ).
+
+% shift_goal_opts(+Opts, -GoalText, -Author, -DefeatingCase) (0.8.0, review H1): --goal TEXT makes
+% --hypothesis the avenue under the goal. --goal-by (human or agent, default agent) is the author of
+% both. --defeating-case needs --goal. With no --goal the call is that of 0.7.2: GoalText is none.
+shift_goal_opts(Opts, GoalT, By, DefT) :-
+    opt(Opts, '--goal', none, GoalT), opt(Opts, '--goal-by', agent, By), opt(Opts, '--defeating-case', none, DefT),
+    (   memberchk(By, [human, agent]) -> true
+    ;   usage_error("--goal-by takes human or agent, not ~w.", [By])
+    ),
+    (   GoalT == none, ( memberchk('--goal-by'-_, Opts) ; DefT \== none )
+    ->  usage_error("--goal-by and --defeating-case go with --goal TEXT: the goal, with --hypothesis as the avenue to it (orbit-kb help shift).", [])
+    ;   true
+    ).
+
+% shift_note(+GoalText, +Kind, +HypText): a shift of 0.7.2 (no --goal) writes hypothesis/3, so it
+% prints the note of D50 on stderr. Its stdout and exit code stay those of 0.7.2.
+shift_note(none, Kind, HT) :- !, hypothesis3_note(hypothesis(h1, Kind, HT)).
+shift_note(_, _, _).
 
 % shift_red_log(+Opts, +Label, -Text) (D43): the text of --red-log FILE, or none. Usage errors
 % and a missing or empty file stop shift before it writes anything.
@@ -4308,11 +4346,11 @@ cmd_uses(Dir, Args, Code) :-
               ( err_text(E, ET),
                 die(2, ["Could not write " + KbFile + ": " + ET, "Nothing was changed.", "Fix: check that the KB directory is writable."] >> fix_lines) )),
         format("~w.~n", [UT]),
-        format(user_error, "Run orbit-kb lint next. The new module can add lint findings to the KB.~n", []),
+        nformat(user_error, "Run orbit-kb lint next. The new module can add lint findings to the KB.~n", []),
         (   memberchk(discovery, New)
-        ->  format(user_error, "Next: orbit-kb lint. Recipes for each move: orbit-kb help discovery.~n", [])
+        ->  nformat(user_error, "Next: orbit-kb lint. Recipes for each move: orbit-kb help discovery.~n", [])
         ;   memberchk(build, New)
-        ->  format(user_error, "Next: orbit-kb lint. Facts, queries, and burns: orbit-kb help build.~n", [])
+        ->  nformat(user_error, "Next: orbit-kb lint. Facts, queries, and burns: orbit-kb help build.~n", [])
         ;   true
         )
     ),
@@ -4412,7 +4450,7 @@ cmd_add(KB, Args, Code) :-
            format(user_error, "NOTE: ~q/~w is a new predicate. Its first use declares it, with the type term for each argument (lint W7 lists it).~n", [N, A])),
     (   Doc == ''
     ->  forall(member(N/A, FUs),
-               format(user_error, "NOTE: ~q/~w has no description (lint W9). Describe a new kind in its first add: orbit-kb add 'FACT' --doc TEXT.~n", [N, A]))
+               nformat(user_error, "NOTE: ~q/~w has no description (lint W9). Describe a new kind in its first add: orbit-kb add 'FACT' --doc TEXT.~n", [N, A]))
     ;   true
     ),
     Code = 0.
@@ -8584,15 +8622,36 @@ cmd_adopt(KB, Args, Code) :-
     ;   reject(["Only the human adopts a hypothesis. An agent that reads the words of the human as an adoption records its reading: orbit-kb add \"adoption_cited(" + H + ", 'the words')\". Alone it adopts nothing.",
                 "Fix: when the human adopts it, orbit-kb adopt " + H + " --by human."])
     ),
+    human_words_needed(adopt, Opts),
     cmd_attest(KB, [adoption, H, adopted, '--by', human], Code),
-    (   Code == 0, memberchk('--note'-Note, Opts)
-    ->  kb_file(KB, KbFile), kb_dir(KB, Dir),
-        kb_lib(KB, Lib), load_kb(Dir, Lib, KB2), kb_items(KB2, Items2),
-        findall(A, kb_term(Items2, attest(A, adoption, H, adopted, human, _)), As), last(As, AId),
-        clause_line(note(AId, Note), [], NL),
-        append_lines(KbFile, [NL]), format("~w~n", [NL])
+    (   Code == 0, memberchk('--note'-Note, Opts), Note \== ''
+    ->  attest_note(KB, adoption, H, Note)
     ;   true
     ).
+
+% human_words_needed(+Cmd, +Opts) (review U9): in an agent session (CLAUDECODE, AI_AGENT or
+% CLAUDE_CODE_SESSION_ID is set), a record --by human needs the words of the human: --note.
+human_words_needed(Cmd, Opts) :-
+    (   ( memberchk('--note'-N, Opts), N \== '' )
+    ->  true
+    ;   agent_session(V)
+    ->  reject(["This shell is an agent session (" + V + " is set). A record --by human from it needs the words of the human.",
+                "Fix: add --note with the words of the human: orbit-kb " + Cmd + " ... --by human --note 'THE WORDS OF THE HUMAN'."])
+    ;   true
+    ).
+
+agent_session(V) :-
+    member(V, ['CLAUDECODE', 'AI_AGENT', 'CLAUDE_CODE_SESSION_ID']),
+    getenv(V, X), X \== '', !.
+
+% attest_note(+KB, +Type, +Subject, +Words) (review U9): note(A, Words) on the newest human
+% attestation A of Type on Subject: the words of the human that the record rests on.
+attest_note(KB, Type, Subj, Note) :-
+    kb_file(KB, KbFile), kb_dir(KB, Dir),
+    kb_lib(KB, Lib), load_kb(Dir, Lib, KB2), kb_items(KB2, Items2),
+    findall(A, kb_term(Items2, attest(A, Type, Subj, _, human, _)), As), last(As, AId),
+    clause_line(note(AId, Note), [], NL),
+    append_lines(KbFile, [NL]), format("~w~n", [NL]).
 
 % rests ID (0.8.0, D53, c38): what record ID rests on, up to the project goal ("up:"), and what
 % rests on it, down to the runs ("down:").
@@ -8738,11 +8797,11 @@ end_lines(KB, Items, approval, Subject, human, Id, Pred, Lines) :-
     ->  Lines = []
     ;   Pred = digest(D0), member(D1, Ds), D1 \== D0
     ->  % D30 H7 (review of K-A, finding 3): a stale approval does not end the orbit.
-        format(user_error, "NOTE: the discovery orbit stays open. This approval names a digest that is not the current digest of the ticket (stale), so it does not end the orbit. Approve the ticket as it is now: orbit-kb attest approval ~w 'digest(current)' --by human.~n", [Subject]),
+        nformat(user_error, "NOTE: the discovery orbit stays open. This approval names a digest that is not the current digest of the ticket (stale), so it does not end the orbit. Approve the ticket as it is now: orbit-kb attest approval ~w 'digest(current)' --by human.~n", [Subject]),
         Lines = []
     ;   eng_true(Eng, gate(go)), eng_true(Eng, artifact_vote(go))
     ->  clause_line(discovery_end(Id), [], L), Lines = [L]
-    ;   format(user_error, "NOTE: the discovery orbit stays open. gate(go) and the artifacts' go (discovery_ready with a current claim) do not both hold in the current round, so this approval of the ticket does not end it. Run orbit-kb query 'gate(V)', orbit-kb show open, and orbit-kb report (Vote).~n", []),
+    ;   nformat(user_error, "NOTE: the discovery orbit stays open. gate(go) and the artifacts' go (discovery_ready with a current claim) do not both hold in the current round, so this approval of the ticket does not end it. Run orbit-kb query 'gate(V)', orbit-kb show open, and orbit-kb report (Vote).~n", []),
         Lines = []
     ).
 end_lines(_, _, _, _, _, _, _, []).
@@ -8790,9 +8849,10 @@ cmd_judge(KB, Args, Code) :-
     (   By == human -> true
     ;   reject(["Only the human judges. An agent records a judgment only when the human said it: add --by human, and --note with the words of the human."] >> fix_lines)
     ),
+    human_words_needed(judge, Opts),
     cmd_attest(KB, [judgment, Subj, PT, '--by', By], Code),
-    (   memberchk('--note'-Note, Opts), Note \== ''
-    ->  clause_line(note(Subj, Note), [], NL), kb_file(KB, KbFile), append_lines(KbFile, [NL]), format("~w~n", [NL])
+    (   Code == 0, memberchk('--note'-Note, Opts), Note \== ''
+    ->  attest_note(KB, judgment, Subj, Note)
     ;   true
     ).
 
@@ -8815,7 +8875,7 @@ cmd_locate(KB, Args, Code) :-
     format(atom(PT), "~q", [located(Where, Ev)]),
     cmd_attest(KB, [location, Run, PT, '--by', By], Code),
     (   Where == build -> true
-    ;   format(user_error, "NOTE: a location outside the build counts only when a pane that did not build, or the human, confirms it: orbit-kb confirm LOCATION --note TEXT --as ROLE.~n", [])
+    ;   nformat(user_error, "NOTE: a location outside the build counts only when a pane that did not build, or the human, confirms it: orbit-kb confirm LOCATION --note TEXT --as ROLE.~n", [])
     ).
 
 % confirm LOCATION --note TEXT [--by human|agent]
@@ -8967,7 +9027,7 @@ go_vote_check(KB, vote, By, _) :-
     ->  reject([ "The discovery orbit is closed: the human approved the ticket after a GO. A vote now does not count.",
                  "Fix: to return to discovery, record it: orbit-kb attest back H 'back(TEXT)'. Then vote in a new round."
                ] >> fix_lines)
-    ;   format(user_error, "NOTE: the discovery orbit is closed (the human approved the ticket after a GO). This vote is written, but it does not change the outcome. To return to discovery: orbit-kb attest back H 'back(TEXT)'.~n", [])
+    ;   nformat(user_error, "NOTE: the discovery orbit is closed (the human approved the ticket after a GO). This vote is written, but it does not change the outcome. To return to discovery: orbit-kb attest back H 'back(TEXT)'.~n", [])
     ).
 go_vote_check(KB, vote, agent, vote(_, C)) :-
     C == go, has_discovery(KB),
@@ -9379,7 +9439,7 @@ cmd_prove(KB, Args, Code) :-
     format("proof ~w of claim ~w: theorem ~w (~w)~n", [Id, Claim, Thm, Mod]),
     format("Statement: ~w~n", [St]),
     format("Log: ~w~n", [Log]),
-    format("Check that the statement says what claim ~w says. orbit-kb cannot check that.~n", [Claim]),
+    nformat("Check that the statement says what claim ~w says. orbit-kb cannot check that.~n", [Claim]),
     Code = 0.
 
 % prove_exec(+Exe, +Args, +Cwd, +RunsDir, -ExitCode, -Output): run a
@@ -9778,9 +9838,9 @@ cmd_signature(Args, Code) :-
         (   Have == Want
         ->  format("The signature file matches the declarations of core.pl and the modules.~n", []), Code = 0
         ;   Have == missing
-        ->  format("The signature file is missing. Run orbit-kb signature --write.~n", []), Code = 1
+        ->  nformat("The signature file is missing. Run orbit-kb signature --write.~n", []), Code = 1
         ;   subtract(Want, Have, Miss), subtract(Have, Want, Extra),
-            format("The signature file differs from the declarations. Not in the file: ~q. Not declared: ~q. Run orbit-kb signature --write.~n", [Miss, Extra]),
+            nformat("The signature file differs from the declarations. Not in the file: ~q. Not declared: ~q. Run orbit-kb signature --write.~n", [Miss, Extra]),
             Code = 1
         )
     ;   usage_error("signature takes no argument, --write or --check.", [])
@@ -10179,7 +10239,7 @@ mig_cmd_plan(Dir, Args, Code) :-
     ->  format("apply refuses this plan (see above).~n", []), Code = 1
     ;   Ins == [], Adds == []
     ->  format("Nothing to write.~n", []), Code = 0
-    ;   format("Seen: ~w~nShow this plan to the human. To land it: orbit-kb migrate apply --seen ~w~n", [D, D]), Code = 0
+    ;   nformat("Seen: ~w~nShow this plan to the human. To land it: orbit-kb migrate apply --seen ~w~n", [D, D]), Code = 0
     ).
 
 mig_old_exe(OE, OX) :-
@@ -10251,7 +10311,7 @@ mig_apply_locked(Dir, Old, Opts, Code) :-
     Plan = plan(Ins, Adds, Errs),
     (   Ins == [], Adds == []
     ->  forall(member(E, Errs), format(user_error, "~w~n", [E])),
-        format("Nothing to write: no tool step and no new question is to do. orbit-kb migrate check lists the work of an agent.~n", []),
+        nformat("Nothing to write: no tool step and no new question is to do. orbit-kb migrate check lists the work of an agent.~n", []),
         ( Errs == [] -> Code = 0 ; Code = 1 )
     ;   ( Errs \== [] ; Problems \== [] ; Outside \== [] )
     ->  mig_print_plan(KB, Old, Rep),
@@ -10752,7 +10812,34 @@ kb_engine(KB, Eng) :-
 
 eng_true(Eng, G) :- eng_all(Eng, [], G, L), L \== [].
 
-say(Fmt, Args) :- format(Fmt, Args), nl.
+% id_sort(+List, -Sorted) (review U4): sort/2 (duplicates go), with the digits of an id compared as a
+% number: c1, c2, c10, not c1, c10, c2. A term or a list of ids sorts on the same key, part by part.
+id_sort(L0, L) :-
+    maplist([X, K-X]>>id_key(X, K), L0, P0), sort(P0, P), pairs_values(P, L).
+
+id_key(X, K) :-
+    (   var(X) -> K = X
+    ;   number(X) -> K = n(X)
+    ;   ( atom(X) ; string(X) )
+    ->  atom_codes(X, Cs), id_runs(Cs, K)
+    ;   compound(X) -> X =.. [F|As], maplist(id_key, As, Ks), K =.. [F|Ks]
+    ;   K = X
+    ).
+
+id_runs([], []).
+id_runs([C|Cs], [R|Rs]) :-
+    (   code_type(C, digit)
+    ->  id_span(digit, [C|Cs], Ds, Rest), number_codes(N, Ds), R = n(N)
+    ;   id_span(nondigit, [C|Cs], Ts, Rest), atom_codes(A, Ts), R = t(A)
+    ),
+    id_runs(Rest, Rs).
+
+id_span(Kind, [C|Cs], [C|Xs], Rest) :-
+    ( Kind == digit -> code_type(C, digit) ; \+ code_type(C, digit) ), !,
+    id_span(Kind, Cs, Xs, Rest).
+id_span(_, Rest, [], Rest).
+
+say(Fmt0, Args) :- name_text(Fmt0, Fmt), format(Fmt, Args), nl.
 
 txt(T, S) :- ( atom(T) -> S = T ; term_text(T, S) ).
 plain_text(T, S) :- ( atomic(T) -> format(string(S), "~w", [T]) ; term_text(T, S) ).
@@ -10839,7 +10926,7 @@ show_section(_, Eng, hypothesis) :-
     forall(member([H, K, T], Hs),
            ( one_line(T, TT), say("- ~w (~w): ~w", [H, K, TT]),
              (   eng_all(Eng, [N], supersedes(N, H), Ns), Ns \== []
-             ->  atomic_list_concat(Ns, ', ', NT), say("  State: superseded by ~w.", [NT])
+             ->  id_sort(Ns, NsS), atomic_list_concat(NsS, ', ', NT), say("  State: superseded by ~w.", [NT])
              ;   say("  State: current.", [])
              ),
              premise_lines(Eng, H, PLs),
@@ -10870,7 +10957,7 @@ show_section(_, Eng, hypotheses) :-
         forall(member([G, _, A, T], Old),
                ( one_line(T, TT), author_words(A, AT),
                  ( string_length(TT, Len), Len > 100 -> sub_string(TT, 0, 100, _, Short) ; Short = TT ),
-                 eng_all(Eng, [N], supersedes(N, G), Ns), atomic_list_concat(Ns, ', ', NT),
+                 eng_all(Eng, [N], supersedes(N, G), Ns), id_sort(Ns, NsS), atomic_list_concat(NsS, ', ', NT),
                  say("- ~w (~w, superseded by ~w): ~w", [G, AT, NT, Short]) ))
     ).
 show_section(KB, Eng, claims) :-
@@ -10893,7 +10980,7 @@ show_section(KB, Eng, claims) :-
     forall(member([C, L, T], Cs),
            ( txt(T, TT), say("- ~w (~w): ~w", [C, L, TT]),
              ( eng_member(Eng, CurS, C, current(C)) -> St0 = "current"
-             ; eng_lookup(Eng, SupBy, C, N, supersedes(N, C), Ns), Ns \== [] -> atomic_list_concat(Ns, ', ', NT),
+             ; eng_lookup(Eng, SupBy, C, N, supersedes(N, C), Ns), Ns \== [] -> id_sort(Ns, NsS), atomic_list_concat(NsS, ', ', NT),
                fmt(St0, "superseded by ~w", [NT])
              ; eng_all(Eng, [PH, PS], ( predicts(PH, C), hypothesis_state(PH, PS) ), [[PH1, PS1]|_])
              ->  fmt(St0, "not current (its hypothesis ~w is ~w)", [PH1, PS1])
@@ -10998,7 +11085,7 @@ show_section(KB, Eng, experiments) :- !, show_experiments(KB, Eng, _).
 show_section(KB, Eng, experiments(Id)) :- !, show_experiments(KB, Eng, Id).
 show_section(_, Eng, stale) :- !,
     say("Stale verdicts:", []),
-    eng_all(Eng, [A, C], ( check(K, C), latest_run(K, A), verdict_stale(A, C) ), SL0), sort(SL0, SL),
+    eng_all(Eng, [A, C], ( check(K, C), latest_run(K, A), verdict_stale(A, C) ), SL0), id_sort(SL0, SL),
     (   SL == [] -> say("- None.", []) ; true ),
     forall(member([A, C], SL),
            (   eng_true(Eng, stale_grandfathered(A, C))
@@ -11100,7 +11187,7 @@ ready_sentence(_, N, Id, S) :- fmt(S, "~w ~w blocks discovery_ready.", [N, Id]).
 % stale_pin_text(+Eng, +P, -S) (D32 O3): what a stale pin that the KB still rests on is.
 stale_pin_text(Eng, P, S) :-
     (   eng_all(Eng, [K, Src], pin(P, K, Src, _, _), [[K1, Src1]|_]) -> true ; K1 = '?', Src1 = '?' ),
-    eng_all(Eng, [D], ( concerns(D, P), current_fact(D) ), Ds0), sort(Ds0, Ds),
+    eng_all(Eng, [D], ( concerns(D, P), current_fact(D) ), Ds0), id_sort(Ds0, Ds),
     (   Ds == []
     ->  fmt(S, "the ~w pin of ~w is stale (lint WP8): it changed after the pin, and the KB rests on it. Read it, then pin it again.", [K1, Src1])
     ;   atomic_list_concat(Ds, ', ', DT),
@@ -11111,11 +11198,11 @@ stale_pin_text(Eng, P, S) :-
 % what was not carried over to the current goal.
 stage2_notes(KB, Eng, Lines) :-
     (   has_build(KB)
-    ->  eng_all(Eng, [A, C], stale_grandfathered(A, C), SG0), sort(SG0, SG),
+    ->  eng_all(Eng, [A, C], stale_grandfathered(A, C), SG0), id_sort(SG0, SG),
         findall(L, ( member([A, C], SG), fmt(L, "- stale (done before the upgrade): the verdict of run ~w for claim ~w is older than a change that serves the claim. It blocks nothing.", [A, C]) ), L1),
-        eng_all(Eng, [X], to_discovery(X), TD0), sort(TD0, TD),
+        eng_all(Eng, [X], to_discovery(X), TD0), id_sort(TD0, TD),
         findall(L, ( member(X, TD), fmt(L, "- For discovery: ~w goes back to discovery, through review.", [X]) ), L2),
-        eng_all(Eng, [X], ( not_carried(X), not(not_carried_run(X)) ), NC0), sort(NC0, NC),
+        eng_all(Eng, [X], ( not_carried(X), not(not_carried_run(X)) ), NC0), id_sort(NC0, NC),
         findall(L, ( member(X, NC), fmt(L, "- Not carried over: ~w is of an older goal, and no record carries it over (carried/2). It does not count for the current goal.", [X]) ), L3),
         append([L1, L2, L3], Lines0)
     ;   Lines0 = []
@@ -11127,7 +11214,7 @@ stage2_notes(KB, Eng, Lines) :-
 % supports a project goal that its owner dropped. It blocks nothing and closes nothing.
 dropped_goal_notes(KB, Eng, Lines) :-
     (   kb_uses(KB, Us), memberchk(project, Us)
-    ->  eng_all(Eng, [G, PG], goal_rests_on_dropped(G, PG), GP0), sort(GP0, GP),
+    ->  eng_all(Eng, [G, PG], goal_rests_on_dropped(G, PG), GP0), id_sort(GP0, GP),
         findall(L, ( member([G, PG], GP),
                      (   eng_all(Eng, [By, At, Tx], project_goal_dropped_by(PG, By, At, Tx), [[By1, At1, Tx1]|_])
                      ->  txt(Tx1, TT),
@@ -11140,7 +11227,7 @@ dropped_goal_notes(KB, Eng, Lines) :-
 
 show_experiments(KB, Eng, Only) :-
     say("Experiments:", []),
-    eng_all(Eng, [E, Kind, C], experiment(E, Kind, C), Es0), sort(Es0, Es1),
+    eng_all(Eng, [E, Kind, C], experiment(E, Kind, C), Es0), id_sort(Es0, Es1),
     (   var(Only) -> Es = Es1
     ;   include([[E1, _, C1]]>>( E1 == Only ; C1 == Only ; eng_true(Eng, ( attest(E1, test_result, _, result(Only, _, _), _, _) )) ), Es1, Es)
     ),
@@ -11230,11 +11317,11 @@ blocking_line(_, Eng, request_stale(R), S) :- !,
     eng_all(Eng, [Ref], request_pin(R, Ref, _, _), Refs), ( last(Refs, Ref1) -> true ; Ref1 = '?' ),
     fmt(S, "- request_stale ~w: the request text of ~w changed since the KB pinned it. Read the item; a human accepts the new text with orbit-kb pin-request --request-file F --accept --by human.", [R, Ref1]).
 blocking_line(_, Eng, project_contradiction(X), S) :- !,
-    eng_all(Eng, [Y], project_contradiction(X, Y), Ys0), sort(Ys0, Ys),
+    eng_all(Eng, [Y], project_contradiction(X, Y), Ys0), id_sort(Ys0, Ys),
     atomic_list_concat(Ys, ', ', YT),
     fmt(S, "- project_contradiction ~w: a claim pins ~w of the project KB, and ~w cannot hold together with ~w there (excludes). Ask a human to supersede one side in the project KB, or change the claim.", [X, X, X, YT]).
 blocking_line(_, Eng, goal_contradicts(G), S) :- !,
-    eng_all(Eng, [P], goal_contradiction_open(G, P), Ps0), sort(Ps0, Ps),
+    eng_all(Eng, [P], goal_contradiction_open(G, P), Ps0), id_sort(Ps0, Ps),
     atomic_list_concat(Ps, ', ', PT),
     fmt(S, "- goal_contradicts ~w: the goal contradicts the project goal ~w. This is a question for the human before the build: add question(Q, ~w, 'TEXT'), and record the human's answer.", [G, PT, G]).
 % 0.8.0, stage 2 (D57 to D61): one clear line for each new term.
@@ -11248,7 +11335,7 @@ blocking_line(_, Eng, check_unresolved(K), S) :- !,
     ).
 blocking_line(_, Eng, verdict_stale(K), S) :- !,
     item_text(Eng, K, T),
-    eng_all(Eng, [X], ( check(K, C), latest_run(K, A), serves(X, C), change_after_run(X, A) ), Xs0), sort(Xs0, Xs),
+    eng_all(Eng, [X], ( check(K, C), latest_run(K, A), serves(X, C), change_after_run(X, A) ), Xs0), id_sort(Xs0, Xs),
     atomic_list_concat(Xs, ', ', XT),
     fmt(S, "- verdict_stale ~w: the last run of check ~w is older than a change that serves its claim (~w): the verdict is of an older state. Run the check again: ~w", [K, K, XT, T]).
 blocking_line(_, Eng, conflict_unlocated(A), S) :- !,
@@ -11265,7 +11352,7 @@ blocking_line(_, Eng, goal_unjudged(G), S) :- !,
     (   eng_true(Eng, goal_judgment(_, G, not_satisfied))
     ->  fmt(S, "- goal_unjudged ~w: the last judgment of the human says that goal ~w is not satisfied. The ticket is done only on the judgment that it is: orbit-kb judge ~w satisfied --by human (only the human judges): ~w", [G, G, G, T])
     ;   human_name(Eng, HN), cap_first(HN, HNC),
-        fmt(S, "- goal_unjudged ~w: the human has not judged that goal ~w is satisfied. Show the result to the human. ~w records it on the Desk (Goal satisfied), or with: orbit judge ~w satisfied --by human: ~w", [G, G, HNC, G, T])
+        fmt(S, "- goal_unjudged ~w: the human has not judged that goal ~w is satisfied. Show the result to the human. ~w records it on the Desk (Goal satisfied), or with: orbit-kb judge ~w satisfied --by human: ~w", [G, G, HNC, G, T])
     ).
 blocking_line(_, Eng, behavior_open(B), S) :- !,
     ( eng_all(Eng, [T], behavior_conflict(B, T), [T1|_]) -> txt(T1, TT) ; TT = '?' ),
@@ -11510,7 +11597,7 @@ cmd_pin_request(KB, Args, Code) :-
     ;   kb_file(KB, KbFile), append_lines(KbFile, Lines),
         forall(member(L, Lines), format("~w~n", [L])),
         (   L1 \== [], L2 == []
-        ->  format(user_error, "The request text changed at ~w. The request is stale (lint W8) until a human accepts the new text: orbit-kb pin-request --request-file F --accept --by human.~n", [Ref])
+        ->  nformat(user_error, "The request text changed at ~w. The request is stale (lint W8) until a human accepts the new text: orbit-kb pin-request --request-file F --accept --by human.~n", [Ref])
         ;   true
         )
     ),
@@ -11818,7 +11905,7 @@ door_kb_load(Dir, R) :-
           ;   err_text(E, M), R = bad(M)
           )),
     (   R = bad(Msg)
-    ->  format(user_error, "note: the KB ~w gives no answer here: ~w Run orbit-kb --dir ~w lint.~n", [Dir, Msg, Dir])
+    ->  nformat(user_error, "note: the KB ~w gives no answer here: ~w Run orbit-kb --dir ~w lint.~n", [Dir, Msg, Dir])
     ;   true
     ).
 
@@ -12753,7 +12840,7 @@ auto_record_drops_(KB, Opts) :-
                                format(user_error, "- ~w: the ~w edit lost by date; recorded in the hub ledger as ~w (only a human closes it)~n", [D, Side, Id]) ),
                              orbit_error(_, Ls),
                              ( atomic_list_concat(Ls, ' ', M),
-                               format(user_error, "- ~w: the ~w edit lost by date; the hub ledger did not take it (~w). Run: orbit-kb --dir ~w project dropped --hub ~w --session S~n", [D, Side, M, ADir, Hub]) ))
+                               nformat(user_error, "- ~w: the ~w edit lost by date; the hub ledger did not take it (~w). Run: orbit-kb --dir ~w project dropped --hub ~w --session S~n", [D, Side, M, ADir, Hub]) ))
                    )),
             forall(member([D, P], Ov),
                    catch(( overwrite_handle(Eng, Hub, SessArgs, Rel, J, D, P, R),
@@ -12762,11 +12849,11 @@ auto_record_drops_(KB, Opts) :-
                            ) ),
                          orbit_error(_, Ls),
                          ( atomic_list_concat(Ls, ' ', M),
-                           format(user_error, "- ~w: the push overwrote the tracker edit of pin ~w; the hub ledger did not take it (~w). Run: orbit-kb --dir ~w project dropped --hub ~w --session S~n", [D, P, M, ADir, Hub]) )))
+                           nformat(user_error, "- ~w: the push overwrote the tracker edit of pin ~w; the hub ledger did not take it (~w). Run: orbit-kb --dir ~w project dropped --hub ~w --session S~n", [D, P, M, ADir, Hub]) )))
         ;   forall(member([D, Side], L),
-                   format(user_error, "- ~w: the ~w edit lost by date; no hub ledger was found to record it. Run: orbit-kb --dir ~w project dropped --hub DIR~n", [D, Side, ADir])),
+                   nformat(user_error, "- ~w: the ~w edit lost by date; no hub ledger was found to record it. Run: orbit-kb --dir ~w project dropped --hub DIR~n", [D, Side, ADir])),
             forall(member([D, P], Ov),
-                   format(user_error, "- ~w: the push overwrote the tracker edit of pin ~w; no hub ledger was found to record it. Run: orbit-kb --dir ~w project dropped --hub DIR~n", [D, P, ADir]))
+                   nformat(user_error, "- ~w: the push overwrote the tracker edit of pin ~w; no hub ledger was found to record it. Run: orbit-kb --dir ~w project dropped --hub DIR~n", [D, P, ADir]))
         )
     ).
 
@@ -13070,7 +13157,7 @@ flare_parts(Eng, bs(_, _, WaivBy, FlareS, ShownS), C, Head, Detail) :-
     ->  Head = "Flare: shown.",
         eng_all(Eng, [S, P], ( demo(S, C), attest(_, approval, S, digest(D), human, _), subject(S, P, D) ), SPs),
         findall(T, ( member([S, P], SPs), fmt(T, "~w (~w)", [S, P]) ), Ts0),
-        sort(Ts0, Ts), atomic_list_concat(Ts, ', ', TsT),
+        id_sort(Ts0, Ts), atomic_list_concat(Ts, ', ', TsT),
         fmt(Detail, "A human approved demo ~w.", [TsT])
     ;   eng_lookup(Eng, WaivBy, C, D, ( attest(W, waiver, _, waive(C, D, _), human, _), not(waiver_lapsed(W)) ), [D1|_])
     ->  Head = "Flare: NOT SHOWN.", fmt(Detail, "A human waived the demo until ~w.", [D1])
@@ -13247,7 +13334,8 @@ rnode(Depth, Text-Kids) :-
     forall(member(K, Kids), rnode(D1, K)).
 
 % rsay(+Tag, +Fmt, +Args): a bullet with no nesting.
-rsay(Tag, Fmt, Args) :-
+rsay(Tag, Fmt0, Args) :-
+    name_text(Fmt0, Fmt),
     format(string(S), Fmt, Args),
     rtree(Tag, S, S-[]).
 
@@ -13589,13 +13677,13 @@ report_text(KB, Eng) :-
     ),
     ( has_discovery(KB) -> vote_section(Eng) ; true ),
     % 0.8.0 (D59, c10): each formal statement that the human has not accepted.
-    (   call(Build), eng_all(Eng, [FS, FC], formal_unaccepted(FS, FC), FUs0), sort(FUs0, FUs), FUs \== []
+    (   call(Build), eng_all(Eng, [FS, FC], formal_unaccepted(FS, FC), FUs0), id_sort(FUs0, FUs), FUs \== []
     ->  rhead('Formal: not yet accepted by the human'),
         forall(member([FS, FC], FUs),
                rsay(item(FS), "~w states claim ~w. The human has not said that it says what the claim means (orbit-kb judge ~w accepts ~w --by human).", [FS, FC, FS, FC]))
     ;   true
     ),
-    (   call(Build), eng_all(Eng, [TDX], to_discovery(TDX), TDs0), sort(TDs0, TDs), TDs \== []
+    (   call(Build), eng_all(Eng, [TDX], to_discovery(TDX), TDs0), id_sort(TDs0, TDs), TDs \== []
     ->  rhead('For discovery'),
         forall(member(TDX, TDs), rsay(item(TDX), "~w goes back to discovery, through review.", [TDX]))
     ;   true
@@ -13852,7 +13940,7 @@ hyp_lines(Eng, H, Head, Lines) :-
     % review B4: the citation is a line of its own under the header.
     (   St == proposed, eng_all(Eng, [W], adoption_cited(H, W), [W1|_])
     ->  one_line(W1, WT), human_name(Eng, HN), cap_first(HN, HNC),
-        format(string(L0a), "Cited as adopted (the agent's reading of ~w's words): '~w'. ~w adopts it with Adopt on the Desk, or with: orbit adopt ~w --by human", [HN, WT, HNC, H]),
+        fmt(L0a, "Cited as adopted (the agent's reading of ~w's words): '~w'. ~w adopts it with Adopt on the Desk, or with: orbit-kb adopt ~w --by human", [HN, WT, HNC, H]),
         L0 = [L0a]
     ;   L0 = []
     ),
@@ -13872,7 +13960,7 @@ hyp_lines(Eng, H, Head, Lines) :-
     ->  L2 = ["Premises: not stated. Add premise(P, H, TEXT) or no_premises(H) for this hypothesis (lint W10)."]
     ;   L2 = []
     ),
-    eng_all(Eng, [C], predicts(H, C), Cs),
+    eng_all(Eng, [C], predicts(H, C), Cs0), id_sort(Cs0, Cs),
     (   Cs == [] -> L3 = ["Predictions: none."]
     ;   atomic_list_concat(Cs, ', ', CsT), format(string(L3a), "Predictions: ~w.", [CsT]), L3 = [L3a]
     ),
@@ -13936,7 +14024,7 @@ review_section(Eng, Cs) :-
     findall(C2, ( member([C2, _, _], Cs), memberchk(C2, NV0) ), NVs),
     (   NVs == []
     ->  ( Cs == [] -> true ; rsay(none, "Every current claim is independently verified.", []) )
-    ;   atomic_list_concat(NVs, ', ', NVT),
+    ;   id_sort(NVs, NVsS), atomic_list_concat(NVsS, ', ', NVT),
         rsay(review_open, "Not independently verified: ~w.", [NVT])
     ).
 
@@ -14471,10 +14559,12 @@ help_general([
 "",
 "How to use (read this first; the topics hold the details):",
 "  1. orbit-kb init DIR --request 'the human's words' --uses MODULE",
-"     MODULE: discovery when the request is not clear enough to state its hypothesis (a",
-"     report); build when you can state it. Every ticket has a hypothesis.",
-"  2. orbit-kb add \"hypothesis(h1, feature, 'TEXT')\" 'no_premises(h1)'   the hypothesis first,",
-"     with its premises beside it (premise(P, h1, 'TEXT'), or no_premises(h1))",
+"     MODULE: discovery when the request is not clear enough to state its goal (a",
+"     report); build when you can state it. Every ticket has a goal.",
+"  2. orbit-kb add \"goal(g1, feature, agent, 'TEXT')\" 'no_premises(g1)'   the goal first,",
+"     with its premises beside it (premise(P, g1, 'TEXT'), or no_premises(g1)); then the avenue:",
+"     orbit-kb add \"hypothesis(hy1, g1, agent, 'TEXT')\" \"defeating_case(hy1, agent, 'TEXT')\"",
+"     The author is human when the human gave the words.",
 "  3. orbit-kb add 'claim(...)' 'cites(...)' 'check(k1, c1)' 'checks_that(k1, ...)'   write facts; never edit kb.pl",
 "  4. orbit-kb run k1 -- CMD       run each check; it must fail first for retire and introduce",
 "  5. build the change, then orbit-kb run again",
@@ -14508,7 +14598,7 @@ help_general([
 "  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
 "  uses MODULE ...",
 "  withdraw NAME/ARITY [--by human|agent]      remove a kind that a typo declared (lint E19)",
-"  shift DIR --request-file F --hypothesis T (--no-premises|--premise T ...) --claim T --example T --check ID --checks-that T",
+"  shift DIR --request-file F [--goal T [--goal-by human|agent]] --hypothesis T [--defeating-case T] (--no-premises|--premise T ...) --claim T --example T --check ID --checks-that T",
 "  add 'FACT' ... [--by human|agent] [--doc TEXT]",
 "  subject ID PATH",
 "  attest TYPE SUBJECT 'PREDICATE' [--by human|agent] [--id ID] [--rests-on RUN,...]",

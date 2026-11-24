@@ -1,10 +1,12 @@
 orbit-kb help shift: from words to records in one step (the light path shifts up)
 
 When a signal fires on the light path ("Shifting up: ..."), the words become a KB. The words
-are the request, the hypothesis with its premises, one claim, one example, and the check.
+are the request, the goal with its premises, the hypothesis under it, one claim, one example,
+and the check.
 Read this topic, then run one command:
 
-  orbit-kb shift DIR --request-file F --hypothesis 'TEXT' [--kind K]
+  orbit-kb shift DIR --request-file F --goal 'TEXT' [--goal-by human|agent]
+                     --hypothesis 'TEXT' [--defeating-case 'TEXT'] [--kind K]
                      (--no-premises | --premise 'TEXT' ...)
                      --claim 'TEXT' [--label L] --example 'TEXT' --check ID
                      --checks-that 'TEXT'
@@ -12,11 +14,16 @@ Read this topic, then run one command:
 
   DIR           a new KB directory (in a hub: specs/<slug>/). shift never overwrites a KB.
   F             the request, word for word (or --request 'TEXT'): request(r1, TEXT).
-  --hypothesis  what must be true when the ticket is done: hypothesis(h1, K, TEXT).
+  --goal        the intent; it names no avenue: goal(g1, K, AUTHOR, TEXT).
                 K is defect, feature (the default), risk, or change.
-  --premise     one premise each time: premise(p1, h1, TEXT), p2, ... A premise that you
-                did not check is a guess (report, Guesses). --no-premises records
-                "Premises: none" (no_premises(h1)). Give one of the two.
+  --goal-by     the author: human when the human gave the words, else agent (the default).
+  --hypothesis  with --goal, one avenue to the goal: hypothesis(hy1, g1, AUTHOR, TEXT).
+  --defeating-case  the case that would show the hypothesis false: defeating_case(hy1, ...).
+                Without --goal, --hypothesis TEXT is the 0.7.2 form, hypothesis(h1, K, TEXT),
+                read as the goal (a note on stderr says so).
+  --premise     one premise each time, on the goal: premise(p1, g1, TEXT), p2, ... A premise
+                that you did not check is a guess (report, Guesses). --no-premises records
+                "Premises: none" (no_premises(g1)). Give one of the two.
   --claim       claim(c1, L, TEXT). L is introduce (the default), retire, or preserve.
                 cites(c1, ...) gets the first line of the request, or --cites TEXT.
   --example     example(c1, TEXT): one concrete case of the claim.

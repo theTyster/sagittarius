@@ -20,6 +20,10 @@ Each id is one claim of the ticket. A phrase is matched after whitespace is coll
        discovery, which re-evaluates and tempers a new one; build fixes a conflict located in the
        build; no text tells build to restate a hypothesis
   c16  Sound Basis in the words of Ty (2026-11-23), and what follows for a change that no claim names
+  h1   (review H1) no help topic (kb/share/orbit-kb/help/) and not the help text inside kb/bin/orbit-kb
+       holds the 0.7.2 meaning: "what must be true when the ticket is done: hypothesis", "Every ticket
+       has a hypothesis", or a line that tells build to restate a hypothesis ("restate it: the new
+       hypothesis")
   c45  the light path keeps at most 7 numbered Build steps and 4 Discovery steps, needs no KB, and
        asks for no adoption and no judgment
 
@@ -158,6 +162,31 @@ def c16():
                          "Report the conflict: it opens that behavior for review"])
 
 
+H1_OLD = ["what must be true when the ticket is done: hypothesis", "Every ticket has a hypothesis",
+          "restate it: the new hypothesis"]
+
+
+def h1():
+    texts = sorted(glob.glob(os.path.join(ROOT, "kb/share/orbit-kb/help/*.txt")))
+    bad = []
+    if len(texts) < 5:
+        bad.append(f"only {len(texts)} help topics were found: the check cannot hold the claim")
+    tool = os.path.join(ROOT, "kb/bin/orbit-kb")
+    if not os.path.isfile(tool):
+        bad.append("kb/bin/orbit-kb is missing: the check cannot read its help text")
+    else:
+        texts.append(tool)
+    for p in texts:
+        t = open(p, encoding="utf-8").read()
+        if p == tool:
+            t = re.sub(r'",\s*"', " ", t)  # one help line per Prolog string: join them
+        t = " ".join(t.split()).lower()
+        for o in H1_OLD:
+            if o.lower() in t:
+                bad.append(f"{os.path.relpath(p, ROOT)}: still says {o!r} (the 0.7.2 meaning of the hypothesis)")
+    return bad
+
+
 def c45():
     text = read(PROMPT)
     m = re.search(r"^## The light path\n(.*?)(?=^## )", text, re.S | re.M)
@@ -180,7 +209,7 @@ def c45():
                                "On the light path nothing is recorded: the human judges the delivery"])
 
 
-CHECKS = {"c7": c7, "c9": c9, "c10": c10, "c11": c11, "c13": c13, "c14": c14, "c15": c15, "c16": c16, "c45": c45}
+CHECKS = {"c7": c7, "c9": c9, "c10": c10, "c11": c11, "c13": c13, "c14": c14, "c15": c15, "c16": c16, "h1": h1, "c45": c45}
 
 
 def main(argv):

@@ -154,28 +154,40 @@ When the human says that it is wrong (as the prompt says)
   - Someone misread the intent: a part of the result did not match what the human asked for
     at the time. Shift up, and record a divergence on its claim:
       orbit-kb attest divergence C 'claim(C)'      and a note that says what differed.
-    Then decide which is wrong, the build or the hypothesis (step 1 below).
+    Then locate the conflict: the build, the measurement, or a premise or the hypothesis
+    (step 1 below).
   - The intent moved: the result matched, and the human now wants a part of it changed.
     Nobody misread. For that part, record a new claim that supersedes the old one, and record
     no divergence against the old claim: it was right when it was made. The claims that the
     human liked stay, and their checks stay.
       orbit-kb add "claim(c2, introduce, 'NEW TEXT')" "supersedes(c2, c1)" "check(k2, c2)" "checks_that(k2, 'what it checks, in plain words')"
   - The new wish adds to the result and changes nothing in it: it is a new ticket, with its
-    own hypothesis (and its own KB when a signal comes). This KB keeps what is open in it.
+    own goal (and its own KB when a signal comes). This KB keeps what is open in it.
   If you cannot tell whether you misread or the intent moved, do not guess. Say so, and treat
   it as a divergence.
-  On the light path, shift up now: start a KB with the request, the hypothesis and its
-  premises (or no_premises), then your claims and the checks so far: orbit-kb shift does it
-  in one command (orbit-kb help shift).
+  On the light path, shift up now: start a KB with the request, the goal and its premises
+  (or no_premises), the hypothesis under it, then your claims and the checks so far:
+  orbit-kb shift does it in one command (orbit-kb help shift).
   After a divergence:
-  1. Decide which is wrong. When a check fails and the hypothesis still reads true, the build
-     is wrong: fix the build. When the human wants a case that the hypothesis rejects, or
-     rejects a case that it accepts, the hypothesis must change. If the answer says what it
-     changes to ("only on this page"), restate it: the new hypothesis supersedes the old one.
-     Show it, and go on:
-       orbit-kb add "hypothesis(h2, feature, 'NEW TEXT')" "no_premises(h2)" "supersedes(h2, h1)"
-     Only when you can no longer say what the hypothesis changes to, the ticket is a report
-     again: orbit-kb uses discovery, and go back to discovery (orbit-kb help discovery, BACK).
+  1. Locate the conflict first, with the evidence. A conflict does not say what is wrong.
+     - In the build: the build does not do what the hypothesis says. Fix the build. The
+       hypothesis stays current.
+     - In the measurement: the check, or a premise of its measurement, is wrong. Repair the
+       experiment, and run it again.
+     - In a premise or in the hypothesis: the build does what the hypothesis says, and the
+       claim still conflicts. This location counts only when a party that did not build
+       confirms it (a reviewer, a fresh-eyes subagent, or the human). Then the hypothesis is
+       defeated, and the ticket goes to discovery, which tempers a new one. You do not write
+       the new hypothesis. Propose the location, and the other party confirms it:
+         orbit-kb locate RUN hypothesis:hy1 --evidence 'WHAT CONFLICTS'
+       (THE LOCATION OF A CONFLICT, below.) Then hand the ticket to discovery.
+     - The human corrects the goal and says what it changes to ("only on this page"): record
+       goal g2 in the words of the human. It supersedes g1. Carry over each hypothesis, claim
+       and run that still counts. Show the new goal, and go on:
+         orbit-kb add "goal(g2, feature, human, 'THE HUMAN'S WORDS')" "no_premises(g2)" "supersedes(g2, g1)"
+         orbit-kb add "carried(hy1, g2)" "carried(c1, g2)"     one for each record that still counts
+     Only when you can no longer say what the goal changes to, the ticket is a report again:
+     orbit-kb uses discovery, and go back to discovery (orbit-kb help discovery, BACK).
   2. Record the human's answer: answer(Q, Answer, human). Defaults that conflict with it are
      now defeated.
   3. Query to_ask(Q). Ask that small cluster, not every dormant question.
@@ -264,8 +276,10 @@ that serves the claim is the control (control(A)): it needs no location.
 THE JUDGMENT OF THE HUMAN (0.8.0)
 Only the human judges (--by human). A judgment changes the verdict of no experiment.
   orbit-kb judge G satisfied|not-satisfied --by human [--note 'the words']
-  orbit-kb judge G case 'TEXT' wanted|not-wanted --by human
-  orbit-kb judge S accepts C --by human       the formal statement S says what claim C means
+  orbit-kb judge G case 'TEXT' wanted|not-wanted --by human [--note 'the words']
+  orbit-kb judge S accepts C --by human [--note 'the words']   the formal statement S says what claim C means
+The note keeps the words of the human on the record: note(A, WORDS). In an agent session (CLAUDECODE,
+AI_AGENT or CLAUDE_CODE_SESSION_ID is set), judge and adopt --by human need --note.
 A ticket is done when nothing holds it up and the latest judgment of its goal says satisfied:
 blocking(goal_unjudged(G)). A case that the human judged not wanted is recorded against the
 hypothesis that allowed it: orbit-kb add 'case_against(J, H)' defeats H. With a current hypothesis
