@@ -196,8 +196,8 @@ dirs (a root file, a skill, the project KB), never left to roll off.
 query`, `orbit hub ledger ...`); `hubflow.py` stays the storage engine of the ledger, and every
 `hubflow.py` command still works. In the hub, `orbit` is `.claude/orbit-kb/bin/orbit`. Each item of
 work has a purpose that leads to a project goal. An item can name its goal with a `goal:` ref, and
-`orbit hub orphans` lists the items with no live chain. A ticket closes on the human's judgment
-that its goal is satisfied.
+`orbit hub orphans` lists the items with no live chain. A ticket with a KB closes when nothing holds
+it up and the human judged that its goal is satisfied. Work on the light path records no judgment.
 
 Asks to a human, in-flight threads, holds and handoffs between sessions are rows in `flow/flow.db`,
 written only by `hubflow.py`. Load the `hub-flow` skill before any write. Each session has an

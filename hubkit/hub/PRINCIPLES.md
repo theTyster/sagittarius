@@ -45,10 +45,11 @@ From the prompt: "The hypothesis"
 
 ## Experiments judge claims; the human judges the goal
 
-Locate a conflict first: the build, the measurement, a premise, or the hypothesis. A ticket closes
-on the human's judgment that its goal is satisfied. Sound Basis (Ty): "Existing behavior is presumed
-to be preserved. A claim in the specification can identify behavior to change. A demonstrated
-conflict opens the affected behavior for review."
+Locate a conflict first: the build, the measurement, a premise, or the hypothesis. A ticket with a
+KB closes when nothing holds it up and the human judged that its goal is satisfied. Work on the
+light path records no judgment. Sound Basis (a premise of the method): "Existing behavior is
+presumed to be preserved. A claim in the specification can identify behavior to change. A
+demonstrated conflict opens the affected behavior for review."
 From the prompt: "Verdicts"
 
 ## Start light, shift up on a signal, lean back
