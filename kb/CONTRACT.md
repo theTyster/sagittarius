@@ -1157,6 +1157,14 @@ The tests are `kb/tests/test_door.sh`. The agent-facing text is `orbit-kb help h
 - `orbit hub orphans` prints, apart: "Orphans (N)", "Over (N)", "Reports on a done ticket (N)",
   "Ticket goals with no live project goal (N)", "Dropped project goals (N)" with each ticket goal
   and each open item that rested on the goal. Exit 0. It stops nothing and closes nothing.
+- The Orphans list is grouped by where the chain ends (`ends_at/2`), the largest group first (a tie
+  in the order of `ends_at/2`), each group under one count line: "N items whose chain ends at
+  WHERE:", and for `ticket_goal` "N items under M ticket goals that name no project goal:", with
+  each such ticket goal once ("  SLUG G (N items): WHY") and its items under it ("  - ID ...").
+  Each orphan is on one line, once, with where its chain ends. Before the last line
+  ("This is a list. Nothing was stopped, and nothing was closed.") the block "To give an item a
+  purpose:" names `orbit --dir specs/SLUG add "supports(G, project(PG))"` and
+  `orbit hub ledger ref ID add goal:PG` (under the name that was called). Test DP3.
 - The 14 cases of `models/purpose_cases.pl` give the answers that they name (test DP1).
 
 ### D69: `orbit s1-record [--hub DIR] [--session S] [--dir KB] --json` (claim c46)

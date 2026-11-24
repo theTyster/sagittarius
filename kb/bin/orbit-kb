@@ -12162,7 +12162,8 @@ cmd_hub_orphans(Args, Code) :-
     say("Open items of the ledger: ~d.", [NOp]),
     nl,
     say("Orphans (~d): an open item with no live chain of records to a project goal.", [NOr]),
-    forall(member(I, Or), ( door_orphan_line(Eng, I, L), say("- ~w", [L]) )),
+    door_orphan_groups(Eng, Or, Groups),
+    forall(member(E-Is, Groups), ( nl, door_orphan_group(Eng, E, Is) )),
     nl,
     say("Over (~d): an open row whose work is over. Its ticket is done, and the row was opened before that.", [NOv]),
     forall(member(I, Ov), ( door_ticket_line(Eng, I, L), say("- ~w", [L]) )),
@@ -12185,6 +12186,11 @@ cmd_hub_orphans(Args, Code) :-
              door_all(Eng, [I], rests_on_dropped(I, PG), RI),
              forall(member(I, RI), say("  - the open item ~w rested on it", [I])) )),
     nl,
+    tool_name(TN),
+    say("To give an item a purpose:", []),
+    say("- ~w --dir specs/SLUG add \"supports(G, project(PG))\"   the goal G of the ticket SLUG names the project goal PG", [TN]),
+    say("- ~w hub ledger ref ID add goal:PG   an item with no ticket names its project goal PG", [TN]),
+    nl,
     say("This is a list. Nothing was stopped, and nothing was closed.", []),
     Code = 0.
 
@@ -12196,10 +12202,70 @@ door_item_head(Eng, I, Head) :-
 
 door_orphan_line(Eng, I, Line) :-
     door_item_head(Eng, I, Head), nb_getval(door_title, Ti),
-    (   eng_all(Eng, [E], ends_at(I, E), [E|_]) -> true ; E = nothing ),
-    (   eng_all(Eng, [R], end_record(I, E, R), [R|_]) -> true ; R = none ),
+    door_orphan_end(Eng, I, E, R),
     door_end_text(E, R, ET),
     format(string(Line), "~w: its chain ends at ~w. Title: ~w", [Head, ET, Ti]).
+
+% door_orphan_end(+Eng, +I, -E, -R): where the chain of orphan I ends (ends_at/2) and the record
+% there (end_record/3, the first answer).
+door_orphan_end(Eng, I, E, R) :-
+    (   eng_all(Eng, [E0], ends_at(I, E0), [E0|_]) -> E = E0 ; E = nothing ),
+    (   eng_all(Eng, [R0], end_record(I, E, R0), [R0|_]) -> R = R0 ; R = none ).
+
+% The Orphans list leads the reader to the act: the orphans are grouped by where the chain ends,
+% the largest group first (ties in the order of ends_at/2), with one count line per group. Each
+% orphan is in one group, on one line that says where its chain ends.
+door_end_order([a_dropped_project_goal, ticket_goal, ticket_with_no_goal, a_dropped_ticket, a_dropped_item,
+                kb_outside_the_hub, tracker_or_url, a_file_commit_or_transcript, nothing]).
+
+door_orphan_groups(Eng, Or, Groups) :-
+    findall(E-I, ( member(I, Or), door_orphan_end(Eng, I, E, _) ), EIs),
+    door_end_order(Order),
+    findall(k(NegN, Pos)-(E-Is),
+            ( nth1(Pos, Order, E),
+              findall(I, member(E-I, EIs), Is), Is \== [],
+              length(Is, N), NegN is -N ),
+            Keyed),
+    keysort(Keyed, Sorted),
+    pairs_values(Sorted, Groups).
+
+door_orphan_group(Eng, ticket_goal, Is) :- !,
+    findall(TG-I, ( member(I, Is), door_orphan_end(Eng, I, ticket_goal, TG) ), TIs),
+    findall(TG, member(TG-_, TIs), TGs0), sort(TGs0, TGs),
+    findall(NegN-(TG-TIs1),
+            ( member(TG, TGs), findall(I, member(TG-I, TIs), TIs1), length(TIs1, N), NegN is -N ),
+            Keyed),
+    keysort(Keyed, Sorted), pairs_values(Sorted, Subs),
+    length(Is, NI), length(TGs, NG),
+    door_plural(NI, "item", "items", IW),
+    (   NG =:= 1 -> GW = "ticket goal that names" ; GW = "ticket goals that name" ),
+    say("~d ~w under ~d ~w no project goal:", [NI, IW, NG, GW]),
+    % (TG = T:G in the body: SWI-Prolog 9.2 finds no answer for member(T:G-SIs, Subs) as the
+    % condition of forall/2.)
+    forall(member(TG-SIs, Subs),
+           ( TG = T:G, length(SIs, NS), door_plural(NS, "item", "items", SW),
+             (   eng_all(Eng, [W], ticket_goal_ends(T, G, W), [W|_]) -> door_goal_end_text(W, WT)
+             ;   WT = "it names no live project goal"
+             ),
+             say("  ~w ~w (~d ~w): ~w", [T, G, NS, SW, WT]),
+             forall(member(I, SIs), ( door_orphan_line(Eng, I, L), say("  - ~w", [L]) )) )).
+door_orphan_group(Eng, E, Is) :-
+    length(Is, N), door_plural(N, "item", "items", IW),
+    door_group_text(E, GT),
+    say("~d ~w whose chain ends at ~w:", [N, IW, GT]),
+    forall(member(I, Is), ( door_orphan_line(Eng, I, L), say("- ~w", [L]) )).
+
+door_plural(1, One, _, One) :- !.
+door_plural(_, _, Many, Many).
+
+door_group_text(a_dropped_project_goal, "a dropped project goal").
+door_group_text(ticket_with_no_goal, "a ticket with no goal").
+door_group_text(a_dropped_ticket, "a dropped ticket").
+door_group_text(a_dropped_item, "a dropped item").
+door_group_text(kb_outside_the_hub, "a KB outside the hub").
+door_group_text(tracker_or_url, "a pointer to the tracker").
+door_group_text(a_file_commit_or_transcript, "a file, a commit or a transcript").
+door_group_text(nothing, "nothing (no ref and no link that passes a purpose)").
 
 door_end_text(a_dropped_project_goal, R, S) :- !, format(string(S), "the dropped project goal ~w", [R]).
 door_end_text(ticket_goal, T:G, S) :- !, format(string(S), "the goal ~w of ticket ~w, which names no live project goal", [G, T]).

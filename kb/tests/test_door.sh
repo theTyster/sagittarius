@@ -13,7 +13,8 @@
 #       through orbit; the files of memory, weeks and bespoke with a digest each; orbit runs a
 #       test itself                                                                             : DQ1 DQ2 DL1 DS1 DS2 DR1
 #   c27 hubflow.py through the door answers as hubflow.py itself; the goal ref                   : DL2 DL3
-#   c44 the 14 cases of purpose_cases.pl; the orphan lists on the scratch hub                    : DP1 DP2
+#   c44 the 14 cases of purpose_cases.pl; the orphan lists on the scratch hub, grouped by where
+#       the chain ends, with the commands that give an item a purpose                            : DP1 DP2 DP3
 #   c42, c17 a dropped project goal is named on each ticket goal and item; nothing is closed;
 #       a ticket goal that names no project goal is listed; no divergence                        : DG1 DG2 DG3
 #   c46 s1-record: the JSON of the active ticket and nothing else                                : DS3 DS4
@@ -284,12 +285,12 @@ t_DP2() {
     orb hub orphans; rc_is 0 || return
     out_has '^Open items of the ledger: 4\.$'
     out_has '^Orphans \(2\):'; out_has '^Over \(0\):'; out_has '^Reports on a done ticket \(0\):'
-    out_has "^- T-0001 .*its chain ends at the goal h1 of ticket beta, which names no live project goal"
+    out_has "^ *- T-0001 .*its chain ends at the goal h1 of ticket beta, which names no live project goal"
     out_has "^- K-0001 .*its chain ends at nothing"
-    out_hasnt '^- H-0001' "a handoff whose ticket goal supports a live project goal has a purpose"
-    out_hasnt '^- K-0002' "an item that names its goal directly has a purpose"
+    out_hasnt '^ *- H-0001' "a handoff whose ticket goal supports a live project goal has a purpose"
+    out_hasnt '^ *- K-0002' "an item that names its goal directly has a purpose"
     out_has '^Ticket goals with no live project goal \(1\)'; out_has '^- beta h1: it names no project goal$'
-    [ "$(printf '%s\n' "$out" | grep -c '^- [A-Z]-[0-9]')" = 2 ] || note "each orphan is listed once"
+    [ "$(printf '%s\n' "$out" | grep -c '^ *- [A-Z]-[0-9]')" = 2 ] || note "each orphan is listed once"
     hq "ticket_goal_unsupported(S, G)" -n 0; out_has '^S = beta, G = h1$'; out_hasnt 'alpha'
     # a new ask that blocks a dropped thread is an orphan, and its chain ends at a dropped item
     orb hub ledger --session build add ask --title "an ask on a dropped thread" --waits-on me --no-kb --note "the case, the options, the default"; rc_is 0 "add ask"
@@ -298,6 +299,40 @@ t_DP2() {
     hq "has_purpose('A-0001')"; rc_is 0 "a link to a live item passes its purpose on"
     orb hub ledger --session build --by human close T-0002 --reason dropped --note "not wanted"; rc_is 0 "drop the thread"
     hq "ends_at('A-0001', E)"; out_has '^E = a_dropped_item$'
+}
+t_DP3() {   # the Orphans list leads to the act: groups by where the chain ends, the fix commands
+    mkhub || return
+    orb hub ledger --session build add thread --title "beta: the second item" --owner build --ref kb:beta; rc_is 0 "thread" || return
+    orb hub ledger --session build add thread --title "beta: the third item" --owner build --ref kb:beta;  rc_is 0 "thread" || return
+    orb hub ledger --session build add hold --title "a hold with no ref" --owner build;                    rc_is 0 "hold" || return
+    orb hub orphans; rc_is 0 || return
+    out_has '^Orphans \(5\):'
+    # one count line per group, the largest group first
+    out_has '^3 items under 1 ticket goal that names no project goal:$' "the count line of the ticket goals"
+    out_has '^2 items whose chain ends at nothing \(no ref and no link that passes a purpose\):$' "the count line of the items with no ref"
+    local l3 l2
+    l3=$(printf '%s\n' "$out" | grep -n '^3 items under' | cut -d: -f1); l2=$(printf '%s\n' "$out" | grep -n '^2 items whose' | cut -d: -f1)
+    [ -n "$l3" ] && [ -n "$l2" ] && [ "$l3" -lt "$l2" ] || note "the largest group comes first (lines $l3 and $l2)"
+    # the ticket goal is named once, with its items under it
+    [ "$(printf '%s\n' "$out" | grep -c '^  beta h1 (3 items): it names no project goal$')" = 1 ] || note "the ticket goal beta h1 is named once: $(snip "$out")"
+    printf '%s\n' "$out" | sed -n '/^  beta h1 (3 items)/,/^$/p' | grep -Eq '^  - T-0001 .*its chain ends at the goal h1 of ticket beta' || note "T-0001 is under its ticket goal"
+    [ "$(printf '%s\n' "$out" | sed -n '/^  beta h1 (3 items)/,/^$/p' | grep -Ec '^  - T-000[1-3] ')" = 3 ] || note "the three items of beta h1 are under it"
+    printf '%s\n' "$out" | sed -n '/^2 items whose/,/^$/p' | grep -Eq '^- K-0001 .*its chain ends at nothing' || note "K-0001 is in the group of nothing"
+    printf '%s\n' "$out" | sed -n '/^2 items whose/,/^$/p' | grep -Eq '^- K-0003 .*its chain ends at nothing' || note "K-0003 is in the group of nothing"
+    # each orphan once, with where its chain ends
+    local ids
+    ids=$(printf '%s\n' "$out" | sed -n '/^Orphans/,/^Over/p' | grep -Eo '^ *- [A-Z]-[0-9]{4}' | tr -d ' -' | sort)
+    [ "$(printf '%s\n' "$ids" | grep -c .)" = 5 ] && [ -z "$(printf '%s\n' "$ids" | uniq -d)" ] || note "each of the 5 orphans is listed once: $ids"
+    [ "$(printf '%s\n' "$out" | sed -n '/^Orphans/,/^Over/p' | grep -E '^ *- [A-Z]-[0-9]{4}' | grep -vc 'its chain ends at')" = 0 ] || note "each orphan line says where its chain ends"
+    # the commands that give an item a purpose, before the last line, which stays as it was
+    out_has '^To give an item a purpose:$'
+    out_has '^- orbit --dir specs/SLUG add "supports\(G, project\(PG\)\)"   the goal G of the ticket SLUG names the project goal PG$'
+    out_has '^- orbit hub ledger ref ID add goal:PG   an item with no ticket names its project goal PG$'
+    local nb nl
+    nb=$(printf '%s\n' "$out" | grep -n '^To give an item a purpose:$' | cut -d: -f1); nl=$(printf '%s\n' "$out" | wc -l)
+    [ -n "$nb" ] && [ "$nb" -lt "$nl" ] || note "the block comes before the last line"
+    [ "$(printf '%s\n' "$out" | tail -1)" = "This is a list. Nothing was stopped, and nothing was closed." ] || note "the last line: $(printf '%s\n' "$out" | tail -1)"
+    okb hub orphans; out_has '^- orbit-kb --dir specs/SLUG add ' "under the name orbit-kb, the commands say orbit-kb"
 }
 t_DG1() {   # c42, c17: drop a project goal
     mkhub || return
@@ -393,6 +428,7 @@ run_test t_DS2 DS2 "c26: hub files lists memory, weeks and bespoke with a sha256
 run_test t_DR1 DR1 "c26: orbit runs a test and a z3 run with a time limit, and writes each result itself"
 run_test t_DP1 DP1 "c44: the 14 cases of purpose_cases.pl give the answers that the cases name"
 run_test t_DP2 DP2 "c44: hub orphans: three lists apart, each orphan once, with where its chain ends"
+run_test t_DP3 DP3 "c44: hub orphans groups the orphans by where the chain ends, names each ticket goal once, and gives the commands that give a purpose"
 run_test t_DG1 DG1 "c42, c17: a dropped project goal is named on each ticket goal and item; nothing is closed; no divergence"
 run_test t_DG2 DG2 "c17: a supports to a project goal that does not exist is a lint finding (WP10)"
 run_test t_DG3 DG3 "c17: a ticket goal that contradicts a project goal blocks until a human answers a question about it"
