@@ -30,7 +30,7 @@ if [ -d "$LIB" ]; then LIB=$(cd "$LIB" && pwd -P); fi
 if [ ! -f "$LIB/core.pl" ]; then echo "test_door.sh: the library is missing (no core.pl in $LIB)" >&2; exit 2; fi
 HF=$here/../../hubkit/hub/.claude/scripts/hubflow.py
 FIX=$here/fixtures/door
-for tool in swipl python3 sha256sum timeout mktemp grep sed cmp sort head cp; do
+for tool in swipl python3 sha256sum timeout mktemp grep sed cmp comm sort head cp; do
     command -v "$tool" >/dev/null 2>&1 || { echo "test_door.sh: required tool not found: $tool" >&2; exit 2; }
 done
 [ -f "$HF" ] || { echo "test_door.sh: hubflow.py is missing: $HF" >&2; exit 2; }
@@ -106,6 +106,12 @@ dn_lines() { cat <<'L'
 --dir KB show open
 --dir KB show blocking
 --dir KB report
+--dir KB pin-item
+--dir KB draft
+--dir KB draft blocking
+serve --help
+pin-item --help
+draft --help
 help query
 L
 }
@@ -131,7 +137,8 @@ t_DN2() {
     run_in "$T" "$OKB" nosuchcommand; rc_is 2; err_has 'Run `orbit-kb help` for usage' "a usage error as orbit-kb"
     run_in "$T" "$OKB" hub stores --hub "$FIX/hub"; rc_is 0 "the new commands answer under the old name too"
 }
-# The same form as the 0.7.2 tool itself, on a KB of 0.7.2 (git has the release commit e89d488).
+# The same form as the 0.7.2 tool itself, on a KB of 0.7.2 (git has the release commit e89d488):
+# the same exit code, each line of 0.7.2, and answer lines of the same form.
 t_DN3() {
     local repo=$here/../..
     if ! git -C "$repo" cat-file -e e89d488:kb/bin/orbit-kb 2>/dev/null; then SKIP="git does not have the 0.7.2 release commit e89d488"; return; fi
@@ -139,14 +146,17 @@ t_DN3() {
     cp -r "$FIX/hub/specs/beta" "$T/KB"
     local line o1 r1
     while IFS= read -r line; do
-        case $line in *report*|*show*|*lint*|help*) continue;; esac   # the texts of show, report and lint change with c1, c2 (other tests)
+        case $line in *report*|*show*|*lint*|help*|*--help*) continue;; esac   # the texts of show, report and lint change with c1, c2 (other tests)
         # shellcheck disable=SC2086
         ( cd "$T" && ORBIT_KB_LIB=$T/old/kb/share/orbit-kb timeout "$TMO" "$T/old/kb/bin/orbit-kb" $line ) >"$T/.o1" 2>/dev/null </dev/null; r1=$?; o1=$(<"$T/.o1")
         for bin in "$OKB" "$ORB"; do
             # shellcheck disable=SC2086
             run_in "$T" "$bin" $line
             [ "$rc" = "$r1" ] || note "'$line' as $(basename "$bin"): exit $rc, 0.7.2 gave $r1"
-            [ "$out" = "$o1" ] || note "'$line' as $(basename "$bin"): stdout differs from 0.7.2 (now: $(snip "$out") | 0.7.2: $(snip "$o1"))"
+            # An open KB of 0.7.2 keeps each line that it had; the rules of 0.8.0 only add lines of the
+            # same form (c20, c43: a new blocker is one more answer line of blocking(X)).
+            [ -z "$(comm -23 <(printf '%s\n' "$o1" | LC_ALL=C sort) <(printf '%s\n' "$out" | LC_ALL=C sort))" ] || note "'$line' as $(basename "$bin"): a line of 0.7.2 is gone (now: $(snip "$out") | 0.7.2: $(snip "$o1"))"
+            case $line in *query*) printf '%s\n' "$out" | grep -Evq '^(X = [a-z_]+(\(.*\))?|C = .*|true|false|)$' && note "'$line' as $(basename "$bin"): an answer line has another form: $(snip "$out")";; esac
         done
     done < <(dn_lines)
 }
@@ -340,6 +350,20 @@ t_DS3() {
     run_in "$H" env HUB_SESSION=build "$ORB" s1-record --json; [ "$(jsonq 'd["ticket"]')" = beta ] || note "HUB_SESSION names the session: build owns the beta thread: $(jsonq 'd["ticket"]')"
     orb s1-record --session build --dir "$H/specs/alpha" --json; [ "$(jsonq 'd["ticket"]')" = alpha ] || note "--dir overrides the ledger"
 }
+t_DS5() {
+    mkhub || return
+    local c
+    orb s1-record --dir "$H/specs/alpha" --json; rc_is 0 || return
+    c=$(grep -l "Alpha greets the user" "$XDG_CACHE_HOME"/orbit-kb/s1-record-*.pl 2>/dev/null | head -1)
+    [ -n "$c" ] || { note "no kept record under the cache directory"; return; }
+    sed -i 's/Alpha greets the user/KEPT RECORD/' "$c"
+    orb s1-record --dir "$H/specs/alpha" --json; [ "$(jsonq 'd["goal"]["text"]')" = "KEPT RECORD." ] || note "the second call does not read the kept record: $(jsonq 'd["goal"]')"
+    sleep 1; orb --dir "$H/specs/alpha" add "question(q2, c1, 'A new question?')"; rc_is 0 "add"
+    orb s1-record --dir "$H/specs/alpha" --json
+    [ "$(jsonq 'd["goal"]["text"]')" = "Alpha greets the user." ] || note "kb.pl changed, and the kept record is still used: $(jsonq 'd["goal"]')"
+    [ "$(jsonq '[x["id"] for x in d["questions"]]')" = "['q1', 'q2']" ] || note "the new question is missing: $(jsonq 'd["questions"]')"
+    run_in "$H" env ORBIT_KB_NO_CACHE=1 "$ORB" s1-record --dir "$H/specs/alpha" --json; rc_is 0 "with no cache"
+}
 t_DS4() {
     mkhub || return
     orb s1-record --session discovery --json; rc_is 0
@@ -365,6 +389,7 @@ run_test t_DG1 DG1 "c42, c17: a dropped project goal is named on each ticket goa
 run_test t_DG2 DG2 "c17: a supports to a project goal that does not exist is a lint finding (WP10)"
 run_test t_DG3 DG3 "c17: a ticket goal that contradicts a project goal blocks until a human answers a question about it"
 run_test t_DS3 DS3 "c46: s1-record prints the record of the active ticket as one JSON object, and nothing else"
+run_test t_DS5 DS5 "c46, c36: s1-record keeps the record of a KB, and drops it when kb.pl changes"
 run_test t_DS4 DS4 "c46: s1-record with no active ticket: null and empty lists"
 NT=${#REG_ID[@]}
 for ((i = 0; i < NT; i++)); do exec_test "$i"; done

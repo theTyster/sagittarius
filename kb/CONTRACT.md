@@ -1143,7 +1143,9 @@ The tests are `kb/tests/test_door.sh`. The agent-facing text is `orbit-kb help h
 - `orphan(I)`: an open ask, thread, hold or handoff with no purpose. `ends_at(I, E)` has one answer.
 - `over(I)`: open, each ticket that it names is done, and it was not opened after that.
   `report_on_done_ticket(I)`: opened after its ticket was done. The time of done is the time of the
-  newest attestation of the ticket.
+  newest record that can make done true (a passed run, an approval, a proof, a model result, a
+  judgment, a waiver, a pinned answer); a later disproof verdict or note does not move it. With no
+  such record it is the time of the newest attestation.
 - `orbit hub orphans` prints, apart: "Orphans (N)", "Over (N)", "Reports on a done ticket (N)",
   "Ticket goals with no live project goal (N)", "Dropped project goals (N)" with each ticket goal
   and each open item that rested on the goal. Exit 0. It stops nothing and closes nothing.
@@ -1158,3 +1160,7 @@ The tests are `kb/tests/test_door.sh`. The agent-facing text is `orbit-kb help h
 - `goal_sentences`: each project goal that is not dropped (id `PG`) and each current goal of each
   spec KB (id `SLUG:G`). `sent`: `goal:G`, `hypothesis:H`, `claim:C`, `question:Q`, `goal_sentence:ID`.
 - No ledger text, no request, no project decision and no memory file is in the output.
+- The record of a KB is kept in `${XDG_CACHE_HOME:-~/.cache}/orbit-kb/s1-record-HASH.pl` with the size
+  and time of `kb.pl`, `rules.pl`, the script and `core.pl`, and the version. A call with the same
+  values prints the kept record and loads no rule. Any change computes it again (test DS5).
+  `ORBIT_KB_NO_CACHE=1` turns this off.

@@ -11679,17 +11679,26 @@ door_project_fact(Fact) :-
     door_kb_engine(Dir, eng(M, _), Ds),
     door_kb_call(M, Ds, Fact).
 
-% door_ticket_done_at(?Slug, -Time): the ticket is done, and Time is the time of its newest
-% attestation: the last record that the tool wrote before it called the ticket done. (A guess:
-% kb.pl holds no time of done. A record that is added to a done ticket later moves this time.)
+% door_ticket_done_at(?Slug, -Time): the ticket is done, and Time is the time of the newest record
+% that can make done true: a passed run, an approval, a proof, a model result, a judgment, a
+% waiver, or a pinned answer. A later disproof verdict, disclosure or note of a reviewer does not
+% move it. With no such record: the time of the newest attestation. (kb.pl holds no time of done.)
 door_ticket_done_at(Slug, Time) :-
     door_ticket_dir(Slug, Dir),
     door_kb_engine(Dir, eng(M, _), Ds),
     decl_of(Ds, done, 0, _),
     catch(M:done, _, fail), !,
-    findall(T, ( catch(M:attest(_, _, _, _, _, T), _, fail), atom(T) ), Ts),
+    findall(T, ( catch(M:attest(_, Ty, _, P, _, T), _, fail), atom(T), door_makes_done(Ty, P) ), Ts1),
+    findall(T, ( catch(M:answer_pin(_, _, _, T), _, fail), atom(T) ), Ts2),
+    append(Ts1, Ts2, Ts12),
+    (   Ts12 \== [] -> Ts = Ts12
+    ;   findall(T, ( catch(M:attest(_, _, _, _, _, T), _, fail), atom(T) ), Ts)
+    ),
     Ts \== [],
     max_member(Time, Ts).
+
+door_makes_done(test_result, result(_, _, pass)) :- !.
+door_makes_done(Ty, _) :- memberchk(Ty, [approval, lean_proof, model_result, judgment, waiver]).
 
 % The project KB facts of a spec KB are computed once for each project KB in a process (the door
 % loads many spec KBs that name the same project KB).
@@ -12159,7 +12168,48 @@ door_kb_ref_dir(Hub, Ref, Slug, Dir) :-
 
 % door_s1_ticket(+Dir, -Goal, -Hyps, -Questions, -Sent): the record of one spec KB. The project
 % KB is not read for it (the record holds no project fact).
+% The record of a KB is kept under the cache directory (s1-record-HASH.pl, HASH of the KB path),
+% with a stamp: the size and the time of kb.pl and rules.pl, of this script and of core.pl, and the
+% version. A call with the same stamp prints the kept record and loads no rule (the hook has a
+% hard time limit). Any other stamp: the record is computed again and replaces the kept one.
+% ORBIT_KB_NO_CACHE=1 turns it off.
 door_s1_ticket(Dir, GoalJ, HypJ, QJ, Sent) :-
+    (   catch(door_s1_cache_file(Dir, File, Stamp), _, fail)
+    ->  (   catch(door_s1_cache_read(File, Stamp, R), _, fail)
+        ->  R = r(GoalJ, HypJ, QJ, Sent)
+        ;   door_s1_ticket_(Dir, GoalJ, HypJ, QJ, Sent),
+            catch(door_s1_cache_write(File, Stamp, r(GoalJ, HypJ, QJ, Sent)), _, true)
+        )
+    ;   door_s1_ticket_(Dir, GoalJ, HypJ, QJ, Sent)
+    ).
+
+door_stat(F, S) :- ( exists_file(F) -> size_file(F, Sz), time_file(F, T), S = f(Sz, T) ; S = none ).
+
+door_s1_cache_file(Dir, File, stamp(K, R, Sc, Co, V)) :-
+    \+ ( getenv('ORBIT_KB_NO_CACHE', NC), NC \== '', NC \== '0' ),
+    absolute_file_name(Dir, A),
+    directory_file_path(A, 'kb.pl', KF), door_stat(KF, K), K \== none,
+    directory_file_path(A, 'rules.pl', RF), door_stat(RF, R),
+    orbit_script(Script), door_stat(Script, Sc),
+    lib_dir_quiet(Lib), directory_file_path(Lib, 'core.pl', CF), door_stat(CF, Co),
+    tool_version_text(V),
+    orbit_cache_root(Root),
+    variant_sha1(s1(A), H),
+    atomic_list_concat([Root, '/s1-record-', H, '.pl'], File).
+
+door_s1_cache_read(File, Stamp, R) :-
+    exists_file(File),
+    setup_call_cleanup(open(File, read, S, [encoding(utf8)]),
+                       read_term(S, T, [double_quotes(string)]),
+                       close(S)),
+    T = s1_record(Stamp0, R), Stamp0 == Stamp.
+
+door_s1_cache_write(File, Stamp, R) :-
+    file_directory_name(File, D), make_directory_path(D),
+    format(string(Text), "~q.~n", [s1_record(Stamp, R)]),
+    write_atomic(File, Text).
+
+door_s1_ticket_(Dir, GoalJ, HypJ, QJ, Sent) :-
     lib_dir(Lib),
     ( nb_current(orbit_project_depth, PD0) -> true ; PD0 = 0 ),
     setup_call_cleanup(nb_setval(orbit_project_depth, 1),

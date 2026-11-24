@@ -54,8 +54,8 @@ Purpose (c44)
   with where its chain ends), Over (an open row whose ticket is done, opened before that), and
   Reports on a done ticket (an open row opened after its ticket was done). Then the ticket goals
   with no live project goal, and each dropped project goal with what rested on it. It is a
-  list: nothing is stopped or closed. The time of done is the time of the newest attestation
-  of the ticket.
+  list: nothing is stopped or closed. The time of done is the time of the newest record that
+  can make done true: a passed run, an approval, a proof, a judgment, a waiver, a pinned answer.
 
 Project goals (c17, c42)
   In the project KB: goal(PG, Kind, Author, Text), hypothesis(H, PG, Author, Text), premise/3.
@@ -76,4 +76,4 @@ System 1 (c46)
   goal_sentences (each project goal and each current ticket goal of the hub), sent (the ids of
   the records). The active ticket is the spec KB of the newest open item that the session
   ($HUB_SESSION or --session) owns with a kb ref; --dir names it directly. With no ticket:
-  null and empty lists.
+  null and empty lists. The record of a KB is kept in the cache directory until kb.pl changes.
