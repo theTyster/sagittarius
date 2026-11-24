@@ -6155,16 +6155,34 @@ desk_ask_due(X, Due, How) :-
 % script, else none), how it runs (the command of its last run), and its last run.
 
 desk_check(Dir, Eng, K, Ck) :-
-    dk_all(Eng, [N, R, T], attest(_, test_result, _, result(K, N, R), _, T), Runs),
-    (   Runs \== [] -> msort(Runs, Rs1), last(Rs1, [N1, R1, T1]), Last = run(N1, R1, T1),
-        desk_run_cmd(Dir, N1, K, Cmd)
-    ;   Last = none, Cmd = ""
+    dk_all(Eng, [N, R, T, A], attest(A, test_result, _, result(K, N, R), _, T), Runs),
+    (   Runs \== [] -> msort(Runs, Rs1), last(Rs1, [N1, R1, T1, A1]), Last = run(N1, R1, T1),
+        desk_run_cmd(Dir, N1, K, Cmd), desk_verdict(Eng, A1, R1, V, Why, Stale)
+    ;   Last = none, Cmd = "", V = none, Why = "", Stale = false
     ),
     (   dk_all(Eng, [W], checks_that(K, W), [W1|_]) -> dk_str(W1, Words), Src = fact
     ;   Cmd \== "", desk_cmd_doc(Dir, Cmd, Doc) -> Words = Doc, Src = script
     ;   Words = "", Src = none
     ),
-    Ck = ck{id:K, words:Words, src:Src, cmd:Cmd, last:Last}.
+    Ck = ck{id:K, words:Words, src:Src, cmd:Cmd, last:Last, v:V, why:Why, stale:Stale}.
+
+% desk_verdict(+Eng, +A, +R, -V, -Why, -Stale) (c24, D72): the verdict of run A: meets, conflicts or
+% unresolved; for unresolved, what could not be decided; and whether the tool calls it stale.
+% The rules are verdict/2 and verdict_stale/2 of the build contract, section 2.1 (builder K2). Where
+% a KB or a tool has no such rule, the helper reads the result of the run: pass is meets, fail is
+% conflicts, unresolved is unresolved.
+desk_verdict(Eng, A, R, V, Why, Stale) :-
+    (   dk_all(Eng, [V0], verdict(A, V0), [V1|_]), memberchk(V1, [meets, conflicts, unresolved]) -> V = V1
+    ;   R == pass -> V = meets
+    ;   R == unresolved -> V = unresolved
+    ;   V = conflicts
+    ),
+    (   V \== unresolved -> Why = ""
+    ;   dk_all(Eng, [W], unresolved_because(A, W), [W1|_]) -> txt(W1, W2), dk_str(W2, Why)
+    ;   R \== unresolved -> Why = "a premise of its measurement does not stand any more"
+    ;   Why = "the run recorded no reason"
+    ),
+    ( dk_true(Eng, verdict_stale(A, _)) -> Stale = true ; Stale = false ).
 
 % desk_run_cmd(+Dir, +N, +K, -Cmd): the cmd= of the first line of runs/N-K.log.
 desk_run_cmd(Dir, N, K, Cmd) :-
@@ -6200,14 +6218,92 @@ desk_doc_line(".sh", Src, Doc) :-
 
 % ---- claims and what blocks (c13: each blocker once)
 
-desk_hypothesis(Eng, H) :-
-    (   dk_all(Eng, [I, T], ( hypothesis(I, _, T), \+ supersedes(_, I) ), [[I1, T1]|_])
-    ->  txt(T1, TT), dk_all(Eng, [P, PT], premise(P, I1, PT), Ps0),
-        findall(p(P, PS, Chk), ( member([P, PT0], Ps0), txt(PT0, PS),
-                                 ( dk_true(Eng, premise_checked(P, _)) -> Chk = checked ; Chk = unchecked ) ), Ps),
-        ( dk_true(Eng, no_premises(I1)) -> None = true ; None = false ),
-        H = hyp{id:I1, text:TT, premises:Ps, none:None}
-    ;   H = none
+% ---- the records of 0.8.0 (scientific-method-overhaul c24, CONTRACT D72): the goal with its
+% author, each hypothesis under it with its author and state, the judgments of the human.
+
+% desk_goal(+Eng, -G): the current goal, or none. A KB of 0.7.2 has only hypothesis/3: that
+% statement is the goal, author agent (build contract 1.1; K1 computes goal/4 for it at load, and
+% this helper reads hypothesis/3 itself where the tool does not).
+desk_goal(Eng, G) :-
+    (   dk_all(Eng, [I, A, T], ( goal(I, _, A, T), \+ supersedes(_, I) ), [[I1, A1, T1]|_]) -> true
+    ;   dk_all(Eng, [I, T], ( hypothesis(I, _, T), \+ supersedes(_, I) ), [[I1, T1]|_]) -> A1 = agent
+    ;   I1 = none
+    ),
+    (   I1 == none -> G = none
+    ;   txt(T1, TT), desk_premises(Eng, I1, Ps, None),
+        G = hyp{id:I1, author:A1, text:TT, premises:Ps, none:None}
+    ).
+
+desk_premises(Eng, I, Ps, None) :-
+    dk_all(Eng, [P, PT], premise(P, I, PT), Ps0),
+    findall(p(P, PS, Chk), ( member([P, PT0], Ps0), txt(PT0, PS),
+                             ( dk_true(Eng, premise_checked(P, _)) -> Chk = checked ; Chk = unchecked ) ), Ps),
+    ( dk_true(Eng, no_premises(I)) -> None = true ; None = false ).
+
+% desk_hypothesis(+Eng, -H): as at 0.7.2: the goal, in the shape that the vote card reads.
+desk_hypothesis(Eng, H) :- desk_goal(Eng, H).
+
+% desk_hyps(+Eng, -Hs): each hypothesis/4 of the KB, in the order of its ids.
+desk_hyps(Eng, Hs) :-
+    dk_all(Eng, [H, G, A, T], hypothesis(H, G, A, T), L0), sort(L0, L),
+    findall(X, ( member([H, G, A, T], L), desk_hyp(Eng, H, G, A, T, X) ), Hs).
+
+desk_hyp(Eng, H, G, A, T, hy{id:H, goal:G, author:A, text:TT, state:S, case:Case, defeats:Ds, nt:NT, cited:Cited, premises:Ps, predicts:Cs}) :-
+    txt(T, TT), desk_hyp_state(Eng, H, S),
+    ( dk_all(Eng, [By, CT], defeating_case(H, By, CT), [[By1, CT1]|_]) -> txt(CT1, CT2), Case = case(By1, CT2) ; Case = none ),
+    dk_all(Eng, [DT], defeat(_, H, DT), D1),
+    dk_all(Eng, [JT], ( case_against(J, H), attest(J, judgment, _, case(JT, not_wanted), _, _) ), D2),
+    append(D1, D2, D3), findall(DS, ( member(D0, D3), txt(D0, DS) ), Ds),
+    (   memberchk(S, [proposed, adopted]), desk_not_tempered(Eng, H) -> NT = true ; NT = false ),
+    ( S == proposed, dk_all(Eng, [W], adoption_cited(H, W), [W1|_]) -> txt(W1, W2), Cited = some(W2) ; Cited = none ),
+    desk_premises(Eng, H, Ps, _),
+    dk_all(Eng, [C], predicts(H, C), Cs0), sort(Cs0, Cs).
+
+% desk_hyp_state(+Eng, +H, -S): hypothesis_state/2 of the build contract, section 1.2 (builder K1):
+% superseded, retired, defeated, adopted or proposed, the first that applies. Where the tool has
+% no clause of that rule yet, this helper reads the facts in the same order.
+desk_hyp_state(Eng, H, S) :-
+    (   dk_all(Eng, [S0], hypothesis_state(H, S0), [S1|_]) -> S = S1
+    ;   dk_true(Eng, supersedes(_, H)) -> S = superseded
+    ;   dk_true(Eng, attest(_, retirement, H, _, _, _)) -> S = retired
+    ;   ( dk_true(Eng, defeat(_, H, _)) ; dk_true(Eng, case_against(_, H)) ) -> S = defeated
+    ;   dk_true(Eng, attest(_, adoption, H, adopted, human, _)) -> S = adopted
+    ;   S = proposed
+    ).
+
+% desk_not_tempered(+Eng, +H): not_tempered/1 of the build contract, section 1.2 (K1); else from the facts.
+desk_not_tempered(Eng, H) :-
+    (   dk_true(Eng, not_tempered(H)) -> true
+    ;   dk_true(Eng, tempered(H)) -> fail
+    ;   dk_true(Eng, untempered(H, _, _)) -> true
+    ;   \+ dk_true(Eng, defeating_case(H, _, _))
+    ).
+
+% desk_author(+Author, -Name): the name for human:Name; else human or agent.
+desk_author(A, N) :-
+    (   A = human:N0 -> dk_str(N0, N)
+    ;   A = agent:_ -> N = "agent"
+    ;   dk_str(A, N)
+    ).
+
+desk_state_words(proposed, "not adopted") :- !.
+desk_state_words(S, W) :- dk_str(S, W).
+
+% desk_vocab(+Key, -Sentence) (c12): the canonical sentence of a word, from share/orbit-kb/vocabulary.json.
+:- dynamic desk_vocab_cache/2.
+desk_vocab(Key, S) :-
+    lib_dir(Lib), directory_file_path(Lib, 'vocabulary.json', F), exists_file(F), time_file(F, T),
+    (   desk_vocab_cache(T, D) -> true
+    ;   use_module(library(http/json)),
+        catch(setup_call_cleanup(open(F, read, St, [encoding(utf8)]), json_read_dict(St, D, [value_string_as(string)]), close(St)), _, fail),
+        is_dict(D), retractall(desk_vocab_cache(_, _)), assertz(desk_vocab_cache(T, D))
+    ),
+    get_dict(Key, D, S), string(S).
+
+% desk_term(+Key, +LabelHtml, -Html): a label with the canonical sentence of its word as its tooltip.
+desk_term(Key, Label, Html) :-
+    (   catch(desk_vocab(Key, S), _, fail) -> esc(S, SH), dk_f("<span class=\"term\" data-term=\"~w\" title=\"~w\">~w</span>", [Key, SH, Label], Html)
+    ;   dk_str(Label, Html)
     ).
 
 desk_current_claims(Eng, Cs) :-
@@ -6231,7 +6327,7 @@ desk_tag_badge(demo, "demo owed", "b-warn").
 % shows already (c13: each blocker once).
 desk_kb_blockers(KB, Eng, Lines) :-
     dk_all(Eng, [X], blocking(X), Xs),
-    exclude([X]>>( X =.. [F|_], memberchk(F, [to_ask, under, burn_open, flare_open, check_failing, check_unrun]) ), Xs, Ys),
+    exclude([X]>>( X =.. [F|_], memberchk(F, [to_ask, under, burn_open, flare_open, check_failing, check_unrun, check_unresolved]) ), Xs, Ys),
     findall(S, ( member(Y, Ys), catch(blocking_line(KB, Eng, Y, S0), _, fail), dk_str(S0, S1),
                  ( string_concat("- ", S, S1) -> true ; S = S1 ) ), Lines).
 
@@ -6290,20 +6386,82 @@ desk_rests_html(HD, K, Claims, Html) :-
         dk_f("<p class=\"loud\">The Desk cannot read the KB ~w (~w).</p>", [LH, K.dir], Html)
     ).
 
-desk_hyp_html(Eng, Html) :-
-    desk_hypothesis(Eng, H),
-    (   H == none -> Html = "<p class=\"gapnote\">No hypothesis is recorded.</p>"
-    ;   esc(H.text, TH),
-        (   H.premises \== []
-        ->  findall(P, ( member(p(Id, PT, Chk), H.premises), esc(PT, PTH),
-                         ( Chk == checked -> CkT = "checked on the system" ; CkT = "a guess: nobody checked it" ),
-                         dk_f("<li><span class=\"ref\">~w</span>~w <span class=\"quiet\">(~w)</span></li>", [Id, PTH, CkT], P) ), Ps),
-            dk_cat(Ps, PsH), dk_f("<h4>Premises</h4><ul>~w</ul>", [PsH], PrH)
-        ;   H.none == true -> PrH = "<p class=\"quiet\">Premises: none.</p>"
-        ;   PrH = "<p class=\"gapnote\">No premises are recorded.</p>"
+desk_hyp_html(Eng, Html) :- desk_records_html(Eng, none, Html).
+
+% desk_records_html(+Eng, +Acts, -Html) (c24, D72): the goal first, with its author and premises;
+% under it each hypothesis with its author and state. Acts is none (an item card: it reads only),
+% or acts(HD, K) (the card of the ticket in the KBs lane): each proposed hypothesis has Adopt, and
+% the goal has the two judgment forms. Each of them opens the review; only /send writes.
+desk_records_html(Eng, Acts, Html) :-
+    desk_goal(Eng, G),
+    (   G == none -> Html = "<p class=\"gapnote\">No goal is recorded.</p>"
+    ;   esc(G.text, TH), desk_author(G.author, AN), esc(AN, ANH),
+        desk_premises_html(G.premises, G.none, full, PrH),
+        desk_term(goal, "Goal", GL),
+        dk_f("<p class=\"goal\"><b class=\"lbl\">~w (~w)</b> <span class=\"ref\">~w</span>~w</p>~w", [GL, ANH, G.id, TH, PrH], GoalH),
+        desk_hyps(Eng, Hs),
+        (   Hs == [] -> desk_term(hypothesis, "No hypothesis: the claims hang on the goal.", NL), dk_f("<p class=\"quiet nohyp\">~w</p>", [NL], HsH)
+        ;   findall(X, ( member(H, Hs), desk_hyp_html1(H, Acts, X) ), Xs), dk_cat(Xs, HsH)
         ),
-        dk_f("<p><span class=\"ref\">~w</span>~w</p>~w", [H.id, TH, PrH], Html)
+        desk_judgments_html(Eng, G.id, JsH),
+        (   Acts = acts(HD, K), \+ desk_kb_frozen(HD, K) -> desk_judge_forms(HD, K, G.id, FH) ; FH = "" ),
+        dk_cat([GoalH, HsH, JsH, FH], Html)
     ).
+
+desk_premises_html(Ps, None, Mode, Html) :-
+    (   Ps \== []
+    ->  findall(P, ( member(p(Id, PT, Chk), Ps), esc(PT, PTH),
+                     ( Chk == checked -> CkT = "checked on the system" ; CkT = "a guess: nobody checked it" ),
+                     dk_f("<li><span class=\"ref\">~w</span>~w <span class=\"quiet\">(~w)</span></li>", [Id, PTH, CkT], P) ), L),
+        dk_cat(L, PsH), desk_term(premise, "Premises", PL), dk_f("<h4>~w</h4><ul>~w</ul>", [PL, PsH], Html)
+    ;   Mode == brief -> Html = ""
+    ;   None == true -> Html = "<p class=\"quiet\">Premises: none.</p>"
+    ;   Html = "<p class=\"gapnote\">No premises are recorded.</p>"
+    ).
+
+desk_hyp_html1(H, Acts, Html) :-
+    esc(H.text, TH), desk_author(H.author, AN), esc(AN, ANH), desk_state_words(H.state, SW),
+    desk_term(hypothesis, "Hypothesis", HL),
+    (   H.state == proposed, Acts = acts(HD, K), \+ desk_kb_frozen(HD, K)
+    ->  dk_f("adopt:~w#~w", [K.dir, H.id], It), desk_fix_button(HD.path, It, "Adopt", AdoptH)
+    ;   AdoptH = ""
+    ),
+    (   H.cited = some(W) -> esc(W, WH),
+        dk_f("<p class=\"small cited\">proposed: the agent reads your words as adoption: '~w' (Adopt to confirm) ~w</p>", [WH, AdoptH], CitedH), Adopt1 = ""
+    ;   CitedH = "", Adopt1 = AdoptH
+    ),
+    (   H.case = case(By, CT) -> esc(CT, CTH), desk_author(By, ByN), esc(ByN, ByH),
+        dk_f("<p class=\"small\">It is false if: ~w <span class=\"quiet\">(named by ~w)</span></p>", [CTH, ByH], CaseH)
+    ;   CaseH = ""
+    ),
+    (   H.nt == true -> desk_term(tempered, "not tempered", NTL),
+        dk_f("<p class=\"small gapnote\">~w: no admissible case would show it false.</p>", [NTL], NtH)
+    ;   NtH = ""
+    ),
+    findall(D, ( member(D0, H.defeats), esc(D0, DH), dk_f("<p class=\"small defeat\">Defeated by the case: ~w</p>", [DH], D) ), Dl), dk_cat(Dl, DefH),
+    desk_premises_html(H.premises, false, brief, PrH),
+    (   H.predicts == [] -> PdH = ""
+    ;   dk_join(H.predicts, ", ", PJ), desk_term(claim, "claims", CL), dk_f("<p class=\"small quiet\">It predicts the ~w ~w.</p>", [CL, PJ], PdH) ),
+    dk_f("<div class=\"hyp s-~w\" data-hyp=\"~w\"><p><b class=\"lbl\">~w ~w (~w-written, ~w)</b> ~w ~w</p>~w~w~w~w~w~w</div>",
+         [H.state, H.id, HL, H.id, ANH, SW, TH, Adopt1, CitedH, CaseH, NtH, DefH, PrH, PdH], Html).
+
+% desk_judgments_html(+Eng, +G, -Html): the judgments of the human on the goal, oldest first.
+desk_judgments_html(Eng, G, Html) :-
+    dk_all(Eng, [T, P], attest(_, judgment, G, P, _, T), L0), msort(L0, L),
+    findall(X, ( member([T, P], L), dk_day_time(T, DT),
+                 (   P = case(C0, W) -> txt(C0, C1), esc(C1, CH), ( W == wanted -> WT = "wanted" ; WT = "not wanted" ),
+                     dk_f("<li>The case “~w”: <b>~w</b> <span class=\"quiet\">(you, ~w)</span></li>", [CH, WT, DT], X)
+                 ;   P == satisfied -> dk_f("<li>The goal is <b>satisfied</b> <span class=\"quiet\">(you, ~w)</span></li>", [DT], X)
+                 ;   P == not_satisfied -> dk_f("<li>The goal is <b>not satisfied</b> <span class=\"quiet\">(you, ~w)</span></li>", [DT], X)
+                 ) ), Xs),
+    ( Xs == [] -> Html = "" ; dk_cat(Xs, XsH), dk_f("<h4>Your judgments</h4><ul class=\"judgments\">~w</ul>", [XsH], Html) ).
+
+% desk_judge_forms(+HD, +K, +G, -Html): judge a case (the case, wanted or not wanted), and judge the
+% goal (satisfied or not satisfied). Both post item judge:DIR to /review.
+desk_judge_forms(HD, K, G, Html) :-
+    serve_conf(token, Tok), dk_f("judge:~w", [K.dir], It), desk_hidden([token-Tok, hub-HD.path, item-It], HH),
+    dk_f("<form class=\"judge\" method=\"post\" action=\"/review\" data-review data-judge=\"case\">~w<h4>Judge a case of goal ~w</h4><textarea name=\"text\" aria-label=\"The case\" placeholder=\"One concrete case, in your words.\"></textarea><label><input type=\"radio\" name=\"choice\" value=\"wanted\"> wanted</label> <label><input type=\"radio\" name=\"choice\" value=\"not_wanted\"> not wanted</label> <button class=\"btn\" type=\"submit\">Review and record</button></form><form class=\"judge\" method=\"post\" action=\"/review\" data-review data-judge=\"goal\">~w<h4>Judge the goal ~w</h4><label><input type=\"radio\" name=\"choice\" value=\"satisfied\"> the goal is satisfied</label> <label><input type=\"radio\" name=\"choice\" value=\"not_satisfied\"> not satisfied</label> <button class=\"btn\" type=\"submit\">Review and record</button></form>",
+         [HH, G, HH, G], Html).
 
 desk_claim_html(HD, K, Eng, C, Html) :-
     desk_claim_text(Eng, C, T), esc(T, TH),
@@ -6317,10 +6475,11 @@ desk_checks_html(HD, K, Eng, C, Tags, Html) :-
     (   Ks == [] -> Html = "<p class=\"gapnote small\">This claim has no check.</p>"
     ;   findall(Ck, ( member(Kc, Ks), desk_check(K.dir, Eng, Kc, Ck) ), Cks),
         length(Ks, N),
-        findall(x, ( member(X, Cks), get_dict(last, X, run(_, pass, _)) ), L1), length(L1, NP),
-        findall(x, ( member(X, Cks), get_dict(last, X, run(_, Rz, _)), Rz \== pass ), L2), length(L2, NF),
+        findall(x, ( member(X, Cks), get_dict(v, X, meets) ), L1), length(L1, NP),
+        findall(x, ( member(X, Cks), get_dict(v, X, conflicts) ), L2), length(L2, NF),
+        findall(x, ( member(X, Cks), get_dict(v, X, unresolved) ), L4), length(L4, NR),      % c24: apart from a failing check
         findall(x, ( member(X, Cks), get_dict(last, X, none) ), L3), length(L3, NU),
-        findall(B, ( member(Cnt-Txt-Cl, [NP-"pass"-"b-pass", NF-"fail"-"b-burn", NU-"never ran"-"b-warn"]), Cnt > 0,
+        findall(B, ( member(Cnt-Txt-Cl, [NP-"pass"-"b-pass", NF-"fail"-"b-burn", NR-"unresolved"-"b-unres", NU-"never ran"-"b-warn"]), Cnt > 0,
                      dk_f("~w ~w", [Cnt, Txt], BT), desk_status_badge(BT, Cl, B) ), Bs), dk_cat(Bs, BsH),
         findall(R, ( member(Ck, Cks), desk_check_row(Ck, R) ), Rs), dk_cat(Rs, RsH),
         (   member(X, Cks), X.src == none, \+ desk_kb_frozen(HD, K)
@@ -6332,7 +6491,8 @@ desk_checks_html(HD, K, Eng, C, Tags, Html) :-
         ),
         ( Tags == [fulfilled] -> Op = "" ; Op = " open" ),
         ( N == 1 -> Ct = "check" ; Ct = "checks" ),
-        dk_f("<details class=\"checks\"~w><summary><span class=\"lbl\">~w ~w of ~w</span>~w</summary>~w~w</details>", [Op, N, Ct, C, BsH, RsH, FixH], Html)
+        desk_term(experiment, Ct, CtH),
+        dk_f("<details class=\"checks\"~w><summary><span class=\"lbl\">~w ~w of ~w</span>~w</summary>~w~w</details>", [Op, N, CtH, C, BsH, RsH, FixH], Html)
     ).
 
 desk_check_row(Ck, Html) :-
@@ -6340,16 +6500,26 @@ desk_check_row(Ck, Html) :-
     ;   esc(Ck.words, W0), ( Ck.src == script -> dk_f("~w <span class=\"quiet small\">(from its script)</span>", [W0], W1) ; W1 = W0 ),
         dk_f("<span>~w</span>", [W1], WH)
     ),
-    (   Ck.last = run(N, R, T) -> dk_day_time(T, DT), ( R == pass -> Cl = "b-pass" ; Cl = "b-burn" ), desk_status_badge(R, Cl, B),
-        dk_f("Last run ~w (run ~w).", [DT, N], LastT)
-    ;   desk_status_badge("never ran", "b-warn", B), LastT = "It never ran."
+    (   Ck.last = run(N, R, T) -> dk_day_time(T, DT),
+        % c24: the badge keeps the words of the run (pass, fail); an unresolved verdict has its own badge
+        (   Ck.v == unresolved -> desk_status_badge("unresolved", "b-unres", B)
+        ;   Ck.v == meets -> ( R == pass -> BT = R ; BT = "meets" ), desk_status_badge(BT, "b-pass", B)
+        ;   ( R == fail -> BT = R ; BT = "conflicts" ), desk_status_badge(BT, "b-burn", B)
+        ),
+        dk_f("Last run ~w (run ~w).", [DT, N], LastT), esc(Ck.why, WhyH),
+        (   Ck.v == unresolved -> dk_f("Verdict: unresolved: ~w.", [WhyH], VT), desk_term(verdict, VT, VLb),
+            dk_f(" <b class=\"unres\">~w</b> Nothing was decided: it is not a failing check.", [VLb], VH0)
+        ;   dk_f("Verdict: ~w.", [Ck.v], VT), desk_term(verdict, VT, VLb), dk_f(" ~w", [VLb], VH0)
+        ),
+        ( Ck.stale == true -> dk_f("~w <span class=\"badge status b-stale\" title=\"A change that serves the claim was recorded after this run\">stale</span>", [VH0], VH) ; VH = VH0 )
+    ;   desk_status_badge("never ran", "b-warn", B), LastT = "It never ran.", VH = ""
     ),
     (   Ck.cmd \== "" -> desk_cmd_short(Ck.cmd, Short), esc(Short, SH), esc(Ck.cmd, CH),
         dk_f("Runs <code title=\"~w\">~w</code>. ", [CH, SH], HowT)
     ;   HowT = "No run records its command. "
     ),
     esc(LastT, LH),
-    dk_f("<div class=\"chk\"><span class=\"ref\">~w</span>~w~w<span class=\"how\">~w~w</span></div>", [Ck.id, WH, B, HowT, LH], Html).
+    dk_f("<div class=\"chk\"><span class=\"ref\">~w</span>~w~w<span class=\"how\">~w~w~w</span></div>", [Ck.id, WH, B, HowT, LH, VH], Html).
 
 % desk_cmd_short(+Cmd, -Short): the command with each path cut to its file name.
 desk_cmd_short(Cmd, Short) :-
@@ -7183,7 +7353,7 @@ desk_kbs_lane(HDs, KHs, Html) :-
     findall(S, ( member(K-HD, KHs), catch(desk_kb_section(HDs, HD, K, S), E, ( serve_err_text(E, M), esc(M, MH), esc(K.label, LH),
                  dk_f("<div class=\"sheet\"><div class=\"head\"><p class=\"loud\">The KB ~w cannot be read: ~w</p></div></div>", [LH, MH], S) )) ), Ss),
     ( Ss == [] -> Body = "<p class=\"empty\">No KB.</p>" ; dk_cat(Ss, Body) ),
-    dk_f("<details class=\"lane\" id=\"lane-kbs\"><summary><h2>KBs</h2><span class=\"quiet\">Each KB with its hypothesis, claims and checks</span></summary><div class=\"lanebody\">~w</div></details>", [Body], Html).
+    dk_f("<details class=\"lane\" id=\"lane-kbs\"><summary><h2>KBs</h2><span class=\"quiet\">Each KB with its goal, hypotheses, claims and checks</span></summary><div class=\"lanebody\">~w</div></details>", [Body], Html).
 
 desk_kb_section(HDs, HD, K, Html) :-
     desk_engine(K.dir, KB, Eng),
@@ -7203,7 +7373,7 @@ desk_kb_section(HDs, HD, K, Html) :-
         maplist([R, E]>>esc(R, E), Rs, RsE), dk_join(RsE, ", ", RsJ),
         dk_all(Eng, [X], current_fact(X), Fs), length(Fs, NF),
         dk_f("<p>~w current decisions, definitions and rules. ~w repos: ~w.</p>", [NF, NR, RsJ], BodyMain)
-    ;   desk_hyp_html(Eng, HypH), desk_current_claims(Eng, Cs),
+    ;   desk_records_html(Eng, acts(HD, K), HypH), desk_current_claims(Eng, Cs),
         findall(CH, ( member(C, Cs), desk_claim_html(HD, K, Eng, C, CH) ), CHs), dk_cat(CHs, CsH),
         ( Cs == [] -> CsH2 = "<p class=\"gapnote\">No claim is current.</p>" ; CsH2 = CsH ),
         desk_kb_blockers(KB, Eng, Bl),
@@ -7213,7 +7383,8 @@ desk_kb_section(HDs, HD, K, Html) :-
         ( Qs == [] -> QsH = "" ; length(Qs, NQ), dk_f("<p>~w questions wait on you: their cards are in Questions and Running on a guess.</p>", [NQ], QsH) ),
         catch(view_pending_html(K.dir, PendH), _, PendH = ""),
         catch(view_answered_html(Eng, AnsH), _, AnsH = ""),
-        dk_cat(["<h3>Hypothesis</h3>", HypH, "<h3>Claims</h3>", CsH2, BlH, QsH, PendH, AnsH], BodyMain)
+        desk_term(claim, "Claims", ClL), dk_f("<h3>~w</h3>", [ClL], ClH),
+        dk_cat(["<h3>Goal and hypotheses</h3>", HypH, ClH, CsH2, BlH, QsH, PendH, AnsH], BodyMain)
     ),
     findall(I, ( desk_stale_handoffs(HD, K, Old, New), member(H, Old), I = H.id ), OldIds),
     (   OldIds == [] -> OldH = ""
@@ -7268,6 +7439,9 @@ desk_plan(Form, P) :-
     ;   string_concat("q:", R, It), split_string(R, "#", "", [DS, QS]) -> desk_plan_dir(HDs, DS, K, HD), atom_string(Q, QS), desk_plan_q(HD, K, Q, Intent, Choice, Text, P0)
     ;   string_concat("act:", R, It), sub_string(R, B, 1, _, "#"), sub_string(R, 0, B, _, DS), B1 is B + 1, sub_string(R, B1, _, 0, Ref)
         -> desk_plan_dir(HDs, DS, K, HD), desk_plan_act(HD, K, Ref, Intent, Choice, Text, P0)
+    ;   string_concat("adopt:", R, It), sub_string(R, B, 1, _, "#"), sub_string(R, 0, B, _, DS), B1 is B + 1, sub_string(R, B1, _, 0, HyS)
+        -> desk_plan_dir(HDs, DS, K, HD), desk_plan_adopt(HD, K, HyS, Text, P0)
+    ;   string_concat("judge:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_judge(HD, K, Choice, Text, P0)
     ;   string_concat("fix:", R, It) -> desk_plan_fix(HDs, HD, R, Text, P0)
     ;   string_concat("proj:", R, It) -> desk_plan_proj(HDs, HD, R, Text, P0)
     ;   throw(desk_refused(400, "The form names no item. Reload the page."))
@@ -7473,6 +7647,60 @@ desk_plan_act(HD, K, Ref, Intent, Choice, Text, P) :-
         P = plan{title:"That is not what you meant", sub:About, letters:[L1], records:[R1], effects:[kb_write(K.dir, Facts)]}
     ;   desk_plan_requirement(HD, kb(K.ref), About, Item, Text, P)
     ).
+
+% ---- the records that only the human makes (c24, D72): the adoption of a hypothesis, the judgment
+% of a case on the goal, the judgment of the goal. The Desk writes each one itself, as the human,
+% after the review: attest(ID, adoption, H, adopted, human, TIME), attest(ID, judgment, G,
+% case(TEXT, wanted|not_wanted), human, TIME), attest(ID, judgment, G, satisfied|not_satisfied, human, TIME).
+desk_plan_adopt(HD, K, HyS, Text, P) :-
+    desk_engine(K.dir, _, Eng), atom_string(H, HyS),
+    (   dk_all(Eng, [T0], hypothesis(H, _, _, T0), [T1|_]), desk_hyp_state(Eng, H, proposed) -> txt(T1, HT)
+    ;   dk_f("The hypothesis ~w of the KB ~w is not open for adoption now. Reload the page.", [HyS, K.label], M), throw(desk_refused(409, M))
+    ),
+    desk_holder(HD, K, H0, _), ( H0 \== none, desk_live(HD, H0) -> To = H0 ; To = none ),
+    dk_f("hypothesis ~w in the KB ~w", [H, K.label], About),
+    dk_f("adopt:~w", [H], Ref), desk_item_json(HD, K, kb, Ref, Item),
+    ( Text == "" -> WT = "", NFs = [] ; dk_f("\n\nHis words: ~w", [Text], WT), desk_words_note(H, Text, NF), NFs = [NF] ),
+    dk_f("Ty adopts hypothesis ~w in the KB ~w (~w): ~w~w\n\nThe Desk recorded his adoption in the KB (attest adoption ~w adopted, by human), or in its answers.pending, which your next write applies.",
+         [H, K.label, K.dir, HT, WT, H], LT),
+    dk_f("The KB ~w: your adoption of hypothesis ~w (attest adoption ~w adopted, by human).", [K.label, H, H], R1),
+    desk_lt(To, answer, About, Item, LT, L1),
+    P = plan{title:"You adopt a hypothesis", sub:About, letters:[L1], records:[R1], effects:[kb_attest(K.dir, adoption, H, adopted, NFs)]}.
+
+desk_plan_judge(HD, K, Choice, Text, P) :-
+    desk_engine(K.dir, _, Eng), desk_goal(Eng, G0),
+    (   G0 == none -> dk_f("The KB ~w has no goal to judge. Reload the page.", [K.label], M), throw(desk_refused(409, M)) ; G = G0.id ),
+    desk_holder(HD, K, H0, _), ( H0 \== none, desk_live(HD, H0) -> To = H0 ; To = none ),
+    dk_f("goal ~w in the KB ~w", [G, K.label], About),
+    desk_item_json(HD, K, kb, "judge", Item),
+    (   memberchk(Choice, ["wanted", "not_wanted"])
+    ->  desk_need_text(Text, "the case that you judge"),
+        atom_string(TA, Text), atom_string(CA, Choice), Pred = case(TA, CA), NFs = [],
+        ( Choice == "wanted" -> WW = "wanted" ; WW = "not wanted" ),
+        dk_f("the case “~w” is ~w", [Text, WW], What), Title = "Your judgment of a case",
+        dk_f("attest judgment ~w case(TEXT, ~w), by human", [G, Choice], RecT)
+    ;   memberchk(Choice, ["satisfied", "not_satisfied"])
+    ->  atom_string(Pred, Choice), ( Text == "" -> NFs = [] ; desk_words_note(G, Text, NF), NFs = [NF] ),
+        ( Choice == "satisfied" -> What = "the goal is satisfied" ; What = "the goal is not satisfied" ), Title = "Your judgment of the goal",
+        dk_f("attest judgment ~w ~w, by human", [G, Choice], RecT)
+    ;   throw(desk_refused(400, "Choose wanted or not wanted for a case, or satisfied or not satisfied for the goal."))
+    ),
+    dk_f("Ty judges goal ~w of the KB ~w (~w): ~w.\n\nThe goal: ~w\nThe Desk recorded his judgment in the KB (~w), or in its answers.pending, which your next write applies. A judgment changes no verdict.",
+         [G, K.label, K.dir, What, G0.text, RecT], LT),
+    dk_f("The KB ~w: your judgment of goal ~w: ~w (~w).", [K.label, G, What, RecT], R1),
+    desk_lt(To, answer, About, Item, LT, L1),
+    P = plan{title:Title, sub:About, letters:[L1], records:[R1], effects:[kb_attest(K.dir, judgment, G, Pred, NFs)]}.
+
+desk_words_note(X, Text, note(X, T)) :-
+    utc_now(Now), format(atom(T), "Ty, from the Desk, ~w: ~w", [Now, Text]).
+
+% desk_attest_id(+Dir, -Id): the next attestation id of the KB, after the ids that wait in answers.pending.
+desk_attest_id(Dir, Id) :-
+    lib_dir(Lib), load_kb(Dir, Lib, KB), kb_items(KB, Items), items_decls(Items, Ds),
+    next_attest_id(Items, Ds, Id0), atom_concat(a, N0A, Id0), atom_number(N0A, N0), M0 is N0 - 1,
+    pending_open(Dir, Ps),
+    findall(N, ( member(pending(_, _, Fs), Ps), member(attest(X, _, _, _, _, _), Fs), atom(X), atom_concat(a, NA, X), atom_number(NA, N), integer(N) ), Ns),
+    max_list([M0|Ns], M), N1 is M + 1, format(atom(Id), "a~w", [N1]).
 
 desk_act_instr(vote, "Record his vote in the KB as his own word (a human vote), then go on as the vote says.").
 desk_act_instr(demo(C, S, _), I) :- dk_f("If he approves: record his approval of ~w for claim ~w in the KB as his own word. If he says what is not right: record it as a divergence on ~w, and fix the build.", [S, C, C], I).
@@ -7761,6 +7989,9 @@ desk_effect(kb_write(Dir, Facts), R) :-
     ;   R0 == ok, pending_open(Dir, Ps), Ps \== [], member(pending(_, _, Fs), Ps), member(F, Facts), memberchk(F, Fs) -> R = queued
     ;   R = R0
     ).
+desk_effect(kb_attest(Dir, Type, Subject, Pred, Extra), R) :-
+    desk_attest_id(Dir, Id), utc_now(Now),
+    desk_effect(kb_write(Dir, [attest(Id, Type, Subject, Pred, human, Now)|Extra]), R).
 desk_effect(led_close(Hub, Id, Text), R) :- hub_run(Hub, [close, Id, '--reason', dropped, '--note', Text], _, R0), ( R0 = ok(_) -> R = ok ; R = R0 ).
 desk_effect(led_park(Hub, Id, Until, Text), R) :- hub_run(Hub, [park, Id, '--until', Until, '--note', Text], _, R0), ( R0 = ok(_) -> R = ok ; R = R0 ).
 desk_effect(ask_note(Hub, Id, Note), R) :- hub_run(Hub, [note, Id, Note], _, R0), ( R0 = ok(_) -> R = ok ; R = R0 ).
@@ -12574,6 +12805,16 @@ help_lines(serve, [
 "lane, by park end, then by --due date (none last), marked Parked until DATE. A Park past the",
 "ask's --due date is refused at the review (the ledger refuses it too, schema 8). It counts nowhere and is not in Your action",
 "until its park ends; then it is back by itself.",
+"The card of a ticket (lane KBs) shows the goal first, with its author (Goal (NAME), Goal (human),",
+"Goal (agent); a KB of 0.7.2 shows its hypothesis as the goal, author agent), then each hypothesis",
+"under it with its author and state (not adopted, adopted, defeated with the case, retired,",
+"superseded), the case that would show it false, and not tempered. Each check shows its verdict:",
+"meets (badge pass), conflicts (badge fail) or unresolved, with its own badge and the reason.",
+"Three records only the human makes there, each through the review: Adopt a hypothesis (item",
+"adopt:KBDIR#H), judge a case on the goal (item judge:KBDIR, choice wanted or not_wanted, text the",
+"case), judge the goal (item judge:KBDIR, choice satisfied or not_satisfied). POST /send writes",
+"attest adoption H adopted, or attest judgment G case(TEXT, wanted|not_wanted) or satisfied or",
+"not_satisfied, by human. The labels carry the sentences of share/orbit-kb/vocabulary.json.",
 "",
 "Serve the page of view questions on http://127.0.0.1:PORT/ (default port 8737; --port 0 picks",
 "a free port). Each reload reads the KBs and the ledger again, so the page is live.",
