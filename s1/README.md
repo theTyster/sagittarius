@@ -158,7 +158,11 @@ set of 0.7.2.
 System 1 writes only proposals, through `orbit propose --from system1 'FACT' [--note TEXT] --dir
 KB`. A proposal blocks nothing and becomes a record only when the agent or the human confirms it
 (`orbit confirm-proposal P`). The hook tolerates a tool with no `propose`: nothing is proposed.
-Today only the stop event proposes (a revision by the human, as a note on the claim).
+What is proposed, once its tree ships: each request of a message of the human, with its kind and
+its goal in the note (a hypothesis or a goal as a record of the human, word for word; any other
+kind as a `request` fact); a question on the goal when two hypotheses differ for a user; a note on
+a claim that the human revised (the stop event). The line then ends with `2 proposals wait (orbit
+show proposals)`.
 
 **The stop event.** `python3 hook.py --event stop` is a `Stop` hook. Before a delivery reaches the
 human, it compares the last message of the agent with the predictions of the record. When the

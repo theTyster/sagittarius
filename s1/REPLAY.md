@@ -104,7 +104,12 @@ experiment record. What happens then:
 
 - `drift`: the stop event (`hook.py --event stop`) runs once `d_success`, `d_kept` and `d_revised`
   are in the question set. Paste the Stop snippet of `README.md`.
-- `requests`, `dispute`, `difference`: the rules exist and are tested, but `hook.py` does not ask
-  these trees yet. The questions with a placeholder (`r_kind`, `r_goal`, `y_differs`) must be
-  written out for each part or pair (`trees.ask_requests`, `trees.ask_difference`) before they are
-  sent. Do not copy them into `questions.json` before that wiring exists.
+- `requests`, `dispute`, `difference`: the hook asks a tree in the same request as the other
+  questions once its entries are in the question set (`requests` needs `r_count` and `r_kind`,
+  and `r_goal` for the goal of each; `dispute` needs `x_dispute` and `x_kind`; `difference` needs
+  `y_differs`). An entry with a placeholder (`r_kind`, `r_goal`, `y_differs`) is never sent as it
+  is: `trees.py` writes it out for each part or pair. `requests` and `dispute` are asked only for
+  a message of the human. `test_trees_hook.py` runs the hook with the trees in the set.
+- `test_hook.C1State.test_c1_sends_the_questions_file` compares the request with the file. After a
+  promotion the request holds the written-out questions and not the entries of the tree, so that
+  test must change with the claim of the tree.

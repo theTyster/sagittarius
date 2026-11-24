@@ -267,3 +267,114 @@ def read_drift_today(answers):
     hit = _noul((answers or {}).get("d_drift"))[0] == "yes"
     return {"drifts": [{}] if hit else [], "revisions": [],
             "hint": "System 1: the delivery reports success by a criterion that changed" if hit else None}
+
+
+# --- the prompt event: ask the trees that shipped, read them, propose (c31, c32, c33, c34) ---
+
+MAX_PROPOSALS = 5  # proposals of one prompt
+KEEP = 0.3  # seconds of the limit that a proposal never uses: the line must still arrive
+
+
+def ask_prompt(tree, state, human, seen=()):
+    """The questions of the trees that shipped (tree: their entries in the question file), for
+    one prompt. It adds state["sentences"] when the requests tree is asked. requests and dispute
+    are for a message of the human only (c33, c34)."""
+    out = {}
+    rec = state.get("record")
+    if human and promoted(tree, ("r_count", "r_kind")):
+        if "sentences" not in state:
+            import hook
+            state["sentences"] = hook.split_parts(state["message"])
+        out.update(ask_requests(tree, state["sentences"], rec))
+    if human and promoted(tree, ("x_dispute", "x_kind")):
+        out.update(ask_dispute(tree))
+    if rec and "y_differs" in tree:
+        out.update(ask_difference(tree, rec, seen))
+    return out
+
+
+def fact_of(request, record_):
+    """The fact that System 1 proposes for one request (c33, c34), and its note. A hypothesis under
+    the goal of the record, and a goal, are proposed as records of the human, word for word; every
+    other kind as a request, word for word. The note holds the kind and the goal."""
+    import record as R
+    text, kind = request["text"], request["kind"]
+    goal = (record_ or {}).get("goal") or {}
+    if kind == "hypothesis" and goal.get("id"):
+        fact = f"hypothesis({R.short_id('s1_h', text)}, {goal['id']}, human, {R.quote(text)})"
+    elif kind == "goal":
+        fact = f"goal({R.short_id('s1_g', text)}, change, human, {R.quote(text)})"
+    else:
+        fact = f"request({R.short_id('s1_r', text)}, {R.quote(text)})"
+    serves = {None: "goal not known", "none": "no goal"}.get(request["goal"], request["goal"])
+    return fact, f"System 1: a request of kind {kind}; serves {serves}"
+
+
+def after_prompt(tree, answers, state, rec, env, session_id, human, deadline=None, asked=()):
+    """Read the trees that were asked, write what the session stated (q24), and propose through
+    orbit (c34). Returns (line parts, log dict or None). Never raises."""
+    import time
+    import record as R
+    parts, log = [], {}
+    try:
+        record_ = state.get("record")
+        sess = R.load_session(env, session_id)
+        done = set(sess.get("proposed") or [])
+        todo = []  # (key, fact, note)
+        if human and "r_count" in asked:
+            out = read_requests(answers, state.get("sentences") or [], record_)
+            if out["part"]:
+                parts.append(out["part"])
+            log["requests"] = [{k: r[k] for k in ("part", "kind", "goal")} for r in out["requests"]]
+            log["count"] = out["count"]
+            for r in out["requests"]:
+                if not rec.get("kb_dir") and r["kind"] == "goal":  # no ticket: the session stated it
+                    R.state_goal(env, session_id, r["text"])
+                elif not rec.get("kb_dir") and r["kind"] == "hypothesis":
+                    R.state_hypothesis(env, session_id, r["text"])
+                elif rec.get("kb_dir"):
+                    fact, note = fact_of(r, record_)
+                    todo.append((fact.split("(", 1)[1].split(",", 1)[0], fact, note))
+        if human and "x_dispute" in asked:
+            out = read_dispute(answers)
+            if out["part"]:
+                parts.append(out["part"])
+            log["dispute"] = out["kind"]
+        diff = read_difference({k: v for k, v in (answers or {}).items() if k in asked}, record_) if record_ else []
+        if diff:
+            sess = R.load_session(env, session_id)
+            seen = dict(sess.get("pairs") or {})
+            goal = (record_.get("goal") or {}).get("id")
+            for d in diff:
+                if d["differs"] is None:
+                    continue  # unsure: asked again at the next prompt
+                seen["|".join(sorted([d["a"], d["b"]]))] = d["differs"]
+                if d["part"]:
+                    parts.append(d["part"])
+                    if goal:
+                        qid = R.short_id("s1_q", d["question"])
+                        todo.append((qid, f"question({qid}, {goal}, {R.quote(d['question'])})",
+                                     "System 1: two current hypotheses differ for a user"))
+            sess["pairs"] = seen
+            R.save_session(env, session_id, sess)
+            log["difference"] = [{k: d[k] for k in ("a", "b", "differs")} for d in diff]
+        took = 0
+        for key, fact, note in todo[:MAX_PROPOSALS]:
+            if key in done:
+                continue
+            left = None if deadline is None else deadline - time.monotonic() - KEEP
+            if left is not None and left <= 0.05:
+                log["proposals_left"] = "no time"
+                break
+            if R.propose(rec, env, fact, note, timeout=None if left is None else min(left, R.budget(env))):
+                took += 1
+                done.add(key)
+        if took:
+            sess = R.load_session(env, session_id)
+            sess["proposed"] = sorted(done)[-200:]
+            R.save_session(env, session_id, sess)
+            parts.append(f"{took} proposal{'' if took == 1 else 's'} wait{'s' if took == 1 else ''} (orbit show proposals)")
+            log["proposed"] = took
+    except Exception as e:
+        log["error"] = f"{type(e).__name__}: {e}"
+    return parts, (log or None)

@@ -792,6 +792,7 @@ def run(raw, env, transport=None, spawn=None):
                 questions = json.load(f)
             if not isinstance(questions, dict) or not questions:
                 raise ValueError("not a non-empty object")
+            tree = {k: v for k, v in questions.items() if k in TREE_IDS}  # the trees that shipped
             questions = _prompt_questions(questions)
         except (OSError, ValueError) as e:
             _skip(log_path, key, f"questions: {type(e).__name__}: {e}", extra)
@@ -820,6 +821,20 @@ def run(raw, env, transport=None, spawn=None):
             if long_context:
                 lx["long_context"] = True
             lx.update(rlx)
+            asked, after = questions, None
+            if tree:  # c31 to c33: the trees that shipped are asked in the same request
+                import trees
+                sess = record.load_session(env, payload.get("session_id"))
+                more = trees.ask_prompt(tree, state, not src, list((sess.get("pairs") or {})))
+                if more:
+                    asked = dict(questions, **more)
+
+                    def after(got):
+                        parts, tlog = trees.after_prompt(tree, got, state, rec, env, payload.get("session_id"),
+                                                         not src, deadline, more)
+                        box["back"] = parts
+                        if tlog:
+                            jev._log(log_path, key, dict(lx, time=jev._now(), trees=tlog))
             # the time that orbit took comes off the limit of the model call, so the whole stays inside it
             timeout = max(limit - rec["took"], 0.1) if rec["took"] else limit
             routing = None
@@ -831,8 +846,10 @@ def run(raw, env, transport=None, spawn=None):
                     return
             if routing is None:
                 box["answers"] = record.mask(
-                    judge_parts(state, questions, fan, log_path, key, lx, timeout=timeout,
+                    judge_parts(state, asked, fan, log_path, key, lx, timeout=timeout,
                                 transport=transport, long_context=long_context), src)
+                if after and box["answers"]:
+                    after(box["answers"])
                 return
             stage = [0]
 
@@ -847,7 +864,7 @@ def run(raw, env, transport=None, spawn=None):
             ask.env = env  # for hook.fanout_run: the hook reads only this env
             ask.log = lambda rec: jev._log(log_path, key, dict(lx, routing="workbench", time=jev._now(), **rec))
             try:
-                got = routing["run"](state, ask, questions)
+                got = routing["run"](state, ask, asked)
                 if got is None or isinstance(got, dict) and not got and not callable(routing.get("hint")):
                     box["answers"] = None
                     return
@@ -855,6 +872,8 @@ def run(raw, env, transport=None, spawn=None):
                     raise TypeError(f"run() returned {type(got).__name__}, not a dict")
                 h = routing.get("hint")
                 got = record.mask(got, src)
+                if after and isinstance(got, dict):
+                    after(got)
                 line = h(got, questions) if callable(h) else format_answers(got, questions)
                 if not isinstance(line, str):
                     raise TypeError(f"hint() returned {type(line).__name__}, not a str")
@@ -881,7 +900,8 @@ def run(raw, env, transport=None, spawn=None):
             _skip(log_path, key, f"routing: {box['routing_error']}", extra, routing="workbench")
             return _out(no_view(f"routing: {box['routing_error'].split(':')[0]}"))
         def said(line):  # c34: the source of a message that the human did not write; k29: no record
-            return _out(record.compose(line, [record.source_part(src)], [record.marker(box.get("rec"))]))
+            return _out(record.compose(line, [record.source_part(src)],
+                                       list(box.get("back") or []) + [record.marker(box.get("rec"))]))
 
         if "line" in box:
             return said(box["line"])

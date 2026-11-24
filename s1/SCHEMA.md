@@ -88,6 +88,7 @@ bench replay writes to the bench log. The API key is never written.
 | `record_why` | hook.py | Why no record was sent: `no orbit command`, `no ticket`, `orbit timeout`, `orbit failed`, `orbit missing`, `bad record`, `too large for the context`; or which switch turned it off (`S1_RECORD`, `hub`). |
 | `record_latency` | hook.py | The seconds that the `orbit s1-record` command took. Absent when no command ran. |
 | `record_cut` | hook.py | The parts of the record that were left out so that the state fits the context, in order: `goal_sentences`, `questions`, `predictions`, `all`. |
+| `trees` | hook.py | Only on a line after a call that asked a decision tree that shipped (`trees.py`): `{count, requests: [{part, kind, goal}], dispute, difference: [{a, b, differs}], proposed, proposals_left, error}`, each key only when its tree was asked. It has no `state`. No tree ships yet, so no line has it. |
 | `event` | stop.py | `"stop"` on a line of the stop event (c30). Its `state` has `delivery` (the last message of the agent) in place of `message`. Written only after the drift questions ship. |
 | `stop` | stop.py | Only on the second line of a stop event: `{drifts, revisions, proposed, hint}`: the ids of the predictions that the delivery dropped with no revision, those that the human revised, the number of proposals that orbit took, and the hint line or null. |
 | `bench` | bench.py | The tag of a bench replay (`new` by default). |
