@@ -101,6 +101,9 @@ decl(fact, predicts(ref(hypothesis), ref(claim)),
 decl(fact, defeat(id, ref(hypothesis), text),
      'A case defeated the hypothesis. The case stays on the version of the hypothesis that it defeated.',
      'case @(1) defeated hypothesis @(2): @(3)').
+decl(fact, adoption_cited(ref(hypothesis), text),
+     'The ticket marks the hypothesis as adopted by the human, and cites the words of the human. It is the reading of the writer: alone it adopts nothing. A human adoption, or a human GO vote that comes after it in kb.pl, adopts the hypothesis.',
+     'the ticket cites the adoption of hypothesis @(1) by the human: @(2)').
 decl(fact, carried(ref, ref(goal)),
      'A record of an older goal (a hypothesis, a claim, or a run attestation) is carried over to the goal that replaced it.',
      '@(1) is carried over to goal @(2)').
@@ -348,6 +351,12 @@ decl(rule, hypothesis_human_written(ref(hypothesis)),
 decl(rule, any_current_hypothesis,
      'At least one hypothesis under a goal is current.',
      'some hypothesis is current').
+decl(rule, hypothesis_cited(ref(hypothesis)),
+     'The ticket marks the hypothesis as adopted by the human (adoption_cited). Alone it adopts nothing.',
+     'the ticket cites the adoption of hypothesis @(1)').
+decl(rule, hypothesis_marked_untempered(ref(hypothesis)),
+     'An untempered fact names the hypothesis.',
+     'someone marked hypothesis @(1) as not tempered').
 decl(rule, tempered(ref(hypothesis)),
      'The record of the hypothesis names one admissible case that would show it false (defeating_case/3), and nobody marked it untempered.',
      'hypothesis @(1) is tempered').
@@ -565,7 +574,11 @@ attest_type(judgment,
 % ---------------------------------------------------------------------
 
 superseded(C) :- supersedes(_, C).
-current(C) :- claim(C, _, _), not superseded(C).
+% 0.8.0 (D51, c37, c38): a claim is current when no claim replaces it, and it is a claim of the
+% goal (no predicts fact) or a current hypothesis predicts it. In a KB with no predicts fact
+% (each KB of 0.7.2) this is the rule of 0.7.2.
+current(C) :- claim(C, _, _), not superseded(C), claim_of_goal(C).
+current(C) :- claim(C, _, _), not superseded(C), claim_under_current(C).
 answered(Q) :- answer(Q, _, human).
 answered(Q) :- answer(Q, _, human:_).
 defeated(Q) :- assumed(Q, A), answer(Q, B, human), A \= B.
@@ -660,7 +673,7 @@ any_request_stale :- request_stale(_).
 % D30 H2: premises. A premise of a superseded hypothesis is not asked for: it is no
 % guess, and W10 does not name its hypothesis.
 premise_was_checked(P) :- premise_checked(P, _).
-premise_unchecked(P) :- premise(P, H, _), not superseded(H), not premise_was_checked(P).
+premise_unchecked(P) :- premise(P, H, _), not superseded(H), not hypothesis_out(H), not premise_was_checked(P).
 premises_stated(H) :- premise(_, H, _).
 premises_stated(H) :- no_premises(H).
 % Review of K-A (finding 9): a premise and the record "Premises: none" on one hypothesis.
@@ -670,3 +683,76 @@ lint_issue('W12', K, 'This check of a current claim does not say in words what i
     check(K, C), not superseded(C), not checks_that(K, _).
 lint_issue('W10', H, 'This hypothesis has no premise and no record "Premises: none". Add premise(P, H, Text) for each condition that it takes as given, or no_premises(H).') :-
     hypothesis(H, _, _), not superseded(H), not premises_stated(H).
+
+% ---------------------------------------------------------------------
+% The records (0.8.0, D50 to D54): goal, hypotheses, predictions
+% ---------------------------------------------------------------------
+% When orbit-kb reads the KB it adds: goal(Id, Kind, agent, Text) for each hypothesis/3 fact of
+% kb.pl, hypothesis(G, Kind, Text) for each goal/4 fact, supports_closure/2 (the closure of the
+% supports facts), and made_by_new. No rule recurses, so the engine finishes on every KB.
+goal_current(G) :- goal(G, _, _, _), not superseded(G).
+hypothesis_superseded(H) :- hypothesis(H, _, _, _), superseded(H).
+hypothesis_agent_written(H) :- hypothesis(H, _, agent, _).
+hypothesis_agent_written(H) :- hypothesis(H, _, agent:_, _).
+hypothesis_human_written(H) :- hypothesis(H, _, human, _).
+hypothesis_human_written(H) :- hypothesis(H, _, human:_, _).
+% D52: only a human adopts. The discovery module adds the clause of the GO vote.
+hypothesis_adopted(H) :- hypothesis(H, _, _, _), attest(_, adoption, H, adopted, human, _).
+% D52 (c37): the retirement of an agent counts only for a hypothesis that an agent wrote, that
+% no human adopted, and that the ticket does not mark as adopted (adoption_cited).
+hypothesis_retired(H) :- hypothesis(H, _, _, _), attest(_, retirement, H, _, human, _).
+hypothesis_retired(H) :- attest(_, retirement, H, _, agent, _), hypothesis_agent_written(H),
+                         not hypothesis_adopted(H), not hypothesis_cited(H).
+hypothesis_cited(H) :- adoption_cited(H, _).
+hypothesis_defeated(H) :- hypothesis(H, _, _, _), defeat(_, H, _).
+hypothesis_out(H) :- hypothesis_superseded(H).
+hypothesis_out(H) :- hypothesis_retired(H).
+hypothesis_out(H) :- hypothesis_defeated(H).
+hypothesis_state(H, superseded) :- hypothesis_superseded(H).
+hypothesis_state(H, retired) :- hypothesis_retired(H), not hypothesis_superseded(H).
+hypothesis_state(H, defeated) :- hypothesis_defeated(H), not hypothesis_superseded(H), not hypothesis_retired(H).
+hypothesis_state(H, adopted) :- hypothesis_adopted(H), not hypothesis_out(H).
+hypothesis_state(H, proposed) :- hypothesis(H, _, _, _), not hypothesis_adopted(H), not hypothesis_out(H).
+hypothesis_goal_current(H) :- hypothesis(H, G, _, _), goal_current(G).
+hypothesis_goal_current(H) :- hypothesis(H, _, _, _), carried(H, G), goal_current(G).
+hypothesis_current(H) :- hypothesis(H, _, _, _), not hypothesis_out(H), hypothesis_goal_current(H).
+any_current_hypothesis :- hypothesis_current(_).
+tempered(H) :- defeating_case(H, _, _), not hypothesis_marked_untempered(H).
+hypothesis_marked_untempered(H) :- untempered(H, _, _).
+not_tempered(H) :- hypothesis_current(H), not tempered(H).
+claim_predicted(C) :- predicts(_, C).
+claim_of_goal(C) :- claim(C, _, _), not claim_predicted(C).
+claim_under_current(C) :- predicts(H, C), hypothesis_current(H).
+hypothesis_guess(H) :- hypothesis_agent_written(H), hypothesis_current(H), not hypothesis_adopted(H).
+% D53 (c38): what a record rests on. record_step/2 has at most four steps (a run, a check, a
+% claim, a hypothesis, a goal), so record_up/2 is written out.
+record_step(A, K) :- attest(A, test_result, _, result(K, _, _), _, _).
+record_step(K, C) :- check(K, C).
+record_step(C, H) :- predicts(H, C).
+record_step(C, G) :- claim_of_goal(C), goal_current(G).
+record_step(H, G) :- hypothesis(H, G, _, _).
+record_up(X, Y) :- record_step(X, Y).
+record_up(X, Y) :- record_step(X, Z), record_step(Z, Y).
+record_up(X, Y) :- record_step(X, Z1), record_step(Z1, Z2), record_step(Z2, Y).
+record_up(X, Y) :- record_step(X, Z1), record_step(Z1, Z2), record_step(Z2, Z3), record_step(Z3, Y).
+rests_on(X, Y) :- record_step(X, Y).
+rests_on(G, R) :- supports(G, R).
+rests_above(X, Y) :- supports_closure(X, Y).
+rests_above(X, Y) :- supports_closure(X, H), hypothesis(H, Y, _, _).
+rests_above(X, Y) :- supports_closure(X, H), hypothesis(H, G, _, _), supports_closure(G, Y).
+rests_up(X, Y) :- rests_on(X, Y).
+rests_up(X, Y) :- record_up(X, Y).
+rests_up(X, Y) :- rests_above(X, Y).
+rests_up(X, Y) :- record_up(X, Z), rests_above(Z, Y).
+goal_supported(G) :- supports(G, _).
+goal_unsupported(G) :- goal_current(G), not goal_supported(G).
+claim_unplaced(C) :- made_by_new, any_current_hypothesis, claim(C, L, _), L \= preserve,
+                     not superseded(C), claim_of_goal(C).
+lint_issue('W13', H, 'This current hypothesis is not tempered: its record names no admissible case that would show it false, or someone marked it untempered. Add defeating_case(H, By, Text): one case that would defeat it. To replace it, add a new hypothesis and supersedes(New, H).') :-
+    not_tempered(H).
+lint_issue('W14', G, 'This goal names no goal above it. Add supports(G, project(PG)) for the project goal that it supports, or supports(G, G2) for a goal of this KB. It blocks nothing.') :-
+    made_by_new, goal_unsupported(G).
+lint_issue('W15', C, 'Two current hypotheses predict this claim. A claim is a prediction of one hypothesis. Keep one predicts fact, or make it a claim of the goal (no predicts fact).') :-
+    predicts(H1, C), predicts(H2, C), H1 \= H2, hypothesis_current(H1), hypothesis_current(H2).
+lint_issue('W16', C, 'This claim is not placed: the KB has a current hypothesis, and no hypothesis predicts the claim. Add predicts(H, C) for the hypothesis that it is a prediction of. A claim that must hold under every hypothesis is a preserve claim.') :-
+    claim_unplaced(C).

@@ -2214,3 +2214,19 @@ they are documented, not fixed:
   burn. Only the Lean sources and the Lake configuration files are hashed.
 - `uses` rewrites `kb.pl` as UTF-8. An invalid UTF-8 byte anywhere in the
   file becomes U+FFFD, with a warning from SWI-Prolog.
+
+## The records of 0.8.0: goal, hypotheses, predictions
+
+Contract: `kb/CONTRACT.md` D50 to D54. Help: `orbit-kb help core`.
+
+- Facts: `goal/4`, `hypothesis/4` (a hypothesis under a goal), `supports/2`, `defeating_case/3`,
+  `untempered/3`, `predicts/2`, `defeat/3`, `adoption_cited/2`, `carried/2`. `hypothesis/3` is the 0.7.2
+  form of the goal: it still loads, and each form is computed from the other when a KB is read.
+- Rules: `goal_current/1`, `hypothesis_state/2`, `hypothesis_current/1`, `hypothesis_adopted/1`,
+  `hypothesis_retired/1`, `hypothesis_defeated/1`, `tempered/1`, `not_tempered/1`, `claim_of_goal/1`,
+  `current/1` (changed), `hypothesis_guess/1`, `rests_on/2`, `rests_up/2`, `goal_unsupported/1`.
+- Attestation types: `adoption` (human), `retirement` (human or agent).
+- Commands: `adopt H --by human`, `retire H --reason TEXT`, `rests ID`, `show hypotheses`.
+- Lint: W13 (not tempered), W14 (a goal names no goal above it), W15 (two hypotheses predict one claim),
+  W16 (unplaced claim), E21 (predicts on a preserve claim). W14 and W16 only in a KB made by 0.8.0 or later.
+

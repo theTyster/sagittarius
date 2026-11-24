@@ -8,7 +8,23 @@ Facts
                                  during the ticket goes in as a further request, in the human's own
                                  words: add "request(r2, 'only on the settings page')" --by human.
                                  report prints each request under KB.
-  hypothesis(Id, Kind, Text)     what must be true when the ticket is done. Every ticket has one.
+  goal(G, Kind, Author, Text)    the goal of the ticket: what the human hopes to accomplish. It names
+                                 no avenue. Author is human, agent, human:NAME or agent:NAME.
+  hypothesis(H, Goal, Author, Text)   a hypothesis under goal Goal: a claim about an avenue to the
+                                 goal. A goal can have several. A ticket with a goal and no
+                                 hypothesis is valid: its claims hang on the goal.
+  supports(G, Ref)               the goal above goal G: a goal id, or project(PG) for a goal of the
+                                 project KB. lint W14 names a goal with none (new KBs only).
+  defeating_case(H, By, Text)    the admissible case that would show hypothesis H false. With one,
+                                 H is tempered. lint W13 names a current hypothesis with none.
+  untempered(H, By, Text)        the human or the agent marks H as not tempered, and why
+  predicts(H, Claim)             the claim is a prediction of hypothesis H. A claim with no predicts
+                                 fact is a claim of the goal. A preserve claim is always one (E21).
+  defeat(D, H, Text)             case D defeated hypothesis H. The case stays on H.
+  adoption_cited(H, Words)       your reading: the human adopted H, in these words. Alone it adopts
+                                 nothing: a human adoption, or a later GO vote of the human, does.
+  carried(X, G)                  record X of an older goal is carried over to goal G
+  hypothesis(Id, Kind, Text)     the 0.7.2 form of the goal. It still loads, and gives goal(Id, Kind, agent, Text).
                                  Kind is defect, feature, risk, or change (a direct build of a
                                  document or a configuration).
   premise(P, Hyp, Text)          a condition that the hypothesis takes as given
@@ -179,3 +195,16 @@ Speed
   Run independent tool calls in parallel. Give long mechanical work (wide searches, long test
   runs) to a subagent on a fast model. A small task does not need a subagent.
   Report results, not process.
+
+The records (0.8.0)
+  orbit-kb show hypotheses       the goal first with its author, then each hypothesis under it with
+                                 author, state, defeating case, premises and predictions
+  orbit-kb adopt H --by human [--note 'the words']    the human adopts H (attest adoption)
+  orbit-kb retire H --reason TEXT [--by human|agent]  retire H (attest retirement). An agent cannot
+                                 retire a hypothesis that a human wrote or adopted, or one with adoption_cited.
+  orbit-kb rests ID              "up:" what ID rests on, to the project goal; "down:" what rests on it
+  Queries: goal_current(G)  hypothesis_state(H, S) (superseded, retired, defeated, adopted, proposed)
+           hypothesis_current(H)  hypothesis_adopted(H)  tempered(H)  not_tempered(H)
+           claim_of_goal(C)  hypothesis_guess(H)  rests_on(X, Y)  rests_up(X, Y)  goal_unsupported(G)
+  current(C): no claim replaces C, and C is a claim of the goal or a current hypothesis predicts it.
+  A query of hypothesis(H, K, T) answers as at 0.7.2 on every KB (it gives the goal), with a note.
