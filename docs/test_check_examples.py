@@ -115,7 +115,7 @@ class Examples(unittest.TestCase):
         self.fails(["c2"], "discovery.txt", "finding")
 
     def test_the_help_calls_the_vague_sentence_fit(self):
-        self.edit(HELP, f'- Collapsed: "{VAGUE}"', f'- Fit: "{VAGUE}"')
+        self.edit(HELP, f'- Not tempered: "{VAGUE}"', f'- Fit: "{VAGUE}"')
         self.fails(["c2"], VAGUE)
 
     # -- c4: the recording of temper.py
