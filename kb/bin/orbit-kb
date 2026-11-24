@@ -4121,7 +4121,9 @@ kb_lines_commented(File, LTs, Out) :-
 % itself when it made it), and exits with the code of add. The ids are fixed: h1, p1..pN, c1.
 % 0.8.0 (review H1): --goal T [--goal-by human|agent] makes --hypothesis the avenue under the goal:
 % goal(g1, ...), hypothesis(hy1, g1, ...), defeating_case(hy1, ...) with --defeating-case; the
-% premises go on g1. Without --goal the facts, stdout and exit code are those of 0.7.2, and the
+% premises go on g1 (--no-premises also records no_premises(hy1)), and an introduce or retire claim
+% is a prediction of hy1: predicts(hy1, c1) (review S1).
+% Without --goal the facts, stdout and exit code are those of 0.7.2, and the
 % note of D50 on hypothesis/3 goes to stderr.
 
 cmd_shift(Args, Code) :-
@@ -4177,7 +4179,9 @@ cmd_shift(Args, Code) :-
                ; memberchk('--no-premises'-true, Opts), F = no_premises(Top)
                ; nth1(I, Prems, PT), atom_concat(p, I, PId), F = premise(PId, Top, PT)
                ; member(F, HypFacts)
+               ; GoalT \== none, memberchk('--no-premises'-true, Opts), F = no_premises(hy1)
                ; F = claim(c1, Label, CT)
+               ; GoalT \== none, Label \== preserve, F = predicts(hy1, c1)   % review S1: a preserve claim stays on the goal
                ; F = cites(c1, Cites)
                ; F = example(c1, ET)
                ; F = check(KId, c1)

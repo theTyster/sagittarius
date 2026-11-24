@@ -23,9 +23,11 @@ Read this topic, then run one command:
                 read as the goal (a note on stderr says so).
   --premise     one premise each time, on the goal: premise(p1, g1, TEXT), p2, ... A premise
                 that you did not check is a guess (report, Guesses). --no-premises records
-                "Premises: none" (no_premises(g1)). Give one of the two.
+                "Premises: none" (no_premises(g1), and no_premises(hy1) with --goal). Give one.
   --claim       claim(c1, L, TEXT). L is introduce (the default), retire, or preserve.
-                cites(c1, ...) gets the first line of the request, or --cites TEXT.
+                cites(c1, ...) gets the first line of the request, or --cites TEXT. With
+                --goal, an introduce or retire claim is a prediction: predicts(hy1, c1).
+                A preserve claim stays on the goal.
   --example     example(c1, TEXT): one concrete case of the claim.
   --check       check(ID, c1). The KB stores the id, not a command: orbit-kb run takes it.
   --checks-that checks_that(ID, TEXT): what the check checks, in plain words. Required (E20).
