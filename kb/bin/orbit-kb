@@ -1879,7 +1879,9 @@ stage2_derived(Dir, KbItems, Facts) :-
               atom(X) ),
             F30),
     sort(F30, F3),
-    append([F1, F2, F3], Facts).
+    (   member(it(kb, _, LU, TU, _, _), KbItems), nonvar(TU), TU = upgraded(_, _), integer(LU)
+    ->  F4 = [upgrade_line(LU)] ; F4 = [] ),
+    append([F1, F2, F3, F4], Facts).
 
 % kb_upgrade_state(+KbFile, +KbItems, -State) (D57): before (a KB of a version below 0.8.0 that
 % orbit-kb 0.8.0 or later never wrote to), upgraded (it holds upgraded/2), or new.
@@ -3079,6 +3081,10 @@ protected_pi(any_flare_open_072/0).
 protected_pi(any_current_claim_072/0).
 protected_pi(no_current_claim_072/0).
 protected_pi(done_072/0).
+protected_pi(upgrade_line/1).
+protected_pi(claim_not_carried/1).
+protected_pi(claim_waived_unresolved/1).
+protected_pi(claim_conflicts_or_stale/1).
 protected_pi(any_project_conflict_072/0).
 protected_pi(burn/1).
 protected_pi(burn_reason/1).
@@ -9062,7 +9068,10 @@ cmd_run(KB, Args, Code) :-
     directory_file_path(Dir, runs, RunsDir),
     make_directory_path(RunsDir),
     runs_tmp(RunsDir, TmpOut, OS),
-    catch(process_create(Exe, CmdArgs, [stdin(null), stdout(stream(OS)), stderr(stream(OS)), process(P)]), E, true),
+    % 0.8.0 (D55): with --timeout the command leads its own process group, so the kill at the
+    % time limit reaches each process that it started.
+    ( TimeOut == none -> PGOpts = [] ; PGOpts = [detached(true)] ),
+    catch(process_create(Exe, CmdArgs, [stdin(null), stdout(stream(OS)), stderr(stream(OS)), process(P)|PGOpts]), E, true),
     close(OS),
     (   nonvar(E)
     ->  err_text(E, ET),
@@ -9154,7 +9163,7 @@ run_poll(P, Deadline, St) :-
     process_wait(P, St0, [timeout(0)]),
     (   St0 \== timeout -> St = St0
     ;   get_time(Now), Now >= Deadline
-    ->  catch(process_kill(P, 9), _, true),
+    ->  catch(process_group_kill(P, 9), _, catch(process_kill(P, 9), _, true)),
         catch(process_wait(P, _), _, true),
         St = timeout
     ;   sleep(0.02),
@@ -9172,6 +9181,7 @@ run_signals_off(old(I, T)) :-
 run_signal(Sig) :- throw(orbit_signal(Sig)).
 
 run_interrupted(P, Sig) :-
+    catch(process_group_kill(P, term), _, true),      % reaches a detached command (--timeout)
     catch(process_kill(P, term), _, true),
     catch(process_wait(P, _), _, true),
     (   memberchk(Sig, [term, 15]) -> Code = 143, Name = "SIGTERM"
@@ -10951,7 +10961,8 @@ show_section(KB, Eng, open) :-
              forall(member(Q-A, PQs), ( term_text(A, AT), say("- pending ~w: an answer to question ~w waits in answers.pending (queued ~w): ~w. The next write applies it.", [Q, Q, PT, AT]) )) )),
     % D32 O1, O2, O3: every other answer of blocking(X), what blocks readiness, and stale pins.
     open_more(KB, Eng, [to_ask, supersede_cycle, under, over, burn_open, flare_open, no_claim, request_stale], [], Bl, Rd, Sp),
-    forall(member(X, Bl), ( blocking_line(KB, Eng, X, BS), say("~w", [BS]) )),
+    drop_failing_unresolved(Bl, BlShown),
+    forall(member(X, BlShown), ( blocking_line(KB, Eng, X, BS), say("~w", [BS]) )),
     stage2_notes(KB, Eng, S2Notes),
     forall(member(S2N, S2Notes), say("~w", [S2N])),
     forall(member(R, Rd), ( ready_line(Eng, R, RK, RS), say("- not_ready ~w: ~w", [RK, RS]) )),
@@ -10965,7 +10976,7 @@ show_section(KB, Eng, open) :-
 % D22: each answer of blocking(X), with the text of its item.
 show_section(KB, Eng, blocking) :-
     say("Blocking:", []),
-    eng_all(Eng, [X], blocking(X), Xs),
+    eng_all(Eng, [X], blocking(X), Xs0), drop_failing_unresolved(Xs0, Xs),
     (   Xs == [] -> say("- Nothing blocks done.", [])
     ;   forall(member(X, Xs), ( blocking_line(KB, Eng, X, S), say("~w", [S]) ))
     ).
@@ -11148,6 +11159,11 @@ run_log_cmd(Log, Cmd) :-
     exists_file(Log),
     catch(setup_call_cleanup(open(Log, read, S, [encoding(utf8)]), read_line_to_string(S, L), close(S)), _, fail),
     string(L), sub_string(L, B, _, _, " cmd="), B4 is B + 5, sub_string(L, B4, _, 0, Cmd).
+
+% 0.8.0 (c43, c7): blocking(check_failing(K)) and blocking(check_unresolved(K)) both hold for an
+% unresolved last run. The listings print one line for it, the unresolved one.
+drop_failing_unresolved(Xs0, Xs) :-
+    exclude([X]>>( X = check_failing(K), memberchk(check_unresolved(K), Xs0) ), Xs0, Xs).
 
 % blocking_line(+KB, +Eng, +Item, -Line) (D22): one line of show blocking.
 blocking_line(_, Eng, to_ask(Q), S) :- !,
@@ -13269,6 +13285,10 @@ report_text(KB, Eng) :-
                  ->  StHead = "Status: not fulfilled.",
                      fmt(StDetail0, "A human waived check ~w until ~w, so the claim does not block done until then.", [WK1, WD1]),
                      SK = waived
+                 ;   eng_all(Eng, [CWD], ( claim_waived_unresolved(C), attest(CWW, waiver, _, waive(C, CWD, _), human, _), not(waiver_lapsed(CWW)) ), [CWD1|_])
+                 ->  StHead = "Status: not fulfilled.",
+                     fmt(StDetail0, "Not shown: a check of the claim is unresolved. A human waived the claim until ~w, so it does not block done until then.", [CWD1]),
+                     SK = waived
                  ;   claim_stage2_status(Eng, C, StHead, StDetail0) -> SK = under
                  ;   StHead = "Status: under.", StDetail0 = "It is not fulfilled yet.", SK = under
                  ),
@@ -13426,7 +13446,8 @@ report_text(KB, Eng) :-
     forall(member(Q4, Q4s), ropen(open(to_ask, Q4, none), "ask", "Ask question ~w now.", [Q4])),
     forall(member(W5, W5s), ropen(open(question_waits, W5, none), "waits", "Question ~w waits for the human's answer.", [W5])),
     forall(member(R5, R5s), ropen(open(refuted, R5, none), "refuted", "Claim ~w is refuted. Record the counterexample as an example, and ask the human. Do not weaken the claim.", [R5])),
-    forall(member(X6, Bl6s), report_blocking_item(KB, Eng, X6)),
+    drop_failing_unresolved(Bl6s, Bl6Shown),
+    forall(member(X6, Bl6Shown), report_blocking_item(KB, Eng, X6)),
     forall(member(D5, D5s),
            ( ready_line(Eng, D5, DK5, DS5), ( D5 = unknown -> DRef = discovery ; functor(D5, _, DA), ( DA =:= 1 -> arg(1, D5, DRef) ; functor(D5, DRef, _) ) ),
              ( eng_true(Eng, claim(DRef, _, _)) -> DTgt = DRef ; DTgt = none ),

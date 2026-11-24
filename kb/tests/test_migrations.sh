@@ -357,7 +357,8 @@ check(k2, c1).
 EOF
     # a tool migration that backfills checks_that(k2), declared as S = {checks_that/2} only:
     # lint W12 reads checks_that under not, so it is in the reach, and it changes; current(c1) is not
-    rm -f "$T/lib/migrations/9.9.9-fixture.pl" "$T/lib/migrations/0.5.0-checks_that.pl"
+    # 0.8.0 (scientific-method-overhaul c19): the migration of 0.8.0 declares current/1 as changed, so it goes too
+    rm -f "$T/lib/migrations/9.9.9-fixture.pl" "$T/lib/migrations/0.5.0-checks_that.pl" "$T/lib/migrations/0.8.0-scientific-method.pl"
     cat > "$T/lib/migrations/9.9.9-words.pl" <<'EOF'
 migration(m_words, '9.9.9', 'Backfill the words of each check.').
 changes(m_words, [checks_that/2]).
@@ -381,7 +382,8 @@ EOF
 # ================================================================ c7: an additive migration
 t_MG7() {
     fxlib || return
-    rm -f "$T/lib/migrations/9.9.9-fixture.pl" "$T/lib/migrations/0.6.0-project-root.pl"   # the additive migration alone
+    # 0.8.0 (scientific-method-overhaul c19): the migration of 0.8.0 declares changes of old rules, so it goes too
+    rm -f "$T/lib/migrations/9.9.9-fixture.pl" "$T/lib/migrations/0.6.0-project-root.pl" "$T/lib/migrations/0.8.0-scientific-method.pl"   # the additive migration alone
     # the new version adds a fact kind and a rule that only reads it; no old rule reads either
     cat >> "$T/lib/core.pl" <<'EOF'
 decl(fact, fx_bounds(atom, text), 'The bounds of the runs of a check (a fixture).', 'check @(1) runs with bounds @(2)').

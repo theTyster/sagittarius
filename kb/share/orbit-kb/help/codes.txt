@@ -67,7 +67,8 @@ Core
   W16  an unplaced claim: no hypothesis predicts it, it is no preserve claim, and the KB has a
        current hypothesis. Add predicts(H, C). Only in a KB made by orbit-kb 0.8.0 or later.
   W17  a check of a current claim has no procedure and no run: the experiment does not say how it
-       is carried out. Add procedure(K, Text), or run the check.
+       is carried out. Add procedure(K, Text), or run the check. Only in a KB made by orbit-kb
+       0.8.0 or later.
   W18  a formal statement (formal_statement/2, or a model with encodes/2) has no could_change(S,
        Text), or a could_change names a subject that states no claim. Only in a KB made by
        orbit-kb 0.8.0 or later.

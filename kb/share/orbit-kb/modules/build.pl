@@ -212,7 +212,14 @@ attest_type(waiver,
 fulfilled(C) :- claim(C, preserve, _), counts(_, C), not refuted(C).
 fulfilled(C) :- claim(C, L, _), L \= preserve, check(K, C), latest_run(K, A), counts(A, C),
                 was_red(K), not refuted(C).
-under(C) :- current(C), not fulfilled(C), not check_waived(C).
+% 0.8.0 (D59, c41): a live human waiver on the claim covers it for done when a check of the claim
+% is unresolved and no check of it conflicts or is stale. The claim is not fulfilled: not shown.
+under(C) :- current(C), not fulfilled(C), not check_waived(C), not claim_waived_unresolved(C).
+claim_waived_unresolved(C) :- claim(C, _, _), attest(W, waiver, _, waive(C, _, _), human, _),
+                              not waiver_lapsed(W), check(K, C), check_unresolved(K),
+                              not claim_conflicts_or_stale(C).
+claim_conflicts_or_stale(C) :- check(K, C), latest_run(K, A), verdict(A, conflicts).
+claim_conflicts_or_stale(C) :- check(K, C), latest_run(K, A), verdict(A, meets), stale_counts(A, C).
 served(X) :- serves(X, _).
 over(X) :- change(X, _), not served(X).
 any_under :- under(_).
@@ -302,7 +309,9 @@ blocking(over(X)) :- over(X).
 blocking(burn_open(C)) :- burn_open(C).
 blocking(flare_open(C)) :- flare_open(C).
 blocking(no_claim) :- no_current_claim.
-% 0.8.0 (D57, c7): a check whose latest verdict is unresolved is not a failing check.
+% 0.8.0 (D57, c7; the spec check k7): a check whose latest verdict is unresolved is not a failing
+% check. blocking(check_unresolved(K)) names it, so a caller that reads every answer of
+% blocking(X) still sees a blocker (c43, k43).
 blocking(check_failing(K)) :- check(K, C), under(C), check_ran(K), not passed(K), not check_unresolved(K).
 blocking(check_unresolved(K)) :- check(K, C), under(C), check_unresolved(K).
 blocking(verdict_stale(K)) :- check(K, C), under(C), latest_run(K, A), verdict(A, meets), stale_counts(A, C).
@@ -464,9 +473,6 @@ decl(rule, behavior_waived(ref(behavior_conflict)),
 decl(rule, behavior_open(ref(behavior_conflict)),
      'The behavior of the conflict is open for review: no current claim names it, and no human waived it.',
      'the behavior of conflict @(1) is open for review').
-decl(rule, before_goal(ref, ref),
-     'The record (a hypothesis, a claim, or a run) stands before the fact of the goal in kb.pl, and the goal replaces an older goal. orbit-kb computes it when it reads the KB.',
-     '@(1) was recorded before goal @(2) replaced the older goal').
 decl(rule, carried_over(ref, ref),
      'The record is carried over to the goal: by a carried fact, or as a claim of a hypothesis that is carried over.',
      '@(1) is carried over to goal @(2)').
@@ -479,11 +485,17 @@ decl(rule, not_carried_run(ref(attest)),
 decl(rule, any_stage2_open,
      'A conflict has no location, a location waits for its confirmation, a not-wanted case has no hypothesis, a conflict with existing behavior is open, or the human has not judged the goal satisfied.',
      'an item of the experiments or of the judgment of the goal is open').
+decl(rule, claim_waived_unresolved(ref(claim)),
+     'A human waived the claim, the due time is not past, a check of the claim is unresolved, and no check of it conflicts or is stale: the claim is covered for done, and not fulfilled.',
+     'a human waived claim @(1), whose check is unresolved').
+decl(rule, claim_conflicts_or_stale(ref(claim)),
+     'The latest run of a check of the claim conflicts, or its meets verdict is stale.',
+     'a check of claim @(1) conflicts or is stale').
 decl(rule, done_before_upgrade,
      'The ticket was done by the rules of 0.7.2 before orbit-kb 0.8.0 or later wrote to the KB: the fact done_before_upgrade/2, or a KB from before the upgrade in which done_072 holds.',
      'the ticket was done before the upgrade').
 decl(rule, after_upgrade_change(ref(change)),
-     'The change was recorded at or after the first write of orbit-kb 0.8.0 or later.',
+     'The change has a change time and stands after the upgraded/2 fact in kb.pl.',
      'change @(1) was recorded after the upgrade').
 % The rules of 0.7.2, verbatim (D57; the names have the suffix _072).
 decl(rule, current_072(ref(claim)), 'current/1 as orbit-kb 0.7.2 had it.', 'claim @(1) is current (0.7.2)').
@@ -536,9 +548,12 @@ done_072 :- not any_under_072, not any_over, not any_to_ask_072, not any_burn_op
 % done_before_upgrade/2 when done_072 held.
 done_before_upgrade :- done_before_upgrade(_, _).
 done_before_upgrade :- kb_before_upgrade, done_072.
-after_upgrade_change(X) :- upgraded(_, TU), change_at(X, TX), TX @>= TU.
+% Before and after the upgrade is the order of kb.pl (upgrade_line/1: the line of upgraded/2,
+% computed): a time has a resolution of one second, and the first write can come in the second
+% of the last record of the old tool.
+after_upgrade_change(X) :- upgrade_line(LU), change_at(X, _), record_line(X, LX), LX > LU.
 before_upgrade_record(_) :- done_before_upgrade, kb_before_upgrade.
-before_upgrade_record(A) :- done_before_upgrade, upgraded(_, TU), attest(A, _, _, _, _, TA), TA @< TU.
+before_upgrade_record(A) :- done_before_upgrade, upgrade_line(LU), record_line(A, LA), LA < LU.
 
 % --- Stale verdicts and what counts (D56; c39) ------------------------
 change_after_run(X, A) :- change_at(X, TX), attest(A, test_result, _, _, _, TA), TX @> TA.
@@ -646,7 +661,7 @@ any_stage2_open :- goal_unjudged(_).
 any_stage2_open :- behavior_open(_).
 
 lint_issue('W17', K, 'This check of a current claim has no procedure and no run: the experiment does not say how it is carried out. Add procedure(K, Text), or run the check (the command of the last run is then the procedure).') :-
-    check(K, C), current(C), not procedure(K, _), not check_ran(K).
+    made_by_new, check(K, C), current(C), not procedure(K, _), not check_ran(K).
 lint_issue('W18', S, 'This formal statement does not say which decision its precision could change. Add could_change(S, Text) (formalize the smallest claim whose precision could change what the human or the agent does next).') :-
     made_by_new, formal(S, _), not could_change(S, _).
 lint_issue('W18', S, 'This formal statement (could_change) names no claim. Add formal_statement(S, C), or encodes(M, C) for a model.') :-

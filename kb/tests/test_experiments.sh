@@ -436,8 +436,11 @@ t_UV4() {  # a run that times out
     [ $((SECONDS - t0)) -lt 15 ] || note "the timeout did not stop the command"
     out_has '^run 1 k1 unresolved \(exit 137\) log=' "timeout: the line"
     has_goal "$K/kb.pl" "kb(unresolved_because(a1, W)), sub_atom(W, _, _, _, 'timed out after 1 s')" "the reason"
+    printf '#!/bin/sh\nsleep 31 &\necho $! > "%s/child.pid"\nwait\n' "$T" > "$T/tree.sh"; chmod +x "$T/tree.sh"
+    run_k k1 --timeout 1 -- "$T/tree.sh"; rc_is 1
+    kill -0 "$(cat "$T/child.pid")" 2>/dev/null && { note "the timeout left a process of the command alive"; kill "$(cat "$T/child.pid")"; }
     run_k k1 --timeout 20 -- true; rc_is 0 "inside the limit"
-    out_has '^run 2 k1 pass \(exit 0\)'
+    out_has '^run 3 k1 pass \(exit 0\)'
     run_k k1 --timeout x -- true; rc_is 2 "a bad --timeout is a usage error"
 }
 t_UV5() {  # a solver: --expect; unknown and a time limit are unresolved, typed by nobody
@@ -552,6 +555,7 @@ t_GF2() {  # the first write records the upgrade; done still holds; a change aft
     has_fact "$K/kb.pl" "upgraded(_, _)"; has_fact "$K/kb.pl" "done_before_upgrade(_, _)"
     has_goal "$K/kb.pl" "findall(L, kb_line(L, upgraded(_, _)), [LU]), kb_line(LN, note(c1, _)), LU < LN" "upgraded/2 stands before the write"
     is_true done "done after the first write"; is_false 'blocking(X)'
+    is_true 'before_upgrade_record(t1)'; is_false 'after_upgrade_change(x2)' "the order of kb.pl decides, not the second"
     okb --dir "$K" add "note(c1, 'a second note')"
     fact_count "$K/kb.pl" "upgraded(_, _)" 1 "one upgraded fact"
     okb --dir "$K" add "change(x3, 'new work')" 'serves(x3, c1)'
@@ -586,10 +590,19 @@ t_JD1() {  # k41: no judgment, done is no; judgment and one unresolved claim, do
     run_k k2 -- sh -c 'exit 77'
     is_false done "the judgment turns no unresolved verdict into meets"
     is_set 'blocking(X)' 'X = check_unresolved(k2)|X = under(c2)'
-    okb --dir "$K" attest waiver k2 "waive(k2, '2999-12-15T00:00:00Z', 'the tool that measures it does not exist')" --by human; rc_is 0
-    is_true done "a human waiver with a due time"
+    is_false 'blocking(check_failing(k2))' "c7 (k7): an unresolved check is not listed as failing"
+    okb --dir "$K" show open; [ "$(printf '%s\n' "$out" | grep -c ' k2: ')" = 1 ] || note "show open prints one line for the unresolved check: $(snip "$out")"
+    cp -r "$K" "$T/kb2"
+    okb --dir "$K" attest waiver c2 "waive(c2, '2999-12-15T00:00:00Z', 'the tool that measures it does not exist')" --by human; rc_is 0
+    is_true done "a human waiver of the claim with a due time (the example of c41)"
     is_false 'fulfilled(c2)'
-    okb --dir "$K" report; out_has 'Status: not fulfilled' "the delivery says not shown"
+    okb --dir "$K" report; out_has 'Status: not fulfilled' "the delivery"; out_has 'Not shown' "the delivery says not shown"
+    run_k k2 -- false
+    is_false done "a waiver of the claim does not cover a conflict"
+    K=$T/kb2
+    okb --dir "$K" attest waiver k2 "waive(k2, '2999-12-15T00:00:00Z', 'the tool that measures it does not exist')" --by human; rc_is 0
+    is_true done "a human waiver of the check, as at 0.7.2"
+    okb --dir "$K" attest waiver c2 "waive(c2, '2020-01-01T00:00:00Z', 'past')" --by human; is_true done
 }
 t_JD2() {  # a later not-satisfied judgment or a not-wanted case reopens; a judgment is a record
     mk; green; judge_ok; is_true done
@@ -730,6 +743,9 @@ t_EX1() {  # show experiments: the claim, the procedure, the measurement premise
         "measurement_premise(mp1, k1, 'The clock is right within 0.2 s.')" \
         "known_when(k1, 'The tolerance and the error bound were fixed before the reading.')"; rc_is 0
     okb --dir "$K" lint; out_hasnt '^W17'
+    old_done_kb; printf "claim(c9, preserve, 'x').\ncites(c9, 'val is 2').\ncheck(k9, c9).\nchecks_that(k9, 'x').\n" >> "$K/kb.pl"
+    okb --dir "$K" lint; out_hasnt '^W17' "a KB from before 0.8.0 gets no W17"
+    K=$T/kb
     run_k k1 -- "$T/timer.sh" 615
     okb --dir "$K" judge h1 case 'it rang at 61.5 s' not-wanted --by human
     okb --dir "$K" show experiments; rc_is 0
@@ -805,8 +821,9 @@ EOF
     is_set 'before_goal(X, G)' 'X = c1, G = g2|X = t1, G = g2'
     is_set 'not_carried(X)' 'X = c1|X = t1'
     is_false 'fulfilled(c1)' "the meets verdict of the old goal is not carried"
+    is_false 'current(c1)' "a claim of the old goal is not current until a record carries it over"
     okb --dir "$K" add 'carried(c1, g2)'
-    is_set 'not_carried(X)' 'X = t1'
+    is_set 'not_carried(X)' 'X = t1'; is_true 'current(c1)'
     is_true 'blocking(not_carried(t1))'; is_true 'blocking(goal_unjudged(g2))'
     okb --dir "$K" show open; out_has '^- not_carried t1: Not carried over'
     okb --dir "$K" add 'carried(t1, g2)'; is_true 'fulfilled(c1)'
