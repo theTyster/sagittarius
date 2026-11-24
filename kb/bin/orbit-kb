@@ -8445,6 +8445,7 @@ run_result(_, _, _, _, _, fail, '').
 % orbit-kb stops the command, records nothing, removes the temp file
 % (cleanup_tmp/0), and exits 130 or 143. With --timeout SECS (0.8.0, D55), a command that
 % still runs after SECS is killed, and Status is timeout.
+run_wait(P, St) :- run_wait(P, none, St).
 run_wait(P, TimeOut, St) :-
     catch(setup_call_cleanup(run_signals_on(Old),
                              run_wait_(P, TimeOut, St),

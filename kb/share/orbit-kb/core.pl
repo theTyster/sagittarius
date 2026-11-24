@@ -770,6 +770,7 @@ check_unresolved(K) :- latest_run(K, A), verdict(A, unresolved).
 % first clause of hypothesis_defeated/1. Drop this block when K1's rules are merged.
 goal_current(G) :- goal(G, _, _, _), not superseded(G).
 goal_current(G) :- hypothesis(G, _, _), not superseded(G).
+hypothesis_current(H) :- hypothesis(H, G, _, _), goal_current(G), not hypothesis_defeated(H).
 % <<< K2 stand-in
 hypothesis_of(H, G) :- hypothesis(H, G, _, _).
 decl(rule, hypothesis_of(ref, ref),
