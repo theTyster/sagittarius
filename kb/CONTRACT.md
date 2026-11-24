@@ -941,7 +941,7 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 - `hypothesis_adopted(H)`: a human adoption attestation; or (discovery module) `adoption_cited(H, Words)`
   that stands in kb.pl before a GO vote of the human that is not void. `adoption_cited` alone adopts
   nothing, and a GO vote adopts no hypothesis without it. A proposed hypothesis with the mark prints
-  `proposed; the ticket cites the human's adoption: WORDS`.
+  `proposed: the agent reads the human's words as adoption: 'WORDS' (adopt to confirm)`.
 - An agent retirement of a hypothesis that a human wrote or adopted, or that has `adoption_cited`, is
   refused (exit 1, by `retire`, `attest` and `add`). Such a fact written by hand does not retire it.
 - `hypothesis_guess(H)`: agent-written, current, not adopted. `report` lists it under Guesses as
@@ -1066,4 +1066,7 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   verdict is unresolved is printed as `unresolved`, never as not passed.
 - The sections "Formal: not yet accepted by the human" and "For discovery" appear when they have
   an item.
-
+- Lint W10 and W11 say "goal" for a goal/4 fact (`goal_written/1`, computed). W10 also names a current
+  hypothesis/4 with no premise and no `no_premises`, only in a KB made by 0.8.0 or later.
+- Lint W19: an agent retirement that the rule does not count (D52). Lint W20: `supports(G, project(PG))`
+  where the project KB of `project_kb/1` can be read and holds no goal PG (`supports_missing/2`, computed).

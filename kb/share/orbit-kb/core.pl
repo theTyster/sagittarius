@@ -393,6 +393,15 @@ decl(rule, rests_up(ref, term),
 decl(rule, supports_closure(ref, term),
      'The first goal or hypothesis reaches the second through one or more supports facts. orbit-kb computes it when it reads the KB.',
      '@(1) supports @(2), directly or through others').
+decl(rule, goal_written(ref(goal)),
+     'The goal is written as a goal/4 fact in kb.pl (not in the 0.7.2 form hypothesis/3). orbit-kb computes it when it reads the KB.',
+     'goal @(1) is written as a goal/4 fact').
+decl(rule, retirement_ignored(ref(hypothesis)),
+     'An agent retirement of the hypothesis does not count: a human wrote or adopted it, or the ticket marks it as adopted.',
+     'an agent retirement of hypothesis @(1) does not count').
+decl(rule, supports_missing(ref, atom),
+     'The goal names project(PG) in a supports fact, the project KB of project_kb/1 can be read, and it holds no goal PG. orbit-kb computes it when it reads the KB. Lint W20.',
+     '@(1) supports the project goal @(2), which the project KB does not hold').
 decl(rule, goal_supported(ref(goal)),
      'A supports fact names what the goal supports.',
      'goal @(1) names a goal above it').
@@ -687,11 +696,19 @@ premises_stated(H) :- premise(_, H, _).
 premises_stated(H) :- no_premises(H).
 % Review of K-A (finding 9): a premise and the record "Premises: none" on one hypothesis.
 lint_issue('W11', H, 'This hypothesis has a premise and also the record no_premises ("Premises: none"). They contradict each other. Restate the hypothesis (a new hypothesis with supersedes) with its premises, or with no_premises only.') :-
-    hypothesis(H, _, _), not superseded(H), premise(_, H, _), no_premises(H).
+    hypothesis(H, _, _), not goal_written(H), not superseded(H), premise(_, H, _), no_premises(H).
+lint_issue('W11', G, 'This goal has a premise and also the record no_premises ("Premises: none"). They contradict each other. Restate the goal (a new goal with supersedes) with its premises, or with no_premises only.') :-
+    goal_written(G), not superseded(G), premise(_, G, _), no_premises(G).
+lint_issue('W11', H, 'This hypothesis has a premise and also the record no_premises ("Premises: none"). They contradict each other. Add a new hypothesis with supersedes, with its premises, or with no_premises only.') :-
+    hypothesis_current(H), premise(_, H, _), no_premises(H).
 lint_issue('W12', K, 'This check of a current claim does not say in words what it checks. Add checks_that(K, Text): one line that a human reads (the Desk shows it).') :-
     check(K, C), not superseded(C), not checks_that(K, _).
 lint_issue('W10', H, 'This hypothesis has no premise and no record "Premises: none". Add premise(P, H, Text) for each condition that it takes as given, or no_premises(H).') :-
-    hypothesis(H, _, _), not superseded(H), not premises_stated(H).
+    hypothesis(H, _, _), not goal_written(H), not superseded(H), not premises_stated(H).
+lint_issue('W10', G, 'This goal has no premise and no record "Premises: none". Add premise(P, G, Text) for each condition that it takes as given, or no_premises(G).') :-
+    goal_written(G), not superseded(G), not premises_stated(G).
+lint_issue('W10', H, 'This hypothesis has no premise and no record "Premises: none". Add premise(P, H, Text) for each condition that it takes as given, or no_premises(H).') :-
+    made_by_new, hypothesis_current(H), not premises_stated(H).
 
 % ---------------------------------------------------------------------
 % The records (0.8.0, D50 to D54): goal, hypotheses, predictions
@@ -854,3 +871,13 @@ hypothesis_of(H, G) :- hypothesis(H, G, _, _).
 decl(rule, hypothesis_of(ref, ref),
      'The hypothesis (of the new sense) is a hypothesis of the goal.',
      'hypothesis @(1) is a hypothesis of goal @(2)').
+% D52: an agent retirement that the rule does not count is named, so it is not a silent record.
+lint_issue('W19', A, 'This retirement by an agent does not count: a human wrote or adopted the hypothesis, or the ticket marks it as adopted by the human (adoption_cited). The hypothesis is not retired. Only the human retires it: orbit-kb retire H --reason TEXT --by human.') :-
+    attest(A, retirement, H, _, agent, _), hypothesis(H, _, _, _), retirement_ignored(H).
+retirement_ignored(H) :- hypothesis_human_written(H).
+retirement_ignored(H) :- hypothesis_adopted(H).
+retirement_ignored(H) :- hypothesis_cited(H).
+% D54: supports_missing/2 has no clauses here: orbit-kb computes it when the project KB of
+% project_kb/1 can be read and holds no goal with that id.
+lint_issue('W20', G, 'This goal supports a project goal that the project KB does not hold (supports(G, project(PG)): no goal PG there). Fix the id, or add the goal to the project KB.') :-
+    supports_missing(G, _).

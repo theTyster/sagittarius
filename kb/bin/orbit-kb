@@ -1730,7 +1730,17 @@ records_derived(Dir, KbItems, Facts) :-
         sort(F50, F5)
     ;   F5 = []
     ),
-    append([F1, F2, F3, F4, F5], Facts).
+    findall(goal_written(G), ( kb_term(KbItems, goal(G, _, _, _)), ground(G) ), F6),
+    (   kb_term(KbItems, project_kb(P)), atom(P),
+        catch(( project_kb_dir(Dir, P, PDir), directory_file_path(PDir, 'kb.pl', PF), exists_file(PF),
+                read_source_file(kb, PF, PItems) ), _, fail)
+    ->  findall(supports_missing(G, PG),
+                ( kb_term(KbItems, supports(G, R)), nonvar(R), R = project(PG), atom(G), atom(PG),
+                  \+ kb_term(PItems, goal(PG, _, _, _)), \+ kb_term(PItems, hypothesis(PG, _, _)) ), F70),
+        sort(F70, F7)
+    ;   F7 = []
+    ),
+    append([F1, F2, F3, F4, F5, F6, F7], Facts).
 
 % kb_made_by_new(+KbFile) (D54): the KB was made by orbit-kb 0.8.0 or later: the first
 % "% Made by orbit-kb V." line of kb.pl names 0.8.0 or a later version. A KB with no such
@@ -3032,6 +3042,9 @@ protected_pi(supports_closure/2).
 protected_pi(goal_supported/1).
 protected_pi(goal_unsupported/1).
 protected_pi(made_by_new/0).
+protected_pi(goal_written/1).
+protected_pi(retirement_ignored/1).
+protected_pi(supports_missing/2).
 protected_pi(claim_unplaced/1).
 protected_pi(cited_before_go/2).
 protected_pi(supersede_cycle/1).
@@ -12636,12 +12649,13 @@ hyp_lines(Eng, H, Head, Lines) :-
     term_text(Au, AuT), one_line(T, TT),
     ( eng_all(Eng, [S], hypothesis_state(H, S), [St|_]) -> true ; St = proposed ),
     (   St == proposed, eng_all(Eng, [W], adoption_cited(H, W), [W1|_])
-    ->  one_line(W1, WT), format(string(StT), "proposed; the ticket cites the human's adoption: ~w", [WT])
+    ->  one_line(W1, WT), format(string(StT), "proposed: the agent reads the human's words as adoption: '~w' (adopt to confirm)", [WT])
     ;   format(string(StT), "~w", [St])
     ),
     format(string(Head), "Hypothesis ~w (~w, ~w): ~w", [H, AuT, StT, TT]),
     eng_all(Eng, [By, CT], defeating_case(H, By, CT), DCs),
-    (   DCs == [] -> L1 = ["Not tempered: no case is named that would show it false (lint W13)."]
+    (   DCs == []
+    ->  ( eng_true(Eng, hypothesis_current(H)) -> L1 = ["Not tempered: no case is named that would show it false (lint W13)."] ; L1 = [] )
     ;   findall(L, ( member([By, CT], DCs), term_text(By, ByT), one_line(CT, CTT), as_sentence(CTT, CTS),
                      format(string(L), "It is false if (named by ~w): ~w", [ByT, CTS]) ), L1a),
         findall(L, ( eng_all(Eng, [UB, UT], untempered(H, UB, UT), Us), member([UB, UT], Us), term_text(UB, UBT), one_line(UT, UTT), as_sentence(UTT, UTS),
@@ -12650,6 +12664,8 @@ hyp_lines(Eng, H, Head, Lines) :-
     ),
     (   eng_all(Eng, [P], premise(P, H, _), [_|_]) -> premise_lines(Eng, H, L2)
     ;   eng_true(Eng, no_premises(H)) -> L2 = ["Premises: none."]
+    ;   eng_true(Eng, made_by_new), eng_true(Eng, hypothesis_current(H))
+    ->  L2 = ["Premises: not stated. Add premise(P, H, TEXT) or no_premises(H) for this hypothesis (lint W10)."]
     ;   L2 = []
     ),
     eng_all(Eng, [C], predicts(H, C), Cs),
@@ -12681,6 +12697,8 @@ premise_lines(Eng, H, Lines) :-
         )
     ;   eng_true(Eng, no_premises(H))
     ->  Lines = ["Premises: none."]
+    ;   eng_true(Eng, goal_written(H))
+    ->  Lines = ["Premises: not stated. Add premise(P, G, TEXT) or no_premises(G) for this goal (lint W10)."]
     ;   Lines = ["Premises: not stated. Add premise(P, H, TEXT) or no_premises(H) (lint W10)."]
     ).
 
