@@ -4,15 +4,17 @@ Sagittarius 0.7.2. A way for a human and an AI agent to agree on what is being b
 only as much rigor as the work needs.
 
 **Start light. Shift up on a signal. Lean back when it is resolved.** Every ticket starts with a
-stated hypothesis: one sentence, its premises, and one example. Most requests get a direct
+stated goal and a hypothesis about how to reach it: one statement, its premises, and one
+example. The method is the scientific method: the hypothesis predicts claims, each claim has
+a check, and each run gives a verdict (meets, conflicts, or unresolved). Most requests get a direct
 answer or the light path, with one check. When a signal shows up (a divergence between two
 views, a build by someone else, a claim that burns, a handoff, significant effort), the agent
 gets more specific, one level at a time. There are three levels of statement, and each has its
 own language:
 
-1. **Words:** one sentence, its premises, one example, one check.
-2. **Records:** a knowledge base (KB) in Prolog: the request word for word, the hypothesis, the
-   claims, the questions, the checks, and what differed.
+1. **Words:** the goal and the hypothesis in one statement, the premises, one example, one check.
+2. **Records:** a knowledge base (KB) in Prolog: the request word for word, the goal, the
+   hypotheses, the claims, the questions, the checks with their verdicts, and what differed.
 3. **A formal statement,** in the one language that fits the claim: a solver for rules and
    limits, a model checker for orders of steps and time, or Lean proofs for every input.
 
