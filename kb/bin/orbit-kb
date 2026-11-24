@@ -2675,7 +2675,10 @@ fact_diags(Ctx, it(_, F, L, T, _, _), Diags) :-
                 findall(diag(C, F, L, M),
                         ( nth1(I, Ts, Ty), arg(I, P, V),
                           val_errs(Ty, V, Env, Es), member(C-M0, Es),
-                          fmt(M, "~q/~w argument ~w: ~w", [N, A, I, M0]) ),
+                          (   N/A == hypothesis/4, C == 'E4', arg(1, P, HId), atom(HId)
+                          ->  fmt(M, "~w: ~q/~w argument ~w: ~w", [HId, N, A, I, M0])       % review B7
+                          ;   fmt(M, "~q/~w argument ~w: ~w", [N, A, I, M0])
+                          ) ),
                         GA),
                 (   N/A == attest/6, Neg == false
                 ->  attest_diags(KB, ATs, Env, P, F, L, GT)
@@ -10295,7 +10298,20 @@ cmd_lint(KB, Args, Code) :-
     ;   Code = 0
     ).
 
-print_diag(diag(C, F, L, M)) :-
+print_diag(diag(C, F, L, M0)) :-
+    (   string(M0), diag_id_msg(M0, Id, M1), F \== ''
+    ->  show_loc(F, L, LT0), format("~w ~w ~w: ~w~n", [C, LT0, Id, M1])
+    ;   M = M0, print_diag_(C, F, L, M)
+    ).
+
+% diag_id_msg(+Msg, -Id, -Rest) (review B7): an E4 message of a hypothesis/4 fact starts with
+% "ID: hypothesis/4 argument"; lint prints the id after the position: E4 kb.pl:7 hy9: hypothesis/4 ...
+diag_id_msg(M, Id, Rest) :-
+    sub_string(M, B, _, _, ": hypothesis/4 argument "), !, B > 0,
+    sub_string(M, 0, B, _, Id), \+ sub_string(Id, _, _, _, " "),
+    B2 is B + 2, sub_string(M, B2, _, 0, Rest).
+
+print_diag_(C, F, L, M) :-
     (   F == ''
     ->  format("~w ~w~n", [C, M])
     ;   show_loc(F, L, LT),
@@ -10810,13 +10826,12 @@ show_section(_, Eng, hypothesis) :-
 show_section(_, Eng, hypotheses) :-
     eng_all(Eng, [G, K, A, T], goal(G, K, A, T), Gs),
     (   Gs == [] -> say("Goal:", []), say("- None. Every ticket has one: add goal(G, KIND, AUTHOR, TEXT).", []) ; true ),
-    forall(member([G, K, A, T], Gs),
-           ( one_line(T, TT), term_text(A, AT),
-             say("Goal (~w): ~w (~w): ~w", [AT, G, K, TT]),
-             (   eng_all(Eng, [N], supersedes(N, G), Ns), Ns \== []
-             ->  atomic_list_concat(Ns, ', ', NT), say("  State: superseded by ~w.", [NT])
-             ;   say("  State: current.", [])
-             ),
+    partition([[G0|_]]>>eng_true(Eng, goal_current(G0)), Gs, Cur, Old),
+    forall(member([G, K, A, T], Cur),
+           ( one_line(T, TT), author_words(A, AT),
+             say("Goal ~w (~w): ~w", [G, AT, TT]),
+             say("  Kind: ~w.", [K]),
+             say("  State: current.", []),
              premise_lines(Eng, G, PLs),
              forall(member(L, PLs), say("  ~w", [L])),
              eng_all(Eng, [R], supports(G, R), Rs),
@@ -10826,7 +10841,16 @@ show_section(_, Eng, hypotheses) :-
              ;   forall(member(HI, HIs),
                         ( hyp_lines(Eng, HI, HH, HLs), say("  ~w", [HH]),
                           forall(member(HL, HLs), say("    ~w", [HL])) ))
-             ) )).
+             ) )),
+    % review B5: a superseded goal is one line; it has no "No hypothesis" line.
+    (   Old == [] -> true
+    ;   say("Earlier statements of the goal:", []),
+        forall(member([G, _, A, T], Old),
+               ( one_line(T, TT), author_words(A, AT),
+                 ( string_length(TT, Len), Len > 100 -> sub_string(TT, 0, 100, _, Short) ; Short = TT ),
+                 eng_all(Eng, [N], supersedes(N, G), Ns), atomic_list_concat(Ns, ', ', NT),
+                 say("- ~w (~w, superseded by ~w): ~w", [G, AT, NT, Short]) ))
+    ).
 show_section(KB, Eng, claims) :-
     say("Claims:", []),
     eng_all(Eng, [C, L, T], claim(C, L, T), Cs),
@@ -11033,6 +11057,7 @@ ready_line(Eng, X, KI, S) :-
 ready_sentence(_, no_hypothesis, _, "no current hypothesis. Add hypothesis(H, KIND, TEXT).") :- !.
 ready_sentence(_, no_system_result, _, "no evidence from the current system yet: a reproduction on system evidence, or a run of a check tagged discovery_evidence(K, system).") :- !.
 ready_sentence(_, no_outcome, _, "no claim is current, and no current hypothesis did not reproduce.") :- !.
+ready_sentence(Eng, untouched, H, S) :- eng_true(Eng, goal_written(H)), !, fmt(S, "goal ~w has no result from the current system (lint WD7). Reproduce it, or ask the human if it is a separate ticket. A result on the goal that it replaces counts when carried(A, ~w) names its attestation.", [H, H]).
 ready_sentence(_, untouched, H, S) :- !, fmt(S, "hypothesis ~w has no result from the current system (lint WD7). Reproduce it, or ask the human if it is a separate ticket.", [H]).
 ready_sentence(Eng, no_falsifier, C, S) :- !, item_text(Eng, C, T), fmt(S, "claim ~w has no falsifier: no check, and no trusted model that decided it: ~w", [C, T]).
 ready_sentence(Eng, no_example, C, S) :- !, item_text(Eng, C, T), fmt(S, "claim ~w has no example (lint WD10): ~w", [C, T]).
@@ -11086,7 +11111,7 @@ show_experiment(KB, Eng, E, Kind, C) :-
     ( eng_all(Eng, [V], verdict(E, V), [V1|_]) -> true ; V1 = none ),
     item_text(Eng, C, CT0), ( CT0 == '' -> ( eng_all(Eng, [GT], goal(C, _, _, GT), [GT1|_]) -> txt(GT1, CT) ; CT = '' ) ; CT = CT0 ),
     say("- ~w (~w): verdict ~w", [E, Kind, V1]),
-    ( Kind == judgment, CT0 == '' -> say("  Goal ~w: ~w", [C, CT]) ; say("  Claim ~w: ~w", [C, CT]) ),
+    ( Kind == judgment, eng_true(Eng, goal(C, _, _, _)) -> say("  Goal ~w: ~w", [C, CT]) ; say("  Claim ~w: ~w", [C, CT]) ),
     (   Kind == test, eng_all(Eng, [K, N, R], attest(E, test_result, _, result(K, N, R), _, _), [[K1, N1, R1]|_])
     ->  run_log_path(KB, K1, N1, Log),
         (   eng_all(Eng, [P], procedure(K1, P), [P1|_]) -> txt(P1, PT), say("  Procedure: ~w", [PT])
@@ -11194,7 +11219,8 @@ blocking_line(_, Eng, goal_unjudged(G), S) :- !,
     item_text(Eng, G, T),
     (   eng_true(Eng, goal_judgment(_, G, not_satisfied))
     ->  fmt(S, "- goal_unjudged ~w: the last judgment of the human says that goal ~w is not satisfied. The ticket is done only on the judgment that it is: orbit-kb judge ~w satisfied --by human (only the human judges): ~w", [G, G, G, T])
-    ;   fmt(S, "- goal_unjudged ~w: the human has not judged that goal ~w is satisfied. Show the result to the human; the human records the judgment with orbit-kb judge ~w satisfied --by human: ~w", [G, G, G, T])
+    ;   human_name(Eng, HN), cap_first(HN, HNC),
+        fmt(S, "- goal_unjudged ~w: the human has not judged that goal ~w is satisfied. Show the result to the human. ~w records it on the Desk (Goal satisfied), or with: orbit judge ~w satisfied --by human: ~w", [G, G, HNC, G, T])
     ).
 blocking_line(_, Eng, behavior_open(B), S) :- !,
     ( eng_all(Eng, [T], behavior_conflict(B, T), [T1|_]) -> txt(T1, TT) ; TT = '?' ),
@@ -12885,6 +12911,8 @@ item_text(Eng, X, T) :-
     ;   eng_all(Eng, [C], check(X, C), [C1|_])
     ->  ( eng_all(Eng, [T0], claim(C1, _, T0), [T1|_]) -> txt(T1, CT) ; CT = '' ),
         fmt(T, "a check of claim ~w: ~w", [C1, CT])
+    ;   eng_all(Eng, [T0], goal(X, _, _, T0), [T1|_]) -> one_line(T1, T)             % review B6
+    ;   eng_all(Eng, [T0], hypothesis(X, _, _, T0), [T1|_]) -> one_line(T1, T)
     ;   T = ''
     ).
 
@@ -13300,7 +13328,10 @@ report_text(KB, Eng) :-
     ),
     forall(member([HG, HGT], HGs),
            ( one_line(HGT, HGTT),
-             rsay(item(HG), "Hypothesis (agent-written, not adopted): ~w", [HGTT]) )),
+             (   eng_all(Eng, [HGA], hypothesis(HG, _, agent:HGA, _), [HGA1|_]), atom(HGA1)
+             ->  cap_name(HGA1, HGN), rsay(item(HG), "Hypothesis ~w (~w, agent-written, not adopted): ~w", [HG, HGN, HGTT])
+             ;   rsay(item(HG), "Hypothesis ~w (agent-written, not adopted): ~w", [HG, HGTT])
+             ) )),
     eng_groups(Eng, Q5, QT5, question(Q5, _, QT5), QTextBy),
     forall(member([Q, A], Gs),
            ( term_text(A, AT),
@@ -13648,18 +13679,39 @@ hypothesis_section(Eng) :-
     forall(member([H, K, T], Hs),
            ( one_line(T, TT),
              premise_lines(Eng, H, PLs),
-             ( eng_all(Eng, [Au], goal(H, _, Au, _), [Au1|_]) -> term_text(Au1, AuT) ; AuT = "agent" ),
-             format(string(Head), "Goal (~w): ~w **~w**: ~w", [AuT, H, K, TT]),
+             ( eng_all(Eng, [Au], goal(H, _, Au, _), [Au1|_]) -> author_words(Au1, AuT) ; AuT = "the agent" ),
+             format(string(Head), "Goal ~w (~w): ~w", [H, AuT, TT]),
              as_sentence(TT, TS),
              atomic_list_concat(PLs, ' ', PT),
-             format(string(Plain), "Goal (~w): ~w (~w): ~w ~w", [AuT, H, K, TS, PT]),
-             findall(L-[], member(L, PLs), Kids0),
+             format(string(Plain), "Goal ~w (~w), ~w: ~w ~w", [H, AuT, K, TS, PT]),
+             format(string(KindL), "Kind: ~w.", [K]),
+             findall(L-[], member(L, [KindL|PLs]), Kids0),
              goal_hypotheses(Eng, H, HIs),
              (   HIs == [] -> HKids = ["No hypothesis: the claims hang on the goal."-[]]
              ;   findall(HH-HK, ( member(HI, HIs), hyp_lines(Eng, HI, HH, HLs), findall(X-[], member(X, HLs), HK) ), HKids)
              ),
              append(Kids0, HKids, Kids),
              rtree(item(H), Plain, Head-Kids) )).
+
+% author_words(+Author, -Words) (review B4): the author of a record as a name. human:ty is "Ty",
+% agent:astra is "Astra (agent)", agent is "the agent", human is "the human". Queries keep the
+% values of the record.
+author_words(human, "the human") :- !.
+author_words(agent, "the agent") :- !.
+author_words(human:N, W) :- atom(N), !, cap_name(N, W).
+author_words(agent:N, W) :- atom(N), !, cap_name(N, C), format(string(W), "~w (agent)", [C]).
+author_words(A, W) :- term_text(A, W).
+cap_name(N, W) :- atom_chars(N, [C|Cs]), upcase_atom(C, U), atom_chars(A, Cs), format(string(W), "~w~w", [U, A]).
+cap_first(S0, S) :- string_chars(S0, [C|Cs]), !, upcase_atom(C, U), atom_chars(A, Cs), format(string(S), "~w~w", [U, A]).
+cap_first(S, S).
+
+% human_name(+Eng, -Name): the name of the human of the ticket: the author of a goal that a
+% human with a name wrote, else "the human".
+human_name(Eng, W) :-
+    (   eng_all(Eng, [N], goal(_, _, human:N, _), [N1|_]), atom(N1) -> cap_name(N1, W)
+    ;   eng_all(Eng, [N], hypothesis(_, _, human:N, _), [N1|_]), atom(N1) -> cap_name(N1, W)
+    ;   W = "the human"
+    ).
 
 % goal_hypotheses(+Eng, +G, -Hs) (D50): the hypotheses under goal G, and those carried over to it.
 goal_hypotheses(Eng, G, Hs) :-
@@ -13672,17 +13724,20 @@ goal_hypotheses(Eng, G, Hs) :-
 % defeating case, its premises, its predictions, and each case that defeated it.
 hyp_lines(Eng, H, Head, Lines) :-
     eng_all(Eng, [Au, T], hypothesis(H, _, Au, T), [[Au, T]|_]),
-    term_text(Au, AuT), one_line(T, TT),
+    author_words(Au, AuT), one_line(T, TT),
     ( eng_all(Eng, [S], hypothesis_state(H, S), [St|_]) -> true ; St = proposed ),
+    % review B4: the citation is a line of its own under the header.
     (   St == proposed, eng_all(Eng, [W], adoption_cited(H, W), [W1|_])
-    ->  one_line(W1, WT), format(string(StT), "proposed: the agent reads the human's words as adoption: '~w' (adopt to confirm)", [WT])
-    ;   format(string(StT), "~w", [St])
+    ->  one_line(W1, WT), human_name(Eng, HN), cap_first(HN, HNC),
+        format(string(L0a), "Cited as adopted (the agent's reading of ~w's words): '~w'. ~w adopts it with Adopt on the Desk, or with: orbit adopt ~w --by human", [HN, WT, HNC, H]),
+        L0 = [L0a]
+    ;   L0 = []
     ),
-    format(string(Head), "Hypothesis ~w (~w, ~w): ~w", [H, AuT, StT, TT]),
+    format(string(Head), "Hypothesis ~w (~w, ~w): ~w", [H, AuT, St, TT]),
     eng_all(Eng, [By, CT], defeating_case(H, By, CT), DCs),
     (   DCs == []
     ->  ( eng_true(Eng, hypothesis_current(H)) -> L1 = ["Not tempered: no case is named that would show it false (lint W13)."] ; L1 = [] )
-    ;   findall(L, ( member([By, CT], DCs), term_text(By, ByT), one_line(CT, CTT), as_sentence(CTT, CTS),
+    ;   findall(L, ( member([By, CT], DCs), author_words(By, ByT), one_line(CT, CTT), as_sentence(CTT, CTS),
                      format(string(L), "It is false if (named by ~w): ~w", [ByT, CTS]) ), L1a),
         findall(L, ( eng_all(Eng, [UB, UT], untempered(H, UB, UT), Us), member([UB, UT], Us), term_text(UB, UBT), one_line(UT, UTT), as_sentence(UTT, UTS),
                      format(string(L), "Marked as not tempered by ~w: ~w", [UBT, UTS]) ), L1b),
@@ -13700,7 +13755,7 @@ hyp_lines(Eng, H, Head, Lines) :-
     ),
     findall(L, ( eng_all(Eng, [D, DT], defeat(D, H, DT), Ds), member([D, DT], Ds), one_line(DT, DTT), as_sentence(DTT, DTS),
                  format(string(L), "Defeated by case ~w: ~w", [D, DTS]) ), L4),
-    append([L1, L2, L3, L4], Lines).
+    append([L0, L1, L2, L3, L4], Lines).
 
 % one_line(+Text, -S) (D31 B8, review of K-A finding 12): the text with each run of white space,
 % a line break too, as one space, so that a text never breaks the bullets of the report.

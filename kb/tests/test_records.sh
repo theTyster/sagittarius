@@ -49,14 +49,14 @@ if want c1; then
     replay c1; rcis Rc1-add-goal-and-hypothesis 0
     okb show; rcis Rc1-show 0
     first=$(printf '%s\n' "$out" | head -1)
-    [ "$first" = "Goal (human): g1 (feature): A replayed import leaves the member records as one clean run would." ] \
+    [ "$first" = "Goal g1 (the human): A replayed import leaves the member records as one clean run would." ] \
         && ok Rc1-show-goal-first || bad Rc1-show-goal-first "first line: $first"
-    printf '%s\n' "$out" | awk '/^Goal \(human\)/{g=NR} /^  Hypothesis hya \(human, proposed\)/{h=NR} /^Claims:/{c=NR} END{exit !(g && h>g && c>h)}' \
+    printf '%s\n' "$out" | awk '/^Goal g1 \(the human\)/{g=NR} /^  Hypothesis hya \(the human, proposed\)/{h=NR} /^Claims:/{c=NR} END{exit !(g && h>g && c>h)}' \
         && ok Rc1-show-hypothesis-under-goal || bad Rc1-show-hypothesis-under-goal "$(printf '%s' "$out" | head -c 300)"
-    okb show hypotheses; has Rc1-show-hypotheses "  Hypothesis hya (human, proposed): Skipping each record ID"
+    okb show hypotheses; has Rc1-show-hypotheses "  Hypothesis hya (the human, proposed): Skipping each record ID"
     has Rc1-show-predictions "    Predictions: c1."
-    okb report; has Rc1-report-goal "  - Goal (human): g1 **feature**: A replayed import"
-    has Rc1-report-hypothesis "    - Hypothesis hya (human, proposed): Skipping"
+    okb report; has Rc1-report-goal "  - Goal g1 (the human): A replayed import"
+    has Rc1-report-hypothesis "    - Hypothesis hya (the human, proposed): Skipping"
     okb add "hypothesis(hyz, g9, agent, 'No goal.')"; rcis Rc1-hypothesis-without-goal-refused 1
     printf '%s %s' "$out" "$err" | grep -q 'g9 is not the id of any goal fact' && ok Rc1-refusal-names-goal || bad Rc1-refusal-names-goal "$err"
     printf "hypothesis(hyz, g9, agent, 'No goal.').\n" >> "$K/kb.pl"
@@ -69,9 +69,9 @@ if want c2; then
     okb query 'hypothesis_state(H, S)' -n 0; is Rc2-states "H = hya, S = defeated
 H = hyb, S = adopted"
     okb query 'hypothesis_current(H)' -n 0; is Rc2-only-adopted-current "H = hyb"
-    okb show hypotheses; has Rc2-show-defeated "Hypothesis hya (human, defeated)"
+    okb show hypotheses; has Rc2-show-defeated "Hypothesis hya (the human, defeated)"
     has Rc2-case-stays "    Defeated by case d1: A correction arrives under a seen ID and is discarded."
-    has Rc2-show-adopted "Hypothesis hyb (agent, adopted)"
+    has Rc2-show-adopted "Hypothesis hyb (the agent, adopted)"
     okb add "hypothesis(hyc, g1, agent, 'B, reworded.')" 'supersedes(hyc, hyb)'; rcis Rc2-supersede 0
     okb query 'hypothesis_state(hyb, S)'; is Rc2-superseded "S = superseded"
     okb query 'defeat(D, hya, T)'; has Rc2-case-on-version "D = d1"
@@ -100,10 +100,10 @@ if want c4; then
     okb query 'goal(g1, K, A, T)'; has Rc4-goal-author "A = agent"
     okb query 'hypothesis(hy2, G, A, T)'; has Rc4-human-word-for-word "A = human:ty, T = 'Follow the system setting.'"
     okb query 'hypothesis_guess(H)' -n 0; is Rc4-guess "H = hy1"
-    okb report; has Rc4-report-guess "  - Hypothesis (agent-written, not adopted): A dark scheme on every screen is a dark mode."
+    okb report; has Rc4-report-guess "  - Hypothesis hy1 (agent-written, not adopted): A dark scheme on every screen is a dark mode."
     hasnt Rc4-human-written-no-guess "not adopted): Follow the system setting"
     okb adopt hy1 --by human
-    okb report; hasnt Rc4-adopted-no-guess "Hypothesis (agent-written, not adopted)"
+    okb report; hasnt Rc4-adopted-no-guess "agent-written, not adopted"
 fi
 
 if want c21; then
@@ -113,7 +113,7 @@ if want c21; then
     okb query 'premise(P, h5, T)'; has Rc21-premises-kept "P = p1"
     okb query 'hypothesis(H, G, A, T)'; rcis Rc21-no-hypothesis-written 1
     okb show; rcis Rc21-loads 0; has Rc21-says-none "  No hypothesis: the claims hang on the goal."
-    has Rc21-show-goal "Goal (agent): h5 (feature): The Desk answers"
+    has Rc21-show-goal "Goal h5 (the agent): The Desk answers"
     okb report; has Rc21-report-says-none "    - No hypothesis: the claims hang on the goal."
     okb lint; rcis Rc21-lint-clean 0; hasnt Rc21-no-W14-old "W14"; hasnt Rc21-no-W16-old "W16"
     okb query 'claim_of_goal(C)'; is Rc21-claims-on-goal "C = c1"
@@ -150,8 +150,9 @@ C = c3"
     newkb c37d discovery; okb add "$GOAL" "hypothesis(hy1, g1, agent, 'A.')" "hypothesis(hy2, g1, agent, 'B.')" "hypothesis(hy3, g1, agent, 'C.')" \
         "adoption_cited(hy1, 'Ty: go with A')"
     okb query 'hypothesis_state(hy1, S)'; is Rc37-cited-alone-proposed "S = proposed"
-    okb show hypotheses; has Rc37-cited-printed "Hypothesis hy1 (agent, proposed: the agent reads the human's words as adoption: 'Ty: go with A' (adopt to confirm)): A."
-    okb report; has Rc37-cited-printed-report "(agent, proposed: the agent reads the human's words as adoption: 'Ty: go with A' (adopt to confirm))"
+    okb show hypotheses; has Rc37-cited-header "  Hypothesis hy1 (the agent, proposed): A."
+    has Rc37-cited-printed "    Cited as adopted (the agent's reading of the human's words): 'Ty: go with A'. The human adopts it with Adopt on the Desk, or with: orbit adopt hy1 --by human"
+    okb report; has Rc37-cited-printed-report "      - Cited as adopted (the agent's reading of the human's words): 'Ty: go with A'."
     okb retire hy1 --reason no; rcis Rc37-agent-cannot-retire-cited 1
     printf "attest(v1, vote, r1, vote(1, go), agent, '2026-11-24T00:00:00Z').\nattest(v2, vote, r1, vote(1, go), human, '2026-11-24T00:01:00Z').\nadoption_cited(hy3, 'after the vote').\n" >> "$K/kb.pl"
     okb query 'hypothesis_state(H, S)' -n 0; is Rc37-go-adopts-only-cited-before "H = hy1, S = adopted
@@ -216,6 +217,36 @@ if want p2; then   # second pass: W10/W11 wording, W19, W20, the not-tempered li
     okb lint; hasnt Rp2-W20-none "W20"
     okb rests g1; has Rp2-rests-project-text "project goal pg1: Agents deliver what the human wants."
     okb add "goal(g2, feature, human, 'Two.')" 'supports(g2, project(pg9))'; okb lint; has Rp2-W20 "W20 g2"
+fi
+
+if want p3; then   # the findings of review on the views: B3 to B7
+    newkb p3 build; okb add "goal(g1, feature, human:ty, 'A replayed import is safe.')" 'no_premises(g1)' \
+        "hypothesis(hy1, g1, human:ty, 'Skip seen IDs.')" "hypothesis(hy5, g1, agent:astra, 'Hash each record.')" \
+        "adoption_cited(hy5, 'sounds right')" "claim(c1, preserve, 'Stays.')" 'check(k1, c1)' "checks_that(k1, 'it stays')"
+    okb show hypotheses; has Rp3-B4-goal "Goal g1 (Ty): A replayed import is safe."
+    has Rp3-B4-human-name "  Hypothesis hy1 (Ty, proposed): Skip seen IDs."
+    has Rp3-B4-agent-name "  Hypothesis hy5 (Astra (agent), proposed): Hash each record."
+    has Rp3-B4-citation "    Cited as adopted (the agent's reading of Ty's words): 'sounds right'. Ty adopts it with Adopt on the Desk, or with: orbit adopt hy5 --by human"
+    okb query 'hypothesis(hy5, G, A, T)'; has Rp3-B4-query-keeps-value "A = agent:astra"
+    okb report; has Rp3-guess "  - Hypothesis hy5 (Astra, agent-written, not adopted): Hash each record."
+    okb show blocking; line=$(printf '%s\n' "$out" | grep '^- goal_unjudged g1')
+    case "$line" in *"Ty records it on the Desk (Goal satisfied), or with: orbit judge g1 satisfied --by human: A replayed import is safe.") ok Rp3-B6-ends-with-goal-text;; *) bad Rp3-B6-ends-with-goal-text "$line";; esac
+    okb show open; has Rp3-B6-show-open "orbit judge g1 satisfied --by human: A replayed import is safe."
+    printf "hypothesis(hy9, g9, agent, 'No goal.').\n" >> "$K/kb.pl"; n=$(grep -n '^hypothesis(hy9' "$K/kb.pl" | cut -d: -f1)
+    okb lint; has Rp3-B7-id-in-line "E4 kb.pl:$n hy9: hypothesis/4 argument 2: g9 is not the id of any goal fact."
+    oldkb p3b discovery; printf "hypothesis(h2, feature, '%s').\nno_premises(h2).\n" "$(printf 'x%.0s' $(seq 1 130))" >> "$K/kb.pl"
+    printf 'log\n' > "$K/e.log"; okb subject e1 e.log; okb add 'discovery_evidence(e1, system)'
+    okb attest reproduction e1 'result(h2, reproduced)' --id a7; rcis Rp3-B3-reproduction 0
+    okb add "goal(g1, feature, human:ty, 'In the words of Ty.')" 'no_premises(g1)' 'supersedes(g1, h2)'
+    okb show hypotheses; has Rp3-B5-heading "Earlier statements of the goal:"
+    has Rp3-B5-line "- h2 (the agent, superseded by g1): $(printf 'x%.0s' $(seq 1 100))"
+    hasnt Rp3-B5-cut "$(printf 'x%.0s' $(seq 1 101))"
+    [ "$(printf '%s\n' "$out" | grep -c 'No hypothesis: the claims hang on the goal.')" = 1 ] && ok Rp3-B5-no-hypothesis-once || bad Rp3-B5-no-hypothesis-once "$out"
+    okb lint; has Rp3-B3-WD7-says-goal "WD7 g1: No result from the current system exists for this goal."
+    okb show open; has Rp3-B3-untouched-says-goal "goal g1 has no result from the current system"
+    okb add 'carried(a7, g1)'; rcis Rp3-B3-carry 0
+    okb query 'discovery_hypothesis_touched(g1)'; rcis Rp3-B3-carried-reproduction-counts 0
+    okb lint; hasnt Rp3-B3-no-WD7 "WD7"
 fi
 
 echo "pass=$pass fail=$fail"

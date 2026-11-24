@@ -940,8 +940,7 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   `orbit-kb retire H --reason TEXT [--by human|agent]` write them.
 - `hypothesis_adopted(H)`: a human adoption attestation; or (discovery module) `adoption_cited(H, Words)`
   that stands in kb.pl before a GO vote of the human that is not void. `adoption_cited` alone adopts
-  nothing, and a GO vote adopts no hypothesis without it. A proposed hypothesis with the mark prints
-  `proposed: the agent reads the human's words as adoption: 'WORDS' (adopt to confirm)`.
+  nothing, and a GO vote adopts no hypothesis without it. A proposed hypothesis with the mark prints a line under its header (D50 views, below).
 - An agent retirement of a hypothesis that a human wrote or adopted, or that has `adoption_cited`, is
   refused (exit 1, by `retire`, `attest` and `add`). Such a fact written by hand does not retire it.
 - `hypothesis_guess(H)`: agent-written, current, not adopted. `report` lists it under Guesses as
@@ -1194,3 +1193,20 @@ System 1 writes only proposals. A proposal is not a record.
   `confirmed by the By at Time: it is a record`. With none: `No proposals.` Exit 0.
 
 Tests: `kb/tests/test_proposals.sh`.
+
+## D50 views, after review (findings B3 to B7; they replace the line forms of D50 and D52 above)
+
+- Authors print as names: `human:ty` is `Ty`, `agent:astra` is `Astra (agent)`, `agent` is `the agent`,
+  `human` is `the human`. Queries keep the record values.
+- show: `Goal g1 (AUTHOR): TEXT`, `  Kind: K.`, `  State: current.`, premises, supports, then
+  `  Hypothesis hy1 (AUTHOR, STATE): TEXT`. report: `Goal g1 (AUTHOR): TEXT` with the kid `Kind: K.`.
+- A proposed hypothesis with `adoption_cited` has the line `Cited as adopted (the agent's reading of
+  NAME's words): 'WORDS'. NAME adopts it with Adopt on the Desk, or with: orbit adopt H --by human`.
+- Superseded goals: `Earlier statements of the goal:`, one line each: `- h2 (AUTHOR, superseded by g1): `
+  and the first 100 characters. `No hypothesis: the claims hang on the goal.` prints only for a current goal.
+- report Guesses: `Hypothesis hy5 (Astra, agent-written, not adopted): TEXT` (no name for the plain `agent`).
+- The goal_unjudged line of show open and show blocking ends with the goal text.
+- A lint E4 line of a hypothesis/4 fact names its id after the position: `E4 kb.pl:7 hy9: hypothesis/4 argument 2: ...`.
+- Discovery: `carried(A, G)` on a reproduction attestation A of a statement that goal G replaces counts as the
+  system result of G. Lint WD7 and the untouched line say "goal" for a goal/4 fact.
+
