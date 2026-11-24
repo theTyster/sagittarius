@@ -207,3 +207,18 @@ details.parked>summary .pname{font-weight:600}
 details.parked>summary b{font-variant-numeric:tabular-nums}
 details.parked[open]>summary{margin-bottom:8px}
 .due.parked strong{color:var(--graphite);font-weight:500}
+
+/* the records of 0.8.0 (c24): the goal, each hypothesis with its state, an unresolved verdict apart from a failing one */
+.b-unres{--c:var(--graphite)}.b-stale{--c:var(--lamp)}
+.badge.b-unres{border-style:dashed}
+b.unres{color:var(--paper)}
+.term{border-bottom:1px dotted var(--graphite);cursor:help}
+.goal .lbl,.hyp .lbl{font-weight:600}
+.hyp{margin:8px 0 8px 14px;padding-left:12px;border-left:2px solid var(--rule)}
+.hyp p{margin:4px 0}
+.hyp.s-adopted{border-left-color:var(--pass)}
+.hyp.s-defeated,.hyp.s-retired,.hyp.s-superseded{opacity:.72}
+.hyp.s-defeated{border-left-color:var(--burn)}
+form.judge{margin:10px 0;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+form.judge h4{margin:0;flex-basis:100%}
+form.judge textarea{flex-basis:100%;min-height:54px}

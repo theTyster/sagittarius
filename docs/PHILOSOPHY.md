@@ -3,6 +3,11 @@
 > Philosophy 2.0.0. Proposed on 2026-11-11, for Ty's review. It is a full rework of
 > the text of 2026-11-05 (version 1.0.0), and it replaces that text when Ty ratifies
 > it. Words in quote marks with "(Ty)" are word for word.
+>
+> Philosophy 2.1.0, 2026-11-24 (Sagittarius 0.8.0): the scientific method. Principle 2 states
+> the goal apart from its hypotheses, with the one vocabulary; "Under trial" gains Human-first
+> and four more positions. The other text is that of 2.0.0: where it says "the hypothesis",
+> read the statement of the intent, which is now the goal.
 
 Sagittarius helps a human and an agent to find what the human wants, and then to build it.
 This document holds the beliefs under it. It says why. The prompt says how to act, and
@@ -164,13 +169,37 @@ In the prompt: "The orbit", "Who judges what", "The vote".
 
 #### 2. Each statement of the intent is an attempt. The hypothesis is the first of them
 
-A hypothesis is the closest statement of the intent that the work has. It is called a
-hypothesis because it is an attempt at the intent that the human is chasing. Because it is an
-attempt, a result can show it false. While it stands, it is the law of its ticket: the claims,
-the checks, and the decision to build all rest on it.
+Since Sagittarius 0.8.0 a ticket is run as an experiment (Ty, 2026-11-23): "Under the
+scientific method, each ticket is a stated goal with a collection of hypotheses and experiments
+aimed at satisfying the goal." "A goal is what we hope to accomplish (the intent). The
+hypothesis is how we think we'll get there." The eight words have one sentence each, the same
+in every text:
 
-Every ticket has one. Discovery exists to form it when the request is not clear. When the
-request is clear, the agent states the hypothesis itself, and the work starts in build.
+<!-- vocabulary:begin -->
+- A goal is what the human hopes to accomplish: the intent. It names no avenue.
+- A hypothesis is a claim about an avenue to the goal: how we think we will get there.
+- A premise is a condition that a goal or a hypothesis takes as given. Where it does not hold,
+  the statement says nothing.
+- A claim is a prediction: what must be observable if its hypothesis and the premises hold.
+- The specification is the procedure of the experiment: the claims, and the check of each claim.
+- An experiment is one test of one claim: a procedure, its measurement premises, an observation,
+  and one verdict.
+- A verdict is the result of one experiment: meets, conflicts, or unresolved.
+- A hypothesis is tempered when one admissible case can demonstrate that its claim is false.
+<!-- vocabulary:end -->
+
+The statement of the intent is the goal. Every ticket has one goal, and discovery exists to
+form it when the request is not clear. A hypothesis is an attempt at an avenue to the goal: one
+admissible case can defeat it, and that case stays on it. Several hypotheses can be current. A
+goal is never defeated: its owner changes it or drops it. Each run of a check is an experiment
+with one verdict (meets, conflicts, or unresolved), and a conflict is located (the build, the
+measurement, a premise, or the hypothesis) before anything is reopened. Experiments give
+verdicts on claims; the human judges the goal on concrete cases. The human gives the first
+goal and hypothesis when they have them, and the agent sharpens or challenges them at once;
+for a plain request the agent drafts both and says that they are its own.
+
+Ty wrote the next example on 2026-11-11, when the statement of the intent was still called the
+hypothesis. It is an example of a goal.
 
 > In the case of "add a dark mode" the hypothesis might be: "The app must contain and use a
 > compatible dark-colored scheme that supports dark mode without violating accessibility,
@@ -179,66 +208,66 @@ request is clear, the agent states the hypothesis itself, and the work starts in
 > where the assumed failure was. Questions can help narrow that down, but now you've got clear
 > defaults to work from. (Ty, 2026-11-11)
 
-So the hypothesis is wide on purpose. Each default of the agent is in the sentence, where the
-human can see it and correct it. To state a hypothesis is not to ask a question. The agent
-states it and goes on. It stops to ask only when a wrong default is costly or hard to undo.
+So the goal is wide on purpose. Each default of the agent is in the sentence, where the human
+can see it and correct it. To state a goal and a hypothesis is not to ask a question. The agent
+states them, says that they are its own, and goes on. It stops to ask only when a wrong default
+or a wrong avenue is costly or hard to undo.
 
-The hypothesis says what the human wants. A report of a defect says one thing more: that the
-system falls short of it today. That second statement is a finding about the system. It is not
-part of the law. The reproduction tests it. When the build is done, the finding is false, and
-the law still stands.
+The goal says what the human wants. A report of a defect says one thing more: that the system
+falls short of it today. That second statement is a finding about the system. It is not part
+of the goal. The reproduction tests it. When the build is done, the finding is false, and the
+goal still stands.
 
-The hypothesis follows a value of the Mathlib community: weak hypotheses, strong conclusions.
+The goal follows a value of the Mathlib community: weak hypotheses, strong conclusions.
 
-- **Assume little.** A cause, a mechanism, or a fix in the hypothesis adds meaning that the
-  human did not give. It also chooses a design too early. A cause that the agent finds is a
-  finding. It is not part of the hypothesis.
+- **Assume little.** A cause, a mechanism, or a fix in the goal adds meaning that the human
+  did not give. It also chooses a design too early: it is an avenue, and an avenue belongs in
+  a hypothesis. A cause that the agent finds is a finding. It is not part of the goal.
 - **Conclude strongly.** Say which outcome is wanted, and which facts decide it.
-- **Stay falsifiable.** A statement that no result can show false says nothing. It has
-  collapsed.
+- **Stay falsifiable.** A statement that no single case can show false says nothing. It is not
+  tempered (the Lean file below calls it collapsed).
 
-Remove words until one more removal makes the hypothesis collapse or change its meaning. A weak
-hypothesis often takes more work to confirm or refute, but not always.
+Remove words until one more removal empties the statement or changes its meaning. A weak
+statement often takes more work to confirm or refute, but not always.
 
-Every stated hypothesis lists its premises beside it. A premise is a condition that the
-hypothesis takes as given. Where a premise does not hold, the hypothesis says nothing. So a
-premise is also a place where the checks stop looking, and a premise that nobody gave can hide
-a wrong default. That is the reason to write wide.
+Every stated goal and hypothesis lists its premises beside it. A premise is also a place where
+the checks stop looking, and a premise that nobody gave can hide a wrong default. That is the
+reason to write wide.
 
 Hypotheses, premises, and claims err soft. Experiment just past the boundary of too brittle or
 too soft, then formalize. The formalism then localizes the definition. Annealing in the formal
 languages brings out the tempered position. Oscillation is an intentional heuristic.
 
 A **guess** is something that the agent assumed and that nobody confirmed: a default about
-what the human wants, or a fact about the system that the agent did not check. A wide
-hypothesis carries its guesses in view. The delivery lists them, and one concrete case, or
-one check, decides each of them.
+what the human wants, a hypothesis that the agent wrote and the human has not adopted, or a
+fact about the system that the agent did not check. A wide goal carries its guesses in view.
+The delivery lists them, and one concrete case, or one check, decides each of them.
 
-A hypothesis has two falsifiers, and each has its own witness. The system is the witness of
-one: a result that the system shows. The human is the witness of the other: a concrete case
-that the human judges. The question for the human is Ty's: "is this case your intent?"
-When the system shows a case that the hypothesis rejects, the case alone does not say which is
-wrong, the build or the hypothesis. The human's judgment of that case says it.
+There are two levels of judgment, and each has its own witness. The system is the witness of
+one: an experiment gives a verdict on a claim. The human is the witness of the other: a
+concrete case that the human judges against the goal. The question for the human is Ty's: "is
+this case your intent?" A judgment of the human never turns a verdict into meets, and a
+verdict that meets does not choose what the human wants.
 
-A premise can fail too. When the system shows that a premise is false, the hypothesis does not
-apply as it is written, and the agent restates it. So a result can challenge three things: a
-premise, the build, or the reading of the intent. The agent says which one.
+A conflict does not say what is wrong. It rejects the hypothesis, its premises, the
+measurement and the build taken together. So the conflict is located before anything is
+reopened: in the build, in the measurement, in a premise, or in the hypothesis. The party that
+built keeps a conflict in the build; a location outside the build counts only when a party
+that did not build confirms it. A conflict in the build is fixed there, and nobody asks the
+human again about what they accepted.
 
-The law is also a default. A check that fails is judged against the hypothesis, and nobody
-asks the human again about what they accepted. The agent asks only when a case gives a reason
-to doubt the hypothesis itself.
-
-The build goes back to discovery only when the hypothesis itself must change, and then only
-when the agent can no longer say what it changes to. A claim that changes inside the
-hypothesis stays in the build. Sometimes the human's answer says what the hypothesis changes
-to: "only on this page". Then the agent restates the hypothesis where it is. The new
-hypothesis supersedes the old one, and the human sees it. Discovery exists to form the
-hypothesis, and in a workspace discovery is another agent, so a return has a cost. Clarity
-decides. (Ty holds the first half of this rule loosely: "I might say".)
+A hypothesis that a located conflict defeats, or that a case which the human judges not
+wanted defeats while every claim meets, goes back to discovery. Ty, 2026-11-23: "Following the
+scientific method, as I understand it, means that the entire experiment should be re-evaluated
+if a hypothesis is falsified." Discovery re-evaluates the goal, the premises and the
+measurement, and tempers a new hypothesis; the case stays on the old one. Build does not
+restate a hypothesis. When the human corrects the goal and says what it changes to ("only on
+this page"), the party that hears it records the new goal in the human's words, and carries
+over what still counts.
 
 "A properly written hypothesis" (below) gives the definition.
 
-In the prompt: "The light path", "The hypothesis".
+In the prompt: "The light path", "The goal", "The hypothesis".
 
 #### 3. What a lap learns, the next lap keeps
 
@@ -445,7 +474,7 @@ response needs stays low, so the agent keeps its attention on the orbit, not on 
 
 "More specific" has three levels of statement:
 
-1. **Words.** The hypothesis in one sentence, its premises, one concrete example, and one
+1. **Words.** The goal and the hypothesis in one statement, the premises, one concrete example, and one
    check that can fail. This is the light path: the first response to any request for a
    change.
 2. **Records.** A knowledge base that holds the request word for word, the hypothesis, the
@@ -556,6 +585,13 @@ tests it. "Under trial" lists the beliefs that use has not yet judged.
 In the repository: `docs/REFINING.md`.
 
 ## A properly written hypothesis
+
+> Read with 0.8.0: this section was written on 2026-11-11 and 2026-11-12, when the statement of
+> the intent was called the hypothesis. Its definition (properly written, collapsed, held,
+> guess) is about that statement, which is now the goal of a ticket. "Collapsed" is "not
+> tempered" in the prompt. How the Lean definition maps to a tempered hypothesis of the new
+> sense is not worked out. Where a row below says what happens after a result, the rule of
+> principle 2 holds: locate the conflict first, and a defeated hypothesis goes to discovery.
 
 Ty's working sentence is: "a properly written hypothesis is the weakest form of a
 statement that doesn't collapse (it is provable) and doesn't generalize so far as to lose its
@@ -797,7 +833,7 @@ inference, reasoning and knowledge-graph layer. It is opinionated: it puts every
 shape.
 
 The audience is people who work with formal methods and AI. Users are expected to read Prolog,
-Lean, and the other formal languages. A general template is a byproduct: an informal release.
+Lean, and the other formal languages.
 
 Sagittarius runs in two interfaces.
 
@@ -836,12 +872,12 @@ Use has not yet judged these positions. Each one names what would show it wrong.
 |---|---|
 | Premises ride beside every hypothesis. | Ty skips them, or reports them as noise. |
 | A rule of the prompt needs a case that fails when the rule is deleted. | A rule that clearly matters, for which no such case can be written. |
-| Every ticket has a hypothesis: wide, stated, and not asked. | Ty reports that plain requests got slower, or that the sentence reads as a ritual. |
+| Every ticket has a goal and a hypothesis: the goal wide, both stated, and not asked. | Ty reports that plain requests got slower, or that the sentence reads as a ritual. |
 | The oscillation as one step: show the case just past the boundary, and ask. | The questions are too many, or too strange to answer. |
 | System 1 is recommended, not required. | Sessions without it miss signals that sessions with it catch. Then it is required. |
 | When System 1 and the agent disagree, it goes to the human, or to a formalism, or both. | System 1 names so many false signals that these lines become noise. |
 | Liked, then changed: narrow down what stays and what changes. | The narrowing costs more than the change, or a part that Ty liked is lost anyway. |
-| The build goes back to discovery only when the agent can no longer say what the hypothesis changes to. | A hypothesis that was restated in build is later found to have changed what the ticket was for. |
+| A defeated hypothesis goes back to discovery; a conflict located in the build stays in build; a corrected goal is recorded by the party that hears it. | Returns to discovery that only repeat what build could have said, or a goal recorded in build that is later found to have changed what the ticket was for. |
 | A ticket starts in words. Records start on a signal. | Agents still miss the step from words to a record, as the audit of 2026-10-22 found, also when the step is cheap. |
 | The claim chooses the third level, not a count of signals. | Claims that needed a formal statement stay in words and records, and the same correction comes back. |
 | The agent says what it expects before it looks. The failure of a check before its change is not a new divergence. | Agents write the expectation after the result, or the line becomes a ritual. |
@@ -849,6 +885,11 @@ Use has not yet judged these positions. Each one names what would show it wrong.
 | The formal statement goes to the human with the plain claim. | Ty reports it as noise, or still does not see it. |
 | The formal artifacts vote by readiness, with a knowledge base and without one. | A discovery that was not ready gets a GO that proves right, or a ready one proves wrong, often enough to matter. |
 | One response for every signal. | A signal appears for which the right response has another shape. |
+| Human-first (Ty): "For a task with a consequential misunderstanding present at the outset, an agent starting from the human's goal and self-written tempered hypothesis will expose that misunderstanding earlier and deliver a result the human judges closer to their goal" than an agent that gets an ordinary request. | A paired comparison in which the ordinary request exposes the misunderstanding no later, or gives a result that the human judges no less close. No comparison has run yet. |
+| A ticket is a goal with hypotheses, claims and experiments (Ty: the project hypothesis Sagittarius). | A conflict that cannot be placed on the build, the measurement, a premise or a hypothesis; or a ticket that closes while the human judges that its goal is not satisfied. |
+| Formalize the smallest claim whose precision could change what the human or the agent does next. No signal is needed (Parallax, Shifting). | A dispute in which the formal statement finds the case that tells two readings apart later than plain language does. |
+| Sound Basis (Ty): "Existing behavior is presumed to be preserved. A claim in the specification can identify behavior to change. A demonstrated conflict opens the affected behavior for review." | Reported conflicts that are noise, or a silent change that no conflict reported. |
+| The light path gains no step: no adoption and no recorded judgment. | Ty reports that plain requests got slower, or that "Goal (mine): ... Hypothesis (mine): ..." reads as a ritual. |
 
 This text is the frontier, and the build is behind it in places. Three examples: the report of
 the tool does not yet put a formal statement beside its plain claim, the step from words to

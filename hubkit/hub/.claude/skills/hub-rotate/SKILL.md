@@ -94,6 +94,10 @@ Dropping durable knowledge at a week boundary is the one failure this design can
    decision that must outlive the ticket; `.claude/orbit-kb/bin/orbit-kb help project`), and list the
    proposals in the report for the human, who ratifies them. Then record the decision:
    `hubflow.py spec-triage <slug> ... --note "why"`; archive is `git rm -r specs/<slug>`.
+   **Orphans.** `.claude/orbit-kb/bin/orbit hub orphans` lists each open item with no live chain to
+   a project goal. The rotation asks for one decision on each orphan: name its goal (`ref ID add
+   goal:<id>`), link it to the item it serves, or close it. Write to the ledger through
+   `orbit hub ledger ARGS` (the door) or `hubflow.py ARGS`: the same command.
    Then prune the unused bespoke tools: a tool in `TECHNOLOGIES.md` (or the memory file the hub
    names) that no open spec KB pins and that has no listed use since the last rotation. Record a
    triage decision for each. Never prune a model or proof that an open spec KB pins. Move

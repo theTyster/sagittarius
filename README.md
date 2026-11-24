@@ -1,18 +1,20 @@
 # Sagittarius
 
-Sagittarius 0.7.2. A way for a human and an AI agent to agree on what is being built, with
+Sagittarius 0.8.0. A way for a human and an AI agent to agree on what is being built, with
 only as much rigor as the work needs.
 
 **Start light. Shift up on a signal. Lean back when it is resolved.** Every ticket starts with a
-stated hypothesis: one sentence, its premises, and one example. Most requests get a direct
+stated goal and a hypothesis about how to reach it: one statement, its premises, and one
+example. The method is the scientific method: the hypothesis predicts claims, each claim has
+a check, and each run gives a verdict (meets, conflicts, or unresolved). Most requests get a direct
 answer or the light path, with one check. When a signal shows up (a divergence between two
 views, a build by someone else, a claim that burns, a handoff, significant effort), the agent
 gets more specific, one level at a time. There are three levels of statement, and each has its
 own language:
 
-1. **Words:** one sentence, its premises, one example, one check.
-2. **Records:** a knowledge base (KB) in Prolog: the request word for word, the hypothesis, the
-   claims, the questions, the checks, and what differed.
+1. **Words:** the goal and the hypothesis in one statement, the premises, one example, one check.
+2. **Records:** a knowledge base (KB) in Prolog: the request word for word, the goal, the
+   hypotheses, the claims, the questions, the checks with their verdicts, and what differed.
 3. **A formal statement,** in the one language that fits the claim: a solver for rules and
    limits, a model checker for orders of steps and time, or Lean proofs for every input.
 
@@ -34,8 +36,6 @@ prompt carries it. Each of three things has its own version (Sagittarius, the ph
 MindHole Kit); `CHANGELOG.md` says what a change of each number means.
 
 ## Use it
-
-Only the hub, with no Prolog and no Lean? That is the informal release: see [`hubkit/README.md`](hubkit/README.md).
 
 1. **Install.** Install SWI-Prolog 9+, then run `./install.py` from this folder. It links
    `orbit-kb`, `repo-map`, the prompt, and the System 1 hook into your home directory. Check it
@@ -120,7 +120,7 @@ ends with a check. Do the steps in order. Stop at a check that fails, and say wh
    `claude`.
 5. **Ask it which prompt it got.** Ask the session: "What is the last line of your system
    prompt?" It must answer with the last line of `prompt/SAGITTARIUS.md`. For this release that
-   is "This is Sagittarius 0.7.2 (2026-11-23).", so the session names Sagittarius 0.7.2. Any
+   is "This is Sagittarius 0.8.0 (2026-11-24).", so the session names Sagittarius 0.8.0. Any
    other answer means that the session did not get this prompt: check step 3. The link points
    at this checkout, so a session gets the prompt of the branch that the checkout holds.
 6. **The System 1 hook (recommended, not required).** Follow "Install" in `s1/README.md`. The
@@ -196,8 +196,10 @@ repository, not to this one.
 ```sh
 bash kb/tests/test_orbit_kb.sh             # the orbit-kb suite (about a minute)
 kb/tests/burn_model/check.sh               # the Lean files of the burn rules (needs Lean 4)
-python3 docs/check_lean.py                 # Lean on Hypothesis.lean (count, axioms, cited names) and kb/proofs (needs Lean 4)
+python3 docs/check_lean.py                 # Lean on Hypothesis.lean (count, axioms, cited names), kb/proofs, and ScientificMethod.lean (no sorry, no axiom of its own, its nine theorems) (needs Lean 4)
 python3 docs/test_check_lean.py            # the tests of that check
+bash kb/tests/warrants_conformance.sh      # the tool gives the timer readings 600, 611 and 615 the verdicts that ScientificMethod.lean proves (meets, unresolved, conflicts)
+bash kb/tests/compare_hubs.sh OLD NEW HUB  # two versions of orbit-kb on copies of the KBs of real hubs: each KB opens, done stays done, each open item stays, the hypothesis of 0.7.2 is the goal
 python3 docs/check_mutants.py              # each docs check passes on the tree, and fails on a copy that lost what it holds
 python3 docs/check_mindhole.py --list      # the MindHole Kit checks of 0.3.0, one id each (mb2 to mb5 read the kit only, not the design KB)
 python3 docs/test_check_mutants.py         # the tests of that check

@@ -142,8 +142,8 @@ differs from what was expected is a divergence from the system.
     System 1: not from the human (task-notification); work=verify (0.80); divergence likely (0.85)
 
 The log line has `"source": "task-notification"` and keeps the answers of the model as they came.
-The status line and the Signals mod read the log, so they still show the effort answer of such a
-message.
+The status line leaves out effort and change of plan for such a message too. The Signals mod reads
+the log, so it still shows the effort answer.
 
 ### Candidate questions, proposals and the stop event
 

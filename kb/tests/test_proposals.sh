@@ -102,6 +102,20 @@ t_s1() {
   out_has 'waits; it blocks nothing\. Confirm: orbit-kb confirm-proposal pr1'
   out_has 'confirmed by the agent'
 }
+# D71 with the records of 0.8.0 (c34): a goal and a hypothesis that System 1 proposed in the words
+# of the human become records of the human on confirm
+t_c4() {
+  okb propose --from system1 "goal(s1_g1a2b3c4d, change, human, 'The export keeps its rows sorted.')"; rc_is 0
+  okb confirm-proposal pr1; rc_is 0 "confirm a goal/4"
+  is_true "goal(s1_g1a2b3c4d, change, human, 'The export keeps its rows sorted.')"
+  okb propose --from system1 "hypothesis(s1_h1a2b3c4d, s1_g1a2b3c4d, human, 'Sorting in the query is enough.')" --note 'System 1: a request of kind hypothesis'; rc_is 0
+  is_false "hypothesis(s1_h1a2b3c4d, _, _, _)"
+  okb confirm-proposal pr2 --by human; rc_is 0 "confirm a hypothesis/4"
+  is_true "hypothesis(s1_h1a2b3c4d, s1_g1a2b3c4d, human, 'Sorting in the query is enough.')"
+  is_true "proposal_confirmed(pr2, human, T)"
+}
+# D71: the usage line of show names proposals
+t_s2() { okb show nothing; rc_is 2; any_has 'proposals'; }
 run_test t_p1 P1 "propose stores the proposal with its source and its note; it is no record"
 run_test t_p2 P2 "propose is for System 1 only, and refuses a fact that does not parse"
 run_test t_p3 P3 "a proposal changes no answer of done, blocking(X) or discovery_ready"
@@ -110,5 +124,7 @@ run_test t_c1 C1 "confirm-proposal makes the record and says who confirmed; once
 run_test t_c2 C2 "confirm-proposal: the agent by default; unknown id and bad --by refused"
 run_test t_c3 C3 "confirm-proposal keeps the checks of add"
 run_test t_s1 S1 "show proposals"
+run_test t_c4 C4 "confirm-proposal accepts a goal/4 and a hypothesis/4 proposal"
+run_test t_s2 S2 "the usage of show lists proposals"
 echo "$pass passed, $fail failed${failed[*]:+: ${failed[*]}}"
 [ "$fail" -eq 0 ]

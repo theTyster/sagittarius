@@ -1837,7 +1837,45 @@ EOF
           okb --dir "$K" pin-request --request-file "$J" >/dev/null; op_named blocking ""
           op_project "$T/pc" human; K=$T/pc/sp; op_named blocking ""
           op_project "$T/pu" human; printf 'this is not (valid.\n' >> "$T/pu/p/kb.pl"; K=$T/pu/sp; op_named blocking ""
+          # 0.8.0 (D57 to D61; scientific-method-overhaul c7, c9, c10, c16, c39, c42): the kinds of stage 2
+          kb_new "$T/s2" <<'EOF'
+uses([build]).
+% Made by orbit-kb 0.8.0.
+request(r1, 'Stage 2').
+goal(g0, feature, human, 'Text of g0').
+claim(c5, preserve, 'Text of c5 not carried').
+check(k5, c5).
+EOF
+          K=$T/s2; add_result "$K" k5 1 pass
+          cat >> "$K/kb.pl" <<'EOF'
+goal(g1, feature, human, 'Text of g1').
+supersedes(g1, g0).
+carried(c5, g1).
+hypothesis(hy1, g1, agent, 'Text of hy1').
+claim(c1, preserve, 'Text of c1 unresolved').
+claim(c2, preserve, 'Text of c2 stale').
+claim(c3, preserve, 'Text of c3 conflict').
+claim(c4, preserve, 'Text of c4 located').
+check(k1, c1).
+check(k2, c2).
+check(k3, c3).
+check(k4, c4).
+behavior_conflict(b1, 'Text of b1').
+EOF
+          add_result "$K" k1 2 unresolved; add_result "$K" k2 3 pass; add_result "$K" k3 4 fail; add_result "$K" k4 5 fail
+          cat >> "$K/kb.pl" <<'EOF'
+unresolved_because(t2, 'the check could not decide (exit 77)').
+change(x1, 'Text of x1').
+serves(x1, c2).
+change_at(x1, '2026-10-15T10:00:30Z').
+attest(l1, location, t5, located(measurement, 'a second clock'), agent, '2026-10-15T10:00:31Z').
+attest(j1, judgment, g1, case('Text of j1', not_wanted), human, '2026-10-15T10:00:32Z').
+EOF
+          op_named blocking ""
           op_cover blocking; }
+# judge_goal [GOAL]: the human judges that the goal is satisfied (0.8.0, D59; scientific-method-overhaul
+# c41). A test that means "everything is done" on a KB with a goal records this judgment.
+judge_goal() { okb --dir "$K" attest judgment "${1:-h1}" satisfied --by human >/dev/null; rc_is 0 "the human judges the goal ${1:-h1} satisfied"; }
 op_project() {  # op_project DIR BY: a project KB with excludes(d1, d2), and a spec KB in DIR/sp whose fulfilled claim pins d1
     local P=$1/p S=$1/sp
     okb init "$P" --request project --uses project >/dev/null; K=$P
@@ -2343,7 +2381,7 @@ t_HE2() { local hb hd h0; hb=$(he_text build); hd=$(he_text discovery); okb help
           grep -qF 'you no longer agree with the human on the problem' <<< "$(tr '\n' ' ' <<< "$h0" | tr -s ' ')" && note "the first help screen sends a disagreement on the problem to discovery"
           return 0; }
 t_HE3() { local hd; hd=$(he_text discovery)
-          grep -qF 'two falsifiers' <<< "$hd" || note "help discovery: the hypothesis has two falsifiers"
+          grep -qF 'two levels of judgment' <<< "$hd" || note "help discovery: two levels of judgment (0.8.0, scientific-method-overhaul c10; two falsifiers before)"
           grep -qiF 'the system is the witness' <<< "$hd" && grep -qiF 'the human is the witness' <<< "$hd" || note "help discovery: each falsifier has its witness, the system and the human"
           grep -qF 'Then say that the system can fail to give it' <<< "$hd" && note "help discovery still puts the failure into the hypothesis"
           grep -qF 'decide its points. Some purchases get a different' <<< "$hd" && note "the example hypothesis still holds the finding"
@@ -2352,7 +2390,8 @@ t_HE3() { local hd; hd=$(he_text discovery)
           grep -qF 'in the scope of the report' <<< "$hd" && note "help discovery says scope"
           grep -qiE '\bwide\b' <<< "$hd" || note "help discovery: the hypothesis is wide"
           grep -qF 'backbone of discovery' <<< "$hd" && note "help discovery: the backbone of discovery"
-          grep -qiE 'law of (its|the|every) ticket' <<< "$hd" || note "help discovery: the hypothesis is the law of its ticket"
+          grep -qiE 'law of (its|the|every) ticket|closest statement of the intent' <<< "$hd" && note "help discovery still holds the old definition (scientific-method-overhaul c11)"
+          grep -qiF 'the claims, the checks, and the vote rest on it' <<< "$hd" || note "help discovery: the claims, the checks, and the vote rest on the statement"
           kb_init "$T/k" discovery; okb --dir "$K" show kinds; out_hasnt 'falsifiable and scoped' "show kinds: hypothesis/3 is not scoped"; }
 t_HE4() { local hd; hd=$(he_text discovery)
           grep -qF 'and the rules alone in SMT, with the same claim ids' <<< "$hd" && note "SPECTRUM writes one claim in two formal languages by default"
@@ -2458,6 +2497,8 @@ t_SF4() { printf 'FAIL test_dark_mode: the reports page is light\n' > "$T/red.tx
           rp_sec Disclosures | grep -q 'the reports page is light' || note "report Disclosures: the output of the red run"
           printf '%s\n' "$out" | grep -qiE 'undo|revert' && note "the report asks the agent to undo the change"
           okb --dir "$K" attest waiver k1 "waive(k1, '2999-01-01T00:00:00Z', 'The agent saw it red before the KB.')" --by human >/dev/null
+          is_false 'done' "0.8.0 (c41): with the waiver and no judgment of the goal, the ticket is not done"
+          judge_goal h1
           is_true 'done' "a human waiver of the check covers the claim"
           okb --dir "$K" report; rp_item c1 | grep -q 'not shown red by the tool' || note "report: still not shown red, with the waiver: [$(rp_item c1)]"; }
 t_SF5() { sf_shift "$T/a" --no-premises --red-log "$T/none.txt"; rc_is 1 "a red log that does not exist"; [ -e "$T/a/kb.pl" ] && note "a missing red log leaves no KB"
@@ -2940,9 +2981,10 @@ t_RL3() { # a fulfilled claim with nothing to add stays on one line; a claim tha
     - Status: fulfilled.
     - Example: Save a widget, close the app, open it again, and see the widget.
     - Checks: k1 (passed)." "$(rp_item c1)"
+    # 0.8.0 (scientific-method-overhaul c7, c9): the latest run of k2 conflicts, and report says so.
     rl_is "c2 (under)" "  - c2 **preserve**: Loading stays fast
-    - Status: under.
-      - It is not fulfilled yet.
+    - Status: conflicts.
+      - The last run of check k2 (t3) conflicts with the claim. The conflict has no location yet.
     - Checks: k2 (not passed)." "$(rp_item c2)"
     rl_is "c3 (burn waived)" "  - c3 **preserve**: Every saved widget loads back the same
     - Status: fulfilled.
@@ -2997,6 +3039,8 @@ t_RL5() { # the other sections: bullets, the label in bold, detail nested
   - **under**: Claim c2 is current but not fulfilled: Loading stays fast
   - **under**: Claim c6 is current but not fulfilled: The save button has a tooltip
   - **check failing**: Check k2 did not pass its last run: a check of claim c2: Loading stays fast
+  - **conflict unlocated**: Run t3 of check k2 conflicts with claim c2, and the conflict has no location
+    - Locate it before anything is reopened: orbit-kb locate t3 build|measurement|premise:P|hypothesis:H|claim:C --evidence TEXT.
   - **over**: Change x2 serves no claim
   - **burn open**: Claim c5 needs a Lean proof
     - Prove it with orbit-kb prove, or ask a human for a waiver.
@@ -3077,7 +3121,7 @@ t_RH2() { # c1: one self-contained page with each claim, its status as a label, 
         rh_claim "$T/r.html" "$c" | grep -q ">$s<" || note "claim $c: the status $s is not shown as a text label"
     done
     for c in c1:k1 c2:k2 c3:k3 c4:k4 c5:k5 c7:k7; do rh_has "$(rh_claim "$T/r.html" "${c%%:*}")" "data-check=\"${c#*:}\"" "claim ${c%%:*} lists check ${c#*:}"; done
-    rh_has "$(rh_claim "$T/r.html" c2)" 'Status: under\. It is not fulfilled yet\.' "the status sentence of the text report"
+    rh_has "$(rh_claim "$T/r.html" c2)" 'Status: conflicts\. The last run of check k2 \(t3\) conflicts with the claim\.' "the status sentence of the text report (0.8.0: c7, c9)"
     rh_has "$(rh_claim "$T/r.html" c5)" 'Burn: NOT PROVED\. A Lean proof is required\.' "the burn sentence of the text report"
     rh_kb nobuild; okb --dir "$K" report --html "$T/n.html"; rc_is 0 "a KB without build"
     rh_has "$(<"$T/n.html")" 'data-claim="c1"[^>]*data-status="none"' "without build a claim has no status"

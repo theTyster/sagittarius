@@ -86,9 +86,8 @@ decl(rule, project_decision_digest(atom, digest),
 decl(rule, project_kb_unclean,
      'The project KB of project_kb/1 does not load clean: lint finds an error in it, so a conflict could hide there. orbit-kb computes it when it reads the KB.',
      'the project KB does not load clean').
-decl(rule, rests_on(ref, ref),
-     'The first fact depends on the second through one or more depends_on facts (D27). orbit-kb computes it when it reads the KB.',
-     '@(1) rests on @(2)').
+% 0.8.0 (D53): rests_on/2 is declared in core.pl now. In a project KB it still holds the closure
+% of the depends_on facts (D27), which orbit-kb computes when it reads the KB.
 decl(rule, agent_who(atom),
      'The decider is an agent: the atom agent, or an atom that starts with agent:, in any case (D27, T34). orbit-kb computes it when it reads the KB.',
      '@(1) is an agent').
@@ -238,6 +237,10 @@ any_project_conflict :- blocking(project_contradiction(_)).
 % T43 c3: a draft blocks no spec KB (the dates decide). A project KB that does not load clean does.
 blocking(project_kb_unclean) :- project_kb_unclean.
 any_project_conflict :- blocking(project_kb_unclean).
+% 0.8.0 (D57): the same two conditions with no step through blocking/1. done_072 of the build
+% module reads it, so that blocking/1 can read the grandfather rule and the rules stay stratified.
+any_project_conflict_072 :- project_contradiction(X, _), project_pinned(X).
+any_project_conflict_072 :- project_kb_unclean.
 
 % ---------------------------------------------------------------------
 % Lint hooks

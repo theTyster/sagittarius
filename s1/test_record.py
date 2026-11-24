@@ -273,6 +273,15 @@ class C34NotFromTheHuman(Base):
         self.run_hook(Fake())
         self.assertNotIn("source", self.log_lines()[-1])
 
+    def test_the_status_line_shows_no_effort_for_such_a_message(self):
+        import statusline
+        self.run_hook(Fake())
+        self.assertIn("eff 0.91", statusline.render("sess-fixture-1", self.log))
+        self.run_hook(Fake(), raw=self.payload(prompt=TAGGED["task-notification"]))
+        seg = statusline.render("sess-fixture-1", self.log)
+        self.assertNotIn("eff", seg)
+        self.assertIn("div 0.85", seg)
+
     def test_a_workbench_routing_gets_the_same_rule(self):
         wb = os.path.join(self.dir, "wb")
         os.makedirs(wb)

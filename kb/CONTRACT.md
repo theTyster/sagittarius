@@ -267,7 +267,7 @@ Files cited here under `thoughts/` are in git history, at the tag `thoughts-arch
 - **D36 (the help follows the prompt, 2026-11-12).** Sagittarius 0.3.0, package K-E of the alignment (claims `c_k_e_1` to `c_k_e_5`; findings K10, K17, K2, K13, K15, K1). Words only; no rule changes. Amends D15 R3 (the help of a reworded hypothesis) and the "How to use" block of `help` (D22 C9 is unchanged).
   - E1 (`c_k_e_1`): `help build` "When the human says that it is wrong" starts with the line `Kept: ... Changed: ...`, then the three cases of the prompt: a misread (a divergence on its claim), the intent moved (a new claim supersedes the old one, and no divergence against the old claim), a wish that adds to the result (a new ticket). If the agent cannot tell, it says so and treats it as a divergence. Test HE1.
   - E2 (`c_k_e_2`): the build goes back to discovery only when the agent can no longer say what the hypothesis changes to. `help build` gives the recipe to restate it (`hypothesis(h2, ...)`, `supersedes(h2, h1)`; "Show it, and go on"); `help discovery` BACK says the same; the first help screen sends neither a "why?" question nor a disagreement on the problem to discovery (MODULE: discovery when the request is not clear enough to state its hypothesis). Test HE2.
-  - E3 (`c_k_e_3`): `help discovery` "The hypothesis": the law of its ticket (not "the backbone of discovery"), what the human wants, the premises beside it, wide (not "in the scope of the report"), the example hypothesis without the finding and with its premise, the finding kept apart, two falsifiers, the system and the human as their witnesses. Test HE3; RW5 is unchanged (the reword recipe stays in SIGNAL).
+  - E3 (`c_k_e_3`): `help discovery` "The hypothesis": the claims, the checks, and the vote rest on it (not "the backbone of discovery"; 0.8.0 removes the words that called it the law of the ticket, scientific-method-overhaul c11), what the human wants, the premises beside it, wide (not "in the scope of the report"), the example hypothesis without the finding and with its premise, the finding kept apart, two levels of judgment (two falsifiers before 0.8.0), the system and the human as their witnesses. Test HE3; RW5 is unchanged (the reword recipe stays in SIGNAL).
   - E4 (`c_k_e_4`): SPECTRUM step 4 and HANDOFF: one formal language first, a second one only when a question is left. Test HE4.
   - E5 (`c_k_e_5`): the steps of the first help screen put the hypothesis and its premises (step 2) before the claims (step 3); `help core` lists `hypothesis` and `premise` before `claim`; `help build` starts a KB on a divergence with the request, the hypothesis and its premises. Test HE5.
   - E6 (the docs check `check_prompt_moves.py` c4): `help discovery` QUERIES says that the lint codes WD1, WD3, WD7, WD10, ED3-ED7 name some of the blockers of readiness, and that `show open` and `whynot 'discovery_ready'` name all (D32 O2). The needle of that row of `docs/PROMPT-MOVES.md` follows.
@@ -460,6 +460,7 @@ SWI-Prolog has no schema checker, so `orbit-kb` provides one. The tool must stay
 domain-neutral. The core vocabulary must not mention software. Software terms live in
 `modules/build.pl`. Discovery terms live in `modules/discovery.pl`, which another session
 owns.
+- **D72 (the Desk shows the records of 0.8.0, 2026-11-24).** Ticket scientific-method-overhaul, claim c24; build contract section 6. `orbit-kb serve desk` only; `serve questions` is as before. (1) The card of a ticket is its `details.kbsec` in the lane KBs. It shows, in this order: `Goal (AUTHOR)` with the text of the current goal and its premises (AUTHOR is NAME for `human:NAME`, else `human` or `agent`; a KB with only `hypothesis/3` shows that statement as the goal, author agent); each `hypothesis/4` as `div.hyp.s-STATE[data-hyp=ID]` with the label `Hypothesis ID (AUTHOR-written, STATE)`, STATE from `hypothesis_state/2`: `not adopted` (proposed), `adopted`, `defeated` (with `Defeated by the case: TEXT` from `defeat/3`, or from the not-wanted case of `case_against/2`), `retired`, `superseded`; `It is false if: TEXT` from `defeating_case/3`; `not tempered` when `not_tempered/1` holds; for a proposed hypothesis with `adoption_cited(H, WORDS)` the line `proposed: the agent reads your words as adoption: 'WORDS' (Adopt to confirm)`, and its state stays `not adopted`; with a goal and no `hypothesis/4`: `No hypothesis: the claims hang on the goal.`; `Your judgments` (each `judgment` attestation on the goal); then the claims and checks as at 0.7.2. An item card (What it rests on) shows the same records and no action. (2) A check row shows the verdict of its latest run (`verdict/2` where the rule answers, else pass is meets, fail is conflicts, unresolved is unresolved): the badge `pass` (`b-pass`) or `fail` (`b-burn`) as at 0.7.2, and for unresolved the badge `unresolved` with the class `b-unres`, never `b-burn`, with `Verdict: unresolved: REASON.` (`unresolved_because/2`); the summary of the checks of a claim counts `N unresolved` apart from `N fail`; when `verdict_stale/2` holds, the row has a badge `stale` (`b-stale`). `check_unresolved(K)` is not listed again under Also open; every other new blocking term is one line there. (3) Three actions, on the card of a ticket that is not frozen; each follows the review flow of S15, and nothing is written before `POST /send`. All fields are form-urlencoded. `POST /review` takes `token` (the `data-token` of the page), `hub` (the path of the mindhole), `item`, and the fields below; it answers 200 with the review (the record under "What the Desk records", and one letter to the live holder of the KB when there is one), 400 or 409 with the reason, 403 with no token. `POST /send` takes the same fields, and `letter_0` and `to_0` when the review showed a letter; it answers 303 to the page. Adopt: `item=adopt:KBDIR#H` (KBDIR is the absolute directory of the KB), optional `text` (the human's words, kept as `note(H, ...)`); 409 unless H is a `hypothesis/4` in the state proposed; it writes `attest(ID, adoption, H, adopted, human, TIME)`. Judge a case: `item=judge:KBDIR`, `choice=wanted` or `choice=not_wanted`, `text` the case (400 when empty); it writes `attest(ID, judgment, G, case(TEXT, wanted|not_wanted), human, TIME)`, G the current goal. Judge the goal: `item=judge:KBDIR`, `choice=satisfied` or `choice=not_satisfied`, optional `text` (kept as `note(G, ...)`); it writes `attest(ID, judgment, G, satisfied|not_satisfied, human, TIME)`. Another `choice`, or none, is 400. On the page: the button `Adopt` in a `form[data-review]` inside the hypothesis, and `form.judge[data-judge=case]` and `form.judge[data-judge=goal]`. The write goes through `serve_write` (S8): `answers.pending` at once, applied now when no other writer holds the lock, else by the holder's next write; ID is the next `aN` after the ids of the KB and of the lines that wait. (4) The Desk adds no card and drops none: the item ids, the lane counts and the rows of a hub of 0.7.2 are those of the Desk of 0.7.2 (test DR5). (5) c12: the labels Goal, Hypothesis, Premises, Claims, check (experiment), Verdict and not tempered are `span.term[data-term=WORD]` whose `title` is the sentence of WORD in `share/orbit-kb/vocabulary.json`. (6) Second pass, 2026-11-24. Every reply of `serve` has `Connection: close`: the server has one worker and drops an idle connection, and a browser that sent its next POST on that connection got no reply (the page said "The Desk server does not answer"). A hypothesis that a confirmed location defeated (`located(hypothesis(H), E)` or `located(premise(P), E)` with P a premise of H, and `location_confirmed/1`) shows `Defeated by a located conflict: E`. On the card of a ticket, a claim that a hypothesis predicts, when each such hypothesis is defeated, retired or superseded, is not among the claims: it is under `Not current` as `p.notcurrent[data-claim=C]` with `not current (its hypothesis H is STATE)`. The vote card is titled `Vote on the goal and the hypotheses of the KB LABEL`. Tests: `kb/tests/test_desk_records.sh` DR1 to DR8 (DR7 drives a headless Chromium: k24; without one it is a SKIP; DR8: the stale badge, the located conflict, the claim that is not current).
 
 ## Environment facts
 
@@ -903,6 +904,172 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 - No commits. Do not edit files outside your own path.
 - Put temporary files in the session scratchpad:
   `/tmp/claude-1000/-home-ty--dotfiles/63a00f00-8d72-4aeb-a216-cde6b882f1f4/scratchpad`.
+
+## D50: the goal and the hypotheses under it (0.8.0; claims c1, c4, c21, c43)
+
+- `goal(G, Kind, Author, Text)` is the goal of the ticket. `hypothesis(H, Goal, Author, Text)` (arity 4) is a
+  hypothesis under a goal. An author is `human`, `agent`, `human:NAME` or `agent:NAME`.
+- `hypothesis(Id, Kind, Text)` (arity 3) is the 0.7.2 form of the goal. No kb.pl is rewritten. When the tool
+  reads a KB it computes `goal(Id, Kind, agent, Text)` for each hypothesis/3 fact of kb.pl, and
+  `hypothesis(G, Kind, Text)` for each goal/4 fact. A query of either form answers on every KB.
+- A query (`query`, `why`, `whynot`), `show hypothesis`, or an `add` that names hypothesis/3 prints on stderr:
+  `note: hypothesis/3 is the 0.7.2 form of the goal. Ask goal(G, Kind, Author, Text); a hypothesis of a goal is hypothesis(H, Goal, Author, Text).`
+  Stdout and the exit code are those of 0.7.2. `init` and `shift` are unchanged.
+- A `ref(hypothesis)` argument also takes a goal id; `ref(goal)` also takes a hypothesis/3 id. `supersedes/2`
+  takes two goals (in either form) or two hypotheses under a goal; a mix is E4.
+- `show hypotheses`, `show`, `show all`: `Goal (AUTHOR): G (KIND): TEXT`, its state and premises, then each
+  hypothesis as `  Hypothesis H (AUTHOR, STATE): TEXT` with its defeating case, premises, predictions and
+  defeats. A goal with no hypothesis prints `No hypothesis: the claims hang on the goal.` `report` prints the
+  same under `# Hypothesis:` (`Goal (AUTHOR): G **KIND**: TEXT`). A KB with no goal keeps the 0.7.2 line.
+- The tool writes no hypothesis/4 fact by itself.
+
+## D51: states, current claims (claims c2, c37, c38)
+
+- `hypothesis_state(H, S)`: exactly one of superseded, retired, defeated, adopted, proposed, the first that
+  applies. `hypothesis_current(H)`: proposed or adopted, and its goal is current or `carried(H, G)` names a
+  current goal. `defeat(D, H, Text)` defeats H; the case stays on H.
+- `current(C)`: no claim replaces C, and C is a claim of the goal (`claim_of_goal`: no predicts fact) or a
+  current hypothesis predicts it. With no predicts fact this is the rule of 0.7.2.
+- `predicts(H, C)` on a preserve claim is E21 (add refuses it). Lint W15: two current hypotheses predict one
+  claim. Lint W16: an unplaced claim, only in a KB made by 0.8.0 or later with a current hypothesis.
+
+## D52: adoption, retirement, guesses (claims c2, c4, c37)
+
+- Attestation types `adoption` (`adopted`, human only) and `retirement` (`retired(Text)`, human or agent);
+  the subject is a hypothesis/4 id. `orbit-kb adopt H --by human [--note W]` and
+  `orbit-kb retire H --reason TEXT [--by human|agent]` write them.
+- `hypothesis_adopted(H)`: a human adoption attestation; or (discovery module) `adoption_cited(H, Words)`
+  that stands in kb.pl before a GO vote of the human that is not void. `adoption_cited` alone adopts
+  nothing, and a GO vote adopts no hypothesis without it. A proposed hypothesis with the mark prints
+  `proposed: the agent reads the human's words as adoption: 'WORDS' (adopt to confirm)`.
+- An agent retirement of a hypothesis that a human wrote or adopted, or that has `adoption_cited`, is
+  refused (exit 1, by `retire`, `attest` and `add`). Such a fact written by hand does not retire it.
+- `hypothesis_guess(H)`: agent-written, current, not adopted. `report` lists it under Guesses as
+  `Hypothesis (agent-written, not adopted): TEXT`.
+
+## D53: tempered; what a record rests on (claims c3, c38)
+
+- `tempered(H)`: a `defeating_case(H, By, Text)` and no `untempered(H, By, Text)`. `not_tempered(H)`: current
+  and not tempered; lint W13.
+- `rests_on(X, Y)`: one step up (run to check, check to claim, claim to its hypothesis or the current goal,
+  hypothesis to goal, goal to `supports` ref). `rests_up(X, Y)`: one step or more. `rests_on/2` is declared
+  in the core now; in a project KB it also holds the closure of depends_on (D27).
+  `orbit-kb rests ID` prints `up:` and `down:`.
+
+## D54: a KB made by 0.8.0 or later (claims c21, c17)
+
+- `made_by_new` holds when the first `% Made by orbit-kb V.` line of kb.pl names 0.8.0 or later. Lint W14
+  (`goal_unsupported`: a current goal with no `supports` fact) and W16 report only then. A KB of an older
+  version, or with no such line, gets neither.
+
+## D55: a run has three results; one view of every experiment (claims c6, c7, c25)
+
+- `attest(A, test_result, K, result(K, N, R), script, T)`: R is `pass`, `fail` or `unresolved`.
+  `orbit-kb run K [--timeout SECS] [--expect sat|unsat] -- CMD` decides R: exit 0 is pass; exit 77,
+  a kill by a signal (also exit 137 and 143) and a run over `--timeout` are unresolved; with
+  `--expect`, the first output line that is `sat`, `unsat`, `unknown` or `timeout` decides (the
+  expected answer: pass; the other decided answer: fail; `unknown`, `timeout`, or no such line
+  with exit 0: unresolved); any other exit is fail.
+- An unresolved run prints `run N K unresolved (exit E) log=PATH`, then one line `Unresolved: ...`,
+  and exits 1. run writes `unresolved_because(A, Text)`. The lines and exit codes of pass and fail
+  are those of 0.7.2.
+- `passed(K)`: a pass with no later fail and no later unresolved run.
+- `experiment(E, Kind, C)`, Kind `test | model | proof | demo | judgment`, and `verdict(E, V)`, V
+  `meets | conflicts | unresolved`: exactly one verdict for each experiment (the definition
+  `Warrants` of ScientificMethod.lean). `latest_run(K, A)`: the run with the highest number.
+- `procedure/2`, `measurement_premise/3`, `known_when/2` describe an experiment.
+  `orbit-kb show experiments [ID]` prints the claim, the procedure, the measurement premises,
+  known-when, the observation and the verdict. ID is an experiment, a claim, or a check.
+- Lint W17: a check of a current claim with no `procedure` fact and no run.
+
+## D56: a verdict counts for the state that it observed (claim c39)
+
+- `verdict_stale(A, C)`: a change X with `serves(X, C)` and a `change_at` was recorded after run
+  A of a check of C: at a later time, or at the same time on a later line of kb.pl. A change with
+  no change time makes no run stale.
+- `attest measurement MP "false(Text)"` (human, agent): each run of the check of MP that stands
+  before it in kb.pl gets the verdict unresolved.
+- `counts(A, C)`: A is the latest run of a check of C, its verdict is meets, it is not stale
+  (`stale_counts/2`), and it is carried over when the goal changed.
+- `orbit-kb show stale` lists each stale last run.
+
+## D57: fulfilled, blocking, done, and the grandfather rule (claims c7, c20, c39, c41; q27)
+
+- `fulfilled(C)`: preserve: some `counts(A, C)`. introduce, retire: a `counts(A, C)` on a check
+  with `was_red(K)`. Not `refuted(C)`.
+- New terms of `blocking/1`: `check_unresolved(K)` (in place of `check_failing(K)` when the latest
+  verdict is unresolved), `verdict_stale(K)`, `conflict_unlocated(A)`, `location_unconfirmed(L)`,
+  `case_unplaced(J)`, `goal_unjudged(G)`, `behavior_open(B)`, `not_carried(A)`. Each term of 0.7.2
+  keeps its name. `show open`, `show blocking` and `report` print one line for each.
+- `done`: the conditions of 0.7.2 with the new `fulfilled/1`, and none of the new terms.
+- The rules of 0.7.2 stay under the names `*_072` (`done_072`, `fulfilled_072`, ...).
+- `kb_before_upgrade` (computed): the newest `% Made by orbit-kb V.` line is below 0.8.0, or there
+  is none, and kb.pl holds no `upgraded/2` fact. In such a KB `done` holds when `done_072` holds:
+  a ticket that was done stays done with no write, and nothing blocks it.
+- The first write of 0.8.0 or later to such a KB appends `upgraded(V, Time)` first, and
+  `done_before_upgrade(V, Time)` when `done_072` held (and a `% Made by` line when the tool itself
+  is 0.8.0 or later). A rejected write records nothing.
+- While `done_before_upgrade` holds: `goal_unjudged` never blocks; a run is stale only by a change
+  recorded at or after the upgrade time; a conflict recorded before the upgrade needs no location;
+  `show open` and `show stale` list `stale (done before the upgrade): ...`.
+- An open KB from before the upgrade gets the new rules at once and keeps each blocking term.
+- `kb/tests/compare_hub_kbs.sh OLD_TOOL NEW_TOOL SPECS_DIR` checks the rule on copies of real KBs.
+
+## D58: the location of a conflict (claims c9, c40)
+
+- `conflict_open(A)`: A is the latest run of its check, the verdict is conflicts, the claim is
+  current, A is no `control(A)`, and no location is recorded. `control(A)`: a conflicting run of a
+  check of an introduce or retire claim with no serving change recorded before it.
+- `attest location RUN "located(Where, Evidence)"`, Where `build | measurement | premise(P) |
+  hypothesis(H) | claim(C)`; `attest confirmation LOC "confirms(Text)"`. Sugar:
+  `orbit-kb locate RUN build|measurement|premise:P|hypothesis:H|claim:C --evidence TEXT`,
+  `orbit-kb confirm LOC --note TEXT`.
+- `location_confirmed(L)`: a confirmation by the human, or by an actor whose role and session both
+  differ from the actor of every change of the KB (a change with no actor: not confirmed).
+- A location outside the build of the latest run blocks (`location_unconfirmed(L)`) until confirmed.
+  Confirmed: measurement: the run is unresolved; hypothesis(H) or a premise of H:
+  `hypothesis_defeated(H)`, `to_discovery(H)`; claim(C): `to_discovery(C)`, and no goal is defeated.
+
+## D59: the judgment of the human (claims c10, c41)
+
+- `attest judgment` (human only): `case(Text, wanted|not_wanted)`, `satisfied`, `not_satisfied` on
+  the goal; `accepts(C)` on a formal statement. Sugar: `orbit-kb judge ... --by human`.
+- `goal_satisfied(G)`: the latest of the judgments satisfied, not_satisfied and a not-wanted case
+  on G is satisfied. `blocking(goal_unjudged(G))`: G is current and not `goal_satisfied(G)`.
+- `case_against(J, H)`: `hypothesis_defeated(H)`. A not-wanted case with no `case_against`, on a
+  goal with a current hypothesis: `blocking(case_unplaced(J))`; `to_discovery(J)` lists it.
+- A judgment changes no verdict. A waiver works as at 0.7.2.
+- `formal_statement(S, C)`, `could_change(S, Text)`; `encodes(M, C)` counts as a formal statement.
+  Lint W18 (a KB made by 0.8.0 or later): no `could_change`, or no claim. `report` lists each
+  statement with no `accepts` judgment under "Formal: not yet accepted by the human".
+
+## D60: Sound Basis (claim c16)
+
+- `over(X)` keeps its name; its line reads "Conflict (Sound Basis): change X serves no claim. Its
+  behavior is open for review."
+- `behavior_conflict(B, Text)`, `names(C, B)`: `blocking(behavior_open(B))` until a current claim
+  names B or a human waives B (`waive(B, Due, Reason)`).
+
+## D61: a change of the ticket goal (claim c42)
+
+- `before_goal(X, G1)` (computed): G1 is a `goal/4` fact of kb.pl with `supersedes(G1, G0)`, and X
+  is a `hypothesis/4`, a claim or a run that stands before the fact of G1. A restated
+  `hypothesis/3` (the 0.7.2 form) gives none.
+- `not_carried(X)`: `before_goal(X, G)` for the current goal with no `carried(X, G)` (a carried
+  hypothesis brings its claims). A run that is not carried does not count;
+  `blocking(not_carried(A))` when its claim is current and not fulfilled.
+
+## D62: the report (claims c7, c39, c10)
+
+- Claims: `Status: fulfilled.`, `Status: conflicts.`, `Status: unresolved.` (with the reason),
+  `Status: stale.`, `Status: not fulfilled.` (a waiver), or `Status: under.` A check whose last
+  verdict is unresolved is printed as `unresolved`, never as not passed.
+- The sections "Formal: not yet accepted by the human" and "For discovery" appear when they have
+  an item.
+- Lint W10 and W11 say "goal" for a goal/4 fact (`goal_written/1`, computed). W10 also names a current
+  hypothesis/4 with no premise and no `no_premises`, only in a KB made by 0.8.0 or later.
+- Lint W19: an agent retirement that the rule does not count (D52). Lint W20: `supports(G, project(PG))`
+  where the project KB of `project_kb/1` can be read and holds no goal PG (`supports_missing/2`, computed).
 
 ## D70. A proposal of System 1 (scientific-method-overhaul c34)
 
