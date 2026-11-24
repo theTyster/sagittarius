@@ -520,6 +520,9 @@ kb_command('pin-request').
 kb_command('apply-pending').
 kb_command(review).
 kb_command(withdraw).
+kb_command(adopt).
+kb_command(retire).
+kb_command(rests).
 
 top(Argv0, Code) :-
     take_dirs(Argv0, Dirs, [view|ViewArgs]), !,
@@ -628,6 +631,8 @@ writer_command(review).
 writer_command(subject).
 writer_command(attest).
 writer_command(withdraw).
+writer_command(adopt).
+writer_command(retire).
 % run and prove take the lock themselves, only to record the result
 % (see cmd_run/3 and cmd_prove/3).
 
@@ -646,7 +651,7 @@ writer_command(withdraw).
 % --take replaces the holder at once and records writer_takeover/3 too.
 % The lock is a record, not a guard: nothing stops a hand edit of kb.pl.
 
-lock_command(C) :- memberchk(C, [judge, locate, confirm, add, subject, attest, run, prove, uses, withdraw, 'pin-item',
+lock_command(C) :- memberchk(C, [adopt, retire, judge, locate, confirm, add, subject, attest, run, prove, uses, withdraw, 'pin-item',
                                  'pin-question', 'pin-answer', 'pin-request', 'apply-pending', review]).
 
 writer_name(W) :-
@@ -1255,6 +1260,9 @@ kb_cmd(locate, KB, Args, Code) :- cmd_locate(KB, Args, Code).
 kb_cmd(confirm, KB, Args, Code) :- cmd_confirm(KB, Args, Code).
 kb_cmd(subject, KB, Args, Code) :- cmd_subject(KB, Args, Code).
 kb_cmd(attest, KB, Args, Code) :- cmd_attest(KB, Args, Code).
+kb_cmd(adopt, KB, Args, Code) :- cmd_adopt(KB, Args, Code).
+kb_cmd(retire, KB, Args, Code) :- cmd_retire(KB, Args, Code).
+kb_cmd(rests, KB, Args, Code) :- cmd_rests(KB, Args, Code).
 kb_cmd(run, KB, Args, Code) :- cmd_run(KB, Args, Code).
 kb_cmd(prove, KB, Args, Code) :- cmd_prove(KB, Args, Code).
 kb_cmd(lint, KB, Args, Code) :- cmd_lint(KB, Args, Code).
@@ -1692,9 +1700,48 @@ derived_items(Dir, KbItems, Items) :-
     reopen_derived(KbItems, Ts9),
     run_after_derived(KbItems, Ts10),
     vote_void_derived(KbItems, Ts11),
-    stage2_derived(Dir, KbItems, Ts12),
-    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10, Ts11, Ts12], Ts),
+    records_derived(Dir, KbItems, Ts12),
+    stage2_derived(Dir, KbItems, Ts13),
+    append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10, Ts11, Ts12, Ts13], Ts),
     findall(it(derived, '<derived>', 0, X, [], 0-0), member(X, Ts), Items).
+
+% records_derived(+Dir, +KbItems, -Facts) (0.8.0, D50): the two forms of the goal, and the
+% closure of supports.
+%   goal(Id, Kind, agent, Text)   for each hypothesis(Id, Kind, Text) of kb.pl (the 0.7.2 form).
+%   hypothesis(G, Kind, Text)     for each goal(G, Kind, Author, Text) of kb.pl.
+%   supports_closure(X, Y)        X reaches Y through one or more supports facts.
+%   made_by_new                   the first "Made by" line of kb.pl names 0.8.0 or later.
+%   cited_before_go(H, V)         adoption_cited(H, _) stands before the human GO vote V (discovery).
+records_derived(Dir, KbItems, Facts) :-
+    findall(goal(I, K, agent, T), ( kb_term(KbItems, hypothesis(I, K, T)), ground(I-K-T) ), F1),
+    findall(hypothesis(G, K, T), ( kb_term(KbItems, goal(G, K, _, T)), ground(G-K-T) ), F2),
+    findall(X-Y, ( kb_term(KbItems, supports(X, Y)), ground(X-Y) ), E0), sort(E0, Edges),
+    supersede_closure(Edges, Pairs),
+    findall(supports_closure(X, Y), member(X-Y, Pairs), F3),
+    directory_file_path(Dir, 'kb.pl', KbFile),
+    (   catch(kb_made_by_new(KbFile), _, fail) -> F4 = [made_by_new] ; F4 = [] ),
+    (   items_uses(KbItems, Uses), memberchk(discovery, Uses)
+    ->  findall(T, kb_term(KbItems, T), Ts),
+        findall(cited_before_go(H, V),
+                ( append(_, [E|Rest], Ts), nonvar(E), E = adoption_cited(H, _), ground(H),
+                  member(B, Rest), nonvar(B), B = attest(V, Ty, _, P, By, _), Ty == vote, By == human,
+                  ground(V), nonvar(P), P = vote(_, Ch), Ch == go ),
+                F50),
+        sort(F50, F5)
+    ;   F5 = []
+    ),
+    append([F1, F2, F3, F4, F5], Facts).
+
+% kb_made_by_new(+KbFile) (D54): the KB was made by orbit-kb 0.8.0 or later: the first
+% "% Made by orbit-kb V." line of kb.pl names 0.8.0 or a later version. A KB with no such
+% line, or one that an older version made (also after a later version wrote to it), is not new.
+kb_made_by_new(KbFile) :-
+    read_file_to_string(KbFile, S, [encoding(utf8)]),
+    split_string(S, "\n", "", Ls),
+    member(L, Ls), split_string(L, "", " \t\r", [L1]),
+    string_concat("% Made by orbit-kb ", R0, L1), string_concat(R1, ".", R0),
+    atom_string(V0, R1), version_parts(V0, P), !,
+    P @>= [0, 8, 0].
 
 % stage2_derived(+Dir, +KbItems, -Facts) (0.8.0, D56, D57, D61): the facts of stage 2 that orbit-kb
 % computes when it reads the KB.
@@ -1702,7 +1749,7 @@ derived_items(Dir, KbItems, Items) :-
 %                        higher line was written later (the file only grows).
 %   kb_before_upgrade    the newest "% Made by orbit-kb V." line is below 0.8.0 (or there is none),
 %                        and kb.pl holds no upgraded/2 fact: the grandfather rule reads it.
-%   kb_new_form          orbit-kb 0.8.0 or later made the KB (and it holds no upgraded/2 fact).
+%   (made_by_new, the fact of a KB that orbit-kb 0.8.0 or later made, is in records_derived.)
 %   before_goal(X, G)    G is a goal/4 fact that replaces another goal (supersedes/2), and X is a
 %                        hypothesis/4, a claim or a run that stands before the fact of G in kb.pl.
 stage2_derived(Dir, KbItems, Facts) :-
@@ -1714,7 +1761,6 @@ stage2_derived(Dir, KbItems, Facts) :-
     directory_file_path(Dir, 'kb.pl', KbFile),
     (   kb_upgrade_state(KbFile, KbItems, St) -> true ; St = new ),
     (   St == before -> F2 = [kb_before_upgrade]
-    ;   St == new -> F2 = [kb_new_form]
     ;   F2 = []
     ),
     findall(before_goal(X, G),
@@ -1825,7 +1871,7 @@ run_after_derived(KbItems, Facts) :-
     items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
     findall(T, kb_term(KbItems, T), Ts),
     findall(discovery_run_after(A, H),
-            ( append(_, [E|Rest], Ts), nonvar(E), E = hypothesis(H, _, _), ground(H),
+            ( append(_, [E|Rest], Ts), nonvar(E), ( E = hypothesis(H, _, _) ; E = goal(H, _, _, _) ), ground(H),
               member(B, Rest), nonvar(B), B = attest(A, Ty, _, P, _, _), Ty == test_result, ground(A),
               nonvar(P), P = result(_, _, R), R == fail ),
             Fs0),
@@ -2522,7 +2568,8 @@ fact_diags(Ctx, it(_, F, L, T, _, _), Diags) :-
                 ;   GS = []
                 ),
                 ( Neg == false -> project_fact_diags(P, F, L, GP) ; GP = [] ),   % T34
-                append([G6, GA, GT, GS, GP], Diags)
+                ( Neg == false, GA == [] -> record_fact_diags(Env, P, F, L, GR) ; GR = [] ),   % D50 to D53
+                append([G6, GA, GT, GS, GP, GR], Diags)
             )
         )
     ).
@@ -2559,6 +2606,53 @@ supersedes_kind_diags(env(_, _, IdA, FAA), supersedes(N, O), F, L, Diags) :-
     ;   D2 = []
     ),
     append(D1, D2, Diags).
+
+% record_fact_diags(+Env, +Fact, +F, +L, -Diags) (0.8.0, D50 to D53): checks of one record fact,
+% at add and at lint. E4: a fact about a hypothesis under a goal names a goal (or a hypothesis/3
+% fact, the 0.7.2 form of the goal); supports names no goal. E21 (c38): predicts on a preserve
+% claim, which is always a claim of the goal.
+record_fact_diags(env(_, _, _, FAA), P, F, L, Diags) :-
+    findall(diag(C, F, L, M), record_fact_diag(FAA, P, C, M), Diags).
+
+record_fact_diag(FAA, P, 'E4', M) :-
+    hyp4_fact(P, H, What), atom(H), \+ get_assoc('$hyp4'-H, FAA, _),
+    fmt(M, "~w: ~q is a goal, not a hypothesis under a goal. ~w takes the id of a hypothesis(H, Goal, Author, Text) fact. A goal is not adopted, retired, tempered or defeated: its owner changes it or drops it.", [What, H, What]).
+record_fact_diag(FAA, predicts(H, C), 'E21', M) :-
+    atom(C), get_assoc('$preserve'-C, FAA, _),
+    fmt(M, "predicts(~q, ~q): ~q is a preserve claim. A preserve claim is always a claim of the goal: it holds under every hypothesis, and stays when a hypothesis is defeated. Leave out the predicts fact.", [H, C, C]).
+record_fact_diag(FAA, supports(G, R), 'E4', M) :-
+    \+ ( atom(R), ( get_assoc(goal-R, FAA, _) ; get_assoc('$hyp4'-R, FAA, _) ) ),
+    \+ ( nonvar(R), R = project(PG), atom(PG) ),
+    term_text(R, RT),
+    fmt(M, "supports(~q, ~w): the second argument is the id of a goal of this KB, or project(PG) for a goal of the project KB. It is ~w.", [G, RT, RT]).
+
+hyp4_fact(predicts(H, _), H, 'predicts/2 argument 1').
+hyp4_fact(defeating_case(H, _, _), H, 'defeating_case/3 argument 1').
+hyp4_fact(untempered(H, _, _), H, 'untempered/3 argument 1').
+hyp4_fact(defeat(_, H, _), H, 'defeat/3 argument 2').
+hyp4_fact(adoption_cited(H, _), H, 'adoption_cited/2 argument 1').
+hyp4_fact(case_against(_, H), H, 'case_against/2 argument 2').
+hyp4_fact(attest(_, Ty, H, _, _, _), H, What) :-
+    ( Ty == adoption -> What = 'The subject of an adoption' ; Ty == retirement -> What = 'The subject of a retirement' ).
+
+% retire_gate(+KB, +NewItems) (D52, c37): an agent cannot retire a hypothesis that a human wrote
+% or adopted, or that the ticket marks as adopted by the human (adoption_cited). Exit 1.
+retire_gate(KB, NewItems) :-
+    (   member(it(_, _, _, T, _, _), NewItems), nonvar(T),
+        T = attest(_, Ty, H, _, By, _), Ty == retirement, By == agent, atom(H)
+    ->  kb_engine(KB, Eng),
+        (   eng_true(Eng, hypothesis_human_written(H)) -> Why = "a human wrote it"
+        ;   eng_true(Eng, hypothesis_adopted(H)) -> Why = "a human adopted it"
+        ;   eng_true(Eng, hypothesis_cited(H)) -> Why = "the ticket marks it as adopted by the human (adoption_cited)"
+        ;   Why = none
+        ),
+        (   Why == none -> true
+        ;   fmt(M, "An agent cannot retire hypothesis ~w: ~w. Only the human retires it.", [H, Why]),
+            fmt(Fix, "Fix: ask the human, then orbit-kb retire ~w --reason TEXT --by human.", [H]),
+            reject([M, Fix])
+        )
+    ;   true
+    ).
 
 % project_fact_diags(+Fact, +F, +L, -Diags) (T34 c5, c6; D27 R10): checks of one fact of the
 % project module, at add and at lint. EP2: a fact cannot depend on or exclude itself. EP1:
@@ -2775,7 +2869,9 @@ head_diags(Ds, Src, F, L, H0, Diags) :-
             fmt(M, "Head: ~w The name may be reserved. A head of rules.pl is declared by its first clause: choose another name.", [M0]),
             Diags = [diag('E2', F, L, M)]
         ;   decl_of(Ds, N, A, d(_, _, Kind, _, _, _, DSrc, _, _)),
-            (   Kind == fact
+            (   Kind == fact, Src == derived, memberchk(N/A, [goal/4, hypothesis/3])
+            ->  Diags = []       % D50: the two forms of the goal, computed by records_derived/3
+            ;   Kind == fact
             ->  fmt(M, "~q/~w is a fact predicate. Its facts belong in kb.pl only, but this clause is in ~w. Declare a rule predicate for computed values.", [N, A, F]),
                 Diags = [diag('E7', F, L, M)]
             ;   Src == rules, ( DSrc == core ; DSrc = module(_) ), protected_pi(N/A)
@@ -2806,7 +2902,6 @@ protected_pi(verdict/2).
 protected_pi(model_tests_intro/1).
 protected_pi(check_unresolved/1).
 protected_pi(kb_before_upgrade/0).
-protected_pi(kb_new_form/0).
 protected_pi(change_after_run/2).
 protected_pi(change_before_run/2).
 protected_pi(verdict_stale/2).
@@ -2908,6 +3003,37 @@ protected_pi(waiver_lapsed/1).
 protected_pi(check_waived/1).
 protected_pi(question_waived/1).
 protected_pi(supersedes_closure/2).
+% 0.8.0 (D50 to D54): the records.
+protected_pi(goal_current/1).
+protected_pi(hypothesis_state/2).
+protected_pi(hypothesis_current/1).
+protected_pi(hypothesis_adopted/1).
+protected_pi(hypothesis_retired/1).
+protected_pi(hypothesis_defeated/1).
+protected_pi(hypothesis_superseded/1).
+protected_pi(hypothesis_out/1).
+protected_pi(hypothesis_goal_current/1).
+protected_pi(hypothesis_agent_written/1).
+protected_pi(hypothesis_human_written/1).
+protected_pi(hypothesis_cited/1).
+protected_pi(hypothesis_marked_untempered/1).
+protected_pi(any_current_hypothesis/0).
+protected_pi(tempered/1).
+protected_pi(not_tempered/1).
+protected_pi(claim_predicted/1).
+protected_pi(claim_of_goal/1).
+protected_pi(claim_under_current/1).
+protected_pi(hypothesis_guess/1).
+protected_pi(record_step/2).
+protected_pi(record_up/2).
+protected_pi(rests_above/2).
+protected_pi(rests_up/2).
+protected_pi(supports_closure/2).
+protected_pi(goal_supported/1).
+protected_pi(goal_unsupported/1).
+protected_pi(made_by_new/0).
+protected_pi(claim_unplaced/1).
+protected_pi(cited_before_go/2).
 protected_pi(supersede_cycle/1).
 protected_pi(any_supersede_cycle/0).
 % D22: what blocks done, and the computed due times.
@@ -3404,6 +3530,17 @@ parse_goal(Text, G, VN) :-
 % query and why
 % ---------------------------------------------------------------------
 
+% hypothesis3_note(+Term) (D50, c43): a goal or a new fact that names hypothesis/3 gets one note
+% on stderr. The answer on stdout and the exit code are those of 0.7.2.
+hypothesis3_note(G) :-
+    (   names_hypothesis3(G)
+    ->  format(user_error, "note: hypothesis/3 is the 0.7.2 form of the goal. Ask goal(G, Kind, Author, Text); a hypothesis of a goal is hypothesis(H, Goal, Author, Text).~n", [])
+    ;   true
+    ).
+names_hypothesis3(G) :- var(G), !, fail.
+names_hypothesis3(hypothesis(_, _, _)) :- !.
+names_hypothesis3(G) :- compound(G), arg(_, G, A), names_hypothesis3(A), !.
+
 cmd_query(KB, Args, ForceWhy, Code) :-
     parse_opts(Args, ['-n'-value, '--why'-flag, '--long'-flag, '--short'-flag], Pos, Opts),
     (   Pos = [GoalText]
@@ -3423,6 +3560,7 @@ cmd_query(KB, Args, ForceWhy, Code) :-
     kb_items(KB, Items),
     items_decls(Items, Ds),
     check_goal(G, Ds),
+    hypothesis3_note(G),
     answer_gate(KB),
     build_engine(Items, Ds, Eng),
     query_names(VN, Names, Vars),
@@ -3458,6 +3596,7 @@ cmd_whynot(KB, Args, Code) :-
     kb_items(KB, Items),
     items_decls(Items, Ds),
     check_goal(G, Ds),
+    hypothesis3_note(G),
     answer_gate(KB),
     build_engine(Items, Ds, Eng),
     swi_query(Eng, G, [G], Res),
@@ -4119,12 +4258,14 @@ cmd_add(KB, Args, Code) :-
         reject(PL)
     ;   true
     ),
+    retire_gate(KB, NewItems),
     utc_now(Now),
     add_lines(NewItems, FUs, Doc, By, Now, [], Lines),
     apply_redoc(KbFile, Redoc),                  % T40 c8
     append_lines(KbFile, Lines),
     forall(member(L, Lines), format("~w~n", [L])),
     ignore(catch(register_spec_kb(Dir, NewItems), _, true)),   % T34 c2
+    ( member(it(_, _, _, HT, _, _), NewItems), nonvar(HT), HT = hypothesis(_, _, _) -> hypothesis3_note(HT) ; true ),
     % kb-migrations c16: a fact of a retired predicate is written, and its cut-fail clause hides it.
     cutfail_pis(KI, CPIs),
     forall(( member(N/A-_, CPIs), once(( member(it(_, _, _, NT, _, _), NewItems), nonvar(NT), callable(NT), functor(NT, N, A) )) ),
@@ -8040,6 +8181,104 @@ next_attest_id(Items, Ds, Id) :-
     N1 is Max + 1,
     format(atom(Id), "a~w", [N1]).
 
+% adopt, retire (0.8.0, D52): thin wrappers of attest.
+%   orbit-kb adopt H --by human [--note 'the words']   attest adoption H adopted --by human
+%   orbit-kb retire H --reason TEXT [--by human|agent] attest retirement H 'retired(TEXT)'
+cmd_adopt(KB, Args, Code) :-
+    parse_opts(Args, ['--by'-value, '--note'-value], Pos, Opts),
+    (   Pos = [H] -> true ; usage_error("Give one hypothesis: orbit-kb adopt H --by human [--note 'the words of the human'].", []) ),
+    opt(Opts, '--by', agent, By),
+    (   By == human -> true
+    ;   reject(["Only the human adopts a hypothesis. An agent that reads the words of the human as an adoption records its reading: orbit-kb add \"adoption_cited(" + H + ", 'the words')\". Alone it adopts nothing.",
+                "Fix: when the human adopts it, orbit-kb adopt " + H + " --by human."])
+    ),
+    cmd_attest(KB, [adoption, H, adopted, '--by', human], Code),
+    (   Code == 0, memberchk('--note'-Note, Opts)
+    ->  kb_file(KB, KbFile), kb_dir(KB, Dir),
+        kb_lib(KB, Lib), load_kb(Dir, Lib, KB2), kb_items(KB2, Items2),
+        findall(A, kb_term(Items2, attest(A, adoption, H, adopted, human, _)), As), last(As, AId),
+        clause_line(note(AId, Note), [], NL),
+        append_lines(KbFile, [NL]), format("~w~n", [NL])
+    ;   true
+    ).
+
+% rests ID (0.8.0, D53, c38): what record ID rests on, up to the project goal ("up:"), and what
+% rests on it, down to the runs ("down:").
+cmd_rests(KB, Args, Code) :-
+    parse_opts(Args, [], Pos, _),
+    (   Pos = [Id] -> true ; usage_error("Give one id: orbit-kb rests ID (a check, a claim, a hypothesis, a goal, or a run).", []) ),
+    answer_gate(KB),
+    kb_engine(KB, Eng),
+    (   record_words(KB, Eng, Id, W0) -> true
+    ;   die(1, ["" + Id + " is not the id of a goal, a hypothesis, a claim, a check or a run of this KB."])
+    ),
+    say("~w", [W0]),
+    say("up:", []),
+    rests_walk_up(KB, Eng, [Id], [Id], 1, Ups),
+    (   Ups == [] -> say("  (nothing: it rests on no record)", []) ; forall(member(L, Ups), say("~w", [L])) ),
+    say("down:", []),
+    rests_walk_down(KB, Eng, Id, [Id], 1, Downs),
+    (   Downs == [] -> say("  (nothing rests on it)", []) ; forall(member(L, Downs), say("~w", [L])) ),
+    Code = 0.
+
+rests_walk_up(_, _, [], _, _, []) :- !.
+rests_walk_up(KB, Eng, Front, Seen, D, Lines) :-
+    findall(Y, ( member(X, Front), atom(X), eng_all(Eng, [Y0], rests_on(X, Y0), Ys), member(Y, Ys), \+ memberchk(Y, Seen) ), Next0),
+    list_to_set(Next0, Next),
+    Pad is D * 2,
+    findall(L, ( member(Y, Next), ( record_words(KB, Eng, Y, W) -> true ; term_text(Y, W) ), format(string(L), "~t~*|~w", [Pad, W]) ), L1),
+    append(Seen, Next, Seen1), D1 is D + 1,
+    rests_walk_up(KB, Eng, Next, Seen1, D1, L2),
+    append(L1, L2, Lines).
+
+rests_walk_down(KB, Eng, Id, Seen, D, Lines) :-
+    D =< 12,
+    eng_all(Eng, [X], rests_on(X, Id), Xs0),
+    exclude([X]>>memberchk(X, Seen), Xs0, Xs),
+    Pad is D * 2, D1 is D + 1,
+    findall(Ls, ( member(X, Xs), ( record_words(KB, Eng, X, W) -> true ; term_text(X, W) ),
+                  format(string(L), "~t~*|~w", [Pad, W]),
+                  ( rests_walk_down(KB, Eng, X, [X|Seen], D1, Sub) -> true ; Sub = [] ),
+                  Ls = [L|Sub] ), Lss),
+    append(Lss, Lines).
+
+% record_words(+KB, +Eng, +Id, -Words): one line that says what the record is.
+record_words(KB, Eng, project(PG), W) :- !,
+    (   atom(PG), kb_items(KB, Items), kb_term(Items, project_kb(P)), atom(P), kb_dir(KB, Dir),
+        project_kb_dir(Dir, P, PDir), directory_file_path(PDir, 'kb.pl', PF), exists_file(PF),
+        read_source_file(kb, PF, PItems), kb_term(PItems, goal(PG, _, _, T))
+    ->  one_line(T, TT), fmt(W, "project goal ~w: ~w", [PG, TT])
+    ;   fmt(W, "project goal ~w (a goal of the project KB)", [PG])
+    ),
+    _ = Eng.
+record_words(_, Eng, Id, W) :-
+    atom(Id),
+    (   eng_all(Eng, [A, T], goal(Id, _, A, T), [[A, T]|_])
+    ->  term_text(A, AT), one_line(T, TT), fmt(W, "goal ~w (~w): ~w", [Id, AT, TT])
+    ;   eng_all(Eng, [A, T], hypothesis(Id, _, A, T), [[A, T]|_])
+    ->  term_text(A, AT), one_line(T, TT),
+        ( eng_all(Eng, [S], hypothesis_state(Id, S), [St|_]) -> true ; St = proposed ),
+        fmt(W, "hypothesis ~w (~w, ~w): ~w", [Id, AT, St, TT])
+    ;   eng_all(Eng, [L, T], claim(Id, L, T), [[L, T]|_])
+    ->  one_line(T, TT),
+        ( eng_true(Eng, claim_of_goal(Id)) -> Of = ", a claim of the goal" ; Of = "" ),
+        fmt(W, "claim ~w (~w~w): ~w", [Id, L, Of, TT])
+    ;   eng_all(Eng, [C], check(Id, C), [C1|_])
+    ->  ( eng_all(Eng, [T], checks_that(Id, T), [T1|_]) -> one_line(T1, TT), fmt(W, "check ~w of claim ~w: ~w", [Id, C1, TT])
+        ; fmt(W, "check ~w of claim ~w", [Id, C1]) )
+    ;   eng_all(Eng, [K, N, R], attest(Id, test_result, _, result(K, N, R), _, _), [[K, N, R]|_])
+    ->  fmt(W, "run ~w: run ~w of check ~w, ~w", [Id, N, K, R])
+    ).
+
+cmd_retire(KB, Args, Code) :-
+    parse_opts(Args, ['--by'-value, '--reason'-value], Pos, Opts),
+    (   Pos = [H], memberchk('--reason'-Reason, Opts), Reason \== '' -> true
+    ;   usage_error("Give one hypothesis and the reason: orbit-kb retire H --reason TEXT [--by human|agent].", [])
+    ),
+    opt(Opts, '--by', agent, By),
+    format(atom(Pred), "~q", [retired(Reason)]),
+    cmd_attest(KB, [retirement, H, Pred, '--by', By], Code).
+
 cmd_attest(KB, Args, Code) :-
     parse_opts(Args, ['--by'-value, '--id'-value, '--rests-on'-value], Pos, Opts),
     (   Pos = [Type, Subject, PredText] -> true
@@ -8078,6 +8317,7 @@ cmd_attest(KB, Args, Code) :-
         reject(PL)
     ;   true
     ),
+    retire_gate(KB, NewItems),
     late_vote_check(Items, Type, By, Pred),
     go_vote_check(KB, Type, By, Pred),
     back_check(KB, Items, Type, Subject),
@@ -10111,10 +10351,12 @@ cmd_show(KB, Args, Code) :-
 cmd_show(KB, Args, Code) :-
     parse_opts(Args, [], Pos, _),
     (   Pos == [] -> What = all
-    ;   Pos = [What], memberchk(What, [hypothesis, claims, questions, open, blocking, disclosures, extensions, kinds, all, experiments, stale]) -> true
+    ;   Pos = [What], memberchk(What, [hypothesis, hypotheses, claims, questions, open, blocking, disclosures, extensions, kinds, all, experiments, stale]) -> true
     ;   Pos = [experiments, ExpId] -> What = experiments(ExpId)
-    ;   usage_error("show takes one of: hypothesis, claims, questions, open, blocking, disclosures, extensions, kinds, experiments [ID], stale, all, or pin ID.", [])
+    ;   usage_error("show takes one of: hypotheses, hypothesis, claims, questions, open, blocking, disclosures, extensions, kinds, experiments [ID], stale, all, or pin ID.", [])
     ),
+    % D50 (c43): show hypothesis is the 0.7.2 call. It answers as at 0.7.2, with the note.
+    ( What == hypothesis -> hypothesis3_note(hypothesis(_, _, _)) ; true ),
     kb_dir(KB, Dir), retractall(show_base(_)), assertz(show_base(Dir)),
     (   What == kinds
     ->  % T40 c9: show kinds reads only the declarations, so it works while E19 or E2 fires
@@ -10128,7 +10370,7 @@ show_parts(KB, What) :-
     answer_gate(KB),
     kb_engine(KB, Eng),
     (   What == all
-    ->  forall(member(W, [hypothesis, claims, questions, open, disclosures, extensions]),
+    ->  forall(member(W, [hypotheses, claims, questions, open, disclosures, extensions]),
                ( show_section(KB, Eng, W), nl ))
     ;   show_section(KB, Eng, What)
     ).
@@ -10186,6 +10428,27 @@ show_section(_, Eng, hypothesis) :-
              ),
              premise_lines(Eng, H, PLs),
              forall(member(L, PLs), say("  ~w", [L])) )).
+% 0.8.0 (D50, c1, c2, c21): the goal first with its author, then each hypothesis under it.
+show_section(_, Eng, hypotheses) :-
+    eng_all(Eng, [G, K, A, T], goal(G, K, A, T), Gs),
+    (   Gs == [] -> say("Goal:", []), say("- None. Every ticket has one: add goal(G, KIND, AUTHOR, TEXT).", []) ; true ),
+    forall(member([G, K, A, T], Gs),
+           ( one_line(T, TT), term_text(A, AT),
+             say("Goal (~w): ~w (~w): ~w", [AT, G, K, TT]),
+             (   eng_all(Eng, [N], supersedes(N, G), Ns), Ns \== []
+             ->  atomic_list_concat(Ns, ', ', NT), say("  State: superseded by ~w.", [NT])
+             ;   say("  State: current.", [])
+             ),
+             premise_lines(Eng, G, PLs),
+             forall(member(L, PLs), say("  ~w", [L])),
+             eng_all(Eng, [R], supports(G, R), Rs),
+             forall(member(R, Rs), ( term_text(R, RT), say("  Supports: ~w.", [RT]) )),
+             goal_hypotheses(Eng, G, HIs),
+             (   HIs == [] -> say("  No hypothesis: the claims hang on the goal.", [])
+             ;   forall(member(HI, HIs),
+                        ( hyp_lines(Eng, HI, HH, HLs), say("  ~w", [HH]),
+                          forall(member(HL, HLs), say("    ~w", [HL])) ))
+             ) )).
 show_section(KB, Eng, claims) :-
     say("Claims:", []),
     eng_all(Eng, [C, L, T], claim(C, L, T), Cs),
@@ -10206,8 +10469,11 @@ show_section(KB, Eng, claims) :-
     forall(member([C, L, T], Cs),
            ( txt(T, TT), say("- ~w (~w): ~w", [C, L, TT]),
              ( eng_member(Eng, CurS, C, current(C)) -> St0 = "current"
-             ; eng_lookup(Eng, SupBy, C, N, supersedes(N, C), Ns), atomic_list_concat(Ns, ', ', NT),
-               fmt(St0, "superseded by ~w", [NT]) ),
+             ; eng_lookup(Eng, SupBy, C, N, supersedes(N, C), Ns), Ns \== [] -> atomic_list_concat(Ns, ', ', NT),
+               fmt(St0, "superseded by ~w", [NT])
+             ; eng_all(Eng, [PH, PS], ( predicts(PH, C), hypothesis_state(PH, PS) ), [[PH1, PS1]|_])
+             ->  fmt(St0, "not current (its hypothesis ~w is ~w)", [PH1, PS1])
+             ; St0 = "not current" ),
              (   has_build(KB)
              ->  ( eng_member(Eng, FulS, C, fulfilled(C)) -> St1 = ", fulfilled"
                  ; eng_member(Eng, UndS, C, under(C)) -> St1 = ", under"
@@ -11746,9 +12012,11 @@ report_text(KB, Eng) :-
     eng_all(Eng, [Q, A], ( assumed(Q, A), not(answered(Q)) ), Gs),
     % D30 H3: each premise that nobody checked is a guess about the system.
     eng_all(Eng, [P7, H7, PT7], ( premise(P7, H7, PT7), premise_unchecked(P7) ), Ps7),
+    % 0.8.0 (D52, c4): each current hypothesis that an agent wrote and no human adopted is a guess.
+    eng_all(Eng, [HG, HGT], ( hypothesis_guess(HG), hypothesis(HG, _, _, HGT) ), HGs),
     % D17: say that a human answered only when a question with a default exists.
     % D30 H3: say that each premise is checked only when a premise of a current hypothesis exists.
-    (   ( Gs \== [] ; Ps7 \== [] ) -> true
+    (   ( Gs \== [] ; Ps7 \== [] ; HGs \== [] ) -> true
     ;   (   eng_all(Eng, [P8], ( premise(P8, H8, _), not(superseded(H8)) ), [_|_])
         ->  PremT = "Each premise is checked, and " ; PremT = "" ),
         (   eng_all(Eng, [Q0], assumed(Q0, _), [_|_])
@@ -11760,6 +12028,9 @@ report_text(KB, Eng) :-
         ),
         rsay(none, "~w", [NoneT])
     ),
+    forall(member([HG, HGT], HGs),
+           ( one_line(HGT, HGTT),
+             rsay(item(HG), "Hypothesis (agent-written, not adopted): ~w", [HGTT]) )),
     eng_groups(Eng, Q5, QT5, question(Q5, _, QT5), QTextBy),
     forall(member([Q, A], Gs),
            ( term_text(A, AT),
@@ -12103,15 +12374,60 @@ hypothesis_section(Eng) :-
     ->  rsay(none, "None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).", [])
     ;   true
     ),
+    % 0.8.0 (D50, c1, c2, c21): the goal first, with its author, then each hypothesis under it.
     forall(member([H, K, T], Hs),
            ( one_line(T, TT),
              premise_lines(Eng, H, PLs),
-             format(string(Head), "~w **~w**: ~w", [H, K, TT]),
+             ( eng_all(Eng, [Au], goal(H, _, Au, _), [Au1|_]) -> term_text(Au1, AuT) ; AuT = "agent" ),
+             format(string(Head), "Goal (~w): ~w **~w**: ~w", [AuT, H, K, TT]),
              as_sentence(TT, TS),
              atomic_list_concat(PLs, ' ', PT),
-             format(string(Plain), "~w (~w): ~w ~w", [H, K, TS, PT]),
-             findall(L-[], member(L, PLs), Kids),
+             format(string(Plain), "Goal (~w): ~w (~w): ~w ~w", [AuT, H, K, TS, PT]),
+             findall(L-[], member(L, PLs), Kids0),
+             goal_hypotheses(Eng, H, HIs),
+             (   HIs == [] -> HKids = ["No hypothesis: the claims hang on the goal."-[]]
+             ;   findall(HH-HK, ( member(HI, HIs), hyp_lines(Eng, HI, HH, HLs), findall(X-[], member(X, HLs), HK) ), HKids)
+             ),
+             append(Kids0, HKids, Kids),
              rtree(item(H), Plain, Head-Kids) )).
+
+% goal_hypotheses(+Eng, +G, -Hs) (D50): the hypotheses under goal G, and those carried over to it.
+goal_hypotheses(Eng, G, Hs) :-
+    eng_all(Eng, [H], hypothesis(H, G, _, _), H1),
+    eng_all(Eng, [H], carried(H, G), H2a),
+    include([X]>>eng_true(Eng, hypothesis(X, _, _, _)), H2a, H2),
+    append(H1, H2, H3), list_to_set(H3, Hs).
+
+% hyp_lines(+Eng, +H, -Head, -Lines) (D50 to D52): "Hypothesis H (AUTHOR, STATE): TEXT", then its
+% defeating case, its premises, its predictions, and each case that defeated it.
+hyp_lines(Eng, H, Head, Lines) :-
+    eng_all(Eng, [Au, T], hypothesis(H, _, Au, T), [[Au, T]|_]),
+    term_text(Au, AuT), one_line(T, TT),
+    ( eng_all(Eng, [S], hypothesis_state(H, S), [St|_]) -> true ; St = proposed ),
+    (   St == proposed, eng_all(Eng, [W], adoption_cited(H, W), [W1|_])
+    ->  one_line(W1, WT), format(string(StT), "proposed; the ticket cites the human's adoption: ~w", [WT])
+    ;   format(string(StT), "~w", [St])
+    ),
+    format(string(Head), "Hypothesis ~w (~w, ~w): ~w", [H, AuT, StT, TT]),
+    eng_all(Eng, [By, CT], defeating_case(H, By, CT), DCs),
+    (   DCs == [] -> L1 = ["Not tempered: no case is named that would show it false (lint W13)."]
+    ;   findall(L, ( member([By, CT], DCs), term_text(By, ByT), one_line(CT, CTT), as_sentence(CTT, CTS),
+                     format(string(L), "It is false if (named by ~w): ~w", [ByT, CTS]) ), L1a),
+        findall(L, ( eng_all(Eng, [UB, UT], untempered(H, UB, UT), Us), member([UB, UT], Us), term_text(UB, UBT), one_line(UT, UTT), as_sentence(UTT, UTS),
+                     format(string(L), "Marked as not tempered by ~w: ~w", [UBT, UTS]) ), L1b),
+        append(L1a, L1b, L1)
+    ),
+    (   eng_all(Eng, [P], premise(P, H, _), [_|_]) -> premise_lines(Eng, H, L2)
+    ;   eng_true(Eng, no_premises(H)) -> L2 = ["Premises: none."]
+    ;   L2 = []
+    ),
+    eng_all(Eng, [C], predicts(H, C), Cs),
+    (   Cs == [] -> L3 = ["Predictions: none."]
+    ;   atomic_list_concat(Cs, ', ', CsT), format(string(L3a), "Predictions: ~w.", [CsT]), L3 = [L3a]
+    ),
+    findall(L, ( eng_all(Eng, [D, DT], defeat(D, H, DT), Ds), member([D, DT], Ds), one_line(DT, DTT), as_sentence(DTT, DTS),
+                 format(string(L), "Defeated by case ~w: ~w", [D, DTS]) ), L4),
+    append([L1, L2, L3, L4], Lines).
 
 % one_line(+Text, -S) (D31 B8, review of K-A finding 12): the text with each run of white space,
 % a line break too, as one space, so that a text never breaks the bullets of the report.

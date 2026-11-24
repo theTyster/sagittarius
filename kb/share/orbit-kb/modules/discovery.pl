@@ -150,6 +150,7 @@ decl(rule, some_unasked_finding, 'Some finding needs a question.', 'some finding
 decl(rule, some_current_refuted, 'Some current claim is refuted.', 'some current claim is refuted').
 decl(rule, some_weak_rule, 'Some rule is weak.', 'some rule survived its mutation check with no reason').
 decl(rule, some_model_problem, 'Some model diverges, is vacuous, breaks a claim with no disproof, or has solvers that disagree.', 'some model has an open problem').
+decl(rule, cited_before_go(ref(hypothesis), ref(attest)), 'The adoption_cited fact of the hypothesis stands before this GO vote of the human in kb.pl. orbit-kb computes it when it reads the KB (0.8.0, D52).', 'the adoption of hypothesis @(1) was cited before the GO vote @(2)').
 decl(rule, vote_cast(by, int, atom), 'A vote: its writer, round, and choice.', 'the @(1) voted @(3) in round @(2)').
 decl(rule, discovery_vote_raised(int), 'A vote exists in a larger round than this one.', 'a vote exists in a round after round @(1)').
 decl(rule, vote_round(int), 'The current round: the largest round with a vote.', 'round @(1) is the current round of the vote').
@@ -280,6 +281,10 @@ some_unratified_supersession :- discovery_unratified(_).
 % D30 H5, H8: vote_void/1 has no clauses here. orbit-kb computes it: a vote that a back
 % attestation follows (an earlier orbit), or a vote after a discovery_end that no back follows.
 vote_cast(W, R, C) :- attest(A, vote, _, vote(R, C), W, _), not vote_void(A).
+% 0.8.0 (D52, q29): a GO vote of the human adopts each hypothesis that the ticket marked as
+% adopted by the human before the vote (adoption_cited). It adopts no hypothesis without the
+% mark, and a mark that comes after the vote adopts nothing.
+hypothesis_adopted(H) :- hypothesis(H, _, _, _), cited_before_go(H, V), not vote_void(V).
 discovery_vote_raised(R) :- vote_cast(_, R, _), vote_cast(_, R2, _), R2 > R.
 vote_round(R) :- vote_cast(_, R, _), not discovery_vote_raised(R).
 human_vote(C) :- vote_cast(human, R, C), vote_round(R).
