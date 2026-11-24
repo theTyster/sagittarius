@@ -11685,6 +11685,7 @@ tool_name(N) :-
 
 % name_text(+Text0, -Text): under the name orbit, a help or error line says orbit where it
 % says orbit-kb. A path keeps its name (share/orbit-kb, .claude/orbit-kb/bin/orbit-kb, orbit-kb-NAME).
+% The pair of names ("orbit and orbit-kb") keeps both.
 % Under the name orbit-kb nothing changes.
 name_text(T0, T) :-
     (   tool_name(orbit), ( string(T0) ; atom(T0) )
@@ -11703,6 +11704,7 @@ name_swap(S0, S) :-
 
 name_in_path(Pre, Post) :-
     (   sub_string(Pre, _, 1, 0, C), memberchk(C, ["/", "_", "-"]) -> true
+    ;   sub_string(Pre, _, _, 0, "orbit and ") -> true     % review S2: "the two names: orbit and orbit-kb"
     ;   sub_string(Post, 0, 1, _, D), memberchk(D, ["/", "_", "-"])
     ).
 
