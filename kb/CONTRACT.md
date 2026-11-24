@@ -968,7 +968,9 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   a kill by a signal (also exit 137 and 143) and a run over `--timeout` are unresolved; with
   `--expect`, the first output line that is `sat`, `unsat`, `unknown` or `timeout` decides (the
   expected answer: pass; the other decided answer: fail; `unknown`, `timeout`, or no such line
-  with exit 0: unresolved); any other exit is fail.
+  with exit 0: unresolved); any other exit is fail. A crash is not a kill: death by SIGSEGV,
+  SIGABRT, SIGBUS, SIGFPE or SIGILL is fail, with the fail line of 0.7.2. Exit 124 (coreutils
+  timeout) is fail: a time limit belongs in `run --timeout`.
 - An unresolved run prints `run N K unresolved (exit E) log=PATH`, then one line `Unresolved: ...`,
   and exits 1. run writes `unresolved_because(A, Text)`. The lines and exit codes of pass and fail
   are those of 0.7.2.

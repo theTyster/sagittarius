@@ -231,6 +231,9 @@ a counted model result, a Lean proof, the approval of a demo, and a judgment of 
       "run N K unresolved (exit E) log=...": exit 77 (the check could not decide), a kill by a
       signal (also exit 137, 143), a run over --timeout, and with --expect a solver that answers
       unknown or timeout. run writes unresolved_because(A, Text). Nobody types a result.
+      A crash is not a kill: a command that dies by SIGSEGV, SIGABRT, SIGBUS, SIGFPE or SIGILL
+      is a fail. Exit 124 (the timeout of coreutils) is a fail too: a time limit belongs in
+      orbit-kb run --timeout SECS, which records the run as unresolved.
   procedure(K, Text)                 how the experiment is carried out (else: the command of the run)
   measurement_premise(MP, K, Text)   a premise of the measurement, such as the error of the clock
   known_when(K, Text)                what was known when the claim and the rule were chosen
