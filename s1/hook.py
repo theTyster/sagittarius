@@ -1053,6 +1053,9 @@ def main(transport=None, argv=None):
     try:
         if os.environ.get("S1_OFF", "").strip() not in ("", "0"):
             return 0
+        if argv[:2] == ["--event", "stop"]:  # c30: the stop event; inert until its questions ship
+            import stop
+            return stop.main(transport=transport)
         if argv[:1] == ["--late-fix"] and len(argv) == 2:
             late_fix(argv[1], dict(os.environ), transport=transport)
             return 0
