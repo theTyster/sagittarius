@@ -48,7 +48,7 @@ judge it. Build makes; you judge.
   that it cites, and look for parts of the request that no claim covers.
 - Run DISPROVE on each claim within a small budget: other inputs, boundaries, orders of
   steps, and old data. Record one disproof result for each claim: upheld, refuted, inconclusive or
-  abstained (`orbit-kb help build`). Say how long the work has been in UAT, or that it is not there yet.
+  abstained (FULFILL brief, `orbit-kb help build`). Say how long it has been in UAT, or that it is not there yet.
 - Record each experiment result and each judgment of the human on the ticket. Confirm or reject
   each location that build proposed (PANES.md), with your own evidence. Show the human the
   cases at the edge of the hypothesis, and record each judgment in the human's words.
