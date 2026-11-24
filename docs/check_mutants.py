@@ -27,7 +27,12 @@ CASES = [
     (["docs/check_consistency.py", "c9"], P, "more than 0.5", "more than 0.4", "the vote needs 0.4"),
     (["docs/check_consistency.py", "c9"], P, "\n## The vote\n", "\n## The ballot\n", "no heading The vote (a failure, not a stop)"),
     (["docs/check_words.py", "c2"], P, "Oscillation is an intentional heuristic", "Oscillation is a habit", "no oscillation sentence"),
-    (["docs/check_words.py", "c2"], P, "\n## The vote\n", "\n## The ballot\n", "a section that a principle names is gone"),
+    (["docs/check_words.py", "c2"], P, "\n## The vote\n", "\n## The ballot\n", "a section that a protocol row names is gone"),
+    # Philosophy 3.0.0 (review H-0129, step 4): c2 reads the protocol table of the philosophy
+    (["docs/check_words.py", "c2"], "docs/PHILOSOPHY.md", '| "Delivery" |\n| 19 |', '| "The delivery" |\n| 19 |',
+     "a protocol row names a section that the prompt does not have"),
+    (["docs/check_words.py", "c2"], P, "\n## Scope\n", "\n## Range\n",
+     "a section that no protocol row names is new, and UNNAMED names one that is gone"),
     (["docs/check_hub_guidance.py", "c5"], P, "`orbit show\nopen`", "`orbit lint`", "the prompt does not name orbit show open"),
     (["docs/check_hub_fixes.py", "t31c9"], P, "Err toward the general and soft", "Err toward the exact", "no err-soft sentence"),
     (["docs/check_prompt_small.py"], P, "Signals:     <questions", "Triggers:    <questions", "no Signals: field in the delivery block"),
@@ -36,7 +41,8 @@ CASES = [
     (["docs/check_prompt_small.py"], P, "\n## Honesty\n", "\n## Manners\n", "no Honesty heading"),
     # each delivery field and each rule sentence of the prompt has a key phrase (review finding 4)
     (["docs/check_prompt_small.py"], P, 'KB:          <"No KB"', 'Store:       <"No KB"', "no KB: field"),
-    (["docs/check_prompt_small.py"], P, "Guesses:     <defaults", "Hunches:     <defaults", "no Guesses: field"),
+    (["docs/check_prompt_small.py"], P, "Residual:    <what could still show this wrong", "Leftover:    <what could still show this wrong",
+     "no Residual: field"),
     (["docs/check_prompt_small.py"], P, "Disclosures: <unverified", "Notes:       <unverified", "no Disclosures: field"),
     (["docs/check_prompt_small.py"], P, "Claims:      <each claim", "Results:     <each claim", "no Claims: field"),
     (["docs/check_prompt_small.py"], P, ' Never state a\n   bounded result as "always" or "never".', "", "the bounded-result rule is gone"),
@@ -50,6 +56,11 @@ CASES = [
     (["docs/check_prompt_small.py"], P, "- discovery: research, specify.", "- discovery: explore.", "the phases of discovery are gone"),
     (["docs/check_prompt_small.py"], P, "- build: build, verify.", "- build: make.", "the phases of build are gone"),
     (["docs/check_prompt_small.py"], P, "significant effort or verbosity from the human", "a long message", "the effort signal lost its words"),
+    # Philosophy 3.0.0 (review H-0129, step 3): rules that the rebuilt prompt added
+    (["docs/check_prompt_small.py"], P, "**Explore freely. Confirm sealed.** ", "", "the explore-and-confirm rule lost its name"),
+    (["docs/check_prompt_small.py"], P, "5. Keep what failed. ", "5. ", "the keep-what-failed rule is gone"),
+    (["docs/check_prompt_small.py"], P, "Give a pass the\n   question that you give a fail: would this have passed if I were wrong? ", "",
+     "the rule for a pass is gone"),
     # c4 holds the route of a report in PANES.md, not four words anywhere in it (review finding 5)
     (["docs/check_consistency.py", "c4"], "prompt/PANES.md",
      "Intake is where new work starts: it finds the ticket that a\n  report is about and hands the report to the pane that holds it; a report with no ticket it\n  judges (regression or gap) and sends to discovery. ",
@@ -68,10 +79,13 @@ CASES = [
     (["docs/check_terms.py"], "prompt/PANES.md", "A handoff is a signal", "A handoff is a trigger",
      "PANES.md calls a handoff a trigger (the term is signal)"),
     # 0.3.0 c_sg4b: the prompt gives the sentence with a cause another verdict than the Lean file and the help
-    (["docs/check_examples.py", "c1"], P, '- Too strong: "The tier is read from a cache that loads once."',
+    (["docs/check_examples.py", "c1"], P, '- Brittle: "The tier is read from a cache that loads once."',
      '- Fit: "The tier is read from a cache that loads once."', "the prompt calls the sentence with a cause Fit (Lean)"),
-    (["docs/check_examples.py", "c2"], P, '- Too strong: "The tier is read from a cache that loads once."',
+    (["docs/check_examples.py", "c2"], P, '- Brittle: "The tier is read from a cache that loads once."',
      '- Fit: "The tier is read from a cache that loads once."', "the prompt calls the sentence with a cause Fit (help)"),
+    # Philosophy 3.0.0 (review H-0129, step 5): the cells of the philosophy start with Soft, Brittle, Fit
+    (["docs/check_examples.py", "c3"], "docs/PHILOSOPHY.md", "| Soft: not tempered. |", "| Fit: tempered. |",
+     "the philosophy calls the soft sentence Fit"),
     # 0.8.0 scientific-method-overhaul c12: a hand edit of one copy of the vocabulary
     (["docs/check_vocabulary.py", "panes"], "prompt/PANES.md", "It names no avenue.", "It names one avenue.",
      "a hand edit of the goal sentence in PANES.md"),
@@ -98,6 +112,8 @@ CASES = [
      "the one rule of formal language lost its words"),
     (["docs/check_method_texts.py", "c14"], P, "say that they are yours\n  (\"Goal (mine): ... Hypothesis (mine): ...\")", "show them",
      "the agent does not say that its drafts are its own"),
+    (["docs/check_method_texts.py", "c14"], P, "ask the human for theirs before you\nshow yours", "show yours, then ask for theirs",
+     "the human no longer goes first (review H-0129, step 6)"),
     (["docs/check_method_texts.py", "c15"], "prompt/panes/build.md", "record\n  the new goal in the words of the human: it supersedes the old one",
      "restate the hypothesis", "build.md tells build to restate the hypothesis"),
     (["docs/check_method_texts.py", "c16"], P, "Existing behavior is presumed to be\npreserved.", "Existing behavior is preserved.",
@@ -111,7 +127,7 @@ CASES = [
     (["docs/check_method_texts.py", "h1"], "kb/share/orbit-kb/help/shift.txt", "the intent; it names no avenue: goal(g1, K, AUTHOR, TEXT).",
      "what must be true when the ticket is done: hypothesis(h1, K, TEXT).",
      "help shift keeps the old definition of --hypothesis"),
-    (["docs/check_method_texts.py", "c45"], P, "7. The ticket does not end at the delivery.", "7. Ask the human to adopt the hypothesis.\n8. The ticket does not end at the delivery.",
+    (["docs/check_method_texts.py", "c45"], P, "7. **Keep watching.**", "7. Ask the human to adopt the hypothesis.\n8. **Keep watching.**",
      "the light path has an eighth Build step"),
     # 0.8.0 scientific-method-overhaul review R1: the hub texts teach the door, not the engine
     (["docs/check_mindhole.py", "r1"], "hubkit/hub/HUB-CORE.md", "`.claude/orbit-kb/bin/orbit hub ledger view v_inbox",

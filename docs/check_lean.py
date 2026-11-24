@@ -8,9 +8,13 @@ hypothesis  Lean compiles Hypothesis.lean, at the path that docs/PHILOSOPHY.md c
             fails when Lean reports an error, when a theorem or a definition of the file uses an
             axiom (the philosophy says: "none uses an axiom"; propext counts too), when the file
             declares an axiom, or when the count differs from the count in the philosophy.
-names       Each theorem name that the philosophy cites in the section on the Lean file (a name in
-            backticks with "_" in it, outside code blocks) is a theorem of Hypothesis.lean, at the
-            path that the philosophy cites. Reads the source; it does not run Lean.
+names       Each theorem name that the philosophy cites in the section on the Lean files (a name in
+            backticks with "_" in it, outside code blocks) is a theorem of the Lean file that its
+            part of the section cites. A part starts at a paragraph that cites a `.lean` path and
+            runs to the next such paragraph (Philosophy 3.0.0 has two parts and two tables: one for
+            Hypothesis.lean, one for ScientificMethod.lean). A name may carry its namespaces
+            (`Timer.reading_611`): it must be the end of the full name of a theorem of the file. A
+            name before the first cited path fails. Reads the sources; it does not run Lean.
 proofs      For each Lake project under kb/proofs (a folder with a lakefile): `lake build`, then
             the axioms of each theorem of the project. It fails on a build error and on an axiom
             other than propext, Classical.choice and Quot.sound (so sorry, native_decide and a
@@ -145,6 +149,50 @@ def source_theorems(src):
     return set(re.findall(r"(?m)^\s*(?:@\[[^\]]*\]\s*)?(?:private\s+|protected\s+)*theorem\s+([^\s({\[:]+)", src))
 
 
+def source_theorems_full(src):
+    """The full names of the theorems that the source declares: `namespace X` ... `end X` blocks are
+    resolved; a `section` (named or not) adds nothing to a name."""
+    stack, out = [], set()
+    for ln in src.splitlines():
+        m = re.match(r"\s*namespace\s+([\w.']+)", ln)
+        if m:
+            stack.append(("ns", m.group(1)))
+            continue
+        m = re.match(r"\s*section\b\s*([\w.']*)", ln)
+        if m:
+            stack.append(("sec", m.group(1)))
+            continue
+        m = re.match(r"\s*end\b\s*([\w.']*)\s*$", ln)
+        if m and stack:
+            stack.pop()
+            continue
+        m = re.match(r"\s*(?:@\[[^\]]*\]\s*)?(?:private\s+|protected\s+)*theorem\s+([^\s({\[:]+)", ln)
+        if m:
+            out.add(".".join([n for k, n in stack if k == "ns"] + [m.group(1)]))
+    return out
+
+
+def declares(full, name):
+    """True when name is a full theorem name of the set, or the end of one after a dot."""
+    return any(f == name or f.endswith("." + name) for f in full)
+
+
+def cited_parts(sec):
+    """[(path or None, prose)]: the section cut at each paragraph that cites a `.lean` path."""
+    prose = re.sub(r"```.*?```", "", sec, flags=re.S)
+    parts, path, buf = [], None, []
+    for para in re.split(r"\n\s*\n", prose):
+        m = re.search(r"`([^`\s]+\.lean)`", para)
+        if m:
+            if buf:
+                parts.append((path, "\n\n".join(buf)))
+            path, buf = m.group(1), []
+        buf.append(para)
+    if buf:
+        parts.append((path, "\n\n".join(buf)))
+    return parts
+
+
 # ------------------------------------------------------------------ Lean
 def probe(cmd, cwd, env=None):
     """Runs the probe (cmd + [probe.lean, MODULE]) and returns {name: (kind, [axioms])}, or None."""
@@ -201,17 +249,27 @@ def check_names():
     path, sec = lean_section()
     if not path:
         return fail(f"{PHIL} cites no Hypothesis.lean")
-    full = os.path.join(ROOT, path)
-    if not os.path.isfile(full):
+    if not os.path.isfile(os.path.join(ROOT, path)):
         return fail(f"Hypothesis.lean is not at the path that the philosophy cites ({path})")
-    have = source_theorems(read(path))
-    names = cited_names(sec)
-    if not names:
-        fail(f"the philosophy cites no theorem name in its section on {path}")
-    for n in names:
-        if n not in have:
-            fail(f"the philosophy cites the theorem {n}, and {path} declares no theorem of that name")
-    print(f"names: {len(names)} theorem names that the philosophy cites, checked against {path}")
+    total, files = 0, []
+    for part_path, prose in cited_parts(sec):
+        names = cited_names(prose)
+        if part_path is None:
+            for n in names:
+                fail(f"the philosophy cites the theorem {n} before it names the Lean file of that part")
+            continue
+        if not os.path.isfile(os.path.join(ROOT, part_path)):
+            fail(f"the philosophy cites {part_path}, which is not in the repository")
+            continue
+        full = source_theorems_full(read(part_path))
+        if not names:
+            fail(f"the philosophy cites no theorem name in its part on {part_path}")
+        for n in names:
+            if not declares(full, n):
+                fail(f"the philosophy cites the theorem {n}, and {part_path} declares no theorem of that name")
+        total += len(names)
+        files.append(f"{len(names)} against {part_path}")
+    print(f"names: {total} theorem names that the philosophy cites, checked: {'; '.join(files)}")
 
 
 def projects():

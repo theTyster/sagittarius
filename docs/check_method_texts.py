@@ -15,7 +15,8 @@ Each id is one claim of the ticket. A phrase is matched after whitespace is coll
        each formal statement records its claim and the decision that its precision could change;
        the prompt no longer says "and not before"
   c14  the opening rule: the human's goal and first hypothesis, sharpened or challenged at once; for a
-       plain request the agent drafts both as its own and builds; it asks only when a wrong avenue is costly
+       plain request the agent drafts both as its own and builds; in build it asks for the human's own only when a
+       wrong avenue is costly; when it asks, it asks before it shows its own (Philosophy 3.0.0)
   c15  the pane prompts: review records results and judgments; a defeated hypothesis goes to
        discovery, which re-evaluates and tempers a new one; build fixes a conflict located in the
        build; no text tells build to restate a hypothesis
@@ -129,7 +130,11 @@ def c14():
                          "Name the case that would defeat the hypothesis, or say that you find none",
                          "draft both from the request, say that they are yours",
                          '"Goal (mine): ... Hypothesis (mine): ..."',
-                         "Ask for the human's own only when a wrong avenue is costly",
+                         # Philosophy 3.0.0 (review H-0129, step 6): two rules in place of "Ask for the
+                         # human's own only when a wrong avenue is costly": the cost rule of build, and the
+                         # order of "The human goes first"
+                         "In build, ask the human for a goal and a hypothesis of their own only when a wrong avenue is costly",
+                         "ask the human for theirs before you show yours",
                          "You may explore other hypotheses inside the goal",
                          "Bring the human only the ones worth adopting, and each material tradeoff",
                          "A hypothesis that you wrote and that the human has not adopted is a guess",

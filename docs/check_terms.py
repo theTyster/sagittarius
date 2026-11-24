@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """0.3.0 c_sg5b (suggestion 5): each term has one meaning in the texts that an agent reads.
 
-The philosophy (principle 13): "Give each term one meaning." The audits of 2026-11-11 (findings K13,
+The philosophy (section "The protocol": "Each word has one meaning."). The audits of 2026-11-11 (findings K13,
 K17, M14, M19, S-c10, D14) found old terms that now clash with a new meaning, or that name a thing
 that is gone. This check fails when a text that an agent reads uses one of them. For each use it
 prints the file, the line, the retired term, and the term to use:

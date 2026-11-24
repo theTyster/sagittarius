@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Tests of docs/check_examples.py (Sagittarius 0.3.0, claim c_sg4b, suggestion 4).
 
-The prompt gives each sentence of its worked examples a verdict (Fit, Too strong, Collapsed, ...).
+The prompt gives each sentence of its worked examples a verdict (Fit, Brittle, Soft, ...; before
+Philosophy 3.0.0: Fit, Too strong, Not tempered).
 Wherever such a sentence appears, it must have that verdict: in Hypothesis.lean (c1), in
 `orbit-kb help discovery` (c2), in the philosophy (c3), and in the recording of s1/temper.py (c4).
 
@@ -25,6 +26,15 @@ FIT = "The amount of a purchase and the member's tier on that day decide its poi
 CAUSE = "The tier is read from a cache that loads once."
 VAGUE = "Points depend on something other than the purchase."
 FINDING = "Some purchases get a different number."
+
+
+def help_label(text, sentence):
+    """The label before the quote of sentence in the help: "Soft" or "Brittle" once the help follows
+    the prompt (review H-0129 step 12), "Not tempered" or "Too strong" before. Either form runs."""
+    for label in ("Soft", "Brittle", "Not tempered", "Too strong"):
+        if f'- {label}: "{sentence}"' in text:
+            return label
+    raise AssertionError(f"no label before {sentence!r} in the help")
 
 
 def copy(dst):
@@ -86,7 +96,7 @@ class Examples(unittest.TestCase):
 
     # -- the prompt is the source of the verdict
     def test_the_prompt_calls_the_cause_fit(self):
-        self.edit(P, f'- Too strong: "{CAUSE}"', f'- Fit: "{CAUSE}"')
+        self.edit(P, f'- Brittle: "{CAUSE}"', f'- Fit: "{CAUSE}"')
         out = self.fails(["c1"], "Hypothesis.lean", CAUSE)
         self.assertIn("fit", out.lower())
         self.fails(["c2"], "discovery.txt")
@@ -94,8 +104,8 @@ class Examples(unittest.TestCase):
 
     def test_no_example_in_the_prompt_is_a_failure(self):
         self.edit(P, f'- Fit: "{FIT}"', "- Fit: (removed)")
-        self.edit(P, f'- Too strong: "{CAUSE}"', "- Too strong: (removed)")
-        self.edit(P, f'- Not tempered: "{VAGUE}"', "- Not tempered: (removed)")  # 0.8.0 c12: the prompt's label
+        self.edit(P, f'- Brittle: "{CAUSE}"', "- Brittle: (removed)")
+        self.edit(P, f'- Soft: "{VAGUE}"', "- Soft: (removed)")  # Philosophy 3.0.0: the prompt's labels
         self.fails(["c1"])
 
     # -- c1: the Lean file
@@ -115,8 +125,40 @@ class Examples(unittest.TestCase):
         self.fails(["c2"], "discovery.txt", "finding")
 
     def test_the_help_calls_the_vague_sentence_fit(self):
-        self.edit(HELP, f'- Not tempered: "{VAGUE}"', f'- Fit: "{VAGUE}"')
+        with open(os.path.join(self.dir, HELP), encoding="utf-8") as f:
+            label = help_label(f.read(), VAGUE)
+        self.edit(HELP, f'- {label}: "{VAGUE}"', f'- Fit: "{VAGUE}"')
         self.fails(["c2"], VAGUE)
+
+    def test_the_help_calls_the_cause_soft(self):
+        with open(os.path.join(self.dir, HELP), encoding="utf-8") as f:
+            label = help_label(f.read(), CAUSE)
+        self.edit(HELP, f'- {label}: "{CAUSE}"', f'- Soft: "{CAUSE}"')
+        self.fails(["c2"], CAUSE)
+
+    def test_the_help_with_the_labels_of_the_prompt_passes(self):
+        # The help of 0.8.0 says Too strong and Not tempered; the help that follows the prompt says
+        # Brittle and Soft. Both are read as the same verdicts.
+        with open(os.path.join(self.dir, HELP), encoding="utf-8") as f:
+            text = f.read()
+        for sentence, label in ((CAUSE, "Brittle"), (VAGUE, "Soft")):
+            old = help_label(text, sentence)
+            if old != label:
+                self.edit(HELP, f'- {old}: "{sentence}"', f'- {label}: "{sentence}"')
+        self.passes(["c2"])
+
+    # -- c3: the philosophy
+    def test_the_philosophy_calls_the_vague_sentence_fit(self):
+        self.edit("docs/PHILOSOPHY.md", f'"{VAGUE}" | Soft: not tempered.', f'"{VAGUE}" | Fit: tempered.')
+        self.fails(["c3"], "PHILOSOPHY.md", VAGUE)
+
+    def test_the_philosophy_calls_the_cause_soft(self):
+        self.edit("docs/PHILOSOPHY.md", f'"{CAUSE}" | Brittle: too strong.', f'"{CAUSE}" | Soft: too strong.')
+        self.fails(["c3"], "PHILOSOPHY.md", CAUSE)
+
+    def test_the_philosophy_cell_with_no_label_fails(self):
+        self.edit("docs/PHILOSOPHY.md", f'"{FIT}" | Fit: tempered.', f'"{FIT}" | tempered.')
+        self.fails(["c3"], "PHILOSOPHY.md", FIT)
 
     # -- c4: the recording of temper.py
     def test_a_recording_that_agrees_passes(self):
