@@ -14,6 +14,7 @@
 #   ST  c39  a verdict counts only for the state that its experiment observed      : ST1-ST5
 #   GF  c20, c39  a ticket that was done before the upgrade stays done             : GF1-GF6
 #   JD  c10, c41  the judgment of the human; done                                  : JD1-JD8
+#   GM  c41, c1  a ticket states its goal: goal_missing (review G1)                : GM1-GM3
 #   LC  c9, c40  the location of a conflict                                        : LC1-LC9
 #   EX  c6   one view of every kind of experiment; W17, W18                        : EX1-EX6
 #   SB  c16  Sound Basis: over, behavior_conflict                                  : SB1-SB3
@@ -667,6 +668,53 @@ EOF
     sed -i 's/Made by orbit-kb 0.8.0/Made by orbit-kb 0.7.2/' "$K/kb.pl"; sed -i '/could_change/d' "$K/kb.pl"
     okb --dir "$K" lint; out_hasnt '^W18' "a KB from before 0.8.0 gets no W18"
 }
+# ---------------------------------------------------------------- GM: a ticket states its goal (review G1; c41, c1)
+# nogoal_kb: a KB that this tool made (a "% Made by orbit-kb 0.8.0." line or later), with one
+# preserve claim, its check and no goal, and every check passing.
+nogoal_kb() {
+    K=$T/kb
+    okb init "$K" --request r --uses build; rc_is 0 "init" || return 1
+    okb --dir "$K" add "claim(c1, preserve, 'x stays')" "cites(c1, r)" "example(c1, e)" 'check(k1, c1)' "checks_that(k1, x)"
+    rc_is 0 "add" || return 1
+    run_k k1 -- true; rc_is 0 "the run passes"
+}
+t_GM1() {  # a KB of 0.8.0 with no goal is not done: goal_missing, in show open and in lint
+    nogoal_kb || return
+    is_false done "no goal, every check passes"
+    is_set 'blocking(X)' 'X = goal_missing'
+    okb --dir "$K" show open; out_has "^- goal_missing: the ticket states no goal\. Add goal\(g1, Kind, Author, 'TEXT'\) with its premises: orbit-kb add " "show open names goal_missing"
+    out_hasnt 'Nothing is open'
+    ( cd "$T" && exec timeout "$TMO" "$(dirname "$OKB")/orbit" --dir "$K" show open ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err")
+    out_has "^- goal_missing: .* with its premises: orbit add " "the line names the tool as it was called"
+    okb --dir "$K" lint; rc_is 1 "lint: an error"; any_has "^EB1 ticket: The ticket states no goal\. Add goal\(g1, Kind, Author, 'TEXT'\) with its premises"
+    ( cd "$T" && exec timeout "$TMO" "$(dirname "$OKB")/orbit" --dir "$K" lint ) >"$T/.out" 2>"$T/.err" </dev/null; out=$(<"$T/.out"); err=$(<"$T/.err")
+    any_has "^EB1 ticket: .*premises: orbit add " "lint names the tool as it was called"
+    okb --dir "$K" show hypothesis; out_has "^- None\. Every ticket has a goal: add goal\(g1, KIND, AUTHOR, 'TEXT'\)\.$" "show hypothesis teaches the goal"
+    out_hasnt 'add hypothesis\(H, KIND, TEXT\)'
+}
+t_GM2() {  # with a goal and the human's judgment that it is satisfied, done is yes
+    nogoal_kb || return
+    okb --dir "$K" add "goal(g1, feature, human, 'x stays as it is')" 'no_premises(g1)'; rc_is 0 "add the goal"
+    is_set 'blocking(X)' 'X = goal_unjudged(g1)'
+    okb --dir "$K" lint; any_hasnt '^EB1 '
+    okb --dir "$K" judge g1 satisfied --by human --note 'Ty: it is what I wanted'; rc_is 0
+    is_true done "a goal, judged satisfied"; is_false 'blocking(X)'
+}
+t_GM3() {  # a KB of the 0.7.2 form with no hypothesis fact: done as at 0.7.2; no goal_missing
+    K=$T/old; mkdir -p "$K/runs"
+    cat > "$K/kb.pl" <<'EOF'
+% Made by orbit-kb 0.7.2.
+uses([build]).
+request(r1, 'val is 2').
+claim(c1, preserve, 'val is 2').
+cites(c1, 'val is 2').
+check(k1, c1).
+checks_that(k1, 'val holds 2').
+EOF
+    add_result "$K" k1 1 pass
+    is_true done "a KB that 0.7.2 calls done"; is_false 'blocking(X)'; is_false goal_missing
+    okb --dir "$K" lint; any_hasnt '^EB1 ' "a KB before the upgrade gets no EB1"
+}
 # ---------------------------------------------------------------- LC: the location of a conflict (c9, c40)
 conflict_kb() {  # mk, the control, a change by build, and a run that conflicts: a3
     mk
@@ -865,6 +913,9 @@ run_test t_JD1 JD1 "c41 (k41): done needs the judgment of the goal; an unresolve
 run_test t_JD2 JD2 "c10, c41: a not-wanted case reopens the goal and fails no check; the latest judgment counts"
 run_test t_JD3 JD3 "c10, c41: a not-wanted case is recorded against the hypothesis that allowed it (case_unplaced, case_against)"
 run_test t_JD4 JD4 "c10, c13: a formal statement that the human has not accepted is listed in the report; lint W18"
+run_test t_GM1 GM1 "c41, c1 (review G1): a KB of 0.8.0 with no goal is not done: goal_missing in blocking, show open and lint (EB1); show hypothesis teaches the goal"
+run_test t_GM2 GM2 "c41 (review G1): with a goal that the human judged satisfied, done is yes"
+run_test t_GM3 GM3 "c20, q27 (review G1): a KB of the 0.7.2 form with no hypothesis fact is done as at 0.7.2; no goal_missing"
 run_test t_LC1 LC1 "c9, c40: a conflict with no location blocks done; the control needs none; a conflict in the build stays with build"
 run_test t_LC2 LC2 "c40: a conflict in the measurement counts only when a pane that did not build confirms it; then the run is unresolved"
 run_test t_LC3 LC3 "c40: the human confirms a location"

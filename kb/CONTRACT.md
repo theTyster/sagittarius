@@ -1005,7 +1005,7 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 - New terms of `blocking/1`: `check_unresolved(K)` (in place of `check_failing(K)` when the latest
   verdict is unresolved: the spec check k7; a caller that reads each answer of `blocking(X)` still
   gets a blocker), `verdict_stale(K)`, `conflict_unlocated(A)`, `location_unconfirmed(L)`,
-  `case_unplaced(J)`, `goal_unjudged(G)`, `behavior_open(B)`, `not_carried(A)`. Each term of 0.7.2
+  `case_unplaced(J)`, `goal_unjudged(G)`, `goal_missing` (D59), `behavior_open(B)`, `not_carried(A)`. Each term of 0.7.2
   keeps its name. `show open`, `show blocking` and `report` print one line for each.
 - `done`: the conditions of 0.7.2 with the new `fulfilled/1`, and none of the new terms.
 - The rules of 0.7.2 stay under the names `*_072` (`done_072`, `fulfilled_072`, ...).
@@ -1042,6 +1042,15 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   the goal; `accepts(C)` on a formal statement. Sugar: `orbit-kb judge ... --by human`.
 - `goal_satisfied(G)`: the latest of the judgments satisfied, not_satisfied and a not-wanted case
   on G is satisfied. `blocking(goal_unjudged(G))`: G is current and not `goal_satisfied(G)`.
+- `goal_missing` (review G1; c41, c1): no goal is current (`any_goal_current`: a `goal/4` fact, or a
+  `hypothesis/3` fact of the 0.7.2 form, that nothing supersedes), the KB is not
+  `kb_before_upgrade`, and `done_before_upgrade` does not hold. `blocking(goal_missing)` is one
+  answer line of `blocking(X)`, and `done` needs it clear (through `any_stage2_open`). `show open`:
+  "- goal_missing: the ticket states no goal. Add goal(g1, Kind, Author, 'TEXT') with its premises:
+  orbit-kb add ...", under the name that was called. Lint EB1 (an error) with the same words when
+  a claim is current. `show hypothesis` on such a KB with no goal says "Every ticket has a goal:
+  add goal(g1, KIND, AUTHOR, 'TEXT')."; a KB before the upgrade keeps the line of 0.7.2. A KB
+  before the upgrade never gets `goal_missing` (c20, q27). Tests GM1 to GM3.
 - `case_against(J, H)`: `hypothesis_defeated(H)`. A not-wanted case with no `case_against`, on a
   goal with a current hypothesis: `blocking(case_unplaced(J))`; `to_discovery(J)` lists it.
 - A judgment changes no verdict. A waiver works as at 0.7.2. In addition, a live human waiver on a
