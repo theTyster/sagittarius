@@ -479,6 +479,380 @@ run_test t_UV4 UV4 "c7: run --timeout: a run that times out is unresolved"
 run_test t_UV5 UV5 "c7, c26: run --expect: a solver that answers unknown or runs into its time limit is unresolved"
 run_test t_UV6 UV6 "c7: each run has exactly one verdict"
 
+# ---------------------------------------------------------------- ST: stale verdicts (c39)
+green() { run_k k1 -- false >/dev/null; run_k k1 -- true >/dev/null; }   # the control, then a pass
+t_ST1() {  # the scenario of checks/stale_pass.sh (k8, k39)
+    mk; echo 1 > "$T/val"
+    run_k k1 -- sh -c "test \$(cat '$T/val') = 2"; rc_is 1 "red first"
+    is_true 'control(a1)' "the red run before any change is the control"
+    is_false 'conflict_open(A)' "a control needs no location"
+    echo 2 > "$T/val"
+    okb --dir "$K" add "change(x1, 'set val to 2')" 'serves(x1, c1)'
+    run_k k1 -- sh -c "test \$(cat '$T/val') = 2"; rc_is 0
+    judge_ok; is_true 'fulfilled(c1)'; is_true done
+    okb --dir "$K" add "change(x2, 'val is 1 again')" 'serves(x2, c1)'
+    is_false 'fulfilled(c1)' "a later change that serves the claim"; is_false done
+    is_true 'verdict_stale(a2, c1)'
+    is_set 'blocking(X)' 'X = under(c1)|X = verdict_stale(k1)'
+    okb --dir "$K" show open; out_has '^- verdict_stale k1: .*x2' "show open names the stale verdict and the change"
+    okb --dir "$K" show stale; out_has '^- stale: run a2 of claim c1'
+    run_k k1 -- true; is_true 'fulfilled(c1)' "a new run"; is_true done
+}
+t_ST2() {  # a change with no change time makes no run stale; a change that serves another claim does not either
+    mk; green; judge_ok
+    printf "change(x7, 'old data').\nserves(x7, c1).\n" >> "$K/kb.pl"
+    is_true 'fulfilled(c1)' "an undated change"; is_true done
+    okb --dir "$K" add "claim(c2, preserve, 'other')" "cites(c2, 'rings')" "change(x8, 'other')" 'serves(x8, c2)' 'check(k2, c2)' "checks_that(k2, 'other')"
+    run_k k2 -- true
+    is_true 'fulfilled(c1)' "a change of another claim"
+}
+t_ST3() {  # a measurement premise that is found false: the verdict becomes unresolved (the clock 2 s off)
+    mk
+    okb --dir "$K" add "measurement_premise(mp1, k1, 'The clock is right within 0.2 s.')"; rc_is 0
+    run_k k1 -- "$T/timer.sh" 615; run_k k1 -- "$T/timer.sh" 600
+    judge_ok; is_true done; is_set 'verdict(a2, V)' 'V = meets'
+    okb --dir "$K" attest measurement mp1 "false('The clock is 2 s off.')"; rc_is 0 "the finding"
+    is_set 'verdict(a2, V)' 'V = unresolved'
+    is_false 'fulfilled(c1)'; is_false done
+    is_set 'blocking(X)' 'X = check_unresolved(k1)|X = under(c1)'
+    okb --dir "$K" show open; out_has 'check_unresolved k1: .*measurement' "show open says why"
+    run_k k1 -- "$T/timer.sh" 600
+    is_set 'verdict(a5, V)' 'V = meets' "a run after the finding counts"
+    is_true 'fulfilled(c1)'
+}
+# ---------------------------------------------------------------- GF: the grandfather rule (c20, c39, q27)
+old_done_kb() {  # a KB as orbit-kb 0.7.2 left it: done, with a pass that is older than a later change
+    K=$T/old; mkdir -p "$K/runs"
+    cat > "$K/kb.pl" <<'EOF'
+uses([build]).
+request(r1, 'val is 2').
+% Made by orbit-kb 0.7.2.
+hypothesis(h1, feature, 'val is 2').
+no_premises(h1).
+claim(c1, introduce, 'val is 2').
+cites(c1, 'val is 2').
+check(k1, c1).
+checks_that(k1, 'val holds 2').
+EOF
+    add_result "$K" k1 1 fail; add_result "$K" k1 2 pass
+    printf "change(x1, 'set val').\nserves(x1, c1).\nchange_at(x1, '2026-10-15T10:00:01Z').\nchange(x2, 'later').\nserves(x2, c1).\nchange_at(x2, '2026-10-16T10:00:00Z').\n" >> "$K/kb.pl"
+}
+t_GF1() {  # done before the upgrade stays done, with no write; the stale verdict is listed
+    old_done_kb; cp "$K/kb.pl" "$T/before.pl"
+    is_true done "a KB that 0.7.2 called done"; is_false 'blocking(X)'
+    is_true 'verdict_stale(t2, c1)' "the rule calls the pass stale"
+    is_true done_before_upgrade; is_true 'fulfilled(c1)'
+    okb --dir "$K" show open; out_has '^- stale \(done before the upgrade\): .*t2.*c1' "show open lists it"; out_has 'Nothing is open'
+    okb --dir "$K" show stale; out_has '^- stale \(done before the upgrade\): run t2 of claim c1'
+    same_file "$K/kb.pl" "$T/before.pl" "reading writes nothing"
+}
+t_GF2() {  # the first write records the upgrade; done still holds; a change after the upgrade counts
+    old_done_kb
+    okb --dir "$K" add "note(c1, 'a note')"; rc_is 0
+    has_fact "$K/kb.pl" "upgraded(_, _)"; has_fact "$K/kb.pl" "done_before_upgrade(_, _)"
+    has_goal "$K/kb.pl" "findall(L, kb_line(L, upgraded(_, _)), [LU]), kb_line(LN, note(c1, _)), LU < LN" "upgraded/2 stands before the write"
+    is_true done "done after the first write"; is_false 'blocking(X)'
+    okb --dir "$K" add "note(c1, 'a second note')"
+    fact_count "$K/kb.pl" "upgraded(_, _)" 1 "one upgraded fact"
+    okb --dir "$K" add "change(x3, 'new work')" 'serves(x3, c1)'
+    is_false done "a change after the upgrade makes the old pass stale"
+    is_set 'blocking(X)' 'X = under(c1)|X = verdict_stale(k1)'
+    run_k k1 -- true; is_true done "a new run; the goal of a ticket that was done needs no judgment"
+}
+t_GF3() {  # an open old KB gets the new rules at once, and keeps its old open items
+    old_done_kb
+    printf "claim(c2, preserve, 'open').\ncites(c2, 'val is 2').\ncheck(k2, c2).\nchecks_that(k2, 'x').\n" >> "$K/kb.pl"
+    is_false done; is_false done_before_upgrade
+    is_set 'blocking(X)' 'X = check_unrun(k2)|X = goal_unjudged(h1)|X = under(c1)|X = under(c2)|X = verdict_stale(k1)'
+    okb --dir "$K" add "note(c1, 'a note')"
+    has_fact "$K/kb.pl" "upgraded(_, _)"; no_fact "$K/kb.pl" "done_before_upgrade(_, _)"
+}
+t_GF4() {  # a rejected write records no upgrade
+    old_done_kb; cp "$K/kb.pl" "$T/before.pl"
+    okb --dir "$K" add "nonsense("; rc_is 1
+    same_file "$K/kb.pl" "$T/before.pl" "a rejected add writes nothing"
+}
+# ---------------------------------------------------------------- JD: the judgment of the human (c10, c41)
+t_JD1() {  # k41: no judgment, done is no; judgment and one unresolved claim, done is no; a waiver with a due time, done is yes
+    mk; green
+    is_false done "every blocker clear and no judgment of the goal"
+    is_set 'blocking(X)' 'X = goal_unjudged(h1)'
+    okb --dir "$K" show open; out_has '^- goal_unjudged h1: .*judge h1 satisfied --by human'
+    okb --dir "$K" judge h1 satisfied; rc_is 1 "an agent cannot judge"; any_hasi 'only the human'
+    okb --dir "$K" judge h1 satisfied --by human --note 'Ty: it is what I wanted'; rc_is 0
+    is_true 'goal_satisfied(h1)'; is_true done
+    has_fact "$K/kb.pl" "attest(_, judgment, h1, satisfied, human, _)"
+    okb --dir "$K" add "claim(c2, preserve, 'It is as loud as before.')" "cites(c2, 'rings')" 'check(k2, c2)' "checks_that(k2, 'loudness')"
+    run_k k2 -- sh -c 'exit 77'
+    is_false done "the judgment turns no unresolved verdict into meets"
+    is_set 'blocking(X)' 'X = check_unresolved(k2)|X = under(c2)'
+    okb --dir "$K" attest waiver k2 "waive(k2, '2999-12-15T00:00:00Z', 'the tool that measures it does not exist')" --by human; rc_is 0
+    is_true done "a human waiver with a due time"
+    is_false 'fulfilled(c2)'
+    okb --dir "$K" report; out_has 'Status: not fulfilled' "the delivery says not shown"
+}
+t_JD2() {  # a later not-satisfied judgment or a not-wanted case reopens; a judgment is a record
+    mk; green; judge_ok; is_true done
+    okb --dir "$K" judge h1 case 'the ring at 60.9 s is too late for the kitchen' not-wanted --by human; rc_is 0
+    has_fact "$K/kb.pl" "attest(_, judgment, h1, case('the ring at 60.9 s is too late for the kitchen', not_wanted), human, _)"
+    is_false done "a not-wanted case"; is_true 'passed(k1)' "no check fails"; is_true 'fulfilled(c1)'
+    is_set 'blocking(X)' 'X = goal_unjudged(h1)'
+    okb --dir "$K" show open; out_has 'For discovery: a[0-9]+' "with no hypothesis named, the case goes to discovery"
+    okb --dir "$K" judge h1 case 'the ring at 60.0 s' wanted --by human
+    is_false done
+    okb --dir "$K" judge h1 satisfied --by human; is_true done
+    okb --dir "$K" judge h1 not-satisfied --by human; is_false done
+    q 'experiment(A, judgment, h1)' -n 0; [ "$(printf '%s\n' "$out" | grep -c 'A = ')" = 5 ] || note "five judgments are experiments: $(snip "$out")"
+}
+t_JD3() {  # a not-wanted case against a hypothesis defeats it; with no hypothesis named it blocks (case_unplaced)
+    K=$T/kb; kb_new "$K" <<'EOF'
+uses([build]).
+% Made by orbit-kb 0.8.0.
+request(r1, 'replay').
+goal(g1, feature, human, 'A replayed import leaves the member records as one clean run would.').
+hypothesis(hya, g1, agent, 'Skipping each seen record ID makes a replay safe.').
+claim(c1, preserve, 'The member count is the one of a clean run.').
+cites(c1, 'replay').
+check(k1, c1).
+EOF
+    add_result "$K" k1 1 pass
+    okb --dir "$K" judge g1 case 'the corrected address of member 12 was dropped' not-wanted --by human; rc_is 0
+    local j; j=$(kbq "$K/kb.pl" "kb(attest(J, judgment, _, _, _, _)), write(J)")
+    is_set 'blocking(X)' "X = case_unplaced($j)|X = goal_unjudged(g1)"
+    okb --dir "$K" show open; out_has "^- case_unplaced $j: .*member 12"
+    is_false 'hypothesis_defeated(H)'
+    okb --dir "$K" add "case_against($j, hya)"; rc_is 0
+    is_set 'hypothesis_defeated(H)' 'H = hya'
+    is_false 'case_unplaced(J)'; is_true 'passed(k1)' "no check fails"
+}
+t_JD4() {  # a formal statement that the human has not accepted is listed in the delivery draft; W18
+    K=$T/kb; kb_new "$K" <<'EOF'
+uses([build]).
+% Made by orbit-kb 0.8.0.
+request(r1, 'replay').
+goal(g1, feature, human, 'A replay is safe.').
+claim(c1, preserve, 'The member count is the one of a clean run.').
+cites(c1, 'replay').
+EOF
+    printf '(check-sat)\n' > "$T/m.smt2"
+    okb --dir "$K" subject m1 "$T/m.smt2" >/dev/null
+    okb --dir "$K" add 'formal_statement(m1, c1)'; rc_is 0
+    okb --dir "$K" lint; out_has '^W18 m1' "W18: no could_change"
+    okb --dir "$K" add "could_change(m1, 'whether a notification counts')"
+    okb --dir "$K" lint; out_hasnt '^W18'
+    okb --dir "$K" report; out_has 'Formal: not yet accepted by the human' "the heading"; out_has 'm1.*c1' "the statement"
+    okb --dir "$K" judge m1 accepts c1 --by human; rc_is 0
+    okb --dir "$K" report; out_hasnt 'not yet accepted by the human'
+    sed -i 's/Made by orbit-kb 0.8.0/Made by orbit-kb 0.7.2/' "$K/kb.pl"; sed -i '/could_change/d' "$K/kb.pl"
+    okb --dir "$K" lint; out_hasnt '^W18' "a KB from before 0.8.0 gets no W18"
+}
+# ---------------------------------------------------------------- LC: the location of a conflict (c9, c40)
+conflict_kb() {  # mk, the control, a change by build, and a run that conflicts: a3
+    mk
+    run_k k1 --as build -- "$T/timer.sh" 615
+    ORBIT_KB_WRITER=sb okb --dir "$K" add "change(x1, 'the timer rings')" 'serves(x1, c1)' --as build
+    ORBIT_KB_WRITER=sb okb --dir "$K" run k1 --as build -- "$T/timer.sh" 615
+    A=$(last_run_id)
+}
+loc_id() { kbq "$K/kb.pl" "findall(L, kb(attest(L, location, _, _, _, _)), Ls), last(Ls, X), write(X)"; }
+t_LC1() {  # a conflict with no location blocks done; the control needs none; located in the build stays with build
+    conflict_kb; judge_ok
+    is_true 'control(a1)'; is_false "control($A)"
+    is_set 'conflict_open(X)' "X = $A"
+    is_set 'blocking(X)' "X = check_failing(k1)|X = conflict_unlocated($A)|X = under(c1)"
+    okb --dir "$K" show open; out_has "^- conflict_unlocated $A: .*locate $A"
+    okb --dir "$K" locate $A build --evidence 'a bug in the comparison'; rc_is 0
+    is_false 'conflict_open(X)'; is_false 'blocking(location_unconfirmed(L))'; is_false 'to_discovery(X)'
+    is_set 'blocking(X)' "X = check_failing(k1)|X = under(c1)"
+    ORBIT_KB_WRITER=sb okb --dir "$K" run k1 --as build -- "$T/timer.sh" 600
+    is_true done "build fixed it: no discovery lap"
+    okb --dir "$K" locate a99 build --evidence x; rc_is 1 "an unknown run"
+}
+t_LC2() {  # the measurement: open until a pane that did not build confirms; then unresolved, and a new run is owed
+    conflict_kb; judge_ok
+    ORBIT_KB_WRITER=sb okb --dir "$K" locate $A measurement --evidence 'a second clock reads 60.4 s' --as build; rc_is 0
+    local l; l=$(loc_id)
+    is_set 'blocking(X)' "X = check_failing(k1)|X = location_unconfirmed($l)|X = under(c1)"
+    is_set "verdict($A, V)" 'V = conflicts'
+    ORBIT_KB_WRITER=sb okb --dir "$K" confirm $l --note 'I agree with myself' --as build; rc_is 0
+    is_false "location_confirmed($l)" "build cannot move the conflict out of the build by its own word"
+    ORBIT_KB_WRITER=sb okb --dir "$K" confirm $l --note 'same session, other role' --as review
+    ORBIT_KB_WRITER=sr okb --dir "$K" confirm $l --take --note 'same role, other session' --as build
+    is_false "location_confirmed($l)" "the role and the session must both differ"
+    ORBIT_KB_WRITER=sr okb --dir "$K" confirm $l --take --note 'the second clock is the right one' --as review; rc_is 0
+    is_true "location_confirmed($l)"
+    is_set "verdict($A, V)" 'V = unresolved'
+    is_set 'blocking(X)' "X = check_unresolved(k1)|X = under(c1)"
+    ORBIT_KB_WRITER=sb okb --dir "$K" run k1 --take --as build -- "$T/timer.sh" 600
+    is_true done "the repaired experiment ran again"
+}
+t_LC3() {  # the human confirms
+    conflict_kb
+    okb --dir "$K" locate $A measurement --evidence 'clock'; local l; l=$(loc_id)
+    okb --dir "$K" confirm $l --note 'yes' --by human; rc_is 0
+    is_true "location_confirmed($l)"
+}
+t_LC4() {  # a ticket with no hypothesis: a conflict in a claim of the goal goes to discovery; the goal is not defeated
+    conflict_kb
+    okb --dir "$K" locate $A claim:c1 --evidence 'the build does what the claim says'; local l; l=$(loc_id)
+    is_false 'to_discovery(X)' "not before the confirmation"
+    okb --dir "$K" confirm $l --note 'yes' --by human
+    is_set 'to_discovery(X)' 'X = c1'
+    is_false 'hypothesis_defeated(H)'; is_true 'under(c1)' "the claim stays open"
+    okb --dir "$K" show open; out_has '^- For discovery: c1'
+}
+t_LC5() {  # located in the hypothesis: confirmed, the hypothesis is defeated and goes to discovery
+    K=$T/kb; kb_new "$K" <<'EOF'
+uses([build]).
+% Made by orbit-kb 0.8.0.
+request(r1, 'replay').
+goal(g1, feature, human, 'A replay is safe.').
+hypothesis(hya, g1, agent, 'Skipping each seen record ID makes a replay safe.').
+premise(p1, hya, 'An ID never comes back with new data.').
+claim(c1, preserve, 'No correction is lost.').
+cites(c1, 'replay').
+predicts(hya, c1).
+check(k1, c1).
+EOF
+    add_result "$K" k1 1 fail
+    okb --dir "$K" locate t1 hypothesis:hya --evidence 'a correction under a seen ID is discarded, as the hypothesis says'; rc_is 0
+    local l; l=$(loc_id)
+    is_true "blocking(location_unconfirmed($l))"; is_false 'hypothesis_defeated(H)'
+    okb --dir "$K" confirm $l --note 'review saw the case' --by human
+    is_set 'hypothesis_defeated(H)' 'H = hya'; is_set 'to_discovery(X)' 'X = hya'
+    okb --dir "$K" locate t1 premise:p1 --evidence 'the premise is false'; rc_is 0
+}
+# ---------------------------------------------------------------- EX: one view of every kind (c6)
+t_EX1() {  # show experiments: the claim, the procedure, the measurement premises, known-when, the observation, the verdict
+    mk
+    okb --dir "$K" lint; out_has '^W17 k1' "W17: no procedure and no run"
+    okb --dir "$K" add "procedure(k1, 'An independent clock times the start and the ring.')" \
+        "measurement_premise(mp1, k1, 'The clock is right within 0.2 s.')" \
+        "known_when(k1, 'The tolerance and the error bound were fixed before the reading.')"; rc_is 0
+    okb --dir "$K" lint; out_hasnt '^W17'
+    run_k k1 -- "$T/timer.sh" 615
+    okb --dir "$K" judge h1 case 'it rang at 61.5 s' not-wanted --by human
+    okb --dir "$K" show experiments; rc_is 0
+    out_has '^- a1 \(test\): verdict conflicts'; out_has 'Claim c1: It rings'
+    out_has 'Procedure: An independent clock'; out_has 'Measurement premise mp1: The clock is right'
+    out_has 'Known when: The tolerance'; out_has 'Observation: run 1 of check k1, result fail, log .*1-k1.log'
+    out_has 'Verdict: conflicts'; out_has '^- a2 \(judgment\): verdict conflicts'; out_has 'Goal h1'
+    okb --dir "$K" show experiments a2; out_hasnt '^- a1 '
+    okb --dir "$K" add 'check(k2, c1)' "checks_that(k2, 'again')"; run_k k2 -- true
+    okb --dir "$K" show experiments k2; out_has 'Procedure \(the command of the run\): true'
+}
+t_EX2() {  # a model result, a proof and a demo are experiments with one verdict each
+    K=$T/kb; printf 'm\n' > "$T/m.smt2"; printf 'l\n' > "$T/run.log"; printf 'png\n' > "$T/d.png"
+    local dm dl dd; dm=$(sha "$T/m.smt2"); dl=$(sha "$T/run.log"); dd=$(sha "$T/d.png")
+    kb_new "$K" <<EOF
+uses([build]).
+request(r1, 'x').
+claim(c1, preserve, 'A claim.').
+cites(c1, 'x').
+subject(m1, '$T/m.smt2', 'sha256:$dm').
+subject(l1, '$T/run.log', 'sha256:$dl').
+subject(s1, '$T/d.png', 'sha256:$dd').
+model(m1, smt).
+model_run(l1, m1, 'sha256:$dm').
+encodes(m1, c1).
+attest(a1, model_result, l1, verdict(m1, preserve(c1), unsat), agent, '2026-10-15T10:00:01Z').
+attest(a2, model_result, l1, verdict(m1, preserve(c1), unknown), agent, '2026-10-15T10:00:02Z').
+attest(a3, model_result, l1, verdict(m1, preserve(c1), sat), agent, '2026-10-15T10:00:03Z').
+demo(s1, c1).
+attest(a4, approval, s1, digest('sha256:$dd'), human, '2026-10-15T10:00:04Z').
+EOF
+    is_set 'experiment(A, Kind, c1)' 'A = a1, Kind = model|A = a2, Kind = model|A = a3, Kind = model|A = a4, Kind = demo'
+    is_set 'verdict(A, V)' 'A = a1, V = meets|A = a2, V = unresolved|A = a3, V = conflicts|A = a4, V = meets'
+    okb --dir "$K" show experiments; rc_is 0; out_has '^- a2 \(model\): verdict unresolved'; out_has '^- a4 \(demo\): verdict meets'
+    printf 'changed\n' > "$T/d.png"
+    is_set 'verdict(a4, V)' 'V = unresolved' "a demo whose file changed"
+}
+# ---------------------------------------------------------------- SB: Sound Basis (c16)
+t_SB1() {  # a change that serves no claim is a conflict that opens its behavior for review
+    mk; green; judge_ok
+    okb --dir "$K" add "change(x9, 'the notification count')"
+    is_set 'blocking(X)' 'X = over(x9)'
+    okb --dir "$K" show open; okb --dir "$K" show blocking
+    out_has '^- over x9: Conflict \(Sound Basis\): change x9 serves no claim\. Its behavior is open for review'
+}
+t_SB2() {  # behavior_conflict: open until a current claim names it, or a human waives it
+    mk; green; judge_ok
+    okb --dir "$K" add "behavior_conflict(b1, 'the old test of the notification count fails')"; rc_is 0
+    is_set 'blocking(X)' 'X = behavior_open(b1)'; is_false done
+    okb --dir "$K" show open; out_has '^- behavior_open b1: Conflict \(Sound Basis\).*open for review'
+    okb --dir "$K" attest waiver b1 "waive(b1, '2999-01-01T00:00:00Z', 'known')" --by human; rc_is 0
+    is_true done "a human waiver"
+    sed -i '/waiver/d' "$K/kb.pl"; is_false done
+    okb --dir "$K" add "claim(c3, preserve, 'One notification for each import.')" "cites(c3, 'rings')" 'names(c3, b1)' 'check(k3, c3)' "checks_that(k3, 'n')"
+    run_k k3 -- true
+    is_false 'behavior_open(B)' "a current claim names it"; is_true done
+}
+# ---------------------------------------------------------------- GC: a change of the goal (c42)
+t_GC1() {  # a verdict that no record carried over fulfils nothing
+    K=$T/kb; kb_new "$K" <<'EOF'
+uses([build]).
+% Made by orbit-kb 0.8.0.
+request(r1, 'replay').
+goal(g1, feature, human, 'The same member records.').
+claim(c1, preserve, 'One notification.').
+cites(c1, 'replay').
+check(k1, c1).
+EOF
+    add_result "$K" k1 1 pass
+    okb --dir "$K" attest judgment g1 satisfied --by human >/dev/null
+    is_true done "setup"
+    okb --dir "$K" add "goal(g2, feature, human, 'The same member records and no second notification.')" 'supersedes(g2, g1)' --by human; rc_is 0
+    is_set 'before_goal(X, G)' 'X = c1, G = g2|X = t1, G = g2'
+    is_set 'not_carried(X)' 'X = c1|X = t1'
+    is_false 'fulfilled(c1)' "the meets verdict of the old goal is not carried"
+    okb --dir "$K" add 'carried(c1, g2)'
+    is_set 'not_carried(X)' 'X = t1'
+    is_true 'blocking(not_carried(t1))'; is_true 'blocking(goal_unjudged(g2))'
+    okb --dir "$K" show open; out_has '^- not_carried t1: Not carried over'
+    okb --dir "$K" add 'carried(t1, g2)'; is_true 'fulfilled(c1)'
+}
+t_GC2() {  # a restated hypothesis of the 0.7.2 form changes nothing (c43)
+    mk; green
+    okb --dir "$K" add "hypothesis(h2, feature, 'The timer rings 59 to 61 s after the start, each time.')" 'no_premises(h2)' 'supersedes(h2, h1)'
+    is_false 'before_goal(X, G)'; is_true 'fulfilled(c1)'
+    is_set 'blocking(X)' 'X = goal_unjudged(h2)'
+}
+# ---------------------------------------------------------------- RPX: report
+rp_claims() { printf '%s\n' "$out" | sed -n '/^# Claims/,/^# Review/p'; }
+t_RPX1() {  # the Claims field: fulfilled, conflicts, unresolved (with the reason), stale; never failed for unresolved
+    mk; run_k k1 -- false; run_k k1 -- sh -c 'exit 77'
+    okb --dir "$K" report; rc_is 0
+    out_has 'Status: unresolved' "unresolved"; out_has 'could not decide: .*exit 77' "with the reason"; out_has 'Checks: k1 \(unresolved\)'; rp_claims | grep -Eq 'failed|not passed' && note "unresolved is printed as failed: $(rp_claims | tr '\n' '~')"
+    run_k k1 -- false; okb --dir "$K" add "change(x1, 'a')" 'serves(x1, c1)'; run_k k1 -- false
+    okb --dir "$K" report; out_has 'Status: conflicts'
+    run_k k1 -- true; okb --dir "$K" report; out_has 'Status: fulfilled'
+    okb --dir "$K" add "change(x2, 'b')" 'serves(x2, c1)'
+    okb --dir "$K" report; out_has 'Status: stale'
+}
+run_test t_ST1 ST1 "c39 (k39): after a later change that serves the claim, with no new run, fulfilled and done are no; the control needs no location"
+run_test t_ST2 ST2 "c39: an undated change and a change of another claim make no run stale"
+run_test t_ST3 ST3 "c39: a measurement premise that is found false makes each earlier verdict of its check unresolved"
+run_test t_GF1 GF1 "c20, c39, q27: a KB that was done before the upgrade is done with no write; its stale verdict is listed"
+run_test t_GF2 GF2 "c20, c39: the first write records upgraded/2 and done_before_upgrade/2; done holds; a later change counts"
+run_test t_GF3 GF3 "c20: an open KB from before the upgrade gets the new rules at once and keeps its open items"
+run_test t_GF4 GF4 "c20: a rejected write records no upgrade"
+run_test t_JD1 JD1 "c41 (k41): done needs the judgment of the goal; an unresolved claim holds it up; a human waiver covers it"
+run_test t_JD2 JD2 "c10, c41: a not-wanted case reopens the goal and fails no check; the latest judgment counts"
+run_test t_JD3 JD3 "c10, c41: a not-wanted case is recorded against the hypothesis that allowed it (case_unplaced, case_against)"
+run_test t_JD4 JD4 "c10, c13: a formal statement that the human has not accepted is listed in the report; lint W18"
+run_test t_LC1 LC1 "c9, c40: a conflict with no location blocks done; the control needs none; a conflict in the build stays with build"
+run_test t_LC2 LC2 "c40: a conflict in the measurement counts only when a pane that did not build confirms it; then the run is unresolved"
+run_test t_LC3 LC3 "c40: the human confirms a location"
+run_test t_LC4 LC4 "c40: with no hypothesis, a confirmed conflict in a claim of the goal goes to discovery; the goal is not defeated"
+run_test t_LC5 LC5 "c9: a confirmed conflict in the hypothesis defeats it, and it goes to discovery"
+run_test t_EX1 EX1 "c6: show experiments prints the claim, the procedure, the measurement premises, known-when, the observation, the verdict; W17"
+run_test t_EX2 EX2 "c6, c7: a model result and a demo are experiments with exactly one verdict"
+run_test t_SB1 SB1 "c16: a change that serves no claim is a conflict that opens its behavior for review"
+run_test t_SB2 SB2 "c16: behavior_conflict blocks until a current claim names it or a human waives it"
+run_test t_GC1 GC1 "c42: after a change of the goal, a verdict that no record carried over fulfils nothing"
+run_test t_GC2 GC2 "c43: a restated hypothesis of the 0.7.2 form carries everything, as at 0.7.2"
+run_test t_RPX1 RPX1 "c7: report Claims says fulfilled, conflicts, unresolved (with the reason) or stale"
+
 run_tests
 echo "----"
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
