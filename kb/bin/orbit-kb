@@ -6713,7 +6713,8 @@ desk_hypothesis(Eng, H) :- desk_goal(Eng, H).
 
 % desk_hyps(+Eng, -Hs): each hypothesis/4 of the KB, in the order of its ids.
 desk_hyps(Eng, Hs) :-
-    dk_all(Eng, [H, G, A, T], hypothesis(H, G, A, T), L0), sort(L0, L),
+    dk_all(Eng, [H, G, A, T], hypothesis(H, G, A, T), L0), sort(L0, L1),
+    map_list_to_pairs([[H0|_], K]>>desk_id_key(H0, K), L1, PL), keysort(PL, PL1), pairs_values(PL1, L),
     findall(X, ( member([H, G, A, T], L), desk_hyp(Eng, H, G, A, T, X) ), Hs).
 
 desk_hyp(Eng, H, G, A, T, hy{id:H, goal:G, author:A, text:TT, state:S, case:Case, defeats:Ds, nt:NT, cited:Cited, premises:Ps, predicts:Cs}) :-
@@ -6731,7 +6732,7 @@ desk_hyp(Eng, H, G, A, T, hy{id:H, goal:G, author:A, text:TT, state:S, case:Case
     (   memberchk(S, [proposed, adopted]), desk_not_tempered(Eng, H) -> NT = true ; NT = false ),
     ( S == proposed, dk_all(Eng, [W], adoption_cited(H, W), [W1|_]) -> txt(W1, W2), Cited = some(W2) ; Cited = none ),
     desk_premises(Eng, H, Ps, _),
-    dk_all(Eng, [C], predicts(H, C), Cs0), sort(Cs0, Cs).
+    dk_all(Eng, [C], predicts(H, C), Cs0), desk_id_sort(Cs0, Cs).
 
 % desk_hyp_state(+Eng, +H, -S): hypothesis_state/2 of the build contract, section 1.2 (builder K1):
 % superseded, retired, defeated, adopted or proposed, the first that applies. Where the tool has
@@ -6796,7 +6797,19 @@ desk_term(Key, Label, Html) :-
     ).
 
 desk_current_claims(Eng, Cs) :-
-    dk_all(Eng, [C], ( claim(C, _, _), \+ supersedes(_, C) ), Cs0), sort(Cs0, Cs).
+    dk_all(Eng, [C], ( claim(C, _, _), \+ supersedes(_, C) ), Cs0), desk_id_sort(Cs0, Cs).
+
+% desk_id_sort(+Ids, -Sorted) (review U4): ids in the order of their numbers, each once: c1, c2,
+% ..., c10, not c1, c10, c2. An id is its letters, then its number; ids of other shapes keep the
+% standard order of terms, after them.
+desk_id_sort(Ids0, Ids) :-
+    sort(Ids0, Ids1), map_list_to_pairs(desk_id_key, Ids1, Ps), keysort(Ps, Ps1), pairs_values(Ps1, Ids).
+desk_id_key(Id, K) :-
+    (   atom(Id), atom_codes(Id, Cs), append(Ls, Ds, Cs), Ls \== [], Ds \== [],
+        forall(member(D, Ds), code_type(D, digit)), \+ ( last(Ls, L), code_type(L, digit) )
+    ->  atom_codes(P, Ls), number_codes(N, Ds), K = k(0, P, N, Id)
+    ;   K = k(1, Id)
+    ).
 
 % desk_claim_out(+Eng, +C, -H, -State): a hypothesis predicts claim C, and each hypothesis that
 % predicts it is defeated, retired or superseded. H is the first of them, with its state.
@@ -6967,7 +6980,7 @@ desk_claim_html(HD, K, Eng, C, Html) :-
     dk_f("<div class=\"claimrow\"><p><span class=\"ref\">~w</span>~w</p>~w</div>~w", [C, TH, BsH, ChH], Html).
 
 desk_checks_html(HD, K, Eng, C, Tags, Html) :-
-    dk_all(Eng, [Kc], check(Kc, C), Ks0), sort(Ks0, Ks),
+    dk_all(Eng, [Kc], check(Kc, C), Ks0), desk_id_sort(Ks0, Ks),
     (   Ks == [] -> Html = "<p class=\"gapnote small\">This claim has no check.</p>"
     ;   findall(Ck, ( member(Kc, Ks), desk_check(K.dir, Eng, Kc, Ck) ), Cks),
         length(Ks, N),

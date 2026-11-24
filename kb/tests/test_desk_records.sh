@@ -9,6 +9,7 @@
 #   DR5 the set of items equals that of the Desk of 0.7.2 on the same hub
 #   DR6 the labels carry the canonical sentences of vocabulary.json
 #   DR8 a stale verdict; a hypothesis that a confirmed location defeated; its claim shown apart
+#   DR9 authors as names (human:ty is Ty, agent:astra is Astra); ids in the order of their numbers
 #   DR7 the same in a headless Chromium (k24); SKIP with no Chromium or no Node 22
 # The Desk of 0.7.2 for DR5: $ORBIT_KB_BASE (a checkout of 0.7.2), else git archive v0.7.2 of this repo.
 QS_LIB_ONLY=1
@@ -234,6 +235,48 @@ PY
     local tok; tok=$(pg dtoken "$T/page.html")
     review "token=$tok" "hub=$T/h" "item=adopt:$kb#hy2"; code_is 409 "Adopt of a hypothesis that a confirmed location defeated"
 }
-for n in 1 2 3 4 5 6 7 8; do run_one DR$n; done
+t_DR9() {  # review U2, U4: the authors print as the CLI prints them; c1, c2, c10 (not c1, c10, c2)
+    mkdesk "$T/h"; kb_project "$T/h/project-kb" 'Import project'
+    kb_new "$T/h/specs/names" <<'EOF2'
+uses([build]).
+request(r1, 'Name the authors').
+goal(g1, feature, human:ty, 'The card names each author.').
+no_premises(g1).
+hypothesis(hy1, g1, agent:astra, 'Printing the name of each author is enough.').
+defeating_case(hy1, human:ty, 'A card that prints a lower-case name.').
+hypothesis(hy2, g1, human:ty, 'A name starts with a capital letter.').
+hypothesis(hy10, g1, agent, 'The order of the ids is the order of their numbers.').
+claim(c10, introduce, 'The tenth claim').
+claim(c2, introduce, 'The second claim').
+claim(c1, introduce, 'The first claim').
+predicts(hy1, c10).
+predicts(hy1, c2).
+predicts(hy1, c1).
+check(k10, c1).
+checks_that(k10, 'the tenth check').
+check(k2, c1).
+checks_that(k2, 'the second check').
+check(k1, c1).
+checks_that(k1, 'the first check').
+EOF2
+    srvd --hub "$T/h" || return; page_ok || return
+    chk raw "$T/page.html" '!class="banner error"' '!cannot be read'
+    chk dkb "$T/page.html" names 'Goal (Ty)' 'Hypothesis hy1 (Astra, agent-written, not adopted)' '(named by Ty)' \
+        'Hypothesis hy2 (Ty-written, not adopted)' 'Hypothesis hy10 (agent-written, not adopted)' 'It predicts the claims c1, c2, c10.' \
+        '!Goal (ty)' '!ty-written' '!named by ty' '!c1, c10, c2'
+    sec "$T/page.html" names || { note "no card of the ticket names"; return; }
+    python3 -I - "$T/sec.html" > "$T/dr9.txt" <<'PY' || note "the order of the ids: $(snip "$(cat "$T/dr9.txt")")"
+import re,sys
+b=open(sys.argv[1],encoding='utf-8').read(); bad=[]
+cl=re.findall(r'<div class="claimrow"><p><span class="ref">(c\d+)</span>', b)
+if cl!=['c1','c2','c10']: bad.append('claims %s' % cl)
+ks=re.findall(r'<div class="chk"><span class="ref">(k\d+)</span>', b)
+if ks!=['k1','k2','k10']: bad.append('checks %s' % ks)
+hs=re.findall(r'data-hyp="(hy\d+)"', b)
+if [h for i,h in enumerate(hs) if h not in hs[:i]]!=['hy1','hy2','hy10']: bad.append('hypotheses %s' % hs)
+print('; '.join(bad)); sys.exit(1 if bad else 0)
+PY
+}
+for n in 1 2 3 4 5 6 7 8 9; do run_one DR$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
