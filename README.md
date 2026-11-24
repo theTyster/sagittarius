@@ -35,8 +35,6 @@ MindHole Kit); `CHANGELOG.md` says what a change of each number means.
 
 ## Use it
 
-Only the hub, with no Prolog and no Lean? That is the informal release: see [`hubkit/README.md`](hubkit/README.md).
-
 1. **Install.** Install SWI-Prolog 9+, then run `./install.py` from this folder. It links
    `orbit-kb`, `repo-map`, the prompt, and the System 1 hook into your home directory. Check it
    with `orbit-kb doctor` and `./install.py --check`. Then give the prompt to each session: a

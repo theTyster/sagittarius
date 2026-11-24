@@ -60,8 +60,9 @@ CASES = [
     # docs/check_mindhole.py (review finding 5, kit3): the MindHole checks can fail too
     (["docs/check_mindhole.py", "mg2"], "hubkit/README.md", "The **MindHole Kit** is the template that makes a hub",
      "The **MindHole Kit** is the hub", "the kit README says the MindHole Kit is the hub"),
-    (["docs/check_mindhole.py", "mb7"], "hubkit/editions/informal/.claude/skills/hub-flow/SKILL.md",
-     '$HF note T-0002 "vote: GO: ', '$HF note T-0002 "ballot: ', "the informal skill lost the vote note"),
+    # scientific-method-overhaul c22: the kit names no release with no tool, and the check can fail
+    (["docs/check_kit_release.py", "c2"], "hubkit/hub/HUB-CORE.md", "## Panes\n", "## Without orbit-kb\n\nA hub with no tool.\n\n## Panes\n",
+     "HUB-CORE.md has a section Without orbit-kb again"),
     # 0.3.0 c_sg5b: a retired term in a text that an agent reads
     (["docs/check_terms.py"], "prompt/PANES.md", "A handoff is a signal", "A handoff is a trigger",
      "PANES.md calls a handoff a trigger (the term is signal)"),

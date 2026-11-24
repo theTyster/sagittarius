@@ -110,7 +110,7 @@ def c3():
     return out
 
 
-HUB_CORES = ("hubkit/hub/HUB-CORE.md", "hubkit/editions/informal/HUB-CORE.md")
+HUB_CORES = ("hubkit/hub/HUB-CORE.md",)
 
 
 def bullet(text, rx):
