@@ -12,7 +12,7 @@ c4: (0.3.0 M-E; 0.8.0 c14) for a change request the build pane opens the ticket 
     hypothesis: the human's own word for word, or its own, marked "(mine)": what the human wants, wide,
     with its premises, and goes on. A hub has a light path: the build pane delivers a
     clear change with no signal with its check, no KB and no review; a signal brings the KB and the
-    review pane; review also comes in when the human asks. Both HUB-CORE.md files name the light
+    review pane; review also comes in when the human asks. hubkit/hub/HUB-CORE.md names the light
     path. The old sentences ("You do not decide what the problem is", "Do not tell the human that
     the work is done until review has reported") are gone.
 c5: (0.8.0, scientific-method-overhaul c15; it replaces the 0.3.0 rule M-A, under which build restated the
@@ -112,7 +112,8 @@ def c3():
     return out
 
 
-HUB_CORES = ("hubkit/hub/HUB-CORE.md", "hubkit/editions/informal/HUB-CORE.md")
+# 0.8.0: only the hub's own file. The informal edition is dropped (scientific-method-overhaul c22).
+HUB_CORES = ("hubkit/hub/HUB-CORE.md",)
 
 
 def bullet(text, rx):

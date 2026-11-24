@@ -109,7 +109,7 @@ For home `prompt`, c4 checks the phrase in `prompt/SAGITTARIUS.md`.
 | `## The light path` | prompt | `say where you looked` | R5: no tests found. |
 | `## The light path` | prompt | `say so under "Not checked"` | R5: no executable check. |
 | `## The light path` | prompt | `passes before and after` | R5: a check that behavior stays the same. |
-| `### The hypothesis` | help discovery | `Collapsed:` | R6: the worked example (too strong, collapsed, weak). |
+| `### The hypothesis` | help discovery | `Not tempered:` | R6: the worked example (too strong, collapsed, weak). |
 | `### Leaning back` | prompt | `it stays until the ticket closes` | R7: the KB stays. |
 | `### Leaning back` | prompt | `Do not drop an open question, a failing check, or a burn` | R7. |
 | `### Leaning back` | prompt | `The next ticket starts light` | R7. |

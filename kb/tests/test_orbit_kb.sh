@@ -2343,7 +2343,7 @@ t_HE2() { local hb hd h0; hb=$(he_text build); hd=$(he_text discovery); okb help
           grep -qF 'you no longer agree with the human on the problem' <<< "$(tr '\n' ' ' <<< "$h0" | tr -s ' ')" && note "the first help screen sends a disagreement on the problem to discovery"
           return 0; }
 t_HE3() { local hd; hd=$(he_text discovery)
-          grep -qF 'two falsifiers' <<< "$hd" || note "help discovery: the hypothesis has two falsifiers"
+          grep -qF 'two levels of judgment' <<< "$hd" || note "help discovery: two levels of judgment (0.8.0, scientific-method-overhaul c10; two falsifiers before)"
           grep -qiF 'the system is the witness' <<< "$hd" && grep -qiF 'the human is the witness' <<< "$hd" || note "help discovery: each falsifier has its witness, the system and the human"
           grep -qF 'Then say that the system can fail to give it' <<< "$hd" && note "help discovery still puts the failure into the hypothesis"
           grep -qF 'decide its points. Some purchases get a different' <<< "$hd" && note "the example hypothesis still holds the finding"

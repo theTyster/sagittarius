@@ -90,35 +90,46 @@ RESTATE: pin the report
   The old one then needs no system result. The new one needs its own.
 
 The hypothesis (the claims, the checks, and the vote rest on it)
+  Since 0.8.0 the statement of the intent is the goal of the ticket, and a hypothesis of the
+  new sense is a claim about an avenue to the goal (the vocabulary is in orbit-kb help core).
+  hypothesis(Id, Kind, Text), the 0.7.2 form that this topic records, holds the goal: read
+  "the hypothesis" below as the statement of the intent.
   It is the statement of the intent: one sentence that says what the human wants,
   what must be true when the ticket is done. Every ticket has one. Discovery exists to form it.
-  - Assume little. Put no cause, mechanism, data shape, or fix in it. Each one adds meaning
-    that the report does not have, and chooses a design before the vote. Do not narrow it to
+  When the human gives a goal and a first hypothesis, record them in the human's words, and
+  sharpen or challenge them at once: name the case that would defeat the hypothesis, or say
+  that you find none. A hypothesis of the new sense names its avenue, with that case beside it.
+  - Assume little. Put no cause, mechanism, data shape, or fix in the goal. Each one adds
+    meaning that the report does not have, and chooses a design before the vote: it is an
+    avenue, and an avenue belongs in a hypothesis of the new sense. Do not narrow it to
     the one example that you reproduced. A cause that you find is a finding. It is not part of
     the hypothesis.
   - Conclude strongly. Say which outcome is wanted, and which facts decide it.
-  - Keep it able to fail. A statement that no result can show false has collapsed: it holds
-    for any result, so it says nothing.
+  - Keep it able to fail. A statement that no single case can show false is not tempered: it
+    holds for any result, so it says nothing.
   - Put its premises beside it, every time: premise(P, H, 'TEXT'), or no_premises(H). Keep a
     premise only when the report gives it, or when the sentence is false without it. Check
     each premise on the system: premise_checked(P, 'WHERE').
   - Write it wide. Where the report leaves a choice open, write your default into the
     sentence, where the human can see it. For the scope, the default is the widest reading.
-  - Remove words. Stop when the next removal makes it collapse or changes its meaning.
+  - Remove words. Stop when the next removal empties it or changes its meaning.
   An example of the meaning, not a template. The report: "members got the wrong loyalty points".
   - Too strong: "The tier is read from a cache that loads once." It names a cause.
-  - Collapsed: "Points depend on something other than the purchase." No result falsifies it.
+  - Not tempered: "Points depend on something other than the purchase." No case shows it false.
   - Fit: "The amount of a purchase and the member's tier on that day decide its points."
     Premise: the points table did not change in that time.
   The report says one thing more: "some purchases get a different number today". That is a
   finding about the system, and the reproduction tests it. Keep it apart from the hypothesis
   (finding(F, surprise('CASE'), system)). After the build the finding is false, and the
   hypothesis still stands.
-  A hypothesis has two falsifiers, and each has its own witness.
+  There are two levels of judgment, and each has its own witness.
   - The system is the witness of one: a result that the system shows, such as a purchase
     whose points differ from what its amount and tier give. Before the build, that result is
-    the reproduction. After the build, it is a failing check.
-  - The human is the witness of the other: a concrete case that the human judges. Show a case
+    the reproduction. After the build, it is a verdict on a claim: meets, conflicts, or
+    unresolved. A conflict is located (the build, the measurement, a premise, or the
+    hypothesis) before anything is reopened.
+  - The human is the witness of the other: a concrete case that the human judges. Only the
+    human judges the goal. Show a case
     just inside or just outside the edge of the hypothesis, and ask: "is this case what you
     want?"
   A wide hypothesis usually takes more work to confirm or falsify, because one example does
