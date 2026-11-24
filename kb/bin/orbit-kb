@@ -10831,13 +10831,29 @@ e19_rule_diags(Ds, Diags) :-
     sort(Ds0, Diags).
 
 % edit_distance_at_most(+A, +B, +Max, -D) (D22): the Levenshtein distance D
-% of the names A and B (over their characters) is at most Max.
+% of the names A and B (over their characters) is at most Max. The lengths are compared before
+% the codes are made: most pairs differ by more than Max in length (the load cost, 0.8.0).
 edit_distance_at_most(A, B, Max, D) :-
-    atom_codes(A, As), atom_codes(B, Bs),
-    length(As, LA), length(Bs, LB),
+    atom_length(A, LA), atom_length(B, LB),
     abs(LA - LB) =< Max,
-    levenshtein(As, Bs, D),
+    atom_codes(A, As), atom_codes(B, Bs),
+    levenshtein_max(As, Bs, Max, D),
     D =< Max.
+
+% levenshtein_max(+As, +Bs, +Max, -D): levenshtein/3, but it fails as soon as every cell of a row
+% is above Max. The least cell of a row never gets smaller in the rows below it, so D would be
+% above Max too. The typo guard compares each new name with every declared name.
+levenshtein_max(As, Bs, Max, D) :-
+    length(Bs, LB),
+    numlist(0, LB, Row0),
+    lev_rows(As, Bs, Max, Row0, 0, Row),
+    last(Row, D).
+
+lev_rows([], _, _, Row, _, Row).
+lev_rows([A|As], Bs, Max, Prev, I0, Row) :-
+    lev_step(Bs, A, Prev-I0, Cur-I),
+    min_list(Cur, Min), Min =< Max,
+    lev_rows(As, Bs, Max, Cur, I, Row).
 
 levenshtein(As, Bs, D) :-
     length(Bs, LB),
