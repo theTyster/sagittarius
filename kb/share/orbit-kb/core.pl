@@ -591,7 +591,10 @@ superseded(C) :- supersedes(_, C).
 % 0.8.0 (D51, c37, c38): a claim is current when no claim replaces it, and it is a claim of the
 % goal (no predicts fact) or a current hypothesis predicts it. In a KB with no predicts fact
 % (each KB of 0.7.2) this is the rule of 0.7.2.
-current(C) :- claim(C, _, _), not superseded(C), claim_of_goal(C).
+% 0.8.0 (D61, c42): after a change of the goal, a claim of the goal that stands before the new goal
+% in kb.pl is current only when a record carries it over (carried/2).
+current(C) :- claim(C, _, _), not superseded(C), claim_of_goal(C), not claim_not_carried(C).
+claim_not_carried(C) :- claim(C, _, _), before_goal(C, G), goal_current(G), not carried(C, G).
 current(C) :- claim(C, _, _), not superseded(C), claim_under_current(C).
 answered(Q) :- answer(Q, _, human).
 answered(Q) :- answer(Q, _, human:_).
@@ -799,6 +802,12 @@ decl(rule, unresolved_after(ref(check), int),
 decl(rule, record_line(ref, int),
      'The line of kb.pl that holds the record (an attestation, a change, a goal). orbit-kb computes it when it reads the KB. A record on a higher line was written later.',
      'record @(1) is on line @(2) of kb.pl').
+decl(rule, before_goal(ref, ref),
+     'The record (a hypothesis, a claim, or a run) stands before the fact of the goal in kb.pl, and the goal replaces an older goal. orbit-kb computes it when it reads the KB.',
+     '@(1) was recorded before goal @(2) replaced the older goal').
+decl(rule, claim_not_carried(ref(claim)),
+     'The claim stands before the current goal in kb.pl, the goal replaced an older goal, and no carried fact carries the claim over. It is not current.',
+     'claim @(1) is not carried over to the current goal').
 decl(rule, later_run(ref(check), int),
      'The check has a run with a higher number than the given run.',
      'check @(1) has a run after run @(2)').
