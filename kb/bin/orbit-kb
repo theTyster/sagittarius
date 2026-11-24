@@ -2190,7 +2190,8 @@ project_kb_facts_(Dir, P, Facts) :-
     % D67 (c17, c42): the goals of the project KB, and the ones that their owner dropped.
     findall(project_goal(PG), ( kb_term(PItems, goal(PG, _, _, _)), atom(PG) ), FG0), sort(FG0, FG),
     findall(project_goal_dropped(PG), ( kb_term(PItems, dropped(PG, _, _, _)), atom(PG) ), FD0), sort(FD0, FD),
-    append([F1, F3, FC, FR, FG, FD], Facts).
+    findall(project_goal_dropped_by(PG, By, At, Tx), ( kb_term(PItems, dropped(PG, By, At, Tx)), atom(PG) ), FB0), sort(FB0, FB),
+    append([F1, F3, FC, FR, FG, FD, FB], Facts).
 
 % The project KB does not load clean: lint finds an error in it (D23).
 project_unclean(PKB) :-
@@ -11105,7 +11106,24 @@ stage2_notes(KB, Eng, Lines) :-
         findall(L, ( member(X, TD), fmt(L, "- For discovery: ~w goes back to discovery, through review.", [X]) ), L2),
         eng_all(Eng, [X], ( not_carried(X), not(not_carried_run(X)) ), NC0), sort(NC0, NC),
         findall(L, ( member(X, NC), fmt(L, "- Not carried over: ~w is of an older goal, and no record carries it over (carried/2). It does not count for the current goal.", [X]) ), L3),
-        append([L1, L2, L3], Lines)
+        append([L1, L2, L3], Lines0)
+    ;   Lines0 = []
+    ),
+    dropped_goal_notes(KB, Eng, L4),
+    append(Lines0, L4, Lines).
+
+% dropped_goal_notes(+KB, +Eng, -Lines) (D67; c17, c42): one line for each goal of the KB that
+% supports a project goal that its owner dropped. It blocks nothing and closes nothing.
+dropped_goal_notes(KB, Eng, Lines) :-
+    (   kb_uses(KB, Us), memberchk(project, Us)
+    ->  eng_all(Eng, [G, PG], goal_rests_on_dropped(G, PG), GP0), sort(GP0, GP),
+        findall(L, ( member([G, PG], GP),
+                     (   eng_all(Eng, [By, At, Tx], project_goal_dropped_by(PG, By, At, Tx), [[By1, At1, Tx1]|_])
+                     ->  txt(Tx1, TT),
+                         fmt(L, "- rests on a dropped goal ~w: project goal ~w was dropped by ~w at ~w: ~w. Nothing is closed.", [G, PG, By1, At1, TT])
+                     ;   fmt(L, "- rests on a dropped goal ~w: project goal ~w was dropped. Nothing is closed.", [G, PG])
+                     ) ),
+                Lines)
     ;   Lines = []
     ).
 
@@ -12317,7 +12335,8 @@ door_s1_ticket(Dir, GoalJ, HypJ, QJ, Sent) :-
     ;   door_s1_ticket_(Dir, GoalJ, HypJ, QJ, Sent)
     ).
 
-door_stat(F, S) :- ( exists_file(F) -> size_file(F, Sz), time_file(F, T), S = f(Sz, T) ; S = none ).
+% The time is kept as whole microseconds: a float does not always come back equal from the file.
+door_stat(F, S) :- ( exists_file(F) -> size_file(F, Sz), time_file(F, T0), T is round(T0 * 1000000), S = f(Sz, T) ; S = none ).
 
 door_s1_cache_file(Dir, File, stamp(K, R, Sc, Co, V)) :-
     \+ ( getenv('ORBIT_KB_NO_CACHE', NC), NC \== '', NC \== '0' ),
@@ -13502,6 +13521,12 @@ report_text(KB, Eng) :-
     (   call(Build), eng_all(Eng, [TDX], to_discovery(TDX), TDs0), sort(TDs0, TDs), TDs \== []
     ->  rhead('For discovery'),
         forall(member(TDX, TDs), rsay(item(TDX), "~w goes back to discovery, through review.", [TDX]))
+    ;   true
+    ),
+    % D67 (c17, c42): a goal that rests on a dropped project goal. It blocks nothing.
+    (   dropped_goal_notes(KB, Eng, DGNs), DGNs \== []
+    ->  rhead('Dropped project goal'),
+        forall(member(DGN, DGNs), ( sub_string(DGN, 2, _, 0, DGT), rsay(none, "~w", [DGT]) ))
     ;   true
     ),
     rhead('To land'),

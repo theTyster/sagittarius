@@ -118,6 +118,9 @@ decl(rule, project_rests_on(atom, atom),
 decl(rule, project_goal(atom),
      'A goal of the project KB at project_kb/1. orbit-kb computes it when it reads the KB.',
      '@(1) is a goal of the project KB').
+decl(rule, project_goal_dropped_by(atom, term, term, term),
+     'Who dropped the goal of the project KB at project_kb/1, when, and in which words. orbit-kb computes it when it reads the KB.',
+     'the project goal @(1) was dropped by @(2) at @(3): @(4)').
 decl(rule, project_goal_dropped(atom),
      'The owner dropped the goal of the project KB at project_kb/1. orbit-kb computes it when it reads the KB.',
      'the project goal @(1) is dropped').

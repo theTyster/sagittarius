@@ -298,6 +298,7 @@ signature(project_contradiction/2).
 signature(project_decision_digest/2).
 signature(project_goal/1).
 signature(project_goal_dropped/1).
+signature(project_goal_dropped_by/4).
 signature(project_kb/1).
 signature(project_kb_unclean/0).
 signature(project_pinned/1).

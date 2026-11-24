@@ -314,7 +314,14 @@ t_DG1() {   # c42, c17: drop a project goal
     out_has '^  - the goal g1 of ticket alpha rested on it$'; out_has '^  - the open item H-0001 rested on it$'
     orb hub ledger view open; [ "$(printf '%s\n' "$out" | grep -c '^| [A-Z]-')" = 4 ] || note "nothing is closed: want 4 open items"
     okb --dir "$H/specs/alpha" query "goal_rests_on_dropped(G, PG)"; rc_is 0 "the spec KB names the dropped goal"; out_has '^G = g1, PG = pg1$'
-    okb --dir "$H/specs/alpha" query "blocking(X)" -n 0; out_hasnt 'dropped' "a dropped goal blocks nothing"
+    okb --dir "$H/specs/alpha" query "blocking(X)" -n 0; out_hasnt 'dropped' "a dropped goal blocks nothing"; local b1=$out
+    okb --dir "$H/specs/alpha" show open; rc_is 0; out_has '^- rests on a dropped goal g1: project goal pg1 was dropped by human at 20[0-9T:Z-]+: Ty: we stop this\. Nothing is closed\.$' "show open names the dropped goal"
+    okb --dir "$H/specs/alpha" show blocking; out_hasnt 'pg1' "the line is outside the blocking items"
+    okb --dir "$H/specs/alpha" report; rc_is 0; out_has 'rests on a dropped goal g1: project goal pg1' "report names the dropped goal"
+    cp -r "$FIX/hub/specs/alpha" "$T/before"; mkdir "$T/pk"; cp "$FIX/hub/project-kb/kb.pl" "$T/pk/kb.pl"
+    sed -i "s#project_kb('../../project-kb')#project_kb('$T/pk')#" "$T/before/kb.pl"
+    run_in "$T" "$OKB" --dir "$T/before" query "blocking(X)" -n 0; [ "$out" = "$b1" ] || note "blocking(X) changed with the drop (before: $(snip "$out") | after: $(snip "$b1"))"
+    run_in "$T" "$OKB" --dir "$T/before" show open; out_hasnt 'dropped goal' "no line before the drop"
 }
 t_DG2() {   # a supports to a project goal that does not exist is a lint finding
     mkhub || return
