@@ -338,13 +338,15 @@ def pr():
         s, c = flat(parts[sl[0]]), cites[sl[0]]
         check("pr Start light cites The light path and Signals", "The light path" in c and "Signals" in c, c)
         for w, what in (("question", "questions"), ("disagree", "a divergence"), ("someone else built", "a build by someone else"),
-                        ("needs a proof", "a claim that burns (in words without the KB term burn, which check_informal_release c3 bans)"), ("changes hands", "a handoff"), ("careful message", "effort")):
+                        ("needs a proof", "a claim that burns (in words without the KB term burn, which check_kit_release c3 bans)"), ("changes hands", "a handoff"), ("careful message", "effort")):
             check(f"pr Start light names the signal {what}", w in s, s[:300])
     for k, v in parts.items():
         if "only the work that the request needs" in flat(v):
             check(f"pr the part '{k}' cites The orbit for 'only the work that the request needs'", "The orbit" in cites[k], cites[k])
     check("pr PRINCIPLES.md does not say 'not logs' (the prompt does not)", "not logs" not in flat(t))
-    check("pr PRINCIPLES.md stays short (60 lines or fewer)", len(t.splitlines()) <= 60, len(t.splitlines()))
+    # scientific-method-overhaul c10, c12, c16: 70 lines outside the generated vocabulary block (it was 60 in all)
+    n = len(t.splitlines()) - sum(b.count("\n") for b in re.findall(r"<!-- vocabulary:begin -->.*?<!-- vocabulary:end -->\n?", t, re.S))
+    check("pr PRINCIPLES.md stays short (70 lines or fewer outside the vocabulary block)", n <= 70, n)
 
 
 CLAIMS = {k: globals()[k] for k in ("mb1", "mb2", "mb3", "mb4", "mb5", "mb6", "mf1", "mf4", "mg", "mg2", "u1", "u2", "u3", "u4", "u6", "pr")}

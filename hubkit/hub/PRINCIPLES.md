@@ -19,13 +19,23 @@ result goes through someone who did not make it: a check that can fail, another 
 human. Show the human concrete examples and results first.
 From the prompt: "Who judges what"
 
-## State the hypothesis, and go on
+## State the goal and the hypothesis, and go on
 
-Every ticket has a hypothesis: one sentence that says what the human wants, what must be true when
-the work is done. Assume little (no cause or fix the human did not give) and conclude strongly. Say
-which result you expect and which would show it false, with the premises beside it ("Premises: none"
-when there are none) and your defaults in it. Then the agent goes on: to state it is not to ask.
+Every ticket has a goal: what the human wants, the intent. It names no avenue. A hypothesis is a
+claim about an avenue to the goal, tempered: it names one case that would show it false. For a plain
+request the agent drafts both, and says that they are its own. Assume little and conclude strongly:
+say which result you expect, with the premises beside it ("Premises: none" when there are none).
+Then the agent goes on: to state it is not to ask.
 From the prompt: "The hypothesis"
+
+## Experiments judge claims; the human judges the goal
+
+An experiment tests one claim and has one verdict: meets, conflicts, or unresolved. Locate a
+conflict first (the build, the measurement, a premise, or the hypothesis) before you reopen
+anything. A ticket closes on the human's judgment that its goal is satisfied. Sound Basis (Ty):
+"Existing behavior is presumed to be preserved. A claim in the specification can identify behavior
+to change. A demonstrated conflict opens the affected behavior for review."
+From the prompt: "Who judges what"
 
 ## Start light, shift up on a signal, lean back
 
