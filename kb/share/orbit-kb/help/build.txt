@@ -221,3 +221,69 @@ A result from CI or the tracker (pin it in the spec; the spec does not own it)
 Verdicts for disproof (orbit-kb help core): upheld(Text), refuted(Text), inconclusive(Text),
 abstained(Text). Name the runs with --rests-on.
 Do not weaken a claim to absorb a counterexample. Record it, and ask the human.
+
+EXPERIMENTS AND VERDICTS (0.8.0)
+An experiment is one test of one claim, and it has exactly one verdict: meets, conflicts, or
+unresolved. orbit-kb query 'experiment(E, Kind, C)' and 'verdict(E, V)' give it for a test run,
+a counted model result, a Lean proof, the approval of a demo, and a judgment of the human.
+  orbit-kb run K [--timeout SECS] [--expect sat|unsat] -- CMD ...
+      exit 0: pass (meets). Another exit: fail (conflicts). Unresolved, with exit 1 and the line
+      "run N K unresolved (exit E) log=...": exit 77 (the check could not decide), a kill by a
+      signal (also exit 137, 143), a run over --timeout, and with --expect a solver that answers
+      unknown or timeout. run writes unresolved_because(A, Text). Nobody types a result.
+  procedure(K, Text)                 how the experiment is carried out (else: the command of the run)
+  measurement_premise(MP, K, Text)   a premise of the measurement, such as the error of the clock
+  known_when(K, Text)                what was known when the claim and the rule were chosen
+  orbit-kb attest measurement MP "false('why')"    the premise was found false: each earlier run of
+                                     K gets the verdict unresolved, and K owes a new run
+  orbit-kb show experiments [ID]     the claim, the procedure, the measurement premises, what was
+                                     known, the observation and the verdict of each experiment
+  orbit-kb show stale                each last run that is older than a change that serves its claim
+An unresolved verdict fulfils nothing and defeats nothing: blocking(check_unresolved(K)), not
+check_failing(K). A verdict counts only for the state that it observed: after a later change that
+serves the claim (change_at), the claim is not fulfilled until the check runs again:
+blocking(verdict_stale(K)). A change with no change time makes no run stale.
+
+THE LOCATION OF A CONFLICT (0.8.0)
+A conflicting last run of a check of a current claim needs a location before anything is reopened:
+blocking(conflict_unlocated(A)). The red run of an introduce or a retire claim before any change
+that serves the claim is the control (control(A)): it needs no location.
+  orbit-kb locate RUN build|measurement|premise:P|hypothesis:H|claim:C --evidence TEXT
+  orbit-kb confirm LOCATION --note TEXT --as ROLE      (or --by human)
+  build         it stays with build; the hypothesis stays current; nothing goes to discovery.
+  measurement, premise, hypothesis, claim: blocking(location_unconfirmed(L)) until a pane that
+                did not build confirms it (its role and its session both differ from the actor
+                of every change of the KB), or the human does.
+  measurement, confirmed: the verdict of the run is unresolved, and the check owes a new run.
+  premise or hypothesis, confirmed: the hypothesis is defeated; to_discovery(H) lists it.
+  claim (a ticket with no hypothesis), confirmed: to_discovery(C); the goal is not defeated.
+
+THE JUDGMENT OF THE HUMAN (0.8.0)
+Only the human judges (--by human). A judgment changes the verdict of no experiment.
+  orbit-kb judge G satisfied|not-satisfied --by human [--note 'the words']
+  orbit-kb judge G case 'TEXT' wanted|not-wanted --by human
+  orbit-kb judge S accepts C --by human       the formal statement S says what claim C means
+A ticket is done when nothing holds it up and the latest judgment of its goal says satisfied:
+blocking(goal_unjudged(G)). A case that the human judged not wanted is recorded against the
+hypothesis that allowed it: orbit-kb add 'case_against(J, H)' defeats H. With a current hypothesis
+and no case_against: blocking(case_unplaced(J)); the case goes to discovery. A waiver works as
+before: a waived check covers its claim until the due time. formal_statement(S, C) and
+could_change(S, Text) describe a formal statement (lint W18); report lists each one that the human
+has not accepted.
+
+SOUND BASIS, AND A CHANGE OF THE GOAL (0.8.0)
+over(X): Conflict (Sound Basis): change X serves no claim. Its behavior is open for review.
+behavior_conflict(B, Text): a behavior that no claim names changed or broke. Do not edit the old
+test: record the conflict. blocking(behavior_open(B)) until a current claim names it
+(names(C, B)) or a human waives it.
+When a goal/4 fact replaces a goal (supersedes(G1, G0)), each hypothesis, claim and run that stands
+before it in kb.pl counts for G1 only with carried(X, G1) (a carried hypothesis brings its claims; a
+run never comes along by itself). not_carried(X) lists the rest; blocking(not_carried(A)) names a
+run that its claim needs.
+
+DONE BEFORE THE UPGRADE (0.8.0)
+A KB that a version before 0.8.0 made, and that was done by the rules of 0.7.2, stays done. The
+first write of this version records upgraded(V, Time), and done_before_upgrade(V, Time) when it was
+done. In such a ticket the judgment of the goal is not asked for, and a verdict is stale only by
+a change after the upgrade; show open and show stale list "stale (done before the upgrade)". An
+open KB from before the upgrade gets the new rules at once.

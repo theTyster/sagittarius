@@ -961,3 +961,108 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
   (`goal_unsupported`: a current goal with no `supports` fact) and W16 report only then. A KB of an older
   version, or with no such line, gets neither.
 
+## D55: a run has three results; one view of every experiment (claims c6, c7, c25)
+
+- `attest(A, test_result, K, result(K, N, R), script, T)`: R is `pass`, `fail` or `unresolved`.
+  `orbit-kb run K [--timeout SECS] [--expect sat|unsat] -- CMD` decides R: exit 0 is pass; exit 77,
+  a kill by a signal (also exit 137 and 143) and a run over `--timeout` are unresolved; with
+  `--expect`, the first output line that is `sat`, `unsat`, `unknown` or `timeout` decides (the
+  expected answer: pass; the other decided answer: fail; `unknown`, `timeout`, or no such line
+  with exit 0: unresolved); any other exit is fail.
+- An unresolved run prints `run N K unresolved (exit E) log=PATH`, then one line `Unresolved: ...`,
+  and exits 1. run writes `unresolved_because(A, Text)`. The lines and exit codes of pass and fail
+  are those of 0.7.2.
+- `passed(K)`: a pass with no later fail and no later unresolved run.
+- `experiment(E, Kind, C)`, Kind `test | model | proof | demo | judgment`, and `verdict(E, V)`, V
+  `meets | conflicts | unresolved`: exactly one verdict for each experiment (the definition
+  `Warrants` of ScientificMethod.lean). `latest_run(K, A)`: the run with the highest number.
+- `procedure/2`, `measurement_premise/3`, `known_when/2` describe an experiment.
+  `orbit-kb show experiments [ID]` prints the claim, the procedure, the measurement premises,
+  known-when, the observation and the verdict. ID is an experiment, a claim, or a check.
+- Lint W17: a check of a current claim with no `procedure` fact and no run.
+
+## D56: a verdict counts for the state that it observed (claim c39)
+
+- `verdict_stale(A, C)`: a change X with `serves(X, C)` and a `change_at` was recorded after run
+  A of a check of C: at a later time, or at the same time on a later line of kb.pl. A change with
+  no change time makes no run stale.
+- `attest measurement MP "false(Text)"` (human, agent): each run of the check of MP that stands
+  before it in kb.pl gets the verdict unresolved.
+- `counts(A, C)`: A is the latest run of a check of C, its verdict is meets, it is not stale
+  (`stale_counts/2`), and it is carried over when the goal changed.
+- `orbit-kb show stale` lists each stale last run.
+
+## D57: fulfilled, blocking, done, and the grandfather rule (claims c7, c20, c39, c41; q27)
+
+- `fulfilled(C)`: preserve: some `counts(A, C)`. introduce, retire: a `counts(A, C)` on a check
+  with `was_red(K)`. Not `refuted(C)`.
+- New terms of `blocking/1`: `check_unresolved(K)` (in place of `check_failing(K)` when the latest
+  verdict is unresolved), `verdict_stale(K)`, `conflict_unlocated(A)`, `location_unconfirmed(L)`,
+  `case_unplaced(J)`, `goal_unjudged(G)`, `behavior_open(B)`, `not_carried(A)`. Each term of 0.7.2
+  keeps its name. `show open`, `show blocking` and `report` print one line for each.
+- `done`: the conditions of 0.7.2 with the new `fulfilled/1`, and none of the new terms.
+- The rules of 0.7.2 stay under the names `*_072` (`done_072`, `fulfilled_072`, ...).
+- `kb_before_upgrade` (computed): the newest `% Made by orbit-kb V.` line is below 0.8.0, or there
+  is none, and kb.pl holds no `upgraded/2` fact. In such a KB `done` holds when `done_072` holds:
+  a ticket that was done stays done with no write, and nothing blocks it.
+- The first write of 0.8.0 or later to such a KB appends `upgraded(V, Time)` first, and
+  `done_before_upgrade(V, Time)` when `done_072` held (and a `% Made by` line when the tool itself
+  is 0.8.0 or later). A rejected write records nothing.
+- While `done_before_upgrade` holds: `goal_unjudged` never blocks; a run is stale only by a change
+  recorded at or after the upgrade time; a conflict recorded before the upgrade needs no location;
+  `show open` and `show stale` list `stale (done before the upgrade): ...`.
+- An open KB from before the upgrade gets the new rules at once and keeps each blocking term.
+- `kb/tests/compare_hub_kbs.sh OLD_TOOL NEW_TOOL SPECS_DIR` checks the rule on copies of real KBs.
+
+## D58: the location of a conflict (claims c9, c40)
+
+- `conflict_open(A)`: A is the latest run of its check, the verdict is conflicts, the claim is
+  current, A is no `control(A)`, and no location is recorded. `control(A)`: a conflicting run of a
+  check of an introduce or retire claim with no serving change recorded before it.
+- `attest location RUN "located(Where, Evidence)"`, Where `build | measurement | premise(P) |
+  hypothesis(H) | claim(C)`; `attest confirmation LOC "confirms(Text)"`. Sugar:
+  `orbit-kb locate RUN build|measurement|premise:P|hypothesis:H|claim:C --evidence TEXT`,
+  `orbit-kb confirm LOC --note TEXT`.
+- `location_confirmed(L)`: a confirmation by the human, or by an actor whose role and session both
+  differ from the actor of every change of the KB (a change with no actor: not confirmed).
+- A location outside the build of the latest run blocks (`location_unconfirmed(L)`) until confirmed.
+  Confirmed: measurement: the run is unresolved; hypothesis(H) or a premise of H:
+  `hypothesis_defeated(H)`, `to_discovery(H)`; claim(C): `to_discovery(C)`, and no goal is defeated.
+
+## D59: the judgment of the human (claims c10, c41)
+
+- `attest judgment` (human only): `case(Text, wanted|not_wanted)`, `satisfied`, `not_satisfied` on
+  the goal; `accepts(C)` on a formal statement. Sugar: `orbit-kb judge ... --by human`.
+- `goal_satisfied(G)`: the latest of the judgments satisfied, not_satisfied and a not-wanted case
+  on G is satisfied. `blocking(goal_unjudged(G))`: G is current and not `goal_satisfied(G)`.
+- `case_against(J, H)`: `hypothesis_defeated(H)`. A not-wanted case with no `case_against`, on a
+  goal with a current hypothesis: `blocking(case_unplaced(J))`; `to_discovery(J)` lists it.
+- A judgment changes no verdict. A waiver works as at 0.7.2.
+- `formal_statement(S, C)`, `could_change(S, Text)`; `encodes(M, C)` counts as a formal statement.
+  Lint W18 (a KB made by 0.8.0 or later): no `could_change`, or no claim. `report` lists each
+  statement with no `accepts` judgment under "Formal: not yet accepted by the human".
+
+## D60: Sound Basis (claim c16)
+
+- `over(X)` keeps its name; its line reads "Conflict (Sound Basis): change X serves no claim. Its
+  behavior is open for review."
+- `behavior_conflict(B, Text)`, `names(C, B)`: `blocking(behavior_open(B))` until a current claim
+  names B or a human waives B (`waive(B, Due, Reason)`).
+
+## D61: a change of the ticket goal (claim c42)
+
+- `before_goal(X, G1)` (computed): G1 is a `goal/4` fact of kb.pl with `supersedes(G1, G0)`, and X
+  is a `hypothesis/4`, a claim or a run that stands before the fact of G1. A restated
+  `hypothesis/3` (the 0.7.2 form) gives none.
+- `not_carried(X)`: `before_goal(X, G)` for the current goal with no `carried(X, G)` (a carried
+  hypothesis brings its claims). A run that is not carried does not count;
+  `blocking(not_carried(A))` when its claim is current and not fulfilled.
+
+## D62: the report (claims c7, c39, c10)
+
+- Claims: `Status: fulfilled.`, `Status: conflicts.`, `Status: unresolved.` (with the reason),
+  `Status: stale.`, `Status: not fulfilled.` (a waiver), or `Status: under.` A check whose last
+  verdict is unresolved is printed as `unresolved`, never as not passed.
+- The sections "Formal: not yet accepted by the human" and "For discovery" appear when they have
+  an item.
+
