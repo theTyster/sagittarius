@@ -1,4 +1,4 @@
-% The signature of orbit-kb 0.6.0: each predicate that core.pl and the modules declare.
+% The signature of orbit-kb 0.7.2: each predicate that core.pl and the modules declare.
 % Made by orbit-kb signature --write. Do not edit it by hand; lint reads no list of retired predicates.
 signature(about_system/1).
 signature(ac/1).
@@ -12,6 +12,7 @@ signature(answer_pin/4).
 signature(answered/1).
 signature(any_burn_open/0).
 signature(any_current_claim/0).
+signature(any_current_hypothesis/0).
 signature(any_flare_open/0).
 signature(any_over/0).
 signature(any_project_conflict/0).
@@ -24,6 +25,7 @@ signature(artifact_vote/1).
 signature(assumed/2).
 signature(assumption/2).
 signature(attest/6).
+signature(behavior_conflict/2).
 signature(blocking/1).
 signature(both_changed/2).
 signature(budget/2).
@@ -39,6 +41,8 @@ signature(burn_proved/1).
 signature(burn_reason/1).
 signature(burn_requested/1).
 signature(burn_waived/1).
+signature(carried/2).
+signature(case_against/2).
 signature(change/2).
 signature(change_at/2).
 signature(change_dated/1).
@@ -49,7 +53,11 @@ signature(checks_that/2).
 signature(cites/2).
 signature(claim/3).
 signature(claim_change/2).
+signature(claim_of_goal/1).
+signature(claim_predicted/1).
 signature(claim_served/1).
+signature(claim_under_current/1).
+signature(claim_unplaced/1).
 signature(concerns/2).
 signature(concerns_fresh/2).
 signature(conformance/1).
@@ -57,12 +65,15 @@ signature(conforms/1).
 signature(contested/1).
 signature(contested_twice/1).
 signature(contradiction/2).
+signature(could_change/2).
 signature(current/1).
 signature(current_fact/1).
 signature(decided_by/3).
 signature(decision/2).
 signature(decision_digest/2).
+signature(defeat/3).
 signature(defeated/1).
+signature(defeating_case/3).
 signature(definition/2).
 signature(demo/2).
 signature(demo_changed/1).
@@ -101,6 +112,7 @@ signature(discovery_unratified/1).
 signature(discovery_vote_raised/1).
 signature(discovery_vote_twin/1).
 signature(done/0).
+signature(done_before_upgrade/2).
 signature(draft/4).
 signature(dropped/2).
 signature(due/2).
@@ -117,10 +129,15 @@ signature(flare/1).
 signature(flare_open/1).
 signature(flare_shown/1).
 signature(flare_waived/1).
+signature(formal_statement/2).
 signature(fulfilled/1).
 signature(gate/1).
 signature(gate_allowed/1).
 signature(gate_split/0).
+signature(goal/4).
+signature(goal_current/1).
+signature(goal_supported/1).
+signature(goal_unsupported/1).
 signature(has_actor/1).
 signature(has_claim_change/1).
 signature(has_falsifier/1).
@@ -128,9 +145,22 @@ signature(has_question/1).
 signature(human_ratified/1).
 signature(human_vote/1).
 signature(hypothesis/3).
+signature(hypothesis/4).
+signature(hypothesis_adopted/1).
+signature(hypothesis_agent_written/1).
+signature(hypothesis_current/1).
+signature(hypothesis_defeated/1).
+signature(hypothesis_goal_current/1).
+signature(hypothesis_guess/1).
+signature(hypothesis_human_written/1).
+signature(hypothesis_out/1).
+signature(hypothesis_retired/1).
+signature(hypothesis_state/2).
+signature(hypothesis_superseded/1).
 signature(impact/2).
 signature(independently_verified/1).
 signature(item_open/1).
+signature(known_when/2).
 signature(lap_done/1).
 signature(last_change/2).
 signature(later_change/2).
@@ -138,6 +168,8 @@ signature(later_verdict/1).
 signature(lean_back/2).
 signature(lint_issue/3).
 signature(lost_by_date/2).
+signature(made_by_new/0).
+signature(measurement_premise/3).
 signature(migration_added/3).
 signature(migration_question/1).
 signature(model/2).
@@ -170,11 +202,13 @@ signature(model_trusted/1).
 signature(model_unfiled_break/1).
 signature(model_vacuous/1).
 signature(model_verdict/4).
+signature(names/2).
 signature(needs_question/1).
 signature(no_current_claim/0).
 signature(no_falsifier/1).
 signature(no_premises/1).
 signature(not_explored/1).
+signature(not_tempered/1).
 signature(note/2).
 signature(option/3).
 signature(outbound/1).
@@ -184,11 +218,13 @@ signature(pin/5).
 signature(pin_concerned/1).
 signature(pin_renewed/1).
 signature(pins/4).
+signature(predicts/2).
 signature(premise/3).
 signature(premise_checked/2).
 signature(premise_unchecked/1).
 signature(premise_was_checked/1).
 signature(premises_stated/1).
+signature(procedure/2).
 signature(project_contradiction/2).
 signature(project_decision_digest/2).
 signature(project_kb/1).
@@ -209,6 +245,8 @@ signature(ratified_by/3).
 signature(ready_blocker/1).
 signature(reason/2).
 signature(reason/3).
+signature(record_step/2).
+signature(record_up/2).
 signature(refuted/1).
 signature(relation_by/3).
 signature(relation_ratified/1).
@@ -218,8 +256,10 @@ signature(request_accepted/3).
 signature(request_pin/4).
 signature(request_stale/1).
 signature(resolved/3).
+signature(rests_above/2).
 signature(rests_on/2).
 signature(rests_on_run/2).
+signature(rests_up/2).
 signature(retired/3).
 signature(review_due/0).
 signature(review_saw/3).
@@ -253,6 +293,9 @@ signature(superseded/1).
 signature(supersedes/2).
 signature(supersedes_by_date/2).
 signature(supersedes_closure/2).
+signature(supports/2).
+signature(supports_closure/2).
+signature(tempered/1).
 signature(ticket/1).
 signature(to_ask/1).
 signature(touched_system/0).
@@ -262,6 +305,9 @@ signature(unasked_finding/1).
 signature(undated_change/1).
 signature(under/1).
 signature(universal/1).
+signature(unresolved_because/2).
+signature(untempered/3).
+signature(upgraded/2).
 signature(verdict_fresh_run/2).
 signature(verdict_not_independent/2).
 signature(verification_recorded/0).
