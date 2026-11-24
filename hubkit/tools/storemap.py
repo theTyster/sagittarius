@@ -24,11 +24,11 @@ END = "<!-- store-map:end -->"
 # store -> (where it lives in the hub, the command or help topic that uses it)
 HOME = {
     "spec": ("`specs/<slug>/` at the hub root, one per ticket",
-             "`.claude/orbit-kb/bin/orbit-kb help core`, `.claude/orbit-kb/bin/orbit-kb help build`; `hubflow.py where <slug>`"),
+             "`.claude/orbit-kb/bin/orbit-kb help core`, `.claude/orbit-kb/bin/orbit-kb help build`; `hubflow.py where <slug>`; `.claude/orbit-kb/bin/orbit hub query` reads every store"),
     "project": ("the project KB, a directory of its own that the hub's `CLAUDE.md` names",
                 "`.claude/orbit-kb/bin/orbit-kb help project`; `.claude/orbit-kb/bin/orbit-kb pin-item`"),
     "ledger": ("`flow/flow.db`, with its JSONL in `flow/jsonl/`",
-               "`hubflow.py`; skill `hub-flow`"),
+               "`.claude/orbit-kb/bin/orbit hub ledger` (the door) or `hubflow.py`, the same commands; skill `hub-flow`"),
     "memory": ("the root files `CLAUDE.md`, `HUB-CORE.md`, `HEURISTICS.md`, `TECHNOLOGIES.md`",
                "read at boot; promote into them at rotation (skill `hub-rotate`)"),
     "weeks": ("`W0/` to `W5/`: `reports/`, `transcripts/`, `outbound-staging/`",
