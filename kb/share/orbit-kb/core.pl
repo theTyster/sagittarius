@@ -101,6 +101,9 @@ decl(fact, predicts(ref(hypothesis), ref(claim)),
 decl(fact, defeat(id, ref(hypothesis), text),
      'A case defeated the hypothesis. The case stays on the version of the hypothesis that it defeated.',
      'case @(1) defeated hypothesis @(2): @(3)').
+decl(fact, adoption_cited(ref(hypothesis), text),
+     'The ticket marks the hypothesis as adopted by the human, and cites the words of the human. It is the reading of the writer: alone it adopts nothing. A human adoption, or a human GO vote that comes after it in kb.pl, adopts the hypothesis.',
+     'the ticket cites the adoption of hypothesis @(1) by the human: @(2)').
 decl(fact, carried(ref, ref(goal)),
      'A record of an older goal (a hypothesis, a claim, or a run attestation) is carried over to the goal that replaced it.',
      '@(1) is carried over to goal @(2)').

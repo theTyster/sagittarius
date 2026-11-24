@@ -3,6 +3,7 @@
 signature(about_system/1).
 signature(ac/1).
 signature(actor/3).
+signature(adoption_cited/2).
 signature(agent_vote/1).
 signature(agent_who/1).
 signature(analysis/2).
