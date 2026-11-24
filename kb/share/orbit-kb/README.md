@@ -2215,3 +2215,23 @@ Contract: `kb/CONTRACT.md` D50 to D54. Help: `orbit-kb help core`.
 - Lint: W13 (not tempered), W14 (a goal names no goal above it), W15 (two hypotheses predict one claim),
   W16 (unplaced claim), E21 (predicts on a preserve claim). W14 and W16 only in a KB made by 0.8.0 or later.
 
+Stage 2 of 0.8.0, experiments and verdicts (CONTRACT D55 to D62; `orbit-kb help build`):
+
+- Facts: `unresolved_because/2`, `procedure/2`, `measurement_premise/3`, `known_when/2`, `case_against/2`,
+  `formal_statement/2`, `could_change/2`, `behavior_conflict/2`, `names/2`, `carried/2`, `upgraded/2`,
+  `done_before_upgrade/2`. A `test_result` is `pass`, `fail` or `unresolved`.
+- Rules: `experiment/3`, `verdict/2`, `latest_run/2`, `check_unresolved/1`, `verdict_stale/2`, `counts/2`,
+  `fulfilled/1` (changed), `control/1`, `conflict_open/1`, `location_confirmed/1`, `to_discovery/1`,
+  `goal_satisfied/1`, `goal_unjudged/1`, `case_unplaced/1`, `formal_unaccepted/2`, `behavior_open/1`,
+  `before_goal/2`, `not_carried/1`, `done` (changed), `done_072` and the other `*_072` rules of 0.7.2,
+  `kb_before_upgrade`, `done_before_upgrade`.
+- Blocking terms: `check_unresolved(K)`, `verdict_stale(K)`, `conflict_unlocated(A)`,
+  `location_unconfirmed(L)`, `case_unplaced(J)`, `goal_unjudged(G)`, `behavior_open(B)`, `not_carried(A)`.
+- Attestation types: `measurement`, `location`, `confirmation` (human or agent), `judgment` (human).
+- Commands: `run K [--timeout SECS] [--expect sat|unsat] -- CMD`, `locate RUN WHERE --evidence TEXT`,
+  `confirm LOC --note TEXT`, `judge G satisfied|not-satisfied --by human`, `judge G case TEXT
+  wanted|not-wanted --by human`, `judge S accepts C --by human`, `show experiments [ID]`, `show stale`.
+- Lint: W17 (a check with no procedure and no run), W18 (a formal statement with no claim or no
+  `could_change`; only in a KB made by 0.8.0 or later).
+- Test of the grandfather rule on real KBs: `kb/tests/compare_hub_kbs.sh OLD_TOOL NEW_TOOL SPECS_DIR`.
+
