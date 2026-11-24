@@ -184,6 +184,12 @@ pk_init() {
     K=$1
 }
 padd() { okb --dir "$K" add "$@"; }   # add to $K; callers check rc
+# give_goal [DIR]: review G1 (0.8.0): a ticket states its goal, and done needs the human's judgment
+# of it (blocking goal_missing, goal_unjudged; lint EB1). A spec KB of a test about something else
+# gets a goal that the human judged satisfied, in the fact form that judge writes.
+give_goal() {
+    printf "goal(g0, feature, human, 'The goal of this test.').\nno_premises(g0).\nattest(j0, judgment, g0, satisfied, human, '2026-10-15T09:00:00Z').\n" >> "${1:-$K}/kb.pl"
+}
 # pk_basic: decision d1 resting on a tracker pin p1 (pinned at T1).
 pk_basic() {
     pk_init "$T/pk"
@@ -412,7 +418,7 @@ spec_with_pin() {  # spec_with_pin: $T/pk (decision d1) and $T/spec with pins(c1
     pk_basic; SPEC_PK=$K
     local dd; dd=$(tdigest 'Export goes through the queue')
     okb init "$T/spec" --request 'Build the export' --uses build,project >/dev/null 2>&1 || note "setup: spec init failed: $(snip "$err")"
-    K=$T/spec
+    K=$T/spec; give_goal
     padd "project_kb('../pk')" "claim(c1, introduce, 'Export uses the queue')" "cites(c1, 'Build the export')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" \
          "pins(c1, project, d1, '$dd')" >/dev/null || true
     [ "$rc" = 0 ] || note "setup: pins failed: $(snip "$out$err")"
@@ -439,7 +445,7 @@ t_PX4() { spec_with_pin
 spec_pointing() {  # spec_pointing TARGET: a build+project spec KB at $T/spec, project_kb(TARGET), one pinned claim
     okb init "$T/spec" --request 'Build the export' --uses build >/dev/null 2>&1 || note "setup: init failed"
     okb --dir "$T/spec" uses project >/dev/null 2>&1 || note "setup: uses project failed"
-    K=$T/spec
+    K=$T/spec; give_goal
     padd "project_kb('$1')" "claim(c1, introduce, 'Export uses the queue')" "cites(c1, 'Build the export')" \
          "pins(c1, project, d1, '$H1')" >/dev/null; [ "$rc" = 0 ] || note "setup: add failed: $(snip "$out$err")"
 }
@@ -476,7 +482,7 @@ t_PB5() { pk_basic; tracker_changed p2 "$T2"; stage dr1 "$T3"
 spec_with_conflict_pin() {  # spec_with_conflict_pin PKDIR: a spec KB that pins d1 of PKDIR, and concerns(d1, p1) is in PKDIR
     local dd; dd=$(tdigest 'Export goes through the queue')
     okb init "$T/spec" --request 'Build the export' --uses build,project >/dev/null 2>&1 || note "setup: spec init failed"
-    K=$T/spec
+    K=$T/spec; give_goal
     padd "project_kb('../pk')" "claim(c1, introduce, 'Export uses the queue')" "cites(c1, 'Build the export')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" \
          "pins(c1, project, d1, '$dd')" >/dev/null; [ "$rc" = 0 ] || note "setup: spec add failed: $(snip "$out$err")"
 }
@@ -667,7 +673,7 @@ t23_pk() { pk_init "$T/pk"; [ $# -eq 0 ] && return 0; padd "$@" >/dev/null; [ "$
 t23_spec() {
     local name=$1 item=$2 d
     okb init "$T/$name" --request "Build $name" --uses build,project >/dev/null 2>&1 || note "setup: init $name failed: $(snip "$err")"
-    K=$T/$name
+    K=$T/$name; give_goal
     padd "project_kb('../pk')" "claim(c1, preserve, 'The $name work holds')" "cites(c1, 'Build $name')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" >/dev/null
     [ "$rc" = 0 ] || note "setup: $name facts failed: $(snip "$out$err")"
     okb --dir "$K" query "project_decision_digest($item, D)"
@@ -844,7 +850,7 @@ t_PT7() { local c=$here/../CONTRACT.md d
 
 # PE1 (T39 c2, u89): a run result of CI or the tracker is pinned in the spec KB with the commands that exist
 # (pin-item, run, a check that reads the pin); the claim counts it like a local run; help build says how.
-t_PE1() { okb init "$T/ek" --request 'CI must pass' --uses build,project >/dev/null 2>&1 || note "setup: init failed"; K=$T/ek
+t_PE1() { okb init "$T/ek" --request 'CI must pass' --uses build,project >/dev/null 2>&1 || note "setup: init failed"; K=$T/ek; give_goal
           padd "claim(c1, introduce, 'The CI run of the widget job passes')" "cites(c1, 'CI must pass')" "check(k1, c1)" "checks_that(k1, 'the check k1 tests the claim')" >/dev/null; rc_is 0 "setup"
           printf 'run 42 of widgets\nconclusion: failure\n' > "$T/ci42.txt"
           okb --dir "$K" pin-item ci42 'ci:acme/widgets/runs/42' --text-file "$T/ci42.txt" --changed-at "$T1"; rc_is 0 "pin the failed run"

@@ -134,6 +134,12 @@ oldkind(o2, 'second').
 EOF
 }
 plan_seen() { okb --dir "$K" migrate plan "$@"; SEEN=$(printf '%s\n' "$out" | sed -n 's/^Seen: //p' | head -n1); }
+# give_goal [DIR]: review G1 (orbit-kb 0.8.0): after the first write of 0.8.0 a ticket states its
+# goal, and done needs the human's judgment of it (goal_missing, goal_unjudged). A test of done that
+# is about something else gets a goal that the human judged satisfied, in the fact form of judge.
+give_goal() {
+    printf "goal(g0, feature, human, 'The goal of this test.').\nno_premises(g0).\nattest(j0, judgment, g0, satisfied, human, '2026-10-15T09:00:00Z').\n" >> "${1:-$K}/kb.pl"
+}
 # a hub with the ledger: mkhub DIR
 mkhub() { mkdir -p "$1/.claude/scripts" "$1/specs"; cp "$REPO/hubkit/hub/.claude/scripts/hubflow.py" "$REPO/hubkit/hub/.claude/scripts/desk.py" "$1/.claude/scripts/"
           cp "$REPO/hubkit/hub/flow/seed.json" "$1/seed.json"
@@ -313,6 +319,7 @@ t_MG9() {
 t_MG10() {
     fxlib || return; hub_two || return
     K=$T/h/specs/open; plan_seen; okb --dir "$K" migrate apply --seen "$SEEN"; rc_is 0 || return
+    give_goal   # after the apply: the question of the human step hangs on claim c1, as the test reads it
     # the agent step of W12 is required: do it, so only the human step is left
     okb --dir "$K" add "checks_that(k1, 'the first line names the columns')"; rc_is 0
     # review a94: make done hold but for the question, so is_false done can fail
@@ -631,7 +638,7 @@ EOF
 
 # ================================================================ c16: the cut-fail clause
 t_MG16() {
-    fxlib || return; kb_old "$T/k"
+    fxlib || return; kb_old "$T/k"; give_goal
     printf '%s\n' '%% doc: An item that reads the old kind.' 'old_reader(X) :- oldkind(X, _).' > "$K/rules.pl"
     okb --dir "$K" add "cites(c1, 'Exports keep their header row')"; rc_is 0
     okb --dir "$K" run k1 -- false >/dev/null; okb --dir "$K" run k1 -- true >/dev/null; rc_is 0 "setup: run k1 red, then green"

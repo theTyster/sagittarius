@@ -3100,6 +3100,8 @@ protected_pi(goal_judgment/3).
 protected_pi(later_goal_judgment/2).
 protected_pi(goal_satisfied/1).
 protected_pi(goal_unjudged/1).
+protected_pi(goal_missing/0).
+protected_pi(any_goal_current/0).
 protected_pi(case_not_wanted/2).
 protected_pi(case_placed/1).
 protected_pi(goal_has_current_hypothesis/1).
@@ -10735,7 +10737,8 @@ lint_issues(Eng, Ds, Lines, NErr) :-
         (   R = answers(L, _)
         ->  findall(S-IsE, ( member([C1, I1, M1], L),
                              plain_text(C1, CT), plain_text(I1, IT),
-                             ( atom(M1) -> MT = M1 ; term_text(M1, MT) ),
+                             ( atom(M1) -> MT0 = M1 ; term_text(M1, MT0) ),
+                             name_text(MT0, MT),   % a fix names the tool as it was called (U1)
                              fmt(S, "~w ~w: ~w", [CT, IT, MT]),
                              ( atom(C1), sub_atom(C1, 0, 1, _, 'E') -> IsE = 1 ; IsE = 0 ) ),
                     Ps),
@@ -11089,7 +11092,10 @@ show_pin(KB, Id, Code) :-
 show_section(_, Eng, hypothesis) :-
     say("Hypothesis:", []),
     eng_all(Eng, [H, K, T], hypothesis(H, K, T), Hs),
-    (   Hs == [] -> say("- None. Every ticket has one: add hypothesis(H, KIND, TEXT).", []) ; true ),
+    (   Hs \== [] -> true
+    ;   eng_true(Eng, kb_before_upgrade) -> say("- None. Every ticket has one: add hypothesis(H, KIND, TEXT).", [])
+    ;   say("- None. Every ticket has a goal: add goal(g1, KIND, AUTHOR, 'TEXT').", [])   % review G1
+    ),
     forall(member([H, K, T], Hs),
            ( one_line(T, TT), say("- ~w (~w): ~w", [H, K, TT]),
              (   eng_all(Eng, [N], supersedes(N, H), Ns), Ns \== []
@@ -11521,6 +11527,8 @@ blocking_line(_, Eng, goal_unjudged(G), S) :- !,
     ;   human_name(Eng, HN), cap_first(HN, HNC),
         fmt(S, "- goal_unjudged ~w: the human has not judged that goal ~w is satisfied. Show the result to the human. ~w records it on the Desk (Goal satisfied), or with: orbit-kb judge ~w satisfied --by human: ~w", [G, G, HNC, G, T])
     ).
+blocking_line(_, _, goal_missing, S) :- !,
+    fmt(S, "- goal_missing: the ticket states no goal. Add goal(g1, Kind, Author, 'TEXT') with its premises: orbit-kb add \"goal(g1, KIND, AUTHOR, 'TEXT')\" \"no_premises(g1)\" (or premise(P, g1, 'TEXT') for each premise). Then the human judges it: orbit-kb judge g1 satisfied --by human.", []).
 blocking_line(_, Eng, behavior_open(B), S) :- !,
     ( eng_all(Eng, [T], behavior_conflict(B, T), [T1|_]) -> txt(T1, TT) ; TT = '?' ),
     fmt(S, "- behavior_open ~w: Conflict (Sound Basis): a behavior that no claim names changed or broke. Its behavior is open for review: ~w. A claim names it (names(C, ~w)), or a human waives it.", [B, TT, B]).

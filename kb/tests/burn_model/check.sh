@@ -3,11 +3,16 @@
 #   1. build the Lean project (requirements, implementation model, proofs,
 #      generator);
 #   2. print the witness table and check the axioms of every theorem;
-#   3. generate the KBs and compare the CLI with the implementation model;
+#   3. generate the KBs and compare the CLI with the implementation model,
+#      twice: as KBs of 0.7.2 (no "% Made by" line: the grandfather rule of
+#      0.8.0 applies, done :- kb_before_upgrade, done_072), and as KBs that
+#      orbit-kb 0.8.0 made (the line "% Made by orbit-kb 0.8.0.", and a goal
+#      that the human judged satisfied: done is the rule of 0.8.0 alone);
 #   4. discriminating runs: six mutant libraries, each with one literal or
 #      clause of build.pl dropped (MA, MB, MC from the Lean phases; MI and MY
-#      from the D10 follow-up, MZ from D17). Each must differ from the model on exactly the
-#      KBs that the model predicts, and match the mutant on all KBs.
+#      from the D10 follow-up, MZ from D17), on the KBs that orbit-kb 0.8.0 made.
+#      Each must differ from the model on exactly the KBs that the model
+#      predicts, and match the mutant on all KBs.
 # Exit 0 when every step passes.
 #
 # Environment: CONFORM_JOBS (default 3) parallel CLI calls. SKIP_MUTANTS=1
@@ -53,11 +58,32 @@ echo "axioms: $n_thm theorems, only propext, Classical.choice, Quot.sound"
 
 echo "== 3. conformance: the CLI against the implementation model"
 .lake/build/bin/conform gen "$work/gen"
+# The same KBs as orbit-kb 0.8.0 makes them: the first line names the version. Such a KB is not
+# "before the upgrade" (kb_upgrade_state), so the grandfather clause of done, which reads the
+# copies of the 0.7.2 rules (done_072, burn_open_072, ...), does not apply to it: done and
+# burn_open come from the rules that the mutants of step 4 change. On a KB of 0.7.2 the
+# grandfather clause answers done from the unchanged copies, and a mutant that makes the rule
+# of 0.8.0 stricter (MA) does not show in done (r39, r164, r346, r359 at smo/main dcb2eb5).
+# A ticket of 0.8.0 states its goal, and done needs the human's judgment of it (review G1:
+# goal_missing, goal_unjudged). The model has no goal, so each KB gets a goal that the human
+# judged satisfied, in the fact form that `judge g0 satisfied --by human` writes: both blockers
+# are clear on every KB, and done is again decided by the rules that the mutants change.
+cp -a "$work/gen" "$work/gen-new"
+for kb in "$work"/gen-new/*/kb.pl; do
+    { echo '% Made by orbit-kb 0.8.0.'
+      echo "goal(g0, feature, human, 'model')."
+      echo 'no_premises(g0).'
+      echo "attest(j0, judgment, g0, satisfied, human, '2026-10-15T09:00:00Z')."
+      cat "$kb"; } > "$kb.tmp" && mv "$kb.tmp" "$kb"
+done
+echo "-- 3a. the KBs of 0.7.2 (the grandfather rule applies)"
 heavy python3 -I conform_run.py "$work/gen" --jobs "$jobs"
+echo "-- 3b. the KBs that orbit-kb 0.8.0 made (the rules of 0.8.0 alone)"
+heavy python3 -I conform_run.py "$work/gen-new" --jobs "$jobs"
 
 [ "${SKIP_MUTANTS:-0}" = 1 ] && { echo "== 4. skipped (SKIP_MUTANTS=1)"; echo "ALL PASS (without mutants)"; exit 0; }
 
-echo "== 4. discriminating runs: mutant libraries"
+echo "== 4. discriminating runs: mutant libraries, on the KBs that orbit-kb 0.8.0 made"
 mutate() {  # mutate NAME OLD NEW: a copy of the library with one line of build.pl replaced
     local m=$1 old=$2 new=$3 d=$work/lib-$1
     cp -a "$lib" "$d"
@@ -89,6 +115,6 @@ mutate MY "$done_rule" 'done :- not any_under, not any_over, not any_to_ask, not
 mutate MZ "$done_rule" 'done :- not any_under, not any_over, not any_to_ask, not any_burn_open, not any_flare_open, not any_supersede_cycle, not any_stage2_open.'
 for m in MA MB MC MI MY MZ; do
     echo "-- mutant $m"
-    ORBIT_KB_LIB=$work/lib-$m heavy python3 -I conform_run.py "$work/gen" --mutant "$m" --jobs "$jobs"
+    ORBIT_KB_LIB=$work/lib-$m heavy python3 -I conform_run.py "$work/gen-new" --mutant "$m" --jobs "$jobs"
 done
 echo "ALL PASS"

@@ -19,6 +19,7 @@ signature(any_current_claim_072/0).
 signature(any_current_hypothesis/0).
 signature(any_flare_open/0).
 signature(any_flare_open_072/0).
+signature(any_goal_current/0).
 signature(any_over/0).
 signature(any_project_conflict/0).
 signature(any_project_conflict_072/0).
@@ -183,6 +184,7 @@ signature(goal_contradiction_open/2).
 signature(goal_current/1).
 signature(goal_has_current_hypothesis/1).
 signature(goal_judgment/3).
+signature(goal_missing/0).
 signature(goal_names_missing/2).
 signature(goal_question_answered/1).
 signature(goal_rests_on_dropped/2).

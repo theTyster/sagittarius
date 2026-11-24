@@ -320,6 +320,7 @@ blocking(conflict_unlocated(A)) :- conflict_unlocated(A).
 blocking(location_unconfirmed(L)) :- location_unconfirmed(L).
 blocking(case_unplaced(J)) :- case_unplaced(J).
 blocking(goal_unjudged(G)) :- goal_unjudged(G).
+blocking(goal_missing) :- goal_missing.
 blocking(behavior_open(B)) :- behavior_open(B).
 blocking(check_unrun(K)) :- check(K, C), under(C), not check_ran(K).
 blocking(waiver_lapsed(W)) :- attest(W, waiver, _, waive(C, _, _), human, _), waiver_lapsed(W), burn_open(C).
@@ -482,8 +483,14 @@ decl(rule, not_carried(ref),
 decl(rule, not_carried_run(ref(attest)),
      'The run is the latest run of a check of a current claim that is not fulfilled, and it is not carried over to the current goal: the claim needs a new run or a carried record.',
      'run @(1) is not carried over, and its claim needs it').
+decl(rule, any_goal_current,
+     'Some goal of the ticket is current (a goal/4 fact, or a hypothesis/3 fact of the 0.7.2 form, that nothing supersedes).',
+     'the ticket has a current goal').
+decl(rule, goal_missing,
+     'The ticket states no goal: no goal is current, in a KB that is not from before the upgrade and that was not done before it. It blocks done (review G1; c41, c1). Lint EB1 when a claim is current.',
+     'the ticket states no goal').
 decl(rule, any_stage2_open,
-     'A conflict has no location, a location waits for its confirmation, a not-wanted case has no hypothesis, a conflict with existing behavior is open, or the human has not judged the goal satisfied.',
+     'The ticket states no goal, a conflict has no location, a location waits for its confirmation, a not-wanted case has no hypothesis, a conflict with existing behavior is open, or the human has not judged the goal satisfied.',
      'an item of the experiments or of the judgment of the goal is open').
 decl(rule, claim_waived_unresolved(ref(claim)),
      'A human waived the claim, the due time is not past, a check of the claim is unresolved, and no check of it conflicts or is stale: the claim is covered for done, and not fulfilled.',
@@ -630,6 +637,14 @@ later_goal_judgment(A, G) :- goal_judgment(A, G, _), goal_judgment(B, G, _),
                              record_line(A, LA), record_line(B, LB), LB > LA.
 goal_satisfied(G) :- goal_judgment(A, G, satisfied), not later_goal_judgment(A, G).
 goal_unjudged(G) :- goal_current(G), not goal_satisfied(G), not done_before_upgrade.
+% Review G1 (c41, c1): with no goal, nothing asks for the judgment of the human, so a ticket that
+% states no goal is not done. A KB from before the upgrade never gets it (the grandfather rule,
+% c20, q27), nor does a ticket that was done before the upgrade. A hypothesis/3 fact of the 0.7.2
+% form is a goal (orbit-kb computes its goal/4 fact).
+any_goal_current :- goal_current(_).
+goal_missing :- not kb_before_upgrade, not done_before_upgrade, not any_goal_current.
+lint_issue('EB1', ticket, 'The ticket states no goal. Add goal(g1, Kind, Author, \'TEXT\') with its premises: orbit-kb add "goal(g1, KIND, AUTHOR, \'TEXT\')" "no_premises(g1)" (or premise(P, g1, \'TEXT\') for each premise). Then the human judges it (orbit-kb judge g1 satisfied --by human).') :-
+    goal_missing, any_current_claim.
 case_not_wanted(J, G) :- attest(J, judgment, G, case(_, not_wanted), human, _).
 case_placed(J) :- case_against(J, _).
 goal_has_current_hypothesis(G) :- hypothesis_of(H, G), hypothesis_current(H).
@@ -654,6 +669,7 @@ not_carried(X) :- before_goal(X, G), goal_current(G), not carried_over(X, G).
 not_carried_run(A) :- not_carried(A), attest(A, test_result, _, result(K, _, _), _, _),
                       latest_run(K, A), check(K, C), under(C).
 
+any_stage2_open :- goal_missing.
 any_stage2_open :- conflict_unlocated(_).
 any_stage2_open :- location_unconfirmed(_).
 any_stage2_open :- case_unplaced(_).

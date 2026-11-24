@@ -1562,6 +1562,7 @@ def case_t39_waiver(r, root):
     for k in kbs.values():
         os.makedirs(os.path.dirname(k))
         for st in (("init", k, "--request", "An invented request for a test fixture.", "--uses", "build"),
+                   *goal_steps(k),
                    ("--dir", k, "add", "claim(c1, preserve, 'Gadgets stay round.')", "check(k1, c1)", "checks_that(k1, 'Gadgets are round.')")):
             p = okb_run(*st)
             if p.returncode != 0:
@@ -1767,7 +1768,8 @@ def case_real_orbit_kb(r, root):
             return
     # spec-open: one open question (to_ask: its claim is contested). spec-none: a done KB (CONTRACT
     # D22: an empty KB blocks with no_claim), so one claim with a check that ran and passed.
-    steps = [("--dir", kbs["spec-open"], "add", "claim(c1, preserve, 'Widgets stay blue.')", "question(q1, c1, 'Which blue?')"),
+    steps = [*goal_steps(kbs["spec-open"]), *goal_steps(kbs["spec-none"]),
+             ("--dir", kbs["spec-open"], "add", "claim(c1, preserve, 'Widgets stay blue.')", "question(q1, c1, 'Which blue?')"),
              ("--dir", kbs["spec-open"], "attest", "divergence", "c1", "claim(c1)", "--by", "human"),
              ("--dir", kbs["spec-none"], "add", "claim(c1, preserve, 'Gadgets stay round.')", "check(k1, c1)", "checks_that(k1, 'Gadgets are round.')"),
              ("--dir", kbs["spec-none"], "run", "k1", "--", "true")]
@@ -2419,6 +2421,7 @@ def case_t40_skip_waived_escalated(r, root):
     k = os.path.join(h, "W0", "analyses", "spec-a", "kb")
     os.makedirs(os.path.dirname(k))
     for st in (("init", k, "--request", "An invented request for a test fixture.", "--uses", "build"),
+               *goal_steps(k),
                ("--dir", k, "add", "claim(c1, preserve, 'Gadgets stay round.')", "check(k1, c1)", "checks_that(k1, 'Gadgets are round.')"),
                ("--dir", k, "attest", "waiver", "k1", "waive(k1, '2099-01-01T00:00:00Z', 'the human skips this')", "--by", "human")):
         p = subprocess.run([okb] + list(st), capture_output=True, text=True, timeout=120)
@@ -2446,11 +2449,19 @@ def case_t40_skip_waived_escalated(r, root):
 
 # ---- T42: follow-ups of the T39 and T40 verifies (c1-c8; c9 is T43) ----
 
+def goal_steps(k):
+    """Review G1 (orbit-kb 0.8.0): a ticket states its goal, and done needs the human's judgment of it
+    (blocking goal_missing, goal_unjudged). A real spec KB of a fixture gets a goal that the human
+    judged satisfied, so that it blocks on what the test makes, as before G1."""
+    return (("--dir", k, "add", "goal(g1, feature, human, 'An invented goal for a test fixture.')", "no_premises(g1)"),
+            ("--dir", k, "judge", "g1", "satisfied", "--by", "human", "--note", "the fixture: the human judged the goal satisfied"))
+
+
 def okb_steps(okb, k, *steps):
     """Make a real spec KB at k: init, then each step (orbit-kb args after `--dir k`). Returns the
     first failure as text, or None."""
     os.makedirs(os.path.dirname(k), exist_ok=True)
-    for st in (("init", k, "--request", "An invented request for a test fixture.", "--uses", "build"),) + tuple(("--dir", k) + tuple(s) for s in steps):
+    for st in (("init", k, "--request", "An invented request for a test fixture.", "--uses", "build"),) + goal_steps(k) + tuple(("--dir", k) + tuple(s) for s in steps):
         p = subprocess.run([okb] + list(st), capture_output=True, text=True, timeout=120)
         if p.returncode != 0:
             return f"orbit-kb {' '.join(st[:4])} failed (exit {p.returncode}): {(p.stdout + p.stderr).strip()[:200]}"

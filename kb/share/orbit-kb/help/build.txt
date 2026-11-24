@@ -281,7 +281,9 @@ Only the human judges (--by human). A judgment changes the verdict of no experim
 The note keeps the words of the human on the record: note(A, WORDS). In an agent session (CLAUDECODE,
 AI_AGENT or CLAUDE_CODE_SESSION_ID is set), judge and adopt --by human need --note.
 A ticket is done when nothing holds it up and the latest judgment of its goal says satisfied:
-blocking(goal_unjudged(G)). A case that the human judged not wanted is recorded against the
+blocking(goal_unjudged(G)). A ticket that states no goal is not done: blocking(goal_missing)
+(lint EB1). Add goal(g1, KIND, AUTHOR, 'TEXT') with its premises, and the human judges it. A KB
+from before the upgrade never gets goal_missing. A case that the human judged not wanted is recorded against the
 hypothesis that allowed it: orbit-kb add 'case_against(J, H)' defeats H. With a current hypothesis
 and no case_against: blocking(case_unplaced(J)); the case goes to discovery. A waiver works as
 before: a waived check covers its claim until the due time. formal_statement(S, C) and
