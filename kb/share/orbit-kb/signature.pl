@@ -301,7 +301,9 @@ signature(project_pinned/1).
 signature(project_rests_on/2).
 signature(proof_changed/1).
 signature(property/3).
+signature(proposal_confirmed/3).
 signature(proposed/1).
+signature(proposed/4).
 signature(pushed/2).
 signature(pushed_over/2).
 signature(question/3).
