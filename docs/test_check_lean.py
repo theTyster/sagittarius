@@ -85,7 +85,7 @@ class Hypothesis(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             t = Tree(d)
             t.append(lean_path(), "\ntheorem uses_propext (a b : Prop) (h : a ↔ b) : a = b := propext h\n")
-            t.replace(PHIL, "and 68 theorems", "and 69 theorems")
+            t.replace(PHIL, "with 68 theorems", "with 69 theorems")
             rc, out = run(t.root, "hypothesis")
             self.assertNotEqual(rc, 0, out)
             self.assertIn("propext", out)
@@ -94,7 +94,7 @@ class Hypothesis(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             t = Tree(d)
             t.append(lean_path(), "\ntheorem not_done : 1 = 2 := sorry\n")
-            t.replace(PHIL, "and 68 theorems", "and 69 theorems")
+            t.replace(PHIL, "with 68 theorems", "with 69 theorems")
             rc, out = run(t.root, "hypothesis")
             self.assertNotEqual(rc, 0, out)
             self.assertIn("sorryAx", out)
@@ -110,7 +110,7 @@ class Hypothesis(unittest.TestCase):
     def test_count_in_the_philosophy_is_the_source(self):
         with tempfile.TemporaryDirectory() as d:
             t = Tree(d)
-            t.replace(PHIL, "and 68 theorems", "and 67 theorems")
+            t.replace(PHIL, "with 68 theorems", "with 67 theorems")
             rc, out = run(t.root, "hypothesis")
             self.assertNotEqual(rc, 0, out)
 
@@ -118,7 +118,7 @@ class Hypothesis(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             t = Tree(d)
             t.append(lean_path(), "\ntheorem broken : 1 = 2 := rfl\n")
-            t.replace(PHIL, "and 68 theorems", "and 69 theorems")
+            t.replace(PHIL, "with 68 theorems", "with 69 theorems")
             rc, out = run(t.root, "hypothesis")
             self.assertNotEqual(rc, 0, out)
 
@@ -132,14 +132,26 @@ class Hypothesis(unittest.TestCase):
 
 
 class Names(unittest.TestCase):
+    # Philosophy 3.0.0: the section on the Lean files has two parts, each with its table: 9 names
+    # against Hypothesis.lean, 8 against ScientificMethod.lean (review H-0129, step 25).
+    def _tree(self, d):
+        return Tree(d, files=(SM,))
+
     def test_tree_passes(self):
         rc, out = run(ROOT, "names")
         self.assertEqual(rc, 0, out)
-        self.assertRegex(out, r"\b33\b")
+        self.assertRegex(out, r"\b17 theorem names\b")
+        self.assertIn("9 against " + lean_path(), out)
+        self.assertIn("8 against " + SM, out)
+
+    def test_a_copy_passes(self):
+        with tempfile.TemporaryDirectory() as d:
+            rc, out = run(self._tree(d).root, "names")
+            self.assertEqual(rc, 0, out)
 
     def test_renamed_cited_theorem_fails(self):
         with tempfile.TemporaryDirectory() as d:
-            t = Tree(d)
+            t = self._tree(d)
             t.replace(lean_path(), "theorem proper_with_no_judgments", "theorem proper_with_no_judgments_x")
             rc, out = run(t.root, "names")
             self.assertNotEqual(rc, 0, out)
@@ -147,7 +159,7 @@ class Names(unittest.TestCase):
 
     def test_a_new_citation_must_exist(self):
         with tempfile.TemporaryDirectory() as d:
-            t = Tree(d)
+            t = self._tree(d)
             t.replace(PHIL, "| `proper_with_no_judgments` |", "| `proper_with_no_judgments`, `no_such_theorem` |")
             rc, out = run(t.root, "names")
             self.assertNotEqual(rc, 0, out)
@@ -155,18 +167,53 @@ class Names(unittest.TestCase):
 
     def test_a_def_is_not_a_theorem(self):
         with tempfile.TemporaryDirectory() as d:
-            t = Tree(d)
+            t = self._tree(d)
             t.replace(lean_path(), "theorem proper_with_no_judgments", "def proper_with_no_judgments")
             rc, out = run(t.root, "names")
             self.assertNotEqual(rc, 0, out)
+            self.assertIn("proper_with_no_judgments", out)
 
     def test_file_not_at_the_cited_path_fails(self):
         with tempfile.TemporaryDirectory() as d:
-            t = Tree(d)
+            t = self._tree(d)
             os.remove(os.path.join(t.root, lean_path()))
             rc, out = run(t.root, "names")
             self.assertNotEqual(rc, 0, out)
             self.assertIn("Hypothesis.lean", out)
+
+    def test_a_theorem_of_the_second_table_that_is_gone_fails(self):
+        with tempfile.TemporaryDirectory() as d:
+            t = self._tree(d)
+            t.replace(SM, "theorem reading_611 ", "theorem reading_611_x ")
+            rc, out = run(t.root, "names")
+            self.assertNotEqual(rc, 0, out)
+            self.assertIn("Timer.reading_611", out)
+
+    def test_the_namespace_of_a_name_counts(self):
+        # Timer.reading_611 is not Statistical.reading_611: the cited namespace must hold the theorem.
+        with tempfile.TemporaryDirectory() as d:
+            t = self._tree(d)
+            t.replace(PHIL, "`Timer.reading_611`", "`Statistical.reading_611`")
+            rc, out = run(t.root, "names")
+            self.assertNotEqual(rc, 0, out)
+            self.assertIn("Statistical.reading_611", out)
+
+    def test_a_name_is_read_against_the_file_of_its_part(self):
+        # A theorem of Hypothesis.lean, cited in the table of ScientificMethod.lean, is not there.
+        with tempfile.TemporaryDirectory() as d:
+            t = self._tree(d)
+            t.replace(PHIL, "| `revision_preserves_record` |", "| `revision_preserves_record`, `one_case_decides` |")
+            rc, out = run(t.root, "names")
+            self.assertNotEqual(rc, 0, out)
+            self.assertIn("one_case_decides, and " + SM, out)
+
+    def test_second_file_not_in_the_repository_fails(self):
+        with tempfile.TemporaryDirectory() as d:
+            t = self._tree(d)
+            os.remove(os.path.join(t.root, SM))
+            rc, out = run(t.root, "names")
+            self.assertNotEqual(rc, 0, out)
+            self.assertIn(SM, out)
 
 
 class Proofs(unittest.TestCase):

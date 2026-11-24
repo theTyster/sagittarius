@@ -8,9 +8,9 @@ c1 (u47, d_formal_substrate): the prompt and PHILOSOPHY drop "Show the human con
    shared substrate, and the human reads, reviews and understands it.
 c2 (u57, u90, d_err_soft, d_oscillate): the hypothesis paragraph of the prompt says to err toward
    the general and soft, and to step just past the boundary on purpose before formalizing; and
-   every "Applied in" line of PHILOSOPHY is true: each target it names exists, and grepping the
-   target finds the principle (the table APPLIED below). A target that the table does not know,
-   or a table row that no line names, is a failure too, so the table and the lines stay in step.
+   the protocol table of PHILOSOPHY ("## The protocol", Philosophy 3.0.0) and the "## " sections
+   of the prompt stay in step: each section that a row names exists, and each section is named
+   (see the comment above c2 for the exact rule).
 c3 (u08, u37): README and PHILOSOPHY state the position: an extension of the harness between the
    human-agent interface and the software factory; an inference, reasoning and knowledge-graph
    layer.
@@ -58,90 +58,34 @@ def c1():
 
 
 # ---------------------------------------------------------------- c2
-# APPLIED[principle][target] = the regexes (case-insensitive, over flattened text) that the
-# target must match for the "In the prompt:" line of the principle to be true. Target keys:
-#   prompt:SECTION   the text of "## SECTION" in prompt/SAGITTARIUS.md, up to the next "## "
-#   help:TOPIC       kb/share/orbit-kb/help/TOPIC.txt
-#   file:PATH        the file at PATH
-# Sagittarius 0.3.0 / Philosophy 2.0.0: principles are "#### N." headings, and each ends with a
-# line "In the prompt: ..." (or "In the repository: ..." for principle 14). The check also holds
-# that every section the line names exists in the prompt.
-APPLIED = {
-    1: {"prompt:The orbit": [r"human's judgment"],
-        "prompt:Who judges what": [r"human\*\* owns the intent"],
-        "prompt:The vote": [r"the human 0\.49"]},
-    2: {"prompt:The light path": [r"must fail before the change"],
-        "prompt:The goal": [r"every ticket has one goal"],
-        "prompt:The hypothesis": [r"it is an attempt: one case can show it false"]},
-    3: {"prompt:Signals": [r"a handoff"],
-        "prompt:One response": [r"third step of the orbit"],
-        "prompt:When the human says that it is wrong": [r"kept"],
-        "prompt:Delivery": [r"each \"yes\" and what fired it|what fired it"],
-        "prompt:The tool": [r"do not rely on what you remember"]},
-    4: {"prompt:Who judges what": [r"no party grades its own work"],
-        "prompt:One response": [r"system 1"]},
-    5: {"prompt:The idea": [r"orbit it"],
-        "prompt:The orbit": [r"write it from the source"],
-        "prompt:The light path": [r"\bexample\b"]},
-    6: {"prompt:Who judges what": [r"the human reads it|the human judges meaning"],
-        "prompt:Delivery": [r"formal:"]},
-    7: {"prompt:Honesty": [r"none stops cheating"],
-        "prompt:The tool": [r"never type a digest"]},
-    8: {"prompt:The idea": [r"quiet failure", r"divergence"],
-        "prompt:Signals": [r"a divergence"],
-        "prompt:The light path": [r"must fail before the change"]},
-    9: {"prompt:Honesty": [r"match your words to your evidence", r"in discovery"]},
-    10: {"prompt:The light path": [r"add a record only on a signal"],
-         "prompt:Signals": [r"effort"],
-         "prompt:One response": [r"every signal gets the same response"]},
-    11: {"prompt:Signals": [r"a claim that burns"],
-         "prompt:One response": [r"one lens at a time"]},
-    12: {"prompt:The orbit": [r"speed never comes from hiding"],
-         "prompt:Delivery": [r"waiver"]},
-    13: {"prompt:When the human says that it is wrong": [r"examples of the meaning, not phrases to match"],
-         "prompt:The hypothesis": [r"example"]},
-    14: {"file:docs/REFINING.md": [r"held-out"]},
-}
+# Philosophy 3.0.0 (review H-0129, step 4): the numbered principles and their "In the prompt:"
+# lines are gone. The philosophy reflects itself into the prompt through the table of its section
+# "## The protocol": one row per habit, and the last column ("In the prompt") names the sections
+# of the prompt that hold the habit. c2 reads that table: it must have PROTOCOL_ROWS rows, numbered
+# 1 to PROTOCOL_ROWS; each row names one section or more; each name is a "## " heading of the
+# prompt; and each "## " heading of the prompt is named by one row or more, except the headings in
+# UNNAMED. UNNAMED is exact: a heading in it that a row names, or that the prompt no longer has,
+# fails too, so that the list cannot outlive the gap that it records.
+PROTOCOL_ROWS = 26
+# The three "## " headings of the prompt that no row of the protocol table names (Philosophy 3.0.0,
+# 2026-11-24). They hold the framing of the method, the triage of a request, and the human's
+# correction; no habit row points at them. Recorded here, not hidden: see the docstring of c2.
+UNNAMED = {"The idea", "Scope", "When the human says that it is wrong"}
 
 
-def applied_lines(phil):
-    """{principle number: the text of its "In the prompt:" / "In the repository:" paragraph}."""
-    out = {}
-    for m in re.finditer(r"^#### (\d+)\. .*?(?=^#### |^### |^## |\Z)", phil, re.S | re.M):
-        n = int(m.group(1))
-        a = re.search(r"^In the (?:prompt|repository):(.*?)(?:\n\n|\Z)", m.group(0), re.S | re.M)
-        if a:
-            out[n] = ("prompt:" if "In the prompt:" in a.group(0) else "repository:") + re.sub(r"\s+", " ", a.group(1)).strip()
-    return out
-
-
-def targets(line):
-    """The target keys that one "In the prompt:" paragraph names."""
-    keys = []
-    kind, _, line = line.partition(":")
-    if kind == "prompt":
-        # a name in quotes is a section; a parenthesis after it is a remark, not a name
-        for name in re.findall(r'"([^"]+)"', line):
-            keys.append("prompt:" + name)
-    for topic in re.findall(r"`orbit-kb help (\w+)`", line):
-        keys.append("help:" + topic)
-    for path in re.findall(r"`([\w./-]+\.(?:py|md|sh|html))`", line):
-        keys.append("file:" + path)
-    return keys
-
-
-def target_text(key):
-    kind, name = key.split(":", 1)
-    if kind == "prompt":
-        prompt = read("prompt/SAGITTARIUS.md")
-        m = re.search(r"^## %s\n(.*?)(?=^## |\Z)" % re.escape(name), prompt, re.S | re.M)
-        return m.group(1) if m else None
-    if kind == "help":
-        p = os.path.join(ROOT, "kb/share/orbit-kb/help", name + ".txt")
-        return read(os.path.relpath(p, ROOT)) if os.path.exists(p) else None
-    if kind == "file":
-        return read(name) if os.path.exists(os.path.join(ROOT, name)) else None
-    return None
+def protocol_rows(phil):
+    """[(number, [section names])] from the table under "## The protocol" of PHILOSOPHY."""
+    m = re.search(r"^## The protocol\n(.*?)(?=^## |\Z)", phil, re.S | re.M)
+    if not m:
+        return None
+    rows = []
+    for line in m.group(1).splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")] if line.startswith("|") else []
+        if len(cells) < 4 or not cells[0].isdigit():
+            continue
+        # a name in quotes is a section; other words in the cell ("and each example") are remarks
+        rows.append((int(cells[0]), re.findall(r'"([^"]+)"', cells[-1])))
+    return rows
 
 
 def c2():
@@ -158,28 +102,30 @@ def c2():
         bad.append("the hypothesis paragraph of the prompt does not say to step just past the boundary before formalizing")
     if "on purpose" not in hyp:
         bad.append("the hypothesis paragraph of the prompt does not say 'on purpose'")
-    lines = applied_lines(read("docs/PHILOSOPHY.md"))
-    if len(lines) < 14:
-        bad.append("PHILOSOPHY has %d In-the-prompt lines, the check reads too few (want 14)" % len(lines))
-    for n, line in sorted(lines.items()):
-        keys = targets(line)
-        if not keys:
-            bad.append("principle %d: no target read from %r" % (n, line))
-        want = APPLIED.get(n, {})
-        for key in keys:
-            if key not in want:
-                bad.append("principle %d: the target %s is not in the table of check_words.py" % (n, key))
-                continue
-            text = target_text(key)
-            if text is None:
-                bad.append("principle %d: the target %s does not exist" % (n, key))
-                continue
-            for rx in want[key]:
-                if not re.search(rx, flat(text)):
-                    bad.append("principle %d: the target %s lacks /%s/" % (n, key, rx))
-        for key in want:
-            if key not in keys:
-                bad.append("principle %d: the table names %s, but the In the prompt line does not" % (n, key))
+    headings = re.findall(r"^## (.+?)\s*$", prompt, re.M)
+    rows = protocol_rows(read("docs/PHILOSOPHY.md"))
+    if rows is None:
+        bad.append("PHILOSOPHY has no section '## The protocol'")
+        rows = []
+    nums = [n for n, _ in rows]
+    if nums != list(range(1, PROTOCOL_ROWS + 1)):
+        bad.append("the protocol table has rows %s, want 1 to %d in order" % (nums, PROTOCOL_ROWS))
+    named = set()
+    for n, names in rows:
+        if not names:
+            bad.append("protocol row %d names no section of the prompt" % n)
+        for name in names:
+            named.add(name)
+            if name not in headings:
+                bad.append("protocol row %d names \"%s\", which is not a '## ' heading of the prompt" % (n, name))
+    for h in headings:
+        if h not in named and h not in UNNAMED:
+            bad.append("the prompt section \"%s\" is named by no row of the protocol table" % h)
+    for h in sorted(UNNAMED):
+        if h in named:
+            bad.append("\"%s\" is in UNNAMED, but a protocol row names it: remove it from UNNAMED" % h)
+        if h not in headings:
+            bad.append("\"%s\" is in UNNAMED, but the prompt has no such heading: remove it from UNNAMED" % h)
     return "; ".join(bad) or None
 
 

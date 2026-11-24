@@ -18,6 +18,12 @@ this prompt.
 c13, c14, c16 and c45 reworded are updated below, and each new rule sentence has its phrase.
 docs/check_method_texts.py holds the claims themselves.
 
+Philosophy 3.0.0 (review H-0129, steps 1 to 3): the delivery block has `Residual:` in place of
+`Guesses:` and `Not checked:`, and each rule that the rebuilt prompt added has its phrase (the seal
+step, the instruments and their readings, the shared source, explore and confirm, the human goes
+first, the rival, do not lead, a pass and a fail, the control on purpose, a rule before a varying
+run, keep what failed, the delivery from the record).
+
 Usage: python3 docs/check_prompt_small.py [PROMPT] [--only c1|c3]
 PROMPT defaults to prompt/SAGITTARIUS.md.
 Exit 0: pass. Exit 1: fail.
@@ -46,8 +52,9 @@ REQUIRED = [
     ("honesty rules", ["\n## Honesty\n"]),
     ("delivery block", ["\n## Delivery\n", "Delivered: <one sentence>", "Goal: <the goal, and who wrote it",
                         "Hypothesis: <each current hypothesis", 'KB: <"No KB"', "Signals: <questions",
-                        "Claims: <each claim", "Formal: <the formal statement", "Guesses: <defaults",
-                        "Disclosures: <unverified", "Not checked: <what no check covered>", "To land: <the decision"]),
+                        "Claims: <each claim", "Formal: <the formal statement",
+                        "Residual: <what could still show this wrong",
+                        "Disclosures: <unverified", "To land: <the decision"]),
     ("where the procedure is", ["\n## The tool\n", "`orbit help`"]),
 ]
 FORBIDDEN = ["declare-attest", "depends/2", "depends("]
@@ -70,6 +77,7 @@ SECTIONS = [
         "make the statement more specific at that point, and ask",
         "The orbit closes when a lap changes nothing",
         "Only a waiver from the human covers an open item",
+        "which result would count against you, and how you will read the result",
         "Speed never comes from hiding work that was skipped",
         "Run independent work in parallel",
         "Report results, not process",
@@ -87,6 +95,9 @@ SECTIONS = [
         "You still own the ticket when a subagent builds",
         "so the human must read it",
         "Use them where they pay for their cost",
+        "Take each question to its instrument",
+        "Every instrument has three readings: yes, no, and cannot tell",
+        "Two readings count as two only when they do not share a source",
         "There are two levels of judgment",
         "A judgment of the human does not turn a verdict into meets",
         "A verdict that meets does not choose what the human wants",
@@ -108,6 +119,7 @@ SECTIONS = [
         "Rigor concentrates on specify and verify",
         "When discovery runs, it comes before build",
         "A clear change request goes straight to build",
+        "Explore freely. Confirm sealed.",
     ]),
     ("the light path", [
         "add a record only on a signal",
@@ -131,9 +143,10 @@ SECTIONS = [
         "A check of a change must fail before the change",
         "That run is the control",
         "A check that behavior stays the same passes before and after",
-        'With no executable check, say so under "Not checked"',
+        'With no executable check, say so under "Residual"',
         "Build only what the hypothesis needs",
         "run the whole suite once",
+        "Give a pass the question that you give a fail",
         "The ticket does not end at the delivery",
         "Compare each later message and each later result with the signals before you answer",
         "Start with no KB and no models, unless a signal is there already",
@@ -146,7 +159,7 @@ SECTIONS = [
         "seal your vote. Then give the report",
         'End with "Vote GO, NO-GO, or HOLD." and nothing more',
         "Ask first only when a wrong default is costly or hard to undo",
-        "Ask the human for a goal and a hypothesis of their own only when a wrong avenue is costly",
+        "In build, ask the human for a goal and a hypothesis of their own only when a wrong avenue is costly",
         "It is not a license to build wide",
         "Ask at most three questions a round",
         "Each question carries its concrete case, its options, what each option changes, and your default",
@@ -159,7 +172,6 @@ SECTIONS = [
         "Keep the human's words, and sharpen or challenge them at once",
         "Name the case that would defeat the hypothesis, or say that you find none",
         "draft both from the request, say that they are yours",
-        "Ask for the human's own only when a wrong avenue is costly",
         "**Assume little.**",
         "an avenue belongs in a hypothesis",
         "A cause that you find is a finding",
@@ -184,6 +196,9 @@ SECTIONS = [
         "A hypothesis with no such case is not tempered",
         "The human or you can call a hypothesis untempered",
         "Then temper it together",
+        "The human goes first",
+        "ask the human for theirs before you show yours",
+        "When a hypothesis is not trivial, name its rival",
         "You may explore other hypotheses inside the goal",
         "Bring the human only the ones worth adopting, and each material tradeoff",
         "needs no sign-off",
@@ -198,6 +213,8 @@ SECTIONS = [
     ]),
     ("verdicts", [
         "it gives exactly one verdict",
+        "break the rule once on purpose and see it fail",
+        "needs its rule before the run: how many runs, and what count meets",
         "Say what could not be decided",
         "An unresolved verdict fulfils nothing, defeats nothing, and keeps its claim open",
         "A verdict counts only for the state that its experiment observed",
@@ -214,6 +231,7 @@ SECTIONS = [
         "Verdicts are about claims. Only the human judges the goal",
         "The best case to show is one just inside the edge of the hypothesis, or one just outside it",
         "show the human that case",
+        "Do not lead: for a case that tests a hypothesis, seal what you expect",
         "the hypothesis stands. Fix the build",
         "the case defeats the hypothesis that allowed it, not the build",
         "Record a new claim that supersedes the old one, and disclose it",
@@ -309,6 +327,8 @@ SECTIONS = [
         '"Proved in Lean" is about the Lean definitions, not the code',
         'does not mean "always true"',
         "say so first",
+        "Keep what failed",
+        "Draw the delivery from the record, not from memory",
         "none stops cheating",
         "record as the human's only what the human said",
         "never work around a check, a lint rule, or `orbit prove`",

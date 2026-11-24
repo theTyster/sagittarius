@@ -20,8 +20,10 @@ names the new home of every heading of the prompt before the redesign
   A `hook` row with a phrase must be in `s1/questions.json` or `s1/hook.py`. A `prompt` row with a
   phrase must be in `prompt/SAGITTARIUS.md`.
 
-Homes: `prompt` (kept, maybe shorter), `help TOPIC`, `hook`, `PHILOSOPHY.md §N` (a principle of
-`docs/PHILOSOPHY.md`), or `dropped, because ...`. A heading can have more than one row when its
+Homes: `prompt` (kept, maybe shorter), `help TOPIC`, `hook`, `PHILOSOPHY.md §N` (a numbered
+principle of `docs/PHILOSOPHY.md` at that date; Philosophy 3.0.0 has no numbered principles, and
+their content is in its sections "The instruments", "The logic", "The ticket" and "The protocol"),
+or `dropped, because ...`. A heading can have more than one row when its
 parts went to different homes.
 
 ## The map
