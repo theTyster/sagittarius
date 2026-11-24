@@ -5171,7 +5171,10 @@ serve_form(Req, Form) :-
 serve_field(Form, K, V) :- memberchk(K=V0, Form), atom_string(V0, V).
 
 % T27 c9: no other site may frame the page (and its token).
-serve_frame_headers("X-Frame-Options: DENY\nContent-Security-Policy: frame-ancestors 'none'\n").
+% D72: every reply closes its connection. The server has one worker, and it closes an idle
+% connection after a short time: a browser that sent its next POST on that connection at that
+% moment got no reply ("The Desk server does not answer"), and a browser does not send a POST again.
+serve_frame_headers("Connection: close\nX-Frame-Options: DENY\nContent-Security-Policy: frame-ancestors 'none'\n").
 
 serve_reply(Status, Page) :-
     serve_frame_headers(FH),
@@ -6570,7 +6573,13 @@ desk_hyp(Eng, H, G, A, T, hy{id:H, goal:G, author:A, text:TT, state:S, case:Case
     ( dk_all(Eng, [By, CT], defeating_case(H, By, CT), [[By1, CT1]|_]) -> txt(CT1, CT2), Case = case(By1, CT2) ; Case = none ),
     dk_all(Eng, [DT], defeat(_, H, DT), D1),
     dk_all(Eng, [JT], ( case_against(J, H), attest(J, judgment, _, case(JT, not_wanted), _, _) ), D2),
-    append(D1, D2, D3), findall(DS, ( member(D0, D3), txt(D0, DS) ), Ds),
+    % a conflict located in the hypothesis, or in a premise of it, and confirmed (build contract 2.3): its evidence is the case
+    dk_all(Eng, [ET], ( attest(L, location, _, located(hypothesis(H), ET), _, _), location_confirmed(L) ), D4),
+    dk_all(Eng, [ET], ( attest(L, location, _, located(premise(P), ET), _, _), location_confirmed(L), premise(P, H, _) ), D5),
+    append([D1, D2], D3), append(D4, D5, D6),
+    findall(DS, ( member(D0, D3), txt(D0, DS0), dk_f("Defeated by the case: ~w", [DS0], DS) ), Ds1),
+    findall(DS, ( member(D0, D6), txt(D0, DS0), dk_f("Defeated by a located conflict: ~w", [DS0], DS) ), Ds2),
+    append(Ds1, Ds2, Ds),
     (   memberchk(S, [proposed, adopted]), desk_not_tempered(Eng, H) -> NT = true ; NT = false ),
     ( S == proposed, dk_all(Eng, [W], adoption_cited(H, W), [W1|_]) -> txt(W1, W2), Cited = some(W2) ; Cited = none ),
     desk_premises(Eng, H, Ps, _),
@@ -6625,6 +6634,13 @@ desk_term(Key, Label, Html) :-
 
 desk_current_claims(Eng, Cs) :-
     dk_all(Eng, [C], ( claim(C, _, _), \+ supersedes(_, C) ), Cs0), sort(Cs0, Cs).
+
+% desk_claim_out(+Eng, +C, -H, -State): a hypothesis predicts claim C, and each hypothesis that
+% predicts it is defeated, retired or superseded. H is the first of them, with its state.
+desk_claim_out(Eng, C, H, S) :-
+    dk_all(Eng, [H0], predicts(H0, C), Hs0), sort(Hs0, Hs), Hs = [H|_],
+    forall(member(X, Hs), ( desk_hyp_state(Eng, X, SX), memberchk(SX, [defeated, retired, superseded]) )),
+    desk_hyp_state(Eng, H, S).
 
 desk_claim_text(Eng, C, T) :- ( dk_all(Eng, [T0], claim(C, _, T0), [T1|_]) -> txt(T1, T) ; T = "" ).
 
@@ -6755,7 +6771,7 @@ desk_hyp_html1(H, Acts, Html) :-
         dk_f("<p class=\"small gapnote\">~w: no admissible case would show it false.</p>", [NTL], NtH)
     ;   NtH = ""
     ),
-    findall(D, ( member(D0, H.defeats), esc(D0, DH), dk_f("<p class=\"small defeat\">Defeated by the case: ~w</p>", [DH], D) ), Dl), dk_cat(Dl, DefH),
+    findall(D, ( member(D0, H.defeats), esc(D0, DH), dk_f("<p class=\"small defeat\">~w</p>", [DH], D) ), Dl), dk_cat(Dl, DefH),
     desk_premises_html(H.premises, false, brief, PrH),
     (   H.predicts == [] -> PdH = ""
     ;   dk_join(H.predicts, ", ", PJ), desk_term(claim, "claims", CL), dk_f("<p class=\"small quiet\">It predicts the ~w ~w.</p>", [CL, PJ], PdH) ),
@@ -7224,7 +7240,7 @@ desk_action_cards(HDs, HD, K, Cards) :-
 
 desk_action_card(HDs, HD, K, Eng, A, card{lane:action, due:"", html:Html, kbs:[K.dir], hub:HD.path}) :-
     desk_action_ref(A, RefS), esc(K.label, LH), desk_hub_suffix(HDs, HD, HS),
-    (   A == vote -> PolK = vote, dk_f("Vote on the hypothesis of the KB ~w", [K.label], T0),
+    (   A == vote -> PolK = vote, dk_f("Vote on the goal and the hypotheses of the KB ~w", [K.label], T0),
         dk_f("<span>The vote that ends discovery, in the KB ~w~w</span>", [LH, HS], SrcH),
         desk_current_claims(Eng, Cs),
         Chs = ["GO"-"Build goes on from this hypothesis and its claims."-"", "NO-GO"-"Nothing is built; the ticket ends."-"", "HOLD"-"Discovery goes on; say what it waits for."-""]
@@ -7690,7 +7706,12 @@ desk_kb_section(HDs, HD, K, Html) :-
         maplist([R, E]>>esc(R, E), Rs, RsE), dk_join(RsE, ", ", RsJ),
         dk_all(Eng, [X], current_fact(X), Fs), length(Fs, NF),
         dk_f("<p>~w current decisions, definitions and rules. ~w repos: ~w.</p>", [NF, NR, RsJ], BodyMain)
-    ;   desk_records_html(Eng, acts(HD, K), HypH), desk_current_claims(Eng, Cs),
+    ;   desk_records_html(Eng, acts(HD, K), HypH), desk_current_claims(Eng, Cs0),
+        % c24, c38: a claim whose every hypothesis is defeated, retired or superseded is shown apart, not among the open claims
+        partition([C]>>desk_claim_out(Eng, C, _, _), Cs0, Outs, Cs),
+        findall(OH, ( member(C, Outs), desk_claim_out(Eng, C, OHy, OSt), desk_claim_text(Eng, C, OT), esc(OT, OTH),
+                      dk_f("<p class=\"quiet notcurrent\" data-claim=\"~w\"><span class=\"ref\">~w</span>~w <span class=\"small\">not current (its hypothesis ~w is ~w)</span></p>", [C, C, OTH, OHy, OSt], OH) ), OHs),
+        ( OHs == [] -> OutH = "" ; dk_cat(OHs, OHT), dk_f("<h4>Not current</h4>~w", [OHT], OutH) ),
         findall(CH, ( member(C, Cs), desk_claim_html(HD, K, Eng, C, CH) ), CHs), dk_cat(CHs, CsH),
         ( Cs == [] -> CsH2 = "<p class=\"gapnote\">No claim is current.</p>" ; CsH2 = CsH ),
         desk_kb_blockers(KB, Eng, Bl),
@@ -7701,7 +7722,7 @@ desk_kb_section(HDs, HD, K, Html) :-
         catch(view_pending_html(K.dir, PendH), _, PendH = ""),
         catch(view_answered_html(Eng, AnsH), _, AnsH = ""),
         desk_term(claim, "Claims", ClL), dk_f("<h3>~w</h3>", [ClL], ClH),
-        dk_cat(["<h3>Goal and hypotheses</h3>", HypH, ClH, CsH2, BlH, QsH, PendH, AnsH], BodyMain)
+        dk_cat(["<h3>Goal and hypotheses</h3>", HypH, ClH, CsH2, OutH, BlH, QsH, PendH, AnsH], BodyMain)
     ),
     findall(I, ( desk_stale_handoffs(HD, K, Old, New), member(H, Old), I = H.id ), OldIds),
     (   OldIds == [] -> OldH = ""
