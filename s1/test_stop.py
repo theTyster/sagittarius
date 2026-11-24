@@ -58,6 +58,12 @@ class C30Stop(Base):
                                                                 "S1_WORKBENCH": "off", "TYPESAFE_API_KEY": "k"})
         self.assertEqual((p.returncode, p.stdout), (0, ""))  # the released file: nothing live
 
+    def test_a_prompt_is_not_asked_the_questions_of_a_tree_that_shipped(self):
+        fake = Fake()
+        self.assertEqual(self.context(self.run_hook(fake)), tr.TICKET_LINE)
+        sent = json.loads(fake.calls[0]["body"])["questions"]
+        self.assertEqual(sorted(sent), sorted(json.load(open(self.shipped))))
+
     def test_a_drift_gives_one_hint_that_names_the_prediction(self):
         out, fake = self.stop(DRIFT)
         d = json.loads(out)["hookSpecificOutput"]

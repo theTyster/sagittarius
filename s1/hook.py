@@ -35,6 +35,14 @@ The late fix (c7): with a prompt_id in the input, the hook starts a detached pro
 context from its parent differs from what was sent (G4), asks again and logs kind "correction".
 posttool.py (a PostToolUse hook) gives the corrected line to the main agent once (c8).
 
+The record (0.8.0, c29, c46; record.py): beside message and recent, the state has `record`, the
+record of the active ticket as `orbit s1-record --json` prints it (the goal, the current
+hypotheses with their predictions, the open questions, goal sentences), and no other field of a
+store. S1_RECORD=0, or "s1_record": false in the hub's .hub-template.json, gives the state of 0.7.2.
+A prompt that starts with <cross-session-message, <task-notification or <agent-message is marked
+as not from the human with no question to the model: it gets no effort and no change-of-plan
+signal (c34). `hook.py --event stop` is the stop event (stop.py, c30), off until its questions ship.
+
 Fails open, and says so (0.3.0 S-A): on any error, a timeout, a missing key, a missing questions
 file or bad stdin it prints one short line, "System 1: no view (<reason>)", and exits 0. When every
 answer is in the unsure band it prints "System 1: unsure"; when only the formal tool is sure and no
@@ -48,6 +56,7 @@ S1_CONTEXT_MESSAGES (default 3, never below 3),
 S1_QUESTIONS (default: the workbench's questions.json, else s1/questions.json),
 S1_LOG (default ~/.claude/logs/s1.jsonl), S1_WORKBENCH (default s1/workbench/; "off" ignores it),
 S1_WORKBENCH_TIMEOUT (seconds for a workbench routing, default 9),
+S1_RECORD=0 (no record), S1_ORBIT (the orbit command), S1_ORBIT_TIMEOUT (0.5),
 S1_LATEFIX=0 (no late fix), S1_LATEFIX_DIR (default ~/.claude/s1-latefix), S1_LATEFIX_WAIT (20).
 
 The workbench (s1-inspect, branch s1/inspect): a folder read again on every prompt, so a saved edit
@@ -715,6 +724,21 @@ def fanout_run(state, ask, questions, env=None):
     return out
 
 
+# The ids of the decision trees of s1/trees.py (c30 to c33). A tree that ships is in the question
+# file, but a prompt does not get its entries as plain questions: the drift tree belongs to the
+# stop event (stop.py), and an entry with a placeholder ({part}, {prediction}, {a}) is written
+# out by trees.py. With none of these ids in the file (the file of 0.7.2) nothing changes.
+TREE_IDS = ("r_count", "r_kind", "r_goal", "x_dispute", "x_kind", "y_differs",
+            "d_success", "d_kept", "d_revised", "d_drift")
+
+
+def _prompt_questions(questions):
+    """The questions that a prompt is asked: the file without the entries of the trees."""
+    if not any(k in questions for k in TREE_IDS):
+        return questions
+    return {k: v for k, v in questions.items() if k not in TREE_IDS}
+
+
 def _skip(log_path, key, reason, extra=None, **fields):
     """One log line that says why the hook made no call or printed nothing. No key."""
     rec = {"time": jev._now(), "skipped": reason}
@@ -768,6 +792,7 @@ def run(raw, env, transport=None, spawn=None):
                 questions = json.load(f)
             if not isinstance(questions, dict) or not questions:
                 raise ValueError("not a non-empty object")
+            questions = _prompt_questions(questions)
         except (OSError, ValueError) as e:
             _skip(log_path, key, f"questions: {type(e).__name__}: {e}", extra)
             return _out(no_view("no question set"))
@@ -994,7 +1019,7 @@ def late_fix(sent_path, env, transport=None, wait=None, sleep=time.sleep):
             return "no key"
         wb = workbench(env)  # the same questions and routing as the first call
         with open(question_path(env, wb), encoding="utf-8") as f:
-            questions = json.load(f)
+            questions = _prompt_questions(json.load(f))
         state, trimmed, long_context = _fitted(st["prompt"], right, questions)
         lx = {"session_id": st["session_id"], "transcript": os.path.basename(st["transcript_path"]),
               "prompt_id": st["prompt_id"], "kind": "correction"}
