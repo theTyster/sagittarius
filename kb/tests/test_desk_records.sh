@@ -9,6 +9,7 @@
 #   DR5 the set of items equals that of the Desk of 0.7.2 on the same hub
 #   DR6 the labels carry the canonical sentences of vocabulary.json
 #   DR8 a stale verdict; a hypothesis that a confirmed location defeated; its claim shown apart
+#   DR10 a judgment with no choice or no case text says so and sends nothing (review D1)
 #   DR9 authors as names (human:ty is Ty, agent:astra is Astra); ids in the order of their numbers
 #   DR7 the same in a headless Chromium (k24); SKIP with no Chromium or no Node 22
 # The Desk of 0.7.2 for DR5: $ORBIT_KB_BASE (a checkout of 0.7.2), else git archive v0.7.2 of this repo.
@@ -277,6 +278,31 @@ if [h for i,h in enumerate(hs) if h not in hs[:i]]!=['hy1','hy2','hy10']: bad.ap
 print('; '.join(bad)); sys.exit(1 if bad else 0)
 PY
 }
-for n in 1 2 3 4 5 6 7 8 9; do run_one DR$n; done
+t_DR10() {  # review D1: a judgment with no choice, or a case with no text, says so beside its button and opens no review
+    rec_hub "$T/h"; local kb="$T/h/specs/replay"
+    srvd --hub "$T/h" || return
+    cat > "$T/d1.js" <<'JS'
+const sec=[...document.querySelectorAll('details.kbsec')].find(d=>d.querySelector('h3.title').textContent==='replay');
+document.getElementById('lane-kbs').open=true; sec.open=true;
+const dlg=document.getElementById('review'); const out={};
+async function tryit(form){
+  form.requestSubmit(form.querySelector('button[type=submit]'));
+  await new Promise(r=>setTimeout(r,500));
+  const m=form.querySelector('.formmsg'); const r={msg:m?m.textContent:null, dialog:dlg.open}; if(dlg.open) dlg.close(); return r;
+}
+const gf=sec.querySelector('form[data-judge="goal"]'); out.goal=await tryit(gf);
+const cf=sec.querySelector('form[data-judge="case"]'); out.case_nochoice=await tryit(cf);
+cf.querySelector('input[value="wanted"]').checked=true; out.case_notext=await tryit(cf);
+cf.querySelector('textarea').value='A replay of the November file changes nothing'; out.case_ok=await tryit(cf);
+return out;
+JS
+    browse "$URL/" "$T/d1.js" || return
+    brj "d['goal']=={'msg':'Choose one first.','dialog':False}" "the goal judged with no choice: $BR"
+    brj "d['case_nochoice']=={'msg':'Choose one first.','dialog':False}" "a case with no choice"
+    brj "d['case_notext']=={'msg':'Write the case first.','dialog':False}" "a case with no text"
+    brj "d['case_ok']['dialog'] and d['case_ok']['msg']==''" "a full case opens the review"
+    hasnt_goal "$kb" "attest(_, judgment, _, _, _, _)" "a judgment was written"
+}
+for n in 1 2 3 4 5 6 7 8 9 10; do run_one DR$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
