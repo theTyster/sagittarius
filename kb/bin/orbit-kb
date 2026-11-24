@@ -14059,9 +14059,11 @@ formal_item(KB, Eng, C, H) :-
 hypothesis_section(Eng) :-
     rhead('Hypothesis'),
     eng_all(Eng, [H, K, T], ( hypothesis(H, K, T), not(superseded(H)) ), Hs),
-    (   Hs == []
+    (   Hs \== []
+    ->  true
+    ;   eng_true(Eng, kb_before_upgrade)
     ->  rsay(none, "None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT).", [])
-    ;   true
+    ;   rsay(none, "None. No goal is recorded. Every ticket has a goal: add goal(g1, KIND, AUTHOR, 'TEXT').", [])   % review G1
     ),
     % 0.8.0 (D50, c1, c2, c21): the goal first, with its author, then each hypothesis under it.
     forall(member([H, K, T], Hs),

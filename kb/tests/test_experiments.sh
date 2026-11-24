@@ -690,6 +690,7 @@ t_GM1() {  # a KB of 0.8.0 with no goal is not done: goal_missing, in show open 
     ( cd "$T" && exec timeout "$TMO" "$(dirname "$OKB")/orbit" --dir "$K" lint ) >"$T/.out" 2>"$T/.err" </dev/null; out=$(<"$T/.out"); err=$(<"$T/.err")
     any_has "^EB1 ticket: .*premises: orbit add " "lint names the tool as it was called"
     okb --dir "$K" show hypothesis; out_has "^- None\. Every ticket has a goal: add goal\(g1, KIND, AUTHOR, 'TEXT'\)\.$" "show hypothesis teaches the goal"
+    okb --dir "$K" report; out_has "None\. No goal is recorded\. Every ticket has a goal: add goal\(g1, KIND, AUTHOR, 'TEXT'\)\." "report teaches the goal"; out_hasnt "add hypothesis\(H, KIND, TEXT\)" "report does not teach hypothesis/3"
     out_hasnt 'add hypothesis\(H, KIND, TEXT\)'
 }
 t_GM2() {  # with a goal and the human's judgment that it is satisfied, done is yes
