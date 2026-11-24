@@ -704,7 +704,9 @@ t_QS14() {  # every request but a valid POST /answer leaves every KB as it was
     post /answer "token=$tok" "kb=$kb" q=q1 choice=no answer='q1, no, human). claim(c7, x, y'; true
     same_file "$T/other/kb.pl" "$T/o.before" "a KB that the server does not serve"
     # the one valid POST above added exactly one fact: the answer
-    diff <(grep -v '^%' "$T/a.before") <(grep -v '^%' "$T/a/kb.pl") | grep '^>' > "$T/added" || true
+    # 0.8.0 (scientific-method-overhaul c20, c39; build contract 2.2): the first write to a KB that an older
+    # version made also records the upgrade (upgraded/2, done_before_upgrade/2). Those lines are the tool's.
+    diff <(grep -v '^%' "$T/a.before") <(grep -v '^%' "$T/a/kb.pl") | grep '^>' | grep -v "^> \(upgraded\|done_before_upgrade\)('[0-9.]*', '[0-9TZ:-]*')\.$" > "$T/added" || true
     [ "$(wc -l < "$T/added")" = 1 ] && grep -q '^> answer(q1, *no, *human)\.' "$T/added" \
         || note "the valid POST did not add exactly one answer fact: $(snip "$(cat "$T/added")")"
     srv_stop
@@ -2126,6 +2128,7 @@ run_one() {  # run_one ID
     elif [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS $id"
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
+[ -n "${QS_LIB_ONLY:-}" ] && return 0   # test_desk_records.sh reads the harness above, and runs its own tests
 for n in $(seq 1 75); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
