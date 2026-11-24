@@ -124,7 +124,8 @@ def mb1():
         check(f"mb1 {label}: read it at session start and after a compaction",
               re.search(r"session start|start of (a|each|every) session", sec) is not None and "compaction" in sec, sec[:300])
     sec = flat(section(read(CORE), "Flow state lives in the db"))
-    check("mb1 formal: then follow each item's kb ref and read what is open there", "hubflow.py where" in sec and "show open" in sec, sec[:300])
+    # review R1: the kb ref is followed through the door (it was "hubflow.py where")
+    check("mb1 formal: then follow each item's kb ref and read what is open there", "orbit hub ledger where" in sec and "show open" in sec, sec[:300])
 
 
 def mb2():
