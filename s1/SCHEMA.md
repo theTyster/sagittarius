@@ -15,6 +15,12 @@ The hook sends one JSON object as `state`:
 | `message` | string | The prompt that Ty typed, as Claude Code gave it to the hook. |
 | `recent` | list | The messages before the prompt, oldest first. The default count is 3 (`S1_CONTEXT_MESSAGES`, never below 3). |
 
+With a record (c29), the state has the field `record`: `{ticket, goal: {id, author, text} or null,
+hypotheses: [{id, author, state, text, defeating_case, predictions: [{id, text}]}], questions:
+[{id, text}], goal_sentences: [{id, text}]}`. It holds only these fields of what `orbit s1-record
+--json` printed (`record.clean`); with the switch off (`S1_RECORD=0`, or `"s1_record": false` under
+`modules` in the hub's `.hub-template.json`) the state has no `record` field.
+
 With the fan-out on, the state has a third field, `sentences`: the parts of `message`, a list of
 strings in order (`hook.split_parts`). The part questions name a part by its path, `sentences[k]`.
 
@@ -75,6 +81,13 @@ bench replay writes to the bench log. The API key is never written.
 | `fanout_off` | hook.py | The reason why the fan-out file did not load, so that the call was a plain one. |
 | `routing` | hook.py | `"workbench"` when the call came from the workbench routing (`workbench/pipeline.py`). |
 | `stage` | hook.py | The number of the call within one workbench routing run, from 1. |
+| `source` | hook.py | Only for a prompt that starts with `<cross-session-message`, `<task-notification` or `<agent-message`: the tag name. The human did not write the message (c34). Code decides it, with no question to the model. `answers` keeps the answers of the model; the line leaves out effort and change of plan. |
+| `record` | hook.py | Where the record in the state came from: `ticket` (the active ticket, through `orbit s1-record`), `session` (the goal and the hypotheses that the session stated), `goals` (goal sentences only), `none`, or `off` (the switch). |
+| `record_sent` | hook.py | The names of the records that were sent in `state.record`, for example `["goal:g1", "hypothesis:hy1", "claim:c1", "question:q4", "goal_sentence:pg1"]` (c46). Absent when no record was sent. |
+| `record_ticket` | hook.py | The slug of the active ticket, when the record has one. |
+| `record_why` | hook.py | Why no record was sent: `no orbit command`, `no ticket`, `orbit timeout`, `orbit failed`, `orbit missing`, `bad record`, `too large for the context`; or which switch turned it off (`S1_RECORD`, `hub`). |
+| `record_latency` | hook.py | The seconds that the `orbit s1-record` command took. Absent when no command ran. |
+| `record_cut` | hook.py | The parts of the record that were left out so that the state fits the context, in order: `goal_sentences`, `questions`, `predictions`, `all`. |
 | `bench` | bench.py | The tag of a bench replay (`new` by default). |
 | `cal` | calibrate.py | `"s1"` on a calibration call. |
 | `case` | calibrate.py | The id of the calibration case. |
