@@ -54,7 +54,8 @@ Core
        the first add, or in any later add of one of its facts while it has none: orbit-kb add 'FACT' --doc TEXT.
        For a rule head (also an old decl(rule, ...) line of kb.pl with no doc): a line %% doc: TEXT just
        above its first clause in rules.pl. orbit-kb show kinds names each one, also while E19 or E2 fires.
-  W10  a current hypothesis has no premise and no record no_premises(H) (D30). Add
+  W10  (also a goal, and in a KB made by 0.8.0 or later a current hypothesis under a goal)
+       a current hypothesis has no premise and no record no_premises(H) (D30). Add
        premise(P, H, Text) for each condition that it takes as given, or no_premises(H).
   W11  a current hypothesis has a premise and also no_premises(H). They contradict. Restate the
        hypothesis (supersedes) with its premises, or with no_premises only.
@@ -70,6 +71,9 @@ Core
   W18  a formal statement (formal_statement/2, or a model with encodes/2) has no could_change(S,
        Text), or a could_change names a subject that states no claim. Only in a KB made by
        orbit-kb 0.8.0 or later.
+  W19  an agent retirement that does not count: a human wrote or adopted the hypothesis, or it has
+       adoption_cited. Only the human retires it.
+  W20  supports(G, project(PG)) names a goal that the project KB (project_kb/1) does not hold.
   WM1  a retired predicate (kb-migrations): its cut-fail clause in kb.pl takes its facts out of the
        model, also a fact added later. The message names the version that retired it and what
        replaces it (retired/3), the lines of its facts, and their reach: each predicate that reads

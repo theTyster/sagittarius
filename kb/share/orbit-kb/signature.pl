@@ -181,6 +181,7 @@ signature(goal_satisfied/1).
 signature(goal_supported/1).
 signature(goal_unjudged/1).
 signature(goal_unsupported/1).
+signature(goal_written/1).
 signature(has_actor/1).
 signature(has_claim_change/1).
 signature(has_falsifier/1).
@@ -321,6 +322,7 @@ signature(rests_on/2).
 signature(rests_on_run/2).
 signature(rests_up/2).
 signature(retired/3).
+signature(retirement_ignored/1).
 signature(review_due/0).
 signature(review_saw/3).
 signature(risk/2).
@@ -359,6 +361,7 @@ signature(supersedes_by_date/2).
 signature(supersedes_closure/2).
 signature(supports/2).
 signature(supports_closure/2).
+signature(supports_missing/2).
 signature(tempered/1).
 signature(ticket/1).
 signature(to_ask/1).
