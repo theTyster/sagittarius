@@ -66,12 +66,16 @@ def mask(answers, source):
 
 def compose(line, front=(), back=()):
     """The line with parts added: front parts after "System 1: ", back parts at the end. A line
-    of a hook that failed ("no view") or of another form is not changed."""
+    of a hook that failed ("no view") gets only the front parts (the source of the message, which
+    code decides); a line of another form is not changed."""
     head = "System 1: "
     front, back = [p for p in front if p], [p for p in back if p]
-    if not (front or back) or not isinstance(line, str) or not line.startswith(head) \
-            or line.startswith(head + "no view"):
+    if not (front or back) or not isinstance(line, str) or not line.startswith(head):
         return line
+    if line.startswith(head + "no view"):  # a hook that failed still says whose message it was
+        back = []
+        if not front:
+            return line
     return head + "; ".join(front + [line[len(head):]] + back)
 
 

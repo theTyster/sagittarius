@@ -1180,6 +1180,9 @@ System 1 writes only proposals. A proposal is not a record.
   With `--note` it also writes `note(P, TEXT)`. It prints a line that names `P`. Exit 0.
 - `--from` must be `system1`. Without it, with another value, with no fact, or with a fact that
   does not parse as a term: exit 2, and nothing is written.
+- The third argument of `proposed/4` is the text of the fact (what `propose` stores) or the fact
+  as a term (`proposed(p1, system1, hypothesis(hy2, g1, human, 'T'), Time)` in `kb.pl`).
+  `confirm-proposal`, `show proposals` and `lint` accept both.
 - The fact is not checked at `propose` and is not added. A query of its kind does not find it.
 - A proposal changes no answer of `done`, `blocking(X)` or `discovery_ready`, and `lint` reports no
   error for it. No rule reads `proposed/4` or `proposal_confirmed/3`.

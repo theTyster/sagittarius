@@ -282,6 +282,11 @@ class C34NotFromTheHuman(Base):
         self.assertNotIn("eff", seg)
         self.assertIn("div 0.85", seg)
 
+    def test_a_hook_with_no_view_still_names_the_source(self):
+        out = self.context(self.run_hook(Fake(status=500), raw=self.payload(prompt=TAGGED["agent-message"])))
+        self.assertEqual(out, "System 1: not from the human (agent-message); no view (no answer)")
+        self.assertEqual(self.context(self.run_hook(Fake(status=500))), "System 1: no view (no answer)")
+
     def test_a_workbench_routing_gets_the_same_rule(self):
         wb = os.path.join(self.dir, "wb")
         os.makedirs(wb)

@@ -173,8 +173,8 @@ decl(fact, lean_back(id, text),
      'the agent leaned back (@(1)): @(2)').
 % D70, D71 (scientific-method-overhaul c34): a proposal of System 1. The fact is kept as text: it is
 % no record, and no rule reads these two kinds, so they change no answer of done or blocking(X).
-decl(fact, proposed(id, oneof([system1]), text, time),
-     'A proposal of System 1: a fact as text, and when it was proposed. It is not a record and it blocks nothing. orbit-kb propose writes it.',
+decl(fact, proposed(id, oneof([system1]), term, time),
+     'A proposal of System 1: a fact, as text or as a term, and when it was proposed. It is not a record and it blocks nothing. orbit-kb propose writes it.',
      'System 1 (@(2)) proposed @(3) as @(1) at @(4)').
 decl(fact, proposal_confirmed(ref(proposed), by, time),
      'The agent or the human confirmed a proposal: orbit-kb confirm-proposal added its fact as a record.',
