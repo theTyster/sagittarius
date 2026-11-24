@@ -18,6 +18,7 @@ trap 'rm -rf "$T"' EXIT
 cp -rL "$LIB" "$T/lib"; printf '0.8.0\n' > "$T/lib/VERSION"
 for v in $(env | sed -n 's/^\(ORBIT_KB[A-Z_]*\)=.*/\1/p'); do unset "$v"; done
 unset CLAUDE_CODE_SESSION_ID CLAUDE_SESSION_ID HUB_SESSION
+unset CLAUDECODE AI_AGENT   # review U9: in an agent session, judge and adopt --by human need --note
 export ORBIT_KB_LIB=$T/lib XDG_CACHE_HOME=$T/.cache ORBIT_KB_NO_CACHE=1
 pass=0 fail=0
 ok()  { pass=$((pass+1)); echo "PASS $1"; }
@@ -281,6 +282,25 @@ if want u4; then   # review U4: lists of ids sort by number (c1, c2, c10), not a
     okb add "claim(c3, introduce, 'C3.')" 'supersedes(c3, c1)' "claim(c20, introduce, 'C20.')" 'supersedes(c20, c1)'
     okb show; has Ru4-superseded-by "superseded by c3, c20."
     set --
+fi
+
+if want u9; then   # review U9: --note keeps the words of the human; an agent session needs them
+    newkb u9 build; okb add "$GOAL" 'no_premises(g1)' "$HA" "$HB"
+    okb adopt hya --by human --note 'Ty: go with A'; rcis Ru9-adopt-note 0
+    okb query "attest(A, adoption, hya, adopted, human, _), note(A, W)"; has Ru9-adopt-note-on-attestation "W = 'Ty: go with A'"
+    okb judge g1 satisfied --by human --note 'Ty: that is what I wanted'; rcis Ru9-judge-note 0
+    okb query "attest(A, judgment, g1, satisfied, human, _), note(A, W)"; has Ru9-judge-note-on-attestation "W = 'Ty: that is what I wanted'"
+    for v in CLAUDECODE AI_AGENT CLAUDE_CODE_SESSION_ID; do
+        cp "$K/kb.pl" "$T/u9.pl"
+        out=$(env "$v=1" "$CLI" --dir "$K" judge g1 not-satisfied --by human 2>"$T/err" </dev/null); rc=$?; err=$(cat "$T/err")
+        rcis "Ru9-judge-refused-$v" 1; ehas "Ru9-judge-says-note-$v" "add --note with the words of the human"
+        cmp -s "$K/kb.pl" "$T/u9.pl" && ok "Ru9-judge-wrote-nothing-$v" || bad "Ru9-judge-wrote-nothing-$v" "kb.pl changed"
+        out=$(env "$v=1" "$CLI" --dir "$K" adopt hyb --by human 2>"$T/err" </dev/null); rc=$?; err=$(cat "$T/err")
+        rcis "Ru9-adopt-refused-$v" 1; ehas "Ru9-adopt-says-note-$v" "add --note with the words of the human"
+    done
+    out=$(env CLAUDECODE=1 "$CLI" --dir "$K" judge g1 case 'a replay twice' wanted --by human --note 'Ty: yes' 2>"$T/err" </dev/null); rc=$?
+    rcis Ru9-agent-session-with-note 0
+    okb adopt hyb --by human; rcis Ru9-no-agent-session-no-note 0
 fi
 
 echo "pass=$pass fail=$fail"

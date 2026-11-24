@@ -8622,15 +8622,36 @@ cmd_adopt(KB, Args, Code) :-
     ;   reject(["Only the human adopts a hypothesis. An agent that reads the words of the human as an adoption records its reading: orbit-kb add \"adoption_cited(" + H + ", 'the words')\". Alone it adopts nothing.",
                 "Fix: when the human adopts it, orbit-kb adopt " + H + " --by human."])
     ),
+    human_words_needed(adopt, Opts),
     cmd_attest(KB, [adoption, H, adopted, '--by', human], Code),
-    (   Code == 0, memberchk('--note'-Note, Opts)
-    ->  kb_file(KB, KbFile), kb_dir(KB, Dir),
-        kb_lib(KB, Lib), load_kb(Dir, Lib, KB2), kb_items(KB2, Items2),
-        findall(A, kb_term(Items2, attest(A, adoption, H, adopted, human, _)), As), last(As, AId),
-        clause_line(note(AId, Note), [], NL),
-        append_lines(KbFile, [NL]), format("~w~n", [NL])
+    (   Code == 0, memberchk('--note'-Note, Opts), Note \== ''
+    ->  attest_note(KB, adoption, H, Note)
     ;   true
     ).
+
+% human_words_needed(+Cmd, +Opts) (review U9): in an agent session (CLAUDECODE, AI_AGENT or
+% CLAUDE_CODE_SESSION_ID is set), a record --by human needs the words of the human: --note.
+human_words_needed(Cmd, Opts) :-
+    (   ( memberchk('--note'-N, Opts), N \== '' )
+    ->  true
+    ;   agent_session(V)
+    ->  reject(["This shell is an agent session (" + V + " is set). A record --by human from it needs the words of the human.",
+                "Fix: add --note with the words of the human: orbit-kb " + Cmd + " ... --by human --note 'THE WORDS OF THE HUMAN'."])
+    ;   true
+    ).
+
+agent_session(V) :-
+    member(V, ['CLAUDECODE', 'AI_AGENT', 'CLAUDE_CODE_SESSION_ID']),
+    getenv(V, X), X \== '', !.
+
+% attest_note(+KB, +Type, +Subject, +Words) (review U9): note(A, Words) on the newest human
+% attestation A of Type on Subject: the words of the human that the record rests on.
+attest_note(KB, Type, Subj, Note) :-
+    kb_file(KB, KbFile), kb_dir(KB, Dir),
+    kb_lib(KB, Lib), load_kb(Dir, Lib, KB2), kb_items(KB2, Items2),
+    findall(A, kb_term(Items2, attest(A, Type, Subj, _, human, _)), As), last(As, AId),
+    clause_line(note(AId, Note), [], NL),
+    append_lines(KbFile, [NL]), format("~w~n", [NL]).
 
 % rests ID (0.8.0, D53, c38): what record ID rests on, up to the project goal ("up:"), and what
 % rests on it, down to the runs ("down:").
@@ -8828,9 +8849,10 @@ cmd_judge(KB, Args, Code) :-
     (   By == human -> true
     ;   reject(["Only the human judges. An agent records a judgment only when the human said it: add --by human, and --note with the words of the human."] >> fix_lines)
     ),
+    human_words_needed(judge, Opts),
     cmd_attest(KB, [judgment, Subj, PT, '--by', By], Code),
-    (   memberchk('--note'-Note, Opts), Note \== ''
-    ->  clause_line(note(Subj, Note), [], NL), kb_file(KB, KbFile), append_lines(KbFile, [NL]), format("~w~n", [NL])
+    (   Code == 0, memberchk('--note'-Note, Opts), Note \== ''
+    ->  attest_note(KB, judgment, Subj, Note)
     ;   true
     ).
 

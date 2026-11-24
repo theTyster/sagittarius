@@ -606,15 +606,15 @@ t_JD1() {  # k41: no judgment, done is no; judgment and one unresolved claim, do
 }
 t_JD2() {  # a later not-satisfied judgment or a not-wanted case reopens; a judgment is a record
     mk; green; judge_ok; is_true done
-    okb --dir "$K" judge h1 case 'the ring at 60.9 s is too late for the kitchen' not-wanted --by human; rc_is 0
+    okb --dir "$K" judge h1 case 'the ring at 60.9 s is too late for the kitchen' not-wanted --by human --note 'Ty said so'; rc_is 0
     has_fact "$K/kb.pl" "attest(_, judgment, h1, case('the ring at 60.9 s is too late for the kitchen', not_wanted), human, _)"
     is_false done "a not-wanted case"; is_true 'passed(k1)' "no check fails"; is_true 'fulfilled(c1)'
     is_set 'blocking(X)' 'X = goal_unjudged(h1)'
     okb --dir "$K" show open; out_has 'For discovery: a[0-9]+' "with no hypothesis named, the case goes to discovery"
-    okb --dir "$K" judge h1 case 'the ring at 60.0 s' wanted --by human
+    okb --dir "$K" judge h1 case 'the ring at 60.0 s' wanted --by human --note 'Ty said so'
     is_false done
-    okb --dir "$K" judge h1 satisfied --by human; is_true done
-    okb --dir "$K" judge h1 not-satisfied --by human; is_false done
+    okb --dir "$K" judge h1 satisfied --by human --note 'Ty said so'; is_true done
+    okb --dir "$K" judge h1 not-satisfied --by human --note 'Ty said so'; is_false done
     q 'experiment(A, judgment, h1)' -n 0; [ "$(printf '%s\n' "$out" | grep -c 'A = ')" = 5 ] || note "five judgments are experiments: $(snip "$out")"
 }
 t_JD3() {  # a not-wanted case against a hypothesis defeats it; with no hypothesis named it blocks (case_unplaced)
@@ -629,7 +629,7 @@ cites(c1, 'replay').
 check(k1, c1).
 EOF
     add_result "$K" k1 1 pass
-    okb --dir "$K" judge g1 case 'the corrected address of member 12 was dropped' not-wanted --by human; rc_is 0
+    okb --dir "$K" judge g1 case 'the corrected address of member 12 was dropped' not-wanted --by human --note 'Ty said so'; rc_is 0
     local j; j=$(kbq "$K/kb.pl" "kb(attest(J, judgment, _, _, _, _)), write(J)")
     is_set 'blocking(X)' "X = case_unplaced($j)|X = goal_unjudged(g1)"
     okb --dir "$K" show open; out_has "^- case_unplaced $j: .*member 12"
@@ -654,7 +654,7 @@ EOF
     okb --dir "$K" add "could_change(m1, 'whether a notification counts')"
     okb --dir "$K" lint; out_hasnt '^W18'
     okb --dir "$K" report; out_has 'Formal: not yet accepted by the human' "the heading"; out_has 'm1.*c1' "the statement"
-    okb --dir "$K" judge m1 accepts c1 --by human; rc_is 0
+    okb --dir "$K" judge m1 accepts c1 --by human --note 'Ty said so'; rc_is 0
     okb --dir "$K" report; out_hasnt 'not yet accepted by the human'
     sed -i 's/Made by orbit-kb 0.8.0/Made by orbit-kb 0.7.2/' "$K/kb.pl"; sed -i '/could_change/d' "$K/kb.pl"
     okb --dir "$K" lint; out_hasnt '^W18' "a KB from before 0.8.0 gets no W18"
@@ -747,7 +747,7 @@ t_EX1() {  # show experiments: the claim, the procedure, the measurement premise
     okb --dir "$K" lint; out_hasnt '^W17' "a KB from before 0.8.0 gets no W17"
     K=$T/kb
     run_k k1 -- "$T/timer.sh" 615
-    okb --dir "$K" judge h1 case 'it rang at 61.5 s' not-wanted --by human
+    okb --dir "$K" judge h1 case 'it rang at 61.5 s' not-wanted --by human --note 'Ty said so'
     okb --dir "$K" show experiments; rc_is 0
     out_has '^- a1 \(test\): verdict conflicts'; out_has 'Claim c1: It rings'
     out_has 'Procedure: An independent clock'; out_has 'Measurement premise mp1: The clock is right'

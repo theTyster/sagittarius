@@ -273,8 +273,10 @@ that serves the claim is the control (control(A)): it needs no location.
 THE JUDGMENT OF THE HUMAN (0.8.0)
 Only the human judges (--by human). A judgment changes the verdict of no experiment.
   orbit-kb judge G satisfied|not-satisfied --by human [--note 'the words']
-  orbit-kb judge G case 'TEXT' wanted|not-wanted --by human
-  orbit-kb judge S accepts C --by human       the formal statement S says what claim C means
+  orbit-kb judge G case 'TEXT' wanted|not-wanted --by human [--note 'the words']
+  orbit-kb judge S accepts C --by human [--note 'the words']   the formal statement S says what claim C means
+The note keeps the words of the human on the record: note(A, WORDS). In an agent session (CLAUDECODE,
+AI_AGENT or CLAUDE_CODE_SESSION_ID is set), judge and adopt --by human need --note.
 A ticket is done when nothing holds it up and the latest judgment of its goal says satisfied:
 blocking(goal_unjudged(G)). A case that the human judged not wanted is recorded against the
 hypothesis that allowed it: orbit-kb add 'case_against(J, H)' defeats H. With a current hypothesis

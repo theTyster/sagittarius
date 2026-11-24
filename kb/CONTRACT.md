@@ -938,6 +938,9 @@ A typo, a broken source, or an engine error MUST never exit 1. It must never loo
 - Attestation types `adoption` (`adopted`, human only) and `retirement` (`retired(Text)`, human or agent);
   the subject is a hypothesis/4 id. `orbit-kb adopt H --by human [--note W]` and
   `orbit-kb retire H --reason TEXT [--by human|agent]` write them.
+- Review U9: `adopt` and `judge` with `--by human` keep `--note W` as `note(A, W)` on the attestation A. When
+  CLAUDECODE, AI_AGENT or CLAUDE_CODE_SESSION_ID is set (an agent session), a `--by human` call with no `--note`
+  is refused (exit 1, nothing written) with a line that says to add --note with the words of the human.
 - `hypothesis_adopted(H)`: a human adoption attestation; or (discovery module) `adoption_cited(H, Words)`
   that stands in kb.pl before a GO vote of the human that is not void. `adoption_cited` alone adopts
   nothing, and a GO vote adopts no hypothesis without it. A proposed hypothesis with the mark prints a line under its header (D50 views, below).
