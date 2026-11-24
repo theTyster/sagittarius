@@ -4115,21 +4115,26 @@ kb_lines_commented(File, LTs, Out) :-
 % child processes of this script, so each write has the checks of init and add. When the
 % add is refused, it removes what it wrote (kb.pl and the other new files of DIR, and DIR
 % itself when it made it), and exits with the code of add. The ids are fixed: h1, p1..pN, c1.
+% 0.8.0 (review H1): --goal T [--goal-by human|agent] makes --hypothesis the avenue under the goal:
+% goal(g1, ...), hypothesis(hy1, g1, ...), defeating_case(hy1, ...) with --defeating-case; the
+% premises go on g1. Without --goal the facts, stdout and exit code are those of 0.7.2, and the
+% note of D50 on hypothesis/3 goes to stderr.
 
 cmd_shift(Args, Code) :-
     parse_opts(Args, ['--request'-value, '--request-file'-value, '--hypothesis'-value, '--kind'-value,
                       '--no-premises'-flag, '--premise'-value, '--claim'-value, '--label'-value,
                       '--example'-value, '--check'-value, '--checks-that'-value, '--cites'-value, '--uses'-value,
-                      '--red-log'-value], Pos, Opts),
+                      '--red-log'-value, '--goal'-value, '--goal-by'-value, '--defeating-case'-value], Pos, Opts),
     (   Pos = [Dir0] -> true
     ;   usage_error("Give one directory: orbit-kb shift DIR --request-file F --hypothesis T ... (orbit-kb help shift).", [])
     ),
-    forall(( member(O, ['--request', '--request-file', '--hypothesis', '--kind', '--claim', '--label', '--example', '--check', '--checks-that', '--cites', '--uses', '--red-log']),
+    forall(( member(O, ['--request', '--request-file', '--hypothesis', '--kind', '--claim', '--label', '--example', '--check', '--checks-that', '--cites', '--uses', '--red-log', '--goal', '--goal-by', '--defeating-case']),
              aggregate_all(count, member(O-_, Opts), N), N > 1 ),
            usage_error("Give ~w once.", [O])),
     forall(member(O-What, ['--hypothesis'-"the hypothesis", '--claim'-"the claim", '--example'-"its example", '--check'-"the id of its check", '--checks-that'-"the words of its check (E20)"]),
            ( memberchk(O-_, Opts) -> true
            ; usage_error("shift needs ~w: ~w TEXT (orbit-kb help shift).", [What, O]) )),
+    shift_goal_opts(Opts, GoalT, GoalBy, DefT),
     findall(P, member('--premise'-P, Opts), Prems),
     (   memberchk('--no-premises'-true, Opts)
     ->  ( Prems == [] -> true ; usage_error("Give --no-premises or --premise TEXT, not both.", []) )
@@ -4156,9 +4161,18 @@ cmd_shift(Args, Code) :-
     (   memberchk('--cites'-Cites, Opts) -> true
     ;   split_string(Text, "\n", " \t\r", [L1|_]), atom_string(Cites, L1)
     ),
-    findall(F, ( F = hypothesis(h1, Kind, HT)
-               ; memberchk('--no-premises'-true, Opts), F = no_premises(h1)
-               ; nth1(I, Prems, PT), atom_concat(p, I, PId), F = premise(PId, h1, PT)
+    (   GoalT == none
+    ->  Top = h1, HeadFacts = [hypothesis(h1, Kind, HT)], HypFacts = []
+    ;   Top = g1, HeadFacts = [goal(g1, Kind, GoalBy, GoalT)],
+        (   DefT == none
+        ->  HypFacts = [hypothesis(hy1, g1, GoalBy, HT)]
+        ;   HypFacts = [hypothesis(hy1, g1, GoalBy, HT), defeating_case(hy1, GoalBy, DefT)]
+        )
+    ),
+    findall(F, ( member(F, HeadFacts)
+               ; memberchk('--no-premises'-true, Opts), F = no_premises(Top)
+               ; nth1(I, Prems, PT), atom_concat(p, I, PId), F = premise(PId, Top, PT)
+               ; member(F, HypFacts)
                ; F = claim(c1, Label, CT)
                ; F = cites(c1, Cites)
                ; F = example(c1, ET)
@@ -4185,7 +4199,8 @@ cmd_shift(Args, Code) :-
             format(user_error, "orbit-kb shift wrote nothing: the add above was refused.~n", []),
             Code = AExit
         ;   RedText == none
-        ->  format("~w~n", [KbFile]),
+        ->  shift_note(GoalT, Kind, HT),
+            format("~w~n", [KbFile]),
             forall(member(F, Facts), ( term_text(F, FT), format("~w.~n", [FT]) )),
             format(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD (it must fail before the change), then orbit-kb lint. orbit-kb help shift.~n", [Dir, KId]),
             Code = 0
@@ -4196,7 +4211,8 @@ cmd_shift(Args, Code) :-
                 format(user_error, "~s", [DOut]),
                 format(user_error, "orbit-kb shift wrote nothing: the disclosure of the red run was refused.~n", []),
                 Code = DExit
-            ;   format("~w~n", [KbFile]),
+            ;   shift_note(GoalT, Kind, HT),
+                format("~w~n", [KbFile]),
                 forall(member(F, Facts), ( term_text(F, FT), format("~w.~n", [FT]) )),
                 format("disclosure seen_red(~w, ...): the red run that you saw, with its output.~n", [KId]),
                 format(user_error, "Next: orbit-kb --dir ~w run ~w -- CMD, then orbit-kb lint. The red run that you saw is a disclosure, not a test result: claim c1 stays unfulfilled until the tool shows ~w red, or a human waives check ~w (report: not shown red by the tool). orbit-kb help shift.~n", [Dir, KId, KId, KId]),
@@ -4204,6 +4220,24 @@ cmd_shift(Args, Code) :-
             )
         )
     ).
+
+% shift_goal_opts(+Opts, -GoalText, -Author, -DefeatingCase) (0.8.0, review H1): --goal TEXT makes
+% --hypothesis the avenue under the goal. --goal-by (human or agent, default agent) is the author of
+% both. --defeating-case needs --goal. With no --goal the call is that of 0.7.2: GoalText is none.
+shift_goal_opts(Opts, GoalT, By, DefT) :-
+    opt(Opts, '--goal', none, GoalT), opt(Opts, '--goal-by', agent, By), opt(Opts, '--defeating-case', none, DefT),
+    (   memberchk(By, [human, agent]) -> true
+    ;   usage_error("--goal-by takes human or agent, not ~w.", [By])
+    ),
+    (   GoalT == none, ( memberchk('--goal-by'-_, Opts) ; DefT \== none )
+    ->  usage_error("--goal-by and --defeating-case go with --goal TEXT: the goal, with --hypothesis as the avenue to it (orbit-kb help shift).", [])
+    ;   true
+    ).
+
+% shift_note(+GoalText, +Kind, +HypText): a shift of 0.7.2 (no --goal) writes hypothesis/3, so it
+% prints the note of D50 on stderr. Its stdout and exit code stay those of 0.7.2.
+shift_note(none, Kind, HT) :- !, hypothesis3_note(hypothesis(h1, Kind, HT)).
+shift_note(_, _, _).
 
 % shift_red_log(+Opts, +Label, -Text) (D43): the text of --red-log FILE, or none. Usage errors
 % and a missing or empty file stop shift before it writes anything.
@@ -14440,7 +14474,7 @@ help_general([
 "  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
 "  uses MODULE ...",
 "  withdraw NAME/ARITY [--by human|agent]      remove a kind that a typo declared (lint E19)",
-"  shift DIR --request-file F --hypothesis T (--no-premises|--premise T ...) --claim T --example T --check ID --checks-that T",
+"  shift DIR --request-file F [--goal T [--goal-by human|agent]] --hypothesis T [--defeating-case T] (--no-premises|--premise T ...) --claim T --example T --check ID --checks-that T",
 "  add 'FACT' ... [--by human|agent] [--doc TEXT]",
 "  subject ID PATH",
 "  attest TYPE SUBJECT 'PREDICATE' [--by human|agent] [--id ID] [--rests-on RUN,...]",
