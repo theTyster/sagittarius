@@ -183,14 +183,9 @@ document.getElementById('lane-kbs').open=true; sec.open=true; sec.scrollIntoView
 const out={text:sec.innerText, k3:sec.querySelector('.chk .badge.b-unres') ? sec.querySelector('.chk .badge.b-unres').textContent : null};
 const dlg=document.getElementById('review');
 async function through(form){
-  let f=null, tries=0;
-  for(; tries<4 && !f; tries++){   // a POST on a connection that the server just closed fails in Chromium: the page says so, and Ty sends again
-    if(dlg.open) dlg.close();
-    await new Promise(r=>setTimeout(r,300*tries));
-    form.requestSubmit(form.querySelector('button[type=submit]'));
-    for(let i=0;i<400 && !dlg.open;i++) await new Promise(r=>setTimeout(r,25));
-    f=dlg.querySelector('form[action="/send"]');
-  }
+  form.requestSubmit(form.querySelector('button[type=submit]'));
+  for(let i=0;i<400 && !dlg.open;i++) await new Promise(r=>setTimeout(r,25));
+  const f=dlg.querySelector('form[action="/send"]'); const tries=1;
   if(!f) return {dialog:dlg.open, tries, html:dlg.innerHTML.slice(0,300)};
   const rec=dlg.innerText; const r=await fetch('/send',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(new FormData(f)).toString(),redirect:'manual'});
   dlg.close(); return {dialog:true, tries, rec, status:r.status, type:r.type};

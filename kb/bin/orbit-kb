@@ -5158,7 +5158,10 @@ serve_form(Req, Form) :-
 serve_field(Form, K, V) :- memberchk(K=V0, Form), atom_string(V0, V).
 
 % T27 c9: no other site may frame the page (and its token).
-serve_frame_headers("X-Frame-Options: DENY\nContent-Security-Policy: frame-ancestors 'none'\n").
+% D72: every reply closes its connection. The server has one worker, and it closes an idle
+% connection after a short time: a browser that sent its next POST on that connection at that
+% moment got no reply ("The Desk server does not answer"), and a browser does not send a POST again.
+serve_frame_headers("Connection: close\nX-Frame-Options: DENY\nContent-Security-Policy: frame-ancestors 'none'\n").
 
 serve_reply(Status, Page) :-
     serve_frame_headers(FH),
