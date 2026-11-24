@@ -2,6 +2,7 @@
 """Link Sagittarius into the home directory. Safe to run again.
 
     ~/.local/bin/orbit-kb     -> kb/bin/orbit-kb
+    ~/.local/bin/orbit        -> kb/bin/orbit  (the same program: kb/bin/orbit is a link to orbit-kb)
     ~/.local/bin/repo-map     -> kb/bin/repo-map
     ~/.local/share/orbit-kb   -> kb/share/orbit-kb
     ~/.claude/sagittarius     -> prompt/  (holds SAGITTARIUS.md)

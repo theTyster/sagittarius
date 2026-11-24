@@ -92,6 +92,7 @@ signature(conforms/1).
 signature(contested/1).
 signature(contested_twice/1).
 signature(contradiction/2).
+signature(contradicts/2).
 signature(control/1).
 signature(could_change/2).
 signature(counts/2).
@@ -147,6 +148,7 @@ signature(done_before_upgrade/0).
 signature(done_before_upgrade/2).
 signature(draft/4).
 signature(dropped/2).
+signature(dropped/4).
 signature(due/2).
 signature(due_passed/1).
 signature(encodes/2).
@@ -174,9 +176,13 @@ signature(gate/1).
 signature(gate_allowed/1).
 signature(gate_split/0).
 signature(goal/4).
+signature(goal_contradiction_open/2).
 signature(goal_current/1).
 signature(goal_has_current_hypothesis/1).
 signature(goal_judgment/3).
+signature(goal_names_missing/2).
+signature(goal_question_answered/1).
+signature(goal_rests_on_dropped/2).
 signature(goal_satisfied/1).
 signature(goal_supported/1).
 signature(goal_unjudged/1).
@@ -287,6 +293,8 @@ signature(premises_stated/1).
 signature(procedure/2).
 signature(project_contradiction/2).
 signature(project_decision_digest/2).
+signature(project_goal/1).
+signature(project_goal_dropped/1).
 signature(project_kb/1).
 signature(project_kb_unclean/0).
 signature(project_pinned/1).

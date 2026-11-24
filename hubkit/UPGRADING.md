@@ -95,11 +95,13 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
-### 0.12.0 (one kind of hub: a hub needs the tool; db schema 8, unchanged)
+### 0.12.0 (one kind of hub: a hub needs the tool; db schema 9: the `goal` ref kind)
 
 Ty, 2026-11-23: the release for a hub with no tool is dropped. A hub needs the tool: the kit makes
 one kind of hub, with its own `orbit-kb`. This release pairs with Sagittarius 0.8.0 (it was 0.7.2).
-The db schema is 8: no `hubflow.py migrate` is needed.
+The db schema is 9. **Database:** run `python3 .claude/scripts/hubflow.py migrate` once (schema 8 to 9: the
+ref kind `goal`, `--ref goal:pg1`, the project goal that an item names directly), then `hubflow.py check`.
+migrate keeps a backup at `flow/flow.db.bak-v8`. A hub at schema 7 applies the 0.9.0 section first.
 
 - **A hub that has the tool** (`hubkit.py edition --hub "$HUB"` prints `formal`, or the manifest
   records no edition): upgrade as in "The procedure". The plan adds `.claude/orbit-kb/bin/orbit`:

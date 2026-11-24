@@ -1,0 +1,1 @@
+# HUB-CORE.md (fixture)

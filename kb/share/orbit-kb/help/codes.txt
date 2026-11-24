@@ -134,5 +134,9 @@ Project module (orbit-kb help project)
        its source has no newer pin). Read it; pin the source again and move the concerns facts. show open names it.
   WP9  only an agent wrote this relation (relation_by): it is proposed and blocks nothing. A human
        ratifies it by adding the same relation with --by human.
+  WP10 the goal supports a project goal that the project KB does not hold: supports(G, project(PG)).
+       Check the id against the goals of the project KB.
+  WP11 the goal supports a project goal that its owner dropped. Nothing is blocked or closed.
+       Ask the human which project goal the ticket serves now (orbit-kb help hub).
   EP1  an agent (agent or agent:NAME, in any case) ratified a fact (an error; add refuses it). Only a human ratifies.
   EP2  a fact depends on itself or excludes itself (depends_on(X, X), excludes(X, X); an error; add refuses it).
