@@ -2198,6 +2198,29 @@ t_QS77() {  # Desk c15 (H-0166): Ty can ratify a proposed relation of a project 
     page_ok || return; chk raw "$T/page.html" '!excludes(d1,d2)'
 }
 
+t_QS81() {  # desk-version-marker c1 c2 c3 (H-0186): the page shows the version of the tool the Desk runs; when the tool installed in a joined mindhole has another version it says restart, with both versions; when equal, no restart
+    desk_hub "$T/h"; local run vf="$T/h/.claude/orbit-kb/share/orbit-kb/VERSION" txt
+    run=$("$OKB" version | awk '{print $NF}'); [ -n "$run" ] || { note "setup: no tool version"; return; }
+    mkdir -p "$(dirname "$vf")"; echo "$run" > "$vf"
+    vm() { python3 -I -c 'import re,sys; t=open(sys.argv[1],encoding="utf-8").read(); t=re.sub(r"(?s)<(style|script)\b.*?</\1>"," ",t); print(re.sub(r"\s+"," ",re.sub(r"<[^>]*>"," ",t)))' "$T/page.html"; }   # the visible text, with no style and no script
+    srvd --hub "$T/h" || return; page_ok || return
+    txt=$(vm)
+    grep -q "data-desk-running=\"$run\"" "$T/page.html" || note "c1: the page has no data-desk-running=$run"
+    case "$txt" in *"Desk $run"*) ;; *) note "c1: the visible text has no 'Desk $run'";; esac
+    grep -q 'data-desk-installed="'"$run"'"' "$T/page.html" && grep -q 'data-desk-stale="false"' "$T/page.html" || note "c3: running = installed must give data-desk-installed=$run and data-desk-stale=false"
+    case "$txt" in *[Rr]estart*) note "c3: the page asks for a restart with equal versions";; esac
+    echo 99.0.0 > "$vf"   # the tool of the mindhole is upgraded; the Desk keeps running
+    page_ok || return; txt=$(vm)
+    grep -q "data-desk-running=\"$run\"" "$T/page.html" || note "c2: the running version moved with the disk"
+    grep -q 'data-desk-installed="99.0.0"' "$T/page.html" && grep -q 'data-desk-stale="true"' "$T/page.html" || note "c2: installed 99.0.0 must give data-desk-stale=true"
+    case "$txt" in *"Restart needed: running $run, installed 99.0.0"*) ;; *) note "c2: no 'Restart needed: running $run, installed 99.0.0' in: $(snip "$txt")";; esac
+    echo "$run" > "$vf"; page_ok || return; txt=$(vm)
+    grep -q 'data-desk-stale="false"' "$T/page.html" || note "c3: after the install is the running version again, the page is still stale"
+    rm -f "$vf"; page_ok || return; txt=$(vm)   # no VERSION in the mindhole: the Desk cannot tell, and says so, and asks for no restart
+    grep -q 'data-desk-stale="false"' "$T/page.html" || note "c2: an unknown installed version must not be stale"
+    case "$txt" in *"is unknown (no VERSION file)"*) ;; *) note "c2: an unknown installed version is not said";; esac
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -2211,6 +2234,6 @@ run_one() {  # run_one ID
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
 [ -n "${QS_LIB_ONLY:-}" ] && return 0   # test_desk_records.sh reads the harness above, and runs its own tests
-for n in $(seq 1 77); do run_one QS$n; done
+for n in $(seq 1 77) 81; do run_one QS$n; done   # QS78 to QS80 are on branch r0102/desk-delivery (desk-delivery c5 c6 c8)
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

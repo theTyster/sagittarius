@@ -304,3 +304,7 @@ a.actlink:hover .t,a.actlink:hover .go{text-decoration:underline;text-underline-
 a.actlink:focus-visible{outline:2px solid var(--lamp);outline-offset:3px;background:var(--drawer)}
 a.actlink:focus-visible .go{text-decoration:underline;text-underline-offset:3px}
 @media (max-width:600px){header.top{position:static}}
+
+/* desk-version-marker (H-0186): the running version in the top band; a restart line when a mindhole has another installed */
+.deskver{display:inline-block;margin-left:.6em;font-size:12px;font-weight:500;color:var(--graphite);font-variant-numeric:tabular-nums;vertical-align:middle}
+.banner.deskstale{border-color:var(--burn);font-weight:600}
