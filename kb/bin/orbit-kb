@@ -1850,7 +1850,7 @@ derived_items_(Dir, KbItems, Items) :-
     verdict_derived(KbItems, Ts8),
     reopen_derived(KbItems, Ts9),
     run_after_derived(KbItems, Ts10),
-    vote_void_derived(KbItems, Ts11),
+    vote_void_derived(KbItems, Ts11a), vote_changed_derived(KbItems, Ts11b), append(Ts11a, Ts11b, Ts11),
     records_derived(Dir, KbItems, Ts12),
     stage2_derived(Dir, KbItems, Ts13),
     append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10, Ts11, Ts12, Ts13], Ts),
@@ -2026,6 +2026,7 @@ reopen_derived(_, []).
 % human approval of the ticket when no back follows E (the orbit was closed when V came).
 vote_void_derived(KbItems, Facts) :-
     items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
+    vote_changed_derived(KbItems, Ch),
     findall(T, kb_term(KbItems, T), Ts),
     findall(S, ( member(T, Ts), nonvar(T), T = ticket(S) ), Tks),
     findall(vote_void(V),
@@ -2035,11 +2036,26 @@ vote_void_derived(KbItems, Facts) :-
               ;   append(_, [E|Mid], Before), nonvar(E), E = discovery_end(A),
                   valid_end(Ts, Tks, A),
                   \+ ( member(B2, Mid), is_back(B2) )
-              ;   vote_spec_changed(Ts, Tks, After)
               ) ),
             Fs0),
-    sort(Fs0, Facts).
+    findall(vote_void(V), ( member(vote_changed(V), Ch) ), Fs1),
+    append(Fs0, Fs1, Fs2), sort(Fs2, Facts).
 vote_void_derived(_, []).
+
+% vote_changed_derived(+KbItems, -Facts) (vote-start c6): vote_changed(V) for each vote V that a record
+% of the specification follows in kb.pl (see vote_spec_changed/3). Such a vote is void as well, and the
+% gate says hold until a vote of the human in a new round (the rule gate(hold) of the discovery module).
+vote_changed_derived(KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
+    findall(T, kb_term(KbItems, T), Ts),
+    findall(S, ( member(T, Ts), nonvar(T), T = ticket(S) ), Tks),
+    findall(vote_changed(V),
+            ( append(_, [X|After], Ts), nonvar(X), X = attest(V, Ty, _, _, _, _), Ty == vote, ground(V),
+              \+ ( member(B, After), is_back(B) ),
+              vote_spec_changed(Ts, Tks, After) ),
+            Fs0),
+    sort(Fs0, Facts).
+vote_changed_derived(_, []).
 
 % vote_spec_changed(+Ts, +Tks, +After) (vote-start c6, Ty r2): a record of the specification
 % (goal, hypothesis, claim, check, example, retired, supersedes, struck) follows the vote in kb.pl,
@@ -3326,6 +3342,7 @@ protected_pi(project_rests_on/2).
 protected_pi(discovery_reopened/1).
 protected_pi(discovery_run_after/2).
 protected_pi(vote_void/1).
+protected_pi(vote_changed/1).
 protected_pi(discovery_end_valid/1).
 protected_pi(discovery_closed/0).
 protected_pi(discovery_open/0).

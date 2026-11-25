@@ -102,7 +102,7 @@ t_VS4() {  # c6, c7: a change after the vote takes it back and the sheet says wh
     wr build --dir "$vt" add "note(c1, 'A note.')" "finding(f9, trace('A trace.'), system)"; wr build --dir "$vt" run k1 -- true; wr build --dir "$vt" release
     gate_is "$vt" go "the gate after a note, a finding and a run"
     wr build --dir "$vt" add "check(k2, c1)" "checks_that(k2, 'a second check')" || note "the check was refused: $(snip "$err")"; wr build --dir "$vt" release
-    gate_not "$vt" go "the gate after a new check"
+    gate_is "$vt" hold "the gate after a new check: the vote is taken back, the gate says hold"
     grep -q "vote(1, go), human" "$vt/kb.pl" || note "the old vote is gone from the KB"
     page_ok; vform "$T/page.html" vote vt >/dev/null
     grep -q "no longer counts" "$T/vf" && grep -q "check k2 added to c1" "$T/vf" || note "the sheet does not say what changed: $(snip "$(cat "$T/vf")")"

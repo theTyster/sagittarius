@@ -96,6 +96,7 @@ decl(rule, discovery_reopened(ref(attest)), 'A back attestation follows the disc
 decl(rule, discovery_closed, 'The human approved the ticket after a GO (discovery_end of a human approval of the ticket), and no return to discovery came after it. Readiness and the gate are not asked again.', 'the discovery orbit is closed').
 decl(rule, discovery_end_valid(ref(attest)), 'The discovery_end record names a human approval of the ticket subject (lint ED11 names one that does not).', 'approval @(1) is a human approval of the ticket').
 decl(rule, vote_void(ref(attest)), 'The vote does not count: a return to discovery (back) follows it in kb.pl, so it belongs to an earlier orbit, or it came after the discovery orbit closed. orbit-kb computes it when it reads the KB (D30 H5, H8).', 'vote @(1) does not count').
+decl(rule, vote_changed(ref(attest)), 'A record of the specification (a goal, hypothesis, claim, check or example added or replaced, a retirement) follows the vote in kb.pl, and the discovery orbit was not closed by the approval of the human: the vote is void, and the gate says hold until the human votes in a new round. orbit-kb computes it when it reads the KB (vote-start c6).', 'vote @(1) was taken back by a change').
 decl(rule, discovery_open, 'The discovery orbit is open: from the start of the KB until the human approves the ticket after a GO, and again after a return to discovery (a back attestation).', 'the discovery orbit is open').
 decl(rule, discovery_disproof_filed(ref(claim)), 'A disproof attestation refutes the claim.', 'a disproof of claim @(1) is filed').
 decl(rule, discovery_model_artifact(ref), 'The id is a model file, a solver log, or is tagged as model evidence.', '@(1) is a model artifact').
@@ -312,6 +313,10 @@ gate(C) :- human_vote(C), agent_vote(C), gate_allowed(C).
 gate(C) :- human_vote(C), artifact_vote(C), gate_allowed(C).
 gate(hold) :- human_vote(_), not discovery_gate_agreed.
 gate(hold) :- human_vote(go), not gate_allowed(go).
+% vote-start c6 (Ty r2, 'if something changes after a vote then votes should reset'): the human voted, a change
+% of the specification took the vote back (vote_changed/1, void), and no vote of the human counts yet: hold.
+gate(hold) :- discovery_human_vote_changed, not human_vote(_).
+discovery_human_vote_changed :- attest(A, vote, _, vote(_, _), human, _), vote_changed(A).
 gate_split :- human_vote(_), not discovery_gate_agreed.
 discovery_agent_voted(R) :- vote_cast(agent, R, _).
 discovery_vote_twin(A) :- attest(A, vote, _, vote(R, _), W, _), not vote_void(A),
