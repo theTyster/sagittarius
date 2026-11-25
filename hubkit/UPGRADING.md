@@ -95,6 +95,16 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.12.2 (the Desk by store; db schema 9, unchanged)
+
+This release pairs with Sagittarius 0.10.0. The db schema is 9: no `hubflow.py migrate` is needed. The
+engine (orbit-kb) changes: the Desk page is laid out by store (Ledger, Spec KBs, Project KB) with a
+row of views, and opens on Waits on you; every action on a spec KB is in its sheet; the page keeps
+the open folds and the place in the browser; the repo-map views get their tags. A hub on 0.12.1
+needs nothing but the upgrade. To group the spec KBs by repo, write `repo(Name, Path)` in each spec
+KB (it needs the project module). Restart the Desk after every joined hub is upgraded: one Desk
+serves every mindhole with its own tool version.
+
 ### 0.12.1 (a faster Desk; db schema 9, unchanged)
 
 This release pairs with Sagittarius 0.9.0. The db schema is 9: no `hubflow.py migrate` is needed. The

@@ -9,9 +9,9 @@ version did not go up.
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.9.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.10.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 3.0.0 | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.12.1 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.12.2 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 | s1-glance | 0.14.0 | `s1/glance/.claude-plugin/plugin.json` | the Sagittarius Signals mod |
 | desk-toast | 0.1.0 | `hubkit/hub/.claude/scripts/desk-toast/.claude-plugin/plugin.json` | the Desk toast mod |
 
@@ -41,6 +41,35 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.1.0 | the tag `v0.1.0-experiment` (2026-07-01) |
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
+
+## Sagittarius 0.10.0 and MindHole Kit 0.12.2 (2026-11-25)
+
+MINOR for Sagittarius: the Desk page has a new structure that the user sees, and the page opens on
+a new default view (Waits on you). No rule of the prompt changes. PATCH for the kit: the template
+does not change; the hub's copy of orbit-kb changes, and the db schema stays 9.
+
+- **The Desk by store** (desk-speed-orbit-door c13 to c17). The stores (Ledger, Spec KBs, Project
+  KB) are the only main sections. A row of views narrows them: Waits on you, Questions, Answered,
+  Everything (`?view=`); the page opens on Waits on you. Everything shows the same items as 0.9.0,
+  each once, and the two counts of the top band do not change. The spec KBs are grouped by repo
+  (`repo/2` in the KB, else a path or forge link of a repo of its project KB; the group No repo).
+  Every action on one spec KB is in its sheet, in layers that fold: Questions (two groups: Open
+  questions and Has a default; no section Running on a guess remains), Goal and hypotheses, Claims
+  and checks, Ledger items of this KB, Answered and judged, and New requirement for this KB. Each
+  form writes the same record as before. An ask whose card is in a KB sheet stands in the Ledger as
+  a row that goes to its card. Each number of the rail has one meaning.
+- **The Desk keeps your place, and takes new ideas** (c3, c4, c5). A fold pair (Expand all,
+  Collapse all) at each depth, compact at the sheet and the layer; the browser keeps the open
+  folds, the view, the "N more: show" steps and the scroll place for each Desk address; a New
+  requirement control in the top band sends an idea to the review session through the review step.
+- **repo-map shows what each part installs, creates and writes** (repo-map-flow). The groups view
+  has tags in the boxes at both ends of each relation (installs, creates, writes; installed by,
+  created by, written by), each with its source in the code; `views.py check` goes red when a tag or
+  its source is gone. Below 760 px the flow view has a narrow form, with every lane on the screen.
+- **The eval runner can run live** (prompt-evals). `evals/conformance/agent_cmd.sh` runs one Haiku
+  session on a task, `s1_cmd.py` asks System 1 and keeps its answers, and `runner.py live` collects
+  them into the `answers.json` that the scorer reads. The plan also states the cost of the live run
+  alone. `evals/conformance/PILOT.md` gives the commands. No live run is in this release.
 
 ## Sagittarius 0.9.0 and MindHole Kit 0.12.1 (2026-11-25)
 
