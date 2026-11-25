@@ -10,6 +10,8 @@
 #       ready is recorded and does not win the gate; a HOLD counts at once; a vote of a ready KB wins the gate
 #   VS4 c6: a change of the specification after the vote opens the gate; the vote stays in the KB; the sheet
 #       says what changed; a vote in a new round wins again; c7: a note, a run, a finding, an answer keep it
+#   VS6 c9, c10: after the GO the sheet shows the ticket text and Approve (the digest of that text); the approval is
+#       recorded as Ty's; a text that changed makes it stale and the sheet asks again; an old digest is refused
 #   VS5 c6: the engine rule alone (orbit-kb query): each kind of change voids; each other record keeps the vote;
 #       a vote after a valid approval of the ticket (closed discovery) is not taken back
 QS_LIB_ONLY=1
@@ -113,6 +115,7 @@ t_VS4() {  # c6, c7: a change after the vote takes it back and the sheet says wh
 }
 t_VS5() {  # c6: the engine rule alone, kind by kind; a vote after a valid approval is not taken back
     local ch d
+    vs_kb "$T/lint" voted && { wr build --dir "$T/lint" lint; [ "$rc" = 0 ] || note "lint of a KB with a vote: exit $rc: $(snip "$out")"; }
     for ch in claim check example hypothesis goal retired supersedes; do d="$T/e-$ch"; vs_kb "$d" voted || return; gate_is "$d" go "fixture for $ch"
         case $ch in
         claim)      wr build --dir "$d" add "claim(c2, introduce, 'A second claim.')" "cites(c2, 'a request')" "example(c2, 'A case.')" "check(k2, c2)" "checks_that(k2, 'it checks')" "predicts(hy1, c2)" ;;
@@ -147,6 +150,35 @@ t_VS5() {  # c6: the engine rule alone, kind by kind; a vote after a valid appro
     wr build --dir "$d" add "example(c1, 'A case that build adds after the approval.')" "check(k5, c1)" "checks_that(k5, 'a build check')"; wr build --dir "$d" release
     gate_is "$d" go "the vote of a closed discovery after a change of build"
 }
-for n in 1 2 3 4 5; do run_one VS$n; done
+t_VS6() {  # c9, c10: after the GO the sheet shows the ticket text and Approve with its digest; the approval is recorded; a changed text makes it stale
+    vs_hub "$T/h"; vs_holder x vt; local vt="$T/h/specs/vt" tok dg dg2 lt
+    printf '# Delivered:\n\nTICKETPROBE-4471 the words of the ticket.\n\n- one point\n- another point\n' > "$vt/TICKET.md"
+    wr build --dir "$vt" subject tk TICKET.md; wr build --dir "$vt" add "ticket(tk)" || note "setup: ticket refused: $(snip "$err")"; wr build --dir "$vt" release
+    srvd --hub "$T/h" || return; page_ok || return; tok=$(pg dtoken "$T/page.html")
+    grep -q "TICKETPROBE-4471" "$T/page.html" && grep -q "<li>one point</li>" "$T/page.html" || note "the text of the ticket (as a page) is not on the sheet"
+    [ "$(vform "$T/page.html" approve vt)" = 1 ] || { note "no Approve form on vt"; return; }
+    dg=$(grep -oE 'sha256:[0-9a-f]{64}' "$T/vf" | head -1); [ "$dg" = "sha256:$(sha256sum "$vt/TICKET.md" | cut -d' ' -f1)" ] || note "the form names the digest $dg, not that of the text"
+    [ "$(vform "$T/page.html" approve rd)" = 0 ] && [ "$(vform "$T/page.html" approve nr)" = 0 ] || note "a KB with no ticket has an Approve form"
+    review "token=$tok" "hub=$T/h" "item=approve:$vt" intent=approve "digest=$dg"; code_is 200 "the review of Approve: $(snip "$(cat "$T/review.html")")" || return
+    rj "any('your approval of the ticket tk' in r for r in d['records']) and d['sends_to']==['/send']"
+    hasnt_goal "$vt" "attest(_, approval, tk, _, human, _)" "the review wrote the approval"
+    lt=$(python3 -I -c "import json,sys; print(json.load(open(sys.argv[1]))['letters'][0]['text'])" "$T/review.json")
+    review "token=$tok" "hub=$T/h" "item=approve:$vt" intent=approve "digest=sha256:$(printf 'x%.0s' $(seq 64))"; code_is 409 "Approve with a digest that is not the text"
+    post /send "token=$tok" "hub=$T/h" "item=approve:$vt" intent=approve "digest=$dg" "letter_0=$lt" to_0=build; code_is 303 "send Approve: $(grep -o "message[^<]*<[^<]*" "$T/post.html" | head -2)"
+    has_goal "$vt" "attest(_, approval, tk, digest('$dg'), human, _)" "the approval of the human names the digest"
+    has_goal "$vt" "discovery_closed" "the approval ended the discovery orbit"
+    page_ok; [ "$(vform "$T/page.html" approve vt)" = 0 ] && grep -q "You approved this text" "$T/page.html" || note "after the approval the sheet still asks, or does not say that Ty approved"
+    # c10: the text changes; the approval is stale; the sheet asks again with the new text
+    printf '# Delivered:\n\nTICKETPROBE-9902 the new words of the ticket.\n' > "$vt/TICKET.md"
+    review "token=$tok" "hub=$T/h" "item=approve:$vt" intent=approve "digest=$dg"; code_is 409 "Approve of the old digest after the text changed"
+    wr build --dir "$vt" subject tk TICKET.md; wr build --dir "$vt" release
+    has_goal "$vt" "stale(_)" "the approval is stale after the new subject"
+    page_ok; grep -q "TICKETPROBE-9902" "$T/page.html" && ! grep -q "TICKETPROBE-4471" "$T/page.html" || note "the sheet does not show the new text"
+    [ "$(vform "$T/page.html" approve vt)" = 1 ] && grep -q "stale" "$T/vf" || note "the sheet does not ask again, or does not say stale"
+    dg2=$(grep -oE 'sha256:[0-9a-f]{64}' "$T/vf" | head -1); [ "$dg2" != "$dg" ] || note "the new form names the old digest"
+    review "token=$tok" "hub=$T/h" "item=approve:$vt" intent=approve "digest=$dg"; code_is 409 "Approve of the old digest"
+    review "token=$tok" "hub=$T/h" "item=approve:$vt" intent=approve "digest=$dg2"; code_is 200 "the review of Approve of the new text"
+}
+for n in 1 2 3 4 5 6; do run_one VS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

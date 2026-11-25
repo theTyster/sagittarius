@@ -7308,8 +7308,73 @@ desk_records_html(Eng, Acts, Html) :-
         desk_judgments_html(Eng, G.id, JsH),
         (   Acts = acts(HD, K), \+ desk_kb_frozen(HD, K) -> desk_judge_forms(HD, K, G.id, FH) ; FH = "" ),
         (   Acts = acts(HD, K), \+ desk_kb_frozen(HD, K) -> desk_vote_forms(HD, K, Eng, VtH) ; VtH = "" ),
-        dk_cat([GoalH, HsH, JsH, VtH, FH], Html)
+        (   Acts = acts(HD, K), \+ desk_kb_frozen(HD, K) -> desk_ticket_html(HD, K, Eng, TkH) ; TkH = "" ),
+        dk_cat([GoalH, HsH, JsH, VtH, TkH, FH], Html)
     ).
+
+% desk_ticket_html(+HD, +K, +Eng, -Html) (vote-start c9, c10): after the GO of a ticket (the gate is go, or
+% the orbit is closed), the sheet shows the text of the ticket, as a page, with Approve: a form that
+% names the sha256 digest of the text shown. An approval of the human that names the digest of the text
+% as it is now ends the need; after the text changes, the old approval is stale (stale/1), the page shows
+% the new text and Approve again.
+desk_ticket_html(HD, K, Eng, Html) :-
+    (   dk_all(Eng, [TK], ticket(TK), [TK1|_]),
+        ( dk_true(Eng, gate(go)) ; dk_true(Eng, discovery_closed) ),
+        desk_ticket_file(Eng, K.dir, TK1, Abs),
+        exists_file(Abs), catch(sha256_file(Abs, Dig), _, fail),
+        size_file(Abs, Sz), Sz < 200000,
+        catch(read_file_to_string(Abs, Txt, [encoding(utf8)]), _, fail)
+    ->  desk_md_html(Txt, MdH), esc(Dig, DigH), esc(TK1, TKH),
+        dk_all(Eng, [Pd, At], attest(_, approval, TK1, Pd, human, At), Aps),
+        (   member([digest(Dig), At1], Aps)
+        ->  dk_day_time(At1, AT), dk_f("<p class=\"small\">You approved this text (<span class=\"ref\">~w</span>, ~w).</p>", [DigH, AT], ApH), FormH = ""
+        ;   ( Aps == [] -> Why = "" ; Why = "<p class=\"small loud\">Your earlier approval names an older text: it is stale. Approve this text as it is now.</p>" ),
+            serve_conf(token, Tok), dk_f("approve:~w", [K.dir], It),
+            desk_hidden([token-Tok, hub-HD.path, item-It, intent-approve, digest-Dig], HH),
+            dk_f("<form class=\"approve\" method=\"post\" action=\"/review\" data-review data-approve>~w~w<button class=\"btn\" type=\"submit\">Approve this text</button> <span class=\"small quiet\">it names the digest <span class=\"ref\">~w</span></span> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form>", [HH, Why, DigH], FormH),
+            ApH = ""
+        ),
+        dk_f("<div class=\"ticket\" data-ticket=\"~w\"><h4>The ticket</h4><div class=\"tickettext\">~w</div>~w~w</div>", [TKH, MdH, ApH, FormH], Html)
+    ;   Html = ""
+    ).
+
+% the file of the ticket: the path of its subject record, in the KB folder
+desk_ticket_file(Eng, Dir, TK, Abs) :-
+    dk_all(Eng, [P], subject(TK, P, _), Ps), Ps \== [], last(Ps, P1),
+    atom_string(P1A, P1),
+    (   is_absolute_file_name(P1A) -> Abs = P1A ; directory_file_path(Dir, P1A, Abs) ).
+
+% desk_md_html(+Text, -Html): a plain page from the text of a ticket: headings, bullets, code blocks and
+% paragraphs, each escaped. It is no full Markdown.
+desk_md_html(Text, Html) :-
+    split_string(Text, "\n", "\r", Ls), desk_md_blocks(Ls, Bs), dk_cat(Bs, Html).
+desk_md_blocks([], []).
+desk_md_blocks([L|Rs], Bs) :-
+    (   sub_string(L, 0, 3, _, "```")
+    ->  desk_md_until_fence(Rs, Code, Rest), atomic_list_concat(Code, '\n', CT), esc(CT, CH),
+        dk_f("<pre>~w</pre>", [CH], B), Bs = [B|Bs1], desk_md_blocks(Rest, Bs1)
+    ;   split_string(L, "", " \t", [""]) -> desk_md_blocks(Rs, Bs)
+    ;   sub_string(L, 0, _, _, "#")
+    ->  string_concat("#", _, L), split_string(L, "#", " ", Ps), last(Ps, T0), esc(T0, TH),
+        dk_f("<h5>~w</h5>", [TH], B), Bs = [B|Bs1], desk_md_blocks(Rs, Bs1)
+    ;   desk_md_bullet(L, _)
+    ->  desk_md_take_bullets([L|Rs], Items, Rest), findall(X, ( member(I, Items), esc(I, IH), dk_f("<li>~w</li>", [IH], X) ), Xs), dk_cat(Xs, XsH),
+        dk_f("<ul>~w</ul>", [XsH], B), Bs = [B|Bs1], desk_md_blocks(Rest, Bs1)
+    ;   desk_md_take_para([L|Rs], Para, Rest), atomic_list_concat(Para, ' ', PT), esc(PT, PH),
+        dk_f("<p>~w</p>", [PH], B), Bs = [B|Bs1], desk_md_blocks(Rest, Bs1)
+    ).
+desk_md_until_fence([], [], []).
+desk_md_until_fence([L|Rs], Code, Rest) :-
+    (   sub_string(L, 0, 3, _, "```") -> Code = [], Rest = Rs
+    ;   Code = [L|C1], desk_md_until_fence(Rs, C1, Rest)
+    ).
+desk_md_bullet(L, T) :- split_string(L, "", " \t", [L1]), ( sub_string(L1, 0, _, _, "- ") ; sub_string(L1, 0, _, _, "* ") ), sub_string(L1, 2, _, 0, T).
+desk_md_take_bullets([L|Rs], [T|Ts], Rest) :- desk_md_bullet(L, T), !, desk_md_take_bullets(Rs, Ts, Rest).
+desk_md_take_bullets(Rest, [], Rest).
+desk_md_take_para([L|Rs], [L1|Ps], Rest) :-
+    split_string(L, "", " \t", [L1]), L1 \== "", \+ sub_string(L1, 0, 1, _, "#"), \+ sub_string(L1, 0, 3, _, "```"), \+ desk_md_bullet(L1, _), !,
+    desk_md_take_para(Rs, Ps, Rest).
+desk_md_take_para(Rest, [], Rest).
 
 % desk_vote_forms(+HD, +K, +Eng, -Html) (vote-start c1, c3, c6): while the discovery of a spec KB is
 % open, its sheet always has the Vote form (GO, NO-GO, HOLD) and a link to the report (the layers of
@@ -8778,6 +8843,7 @@ desk_plan(Form, P) :-
     ;   string_concat("kbreq:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_kbreq(HD, K, Intent, Text, P0)
     ;   string_concat("vote:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_vote(HD, K, Choice, Text, P0)
     ;   string_concat("callvote:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_callvote(HD, K, Text, P0)
+    ;   string_concat("approve:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), ( serve_field(Form, digest, Dg) -> true ; Dg = "" ), desk_plan_approve(HD, K, Dg, Text, P0)
     ;   string_concat("fix:", R, It) -> desk_plan_fix(HDs, HD, R, Text, P0)
     ;   string_concat("proj:", R, It) -> desk_plan_proj(HDs, HD, R, Text, P0)
     ;   throw(desk_refused(400, "The form names no item. Reload the page."))
@@ -9089,6 +9155,27 @@ desk_vote_round(Eng, R) :-
     ;   findall(Rn, member(Rn-_, Valid), VRs), max_list(VRs, MaxV),
         (   memberchk(MaxV-human, Valid) -> R is MaxV + 1 ; R = MaxV )
     ).
+
+% ---- the approval of the ticket (vote-start c9, c10): the Desk records Ty's approval for the digest of the text
+% that the sheet showed. If the text changed since, nothing is written: the page is stale.
+desk_plan_approve(HD, K, Dg, Text, P) :-
+    desk_engine(K.dir, _, Eng),
+    (   dk_all(Eng, [TK], ticket(TK), [TK1|_]), ( dk_true(Eng, gate(go)) ; dk_true(Eng, discovery_closed) ), desk_ticket_file(Eng, K.dir, TK1, Abs), exists_file(Abs)
+    ->  true
+    ;   dk_f("The KB ~w has no ticket text to approve now. Reload the page.", [K.label], M0), throw(desk_refused(409, M0))
+    ),
+    sha256_file(Abs, Now),
+    (   atom_string(Now, DgS), Dg == DgS -> true
+    ;   dk_f("The ticket text of the KB ~w changed since you looked at it. Nothing is approved. Reload the page and read it again.", [K.label], M1), throw(desk_refused(409, M1))
+    ),
+    desk_holder(HD, K, H0, _), ( H0 \== none, desk_live(HD, H0) -> To = H0 ; To = none ),
+    dk_f("the approval of the ticket of the KB ~w", [K.label], About),
+    desk_item_json(HD, K, kb, "approve", Item),
+    ( Text == "" -> WT = "" ; dk_f("\n\nHis words: ~w", [Text], WT) ),
+    dk_f("Ty approves the ticket ~w of the KB ~w (~w) as it stands: its digest is ~w.~w\n\nThe Desk recorded his approval in the KB (attest approval ~w digest, by human). It ends the discovery orbit when the gate is go.", [TK1, K.label, K.dir, Dg, WT, TK1], LT),
+    dk_f("The KB ~w: your approval of the ticket ~w for the digest ~w (attest approval, by human).", [K.label, TK1, Dg], R1),
+    desk_lt(To, answer, About, Item, LT, L1),
+    P = plan{title:"Your approval", sub:About, letters:[L1], records:[R1], effects:[kb_approve(K.dir, TK1, Abs, Dg)]}.
 
 % ---- Bring to a vote (vote-start c3): a letter to the holder of a KB that is not ready. Nothing is written.
 desk_plan_callvote(HD, K, Text, P) :-
@@ -9434,6 +9521,23 @@ desk_effect(kb_write(Dir, Facts), R) :-
     (   R0 == ok, member(signal(S, _, _, _), Facts), desk_still_pending(Dir, S) -> R = queued
     ;   R0 == ok, pending_open(Dir, Ps), Ps \== [], member(pending(_, _, Fs), Ps), member(F, Facts), memberchk(F, Fs) -> R = queued
     ;   R = R0
+    ).
+desk_effect(kb_approve(Dir, TK, Abs, Dg), R) :-
+    serve_conf(writer, W), serve_conf(script, Script),
+    lock_state(Dir, LS),
+    (   ( LS == none ; LS = held(W, _) )
+    ->  (   catch(sha256_file(Abs, Now), _, fail), atom_string(Now, NS), atom_string(Dg, DS), NS == DS
+        ->  format(atom(Pred), "digest('~w')", [Dg]),
+            serve_child(Script, W, ['--dir', Dir, subject, TK, Abs], E0, Err0),
+            (   E0 == 0 -> serve_child(Script, W, ['--dir', Dir, attest, approval, TK, Pred, '--by', human], Exit, Err) ; Exit = E0, Err = Err0 ),
+            ( LS == none -> serve_child(Script, W, ['--dir', Dir, release], _, _) ; true ),
+            (   Exit == 0 -> R = ok
+            ;   split_string(Err, "", " \n", [E1]), format(string(M), "Nothing was approved. orbit-kb said: ~w", [E1]), R = refused(409, M)
+            )
+        ;   ( LS == none -> serve_child(Script, W, ['--dir', Dir, release], _, _) ; true ),
+            R = refused(409, "The ticket text changed after the review. Nothing is approved. Reload the page and read it again.")
+        )
+    ;   R = refused(409, "Another session holds the writer lock of this KB now. Nothing was written. Try again in a minute.")
     ).
 desk_effect(kb_attest(Dir, Type, Subject, Pred, Extra), R) :-
     desk_attest_id(Dir, Id), utc_now(Now),

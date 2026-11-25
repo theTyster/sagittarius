@@ -127,6 +127,7 @@ signature(discovery_evidence/2).
 signature(discovery_gate_agreed/0).
 signature(discovery_has_example/1).
 signature(discovery_has_outcome/0).
+signature(discovery_human_vote_changed/0).
 signature(discovery_hypothesis_touched/1).
 signature(discovery_is_finding/1).
 signature(discovery_is_hypothesis/1).

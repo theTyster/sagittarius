@@ -159,6 +159,7 @@ decl(rule, human_vote(atom), 'The vote of the human in the current round.', 'the
 decl(rule, agent_vote(atom), 'The vote of the agent in the current round.', 'the agent votes @(1)').
 decl(rule, discovery_some_current, 'Some claim is current.', 'some claim is current').
 decl(rule, artifact_vote(atom), 'The vote of the formal artifacts: go when discovery is ready with a current claim, no_go when it is ready with no current claim, else hold. Once the orbit is closed, go: the vote of the round that closed it (D30 H6).', 'the formal artifacts vote @(1)').
+decl(rule, discovery_human_vote_changed, 'A vote of the human was taken back by a change of the specification (vote_changed/1).', 'the human voted and a change took the vote back').
 decl(rule, discovery_gate_agreed, 'The human and at least one other role vote the same.', 'the human and another role agree').
 decl(rule, gate(atom), 'The outcome of the vote: a choice of the human and at least one other role that can win (gate_allowed: GO cannot win while discovery is not ready), else hold. No answer until the human votes.', 'the outcome of the vote is @(1)').
 decl(rule, gate_split, 'The human voted, and no other role agrees with the human. The outcome is hold; record a divergence.', 'the vote is split, so the outcome is hold').
