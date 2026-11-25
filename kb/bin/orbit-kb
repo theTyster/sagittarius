@@ -525,6 +525,9 @@ kb_command('pin-request').
 kb_command('apply-pending').
 kb_command(review).
 kb_command(withdraw).
+kb_command(strike).
+kb_command(replace).
+kb_command(erase).
 kb_command(adopt).
 kb_command(retire).
 kb_command(rests).
@@ -642,6 +645,9 @@ writer_command(review).
 writer_command(subject).
 writer_command(attest).
 writer_command(withdraw).
+writer_command(strike).
+writer_command(replace).
+writer_command(erase).
 writer_command(adopt).
 writer_command(retire).
 writer_command(propose).
@@ -664,7 +670,7 @@ writer_command('confirm-proposal').
 % --take replaces the holder at once and records writer_takeover/3 too.
 % The lock is a record, not a guard: nothing stops a hand edit of kb.pl.
 
-lock_command(C) :- memberchk(C, [adopt, retire, judge, locate, confirm, add, subject, attest, run, prove, uses, withdraw, 'pin-item',
+lock_command(C) :- memberchk(C, [adopt, retire, judge, locate, confirm, add, subject, attest, run, prove, uses, withdraw, strike, replace, erase, 'pin-item',
                                  'pin-question', 'pin-answer', 'pin-request', 'apply-pending', review,
                                  propose, 'confirm-proposal']).
 
@@ -1293,6 +1299,9 @@ kb_cmd('pin-request', KB, Args, Code) :- cmd_pin_request(KB, Args, Code).
 kb_cmd('apply-pending', KB, Args, Code) :- cmd_apply_pending(KB, Args, Code).
 kb_cmd(review, KB, Args, Code) :- cmd_review(KB, Args, Code).
 kb_cmd(withdraw, KB, Args, Code) :- cmd_withdraw(KB, Args, Code).
+kb_cmd(strike, KB, Args, Code) :- cmd_strike(KB, Args, Code).
+kb_cmd(replace, KB, Args, Code) :- cmd_replace(KB, Args, Code).
+kb_cmd(erase, KB, Args, Code) :- cmd_erase(KB, Args, Code).
 kb_cmd(propose, KB, Args, Code) :- cmd_propose(KB, Args, Code).
 kb_cmd('confirm-proposal', KB, Args, Code) :- cmd_confirm_proposal(KB, Args, Code).
 
@@ -2812,10 +2821,10 @@ unused_module_decl(KB, N, A, M) :-
 supersedes_kind_diags(env(_, _, IdA, FAA), supersedes(N, O), F, L, Diags) :-
     findall(diag('E4', F, L, M),
             ( nth1(I, [N, O], X), atom(X), get_assoc(X, IdA, _),
-              \+ sup_kind(FAA, X, _),
+              \+ sup_kind_any(FAA, X, _),
               fmt(M, "supersedes/2 argument ~w: ~q is not the id of a claim or a hypothesis. supersedes takes two claims, two hypotheses, or two decisions, two definitions, or two rules (project module). Fix the id.", [I, X]) ),
             D1),
-    (   sup_kind(FAA, N, KN), sup_kind(FAA, O, KO), KN \== KO
+    (   sup_kind_any(FAA, N, KN), sup_kind_any(FAA, O, KO), KN \== KO
     ->  (   msort([KN, KO], [hypothesis, hypothesis4])
         ->  sup_kind_word(FAA, N, KN, WN, KO), sup_kind_word(FAA, O, KO, WO, KN),
             fmt(M2, "supersedes/2: ~q is a ~w and ~q is a ~w. Both sides must be the same kind: a goal replaces a goal, and a hypothesis under a goal replaces a hypothesis under a goal.", [N, WN, O, WO])
@@ -2891,6 +2900,11 @@ sup_kind(FAA, X, claim) :- atom(X), get_assoc(claim-X, FAA, _), !.
 sup_kind(FAA, X, hypothesis4) :- atom(X), get_assoc('$hyp4'-X, FAA, _), !.
 sup_kind(FAA, X, hypothesis) :- atom(X), get_assoc(goal-X, FAA, _), !.
 sup_kind(FAA, X, K) :- atom(X), member(K, [decision, definition, rule]), get_assoc(K-X, FAA, _), !.  % D27
+
+% sup_kind_any(+FAA, +Id, -Kind) (kb-crud c1): supersedes/2 takes two items of the same kind, of any kind:
+% the kinds above, or a check, a question, a finding, a premise, a risk, a signal or an attestation.
+sup_kind_any(FAA, X, K) :- sup_kind(FAA, X, K), !.
+sup_kind_any(FAA, X, K) :- atom(X), member(K, [check, question, finding, premise, risk, signal, attest]), get_assoc(K-X, FAA, _), !.
 
 % sup_kind_word(+FAA, +Id, +Kind, -Word, +OtherKind): the word of a kind in a message.
 sup_kind_word(FAA, X, hypothesis, W, Other) :- !,
@@ -4267,6 +4281,210 @@ kb_lines_commented(File, LTs, Out) :-
     pairs_keys(LTs, Ls),
     findall(O, ( nth1(I, Lines, LS), ( memberchk(I, Ls) -> string_concat("% withdrawn: ", LS, O) ; O = LS ) ), Outs),
     atomic_list_concat(Outs, '\n', Out).
+
+% ---------------------------------------------------------------------
+% strike, replace, erase (kb-crud c1 to c4; hypothesis hy3)
+% ---------------------------------------------------------------------
+% orbit-kb strike X --why TEXT [--disclose TEXT] [--by human|agent]
+%   X is struck: struck(X, By, Time, Why) is appended. X no longer counts in any rule (the engine
+%   reads the KB without it), and it stays in kb.pl and in the report as struck.
+% orbit-kb replace X NEW [--why TEXT] [--disclose TEXT] [--by human|agent]
+%   NEW is added (the same checks as add); for an item X, supersedes(NEWID, X) is added with it; for
+%   an attachment X, X is struck.
+% orbit-kb erase X --why TEXT [--disclose TEXT] [--by human|agent]
+%   For a record added by mistake: its line (an item: with its attachments) leaves kb.pl, and
+%   erased(X, By, Time, Why) stays, without the text.
+% X is the id of an item, or KIND(ITEM)#N: the Nth fact of that kind on that item, in the order of
+% kb.pl (an attachment has no id). A record of the human (a fact with the argument human, or a
+% request) is changed by an agent only with --disclose TEXT: what the human said, and where. The
+% disclosure is a struck_disclosure/4 fact, which the Desk shows to the human as a divergence.
+
+% struck_filter(+Items0, -Items): the engine reads the items of kb.pl without the records that no
+% longer count: a struck record, an attachment struck by its address, an item that another item of
+% its kind supersedes (a claim, a hypothesis and a goal have their own rules), and the attachments
+% of such an item (each fact whose first argument is its id).
+struck_filter(Items0, Items) :-
+    findall(X, ( member(it(kb, _, _, T, _, _), Items0), nonvar(T), T = struck(X, _, _, _), atom(X) ), S0),
+    findall(O, ( member(it(kb, _, _, T, _, _), Items0), nonvar(T), T = supersedes(_, O), atom(O),
+                 \+ crud_own_rule(Items0, O) ), S1),
+    append(S0, S1, S2), sort(S2, Ids),
+    findall(L, ( member(it(kb, _, _, T, _, _), Items0), nonvar(T), T = struck(at(K, I, N), _, _, _),
+                 crud_address_line(Items0, K, I, N, L) ), Ls0),
+    sort(Ls0, Ls),
+    (   Ids == [], Ls == []
+    ->  Items = Items0
+    ;   exclude(crud_dropped(Ids, Ls), Items0, Items)
+    ).
+
+% crud_own_rule(+Items, +Id): Id is a claim, a hypothesis or a goal: core.pl has rules for its supersedes.
+crud_own_rule(Items, O) :-
+    member(it(kb, _, _, T, _, _), Items), nonvar(T), compound(T), arg(1, T, A), A == O,
+    functor(T, N, _), memberchk(N, [claim, hypothesis, goal, decision, definition, rule]), !.
+
+crud_dropped(Ids, Ls, it(kb, _, L, T, _, _)) :-
+    nonvar(T), compound(T),
+    (   memberchk(L, Ls)
+    ;   functor(T, N, _), \+ memberchk(N, [struck, struck_disclosure, erased, supersedes]),
+        arg(1, T, A), atom(A), memberchk(A, Ids)
+    ), !.
+
+% crud_address_line(+Items, +Kind, +Item, +N, -Line): the line of the Nth fact of the kind on the item.
+crud_address_line(Items, K, I, N, L) :-
+    findall(L0, ( member(it(kb, _, L0, T, _, _), Items), nonvar(T), compound(T), functor(T, K, _),
+                  arg(1, T, A), A == I ), Ls),
+    nth1(N, Ls, L).
+
+% crud_target(+KB, +Text, -Target, -LTs): Target is the id (an atom) or at(K, I, N); LTs are the
+% Line-Term pairs of the facts that it names (an attachment: one; an item: each fact that has its id
+% as the first argument, and each supersedes(_, Id)).
+crud_target(KB, Text0, Target, LTs) :-
+    kb_items(KB, Items),
+    atom_string(Text0, Text),
+    Re = "^([a-z_][A-Za-z0-9_]*)\\(([^()]+)\\)#([0-9]+)$",
+    (   re_match(Re, Text)
+    ->  re_matchsub(Re, Text, Sub, []),
+        atom_string(K, Sub.1), atom_string(I, Sub.2), number_string(N, Sub.3),
+        (   N >= 1, crud_address_line(Items, K, I, N, L), member(it(kb, _, L, T, _, _), Items)
+        ->  Target = at(K, I, N), LTs = [L-T]
+        ;   fmt(M, "~w names no record: kb.pl has no ~w(~w, ...) fact number ~w (counted in the order of kb.pl).", [Text, K, I, N]),
+            reject([M])
+        )
+    ;   atom_string(Id, Text),
+        items_decls(Items, Ds),
+        include(fact_item, Items, Facts),
+        build_env(Facts, Ds, env(_, _, IdA, _)),
+        (   get_assoc(Id, IdA, _)
+        ->  Target = Id,
+            findall(L-T, ( member(it(kb, _, L, T, _, _), Items), nonvar(T), compound(T), arg(1, T, A), A == Id ), LTs0),
+            findall(L-T, ( member(it(kb, _, L, T, _, _), Items), nonvar(T), T = supersedes(_, O), O == Id ), LTs1),
+            append(LTs0, LTs1, LTs2), sort(LTs2, LTs)
+        ;   fmt(M, "~w is not the id of an item of this KB (a claim, a check, a question, a finding, an attestation, ...), and not an address such as note(g1)#2.", [Text]),
+            reject([M])
+        )
+    ).
+
+% crud_human_record(+Fact): a record of the human: a request, or a fact with the argument human.
+crud_human_record(T) :- nonvar(T), T = request(_, _), !.
+crud_human_record(T) :-
+    nonvar(T), compound(T), \+ T = struck_disclosure(_, _, _, _), \+ T = struck(_, _, _, _), \+ T = erased(_, _, _, _),
+    \+ T = actor(_, _, _), T =.. [_|As], memberchk(human, As), !.
+
+crud_guard(LTs, Target, By, Opts) :-
+    (   By == agent, member(_-T, LTs), crud_human_record(T), \+ memberchk('--disclose'-_, Opts)
+    ->  term_text(T, TT),
+        fmt(M, "~w is a record of the human (~w). An agent changes it only with a disclosure that says what the human said and where.", [Target, TT]),
+        reject([M, "Fix: add --disclose TEXT, for example --disclose 'Ty said B in the chat'."] >> fix_lines)
+    ;   true
+    ).
+
+crud_why(Opts, Default, Why) :-
+    (   memberchk('--why'-W, Opts)
+    ->  atom_string(W, WS), split_string(WS, "", " \t\r\n", [T]),
+        (   T == "" -> reject(["--why is empty.", "Fix: say why in one plain sentence."] >> fix_lines) ; atom_string(Why, T) )
+    ;   Default == none
+    ->  reject(["This command needs the reason: --why TEXT.", "Fix: say why in one plain sentence."] >> fix_lines)
+    ;   Why = Default
+    ).
+
+crud_by(Opts, By) :-
+    opt(Opts, '--by', agent, By),
+    ( memberchk(By, [human, agent]) -> true ; usage_error("--by takes human or agent. It is ~w.", [By]) ).
+
+crud_disclosure_line(Target, By, Now, Opts, Lines) :-
+    (   By == agent, memberchk('--disclose'-D, Opts)
+    ->  clause_line(struck_disclosure(Target, By, Now, D), [], L), Lines = [L]
+    ;   Lines = []
+    ).
+
+cmd_strike(KB, Args, Code) :-
+    parse_opts(Args, ['--by'-value, '--why'-value, '--disclose'-value], Pos, Opts),
+    (   Pos = [X] -> true ; usage_error("Give one record and the reason: orbit-kb strike X --why TEXT [--disclose TEXT] [--by human|agent].", []) ),
+    crud_by(Opts, By), crud_why(Opts, none, Why),
+    crud_target(KB, X, Target, LTs),
+    (   crud_struck_already(KB, Target) -> fmt(M, "~w is struck already.", [X]), reject([M]) ; true ),
+    crud_guard(LTs, Target, By, Opts),
+    utc_now(Now), kb_file(KB, KbFile),
+    clause_line(struck(Target, By, Now, Why), [], L1),
+    crud_disclosure_line(Target, By, Now, Opts, DLs),
+    append_lines(KbFile, [L1|DLs]),
+    forall(member(L, [L1|DLs]), format("~w~n", [L])),
+    Code = 0.
+
+crud_struck_already(KB, Target) :-
+    kb_items(KB, Items), member(it(kb, _, _, T, _, _), Items), nonvar(T), T = struck(X, _, _, _), X == Target, !.
+
+cmd_replace(KB, Args, Code) :-
+    parse_opts(Args, ['--by'-value, '--why'-value, '--disclose'-value], Pos, Opts),
+    (   Pos = [X, NewText|MoreFacts] -> true
+    ;   usage_error("Give the record and its replacement: orbit-kb replace X 'NEW FACT' ['MORE FACTS'] [--why TEXT] [--disclose TEXT] [--by human|agent].", [])
+    ),
+    crud_by(Opts, By), crud_why(Opts, replaced, Why),
+    crud_target(KB, X, Target, LTs),
+    crud_guard(LTs, Target, By, Opts),
+    (   Target = at(_, _, _)
+    ->  Extra = [], Strike = true
+    ;   parse_one(NewText, ok(NT, _)), compound(NT), arg(1, NT, NewId), atom(NewId)
+    ->  format(atom(SupText), "~q", [supersedes(NewId, Target)]), Extra = [SupText], Strike = false
+    ;   reject(["The new record must be an item with an id, such as check(k2, c1): orbit-kb replace k1 'check(k2, c1)'. For an attachment, name the old one as KIND(ITEM)#N."])
+    ),
+    KB = kb(_, _, _, _),
+    ( By == human -> ByArgs = ['--by', human] ; ByArgs = [] ),
+    append([NewText|MoreFacts], Extra, Facts0), append(Facts0, ByArgs, AddArgs),
+    cmd_add(KB, AddArgs, _),
+    utc_now(Now), kb_file(KB, KbFile),
+    (   Strike == true
+    ->  clause_line(struck(Target, By, Now, Why), [], L1), Ls0 = [L1]
+    ;   Ls0 = []
+    ),
+    crud_disclosure_line(Target, By, Now, Opts, DLs),
+    append(Ls0, DLs, Ls),
+    append_lines(KbFile, Ls),
+    forall(member(L, Ls), format("~w~n", [L])),
+    (   Strike == false
+    ->  format(user_error, "NOTE: ~w is replaced (supersedes): it no longer counts. Reason: ~w~n", [Target, Why])
+    ;   true
+    ),
+    Code = 0.
+
+cmd_erase(KB, Args, Code) :-
+    parse_opts(Args, ['--by'-value, '--why'-value, '--disclose'-value], Pos, Opts),
+    (   Pos = [X] -> true ; usage_error("Give one record and the reason: orbit-kb erase X --why TEXT [--disclose TEXT] [--by human|agent].", []) ),
+    crud_by(Opts, By), crud_why(Opts, none, Why),
+    crud_target(KB, X, Target, LTs),
+    crud_guard(LTs, Target, By, Opts),
+    utc_now(Now), kb_file(KB, KbFile),
+    kb_lines_without(KbFile, LTs, Out0),
+    clause_line(erased(Target, By, Now, Why), [], L1),
+    crud_disclosure_line(Target, By, Now, Opts, DLs),
+    write_kb_text(KbFile, Out0),
+    append_lines(KbFile, [L1|DLs]),
+    forall(member(L, [L1|DLs]), format("~w~n", [L])),
+    length(LTs, N),
+    format(user_error, "NOTE: erased ~w: ~w line(s) left kb.pl (git history keeps the text). Run orbit-kb lint next.~n", [X, N]),
+    Code = 0.
+
+% crud_report_section(+KB) (kb-crud c2, c3, c4): the records that no longer count, as the report shows them:
+% struck, erased and the changes of a record of the human. Nothing is printed for a KB with none.
+crud_report_section(KB) :-
+    kb_items(KB, Items),
+    findall(L, ( member(it(kb, _, _, T, _, _), Items), nonvar(T), crud_report_fact(T, L) ), Ls),
+    (   Ls == [] -> true
+    ;   rhead('Struck'),
+        forall(member(L, Ls), rsay(struck, "~w", [L]))
+    ).
+
+crud_report_fact(struck(X, By, At, Why), L) :-
+    crud_target_text(X, XT), one_line(Why, W),
+    fmt(L, "~w struck by ~w at ~w: ~w", [XT, By, At, W]).
+crud_report_fact(erased(X, By, At, Why), L) :-
+    crud_target_text(X, XT), one_line(Why, W),
+    fmt(L, "~w erased by ~w at ~w: ~w (its text is only in git)", [XT, By, At, W]).
+crud_report_fact(struck_disclosure(X, By, At, D), L) :-
+    crud_target_text(X, XT), one_line(D, DT),
+    fmt(L, "A record of the human, ~w, was changed by ~w at ~w. Disclosure: ~w (a divergence for the human to judge)", [XT, By, At, DT]).
+
+crud_target_text(at(K, I, N), T) :- !, fmt(T, "~w(~w)#~w", [K, I, N]).
+crud_target_text(X, T) :- term_text(X, T).
 
 % ---------------------------------------------------------------------
 % shift: the step from words to records in one command (D37, 0.3.0 K-H)
@@ -11608,7 +11826,8 @@ vote_section(Eng) :-
     ).
 
 kb_engine(KB, Eng) :-
-    kb_items(KB, Items),
+    kb_items(KB, Items0),
+    struck_filter(Items0, Items),
     items_decls(Items, Ds),
     build_engine(Items, Ds, Eng).
 
@@ -14312,6 +14531,7 @@ report_text(KB, Eng) :-
     forall(member([RI, RT], Reqs),
            ( one_line(RT, RTT), rsay(item(RI), "Request ~w, word for word: ~w", [RI, RTT]) )),
     signals_section(KB, Eng),
+    crud_report_section(KB),
     hypothesis_section(Eng),
     ( has_discovery(KB) -> system_section(Eng), findings_section(Eng) ; true ),
     rhead('Claims'),
@@ -15524,6 +15744,9 @@ help_general([
 "  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
 "  uses MODULE ...",
 "  withdraw NAME/ARITY [--by human|agent]      remove a kind that a typo declared (lint E19)",
+"  strike X --why TEXT [--disclose TEXT]       a record no longer counts; it stays in kb.pl, struck",
+"  replace X 'NEW' [--why TEXT] [--disclose T] NEW takes the place of X (supersedes; an attachment is struck)",
+"  erase X --why TEXT [--disclose TEXT]        a record added by mistake leaves kb.pl; one line says who and why",
 "  shift DIR --request-file F [--goal T [--goal-by human|agent]] --hypothesis T [--defeating-case T] (--no-premises|--premise T ...) --claim T --example T --check ID --checks-that T",
 "  add 'FACT' ... [--by human|agent] [--doc TEXT]",
 "  subject ID PATH",
@@ -16001,6 +16224,34 @@ help_lines(doctor, [
 "arithmetic under not gives exactly k2, k3, k4;",
 "E18 flags p :- not q, q :- not p; E17 flags -p(b).",
 "Exit 2 if something is missing or a self-test fails."
+]).
+help_lines(strike, [
+"orbit-kb strike X --why TEXT [--disclose TEXT] [--by human|agent]",
+"",
+"X no longer counts in any rule (show open, blocking, fulfilled), and it stays in kb.pl and in the",
+"report as struck: struck(X, By, Time, Why) is appended. X is the id of an item (a claim, a check, a",
+"question, a finding, a premise, a signal, an attestation, ...), or KIND(ITEM)#N for an attachment",
+"(a note, an example, an option, an answer): the Nth fact of that kind on that item, in the order of",
+"kb.pl. A record of the human (a request, or a fact with the argument human) is changed by an",
+"agent only with --disclose TEXT (what the human said, and where); the Desk shows it to the human",
+"as a divergence (struck_disclosure/4). orbit-kb help replace and help erase are the other two.",
+"Takes the writer lock."
+]).
+help_lines(replace, [
+"orbit-kb replace X 'NEW FACT' ['MORE FACTS'] [--why TEXT] [--disclose TEXT] [--by human|agent]",
+"",
+"NEW (and any more facts, such as the checks_that of a new check) is added with the checks of add. For an item X (an id), NEW is an item with an id of its own and",
+"supersedes(NEWID, X) is added in the same write: X no longer counts, for any kind of item. For an",
+"attachment X (KIND(ITEM)#N), X is struck. A record of the human needs --disclose TEXT (see help strike).",
+"Takes the writer lock."
+]).
+help_lines(erase, [
+"orbit-kb erase X --why TEXT [--disclose TEXT] [--by human|agent]",
+"",
+"For a record added by mistake (a typo, the wrong KB): its line leaves kb.pl, an item with its",
+"attachments (each fact whose first argument is its id). One line stays: erased(X, By, Time, Why), with no",
+"text; the text is only in git. Any other record is struck, not erased (help strike). A record of the",
+"human needs --disclose TEXT. Takes the writer lock."
 ]).
 help_lines(withdraw, [
 "orbit-kb withdraw NAME/ARITY [--by human|agent]",

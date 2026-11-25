@@ -183,6 +183,18 @@ decl(fact, proposal_confirmed(ref(proposed), by, time),
 decl(fact, withdrawn(term, by, time, int),
      'orbit-kb withdraw removed this kind (NAME/ARITY) from kb.pl: who, when, and how many facts. The removed lines stay in kb.pl as comments.',
      'the kind @(1) was withdrawn by @(2) at @(3) (@(4) facts)').
+% 0.11.0 (kb-crud c1 to c4): a record that is wrong or replaced no longer counts. orbit-kb strike,
+% replace and erase write these. The target is the id of an item, or at(KIND, ITEM, N): the Nth fact
+% of that kind on that item, in the order of kb.pl (an attachment has no id of its own).
+decl(fact, struck(term, by, time, text),
+     'The record (an item by its id, an attachment as at(KIND, ITEM, N)) no longer counts in any rule. It stays in kb.pl and in the report as struck: who, when and why.',
+     'record @(1) was struck by @(2) at @(3): @(4)').
+decl(fact, struck_disclosure(term, by, time, text),
+     'An agent struck, replaced or erased a record of the human, and says why: what the human said and where. The Desk shows it to the human as a divergence.',
+     'the record @(1) of the human was changed by @(2) at @(3): @(4)').
+decl(fact, erased(term, by, time, text),
+     'A record that was added by mistake left kb.pl: its id or address, who erased it, when, and why. Its text is only in git.',
+     'record @(1) was erased by @(2) at @(3): @(4)').
 % 0.3.0 (K-F, D40): the facts and the attestation of a model are core (they were facts of
 % the discovery module), so a KB that uses build records a model of a claim. The rules that
 % read them (model_trusted, has_falsifier, the readiness of discovery) stay in the discovery
