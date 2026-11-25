@@ -222,7 +222,7 @@ def group_lines(mods, facts, gi, store_ids, outside_ids):
             if to.startswith("outside:") and to[len("outside:"):] not in outside_ids + ["mindhole_stores"]:
                 errs.append("line %s: %s is not a box" % (l.get("id"), to))
             lines.append({"id": l.get("id", "?"), "kind": kind, "from": frm, "to": to,
-                          "what": l.get("what", ""), "sources": l.get("sources", [])})
+                          "what": l.get("what", ""), "short": l.get("short"), "sources": l.get("sources", [])})
     seen = set()
     for l in lines:
         if l["id"] in seen:
@@ -254,6 +254,7 @@ def map_data(m):
         "stores": [s["id"][len("store:"):] for s in m["stores"]],
         "outside": [o["id"] for o in m["outside"]],
         "lines": [{"id": l["id"], "kind": l["kind"], "from": l["from"], "to": l["to"]} for l in m["lines"]],
+        "tags": [{"box": b, "kind": tg["kind"], "lines": tg["lines"]} for b, tgs in sorted(box_tags(m).items()) for tg in tgs],
         "lanes": [l["id"] for l in m["lanes"]],
         "kinds": [k["id"] for k in m["kinds"]],
         "steps": [{"id": s["id"], "kinds": s["kinds"], "verb": s["verb"], "from": s["from"],
@@ -271,7 +272,92 @@ def tw(s, ch=CH):
     return int(len(s) * ch + 0.999)
 
 
+TAG_KINDS = [("install", "installs", "installed by"), ("creates", "creates", "created by"), ("writes", "writes", "written by")]
+TAG_LINE = 16     # the distance of two lines of one tag (px)
+
+
+def box_name(m, bid):
+    """The readable name that the map already uses for a box (a module, a part, a store)."""
+    kind, _, name = bid.partition(":")
+    if kind == "group":
+        return name
+    if kind == "part":
+        for g in m["groups"]:
+            for p in g["parts"]:
+                if p["id"] == name:
+                    return p["label"]
+    if kind == "store":
+        return name
+    if kind == "outside":
+        for o in m["outside"]:
+            if o["id"] == name:
+                return o["label"]
+        return "a mindhole"
+    return bid
+
+
+def box_tags(m):
+    """{box id: [tag]}, a tag is {kind, text, lines: [line ids]}. At the end that acts (a module, a part):
+    "installs: LINK" for each install line, and one tag "creates: A, B" or "writes: A" for each other kind.
+    At the other end one tag for each kind: "installed by: ...", "created by: ...", "written by: ...".
+    The words of the tags come from the lines (MODULES.json installs and the facts file)."""
+    out = {}
+    word = {k: (a, b) for k, a, b in TAG_KINDS}
+    for l in m["lines"]:
+        if l["kind"] == "install":
+            link = l["id"].split(":", 2)[2] if l["id"].count(":") >= 2 and l["id"].startswith("install:") else l["id"]
+            text = "installs: " + (l.get("short") or link)
+            out.setdefault(l["from"], []).append({"kind": "install", "text": text, "lines": [l["id"]]})
+    for kind, acts, passive in TAG_KINDS:
+        by_from, by_to = {}, {}
+        for l in m["lines"]:
+            if l["kind"] == kind:
+                by_from.setdefault(l["from"], []).append(l)
+                by_to.setdefault(l["to"], []).append(l)
+        if kind != "install":
+            for bid, ls in by_from.items():
+                out.setdefault(bid, []).append({"kind": kind, "lines": [l["id"] for l in ls],
+                                                "text": "%s: %s" % (acts, ", ".join(box_name(m, l["to"]) for l in ls))})
+        for bid, ls in by_to.items():
+            names = []
+            for l in ls:
+                n = box_name(m, l["from"])
+                if n not in names:
+                    names.append(n)
+            out.setdefault(bid, []).append({"kind": kind, "lines": [l["id"] for l in ls],
+                                            "text": "%s: %s" % (passive, ", ".join(names))})
+    return out
+
+
+def tag_layout(tags, width):
+    """[(tag, wrapped lines, height)] for tags that are WIDTH px wide (the text keeps 6 px on each side)."""
+    res = []
+    for tg in tags:
+        ls = textwrap.wrap(tg["text"], max(8, int((width - 12) / CH_SMALL)), break_long_words=True)
+        res.append((tg, ls, 6 + TAG_LINE * len(ls)))
+    return res
+
+
+def tags_height(lay):
+    return sum(h + 4 for _, _, h in lay) + (2 if lay else 0)
+
+
+def tag_svg(box_id, lay, x, y, width):
+    """The tags of one box, one below the other from (x, y); each is a box of its own inside the box."""
+    out = []
+    for tg, ls, h in lay:
+        key = "%s|%s|%s" % (box_id, tg["kind"], ",".join(tg["lines"]))
+        out.append('<g data-box="tag:%s" data-in="%s"><rect class="tg %s" x="%d" y="%d" width="%d" height="%d" rx="2"/>'
+                   % (esc(key), esc(box_id), tg["kind"], x, y, width, h))
+        for j, ln in enumerate(ls):
+            out.append('<text class="sm tt" x="%d" y="%d">%s</text>' % (x + 6, y + 4 + TAG_LINE * j + 10, esc(ln)))
+        out.append('</g>')
+        y += h + 4
+    return out
+
+
 def svg_groups(m):
+    tags = box_tags(m)
     labels = [g["label"] + " (module)" for g in m["groups"]]
     labels += [p["label"] for g in m["groups"] for p in g["parts"]]
     labels += [s["label"] for s in m["stores"]] + [o["label"] for o in m["outside"]]
@@ -280,8 +366,7 @@ def svg_groups(m):
     cols, gap, margin = 3, 20, 20
     ph, pgap, head = 24, 6, 30
     W = margin * 2 + cols * gw + (cols - 1) * gap
-    out, rects = [], []
-    geo = {}      # box id -> (x, y, w, h); a group also has "anchor:" + id, the point where its lines start
+    out = []
     y = margin
     out.append('<text x="%d" y="%d" class="h">Sagittarius: one repo, the modules of MODULES.json</text>'
                % (margin, y + 14))
@@ -290,23 +375,30 @@ def svg_groups(m):
     y += PAD
     rows = [m["groups"][i:i + cols] for i in range(0, len(m["groups"]), cols)]
     for row in rows:
-        rh = max(head + len(g["parts"]) * (ph + pgap) + PAD for g in row)
+        def glay(g):
+            return tag_layout(tags.get("group:" + g["id"], []), bw)
+
+        def play(g):
+            return [tag_layout(tags.get("part:" + p["id"], []), bw) for p in g["parts"]]
+        rh = max(head + tags_height(glay(g)) + sum(ph + tags_height(l) + pgap for l in play(g)) + PAD for g in row)
         for ci, g in enumerate(row):
-            gx = margin + PAD + ci * (gw + gap) - PAD if False else margin + ci * (gw + gap)
+            gx = margin + ci * (gw + gap)
             gid = "group:" + g["id"]
-            geo[gid] = (gx, y, gw, rh)
-            geo["anchor:" + gid] = (gx + gw - 14, y + 14)
             out.append('<g data-box="%s"><rect class="grp" x="%d" y="%d" width="%d" height="%d" rx="6"/>'
                        '<text class="lb" x="%d" y="%d">%s</text></g>'
                        % (esc(gid), gx, y, gw, rh, gx + PAD, y + 19, esc(g["label"] + " (module)")))
             py = y + head
-            for p in g["parts"]:
-                geo["part:" + p["id"]] = (gx + PAD, py, bw, ph)
+            gl = glay(g)
+            out += tag_svg(gid, gl, gx + PAD, py, bw)
+            py += tags_height(gl)
+            for p, pl in zip(g["parts"], play(g)):
+                bh = ph + tags_height(pl)
+                pid = "part:" + p["id"]
                 out.append('<g data-box="%s" data-in="%s"><rect class="part" x="%d" y="%d" width="%d" height="%d" rx="3"/>'
                            '<text class="lb" x="%d" y="%d">%s</text></g>'
-                           % (esc("part:" + p["id"]), esc(gid), gx + PAD, py, bw, ph, gx + 2 * PAD,
-                              py + 16, esc(p["label"])))
-                py += ph + pgap
+                           % (esc(pid), esc(gid), gx + PAD, py, bw, bh, gx + 2 * PAD, py + 16, esc(p["label"])))
+                out += tag_svg(pid, pl, gx + PAD + 6, py + ph, bw - 12)
+                py += bh + pgap
         y += rh + gap
     out.insert(1, '<rect class="repo" x="%d" y="%d" width="%d" height="%d" rx="8"/>'
                % (margin - 8, top - 4, W - 2 * margin + 16, y - top - gap + 12))
@@ -316,79 +408,52 @@ def svg_groups(m):
     y += 26
     sc = cols
     srows = [m["stores"][i:i + sc] for i in range(0, len(m["stores"]), sc)]
-    mh = head + len(srows) * (ph + pgap) + PAD
-    geo["outside:mindhole_stores"] = (margin, y, W - 2 * margin, mh)
-    out.append('<g data-box="outside:mindhole_stores"><rect class="grp out" x="%d" y="%d" width="%d" height="%d" rx="6"/>'
+    mid_box = "outside:mindhole_stores"
+    ml = tag_layout(tags.get(mid_box, []), W - 2 * margin - 2 * PAD)
+    slays = [[tag_layout(tags.get(s["id"], []), bw) for s in row] for row in srows]
+    sh = [max(ph + tags_height(l) for l in row) for row in slays]
+    mh = head + tags_height(ml) + sum(h + pgap for h in sh) + PAD
+    out.append('<g data-box="%s"><rect class="grp out" x="%d" y="%d" width="%d" height="%d" rx="6"/>'
                '<text class="lb" x="%d" y="%d">%s</text></g>'
-               % (margin, y, W - 2 * margin, mh, margin + PAD, y + 19,
+               % (mid_box, margin, y, W - 2 * margin, mh, margin + PAD, y + 19,
                   esc("a mindhole (sidequest-mindhole, hwh-mindhole): the seven stores of store-facts.json")))
     py = y + head
-    for row in srows:
-        for ci, s in enumerate(row):
+    out += tag_svg(mid_box, ml, margin + PAD, py, W - 2 * margin - 2 * PAD)
+    py += tags_height(ml)
+    for row, rl, h in zip(srows, slays, sh):
+        for ci, (s, l) in enumerate(zip(row, rl)):
             sx = margin + PAD + ci * (gw + gap)
-            geo[s["id"]] = (sx, py, bw, ph)
-            out.append('<g data-box="%s" data-in="outside:mindhole_stores"><rect class="part store" x="%d" y="%d" width="%d" height="%d" rx="3"/>'
+            out.append('<g data-box="%s" data-in="%s"><rect class="part store" x="%d" y="%d" width="%d" height="%d" rx="3"/>'
                        '<text class="lb" x="%d" y="%d">%s</text></g>'
-                       % (esc(s["id"]), sx, py, bw, ph, sx + PAD, py + 16, esc(s["label"])))
-        py += ph + pgap
+                       % (esc(s["id"]), mid_box, sx, py, bw, ph + tags_height(l), sx + PAD, py + 16, esc(s["label"])))
+            out += tag_svg(s["id"], l, sx + 6, py + ph, bw - 12)
+        py += h + pgap
     y += mh + gap
     orows = [m["outside"][i:i + cols] for i in range(0, len(m["outside"]), cols)]
     for row in orows:
-        for ci, o in enumerate(row):
+        ols = [tag_layout(tags.get("outside:" + o["id"], []), gw) for o in row]
+        oh = max(ph + tags_height(l) for l in ols)
+        for ci, (o, l) in enumerate(zip(row, ols)):
             ox = margin + ci * (gw + gap)
-            geo["outside:" + o["id"]] = (ox, y, gw, ph)
             out.append('<g data-box="%s"><rect class="ext" x="%d" y="%d" width="%d" height="%d" rx="3"/>'
                        '<text class="lb" x="%d" y="%d">%s</text></g>'
-                       % (esc("outside:" + o["id"]), ox, y, gw, ph, ox + PAD, y + 16, esc(o["label"])))
-        y += ph + pgap
+                       % (esc("outside:" + o["id"]), ox, y, gw, ph + tags_height(l), ox + PAD, y + 16, esc(o["label"])))
+            out += tag_svg("outside:" + o["id"], l, ox + 6, y + ph, gw - 12)
+        y += oh + pgap
     y += 4
-    out.append('<text x="%d" y="%d" class="h">Lines</text>' % (margin, y + 14))
+    out.append('<text x="%d" y="%d" class="h">Tags</text>' % (margin, y + 14))
     lx = margin + 50
-    for kind, word in (("install", "installs (a link in ~)"), ("creates", "creates (a store)"), ("writes", "writes (a store)")):
-        out.append('<line class="gl %s" x1="%d" y1="%d" x2="%d" y2="%d"/>' % (kind, lx, y + 10, lx + 30, y + 10))
-        out.append('<text class="lb" x="%d" y="%d">%s</text>' % (lx + 38, y + 14, esc(word)))
-        lx += 38 + tw(word) + 24
+    for kind, word in (("install", "installs, installed by (a link in ~, or a hub)"), ("creates", "creates, created by (a store)"),
+                       ("writes", "writes, written by (a store)")):
+        out.append('<rect class="tg %s" x="%d" y="%d" width="18" height="12" rx="2"/>' % (kind, lx, y + 4))
+        out.append('<text class="lb" x="%d" y="%d">%s</text>' % (lx + 26, y + 14, esc(word)))
+        lx += 26 + tw(word) + 24
+        if lx > W - 200:
+            lx = margin + 50
+            y += 20
     y += 30
-    out += group_line_svg(m, geo)
     H = y + margin
     return W, H, "\n".join(out)
-
-
-def clip(rect, p):
-    """Where the segment from the centre of RECT to the point P leaves RECT."""
-    x, y, w, h = rect
-    cx, cy = x + w / 2.0, y + h / 2.0
-    dx, dy = p[0] - cx, p[1] - cy
-    if dx == 0 and dy == 0:
-        return cx, cy
-    s = min((w / 2.0) / abs(dx) if dx else 1e9, (h / 2.0) / abs(dy) if dy else 1e9)
-    return cx + dx * s, cy + dy * s
-
-
-def group_line_svg(m, geo):
-    """One path for each (kind, from, to); it carries the ids of the lines that it draws."""
-    pairs = {}
-    for l in m["lines"]:
-        pairs.setdefault((l["kind"], l["from"], l["to"]), []).append(l["id"])
-    out = []
-    for (kind, frm, to), ids in pairs.items():
-        if frm not in geo or to not in geo:
-            continue
-        tc = (geo[to][0] + geo[to][2] / 2.0, geo[to][1] + geo[to][3] / 2.0)
-        if "anchor:" + frm in geo:
-            a = geo["anchor:" + frm]
-        else:
-            a = clip(geo[frm], tc)
-        b = clip(geo[to], a)
-        dx, dy = b[0] - a[0], b[1] - a[1]
-        n = (dx * dx + dy * dy) ** 0.5 or 1.0
-        ux, uy = dx / n, dy / n
-        out.append('<g data-line="%s"><line class="gl %s" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/>'
-                   '<path class="gh %s" d="M%.1f %.1f L%.1f %.1f L%.1f %.1f Z"/><circle class="dot" cx="%.1f" cy="%.1f" r="2.5"/></g>'
-                   % (esc(" ".join(ids)), kind, a[0], a[1], b[0] - ux * 6, b[1] - uy * 6, kind,
-                      b[0], b[1], b[0] - ux * 9 - uy * 4, b[1] - uy * 9 + ux * 4,
-                      b[0] - ux * 9 + uy * 4, b[1] - uy * 9 - ux * 4, a[0], a[1]))
-    return out
 
 
 VERB_CLASS = {"write": "w", "read": "r", "derive": "d", "carry": "c"}
@@ -558,9 +623,8 @@ svg .h { font-size: 13px; font-weight: 700; }
 .hd.w { fill: var(--w); } .hd.r { fill: var(--r); } .hd.d { fill: var(--d); } .hd.c { fill: var(--c); }
 table { border-collapse: collapse; font-size: 12px; } td, th { border: 1px solid var(--line); padding: 3px 6px; text-align: left; vertical-align: top; }
 .tw { overflow-x: auto; max-width: 100%; }
-.gl { stroke-width: 1.4; fill: none; opacity: .8; } .gl.install { stroke: var(--c); stroke-dasharray: 9 3 2 3; }
-.gl.creates { stroke: var(--d); stroke-dasharray: 2 3; } .gl.writes { stroke: var(--w); }
-.gh { opacity: .8; } .gh.install { fill: var(--c); } .gh.creates { fill: var(--d); } .gh.writes { fill: var(--w); }
+.tg { stroke-width: 1; fill-opacity: .12; } .tg.install { stroke: var(--c); fill: var(--c); }
+.tg.creates { stroke: var(--d); fill: var(--d); } .tg.writes { stroke: var(--w); fill: var(--w); }
 .flow-narrow { display: none; } .flow-narrow svg { max-width: 100%; height: auto; }
 @media (max-width: 760px) { .flow-wide { display: none; } .flow-narrow { display: block; } }
 code { font-size: 12px; }
@@ -822,13 +886,23 @@ def check(root, facts_path, out_dir):
                     errs.append("arrow %s in the map has no source" % s["id"])
             # a box drawn in the SVG that the data does not list
             known = {b for b, _ in boxes(m)} | {"outside:mindhole_stores"}
-            for dl in re.findall(r'data-line="([^"]+)"', text):
-                for x in html.unescape(dl).split(" "):
-                    if x not in wl:
-                        errs.append("line %s drawn in the map has no source" % x)
+            wt = {(x["box"], x["kind"], tuple(x["lines"])) for x in want["tags"]}
+            ct = {(x["box"], x["kind"], tuple(x["lines"])) for x in data.get("tags", [])}
+            for x in sorted(wt - ct):
+                errs.append("tag %s of %s is not in the map" % (x[1], x[0]))
+            for x in sorted(ct - wt):
+                errs.append("tag %s of %s in the map has no source" % (x[1], x[0]))
+            drawn = set()
+            for tg in re.findall(r'data-box="tag:([^"]+)"', text):
+                b, k, ids = html.unescape(tg).split("|", 2)
+                drawn.add((b, k, tuple(ids.split(","))))
+            for x in sorted(wt - drawn):
+                errs.append("tag %s of %s is in the data and not drawn" % (x[1], x[0]))
+            for x in sorted(drawn - wt):
+                errs.append("tag %s of %s is drawn and has no source" % (x[1], x[0]))
             for b in re.findall(r'data-box="([^"]+)"', text):
                 b = html.unescape(b)
-                if b not in known:
+                if b not in known and not b.startswith("tag:"):
                     errs.append("box %s in the map has no source" % b)
         for path, fresh in ((hp, fresh_html), (mp, fresh_md)):
             with open(path, encoding="utf-8") as f:

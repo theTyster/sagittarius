@@ -1578,7 +1578,8 @@
           "kind": "json",
           "name": "engine"
         }
-      ]
+      ],
+      "short": "the engine files and owned files, in a hub"
     },
     {
       "id": "install:mindhole-kit:hub-orbit-kb",
@@ -1596,7 +1597,8 @@
           "kind": "def",
           "name": "okb_sources"
         }
-      ]
+      ],
+      "short": "a copy of orbit-kb, in a hub"
     }
   ],
   "module_stores": [

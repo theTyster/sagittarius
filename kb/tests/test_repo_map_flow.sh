@@ -321,9 +321,17 @@ for k, f, to in [("creates", "group:orbit-kb", "store:spec"), ("creates", "group
                  ("writes", "part:hubkit_py", "store:memory")]:
     if (k, f, to) not in have: bad.append("no %s line from %s to %s" % (k, f, to))
 if sorted(l["id"] for l in lines) != sorted(l["id"] for l in want["lines"]): bad.append("the page and the facts differ in their lines")
-svg = re.findall(r'data-line="([^"]+)"', t)
-for l in lines:
-    if not any(l["id"] in s for s in svg): bad.append("line %s is in the data and not drawn" % l["id"])
+tags = data.get("tags", [])
+drawn = {tuple(x.split("|", 2)[:2]) for x in re.findall(r'data-box="tag:([^"]+)"', t)}
+def tag(box, kind): return any(x["box"] == box and x["kind"] == kind for x in tags) and (box, kind) in drawn
+for mo in mods:
+    if mo.get("installs") and not tag("group:" + mo["name"], "install"): bad.append("module %s has no installs tag" % mo["name"])
+for k, f, to in have:
+    if k in ("creates", "writes") and not (tag(f, k) or tag(to, k)): bad.append("%s %s to %s has no tag at either end" % (k, f, to))
+    if k in ("creates", "writes") and not (tag(f, k) and tag(to, k)): bad.append("%s %s to %s lacks a tag at one end" % (k, f, to))
+for x in tags:
+    for i in x["lines"]:
+        if i not in [l["id"] for l in lines]: bad.append("tag of %s names an unknown line %s" % (x["box"], i))
 for b in bad: print(b)
 sys.exit(1 if bad else 0)
 EOF
@@ -359,6 +367,22 @@ assert n'
     mkfacts "$base/k11c.json" 'd["part_stores"][0]["sources"] = []'
     run python3 "$V" check --root "$ROOT" --facts "$base/k11c.json"; [ "$rc" = 1 ] || fail "a line with no source stays green"
     has "no source"
+    # plant 6: a tag that is missing from the committed map (data and drawing of one tag taken out of a copy)
+    python3 - "$MAP" "$base/k11t.html" <<'EOF'
+import re, sys, json
+t = open(sys.argv[1]).read()
+m = re.search(r'(id="repo-map-data">)(.*?)(</script>)', t, re.S)
+d = json.loads(m.group(2).replace("<\\/", "</"))
+d["tags"] = [x for x in d["tags"] if not (x["box"] == "group:sagittarius" and x["kind"] == "install")]
+t = t[:m.start(2)] + json.dumps(d) + t[m.end(2):]
+t = re.sub(r'<g data-box="tag:group:sagittarius\|install\|[^"]*".*?</g>', "", t, flags=re.S)
+open(sys.argv[2], "w").write(t)
+EOF
+    run k11_verify "$base/k11t.html" "$base/k11.json"; [ "$rc" = 1 ] || fail "a missing installs tag stays green in k11"
+    has "module sagittarius has no installs tag"
+    c=$base/k11tc; mkcopy "$c"; cp "$base/k11t.html" "$c/docs/map/sagittarius-map.html"
+    run python3 "$c/kb/share/repo-map/views.py" check --root "$c"; [ "$rc" = 1 ] || fail "views check: a missing tag stays green"
+    has "tag install of group:sagittarius is not in the map"
     # plant 4: an install link that leaves MODULES.json (a copy of the checkout): its line goes, the map is stale
     local c=$base/k11m; mkcopy "$c"
     python3 - "$c/MODULES.json" <<'EOF'

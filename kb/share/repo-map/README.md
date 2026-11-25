@@ -99,7 +99,7 @@ Sagittarius itself. It does not change the levels C1 to C3 above.
 - The groups view: one group for each module of `MODULES.json`, each part in the one module that
   covers its path (the `except` lists hold); the seven stores of `hubkit/tools/store-facts.json`
   and the other things outside the repo are drawn outside it.
-- The lines of the groups view: `install` (a module to the links that MODULES.json `installs` names,
+- The lines of the groups view are drawn as tags inside the boxes at both ends (no long lines): `install` (a module to the links that MODULES.json `installs` names,
   and to a hub for the kit), `creates` (a module to a store that it makes) and `writes` (an acting
   part to a store that it writes). The install lines come from MODULES.json; the others are the
   facts `module_installs`, `module_stores` and `part_stores`, each with `sources`. `check` is red

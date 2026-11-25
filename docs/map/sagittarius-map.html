@@ -36,9 +36,8 @@ svg .h { font-size: 13px; font-weight: 700; }
 .hd.w { fill: var(--w); } .hd.r { fill: var(--r); } .hd.d { fill: var(--d); } .hd.c { fill: var(--c); }
 table { border-collapse: collapse; font-size: 12px; } td, th { border: 1px solid var(--line); padding: 3px 6px; text-align: left; vertical-align: top; }
 .tw { overflow-x: auto; max-width: 100%; }
-.gl { stroke-width: 1.4; fill: none; opacity: .8; } .gl.install { stroke: var(--c); stroke-dasharray: 9 3 2 3; }
-.gl.creates { stroke: var(--d); stroke-dasharray: 2 3; } .gl.writes { stroke: var(--w); }
-.gh { opacity: .8; } .gh.install { fill: var(--c); } .gh.creates { fill: var(--d); } .gh.writes { fill: var(--w); }
+.tg { stroke-width: 1; fill-opacity: .12; } .tg.install { stroke: var(--c); fill: var(--c); }
+.tg.creates { stroke: var(--d); fill: var(--d); } .tg.writes { stroke: var(--w); fill: var(--w); }
 .flow-narrow { display: none; } .flow-narrow svg { max-width: 100%; height: auto; }
 @media (max-width: 760px) { .flow-wide { display: none; } .flow-narrow { display: block; } }
 code { font-size: 12px; }
@@ -51,78 +50,148 @@ code { font-size: 12px; }
 <section id="v-groups">
 <h2>Groups view</h2>
 <p>Each module of MODULES.json is one group, with each part in the one module that covers its path (the except lists hold). What is outside the repo is drawn below it.</p>
-<div class="frame"><svg id="groups" xmlns="http://www.w3.org/2000/svg" width="1274" height="902" viewBox="0 0 1274 902" role="img" aria-label="Groups view">
+<div class="frame"><svg id="groups" xmlns="http://www.w3.org/2000/svg" width="1274" height="1450" viewBox="0 0 1274 1450" role="img" aria-label="Groups view">
 <text x="20" y="34" class="h">Sagittarius: one repo, the modules of MODULES.json</text>
-<rect class="repo" x="12" y="42" width="1250" height="512" rx="8"/>
-<g data-box="group:sagittarius"><rect class="grp" x="20" y="56" width="398" height="250" rx="6"/><text class="lb" x="30" y="75">sagittarius (module)</text></g>
-<g data-box="part:covers:prompt" data-in="group:sagittarius"><rect class="part" x="30" y="86" width="378" height="24" rx="3"/><text class="lb" x="40" y="102">prompt/ (covers)</text></g>
-<g data-box="part:prompt_main" data-in="group:sagittarius"><rect class="part" x="30" y="116" width="378" height="24" rx="3"/><text class="lb" x="40" y="132">the prompt (SAGITTARIUS.md)</text></g>
-<g data-box="part:prompt_panes" data-in="group:sagittarius"><rect class="part" x="30" y="146" width="378" height="24" rx="3"/><text class="lb" x="40" y="162">pane prompts (PANES.md, panes/)</text></g>
-<g data-box="group:orbit-kb"><rect class="grp" x="438" y="56" width="398" height="250" rx="6"/><text class="lb" x="448" y="75">orbit-kb (module)</text></g>
-<g data-box="part:covers:kb/bin" data-in="group:orbit-kb"><rect class="part" x="448" y="86" width="378" height="24" rx="3"/><text class="lb" x="458" y="102">kb/bin/ (covers)</text></g>
-<g data-box="part:covers:kb/share" data-in="group:orbit-kb"><rect class="part" x="448" y="116" width="378" height="24" rx="3"/><text class="lb" x="458" y="132">kb/share/ (covers)</text></g>
-<g data-box="part:orbit_tool" data-in="group:orbit-kb"><rect class="part" x="448" y="146" width="378" height="24" rx="3"/><text class="lb" x="458" y="162">orbit-kb and orbit (the tool)</text></g>
-<g data-box="part:repo_map" data-in="group:orbit-kb"><rect class="part" x="448" y="176" width="378" height="24" rx="3"/><text class="lb" x="458" y="192">repo-map</text></g>
-<g data-box="part:core_pl" data-in="group:orbit-kb"><rect class="part" x="448" y="206" width="378" height="24" rx="3"/><text class="lb" x="458" y="222">core.pl (record kinds, verdict rules)</text></g>
-<g data-box="part:kb_modules" data-in="group:orbit-kb"><rect class="part" x="448" y="236" width="378" height="24" rx="3"/><text class="lb" x="458" y="252">modules build, discovery, project</text></g>
-<g data-box="part:desk_page" data-in="group:orbit-kb"><rect class="part" x="448" y="266" width="378" height="24" rx="3"/><text class="lb" x="458" y="282">the Desk page (desk.js, desk.css)</text></g>
-<g data-box="group:system-1"><rect class="grp" x="856" y="56" width="398" height="250" rx="6"/><text class="lb" x="866" y="75">system-1 (module)</text></g>
-<g data-box="part:covers:s1" data-in="group:system-1"><rect class="part" x="866" y="86" width="378" height="24" rx="3"/><text class="lb" x="876" y="102">s1/ (covers)</text></g>
-<g data-box="part:s1_record" data-in="group:system-1"><rect class="part" x="866" y="116" width="378" height="24" rx="3"/><text class="lb" x="876" y="132">System 1 record and proposals</text></g>
-<g data-box="part:s1_client" data-in="group:system-1"><rect class="part" x="866" y="146" width="378" height="24" rx="3"/><text class="lb" x="876" y="162">System 1 client of the model</text></g>
-<g data-box="group:mindhole-kit"><rect class="grp" x="20" y="326" width="398" height="220" rx="6"/><text class="lb" x="30" y="345">mindhole-kit (module)</text></g>
-<g data-box="part:covers:hubkit" data-in="group:mindhole-kit"><rect class="part" x="30" y="356" width="378" height="24" rx="3"/><text class="lb" x="40" y="372">hubkit/ (covers)</text></g>
-<g data-box="part:hub_template" data-in="group:mindhole-kit"><rect class="part" x="30" y="386" width="378" height="24" rx="3"/><text class="lb" x="40" y="402">the hub template (hubkit/hub)</text></g>
-<g data-box="part:ledger_engine" data-in="group:mindhole-kit"><rect class="part" x="30" y="416" width="378" height="24" rx="3"/><text class="lb" x="40" y="432">the ledger engine (hubflow.py)</text></g>
-<g data-box="part:desk_py" data-in="group:mindhole-kit"><rect class="part" x="30" y="446" width="378" height="24" rx="3"/><text class="lb" x="40" y="462">the Desk letters (desk.py)</text></g>
-<g data-box="part:store_map" data-in="group:mindhole-kit"><rect class="part" x="30" y="476" width="378" height="24" rx="3"/><text class="lb" x="40" y="492">the store map (store-facts.json)</text></g>
-<g data-box="part:hubkit_py" data-in="group:mindhole-kit"><rect class="part" x="30" y="506" width="378" height="24" rx="3"/><text class="lb" x="40" y="522">install and upgrade (hubkit.py)</text></g>
-<g data-box="group:s1-glance"><rect class="grp" x="438" y="326" width="398" height="220" rx="6"/><text class="lb" x="448" y="345">s1-glance (module)</text></g>
-<g data-box="part:covers:s1/glance" data-in="group:s1-glance"><rect class="part" x="448" y="356" width="378" height="24" rx="3"/><text class="lb" x="458" y="372">s1/glance/ (covers)</text></g>
-<g data-box="part:s1_glance" data-in="group:s1-glance"><rect class="part" x="448" y="386" width="378" height="24" rx="3"/><text class="lb" x="458" y="402">s1-glance skill</text></g>
-<g data-box="group:desk-toast"><rect class="grp" x="856" y="326" width="398" height="220" rx="6"/><text class="lb" x="866" y="345">desk-toast (module)</text></g>
-<g data-box="part:covers:hubkit/hub/.claude/scripts/desk-toast" data-in="group:desk-toast"><rect class="part" x="866" y="356" width="378" height="24" rx="3"/><text class="lb" x="876" y="372">hubkit/hub/.claude/scripts/desk-toast/ (covers)</text></g>
-<g data-box="part:desk_toast" data-in="group:desk-toast"><rect class="part" x="866" y="386" width="378" height="24" rx="3"/><text class="lb" x="876" y="402">desk-toast plugin</text></g>
-<text x="20" y="596" class="h">Outside the repo</text>
-<g data-box="outside:mindhole_stores"><rect class="grp out" x="20" y="608" width="1234" height="130" rx="6"/><text class="lb" x="30" y="627">a mindhole (sidequest-mindhole, hwh-mindhole): the seven stores of store-facts.json</text></g>
-<g data-box="store:spec" data-in="outside:mindhole_stores"><rect class="part store" x="30" y="638" width="378" height="24" rx="3"/><text class="lb" x="40" y="654">store spec</text></g>
-<g data-box="store:project" data-in="outside:mindhole_stores"><rect class="part store" x="448" y="638" width="378" height="24" rx="3"/><text class="lb" x="458" y="654">store project</text></g>
-<g data-box="store:ledger" data-in="outside:mindhole_stores"><rect class="part store" x="866" y="638" width="378" height="24" rx="3"/><text class="lb" x="876" y="654">store ledger</text></g>
-<g data-box="store:memory" data-in="outside:mindhole_stores"><rect class="part store" x="30" y="668" width="378" height="24" rx="3"/><text class="lb" x="40" y="684">store memory</text></g>
-<g data-box="store:weeks" data-in="outside:mindhole_stores"><rect class="part store" x="448" y="668" width="378" height="24" rx="3"/><text class="lb" x="458" y="684">store weeks</text></g>
-<g data-box="store:bespoke" data-in="outside:mindhole_stores"><rect class="part store" x="866" y="668" width="378" height="24" rx="3"/><text class="lb" x="876" y="684">store bespoke</text></g>
-<g data-box="store:tracker" data-in="outside:mindhole_stores"><rect class="part store" x="30" y="698" width="378" height="24" rx="3"/><text class="lb" x="40" y="714">store tracker</text></g>
-<g data-box="outside:install_links"><rect class="ext" x="20" y="758" width="398" height="24" rx="3"/><text class="lb" x="30" y="774">install links in ~ (~/.claude, ~/.local)</text></g>
-<g data-box="outside:sidequest_mindhole"><rect class="ext" x="438" y="758" width="398" height="24" rx="3"/><text class="lb" x="448" y="774">sidequest-mindhole (a hub)</text></g>
-<g data-box="outside:hwh_mindhole"><rect class="ext" x="856" y="758" width="398" height="24" rx="3"/><text class="lb" x="866" y="774">hwh-mindhole (a hub)</text></g>
-<g data-box="outside:desk_state"><rect class="ext" x="20" y="788" width="398" height="24" rx="3"/><text class="lb" x="30" y="804">Desk state (letters, drafts)</text></g>
-<g data-box="outside:gitea"><rect class="ext" x="438" y="788" width="398" height="24" rx="3"/><text class="lb" x="448" y="804">Gitea ty/sagittarius (origin)</text></g>
-<g data-box="outside:github"><rect class="ext" x="856" y="788" width="398" height="24" rx="3"/><text class="lb" x="866" y="804">GitHub theTyster/sagittarius</text></g>
-<g data-box="outside:s1_model"><rect class="ext" x="20" y="818" width="398" height="24" rx="3"/><text class="lb" x="30" y="834">the System 1 model</text></g>
-<g data-box="outside:claude_code"><rect class="ext" x="438" y="818" width="398" height="24" rx="3"/><text class="lb" x="448" y="834">Claude Code (runs sessions, hooks)</text></g>
-<text x="20" y="866" class="h">Lines</text>
-<line class="gl install" x1="70" y1="862" x2="100" y2="862"/>
-<text class="lb" x="108" y="866">installs (a link in ~)</text>
-<line class="gl creates" x1="300" y1="862" x2="330" y2="862"/>
-<text class="lb" x="338" y="866">creates (a store)</text>
-<line class="gl writes" x1="492" y1="862" x2="522" y2="862"/>
-<text class="lb" x="530" y="866">writes (a store)</text>
-<g data-line="install:sagittarius:~/.claude/sagittarius"><line class="gl install" x1="404.0" y1="70.0" x2="223.7" y2="752.2"/><path class="gh install" d="M222.2 758.0 L220.6 748.3 L228.3 750.3 Z"/><circle class="dot" cx="404.0" cy="70.0" r="2.5"/></g>
-<g data-line="install:orbit-kb:~/.local/bin/orbit-kb install:orbit-kb:~/.local/bin/orbit install:orbit-kb:~/.local/bin/repo-map install:orbit-kb:~/.local/share/orbit-kb"><line class="gl install" x1="822.0" y1="70.0" x2="233.3" y2="753.5"/><path class="gh install" d="M229.3 758.0 L232.2 748.6 L238.2 753.8 Z"/><circle class="dot" cx="822.0" cy="70.0" r="2.5"/></g>
-<g data-line="install:system-1:~/.claude/sagittarius-s1"><line class="gl install" x1="1240.0" y1="70.0" x2="241.5" y2="754.6"/><path class="gh install" d="M236.5 758.0 L241.7 749.6 L246.2 756.2 Z"/><circle class="dot" cx="1240.0" cy="70.0" r="2.5"/></g>
-<g data-line="install:s1-glance:~/.claude/skills/s1-glance"><line class="gl install" x1="822.0" y1="340.0" x2="240.7" y2="754.5"/><path class="gh install" d="M235.8 758.0 L240.8 749.5 L245.5 756.0 Z"/><circle class="dot" cx="822.0" cy="340.0" r="2.5"/></g>
-<g data-line="install:desk-toast:~/.claude/skills/desk-toast"><line class="gl install" x1="1240.0" y1="340.0" x2="253.0" y2="755.7"/><path class="gh install" d="M247.5 758.0 L254.2 750.8 L257.3 758.2 Z"/><circle class="dot" cx="1240.0" cy="340.0" r="2.5"/></g>
-<g data-line="install:mindhole-kit:hub-engine install:mindhole-kit:hub-orbit-kb"><line class="gl install" x1="404.0" y1="340.0" x2="588.1" y2="603.1"/><path class="gh install" d="M591.5 608.0 L583.1 602.9 L589.6 598.3 Z"/><circle class="dot" cx="404.0" cy="340.0" r="2.5"/></g>
-<g data-line="creates:orbit-kb:spec"><line class="gl creates" x1="822.0" y1="70.0" x2="235.8" y2="633.8"/><path class="gh creates" d="M231.5 638.0 L235.2 628.9 L240.7 634.6 Z"/><circle class="dot" cx="822.0" cy="70.0" r="2.5"/></g>
-<g data-line="creates:orbit-kb:project"><line class="gl creates" x1="822.0" y1="70.0" x2="642.7" y2="632.3"/><path class="gh creates" d="M640.8 638.0 L639.8 628.2 L647.4 630.6 Z"/><circle class="dot" cx="822.0" cy="70.0" r="2.5"/></g>
-<g data-line="creates:mindhole-kit:ledger"><line class="gl creates" x1="404.0" y1="340.0" x2="1024.4" y2="635.4"/><path class="gh creates" d="M1029.8 638.0 L1020.0 637.7 L1023.4 630.5 Z"/><circle class="dot" cx="404.0" cy="340.0" r="2.5"/></g>
-<g data-line="creates:mindhole-kit:memory"><line class="gl creates" x1="404.0" y1="340.0" x2="228.4" y2="662.7"/><path class="gh creates" d="M225.5 668.0 L226.3 658.2 L233.3 662.0 Z"/><circle class="dot" cx="404.0" cy="340.0" r="2.5"/></g>
-<g data-line="creates:mindhole-kit:weeks"><line class="gl creates" x1="404.0" y1="340.0" x2="625.4" y2="663.1"/><path class="gh creates" d="M628.8 668.0 L620.4 662.8 L627.0 658.3 Z"/><circle class="dot" cx="404.0" cy="340.0" r="2.5"/></g>
-<g data-line="writes:orbit_tool:spec"><line class="gl writes" x1="626.8" y1="170.0" x2="233.1" y2="633.4"/><path class="gh writes" d="M229.2 638.0 L232.0 628.6 L238.1 633.7 Z"/><circle class="dot" cx="626.8" cy="170.0" r="2.5"/></g>
-<g data-line="writes:desk_page:spec"><line class="gl writes" x1="623.5" y1="290.0" x2="237.0" y2="634.0"/><path class="gh writes" d="M232.5 638.0 L236.5 629.0 L241.9 635.0 Z"/><circle class="dot" cx="623.5" cy="290.0" r="2.5"/></g>
-<g data-line="writes:kb_modules:project"><line class="gl writes" x1="637.0" y1="260.0" x2="637.0" y2="632.0"/><path class="gh writes" d="M637.0 638.0 L633.0 629.0 L641.0 629.0 Z"/><circle class="dot" cx="637.0" cy="260.0" r="2.5"/></g>
-<g data-line="writes:ledger_engine:ledger"><line class="gl writes" x1="264.2" y1="440.0" x2="1004.0" y2="636.5"/><path class="gh writes" d="M1009.8 638.0 L1000.1 639.6 L1002.1 631.8 Z"/><circle class="dot" cx="264.2" cy="440.0" r="2.5"/></g>
-<g data-line="writes:hubkit_py:memory"><line class="gl writes" x1="219.0" y1="530.0" x2="219.0" y2="662.0"/><path class="gh writes" d="M219.0 668.0 L215.0 659.0 L223.0 659.0 Z"/><circle class="dot" cx="219.0" cy="530.0" r="2.5"/></g>
+<rect class="repo" x="12" y="42" width="1250" height="864" rx="8"/>
+<g data-box="group:sagittarius"><rect class="grp" x="20" y="56" width="398" height="466" rx="6"/><text class="lb" x="30" y="75">sagittarius (module)</text></g>
+<g data-box="tag:group:sagittarius|install|install:sagittarius:~/.claude/sagittarius" data-in="group:sagittarius"><rect class="tg install" x="30" y="86" width="378" height="22" rx="2"/>
+<text class="sm tt" x="36" y="100">installs: ~/.claude/sagittarius</text>
+</g>
+<g data-box="part:covers:prompt" data-in="group:sagittarius"><rect class="part" x="30" y="114" width="378" height="24" rx="3"/><text class="lb" x="40" y="130">prompt/ (covers)</text></g>
+<g data-box="part:prompt_main" data-in="group:sagittarius"><rect class="part" x="30" y="144" width="378" height="24" rx="3"/><text class="lb" x="40" y="160">the prompt (SAGITTARIUS.md)</text></g>
+<g data-box="part:prompt_panes" data-in="group:sagittarius"><rect class="part" x="30" y="174" width="378" height="24" rx="3"/><text class="lb" x="40" y="190">pane prompts (PANES.md, panes/)</text></g>
+<g data-box="group:orbit-kb"><rect class="grp" x="438" y="56" width="398" height="466" rx="6"/><text class="lb" x="448" y="75">orbit-kb (module)</text></g>
+<g data-box="tag:group:orbit-kb|install|install:orbit-kb:~/.local/bin/orbit-kb" data-in="group:orbit-kb"><rect class="tg install" x="448" y="86" width="378" height="22" rx="2"/>
+<text class="sm tt" x="454" y="100">installs: ~/.local/bin/orbit-kb</text>
+</g>
+<g data-box="tag:group:orbit-kb|install|install:orbit-kb:~/.local/bin/orbit" data-in="group:orbit-kb"><rect class="tg install" x="448" y="112" width="378" height="22" rx="2"/>
+<text class="sm tt" x="454" y="126">installs: ~/.local/bin/orbit</text>
+</g>
+<g data-box="tag:group:orbit-kb|install|install:orbit-kb:~/.local/bin/repo-map" data-in="group:orbit-kb"><rect class="tg install" x="448" y="138" width="378" height="22" rx="2"/>
+<text class="sm tt" x="454" y="152">installs: ~/.local/bin/repo-map</text>
+</g>
+<g data-box="tag:group:orbit-kb|install|install:orbit-kb:~/.local/share/orbit-kb" data-in="group:orbit-kb"><rect class="tg install" x="448" y="164" width="378" height="22" rx="2"/>
+<text class="sm tt" x="454" y="178">installs: ~/.local/share/orbit-kb</text>
+</g>
+<g data-box="tag:group:orbit-kb|creates|creates:orbit-kb:spec,creates:orbit-kb:project" data-in="group:orbit-kb"><rect class="tg creates" x="448" y="190" width="378" height="22" rx="2"/>
+<text class="sm tt" x="454" y="204">creates: spec, project</text>
+</g>
+<g data-box="part:covers:kb/bin" data-in="group:orbit-kb"><rect class="part" x="448" y="218" width="378" height="24" rx="3"/><text class="lb" x="458" y="234">kb/bin/ (covers)</text></g>
+<g data-box="part:covers:kb/share" data-in="group:orbit-kb"><rect class="part" x="448" y="248" width="378" height="24" rx="3"/><text class="lb" x="458" y="264">kb/share/ (covers)</text></g>
+<g data-box="part:orbit_tool" data-in="group:orbit-kb"><rect class="part" x="448" y="278" width="378" height="52" rx="3"/><text class="lb" x="458" y="294">orbit-kb and orbit (the tool)</text></g>
+<g data-box="tag:part:orbit_tool|writes|writes:orbit_tool:spec" data-in="part:orbit_tool"><rect class="tg writes" x="454" y="302" width="366" height="22" rx="2"/>
+<text class="sm tt" x="460" y="316">writes: spec</text>
+</g>
+<g data-box="part:repo_map" data-in="group:orbit-kb"><rect class="part" x="448" y="336" width="378" height="24" rx="3"/><text class="lb" x="458" y="352">repo-map</text></g>
+<g data-box="part:core_pl" data-in="group:orbit-kb"><rect class="part" x="448" y="366" width="378" height="24" rx="3"/><text class="lb" x="458" y="382">core.pl (record kinds, verdict rules)</text></g>
+<g data-box="part:kb_modules" data-in="group:orbit-kb"><rect class="part" x="448" y="396" width="378" height="52" rx="3"/><text class="lb" x="458" y="412">modules build, discovery, project</text></g>
+<g data-box="tag:part:kb_modules|writes|writes:kb_modules:project" data-in="part:kb_modules"><rect class="tg writes" x="454" y="420" width="366" height="22" rx="2"/>
+<text class="sm tt" x="460" y="434">writes: project</text>
+</g>
+<g data-box="part:desk_page" data-in="group:orbit-kb"><rect class="part" x="448" y="454" width="378" height="52" rx="3"/><text class="lb" x="458" y="470">the Desk page (desk.js, desk.css)</text></g>
+<g data-box="tag:part:desk_page|writes|writes:desk_page:spec" data-in="part:desk_page"><rect class="tg writes" x="454" y="478" width="366" height="22" rx="2"/>
+<text class="sm tt" x="460" y="492">writes: spec</text>
+</g>
+<g data-box="group:system-1"><rect class="grp" x="856" y="56" width="398" height="466" rx="6"/><text class="lb" x="866" y="75">system-1 (module)</text></g>
+<g data-box="tag:group:system-1|install|install:system-1:~/.claude/sagittarius-s1" data-in="group:system-1"><rect class="tg install" x="866" y="86" width="378" height="22" rx="2"/>
+<text class="sm tt" x="872" y="100">installs: ~/.claude/sagittarius-s1</text>
+</g>
+<g data-box="part:covers:s1" data-in="group:system-1"><rect class="part" x="866" y="114" width="378" height="24" rx="3"/><text class="lb" x="876" y="130">s1/ (covers)</text></g>
+<g data-box="part:s1_record" data-in="group:system-1"><rect class="part" x="866" y="144" width="378" height="24" rx="3"/><text class="lb" x="876" y="160">System 1 record and proposals</text></g>
+<g data-box="part:s1_client" data-in="group:system-1"><rect class="part" x="866" y="174" width="378" height="24" rx="3"/><text class="lb" x="876" y="190">System 1 client of the model</text></g>
+<g data-box="group:mindhole-kit"><rect class="grp" x="20" y="542" width="398" height="356" rx="6"/><text class="lb" x="30" y="561">mindhole-kit (module)</text></g>
+<g data-box="tag:group:mindhole-kit|install|install:mindhole-kit:hub-engine" data-in="group:mindhole-kit"><rect class="tg install" x="30" y="572" width="378" height="22" rx="2"/>
+<text class="sm tt" x="36" y="586">installs: the engine files and owned files, in a hub</text>
+</g>
+<g data-box="tag:group:mindhole-kit|install|install:mindhole-kit:hub-orbit-kb" data-in="group:mindhole-kit"><rect class="tg install" x="30" y="598" width="378" height="22" rx="2"/>
+<text class="sm tt" x="36" y="612">installs: a copy of orbit-kb, in a hub</text>
+</g>
+<g data-box="tag:group:mindhole-kit|creates|creates:mindhole-kit:ledger,creates:mindhole-kit:memory,creates:mindhole-kit:weeks" data-in="group:mindhole-kit"><rect class="tg creates" x="30" y="624" width="378" height="22" rx="2"/>
+<text class="sm tt" x="36" y="638">creates: ledger, memory, weeks</text>
+</g>
+<g data-box="part:covers:hubkit" data-in="group:mindhole-kit"><rect class="part" x="30" y="652" width="378" height="24" rx="3"/><text class="lb" x="40" y="668">hubkit/ (covers)</text></g>
+<g data-box="part:hub_template" data-in="group:mindhole-kit"><rect class="part" x="30" y="682" width="378" height="24" rx="3"/><text class="lb" x="40" y="698">the hub template (hubkit/hub)</text></g>
+<g data-box="part:ledger_engine" data-in="group:mindhole-kit"><rect class="part" x="30" y="712" width="378" height="52" rx="3"/><text class="lb" x="40" y="728">the ledger engine (hubflow.py)</text></g>
+<g data-box="tag:part:ledger_engine|writes|writes:ledger_engine:ledger" data-in="part:ledger_engine"><rect class="tg writes" x="36" y="736" width="366" height="22" rx="2"/>
+<text class="sm tt" x="42" y="750">writes: ledger</text>
+</g>
+<g data-box="part:desk_py" data-in="group:mindhole-kit"><rect class="part" x="30" y="770" width="378" height="24" rx="3"/><text class="lb" x="40" y="786">the Desk letters (desk.py)</text></g>
+<g data-box="part:store_map" data-in="group:mindhole-kit"><rect class="part" x="30" y="800" width="378" height="24" rx="3"/><text class="lb" x="40" y="816">the store map (store-facts.json)</text></g>
+<g data-box="part:hubkit_py" data-in="group:mindhole-kit"><rect class="part" x="30" y="830" width="378" height="52" rx="3"/><text class="lb" x="40" y="846">install and upgrade (hubkit.py)</text></g>
+<g data-box="tag:part:hubkit_py|writes|writes:hubkit_py:memory" data-in="part:hubkit_py"><rect class="tg writes" x="36" y="854" width="366" height="22" rx="2"/>
+<text class="sm tt" x="42" y="868">writes: memory</text>
+</g>
+<g data-box="group:s1-glance"><rect class="grp" x="438" y="542" width="398" height="356" rx="6"/><text class="lb" x="448" y="561">s1-glance (module)</text></g>
+<g data-box="tag:group:s1-glance|install|install:s1-glance:~/.claude/skills/s1-glance" data-in="group:s1-glance"><rect class="tg install" x="448" y="572" width="378" height="22" rx="2"/>
+<text class="sm tt" x="454" y="586">installs: ~/.claude/skills/s1-glance</text>
+</g>
+<g data-box="part:covers:s1/glance" data-in="group:s1-glance"><rect class="part" x="448" y="600" width="378" height="24" rx="3"/><text class="lb" x="458" y="616">s1/glance/ (covers)</text></g>
+<g data-box="part:s1_glance" data-in="group:s1-glance"><rect class="part" x="448" y="630" width="378" height="24" rx="3"/><text class="lb" x="458" y="646">s1-glance skill</text></g>
+<g data-box="group:desk-toast"><rect class="grp" x="856" y="542" width="398" height="356" rx="6"/><text class="lb" x="866" y="561">desk-toast (module)</text></g>
+<g data-box="tag:group:desk-toast|install|install:desk-toast:~/.claude/skills/desk-toast" data-in="group:desk-toast"><rect class="tg install" x="866" y="572" width="378" height="22" rx="2"/>
+<text class="sm tt" x="872" y="586">installs: ~/.claude/skills/desk-toast</text>
+</g>
+<g data-box="part:covers:hubkit/hub/.claude/scripts/desk-toast" data-in="group:desk-toast"><rect class="part" x="866" y="600" width="378" height="24" rx="3"/><text class="lb" x="876" y="616">hubkit/hub/.claude/scripts/desk-toast/ (covers)</text></g>
+<g data-box="part:desk_toast" data-in="group:desk-toast"><rect class="part" x="866" y="630" width="378" height="24" rx="3"/><text class="lb" x="876" y="646">desk-toast plugin</text></g>
+<text x="20" y="948" class="h">Outside the repo</text>
+<g data-box="outside:mindhole_stores"><rect class="grp out" x="20" y="960" width="1234" height="282" rx="6"/><text class="lb" x="30" y="979">a mindhole (sidequest-mindhole, hwh-mindhole): the seven stores of store-facts.json</text></g>
+<g data-box="tag:outside:mindhole_stores|install|install:mindhole-kit:hub-engine,install:mindhole-kit:hub-orbit-kb" data-in="outside:mindhole_stores"><rect class="tg install" x="30" y="990" width="1214" height="22" rx="2"/>
+<text class="sm tt" x="36" y="1004">installed by: mindhole-kit</text>
+</g>
+<g data-box="store:spec" data-in="outside:mindhole_stores"><rect class="part store" x="30" y="1018" width="378" height="94" rx="3"/><text class="lb" x="40" y="1034">store spec</text></g>
+<g data-box="tag:store:spec|creates|creates:orbit-kb:spec" data-in="store:spec"><rect class="tg creates" x="36" y="1042" width="366" height="22" rx="2"/>
+<text class="sm tt" x="42" y="1056">created by: orbit-kb</text>
+</g>
+<g data-box="tag:store:spec|writes|writes:orbit_tool:spec,writes:desk_page:spec" data-in="store:spec"><rect class="tg writes" x="36" y="1068" width="366" height="38" rx="2"/>
+<text class="sm tt" x="42" y="1082">written by: orbit-kb and orbit (the tool), the Desk</text>
+<text class="sm tt" x="42" y="1098">page (desk.js, desk.css)</text>
+</g>
+<g data-box="store:project" data-in="outside:mindhole_stores"><rect class="part store" x="448" y="1018" width="378" height="78" rx="3"/><text class="lb" x="458" y="1034">store project</text></g>
+<g data-box="tag:store:project|creates|creates:orbit-kb:project" data-in="store:project"><rect class="tg creates" x="454" y="1042" width="366" height="22" rx="2"/>
+<text class="sm tt" x="460" y="1056">created by: orbit-kb</text>
+</g>
+<g data-box="tag:store:project|writes|writes:kb_modules:project" data-in="store:project"><rect class="tg writes" x="454" y="1068" width="366" height="22" rx="2"/>
+<text class="sm tt" x="460" y="1082">written by: modules build, discovery, project</text>
+</g>
+<g data-box="store:ledger" data-in="outside:mindhole_stores"><rect class="part store" x="866" y="1018" width="378" height="78" rx="3"/><text class="lb" x="876" y="1034">store ledger</text></g>
+<g data-box="tag:store:ledger|creates|creates:mindhole-kit:ledger" data-in="store:ledger"><rect class="tg creates" x="872" y="1042" width="366" height="22" rx="2"/>
+<text class="sm tt" x="878" y="1056">created by: mindhole-kit</text>
+</g>
+<g data-box="tag:store:ledger|writes|writes:ledger_engine:ledger" data-in="store:ledger"><rect class="tg writes" x="872" y="1068" width="366" height="22" rx="2"/>
+<text class="sm tt" x="878" y="1082">written by: the ledger engine (hubflow.py)</text>
+</g>
+<g data-box="store:memory" data-in="outside:mindhole_stores"><rect class="part store" x="30" y="1118" width="378" height="78" rx="3"/><text class="lb" x="40" y="1134">store memory</text></g>
+<g data-box="tag:store:memory|creates|creates:mindhole-kit:memory" data-in="store:memory"><rect class="tg creates" x="36" y="1142" width="366" height="22" rx="2"/>
+<text class="sm tt" x="42" y="1156">created by: mindhole-kit</text>
+</g>
+<g data-box="tag:store:memory|writes|writes:hubkit_py:memory" data-in="store:memory"><rect class="tg writes" x="36" y="1168" width="366" height="22" rx="2"/>
+<text class="sm tt" x="42" y="1182">written by: install and upgrade (hubkit.py)</text>
+</g>
+<g data-box="store:weeks" data-in="outside:mindhole_stores"><rect class="part store" x="448" y="1118" width="378" height="52" rx="3"/><text class="lb" x="458" y="1134">store weeks</text></g>
+<g data-box="tag:store:weeks|creates|creates:mindhole-kit:weeks" data-in="store:weeks"><rect class="tg creates" x="454" y="1142" width="366" height="22" rx="2"/>
+<text class="sm tt" x="460" y="1156">created by: mindhole-kit</text>
+</g>
+<g data-box="store:bespoke" data-in="outside:mindhole_stores"><rect class="part store" x="866" y="1118" width="378" height="24" rx="3"/><text class="lb" x="876" y="1134">store bespoke</text></g>
+<g data-box="store:tracker" data-in="outside:mindhole_stores"><rect class="part store" x="30" y="1202" width="378" height="24" rx="3"/><text class="lb" x="40" y="1218">store tracker</text></g>
+<g data-box="outside:install_links"><rect class="ext" x="20" y="1262" width="398" height="68" rx="3"/><text class="lb" x="30" y="1278">install links in ~ (~/.claude, ~/.local)</text></g>
+<g data-box="tag:outside:install_links|install|install:sagittarius:~/.claude/sagittarius,install:orbit-kb:~/.local/bin/orbit-kb,install:orbit-kb:~/.local/bin/orbit,install:orbit-kb:~/.local/bin/repo-map,install:orbit-kb:~/.local/share/orbit-kb,install:system-1:~/.claude/sagittarius-s1,install:s1-glance:~/.claude/skills/s1-glance,install:desk-toast:~/.claude/skills/desk-toast" data-in="outside:install_links"><rect class="tg install" x="26" y="1286" width="386" height="38" rx="2"/>
+<text class="sm tt" x="32" y="1300">installed by: sagittarius, orbit-kb, system-1,</text>
+<text class="sm tt" x="32" y="1316">s1-glance, desk-toast</text>
+</g>
+<g data-box="outside:sidequest_mindhole"><rect class="ext" x="438" y="1262" width="398" height="24" rx="3"/><text class="lb" x="448" y="1278">sidequest-mindhole (a hub)</text></g>
+<g data-box="outside:hwh_mindhole"><rect class="ext" x="856" y="1262" width="398" height="24" rx="3"/><text class="lb" x="866" y="1278">hwh-mindhole (a hub)</text></g>
+<g data-box="outside:desk_state"><rect class="ext" x="20" y="1336" width="398" height="24" rx="3"/><text class="lb" x="30" y="1352">Desk state (letters, drafts)</text></g>
+<g data-box="outside:gitea"><rect class="ext" x="438" y="1336" width="398" height="24" rx="3"/><text class="lb" x="448" y="1352">Gitea ty/sagittarius (origin)</text></g>
+<g data-box="outside:github"><rect class="ext" x="856" y="1336" width="398" height="24" rx="3"/><text class="lb" x="866" y="1352">GitHub theTyster/sagittarius</text></g>
+<g data-box="outside:s1_model"><rect class="ext" x="20" y="1366" width="398" height="24" rx="3"/><text class="lb" x="30" y="1382">the System 1 model</text></g>
+<g data-box="outside:claude_code"><rect class="ext" x="438" y="1366" width="398" height="24" rx="3"/><text class="lb" x="448" y="1382">Claude Code (runs sessions, hooks)</text></g>
+<text x="20" y="1414" class="h">Tags</text>
+<rect class="tg install" x="70" y="1404" width="18" height="12" rx="2"/>
+<text class="lb" x="96" y="1414">installs, installed by (a link in ~, or a hub)</text>
+<rect class="tg creates" x="470" y="1404" width="18" height="12" rx="2"/>
+<text class="lb" x="496" y="1414">creates, created by (a store)</text>
+<rect class="tg writes" x="741" y="1404" width="18" height="12" rx="2"/>
+<text class="lb" x="767" y="1414">writes, written by (a store)</text>
 </svg></div>
 </section>
 <section id="v-flow">
@@ -1094,7 +1163,7 @@ code { font-size: 12px; }
 <tr><td><code>lane:tracker</code></td><td><code>kb/bin/orbit-kb pred cmd_pin_item</code></td></tr>
 </table></div>
 </section>
-<script type="application/json" id="repo-map-data">{"groups":[{"id":"sagittarius","parts":["covers:prompt","prompt_main","prompt_panes"]},{"id":"orbit-kb","parts":["covers:kb/bin","covers:kb/share","orbit_tool","repo_map","core_pl","kb_modules","desk_page"]},{"id":"system-1","parts":["covers:s1","s1_record","s1_client"]},{"id":"mindhole-kit","parts":["covers:hubkit","hub_template","ledger_engine","desk_py","store_map","hubkit_py"]},{"id":"s1-glance","parts":["covers:s1/glance","s1_glance"]},{"id":"desk-toast","parts":["covers:hubkit/hub/.claude/scripts/desk-toast","desk_toast"]}],"kinds":["request","goal","hypothesis","premise","claim","check","run","verdict","judgment","question","answer","adoption","vote","proposal","handoff","letter","draft"],"lanes":["human","session","tool","speckb","ledger","desk","s1","tracker"],"lines":[{"from":"group:sagittarius","id":"install:sagittarius:~/.claude/sagittarius","kind":"install","to":"outside:install_links"},{"from":"group:orbit-kb","id":"install:orbit-kb:~/.local/bin/orbit-kb","kind":"install","to":"outside:install_links"},{"from":"group:orbit-kb","id":"install:orbit-kb:~/.local/bin/orbit","kind":"install","to":"outside:install_links"},{"from":"group:orbit-kb","id":"install:orbit-kb:~/.local/bin/repo-map","kind":"install","to":"outside:install_links"},{"from":"group:orbit-kb","id":"install:orbit-kb:~/.local/share/orbit-kb","kind":"install","to":"outside:install_links"},{"from":"group:system-1","id":"install:system-1:~/.claude/sagittarius-s1","kind":"install","to":"outside:install_links"},{"from":"group:s1-glance","id":"install:s1-glance:~/.claude/skills/s1-glance","kind":"install","to":"outside:install_links"},{"from":"group:desk-toast","id":"install:desk-toast:~/.claude/skills/desk-toast","kind":"install","to":"outside:install_links"},{"from":"group:mindhole-kit","id":"install:mindhole-kit:hub-engine","kind":"install","to":"outside:mindhole_stores"},{"from":"group:mindhole-kit","id":"install:mindhole-kit:hub-orbit-kb","kind":"install","to":"outside:mindhole_stores"},{"from":"group:orbit-kb","id":"creates:orbit-kb:spec","kind":"creates","to":"store:spec"},{"from":"group:orbit-kb","id":"creates:orbit-kb:project","kind":"creates","to":"store:project"},{"from":"group:mindhole-kit","id":"creates:mindhole-kit:ledger","kind":"creates","to":"store:ledger"},{"from":"group:mindhole-kit","id":"creates:mindhole-kit:memory","kind":"creates","to":"store:memory"},{"from":"group:mindhole-kit","id":"creates:mindhole-kit:weeks","kind":"creates","to":"store:weeks"},{"from":"part:orbit_tool","id":"writes:orbit_tool:spec","kind":"writes","to":"store:spec"},{"from":"part:desk_page","id":"writes:desk_page:spec","kind":"writes","to":"store:spec"},{"from":"part:kb_modules","id":"writes:kb_modules:project","kind":"writes","to":"store:project"},{"from":"part:ledger_engine","id":"writes:ledger_engine:ledger","kind":"writes","to":"store:ledger"},{"from":"part:hubkit_py","id":"writes:hubkit_py:memory","kind":"writes","to":"store:memory"}],"outside":["install_links","sidequest_mindhole","hwh_mindhole","desk_state","gitea","github","s1_model","claude_code"],"steps":[{"from":"human","id":"s01","kinds":["request"],"to":"session","verb":"carry"},{"from":"tracker","id":"s02","kinds":["request"],"to":"session","verb":"carry"},{"from":"tool","id":"s03","kinds":["request"],"to":"speckb","verb":"write"},{"from":"tool","id":"s04","kinds":["request"],"to":"speckb","verb":"write"},{"from":"tool","id":"s05","kinds":["request"],"to":"speckb","verb":"write"},{"from":"human","id":"s06","kinds":["request"],"to":"desk","verb":"carry"},{"from":"desk","id":"s07","kinds":["request"],"to":"ledger","verb":"write"},{"from":"tool","id":"s08","kinds":["goal"],"to":"speckb","verb":"write"},{"from":"tool","id":"s09","kinds":["hypothesis"],"to":"speckb","verb":"write"},{"from":"tool","id":"s10","kinds":["premise"],"to":"speckb","verb":"write"},{"from":"tool","id":"s11","kinds":["question"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s12","kinds":["question"],"to":"desk","verb":"read"},{"from":"human","id":"s13","kinds":["answer"],"to":"desk","verb":"carry"},{"from":"desk","id":"s14","kinds":["answer"],"to":"speckb","verb":"write"},{"from":"tool","id":"s15","kinds":["answer"],"to":"speckb","verb":"write"},{"from":"desk","id":"s16","kinds":["answer","question"],"to":"ledger","verb":"write"},{"from":"tool","id":"s17","kinds":["claim"],"to":"speckb","verb":"write"},{"from":"tool","id":"s18","kinds":["check"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s19","kinds":["goal","hypothesis","claim","question"],"to":"s1","verb":"read"},{"from":"s1","id":"s20","kinds":["proposal"],"to":"speckb","verb":"write"},{"from":"s1","id":"s21","kinds":["proposal"],"to":"session","verb":"carry"},{"from":"s1","id":"s22","kinds":["proposal"],"to":"speckb","verb":"write"},{"from":"tool","id":"s23","kinds":["proposal"],"to":"speckb","verb":"write"},{"from":"human","id":"s24","kinds":["vote"],"to":"desk","verb":"carry"},{"from":"desk","id":"s25","kinds":["vote","letter"],"to":"session","verb":"carry"},{"from":"tool","id":"s26","kinds":["vote"],"to":"speckb","verb":"write"},{"from":"session","id":"s27","kinds":["handoff"],"to":"ledger","verb":"write"},{"from":"ledger","id":"s28","kinds":["handoff"],"to":"session","verb":"read"},{"from":"session","id":"s29","kinds":["handoff"],"to":"ledger","verb":"write"},{"from":"human","id":"s30","kinds":["adoption"],"to":"desk","verb":"carry"},{"from":"desk","id":"s31","kinds":["adoption"],"to":"speckb","verb":"write"},{"from":"tool","id":"s32","kinds":["adoption"],"to":"speckb","verb":"write"},{"from":"tool","id":"s33","kinds":["adoption"],"to":"speckb","verb":"write"},{"from":"tool","id":"s34","kinds":["run"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s35","kinds":["verdict"],"to":"tool","verb":"derive"},{"from":"tool","id":"s36","kinds":["request","goal","hypothesis","premise","claim","question","check","run","verdict"],"to":"session","verb":"read"},{"from":"speckb","id":"s37","kinds":["claim","check","run","judgment"],"to":"ledger","verb":"read"},{"from":"human","id":"s38","kinds":["judgment"],"to":"desk","verb":"carry"},{"from":"desk","id":"s39","kinds":["judgment","letter"],"to":"speckb","verb":"write"},{"from":"tool","id":"s40","kinds":["judgment"],"to":"speckb","verb":"write"},{"from":"tool","id":"s41","kinds":["judgment"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s42","kinds":["judgment"],"to":"desk","verb":"read"},{"from":"speckb","id":"s43","kinds":["judgment","verdict"],"to":"tool","verb":"derive"},{"from":"tool","id":"s44","kinds":["question","draft"],"to":"tracker","verb":"carry"}],"stores":["spec","project","ledger","memory","weeks","bespoke","tracker"]}</script>
+<script type="application/json" id="repo-map-data">{"groups":[{"id":"sagittarius","parts":["covers:prompt","prompt_main","prompt_panes"]},{"id":"orbit-kb","parts":["covers:kb/bin","covers:kb/share","orbit_tool","repo_map","core_pl","kb_modules","desk_page"]},{"id":"system-1","parts":["covers:s1","s1_record","s1_client"]},{"id":"mindhole-kit","parts":["covers:hubkit","hub_template","ledger_engine","desk_py","store_map","hubkit_py"]},{"id":"s1-glance","parts":["covers:s1/glance","s1_glance"]},{"id":"desk-toast","parts":["covers:hubkit/hub/.claude/scripts/desk-toast","desk_toast"]}],"kinds":["request","goal","hypothesis","premise","claim","check","run","verdict","judgment","question","answer","adoption","vote","proposal","handoff","letter","draft"],"lanes":["human","session","tool","speckb","ledger","desk","s1","tracker"],"lines":[{"from":"group:sagittarius","id":"install:sagittarius:~/.claude/sagittarius","kind":"install","to":"outside:install_links"},{"from":"group:orbit-kb","id":"install:orbit-kb:~/.local/bin/orbit-kb","kind":"install","to":"outside:install_links"},{"from":"group:orbit-kb","id":"install:orbit-kb:~/.local/bin/orbit","kind":"install","to":"outside:install_links"},{"from":"group:orbit-kb","id":"install:orbit-kb:~/.local/bin/repo-map","kind":"install","to":"outside:install_links"},{"from":"group:orbit-kb","id":"install:orbit-kb:~/.local/share/orbit-kb","kind":"install","to":"outside:install_links"},{"from":"group:system-1","id":"install:system-1:~/.claude/sagittarius-s1","kind":"install","to":"outside:install_links"},{"from":"group:s1-glance","id":"install:s1-glance:~/.claude/skills/s1-glance","kind":"install","to":"outside:install_links"},{"from":"group:desk-toast","id":"install:desk-toast:~/.claude/skills/desk-toast","kind":"install","to":"outside:install_links"},{"from":"group:mindhole-kit","id":"install:mindhole-kit:hub-engine","kind":"install","to":"outside:mindhole_stores"},{"from":"group:mindhole-kit","id":"install:mindhole-kit:hub-orbit-kb","kind":"install","to":"outside:mindhole_stores"},{"from":"group:orbit-kb","id":"creates:orbit-kb:spec","kind":"creates","to":"store:spec"},{"from":"group:orbit-kb","id":"creates:orbit-kb:project","kind":"creates","to":"store:project"},{"from":"group:mindhole-kit","id":"creates:mindhole-kit:ledger","kind":"creates","to":"store:ledger"},{"from":"group:mindhole-kit","id":"creates:mindhole-kit:memory","kind":"creates","to":"store:memory"},{"from":"group:mindhole-kit","id":"creates:mindhole-kit:weeks","kind":"creates","to":"store:weeks"},{"from":"part:orbit_tool","id":"writes:orbit_tool:spec","kind":"writes","to":"store:spec"},{"from":"part:desk_page","id":"writes:desk_page:spec","kind":"writes","to":"store:spec"},{"from":"part:kb_modules","id":"writes:kb_modules:project","kind":"writes","to":"store:project"},{"from":"part:ledger_engine","id":"writes:ledger_engine:ledger","kind":"writes","to":"store:ledger"},{"from":"part:hubkit_py","id":"writes:hubkit_py:memory","kind":"writes","to":"store:memory"}],"outside":["install_links","sidequest_mindhole","hwh_mindhole","desk_state","gitea","github","s1_model","claude_code"],"steps":[{"from":"human","id":"s01","kinds":["request"],"to":"session","verb":"carry"},{"from":"tracker","id":"s02","kinds":["request"],"to":"session","verb":"carry"},{"from":"tool","id":"s03","kinds":["request"],"to":"speckb","verb":"write"},{"from":"tool","id":"s04","kinds":["request"],"to":"speckb","verb":"write"},{"from":"tool","id":"s05","kinds":["request"],"to":"speckb","verb":"write"},{"from":"human","id":"s06","kinds":["request"],"to":"desk","verb":"carry"},{"from":"desk","id":"s07","kinds":["request"],"to":"ledger","verb":"write"},{"from":"tool","id":"s08","kinds":["goal"],"to":"speckb","verb":"write"},{"from":"tool","id":"s09","kinds":["hypothesis"],"to":"speckb","verb":"write"},{"from":"tool","id":"s10","kinds":["premise"],"to":"speckb","verb":"write"},{"from":"tool","id":"s11","kinds":["question"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s12","kinds":["question"],"to":"desk","verb":"read"},{"from":"human","id":"s13","kinds":["answer"],"to":"desk","verb":"carry"},{"from":"desk","id":"s14","kinds":["answer"],"to":"speckb","verb":"write"},{"from":"tool","id":"s15","kinds":["answer"],"to":"speckb","verb":"write"},{"from":"desk","id":"s16","kinds":["answer","question"],"to":"ledger","verb":"write"},{"from":"tool","id":"s17","kinds":["claim"],"to":"speckb","verb":"write"},{"from":"tool","id":"s18","kinds":["check"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s19","kinds":["goal","hypothesis","claim","question"],"to":"s1","verb":"read"},{"from":"s1","id":"s20","kinds":["proposal"],"to":"speckb","verb":"write"},{"from":"s1","id":"s21","kinds":["proposal"],"to":"session","verb":"carry"},{"from":"s1","id":"s22","kinds":["proposal"],"to":"speckb","verb":"write"},{"from":"tool","id":"s23","kinds":["proposal"],"to":"speckb","verb":"write"},{"from":"human","id":"s24","kinds":["vote"],"to":"desk","verb":"carry"},{"from":"desk","id":"s25","kinds":["vote","letter"],"to":"session","verb":"carry"},{"from":"tool","id":"s26","kinds":["vote"],"to":"speckb","verb":"write"},{"from":"session","id":"s27","kinds":["handoff"],"to":"ledger","verb":"write"},{"from":"ledger","id":"s28","kinds":["handoff"],"to":"session","verb":"read"},{"from":"session","id":"s29","kinds":["handoff"],"to":"ledger","verb":"write"},{"from":"human","id":"s30","kinds":["adoption"],"to":"desk","verb":"carry"},{"from":"desk","id":"s31","kinds":["adoption"],"to":"speckb","verb":"write"},{"from":"tool","id":"s32","kinds":["adoption"],"to":"speckb","verb":"write"},{"from":"tool","id":"s33","kinds":["adoption"],"to":"speckb","verb":"write"},{"from":"tool","id":"s34","kinds":["run"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s35","kinds":["verdict"],"to":"tool","verb":"derive"},{"from":"tool","id":"s36","kinds":["request","goal","hypothesis","premise","claim","question","check","run","verdict"],"to":"session","verb":"read"},{"from":"speckb","id":"s37","kinds":["claim","check","run","judgment"],"to":"ledger","verb":"read"},{"from":"human","id":"s38","kinds":["judgment"],"to":"desk","verb":"carry"},{"from":"desk","id":"s39","kinds":["judgment","letter"],"to":"speckb","verb":"write"},{"from":"tool","id":"s40","kinds":["judgment"],"to":"speckb","verb":"write"},{"from":"tool","id":"s41","kinds":["judgment"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s42","kinds":["judgment"],"to":"desk","verb":"read"},{"from":"speckb","id":"s43","kinds":["judgment","verdict"],"to":"tool","verb":"derive"},{"from":"tool","id":"s44","kinds":["question","draft"],"to":"tracker","verb":"carry"}],"stores":["spec","project","ledger","memory","weeks","bespoke","tracker"],"tags":[{"box":"group:desk-toast","kind":"install","lines":["install:desk-toast:~/.claude/skills/desk-toast"]},{"box":"group:mindhole-kit","kind":"install","lines":["install:mindhole-kit:hub-engine"]},{"box":"group:mindhole-kit","kind":"install","lines":["install:mindhole-kit:hub-orbit-kb"]},{"box":"group:mindhole-kit","kind":"creates","lines":["creates:mindhole-kit:ledger","creates:mindhole-kit:memory","creates:mindhole-kit:weeks"]},{"box":"group:orbit-kb","kind":"install","lines":["install:orbit-kb:~/.local/bin/orbit-kb"]},{"box":"group:orbit-kb","kind":"install","lines":["install:orbit-kb:~/.local/bin/orbit"]},{"box":"group:orbit-kb","kind":"install","lines":["install:orbit-kb:~/.local/bin/repo-map"]},{"box":"group:orbit-kb","kind":"install","lines":["install:orbit-kb:~/.local/share/orbit-kb"]},{"box":"group:orbit-kb","kind":"creates","lines":["creates:orbit-kb:spec","creates:orbit-kb:project"]},{"box":"group:s1-glance","kind":"install","lines":["install:s1-glance:~/.claude/skills/s1-glance"]},{"box":"group:sagittarius","kind":"install","lines":["install:sagittarius:~/.claude/sagittarius"]},{"box":"group:system-1","kind":"install","lines":["install:system-1:~/.claude/sagittarius-s1"]},{"box":"outside:install_links","kind":"install","lines":["install:sagittarius:~/.claude/sagittarius","install:orbit-kb:~/.local/bin/orbit-kb","install:orbit-kb:~/.local/bin/orbit","install:orbit-kb:~/.local/bin/repo-map","install:orbit-kb:~/.local/share/orbit-kb","install:system-1:~/.claude/sagittarius-s1","install:s1-glance:~/.claude/skills/s1-glance","install:desk-toast:~/.claude/skills/desk-toast"]},{"box":"outside:mindhole_stores","kind":"install","lines":["install:mindhole-kit:hub-engine","install:mindhole-kit:hub-orbit-kb"]},{"box":"part:desk_page","kind":"writes","lines":["writes:desk_page:spec"]},{"box":"part:hubkit_py","kind":"writes","lines":["writes:hubkit_py:memory"]},{"box":"part:kb_modules","kind":"writes","lines":["writes:kb_modules:project"]},{"box":"part:ledger_engine","kind":"writes","lines":["writes:ledger_engine:ledger"]},{"box":"part:orbit_tool","kind":"writes","lines":["writes:orbit_tool:spec"]},{"box":"store:ledger","kind":"creates","lines":["creates:mindhole-kit:ledger"]},{"box":"store:ledger","kind":"writes","lines":["writes:ledger_engine:ledger"]},{"box":"store:memory","kind":"creates","lines":["creates:mindhole-kit:memory"]},{"box":"store:memory","kind":"writes","lines":["writes:hubkit_py:memory"]},{"box":"store:project","kind":"creates","lines":["creates:orbit-kb:project"]},{"box":"store:project","kind":"writes","lines":["writes:kb_modules:project"]},{"box":"store:spec","kind":"creates","lines":["creates:orbit-kb:spec"]},{"box":"store:spec","kind":"writes","lines":["writes:orbit_tool:spec","writes:desk_page:spec"]},{"box":"store:weeks","kind":"creates","lines":["creates:mindhole-kit:weeks"]}]}</script>
 </main>
 </body>
 </html>
