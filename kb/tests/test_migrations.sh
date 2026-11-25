@@ -564,7 +564,8 @@ EOF
     out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" 2>&1) || rc=$?
     rc_is 0 "the dry run" || return
     out_has 'summary \(computed by the tool, no model\): 6 spec KBs; verdicts differ: 3;' "the counts: six KBs, three differ"
-    out_has 'nothing to write: 3\.' "three have nothing to change"
+    out_has 'nothing to write: 6\.' "no KB has a write to do (three differ in verdicts only)"
+    out_has 'KBs with nothing to change: 3 of 6\.' "three have nothing to change"
     out_has 'KBs that change: kb1, kb2, kb3\.' "the changed KBs are named"
     out_has 'Full preview below' "the summary says the full preview follows"
     local first; first=$(printf '%s\n' "$out" | sed -n '/^migration preview/,$p' | head -8)

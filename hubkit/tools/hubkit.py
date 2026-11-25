@@ -553,7 +553,7 @@ def preview_summary(recs, nlines):
     changed = [r for r in recs if r["changes"]]
     quiet = n - len(changed)
     out = [f"summary (computed by the tool, no model): {n} spec KBs; verdicts differ: {len(diff)}; "
-           f"new open items or writes: {len(writes)}; plan refused: {len(refused)}; nothing to write: {quiet}.",
+           f"new open items or writes: {len(writes)}; plan refused: {len(refused)}; nothing to write: {n - len(writes) - len(refused)}.",
            f"KBs with nothing to change: {quiet} of {n}." if quiet else "Every KB changes.",
            "KBs that change: " + (", ".join(r["slug"] for r in changed) if changed else "none") + ".",
            f"Full preview below ({nlines} lines): it names every spec KB, closed ones too, with the declared changes and the "
