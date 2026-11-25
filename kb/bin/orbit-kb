@@ -4314,6 +4314,9 @@ cmd_model_run(KB, Args, Code) :-
     (   Kind == tla
     ->  file_directory_name(Abs, MDir),
         mr_tla_files(Opts, Dir, MDir, Abs, Spec, Cfg, Withs),
+        findall(F, ( member(F, [Spec]) ; Cfg \== none, F = Cfg ; member(F, Withs) ), Fs0), exclude(==(Abs), Fs0, Fs1), sort(Fs1, FileList),
+        include(fact_item, Items, FactItems), items_decls(Items, Ds0), build_env(FactItems, Ds0, env(Ids0, _, _, _)),
+        mr_resolve_files(Items, Dir, M, Ids0, FileList, _),
         setup_call_cleanup(mr_tmpdir(Tmp),
             (   mr_stage(Tmp, Abs, Spec, Cfg, Withs, SpecBase, CfgBase),
                 ( CfgBase == none -> CfgArgs = [] ; CfgArgs = ['-config', CfgBase] ),
@@ -4322,7 +4325,7 @@ cmd_model_run(KB, Args, Code) :-
                 mr_run(Tool, ToolArgs, Tmp, RunsDir, TO, EC, Out) ),
             mr_rmdir(Tmp)),
         mr_files_text(Spec, Cfg, Withs, FilesText)
-    ;   file_directory_name(Abs, MDir),
+    ;   file_directory_name(Abs, MDir), FileList = [],
         append(ToolArgs0, [Abs], ToolArgs),
         mr_run(Tool, ToolArgs, MDir, RunsDir, TO, EC, Out), FilesText = ""
     ),
@@ -4334,7 +4337,7 @@ cmd_model_run(KB, Args, Code) :-
     ;   Verdict = failed
     ),
     utc_now(Now),
-    with_kb_lock(Dir, mr_record(KB, M, Digest, Tool, EC, Now, Out, FilesText, Verdict, Class, LogId, Log)),
+    with_kb_lock(Dir, mr_record(KB, M, Digest, Tool, EC, Now, Out, FilesText, FileList, Verdict, Class, LogId, Log)),
     mr_say(Verdict, Class, M, Tool, Log, LogId),
     ( Verdict == decided -> Code = 0 ; Code = 2 ).
 
@@ -4417,7 +4420,7 @@ mr_run(Tool, Args, Cwd, RunsDir, TO, EC, Out) :-
     ;   EC = not_found, fmt(Out, "~w is not on the PATH~n", [Tool])
     ).
 
-mr_record(KB, M, Digest, Tool, EC, Now, Out, FilesText, Verdict, Class, LogId, Log) :-
+mr_record(KB, M, Digest, Tool, EC, Now, Out, FilesText, FileList, Verdict, Class, LogId, Log) :-
     kb_dir(KB, Dir), recheck_writer(Dir), kb_lib(KB, Lib),
     load_kb(Dir, Lib, KB2), kb_items(KB2, Items), items_decls(Items, Ds),
     directory_file_path(Dir, runs, RunsDir),
@@ -4432,8 +4435,14 @@ mr_record(KB, M, Digest, Tool, EC, Now, Out, FilesText, Verdict, Class, LogId, L
     build_env(Facts, Ds, env(Ids, _, _, _)),
     format(atom(LogId0), "~w_run~w", [M, N]),
     mr_free_id(LogId0, Ids, LogId),
+    mr_resolve_files(Items, Dir, M, [LogId|Ids], FileList, Res),
+    findall(L, ( member(r(FId, FAbs, FDg, new), Res), stored_path(Dir, FAbs, FSt), clause_line(subject(FId, FSt, FDg), [], L) ), NewSubs),
+    findall(L, ( member(r(FId, _, FDg, _), Res), clause_line(model_run_file(LogId, FId, FDg), [], L) ), FileLines),
     clause_line(subject(LogId, Rel, LogDigest), [], L1),
-    (   Verdict == decided -> clause_line(model_run(LogId, M, Digest), [], L2), Ls = [L1, L2] ; Ls = [L1] ),
+    (   Verdict == decided
+    ->  clause_line(model_run(LogId, M, Digest), [], L2), append([NewSubs, [L1, L2], FileLines], Ls)
+    ;   append(NewSubs, [L1], Ls)
+    ),
     kb_file(KB2, KbFile),
     append_lines(KbFile, Ls).
 
@@ -4441,13 +4450,38 @@ mr_record(KB, M, Digest, Tool, EC, Now, Out, FilesText, Verdict, Class, LogId, L
 % not refreshed by subject: an edited log would count as the run that orbit made. Run orbit model-run again.
 mr_subject_guard(KB, Items, Id, NewDigest) :-
     (   member(it(kb, _, _, subject(Id, OldP, OldD), _, _), Items), OldD \== NewDigest,
-        (   member(it(kb, _, _, model_run(Id, _, _), _, _), Items)
-        ;   atom(OldP), subject_abs(KB, OldP, OldAbs), catch(setup_call_cleanup(open(OldAbs, read, S), read_line_to_string(S, L1), close(S)), _, fail),
-            string(L1), sub_string(L1, 0, _, _, "% orbit model-run ")
-        )
+        mr_run_log_subject(KB, Items, Id, OldP)
     ->  fmt(M, "~w is the log of a model run: subject does not refresh the digest of a log that changed. The log counts only as orbit model-run wrote it.", [Id]),
         reject([M, "Fix: run orbit model-run MODEL again; it writes a new log."] >> fix_lines)
     ;   true
+    ).
+
+% mr_run_log_subject(+KB, +Items, +Id, +Path): the subject is the log of a model run: a model_run fact names
+% it, or its first line is the header that orbit model-run writes.
+mr_run_log_subject(KB, Items, Id, Path) :-
+    (   member(it(_, _, _, T, _, _), Items), nonvar(T), T = model_run(Id, _, _) -> true
+    ;   atom(Path), subject_abs(KB, Path, Abs),
+        catch(setup_call_cleanup(open(Abs, read, S), read_line_to_string(S, L1), close(S)), _, fail),
+        string(L1), sub_string(L1, 0, _, _, "% orbit model-run ")
+    ), !.
+
+% mr_resolve_files(+Items, +Dir, +M, +UsedIds, +Files, -Res): each file that a run read (spec, cfg, with) is
+% a subject. One that is a subject already must still have the digest recorded (else the run is refused:
+% refresh it with orbit subject, and the runs at the old digest go stale: model_old_run); a new one gets
+% an id. Res: r(Id, AbsFile, Digest, old|new).
+mr_resolve_files(Items, Dir, M, Used, Files, Res) :-
+    foldl(mr_resolve_file(Items, Dir, M), Files, Used-[], _-Res0), reverse(Res0, Res).
+
+mr_resolve_file(Items, Dir, M, F, Used0-Acc, Used-[R|Acc]) :-
+    sha256_file(F, Dg), stored_path(Dir, F, St),
+    (   member(it(kb, _, _, subject(Id0, P0, D0), _, _), Items), atom(P0),
+        ( P0 == St ; is_absolute_file_name(P0), P0 == F )
+    ->  (   D0 == Dg -> R = r(Id0, F, Dg, old), Used = Used0
+        ;   die(2, ["The file " + St + " changed since subject " + Id0 + " was recorded.",
+                "Fix: orbit subject " + Id0 + " " + St + " records the new digest; runs at the old digest are then stale. Nothing was run."] >> fix_lines)
+        )
+    ;   file_base_name(F, B), file_name_extension(Stem, _, B),
+        format(atom(Id1), "~w_~w", [M, Stem]), mr_free_id(Id1, Used0, Id), R = r(Id, F, Dg, new), Used = [Id|Used0]
     ).
 
 mr_free_id(Id, Ids, F) :- ( ord_memberchk(Id, Ids) -> atom_concat(Id, x, Id1), mr_free_id(Id1, Ids, F) ; F = Id ).
@@ -4830,10 +4864,10 @@ cmd_add(KB, Args, Code) :-
 % model_run_gate(+NewItems) (orbit-front-door c3): a model_run fact is written by orbit model-run, which started
 % the solver itself; a run typed by hand is refused.
 model_run_gate(NewItems) :-
-    (   member(it(_, _, _, T, _, _), NewItems), nonvar(T), T = model_run(_, M, _)
+    (   member(it(_, _, _, T, _, _), NewItems), nonvar(T), ( T = model_run(_, M, _) ; T = model_run_file(_, _, _), M = none )
     ->  term_text(T, TT),
         fmt(M1, "~w: a model run cannot be recorded by hand. Only orbit model-run writes model_run, because it runs the solver itself and keeps the log.", [TT]),
-        ( atom(M) -> fmt(Fix, "Fix: orbit model-run ~w   (z3 or cvc5 for an smt model, tlc for a tla model).", [M]) ; Fix = "Fix: orbit model-run MODEL." ),
+        ( atom(M), M \== none -> fmt(Fix, "Fix: orbit model-run ~w   (z3 or cvc5 for an smt model, tlc for a tla model).", [M]) ; Fix = "Fix: orbit model-run MODEL." ),
         reject([M1, Fix] >> fix_lines)
     ;   true
     ).
@@ -11608,7 +11642,10 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
               (   \+ exists_file(Abs)
               ->  fmt(M, "The file of subject ~q is missing: ~w. Restore it, or refresh with orbit-kb subject ~w PATH.", [Id, Abs, Id])
               ;   sha256_file(Abs, D1), D1 \== D0,
-                  fmt(M, "The file of subject ~q changed since its digest was recorded. Refresh with orbit-kb subject ~w ~w.", [Id, Id, Path])
+                  (   mr_run_log_subject(KB, Facts, Id, Path)
+                  ->  fmt(M, "The log of subject ~q (a model run) changed since orbit model-run wrote it, so it is not that run any more. Run orbit model-run MODEL again; subject does not refresh a run log.", [Id])
+                  ;   fmt(M, "The file of subject ~q changed since its digest was recorded. Refresh with orbit-kb subject ~w ~w.", [Id, Id, Path])
+                  )
               ) ),
             W1),
     % D22: the first_use/3 facts of kb.pl
@@ -16233,10 +16270,12 @@ help_lines('model-run', [
 "the spec extends. The output is runs/N-MODEL.log, kept as the subject MODEL_runN; its first line names the tool, the",
 "exit code, the verdict and the digest of each file that took part. When the tool decides (z3 or cvc5: exit 0 and",
 "only sat or only unsat; TLC: exit 0 and No error has been found, or exit 11, 12 or 13 and a violation line),",
-"model_run(LOG, MODEL, DIGEST) is written and the exit code is 0. Anything else (unknown, a failing exit, a",
+"model_run(LOG, MODEL, DIGEST) is written and the exit code is 0 (a deadlock, exit 11, is a result: a counterexample). Anything else (unknown, a failing exit, a",
 "timeout, a missing tool) keeps the log, writes no model_run and exits 2: it counts for or against no claim.",
 "orbit add refuses a model_run fact typed by hand. orbit subject does not refresh the digest of such a log.",
-"The digest of model_run is that of the model file; the config is named in the log header only.",
+"Each file besides the model file that a run read (--spec, --cfg, --with) is a subject (MODEL_STEM), and the run gets",
+"model_run_file(LOG, FILE, DIGEST) for it: when a digest of such a file changes (orbit subject), the run is stale. A run is",
+"refused while one of its files differs from its subject (refresh it with orbit subject first).",
 "Takes the writer lock."
 ]).
 help_lines('repo-map', [

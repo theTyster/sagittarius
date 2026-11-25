@@ -101,7 +101,36 @@ t_MR17() { fixture smt || return; "$ORB" --dir "$K" model-run m1 >/dev/null 2>&1
     echo unsat >> "$K/runs/1-m1.log"; out=$("$ORB" --dir "$K" subject m1_run1 runs/1-m1.log 2>&1); rc=$?
     [ $rc != 0 ] || note "subject refreshed the digest of an edited model-run log"; printf '%s' "$out" | grep -q 'model-run' || note "the refusal does not name orbit model-run: $out"
     echo a > "$K/o.txt"; "$ORB" --dir "$K" subject o1 o.txt >/dev/null 2>&1; echo b >> "$K/o.txt"; "$ORB" --dir "$K" subject o1 o.txt >/dev/null 2>&1 || note "an ordinary subject can no longer be refreshed"; }
-for id in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17; do
+t_MR18() { fixture tla || return; printf 'INIT Init\nNEXT Next\n' > "$K/m1.cfg"; printf -- '---- MODULE Harness ----\nEXTENDS m1\n====\n' > "$K/Harness.tla"; printf 'x\n' > "$K/Extra.tla"
+    fake tlc 'echo "Model checking completed. No error has been found."'
+    export PATH=$T/bin:$PATH
+    "$ORB" --dir "$K" model-run m1 --spec Harness.tla --cfg m1.cfg --with Extra.tla >/dev/null 2>&1; rc=$?
+    [ $rc = 0 ] || { note "first run: exit $rc"; return; }
+    nf=$("$ORB" --dir "$K" query "model_run_file(R, F, D)" -n 0 2>/dev/null | grep -c "F = "); [ "$nf" = 3 ] || note "model_run_file facts: $nf, want 3 (spec, cfg, with)"
+    "$ORB" --dir "$K" query "model_run_current(m1_run1, m1)" >/dev/null 2>&1 || note "the run is not current after it was made"
+    echo 'INVARIANT Small' >> "$K/m1.cfg"
+    "$ORB" --dir "$K" lint 2>&1 | grep -q "W1.*m1_m1" || note "lint does not name the changed cfg"
+    "$ORB" --dir "$K" model-run m1 --spec Harness.tla --cfg m1.cfg --with Extra.tla >/dev/null 2>&1; rc=$?
+    [ $rc = 2 ] && [ ! -e "$K/runs/2-m1.log" ] || note "a run with a changed cfg that is not re-recorded was made (exit $rc)"
+    "$ORB" --dir "$K" subject m1_m1 m1.cfg >/dev/null 2>&1 || note "re-recording the cfg failed"
+    "$ORB" --dir "$K" query "model_run_stale(m1_run1, m1)" >/dev/null 2>&1 || note "an edit of the cfg did not make the run stale"
+    "$ORB" --dir "$K" query "model_run_current(m1_run1, m1)" >/dev/null 2>&1 && note "the run still counts after the cfg changed"
+    "$ORB" --dir "$K" model-run m1 --spec Harness.tla --cfg m1.cfg --with Extra.tla >/dev/null 2>&1 || note "the new run failed"
+    "$ORB" --dir "$K" query "model_run_current(m1_run2, m1)" >/dev/null 2>&1 || note "the new run does not count"
+    echo more >> "$K/Extra.tla"; "$ORB" --dir "$K" subject m1_Extra Extra.tla >/dev/null 2>&1
+    "$ORB" --dir "$K" query "model_run_current(m1_run2, m1)" >/dev/null 2>&1 && note "an edit of a --with module did not make the run stale"
+    "$ORB" --dir "$K" add "model_run_file(m1_run2, m1_m1, 'sha256:0')" >/dev/null 2>&1 && note "model_run_file by hand was accepted"; }
+t_MR19() { fixture smt || return; "$ORB" --dir "$K" model-run m1 >/dev/null 2>&1; echo unsat >> "$K/runs/1-m1.log"
+    out=$("$ORB" --dir "$K" lint 2>&1); printf '%s' "$out" | grep -q 'W1' || note "lint does not warn of the edited log"
+    printf '%s' "$out" | grep -Eq 'Refresh with orbit(-kb)? subject' && note "lint still says to refresh the log with subject"
+    printf '%s' "$out" | grep -q 'orbit model-run' || note "lint does not say to run orbit model-run again"
+    echo a > "$K/o.txt"; "$ORB" --dir "$K" subject o1 o.txt >/dev/null 2>&1; echo b >> "$K/o.txt"
+    "$ORB" --dir "$K" lint 2>&1 | grep -Eq 'Refresh with orbit(-kb)? subject o1' || note "an ordinary subject lost its refresh hint"; }
+t_MR20() { fixture tla || return; fake tlc 'echo "Error: Deadlock reached."; echo "State 1: x = 0"; exit 11'
+    PATH=$T/bin:$PATH "$ORB" --dir "$K" model-run m1 >/dev/null 2>&1; rc=$?
+    [ $rc = 0 ] && grep -q 'class=tlc_violated' "$K"/runs/1-m1.log || note "a plain TLC deadlock (exit 11) is not a decided result: exit $rc"
+    "$ORB" help model-run 2>&1 | grep -qi 'deadlock' || note "the help does not say that a deadlock is a result"; }
+for id in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
     [ -n "${ONLY:-}" ] && ! [[ MR$id =~ $ONLY ]] && continue
     FAILS=(); "t_MR$id" </dev/null >/dev/null 2>&1 || true
     if [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS MR$id"; else fail=$((fail+1)); failed+=("MR$id"); echo "FAIL MR$id"; printf '     - %s\n' "${FAILS[@]}"; fi
