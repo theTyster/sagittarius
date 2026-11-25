@@ -640,6 +640,9 @@ give_goal_only() {  # give_goal_only [DIR]: the goal with no judgment (a test th
     printf "goal(g0, feature, human, 'The goal of this test.').\nno_premises(g0).\n" >> "${1:-$K}/kb.pl"
 }
 oadd() { okb --dir "$K" add "$@"; }
+# oadd_mr FACT...: a model_run fact in the setup of a test. orbit refuses it by hand (orbit-front-door c3:
+# only orbit model-run writes one), so the setup puts the line in kb.pl itself.
+oadd_mr() { local f; for f in "$@"; do printf '%s.\n' "$f" >> "$K/kb.pl"; done; out=""; err=""; rc=0; }
 mkclaim() { use_proto "mkclaim.${1:-build}"; }   # standard small KB in $K made through the CLI
 mkclaim_fresh() {  # the setup behind mkclaim. It runs once per suite, in a prototype (use_proto).
     K=$T/kb; kb_init "$K" "${1:-build}"
@@ -2117,7 +2120,7 @@ t_RD3() { hy_disc "$T/d"
           okb --dir "$K" subject m1 "$K/m1.smt" >/dev/null; okb --dir "$K" subject log1 "$K/log1.log" >/dev/null
           oadd "model(m1, smt)" >/dev/null
           local dg; q 'subject(m1, _, D)'; dg=$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}')
-          oadd "model_run(log1, m1, '$dg')" >/dev/null
+          oadd_mr "model_run(log1, m1, '$dg')" >/dev/null
           okb --dir "$K" attest model_result log1 'verdict(m1, sanity, sat)' >/dev/null
           okb --dir "$K" attest model_result log1 "calibration(m1, case('gold, 40, gives 80'), matches)"; rc_is 0 "the older case form is accepted"
           is_false 'model_trusted(m1)' "one matching case does not calibrate a model"
@@ -2129,7 +2132,7 @@ t_RD3() { hy_disc "$T/d"
           printf '(check-sat)\n; target\n' > "$K/m2.smt"; okb --dir "$K" subject m2 "$K/m2.smt" >/dev/null
           printf 'sat\n' > "$K/log2.log"; okb --dir "$K" subject log2 "$K/log2.log" >/dev/null
           q 'subject(m2, _, D)'; dg=$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}')
-          oadd "model(m2, smt)" "derived_from(m2, m1)" "model_run(log2, m2, '$dg')" >/dev/null
+          oadd "model(m2, smt)" "derived_from(m2, m1)" >/dev/null; oadd_mr "model_run(log2, m2, '$dg')"
           okb --dir "$K" attest model_result log2 'verdict(m2, sanity, sat)' >/dev/null
           is_false 'model_trusted(m2)' "a model derived from a calibrated model needs its own two cases"
           okb --dir "$K" attest model_result log2 "calibration(m2, fails('gold, 40, gave 40'), matches)" >/dev/null
@@ -2577,7 +2580,7 @@ mf_model() {  # mf_model RESULT: model m1 (smt) encodes c1 in $K, a current run 
     okb --dir "$K" subject m1 "$K/m1.smt" >/dev/null; okb --dir "$K" subject log1 "$K/log1.log" >/dev/null
     oadd "model(m1, smt)" "encodes(m1, c1)"; rc_is 0 "model/2 and encodes/2"
     local dg; q 'subject(m1, _, D)'; dg=$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}')
-    oadd "model_run(log1, m1, '$dg')"; rc_is 0 "model_run/3"
+    oadd_mr "model_run(log1, m1, '$dg')"; rc_is 0 "model_run/3 (a line of kb.pl: add refuses it by hand)"
     okb --dir "$K" attest model_result log1 'verdict(m1, sanity, sat)'; rc_not 2 "a sanity verdict"
     okb --dir "$K" attest model_result log1 "verdict(m1, preserve(c1), $1)"; rc_is 0 "a model_result attestation"; }
 t_MF1() { hy_build "$T/b"; give_goal; mf_model unsat
@@ -2617,7 +2620,7 @@ mf_trusted() {  # mf_trusted CLAIM RESULT [MODEL]: a trusted SMT model M (defaul
     okb --dir "$K" subject "v_$m" "$K/v_$m.log" >/dev/null
     oadd "model($m, smt)" "encodes($m, $c)" >/dev/null || note "setup: the model: $(snip "$out$err")"
     q "subject($m, _, D)"; dg=$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}' | head -n 1)
-    oadd "model_run(s_$m, $m, '$dg')" "model_run(v_$m, $m, '$dg')" >/dev/null || note "setup: the runs: $(snip "$out$err")"
+    oadd_mr "model_run(s_$m, $m, '$dg')" "model_run(v_$m, $m, '$dg')" >/dev/null || note "setup: the runs: $(snip "$out$err")"
     okb --dir "$K" attest model_result "s_$m" "verdict($m, sanity, sat)" >/dev/null || note "setup: sanity: $(snip "$out$err")"
     okb --dir "$K" attest model_result "s_$m" "calibration($m, fails('the reports page is light'), matches)" >/dev/null || note "setup: a failing case"
     okb --dir "$K" attest model_result "s_$m" "calibration($m, passes('the home page is dark'), matches)" >/dev/null || note "setup: a passing case"

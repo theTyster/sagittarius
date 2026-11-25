@@ -525,6 +525,7 @@ kb_command('pin-request').
 kb_command('apply-pending').
 kb_command(review).
 kb_command(withdraw).
+kb_command('model-run').
 kb_command(adopt).
 kb_command(retire).
 kb_command(rests).
@@ -664,7 +665,7 @@ writer_command('confirm-proposal').
 % --take replaces the holder at once and records writer_takeover/3 too.
 % The lock is a record, not a guard: nothing stops a hand edit of kb.pl.
 
-lock_command(C) :- memberchk(C, [adopt, retire, judge, locate, confirm, add, subject, attest, run, prove, uses, withdraw, 'pin-item',
+lock_command(C) :- memberchk(C, [adopt, retire, judge, locate, confirm, add, subject, attest, run, prove, uses, withdraw, 'model-run', 'pin-item',
                                  'pin-question', 'pin-answer', 'pin-request', 'apply-pending', review,
                                  propose, 'confirm-proposal']).
 
@@ -1293,6 +1294,7 @@ kb_cmd('pin-request', KB, Args, Code) :- cmd_pin_request(KB, Args, Code).
 kb_cmd('apply-pending', KB, Args, Code) :- cmd_apply_pending(KB, Args, Code).
 kb_cmd(review, KB, Args, Code) :- cmd_review(KB, Args, Code).
 kb_cmd(withdraw, KB, Args, Code) :- cmd_withdraw(KB, Args, Code).
+kb_cmd('model-run', KB, Args, Code) :- cmd_model_run(KB, Args, Code).
 kb_cmd(propose, KB, Args, Code) :- cmd_propose(KB, Args, Code).
 kb_cmd('confirm-proposal', KB, Args, Code) :- cmd_confirm_proposal(KB, Args, Code).
 
@@ -4269,6 +4271,128 @@ kb_lines_commented(File, LTs, Out) :-
     atomic_list_concat(Outs, '\n', Out).
 
 % ---------------------------------------------------------------------
+% model-run: orbit runs the solver or the model checker itself (orbit-front-door c1 to c3)
+% ---------------------------------------------------------------------
+% orbit model-run MODEL [--tool z3|cvc5|tlc] [--timeout SECONDS]
+% MODEL is a subject with model(MODEL, smt|tla). z3 (else cvc5) runs an smt model, tlc a tla model
+% (with the .cfg beside the file, when there is one). The output is the log runs/N-MODEL.log; it is
+% recorded as a subject with model_run(LOG, MODEL, DIGEST), the digest of the model file that ran.
+% Exit 0: the tool decided (sat, unsat, a TLC result). Exit 2: it answered unknown, timed out, was
+% not found or failed: the run is recorded as it is and counts for or against no claim. A model_run
+% fact cannot be added by hand: add refuses it (orbit add model_run(...) names this command).
+cmd_model_run(KB, Args, Code) :-
+    parse_opts(Args, ['--tool'-value, '--timeout'-value], Pos, Opts),
+    (   Pos = [M] -> true ; usage_error("Give one model: orbit model-run MODEL [--tool z3|cvc5|tlc] [--timeout SECONDS].", []) ),
+    opt(Opts, '--timeout', '120', TA),
+    (   atom_number(TA, TO), number(TO), TO > 0 -> true ; usage_error("--timeout takes a number of seconds above 0.", []) ),
+    kb_items(KB, Items), kb_dir(KB, Dir),
+    (   member(it(kb, _, _, MT, _, _), Items), nonvar(MT), MT = model(M, Kind) -> true
+    ;   die(2, ["There is no model " + M + " in kb.pl (model(" + M + ", smt) or model(" + M + ", tla)).", "Fix: orbit subject " + M + " FILE, then orbit add 'model(" + M + ", smt)'. Nothing was run."] >> fix_lines)
+    ),
+    (   member(it(kb, _, _, ST, _, _), Items), nonvar(ST), ST = subject(M, Path, Digest) -> true
+    ;   die(2, ["Model " + M + " has no subject file. Fix: orbit subject " + M + " FILE. Nothing was run."] >> fix_lines)
+    ),
+    subject_abs(KB, Path, Abs),
+    (   exists_file(Abs) -> true ; die(2, ["The model file " + Abs + " does not exist. Nothing was run."] >> fix_lines) ),
+    sha256_file(Abs, Now0),
+    (   Now0 == Digest -> true
+    ;   die(2, ["The model file " + Path + " changed since subject " + M + " was recorded.",
+            "Fix: orbit subject " + M + " " + Path + " records the new digest. Nothing was run."] >> fix_lines)
+    ),
+    mr_tool(Kind, Opts, Tool, ToolArgs0),
+    file_directory_name(Abs, MDir), file_base_name(Abs, MBase),
+    (   Kind == tla, file_name_extension(Stem, _, MBase), file_name_extension(Stem, cfg, CfgB),
+        directory_file_path(MDir, CfgB, Cfg), exists_file(Cfg)
+    ->  append(['-config', Cfg], [Abs], FileArgs)
+    ;   FileArgs = [Abs]
+    ),
+    append(ToolArgs0, FileArgs, ToolArgs),
+    directory_file_path(Dir, runs, RunsDir), make_directory_path(RunsDir),
+    mr_run(Tool, ToolArgs, MDir, RunsDir, TO, EC, Out),
+    split_string(Out, "\n", "\r \t", Lines),
+    log_class(Lines, Class),
+    (   EC == timeout -> Verdict = timeout
+    ;   Class \== none -> Verdict = decided
+    ;   integer(EC), EC =:= 0 -> Verdict = unknown
+    ;   Verdict = failed
+    ),
+    utc_now(Now),
+    with_kb_lock(Dir, mr_record(KB, M, Digest, Tool, EC, Now, Out, Verdict, Class, LogId, Log)),
+    mr_say(Verdict, Class, M, Tool, Log, LogId),
+    ( Verdict == decided -> Code = 0 ; Code = 2 ).
+
+mr_tool(smt, Opts, Tool, Args) :- !,
+    (   memberchk('--tool'-T, Opts) -> true
+    ;   absolute_file_name(path(z3), _, [access(execute), file_errors(fail)]) -> T = z3
+    ;   T = cvc5
+    ),
+    (   memberchk(T, [z3, cvc5]) -> true ; usage_error("--tool for an smt model is z3 or cvc5.", []) ),
+    Tool = T, ( T == cvc5 -> Args = ['--lang=smt2'] ; Args = [] ).
+mr_tool(tla, Opts, tlc, ['-workers', '2']) :-
+    (   memberchk('--tool'-T, Opts), T \== tlc -> usage_error("--tool for a tla model is tlc.", []) ; true ).
+
+% mr_run(+Tool, +Args, +Cwd, +RunsDir, +TimeOut, -EC, -Output): EC is the exit code, timeout, failed or not_found.
+mr_run(Tool, Args, Cwd, RunsDir, TO, EC, Out) :-
+    (   absolute_file_name(path(Tool), Exe, [access(execute), file_errors(fail)])
+    ->  runs_tmp(RunsDir, Tmp, OS),
+        catch(process_create(Exe, Args, [cwd(Cwd), stdin(null), stdout(stream(OS)), stderr(stream(OS)), process(P)]), Ex, true),
+        close(OS),
+        (   nonvar(Ex)
+        ->  err_text(Ex, ET), EC = failed, fmt(Out, "could not start ~w: ~w~n", [Tool, ET])
+        ;   run_wait(P, TO, St),
+            (   St == timeout -> EC = timeout
+            ;   St = exit(C) -> EC = C
+            ;   St = killed(Sg) -> EC is 128 + Sg
+            ;   EC = 255
+            ),
+            read_file_to_string(Tmp, Out, [encoding(utf8)])
+        )
+    ;   EC = not_found, fmt(Out, "~w is not on the PATH~n", [Tool])
+    ).
+
+mr_record(KB, M, Digest, Tool, EC, Now, Out, Verdict, Class, LogId, Log) :-
+    kb_dir(KB, Dir), recheck_writer(Dir), kb_lib(KB, Lib),
+    load_kb(Dir, Lib, KB2), kb_items(KB2, Items), items_decls(Items, Ds),
+    directory_file_path(Dir, runs, RunsDir),
+    mr_next_n(RunsDir, N),
+    format(atom(Rel), "runs/~w-~w.log", [N, M]),
+    directory_file_path(Dir, Rel, Log),
+    format(string(Head), "% orbit model-run ~w tool=~w exit=~w verdict=~w class=~w digest=~w time=~w~n", [M, Tool, EC, Verdict, Class, Digest, Now]),
+    string_concat(Head, Out, LogText),
+    create_exclusive(Log, LogText),
+    sha256_file(Log, LogDigest),
+    include(fact_item, Items, Facts),
+    build_env(Facts, Ds, env(Ids, _, _, _)),
+    format(atom(LogId0), "~w_run~w", [M, N]),
+    mr_free_id(LogId0, Ids, LogId),
+    clause_line(subject(LogId, Rel, LogDigest), [], L1),
+    clause_line(model_run(LogId, M, Digest), [], L2),
+    kb_file(KB2, KbFile),
+    append_lines(KbFile, [L1, L2]).
+
+mr_free_id(Id, Ids, F) :- ( ord_memberchk(Id, Ids) -> atom_concat(Id, x, Id1), mr_free_id(Id1, Ids, F) ; F = Id ).
+
+mr_next_n(RunsDir, N) :-
+    (   exists_directory(RunsDir) -> directory_files(RunsDir, Fs) ; Fs = [] ),
+    findall(K, ( member(F, Fs), atom_codes(F, Cs), append(Ds, [0'-|_], Cs), Ds \== [], maplist([C]>>code_type(C, digit), Ds),
+                 number_codes(K, Ds) ), Ks),
+    ( Ks == [] -> N = 1 ; max_list(Ks, Mx), N is Mx + 1 ).
+
+mr_say(decided, Class, M, Tool, Log, LogId) :-
+    format("model ~w: ~w (~w). Log ~w, recorded as ~w with model_run.~n", [M, Class, Tool, Log, LogId]).
+mr_say(Verdict, _, M, Tool, Log, LogId) :-
+    Verdict \== decided,
+    format("model ~w: ~w (~w). Log ~w, recorded as ~w with model_run. This is no result for or against a claim.~n", [M, Verdict, Tool, Log, LogId]).
+
+% orbit repo-map ARGS: the repo-map program beside this script, with the same arguments and streams.
+cmd_repo_map(Args, Code) :-
+    orbit_script(F0), real_file(F0, F), file_directory_name(F, D), directory_file_path(D, 'repo-map', RM),
+    (   exists_file(RM) -> true ; die(2, ["repo-map is not beside this script: " + RM] >> fix_lines) ),
+    process_create(RM, Args, [stdin(std), stdout(std), stderr(std), process(P)]),
+    process_wait(P, St),
+    (   St = exit(C) -> Code = C ; St = killed(S) -> Code is 128 + S ; Code = 255 ).
+
+% ---------------------------------------------------------------------
 % shift: the step from words to records in one command (D37, 0.3.0 K-H)
 % ---------------------------------------------------------------------
 % orbit-kb shift DIR (--request-file F | --request T) --hypothesis T [--kind K]
@@ -4586,6 +4710,7 @@ cmd_add(KB, Args, Code) :-
     findall(M, member(err(M), Rs), Errs),
     (   Errs \== [] -> reject(Errs) ; true ),
     findall(It, member(ok(It), Rs), NewItems),
+    model_run_gate(NewItems),
     check_words_gate(KI, NewItems),
     % D22: a fact whose name is declared nowhere declares its predicate by
     % its first use. The decl/4 lines take part in the checks of the batch.
@@ -4621,6 +4746,17 @@ cmd_add(KB, Args, Code) :-
     ;   true
     ),
     Code = 0.
+
+% model_run_gate(+NewItems) (orbit-front-door c3): a model_run fact is written by orbit model-run, which started
+% the solver itself; a run typed by hand is refused.
+model_run_gate(NewItems) :-
+    (   member(it(_, _, _, T, _, _), NewItems), nonvar(T), T = model_run(_, M, _)
+    ->  term_text(T, TT),
+        fmt(M1, "~w: a model run cannot be recorded by hand. Only orbit model-run writes model_run, because it runs the solver itself and keeps the log.", [TT]),
+        ( atom(M) -> fmt(Fix, "Fix: orbit model-run ~w   (z3 or cvc5 for an smt model, tlc for a tla model).", [M]) ; Fix = "Fix: orbit model-run MODEL." ),
+        reject([M1, Fix] >> fix_lines)
+    ;   true
+    ).
 
 % check_words_gate(+KBItems, +NewItems) (E20): a new check(K, C) needs the words of the check:
 % checks_that(K, Text) with non-empty Text, in the same add or already in the KB. Else reject.
@@ -12516,9 +12652,11 @@ name_in_path(Pre, Post) :-
     ).
 
 door_command(hub).
+door_command('repo-map').
 door_command('s1-record').
 door_command('drop-goal').
 
+cmd_door('repo-map', _, Args, Code) :- !, cmd_repo_map(Args, Code).
 cmd_door(Cmd, DirOpt, Args, Code) :-
     (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
     ->  cmd_help([hub], Code)
