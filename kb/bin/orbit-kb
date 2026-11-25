@@ -4365,20 +4365,37 @@ crud_target(KB, Text0, Target, LTs) :-
     ).
 
 % crud_human_record(+Fact): a record of the human: a request, or a fact with the argument human.
-crud_human_record(T) :- nonvar(T), T = request(_, _), !.
-crud_human_record(T) :-
+crud_human_record_plain(T) :- nonvar(T), T = request(_, _), !.
+crud_human_record_plain(T) :-
     nonvar(T), compound(T), \+ T = struck_disclosure(_, _, _, _), \+ T = struck(_, _, _, _), \+ T = erased(_, _, _, _), \+ T = replaced(_, _, _, _),
-    \+ T = actor(_, _, _), T =.. [_|As], memberchk(human, As), !.
+    \+ T = by_human(_, _), \+ T = actor(_, _, _), T =.. [_|As], memberchk(human, As), !.
 
-crud_guard(LTs, Target, By, Opts) :-
+% crud_human_record(+Items, +Fact): the request, a fact with the argument human, or a fact with a by_human line.
+crud_human_record(_, T) :- crud_human_record_plain(T), !.
+crud_human_record(Items, T) :-
+    nonvar(T), compound(T), member(it(kb, _, _, M, _, _), Items), nonvar(M), M = by_human(T2, _), T2 =@= T, !.
+
+% crud_pane_owner(+Items, +Target, -Pane) (kb-crud c8): Target is a run or a verdict (an attestation) that another pane
+% recorded: its actor/3 names a role that is not the role of this command (--as ROLE, or ORBIT_KB_ROLE).
+crud_pane_owner(Items, Target, Pane) :-
+    atom(Target),
+    member(it(kb, _, _, A, _, _), Items), nonvar(A), A = attest(Target, _, _, _, _, _), !,
+    member(it(kb, _, _, Ac, _, _), Items), nonvar(Ac), Ac = actor(Target, Pane, _),
+    Pane \== unknown, actor_role(Me), Me \== Pane, !.
+
+crud_guard(KB, LTs, Target, By, Opts) :-
+    kb_items(KB, Items),
     (   memberchk('--disclose'-D0, Opts), atom_string(D0, DS0), split_string(DS0, "", " \t\r\n", [""])
     ->  reject(["--disclose is empty.", "Fix: say what the human said and where, for example --disclose 'Ty said B in the chat'."] >> fix_lines)
     ;   true
     ),
-    (   By == agent, member(_-T, LTs), crud_human_record(T), \+ memberchk('--disclose'-_, Opts)
+    (   By == agent, member(_-T, LTs), crud_human_record(Items, T), \+ memberchk('--disclose'-_, Opts)
     ->  term_text(T, TT),
         fmt(M, "~w is a record of the human (~w). An agent changes it only with a disclosure that says what the human said and where.", [Target, TT]),
         reject([M, "Fix: add --disclose TEXT, for example --disclose 'Ty said B in the chat'."] >> fix_lines)
+    ;   By == agent, crud_pane_owner(Items, Target, Pane), \+ memberchk('--disclose'-_, Opts)
+    ->  fmt(M, "~w is a record of the pane ~w (a run or a verdict). Another pane changes it only with a disclosure that names the pane and says why.", [Target, Pane]),
+        reject([M, "Fix: add --disclose TEXT, for example --disclose 'the run tested an old build'."] >> fix_lines)
     ;   true
     ).
 
@@ -4391,26 +4408,36 @@ crud_why(Opts, Default, Why) :-
     ;   Why = Default
     ).
 
+% crud_human_words(+Cmd, +By, +Opts): as judge does, a record --by human from an agent shell needs the words
+% of the human (--note). The Desk passes its reason as the note.
+crud_human_words(Cmd, human, Opts) :- !, human_words_needed(Cmd, Opts).
+crud_human_words(_, _, _).
+
 crud_by(Opts, By) :-
     opt(Opts, '--by', agent, By),
     ( memberchk(By, [human, agent]) -> true ; usage_error("--by takes human or agent. It is ~w.", [By]) ).
 
-crud_disclosure_line(Target, By, Now, Opts, Lines) :-
-    (   By == agent, memberchk('--disclose'-D, Opts)
-    ->  clause_line(struck_disclosure(Target, By, Now, D), [], L), Lines = [L]
+crud_disclosure_line(KB, Target, By, Now, Opts, Lines) :-
+    (   By == agent, memberchk('--disclose'-D0, Opts)
+    ->  kb_items(KB, Items),
+        (   crud_pane_owner(Items, Target, Pane)
+        ->  atom_string(D0, DS0), fmt(DT, "the record is of the pane ~w. ~w", [Pane, DS0]), atom_string(D, DT)
+        ;   D = D0
+        ),
+        clause_line(struck_disclosure(Target, By, Now, D), [], L), Lines = [L]
     ;   Lines = []
     ).
 
 cmd_strike(KB, Args, Code) :-
-    parse_opts(Args, ['--by'-value, '--why'-value, '--disclose'-value], Pos, Opts),
+    parse_opts(Args, ['--by'-value, '--why'-value, '--disclose'-value, '--note'-value], Pos, Opts),
     (   Pos = [X] -> true ; usage_error("Give one record and the reason: orbit-kb strike X --why TEXT [--disclose TEXT] [--by human|agent].", []) ),
-    crud_by(Opts, By), crud_why(Opts, none, Why),
+    crud_by(Opts, By), crud_why(Opts, none, Why), crud_human_words(strike, By, Opts),
     crud_target(KB, X, Target, LTs),
     (   crud_struck_already(KB, Target) -> fmt(M, "~w is struck already.", [X]), reject([M]) ; true ),
-    crud_guard(LTs, Target, By, Opts),
+    crud_guard(KB, LTs, Target, By, Opts),
     utc_now(Now), kb_file(KB, KbFile),
     clause_line(struck(Target, By, Now, Why), [], L1),
-    crud_disclosure_line(Target, By, Now, Opts, DLs),
+    crud_disclosure_line(KB, Target, By, Now, Opts, DLs),
     append_lines(KbFile, [L1|DLs]),
     forall(member(L, [L1|DLs]), format("~w~n", [L])),
     Code = 0.
@@ -4419,13 +4446,13 @@ crud_struck_already(KB, Target) :-
     kb_items(KB, Items), member(it(kb, _, _, T, _, _), Items), nonvar(T), T = struck(X, _, _, _), X == Target, !.
 
 cmd_replace(KB, Args, Code) :-
-    parse_opts(Args, ['--by'-value, '--why'-value, '--disclose'-value], Pos, Opts),
+    parse_opts(Args, ['--by'-value, '--why'-value, '--disclose'-value, '--note'-value], Pos, Opts),
     (   Pos = [X, NewText|MoreFacts] -> true
     ;   usage_error("Give the record and its replacement: orbit-kb replace X 'NEW FACT' ['MORE FACTS'] [--why TEXT] [--disclose TEXT] [--by human|agent].", [])
     ),
-    crud_by(Opts, By), crud_why(Opts, replaced, Why),
+    crud_by(Opts, By), crud_why(Opts, replaced, Why), crud_human_words(replace, By, Opts),
     crud_target(KB, X, Target, LTs),
-    crud_guard(LTs, Target, By, Opts),
+    crud_guard(KB, LTs, Target, By, Opts),
     (   Target = at(_, _, _)
     ->  Extra = [], Strike = true
     ;   parse_one(NewText, ok(NT, _)), compound(NT), arg(1, NT, NewId), atom(NewId)
@@ -4441,7 +4468,7 @@ cmd_replace(KB, Args, Code) :-
     ->  clause_line(struck(Target, By, Now, Why), [], L1), Ls0 = [L1]
     ;   clause_line(replaced(Target, By, Now, Why), [], L1), Ls0 = [L1]     % who, when and why are a record, not only the message
     ),
-    crud_disclosure_line(Target, By, Now, Opts, DLs),
+    crud_disclosure_line(KB, Target, By, Now, Opts, DLs),
     append(Ls0, DLs, Ls),
     append_lines(KbFile, Ls),
     forall(member(L, Ls), format("~w~n", [L])),
@@ -4452,17 +4479,20 @@ cmd_replace(KB, Args, Code) :-
     Code = 0.
 
 cmd_erase(KB, Args, Code) :-
-    parse_opts(Args, ['--by'-value, '--why'-value, '--disclose'-value], Pos, Opts),
+    parse_opts(Args, ['--by'-value, '--why'-value, '--disclose'-value, '--note'-value], Pos, Opts),
     (   Pos = [X] -> true ; usage_error("Give one record and the reason: orbit-kb erase X --why TEXT [--disclose TEXT] [--by human|agent].", []) ),
-    crud_by(Opts, By), crud_why(Opts, none, Why),
+    crud_by(Opts, By), crud_why(Opts, none, Why), crud_human_words(erase, By, Opts),
     crud_target(KB, X, Target, LTs),
-    crud_guard(LTs, Target, By, Opts),
+    crud_guard(KB, LTs, Target, By, Opts),
     crud_erase_refs(KB, Target, LTs),
     utc_now(Now), kb_file(KB, KbFile),
-    kb_lines_without(KbFile, LTs, Out00),
+    kb_items(KB, KItems),
+    findall(ML-MT, ( member(L0-T0, LTs), member(it(kb, _, ML, MT, _, _), KItems), nonvar(MT), MT = by_human(T2, _), T2 =@= T0 ), MLTs),
+    append(LTs, MLTs, LTs2),
+    kb_lines_without(KbFile, LTs2, Out00),
     crud_fix_struck(Target, Out00, Out0),
     clause_line(erased(Target, By, Now, Why), [], L1),
-    crud_disclosure_line(Target, By, Now, Opts, DLs),
+    crud_disclosure_line(KB, Target, By, Now, Opts, DLs),
     write_kb_text(KbFile, Out0),
     append_lines(KbFile, [L1|DLs]),
     forall(member(L, [L1|DLs]), format("~w~n", [L])),
@@ -4477,7 +4507,7 @@ crud_erase_refs(KB, Target, LTs) :-
     kb_items(KB, Items),
     findall(Txt, ( member(it(kb, _, L, T, _, _), Items), nonvar(T), compound(T),
                    \+ memberchk(L-_, LTs),
-                   functor(T, N, _), \+ memberchk(N, [struck, struck_disclosure, erased, replaced, supersedes]),
+                   functor(T, N, _), \+ memberchk(N, [struck, struck_disclosure, erased, replaced, by_human, supersedes]),
                    T =.. [_, _|As], memberchk(Target, As), term_text(T, Txt) ), Rs0),
     sort(Rs0, Rs),
     (   Rs == [] -> true
@@ -4872,7 +4902,9 @@ cmd_add(KB, Args, Code) :-
     ),
     retire_gate(KB, NewItems),
     utc_now(Now),
-    add_lines(NewItems, FUs, Doc, By, Now, [], Lines),
+    add_lines(NewItems, FUs, Doc, By, Now, [], Lines0),
+    human_mark_lines(By, NewItems, Now, MarkLs),     % kb-crud c9: a fact that a human writes carries his mark
+    append(Lines0, MarkLs, Lines),
     apply_redoc(KbFile, Redoc),                  % T40 c8
     append_lines(KbFile, Lines),
     forall(member(L, Lines), format("~w~n", [L])),
@@ -4890,6 +4922,14 @@ cmd_add(KB, Args, Code) :-
     ;   true
     ),
     Code = 0.
+
+% human_mark_lines(+By, +NewItems, +Time, -Lines) (kb-crud c9): after the facts that a human writes, one
+% by_human(Fact, Time) for each fact that does not carry the human already (an argument human, or the request).
+human_mark_lines(human, NewItems, Now, Lines) :- !,
+    findall(L, ( member(it(_, _, _, T, _, _), NewItems), pos_fact(T), \+ crud_human_record_plain(T),
+                 functor(T, N, _), \+ memberchk(N, [by_human, struck, struck_disclosure, erased, replaced, actor, first_use]),
+                 clause_line(by_human(T, Now), [], L) ), Lines).
+human_mark_lines(_, _, _, []).
 
 % check_words_gate(+KBItems, +NewItems) (E20): a new check(K, C) needs the words of the check:
 % checks_that(K, Text) with non-empty Text, in the same add or already in the KB. Else reject.
@@ -9162,8 +9202,8 @@ desk_plan_rec(HD, K, Intent, Form, P) :-
     maplist([S, A]>>atom_string(A, S), Lines, FactAs),
     atom_string(RecA, Rec), atom_string(WhyA, Why),
     (   Intent == create -> append([add|FactAs], ['--by', human], Args)
-    ;   Intent == replace -> append([[replace, RecA], FactAs, ['--why', WhyA, '--by', human]], Args)
-    ;   Args = [Intent, RecA, '--why', WhyA, '--by', human]
+    ;   Intent == replace -> append([[replace, RecA], FactAs, ['--why', WhyA, '--by', human, '--note', WhyA]], Args)
+    ;   Args = [Intent, RecA, '--why', WhyA, '--by', human, '--note', WhyA]
     ),
     maplist([A, T]>>( atom(A) -> atom_string(A, T) ; T = A ), Args, ArgTs), atomic_list_concat(ArgTs, ' ', Cmd),
     desk_kb_recipient(HD, K, To),
@@ -12224,6 +12264,10 @@ show_section(KB, Eng, open) :-
         )
     ;   Us = [], Os = [], Bs = [], Ns = []
     ),
+    kb_items(KB, DItems),
+    forall(( member(it(kb, _, _, DT, _, _), DItems), nonvar(DT), DT = struck_disclosure(DX, DBy, DAt, DD) ),
+           ( crud_target_text(DX, DXT), one_line(DD, DDL),
+             say("- disclosure ~w: a record that another party wrote was changed by ~w at ~w (a divergence for its owner to see; it does not block): ~w", [DXT, DBy, DAt, DDL]) )),
     eng_all(Eng, [R], request_stale(R), Rs),
     forall(member(R, Rs), say("- request_stale ~w: the request text changed at its source. A human accepts it with orbit-kb pin-request --accept --by human.", [R])),
     kb_dir(KB, KDir), pending_open(KDir, Ps),

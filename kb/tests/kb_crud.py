@@ -154,6 +154,8 @@ def t_human():
     d2 = fixture()
     run(d2, "add", "answer(q1, 'A', human)", "--by", "human")
     code, out = run(d2, "strike", "answer(q1)#1", "--why", "the human changed it", "--by", "human")
+    ck("--by human from an agent shell needs the words of the human (--note), as judge does", code != 0 and "--note" in out, out)
+    code, out = run(d2, "strike", "answer(q1)#1", "--why", "the human changed it", "--by", "human", "--note", "Ty: drop that answer")
     ck("the human changes his own record with no disclosure", code == 0, out)
     d3 = fixture(["hypothesis(hy1, g1, human, 'the words of Ty')"])
     code, out = run(d3, "replace", "hy1", "hypothesis(hy2, g1, agent, 'mine')")
@@ -229,6 +231,54 @@ def t_request_is_human():
     ck("an agent strikes the request with no disclosure: refused, nothing written", code != 0 and text(d) == before and "record of the human" in out, out)
     code, out = run(d, "strike", "r1", "--why", "p", "--disclose", "Ty said so in the chat")
     ck("the same with a disclosure is accepted", code == 0, out)
+
+
+def t_human_mark():
+    """H-0220 c9: a fact that a human writes carries his mark; an agent changes it only with a disclosure."""
+    d = fixture()
+    code, out = run(d, "add", "note(g1, 'NOTE-H words of the human')", "--by", "human")
+    ck("add --by human writes the note and a by_human line", code == 0 and "by_human(note(g1, 'NOTE-H words of the human')" in text(d), text(d)[-300:])
+    code, out = run(d, "add", "note(g1, 'NOTE-A words of an agent')")
+    ck("a note of an agent has no mark", code == 0 and "by_human(note(g1, 'NOTE-A" not in text(d))
+    before = text(d)
+    code, out = run(d, "strike", "note(g1)#1", "--why", "p")
+    ck("an agent's strike of the human's note with no disclosure is refused, nothing written", code != 0 and text(d) == before, out)
+    code, out = run(d, "strike", "note(g1)#2", "--why", "p")
+    ck("an agent may strike an agent's note", code == 0, out)
+    code, out = run(d, "erase", "note(g1)#1", "--why", "p")
+    ck("an agent's erase of the human's note with no disclosure is refused", code != 0, out)
+    code, out = run(d, "erase", "note(g1)#1", "--why", "p", "--disclose", "Ty withdrew it in the chat")
+    ck("with a disclosure the erase is accepted, and the mark leaves with the note", code == 0 and "NOTE-H" not in text(d).replace("struck_disclosure", "") or ("by_human(note(g1, 'NOTE-H" not in text(d)), out)
+    ck("no by_human line of the erased note remains", "by_human(note(g1, 'NOTE-H" not in text(d), text(d)[-300:])
+    ck("lint has no error", lint_clean(d)[0], lint_clean(d)[1][-300:])
+    d2 = fixture(["claim(c9, introduce, 'x')", "cites(c9, 'r')", "example(c9, 'e')"])
+    code, out = run(d2, "add", "question(q9, g1, 'a human question?')", "option(q9, 'A', 'a')", "--by", "human")
+    ck("a question the human adds is marked, and an agent cannot replace it with no disclosure",
+       code == 0 and run(d2, "replace", "q9", "question(q10, g1, 'mine')")[0] != 0)
+
+
+def t_other_pane():
+    """H-0220 c8: a run or a verdict of another pane is struck only with a disclosure that names the pane."""
+    d = fixture()
+    eb = dict(ENV, HUB_SESSION="build"); er = dict(ENV, HUB_SESSION="review")
+    subprocess.run([OK, "--dir", d, "run", "--as", "build", "k1", "--", "false"], capture_output=True, text=True, env=eb)
+    subprocess.run([OK, "--dir", d, "release"], capture_output=True, env=eb)
+    m = re.search(r"attest\((a\d+), test_result, k1", text(d))
+    ck("the fixture has a run of k1 by build", m is not None, text(d)[-300:])
+    rid = m.group(1)
+    t0 = text(d)
+    r = subprocess.run([OK, "--dir", d, "strike", rid, "--why", "p", "--as", "review"], capture_output=True, text=True, env=er)
+    ck("review's strike of build's run with no disclosure is refused, kb.pl unchanged", r.returncode != 0 and text(d) == t0 and "pane build" in (r.stdout + r.stderr), r.stdout + r.stderr)
+    r = subprocess.run([OK, "--dir", d, "strike", rid, "--why", "p", "--as", "build"], capture_output=True, text=True, env=eb)
+    ck("build strikes its own run with no disclosure", r.returncode == 0, r.stdout + r.stderr)
+    d2 = fixture()
+    subprocess.run([OK, "--dir", d2, "run", "--as", "build", "k1", "--", "false"], capture_output=True, text=True, env=eb)
+    subprocess.run([OK, "--dir", d2, "release"], capture_output=True, env=eb)
+    rid2 = re.search(r"attest\((a\d+), test_result, k1", text(d2)).group(1)
+    r = subprocess.run([OK, "--dir", d2, "strike", rid2, "--why", "p", "--as", "review", "--disclose", "DISC-1 the run tested an old build"], capture_output=True, text=True, env=er)
+    ck("with a disclosure it is accepted", r.returncode == 0, r.stdout + r.stderr)
+    ck("kb.pl keeps the disclosure and names the pane build on one line", re.search(r"DISC-1.*build|build.*DISC-1", text(d2)) is not None)
+    ck("show open lists it as a disclosure (it does not block)", "disclosure" in opens(d2) and "DISC-1" in opens(d2), opens(d2)[-400:])
 
 
 def t_unchanged():

@@ -57,6 +57,7 @@ signature(burn_proved/1).
 signature(burn_reason/1).
 signature(burn_requested/1).
 signature(burn_waived/1).
+signature(by_human/2).
 signature(carried/2).
 signature(carried_over/2).
 signature(case_against/2).
