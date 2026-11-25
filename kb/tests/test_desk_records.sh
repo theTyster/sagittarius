@@ -145,11 +145,12 @@ t_DR4() {  # judge a case, and the goal: the review first; the send writes the j
 ids_of() { python3 -I -c "
 import re,sys
 p=open(sys.argv[1],encoding='utf-8').read()
-ids=sorted(set(i for i in re.findall(r'\bid=\"([^\"]+)\"',p) if i.startswith(('item-','kb-','lane-'))))
-lanes=re.findall(r'<a href=\"#lane-([a-z]+)\">[^<]*<b>(\d+)</b>',p)
+ids=sorted(set(i for i in re.findall(r'\bid=\"([^\"]+)\"',p) if i.startswith(('item-','kb-'))))
+# 0.9.2 (c13 of desk-speed-orbit-door): no lanes; the counts of the top band
+lanes=re.findall(r'<strong>(\d+) things? waits? on you,</strong> and (\d+) ',p)
 rows=sorted(re.sub(r'<[^>]+>',' ',r)[:60] for r in re.findall(r'<tr><td>(.*?)</td>',p,re.S))
 print('\n'.join(ids)); print(lanes); print('\n'.join(rows))" "$1"; }
-t_DR5() {  # the same hub, read by the Desk of 0.7.2 and by this Desk: the same items, lanes, counts and rows
+t_DR5() {  # the same hub, read by the Desk of 0.7.2 and by this Desk: the same items, counts and rows (0.9.2: the lanes are no sections; their ids are not compared)
     local B=${ORBIT_KB_BASE:-} okb0=$OKB lib0=$ORBIT_KB_LIB
     if [ -z "$B" ]; then B="$T/base"; mkdir -p "$B"; git -C "$REPO" archive v0.7.2 kb VERSION 2>/dev/null | tar -x -C "$B" 2>/dev/null; fi
     [ -x "$B/kb/bin/orbit-kb" ] || { SKIPPED=1; return; }
@@ -183,7 +184,7 @@ t_DR7() {  # k24 in a browser: the card, Adopt through the review dialog, a judg
     srvd --hub "$T/h" || return
     cat > "$T/k24.js" <<'JS'
 const sec=[...document.querySelectorAll('details.kbsec')].find(d=>d.querySelector('h3.title').textContent==='replay');
-document.getElementById('lane-kbs').open=true; sec.open=true; sec.scrollIntoView();
+for(let e=sec;e;e=e.parentElement) if(e.tagName==='DETAILS') e.open=true; sec.querySelectorAll('details.layer').forEach(l=>{l.open=true;}); sec.scrollIntoView();
 const out={text:sec.innerText, k3:sec.querySelector('.chk .badge.b-unres') ? sec.querySelector('.chk .badge.b-unres').textContent : null};
 const dlg=document.getElementById('review');
 async function through(form){
@@ -200,7 +201,7 @@ jf.querySelector('input[value="not_wanted"]').checked=true;
 out.judge=await through(jf);
 return out;
 JS
-    browse "$URL/" "$T/k24.js" ${DESK_SHOT:+"$DESK_SHOT"} || return
+    browse "$URL/?view=everything" "$T/k24.js" ${DESK_SHOT:+"$DESK_SHOT"} || return
     brj "'Goal (Ty)' in d['text'] and 'Hypothesis hy2 (agent-written, not adopted)' in d['text'] and 'Hypothesis hy3 (Ty-written, adopted)' in d['text']" "the card in the browser"
     brj "d['k3']=='unresolved'" "the unresolved badge"
     brj "d['adopt'].get('dialog') and 'your adoption of hypothesis hy2' in d['adopt'].get('rec','')" "the review dialog of Adopt"
@@ -283,7 +284,7 @@ t_DR10() {  # review D1: a judgment with no choice, or a case with no text, says
     srvd --hub "$T/h" || return
     cat > "$T/d1.js" <<'JS'
 const sec=[...document.querySelectorAll('details.kbsec')].find(d=>d.querySelector('h3.title').textContent==='replay');
-document.getElementById('lane-kbs').open=true; sec.open=true;
+for(let e=sec;e;e=e.parentElement) if(e.tagName==='DETAILS') e.open=true; sec.querySelectorAll('details.layer').forEach(l=>{l.open=true;});
 const dlg=document.getElementById('review'); const out={};
 async function tryit(form){
   form.requestSubmit(form.querySelector('button[type=submit]'));
@@ -296,7 +297,7 @@ cf.querySelector('input[value="wanted"]').checked=true; out.case_notext=await tr
 cf.querySelector('textarea').value='A replay of the November file changes nothing'; out.case_ok=await tryit(cf);
 return out;
 JS
-    browse "$URL/" "$T/d1.js" || return
+    browse "$URL/?view=everything" "$T/d1.js" || return
     brj "d['goal']=={'msg':'Choose one first.','dialog':False}" "the goal judged with no choice: $BR"
     brj "d['case_nochoice']=={'msg':'Choose one first.','dialog':False}" "a case with no choice"
     brj "d['case_notext']=={'msg':'Write the case first.','dialog':False}" "a case with no text"

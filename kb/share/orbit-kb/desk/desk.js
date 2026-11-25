@@ -5,6 +5,11 @@
 //    The review comes from the server (POST /review), so it shows each receiving session and the
 //    exact text it will get. Only its Send button posts to /send. Without this script the forms
 //    post to /review, which shows the same review as a page.
+// 3. The page as Ty left it (c3, c4, release 0.9.1; at each depth in 0.9.2): a pair of Expand all and
+//    Collapse all in each store, group, KB sheet and layer that holds folds (the sheet and the layer get
+//    the compact pair: two icon buttons with the same names), and the open folds and the scroll place
+//    kept in this browser for each address of the Desk (tab and view). The server keeps none of it.
+// 4. New requirement (c5): the control of the top band opens a form; it goes through the review.
 (function () {
   var tok = document.body.getAttribute('data-token');
   function post(url, body, extra) {
@@ -44,7 +49,9 @@
   //    sticky band; so does an anchor in the address. Expand all and Collapse all set every fold.
   function setBand() {
     var h = document.querySelector('header.top');
-    document.documentElement.style.setProperty('--band', ((h ? h.getBoundingClientRect().height : 0) + 12) + 'px');
+    // a header that does not stay on screen (static at a narrow width) leaves only a small margin
+    var fixed = h && /^(sticky|fixed)$/.test(getComputedStyle(h).position);
+    document.documentElement.style.setProperty('--band', ((fixed ? h.getBoundingClientRect().height : 0) + 12) + 'px');
   }
   function reveal(id) {
     var t = id ? document.getElementById(id) : null;
@@ -62,17 +69,121 @@
     if (!a || a.closest('dialog')) return;
     var id; try { id = decodeURIComponent(a.getAttribute('href').slice(1)); } catch (x) { return; }
     if (reveal(id)) { e.preventDefault(); if (location.hash !== '#' + id) history.pushState(null, '', '#' + id); }
+    else if (toEverything(id)) e.preventDefault();
   });
+  // c13: an item that this view does not show is in the view Everything
+  function toEverything(id) {
+    if (!id || document.body.getAttribute('data-view') === 'everything') return false;
+    var q = new URLSearchParams(location.search); q.set('view', 'everything');
+    location.assign(location.pathname + '?' + q.toString() + '#' + encodeURIComponent(id));
+    return true;
+  }
   window.addEventListener('hashchange', function () { reveal(hashId()); });
   window.addEventListener('resize', setBand);
   setBand();
-  if (location.hash) { reveal(hashId()); window.addEventListener('load', function () { reveal(hashId()); }); }
+  // c4: each fold has a stable id (the id of the element, else its place in the folds around it),
+  // so a reload can put each one back. The ids are the same on each load of the same page.
+  function foldSlug(t, n) { return (t || '').replace(/\d+/g, '').replace(/\s+/g, ' ').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, n || 40); }
+  function foldList() {
+    return Array.prototype.filter.call(document.querySelectorAll('details'), function (d) { return !d.closest('dialog'); });
+  }
+  (function () {
+    var used = {};
+    foldList().forEach(function (d) {
+      var base;
+      if (d.id) base = d.id;
+      else {
+        var p = d.parentElement ? d.parentElement.closest('details') : null;
+        var s = d.querySelector(':scope > summary'), nm = s ? (s.querySelector('.name, h2, h3, .lbl, .pname, .t') || s) : null;
+        base = (p ? p.getAttribute('data-fid') : 'top') + '/' + (foldSlug(d.className.replace(/\bopen\b/, ''), 16) || 'fold') + '-' + (foldSlug(nm ? nm.textContent : '', 30) || 'x');
+      }
+      var n = used[base] = (used[base] || 0) + 1;
+      d.setAttribute('data-fid', n > 1 ? base + '~' + n : base);
+    });
+  })();
+  // c3: a pair in each lane and each KB sheet that holds a fold. A pair sets only the folds inside
+  // its own section, and leaves the section itself as it is. The rails get none.
+  function foldsIn(sec, open) {
+    sec.querySelectorAll('details').forEach(function (d) { d.open = open; });
+  }
+  var ICON = {open: '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/><path d="M4 2.5h8"/></svg>',
+              close: '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4-4 4 4"/><path d="M4 13.5h8"/></svg>'};
+  function addPair(sec, compact) {
+    var sum = sec.querySelector(':scope > summary');
+    if (!sum || !sec.querySelector('details')) return;
+    var label = (sec.querySelector(':scope > summary h2, :scope > summary h3, :scope > summary .gname, :scope > summary .lname') || sum).textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
+    var wrap = document.createElement('span');
+    wrap.className = compact ? 'foldpair compact' : 'foldpair';
+    [['Expand all', true], ['Collapse all', false]].forEach(function (x) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = compact ? 'btn small icon' : 'btn small';
+      if (compact) { b.innerHTML = x[1] ? ICON.open : ICON.close; b.title = x[0]; } else b.textContent = x[0];
+      b.setAttribute('aria-label', x[0] + ' folds in ' + label);
+      b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); foldsIn(sec, x[1]); });
+      b.addEventListener('keydown', function (e) { e.stopPropagation(); });
+      b.addEventListener('keyup', function (e) { e.stopPropagation(); });
+      wrap.appendChild(b);
+    });
+    sum.appendChild(wrap);
+  }
+  document.querySelectorAll('details.lane, details.store, details.group').forEach(function (d) { addPair(d, false); });
+  document.querySelectorAll('details.sheet.kbsec, details.layer').forEach(function (d) { addPair(d, true); });
+  // c4: what Ty left, kept in this browser for this address (tab and filter): which folds are open,
+  // and the scroll place. A fold that the page shows for the first time takes the state of the
+  // server. An entry for a fold that is gone is dropped (the entry is made again from the page).
+  var stKey = (function () {
+    var q = new URLSearchParams(location.search); q.delete('mh'); q.delete('token'); q.delete('view');
+    var v = document.body.getAttribute('data-view');
+    return 'desk-ui:' + (document.body.getAttribute('data-tab') || '') + (v ? '|' + v : '') + '|' + q.toString();
+  })();
+  function stRead() { try { var o = JSON.parse(localStorage.getItem(stKey) || 'null'); return o && typeof o === 'object' ? o : null; } catch (e) { return null; } }
+  function stWrite(o) { try { localStorage.setItem(stKey, JSON.stringify(o)); } catch (e) { /* no storage: nothing is kept */ } }
+  var restoring = true;
+  function stSave() {
+    if (restoring) return;
+    var o = {open: {}, y: Math.round(window.scrollY)};
+    foldList().forEach(function (d) { o.open[d.getAttribute('data-fid')] = d.open ? 1 : 0; });
+    stWrite(o);
+  }
+  var stTimer;
+  function stSoon() { if (restoring) return; clearTimeout(stTimer); stTimer = setTimeout(stSave, 120); }
+  var saved = stRead(), wantY = 0;
+  if (saved && saved.open && typeof saved.open === 'object') {
+    foldList().forEach(function (d) {
+      var k = d.getAttribute('data-fid');
+      if (Object.prototype.hasOwnProperty.call(saved.open, k)) d.open = !!saved.open[k];
+    });
+    wantY = Math.max(0, Number(saved.y) || 0);
+  }
+  try { history.scrollRestoration = 'manual'; } catch (e) { /* the browser keeps its own */ }
+  document.addEventListener('toggle', stSoon, true);
+  window.addEventListener('scroll', stSoon, {passive: true});
+  window.addEventListener('pagehide', function () { clearTimeout(stTimer); stSave(); });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') { clearTimeout(stTimer); stSave(); } });
+  function toPlace() { if (!location.hash && wantY) window.scrollTo(0, wantY); }
+  toPlace();
+  window.addEventListener('load', function () {
+    toPlace();
+    setTimeout(function () { restoring = false; if (!location.hash) { var y = Math.round(window.scrollY); if (wantY && Math.abs(y - wantY) > 4) wantY = y; } stSave(); }, 350);
+  });
+  if (document.readyState === 'complete') setTimeout(function () { restoring = false; stSave(); }, 350);
+  if (location.hash) { if (!reveal(hashId())) toEverything(hashId()); else window.addEventListener('load', function () { reveal(hashId()); }); }
   document.querySelectorAll('[data-folds]').forEach(function (b) {
     b.addEventListener('click', function () {
       var open = b.getAttribute('data-folds') === 'open';
       document.querySelectorAll('details').forEach(function (d) { if (!d.closest('dialog')) d.open = open; });
     });
   });
+  var nr = document.getElementById('newreq');
+  document.querySelectorAll('[data-newreq]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (!nr) return;
+      nr.showModal();
+      var t = nr.querySelector('textarea');
+      if (t) t.focus();
+    });
+  });
+  if (nr) nr.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', function (e) { e.preventDefault(); nr.close(); }); });
   var dlg = document.getElementById('review');
   var body = dlg ? dlg.querySelector('.dlgbody') : null;
   function openReview(html) {
@@ -87,6 +198,12 @@
   // sends nothing (without this script the server answers 400 with the same reason).
   function judgeMissing(f) {
     if (!f.hasAttribute('data-judge')) return '';
+    if (f.getAttribute('data-judge') === 'new') {      // c5: the form of New requirement
+      var hs = f.querySelector('select[name="hub"]'), tn = f.querySelector('textarea[name="text"]');
+      if (hs && !hs.value) return 'Choose a mindhole first.';
+      if (!tn || !tn.value.trim()) return 'Write the new requirement first.';
+      return '';
+    }
     if (!f.querySelector('input[name="choice"]:checked')) return 'Choose one first.';
     var ta = f.querySelector('textarea[name="text"]');
     if (f.getAttribute('data-judge') === 'case' && ta && !ta.value.trim()) return 'Write the case first.';

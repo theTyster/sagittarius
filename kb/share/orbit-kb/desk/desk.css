@@ -223,3 +223,84 @@ b.unres{color:var(--paper)}
 form.judge{margin:10px 0;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
 form.judge h4{margin:0;flex-basis:100%}
 form.judge textarea{flex-basis:100%;min-height:54px}
+/* c3 (0.9.1): a pair of fold buttons in the summary of a lane or a KB sheet */
+.foldpair{display:inline-flex;gap:6px;margin-left:auto;flex:none;align-self:center}
+.foldpair .btn{padding:3px 10px;font-size:13px}
+.lane>summary:has(.foldpair)::after{margin-left:6px}
+/* c5 (0.9.1): New requirement, in the top band */
+header.top .folds .newreq{display:inline-flex;align-items:center;gap:6px;color:var(--lamp);border-color:color-mix(in srgb,var(--lamp) 50%,transparent)}
+header.top .folds .newreq svg{width:15px;height:15px;flex:none}
+#newreq .nrform{padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+#newreq .nrform h2{margin:0;font:600 20px/1.2 var(--letter)}
+#newreq .nrform p{margin:0;color:var(--graphite);font-size:14px}
+#newreq .nrform select{background:var(--ink);color:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:7px 10px;font:inherit}
+#newreq .nrform textarea{min-height:140px}
+#newreq .nrform .foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+/* r8, r9 (0.9.2): the stores are the sections; a row of views narrows them; groups, KB sheets and layers fold */
+.views{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 -6px}
+.views a{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;border:1px solid var(--rule);color:var(--graphite);text-decoration:none;font-size:14px}
+.views a:hover{color:var(--paper);background:var(--drawer)}
+.views a b{color:var(--paper);font-weight:600;background:none;min-width:0;padding:0;height:auto}
+.views a b.hot{color:var(--lamp)}
+.views a.on{border-color:var(--lamp);color:var(--lamp);background:color-mix(in srgb,var(--lamp) 10%,transparent)}
+.store>summary{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;cursor:pointer;padding:10px 0;border-bottom:2px solid var(--rule)}
+.store>summary::-webkit-details-marker{display:none}
+.store>summary h2{margin:0;font:600 22px/1.2 var(--letter)}
+.store>summary .storesub{font-size:14px;flex:1 1 220px;min-width:0}
+.storebody{padding:14px 0 0;display:flex;flex-direction:column;gap:12px}
+.storebody>.empty,.groupbody>.empty,.layerbody .empty{color:var(--graphite);margin:0}
+.chip{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;font:600 12px/1 var(--ui);background:var(--drawer);color:var(--graphite);white-space:nowrap}
+.chip.hot{background:color-mix(in srgb,var(--lamp) 20%,transparent);color:var(--lamp)}
+.group{border-left:2px solid var(--rule);padding-left:14px}
+.group>summary{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;cursor:pointer;padding:6px 0}
+.group>summary::-webkit-details-marker{display:none}
+.group>summary .gname{font:600 16px/1.25 var(--ui)}
+.group>summary .gchips{display:inline-flex;gap:6px;flex-wrap:wrap}
+.groupbody{display:flex;flex-direction:column;gap:10px;padding:8px 0 4px}
+.store>summary::before,.group>summary::before,.layer>summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--graphite);border-bottom:2px solid var(--graphite);transform:rotate(-45deg);transition:transform .15s;flex:none;margin-right:2px}
+.store[open]>summary::before,.group[open]>summary::before,.layer[open]>summary::before{transform:rotate(45deg)}
+.kbsec .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.kbsec .body{padding:0 0 4px;gap:0}
+.kbsec .body>p{padding:0 20px}
+.kbsec .body>p:first-child{padding-top:12px}
+.kbmeta{display:flex;flex-wrap:wrap;gap:4px 14px;padding:8px 20px 12px!important;max-width:none!important;color:var(--graphite)}
+.layer{border-top:1px solid var(--rule)}
+.layer>summary{list-style:none;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;cursor:pointer;padding:10px 20px;background:color-mix(in srgb,var(--drawer) 55%,transparent)}
+.layer>summary::-webkit-details-marker{display:none}
+.layer>summary .lname{font:600 14.5px/1.25 var(--ui)}
+.layerbody{padding:12px 20px;display:flex;flex-direction:column;gap:10px}
+.layerbody>h3,.layerbody>h4{margin:6px 0 2px;font:600 14px/1.3 var(--ui);color:var(--graphite)}
+.layerbody p{margin:0;max-width:76ch}
+.qgroup{display:flex;flex-direction:column;gap:8px;border-left:2px solid var(--rule);padding-left:12px}
+.qgroup+.qgroup{margin-top:8px}
+.qgroup h4{margin:0;font:600 15px/1.3 var(--ui);display:flex;align-items:center;gap:8px}
+.qgroup>p.small{margin:0}
+details.more>summary{list-style:none;cursor:pointer;color:var(--link);font-size:14px;padding:2px 0}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary .morehide,details.more[open]>summary .moreshow{display:none}
+details.more[open]>summary .morehide{display:inline}
+details.more[open]{display:flex;flex-direction:column;gap:10px}
+.leaf .sub{font-size:12px;white-space:nowrap}
+/* the compact pair (review note 2): two icon buttons at the KB sheet and the layer */
+.foldpair.compact{gap:4px}
+.foldpair.compact .btn.icon{padding:2px;width:26px;height:24px;display:inline-flex;align-items:center;justify-content:center}
+.foldpair.compact svg{width:15px;height:15px}
+.store>summary .foldpair,.group>summary .foldpair{margin-left:auto}
+@media (max-width:600px){
+  .store>summary h2{font-size:20px}
+  .store>summary .storesub{flex-basis:100%;order:5}
+  .group{padding-left:10px}
+  .kbsec>summary{padding:12px 14px}
+  .layer>summary,.layerbody{padding-left:14px;padding-right:14px}
+  .kbmeta{padding-left:14px!important;padding-right:14px!important}
+  .kbsec .body>p{padding:0 14px}
+}
+/* review of 4941d88: a link row of Asks for you reads as a link (arrow, Go to its card, link colour,
+   a visible keyboard focus); at a narrow width the header scrolls away, so a jump lands near the top */
+a.actlink .t{color:var(--link)}
+a.actlink .go{display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:14px;font-weight:600;color:var(--link)}
+a.actlink .go svg{width:15px;height:15px;flex:none}
+a.actlink:hover .t,a.actlink:hover .go{text-decoration:underline;text-underline-offset:3px}
+a.actlink:focus-visible{outline:2px solid var(--lamp);outline-offset:3px;background:var(--drawer)}
+a.actlink:focus-visible .go{text-decoration:underline;text-underline-offset:3px}
+@media (max-width:600px){header.top{position:static}}
