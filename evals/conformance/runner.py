@@ -11,7 +11,9 @@ Usage:
 `live --dry-run` is the same as `plan`. A live run with no budget, or with a budget under the
 estimate, prints the plan, says why, makes no call and exits 4.
 
-Model commands. This cut has no live command of its own: a live run calls the command in
+Model commands. The live commands are agent_cmd.sh (one Haiku session) and s1_cmd.py (one System
+1 request; it leaves <run>.answers.json beside the request, and the run collects them into
+answers.json, which score.py reads); a test sets stubs. A live run calls the command in
 CONFORMANCE_AGENT_CMD once per session (arguments: task id, arm, run number, transcript path)
 and the command in CONFORMANCE_S1_CMD once per transcript (argument: the request file), and
 refuses (exit 3) when either is unset. The tests set them to stubs. Nothing here calls a model.
@@ -193,8 +195,8 @@ def live(a, p):
         return 4
     agent, s1 = os.environ.get("CONFORMANCE_AGENT_CMD"), os.environ.get("CONFORMANCE_S1_CMD")
     if not agent or not s1:
-        print("CONFORMANCE_AGENT_CMD and CONFORMANCE_S1_CMD must name the model commands; this "
-              "cut has no live command of its own. No call is made.")
+        print("CONFORMANCE_AGENT_CMD and CONFORMANCE_S1_CMD must name the model commands "
+              "(agent_cmd.sh and s1_cmd.py of this directory). No call is made.")
         return 3
     out = a.out or os.path.join(HERE, "runs", "live")
     tdir = os.path.join(out, "transcripts")
@@ -206,6 +208,7 @@ def live(a, p):
     # environment given to the agent command held, not what was meant.
     agent_env = dict(os.environ, S1_OFF="1")
     write_record(out, a.agent_model, a.prompt, hooks_state(agent_env))
+    answers = {}
     for tid in task_ids(a.tasks):
         for arm in ("prompt", "none")[:a.arms]:
             for r in range(1, a.runs + 1):
@@ -215,6 +218,18 @@ def live(a, p):
                 with open(req, "w", encoding="utf-8") as f:
                     json.dump(qmod.build_request(t, criteria), f)
                 subprocess.run([s1, req], check=True)
+                # The S1 command leaves <run>.answers.json beside the request (s1_cmd.py);
+                # answers.json of the run dir is what score.py reads. A stub that leaves none
+                # gives an empty set for that run.
+                ans = os.path.join(out, f"{tid}.{arm}.r{r}.answers.json")
+                if os.path.exists(ans):
+                    with open(ans, encoding="utf-8") as f:
+                        answers[f"{tid}.{arm}.r{r}"] = json.load(f)
+                else:
+                    answers[f"{tid}.{arm}.r{r}"] = {}
+    with open(os.path.join(out, "answers.json"), "w", encoding="utf-8") as f:
+        json.dump(answers, f, indent=1)
+        f.write("\n")
     bad = check_run(out)
     for b in bad:
         print(b)
