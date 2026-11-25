@@ -204,11 +204,12 @@ def cmd_k19(old, new, tabs):
         io, inn = items(po), items(pn)
         so = set(io["ids"]) | {"form:" + f[0] for f in io["forms"]} | {"answered:" + a for a in io["answered"]}
         # the form New requirement for this KB is new in 0.9.2 (c15): a form, not an item
-        sn = set(inn["ids"]) | {"form:" + f[0] for f in inn["forms"] if not f[0].startswith("kbreq:")} | {"answered:" + a for a in inn["answered"]}
+        # the forms Vote and Bring to a vote are new in 0.11.0 (vote-start c1, c3): forms, not items
+        sn = set(inn["ids"]) | {"form:" + f[0] for f in inn["forms"] if not f[0].startswith(("kbreq:", "vote:", "callvote:"))} | {"answered:" + a for a in inn["answered"]}
         lost, extra = sorted(so - sn), sorted(sn - so)
         dup = sorted({i for i in inn["ids"] if inn["ids"].count(i) > 1})
         fo = sorted(io["forms"])
-        fn = sorted(f for f in inn["forms"] if not f[0].startswith("kbreq:"))
+        fn = sorted(f for f in inn["forms"] if not f[0].startswith(("kbreq:", "vote:", "callvote:")))
         co, cn = top_counts(po), top_counts(pn)
         out[tab or "-"] = {"old_ids": len(so), "new_ids": len(sn), "lost": len(lost), "extra": len(extra), "dup": len(dup),
                            "old_forms": len(fo), "new_forms": len(fn), "kbreq_forms": len(inn["forms"]) - len(fn),

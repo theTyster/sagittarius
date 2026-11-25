@@ -2035,10 +2035,30 @@ vote_void_derived(KbItems, Facts) :-
               ;   append(_, [E|Mid], Before), nonvar(E), E = discovery_end(A),
                   valid_end(Ts, Tks, A),
                   \+ ( member(B2, Mid), is_back(B2) )
+              ;   vote_spec_changed(Ts, Tks, After)
               ) ),
             Fs0),
     sort(Fs0, Facts).
 vote_void_derived(_, []).
+
+% vote_spec_changed(+Ts, +Tks, +After) (vote-start c6, Ty r2): a record of the specification
+% (goal, hypothesis, claim, check, example, retired, supersedes, struck) follows the vote in kb.pl,
+% and no valid discovery_end (the human approved the ticket while gate(go) held) follows the vote: a
+% closed discovery keeps the record of its vote, and build changes the specification after it.
+% A note, a run, a finding or an answer is no part of the specification: the vote stays.
+vote_spec_changed(Ts, Tks, After) :-
+    \+ ( member(E, After), nonvar(E), E = discovery_end(A), valid_end(Ts, Tks, A) ),
+    member(C, After), spec_change(C), !.
+spec_change(C) :- nonvar(C), functor(C, F, N), spec_change_pi(F, N).
+spec_change_pi(goal, 4).
+spec_change_pi(hypothesis, 3).
+spec_change_pi(hypothesis, 4).
+spec_change_pi(claim, 3).
+spec_change_pi(check, 2).
+spec_change_pi(example, 2).
+spec_change_pi(retired, 3).
+spec_change_pi(supersedes, 2).
+spec_change_pi(struck, 4).
 
 is_back(B) :- nonvar(B), B = attest(_, Ty, _, _, _, _), Ty == back.
 valid_end(Ts, Tks, A) :-
@@ -7270,8 +7290,73 @@ desk_records_html(Eng, Acts, Html) :-
         ),
         desk_judgments_html(Eng, G.id, JsH),
         (   Acts = acts(HD, K), \+ desk_kb_frozen(HD, K) -> desk_judge_forms(HD, K, G.id, FH) ; FH = "" ),
-        dk_cat([GoalH, HsH, JsH, FH], Html)
+        (   Acts = acts(HD, K), \+ desk_kb_frozen(HD, K) -> desk_vote_forms(HD, K, Eng, VtH) ; VtH = "" ),
+        dk_cat([GoalH, HsH, JsH, VtH, FH], Html)
     ).
+
+% desk_vote_forms(+HD, +K, +Eng, -Html) (vote-start c1, c3, c6): while the discovery of a spec KB is
+% open, its sheet always has the Vote form (GO, NO-GO, HOLD) and a link to the report (the layers of
+% the sheet). It says what blocks readiness, what the vote stands for (a vote that a change of the
+% specification voided, with what changed), and, while the KB is not ready, has Bring to a vote:
+% a letter to the holder. The vote is Ty's own record: the review writes it as his.
+desk_vote_forms(HD, K, Eng, Html) :-
+    (   \+ dk_true(Eng, discovery_open) -> Html = ""
+    ;   serve_conf(token, Tok), desk_anchor(K.dir, A),
+        dk_f("vote:~w", [K.dir], It), dk_f("callvote:~w", [K.dir], CIt),
+        dk_all(Eng, [X], ready_blocker(X), Bs0), sort(Bs0, Bs),
+        findall(L, ( member(B, Bs), desk_blocker_words(B, W), esc(W, WH), dk_f("<li>~w</li>", [WH], L) ), BLs), dk_cat(BLs, BLT),
+        (   Bs == [] -> BlH = "<p class=\"small quiet\">Discovery is ready: nothing blocks the vote.</p>"
+        ;   dk_f("<p class=\"small\">Not ready: what blocks it (a GO is recorded, but wins the gate only when this is clear):</p><ul class=\"blockers\">~w</ul>", [BLT], BlH)
+        ),
+        dk_all(Eng, [VC, VR], ( vote_cast(human, VR, VC), vote_round(VR) ), Hv),
+        dk_all(Eng, [VA, VR2, VC2], ( attest(VA, vote, _, vote(VR2, VC2), human, _), vote_void(VA) ), Vv),
+        (   Hv = [[HC, HR]|_]
+        ->  dk_f("<p class=\"small\">Your vote counts: <b>~w</b> (round ~w). A change of a goal, hypothesis, claim, check or example takes it back.</p>", [HC, HR], StH)
+        ;   Vv = [[_, VR3, VC3]|_]
+        ->  desk_vote_changes(K.dir, Chg), esc_list_li(Chg, ChH),
+            dk_f("<p class=\"small loud\">Your vote of round ~w (~w) no longer counts: it stays in the KB. Changed since your vote:</p><ul class=\"changed\">~w</ul>", [VR3, VC3, ChH], StH)
+        ;   StH = "<p class=\"small quiet\">You have not voted.</p>"
+        ),
+        desk_hidden([token-Tok, hub-HD.path, item-It, intent-vote], HH),
+        dk_f("<form class=\"vote\" method=\"post\" action=\"/review\" data-review data-vote>~w<h4>Vote on this ticket</h4>~w~w<label><input type=\"radio\" name=\"choice\" value=\"go\"> GO</label> <label><input type=\"radio\" name=\"choice\" value=\"no_go\"> NO-GO</label> <label><input type=\"radio\" name=\"choice\" value=\"hold\"> HOLD</label> <textarea name=\"text\" aria-label=\"Your words\" placeholder=\"Your words (optional).\"></textarea> <button class=\"btn\" type=\"submit\">Review and record</button> <a href=\"#layer-~w-claims\">Read the report: the goal, the hypotheses, the claims and their checks</a> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form>", [HH, StH, BlH, A], VoteF),
+        (   Bs == [] -> CallF = ""
+        ;   (   desk_holder(HD, K, H0, _), H0 \== none -> atom_string(H0, To) ; To = "" ),
+            desk_hidden([token-Tok, hub-HD.path, item-CIt, intent-'call-vote', to-To], CH),
+            dk_f("<form class=\"callvote\" method=\"post\" action=\"/review\" data-review data-callvote>~w<button class=\"btn\" type=\"submit\">Bring to a vote</button> <span class=\"small quiet\">asks the holder of this KB to clear what blocks it and bring the report</span> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form>", [CH], CallF)
+        ),
+        dk_cat([VoteF, CallF], Html)
+    ).
+
+esc_list_li(Ls, Html) :-
+    findall(L, ( member(X, Ls), esc(X, XH), dk_f("<li>~w</li>", [XH], L) ), Ds), dk_cat(Ds, Html).
+
+desk_blocker_words(question_waits(Q), W) :- !, dk_f("question ~w waits for you", [Q], W).
+desk_blocker_words(refuted(C), W) :- !, dk_f("claim ~w is refuted", [C], W).
+desk_blocker_words(no_example(C), W) :- !, dk_f("claim ~w has no example", [C], W).
+desk_blocker_words(no_falsifier(C), W) :- !, dk_f("claim ~w has no case that would show it false", [C], W).
+desk_blocker_words(untouched(H), W) :- !, dk_f("hypothesis ~w was never put to the system", [H], W).
+desk_blocker_words(unasked_finding(F), W) :- !, dk_f("finding ~w was not asked about", [F], W).
+desk_blocker_words(X, W) :- term_text(X, T), dk_f("blocks readiness: ~w", [T], W).
+
+% desk_vote_changes(+Dir, -Lines): the records of the specification that follow the last vote of the
+% human in kb.pl (the same set that voids the vote: spec_change/1), in words.
+desk_vote_changes(Dir, Lines) :-
+    catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_items(KB, Items), findall(T, kb_term(Items, T), Ts),
+            (   append(_, [V|After], Ts), nonvar(V), V = attest(_, vote, _, _, human, _),
+                \+ ( member(V2, After), nonvar(V2), V2 = attest(_, vote, _, _, human, _) )
+            ->  findall(L, ( member(C, After), spec_change(C), desk_change_words(C, L) ), Lines0), list_to_set(Lines0, Lines)
+            ;   Lines = []
+            ) ), _, Lines = []).
+
+desk_change_words(claim(C, _, _), W) :- dk_f("claim ~w added", [C], W).
+desk_change_words(check(K, C), W) :- dk_f("check ~w added to ~w", [K, C], W).
+desk_change_words(example(C, _), W) :- dk_f("an example of ~w added", [C], W).
+desk_change_words(hypothesis(H, _, _, _), W) :- dk_f("hypothesis ~w added", [H], W).
+desk_change_words(hypothesis(H, _, _), W) :- dk_f("hypothesis ~w added", [H], W).
+desk_change_words(goal(G, _, _, _), W) :- dk_f("goal ~w added", [G], W).
+desk_change_words(supersedes(N, O), W) :- dk_f("~w replaces ~w", [N, O], W).
+desk_change_words(retired(X, _, _), W) :- term_text(X, T), dk_f("~w retired", [T], W).
+desk_change_words(struck(K, I, _, _), W) :- dk_f("~w of ~w struck", [K, I], W).
 
 desk_premises_html(Ps, None, Mode, Html) :-
     (   Ps \== []
@@ -8674,6 +8759,8 @@ desk_plan(Form, P) :-
         -> desk_plan_dir(HDs, DS, K, HD), desk_plan_adopt(HD, K, HyS, Text, P0)
     ;   string_concat("judge:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_judge(HD, K, Choice, Text, P0)
     ;   string_concat("kbreq:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_kbreq(HD, K, Intent, Text, P0)
+    ;   string_concat("vote:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_vote(HD, K, Choice, Text, P0)
+    ;   string_concat("callvote:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_callvote(HD, K, Text, P0)
     ;   string_concat("fix:", R, It) -> desk_plan_fix(HDs, HD, R, Text, P0)
     ;   string_concat("proj:", R, It) -> desk_plan_proj(HDs, HD, R, Text, P0)
     ;   throw(desk_refused(400, "The form names no item. Reload the page."))
@@ -8946,6 +9033,61 @@ desk_plan_judge(HD, K, Choice, Text, P) :-
     dk_f("The KB ~w: your judgment of goal ~w: ~w (~w).", [K.label, G, What, RecT], R1),
     desk_lt(To, answer, About, Item, LT, L1),
     P = plan{title:Title, sub:About, letters:[L1], records:[R1], effects:[kb_attest(K.dir, judgment, G, Pred, NFs)]}.
+
+% ---- the vote of the human, at any time (vote-start c1, c8): the Desk writes it as his own record,
+% attest(ID, vote, REQUEST, vote(ROUND, go|no_go|hold), human, TIME). A GO on a KB that is not ready
+% is recorded, and wins the gate only when the blockers are gone (the engine rule gate_allowed/1).
+desk_plan_vote(HD, K, Choice, Text, P) :-
+    (   memberchk(Choice, ["go", "no_go", "hold"]) -> true ; throw(desk_refused(400, "Choose GO, NO-GO or HOLD.")) ),
+    desk_engine(K.dir, _, Eng),
+    (   dk_true(Eng, discovery_open) -> true
+    ;   dk_f("The discovery of the KB ~w is closed: it takes no vote. Reload the page.", [K.label], M), throw(desk_refused(409, M))
+    ),
+    (   dk_all(Eng, [Rq], request(Rq, _), [Rq1|_]) -> true ; throw(desk_refused(409, "The KB has no request to vote on.")) ),
+    desk_vote_round(Eng, R),
+    atom_string(CA, Choice),
+    desk_holder(HD, K, H0, _), ( H0 \== none, desk_live(HD, H0) -> To = H0 ; To = none ),
+    dk_f("the vote on the KB ~w", [K.label], About),
+    desk_item_json(HD, K, kb, "vote", Item),
+    ( Text == "" -> WT = "", NFs = [] ; dk_f("\n\nHis words: ~w", [Text], WT), desk_words_note(Rq1, Text, NF), NFs = [NF] ),
+    (   dk_all(Eng, [X], ready_blocker(X), Bs), Bs \== []
+    ->  Gate = " The KB is not ready, so a GO is recorded but does not win the gate until what blocks it is clear."
+    ;   Gate = ""
+    ),
+    dk_f("Ty votes ~w (round ~w) on the KB ~w (~w).~w~w\n\nThe Desk recorded his vote in the KB (attest vote ~w, by human), or in its answers.pending, which your next write applies.",
+         [Choice, R, K.label, K.dir, Gate, WT, Rq1], LT),
+    dk_f("The KB ~w: your vote ~w in round ~w (attest vote ~w, by human).~w", [K.label, Choice, R, Rq1, Gate], R1),
+    desk_lt(To, answer, About, Item, LT, L1),
+    P = plan{title:"Your vote", sub:About, letters:[L1], records:[R1], effects:[kb_attest(K.dir, vote, Rq1, vote(R, CA), NFs)]}.
+
+% desk_vote_round(+Eng, -R): the round of a new vote of the human. With no vote that counts: one
+% after every round written (a voided vote leaves its round to the past); else the round of the
+% votes that count, or the next one when the human already voted in it.
+desk_vote_round(Eng, R) :-
+    dk_all(Eng, [A, Rn, W], attest(A, vote, _, vote(Rn, _), W, _), All),
+    dk_all(Eng, [VA], vote_void(VA), Vs),
+    findall(Rn, member([_, Rn, _], All), Rns), ( Rns == [] -> MaxAll = 0 ; max_list(Rns, MaxAll) ),
+    findall(Rn-W, ( member([A, Rn, W], All), \+ memberchk(A, Vs) ), Valid),
+    (   Valid == [] -> R is MaxAll + 1
+    ;   findall(Rn, member(Rn-_, Valid), VRs), max_list(VRs, MaxV),
+        (   memberchk(MaxV-human, Valid) -> R is MaxV + 1 ; R = MaxV )
+    ).
+
+% ---- Bring to a vote (vote-start c3): a letter to the holder of a KB that is not ready. Nothing is written.
+desk_plan_callvote(HD, K, Text, P) :-
+    desk_engine(K.dir, _, Eng),
+    (   dk_true(Eng, discovery_open), dk_all(Eng, [X], ready_blocker(X), Bs), Bs \== [] -> true
+    ;   dk_f("The KB ~w is ready or closed: Bring to a vote has nothing to ask. Reload the page.", [K.label], M), throw(desk_refused(409, M))
+    ),
+    findall(W, ( member(B, Bs), desk_blocker_words(B, W) ), Ws), dk_join(Ws, "; ", WsT),
+    desk_holder(HD, K, H0, _), ( H0 \== none, desk_live(HD, H0) -> To = H0 ; To = none ),
+    dk_f("the vote of the KB ~w", [K.label], About),
+    desk_item_json(HD, K, kb, "vote", Item),
+    ( Text == "" -> WT = "" ; dk_f("\n\nHis words: ~w", [Text], WT) ),
+    dk_f("Ty calls for the vote of the KB ~w (~w): clear what blocks it and bring the report. What blocks it: ~w.~w", [K.label, K.dir, WsT, WT], LT),
+    dk_f("The ledger: a letter to the holder of the KB ~w. The KB is not changed.", [K.label], R1),
+    desk_lt(To, answer, About, Item, LT, L1),
+    P = plan{title:"Bring to a vote", sub:About, letters:[L1], records:[R1], effects:[none]}.
 
 desk_words_note(X, Text, note(X, T)) :-
     utc_now(Now), format(atom(T), "Ty, from the Desk, ~w: ~w", [Now, Text]).
