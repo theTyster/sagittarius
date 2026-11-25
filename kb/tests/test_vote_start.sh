@@ -20,10 +20,11 @@ QS_LIB_ONLY=1
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/test_question_server.sh" "$@"
 
 # vs_kb DIR notready|ready|voted: a KB in discovery, made with the tool (as vote_start.sh does)
-vs_kb() { local d=$1
+vs_kb() { local d=$1 x=${3:-}
     wr build init "$d" --request "a request" --uses discovery || { note "setup: no KB $d: $(snip "$err")"; return 1; }
     wr build --dir "$d" add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" \
         "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)" || { note "setup: facts refused: $(snip "$err")"; return 1; }
+    [ "$x" = hy2 ] && { wr build --dir "$d" add "hypothesis(hy2, g1, agent, 'A second avenue.')" "defeating_case(hy2, agent, 'A case.')" "no_premises(hy2)" || note "setup: hy2 refused: $(snip "$err")"; }
     if [ "$2" = notready ]; then
         wr build --dir "$d" add "finding(f1, surprise('A surprise.'), system)" "question(q1, hy1, 'A question that waits?')" "option(q1, 'A', 'a')" "option(q1, 'B', 'b')" "raised_by(q1, f1)" || { note "setup: question refused: $(snip "$err")"; return 1; }
     else
@@ -57,6 +58,8 @@ t_VS1() {  # c1: a Vote form on every KB with an open discovery; the blockers; n
         grep -qi "report" "$T/vf" || note "the Vote form of $s has no link to the report"
     done
     vform "$T/page.html" vote nr >/dev/null; grep -q "question q1 waits for you" "$T/vf" && grep -qi "not ready" "$T/vf" || note "the form of nr does not name its blocker q1: $(snip "$(cat "$T/vf")")"
+    vform "$T/page.html" vote nr >/dev/null; local href; href=$(grep -oE 'href="#layer-[^"]*"[^>]*>Read the report' "$T/vf" | grep -oE '#layer-[^"]*' | head -1)
+    [ -n "$href" ] && grep -q "id=\"${href#\#}\"" "$T/page.html" || note "the link Read the report ($href) names no element of the page (layers: $(grep -oE 'id="layer-[^"]*-claims"' "$T/page.html" | head -2 | tr '\n' ' '))"
     vform "$T/page.html" vote rd >/dev/null; grep -q "nothing blocks the vote" "$T/vf" || note "the form of rd (ready) does not say that nothing blocks"
     # a closed discovery takes no vote: the approval of the ticket closes it
     local d="$T/h/specs/vt"; echo "the ticket" > "$d/ticket.txt"
@@ -79,6 +82,17 @@ t_VS2() {  # c3: Bring to a vote on a KB that is not ready: a letter to the hold
     grep -q "clear what blocks it and bring the report" "$T/h/flow/desk/letters.jsonl" 2>/dev/null || note "no letter in the store of the Desk: $(snip "$(cat "$T/h/flow/desk/letters.jsonl" 2>&1)")"
     [ "$(sha256sum "$kb/kb.pl")" = "$before" ] || note "Bring to a vote changed the KB"
     review "token=$tok" "hub=$T/h" "item=callvote:$T/h/specs/rd" intent=call-vote; code_is 409 "Bring to a vote on a ready KB"
+}
+t_VS2b() {  # c3: with no holder the letter goes to the keeper: the form names a receiver, the review says so, the send is accepted
+    vs_hub "$T/h"; srvd --hub "$T/h" || return; page_ok || return
+    local tok kb="$T/h/specs/nr" lt to; tok=$(pg dtoken "$T/page.html")
+    vform "$T/page.html" call-vote nr >/dev/null; to=$(grep -oE 'name="to" value="[^"]*"' "$T/vf" | head -1 | sed 's/.*value="//; s/"//')
+    [ -n "$to" ] || { note "no holder and the form has an empty receiver: $(snip "$(cat "$T/vf")")"; return; }
+    review "token=$tok" "hub=$T/h" "item=callvote:$kb" intent=call-vote; code_is 200 "the review with no holder" || return
+    rj "len(d['letters'])==1 and d['letters'][0]['to']=='$to'"
+    grep -qi "keeper" "$T/review.html" || note "the review does not say that the keeper gets the letter"
+    lt=$(python3 -I -c "import json,sys; print(json.load(open(sys.argv[1]))['letters'][0]['text'])" "$T/review.json")
+    post /send "token=$tok" "hub=$T/h" "item=callvote:$kb" intent=call-vote "letter_0=$lt" "to_0=$to"; code_is 303 "send to the keeper: $(grep -o "message[^<]*<[^<]*" "$T/post.html" | head -2)"
 }
 t_VS3() {  # c1, c8: the Desk records Ty's vote; GO on a KB that is not ready does not win; HOLD counts; GO on a ready KB wins
     vs_hub "$T/h"; srvd --hub "$T/h" || return; page_ok || return
@@ -108,8 +122,10 @@ t_VS4() {  # c6, c7: a change after the vote takes it back and the sheet says wh
     wr build --dir "$vt" add "check(k2, c1)" "checks_that(k2, 'a second check')" || note "the check was refused: $(snip "$err")"; wr build --dir "$vt" release
     gate_is "$vt" hold "the gate after a new check: the vote is taken back, the gate says hold"
     grep -q "vote(1, go), human" "$vt/kb.pl" || note "the old vote is gone from the KB"
-    page_ok; vform "$T/page.html" vote vt >/dev/null
-    grep -q "no longer counts" "$T/vf" && grep -q "check k2 added to c1" "$T/vf" || note "the sheet does not say what changed: $(snip "$(cat "$T/vf")")"
+    # the sheet is read up to 5 times, a second apart: a page that was made while the KB was being written may be one version behind
+    local try ok=0; for try in 1 2 3 4 5; do page_ok; vform "$T/page.html" vote vt >/dev/null
+        if grep -q "no longer counts" "$T/vf" && grep -q "check k2 added to c1" "$T/vf"; then ok=1; break; fi; sleep 1; done
+    [ $ok = 1 ] || note "the sheet does not say what changed (5 reads): $(snip "$(cat "$T/vf")")"
     wr build --dir "$vt" run k2 -- false; wr build --dir "$vt" add "discovery_evidence(k2, system)"; wr build --dir "$vt" attest vote r1 'vote(2, go)'; wr build --dir "$vt" release
     post /send "token=$tok" "hub=$T/h" "item=vote:$vt" intent=vote choice=go; code_is 303 "the vote in the new round: $(snip "$(cat "$T/post.html")")"
     has_goal "$vt" "vote_cast(human, 2, go)" "the new vote is round 2"
@@ -205,6 +221,13 @@ t_VS7() {  # c11 (Ty r4): a change that Ty voted on himself joins his vote; a ch
     srvd --hub "$d" || return; page_ok || return; vform "$T/page.html" vote vt >/dev/null
     grep -q "claim c3 added" "$T/vf" && ! grep -q "claim c2 added" "$T/vf" || note "the sheet does not list only c3 as changed: $(snip "$(cat "$T/vf")")"
 }
-for n in 1 2 3 4 5 6 7; do run_one VS$n; done
+t_VS8() {  # c11 (review): a retirement after the vote opens the gate; the migration record retired/3 is no change of the specification
+    local d="$T/rt"; vs_kb "$d" voted hy2 || return; gate_is "$d" go "the fixture with hy2"
+    wr build --dir "$d" retire hy2 'no longer an avenue' >/dev/null; [ "$rc" = 0 ] || { wr build --dir "$d" attest retirement hy2 "retired('no longer an avenue')" --by agent; [ "$rc" = 0 ] || note "setup: retire refused: $(snip "$err")"; }
+    wr build --dir "$d" release; gate_not "$d" go "a hypothesis retired after the vote"
+    d="$T/mig"; vs_kb "$d" voted || return; wr build --dir "$d" add "retired(foo/2, '0.9.0', 'bar')" || note "setup: the migration record was refused: $(snip "$err")"
+    wr build --dir "$d" release; gate_is "$d" go "a migration record retired/3 after the vote"
+}
+for n in 1 2 2b 3 4 5 6 7 8; do run_one VS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

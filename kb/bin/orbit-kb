@@ -2059,7 +2059,7 @@ vote_changed_derived(KbItems, Facts) :-
 vote_changed_derived(_, []).
 
 % vote_spec_changed(+Ts, +Tks, +After) (vote-start c6, Ty r2): a record of the specification
-% (goal, hypothesis, claim, check, example, retired, supersedes, struck) follows the vote in kb.pl,
+% (goal, hypothesis, claim, check, example, a retirement attestation, supersedes, struck) follows the vote in kb.pl,
 % and no valid discovery_end (the human approved the ticket while gate(go) held) follows the vote: a
 % closed discovery keeps the record of its vote, and build changes the specification after it.
 % A note, a run, a finding or an answer is no part of the specification: the vote stays.
@@ -2087,7 +2087,7 @@ spec_ids(hypothesis(H, _, _, _), [H]).
 spec_ids(hypothesis(H, _, _), [H]).
 spec_ids(goal(G, _, _, _), [G]).
 spec_ids(supersedes(N, _), [N]).
-spec_ids(retired(X, _, _), [X]).
+spec_ids(attest(_, retirement, H, _, _, _), [H]).
 spec_ids(struck(_, I, _, _), [I]).
 
 % vote_carry_derived(+KbItems, -Facts): vote_carry(V) for each vote V that names a record of the specification.
@@ -2097,6 +2097,7 @@ vote_carry_derived(KbItems, Facts) :-
     findall(vote_carry(V), ( member(X, Ts), nonvar(X), X = attest(V, Ty, S, _, _, _), Ty == vote, ground(V), vote_carry_subject(Ts, S) ), Fs0),
     sort(Fs0, Facts).
 vote_carry_derived(_, []).
+spec_change(C) :- nonvar(C), C = attest(_, retirement, _, _, _, _), !.
 spec_change(C) :- nonvar(C), functor(C, F, N), spec_change_pi(F, N).
 spec_change_pi(goal, 4).
 spec_change_pi(hypothesis, 3).
@@ -2104,7 +2105,6 @@ spec_change_pi(hypothesis, 4).
 spec_change_pi(claim, 3).
 spec_change_pi(check, 2).
 spec_change_pi(example, 2).
-spec_change_pi(retired, 3).
 spec_change_pi(supersedes, 2).
 spec_change_pi(struck, 4).
 
@@ -7388,14 +7388,30 @@ desk_md_blocks([L|Rs], Bs) :-
         dk_f("<pre>~w</pre>", [CH], B), Bs = [B|Bs1], desk_md_blocks(Rest, Bs1)
     ;   split_string(L, "", " \t", [""]) -> desk_md_blocks(Rs, Bs)
     ;   sub_string(L, 0, _, _, "#")
-    ->  string_concat("#", _, L), split_string(L, "#", " ", Ps), last(Ps, T0), esc(T0, TH),
+    ->  string_concat("#", _, L), split_string(L, "#", " ", Ps), last(Ps, T0), desk_md_inline(T0, TH),
         dk_f("<h5>~w</h5>", [TH], B), Bs = [B|Bs1], desk_md_blocks(Rs, Bs1)
     ;   desk_md_bullet(L, _)
-    ->  desk_md_take_bullets([L|Rs], Items, Rest), findall(X, ( member(I, Items), esc(I, IH), dk_f("<li>~w</li>", [IH], X) ), Xs), dk_cat(Xs, XsH),
+    ->  desk_md_take_bullets([L|Rs], Items, Rest), findall(X, ( member(I, Items), desk_md_inline(I, IH), dk_f("<li>~w</li>", [IH], X) ), Xs), dk_cat(Xs, XsH),
         dk_f("<ul>~w</ul>", [XsH], B), Bs = [B|Bs1], desk_md_blocks(Rest, Bs1)
-    ;   desk_md_take_para([L|Rs], Para, Rest), atomic_list_concat(Para, ' ', PT), esc(PT, PH),
+    ;   desk_md_take_para([L|Rs], Para, Rest), atomic_list_concat(Para, ' ', PT), desk_md_inline(PT, PH),
         dk_f("<p>~w</p>", [PH], B), Bs = [B|Bs1], desk_md_blocks(Rest, Bs1)
     ).
+% desk_md_inline(+Text, -Html): the text escaped; **bold** and `code` pairs become <strong> and <code>.
+desk_md_inline(Text, Html) :-
+    atomic_list_concat(Bs, '**', Text), length(Bs, N), N mod 2 =:= 1, !,     % an odd number of parts: every ** has its pair
+    desk_md_alt(Bs, strong, Hs), atomic_list_concat(Hs, '', Html).
+desk_md_inline(Text, Html) :- desk_md_code(Text, Html).
+desk_md_alt([], _, []).
+desk_md_alt([B|Bs], Mode, [H|Hs]) :-
+    (   Mode == strong -> desk_md_code(B, H) ; desk_md_code(B, H0), format(atom(H), "<strong>~w</strong>", [H0]) ),
+    ( Bs == [] -> Hs = [] ; ( Mode == strong -> M1 = bold ; M1 = strong ), desk_md_alt(Bs, M1, Hs) ).
+desk_md_code(T, H) :-
+    atomic_list_concat(Cs, '`', T),
+    desk_md_alt2(Cs, plain, Hs), atomic_list_concat(Hs, '', H).
+desk_md_alt2([], _, []).
+desk_md_alt2([C|Cs], Mode, [H|Hs]) :-
+    esc(C, E), ( Mode == plain -> H = E ; format(atom(H), "<code>~w</code>", [E]) ),
+    ( Cs == [] -> Hs = [] ; ( Mode == plain -> M1 = code ; M1 = plain ), desk_md_alt2(Cs, M1, Hs) ).
 desk_md_until_fence([], [], []).
 desk_md_until_fence([L|Rs], Code, Rest) :-
     (   sub_string(L, 0, 3, _, "```") -> Code = [], Rest = Rs
@@ -7416,7 +7432,7 @@ desk_md_take_para(Rest, [], Rest).
 % a letter to the holder. The vote is Ty's own record: the review writes it as his.
 desk_vote_forms(HD, K, Eng, Html) :-
     (   \+ dk_true(Eng, discovery_open) -> Html = ""
-    ;   serve_conf(token, Tok), desk_anchor(K.dir, A),
+    ;   serve_conf(token, Tok), A = K.anchor,
         dk_f("vote:~w", [K.dir], It), dk_f("callvote:~w", [K.dir], CIt),
         dk_all(Eng, [X], ready_blocker(X), Bs0), sort(Bs0, Bs),
         findall(L, ( member(B, Bs), desk_blocker_words(B, W), esc(W, WH), dk_f("<li>~w</li>", [WH], L) ), BLs), dk_cat(BLs, BLT),
@@ -7435,7 +7451,7 @@ desk_vote_forms(HD, K, Eng, Html) :-
         desk_hidden([token-Tok, hub-HD.path, item-It, intent-vote], HH),
         dk_f("<form class=\"vote\" method=\"post\" action=\"/review\" data-review data-vote>~w<h4>Vote on this ticket</h4>~w~w<label><input type=\"radio\" name=\"choice\" value=\"go\"> GO</label> <label><input type=\"radio\" name=\"choice\" value=\"no_go\"> NO-GO</label> <label><input type=\"radio\" name=\"choice\" value=\"hold\"> HOLD</label> <textarea name=\"text\" aria-label=\"Your words\" placeholder=\"Your words (optional).\"></textarea> <button class=\"btn\" type=\"submit\">Review and record</button> <a href=\"#layer-~w-claims\">Read the report: the goal, the hypotheses, the claims and their checks</a> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form>", [HH, StH, BlH, A], VoteF),
         (   Bs == [] -> CallF = ""
-        ;   (   desk_holder(HD, K, H0, _), H0 \== none -> atom_string(H0, To) ; To = "" ),
+        ;   (   catch(desk_kb_recipient(HD, K, H0), _, fail) -> atom_string(H0, To) ; To = "" ),
             desk_hidden([token-Tok, hub-HD.path, item-CIt, intent-'call-vote', to-To], CH),
             dk_f("<form class=\"callvote\" method=\"post\" action=\"/review\" data-review data-callvote>~w<button class=\"btn\" type=\"submit\">Bring to a vote</button> <span class=\"small quiet\">asks the holder of this KB to clear what blocks it and bring the report</span> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form>", [CH], CallF)
         ),
@@ -7461,7 +7477,7 @@ desk_vote_changes(Dir, Lines) :-
                 \+ ( member(V2, After), nonvar(V2), V2 = attest(_, vote, Sv2, _, human, _), \+ vote_carry_subject(Ts, Sv2) )
             ->  findall(L, ( append(_, [C|After2], After), spec_change(C), \+ vote_carried(C, Pv, After2), desk_change_words(C, L) ), Lines0), list_to_set(Lines0, Lines)
             ;   Lines = []
-            ) ), _, Lines = []).
+            ) ), _, Lines = ["(the list of changes could not be read: the KB file did not load)"]).
 
 desk_change_words(claim(C, _, _), W) :- dk_f("claim ~w added", [C], W).
 desk_change_words(check(K, C), W) :- dk_f("check ~w added to ~w", [K, C], W).
@@ -7470,7 +7486,7 @@ desk_change_words(hypothesis(H, _, _, _), W) :- dk_f("hypothesis ~w added", [H],
 desk_change_words(hypothesis(H, _, _), W) :- dk_f("hypothesis ~w added", [H], W).
 desk_change_words(goal(G, _, _, _), W) :- dk_f("goal ~w added", [G], W).
 desk_change_words(supersedes(N, O), W) :- dk_f("~w replaces ~w", [N, O], W).
-desk_change_words(retired(X, _, _), W) :- term_text(X, T), dk_f("~w retired", [T], W).
+desk_change_words(attest(_, retirement, H, _, _, _), W) :- dk_f("hypothesis ~w retired", [H], W).
 desk_change_words(struck(K, I, _, _), W) :- dk_f("~w of ~w struck", [K, I], W).
 
 desk_premises_html(Ps, None, Mode, Html) :-
@@ -9162,7 +9178,7 @@ desk_plan_vote(HD, K, Choice, Text, P) :-
     (   dk_all(Eng, [Rq], request(Rq, _), [Rq1|_]) -> true ; throw(desk_refused(409, "The KB has no request to vote on.")) ),
     desk_vote_round(Eng, R),
     atom_string(CA, Choice),
-    desk_holder(HD, K, H0, _), ( H0 \== none, desk_live(HD, H0) -> To = H0 ; To = none ),
+    ( catch(desk_kb_recipient(HD, K, To), _, fail) -> true ; To = none ),
     dk_f("the vote on the KB ~w", [K.label], About),
     desk_item_json(HD, K, kb, "vote", Item),
     ( Text == "" -> WT = "", NFs = [] ; dk_f("\n\nHis words: ~w", [Text], WT), desk_words_note(Rq1, Text, NF), NFs = [NF] ),
@@ -9201,7 +9217,7 @@ desk_plan_approve(HD, K, Dg, Text, P) :-
     (   atom_string(Now, DgS), Dg == DgS -> true
     ;   dk_f("The ticket text of the KB ~w changed since you looked at it. Nothing is approved. Reload the page and read it again.", [K.label], M1), throw(desk_refused(409, M1))
     ),
-    desk_holder(HD, K, H0, _), ( H0 \== none, desk_live(HD, H0) -> To = H0 ; To = none ),
+    ( catch(desk_kb_recipient(HD, K, To), _, fail) -> true ; To = none ),
     dk_f("the approval of the ticket of the KB ~w", [K.label], About),
     desk_item_json(HD, K, kb, "approve", Item),
     ( Text == "" -> WT = "" ; dk_f("\n\nHis words: ~w", [Text], WT) ),
@@ -9217,12 +9233,13 @@ desk_plan_callvote(HD, K, Text, P) :-
     ;   dk_f("The KB ~w is ready or closed: Bring to a vote has nothing to ask. Reload the page.", [K.label], M), throw(desk_refused(409, M))
     ),
     findall(W, ( member(B, Bs), desk_blocker_words(B, W) ), Ws), dk_join(Ws, "; ", WsT),
-    desk_holder(HD, K, H0, _), ( H0 \== none, desk_live(HD, H0) -> To = H0 ; To = none ),
+    ( catch(desk_kb_recipient(HD, K, To), _, fail) -> true ; To = none ),
+    desk_holder(HD, K, H0, _), ( H0 \== none, desk_live(HD, H0) -> Who = "the holder of the KB" ; Who = "the keeper, because no live session holds the KB" ),
     dk_f("the vote of the KB ~w", [K.label], About),
     desk_item_json(HD, K, kb, "vote", Item),
     ( Text == "" -> WT = "" ; dk_f("\n\nHis words: ~w", [Text], WT) ),
     dk_f("Ty calls for the vote of the KB ~w (~w): clear what blocks it and bring the report. What blocks it: ~w.~w", [K.label, K.dir, WsT, WT], LT),
-    dk_f("The ledger: a letter to the holder of the KB ~w. The KB is not changed.", [K.label], R1),
+    dk_f("The ledger: a letter to ~w (~w) about the KB ~w. The KB is not changed.", [To, Who, K.label], R1),
     desk_lt(To, answer, About, Item, LT, L1),
     P = plan{title:"Bring to a vote", sub:About, letters:[L1], records:[R1], effects:[none]}.
 
