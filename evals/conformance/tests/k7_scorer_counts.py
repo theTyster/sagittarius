@@ -62,8 +62,9 @@ def main(argv):
     if (cq["met"], cq["not_met"], cq["does_not_apply"], cq["unsure"]) != (5, 3, 1, 1) \
             or t["q3"]["score"] is None or abs(t["q3"]["score"] - 5 / 8) > 1e-9:
         bad.append(f"the case of q3 gives {cq} and score {t['q3']['score']}; want 5, 3, 1, 1 and 0.625")
-    out = tempfile.mkdtemp(prefix="k7-")
-    reqs = {r: {"state": {"transcript": "", "delivery": ""}} for r in results}
+    tmp = tempfile.TemporaryDirectory(prefix="k7-")
+    out = tmp.name
+    reqs = {r: {"state": {"request": "", "transcript": "", "delivery": ""}} for r in results}
     s.write_report(out, crits, t, results, reqs, None, floor)
     lines = open(os.path.join(out, "report.md"), encoding="utf-8").read().splitlines()
     one = [i for i, line in enumerate(lines) if line.startswith("One number")]

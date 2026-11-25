@@ -4,7 +4,8 @@
 Usage:
   runner.py plan [--tasks N] [--arms N] [--runs N] [--criteria N]   the plan; makes no call
   runner.py live --budget USD [same options] [--out DIR]           starts only at budget >= estimate
-  runner.py record OUT_DIR --agent-model M --prompt FILE           writes OUT_DIR/record.json
+  runner.py record OUT_DIR --agent-model M --prompt FILE           writes OUT_DIR/record.json;
+                                                                    s1_hooks from S1_OFF of this env
   runner.py check RUN_DIR                                           the record and the hint lines
 
 `live --dry-run` is the same as `plan`. A live run with no budget, or with a budget under the
@@ -14,6 +15,9 @@ Model commands. This cut has no live command of its own: a live run calls the co
 CONFORMANCE_AGENT_CMD once per session (arguments: task id, arm, run number, transcript path)
 and the command in CONFORMANCE_S1_CMD once per transcript (argument: the request file), and
 refuses (exit 3) when either is unset. The tests set them to stubs. Nothing here calls a model.
+The agent command gets S1_OFF=1 in its environment; the run writes record.json, with s1_hooks
+read from that environment, and runs `check` on the run at the end (exit 1 on a finding).
+Counts under 1 and a budget that is not a finite number of 0 or more are refused (exit 2).
 
 Defaults (q4 of the KB prompt-evals, the pilot; a guess until Ty answers): 10 tasks x 2 arms
 (the prompt, no prompt) x 3 runs = 60 Haiku sessions; 12 criteria (q6); the cost figures are
@@ -22,6 +26,7 @@ the note on q4. Python 3 standard library only.
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -38,9 +43,12 @@ TOKENS_PER_QUESTION = 7100  # the largest recorded transcript, paid once per que
 TOOL_RESULT_FACTOR = 3      # tool results not cut (a guess)
 S1_USD_PER_MTOK = 0.042
 
-# A hint line of the System 1 hook (s1/hook.py): "System 1: work=build (0.83)", or one of its
-# fixed lines "System 1: no view (...)", "System 1: unsure", "System 1: no signal".
-HINT = re.compile(r"System 1: (?:[a-z_]+=[^\s;()]+ \(\d*\.?\d+\)|no view|unsure|no signal)")
+# A hint line of the System 1 hook (s1/hook.py): a line that starts with "System 1:" (such as
+# "System 1: work=build (0.83)", "System 1: effort significant (0.91)", "System 1: no view (...)")
+# or with "System 1 (correction):" (the late fix, s1/hook.py CORRECTION_PREFIX). The line is
+# looked for in every string of each JSON line of a transcript, split at its newlines, and in the
+# raw text of a line that is not JSON.
+HINT = re.compile(r"^\s*(System 1(?: \(correction\))?: .*)$")
 RECORD_FIELDS = ("agent_model", "prompt_file", "prompt_sha256", "commit", "s1_hooks")
 
 
@@ -80,7 +88,7 @@ def sha256(path):
         return hashlib.sha256(f.read()).hexdigest()
 
 
-def write_record(out, agent_model, prompt_file, s1_hooks="off"):
+def write_record(out, agent_model, prompt_file, s1_hooks):
     commit = subprocess.run(["git", "-C", ROOT, "rev-parse", "HEAD"], capture_output=True,
                             text=True).stdout.strip()
     rec = {"agent_model": agent_model, "prompt_file": prompt_file,
@@ -91,6 +99,44 @@ def write_record(out, agent_model, prompt_file, s1_hooks="off"):
         json.dump(rec, f, indent=1)
         f.write("\n")
     return rec
+
+
+def _strings(o, depth=0):
+    """Every string in o; a string that holds JSON (the stdout of a hook) is opened too."""
+    if isinstance(o, str):
+        yield o
+        if depth < 4 and o.lstrip()[:1] in ("{", "["):
+            try:
+                inner = json.loads(o)
+            except ValueError:
+                return
+            yield from _strings(inner, depth + 1)
+    elif isinstance(o, dict):
+        for v in o.values():
+            yield from _strings(v, depth)
+    elif isinstance(o, list):
+        for v in o:
+            yield from _strings(v, depth)
+
+
+def hint_lines(line):
+    """The hint lines of the System 1 hook in one line of a transcript file."""
+    try:
+        texts = list(_strings(json.loads(line)))
+    except ValueError:
+        texts = [line]
+    found = []
+    for t in texts:
+        for part in t.splitlines():
+            m = HINT.match(part)
+            if m:
+                found.append(m.group(1)[:120])
+    return found
+
+
+def hooks_state(env):
+    """off when the environment of the agent command turns the hook off (s1/hook.py: S1_OFF)."""
+    return "off" if env.get("S1_OFF", "").strip() not in ("", "0") else "on"
 
 
 def check_run(run_dir):
@@ -113,9 +159,18 @@ def check_run(run_dir):
     for n in names:
         with open(os.path.join(tdir, n), encoding="utf-8") as f:
             for i, line in enumerate(f, 1):
-                m = HINT.search(line)
-                if m:
-                    bad.append(f"{n}:{i}: a System 1 hint line: {m.group(0)}")
+                for h in hint_lines(line):
+                    bad.append(f"{n}:{i}: a System 1 hint line: {h}")
+    return bad
+
+
+def bad_args(a):
+    """Reasons to refuse: counts under 1, a budget that is not a finite number of 0 or more."""
+    bad = [f"--{k} must be 1 or more, not {getattr(a, k)}" for k in ("tasks", "arms", "runs", "criteria")
+           if getattr(a, k) < 1]
+    b = getattr(a, "budget", None)
+    if b is not None and (not math.isfinite(b) or b < 0):
+        bad.append(f"--budget must be a finite number of 0 or more, not {b}")
     return bad
 
 
@@ -141,16 +196,23 @@ def live(a, p):
     print(f"Budget {a.budget:.2f} USD >= estimate {p['estimate_usd']:.2f} USD: the run starts.")
     import questions as qmod
     criteria = qmod.load_criteria()
+    # The System 1 hooks are off in the agent under test (q1 default); the record says what the
+    # environment given to the agent command held, not what was meant.
+    agent_env = dict(os.environ, S1_OFF="1")
+    write_record(out, a.agent_model, a.prompt, hooks_state(agent_env))
     for tid in task_ids(a.tasks):
         for arm in ("prompt", "none")[:a.arms]:
             for r in range(1, a.runs + 1):
                 t = os.path.join(tdir, f"{tid}.{arm}.r{r}.jsonl")
-                subprocess.run([agent, str(tid), arm, str(r), t], check=True)
+                subprocess.run([agent, str(tid), arm, str(r), t], check=True, env=agent_env)
                 req = os.path.join(out, f"{tid}.{arm}.r{r}.request.json")
                 with open(req, "w", encoding="utf-8") as f:
                     json.dump(qmod.build_request(t, criteria), f)
                 subprocess.run([s1, req], check=True)
-    return 0
+    bad = check_run(out)
+    for b in bad:
+        print(b)
+    return 1 if bad else 0
 
 
 def main(argv):
@@ -166,15 +228,22 @@ def main(argv):
             s.add_argument("--budget", type=float, default=None)
             s.add_argument("--dry-run", action="store_true")
             s.add_argument("--out", default=None)
+            s.add_argument("--agent-model", default="claude-haiku-4-5")
+            s.add_argument("--prompt", default=os.path.join(ROOT, "prompt", "SAGITTARIUS.md"))
     s = sub.add_parser("record")
     s.add_argument("out")
     s.add_argument("--agent-model", required=True)
     s.add_argument("--prompt", required=True)
-    s.add_argument("--s1-hooks", default="off")
     s = sub.add_parser("check")
     s.add_argument("run_dir")
     a = ap.parse_args(argv)
     if a.cmd in ("plan", "live"):
+        refused = bad_args(a)
+        if refused:
+            for r in refused:
+                print(r)
+            print("No plan and no call.")
+            return 2
         p = plan(a.tasks, a.arms, a.runs, a.criteria)
         print("Plan:")
         for line in p["lines"]:
@@ -184,7 +253,8 @@ def main(argv):
             return 0
         return live(a, p)
     if a.cmd == "record":
-        print(json.dumps(write_record(a.out, a.agent_model, a.prompt, a.s1_hooks), indent=1))
+        # The record of a run started by hand: the hooks state is read from this environment.
+        print(json.dumps(write_record(a.out, a.agent_model, a.prompt, hooks_state(os.environ)), indent=1))
         return 0
     bad = check_run(a.run_dir)
     for b in bad:
