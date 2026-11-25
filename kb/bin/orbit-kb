@@ -8093,7 +8093,7 @@ desk_answered_body(As, Body) :-
     (   As == [] -> Body = "<p class=\"empty\">Nothing was answered in the last 7 days.</p>"
     ;   findall(L, ( member(HD-C, As), esc(C.id, IH), esc(C.title, TH), dk_str(C.get(note, ""), N0), esc(N0, NH),
                      dk_str(C.get(by_session, ""), BS), esc(BS, BH), dk_day(C.closed_at, CD), atom_string(HD.name, _),
-                     format(string(AskIt), "ask:~w", [C.id]), desk_anchor_of(HD, AskIt, AnA), atom_string(AnA, AnAS), esc(AnAS, AnH),
+                     format(string(AskIt), "ask:~w", [C.id]), desk_anchor_of(HD, AskIt, AnA), atom_string(AnA, AnAS0), ( string_concat("item-", AnR, AnAS0) -> string_concat("ans-", AnR, AnAS) ; AnAS = AnAS0 ), esc(AnAS, AnH),
                      dk_f("<li id=\"~w\"><span class=\"ref\">~w</span>~w <span class=\"quiet\">closed ~w by ~w</span><br><span class=\"small\">~w</span></li>", [AnH, IH, TH, CD, BH, NH], L) ), Ls),
         dk_cat(Ls, LsH), dk_f("<p class=\"small quiet\">In the last 7 days, here or in a session.</p><div class=\"sheet\"><div class=\"head\"><ul class=\"answered\">~w</ul></div></div>", [LsH], Body)
     ).

@@ -54,7 +54,7 @@
       var line = document.createElement('p'); line.className = 'banner donenote'; line.setAttribute('role', 'status');
       line.appendChild(document.createTextNode(said + '. '));
       if (ans && did) {
-        var link = document.createElement('a'); link.href = '?' + lq.toString() + '#' + encodeURIComponent(did);
+        var link = document.createElement('a'); link.href = '?' + lq.toString() + '#' + encodeURIComponent(did.replace(/^item-/, 'ans-'));   // the row of the answered ask in Answered
         link.textContent = 'See it in Answered'; line.appendChild(link);
       }
       var band = document.querySelector('header.top'), bandH = band ? band.getBoundingClientRect().bottom : 0;

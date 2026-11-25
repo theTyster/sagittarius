@@ -23,7 +23,7 @@ import urllib.parse
 import urllib.request
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
-STRUCT = ("lane-", "store-", "grp-", "layer-", "view-", "more-")
+STRUCT = ("lane-", "store-", "grp-", "layer-", "view-", "more-", "ans-")   # ans-: the target of the link of the line of what was done (r10 c18): a row of Answered, counted as "answered:" below
 
 
 class El:

@@ -701,7 +701,7 @@ async function r10() {
   check('c18: after the answer the view is still Waits on you', st.view === 'waits', JSON.stringify(st));
   const maxY = await pg.ev(`return Math.max(0, document.documentElement.scrollHeight - innerHeight);`);
   check('c18: the scroll place is within 120 px of where the card was (or the end of a shorter page)', Math.abs(st.y - Math.min(pre.y, maxY)) <= 120, 'before ' + pre.y + ' after ' + st.y + ' max ' + maxY);
-  check('c18: a line says what was done, with a link to the view Answered, only for an ask that was answered', !!note && /^ask A-\d+: answered/.test(note.text) && /view=answered#item-/.test(note.href), JSON.stringify(note));
+  check('c18: a line says what was done, with a link to the view Answered, only for an ask that was answered', !!note && /^ask A-\d+: answered/.test(note.text) && /view=answered#ans-/.test(note.href), JSON.stringify(note));
   check('c18: the line is on the screen, where the card was, and names the item', !!note && note.top >= 0 && note.top < note.vh && /^(ask|question|action|ledger item|hypothesis|goal judgment|records) /.test(note.text), JSON.stringify(note) + ' y=' + st.y + ' before=' + pre.y);
   check('c18: the address does not keep the line (a reload shows no second one)', !/did=|said=/.test(st.url), st.url);
   await pg.ev(`document.querySelector('.donenote a').click(); return 1;`); await pg.afterNav(); await new Promise(r => setTimeout(r, 500));
