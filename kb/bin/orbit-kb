@@ -4278,7 +4278,7 @@ kb_lines_commented(File, LTs, Out) :-
 % (with the .cfg beside the file, when there is one). The output is the log runs/N-MODEL.log; it is
 % recorded as a subject with model_run(LOG, MODEL, DIGEST), the digest of the model file that ran.
 % Exit 0: the tool decided (sat, unsat, a TLC result). Exit 2: it answered unknown, timed out, was
-% not found or failed: the run is recorded as it is and counts for or against no claim. A model_run
+% not found or failed: the log is kept as a subject, no model_run is written, and the run counts for or against no claim. A model_run
 % fact cannot be added by hand: add refuses it (orbit add model_run(...) names this command).
 cmd_model_run(KB, Args, Code) :-
     parse_opts(Args, ['--tool'-value, '--timeout'-value], Pos, Opts),
@@ -4366,9 +4366,9 @@ mr_record(KB, M, Digest, Tool, EC, Now, Out, Verdict, Class, LogId, Log) :-
     format(atom(LogId0), "~w_run~w", [M, N]),
     mr_free_id(LogId0, Ids, LogId),
     clause_line(subject(LogId, Rel, LogDigest), [], L1),
-    clause_line(model_run(LogId, M, Digest), [], L2),
+    (   Verdict == decided -> clause_line(model_run(LogId, M, Digest), [], L2), Ls = [L1, L2] ; Ls = [L1] ),
     kb_file(KB2, KbFile),
-    append_lines(KbFile, [L1, L2]).
+    append_lines(KbFile, Ls).
 
 mr_free_id(Id, Ids, F) :- ( ord_memberchk(Id, Ids) -> atom_concat(Id, x, Id1), mr_free_id(Id1, Ids, F) ; F = Id ).
 
@@ -4382,7 +4382,7 @@ mr_say(decided, Class, M, Tool, Log, LogId) :-
     format("model ~w: ~w (~w). Log ~w, recorded as ~w with model_run.~n", [M, Class, Tool, Log, LogId]).
 mr_say(Verdict, _, M, Tool, Log, LogId) :-
     Verdict \== decided,
-    format("model ~w: ~w (~w). Log ~w, recorded as ~w with model_run. This is no result for or against a claim.~n", [M, Verdict, Tool, Log, LogId]).
+    format("model ~w: ~w (~w). Log ~w, kept as subject ~w. No model_run is recorded: this run is no result for or against a claim.~n", [M, Verdict, Tool, Log, LogId]).
 
 % orbit repo-map ARGS: the repo-map program beside this script, with the same arguments and streams.
 cmd_repo_map(Args, Code) :-

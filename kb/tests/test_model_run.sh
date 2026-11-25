@@ -35,7 +35,8 @@ t_MR1() { fixture smt || return; PATH=$PATH out=$("$ORB" --dir "$K" model-run m1
     "$ORB" --dir "$K" lint 2>&1 | grep -q ' 0 error' || note "lint finds an error"; }
 t_MR2() { fixture smt || return; fake z3 'echo unknown'; PATH=$T/bin:$PATH "$ORB" --dir "$K" model-run m1 >/dev/null 2>&1; rc=$?
     [ $rc = 2 ] || note "exit $rc, want 2 for unknown"; grep -q '^unknown$' "$K"/runs/1-m1.log || note "the log holds no unknown"
-    [ "$(nfacts)" = 1 ] || note "the unknown run is not recorded as it is"
+    [ "$(nfacts)" = 0 ] || note "an unknown run wrote model_run"
+    "$ORB" --dir "$K" query "subject(m1_run1, _, _)" >/dev/null 2>&1 || note "the unknown log is not kept as a subject"
     "$ORB" --dir "$K" query "model_trusted(m1)" >/dev/null 2>&1 && note "an unknown run made the model trusted"; }
 t_MR3() { fixture smt || return; echo unsat > "$K/typed.log"; "$ORB" --dir "$K" subject l1 typed.log >/dev/null 2>&1
     dg=$(grep -o "subject(m1, [^)]*" "$K/kb.pl" | grep -o "sha256:[0-9a-f]*")
@@ -43,11 +44,11 @@ t_MR3() { fixture smt || return; echo unsat > "$K/typed.log"; "$ORB" --dir "$K" 
     [ $rc != 0 ] || note "model_run by hand was accepted"; printf '%s' "$out" | grep -q 'orbit model-run m1' || note "the refusal does not name orbit model-run m1: $out"
     [ "$(nfacts)" = 0 ] || note "a fact was written"; }
 t_MR4() { fixture smt || return; fake z3 'sleep 30'; PATH=$T/bin:$PATH "$ORB" --dir "$K" model-run m1 --timeout 1 >/dev/null 2>&1; rc=$?
-    [ $rc = 2 ] || note "exit $rc, want 2 for a timeout"; grep -q 'verdict=timeout' "$K"/runs/1-m1.log || note "the log header says no timeout"; }
+    [ $rc = 2 ] || note "exit $rc, want 2 for a timeout"; grep -q 'verdict=timeout' "$K"/runs/1-m1.log || note "the log header says no timeout"; [ "$(nfacts)" = 0 ] || note "a timeout wrote model_run"; }
 t_MR5() { fixture smt || return; mkdir -p "$T/empty"
     for d in /usr/bin /bin; do [ -x "$d/cvc5" ] && return 0; done
     PATH=$T/empty:/usr/bin:/bin "$ORB" --dir "$K" model-run m1 --tool cvc5 >/dev/null 2>&1; rc=$?
-    [ $rc = 2 ] || note "exit $rc, want 2 with no solver"; grep -q 'not on the PATH' "$K"/runs/1-m1.log || note "the log does not say the tool is missing"; }
+    [ $rc = 2 ] || note "exit $rc, want 2 with no solver"; grep -q 'not on the PATH' "$K"/runs/1-m1.log || note "the log does not say the tool is missing"; [ "$(nfacts)" = 0 ] || note "a missing tool wrote model_run"; }
 t_MR6() { fixture tla || return; fake tlc 'echo "Model checking completed. No error has been found."'; PATH=$T/bin:$PATH "$ORB" --dir "$K" model-run m1 >/dev/null 2>&1; rc=$?
     [ $rc = 0 ] || note "exit $rc, want 0 for a TLC result"; grep -q 'tool=tlc' "$K"/runs/1-m1.log || note "the log is not of tlc"; [ "$(nfacts)" = 1 ] || note "model_run facts: $(nfacts)"; }
 t_MR7() { fixture smt || return; echo '; changed' >> "$K/m1.smt2"; "$ORB" --dir "$K" model-run m1 >/dev/null 2>&1; rc=$?
