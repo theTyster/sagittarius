@@ -2,7 +2,7 @@
 # The Desk by store (spec KB desk-speed-orbit-door: checks k16 k17 k18 k19 k20 for claims c13 c14 c15 c16
 # c17; and k13 k14 again at each depth: store, group, KB sheet, layer). Scratch hubs only: nothing of a
 # real mindhole or of the real home is read or written.
-# usage: kb/tests/test_desk_stores.sh [k13] [k14] [k16] [k17] [k18] [k19] [k20] [shots:OUTDIR]   (none: all checks)
+# usage: kb/tests/test_desk_stores.sh [k13] [k14] [k16] [k17] [k18] [k19] [k20] [golink] [shots:OUTDIR]   (none: all checks)
 # env: DESK_ROOT  the checkout whose Desk is tested (default: this checkout); set it to a tree of 0.9.1
 #                 (5549830) to see the checks fail (the control)
 #      DESK_BASE  the tree of the Desk of 0.9.1 that k17, k18 and k19 compare with (default: git archive
@@ -13,7 +13,7 @@
 set -u
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P); REPO=$(cd "$HERE/../.." && pwd -P)
 ROOT=${DESK_ROOT:-$REPO}
-WANT=${*:-k13 k14 k16 k17 k18 k19 k20}
+WANT=${*:-k13 k14 k16 k17 k18 k19 k20 golink}
 D=$(mktemp -d "${TMPDIR:-/tmp}/desk-stores.XXXXXX") || exit 2
 PIDS=""
 cleanup() { for p in $PIDS $(cat "$D/pids" 2>/dev/null); do kill $(pgrep -P "$p") "$p" 2>/dev/null; done; [ "${DESK_KEEP:-}" = 1 ] && echo "kept: $D" || rm -rf "$D"; }
@@ -175,6 +175,7 @@ for w in $WANT; do
   k13) echo "== k13 (c3) at each depth: store, group, KB sheet, layer"; browse "$U" k13 "$D/spec.json" && report "$D/br.json" ;;
   k14) echo "== k14 (c4) at each depth, with a view and a step that shows more rows"; browse "$U" k14 "$D/spec.json" && report "$D/br.json" ;;
   k16) echo "== k16 (c13): the stores are the sections; the views narrow them"; browse "$U" k16 "$D/spec.json" && report "$D/br.json" ;;
+  golink) echo "== golink (review of 4941d88): a link row of Asks for you looks like a link and lands on its card"; browse "$U" golink "$D/spec.json" && report "$D/br.json" ;;
   k20) echo "== k20 (c17): one layer Questions with Open questions and Has a default"; browse "$U" k20 "$D/spec.json" && report "$D/br.json" ;;
   k17)
     echo "== k17 (c14): the spec KBs grouped by repo"; need_old

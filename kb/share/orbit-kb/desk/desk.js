@@ -49,7 +49,9 @@
   //    sticky band; so does an anchor in the address. Expand all and Collapse all set every fold.
   function setBand() {
     var h = document.querySelector('header.top');
-    document.documentElement.style.setProperty('--band', ((h ? h.getBoundingClientRect().height : 0) + 12) + 'px');
+    // a header that does not stay on screen (static at a narrow width) leaves only a small margin
+    var fixed = h && /^(sticky|fixed)$/.test(getComputedStyle(h).position);
+    document.documentElement.style.setProperty('--band', ((fixed ? h.getBoundingClientRect().height : 0) + 12) + 'px');
   }
   function reveal(id) {
     var t = id ? document.getElementById(id) : null;

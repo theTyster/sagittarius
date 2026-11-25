@@ -295,3 +295,12 @@ details.more[open]{display:flex;flex-direction:column;gap:10px}
   .kbmeta{padding-left:14px!important;padding-right:14px!important}
   .kbsec .body>p{padding:0 14px}
 }
+/* review of 4941d88: a link row of Asks for you reads as a link (arrow, Go to its card, link colour,
+   a visible keyboard focus); at a narrow width the header scrolls away, so a jump lands near the top */
+a.actlink .t{color:var(--link)}
+a.actlink .go{display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:14px;font-weight:600;color:var(--link)}
+a.actlink .go svg{width:15px;height:15px;flex:none}
+a.actlink:hover .t,a.actlink:hover .go{text-decoration:underline;text-underline-offset:3px}
+a.actlink:focus-visible{outline:2px solid var(--lamp);outline-offset:3px;background:var(--drawer)}
+a.actlink:focus-visible .go{text-decoration:underline;text-underline-offset:3px}
+@media (max-width:600px){header.top{position:static}}

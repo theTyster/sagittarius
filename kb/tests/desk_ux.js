@@ -50,6 +50,8 @@ async function open(width, height, opts) {
     },
     async shot(file) { const s = await send('Page.captureScreenshot', {format: 'png'}); fs.writeFileSync(file, Buffer.from(s.result.data, 'base64')); },
     async afterNav() { const n0 = loads; await settle(n0); },
+    async key(k) { const code = k === 'Enter' ? 13 : 0; for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', {type, key: k, code: k, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code, text: type === 'keyDown' && k === 'Enter' ? '\r' : undefined}); },
+    async focusEmu() { await send('Emulation.setFocusEmulationEnabled', {enabled: true}); },   // a headless page has no window focus
     close() { ws.close(); }
   };
   return page;
@@ -610,12 +612,67 @@ async function shotclosed(file) {
   pg.close();
 }
 
+// golink (review of 4941d88): a link row of Asks for you (a ledger ask whose card is in the sheet of its KB)
+// says that it is a link: an arrow, the words Go to its card, the title in the link colour, a visible focus
+// style; a click or Enter opens the sheet and the layer of the card, and the card's top is 0 to 80 px from
+// the top of the viewport. At 1600 and at 400 px. OUT_DIR (optional, in SHOT_DIR): the images.
+async function golink() {
+  const shotDir = process.env.SHOT_DIR || '';
+  for (const [w, h] of [[1600, 1000], [400, 900]]) {
+    const pg = await open(w, h); await pg.focusEmu();
+    const url = base + '/?mh=' + SPEC.tab + '&view=waits';
+    await pg.go(url);
+    await pg.ev(`try { localStorage.clear(); } catch (e) {} return 1;`);
+    await pg.go(url);
+    const sel = JSON.stringify('a.actlink[href$="ask-' + SPEC.kbask + '"]');
+    const r = await pg.ev(`
+      const a = document.querySelector(${sel});
+      if (!a) return {row: false};
+      const more = a.closest('details.more'); if (more) more.open = true;   // the step N more: show, as a person takes it
+      const o = {row: true, text: a.textContent.replace(/\\s+/g, ' ').trim()};
+      o.cue = /Go to its card/.test(o.text);
+      o.arrow = !!a.querySelector('svg') || /[→➜➤]/.test(o.text);
+      const t = a.querySelector('.t');
+      const tmp = document.createElement('span'); tmp.style.color = getComputedStyle(document.documentElement).getPropertyValue('--link').trim() || 'rgb(0,0,1)'; document.body.appendChild(tmp);
+      o.linkColor = getComputedStyle(tmp).color; tmp.remove();
+      o.titleColor = t ? getComputedStyle(t).color : '';
+      a.scrollIntoView({block: 'center'});
+      const st = e => { const c = getComputedStyle(e); return [c.outlineStyle, c.outlineWidth, c.boxShadow, c.backgroundColor].join('|'); };
+      document.activeElement && document.activeElement.blur && document.activeElement.blur();
+      o.before = st(a); a.focus(); await new Promise(r => setTimeout(r, 100)); o.after = st(a);
+      const c = getComputedStyle(a); o.outline = c.outlineStyle !== 'none' && parseFloat(c.outlineWidth) >= 1;
+      o.focused = document.activeElement === a; o.hasFocus = document.hasFocus(); o.fv = a.matches(':focus-visible'); o.fo = a.matches(':focus');
+      return o;`);
+    check(w + ' px: the page has the link row of ' + SPEC.kbask, r.row, '');
+    if (!r.row) { pg.close(); continue; }
+    check(w + ' px: the link row says Go to its card, with an arrow', r.cue && r.arrow, r.text.slice(0, 160));
+    check(w + ' px: the title of the link row is in the link colour', r.titleColor === r.linkColor, r.titleColor + ' vs ' + r.linkColor);
+    check(w + ' px: the focused link row has a visible focus style', r.focused && r.outline && r.before !== r.after, JSON.stringify([r.before, r.after, r.focused, r.hasFocus, r.fv, r.fo]));
+    if (shotDir) await pg.shot(path.join(shotDir, 'link-row-' + w + '.png'));
+    // the jump: a click at 1600, Enter (from the keyboard) at 400
+    await pg.ev(`window.scrollTo(0, 0); return 1;`);
+    if (w === 1600) await pg.ev(`document.querySelector(${sel}).click(); return 1;`);
+    else { await pg.ev(`document.querySelector(${sel}).focus(); return 1;`); await pg.key('Enter'); }
+    await sleep(600);
+    const j = await pg.ev(`
+      const a = document.querySelector(${sel}); const id = decodeURIComponent(a.getAttribute('href').replace(/^.*#/, ''));
+      const t = document.getElementById(id); if (!t) return {target: false, id};
+      const sh = t.closest('details.sheet.kbsec'), ly = t.closest('details.layer');
+      return {target: true, sheet: !!(sh && sh.open), layer: !!(ly && ly.open), top: Math.round(t.getBoundingClientRect().top), url: location.href.replace(/^[^#]*/, '')};`);
+    check(w + ' px: after the ' + (w === 1600 ? 'click' : 'Enter') + ' the sheet and the layer of the card are open', j.target && j.sheet && j.layer, JSON.stringify(j));
+    check(w + ' px: the card\'s top is 0 to 80 px from the top of the viewport', j.target && j.top >= 0 && j.top <= 80, JSON.stringify(j));
+    if (shotDir && w === 400) await pg.shot(path.join(shotDir, 'after-jump-400.png'));
+    pg.close();
+  }
+}
+
 (async () => {
   if (scenario === 'shots') await shots();
   else if (scenario === 'k13') await k13();
   else if (scenario === 'k14') { if (SPEC) await k14depth(); else await k14(); }
   else if (scenario === 'k16') await k16();
   else if (scenario === 'k20') await k20();
+  else if (scenario === 'golink') await golink();
   else if (scenario === 'shots2') { await shots2(outDir); process.exit(0); }
   else if (scenario === 'shotclosed') { await shotclosed(outDir); process.exit(0); }
   else if (scenario === 'k15a') await k15a();

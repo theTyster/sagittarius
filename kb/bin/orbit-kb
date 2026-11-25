@@ -8017,7 +8017,7 @@ desk_link_row(AllKBs, C, Html) :-
     ( member(K-_, AllKBs), K.dir == D -> esc(K.label, LH) ; esc(D, LH) ),
     ( get_dict(what, C, W) -> true ; W = "Ledger ask" ),
     ( get_dict(reserved, C, true) -> Cl = "actlink reserved" ; Cl = "actlink" ),
-    dk_f("<a class=\"~w\" href=\"#~w\"><span class=\"t\">~w</span><span class=\"small quiet\">~w ~w, about the KB ~w: its card is in the sheet of that KB.</span></a>", [Cl, C.anchor, TH, W, IH, LH], Html).
+    dk_f("<a class=\"~w\" href=\"#~w\"><span class=\"t\">~w</span><span class=\"small quiet\">~w ~w, about the KB ~w: its card is in the sheet of that KB.</span><span class=\"go\"><svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M2 8h11M9 4l4 4-4 4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>Go to its card</span></a>", [Cl, C.anchor, TH, W, IH, LH], Html).
 
 desk_ledger_row(Dirs, AllKBs, OpenFirst, C, Html) :-
     (   desk_card_home(Dirs, C, _) -> desk_link_row(AllKBs, C, Html)
