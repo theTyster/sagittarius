@@ -9093,14 +9093,25 @@ desk_plan_proj(_HDs, HD, R, Text, P) :-
         sub_string(R1, B, 1, _, "#"), sub_string(R1, 0, B, _, DS), B1 is B + 1, sub_string(R1, B1, _, 0, IdS) -> true
     ;   throw(desk_refused(400, "The form names no project KB item. Reload the page."))
     ),
-    atom_string(D0, DS), serve_norm(D0, Dir), atom_string(Id, IdS),
+    atom_string(D0, DS), serve_norm(D0, Dir),
     ( member(K, HD.kbs), K.dir == Dir, K.kind == project -> true ; throw(desk_refused(400, "The form names a project KB that this Desk does not read.")) ),
     desk_project_items(HD, PIs), atom_string(KA, KS),
-    ( member(PI, PIs), PI.dir == Dir, PI.kind == KA, PI.id == Id -> true ; throw(desk_refused(409, "This item of the project KB is not open any more. Reload the page.")) ),
+    (   member(PI, PIs), PI.dir == Dir, PI.kind == KA, format(string(PIS), "~w", [PI.id]), PIS == IdS -> Id = PI.id
+    ;   desk_proj_id(IdS, _), throw(desk_refused(409, "This item of the project KB is not open any more. Reload the page."))
+    ),
     desk_kb_recipient(HD, K, T),
     desk_fix_item("project", [IdS], J),
     ( Text == "" -> WT = "" ; dk_f("\n\nHis words: ~w", [Text], WT) ),
-    (   KA == proposed
+    (   KA == proposed, desk_relation(Id)
+    ->  % a relation is ratified by the add of the same relation by a human (D38: relation_by(R, human, T))
+        term_text(Id, IdT),
+        dk_f("Ty ratified the relation ~w in the project KB ~w.~w\n\nThe Desk added ~w as human, so the project KB records relation_by(~w, human, TIME).", [IdT, K.label, WT, IdT, IdT], Tx0),
+        dk_f("The project KB ~w: ~w, added by a human (relation_by(~w, human, TIME)).", [K.label, IdT, IdT], RRel),
+        desk_relation_warning(K, Id, Ws),
+        ( Ws == [] -> Tx = Tx0 ; atomic_list_concat(Ws, "\n", WsT), dk_f("~w\n\n~w", [Tx0, WsT], Tx) ),
+        append([RRel], Ws, RsR),
+        Effs = [kb_write(Dir, [Id])], Kd = notice
+    ;   KA == proposed
     ->  atom_string(Who, HD.owner), utc_now(Now),
         dk_f("Ty ratified ~w in the project KB ~w: ~w~w\n\nThe Desk recorded ratified_by(~w, ~w, ~w).", [Id, K.label, PI.text, WT, Id, Who, Now], Tx),
         dk_f("The project KB ~w: ratified_by(~w, ~w, ~w).", [K.label, Id, Who, Now], R0),
@@ -9111,8 +9122,28 @@ desk_plan_proj(_HDs, HD, R, Text, P) :-
     ;   dk_f("The pin ~w of the project KB ~w is stale: ~w~w\n\nPin the source again, and check what rests on it.", [Id, K.label, PI.text, WT], Tx),
         R0 = "Nothing is written by the Desk.", Effs = [none], Kd = fix
     ),
+    ( var(RsR) -> RsR = [R0] ; true ),
     dk_f("~w in the project KB ~w", [Id, K.label], About), desk_lt(T, Kd, About, J, Tx, L),
-    P = plan{title:"The project KB", sub:About, letters:[L], records:[R0], effects:Effs}.
+    P = plan{title:"The project KB", sub:About, letters:[L], records:RsR, effects:Effs}.
+
+% The form carries the id of a project KB item as the page printed it (~w), and the plan finds the
+% item whose printed id is the same text: an atom id and a relation (excludes(A, B)) both match
+% (H-0166: the id was made an atom, so a relation, a compound term, never matched).
+% desk_proj_id(+Text, -Id): when no item matches, a text that is no ground term is refused (400).
+desk_proj_id(IdS, Id) :-
+    (   catch(term_string(Id0, IdS, [variable_names(Vs)]), _, fail), Vs == [], ground(Id0)
+    ->  Id = Id0
+    ;   throw(desk_refused(400, "The form names no project KB item. Reload the page."))
+    ).
+
+desk_relation(R) :- nonvar(R), ( R = excludes(_, _) ; R = depends_on(_, _) ).
+
+% desk_relation_warning(+K, +Rel, -Lines): a ratified excludes between two current facts is a
+% contradiction; it blocks each spec KB that pins one side, until a human supersedes one of them.
+desk_relation_warning(K, excludes(A, B), [W]) :-
+    desk_eng(K.dir, Eng), dk_true(Eng, (current_fact(A), current_fact(B))), !,
+    dk_f("Warning: ~w and ~w are both current facts, so this ratified relation is a contradiction. It blocks each spec KB that pins ~w or ~w, until a human supersedes one of them.", [A, B, A, B], W).
+desk_relation_warning(_, _, []).
 
 % ---- the review page (c20): each receiving session and the exact text it will get
 
