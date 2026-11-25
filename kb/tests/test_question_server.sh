@@ -1644,8 +1644,9 @@ t_QS54() {  # Desk c7 (q9): the card shows Draft and Sent; a sent letter not see
     grep -q 'half an answer' "$DESK_STATE/drafts.json" || note "the draft is not in the Desk store"
     page_ok || return; chk dcard "$T/page.html" "ask-$A" 'Draft saved'
     hf "$T/h" --session build set "$A" --status waiting >/dev/null
+    hookev "$T/h" build SessionStart '"source":"startup"'   # desk-delivery c8: build ran the Desk hook once, so it is reachable (a session that never ran it shows not reachable, not sent: QS80)
     post /send "token=$tok" "hub=$T/h" "item=ask:$A" intent=diverge 'text=Not 8737' 'letter_0=Not 8737' to_0=build; code_is 303 "diverge"
-    page_ok || return; chk dcard "$T/page.html" "ask-$A" 'sent to build' '!has not seen it after a day'
+    page_ok || return; chk dcard "$T/page.html" "ask-$A" 'sent to build' '!not reachable' '!has not seen it after a day'
     python3 -I -c '
 import json,sys,datetime; f=sys.argv[1]; ls=[json.loads(x) for x in open(f) if x.strip()]
 for x in ls: x["at"]=(datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
