@@ -1850,7 +1850,7 @@ derived_items_(Dir, KbItems, Items) :-
     verdict_derived(KbItems, Ts8),
     reopen_derived(KbItems, Ts9),
     run_after_derived(KbItems, Ts10),
-    vote_void_derived(KbItems, Ts11a), vote_changed_derived(KbItems, Ts11b), append(Ts11a, Ts11b, Ts11),
+    vote_void_derived(KbItems, Ts11a), vote_changed_derived(KbItems, Ts11b), vote_carry_derived(KbItems, Ts11c), append([Ts11a, Ts11b, Ts11c], Ts11),
     records_derived(Dir, KbItems, Ts12),
     stage2_derived(Dir, KbItems, Ts13),
     append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10, Ts11, Ts12, Ts13], Ts),
@@ -2050,9 +2050,10 @@ vote_changed_derived(KbItems, Facts) :-
     findall(T, kb_term(KbItems, T), Ts),
     findall(S, ( member(T, Ts), nonvar(T), T = ticket(S) ), Tks),
     findall(vote_changed(V),
-            ( append(_, [X|After], Ts), nonvar(X), X = attest(V, Ty, _, _, _, _), Ty == vote, ground(V),
+            ( append(_, [X|After], Ts), nonvar(X), X = attest(V, Ty, Sv, Pv, _, _), Ty == vote, ground(V),
+              \+ vote_carry_subject(Ts, Sv),
               \+ ( member(B, After), is_back(B) ),
-              vote_spec_changed(Ts, Tks, After) ),
+              vote_spec_changed(Ts, Tks, Pv, After) ),
             Fs0),
     sort(Fs0, Facts).
 vote_changed_derived(_, []).
@@ -2062,9 +2063,40 @@ vote_changed_derived(_, []).
 % and no valid discovery_end (the human approved the ticket while gate(go) held) follows the vote: a
 % closed discovery keeps the record of its vote, and build changes the specification after it.
 % A note, a run, a finding or an answer is no part of the specification: the vote stays.
-vote_spec_changed(Ts, Tks, After) :-
+vote_spec_changed(Ts, Tks, Pv, After) :-
     \+ ( member(E, After), nonvar(E), E = discovery_end(A), valid_end(Ts, Tks, A) ),
-    member(C, After), spec_change(C), !.
+    append(_, [C|After2], After), spec_change(C),
+    \+ vote_carried(C, Pv, After2), !.
+
+% vote_carried(+Change, +VotePred, +AfterChange) (vote-start c11, Ty r4): the human voted on this change
+% himself: a vote of the human that comes after it, names the record (its id, or the claim of an
+% example or check), and has the choice of the standing vote. Then the change joins his vote.
+vote_carried(C, vote(_, Ch), After2) :-
+    spec_ids(C, Ids),
+    member(V2, After2), nonvar(V2), V2 = attest(_, Ty2, S2, vote(_, Ch2), human, _), Ty2 == vote,
+    Ch2 == Ch, memberchk(S2, Ids), !.
+
+% vote_carry_subject(+Ts, +S): S is the id of a record of the specification: a vote that names it is a
+% vote on that record (a carry vote), not a vote on the ticket; it is no round of votes (vote_carry/1).
+vote_carry_subject(Ts, S) :- atom(S), member(C, Ts), spec_change(C), spec_ids(C, Ids), memberchk(S, Ids), !.
+
+spec_ids(claim(C, _, _), [C]).
+spec_ids(example(C, _), [C]).
+spec_ids(check(K, C), [K, C]).
+spec_ids(hypothesis(H, _, _, _), [H]).
+spec_ids(hypothesis(H, _, _), [H]).
+spec_ids(goal(G, _, _, _), [G]).
+spec_ids(supersedes(N, _), [N]).
+spec_ids(retired(X, _, _), [X]).
+spec_ids(struck(_, I, _, _), [I]).
+
+% vote_carry_derived(+KbItems, -Facts): vote_carry(V) for each vote V that names a record of the specification.
+vote_carry_derived(KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
+    findall(T, kb_term(KbItems, T), Ts),
+    findall(vote_carry(V), ( member(X, Ts), nonvar(X), X = attest(V, Ty, S, _, _, _), Ty == vote, ground(V), vote_carry_subject(Ts, S) ), Fs0),
+    sort(Fs0, Facts).
+vote_carry_derived(_, []).
 spec_change(C) :- nonvar(C), functor(C, F, N), spec_change_pi(F, N).
 spec_change_pi(goal, 4).
 spec_change_pi(hypothesis, 3).
@@ -3343,6 +3375,7 @@ protected_pi(discovery_reopened/1).
 protected_pi(discovery_run_after/2).
 protected_pi(vote_void/1).
 protected_pi(vote_changed/1).
+protected_pi(vote_carry/1).
 protected_pi(discovery_end_valid/1).
 protected_pi(discovery_closed/0).
 protected_pi(discovery_open/0).
@@ -7424,9 +7457,9 @@ desk_blocker_words(X, W) :- term_text(X, T), dk_f("blocks readiness: ~w", [T], W
 % human in kb.pl (the same set that voids the vote: spec_change/1), in words.
 desk_vote_changes(Dir, Lines) :-
     catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_items(KB, Items), findall(T, kb_term(Items, T), Ts),
-            (   append(_, [V|After], Ts), nonvar(V), V = attest(_, vote, _, _, human, _),
-                \+ ( member(V2, After), nonvar(V2), V2 = attest(_, vote, _, _, human, _) )
-            ->  findall(L, ( member(C, After), spec_change(C), desk_change_words(C, L) ), Lines0), list_to_set(Lines0, Lines)
+            (   append(_, [V|After], Ts), nonvar(V), V = attest(_, vote, Sv, Pv, human, _), \+ vote_carry_subject(Ts, Sv),
+                \+ ( member(V2, After), nonvar(V2), V2 = attest(_, vote, Sv2, _, human, _), \+ vote_carry_subject(Ts, Sv2) )
+            ->  findall(L, ( append(_, [C|After2], After), spec_change(C), \+ vote_carried(C, Pv, After2), desk_change_words(C, L) ), Lines0), list_to_set(Lines0, Lines)
             ;   Lines = []
             ) ), _, Lines = []).
 

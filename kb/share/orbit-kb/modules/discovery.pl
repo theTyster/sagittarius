@@ -97,6 +97,7 @@ decl(rule, discovery_closed, 'The human approved the ticket after a GO (discover
 decl(rule, discovery_end_valid(ref(attest)), 'The discovery_end record names a human approval of the ticket subject (lint ED11 names one that does not).', 'approval @(1) is a human approval of the ticket').
 decl(rule, vote_void(ref(attest)), 'The vote does not count: a return to discovery (back) follows it in kb.pl, so it belongs to an earlier orbit, or it came after the discovery orbit closed. orbit-kb computes it when it reads the KB (D30 H5, H8).', 'vote @(1) does not count').
 decl(rule, vote_changed(ref(attest)), 'A record of the specification (a goal, hypothesis, claim, check or example added or replaced, a retirement) follows the vote in kb.pl, and the discovery orbit was not closed by the approval of the human: the vote is void, and the gate says hold until the human votes in a new round. orbit-kb computes it when it reads the KB (vote-start c6).', 'vote @(1) was taken back by a change').
+decl(rule, vote_carry(ref(attest)), 'A vote that names a record of the specification (a claim, hypothesis, goal, check or retirement), not the request: it is a vote of the human on that change, and no round of votes. It keeps a vote that a change would take back (vote-start c11). orbit-kb computes it when it reads the KB.', 'vote @(1) is a vote on one change').
 decl(rule, discovery_open, 'The discovery orbit is open: from the start of the KB until the human approves the ticket after a GO, and again after a return to discovery (a back attestation).', 'the discovery orbit is open').
 decl(rule, discovery_disproof_filed(ref(claim)), 'A disproof attestation refutes the claim.', 'a disproof of claim @(1) is filed').
 decl(rule, discovery_model_artifact(ref), 'The id is a model file, a solver log, or is tagged as model evidence.', '@(1) is a model artifact').
@@ -286,7 +287,7 @@ some_unratified_supersession :- discovery_unratified(_).
 % directly. Any other result is hold.
 % D30 H5, H8: vote_void/1 has no clauses here. orbit-kb computes it: a vote that a back
 % attestation follows (an earlier orbit), or a vote after a discovery_end that no back follows.
-vote_cast(W, R, C) :- attest(A, vote, _, vote(R, C), W, _), not vote_void(A).
+vote_cast(W, R, C) :- attest(A, vote, _, vote(R, C), W, _), not vote_void(A), not vote_carry(A).
 % 0.8.0 (D52, q29): a GO vote of the human adopts each hypothesis that the ticket marked as
 % adopted by the human before the vote (adoption_cited). It adopts no hypothesis without the
 % mark, and a mark that comes after the vote adopts nothing.
@@ -320,8 +321,8 @@ gate(hold) :- discovery_human_vote_changed, not human_vote(_).
 discovery_human_vote_changed :- attest(A, vote, _, vote(_, _), human, _), vote_changed(A).
 gate_split :- human_vote(_), not discovery_gate_agreed.
 discovery_agent_voted(R) :- vote_cast(agent, R, _).
-discovery_vote_twin(A) :- attest(A, vote, _, vote(R, _), W, _), not vote_void(A),
-    attest(B, vote, _, vote(R, _), W, _), A \= B, not vote_void(B).
+discovery_vote_twin(A) :- attest(A, vote, _, vote(R, _), W, _), not vote_void(A), not vote_carry(A),
+    attest(B, vote, _, vote(R, _), W, _), A \= B, not vote_void(B), not vote_carry(B).
 
 % --- D30 H4: the open discovery orbit ---
 % discovery_reopened/1 has no clauses here: orbit-kb computes its facts from the order of
@@ -394,7 +395,7 @@ lint_issue('WD10', C, 'This current claim has no example. Discovery is not ready
 lint_issue('WD10', C, 'This current claim has no example. Each claim needs a concrete case: add example(C, Text).') :-
     discovery_closed, discovery_no_example(C).
 lint_issue('WD9', A, 'The human voted in this round, and the agent did not vote first. The agent vote must be sealed before the human votes.') :-
-    attest(A, vote, _, vote(R, _), human, _), not vote_void(A), not discovery_agent_voted(R).
+    attest(A, vote, _, vote(R, _), human, _), not vote_void(A), not vote_carry(A), not discovery_agent_voted(R).
 lint_issue('ED1', A, 'This reproduction must point at evidence from the current system. Tag the subject with discovery_evidence(Subject, system); a model or a solver log is not system evidence.') :-
     attest(A, reproduction, S, _, _, _), not discovery_system_evidence(S).
 lint_issue('ED2', A, 'This model result must point at a solver log of its own model. Add model_run(Log, Model, Digest) for the log.') :-

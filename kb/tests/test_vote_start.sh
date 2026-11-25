@@ -12,6 +12,8 @@
 #       says what changed; a vote in a new round wins again; c7: a note, a run, a finding, an answer keep it
 #   VS6 c9, c10: after the GO the sheet shows the ticket text and Approve (the digest of that text); the approval is
 #       recorded as Ty's; a text that changed makes it stale and the sheet asks again; an old digest is refused
+#   VS7 c11: a change that Ty voted on himself (a vote that names the record, with the choice of the standing vote,
+#       after the change) joins his vote; the others open the gate; the sheet lists only those
 #   VS5 c6: the engine rule alone (orbit-kb query): each kind of change voids; each other record keeps the vote;
 #       a vote after a valid approval of the ticket (closed discovery) is not taken back
 QS_LIB_ONLY=1
@@ -179,6 +181,30 @@ t_VS6() {  # c9, c10: after the GO the sheet shows the ticket text and Approve w
     review "token=$tok" "hub=$T/h" "item=approve:$vt" intent=approve "digest=$dg"; code_is 409 "Approve of the old digest"
     review "token=$tok" "hub=$T/h" "item=approve:$vt" intent=approve "digest=$dg2"; code_is 200 "the review of Approve of the new text"
 }
-for n in 1 2 3 4 5 6; do run_one VS$n; done
+t_VS7() {  # c11 (Ty r4): a change that Ty voted on himself joins his vote; a change he did not vote on opens the gate
+    local d="$T/c" t
+    vs_kb "$d" voted || return; gate_is "$d" go "the fixture"
+    addclaim() { wr build --dir "$d" add "claim($1, introduce, 'Claim $1.')" "cites($1, 'a request')" "example($1, 'A case.')" "check($2, $1)" "checks_that($2, 'it checks')" "predicts(hy1, $1)" || note "the claim $1 was refused: $(snip "$err")"; }
+    addclaim c2 k2; addclaim c3 k3; gate_is "$d" hold "two changes, no vote on them"
+    wr build --dir "$d" attest vote c3 'vote(1, go)' --by human || note "the vote on c3 was refused: $(snip "$err")"
+    gate_not "$d" go "a vote on c3 only does not cover c2"
+    wr build --dir "$d" attest vote c2 'vote(1, hold)' --by human || note "the vote on c2 was refused"
+    gate_not "$d" go "a HOLD on c2 does not carry a GO"
+    wr build --dir "$d" attest vote c2 'vote(1, go)' --by human || note "the vote on c2 was refused"
+    gate_is "$d" go "votes on c2 and c3 carry the vote: no new round"
+    q "$d" 'vote_cast(human, 1, go)'; [ "$rc" = 0 ] || note "the vote of round 1 does not count any more"
+    q "$d" 'vote_cast(human, 2, _)'; [ "$rc" = 1 ] || note "a carry vote made a round 2"
+    addclaim c4 k4; gate_not "$d" go "c4, which he did not vote on, opens the gate"
+    # a vote on a record BEFORE the change does not cover it
+    d="$T/c2"; vs_kb "$d" voted; wr build --dir "$d" add "claim(c2, introduce, 'Claim c2.')" "cites(c2, 'a request')" "example(c2, 'A case.')" "check(k2, c2)" "checks_that(k2, 'it checks')" "predicts(hy1, c2)"; wr build --dir "$d" attest vote c2 'vote(1, go)' --by human; wr build --dir "$d" add "example(c2, 'A second case.')"
+    gate_not "$d" go "a vote on c2 before a later change of c2 does not cover it"
+    wr build --dir "$d" lint; [ "$rc" = 0 ] || note "lint of a KB with carry votes: exit $rc: $(snip "$out")"
+    # the Desk lists only the changes that he did not vote on
+    d="$T/h"; vs_hub "$d"; t="$d/specs/vt"; wr build --dir "$t" add "claim(c2, introduce, 'Claim c2.')" "cites(c2, 'a request')" "example(c2, 'A case.')" "check(k2, c2)" "checks_that(k2, 'it checks')" "predicts(hy1, c2)" "claim(c3, introduce, 'Claim c3.')" "cites(c3, 'a request')" "example(c3, 'A case.')" "check(k3, c3)" "checks_that(k3, 'it checks')" "predicts(hy1, c3)"
+    wr build --dir "$t" attest vote c2 'vote(1, go)' --by human; wr build --dir "$t" release
+    srvd --hub "$d" || return; page_ok || return; vform "$T/page.html" vote vt >/dev/null
+    grep -q "claim c3 added" "$T/vf" && ! grep -q "claim c2 added" "$T/vf" || note "the sheet does not list only c3 as changed: $(snip "$(cat "$T/vf")")"
+}
+for n in 1 2 3 4 5 6 7; do run_one VS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

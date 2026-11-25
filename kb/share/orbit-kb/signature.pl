@@ -403,6 +403,7 @@ signature(verdict_not_independent/2).
 signature(verdict_stale/2).
 signature(verification_recorded/0).
 signature(visual/1).
+signature(vote_carry/1).
 signature(vote_cast/3).
 signature(vote_changed/1).
 signature(vote_round/1).
