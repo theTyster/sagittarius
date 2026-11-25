@@ -97,7 +97,8 @@ checkout is live at once.
 ## 3. Quick start: "Make the button purple"
 
 This walk-through is a real session. Every command and every output line is a
-copy from a run on 2026-10-16. A file `button.css` holds `.buy { color: blue; }`,
+copy from a run on 2026-11-25 (UTC) with orbit-kb 0.8.0, in an agent session. `SESSION` stands
+for the id of that session. A file `button.css` holds `.buy { color: blue; }`,
 and a file `ticket.md` holds the ticket. Both files are in the KB directory.
 The digest in step 7 depends on the text of your `ticket.md`.
 
@@ -106,12 +107,22 @@ The digest in step 7 depends on the text of your `ticket.md`.
    ```text
    $ orbit-kb init purple --request 'Make the button purple.' --uses build
    /tmp/purple/kb.pl
+   Next: add the goal, the claims and the checks. Vocabulary: orbit-kb help core.
    ```
 
 2. Go into the KB directory: `cd purple`. All commands that follow find the
    KB from the current directory.
 
-3. Add a claim, the request text that it cites, and a check of the claim:
+3. Add the goal: what the human hopes to accomplish. The agent drafts it here, so its author
+   is `agent`. The goal takes nothing as given: `no_premises`.
+
+   ```text
+   $ orbit-kb add "goal(g1, feature, agent, 'The Buy button is purple.')" "no_premises(g1)"
+   goal(g1, feature, agent, 'The Buy button is purple.').
+   no_premises(g1).
+   ```
+
+4. Add a claim, the request text that it cites, and a check of the claim:
 
    ```text
    $ orbit-kb add "claim(c1, introduce, 'The Buy button is purple.')" "cites(c1, 'Make the button purple.')" "check(k1, c1)" "checks_that(k1, 'The Buy button is purple on the page.')"
@@ -122,14 +133,6 @@ The digest in step 7 depends on the text of your `ticket.md`.
    ```
 
    The label `introduce` means "false now, and it must become true".
-
-4. Add the change that serves the claim:
-
-   ```text
-   $ orbit-kb add "change(ch1, 'button.css: set the color to purple.')" "serves(ch1, c1)"
-   change(ch1, 'button.css: set the color to purple.').
-   serves(ch1, c1).
-   ```
 
 5. A wrong fact causes a rejection. Nothing is written, and the exit code is 1:
 
@@ -166,7 +169,7 @@ The digest in step 7 depends on the text of your `ticket.md`.
    ```
 
 9. Run the check before the change. It must fail first, because the label of
-   `c1` is `introduce`:
+   `c1` is `introduce`. This run is the control: it shows that the check can fail.
 
    ```text
    $ orbit-kb run k1 -- grep -q purple button.css
@@ -178,31 +181,51 @@ The digest in step 7 depends on the text of your `ticket.md`.
 
    Both commands exit 1.
 
-10. Change `button.css` to `.buy { color: rebeccapurple; }`. Then run the
-    check again:
+10. Change `button.css` to `.buy { color: rebeccapurple; }`. Record the change that serves
+    the claim, after the red run. Then run the check again:
 
     ```text
+    $ orbit-kb add "change(ch1, 'button.css: set the color to purple.')" "serves(ch1, c1)"
+    change(ch1, 'button.css: set the color to purple.').
+    actor(ch1, unknown, 'SESSION').
+    change_at(ch1, '2026-11-25T00:31:01Z').
+    serves(ch1, c1).
     $ orbit-kb run k1 -- grep -q purple button.css
     run 2 k1 pass (exit 0) log=/tmp/purple/runs/2-k1.log
     ```
 
-11. Query `done`. No question waits for a human:
+11. Query `done`. The check passes, and the ticket is not done: only the human judges that
+    the goal is satisfied. Show the result to the human. The human records the judgment (on
+    the Desk, or with `judge`). From an agent session, `judge --by human` needs the human's
+    words in `--note`:
 
     ```text
+    $ orbit-kb query done
+    false
+    $ orbit-kb show blocking
+    Blocking:
+    - goal_unjudged g1: the human has not judged that goal g1 is satisfied. Show the result to the human. The human records it on the Desk (Goal satisfied), or with: orbit-kb judge g1 satisfied --by human: The Buy button is purple.
+    $ orbit-kb judge g1 satisfied --by human --note 'Yes, that is the purple I wanted.'
+    attest(a3, judgment, g1, satisfied, human, '2026-11-25T00:31:11Z').
+    actor(a3, unknown, 'SESSION').
+    note(a3, 'Yes, that is the purple I wanted.').
     $ orbit-kb query done
     true
     $ orbit-kb query 'to_ask(Q)'
     false
     ```
 
-12. The human does not agree with claim `c1`. Record the divergence, and a
+    No question waits for a human.
+
+12. Later the human does not agree with claim `c1`. Record the divergence, and a
     note that describes it:
 
     ```text
     $ orbit-kb attest divergence c1 'claim(c1)' --by human
-    attest(a3, divergence, c1, claim(c1), human, '2026-10-16T21:59:43Z').
-    $ orbit-kb add "note(a3, 'The human wants a darker purple.')"
-    note(a3, 'The human wants a darker purple.').
+    attest(a4, divergence, c1, claim(c1), human, '2026-11-25T00:31:11Z').
+    actor(a4, unknown, 'SESSION').
+    $ orbit-kb add "note(a4, 'The human wants a darker purple.')"
+    note(a4, 'The human wants a darker purple.').
     ```
 
 13. Query the questions to ask. A contested claim opens all of its questions:
@@ -216,7 +239,7 @@ The digest in step 7 depends on the text of your `ticket.md`.
 14. Record the answer of the human to `q1`. The answer is not the default:
 
     ```text
-    $ orbit-kb add "answer(q1, indigo, human)"
+    $ orbit-kb add "answer(q1, indigo, human)" --by human
     answer(q1, indigo, human).
     ```
 
@@ -234,20 +257,49 @@ The digest in step 7 depends on the text of your `ticket.md`.
     - to_ask q2: ask question q2 now: Does the hover color change too? (a question about claim c1)
     ```
 
-16. Lint the KB, and print the report:
+16. Lint the KB, and print the report. The two warnings block nothing: the goal names no
+    project goal above it, and no reviewer verified the claim.
 
     ```text
     $ orbit-kb lint
-    Summary: 0 error(s), 0 warning(s).
+    W14 g1: This goal names no goal above it. Add supports(G, project(PG)) for the project goal that it supports, or supports(G, G2) for a goal of this KB. It blocks nothing.
+    WR1 c1: No fresh-eyes verdict verifies this claim yet. A reviewer of another role and session must rerun a check of the claim after its last change (orbit-kb run --as ROLE), then record an upheld verdict that rests on that run (attest disproof --rests-on). orbit-kb report lists the review. This does not block done.
+    Summary: 0 error(s), 2 warning(s).
     $ orbit-kb report
     # Delivered:
       - (Write what you delivered here.)
 
+    # KB:
+      - /tmp/purple
+      - Request r1, word for word: Make the button purple.
+
+    # Signals:
+      - questions: no.
+      - divergence: yes.
+        - a4: a divergence on claim c1 (attested by the human).
+      - someone else built: no.
+      - burns: no.
+      - handoff: no.
+      - effort: no.
+
+    # Hypothesis:
+      - Goal g1 (the agent): The Buy button is purple.
+        - Kind: feature.
+        - Premises: none.
+        - No hypothesis: the claims hang on the goal.
+
     # Claims:
       - c1 **introduce**: The Buy button is purple.
         - Status: fulfilled.
-        - Control of check k1: not seen.
+        - Control of check k1: run 1 failed before the change.
         - Checks: k1 (passed).
+
+    # Review:
+      - c1: no verdict.
+      - Not independently verified: c1.
+
+    # Formal:
+      - None. No claim has a formal statement.
 
     # Residual:
       - **Wanted:**
@@ -261,6 +313,9 @@ The digest in step 7 depends on the text of your `ticket.md`.
     # Disclosures:
       - None.
 
+    # Waivers:
+      - None.
+
     # Open:
       - **ask**: Ask question q2 now
 
@@ -268,31 +323,39 @@ The digest in step 7 depends on the text of your `ticket.md`.
       - (Write the steps to land the work here.)
     ```
 
-    The control of `k1` is "not seen": step 4 recorded the change that serves `c1` before the
-    first run of the check, so the failed run of step 9 does not count as a run before the
-    change. Run the check before you record the change, and the report names that run.
-
 The `kb.pl` file after step 16:
 
 ```prolog
 uses([build]).
 request(r1, 'Make the button purple.').
+% Made by orbit-kb 0.8.0.
+goal(g1, feature, agent, 'The Buy button is purple.').
+no_premises(g1).
 claim(c1, introduce, 'The Buy button is purple.').
 cites(c1, 'Make the button purple.').
 check(k1, c1).
-change(ch1, 'button.css: set the color to purple.').
-serves(ch1, c1).
+checks_that(k1, 'The Buy button is purple on the page.').
 question(q1, c1, 'Which shade of purple?').
 assumed(q1, rebeccapurple).
 question(q2, c1, 'Does the hover color change too?').
 assumed(q2, yes).
 subject(s1, 'ticket.md', 'sha256:6f2a6395ccceef334e4e8f37a147facff03474208405b9533f12976298a4c0a4').
 ticket(s1).
-attest(a1, test_result, k1, result(k1, 1, fail), script, '2026-10-16T21:59:43Z').
-attest(a2, test_result, k1, result(k1, 2, pass), script, '2026-10-16T21:59:43Z').
-attest(a3, divergence, c1, claim(c1), human, '2026-10-16T21:59:43Z').
-note(a3, 'The human wants a darker purple.').
+attest(a1, test_result, k1, result(k1, 1, fail), script, '2026-11-25T00:31:01Z').
+actor(a1, unknown, 'SESSION').
+change(ch1, 'button.css: set the color to purple.').
+actor(ch1, unknown, 'SESSION').
+change_at(ch1, '2026-11-25T00:31:01Z').
+serves(ch1, c1).
+attest(a2, test_result, k1, result(k1, 2, pass), script, '2026-11-25T00:31:01Z').
+actor(a2, unknown, 'SESSION').
+attest(a3, judgment, g1, satisfied, human, '2026-11-25T00:31:11Z').
+actor(a3, unknown, 'SESSION').
+note(a3, 'Yes, that is the purple I wanted.').
+attest(a4, divergence, c1, claim(c1), human, '2026-11-25T00:31:11Z').
+actor(a4, unknown, 'SESSION').
 answer(q1, indigo, human).
+note(a4, 'The human wants a darker purple.').
 ```
 
 ## 4. KB layout on disk
@@ -916,8 +979,8 @@ and no human adopted. `Happens:` has each premise that nobody checked, and each 
 claim with no check. `Follows:` has each formal statement of a current claim that is
 stated and not proved: no Lean proof of the claim counts, and no trusted model decided it.
 With the `build` module, each claim of `Claims:` that is not a `preserve` claim says for
-each of its checks if the control was seen: `Control of check k1: run a3 failed before
-the change.` or `Control of check k1: not seen.` A check with a `known_when` fact adds
+each of its checks if the control was seen: `Control of check k1: run 1 failed before
+the change.` or `Control of check k1: not seen.` The run is named by its number, as `run` prints it. A check with a `known_when` fact adds, directly after its control line,
 `Known when the rule of check k1 was chosen: TEXT`.
 You write `Delivered` and `To land` yourself. Step 16 of section 3 shows an
 example. The text is plain Markdown that also reads as raw text (D16 c4). Each
@@ -940,8 +1003,11 @@ and id of its target, its due time, and whether it is in force or lapsed.
 check, or a question), and each proof that no longer counts. With the `build`
 module, when no claim is current, `Open:` says `**no claim**: No claim is
 current`, because `done` is false without a current claim (D17). When no question
-has a default, `Wanted:` says `None. No question has a default.` It says that a
-human answered every question only when a question with a default exists. When
+has a default, `Wanted:` says `None. No question has a default, and no hypothesis waits
+for the human.` It says that a human answered every question only when a question with a
+default exists. `Follows:` says `S states claim C. No proof.` for a statement and `M states
+claim C. No trusted model decided it.` for a model. `Formal:` names each such statement too
+(`C: statement S. Stated, not proved.`), so it says `None` only when no claim has one. When
 no claim is current, `Happens:` says `None. No claim is current.`
 With the `discovery` module, a `Vote:` section comes before `To land:` (D14).
 Until the human votes in the current round, it says only whether the agent

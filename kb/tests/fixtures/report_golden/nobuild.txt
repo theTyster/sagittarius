@@ -25,7 +25,7 @@
 
 # Residual:
   - **Wanted:**
-    - None. No question has a default.
+    - None. No question has a default, and no hypothesis waits for the human.
   - **Happens:**
     - c1: x
       - It has no check.

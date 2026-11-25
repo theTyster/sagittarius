@@ -13335,22 +13335,21 @@ esc_parts(Eng, BSets, C, Parts) :-
 % claim, a Head-Detail pair that says if the control was seen: the first run of the check that
 % failed before any change that serves the claim. A preserve claim has no control: its check
 % passes before and after. Then, for each check that has one, what was known when the claim and
-% the rule of the check were chosen (known_when/2).
+% the rule of the check were chosen (known_when/2), directly after the control of that check.
+% The run is named by its number, as orbit run prints it and as its log is named (runs/N-K.log).
 control_parts(Eng, CtlBy, KwBy, L, Ks, Parts) :-
     findall(H-"",
-            ( L \== preserve, member(K, Ks),
-              (   eng_lookup(Eng, CtlBy, K, A, ( control(A), attest(A, test_result, _, result(K, _, _), _, _) ), [A1|_])
-              ->  format(string(H), "Control of check ~w: run ~w failed before the change.", [K, A1])
-              ;   format(string(H), "Control of check ~w: not seen.", [K])
-              ) ),
-            Cs),
-    findall(H-"",
             ( member(K, Ks),
-              eng_lookup(Eng, KwBy, K, T, known_when(K, T), [T1|_]),
-              one_line(T1, TT), as_sentence(TT, TS),
-              format(string(H), "Known when the rule of check ~w was chosen: ~w", [K, TS]) ),
-            Ws),
-    append(Cs, Ws, Parts).
+              (   L \== preserve,
+                  (   eng_lookup(Eng, CtlBy, K, N, ( control(A), attest(A, test_result, _, result(K, N, _), _, _) ), [N1|_])
+                  ->  format(string(H), "Control of check ~w: run ~w failed before the change.", [K, N1])
+                  ;   format(string(H), "Control of check ~w: not seen.", [K])
+                  )
+              ;   eng_lookup(Eng, KwBy, K, T, known_when(K, T), [T1|_]),
+                  one_line(T1, TT), as_sentence(TT, TS),
+                  format(string(H), "Known when the rule of check ~w was chosen: ~w", [K, TS])
+              ) ),
+            Parts).
 
 flare_parts(Eng, bs(_, _, WaivBy, FlareS, ShownS), C, Head, Detail) :-
     (   \+ eng_member(Eng, FlareS, C, flare(C)) -> Head = "", Detail = ""
@@ -13551,23 +13550,23 @@ rsay2(Tag, Fmt0, Args) :-
     format(string(S), Fmt, Args),
     rtree2(Tag, S, S-[]).
 
-% residual_follows(+KB, +Eng, +Cs, -Pairs, -Any): Pairs is each [Statement, Claim] of a current
-% claim whose formal statement is stated and not proved: no Lean proof of the claim counts, and
-% the statement is not a trusted model with a decided result on the claim. Any is true when a
-% current claim has a formal statement.
-residual_follows(KB, Eng, Cs, Pairs, Any) :-
+% residual_follows(+KB, +Eng, +Cs, -All, -Pairs, -Models): All is each [Statement, Claim] of a
+% current claim that has a formal statement. Pairs is the part of All that is stated and not
+% proved: no Lean proof of the claim counts, and the statement is not a trusted model with a
+% decided result on the claim. Models is the statements that are models.
+residual_follows(KB, Eng, Cs, All, Pairs, Models) :-
     (   has_build(KB) -> eng_all(Eng, [S, C], formal(S, C), All0),
                          eng_all(Eng, [C1], burn_proved(C1), Pr0)
     ;   has_discovery(KB) -> eng_all(Eng, [S, C], encodes(S, C), All0), Pr0 = []
     ;   All0 = [], Pr0 = []
     ),
-    (   All0 == [] -> Dec = []
-    ;   eng_all(Eng, [M, C2], ( encodes(M, C2), model_trusted(M), model_decided(M, C2) ), Dec)
+    (   All0 == [] -> Dec = [], Models = []
+    ;   eng_all(Eng, [M, C2], ( encodes(M, C2), model_trusted(M), model_decided(M, C2) ), Dec),
+        eng_all(Eng, [M0], encodes(M0, _), Models)
     ),
     findall([S1, C3], ( member([S1, C3], All0), memberchk([C3, _, _], Cs) ), All1),
     id_sort(All1, All),
-    (   All == [] -> Any = false ; Any = true ),
-    findall([S2, C4], ( member([S2, C4], All), \+ memberchk([C4], Pr0), \+ memberchk([S2, C4], Dec) ), Pairs).
+    findall([S2, C4], ( member([S2, C4], All), \+ memberchk(C4, Pr0), \+ memberchk([S2, C4], Dec) ), Pairs).
 
 % rsay(+Tag, +Fmt, +Args): a bullet with no nesting.
 rsay(Tag, Fmt0, Args) :-
@@ -13616,8 +13615,7 @@ claim_node(Build, C, L, TT, SK, StHead, StDetail, Exs, Parts, KStates, Node) :-
     format(string(Head), "~w **~w**: ~w", [C, L, TT]),
     (   memberchk(SK, [fulfilled, none]),
         Parts == [],
-        KStates \== [],
-        forall(member(_-KS, KStates), KS == "passed"),
+        KStates = [_-"passed"],     % one check: with two or more, "Checks:" has its names below it
         ( Exs = [] ; Exs = [_] ),
         (   ends_sentence(TT) -> Sep = " " ; Sep = ". " ),
         findall(P, ( call(Build), StHead \== "", P = StHead
@@ -13694,7 +13692,7 @@ report_text(KB, Eng) :-
     (   call(Build)
     ->  eng_set(Eng, X1, fulfilled(X1), FulS), burn_sets(Eng, BSets),
         % philosophy-3 c2: the control of each check, and what was known when its rule was chosen.
-        eng_groups(Eng, CK, CA, ( control(CA), attest(CA, test_result, _, result(CK, _, _), _, _) ), CtlBy),
+        eng_groups(Eng, CK, CN, ( control(CA), attest(CA, test_result, _, result(CK, CN, _), _, _) ), CtlBy),
         eng_groups(Eng, WK0, WT0, known_when(WK0, WT0), KwBy)
     ;   true
     ),
@@ -13753,7 +13751,9 @@ report_text(KB, Eng) :-
     ->  review_section(Eng, Cs)
     ;   true
     ),
-    formal_section(KB, Eng, Cs),
+    % One source for Formal and for Residual, Follows: the formal statements of the current claims.
+    residual_follows(KB, Eng, Cs, FAll, FSs, FModels),
+    formal_section(KB, Eng, Cs, FAll, FSs, FModels),
     scope_sections(KB, Eng),
     % Philosophy 3.0.0 (philosophy-3 c1): Residual, what could still show the work wrong and that
     % nobody tested, by question. It takes the place of the sections Guesses and Not checked.
@@ -13766,8 +13766,8 @@ report_text(KB, Eng) :-
     % D17: say that a human answered only when a question with a default exists.
     (   ( Gs \== [] ; HGs \== [] ) -> true
     ;   eng_all(Eng, [Q0], assumed(Q0, _), [_|_])
-    ->  rsay2(none, "None. A human answered every question with a default.", [])
-    ;   rsay2(none, "None. No question has a default.", [])
+    ->  rsay2(none, "None. A human answered every question with a default, and no hypothesis waits for the human.", [])
+    ;   rsay2(none, "None. No question has a default, and no hypothesis waits for the human.", [])
     ),
     forall(member([HG, HGT], HGs),
            ( one_line(HGT, HGTT),
@@ -13814,14 +13814,16 @@ report_text(KB, Eng) :-
              rtree2(item(C3), Plain3, Head3-["It has no check."-[]]) )),
     % Follows: a formal tool answers. Each formal statement of a current claim that is stated
     % and not proved: no Lean proof of the claim counts, and no trusted model decided it.
-    residual_follows(KB, Eng, Cs, FSs, AnyFormal),
     rsub('Follows'),
     (   FSs \== [] -> true
-    ;   AnyFormal == true -> rsay2(none, "None. Each formal statement is proved, or decided by a trusted model.", [])
+    ;   FAll \== [] -> rsay2(none, "None. Each formal statement is proved, or decided by a trusted model.", [])
     ;   rsay2(none, "None. No claim has a formal statement.", [])
     ),
     forall(member([FS9, FC9], FSs),
-           rsay2(item(FC9), "~w states claim ~w. It is stated and not proved.", [FS9, FC9])),
+           (   memberchk(FS9, FModels)
+           ->  rsay2(item(FC9), "~w states claim ~w. No trusted model decided it.", [FS9, FC9])
+           ;   rsay2(item(FC9), "~w states claim ~w. No proof.", [FS9, FC9])
+           )),
     rhead('Disclosures'),
     eng_all(Eng, [I, S0, P, B], attest(I, disclosure, S0, P, B, _), Ds),
     (   Ds == [] -> rsay(none, "None.", []) ; true ),
@@ -14099,11 +14101,13 @@ burn_records(KB, Eng, Burns) :-
                  ; member(C, Rs), W = "the human asked for a proof."
                  ; member(C, Ts), W = "the claim was contested twice." ), Burns).
 
-% formal_section(+Eng, +Cs) (D31 B3): the formal statement of each current claim that has one,
+% formal_section(+KB, +Eng, +Cs, +FAll, +FOpen, +FModels) (D31 B3; philosophy-3 review step 1): the formal statement of each current claim that has one,
 % beside its plain sentence; or "None." B4 and B5 add the statements.
-formal_section(KB, Eng, Cs) :-
+formal_section(KB, Eng, Cs, FAll, FOpen, FModels) :-
     rhead('Formal'),
-    findall(C-Items, ( member([C, _, _], Cs), formal_items(KB, Eng, C, Items), Items \== [] ), CIs),
+    findall(C-Items, ( member([C, _, _], Cs), formal_items(KB, Eng, C, Items0),
+                       formal_stated(KB, Eng, C, Items0, FAll, FOpen, FModels, Items1),
+                       append(Items0, Items1, Items), Items \== [] ), CIs),
     (   CIs == []
     ->  rsay(none, "None. No claim has a formal statement.", [])
     ;   forall(member(C-Items, CIs),
@@ -14113,6 +14117,25 @@ formal_section(KB, Eng, Cs) :-
                           format(string(Plain), "~w ~w", [Head, Kid]),
                           rtree(item(C), Plain, Head-[Kid-[]]) )) ))
     ).
+
+% formal_stated(+KB, +Eng, +C, +Items0, +FAll, +FOpen, +FModels, -Heads): one line for each
+% formal statement S of claim C that formal_items/4 gives no line: a statement when no proof
+% line of the claim exists, and a model when the KB has no discovery module (which gives the
+% model lines). So Formal names each statement that Residual, Follows and "Formal: not yet
+% accepted" name.
+formal_stated(KB, _Eng, C, Items0, FAll, FOpen, FModels, Heads) :-
+    (   member(I0, Items0), sub_string(I0, _, _, _, ": theorem ") -> Proof = true ; Proof = false ),
+    findall(H, ( member([S, C], FAll),
+                 (   memberchk(S, FModels)
+                 ->  \+ has_discovery(KB),
+                     (   memberchk([S, C], FOpen)
+                     ->  format(string(H), "~w: model ~w states it. No trusted model decided it.", [C, S])
+                     ;   format(string(H), "~w: model ~w states it. A trusted model decided it.", [C, S])
+                     )
+                 ;   Proof == false,
+                     format(string(H), "~w: statement ~w. Stated, not proved.", [C, S])
+                 ) ),
+            Heads).
 
 % formal_items(+KB, +Eng, +C, -Heads): one line per formal statement of claim C: the theorem of
 % its Lean proof with the statement from the proof log (B4), and with the discovery module each
@@ -14705,6 +14728,18 @@ page_check(KB, Eng, K, KS) :-
         ;   format("<code>", []), he(Rel), format("</code> (missing).", [])
         )
     ;   format("<li data-check=\"~w\" data-run=\"none\" data-result=\"none\"><span class=\"id\">~w</span> ~w.", [KE, KE, KS])
+    ),
+    % The control: the run that failed before the change is the evidence; its log has a link too.
+    (   has_build(KB),
+        eng_all(Eng, [CN], ( control(CA), attest(CA, test_result, _, result(K, CN, _), _, _) ), [CN1|_]), integer(CN1)
+    ->  format(" Control: run ~w failed before the change. Log ", [CN1]),
+        run_log_path(KB, K, CN1, CAbs),
+        format(atom(CRel), "runs/~w-~w.log", [CN1, K]),
+        (   exists_file(CAbs)
+        ->  file_url(CAbs, CU), esc(CU, CUE), format("<a data-control-run=\"~w\" href=\"~w\"><code>", [CN1, CUE]), he(CRel), format("</code></a>.", [])
+        ;   format("<code>", []), he(CRel), format("</code> (missing).", [])
+        )
+    ;   true
     ),
     format("</li>~n", []).
 

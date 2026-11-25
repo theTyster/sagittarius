@@ -1495,7 +1495,7 @@ t_NC1() { K=$T/k; kb_init "$K" build; give_goal
           okb --dir "$K" whynot 'done'; rc_is 0; [ "$(first_line)" = holds ] || note "whynot done after a claim: '$(first_line)'"; }
 t_NC2() { K=$T/k; kb_init "$K" build; give_goal; okb --dir "$K" report; rc_is 0
           out_hasnt 'answered every question' "no question exists, so no human answered one"
-          rl_is "Wanted with no question" "  - None. No question has a default." "$(rp_sub Wanted)"
+          rl_is "Wanted with no question" "  - None. No question has a default, and no hypothesis waits for the human." "$(rp_sub Wanted)"
           rl_is "Happens with no claim" "  - None. No claim is current." "$(rp_sub Happens)"
           rl_is "Follows with no claim" "  - None. No claim has a formal statement." "$(rp_sub Follows)"
           rl_is "Open with no claim" "  - **no claim**: No claim is current
@@ -1506,11 +1506,11 @@ t_NC2() { K=$T/k; kb_init "$K" build; give_goal; okb --dir "$K" report; rc_is 0
           grep -q 'data-open="no_claim"' "$T/r.html" || note "the page lists the missing claim as an open item"; }
 t_NC3() { K=$T/k; kb_init "$K" build; oadd "claim(c1, preserve, 'One stays true')" "cites(c1, 'Test request')" >/dev/null
           okb --dir "$K" report; rc_is 0
-          rl_is "Wanted with a claim and no question" "  - None. No question has a default." "$(rp_sub Wanted)"
+          rl_is "Wanted with a claim and no question" "  - None. No question has a default, and no hypothesis waits for the human." "$(rp_sub Wanted)"
           out_hasnt 'no claim' "a current claim exists"
           oadd "question(q1, c1, 'Is it one')" "assumed(q1, yes)" "answer(q1, yes, human)" >/dev/null
           okb --dir "$K" report; rc_is 0
-          rl_is "Wanted when a human answered" "  - None. A human answered every question with a default." "$(rp_sub Wanted)"
+          rl_is "Wanted when a human answered" "  - None. A human answered every question with a default, and no hypothesis waits for the human." "$(rp_sub Wanted)"
           okb --dir "$K" show open; out_hasnt 'no_claim' "show open: a current claim exists"; }
 t_NC4() { K=$T/k; kb_init "$K" build; printf 'any_current_claim.\n' > "$K/rules.pl"
           okb --dir "$K" lint; rc_is 1 "rules.pl cannot make a claim appear for done"; out_has '^E16 rules.pl'
@@ -1595,7 +1595,7 @@ t_HY5() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" \
           printf '%s\n' "$g" | grep -q 'None' && note "Happens says None: [$g]"
           printf '%s\n' "$w" | grep -q 'None' && note "Wanted says None: [$w]"
           oadd "premise_checked(p1, 'src/theme.css:1')" "answer(q1, 'all twelve screens', human)" >/dev/null
-          okb --dir "$K" report; rl_is "Wanted when each default is answered" "  - None. A human answered every question with a default." "$(rp_sub Wanted)"
+          okb --dir "$K" report; rl_is "Wanted when each default is answered" "  - None. A human answered every question with a default, and no hypothesis waits for the human." "$(rp_sub Wanted)"
           rp_sub Happens | grep -q '^  - None\. Each premise is checked, and ' || note "Happens when each premise is checked: [$(rp_sub Happens)]"; }
 t_HY6() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" >/dev/null
           oadd "hypothesis(h2, feature, 'With dark mode on, the settings page shows a dark scheme.')" "supersedes(h2, h1)"; rc_is 0 "a build KB restates its hypothesis"
@@ -2584,7 +2584,9 @@ t_MF1() { hy_build "$T/b"; give_goal; mf_model unsat
           has_goal "$K/kb.pl" "kb(attest(_, model_result, log1, verdict(m1, preserve(c1), unsat), agent, _))" "the attestation is written"
           okb --dir "$K" lint; rc_is 0 "lint of a build KB with a model"
           okb --dir "$K" show kinds; out_has '^- model/2:' "show kinds lists model/2 in a build KB"
-          okb --dir "$K" report; rp_sec Formal | grep -q 'model m1' && note "a build KB reads no model into Formal (the discovery module drafts it)"
+          okb --dir "$K" report; rp_sec Formal | grep -q 'model m1 (' && note "a build KB drafts no model line with the tool and the property into Formal (the discovery module drafts it)"
+          # D73 (review H-0136 step 1): Formal names each formal statement that Residual, Follows names; a build KB names the model in one plain line
+          rp_sec Formal | grep -Eq '^  - c1: model m1 states it\. (No trusted model decided it|A trusted model decided it)\.$' || note "Formal names the model that states c1: [$(rp_sec Formal | tr '\n' '~')]"
           kb_init "$T/n" ""; K=$T/n; oadd "claim(c1, introduce, 'x')" "cites(c1, 'Test request')" >/dev/null
           printf '(check-sat)\n' > "$K/m1.smt"; okb --dir "$K" subject m1 "$K/m1.smt" >/dev/null
           oadd "model(m1, smt)" "encodes(m1, c1)"; rc_is 0 "a KB with no module takes them too"; }
@@ -3082,7 +3084,7 @@ t_RS1() { # philosophy-3 c2: the control of each check of a claim that is not a 
          "claim(c3, preserve, 'Three')" "cites(c3, 'Test request')" "check(k3, c3)" "checks_that(k3, 'three')" >/dev/null
     orun k1 -- false; orun k2 -- true; orun k3 -- true
     oadd "known_when(k1, 'Only the request was known')" >/dev/null
-    okb --dir "$K" query 'control(A)' -n 0; local a; a=$(printf '%s\n' "$out" | sed -n 's/^A = //p' | head -n 1)
+    okb --dir "$K" query 'control(A), attest(A, test_result, _, result(k1, N, _), _, _)' -n 0; local a; a=$(printf '%s\n' "$out" | sed -n 's/.*N = //p' | head -n 1)
     [ -n "$a" ] || note "the failed run of k1 is a control: [$out]"
     okb --dir "$K" report; rc_is 0
     rp_item c1 | grep -qxF "    - Control of check k1: run $a failed before the change." || note "c1 names its control run $a: [$(rp_item c1 | tr '\n' '~')]"
@@ -3091,7 +3093,29 @@ t_RS1() { # philosophy-3 c2: the control of each check of a claim that is not a 
     rp_item c2 | grep -q 'Known when' && note "c2 has no known_when"
     rp_item c3 | grep -q 'Control of check' && note "a preserve claim has no control: [$(rp_item c3 | tr '\n' '~')]"
     oadd "change(x1, 'a change')" "serves(x1, c2)" >/dev/null; orun k2 -- false
-    okb --dir "$K" report; rp_item c2 | grep -qxF "    - Control of check k2: not seen." || note "a failure after a change that serves the claim is no control: [$(rp_item c2 | tr '\n' '~')]"; }
+    okb --dir "$K" report; rp_item c2 | grep -qxF "    - Control of check k2: not seen." || note "a failure after a change that serves the claim is no control: [$(rp_item c2 | tr '\n' '~')]"
+    # review H-0136 steps 4 to 6: the lines of one check are together; two checks never print an empty Checks: on one line; the page links the log of the control run
+    oadd "check(k1b, c1)" "checks_that(k1b, 'one b')" "check(k3b, c3)" "checks_that(k3b, 'three b')" >/dev/null; orun k3b -- true
+    okb --dir "$K" report --html "$T/r.html"; rc_is 0 "the page"
+    rl_is "the control and known_when lines of c1, check by check" "Control of check k1:|Known when the rule of check k1 |Control of check k1b:" "$(rp_item c1 | grep -oE 'Control of check k1b?:|Known when the rule of check k1 ' | paste -sd'|')"
+    rl_is "c3 (preserve, two checks that passed)" "  - c3 **preserve**: Three
+    - Status: fulfilled.
+    - Checks:
+      - k3 (passed)
+      - k3b (passed)" "$(rp_item c3)"
+    rh_has "$(rh_claim "$T/r.html" c1)" "data-control-run=\"$a\" href=\"[^\"]*runs/$a-k1\.log\"" "the check row of k1 links the log of its control run"
+    rh_hasnt "$(rh_claim "$T/r.html" c2)" 'data-control-run' "a check with no control has no such link"; }
+t_RS3() { # review H-0136 step 1: Formal names a statement that has no proof, as Follows does; a proof that counts takes it out of Follows
+    kb_burndone "$T/k"; K=$T/k; mkdir -p "$K/lean"; printf 'theorem t : True := trivial\n' > "$K/lean/P.lean"
+    okb --dir "$K" subject s1 "$K/lean/P.lean"; rc_is 0 "subject"; oadd "formal_statement(s1, c1)"; rc_is 0 "formal_statement"
+    okb --dir "$K" report; rc_is 0
+    rl_is "Follows with no proof" "  - s1 states claim c1. No proof." "$(rp_sub Follows)"
+    rp_sec Formal | grep -qxF "  - c1: statement s1. Stated, not proved." || note "Formal names the statement: [$(rp_sec Formal | tr '\n' '~')]"
+    rp_sec Formal | grep -q 'None' && note "Formal says None for a claim with a formal statement"
+    add_proof "$K" p1 c1; is_true 'burn_proved(c1)'; okb --dir "$K" report; rc_is 0
+    rl_is "Follows after a proof that counts" "  - None. Each formal statement is proved, or decided by a trusted model." "$(rp_sub Follows)"
+    rp_sec Formal | grep -q 'c1: theorem t' || note "Formal gives the theorem: [$(rp_sec Formal | tr '\n' '~')]"
+    rp_sec Formal | grep -q 'statement s1' && note "Formal has no second line for a claim with a proof line"; true; }
 t_RS2() { # philosophy-3 c1: Residual, Follows lists a formal statement that nothing proved; the page labels the three lists
     K=$T/k; kb_init "$K" build; give_goal
     oadd "claim(c1, introduce, 'One')" "cites(c1, 'Test request')" "check(k1, c1)" "checks_that(k1, 'one')" \
@@ -3099,7 +3123,9 @@ t_RS2() { # philosophy-3 c1: Residual, Follows lists a formal statement that not
     echo 'theorem t : True := trivial' > "$T/f.lean"; okb --dir "$K" subject s1 "$T/f.lean"; rc_is 0 "subject"
     oadd "formal_statement(s1, c1)"; rc_is 0 "formal_statement"
     okb --dir "$K" report; rc_is 0
-    rl_is "Follows" "  - s1 states claim c1. It is stated and not proved." "$(rp_sub Follows)"
+    rl_is "Follows" "  - s1 states claim c1. No proof." "$(rp_sub Follows)"
+    rl_is "Formal" "  - c1: statement s1. Stated, not proved.
+    - Claim c1: One." "$(rp_sec Formal)"
     rl_is "Happens" "  - c2: Two
     - It has no check." "$(rp_sub Happens)"
     out_hasnt '^# (Guesses|Not checked):' "the old sections are gone"
@@ -4395,6 +4421,7 @@ run_test t_RP1 RP1 "report sections in contract order"
 run_test t_RP2 RP2 "report: fulfilled, under, over"
 run_test t_RP3 RP3 "report: Residual, Wanted (a default that no human answered)"
 run_test t_RS1 RS1 "philosophy-3 c2: report says if the control of each check was seen, and gives known_when"
+run_test t_RS3 RS3 "review H-0136 step 1: Formal names a statement with no proof; a proof that counts takes it out of Residual, Follows"
 run_test t_RS2 RS2 "philosophy-3 c1: Residual, Follows lists a formal statement that is not proved; the page has the three lists"
 run_test t_RH9 RH9 "report --html: a claim with a burn or a control sentence and a disclosure (the page failed before)"
 run_test t_RP4 RP4 "report: Residual, Happens (a claim with no check)"

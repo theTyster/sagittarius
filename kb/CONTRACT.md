@@ -1257,15 +1257,17 @@ D16 C4 L1 (the list of headings), D17 C5, D30 H3, D31 B3 and D62.
   and its items are bullets at four spaces, with their detail at six.
   - `Wanted:` (only the human reads what is wanted): each question whose default no human
     answered (`Q: TEXT`, then `The default is D. No human answered it.`), and each
-    `hypothesis_guess(H)`. Empty: `None. No question has a default.`, or `None. A human answered
-    every question with a default.` when an `assumed/2` fact exists (D17 C5).
+    `hypothesis_guess(H)`. Empty: `None. No question has a default, and no hypothesis waits for
+    the human.`, or `None. A human answered every question with a default, and no hypothesis
+    waits for the human.` when an `assumed/2` fact exists (D17 C5).
   - `Happens:` (the system answers): each `premise_unchecked(P)` (`P: TEXT`, then `A premise of
     hypothesis H. Nobody checked it on the system.`), and each current claim with no check (`C:
     TEXT`, then `It has no check.`). Empty: `None. Every current claim has a check.`, or `None. No
     claim is current.`; with a premise of a current hypothesis, `None. Each premise is checked,
     and every current claim has a check.` (or `... and no claim is current.`).
   - `Follows:` (a formal tool answers): each formal statement S of a current claim C that is
-    stated and not proved, `S states claim C. It is stated and not proved.` With the build
+    stated and not proved: `S states claim C. No proof.` for a statement, and `M states claim C. No
+    trusted model decided it.` for a model. With the build
     module S is `formal(S, C)` (a `formal_statement/2` fact or a model that encodes C); with
     only the discovery module it is `encodes(S, C)`. It is proved when a Lean proof of C counts
     (`burn_proved(C)`), or when S is a trusted model with a decided result on C. Empty: `None. No
@@ -1273,14 +1275,25 @@ D16 C4 L1 (the list of headings), D17 C5, D30 H3, D31 B3 and D62.
     trusted model.`
 - **The control.** With the build module, a current claim that is not a `preserve` claim has, for
   each of its checks K, one bullet after its examples and its burn and flare: `Control of check
-  K: run A failed before the change.` (A is the first `control(A)` run of K), or `Control of
+  K: run N failed before the change.` (N is the number of the first `control(A)` run of K, as
+  `run` prints it and as its log `runs/N-K.log` is named), or `Control of
   check K: not seen.` A check with a `known_when/2` fact adds `Known when the rule of check K
-  was chosen: TEXT`. A claim with such a bullet is not printed on one line.
+  was chosen: TEXT`, directly after the control line of K (on a preserve claim too). A claim with such a bullet is not printed on one line.
+- **Formal names what Follows names (review H-0136, step 1).** `Formal:` has one line for each
+  formal statement S of a current claim C that has no line of D31 B4 or B5: `C: statement S.
+  Stated, not proved.` when the claim has no proof line; and, with the build module and no
+  discovery module, `C: model M states it. No trusted model decided it.` or `... A trusted model
+  decided it.` (this amends F1 and test MF1: a build KB still drafts no model line with the
+  tool and the property). `None. No claim has a formal statement.` prints only when no
+  current claim has a formal statement and no proof.
+- **One line and two checks (review H-0136, step 4).** A fulfilled claim is printed on one
+  line only when it has one check. With two or more, `Checks:` has its names below it.
 - **The page.** `report --html` has the section `data-section="residual"` and no section
   `guesses` or `not_checked`. The three labels are `<li class="plain"><strong>NAME:</strong>`.
   An item whose id is a claim on the page (a claim with no check, the claim of a formal
   statement) has the link `See claim C.` The status sentence of a claim card includes the
-  control sentences.
+  control sentences, and the row of a check with a control has `Control: run N failed before
+  the change. Log` with a link to `runs/N-K.log` (`data-control-run="N"`).
 - **A fix.** The page failed (`main: false`) for a claim with a sentence after its status (a
   burn or a flare before D73) and a disclosure about the claim or one of its questions: a
   variable of the claim card was shared with the lambda of the disclosures. It is written now.
