@@ -90,7 +90,7 @@ Receipts in status: state is sent, seen, applied or apply_failed. late_unseen is
 letter was sent 24 hours or more before the ledger clock and no session has seen it. delivery is
 sent (no session was given it), given (given; its turn has not ended yet), acted (the agent
 confirmed it in the turn that got it), not_acted (that turn ended, by a Stop, Ctrl+C, a crash or a
-compaction, with no confirmation) or dismissed (not_acted, and Ty acted on it). wake_ask lists each recipient that is live,
+compaction, with no confirmation), dismissed (not_acted, and Ty acted on it) or given_before (seen before the Desk kept track of turns). wake_ask lists each recipient that is live,
 idle and not given the letter: {"session", "pane"} (pane: the Desk knows its tmux pane, so a yes can
 wake it). Events: seen, woken, acted, not_acted (by the hook or wake), acked (by ack), applied,
 apply_failed, dismissed (by the page).
@@ -622,7 +622,7 @@ def ts_secs(ts):
         return None
 
 
-def delivery_of(ev):
+def delivery_of(ev, tracked=True):
     """desk-delivery c6: where a letter is, from its events (in file order): sent, given, acted,
     not_acted or dismissed. A letter that a turn did not act on stays not_acted until Ty dismisses it."""
     kinds = [e["event"] for e in ev]
@@ -630,7 +630,11 @@ def delivery_of(ev):
         return "dismissed" if "dismissed" in kinds else "not_acted"
     if "acted" in kinds:
         return "acted"
-    return "given" if "seen" in kinds else "sent"
+    if "seen" not in kinds:
+        return "sent"
+    # a seen letter that no session's given list holds and no turn settled was given before the Desk
+    # kept track of turns: it is not "given, its turn has not ended" for ever (review H-0184, finding 2)
+    return "given" if tracked else "given_before"
 
 
 def idle_pane(st):
@@ -643,6 +647,14 @@ def letter_views(c, store, letters, events, now):
     live = active_sessions(c)
     states = {}
     now_s = ts_secs(now)
+    given_now = set()  # the letters that some session was given and whose turn has not been settled
+    try:
+        for fn in os.listdir(os.path.join(store.dir, "sessions")):
+            if fn.endswith(".json"):
+                stx = store.session_state(fn[:-5])
+                given_now.update(x for x in ((stx or {}).get("given") or []) if isinstance(x, str))
+    except OSError:
+        pass
     by = {}
     for i, e in enumerate(events):
         by.setdefault(e["letter"], []).append((i, e))
@@ -680,7 +692,7 @@ def letter_views(c, store, letters, events, now):
         late = bool(not seen and at_s is not None and now_s is not None and now_s - at_s >= LATE_SECONDS)
         out.append(dict({"to": None, "about": None}, **x, owners=own, live_owners=lv, no_live_owner=not lv,
                         late_unseen=late, seen=seen, woken=woken, acted=acted, not_acted=not_acted,
-                        delivery=delivery_of([e for _, e in ev]), wake_ask=wake_ask,
+                        delivery=delivery_of([e for _, e in ev], x["id"] in given_now), wake_ask=wake_ask,
                         applied={"at": last_ok[1].get("at"), "detail": last_ok[1].get("detail")} if last_ok else None,
                         apply_failed={"at": last_bad[1].get("at"), "detail": last_bad[1].get("detail")} if last_bad else None,
                         item_closed=closed, state=state))

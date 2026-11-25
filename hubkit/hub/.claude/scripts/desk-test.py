@@ -1246,10 +1246,36 @@ def case_c7_ack(r, root):
     r.check("c7-each-letter-given-once", len(seen) == len(set(seen)), seen)
 
 
+def case_c7_old_letters(r, root):
+    """desk-delivery c7, review finding 2 (H-0184): a letter that has a seen event from before the Desk kept
+    track of turns (no session's given list holds it, no acted or not_acted event) is not shown as given
+    for ever: its delivery reads given_before. A letter given now is still given until its turn ends."""
+    h = make_hub(r, root)
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which fruit?",
+            "--waits-on", "me", session="build")
+
+    def deliv(lid):
+        return letter_of(status(h), lid).get("delivery")
+
+    hook(h, "build", "SessionStart", extra={"source": "startup"})
+    old = send(h, root, ask_item(a), "An old letter, seen before turns were tracked.", to="build")
+    # a seen event from the desk.py before this change: no given list holds it
+    sd = os.path.join(h, "flow", "desk")
+    with open(os.path.join(sd, "events.jsonl"), "a", encoding="utf-8") as f:
+        f.write(json.dumps({"at": "2026-11-20T10:00:00Z", "letter": old, "event": "seen", "session": "build", "detail": None}) + "\n")
+    r.check("c7-old-seen-reads-given-before", deliv(old) == "given_before", deliv(old))
+    new = send(h, root, ask_item(a), "A letter given now.", to="build")
+    code, out, err = hook(h, "build", "UserPromptSubmit")
+    r.check("c7-new-given-reads-given", deliv(new) == "given", deliv(new))
+    r.check("c7-old-letter-still-given-before", deliv(old) == "given_before", deliv(old))
+    stops(h, "build")
+    r.check("c7-new-after-stop-not-acted", deliv(new) == "not_acted", deliv(new))
+
+
 CASES = [case_send, case_send_order, case_events, case_ownership, case_status, case_drafts, case_hook,
          case_notice, case_render, case_late, case_kb_refs_outside, case_corrupt, case_wake, case_join,
          case_service, case_hooks_cmd, case_db_read_only, case_hooks_status, case_toast_mod, case_toast_read_only, case_c2_batch, case_c4_busy,
-         case_c6_settle, case_c7_ack]
+         case_c6_settle, case_c7_ack, case_c7_old_letters]
 
 
 def run_all(r, only):

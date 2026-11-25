@@ -2324,7 +2324,7 @@ t_QS79() {  # desk-delivery c6 (and h1): a letter given but not acted on (Ctrl+C
         python3 -I -c "
 import sys,re; p=open(sys.argv[1]).read(); lid=sys.argv[2]
 m=re.search(r'<li class=\"notacted\"[^>]*data-letter=\"'+lid+r'\"[^>]*>(.*?)</li>', p, re.S)
-sys.exit(0 if m and 'given, not acted on' in m.group(1).lower() and 'build' in m.group(1) else 1)" "$T/page.html" "$x" \
+sys.exit(0 if m and 'given, not acted on' in m.group(1).lower() and 'build' in m.group(1) and 'ended with no confirmation' in m.group(1) and 'before its end' not in m.group(1) else 1)" "$T/page.html" "$x" \
             || note "the Desk does not show $x as given, not acted on"
     done
     grep -q "class=\"notacted\"[^>]*data-letter=\"$L4\"" "$T/page.html" && note "the Desk shows L4 (a whole turn) as not acted on"

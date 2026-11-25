@@ -8442,7 +8442,7 @@ desk_notacted_li(Tok, Tab, HD, L, Html) :-
     ),
     esc(S, SH), esc(D, DH), desk_hub_suffix_all(HD, HS),
     desk_hidden([token-Tok, hub-HD.path, letter-L.id, tab-Tab], HH),
-    dk_f("<li class=\"notacted\" data-letter=\"~w\" data-session=\"~w\"><b>Given, not acted on:</b> your letter about ~w. ~w~w was given it, but that turn ended before its end (Ctrl+C, a crash or a compaction; seen on ~w: ~w). The Desk does not give it again. <form class=\"wakeform\" method=\"post\" action=\"/dismiss\">~w<button class=\"btn\" type=\"submit\">I have dealt with it</button></form> <span class=\"small quiet\">To give it again, send it again from its card.</span></li>",
+    dk_f("<li class=\"notacted\" data-letter=\"~w\" data-session=\"~w\"><b>Given, not acted on:</b> your letter about ~w. ~w~w was given it, but that turn ended with no confirmation of it (a Stop, Ctrl+C, a crash or a compaction; seen on ~w: ~w). The Desk does not give it again. <form class=\"wakeform\" method=\"post\" action=\"/dismiss\">~w<button class=\"btn\" type=\"submit\">I have dealt with it</button></form> <span class=\"small quiet\">To give it again, send it again from its card.</span></li>",
          [IdH, SH, AH, SH, HS, At, DH, HH], Html).
 
 desk_hub_suffix_all(HD, S) :- ( nb_current(desk_multi, true) -> esc(HD.name, NH), dk_f(" (~w)", [NH], S) ; S = "" ).
@@ -8467,6 +8467,7 @@ desk_delivery_words(L, W) :-
     (   get_dict(delivery, L, D) -> true ; D = "" ),
     (   D == "sent" -> W = "; not given yet"
     ;   D == "given" -> W = "; given, its turn has not ended yet"
+    ;   D == "given_before" -> W = "; given before the Desk kept track of turns"
     ;   D == "acted" -> W = "; given, acted on"
     ;   D == "not_acted" -> W = "; given, not acted on"
     ;   D == "dismissed" -> W = "; given, not acted on; you dealt with it"
