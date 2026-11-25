@@ -60,18 +60,21 @@ const PAGE_LIB = `
   const inDlg = e => !!e.closest('dialog');
   const folds = () => [...document.querySelectorAll('details')].filter(d => !inDlg(d));
   const pairOf = d => { const s = d.querySelector(':scope > summary'); const bs = s ? [...s.querySelectorAll('button')] : [];
-    return {open: bs.filter(b => /^\\s*Expand all\\s*$/.test(b.textContent)), close: bs.filter(b => /^\\s*Collapse all\\s*$/.test(b.textContent))}; };
+    const lab = b => (b.getAttribute('aria-label') || b.textContent || '').trim();
+    return {open: bs.filter(b => /^Expand all\\b/.test(lab(b))), close: bs.filter(b => /^Collapse all\\b/.test(lab(b)))}; };
+  const HOLD = 'details.lane, details.store, details.group, details.sheet.kbsec, details.layer';
   const nested = d => [...d.querySelectorAll('details')];
   const fid = d => d.getAttribute('data-fid') || '';
   const openIds = () => folds().filter(d => d.open).map(fid).sort();
 `;
 
+const SPEC = (() => { try { return outDir && fs.existsSync(outDir) && /\.json$/.test(outDir) ? JSON.parse(fs.readFileSync(outDir, 'utf8')) : null; } catch (e) { return null; } })();
 async function k13() {
   const pg = await open(1400, 900);
-  await pg.go(base + '/?mh=all');
+  await pg.go(base + (SPEC ? '/?mh=' + SPEC.tab + '&view=everything' : '/?mh=all'));
   const r = await pg.ev(PAGE_LIB + `
     const out = {};
-    const holders = [...document.querySelectorAll('details.lane, details.sheet.kbsec')];
+    const holders = [...document.querySelectorAll(HOLD)];
     out.n = holders.length;
     out.bad = [];
     out.withFold = 0;
@@ -93,7 +96,7 @@ async function k13() {
       tc.click(); await new Promise(r => setTimeout(r, 50)); out.topCloseAll = folds().every(d => !d.open);
     }
     // a lane that holds sheets with folds
-    const lanes = holders.filter(d => d.matches('details.lane') && nested(d).length >= 2 && pairOf(d).open.length === 1);
+    const lanes = holders.filter(d => d.matches('details.lane, details.store') && nested(d).length >= 2 && pairOf(d).open.length === 1);
     out.lanes = lanes.map(d => d.id);
     if (lanes.length < 1) return out;
     const A = lanes[0];
@@ -133,7 +136,69 @@ async function k13() {
   check('Collapse all of a lane closes every fold inside it', r.insideClosedAfter === 0, r.insideClosedAfter);
   check('a KB sheet pair works inside the sheet only and keeps the sheet open', r.sheetInside && r.sheetOutsideSame && r.sheetAfterCollapse === false && r.sheetOpenAfter, JSON.stringify([r.sheetInside, r.sheetOutsideSame, r.sheetAfterCollapse, r.sheetOpenAfter]));
   check('the top band pair still sets every fold', r.topPair && r.topOpenAll && r.topCloseAll, JSON.stringify([r.topPair, r.topOpenAll, r.topCloseAll]));
+  if (SPEC) await k13depth(pg);
   pg.close();
+}
+
+// k13 at each depth (c3 note of r8): a store, a group, a KB sheet and a layer each have their own pair; the
+// store and the group the full pair, the sheet and the layer a compact pair (two icon buttons with the same
+// aria-labels). At 400 px no pair covers or cuts the name beside it.
+async function k13depth(pg) {
+  const r = await pg.ev(PAGE_LIB + `
+    const out = {};
+    const depths = {store: 'details.store', group: 'details.group', sheet: 'details.sheet.kbsec', layer: 'details.layer'};
+    for (const [k, sel] of Object.entries(depths)) {
+      const hs = [...document.querySelectorAll(sel)].filter(d => nested(d).length > 0);
+      const o = out[k] = {n: hs.length, paired: hs.filter(d => pairOf(d).open.length === 1 && pairOf(d).close.length === 1).length};
+      const lab = b => (b.textContent || '').trim();
+      o.full = hs.filter(d => pairOf(d).open.length === 1 && lab(pairOf(d).open[0]) === 'Expand all' && lab(pairOf(d).close[0]) === 'Collapse all').length;
+      o.compact = hs.filter(d => pairOf(d).open.length === 1 && lab(pairOf(d).open[0]) === '' && pairOf(d).open[0].querySelector('svg') && pairOf(d).close[0].querySelector('svg')).length;
+      const H = hs[0];
+      if (!H) continue;
+      folds().forEach(d => { d.open = false; });
+      for (let e = H; e; e = e.parentElement) if (e.tagName === 'DETAILS') e.open = true;
+      await new Promise(r => setTimeout(r, 30));
+      const inside = nested(H), outside = folds().filter(d => d !== H && !H.contains(d)), ob = outside.map(d => d.open);
+      pairOf(H).open[0].click(); await new Promise(r => setTimeout(r, 30));
+      o.expand = inside.every(d => d.open) && outside.every((d, i) => d.open === ob[i]) && H.open;
+      pairOf(H).close[0].click(); await new Promise(r => setTimeout(r, 30));
+      o.collapse = inside.every(d => !d.open) && outside.every((d, i) => d.open === ob[i]) && H.open;
+    }
+    return out;`);
+  for (const k of ['store', 'group', 'sheet', 'layer']) {
+    const o = r[k] || {};
+    check('depth ' + k + ': each that holds a fold has one pair (' + (o.paired || 0) + ' of ' + (o.n || 0) + ')', o.n > 0 && o.paired === o.n, JSON.stringify(o));
+    const want = (k === 'store' || k === 'group') ? 'full' : 'compact';
+    check('depth ' + k + ': the pair is ' + (want === 'full' ? 'the full pair (Expand all, Collapse all)' : 'compact (two icon buttons with the aria-labels)'), o.n > 0 && o[want] === o.n, JSON.stringify(o));
+    check('depth ' + k + ': its pair opens and closes only the folds inside it, and leaves it open', !!(o.expand && o.collapse), JSON.stringify([o.expand, o.collapse]));
+  }
+  // 400 px: nothing crowds the names
+  const nar = await open(400, 900);
+  await nar.go(base + '/?mh=' + SPEC.tab + '&view=everything');
+  const c = await nar.ev(PAGE_LIB + `
+    document.querySelectorAll('details').forEach(d => { if (!inDlg(d)) d.open = true; });
+    await new Promise(r => setTimeout(r, 200));
+    const bad = [];
+    let n = 0;
+    for (const d of document.querySelectorAll(HOLD)) {
+      const p = pairOf(d); if (!p.open.length) continue;
+      const s = d.querySelector(':scope > summary');
+      const nm = s.querySelector('h2, h3, .sname, .gname, .lname, .title');
+      if (!nm) continue;
+      n++;
+      const a = nm.getBoundingClientRect();
+      for (const b of [p.open[0], p.close[0]]) {
+        const q = b.getBoundingClientRect();
+        const over = !(q.right <= a.left || q.left >= a.right || q.bottom <= a.top || q.top >= a.bottom);
+        if (over) bad.push((d.id || d.className) + ': a button covers the name');
+      }
+      if (nm.scrollWidth > nm.clientWidth + 1 && getComputedStyle(nm).overflow !== 'visible') bad.push((d.id || d.className) + ': the name is cut');
+      const ws = nm.style.whiteSpace; nm.style.whiteSpace = 'nowrap'; const nat = nm.scrollWidth; nm.style.whiteSpace = ws;
+      if (a.width < Math.min(nat, 120) - 1) bad.push((d.id || d.className) + ': the name has ' + Math.round(a.width) + ' of ' + nat + ' px');
+    }
+    return {n, bad, sw: document.documentElement.scrollWidth};`);
+  check('at 400 px no pair covers or squeezes a name (' + c.n + ' holders), and the page does not scroll sideways', c.n > 0 && c.bad.length === 0 && c.sw <= 402, JSON.stringify(c.bad.slice(0, 6)) + ' scrollWidth=' + c.sw);
+  nar.close();
 }
 
 async function k14() {
@@ -149,14 +214,14 @@ async function k14() {
   check('each fold has an id, and no two folds share one', first.n > 5 && first.empty === 0 && first.dup === 0, 'n=' + first.n + ' empty=' + first.empty + ' dup=' + first.dup);
   // change: close one that loads open, open two that load closed (inside an open lane), scroll
   const ch = await pg.ev(PAGE_LIB + `
-    const loadsOpen = folds().filter(d => d.open && d.matches('details.lane, details.sheet, details.kbsec'));
-    const lane = document.querySelector('details.lane[open]') || document.querySelector('details.lane');
+    const loadsOpen = folds().filter(d => d.open && d.matches('details.lane, details.store, details.group, details.sheet, details.kbsec'));
+    const lane = document.querySelector('details.lane[open], details.store[open]') || document.querySelector('details.lane, details.store');
     lane.open = true;
     const closed = folds().filter(d => !d.open && d !== lane && lane.contains(d));
     const pickClosed = closed.slice(0, 2);
     pickClosed.forEach(d => { d.open = true; });
     // also open another lane so that the page is tall
-    document.querySelectorAll('details.lane').forEach(d => { d.open = true; });
+    document.querySelectorAll('details.lane, details.store').forEach(d => { d.open = true; });
     const victim = loadsOpen.find(d => d !== lane && !d.contains(lane)) || null;
     if (victim) victim.open = false;
     await new Promise(r => setTimeout(r, 400));
@@ -176,7 +241,7 @@ async function k14() {
   const other = await pg.ev(PAGE_LIB + `return {open: openIds(), y: window.scrollY, tab: document.body.getAttribute('data-tab')};`);
   check('another tab starts from the state of the server, not from the state of the first tab', other.y <= 4 && (ch.opened.length === 0 || !ch.opened.every(i => other.open.includes(i))), JSON.stringify({tab: other.tab, y: other.y}));
   const ch2 = await pg.ev(PAGE_LIB + `
-    const c = folds().filter(d => d.open && d.matches('details.lane'));
+    const c = folds().filter(d => d.open && d.matches('details.lane, details.store'));
     const d = c[0]; if (d) d.open = false;
     await new Promise(r => setTimeout(r, 400));
     return {closed: d ? fid(d) : '', open: openIds()};`);
@@ -189,7 +254,7 @@ async function k14() {
   // #id of a card in a closed lane opens it
   await pg.go(A);
   const tgt = await pg.ev(PAGE_LIB + `
-    const lane = document.querySelector('details.lane#lane-kbs') || [...document.querySelectorAll('details.lane')].pop();
+    const lane = document.querySelector('details.lane#lane-kbs, details.store#store-spec') || [...document.querySelectorAll('details.lane, details.store')].pop();
     const inner = [...lane.querySelectorAll('[id]')].filter(e => e.tagName === 'DETAILS' && e !== lane)[0];
     if (!inner) return {id: ''};
     lane.open = false; inner.open = false;
@@ -199,7 +264,7 @@ async function k14() {
   if (tgt.id) {
     await pg.go(A + '#' + encodeURIComponent(tgt.id));
     const hit = await pg.ev(PAGE_LIB + `const t = document.getElementById(${JSON.stringify(tgt.id)}); const r = t.getBoundingClientRect();
-      return {open: t.open, laneOpen: t.closest('details.lane').open, top: Math.round(r.top), vis: r.height > 0};`);
+      return {open: t.open, laneOpen: t.closest('details.lane, details.store').open, top: Math.round(r.top), vis: r.height > 0};`);
     check('an address with #id of a card in a closed lane opens the card and its lane', hit.open && hit.laneOpen && hit.vis, JSON.stringify(hit));
   }
   // an entry for a fold that is gone is dropped
@@ -353,10 +418,206 @@ async function shots() {
   }
 }
 
+// ---- the Desk by store (r8, r9): k14 at each depth, k16, k20, shots2. SPEC: {tab, kbask, kbthr, closed, kb}
+const VIEW_NAMES = ['Waits on you', 'Questions', 'Answered', 'Everything'];
+const dups = xs => [...new Set(xs.filter((x, i) => xs.indexOf(x) !== i))];
+const STORE_LIB = PAGE_LIB + `
+  const itemOf = f => { const i = f.querySelector('input[name=item]'); return i ? i.value : ''; };
+  // a form is its item (and its kind of judgment: a KB has two judgment forms on one item)
+  const mainForms = () => [...document.querySelectorAll('main form')].map(f => itemOf(f) + (f.getAttribute('data-judge') ? '|' + f.getAttribute('data-judge') : '')).filter(f => f && f[0] !== '|');
+  const STRUCT = /^(lane|store|grp|layer|view|more)-/;
+  const mainIds = () => [...document.querySelectorAll('main [id]')].map(e => e.id).filter(i => !STRUCT.test(i));
+  const answeredRefs = () => [...document.querySelectorAll('main ul.answered li .ref')].map(e => e.textContent.trim());
+  const secName = d => { const s = d.querySelector(':scope > summary'); const h = s && s.querySelector('h2, .sname'); return (h || s || d).textContent.replace(/\\s+/g, ' ').trim(); };
+  const sections = () => [...document.querySelectorAll('main > details, main > section')].filter(d => !d.matches('.foottext'));
+  const views = () => [...document.querySelectorAll('nav.views a')].map(a => ({name: (a.querySelector('.vname') || a).textContent.replace(/\\d+/g, '').replace(/\\s+/g, ' ').trim(), on: a.getAttribute('aria-current') === 'page', href: a.getAttribute('href')}));
+  const dups = xs => [...new Set(xs.filter((x, i) => xs.indexOf(x) !== i))];
+`;
+
+async function k14depth() {
+  const pg = await open(1400, 700);
+  const T = SPEC.tab;
+  await pg.go(base + '/?mh=' + T);
+  await pg.ev(`try { localStorage.clear(); } catch (e) {} return 1;`);
+  await pg.go(base + '/?mh=' + T);
+  // pick the view Everything by its link
+  const href = await pg.ev(STORE_LIB + `const v = views().find(x => x.name === 'Everything'); return v ? v.href : '';`);
+  check('the row of views has the view Everything', !!href, href);
+  if (!href) { pg.close(); return; }
+  await pg.go(new URL(href, base + '/').href);
+  const ch = await pg.ev(STORE_LIB + `
+    const pick = sel => [...document.querySelectorAll(sel)].filter(d => !inDlg(d));
+    const res = {opened: [], closed: ''};
+    const open1 = sel => { const d = pick(sel).find(x => !x.open); if (!d) return; for (let e = d; e; e = e.parentElement) if (e.tagName === 'DETAILS') e.open = true; res.opened.push(fid(d)); };
+    open1('details.group'); open1('details.sheet.kbsec'); open1('details.layer'); open1('details.more');
+    const el = f => document.querySelector('[data-fid="' + f + '"]');
+    const lo = pick('details.store, details.group, details.layer').filter(d => d.open);
+    const victim = lo.find(d => !res.opened.some(f => d.contains(el(f)) || el(f).contains(d)));
+    if (victim) { victim.open = false; res.closed = fid(victim); }
+    await new Promise(r => setTimeout(r, 400));
+    window.scrollTo(0, Math.max(0, document.documentElement.scrollHeight - innerHeight - 40));
+    await new Promise(r => setTimeout(r, 600));
+    res.y = window.scrollY; res.open = openIds(); res.view = (views().find(v => v.on) || {}).name;
+    return res;`);
+  check('the setup opens a fold at each depth (group, KB sheet, layer, and a step of more rows) and closes one that loads open', ch.opened.length === 4 && ch.closed !== '' && ch.y > 50, JSON.stringify({opened: ch.opened, closed: ch.closed, y: ch.y}));
+  await pg.reload();
+  const af = await pg.ev(STORE_LIB + `return {open: openIds(), y: window.scrollY, view: (views().find(v => v.on) || {}).name};`);
+  const same = JSON.stringify(af.open) === JSON.stringify(ch.open);
+  check('after a reload the same folds are open, at each depth, the step of more rows too', same, same ? '' : 'missing ' + JSON.stringify(ch.open.filter(x => !af.open.includes(x))) + ' extra ' + JSON.stringify(af.open.filter(x => !ch.open.includes(x))));
+  check('after a reload the scroll place is within 4 px', Math.abs(af.y - ch.y) <= 4, ch.y + ' -> ' + af.y);
+  check('after a reload the view is still Everything', ch.view === 'Everything' && af.view === 'Everything', JSON.stringify([ch.view, af.view]));
+  // the view Waits on you keeps its own state
+  await pg.go(base + '/?mh=' + T);
+  const w = await pg.ev(STORE_LIB + `return {view: (views().find(v => v.on) || {}).name, y: window.scrollY};`);
+  check('the address with no view opens on Waits on you, with its own state', w.view === 'Waits on you' && w.y <= 4, JSON.stringify(w));
+  pg.close();
+}
+
+async function k16() {
+  const pg = await open(1400, 900);
+  const T = SPEC.tab;
+  await pg.go(base + '/?mh=' + T);
+  const r0 = await pg.ev(STORE_LIB + `
+    const secs = sections().map(secName);
+    const lanes = [...document.querySelectorAll('[id^="lane-"]')].map(e => e.id);
+    return {secs, lanes, views: views()};`);
+  check('the main sections are exactly the stores Ledger, Spec KBs, Project KB', JSON.stringify(r0.secs) === JSON.stringify(['Ledger', 'Spec KBs', 'Project KB']), JSON.stringify(r0.secs));
+  const LANES = ['Your action', 'Questions', 'Running on a guess', 'Orphaned', 'Answered', 'KBs', 'Ledger asks'];
+  check('no lane of 0.9.1 is a main section (and no element is a lane)', r0.lanes.length === 0 && !r0.secs.some(x => LANES.includes(x)), JSON.stringify(r0.lanes.slice(0, 8)));
+  check('the row of views is Waits on you, Questions, Answered, Everything', JSON.stringify(r0.views.map(v => v.name)) === JSON.stringify(VIEW_NAMES), JSON.stringify(r0.views.map(v => v.name)));
+  check('the page loads with the view Waits on you on', (r0.views.find(v => v.on) || {}).name === 'Waits on you', JSON.stringify(r0.views.filter(v => v.on)));
+  const kb = SPEC.kb;
+  const res = {};
+  for (const v of r0.views) {
+    await pg.go(new URL(v.href, base + '/').href);
+    res[v.name] = await pg.ev(STORE_LIB + `return {forms: mainForms(), ids: mainIds(), ans: answeredRefs(), on: (views().find(x => x.on) || {}).name,
+      orph: !!document.querySelector('main [id$="-orphans"]') };`);
+  }
+  const kind = f => f.replace(/:.*/, '');
+  const q = (f, kbn, qid) => kind(f) === 'q' && new RegExp('/' + kbn + '#' + qid + '$').test(f);
+  for (const [name, o] of Object.entries(res)) {
+    const fd = dups(o.forms.filter(f => !/^fix:/.test(f))), idd = dups(o.ids);
+    check('view ' + name + ': no item id is on the page twice', fd.length === 0 && idd.length === 0, JSON.stringify([fd, idd]));
+    check('view ' + name + ': its link turns it on', o.on === name, o.on);
+  }
+  const W = res['Waits on you'], Q = res['Questions'], A = res['Answered'], E = res['Everything'];
+  if (W) {
+    const bad = W.forms.filter(f => !['ask', 'q', 'act', 'fix', 'proj'].includes(kind(f)) || (kind(f) === 'q' && !q(f, kb, 'q1')) || (kind(f) === 'proj' && !/^proj:proposed:/.test(f)));
+    check('view Waits on you: the asks for Ty (the one with the KB ref too), the open question, the KB actions, the proposed fact to ratify', W.forms.includes('ask:' + SPEC.kbask) && W.forms.some(f => q(f, kb, 'q1')) && W.forms.some(f => /#vote$/.test(f)) && W.forms.some(f => /#flare:c2$/.test(f)) && W.forms.some(f => /^proj:proposed:/.test(f)), JSON.stringify(W.forms.map(kind)));
+    check('view Waits on you: nothing of another kind (no thread, no question with a default, no draft or pin, no adopt or judge, no answered list, no Orphaned)', bad.length === 0 && W.ans.length === 0 && !W.orph, JSON.stringify(bad));
+  }
+  if (Q) {
+    const qs = Q.forms.filter(f => kind(f) === 'q');
+    check('view Questions: the questions of both types', q2has(qs, kb), JSON.stringify(qs.map(f => f.replace(/^.*\//, ''))));
+    check('view Questions: nothing of another kind', Q.forms.every(f => kind(f) === 'q') && Q.ans.length === 0, JSON.stringify(Q.forms.filter(f => kind(f) !== 'q').map(kind)));
+  }
+  function q2has(qs, k) { return ['q1', 'q2'].every(x => qs.some(f => q(f, k, x))) && qs.some(f => q(f, 's-one-b', 'q1')) && qs.length === 3; }
+  if (A) check('view Answered: the answered ask, and no form of another kind', A.ans.includes(SPEC.closed) && A.forms.filter(f => ['ask', 'q', 'act', 'led', 'proj', 'adopt', 'judge'].includes(kind(f))).length === 0, JSON.stringify([A.ans, A.forms.map(kind)]));
+  if (E) {
+    const need = ['ask:' + SPEC.kbask, 'led:' + SPEC.kbthr];
+    check('view Everything: every kind (asks, the thread, questions, KB actions, adopt, judge, the project fact, answered)',
+      need.every(x => E.forms.includes(x)) && ['q', 'act', 'adopt', 'judge', 'proj'].every(k => E.forms.some(f => kind(f) === k)) && E.ans.includes(SPEC.closed), JSON.stringify([...new Set(E.forms.map(kind))]));
+  }
+  pg.close();
+}
+
+async function k20() {
+  const pg = await open(1400, 900);
+  const T = SPEC.tab, kb = SPEC.kb;
+  const look = async view => {
+    await pg.go(base + '/?mh=' + T + '&view=' + view);
+    return pg.ev(STORE_LIB + `
+      const sh = [...document.querySelectorAll('details.sheet.kbsec')].find(d => { const t = d.querySelector(':scope > summary h3.title'); return t && t.textContent.trim() === ${JSON.stringify(kb)}; });
+      if (!sh) return {sheet: false};
+      const layers = [...sh.querySelectorAll('details.layer')].filter(l => l.parentElement.closest('details.sheet.kbsec') === sh);
+      const lname = l => { const s = l.querySelector(':scope > summary'); const n = s.querySelector('.lname') || s; return n.textContent.replace(/\\d+/g, '').replace(/\\s+/g, ' ').trim(); };
+      const ql = layers.filter(l => lname(l) === 'Questions');
+      const o = {sheet: true, layers: layers.map(lname), nq: ql.length};
+      if (ql.length === 1) {
+        const gs = [...ql[0].querySelectorAll('.qgroup')];
+        o.groups = gs.map(g => (g.querySelector('h4, .gname') || g).textContent.replace(/\\d+/g, '').replace(/\\s+/g, ' ').trim());
+        o.forms = gs.map(g => [...g.querySelectorAll('form')].map(itemOf).map(f => f.replace(/^.*#/, '')));
+      }
+      const texts = [...document.querySelectorAll('summary h2, summary h3, summary .sname, summary .gname, summary .lname, .qgroup h4, nav.views a, nav.lanes a, aside.rails .name')].map(e => e.textContent.replace(/\\s+/g, ' ').trim());
+      o.guessNamed = texts.filter(t => /Running on a guess|Runs on a guess/i.test(t));
+      o.views = views().map(v => v.name);
+      return o;`);
+  };
+  const e = await look('everything');
+  check('the sheet of ' + kb + ' has one layer Questions', e.sheet && e.nq === 1, JSON.stringify(e.layers));
+  check('the layer Questions has exactly two groups: Open questions, Has a default', JSON.stringify(e.groups) === JSON.stringify(['Open questions', 'Has a default']), JSON.stringify(e.groups));
+  check('q1 (no default) is in Open questions and q2 (a default) in Has a default, each with its form', !!e.forms && JSON.stringify(e.forms) === JSON.stringify([['q1'], ['q2']]), JSON.stringify(e.forms));
+  check('the row of views has Questions and no Runs on a guess', e.views.includes('Questions') && !e.views.some(v => /guess/i.test(v)), JSON.stringify(e.views));
+  check('Running on a guess is the name of no section, layer, group or view', e.guessNamed.length === 0, JSON.stringify(e.guessNamed));
+  const qv = await look('questions');
+  check('in the view Questions the sheet shows both groups with their questions', JSON.stringify(qv.groups) === JSON.stringify(['Open questions', 'Has a default']) && JSON.stringify(qv.forms) === JSON.stringify([['q1'], ['q2']]), JSON.stringify([qv.groups, qv.forms]));
+  pg.close();
+}
+
+// shots2: the images of r8 (OUT_DIR as SPEC.out): the view Waits on you, the view Everything, one open KB sheet
+// with its layers, and the rail at 400 px; at 1600 and 400 px.
+async function shots2(dir) {
+  fs.mkdirSync(dir, {recursive: true});
+  const T = process.env.SHOT_TAB || 'alpha', kb = process.env.SHOT_KB || 's-one-a';
+  for (const [w, h] of [[1600, 1100], [400, 900]]) {
+    const pg = await open(w, h);
+    await pg.go(base + '/?mh=' + T);
+    await pg.ev(`try { localStorage.clear(); } catch (e) {} return 1;`);
+    await pg.go(base + '/?mh=' + T);
+    await pg.shot(path.join(dir, 'waits-' + w + '.png'));
+    await pg.go(base + '/?mh=' + T + '&view=everything');
+    await pg.shot(path.join(dir, 'everything-' + w + '.png'));
+    await pg.ev(`
+      const sh = [...document.querySelectorAll('details.sheet.kbsec')].find(d => { const t = d.querySelector(':scope > summary h3.title'); return t && t.textContent.trim() === ${JSON.stringify(kb)}; });
+      if (!sh) return 0;
+      for (let e = sh; e; e = e.parentElement) if (e.tagName === 'DETAILS') e.open = true;
+      sh.querySelectorAll('details.layer').forEach(l => { l.open = false; });
+      const q = sh.querySelector('details.layer'); if (q) q.open = true;
+      await new Promise(r => setTimeout(r, 200));
+      sh.scrollIntoView({block: 'start'}); window.scrollBy(0, -(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--band')) || 90));
+      return 1;`);
+    await sleep(300);
+    await pg.shot(path.join(dir, 'kb-sheet-' + w + '.png'));
+    if (w === 400) {
+      await pg.go(base + '/?mh=' + T);
+      await pg.ev(`const r = document.querySelector('aside.rails'); if (r) { r.querySelectorAll('details').forEach(d => { if (!d.closest('[aria-label=Sessions]')) d.open = true; }); r.scrollIntoView({block: 'start'}); window.scrollBy(0, -(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--band')) || 90)); } return 1;`);
+      await sleep(300);
+      await pg.shot(path.join(dir, 'rail-400.png'));
+    }
+    pg.close();
+  }
+}
+
+// shotclosed: one image of a tab with every fold closed: only the names of the sections and the counts
+// (for a mindhole whose text is private). OUT_DIR is the file; SHOT_TAB the tab.
+async function shotclosed(file) {
+  const pg = await open(1600, 1000);
+  const T = process.env.SHOT_TAB || '';
+  await pg.go(base + '/?mh=' + encodeURIComponent(T) + '&view=everything');
+  const r = await pg.ev(`
+    try { localStorage.clear(); } catch (e) {}
+    document.querySelectorAll('details').forEach(d => { d.open = false; });
+    // only the names of the sections, the generic group names of the Ledger, and counts
+    const L = document.querySelector('#store-ledger'); if (L) L.open = true;
+    if (L) L.querySelectorAll(':scope > .storebody > :not(details.group)').forEach(e => { e.style.display = 'none'; });
+    document.querySelectorAll('aside.rails nav[aria-label=Sessions], .banner, .foottext, .hint').forEach(e => { e.style.display = 'none'; });
+    window.scrollTo(0, 0);
+    await new Promise(r => setTimeout(r, 300));
+    const txt = [...document.querySelectorAll('body *')].filter(e => e.checkVisibility({visibilityProperty: true, contentVisibilityAuto: true}) && e.children.length === 0 && e.getBoundingClientRect().top < innerHeight && e.getBoundingClientRect().bottom > 0).map(e => e.textContent.trim()).filter(Boolean);
+    return {txt};`);
+  await pg.shot(file);
+  process.stdout.write(JSON.stringify({checks: [], visible: r.txt}) + '\n');
+  pg.close();
+}
+
 (async () => {
   if (scenario === 'shots') await shots();
   else if (scenario === 'k13') await k13();
-  else if (scenario === 'k14') await k14();
+  else if (scenario === 'k14') { if (SPEC) await k14depth(); else await k14(); }
+  else if (scenario === 'k16') await k16();
+  else if (scenario === 'k20') await k20();
+  else if (scenario === 'shots2') { await shots2(outDir); process.exit(0); }
+  else if (scenario === 'shotclosed') { await shotclosed(outDir); process.exit(0); }
   else if (scenario === 'k15a') await k15a();
   else if (scenario === 'k15b') await k15b();
   else die('no scenario ' + scenario);

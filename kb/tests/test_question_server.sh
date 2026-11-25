@@ -323,6 +323,20 @@ def main():
         sys.exit(1)
     # ---- the Desk, round 2 (serve desk): cards are elements whose id is item-<mindhole>-<item>
     elif mode in ("dlane","dcard","dhead","dbadge","dform","dkey","dkb","dorph","dopen","dtoken","dforms","dsrc","ddue","dload"):
+        # 0.9.2 (spec KB desk-speed-orbit-door c13 to c17): the lanes of 0.9.1 are no sections now. Each lane
+        # of these checks reads the place where its items are: ledger the section Ledger and the layer
+        # Ledger items of each KB sheet; questions and guesses the two groups of the layer Questions (c17);
+        # action the layers where the KB actions are; kbs the section Spec KBs; orphans, answered the
+        # groups of the Ledger; project the section Project KB. A page of 0.9.1 still reads its lanes.
+        def lane_nodes(n):
+            ls=[x for x in p.all if x.attrs.get("id")=="lane-"+n]
+            if ls: return ls
+            if n=="questions": return [x for x in p.all if "qgroup" in x.classes() and x.attrs.get("data-group")=="open"]
+            if n=="guesses": return [x for x in p.all if "qgroup" in x.classes() and x.attrs.get("data-group")=="default"]
+            if n=="action": return [x for x in p.all if x.tag=="details" and "layer" in x.classes() and x.attrs.get("id","").endswith(("-goal","-claims"))]
+            if n=="ledger": return [x for x in p.all if x.attrs.get("id")=="store-ledger" or (x.tag=="details" and "layer" in x.classes() and x.attrs.get("id","").endswith("-ledger"))]
+            m={"kbs":"store-spec","orphans":"grp-ledger-orphans","project":"store-project","answered":"grp-ledger-answered"}
+            return [x for x in p.all if x.attrs.get("id")==m.get(n)]
         def card(suf):
             cs=[x for x in p.all if x.attrs.get("id","").startswith("item-") and x.attrs.get("id","").endswith("-"+suf)]
             if len(cs)!=1: bad.append("want one card ending -%s, found %d (%s)" % (suf, len(cs), [x.attrs.get("id") for x in p.all if x.attrs.get("id","").startswith("item-")][:20]))
@@ -341,10 +355,10 @@ def main():
                 if n.tag=="body": print(n.attrs.get("data-token","")); sys.exit(0)
             sys.exit(1)
         elif mode=="dlane":      # dlane FILE LANE ITEM...: lane-LANE holds a card ending -ITEM; !ITEM: none; none: no card at all
-            ls=[x for x in p.all if x.attrs.get("id")=="lane-"+a[0]]
-            if len(ls)!=1: bad.append("want one lane %s, found %d" % (a[0], len(ls)))
+            ls=lane_nodes(a[0])
+            if not ls: bad.append("want one lane %s, found %d" % (a[0], len(ls)))
             else:
-                ids=[x.attrs.get("id","") for x in ls[0].walk() if x.attrs.get("id","").startswith("item-")]
+                ids=[x.attrs.get("id","") for l in ls for x in l.walk() if x.attrs.get("id","").startswith("item-")]
                 for t in a[1:]:
                     if t=="none":
                         if ids: bad.append("lane %s holds %s" % (a[0], ids))
@@ -363,12 +377,20 @@ def main():
             oc=[x for x in p.all if x.tag=="details" and "open" in x.attrs and x.attrs.get("id","").startswith("item-")]
             if len(oc)!=1 or not oc[0].attrs["id"].endswith("-"+a[1]): bad.append("open cards on load: %s, want one ending -%s" % ([x.attrs.get("id") for x in oc], a[1]))
             ol=[x.attrs.get("id") for x in p.all if x.tag=="details" and "open" in x.attrs and "lane" in x.classes()]
-            if ol!=["lane-"+a[0]]: bad.append("open lanes on load: %s, want [lane-%s]" % (ol, a[0]))
+            if any("lane" in x.classes() for x in p.all):
+                if ol!=["lane-"+a[0]]: bad.append("open lanes on load: %s, want [lane-%s]" % (ol, a[0]))
+            elif len(oc)==1 and not any(oc[0] in list(l.walk()) for l in lane_nodes(a[0])): bad.append("the open card is not in the place of the lane %s" % a[0])
             ok=[x for x in p.all if x.tag=="details" and "open" in x.attrs and "kbsec" in x.classes()]
             if ok: bad.append("a KB section is open on load")
         elif mode=="dopen":      # dopen FILE ID open|closed: the details element with id ID
             ds=[x for x in p.all if x.attrs.get("id")==a[0]]
-            if len(ds)!=1 or ds[0].tag!="details": bad.append("want one details #%s, found %s" % (a[0], [x.tag for x in ds]))
+            if not ds and a[0]=="lane-kbs":       # 0.9.2: no lane KBs; each KB sheet loads closed
+                ks=[x for x in p.all if x.tag=="details" and "kbsec" in x.classes()]
+                if any(("open" in x.attrs) != (a[1]=="open") for x in ks): bad.append("a KB sheet is not %s on load" % a[1])
+                ds=None
+            elif not ds and a[0].startswith("lane-"): ds=lane_nodes(a[0][5:])
+            if ds is None: pass
+            elif len(ds)!=1 or ds[0].tag!="details": bad.append("want one details #%s, found %s" % (a[0], [x.tag for x in ds]))
             elif ("open" in ds[0].attrs) != (a[1]=="open"): bad.append("#%s is not %s on load" % (a[0], a[1]))
         elif mode=="dcard":      # dcard FILE ITEM T...: the card has each text T (!T: lacks it)
             c=card(a[0])
@@ -427,7 +449,7 @@ def main():
             if len(ks)!=1: bad.append("want one KB section %r, found %d" % (a[0], len(ks)))
             else: has(ks[0], a[1:], "KB section "+a[0])
         elif mode=="dorph":      # dorph FILE WHAT T...: the Orphaned row whose first cell starts with WHAT has each text T
-            ls=[x for x in p.all if x.attrs.get("id")=="lane-orphans"]
+            ls=lane_nodes("orphans")
             rows=[r for r in (ls[0].walk() if ls else []) if r.tag=="tr" and [k for k in r.kids if k.tag=="td"] and a[0] in [k for k in r.kids if k.tag=="td"][0].otext()]
             if len(rows)!=1: bad.append("want one Orphaned row %r, found %d" % (a[0], len(rows)))
             else:
@@ -487,7 +509,7 @@ post() {  # post PATH FIELD=VALUE...: a form POST (urlencoded); sets CODE, the b
     CODE=$(curl -s -o "$T/post.html" -w '%{http_code}' --max-time 30 "${a[@]}" "$URL$p" 2>/dev/null)
 }
 code_is() { [ "$CODE" = "$1" ] && return 0; note "${2:+$2: }HTTP $CODE, want $1"; return 1; }
-page_ok() { get / ; code_is 200 "GET /" || return 1; }
+page_ok() { get /?view=everything ; code_is 200 "GET /" || return 1; }   # 0.9.2 (c13): every item is in the view Everything
 token() { pg token "$T/page.html"; }
 same_file() { cmp -s "$1" "$2" || note "$3 changed"; }
 
@@ -1470,7 +1492,8 @@ t_QS46() {  # Desk c14 (q7): who holds what; each question's KB; spec KB -> proj
     A=$(hf "$T/h" --session build add ask --no-kb --title 'Which port should the Desk use' --note 'The case, the options and the default, for the test.' --waits-on me)
     hf "$T/h" --session build add ask --title 'An old ask' --note 'The case, the options and the default, for the test.' --waits-on me --no-kb >/dev/null
     srvd --hub "$T/h" || return; page_ok || return
-    chk raw "$T/page.html" 'Writes <b>exp</b>' 'Spec KBs, not linked' 'Spec KBs, linked to the project KB'
+    # 0.9.2 (c14 of desk-speed-orbit-door): the rail lists the stores and the repo groups; each KB sheet says whether it is linked
+    chk raw "$T/page.html" 'Writes <b>exp</b>' 'aria-label="Stores"' 'Linked to no project KB.' 'Linked to the project KB project-kb.'
     chk dsrc "$T/page.html" qa 'Question qa in the KB exp'
     chk dorph "$T/page.html" 'spec KBs' 'exp' 'Linked to no project KB'
     chk dorph "$T/page.html" 'old handoffs' "$H1" 'only you can close them'
@@ -1798,9 +1821,9 @@ t_QS62() {  # Desk c28 (Ty, 2026-11-18: "use tabs for each mindhole instead of a
     tok=$(pg dtoken "$T/page.html")
     get '/?mh=all'; code_is 200 "GET the All tab" || return
     grep -q 'First hub question' "$T/page.html" && grep -q 'Second hub question' "$T/page.html" || note "the All tab does not show both mindholes"
-    # one count: the rail group of a mindhole on All says what its tab says (review H-0051)
-    n=$(python3 -I -c "import re,sys; p=open(sys.argv[1],encoding='utf-8').read(); m=re.search(r'<summary title=\"[^\"]*/h2\"><span class=\"name\">[^<]*</span><span class=\"num[^\"]*\">(\d+)</span>', p); print(m.group(1) if m else 'none')" "$T/page.html")
-    [ "$n" = 3 ] || note "the rail group of h2 on All says $n, its tab says 3"
+    # one count (review H-0051; 0.9.2, review note 1 of r8: the rail lists the stores): the numbers of the stores in the rail add up to what the tab All says
+    n=$(python3 -I -c "import re,sys; p=open(sys.argv[1],encoding='utf-8').read(); m=re.search(r'<nav class=\"rail\" aria-label=\"Stores\">(.*?)</nav>', p, re.S); r=m.group(1) if m else ''; ns=[int(x) for x in re.findall(r'<span class=\"name\">(?:Ledger|Spec KBs|Project KB)</span>(?:<span class=\"sub[^<]*</span>)?<span class=\"num[^\"]*\">(\d+)</span>', r)]; print(sum(ns) if len(ns)==3 else 'none')" "$T/page.html")
+    [ "$n" = 4 ] || note "the stores of the rail on All add up to $n, the tab All says 4"
     local g; g=$(grep -o '<details class="sessgroup">' "$T/page.html" | wc -l); [ "$g" = 2 ] || note "All has $g session groups, want 2 (c23)"
     get '/?mh=nowhere'; code_is 200 "GET an unknown tab" || return
     grep -q 'No mindhole is named nowhere' "$T/page.html" || note "an unknown tab does not say so"
@@ -1867,7 +1890,7 @@ for (const a of links){ const id=decodeURIComponent(a.getAttribute('href').slice
 }
 return out;
 JS
-    browse "$URL/" "$T/click.js" || return
+    browse "$URL/?view=everything" "$T/click.js" || return
     brj "d['n']>=8" "the links that were clicked"; brj "d['bad']==[]" "after a click"
     local A; A=$(grep -o "id=\"[^\"]*led-$NH\"" "$T/page.html" | head -1 | sed 's/id="//;s/"$//')
     [ -n "$A" ] || { note "no card for $NH"; return; }
@@ -1879,7 +1902,7 @@ const band=document.querySelector('header.top').getBoundingClientRect().bottom, 
 if(top<band-1||top>window.innerHeight-20) bad.push('top '+Math.round(top)+', band '+Math.round(band));
 return {bad};
 JS
-    browse "$URL/#$A" "$T/hash.js" || return
+    browse "$URL/?view=everything#$A" "$T/hash.js" || return
     brj "d['bad']==[]" "an anchor at load"
 }
 t_QS65() {  # Desk c31: Expand all opens every fold of the page; Collapse all closes every fold
@@ -1892,7 +1915,7 @@ ex.click(); await sleep(100); const shut=all().filter(d=>!d.open).length;
 co.click(); await sleep(100); const open=all().filter(d=>d.open).length;
 return {buttons:true, n:all().length, shut, open};
 JS
-    browse "$URL/" "$T/folds.js" || return
+    browse "$URL/?view=everything" "$T/folds.js" || return
     brj "d['buttons']" "the two buttons"; brj "d.get('n',0)>=10 and d.get('shut')==0" "Expand all"; brj "d.get('open')==0" "Collapse all"
 }
 t_QS66() {  # Desk c32: ledger items have their own lane with the ledger's actions; Close and Park write the ledger as Ty
@@ -1971,25 +1994,27 @@ for (const e of document.querySelectorAll('main *')) { const s=getComputedStyle(
 const li=document.querySelector('li.answered'); const lh=li?parseFloat(getComputedStyle(li).lineHeight):0, fs=li?parseFloat(getComputedStyle(li).fontSize):0;
 return {bad:bad.slice(0,5), li:!!li, lh, fs};
 JS
-    browse "$URL/" "$T/css.js" || return
+    browse "$URL/?view=everything" "$T/css.js" || return
     brj "d['li']" "an answered item"; brj "d['bad']==[]" "inline boxes"; brj "d['lh']==0 or d['lh']>=1.3*d['fs']" "the line height of the answered list"
 }
 
-t_QS69() {  # Desk c35 (Ty, 2026-11-18: "Both: Your action too"): Your action links to the Ledger card of each reserved ask; one card per ask
+t_QS69() {  # Desk c35 (Ty, 2026-11-18: "Both: Your action too"); 0.9.2 (c13 of desk-speed-orbit-door: Your action is a group of the Ledger, its items keep their mark and policy line and come first in Waits on you): one card per ask
     desk_hub "$T/h"; local A B C
     A=$(hf "$T/h" --session process add ask --no-kb --title 'Waive the c3 proof' --note 'Case: the c3 proof. Options: waive or prove. Default: none.' --waits-on me --reserved 'Sagittarius Policy: Only the human may waive a proof.')
     B=$(hf "$T/h" --session build add ask --no-kb --title 'Push the hub' --note 'Case: push. Options: now or later. Default: later.' --waits-on me --reserved 'Ty, 2026-11-12: push only when I say so')
     C=$(hf "$T/h" --session build add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
-    srvd --hub "$T/h" || return; page_ok || return
+    srvd --hub "$T/h" || return; get / ; code_is 200 "GET / (Waits on you)" || return
     cat > "$T/act.py" <<'PY'
 import re,sys
 p=open(sys.argv[1],encoding='utf-8').read(); a,b,c=sys.argv[2:5]; bad=[]
-m=re.search(r'<details class="lane" id="lane-action"[^>]*>(.*?)</details>\s*<details class="lane" id="lane-',p,re.S)
-lane=m.group(1) if m else ''
-if not m: bad.append('no Your action lane')
+g0=p.find('<details class="group" id="grp-ledger-asks"')
+if g0<0: bad.append('no group Asks for you in the Ledger')
+pos={x:p.find('id="item-h-ask-'+x+'"') for x in (a,b,c)}
+if not (g0<pos[a]<pos[c] and g0<pos[b]<pos[c]): bad.append('the reserved asks do not come first: %r' % pos)
 for x in (a,b):
-    if not re.search(r'<a\b[^>]*href="#item-h-ask-'+re.escape(x)+r'"',lane): bad.append('Your action has no link to the card of '+x)
-if 'ask-'+c in lane: bad.append('Your action names the plain ask '+c)
+    m=re.search(r'<details[^>]*class="sheet reserved"[^>]*id="item-h-ask-'+re.escape(x)+r'"',p) or re.search(r'<details class="sheet reserved" id="item-h-ask-'+re.escape(x)+r'"',p)
+    if not m: bad.append('the card of %s has no mark (sheet reserved)' % x)
+if 'Sagittarius Policy:' not in p or 'Ty, 25 Nov' in p and False: bad.append('no policy line')
 for x in (a,b,c):
     n=len(re.findall(r'<details[^>]*\bid="item-h-ask-'+re.escape(x)+r'"',p))
     if n!=1: bad.append('%d cards for %s'%(n,x))
@@ -1997,7 +2022,7 @@ print(bad); sys.exit(1 if bad else 0)
 PY
     local r; r=$(python3 -I "$T/act.py" "$T/page.html" "$A" "$B" "$C") || note "Your action: $r"
     chk dlane "$T/page.html" ledger "ask-$A" "ask-$B" "ask-$C"
-    grep -q 'Your action<b>2</b>' "$T/page.html" || note "the lane link of Your action does not count its 2 reserved asks"
+    grep -q 'Ledger<b>3</b>' "$T/page.html" || note "the store link Ledger does not count the 3 asks (2 reserved)"
     grep -q '<strong>4 things wait on you,' "$T/page.html" || note "the header counts a reserved ask twice, or misses one (want 4: three asks and the KB question qb)"
 }
 
@@ -2012,8 +2037,8 @@ t_QS70() {  # Desk c36 (Ty, 2026-11-18: "Parked groups ... Order the parked item
     cat > "$T/park.py" <<'PY'
 import re,sys
 p=open(sys.argv[1],encoding='utf-8').read(); a,h,c=sys.argv[2:5]; bad=[]
-l0=p.find('<details class="lane" id="lane-ledger"'); l1=p.find('<details class="lane" id="lane-questions"')
-g=re.search(r'<details class="parked"[^>]*>',p)
+l0=p.find('<details class="store" id="store-ledger"'); l1=p.find('<details class="store" id="store-spec"'); l1=l1 if l1>=0 else len(p)
+g=re.search(r'<details class="[^"]*" id="grp-ledger-parked"[^>]*>',p)
 if l0<0 or l1<0: bad.append('no Ledger lane')
 if not g: bad.append('no Parked group')
 else:
@@ -2046,15 +2071,14 @@ t_QS71() {  # Desk c37: a parked item counts nowhere and is not in Your action; 
     page_ok || return
     grep -q '<strong>3 things wait on you,' "$T/page.html" || note "parked: the header still counts the parked ask (want 3)"
     grep -q 'The first is due on 21 Nov' "$T/page.html" && note "parked: the header still gives the due date of the parked ask"
-    grep -q 'Your action<b>0</b>' "$T/page.html" || note "parked: the Your action lane link still counts it"
+    python3 -I -c "import sys;p=open(sys.argv[1]).read();g=p.find('id=\"grp-ledger-parked\"');a=p.find('id=\"item-h-ask-'+sys.argv[2]+'\"');sys.exit(0 if 0<=g<a else 1)" "$T/page.html" "$A" || note "parked: the reserved ask is not in the Parked group"
     grep -q 'Ledger<b>2</b>' "$T/page.html" || note "parked: the Ledger lane link still counts it (want 2)"
-    grep -q "class=\"actlink\" href=\"#item-h-ask-$A\"" "$T/page.html" && note "parked: Your action still lists it"
-    python3 -I -c "import re,sys;p=open(sys.argv[1]).read();m=re.search(r'Asks for you</span><span class=\"num[^\"]*\">(\d+)',p);sys.exit(0 if (m and m.group(1)=='2') else 1)" "$T/page.html" || note "parked: the rail still counts it"
+    python3 -I -c "import re,sys;p=open(sys.argv[1]).read();m=re.search(r'<span class=\"name\">Ledger</span><span class=\"num[^\"]*\">(\d+)',p);sys.exit(0 if (m and m.group(1)=='2') else 1)" "$T/page.html" || note "parked: the rail still counts it"
     HUBFLOW_NOW=2026-11-22T00:00:01Z hf "$T/h" --session build note "$B" 'a later write moves the clock' >/dev/null
     page_ok || return
     grep -q '<strong>4 things wait on you,' "$T/page.html" || note "after the park: the header does not count it again (want 4)"
-    grep -q "class=\"actlink\" href=\"#item-h-ask-$A\"" "$T/page.html" || note "after the park: Your action does not list it again"
-    grep -q '<details class="parked"' "$T/page.html" && note "after the park: a Parked group is still on the page"
+    python3 -I -c "import sys;p=open(sys.argv[1]).read();g=p.find('id=\"grp-ledger-asks\"');a=p.find('class=\"sheet reserved\" id=\"item-h-ask-'+sys.argv[2]+'\"');sys.exit(0 if 0<=g<a else 1)" "$T/page.html" "$A" || note "after the park: the reserved ask is not back in Asks for you with its mark"
+    grep -q 'id="grp-ledger-parked"' "$T/page.html" && note "after the park: a Parked group is still on the page"
 }
 
 t_QS72() {  # Desk c36, c37 (review H-0063): the park comes from the ledger, also when the mindhole's desk.py is older and gives no parked field
@@ -2065,7 +2089,7 @@ t_QS72() {  # Desk c36, c37 (review H-0063): the park comes from the ledger, als
     C=$(hf "$T/h" --session build add ask --no-kb --title 'Which port' --note 'Case: the port. Options: 8737 or 8800. Default: 8800.' --waits-on me)
     HUBFLOW_NOW=2026-11-20T00:00:00Z hf "$T/h" --session human --by human park "$H" --until 2026-12-01 --note 'Ty parks it on the Desk' >/dev/null || note "setup: park failed"
     srvd --hub "$T/h" || return; page_ok || return
-    python3 -I -c "import sys;p=open(sys.argv[1]).read();g=p.find('<details class=\"parked\"');h=p.find('id=\"item-h-led-'+sys.argv[2]+'\"');sys.exit(0 if 0<=g<h else 1)" "$T/page.html" "$H" || note "the parked handoff is not in the Parked group"
+    python3 -I -c "import sys;p=open(sys.argv[1]).read();g=p.find('id=\"grp-ledger-parked\"');h=p.find('id=\"item-h-led-'+sys.argv[2]+'\"');sys.exit(0 if 0<=g<h else 1)" "$T/page.html" "$H" || note "the parked handoff is not in the Parked group"
     grep -q 'Ledger<b>1</b>' "$T/page.html" || note "the Ledger lane link counts the parked handoff (want 1)"
     grep -q '1 open items. 1 parked.' "$T/page.html" || note "the rail row of build counts the parked handoff as open: $(grep -o '[0-9]* open items\.[^<]*' "$T/page.html" | head -1)"
 }
@@ -2078,7 +2102,7 @@ t_QS73() {  # Desk c41 (Ty, 2026-11-18: "Park end, then due"): parks that end th
     for x in "$A" "$B" "$C"; do HUBFLOW_NOW=2026-11-20T00:00:00Z hf "$T/h" --session build park "$x" --until 2026-12-01 >/dev/null || note "setup: park $x failed"; done
     srvd --hub "$T/h" || return; page_ok || return
     python3 -I -c "
-import sys;p=open(sys.argv[1]).read();g=p.find('<details class=\"parked\"')
+import sys;p=open(sys.argv[1]).read();g=p.find('id=\"grp-ledger-parked\"')
 pos=[p.find('id=\"item-h-ask-'+x+'\"') for x in sys.argv[2:5]]
 sys.exit(0 if g>=0 and all(x>g for x in pos) and pos[2]<pos[0]<pos[1] else 1)" "$T/page.html" "$A" "$B" "$C" || note "the Parked order is not: due 2099-01-02, due 2099-01-05, no due date (its computed triage date must not count)"
 }

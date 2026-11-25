@@ -5,9 +5,10 @@
 //    The review comes from the server (POST /review), so it shows each receiving session and the
 //    exact text it will get. Only its Send button posts to /send. Without this script the forms
 //    post to /review, which shows the same review as a page.
-// 3. The page as Ty left it (c3, c4, release 0.9.1): a pair of Expand all and Collapse all in each
-//    lane and each KB sheet that holds folds, and the open folds and the scroll place kept in this
-//    browser for each address of the Desk (tab and filter). The server keeps none of it.
+// 3. The page as Ty left it (c3, c4, release 0.9.1; at each depth in 0.9.2): a pair of Expand all and
+//    Collapse all in each store, group, KB sheet and layer that holds folds (the sheet and the layer get
+//    the compact pair: two icon buttons with the same names), and the open folds and the scroll place
+//    kept in this browser for each address of the Desk (tab and view). The server keeps none of it.
 // 4. New requirement (c5): the control of the top band opens a form; it goes through the review.
 (function () {
   var tok = document.body.getAttribute('data-token');
@@ -66,7 +67,15 @@
     if (!a || a.closest('dialog')) return;
     var id; try { id = decodeURIComponent(a.getAttribute('href').slice(1)); } catch (x) { return; }
     if (reveal(id)) { e.preventDefault(); if (location.hash !== '#' + id) history.pushState(null, '', '#' + id); }
+    else if (toEverything(id)) e.preventDefault();
   });
+  // c13: an item that this view does not show is in the view Everything
+  function toEverything(id) {
+    if (!id || document.body.getAttribute('data-view') === 'everything') return false;
+    var q = new URLSearchParams(location.search); q.set('view', 'everything');
+    location.assign(location.pathname + '?' + q.toString() + '#' + encodeURIComponent(id));
+    return true;
+  }
   window.addEventListener('hashchange', function () { reveal(hashId()); });
   window.addEventListener('resize', setBand);
   setBand();
@@ -95,15 +104,18 @@
   function foldsIn(sec, open) {
     sec.querySelectorAll('details').forEach(function (d) { d.open = open; });
   }
-  function addPair(sec) {
+  var ICON = {open: '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/><path d="M4 2.5h8"/></svg>',
+              close: '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4-4 4 4"/><path d="M4 13.5h8"/></svg>'};
+  function addPair(sec, compact) {
     var sum = sec.querySelector(':scope > summary');
     if (!sum || !sec.querySelector('details')) return;
-    var label = (sec.querySelector(':scope > summary h2, :scope > summary h3') || sum).textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
+    var label = (sec.querySelector(':scope > summary h2, :scope > summary h3, :scope > summary .gname, :scope > summary .lname') || sum).textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
     var wrap = document.createElement('span');
-    wrap.className = 'foldpair';
+    wrap.className = compact ? 'foldpair compact' : 'foldpair';
     [['Expand all', true], ['Collapse all', false]].forEach(function (x) {
       var b = document.createElement('button');
-      b.type = 'button'; b.className = 'btn small'; b.textContent = x[0];
+      b.type = 'button'; b.className = compact ? 'btn small icon' : 'btn small';
+      if (compact) { b.innerHTML = x[1] ? ICON.open : ICON.close; b.title = x[0]; } else b.textContent = x[0];
       b.setAttribute('aria-label', x[0] + ' folds in ' + label);
       b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); foldsIn(sec, x[1]); });
       b.addEventListener('keydown', function (e) { e.stopPropagation(); });
@@ -112,13 +124,15 @@
     });
     sum.appendChild(wrap);
   }
-  document.querySelectorAll('details.lane, details.sheet.kbsec').forEach(addPair);
+  document.querySelectorAll('details.lane, details.store, details.group').forEach(function (d) { addPair(d, false); });
+  document.querySelectorAll('details.sheet.kbsec, details.layer').forEach(function (d) { addPair(d, true); });
   // c4: what Ty left, kept in this browser for this address (tab and filter): which folds are open,
   // and the scroll place. A fold that the page shows for the first time takes the state of the
   // server. An entry for a fold that is gone is dropped (the entry is made again from the page).
   var stKey = (function () {
-    var q = new URLSearchParams(location.search); q.delete('mh'); q.delete('token');
-    return 'desk-ui:' + (document.body.getAttribute('data-tab') || '') + '|' + q.toString();
+    var q = new URLSearchParams(location.search); q.delete('mh'); q.delete('token'); q.delete('view');
+    var v = document.body.getAttribute('data-view');
+    return 'desk-ui:' + (document.body.getAttribute('data-tab') || '') + (v ? '|' + v : '') + '|' + q.toString();
   })();
   function stRead() { try { var o = JSON.parse(localStorage.getItem(stKey) || 'null'); return o && typeof o === 'object' ? o : null; } catch (e) { return null; } }
   function stWrite(o) { try { localStorage.setItem(stKey, JSON.stringify(o)); } catch (e) { /* no storage: nothing is kept */ } }
@@ -151,7 +165,7 @@
     setTimeout(function () { restoring = false; if (!location.hash) { var y = Math.round(window.scrollY); if (wantY && Math.abs(y - wantY) > 4) wantY = y; } stSave(); }, 350);
   });
   if (document.readyState === 'complete') setTimeout(function () { restoring = false; stSave(); }, 350);
-  if (location.hash) { reveal(hashId()); window.addEventListener('load', function () { reveal(hashId()); }); }
+  if (location.hash) { if (!reveal(hashId())) toEverything(hashId()); else window.addEventListener('load', function () { reveal(hashId()); }); }
   document.querySelectorAll('[data-folds]').forEach(function (b) {
     b.addEventListener('click', function () {
       var open = b.getAttribute('data-folds') === 'open';

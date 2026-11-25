@@ -5436,7 +5436,7 @@ serve_request_(Req) :-
     serve_act(Action, Form).
 
 serve_act(page, Form) :-
-    (   desk_mode -> ( serve_field(Form, mh, Tab) -> true ; Tab = "" ), desk_page("", Tab, Page)
+    (   desk_mode -> ( serve_field(Form, mh, Tab) -> true ; Tab = "" ), ( serve_field(Form, view, View) -> true ; View = "" ), desk_page("", Tab, View, Page)
     ;   serve_page("", Page)
     ),
     serve_reply(200, Page).
@@ -6537,7 +6537,9 @@ desk_js("(function(){var tok=document.body.getAttribute('data-token');function v
 % builds the plan again from the item before it writes.
 
 dk_f(Fmt, Args, S) :- format(string(S), Fmt, Args).
-dk_cat(Xs, S) :- atomic_list_concat(Xs, A), atom_string(A, S).
+% (desk speed, 0.9.2) a string from the parts, with no atom between: the page is joined at several depths,
+% and a large atom for each would be slow
+dk_cat(Xs, S) :- atomics_to_string(Xs, S).
 dk_join(Xs, Sep, S) :- atomic_list_concat(Xs, Sep, A), atom_string(A, S).
 dk_str(X, S) :- ( string(X) -> S = X ; X == null -> S = "" ; plain_text(X, S) ).
 dk_e(X, H) :- dk_str(X, S), esc(S, H).
@@ -7572,7 +7574,7 @@ desk_led_anchor(HD, Id, A) :-
     (   desk_ask_for_me(HD, X), X.id == Id -> dk_f("ask:~w", [Id], It) ; dk_f("led:~w", [Id], It) ),
     desk_anchor_of(HD, It, A).
 
-desk_inbox_card(HDs, HD, S, I, card{lane:Lane, due:"", html:Html, kbs:KDs, hub:HD.path, until:PU, pdue:PDue}) :-
+desk_inbox_card(HDs, HD, S, I, card{lane:Lane, due:"", html:Html, kbs:KDs, hub:HD.path, until:PU, pdue:PDue, anchor:Anchor, id:I.id, title:I.title, sess:S, hubname:HD.name, what:KL}) :-
     ( get_dict(pdue, I, PDue0), string(PDue0) -> PDue = PDue0 ; PDue = "" ),
     desk_parked(I, Lane, inbox, PU),
     esc(I.title, TH), desk_led_kind(I.kind, KL), esc(KL, KLH), esc(I.id, IH), esc(S, SH),
@@ -7769,7 +7771,8 @@ desk_action_cards(HDs, HD, K, Cards) :-
     ;   Cards = []
     ).
 
-desk_action_card(HDs, HD, K, Eng, A, card{lane:action, due:"", html:Html, kbs:[K.dir], hub:HD.path}) :-
+desk_action_card(HDs, HD, K, Eng, A, card{lane:action, due:"", html:Html, kbs:[K.dir], hub:HD.path, act:AK}) :-
+    ( A == vote -> AK = vote ; A = demo(_, _, _) -> AK = demo ; AK = waiver ),
     desk_action_ref(A, RefS), esc(K.label, LH), desk_hub_suffix(HDs, HD, HS),
     (   A == vote -> PolK = vote, dk_f("Vote on the goal and the hypotheses of the KB ~w", [K.label], T0),
         dk_f("<span>The vote that ends discovery, in the KB ~w~w</span>", [LH, HS], SrcH),
@@ -7806,79 +7809,155 @@ desk_policy_why(vote, "<p>Discovery is ready: the system was checked for the hyp
 desk_policy_why(demo, "<p>The claim is visual: no test can say that it looks and works as you want. Open the demo, then approve it, or say what is not right.</p>").
 desk_policy_why(waiver, "<p>You skipped this work with a waiver, and its due time passed. Until you renew it, the work is back.</p>").
 
-% ---- the page
+% ---- the page (release 0.9.2, spec KB desk-speed-orbit-door c13 to c17, Ty, 2026-11-25: "B: views of
+% the stores"): the stores that hold items (Ledger, Spec KBs, Project KB) are the only main sections. A
+% row of views narrows them: Waits on you, Questions, Answered, Everything; the page opens on Waits on
+% you (GET /?view=NAME). Each item is on the page once, in its store: a card of a ledger item that names
+% a spec KB is in the sheet of that KB, and the Ledger section has a link to it. The cards themselves
+% (their forms, the records they write) are those of 0.9.1.
 
-desk_page(Msg, Page) :- desk_page(Msg, "", Page).
+desk_page(Msg, Page) :- desk_page(Msg, "", "", Page).
+desk_page(Msg0, Tab0, Page) :- desk_page(Msg0, Tab0, "", Page).
 
-% desk_page(+Msg, +Tab, -Page) (c28, Ty, 2026-11-18: "use tabs for each mindhole instead of a
+% desk_page(+Msg, +Tab, +View, -Page) (c28, Ty, 2026-11-18: "use tabs for each mindhole instead of a
 % dropdown"): with two or more mindholes, one tab per mindhole and a last tab All. A tab shows
-% only its mindhole: counts, lanes and rail. The first mindhole's tab opens when none is named.
-desk_page(Msg0, Tab0, Page) :- desk_with_page_memo(desk_page_(Msg0, Tab0, Page)).
+% only its mindhole. The first mindhole's tab opens when none is named. View (c13): the view.
+desk_page(Msg0, Tab0, View0, Page) :- desk_with_page_memo(desk_page_(Msg0, Tab0, View0, Page)).
 
-desk_page_(Msg0, Tab0, Page) :-
+% desk_view_pick(+View0, -View): waits (also for "" and any other text), questions, answered, everything.
+desk_view_pick(V0, V) :-
+    ( catch(dk_str(V0, S), _, fail), memberchk(S-V1, ["waits"-waits, "questions"-questions, "answered"-answered, "everything"-everything]) -> V = V1 ; V = waits ).
+desk_view_name(waits, "Waits on you").
+desk_view_name(questions, "Questions").
+desk_view_name(answered, "Answered").
+desk_view_name(everything, "Everything").
+
+% desk_view_href(+Tab, +View, -Href): the address of a view of a tab (Waits on you has no view field).
+desk_view_href(Tab, View, Href) :-
+    ( Tab == "" -> Q0 = [] ; uri_encoded(query_value, Tab, TE), dk_f("mh=~w", [TE], M), Q0 = [M] ),
+    ( View == waits -> Q = Q0 ; dk_f("view=~w", [View], V), append(Q0, [V], Q) ),
+    ( Q == [] -> Href = "/" ; dk_join(Q, "&amp;", QJ), dk_f("/?~w", [QJ], Href) ).
+
+% desk_rows(-N): how many rows a long group shows before its step "N more ...: show" (DESK_ROWS, default 6).
+desk_rows(N) :- ( getenv('DESK_ROWS', S), atom_number(S, N0), integer(N0), N0 >= 1 -> N = N0 ; N = 6 ).
+
+% desk_rows_html(+Htmls, +Noun, +Key, -Html) (review note 3): the first rows, then a fold that holds the
+% rest: "28 more asks: show". It is a fold, so the page keeps whether it is open (c4), and a link to a
+% row inside it opens it.
+desk_rows_html(Hs, Noun, Key, Html) :-
+    desk_rows(N), length(Hs, L),
+    (   L =< N + 1 -> dk_cat(Hs, Html)
+    ;   length(Fst, N), append(Fst, Rest, Hs), M is L - N,
+        dk_cat(Fst, FH), dk_cat(Rest, RH),
+        dk_f("<details class=\"more\" id=\"more-~w\"><summary><span class=\"moreshow\">~w more ~w: show</span><span class=\"morehide\">~w more ~w: hide</span></summary>", [Key, M, Noun, M, Noun], MH),
+        dk_cat([FH, MH, RH, "</details>"], Html)
+    ).
+
+desk_card_home(Dirs, C, D) :- get_dict(kbs, C, [D|_]), memberchk(D, Dirs).
+desk_home_is(D, C) :- get_dict(kbs, C, [D|_]).
+
+% desk_all_kbs(+HDs, -KHs): K-HD for each KB of each mindhole. desk_kb_cards(+KHs, ..., -KBCs): K-HD-kbc(...)
+% with the cards of each KB. Both share the terms (a findall would copy the state of the mindhole).
+desk_all_kbs([], []).
+desk_all_kbs([HD|HDs], L) :- get_dict(kbs, HD, Ks), desk_pair_with(Ks, HD, L, L1), desk_all_kbs(HDs, L1).
+desk_pair_with([], _, L, L).
+desk_pair_with([K|Ks], HD, [K-HD|L], L0) :- desk_pair_with(Ks, HD, L, L0).
+desk_kb_cards([], _, _, _, _, _, []).
+desk_kb_cards([K-HD|T], Qs, Gs, Act, LAk, LIk, [K-HD-kbc(KQ, KG, KA, KL, KI)|R]) :-
+    get_dict(dir, K, D),
+    include(desk_home_is(D), Qs, KQ), include(desk_home_is(D), Gs, KG), include(desk_home_is(D), Act, KA),
+    include(desk_home_is(D), LAk, KL), include(desk_home_is(D), LIk, KI),
+    desk_kb_cards(T, Qs, Gs, Act, LAk, LIk, R).
+
+% desk_href(+Anchor, -Href): a link to an item of the rail. Every item is in the view Everything; in
+% another view the link leads there (c13), so that each row of the rail leads to its item (c29).
+desk_href(An, Href) :-
+    (   nb_current(desk_here, View-Tab), View \== everything -> desk_view_href(Tab, everything, H0), dk_f("~w#~w", [H0, An], Href)
+    ;   dk_f("#~w", [An], Href)
+    ).
+desk_waits_on(N, T) :- ( N == 1 -> dk_f("~w waits on you", [N], T) ; dk_f("~w wait on you", [N], T) ).
+desk_chip(N, Word, Hot, Html) :-
+    ( Hot == true, N > 0 -> C = "chip hot" ; C = "chip" ), dk_f("<span class=\"~w\">~w ~w</span>", [C, N, Word], Html).
+desk_plural(1, One, _, One) :- !.
+desk_plural(_, _, Many, Many).
+desk_key(S0, K) :-
+    dk_str(S0, S), string_lower(S, L), string_codes(L, Cs),
+    maplist([C, D]>>( code_type(C, alnum) -> D = C ; D = 0'- ), Cs, Ds), string_codes(K, Ds).
+
+desk_page_(Msg0, Tab0, View0, Page) :-
     serve_conf(token, Token), lib_dir(Lib),
     page_asset(Lib, 'desk/desk.css', Css), page_asset(Lib, 'desk/desk.js', Js),
     desk_load(HDs0, Missing),
     desk_drafts_load(HDs0),
     desk_tab_pick(HDs0, Tab0, HDs, Tab, Msg0, Msg),
+    desk_view_pick(View0, View), nb_setval(desk_here, View-Tab),
     findall(HD-Cs, ( member(HD, HDs), desk_hub_cards(HDs, HD, Cs) ), HCs),
     findall(C, ( member(_-Cs, HCs), member(C, Cs) ), Cards),
-    desk_tabs_html(HDs0, HCs, Tab, TabsH),
+    desk_tabs_html(HDs0, HCs, Tab, View, TabsH),
+    ( HDs = [_, _|_] -> nb_setval(desk_multi, true) ; nb_setval(desk_multi, false) ),
+    % the cards by kind (the lanes of 0.9.1 decide the kind; they are no section now)
     include([C]>>get_dict(lane, C, action), Cards, Act),
-    include([C]>>get_dict(lane, C, questions), Cards, Qs0), predsort(desk_by_due, Qs0, Qs),
+    include([C]>>( get_dict(lane, C, questions), get_dict(kbs, C, KC0), KC0 \== [] ), Cards, Qs0), predsort(desk_by_due, Qs0, Qs),
+    include([C]>>( get_dict(lane, C, questions), get_dict(kbs, C, []) ), Cards, Errs),
     include([C]>>get_dict(lane, C, guess), Cards, Gs),
-    % c32: the Ledger lane: the asks for Ty (reserved first, then soonest due), then each session's open items
     include([C]>>get_dict(lane, C, ledger), Cards, LA0), partition([C]>>( get_dict(html, C, CH), sub_string(CH, _, _, _, "sheet reserved") ), LA0, LAr, LAo0),
     predsort(desk_by_due, LAo0, LAo), append(LAr, LAo, LAs), include([C]>>get_dict(lane, C, inbox), Cards, LIs),
-    length(LAs, NL), length(LIs, NLI), NLed is NL + NLI,
-    % c36 (Ty, 2026-11-18: "Parked groups, not counted ... at the bottom by nearest due date ascending")
     include([C]>>get_dict(lane, C, parked), Cards, LP0), predsort(desk_by_until, LP0, LPs),
-    desk_parked_group(LPs, LPG),
-    % c35 (Ty, 2026-11-18: "Both: Your action too"): Your action also lists each reserved ledger ask, as a link to its card
-    findall(card{html:LH}, ( member(C, LAr), esc(C.title, LT), esc(C.id, LI),
-                             dk_f("<a class=\"actlink\" href=\"#~w\"><span class=\"t\">~w</span><span class=\"small quiet\">Ledger ask ~w, reserved for you. Its card is in the Ledger lane.</span></a>", [C.anchor, LT, LI], LH) ), ActLinks),
-    length(ActLinks, NAL),
-    length(Act, NA), length(Qs, NQ), length(Gs, NG),
-    ( HDs = [_, _|_] -> nb_setval(desk_multi, true) ; nb_setval(desk_multi, false) ),
-    findall(HD-R, ( member(HD, HDs), desk_orphan_rows(HD, Rs), member(R, Rs) ), ORows), length(ORows, NO),
-    findall(P, ( member(HD, HDs), desk_project_items(HD, Ps), member(P, Ps) ), PItems), length(PItems, NP),
+    length(Act, NA), length(Qs, NQ0), length(Errs, NE), NQ is NQ0 + NE, length(Gs, NG), length(LAs, NL),
+    findall(HD-R, ( member(HD, HDs), desk_orphan_rows(HD, Rs), member(R, Rs) ), ORows),
+    findall(P, ( member(HD, HDs), desk_project_items(HD, Ps), member(P, Ps) ), PItems),
+    include([P]>>get_dict(kind, P, proposed), PItems, PProp), length(PProp, NPP), length(PItems, NP),
     findall(A, ( member(HD, HDs), desk_answered(HD, As), member(A, As) ), Answered), length(Answered, NAns),
-    findall(K-HD, ( member(HD, HDs), member(K, HD.kbs) ), AllKBs), length(AllKBs, NK),
-    % the header (c13: the first due date, not an age)
-    NW is NA + NQ + NL, NAct is NA + NAL,
+    desk_all_kbs(HDs, AllKBs),                        % no findall: it would copy the state of the mindhole for each KB
+    findall(D, ( member(K-_, AllKBs), D = K.dir ), Dirs),
+    % the top band (c13: the first due date, not an age; c17: "have a default")
+    NW is NA + NQ + NL,
     findall(Du, ( member(C, Cards), \+ get_dict(lane, C, parked), Du = C.due, Du \== "" ), Ds), ( Ds == [] -> FirstH = "" ; min_member(D1, Ds), dk_day(D1, DD), dk_f(" The first is due on ~w.", [DD], FirstH) ),
-    ( NW == 1 -> WT = "thing waits" ; WT = "things wait" ),
-    dk_f("<p><strong>~w ~w on you,</strong> and ~w run on a guess.~w</p>", [NW, WT, NG, FirstH], SumH),
-    findall(L, ( member(Id-Lb-N, [lane-action-"Your action"-NAct, lane-ledger-"Ledger"-NLed, lane-questions-"Questions"-NQ, lane-guesses-"Running on a guess"-NG,
-                                  lane-project-"Project KB"-NP, lane-orphans-"Orphaned"-NO, lane-answered-"Answered"-NAns, lane-kbs-"KBs"-NK]),
-                 Id = lane-Nm, dk_f("<a href=\"#lane-~w\">~w<b>~w</b></a>", [Nm, Lb, N], L) ), Ls),
-    dk_cat(Ls, LanesH),
-    % the lanes (c2: open on load only with an item for Ty)
-    % c22: one thing open on load: the first card of the first lane that holds one, and that lane
-    (   Act = [_|_] -> Act1 = Act, Qs1 = Qs, Gs1 = Gs, LAs1 = LAs, OA = true, OL = false, OQ = false, OG = false
-    ;   LAs = [_|_] -> Act1 = Act, Qs1 = Qs, Gs1 = Gs, desk_open_first(LAs, LAs1), OA = false, OL = true, OQ = false, OG = false
-    ;   Qs = [_|_] -> Act1 = Act, desk_open_first(Qs, Qs1), Gs1 = Gs, LAs1 = LAs, OA = false, OL = false, OQ = true, OG = false
-    ;   Act1 = Act, Qs1 = Qs, LAs1 = LAs, desk_open_first(Gs, Gs1), OA = false, OL = false, OQ = false, OG = true
+    ( NW == 1 -> WT = "thing waits" ; WT = "things wait" ), ( NG == 1 -> GT = "has a default" ; GT = "have a default" ),
+    dk_f("<p><strong>~w ~w on you,</strong> and ~w ~w.~w</p>", [NW, WT, NG, GT, FirstH], SumH),
+    % where each ledger card lives: in the sheet of the first spec KB it names, else in the Ledger section
+    partition([C]>>desk_card_home(Dirs, C, _), LAs, LAk, _),
+    partition([C]>>desk_card_home(Dirs, C, _), LIs, LIk, _),
+    % the KBs: each with its cards; the spec KBs grouped by repo (c14)
+    desk_kb_cards(AllKBs, Qs, Gs, Act, LAk, LIk, KBCs),
+    partition([K-_-_]>>get_dict(kind, K, project), KBCs, PKBCs, SKBCs),
+    % c22: one thing open on load: the first ask of the Ledger, else the first KB that waits on Ty
+    (   member(C0, LAs), \+ desk_card_home(Dirs, C0, _) -> OpenFirst = card(C0.anchor)
+    ;   View \== answered, member(K-_-kbc(KQ, _, KA, KL, _), SKBCs), ( KA \== [] ; KQ \== [] ; KL \== [] ) -> OpenFirst = kb(K.dir)
+    ;   OpenFirst = none
     ),
-    append([LAs1, LIs, LPG], Led),
-    ( OA == true -> desk_open_first(Act, Act2) ; Act2 = Act1 ),
-    append(Act2, ActLinks, ActAll),
-    desk_lane("action", "Your action", "Only what a policy or your own words keep for you", ActAll, "Nothing waits for an action that only you may take.", OA, ActH),
-    desk_lane("ledger", "Ledger", "The asks that wait on you, then the open items each session holds; these buttons act on the ledger", Led, "Nothing in the ledger waits on you, and no session holds an open item.", OL, LedH),
-    desk_lane("questions", "Questions", "KB questions with no default, soonest due first", Qs1, "No KB question waits on you.", OQ, QsH),
-    desk_lane("guesses", "Running on a guess", "KB questions with a default: the work goes on with it until you answer", Gs1, "No work runs on a guess.", OG, GsH),
-    desk_project_lane(HDs, PItems, PrH),
-    desk_orphan_lane(ORows, OrH),
-    desk_answered_lane(Answered, AnH),
-    desk_kbs_lane(HDs, AllKBs, KbH),
+    desk_spec_groups(HDs, View, OpenFirst, SKBCs, Groups),
+    desk_kbs_count(SKBCs, NWS),
+    desk_kbs_count(PKBCs, NWP),
+    % the sections
+    desk_ledger_store(View, OpenFirst, Dirs, AllKBs, LAs, LIs, LPs, ORows, Answered, NL, LedH),
+    desk_spec_store(View, Errs, Groups, SKBCs, NWS, NE, SpecH),
+    desk_project_store(HDs, View, PKBCs, PItems, NPP, NWP, ProjH),
+    % the row of views (c13): the count of each view
+    length(SKBCs, NSK), length(PKBCs, NPK), length(Cards, NC), length(ORows, NO),
+    NEv is NC + NSK + NPK + NP + NAns + NO, NQV is NQ0 + NG,
+    findall(V-N, member(V-N, [waits-NW, questions-NQV, answered-NAns, everything-NEv]), VNs),
+    findall(L, ( member(V-N, VNs), desk_view_name(V, VN), desk_view_href(Tab, V, Hr),
+                 ( V == View -> Cur = " aria-current=\"page\" class=\"on\"" ; Cur = "" ), ( V == waits, N > 0 -> Hot = " hot" ; Hot = "" ),
+                 dk_f("<a href=\"~w\"~w><span class=\"vname\">~w</span><b class=\"num~w\">~w</b></a>", [Hr, Cur, VN, Hot, N], L) ), VLs),
+    dk_cat(VLs, VLH), dk_f("<nav class=\"views\" aria-label=\"Views\">~w</nav>", [VLH], ViewsH),
+    % the stores in the top band (one meaning for each number: what waits on Ty there)
+    NWL2 is NL, % every ask for Ty is counted in the Ledger, where its row is
+    findall(L, ( member(Id-Lb-N, ["ledger"-"Ledger"-NWL2, "spec"-"Spec KBs"-NWS, "project"-"Project KB"-NWP]),
+                 dk_f("<a href=\"#store-~w\" title=\"What waits on you there\">~w<b>~w</b></a>", [Id, Lb, N], L) ), Ls),
+    dk_cat(Ls, LanesH),
+    NWSE is NWS + NE, desk_store_rail(Tab, View, Groups, NWL2, NWSE, NWP, NPP, RailS),
     ( HDs = [_] -> Unwrap = true ; Unwrap = false ),
-    desk_rail(HDs, Cards, Missing, Unwrap, RailH),
+    findall(M, ( member(N-P, Missing), esc(N, NH), esc(P, PH),
+                 dk_f("<div class=\"hint\">~w joined the Desk, but ~w has no ledger now.</div>", [NH, PH], M) ), Ms), dk_cat(Ms, MsH),
+    findall(S, ( member(HD, HDs), desk_rail_sessions(HDs, HD, Unwrap, S) ), Ss), dk_cat(Ss, SsH),
+    dk_f("~w~w<nav class=\"rail\" aria-label=\"Sessions\"><details><summary><span class=\"name\">Sessions</span></summary>~w</details></nav>", [RailS, MsH, SsH], RailH),
     (   Msg == "" -> MsgH = "" ; esc(Msg, M0), dk_f("<p class=\"banner\">~w</p>", [M0], MsgH) ),
     findall(E, ( member(HD, HDs), ( HD.err = some(M) ; \+ is_dict(HD.st), HD.st = error(M) ), esc(HD.name, NH), esc(M, MH),
                  dk_f("<p class=\"banner error\">~w: ~w</p>", [NH, MH], E) ), Es),
     dk_cat(Es, ErrH),
     ( HDs == [] -> NoneH = "<p class=\"banner\">No mindhole has joined the Desk. In a mindhole, run: python3 .claude/scripts/desk.py join</p>" ; NoneH = "" ),
-    esc(Token, TokH), esc(Tab, TabAH),
+    esc(Token, TokH), esc(Tab, TabAH), atom_string(View, ViewS),
     desk_newreq_html(HDs0, HDs, Token, NrBtnH, NrDlgH),
     format(string(Page),
 "<!DOCTYPE html>
@@ -7891,17 +7970,13 @@ desk_page_(Msg0, Tab0, Page) :-
 <link href=\"https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap\" rel=\"stylesheet\">
 <style>~w</style>
 </head>
-<body data-token=\"~w\" data-tab=\"~w\">
-<header class=\"top\"><h1>The Desk</h1>~w<nav class=\"lanes\" aria-label=\"Lanes\">~w</nav><div class=\"folds\">~w<button type=\"button\" class=\"btn small\" data-folds=\"open\">Expand all</button><button type=\"button\" class=\"btn small\" data-folds=\"close\">Collapse all</button></div></header>
+<body data-token=\"~w\" data-tab=\"~w\" data-view=\"~w\">
+<header class=\"top\"><h1>The Desk</h1>~w<nav class=\"lanes\" aria-label=\"Stores\">~w</nav><div class=\"folds\">~w<button type=\"button\" class=\"btn small\" data-folds=\"open\">Expand all</button><button type=\"button\" class=\"btn small\" data-folds=\"close\">Collapse all</button></div></header>
 ~w
 ~w~w~w
 <div class=\"layout\">
 <aside class=\"rails\" aria-label=\"Where things live\">~w</aside>
 <main>
-~w
-~w
-~w
-~w
 ~w
 ~w
 ~w
@@ -7914,7 +7989,386 @@ desk_page_(Msg0, Tab0, Page) :-
 <script>~w</script>
 </body>
 </html>
-", [Css, TokH, TabAH, SumH, LanesH, NrBtnH, TabsH, MsgH, ErrH, NoneH, RailH, ActH, LedH, QsH, GsH, PrH, OrH, AnH, KbH, NrDlgH, Js]).
+", [Css, TokH, TabAH, ViewS, SumH, LanesH, NrBtnH, TabsH, MsgH, ErrH, NoneH, RailH, ViewsH, LedH, SpecH, ProjH, NrDlgH, Js]).
+
+% desk_kbs_count(+KBCs, -N): the cards of these KBs that wait on Ty: KB actions and open questions (an ask
+% for Ty is counted in the Ledger, where its row is, so that the numbers add up to the count of the top band).
+desk_kbs_count(KBCs, N) :-
+    foldl([_-_-kbc(Q, _, A, _, _), N0, N1]>>( length(Q, X), length(A, Y), N1 is N0 + X + Y ), KBCs, 0, N).
+
+% desk_store(+Id, +Name, +Sub, +ChipsH, +Open, +Body, -Html): a main section of the page.
+desk_store(Id, Name, Sub, ChipsH, Open, Body, Html) :-
+    ( Open == true -> Op = " open" ; Op = "" ),
+    dk_f("<details class=\"store\" id=\"store-~w\"~w><summary><h2 class=\"sname\">~w</h2>~w<span class=\"storesub quiet\">~w</span></summary><div class=\"storebody\">",
+         [Id, Op, Name, ChipsH, Sub], H0),
+    dk_cat([H0, Body, "</div></details>"], Html).
+
+% desk_group(+Key, +Name, +ChipsH, +Open, +Body, -Html): a group of a section (a repo, Asks for you, a session).
+desk_group(Key, Name, ChipsH, Open, Body, Html) :-
+    ( Open == true -> Op = " open" ; Op = "" ), esc(Name, NH),
+    dk_f("<details class=\"group\" id=\"grp-~w\"~w><summary><span class=\"gname\">~w</span><span class=\"gchips\">~w</span></summary><div class=\"groupbody\">",
+         [Key, Op, NH, ChipsH], H0),
+    dk_cat([H0, Body, "</div></details>"], Html).
+
+% ---- the section Ledger: the asks for Ty (the reserved ones first, with their mark and their policy
+% line), the open items each session holds, the parked ones, Orphaned and Answered (c13).
+desk_link_row(AllKBs, C, Html) :-
+    esc(C.title, TH), esc(C.id, IH), C.kbs = [D|_],
+    ( member(K-_, AllKBs), K.dir == D -> esc(K.label, LH) ; esc(D, LH) ),
+    ( get_dict(what, C, W) -> true ; W = "Ledger ask" ),
+    ( get_dict(reserved, C, true) -> Cl = "actlink reserved" ; Cl = "actlink" ),
+    dk_f("<a class=\"~w\" href=\"#~w\"><span class=\"t\">~w</span><span class=\"small quiet\">~w ~w, about the KB ~w: its card is in the sheet of that KB.</span></a>", [Cl, C.anchor, TH, W, IH, LH], Html).
+
+desk_ledger_row(Dirs, AllKBs, OpenFirst, C, Html) :-
+    (   desk_card_home(Dirs, C, _) -> desk_link_row(AllKBs, C, Html)
+    ;   OpenFirst = card(A), get_dict(anchor, C, A) -> desk_open_first([C], [C1]), Html = C1.html
+    ;   Html = C.html
+    ).
+
+desk_ledger_store(View, OpenFirst, Dirs, AllKBs, LAs, LIs, LPs, ORows, Answered, NL, Html) :-
+    length(LAs, NLA), length(LIs, NLI), length(LPs, NLP), length(Answered, NAns), length(ORows, NO),
+    NTot is NLA + NLI + NLP,
+    % Asks for you
+    findall(H, ( member(C, LAs), desk_ledger_row(Dirs, AllKBs, OpenFirst, C, H) ), AHs),
+    (   AHs == [] -> AsksB = "<p class=\"empty\">No ask waits on you.</p>" ; desk_rows_html(AHs, "asks", "ledger-asks", AsksB) ),
+    desk_waits_on(NLA, WA),
+    ( NLA > 0 -> dk_f("<span class=\"chip hot\">~w</span>", [WA], AChip) ; AChip = "<span class=\"chip\">0 wait on you</span>" ),
+    desk_group("ledger-asks", "Asks for you", AChip, true, AsksB, AsksG),
+    % the open items of each session
+    findall(HN-S, ( member(C, LIs), get_dict(hubname, C, HN), get_dict(sess, C, S) ), HS0), list_to_set(HS0, HSs),
+    findall(G, ( member(HN-S, HSs),
+                 include([C]>>( get_dict(hubname, C, HN), get_dict(sess, C, S) ), LIs, SCs), length(SCs, NS),
+                 findall(H, ( member(C, SCs), desk_ledger_row(Dirs, AllKBs, none, C, H) ), SHs),
+                 dk_f("led-~w-~w", [HN, S], K0), desk_key(K0, GK), desk_rows_html(SHs, "items", GK, SB),
+                 ( nb_current(desk_multi, true) -> dk_f("~w (~w)", [S, HN], GN) ; dk_str(S, GN) ),
+                 desk_plural(NS, "open item", "open items", OI), dk_f("<span class=\"chip\">~w ~w</span>", [NS, OI], SChip),
+                 desk_group(GK, GN, SChip, false, SB, G) ), SGs),
+    (   SGs == [] -> SessG = ""
+    ;   dk_cat(SGs, SGH), desk_plural(NLI, "open item", "open items", OIs), dk_f("<span class=\"chip\">~w ~w</span>", [NLI, OIs], SCh),
+        desk_group("ledger-sessions", "Held by each session", SCh, false, SGH, SessG)
+    ),
+    % parked (c36), Orphaned (c14), Answered (c9)
+    (   LPs == [] -> ParkG = ""
+    ;   findall(H, ( member(C, LPs), H = C.html ), PHs), desk_rows_html(PHs, "parked items", "ledger-parked", PB),
+        dk_f("<p class=\"small quiet\">Not counted. Each comes back by itself when its park ends, soonest first.</p>~w", [PB], PB2),
+        dk_f("<span class=\"chip\">~w parked</span>", [NLP], PCh), desk_group("ledger-parked", "Parked", PCh, false, PB2, ParkG)
+    ),
+    desk_orphan_body(ORows, OB), dk_f("<span class=\"chip\">~w</span>", [NO], OCh), desk_group("ledger-orphans", "Orphaned", OCh, false, OB, OrphG),
+    desk_answered_body(Answered, AnB), dk_f("<span class=\"chip\">~w</span>", [NAns], AnCh),
+    desk_group("ledger-answered", "Answered in the last 7 days", AnCh, View == answered, AnB, AnsG),
+    (   View == waits -> dk_cat([AsksG], Body)
+    ;   View == questions -> Body = "<p class=\"empty\">No question of a KB is in the ledger: the questions are in the sheets of their KBs.</p>"
+    ;   View == answered -> Body = AnsG
+    ;   dk_cat([AsksG, SessG, ParkG, OrphG, AnsG], Body)
+    ),
+    desk_waits_on(NL, WL), ( NL > 0 -> WC = "chip hot" ; WC = "chip" ),
+    dk_f("<span class=\"chip\">~w items</span><span class=\"~w\">~w</span>", [NTot, WC, WL], Chips),
+    desk_store("ledger", "Ledger", "Asks, threads, holds and handoffs; these buttons act on the ledger", Chips, true, Body, Html).
+
+desk_orphan_body(Rows, Body) :-
+    (   Rows == [] -> Body = "<p class=\"empty\">Nothing is orphaned.</p>"
+    ;   findall(T, ( member(HD-row(What, Why, Tos, Item, Ids), Rows), desk_orphan_tr(HD, What, Why, Tos, Item, Ids, T) ), Ts),
+        dk_cat(Ts, TsH),
+        dk_f("<p class=\"small quiet\">Each fix opens the letter for you to read and change first.</p><div class=\"sheet tablewrap\"><table><tr><th>What</th><th>Why</th><th>Goes to</th><th></th></tr>~w</table></div>", [TsH], Body)
+    ).
+
+desk_answered_body(As, Body) :-
+    (   As == [] -> Body = "<p class=\"empty\">Nothing was answered in the last 7 days.</p>"
+    ;   findall(L, ( member(HD-C, As), esc(C.id, IH), esc(C.title, TH), dk_str(C.get(note, ""), N0), esc(N0, NH),
+                     dk_str(C.get(by_session, ""), BS), esc(BS, BH), dk_day(C.closed_at, CD), atom_string(HD.name, _),
+                     dk_f("<li><span class=\"ref\">~w</span>~w <span class=\"quiet\">closed ~w by ~w</span><br><span class=\"small\">~w</span></li>", [IH, TH, CD, BH, NH], L) ), Ls),
+        dk_cat(Ls, LsH), dk_f("<p class=\"small quiet\">In the last 7 days, here or in a session.</p><div class=\"sheet\"><div class=\"head\"><ul class=\"answered\">~w</ul></div></div>", [LsH], Body)
+    ).
+
+% ---- the section Spec KBs (c14): the spec KBs grouped by repo; a KB that names no repo is in No repo.
+
+% desk_spec_groups(+HDs, +View, +OpenFirst, +SKBCs, -Groups): g(Name, Key, Sheets, NKBs, NWait) for each
+% group (Sheets: those of this view, maybe none); the groups with the most KBs first, No repo last.
+desk_spec_groups(HDs, View, OpenFirst, SKBCs, Groups) :-
+    maplist(desk_repo_key, SKBCs, RK),
+    pairs_keys(RK, Rs0), list_to_set(Rs0, RsAll),
+    maplist(desk_group_of(RK), RsAll, G0),
+    length(G0, LG), ( LG =:= 0 -> Is0 = [] ; numlist(1, LG, Is0) ), maplist(desk_group_rank, G0, Is0, G1), keysort(G1, G1s), pairs_values(G1s, G2),
+    maplist(desk_spec_group(HDs, View, OpenFirst), G2, Groups).
+desk_repo_key(X, R-X) :- X = K-HD-_, desk_kb_repos(HD, K, Rs, _), ( Rs = [R0|_] -> R = R0 ; R = '' ).
+desk_group_of(RK, R, g(R, Ks)) :- include(desk_key_is(R), RK, Sub), pairs_values(Sub, Ks).
+desk_key_is(R, R1-_) :- R1 == R.
+desk_group_rank(g(R, Ks), I, (N-I)-g(R, Ks)) :- length(Ks, N0), ( R == '' -> N = 0 ; N is -N0 ).
+desk_kb_rank(X, I, (O-I)-X) :- X = _-_-kbc(Q, _, A, L, _), ( A \== [] -> O = 0 ; ( Q \== [] ; L \== [] ) -> O = 1 ; O = 2 ).
+
+desk_spec_group(HDs, View, OpenFirst, g(R, Ks), g(Name, Key, Sheets, NK, NW)) :-
+    ( R == '' -> Name = "No repo", Key = "repo--none" ; dk_str(R, Name), dk_f("repo-~w", [Name], K0), desk_key(K0, Key) ),
+    length(Ks, NK), desk_kbs_count(Ks, NW),
+    % the KBs that wait on Ty first (a KB action first of all), then in the order of the mindhole
+    length(Ks, LK), ( LK =:= 0 -> IsK = [] ; numlist(1, LK, IsK) ), maplist(desk_kb_rank, Ks, IsK, OX), keysort(OX, OX1),
+    findall(S, ( member(_-(K-HD-KC), OX1),
+                 ( OpenFirst == kb(K.dir) -> Op = true ; Op = false ),
+                 catch(desk_kb_sheet(HDs, HD, K, View, KC, Op, S), E, ( serve_err_text(E, M), esc(M, MH), esc(K.label, LH),
+                       dk_f("<div class=\"sheet\"><div class=\"head\"><p class=\"loud\">The KB ~w cannot be read: ~w</p></div></div>", [LH, MH], S) )),
+                 S \== "" ), Sheets).
+
+desk_spec_store(View, Errs, Groups, SKBCs, NWS, NE, Html) :-
+    length(SKBCs, NSK),
+    (   memberchk(View, [waits, questions, everything]), Errs \== [] -> findall(H, ( member(C, Errs), H = C.html ), EHs), dk_cat(EHs, ErrH) ; ErrH = "" ),
+    findall(G, ( member(g(Name, Key, Sheets, NK, NW), Groups), ( Sheets \== [] -> true ; View == everything ),
+                 ( Sheets == [] -> SB = "<p class=\"empty\">Nothing of this view.</p>" ; dk_f("spec KBs of ~w", [Name], Noun), dk_f("~w-more", [Key], MK), desk_rows_html(Sheets, Noun, MK, SB) ),
+                 desk_plural(NK, "KB", "KBs", KW), desk_waits_on(NW, WT), ( NW > 0 -> WC = "chip hot" ; WC = "chip" ),
+                 dk_f("<span class=\"chip\">~w ~w</span><span class=\"~w\">~w</span>", [NK, KW, WC, WT], Ch),
+                 ( ( NW > 0 ; View \== everything ) -> Op = true ; Op = false ),
+                 desk_group(Key, Name, Ch, Op, SB, G) ), GHs),
+    (   GHs == [], ErrH == "" -> ( View == everything -> Body = "<p class=\"empty\">No spec KB.</p>" ; Body = "<p class=\"empty\">No spec KB holds an item of this view.</p>" )
+    ;   dk_cat([ErrH|GHs], Body)
+    ),
+    NWE is NWS + NE, desk_waits_on(NWE, WT2), ( NWE > 0 -> WC2 = "chip hot" ; WC2 = "chip" ),
+    desk_plural(NSK, "KB", "KBs", KW2),
+    dk_f("<span class=\"chip\">~w ~w</span><span class=\"~w\">~w</span>", [NSK, KW2, WC2, WT2], Chips),
+    desk_store("spec", "Spec KBs", "One per ticket, by repo; every action on a KB is in its sheet", Chips, true, Body, Html).
+
+% ---- the section Project KB: the sheet of each project KB, and what waits on Ty there: proposed facts
+% to ratify (in Waits on you), drafts to push and stale pins (in Everything).
+desk_project_store(HDs, View, PKBCs, PItems, NPP, NWP, Html) :-
+    findall(S, ( member(K-HD-KC, PKBCs),
+                 catch(desk_kb_sheet(HDs, HD, K, View, KC, false, S), E, ( serve_err_text(E, M), esc(M, MH), esc(K.label, LH),
+                       dk_f("<div class=\"sheet\"><div class=\"head\"><p class=\"loud\">The KB ~w cannot be read: ~w</p></div></div>", [LH, MH], S) )),
+                 S \== "" ), Sheets),
+    include([P]>>get_dict(kind, P, proposed), PItems, Prop),
+    exclude([P]>>get_dict(kind, P, proposed), PItems, Rest),
+    ( Prop == [] -> PropG = "" ; desk_project_table(Prop, PT1), dk_f("<span class=\"chip hot\">~w to ratify</span>", [NPP], C1), desk_group("project-proposed", "Proposed facts to ratify", C1, true, PT1, PropG) ),
+    ( Rest == [] -> RestG = "" ; length(Rest, NR), desk_project_table(Rest, PT2), dk_f("<span class=\"chip\">~w</span>", [NR], C2), desk_group("project-other", "Drafts to push and stale pins", C2, false, PT2, RestG) ),
+    (   View == waits -> Parts = [PropG|Sheets]
+    ;   View == everything -> append([[PropG, RestG], Sheets], Parts)
+    ;   Parts = Sheets
+    ),
+    exclude(==(""), Parts, Parts1),
+    (   Parts1 == [] -> Body = "<p class=\"empty\">Nothing of this view is in a project KB.</p>" ; dk_cat(Parts1, Body) ),
+    length(PItems, NP), desk_waits_on(NWP, WT),
+    ( NWP > 0 -> WC = "chip hot" ; WC = "chip" ),
+    dk_f("<span class=\"chip\">~w items</span><span class=\"~w\">~w</span>", [NP, WC, WT], Chips),
+    Op = false,                                       % the section loads closed (the picture of r8); the rail says what it holds
+    desk_store("project", "Project KB", "Where the product is and where it is going", Chips, Op, Body, Html).
+
+desk_project_table(Items, Body) :-
+    findall(R, ( member(P, Items), desk_project_row(P, R) ), Rs), dk_cat(Rs, RsH),
+    dk_f("<div class=\"sheet tablewrap\"><table><tr><th>Waits on you</th><th>What</th><th></th></tr>~w</table></div>", [RsH], Body).
+
+% ---- the rail (c14, r8): the stores, the groups of Spec KBs, and the sessions. Each number is what waits
+% on Ty there (review note 1); a count of another kind has its word ("15 KBs", "2 to ratify").
+desk_store_rail(Tab, View, Groups, NWL, NWS, NWP, NPP, Html) :-
+    desk_num(NWL, LN), desk_num(NWS, SN), desk_num(NWP, PN),
+    findall(L, ( member(g(Name, Key, Sheets, NK, NW), Groups), desk_num(NW, GN), esc(Name, NH),
+                 desk_plural(NK, "KB", "KBs", KW),
+                 ( Sheets \== [] -> dk_f("#grp-~w", [Key], Hr) ; desk_view_href(Tab, everything, H0), dk_f("~w#grp-~w", [H0, Key], Hr) ),
+                 dk_f("<a class=\"leaf\" href=\"~w\"><span class=\"name\">~w</span><span class=\"sub quiet\">~w ~w</span>~w</a>", [Hr, NH, NK, KW, GN], L) ), Ls),
+    dk_cat(Ls, LsH), View = View,
+    ( NPP > 0 -> dk_f("<span class=\"sub quiet\">~w to ratify</span>", [NPP], PS) ; PS = "" ),
+    dk_f("<nav class=\"rail\" aria-label=\"Stores\"><div class=\"kids top\"><a class=\"leaf\" href=\"#store-ledger\"><span class=\"name\">Ledger</span>~w</a><details><summary><span class=\"name\">Spec KBs</span>~w</summary>~w</details><a class=\"leaf\" href=\"#store-project\"><span class=\"name\">Project KB</span>~w~w</a></div></nav>",
+         [LN, SN, LsH, PS, PN], Html).
+
+% ---- the sheet of one KB (c15, c17): every Desk action on the items of the KB, in layers that fold:
+% Questions (Open questions, Has a default), Goal and hypotheses, Claims and checks, Ledger items of
+% this KB, Answered and judged, New requirement for this KB. A view shows only its layers; a sheet
+% with nothing of the view is not shown ("").
+desk_kb_sheet(HDs, HD, K, View, kbc(QCs, GCs, ACs, LAk, LIk), Open, Html) :-
+    desk_engine(K.dir, KB, Eng),
+    partition([C]>>get_dict(act, C, vote), ACs, Votes, Others),
+    length(QCs, NQ), length(GCs, NG), length(Others, NDemo), append(LAk, LIk, LCs), length(LCs, NLed),
+    (   K.kind == project -> Cs = [], Outs = []
+    ;   desk_current_claims(Eng, Cs0), partition([C]>>desk_claim_out(Eng, C, _, _), Cs0, Outs, Cs)
+    ),
+    length(Cs, NCl),
+    (   View == answered
+    ->  catch(view_pending_html(K.dir, PendH), _, PendH = ""), catch(view_answered_html(Eng, AnsH), _, AnsH = "")
+    ;   View == everything
+    ->  catch(view_pending_html(K.dir, PendH), _, PendH = ""), catch(view_answered_html(Eng, AnsH), _, AnsH = "")
+    ;   PendH = "", AnsH = ""
+    ),
+    (   View == waits -> Show = ( QCs \== [] ; ACs \== [] ; LAk \== [] )
+    ;   View == questions -> Show = ( QCs \== [] ; GCs \== [] )
+    ;   View == answered -> Show = ( PendH \== "" ; AnsH \== "" )
+    ;   Show = true
+    ),
+    (   \+ call(Show) -> Html = ""
+    ;   desk_kb_sheet_(HDs, HD, K, KB, Eng, View, Open, QCs, GCs, Votes, Others, LAk, LCs, Cs, Outs, PendH, AnsH, NQ, NG, NDemo, NLed, NCl, Html)
+    ).
+
+desk_kb_sheet_(HDs, HD, K, KB, Eng, View, Open, QCs, GCs, Votes, Others, LAk, LCs, Cs, Outs, PendH, AnsH, NQ, NG, NDemo, NLed, NCl, Html) :-
+    A = K.anchor,
+    desk_holder(HD, K, Hold, How), desk_badge(Hold, BH),
+    (   How == lock -> HowT = "holds the writer lock" ; How == handoff -> HowT = "took the newest handoff" ; HowT = "No session holds it" ),
+    esc(K.label, LH), esc(K.dir, DH), desk_hub_suffix(HDs, HD, HS),
+    (   K.kind == project -> KindT = "Project KB" ; K.kind == outside -> KindT = "Spec KB outside the mindhole" ; KindT = "Spec KB" ),
+    (   K.kind == project -> LinkH = ""
+    ;   desk_kb_project(K.dir, some(P)) -> file_base_name(P, PB), dk_f("<p>Linked to the project KB ~w.</p>", [PB], LinkH)
+    ;   LinkH = "<p class=\"gapnote\">Linked to no project KB.</p>"
+    ),
+    % the chips of the summary
+    findall(Ch, ( member(N-W-Hot, [NQ-"open question"-true, NG-"has a default"-false, NCl-"claims"-false, NDemo-"to see"-true, NLed-"ledger items"-false]), N > 0,
+                  ( N == 1, W == "open question" -> W1 = W ; W == "open question" -> W1 = "open questions" ; W1 = W ),
+                  desk_chip(N, W1, Hot, Ch) ), Chs), dk_cat(Chs, ChipsH),
+    % the repos (c14): the first one is the group; the sheet names the others
+    (   K.kind == project -> RepoH = ""
+    ;   desk_kb_repos(HD, K, Rs, RHow),
+        (   Rs == [] -> RepoH = "<span>names no repo</span>"
+        ;   maplist([R, E]>>( dk_str(R, RS), esc(RS, E) ), Rs, REs), REs = [R1|RMore],
+            ( RHow == named -> HowR = "named in the KB" ; HowR = "from a path or a link in the KB; the KB names no repo" ),
+            ( RMore == [] -> MoreH = "" ; dk_join(RMore, ", ", MJ), dk_f("; also the repo ~w", [MJ], MoreH) ),
+            dk_f("<span>repo <b>~w</b> (~w)~w</span>", [R1, HowR, MoreH], RepoH)
+        )
+    ),
+    (   View == everything, K.kind \== project -> dk_f("<a href=\"#layer-~w-newreq\">New requirement for this KB</a>", [A], NrL) ; NrL = "" ),
+    ( RepoH == "", NrL == "" -> MetaH = "" ; dk_f("<p class=\"kbmeta small quiet\">~w~w</p>", [RepoH, NrL], MetaH) ),
+    % the layers
+    ( View == waits -> QG = [] ; QG = GCs ),
+    (   QCs == [], QG == [] -> QL = ""
+    ;   ( Open == true, QCs = [_|_] -> desk_open_first(QCs, QCsO) ; QCsO = QCs ),
+        desk_qgroups(View, QCsO, QG, QB), length(QG, NG1), N1 is NQ + NG1,
+        ( NQ > 0 -> dk_f("<span class=\"num hot\">~w</span>", [N1], QN) ; dk_f("<span class=\"num\">~w</span>", [N1], QN) ),
+        ( ( Open == true ; View \== everything ; NQ > 0 ) -> QO = true ; QO = false ),
+        desk_layer(A, "questions", "Questions", QN, QO, QB, QL)
+    ),
+    ( Open == true -> desk_open_first_of([Votes, Others, LAk], [Votes1, Others1, LAk1], QCs) ; Votes1 = Votes, Others1 = Others, LAk1 = LAk ),
+    findall(H, ( member(C, Votes1), H = C.html ), VHs), dk_cat(VHs, VH),
+    findall(H, ( member(C, Others1), H = C.html ), OHs), dk_cat(OHs, OH),
+    (   View == everything, K.kind \== project
+    ->  desk_records_html(Eng, acts(HD, K), HypH),
+        findall(OH0, ( member(C, Outs), desk_claim_out(Eng, C, OHy, OSt), desk_claim_text(Eng, C, OT), esc(OT, OTH),
+                       dk_f("<p class=\"quiet notcurrent\" data-claim=\"~w\"><span class=\"ref\">~w</span>~w <span class=\"small\">not current (its hypothesis ~w is ~w)</span></p>", [C, C, OTH, OHy, OSt], OH0) ), OutHs),
+        ( OutHs == [] -> OutH = "" ; dk_cat(OutHs, OHT), dk_f("<h4>Not current</h4>~w", [OHT], OutH) ),
+        findall(CH, ( member(C, Cs), desk_claim_html(HD, K, Eng, C, CH) ), CHs), dk_cat(CHs, CsH),
+        ( Cs == [] -> CsH2 = "<p class=\"gapnote\">No claim is current.</p>" ; CsH2 = CsH ),
+        desk_kb_blockers(KB, Eng, Bl),
+        ( Bl == [] -> BlH = "" ; findall(L, ( member(B, Bl), esc(B, BH0), dk_f("<li>~w</li>", [BH0], L) ), BLs), dk_cat(BLs, BLT),
+                                  dk_f("<h3>Also open</h3><ul>~w</ul>", [BLT], BlH) ),
+        dk_cat([VH, HypH], GoalB), dk_cat([OH, CsH2, OutH, BlH], ClaimB),
+        desk_count_sub(HypH, "data-hyp=\"", NHyp)
+    ;   View == waits -> GoalB = VH, ClaimB = OH, NHyp = none
+    ;   GoalB = "", ClaimB = "", NHyp = none
+    ),
+    (   K.kind == project -> GoalL = "", ClaimL = ""
+    ;   ( GoalB == "" -> GoalL = "" ; ( Votes == [] -> GO = false ; GO = true ), ( NHyp == none -> length(Votes, NV), desk_num(NV, GN) ; dk_f("<span class=\"num\">~w</span>", [NHyp], GN) ),
+          desk_layer(A, "goal", "Goal and hypotheses", GN, GO, GoalB, GoalL) ),
+        ( ClaimB == "" -> ClaimL = ""
+        ; ( Others == [] -> CO = false ; CO = true ), desk_term(claim, "Claims", ClL0), dk_f("~w and checks", [ClL0], ClName),
+          ( View == everything -> dk_f("<span class=\"num\">~w</span>", [NCl], CN) ; length(Others, NOt), desk_num(NOt, CN) ),
+          desk_layer(A, "claims", ClName, CN, CO, ClaimB, ClaimL) )
+    ),
+    ( View == waits -> LShow = LAk ; View == everything -> LShow = LCs ; LShow = [] ),
+    (   LShow == [] -> LedL = ""
+    ;   findall(H, ( member(C, LShow), ( member(C1, LAk1), get_dict(anchor, C1, An1), get_dict(anchor, C, An1) -> H = C1.html ; H = C.html ) ), LHs), dk_cat(LHs, LB),
+        length(LShow, NLS), ( LAk \== [] -> LN = "num hot" ; LN = "num" ), dk_f("<span class=\"~w\">~w</span>", [LN, NLS], LNum),
+        ( LAk \== [], View == waits -> LO = true ; Open == true, LAk \== [] -> LO = true ; LO = false ),
+        desk_layer(A, "ledger", "Ledger items of this KB", LNum, LO, LB, LedL)
+    ),
+    (   memberchk(View, [answered, everything]), ( PendH \== "" ; AnsH \== "" )
+    ->  dk_cat([PendH, AnsH], AnB), ( View == answered -> AO = true ; AO = false ),
+        desk_layer(A, "answered", "Answered and judged", "", AO, AnB, AnsL)
+    ;   AnsL = ""
+    ),
+    (   View == everything, K.kind \== project -> desk_kbreq_form(HD, K, NrF), desk_layer(A, "newreq", "New requirement for this KB", "", false, NrF, NrLay) ; NrLay = "" ),
+    (   K.kind == project
+    ->  dk_all(Eng, [R], repo(R, _), PRs0), sort(PRs0, PRs), length(PRs, NR),
+        maplist([R, E]>>esc(R, E), PRs, PRsE), dk_join(PRsE, ", ", PRsJ),
+        dk_all(Eng, [X], current_fact(X), Fs), length(Fs, NF),
+        dk_f("<p>~w current decisions, definitions and rules. ~w repos: ~w.</p>", [NF, NR, PRsJ], ProjH)
+    ;   ProjH = ""
+    ),
+    findall(I, ( desk_stale_handoffs(HD, K, Old, _), member(Ho, Old), I = Ho.id ), OldIds),
+    (   OldIds == [] -> OldH = ""
+    ;   desk_stale_handoffs(HD, K, _, New), dk_join(OldIds, ", ", OJ),
+        dk_f("<p class=\"gapnote\">Older open handoffs on this KB: ~w (the newest is ~w). See Orphaned.</p>", [OJ, New.id], OldH)
+    ),
+    ( Open == true -> Op = " open" ; Op = "" ),
+    dk_f("<details class=\"sheet kbsec\" id=\"~w\"~w><summary><div class=\"t\"><h3 class=\"title\">~w</h3><div class=\"src\"><span>~w~w</span><span title=\"~w\">~w</span><span>~w</span></div><div class=\"chips\">~w</div></div>~w</summary><div class=\"body\">",
+         [A, Op, LH, KindT, HS, DH, DH, HowT, ChipsH, BH], H0),
+    dk_cat([H0, LinkH, OldH, MetaH, ProjH, QL, GoalL, ClaimL, LedL, AnsL, NrLay, "</div></details>"], Html).
+
+% desk_open_first_of(+Lists, -Lists1, +QCs): the first card of the first list that holds one opens (c22),
+% unless the open questions come first (then desk_qgroups opens the first of those).
+desk_open_first_of(Ls, Ls, [_|_]) :- !.
+desk_open_first_of([], [], _).
+desk_open_first_of([L|Ls], [L1|Ls1], Q) :-
+    ( L = [_|_] -> desk_open_first(L, L1), Ls1 = Ls ; L1 = L, desk_open_first_of(Ls, Ls1, Q) ).
+
+desk_count_sub(S, Sub, N) :- aggregate_all(count, sub_string(S, _, _, _, Sub), N).
+
+% desk_qgroups(+View, +Open, +Default, -Html) (c17, Ty, 2026-11-25: "group the questions and runs on a
+% guess sections as the same section with two types. Open Questions and Has a Default"): one layer,
+% two groups. In the view Waits on you only the open questions (they wait on Ty).
+desk_qgroups(View, QCs, GCs, Html) :-
+    findall(H, ( member(C, QCs), H = C.html ), QHs), dk_cat(QHs, QB0),
+    findall(H, ( member(C, GCs), H = C.html ), GHs), dk_cat(GHs, GB0),
+    length(QCs, NQ), length(GCs, NG),
+    ( QCs == [] -> QB = "<p class=\"empty\">No open question.</p>" ; QB = QB0 ),
+    ( GCs == [] -> GB = "<p class=\"empty\">No question with a default.</p>" ; GB = GB0 ),
+    ( NQ > 0 -> QNC = "num hot" ; QNC = "num" ),
+    dk_f("<div class=\"qgroup\" data-group=\"open\"><h4 class=\"gname\">Open questions <span class=\"~w\">~w</span></h4><p class=\"small quiet\">No default: the work that needs the answer waits for you.</p>", [QNC, NQ], OG0), dk_cat([OG0, QB, "</div>"], OG),
+    dk_f("<div class=\"qgroup\" data-group=\"default\"><h4 class=\"gname\">Has a default <span class=\"num\">~w</span></h4><p class=\"small quiet\">The work goes on with the default until you answer.</p>", [NG], DG0), dk_cat([DG0, GB, "</div>"], DG),
+    ( View == waits -> Html = OG ; dk_cat([OG, DG], Html) ).
+
+desk_layer(Anchor, Key, Name, NumH, Open, Body, Html) :-
+    ( Open == true -> Op = " open" ; Op = "" ),
+    dk_f("<details class=\"layer\" id=\"layer-~w-~w\"~w><summary><span class=\"lname\">~w</span>~w</summary><div class=\"layerbody\">", [Anchor, Key, Op, Name, NumH], H0),
+    dk_cat([H0, Body, "</div></details>"], Html).
+
+% desk_kbreq_form(+HD, +K, -Html) (c15): a new requirement for this KB. It goes to intake as the
+% requirement of a card of the KB does in 0.9.1 (a thread of review with the ref kb:SLUG).
+desk_kbreq_form(HD, K, Html) :-
+    dk_f("kbreq:~w", [K.dir], Item), dk_f("~w|~w", [HD.name, Item], Key),
+    serve_conf(token, Tok), desk_draft_of(Key, Dr),
+    desk_hidden([token-Tok, hub-HD.path, item-Item, key-Key, intent-"requirement"], HH),
+    ( get_dict(text, Dr, DT0), string(DT0) -> DT = DT0 ; DT = "" ), esc(DT, DTH), esc(K.label, LH),
+    dk_f("<form class=\"respond kbreq\" method=\"post\" action=\"/review\" data-review data-draft-key=\"~w\">~w<p class=\"small quiet\">A new requirement or idea about the KB ~w. It goes to the intake of the review session as a new thread with the ref of this KB. You read it in the review before anything is sent.</p><textarea name=\"text\" aria-label=\"The new requirement for this KB\" placeholder=\"Your words. Saved as you type; nothing is sent before you review it.\">~w</textarea><div class=\"foot\"><button class=\"btn go\" type=\"submit\">Review and send</button><span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span><span class=\"draftstate\"></span></div></form>",
+         [Key, HH, LH, DTH], Html).
+
+% ---- the repos of a spec KB (c14). A KB names its repo with repo(Name, Path) (module project), the
+% fact of the project KB. A KB that names none: the repos of its project KB (else of the project KBs of
+% its mindhole) whose path, worktree (/wt/NAME/) or forge address (HOST/OWNER/NAME) the text of the KB
+% holds, the first found first. How: named or found.
+:- dynamic desk_repo_memo/4.
+desk_kb_repos(HD, K, Rs, How) :-
+    (   desk_eng(K.dir, Eng), dk_all(Eng, [N0], repo(N0, _), Own0), Own0 \== []
+    ->  list_to_set(Own0, Rs), How = named
+    ;   desk_known_repos(HD, K, Known),
+        desk_kb_stamp(K.dir, St),
+        (   desk_repo_memo(K.dir, St, Known, Rs0) -> true
+        ;   desk_found_repos(K.dir, Known, Rs0), retractall(desk_repo_memo(K.dir, _, _, _)), assertz(desk_repo_memo(K.dir, St, Known, Rs0))
+        ),
+        Rs = Rs0, How = found
+    ).
+
+desk_known_repos(HD, K, Known) :-
+    % the project KBs of the mindhole, by the dir that the page reads them with (one engine each)
+    include([PK]>>get_dict(kind, PK, project), HD.kbs, PKs),
+    (   desk_kb_project(K.dir, some(P0)), catch(( atom_string(PA, P0), serve_norm(PA, P) ), _, fail),
+        include([PK]>>get_dict(dir, PK, P), PKs, [PK1|_]) -> PKs1 = [PK1]
+    ;   PKs1 = PKs
+    ),
+    findall([N, Pa], ( member(PK, PKs1), get_dict(dir, PK, PD), desk_eng(PD, PE), dk_all(PE, [N, Pa], repo(N, Pa), L), member([N, Pa], L) ), Known0),
+    findall(N-Pa, ( member([N0, P0], Known0), dk_str(N0, N), dk_str(P0, Pa) ), Known).
+
+desk_found_repos(_, [], []) :- !.
+desk_found_repos(Dir, Known, Rs) :-
+    directory_file_path(Dir, 'kb.pl', F),
+    (   catch(read_file_to_string(F, T, [encoding(utf8)]), _, fail)
+    ->  findall(B-N, ( member(N-Pa, Known), desk_repo_pos(T, N, Pa, B) ), BNs), keysort(BNs, S), pairs_values(S, Ns), list_to_set(Ns, Rs0),
+        maplist([X, Y]>>atom_string(Y, X), Rs0, Rs)
+    ;   Rs = []
+    ).
+
+desk_repo_pos(T, N, Pa, B) :-
+    findall(B0, ( desk_repo_hit(T, N, Pa, B0) ), Bs), Bs \== [], min_list(Bs, B).
+desk_repo_hit(T, _, Pa, B) :-
+    Pa \== "", sub_string(Pa, _, 1, 0, Last), ( Last == "/" -> sub_string(Pa, 0, _, 1, P1) ; P1 = Pa ),
+    once(( sub_string(T, B, L, _, P1), E is B + L, desk_repo_end(T, E) )).
+desk_repo_hit(T, N, _, B) :- dk_f("/wt/~w/", [N], W), once(sub_string(T, B, _, _, W)).
+desk_repo_hit(T, N, _, B) :-
+    dk_f("/~w", [N], NS), string_length(NS, NL),
+    once(( sub_string(T, B, NL, _, NS), E is B + NL, desk_repo_end(T, E),
+           W0 is max(0, B - 120), WL is B - W0, sub_string(T, W0, WL, _, Pre),
+           sub_string(Pre, SB, 3, _, "://"), \+ ( sub_string(Pre, SB2, 3, _, "://"), SB2 > SB ),
+           S1 is SB + 3, sub_string(Pre, S1, _, 0, HO), split_string(HO, "/", "", [Host, Owner]),
+           Host \== "", Owner \== "", \+ sub_string(HO, _, _, _, " "), \+ sub_string(HO, _, _, _, "'") )).
+desk_repo_end(T, E) :- ( sub_string(T, E, 1, _, C) -> \+ ( string_code(1, C, X), ( code_type(X, alnum) ; memberchk(X, `_.-`) ) ) ; true ).
 
 % desk_newreq_html(+HDs0, +HDs, +Token, -BtnH, -DlgH) (c5, release 0.9.1): the control New requirement of
 % the top band, and the form that it opens. The form has one text field and, with more than one
@@ -7990,21 +8444,8 @@ desk_open_first([C|Cs], [C1|Cs]) :-
     ;   C1 = C
     ).
 
-desk_lane(Id, Head, Sub, Cards, Empty, OpenIfAny, Html) :-
-    (   Cards == [] -> dk_f("<p class=\"empty\">~w</p>", [Empty], Body), Op = ""
-    ;   findall(H, ( member(C, Cards), H = C.html ), Hs),
-        dk_cat(Hs, Body), ( OpenIfAny == true -> Op = " open" ; Op = "" )
-    ),
-    dk_f("<details class=\"lane\" id=\"lane-~w\"~w><summary><h2>~w</h2><span class=\"quiet\">~w</span></summary><div class=\"lanebody\">~w</div></details>", [Id, Op, Head, Sub, Body], Html).
 
 % ---- the rail (c14): where things live, and the sessions
-
-% desk_parked_group(+Cards, -Group): [] with no parked item, else one pseudo card: a closed group
-% Parked N that holds the parked cards (c36).
-desk_parked_group([], []) :- !.
-desk_parked_group(LPs, [card{html:H}]) :-
-    length(LPs, N), findall(CH, ( member(C, LPs), get_dict(html, C, CH) ), CHs), dk_cat(CHs, Body),
-    dk_f("<details class=\"parked\" id=\"lane-ledger-parked\"><summary><span class=\"pname\">Parked</span> <b>~w</b> <span class=\"small quiet\">Not counted. Each comes back by itself when its park ends, soonest first.</span></summary>~w</details>", [N, Body], H).
 
 % desk_tab_pick(+HDs0, +Tab0, -HDs, -Tab, +Msg0, -Msg) (c28): the mindholes of the tab. Tab is the
 % name of a mindhole, "all", or "" (one mindhole, or no mindhole).
@@ -8022,7 +8463,9 @@ desk_tab_pick(HDs0, Tab0, HDs, Tab, Msg0, Msg) :-
 % The cards of a mindhole on the page (HCs: HD-Cards) are counted, not made again (desk speed): the
 % lane of a card does not depend on the other mindholes of the page, only its text does.
 desk_tabs_html(HDs0, Tab, Html) :- desk_tabs_html(HDs0, [], Tab, Html).
-desk_tabs_html(HDs0, HCs, Tab, Html) :-
+desk_tabs_html(HDs0, HCs, Tab, Html) :- desk_tabs_html(HDs0, HCs, Tab, waits, Html).
+% a tab keeps the view that is on (c13)
+desk_tabs_html(HDs0, HCs, Tab, View, Html) :-
     (   HDs0 = [_, _|_]
     ->  findall(N-W, ( member(HD, HDs0), dk_str(HD.name, N),
                        ( memberchk(HD-Cs, HCs) -> include(desk_waits, Cs, Ws), length(Ws, W) ; desk_hub_waits(HD, W) ) ), NWs),
@@ -8030,73 +8473,16 @@ desk_tabs_html(HDs0, HCs, Tab, Html) :-
         append(NWs, ["All"-Total], Ts),
         findall(A, ( member(N-W, Ts), ( N == "All" -> Key = "all" ; Key = N ),
                      ( Key == Tab -> Cur = " aria-current=\"page\" class=\"on\"" ; Cur = "" ),
-                     uri_encoded(query_value, Key, KE), esc(N, NH), ( W > 0 -> Hot = " hot" ; Hot = "" ),
-                     dk_f("<a href=\"/?mh=~w\"~w><span>~w</span><b class=\"num~w\">~w</b></a>", [KE, Cur, NH, Hot, W], A) ), As),
+                     esc(N, NH), ( W > 0 -> Hot = " hot" ; Hot = "" ), desk_view_href(Key, View, Hr),
+                     dk_f("<a href=\"~w\"~w><span>~w</span><b class=\"num~w\">~w</b></a>", [Hr, Cur, NH, Hot, W], A) ), As),
         dk_cat(As, AsH),
         dk_f("<nav class=\"mhtabs\" aria-label=\"Mindholes\">~w</nav>", [AsH], Html)
     ;   Html = ""
     ).
 
-desk_rail(HDs, Cards, Missing, Html) :- desk_rail(HDs, Cards, Missing, false, Html).
 
-% desk_rail(+HDs, +Cards, +Missing, +Unwrap, -Html): with Unwrap (one mindhole on the page, c28), the
-% mindhole's KBs and asks sit at the top of the rail, with no collapsible group around them.
-desk_rail(HDs, Cards, Missing, Unwrap, Html) :-
-    findall(H, ( member(HD, HDs), desk_rail_hub(HD, Cards, Unwrap, H) ), Hs), dk_cat(Hs, HsH),
-    findall(M, ( member(N-P, Missing), esc(N, NH), esc(P, PH),
-                 dk_f("<div class=\"hint\">~w joined the Desk, but ~w has no ledger now.</div>", [NH, PH], M) ), Ms), dk_cat(Ms, MsH),
-    findall(S, ( member(HD, HDs), desk_rail_sessions(HDs, HD, Unwrap, S) ), Ss), dk_cat(Ss, SsH),
-    dk_f("<nav class=\"rail\" aria-label=\"Mindholes\">~w~w</nav><nav class=\"rail\" aria-label=\"Sessions\"><details><summary><span class=\"name\">Sessions</span></summary>~w</details></nav>", [HsH, MsH, SsH], Html).
-
-desk_count_kb(Cards, Dir, N) :- findall(x, ( member(C, Cards), get_dict(kbs, C, Ks), memberchk(Dir, Ks) ), L), length(L, N).
 desk_num(N, Html) :- ( N > 0 -> dk_f("<span class=\"num hot\">~w</span>", [N], Html) ; dk_f("<span class=\"num\">~w</span>", [N], Html) ).
 
-desk_rail_hub(HD, Cards, Html) :- desk_rail_hub(HD, Cards, false, Html).
-desk_rail_hub(HD, Cards, Unwrap, Html) :-
-    HP = HD.path, HK = HD.kbs,
-    include([C]>>( get_dict(hub, C, HP), desk_waits(C) ), Cards, HCs),   % c28: what waits, as the tab
-    length(HCs, NH), desk_num(NH, NumH),
-    include([K]>>get_dict(kind, K, project), HK, PKs),
-    include([K]>>get_dict(kind, K, spec), HK, SKs),
-    include([K]>>get_dict(kind, K, outside), HK, OKs),
-    partition([K]>>( get_dict(dir, K, KD), desk_kb_project(KD, some(_)) ), SKs, Linked, Unlinked),
-    findall(H, ( member(K, PKs), desk_rail_project(HD, K, Linked, H) ), PHs), dk_cat(PHs, PH),
-    ( PKs == [] -> PH1 = "<div class=\"hint\">This mindhole has no project KB.</div>" ; PH1 = PH ),
-    desk_rail_group("Spec KBs, linked to the project KB", Linked, Cards, false, G1),
-    desk_rail_group("Spec KBs, not linked", Unlinked, Cards, true, G2),
-    desk_rail_group("KBs outside the mindhole", OKs, Cards, false, G3),
-    include([X]>>( desk_ask_for_me(HD, X), \+ get_dict(parked, X, true) ), HD.asks, Mine), length(Mine, NMine),
-    include([X]>>desk_ask_kb_state(X, unknown), HD.asks, NoKb), length(NoKb, NNo),
-    desk_num(NMine, AskNum),
-    dk_f("<details~w><summary><span class=\"name\">Ledger asks</span>~w</summary><a class=\"leaf\" href=\"#lane-ledger\"><span class=\"name\">Asks for you</span>~w</a><a class=\"leaf\" href=\"#lane-orphans\"><span class=\"name quiet\">Asks with no KB recorded</span><span class=\"num\">~w</span></a></details>",
-         ["", AskNum, AskNum, NNo], AsksH),
-    esc(HD.name, NameH), esc(HD.path, PathH),
-    Op = "",                                          % c22: the rail loads collapsed
-    (   Unwrap == true
-    ->  dk_f("<div class=\"kids top\" title=\"~w\">~w~w~w~w~w</div>", [PathH, PH1, G1, G2, G3, AsksH], Html)
-    ;   dk_f("<details~w><summary title=\"~w\"><span class=\"name\">~w</span>~w</summary><div class=\"kids\">~w~w~w~w~w</div></details>",
-             [Op, PathH, NameH, NumH, PH1, G1, G2, G3, AsksH], Html)
-    ).
-
-desk_rail_project(HD, K, Linked, Html) :-
-    ( desk_eng(K.dir, Eng) -> dk_all(Eng, [N0], repo(N0, _), Rs0), sort(Rs0, Rs) ; Rs = [] ),
-    length(Rs, NR),
-    desk_project_items(HD, PIs), KD = K.dir, include([P]>>get_dict(dir, P, KD), PIs, Mine), length(Mine, NP), desk_num(NP, NumH),
-    findall(L, ( member(R, Rs), esc(R, RH), dk_f("<a class=\"leaf\" href=\"#~w\"><span class=\"name quiet\">~w</span></a>", [K.anchor, RH], L) ), RLs), dk_cat(RLs, RLH),
-    length(Linked, NL),
-    ( NL == 0 -> Hint = "<div class=\"hint\">No spec KB is linked to it yet.</div>" ; dk_f("<a class=\"leaf\" href=\"#~w\"><span class=\"name quiet\">~w spec KBs link to it</span></a>", [K.anchor, NL], Hint) ),
-    esc(K.label, LH),
-    dk_f("<details><summary><span class=\"name\">Project KB ~w</span>~w</summary><a class=\"leaf\" href=\"#~w\"><span class=\"name\">What it holds</span></a><details><summary><span class=\"name quiet\">~w repos</span></summary>~w</details>~w</details>",
-         [LH, NumH, K.anchor, NR, RLH, Hint], Html).
-
-desk_rail_group(_, [], _, _, "") :- !.
-desk_rail_group(Title, Ks, Cards, _, Html) :-
-    length(Ks, N),
-    findall(L, ( member(K, Ks), desk_count_kb(Cards, K.dir, C), desk_num(C, NumH), esc(K.label, LH), esc(K.dir, DH),
-                 dk_f("<a class=\"leaf\" href=\"#~w\" title=\"~w\"><span class=\"name\">~w</span>~w</a>", [K.anchor, DH, LH, NumH], L) ), Ls),
-    dk_cat(Ls, LsH), findall(C, ( member(K, Ks), get_dict(dir, K, KD), desk_count_kb(Cards, KD, C) ), CsN), sum_list(CsN, Tot),
-    Tot = Tot, Op = "", esc(Title, TH),
-    dk_f("<details~w><summary><span class=\"name\">~w</span><span class=\"num\">~w</span></summary>~w</details>", [Op, TH, N, LsH], Html).
 
 % desk_rail_sessions(+HDs, +HD, -Html) (c14): for each session, the KBs it holds and its items.
 desk_rail_sessions(HDs, HD, Html) :- desk_rail_sessions(HDs, HD, false, Html).
@@ -8123,13 +8509,13 @@ desk_rail_session(HD, X, Html) :-
     (   NHeld == 0 -> HeldT = "Holds no KB.", KbsH = ""
     ;   maplist([L-An, E-An]>>esc(L, E), Held, HeldE),
         ( NHeld == 1 -> HeldE = [H1-_], dk_f("Writes <b>~w</b>.", [H1], HeldT) ; dk_f("Writes <b>~w KBs</b>.", [NHeld], HeldT) ),
-        findall(KL, ( member(E-An, HeldE), dk_f("<a class=\"leaf\" href=\"#~w\"><span class=\"name\">Writes the KB ~w</span></a>", [An, E], KL) ), KLs), dk_cat(KLs, KbsH)
+        findall(KL, ( member(E-An, HeldE), desk_href(An, Hr), dk_f("<a class=\"leaf\" href=\"~w\"><span class=\"name\">Writes the KB ~w</span></a>", [Hr, E], KL) ), KLs), dk_cat(KLs, KbsH)
     ),
     (   X.status == "active" -> St = "" ; dk_f(" <span class=\"gapnote\">(~w)</span>", [X.status], St) ),
     (   get_dict(state, X, Sta), string(Sta) -> dk_f(" Now ~w.", [Sta], StaT) ; StaT = "" ),
     findall(L, ( member(I, Inbox), esc(I.title, TH), desk_led_kind(I.kind, KL), dk_f("~w ~w: ~w", [KL, I.id, I.title], Tip0), esc(Tip0, TipH),
-                 desk_led_anchor(HD, I.id, An),
-                 dk_f("<a class=\"leaf\" href=\"#~w\" title=\"~w\"><span class=\"name\">~w</span></a>", [An, TipH, TH], L) ), Ls),
+                 desk_led_anchor(HD, I.id, An), desk_href(An, Hr),
+                 dk_f("<a class=\"leaf\" href=\"~w\" title=\"~w\"><span class=\"name\">~w</span></a>", [Hr, TipH, TH], L) ), Ls),
     dk_cat(Ls, LsH), desk_badge(S, BH),
     dk_f("<details><summary class=\"sess\">~w<span class=\"what\">~w ~w open items.~w~w~w</span></summary>~w~w</details>", [BH, HeldT, NI, PkT, StaT, St, KbsH, LsH], Html).
 
@@ -8193,13 +8579,6 @@ desk_kb_recipient(HD, K, S) :-
 desk_ask_recipient(HD, X, S) :-
     ( string(X.owner_session), atom_string(O, X.owner_session), desk_live(HD, O) -> S = O ; desk_keeper(HD, S) ).
 
-desk_orphan_lane(Rows, Html) :-
-    (   Rows == [] -> Body = "<p class=\"empty\">Nothing is orphaned.</p>"
-    ;   findall(T, ( member(HD-row(What, Why, Tos, Item, Ids), Rows), desk_orphan_tr(HD, What, Why, Tos, Item, Ids, T) ), Ts),
-        dk_cat(Ts, TsH),
-        dk_f("<div class=\"sheet tablewrap\"><table><tr><th>What</th><th>Why</th><th>Goes to</th><th></th></tr>~w</table></div>", [TsH], Body)
-    ),
-    dk_f("<details class=\"lane\" id=\"lane-orphans\"><summary><h2>Orphaned</h2><span class=\"quiet\">Each fix opens the letter for you to read and change first</span></summary><div class=\"lanebody\">~w</div></details>", [Body], Html).
 
 desk_orphan_tr(HD, What, Why, Tos, Item, Ids, Html) :-
     esc(What, WH), esc(Why, YH),
@@ -8228,12 +8607,6 @@ desk_pfact_text(Eng, X, T) :-
     ;   term_text(X, T)
     ).
 
-desk_project_lane(_, Items, Html) :-
-    (   Items == [] -> Body = "<p class=\"empty\">Nothing waits on you in a project KB.</p>", Op = ""
-    ;   findall(R, ( member(P, Items), desk_project_row(P, R) ), Rs), dk_cat(Rs, RsH),
-        dk_f("<div class=\"sheet tablewrap\"><table><tr><th>Waits on you</th><th>What</th><th></th></tr>~w</table></div>", [RsH], Body), Op = ""
-    ),
-    dk_f("<details class=\"lane\" id=\"lane-project\"~w><summary><h2>Project KB</h2><span class=\"quiet\">Proposed facts to ratify, drafts to push, stale pins</span></summary><div class=\"lanebody\">~w</div></details>", [Op, Body], Html).
 
 desk_project_row(P, Html) :-
     ( P.kind == proposed -> Kd = "A fact that an agent proposed", BL = "Ratify"
@@ -8248,67 +8621,9 @@ desk_project_row(P, Html) :-
 desk_answered(HD, As) :-
     (   is_dict(HD.st), get_dict(closed_recent, HD.st, Cs) -> findall(HD-C, member(C, Cs), As) ; As = [] ).
 
-desk_answered_lane(As, Html) :-
-    (   As == [] -> Body = "<p class=\"empty\">Nothing was answered in the last 7 days.</p>"
-    ;   findall(L, ( member(HD-C, As), esc(C.id, IH), esc(C.title, TH), dk_str(C.get(note, ""), N0), esc(N0, NH),
-                     dk_str(C.get(by_session, ""), BS), esc(BS, BH), dk_day(C.closed_at, CD), atom_string(HD.name, _),
-                     dk_f("<li><span class=\"ref\">~w</span>~w <span class=\"quiet\">closed ~w by ~w</span><br><span class=\"small\">~w</span></li>", [IH, TH, CD, BH, NH], L) ), Ls),
-        dk_cat(Ls, LsH), dk_f("<div class=\"sheet\"><div class=\"head\"><ul class=\"answered\">~w</ul></div></div>", [LsH], Body)
-    ),
-    dk_f("<details class=\"lane\" id=\"lane-answered\"><summary><h2>Answered</h2><span class=\"quiet\">In the last 7 days, here or in a session</span></summary><div class=\"lanebody\">~w</div></details>", [Body], Html).
 
 % ---- KBs (c13, c14): every KB, folded, with what it holds
 
-desk_kbs_lane(HDs, KHs, Html) :-
-    findall(S, ( member(K-HD, KHs), catch(desk_kb_section(HDs, HD, K, S), E, ( serve_err_text(E, M), esc(M, MH), esc(K.label, LH),
-                 dk_f("<div class=\"sheet\"><div class=\"head\"><p class=\"loud\">The KB ~w cannot be read: ~w</p></div></div>", [LH, MH], S) )) ), Ss),
-    ( Ss == [] -> Body = "<p class=\"empty\">No KB.</p>" ; dk_cat(Ss, Body) ),
-    dk_f("<details class=\"lane\" id=\"lane-kbs\"><summary><h2>KBs</h2><span class=\"quiet\">Each KB with its goal, hypotheses, claims and checks</span></summary><div class=\"lanebody\">~w</div></details>", [Body], Html).
-
-desk_kb_section(HDs, HD, K, Html) :-
-    desk_engine(K.dir, KB, Eng),
-    desk_holder(HD, K, Hold, How), desk_badge(Hold, BH),
-    (   How == lock -> HowT = "holds the writer lock" ; How == handoff -> HowT = "took the newest handoff" ; HowT = "No session holds it" ),
-    esc(K.label, LH), esc(K.dir, DH), desk_hub_suffix(HDs, HD, HS),
-    (   K.kind == project -> KindT = "Project KB"
-    ;   K.kind == outside -> KindT = "Spec KB outside the mindhole"
-    ;   KindT = "Spec KB"
-    ),
-    (   K.kind == project -> LinkH = ""
-    ;   desk_kb_project(K.dir, some(P)) -> file_base_name(P, PB), dk_f("<p>Linked to the project KB ~w.</p>", [PB], LinkH)
-    ;   LinkH = "<p class=\"gapnote\">Linked to no project KB.</p>"
-    ),
-    (   K.kind == project
-    ->  dk_all(Eng, [R], repo(R, _), Rs0), sort(Rs0, Rs), length(Rs, NR),
-        maplist([R, E]>>esc(R, E), Rs, RsE), dk_join(RsE, ", ", RsJ),
-        dk_all(Eng, [X], current_fact(X), Fs), length(Fs, NF),
-        dk_f("<p>~w current decisions, definitions and rules. ~w repos: ~w.</p>", [NF, NR, RsJ], BodyMain)
-    ;   desk_records_html(Eng, acts(HD, K), HypH), desk_current_claims(Eng, Cs0),
-        % c24, c38: a claim whose every hypothesis is defeated, retired or superseded is shown apart, not among the open claims
-        partition([C]>>desk_claim_out(Eng, C, _, _), Cs0, Outs, Cs),
-        findall(OH, ( member(C, Outs), desk_claim_out(Eng, C, OHy, OSt), desk_claim_text(Eng, C, OT), esc(OT, OTH),
-                      dk_f("<p class=\"quiet notcurrent\" data-claim=\"~w\"><span class=\"ref\">~w</span>~w <span class=\"small\">not current (its hypothesis ~w is ~w)</span></p>", [C, C, OTH, OHy, OSt], OH) ), OHs),
-        ( OHs == [] -> OutH = "" ; dk_cat(OHs, OHT), dk_f("<h4>Not current</h4>~w", [OHT], OutH) ),
-        findall(CH, ( member(C, Cs), desk_claim_html(HD, K, Eng, C, CH) ), CHs), dk_cat(CHs, CsH),
-        ( Cs == [] -> CsH2 = "<p class=\"gapnote\">No claim is current.</p>" ; CsH2 = CsH ),
-        desk_kb_blockers(KB, Eng, Bl),
-        ( Bl == [] -> BlH = "" ; findall(L, ( member(B, Bl), esc(B, BH0), dk_f("<li>~w</li>", [BH0], L) ), BLs), dk_cat(BLs, BLT),
-                                  dk_f("<h3>Also open</h3><ul>~w</ul>", [BLT], BlH) ),
-        desk_open_questions(Eng, Qs),
-        ( Qs == [] -> QsH = "" ; length(Qs, NQ), dk_f("<p>~w questions wait on you: their cards are in Questions and Running on a guess.</p>", [NQ], QsH) ),
-        catch(view_pending_html(K.dir, PendH), _, PendH = ""),
-        catch(view_answered_html(Eng, AnsH), _, AnsH = ""),
-        desk_term(claim, "Claims", ClL), dk_f("<h3>~w</h3>", [ClL], ClH),
-        dk_cat(["<h3>Goal and hypotheses</h3>", HypH, ClH, CsH2, OutH, BlH, QsH, PendH, AnsH], BodyMain)
-    ),
-    findall(I, ( desk_stale_handoffs(HD, K, Old, New), member(H, Old), I = H.id ), OldIds),
-    (   OldIds == [] -> OldH = ""
-    ;   desk_stale_handoffs(HD, K, _, New), dk_join(OldIds, ", ", OJ),
-        dk_f("<p class=\"gapnote\">Older open handoffs on this KB: ~w (the newest is ~w). See Orphaned.</p>", [OJ, New.id], OldH)
-    ),
-    Op = "",                                          % c22: one thing open on load, and it is a card
-    dk_f("<details class=\"sheet kbsec\" id=\"~w\"~w><summary><div class=\"t\"><h3 class=\"title\">~w</h3><div class=\"src\"><span>~w~w</span><span title=\"~w\">~w</span><span>~w</span></div></div>~w</summary><div class=\"body\">~w~w~w</div></details>",
-         [K.anchor, Op, LH, KindT, HS, DH, DH, HowT, BH, LinkH, OldH, BodyMain], Html).
 
 % desk_save_draft2(+Form, -R) (q2, q9, q10): a draft is saved in the Desk's own store as Ty types.
 desk_save_draft2(Form, R) :-
@@ -8358,6 +8673,7 @@ desk_plan(Form, P) :-
     ;   string_concat("adopt:", R, It), sub_string(R, B, 1, _, "#"), sub_string(R, 0, B, _, DS), B1 is B + 1, sub_string(R, B1, _, 0, HyS)
         -> desk_plan_dir(HDs, DS, K, HD), desk_plan_adopt(HD, K, HyS, Text, P0)
     ;   string_concat("judge:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_judge(HD, K, Choice, Text, P0)
+    ;   string_concat("kbreq:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_kbreq(HD, K, Intent, Text, P0)
     ;   string_concat("fix:", R, It) -> desk_plan_fix(HDs, HD, R, Text, P0)
     ;   string_concat("proj:", R, It) -> desk_plan_proj(HDs, HD, R, Text, P0)
     ;   throw(desk_refused(400, "The form names no item. Reload the page."))
@@ -8503,6 +8819,15 @@ desk_plan_requirement(HD, From, About, Item, Text, P) :-
     ( To == none -> R1 = "The ledger: a new intake thread with your words. No review session is live, so it has no owner and shows under Orphaned." ; R1 = "The ledger: a new intake thread with your words, owned by review." ),
     desk_lt(To, requirement, About, Item, LT, L1),
     P = plan{title:"A new requirement", sub:About, letters:[L1], records:[R1], effects:[intake(HD.path, Text, From)]}.
+
+% ---- a new requirement for one KB (c15, release 0.9.2): the form in the sheet of the KB. Its plan is the
+% plan of the requirement of a card of the KB (desk_plan_q/7): the same intake thread with the ref
+% kb:SLUG; the letter names the KB (item kind kb, ref requirement).
+desk_plan_kbreq(HD, K, Intent, Text, P) :-
+    (   Intent == requirement -> true ; throw(desk_refused(400, "The form of a new requirement for a KB sends a requirement only. Reload the page.")) ),
+    dk_f("the KB ~w", [K.label], About),
+    desk_item_json(HD, K, kb, requirement, Item),
+    desk_plan_requirement(HD, kb(K.ref), About, Item, Text, P).
 
 % ---- a new requirement with no item behind it (c5, release 0.9.1): the control New requirement of the
 % top band. The plan is that of desk_plan_requirement/6 without a card: the same intake thread (what
@@ -15452,7 +15777,10 @@ help_lines(serve, [
 "The card of a demo shows its image (png, jpg, gif, webp, avif, svg): GET /demo (token) serves only",
 "the demo images that the page showed in this run, in a sandbox. Another demo shows its file name.",
 "With two or more MindHoles, the page has one tab per MindHole (GET /?mh=NAME) and All (?mh=all).",
-"The Ledger lane holds the asks for the human and each session's open items: Answer (an ask), Close",
+"The sections are the stores that hold items: Ledger, Spec KBs (grouped by repo), Project KB. A row of",
+"views narrows them (GET /?view=waits|questions|answered|everything; the page opens on waits). Every",
+"action on a spec KB is in its sheet. A KB names its repo with repo(Name, Path) (module project).",
+"The Ledger holds the asks for the human and each session's open items: Answer (an ask), Close",
 "and Park until a date (hubflow as the human), Note (a letter to the holder). Each row of the rail",
 "links to its item; a link opens the folds around it. Expand all and Collapse all set every fold.",
 "A parked ledger item (hubflow park --until) sits in a closed Parked group at the end of the Ledger",
