@@ -74,9 +74,9 @@ def t_gate():
     ck("one default counts", len(defaults(d4, "q1")) == 1, defaults(d4, "q1"))
     code, out = run(d4, "add", "option(q1, 'Z', 'z')")
     ck("an option that leaves the default right is accepted", code == 0, out)
-    # an old KB that is wrong already is let alone by an unrelated option, and lint names it (W21)
+    # an old KB that is wrong already is let alone by an unrelated option, and lint names it (W22)
     d5 = old_kb()
-    ck("lint names a default that is no option (W21)", "W21 q2" in run(d5, "lint")[1] and "W21 q1" in run(d5, "lint")[1], run(d5, "lint")[1])
+    ck("lint names a default that is no option (W22)", "W22 q2" in run(d5, "lint")[1] and "W22 q1" in run(d5, "lint")[1], run(d5, "lint")[1])
     code, out = run(d5, "add", "option(q2, 'Maybe', 'm')")
     ck("an old question that was wrong is not made worse by an option: accepted", code == 0, out)
     code, out = run(d5, "add", "assumed(q2, 'Another sentence')")
@@ -133,7 +133,7 @@ def t_migration():
     ck("the agent links q2 by replace", code == 0, out)
     code, out = run(d, "migrate", "check")
     ck("check is clean after the agent step", code == 0, out)
-    ck("lint has no error and no W21", "0 error(s)" in run(d, "lint")[1] and "W21" not in run(d, "lint")[1], run(d, "lint")[1])
+    ck("lint has no error and no W22", "0 error(s)" in run(d, "lint")[1] and "W22" not in run(d, "lint")[1], run(d, "lint")[1])
     before = kbtext(d)
     code, out = run(d, "migrate", "plan")
     seen = re.search(r"^Seen: (\S+)", out, re.M)
@@ -151,6 +151,32 @@ def t_migration_ambiguous():
     run(d, "migrate", "apply", "--seen", seen.group(1))
     ck("the longest option is the default", defaults(d, "q1") in (["'Yes, but later'"], ["Yes, but later"]), defaults(d, "q1"))
     ck("check is clean", run(d, "migrate", "check")[0] == 0, run(d, "migrate", "check")[1])
+
+
+def t_word_boundary():
+    d = old_kb_with(["option(q1, 'Keep', 'a')", "option(q1, 'Drop', 'b')", "assumed(q1, 'Keeping neither: ask Ty first')"])
+    code, out = run(d, "migrate", "check")
+    ck("Keep does not link Keeping neither (no link step)", "link tool" not in out and "means agent 1" in out, out)
+    d2 = old_kb_with(["option(q1, 'Now', 'a')", "option(q1, 'Later', 'b')", "assumed(q1, 'Nowhere near ready, so later')"])
+    ck("Now does not link Nowhere near ready", "link tool" not in run(d2, "migrate", "check")[1], run(d2, "migrate", "check")[1])
+    d3 = old_kb_with(["option(q1, 'Keep', 'a')", "option(q1, 'Drop', 'b')", "assumed(q1, 'Keep: nothing changes')"])
+    ck("Keep links Keep: nothing changes (a boundary)", "link tool 1" in run(d3, "migrate", "check")[1], run(d3, "migrate", "check")[1])
+    d4 = old_kb_with(["option(q1, 'Keep', 'a')", "option(q1, 'Drop', 'b')", "assumed(q1, 'Keep')"])
+    ck("an exact default is no step", run(d4, "migrate", "check")[0] == 0, run(d4, "migrate", "check")[1])
+
+
+def t_show_open_step():
+    d = old_kb()
+    o = run(d, "show", "open")[1]
+    ck("show open names a step for the default of q1 and of q2", re.search(r"- default q1:", o) and re.search(r"- default q2:", o), o)
+    ck("and none for a default that is an option, or a question with no options", "default q3" not in o and "default q4" not in o, o)
+    ck("Nothing is open is not said while a default is no option", "Nothing is open" not in o, o)
+    run(d, "replace", "assumed(q2)#1", "assumed(q2, 'No')", "--why", "it means No")
+    o2 = run(d, "show", "open")[1]
+    ck("after the replace the step for q2 is gone, q1 stays", "default q2:" not in o2 and "default q1:" in o2, o2)
+    s = re.search(r"^Seen: (\S+)", run(d, "migrate", "plan")[1], re.M)
+    run(d, "migrate", "apply", "--seen", s.group(1))
+    ck("after the migration show open names no default step", "- default q" not in run(d, "show", "open")[1], run(d, "show", "open")[1])
 
 
 def old_kb_with(facts):
