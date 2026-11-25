@@ -195,7 +195,7 @@ dirs (a root file, a skill, the project KB), never left to roll off.
 Before you open a ledger item for a finding (a defect, a gap, a doubt about a result), find the spec KB
 that owns it. List the goals and the claims of every spec KB with `orbit hub query` (for example
 `orbit hub query 'ticket_fact(S, claim(C, L, T))'`), read which claim the finding is about, and give
-that KB's ref (`--ref kb:<slug>`) on the item, not only the KB of the work in which you found it.
+that KB as the kb ref of the item (`--ref kb:<slug>`), not only the KB of the work in which you found it.
 `grep` over `specs/*/kb.pl` also finds a word, but it cannot tell a current claim from a superseded one.
 
 ## Flow state lives in the db

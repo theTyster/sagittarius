@@ -107,9 +107,9 @@ the hub is `kb:/abs/path` or `kb:~/path`: the ledger reads it as it reads a spec
 ~/path` prints the path with `~` expanded. An ask added before these rules has no kb ref and `no_kb`
 0: the Desk shows it as "No KB behind it".
 
-**The owner of a finding.** Before you add an item for a finding, find the spec KB that owns it:
-`orbit hub query 'ticket_fact(S, claim(C, L, T))'` lists the claims of every spec KB. Give the ref of that
-KB (`--ref kb:<slug>`) on the item. A thread with a title that starts with `Kit` and no kb ref gets a
+**The owner of a finding.** Before you add a ledger item for a finding, find the spec KB that owns it:
+`orbit hub query 'ticket_fact(S, claim(C, L, T))'` lists the claims of every spec KB. Give that KB as the
+kb ref of the item (`--ref kb:<slug>`). A thread with a title that starts with `Kit` and no kb ref gets a
 warning that names this query (it blocks nothing).
 
 **A handoff** is a `handoff` row plus the KB. The one procedure is written in `PANES.md` (installed as
