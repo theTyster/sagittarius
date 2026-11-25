@@ -76,6 +76,7 @@ Core
   W19  an agent retirement that does not count: a human wrote or adopted the hypothesis, or it has
        adoption_cited. Only the human retires it.
   W20  supports(G, project(PG)) names a goal that the project KB (project_kb/1) does not hold.
+  W21  the default of a question with options is none of its options (the Desk shows two choices). add refuses a new one (E22).
   WM1  a retired predicate (kb-migrations): its cut-fail clause in kb.pl takes its facts out of the
        model, also a fact added later. The message names the version that retired it and what
        replaces it (retired/3), the lines of its facts, and their reach: each predicate that reads

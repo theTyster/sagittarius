@@ -4435,7 +4435,9 @@ cmd_replace(KB, Args, Code) :-
     KB = kb(_, _, _, _),
     ( By == human -> ByArgs = ['--by', human] ; ByArgs = [] ),
     append([NewText|MoreFacts], Extra, Facts0), append(Facts0, ByArgs, AddArgs),
-    cmd_add(KB, AddArgs, _),
+    (   Target = at(RK, RI, RN), kb_items(KB, RItems), crud_address_line(RItems, RK, RI, RN, RLine)
+    ->  nb_setval(crud_replacing_line, RLine) ; nb_setval(crud_replacing_line, none) ),
+    setup_call_cleanup(true, cmd_add(KB, AddArgs, _), nb_setval(crud_replacing_line, none)),
     utc_now(Now), kb_file(KB, KbFile),
     (   Strike == true
     ->  clause_line(struck(Target, By, Now, Why), [], L1), Ls0 = [L1]
@@ -4846,20 +4848,40 @@ cmd_add(KB, Args, Code) :-
     ),
     Code = 0.
 
-% default_option_gate(+KBItems, +NewItems) (question-default-option c2): a new assumed(Q, D) for a question
-% that has options (in the KB or in the same add) must name one of them: D is the text of an option.
-% Else nothing is written. A question with no options takes any default, as before.
-default_option_gate(KI, NewItems) :-
-    findall(M, ( member(it(_, _, _, assumed(Q, D), _, _), NewItems), nonvar(Q), nonvar(D),
-                 findall(OT, ( ( member(it(kb, _, _, option(Q2, O, _), _, _), KI) ; member(it(_, _, _, option(Q2, O, _), _, _), NewItems) ),
-                               Q2 == Q, nonvar(O), plain_text(O, OT) ), Os0),
-                 sort(Os0, Os), Os \== [], plain_text(D, DT), \+ memberchk(DT, Os),
-                 atomic_list_concat(Os, ' | ', OL),
-                 fmt(M, "E22: the default of question ~w is ~q, which is none of its options (~w). The Desk would show the default and the option as two choices.", [Q, DT, OL]) ), Ms),
+% default_option_gate(+KBItems, +NewItems) (question-default-option c2, c3): after the add, no question may hold a
+% default that is none of its options (a question with no option takes any default), and no question may
+% hold more than one default (to change a default: orbit-kb replace). A question that was wrong before the add
+% and is not made worse is let alone (an old KB: orbit-kb migrate brings it right). Else nothing is written.
+% It looks at a new assumed/2 and at a new option/3 of a question that has a default.
+default_option_gate(KI0, NewItems) :-
+    struck_filter(KI0, KI1),
+    (   nb_current(crud_replacing_line, RL), integer(RL)
+    ->  exclude([it(_, _, L, _, _, _)]>>(L == RL), KI1, KI)     % orbit-kb replace: the default that it replaces does not count
+    ;   KI = KI1
+    ),
+    findall(Q, ( member(it(_, _, _, T, _, _), NewItems), nonvar(T), ( T = assumed(Q, _) ; T = option(Q, _, _) ), atom(Q) ), Qs0),
+    sort(Qs0, Qs),
+    findall(M, ( member(Q, Qs), crud_default_state(KI, [], Q, st(DsB, OsB, _)), crud_default_state(KI, NewItems, Q, st(DsA, OsA, NDef)),
+                 (   crud_bad_defaults(DsA, OsA, BadA), crud_bad_defaults(DsB, OsB, BadB), member(D, BadA), \+ memberchk(D, BadB),
+                     atomic_list_concat(OsA, ' | ', OL),
+                     fmt(M, "E22: the default of question ~w is ~q, which is none of its options (~w). The Desk would show the default and the option as two choices.", [Q, D, OL])
+                 ;   NDef > 0, length(DsA, ND), ND > 1,
+                     atomic_list_concat(DsA, ' | ', DL),
+                     fmt(M, "E22: question ~w would have ~w defaults (~w). One default counts.", [Q, ND, DL])
+                 ) ), Ms),
     (   Ms == [] -> true
     ;   append(Ms, ["Fix: write the default as the text of one option, exactly (assumed(Q, 'Option text')); add the option first if it is new. To change a default that is recorded: orbit-kb replace 'assumed(Q)#1' \"assumed(Q, 'Option text')\" --why TEXT."], All),
         reject(All)
     ).
+
+% crud_default_state(+KBItems, +NewItems, +Q, -st(Defaults, Options, NNewDefaults)): the texts, with the new facts.
+crud_default_state(KI, New, Q, st(Ds, Os, ND)) :-
+    findall(D, ( ( member(it(kb, _, _, assumed(Q2, D0), _, _), KI) ; member(it(_, _, _, assumed(Q2, D0), _, _), New) ), Q2 == Q, nonvar(D0), plain_text(D0, D) ), Ds0),
+    findall(O, ( ( member(it(kb, _, _, option(Q3, O0, _), _, _), KI) ; member(it(_, _, _, option(Q3, O0, _), _, _), New) ), Q3 == Q, nonvar(O0), plain_text(O0, O) ), Os0),
+    findall(x, ( member(it(_, _, _, assumed(Q4, _), _, _), New), Q4 == Q ), NDs),
+    list_to_set(Ds0, Ds), sort(Os0, Os), length(NDs, ND).
+
+crud_bad_defaults(Ds, Os, Bad) :- ( Os == [] -> Bad = [] ; findall(D, ( member(D, Ds), \+ memberchk(D, Os) ), Bad) ).
 
 % check_words_gate(+KBItems, +NewItems) (E20): a new check(K, C) needs the words of the check:
 % checks_that(K, Text) with non-empty Text, in the same add or already in the KB. Else reject.
@@ -11042,6 +11064,12 @@ mig_text(T0, X, Text) :-
 % mig_new_text(+KbFile, +Plan, +Version, +Now, -Text): kb.pl with the writes of the plan. Each old
 % line stays as it is; a retire inserts its clause and facts above the first clause of its
 % predicate; the other facts are appended, each with migration_added/3 after it.
+% mig_subst_now(+Fact, +Now, -Fact1): the atom '$now' in a fact that a migration writes is the time of the write
+% (the plan shows '$now': a time in the plan would change its digest at each second).
+mig_subst_now(F, Now, F1) :- F == '$now', !, F1 = Now.
+mig_subst_now(F, Now, F1) :- compound(F), !, F =.. [N|As], maplist([A, B]>>mig_subst_now(A, Now, B), As, Bs), F1 =.. [N|Bs].
+mig_subst_now(F, _, F).
+
 mig_new_text(KbFile, plan(Ins, Adds, _), V, Now, Text) :-
     read_file_to_string(KbFile, S, [encoding(utf8)]),
     split_string(S, "\n", "", Ls0),
@@ -11057,7 +11085,7 @@ mig_new_text(KbFile, plan(Ins, Adds, _), V, Now, Text) :-
     (   Adds == [] -> Tail = []
     ;   findall(Id, member(_-Id, Adds), Ids0), sort(Ids0, Ids), atomic_list_concat(Ids, ', ', IdT),
         format(string(Hd), "% orbit-kb migrate apply: ~w, by orbit-kb ~w at ~w.", [IdT, V, Now]),
-        findall(X, ( member(F-Id, Adds), ( clause_line(F, [], X) ; clause_line(migration_added(Id, V, F), [], X) ) ), Xs),
+        findall(X, ( member(F0-Id, Adds), mig_subst_now(F0, Now, F), ( clause_line(F, [], X) ; clause_line(migration_added(Id, V, F), [], X) ) ), Xs),
         Tail = [Hd|Xs]
     ),
     append(Ls2, Tail, Ls3),
@@ -11080,8 +11108,8 @@ mig_insert([L|Ls], N, Blocks, Out) :-
 mig_validate(KB, plan(Ins, Adds, _), Problems) :-
     kb_file(KB, KbFile),
     tool_version_text(V),
-    findall(it(kb, KbFile, 0, F, [], 0-0), member(F-_, Adds), I1),
-    findall(it(kb, KbFile, 0, migration_added(Id, V, F), [], 0-0), member(F-Id, Adds), I2),
+    findall(it(kb, KbFile, 0, F, [], 0-0), ( member(F0-_, Adds), mig_subst_now(F0, '1970-01-01T00:00:00Z', F) ), I1),
+    findall(it(kb, KbFile, 0, migration_added(Id, V, F), [], 0-0), ( member(F0-Id, Adds), mig_subst_now(F0, '1970-01-01T00:00:00Z', F) ), I2),
     findall(it(kb, KbFile, 0, retired(N/A, MV, W), [], 0-0), member(ins(_, N/A, W, _, MV), Ins), I3),
     append([I1, I2, I3], New),
     validate_new(KB, New, Ps),
