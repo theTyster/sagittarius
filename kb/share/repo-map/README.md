@@ -107,6 +107,9 @@ Sagittarius itself. It does not change the levels C1 to C3 above.
   source is `{file, kind, name}`; kinds of name: `pred`, `kb_cmd`, `route`, `def`, `decl`,
   `attest_type`, `json`, `text`, `remote`. `check` finds each name in its file by a pattern, never
   by a line number.
+- The kinds that the flow view must carry (request and the eight record kinds) are `REQUIRED_KINDS`
+  in views.py, not in the facts file. The facts file also lists `not_drawn`: what the map leaves
+  out, shown on the page.
 - `check` is red when: a source does not resolve; a module, a store, or a declared kind is not in
   the map (and not left out); the committed map has a box or an arrow that no source has; a
   committed file differs from a fresh build (stale).
