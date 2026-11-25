@@ -85,3 +85,34 @@ commit to a tracker.
 The Mermaid is checked for structure by the tests (fences, diagram type, known C4 keywords,
 balanced parentheses, quotes and braces). It is not rendered by any Mermaid version. C3 covers
 one container at a time; C4 (code) is not written.
+
+## Views: the groups view and the flow view (spec KB repo-map-flow)
+
+A second program beside repo-map, `views.py` (Python, standard library only), writes two views of
+Sagittarius itself. It does not change the levels C1 to C3 above.
+
+    python3 kb/share/repo-map/views.py build        write docs/map/sagittarius-map.md and .html
+    python3 kb/share/repo-map/views.py check        exit 1 when the map and its sources differ
+    python3 kb/share/repo-map/views.py trace KB_DIR follow one spec KB through the flow view
+    python3 kb/share/repo-map/views.py data         the boxes and arrows as JSON
+
+- The groups view: one group for each module of `MODULES.json`, each part in the one module that
+  covers its path (the `except` lists hold); the seven stores of `hubkit/tools/store-facts.json`
+  and the other things outside the repo are drawn outside it.
+- The flow view: lanes (the parts that act) and one row for each step in the order of time, with
+  an arrow from the part that acts to the part that it writes or reads.
+- The hand-written facts are in `sagittarius.views.json`: parts, outside things, lanes, record
+  kinds, steps (arrows), the trace map, and `left_out` (each declared fact kind or attestation type
+  of core.pl and the modules build and discovery that the map does not show, with a reason). Each
+  source is `{file, kind, name}`; kinds of name: `pred`, `kb_cmd`, `route`, `def`, `decl`,
+  `attest_type`, `json`, `text`, `remote`. `check` finds each name in its file by a pattern, never
+  by a line number.
+- `check` is red when: a source does not resolve; a module, a store, or a declared kind is not in
+  the map (and not left out); the committed map has a box or an arrow that no source has; a
+  committed file differs from a fresh build (stale).
+- The HTML page draws both views as inline SVG that views.py lays out itself (fixed lanes and rows,
+  a monospace font), so the same inputs give the same bytes. The Markdown copy carries the same
+  views as Mermaid (`flowchart`, `sequenceDiagram`), which is not rendered by any test.
+- Limits: the arrows are written by hand. `check` proves that each named source exists, not that
+  an arrow is true or that no arrow is missing; a reviewer reads them against the code.
+- Tests: `kb/tests/test_repo_map_flow.sh` (checks k1 to k9 of the spec KB).
