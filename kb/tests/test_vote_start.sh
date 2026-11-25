@@ -58,8 +58,8 @@ t_VS1() {  # c1: a Vote form on every KB with an open discovery; the blockers; n
         grep -qi "report" "$T/vf" || note "the Vote form of $s has no link to the report"
     done
     vform "$T/page.html" vote nr >/dev/null; grep -q "question q1 waits for you" "$T/vf" && grep -qi "not ready" "$T/vf" || note "the form of nr does not name its blocker q1: $(snip "$(cat "$T/vf")")"
-    vform "$T/page.html" vote nr >/dev/null; local href; href=$(grep -oE 'href="#layer-[^"]*"[^>]*>Read the report' "$T/vf" | grep -oE '#layer-[^"]*' | head -1)
-    [ -n "$href" ] && grep -q "id=\"${href#\#}\"" "$T/page.html" || note "the link Read the report ($href) names no element of the page (layers: $(grep -oE 'id="layer-[^"]*-claims"' "$T/page.html" | head -2 | tr '\n' ' '))"
+    vform "$T/page.html" vote nr >/dev/null; local href; href=$(grep -oE 'href="#report-[^"]*"[^>]*>Read the report' "$T/vf" | grep -oE '#report-[^"]*' | head -1)
+    [ -n "$href" ] && grep -q "id=\"${href#\#}\"" "$T/page.html" || note "the link Read the report ($href) names no element of the page (anchors: $(grep -oE 'id="report-[^"]*"' "$T/page.html" | head -2 | tr '\n' ' '))"
     vform "$T/page.html" vote rd >/dev/null; grep -q "nothing blocks the vote" "$T/vf" || note "the form of rd (ready) does not say that nothing blocks"
     # a closed discovery takes no vote: the approval of the ticket closes it
     local d="$T/h/specs/vt"; echo "the ticket" > "$d/ticket.txt"

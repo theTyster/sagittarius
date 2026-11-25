@@ -7449,9 +7449,10 @@ desk_vote_forms(HD, K, Eng, Html) :-
         ;   StH = "<p class=\"small quiet\">You have not voted.</p>"
         ),
         desk_hidden([token-Tok, hub-HD.path, item-It, intent-vote], HH),
-        dk_f("<form class=\"vote\" method=\"post\" action=\"/review\" data-review data-vote>~w<h4>Vote on this ticket</h4>~w~w<label><input type=\"radio\" name=\"choice\" value=\"go\"> GO</label> <label><input type=\"radio\" name=\"choice\" value=\"no_go\"> NO-GO</label> <label><input type=\"radio\" name=\"choice\" value=\"hold\"> HOLD</label> <textarea name=\"text\" aria-label=\"Your words\" placeholder=\"Your words (optional).\"></textarea> <button class=\"btn\" type=\"submit\">Review and record</button> <a href=\"#layer-~w-claims\">Read the report: the goal, the hypotheses, the claims and their checks</a> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form>", [HH, StH, BlH, A], VoteF),
+        dk_f("<form class=\"vote\" method=\"post\" action=\"/review\" data-review data-vote>~w<h4>Vote on this ticket</h4>~w~w<label><input type=\"radio\" name=\"choice\" value=\"go\"> GO</label> <label><input type=\"radio\" name=\"choice\" value=\"no_go\"> NO-GO</label> <label><input type=\"radio\" name=\"choice\" value=\"hold\"> HOLD</label> <textarea name=\"text\" aria-label=\"Your words\" placeholder=\"Your words (optional).\"></textarea> <button class=\"btn\" type=\"submit\">Review and record</button> <a href=\"#report-~w\">Read the report: the goal, the hypotheses, the claims and their checks</a> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form>", [HH, StH, BlH, A], VoteF),
         (   Bs == [] -> CallF = ""
-        ;   (   catch(desk_kb_recipient(HD, K, H0), _, fail) -> atom_string(H0, To) ; To = "" ),
+        ;   (   desk_holder(HD, K, H1, _), H1 \== none -> atom_string(H1, To)
+            ;   catch(desk_kb_recipient(HD, K, H0), _, fail) -> atom_string(H0, To) ; To = "" ),
             desk_hidden([token-Tok, hub-HD.path, item-CIt, intent-'call-vote', to-To], CH),
             dk_f("<form class=\"callvote\" method=\"post\" action=\"/review\" data-review data-callvote>~w<button class=\"btn\" type=\"submit\">Bring to a vote</button> <span class=\"small quiet\">asks the holder of this KB to clear what blocks it and bring the report</span> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form>", [CH], CallF)
         ),
@@ -8455,7 +8456,8 @@ desk_kb_sheet_(HDs, HD, K, KB, Eng, View, Open, QCs, GCs, Votes, Others, LAk, LC
         desk_kb_blockers(KB, Eng, Bl),
         ( Bl == [] -> BlH = "" ; findall(L, ( member(B, Bl), esc(B, BH0), dk_f("<li>~w</li>", [BH0], L) ), BLs), dk_cat(BLs, BLT),
                                   dk_f("<h3>Also open</h3><ul>~w</ul>", [BLT], BlH) ),
-        dk_cat([VH, HypH], GoalB), dk_cat([OH, CsH2, OutH, BlH], ClaimB),
+        dk_f("<span class=\"reportanchor\" id=\"report-~w\"></span>", [A], RepA),
+        dk_cat([VH, HypH], GoalB), dk_cat([RepA, OH, CsH2, OutH, BlH], ClaimB),
         desk_count_sub(HypH, "data-hyp=\"", NHyp)
     ;   View == waits -> GoalB = VH, ClaimB = OH, NHyp = none
     ;   GoalB = "", ClaimB = "", NHyp = none
