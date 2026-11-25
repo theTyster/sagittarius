@@ -60,7 +60,8 @@ class C33C34Requests(Base):
         for qid in list(self.shipped) + ["r_count", "r_kind@2", "r_goal@0", "x_dispute", "x_kind", "y_differs@0_1"]:
             self.assertIn(qid, sent["questions"])
         self.assertNotIn("r_kind", sent["questions"])  # the entry with a placeholder is never sent as it is
-        self.assertIn("requests: 3 (answer for no goal; hypothesis for pg1; task)", line)
+        self.assertIn("requests: 3 (answer for no goal \"Q4: the default is good.\"; hypothesis for pg1 "
+                      "\"Orbit is the front door to…\"; task \"Fix the typo in the help.\")", line)
         self.assertTrue(line.endswith("3 proposals wait (orbit show proposals)"), line)
         props = self.proposals()
         self.assertEqual([p[1:3] for p in props], [["--from", "system1"]] * 3)

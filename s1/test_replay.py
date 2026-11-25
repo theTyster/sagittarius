@@ -21,7 +21,9 @@ NOW = dt.datetime(2026, 11, 25, tzinfo=dt.timezone.utc)
 
 def load():
     with open(EXAMPLE) as f:
-        return json.load(f)
+        doc = json.load(f)
+    doc["questions_sha256"] = replay.questions_sha256(doc["question"])  # the file follows the question
+    return doc
 
 
 class Verdict(unittest.TestCase):
@@ -71,12 +73,54 @@ class Verdict(unittest.TestCase):
     def test_the_accuracy_rule(self):
         doc = load()
         doc["thresholds"] = {"written": "2026-11-24T08:00:00Z", "rule": "accuracy", "arm": "record",
-                             "meets_at": 0.9, "conflicts_below": 0.5}
+                             "meets_at": 0.9, "conflicts_below": 0.5,
+                             "hint_labels": ["drift"], "clean": ["no_change"], "max_false_hints": 0}
         self.assertEqual(self.run_doc(doc)["verdict"], "meets")
         doc["thresholds"]["arm"] = "today"  # 3 of 4: between
         self.assertEqual(self.run_doc(doc)["verdict"], "unresolved")
         doc["thresholds"]["conflicts_below"] = 0.8
         self.assertEqual(self.run_doc(doc)["verdict"], "conflicts")
+
+    def test_c16_a_hint_on_every_clean_case_is_never_meets(self):
+        """k16: the false hints of each arm are counted, and over the bound the verdict is not meets.
+        Recorded answers: the arm record names the drifts and gives a hint on the clean case too."""
+        doc = load()
+        doc["cases"][3]["recorded"]["record"]["d_kept@0"] = {"type": "choice", "choice": "dropped", "confidence": 0.9}
+        doc["thresholds"] = {"written": "2026-11-24T08:00:00Z", "rule": "accuracy", "arm": "record",
+                             "meets_at": 0.7, "conflicts_below": 0.2, "hint_labels": ["drift"],
+                             "clean": ["no_change", "revision"], "max_false_hints": 1}
+        out = self.run_doc(doc)
+        self.assertEqual(out["arms"]["record"]["false_hints"], 1)
+        self.assertEqual(out["arms"]["today"]["false_hints"], 0)
+        self.assertEqual(out["verdict"], "meets", out["reason"])  # 1 is at the bound
+        doc["thresholds"]["max_false_hints"] = 0
+        out = self.run_doc(doc)
+        self.assertEqual(out["verdict"], "unresolved", out["reason"])  # accuracy alone would say meets
+        self.assertIn("max_false_hints", out["reason"])
+
+    def test_c16_the_two_arm_rule_also_stops_at_the_bound(self):
+        doc = load()
+        doc["thresholds"]["max_extra_false"] = 5
+        doc["thresholds"]["max_false_hints"] = 0
+        doc["cases"][3]["recorded"]["record"]["d_kept@0"] = {"type": "choice", "choice": "dropped", "confidence": 0.9}
+        doc["cases"][3]["recorded"]["today"]["d_drift"] = {"type": "noul", "noul": 0.9}  # no more than today
+        out = self.run_doc(doc)
+        self.assertEqual(out["arms"]["record"]["false_hints"], 1)
+        self.assertNotEqual(out["verdict"], "meets", out["reason"])
+
+    def test_c16_a_star_in_hint_labels_counts_every_label_that_names_something(self):
+        th = {"hint_labels": ["*"]}
+        self.assertTrue(replay.is_hint("goal,task", th))
+        self.assertTrue(replay.is_hint("task", th))
+        for label in ("none", "neither", "no answer"):
+            self.assertFalse(replay.is_hint(label, th))
+        self.assertFalse(replay.is_hint("goal,task", {"hint_labels": ["task"]}))
+
+    def test_c16_the_bound_is_part_of_the_thresholds(self):
+        doc = load()
+        del doc["thresholds"]["max_false_hints"]
+        with self.assertRaisesRegex(ValueError, "max_false_hints"):
+            replay.check_file(doc, NOW)
 
 
 class Rules(unittest.TestCase):
@@ -88,6 +132,62 @@ class Rules(unittest.TestCase):
             change(doc)
             with self.assertRaises(ValueError):
                 replay.check_file(doc, NOW)
+
+    def test_c2_a_case_file_that_cannot_stand_is_refused_with_exit_2_and_no_call(self):
+        """k2: thresholds with no time or a later one, a case made by an editor of the question, and
+        a question that changed are each refused: exit 2, no call (also with --live). A clean file runs."""
+        d = tempfile.mkdtemp()
+        out = os.path.join(d, "out.json")
+        p = os.path.join(d, "c.json")
+        os.environ.setdefault("TYPESAFE_API_KEY", "sk-test")
+        calls = []
+
+        def code(doc):
+            json.dump(doc, open(p, "w"))
+            return replay.main(["run", "--cases", p, "--out", out, "--live"],
+                               transport=lambda *a: calls.append(a) or (200, "{}"))
+        later = load()
+        later["thresholds"]["written"] = "2999-01-01T00:00:00Z"
+        no_time = load()
+        no_time["thresholds"].pop("written")
+        editor = load()
+        editor["edited_by"] = ["discovery", "invented-fixture"]
+        no_editors = load()
+        del no_editors["edited_by"]
+        changed = load()
+        changed["questions_sha256"] = "0" * 64
+        no_sha = load()
+        del no_sha["questions_sha256"]
+        for name, doc in (("later", later), ("no time", no_time), ("editor", editor),
+                          ("no edited_by", no_editors), ("changed", changed), ("no sha", no_sha)):
+            self.assertEqual(code(doc), 2, name)
+        self.assertEqual(calls, [])
+        self.assertFalse(os.path.exists(out))
+
+    def test_c2_the_checks_name_their_reason(self):
+        editor = load()
+        editor["edited_by"] = ["invented-fixture"]
+        with self.assertRaisesRegex(ValueError, "made by invented-fixture"):
+            replay.check_file(editor, NOW)
+        changed = load()
+        changed["questions_sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "changed since the cases were made"):
+            replay.check_file(changed, NOW)
+        replay.check_file(load(), NOW)  # a clean file stands
+
+    def test_c2_the_sha_follows_the_entries_of_the_question_in_the_candidate_file(self):
+        import trees
+        d = tempfile.mkdtemp()
+        q = trees.load()
+        p = os.path.join(d, "cand.json")
+        json.dump(q, open(p, "w"))
+        self.assertEqual(replay.questions_sha256("drift", p), replay.questions_sha256("drift"))
+        q["d_kept"]["instructions"] += " "
+        json.dump(q, open(p, "w"))
+        self.assertNotEqual(replay.questions_sha256("drift", p), replay.questions_sha256("drift"))
+        self.assertEqual(replay.questions_sha256("dispute", p), replay.questions_sha256("dispute"))
+        with self.assertRaises(ValueError):
+            replay.check_file(load(), NOW, candidate=p)
 
     def test_rk10_a_case_from_the_log_must_be_of_the_one_hub(self):
         d = tempfile.mkdtemp()

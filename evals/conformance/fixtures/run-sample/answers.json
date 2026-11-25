@@ -1,0 +1,119 @@
+{
+ "_comment": "Recorded answers of System 1 for the fixture run, written by hand by build (2026-11-25): no model was called. t3-rerun has an answer under the floor (p18_residual_stated, 0.52) and no answer for p24_human_words (failed).",
+ "t1-conforms": {
+  "p01_registered": {
+   "type": "choice",
+   "choice": "met",
+   "confidence": 0.91,
+   "probabilities": {
+    "met": 0.91,
+    "not_met": 0.045,
+    "does_not_apply": 0.045
+   }
+  },
+  "p07_control_seen": {
+   "type": "choice",
+   "choice": "met",
+   "confidence": 0.88,
+   "probabilities": {
+    "met": 0.88,
+    "not_met": 0.06,
+    "does_not_apply": 0.06
+   }
+  },
+  "p24_human_words": {
+   "type": "choice",
+   "choice": "does_not_apply",
+   "confidence": 0.93,
+   "probabilities": {
+    "met": 0.035,
+    "not_met": 0.035,
+    "does_not_apply": 0.93
+   }
+  },
+  "p18_residual_stated": {
+   "type": "choice",
+   "choice": "met",
+   "confidence": 0.84,
+   "probabilities": {
+    "met": 0.84,
+    "not_met": 0.08,
+    "does_not_apply": 0.08
+   }
+  }
+ },
+ "t2-edit-first": {
+  "p01_registered": {
+   "type": "choice",
+   "choice": "not_met",
+   "confidence": 0.86,
+   "probabilities": {
+    "met": 0.07,
+    "not_met": 0.86,
+    "does_not_apply": 0.07
+   }
+  },
+  "p07_control_seen": {
+   "type": "choice",
+   "choice": "not_met",
+   "confidence": 0.9,
+   "probabilities": {
+    "met": 0.05,
+    "not_met": 0.9,
+    "does_not_apply": 0.05
+   }
+  },
+  "p24_human_words": {
+   "type": "choice",
+   "choice": "does_not_apply",
+   "confidence": 0.95,
+   "probabilities": {
+    "met": 0.025,
+    "not_met": 0.025,
+    "does_not_apply": 0.95
+   }
+  },
+  "p18_residual_stated": {
+   "type": "choice",
+   "choice": "not_met",
+   "confidence": 0.79,
+   "probabilities": {
+    "met": 0.105,
+    "not_met": 0.79,
+    "does_not_apply": 0.105
+   }
+  }
+ },
+ "t3-rerun": {
+  "p01_registered": {
+   "type": "choice",
+   "choice": "not_met",
+   "confidence": 0.74,
+   "probabilities": {
+    "met": 0.13,
+    "not_met": 0.74,
+    "does_not_apply": 0.13
+   }
+  },
+  "p07_control_seen": {
+   "type": "choice",
+   "choice": "not_met",
+   "confidence": 0.81,
+   "probabilities": {
+    "met": 0.095,
+    "not_met": 0.81,
+    "does_not_apply": 0.095
+   }
+  },
+  "p18_residual_stated": {
+   "type": "choice",
+   "choice": "not_met",
+   "confidence": 0.52,
+   "probabilities": {
+    "met": 0.24,
+    "not_met": 0.52,
+    "does_not_apply": 0.24
+   }
+  }
+ }
+}

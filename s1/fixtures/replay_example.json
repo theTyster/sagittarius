@@ -14,7 +14,8 @@
   ],
   "min_gain": 1,
   "max_extra_false": 0,
-  "max_failed": 0
+  "max_failed": 0,
+  "max_false_hints": 0
  },
  "cases": [
   {
@@ -100,7 +101,8 @@
       "noul": 0.1
      }
     }
-   }
+   },
+   "made_by": "invented-fixture"
   },
   {
    "id": "d2",
@@ -185,7 +187,8 @@
       "noul": 0.1
      }
     }
-   }
+   },
+   "made_by": "invented-fixture"
   },
   {
    "id": "r1",
@@ -278,7 +281,8 @@
       "noul": 0.1
      }
     }
-   }
+   },
+   "made_by": "invented-fixture"
   },
   {
    "id": "n1",
@@ -363,7 +367,12 @@
       "noul": 0.1
      }
     }
-   }
+   },
+   "made_by": "invented-fixture"
   }
- ]
+ ],
+ "edited_by": [
+  "discovery"
+ ],
+ "questions_sha256": "c6a1be83bec170d8c96c0ef73b62899233bf279a751e2d6daf5f76b54a21dbdd"
 }

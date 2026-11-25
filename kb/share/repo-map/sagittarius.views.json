@@ -1,0 +1,1563 @@
+{
+  "_about": "Hand-written facts of the groups view and the flow view of Sagittarius, for kb/share/repo-map/views.py (formats: README.md here, section Views). The modules come from MODULES.json and the stores from hubkit/tools/store-facts.json: they are not listed here. Each source names a file of the repo and a name that the check finds in that file by name (never a line number). Kinds of name: pred (a clause head), kb_cmd (a kb_cmd clause), route (a serve_route clause), def (a Python def), decl (a decl(fact, ...) or decl(rule, ...)), attest_type, json (a quoted JSON string), text (a literal text), remote (a git remote of the checkout).",
+  "parts": [
+    {
+      "id": "prompt_main",
+      "label": "the prompt (SAGITTARIUS.md)",
+      "path": "prompt/SAGITTARIUS.md"
+    },
+    {
+      "id": "prompt_panes",
+      "label": "pane prompts (PANES.md, panes/)",
+      "path": "prompt/panes"
+    },
+    {
+      "id": "orbit_tool",
+      "label": "orbit-kb and orbit (the tool)",
+      "path": "kb/bin/orbit-kb"
+    },
+    {
+      "id": "repo_map",
+      "label": "repo-map",
+      "path": "kb/bin/repo-map"
+    },
+    {
+      "id": "core_pl",
+      "label": "core.pl (record kinds, verdict rules)",
+      "path": "kb/share/orbit-kb/core.pl"
+    },
+    {
+      "id": "kb_modules",
+      "label": "modules build, discovery, project",
+      "path": "kb/share/orbit-kb/modules"
+    },
+    {
+      "id": "desk_page",
+      "label": "the Desk page (desk.js, desk.css)",
+      "path": "kb/share/orbit-kb/desk"
+    },
+    {
+      "id": "s1_record",
+      "label": "System 1 record and proposals",
+      "path": "s1/record.py"
+    },
+    {
+      "id": "s1_client",
+      "label": "System 1 client of the model",
+      "path": "s1/jev.py"
+    },
+    {
+      "id": "s1_glance",
+      "label": "s1-glance skill",
+      "path": "s1/glance"
+    },
+    {
+      "id": "hub_template",
+      "label": "the hub template (hubkit/hub)",
+      "path": "hubkit/hub/CLAUDE.md"
+    },
+    {
+      "id": "ledger_engine",
+      "label": "the ledger engine (hubflow.py)",
+      "path": "hubkit/hub/.claude/scripts/hubflow.py"
+    },
+    {
+      "id": "desk_py",
+      "label": "the Desk letters (desk.py)",
+      "path": "hubkit/hub/.claude/scripts/desk.py"
+    },
+    {
+      "id": "store_map",
+      "label": "the store map (store-facts.json)",
+      "path": "hubkit/tools/store-facts.json"
+    },
+    {
+      "id": "hubkit_py",
+      "label": "install and upgrade (hubkit.py)",
+      "path": "hubkit/tools/hubkit.py"
+    },
+    {
+      "id": "desk_toast",
+      "label": "desk-toast plugin",
+      "path": "hubkit/hub/.claude/scripts/desk-toast/hooks/core.ts"
+    }
+  ],
+  "outside": [
+    {
+      "id": "install_links",
+      "label": "install links in ~ (~/.claude, ~/.local)",
+      "source": {
+        "file": "MODULES.json",
+        "kind": "json",
+        "name": "installs"
+      }
+    },
+    {
+      "id": "sidequest_mindhole",
+      "label": "sidequest-mindhole (a hub)",
+      "source": {
+        "file": "hubkit/hub/.claude/scripts/desk.py",
+        "kind": "def",
+        "name": "cmd_join"
+      }
+    },
+    {
+      "id": "hwh_mindhole",
+      "label": "hwh-mindhole (a hub)",
+      "source": {
+        "file": "hubkit/hub/.claude/scripts/desk.py",
+        "kind": "def",
+        "name": "cmd_join"
+      }
+    },
+    {
+      "id": "desk_state",
+      "label": "Desk state (letters, drafts)",
+      "source": {
+        "file": "hubkit/hub/.claude/scripts/desk.py",
+        "kind": "def",
+        "name": "state_dir"
+      }
+    },
+    {
+      "id": "gitea",
+      "label": "Gitea ty/sagittarius (origin)",
+      "source": {
+        "file": ".git",
+        "kind": "remote",
+        "name": "origin"
+      }
+    },
+    {
+      "id": "github",
+      "label": "GitHub theTyster/sagittarius",
+      "source": {
+        "file": "hubkit/README.md",
+        "kind": "text",
+        "name": "github.com/theTyster/sagittarius"
+      }
+    },
+    {
+      "id": "s1_model",
+      "label": "the System 1 model",
+      "source": {
+        "file": "s1/jev.py",
+        "kind": "text",
+        "name": "DEFAULT_MODEL ="
+      }
+    },
+    {
+      "id": "claude_code",
+      "label": "Claude Code (runs sessions, hooks)",
+      "source": {
+        "file": "hubkit/hub/.claude/scripts/desk.py",
+        "kind": "def",
+        "name": "cmd_hooks"
+      }
+    }
+  ],
+  "lanes": [
+    {
+      "id": "human",
+      "label": "the human (Ty)",
+      "module": "outside",
+      "source": {
+        "file": "prompt/SAGITTARIUS.md",
+        "kind": "text",
+        "name": "## Who judges what"
+      }
+    },
+    {
+      "id": "session",
+      "label": "a session (the prompt)",
+      "module": "sagittarius",
+      "source": {
+        "file": "prompt/PANES.md",
+        "kind": "text",
+        "name": "review"
+      }
+    },
+    {
+      "id": "tool",
+      "label": "the orbit tool",
+      "module": "orbit-kb",
+      "source": {
+        "file": "kb/bin/orbit-kb",
+        "kind": "pred",
+        "name": "kb_cmd"
+      }
+    },
+    {
+      "id": "speckb",
+      "label": "the spec KB (kb.pl)",
+      "module": "orbit-kb",
+      "store": "spec",
+      "source": {
+        "file": "kb/share/orbit-kb/core.pl",
+        "kind": "pred",
+        "name": "record_step"
+      }
+    },
+    {
+      "id": "ledger",
+      "label": "the ledger (flow.db)",
+      "module": "mindhole-kit",
+      "store": "ledger",
+      "source": {
+        "file": "hubkit/hub/.claude/scripts/hubflow.py",
+        "kind": "def",
+        "name": "query_blocking"
+      }
+    },
+    {
+      "id": "desk",
+      "label": "the Desk",
+      "module": "orbit-kb",
+      "source": {
+        "file": "kb/bin/orbit-kb",
+        "kind": "pred",
+        "name": "serve_act"
+      }
+    },
+    {
+      "id": "s1",
+      "label": "System 1",
+      "module": "system-1",
+      "source": {
+        "file": "s1/record.py",
+        "kind": "def",
+        "name": "fetch"
+      }
+    },
+    {
+      "id": "tracker",
+      "label": "the tracker",
+      "module": "outside",
+      "store": "tracker",
+      "source": {
+        "file": "kb/bin/orbit-kb",
+        "kind": "pred",
+        "name": "cmd_pin_item"
+      }
+    }
+  ],
+  "kinds": [
+    {
+      "id": "request",
+      "label": "request",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "request"
+        }
+      ]
+    },
+    {
+      "id": "goal",
+      "label": "goal",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "goal"
+        }
+      ]
+    },
+    {
+      "id": "hypothesis",
+      "label": "hypothesis",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "hypothesis"
+        }
+      ]
+    },
+    {
+      "id": "premise",
+      "label": "premise",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "premise"
+        }
+      ]
+    },
+    {
+      "id": "claim",
+      "label": "claim",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "claim"
+        }
+      ]
+    },
+    {
+      "id": "check",
+      "label": "check",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "check"
+        }
+      ]
+    },
+    {
+      "id": "run",
+      "label": "run (test_result)",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "attest_type",
+          "name": "test_result"
+        }
+      ]
+    },
+    {
+      "id": "verdict",
+      "label": "verdict",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "verdict"
+        }
+      ]
+    },
+    {
+      "id": "judgment",
+      "label": "judgment",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "attest_type",
+          "name": "judgment"
+        }
+      ]
+    },
+    {
+      "id": "question",
+      "label": "question",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "question"
+        }
+      ]
+    },
+    {
+      "id": "answer",
+      "label": "answer",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "answer"
+        }
+      ]
+    },
+    {
+      "id": "adoption",
+      "label": "adoption",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "attest_type",
+          "name": "adoption"
+        }
+      ]
+    },
+    {
+      "id": "vote",
+      "label": "vote",
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/modules/discovery.pl",
+          "kind": "attest_type",
+          "name": "vote"
+        }
+      ]
+    },
+    {
+      "id": "proposal",
+      "label": "System 1 proposal",
+      "carrier": true,
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "proposed"
+        }
+      ]
+    },
+    {
+      "id": "handoff",
+      "label": "ledger handoff",
+      "carrier": true,
+      "declared": [
+        {
+          "file": "hubkit/hub/.claude/scripts/hubflow.py",
+          "kind": "def",
+          "name": "cmd_handoff"
+        }
+      ]
+    },
+    {
+      "id": "letter",
+      "label": "Desk letter",
+      "carrier": true,
+      "declared": [
+        {
+          "file": "hubkit/hub/.claude/scripts/desk.py",
+          "kind": "def",
+          "name": "cmd_send"
+        }
+      ]
+    },
+    {
+      "id": "draft",
+      "label": "draft (a staged tracker edit)",
+      "carrier": true,
+      "declared": [
+        {
+          "file": "kb/share/orbit-kb/modules/project.pl",
+          "kind": "decl",
+          "name": "draft"
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "s01",
+      "kinds": [
+        "request"
+      ],
+      "verb": "carry",
+      "from": "human",
+      "to": "session",
+      "label": "states the request in a session",
+      "sources": [
+        {
+          "file": "prompt/SAGITTARIUS.md",
+          "kind": "text",
+          "name": "## The ticket"
+        }
+      ]
+    },
+    {
+      "id": "s02",
+      "kinds": [
+        "request"
+      ],
+      "verb": "carry",
+      "from": "tracker",
+      "to": "session",
+      "label": "the session reads the ticket and saves its text to a file",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "text",
+          "name": "--request-file F: the text of the tracker item as you read it now"
+        }
+      ]
+    },
+    {
+      "id": "s03",
+      "kinds": [
+        "request"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit pin-request: request_pin/4, request_accepted/3",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "pin-request"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_pin_request"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "request_pin"
+        }
+      ]
+    },
+    {
+      "id": "s04",
+      "kinds": [
+        "request"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit init: the first request(R, Text)",
+      "store_map": "store map: the tracker owns request",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_init"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "request"
+        }
+      ]
+    },
+    {
+      "id": "s05",
+      "kinds": [
+        "request"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit add request: each later request",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_add"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "request"
+        }
+      ],
+      "store_map": "store map: the tracker owns request"
+    },
+    {
+      "id": "s06",
+      "kinds": [
+        "request"
+      ],
+      "verb": "carry",
+      "from": "human",
+      "to": "desk",
+      "label": "types a new requirement on the Desk",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "route",
+          "name": "post /send"
+        }
+      ]
+    },
+    {
+      "id": "s07",
+      "kinds": [
+        "request"
+      ],
+      "verb": "write",
+      "from": "desk",
+      "to": "ledger",
+      "label": "desk_intake: a ledger thread for review",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "desk_intake"
+        }
+      ]
+    },
+    {
+      "id": "s08",
+      "kinds": [
+        "goal"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit add goal: goal/4",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "add"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_add"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "goal"
+        }
+      ]
+    },
+    {
+      "id": "s09",
+      "kinds": [
+        "hypothesis"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit add hypothesis: hypothesis/4",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_add"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "hypothesis"
+        }
+      ]
+    },
+    {
+      "id": "s10",
+      "kinds": [
+        "premise"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit add premise: premise/3",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_add"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "premise"
+        }
+      ]
+    },
+    {
+      "id": "s11",
+      "kinds": [
+        "question"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit add question: question/3, option/3",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_add"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "question"
+        }
+      ]
+    },
+    {
+      "id": "s12",
+      "kinds": [
+        "question"
+      ],
+      "verb": "read",
+      "from": "speckb",
+      "to": "desk",
+      "label": "the Desk shows open questions",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "view_question_html"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "serve_has_to_ask"
+        }
+      ]
+    },
+    {
+      "id": "s13",
+      "kinds": [
+        "answer"
+      ],
+      "verb": "carry",
+      "from": "human",
+      "to": "desk",
+      "label": "answers: POST /answer",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "route",
+          "name": "post /answer"
+        }
+      ]
+    },
+    {
+      "id": "s14",
+      "kinds": [
+        "answer"
+      ],
+      "verb": "write",
+      "from": "desk",
+      "to": "speckb",
+      "label": "serve_write: queue answer/3 in answers.pending",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "serve_write"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "answer"
+        }
+      ]
+    },
+    {
+      "id": "s15",
+      "kinds": [
+        "answer"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "apply-pending (a child): answer/3 into kb.pl",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "apply-pending"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_apply_pending"
+        }
+      ]
+    },
+    {
+      "id": "s16",
+      "kinds": [
+        "answer",
+        "question"
+      ],
+      "verb": "write",
+      "from": "desk",
+      "to": "ledger",
+      "label": "a question that a ledger ask owns: close the ask (and answer_pin/4)",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "serve_owned"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "desk_effect"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "answer_pin"
+        }
+      ]
+    },
+    {
+      "id": "s17",
+      "kinds": [
+        "claim"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit add claim: claim/3, example/2",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_add"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "claim"
+        }
+      ]
+    },
+    {
+      "id": "s18",
+      "kinds": [
+        "check"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit add check: check/2, procedure/2",
+      "store_map": "store map: the tracker owns checks",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_add"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "check"
+        }
+      ]
+    },
+    {
+      "id": "s19",
+      "kinds": [
+        "goal",
+        "hypothesis",
+        "claim",
+        "question"
+      ],
+      "verb": "read",
+      "from": "speckb",
+      "to": "s1",
+      "label": "orbit s1-record --json: also open questions, project goals",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_s1_record"
+        },
+        {
+          "file": "s1/record.py",
+          "kind": "def",
+          "name": "fetch"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "door_s1_ticket_"
+        }
+      ]
+    },
+    {
+      "id": "s20",
+      "kinds": [
+        "proposal"
+      ],
+      "verb": "write",
+      "from": "s1",
+      "to": "speckb",
+      "label": "orbit propose --from system1: proposed/4",
+      "sources": [
+        {
+          "file": "s1/record.py",
+          "kind": "def",
+          "name": "propose"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "propose"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "decl",
+          "name": "proposed"
+        }
+      ]
+    },
+    {
+      "id": "s21",
+      "kinds": [
+        "proposal"
+      ],
+      "verb": "carry",
+      "from": "s1",
+      "to": "session",
+      "label": "the hook: one line of additionalContext",
+      "sources": [
+        {
+          "file": "s1/hook.py",
+          "kind": "text",
+          "name": "additionalContext"
+        }
+      ]
+    },
+    {
+      "id": "s22",
+      "kinds": [
+        "proposal"
+      ],
+      "verb": "write",
+      "from": "s1",
+      "to": "speckb",
+      "label": "stop hook: a revision proposed as a note",
+      "sources": [
+        {
+          "file": "s1/stop.py",
+          "kind": "text",
+          "name": "record.propose"
+        }
+      ]
+    },
+    {
+      "id": "s23",
+      "kinds": [
+        "proposal"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit confirm-proposal: the proposal becomes a record",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "confirm-proposal"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_confirm_proposal"
+        }
+      ]
+    },
+    {
+      "id": "s24",
+      "kinds": [
+        "vote"
+      ],
+      "verb": "carry",
+      "from": "human",
+      "to": "desk",
+      "label": "votes GO, NO-GO or HOLD",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "desk_kb_action"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "desk_plan_act"
+        }
+      ]
+    },
+    {
+      "id": "s25",
+      "kinds": [
+        "vote",
+        "letter"
+      ],
+      "verb": "carry",
+      "from": "desk",
+      "to": "session",
+      "label": "a letter (letters.jsonl), given by the hook",
+      "sources": [
+        {
+          "file": "hubkit/hub/.claude/scripts/desk.py",
+          "kind": "def",
+          "name": "cmd_send"
+        },
+        {
+          "file": "hubkit/hub/.claude/scripts/desk.py",
+          "kind": "def",
+          "name": "run_hook"
+        }
+      ]
+    },
+    {
+      "id": "s26",
+      "kinds": [
+        "vote"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit attest: vote (by human or agent)",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_attest"
+        },
+        {
+          "file": "kb/share/orbit-kb/modules/discovery.pl",
+          "kind": "attest_type",
+          "name": "vote"
+        }
+      ]
+    },
+    {
+      "id": "s27",
+      "kinds": [
+        "handoff"
+      ],
+      "verb": "write",
+      "from": "session",
+      "to": "ledger",
+      "label": "orbit hub ledger handoff",
+      "sources": [
+        {
+          "file": "hubkit/hub/.claude/scripts/hubflow.py",
+          "kind": "def",
+          "name": "cmd_handoff"
+        }
+      ]
+    },
+    {
+      "id": "s28",
+      "kinds": [
+        "handoff"
+      ],
+      "verb": "read",
+      "from": "ledger",
+      "to": "session",
+      "label": "inbox (v_inbox)",
+      "sources": [
+        {
+          "file": "hubkit/hub/.claude/scripts/hubflow.py",
+          "kind": "text",
+          "name": "v_inbox"
+        }
+      ]
+    },
+    {
+      "id": "s29",
+      "kinds": [
+        "handoff"
+      ],
+      "verb": "write",
+      "from": "session",
+      "to": "ledger",
+      "label": "orbit hub ledger accept: accepted_at",
+      "sources": [
+        {
+          "file": "hubkit/hub/.claude/scripts/hubflow.py",
+          "kind": "def",
+          "name": "cmd_accept"
+        },
+        {
+          "file": "hubkit/hub/.claude/scripts/hubflow.py",
+          "kind": "text",
+          "name": "accepted_at"
+        }
+      ]
+    },
+    {
+      "id": "s30",
+      "kinds": [
+        "adoption"
+      ],
+      "verb": "carry",
+      "from": "human",
+      "to": "desk",
+      "label": "adopts a hypothesis on the Desk",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "desk_plan_adopt"
+        }
+      ]
+    },
+    {
+      "id": "s31",
+      "kinds": [
+        "adoption"
+      ],
+      "verb": "write",
+      "from": "desk",
+      "to": "speckb",
+      "label": "queue: attest adoption by human (answers.pending)",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "desk_effect"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "serve_write"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "attest_type",
+          "name": "adoption"
+        }
+      ]
+    },
+    {
+      "id": "s32",
+      "kinds": [
+        "adoption"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "apply-pending: the adoption into kb.pl",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "apply-pending"
+        }
+      ]
+    },
+    {
+      "id": "s33",
+      "kinds": [
+        "adoption"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit adopt (the human's words)",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "adopt"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_adopt"
+        }
+      ]
+    },
+    {
+      "id": "s34",
+      "kinds": [
+        "run"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit run K -- CMD: attest test_result",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "run"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_run"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "attest_type",
+          "name": "test_result"
+        }
+      ]
+    },
+    {
+      "id": "s35",
+      "kinds": [
+        "verdict"
+      ],
+      "verb": "derive",
+      "from": "speckb",
+      "to": "tool",
+      "label": "verdict/2 derived from each run",
+      "sources": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "pred",
+          "name": "verdict"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "pred",
+          "name": "experiment"
+        }
+      ]
+    },
+    {
+      "id": "s36",
+      "kinds": [
+        "request",
+        "goal",
+        "hypothesis",
+        "premise",
+        "claim",
+        "question",
+        "check",
+        "run",
+        "verdict"
+      ],
+      "verb": "read",
+      "from": "tool",
+      "to": "session",
+      "label": "orbit report, orbit show open",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "report"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_report"
+        }
+      ]
+    },
+    {
+      "id": "s37",
+      "kinds": [
+        "claim",
+        "check",
+        "run",
+        "judgment"
+      ],
+      "verb": "read",
+      "from": "speckb",
+      "to": "ledger",
+      "label": "query blocking(X) before an item closes (goal_unjudged too)",
+      "sources": [
+        {
+          "file": "hubkit/hub/.claude/scripts/hubflow.py",
+          "kind": "def",
+          "name": "query_blocking"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "pred",
+          "name": "blocking"
+        },
+        {
+          "file": "kb/share/orbit-kb/modules/build.pl",
+          "kind": "text",
+          "name": "blocking(goal_unjudged(G))"
+        }
+      ]
+    },
+    {
+      "id": "s38",
+      "kinds": [
+        "judgment"
+      ],
+      "verb": "carry",
+      "from": "human",
+      "to": "desk",
+      "label": "chooses satisfied or not satisfied",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "desk_judge_forms"
+        }
+      ]
+    },
+    {
+      "id": "s39",
+      "kinds": [
+        "judgment",
+        "letter"
+      ],
+      "verb": "write",
+      "from": "desk",
+      "to": "speckb",
+      "label": "POST /send: letter first, then queue attest judgment",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "route",
+          "name": "post /send"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "desk_plan_judge"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "serve_write"
+        },
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "attest_type",
+          "name": "judgment"
+        }
+      ]
+    },
+    {
+      "id": "s40",
+      "kinds": [
+        "judgment"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "apply-pending: the judgment into kb.pl",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "apply-pending"
+        }
+      ]
+    },
+    {
+      "id": "s41",
+      "kinds": [
+        "judgment"
+      ],
+      "verb": "write",
+      "from": "tool",
+      "to": "speckb",
+      "label": "orbit judge (the human's words)",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "judge"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_judge"
+        }
+      ]
+    },
+    {
+      "id": "s42",
+      "kinds": [
+        "judgment"
+      ],
+      "verb": "read",
+      "from": "speckb",
+      "to": "desk",
+      "label": "the Desk shows the judgments of a goal",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "desk_judgments_html"
+        }
+      ]
+    },
+    {
+      "id": "s43",
+      "kinds": [
+        "judgment",
+        "verdict"
+      ],
+      "verb": "derive",
+      "from": "speckb",
+      "to": "tool",
+      "label": "experiment/3, verdict/2 of the judgment (an experiment of the goal)",
+      "sources": [
+        {
+          "file": "kb/share/orbit-kb/core.pl",
+          "kind": "pred",
+          "name": "experiment"
+        }
+      ]
+    },
+    {
+      "id": "s44",
+      "kinds": [
+        "question",
+        "draft"
+      ],
+      "verb": "carry",
+      "from": "tool",
+      "to": "tracker",
+      "label": "orbit draft: draft/4 rows (blocking items, questions); a human sends",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "draft"
+        },
+        {
+          "file": "kb/share/orbit-kb/modules/project.pl",
+          "kind": "decl",
+          "name": "draft"
+        }
+      ]
+    }
+  ],
+  "left_out": [
+    {
+      "reason": "a link between records, drawn by the arrow of the record it links, not a record of its own",
+      "names": [
+        "adoption_cited",
+        "carried",
+        "cites",
+        "example",
+        "predicts",
+        "supports",
+        "supersedes",
+        "names",
+        "procedure",
+        "checks_that",
+        "known_when",
+        "measurement_premise",
+        "option",
+        "assumed",
+        "premise_checked",
+        "no_premises",
+        "defeating_case",
+        "untempered",
+        "unresolved_because",
+        "case_against",
+        "rests_on_run",
+        "raised_by",
+        "discovery_evidence",
+        "discovery_end",
+        "proposal_confirmed",
+        "universal",
+        "due",
+        "ticket",
+        "actor"
+      ]
+    },
+    {
+      "reason": "a pin or a copy of a tracker item or an answer: drawn as the read of the tracker (s02)",
+      "names": [
+        "request_pin",
+        "request_accepted",
+        "question_pin",
+        "answer_pin"
+      ]
+    },
+    {
+      "reason": "the attestation record itself: each type that the view draws is listed as a kind",
+      "names": [
+        "attest",
+        "subject"
+      ]
+    },
+    {
+      "reason": "a model or a proof: the formal path, not drawn in this view (scope of ticket repo-map-flow, q5 default)",
+      "names": [
+        "model",
+        "model_run",
+        "encodes",
+        "derived_from",
+        "run_bounds",
+        "formal_statement",
+        "property",
+        "reason",
+        "model_result",
+        "lean_result",
+        "lean_proof"
+      ]
+    },
+    {
+      "reason": "a defeat, retirement or withdrawal: a path back that this view does not draw (q4 default: the schema of a ticket that goes forward)",
+      "names": [
+        "defeat",
+        "retired",
+        "withdrawn",
+        "retirement",
+        "back",
+        "behavior_conflict",
+        "could_change",
+        "location",
+        "confirmation"
+      ]
+    },
+    {
+      "reason": "a note of the agent about its work, read by people, not carried between components",
+      "names": [
+        "note",
+        "world",
+        "source",
+        "scope",
+        "risk",
+        "assumption",
+        "not_explored",
+        "finding",
+        "signal",
+        "lean_back",
+        "disclosure",
+        "divergence",
+        "disproof",
+        "first_use",
+        "review_saw",
+        "reproduction",
+        "decision"
+      ]
+    },
+    {
+      "reason": "bookkeeping of the tool (upgrades, migrations, locks, budget)",
+      "names": [
+        "upgraded",
+        "done_before_upgrade",
+        "migration_added",
+        "writer_takeover",
+        "budget",
+        "lap_done"
+      ]
+    },
+    {
+      "reason": "a fact of the build module (changes, demos, burn): not one of the kinds of q5",
+      "names": [
+        "ac",
+        "burn_requested",
+        "change",
+        "change_at",
+        "conformance",
+        "demo",
+        "serves",
+        "visual",
+        "waiver",
+        "approval",
+        "measurement"
+      ]
+    }
+  ],
+  "trace": {
+    "request": [
+      "s04",
+      "s05"
+    ],
+    "goal": "s08",
+    "hypothesis": "s09",
+    "premise": "s10",
+    "question": "s11",
+    "answer": "s15",
+    "claim": "s17",
+    "check": "s18",
+    "vote": "s26",
+    "run": "s34",
+    "verdict": "s35",
+    "verdict_of_judgment": "s43",
+    "adoption": "s33",
+    "adoption_desk": "s32",
+    "judgment": "s41",
+    "judgment_desk": "s40"
+  },
+  "trace_note": "request: the first one is on the orbit init arrow, each later one on orbit add request. Where a kind has a Desk path and a tool path, kb.pl does not say which one wrote a record: the trace places it on the tool arrow unless its actor fact names desk. An answer is placed on apply-pending (each Desk answer reaches kb.pl there).",
+  "not_drawn": [
+    "The install link of each module is one box (install links in ~); no line joins a module to its links (MODULES.json installs names them).",
+    "No line joins a store to the lane or part that holds it; the lanes name their store in the flow view.",
+    "orbit report: whether it reads judgments and adoptions was not confirmed (cmd_report names adoption once, judgment never); the s25 arrow does not carry them.",
+    "Questions and answers of a ticket that waits in a ledger ask are drawn once (the Desk closes the ask); the ask itself is not traced."
+  ]
+}

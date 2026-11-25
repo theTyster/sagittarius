@@ -48,6 +48,20 @@ recorded answers are invented: it is no experiment).
   state from the log.
 - `recorded`: the answers of each arm, used only without `--live` (the tests).
 
+## What the file must hold to be run
+
+`replay.py run` refuses a file (exit 2, no call, also with `--live`) when: `thresholds.written` is
+missing or later than the run; `edited_by` (a list: the sessions that edited the text of the
+question; it may be empty) is missing, or a case has no `made_by` or a `made_by` that is in
+`edited_by`; `questions_sha256` is not the sha256 of the entries of the question in
+`questions.candidate.json` (`replay.questions_sha256(question)`: the JSON of the entries of its
+tree by id, keys sorted, no spaces); or `thresholds.max_false_hints` (a whole number: the most
+hints that the judged arm may give on the clean cases) is missing. The rule `accuracy` also needs
+`hint_labels` and `clean` (the groups with nothing to find). `"*"` in `hint_labels` counts every
+label that names something. The record holds `arms.today.false_hints` and `arms.record.false_hints`;
+the verdict is never meets when the judged arm (`record`, or `arm`) is over the bound: it is
+unresolved.
+
 ## The thresholds, written before the run
 
 `thresholds.written` is the time when the thresholds were written. `replay.py` refuses a file with
