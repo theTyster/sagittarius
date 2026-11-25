@@ -310,6 +310,14 @@ TS = re.compile(r"\d{4}-\d\d-\d\d[T ]\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:?\d\d)
 SIG = re.compile(r"\bsd\d{6,}[0-9a-f]*\b")
 HEX = re.compile(r"\b[0-9a-f]{16,}\b")
 LID = re.compile(r"\bL-\d{8}T\d{6}Z-[0-9a-f]+\b")
+# the version token of the tool that wrote a KB (it must differ between two versions of the tool):
+# only the token of "% Made by orbit-kb V." and of upgraded('V', T), nothing else of the line
+VER_MADE = re.compile(r"^(%\s*Made by orbit-kb )[0-9][0-9A-Za-z.+-]*?(\.?\s*)$")
+VER_UPG = re.compile(r"\bupgraded\(('?)[0-9][0-9A-Za-z.+-]*?\1,")
+
+
+def norm_ver(x):
+    return VER_UPG.sub(lambda m: "upgraded(" + m.group(1) + "VER" + m.group(1) + ",", VER_MADE.sub(r"\1VER\2", x))
 
 
 def delta(before, after, roots):
@@ -324,9 +332,9 @@ def delta(before, after, roots):
         removed = [x for x in al if x not in set(bl)]
         name = norm_paths(p, roots)
         for x in added:
-            out.append("+ " + name + " " + LID.sub("LID", HEX.sub("HEX", SIG.sub("SIG", TS.sub("TS", norm_paths(x, roots))))))
+            out.append("+ " + name + " " + LID.sub("LID", HEX.sub("HEX", SIG.sub("SIG", TS.sub("TS", norm_ver(norm_paths(x, roots)))))))
         for x in removed:
-            out.append("- " + name + " " + LID.sub("LID", HEX.sub("HEX", SIG.sub("SIG", TS.sub("TS", norm_paths(x, roots))))))
+            out.append("- " + name + " " + LID.sub("LID", HEX.sub("HEX", SIG.sub("SIG", TS.sub("TS", norm_ver(norm_paths(x, roots)))))))
     return sorted(out)
 
 
@@ -402,6 +410,20 @@ def cmd_k18(old, new, tab, spec):
     checks.append([f"0.9.1 has forms of each kind on this KB (question, act, adopt, judge, ask, led): {kinds}",
                    all(x in kinds for x in sp.get("want_kinds", [])), json.dumps(kinds)])
     # submit each through its review step, on each copy, and compare what it wrote
+    # control of the comparison: a difference of the version token alone is the same record, and a real
+    # difference of a written record (here the intent word) still differs
+    kb_ = "/c/kb.pl"
+    # each copy holds a KB written by its own tool before the send
+    bef = {kb_: "% Made by orbit-kb 0.9.0.\nfact(a).\n"}
+    bef_new = {kb_: "% Made by orbit-kb 0.10.0.\nfact(a).\n"}
+    v_old = delta(bef, {kb_: "% Made by orbit-kb 0.9.0.\nfact(a).\nupgraded('0.9.0', t).\nnote(c2, 'on flare:c2: diverge').\n"}, [])
+    v_new = delta(bef_new, {kb_: "% Made by orbit-kb 0.10.0.\nfact(a).\nupgraded('0.10.0', t).\nnote(c2, 'on flare:c2: diverge').\n"}, [])
+    v_word = delta(bef_new, {kb_: "% Made by orbit-kb 0.10.0.\nfact(a).\nupgraded('0.10.0', t).\nnote(c2, 'on flare:c2: requirement').\n"}, [])
+    v_line = delta(bef_new, {kb_: "% Made by orbit-kb 0.10.0 (x).\nfact(a).\nupgraded('0.10.0', t).\nnote(c2, 'on flare:c2: diverge').\n"}, [])
+    checks.append(["control: a record that differs only in the version of the tool counts as the same record",
+                   v_old == v_new, json.dumps([v_old, v_new])])
+    checks.append(["control: a record that differs in its intent word, or in the rest of the version line, still differs",
+                   v_new != v_word and v_new != v_line, json.dumps([v_new, v_word, v_line])])
     n_same = 0
     n_tried = 0
     for f in fo:
