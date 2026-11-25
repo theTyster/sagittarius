@@ -9,9 +9,9 @@ version did not go up.
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.10.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.10.1 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 3.0.0 | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.12.2 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.12.3 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 | s1-glance | 0.14.0 | `s1/glance/.claude-plugin/plugin.json` | the Sagittarius Signals mod |
 | desk-toast | 0.1.0 | `hubkit/hub/.claude/scripts/desk-toast/.claude-plugin/plugin.json` | the Desk toast mod |
 
@@ -41,6 +41,22 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.1.0 | the tag `v0.1.0-experiment` (2026-07-01) |
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
+
+## Sagittarius 0.10.1 and MindHole Kit 0.12.3 (2026-11-25)
+
+PATCH for Sagittarius: a fix of the Desk's ratify path; no command, fact or rule changes. PATCH for
+the kit: the hub's copy of orbit-kb changes; the template does not, and the db schema stays 9.
+
+- **Ratify works for a proposed relation of the project KB** (H-0166). Since 2026-11-17 the Desk could
+  not ratify a relation that an agent proposed (`excludes(A, B)`, `depends_on(A, B)`): its review
+  always answered "This item of the project KB is not open any more", because the Desk compared the
+  id of the form as an atom and a relation is a compound term. The Desk now finds the item by its id
+  as the page prints it, and refuses a form id that is no ground term. A relation is ratified as the
+  tool ratifies it on the command line: the Desk adds the same relation as a human's
+  (`relation_by(R, human, T)`), not `ratified_by`. When a ratified `excludes` joins two current
+  facts, the review warns that it makes a contradiction, which blocks each spec KB that pins one of
+  them until a human supersedes one side. A proposed decision, definition or rule is ratified as
+  before. Test QS77 of `kb/tests/test_question_server.sh`.
 
 ## Sagittarius 0.10.0 and MindHole Kit 0.12.2 (2026-11-25)
 

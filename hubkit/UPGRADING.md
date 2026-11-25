@@ -95,6 +95,13 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.12.3 (Ratify of a relation on the Desk; db schema 9, unchanged)
+
+This release pairs with Sagittarius 0.10.1. The db schema is 9: no `hubflow.py migrate` is needed. The
+engine (orbit-kb) changes: the Desk can ratify a proposed relation of the project KB (it adds the
+relation as a human's) and warns when that makes a contradiction. A hub on 0.12.2 needs nothing but
+the upgrade. Restart the Desk after every joined hub is upgraded.
+
 ### 0.12.2 (the Desk by store; db schema 9, unchanged)
 
 This release pairs with Sagittarius 0.10.0. The db schema is 9: no `hubflow.py migrate` is needed. The
