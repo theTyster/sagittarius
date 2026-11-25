@@ -11,7 +11,7 @@ usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
                                was installed, and whether this kit's version of it differs; the
                                first line names the edition, and a UAT install; the `runs` lines
                                name what the hub runs (below)
-  upgrade --hub DIR [--yes] [--seen-migrations DIGEST]
+  upgrade --hub DIR [--yes] [--seen-migrations DIGEST] [--check-summary FILE]
                                plan an upgrade to this kit's version; a dry run without --yes.
                                In a hub whose orbit-kb changes, the dry run also prints the
                                migration preview (kb-migrations c15, c19): for each spec KB, closed
@@ -20,6 +20,10 @@ usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
                                and a preview digest. --yes then needs --seen-migrations DIGEST of the
                                preview as it is now, and refuses an upgrade whose preview names a
                                change outside the declared reach of a migration
+                               The preview opens with a summary that the tool computes (spec KBs, verdicts
+                               that differ, writes, the KBs that change); the digest is that of the full
+                               preview. --check-summary FILE checks the summary of a reducer agent against
+                               the tool: its `N KBs change` count and its slugs (exit 1 when they differ).
   done --hub DIR PATH ...      mark pending merges as finished
   edition --hub DIR [formal] [--yes]
                                print the edition that the hub's manifest records. `edition formal`
@@ -349,11 +353,11 @@ def remove(hub, rel):
 
 def parse(argv):
     o = {"kit": os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hub": None, "yes": False, "paths": [],
-         "edition": None, "uat": False, "seen-migrations": None}
+         "edition": None, "uat": False, "seen-migrations": None, "check-summary": None}
     a = list(argv)
     while a:
         x = a.pop(0)
-        if x in ("--hub", "--kit", "--edition", "--seen-migrations"):
+        if x in ("--hub", "--kit", "--edition", "--seen-migrations", "--check-summary"):
             if not a:
                 die(1, f"{x} needs a value")
             o[x[2:]] = a.pop(0)
@@ -504,7 +508,7 @@ def migration_preview(o, k, hub, plan):
         return None
     env = {x: v for x, v in os.environ.items() if not x.startswith("ORBIT_KB")}
     closed = closed_slugs(hub)
-    lines, bad = [], []
+    lines, bad, recs = [], [], []
     if closed is None:
         lines.append("(the ledger flow/flow.db cannot be read: no KB is marked closed)")
     for label, slug, d in kbs:
@@ -523,8 +527,58 @@ def migration_preview(o, k, hub, plan):
         lines += ["  " + x for x in keep] or ["  (no output)"]
         if rc != 0:
             bad.append(label)
+        recs.append(preview_record(label, slug, rc, keep))
     digest = "sha256:" + hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
-    return lines, digest, bad
+    return lines, digest, bad, recs
+
+
+def preview_record(label, slug, rc, keep):
+    """preview-reducer c1: what the tool says about one KB, from the lines of its plan that the preview keeps:
+    differs (the verdicts that the new engine changes), writes (a tool step, a new question or a write is to
+    do: no 'Nothing to write.'), refused (the plan refuses or does not run)."""
+    differs = any(x.startswith("Verdicts that differ") for x in keep)
+    refused = rc != 0 or any(x.startswith(("REFUSED", "apply refuses")) for x in keep)
+    writes = not any(x.startswith("Nothing to write") for x in keep) and not refused
+    return {"label": label, "slug": slug, "differs": differs, "writes": writes, "refused": refused,
+            "changes": differs or writes or refused}
+
+
+def preview_summary(recs, nlines):
+    """preview-reducer c1, c2: the counts that the tool computes with no model, then what the summary leaves out.
+    The digest that the human confirms is the digest of the full preview, not of this summary."""
+    n = len(recs)
+    diff = [r for r in recs if r["differs"]]
+    writes = [r for r in recs if r["writes"]]
+    refused = [r for r in recs if r["refused"]]
+    changed = [r for r in recs if r["changes"]]
+    quiet = n - len(changed)
+    out = [f"summary (computed by the tool, no model): {n} spec KBs; verdicts differ: {len(diff)}; "
+           f"new open items or writes: {len(writes)}; plan refused: {len(refused)}; nothing to write: {quiet}.",
+           f"KBs with nothing to change: {quiet} of {n}." if quiet else "Every KB changes.",
+           "KBs that change: " + (", ".join(r["slug"] for r in changed) if changed else "none") + ".",
+           f"Full preview below ({nlines} lines): it names every spec KB, closed ones too, with the declared changes and the "
+           "reach of each. This summary leaves those out. The preview digest below is the digest of the full preview.",
+           "preview summary: " + json.dumps({"kbs": n, "verdicts_differ": len(diff), "writes": len(writes),
+                                             "refused": len(refused), "unchanged": quiet,
+                                             "changed": [r["slug"] for r in changed]}, sort_keys=True)]
+    return out
+
+
+def check_summary(path, recs):
+    """preview-reducer c4: the text that a reducer agent wrote must give the count of the tool (a line
+    'N KBs change') and name exactly the slugs that change. Returns the list of what differs."""
+    text = open(path, encoding="utf-8").read()
+    changed = sorted(r["slug"] for r in recs if r["changes"])
+    bad = []
+    m = re.search(r"\b(\d+) KBs? (?:change|changes|changed)\b", text, re.I)
+    if not m:
+        bad.append("the summary does not say how many KBs change (a line such as: 3 KBs change)")
+    elif int(m.group(1)) != len(changed):
+        bad.append(f"the summary says {m.group(1)} KBs change; the tool counts {len(changed)}")
+    named = sorted(r["slug"] for r in recs if re.search(r"(?<![\w-])" + re.escape(r["slug"]) + r"(?![\w-])", text))
+    if named != changed:
+        bad.append(f"the summary names {named}; the tool says {changed} change")
+    return bad
 
 
 def cmd_upgrade(o, edition=None):
@@ -577,8 +631,17 @@ def cmd_upgrade(o, edition=None):
         print(line)
     pv = migration_preview(o, k, hub, plan)
     if pv:
-        lines, digest, bad = pv
+        lines, digest, bad, recs = pv
         print("migration preview (kb-migrations c15, c19): the new orbit-kb against the hub's, on each spec KB, closed ones too")
+        for x in preview_summary(recs, len(lines)):
+            print(x)
+        if o.get("check-summary"):
+            diffs = check_summary(o["check-summary"], recs)
+            for x in diffs:
+                print("summary check: " + x)
+            print("summary check: " + ("the summary matches the tool" if not diffs else "it differs from the tool"))
+            if diffs:
+                die(1, "refused: the summary of the reducer agent differs from the counts of the tool")
         for x in lines:
             print(x)
         print(f"preview digest: {digest}")
@@ -587,7 +650,7 @@ def cmd_upgrade(o, edition=None):
             print(f"show the preview to the human; then: hubkit.py upgrade --hub HUB --yes --seen-migrations {pv[1]}")
         return
     if pv:
-        lines, digest, bad = pv
+        lines, digest, bad, recs = pv
         if bad:
             die(1, "refused: the migration plan of " + ", ".join(bad) + " names a change outside the declared reach, or does"
                    " not run; nothing was copied. Fix the migration of the kit (or the KB), then upgrade again")

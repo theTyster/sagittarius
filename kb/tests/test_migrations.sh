@@ -532,6 +532,67 @@ EOF
     cmp -s "$T/h/.claude/orbit-kb/bin/orbit-kb" "$T/B/kb/bin/orbit-kb" || note "the hub did not get the new engine"
 }
 
+# ================================================================ preview-reducer c1, c2, c4: a summary first
+# A hub of kit A with six spec KBs: three have a check with no words (lint W12 changes with kit B's engine), three do not.
+# The dry run opens with the counts the tool computes; the digest stays that of the full preview; the summary of a
+# reducer agent is checked against the tool's counts and slugs.
+t_MGP() {
+    mkkit "$T/A"; mkkit "$T/B"
+    rm -rf "$T/A/kb/share/orbit-kb/migrations"; echo "% kit A" >> "$T/A/kb/bin/orbit-kb"
+    python3 -I - "$T/A/kb/share/orbit-kb/core.pl" <<'PY'
+import re, sys
+p = sys.argv[1]; s = open(p).read()
+s2 = re.sub(r"lint_issue\('W12'.*?not checks_that\(K, _\)\.\n", "", s, flags=re.S)
+assert s2 != s; open(p, "w").write(s2)
+PY
+    python3 -I "$T/A/hubkit/tools/hubkit.py" install --hub "$T/h" --edition formal >/dev/null 2>&1 || { note "setup: install from kit A failed"; return; }
+    ( cd "$T/h" && python3 .claude/scripts/hubflow.py --hub "$T/h" init --seed flow/seed.json ) >/dev/null 2>&1
+    local i
+    for i in 1 2 3 4 5 6; do
+        kb_new "$T/h/specs/kb$i" <<'EOF'
+uses([build]).
+request(r1, 'Exports keep their header row').
+% Made by orbit-kb 0.5.0.
+claim(c1, introduce, 'The export has a header row').
+example(c1, 'orders.csv starts with id,total').
+cites(c1, 'Exports keep their header row').
+check(k1, c1).
+EOF
+        [ "$i" -gt 3 ] && echo "checks_that(k1, 'the orders export starts with id,total')." >> "$T/h/specs/kb$i/kb.pl"
+    done
+    local rc=0
+    out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" 2>&1) || rc=$?
+    rc_is 0 "the dry run" || return
+    out_has 'summary \(computed by the tool, no model\): 6 spec KBs; verdicts differ: 3;' "the counts: six KBs, three differ"
+    out_has 'nothing to write: 3\.' "three have nothing to change"
+    out_has 'KBs that change: kb1, kb2, kb3\.' "the changed KBs are named"
+    out_has 'Full preview below' "the summary says the full preview follows"
+    local first; first=$(printf '%s\n' "$out" | sed -n '/^migration preview/,$p' | head -8)
+    printf '%s\n' "$first" | grep -q 'verdicts differ: 3' || note "the counts are not in the first lines"
+    for i in 1 2 3 4 5 6; do printf '%s\n' "$out" | grep -q "^kb:kb$i\$" || note "the full preview does not name kb$i"; done
+    # the digest is the digest of the full preview: the lines after the summary, up to the digest line
+    local dg calc
+    dg=$(printf '%s\n' "$out" | sed -n 's/^preview digest: //p')
+    calc=$(printf '%s\n' "$out" | sed -n '/^preview summary: /,/^preview digest: /p' | sed '1d;$d' | python3 -I -c 'import hashlib,sys; t=sys.stdin.read().rstrip("\n"); print("sha256:"+hashlib.sha256(t.encode()).hexdigest())')
+    [ "$dg" = "$calc" ] || note "the digest ($dg) is not the digest of the full preview ($calc)"
+    # c3: an upgrade is still refused without the digest of the preview, and with a wrong one
+    rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --yes 2>&1) || rc=$?
+    rc_is 1 "--yes with no --seen-migrations is refused"; any_has 'seen-migrations'
+    rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --yes --seen-migrations sha256:0000 2>&1) || rc=$?
+    rc_is 1 "--yes with another digest is refused"
+    # c4: the summary of a reducer agent is checked against the tool
+    printf '3 KBs change: kb1, kb2, kb3. The verdict of lint W12 goes from none to 1 in each.\n' > "$T/good.txt"
+    printf '2 KBs change: kb1, kb2.\n' > "$T/short.txt"
+    printf '3 KBs change: kb1, kb2, kb4.\n' > "$T/wrong.txt"
+    printf 'Some KBs change.\n' > "$T/none.txt"
+    rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --check-summary "$T/good.txt" 2>&1) || rc=$?
+    rc_is 0 "a summary with the tool's count and slugs is accepted"; any_has 'the summary matches the tool'
+    for f in short wrong none; do
+        rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --check-summary "$T/$f.txt" 2>&1) || rc=$?
+        rc_is 1 "the summary $f is refused"; any_has 'summary check:'
+    done
+}
+
 # ================================================================ c19: closed KBs are previewed too
 # Ty, q20: "Include closed KBs". A new engine changes how a closed KB reads too, so the kit upgrade
 # previews it; a migration still writes nothing to it (c9).
@@ -709,6 +770,7 @@ run_test t_MG7 MG7 "c7: an additive migration (new kinds and rules only) changes
 run_test t_MG14 MG14 "c14: a changed verdict outside the reach of S is refused; W12 is in the reach of checks_that"
 run_test t_MG15 MG15 "c15: the preview shows each verdict that the old engine and the new one differ on"
 run_test t_MGU MGU "c15: a kit upgrade shows each verdict that the new engine changes and needs the preview digest"
+run_test t_MGP MGP "preview-reducer c1, c2, c4: counts first, the digest of the full preview, the summary of an agent checked against the tool"
 run_test t_MGC MGC "c19: the kit upgrade previews closed KBs too, and writes nothing to them"
 run_test t_MGR MGR "c20: in a hub, project_kb is read from the hub root, so a moved KB keeps its link with no write"
 run_test t_MG16 MG16 "c16: the cut-fail clause hides old and later facts, lint accepts it first only, WM1 never blocks done"
