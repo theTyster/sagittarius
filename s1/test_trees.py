@@ -67,7 +67,7 @@ class C33Requests(unittest.TestCase):
         self.assertEqual(out["count"], 2)
         self.assertEqual([(r["kind"], r["goal"]) for r in out["requests"]], [("answer", "none"), ("hypothesis", "pg1")])
         self.assertEqual(out["requests"][1]["text"], PARTS[1] + " " + PARTS[2])  # word for word, with its next part
-        self.assertEqual(out["part"], "requests: 2 (answer for no goal; hypothesis for pg1)")
+        self.assertEqual(out["part"], 'requests: 2 (answer for no goal "Q4: the default is good."; hypothesis for pg1 "Orbit is the front door to…")')
 
     def test_a_sure_count_of_none_ends_the_tree(self):
         out = trees.read_requests({"r_count": ch("none"), "r_kind@0": ch("task")}, PARTS[:1], RECORD)
@@ -76,7 +76,7 @@ class C33Requests(unittest.TestCase):
     def test_an_unsure_kind_names_no_request_and_a_count_that_differs_is_said(self):
         a = {"r_count": ch("three"), "r_kind@0": ch("task"), "r_kind@1": ch("goal", 0.4)}
         out = trees.read_requests(a, PARTS[:2], None)
-        self.assertEqual(out["part"], "requests: 3 by count, 1 named (task)")
+        self.assertEqual(out["part"], 'requests: 3 by count, 1 named (task "Q4: the default is good.")')
         self.assertIsNone(out["requests"][0]["goal"])
         self.assertIsNone(trees.read_requests({}, PARTS, None)["part"])
 
@@ -167,6 +167,105 @@ class C30Drift(unittest.TestCase):
     def test_the_arm_without_the_record_names_no_prediction(self):
         self.assertIsNotNone(trees.read_drift_today({"d_drift": no(0.8)})["hint"])
         self.assertIsNone(trees.read_drift_today({"d_drift": no(0.6)})["hint"])
+
+
+def _big_record(n=12, words=30):
+    """The largest state of the stop event: n predictions of one hypothesis, each a long text."""
+    text = " ".join(f"word{i}" for i in range(words))
+    return {"hypotheses": [{"id": "hy1", "predictions": [{"id": f"c{i}", "text": f"{i} {text}"} for i in range(n)]}]}
+
+
+class C3HintLines(unittest.TestCase):
+    """c3, k3: each tree gives its hint as one line of at most 240 characters, at 12 predictions,
+    3 pairs and 30 parts. Fixture answers only; no call."""
+
+    def one_line(self, line, *words):
+        self.assertIsInstance(line, str)
+        self.assertNotIn("\n", line)
+        self.assertNotIn("\r", line)
+        self.assertLessEqual(len(line), 240, line)
+        for w in words:
+            self.assertIn(w, line)
+
+    def drift(self, n_dropped, n=12):
+        rec = _big_record(n)
+        a = {"d_success": no(0.9)}
+        for i in range(n):
+            a[f"d_kept@{i}"] = ch("dropped" if i < n_dropped else "accounted")
+            a[f"d_revised@{i}"] = no(0.1)
+        return trees.read_drift(a, rec)["hint"]
+
+    def test_drift_names_the_dropped_prediction_by_id_and_first_words(self):
+        line = self.drift(1)
+        self.one_line(line, "c0 of hy1", "0 word0 word1 word2")
+        self.assertIn("What happened to that part?", line)
+
+    def test_drift_stays_in_240_with_three_long_predictions_and_with_twelve(self):
+        three = self.drift(3)
+        self.one_line(three, "c0 of hy1", "c1 of hy1", "c2 of hy1", "word0")
+        twelve = self.drift(12)
+        self.one_line(twelve, "c0 of hy1", "word0", "more")
+        self.assertIn("and 9 more", twelve)
+
+    def test_dispute_names_the_kind_and_what_settles_it(self):
+        for kind, words in (("outputs", ("outputs differ", "a formal tool can settle it (prolog)")),
+                            ("wanted", ("needs a judgment of that case by the human",))):
+            out = trees.read_dispute({"x_dispute": no(0.9), "x_kind": ch(kind)})
+            self.assertEqual(out["kind"], kind)
+            self.one_line(out["part"], "dispute:", *words)
+
+    def test_difference_names_the_two_hypotheses_of_each_pair_that_differs(self):
+        rec = {"hypotheses": [{"id": f"hypothesis-{k}-with-a-long-id"} for k in "abcd"]}
+        pairs = trees.pairs(rec)
+        self.assertEqual(len(pairs), 3)
+        a = {f"y_differs@{i}_{j}": ch("user") for i, j in pairs}
+        items = trees.read_difference(a, rec)
+        self.one_line(items[0]["part"], "hypothesis-a-with-a-long-id and hypothesis-b-with-a-long-id")
+        line = trees.difference_part(items)
+        self.one_line(line, "hypothesis-a-with-a-long-id and hypothesis-b-with-a-long-id", "differ in what a user experiences")
+        self.assertIn("hypothesis-a-with-a-long-id and hypothesis-c-with-a-long-id", line)
+        self.assertIsNone(trees.difference_part(trees.read_difference({k: ch("inside") for k in a}, rec)))
+
+    def test_requests_names_each_request_by_kind_and_first_words_and_30_parts_fit(self):
+        parts = [f"Request number {i} asks for a change in the thing that you know about" for i in range(30)]
+        a = {"r_count": ch("five_or_more")}
+        for k in range(30):
+            a[f"r_kind@{k}"] = ch("task")
+        out = trees.read_requests(a, parts, None)
+        self.assertEqual(len(out["requests"]), 30)
+        self.one_line(out["part"], "requests:", 'task "Request number…"')
+        self.assertIn("more)", out["part"])
+        few = trees.read_requests({"r_count": ch("two"), "r_kind@0": ch("task"), "r_kind@1": ch("goal")}, parts[:2], None)
+        self.one_line(few["part"], 'task "Request number 0', 'goal "Request number 1')
+        self.assertNotIn("more", few["part"])
+
+
+class C3OffByDefault(unittest.TestCase):
+    """c3, k3: with the question file of 0.8.0 (no id of a tree) the hook asks and prints none of the lines."""
+
+    def test_the_hook_prints_no_hint_of_a_tree(self):
+        import test_record as tr
+        from test_hook import Fake, RECORDED
+        outer = self
+
+        class T(tr.Base):
+            def runTest(self):
+                self.hub()
+                self.env = dict(self.env, S1_QUESTIONS=os.path.join(HERE, "questions.json"),
+                                S1_SESSION_DIR=os.path.join(self.dir, "sess"),
+                                S1_ORBIT=self.stub(f"if argv[0] == 's1-record':\n    print(json.dumps({tr.RECORD!r}))\n"))
+                resp = json.loads(json.dumps(RECORDED["thanks"]))
+                resp["answers"].update({"r_count": ch("three"), "r_kind@0": ch("task"), "x_dispute": no(0.9),
+                                        "x_kind": ch("outputs"), "y_differs@0_1": ch("user")})
+                fake = Fake(resp)
+                line = self.context(self.run_hook(fake, raw=self.payload(prompt="Fix the typo. Do it now.")))
+                sent = json.loads(fake.calls[0]["body"])["questions"]
+                outer.assertEqual(sorted(set(sent) & set(TREE)), [])
+                for w in ("requests:", "dispute:", "differ in what a user", "System 1: the delivery"):
+                    outer.assertNotIn(w, line)
+
+        r = unittest.TextTestRunner(stream=open(os.devnull, "w")).run(T())
+        self.assertTrue(r.wasSuccessful(), r.errors + r.failures)
 
 
 if __name__ == "__main__":

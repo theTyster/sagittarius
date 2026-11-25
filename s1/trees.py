@@ -31,6 +31,24 @@ STOP_IDS = ("d_success", "d_kept", "d_revised")
 MAX_PREDICTIONS = 12  # the stop event asks about at most this many predictions
 MAX_PAIRS = 3  # pairs of hypotheses compared in one call
 QUOTE = 120  # characters of a prediction that a hint quotes
+HINT_MAX = 240  # characters of the hint line of one tree (q6: the default is 240); no newline
+
+
+def one_line(text, limit=HINT_MAX):
+    """The text on one line (no newline) of at most limit characters (a cut ends in an ellipsis)."""
+    text = " ".join(str(text).split())
+    return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+
+def first_words(text, limit):
+    """The first words of a text, at most limit characters, on one line."""
+    text = " ".join(str(text).split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit - 1]
+    if " " in cut and text[limit - 1:limit] != " ":
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.rstrip(" ,;:.") + "…"
 
 
 def load(path=CANDIDATES):
@@ -117,13 +135,38 @@ def read_requests(answers, parts, record=None):
     if not reqs and not count:
         return {"count": count, "requests": [], "part": None}
 
-    def one(r):
-        return r["kind"] + ("" if r["goal"] is None else " for no goal" if r["goal"] == "none" else f" for {r['goal']}")
-    named = "; ".join(one(r) for r in reqs) or "none named"
     n = len(reqs)
     agree = count is None or count == n or (count == 5 and n >= 5)
     head = f"requests: {n}" if agree else f"requests: {count if count < 5 else '5 or more'} by count, {n} named"
-    return {"count": count, "requests": reqs, "part": f"{head} ({named})"}
+    return {"count": count, "requests": reqs, "part": _requests_line(head, reqs)}
+
+
+def _requests_line(head, reqs):
+    """The hint of the requests tree: each request by its kind (and its goal) and its first words,
+    on one line of at most HINT_MAX characters; when 30 parts do not fit, the first ones and a count."""
+    def one(r, w):
+        kind = r["kind"] + ("" if r["goal"] is None else " for no goal" if r["goal"] == "none" else f" for {r['goal']}")
+        return f"{kind} \"{first_words(r['text'], w)}\"" if w else kind
+    if not reqs:
+        return f"{head} (none named)"
+    for w in (28, 16, 8):
+        items = [one(r, w) for r in reqs]
+        line = f"{head} ({'; '.join(items)})"
+        if len(line) <= HINT_MAX:
+            return line
+    for w in (16, 0):  # the first requests with their words, and the rest as a count
+        items = [one(r, w) for r in reqs]
+        taken = []
+        for i, item in enumerate(items):
+            rest = len(items) - i - 1
+            tail = f"; and {rest} more)" if rest else ")"
+            if len(f"{head} ({'; '.join(taken + [item])}{tail}") > HINT_MAX:
+                break
+            taken.append(item)
+        if taken:
+            left = len(items) - len(taken)
+            return one_line(f"{head} ({'; '.join(taken)}" + (f"; and {left} more)" if left else ")"))
+    return one_line(head)
 
 
 # --- dispute (c31): which kind ---
@@ -147,7 +190,7 @@ def read_dispute(answers):
         return none
     if k[0] == "wanted":
         return {"kind": "wanted", "tool": None,
-                "part": "dispute: the output is agreed, and the human has not judged it: it needs a judgment of that case by the human"}
+                "part": one_line("dispute: the output is agreed, and the human has not judged it: it needs a judgment of that case by the human")}
     lang = answers.get("h_language") if isinstance(answers.get("h_language"), dict) else {}
     probs = lang.get("probabilities") if isinstance(lang.get("probabilities"), dict) else {}
     tool = lang.get("choice") if lang.get("choice") in FORMAL else None
@@ -155,7 +198,7 @@ def read_dispute(answers):
         best = max(FORMAL, key=lambda t: probs.get(t, 0) if isinstance(probs.get(t), (int, float)) else 0)
         tool = best if isinstance(probs.get(best), (int, float)) and probs[best] > 0 else "prolog"
     return {"kind": "outputs", "tool": tool,
-            "part": f"dispute: the inputs and the rule are agreed, the outputs differ: a formal tool can settle it ({tool})"}
+            "part": one_line(f"dispute: the inputs and the rule are agreed, the outputs differ: a formal tool can settle it ({tool})")}
 
 
 # --- difference (c32): two current hypotheses of one goal ---
@@ -199,11 +242,23 @@ def read_difference(answers, record):
         d = c[0] if c and c[0] in ("user", "inside", "same") else None
         item = {"a": ha["id"], "b": hb["id"], "differs": d, "part": None, "question": None}
         if d == "user":
-            item["part"] = f"hypotheses {ha['id']} and {hb['id']} differ in what a user experiences: a question for the human"
+            item["part"] = one_line(f"hypotheses {ha['id']} and {hb['id']} differ in what a user experiences: a question for the human")
             item["question"] = (f"Hypotheses {ha['id']} and {hb['id']} differ in what a user experiences. "
                                 "Which does the human want?")
         out.append(item)
     return out
+
+
+def difference_part(items):
+    """The one hint line of the difference tree for the items of read_difference: it names the two
+    hypotheses of each pair that differs for a user (at most MAX_PAIRS pairs), or None."""
+    users = [d for d in items if d.get("differs") == "user"]
+    if not users:
+        return None
+    if len(users) == 1:
+        return users[0]["part"]
+    named = "; ".join(f"{d['a']} and {d['b']}" for d in users)
+    return one_line(f"hypotheses {named} differ in what a user experiences: a question for the human")
 
 
 # --- drift (c30): the delivery against the predictions, at the stop event ---
@@ -249,11 +304,25 @@ def read_drift(answers, record):
         elif rv == "yes":
             out["revisions"].append(item)
     if out["drifts"]:
-        said = "; ".join(f"{d['id']} of {d['hypothesis']} (\"{_short(d['text'])}\")" for d in out["drifts"][:3])
-        one = len(out["drifts"]) == 1
-        out["hint"] = (f"System 1: the delivery reports success. The original prediction{'' if one else 's'} "
-                       f"included {said}. What happened to {'that part' if one else 'those parts'}?")
+        out["hint"] = _drift_line(out["drifts"])
     return out
+
+
+def _drift_line(drifts):
+    """The hint of the drift tree on one line of at most HINT_MAX characters: the id and the first
+    words of the dropped prediction (up to 3 of them; a count says how many more)."""
+    one = len(drifts) == 1
+    for n in sorted({min(3, len(drifts)), 2, 1}, reverse=True):
+        if n > len(drifts):
+            continue
+        for q in (QUOTE, 60, 40, 24, 12):
+            said = "; ".join(f"{d['id']} of {d['hypothesis']} (\"{first_words(d['text'], q)}\")" for d in drifts[:n])
+            more = f" and {len(drifts) - n} more" if len(drifts) > n else ""
+            line = (f"System 1: the delivery reports success. The original prediction{'' if one else 's'} "
+                    f"included {said}{more}. What happened to {'that part' if one else 'those parts'}?")
+            if len(line) <= HINT_MAX:
+                return line
+    return one_line(line)
 
 
 def _short(text):
@@ -350,11 +419,12 @@ def after_prompt(tree, answers, state, rec, env, session_id, human, deadline=Non
                     continue  # unsure: asked again at the next prompt
                 seen["|".join(sorted([d["a"], d["b"]]))] = d["differs"]
                 if d["part"]:
-                    parts.append(d["part"])
                     if goal:
                         qid = R.short_id("s1_q", d["question"])
                         todo.append((qid, f"question({qid}, {goal}, {R.quote(d['question'])})",
                                      "System 1: two current hypotheses differ for a user"))
+            if difference_part(diff):
+                parts.append(difference_part(diff))  # one line for all the pairs
             sess["pairs"] = seen
             R.save_session(env, session_id, sess)
             log["difference"] = [{k: d[k] for k in ("a", "b", "differs")} for d in diff]
