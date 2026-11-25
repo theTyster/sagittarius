@@ -63,11 +63,12 @@ kit: the hub's copy of orbit-kb changes, and the db schema stays 9. Four refinem
   module, store or attestation type is missing; `views.py trace KB_DIR` places the records of one
   spec KB on the arrows. The arrows are written by hand in `kb/share/repo-map/sagittarius.views.json`.
 - **A first, offline harness for conformance evals** (prompt-evals). `evals/conformance/`: a criteria
-  file (5 sample criteria, each with its row of the Philosophy and its sentence of the prompt), the
+  file of 14 criteria for 14 of the 27 rows of the Philosophy's protocol table, each with its row
+  and its sentence of the prompt (all proposals that Ty has not judged: discovery 5, process 9), the
   step from a transcript to the questions of one System 1 request, a scorer that never counts an
   unsure or failed answer as met, a report that links each low score to its transcripts, a run
   record, and a runner that states the size and the cost of a run and makes no call without a budget
-  at or above it. No live run is in this release.
+  at or above it. The agent under test is `claude-haiku-5-5`. No live run is in this release.
 - **System 1 replay and hints** (system-1-questions). `s1/replay.py` refuses a case file whose
   thresholds have no time or a later one, a case made by a session that edited the question, and a
   question whose text changed since the cases were made; a verdict is never meets when the false
