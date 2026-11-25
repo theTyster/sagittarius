@@ -1572,11 +1572,32 @@ first_term_is_uses(F) :-
 % new (add), or test (doctor).
 
 read_source_file(Src, File, Items) :-
+    desk_note_file(File),
     (   exists_file(File)
-    ->  setup_call_cleanup(open(File, read, S, [encoding(utf8)]),
-                           read_items(S, Src, File, Items),
-                           close(S))
+    ->  (   desk_mode
+        ->  desk_read_memo(Src, File, Items, Times), desk_note_times(Times)
+        ;   read_source_file_(Src, File, Items)
+        )
     ;   Items = []
+    ).
+
+read_source_file_(Src, File, Items) :-
+    setup_call_cleanup(open(File, read, S, [encoding(utf8)]),
+                       read_items(S, Src, File, Items),
+                       close(S)).
+
+% desk_read_memo(+Src, +File, -Items) (desk speed, 2026-11-25): in the Desk, a file is parsed once
+% per state (its time and size): core.pl, the modules and each kb.pl were parsed again for each KB
+% and each page. A file that changed is parsed again.
+:- dynamic desk_read_memo_/5.
+% Times: each time in the terms of the file (desk_note_times/1).
+desk_read_memo(Src, File, Items, Times) :-
+    time_file(File, T), size_file(File, Sz),
+    (   desk_read_memo_(File, Src, T, Sz, I0-Ts0) -> Items = I0, Times = Ts0
+    ;   read_source_file_(Src, File, Items),
+        findall(A, ( member(I, Items), I = it(_, _, _, X, _, _), nonvar(X), desk_sub_time(X, A) ), Ts1), sort(Ts1, Times),
+        retractall(desk_read_memo_(File, Src, _, _, _)),
+        assertz(desk_read_memo_(File, Src, T, Sz, Items-Times))
     ).
 
 read_source_string(Src, Name, Text, Items) :-
@@ -1862,7 +1883,7 @@ records_derived(Dir, KbItems, Facts) :-
     ),
     findall(goal_written(G), ( kb_term(KbItems, goal(G, _, _, _)), ground(G) ), F6),
     (   kb_term(KbItems, project_kb(P)), atom(P),
-        catch(( project_kb_dir(Dir, P, PDir), directory_file_path(PDir, 'kb.pl', PF), exists_file(PF),
+        catch(( project_kb_dir(Dir, P, PDir), directory_file_path(PDir, 'kb.pl', PF), desk_note_file(PF), exists_file(PF),
                 read_source_file(kb, PF, PItems) ), _, fail)
     ->  findall(supports_missing(G, PG),
                 ( kb_term(KbItems, supports(G, R)), nonvar(R), R = project(PG), atom(G), atom(PG),
@@ -2127,11 +2148,19 @@ spec_pins_of(PDir, RootOpt, Ts) :-
     append(Dirs0, RDs, Dirs1), sort(Dirs1, Dirs),
     findall(t(SD, C, X),
             ( member(SD0, Dirs), absolute_file_name(SD0, SD), SD \== PA,
-              serve_kb_project(SD, some(PA)),
+              spec_kb_project(SD, some(PA)),
               serve_kb_items(SD, Items),
               kb_term(Items, pins(C, project, X, _)), atom(C), atom(X) ),
             Ts0),
     sort(Ts0, Ts).
+
+% spec_kb_project(+Dir, ?P): serve_kb_project/2; in the Desk, its kept answer (desk_kbinfo/3, desk
+% speed), with kb.pl recorded for the engine that is being built.
+spec_kb_project(Dir, P) :-
+    (   desk_mode
+    ->  directory_file_path(Dir, 'kb.pl', F), desk_note_file(F), desk_kb_project(Dir, P)
+    ;   serve_kb_project(Dir, P)
+    ).
 
 % The registry of pinning spec KBs (T34 c2): spec_kbs.txt in the project KB holds one
 % absolute directory per line. add writes the line when a spec KB records a project_kb or a
@@ -2140,12 +2169,12 @@ spec_pins_of(PDir, RootOpt, Ts) :-
 spec_registry_file(PA, F) :- directory_file_path(PA, 'spec_kbs.txt', F).
 
 spec_registry_dirs(PA, Dirs) :-
-    spec_registry_file(PA, F),
+    spec_registry_file(PA, F), desk_note_file(F),
     (   exists_file(F)
     ->  read_file_to_string(F, S, [encoding(utf8)]),
         split_string(S, "\n", " \t\r", Ls),
         findall(D, ( member(L, Ls), L \== "", atom_string(D, L),
-                     directory_file_path(D, 'kb.pl', KF), exists_file(KF) ), Dirs)
+                     directory_file_path(D, 'kb.pl', KF), desk_note_file(KF), exists_file(KF) ), Dirs)
     ;   Dirs = []
     ).
 
@@ -2208,11 +2237,26 @@ project_kb_facts(Dir, P, Facts) :-
         assertz(door_pfacts_memo(PA, R))
     ),
     R = ok(Facts).
+project_kb_facts(Dir, P, Facts) :-
+    desk_page_memo_on, !,                          % desk speed: once for each project KB in a page
+    project_kb_dir(Dir, P, PDir0), absolute_file_name(PDir0, PA), absolute_file_name(Dir, DA),
+    PA \== DA,
+    (   desk_pf_memo(PA, R, Deps) -> true
+    ;   findall(D, desk_dep(D), Before), retractall(desk_dep(_)),
+        ( catch(project_kb_facts_(Dir, P, F0), _, fail) -> R = ok(F0) ; R = none ),
+        findall(D, desk_dep(D), Deps), retractall(desk_dep(_)),
+        forall(member(D, Before), assertz(desk_dep(D))),
+        assertz(desk_pf_memo(PA, R, Deps))
+    ),
+    % the engine that uses the facts rests on the files of the project KB too
+    forall(member(D, Deps), ( desk_dep(D) -> true ; assertz(desk_dep(D)) )),
+    R = ok(Facts).
 project_kb_facts(Dir, P, Facts) :- project_kb_facts_(Dir, P, Facts).
 
 project_kb_facts_(Dir, P, Facts) :-
     project_kb_dir(Dir, P, PDir),
     directory_file_path(PDir, 'kb.pl', PFile),
+    desk_note_file(PFile),
     exists_file(PFile),
     absolute_file_name(PDir, A1), absolute_file_name(Dir, A2),
     A1 \== A2,
@@ -3424,6 +3468,18 @@ e18_diags(Items0, Ds, Diags) :-
               callable(Lit), \+ builtin_goal(Lit),
               functor(Lit, BN, BA), B = BN/BA ),
             Es),
+    (   desk_mode
+    ->  variant_sha1(Es, Key),                   % desk speed: the result is a function of Es; the
+        (   e18_memo(Key, Diags0) -> Diags = Diags0  % KBs of a Desk share the core and the modules
+        ;   e18_diags_(Es, Diags),
+            ( predicate_property(e18_memo(_, _), number_of_clauses(NC)), NC > 1000 -> retractall(e18_memo(_, _)) ; true ),
+            assertz(e18_memo(Key, Diags))
+        )
+    ;   e18_diags_(Es, Diags)
+    ).
+
+:- dynamic e18_memo/2.
+e18_diags_(Es, Diags) :-
     findall(X-Y, member(e(X, Y, _, _, _, _), Es), Edges0),
     sort(Edges0, Edges),
     findall(V, ( member(X-Y, Edges), ( V = X ; V = Y ) ), Vs0), sort(Vs0, Vs),
@@ -3680,6 +3736,26 @@ take_n(N, L, T) :- length(L, Len), ( Len =< N -> T = L ; length(T, N), append(T,
 % is not stratified (E18). Each would give a quiet wrong answer. Exit 2
 % instead.
 answer_gate(KB) :-
+    desk_mode, !,
+    % desk speed: a content of the items that passed once passes again. The key leaves out the
+    % file of each item: it is in the text of a diag only, and the KBs of a Desk share the core and
+    % the modules, and copies of a KB differ in their files only. A content that did not pass is
+    % checked each time, so its error names its own files.
+    kb_items(KB, Items),
+    maplist(gate_key_item, Items, KIs), variant_sha1(KIs, Key),
+    (   answer_gate_ok(Key) -> true
+    ;   answer_gate_(KB),
+        ( predicate_property(answer_gate_ok(_), number_of_clauses(NC)), NC > 1000 -> retractall(answer_gate_ok(_)) ; true ),
+        assertz(answer_gate_ok(Key))
+    ).
+answer_gate(KB) :- answer_gate_(KB).
+
+gate_key_item(it(S, _, L, T, X, Y), it(S, L, T, X, Y)) :- !.
+gate_key_item(synerr(S, _, L, M), synerr(S, L, M)) :- !.
+gate_key_item(I, I).
+
+:- dynamic answer_gate_ok/1.
+answer_gate_(KB) :-
     kb_items(KB, Items),
     findall(D, ( member(synerr(_, F, L, M), Items), D = diag('E1', F, L, M) ), E1s),
     (   E1s == []
@@ -5485,7 +5561,10 @@ serve_norm(P0, P) :-
     (   atom_concat(P2, '/', P1), P2 \== '' -> serve_norm(P2, P) ; P = P1 ).
 
 serve_find_kbs(Root, Dirs) :-
-    findall(D, serve_walk(Root, 0, D), Ds0), sort(Ds0, Dirs).
+    (   desk_page_memo_on -> desk_walk(Root, Dirs)
+    ;   findall(D, serve_walk(Root, 0, D), Ds0), sort(Ds0, Dirs)
+    ),
+    desk_note_walk(Root, Dirs).
 
 serve_walk(Dir, _, Dir) :- directory_file_path(Dir, 'kb.pl', F), exists_file(F).
 serve_walk(Dir, Depth, Found) :-
@@ -6284,13 +6363,15 @@ desk_kb_actions(Mode, Dir, Eng, Label, Html, Has) :-
                  ( nb_current(desk_acts, A0) -> nb_setval(desk_acts, [Li|A0]) ; true ) ))
     ).
 
+% (desk speed: the answers come through dk_all/4, kept with a cached engine; an error is no answer,
+% as before)
 desk_kb_action(Eng, vote) :-
-    catch(eng_true(Eng, ( discovery_open, discovery_ready, \+ human_vote(_) )), _, fail).
+    dk_true(Eng, ( discovery_open, discovery_ready, \+ human_vote(_) )).
 desk_kb_action(Eng, demo(C, S, P)) :-
-    catch(eng_all(Eng, [C, S, P], ( flare_open(C), demo(S, C), subject(S, P, _) ), L), _, fail),
+    dk_all(Eng, [C, S, P], ( flare_open(C), demo(S, C), subject(S, P, _) ), L),
     member([C, S, P], L).
 desk_kb_action(Eng, waiver(W)) :-
-    catch(eng_all(Eng, [W], blocking(waiver_lapsed(W)), L), _, fail), sort(L, L1), member(W, L1).
+    dk_all(Eng, [W], blocking(waiver_lapsed(W)), L), sort(L, L1), member(W, L1).
 
 desk_action_ref(vote, "vote").
 desk_action_ref(demo(C, _, _), R) :- format(string(R), "flare:~w", [C]).
@@ -6497,28 +6578,120 @@ desk_hubs(Hs, Missing) :-
                          desk_hub_label(P, N0), atom_string(N, N0) ), Hs2),
     append(Hs1, Hs2, Hs).
 
-% ---- the engines of the KBs: one per KB, built again when the KB or its queue changes, or
-% after a minute (a digest of a subject file can change too). An old engine's clauses are
-% dropped, so a Desk that runs for days does not grow.
-:- dynamic desk_eng_cache/3, desk_eng_kb/2.
+% ---- the engines of the KBs: one per KB, built again when a file it rests on changes, or when a
+% time that it compared with the clock passes (desk speed, 2026-11-25; 0.8.0 built each engine
+% again after each minute, to see those). While an engine is built, each file that its load reads
+% or looks for (kb.pl, rules.pl, core.pl and the modules, the project KB and its files, proof
+% files and logs, subject files, spec_kbs.txt), each tree walk, and each time of a file it read
+% that is not yet past are recorded (desk_note_file/1, desk_note_walk/2, desk_note_times/1). The
+% stamp of the engine holds them: the time and size of each file (or that it is absent), the
+% result of each walk, and the earliest such time. An old engine's clauses are dropped, so a Desk
+% that runs for days does not grow.
+:- dynamic desk_eng_cache/3, desk_eng_kb/2, desk_dep/1.
 
-desk_kb_stamp(Dir, B-Fs) :-
+desk_track_on :- nb_current(desk_track, on).
+
+desk_note_file(F) :-
+    (   desk_track_on, atom(F) -> ( desk_dep(file(F)) -> true ; assertz(desk_dep(file(F))) ) ; true ).
+desk_note_walk(Root, Dirs) :-
+    (   desk_track_on -> ( desk_dep(walk(Root, Dirs)) -> true ; assertz(desk_dep(walk(Root, Dirs))) ) ; true ).
+% desk_note_times(+Times): each of the times (of the terms of a file read) that is not past now. A derived fact
+% compares such a time with the clock (a waiver, a due time, the end of a park): when the earliest
+% one passes, the engine is built again.
+desk_note_times(Times) :-
+    (   desk_track_on
+    ->  utc_now(Now),
+        forall(( member(A, Times), \+ A @< Now ),
+               ( desk_dep(time(A)) -> true ; assertz(desk_dep(time(A))) ))
+    ;   true
+    ).
+desk_sub_time(T, A) :- atom(T), !, atom_length(T, 20), is_time(T), A = T.
+desk_sub_time(T, A) :- compound(T), T =.. [_|As], member(X, As), nonvar(X), desk_sub_time(X, A).
+
+% desk_dep_state(+Dep, -State): the state of a file or a walk now.
+desk_dep_state(file(F), F-St) :- ( exists_file(F) -> time_file(F, T), size_file(F, S), St = T-S ; St = absent ).
+desk_dep_state(walk(R, _), walk(R)-Ds) :- desk_walk(R, Ds).
+
+% The memo of one page (desk speed): the facts of each project KB (project_kb_facts/3) and the
+% result of each tree walk are made once per page, and dropped when the page is made.
+:- dynamic desk_pf_memo/3, desk_walk_memo/2, desk_kbinfo_page/3, desk_fstat_memo/2.
+desk_page_memo_on :- nb_current(desk_page_memo, on).
+desk_page_memo_clear :-
+    retractall(desk_pf_memo(_, _, _)), retractall(desk_walk_memo(_, _)), retractall(desk_pre_memo(_, _)),
+    retractall(desk_kbinfo_page(_, _, _)), retractall(desk_fstat_memo(_, _)).
+desk_with_page_memo(G) :-
+    ( nb_current(desk_page_memo, Old) -> true ; Old = off ),
+    setup_call_cleanup(( desk_page_memo_clear, nb_setval(desk_page_memo, on) ), G,
+                       ( desk_page_memo_clear, nb_setval(desk_page_memo, Old) )).
+
+desk_walk(R, Ds) :-
+    (   desk_page_memo_on, desk_walk_memo(R, Ds0) -> Ds = Ds0
+    ;   desk_walk_kept(R, Ds),
+        ( desk_page_memo_on -> assertz(desk_walk_memo(R, Ds)) ; true )
+    ).
+
+% desk_walk_kept(+Root, -Dirs) (desk speed): the walk of serve_find_kbs/2, kept between pages with
+% the time of each directory that it looked into. A file or directory added, removed or renamed in
+% a directory changes the time of that directory, so while no time changed, the walk finds the
+% same KBs, and the directories are not listed again.
+:- dynamic desk_walk_cache/3.
+desk_walk_kept(R, Ds) :-
+    (   desk_walk_cache(R, Ds0, Seen), forall(member(D-T, Seen), catch(time_file(D, T), _, fail))
+    ->  Ds = Ds0
+    ;   findall(K-(D-T), desk_walk_(R, 0, D, T, K), L),
+        findall(D, member(kb-(D-_), L), Ds1), sort(Ds1, Ds),
+        findall(D-T, member(dir-(D-T), L), Seen0), sort(Seen0, Seen),
+        retractall(desk_walk_cache(R, _, _)), assertz(desk_walk_cache(R, Ds, Seen))
+    ).
+% desk_walk_(+Dir, +Depth, -D, -T, -Kind): as serve_walk/3; each directory it looks into (Kind dir)
+% with its time, and each KB that it finds (Kind kb).
+desk_walk_(Dir, _, Dir, T, dir) :- catch(time_file(Dir, T), _, fail).
+desk_walk_(Dir, _, Dir, 0, kb) :- directory_file_path(Dir, 'kb.pl', F), exists_file(F).
+desk_walk_(Dir, Depth, D, T, K) :-
+    Depth < 8,
+    catch(directory_files(Dir, Es), _, fail),
+    member(E, Es), \+ sub_atom(E, 0, _, _, '.'), E \== runs,
+    directory_file_path(Dir, E, Sub), exists_directory(Sub),
+    D1 is Depth + 1,
+    desk_walk_(Sub, D1, D, T, K).
+
+desk_kb_stamp(Dir, Fs) :-
     findall(N-T-S, ( member(N, ['kb.pl', 'answers.pending', 'answers.applied']),
-                     directory_file_path(Dir, N, F), exists_file(F), time_file(F, T), size_file(F, S) ), Fs),
-    get_time(Now), B is floor(Now / 60).
+                     directory_file_path(Dir, N, F), exists_file(F), time_file(F, T), size_file(F, S) ), Fs).
 
 % The KB term is kept apart from the engine (review U5): a lookup of the engine alone (desk_eng/2,
 % most calls of a page) does not copy the whole KB out of the database.
 desk_engine(Dir, KB, Eng) :- desk_engine_(Dir, Eng), desk_eng_kb(Dir, KB), !.
 
+% desk_eng_cache(Dir, st(KbStamp, DepStates, Until), Eng): Until is the earliest time of the KB that
+% was not past at the build (none: no such time).
 desk_engine_(Dir, Eng) :-
     desk_kb_stamp(Dir, St),
-    (   desk_eng_cache(Dir, St, Eng0) -> Eng = Eng0
+    (   desk_eng_cache(Dir, st(St, Deps, Until), Eng0), desk_eng_fresh(Deps, Until) -> Eng = Eng0
     ;   forall(retract(desk_eng_cache(Dir, _, eng(M, _))), desk_wipe(M)), retractall(desk_eng_kb(Dir, _)),
-        lib_dir(Lib), load_kb(Dir, Lib, KB), answer_gate(KB), kb_engine(KB, Eng),
+        lib_dir(Lib),
+        ( nb_current(desk_track, Old) -> true ; Old = off ),
+        setup_call_cleanup(( retractall(desk_dep(_)), nb_setval(desk_track, on) ),
+                           ( load_kb(Dir, Lib, KB), answer_gate(KB), kb_engine(KB, Eng),
+                             findall(D, desk_dep(D), Ds) ),
+                           ( retractall(desk_dep(_)), nb_setval(desk_track, Old) )),
+        findall(S, ( member(D, Ds), D \= time(_), desk_dep_state(D, S) ), Deps1),
+        findall(A, member(time(A), Ds), As),
+        ( As == [] -> Until1 = none ; min_member(Until1, As) ),
         Eng = eng(M1, _), assertz(desk_eng_mod(M1)),
-        assertz(desk_eng_kb(Dir, KB)), assertz(desk_eng_cache(Dir, St, Eng))
+        assertz(desk_eng_kb(Dir, KB)), assertz(desk_eng_cache(Dir, st(St, Deps1, Until1), Eng))
     ).
+
+desk_eng_fresh(Deps, Until) :-
+    ( Until == none -> true ; utc_now(Now), \+ Until @< Now ),
+    forall(member(S, Deps), desk_dep_same(S)).
+desk_dep_same(walk(R)-Ds) :- !, desk_dep_state(walk(R, _), walk(R)-Ds1), Ds1 == Ds.
+desk_dep_same(F-St) :-
+    (   desk_page_memo_on                        % one look at each file per page
+    ->  ( desk_fstat_memo(F, St1) -> true ; desk_dep_state(file(F), F-St1), assertz(desk_fstat_memo(F, St1)) )
+    ;   desk_dep_state(file(F), F-St1)
+    ),
+    St1 == St.
 
 desk_wipe(M) :-
     retractall(desk_eng_mod(M)), retractall(desk_ans(_, M, _, _)),
@@ -6566,11 +6739,38 @@ desk_item_park(Parks, I0, I) :-
 % desk_load(-HDs): the data of each mindhole on the page, read once per request.
 desk_load(HDs, Missing) :-
     desk_hubs(Hs, Missing),
+    desk_prefetch(Hs),
     findall(HD, ( member(hub(N, P), Hs), desk_hub_load(N, P, HD) ), HDs).
 
+% desk_prefetch(+Hubs) (desk speed, 2026-11-25): the helper processes of a page (desk.py status and
+% the ledger reader of each mindhole, desk.py drafts of the first) run at the same time, not one
+% after the other. Each result (or its error) is kept for this page only; desk_pre/3 hands it out
+% as the call itself would have. Outside a page (no page memo) nothing is fetched ahead.
+:- dynamic desk_pre_memo/2.
+desk_prefetch(Hs) :-
+    (   desk_page_memo_on, Hs \== []
+    ->  retractall(desk_pre_memo(_, _)),
+        findall(G, ( member(hub(_, P), Hs), member(G, [status(P), asks(P)]) ), Gs0),
+        Hs = [hub(_, P1)|_], Gs = [drafts(P1)|Gs0],
+        catch(concurrent_maplist(desk_pre_run, Gs), _, true)
+    ;   true
+    ).
+desk_pre_run(G) :-
+    (   catch(desk_pre_goal(G, R0), E, R0 = ex(E)) -> R = R0 ; R = failed ),
+    assertz(desk_pre_memo(G, R)).
+desk_pre_goal(status(P), ok(St)) :- desk_status(P, St).
+desk_pre_goal(asks(P), ok(J)) :- hub_read(P, [asks], J).
+desk_pre_goal(drafts(P), ok(Out-R)) :- desk_cmd(P, [drafts, '--json'], Out, R).
+% desk_pre(+Key, ?Result): the kept result of Key, else the call of Key now.
+desk_pre(Key, Res) :-
+    (   desk_page_memo_on, desk_pre_memo(Key, R)
+    ->  ( R = ok(X) -> Res = X ; R = ex(E) -> throw(E) ; fail )
+    ;   desk_pre_goal(Key, ok(X)), Res = X
+    ).
+
 desk_hub_load(Name, Path, HD) :-
-    desk_status(Path, St0),
-    catch(( hub_read(Path, [asks], J), ( J.owner == null -> Owner = "me" ; Owner = J.owner ), Asks = J.asks,
+    desk_pre(status(Path), St0),
+    catch(( desk_pre(asks(Path), J), ( J.owner == null -> Owner = "me" ; Owner = J.owner ), Asks = J.asks,
             ( get_dict(parks, J, Parks) -> true ; Parks = _{} ), Err = none ), E,
           ( serve_err_text(E, M), Owner = "me", Asks = [], Parks = _{}, Err = some(M) )),
     desk_st_parks(St0, Parks, St),
@@ -6582,9 +6782,17 @@ desk_hub_load(Name, Path, HD) :-
 % them about 70 times per GET.
 :- dynamic desk_kbinfo_cache/4.
 desk_kbinfo(Dir, P, IsP) :-
+    desk_page_memo_on, desk_kbinfo_page(Dir, P0, IsP0), !, P = P0, IsP = IsP0.   % once per page (desk speed)
+desk_kbinfo(Dir, P, IsP) :-
+    desk_kbinfo_(Dir, P0, IsP0),
+    ( desk_page_memo_on -> assertz(desk_kbinfo_page(Dir, P0, IsP0)) ; true ),
+    P = P0, IsP = IsP0.
+desk_kbinfo_(Dir, P, IsP) :-
     directory_file_path(Dir, 'kb.pl', F),
-    get_time(Now), B is floor(Now / 60),      % as the engines: at most a minute old (the project KB it names can move)
-    ( exists_file(F) -> time_file(F, T), size_file(F, Sz), St = B-T-Sz ; St = B-none ),
+    % as the engines: built again when kb.pl changes, or when the hub root that a relative
+    % project_kb is read from changes (desk speed: 0.8.0 read it again after each minute)
+    ( exists_file(F) -> time_file(F, T), size_file(F, Sz), St0 = T-Sz ; St0 = none ),
+    ( catch(kb_hub_root(Dir, Hub), _, fail) -> St = St0-Hub ; St = St0-none ),
     (   desk_kbinfo_cache(Dir, St, P0, IsP0) -> P = P0, IsP = IsP0
     ;   ( serve_kb_project(Dir, P0) -> true ; P0 = none ),
         ( serve_is_project_kb(Dir) -> IsP0 = true ; IsP0 = false ),
@@ -7219,7 +7427,7 @@ desk_draft_of(Key, Dr) :-
     (   nb_current(desk_drafts, Ds), is_dict(Ds), atom_string(KA, Key), get_dict(KA, Ds, D0), is_dict(D0) -> Dr = D0 ; Dr = _{} ).
 
 desk_drafts_load(HDs) :-
-    (   HDs = [HD|_], desk_cmd(HD.path, [drafts, '--json'], Out, ok),
+    (   HDs = [HD|_], desk_pre(drafts(HD.path), Out-ok),
         catch(atom_json_dict(Out, J, [value_string_as(string)]), _, fail), is_dict(J)
     ->  ( get_dict(drafts, J, Ds) -> true ; Ds = J )
     ;   Ds = _{}
@@ -7604,14 +7812,17 @@ desk_page(Msg, Page) :- desk_page(Msg, "", Page).
 % desk_page(+Msg, +Tab, -Page) (c28, Ty, 2026-11-18: "use tabs for each mindhole instead of a
 % dropdown"): with two or more mindholes, one tab per mindhole and a last tab All. A tab shows
 % only its mindhole: counts, lanes and rail. The first mindhole's tab opens when none is named.
-desk_page(Msg0, Tab0, Page) :-
+desk_page(Msg0, Tab0, Page) :- desk_with_page_memo(desk_page_(Msg0, Tab0, Page)).
+
+desk_page_(Msg0, Tab0, Page) :-
     serve_conf(token, Token), lib_dir(Lib),
     page_asset(Lib, 'desk/desk.css', Css), page_asset(Lib, 'desk/desk.js', Js),
     desk_load(HDs0, Missing),
     desk_drafts_load(HDs0),
     desk_tab_pick(HDs0, Tab0, HDs, Tab, Msg0, Msg),
-    desk_tabs_html(HDs0, Tab, TabsH),
-    findall(C, ( member(HD, HDs), desk_hub_cards(HDs, HD, Cs), member(C, Cs) ), Cards),
+    findall(HD-Cs, ( member(HD, HDs), desk_hub_cards(HDs, HD, Cs) ), HCs),
+    findall(C, ( member(_-Cs, HCs), member(C, Cs) ), Cards),
+    desk_tabs_html(HDs0, HCs, Tab, TabsH),
     include([C]>>get_dict(lane, C, action), Cards, Act),
     include([C]>>get_dict(lane, C, questions), Cards, Qs0), predsort(desk_by_due, Qs0, Qs),
     include([C]>>get_dict(lane, C, guess), Cards, Gs),
@@ -7715,6 +7926,23 @@ desk_hub_cards(HDs, HD, Cards) :-
     desk_inbox_cards(HDs, HD, C4),
     append([C1, C2, C3, C4], Cards).
 
+% desk_hub_waits(+HD, -N) (desk speed): the number of cards of desk_hub_cards/3 that wait on Ty
+% (desk_waits/1), counted from what decides the lane of each card, with no card made: each ask for
+% Ty that is not parked, each KB action, each open question with no default and no ledger pin. A
+% KB whose cards cannot be made counts as one error card, as in desk_hub_cards/3.
+desk_hub_waits(HD, N) :-
+    findall(x, ( desk_ask_for_me(HD, X), desk_parked(X, ledger, ledger, _) ), L1),
+    findall(N2, ( member(K, HD.kbs), K.kind \== project,
+                  catch(( desk_eng(K.dir, Eng) -> findall(A, desk_kb_action(Eng, A), As), length(As, N2) ; N2 = 0 ), _, N2 = 1) ), L2),
+    findall(N3, ( member(K, HD.kbs),
+                  catch(( desk_eng(K.dir, Eng)
+                        ->  desk_open_questions(Eng, Qs),
+                            findall(Q, ( member(Q, Qs), \+ dk_true(Eng, question_pin(Q, ledger, _, _, _)),
+                                         dk_all(Eng, [C0, T0], question(Q, C0, T0), [_|_]),
+                                         \+ dk_all(Eng, [A], assumed(Q, A), [_|_]) ), Q3), length(Q3, N3)
+                        ;   N3 = 0 ), _, N3 = 1) ), L3),
+    length(L1, N1), sum_list(L2, S2), sum_list(L3, S3), N is N1 + S2 + S3.
+
 % desk_waits(+Card): the card waits on Ty (the count of the header, the tabs and the rail, c28).
 desk_waits(C) :- get_dict(lane, C, L), memberchk(L, [action, questions, ledger]).
 
@@ -7767,10 +7995,13 @@ desk_tab_pick(HDs0, Tab0, HDs, Tab, Msg0, Msg) :-
     ).
 
 % desk_tabs_html(+HDs0, +Tab, -Html) (c28): one tab per mindhole with what waits on Ty there, then All.
-desk_tabs_html(HDs0, Tab, Html) :-
+% The cards of a mindhole on the page (HCs: HD-Cards) are counted, not made again (desk speed): the
+% lane of a card does not depend on the other mindholes of the page, only its text does.
+desk_tabs_html(HDs0, Tab, Html) :- desk_tabs_html(HDs0, [], Tab, Html).
+desk_tabs_html(HDs0, HCs, Tab, Html) :-
     (   HDs0 = [_, _|_]
-    ->  findall(N-W, ( member(HD, HDs0), dk_str(HD.name, N), desk_hub_cards([HD], HD, Cs),
-                       include(desk_waits, Cs, Ws), length(Ws, W) ), NWs),
+    ->  findall(N-W, ( member(HD, HDs0), dk_str(HD.name, N),
+                       ( memberchk(HD-Cs, HCs) -> include(desk_waits, Cs, Ws), length(Ws, W) ; desk_hub_waits(HD, W) ) ), NWs),
         foldl([_-W, A0, A1]>>( A1 is A0 + W ), NWs, 0, Total),
         append(NWs, ["All"-Total], Ts),
         findall(A, ( member(N-W, Ts), ( N == "All" -> Key = "all" ; Key = N ),
@@ -8666,6 +8897,7 @@ desk_effect(close_items(Hub, Ids, Note), R) :-
 % T38 c1: the sha256 of the bytes of the file (encoding(octet)), so a digest equals sha256sum
 % also for non-ASCII and binary files. Before T38 the file was read as UTF-8 text.
 sha256_file(File, Digest) :-
+    desk_note_file(File),
     (   have_crypto,
         catch(crypto:crypto_file_hash(File, Hex, [algorithm(sha256), encoding(octet)]), _, fail)
     ->  true
@@ -9836,14 +10068,15 @@ proof_log_consistent(plog(C0, D0, _, Files, Absent, Info), C, D) :-
 % has its digest, and every absent configuration file is still absent.
 % Else changed.
 proof_state(Dir, Id, P, State) :-
+    ( desk_track_on, proof_log_path(Dir, Id, LP) -> desk_note_file(LP) ; true ),
     (   catch(( nonvar(P), P = proof(C, D),
                 proof_log(Dir, Id, Log),
                 proof_log_consistent(Log, C, D),
                 Log = plog(_, _, Root, Files, Absent, _),
                 forall(member(f(Sha, Pa), Files),
-                       ( directory_file_path(Root, Pa, F), exists_file(F), sha256_file(F, Sha) )),
+                       ( directory_file_path(Root, Pa, F), desk_note_file(F), exists_file(F), sha256_file(F, Sha) )),
                 forall(member(Pa, Absent),
-                       ( directory_file_path(Root, Pa, F), \+ exists_file(F) )) ),
+                       ( directory_file_path(Root, Pa, F), desk_note_file(F), \+ exists_file(F) )) ),
               _, fail)
     ->  State = ok
     ;   State = changed
