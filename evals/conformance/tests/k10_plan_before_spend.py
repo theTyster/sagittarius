@@ -78,6 +78,11 @@ def checks(root, runner, tmp, bad):
                       ("the estimate with its arithmetic", r"Estimate: 1\.20 \+ 1\.63 = 2\.83 USD")):
         if not re.search(pat, text):
             bad.append(f"the plan does not state {need} of the pilot ({pat})")
+    # The cost of what live() makes: the sessions and their System 1 requests only (no planted or
+    # labelled transcript exists yet). The pilot of 0.9.1: 10 tasks x 2 arms x 1 run, 14 criteria.
+    _, small = run("plan", "--tasks", "10", "--arms", "2", "--runs", "1", "--criteria", "14")
+    if not re.search(r"This live run: 0\.40 \+ 0\.25 = 0\.65 USD", small):
+        bad.append("the plan does not state the cost of the live run alone (0.40 + 0.25 = 0.65 USD)")
     for label, args in (("a live run with no budget", ("live",)),
                         ("a live run with a budget under the estimate", ("live", "--budget", "1")),
                         ("a dry run", ("live", "--dry-run", "--budget", "100"))):

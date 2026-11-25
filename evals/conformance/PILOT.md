@@ -2,6 +2,11 @@
 
 These commands make PAID calls (Haiku sessions, then System 1 requests). A human decides to run
 them. Run from the Sagittarius root. Nothing here was run live; every test uses stubs.
+`agent_cmd.sh` has never run for real: its path through `~/.zshenv` and `claude-personal` is
+untested, and it uses Ty's personal Claude key (not the work key) unless `EVAL_ACCOUNT=work`.
+The plan prints two figures: the estimate (it counts 12 planted and 80 labelled transcripts that
+`live` does not make yet; the budget must be at least this) and the cost of this live run alone
+(for 10 tasks x 2 arms x 1 run with 14 criteria: 0.40 + 0.25 = 0.65 USD).
 
 ## Env vars (names only)
 

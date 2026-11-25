@@ -68,6 +68,10 @@ def plan(tasks=10, arms=2, runs=3, criteria=12):
     mtok = questions * TOKENS_PER_QUESTION * TOOL_RESULT_FACTOR / 1e6
     s1_usd = mtok * S1_USD_PER_MTOK
     total = round(haiku_usd + s1_usd, 2)
+    # What live() makes: the sessions and one System 1 request for each, no planted or labelled
+    # transcript (none exists yet). The budget gate still uses the larger estimate above.
+    live_s1_usd = sessions * criteria * TOKENS_PER_QUESTION * TOOL_RESULT_FACTOR / 1e6 * S1_USD_PER_MTOK
+    live_total = round(haiku_usd + live_s1_usd, 2)
     lines = [
         f"Agent model: {AGENT_MODEL}",
         f"Haiku sessions: {tasks} tasks x {arms} arms x {runs} runs = {sessions}",
@@ -80,9 +84,11 @@ def plan(tasks=10, arms=2, runs=3, criteria=12):
         f"{mtok:.2f} M tokens x {S1_USD_PER_MTOK} USD/M = {s1_usd:.2f} USD",
         f"Estimate: {haiku_usd:.2f} + {s1_usd:.2f} = {total:.2f} USD (at most; output tokens of "
         "System 1 and the labelling sessions are not in it)",
+        f"This live run: {haiku_usd:.2f} + {live_s1_usd:.2f} = {live_total:.2f} USD (the {sessions} "
+        f"sessions and their {sessions} System 1 requests only; the gate above uses the estimate)",
     ]
     return {"sessions": sessions, "s1_calls": s1_calls, "questions": questions,
-            "estimate_usd": total, "lines": lines}
+            "estimate_usd": total, "live_usd": live_total, "lines": lines}
 
 
 def task_ids(n):
