@@ -23,7 +23,7 @@ import urllib.parse
 import urllib.request
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
-STRUCT = ("lane-", "store-", "grp-", "layer-", "view-", "more-")
+STRUCT = ("lane-", "store-", "grp-", "layer-", "view-", "more-", "report-")   # report-: the anchor of the link Read the report (vote-start c1)
 
 
 class El:
