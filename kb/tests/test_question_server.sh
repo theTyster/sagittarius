@@ -2236,6 +2236,13 @@ PY
     wr process --dir "$T/h/specs/bb-project-nolink" lint; echo "$out $err" | grep -q 'W21' || note "lint of bb: no W21 ($(snip "$out $err"))"
     echo "$out $err" | grep -q "project_kb('../../project-kb')" || note "the W21 message does not give the line to add"
     wr process --dir "$T/h/specs/cc-project-linked" lint; echo "$out $err" | grep -q 'W21' && note "lint of cc (it names its project KB): W21"
+    # the place is <hub>/specs/<slug>: a KB deeper under specs/ is no spec KB of the hub, and a hub dir that is itself named specs does not turn its project KB into a spec KB
+    mkdir -p "$T/h/specs/deep/inner" "$T/sp/specs"; kb_new "$T/h/specs/deep/inner" <<'EOF2'
+uses([discovery, project]).
+request(r1, 'deep one').
+EOF2
+    wr process --dir "$T/h/specs/deep/inner" lint; echo "$out $err" | grep -q 'W21' && note "W21 for a KB deeper under specs/ (not in the place)"
+    cp -r "$T/h/project-kb" "$T/sp/specs/project-kb"; wr process --dir "$T/sp/specs/project-kb" lint; echo "$out $err" | grep -q 'W21' && note "W21 for a project KB whose parent is named specs but is no hub's specs/"
     wr process --dir "$T/h/specs/aa-plain" lint; echo "$out $err" | grep -q 'W21' && note "lint of aa (no project module): W21"
     wr process --dir "$T/h/project-kb" lint; echo "$out $err" | grep -q 'W21' && note "lint of the project KB itself: W21"
     true

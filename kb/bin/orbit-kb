@@ -5522,8 +5522,9 @@ serve_message_page(Status, Msg) :-
 
 % serve_kbs(-Groups): the KBs to serve now, as group(Label, ProjectDir|none, Dirs). The --dir
 % KBs in the order given, then the KBs under --root, sorted by path. A KB that a spec KB names
-% with project_kb/1, or that uses the project module and has no project_kb and no claim, is a
-% project KB: it names a group and has no section of its own.
+% with project_kb/1, or that uses the project module, has no project_kb and no claim, and does not lie
+% in <hub>/specs/ (spec-kb-store-rule c1: the place decides), is a project KB: it names a group and
+% has no section of its own.
 serve_kbs(Groups) :- serve_all_dirs(All), serve_groups(All, Groups).
 
 % serve_all_dirs(-All): the --dir KBs, the KBs under --root, and the KBs under each --hub.
@@ -5589,8 +5590,13 @@ serve_kb_project(Dir, P) :-
 
 % serve_in_specs(+Dir): the KB lies in a directory named specs (the place of a spec KB of a hub).
 % spec-kb-store-rule c1: the place decides the store of a KB, not its modules alone.
+% The place is <hub>/specs/<slug>: the parent is named specs and the directory above it is a hub root
+% (it holds flow/flow.db). A KB deeper under specs/, or in a directory specs/ that is no hub's, is not
+% in this place (limit, disclosed).
 serve_in_specs(Dir) :-
-    file_directory_name(Dir, Parent), file_base_name(Parent, specs).
+    file_directory_name(Dir, Parent), file_base_name(Parent, specs),
+    file_directory_name(Parent, Hub),
+    directory_file_path(Hub, 'flow/flow.db', Db), exists_file(Db).
 
 serve_is_project_kb(Dir) :-
     \+ serve_in_specs(Dir),
