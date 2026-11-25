@@ -68,6 +68,29 @@ def label_of(question, arm, answers, state):
     return ",".join(r["kind"] for r in out["requests"]) or "none", out["part"]
 
 
+TREE_OF = {"drift": trees.STOP_IDS + ("d_drift",), "dispute": ("x_dispute", "x_kind"),
+           "difference": ("y_differs",), "requests": ("r_count", "r_kind", "r_goal")}
+
+
+NO_HINT = ("none", "neither", "no answer")
+
+
+def is_hint(label, th):
+    """True when the label is one that gives a hint: in th["hint_labels"], or any label that names
+    something when that list holds "*" (a requests label can be several kinds, "goal,task")."""
+    labels = th.get("hint_labels", [])
+    return label in labels or ("*" in labels and label not in NO_HINT)
+
+
+def questions_sha256(question, path=None):
+    """The sha256 of the entries of the tree of one question in the candidate file (c2): the JSON of
+    the entries by id, keys sorted, no spaces. The case file holds it as questions_sha256."""
+    entries = trees.load(path or trees.CANDIDATES)
+    body = {i: entries[i] for i in TREE_OF[question] if i in entries}
+    return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                          .encode("utf-8")).hexdigest()
+
+
 def _time(s):
     try:
         t = dt.datetime.fromisoformat(str(s).replace("Z", "+00:00"))
@@ -76,8 +99,10 @@ def _time(s):
     return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
 
 
-def check_file(doc, now):
-    """Raises ValueError when the case file cannot be run: no thresholds written before the run."""
+def check_file(doc, now, candidate=None):
+    """Raises ValueError when the case file cannot be run: no thresholds written before the run
+    (c2), a case made by a session that edited the question (edited_by), or a question that changed
+    since the cases were made (questions_sha256), and no bound on false hints (c16)."""
     if doc.get("question") not in QUESTIONS:
         raise ValueError(f"question: one of {', '.join(QUESTIONS)}")
     th = doc.get("thresholds")
@@ -92,12 +117,30 @@ def check_file(doc, now):
         raise ValueError("thresholds of rule two_arm: target (the groups where a hint is wanted) and hint_labels")
     if th["rule"] == "accuracy" and not all(isinstance(th.get(k), (int, float)) for k in ("meets_at", "conflicts_below")):
         raise ValueError("thresholds of rule accuracy: meets_at and conflicts_below (fractions of correct labels)")
+    if isinstance(th.get("max_false_hints"), bool) or not isinstance(th.get("max_false_hints"), int) \
+            or th["max_false_hints"] < 0:
+        raise ValueError("thresholds.max_false_hints: the most hints that an arm may give on the clean cases (c16)")
+    if th["rule"] == "accuracy" and not (isinstance(th.get("hint_labels"), list) and isinstance(th.get("clean"), list)):
+        raise ValueError("thresholds of rule accuracy: hint_labels and clean (the groups with nothing to find), to count false hints")
     cases = doc.get("cases")
     if not isinstance(cases, list) or not cases:
         raise ValueError("cases: a non-empty list")
     for c in cases:
         if not isinstance(c, dict) or not c.get("id") or not c.get("group") or not isinstance(c.get("state"), dict):
             raise ValueError("each case: id, group, state, label")
+    edited = doc.get("edited_by")
+    if not isinstance(edited, list):
+        raise ValueError("edited_by: the sessions that edited the text of the question (a list, may be empty)")
+    for c in cases:
+        if not c.get("made_by"):
+            raise ValueError(f"case {c['id']}: made_by (the session that made it) is missing")
+        if c["made_by"] in edited:
+            raise ValueError(f"case {c['id']} was made by {c['made_by']}, a session that edited the question: "
+                             "the cases of an experiment are not made by the one who worded the question")
+    want = questions_sha256(doc["question"], candidate)
+    if doc.get("questions_sha256") != want:
+        raise ValueError("questions_sha256 is not the sha256 of the entries of the question in "
+                         f"questions.candidate.json ({want}): the question changed since the cases were made")
 
 
 def check_hub(doc, hub_dir, projects):
@@ -115,7 +158,17 @@ def check_hub(doc, hub_dir, projects):
 
 
 def verdict(th, cases):
-    """(verdict, reason, counts) by the thresholds. cases: the result rows of run()."""
+    """(verdict, reason, counts) by the thresholds. cases: the result rows of run(). c16: the verdict
+    is never meets when the arm that is judged gave more false hints than th["max_false_hints"]."""
+    v, reason, counts = _verdict(th, cases)
+    arm = "record" if th.get("rule") == "two_arm" else th.get("arm", "record")
+    bound = th.get("max_false_hints")
+    if v == "meets" and bound is not None and counts[arm]["false_hints"] > bound:
+        return "unresolved", f"{reason}; but {counts[arm]['false_hints']} false hints in the arm {arm} are over max_false_hints {bound}", counts
+    return v, reason, counts
+
+
+def _verdict(th, cases):
     counts = {}
     for arm in ARMS:
         rows = [c[arm] for c in cases]
@@ -124,8 +177,9 @@ def verdict(th, cases):
             "correct": sum(1 for c in cases if c["label"] is not None and c[arm]["label"] == c["label"]),
             "hits": sum(1 for c in cases if c["group"] in th.get("target", []) and c["label"] is not None
                         and c[arm]["label"] == c["label"]),
-            "false_hints": sum(1 for c in cases if c["group"] not in th.get("target", [])
-                               and c[arm]["label"] in th.get("hint_labels", [])),
+            "false_hints": sum(1 for c in cases
+                               if (c["group"] in th["clean"] if "clean" in th else c["group"] not in th.get("target", []))
+                               and is_hint(c[arm]["label"], th)),
         }
     unjudged = [c["id"] for c in cases if c["label"] is None]
     failed = counts["today"]["failed"] + counts["record"]["failed"]
