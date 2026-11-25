@@ -39,6 +39,7 @@ Core
          orbit-kb add 'check(k1, c1)' "checks_that(k1, 'what it checks, in plain words')"
        Old checks with no words still load; lint W12 warns about them.
   E21  predicts(H, C) on a preserve claim. A preserve claim is always a claim of the goal. add refuses it.
+  E22  assumed(Q, D) where Q has options and D is none of them. add refuses it: the Desk would show two choices. Write D as the text of one option.
   W1   subject digest differs from the file. Run orbit-kb subject again.
   W2   a local declaration, listed for review
   W3   a claim with no cites. Cite the request text, or drop the claim (drift).

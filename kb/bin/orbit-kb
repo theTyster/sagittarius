@@ -3597,7 +3597,8 @@ body_lits_deep(G, [G]).
 % eng(Module, LoadErrs)
 %   LoadErrs: list of le(File, Line, Message)
 
-build_engine(Items0, Ds, eng(M, LoadErrs)) :-
+build_engine(Items00, Ds, eng(M, LoadErrs)) :-
+    struck_filter(Items00, Items0),     % every engine reads the KB without its struck records (query, why, lint, the Desk)
     answer_items(Items0, Ds, Items),
     gensym(orbit_eng_, M),
     set_module(M:base(system)),
@@ -4309,7 +4310,11 @@ struck_filter(Items0, Items) :-
                  \+ crud_own_rule(Items0, O) ), S1),
     append(S0, S1, S2), sort(S2, Ids),
     findall(L, ( member(it(kb, _, _, T, _, _), Items0), nonvar(T), T = struck(at(K, I, N), _, _, _),
-                 crud_address_line(Items0, K, I, N, L) ), Ls0),
+                 crud_address_line(Items0, K, I, N, L) ), Ls00),
+    % struck(fact(F), ...): the fact F itself, wherever it is in kb.pl (the migration of question-default-option writes it)
+    findall(L, ( member(it(kb, _, _, T, _, _), Items0), nonvar(T), T = struck(fact(F), _, _, _), nonvar(F),
+                 member(it(kb, _, L, F2, _, _), Items0), nonvar(F2), F2 =@= F ), Ls01),
+    append(Ls00, Ls01, Ls0),
     sort(Ls0, Ls),
     (   Ids == [], Ls == []
     ->  Items = Items0
@@ -4805,6 +4810,7 @@ cmd_add(KB, Args, Code) :-
     (   Errs \== [] -> reject(Errs) ; true ),
     findall(It, member(ok(It), Rs), NewItems),
     check_words_gate(KI, NewItems),
+    default_option_gate(KI, NewItems),
     % D22: a fact whose name is declared nowhere declares its predicate by
     % its first use. The decl/4 lines take part in the checks of the batch.
     first_use_pis(KB, NewItems, FUs),
@@ -4839,6 +4845,21 @@ cmd_add(KB, Args, Code) :-
     ;   true
     ),
     Code = 0.
+
+% default_option_gate(+KBItems, +NewItems) (question-default-option c2): a new assumed(Q, D) for a question
+% that has options (in the KB or in the same add) must name one of them: D is the text of an option.
+% Else nothing is written. A question with no options takes any default, as before.
+default_option_gate(KI, NewItems) :-
+    findall(M, ( member(it(_, _, _, assumed(Q, D), _, _), NewItems), nonvar(Q), nonvar(D),
+                 findall(OT, ( ( member(it(kb, _, _, option(Q2, O, _), _, _), KI) ; member(it(_, _, _, option(Q2, O, _), _, _), NewItems) ),
+                               Q2 == Q, nonvar(O), plain_text(O, OT) ), Os0),
+                 sort(Os0, Os), Os \== [], plain_text(D, DT), \+ memberchk(DT, Os),
+                 atomic_list_concat(Os, ' | ', OL),
+                 fmt(M, "E22: the default of question ~w is ~q, which is none of its options (~w). The Desk would show the default and the option as two choices.", [Q, DT, OL]) ), Ms),
+    (   Ms == [] -> true
+    ;   append(Ms, ["Fix: write the default as the text of one option, exactly (assumed(Q, 'Option text')); add the option first if it is new. To change a default that is recorded: orbit-kb replace 'assumed(Q)#1' \"assumed(Q, 'Option text')\" --why TEXT."], All),
+        reject(All)
+    ).
 
 % check_words_gate(+KBItems, +NewItems) (E20): a new check(K, C) needs the words of the check:
 % checks_that(K, Text) with non-empty Text, in the same add or already in the KB. Else reject.
@@ -11826,8 +11847,7 @@ vote_section(Eng) :-
     ).
 
 kb_engine(KB, Eng) :-
-    kb_items(KB, Items0),
-    struck_filter(Items0, Items),
+    kb_items(KB, Items),
     items_decls(Items, Ds),
     build_engine(Items, Ds, Eng).
 
