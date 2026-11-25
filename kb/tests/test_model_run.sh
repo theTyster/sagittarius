@@ -119,7 +119,7 @@ t_MR18() { fixture tla || return; printf 'INIT Init\nNEXT Next\n' > "$K/m1.cfg";
     "$ORB" --dir "$K" query "model_run_current(m1_run2, m1)" >/dev/null 2>&1 || note "the new run does not count"
     echo more >> "$K/Extra.tla"; "$ORB" --dir "$K" subject m1_Extra Extra.tla >/dev/null 2>&1
     "$ORB" --dir "$K" query "model_run_current(m1_run2, m1)" >/dev/null 2>&1 && note "an edit of a --with module did not make the run stale"
-    "$ORB" --dir "$K" add "model_run_file(m1_run2, m1_m1, 'sha256:0')" >/dev/null 2>&1 && note "model_run_file by hand was accepted"; }
+    "$ORB" --dir "$K" add "model_run_file(m1_run2, m1_m1, 'sha256:0000000000000000000000000000000000000000000000000000000000000000')" >/dev/null 2>&1 && note "model_run_file by hand was accepted"; }
 t_MR19() { fixture smt || return; "$ORB" --dir "$K" model-run m1 >/dev/null 2>&1; echo unsat >> "$K/runs/1-m1.log"
     out=$("$ORB" --dir "$K" lint 2>&1); printf '%s' "$out" | grep -q 'W1' || note "lint does not warn of the edited log"
     printf '%s' "$out" | grep -Eq 'Refresh with orbit(-kb)? subject' && note "lint still says to refresh the log with subject"
