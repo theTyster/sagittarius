@@ -5458,8 +5458,13 @@ serve_act(send, Form) :-
     (   \+ desk_mode -> serve_message_page(404, "There is no such page. GET / shows the questions.")
     ;   desk_send_form(Form, R),
         (   R = ok(Anchor) -> serve_frame_headers(FH),
-            ( serve_field(Form, tab, Tb), Tb \== "" -> uri_encoded(query_value, Tb, TbE), format(string(Back), "/?mh=~w", [TbE]) ; Back = "/" ),
-            format("Status: 303~nLocation: ~w#~w~n~wContent-type: text/html; charset=UTF-8~n~n<p>Sent. <a href=\"/\">Back to the Desk</a></p>~n", [Back, Anchor, FH])
+            ( serve_field(Form, tab, Tb), Tb \== "" -> uri_encoded(query_value, Tb, TbE), format(string(Back), "/?mh=~w", [TbE]), Sep = "&" ; Back = "/", Sep = "?" ),
+            (   serve_field(Form, view, VW), memberchk(VW, ["waits", "questions", "answered", "everything"])
+            ->  % r10 c18: the view stays, with no anchor (the card may have left the view); a line says what was done
+                desk_done_words(Form, Anchor, Said), uri_encoded(query_value, Said, SaidE), uri_encoded(query_value, Anchor, AnE),
+                format("Status: 303~nLocation: ~w~wview=~w&did=~w&said=~w~n~wContent-type: text/html; charset=UTF-8~n~n<p>Sent. <a href=\"/\">Back to the Desk</a></p>~n", [Back, Sep, VW, AnE, SaidE, FH])
+            ;   format("Status: 303~nLocation: ~w#~w~n~wContent-type: text/html; charset=UTF-8~n~n<p>Sent. <a href=\"/\">Back to the Desk</a></p>~n", [Back, Anchor, FH])
+            )
         ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
         )
     ).
@@ -9188,6 +9193,19 @@ desk_wake_line(About, Line) :- dk_f("Desk: Ty sent a letter about ~w. It is stor
 desk_letter_head(About, Head) :- dk_f("Letter from Ty (the Desk), about ~w:", [About], Head).
 
 % ---- the send
+
+% desk_done_words(+Form, +Anchor, -Text) (r10, c18): one line that says what was done: "ask A-0001: answered".
+desk_done_words(Form, Anchor, Text) :-
+    ( serve_field(Form, intent, I0) -> true ; I0 = "answer" ),
+    (   memberchk(I0-W, ["answer"-"answered", "diverge"-"marked: that is not what you meant", "note"-"noted", "close"-"closed",
+                         "park"-"parked", "requirement"-"requirement sent", "create"-"record added", "replace"-"record replaced",
+                         "strike"-"record struck", "erase"-"record erased"]) -> true
+    ;   W = "sent"
+    ),
+    (   sub_string(Anchor, B, 1, A, "-"), B > 0, A > 0 -> sub_string(Anchor, 0, B, _, Pre), sub_string(Anchor, _, A, 0, Post), format(string(Name), "~w ~w", [Pre, Post])
+    ;   Name = Anchor
+    ),
+    format(string(Text), "~w: ~w", [Name, W]).
 
 desk_send_form(Form, R) :-
     catch(( desk_plan(Form, Plan), desk_execute(Form, Plan, R) ),

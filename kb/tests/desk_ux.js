@@ -468,10 +468,14 @@ async function k14depth() {
   check('after a reload the same folds are open, at each depth, the step of more rows too', same, same ? '' : 'missing ' + JSON.stringify(ch.open.filter(x => !af.open.includes(x))) + ' extra ' + JSON.stringify(af.open.filter(x => !ch.open.includes(x))));
   check('after a reload the scroll place is within 4 px', Math.abs(af.y - ch.y) <= 4, ch.y + ' -> ' + af.y);
   check('after a reload the view is still Everything', ch.view === 'Everything' && af.view === 'Everything', JSON.stringify([ch.view, af.view]));
-  // the view Waits on you keeps its own state
+  // r10 c19 (H-0187): the address with no view, in a browser that kept a view, returns to that view (it was: Waits on you).
   await pg.go(base + '/?mh=' + T);
+  const w0 = await pg.ev(STORE_LIB + `return {view: (views().find(v => v.on) || {}).name};`);
+  check('the address with no view returns to the last view of this browser (r10 c19)', w0.view === 'Everything', JSON.stringify(w0));
+  // the view Waits on you keeps its own state
+  await pg.go(base + '/?mh=' + T + '&view=waits');
   const w = await pg.ev(STORE_LIB + `return {view: (views().find(v => v.on) || {}).name, y: window.scrollY};`);
-  check('the address with no view opens on Waits on you, with its own state', w.view === 'Waits on you' && w.y <= 4, JSON.stringify(w));
+  check('the view Waits on you opens with its own state', w.view === 'Waits on you' && w.y <= 4, JSON.stringify(w));
   pg.close();
 }
 
@@ -666,6 +670,48 @@ async function golink() {
   }
 }
 
+
+// r10 (desk-speed-orbit-door c18 to c21): after an action the Desk stays in its view and place, with a line that
+// says what was done; a load that is not cold returns to the last view; a cold load is Waits on you.
+async function r10() {
+  const pg = await open(1400, 900);
+  const state = `return {view: document.body.getAttribute('data-view'), y: Math.round(scrollY), url: location.pathname + location.search + location.hash};`;
+  await pg.go(base + '/?mh=alpha');
+  const s0 = await pg.ev(state);
+  check('c20: the first page of a browser with no kept place is Waits on you', s0.view === 'waits', JSON.stringify(s0));
+  const pre = await pg.ev(`const f = [...document.querySelectorAll('form[data-review]')].filter(f => !f.closest('dialog') && f.querySelector('input[name=choice]'))[0];
+    if (!f) return {found: false};
+    for (let e = f; e; e = e.parentElement) if (e.tagName === 'DETAILS') e.open = true;
+    const c = f.querySelector('input[name=choice]'); if (c) c.checked = true;
+    const ta = f.querySelector('textarea[name=text]'); if (ta) ta.value = 'probe words';
+    f.scrollIntoView({block: 'center'}); await new Promise(r => setTimeout(r, 400));
+    const y = Math.round(scrollY);
+    f.requestSubmit(); await new Promise(r => setTimeout(r, 900));
+    return {found: true, y, reviewOpen: !!document.querySelector('#review button.go')};`);
+  check('c18: the probe found a card to answer in Waits on you, and its review opened', pre.found && pre.reviewOpen, JSON.stringify(pre));
+  if (!(pre.found && pre.reviewOpen)) { pg.close(); return; }
+  await pg.ev(`document.querySelector('#review button.go').click(); return 1;`);
+  await pg.afterNav();
+  await new Promise(r => setTimeout(r, 700));
+  const a = await pg.ev(state + '');
+  const note = await pg.ev(`const n = document.querySelector('.donenote'); return n ? {text: n.textContent, href: (n.querySelector('a') || {}).href || ''} : null;`);
+  const st = await pg.ev(state);
+  check('c18: after the answer the view is still Waits on you', st.view === 'waits', JSON.stringify(st));
+  check('c18: the scroll place is within 120 px of where the card was', Math.abs(st.y - pre.y) <= 120, 'before ' + pre.y + ' after ' + st.y);
+  check('c18: a line says what was done, with a link to the view Answered', !!note && /answered/.test(note.text) && /view=answered/.test(note.href), JSON.stringify(note));
+  check('c18: the address does not keep the line (a reload shows no second one)', !/did=|said=/.test(st.url), st.url);
+  // c19: work in Questions, then the plain address
+  await pg.go(base + '/?mh=alpha&view=questions');
+  await pg.go(base + '/?mh=alpha');
+  const d = await pg.ev(state);
+  check('c19: the plain address after work in the view Questions shows Questions', d.view === 'questions', JSON.stringify(d));
+  // c20: a kept place from another server start is a cold load
+  await pg.ev(`const k = Object.keys(localStorage).filter(k => k.indexOf('desk-last:') === 0); for (const x of k) localStorage.setItem(x, JSON.stringify({view: 'questions', boot: 'another-server-start'})); return k.length;`);
+  await pg.go(base + '/?mh=alpha');
+  const e = await pg.ev(state);
+  check('c20: a kept view from another server start is not used: Waits on you', e.view === 'waits', JSON.stringify(e));
+  pg.close();
+}
 (async () => {
   if (scenario === 'shots') await shots();
   else if (scenario === 'k13') await k13();
@@ -675,6 +721,7 @@ async function golink() {
   else if (scenario === 'golink') await golink();
   else if (scenario === 'shots2') { await shots2(outDir); process.exit(0); }
   else if (scenario === 'shotclosed') { await shotclosed(outDir); process.exit(0); }
+  else if (scenario === 'r10') await r10();
   else if (scenario === 'k15a') await k15a();
   else if (scenario === 'k15b') await k15b();
   else die('no scenario ' + scenario);

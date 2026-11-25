@@ -12,6 +12,45 @@
 // 4. New requirement (c5): the control of the top band opens a form; it goes through the review.
 (function () {
   var tok = document.body.getAttribute('data-token');
+  // r10 (desk-speed-orbit-door c18 to c21): the view and the place that Ty last used. The browser keeps the
+  // last view of each tab, with a short hash of this server's token (a new server start is a cold load, c20).
+  // A load that is not cold, at the plain address, goes to that view; an action comes back with its view in
+  // the address (the review form adds it), and with the line that says what was done.
+  var bootId = (function () { var h = 5381, t = tok || ''; for (var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return h.toString(36); })();
+  var lastKey = 'desk-last:' + (document.body.getAttribute('data-tab') || '');
+  function lastRead() { try { var o = JSON.parse(localStorage.getItem(lastKey) || 'null'); return o && typeof o === 'object' ? o : null; } catch (e) { return null; } }
+  var thisView = document.body.getAttribute('data-view') || '';
+  var qs = new URLSearchParams(location.search);
+  if (!qs.has('view') && !location.hash && !qs.has('did')) {
+    var lv = lastRead();
+    if (lv && lv.boot === bootId && /^(waits|questions|answered|everything)$/.test(lv.view || '') && lv.view !== thisView) {
+      qs.set('view', lv.view);
+      location.replace(location.pathname + '?' + qs.toString());
+      return;
+    }
+  }
+  try { localStorage.setItem(lastKey, JSON.stringify({view: thisView, boot: bootId})); } catch (e) { /* no storage: nothing is kept */ }
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f || !f.getAttribute || !/\/(send|review)$/.test(f.getAttribute('action') || '') || f.querySelector('input[name=view]')) return;
+    var i = document.createElement('input'); i.type = 'hidden'; i.name = 'view'; i.value = thisView; f.appendChild(i);
+  }, true);
+  // the line of what was done: where the card was, folding from the height of a card to one line (c21)
+  if (qs.has('did') && qs.has('said')) {
+    var did = qs.get('did'), said = qs.get('said');
+    var main = document.querySelector('main') || document.body;
+    var line = document.createElement('p'); line.className = 'banner donenote'; line.setAttribute('role', 'status');
+    line.appendChild(document.createTextNode(said + '. '));
+    var link = document.createElement('a'); link.href = '?' + (function () { var q = new URLSearchParams(location.search); q.delete('did'); q.delete('said'); q.set('view', 'answered'); return q.toString(); })() + '#' + encodeURIComponent(did);
+    link.textContent = 'See it in Answered'; line.appendChild(link);
+    main.insertBefore(line, main.firstChild);
+    var natural = line.offsetHeight;
+    line.style.height = '140px'; line.style.overflow = 'hidden'; line.style.transition = 'height 330ms ease-out';
+    requestAnimationFrame(function () { requestAnimationFrame(function () { line.style.height = natural + 'px'; }); });
+    setTimeout(function () { line.style.height = ''; line.style.overflow = ''; line.style.transition = ''; }, 420);
+    var q2 = new URLSearchParams(location.search); q2.delete('did'); q2.delete('said');
+    try { history.replaceState(null, '', location.pathname + (q2.toString() ? '?' + q2.toString() : '')); } catch (e) { /* the address keeps did */ }
+  }
   function post(url, body, extra) {
     var b = new URLSearchParams(body);
     b.set('token', tok);
