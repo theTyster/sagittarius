@@ -8483,6 +8483,7 @@ desk_kb_sheet_(HDs, HD, K, KB, Eng, View, Open, QCs, GCs, Votes, Others, LAk, LC
     ;   AnsL = ""
     ),
     (   View == everything, K.kind \== project -> desk_kbreq_form(HD, K, NrF), desk_layer(A, "newreq", "New requirement for this KB", "", false, NrF, NrLay) ; NrLay = "" ),
+    (   View == everything, K.kind \== project -> desk_rec_forms(HD, K, Eng, RecF), desk_layer(A, "records", "Change records of this KB", "", false, RecF, RecLay) ; RecLay = "" ),
     (   K.kind == project
     ->  dk_all(Eng, [R], repo(R, _), PRs0), sort(PRs0, PRs), length(PRs, NR),
         maplist([R, E]>>esc(R, E), PRs, PRsE), dk_join(PRsE, ", ", PRsJ),
@@ -8498,7 +8499,7 @@ desk_kb_sheet_(HDs, HD, K, KB, Eng, View, Open, QCs, GCs, Votes, Others, LAk, LC
     ( Open == true -> Op = " open" ; Op = "" ),
     dk_f("<details class=\"sheet kbsec\" id=\"~w\"~w><summary><div class=\"t\"><h3 class=\"title\">~w</h3><div class=\"src\"><span>~w~w</span><span title=\"~w\">~w</span><span>~w</span></div><div class=\"chips\">~w</div></div>~w</summary><div class=\"body\">",
          [A, Op, LH, KindT, HS, DH, DH, HowT, ChipsH, BH], H0),
-    dk_cat([H0, LinkH, OldH, MetaH, ProjH, QL, GoalL, ClaimL, LedL, AnsL, NrLay, "</div></details>"], Html).
+    dk_cat([H0, LinkH, OldH, MetaH, ProjH, QL, GoalL, ClaimL, LedL, AnsL, NrLay, RecLay, "</div></details>"], Html).
 
 % desk_open_first_of(+Lists, -Lists1, +QCs): the first card of the first list that holds one opens (c22),
 % unless the open questions come first (then desk_qgroups opens the first of those).
@@ -8870,7 +8871,7 @@ desk_plan(Form, P) :-
     ;   throw(desk_refused(400, "The form names no mindhole of this Desk. Reload the page."))
     ),
     ( serve_field(Form, item, It) -> true ; It = "" ),
-    ( serve_field(Form, intent, I0), memberchk(I0, ["answer", "diverge", "requirement", "close", "park", "note"]) -> atom_string(Intent, I0) ; Intent = answer ),
+    ( serve_field(Form, intent, I0), memberchk(I0, ["answer", "diverge", "requirement", "close", "park", "note", "create", "replace", "strike", "erase"]) -> atom_string(Intent, I0) ; Intent = answer ),
     ( serve_field(Form, text, T0) -> split_string(T0, "", " \t\r\n", [Text]) ; Text = "" ),
     ( serve_field(Form, until, U0) -> split_string(U0, "", " \t\r\n", [Until]) ; Until = "" ),
     ( serve_field(Form, choice, Ch0) -> split_string(Ch0, "", " \t\r\n", [Choice]) ; Choice = "" ),
@@ -8892,6 +8893,7 @@ desk_plan(Form, P) :-
         -> desk_plan_dir(HDs, DS, K, HD), desk_plan_adopt(HD, K, HyS, Text, P0)
     ;   string_concat("judge:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_judge(HD, K, Choice, Text, P0)
     ;   string_concat("kbreq:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_kbreq(HD, K, Intent, Text, P0)
+    ;   string_concat("rec:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_rec(HD, K, Intent, Form, P0)
     ;   string_concat("fix:", R, It) -> desk_plan_fix(HDs, HD, R, Text, P0)
     ;   string_concat("proj:", R, It) -> desk_plan_proj(HDs, HD, R, Text, P0)
     ;   throw(desk_refused(400, "The form names no item. Reload the page."))
@@ -9046,6 +9048,75 @@ desk_plan_kbreq(HD, K, Intent, Text, P) :-
     dk_f("the KB ~w", [K.label], About),
     desk_item_json(HD, K, kb, requirement, Item),
     desk_plan_requirement(HD, kb(K.ref), About, Item, Text, P).
+
+% ---- change records (kb-crud c5): New, Replace, Strike and Erase for a spec KB. Each form goes through the
+% review, and the send runs the command with --by human: the record is that of orbit-kb add, replace,
+% strike and erase. The record is an id (c1) or an address KIND(ITEM)#N of an attachment.
+desk_rec_forms(HD, K, Eng, Html) :-
+    serve_conf(token, Tok), dk_f("rec:~w", [K.dir], Item),
+    findall(I, ( dk_all(Eng, [X], ( claim(X, _, _) ; check(X, _) ; question(X, _, _) ; finding(X, _, _) ; premise(X, _, _) ), Xs), member(I, Xs) ), Is0),
+    sort(Is0, Is), maplist([I, O]>>( esc(I, IH), dk_f("<option value=\"~w\">", [IH], O) ), Is, Os), dk_cat(Os, OsH),
+    dk_f("<datalist id=\"recs-~w\">~w</datalist>", [HD.name, OsH], DL),
+    esc(HD.name, HN),
+    findall(F, ( member(Int-Lb-Words, [ create-"New"-"Facts, one per line, in the form that orbit-kb add takes (for example: question(q9, g1, 'Text')).",
+                                       replace-"Replace"-"The record, and the new fact (an item with an id of its own, or the new attachment). The old one no longer counts.",
+                                       strike-"Strike"-"The record that no longer counts. It stays in kb.pl and in the report, struck, with your reason.",
+                                       erase-"Erase"-"A record added by mistake. Its line leaves kb.pl; one line says who erased what and why, without the text."]),
+                 dk_f("~w|~w|~w", [HD.name, Item, Int], Key),
+                 desk_hidden([token-Tok, hub-HD.path, item-Item, key-Key, intent-Int], HH),
+                 ( Int == create -> RecF = "" ; dk_f("<label>Record <input name=\"rec\" list=\"recs-~w\" placeholder=\"k3, or note(g1)#2\" aria-label=\"The record to ~w\" autocomplete=\"off\"></label>", [HN, Lb], RecF) ),
+                 ( memberchk(Int, [create, replace]) -> dk_f("<textarea name=\"text\" aria-label=\"The ~w fact\" placeholder=\"~w\"></textarea>", [Lb, Words], TxF) ; TxF = "" ),
+                 ( memberchk(Int, [strike, erase, replace]) -> WhyF = "<label>Why <input name=\"why\" aria-label=\"The reason\" placeholder=\"One plain sentence\" autocomplete=\"off\"></label>" ; WhyF = "" ),
+                 esc(Words, WH),
+                 dk_f("<form class=\"respond recform\" method=\"post\" action=\"/review\" data-review><h4>~w</h4><p class=\"small quiet\">~w</p>~w~w~w~w<div class=\"foot\"><button class=\"btn go\" type=\"submit\">Review and send</button><span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></div></form>", [Lb, WH, HH, RecF, TxF, WhyF], F) ),
+            Fs),
+    dk_all(Eng, [X, By, At, D], struck_disclosure(X, By, At, D), Dvs),
+    findall(L, ( member([X, By, At, D], Dvs), crud_target_text(X, XT), esc(XT, XH), esc(By, BH), esc(D, DH),
+                 dk_f("<li><b>A record of yours was changed:</b> ~w, by ~w at ~w. Disclosure: ~w</li>", [XH, BH, At, DH], L) ), Ls),
+    (   Ls == [] -> DvH = ""
+    ;   dk_cat(Ls, LsH), dk_f("<div class=\"divergence\"><p class=\"small\">An agent changed a record that you made. This is a divergence for you to judge.</p><ul>~w</ul></div>", [LsH], DvH)
+    ),
+    dk_cat([DvH, DL|Fs], Html).
+
+desk_plan_rec(HD, K, Intent, Form, P) :-
+    (   memberchk(Intent, [create, replace, strike, erase]) -> true
+    ;   throw(desk_refused(400, "A form that changes records is New, Replace, Strike or Erase. Reload the page."))
+    ),
+    ( serve_field(Form, rec, R0) -> split_string(R0, "", " \t\r\n", [Rec]) ; Rec = "" ),
+    ( serve_field(Form, why, W0) -> split_string(W0, "", " \t\r\n", [Why]) ; Why = "" ),
+    ( serve_field(Form, text, T0) -> split_string(T0, "", " \t\r\n", [Text]) ; Text = "" ),
+    string_length(Why, WL), ( WL > 1000 -> throw(desk_refused(400, "The reason is longer than 1000 characters.")) ; true ),
+    (   Intent \== create, Rec == "" -> throw(desk_refused(400, "Name the record: its id (k3) or its address (note(g1)#2).")) ; true ),
+    (   memberchk(Intent, [create, replace]), Text == ""
+    ->  throw(desk_refused(400, "Write the fact: the same text that orbit-kb add takes."))
+    ;   true
+    ),
+    (   memberchk(Intent, [strike, erase, replace]), Why == "" -> throw(desk_refused(400, "Say why, in one plain sentence.")) ; true ),
+    lib_dir(Lib), load_kb(K.dir, Lib, KB),
+    (   Intent == create -> true
+    ;   catch(crud_target(KB, Rec, _, _), orbit_error(_, Ls), ( atomic_list_concat(Ls, ' ', M0), throw(desk_refused(409, M0)) ))
+    ),
+    split_string(Text, "\n", " \t\r", Lines0), exclude(==(""), Lines0, Lines),
+    maplist([S, A]>>atom_string(A, S), Lines, FactAs),
+    atom_string(RecA, Rec), atom_string(WhyA, Why),
+    (   Intent == create -> append([add|FactAs], ['--by', human], Args)
+    ;   Intent == replace -> append([[replace, RecA], FactAs, ['--why', WhyA, '--by', human]], Args)
+    ;   Args = [Intent, RecA, '--why', WhyA, '--by', human]
+    ),
+    maplist([A, T]>>( atom(A) -> atom_string(A, T) ; T = A ), Args, ArgTs), atomic_list_concat(ArgTs, ' ', Cmd),
+    desk_kb_recipient(HD, K, To),
+    dk_f("the KB ~w", [K.label], About),
+    ( Rec == "" -> RIds = [] ; RIds = [Rec] ), desk_fix_item("kb-records", RIds, J),
+    desk_rec_words(Intent, Rec, Text, Why, KL, Sum),
+    dk_f("Ty changed the records of the KB ~w on the Desk: ~w\n\nThe Desk ran: orbit-kb ~w (with --by human).", [K.label, Sum, Cmd], LT),
+    desk_lt(To, notice, About, J, LT, L1),
+    dk_f("~w", [KL], R1),
+    P = plan{title:"Change records", sub:About, letters:[L1], records:[R1], effects:[kb_crud(K.dir, Args)]}.
+
+desk_rec_words(create, _, Text, _, KL, Sum) :- dk_f("The KB ~w gets the new record(s) as a human's (orbit-kb add --by human).", [Text], KL), dk_f("new: ~w", [Text], Sum).
+desk_rec_words(replace, Rec, Text, Why, KL, Sum) :- dk_f("~w no longer counts (replaced). New: ~w. Why: ~w.", [Rec, Text, Why], KL), dk_f("~w replaced by ~w (~w)", [Rec, Text, Why], Sum).
+desk_rec_words(strike, Rec, _, Why, KL, Sum) :- dk_f("~w is struck: it no longer counts, and stays in kb.pl and in the report. Why: ~w.", [Rec, Why], KL), dk_f("~w struck (~w)", [Rec, Why], Sum).
+desk_rec_words(erase, Rec, _, Why, KL, Sum) :- dk_f("~w is erased: its line leaves kb.pl, one erased line stays. Why: ~w.", [Rec, Why], KL), dk_f("~w erased (~w)", [Rec, Why], Sum).
 
 % ---- a new requirement with no item behind it (c5, release 0.9.1): the control New requirement of the
 % top band. The plan is that of desk_plan_requirement/6 without a card: the same intake thread (what
@@ -9493,6 +9564,22 @@ desk_effect(kb_write(Dir, Facts), R) :-
     (   R0 == ok, member(signal(S, _, _, _), Facts), desk_still_pending(Dir, S) -> R = queued
     ;   R0 == ok, pending_open(Dir, Ps), Ps \== [], member(pending(_, _, Fs), Ps), member(F, Facts), memberchk(F, Fs) -> R = queued
     ;   R = R0
+    ).
+% kb_crud(+Dir, +Args) (kb-crud c5): the Desk runs orbit-kb with Args (add, replace, strike or erase, with --by human):
+% the same record as the command writes. With a KB that another session writes now, nothing is written.
+desk_effect(kb_crud(Dir, Args), R) :-
+    serve_conf(writer, W), serve_conf(script, Script),
+    lock_state(Dir, LS),
+    (   ( LS == none ; LS = held(W, _) )
+    ->  serve_child(Script, W, ['--dir', Dir|Args], Exit, Err),
+        ( LS == none -> serve_child(Script, W, ['--dir', Dir, release], _, _) ; true ),
+        (   Exit == 0
+        ->  R = ok
+        ;   split_string(Err, "", " \n", [E1]),
+            format(string(M), "Nothing was written. orbit-kb said: ~w", [E1]),
+            R = refused(409, M)
+        )
+    ;   R = refused(409, "Another session holds the writer lock of this KB now. Nothing was written. Try again in a minute.")
     ).
 desk_effect(kb_attest(Dir, Type, Subject, Pred, Extra), R) :-
     desk_attest_id(Dir, Id), utc_now(Now),

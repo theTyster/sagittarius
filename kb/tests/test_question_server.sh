@@ -52,6 +52,7 @@
 #   c14 q7 who holds what; question -> KB -> project KB; Orphaned with fixes Ty sends          : QS46
 #   c15 project KB items for Ty (a proposed fact, Ratify)                                     : QS47
 #   c15 Ratify of a proposed relation (excludes): the review, the human add, the warning      : QS77
+# hub spec KB kb-crud (2026-11-25): c5 on the Desk Ty creates, replaces, strikes and erases a record : QS78
 #   c16 one Desk for every mindhole that joined, in one step; the service unit                : QS48
 #   c18 q8 each check in words (fact, else script docstring), how it runs, its last run       : QS49
 #   c19 the owner session as one badge in the heading                                         : QS50
@@ -2198,6 +2199,30 @@ t_QS77() {  # Desk c15 (H-0166): Ty can ratify a proposed relation of a project 
     page_ok || return; chk raw "$T/page.html" '!excludes(d1,d2)'
 }
 
+t_QS78() {  # kb-crud c5: on the Desk Ty can create a record in a KB, and replace, strike and erase one; each form goes through the review and the send runs the command with --by human
+    desk_hub "$T/h"
+    srvd --hub "$T/h" || return; page_ok || return
+    local i; for i in create replace strike erase; do chk raw "$T/page.html" "name=\"intent\" value=\"$i\""; done
+    local tok kb; tok=$(pg dtoken "$T/page.html"); kb="$T/h/specs/exp"
+    review "token=$tok" "hub=$T/h" "item=rec:$kb" intent=strike "rec=k3" "why=a duplicate of k2"; code_is 200 "the review of Strike"
+    rj "any('k3' in r and 'struck' in r for r in d['records'])"
+    review "token=$tok" "hub=$T/h" "item=rec:$kb" intent=strike "rec=k77" "why=x"; code_is 409 "an unknown record is refused in the review"
+    review "token=$tok" "hub=$T/h" "item=rec:$kb" intent=strike "rec=k3"; code_is 400 "a strike with no reason is refused"
+    review "token=$tok" "hub=$T/h" "item=rec:$kb" intent=bogus "rec=k3" "why=x"; code_is 400 "an unknown intent is refused"
+    post /send "token=$tok" "hub=$T/h" "item=rec:$kb" intent=strike "rec=k3" "why=a duplicate of k2" "letter_0=Ty struck k3." to_0=process; code_is 303 "strike k3"
+    grep -q "^struck(k3, human, '[^']*', 'a duplicate of k2')" "$T/h/specs/exp/kb.pl" || note "the Desk did not write struck(k3, human, ...)"
+    review "token=$tok" "hub=$T/h" "item=rec:$kb" intent=create "text=question(q9, c1, 'A new question?')" ; code_is 200 "the review of New"
+    post /send "token=$tok" "hub=$T/h" "item=rec:$kb" intent=create "text=question(q9, c1, 'A new question?')" "letter_0=Ty added q9." to_0=process; code_is 303 "create q9"
+    grep -q "^question(q9, c1, 'A new question?')" "$T/h/specs/exp/kb.pl" || note "the Desk did not add q9"
+    post /send "token=$tok" "hub=$T/h" "item=rec:$kb" intent=erase "rec=q9" "why=added by mistake" "letter_0=Ty erased q9." to_0=process; code_is 303 "erase q9"
+    grep -q "^question(q9," "$T/h/specs/exp/kb.pl" && note "q9 is still in kb.pl after Erase"
+    grep -q "^erased(q9, human, " "$T/h/specs/exp/kb.pl" || note "no erased(q9, human, ...) line"
+    post /send "token=$tok" "hub=$T/h" "item=rec:$kb" intent=replace "rec=example(c1)#1" "text=example(c1, 'A better example')" "why=too vague" "letter_0=Ty replaced an example." to_0=process; code_is 303 "replace an example"
+    grep -q "A better example" "$T/h/specs/exp/kb.pl" && grep -q "^struck(at(example, c1, 1), human," "$T/h/specs/exp/kb.pl" || note "the replace did not add the new example and strike the old one"
+    wr process --dir "$kb" add "answer(qb, 'A', human)" --by human >/dev/null 2>&1; wr process --dir "$kb" replace "answer(qb)#1" "answer(qb, 'B', agent)" --disclose "Ty said B in the chat" >/dev/null 2>&1; wr process --dir "$kb" release >/dev/null 2>&1
+    page_ok || return; chk raw "$T/page.html" 'A record of yours was changed' 'Ty said B in the chat'
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -2211,6 +2236,6 @@ run_one() {  # run_one ID
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
 [ -n "${QS_LIB_ONLY:-}" ] && return 0   # test_desk_records.sh reads the harness above, and runs its own tests
-for n in $(seq 1 77); do run_one QS$n; done
+for n in $(seq 1 78); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
