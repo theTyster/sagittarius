@@ -31,6 +31,7 @@ import script as smod  # noqa: E402
 # The probability floor: an answer whose chosen label has a lower probability is unsure.
 # A guess of build (2026-11-25), not a decision of Ty: no question of the KB names a floor.
 FLOOR = 0.6
+ROWS_IN_PROTOCOL = 27  # rows of the table The protocol of docs/PHILOSOPHY.md (Philosophy 3.0.0)
 LABELS = ("met", "not_met", "does_not_apply")
 KINDS = LABELS + ("unsure", "failed")
 
@@ -104,15 +105,23 @@ def fmt(x):
 def write_report(out, criteria, table, results, requests, record, floor=FLOOR):
     os.makedirs(os.path.join(out, "targets"), exist_ok=True)
     by_id = {c["id"]: c for c in criteria}
-    lines = ["# Conformance report", ""]
+    lines = ["# Conformance report", "",
+             "**Not a conformance score.** The answers of System 1 in this run are recorded stubs "
+             "(for the fixture run-sample: hand-written by build, no model was called). No number "
+             "here is a conformance score until the experiments of c2 (controls) and c3 (System 1 "
+             "against labels) of the spec prompt-evals have run.", "",
+             f"The criteria are proposals that Ty has not judged: {len(criteria)} criteria for "
+             f"{len({c.get('row') for c in criteria})} of the {ROWS_IN_PROTOCOL} rows of The protocol "
+             "(proposed by: " + ", ".join(f"{who} {n}" for who, n in _by_proposer(criteria)) + ").", "",
+             f"The probability floor {floor} is a guess of build, not a decision of Ty.", ""]
     if record:
         lines += [f"Agent model: {record.get('agent_model')}. Prompt: {record.get('prompt_file')} "
                   f"(sha256 {record.get('prompt_sha256')}). Commit: {record.get('commit')}. "
                   f"System 1 hooks: {record.get('s1_hooks')}.", ""]
     lines += [f"Probability floor: {floor}. score = met / (met + not met); unsure and failed never "
               "count as met.", "",
-              "| Criterion | Row | Met | Not met | Does not apply | Unsure | Failed | Score |",
-              "|---|---|---|---|---|---|---|---|"]
+              "| Criterion | Row | Proposed by | Met | Not met | Does not apply | Unsure | Failed | Score |",
+              "|---|---|---|---|---|---|---|---|---|"]
     for cid, v in table.items():
         k = v["counts"]
         s = fmt(v["score"])
@@ -120,20 +129,54 @@ def write_report(out, criteria, table, results, requests, record, floor=FLOOR):
             s = f"[{s}](targets/{cid}.md)"
             write_target(os.path.join(out, "targets", f"{cid}.md"), by_id[cid], v, results, requests,
                          floor)
-        lines.append(f"| {cid} | {by_id[cid].get('row')} | {k['met']} | {k['not_met']} | "
+        lines.append(f"| {cid} | {by_id[cid].get('row')} | {by_id[cid].get('proposed_by', '?')} "
+                     f"(not judged by Ty) | {k['met']} | {k['not_met']} | "
                      f"{k['does_not_apply']} | {k['unsure']} | {k['failed']} | {s} |")
+    odd = [(cid, run, kind) for cid, v in table.items() for run, kind in v["runs"].items()
+           if kind in ("unsure", "failed")]
+    lines += ["", "Runs that were unsure (answer under the floor) or failed (no answer); none of "
+              "them counts in a score:", ""]
+    if odd:
+        for cid, v in table.items():
+            runs = v["runs"]
+            if runs and all(k == "failed" for k in runs.values()):
+                lines.append(f"- {cid}: failed in all {len(runs)} runs (no answer): "
+                             + ", ".join(runs))
+                continue
+            for run, kind in runs.items():
+                if kind not in ("unsure", "failed"):
+                    continue
+                ans = results[run].get(cid)
+                why = f"probability {probability(ans):.2f}" if kind == "unsure" else "no answer"
+                lines.append(f"- {cid}, {run}: {kind} ({why})")
+    else:
+        lines.append("- none")
     lines += ["", f"One number for the run (the mean of the criterion scores, equal weight; "
               f"criteria with no score left out): {fmt(overall(table))}", ""]
     with open(os.path.join(out, "report.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
 
+def _by_proposer(criteria):
+    counts = {}
+    for c in criteria:
+        who = c.get("proposed_by", "unknown")
+        counts[who] = counts.get(who, 0) + 1
+    return sorted(counts.items())
+
+
 def write_target(path, c, v, results, requests, floor):
     src = c.get("source") or {}
+    q = c.get("question") or {}
     lines = [f"# {c['id']}", "",
              f"Row {c.get('row')} of The protocol: {src.get('philosophy')}", "",
              f"Prompt: {src.get('prompt')}", "",
-             f"Score: {fmt(v['score'])}. Instrument: {c.get('instrument')}.", ""]
+             f"Score: {fmt(v['score'])}. Decided by: {c.get('instrument')}. Proposed by "
+             f"{c.get('proposed_by', '?')}; not judged by Ty.", "",
+             "The question that the judge got:", "", f"> {q.get('instructions')}", ""]
+    for label in ("met", "not_met", "does_not_apply"):
+        lines.append(f"- {label}: {(q.get('criteria') or {}).get(label)}")
+    lines.append("")
     for run, kind in v["runs"].items():
         if kind != "not_met":
             continue
@@ -141,7 +184,8 @@ def write_target(path, c, v, results, requests, floor):
         lines += [f"## {run}", "",
                   f"Answer: not_met, probability {probability(ans):.2f} (floor {floor}).",
                   "", "Answer as returned:", "", "```json", json.dumps(ans, ensure_ascii=False),
-                  "```", "", "Transcript:", "", "```text",
+                  "```", "", "Request of the human:", "", "```text",
+                  requests[run]["state"]["request"], "```", "", "Transcript:", "", "```text",
                   requests[run]["state"]["transcript"], "```", "",
                   "Delivery:", "", "```text", requests[run]["state"]["delivery"], "```", ""]
     with open(path, "w", encoding="utf-8") as f:

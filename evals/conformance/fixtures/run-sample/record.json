@@ -1,6 +1,6 @@
 {
  "_comment": "The record of the fixture run (hand-written by build, 2026-11-25; no session ran). runner.py record writes this form for a real run.",
- "agent_model": "claude-haiku-4-5",
+ "agent_model": "claude-haiku-5-5",
  "prompt_file": "prompt/SAGITTARIUS.md",
  "prompt_sha256": "63285c3155260a4bf7a057851c80b02f88eb9216835d2d010a9051bfdfe5d091",
  "commit": "cc64ef0",

@@ -7,7 +7,9 @@ only write a line to a file), it checks evals/conformance/runner.py:
 - a live run with no budget, and one with a budget under the estimate, print the plan (Haiku
   sessions, System 1 calls, the estimate with its arithmetic) and make no call;
 - a dry run prints the same plan and makes no call;
-- the default plan is the pilot of q4: 60 sessions, 152 System 1 calls, 7.63 USD;
+- a budget that is not finite (nan, inf) and a count under 1 (--tasks -1, which would make a
+  negative estimate) are refused with no call, even with a budget that would cover the estimate;
+- the default plan is the pilot of q4: 60 sessions, 152 System 1 calls, 2.83 USD;
 - a live run of 1 session with a budget at or above its estimate calls each stub once (so the
   gate is not a runner that never starts).
 At cc64ef0 there is no such runner, and evals/run_tools.sh takes no budget: the check fails.
@@ -40,7 +42,11 @@ def main(argv):
         for b in bad:
             print(b)
         return 1
-    tmp = tempfile.mkdtemp(prefix="k10-")
+    with tempfile.TemporaryDirectory(prefix="k10-") as tmp:
+        return checks(root, runner, tmp, bad)
+
+
+def checks(root, runner, tmp, bad):
     calls = os.path.join(tmp, "calls")
     env = dict(os.environ, K10_CALLS=calls, K10_TRANSCRIPT=os.path.join(
         root, "evals", "conformance", "fixtures", "run-sample", "transcripts", "t1-conforms.jsonl"))
@@ -69,7 +75,7 @@ def main(argv):
     text = "\n".join(plan)
     for need, pat in (("the Haiku sessions", r"Haiku sessions: 10 tasks x 2 arms x 3 runs = 60\b"),
                       ("the System 1 calls", r"System 1 calls: 152\b"),
-                      ("the estimate with its arithmetic", r"Estimate: 6\.00 \+ 1\.63 = 7\.63 USD")):
+                      ("the estimate with its arithmetic", r"Estimate: 1\.20 \+ 1\.63 = 2\.83 USD")):
         if not re.search(pat, text):
             bad.append(f"the plan does not state {need} of the pilot ({pat})")
     for label, args in (("a live run with no budget", ("live",)),
@@ -83,6 +89,16 @@ def main(argv):
             bad.append(f"{label} does not print the same plan")
         if label != "a dry run" and code == 0:
             bad.append(f"{label} exits 0, as if it ran")
+    for label, args in (("a budget of nan", ("live", "--budget", "nan")),
+                        ("a budget of inf", ("live", "--budget", "inf")),
+                        ("--tasks -1 with a budget of 1", ("live", "--tasks", "-1", "--budget", "1")),
+                        ("--runs 0 with a budget of 100", ("live", "--runs", "0", "--budget", "100"))):
+        before = n_calls()
+        code, out = run(*args)
+        if n_calls() != before:
+            bad.append(f"{label} called a model command")
+        if code == 0:
+            bad.append(f"{label} is not refused (exit 0)")
     before = n_calls()
     code, out = run("live", "--tasks", "1", "--arms", "1", "--runs", "1", "--budget", "100")
     if code != 0 or n_calls() - before != 2:

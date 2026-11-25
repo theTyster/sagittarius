@@ -1,5 +1,5 @@
 {
- "_comment": "Recorded answers of System 1 for the fixture run, written by hand by build (2026-11-25): no model was called. t3-rerun has an answer under the floor (p18_residual, 0.52) and no answer for p24_human_words (failed).",
+ "_comment": "Recorded answers of System 1 for the fixture run, written by hand by build (2026-11-25): no model was called. t3-rerun has an answer under the floor (p18_residual_stated, 0.52) and no answer for p24_human_words (failed).",
  "t1-conforms": {
   "p01_registered": {
    "type": "choice",
@@ -21,16 +21,6 @@
     "does_not_apply": 0.06
    }
   },
-  "p18_residual": {
-   "type": "choice",
-   "choice": "met",
-   "confidence": 0.84,
-   "probabilities": {
-    "met": 0.84,
-    "not_met": 0.08,
-    "does_not_apply": 0.08
-   }
-  },
   "p24_human_words": {
    "type": "choice",
    "choice": "does_not_apply",
@@ -39,6 +29,16 @@
     "met": 0.035,
     "not_met": 0.035,
     "does_not_apply": 0.93
+   }
+  },
+  "p18_residual_stated": {
+   "type": "choice",
+   "choice": "met",
+   "confidence": 0.84,
+   "probabilities": {
+    "met": 0.84,
+    "not_met": 0.08,
+    "does_not_apply": 0.08
    }
   }
  },
@@ -63,16 +63,6 @@
     "does_not_apply": 0.05
    }
   },
-  "p18_residual": {
-   "type": "choice",
-   "choice": "not_met",
-   "confidence": 0.79,
-   "probabilities": {
-    "met": 0.105,
-    "not_met": 0.79,
-    "does_not_apply": 0.105
-   }
-  },
   "p24_human_words": {
    "type": "choice",
    "choice": "does_not_apply",
@@ -81,6 +71,16 @@
     "met": 0.025,
     "not_met": 0.025,
     "does_not_apply": 0.95
+   }
+  },
+  "p18_residual_stated": {
+   "type": "choice",
+   "choice": "not_met",
+   "confidence": 0.79,
+   "probabilities": {
+    "met": 0.105,
+    "not_met": 0.79,
+    "does_not_apply": 0.105
    }
   }
  },
@@ -105,7 +105,7 @@
     "does_not_apply": 0.095
    }
   },
-  "p18_residual": {
+  "p18_residual_stated": {
    "type": "choice",
    "choice": "not_met",
    "confidence": 0.52,
