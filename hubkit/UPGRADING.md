@@ -95,6 +95,14 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.12.1 (a faster Desk; db schema 9, unchanged)
+
+This release pairs with Sagittarius 0.9.0. The db schema is 9: no `hubflow.py migrate` is needed. The
+engine (orbit-kb) changes: the Desk keeps what it built until a file, a tree walk or a clock time it
+rests on changes, and it adds the repo-map views (`share/repo-map/views.py`). A hub on 0.12.0 needs
+nothing but the upgrade. Restart the Desk after every joined hub is upgraded: one Desk serves every
+mindhole with its own tool version.
+
 ### 0.12.0 (one kind of hub: a hub needs the tool; db schema 9: the `goal` ref kind)
 
 Ty, 2026-11-23: the release for a hub with no tool is dropped. A hub needs the tool: the kit makes

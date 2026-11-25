@@ -759,4 +759,4 @@ could not compute is not a "no", and it is not a "yes": the help explains its ex
 A workspace, such as a hub, names its own tools, roles, and routing in its own instructions.
 Follow them there.
 
-This is Sagittarius 0.8.0 (2026-11-24).
+This is Sagittarius 0.9.0 (2026-11-25).

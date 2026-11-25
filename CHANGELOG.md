@@ -9,9 +9,9 @@ version did not go up.
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.8.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.9.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 3.0.0 | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.12.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.12.1 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 | s1-glance | 0.14.0 | `s1/glance/.claude-plugin/plugin.json` | the Sagittarius Signals mod |
 | desk-toast | 0.1.0 | `hubkit/hub/.claude/scripts/desk-toast/.claude-plugin/plugin.json` | the Desk toast mod |
 
@@ -41,6 +41,41 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.1.0 | the tag `v0.1.0-experiment` (2026-07-01) |
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
+
+## Sagittarius 0.9.0 and MindHole Kit 0.12.1 (2026-11-25)
+
+MINOR for Sagittarius: new commands and new refusals change what a session can do. PATCH for the
+kit: the hub's copy of orbit-kb changes, and the db schema stays 9. Four refinements after 0.8.0
+(hub spec KBs desk-speed-orbit-door, repo-map-flow, prompt-evals, system-1-questions):
+
+- **The Desk is faster** (stage 1 of desk-speed-orbit-door). An engine is kept until a file that it
+  read, a tree walk that it made, or a time that it compared with the clock changes; its stamp no
+  longer holds the minute. The facts of a project KB are made once per page. The tabs count the
+  cards that the page already made. The helper processes run at the same time. On copies of both
+  mindholes the first page after a start went from about 8 to 10 s to about 3 s, a warm page from
+  about 1.2 s to about 0.5 s, and the first page after a minute boundary from about 8.5 s to the warm
+  time. The page shows the same items. Not in this release: more than one worker, and actions that
+  do not load every mindhole again.
+- **repo-map draws Sagittarius** (repo-map-flow). `python3 kb/share/repo-map/views.py build` writes
+  `docs/map/sagittarius-map.html` and `.md`: a groups view (the modules of `MODULES.json` and their
+  parts) and a flow view (how the request and the eight record kinds move between the parts over
+  time). Each box and arrow names its source; `views.py check` goes red when a source is gone or a
+  module, store or attestation type is missing; `views.py trace KB_DIR` places the records of one
+  spec KB on the arrows. The arrows are written by hand in `kb/share/repo-map/sagittarius.views.json`.
+- **A first, offline harness for conformance evals** (prompt-evals). `evals/conformance/`: a criteria
+  file (5 sample criteria, each with its row of the Philosophy and its sentence of the prompt), the
+  step from a transcript to the questions of one System 1 request, a scorer that never counts an
+  unsure or failed answer as met, a report that links each low score to its transcripts, a run
+  record, and a runner that states the size and the cost of a run and makes no call without a budget
+  at or above it. No live run is in this release.
+- **System 1 replay and hints** (system-1-questions). `s1/replay.py` refuses a case file whose
+  thresholds have no time or a later one, a case made by a session that edited the question, and a
+  question whose text changed since the cases were made; a verdict is never meets when the false
+  hints are over their bound. The hint line of each of the four candidate trees is one line of at
+  most 240 characters, and stays off by default: `s1/questions.json` is unchanged.
+
+The defaults of the questions that the human had not answered were built as guesses; each spec KB
+names them.
 
 ## Sagittarius 0.8.0 and MindHole Kit 0.12.0 (2026-11-24)
 
